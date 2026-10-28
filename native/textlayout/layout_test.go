@@ -128,3 +128,44 @@ func TestVisibleBoundsAndCaretAtPointRespectViewport(t *testing.T) {
 		t.Fatalf("caret = %#v", caret)
 	}
 }
+
+func TestCaretUsesProseHeightAndVisualRow(t *testing.T) {
+	style := testStyle()
+	layout := NewCache().Update(testFlow(t, "one two three four five six seven eight nine ten", 0), 80, style)
+	caret := layout.Caret(0)
+	if caret.H != style.Prose.CaretHeight() || caret.W != 2 {
+		t.Fatalf("caret = %#v, prose=%#v", caret, style.Prose)
+	}
+	if caret.Y < (style.Prose.LineHeight()-style.Prose.CaretHeight())/2 ||
+		caret.Y > style.Prose.LineHeight() {
+		t.Fatalf("wrapped first-row caret Y = %v", caret.Y)
+	}
+}
+
+func TestParagraphStartMapsToFollowingParagraph(t *testing.T) {
+	style := testStyle()
+	layout := NewCache().Update(testFlow(t, "a\nb", 0), 300, style)
+	first := layout.Caret(0)
+	second := layout.Caret(2)
+	if second.Y <= first.Y || second.Y < style.Prose.LineHeight() {
+		t.Fatalf("carets first=%#v second=%#v", first, second)
+	}
+}
+
+func TestNewlineSelectionUsesOneLineHeight(t *testing.T) {
+	style := testStyle()
+	text := "one two three four five six seven eight nine\nten"
+	layout := NewCache().Update(testFlow(t, text, 0), 80, style)
+	rects := layout.RangeRects(model.NewUTF16Range(
+		0,
+		model.UTF16Offset(model.StringLenUTF16(text)),
+	))
+	if len(rects) == 0 {
+		t.Fatal("selection produced no rectangles")
+	}
+	for _, rect := range rects {
+		if rect.H != style.Prose.LineHeight() {
+			t.Fatalf("selection row height = %v, want %v", rect.H, style.Prose.LineHeight())
+		}
+	}
+}

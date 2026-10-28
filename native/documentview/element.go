@@ -25,23 +25,39 @@ type TextInput interface {
 // Element is the reusable custom writing surface. It owns retained paragraph
 // layout and contractual caret/selection motion, but not the document.
 type Element struct {
-	Input         TextInput
-	Theme         theme.Theme
-	Prose         theme.ProseStyle
-	Animate       bool
-	Typewriter    bool
-	Label         string
-	AutoFocus     bool
-	Placeholder   string
-	Layout        *textlayout.Cache
-	Motion        *motion.Motion
-	scroll        float32
-	lastHeight    float32
-	manualUntil   time.Time
-	pointerAnchor int
-	dragging      bool
-	focusPending  bool
-	current       *textlayout.Layout
+	Input             TextInput
+	Theme             theme.Theme
+	Prose             theme.ProseStyle
+	Animate           bool
+	Typewriter        bool
+	Label             string
+	AutoFocus         bool
+	Placeholder       string
+	Layout            *textlayout.Cache
+	Motion            *motion.Motion
+	Title             string
+	UIFontSize        float32
+	BottomInset       float32
+	scroll            float32
+	lastHeight        float32
+	manualUntil       time.Time
+	pointerAnchor     int
+	dragging          bool
+	focusPending      bool
+	current           *textlayout.Layout
+	placeholderLayout *ui.TextLayout
+	placeholderKey    placeholderKey
+	titleLayout       *ui.TextLayout
+	titleKey          placeholderKey
+	lastCaretY        float32
+	lastViewportH     float32
+}
+
+type placeholderKey struct {
+	Text       string
+	FontSize   float32
+	LineHeight float32
+	Width      float32
 }
 
 func NewElement(
@@ -141,7 +157,6 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 			e.pointerAnchor = offset
 		}
 		e.dragging = true
-		e.Motion.ResetGeometry()
 		return e.Input.Select(anchor, offset, event.Time) == nil
 	case ui.InputPointerMove:
 		if !e.dragging || e.current == nil || event.Button != 0 {
@@ -171,7 +186,10 @@ func (e *Element) hit(x, y float32) int {
 	if e == nil || e.current == nil {
 		return 0
 	}
-	return int(e.current.Hit(ui.Point{X: x, Y: y + e.scroll}))
+	return int(e.current.Hit(ui.Point{
+		X: x,
+		Y: y + e.scroll - e.contentTop(),
+	}))
 }
 
 func (e *Element) wordAt(offset int) (struct{ Start, End int }, bool) {
@@ -203,7 +221,6 @@ func (e *Element) caret(c *ui.Context) ui.Rect {
 		return ui.Rect{}
 	}
 	rect := ui.Rect{X: bounds.X, Y: bounds.Y, W: bounds.W, H: bounds.H}
-	rect.Y -= e.scroll
 	return rect
 }
 
@@ -220,24 +237,105 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused bool) {
 	style := textlayout.NewStyle(e.Prose, e.Theme)
 	e.lastHeight = rect.H
 	e.current = e.Layout.Update(flow, rect.W, style)
-	caret := e.current.Caret(frame.Caret())
-	e.revealCaret(e.current, caret.Y, p.Now())
-	if e.Animate {
-		p.AnimationFrame()
+	title := e.title(rect.W)
+	if title != nil {
+		p.TextLayout(title, rect.X, rect.Y-e.scroll, e.Theme.Prose.Heading)
+	}
+	contentTop := e.contentTop()
+	caret := productCaret(e.current.Caret(frame.Caret()), e.Prose)
+	caret.Y += contentTop
+	if e.lastCaretY != caret.Y || e.lastViewportH != rect.H {
+		e.Motion.Activity(p.Now())
+		e.revealCaret(e.current, caret.Y, p.Now())
+		e.lastCaretY = caret.Y
+		e.lastViewportH = rect.H
 	}
 	e.advanceScroll(p.Now())
+	maxScroll := max(0, e.current.Height()+contentTop+e.BottomInset-rect.H)
+	e.scroll = max(0, min(e.scroll, maxScroll))
 	state := &State{
-		Flow:        flow,
-		Frame:       frame,
-		Layout:      e.current,
-		Motion:      e.Motion,
-		Theme:       e.Theme,
-		Prose:       e.Prose,
-		ScrollY:     e.scroll,
-		Focused:     focused,
-		Animate:     e.Animate,
-		Placeholder: e.Placeholder,
+		Flow:              flow,
+		Frame:             frame,
+		Layout:            e.current,
+		Motion:            e.Motion,
+		Theme:             e.Theme,
+		Prose:             e.Prose,
+		ScrollY:           e.scroll,
+		Focused:           focused,
+		Animate:           e.Animate,
+		Placeholder:       e.Placeholder,
+		PlaceholderLayout: e.placeholder(rect.W),
+		PointerActive:     e.dragging,
+		Composing:         bridge.Controller.IsComposing(),
+		ContentTop:        contentTop,
 	}
 	Paint(p, rect, state)
-	bridge.Controller.SetGeometry(LayoutGeometry{Layout: e.current})
+	bridge.Controller.SetGeometry(LayoutGeometry{
+		Layout: e.current, YOffset: contentTop, ScrollY: e.scroll,
+	})
+}
+
+func productCaret(caret ui.Rect, prose theme.ProseStyle) ui.Rect {
+	height := min(caret.H, prose.CaretHeight())
+	caret.Y += (caret.H - height) / 2
+	caret.H = height
+	caret.W = 2
+	return caret
+}
+
+func (e *Element) placeholder(width float32) *ui.TextLayout {
+	if e.Placeholder == "" || width <= 0 {
+		return nil
+	}
+	key := placeholderKey{
+		Text:       e.Placeholder,
+		FontSize:   e.Prose.FontSize,
+		LineHeight: e.Prose.LineHeight(),
+		Width:      width,
+	}
+	if e.placeholderLayout != nil && e.placeholderKey == key {
+		return e.placeholderLayout
+	}
+	font := ui.Font{
+		Family:     theme.ProseFontFamily,
+		Size:       e.Prose.FontSize,
+		LineHeight: e.Prose.LineHeight() / e.Prose.FontSize,
+	}
+	e.placeholderLayout = ui.ShapeText(e.Placeholder, font, width)
+	e.placeholderKey = key
+	return e.placeholderLayout
+}
+
+func (e *Element) title(width float32) *ui.TextLayout {
+	if e.Title == "" || width <= 0 {
+		return nil
+	}
+	key := placeholderKey{
+		Text:       e.Title,
+		FontSize:   e.Prose.TitleSize(),
+		LineHeight: e.Prose.TitleLineHeight(),
+		Width:      width,
+	}
+	if e.titleLayout != nil && e.titleKey == key {
+		return e.titleLayout
+	}
+	font := ui.Font{
+		Family:     theme.ProseFontFamily,
+		Size:       e.Prose.TitleSize(),
+		LineHeight: e.Prose.TitleLineHeight() / e.Prose.TitleSize(),
+	}
+	e.titleLayout = ui.ShapeText(e.Title, font, width)
+	e.titleKey = key
+	return e.titleLayout
+}
+
+func (e *Element) contentTop() float32 {
+	if e.Title == "" {
+		return 0
+	}
+	scale := e.UIFontSize
+	if scale <= 0 {
+		scale = theme.DefaultUIFontSize
+	}
+	return e.Prose.TitleLineHeight() + theme.Space24.DIPs(scale)
 }

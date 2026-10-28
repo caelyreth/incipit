@@ -10,11 +10,21 @@ import (
 func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 	paragraph, local := l.paragraphAt(offset)
 	if paragraph == nil {
-		return ui.Rect{Y: l.height - l.style.Prose.LineHeight(), H: l.style.Prose.LineHeight()}
+		lineHeight := l.style.Prose.LineHeight()
+		height := l.style.Prose.CaretHeight()
+		return ui.Rect{
+			Y: l.height - lineHeight + (lineHeight-height)/2,
+			W: 2,
+			H: height,
+		}
 	}
 	caret := paragraph.layout.Caret(local)
 	caret.Y += paragraph.top
-	caret.H = paragraph.height
+	lineHeight := l.style.Prose.LineHeight()
+	height := l.style.Prose.CaretHeight()
+	caret.Y += (lineHeight - height) / 2
+	caret.W = 2
+	caret.H = height
 	return caret
 }
 
@@ -60,7 +70,7 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			caret := paragraph.layout.Caret(paragraph.contentUTF16 - paragraph.startUTF16)
 			caret.Y += paragraph.top
 			caret.W = 6
-			caret.H = paragraph.height
+			caret.H = l.style.Prose.LineHeight()
 			rects = append(rects, caret)
 		}
 	}
@@ -138,7 +148,7 @@ func (l *Layout) paragraphAt(offset model.UTF16Offset) (*Paragraph, int) {
 		return nil, 0
 	}
 	index := sort.Search(len(l.paragraphs), func(index int) bool {
-		return l.paragraphs[index].endUTF16 >= value
+		return l.paragraphs[index].endUTF16 > value
 	})
 	if index == len(l.paragraphs) {
 		return nil, 0

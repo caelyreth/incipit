@@ -25,7 +25,8 @@ func (e *Element) revealCaret(layout *textlayout.Layout, caret float32, now time
 	if !changed {
 		return
 	}
-	maxOffset := max(0, layout.Height()-e.lastHeight)
+	contentHeight := layout.Height() + e.contentTop() + e.BottomInset
+	maxOffset := max(0, contentHeight-e.lastHeight)
 	target = max(0, min(target, maxOffset))
 	e.Motion.ScrollTo(e.scroll, target, now)
 }

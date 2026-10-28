@@ -26,12 +26,14 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	}
 	now := p.Now()
 	caret := state.Layout.Caret(state.Frame.Caret())
+	caret = productCaret(caret, state.Prose)
 	selection := state.Layout.RangeRects(state.Frame.Selection())
+	geometryAnimate := state.Animate && !state.PointerActive
 	animatedCaret, animatedSelection := state.Motion.Geometry(
 		caret,
 		selection,
 		now,
-		state.Animate,
+		geometryAnimate,
 	)
 	options := PaintOptions{
 		Now:     now,
@@ -41,29 +43,31 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	p.Clip(rect, 0, func() {
 		drawRangeFills(p, rect, state, animatedSelection)
 		drawText(p, rect, state)
-		drawPlaceholder(p, rect, state, caret)
+		drawPlaceholder(p, rect, state)
 		drawRangeRules(p, rect, state, options)
-		if state.Focused {
+		if state.Focused && state.Frame.Selection().Empty() && !state.Composing {
 			drawCaret(p, rect, state, options, animatedCaret)
 		}
 		drawGuides(p, rect, state, options)
 	})
-	if state.Animate && (state.Motion.Moving() || decorationsMoving(state.Frame, options)) {
+	if geometryAnimate && state.Motion.Moving() {
 		p.AnimationFrame()
 	}
+	if state.Animate && decorationsMoving(state.Frame, options) {
+		p.AnimationFrame()
+	}
+	scheduleDecorationDeadline(p, state.Frame, now)
+	scheduleCaretBreathing(p, state, now)
 }
 
-func drawPlaceholder(p *ui.Painter, rect ui.Rect, state *State, caret ui.Rect) {
-	if state.Placeholder == "" || state.Flow.Text() != "" {
+func drawPlaceholder(p *ui.Painter, rect ui.Rect, state *State) {
+	if state.PlaceholderLayout == nil || state.Flow.Text() != "" {
 		return
 	}
-	caret.X += rect.X
-	caret.Y += rect.Y - state.ScrollY
-	p.Text(
-		caret.X,
-		caret.Y,
-		state.Placeholder,
-		state.Prose.FontSize,
+	p.TextLayout(
+		state.PlaceholderLayout,
+		rect.X,
+		rect.Y+state.ContentTop-state.ScrollY,
 		state.Theme.Text.Muted.Alpha(0.65),
 	)
 }
@@ -71,7 +75,7 @@ func drawPlaceholder(p *ui.Painter, rect ui.Rect, state *State, caret ui.Rect) {
 func drawRangeFills(p *ui.Painter, rect ui.Rect, state *State, selection []ui.Rect) {
 	for _, bounds := range selection {
 		bounds.X += rect.X
-		bounds.Y += rect.Y - state.ScrollY
+		bounds.Y += rect.Y + state.ContentTop - state.ScrollY
 		p.Fill(bounds, state.Theme.Prose.Selection, 0)
 	}
 }
@@ -79,7 +83,7 @@ func drawRangeFills(p *ui.Painter, rect ui.Rect, state *State, selection []ui.Re
 func drawText(p *ui.Painter, rect ui.Rect, state *State) {
 	visible := p.Visible()
 	for _, paragraph := range state.Layout.Paragraphs() {
-		top := rect.Y + paragraph.Top() - state.ScrollY
+		top := rect.Y + state.ContentTop + paragraph.Top() - state.ScrollY
 		if top+paragraph.Height() < visible.Y || top > visible.Y+visible.H {
 			continue
 		}
@@ -114,7 +118,7 @@ func drawRangeRules(
 				bounds.Y += bounds.H - thickness
 				bounds.H = thickness
 				bounds.X += rect.X
-				bounds.Y += rect.Y - state.ScrollY
+				bounds.Y += rect.Y + state.ContentTop - state.ScrollY
 				p.Fill(bounds, color, 0)
 			}
 		}
@@ -135,13 +139,8 @@ func drawCaret(
 	if alpha <= 0 {
 		return
 	}
-	height := max(1, state.Prose.CaretHeight())
-	caretHeight := min(caret.H, height)
-	caret.Y += (caret.H - caretHeight) / 2
-	caret.W = 2
-	caret.H = caretHeight
 	caret.X += rect.X
-	caret.Y += rect.Y - state.ScrollY
+	caret.Y += rect.Y + state.ContentTop - state.ScrollY
 	p.Fill(caret, state.Theme.Accent.Foreground.Alpha(alpha), 1)
 }
 
@@ -162,7 +161,7 @@ func drawGuides(
 		}
 		caret := state.Layout.Caret(decoration.Primitive.At)
 		x := rect.X + caret.X
-		y := rect.Y + caret.Y - state.ScrollY
+		y := rect.Y + state.ContentTop + caret.Y - state.ScrollY
 		if y+caret.H < rect.Y || y > rect.Y+rect.H {
 			continue
 		}
@@ -186,6 +185,37 @@ func decorationsMoving(frame *surface.Frame, options PaintOptions) bool {
 		}
 	}
 	return false
+}
+
+func scheduleDecorationDeadline(p *ui.Painter, frame *surface.Frame, now time.Time) {
+	if p == nil || frame == nil {
+		return
+	}
+	var earliest time.Time
+	for _, decoration := range frame.Decorations() {
+		deadline, ok := decoration.Deadline()
+		if !ok || !deadline.After(now) {
+			continue
+		}
+		if earliest.IsZero() || deadline.Before(earliest) {
+			earliest = deadline
+		}
+	}
+	if !earliest.IsZero() {
+		p.After(earliest.Sub(now))
+	}
+}
+
+func scheduleCaretBreathing(p *ui.Painter, state *State, now time.Time) {
+	if p == nil || state == nil || !state.Focused || !state.Animate ||
+		state.PointerActive || state.Composing || !state.Frame.Selection().Empty() {
+		return
+	}
+	if deadline, ok := state.Motion.CaretWakeAt(now); ok {
+		p.After(deadline.Sub(now))
+		return
+	}
+	p.AnimationFrame()
 }
 
 func roleColor(semantic theme.Theme, role surface.ColorRole) ui.Color {

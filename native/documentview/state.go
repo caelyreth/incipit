@@ -7,17 +7,22 @@ import (
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/ui"
 )
 
 type State struct {
-	Flow        *surface.Flow
-	Frame       *surface.Frame
-	Layout      *textlayout.Layout
-	Motion      *motion.Motion
-	Theme       theme.Theme
-	Prose       theme.ProseStyle
-	ScrollY     float32
-	Focused     bool
-	Animate     bool
-	Placeholder string
+	Flow              *surface.Flow
+	Frame             *surface.Frame
+	Layout            *textlayout.Layout
+	Motion            *motion.Motion
+	Theme             theme.Theme
+	Prose             theme.ProseStyle
+	ScrollY           float32
+	Focused           bool
+	Animate           bool
+	Placeholder       string
+	PlaceholderLayout *ui.TextLayout
+	PointerActive     bool
+	Composing         bool
+	ContentTop        float32
 }

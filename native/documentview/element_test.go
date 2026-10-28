@@ -133,3 +133,31 @@ func TestEmptyDocumentPaintsReferencePlaceholder(t *testing.T) {
 		t.Fatal("document produced no placeholder frame")
 	}
 }
+
+func TestNativeTextCaretUsesProseCaretHeight(t *testing.T) {
+	document, err := controller.NewTextDocument("wrapped text", nativeClock{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := NewBridge(document, nil, func() time.Time {
+		return time.Unix(1_700_000_000, 0)
+	})
+	settings := theme.DefaultSettings()
+	element := NewElement(
+		input,
+		settings.Semantic(),
+		theme.NewProseStyle(settings.ProseFontSize),
+		time.Unix(1_700_000_000, 0),
+	)
+	tester := ui.NewTester(func(c *ui.Context) {
+		element.View(c)
+	}, 180, 240)
+	tester.Frame()
+	caret, ok := tester.TextCaret()
+	if !ok {
+		t.Fatal("native text caret unavailable")
+	}
+	if want := element.Prose.CaretHeight(); caret.H != want || caret.W != 2 {
+		t.Fatalf("native caret = %#v, want height %v", caret, want)
+	}
+}

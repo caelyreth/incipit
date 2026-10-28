@@ -10,7 +10,9 @@ import (
 // LayoutGeometry adapts a retained MyGo text layout to the controller's
 // geometry contract. It uses the visible controller text for range validation.
 type LayoutGeometry struct {
-	Layout *textlayout.Layout
+	Layout  *textlayout.Layout
+	YOffset float32
+	ScrollY float32
 }
 
 var _ controller.Geometry = LayoutGeometry{}
@@ -39,7 +41,12 @@ func (g LayoutGeometry) BoundsForRange(
 			End:   int(aligned.End),
 		}, false
 	}
-	return controller.Rect{X: rect.X, Y: rect.Y, W: rect.W, H: rect.H},
+	return controller.Rect{
+			X: rect.X,
+			Y: rect.Y + g.YOffset - g.ScrollY,
+			W: rect.W,
+			H: rect.H,
+		},
 		controller.UTF16Range{Start: int(aligned.Start), End: int(aligned.End)},
 		true
 }
@@ -51,5 +58,8 @@ func (g LayoutGeometry) IndexForPoint(
 	if g.Layout == nil {
 		return 0, false
 	}
-	return int(g.Layout.Hit(ui.Point{X: point.X, Y: point.Y})), true
+	return int(g.Layout.Hit(ui.Point{
+		X: point.X,
+		Y: point.Y + g.ScrollY - g.YOffset,
+	})), true
 }
