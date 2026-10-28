@@ -121,6 +121,30 @@ func TestTypographyMovesColonOutsideClosingQuotes(t *testing.T) {
 	}
 }
 
+func TestTypographyDoesNotScanBeforeLineStartForClosingQuote(t *testing.T) {
+	t.Parallel()
+	for _, text := range []string{"”"} {
+		head := utf16Offset(text)
+		batch, ok := PlanTypography(text, head, allTypography())
+		if !ok {
+			t.Fatalf("%q plan failed", text)
+		}
+		result, _, ok := ApplyCorrections(text, head, batch)
+		if !ok || result != text {
+			t.Errorf("%q = %q, want unchanged", text, result)
+		}
+	}
+	head := utf16Offset("”.")
+	batch, ok := PlanTypography("”./", head, allTypography())
+	if !ok {
+		t.Fatal("closing quote period plan failed")
+	}
+	result, _, ok := ApplyCorrections("”./", head, batch)
+	if !ok || result != ".”/" {
+		t.Fatalf("closing quote period = %q, ok=%v", result, ok)
+	}
+}
+
 func TestTypographyRespectsIndependentSettings(t *testing.T) {
 	t.Parallel()
 	for _, settings := range []TypographySettings{{}, {Symbols: true}, {Punctuation: true}} {

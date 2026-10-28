@@ -53,6 +53,14 @@ func TestEnclosingUTF16RangeRejectsSurrogateInteriors(t *testing.T) {
 	}
 }
 
+func TestPlanSelectionUnitAlwaysReturnsForwardRange(t *testing.T) {
+	t.Parallel()
+	got, err := PlanSelectionUnit("Hello world.", 7, SelectionWord)
+	if err != nil || got != model.NewUTF16Range(6, 11) {
+		t.Fatalf("unit range = %#v, err=%v", got, err)
+	}
+}
+
 func TestPlanWordCommandMovementExtensionAndDeletion(t *testing.T) {
 	t.Parallel()
 	text := "Hello world. 中文测试！\nNext line."

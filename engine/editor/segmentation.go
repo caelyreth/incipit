@@ -184,11 +184,18 @@ func GraphemeAt(text string, offset model.UTF16Offset) (model.UTF16Range, bool) 
 }
 
 func wordLike(value string) bool {
-	hasLetter := false
-	hasNumber := false
+	wordCharacter := false
 	for _, r := range value {
-		hasLetter = hasLetter || unicode.IsLetter(r)
-		hasNumber = hasNumber || unicode.IsNumber(r)
+		if unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsMark(r) {
+			wordCharacter = true
+			continue
+		}
+		if r == '\'' || r == '.' || r == '_' || r == ':' {
+			continue
+		}
+		if wordCharacter {
+			return false
+		}
 	}
-	return hasLetter || hasNumber
+	return wordCharacter
 }

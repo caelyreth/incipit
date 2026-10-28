@@ -175,8 +175,11 @@ func typographyCorrections(
 		fromByte := int(byte) - len(string(last))
 		from := head - 1
 		for {
+			if fromByte <= 0 || from <= 0 {
+				break
+			}
 			quote, size := lastRune(text[:fromByte])
-			if size == 0 || !closing(fromByte-size, quote) {
+			if size == 0 || fromByte-size < 0 || !closing(fromByte-size, quote) {
 				break
 			}
 			fromByte -= size
