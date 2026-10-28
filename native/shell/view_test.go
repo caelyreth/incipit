@@ -267,7 +267,7 @@ func TestIconControlsAreKeyboardReachableAndSidebarSearchFiltersPages(t *testing
 	}
 }
 
-func TestSidebarShowsReferenceFooterAndEmptySearch(t *testing.T) {
+func TestSidebarShowsHeadingAndEmptySearchWithoutFooter(t *testing.T) {
 	state := New()
 	state.Pages = []Page{{ID: "one", Title: "First"}}
 	state.ActivePage = "one"
@@ -277,14 +277,17 @@ func TestSidebarShowsReferenceFooterAndEmptySearch(t *testing.T) {
 	for _, text := range []string{
 		"Your pages · 1",
 		"No pages match your search.",
-		"Kept in this session",
 	} {
 		if !tester.HasText(text) {
 			t.Fatalf("missing %q in %#v", text, tester.Texts())
 		}
 	}
+	if tester.HasText("Kept in this session") {
+		t.Fatal("sidebar still shows its footer")
+	}
+	// Settings stays reachable from the header alone.
 	if _, ok := tester.Find("Open settings"); !ok {
-		t.Fatal("sidebar settings control is missing")
+		t.Fatal("header settings control is missing")
 	}
 }
 

@@ -30,7 +30,7 @@ func (a *AppState) OpenSettingsWindow() {
 		Parent:               a.mainWindow,
 		TitleBarStyle:        mygo.TitleBarHidden,
 		TitleBarHeight:       40,
-		TrafficLightPosition: &mygo.Point{X: 9, Y: 13},
+		TrafficLightPosition: trafficLights(),
 		StateKey:             "neverland.settings",
 		Content:              ui.View(a.Settings.View),
 		BackgroundColor:      colorHex(semantic.Surface.Background),

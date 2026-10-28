@@ -18,7 +18,10 @@ func (s *State) header(
 	scale := s.Settings.UIFontSize
 	height := layout.Titlebar * scale / theme.DefaultUIFontSize * chrome
 	left := max(bar.Left, layout.TrafficLightInset*scale/theme.DefaultUIFontSize)
-	right := layout.HeaderInset * scale / theme.DefaultUIFontSize
+	// Subtle icon buttons center a 16 DIP glyph, so the glyph, which is what
+	// shows, sits half the remaining width inside the button's edge.
+	glyphInset := (theme.DefaultControls.Height - 16) / 2
+	right := (layout.ChromeGutter - glyphInset) * scale / theme.DefaultUIFontSize
 	leadingWidth := ((layout.Sidebar-140)*reveal + 140) * scale / theme.DefaultUIFontSize
 	animate := s.animate(c)
 

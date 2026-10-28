@@ -29,7 +29,7 @@ func (s *State) sidebar(
 			ui.Column(c).Grow(1).MinHeight(0).Padding(
 				theme.Space12.DIPs(scale),
 				theme.Space12.DIPs(scale),
-				0,
+				theme.Space12.DIPs(scale),
 				theme.Space12.DIPs(scale),
 			).Children(func() {
 				components.TextField{
@@ -79,27 +79,6 @@ func (s *State) sidebar(
 						}
 					})
 				})
-			})
-			ui.Row(c).Shrink(0).Padding(
-				theme.Space08.DIPs(scale),
-				theme.Space12.DIPs(scale),
-				theme.Space08.DIPs(scale),
-				theme.Space12.DIPs(scale),
-			).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-				BorderWidth(1, 0, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
-				components.IconButton{
-					Key: "sidebar-settings", Label: "Open settings",
-					Icon: components.IconSettings.SVG(), Style: components.SubtleButton,
-					Size: components.MediumButton, IconSize: 16 * scale / theme.DefaultUIFontSize,
-					Animate: animate,
-					Action: func() {
-						if s.OpenSettings != nil {
-							s.OpenSettings()
-						}
-					},
-				}.View(c, semantic)
-				components.Label(c, "Kept in this session", theme.TextXSmall,
-					semantic.Text.Muted).SingleLine()
 			})
 		})
 	})

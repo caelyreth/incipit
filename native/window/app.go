@@ -27,7 +27,7 @@ func Run() error {
 			MinWidth:             760,
 			MinHeight:            420,
 			TitleBarStyle:        mygo.TitleBarHidden,
-			TrafficLightPosition: &mygo.Point{X: 9, Y: 13},
+			TrafficLightPosition: trafficLights(),
 			StateKey:             "neverland.main",
 			Content:              ui.View(state.View),
 		})
@@ -42,6 +42,13 @@ func Run() error {
 		app.mainWindow = window
 	})
 	return mygo.App.Run()
+}
+
+// trafficLights places the close button's leading edge on the chrome gutter,
+// aligned with the sidebar and settings search fields below it, and centers
+// the controls vertically in the title bar.
+func trafficLights() *mygo.Point {
+	return &mygo.Point{X: int(theme.DefaultLayout.ChromeGutter), Y: 13}
 }
 
 func MustRun() {

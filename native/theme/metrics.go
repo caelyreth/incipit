@@ -1,5 +1,9 @@
 package theme
 
+// Layout is the window's reference geometry at the 16 DIP UI size.
+// ChromeGutter is the gap between the window edge and the first visible
+// chrome: the sidebar and settings search fields, the macOS traffic lights,
+// and the header's trailing icon glyphs.
 type Layout struct {
 	Sidebar           float32
 	Titlebar          float32
@@ -8,7 +12,7 @@ type Layout struct {
 	ReadingTop        float32
 	ReadingBottom     float32
 	TitleBottom       float32
-	HeaderInset       float32
+	ChromeGutter      float32
 	ContentGutter     float32
 	TrafficLightInset float32
 	Tab               float32
@@ -23,7 +27,7 @@ var DefaultLayout = Layout{
 	ReadingTop:        64,
 	ReadingBottom:     150,
 	TitleBottom:       24,
-	HeaderInset:       12,
+	ChromeGutter:      12,
 	ContentGutter:     24,
 	TrafficLightInset: 96,
 	Tab:               30,
