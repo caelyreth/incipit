@@ -111,3 +111,28 @@ func (s TextSize) LineHeight(uiFontSize float32) float32 {
 	}
 	return reference * uiFontSize / DefaultUIFontSize
 }
+
+// HeadlineSize is the chrome-page heading scale. Document titles use
+// ProseStyle instead.
+type HeadlineSize uint8
+
+const (
+	HeadlineSmall HeadlineSize = iota + 1
+	HeadlineMedium
+	HeadlineXLarge
+)
+
+func (s HeadlineSize) Size(uiFontSize float32) float32 {
+	scale := float32(1)
+	switch s {
+	case HeadlineMedium:
+		scale = 1.125
+	case HeadlineXLarge:
+		scale = 1.43
+	}
+	return uiFontSize * scale
+}
+
+// HeadlineLineHeight is the source-defined relative leading for chrome
+// headings.
+const HeadlineLineHeight = float32(1.4)

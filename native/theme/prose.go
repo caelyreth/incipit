@@ -4,7 +4,7 @@ import "math"
 
 const (
 	ProseFontFamily    = "Noto Serif CJK SC"
-	UIFontFamily       = ".SystemUIFont"
+	UIFontFamily       = "system-ui"
 	referenceFontSize  = float32(19)
 	referenceLine      = float32(34)
 	referenceCaret     = float32(25)

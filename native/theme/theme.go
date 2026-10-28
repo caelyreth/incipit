@@ -249,10 +249,12 @@ func (s Settings) MyGoTheme() *ui.Theme {
 	result.Selection = semantic.Prose.Selection
 	result.Focus = semantic.Border.Focused
 	result.Scrollbar = semantic.Scrollbar.Thumb
-	result.ScrollbarWidth = 6
-	result.Radius = 8
-	result.Spacing = 4
+	scale := normalized.UIFontSize / DefaultUIFontSize
+	result.ScrollbarWidth = 6 * scale
+	result.Radius = 8 * scale
+	result.Spacing = 4 * scale
 	result.FontSize = normalized.UIFontSize
+	result.Font = UIFontFamily
 	return result
 }
 
