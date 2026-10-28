@@ -82,6 +82,29 @@ func (f *Flow) Runs() []StyleRun {
 	return append([]StyleRun(nil), f.runs...)
 }
 
+// UTF16Units reports the UTF-16 length of bytes start to end without
+// materializing the prefix.
+func (f *Flow) UTF16Units(start, end int) int {
+	start = max(0, min(start, len(f.text)))
+	end = max(0, min(end, len(f.text)))
+	if start >= end {
+		return 0
+	}
+	startUnits := 0
+	if start > 0 {
+		if offset, ok := f.UTF16OfByte(model.ByteOffset(start)); ok {
+			startUnits = int(offset)
+		}
+	}
+	endUnits := int(f.UTF16Len())
+	if end < len(f.text) {
+		if offset, ok := f.UTF16OfByte(model.ByteOffset(end)); ok {
+			endUnits = int(offset)
+		}
+	}
+	return max(0, endUnits-startUnits)
+}
+
 func (f *Flow) ByteOfUTF16(offset model.UTF16Offset) (model.ByteOffset, bool) {
 	target := int(offset)
 	if target < 0 || target > int(f.UTF16Len()) {
