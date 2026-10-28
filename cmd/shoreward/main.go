@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/caelyreth/neverland/native/window"
 )
 
 const version = "0.1.0-dev"
@@ -12,7 +14,5 @@ func main() {
 		fmt.Println(version)
 		return
 	}
-	fmt.Fprintln(os.Stderr, "neverland: application composition is not wired yet")
-	os.Exit(1)
+	window.MustRun()
 }
-
