@@ -16,3 +16,22 @@ Fixtures must include:
 Raw captures are ignored under `raw/`. Committed fixtures should be small,
 deterministic, and referenced by Go tests.
 
+## Current fixture
+
+`v1.json` is generated from the Rust engine at
+`3fff58e089e57529bc725935cd37a2da63071f0b` with:
+
+```sh
+fixtures/rust-oracle/generate.sh
+```
+
+It covers:
+
+- UTF-8/UTF-16/scalar boundary conversions;
+- native UTF-16 query alignment;
+- anchor rebasing under insertions, replacements, and deletions;
+- inline mark rebasing, identity, level changes, and deletion;
+- semantic character and paragraph counts.
+
+Go consumers live in `engine/model/rust_oracle_test.go`.
+
