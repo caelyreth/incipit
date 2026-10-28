@@ -113,6 +113,7 @@ func (a *AppState) BindShell() {
 		a.Element.View(c)
 	}
 	a.Shell.SelectPage = func(id string) {
+		a.parkScroll()
 		var page workspace.PageID
 		_, _ = fmt.Sscanf(id, "%d", &page)
 		if err := a.Workspace.Open(page); err != nil {
@@ -122,6 +123,7 @@ func (a *AppState) BindShell() {
 		a.selectMounted()
 	}
 	a.Shell.NewPage = func() {
+		a.parkScroll()
 		if _, err := a.Workspace.NewPage(); err != nil {
 			a.Error = err.Error()
 			return
@@ -129,6 +131,7 @@ func (a *AppState) BindShell() {
 		a.selectMounted()
 	}
 	a.Shell.ClosePage = func() {
+		a.parkScroll()
 		id, ok := a.Workspace.Active()
 		if !ok {
 			return
@@ -183,9 +186,21 @@ func (a *AppState) selectMounted() {
 		if session, ok := mounted.(*sheetSession); ok {
 			a.Session = session
 			a.Bridge = nil
+			if scroll, ok := a.Workspace.ActiveScroll(); ok && a.Element != nil {
+				a.Element.SetScrollY(scroll.Y)
+			}
 		}
 	}
 	a.refreshShell()
+}
+
+func (a *AppState) parkScroll() {
+	if a == nil || a.Workspace == nil || a.Element == nil {
+		return
+	}
+	scroll, _ := a.Workspace.ActiveScroll()
+	scroll.Y = a.Element.ScrollY()
+	a.Workspace.SetActiveScroll(scroll)
 }
 
 func (a *AppState) refreshShell() {

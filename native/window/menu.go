@@ -89,6 +89,7 @@ func (a *AppState) newPage() {
 	if a == nil || a.Workspace == nil {
 		return
 	}
+	a.parkScroll()
 	if _, err := a.Workspace.NewPage(); err != nil {
 		a.Error = err.Error()
 		a.refreshShell()
@@ -101,6 +102,7 @@ func (a *AppState) closePage() {
 	if a == nil || a.Workspace == nil {
 		return
 	}
+	a.parkScroll()
 	id, ok := a.Workspace.Active()
 	if !ok {
 		return
