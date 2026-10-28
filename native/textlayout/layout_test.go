@@ -45,7 +45,6 @@ func testStyle() Style {
 }
 
 func TestParagraphRetentionAndUnicodeCoordinates(t *testing.T) {
-	t.Parallel()
 	cache := NewCache()
 	first := cache.Update(testFlow(t, "alpha\nbeta", 0), 240, testStyle())
 	second := cache.Update(testFlow(t, "alpha\ngamma", 0), 240, testStyle())
@@ -71,7 +70,6 @@ func TestParagraphRetentionAndUnicodeCoordinates(t *testing.T) {
 }
 
 func TestCaretHitSelectionAndBoundaries(t *testing.T) {
-	t.Parallel()
 	style := testStyle()
 	layout := NewCache().Update(testFlow(t, "one\n\n中文🦀", 0), 300, style)
 	if len(layout.Paragraphs()) != 3 {
@@ -105,7 +103,6 @@ func TestCaretHitSelectionAndBoundaries(t *testing.T) {
 }
 
 func TestBoldStyleReachesMyGoSpans(t *testing.T) {
-	t.Parallel()
 	flow := testFlow(t, "plainbold", 5)
 	spans := spansFor(flow, 0, len(flow.Text()), testStyle())
 	if len(spans) != 2 || spans[0].Weight != 400 || spans[1].Weight != 700 {
@@ -117,7 +114,6 @@ func TestBoldStyleReachesMyGoSpans(t *testing.T) {
 }
 
 func TestVisibleBoundsAndCaretAtPointRespectViewport(t *testing.T) {
-	t.Parallel()
 	flow := testFlow(t, "one\ntwo\nthree", -1)
 	layout := NewCache().Update(flow, 300, testStyle())
 	if layout == nil {

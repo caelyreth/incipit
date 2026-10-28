@@ -1,14 +1,22 @@
 package settings
 
 import (
+	"os"
 	"testing"
 
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/native/testlock"
 	"github.com/egoist/mygo/ui"
 )
 
+func TestMain(m *testing.M) {
+	if err := testlock.Acquire(); err != nil {
+		panic(err)
+	}
+	os.Exit(m.Run())
+}
+
 func TestSettingsShowsSectionsAndAppliesToggle(t *testing.T) {
-	t.Parallel()
 	state := New()
 	state.Data.Sections = []appsettings.Section{{
 		Title: "Editing",
@@ -30,7 +38,6 @@ func TestSettingsShowsSectionsAndAppliesToggle(t *testing.T) {
 }
 
 func TestSettingsCategoryNavigation(t *testing.T) {
-	t.Parallel()
 	state := New()
 	state.Data.Shortcuts = []appsettings.Shortcut{{
 		Command: "bold",

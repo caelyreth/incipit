@@ -1,14 +1,22 @@
 package overlay
 
 import (
+	"os"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/native/testlock"
 	"github.com/egoist/mygo/ui"
 )
 
+func TestMain(m *testing.M) {
+	if err := testlock.Acquire(); err != nil {
+		panic(err)
+	}
+	os.Exit(m.Run())
+}
+
 func TestPaletteFiltersNavigatesAndConsumesChoice(t *testing.T) {
-	t.Parallel()
 	palette := CommandPalette{Open: true}
 	palette.Reset([]Command{
 		{ID: "bold", Label: "Bold", Group: "Format"},
@@ -31,7 +39,6 @@ func TestPaletteFiltersNavigatesAndConsumesChoice(t *testing.T) {
 }
 
 func TestPaletteViewBuildsModal(t *testing.T) {
-	t.Parallel()
 	palette := CommandPalette{Open: true}
 	palette.Reset([]Command{{ID: "settings", Label: "Open Settings", Group: "App"}})
 	tester := ui.NewTester(palette.View, 900, 600)

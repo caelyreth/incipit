@@ -2,6 +2,7 @@ package documentview
 
 import (
 	"image"
+	"os"
 	"testing"
 	"time"
 
@@ -9,10 +10,18 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/motion"
+	"github.com/caelyreth/neverland/native/testlock"
 	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestMain(m *testing.M) {
+	if err := testlock.Acquire(); err != nil {
+		panic(err)
+	}
+	os.Exit(m.Run())
+}
 
 type surfaceFixture struct{ state *State }
 
@@ -23,7 +32,6 @@ func (f *surfaceFixture) view(c *ui.Context) {
 }
 
 func TestSurfacePaintsTextSelectionCursorDecorations(t *testing.T) {
-	t.Parallel()
 	text := "hello\nworld"
 	flow, err := surface.NewFlow(
 		projection.NewVersion(1, 1),

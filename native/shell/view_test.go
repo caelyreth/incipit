@@ -1,13 +1,21 @@
 package shell
 
 import (
+	"os"
 	"testing"
 
+	"github.com/caelyreth/neverland/native/testlock"
 	"github.com/egoist/mygo/ui"
 )
 
+func TestMain(m *testing.M) {
+	if err := testlock.Acquire(); err != nil {
+		panic(err)
+	}
+	os.Exit(m.Run())
+}
+
 func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
-	t.Parallel()
 	state := New()
 	state.Content = func(c *ui.Context) {
 		ui.Text(c, "Body copy")
@@ -22,7 +30,6 @@ func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
 }
 
 func TestShellSidebarCanCollapse(t *testing.T) {
-	t.Parallel()
 	state := New()
 	state.Appearance.Zen = true
 	tester := ui.NewTester(state.View, 1260, 850)
