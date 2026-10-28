@@ -89,6 +89,11 @@ func StringLenRunes(text string) int {
 	return utf8.RuneCountInString(text)
 }
 
+// RuneUTF16Len returns the number of UTF-16 code units a scalar occupies.
+func RuneUTF16Len(r rune) int {
+	return utf16.RuneLen(r)
+}
+
 // ByteOffsetToUTF16 converts a checked UTF-8 boundary to UTF-16. Invalid UTF-8,
 // continuation bytes, and out-of-range bytes reject.
 func ByteOffsetToUTF16(text string, offset ByteOffset) (UTF16Offset, bool) {
