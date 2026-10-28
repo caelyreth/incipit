@@ -36,18 +36,20 @@ func (r *LinkedRule) AllowsOrigin(origin EventOrigin) bool {
 type EventProgram struct {
 	handlers      []*LinkedRule
 	observers     []*LinkedRule
+	schedule      *ObserverProgram
 	configuration *PreparedPolicyConfiguration
 }
 
 func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 	rules := catalog.Rules()
 	handlers := make([]*LinkedRule, 0, len(rules))
-	observers := make([]*LinkedRule, 0, len(rules))
+	all := make([]*LinkedRule, 0, len(rules))
 	for _, entry := range rules {
 		rule, err := linkRule(entry.Policy, entry.Rule)
 		if err != nil {
 			return nil, err
 		}
+		all = append(all, rule)
 		if rule.Trigger.Kind() == TriggerStateWildcard {
 			if rule.Phase.Kind != RulePhaseKindAfter ||
 				len(rule.Phase.ChangeKeys()) == 0 ||
@@ -57,7 +59,6 @@ func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 					Rule: rule.Key,
 				}
 			}
-			observers = append(observers, rule)
 		} else {
 			handlers = append(handlers, rule)
 		}
@@ -76,8 +77,15 @@ func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 			}
 		}
 	}
-	sortRules(observers)
-	return &EventProgram{handlers: handlers, observers: observers}, nil
+	schedule, err := LinkObserverProgram(all)
+	if err != nil {
+		return nil, err
+	}
+	return &EventProgram{
+		handlers:  handlers,
+		observers: schedule.Rules(),
+		schedule:  schedule,
+	}, nil
 }
 
 func LinkConfiguredEventProgram(
@@ -270,6 +278,47 @@ func (p *EventProgram) DispatchEngine(
 		return DispatchOutcome{}, err
 	}
 	return outcome, nil
+}
+
+// DispatchEngineBatch validates every event against the pre-write draft,
+// checkpoints once, and executes the events in order. Any error rolls the whole
+// batch back, including writes from events that had already handled.
+func (p *EventProgram) DispatchEngineBatch(
+	events []Event,
+	draft *EngineDraft,
+	invoker EngineInvoker,
+) (BatchDispatchOutcome, error) {
+	for _, event := range events {
+		if event.HasReservedCommandKey() {
+			return BatchDispatchOutcome{}, &EngineError{
+				Kind: EngineErrorInvalidEventKey,
+				Key:  event.Key(),
+			}
+		}
+		if err := validateEventInput(event, draft); err != nil {
+			return BatchDispatchOutcome{}, err
+		}
+	}
+	checkpoint := draft.Checkpoint()
+	aggregate := DispatchOutcome{Status: OutcomePass}
+	handled := make([]bool, 0, len(events))
+	for _, event := range events {
+		outcome, err := p.executeEngine(event, draft, invoker)
+		if err != nil {
+			draft.Rollback(checkpoint)
+			return BatchDispatchOutcome{}, err
+		}
+		handled = append(handled, outcome.Status == OutcomeHandled)
+		aggregate.Candidates += outcome.Candidates
+		aggregate.Observers = append(aggregate.Observers, outcome.Observers...)
+		if outcome.Status == OutcomeHandled {
+			aggregate.Status = OutcomeHandled
+			if aggregate.HandledRule == nil {
+				aggregate.HandledRule = outcome.HandledRule
+			}
+		}
+	}
+	return BatchDispatchOutcome{Outcome: aggregate, Handled: handled}, nil
 }
 
 func (p *EventProgram) executeEngine(

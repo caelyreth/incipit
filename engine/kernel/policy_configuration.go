@@ -165,3 +165,43 @@ func (c *PolicyConfiguration) Clone() PolicyConfiguration {
 	}
 	return cloned
 }
+
+// Equal reports whether two candidates contain the same enablement, settings,
+// and binding overrides.
+func (c PolicyConfiguration) Equal(other PolicyConfiguration) bool {
+	return c.equalPointer(&other)
+}
+
+func (c PolicyConfiguration) equalPointer(other *PolicyConfiguration) bool {
+	if other == nil {
+		return false
+	}
+	if len(c.enabled) != len(other.enabled) ||
+		len(c.settings) != len(other.settings) ||
+		len(c.remaps) != len(other.remaps) {
+		return false
+	}
+	for id := range c.enabled {
+		if _, ok := other.enabled[id]; !ok {
+			return false
+		}
+	}
+	for key, value := range c.settings {
+		otherValue, ok := other.settings[key]
+		if !ok || !value.Equal(otherValue) {
+			return false
+		}
+	}
+	for command, targets := range c.remaps {
+		otherTargets, ok := other.remaps[command]
+		if !ok || len(targets) != len(otherTargets) {
+			return false
+		}
+		for index, target := range targets {
+			if target != otherTargets[index] {
+				return false
+			}
+		}
+	}
+	return true
+}

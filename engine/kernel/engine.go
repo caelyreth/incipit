@@ -97,6 +97,42 @@ func (e *Engine) Snapshot() EngineSnapshot {
 func (e *Engine) Document() *model.Document { return e.document }
 func (e *Engine) Resources() ResourceStore  { return e.resources }
 
+// NextRevision returns the revision a publication with state changes would use.
+func (e *Engine) NextRevision() (uint64, error) {
+	if e.revision == ^uint64(0) {
+		return 0, &EngineError{Kind: EngineErrorRevisionExhausted}
+	}
+	return e.revision + 1, nil
+}
+
+// PrepareConfiguration exposes candidate resources and the prospective shared
+// revision to a fallible preparation callback without publishing either.
+func (e *Engine) PrepareConfiguration[P any](
+	resources ResourceStore,
+	revision uint64,
+	prepare func(EngineView) (P, error),
+) (P, error) {
+	var zero P
+	draft := resources.BeginDraft()
+	if err := draft.Validate(); err != nil {
+		return zero, err
+	}
+	return prepare(EngineView{
+		document:  e.document.BeginDraft(),
+		resources: draft,
+		revision:  revision,
+	})
+}
+
+// PublishConfiguration installs resources and a caller-owned shared revision.
+// Document content is unchanged; the document revision tracks the engine's
+// publication revision so snapshots remain wholly revision-consistent.
+func (e *Engine) PublishConfiguration(resources ResourceStore, revision uint64) {
+	e.resources = resources
+	e.revision = revision
+	e.document.SetRevision(revision)
+}
+
 // Transact runs a non-fallible preparation transaction.
 func Transact[T any](engine *Engine, operation func(*EngineDraft) (T, error)) (EngineTransactionOutcome[T, struct{}], error) {
 	return TransactPrepared(engine, operation, func(EngineView, EngineChanges, T) (struct{}, error) {
@@ -146,6 +182,13 @@ func TransactPrepared[T any, P any](
 		}
 		engine.resources.PublishDraft(draft.resources)
 		engine.revision = revision
+	} else if !draft.resources.Equal(engine.resources) {
+		// Resource-only writes are legitimate engine changes even when no
+		// document node changed. The shared revision and document snapshot must
+		// move together.
+		engine.resources.PublishDraft(draft.resources)
+		engine.revision = revision
+		engine.document.SetRevision(revision)
 	}
 	return EngineTransactionOutcome[T, P]{
 		Value:    value,
@@ -181,7 +224,10 @@ func (d *EngineDraft) Changes() EngineChanges {
 }
 
 func (d *EngineDraft) Validate() error {
-	return d.document.Validate()
+	if err := d.document.Validate(); err != nil {
+		return err
+	}
+	return d.resources.Validate()
 }
 
 func (d *EngineDraft) Checkpoint() EngineCheckpoint {

@@ -81,8 +81,40 @@ func NewResourceStore(descriptors []ResourceDescriptor) ResourceStore {
 	return ResourceStore{schema: schema, values: values}
 }
 
+// Configured derives the resource view for one prepared policy configuration.
+// Document-lifetime resources persist even when their owner is disabled;
+// session-lifetime resources exist only for enabled policies. Existing values
+// are retained across reconfiguration, while newly available resources use
+// their catalog defaults.
+func (s ResourceStore) Configured(
+	catalog PolicyCatalog,
+	prepared *PreparedPolicyConfiguration,
+) ResourceStore {
+	schema := make(map[ResourceID]ResourceKind)
+	values := make(map[ResourceID]ResourceValue)
+	for _, owned := range catalog.Resources() {
+		descriptor := owned.ResourceDescriptor
+		enabled := prepared != nil && prepared.IsEnabled(owned.Owner)
+		if descriptor.Lifetime != ResourceDocumentLifetime && !enabled {
+			continue
+		}
+		schema[descriptor.ID] = descriptor.Kind
+		if current, ok := s.values[descriptor.ID]; ok {
+			values[descriptor.ID] = current.Clone()
+		} else {
+			values[descriptor.ID] = descriptor.Initial.Clone()
+		}
+	}
+	return ResourceStore{schema: schema, values: values}
+}
+
 func (s ResourceStore) Snapshot() ResourceSnapshot {
 	return ResourceSnapshot{schema: cloneSchema(s.schema), values: cloneResourceValues(s.values)}
+}
+
+// Equal reports whether two resource stores expose the same schema and values.
+func (s ResourceStore) Equal(other ResourceStore) bool {
+	return resourceDomainsEqual(s.schema, s.values, other.schema, other.values)
 }
 
 func (s ResourceStore) BeginDraft() *ResourceDraft {
@@ -142,6 +174,37 @@ func (d *ResourceDraft) WrittenRows(id ResourceID) []RowID {
 
 func (d *ResourceDraft) Snapshot() ResourceSnapshot {
 	return ResourceSnapshot{schema: cloneSchema(d.schema), values: cloneResourceValues(d.values)}
+}
+
+// Equal reports whether the draft exposes the same schema and values as a
+// published store.
+func (d *ResourceDraft) Equal(other ResourceStore) bool {
+	if d == nil {
+		return false
+	}
+	return resourceDomainsEqual(d.schema, d.values, other.schema, other.values)
+}
+
+// Validate rejects a draft whose values do not match its declared schema.
+func (d *ResourceDraft) Validate() error {
+	if len(d.schema) != len(d.values) {
+		return &ResourceError{Kind: ResourceErrorUnknown, Resource: "<schema>"}
+	}
+	for id, kind := range d.schema {
+		value, ok := d.values[id]
+		if !ok {
+			return &ResourceError{Kind: ResourceErrorUnknown, Resource: id}
+		}
+		if value.Kind() != kind {
+			return &ResourceError{
+				Kind:     ResourceErrorTypeMismatch,
+				Resource: id,
+				Expected: kind,
+				Actual:   value.Kind(),
+			}
+		}
+	}
+	return nil
 }
 
 func (d *ResourceDraft) Read(effects EffectSet) ResourceRead {
@@ -262,6 +325,27 @@ func cloneResourceValues(values map[ResourceID]ResourceValue) map[ResourceID]Res
 		copied[id] = value.Clone()
 	}
 	return copied
+}
+
+func resourceDomainsEqual(
+	firstSchema map[ResourceID]ResourceKind,
+	firstValues map[ResourceID]ResourceValue,
+	secondSchema map[ResourceID]ResourceKind,
+	secondValues map[ResourceID]ResourceValue,
+) bool {
+	if len(firstSchema) != len(secondSchema) || len(firstValues) != len(secondValues) {
+		return false
+	}
+	for id, kind := range firstSchema {
+		if secondSchema[id] != kind {
+			return false
+		}
+		value, ok := secondValues[id]
+		if !ok || !firstValues[id].Equal(value) {
+			return false
+		}
+	}
+	return true
 }
 
 func sortedResourceKeys(set map[ResourceID]struct{}) []ResourceID {
