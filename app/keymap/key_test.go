@@ -172,6 +172,83 @@ func TestDefaultShortcutLookupHonorsPlatformPrimary(t *testing.T) {
 	}
 }
 
+func TestDefaultShortcutMatrixRoutesEveryEditorCommandFamily(t *testing.T) {
+	t.Parallel()
+	configuration := editorKeymap(t)
+	tests := []struct {
+		name    string
+		event   ui.InputEvent
+		kind    ActionKind
+		command kernel.CommandID
+	}{
+		{
+			name:    "text movement",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyRight},
+			kind:    ActionText,
+			command: editor.TextRight.ID(),
+		},
+		{
+			name:    "text selection",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyRight, Mods: ui.Shift},
+			kind:    ActionText,
+			command: editor.TextSelectRight.ID(),
+		},
+		{
+			name:    "word movement",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyRight, Mods: ui.Alt},
+			kind:    ActionWord,
+			command: editor.WordNext.ID(),
+		},
+		{
+			name:    "word deletion",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyBackspace, Mods: ui.Alt},
+			kind:    ActionWord,
+			command: editor.WordDeletePrevious.ID(),
+		},
+		{
+			name:    "history undo",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyZ, Mods: ui.Super},
+			kind:    ActionHistory,
+			command: editor.HistoryUndo.ID(),
+		},
+		{
+			name:    "history redo",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyZ, Mods: ui.Super | ui.Shift},
+			kind:    ActionHistory,
+			command: editor.HistoryRedo.ID(),
+		},
+		{
+			name:    "strong markup",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyB, Mods: ui.Super},
+			kind:    ActionMarkup,
+			command: editor.MarkupStrong.ID(),
+		},
+		{
+			name:    "emphasis markup",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyI, Mods: ui.Super},
+			kind:    ActionMarkup,
+			command: editor.MarkupEmphasis.ID(),
+		},
+		{
+			name:    "tab navigation",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyTab},
+			kind:    ActionNavigation,
+			command: editor.TabCommand().ID,
+		},
+	}
+	for _, test := range tests {
+		command, ok := ResolveKey(configuration, test.event, PlatformDarwin)
+		if !ok || command != test.command {
+			t.Errorf("%s lookup = %q,%v, want %q", test.name, command, ok, test.command)
+			continue
+		}
+		action, ok := ResolveEditorCommand(command)
+		if !ok || action.Kind != test.kind || action.ID != test.command {
+			t.Errorf("%s action = %#v,%v", test.name, action, ok)
+		}
+	}
+}
+
 func TestNonKeyEventsProduceNoTargets(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []ui.InputKind{
