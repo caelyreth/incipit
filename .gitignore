@@ -22,3 +22,6 @@ coverage.*
 /tmp/
 /fixtures/rust-oracle/raw/
 
+# Local research and design-reference archive
+/references/
+
