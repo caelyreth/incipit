@@ -4180,5 +4180,120 @@
     ],
     "semantic_text": "alpha beta gamma",
     "source_revision": 1
+  },
+  {
+    "cases": [
+      {
+        "initial": "ab😀c",
+        "name": "seed-991",
+        "operations": [
+          {
+            "end": 0,
+            "kind": "append",
+            "start": 0,
+            "text": "界"
+          },
+          {
+            "end": 0,
+            "kind": "append",
+            "start": 0,
+            "text": "🐻"
+          },
+          {
+            "end": 0,
+            "kind": "delete_prefix",
+            "start": 1,
+            "text": ""
+          },
+          {
+            "end": 3,
+            "kind": "select",
+            "start": 0,
+            "text": ""
+          },
+          {
+            "end": 1,
+            "kind": "format",
+            "start": 0,
+            "text": ""
+          }
+        ],
+        "seed": 991,
+        "snapshots": [
+          {
+            "marks": [],
+            "revision": 2,
+            "text": "ab😀c界"
+          },
+          {
+            "marks": [],
+            "revision": 3,
+            "text": "ab😀c界🐻"
+          },
+          {
+            "marks": [],
+            "revision": 4,
+            "text": "b😀c界🐻"
+          },
+          {
+            "marks": [],
+            "revision": 4,
+            "text": "b😀c界🐻"
+          },
+          {
+            "marks": [
+              {
+                "end": 1,
+                "id": 1,
+                "level": 2,
+                "start": 0
+              }
+            ],
+            "revision": 5,
+            "text": "b😀c界🐻"
+          }
+        ]
+      },
+      {
+        "initial": "é中\nline",
+        "name": "seed-2452456065",
+        "operations": [
+          {
+            "end": 0,
+            "kind": "append",
+            "start": 0,
+            "text": "x"
+          },
+          {
+            "end": 1,
+            "kind": "format",
+            "start": 0,
+            "text": ""
+          }
+        ],
+        "seed": 2452456065,
+        "snapshots": [
+          {
+            "marks": [],
+            "revision": 2,
+            "text": "é中\nlinex"
+          },
+          {
+            "marks": [
+              {
+                "end": 1,
+                "id": 1,
+                "level": 2,
+                "start": 0
+              }
+            ],
+            "revision": 3,
+            "text": "é中\nlinex"
+          }
+        ]
+      }
+    ],
+    "fixture": "seeded-traces-v1",
+    "rust_commit": "3fff58e089e57529bc725935cd37a2da63071f0b"
   }
 ]

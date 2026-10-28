@@ -32,6 +32,9 @@ It covers:
 - anchor rebasing under insertions, replacements, and deletions;
 - inline mark rebasing, identity, level changes, and deletion;
 - semantic character and paragraph counts.
+- seeded document traces with exact revisions, text, mark IDs, ranges, and levels;
+- exact generated markup projection text and segment correspondence.
 
-Go consumers live in `engine/model/rust_oracle_test.go`.
+Go consumers live in `engine/model/rust_oracle_test.go`,
+`engine/model/rust_trace_test.go`, and `engine/editor/rust_oracle_test.go`.
 
