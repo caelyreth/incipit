@@ -23,14 +23,17 @@ type TextInput interface {
 // Element is the reusable custom writing surface. It owns retained paragraph
 // layout and contractual caret/selection motion, but not the document.
 type Element struct {
-	Input   TextInput
-	Theme   theme.Theme
-	Prose   theme.ProseStyle
-	Animate bool
-	Layout  *textlayout.Cache
-	Motion  *motion.Motion
-	scroll  float32
-	current *textlayout.Layout
+	Input       TextInput
+	Theme       theme.Theme
+	Prose       theme.ProseStyle
+	Animate     bool
+	Typewriter  bool
+	Layout      *textlayout.Cache
+	Motion      *motion.Motion
+	scroll      float32
+	lastHeight  float32
+	manualUntil time.Time
+	current     *textlayout.Layout
 }
 
 func NewElement(
@@ -73,6 +76,7 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		if e.current == nil {
 			return false
 		}
+		e.Motion.Activity(event.Time)
 		offset := int(e.current.Hit(ui.Point{
 			X: event.X,
 			Y: event.Y + e.scroll,
@@ -80,10 +84,14 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		anchor := offset
 		return e.Input.Select(anchor, offset, event.Time) == nil
 	case ui.InputScroll:
-		e.scroll = max(0, e.scroll+event.DY)
+		e.manualScroll(event.DY, event.Time)
 		e.Input.Scroll(event.DY)
 		return true
+	case ui.InputText, ui.InputCompose:
+		e.Motion.Activity(event.Time)
+		return false
 	case ui.InputKeyDown, ui.InputCommand:
+		e.Motion.Activity(event.Time)
 		return e.Input.Keymap(event)
 	default:
 		return false
@@ -119,7 +127,14 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused bool) {
 	}
 	flow := frame.Flow()
 	style := textlayout.NewStyle(e.Prose, e.Theme)
+	e.lastHeight = rect.H
 	e.current = e.Layout.Update(flow, rect.W, style)
+	caret := e.current.Caret(frame.Caret())
+	e.revealCaret(e.current, caret.Y, p.Now())
+	if e.Animate {
+		p.AnimationFrame()
+	}
+	e.advanceScroll(p.Now())
 	state := &State{
 		Flow:    flow,
 		Frame:   frame,

@@ -11,21 +11,28 @@ type RevealOptions struct {
 }
 
 // RevealOffset computes the viewport target that keeps the caret visible.
-// It returns changed=false when the caret already satisfies the reveal rule.
+// All positions and the returned offset use the same convention: content
+// coordinates from the top and a non-negative scroll offset. It returns
+// changed=false when the caret already satisfies the reveal rule.
 func RevealOffset(options RevealOptions) (float32, bool) {
 	margin := float32(8)
-	var delta float32
+	top := options.CurrentOffset
+	bottom := top + options.ViewportHeight
+	var target float32
+	changed := true
 	switch {
 	case options.Typewriter && !options.ManualOverride:
-		delta = options.ViewportTop + options.ViewportHeight*0.48 - options.CaretY
-	case options.CaretY < options.ViewportTop+margin:
-		delta = options.ViewportTop + margin - options.CaretY
-	case options.CaretY+options.LineHeight > options.ViewportTop+options.ViewportHeight-margin:
-		delta = options.ViewportTop + options.ViewportHeight - margin -
-			options.LineHeight - options.CaretY
+		target = options.CaretY - options.ViewportHeight*0.48
+	case options.CaretY < top+margin:
+		target = options.CaretY - margin
+	case options.CaretY+options.LineHeight > bottom-margin:
+		target = options.CaretY + options.LineHeight - options.ViewportHeight + margin
+	default:
+		target = options.CurrentOffset
+		changed = false
 	}
-	if delta == 0 {
+	if target == options.CurrentOffset {
 		return options.CurrentOffset, false
 	}
-	return options.CurrentOffset + delta, true
+	return target, changed
 }

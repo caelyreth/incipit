@@ -107,6 +107,7 @@ func (a *AppState) BindShell() {
 		a.Element.Theme = a.Shell.Settings.Semantic()
 		a.Element.Prose = theme.NewProseStyle(a.Shell.Settings.ProseFontSize)
 		a.Element.Animate = a.Shell.Appearance.Motion
+		a.Element.Typewriter = a.Shell.Appearance.Typewriter
 		a.Element.View(c)
 	}
 	a.Shell.SelectPage = func(id string) {

@@ -92,9 +92,15 @@ func TestRevealAndViewportMotion(t *testing.T) {
 		t.Fatalf("visible caret moved viewport: %v,%v", target, changed)
 	}
 	if target, changed := RevealOffset(RevealOptions{
+		ViewportTop: 0, ViewportHeight: 400, CaretY: 900, LineHeight: 34,
+		CurrentOffset: 20,
+	}); !changed || target != 542 {
+		t.Fatalf("below-viewport caret target = %v,%v", target, changed)
+	}
+	if target, changed := RevealOffset(RevealOptions{
 		ViewportTop: 0, ViewportHeight: 400, CaretY: 150, LineHeight: 34,
 		CurrentOffset: 20, Typewriter: true,
-	}); !changed || target != 62 {
+	}); !changed || math.Abs(float64(target+42)) > 0.001 {
 		t.Fatalf("typewriter target = %v,%v", target, changed)
 	}
 	now := time.Unix(0, 0)
