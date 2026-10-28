@@ -128,6 +128,18 @@ func (b *Bridge) Execute(action keymap.Action) error {
 	}
 }
 
+// ExecuteExternal routes an app-owned command that is outside the editor's
+// closed action set, such as workspace or window commands from the palette.
+func (b *Bridge) ExecuteExternal(command kernel.CommandID) error {
+	if b == nil || command == "" {
+		return errors.New("documentview: external command is required")
+	}
+	if b.External == nil {
+		return nil
+	}
+	return b.External(command)
+}
+
 func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 	if b.Services == nil {
 		return errors.New("documentview: clipboard service unavailable")
