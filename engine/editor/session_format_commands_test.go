@@ -68,3 +68,56 @@ func TestSessionExecutesWordMovementSelectionAndDeletion(t *testing.T) {
 		t.Fatalf("delete previous word text = %q", nodeValue.Text().String())
 	}
 }
+
+// A selection spanning semantic text and generated markers deletes as one
+// compound projected edit: attribute intents first, then the text intent,
+// all validated against the same pre-write draft.
+func TestSessionDeletesSelectionSpanningGeneratedMarkers(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		from, to model.UTF16Offset
+		markup   MarkupCommand
+		before   string
+	}{
+		{"trailing strong", 6, 11, MarkupStrong, "hello **world**"},
+		{"leading emphasis", 0, 5, MarkupEmphasis, "*hello* world"},
+	}
+	for _, tc := range cases {
+		for _, command := range []TextCommand{TextBackspace, TextDelete} {
+			session, node := newSessionFixture(t, "hello world", false)
+			revision := session.Runtime().Revision()
+			if err := session.Select(model.NewTextSelection(
+				model.NewTextAnchor(node, tc.from, model.AffinityRight, revision),
+				model.NewTextAnchor(node, tc.to, model.AffinityLeft, revision),
+			)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := session.ExecuteMarkup(tc.markup); err != nil {
+				t.Fatal(err)
+			}
+			if got := session.Projection().Text(); got != tc.before {
+				t.Fatalf("%s: formatted projection = %q", tc.name, got)
+			}
+			if outcome, err := session.ExecuteText(TextSelectAll); err != nil ||
+				outcome != kernel.OutcomeHandled {
+				t.Fatalf("%s: select all outcome=%v err=%v", tc.name, outcome, err)
+			}
+			outcome, err := session.ExecuteText(command)
+			if err != nil || outcome != kernel.OutcomeHandled {
+				t.Fatalf("%s %s: outcome=%v err=%v", tc.name, command.ID(), outcome, err)
+			}
+			nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
+			if got := session.Projection().Text(); got != "" || nodeValue.Text().String() != "" {
+				t.Fatalf("%s %s: projection=%q semantic=%q",
+					tc.name, command.ID(), got, nodeValue.Text().String())
+			}
+			if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+				t.Fatal(err)
+			}
+			if got := session.Projection().Text(); got != tc.before {
+				t.Fatalf("%s %s: undo projection = %q", tc.name, command.ID(), got)
+			}
+		}
+	}
+}

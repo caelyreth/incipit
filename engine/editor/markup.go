@@ -796,19 +796,16 @@ func (i *EditorInvoker) invokeText(context *kernel.RuleContext) (kernel.Outcome,
 	}
 	start := input.Target().RangeUTF16().Start
 	beforeEdits := document.TextEditCount()
-	if i.active == nil {
-		outcome, err := context.ApplyTextInput()
-		if err != nil || outcome != kernel.OutcomeHandled {
-			return outcome, err
-		}
-	} else {
-		_, _, handled, err := context.ReplaceTextInputMarked(i.active)
-		if err != nil {
-			return 0, err
-		}
-		if !handled {
-			return kernel.OutcomePass, nil
-		}
+	// Projected edits batch attribute intents before this text intent, with
+	// every target validated against the pre-write draft. Like Rust's
+	// TextReplace, consume through the compound path: ApplyTextInput would
+	// revalidate against the draft the attribute intents already wrote.
+	_, _, handled, err := context.ReplaceTextInputMarked(i.active)
+	if err != nil {
+		return 0, err
+	}
+	if !handled {
+		return kernel.OutcomePass, nil
 	}
 	i.correctionEffectHead = start + model.UTF16Offset(model.StringLenUTF16(input.Text()))
 	i.hasCorrectionEffect = true
