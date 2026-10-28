@@ -158,7 +158,7 @@ func PlanWordCommand(text string, selection WordSelection, command WordCommand) 
 		return WordCommandPlan{}, &WordError{Kind: WordErrorInvalidCommand}
 	}
 	if unit, ok := command.Unit(); ok {
-		enclosing, err := EnclosingUTF16Range(text, selection.Head, unit)
+		enclosing, err := PlanSelectionUnit(text, selection.Head, unit)
 		if err != nil {
 			return WordCommandPlan{}, err
 		}
@@ -222,6 +222,17 @@ func PlanWordCommand(text string, selection WordSelection, command WordCommand) 
 		Anchor:  anchor,
 		Head:    offset,
 	}, nil
+}
+
+// PlanSelectionUnit returns the enclosing unit as a forward semantic
+// selection. This matches Shoreward's select_unit boundary: it offers the range
+// to the general selection API but does not preserve prior direction.
+func PlanSelectionUnit(
+	text string,
+	head model.UTF16Offset,
+	unit SelectionUnit,
+) (model.UTF16Range, error) {
+	return EnclosingUTF16Range(text, head, unit)
 }
 
 // Unit returns the selection unit represented by a selection command.
