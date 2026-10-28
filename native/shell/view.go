@@ -42,14 +42,18 @@ func (s *State) View(c *ui.Context) {
 	s.lastChrome = chrome
 
 	root.Children(func() {
-		s.header(c, semantic, metrics, layout, bar, chrome, reveal)
+		if chrome > 0.001 {
+			s.header(c, semantic, metrics, layout, bar, chrome, reveal)
+		}
 		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
 			ui.Column(c).Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
 				s.document(c, semantic, metrics, layout)
 			})
 		})
-		s.footer(c, semantic, metrics, layout, chrome)
+		if chrome > 0.001 {
+			s.footer(c, semantic, metrics, layout, chrome)
+		}
 	})
 }
 

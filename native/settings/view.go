@@ -98,7 +98,12 @@ func (s *State) tree(
 			components.NavigationRow{
 				Key:   "settings-section-" + category.Title() + "-" + label,
 				Label: label, Role: ui.RoleTreeItem, FullWidth: true,
-				Indent: 24 * s.Theme.UIFontSize / theme.DefaultUIFontSize,
+				Leading: func() {
+					ui.Box(c).Width(24*s.Theme.UIFontSize/theme.DefaultUIFontSize).
+						HeightPercent(100).Shrink(0).
+						BorderWidth(0, 1, 0, 0).
+						BorderColor(semantic.Border.Default.Alpha(0.5))
+				},
 				Action: func() { s.selectCategory(category) },
 			}.View(c, semantic)
 		}

@@ -39,6 +39,9 @@ func TestShellSidebarCanCollapse(t *testing.T) {
 	if tester.HasText("Your pages · 1") {
 		t.Fatal("zen shell built sidebar")
 	}
+	if tester.HasText("Shoreward") || tester.HasText("No open document") {
+		t.Fatalf("zen shell kept collapsed chrome in the accessibility tree: %#v", tester.Texts())
+	}
 }
 
 func TestEmptyWorkspaceShowsReferenceRecoveryState(t *testing.T) {
@@ -96,6 +99,24 @@ func TestShellSidebarAndZenUseSourceMotion(t *testing.T) {
 	tester.Advance(200 * time.Millisecond)
 	if state.lastChrome != 0 {
 		t.Fatalf("chrome did not settle: %v", state.lastChrome)
+	}
+}
+
+func TestShellGeometryScalesWithUIFontSizeAndNarrowWidth(t *testing.T) {
+	state := New()
+	state.Settings.UIFontSize = 20
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	if want := theme.DefaultLayout.Sidebar * 20 / theme.DefaultUIFontSize; state.lastSidebarWidth != want {
+		t.Fatalf("scaled sidebar width = %v, want %v", state.lastSidebarWidth, want)
+	}
+
+	state = New()
+	tester = ui.NewTester(state.View, 760, 420)
+	tester.Frame()
+	if state.lastSidebarWidth != 0 || tester.HasText("Your pages · 1") {
+		t.Fatalf("narrow shell kept sidebar open: width=%v texts=%#v",
+			state.lastSidebarWidth, tester.Texts())
 	}
 }
 
