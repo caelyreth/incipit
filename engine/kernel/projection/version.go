@@ -9,6 +9,9 @@ type Version struct {
 	generation     uint64
 }
 
+// ProjectionVersion is an explicit alias used by engine and editor packages.
+type ProjectionVersion = Version
+
 func NewVersion(sourceRevision, generation uint64) Version {
 	return Version{sourceRevision: sourceRevision, generation: generation}
 }
