@@ -62,6 +62,31 @@ func (s *State) document(
 	scale := s.Settings.UIFontSize
 	prose := theme.NewProseStyle(s.Settings.ProseFontSize)
 	column := prose.Column()
+	if s.ActivePage == "" {
+		ui.Column(c).Grow(1).FillHeight().AlignItems(ui.Center).Justify(ui.Center).
+			Padding(theme.Space32.DIPs(scale)).Children(func() {
+			ui.Column(c).Width(520).MaxWidthPercent(90).AlignItems(ui.Center).
+				Gap(theme.Space12.DIPs(scale)).Children(func() {
+				components.Headline(c, "Space for your next idea",
+					theme.HeadlineXLarge, semantic.Text.Heading)
+				components.Label(c,
+					"Start a fresh page, or reopen one from your sidebar. Pages stay in memory for this session.",
+					theme.TextSmall, semantic.Text.Muted,
+				).TextAlign(ui.Center)
+				components.Button{
+					Key: "empty-new-page", Label: "New page",
+					Style: components.PrimaryButton, Size: components.MediumButton,
+					Animate: s.animate(c),
+					Action: func() {
+						if s.NewPage != nil {
+							s.NewPage()
+						}
+					},
+				}.View(c, semantic)
+			})
+		})
+		return
+	}
 	ui.Column(c).Grow(1).FillHeight().MinHeight(0).Clip().Children(func() {
 		ui.Row(c).Grow(1).MinHeight(0).WidthPercent(100).Justify(ui.Center).Padding(
 			layout.ReadingTop*scale/theme.DefaultUIFontSize,

@@ -41,6 +41,33 @@ func TestShellSidebarCanCollapse(t *testing.T) {
 	}
 }
 
+func TestEmptyWorkspaceShowsReferenceRecoveryState(t *testing.T) {
+	state := New()
+	state.Pages = nil
+	state.ActivePage = ""
+	created := false
+	state.NewPage = func() { created = true }
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	for _, text := range []string{
+		"Space for your next idea",
+		"Start a fresh page, or reopen one from your sidebar. Pages stay in memory for this session.",
+	} {
+		if !tester.HasText(text) {
+			t.Fatalf("missing %q in %#v", text, tester.Texts())
+		}
+	}
+	if _, ok := tester.Find("Formatting"); ok {
+		t.Fatal("empty workspace still shows the writing toolbar")
+	}
+	if err := tester.Click("New page"); err != nil {
+		t.Fatal(err)
+	}
+	if !created {
+		t.Fatal("empty state did not create a page")
+	}
+}
+
 func TestShellSidebarAndZenUseSourceMotion(t *testing.T) {
 	state := New()
 	tester := ui.NewTester(state.View, 1260, 850)

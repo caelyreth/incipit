@@ -161,3 +161,29 @@ func TestNativeTextCaretUsesProseCaretHeight(t *testing.T) {
 		t.Fatalf("native caret = %#v, want height %v", caret, want)
 	}
 }
+
+func TestFocusedIdleCaretSchedulesBreathingPaint(t *testing.T) {
+	document, err := controller.NewTextDocument("", nativeClock{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := NewBridge(document, nil, func() time.Time {
+		return time.Unix(1_700_000_000, 0)
+	})
+	settings := theme.DefaultSettings()
+	element := NewElement(
+		input,
+		settings.Semantic(),
+		theme.NewProseStyle(settings.ProseFontSize),
+		time.Unix(1_700_000_000, 0),
+	)
+	element.Animate = true
+	tester := ui.NewTester(func(c *ui.Context) {
+		element.View(c)
+	}, 600, 400)
+	tester.Frame()
+	tester.Advance(250 * time.Millisecond)
+	if !tester.FramePending() {
+		t.Fatal("breathing caret did not request another animation frame")
+	}
+}

@@ -84,6 +84,7 @@ func (e *Element) View(c *ui.Context) {
 		return
 	}
 	client := e.Input.Client()
+	animate := e.Animate && !c.Preferences().ReduceMotion
 	box := ui.Box(c).Fill().FocusRing(false).
 		Role(ui.RoleTextField).
 		Label(e.label()).
@@ -101,7 +102,7 @@ func (e *Element) View(c *ui.Context) {
 	box.HandleInput(e.handleInput).
 		TextCaret(e.caret(c)).
 		Draw(func(p *ui.Painter, rect ui.Rect) {
-			e.paint(p, rect, box.Focused())
+			e.paint(p, rect, box.Focused(), animate)
 		})
 	if client != nil {
 		box.HandleTextInput(client)
@@ -224,7 +225,7 @@ func (e *Element) caret(c *ui.Context) ui.Rect {
 	return rect
 }
 
-func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused bool) {
+func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	bridge, ok := e.Input.(*Bridge)
 	if !ok || bridge == nil || bridge.Controller == nil {
 		return
@@ -262,7 +263,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused bool) {
 		Prose:             e.Prose,
 		ScrollY:           e.scroll,
 		Focused:           focused,
-		Animate:           e.Animate,
+		Animate:           animate,
 		Placeholder:       e.Placeholder,
 		PlaceholderLayout: e.placeholder(rect.W),
 		PointerActive:     e.dragging,

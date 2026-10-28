@@ -211,6 +211,9 @@ func (a *AppState) refreshShellReadouts() {
 		return
 	}
 	controller := a.Session.Document()
+	if err := controller.LastError(); err != nil {
+		a.Shell.Status = err.Error()
+	}
 	metrics, ok := controller.MetricsForCurrentText()
 	if !ok {
 		metrics = controller.Metrics()
