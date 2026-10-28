@@ -142,6 +142,10 @@ func (l *Layout) NextBoundary(offset model.UTF16Offset) model.UTF16Offset {
 	return model.UTF16Offset(paragraph.endUTF16)
 }
 
+// paragraphAt resolves an offset to its owning paragraph. An interior
+// paragraph owns [start, end), where end follows its newline, so a paragraph
+// start belongs to the following paragraph. The final paragraph has no
+// newline and also owns its end: the document end is a caret position.
 func (l *Layout) paragraphAt(offset model.UTF16Offset) (*Paragraph, int) {
 	value := int(offset)
 	if len(l.paragraphs) == 0 {
@@ -151,7 +155,10 @@ func (l *Layout) paragraphAt(offset model.UTF16Offset) (*Paragraph, int) {
 		return l.paragraphs[index].endUTF16 > value
 	})
 	if index == len(l.paragraphs) {
-		return nil, 0
+		if value != l.paragraphs[index-1].endUTF16 {
+			return nil, 0
+		}
+		index--
 	}
 	paragraph := &l.paragraphs[index]
 	if value < paragraph.startUTF16 {

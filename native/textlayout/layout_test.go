@@ -169,3 +169,29 @@ func TestNewlineSelectionUsesOneLineHeight(t *testing.T) {
 		}
 	}
 }
+
+func TestDocumentEndBelongsToFinalParagraph(t *testing.T) {
+	style := testStyle()
+	for _, text := range []string{"hello", "one\nhello", "one two three four five six seven eight nine ten"} {
+		layout := NewCache().Update(testFlow(t, text, 0), 80, style)
+		end := model.UTF16Offset(layout.Flow().UTF16Len())
+		last := layout.Paragraphs()[len(layout.Paragraphs())-1]
+		before := layout.Caret(end - 1)
+		caret := layout.Caret(end)
+		want := last.Layout().Caret(int(end) - last.StartUTF16())
+		if caret.X != want.X || caret.X <= before.X {
+			t.Fatalf("%q end caret = %#v, before = %#v, shaped end x = %v",
+				text, caret, before, want.X)
+		}
+		if caret.Y < last.Top() || caret.Y >= last.Top()+last.Height() {
+			t.Fatalf("%q end caret y = %v outside final paragraph %v..%v",
+				text, caret.Y, last.Top(), last.Top()+last.Height())
+		}
+		if got := layout.PreviousBoundary(end); got != end-1 {
+			t.Fatalf("%q previous boundary from end = %d", text, got)
+		}
+		if got := layout.NextBoundary(end); got != end {
+			t.Fatalf("%q next boundary from end = %d", text, got)
+		}
+	}
+}
