@@ -3,11 +3,15 @@ package window
 import (
 	"log"
 
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
 func Run() error {
+	if err := theme.RegisterFonts(); err != nil {
+		return err
+	}
 	app, err := NewAppState()
 	if err != nil {
 		return err
