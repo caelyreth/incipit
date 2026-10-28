@@ -53,3 +53,100 @@ func TestSettingsCategoryNavigation(t *testing.T) {
 		t.Fatalf("category=%v texts=%#v", state.Category, tester.Texts())
 	}
 }
+
+func TestSettingsNavigationBuildsExpandedEditorTree(t *testing.T) {
+	state := New()
+	state.Data.Sections = []appsettings.Section{{
+		Title: "Automatic pairs",
+		Settings: []appsettings.ToggleSetting{{
+			Key:      appsettings.PolicyBoolean("editor.pairs"),
+			Label:    "Pair quotation marks",
+			Value:    true,
+			Enabled:  true,
+			Selector: "quotes",
+		}},
+	}}
+	tester := ui.NewTester(state.View, 900, 650)
+	tester.Frame()
+	for _, label := range []string{"Editor", "Automatic pairs"} {
+		if !tester.HasText(label) {
+			t.Fatalf("missing %q in %#v", label, tester.Texts())
+		}
+	}
+	if _, ok := tester.Find("Automatic pairs"); !ok {
+		t.Fatal("editor section is not rendered")
+	}
+}
+
+func TestSettingsSearchFiltersNavigationAndRows(t *testing.T) {
+	state := New()
+	state.Data.Sections = []appsettings.Section{
+		{
+			Title: "Automatic pairs",
+			Settings: []appsettings.ToggleSetting{{
+				Key:      appsettings.PolicyBoolean("editor.pairs"),
+				Label:    "Pair quotation marks",
+				Value:    true,
+				Enabled:  true,
+				Selector: "quotes",
+			}},
+		},
+		{
+			Title: "Typography",
+			Settings: []appsettings.ToggleSetting{{
+				Key:      appsettings.PolicyBoolean("editor.typography"),
+				Label:    "Smart symbols",
+				Value:    true,
+				Enabled:  true,
+				Selector: "symbols",
+			}},
+		},
+	}
+	state.Query = "quotation"
+	tester := ui.NewTester(state.View, 900, 650)
+	tester.Frame()
+	if !tester.HasText("Pair quotation marks") || tester.HasText("Smart symbols") {
+		t.Fatalf("texts = %#v", tester.Texts())
+	}
+	if _, ok := tester.Find("Automatic pairs"); !ok {
+		t.Fatal("matching section missing from navigation")
+	}
+	if _, ok := tester.Find("Typography"); ok {
+		t.Fatal("non-matching section remains in navigation")
+	}
+}
+
+func TestSettingsTitleRowsAndStatusLayout(t *testing.T) {
+	state := New()
+	state.Data.Page = "Untitled"
+	state.Data.Sections = []appsettings.Section{{
+		Title:       "Automatic pairs",
+		Description: "Complete matching punctuation.",
+		Settings: []appsettings.ToggleSetting{{
+			Key:         appsettings.PolicyBoolean("editor.pairs"),
+			Label:       "Pair quotation marks",
+			Description: "Complete matching quotation marks while typing.",
+			Value:       true,
+			Enabled:     true,
+			Selector:    "quotes",
+		}},
+	}}
+	tester := ui.NewTester(state.View, 900, 650)
+	tester.Frame()
+	title, ok := tester.Find("Editor settings")
+	if !ok {
+		t.Fatalf("heading missing from %#v", tester.Texts())
+	}
+	description, ok := tester.Find("Shape the way your words are edited.")
+	if !ok || description.Y <= title.Y {
+		t.Fatalf("title %v, description %v", title, description)
+	}
+	row, ok := tester.Find("Pair quotation marks")
+	if !ok || row.X < 220 {
+		t.Fatalf("setting row is not in the content pane: %v", row)
+	}
+	status, ok := tester.Find("Untitled · changes stay in memory")
+	if !ok || status.Y < 600 {
+		t.Fatalf("status is not at the footer: %v", status)
+	}
+}

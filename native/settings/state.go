@@ -5,6 +5,7 @@ package settings
 import (
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/ui"
 )
 
 type State struct {
@@ -14,12 +15,20 @@ type State struct {
 	Theme    theme.Settings
 	Apply    func(appsettings.Change)
 	Close    func()
+
+	expanded      map[appsettings.Category]bool
+	contentScroll ui.ScrollState
 }
 
 func New() *State {
+	expanded := make(map[appsettings.Category]bool, len(appsettings.AllCategories))
+	for _, category := range appsettings.AllCategories {
+		expanded[category] = true
+	}
 	return &State{
 		Category: appsettings.Editor,
 		Theme:    theme.DefaultSettings(),
+		expanded: expanded,
 	}
 }
 
