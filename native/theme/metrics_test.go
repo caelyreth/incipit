@@ -21,3 +21,13 @@ func TestChromeMetricsScaleFromOneUIFontSize(t *testing.T) {
 		t.Fatal("prose line height collided with chrome geometry")
 	}
 }
+
+func TestReferenceLayoutKeepsPrototypeSpacing(t *testing.T) {
+	if DefaultLayout.Titlebar != 48 ||
+		DefaultLayout.Status != 40 ||
+		DefaultLayout.ReadingTop != 84 ||
+		DefaultLayout.TitleBottom != 24 ||
+		DefaultLayout.ReadingBottom != 150 {
+		t.Fatalf("layout = %#v", DefaultLayout)
+	}
+}

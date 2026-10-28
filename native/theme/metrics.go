@@ -6,6 +6,8 @@ type Layout struct {
 	Status            float32
 	Narrow            float32
 	ReadingTop        float32
+	ReadingBottom     float32
+	TitleBottom       float32
 	HeaderInset       float32
 	ContentGutter     float32
 	TrafficLightInset float32
@@ -13,10 +15,12 @@ type Layout struct {
 
 var DefaultLayout = Layout{
 	Sidebar:           256,
-	Titlebar:          40,
-	Status:            28,
+	Titlebar:          48,
+	Status:            40,
 	Narrow:            920,
-	ReadingTop:        48,
+	ReadingTop:        84,
+	ReadingBottom:     150,
+	TitleBottom:       24,
 	HeaderInset:       12,
 	ContentGutter:     16,
 	TrafficLightInset: 96,

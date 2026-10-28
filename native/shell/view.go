@@ -111,15 +111,15 @@ func (s *State) document(
 		).Children(func() {
 			ui.Column(c).FillHeight().Width(column).MaxWidthPercent(100).Children(func() {
 				ui.Text(c, s.activeTitle()).FontSize(prose.TitleSize()).
-					TextColor(semantic.Prose.Heading).Bold()
-				ui.Box(c).Height(prose.TitleLineHeight() - prose.TitleSize())
+					TextColor(semantic.Prose.Heading).Font(theme.ProseFontFamily)
+				ui.Box(c).Height(layout.TitleBottom)
 				if s.Content != nil {
 					s.Content(c)
 				} else {
 					ui.Text(c, "Start writing…").FontSize(prose.FontSize).
 						TextColor(semantic.Text.Muted)
 				}
-				ui.Box(c).Height(metrics.Height * 2)
+				ui.Box(c).Height(layout.ReadingBottom)
 			})
 		})
 	})
