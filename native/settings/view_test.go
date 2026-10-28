@@ -529,3 +529,66 @@ func TestKeymapResetAllRestoresEveryCustomShortcut(t *testing.T) {
 		t.Fatalf("reset all = %#v", *changes)
 	}
 }
+
+func TestKeycapsAreEvenSquaresWithCenteredGlyphs(t *testing.T) {
+	state := New()
+	semantic := state.Theme.Semantic()
+	target := kernel.NewBindingTarget(kernel.EditorBindingContext, "b",
+		kernel.ModifiersPrimary|kernel.ModifiersShift)
+	tester := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(state.Theme.MyGoTheme())
+		ui.Box(c).Fill().Background(ui.RGBA(0, 0, 0, 1)).Padding(20, 20, 20, 20).Children(func() {
+			state.keycaps(c, semantic, target, false)
+		})
+	}, 200, 60)
+	tester.SetScale(2)
+	tester.Frame()
+	img := tester.Image()
+	lit := func(x, y int) bool {
+		c := img.RGBAAt(x, y)
+		return int(c.R)+int(c.G)+int(c.B) > 18
+	}
+	row := 60
+	widths := []int{}
+	for x := 0; x < img.Bounds().Dx(); {
+		for x < img.Bounds().Dx() && !lit(x, row) {
+			x++
+		}
+		start := x
+		for x < img.Bounds().Dx() && lit(x, row) {
+			x++
+		}
+		if x <= start {
+			break
+		}
+		widths = append(widths, x-start)
+		top, bottom := -1, -1
+		for y := 0; y < img.Bounds().Dy(); y++ {
+			if lit((start+x)/2, y) {
+				if top < 0 {
+					top = y
+				}
+				bottom = y + 1
+			}
+		}
+		if x-start != bottom-top {
+			t.Fatalf("cap %d is %dx%d, not square", len(widths), x-start, bottom-top)
+		}
+		face := img.RGBAAt(start+3, (top+bottom)/2)
+		inkTop, inkBottom := 1<<30, -1
+		for y := top + 3; y < bottom-3; y++ {
+			for xx := start + 3; xx < x-3; xx++ {
+				c := img.RGBAAt(xx, y)
+				if int(c.R)+int(c.G)+int(c.B)-int(face.R)-int(face.G)-int(face.B) > 120 {
+					inkTop, inkBottom = min(inkTop, y), max(inkBottom, y+1)
+				}
+			}
+		}
+		if above, below := inkTop-top, bottom-inkBottom; above-below > 1 || below-above > 1 {
+			t.Fatalf("cap %d glyph off center: above=%d below=%d", len(widths), above, below)
+		}
+	}
+	if len(widths) != 3 || widths[0] != widths[1] || widths[1] != widths[2] {
+		t.Fatalf("cap widths = %v", widths)
+	}
+}

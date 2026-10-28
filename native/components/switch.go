@@ -41,15 +41,19 @@ func (s Switch) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	if s.Animate && !s.Disabled {
 		progress = toggle.AnimateWith("switch-progress", target, MotionQuick, Smoothstep)
 	}
+	// The thumb keeps one margin on every side of the track. The track's
+	// focus border is laid out inside its box, and an absolute child is
+	// placed from inside that border, so its offsets drop the border width.
+	const border = float32(1)
+	margin := (height - thumb) / 2
 	toggle.Children(func() {
 		track := ui.Box(c).Width(width).Height(height).Radius(height/2).
-			Border(1, ui.Transparent).
+			Border(border, ui.Transparent).
 			Background(blend(semantic.Element.Selected, semantic.Accent.Foreground, progress)).
 			Children(func() {
 				ui.Box(c).Absolute().
-					Left((width-thumb-6*scale/theme.DefaultUIFontSize)*progress+
-						3*scale/theme.DefaultUIFontSize).
-					Top(3*scale/theme.DefaultUIFontSize).
+					Left(margin-border+(width-thumb-2*margin)*progress).
+					Top(margin-border).
 					Size(thumb, thumb).Radius(thumb / 2).
 					Background(blend(semantic.Text.Muted, semantic.Accent.OnAccent, progress))
 			})

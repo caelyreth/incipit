@@ -3,6 +3,7 @@ package settings
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
@@ -354,13 +355,22 @@ func (s *State) keycaps(c *ui.Context, semantic theme.Theme, target kernel.Bindi
 				height = 20 * scale / theme.DefaultUIFontSize
 				face = semantic.Surface.Page
 			}
-			ui.Row(c).Height(height).MinWidth(height).Justify(ui.Center).AlignItems(ui.Center).
-				PaddingX(theme.Space06.DIPs(scale)).Radius(5*scale/theme.DefaultUIFontSize).
-				Border(1, semantic.Border.Variant).Background(face).
-				Children(func() {
-					components.Label(c, key, theme.TextXSmall, semantic.Text.Default).
-						SingleLine().FontFeatures("tnum")
-				})
+			cap := ui.Row(c).Height(height).Justify(ui.Center).AlignItems(ui.Center).
+				Radius(5*scale/theme.DefaultUIFontSize).
+				Border(1, semantic.Border.Variant).Background(face)
+			if utf8.RuneCountInString(key) == 1 {
+				// One glyph: a square cap, so a row of caps is even.
+				cap.Width(height)
+			} else {
+				cap.MinWidth(height).PaddingX(theme.Space06.DIPs(scale))
+			}
+			cap.Children(func() {
+				// The UI face's ink sits half a DIP below its line box;
+				// lift it so glyphs center optically in the cap.
+				components.Label(c, key, theme.TextXSmall, semantic.Text.Default).
+					SingleLine().FontFeatures("tnum").
+					Translate(0, -0.5*scale/theme.DefaultUIFontSize)
+			})
 		}
 	})
 }
