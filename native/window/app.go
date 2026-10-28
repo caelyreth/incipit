@@ -15,11 +15,7 @@ func Run() error {
 	state := app.Shell
 
 	mygo.App.WhenReady(func() {
-		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-			{Role: mygo.RoleAppMenu},
-			{Role: mygo.RoleEditMenu},
-			{Role: mygo.RoleWindowMenu},
-		}))
+		mygo.App.SetMenu(app.MainMenu())
 		window := mygo.NewWindow(mygo.WindowOptions{
 			Title:                "Shoreward",
 			Width:                1260,
@@ -35,6 +31,7 @@ func Run() error {
 			app.Error = ""
 			app.refreshShell()
 		})
+		app.mainWindow = window
 	})
 	return mygo.App.Run()
 }

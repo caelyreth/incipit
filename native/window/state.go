@@ -14,6 +14,7 @@ import (
 	"github.com/caelyreth/neverland/native/settings"
 	"github.com/caelyreth/neverland/native/shell"
 	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -23,16 +24,18 @@ func (clock) Now() time.Time { return time.Now() }
 
 // AppState owns one main-window notebook and its app-wide settings.
 type AppState struct {
-	Workspace *workspace.Workspace
-	Store     *policyStore
-	Settings  settings.State
-	Product   appsettings.State
-	Shell     *shell.State
-	Palette   *overlay.CommandPalette
-	Element   *documentview.Element
-	Bridge    *documentview.Bridge
-	Session   *sheetSession
-	Error     string
+	Workspace      *workspace.Workspace
+	Store          *policyStore
+	Settings       settings.State
+	Product        appsettings.State
+	Shell          *shell.State
+	Palette        *overlay.CommandPalette
+	Element        *documentview.Element
+	Bridge         *documentview.Bridge
+	Session        *sheetSession
+	Error          string
+	mainWindow     *mygo.Window
+	settingsWindow *mygo.Window
 }
 
 func NewAppState() (*AppState, error) {
