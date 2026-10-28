@@ -22,6 +22,7 @@ const (
 	IconDocument     IconName = "file-text"
 	IconInfo         IconName = "info"
 	IconItalic       IconName = "italic"
+	IconKeyboard     IconName = "keyboard"
 	IconLanguages    IconName = "languages"
 	IconMinus        IconName = "minus"
 	IconPlus         IconName = "plus"
@@ -44,6 +45,7 @@ var AllIcons = [...]IconName{
 	IconDocument,
 	IconInfo,
 	IconItalic,
+	IconKeyboard,
 	IconLanguages,
 	IconMinus,
 	IconPlus,

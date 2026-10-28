@@ -4,6 +4,7 @@ package settings
 
 import (
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -30,6 +31,21 @@ type State struct {
 	pending    string
 	target     string
 	lastActive string
+
+	// The keymap page: its own search text or recorded chord, the command
+	// whose shortcut is being recorded, and a recorded shortcut another
+	// command already holds, awaiting a decision.
+	keyQuery    string
+	keyFilter   *kernel.BindingTarget
+	keySearch   bool
+	keyEditing  kernel.CommandID
+	keyConflict *keyConflict
+}
+
+type keyConflict struct {
+	Command kernel.CommandID
+	Target  kernel.BindingTarget
+	Owner   appsettings.Shortcut
 }
 
 type anchor struct {

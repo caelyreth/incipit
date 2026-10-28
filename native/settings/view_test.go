@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/components"
@@ -368,5 +369,163 @@ func TestPolicySearchOpensFoldedOptions(t *testing.T) {
 	}
 	if tester.HasText("Allow strong emphasis") {
 		t.Fatal("non-matching option shown during search")
+	}
+}
+
+// primary is the platform's primary shortcut modifier as MyGo reports it.
+func primary() ui.Modifiers {
+	if keymap.CurrentPlatform() == keymap.PlatformDarwin {
+		return ui.Super
+	}
+	return ui.Ctrl
+}
+
+func chord(key string) kernel.BindingTarget {
+	return kernel.NewBindingTarget(kernel.EditorBindingContext, key, kernel.ModifiersPrimary)
+}
+
+func keymapState() (*State, *[]appsettings.Change) {
+	state := New()
+	state.Category = appsettings.Keymap
+	state.Data.Shortcuts = []appsettings.Shortcut{
+		{Command: "markup.strong", Label: "Bold", Group: "Emphasis",
+			Bindings: []kernel.BindingTarget{chord("b")}, Enabled: true},
+		{Command: "markup.emphasis", Label: "Italic", Group: "Emphasis",
+			Bindings: []kernel.BindingTarget{chord("i")}, Enabled: true},
+		{Command: "history.undo", Label: "Undo", Group: "History",
+			Bindings: []kernel.BindingTarget{chord("z")}, Enabled: true, Overridden: true},
+		{Command: "navigation.tab", Label: "Leave scope", Group: "Navigation",
+			Bindings: nil, Enabled: false},
+	}
+	changes := make([]appsettings.Change, 0)
+	state.Apply = func(change appsettings.Change) { changes = append(changes, change) }
+	return state, &changes
+}
+
+func TestKeymapRowsShowKeycapsAndStates(t *testing.T) {
+	state, _ := keymapState()
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if _, ok := tester.Find(keymap.Chord(chord("b"), keymap.PlatformCurrent)); !ok {
+		t.Fatalf("Bold keycaps missing: %#v", tester.Texts())
+	}
+	for _, text := range []string{"Custom", "Off", "Reset all"} {
+		if !tester.HasText(text) {
+			t.Fatalf("missing %q in %#v", text, tester.Texts())
+		}
+	}
+	if _, ok := tester.Find("Reset Shortcut"); !ok {
+		t.Fatal("customized shortcut has no reset action")
+	}
+}
+
+func TestKeymapRecordsNewShortcutInPlace(t *testing.T) {
+	state, changes := keymapState()
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if err := tester.Click("Change shortcut for Bold"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !tester.HasText("Press keys…") {
+		t.Fatalf("recording did not start: %#v", tester.Texts())
+	}
+	tester.Key(primary(), ui.KeyUnknown) // a bare modifier waits
+	tester.Key(primary(), ui.KeyK)
+	if len(*changes) != 1 || (*changes)[0].Kind != appsettings.ChangeBinding ||
+		(*changes)[0].Command != "markup.strong" || (*changes)[0].Binding != chord("k") {
+		t.Fatalf("recorded change = %#v", *changes)
+	}
+	if tester.HasText("Press keys…") {
+		t.Fatal("recording did not end")
+	}
+}
+
+func TestKeymapRecordingCancelsAndClears(t *testing.T) {
+	state, changes := keymapState()
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if err := tester.Click("Change shortcut for Bold"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Key(0, ui.KeyEscape)
+	tester.Frame()
+	if len(*changes) != 0 || state.keyEditing != "" {
+		t.Fatalf("escape did not cancel: %#v editing=%q", *changes, state.keyEditing)
+	}
+	if err := tester.Click("Change shortcut for Bold"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Key(0, ui.KeyBackspace)
+	if len(*changes) != 1 || (*changes)[0].Kind != appsettings.ChangeUnbind {
+		t.Fatalf("backspace did not clear: %#v", *changes)
+	}
+}
+
+func TestKeymapAsksBeforeTakingAnotherActionsShortcut(t *testing.T) {
+	state, changes := keymapState()
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if err := tester.Click("Change shortcut for Bold"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Key(primary(), ui.KeyI)
+	tester.Frame()
+	if len(*changes) != 0 {
+		t.Fatalf("taken shortcut applied without asking: %#v", *changes)
+	}
+	warning := keymap.Chord(chord("i"), keymap.PlatformCurrent) + " is assigned to “Italic”."
+	if !tester.HasText(warning) {
+		t.Fatalf("conflict not shown: %#v", tester.Texts())
+	}
+	if err := tester.Click("Replace"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*changes) != 1 || (*changes)[0].Displaced != "markup.emphasis" ||
+		(*changes)[0].Binding != chord("i") || (*changes)[0].Command != "markup.strong" {
+		t.Fatalf("replace change = %#v", *changes)
+	}
+}
+
+func TestKeymapSearchesByNameWordsAndPressedKeys(t *testing.T) {
+	state, _ := keymapState()
+	state.keyQuery = keymap.ChordWords(chord("i"), keymap.PlatformCurrent)
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if !tester.HasText("Italic") || tester.HasText("Bold") {
+		t.Fatalf("word search = %#v", tester.Texts())
+	}
+	state.keyQuery = ""
+	if err := tester.Click("Search by pressing a shortcut"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Key(primary(), ui.KeyZ)
+	tester.Frame()
+	if !tester.HasText("Undo") || tester.HasText("Italic") || tester.HasText("Bold") {
+		t.Fatalf("keystroke search = %#v", tester.Texts())
+	}
+	if err := tester.Click("Clear shortcut search"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !tester.HasText("Bold") {
+		t.Fatal("clearing the keystroke search did not restore the list")
+	}
+}
+
+func TestKeymapResetAllRestoresEveryCustomShortcut(t *testing.T) {
+	state, changes := keymapState()
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if err := tester.Click("Reset all"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*changes) != 1 || (*changes)[0].Kind != appsettings.ChangeResetBinding ||
+		(*changes)[0].Command != "history.undo" {
+		t.Fatalf("reset all = %#v", *changes)
 	}
 }

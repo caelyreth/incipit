@@ -287,3 +287,33 @@ func TestBuildDataMarksClosedPageChangesUnavailable(t *testing.T) {
 		}
 	}
 }
+
+func TestRemapReplacingMovesTakenShortcutAtomically(t *testing.T) {
+	t.Parallel()
+	catalog := editorCatalog(t)
+	store := editorHost(t, catalog)
+	state := DefaultState()
+	session := activeSession()
+	command := editor.TextSelectAll.ID()
+	holder := editor.TextDocumentStart.ID()
+	taken := store.PreparedConfiguration().BindingsFor(holder)[0]
+
+	data := BuildData(store, session, state.Presentation, state.Appearance)
+	owner, ok := data.Owner(taken)
+	if !ok || owner.Command != holder {
+		t.Fatalf("owner of %s = %#v, %v", taken, owner, ok)
+	}
+	if _, err := state.Apply(RemapReplacing(command, taken, holder), store, session); err != nil {
+		t.Fatal(err)
+	}
+	prepared := store.PreparedConfiguration()
+	if bindings := prepared.BindingsFor(command); len(bindings) != 1 || bindings[0] != taken {
+		t.Fatalf("reassigned bindings = %#v", bindings)
+	}
+	if bindings := prepared.BindingsFor(holder); len(bindings) != 0 {
+		t.Fatalf("displaced command kept its shortcut: %#v", bindings)
+	}
+	if got, ok := prepared.CommandFor(taken); !ok || got != command {
+		t.Fatalf("shortcut now runs %q", got)
+	}
+}

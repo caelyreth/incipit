@@ -117,6 +117,9 @@ func (s *State) apply(
 			return Outcome{}, ErrInvalidChange
 		}
 		return s.applyPolicy(store, session, func(configuration *kernel.PolicyConfiguration) bool {
+			if change.Displaced != "" && change.Displaced != change.Command {
+				configuration.Unbind(change.Displaced)
+			}
 			configuration.Remap(change.Command, change.Binding)
 			return true
 		})

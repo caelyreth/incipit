@@ -142,11 +142,14 @@ const (
 
 // Change is a complete settings mutation. Only fields selected by Kind are read.
 type Change struct {
-	Kind       ChangeKind
-	Boolean    BooleanSetting
-	Value      bool
-	Command    kernel.CommandID
-	Binding    kernel.BindingTarget
+	Kind    ChangeKind
+	Boolean BooleanSetting
+	Value   bool
+	Command kernel.CommandID
+	Binding kernel.BindingTarget
+	// Displaced is the command that held Binding and gives it up in the same
+	// change, so reassigning a taken shortcut is one atomic edit.
+	Displaced  kernel.CommandID
 	Appearance AppearanceChange
 }
 
@@ -156,6 +159,24 @@ func ToggleBoolean(setting BooleanSetting, value bool) Change {
 
 func Remap(command kernel.CommandID, binding kernel.BindingTarget) Change {
 	return Change{Kind: ChangeBinding, Command: command, Binding: binding}
+}
+
+// RemapReplacing assigns binding to command and unbinds displaced, the
+// command that held it, in the same policy change.
+func RemapReplacing(command kernel.CommandID, binding kernel.BindingTarget, displaced kernel.CommandID) Change {
+	return Change{Kind: ChangeBinding, Command: command, Binding: binding, Displaced: displaced}
+}
+
+// Owner returns the shortcut whose command holds target.
+func (d Data) Owner(target kernel.BindingTarget) (Shortcut, bool) {
+	for _, shortcut := range d.Shortcuts {
+		for _, binding := range shortcut.Bindings {
+			if binding == target {
+				return shortcut, true
+			}
+		}
+	}
+	return Shortcut{}, false
 }
 
 func Unbind(command kernel.CommandID) Change {
