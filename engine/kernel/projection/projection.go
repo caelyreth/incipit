@@ -370,8 +370,10 @@ func (p *Projection) ResolveTarget(target Target) (input.TextTarget, error) {
 	if !ok {
 		return input.TextTarget{}, &ProjectionError{Kind: ErrorNoCorrespondence}
 	}
-	start := semantic.RangeUTF16().Start + target.range16.Start - segment.range16.Start
-	end := semantic.RangeUTF16().Start + target.range16.End - segment.range16.Start
+	start := semantic.RangeUTF16().Start +
+		(target.range16.Start - segment.range16.Start)
+	end := semantic.RangeUTF16().Start +
+		(target.range16.End - segment.range16.Start)
 	return input.NewTextTarget(semantic.Node(), model.NewUTF16Range(start, end), semantic.Revision()), nil
 }
 
