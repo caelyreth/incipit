@@ -121,6 +121,66 @@ func TestMarkupProjectDisjointAndZeroLengthMarksAdjoinMarkers(t *testing.T) {
 	}
 }
 
+func TestMarkupProjectMapsGeneratedMarkerExteriorsByAffinity(t *testing.T) {
+	t.Parallel()
+	fixture := newEditingFixture(t, "a🦀b")
+	if _, err := fixture.document.Transact(func(draft *model.DocumentDraft) error {
+		if _, err := draft.AddMark(fixture.node, model.NewUTF16Range(0, 4), 1); err != nil {
+			return err
+		}
+		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(1, 3), 2)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	configuration, err := markupConfiguration(t, true, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectionResult, err := MarkupProjectDocument(
+		fixture.document.Snapshot(),
+		fixture.document.Revision(),
+		fixture.node,
+		0,
+		configuration,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := fixture.document.Revision()
+	for _, test := range []struct {
+		name     string
+		offset   model.UTF16Offset
+		affinity model.Affinity
+		want     model.UTF16Offset
+	}{
+		{name: "outer start exterior", offset: 0, affinity: model.AffinityLeft, want: 0},
+		{name: "outer start interior", offset: 0, affinity: model.AffinityRight, want: 1},
+		{name: "inner start exterior", offset: 1, affinity: model.AffinityLeft, want: 2},
+		{name: "inner start interior", offset: 1, affinity: model.AffinityRight, want: 4},
+		{name: "inner end interior", offset: 3, affinity: model.AffinityLeft, want: 6},
+		{name: "inner end exterior", offset: 3, affinity: model.AffinityRight, want: 8},
+		{name: "outer end interior", offset: 4, affinity: model.AffinityLeft, want: 9},
+		{name: "outer end exterior", offset: 4, affinity: model.AffinityRight, want: 10},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			anchor := model.NewTextAnchor(fixture.node, test.offset, test.affinity, revision)
+			target, err := projectionResult.ProjectAnchor(anchor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if target.RangeUTF16() != model.EmptyUTF16Range(test.want) {
+				t.Fatalf(
+					"target=%#v want offset %d (text=%q)",
+					target.RangeUTF16(),
+					test.want,
+					projectionResult.Text(),
+				)
+			}
+		})
+	}
+}
+
 func TestMarkupProjectLegacyEmphasisAndSettings(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "ab")
@@ -376,6 +436,85 @@ func TestEditorInvokerTypesMarkersThroughKernelDispatch(t *testing.T) {
 	}
 	if _, ok := invoker.ActiveMark(); ok {
 		t.Fatal("marker exit retained active mark")
+	}
+}
+
+func TestEditorInvokerEditsGeneratedMarkersAtomically(t *testing.T) {
+	t.Parallel()
+	document, err := model.NewDocument("text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	node := document.Snapshot().Root()
+	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		if err := draft.SetTextValue(node, "ab"); err != nil {
+			return err
+		}
+		_, err := draft.AddMark(node, model.NewUTF16Range(0, 2), 2)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := EditorPolicyCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := kernel.NewPolicyHost(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := kernel.LinkConfiguredEventProgram(catalog, host.Prepared())
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := kernel.NewEngine(document, kernel.NewResourceStore(nil))
+	invoker := &EditorInvoker{}
+	dispatch := func(text string) error {
+		t.Helper()
+		_, err := kernel.Transact(engine, func(draft *kernel.EngineDraft) (struct{}, error) {
+			target := kernel.NewAttributeTarget(
+				node,
+				MarkerKeyForMark(1),
+				engine.Revision(),
+			)
+			event := kernel.NewAttributeEvent(
+				kernel.NewAttributeInput(target, text),
+				kernel.EventOriginTyping,
+			)
+			outcome, err := program.DispatchEngine(event, draft, invoker)
+			if err == nil && outcome.Status != kernel.OutcomeHandled {
+				t.Fatalf("attribute input %q outcome=%#v", text, outcome)
+			}
+			return struct{}{}, err
+		})
+		return err
+	}
+	before := engine.Snapshot()
+	for _, invalid := range []string{"***", "*_", "__"} {
+		if err := dispatch(invalid); err == nil {
+			t.Fatalf("invalid marker input %q was accepted", invalid)
+		}
+		if engine.Revision() != before.Revision() {
+			t.Fatalf("invalid marker input %q published a revision", invalid)
+		}
+		current, _ := engine.Snapshot().Document().Node(node)
+		if len(current.Marks()) != 1 || current.Marks()[0].Level() != 2 {
+			t.Fatalf("invalid marker input %q changed marks=%#v", invalid, current.Marks())
+		}
+	}
+	if err := dispatch("*"); err != nil {
+		t.Fatal(err)
+	}
+	current, _ := engine.Snapshot().Document().Node(node)
+	if len(current.Marks()) != 1 || current.Marks()[0].Level() != 1 {
+		t.Fatalf("weak marker level marks=%#v", current.Marks())
+	}
+	if err := dispatch(""); err != nil {
+		t.Fatal(err)
+	}
+	current, _ = engine.Snapshot().Document().Node(node)
+	if len(current.Marks()) != 0 || current.Text().String() != "ab" {
+		t.Fatalf("marker deletion text=%q marks=%#v", current.Text().String(), current.Marks())
 	}
 }
 
