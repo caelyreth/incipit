@@ -30,8 +30,8 @@ func (s *State) View(c *ui.Context) {
 	chrome := chromeTarget
 	sidebarWidth := sidebarTarget
 	if animate {
-		chrome = root.AnimateWith("shell-chrome", chromeTarget, components.MotionPanel, components.Smoothstep)
-		sidebarWidth = root.AnimateWith("sidebar-width", sidebarTarget, components.MotionPanel, components.Smoothstep)
+		chrome = root.AnimateWith("shell-chrome", chromeTarget, components.MotionPanel, components.Decelerate)
+		sidebarWidth = root.AnimateWith("sidebar-width", sidebarTarget, components.MotionPanel, components.Decelerate)
 	}
 	reveal := float32(0)
 	fullSidebar := layout.Sidebar * scale / theme.DefaultUIFontSize
@@ -49,11 +49,11 @@ func (s *State) View(c *ui.Context) {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
 			ui.Column(c).Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
 				s.document(c, semantic, metrics, layout)
+				if chrome > 0.001 {
+					s.footer(c, semantic, metrics, layout, chrome)
+				}
 			})
 		})
-		if chrome > 0.001 {
-			s.footer(c, semantic, metrics, layout, chrome)
-		}
 	})
 }
 

@@ -26,10 +26,9 @@ func (s *State) footer(
 		status = s.modeStatus()
 	}
 	ui.Row(c).Height(height).Opacity(chrome).Clip().
-		PaddingX(layout.ContentGutter*scale/theme.DefaultUIFontSize).
+		PaddingX(layout.ContentGutter * scale / theme.DefaultUIFontSize).
 		AlignItems(ui.Center).Gap(theme.Space16.DIPs(scale)).
-		BorderWidth(1, 0, 0, 0).BorderColor(semantic.Border.Variant).
-		Background(semantic.Surface.Background).Children(func() {
+		Background(semantic.Surface.Page).Children(func() {
 		components.Label(c, statistics, theme.TextXSmall, semantic.Text.Muted).
 			Grow(1).MinWidth(0).SingleLine().FontFeatures("tnum")
 		if status != "" {

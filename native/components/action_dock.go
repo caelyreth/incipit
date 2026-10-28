@@ -10,6 +10,9 @@ type ActionGroup struct {
 	Actions []func()
 }
 
+// dockShadow lifts the dock off the page without introducing a palette color.
+var dockShadow = ui.RGBA(0, 0, 0, 0.22)
+
 // ActionDock is the floating source-material boundary around grouped actions.
 type ActionDock struct {
 	Key    string
@@ -22,9 +25,10 @@ func (d ActionDock) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	metrics := theme.DefaultControls.Scaled(scale)
 	return ui.Row(c).Key(d.Key).Role(ui.RoleToolbar).Label(d.Label).
 		MaxWidthPercent(100).Wrap().AlignItems(ui.Center).Justify(ui.Center).
-		Gap(theme.Space04.DIPs(scale)).Padding(theme.Space04.DIPs(scale)).
+		Gap(theme.Space06.DIPs(scale)).Padding(theme.Space04.DIPs(scale)).
 		KeepFocus().
 		Radius(metrics.DockRadius).Border(1, semantic.Border.Variant).
+		Shadow(0, 6*scale/theme.DefaultUIFontSize, 24*scale/theme.DefaultUIFontSize, 0, dockShadow).
 		Background(semantic.Surface.Panel).Children(func() {
 		for index, group := range d.Groups {
 			if index > 0 {

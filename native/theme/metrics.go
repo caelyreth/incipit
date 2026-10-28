@@ -11,19 +11,23 @@ type Layout struct {
 	HeaderInset       float32
 	ContentGutter     float32
 	TrafficLightInset float32
+	Tab               float32
+	DockOffset        float32
 }
 
 var DefaultLayout = Layout{
 	Sidebar:           256,
 	Titlebar:          40,
-	Status:            28,
+	Status:            32,
 	Narrow:            920,
-	ReadingTop:        48,
+	ReadingTop:        64,
 	ReadingBottom:     150,
 	TitleBottom:       24,
 	HeaderInset:       12,
-	ContentGutter:     16,
+	ContentGutter:     24,
 	TrafficLightInset: 96,
+	Tab:               30,
+	DockOffset:        20,
 }
 
 type ControlMetrics struct {
@@ -43,7 +47,7 @@ var DefaultControls = ControlMetrics{
 	Radius:       8,
 	Row:          36,
 	PanelRadius:  11,
-	DockRadius:   13,
+	DockRadius:   12,
 }
 
 // Scaled converts a reference-at-16px chrome measure to the app's UI size.

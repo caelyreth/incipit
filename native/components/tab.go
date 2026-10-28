@@ -5,8 +5,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Tab is one document tab with independent select and close actions. Its
-// source geometry is 40 high, 120..260 wide, and uses 12/8 horizontal padding.
+// Tab is one document tab with independent select and close actions. It is a
+// rounded pill inset in the title bar: 30 high, 96..220 wide, with 10/3
+// horizontal padding so the close button sits concentric with the pill.
 type Tab struct {
 	Key       string
 	Title     string
@@ -20,7 +21,8 @@ type Tab struct {
 
 func (t Tab) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
-	height := theme.DefaultLayout.Titlebar * scale / theme.DefaultUIFontSize
+	height := theme.DefaultLayout.Tab * scale / theme.DefaultUIFontSize
+	metrics := theme.DefaultControls.Scaled(scale)
 	rest := semantic.GhostElement.Background
 	textColor := semantic.Text.Muted
 	iconColor := semantic.Icon.Muted
@@ -32,11 +34,11 @@ func (t Tab) View(c *ui.Context, semantic theme.Theme) ui.Element {
 
 	tab := ui.ButtonBase(c.Key(t.Key)).Role(ui.RoleTab).Label(t.Title).
 		Selected(t.Selected).FocusRing(false).
-		Height(height).MinWidth(120 * scale / theme.DefaultUIFontSize).
-		MaxWidth(260 * scale / theme.DefaultUIFontSize).Shrink(0).
-		PaddingStart(theme.Space12.DIPs(scale)).
-		PaddingEnd(theme.Space08.DIPs(scale)).
-		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Radius(0)
+		Height(height).MinWidth(96 * scale / theme.DefaultUIFontSize).
+		MaxWidth(220 * scale / theme.DefaultUIFontSize).Shrink(0).
+		PaddingStart(10 * scale / theme.DefaultUIFontSize).
+		PaddingEnd(3 * scale / theme.DefaultUIFontSize).
+		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Radius(metrics.Radius)
 	target := rest
 	if !t.Selected && tab.Hovered() {
 		target = semantic.GhostElement.Hover

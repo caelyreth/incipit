@@ -48,7 +48,7 @@ func (s *State) header(
 		s.pageTabs(c, semantic, metrics, height, animate)
 
 		ui.Row(c).HeightPercent(100).Shrink(0).PaddingEnd(right).
-			AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
+			AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Children(func() {
 			components.IconButton{
 				Key: "new-page", Label: "New page", Icon: components.IconPlus.SVG(),
 				Style: components.SubtleButton, Size: components.MediumButton,
@@ -94,14 +94,15 @@ func (s *State) pageTabs(
 ) {
 	if len(s.Pages) == 0 {
 		ui.Text(c, "No open page").Grow(1).PaddingX(
-			theme.Space08.DIPs(s.Settings.UIFontSize),
+			theme.Space16.DIPs(s.Settings.UIFontSize),
 		).TextColor(semantic.Text.Muted)
 		return
 	}
 	activeChanged := s.lastActive != s.ActivePage
 	ui.ScrollHorizontal(c).Grow(1).MinWidth(0).Height(height).
 		TrackScroll(&s.TabsScroll).Children(func() {
-		ui.Row(c).HeightPercent(100).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).HeightPercent(100).PaddingX(theme.Space08.DIPs(s.Settings.UIFontSize)).
+			AlignItems(ui.Center).Gap(theme.Space04.DIPs(s.Settings.UIFontSize)).Children(func() {
 			for _, page := range s.Pages {
 				active := page.ID == s.ActivePage
 				tab := components.Tab{

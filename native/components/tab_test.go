@@ -24,7 +24,7 @@ func TestTabSelectAndCloseStayIndependent(t *testing.T) {
 	}, 360, 80)
 	tester.Frame()
 	tab, ok := tester.Find("Chapter one")
-	if !ok || tab.H != theme.DefaultLayout.Titlebar {
+	if !ok || tab.H != theme.DefaultLayout.Tab {
 		t.Fatalf("tab rect = %#v, %v", tab, ok)
 	}
 	if err := tester.Click("Chapter one"); err != nil {

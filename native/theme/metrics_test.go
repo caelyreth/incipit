@@ -22,12 +22,14 @@ func TestChromeMetricsScaleFromOneUIFontSize(t *testing.T) {
 	}
 }
 
-func TestReferenceLayoutKeepsPrototypeSpacing(t *testing.T) {
+func TestReferenceLayoutKeepsChromeSpacing(t *testing.T) {
 	if DefaultLayout.Titlebar != 40 ||
-		DefaultLayout.Status != 28 ||
-		DefaultLayout.ReadingTop != 48 ||
+		DefaultLayout.Status != 32 ||
+		DefaultLayout.ReadingTop != 64 ||
 		DefaultLayout.TitleBottom != 24 ||
-		DefaultLayout.ReadingBottom != 150 {
+		DefaultLayout.ReadingBottom != 150 ||
+		DefaultLayout.Tab != 30 ||
+		DefaultLayout.DockOffset != 20 {
 		t.Fatalf("layout = %#v", DefaultLayout)
 	}
 }

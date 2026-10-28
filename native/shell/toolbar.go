@@ -94,7 +94,8 @@ func (s *State) formatBar(
 		},
 	}
 	ui.Row(c).Absolute().Left(0).Right(0).
-		Bottom(theme.Space16.DIPs(scale)).PaddingX(theme.Space16.DIPs(scale)).
+		Bottom(theme.DefaultLayout.DockOffset * scale / theme.DefaultUIFontSize).
+		PaddingX(theme.Space16.DIPs(scale)).
 		Justify(ui.Center).PassThrough().Children(func() {
 		dock.View(c, semantic)
 	})

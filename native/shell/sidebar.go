@@ -37,8 +37,8 @@ func (s *State) sidebar(
 					Value: &s.PageQuery, Icon: components.IconSearch.SVG(),
 					ClearIcon: components.IconClose.SVG(), Animate: animate,
 				}.View(c, semantic)
-				ui.Box(c).Height(theme.Space12.DIPs(scale))
-				ui.Row(c).Height(24 * scale / theme.DefaultUIFontSize).
+				ui.Box(c).Height(theme.Space16.DIPs(scale))
+				ui.Row(c).Height(theme.DefaultControls.Scaled(scale).InlineHeight).
 					PaddingX(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Children(func() {
 					components.Label(c, fmt.Sprintf("Your pages · %d", len(s.Pages)),
 						theme.TextSmall, semantic.Text.Muted).SingleLine()
@@ -83,7 +83,7 @@ func (s *State) sidebar(
 			ui.Row(c).Shrink(0).Padding(
 				theme.Space08.DIPs(scale),
 				theme.Space12.DIPs(scale),
-				theme.Space12.DIPs(scale),
+				theme.Space08.DIPs(scale),
 				theme.Space12.DIPs(scale),
 			).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
 				BorderWidth(1, 0, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
