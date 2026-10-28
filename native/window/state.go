@@ -91,6 +91,7 @@ func NewAppState() (*AppState, error) {
 		theme.NewProseStyle(theme.DefaultSettings().ProseFontSize),
 		time.Now(),
 	)
+	app.Element.Label = "Writing document"
 	app.BindShell()
 	return app, nil
 }

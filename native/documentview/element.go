@@ -28,6 +28,8 @@ type Element struct {
 	Prose       theme.ProseStyle
 	Animate     bool
 	Typewriter  bool
+	Label       string
+	AutoFocus   bool
 	Layout      *textlayout.Cache
 	Motion      *motion.Motion
 	scroll      float32
@@ -43,11 +45,13 @@ func NewElement(
 	now time.Time,
 ) *Element {
 	return &Element{
-		Input:  input,
-		Theme:  semantic,
-		Prose:  prose,
-		Layout: textlayout.NewCache(),
-		Motion: motion.New(now),
+		Input:     input,
+		Theme:     semantic,
+		Prose:     prose,
+		Label:     "Document",
+		AutoFocus: true,
+		Layout:    textlayout.NewCache(),
+		Motion:    motion.New(now),
 	}
 }
 
@@ -56,7 +60,14 @@ func (e *Element) View(c *ui.Context) {
 		return
 	}
 	client := e.Input.Client()
-	box := ui.Box(c).Fill().FocusRing(false)
+	box := ui.Box(c).Fill().FocusRing(false).
+		Role(ui.RoleTextField).
+		Label(e.label()).
+		Value(e.value()).
+		Focusable()
+	if e.AutoFocus {
+		box.AutoFocus()
+	}
 	box.HandleInput(e.handleInput).
 		TextCaret(e.caret(c)).
 		Draw(func(p *ui.Painter, rect ui.Rect) {
@@ -65,6 +76,21 @@ func (e *Element) View(c *ui.Context) {
 	if client != nil {
 		box.HandleTextInput(client)
 	}
+}
+
+func (e *Element) label() string {
+	if e == nil || e.Label == "" {
+		return "Document"
+	}
+	return e.Label
+}
+
+func (e *Element) value() string {
+	bridge, ok := e.Input.(*Bridge)
+	if !ok || bridge == nil || bridge.Controller == nil {
+		return ""
+	}
+	return bridge.Controller.Text()
 }
 
 func (e *Element) handleInput(event ui.InputEvent) bool {
