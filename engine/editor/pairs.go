@@ -469,8 +469,11 @@ func utf16Prefix(text string, end model.UTF16Offset) (string, bool) {
 
 func quoteDepth(prefix string, open, close rune) int {
 	runes := []rune(prefix)
-	if lineStart := slices.IndexFunc(runes, func(r rune) bool { return r == '\n' }); lineStart >= 0 {
-		runes = runes[lineStart+1:]
+	for index := len(runes) - 1; index >= 0; index-- {
+		if runes[index] == '\n' {
+			runes = runes[index+1:]
+			break
+		}
 	}
 	balance := 0
 	for index, ch := range runes {
