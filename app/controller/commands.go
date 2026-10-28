@@ -5,11 +5,20 @@ import (
 	"github.com/caelyreth/neverland/engine/kernel"
 )
 
+// ExecuteTab lands on the current scope/navigation offer through the session.
+func (c *DocumentController) ExecuteTab() (kernel.Outcome, error) {
+	outcome, err := c.session.Tab(c.now())
+	return c.finishCommand(outcome, err)
+}
+
 // Execute routes one stable command ID through the editor session. Commands
 // unknown to the editor remain queued for the application workspace.
 func (c *DocumentController) Execute(command Command) (kernel.Outcome, error) {
 	if command.ID == "" {
 		return kernel.OutcomePass, c.fail(ErrUnknownCommand)
+	}
+	if command.ID == string(editor.TabCommand().ID) {
+		return c.ExecuteTab()
 	}
 	if command.Range != nil {
 		return c.Replace(command.Range, command.Text, command.Origin)

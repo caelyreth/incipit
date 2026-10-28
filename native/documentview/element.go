@@ -3,6 +3,7 @@ package documentview
 import (
 	"time"
 
+	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/caelyreth/neverland/native/theme"
@@ -90,29 +91,29 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 }
 
 func (e *Element) caret(c *ui.Context) ui.Rect {
-	client := e.Input.Client()
-	if client == nil {
+	bridge, ok := e.Input.(*Bridge)
+	if !ok || bridge == nil || bridge.Controller == nil {
 		return ui.Rect{}
 	}
-	selection := client.Selection()
-	rect, _, ok := client.BoundsForRange(ui.TextInputRange{
+	selection := bridge.Controller.Selection()
+	bounds, _, ok := bridge.Controller.BoundsForRange(controller.UTF16Range{
 		Start: selection.Caret(),
 		End:   selection.Caret(),
 	})
 	if !ok {
 		return ui.Rect{}
 	}
+	rect := ui.Rect{X: bounds.X, Y: bounds.Y, W: bounds.W, H: bounds.H}
 	rect.Y -= e.scroll
 	return rect
 }
 
 func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused bool) {
-	client := e.Input.Client()
-	native, ok := client.(*NativeTextClient)
-	if !ok || native == nil || native.Controller == nil {
+	bridge, ok := e.Input.(*Bridge)
+	if !ok || bridge == nil || bridge.Controller == nil {
 		return
 	}
-	frame, err := native.Controller.SurfaceFrame(p.Now())
+	frame, err := bridge.Controller.SurfaceFrame(p.Now())
 	if err != nil {
 		return
 	}
@@ -131,5 +132,5 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused bool) {
 		Animate: e.Animate,
 	}
 	Paint(p, rect, state)
-	native.Controller.SetGeometry(LayoutGeometry{Layout: e.current})
+	bridge.Controller.SetGeometry(LayoutGeometry{Layout: e.current})
 }
