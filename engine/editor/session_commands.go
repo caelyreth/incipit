@@ -1,10 +1,42 @@
 package editor
 
 import (
+	"time"
+
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
 )
+
+// ExecuteCommand is the common command entry point used by controllers and
+// keymap adapters. It returns Pass for an unknown or disabled command.
+func (s *Session) ExecuteCommand(command kernel.CommandID, now time.Time) (kernel.Outcome, error) {
+	for _, text := range AllTextCommands {
+		if text.ID() == command {
+			return s.ExecuteText(text)
+		}
+	}
+	for _, history := range AllHistoryCommands {
+		if history.ID() == command {
+			return s.ExecuteHistory(history)
+		}
+	}
+	for _, word := range AllWordCommands {
+		if word.ID() == command {
+			return s.ExecuteWord(word)
+		}
+	}
+	switch command {
+	case MarkupEmphasis.ID():
+		return s.ExecuteMarkup(MarkupEmphasis)
+	case MarkupStrong.ID():
+		return s.ExecuteMarkup(MarkupStrong)
+	case TabCommand().ID:
+		return s.Tab(now)
+	default:
+		return kernel.OutcomePass, nil
+	}
+}
 
 // ExecuteText applies one text/navigation command through the current
 // projection. It preserves marker-aware movement and deletion by routing

@@ -177,6 +177,116 @@ func (s *Session) SelectProjected(anchor, head model.UTF16Offset) error {
 	return nil
 }
 
+// SelectPointer installs a pointer-driven projected selection and records a
+// return-to-edit offer when the last edit is far enough away.
+func (s *Session) SelectPointer(anchor, head model.UTF16Offset, now time.Time) error {
+	if err := s.SelectProjected(anchor, head); err != nil {
+		return err
+	}
+	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
+	if !ok || !node.TextPresent() {
+		return nil
+	}
+	return s.navigation.SelectPointer(node.Text().String(), s.presentation.Selection, now)
+}
+
+// TextSpan returns the projected editable span for the current semantic node.
+func (s *Session) TextSpan() (model.UTF16Range, error) {
+	if s.presentation.Projection == nil {
+		return model.UTF16Range{}, &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
+	}
+	nodeID := s.presentation.Selection.Node()
+	first, last := -1, -1
+	for index, segment := range s.presentation.Projection.Segments() {
+		target, ok := segment.SemanticTarget()
+		if !ok || target.Node() != nodeID {
+			continue
+		}
+		if first < 0 {
+			first = index
+		}
+		last = index
+	}
+	if first < 0 || last < 0 {
+		return model.UTF16Range{}, &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
+	}
+	segments := s.presentation.Projection.Segments()
+	return model.NewUTF16Range(segments[first].ProjectedRange().Start, segments[last].ProjectedRange().End), nil
+}
+
+// TabOffer returns the current scope/return navigation offer.
+func (s *Session) TabOffer(now time.Time) (TabOffer, bool, error) {
+	if !s.runtime.Configuration().IsEnabled(NavigationPolicyID) {
+		return TabOffer{}, false, nil
+	}
+	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
+	if !ok {
+		return TabOffer{}, false, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+	}
+	return s.navigation.TabOffer(
+		now,
+		node,
+		s.presentation.Selection,
+		s.Pairs(),
+		activeMark(s.inline),
+		s.navigationSettings(),
+	)
+}
+
+// Tab lands at the selected navigation offer. Emphasis offers land after the
+// generated closer rather than at the semantic text edge.
+func (s *Session) Tab(now time.Time) (kernel.Outcome, error) {
+	offer, ok, err := s.TabOffer(now)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return kernel.OutcomePass, nil
+	}
+	if err := s.Select(model.NewTextSelection(
+		offer.Target,
+		offer.Target,
+	)); err != nil {
+		return 0, err
+	}
+	target, err := s.presentation.Projection.ProjectAnchor(offer.Target)
+	if err != nil {
+		return 0, err
+	}
+	if offer.HasMark {
+		key := MarkerKeyForMark(offer.Mark)
+		segments := s.presentation.Projection.Segments()
+		for index := len(segments) - 1; index >= 0; index-- {
+			attribute, found := segments[index].AttributeTarget()
+			if !found || attribute.Key() != key {
+				continue
+			}
+			target, err = s.presentation.Projection.Target(
+				model.EmptyUTF16Range(segments[index].ProjectedRange().End),
+			)
+			if err != nil {
+				return 0, err
+			}
+			break
+		}
+	}
+	s.presentation.Caret = target
+	s.inline.Activate(nil)
+	if offer.Kind == TabReturnToEdit {
+		s.navigation.ConsumeReturn()
+	}
+	return kernel.OutcomeHandled, nil
+}
+
+// GuideBinding returns the configured Tab binding, if one remains active.
+func (s *Session) GuideBinding() (kernel.BindingTarget, bool) {
+	bindings := s.runtime.Configuration().BindingsFor(TabCommand().ID)
+	if len(bindings) == 0 {
+		return kernel.BindingTarget{}, false
+	}
+	return bindings[0], true
+}
+
 // SelectionTarget returns the current projected replacement target.
 func (s *Session) SelectionTarget() (projection.Target, error) {
 	range16, err := s.VisualSelection()
@@ -610,6 +720,28 @@ func (s *Session) refreshPairs() {
 	}
 	s.pairs, _ = DiscoverPairs(node.Text().String())
 	s.pairsValid = true
+}
+
+func (s *Session) navigationSettings() NavigationSettings {
+	configuration := s.runtime.Configuration()
+	setting := func(id string) bool {
+		value, ok := configuration.Setting(
+			kernel.NewSettingKey(NavigationPolicyID, kernel.NewSettingID(id)),
+		)
+		if !ok {
+			return true
+		}
+		boolean, ok := value.Bool()
+		return !ok || boolean
+	}
+	return NavigationSettings{
+		Enabled:             configuration.IsEnabled(NavigationPolicyID),
+		Pairs:               setting("pairs"),
+		PairsPolicyEnabled:  configuration.IsEnabled(PairsPolicyID),
+		Emphasis:            setting("emphasis"),
+		MarkupPolicyEnabled: configuration.IsEnabled(MarkupPolicyID),
+		ReturnToEdit:        setting("return-to-edit"),
+	}
 }
 
 func (s *Session) viewSnapshot() kernel.EngineSnapshot { return s.runtime.Snapshot() }
