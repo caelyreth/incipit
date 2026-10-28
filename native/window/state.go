@@ -106,6 +106,7 @@ func (a *AppState) BindShell() {
 		if a.Bridge == nil || a.Element.Input != a.Bridge {
 			a.mountBridge(c)
 		}
+		a.refreshShellReadouts()
 		a.Element.Theme = a.Shell.Settings.Semantic()
 		a.Element.Prose = theme.NewProseStyle(a.Shell.Settings.ProseFontSize)
 		a.Element.Animate = a.Shell.Appearance.Motion
@@ -184,6 +185,30 @@ func (a *AppState) BindShell() {
 		a.executeEditorCommand(editor.MarkupEmphasis.ID())
 	}
 	a.refreshShell()
+}
+
+func (a *AppState) refreshShellReadouts() {
+	if a == nil || a.Shell == nil || a.Session == nil || a.Session.Document() == nil {
+		return
+	}
+	controller := a.Session.Document()
+	metrics, ok := controller.MetricsForCurrentText()
+	if !ok {
+		metrics = controller.Metrics()
+	}
+	a.Shell.Statistics = fmt.Sprintf(
+		"%d words  ·  %d paragraphs  ·  %d characters",
+		metrics.Words,
+		metrics.Paragraphs,
+		metrics.Characters,
+	)
+	if controller.Session() != nil {
+		toolbar := controller.Session().ToolbarState()
+		a.Shell.Formatting.Italic = toolbar.Emphasis
+		a.Shell.Formatting.Bold = toolbar.Strong
+		a.Shell.CanUndo = toolbar.CanUndo
+		a.Shell.CanRedo = toolbar.CanRedo
+	}
 }
 
 func (a *AppState) executeEditorCommand(command kernel.CommandID) {
@@ -270,16 +295,7 @@ func (a *AppState) refreshShell() {
 	}
 	if a.Session != nil && a.Session.Document() != nil {
 		controller := a.Session.Document()
-		metrics, ok := controller.MetricsForCurrentText()
-		if !ok {
-			metrics = controller.Metrics()
-		}
-		a.Shell.Statistics = fmt.Sprintf(
-			"%d words  ·  %d paragraphs  ·  %d characters",
-			metrics.Words,
-			metrics.Paragraphs,
-			metrics.Characters,
-		)
+		a.refreshShellReadouts()
 		a.Shell.CanUndo = controller.Session().History().UndoDepth() > 0
 		a.Shell.CanRedo = controller.Session().History().RedoDepth() > 0
 	} else {
