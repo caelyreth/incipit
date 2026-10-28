@@ -276,7 +276,9 @@ func (c *DocumentController) finishNativeOutcome(outcome kernel.Outcome, err err
 		c.recordError(err)
 		return
 	}
-	if outcome != kernel.OutcomeHandled {
+	if outcome == kernel.OutcomeHandled {
+		c.lastError = nil
+	} else {
 		c.lastError = ErrPolicyDeclined
 	}
 }

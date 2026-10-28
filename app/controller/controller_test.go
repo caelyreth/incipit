@@ -185,6 +185,22 @@ func TestIMECommitInsideGeneratedStrongPair(t *testing.T) {
 	}
 }
 
+func TestSuccessfulNativeReplacementClearsPriorError(t *testing.T) {
+	t.Parallel()
+	controller := newController(t, "abc")
+	controller.ReplaceText(&UTF16Range{Start: 9, End: 9}, "x")
+	if controller.LastError() == nil {
+		t.Fatal("invalid replacement did not record an error")
+	}
+	controller.ReplaceText(nil, "d")
+	if controller.LastError() != nil {
+		t.Fatalf("successful replacement retained error: %v", controller.LastError())
+	}
+	if controller.Text() != "dabc" {
+		t.Fatalf("text = %q", controller.Text())
+	}
+}
+
 func TestExecuteRoutesTextHistoryWordMarkupAndApplicationCommands(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "one two")
