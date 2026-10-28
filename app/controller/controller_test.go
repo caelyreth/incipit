@@ -555,6 +555,21 @@ func TestMetricsQueueAndStaleInstall(t *testing.T) {
 	}
 }
 
+func TestMetricsForCurrentTextTracksQueuedSemanticEdit(t *testing.T) {
+	document, err := NewTextDocument("alpha beta", fixedClock{now: time.Unix(1_700_000_000, 0)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustSelect(t, document, 0, 10)
+	if _, err := document.ReplaceSelection("gamma", kernel.EventOriginTyping); err != nil {
+		t.Fatal(err)
+	}
+	metrics, ok := document.MetricsForCurrentText()
+	if !ok || metrics.Words != 1 || metrics.Paragraphs != 1 || metrics.Characters != 5 {
+		t.Fatalf("metrics = %#v,%v", metrics, ok)
+	}
+}
+
 func TestMetricSourceComputeAndStaleInstallAfterSecondEdit(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "one")

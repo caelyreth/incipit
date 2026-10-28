@@ -270,10 +270,10 @@ func (a *AppState) refreshShell() {
 	}
 	if a.Session != nil && a.Session.Document() != nil {
 		controller := a.Session.Document()
-		if controller.MetricsPending() {
-			controller.RefreshMetrics()
+		metrics, ok := controller.MetricsForCurrentText()
+		if !ok {
+			metrics = controller.Metrics()
 		}
-		metrics := controller.Metrics()
 		a.Shell.Statistics = fmt.Sprintf(
 			"%d words  ·  %d paragraphs  ·  %d characters",
 			metrics.Words,

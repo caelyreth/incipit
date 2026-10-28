@@ -53,6 +53,24 @@ func metricsFrom(source editor.TextMetricsSource) Metrics {
 	}
 }
 
+// MetricsForCurrentText computes semantic counts from the current node.
+// It is the synchronous fallback for command-line and native status surfaces;
+// asynchronous callers can still use PendingMetricSource.
+func (c *DocumentController) MetricsForCurrentText() (Metrics, bool) {
+	source, ok := c.session.Statistics()
+	if !ok {
+		return Metrics{}, false
+	}
+	metrics, ok := metricSource(source).Compute()
+	if !ok {
+		return Metrics{}, false
+	}
+	if !c.InstallMetrics(metricSource(source), metrics) {
+		return Metrics{}, false
+	}
+	return metrics, true
+}
+
 // Metrics returns the last installed semantic counts.
 func (c *DocumentController) Metrics() Metrics { return c.metrics }
 
