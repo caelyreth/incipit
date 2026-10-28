@@ -114,6 +114,17 @@ func (m Modifiers) All() []Modifier {
 	return modifiers
 }
 
+func (m Modifiers) String() string {
+	names := make([]string, 0, len(AllModifiers))
+	for _, modifier := range m.All() {
+		names = append(names, modifier.String())
+	}
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, "+")
+}
+
 func ParseModifiers(names ...string) (Modifiers, error) {
 	var result Modifiers
 	for _, name := range names {
@@ -194,10 +205,25 @@ func newPreparedKeymap() *PreparedKeymap {
 	}
 }
 
+// Clone returns an independent prepared keymap.
+func (k *PreparedKeymap) Clone() *PreparedKeymap {
+	if k == nil {
+		return nil
+	}
+	cloned := newPreparedKeymap()
+	for lookup, command := range k.byTarget {
+		cloned.byTarget[lookup] = command
+	}
+	for command, targets := range k.byCommand {
+		cloned.byCommand[command] = cloneSlice(targets)
+	}
+	return cloned
+}
+
 func (k *PreparedKeymap) bind(command CommandID, targets []BindingTarget) error {
-	sorted := append([]BindingTarget(nil), targets...)
+	sorted := cloneSlice(targets)
 	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].String() < sorted[j].String()
+		return compareBindingTargets(sorted[i], sorted[j]) < 0
 	})
 	deduped := sorted[:0]
 	for _, target := range sorted {
@@ -218,6 +244,23 @@ func (k *PreparedKeymap) bind(command CommandID, targets []BindingTarget) error 
 	}
 	k.byCommand[command] = deduped
 	return nil
+}
+
+func compareBindingTargets(first, second BindingTarget) int {
+	if first.context != second.context {
+		return strings.Compare(string(first.context), string(second.context))
+	}
+	if first.key != second.key {
+		return strings.Compare(first.key, second.key)
+	}
+	switch {
+	case first.modifiers < second.modifiers:
+		return -1
+	case first.modifiers > second.modifiers:
+		return 1
+	default:
+		return 0
+	}
 }
 
 type KeyConflictError struct {
@@ -249,7 +292,7 @@ func (k *PreparedKeymap) IsCommandEnabled(command CommandID) bool {
 }
 
 func (k *PreparedKeymap) BindingsFor(command CommandID) []BindingTarget {
-	return append([]BindingTarget(nil), k.byCommand[command]...)
+	return cloneSlice(k.byCommand[command])
 }
 
 func (k *PreparedKeymap) Bindings() []Binding {
