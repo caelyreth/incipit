@@ -251,6 +251,20 @@ func appearanceSettings(values appsettings.AppearanceSettings) theme.Settings {
 	return settings
 }
 
+// View composes the live shell, command overlay, and settings diagnostics.
+func (a *AppState) View(c *ui.Context) {
+	if a == nil || a.Shell == nil {
+		return
+	}
+	if a.Palette != nil {
+		a.Palette.View(c)
+		if command, ok := a.Palette.ConsumeChoice(); ok && a.Bridge != nil {
+			_ = a.Bridge.ExecuteExternal(command)
+		}
+	}
+	a.Shell.View(c)
+}
+
 func (a *AppState) commands() []overlay.Command {
 	commands := make([]overlay.Command, 0)
 	for _, command := range editor.AllTextCommands {

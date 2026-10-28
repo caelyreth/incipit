@@ -3,19 +3,16 @@ package window
 import (
 	"log"
 
-	"github.com/caelyreth/neverland/native/shell"
-	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
 func Run() error {
-	state := shell.New()
-	state.Content = func(c *ui.Context) {
-		// The document controller replaces this transitional content with the
-		// custom editor surface once its session is mounted.
-		ui.Box(c).Height(theme.NewProseStyle(state.Settings.ProseFontSize).LineHeight() * 8)
+	app, err := NewAppState()
+	if err != nil {
+		return err
 	}
+	state := app.Shell
 
 	mygo.App.WhenReady(func() {
 		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
@@ -23,7 +20,7 @@ func Run() error {
 			{Role: mygo.RoleEditMenu},
 			{Role: mygo.RoleWindowMenu},
 		}))
-		mygo.NewWindow(mygo.WindowOptions{
+		window := mygo.NewWindow(mygo.WindowOptions{
 			Title:                "Shoreward",
 			Width:                1260,
 			Height:               850,
@@ -33,6 +30,10 @@ func Run() error {
 			TrafficLightPosition: &mygo.Point{X: 9, Y: 13},
 			StateKey:             "shoreward.main",
 			Content:              ui.View(state.View),
+		})
+		window.OnFocus(func() {
+			app.Error = ""
+			app.refreshShell()
 		})
 	})
 	return mygo.App.Run()
