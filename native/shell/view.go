@@ -25,7 +25,7 @@ func (s *State) View(c *ui.Context) {
 			}
 			ui.Column(c).Grow(1).Background(semantic.Surface.Page).Children(func() {
 				s.document(c, semantic, metrics, layout)
-				ui.Row(c).Absolute().Bottom(theme.Space16.DIPs(s.Settings.UIFontSize)).
+				ui.Row(c).Absolute().Bottom(theme.Space24.DIPs(s.Settings.UIFontSize)).
 					WidthPercent(100).Justify(ui.Center).Children(func() {
 					s.toolbar(c, semantic, metrics)
 				})

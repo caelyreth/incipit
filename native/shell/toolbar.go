@@ -6,8 +6,8 @@ import (
 )
 
 func (s *State) toolbar(c *ui.Context, semantic theme.Theme, metrics theme.ControlMetrics) {
-	gap := theme.Space08.DIPs(s.Settings.UIFontSize)
-	ui.Row(c).Width(420).Height(metrics.Row+theme.Space12.DIPs(s.Settings.UIFontSize)).
+	gap := theme.Space06.DIPs(s.Settings.UIFontSize)
+	ui.Row(c).Width(310).Height(metrics.Row+theme.Space04.DIPs(s.Settings.UIFontSize)).
 		Padding(theme.Space04.DIPs(s.Settings.UIFontSize)).
 		AlignItems(ui.Center).Justify(ui.Center).Gap(gap).
 		Radius(metrics.PanelRadius).
