@@ -40,3 +40,15 @@ func TestShellSidebarCanCollapse(t *testing.T) {
 		}
 	}
 }
+
+func TestDocumentRegionKeepsCustomSurfaceContent(t *testing.T) {
+	state := New()
+	state.Content = func(c *ui.Context) {
+		ui.Text(c, "Body copy")
+	}
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	if !tester.HasText("Body copy") {
+		t.Fatalf("texts = %#v", tester.Texts())
+	}
+}

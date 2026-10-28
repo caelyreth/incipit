@@ -101,7 +101,7 @@ func (s *State) document(
 ) {
 	prose := theme.NewProseStyle(s.Settings.ProseFontSize)
 	column := prose.Column()
-	ui.Scroll(c).Grow(1).Children(func() {
+	ui.Column(c).Grow(1).Clip().Children(func() {
 		ui.Row(c).WidthPercent(100).Justify(ui.Center).Padding(
 			layout.ReadingTop,
 			layout.ContentGutter,
