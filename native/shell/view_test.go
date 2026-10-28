@@ -52,3 +52,22 @@ func TestDocumentRegionKeepsCustomSurfaceContent(t *testing.T) {
 		t.Fatalf("texts = %#v", tester.Texts())
 	}
 }
+
+func TestSidebarSelectsPagesWithScreenReaderFriendlyItems(t *testing.T) {
+	state := New()
+	state.Pages = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
+	state.ActivePage = "one"
+	var selected string
+	state.SelectPage = func(id string) { selected = id }
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	if !tester.HasText("Pages") || !tester.HasText("First") || !tester.HasText("Second") {
+		t.Fatalf("texts = %#v", tester.Texts())
+	}
+	if err := tester.Click("Second"); err != nil {
+		t.Fatal(err)
+	}
+	if selected != "two" {
+		t.Fatalf("selected = %q", selected)
+	}
+}

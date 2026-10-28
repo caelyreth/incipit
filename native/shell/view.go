@@ -68,23 +68,24 @@ func (s *State) sidebar(
 	ui.Column(c).Width(layout.Sidebar).HeightPercent(100).
 		Background(semantic.Surface.Panel).Padding(theme.Space08.DIPs(s.Settings.UIFontSize)).
 		Children(func() {
+			selected := s.ActivePage
 			ui.Row(c).Height(metrics.Height).Gap(theme.Space06.DIPs(s.Settings.UIFontSize)).Children(func() {
 				ui.Text(c, "Notebook").Grow(1).Bold()
 				if ui.PrimaryButton(c.Key("new-page"), "New").Clicked() && s.NewPage != nil {
 					s.NewPage()
 				}
 			})
-			ui.Scroll(c).Grow(1).Children(func() {
-				for _, page := range s.Pages {
-					button := ui.Button(c.Key("page-"+page.ID), page.Title)
-					if page.ID == s.ActivePage {
-						button.Background(semantic.Element.Selected)
+			ui.Sidebar(c, &selected, func() {
+				open := true
+				ui.SidebarSection(c, "Pages", &open, func() {
+					for _, page := range s.Pages {
+						ui.SidebarItem(c, page.ID, nil, page.Title)
 					}
-					if button.Clicked() && s.SelectPage != nil {
-						s.SelectPage(page.ID)
-					}
-				}
-			})
+				})
+			}).Grow(1)
+			if selected != s.ActivePage && s.SelectPage != nil {
+				s.SelectPage(selected)
+			}
 			if ui.Button(c.Key("close-page"), "Close Page").Disabled(s.ActivePage == "").Clicked() &&
 				s.ClosePage != nil {
 				s.ClosePage()
