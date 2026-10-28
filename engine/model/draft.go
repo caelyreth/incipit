@@ -15,6 +15,12 @@ type DocumentDraft struct {
 	written   bool
 }
 
+// BaseSnapshot exposes the immutable starting state for checked validation.
+// Its revision is supplied by the owning engine transaction.
+func (d *DocumentDraft) BaseSnapshot() DocumentSnapshot {
+	return DocumentSnapshot{state: d.base}
+}
+
 // Draft is a concise alias for DocumentDraft.
 type Draft = DocumentDraft
 

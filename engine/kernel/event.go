@@ -1,58 +1,64 @@
 package kernel
 
-// EventOrigin identifies how an event entered the editor policy system.
-type EventOrigin uint8
+type EventKind uint8
 
 const (
-	EventOriginTyping EventOrigin = iota + 1
-	EventOriginPaste
-	EventOriginIME
-	EventOriginSemantic
+	EventCommand EventKind = iota + 1
+	EventText
+	EventAttribute
 )
 
-func (o EventOrigin) Matches(other EventOrigin) bool {
-	return o == other
+// Event is a typed command or checked input request. Text payload belongs to
+// the event, not its lookup key.
+type Event struct {
+	kind   EventKind
+	key    string
+	text   *TextInput
+	attr   *AttributeInput
+	origin *EventOrigin
 }
 
-func (o EventOrigin) String() string {
-	switch o {
-	case EventOriginTyping:
-		return "typing"
-	case EventOriginPaste:
-		return "paste"
-	case EventOriginIME:
-		return "ime"
-	case EventOriginSemantic:
-		return "semantic"
-	default:
-		return "unknown"
-	}
+func NewCommandEvent(key string) Event {
+	return Event{kind: EventCommand, key: key}
 }
 
-// OriginMatches implements the empty-set wildcard used by rule declarations.
-func OriginMatches(declared []EventOrigin, actual EventOrigin) bool {
-	if len(declared) == 0 {
-		return true
-	}
-	for _, origin := range declared {
-		if origin == actual {
-			return true
-		}
-	}
-	return false
+func NewTextEvent(input TextInput, origin EventOrigin) Event {
+	return Event{kind: EventText, key: TextInputKey, text: &input, origin: &origin}
 }
 
-// OriginsOverlap treats an empty declaration as matching all origins.
-func OriginsOverlap(first, second []EventOrigin) bool {
-	if len(first) == 0 || len(second) == 0 {
-		return true
+func NewAttributeEvent(input AttributeInput, origin EventOrigin) Event {
+	return Event{kind: EventAttribute, key: AttributeInputKey, attr: &input, origin: &origin}
+}
+
+func (e Event) Kind() EventKind { return e.kind }
+func (e Event) Key() string     { return e.key }
+
+func (e Event) Origin() (EventOrigin, bool) {
+	if e.origin == nil {
+		return 0, false
 	}
-	for _, a := range first {
-		for _, b := range second {
-			if a == b {
-				return true
-			}
-		}
+	return *e.origin, true
+}
+
+func (e Event) WithOrigin(origin EventOrigin) Event {
+	e.origin = &origin
+	return e
+}
+
+func (e Event) TextInput() (TextInput, bool) {
+	if e.text == nil {
+		return TextInput{}, false
 	}
-	return false
+	return *e.text, true
+}
+
+func (e Event) AttributeInput() (AttributeInput, bool) {
+	if e.attr == nil {
+		return AttributeInput{}, false
+	}
+	return *e.attr, true
+}
+
+func (e Event) HasReservedCommandKey() bool {
+	return e.kind == EventCommand && (e.key == TextInputKey || e.key == AttributeInputKey)
 }

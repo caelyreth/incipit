@@ -55,6 +55,17 @@ type ResourceRowChange struct {
 	HasAfter  bool
 }
 
+func (c ResourceChange) Clone() ResourceChange {
+	c.Before = c.Before.Clone()
+	c.After = c.After.Clone()
+	c.RowChanges = append([]ResourceRowChange(nil), c.RowChanges...)
+	for index := range c.RowChanges {
+		c.RowChanges[index].Before = c.RowChanges[index].Before.Clone()
+		c.RowChanges[index].After = c.RowChanges[index].After.Clone()
+	}
+	return c
+}
+
 type ResourceCommit[T any] struct {
 	Value   T
 	Changes []ResourceChange
