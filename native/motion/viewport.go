@@ -22,7 +22,8 @@ func RevealOffset(options RevealOptions) (float32, bool) {
 	changed := true
 	switch {
 	case options.Typewriter && !options.ManualOverride:
-		target = options.CaretY - options.ViewportHeight*0.48
+		// The caret's line sits at the exact vertical center.
+		target = options.CaretY + options.LineHeight/2 - options.ViewportHeight/2
 	case options.CaretY < top+margin:
 		target = options.CaretY - margin
 	case options.CaretY+options.LineHeight > bottom-margin:

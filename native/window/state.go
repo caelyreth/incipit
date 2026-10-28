@@ -126,12 +126,10 @@ func (a *AppState) BindShell() {
 		a.Element.Typewriter = a.Shell.Appearance.Typewriter
 		a.Element.Title = a.Workspace.Title()
 		a.Element.UIFontSize = a.Shell.Settings.UIFontSize
-		a.Element.BottomInset = 150 * a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
-		if a.Shell.Appearance.Typewriter {
-			if _, height := c.Size(); height > 0 {
-				a.Element.BottomInset = max(a.Element.BottomInset, height*0.52)
-			}
-		}
+		// The last line only needs to clear the floating dock; typewriter
+		// mode's centering space is the element's own.
+		a.Element.BottomInset = theme.DefaultLayout.DockClearance() *
+			a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
 		a.refreshToolbarState()
 		a.Element.View(c)
 	}

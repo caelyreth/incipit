@@ -13,11 +13,14 @@ func (e *Element) revealCaret(layout *textlayout.Layout, caret float32, now time
 	if e == nil || layout == nil || e.lastHeight <= 0 {
 		return
 	}
+	line := e.Prose.LineHeight()
+	// The product caret is centered in its line; reveal the whole line.
+	lineTop := caret - (line-e.Prose.CaretHeight())/2
 	target, changed := motion.RevealOffset(motion.RevealOptions{
 		ViewportTop:    e.scroll,
 		ViewportHeight: e.lastHeight,
-		CaretY:         caret,
-		LineHeight:     e.Prose.LineHeight(),
+		CaretY:         lineTop,
+		LineHeight:     line,
 		CurrentOffset:  e.scroll,
 		Typewriter:     e.Typewriter,
 		ManualOverride: now.Before(e.manualUntil),
@@ -25,9 +28,11 @@ func (e *Element) revealCaret(layout *textlayout.Layout, caret float32, now time
 	if !changed {
 		return
 	}
-	contentHeight := layout.Height() + e.contentTop() + e.BottomInset
-	maxOffset := max(0, contentHeight-e.lastHeight)
-	target = max(0, min(target, maxOffset))
+	low, high := e.scrollRange(layout, e.lastHeight)
+	target = max(low, min(target, high))
+	if target == e.scroll && !e.Motion.Scrolling() {
+		return
+	}
 	e.Motion.ScrollTo(e.scroll, target, now)
 }
 
@@ -37,7 +42,7 @@ func (e *Element) advanceScroll(now time.Time) {
 	}
 	value, moving := e.Motion.Scroll(now, e.Animate)
 	if moving {
-		e.scroll = max(0, value)
+		e.scroll = value
 	}
 }
 
@@ -47,5 +52,9 @@ func (e *Element) manualScroll(delta float32, now time.Time) {
 	}
 	e.Motion.CancelScroll()
 	e.manualUntil = now.Add(manualScrollGrace)
-	e.scroll = max(0, e.scroll+delta)
+	e.scroll += delta
+	if e.current != nil {
+		low, high := e.scrollRange(e.current, e.lastHeight)
+		e.scroll = max(low, min(e.scroll, high))
+	}
 }

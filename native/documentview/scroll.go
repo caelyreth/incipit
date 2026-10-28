@@ -15,7 +15,8 @@ func (e *Element) SetScrollY(offset float32) {
 	if e == nil {
 		return
 	}
-	e.scroll = max(0, offset)
+	// The element clamps it into the mode's range when it next paints.
+	e.scroll = offset
 	if e.Motion != nil {
 		e.Motion.CancelScroll()
 	}

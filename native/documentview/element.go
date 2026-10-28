@@ -53,6 +53,7 @@ type Element struct {
 	titleKey          placeholderKey
 	lastCaretY        float32
 	lastViewportH     float32
+	lastTypewriter    bool
 }
 
 // pointerPhase follows one press. A press keeps the caret on its springs, so a
@@ -274,15 +275,27 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	contentTop := e.contentTop()
 	caret := productCaret(e.current.Caret(frame.Caret()), e.Prose)
 	caret.Y += contentTop
-	if e.lastCaretY != caret.Y || e.lastViewportH != rect.H {
+	e.Motion.ViewportFollowsCaret = e.Typewriter
+	modeChanged := e.lastTypewriter != e.Typewriter
+	if e.lastCaretY != caret.Y || e.lastViewportH != rect.H || modeChanged {
 		e.Motion.Activity(p.Now())
 		e.revealCaret(e.current, caret.Y, p.Now())
+		if modeChanged {
+			// Glide into the new mode's range rather than snapping to it.
+			low, high := e.scrollRange(e.current, rect.H)
+			if target := max(low, min(e.scroll, high)); target != e.scroll && !e.Motion.Scrolling() {
+				e.Motion.ScrollTo(e.scroll, target, p.Now())
+			}
+		}
 		e.lastCaretY = caret.Y
 		e.lastViewportH = rect.H
+		e.lastTypewriter = e.Typewriter
 	}
 	e.advanceScroll(p.Now())
-	maxScroll := max(0, e.current.Height()+contentTop+e.BottomInset-rect.H)
-	e.scroll = max(0, min(e.scroll, maxScroll))
+	scrollMin, scrollMax := e.scrollRange(e.current, rect.H)
+	if !e.Motion.Scrolling() {
+		e.scroll = max(scrollMin, min(e.scroll, scrollMax))
+	}
 	state := &State{
 		Flow:              flow,
 		Frame:             frame,
@@ -291,6 +304,8 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Theme:             e.Theme,
 		Prose:             e.Prose,
 		ScrollY:           e.scroll,
+		ScrollMin:         scrollMin,
+		ScrollMax:         scrollMax,
 		Focused:           focused,
 		Animate:           animate,
 		Placeholder:       e.Placeholder,
@@ -305,6 +320,27 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	bridge.Controller.SetGeometry(LayoutGeometry{
 		Layout: e.current, YOffset: contentTop, ScrollY: e.scroll,
 	})
+}
+
+// scrollRange is the span of offsets the viewport may take. Normally it is
+// the overflow: the content and the clearance its last line needs above the
+// writing dock, less the viewport, and nothing when the content fits. In
+// typewriter mode virtual space above and below lets the first and last
+// lines sit at the center like every other line, so offsets may be
+// negative.
+func (e *Element) scrollRange(layout *textlayout.Layout, viewport float32) (float32, float32) {
+	if e == nil || layout == nil || viewport <= 0 {
+		return 0, 0
+	}
+	top := e.contentTop()
+	if e.Typewriter {
+		line := e.Prose.LineHeight()
+		half := (viewport - line) / 2
+		first := top - half
+		last := top + layout.Height() - line - half
+		return first, max(first, last)
+	}
+	return 0, max(0, top+layout.Height()+e.BottomInset-viewport)
 }
 
 func productCaret(caret ui.Rect, prose theme.ProseStyle) ui.Rect {

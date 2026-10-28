@@ -10,7 +10,6 @@ type Layout struct {
 	Status            float32
 	Narrow            float32
 	ReadingTop        float32
-	ReadingBottom     float32
 	TitleBottom       float32
 	ChromeGutter      float32
 	ContentGutter     float32
@@ -25,13 +24,20 @@ var DefaultLayout = Layout{
 	Status:            32,
 	Narrow:            920,
 	ReadingTop:        64,
-	ReadingBottom:     150,
 	TitleBottom:       24,
 	ChromeGutter:      12,
 	ContentGutter:     24,
 	TrafficLightInset: 96,
 	Tab:               30,
 	DockOffset:        20,
+}
+
+// DockClearance is how far the floating writing dock reaches up from the
+// bottom of the document column, plus a reading gap above it, at the
+// 16 DIP reference size: the room the last line needs to clear the dock.
+func (l Layout) DockClearance() float32 {
+	dock := DefaultControls.Height + 2*float32(Space04) + 2
+	return l.DockOffset + dock + float32(Space16)
 }
 
 type ControlMetrics struct {

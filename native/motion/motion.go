@@ -19,6 +19,11 @@ type Motion struct {
 	viewport        *Spring
 	viewportTarget  float32
 	activity        time.Time
+
+	// ViewportFollowsCaret moves the viewport with the caret's spring
+	// instead of its own slower one. Typewriter mode sets it: the caret and
+	// the page then travel the same curve, so the line holds the center.
+	ViewportFollowsCaret bool
 }
 
 // SelectionFade is how long a selection takes to appear from an empty one.
@@ -64,13 +69,20 @@ func (m *Motion) Scroll(now time.Time, animate bool) (float32, bool) {
 	}
 	result := m.viewportTarget
 	if animate {
-		result = m.viewport.Step(m.viewportTarget, now, viewportFrequency)
+		frequency := viewportFrequency
+		if m.ViewportFollowsCaret {
+			frequency = caretFrequency
+		}
+		result = m.viewport.Step(m.viewportTarget, now, frequency)
 	}
 	if !animate || !m.viewport.Moving() {
 		m.viewport = nil
 	}
 	return result, true
 }
+
+// Scrolling reports whether a viewport glide is in flight.
+func (m *Motion) Scrolling() bool { return m.viewport != nil }
 
 func (m *Motion) CancelScroll() {
 	m.viewport = nil

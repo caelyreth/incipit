@@ -13,8 +13,10 @@ func TestScrollYRestoresWithoutCarryoverMotion(t *testing.T) {
 	if element.ScrollY() != 120 {
 		t.Fatalf("scroll = %v", element.ScrollY())
 	}
+	// Typewriter offsets above the first line are negative; a parked page
+	// restores exactly and paint clamps it into the current mode's range.
 	element.SetScrollY(-20)
-	if element.ScrollY() != 0 {
+	if element.ScrollY() != -20 {
 		t.Fatalf("negative scroll = %v", element.ScrollY())
 	}
 }

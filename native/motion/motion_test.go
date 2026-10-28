@@ -100,7 +100,7 @@ func TestRevealAndViewportMotion(t *testing.T) {
 	if target, changed := RevealOffset(RevealOptions{
 		ViewportTop: 0, ViewportHeight: 400, CaretY: 150, LineHeight: 34,
 		CurrentOffset: 20, Typewriter: true,
-	}); !changed || math.Abs(float64(target+42)) > 0.001 {
+	}); !changed || math.Abs(float64(target+33)) > 0.001 {
 		t.Fatalf("typewriter target = %v,%v", target, changed)
 	}
 	now := time.Unix(0, 0)

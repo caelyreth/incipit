@@ -18,6 +18,8 @@ type State struct {
 	Theme             theme.Theme
 	Prose             theme.ProseStyle
 	ScrollY           float32
+	ScrollMin         float32
+	ScrollMax         float32
 	Focused           bool
 	Animate           bool
 	Placeholder       string

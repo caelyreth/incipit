@@ -27,9 +27,9 @@ func TestReferenceLayoutKeepsChromeSpacing(t *testing.T) {
 		DefaultLayout.Status != 32 ||
 		DefaultLayout.ReadingTop != 64 ||
 		DefaultLayout.TitleBottom != 24 ||
-		DefaultLayout.ReadingBottom != 150 ||
 		DefaultLayout.Tab != 30 ||
-		DefaultLayout.DockOffset != 20 {
+		DefaultLayout.DockOffset != 20 ||
+		DefaultLayout.DockClearance() != 78 {
 		t.Fatalf("layout = %#v", DefaultLayout)
 	}
 }
