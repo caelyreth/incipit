@@ -49,6 +49,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 			drawCaret(p, rect, state, options, animatedCaret)
 		}
 		drawGuides(p, rect, state, options)
+		drawScrollbar(p, rect, state)
 	})
 	if geometryAnimate && state.Motion.Moving() {
 		p.AnimationFrame()
@@ -216,6 +217,32 @@ func scheduleCaretBreathing(p *ui.Painter, state *State, now time.Time) {
 		return
 	}
 	p.AnimationFrame()
+}
+
+func drawScrollbar(p *ui.Painter, rect ui.Rect, state *State) {
+	if p == nil || state == nil || state.Layout == nil || rect.H <= 0 {
+		return
+	}
+	contentHeight := state.ContentTop + state.Layout.Height() + state.BottomInset
+	maximum := contentHeight - rect.H
+	if maximum <= 0 {
+		return
+	}
+	scale := float32(1)
+	if state.Prose.FontSize > 0 {
+		scale = state.Prose.FontSize / 19
+	}
+	trackWidth := 10 * scale
+	thumbWidth := 6 * scale
+	minThumb := 24 * scale
+	thumbHeight := max(minThumb, rect.H*(rect.H/contentHeight))
+	thumbHeight = min(thumbHeight, rect.H)
+	travel := rect.H - thumbHeight
+	progress := max(0, min(state.ScrollY/maximum, 1))
+	x := rect.X + rect.W - trackWidth/2 - thumbWidth/2
+	y := rect.Y + travel*progress
+	p.Fill(ui.Rect{X: x, Y: y, W: thumbWidth, H: thumbHeight},
+		state.Theme.Scrollbar.Thumb, thumbWidth/2)
 }
 
 func roleColor(semantic theme.Theme, role surface.ColorRole) ui.Color {

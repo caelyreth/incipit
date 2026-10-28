@@ -25,4 +25,5 @@ type State struct {
 	PointerActive     bool
 	Composing         bool
 	ContentTop        float32
+	BottomInset       float32
 }

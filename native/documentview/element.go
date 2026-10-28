@@ -269,6 +269,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		PointerActive:     e.dragging,
 		Composing:         bridge.Controller.IsComposing(),
 		ContentTop:        contentTop,
+		BottomInset:       e.BottomInset,
 	}
 	Paint(p, rect, state)
 	bridge.Controller.SetGeometry(LayoutGeometry{
