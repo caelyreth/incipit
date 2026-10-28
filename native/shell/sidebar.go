@@ -15,24 +15,79 @@ func (s *State) sidebar(
 	layout theme.Layout,
 ) {
 	ui.Column(c).Width(layout.Sidebar).HeightPercent(100).
-		Background(semantic.Surface.Panel).Padding(theme.Space08.DIPs(s.Settings.UIFontSize)).
-		Children(func() {
+		Background(semantic.Surface.Panel).Children(func() {
+		ui.Column(c).Grow(1).MinHeight(0).Padding(
+			theme.Space12.DIPs(s.Settings.UIFontSize),
+			theme.Space12.DIPs(s.Settings.UIFontSize),
+			0,
+			theme.Space12.DIPs(s.Settings.UIFontSize),
+		).Children(func() {
 			s.pageSearch(c, semantic, metrics)
-			ui.Box(c).Height(theme.Space04.DIPs(s.Settings.UIFontSize))
+			ui.Box(c).Height(theme.Space12.DIPs(s.Settings.UIFontSize))
+			ui.Text(c, fmt.Sprintf("Your pages · %d", len(s.Pages))).Bold().FontSize(
+				theme.TextXSmall.Size(s.Settings.UIFontSize),
+			).TextColor(semantic.Text.Muted).SingleLine()
+			ui.Box(c).Height(theme.Space06.DIPs(s.Settings.UIFontSize))
 			selected := s.ActivePage
+			pages := s.filteredPages()
 			ui.Sidebar(c, &selected, func() {
-				open := true
-				ui.SidebarSection(c, fmt.Sprintf("Pages · %d", len(s.filteredPages())), &open, func() {
-					for _, page := range s.filteredPages() {
-						ui.SidebarItem(c, page.ID, glyph(IconDocument), page.Title)
-					}
-				})
-			}).Grow(1)
+				if len(pages) == 0 {
+					ui.Text(c, "No pages match your search.").FontSize(
+						theme.TextSmall.Size(s.Settings.UIFontSize),
+					).TextColor(semantic.Text.Muted)
+					return
+				}
+				for _, page := range pages {
+					item := ui.SidebarItem(c, page.ID, glyph(IconDocument), page.Title)
+					item.ContextMenu(s.pageMenu(page))
+					item.Children(func() {
+						actions := ui.MenuButton(c.Key("page-actions-"+page.ID), "", s.pageMenu(page)).
+							Label("Page actions for "+page.Title).
+							Size(metrics.InlineHeight, metrics.InlineHeight).
+							Padding(0).Radius(metrics.Radius).Background(ui.Transparent)
+						if actions.Hovered() {
+							actions.Background(semantic.Element.Hover)
+						}
+					})
+				}
+			}).Grow(1).MinHeight(0)
 			if selected != s.ActivePage && s.SelectPage != nil {
 				s.SelectPage(selected)
 			}
 		})
+		ui.Divider(c).BorderColor(semantic.Border.Default)
+		ui.Row(c).Shrink(0).Padding(
+			theme.Space08.DIPs(s.Settings.UIFontSize),
+			theme.Space12.DIPs(s.Settings.UIFontSize),
+		).AlignItems(ui.Center).Gap(
+			theme.Space08.DIPs(s.Settings.UIFontSize),
+		).Children(func() {
+			if s.iconButton(c, "sidebar-settings", "Open settings", IconSettings, metrics, semantic).
+				Clicked() && s.OpenSettings != nil {
+				s.OpenSettings()
+			}
+			ui.Text(c, "Kept in this session").FontSize(
+				theme.TextXSmall.Size(s.Settings.UIFontSize),
+			).TextColor(semantic.Text.Muted).SingleLine()
+		})
+	})
 	ui.Divider(c).BorderColor(semantic.Border.Default)
+}
+
+func (s *State) pageMenu(page Page) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		if m.Item("Rename page...").Chosen() {
+			if s.SelectPage != nil {
+				s.SelectPage(page.ID)
+			}
+			if s.RenamePage != nil {
+				s.RenamePage(page.ID)
+			}
+		}
+		if m.Item("Close tab").Chosen() {
+			s.closePage(page.ID)
+		}
+	}
 }
 
 func (s *State) pageSearch(c *ui.Context, semantic theme.Theme, metrics theme.ControlMetrics) {

@@ -22,7 +22,7 @@ func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
 	}
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	for _, text := range []string{"Pages", "Untitled", "Body copy"} {
+	for _, text := range []string{"Your pages · 1", "Untitled", "Body copy"} {
 		if !tester.HasText(text) {
 			t.Fatalf("missing %q in %#v", text, tester.Texts())
 		}
@@ -61,7 +61,7 @@ func TestSidebarSelectsPagesWithScreenReaderFriendlyItems(t *testing.T) {
 	state.SelectPage = func(id string) { selected = id }
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	if !tester.HasText("Pages") || !tester.HasText("First") || !tester.HasText("Second") {
+	if !tester.HasText("Your pages · 2") || !tester.HasText("First") || !tester.HasText("Second") {
 		t.Fatalf("texts = %#v", tester.Texts())
 	}
 	if err := tester.Click("Second"); err != nil {
@@ -132,13 +132,12 @@ func TestSharedIconSetComposesDocumentedGlyphs(t *testing.T) {
 	}
 }
 
-func TestHeaderIconControlsAreLabeledAndInvokeExistingCallbacks(t *testing.T) {
+func TestHeaderControlsUseReferenceActions(t *testing.T) {
 	state := New()
-	var toggled, commands, created, found, opened, closed bool
+	var toggled, commands, created, opened, closed bool
 	state.ToggleSidebar = func() { toggled = true }
 	state.OpenCommands = func() { commands = true }
 	state.NewPage = func() { created = true }
-	state.FindPage = func() { found = true }
 	state.OpenSettings = func() { opened = true }
 	state.ClosePage = func() { closed = true }
 	tester := ui.NewTester(state.View, 1260, 850)
@@ -146,23 +145,21 @@ func TestHeaderIconControlsAreLabeledAndInvokeExistingCallbacks(t *testing.T) {
 
 	for _, label := range []string{
 		"Toggle sidebar",
-		"Close page",
-		"Commands",
 		"New page",
-		"Find pages",
-		"Settings",
+		"Search commands",
+		"Open settings",
+		"Close Untitled",
 	} {
 		if _, ok := tester.Find(label); !ok {
 			t.Fatalf("missing accessible control %q in %#v", label, tester.Texts())
 		}
 	}
 	for label, want := range map[string]*bool{
-		"Toggle sidebar": &toggled,
-		"Close page":     &closed,
-		"Commands":       &commands,
-		"New page":       &created,
-		"Find pages":     &found,
-		"Settings":       &opened,
+		"Toggle sidebar":  &toggled,
+		"New page":        &created,
+		"Search commands": &commands,
+		"Open settings":   &opened,
+		"Close Untitled":  &closed,
 	} {
 		if err := tester.Click(label); err != nil {
 			t.Fatal(err)
@@ -195,8 +192,84 @@ func TestIconControlsAreKeyboardReachableAndSidebarSearchFiltersPages(t *testing
 		t.Fatal(err)
 	}
 	tester.Type("Second")
-	if !tester.HasText("Pages · 1") {
+	if !tester.HasText("Your pages · 2") {
 		t.Fatalf("filtered sidebar section missing from %#v", tester.Texts())
+	}
+}
+
+func TestSidebarShowsReferenceFooterAndEmptySearch(t *testing.T) {
+	state := New()
+	state.Pages = []Page{{ID: "one", Title: "First"}}
+	state.ActivePage = "one"
+	state.PageQuery = "missing"
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	for _, text := range []string{
+		"Your pages · 1",
+		"No pages match your search.",
+		"Kept in this session",
+	} {
+		if !tester.HasText(text) {
+			t.Fatalf("missing %q in %#v", text, tester.Texts())
+		}
+	}
+	if _, ok := tester.Find("Open settings"); !ok {
+		t.Fatal("sidebar settings control is missing")
+	}
+}
+
+func TestSidebarPageActionsExposeRenameAndClose(t *testing.T) {
+	state := New()
+	state.Pages = []Page{{ID: "one", Title: "First"}}
+	state.ActivePage = "one"
+	var selected, renamed, closed string
+	state.SelectPage = func(id string) { selected = id }
+	state.RenamePage = func(id string) { renamed = id }
+	state.ClosePageID = func(id string) { closed = id }
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+
+	if err := tester.Click("Page actions for First"); err != nil {
+		t.Fatal(err)
+	}
+	if menu := tester.Menu(); len(menu) != 2 {
+		t.Fatalf("page menu = %#v", menu)
+	}
+	if err := tester.ChooseMenuItem("Rename page..."); err != nil {
+		t.Fatal(err)
+	}
+	if selected != "one" || renamed != "one" || closed != "" {
+		t.Fatalf("rename action = selected:%q renamed:%q closed:%q", selected, renamed, closed)
+	}
+
+	selected, renamed = "", ""
+	if err := tester.Click("Page actions for First"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tester.ChooseMenuItem("Close tab"); err != nil {
+		t.Fatal(err)
+	}
+	if selected != "" || renamed != "" || closed != "one" {
+		t.Fatalf("close action = selected:%q renamed:%q closed:%q", selected, renamed, closed)
+	}
+}
+
+func TestStatusPlacesStatisticsBeforeTransientMessage(t *testing.T) {
+	state := New()
+	state.Statistics = "3 words  ·  2 paragraphs  ·  14 characters"
+	state.Status = "Saved"
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	statistics, ok := tester.Find(state.Statistics)
+	if !ok {
+		t.Fatalf("statistics missing from %#v", tester.Texts())
+	}
+	message, ok := tester.Find(state.Status)
+	if !ok {
+		t.Fatalf("status message missing from %#v", tester.Texts())
+	}
+	if statistics.X >= message.X {
+		t.Fatalf("statistics x=%v not left of status x=%v", statistics.X, message.X)
 	}
 }
 

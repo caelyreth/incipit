@@ -31,6 +31,7 @@ type AppState struct {
 	Product        appsettings.State
 	Shell          *shell.State
 	Palette        *overlay.CommandPalette
+	PageTitle      *overlay.PageTitle
 	Element        *documentview.Element
 	Bridge         *documentview.Bridge
 	Session        *sheetSession
@@ -86,6 +87,17 @@ func NewAppState() (*AppState, error) {
 		Session:   session,
 	}
 	app.Palette = &overlay.CommandPalette{}
+	app.PageTitle = &overlay.PageTitle{
+		Confirm: func(id, title string) {
+			page, ok := parsePageID(id)
+			if !ok {
+				return
+			}
+			app.Workspace.Rename(page, title)
+			app.refreshShell()
+			app.refreshSettingsData()
+		},
+	}
 	app.Element = documentview.NewElement(
 		nil,
 		theme.DefaultSettings().Semantic(),
@@ -133,16 +145,26 @@ func (a *AppState) BindShell() {
 		a.selectMounted()
 	}
 	a.Shell.ClosePage = func() {
-		a.parkScroll()
 		id, ok := a.Workspace.Active()
 		if !ok {
 			return
 		}
-		if err := a.Workspace.Close(id); err != nil {
-			a.Error = err.Error()
+		a.closePageID(fmt.Sprintf("%d", id))
+	}
+	a.Shell.ClosePageID = a.closePageID
+	a.Shell.RenamePage = func(id string) {
+		page, ok := parsePageID(id)
+		if !ok {
 			return
 		}
-		a.selectMounted()
+		value, ok := a.Workspace.Page(page)
+		if !ok {
+			return
+		}
+		a.PageTitle.Cancel = func(string) {
+			a.refreshShell()
+		}
+		a.PageTitle.Begin(id, value.Title)
 	}
 	a.Shell.OpenCommands = func() {
 		a.Palette.Open = true
@@ -262,8 +284,39 @@ func (a *AppState) selectMounted() {
 				a.Element.SwitchPage(scroll.Y)
 			}
 		}
+	} else {
+		a.Session = nil
+		a.Bridge = nil
+		if a.Element != nil {
+			a.Element.Input = nil
+		}
 	}
 	a.refreshShell()
+}
+
+func (a *AppState) closePageID(id string) {
+	page, ok := parsePageID(id)
+	if !ok {
+		return
+	}
+	a.parkScroll()
+	if err := a.Workspace.Close(page); err != nil {
+		a.Error = err.Error()
+		a.refreshShell()
+		return
+	}
+	if a.PageTitle != nil {
+		a.PageTitle.Open = false
+	}
+	a.selectMounted()
+}
+
+func parsePageID(id string) (workspace.PageID, bool) {
+	var page workspace.PageID
+	if _, err := fmt.Sscanf(id, "%d", &page); err != nil {
+		return 0, false
+	}
+	return page, true
 }
 
 func (a *AppState) parkScroll() {
@@ -288,7 +341,7 @@ func (a *AppState) refreshShell() {
 	} else {
 		a.Shell.ActivePage = ""
 	}
-	a.Shell.Status = "Ready"
+	a.Shell.Status = ""
 	if a.Error != "" {
 		a.Shell.Status = a.Error
 	}
@@ -409,6 +462,9 @@ func (a *AppState) View(c *ui.Context) {
 		}
 	}
 	a.Shell.View(c)
+	if a.PageTitle != nil {
+		a.PageTitle.View(c)
+	}
 }
 
 func (a *AppState) commands() []overlay.Command {

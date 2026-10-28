@@ -33,11 +33,14 @@ type State struct {
 	Toolbar    ToolbarState
 	CanUndo    bool
 	CanRedo    bool
+	TabsScroll ui.ScrollState
 
 	Content       func(c *ui.Context)
 	SelectPage    func(id string)
 	NewPage       func()
 	ClosePage     func()
+	ClosePageID   func(id string)
+	RenamePage    func(id string)
 	OpenSettings  func()
 	OpenCommands  func()
 	FindPage      func()
@@ -50,6 +53,8 @@ type State struct {
 	ToggleCJK     func(bool)
 	Typewriter    func(bool)
 	Zen           func(bool)
+
+	lastActive string
 }
 
 func New() *State {
@@ -58,6 +63,5 @@ func New() *State {
 		Settings:   theme.DefaultSettings(),
 		Pages:      []Page{{ID: "1", Title: "Untitled"}},
 		ActivePage: "1",
-		Status:     "Ready",
 	}
 }
