@@ -84,6 +84,26 @@ func (l *Layout) BoundsForRange(selection model.UTF16Range) (ui.Rect, bool) {
 	return ui.Rect{}, false
 }
 
+// CaretAtPoint returns the projected caret rect for an IME candidate anchor.
+// It preserves the shaped visual affinity selected by IndexAt.
+func (l *Layout) CaretAtPoint(point ui.Point) ui.Rect {
+	return l.Caret(l.Hit(point))
+}
+
+// VisibleBounds returns the content rectangle currently visible in a
+// viewport of the given height at scrollY.
+func (l *Layout) VisibleBounds(scrollY, height float32) ui.Rect {
+	if l == nil {
+		return ui.Rect{}
+	}
+	top := max(0, scrollY)
+	bottom := min(l.height, scrollY+max(0, height))
+	if bottom <= top {
+		return ui.Rect{Y: top, H: 0}
+	}
+	return ui.Rect{Y: top, H: bottom - top}
+}
+
 func (l *Layout) PreviousBoundary(offset model.UTF16Offset) model.UTF16Offset {
 	paragraph, local := l.paragraphAt(offset)
 	if paragraph == nil {

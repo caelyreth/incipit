@@ -115,3 +115,20 @@ func TestBoldStyleReachesMyGoSpans(t *testing.T) {
 		t.Fatalf("bold text = %q", spans[1].Text)
 	}
 }
+
+func TestVisibleBoundsAndCaretAtPointRespectViewport(t *testing.T) {
+	t.Parallel()
+	flow := testFlow(t, "one\ntwo\nthree", -1)
+	layout := NewCache().Update(flow, 300, testStyle())
+	if layout == nil {
+		t.Fatal("layout missing")
+	}
+	visible := layout.VisibleBounds(layout.Height()/2, 10)
+	if visible.Y != layout.Height()/2 || visible.H <= 0 {
+		t.Fatalf("visible = %#v height=%v", visible, layout.Height())
+	}
+	caret := layout.CaretAtPoint(ui.Point{X: 0, Y: layout.Height() / 2})
+	if caret.H <= 0 {
+		t.Fatalf("caret = %#v", caret)
+	}
+}
