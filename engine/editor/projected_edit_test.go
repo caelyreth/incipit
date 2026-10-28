@@ -347,6 +347,118 @@ func TestMixedMarkerAndTextReplacementIsNoninteractive(t *testing.T) {
 	}
 }
 
+func TestMixedUnicodeProjectedEditsKeepUTF16AddressesAndMarkerCounts(t *testing.T) {
+	t.Parallel()
+	f := newProjectedFixture(t, "a🦀中", model.NewUTF16Range(0, 4))
+	for _, test := range []struct {
+		projected model.UTF16Range
+		semantic  model.UTF16Range
+		text      string
+	}{
+		{model.NewUTF16Range(0, 2), model.NewUTF16Range(0, 1), "界"},
+		{model.NewUTF16Range(1, 4), model.NewUTF16Range(0, 3), "🐻"},
+		{model.NewUTF16Range(4, 6), model.NewUTF16Range(3, 4), ""},
+	} {
+		resolved := f.resolve(t, f.edit(t, test.projected, test.text), nil)
+		inputValue := resolved.ProjectedEditInput.Input()
+		if inputValue.Target().RangeUTF16() != test.semantic || inputValue.Text() != test.text {
+			t.Fatalf("%v => %#v text %q", test.projected, inputValue.Target(), inputValue.Text())
+		}
+		attributes := resolved.ProjectedEditInput.Attributes()
+		if test.projected.Start < 1 || test.projected.End > 5 {
+			if len(attributes) != 1 || attributes[0].Text() != "" {
+				t.Fatalf("%v attributes = %#v", test.projected, attributes)
+			}
+		}
+	}
+}
+
+func TestNestedMarksDecomposeClosersBeforeOpenersByProjectionOrder(t *testing.T) {
+	t.Parallel()
+	document, err := model.NewDocument("text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodeID := document.Snapshot().Root()
+	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		if err := draft.SetTextValue(nodeID, "abcd"); err != nil {
+			return err
+		}
+		if _, err := draft.AddMark(nodeID, model.NewUTF16Range(0, 4), 1); err != nil {
+			return err
+		}
+		_, err := draft.AddMark(nodeID, model.NewUTF16Range(1, 3), 2)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := document.Snapshot()
+	node, _ := snapshot.Node(nodeID)
+	revision := snapshot.Revision()
+	// Projection emitted by the semantic inline layout at a shared boundary:
+	// outer opener, inner opener, text, inner closer, outer closer.
+	outer := model.MarkID(1)
+	inner := model.MarkID(2)
+	builder := projection.NewBuilder("nested", projection.NewVersion(revision, 1))
+	for _, step := range []struct {
+		mark model.MarkID
+		text string
+	}{
+		{outer, "*"},
+		{inner, "**"},
+		{0, "abcd"},
+		{inner, "**"},
+		{outer, "*"},
+	} {
+		if step.mark == 0 {
+			if err := builder.Editable(node, model.NewUTF16Range(0, 4)); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		if err := builder.Attribute(nodeID, markerKey(step.mark), step.text); err != nil {
+			t.Fatal(err)
+		}
+	}
+	value, err := builder.Build(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Select the contents from the inner opener through one body character,
+	// then delete. The attribute batch must contain the inner marker update
+	// before the semantic text intent.
+	edit, err := FromProjectedRange(
+		value,
+		model.NewUTF16Range(2, 4),
+		"",
+		kernel.EventOriginTyping,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := ResolveProjectedEditWithDocument(
+		value,
+		snapshot,
+		edit,
+		nil,
+		revision,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attributes := resolved.ProjectedEditInput.Attributes()
+	if len(attributes) != 1 || attributes[0].Target().Key() != markerKey(inner) ||
+		attributes[0].Text() != "*" {
+		t.Fatalf("attributes = %#v", attributes)
+	}
+	if got := resolved.ProjectedEditInput.Input().Target().RangeUTF16(); got != model.NewUTF16Range(0, 1) {
+		t.Fatalf("text range = %#v", got)
+	}
+	if resolved.ProjectedEditInput.Interactive() {
+		t.Fatal("mixed nested edit marked interactive")
+	}
+}
+
 func TestLiteralMarkerInsertionOverNotationTargetsAdjacentSemanticEdge(t *testing.T) {
 	t.Parallel()
 	f := newProjectedFixture(t, "world", model.NewUTF16Range(0, 5))
