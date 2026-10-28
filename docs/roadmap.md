@@ -8,46 +8,49 @@
 
 ## Engine
 
-- [ ] Coordinate and text-root primitives
-- [ ] Semantic document, anchors, and marks
-- [ ] Control algebra and policy kernel
-- [ ] Resources and atomic publication
-- [ ] Projection and source correspondence
-- [ ] Editor commands, words, and statistics
-- [ ] Markup, pairs, CJK, and typography
-- [ ] Projected edits and IME composition
-- [ ] History and correction feedback
-- [ ] Editor session orchestration
+- [x] Coordinate and text-root primitives
+- [x] Semantic document, anchors, and marks
+- [x] Control algebra and policy kernel
+- [x] Resources and atomic publication
+- [x] Projection and source correspondence
+- [x] Editor commands, words, and statistics
+- [x] Markup, pairs, CJK, and typography
+- [x] Projected edits and IME composition
+- [x] History and correction feedback
+- [x] Editor session orchestration
 
 ## Application
 
-- [ ] Document controller and custom buffer facade
-- [ ] `ui.TextInputClient` adapter
-- [ ] Clipboard, metrics, and activity
-- [ ] Keymap and command routing
-- [ ] Workspace and parked pages
-- [ ] Settings snapshots and publication
+- [x] Document controller and custom buffer facade
+- [x] `ui.TextInputClient` adapter
+- [x] Clipboard, metrics, and activity
+- [x] Keymap and command routing
+- [x] Workspace and parked pages
+- [x] Settings snapshots and publication
 
 ## Native UI
 
-- [ ] Theme and prose metrics
-- [ ] Shaped paragraph cache
-- [ ] Selection and range geometry
-- [ ] Custom cursor and cursor breathing
-- [ ] Selection/viewport motion
-- [ ] Writing surface
-- [ ] Window shell and title bar
-- [ ] Sidebar, tabs, status, and toolbar
-- [ ] Command palette and page menu
-- [ ] Settings window
-- [ ] Accessibility
+- [x] Theme and prose metrics
+- [x] Shaped paragraph cache
+- [x] Selection and range geometry
+- [x] Custom cursor and cursor breathing
+- [x] Selection/viewport motion
+- [x] Writing surface
+- [x] Window shell and title bar
+- [x] Sidebar, tabs, status, and toolbar
+- [x] Command palette and page menu
+- [x] Settings window
+- [ ] Accessibility acceptance (roles and focus exist; native platform audit remains)
 
 ## Verification
 
 - [ ] Rust oracle fixture generation
 - [ ] Go golden and randomized parity tests
-- [ ] MyGo Tester interaction tests
+- [x] MyGo Tester interaction tests for the implemented shell, surface, settings, overlays, focus, text input, and pointer selection
 - [ ] Native IME acceptance
 - [ ] Performance benchmarks
 - [ ] Cross-platform packaging
+
+The checked items record implemented, tested behavior, not full Rust/native
+parity acceptance. The remaining unchecked items are release gates.
 

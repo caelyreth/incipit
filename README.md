@@ -2,8 +2,8 @@
 
 Neverland is the Go/MyGo port of Shoreward's writing workspace.
 
-The port follows the research dossier recorded under the ignored
-`../shoreward/references/port-to-go-2026-10-27/` tree:
+The port follows the research dossier recorded under the ignored local
+`references/` tree:
 
 - the headless semantic and policy engine remains authoritative;
 - generated markup remains a projection rather than stored text;
@@ -47,6 +47,13 @@ exact 1.27.3 patch release required by MyGo.
 
 ## Status
 
-This repository is under construction. See `docs/architecture.md` and
-`docs/roadmap.md` for the ownership model and implementation sequence.
+The engine, application boundary, custom writing surface, window shell,
+settings window, command palette, pointer selection, and contractual motion
+are implemented and covered by headless tests. The complete merged suite passes
+with the race detector and `go vet`.
+
+Still required before release: generated Rust oracle fixtures, randomized
+differential traces, native IME/accessibility acceptance on every target OS,
+performance benchmarks, and cross-platform packaging. See
+`docs/architecture.md` and `docs/roadmap.md`.
 
