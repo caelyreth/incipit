@@ -42,4 +42,16 @@ func TestMenuWorkspaceActionsUseABIState(t *testing.T) {
 	if !app.Palette.Open || len(app.Palette.Commands) == 0 {
 		t.Fatalf("palette = %#v", app.Palette)
 	}
+	groups := make(map[string]bool)
+	for _, command := range app.Palette.Commands {
+		groups[command.Group] = true
+		if command.Label == "" || command.ID == "" {
+			t.Fatalf("incomplete command = %#v", command)
+		}
+	}
+	for _, group := range []string{"Text", "History", "Words", "Format", "Navigation", "Workspace", "Clipboard"} {
+		if !groups[group] {
+			t.Fatalf("missing command group %q in %#v", group, groups)
+		}
+	}
 }

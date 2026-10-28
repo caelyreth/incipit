@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/app/controller"
+	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/editor"
@@ -264,17 +265,16 @@ func (a *AppState) View(c *ui.Context) {
 	if a.Palette != nil {
 		a.Palette.View(c)
 		if command, ok := a.Palette.ConsumeChoice(); ok && a.Bridge != nil {
-			_ = a.Bridge.ExecuteExternal(command)
+			if action, known := keymap.ResolveEditorCommand(command); known {
+				_ = a.Bridge.Execute(action)
+			} else {
+				_ = a.Bridge.ExecuteExternal(command)
+			}
 		}
 	}
 	a.Shell.View(c)
 }
 
 func (a *AppState) commands() []overlay.Command {
-	commands := make([]overlay.Command, 0)
-	for _, command := range editor.AllTextCommands {
-		meta := command.Description()
-		commands = append(commands, overlay.Command{ID: meta.ID, Label: meta.Label, Binding: meta.Binding().String()})
-	}
-	return commands
+	return commandCatalog()
 }
