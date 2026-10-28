@@ -1,0 +1,326 @@
+package model
+
+import (
+	"slices"
+	"testing"
+)
+
+func markRanges(marks []InlineMark) []UTF16Range {
+	ranges := make([]UTF16Range, len(marks))
+	for index, mark := range marks {
+		ranges[index] = mark.Range()
+	}
+	return ranges
+}
+
+func TestSemanticMarksValidateRebaseAndRollbackWithText(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	var mark MarkID
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(node, "a🦀b"); err != nil {
+			return err
+		}
+		var err error
+		mark, err = draft.AddMark(node, NewUTF16Range(1, 3), 1)
+		return err
+	})
+	before := document.Snapshot()
+	_, err := document.Transact(func(draft *DocumentDraft) error {
+		_, err := draft.AddMark(node, NewUTF16Range(2, 3), 2)
+		return err
+	})
+	if err == nil {
+		t.Fatal("crossing mark accepted")
+	}
+	if document.Snapshot() != before {
+		t.Fatal("failed crossing mark was published")
+	}
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.ReplaceTextMarked(node, 3, 3, "中", &mark)
+	})
+	snapshot := document.Snapshot()
+	updated, _ := snapshot.Node(node)
+	marks := updated.Marks()
+	if len(marks) != 1 || marks[0].Range() != NewUTF16Range(1, 4) || marks[0].Level() != 1 {
+		t.Fatalf("marks = %#v", marks)
+	}
+	if got := updated.Text().String(); got != "a🦀中b" {
+		t.Fatalf("text = %q", got)
+	}
+}
+
+func TestMarkAddExactRangeUpdatesLevelAndPreservesID(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	var first MarkID
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(node, "word"); err != nil {
+			return err
+		}
+		var err error
+		first, err = draft.AddMark(node, NewUTF16Range(0, 4), 1)
+		return err
+	})
+	var second MarkID
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		var err error
+		second, err = draft.AddMark(node, NewUTF16Range(0, 4), 2)
+		return err
+	})
+	if first != second {
+		t.Fatalf("same-range add changed ID: %d != %d", first, second)
+	}
+	nodeValue, _ := document.Snapshot().Node(node)
+	marks := nodeValue.Marks()
+	if len(marks) != 1 || marks[0].Level() != 2 {
+		t.Fatalf("marks = %#v", marks)
+	}
+}
+
+func TestNestedMarksOrderingAndValidation(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(node, "a🦀b"); err != nil {
+			return err
+		}
+		if _, err := draft.AddMark(node, NewUTF16Range(1, 3), 2); err != nil {
+			return err
+		}
+		_, err := draft.AddMark(node, NewUTF16Range(0, 4), 1)
+		return err
+	})
+	nodeValue, _ := document.Snapshot().Node(node)
+	if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{
+		NewUTF16Range(0, 4),
+		NewUTF16Range(1, 3),
+	}) {
+		t.Fatalf("ranges = %#v", got)
+	}
+}
+
+func TestMarkRebaseAtSharedBoundaryExpandsOnlyEnclosingMarks(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	var outer, inner MarkID
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(node, "abc"); err != nil {
+			return err
+		}
+		var err error
+		outer, err = draft.AddMark(node, NewUTF16Range(0, 3), 1)
+		if err != nil {
+			return err
+		}
+		inner, err = draft.AddMark(node, NewUTF16Range(1, 3), 2)
+		return err
+	})
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.ReplaceTextMarked(node, 3, 3, "x", &inner)
+	})
+	nodeValue, _ := document.Snapshot().Node(node)
+	if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{
+		NewUTF16Range(0, 4),
+		NewUTF16Range(1, 4),
+	}) {
+		t.Fatalf("ranges = %#v", got)
+	}
+	if got := nodeValue.Text().String(); got != "abcx" {
+		t.Fatalf("text = %q", got)
+	}
+	if outer == inner {
+		t.Fatal("nested marks received same identity")
+	}
+}
+
+func TestMarkRebaseWithoutActiveMarkExcludesBoundaryInsertion(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(node, "abc"); err != nil {
+			return err
+		}
+		_, err := draft.AddMark(node, NewUTF16Range(0, 3), 1)
+		return err
+	})
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.ReplaceTextUTF16(node, 3, 3, "x")
+	})
+	nodeValue, _ := document.Snapshot().Node(node)
+	if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{NewUTF16Range(0, 3)}) {
+		t.Fatalf("ranges = %#v", got)
+	}
+}
+
+func TestMarkRebaseDeduplicatesRangesAtMaximumLevel(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(node, "abcd"); err != nil {
+			return err
+		}
+		if _, err := draft.AddMark(node, NewUTF16Range(0, 2), 1); err != nil {
+			return err
+		}
+		if _, err := draft.AddMark(node, NewUTF16Range(2, 4), 2); err != nil {
+			return err
+		}
+		return draft.ReplaceTextUTF16(node, 0, 4, "")
+	})
+	nodeValue, _ := document.Snapshot().Node(node)
+	marks := nodeValue.Marks()
+	if len(marks) != 1 || marks[0].Range() != NewUTF16Range(0, 0) || marks[0].Level() != 2 {
+		t.Fatalf("deduplicated marks = %#v", marks)
+	}
+}
+
+func TestSetMarkLevelZeroRemovesAndIDsRemainMonotonicAfterRollback(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	var first MarkID
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(node, "word"); err != nil {
+			return err
+		}
+		var err error
+		first, err = draft.AddMark(node, NewUTF16Range(0, 2), 1)
+		return err
+	})
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.SetMarkLevel(node, first, 0)
+	})
+	var second MarkID
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		var err error
+		second, err = draft.AddMark(node, NewUTF16Range(0, 2), 1)
+		return err
+	})
+	if second <= first {
+		t.Fatalf("mark identity reused: %d after %d", second, first)
+	}
+
+	draft := document.BeginDraft()
+	checkpoint := draft.Checkpoint()
+	if err := draft.SetMarkLevel(node, second, 0); err != nil {
+		t.Fatal(err)
+	}
+	draft.Rollback(checkpoint)
+	nodeValue, _ := draft.Node(node)
+	if nodeValue.MarkCount() != 1 {
+		t.Fatal("rollback did not restore mark")
+	}
+}
+
+func TestFormatEmphasisTogglesAndPreservesOutsideCoverage(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(node, "abcdef"); err != nil {
+			return err
+		}
+		_, err := draft.AddMark(node, NewUTF16Range(0, 4), 1)
+		return err
+	})
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.FormatEmphasis(node, NewUTF16Range(2, 6), 1)
+	})
+	nodeValue, _ := document.Snapshot().Node(node)
+	if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{
+		NewUTF16Range(0, 2),
+		NewUTF16Range(2, 6),
+	}) {
+		t.Fatalf("formatted ranges = %#v", got)
+	}
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.FormatEmphasis(node, NewUTF16Range(2, 6), 1)
+	})
+	nodeValue, _ = document.Snapshot().Node(node)
+	if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{NewUTF16Range(0, 2)}) {
+		t.Fatalf("toggled ranges = %#v", got)
+	}
+}
+
+func TestFormatEmphasisSplitsLinesAndNeverMarksNewlines(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(node, "ab\r\ncd\nef"); err != nil {
+			return err
+		}
+		return draft.FormatEmphasis(node, NewUTF16Range(0, 8), 2)
+	})
+	nodeValue, _ := document.Snapshot().Node(node)
+	if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{
+		NewUTF16Range(0, 2),
+		NewUTF16Range(4, 6),
+		NewUTF16Range(7, 8),
+	}) {
+		t.Fatalf("line ranges = %#v", got)
+	}
+}
+
+func TestEmptyMarkToggleAndValidation(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(node, "word"); err != nil {
+			return err
+		}
+		return draft.FormatEmphasis(node, NewUTF16Range(2, 2), 1)
+	})
+	nodeValue, _ := document.Snapshot().Node(node)
+	if nodeValue.MarkCount() != 1 || nodeValue.Marks()[0].Range() != NewUTF16Range(2, 2) {
+		t.Fatalf("empty mark = %#v", nodeValue.Marks())
+	}
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.FormatEmphasis(node, NewUTF16Range(2, 2), 1)
+	})
+	nodeValue, _ = document.Snapshot().Node(node)
+	if nodeValue.MarkCount() != 0 {
+		t.Fatal("empty mark did not toggle off")
+	}
+
+	draft := document.BeginDraft()
+	draft.state.nodes[node].marks = []InlineMark{NewInlineMark(1, NewUTF16Range(0, 1), 3)}
+	draft.state.nodes[node].nextMarkID = 2
+	if err := draft.Validate(); err == nil {
+		t.Fatal("invalid strength validated")
+	}
+}
+
+func TestMarkOperationsRejectInvalidInputs(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "text")
+	node := document.Snapshot().Root()
+	draft := document.BeginDraft()
+	if _, err := draft.AddMark(node, NewUTF16Range(0, 1), 1); err == nil {
+		t.Fatal("out-of-range mark accepted")
+	}
+	if err := draft.SetTextValue(node, "abc"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := draft.AddMark(node, NewUTF16Range(0, 1), 0); err == nil {
+		t.Fatal("zero-strength mark accepted")
+	}
+	mark, err := draft.AddMark(node, NewUTF16Range(0, 1), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := draft.SetMarkLevel(node, mark, 3); err == nil {
+		t.Fatal("strength above two accepted")
+	}
+	if err := draft.SetMarkLevel(node, mark+100, 1); err == nil {
+		t.Fatal("missing mark accepted")
+	}
+}
