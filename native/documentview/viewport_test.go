@@ -129,7 +129,7 @@ func TestScrollStopsWhereLastLineClearsDock(t *testing.T) {
 // caretCenterOffset is how far the painted caret's center sits from the
 // viewport's center line.
 func caretCenterOffset(element *Element) float32 {
-	caret := element.Motion.Caret(time.Time{})
+	caret := element.drawnCaret
 	return caret.Y + caret.H/2 - element.ScrollY() - 200
 }
 
@@ -153,24 +153,65 @@ func TestTypewriterCentersFirstAndLastLines(t *testing.T) {
 	}
 }
 
-func TestTypewriterLineBreakHoldsCaretAtCenter(t *testing.T) {
+// screenCaretY is where the painted caret sits in the viewport.
+func screenCaretY(element *Element) float32 {
+	return element.drawnCaret.Y - element.ScrollY()
+}
+
+func TestTypewriterToggleMovesCaretWithPage(t *testing.T) {
+	_, element, tester := newScrollElement(t, "first line", false)
+	start := element.drawnCaret.Y
+	wake, _ := element.Motion.CaretWakeAt(time.Unix(0, 0))
+	previous := screenCaretY(element)
+	element.Typewriter = true
+	tester.Frame()
+	moved := false
+	for range 100 {
+		tester.Advance(8 * time.Millisecond)
+		if element.drawnCaret.Y != start {
+			t.Fatalf("caret left its line while the page glided: %v -> %v",
+				start, element.drawnCaret.Y)
+		}
+		current := screenCaretY(element)
+		if current != previous {
+			moved = true
+		}
+		previous = current
+	}
+	if !moved {
+		t.Fatal("enabling typewriter did not glide the page")
+	}
+	if offset := caretCenterOffset(element); abs32(offset) > 1 {
+		t.Fatalf("typewriter did not settle the line at center: %v", offset)
+	}
+	if after, _ := element.Motion.CaretWakeAt(time.Unix(0, 0)); !after.Equal(wake) {
+		t.Fatalf("toggling typewriter restarted breathing: %v -> %v", wake, after)
+	}
+}
+
+func TestTypewriterLineBreakGlidesCaretWithItsLine(t *testing.T) {
 	_, element, tester := newScrollElement(t, "first line", true)
 	end := element.current.Caret(10)
 	tester.Press(end.X+1, end.Y-element.ScrollY()+1)
 	tester.Release(end.X+1, end.Y-element.ScrollY()+1)
 	tester.Advance(time.Second)
 	before := element.ScrollY()
+	previous := screenCaretY(element)
+	line := element.Prose.LineHeight()
 	tester.Key(0, ui.KeyEnter)
-	worst := float32(0)
-	for range 40 {
+	for range 100 {
 		tester.Advance(8 * time.Millisecond)
-		worst = max(worst, abs32(caretCenterOffset(element)))
+		current := screenCaretY(element)
+		if step := abs32(current - previous); step > line/2 {
+			t.Fatalf("caret jumped %v DIPs in one frame", step)
+		}
+		previous = current
 	}
 	if element.ScrollY() <= before {
 		t.Fatalf("page did not move up for the new line: %v -> %v", before, element.ScrollY())
 	}
-	if worst > 1 {
-		t.Fatalf("caret strayed %v DIPs from center during the line change", worst)
+	if offset := caretCenterOffset(element); abs32(offset) > 1 {
+		t.Fatalf("new line did not settle at center: %v", offset)
 	}
 }
 

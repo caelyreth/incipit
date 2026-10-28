@@ -1,6 +1,7 @@
 package motion
 
 import (
+	"math"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -16,14 +17,44 @@ type Motion struct {
 	selectionShown  time.Time
 	selectionAlpha  float32
 	selectionFading bool
-	viewport        *Spring
+	viewport        *glide
 	viewportTarget  float32
 	activity        time.Time
+}
 
-	// ViewportFollowsCaret moves the viewport with the caret's spring
-	// instead of its own slower one. Typewriter mode sets it: the caret and
-	// the page then travel the same curve, so the line holds the center.
-	ViewportFollowsCaret bool
+// ViewportGlide is how long the page takes to move to a new offset.
+const ViewportGlide = 650 * time.Millisecond
+
+// focusSharpness sets how front-loaded Focus is: the larger, the harder the
+// rise and the longer the soft landing.
+const focusSharpness = 7
+
+// Focus is the viewport's curve: an exponential ease-out that rises hard and
+// lands softly without overshoot, the way a lens pulls focus. It maps [0,1]
+// onto [0,1] and is exactly 1 at the end.
+func Focus(t float32) float32 {
+	if t <= 0 {
+		return 0
+	}
+	if t >= 1 {
+		return 1
+	}
+	return float32((1 - math.Exp2(-focusSharpness*float64(t))) / (1 - math.Exp2(-focusSharpness)))
+}
+
+// glide moves the viewport from one offset to another along Focus.
+type glide struct {
+	from    float32
+	to      float32
+	started time.Time
+}
+
+func (g glide) at(now time.Time) (float32, bool) {
+	t := float32(now.Sub(g.started)) / float32(ViewportGlide)
+	if t >= 1 {
+		return g.to, false
+	}
+	return g.from + (g.to-g.from)*Focus(t), true
 }
 
 // SelectionFade is how long a selection takes to appear from an empty one.
@@ -55,11 +86,16 @@ func (m *Motion) Selection() []ui.Rect {
 	return append([]ui.Rect(nil), m.selectionOutput...)
 }
 
+// ScrollTo glides the viewport to target. A glide already in flight hands
+// over from where it is now, so a new destination never jumps.
 func (m *Motion) ScrollTo(current, target float32, now time.Time) {
-	if m.viewport == nil {
-		spring := NewSpring(current, now)
-		m.viewport = &spring
+	if m.viewport != nil {
+		current, _ = m.viewport.at(now)
 	}
+	if m.viewport != nil && m.viewportTarget == target {
+		return
+	}
+	m.viewport = &glide{from: current, to: target, started: now}
 	m.viewportTarget = target
 }
 
@@ -67,15 +103,11 @@ func (m *Motion) Scroll(now time.Time, animate bool) (float32, bool) {
 	if m.viewport == nil {
 		return 0, false
 	}
-	result := m.viewportTarget
-	if animate {
-		frequency := viewportFrequency
-		if m.ViewportFollowsCaret {
-			frequency = caretFrequency
-		}
-		result = m.viewport.Step(m.viewportTarget, now, frequency)
+	result, moving := m.viewport.at(now)
+	if !animate {
+		result, moving = m.viewportTarget, false
 	}
-	if !animate || !m.viewport.Moving() {
+	if !moving {
 		m.viewport = nil
 	}
 	return result, true

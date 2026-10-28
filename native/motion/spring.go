@@ -8,7 +8,6 @@ import (
 const (
 	caretFrequency     = float32(38)
 	selectionFrequency = float32(34)
-	viewportFrequency  = float32(26)
 	positionEpsilon    = float32(0.25)
 	velocityEpsilon    = float32(8)
 )

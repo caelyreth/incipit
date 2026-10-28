@@ -18,8 +18,6 @@ type State struct {
 	Theme             theme.Theme
 	Prose             theme.ProseStyle
 	ScrollY           float32
-	ScrollMin         float32
-	ScrollMax         float32
 	Focused           bool
 	Animate           bool
 	Placeholder       string
@@ -29,4 +27,8 @@ type State struct {
 	Composing         bool
 	ContentTop        float32
 	BottomInset       float32
+
+	// DrawnCaret is set by Paint: the caret geometry it settled on this
+	// frame, local to the content like the layout's.
+	DrawnCaret ui.Rect
 }

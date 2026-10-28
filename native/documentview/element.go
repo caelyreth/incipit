@@ -54,6 +54,7 @@ type Element struct {
 	lastCaretY        float32
 	lastViewportH     float32
 	lastTypewriter    bool
+	drawnCaret        ui.Rect
 }
 
 // pointerPhase follows one press. A press keeps the caret on its springs, so a
@@ -275,10 +276,12 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	contentTop := e.contentTop()
 	caret := productCaret(e.current.Caret(frame.Caret()), e.Prose)
 	caret.Y += contentTop
-	e.Motion.ViewportFollowsCaret = e.Typewriter
 	modeChanged := e.lastTypewriter != e.Typewriter
 	if e.lastCaretY != caret.Y || e.lastViewportH != rect.H || modeChanged {
-		e.Motion.Activity(p.Now())
+		if e.lastCaretY != caret.Y {
+			// The caret moved; a page glide alone leaves its breathing be.
+			e.Motion.Activity(p.Now())
+		}
 		e.revealCaret(e.current, caret.Y, p.Now())
 		if modeChanged {
 			// Glide into the new mode's range rather than snapping to it.
@@ -304,8 +307,6 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Theme:             e.Theme,
 		Prose:             e.Prose,
 		ScrollY:           e.scroll,
-		ScrollMin:         scrollMin,
-		ScrollMax:         scrollMax,
 		Focused:           focused,
 		Animate:           animate,
 		Placeholder:       e.Placeholder,
@@ -317,6 +318,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		BottomInset:       e.BottomInset,
 	}
 	Paint(p, rect, state)
+	e.drawnCaret = state.DrawnCaret
 	bridge.Controller.SetGeometry(LayoutGeometry{
 		Layout: e.current, YOffset: contentTop, ScrollY: e.scroll,
 	})

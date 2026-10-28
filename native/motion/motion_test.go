@@ -171,3 +171,41 @@ func TestCaretWakeCoincidesWithBreathingStart(t *testing.T) {
 		t.Fatalf("breathing did not ease out of its wake: %v", got)
 	}
 }
+
+func TestFocusRisesHardAndLandsSoftly(t *testing.T) {
+	t.Parallel()
+	if Focus(0) != 0 || Focus(1) != 1 {
+		t.Fatalf("endpoints = %v, %v", Focus(0), Focus(1))
+	}
+	previous := float32(0)
+	for step := 1; step <= 100; step++ {
+		value := Focus(float32(step) / 100)
+		if value < previous || value > 1 {
+			t.Fatalf("Focus is not monotonic without overshoot at %d: %v", step, value)
+		}
+		previous = value
+	}
+	// Most of the travel happens early; the last quarter barely moves.
+	if Focus(0.25) < 0.65 {
+		t.Fatalf("Focus rises too gently: %v", Focus(0.25))
+	}
+	if landing := 1 - Focus(0.75); landing > 0.05 {
+		t.Fatalf("Focus lands too hard: %v remaining", landing)
+	}
+}
+
+func TestViewportGlideHandsOverWithoutJumping(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(0, 0)
+	motion := New(now)
+	motion.ScrollTo(0, 100, now)
+	midway, _ := motion.Scroll(now.Add(ViewportGlide/4), true)
+	motion.ScrollTo(midway, 300, now.Add(ViewportGlide/4))
+	if handed, _ := motion.Scroll(now.Add(ViewportGlide/4), true); handed != midway {
+		t.Fatalf("retarget jumped from %v to %v", midway, handed)
+	}
+	end, _ := motion.Scroll(now.Add(ViewportGlide/4+ViewportGlide), true)
+	if end != 300 || motion.Scrolling() {
+		t.Fatalf("glide settled at %v, scrolling=%v", end, motion.Scrolling())
+	}
+}
