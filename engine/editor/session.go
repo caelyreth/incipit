@@ -110,6 +110,19 @@ func (s *Session) Statistics() (TextMetricsSource, bool) {
 	return s.statistics, true
 }
 
+// InstallTextMetrics adopts an asynchronously computed metrics snapshot only
+// when its source still matches the current semantic text root.
+func (s *Session) InstallTextMetrics(source TextMetricsSource, metrics TextMetrics) bool {
+	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
+	if !ok || !source.Matches(node) {
+		return false
+	}
+	source.Metrics = metrics
+	s.statistics = source
+	s.statsValid = true
+	return true
+}
+
 func (s *Session) Pairs() []PairSpan {
 	if !s.pairsValid {
 		s.refreshPairs()

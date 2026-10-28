@@ -159,6 +159,29 @@ func TestSessionSelectionDrivesFrameAndComposition(t *testing.T) {
 	}
 }
 
+func TestSessionInstallsMetricsOnlyForCurrentTextRoot(t *testing.T) {
+	t.Parallel()
+	session, _ := newSessionFixture(t, "one", false)
+	source, ok := session.Statistics()
+	if !ok {
+		t.Fatal("initial metrics source missing")
+	}
+	if !session.InstallTextMetrics(source, TextMetrics{Characters: 3, Words: 1, Paragraphs: 1}) {
+		t.Fatal("current metrics source rejected")
+	}
+	stale := source
+	if _, err := session.ReplaceSelection("!", kernel.EventOriginTyping); err != nil {
+		t.Fatal(err)
+	}
+	if session.InstallTextMetrics(stale, TextMetrics{Characters: 9}) {
+		t.Fatal("stale metrics source accepted")
+	}
+	current, ok := session.Statistics()
+	if !ok || current.Metrics.Characters != 4 {
+		t.Fatalf("current metrics = %#v, %v", current, ok)
+	}
+}
+
 func TestSessionReplacementPublishesProjectionHistoryAndMetrics(t *testing.T) {
 	t.Parallel()
 	session, node := newSessionFixture(t, "ab", false)
