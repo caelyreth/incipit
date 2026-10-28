@@ -13,12 +13,13 @@ type Page struct {
 	Title string
 }
 
-// Formatting is the toolbar's current presentation state. Apps can update it
-// from the active document before building the next frame.
-type Formatting struct {
-	Bold       bool
-	Italic     bool
-	Background bool
+// ToolbarState is the editor-owned state rendered by the floating writing
+// toolbar. Presentation modes live in Appearance; CJK lives in the policy
+// configuration.
+type ToolbarState struct {
+	Bold   bool
+	Italic bool
+	CJK    bool
 }
 
 type State struct {
@@ -29,7 +30,7 @@ type State struct {
 	Status     string
 	Statistics string
 	PageQuery  string
-	Formatting Formatting
+	Toolbar    ToolbarState
 	CanUndo    bool
 	CanRedo    bool
 
@@ -46,11 +47,9 @@ type State struct {
 	FormatBold    func(bool)
 	Undo          func()
 	Redo          func()
-	Background    func(bool)
-	CenterText    func()
-	ClearFormat   func()
-
-	FocusDocument func()
+	ToggleCJK     func(bool)
+	Typewriter    func(bool)
+	Zen           func(bool)
 }
 
 func New() *State {

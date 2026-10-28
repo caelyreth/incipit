@@ -111,14 +111,7 @@ func (a *AppState) BindShell() {
 		a.Element.Prose = theme.NewProseStyle(a.Shell.Settings.ProseFontSize)
 		a.Element.Animate = a.Shell.Appearance.Motion
 		a.Element.Typewriter = a.Shell.Appearance.Typewriter
-		if controller := a.Session.Document(); controller != nil && controller.Session() != nil {
-			toolbar := controller.Session().ToolbarState()
-			a.Shell.Formatting.Italic = toolbar.Emphasis
-			a.Shell.Formatting.Bold = toolbar.Strong
-			a.Shell.Formatting.Background = false
-			a.Shell.CanUndo = toolbar.CanUndo
-			a.Shell.CanRedo = toolbar.CanRedo
-		}
+		a.refreshToolbarState()
 		a.Element.View(c)
 	}
 	a.Shell.SelectPage = func(id string) {
@@ -158,9 +151,7 @@ func (a *AppState) BindShell() {
 	a.Shell.OpenSettings = func() {
 		a.OpenSettingsWindow()
 	}
-	a.Shell.ToggleSidebar = func() {
-		a.Shell.Appearance.Zen = !a.Shell.Appearance.Zen
-	}
+	a.Shell.ToggleSidebar = a.toggleZen
 	a.Shell.FormatItalic = func(bool) {
 		a.executeEditorCommand(editor.MarkupEmphasis.ID())
 	}
@@ -173,16 +164,14 @@ func (a *AppState) BindShell() {
 	a.Shell.Redo = func() {
 		a.executeEditorCommand(editor.HistoryRedo.ID())
 	}
-	a.Shell.Background = func(bool) {
-		a.Error = "Background color is not available in this build"
-		a.refreshShell()
+	a.Shell.Typewriter = func(on bool) {
+		a.setPresentation(appsettings.PresentationTypewriter, on)
 	}
-	a.Shell.CenterText = func() {
-		a.Product.Presentation.Typewriter = !a.Product.Presentation.Typewriter
-		a.refreshAppearance()
+	a.Shell.Zen = func(on bool) {
+		a.setPresentation(appsettings.PresentationZen, on)
 	}
-	a.Shell.ClearFormat = func() {
-		a.executeEditorCommand(editor.MarkupEmphasis.ID())
+	a.Shell.ToggleCJK = func(on bool) {
+		a.setPolicy(editor.CJKPolicyID, on)
 	}
 	a.refreshShell()
 }
@@ -202,13 +191,23 @@ func (a *AppState) refreshShellReadouts() {
 		metrics.Paragraphs,
 		metrics.Characters,
 	)
+	a.refreshToolbarState()
+}
+
+func (a *AppState) refreshToolbarState() {
+	if a == nil || a.Shell == nil || a.Session == nil || a.Session.Document() == nil {
+		return
+	}
+	controller := a.Session.Document()
 	if controller.Session() != nil {
 		toolbar := controller.Session().ToolbarState()
-		a.Shell.Formatting.Italic = toolbar.Emphasis
-		a.Shell.Formatting.Bold = toolbar.Strong
+		a.Shell.Toolbar.Italic = toolbar.Emphasis
+		a.Shell.Toolbar.Bold = toolbar.Strong
 		a.Shell.CanUndo = toolbar.CanUndo
 		a.Shell.CanRedo = toolbar.CanRedo
 	}
+	configuration := controller.Runtime().PolicyConfiguration()
+	a.Shell.Toolbar.CJK = configuration.IsEnabled(editor.CJKPolicyID)
 }
 
 func (a *AppState) executeEditorCommand(command kernel.CommandID) {
@@ -338,6 +337,51 @@ func (a *AppState) applyAppearance() {
 func (a *AppState) refreshAppearance() {
 	a.Shell.Appearance = a.Product.Presentation
 	a.refreshShell()
+}
+
+func (a *AppState) setPresentation(mode appsettings.Presentation, on bool) {
+	if a == nil {
+		return
+	}
+	change := appsettings.ToggleBoolean(appsettings.PresentationBoolean(mode), on)
+	outcome, err := a.Product.Apply(change, a.Store, a.Session)
+	if err != nil {
+		a.Error = err.Error()
+		a.refreshAppearance()
+		return
+	}
+	if !outcome.Applied {
+		return
+	}
+	a.Error = ""
+	a.refreshAppearance()
+	a.refreshSettingsData()
+}
+
+func (a *AppState) setPolicy(policy kernel.PolicyID, on bool) {
+	if a == nil {
+		return
+	}
+	change := appsettings.ToggleBoolean(appsettings.PolicyBoolean(policy), on)
+	outcome, err := a.Product.Apply(change, a.Store, a.Session)
+	if err != nil {
+		a.Error = err.Error()
+		a.refreshShell()
+		return
+	}
+	if outcome.PolicyChanged {
+		a.Bridge = nil
+	}
+	a.Error = ""
+	a.refreshShell()
+	a.refreshSettingsData()
+}
+
+func (a *AppState) toggleZen() {
+	if a == nil {
+		return
+	}
+	a.setPresentation(appsettings.PresentationZen, !a.Product.Presentation.Zen)
 }
 
 func appearanceSettings(values appsettings.AppearanceSettings) theme.Settings {

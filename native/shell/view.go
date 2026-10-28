@@ -187,9 +187,9 @@ func (s *State) formatBar(
 			Children(func() {
 				ui.Toolbar(c, func() {
 					s.formatToggle(c, "format-italic", "Italic", IconItalic,
-						&s.Formatting.Italic, s.FormatItalic, metrics, semantic)
+						&s.Toolbar.Italic, s.FormatItalic, metrics, semantic)
 					s.formatToggle(c, "format-bold", "Bold", IconBold,
-						&s.Formatting.Bold, s.FormatBold, metrics, semantic)
+						&s.Toolbar.Bold, s.FormatBold, metrics, semantic)
 					formatSeparator(c, metrics, semantic)
 					if s.iconButton(c, "undo", "Undo", IconUndo, metrics, semantic).
 						Disabled(!s.CanUndo).Clicked() && s.Undo != nil {
@@ -200,16 +200,12 @@ func (s *State) formatBar(
 						s.Redo()
 					}
 					formatSeparator(c, metrics, semantic)
-					s.formatToggle(c, "format-background", "Background", IconBackground,
-						&s.Formatting.Background, s.Background, metrics, semantic)
-					if s.iconButton(c, "focus-document", "Focus document", IconFocus,
-						metrics, semantic).Clicked() && s.FocusDocument != nil {
-						s.FocusDocument()
-					}
-					if s.iconButton(c, "clear-formatting", "Clear formatting", IconClearFormatting,
-						metrics, semantic).Clicked() && s.ClearFormat != nil {
-						s.ClearFormat()
-					}
+					s.formatToggle(c, "mode-typewriter", "Typewriter", IconTypewriter,
+						&s.Appearance.Typewriter, s.Typewriter, metrics, semantic)
+					s.formatToggle(c, "mode-zen", "Zen", IconZen,
+						&s.Appearance.Zen, s.Zen, metrics, semantic)
+					s.formatToggle(c, "mode-cjk", "CJK", IconCJK,
+						&s.Toolbar.CJK, s.ToggleCJK, metrics, semantic)
 				}).Label("Formatting")
 			})
 	})

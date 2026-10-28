@@ -204,19 +204,19 @@ func TestFormattingControlsKeepStateAndRunEveryCallback(t *testing.T) {
 	state := New()
 	state.CanUndo = true
 	state.CanRedo = true
-	var bold, italic, background, undo, redo, focus, clear bool
+	var bold, italic, typewriter, zen, cjk, undo, redo bool
 	state.FormatBold = func(on bool) { bold = on }
 	state.FormatItalic = func(on bool) { italic = on }
-	state.Background = func(on bool) { background = on }
+	state.Typewriter = func(on bool) { typewriter = on }
+	state.Zen = func(on bool) { zen = on }
+	state.ToggleCJK = func(on bool) { cjk = on }
 	state.Undo = func() { undo = true }
 	state.Redo = func() { redo = true }
-	state.FocusDocument = func() { focus = true }
-	state.ClearFormat = func() { clear = true }
 	tester := ui.NewTester(state.View, 1260, 850)
 
 	for _, label := range []string{
 		"Formatting", "Italic", "Bold", "Undo", "Redo",
-		"Background", "Focus document", "Clear formatting",
+		"Typewriter", "Zen", "CJK",
 	} {
 		if _, ok := tester.Find(label); !ok {
 			t.Fatalf("missing accessible formatting control %q", label)
@@ -224,23 +224,58 @@ func TestFormattingControlsKeepStateAndRunEveryCallback(t *testing.T) {
 	}
 	for _, label := range []string{
 		"Bold", "Italic", "Undo", "Redo",
-		"Background", "Focus document", "Clear formatting",
+		"Typewriter", "Zen", "CJK",
 	} {
 		if err := tester.Click(label); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if !state.Formatting.Bold || !bold {
+	if !state.Toolbar.Bold || !bold {
 		t.Fatal("bold state and callback did not follow the toggle")
 	}
-	if !state.Formatting.Italic || !italic {
+	if !state.Toolbar.Italic || !italic {
 		t.Fatal("italic state and callback did not follow the toggle")
 	}
-	if !state.Formatting.Background || !background {
-		t.Fatal("background state and callback did not follow the toggle")
+	if !state.Appearance.Typewriter || !typewriter {
+		t.Fatal("typewriter state and callback did not follow the toggle")
 	}
-	if !undo || !redo || !focus || !clear {
-		t.Fatalf("action callbacks = undo:%v redo:%v focus:%v clear:%v", undo, redo, focus, clear)
+	if !state.Appearance.Zen || !zen {
+		t.Fatal("zen state and callback did not follow the toggle")
+	}
+	if !state.Toolbar.CJK || !cjk {
+		t.Fatal("CJK state and callback did not follow the toggle")
+	}
+	if !undo || !redo {
+		t.Fatalf("history callbacks = undo:%v redo:%v", undo, redo)
+	}
+}
+
+func TestFloatingToolbarUsesReferenceActionOrder(t *testing.T) {
+	state := New()
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+
+	labels := []string{"Italic", "Bold", "Undo", "Redo", "Typewriter", "Zen", "CJK"}
+	var previous ui.Rect
+	for index, label := range labels {
+		element, ok := tester.Find(label)
+		if !ok {
+			t.Fatalf("missing toolbar action %q", label)
+		}
+		if index > 0 && element.X <= previous.X {
+			t.Fatalf("toolbar action %q has x=%v after %q at x=%v",
+				label,
+				element.X,
+				labels[index-1],
+				previous.X,
+			)
+		}
+		previous = element
+	}
+	for _, removed := range []string{"Background", "Focus document", "Clear formatting"} {
+		if _, ok := tester.Find(removed); ok {
+			t.Fatalf("obsolete toolbar action %q is still present", removed)
+		}
 	}
 }
 

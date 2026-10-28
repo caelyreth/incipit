@@ -18,9 +18,9 @@ const (
 	IconBold
 	IconUndo
 	IconRedo
-	IconBackground
-	IconFocus
-	IconClearFormatting
+	IconTypewriter
+	IconZen
+	IconCJK
 )
 
 type iconDefinition struct {
@@ -74,18 +74,18 @@ var iconSet = map[Icon]iconDefinition{
 		label: "Redo",
 		svg:   mustIcon(`<path d="m15 6 5 5-5 5M20 11h-9a5 5 0 0 0-5 5v1"/>`),
 	},
-	IconBackground: {
-		label: "Background",
-		svg: mustIcon(`<rect x="7" y="4" width="10" height="5" rx="2"/>
-			<path d="M3 12h18"/><rect x="7" y="15" width="10" height="5" rx="2"/>`),
+	IconTypewriter: {
+		label: "Typewriter",
+		svg:   mustIcon(`<path d="M4 5h16M8 10h8M4 15h16M8 20h8"/>`),
 	},
-	IconFocus: {
-		label: "Focus",
+	IconZen: {
+		label: "Zen",
 		svg:   mustIcon(`<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/>`),
 	},
-	IconClearFormatting: {
-		label: "Clear formatting",
-		svg:   mustIcon(`<path d="M4 19h16M7 15 11 6h2l4 9M8 12h7M3 3l18 18"/>`),
+	IconCJK: {
+		label: "CJK",
+		svg: mustIcon(`<path d="M4 5h7M7.5 5v3M4 8h7M7.5 8 4 20M7.5 8l3 5M4 14h7"/>
+			<path d="m15 20 3-11 3 11M16 16h4"/>`),
 	},
 }
 
@@ -103,9 +103,9 @@ var allIcons = [...]Icon{
 	IconBold,
 	IconUndo,
 	IconRedo,
-	IconBackground,
-	IconFocus,
-	IconClearFormatting,
+	IconTypewriter,
+	IconZen,
+	IconCJK,
 }
 
 func mustIcon(body string) *ui.SVG {
