@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/app/controller"
+	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/caelyreth/neverland/native/theme"
@@ -23,19 +25,21 @@ type TextInput interface {
 // Element is the reusable custom writing surface. It owns retained paragraph
 // layout and contractual caret/selection motion, but not the document.
 type Element struct {
-	Input       TextInput
-	Theme       theme.Theme
-	Prose       theme.ProseStyle
-	Animate     bool
-	Typewriter  bool
-	Label       string
-	AutoFocus   bool
-	Layout      *textlayout.Cache
-	Motion      *motion.Motion
-	scroll      float32
-	lastHeight  float32
-	manualUntil time.Time
-	current     *textlayout.Layout
+	Input         TextInput
+	Theme         theme.Theme
+	Prose         theme.ProseStyle
+	Animate       bool
+	Typewriter    bool
+	Label         string
+	AutoFocus     bool
+	Layout        *textlayout.Cache
+	Motion        *motion.Motion
+	scroll        float32
+	lastHeight    float32
+	manualUntil   time.Time
+	pointerAnchor int
+	dragging      bool
+	current       *textlayout.Layout
 }
 
 func NewElement(
@@ -103,12 +107,29 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 			return false
 		}
 		e.Motion.Activity(event.Time)
-		offset := int(e.current.Hit(ui.Point{
-			X: event.X,
-			Y: event.Y + e.scroll,
-		}))
+		offset := e.hit(event.X, event.Y)
 		anchor := offset
+		if event.Clicks >= 2 {
+			if word, ok := e.wordAt(offset); ok {
+				anchor, offset = word.Start, word.End
+			}
+		} else if event.Mods&ui.Shift != 0 {
+			anchor = e.pointerAnchor
+		} else {
+			e.pointerAnchor = offset
+		}
+		e.dragging = true
+		e.Motion.ResetGeometry()
 		return e.Input.Select(anchor, offset, event.Time) == nil
+	case ui.InputPointerMove:
+		if !e.dragging || e.current == nil || event.Button != 0 {
+			return false
+		}
+		return e.Input.Select(e.pointerAnchor, e.hit(event.X, event.Y), event.Time) == nil
+	case ui.InputPointerUp:
+		wasDragging := e.dragging
+		e.dragging = false
+		return wasDragging
 	case ui.InputScroll:
 		e.manualScroll(event.DY, event.Time)
 		e.Input.Scroll(event.DY)
@@ -122,6 +143,28 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 	default:
 		return false
 	}
+}
+
+func (e *Element) hit(x, y float32) int {
+	if e == nil || e.current == nil {
+		return 0
+	}
+	return int(e.current.Hit(ui.Point{X: x, Y: y + e.scroll}))
+}
+
+func (e *Element) wordAt(offset int) (struct{ Start, End int }, bool) {
+	var result struct{ Start, End int }
+	bridge, ok := e.Input.(*Bridge)
+	if !ok || bridge == nil || bridge.Controller == nil {
+		return result, false
+	}
+	text := bridge.Controller.Text()
+	unit, err := editor.EnclosingUTF16Range(text, model.UTF16Offset(offset), editor.SelectionWord)
+	if err != nil || unit.Start >= unit.End {
+		return result, false
+	}
+	result.Start, result.End = int(unit.Start), int(unit.End)
+	return result, true
 }
 
 func (e *Element) caret(c *ui.Context) ui.Rect {
