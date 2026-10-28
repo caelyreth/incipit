@@ -163,19 +163,29 @@ func (m *Motion) Moving() bool {
 	return false
 }
 
+// CaretSolid is how long the caret stays fully opaque after activity. It is
+// longer than the gap between keystrokes, so the caret stays solid while
+// typing. CaretWakeAt and CaretOpacity both read it: a wake scheduled at any
+// other time lets breathing start between frames and the caret jump.
+const CaretSolid = 240 * time.Millisecond
+
+// CaretBreath is one full transparent-and-back breathing period.
+const CaretBreath = 1050 * time.Millisecond
+
 func (m *Motion) CaretWakeAt(now time.Time) (time.Time, bool) {
-	deadline := m.activity.Add(240 * time.Millisecond)
+	deadline := m.activity.Add(CaretSolid)
 	return deadline, deadline.After(now)
 }
 
-// CaretOpacity is solid for 240 ms and then breathes through fully transparent
-// and opaque over a 1.05 s cosine period.
+// CaretOpacity is solid for CaretSolid and then breathes through fully
+// transparent and opaque over a CaretBreath cosine period.
 func (m *Motion) CaretOpacity(now time.Time) float32 {
-	seconds := float32(now.Sub(m.activity).Seconds())
-	if seconds < 0.1 {
+	since := now.Sub(m.activity)
+	if since < CaretSolid {
 		return 1
 	}
-	phase := (seconds - 0.1) * 2 * float32(3.141592653589793) / 0.76
+	phase := float32((since-CaretSolid).Seconds()/CaretBreath.Seconds()) *
+		2 * float32(3.141592653589793)
 	return 0.5 + 0.5*cos(phase)
 }
 

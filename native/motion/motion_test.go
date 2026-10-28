@@ -150,3 +150,24 @@ func TestSelectionFadesInOnlyWhenAppearing(t *testing.T) {
 		t.Fatalf("direct selection opacity = %v", got)
 	}
 }
+
+// Frames stop between the caret settling and the wake deadline, so breathing
+// must begin exactly at that deadline or the next frame jumps.
+func TestCaretWakeCoincidesWithBreathingStart(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(0, 0)
+	motion := New(now)
+	deadline, ok := motion.CaretWakeAt(now)
+	if !ok {
+		t.Fatal("no wake after activity")
+	}
+	if got := motion.CaretOpacity(deadline.Add(-time.Millisecond)); got != 1 {
+		t.Fatalf("caret breathed before its wake: %v", got)
+	}
+	if got := motion.CaretOpacity(deadline); math.Abs(float64(got-1)) > 0.0001 {
+		t.Fatalf("caret jumped at its wake: %v", got)
+	}
+	if got := motion.CaretOpacity(deadline.Add(16 * time.Millisecond)); got >= 1 || got < 0.99 {
+		t.Fatalf("breathing did not ease out of its wake: %v", got)
+	}
+}
