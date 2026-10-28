@@ -1,9 +1,10 @@
 // Package settings owns declarative product settings and validated changes
-// independent of native widgets.
+// independent of native widgets. Policy state stays in engine/kernel types.
 package settings
 
 import "github.com/caelyreth/neverland/engine/kernel"
 
+// Category is one top-level settings section.
 type Category uint8
 
 const (
@@ -13,6 +14,7 @@ const (
 	Diagnostics
 )
 
+// AllCategories is display order.
 var AllCategories = [...]Category{Editor, Keymap, Appearance, Diagnostics}
 
 func (c Category) Title() string {
@@ -41,6 +43,7 @@ func (c Category) Description() string {
 	}
 }
 
+// Presentation is one app-wide writing-mode switch.
 type Presentation uint8
 
 const (
@@ -49,6 +52,7 @@ const (
 	PresentationZen
 )
 
+// BooleanKind distinguishes policy enablement, policy option, and presentation.
 type BooleanKind uint8
 
 const (
@@ -77,6 +81,7 @@ func PresentationBoolean(mode Presentation) BooleanSetting {
 	return BooleanSetting{Kind: BooleanPresentation, Presentation: mode}
 }
 
+// ToggleSetting is one declarative switch row.
 type ToggleSetting struct {
 	Key         BooleanSetting
 	Label       string
@@ -86,12 +91,14 @@ type ToggleSetting struct {
 	Selector    string
 }
 
+// Section is one group of editor policy settings.
 type Section struct {
 	Title       string
 	Description string
 	Settings    []ToggleSetting
 }
 
+// Shortcut is one command's complete binding display and override state.
 type Shortcut struct {
 	Command    kernel.CommandID
 	Label      string
@@ -101,16 +108,28 @@ type Shortcut struct {
 	Overridden bool
 }
 
-type Data struct {
-	PageID     *int
-	Page       string
-	Sections   []Section
-	Shortcuts  []Shortcut
-	Appearance []ToggleSetting
-	Activity   []string
-	Scopes     []string
+// ActivityEntry is one published document revision snapshot.
+type ActivityEntry struct {
+	Revision   uint64
+	Characters int
+	Marks      int
 }
 
+// Data is the complete declarative snapshot consumed by any settings view.
+type Data struct {
+	PageID              *int
+	Page                string
+	Sections            []Section
+	Shortcuts           []Shortcut
+	Appearance          []ToggleSetting
+	AppearanceValues    AppearanceSettings
+	Activity            []string
+	ActivityEntries     []ActivityEntry
+	Scopes              []string
+	PolicyConfiguration kernel.PolicyConfiguration
+}
+
+// ChangeKind identifies one typed settings mutation.
 type ChangeKind uint8
 
 const (
@@ -121,6 +140,7 @@ const (
 	ChangeAppearance
 )
 
+// Change is a complete settings mutation. Only fields selected by Kind are read.
 type Change struct {
 	Kind       ChangeKind
 	Boolean    BooleanSetting
@@ -146,6 +166,7 @@ func ResetBinding(command kernel.CommandID) Change {
 	return Change{Kind: ChangeResetBinding, Command: command}
 }
 
+// AppearanceKind identifies one app-wide appearance mutation.
 type AppearanceKind uint8
 
 const (
@@ -155,6 +176,7 @@ const (
 	SetProseFontSize
 )
 
+// AppearanceChange is one neutral theme, accent, or text-size request.
 type AppearanceChange struct {
 	Kind     AppearanceKind
 	Theme    uint8

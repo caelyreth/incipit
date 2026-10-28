@@ -1,97 +1,140 @@
-// Package workspace owns the in-memory notebook: pages, tabs, active page and
-// parked per-page state. Session creation is injected so this package has no
-// dependency on MyGo widgets.
+// Package workspace owns the in-memory notebook: pages, tabs, mounted and
+// parked sessions, and per-page scroll state. It has no persistence or native
+// UI dependency.
 package workspace
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"strings"
 
-type PageID int
+	"github.com/caelyreth/neverland/engine/kernel"
+)
 
-type Page[T any] struct {
-	Title  string
-	Parked *T
-	Scroll ScrollPosition
+var (
+	// ErrSessionRequired reports a missing initial session or factory.
+	ErrSessionRequired = errors.New("workspace: initial session and factory are required")
+	// ErrPageNotFound reports an identity outside the retained page set.
+	ErrPageNotFound = errors.New("workspace: page not found")
+	// ErrPageMounted reports an impossible internal ownership state.
+	ErrPageMounted = errors.New("workspace: page session is already mounted")
+	// ErrNoMountedSession reports an inconsistent active-page state.
+	ErrNoMountedSession = errors.New("workspace: active page has no mounted session")
+)
+
+// Workspace retains every page for the process lifetime. Exactly one page is
+// mounted when Active reports true; every other page owns one parked session.
+type Workspace struct {
+	pages         []pageState
+	tabs          []PageID
+	active        PageID
+	hasActive     bool
+	mounted       Session
+	configuration kernel.PolicyConfiguration
+	create        Factory
 }
 
-type ScrollPosition struct {
-	X float32
-	Y float32
-}
-
-type Workspace[T any] struct {
-	pages  []Page[T]
-	tabs   []PageID
-	active *PageID
-	create func(template *T) (*T, error)
-}
-
-func New[T any](initial *T, create func(template *T) (*T, error)) (*Workspace[T], error) {
+// New constructs the initial mounted page and records its policy source as the
+// workspace's app-wide configuration baseline.
+func New(initial Session, create Factory) (*Workspace, error) {
 	if initial == nil || create == nil {
-		return nil, fmt.Errorf("workspace requires an initial session and factory")
+		return nil, ErrSessionRequired
 	}
-	id := PageID(0)
-	return &Workspace[T]{
-		pages:  []Page[T]{{Title: "Untitled"}},
-		tabs:   []PageID{id},
-		active: &id,
-		create: create,
+	configuration := initial.Configuration()
+	configuration = configuration.Clone()
+	return &Workspace{
+		pages: []pageState{{
+			Page:    Page{ID: 0, Title: DefaultTitle},
+			session: initial,
+		}},
+		tabs:          []PageID{0},
+		active:        0,
+		hasActive:     true,
+		mounted:       initial,
+		configuration: configuration,
+		create:        create,
 	}, nil
 }
 
-func (w *Workspace[T]) Active() (PageID, bool) {
-	if w == nil || w.active == nil {
+// Active returns the mounted page identity.
+func (w *Workspace) Active() (PageID, bool) {
+	if w == nil || !w.hasActive {
 		return 0, false
 	}
-	return *w.active, true
+	return w.active, true
 }
 
-func (w *Workspace[T]) Title() string {
-	if w == nil || w.active == nil {
-		return "Notebook"
+// Mounted returns the app-owned session for the active page.
+func (w *Workspace) Mounted() (Session, bool) {
+	if w == nil || !w.hasActive || w.mounted == nil {
+		return nil, false
 	}
-	return w.pages[*w.active].Title
+	return w.mounted, true
 }
 
-func (w *Workspace[T]) Pages() []PageID {
-	ids := make([]PageID, len(w.pages))
+// Title returns the active page title or NotebookTitle while no tab is active.
+func (w *Workspace) Title() string {
+	if w == nil || !w.hasActive {
+		return NotebookTitle
+	}
+	return w.pages[w.active].Title
+}
+
+// Pages returns immutable metadata for every retained page in identity order.
+func (w *Workspace) Pages() []Page {
+	if w == nil {
+		return nil
+	}
+	pages := make([]Page, len(w.pages))
 	for index := range w.pages {
-		ids[index] = PageID(index)
+		pages[index] = w.pages[index].Page
 	}
-	return ids
+	return pages
 }
 
-func (w *Workspace[T]) Tabs() []PageID {
+// Tabs returns active tab identities in display order.
+func (w *Workspace) Tabs() []PageID {
+	if w == nil {
+		return nil
+	}
 	return append([]PageID(nil), w.tabs...)
 }
 
-func (w *Workspace[T]) Page(id PageID) (Page[T], bool) {
-	if w == nil || int(id) < 0 || int(id) >= len(w.pages) {
-		return Page[T]{}, false
+// TabPages returns the active tabs with their metadata.
+func (w *Workspace) TabPages() []Page {
+	if w == nil {
+		return nil
 	}
-	return clonePage(w.pages[id]), true
+	pages := make([]Page, 0, len(w.tabs))
+	for _, id := range w.tabs {
+		pages = append(pages, w.pages[id].Page)
+	}
+	return pages
 }
 
-func (w *Workspace[T]) Rename(id PageID, title string) {
-	if w == nil || int(id) < 0 || int(id) >= len(w.pages) {
-		return
+// Page returns one page metadata snapshot.
+func (w *Workspace) Page(id PageID) (Page, bool) {
+	if w == nil || !w.validPage(id) {
+		return Page{}, false
 	}
-	if title == "" {
-		title = "Untitled"
-	}
-	w.pages[id].Title = title
+	return w.pages[id].Page, true
 }
 
-func (w *Workspace[T]) Adjacent(forward bool) (PageID, bool) {
-	if w == nil || w.active == nil || len(w.tabs) == 0 {
+// Rename trims and normalizes a page title. Empty titles return to the default.
+func (w *Workspace) Rename(id PageID, title string) bool {
+	if w == nil || !w.validPage(id) {
+		return false
+	}
+	w.pages[id].Title = normalizeTitle(title)
+	return true
+}
+
+// Adjacent returns the next or previous active tab without changing ownership.
+func (w *Workspace) Adjacent(forward bool) (PageID, bool) {
+	if w == nil || !w.hasActive || len(w.tabs) == 0 {
 		return 0, false
 	}
-	index := -1
-	for at, id := range w.tabs {
-		if id == *w.active {
-			index = at
-			break
-		}
-	}
+	index := w.tabIndex(w.active)
 	if index < 0 {
 		return 0, false
 	}
@@ -103,124 +146,226 @@ func (w *Workspace[T]) Adjacent(forward bool) (PageID, bool) {
 	return w.tabs[index], true
 }
 
-func (w *Workspace[T]) NewPage(mounted *T) (PageID, error) {
-	if w == nil || mounted == nil || w.create == nil {
-		return 0, fmt.Errorf("workspace cannot create a page")
+// Navigate activates the adjacent tab in the requested direction.
+func (w *Workspace) Navigate(forward bool) (PageID, bool, error) {
+	id, ok := w.Adjacent(forward)
+	if !ok {
+		return 0, false, nil
 	}
-	created, err := w.create(mounted)
+	if err := w.Open(id); err != nil {
+		return 0, false, err
+	}
+	return id, true, nil
+}
+
+// CreatePage creates a parked session and retains it without activating a tab.
+func (w *Workspace) CreatePage() (PageID, error) {
+	if w == nil || w.create == nil {
+		return 0, ErrSessionRequired
+	}
+	candidate, err := w.createCandidate()
 	if err != nil {
 		return 0, err
 	}
+	w.pages = append(w.pages, candidate)
+	return candidate.ID, nil
+}
+
+func (w *Workspace) createCandidate() (pageState, error) {
 	id := PageID(len(w.pages))
-	w.pages = append(w.pages, Page[T]{
-		Title:  fmt.Sprintf("Untitled %d", id+1),
-		Parked: created,
-	})
+	session, err := w.create(id, w.configuration.Clone())
+	if err != nil {
+		return pageState{}, err
+	}
+	if session == nil {
+		return pageState{}, fmt.Errorf("workspace: factory returned a nil session")
+	}
+	if err := w.adopt(session); err != nil {
+		return pageState{}, err
+	}
+	return pageState{
+		Page: Page{
+			ID:     id,
+			Title:  fmt.Sprintf("%s %d", DefaultTitle, int(id)+1),
+			Parked: true,
+		},
+		session: session,
+	}, nil
+}
+
+// NewPage creates and mounts a page in one lifecycle operation.
+func (w *Workspace) NewPage() (PageID, error) {
+	id, err := w.CreatePage()
+	if err != nil {
+		return 0, err
+	}
+	if err := w.Open(id); err != nil {
+		return id, err
+	}
 	return id, nil
 }
 
-// Open parks the mounted session and mounts the target page. The caller owns
-// the mounted value so page switches remain a cheap pointer swap.
-func (w *Workspace[T]) Open(
-	id PageID,
-	mounted **T,
-	scroll ScrollPosition,
-) error {
-	if w == nil || mounted == nil || *mounted == nil || int(id) < 0 || int(id) >= len(w.pages) {
-		return fmt.Errorf("invalid page switch")
+// Open parks the mounted session and mounts the target page. Configuration
+// adoption is completed before either page changes ownership.
+func (w *Workspace) Open(id PageID) error {
+	if w == nil || !w.validPage(id) {
+		return ErrPageNotFound
 	}
-	if w.active != nil && *w.active == id {
+	if w.hasActive && w.active == id {
 		return nil
 	}
-	parked := w.pages[id].Parked
-	if parked == nil {
-		return fmt.Errorf("page %d has no parked session", id)
+	target := &w.pages[id]
+	if !target.Parked {
+		return ErrPageMounted
 	}
-	previous := *mounted
-	*mounted = parked
-	w.pages[id].Parked = nil
-	if w.active != nil {
-		active := *w.active
-		w.pages[active].Parked = previous
-		w.pages[active].Scroll = scroll
+	if err := w.adopt(target.session); err != nil {
+		return err
 	}
-	w.active = &id
-	if !containsTab(w.tabs, id) {
+	if w.hasActive {
+		current := &w.pages[w.active]
+		if w.mounted == nil {
+			return ErrNoMountedSession
+		}
+		current.Parked = true
+	}
+	w.active = id
+	w.hasActive = true
+	w.mounted = target.session
+	target.Parked = false
+	if !w.hasTab(id) {
 		w.tabs = append(w.tabs, id)
 	}
 	return nil
 }
 
-func (w *Workspace[T]) ActiveScroll() (ScrollPosition, bool) {
-	if w == nil || w.active == nil {
-		return ScrollPosition{}, false
+// Close removes a tab while retaining its page and session. Closing the active
+// tab mounts the next tab, then the previous, or leaves no active page.
+func (w *Workspace) Close(id PageID) error {
+	if w == nil || !w.validPage(id) {
+		return ErrPageNotFound
 	}
-	return w.pages[*w.active].Scroll, true
-}
-
-func (w *Workspace[T]) SetActiveScroll(scroll ScrollPosition) {
-	if w != nil && w.active != nil {
-		w.pages[*w.active].Scroll = scroll
-	}
-}
-
-// Close parks the active page, activates an adjacent tab, or leaves no active
-// page while retaining every page for this session.
-func (w *Workspace[T]) Close(
-	id PageID,
-	mounted **T,
-	scroll ScrollPosition,
-) error {
-	if w == nil || mounted == nil || *mounted == nil {
-		return fmt.Errorf("workspace has no mounted session")
-	}
-	index := -1
-	for at, tab := range w.tabs {
-		if tab == id {
-			index = at
-			break
-		}
-	}
+	index := w.tabIndex(id)
 	if index < 0 {
 		return nil
 	}
-	if w.active == nil || *w.active != id {
+	if !w.hasActive || w.active != id {
 		w.tabs = append(w.tabs[:index], w.tabs[index+1:]...)
 		return nil
 	}
-	w.pages[id].Parked = *mounted
-	w.pages[id].Scroll = scroll
-	next := PageID(0)
-	hasNext := false
-	if index+1 < len(w.tabs) {
-		next, hasNext = w.tabs[index+1], true
-	} else if index > 0 {
-		next, hasNext = w.tabs[index-1], true
+	if w.mounted == nil {
+		return ErrNoMountedSession
 	}
-	w.tabs = append(w.tabs[:index], w.tabs[index+1:]...)
+	next, hasNext := w.closeNeighbor(index)
 	if hasNext {
-		parked := w.pages[next].Parked
-		if parked == nil {
-			return fmt.Errorf("adjacent page has no parked session")
+		if err := w.adopt(w.pages[next].session); err != nil {
+			return err
 		}
-		*mounted = parked
-		w.pages[next].Parked = nil
-		w.active = &next
-	} else {
-		w.active = nil
 	}
+	w.pages[id].Parked = true
+	w.mounted = nil
+	w.hasActive = false
+	w.tabs = append(w.tabs[:index], w.tabs[index+1:]...)
+	if !hasNext {
+		return nil
+	}
+	target := &w.pages[next]
+	if !target.Parked {
+		return ErrPageMounted
+	}
+	target.Parked = false
+	w.active = next
+	w.hasActive = true
+	w.mounted = target.session
 	return nil
 }
 
-func containsTab(tabs []PageID, id PageID) bool {
-	for _, tab := range tabs {
-		if tab == id {
-			return true
-		}
+// ActiveScroll returns the active page's parked scroll state.
+func (w *Workspace) ActiveScroll() (ScrollPosition, bool) {
+	if w == nil || !w.hasActive {
+		return ScrollPosition{}, false
 	}
-	return false
+	return w.pages[w.active].Scroll, true
 }
 
-func clonePage[T any](page Page[T]) Page[T] {
-	return page
+// SetActiveScroll records the active viewport position before a page switch.
+func (w *Workspace) SetActiveScroll(scroll ScrollPosition) {
+	if w != nil && w.hasActive {
+		w.pages[w.active].Scroll = scroll
+	}
+}
+
+// PublishPolicy installs one already-validated app-wide source configuration.
+// The mounted session adopts it first; on failure neither the workspace source
+// nor any page changes. Parked pages adopt it only when mounted.
+func (w *Workspace) PublishPolicy(configuration kernel.PolicyConfiguration) error {
+	if w == nil {
+		return errors.New("workspace: nil receiver")
+	}
+	candidate := configuration.Clone()
+	if w.mounted != nil {
+		if err := w.mounted.AdoptConfiguration(candidate.Clone()); err != nil {
+			return err
+		}
+	}
+	w.configuration = candidate
+	return nil
+}
+
+// AdoptPolicy is the settings-owned publication spelling for a validated
+// configuration. Validation and host publication belong to PolicySource.
+func (w *Workspace) AdoptPolicy(configuration kernel.PolicyConfiguration) error {
+	return w.PublishPolicy(configuration)
+}
+
+// Configuration returns an independent snapshot of the app-wide policy source.
+func (w *Workspace) Configuration() kernel.PolicyConfiguration {
+	if w == nil {
+		return kernel.PolicyConfiguration{}
+	}
+	return w.configuration.Clone()
+}
+
+func (w *Workspace) adopt(session Session) error {
+	if session == nil {
+		return ErrSessionRequired
+	}
+	if session.Configuration().Equal(w.configuration) {
+		return nil
+	}
+	return session.AdoptConfiguration(w.configuration.Clone())
+}
+
+func (w *Workspace) closeNeighbor(index int) (PageID, bool) {
+	if index+1 < len(w.tabs) {
+		return w.tabs[index+1], true
+	}
+	if index > 0 {
+		return w.tabs[index-1], true
+	}
+	return 0, false
+}
+
+func (w *Workspace) validPage(id PageID) bool {
+	return int(id) >= 0 && int(id) < len(w.pages)
+}
+
+func (w *Workspace) tabIndex(id PageID) int {
+	for index, tab := range w.tabs {
+		if tab == id {
+			return index
+		}
+	}
+	return -1
+}
+
+func (w *Workspace) hasTab(id PageID) bool {
+	return w.tabIndex(id) >= 0
+}
+
+func normalizeTitle(title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return DefaultTitle
+	}
+	return title
 }
