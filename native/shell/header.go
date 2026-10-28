@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -11,45 +12,76 @@ func (s *State) header(
 	metrics theme.ControlMetrics,
 	layout theme.Layout,
 	bar ui.TitleBar,
+	chrome float32,
+	reveal float32,
 ) {
-	left := max(bar.Left, theme.Space12.DIPs(s.Settings.UIFontSize))
-	right := max(bar.Right, theme.Space12.DIPs(s.Settings.UIFontSize))
-	height := max(bar.Height, metrics.Height+theme.Space08.DIPs(s.Settings.UIFontSize))
-	ui.Row(c).Height(height).AlignItems(ui.Center).DragWindow().Children(func() {
-		s.headerLeading(c, semantic, metrics, layout, left, height)
-		if !s.Appearance.Zen {
-			ui.Box(c).Width(1).Height(metrics.Icon).Shrink(0).Background(semantic.Border.Default)
-			s.pageTabs(c, semantic, metrics, height)
-		} else {
-			s.zenTitle(c, semantic, metrics, layout)
-			ui.Spacer(c)
-		}
-		s.headerActions(c, semantic, metrics, right)
-	})
-	ui.Divider(c).BorderColor(semantic.Border.Default)
-}
+	scale := s.Settings.UIFontSize
+	height := layout.Titlebar * scale / theme.DefaultUIFontSize * chrome
+	left := max(bar.Left, layout.TrafficLightInset*scale/theme.DefaultUIFontSize)
+	right := layout.HeaderInset * scale / theme.DefaultUIFontSize
+	leadingWidth := ((layout.Sidebar-140)*reveal + 140) * scale / theme.DefaultUIFontSize
+	animate := s.animate(c)
 
-func (s *State) headerLeading(
-	c *ui.Context,
-	semantic theme.Theme,
-	metrics theme.ControlMetrics,
-	layout theme.Layout,
-	left float32,
-	height float32,
-) {
-	width := layout.Sidebar
-	if s.Appearance.Zen {
-		width = max(left, 140)
-	}
-	ui.Row(c).Width(width).Height(height).Padding(0, theme.Space08.DIPs(s.Settings.UIFontSize), 0, left).
-		AlignItems(ui.Center).Gap(theme.Space06.DIPs(s.Settings.UIFontSize)).Children(func() {
-		ui.Text(c, "Shoreward").Grow(1).MinWidth(0).Bold().FontSize(
-			theme.TextSmall.Size(s.Settings.UIFontSize),
-		).TextColor(semantic.Text.Default).SingleLine()
-		if s.iconButton(c, "toggle-sidebar", "Toggle sidebar", IconSidebar, metrics, semantic).Clicked() &&
-			s.ToggleSidebar != nil {
-			s.ToggleSidebar()
+	ui.Row(c).Height(height).Opacity(chrome).Clip().AlignItems(ui.Center).
+		Background(semantic.Surface.Background).DragWindow().Children(func() {
+		leading := ui.Row(c).Width(leadingWidth).HeightPercent(100).
+			PaddingStart(left).PaddingEnd(theme.Space12.DIPs(scale)).
+			AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale))
+		if reveal > 0.01 {
+			leading.BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant)
 		}
+		leading.Children(func() {
+			ui.Box(c).Grow(1).MinWidth(0).Children(func() {
+				brand := components.Label(c, "Shoreward", theme.TextSmall, semantic.Text.Heading).
+					Opacity(reveal).SingleLine()
+				_ = brand
+			})
+			components.IconButton{
+				Key: "toggle-sidebar", Label: "Toggle sidebar",
+				Icon:  components.IconSidebar.SVG(),
+				Style: components.SubtleButton, Size: components.MediumButton,
+				IconSize: 16 * scale / theme.DefaultUIFontSize,
+				Animate:  animate, Action: s.ToggleSidebar,
+			}.View(c, semantic)
+		})
+
+		s.pageTabs(c, semantic, metrics, height, animate)
+
+		ui.Row(c).HeightPercent(100).Shrink(0).PaddingEnd(right).
+			AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
+			components.IconButton{
+				Key: "new-page", Label: "New page", Icon: components.IconPlus.SVG(),
+				Style: components.SubtleButton, Size: components.MediumButton,
+				IconSize:  16 * scale / theme.DefaultUIFontSize,
+				IconColor: &semantic.Icon.Muted, Animate: animate,
+				Action: func() {
+					if s.NewPage != nil {
+						s.NewPage()
+					}
+				},
+			}.View(c, semantic)
+			components.VerticalDivider(c, semantic)
+			components.IconButton{
+				Key: "commands", Label: "Search commands", Icon: components.IconSearch.SVG(),
+				Style: components.SubtleButton, Size: components.MediumButton,
+				IconSize: 16 * scale / theme.DefaultUIFontSize, Animate: animate,
+				Action: func() {
+					if s.OpenCommands != nil {
+						s.OpenCommands()
+					}
+				},
+			}.View(c, semantic)
+			components.IconButton{
+				Key: "settings", Label: "Open settings", Icon: components.IconSettings.SVG(),
+				Style: components.SubtleButton, Size: components.MediumButton,
+				IconSize: 16 * scale / theme.DefaultUIFontSize, Animate: animate,
+				Action: func() {
+					if s.OpenSettings != nil {
+						s.OpenSettings()
+					}
+				},
+			}.View(c, semantic)
+		})
 	})
 }
 
@@ -58,6 +90,7 @@ func (s *State) pageTabs(
 	semantic theme.Theme,
 	metrics theme.ControlMetrics,
 	height float32,
+	animate bool,
 ) {
 	if len(s.Pages) == 0 {
 		ui.Text(c, "No open page").Grow(1).PaddingX(
@@ -65,59 +98,31 @@ func (s *State) pageTabs(
 		).TextColor(semantic.Text.Muted)
 		return
 	}
-	selected := s.activeTabIndex()
-	tabs := ui.TabsBase(c, &selected, len(s.Pages))
 	activeChanged := s.lastActive != s.ActivePage
 	ui.ScrollHorizontal(c).Grow(1).MinWidth(0).Height(height).
 		TrackScroll(&s.TabsScroll).Children(func() {
-		tabs.List.Height(height).AlignItems(ui.Center).Gap(
-			theme.Space02.DIPs(s.Settings.UIFontSize),
-		).Children(func() {
-			for index, page := range s.Pages {
+		ui.Row(c).HeightPercent(100).AlignItems(ui.Center).Children(func() {
+			for _, page := range s.Pages {
 				active := page.ID == s.ActivePage
-				tab := tabs.Tab(index).Height(metrics.Height).Gap(
-					theme.Space06.DIPs(s.Settings.UIFontSize),
-				).PaddingStart(theme.Space08.DIPs(s.Settings.UIFontSize)).PaddingEnd(
-					theme.Space04.DIPs(s.Settings.UIFontSize),
-				).Radius(metrics.Radius)
-				if active {
-					tab.Background(semantic.Element.Selected)
-					if activeChanged {
-						tab.ScrollIntoView()
-					}
-				} else if tab.Hovered() {
-					tab.Background(semantic.Element.Hover)
+				tab := components.Tab{
+					Key: "tab-" + page.ID, Title: page.Title, Selected: active,
+					Animate: animate, Icon: components.IconDocument.SVG(),
+					CloseIcon: components.IconClose.SVG(),
+					OnSelect: func() {
+						if s.SelectPage != nil {
+							s.SelectPage(page.ID)
+						}
+					},
+					OnClose: func() { s.closePage(page.ID) },
+				}.View(c, semantic)
+				if active && activeChanged {
+					tab.ScrollIntoView()
 				}
-				tab.Children(func() {
-					ui.Icon(c, glyph(IconDocument)).FontSize(metrics.Icon * 0.8).
-						TextColor(semantic.Icon.Muted)
-					ui.Text(c, page.Title).MinWidth(0).SingleLine().FontSize(
-						theme.TextSmall.Size(s.Settings.UIFontSize),
-					).TextColor(semantic.Text.Default)
-					if active {
-						close := ui.ButtonBase(c.Key("close-tab-"+page.ID)).
-							Label("Close "+page.Title).Size(metrics.InlineHeight, metrics.InlineHeight).
-							Padding(0).Radius(metrics.Radius).
-							Background(ui.Transparent)
-						if close.Hovered() {
-							close.Background(semantic.Element.Hover)
-						}
-						close.Children(func() {
-							ui.Icon(c, glyph(IconClose)).FontSize(metrics.Icon * 0.72).
-								TextColor(semantic.Icon.Muted)
-						})
-						if close.Clicked() {
-							s.closePage(page.ID)
-						}
-					}
-				})
 			}
 		})
 	})
-	if tabs.List.Changed() && selected >= 0 && selected < len(s.Pages) && s.SelectPage != nil {
-		s.SelectPage(s.Pages[selected].ID)
-	}
 	s.lastActive = s.ActivePage
+	_ = metrics
 }
 
 func (s *State) closePage(id string) {
@@ -128,52 +133,4 @@ func (s *State) closePage(id string) {
 	if s.ClosePage != nil {
 		s.ClosePage()
 	}
-}
-
-func (s *State) zenTitle(
-	c *ui.Context,
-	semantic theme.Theme,
-	metrics theme.ControlMetrics,
-	layout theme.Layout,
-) {
-	ui.Icon(c, glyph(IconDocument)).FontSize(metrics.Icon).
-		TextColor(semantic.Icon.Muted)
-	ui.Text(c, s.activeTitle()).MaxWidth(
-		layout.Sidebar - theme.Space32.DIPs(s.Settings.UIFontSize),
-	).MinWidth(0).FontSize(
-		theme.TextSmall.Size(s.Settings.UIFontSize),
-	).TextColor(semantic.Text.Default).SingleLine()
-}
-
-func (s *State) headerActions(
-	c *ui.Context,
-	semantic theme.Theme,
-	metrics theme.ControlMetrics,
-	right float32,
-) {
-	ui.Row(c).HeightPercent(100).Shrink(0).Padding(0, right, 0, 0).
-		AlignItems(ui.Center).Gap(theme.Space04.DIPs(s.Settings.UIFontSize)).Children(func() {
-		if s.iconButton(c, "new-page", "New page", IconPlus, metrics, semantic).Clicked() &&
-			s.NewPage != nil {
-			s.NewPage()
-		}
-		ui.Box(c).Width(1).Height(metrics.Icon).Shrink(0).Background(semantic.Border.Default)
-		if s.iconButton(c, "commands", "Search commands", IconSearch, metrics, semantic).Clicked() &&
-			s.OpenCommands != nil {
-			s.OpenCommands()
-		}
-		if s.iconButton(c, "settings", "Open settings", IconSettings, metrics, semantic).Clicked() &&
-			s.OpenSettings != nil {
-			s.OpenSettings()
-		}
-	})
-}
-
-func (s *State) activeTabIndex() int {
-	for index, page := range s.Pages {
-		if page.ID == s.ActivePage {
-			return index
-		}
-	}
-	return 0
 }

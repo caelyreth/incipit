@@ -1,6 +1,8 @@
 package window
 
 import (
+	"fmt"
+
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -17,26 +19,35 @@ func (a *AppState) OpenSettingsWindow() {
 		return
 	}
 	a.refreshSettingsData()
-	a.Settings.Close = func() {
-		if a.settingsWindow != nil && !a.settingsWindow.IsDestroyed() {
-			a.settingsWindow.Close()
-		}
-	}
+	a.Settings.SetWindowActive(true)
+	semantic := a.Shell.Settings.Semantic()
 	window := mygo.NewWindow(mygo.WindowOptions{
-		Title:           "Shoreward Settings",
-		Width:           900,
-		Height:          650,
-		MinWidth:        720,
-		MinHeight:       480,
-		Parent:          a.mainWindow,
-		StateKey:        "shoreward.settings",
-		Content:         ui.View(a.Settings.View),
-		BackgroundColor: "#f5f1e8",
+		Title:                "Shoreward — Settings",
+		Width:                980,
+		Height:               740,
+		MinWidth:             640,
+		MinHeight:            440,
+		Parent:               a.mainWindow,
+		TitleBarStyle:        mygo.TitleBarHidden,
+		TitleBarHeight:       40,
+		TrafficLightPosition: &mygo.Point{X: 9, Y: 13},
+		StateKey:             "shoreward.settings",
+		Content:              ui.View(a.Settings.View),
+		BackgroundColor:      colorHex(semantic.Surface.Background),
+	})
+	window.OnFocus(func() {
+		a.Settings.SetWindowActive(true)
+	})
+	window.OnBlur(func() {
+		a.Settings.SetWindowActive(false)
 	})
 	window.OnClosed(func() {
 		a.settingsWindow = nil
-		a.Settings.Close = nil
 	})
 	a.settingsWindow = window
 	window.Focus()
+}
+
+func colorHex(color ui.Color) string {
+	return fmt.Sprintf("#%02x%02x%02x", color.R, color.G, color.B)
 }

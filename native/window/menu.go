@@ -116,7 +116,9 @@ func (a *AppState) closePage() {
 }
 
 func (a *AppState) toggleSidebar() {
-	a.toggleZen()
+	if a != nil && a.Shell != nil {
+		a.Shell.ToggleSidebar()
+	}
 }
 
 func (a *AppState) openCommands() {

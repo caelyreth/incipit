@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/egoist/mygo/ui"
 )
 
 func TestToolbarActionsPublishLiveEditorModes(t *testing.T) {
@@ -53,5 +54,27 @@ func TestToolbarActionsPublishLiveEditorModes(t *testing.T) {
 			configuration.IsEnabled(editor.CJKPolicyID),
 			app.Shell.Appearance,
 		)
+	}
+}
+
+func TestToolbarBoldTypingStaysInGeneratedPair(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	if err := tester.Click("Bold"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Type("a")
+	tester.Frame()
+	tester.Type("b")
+	tester.Frame()
+	if got := app.Session.Document().Text(); got != "**ab**" {
+		t.Fatalf("bold typing text = %q, error=%v", got, app.Session.Document().LastError())
+	}
+	if active, _ := tester.TextInputActive(); !active {
+		t.Fatal("bold action removed document text-input focus")
 	}
 }

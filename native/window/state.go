@@ -121,8 +121,17 @@ func (a *AppState) BindShell() {
 		a.refreshShellReadouts()
 		a.Element.Theme = a.Shell.Settings.Semantic()
 		a.Element.Prose = theme.NewProseStyle(a.Shell.Settings.ProseFontSize)
-		a.Element.Animate = a.Shell.Appearance.Motion
+		a.Element.Animate = a.Shell.Appearance.Motion && a.Shell.WindowActive &&
+			!c.Preferences().ReduceMotion
 		a.Element.Typewriter = a.Shell.Appearance.Typewriter
+		a.Element.Title = a.Workspace.Title()
+		a.Element.UIFontSize = a.Shell.Settings.UIFontSize
+		a.Element.BottomInset = 150 * a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
+		if a.Shell.Appearance.Typewriter {
+			if _, height := c.Size(); height > 0 {
+				a.Element.BottomInset = max(a.Element.BottomInset, height*0.52)
+			}
+		}
 		a.refreshToolbarState()
 		a.Element.View(c)
 	}
@@ -173,7 +182,6 @@ func (a *AppState) BindShell() {
 	a.Shell.OpenSettings = func() {
 		a.OpenSettingsWindow()
 	}
-	a.Shell.ToggleSidebar = a.toggleZen
 	a.Shell.FormatItalic = func(bool) {
 		a.executeEditorCommand(editor.MarkupEmphasis.ID())
 	}
@@ -225,6 +233,8 @@ func (a *AppState) refreshToolbarState() {
 		toolbar := controller.Session().ToolbarState()
 		a.Shell.Toolbar.Italic = toolbar.Emphasis
 		a.Shell.Toolbar.Bold = toolbar.Strong
+		a.Shell.Toolbar.ItalicEnabled = toolbar.EmphasisEnabled
+		a.Shell.Toolbar.BoldEnabled = toolbar.StrongEnabled
 		a.Shell.CanUndo = toolbar.CanUndo
 		a.Shell.CanRedo = toolbar.CanRedo
 	}
@@ -362,6 +372,7 @@ func (a *AppState) refreshSettingsData() {
 	}
 	a.Settings.Data = a.Product.Data(a.Store, a.Session)
 	a.Settings.Theme = a.Shell.Settings
+	a.Settings.Animate = a.Product.Presentation.Motion
 	a.Settings.Apply = func(change appsettings.Change) {
 		outcome, err := a.Product.Apply(change, a.Store, a.Session)
 		if err != nil {

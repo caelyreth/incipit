@@ -38,8 +38,8 @@ func TestMenuWorkspaceActionsUseABIState(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.toggleSidebar()
-	if !app.Shell.Appearance.Zen {
-		t.Fatal("toggle-sidebar did not enter zen mode")
+	if !app.Shell.SidebarVisible() {
+		t.Fatal("toggle-sidebar did not show the navigation sidebar")
 	}
 	app.openCommands()
 	if !app.Palette.Open || len(app.Palette.Commands) == 0 {

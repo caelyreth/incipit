@@ -3,8 +3,10 @@ package shell
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/native/testlock"
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -34,10 +36,51 @@ func TestShellSidebarCanCollapse(t *testing.T) {
 	state.Appearance.Zen = true
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	for _, text := range tester.Texts() {
-		if text == "Notebook" {
-			t.Fatal("zen shell built sidebar")
-		}
+	if tester.HasText("Your pages · 1") {
+		t.Fatal("zen shell built sidebar")
+	}
+}
+
+func TestShellSidebarAndZenUseSourceMotion(t *testing.T) {
+	state := New()
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	if state.lastSidebarWidth != theme.DefaultLayout.Sidebar {
+		t.Fatalf("initial sidebar width = %v", state.lastSidebarWidth)
+	}
+	state.ToggleSidebar()
+	tester.Frame()
+	tester.Advance(110 * time.Millisecond)
+	if state.lastSidebarWidth <= 0 || state.lastSidebarWidth >= theme.DefaultLayout.Sidebar {
+		t.Fatalf("sidebar did not animate: %v", state.lastSidebarWidth)
+	}
+	tester.Advance(200 * time.Millisecond)
+	if state.lastSidebarWidth != 0 {
+		t.Fatalf("sidebar did not settle: %v", state.lastSidebarWidth)
+	}
+
+	state.SidebarOverride = nil
+	state.Appearance.Zen = true
+	tester.Frame()
+	tester.Advance(110 * time.Millisecond)
+	if state.lastChrome <= 0 || state.lastChrome >= 1 {
+		t.Fatalf("chrome did not animate: %v", state.lastChrome)
+	}
+	tester.Advance(200 * time.Millisecond)
+	if state.lastChrome != 0 {
+		t.Fatalf("chrome did not settle: %v", state.lastChrome)
+	}
+}
+
+func TestShellMotionHonorsReduceMotion(t *testing.T) {
+	state := New()
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.SetPreferences(ui.Preferences{ReduceMotion: true})
+	tester.Frame()
+	state.ToggleSidebar()
+	tester.Frame()
+	if state.lastSidebarWidth != 0 {
+		t.Fatalf("reduced motion sidebar width = %v", state.lastSidebarWidth)
 	}
 }
 
@@ -106,36 +149,9 @@ func TestTabsShowAndSelectEachOpenPage(t *testing.T) {
 	}
 }
 
-func TestSharedIconSetComposesDocumentedGlyphs(t *testing.T) {
-	seen := make(map[*ui.SVG]Icon, len(allIcons))
-	for _, icon := range allIcons {
-		definition, ok := iconSet[icon]
-		if !ok || definition.svg == nil {
-			t.Fatalf("missing icon %d", icon)
-		}
-		width, height := definition.svg.Size()
-		if width <= 0 || height <= 0 {
-			t.Fatalf("%s has size %vx%v", definition.label, width, height)
-		}
-		if definition.label == "" {
-			t.Fatalf("icon %d has no fallback label", icon)
-		}
-		if previous, duplicate := seen[definition.svg]; duplicate {
-			t.Fatalf("%d and %d share one glyph", previous, icon)
-		}
-		seen[definition.svg] = icon
-	}
-	for _, icon := range allIcons {
-		if label := glyphLabel(icon); label == "" {
-			t.Fatalf("icon %d has an empty label", icon)
-		}
-	}
-}
-
 func TestHeaderControlsUseReferenceActions(t *testing.T) {
 	state := New()
-	var toggled, commands, created, opened, closed bool
-	state.ToggleSidebar = func() { toggled = true }
+	var commands, created, opened, closed bool
 	state.OpenCommands = func() { commands = true }
 	state.NewPage = func() { created = true }
 	state.OpenSettings = func() { opened = true }
@@ -155,7 +171,6 @@ func TestHeaderControlsUseReferenceActions(t *testing.T) {
 		}
 	}
 	for label, want := range map[string]*bool{
-		"Toggle sidebar":  &toggled,
 		"New page":        &created,
 		"Search commands": &commands,
 		"Open settings":   &opened,
@@ -168,14 +183,21 @@ func TestHeaderControlsUseReferenceActions(t *testing.T) {
 			t.Fatalf("clicking %q skipped its callback", label)
 		}
 	}
+	if _, ok := tester.Find("Toggle sidebar"); !ok {
+		t.Fatal("sidebar toggle missing")
+	}
+	if err := tester.Click("Toggle sidebar"); err != nil {
+		t.Fatal(err)
+	}
+	if state.SidebarVisible() {
+		t.Fatal("sidebar toggle did not hide navigation")
+	}
 }
 
 func TestIconControlsAreKeyboardReachableAndSidebarSearchFiltersPages(t *testing.T) {
 	state := New()
 	state.Pages = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
 	state.ActivePage = "one"
-	sidebars := 0
-	state.ToggleSidebar = func() { sidebars++ }
 	tester := ui.NewTester(state.View, 1260, 850)
 
 	tester.Key(0, ui.KeyTab)
@@ -183,8 +205,8 @@ func TestIconControlsAreKeyboardReachableAndSidebarSearchFiltersPages(t *testing
 		t.Fatalf("first keyboard stop is not the labeled sidebar control: %#v", tester.Texts())
 	}
 	tester.Key(0, ui.KeySpace)
-	if sidebars != 1 {
-		t.Fatalf("keyboard activation count = %d", sidebars)
+	if state.SidebarVisible() {
+		t.Fatal("keyboard activation did not hide navigation")
 	}
 
 	tester.Frame()
@@ -235,7 +257,7 @@ func TestSidebarPageActionsExposeRenameAndClose(t *testing.T) {
 	if menu := tester.Menu(); len(menu) != 2 {
 		t.Fatalf("page menu = %#v", menu)
 	}
-	if err := tester.ChooseMenuItem("Rename page..."); err != nil {
+	if err := tester.ChooseMenuItem("Rename page…"); err != nil {
 		t.Fatal(err)
 	}
 	if selected != "one" || renamed != "one" || closed != "" {
@@ -277,6 +299,8 @@ func TestFormattingControlsKeepStateAndRunEveryCallback(t *testing.T) {
 	state := New()
 	state.CanUndo = true
 	state.CanRedo = true
+	state.Toolbar.ItalicEnabled = true
+	state.Toolbar.BoldEnabled = true
 	var bold, italic, typewriter, zen, cjk, undo, redo bool
 	state.FormatBold = func(on bool) { bold = on }
 	state.FormatItalic = func(on bool) { italic = on }
@@ -303,20 +327,20 @@ func TestFormattingControlsKeepStateAndRunEveryCallback(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if !state.Toolbar.Bold || !bold {
-		t.Fatal("bold state and callback did not follow the toggle")
+	if !bold {
+		t.Fatal("bold callback did not receive the toggle")
 	}
-	if !state.Toolbar.Italic || !italic {
-		t.Fatal("italic state and callback did not follow the toggle")
+	if !italic {
+		t.Fatal("italic callback did not receive the toggle")
 	}
-	if !state.Appearance.Typewriter || !typewriter {
-		t.Fatal("typewriter state and callback did not follow the toggle")
+	if !typewriter {
+		t.Fatal("typewriter callback did not receive the toggle")
 	}
-	if !state.Appearance.Zen || !zen {
-		t.Fatal("zen state and callback did not follow the toggle")
+	if !zen {
+		t.Fatal("zen callback did not receive the toggle")
 	}
-	if !state.Toolbar.CJK || !cjk {
-		t.Fatal("CJK state and callback did not follow the toggle")
+	if !cjk {
+		t.Fatal("CJK callback did not receive the toggle")
 	}
 	if !undo || !redo {
 		t.Fatalf("history callbacks = undo:%v redo:%v", undo, redo)

@@ -28,8 +28,12 @@ func Run() error {
 			Content:              ui.View(state.View),
 		})
 		window.OnFocus(func() {
+			app.Shell.SetWindowActive(true)
 			app.Error = ""
 			app.refreshShell()
+		})
+		window.OnBlur(func() {
+			app.Shell.SetWindowActive(false)
 		})
 		app.mainWindow = window
 	})

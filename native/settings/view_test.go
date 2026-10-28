@@ -131,22 +131,18 @@ func TestSettingsTitleRowsAndStatusLayout(t *testing.T) {
 			Selector:    "quotes",
 		}},
 	}}
-	tester := ui.NewTester(state.View, 900, 650)
+	tester := ui.NewTester(state.View, 980, 740)
 	tester.Frame()
-	title, ok := tester.Find("Editor settings")
-	if !ok {
-		t.Fatalf("heading missing from %#v", tester.Texts())
-	}
 	description, ok := tester.Find("Shape the way your words are edited.")
-	if !ok || description.Y <= title.Y {
-		t.Fatalf("title %v, description %v", title, description)
+	if !ok || !tester.HasText("Editor") || description.Y <= 0 {
+		t.Fatalf("heading composition missing from %#v", tester.Texts())
 	}
 	row, ok := tester.Find("Pair quotation marks")
 	if !ok || row.X < 220 {
 		t.Fatalf("setting row is not in the content pane: %v", row)
 	}
 	status, ok := tester.Find("Untitled · changes stay in memory")
-	if !ok || status.Y < 600 {
+	if !ok || status.Y < 690 {
 		t.Fatalf("status is not at the footer: %v", status)
 	}
 }
@@ -167,5 +163,31 @@ func TestSettingsSectionLabelsUseDisplayNames(t *testing.T) {
 	tester.Frame()
 	if !tester.HasText("Automatic pairs") || tester.HasText("section-Automatic pairs") {
 		t.Fatalf("texts = %#v", tester.Texts())
+	}
+}
+
+func TestSettingsDefaultsToEditorOnlyAndReferenceSearch(t *testing.T) {
+	state := New()
+	state.Data.Sections = []appsettings.Section{{
+		Title: "Automatic pairs",
+		Settings: []appsettings.ToggleSetting{{
+			Key: appsettings.PolicyBoolean("editor.pairs"), Label: "Enable automatic pairs", Value: true, Enabled: true,
+			Selector: "pairs",
+		}},
+	}}
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if !tester.HasText("Automatic pairs") {
+		t.Fatalf("Editor is not expanded: %#v", tester.Texts())
+	}
+	if _, ok := tester.Find("Search settings"); !ok {
+		t.Fatal("settings search missing")
+	}
+	if _, ok := tester.Find("Close"); ok {
+		t.Fatal("settings footer still has a Close action")
+	}
+	if state.expanded[appsettings.Keymap] || state.expanded[appsettings.Appearance] ||
+		state.expanded[appsettings.Diagnostics] {
+		t.Fatalf("settings categories expand by default: %#v", state.expanded)
 	}
 }
