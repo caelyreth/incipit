@@ -185,6 +185,29 @@ func (p *Presentation) Install(next Presentation) {
 	*p = next
 }
 
+// Target returns one projected address in the current projection.
+func (p *Presentation) Target(r model.UTF16Range) (projection.Target, error) {
+	if p == nil || p.Projection == nil {
+		return projection.Target{}, &projection.ProjectionError{
+			Kind: projection.ErrorNoCorrespondence,
+		}
+	}
+	return p.Projection.Target(r)
+}
+
+// CollapsedTarget returns the current visual caret target. This is the target
+// used for pointer placement and IME composition.
+func (p *Presentation) CollapsedTarget() (projection.Target, error) {
+	range16, err := p.ProjectedSelection()
+	if err != nil {
+		return projection.Target{}, err
+	}
+	if !range16.Empty() {
+		return projection.Target{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+	}
+	return p.Target(range16)
+}
+
 // SurfaceFlow returns the retained flow for the current projection.
 func (p *Presentation) SurfaceFlow(
 	runtime *kernel.PolicyRuntime,

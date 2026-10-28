@@ -21,6 +21,23 @@ func (d *DocumentDraft) BaseSnapshot() DocumentSnapshot {
 	return DocumentSnapshot{state: d.base}
 }
 
+// CandidateSnapshot exposes the candidate state for transaction preparation.
+// It must not be published until the caller validates and accepts the draft.
+func (d *DocumentDraft) CandidateSnapshot(revision uint64) DocumentSnapshot {
+	nodes := make(map[NodeID]*Node, len(d.state.nodes))
+	for id, node := range d.state.nodes {
+		nodes[id] = node.value()
+	}
+	return DocumentSnapshot{
+		state: &documentState{
+			root:   d.state.root,
+			nodes:  nodes,
+			nextID: d.state.nextID,
+		},
+		revision: revision,
+	}
+}
+
 // Draft is a concise alias for DocumentDraft.
 type Draft = DocumentDraft
 
