@@ -3,82 +3,8 @@ package editor
 import (
 	"strings"
 
-	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
 )
-
-type TextCommand uint8
-
-const (
-	TextLeft TextCommand = iota + 1
-	TextRight
-	TextSelectLeft
-	TextSelectRight
-	TextLineStart
-	TextLineEnd
-	TextSelectLineStart
-	TextSelectLineEnd
-	TextDocumentStart
-	TextDocumentEnd
-	TextSelectDocumentStart
-	TextSelectDocumentEnd
-	TextSelectAll
-	TextBackspace
-	TextDelete
-	TextNewline
-)
-
-var AllTextCommands = [...]TextCommand{
-	TextLeft, TextRight, TextSelectLeft, TextSelectRight,
-	TextLineStart, TextLineEnd, TextSelectLineStart, TextSelectLineEnd,
-	TextDocumentStart, TextDocumentEnd, TextSelectDocumentStart,
-	TextSelectDocumentEnd, TextSelectAll, TextBackspace, TextDelete,
-	TextNewline,
-}
-
-func (c TextCommand) Description() Command {
-	meta := Command{Policy: EditorTextPolicyID, BindingCtx: kernel.EditorBindingContext}
-	switch c {
-	case TextLeft:
-		meta.ID, meta.Label, meta.Key = "text.left", "Move left", "left"
-	case TextRight:
-		meta.ID, meta.Label, meta.Key = "text.right", "Move right", "right"
-	case TextSelectLeft:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.select-left", "Extend left", "left", kernel.ModifiersShift
-	case TextSelectRight:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.select-right", "Extend right", "right", kernel.ModifiersShift
-	case TextLineStart:
-		meta.ID, meta.Label, meta.Key = "text.line-start", "Start of line", "home"
-	case TextLineEnd:
-		meta.ID, meta.Label, meta.Key = "text.line-end", "End of line", "end"
-	case TextSelectLineStart:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.select-line-start", "Extend to line start", "home", kernel.ModifiersShift
-	case TextSelectLineEnd:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.select-line-end", "Extend to line end", "end", kernel.ModifiersShift
-	case TextDocumentStart:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.document-start", "Start of document", "home", kernel.ModifiersPrimary
-	case TextDocumentEnd:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.document-end", "End of document", "end", kernel.ModifiersPrimary
-	case TextSelectDocumentStart:
-		meta.ID, meta.Label, meta.Key = "text.select-document-start", "Extend to document start", "home"
-		meta.Modifiers = kernel.ModifiersPrimary | kernel.ModifiersShift
-	case TextSelectDocumentEnd:
-		meta.ID, meta.Label, meta.Key = "text.select-document-end", "Extend to document end", "end"
-		meta.Modifiers = kernel.ModifiersPrimary | kernel.ModifiersShift
-	case TextSelectAll:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.select-all", "Select all", "a", kernel.ModifiersPrimary
-	case TextBackspace:
-		meta.ID, meta.Label, meta.Key = "text.backspace", "Delete backward", "backspace"
-	case TextDelete:
-		meta.ID, meta.Label, meta.Key = "text.delete", "Delete forward", "delete"
-	case TextNewline:
-		meta.ID, meta.Label, meta.Key = "text.newline", "Insert newline", "enter"
-	}
-	return meta
-}
-
-func (c TextCommand) ID() kernel.CommandID { return c.Description().ID }
-func (c TextCommand) Label() string        { return c.Description().Label }
 
 type TextPlan struct {
 	Command  TextCommand

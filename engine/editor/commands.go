@@ -35,8 +35,6 @@ const (
 )
 
 const (
-	// EditorTextPolicyID owns ordinary character and line editing.
-	EditorTextPolicyID kernel.PolicyID = "editor.text"
 	// WordsPolicyID owns semantic word and selection-unit commands.
 	WordsPolicyID kernel.PolicyID = "editor.words"
 	// NavigationPolicyID owns scope and return-to-edit navigation.
