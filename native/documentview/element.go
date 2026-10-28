@@ -32,6 +32,7 @@ type Element struct {
 	Typewriter    bool
 	Label         string
 	AutoFocus     bool
+	Placeholder   string
 	Layout        *textlayout.Cache
 	Motion        *motion.Motion
 	scroll        float32
@@ -54,6 +55,7 @@ func NewElement(
 		Theme:        semantic,
 		Prose:        prose,
 		Label:        "Document",
+		Placeholder:  "Start writing…",
 		AutoFocus:    true,
 		focusPending: true,
 		Layout:       textlayout.NewCache(),
@@ -225,15 +227,16 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused bool) {
 	}
 	e.advanceScroll(p.Now())
 	state := &State{
-		Flow:    flow,
-		Frame:   frame,
-		Layout:  e.current,
-		Motion:  e.Motion,
-		Theme:   e.Theme,
-		Prose:   e.Prose,
-		ScrollY: e.scroll,
-		Focused: focused,
-		Animate: e.Animate,
+		Flow:        flow,
+		Frame:       frame,
+		Layout:      e.current,
+		Motion:      e.Motion,
+		Theme:       e.Theme,
+		Prose:       e.Prose,
+		ScrollY:     e.scroll,
+		Focused:     focused,
+		Animate:     e.Animate,
+		Placeholder: e.Placeholder,
 	}
 	Paint(p, rect, state)
 	bridge.Controller.SetGeometry(LayoutGeometry{Layout: e.current})

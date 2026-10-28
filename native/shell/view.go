@@ -115,9 +115,6 @@ func (s *State) document(
 				ui.Box(c).Height(layout.TitleBottom)
 				if s.Content != nil {
 					s.Content(c)
-				} else {
-					ui.Text(c, "Start writing…").FontSize(prose.FontSize).
-						TextColor(semantic.Text.Muted)
 				}
 				ui.Box(c).Height(layout.ReadingBottom)
 			})

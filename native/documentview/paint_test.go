@@ -91,6 +91,35 @@ func TestSurfacePaintsTextSelectionCursorDecorations(t *testing.T) {
 	}
 }
 
+func TestSurfacePaintsPlaceholderOnlyForEmptyFlow(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	flow := surface.EmptyFlow(projection.NewVersion(1, 1))
+	settings := theme.DefaultSettings()
+	style := textlayout.NewStyle(
+		theme.NewProseStyle(settings.ProseFontSize),
+		settings.Semantic(),
+	)
+	layout := textlayout.NewCache().Update(flow, 360, style)
+	frame, err := surface.NewFrame(flow, model.EmptyUTF16Range(0), 0, surface.TextStyle{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	painter := ui.NewTester(func(c *ui.Context) {
+		ui.Box(c).Fill().Draw(func(p *ui.Painter, rect ui.Rect) {
+			Paint(p, rect, &State{
+				Flow: flow, Frame: frame, Layout: layout,
+				Motion: motion.New(now), Theme: settings.Semantic(),
+				Prose:   theme.NewProseStyle(settings.ProseFontSize),
+				Focused: true, Placeholder: "Start writing…",
+			})
+		})
+	}, 600, 400)
+	painter.Frame()
+	if image := painter.Image(); image == nil || !hasNonBackground(image, settings.Semantic().Surface.Page) {
+		t.Fatal("placeholder produced no painted pixels")
+	}
+}
+
 func hasNonBackground(image *image.RGBA, background ui.Color) bool {
 	for offset := 0; offset < len(image.Pix); offset += 4 {
 		if image.Pix[offset] != background.R || image.Pix[offset+1] != background.G ||

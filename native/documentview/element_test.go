@@ -106,3 +106,30 @@ func TestElementDoubleClickSelectsWord(t *testing.T) {
 		t.Fatalf("double-click selection = %#v", got)
 	}
 }
+
+func TestEmptyDocumentPaintsReferencePlaceholder(t *testing.T) {
+	document, err := controller.NewTextDocument("", nativeClock{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := NewBridge(document, nil, func() time.Time {
+		return time.Unix(1_700_000_000, 0)
+	})
+	settings := theme.DefaultSettings()
+	element := NewElement(
+		input,
+		settings.Semantic(),
+		theme.NewProseStyle(settings.ProseFontSize),
+		time.Unix(1_700_000_000, 0),
+	)
+	if element.Placeholder != "Start writing…" {
+		t.Fatalf("placeholder = %q", element.Placeholder)
+	}
+	tester := ui.NewTester(func(c *ui.Context) {
+		element.View(c)
+	}, 600, 400)
+	tester.Frame()
+	if image := tester.Image(); image == nil {
+		t.Fatal("document produced no placeholder frame")
+	}
+}

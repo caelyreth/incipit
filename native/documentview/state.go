@@ -10,13 +10,14 @@ import (
 )
 
 type State struct {
-	Flow    *surface.Flow
-	Frame   *surface.Frame
-	Layout  *textlayout.Layout
-	Motion  *motion.Motion
-	Theme   theme.Theme
-	Prose   theme.ProseStyle
-	ScrollY float32
-	Focused bool
-	Animate bool
+	Flow        *surface.Flow
+	Frame       *surface.Frame
+	Layout      *textlayout.Layout
+	Motion      *motion.Motion
+	Theme       theme.Theme
+	Prose       theme.ProseStyle
+	ScrollY     float32
+	Focused     bool
+	Animate     bool
+	Placeholder string
 }

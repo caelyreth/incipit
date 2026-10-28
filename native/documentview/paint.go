@@ -41,6 +41,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	p.Clip(rect, 0, func() {
 		drawRangeFills(p, rect, state, animatedSelection)
 		drawText(p, rect, state)
+		drawPlaceholder(p, rect, state, caret)
 		drawRangeRules(p, rect, state, options)
 		if state.Focused {
 			drawCaret(p, rect, state, options, animatedCaret)
@@ -50,6 +51,21 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	if state.Animate && (state.Motion.Moving() || decorationsMoving(state.Frame, options)) {
 		p.AnimationFrame()
 	}
+}
+
+func drawPlaceholder(p *ui.Painter, rect ui.Rect, state *State, caret ui.Rect) {
+	if state.Placeholder == "" || state.Flow.Text() != "" {
+		return
+	}
+	caret.X += rect.X
+	caret.Y += rect.Y - state.ScrollY
+	p.Text(
+		caret.X,
+		caret.Y,
+		state.Placeholder,
+		state.Prose.FontSize,
+		state.Theme.Text.Muted.Alpha(0.65),
+	)
 }
 
 func drawRangeFills(p *ui.Painter, rect ui.Rect, state *State, selection []ui.Rect) {
