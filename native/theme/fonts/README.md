@@ -19,7 +19,7 @@ The same command is wired as `go generate ./native/theme`. It downloads to
 `native/theme/fonts/NotoSerifSC-Variable.ttf`, verifies the checksum, and
 atomically installs the file at the ignored local path.
 
-It is registered under Shoreward's source family name,
+It is registered under Neverland's source family name,
 `Noto Serif CJK SC`, so document typography does not depend on fonts
 installed by the host operating system.
 

@@ -14,7 +14,7 @@ const (
 	MotionScene     = 450 * time.Millisecond
 )
 
-// Smoothstep is Shoreward's bounded chrome interpolation:
+// Smoothstep is Neverland's bounded chrome interpolation:
 // 3t^2 - 2t^3. It settles exactly at the deadline and never overshoots.
 func Smoothstep(t float32) float32 {
 	t = max(0, min(t, 1))

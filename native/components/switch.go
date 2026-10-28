@@ -5,7 +5,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Switch is Shoreward's controlled settings switch. Its track and thumb use
+// Switch is Neverland's controlled settings switch. Its track and thumb use
 // the source 34x20/14 geometry and a 120 ms smoothstep transition.
 type Switch struct {
 	Key      string

@@ -120,7 +120,7 @@ type pairFrame struct {
 	spec   pairSpec
 }
 
-// DiscoverPairs scans semantic text with the same stack rules as Shoreward.
+// DiscoverPairs scans semantic text with the same stack rules as Neverland.
 // Brackets survive newlines; quote frames are discarded at a newline.
 // Apostrophes inside words are skipped when they are not closing an open
 // single quote.

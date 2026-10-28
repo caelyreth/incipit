@@ -22,7 +22,7 @@ func (a *AppState) OpenSettingsWindow() {
 	a.Settings.SetWindowActive(true)
 	semantic := a.Shell.Settings.Semantic()
 	window := mygo.NewWindow(mygo.WindowOptions{
-		Title:                "Shoreward — Settings",
+		Title:                "Neverland — Settings",
 		Width:                980,
 		Height:               740,
 		MinWidth:             640,
@@ -31,7 +31,7 @@ func (a *AppState) OpenSettingsWindow() {
 		TitleBarStyle:        mygo.TitleBarHidden,
 		TitleBarHeight:       40,
 		TrafficLightPosition: &mygo.Point{X: 9, Y: 13},
-		StateKey:             "shoreward.settings",
+		StateKey:             "neverland.settings",
 		Content:              ui.View(a.Settings.View),
 		BackgroundColor:      colorHex(semantic.Surface.Background),
 	})

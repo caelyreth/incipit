@@ -7,7 +7,7 @@ import (
 	"github.com/caelyreth/neverland/engine/kernel"
 )
 
-func TestRuleDeclarationsPreserveShorewardOrderAndOrigins(t *testing.T) {
+func TestRuleDeclarationsPreserveNeverlandOrderAndOrigins(t *testing.T) {
 	t.Parallel()
 	pairs := PairRuleDeclarations()
 	orders := make([]int, 0, len(pairs))

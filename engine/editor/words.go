@@ -144,7 +144,7 @@ func EnclosingUTF16Range(text string, at model.UTF16Offset, unit SelectionUnit) 
 	return converted, nil
 }
 
-// PlanWordCommand reproduces Shoreward's previous/next word movement,
+// PlanWordCommand reproduces Neverland's previous/next word movement,
 // extension, deletion, and unit-selection rules as data.
 func PlanWordCommand(text string, selection WordSelection, command WordCommand) (WordCommandPlan, error) {
 	if !model.ValidDocumentText(text) {
@@ -225,7 +225,7 @@ func PlanWordCommand(text string, selection WordSelection, command WordCommand) 
 }
 
 // PlanSelectionUnit returns the enclosing unit as a forward semantic
-// selection. This matches Shoreward's select_unit boundary: it offers the range
+// selection. This matches Neverland's select_unit boundary: it offers the range
 // to the general selection API but does not preserve prior direction.
 func PlanSelectionUnit(
 	text string,

@@ -16,7 +16,7 @@ func (s *State) appearancePage(
 ) {
 	scale := s.Theme.UIFontSize
 	components.SectionHeader{
-		Label: "Theme", Description: "Colors and chrome scale for every Shoreward window.",
+		Label: "Theme", Description: "Colors and chrome scale for every Neverland window.",
 	}.View(c, semantic)
 	components.SettingRow{
 		Label:       "Theme",

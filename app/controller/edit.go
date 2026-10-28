@@ -29,7 +29,7 @@ func (c *DocumentController) Replace(
 		err    error
 	)
 	// A collapsed range at the live caret names the selection, matching
-	// Shoreward's projected_edit_for_range bridge. This preserves generated
+	// Neverland's projected_edit_for_range bridge. This preserves generated
 	// marker caret identity instead of flattening it to an ordinary target.
 	if range16 == nil || (range16.Empty() && range16.Start == c.sourceCaret) {
 		result, err = c.session.ReplaceSelection(text, origin)
@@ -127,7 +127,7 @@ func (c *DocumentController) SelectProjected(anchor, head int) error {
 }
 
 // SelectPointer installs a pointer-derived projected selection and updates
-// Shoreward's return-to-edit navigation offer.
+// Neverland's return-to-edit navigation offer.
 func (c *DocumentController) SelectPointer(anchor, head int, at time.Time) error {
 	if c.preedit != nil {
 		return c.fail(editor.ErrCompositionActive)

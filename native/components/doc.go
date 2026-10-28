@@ -1,2 +1,2 @@
-// Package components owns Shoreward-specific controls built on MyGo bases.
+// Package components owns Neverland-specific controls built on MyGo bases.
 package components

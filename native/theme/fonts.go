@@ -17,7 +17,7 @@ var (
 	registerErr  error
 )
 
-// RegisterFonts installs the product prose font under Shoreward's stable
+// RegisterFonts installs the product prose font under Neverland's stable
 // family name on every target platform.
 func RegisterFonts() error {
 	registerOnce.Do(func() {

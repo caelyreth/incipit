@@ -1,6 +1,6 @@
 package settings
 
-// ThemeChoice selects one of Shoreward's coherent built-in palettes.
+// ThemeChoice selects one of Neverland's coherent built-in palettes.
 type ThemeChoice uint8
 
 const (

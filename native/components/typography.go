@@ -13,7 +13,7 @@ func UIFontSize(c *ui.Context) float32 {
 	return c.Theme().FontSize
 }
 
-// Label applies Shoreward's chrome type scale, including its paired line
+// Label applies Neverland's chrome type scale, including its paired line
 // height. Raw MyGo text uses a different default leading.
 func Label(
 	c *ui.Context,

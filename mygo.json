@@ -1,8 +1,8 @@
 {
-  "name": "Shoreward",
-  "slug": "shoreward",
-  "identifier": "com.caelyreth.shoreward",
+  "name": "Neverland",
+  "slug": "neverland",
+  "identifier": "com.caelyreth.neverland",
   "version": "0.1.0",
-  "main": "./cmd/shoreward",
+  "main": "./cmd/neverland",
   "out": "dist"
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestSmoothstepMatchesShorewardChromeCurve(t *testing.T) {
+func TestSmoothstepMatchesNeverlandChromeCurve(t *testing.T) {
 	for _, test := range []struct {
 		input float32
 		want  float32

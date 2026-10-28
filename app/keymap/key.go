@@ -61,7 +61,7 @@ func NormalizeModifiers(modifiers ui.Modifiers, platform Platform) kernel.Modifi
 }
 
 // KeyName returns the stable binding name for a MyGo key. Punctuation uses its
-// literal US-layout character because that is how Shoreward declares shortcuts
+// literal US-layout character because that is how Neverland declares shortcuts
 // such as primary-comma. KeyUnknown has no binding name.
 func KeyName(key ui.Key) (string, bool) {
 	switch key {

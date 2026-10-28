@@ -1,6 +1,6 @@
 # Neverland
 
-Neverland is the Go/MyGo port of Shoreward's writing workspace.
+Neverland is a writing workspace built with Go and MyGo.
 
 The port follows the research dossier recorded under the ignored local
 `references/` tree:
@@ -9,13 +9,13 @@ The port follows the research dossier recorded under the ignored local
 - generated markup remains a projection rather than stored text;
 - MyGo supplies native windows, text input, shaping, paint, focus, motion,
   accessibility, and application chrome;
-- Shoreward supplies the custom editor buffer, selection affinity, projected
+- Neverland supplies the custom editor buffer, selection affinity, projected
   edits, IME policy, history, and text interaction.
 
 ## Layout
 
 ```text
-cmd/shoreward        executable composition
+cmd/neverland        executable composition
 engine/model         semantic document, text roots, anchors, marks
 engine/kernel        policy catalog, planning, dispatch, projection, publication
 engine/editor        editor policies, session, composition, history
@@ -23,7 +23,7 @@ engine/surface       UI-neutral frame and style values
 app/controller       engine-backed document controller and TextInputClient
 app/workspace        pages, tabs, mounted/parked sessions
 app/settings         declarative settings snapshots and changes
-native/theme         Shoreward palette and prose/UI metrics
+native/theme         Neverland palette and prose/UI metrics
 native/textlayout    MyGo shaping and retained paragraph geometry
 native/motion        cursor, selection, viewport, and feedback animation
 native/documentview  custom writing surface
@@ -40,7 +40,7 @@ The repository uses Go 1.27.3 and MyGo v0.7.1.
 direnv allow
 ./scripts/fetch-fonts.sh
 go test ./...
-go run ./cmd/shoreward
+go run ./cmd/neverland
 ```
 
 The reference prose font is fetched into an ignored local path and verified

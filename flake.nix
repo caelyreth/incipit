@@ -1,5 +1,5 @@
 {
-  description = "Neverland - Shoreward ported to Go and MyGo";
+  description = "Neverland - a writing workspace built with Go and MyGo";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";

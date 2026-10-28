@@ -39,7 +39,7 @@ type State struct {
 	Appearance   AppearanceSettings
 }
 
-// DefaultState matches Shoreward's initial product settings.
+// DefaultState matches Neverland's initial product settings.
 func DefaultState() State {
 	return State{
 		Presentation: DefaultPresentation(),

@@ -131,7 +131,7 @@ func (c *DocumentController) SetMarkedText(
 	c.setStatus(kernel.OutcomeHandled, false, nil)
 }
 
-// UnmarkText commits preedit under Shoreward policy. Unlike a plain UI
+// UnmarkText commits preedit under Neverland policy. Unlike a plain UI
 // unmark, a declined or failed commit retains preedit for cancellation or
 // retry and records the error instead of panicking.
 func (c *DocumentController) UnmarkText() {

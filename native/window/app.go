@@ -21,14 +21,14 @@ func Run() error {
 	mygo.App.WhenReady(func() {
 		mygo.App.SetMenu(app.MainMenu())
 		window := mygo.NewWindow(mygo.WindowOptions{
-			Title:                "Shoreward",
+			Title:                "Neverland",
 			Width:                1260,
 			Height:               850,
 			MinWidth:             760,
 			MinHeight:            420,
 			TitleBarStyle:        mygo.TitleBarHidden,
 			TrafficLightPosition: &mygo.Point{X: 9, Y: 13},
-			StateKey:             "shoreward.main",
+			StateKey:             "neverland.main",
 			Content:              ui.View(state.View),
 		})
 		window.OnFocus(func() {

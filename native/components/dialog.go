@@ -5,7 +5,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Dialog composes Shoreward's modal material over MyGo's focus-safe dialog
+// Dialog composes Neverland's modal material over MyGo's focus-safe dialog
 // boundary. Content owns the inner padding.
 type Dialog struct {
 	Key     string

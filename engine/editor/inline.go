@@ -281,7 +281,7 @@ func (a MarkerAction) Apply(draft *model.DocumentDraft) error {
 }
 
 // MarkerEffect resolves the active mark after a create/format action. It
-// prefers the newest exact-range mark, matching Shoreward's marker_effect.
+// prefers the newest exact-range mark, matching Neverland's marker_effect.
 func MarkerEffect(node *model.Node, range16 model.UTF16Range) (model.MarkID, bool) {
 	if node == nil {
 		return 0, false

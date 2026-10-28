@@ -77,7 +77,7 @@ const (
 	PasteCommandID kernel.CommandID = "surface.paste"
 )
 
-// ID returns Shoreward's stable surface command identity.
+// ID returns Neverland's stable surface command identity.
 func (c ClipboardCommand) ID() kernel.CommandID {
 	switch c {
 	case ClipboardCopy:
@@ -186,7 +186,7 @@ func AllowsRepeat(action Action) bool {
 
 // MenuAction maps an edit or format menu role delivered by MyGo as
 // InputCommand. Paste-and-match-style deliberately degrades to plain Paste,
-// matching Shoreward's plain-text clipboard scope.
+// matching Neverland's plain-text clipboard scope.
 func MenuAction(name string) (Action, bool) {
 	switch name {
 	case "copy":

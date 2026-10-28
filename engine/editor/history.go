@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// HistoryLimit bounds each history stack, matching Shoreward's 200-frame
+	// HistoryLimit bounds each history stack, matching Neverland's 200-frame
 	// undo depth.
 	HistoryLimit = 200
 	// TypingGroupWindow is the maximum gap between contiguous typing edits

@@ -32,7 +32,7 @@ func (s *State) header(
 		}
 		leading.Children(func() {
 			ui.Box(c).Grow(1).MinWidth(0).Children(func() {
-				brand := components.Label(c, "Shoreward", theme.TextSmall, semantic.Text.Heading).
+				brand := components.Label(c, "Neverland", theme.TextSmall, semantic.Text.Heading).
 					Opacity(reveal).SingleLine()
 				_ = brand
 			})

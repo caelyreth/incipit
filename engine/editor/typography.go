@@ -51,7 +51,7 @@ func PlanTypography(text string, head model.UTF16Offset, settings TypographySett
 }
 
 // ConvergeTypography repeatedly plans line corrections, updating the head
-// after each accepted batch. It mirrors Shoreward's three-pass convergence cap.
+// after each accepted batch. It mirrors Neverland's three-pass convergence cap.
 func ConvergeTypography(
 	text string,
 	head model.UTF16Offset,

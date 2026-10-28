@@ -1,13 +1,13 @@
 package settings
 
-// PresentationState contains Shoreward's three app-wide writing modes.
+// PresentationState contains Neverland's three app-wide writing modes.
 type PresentationState struct {
 	Motion     bool
 	Typewriter bool
 	Zen        bool
 }
 
-// DefaultPresentation matches Shoreward: motion on, typewriter and Zen off.
+// DefaultPresentation matches Neverland: motion on, typewriter and Zen off.
 func DefaultPresentation() PresentationState {
 	return PresentationState{Motion: true}
 }

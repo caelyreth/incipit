@@ -39,7 +39,7 @@ func TestShellSidebarCanCollapse(t *testing.T) {
 	if tester.HasText("Your pages · 1") {
 		t.Fatal("zen shell built sidebar")
 	}
-	if tester.HasText("Shoreward") || tester.HasText("No open document") {
+	if tester.HasText("Neverland") || tester.HasText("No open document") {
 		t.Fatalf("zen shell kept collapsed chrome in the accessibility tree: %#v", tester.Texts())
 	}
 }

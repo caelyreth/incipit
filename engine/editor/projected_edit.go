@@ -219,7 +219,7 @@ func ResolveProjectedEdit(
 	return resolveProjectedEdit(p, nil, false, edit, activeMark, revision)
 }
 
-// ResolveProjectedEditWithDocument additionally performs Shoreward's active
+// ResolveProjectedEditWithDocument additionally performs Neverland's active
 // mark inference for a non-marker selection that is wholly covered by one or
 // more semantic marks. It selects the smallest covering mark.
 func ResolveProjectedEditWithDocument(

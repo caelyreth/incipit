@@ -84,7 +84,7 @@ func (f *Feedback) Active(now time.Time) bool {
 
 // ResolveCorrectionTargets maps recorded document-edit indices through all
 // later edits to the published semantic revision. Deletion-only corrections
-// expand to the nearest surviving grapheme, matching Shoreward's visible
+// expand to the nearest surviving grapheme, matching Neverland's visible
 // feedback behavior.
 func ResolveCorrectionTargets(
 	indices []int,

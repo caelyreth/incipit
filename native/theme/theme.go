@@ -1,4 +1,4 @@
-// Package theme maps Shoreward's semantic materials and independent prose
+// Package theme maps Neverland's semantic materials and independent prose
 // metrics into values MyGo paints. It is the only package that translates the
 // product palette into MyGo's control theme.
 package theme
@@ -224,7 +224,7 @@ func (s Settings) Semantic() Theme {
 	}
 }
 
-// MyGoTheme overlays the Shoreward semantic colors onto MyGo's control theme.
+// MyGoTheme overlays the Neverland semantic colors onto MyGo's control theme.
 func (s Settings) MyGoTheme() *ui.Theme {
 	normalized := s.Normalized()
 	semantic := normalized.Semantic()
