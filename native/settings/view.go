@@ -80,6 +80,7 @@ func (s *State) tree(
 		components.NavigationRow{
 			Key: "settings-category-" + category.Title(), Label: category.Title(),
 			Selected: s.Category == category, Role: ui.RoleTreeItem, FullWidth: true,
+			Expanded: &open,
 			Leading: func() {
 				ui.Icon(c, icon).FontSize(14 * s.Theme.UIFontSize / theme.DefaultUIFontSize).
 					TextColor(semantic.Icon.Muted)

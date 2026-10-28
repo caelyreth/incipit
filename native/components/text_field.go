@@ -13,6 +13,8 @@ type TextField struct {
 	Icon        *ui.SVG
 	ClearIcon   *ui.SVG
 	Animate     bool
+	Submit      func()
+	Changed     func()
 }
 
 func (f TextField) View(c *ui.Context, semantic theme.Theme) ui.Element {
@@ -34,6 +36,12 @@ func (f TextField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 			FixedLineHeight(theme.TextSmall.LineHeight(scale)).
 			TextColor(semantic.Text.Default).
 			Placeholder(f.Placeholder).Label(f.Label)
+		if input.Changed() && f.Changed != nil {
+			f.Changed()
+		}
+		if input.Submitted() && f.Submit != nil {
+			f.Submit()
+		}
 		if f.Value != nil && *f.Value != "" && f.ClearIcon != nil {
 			IconButton{
 				Key: "clear", Label: "Clear", Icon: f.ClearIcon,

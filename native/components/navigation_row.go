@@ -15,6 +15,7 @@ type NavigationRow struct {
 	TextColor *ui.Color
 	FullWidth bool
 	Indent    float32
+	Expanded  *bool
 	Leading   func()
 	Trailing  func()
 	Action    func()
@@ -32,6 +33,9 @@ func (r NavigationRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		Focusable().FocusRing(false)
 	if r.FullWidth {
 		row.WidthPercent(100)
+	}
+	if r.Expanded != nil {
+		row.Expanded(*r.Expanded)
 	}
 	textColor := semantic.Text.Default
 	if r.Selected {

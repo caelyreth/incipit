@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/testlock"
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -41,7 +42,9 @@ func TestPaletteFiltersNavigatesAndConsumesChoice(t *testing.T) {
 func TestPaletteViewBuildsModal(t *testing.T) {
 	palette := CommandPalette{Open: true}
 	palette.Reset([]Command{{ID: "settings", Label: "Open Settings", Group: "App"}})
-	tester := ui.NewTester(palette.View, 900, 600)
+	tester := ui.NewTester(func(c *ui.Context) {
+		palette.View(c, theme.DefaultSettings().Semantic(), true)
+	}, 900, 600)
 	tester.Frame()
 	if !tester.HasText("Open Settings") {
 		t.Fatalf("texts = %#v", tester.Texts())

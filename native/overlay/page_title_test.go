@@ -3,6 +3,7 @@ package overlay
 import (
 	"testing"
 
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -18,7 +19,9 @@ func TestPageTitleCommitsNormalizedIntent(t *testing.T) {
 		},
 	}
 	title.Begin("page-1", "")
-	tester := ui.NewTester(title.View, 720, 520)
+	tester := ui.NewTester(func(c *ui.Context) {
+		title.View(c, theme.DefaultSettings().Semantic(), true)
+	}, 720, 520)
 	tester.Frame()
 	if err := tester.Click("Page title"); err != nil {
 		t.Fatal(err)
@@ -45,7 +48,9 @@ func TestPageTitleCancellationClosesWithoutCommit(t *testing.T) {
 		Cancel:  func(string) { cancelled = true },
 	}
 	title.Begin("page-1", "Draft")
-	tester := ui.NewTester(title.View, 720, 520)
+	tester := ui.NewTester(func(c *ui.Context) {
+		title.View(c, theme.DefaultSettings().Semantic(), true)
+	}, 720, 520)
 	tester.Frame()
 	if err := tester.Click("Cancel"); err != nil {
 		t.Fatal(err)

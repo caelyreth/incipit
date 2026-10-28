@@ -57,7 +57,7 @@ func buildSections(
 		if info.toggleable {
 			toggles = append(toggles, ToggleSetting{
 				Key:         PolicyBoolean(policy.ID),
-				Label:       "Enable " + lowerFirst(info.label),
+				Label:       "Enable " + lowerPolicyLabel(info.label),
 				Description: info.description,
 				Value:       enabled,
 				Enabled:     available,
@@ -192,4 +192,12 @@ func lowerFirst(value string) string {
 		bytes[0] += 'a' - 'A'
 	}
 	return string(bytes)
+}
+
+func lowerPolicyLabel(value string) string {
+	runes := []rune(value)
+	if len(runes) >= 2 && runes[0] == 'C' && runes[1] == 'J' && len(runes) >= 3 && runes[2] == 'K' {
+		return value
+	}
+	return lowerFirst(value)
 }

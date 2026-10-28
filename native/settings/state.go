@@ -14,7 +14,6 @@ type State struct {
 	Data         appsettings.Data
 	Theme        theme.Settings
 	Apply        func(appsettings.Change)
-	Close        func()
 	Animate      bool
 	WindowActive bool
 

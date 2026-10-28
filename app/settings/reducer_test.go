@@ -234,15 +234,19 @@ func TestBuildDataSnapshotsSectionsShortcutsDiagnosticsAndAppearance(t *testing.
 	}
 	pairsSelector := "policy-editor.pairs"
 	foundPairs := false
+	foundCJKLabel := false
 	for _, section := range data.Sections {
 		for _, setting := range section.Settings {
 			if setting.Selector == pairsSelector {
 				foundPairs = setting.Value && setting.Enabled
 			}
+			if setting.Selector == "policy-editor.cjk" {
+				foundCJKLabel = setting.Label == "Enable CJK refinement"
+			}
 		}
 	}
-	if !foundPairs {
-		t.Fatal("pairs toggle missing")
+	if !foundPairs || !foundCJKLabel {
+		t.Fatalf("pairs toggle=%v CJK label=%v", foundPairs, foundCJKLabel)
 	}
 	foundText := false
 	for _, shortcut := range data.Shortcuts {

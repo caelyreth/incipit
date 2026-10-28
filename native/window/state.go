@@ -213,6 +213,8 @@ func (a *AppState) refreshShellReadouts() {
 	controller := a.Session.Document()
 	if err := controller.LastError(); err != nil {
 		a.Shell.Status = err.Error()
+	} else if a.Error == "" {
+		a.Shell.Status = ""
 	}
 	metrics, ok := controller.MetricsForCurrentText()
 	if !ok {
@@ -465,8 +467,11 @@ func (a *AppState) View(c *ui.Context) {
 	if a == nil || a.Shell == nil {
 		return
 	}
+	semantic := a.Shell.Settings.Semantic()
+	animate := a.Shell.Appearance.Motion && a.Shell.WindowActive &&
+		!c.Preferences().ReduceMotion
 	if a.Palette != nil {
-		a.Palette.View(c)
+		a.Palette.View(c, semantic, animate)
 		if command, ok := a.Palette.ConsumeChoice(); ok && a.Bridge != nil {
 			if action, known := keymap.ResolveEditorCommand(command); known {
 				_ = a.Bridge.Execute(action)
@@ -477,7 +482,7 @@ func (a *AppState) View(c *ui.Context) {
 	}
 	a.Shell.View(c)
 	if a.PageTitle != nil {
-		a.PageTitle.View(c)
+		a.PageTitle.View(c, semantic, animate)
 	}
 }
 
