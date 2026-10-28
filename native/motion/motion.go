@@ -22,9 +22,9 @@ type Motion struct {
 }
 
 // SelectionFade is how long a selection takes to appear from an empty one.
-// It is deliberately slower than the caret spring, so a double-click shows
-// the caret gliding to the selection end while the range settles in beneath.
-const SelectionFade = 280 * time.Millisecond
+// It is a little slower than the caret spring, so a double-click shows the
+// caret gliding to the selection end while the range settles in beneath.
+const SelectionFade = 160 * time.Millisecond
 
 func New(now time.Time) *Motion {
 	return &Motion{activity: now, selectionAlpha: 1}
