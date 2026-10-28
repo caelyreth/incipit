@@ -15,6 +15,15 @@ const (
 	ResourceCollection
 )
 
+// ResourceLifetime says whether a resource belongs to the document or only to
+// the currently enabled policy session.
+type ResourceLifetime uint8
+
+const (
+	ResourceDocumentLifetime ResourceLifetime = iota + 1
+	ResourceSessionLifetime
+)
+
 func (k ResourceKind) String() string {
 	switch k {
 	case ResourceBool:
@@ -28,6 +37,25 @@ func (k ResourceKind) String() string {
 	default:
 		return fmt.Sprintf("kind(%d)", k)
 	}
+}
+
+func (l ResourceLifetime) String() string {
+	switch l {
+	case ResourceDocumentLifetime:
+		return "document"
+	case ResourceSessionLifetime:
+		return "session"
+	default:
+		return fmt.Sprintf("lifetime(%d)", l)
+	}
+}
+
+// ResourceDescriptor declares one typed kernel resource.
+type ResourceDescriptor struct {
+	ID       ResourceID
+	Lifetime ResourceLifetime
+	Kind     ResourceKind
+	Initial  ResourceValue
 }
 
 // ResourceValue is an immutable scalar or ordered collection value. Collection
