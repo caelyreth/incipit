@@ -71,3 +71,18 @@ func TestSidebarSelectsPagesWithScreenReaderFriendlyItems(t *testing.T) {
 		t.Fatalf("selected = %q", selected)
 	}
 }
+
+func TestDocumentWriterReceivesDefiniteViewportHeight(t *testing.T) {
+	state := New()
+	var painted ui.Rect
+	state.Content = func(c *ui.Context) {
+		ui.Box(c).Fill().Draw(func(_ *ui.Painter, rect ui.Rect) {
+			painted = rect
+		})
+	}
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	if painted.W <= 0 || painted.H <= 0 {
+		t.Fatalf("writer paint rectangle = %#v", painted)
+	}
+}

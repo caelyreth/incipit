@@ -102,14 +102,14 @@ func (s *State) document(
 ) {
 	prose := theme.NewProseStyle(s.Settings.ProseFontSize)
 	column := prose.Column()
-	ui.Column(c).Grow(1).Clip().Children(func() {
-		ui.Row(c).WidthPercent(100).Justify(ui.Center).Padding(
+	ui.Column(c).Grow(1).FillHeight().Clip().Children(func() {
+		ui.Row(c).Grow(1).WidthPercent(100).Justify(ui.Center).Padding(
 			layout.ReadingTop,
 			layout.ContentGutter,
 			layout.ReadingTop,
 			layout.ContentGutter,
 		).Children(func() {
-			ui.Column(c).Width(column).MaxWidthPercent(100).Children(func() {
+			ui.Column(c).FillHeight().Width(column).MaxWidthPercent(100).Children(func() {
 				ui.Text(c, s.activeTitle()).FontSize(prose.TitleSize()).
 					TextColor(semantic.Prose.Heading).Bold()
 				ui.Box(c).Height(prose.TitleLineHeight() - prose.TitleSize())
