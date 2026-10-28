@@ -35,14 +35,14 @@ func TestObserverProgramRejectsBackwardWritingDependencies(t *testing.T) {
 	t.Parallel()
 	producer := scheduleRule(
 		t,
-		"producer",
+		"b",
 		HandleRulePhase(),
 		20,
 		NewEffectSet(nil, []ResourceID{"a"}),
 	)
 	observer := scheduleRule(
 		t,
-		"observer",
+		"a",
 		AfterRulePhase(ResourceStateKey("a")),
 		10,
 		NewEffectSet([]ResourceID{"a"}, nil),
@@ -52,6 +52,30 @@ func TestObserverProgramRejectsBackwardWritingDependencies(t *testing.T) {
 	if err == nil || !asDispatchError(err, &dispatchErr) ||
 		dispatchErr.Kind != DispatchErrorBackwardObservation {
 		t.Fatalf("error = %#v", err)
+	}
+}
+
+func TestExactAfterRuleIsNotAStaticObserver(t *testing.T) {
+	t.Parallel()
+	program := runtimeLeaf(t, 1)
+	rule, err := linkRule("policy", RuleDescriptor{
+		ID:        "typing-refine",
+		Phase:     AfterRulePhase(DocumentStateKey()),
+		Trigger:   NewExactTrigger(TextInputKey),
+		Origins:   []EventOrigin{EventOriginTyping},
+		Order:     300,
+		Effects:   NewEffectSet(nil, nil).WithDocument(DocumentAccessWrite),
+		Algorithm: program,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	schedule, err := LinkObserverProgram([]*LinkedRule{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(schedule.Rules()) != 0 {
+		t.Fatalf("exact after rule entered static observers: %#v", schedule.Rules())
 	}
 }
 

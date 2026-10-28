@@ -62,6 +62,11 @@ func (d *DocumentDraft) TextEdits() []TextEdit {
 	return slices.Clone(d.textEdits)
 }
 
+// TextEditCount returns the successful-operation footprint length.
+func (d *DocumentDraft) TextEditCount() int {
+	return len(d.textEdits)
+}
+
 // ChangeCount returns the number of recorded change intents. Intents are not
 // deduplicated; use FinalChanges for the published structural diff.
 func (d *DocumentDraft) ChangeCount() int {

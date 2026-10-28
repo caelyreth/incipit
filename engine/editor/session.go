@@ -253,7 +253,10 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 	if len(events) == 0 {
 		return EditingOutcome{Outcome: kernel.OutcomePass, Revision: s.runtime.Revision()}, nil
 	}
+	beforeRevision := s.runtime.Revision()
 	s.invoker.ActivateMark(resolved.ActiveMarkID)
+	s.invoker.hasCorrectionEffect = false
+	s.invoker.correctionEffectThrough = 0
 	var candidate Presentation
 	var insertedHead model.UTF16Offset
 	transaction, err := s.runtime.DispatchPreparedBatchWithInvoker(
@@ -281,6 +284,8 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 			if edit.UTF16Range.Empty() || selection == nil {
 				if action, ok := s.invoker.LastMarker(); ok && action.Handled && !action.Exited {
 					insertedHead = action.Head
+				} else if s.invoker.hasCorrectionEffect {
+					insertedHead = s.invoker.correctionEffectHead
 				} else {
 					insertedHead = inputValue.Input().Target().RangeUTF16().Start +
 						model.UTF16Offset(model.StringLenUTF16(inputValue.Input().Text()))
@@ -299,20 +304,31 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 						}
 					}
 				}
+				targetLength := 0
+				if candidateNode, ok := view.Document().Node(inputValue.Input().Target().Node()); ok {
+					targetLength = candidateNode.Text().UTF16Len()
+				}
+				insertedHead = min(insertedHead, model.UTF16Offset(targetLength))
 				nextSelection := model.NewTextSelection(
 					model.NewTextAnchor(
 						inputValue.Input().Target().Node(),
 						insertedHead,
 						affinity,
-						view.Revision(),
+						beforeRevision,
 					),
 					model.NewTextAnchor(
 						inputValue.Input().Target().Node(),
 						insertedHead,
 						affinity,
-						view.Revision(),
+						beforeRevision,
 					),
 				)
+				through := min(s.invoker.correctionEffectThrough, len(changes.TextEdits()))
+				if rebased, ok := nextSelection.RebaseAll(changes.TextEdits()[through:], view.Revision()); ok {
+					nextSelection = rebased
+				} else {
+					return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+				}
 				projected, projectErr := MarkupProjectDocument(
 					view.Document().CandidateSnapshot(view.Revision()),
 					view.Revision(),
@@ -331,7 +347,14 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 				}
 				caret, projectErr := projected.ProjectAnchor(nextSelection.Head())
 				if projectErr != nil {
-					return struct{}{}, fmt.Errorf("project collapsed edit caret: %w", wrapProjectionError(projectErr))
+					return struct{}{}, fmt.Errorf(
+						"project collapsed edit caret head=%d text=%q segments=%#v revision=%d: %w",
+						nextSelection.Head().OffsetUTF16(),
+						projected.Text(),
+						projected.Segments(),
+						view.Revision(),
+						wrapProjectionError(projectErr),
+					)
 				}
 				flow, flowErr := projectionFlowFromView(view, configuration, projected, nextSelection)
 				if flowErr != nil {
@@ -351,15 +374,20 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 						inputValue.Input().Target().Node(),
 						headOffset,
 						model.AffinityRight,
-						view.Revision(),
+						beforeRevision,
 					),
 					model.NewTextAnchor(
 						inputValue.Input().Target().Node(),
 						headOffset,
 						model.AffinityRight,
-						view.Revision(),
+						beforeRevision,
 					),
 				)
+				if rebased, ok := nextSelection.RebaseAll(changes.TextEdits(), view.Revision()); ok {
+					nextSelection = rebased
+				} else {
+					return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+				}
 				projected, projectErr := MarkupProjectDocument(
 					view.Document().CandidateSnapshot(view.Revision()),
 					view.Revision(),

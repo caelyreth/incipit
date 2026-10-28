@@ -729,9 +729,12 @@ func wrapProjectionError(err error) error {
 // EditorInvoker executes text replace and markup rules against one engine
 // draft. Active and last-marker fields are session-owned facts.
 type EditorInvoker struct {
-	active    *model.MarkID
-	lastMark  MarkerAction
-	hasMarker bool
+	active                  *model.MarkID
+	lastMark                MarkerAction
+	hasMarker               bool
+	correctionEffectHead    model.UTF16Offset
+	hasCorrectionEffect     bool
+	correctionEffectThrough int
 }
 
 // ActiveMark returns the current active inline mark.
@@ -759,6 +762,11 @@ func (i *EditorInvoker) Invoke(
 	if rule == nil {
 		return kernel.OutcomePass, nil
 	}
+	if rule.Phase.Kind == kernel.RulePhaseKindHandle {
+		i.lastMark = MarkerAction{}
+		i.hasMarker = false
+		i.hasCorrectionEffect = false
+	}
 	switch rule.Key.Owner {
 	case TextPolicyID:
 		return i.invokeText(context)
@@ -769,6 +777,10 @@ func (i *EditorInvoker) Invoke(
 		case "edit":
 			return i.invokeAttribute(context)
 		}
+	case PairsPolicyID:
+		return i.invokePair(context, rule.Key.ID)
+	case CJKPolicyID, TypographyPolicyID:
+		return i.invokeCorrection(context, rule.Key.Owner)
 	}
 	return kernel.OutcomePass, nil
 }
@@ -777,16 +789,30 @@ func (i *EditorInvoker) invokeText(context *kernel.RuleContext) (kernel.Outcome,
 	if projected, ok := context.Event().ProjectedEdit(); ok && !projected.ApplyText() {
 		return kernel.OutcomePass, nil
 	}
-	if i.active == nil {
-		return context.ApplyTextInput()
-	}
-	_, _, handled, err := context.ReplaceTextInputMarked(i.active)
+	input, _ := context.Event().TextInput()
+	document, err := context.DocumentMut()
 	if err != nil {
 		return 0, err
 	}
-	if !handled {
-		return kernel.OutcomePass, nil
+	start := input.Target().RangeUTF16().Start
+	beforeEdits := document.TextEditCount()
+	if i.active == nil {
+		outcome, err := context.ApplyTextInput()
+		if err != nil || outcome != kernel.OutcomeHandled {
+			return outcome, err
+		}
+	} else {
+		_, _, handled, err := context.ReplaceTextInputMarked(i.active)
+		if err != nil {
+			return 0, err
+		}
+		if !handled {
+			return kernel.OutcomePass, nil
+		}
 	}
+	i.correctionEffectHead = start + model.UTF16Offset(model.StringLenUTF16(input.Text()))
+	i.hasCorrectionEffect = true
+	i.correctionEffectThrough = min(beforeEdits+1, document.TextEditCount())
 	return kernel.OutcomeHandled, nil
 }
 
@@ -944,6 +970,151 @@ func (i *EditorInvoker) invokeAttribute(context *kernel.RuleContext) (kernel.Out
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
 	return kernel.OutcomeHandled, nil
+}
+
+func (i *EditorInvoker) invokePair(
+	context *kernel.RuleContext,
+	ruleID kernel.RuleID,
+) (kernel.Outcome, error) {
+	input, ok := context.Event().TextInput()
+	if !ok {
+		return kernel.OutcomePass, nil
+	}
+	document, err := context.DocumentMut()
+	if err != nil {
+		return 0, err
+	}
+	node, ok := document.Node(input.Target().Node())
+	if !ok {
+		return 0, &kernel.EngineError{
+			Kind: kernel.EngineErrorDocument,
+			Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: input.Target().Node()},
+		}
+	}
+	origin, _ := context.Event().Origin()
+	rule := map[kernel.RuleID]PairRule{
+		"open":        PairOpen,
+		"overtype":    PairOvertype,
+		"mate-edit":   PairMateEdit,
+		"close-quote": PairCloseQuote,
+	}[ruleID]
+	if rule == 0 {
+		return kernel.OutcomePass, nil
+	}
+	settings := PairSettings{
+		Quotes:           contextMarkupBool(context, "quotes", true),
+		Overtype:         contextMarkupBool(context, "overtype", true),
+		EditMates:        contextMarkupBool(context, "edit-mates", true),
+		ContextualQuotes: contextMarkupBool(context, "contextual-quotes", true),
+	}
+	text := ""
+	if node.TextPresent() {
+		text = node.Text().String()
+	}
+	plan, err := PlanPair(rule, text, PairInput{
+		Range:       input.Target().RangeUTF16(),
+		Replacement: input.Text(),
+		Origin:      origin,
+	}, settings)
+	if err != nil {
+		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
+	}
+	if !plan.Handled {
+		return kernel.OutcomePass, nil
+	}
+	for _, edit := range plan.Edits.Edits() {
+		if err := document.ReplaceTextMarked(
+			node.ID(),
+			edit.Range.Start,
+			edit.Range.End,
+			edit.Replacement,
+			i.active,
+		); err != nil {
+			return 0, err
+		}
+	}
+	i.correctionEffectHead = plan.Head
+	i.hasCorrectionEffect = true
+	i.correctionEffectThrough = document.TextEditCount()
+	return kernel.OutcomeHandled, nil
+}
+
+func (i *EditorInvoker) invokeCorrection(
+	context *kernel.RuleContext,
+	policy kernel.PolicyID,
+) (kernel.Outcome, error) {
+	input, hasInput := context.Event().TextInput()
+	if !hasInput {
+		return kernel.OutcomePass, nil
+	}
+	document, err := context.DocumentMut()
+	if err != nil {
+		return 0, err
+	}
+	nodeID := input.Target().Node()
+	node, ok := document.Node(nodeID)
+	if !ok || !node.TextPresent() {
+		return kernel.OutcomePass, nil
+	}
+	text := node.Text().String()
+	var batches []CorrectionBatch
+	if policy == TypographyPolicyID {
+		settings := TypographySettings{
+			Symbols:        contextMarkupBool(context, "symbols", true),
+			Punctuation:    contextMarkupBool(context, "punctuation", true),
+			QuotePlacement: contextMarkupBool(context, "quote-placement", true),
+		}
+		if !TypographyTrigger(input.Text()) {
+			return kernel.OutcomePass, nil
+		}
+		plan, ok := PlanTypography(text, i.lastCorrectionHead(text, nodeID, input), settings)
+		if !ok {
+			return kernel.OutcomePass, nil
+		}
+		if !plan.Empty() {
+			batches = append(batches, plan)
+		}
+	} else {
+		settings := CJKSettings{
+			Punctuation: contextMarkupBool(context, "punctuation", true),
+			Spacing:     contextMarkupBool(context, "spacing", true),
+		}
+		plans, err := PlanCJK(text, input.Target().RangeUTF16(), settings)
+		if err != nil {
+			return 0, err
+		}
+		for _, plan := range plans {
+			batches = append(batches, plan.Corrections)
+		}
+	}
+	if len(batches) == 0 {
+		return kernel.OutcomePass, nil
+	}
+	for _, batch := range batches {
+		for _, edit := range batch.Edits() {
+			if err := document.ReplaceTextUTF16(
+				nodeID,
+				edit.Range.Start,
+				edit.Range.End,
+				edit.Replacement,
+			); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return kernel.OutcomeHandled, nil
+}
+
+func (i *EditorInvoker) lastCorrectionHead(
+	_ string,
+	node model.NodeID,
+	input kernel.TextInput,
+) model.UTF16Offset {
+	if i.hasCorrectionEffect {
+		return i.correctionEffectHead
+	}
+	return input.Target().RangeUTF16().Start +
+		model.UTF16Offset(model.StringLenUTF16(input.Text()))
 }
 
 func contextMarkupBool(

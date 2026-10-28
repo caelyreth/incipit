@@ -21,7 +21,10 @@ func LinkObserverProgram(rules []*LinkedRule) (*ObserverProgram, error) {
 			observers = append(observers, rule)
 		}
 	}
-	for _, observer := range observers {
+	for _, observer := range all {
+		if observer.Trigger.Kind() != TriggerStateWildcard {
+			continue
+		}
 		for _, producer := range all {
 			if producer.Key == observer.Key || producer.Order < observer.Order {
 				continue

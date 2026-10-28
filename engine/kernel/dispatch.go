@@ -35,6 +35,7 @@ func (r *LinkedRule) AllowsOrigin(origin EventOrigin) bool {
 
 type EventProgram struct {
 	handlers      []*LinkedRule
+	after         []*LinkedRule
 	observers     []*LinkedRule
 	schedule      *ObserverProgram
 	configuration *PreparedPolicyConfiguration
@@ -43,6 +44,7 @@ type EventProgram struct {
 func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 	rules := catalog.Rules()
 	handlers := make([]*LinkedRule, 0, len(rules))
+	after := make([]*LinkedRule, 0, len(rules))
 	all := make([]*LinkedRule, 0, len(rules))
 	for _, entry := range rules {
 		rule, err := linkRule(entry.Policy, entry.Rule)
@@ -59,6 +61,9 @@ func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 					Rule: rule.Key,
 				}
 			}
+			after = append(after, rule)
+		} else if rule.Phase.Kind == RulePhaseKindAfter {
+			after = append(after, rule)
 		} else {
 			handlers = append(handlers, rule)
 		}
@@ -83,6 +88,7 @@ func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 	}
 	return &EventProgram{
 		handlers:  handlers,
+		after:     after,
 		observers: schedule.Rules(),
 		schedule:  schedule,
 	}, nil
@@ -240,9 +246,13 @@ func (p *EventProgram) plan(event Event) ([]*LinkedRule, []*LinkedRule) {
 			handlers = append(handlers, rule)
 		}
 	}
-	observers := make([]*LinkedRule, 0, len(p.observers))
-	for _, observer := range p.observers {
-		if observer.Trigger.Kind() == TriggerStateWildcard && observer.AllowsOrigin(origin) {
+	observers := make([]*LinkedRule, 0, len(p.after))
+	for _, observer := range p.after {
+		if !observer.AllowsOrigin(origin) {
+			continue
+		}
+		if observer.Trigger.Kind() == TriggerStateWildcard ||
+			observer.Trigger.Matches(event.Key()) {
 			observers = append(observers, observer)
 		}
 	}
