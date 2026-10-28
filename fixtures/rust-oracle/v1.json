@@ -4122,5 +4122,63 @@
     ],
     "fixture": "text-metrics-v1",
     "rust_commit": "3fff58e089e57529bc725935cd37a2da63071f0b"
+  },
+  {
+    "fixture": "markup-projection-v1",
+    "generation": 3,
+    "projected_text": "*alpha* **beta** gamma",
+    "rust_commit": "3fff58e089e57529bc725935cd37a2da63071f0b",
+    "segments": [
+      {
+        "end": 1,
+        "key": "emphasis/1",
+        "kind": "attribute",
+        "start": 0
+      },
+      {
+        "end": 6,
+        "key": null,
+        "kind": "editable",
+        "start": 1
+      },
+      {
+        "end": 7,
+        "key": "emphasis/1",
+        "kind": "attribute",
+        "start": 6
+      },
+      {
+        "end": 8,
+        "key": null,
+        "kind": "editable",
+        "start": 7
+      },
+      {
+        "end": 10,
+        "key": "emphasis/2",
+        "kind": "attribute",
+        "start": 8
+      },
+      {
+        "end": 14,
+        "key": null,
+        "kind": "editable",
+        "start": 10
+      },
+      {
+        "end": 16,
+        "key": "emphasis/2",
+        "kind": "attribute",
+        "start": 14
+      },
+      {
+        "end": 22,
+        "key": null,
+        "kind": "editable",
+        "start": 16
+      }
+    ],
+    "semantic_text": "alpha beta gamma",
+    "source_revision": 1
   }
 ]
