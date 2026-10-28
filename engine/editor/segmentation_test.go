@@ -23,6 +23,8 @@ func TestWordLikeRangesIncludeUnicodeLettersAndNumbersOnly(t *testing.T) {
 	}{
 		{"Hello world. 中文测试！\nNext line.", ranges(0, 5, 6, 11, 13, 16, 16, 19, 19, 22, 22, 25, 29, 33, 34, 38)},
 		{"don't dogs'", ranges(0, 5, 6, 10)},
+		{"🦀word", ranges(4, 8)},
+		{"--word", ranges(2, 6)},
 		{"中文test, 123.4 https://x.com", ranges(0, 3, 3, 6, 6, 10, 12, 17, 18, 23, 26, 31)},
 		{"a\u0301x 🦀 🇨🇳", ranges(0, 4)},
 		{"é_1 ！", ranges(0, 4)},
