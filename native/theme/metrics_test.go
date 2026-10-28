@@ -23,9 +23,9 @@ func TestChromeMetricsScaleFromOneUIFontSize(t *testing.T) {
 }
 
 func TestReferenceLayoutKeepsPrototypeSpacing(t *testing.T) {
-	if DefaultLayout.Titlebar != 48 ||
-		DefaultLayout.Status != 40 ||
-		DefaultLayout.ReadingTop != 84 ||
+	if DefaultLayout.Titlebar != 40 ||
+		DefaultLayout.Status != 28 ||
+		DefaultLayout.ReadingTop != 48 ||
 		DefaultLayout.TitleBottom != 24 ||
 		DefaultLayout.ReadingBottom != 150 {
 		t.Fatalf("layout = %#v", DefaultLayout)

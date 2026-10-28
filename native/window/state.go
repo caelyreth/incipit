@@ -224,8 +224,19 @@ func (a *AppState) refreshShell() {
 		a.Shell.Status = a.Error
 	}
 	if a.Session != nil && a.Session.Document() != nil {
-		metrics := a.Session.Document().Metrics()
-		a.Shell.Statistics = fmt.Sprintf("%d words · %d characters", metrics.Words, metrics.Characters)
+		controller := a.Session.Document()
+		if controller.MetricsPending() {
+			controller.RefreshMetrics()
+		}
+		metrics := controller.Metrics()
+		a.Shell.Statistics = fmt.Sprintf(
+			"%d words  ·  %d paragraphs  ·  %d characters",
+			metrics.Words,
+			metrics.Paragraphs,
+			metrics.Characters,
+		)
+	} else {
+		a.Shell.Statistics = "No open document"
 	}
 }
 

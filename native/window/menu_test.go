@@ -3,6 +3,8 @@ package window
 import (
 	"fmt"
 	"testing"
+
+	"github.com/caelyreth/neverland/app/controller"
 )
 
 func TestMainMenuExposesAppEditorAndWorkspaceCommands(t *testing.T) {
@@ -83,5 +85,21 @@ func TestWorkspaceSwitchParksAndRestoresPageScroll(t *testing.T) {
 	app.Shell.SelectPage(fmt.Sprint(second))
 	if app.Element.ScrollY() != 36 {
 		t.Fatalf("restored second-page scroll = %v", app.Element.ScrollY())
+	}
+}
+
+func TestShellStatisticsUseReferenceStatusWording(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := controller.NewTextDocument("one two\n\nthree", clock{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.Session = &sheetSession{controller: document, title: "Untitled"}
+	app.refreshShell()
+	if app.Shell.Statistics != "3 words  ·  2 paragraphs  ·  14 characters" {
+		t.Fatalf("statistics = %q", app.Shell.Statistics)
 	}
 }

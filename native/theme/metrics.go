@@ -15,10 +15,10 @@ type Layout struct {
 
 var DefaultLayout = Layout{
 	Sidebar:           256,
-	Titlebar:          48,
-	Status:            40,
+	Titlebar:          40,
+	Status:            28,
 	Narrow:            920,
-	ReadingTop:        84,
+	ReadingTop:        48,
 	ReadingBottom:     150,
 	TitleBottom:       24,
 	HeaderInset:       12,
