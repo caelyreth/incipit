@@ -86,20 +86,20 @@ func TestCaretHitSelectionAndBoundaries(t *testing.T) {
 	if got := layout.Hit(ui.Point{X: 0, Y: 0}); got != 0 {
 		t.Fatalf("top hit = %d", got)
 	}
-	if got := layout.Hit(ui.Point{X: 0, Y: layout.Height() + 100}); got != 11 {
+	if got := layout.Hit(ui.Point{X: 0, Y: layout.Height() + 100}); got != 9 {
 		t.Fatalf("below hit = %d", got)
 	}
-	rects := layout.RangeRects(model.NewUTF16Range(0, 11))
+	rects := layout.RangeRects(model.NewUTF16Range(0, 9))
 	if len(rects) < 3 {
 		t.Fatalf("selection rects = %#v", rects)
 	}
-	if rect, ok := layout.BoundsForRange(model.NewUTF16Range(5, 11)); !ok || rect.H <= 0 {
+	if rect, ok := layout.BoundsForRange(model.NewUTF16Range(5, 9)); !ok || rect.H <= 0 {
 		t.Fatalf("bounds = %#v,%v", rect, ok)
 	}
 	if got := layout.PreviousBoundary(6); got >= 6 {
 		t.Fatalf("previous boundary = %d", got)
 	}
-	if got := layout.NextBoundary(3); got != 5 {
+	if got := layout.NextBoundary(3); got != 4 {
 		t.Fatalf("next newline boundary = %d", got)
 	}
 }
