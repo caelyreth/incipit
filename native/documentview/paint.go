@@ -43,6 +43,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		Focused: state.Focused,
 	}
 	p.Clip(rect, 0, func() {
+		drawDecorationFills(p, rect, state, options)
 		drawRangeFills(p, rect, state, animatedSelection)
 		drawText(p, rect, state)
 		drawPlaceholder(p, rect, state)
@@ -99,6 +100,34 @@ func drawText(p *ui.Painter, rect ui.Rect, state *State) {
 			top,
 			state.Theme.Prose.Text,
 		)
+	}
+}
+
+// drawDecorationFills tints decorated ranges, such as the active inline mark
+// and the enclosing pair, beneath the selection and text.
+func drawDecorationFills(
+	p *ui.Painter,
+	rect ui.Rect,
+	state *State,
+	options PaintOptions,
+) {
+	for _, decoration := range state.Frame.Decorations() {
+		visible := decoration.Visibility == surface.VisibilityAlways || options.Focused
+		if !visible || decoration.Primitive.Kind != surface.PrimitiveFill {
+			continue
+		}
+		alpha := decoration.Sample(options.Now, options.Animate)
+		if alpha <= 0 {
+			continue
+		}
+		color := roleColor(state.Theme, decoration.Primitive.Color).Alpha(alpha)
+		for _, range16 := range decoration.Primitive.Ranges {
+			for _, bounds := range state.Layout.RangeRects(range16) {
+				bounds.X += rect.X
+				bounds.Y += rect.Y + state.ContentTop - state.ScrollY
+				p.Fill(bounds, color, decoration.Primitive.Radius)
+			}
+		}
 	}
 }
 

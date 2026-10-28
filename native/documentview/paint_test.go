@@ -129,3 +129,57 @@ func hasNonBackground(image *image.RGBA, background ui.Color) bool {
 	}
 	return false
 }
+
+func TestSurfacePaintsFocusedFillDecorationsBeneathText(t *testing.T) {
+	text := "hello world"
+	flow, err := surface.NewFlow(
+		projection.NewVersion(1, 1),
+		text,
+		[]surface.StyleRun{{
+			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
+			Style: surface.TextStyle{},
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := theme.DefaultSettings()
+	semantic := settings.Semantic()
+	prose := theme.NewProseStyle(settings.ProseFontSize)
+	layout := textlayout.NewCache().Update(flow, 360, textlayout.NewStyle(prose, semantic))
+	tinted := model.NewUTF16Range(0, 5)
+	render := func(decorated, focused bool) *image.RGBA {
+		var decorations []surface.Decoration
+		if decorated {
+			// The engine's active-mark and pair highlights use this shape.
+			decorations = []surface.Decoration{{
+				ID:         surface.DecorationID{Producer: "test"},
+				Primitive:  surface.FillPrimitive([]model.UTF16Range{tinted}, surface.ColorAccent, 4),
+				Opacity:    surface.FixedOpacity(20),
+				Visibility: surface.VisibilityFocused,
+			}}
+		}
+		frame, err := surface.NewFrame(flow, model.EmptyUTF16Range(11), 11, surface.TextStyle{}, decorations)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state := &State{
+			Flow: flow, Frame: frame, Layout: layout,
+			Motion: motion.New(time.Unix(0, 0)), Theme: semantic, Prose: prose,
+			Focused: focused,
+		}
+		tester := ui.NewTester((&surfaceFixture{state: state}).view, 400, 120)
+		tester.Frame()
+		return tester.Image()
+	}
+	row := layout.RangeRects(tinted)[0]
+	// The top band of the row box is empty of glyph ink, so only a fill shows.
+	x, y := int(row.X+row.W/2), int(row.Y+2)
+	plain := render(false, true).RGBAAt(x, y)
+	if got := render(true, true).RGBAAt(x, y); got == plain {
+		t.Fatalf("focused fill decoration left %v untinted", got)
+	}
+	if got := render(true, false).RGBAAt(x, y); got != plain {
+		t.Fatalf("focused-only fill painted while unfocused: %v, want %v", got, plain)
+	}
+}
