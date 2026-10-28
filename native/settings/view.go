@@ -199,7 +199,7 @@ func (s *State) sections(
 		}
 		ui.Column(c).Gap(theme.Space08.DIPs(s.Theme.UIFontSize)).
 			Padding(0, 0, theme.Space16.DIPs(s.Theme.UIFontSize), 0).Children(func() {
-			ui.Text(c, section.Title).Label("section-" + section.Title).
+			ui.Text(c, section.Title).Label(section.Title).
 				TextColor(semantic.Text.Heading)
 			if section.Description != "" {
 				ui.Text(c, section.Description).TextColor(semantic.Text.Muted)

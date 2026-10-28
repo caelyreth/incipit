@@ -150,3 +150,22 @@ func TestSettingsTitleRowsAndStatusLayout(t *testing.T) {
 		t.Fatalf("status is not at the footer: %v", status)
 	}
 }
+
+func TestSettingsSectionLabelsUseDisplayNames(t *testing.T) {
+	state := New()
+	state.Data.Sections = []appsettings.Section{{
+		Title: "Automatic pairs",
+		Settings: []appsettings.ToggleSetting{{
+			Key:      appsettings.PolicyBoolean("editor.pairs"),
+			Label:    "Enable automatic pairs",
+			Value:    true,
+			Enabled:  true,
+			Selector: "pairs",
+		}},
+	}}
+	tester := ui.NewTester(state.View, 900, 650)
+	tester.Frame()
+	if !tester.HasText("Automatic pairs") || tester.HasText("section-Automatic pairs") {
+		t.Fatalf("texts = %#v", tester.Texts())
+	}
+}
