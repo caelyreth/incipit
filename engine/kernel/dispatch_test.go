@@ -202,3 +202,37 @@ func TestLinkRejectsAmbiguousRuleOrder(t *testing.T) {
 		t.Fatal("ambiguous order accepted")
 	}
 }
+
+func TestLinkRejectsRulePlansWithoutExactlyOneLeaf(t *testing.T) {
+	t.Parallel()
+	builder := &planning.ControlBuilder{}
+	first := builder.Leaf(planning.NewLeafID(0))
+	second := builder.Leaf(planning.NewLeafID(1))
+	multi, err := builder.Build(builder.Then(first, second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	passBuilder := &planning.ControlBuilder{}
+	pass, err := passBuilder.Build(passBuilder.Pass())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, program := range []*planning.ControlProgram{multi, pass} {
+		catalog, err := LinkPolicyCatalog([]PolicyDescriptor{{
+			ID:               "bad",
+			EnabledByDefault: true,
+			Rules: []RuleDescriptor{{
+				ID:        "rule",
+				Trigger:   NewExactTrigger("event"),
+				Order:     1,
+				Algorithm: program,
+			}},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LinkEventProgram(catalog); err == nil {
+			t.Fatalf("rule with %d leaves accepted", len(program.Leaves()))
+		}
+	}
+}

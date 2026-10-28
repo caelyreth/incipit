@@ -147,6 +147,14 @@ func linkRule(owner PolicyID, descriptor RuleDescriptor) (*LinkedRule, error) {
 		}
 		preparedControl = program.Prepare(planning.DefaultControlPlanBudget)
 	} else {
+		leaves := descriptor.Algorithm.Leaves()
+		if len(leaves) != 1 {
+			return nil, &DispatchError{
+				Kind:   DispatchErrorInvalidRulePlan,
+				Rule:   RuleKey{Owner: owner, ID: descriptor.ID},
+				Leaves: leaves,
+			}
+		}
 		preparedControl = descriptor.Algorithm.Prepare(planning.DefaultControlPlanBudget)
 	}
 	return &LinkedRule{
@@ -181,6 +189,7 @@ const (
 	DispatchErrorAmbiguousOrder
 	DispatchErrorInvalidStateObserver
 	DispatchErrorBackwardObservation
+	DispatchErrorInvalidRulePlan
 )
 
 type DispatchError struct {
@@ -189,6 +198,7 @@ type DispatchError struct {
 	Rule    RuleKey
 	First   RuleKey
 	Second  RuleKey
+	Leaves  []LeafID
 }
 
 func (e *DispatchError) Error() string {
@@ -201,6 +211,8 @@ func (e *DispatchError) Error() string {
 		return fmt.Sprintf("state observer %s requires an after phase, change dependencies and no origin restriction", e.Rule)
 	case DispatchErrorBackwardObservation:
 		return fmt.Sprintf("backward or cyclic observation: %s -> %s", e.First, e.Second)
+	case DispatchErrorInvalidRulePlan:
+		return fmt.Sprintf("rule %s must own exactly one leaf, found %d", e.Rule, len(e.Leaves))
 	default:
 		return "unknown dispatch error"
 	}
