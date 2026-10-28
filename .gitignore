@@ -1,0 +1,24 @@
+# Build output
+/bin/
+/dist/
+/result
+/result-*
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Nix and local development
+/.direnv/
+/.cache/
+
+# Editor and OS files
+.DS_Store
+*.swp
+*.swo
+
+# Local oracle captures and generated artifacts
+/tmp/
+/fixtures/rust-oracle/raw/
+
