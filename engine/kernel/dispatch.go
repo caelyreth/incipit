@@ -1,0 +1,434 @@
+package kernel
+
+import (
+	"fmt"
+	"sort"
+
+	"github.com/caelyreth/neverland/engine/kernel/planning"
+	"github.com/caelyreth/neverland/engine/model"
+)
+
+type RuleKey struct {
+	Owner PolicyID
+	ID    RuleID
+}
+
+func (k RuleKey) String() string {
+	return fmt.Sprintf("%s/%s", k.Owner, k.ID)
+}
+
+type LinkedRule struct {
+	Key       RuleKey
+	Trigger   Trigger
+	Origins   []EventOrigin
+	Order     uint32
+	Effects   EffectSet
+	Access    EffectSet
+	Condition *CompiledCondition
+	Phase     RulePhase
+	Prepared  *planning.PreparedControl
+}
+
+func (r *LinkedRule) AllowsOrigin(origin EventOrigin) bool {
+	return OriginMatches(r.Origins, origin)
+}
+
+type EventProgram struct {
+	handlers      []*LinkedRule
+	observers     []*LinkedRule
+	configuration *PreparedPolicyConfiguration
+}
+
+func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
+	rules := catalog.Rules()
+	handlers := make([]*LinkedRule, 0, len(rules))
+	observers := make([]*LinkedRule, 0, len(rules))
+	for _, entry := range rules {
+		rule, err := linkRule(entry.Policy, entry.Rule)
+		if err != nil {
+			return nil, err
+		}
+		if rule.Trigger.Kind() == TriggerStateWildcard {
+			if rule.Phase.Kind != RulePhaseKindAfter ||
+				len(rule.Phase.ChangeKeys()) == 0 ||
+				len(rule.Origins) != 0 {
+				return nil, &DispatchError{
+					Kind: DispatchErrorInvalidStateObserver,
+					Rule: rule.Key,
+				}
+			}
+			observers = append(observers, rule)
+		} else {
+			handlers = append(handlers, rule)
+		}
+	}
+	sortRules(handlers)
+	for index, first := range handlers {
+		for _, second := range handlers[index+1:] {
+			if first.Order == second.Order &&
+				first.Trigger.Overlaps(second.Trigger) &&
+				OriginsOverlap(first.Origins, second.Origins) {
+				return nil, &DispatchError{
+					Kind:   DispatchErrorAmbiguousOrder,
+					First:  first.Key,
+					Second: second.Key,
+				}
+			}
+		}
+	}
+	sortRules(observers)
+	return &EventProgram{handlers: handlers, observers: observers}, nil
+}
+
+func LinkConfiguredEventProgram(
+	catalog PolicyCatalog,
+	configuration *PreparedPolicyConfiguration,
+) (*EventProgram, error) {
+	if configuration == nil {
+		return LinkEventProgram(catalog)
+	}
+	filtered := make([]PolicyDescriptor, 0)
+	for _, descriptor := range catalog.Policies() {
+		if configuration.IsEnabled(descriptor.ID) {
+			filtered = append(filtered, descriptor)
+		}
+	}
+	linked, err := LinkPolicyCatalog(filtered)
+	if err != nil {
+		return nil, err
+	}
+	// Preserve dependency-owned declarations only for enabled policies; linked
+	// rule validation has already happened in the complete catalog.
+	program, err := LinkEventProgram(linked)
+	if err != nil {
+		return nil, err
+	}
+	program.configuration = configuration
+	return program, nil
+}
+
+func linkRule(owner PolicyID, descriptor RuleDescriptor) (*LinkedRule, error) {
+	if err := descriptor.Trigger.Validate(); err != nil {
+		return nil, &DispatchError{
+			Kind:    DispatchErrorInvalidTrigger,
+			Trigger: descriptor.Trigger.String(),
+		}
+	}
+	var condition *CompiledCondition
+	if descriptor.When != nil {
+		compiled := CompileCondition(*descriptor.When)
+		condition = &compiled
+	}
+	effects := descriptor.Effects.WithStateReads(descriptor.Phase.ChangeKeys())
+	if condition != nil {
+		effects = effects.WithReads(condition.ResourceReads())
+	}
+	var preparedControl planning.PreparedControl
+	if descriptor.Algorithm == nil {
+		builder := planning.ControlBuilder{}
+		leaf := builder.Leaf(planning.NewLeafID(0))
+		program, err := builder.Build(leaf)
+		if err != nil {
+			return nil, err
+		}
+		preparedControl = program.Prepare(planning.DefaultControlPlanBudget)
+	} else {
+		preparedControl = descriptor.Algorithm.Prepare(planning.DefaultControlPlanBudget)
+	}
+	return &LinkedRule{
+		Key:       RuleKey{Owner: owner, ID: descriptor.ID},
+		Trigger:   descriptor.Trigger,
+		Origins:   append([]EventOrigin(nil), descriptor.Origins...),
+		Order:     descriptor.Order,
+		Effects:   effects,
+		Access:    descriptor.Effects.Clone(),
+		Condition: condition,
+		Phase:     descriptor.Phase.clone(),
+		Prepared:  &preparedControl,
+	}, nil
+}
+
+func sortRules(rules []*LinkedRule) {
+	sort.SliceStable(rules, func(i, j int) bool {
+		if rules[i].Order != rules[j].Order {
+			return rules[i].Order < rules[j].Order
+		}
+		if rules[i].Key.Owner != rules[j].Key.Owner {
+			return rules[i].Key.Owner < rules[j].Key.Owner
+		}
+		return rules[i].Key.ID < rules[j].Key.ID
+	})
+}
+
+type DispatchErrorKind uint8
+
+const (
+	DispatchErrorInvalidTrigger DispatchErrorKind = iota + 1
+	DispatchErrorAmbiguousOrder
+	DispatchErrorInvalidStateObserver
+	DispatchErrorBackwardObservation
+)
+
+type DispatchError struct {
+	Kind    DispatchErrorKind
+	Trigger string
+	Rule    RuleKey
+	First   RuleKey
+	Second  RuleKey
+}
+
+func (e *DispatchError) Error() string {
+	switch e.Kind {
+	case DispatchErrorInvalidTrigger:
+		return "invalid event trigger " + e.Trigger
+	case DispatchErrorAmbiguousOrder:
+		return fmt.Sprintf("ambiguous order between %s and %s", e.First, e.Second)
+	case DispatchErrorInvalidStateObserver:
+		return fmt.Sprintf("state observer %s requires an after phase, change dependencies and no origin restriction", e.Rule)
+	case DispatchErrorBackwardObservation:
+		return fmt.Sprintf("backward or cyclic observation: %s -> %s", e.First, e.Second)
+	default:
+		return "unknown dispatch error"
+	}
+}
+
+type DispatchOutcome struct {
+	Status      Outcome
+	HandledRule *RuleKey
+	Candidates  int
+	Observers   []RuleKey
+}
+
+type BatchDispatchOutcome struct {
+	Outcome DispatchOutcome
+	Handled []bool
+}
+
+type PlanAnalysis struct {
+	Handlers      int
+	Observers     int
+	DynamicGuards int
+}
+
+func (p *EventProgram) AnalyzeEvent(event Event) PlanAnalysis {
+	handlers, observers := p.plan(event)
+	dynamic := 0
+	for _, rule := range append(append([]*LinkedRule(nil), handlers...), observers...) {
+		if rule.Condition != nil {
+			dynamic++
+		}
+	}
+	return PlanAnalysis{Handlers: len(handlers), Observers: len(observers), DynamicGuards: dynamic}
+}
+
+func (p *EventProgram) plan(event Event) ([]*LinkedRule, []*LinkedRule) {
+	origin, hasOrigin := event.Origin()
+	if !hasOrigin {
+		origin = EventOriginTyping
+	}
+	handlers := make([]*LinkedRule, 0, len(p.handlers))
+	for _, rule := range p.handlers {
+		if rule.Trigger.Matches(event.Key()) && rule.AllowsOrigin(origin) {
+			handlers = append(handlers, rule)
+		}
+	}
+	observers := make([]*LinkedRule, 0, len(p.observers))
+	for _, observer := range p.observers {
+		if observer.Trigger.Kind() == TriggerStateWildcard && observer.AllowsOrigin(origin) {
+			observers = append(observers, observer)
+		}
+	}
+	return handlers, observers
+}
+
+// EngineInvoker invokes one handler leaf with checked state access.
+type EngineInvoker interface {
+	Invoke(rule *LinkedRule, leaf LeafID, context *RuleContext) (Outcome, error)
+}
+
+type EngineInvokerFunc func(*LinkedRule, LeafID, *RuleContext) (Outcome, error)
+
+func (f EngineInvokerFunc) Invoke(rule *LinkedRule, leaf LeafID, context *RuleContext) (Outcome, error) {
+	return f(rule, leaf, context)
+}
+
+func (p *EventProgram) DispatchEngine(
+	event Event,
+	draft *EngineDraft,
+	invoker EngineInvoker,
+) (DispatchOutcome, error) {
+	if event.HasReservedCommandKey() {
+		return DispatchOutcome{}, &EngineError{Kind: EngineErrorInvalidEventKey, Key: event.Key()}
+	}
+	if err := validateEventInput(event, draft); err != nil {
+		return DispatchOutcome{}, err
+	}
+	checkpoint := draft.Checkpoint()
+	outcome, err := p.executeEngine(event, draft, invoker)
+	if err != nil {
+		draft.Rollback(checkpoint)
+		return DispatchOutcome{}, err
+	}
+	return outcome, nil
+}
+
+func (p *EventProgram) executeEngine(
+	event Event,
+	draft *EngineDraft,
+	invoker EngineInvoker,
+) (DispatchOutcome, error) {
+	handlers, observers := p.plan(event)
+	candidates := make([]*LinkedRule, 0, len(handlers))
+	for _, rule := range handlers {
+		matches, err := evaluateRuleCondition(rule, event, draft.Resources())
+		if err != nil {
+			return DispatchOutcome{}, err
+		}
+		if matches {
+			candidates = append(candidates, rule)
+		}
+	}
+	handled := OutcomePass
+	for _, rule := range candidates {
+		ruleCheckpoint := draft.Checkpoint()
+		status, err := invokeRule(rule, event, draft, invoker, p.configuration)
+		if err != nil {
+			return DispatchOutcome{}, err
+		}
+		if status == OutcomePass {
+			draft.Rollback(ruleCheckpoint)
+			continue
+		}
+		handled = OutcomeHandled
+		handledKey := rule.Key
+		handledObservers := make([]RuleKey, 0)
+		for _, observer := range observers {
+			if !observerChangesSurvived(observer, draft) {
+				continue
+			}
+			matches, err := evaluateRuleCondition(observer, event, draft.Resources())
+			if err != nil {
+				return DispatchOutcome{}, err
+			}
+			if !matches {
+				continue
+			}
+			status, err := invokeRule(observer, event, draft, invoker, p.configuration)
+			if err != nil {
+				return DispatchOutcome{}, err
+			}
+			if status == OutcomeHandled {
+				handledObservers = append(handledObservers, observer.Key)
+			}
+		}
+		return DispatchOutcome{
+			Status:      handled,
+			HandledRule: &handledKey,
+			Candidates:  len(candidates),
+			Observers:   handledObservers,
+		}, nil
+	}
+	return DispatchOutcome{
+		Status:     handled,
+		Candidates: len(candidates),
+	}, nil
+}
+
+func invokeRule(
+	rule *LinkedRule,
+	event Event,
+	draft *EngineDraft,
+	invoker EngineInvoker,
+	configuration *PreparedPolicyConfiguration,
+) (Outcome, error) {
+	checkpoint := draft.Checkpoint()
+	changeStart := draft.Document().ChangeCount()
+	status, err := planning.TryExecutePrepared(
+		rule.Prepared,
+		draft,
+		&event,
+		func(leaf LeafID, event *Event, draft *EngineDraft) (Outcome, error) {
+			context := NewRuleContext(
+				draft,
+				rule,
+				*event,
+				configuration,
+			)
+			return invoker.Invoke(rule, leaf, context)
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+	if status == OutcomePass {
+		draft.Rollback(checkpoint)
+		return status, nil
+	}
+	if target, ok := eventTargetNode(event); ok {
+		for _, change := range draft.Document().ChangesSince(changeStart) {
+			if change.Node != target {
+				return 0, &EngineError{
+					Kind:    EngineErrorOutOfScopeDocumentWrite,
+					Target:  target,
+					Changed: change.Node,
+				}
+			}
+		}
+	}
+	return status, nil
+}
+
+func observerChangesSurvived(observer *LinkedRule, draft *EngineDraft) bool {
+	changes := observer.Phase.ChangeKeys()
+	if len(changes) == 0 {
+		return true
+	}
+	for _, key := range changes {
+		if draft.WasWritten(key) {
+			return true
+		}
+	}
+	return false
+}
+
+func eventTargetNode(event Event) (model.NodeID, bool) {
+	if projected, ok := event.ProjectedEdit(); ok {
+		return projected.Input().Target().Node(), true
+	}
+	if input, ok := event.TextInput(); ok {
+		return input.Target().Node(), true
+	}
+	if input, ok := event.AttributeInput(); ok {
+		return input.Target().Node(), true
+	}
+	return 0, false
+}
+
+func validateEventInput(event Event, draft *EngineDraft) error {
+	if projected, ok := event.ProjectedEdit(); ok {
+		return projected.ValidateDraft(draft)
+	}
+	if text, ok := event.TextInput(); ok {
+		return ValidateTextTargetDraft(text.Target(), draft)
+	}
+	if attribute, ok := event.AttributeInput(); ok {
+		return ValidateAttributeTargetDraft(attribute.Target(), draft)
+	}
+	return nil
+}
+
+func evaluateRuleCondition(
+	rule *LinkedRule,
+	event Event,
+	resources *ResourceDraft,
+) (bool, error) {
+	if rule.Condition == nil {
+		return true, nil
+	}
+	origin, ok := event.Origin()
+	if !ok {
+		origin = EventOriginTyping
+	}
+	specialized := rule.Condition.Specialize(event.Key(), origin)
+	return specialized.Evaluate(event, resources.Read(rule.Effects))
+}

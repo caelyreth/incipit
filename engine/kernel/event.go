@@ -14,12 +14,12 @@ const (
 // Event is a typed command or checked input request. Text payload belongs to
 // the event, not its lookup key.
 type Event struct {
-	kind   EventKind
-	key    string
-	text   *TextInput
-	attr   *AttributeInput
+	kind      EventKind
+	key       string
+	text      *TextInput
+	attr      *AttributeInput
 	projected *ProjectedEditInput
-	origin *EventOrigin
+	origin    *EventOrigin
 }
 
 func NewCommandEvent(key string) Event {

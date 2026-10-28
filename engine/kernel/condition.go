@@ -199,6 +199,59 @@ func (c CompiledCondition) Specialize(key string, origin EventOrigin) CompiledCo
 	return CompiledCondition{node: normalizeCondition(c.node, &header), reads: c.reads, keys: c.keys}
 }
 
+// Evaluate checks a specialized condition against the event and guarded
+// resources.
+func (c CompiledCondition) Evaluate(event Event, resources ResourceRead) (bool, error) {
+	return c.evaluateNode(c.node, event, resources)
+}
+
+func (c CompiledCondition) evaluateNode(condition Condition, event Event, resources ResourceRead) (bool, error) {
+	switch condition.kind {
+	case ConditionTrue:
+		return true, nil
+	case ConditionFalse:
+		return false, nil
+	case ConditionEventKey:
+		return event.Key() == condition.key, nil
+	case ConditionEventOrigin:
+		origin, ok := event.Origin()
+		if !ok {
+			origin = EventOriginTyping
+		}
+		return condition.origin.Matches(origin), nil
+	case ConditionResourceEquals:
+		value, err := resources.Get(condition.resource)
+		if err != nil {
+			return false, err
+		}
+		return value.Equal(condition.value), nil
+	case ConditionNot:
+		value, err := c.evaluateNode(condition.children[0], event, resources)
+		return !value, err
+	case ConditionAll:
+		for _, child := range condition.children {
+			value, err := c.evaluateNode(child, event, resources)
+			if err != nil || !value {
+				return false, err
+			}
+		}
+		return true, nil
+	case ConditionAny:
+		for _, child := range condition.children {
+			value, err := c.evaluateNode(child, event, resources)
+			if err != nil {
+				return false, err
+			}
+			if value {
+				return true, nil
+			}
+		}
+		return false, nil
+	default:
+		return false, nil
+	}
+}
+
 func (c CompiledCondition) ResourceReads() []ResourceID {
 	ids := make([]ResourceID, 0, len(c.reads))
 	for id := range c.reads {
