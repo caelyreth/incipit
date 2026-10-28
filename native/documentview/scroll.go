@@ -33,7 +33,7 @@ func (e *Element) SwitchPage(offset float32) {
 		e.Motion.ResetGeometry()
 	}
 	e.pointerAnchor = 0
-	e.dragging = false
+	e.pointer = pointerIdle
 	e.current = nil
 	e.Focus()
 }

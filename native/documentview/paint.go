@@ -28,7 +28,9 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	caret := state.Layout.Caret(state.Frame.Caret())
 	caret = productCaret(caret, state.Prose)
 	selection := state.Layout.RangeRects(state.Frame.Selection())
-	geometryAnimate := state.Animate && !state.PointerActive
+	// Only a moving drag follows the pointer directly; a press retargets the
+	// retained springs so quick clicks glide instead of snapping.
+	geometryAnimate := state.Animate && !state.PointerSelecting
 	animatedCaret, animatedSelection := state.Motion.Geometry(
 		caret,
 		selection,
@@ -45,7 +47,9 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		drawText(p, rect, state)
 		drawPlaceholder(p, rect, state)
 		drawRangeRules(p, rect, state, options)
-		if state.Focused && state.Frame.Selection().Empty() && !state.Composing {
+		// The caret stays at the selection head, so extending a selection or
+		// double-clicking a word shows it gliding to the range's end.
+		if state.Focused && !state.Composing {
 			drawCaret(p, rect, state, options, animatedCaret)
 		}
 		drawGuides(p, rect, state, options)
@@ -74,10 +78,11 @@ func drawPlaceholder(p *ui.Painter, rect ui.Rect, state *State) {
 }
 
 func drawRangeFills(p *ui.Painter, rect ui.Rect, state *State, selection []ui.Rect) {
+	color := state.Theme.Prose.Selection.Alpha(state.Motion.SelectionOpacity())
 	for _, bounds := range selection {
 		bounds.X += rect.X
 		bounds.Y += rect.Y + state.ContentTop - state.ScrollY
-		p.Fill(bounds, state.Theme.Prose.Selection, 0)
+		p.Fill(bounds, color, 0)
 	}
 }
 
@@ -134,7 +139,8 @@ func drawCaret(
 	caret ui.Rect,
 ) {
 	alpha := float32(1)
-	if options.Animate {
+	if options.Animate && !state.PointerActive && !state.Composing &&
+		state.Frame.Selection().Empty() {
 		alpha = state.Motion.CaretOpacity(options.Now)
 	}
 	if alpha <= 0 {

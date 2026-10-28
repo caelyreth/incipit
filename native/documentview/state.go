@@ -23,6 +23,7 @@ type State struct {
 	Placeholder       string
 	PlaceholderLayout *ui.TextLayout
 	PointerActive     bool
+	PointerSelecting  bool
 	Composing         bool
 	ContentTop        float32
 	BottomInset       float32

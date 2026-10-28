@@ -42,7 +42,9 @@ type Element struct {
 	lastHeight        float32
 	manualUntil       time.Time
 	pointerAnchor     int
-	dragging          bool
+	pointerHead       int
+	pointer           pointerPhase
+	lastWidth         float32
 	focusPending      bool
 	current           *textlayout.Layout
 	placeholderLayout *ui.TextLayout
@@ -52,6 +54,17 @@ type Element struct {
 	lastCaretY        float32
 	lastViewportH     float32
 }
+
+// pointerPhase follows one press. A press keeps the caret on its springs, so a
+// click glides from the previous caret and interrupts motion already in
+// flight; only a drag that has moved the caret manipulates geometry directly.
+type pointerPhase uint8
+
+const (
+	pointerIdle pointerPhase = iota
+	pointerPressed
+	pointerSelecting
+)
 
 type placeholderKey struct {
 	Text       string
@@ -157,17 +170,28 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		} else {
 			e.pointerAnchor = offset
 		}
-		e.dragging = true
+		e.pointer = pointerPressed
+		e.pointerHead = offset
 		return e.Input.Select(anchor, offset, event.Time) == nil
 	case ui.InputPointerMove:
-		if !e.dragging || e.current == nil || event.Button != 0 {
+		if e.pointer == pointerIdle || e.current == nil || event.Button != 0 {
 			return false
 		}
-		return e.Input.Select(e.pointerAnchor, e.hit(event.X, event.Y), event.Time) == nil
+		head := e.hit(event.X, event.Y)
+		if head == e.pointerHead {
+			// Jitter inside the pressed caret position is still a click.
+			return true
+		}
+		e.pointer = pointerSelecting
+		e.pointerHead = head
+		return e.Input.Select(e.pointerAnchor, head, event.Time) == nil
 	case ui.InputPointerUp:
-		wasDragging := e.dragging
-		e.dragging = false
-		return wasDragging
+		if e.pointer == pointerIdle {
+			return false
+		}
+		e.pointer = pointerIdle
+		e.Motion.Activity(event.Time)
+		return true
 	case ui.InputScroll:
 		e.manualScroll(event.DY, event.Time)
 		e.Input.Scroll(event.DY)
@@ -237,6 +261,11 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	flow := frame.Flow()
 	style := textlayout.NewStyle(e.Prose, e.Theme)
 	e.lastHeight = rect.H
+	if e.lastWidth != rect.W {
+		// Rewrapped rows have no previous identity; never morph across them.
+		e.Motion.ResetGeometry()
+		e.lastWidth = rect.W
+	}
 	e.current = e.Layout.Update(flow, rect.W, style)
 	title := e.title(rect.W)
 	if title != nil {
@@ -266,7 +295,8 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Animate:           animate,
 		Placeholder:       e.Placeholder,
 		PlaceholderLayout: e.placeholder(rect.W),
-		PointerActive:     e.dragging,
+		PointerActive:     e.pointer != pointerIdle,
+		PointerSelecting:  e.pointer == pointerSelecting,
 		Composing:         bridge.Controller.IsComposing(),
 		ContentTop:        contentTop,
 		BottomInset:       e.BottomInset,

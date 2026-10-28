@@ -13,13 +13,21 @@ type Motion struct {
 	caret           rectangle
 	selection       []rectangle
 	selectionOutput []ui.Rect
+	selectionShown  time.Time
+	selectionAlpha  float32
+	selectionFading bool
 	viewport        *Spring
 	viewportTarget  float32
 	activity        time.Time
 }
 
+// SelectionFade is how long a selection takes to appear from an empty one.
+// It is deliberately slower than the caret spring, so a double-click shows
+// the caret gliding to the selection end while the range settles in beneath.
+const SelectionFade = 280 * time.Millisecond
+
 func New(now time.Time) *Motion {
-	return &Motion{activity: now}
+	return &Motion{activity: now, selectionAlpha: 1}
 }
 
 func (m *Motion) Activity(now time.Time) {
@@ -78,6 +86,14 @@ func (m *Motion) ResetGeometry() {
 	m.caret = rectangle{}
 	m.selection = nil
 	m.selectionOutput = nil
+	m.selectionAlpha = 1
+	m.selectionFading = false
+}
+
+// SelectionOpacity is the fade sampled by the last Geometry call. Only a
+// selection appearing from none fades; growing or rewrapping stays opaque.
+func (m *Motion) SelectionOpacity() float32 {
+	return m.selectionAlpha
 }
 
 // Geometry samples local caret and selection boxes. Selecting a different row
@@ -100,8 +116,13 @@ func (m *Motion) Geometry(caret ui.Rect, selection []ui.Rect, now time.Time, ani
 		}
 	}
 	if !sameRows {
+		if len(m.selection) == 0 && len(selection) > 0 {
+			m.selectionShown = now
+			m.selectionFading = true
+		}
 		m.selection = make([]rectangle, len(selection))
 	}
+	m.sampleSelectionFade(len(selection) > 0, now)
 	m.selectionOutput = m.selectionOutput[:0]
 	for index := range selection {
 		m.selectionOutput = append(
@@ -112,8 +133,26 @@ func (m *Motion) Geometry(caret ui.Rect, selection []ui.Rect, now time.Time, ani
 	return sampledCaret, m.selectionOutput
 }
 
+func (m *Motion) sampleSelectionFade(visible bool, now time.Time) {
+	m.selectionAlpha = 1
+	if !visible {
+		m.selectionFading = false
+	}
+	if !m.selectionFading {
+		return
+	}
+	progress := float32(now.Sub(m.selectionShown)) / float32(SelectionFade)
+	if progress >= 1 {
+		m.selectionFading = false
+		return
+	}
+	// A cubic ease-out: the range is legible quickly and settles softly.
+	remaining := 1 - max(0, progress)
+	m.selectionAlpha = 1 - remaining*remaining*remaining
+}
+
 func (m *Motion) Moving() bool {
-	if m.viewport != nil || m.caret.moving() {
+	if m.viewport != nil || m.caret.moving() || m.selectionFading {
 		return true
 	}
 	for index := range m.selection {
@@ -133,10 +172,10 @@ func (m *Motion) CaretWakeAt(now time.Time) (time.Time, bool) {
 // and opaque over a 1.05 s cosine period.
 func (m *Motion) CaretOpacity(now time.Time) float32 {
 	seconds := float32(now.Sub(m.activity).Seconds())
-	if seconds < 0.240 {
+	if seconds < 0.1 {
 		return 1
 	}
-	phase := (seconds - 0.240) * 2 * float32(3.141592653589793) / 1.05
+	phase := (seconds - 0.1) * 2 * float32(3.141592653589793) / 0.76
 	return 0.5 + 0.5*cos(phase)
 }
 

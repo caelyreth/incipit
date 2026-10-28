@@ -112,3 +112,41 @@ func TestRevealAndViewportMotion(t *testing.T) {
 		t.Fatalf("scroll = %v,%v", value, ok)
 	}
 }
+
+func TestSelectionFadesInOnlyWhenAppearing(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(0, 0)
+	motion := New(now)
+	row := func(width float32) ui.Rect { return ui.Rect{W: width, H: 34} }
+	caret := ui.Rect{W: 2, H: 25}
+	motion.Geometry(caret, nil, now, true)
+	if got := motion.SelectionOpacity(); got != 1 || motion.Moving() {
+		t.Fatalf("empty selection opacity = %v moving = %v", got, motion.Moving())
+	}
+
+	motion.Geometry(caret, []ui.Rect{row(30)}, now, true)
+	if got := motion.SelectionOpacity(); got != 0 || !motion.Moving() {
+		t.Fatalf("appearing opacity = %v moving = %v", got, motion.Moving())
+	}
+	half := now.Add(SelectionFade / 2)
+	motion.Geometry(caret, []ui.Rect{row(60)}, half, true)
+	if got := motion.SelectionOpacity(); got <= 0.5 || got >= 1 {
+		t.Fatalf("ease-out midpoint opacity = %v", got)
+	}
+	motion.Geometry(caret, []ui.Rect{row(60), {Y: 34, W: 20, H: 34}}, half, true)
+	if got := motion.SelectionOpacity(); got >= 1 {
+		t.Fatalf("growing across rows restarted or ended the fade: %v", got)
+	}
+	done := now.Add(SelectionFade)
+	motion.Geometry(caret, []ui.Rect{row(60), {Y: 34, W: 20, H: 34}}, done, true)
+	if got := motion.SelectionOpacity(); got != 1 {
+		t.Fatalf("settled opacity = %v", got)
+	}
+
+	// Direct manipulation is never faded.
+	motion.Geometry(caret, nil, done, true)
+	motion.Geometry(caret, []ui.Rect{row(30)}, done, false)
+	if got := motion.SelectionOpacity(); got != 1 {
+		t.Fatalf("direct selection opacity = %v", got)
+	}
+}
