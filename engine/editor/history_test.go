@@ -118,12 +118,21 @@ func TestHistoryOnlyGroupsSingleAlphanumericTypingInsertions(t *testing.T) {
 		group       bool
 	}{
 		{"ascii letter", kernel.EventOriginTyping, true, "a", true},
-		{"unicode letter", kernel.EventOriginTyping, true, "中", true},
-		{"digit", kernel.EventOriginTyping, true, "7", true},
+		{"cjk letter", kernel.EventOriginTyping, true, "中", true},
+		{"greek letter", kernel.EventOriginTyping, true, "Ω", true},
+		{"ascii digit", kernel.EventOriginTyping, true, "7", true},
+		{"arabic-indic digit", kernel.EventOriginTyping, true, "٣", true},
+		{"vulgar fraction", kernel.EventOriginTyping, true, "¾", true},
+		{"roman numeral", kernel.EventOriginTyping, true, "Ⅻ", true},
+		{"other alphabetic nonspacing mark", kernel.EventOriginTyping, true, "\u0345", true},
+		{"other alphabetic spacing mark", kernel.EventOriginTyping, true, "\u093e", true},
+		{"other alphabetic hebrew mark", kernel.EventOriginTyping, true, "\u05b0", true},
 		{"punctuation", kernel.EventOriginTyping, true, ",", false},
 		{"combining scalar alone", kernel.EventOriginTyping, true, "\u0301", false},
 		{"two scalars", kernel.EventOriginTyping, true, "ab", false},
 		{"emoji", kernel.EventOriginTyping, true, "🦀", false},
+		{"emoji sequence", kernel.EventOriginTyping, true, "👩‍💻", false},
+		{"variation selector", kernel.EventOriginTyping, true, "\ufe0f", false},
 		{"empty", kernel.EventOriginTyping, true, "", false},
 		{"paste", kernel.EventOriginPaste, true, "a", false},
 		{"ime", kernel.EventOriginIME, true, "a", false},
@@ -135,6 +144,49 @@ func TestHistoryOnlyGroupsSingleAlphanumericTypingInsertions(t *testing.T) {
 			got := ShouldGroupTyping(test.origin, test.appliesText, test.replacement)
 			if got != test.group {
 				t.Fatalf("ShouldGroupTyping = %v, want %v", got, test.group)
+			}
+		})
+	}
+}
+
+func TestHistoryGroupsOtherAlphabeticTypingUpToThe750MillisecondBoundary(t *testing.T) {
+	base := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name    string
+		elapsed time.Duration
+		join    bool
+	}{
+		{name: "just below window", elapsed: 749 * time.Millisecond, join: true},
+		{name: "exact window breaks", elapsed: 750 * time.Millisecond},
+		{name: "beyond window breaks", elapsed: 751 * time.Millisecond},
+	}
+	for _, replacement := range []string{"\u0345", "\u093e"} {
+		t.Run(replacement, func(t *testing.T) {
+			if !ShouldGroupTyping(kernel.EventOriginTyping, true, replacement) {
+				t.Fatalf("typing %U is not grouping-eligible", []rune(replacement)[0])
+			}
+			for _, test := range tests {
+				t.Run(test.name, func(t *testing.T) {
+					clock := &fakeStateClock{now: base}
+					history := NewHistory(clock)
+					document, root := stateDocument(t, "abc")
+					first := stateFrame(t, document, root, 0)
+					group := ShouldGroupTyping(kernel.EventOriginTyping, true, replacement)
+					history.Record(first, stateVisual(first.selection.Revision(), 1), true, group)
+
+					clock.Add(test.elapsed)
+					before := first
+					before.visual = stateVisual(first.selection.Revision(), 1)
+					history.Record(before, stateVisual(first.selection.Revision(), 2), true, group)
+
+					wantDepth := 2
+					if test.join {
+						wantDepth = 1
+					}
+					if history.UndoDepth() != wantDepth {
+						t.Fatalf("undo depth = %d, want %d", history.UndoDepth(), wantDepth)
+					}
+				})
 			}
 		})
 	}

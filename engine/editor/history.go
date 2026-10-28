@@ -180,8 +180,8 @@ func (h *History) recordAt(
 }
 
 // ShouldGroupTyping reports whether an edit may join an existing typing group.
-// Only one alphanumeric Unicode scalar inserted by a typing-origin text edit
-// qualifies, matching Shoreward's grouping rule.
+// Only one Alphabetic-or-Numeric Unicode scalar inserted by a typing-origin
+// text edit qualifies, matching Rust's char::is_alphanumeric.
 func ShouldGroupTyping(origin kernel.EventOrigin, appliesText bool, replacement string) bool {
 	if origin != kernel.EventOriginTyping || !appliesText {
 		return false
@@ -190,7 +190,13 @@ func ShouldGroupTyping(origin kernel.EventOrigin, appliesText bool, replacement 
 	if len(runes) != 1 {
 		return false
 	}
-	return unicode.IsLetter(runes[0]) || unicode.IsNumber(runes[0])
+	r := runes[0]
+	// Alphabetic is L plus Nl plus Other_Alphabetic, while Numeric is N.
+	// IsNumber supplies N (including Nl); Other_Alphabetic adds combining
+	// marks such as U+0345 and U+093E that general category alone omits.
+	return unicode.IsLetter(r) ||
+		unicode.IsNumber(r) ||
+		unicode.Is(unicode.Other_Alphabetic, r)
 }
 
 // RestoreFunc applies a history frame to the caller-owned editor state. The
