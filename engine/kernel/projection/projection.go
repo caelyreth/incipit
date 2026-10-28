@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/engine/input"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/text/rope"
 )
@@ -44,7 +44,7 @@ type Projection struct {
 	segments      []Segment
 	segmentBytes  []model.ByteRange
 	witnesses     []textWitness
-	dependencies  []kernel.StateKey
+	dependencies  []Dependency
 }
 
 func New(
@@ -52,7 +52,7 @@ func New(
 	version Version,
 	text string,
 	segments []Segment,
-	dependencies []kernel.StateKey,
+	dependencies []Dependency,
 ) (*Projection, error) {
 	return fromText(
 		id,
@@ -70,7 +70,7 @@ func fromText(
 	text projectionText,
 	segments []Segment,
 	witnesses []textWitness,
-	dependencies []kernel.StateKey,
+	dependencies []Dependency,
 ) (*Projection, error) {
 	if id == "" {
 		return nil, &ProjectionError{Kind: ErrorEmptyID}
@@ -145,8 +145,8 @@ func fromText(
 	if len(witnesses) != len(segments) {
 		return nil, fmt.Errorf("projection: witness count does not match segments")
 	}
-	deps := append([]kernel.StateKey(nil), dependencies...)
-	slices.SortFunc(deps, func(a, b kernel.StateKey) int {
+	deps := append([]Dependency(nil), dependencies...)
+	slices.SortFunc(deps, func(a, b Dependency) int {
 		if a.Document != b.Document {
 			if a.Document {
 				return -1
@@ -188,8 +188,8 @@ func (p *Projection) Segments() []Segment {
 	return append([]Segment(nil), p.segments...)
 }
 
-func (p *Projection) Dependencies() []kernel.StateKey {
-	return append([]kernel.StateKey(nil), p.dependencies...)
+func (p *Projection) Dependencies() []Dependency {
+	return append([]Dependency(nil), p.dependencies...)
 }
 
 func (p *Projection) TextRange(range16 model.UTF16Range) (string, error) {
@@ -358,21 +358,21 @@ func (p *Projection) ResolveSelection(selection Selection, revision uint64) (Tar
 	return anchor, head, nil
 }
 
-func (p *Projection) ResolveTarget(target Target) (kernel.TextTarget, error) {
+func (p *Projection) ResolveTarget(target Target) (input.TextTarget, error) {
 	_, segment, err := p.resolveSegment(target)
 	if err != nil {
-		return kernel.TextTarget{}, err
+		return input.TextTarget{}, err
 	}
 	if segment.kind != SegmentEditable {
-		return kernel.TextTarget{}, &ProjectionError{Kind: ErrorNonEditable}
+		return input.TextTarget{}, &ProjectionError{Kind: ErrorNonEditable}
 	}
 	semantic, ok := segment.SemanticTarget()
 	if !ok {
-		return kernel.TextTarget{}, &ProjectionError{Kind: ErrorNoCorrespondence}
+		return input.TextTarget{}, &ProjectionError{Kind: ErrorNoCorrespondence}
 	}
 	start := semantic.RangeUTF16().Start + target.range16.Start - segment.range16.Start
 	end := semantic.RangeUTF16().Start + target.range16.End - segment.range16.Start
-	return kernel.NewTextTarget(semantic.Node(), model.NewUTF16Range(start, end), semantic.Revision()), nil
+	return input.NewTextTarget(semantic.Node(), model.NewUTF16Range(start, end), semantic.Revision()), nil
 }
 
 func (p *Projection) ResolveEdit(target Target, replacement string) (Input, error) {
@@ -386,7 +386,7 @@ func (p *Projection) ResolveEdit(target Target, replacement string) (Input, erro
 		if err != nil {
 			return Input{}, err
 		}
-		return Input{Kind: InputText, Text: kernel.NewTextInput(resolved, replacement)}, nil
+		return Input{Kind: InputText, Text: input.NewTextInput(resolved, replacement)}, nil
 	case SegmentAttribute:
 		attribute, _ := segment.AttributeTarget()
 		fragment := p.text.Range(int(p.segmentBytes[index].Start), int(p.segmentBytes[index].End))
@@ -395,40 +395,40 @@ func (p *Projection) ResolveEdit(target Target, replacement string) (Input, erro
 		updated := fragment[:start] + replacement + fragment[end:]
 		return Input{
 			Kind:      InputAttribute,
-			Attribute: kernel.NewAttributeInput(attribute, updated),
+			Attribute: input.NewAttributeInput(attribute, updated),
 		}, nil
 	default:
 		return Input{}, &ProjectionError{Kind: ErrorNonEditable}
 	}
 }
 
-func (p *Projection) TextInput(target Target, replacement string) (kernel.TextInput, error) {
+func (p *Projection) TextInput(target Target, replacement string) (input.TextInput, error) {
 	resolved, err := p.ResolveTarget(target)
 	if err != nil {
-		return kernel.TextInput{}, err
+		return input.TextInput{}, err
 	}
-	return kernel.NewTextInput(resolved, replacement), nil
+	return input.NewTextInput(resolved, replacement), nil
 }
 
-func (p *Projection) InvalidatedBy(changes kernel.EngineChanges) bool {
+func (p *Projection) InvalidatedBy(changes Changes) bool {
 	for _, dependency := range p.dependencies {
-		if dependency.Document && len(changes.Document()) > 0 {
+		if dependency.Document && len(changes.Document) > 0 {
 			return true
 		}
 		if !dependency.Document {
-			for _, resource := range changes.Resources() {
-				if resource.ID == dependency.Resource {
+			for _, resource := range changes.Resources {
+				if resource == dependency.Resource {
 					return true
 				}
 			}
 		}
 	}
-	for _, change := range changes.Document() {
+	for _, change := range changes.Document {
 		if _, ok := p.semanticNodes[change.Node]; ok {
 			return true
 		}
 	}
-	for _, edit := range changes.TextEdits() {
+	for _, edit := range changes.TextEdits {
 		if _, ok := p.semanticNodes[edit.Node()]; ok {
 			return true
 		}
@@ -436,15 +436,15 @@ func (p *Projection) InvalidatedBy(changes kernel.EngineChanges) bool {
 	return false
 }
 
-func (p *Projection) ValidateSource(snapshot kernel.EngineSnapshot) error {
-	return p.validateNodes(snapshot.Revision(), func(id model.NodeID) (*model.Node, bool) {
-		return snapshot.Document().Node(id)
+func (p *Projection) ValidateSource(revision uint64, document model.DocumentSnapshot) error {
+	return p.validateNodes(revision, func(id model.NodeID) (*model.Node, bool) {
+		return document.Node(id)
 	})
 }
 
-func (p *Projection) ValidateCandidate(view kernel.EngineView) error {
-	return p.validateNodes(view.Revision(), func(id model.NodeID) (*model.Node, bool) {
-		return view.Document().Node(id)
+func (p *Projection) ValidateCandidate(revision uint64, document model.DocumentSnapshot) error {
+	return p.validateNodes(revision, func(id model.NodeID) (*model.Node, bool) {
+		return document.Node(id)
 	})
 }
 
@@ -617,7 +617,7 @@ func (b *Builder) Attribute(node model.NodeID, key, text string) error {
 	}
 	b.push(part, AttributeSegment(
 		range16,
-		kernel.NewAttributeTarget(node, key, b.version.SourceRevision()),
+		input.NewAttributeTarget(node, key, b.version.SourceRevision()),
 	), textWitness{kind: witnessUnchecked})
 	return nil
 }
@@ -630,7 +630,7 @@ func (b *Builder) Semantic(node *model.Node, range16 model.UTF16Range) error {
 	return b.source(node, range16, false)
 }
 
-func (b *Builder) Build(dependencies []kernel.StateKey) (*Projection, error) {
+func (b *Builder) Build(dependencies []Dependency) (*Projection, error) {
 	return fromText(b.id, b.version, textFromParts(b.parts), b.segments, b.witnesses, dependencies)
 }
 
@@ -650,7 +650,7 @@ func (b *Builder) source(node *model.Node, range16 model.UTF16Range, editable bo
 	if err != nil {
 		return err
 	}
-	target := kernel.NewTextTarget(node.ID(), range16, b.version.SourceRevision())
+	target := input.NewTextTarget(node.ID(), range16, b.version.SourceRevision())
 	segment := EditableSegment(projected, target)
 	if !editable {
 		segment = SemanticSegment(projected, target)

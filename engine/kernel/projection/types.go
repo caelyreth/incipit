@@ -3,7 +3,7 @@ package projection
 import (
 	"fmt"
 
-	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/engine/input"
 	"github.com/caelyreth/neverland/engine/model"
 )
 
@@ -90,39 +90,39 @@ const (
 type Segment struct {
 	range16   model.UTF16Range
 	kind      SegmentKind
-	text      *kernel.TextTarget
-	attribute *kernel.AttributeTarget
+	text      *input.TextTarget
+	attribute *input.AttributeTarget
 }
 
 func GeneratedSegment(range16 model.UTF16Range) Segment {
 	return Segment{range16: range16, kind: SegmentGenerated}
 }
 
-func EditableSegment(range16 model.UTF16Range, target kernel.TextTarget) Segment {
+func EditableSegment(range16 model.UTF16Range, target input.TextTarget) Segment {
 	return Segment{range16: range16, kind: SegmentEditable, text: &target}
 }
 
-func SemanticSegment(range16 model.UTF16Range, target kernel.TextTarget) Segment {
+func SemanticSegment(range16 model.UTF16Range, target input.TextTarget) Segment {
 	return Segment{range16: range16, kind: SegmentSemantic, text: &target}
 }
 
-func AttributeSegment(range16 model.UTF16Range, target kernel.AttributeTarget) Segment {
+func AttributeSegment(range16 model.UTF16Range, target input.AttributeTarget) Segment {
 	return Segment{range16: range16, kind: SegmentAttribute, attribute: &target}
 }
 
 func (s Segment) ProjectedRange() model.UTF16Range { return s.range16 }
 func (s Segment) Kind() SegmentKind                { return s.kind }
 
-func (s Segment) SemanticTarget() (kernel.TextTarget, bool) {
+func (s Segment) SemanticTarget() (input.TextTarget, bool) {
 	if s.text == nil {
-		return kernel.TextTarget{}, false
+		return input.TextTarget{}, false
 	}
 	return *s.text, true
 }
 
-func (s Segment) AttributeTarget() (kernel.AttributeTarget, bool) {
+func (s Segment) AttributeTarget() (input.AttributeTarget, bool) {
 	if s.attribute == nil {
-		return kernel.AttributeTarget{}, false
+		return input.AttributeTarget{}, false
 	}
 	return *s.attribute, true
 }
@@ -140,17 +140,8 @@ const (
 
 type Input struct {
 	Kind      InputKind
-	Text      kernel.TextInput
-	Attribute kernel.AttributeInput
-}
-
-func (i Input) Event(origin kernel.EventOrigin) kernel.Event {
-	switch i.Kind {
-	case InputAttribute:
-		return kernel.NewAttributeEvent(i.Attribute, origin)
-	default:
-		return kernel.NewTextEvent(i.Text, origin)
-	}
+	Text      input.TextInput
+	Attribute input.AttributeInput
 }
 
 type ErrorKind uint8

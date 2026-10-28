@@ -1,12 +1,12 @@
-package kernel
+// Package input defines revision-bound semantic targets and checked input
+// values shared by the kernel, projection, and editor without package cycles.
+package input
 
 import (
 	"fmt"
 
 	"github.com/caelyreth/neverland/engine/model"
 )
-
-const TextInputKey = "text:input"
 
 // TextTarget is a semantic UTF-16 range captured at an engine revision.
 type TextTarget struct {
@@ -58,40 +58,29 @@ func (t TextTarget) Rebase(edits []model.TextEdit, revision uint64) (TextTarget,
 	return rebased, err == nil
 }
 
-func (t TextTarget) Validate(snapshot EngineSnapshot) error {
-	return t.validate(snapshot.Revision(), snapshot.Document())
-}
-
-func (t TextTarget) ValidateDraft(draft *EngineDraft) error {
-	if draft.Document().WasWritten() {
-		return &InputError{Kind: InputErrorModifiedDocument}
-	}
-	return t.validate(draft.BaseRevision(), draft.Document().BaseSnapshot())
-}
-
-func (t TextTarget) validate(revision uint64, document model.DocumentSnapshot) error {
+func (t TextTarget) Validate(revision uint64, document model.DocumentSnapshot) error {
 	if t.revision != revision {
-		return &InputError{
-			Kind:     InputErrorStaleTarget,
+		return &Error{
+			Kind:     ErrorStaleTarget,
 			Captured: t.revision,
 			Current:  revision,
 		}
 	}
 	node, ok := document.Node(t.node)
 	if !ok {
-		return &InputError{
-			Kind: InputErrorDocument,
+		return &Error{
+			Kind: ErrorDocument,
 			Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: t.node},
 		}
 	}
 	if err := node.ValidateTextRangeUTF16(t.range16.Start, t.range16.End); err != nil {
-		return &InputError{Kind: InputErrorDocument, Err: err}
+		return &Error{Kind: ErrorDocument, Err: err}
 	}
 	return nil
 }
 
 // TextInput is a proposed replacement. Policies decide whether to store it
-// literally or interpret it as attributes or another semantic effect.
+// literally or interpret it semantically.
 type TextInput struct {
 	target TextTarget
 	text   string
@@ -104,20 +93,72 @@ func NewTextInput(target TextTarget, text string) TextInput {
 func (i TextInput) Target() TextTarget { return i.target }
 func (i TextInput) Text() string       { return i.text }
 
-type InputErrorKind uint8
+type AttributeTarget struct {
+	node     model.NodeID
+	key      string
+	revision uint64
+}
+
+func NewAttributeTarget(node model.NodeID, key string, revision uint64) AttributeTarget {
+	return AttributeTarget{node: node, key: key, revision: revision}
+}
+
+func (t AttributeTarget) Node() model.NodeID { return t.node }
+func (t AttributeTarget) Key() string        { return t.key }
+func (t AttributeTarget) Revision() uint64   { return t.revision }
+
+func (t AttributeTarget) Validate(revision uint64, document model.DocumentSnapshot) error {
+	if t.revision != revision {
+		return &Error{
+			Kind:     ErrorStaleTarget,
+			Captured: t.revision,
+			Current:  revision,
+		}
+	}
+	if t.key == "" {
+		return &Error{
+			Kind: ErrorDocument,
+			Err:  &model.DocumentError{Kind: model.DocumentErrorEmptyAttributeKey},
+		}
+	}
+	if _, ok := document.Node(t.node); !ok {
+		return &Error{
+			Kind: ErrorDocument,
+			Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: t.node},
+		}
+	}
+	return nil
+}
+
+type AttributeInput struct {
+	target AttributeTarget
+	text   string
+}
+
+func NewAttributeInput(target AttributeTarget, text string) AttributeInput {
+	return AttributeInput{target: target, text: text}
+}
+
+func (i AttributeInput) Target() AttributeTarget { return i.target }
+func (i AttributeInput) Text() string            { return i.text }
+func (i AttributeInput) String() string {
+	return fmt.Sprintf("%s:%s", i.target.node, i.target.key)
+}
+
+type ErrorKind uint8
 
 const (
-	InputErrorDocument InputErrorKind = iota + 1
-	InputErrorStaleTarget
-	InputErrorModifiedDocument
-	InputErrorConsumedTarget
-	InputErrorCompositionActive
-	InputErrorNoComposition
-	InputErrorInvalidAttributeInput
+	ErrorDocument ErrorKind = iota + 1
+	ErrorStaleTarget
+	ErrorModifiedDocument
+	ErrorConsumedTarget
+	ErrorCompositionActive
+	ErrorNoComposition
+	ErrorInvalidAttributeInput
 )
 
-type InputError struct {
-	Kind     InputErrorKind
+type Error struct {
+	Kind     ErrorKind
 	Err      error
 	Node     model.NodeID
 	Key      string
@@ -125,25 +166,25 @@ type InputError struct {
 	Current  uint64
 }
 
-func (e *InputError) Error() string {
+func (e *Error) Error() string {
 	switch e.Kind {
-	case InputErrorDocument:
+	case ErrorDocument:
 		return e.Err.Error()
-	case InputErrorStaleTarget:
+	case ErrorStaleTarget:
 		return fmt.Sprintf("input target from revision %d is stale at revision %d", e.Captured, e.Current)
-	case InputErrorModifiedDocument:
+	case ErrorModifiedDocument:
 		return "input target requires a draft without earlier document writes"
-	case InputErrorConsumedTarget:
+	case ErrorConsumedTarget:
 		return "text input has already been consumed by this event"
-	case InputErrorCompositionActive:
+	case ErrorCompositionActive:
 		return "finish composition before starting new input"
-	case InputErrorInvalidAttributeInput:
+	case ErrorInvalidAttributeInput:
 		return fmt.Sprintf("invalid projected input for %s attribute %s", e.Node, e.Key)
-	case InputErrorNoComposition:
+	case ErrorNoComposition:
 		return "no composition is active"
 	default:
 		return "unknown input error"
 	}
 }
 
-func (e *InputError) Unwrap() error { return e.Err }
+func (e *Error) Unwrap() error { return e.Err }

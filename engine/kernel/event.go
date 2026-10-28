@@ -1,11 +1,14 @@
 package kernel
 
+const ProjectedTextKey = "editor:projected-text"
+
 type EventKind uint8
 
 const (
 	EventCommand EventKind = iota + 1
 	EventText
 	EventAttribute
+	EventProjected
 )
 
 // Event is a typed command or checked input request. Text payload belongs to
@@ -15,6 +18,7 @@ type Event struct {
 	key    string
 	text   *TextInput
 	attr   *AttributeInput
+	projected *ProjectedEditInput
 	origin *EventOrigin
 }
 
@@ -28,6 +32,18 @@ func NewTextEvent(input TextInput, origin EventOrigin) Event {
 
 func NewAttributeEvent(input AttributeInput, origin EventOrigin) Event {
 	return Event{kind: EventAttribute, key: AttributeInputKey, attr: &input, origin: &origin}
+}
+
+func NewProjectedEvent(input ProjectedEditInput, origin EventOrigin) Event {
+	key := ProjectedTextKey
+	if input.Interactive() {
+		key = TextInputKey
+	}
+	return Event{kind: EventProjected, key: key, projected: &input, origin: &origin}
+}
+
+func NewProjectedTextEvent(input TextInput, interactive bool, origin EventOrigin) Event {
+	return NewProjectedEvent(NewProjectedTextInput(input, interactive), origin)
 }
 
 func (e Event) Kind() EventKind { return e.kind }
@@ -46,10 +62,13 @@ func (e Event) WithOrigin(origin EventOrigin) Event {
 }
 
 func (e Event) TextInput() (TextInput, bool) {
-	if e.text == nil {
-		return TextInput{}, false
+	if e.text != nil {
+		return *e.text, true
 	}
-	return *e.text, true
+	if e.projected != nil {
+		return e.projected.input, true
+	}
+	return TextInput{}, false
 }
 
 func (e Event) AttributeInput() (AttributeInput, bool) {
@@ -57,6 +76,17 @@ func (e Event) AttributeInput() (AttributeInput, bool) {
 		return AttributeInput{}, false
 	}
 	return *e.attr, true
+}
+
+func (e Event) ProjectedEdit() (ProjectedEditInput, bool) {
+	if e.projected == nil {
+		return ProjectedEditInput{}, false
+	}
+	return e.projected.Clone(), true
+}
+
+func (e Event) ProjectedEditPayload() *ProjectedEditInput {
+	return e.projected
 }
 
 func (e Event) HasReservedCommandKey() bool {

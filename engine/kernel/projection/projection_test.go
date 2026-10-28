@@ -4,14 +4,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/engine/input"
 	"github.com/caelyreth/neverland/engine/model"
 )
 
 type fixture struct {
-	engine *kernel.Engine
-	node   model.NodeID
-	root   *model.Node
+	document *model.Document
+	node     model.NodeID
+	root     *model.Node
 }
 
 func newFixture(t *testing.T, text string) fixture {
@@ -26,15 +26,14 @@ func newFixture(t *testing.T, text string) fixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	engine := kernel.NewEngine(document, kernel.NewResourceStore(nil))
-	snapshot := engine.Snapshot().Document()
+	snapshot := document.Snapshot()
 	root, _ := snapshot.Node(node)
-	return fixture{engine: engine, node: node, root: root}
+	return fixture{document: document, node: node, root: root}
 }
 
 func markerProjection(t *testing.T, f fixture, revision, generation uint64, marker string) *Projection {
 	t.Helper()
-	snapshot := f.engine.Snapshot().Document()
+	snapshot := f.document.Snapshot()
 	node, ok := snapshot.Node(f.node)
 	if !ok {
 		t.Fatal("missing node")
@@ -59,10 +58,10 @@ func markerProjection(t *testing.T, f fixture, revision, generation uint64, mark
 func TestProjectionConstructorValidatesSegments(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "abc")
-	revision := f.engine.Revision()
-	snapshot := f.engine.Snapshot().Document()
+	revision := f.document.Revision()
+	snapshot := f.document.Snapshot()
 	node, _ := snapshot.Node(f.node)
-	target := kernel.NewTextTarget(f.node, model.NewUTF16Range(0, 3), revision)
+	target := input.NewTextTarget(f.node, model.NewUTF16Range(0, 3), revision)
 
 	tests := []struct {
 		name     string
@@ -98,7 +97,7 @@ func TestProjectionConstructorValidatesSegments(t *testing.T) {
 func TestAffinityMapsGeneratedExteriorsAndTextInteriors(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "a🦀bc")
-	projection := markerProjection(t, f, f.engine.Revision(), 1, "**")
+	projection := markerProjection(t, f, f.document.Revision(), 1, "**")
 	if projection.Text() != "**a🦀bc**" || projection.UTF16Len() != 9 {
 		t.Fatalf("projection = %q len %d", projection.Text(), projection.UTF16Len())
 	}
@@ -129,7 +128,7 @@ func TestAffinityMapsGeneratedExteriorsAndTextInteriors(t *testing.T) {
 func TestProjectedTargetsResolveAndRejectStaleOrForeign(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "abc")
-	projection := markerProjection(t, f, f.engine.Revision(), 1, "*")
+	projection := markerProjection(t, f, f.document.Revision(), 1, "*")
 	target, err := projection.Target(model.NewUTF16Range(1, 3))
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +155,7 @@ func TestProjectedTargetsResolveAndRejectStaleOrForeign(t *testing.T) {
 func TestAttributeCaretAddressesAndResolves(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "abc")
-	projection := markerProjection(t, f, f.engine.Revision(), 1, "*")
+	projection := markerProjection(t, f, f.document.Revision(), 1, "*")
 	for _, test := range []struct {
 		offset model.UTF16Offset
 		side   AttributeCaretSide
@@ -188,8 +187,8 @@ func TestAttributeCaretAddressesAndResolves(t *testing.T) {
 func TestProjectionUpdatesReportExactChangedRanges(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "abc")
-	first := markerProjection(t, f, f.engine.Revision(), 1, "*")
-	second := markerProjection(t, f, f.engine.Revision(), 2, "**")
+	first := markerProjection(t, f, f.document.Revision(), 1, "*")
+	second := markerProjection(t, f, f.document.Revision(), 2, "**")
 	update, err := second.PrepareUpdate(first)
 	if err != nil {
 		t.Fatal(err)
@@ -212,12 +211,12 @@ func TestProjectionUpdatesReportExactChangedRanges(t *testing.T) {
 func TestValidateSourceUsesWitnessesAndDetectsChangedText(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "abc")
-	projection := markerProjection(t, f, f.engine.Revision(), 1, "*")
-	if err := projection.ValidateSource(f.engine.Snapshot()); err != nil {
+	projection := markerProjection(t, f, f.document.Revision(), 1, "*")
+	if err := projection.ValidateSource(f.document.Revision(), f.document.Snapshot()); err != nil {
 		t.Fatal(err)
 	}
-	outcome, err := kernel.Transact(f.engine, func(draft *kernel.EngineDraft) (struct{}, error) {
-		return struct{}{}, draft.Document().ReplaceTextUTF16(
+	outcome, err := f.document.Transact(func(draft *model.DocumentDraft) error {
+		return draft.ReplaceTextUTF16(
 			f.node,
 			model.UTF16Offset(0),
 			model.UTF16Offset(1),
@@ -230,7 +229,7 @@ func TestValidateSourceUsesWitnessesAndDetectsChangedText(t *testing.T) {
 	if outcome.Revision == projection.Version().SourceRevision() {
 		t.Fatal("source revision did not advance")
 	}
-	err = projection.ValidateSource(f.engine.Snapshot())
+	err = projection.ValidateSource(f.document.Revision(), f.document.Snapshot())
 	var projectionErr *ProjectionError
 	if !errors.As(err, &projectionErr) || projectionErr.Kind != ErrorSourceRevision {
 		t.Fatalf("validation error = %v", err)
