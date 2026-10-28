@@ -147,7 +147,7 @@ func (a *AppState) BindShell() {
 		a.Palette.Reset(a.commands())
 	}
 	a.Shell.OpenSettings = func() {
-		a.refreshSettingsData()
+		a.OpenSettingsWindow()
 	}
 	a.Shell.ToggleSidebar = func() {
 		a.Shell.Appearance.Zen = !a.Shell.Appearance.Zen
@@ -172,8 +172,11 @@ func (a *AppState) mountBridge(c *ui.Context) {
 	a.Bridge.External = func(command kernel.CommandID) error {
 		switch string(command) {
 		case "workspace.new":
-			_, err := a.Workspace.NewPage()
-			return err
+			a.newPage()
+			if a.Error != "" {
+				return fmt.Errorf("%s", a.Error)
+			}
+			return nil
 		default:
 			return nil
 		}
@@ -187,7 +190,7 @@ func (a *AppState) selectMounted() {
 			a.Session = session
 			a.Bridge = nil
 			if scroll, ok := a.Workspace.ActiveScroll(); ok && a.Element != nil {
-				a.Element.SetScrollY(scroll.Y)
+				a.Element.SwitchPage(scroll.Y)
 			}
 		}
 	}

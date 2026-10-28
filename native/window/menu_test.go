@@ -77,6 +77,9 @@ func TestWorkspaceSwitchParksAndRestoresPageScroll(t *testing.T) {
 	if app.Element.ScrollY() != 140 {
 		t.Fatalf("restored first-page scroll = %v", app.Element.ScrollY())
 	}
+	if !app.Element.FocusPending() {
+		t.Fatal("page switch did not request document focus")
+	}
 	app.Shell.SelectPage(fmt.Sprint(second))
 	if app.Element.ScrollY() != 36 {
 		t.Fatalf("restored second-page scroll = %v", app.Element.ScrollY())

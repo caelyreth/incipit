@@ -39,6 +39,7 @@ type Element struct {
 	manualUntil   time.Time
 	pointerAnchor int
 	dragging      bool
+	focusPending  bool
 	current       *textlayout.Layout
 }
 
@@ -49,13 +50,14 @@ func NewElement(
 	now time.Time,
 ) *Element {
 	return &Element{
-		Input:     input,
-		Theme:     semantic,
-		Prose:     prose,
-		Label:     "Document",
-		AutoFocus: true,
-		Layout:    textlayout.NewCache(),
-		Motion:    motion.New(now),
+		Input:        input,
+		Theme:        semantic,
+		Prose:        prose,
+		Label:        "Document",
+		AutoFocus:    true,
+		focusPending: true,
+		Layout:       textlayout.NewCache(),
+		Motion:       motion.New(now),
 	}
 }
 
@@ -70,7 +72,13 @@ func (e *Element) View(c *ui.Context) {
 		Value(e.value()).
 		Focusable()
 	if e.AutoFocus {
-		box.AutoFocus()
+		if e.focusPending {
+			box.AutoFocus()
+			e.focusPending = false
+		}
+	} else if e.focusPending {
+		box.Focus()
+		e.focusPending = false
 	}
 	box.HandleInput(e.handleInput).
 		TextCaret(e.caret(c)).
@@ -80,6 +88,18 @@ func (e *Element) View(c *ui.Context) {
 	if client != nil {
 		box.HandleTextInput(client)
 	}
+}
+
+// Focus requests keyboard focus on the next frame, as after a page switch.
+func (e *Element) Focus() {
+	if e != nil {
+		e.focusPending = true
+	}
+}
+
+// FocusPending reports whether a future frame will restore keyboard focus.
+func (e *Element) FocusPending() bool {
+	return e != nil && e.focusPending
 }
 
 func (e *Element) label() string {
