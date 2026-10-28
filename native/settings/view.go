@@ -11,11 +11,21 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+const (
+	// contentWidth bounds the settings column so controls stay near their
+	// labels in wide windows.
+	contentWidth = float32(680)
+	// spyOffset is how far below the viewport top a section's title may sit
+	// and still count as the section being read.
+	spyOffset = float32(48)
+)
+
 func (s *State) View(c *ui.Context) {
 	c.SetTheme(s.Theme.MyGoTheme())
 	semantic := s.Theme.Semantic()
 	scale := s.Theme.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
+	s.followPending(c)
 	ui.Row(c).Fill().Background(semantic.Surface.Background).Children(func() {
 		s.navigation(c, semantic, metrics)
 		s.page(c, semantic, metrics)
@@ -28,14 +38,14 @@ func (s *State) navigation(
 	metrics theme.ControlMetrics,
 ) {
 	scale := s.Theme.UIFontSize
-	top := float32(12)
+	top := theme.Space12.DIPs(scale)
 	if runtime.GOOS == "darwin" {
 		top = theme.DefaultLayout.Titlebar * scale / theme.DefaultUIFontSize
 	}
 	animate := s.motion(c)
 	ui.Column(c).Width(240*scale/theme.DefaultUIFontSize).HeightPercent(100).
-		Shrink(0).Background(semantic.Surface.Background).
-		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Default).Children(func() {
+		Shrink(0).Background(semantic.Surface.Panel).
+		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
 		ui.Column(c).Grow(1).MinHeight(0).Padding(
 			top, theme.Space12.DIPs(scale), 0, theme.Space12.DIPs(scale),
 		).Children(func() {
@@ -48,67 +58,94 @@ func (s *State) navigation(
 			ui.Box(c).Height(theme.Space12.DIPs(scale))
 			ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 				ui.Column(c).Role(ui.RoleTree).Label("Settings Navigation").
+					Padding(0, 0, theme.Space12.DIPs(scale), 0).
 					Gap(theme.Space02.DIPs(scale)).Children(func() {
-					s.tree(c, semantic, metrics)
+					s.tree(c, semantic, metrics, animate)
 				})
 			})
 		})
-		ui.Row(c).Height(theme.DefaultLayout.Status*scale/theme.DefaultUIFontSize).
-			Shrink(0).PaddingX(theme.Space12.DIPs(scale)).AlignItems(ui.Center).
-			BorderWidth(1, 0, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
-			components.Label(c, s.statusText(), theme.TextXSmall, semantic.Text.Muted).
-				Grow(1).MinWidth(0).SingleLine()
-		})
+		ui.Row(c).Height(theme.DefaultLayout.Status * scale / theme.DefaultUIFontSize).
+			Shrink(0).PaddingX(theme.Space16.DIPs(scale)).AlignItems(ui.Center).
+			Children(func() {
+				components.Label(c, s.statusText(), theme.TextXSmall, semantic.Text.Muted).
+					Grow(1).MinWidth(0).SingleLine()
+			})
 	})
 }
 
+// tree draws the categories and their sections. A category's sections open
+// and close by animating their height, the chevron turning with them; the
+// section being read is highlighted and kept in view as the page scrolls.
 func (s *State) tree(
 	c *ui.Context,
 	semantic theme.Theme,
 	metrics theme.ControlMetrics,
+	animate bool,
 ) {
+	scale := s.Theme.UIFontSize
 	query := strings.ToLower(strings.TrimSpace(s.Query))
+	active := s.activeSection()
+	activeChanged := active != s.lastActive
+	s.lastActive = active
+	gap := theme.Space02.DIPs(scale)
 	for _, category := range appsettings.AllCategories {
-		if query != "" && !s.categoryMatches(category, query) {
+		children := s.categoryChildren(category, query)
+		if query != "" && len(children) == 0 {
 			continue
 		}
 		open := s.categoryOpen(category)
-		icon := components.IconChevronRight.SVG()
+		target := float32(0)
 		if open {
-			icon = components.IconChevronDown.SVG()
+			target = 1
 		}
-		components.NavigationRow{
-			Key: "settings-category-" + category.Title(), Label: category.Title(),
-			Selected: s.Category == category, Role: ui.RoleTreeItem, FullWidth: true,
-			Expanded: &open,
-			Leading: func() {
-				ui.Icon(c, icon).FontSize(14 * s.Theme.UIFontSize / theme.DefaultUIFontSize).
-					TextColor(semantic.Icon.Muted)
-			},
-			Action: func() {
-				s.expanded[category] = !open || query != ""
-				s.selectCategory(category)
-			},
-		}.View(c, semantic)
-		if !open {
-			continue
+		group := ui.Column(c).Key("settings-tree-" + category.Title()).WidthPercent(100)
+		reveal := target
+		if animate {
+			reveal = group.AnimateWith("reveal", target, components.MotionPanel, components.Decelerate)
 		}
-		for _, label := range s.categoryChildren(category, query) {
-			label := label
+		current := s.Category == category
+		group.Children(func() {
 			components.NavigationRow{
-				Key:   "settings-section-" + category.Title() + "-" + label,
-				Label: label, Role: ui.RoleTreeItem, FullWidth: true,
+				Key: "settings-category-" + category.Title(), Label: category.Title(),
+				Selected: current && (!open || active == ""),
+				Role:     ui.RoleTreeItem, FullWidth: true, Expanded: &open,
 				Leading: func() {
-					ui.Box(c).Width(24*s.Theme.UIFontSize/theme.DefaultUIFontSize).
-						HeightPercent(100).Shrink(0).
-						BorderWidth(0, 1, 0, 0).
-						BorderColor(semantic.Border.Default.Alpha(0.5))
+					ui.Icon(c, components.IconChevronRight.SVG()).
+						FontSize(14 * scale / theme.DefaultUIFontSize).
+						TextColor(semantic.Icon.Muted).Rotate(90 * reveal)
 				},
-				Action: func() { s.selectCategory(category) },
+				Action: func() { s.chooseCategory(category) },
 			}.View(c, semantic)
-		}
+			if reveal <= 0.001 || len(children) == 0 {
+				return
+			}
+			natural := float32(len(children)) * (metrics.Height + gap)
+			ui.Column(c).WidthPercent(100).Height(natural * reveal).Clip().
+				Opacity(reveal).Children(func() {
+				ui.Column(c).WidthPercent(100).Padding(gap, 0, 0, 0).Gap(gap).Children(func() {
+					for _, label := range children {
+						label := label
+						selected := current && open && active == label
+						row := components.NavigationRow{
+							Key:   "settings-section-" + category.Title() + "-" + label,
+							Label: label, Selected: selected,
+							Role: ui.RoleTreeItem, FullWidth: true,
+							Leading: func() {
+								ui.Box(c).Width(16*scale/theme.DefaultUIFontSize).
+									HeightPercent(100).Shrink(0).
+									BorderWidth(0, 1, 0, 0).
+									BorderColor(semantic.Border.Default.Alpha(0.5))
+							},
+							Action: func() { s.chooseSection(category, label) },
+						}.View(c, semantic)
+						if selected && activeChanged {
+							row.ScrollIntoView()
+						}
+					}
+				})
+			})
+		})
 	}
-	_ = metrics
 }
 
 func (s *State) categoryChildren(category appsettings.Category, query string) []string {
@@ -148,10 +185,6 @@ func (s *State) categoryChildren(category appsettings.Category, query string) []
 	return labels
 }
 
-func (s *State) categoryMatches(category appsettings.Category, query string) bool {
-	return len(s.categoryChildren(category, query)) > 0
-}
-
 func (s *State) page(
 	c *ui.Context,
 	semantic theme.Theme,
@@ -159,23 +192,38 @@ func (s *State) page(
 ) {
 	scale := s.Theme.UIFontSize
 	ui.Column(c).Grow(1).MinWidth(0).HeightPercent(100).
-		Background(semantic.Surface.Page).Children(func() {
+		Background(semantic.Surface.Background).Children(func() {
 		ui.Box(c).Height(theme.DefaultLayout.Titlebar * scale / theme.DefaultUIFontSize).
 			Shrink(0).DragWindow()
 		ui.Scroll(c).Grow(1).MinHeight(0).TrackScroll(&s.contentScroll).Children(func() {
-			ui.Column(c).Children(func() {
-				s.pageHeader(c, semantic)
-				switch s.Category {
-				case appsettings.Editor:
-					s.editorPage(c, semantic, metrics)
-				case appsettings.Keymap:
-					s.keymapPage(c, semantic, metrics)
-				case appsettings.Appearance:
-					s.appearancePage(c, semantic, metrics)
-				case appsettings.Diagnostics:
-					s.diagnosticsPage(c, semantic)
+			ui.Row(c).WidthPercent(100).Justify(ui.Center).
+				PaddingX(theme.Space32.DIPs(scale)).Children(func() {
+				content := ui.Column(c).Key("settings-content").WidthPercent(100).
+					MaxWidth(contentWidth * scale / theme.DefaultUIFontSize).
+					Gap(28 * scale / theme.DefaultUIFontSize)
+				if bounds := content.Bounds(); bounds.H > 0 {
+					s.contentTop = bounds.Y
 				}
-				ui.Box(c).Height(40 * scale / theme.DefaultUIFontSize)
+				s.building = s.building[:0]
+				content.Children(func() {
+					s.pageHeader(c, semantic)
+					switch s.Category {
+					case appsettings.Editor:
+						s.editorPage(c, semantic, metrics)
+					case appsettings.Keymap:
+						s.keymapPage(c, semantic, metrics)
+					case appsettings.Appearance:
+						s.appearancePage(c, semantic, metrics)
+					case appsettings.Diagnostics:
+						s.diagnosticsPage(c, semantic)
+					}
+					if len(s.building) == 0 {
+						components.Label(c, "No settings match your search.",
+							theme.TextSmall, semantic.Text.Muted)
+					}
+					ui.Box(c).Height(theme.Space24.DIPs(scale))
+				})
+				s.anchors = append(s.anchors[:0], s.building...)
 			})
 		})
 	})
@@ -184,8 +232,8 @@ func (s *State) page(
 func (s *State) pageHeader(c *ui.Context, semantic theme.Theme) {
 	scale := s.Theme.UIFontSize
 	ui.Column(c).Padding(
-		theme.Space24.DIPs(scale), theme.Space32.DIPs(scale),
-		theme.Space12.DIPs(scale), theme.Space32.DIPs(scale),
+		theme.Space08.DIPs(scale), theme.Space04.DIPs(scale),
+		0, theme.Space04.DIPs(scale),
 	).Gap(theme.Space04.DIPs(scale)).Children(func() {
 		components.Headline(c, s.Category.Title(), theme.HeadlineXLarge,
 			semantic.Text.Heading)
@@ -194,18 +242,107 @@ func (s *State) pageHeader(c *ui.Context, semantic theme.Theme) {
 	})
 }
 
+// section draws one anchored section: its title over a card of rows. The
+// anchor records where the section sits so the navigation can follow it.
+func (s *State) section(
+	c *ui.Context,
+	semantic theme.Theme,
+	label string,
+	description string,
+	rows func(),
+) {
+	scale := s.Theme.UIFontSize
+	block := ui.Column(c).Key("settings-anchor-" + label).WidthPercent(100).
+		Gap(theme.Space08.DIPs(scale))
+	top := float32(-1)
+	if bounds := block.Bounds(); bounds.H > 0 {
+		top = bounds.Y - s.contentTop
+	}
+	s.building = append(s.building, anchor{Label: label, Top: top})
+	block.Children(func() {
+		components.SectionHeader{Label: label, Description: description}.View(c, semantic)
+		components.SettingGroup{
+			Key: "settings-group-" + label, Label: label, Children: rows,
+		}.View(c, semantic)
+	})
+}
+
+// activeSection is the section the page is showing: the one a navigation
+// scroll is gliding to, else the last whose title has reached the top.
+func (s *State) activeSection() string {
+	if s.target != "" {
+		if s.contentScroll.Scrolling() {
+			return s.target
+		}
+		s.target = ""
+	}
+	if len(s.anchors) == 0 {
+		return ""
+	}
+	scale := s.Theme.UIFontSize
+	if s.contentScroll.MaxY > 0 && s.contentScroll.Y >= s.contentScroll.MaxY-1 {
+		return s.anchors[len(s.anchors)-1].Label
+	}
+	active := s.anchors[0].Label
+	for _, section := range s.anchors {
+		if section.Top < 0 {
+			continue
+		}
+		if section.Top-s.contentScroll.Y <= spyOffset*scale/theme.DefaultUIFontSize {
+			active = section.Label
+		}
+	}
+	return active
+}
+
+// followPending scrolls to a section the navigation chose once the page
+// that holds it has been laid out.
+func (s *State) followPending(c *ui.Context) {
+	if s.pending == "" {
+		return
+	}
+	for _, section := range s.anchors {
+		if section.Label != s.pending || section.Top < 0 {
+			continue
+		}
+		animation := ui.Animation{}
+		if s.motion(c) {
+			animation = ui.Animation{Duration: components.MotionScene, Ease: components.Decelerate}
+		}
+		s.contentScroll.ScrollTo(0, max(0, section.Top), animation)
+		s.target, s.pending = s.pending, ""
+		return
+	}
+}
+
+func (s *State) chooseCategory(category appsettings.Category) {
+	if s.Category == category && strings.TrimSpace(s.Query) == "" {
+		s.expanded[category] = !s.expanded[category]
+		return
+	}
+	s.selectCategory(category)
+}
+
+func (s *State) chooseSection(category appsettings.Category, label string) {
+	s.selectCategory(category)
+	s.pending = label
+}
+
 func (s *State) selectCategory(category appsettings.Category) {
 	if s.Category != category {
 		s.contentScroll.Y = 0
+		s.anchors = s.anchors[:0]
+		s.pending, s.target = "", ""
 	}
 	s.Category = category
+	s.expanded[category] = true
 }
 
 func (s *State) categoryOpen(category appsettings.Category) bool {
 	if strings.TrimSpace(s.Query) != "" {
 		return true
 	}
-	return category == s.Category || s.expanded[category]
+	return s.expanded[category]
 }
 
 func (s *State) statusText() string {

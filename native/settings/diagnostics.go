@@ -27,13 +27,12 @@ func (s *State) diagnosticsPage(c *ui.Context, semantic theme.Theme) {
 		if len(entries) == 0 {
 			entries = []string{section.Empty}
 		}
-		components.SectionHeader{
-			Label: section.Title, Description: section.Description,
-		}.View(c, semantic)
-		for index, entry := range entries {
-			components.SettingRow{
-				Label: entry, Last: index == len(entries)-1,
-			}.View(c, semantic)
-		}
+		s.section(c, semantic, section.Title, section.Description, func() {
+			for index, entry := range entries {
+				components.SettingRow{
+					Label: entry, Last: index == len(entries)-1,
+				}.View(c, semantic)
+			}
+		})
 	}
 }

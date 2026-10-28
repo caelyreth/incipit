@@ -26,26 +26,30 @@ func (s *State) editorPage(
 		if len(matches) == 0 {
 			continue
 		}
-		components.SectionHeader{
-			Label: section.Title, Description: section.Description,
-		}.View(c, semantic)
-		for index, setting := range matches {
-			setting := setting
-			components.SettingRow{
-				Label: setting.Label, Description: setting.Description,
-				Last: index == len(matches)-1,
-				Control: func() {
-					components.Switch{
-						Key: setting.Selector, Label: setting.Label,
-						Selected: setting.Value, Disabled: !setting.Enabled,
-						Animate: s.motion(c),
-						Action: func(value bool) {
-							s.apply(appsettings.ToggleBoolean(setting.Key, value))
-						},
-					}.View(c, semantic)
-				},
-			}.View(c, semantic)
-		}
+		s.section(c, semantic, section.Title, section.Description, func() {
+			for index, setting := range matches {
+				setting := setting
+				description := setting.Description
+				if description == section.Description {
+					// The section already says it; repeating it reads as noise.
+					description = ""
+				}
+				components.SettingRow{
+					Label: setting.Label, Description: description,
+					Last: index == len(matches)-1,
+					Control: func() {
+						components.Switch{
+							Key: setting.Selector, Label: setting.Label,
+							Selected: setting.Value, Disabled: !setting.Enabled,
+							Animate: s.motion(c),
+							Action: func(value bool) {
+								s.apply(appsettings.ToggleBoolean(setting.Key, value))
+							},
+						}.View(c, semantic)
+					},
+				}.View(c, semantic)
+			}
+		})
 	}
 	_ = metrics
 }

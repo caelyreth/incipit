@@ -31,14 +31,15 @@ func (s *State) keymapPage(
 			}
 		}
 		if len(filtered) > 0 {
-			components.SectionHeader{Label: first.Group}.View(c, semantic)
-			for index, shortcut := range filtered {
-				shortcut := shortcut
-				components.SettingRow{
-					Label: shortcut.Label, Last: index == len(filtered)-1,
-					Control: func() { s.shortcutControl(c, semantic, shortcut) },
-				}.View(c, semantic)
-			}
+			s.section(c, semantic, first.Group, "", func() {
+				for index, shortcut := range filtered {
+					shortcut := shortcut
+					components.SettingRow{
+						Label: shortcut.Label, Last: index == len(filtered)-1,
+						Control: func() { s.shortcutControl(c, semantic, shortcut) },
+					}.View(c, semantic)
+				}
+			})
 		}
 		start = end
 	}

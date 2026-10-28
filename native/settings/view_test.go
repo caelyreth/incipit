@@ -1,10 +1,14 @@
 package settings
 
 import (
+	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/testlock"
 	"github.com/egoist/mygo/ui"
 )
@@ -190,4 +194,91 @@ func TestSettingsDefaultsToEditorOnlyAndReferenceSearch(t *testing.T) {
 		state.expanded[appsettings.Diagnostics] {
 		t.Fatalf("settings categories expand by default: %#v", state.expanded)
 	}
+}
+
+func scrollingEditorData(sections int) []appsettings.Section {
+	result := make([]appsettings.Section, 0, sections)
+	for index := range sections {
+		title := fmt.Sprintf("Section %d", index+1)
+		settings := make([]appsettings.ToggleSetting, 0, 4)
+		for row := range 4 {
+			settings = append(settings, appsettings.ToggleSetting{
+				Key:         appsettings.PolicyBoolean(kernel.PolicyID(fmt.Sprintf("editor.s%d.r%d", index, row))),
+				Label:       fmt.Sprintf("%s option %d", title, row+1),
+				Description: "A setting that takes a row of the page.",
+				Value:       true, Enabled: true,
+				Selector: fmt.Sprintf("s%d-r%d", index, row),
+			})
+		}
+		result = append(result, appsettings.Section{
+			Title: title, Description: "Settings grouped under one heading.", Settings: settings,
+		})
+	}
+	return result
+}
+
+func TestSettingsTreeAnimatesSectionsOpenAndClosed(t *testing.T) {
+	state := New()
+	state.Data.Sections = scrollingEditorData(3)
+	tester := ui.NewTester(state.View, 900, 650)
+	tester.Frame()
+	tester.Advance(time.Second)
+	if err := tester.Click("Editor"); err != nil {
+		t.Fatal(err)
+	}
+	if state.expanded[appsettings.Editor] {
+		t.Fatal("clicking the open current category did not collapse it")
+	}
+	tester.Advance(components.MotionPanel / 3)
+	if _, ok := railRow(tester, "Section 2"); !ok {
+		t.Fatal("sections vanished at once instead of collapsing")
+	}
+	tester.Advance(time.Second)
+	if _, ok := railRow(tester, "Section 2"); ok {
+		t.Fatal("collapsed sections still show in the navigation")
+	}
+	if err := tester.Click("Editor"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Advance(components.MotionPanel / 3)
+	if _, ok := railRow(tester, "Section 2"); !ok {
+		t.Fatal("sections did not begin opening")
+	}
+}
+
+func TestSettingsNavigationScrollsToSectionAndFollowsScrolling(t *testing.T) {
+	state := New()
+	state.Data.Sections = scrollingEditorData(6)
+	tester := ui.NewTester(state.View, 900, 650)
+	tester.Frame()
+	tester.Advance(time.Second)
+	if got := state.activeSection(); got != "Section 1" {
+		t.Fatalf("initial active section = %q", got)
+	}
+	if err := tester.Click("Section 4"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Advance(time.Second)
+	if state.contentScroll.Y <= 0 {
+		t.Fatal("choosing a section did not scroll the page")
+	}
+	if got := state.activeSection(); got != "Section 4" {
+		t.Fatalf("active section after navigation = %q", got)
+	}
+	heading, ok := tester.Find("Section 4 option 1")
+	if !ok || heading.Y < 0 || heading.Y > 260 {
+		t.Fatalf("Section 4 is not near the top of the page: %v", heading)
+	}
+
+	state.contentScroll.Y = 0
+	tester.Frame()
+	if got := state.activeSection(); got != "Section 1" {
+		t.Fatalf("navigation did not follow scrolling back: %q", got)
+	}
+}
+
+// railRow finds a navigation row by its label, ignoring page content.
+func railRow(tester *ui.Tester, label string) (ui.Rect, bool) {
+	rect, ok := tester.Find(label)
+	return rect, ok && rect.X < 240
 }

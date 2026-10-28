@@ -15,88 +15,88 @@ func (s *State) appearancePage(
 	metrics theme.ControlMetrics,
 ) {
 	scale := s.Theme.UIFontSize
-	components.SectionHeader{
-		Label: "Theme", Description: "Colors and chrome scale for every Neverland window.",
-	}.View(c, semantic)
-	components.SettingRow{
-		Label:       "Theme",
-		Description: "Ink is the default dark appearance; Paper provides a light alternative.",
-		Control: func() {
-			options := make([]components.SegmentOption, 0, 2)
-			for index, label := range []string{"Ink", "Paper"} {
-				value := index + 1
-				options = append(options, components.SegmentOption{
-					Key: "theme-" + label, Label: label,
-					Selected: s.Theme.Appearance == theme.Appearance(value),
-					Action: func() {
-						s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
-							Kind: appsettings.SetTheme, Theme: uint8(value),
-						}))
-					},
-				})
-			}
-			components.Segmented{
-				Key: "theme-choice", Label: "Theme", Options: options,
-				Animate: s.motion(c),
-			}.View(c, semantic)
-		},
-	}.View(c, semantic)
-	components.SettingRow{
-		Label: "Accent", Description: "Focus, selection, caret and active controls.",
-		Control: func() {
-			ui.Row(c).Wrap().Justify(ui.End).Gap(theme.Space06.DIPs(scale)).
-				Children(func() {
-					for _, accent := range theme.AllAccents {
-						accent := accent
-						components.Swatch{
-							Key: "accent-" + accent.Label(), Label: accent.Label(),
-							Color:    theme.AccentSwatch(s.Theme.Appearance, accent),
-							Selected: s.Theme.Accent == accent,
-							Animate:  s.motion(c),
-							Action: func() {
-								s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
-									Kind: appsettings.SetAccent, Accent: uint8(accent + 1),
-								}))
-							},
-						}.View(c, semantic)
-					}
-				})
-		},
-	}.View(c, semantic)
-	components.SettingRow{
-		Label:       "UI Font Size",
-		Description: "Scales chrome; document text keeps its own size.",
-		Control: func() {
-			s.fontStepper(c, semantic, true)
-		},
-	}.View(c, semantic)
-	components.SectionHeader{
-		Label:       "Writing Environment",
-		Description: "Presentation choices shared across the workspace.",
-	}.View(c, semantic)
-	components.SettingRow{
-		Label:       "Document Text Size",
-		Description: "Prose, title and column scale together in every window.",
-		Control: func() {
-			s.fontStepper(c, semantic, false)
-		},
-	}.View(c, semantic)
-	for index, setting := range s.Data.Appearance {
-		setting := setting
+	s.section(c, semantic, "Theme", "Colors and chrome scale for every Neverland window.", func() {
 		components.SettingRow{
-			Label: setting.Label, Description: setting.Description,
-			Last: index == len(s.Data.Appearance)-1,
+			Label:       "Theme",
+			Description: "Ink is the default dark appearance; Paper provides a light alternative.",
 			Control: func() {
-				components.Switch{
-					Key: setting.Selector, Label: setting.Label,
-					Selected: setting.Value, Animate: s.motion(c),
-					Action: func(value bool) {
-						s.apply(appsettings.ToggleBoolean(setting.Key, value))
-					},
+				options := make([]components.SegmentOption, 0, 2)
+				for index, label := range []string{"Ink", "Paper"} {
+					value := index + 1
+					options = append(options, components.SegmentOption{
+						Key: "theme-" + label, Label: label,
+						Selected: s.Theme.Appearance == theme.Appearance(value),
+						Action: func() {
+							s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
+								Kind: appsettings.SetTheme, Theme: uint8(value),
+							}))
+						},
+					})
+				}
+				components.Segmented{
+					Key: "theme-choice", Label: "Theme", Options: options,
+					Animate: s.motion(c),
 				}.View(c, semantic)
 			},
 		}.View(c, semantic)
-	}
+		components.SettingRow{
+			Label: "Accent", Description: "Focus, selection, caret and active controls.",
+			Control: func() {
+				ui.Row(c).Wrap().Justify(ui.End).Gap(theme.Space06.DIPs(scale)).
+					Children(func() {
+						for _, accent := range theme.AllAccents {
+							accent := accent
+							components.Swatch{
+								Key: "accent-" + accent.Label(), Label: accent.Label(),
+								Color:    theme.AccentSwatch(s.Theme.Appearance, accent),
+								Selected: s.Theme.Accent == accent,
+								Animate:  s.motion(c),
+								Action: func() {
+									s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
+										Kind: appsettings.SetAccent, Accent: uint8(accent + 1),
+									}))
+								},
+							}.View(c, semantic)
+						}
+					})
+			},
+		}.View(c, semantic)
+		components.SettingRow{
+			Label:       "UI Font Size",
+			Description: "Scales chrome; document text keeps its own size.",
+			Last:        true,
+			Control: func() {
+				s.fontStepper(c, semantic, true)
+			},
+		}.View(c, semantic)
+	})
+	s.section(c, semantic, "Writing Environment",
+		"Presentation choices shared across the workspace.", func() {
+			components.SettingRow{
+				Label:       "Document Text Size",
+				Description: "Prose, title and column scale together in every window.",
+				Last:        len(s.Data.Appearance) == 0,
+				Control: func() {
+					s.fontStepper(c, semantic, false)
+				},
+			}.View(c, semantic)
+			for index, setting := range s.Data.Appearance {
+				setting := setting
+				components.SettingRow{
+					Label: setting.Label, Description: setting.Description,
+					Last: index == len(s.Data.Appearance)-1,
+					Control: func() {
+						components.Switch{
+							Key: setting.Selector, Label: setting.Label,
+							Selected: setting.Value, Animate: s.motion(c),
+							Action: func(value bool) {
+								s.apply(appsettings.ToggleBoolean(setting.Key, value))
+							},
+						}.View(c, semantic)
+					},
+				}.View(c, semantic)
+			}
+		})
 	_ = metrics
 }
 

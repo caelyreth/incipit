@@ -5,6 +5,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// SettingRow is one labeled control inside a SettingGroup. Rows other than
+// the last draw a hairline inset to the label column, so a group reads as
+// one card rather than a run of separated strips.
 type SettingRow struct {
 	Label       string
 	Description string
@@ -16,41 +19,60 @@ type SettingRow struct {
 
 func (r SettingRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
-	row := ui.Column(c).Shrink(0).WidthPercent(100).MinWidth(0).
-		PaddingX(theme.Space32.DIPs(scale)).Children(func() {
-		bottom := theme.Space16.DIPs(scale)
-		if r.Last {
-			bottom = theme.Space32.DIPs(scale)
-		}
-		ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).Wrap().
-			Justify(ui.SpaceBetween).Gap(theme.Space16.DIPs(scale)).
-			Padding(theme.Space16.DIPs(scale), 0, bottom, 0).Children(func() {
-			ui.Column(c).Grow(1).MinWidth(180 * scale / theme.DefaultUIFontSize).
-				MaxWidthPercent(100).Gap(theme.Space04.DIPs(scale)).Children(func() {
-				ui.Row(c).AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
-					Label(c, r.Label, theme.TextDefault, semantic.Text.Default)
-					if r.Reset != nil {
-						IconButton{
-							Key: "reset", Label: "Reset to Default", Icon: r.ResetIcon,
-							Style: SubtleButton, Size: CompactButton, Action: r.Reset,
-						}.View(c, semantic)
+	inset := theme.Space16.DIPs(scale)
+	return ui.Column(c).Shrink(0).WidthPercent(100).MinWidth(0).Children(func() {
+		ui.Row(c).WidthPercent(100).MinWidth(0).
+			MinHeight(theme.DefaultControls.Scaled(scale).Row+theme.Space12.DIPs(scale)).
+			AlignItems(ui.Center).Wrap().Justify(ui.SpaceBetween).
+			Gap(theme.Space16.DIPs(scale)).
+			Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).
+			Children(func() {
+				ui.Column(c).Grow(1).MinWidth(180 * scale / theme.DefaultUIFontSize).
+					MaxWidthPercent(100).Gap(theme.Space02.DIPs(scale)).Children(func() {
+					ui.Row(c).AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
+						Label(c, r.Label, theme.TextDefault, semantic.Text.Default)
+						if r.Reset != nil {
+							IconButton{
+								Key: "reset", Label: "Reset to Default", Icon: r.ResetIcon,
+								Style: SubtleButton, Size: CompactButton, Action: r.Reset,
+							}.View(c, semantic)
+						}
+					})
+					if r.Description != "" {
+						Label(c, r.Description, theme.TextSmall, semantic.Text.Muted)
 					}
 				})
-				if r.Description != "" {
-					Label(c, r.Description, theme.TextSmall, semantic.Text.Muted)
+				if r.Control != nil {
+					ui.Box(c).MinWidth(0).MaxWidthPercent(100).Children(r.Control)
 				}
 			})
-			if r.Control != nil {
-				ui.Box(c).MinWidth(0).MaxWidthPercent(100).Children(r.Control)
-			}
-		})
 		if !r.Last {
-			HorizontalDivider(c, semantic, VariantDivider)
+			ui.Row(c).WidthPercent(100).PaddingStart(inset).Children(func() {
+				HorizontalDivider(c, semantic, VariantDivider)
+			})
 		}
 	})
-	return row
 }
 
+// SettingGroup is the card that holds one section's rows.
+type SettingGroup struct {
+	Key      string
+	Label    string
+	Children func()
+}
+
+func (g SettingGroup) View(c *ui.Context, semantic theme.Theme) ui.Element {
+	scale := UIFontSize(c)
+	return ui.Column(c).Key(g.Key).Role(ui.RoleGroup).Label(g.Label).
+		Shrink(0).WidthPercent(100).MinWidth(0).
+		Radius(theme.DefaultControls.Scaled(scale).PanelRadius).
+		Border(1, semantic.Border.Variant).
+		Background(semantic.Surface.Page).Clip().
+		Children(g.Children)
+}
+
+// SectionHeader titles a SettingGroup. The title is the section's anchor in
+// the settings navigation; the description explains the group as a whole.
 type SectionHeader struct {
 	Label       string
 	Description string
@@ -59,12 +81,11 @@ type SectionHeader struct {
 func (s SectionHeader) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	return ui.Column(c).Shrink(0).WidthPercent(100).
-		PaddingX(theme.Space32.DIPs(scale)).Gap(theme.Space06.DIPs(scale)).
+		PaddingX(theme.Space04.DIPs(scale)).Gap(theme.Space02.DIPs(scale)).
 		Role(ui.RoleHeading).Label(s.Label).Children(func() {
-		Label(c, s.Label, theme.TextSmall, semantic.Text.Muted)
+		Label(c, s.Label, theme.TextDefault, semantic.Text.Heading).FontWeight(600)
 		if s.Description != "" {
 			Label(c, s.Description, theme.TextSmall, semantic.Text.Muted)
 		}
-		HorizontalDivider(c, semantic, FadedDivider)
 	})
 }

@@ -19,6 +19,22 @@ type State struct {
 
 	expanded      map[appsettings.Category]bool
 	contentScroll ui.ScrollState
+
+	// anchors are the current page's section tops in content coordinates,
+	// in page order, as the previous frame laid them out. pending is a
+	// section the navigation asked to show once its anchor is known, and
+	// target the one a scroll is gliding to.
+	anchors    []anchor
+	building   []anchor
+	contentTop float32
+	pending    string
+	target     string
+	lastActive string
+}
+
+type anchor struct {
+	Label string
+	Top   float32
 }
 
 func New() *State {
