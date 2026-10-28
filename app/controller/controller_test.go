@@ -149,6 +149,42 @@ func TestCollapsedReplacementAtCaretPreservesVisualCaretIdentity(t *testing.T) {
 	}
 }
 
+func TestCollapsedTypingInsideGeneratedStrongPair(t *testing.T) {
+	t.Parallel()
+	controller := newController(t, "")
+	if outcome, err := controller.Session().ExecuteMarkup(editor.MarkupStrong); err != nil ||
+		outcome != kernel.OutcomeHandled {
+		t.Fatalf("strong outcome=%v err=%v", outcome, err)
+	}
+	controller.Refresh()
+	controller.ReplaceText(nil, "a")
+	controller.ReplaceText(nil, "b")
+	if controller.Text() != "**ab**" {
+		t.Fatalf("strong typed text = %q (last error %v)", controller.Text(), controller.LastError())
+	}
+	if controller.Caret() != 4 {
+		t.Fatalf("strong typed caret = %d", controller.Caret())
+	}
+}
+
+func TestIMECommitInsideGeneratedStrongPair(t *testing.T) {
+	t.Parallel()
+	controller := newController(t, "")
+	if outcome, err := controller.Session().ExecuteMarkup(editor.MarkupStrong); err != nil ||
+		outcome != kernel.OutcomeHandled {
+		t.Fatalf("strong outcome=%v err=%v", outcome, err)
+	}
+	controller.Refresh()
+	controller.SetMarkedText(nil, "你", UTF16Range{Start: 1, End: 1})
+	if controller.Text() != "**你**" || !controller.IsComposing() {
+		t.Fatalf("preedit text=%q composing=%v error=%v", controller.Text(), controller.IsComposing(), controller.LastError())
+	}
+	controller.UnmarkText()
+	if controller.IsComposing() || controller.Text() != "**你**" {
+		t.Fatalf("committed text=%q composing=%v error=%v", controller.Text(), controller.IsComposing(), controller.LastError())
+	}
+}
+
 func TestExecuteRoutesTextHistoryWordMarkupAndApplicationCommands(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "one two")

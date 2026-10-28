@@ -205,7 +205,7 @@ func (p *Presentation) CollapsedTarget() (projection.Target, error) {
 	if !range16.Empty() {
 		return projection.Target{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
-	return p.Target(range16)
+	return p.Caret, nil
 }
 
 // SurfaceFlow returns the retained flow for the current projection.

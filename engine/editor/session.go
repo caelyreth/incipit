@@ -306,6 +306,9 @@ func (s *Session) SelectionTarget() (projection.Target, error) {
 	if err != nil {
 		return projection.Target{}, err
 	}
+	if range16.Empty() {
+		return s.presentation.CollapsedTarget()
+	}
 	return s.presentation.Target(range16)
 }
 
@@ -315,13 +318,18 @@ func (s *Session) ReplaceSelection(replacement string, origin kernel.EventOrigin
 	if _, active := s.composition.Preview(); active {
 		return EditingOutcome{}, ErrCompositionActive
 	}
-	target, err := s.SelectionTarget()
+	range16, err := s.VisualSelection()
 	if err != nil {
 		return EditingOutcome{}, err
 	}
-	edit, err := FromProjectionTarget(
+	selection, err := s.ProjectedState()
+	if err != nil {
+		return EditingOutcome{}, err
+	}
+	edit, err := FromSelectionAndRange(
 		s.presentation.Projection,
-		target,
+		range16,
+		selection,
 		replacement,
 		origin,
 	)

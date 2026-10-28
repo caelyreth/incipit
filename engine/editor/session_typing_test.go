@@ -76,3 +76,23 @@ func TestSessionTypingSmartClosesQuotes(t *testing.T) {
 		t.Fatalf("smart quotes text = %q", nodeValue.Text().String())
 	}
 }
+
+func TestSessionTypingKeepsCollapsedGeneratedStrongPairOpen(t *testing.T) {
+	t.Parallel()
+	session, _ := newSessionFixture(t, "", false)
+	if outcome, err := session.ExecuteMarkup(MarkupStrong); err != nil ||
+		outcome != kernel.OutcomeHandled {
+		t.Fatalf("strong outcome=%v err=%v", outcome, err)
+	}
+	if session.Projection().Text() != "****" {
+		t.Fatalf("empty strong projection = %q", session.Projection().Text())
+	}
+	typeSession(t, session, "a")
+	typeSession(t, session, "b")
+	if session.Projection().Text() != "**ab**" {
+		t.Fatalf("strong typing projection = %q", session.Projection().Text())
+	}
+	if session.Caret().RangeUTF16().Start != 4 {
+		t.Fatalf("strong typing caret = %d", session.Caret().RangeUTF16().Start)
+	}
+}
