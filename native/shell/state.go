@@ -29,6 +29,7 @@ type State struct {
 	OpenCommands  func()
 	FindPage      func()
 	ToggleSidebar func()
+	MoveTab       func(id, delta int)
 }
 
 func New() *State {

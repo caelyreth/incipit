@@ -16,6 +16,9 @@ func (s *State) View(c *ui.Context) {
 
 	ui.Column(c).Fill().Background(semantic.Surface.Background).Children(func() {
 		s.header(c, semantic, metrics, bar)
+		if !s.Appearance.Zen {
+			s.tabbar(c, semantic, metrics, layout)
+		}
 		ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
 			if sidebar {
 				s.sidebar(c, semantic, metrics, layout)
@@ -26,6 +29,28 @@ func (s *State) View(c *ui.Context) {
 		})
 		s.footer(c, semantic, metrics, layout)
 	})
+}
+
+func (s *State) tabbar(
+	c *ui.Context,
+	semantic theme.Theme,
+	metrics theme.ControlMetrics,
+	layout theme.Layout,
+) {
+	ui.Row(c).Height(layout.Titlebar).Padding(theme.Space08.DIPs(s.Settings.UIFontSize)).
+		AlignItems(ui.Center).Gap(theme.Space02.DIPs(s.Settings.UIFontSize)).
+		Background(semantic.Surface.Background).Children(func() {
+		for _, page := range s.Pages {
+			tab := ui.Button(c.Key("tab-"+page.ID), page.Title).Height(metrics.Height)
+			if page.ID == s.ActivePage {
+				tab.Background(semantic.Element.Selected)
+			}
+			if tab.Clicked() && s.SelectPage != nil {
+				s.SelectPage(page.ID)
+			}
+		}
+	})
+	ui.Divider(c).BorderColor(semantic.Border.Default)
 }
 
 func (s *State) header(
