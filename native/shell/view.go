@@ -19,9 +19,6 @@ func (s *State) View(c *ui.Context) {
 
 	ui.Column(c).Fill().Background(semantic.Surface.Background).Children(func() {
 		s.header(c, semantic, metrics, layout, bar)
-		if !s.Appearance.Zen {
-			s.tabbar(c, semantic, metrics, layout)
-		}
 		ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
 			if sidebar {
 				s.sidebar(c, semantic, metrics, layout)
@@ -32,28 +29,6 @@ func (s *State) View(c *ui.Context) {
 		})
 		s.footer(c, semantic, metrics, layout)
 	})
-}
-
-func (s *State) tabbar(
-	c *ui.Context,
-	semantic theme.Theme,
-	metrics theme.ControlMetrics,
-	layout theme.Layout,
-) {
-	ui.Row(c).Height(layout.Titlebar).Padding(theme.Space08.DIPs(s.Settings.UIFontSize)).
-		AlignItems(ui.Center).Gap(theme.Space02.DIPs(s.Settings.UIFontSize)).
-		Background(semantic.Surface.Background).Children(func() {
-		for _, page := range s.Pages {
-			tab := ui.Button(c.Key("tab-"+page.ID), page.Title).Height(metrics.Height)
-			if page.ID == s.ActivePage {
-				tab.Background(semantic.Element.Selected)
-			}
-			if tab.Clicked() && s.SelectPage != nil {
-				s.SelectPage(page.ID)
-			}
-		}
-	})
-	ui.Divider(c).BorderColor(semantic.Border.Default)
 }
 
 func (s *State) header(
@@ -77,13 +52,26 @@ func (s *State) header(
 			s.ToggleSidebar()
 		}
 		ui.Box(c).Width(1).Height(metrics.Icon).Shrink(0).Background(semantic.Border.Default)
-		ui.Icon(c, glyph(IconDocument)).FontSize(metrics.Icon).
-			TextColor(semantic.Icon.Muted)
-		ui.Text(c, s.activeTitle()).MaxWidth(
-			layout.Sidebar - theme.Space32.DIPs(s.Settings.UIFontSize),
-		).MinWidth(0).FontSize(
-			theme.TextDefault.Size(s.Settings.UIFontSize),
-		).TextColor(semantic.Text.Default).SingleLine()
+		if !s.Appearance.Zen {
+			for _, page := range s.Pages {
+				tab := ui.Button(c.Key("tab-"+page.ID), page.Title).
+					Height(metrics.Height).Label(page.Title)
+				if page.ID == s.ActivePage {
+					tab.Background(semantic.Element.Selected)
+				}
+				if tab.Clicked() && s.SelectPage != nil {
+					s.SelectPage(page.ID)
+				}
+			}
+		} else {
+			ui.Icon(c, glyph(IconDocument)).FontSize(metrics.Icon).
+				TextColor(semantic.Icon.Muted)
+			ui.Text(c, s.activeTitle()).MaxWidth(
+				layout.Sidebar - theme.Space32.DIPs(s.Settings.UIFontSize),
+			).MinWidth(0).FontSize(
+				theme.TextDefault.Size(s.Settings.UIFontSize),
+			).TextColor(semantic.Text.Default).SingleLine()
+		}
 		if s.iconButton(c, "close-page", "Close page", IconClose, metrics, semantic).
 			Disabled(s.ActivePage == "").Clicked() && s.ClosePage != nil {
 			s.ClosePage()

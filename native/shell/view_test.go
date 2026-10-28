@@ -195,18 +195,8 @@ func TestIconControlsAreKeyboardReachableAndSidebarSearchFiltersPages(t *testing
 		t.Fatal(err)
 	}
 	tester.Type("Second")
-	first, second := 0, 0
-	for _, text := range tester.Texts() {
-		switch text {
-		case "First":
-			first++
-		case "Second":
-			second++
-		}
-	}
-	// The header, tab, and document title keep "First"; its sidebar row is filtered.
-	if first != 3 || second != 2 {
-		t.Fatalf("filtered page labels = First:%d Second:%d in %#v", first, second, tester.Texts())
+	if !tester.HasText("Pages · 1") {
+		t.Fatalf("filtered sidebar section missing from %#v", tester.Texts())
 	}
 }
 

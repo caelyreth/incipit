@@ -110,6 +110,14 @@ func (a *AppState) BindShell() {
 		a.Element.Prose = theme.NewProseStyle(a.Shell.Settings.ProseFontSize)
 		a.Element.Animate = a.Shell.Appearance.Motion
 		a.Element.Typewriter = a.Shell.Appearance.Typewriter
+		if controller := a.Session.Document(); controller != nil && controller.Session() != nil {
+			toolbar := controller.Session().ToolbarState()
+			a.Shell.Formatting.Italic = toolbar.Emphasis
+			a.Shell.Formatting.Bold = toolbar.Strong
+			a.Shell.Formatting.Background = false
+			a.Shell.CanUndo = toolbar.CanUndo
+			a.Shell.CanRedo = toolbar.CanRedo
+		}
 		a.Element.View(c)
 	}
 	a.Shell.SelectPage = func(id string) {

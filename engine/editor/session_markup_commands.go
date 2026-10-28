@@ -16,6 +16,11 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 	if _, active := s.composition.Preview(); active {
 		return 0, ErrCompositionActive
 	}
+	beforeFrame, beforeOK := s.historyFrame()
+	beforeVisual, visualErr := s.ProjectedState()
+	if !beforeOK || visualErr != nil {
+		return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+	}
 	selection := s.presentation.Selection
 	range16, err := selection.Range()
 	if err != nil {
@@ -124,6 +129,7 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 	if transaction.Value.Status == kernel.OutcomeHandled {
 		s.applyPresentation(candidate)
 		s.inline.Activate(active)
+		s.history.Record(beforeFrame, beforeVisual, !transaction.Changes.Empty(), false)
 	}
 	return transaction.Value.Status, nil
 }
