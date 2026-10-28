@@ -45,7 +45,10 @@ func (s *State) sidebar(
 				})
 				pages := s.filteredPages()
 				ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-					ui.Column(c).Gap(theme.Space02.DIPs(scale)).Children(func() {
+					list := ui.Column(c).Gap(theme.Space02.DIPs(scale))
+					track := components.TrackSelection(list,
+						components.NavigationSelection(c, semantic), animate)
+					list.Children(func() {
 						if len(pages) == 0 {
 							ui.Box(c).Padding(theme.Space08.DIPs(scale)).Children(func() {
 								components.Label(c, "No pages match your search.",
@@ -57,6 +60,7 @@ func (s *State) sidebar(
 							page := page
 							components.NavigationRow{
 								Key: page.ID, Label: page.Title, Selected: page.ID == s.ActivePage,
+								Track: track, Animate: animate,
 								Role: ui.RoleButton, FullWidth: true,
 								Leading: func() {
 									ui.Icon(c, components.IconDocument.SVG()).

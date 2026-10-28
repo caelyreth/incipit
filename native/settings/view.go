@@ -57,10 +57,13 @@ func (s *State) navigation(
 			}.View(c, semantic)
 			ui.Box(c).Height(theme.Space12.DIPs(scale))
 			ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-				ui.Column(c).Role(ui.RoleTree).Label("Settings Navigation").
+				list := ui.Column(c).Role(ui.RoleTree).Label("Settings Navigation").
 					Padding(0, 0, theme.Space12.DIPs(scale), 0).
-					Gap(theme.Space02.DIPs(scale)).Children(func() {
-					s.tree(c, semantic, metrics, animate)
+					Gap(theme.Space02.DIPs(scale))
+				track := components.TrackSelection(list,
+					components.NavigationSelection(c, semantic), animate)
+				list.Children(func() {
+					s.tree(c, semantic, metrics, animate, track)
 				})
 			})
 		})
@@ -81,6 +84,7 @@ func (s *State) tree(
 	semantic theme.Theme,
 	metrics theme.ControlMetrics,
 	animate bool,
+	track *components.SelectionTrack,
 ) {
 	scale := s.Theme.UIFontSize
 	query := strings.ToLower(strings.TrimSpace(s.Query))
@@ -107,8 +111,9 @@ func (s *State) tree(
 		group.Children(func() {
 			components.NavigationRow{
 				Key: "settings-category-" + category.Title(), Label: category.Title(),
-				Selected: current && (!open || active == ""),
-				Role:     ui.RoleTreeItem, FullWidth: true, Expanded: &open,
+				Selected: current && (!open || active == ""), Track: track,
+				Animate: animate,
+				Role:    ui.RoleTreeItem, FullWidth: true, Expanded: &open,
 				Leading: func() {
 					ui.Icon(c, components.IconChevronRight.SVG()).
 						FontSize(14 * scale / theme.DefaultUIFontSize).
@@ -128,8 +133,9 @@ func (s *State) tree(
 						selected := current && open && active == label
 						row := components.NavigationRow{
 							Key:   "settings-section-" + category.Title() + "-" + label,
-							Label: label, Selected: selected,
-							Role: ui.RoleTreeItem, FullWidth: true,
+							Label: label, Selected: selected, Track: track,
+							Animate: animate,
+							Role:    ui.RoleTreeItem, FullWidth: true,
 							Leading: func() {
 								ui.Box(c).Width(16*scale/theme.DefaultUIFontSize).
 									HeightPercent(100).Shrink(0).

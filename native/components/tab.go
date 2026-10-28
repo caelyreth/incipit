@@ -39,11 +39,8 @@ func (t Tab) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		PaddingStart(10 * scale / theme.DefaultUIFontSize).
 		PaddingEnd(3 * scale / theme.DefaultUIFontSize).
 		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Radius(metrics.Radius)
-	target := rest
-	if !t.Selected && tab.Hovered() {
-		target = semantic.GhostElement.Hover
-	}
-	tab.Background(target)
+	hover := HoverAmount(tab, !t.Selected && tab.Hovered(), t.Animate)
+	tab.Background(blend(rest, semantic.GhostElement.Hover, hover))
 	tab.Children(func() {
 		ui.Icon(c, t.Icon).FontSize(16 * scale / theme.DefaultUIFontSize).
 			TextColor(iconColor)

@@ -22,11 +22,17 @@ type Segmented struct {
 func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	metrics := theme.DefaultControls.Scaled(scale)
-	return ui.Row(c).Role(ui.RoleRadioGroup).Label(s.Label).
+	group := ui.Row(c).Key(s.Key).Role(ui.RoleRadioGroup).Label(s.Label).
 		Height(metrics.Height).Shrink(0).AlignItems(ui.Center).
 		Gap(theme.Space02.DIPs(scale)).Padding(theme.Space02.DIPs(scale)).
 		Radius(metrics.Radius).Background(semantic.Surface.Inset).
-		FocusGroup(ui.Horizontal).Children(func() {
+		FocusGroup(ui.Horizontal)
+	track := TrackSelection(group, SelectionStyle{
+		Fill:   semantic.Surface.Elevated,
+		Border: semantic.Border.Variant,
+		Radius: 6 * scale / theme.DefaultUIFontSize,
+	}, s.Animate)
+	return group.Children(func() {
 		for _, option := range s.Options {
 			button := ui.ButtonBase(c.Key(option.Key)).Role(ui.RoleRadio).
 				Label(option.Label).Selected(option.Selected).
@@ -34,14 +40,13 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 				MinWidth(0).PaddingX(theme.Space08.DIPs(scale)).
 				Radius(6*scale/theme.DefaultUIFontSize).
 				Border(1, ui.Transparent)
-			background := ui.Transparent
 			textColor := semantic.Text.Muted
 			if option.Selected {
-				background = semantic.Surface.Elevated
+				// The group's shared highlight slides to the chosen option.
 				textColor = semantic.Text.Heading
-				button.Border(1, semantic.Border.Variant)
+				track.Mark(button)
 			}
-			button.Background(background)
+			button.Background(ui.Transparent)
 			button.Children(func() {
 				Label(c, option.Label, theme.TextSmall, textColor).SingleLine()
 			})

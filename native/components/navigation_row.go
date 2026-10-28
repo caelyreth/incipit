@@ -16,9 +16,21 @@ type NavigationRow struct {
 	FullWidth bool
 	Indent    float32
 	Expanded  *bool
+	Animate   bool
 	Leading   func()
 	Trailing  func()
 	Action    func()
+	// Track, when set, is the list's shared selection highlight: a selected
+	// row marks itself on it instead of painting its own background.
+	Track *SelectionTrack
+}
+
+// NavigationSelection is the shared highlight style for navigation lists.
+func NavigationSelection(c *ui.Context, semantic theme.Theme) SelectionStyle {
+	return SelectionStyle{
+		Fill:   semantic.Surface.Inset,
+		Radius: theme.DefaultControls.Scaled(UIFontSize(c)).Radius,
+	}
 }
 
 func (r NavigationRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
@@ -44,13 +56,16 @@ func (r NavigationRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	if r.TextColor != nil {
 		textColor = *r.TextColor
 	}
-	target := semantic.GhostElement.Background
-	if r.Selected {
-		target = semantic.Surface.Inset
-	} else if row.Hovered() {
-		target = semantic.GhostElement.Hover
+	rest := semantic.GhostElement.Background
+	switch {
+	case r.Selected && r.Track != nil:
+		r.Track.Mark(row)
+	case r.Selected:
+		rest = semantic.Surface.Inset
 	}
-	row.Background(target)
+	// The selected row shows the selection; hovering it adds nothing.
+	hover := HoverAmount(row, !r.Selected && row.Hovered(), r.Animate)
+	row.Background(blend(rest, semantic.GhostElement.Hover, hover))
 	if row.FocusVisible() {
 		row.Border(1, semantic.Border.Focused)
 	}

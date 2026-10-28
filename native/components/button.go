@@ -154,14 +154,7 @@ func buttonElement(
 	if options.disabled {
 		button.Opacity(DisabledOpacity)
 	}
-	hoverTarget := float32(0)
-	if !options.disabled && button.Hovered() {
-		hoverTarget = 1
-	}
-	hoverAmount := hoverTarget
-	if options.animate {
-		hoverAmount = button.AnimateWith("hover", hoverTarget, MotionQuick, Smoothstep)
-	}
+	hoverAmount := HoverAmount(button, !options.disabled && button.Hovered(), options.animate)
 	background := blend(rest, hover, hoverAmount)
 	if !options.disabled && button.Pressed() {
 		background = blend(background, semantic.Text.Default, 0.10)

@@ -29,6 +29,31 @@ func Smoothstep(t float32) float32 {
 	return t * t * (3 - 2*t)
 }
 
+const (
+	// HoverIn is how fast a hover tint answers the pointer; HoverOut how
+	// gently it lets go, so sweeping down a list leaves a soft trail rather
+	// than flicker. Both stay quicker than any selection motion.
+	HoverIn  = MotionQuick
+	HoverOut = MotionNormal
+)
+
+// HoverAmount is element's hover tint from 0 to 1, eased in quickly and
+// out gently when animate is set.
+func HoverAmount(element ui.Element, hovered, animate bool) float32 {
+	target := float32(0)
+	if hovered {
+		target = 1
+	}
+	if !animate {
+		return target
+	}
+	duration := HoverOut
+	if hovered {
+		duration = HoverIn
+	}
+	return element.AnimateWith("hover", target, duration, Smoothstep)
+}
+
 func ChromeAnimation(duration time.Duration) ui.Animation {
 	return ui.Animation{Duration: duration, Ease: Smoothstep}
 }
