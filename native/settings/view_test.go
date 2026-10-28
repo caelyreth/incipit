@@ -282,3 +282,91 @@ func railRow(tester *ui.Tester, label string) (ui.Rect, bool) {
 	rect, ok := tester.Find(label)
 	return rect, ok && rect.X < 240
 }
+
+func policyData(on bool) []appsettings.Section {
+	return []appsettings.Section{{
+		Title: "Emphasis", Description: "Inline emphasis with generated markers.",
+		Settings: []appsettings.ToggleSetting{
+			{
+				Key: appsettings.PolicyBoolean("editor.markup"), Label: "Enable emphasis",
+				Value: on, Enabled: true, Selector: "policy-markup",
+			},
+			{
+				Key:   appsettings.OptionBoolean(kernel.NewSettingKey("editor.markup", "strong")),
+				Label: "Allow strong emphasis", Value: true, Enabled: on, Selector: "option-strong",
+			},
+			{
+				Key:   appsettings.OptionBoolean(kernel.NewSettingKey("editor.markup", "underscores")),
+				Label: "Use underscore markers", Value: false, Enabled: on, Selector: "option-underscores",
+			},
+		},
+	}}
+}
+
+func TestPolicyCardPutsMasterSwitchInHeaderAndNestsOptions(t *testing.T) {
+	state := New()
+	state.Data.Sections = policyData(true)
+	changes := make([]appsettings.Change, 0)
+	state.Apply = func(change appsettings.Change) { changes = append(changes, change) }
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	tester.Advance(time.Second)
+	title, ok := tester.Find("Inline emphasis with generated markers.")
+	if !ok {
+		t.Fatal("policy header description missing")
+	}
+	option, ok := tester.Find("Allow strong emphasis")
+	if !ok || option.X <= title.X {
+		t.Fatalf("options are not nested under the header: header x=%v option=%v", title.X, option)
+	}
+	if err := tester.Click("Enable emphasis"); err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 1 || changes[0].Boolean.Kind != appsettings.BooleanPolicy || changes[0].Value {
+		t.Fatalf("master switch change = %#v", changes)
+	}
+}
+
+func TestPolicyCardFoldsOptionsWhileOff(t *testing.T) {
+	state := New()
+	state.Data.Sections = policyData(true)
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	tester.Advance(time.Second)
+
+	state.Data.Sections = policyData(false)
+	tester.Frame()
+	tester.Advance(components.MotionPanel / 3)
+	if !tester.HasText("Allow strong emphasis") {
+		t.Fatal("options vanished at once instead of folding")
+	}
+	tester.Advance(time.Second)
+	if tester.HasText("Allow strong emphasis") {
+		t.Fatal("options of a disabled policy stayed open")
+	}
+	if !tester.HasText("Turn on to adjust 2 options.") {
+		t.Fatalf("folded policy has no hint: %#v", tester.Texts())
+	}
+
+	state.Data.Sections = policyData(true)
+	tester.Frame()
+	tester.Advance(components.MotionPanel / 3)
+	if !tester.HasText("Allow strong emphasis") || tester.HasText("Turn on to adjust 2 options.") {
+		t.Fatalf("enabling did not begin unfolding: %#v", tester.Texts())
+	}
+}
+
+func TestPolicySearchOpensFoldedOptions(t *testing.T) {
+	state := New()
+	state.Data.Sections = policyData(false)
+	state.Query = "underscore"
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	tester.Advance(time.Second)
+	if !tester.HasText("Use underscore markers") {
+		t.Fatalf("matching option stayed folded: %#v", tester.Texts())
+	}
+	if tester.HasText("Allow strong emphasis") {
+		t.Fatal("non-matching option shown during search")
+	}
+}

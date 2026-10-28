@@ -257,6 +257,17 @@ func (s *State) section(
 	description string,
 	rows func(),
 ) {
+	s.anchored(c, label, func() {
+		components.SectionHeader{Label: label, Description: description}.View(c, semantic)
+		components.SettingGroup{
+			Key: "settings-group-" + label, Label: label, Children: rows,
+		}.View(c, semantic)
+	})
+}
+
+// anchored draws content as one navigable block: the navigation scrolls to
+// it and highlights label while it is the block being read.
+func (s *State) anchored(c *ui.Context, label string, content func()) {
 	scale := s.Theme.UIFontSize
 	block := ui.Column(c).Key("settings-anchor-" + label).WidthPercent(100).
 		Gap(theme.Space08.DIPs(scale))
@@ -265,12 +276,7 @@ func (s *State) section(
 		top = bounds.Y - s.contentTop
 	}
 	s.building = append(s.building, anchor{Label: label, Top: top})
-	block.Children(func() {
-		components.SectionHeader{Label: label, Description: description}.View(c, semantic)
-		components.SettingGroup{
-			Key: "settings-group-" + label, Label: label, Children: rows,
-		}.View(c, semantic)
-	})
+	block.Children(content)
 }
 
 // activeSection is the section the page is showing: the one a navigation

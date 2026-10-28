@@ -12,20 +12,24 @@ type SettingRow struct {
 	Label       string
 	Description string
 	Last        bool
-	Control     func()
-	Reset       func()
-	ResetIcon   *ui.SVG
+	// Indent moves the row, and its divider, in under a parent row, as a
+	// policy's options sit under its switch.
+	Indent    float32
+	Control   func()
+	Reset     func()
+	ResetIcon *ui.SVG
 }
 
 func (r SettingRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	inset := theme.Space16.DIPs(scale)
+	lead := inset + r.Indent
 	return ui.Column(c).Shrink(0).WidthPercent(100).MinWidth(0).Children(func() {
 		ui.Row(c).WidthPercent(100).MinWidth(0).
 			MinHeight(theme.DefaultControls.Scaled(scale).Row+theme.Space12.DIPs(scale)).
 			AlignItems(ui.Center).Wrap().Justify(ui.SpaceBetween).
 			Gap(theme.Space16.DIPs(scale)).
-			Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).
+			Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), lead).
 			Children(func() {
 				ui.Column(c).Grow(1).MinWidth(180 * scale / theme.DefaultUIFontSize).
 					MaxWidthPercent(100).Gap(theme.Space02.DIPs(scale)).Children(func() {
@@ -47,7 +51,7 @@ func (r SettingRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 				}
 			})
 		if !r.Last {
-			ui.Row(c).WidthPercent(100).PaddingStart(inset).Children(func() {
+			ui.Row(c).WidthPercent(100).PaddingStart(lead).Children(func() {
 				HorizontalDivider(c, semantic, VariantDivider)
 			})
 		}
