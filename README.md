@@ -38,9 +38,14 @@ The repository uses Go 1.27.3 and MyGo v0.7.1.
 
 ```sh
 direnv allow
+./scripts/fetch-fonts.sh
 go test ./...
 go run ./cmd/shoreward
 ```
+
+The reference prose font is fetched into an ignored local path and verified
+against a pinned SHA-256 checksum. `go generate ./native/theme` performs the
+same step.
 
 The Nix shell provides Go 1.27.1 and enables the Go toolchain download for the
 exact 1.27.3 patch release required by MyGo.

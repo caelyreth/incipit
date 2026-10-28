@@ -5,6 +5,9 @@
 /result
 /result-*
 
+# Locally fetched development assets
+/native/theme/fonts/NotoSerifSC-Variable.ttf
+
 # Go
 *.test
 *.out
