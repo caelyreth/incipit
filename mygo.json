@@ -1,0 +1,8 @@
+{
+  "name": "Shoreward",
+  "slug": "shoreward",
+  "identifier": "com.caelyreth.shoreward",
+  "version": "0.1.0",
+  "main": "./cmd/shoreward",
+  "out": "dist"
+}
