@@ -4,5 +4,8 @@
   "identifier": "com.caelyreth.neverland",
   "version": "0.1.0",
   "main": "./cmd/neverland",
-  "out": "dist"
+  "out": "dist",
+  "linux": {
+    "webview": false
+  }
 }
