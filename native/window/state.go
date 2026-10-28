@@ -152,7 +152,44 @@ func (a *AppState) BindShell() {
 	a.Shell.ToggleSidebar = func() {
 		a.Shell.Appearance.Zen = !a.Shell.Appearance.Zen
 	}
+	a.Shell.FormatItalic = func() {
+		a.executeEditorCommand(editor.MarkupEmphasis.ID())
+	}
+	a.Shell.FormatBold = func() {
+		a.executeEditorCommand(editor.MarkupStrong.ID())
+	}
+	a.Shell.Undo = func() {
+		a.executeEditorCommand(editor.HistoryUndo.ID())
+	}
+	a.Shell.Redo = func() {
+		a.executeEditorCommand(editor.HistoryRedo.ID())
+	}
+	a.Shell.Background = func() {
+		a.Error = "Background color is not available in this build"
+		a.refreshShell()
+	}
+	a.Shell.CenterText = func() {
+		a.Product.Presentation.Typewriter = !a.Product.Presentation.Typewriter
+		a.refreshAppearance()
+	}
+	a.Shell.ClearFormat = func() {
+		a.executeEditorCommand(editor.MarkupEmphasis.ID())
+	}
 	a.refreshShell()
+}
+
+func (a *AppState) executeEditorCommand(command kernel.CommandID) {
+	if a == nil || a.Bridge == nil {
+		return
+	}
+	action, ok := keymap.ResolveEditorCommand(command)
+	if !ok {
+		return
+	}
+	if err := a.Bridge.Execute(action); err != nil {
+		a.Error = err.Error()
+		a.refreshShell()
+	}
 }
 
 func (a *AppState) ProductState() appsettings.State { return a.Product }
@@ -235,6 +272,8 @@ func (a *AppState) refreshShell() {
 			metrics.Paragraphs,
 			metrics.Characters,
 		)
+		a.Shell.CanUndo = controller.Session().History().UndoDepth() > 0
+		a.Shell.CanRedo = controller.Session().History().RedoDepth() > 0
 	} else {
 		a.Shell.Statistics = "No open document"
 	}

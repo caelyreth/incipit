@@ -105,3 +105,32 @@ func TestTabsShowAndSelectEachOpenPage(t *testing.T) {
 		t.Fatalf("selected = %q", selected)
 	}
 }
+
+func TestFloatingToolbarRoutesActionsAndHonorsHistoryState(t *testing.T) {
+	state := New()
+	clicked := ""
+	state.FormatItalic = func() { clicked = "italic" }
+	state.FormatBold = func() { clicked = "bold" }
+	state.Undo = func() { clicked = "undo" }
+	state.Redo = func() { clicked = "redo" }
+	state.CanUndo = true
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	for _, label := range []string{"Italic", "Bold", "Undo", "Redo", "Background", "Center writing", "Clear formatting"} {
+		if !tester.HasText(label) {
+			t.Fatalf("toolbar missing %q", label)
+		}
+	}
+	if err := tester.Click("Italic"); err != nil {
+		t.Fatal(err)
+	}
+	if clicked != "italic" {
+		t.Fatalf("clicked = %q", clicked)
+	}
+	if err := tester.Click("Redo"); err != nil {
+		t.Fatal(err)
+	}
+	if clicked != "italic" {
+		t.Fatalf("disabled redo fired: %q", clicked)
+	}
+}

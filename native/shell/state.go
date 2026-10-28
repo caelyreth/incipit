@@ -30,6 +30,15 @@ type State struct {
 	FindPage      func()
 	ToggleSidebar func()
 	MoveTab       func(id, delta int)
+	FormatItalic  func()
+	FormatBold    func()
+	Undo          func()
+	Redo          func()
+	Background    func()
+	CenterText    func()
+	ClearFormat   func()
+	CanUndo       bool
+	CanRedo       bool
 }
 
 func New() *State {
