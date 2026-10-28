@@ -152,10 +152,10 @@ func (a *AppState) BindShell() {
 	a.Shell.ToggleSidebar = func() {
 		a.Shell.Appearance.Zen = !a.Shell.Appearance.Zen
 	}
-	a.Shell.FormatItalic = func() {
+	a.Shell.FormatItalic = func(bool) {
 		a.executeEditorCommand(editor.MarkupEmphasis.ID())
 	}
-	a.Shell.FormatBold = func() {
+	a.Shell.FormatBold = func(bool) {
 		a.executeEditorCommand(editor.MarkupStrong.ID())
 	}
 	a.Shell.Undo = func() {
@@ -164,7 +164,7 @@ func (a *AppState) BindShell() {
 	a.Shell.Redo = func() {
 		a.executeEditorCommand(editor.HistoryRedo.ID())
 	}
-	a.Shell.Background = func() {
+	a.Shell.Background = func(bool) {
 		a.Error = "Background color is not available in this build"
 		a.refreshShell()
 	}

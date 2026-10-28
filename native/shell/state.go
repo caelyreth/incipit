@@ -13,6 +13,14 @@ type Page struct {
 	Title string
 }
 
+// Formatting is the toolbar's current presentation state. Apps can update it
+// from the active document before building the next frame.
+type Formatting struct {
+	Bold       bool
+	Italic     bool
+	Background bool
+}
+
 type State struct {
 	Appearance settings.PresentationState
 	Settings   theme.Settings
@@ -20,6 +28,10 @@ type State struct {
 	ActivePage string
 	Status     string
 	Statistics string
+	PageQuery  string
+	Formatting Formatting
+	CanUndo    bool
+	CanRedo    bool
 
 	Content       func(c *ui.Context)
 	SelectPage    func(id string)
@@ -30,15 +42,15 @@ type State struct {
 	FindPage      func()
 	ToggleSidebar func()
 	MoveTab       func(id, delta int)
-	FormatItalic  func()
-	FormatBold    func()
+	FormatItalic  func(bool)
+	FormatBold    func(bool)
 	Undo          func()
 	Redo          func()
-	Background    func()
+	Background    func(bool)
 	CenterText    func()
 	ClearFormat   func()
-	CanUndo       bool
-	CanRedo       bool
+
+	FocusDocument func()
 }
 
 func New() *State {
