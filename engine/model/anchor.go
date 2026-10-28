@@ -273,13 +273,16 @@ func (e TextEdit) InsertedUTF16Len() UTF16Offset {
 
 // RemovedUTF16Len returns the replaced length, saturating for reversed ranges.
 func (e TextEdit) RemovedUTF16Len() UTF16Offset {
+	if e.rangeUTF16.Start < 0 || e.rangeUTF16.End < 0 {
+		return 0
+	}
 	return max(0, e.rangeUTF16.End-e.rangeUTF16.Start)
 }
 
 func (e TextEdit) mapOffset(offset UTF16Offset, affinity Affinity) (UTF16Offset, bool) {
 	start := e.rangeUTF16.Start
 	end := e.rangeUTF16.End
-	if start > end {
+	if offset < 0 || start < 0 || end < 0 || e.insertedUTF16 < 0 || start > end {
 		return 0, false
 	}
 	if offset < start {
@@ -298,6 +301,9 @@ func (e TextEdit) mapOffset(offset UTF16Offset, affinity Affinity) (UTF16Offset,
 }
 
 func shiftOffset(offset, inserted, removed UTF16Offset) (UTF16Offset, bool) {
+	if offset < 0 || inserted < 0 || removed < 0 {
+		return 0, false
+	}
 	if inserted >= removed {
 		delta := inserted - removed
 		if offset > UTF16Offset(maxInt)-delta {

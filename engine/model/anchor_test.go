@@ -201,3 +201,21 @@ func TestAnchorValidationRejectsStaleMissingAndSplitSurrogate(t *testing.T) {
 		t.Fatalf("missing node = %v", err)
 	}
 }
+
+func TestTextEditRejectsMalformedNegativeCoordinates(t *testing.T) {
+	t.Parallel()
+	node := NodeID(1)
+	invalid := []TextEdit{
+		NewTextEdit(node, NewUTF16Range(-1, 1), 0),
+		NewTextEdit(node, NewUTF16Range(0, 1), -1),
+	}
+	for index, edit := range invalid {
+		if _, ok := NewTextAnchor(node, 0, AffinityRight, 0).Rebase(edit, 1); ok {
+			t.Fatalf("invalid edit %d rebased", index)
+		}
+	}
+	edit := NewTextEdit(node, NewUTF16Range(0, 1), 0)
+	if _, ok := NewTextAnchor(node, -1, AffinityRight, 0).Rebase(edit, 1); ok {
+		t.Fatal("negative anchor rebased")
+	}
+}

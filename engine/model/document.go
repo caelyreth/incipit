@@ -6,9 +6,8 @@ import (
 
 // SemanticAction is one checked mutation expressible through a document draft.
 type SemanticAction struct {
-	Kind  SemanticActionKind
-	Node  NodeID
-	After NodeID
+	Kind SemanticActionKind
+	Node NodeID
 
 	Parent   NodeID
 	Index    int
@@ -48,7 +47,7 @@ type Change struct {
 
 type documentState struct {
 	root   NodeID
-	nodes  map[NodeID]*node
+	nodes  map[NodeID]*Node
 	nextID uint64
 }
 
@@ -79,7 +78,7 @@ func NewDocument(rootKind NodeTypeID) (*Document, error) {
 	const root NodeID = 1
 	state := &documentState{
 		root:   root,
-		nodes:  map[NodeID]*node{root: newNode(root, rootKind, 0, false)},
+		nodes:  map[NodeID]*Node{root: newNode(root, rootKind, 0, false)},
 		nextID: 2,
 	}
 	return &Document{state: state}, nil
@@ -93,6 +92,12 @@ func (d *Document) Clone() *Document {
 // Revision returns the published document revision.
 func (d *Document) Revision() uint64 {
 	return d.revision
+}
+
+// SetRevision replaces the published revision while retaining document state.
+// It is used by the engine when resources alone advance a shared revision.
+func (d *Document) SetRevision(revision uint64) {
+	d.revision = revision
 }
 
 // Snapshot captures the current immutable state and revision.
@@ -166,8 +171,7 @@ func (s DocumentSnapshot) Node(id NodeID) (*Node, bool) {
 	if !ok {
 		return nil, false
 	}
-	value := node.value()
-	return &value, true
+	return node.value(), true
 }
 
 // Nodes returns all nodes in ascending identity order.
@@ -179,8 +183,7 @@ func (s DocumentSnapshot) Nodes() []*Node {
 	slices.Sort(ids)
 	nodes := make([]*Node, 0, len(ids))
 	for _, id := range ids {
-		value := s.state.nodes[id].value()
-		nodes = append(nodes, &value)
+		nodes = append(nodes, s.state.nodes[id].value())
 	}
 	return nodes
 }

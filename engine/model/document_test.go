@@ -482,6 +482,50 @@ func TestFinalChangesCancelAndDeduplicate(t *testing.T) {
 	}
 }
 
+func TestMutationJournalTracksCausalChangeRanges(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "document")
+	root := document.Snapshot().Root()
+	draft := document.BeginDraft()
+	if draft.ChangeCount() != 0 {
+		t.Fatal("new draft has changes")
+	}
+	start := draft.ChangeCount()
+	child, err := draft.CreateNode(root, 0, "paragraph")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := draft.SetAttribute(child, "mode", TextValue("x")); err != nil {
+		t.Fatal(err)
+	}
+	changes := draft.ChangesSince(start)
+	if len(changes) != 3 ||
+		changes[0] != (Change{Kind: ChangeUpdated, Node: root}) ||
+		changes[1] != (Change{Kind: ChangeCreated, Node: child}) ||
+		changes[2] != (Change{Kind: ChangeUpdated, Node: child}) {
+		t.Fatalf("change journal = %#v", changes)
+	}
+	checkpoint := draft.Checkpoint()
+	if err := draft.RemoveNode(child); err != nil {
+		t.Fatal(err)
+	}
+	draft.Rollback(checkpoint)
+	if got := draft.ChangesSince(start); len(got) != 3 {
+		t.Fatalf("rollback retained journal suffix: %#v", got)
+	}
+}
+
+func TestSetRevisionRetainsDocumentState(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "document")
+	before := document.Snapshot()
+	document.SetRevision(9)
+	after := document.Snapshot()
+	if after.Revision() != 9 || after.Root() != before.Root() {
+		t.Fatalf("snapshot after revision set = %#v", after)
+	}
+}
+
 func TestIdentityAndRevisionExhaustionAreAtomic(t *testing.T) {
 	t.Parallel()
 	t.Run("identity", func(t *testing.T) {

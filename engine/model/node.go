@@ -6,19 +6,8 @@ import (
 	"github.com/caelyreth/neverland/engine/text/rope"
 )
 
-type node struct {
-	id         NodeID
-	kind       NodeTypeID
-	parent     NodeID
-	hasParent  bool
-	children   []NodeID
-	attributes map[string]AttributeValue
-	marks      []InlineMark
-	nextMarkID uint64
-	text       *TextRoot
-}
-
-// Node is an immutable semantic node value.
+// Node is an immutable semantic node value. Document snapshots and drafts
+// return copies so callers cannot mutate retained state.
 type Node struct {
 	id         NodeID
 	kind       NodeTypeID
@@ -31,8 +20,8 @@ type Node struct {
 	text       *TextRoot
 }
 
-func newNode(id NodeID, kind NodeTypeID, parent NodeID, hasParent bool) *node {
-	return &node{
+func newNode(id NodeID, kind NodeTypeID, parent NodeID, hasParent bool) *Node {
+	return &Node{
 		id:         id,
 		kind:       kind,
 		parent:     parent,
@@ -43,33 +32,33 @@ func newNode(id NodeID, kind NodeTypeID, parent NodeID, hasParent bool) *node {
 }
 
 // ID returns the stable node identity.
-func (n *node) ID() NodeID {
+func (n *Node) ID() NodeID {
 	return n.id
 }
 
 // Kind returns the application-defined node type.
-func (n *node) Kind() NodeTypeID {
+func (n *Node) Kind() NodeTypeID {
 	return n.kind
 }
 
 // Parent returns the parent identity when this is not the root.
-func (n *node) Parent() (NodeID, bool) {
+func (n *Node) Parent() (NodeID, bool) {
 	return n.parent, n.hasParent
 }
 
 // Children returns a copy of the ordered child identities.
-func (n *node) Children() []NodeID {
+func (n *Node) Children() []NodeID {
 	return slices.Clone(n.children)
 }
 
 // TextPresent reports whether the node has an allocated text root.
-func (n *node) TextPresent() bool {
+func (n *Node) TextPresent() bool {
 	return n.text != nil
 }
 
 // Text returns the immutable rope. An absent text value yields the empty tree;
 // use TextPresent when None and Some("") must be distinguished.
-func (n *node) Text() rope.Tree {
+func (n *Node) Text() rope.Tree {
 	if n.text == nil {
 		return rope.Tree{}
 	}
@@ -77,7 +66,7 @@ func (n *node) Text() rope.Tree {
 }
 
 // TextRoot returns a copy of the immutable text-root handle.
-func (n *node) textRoot() (*TextRoot, bool) {
+func (n *Node) textRoot() (*TextRoot, bool) {
 	if n.text == nil {
 		return nil, false
 	}
@@ -85,13 +74,13 @@ func (n *node) textRoot() (*TextRoot, bool) {
 }
 
 // Attribute returns an attribute value by key.
-func (n *node) Attribute(key string) (AttributeValue, bool) {
+func (n *Node) Attribute(key string) (AttributeValue, bool) {
 	value, ok := n.attributes[key]
 	return value, ok
 }
 
 // Attributes returns a copy of all attributes.
-func (n *node) Attributes() map[string]AttributeValue {
+func (n *Node) Attributes() map[string]AttributeValue {
 	attributes := make(map[string]AttributeValue, len(n.attributes))
 	for key, value := range n.attributes {
 		attributes[key] = value
@@ -100,25 +89,25 @@ func (n *node) Attributes() map[string]AttributeValue {
 }
 
 // MarkCount returns the number of semantic inline marks.
-func (n *node) MarkCount() int {
+func (n *Node) MarkCount() int {
 	return len(n.marks)
 }
 
 // Marks returns a copy of the ordered inline marks.
-func (n *node) Marks() []InlineMark {
+func (n *Node) Marks() []InlineMark {
 	return slices.Clone(n.marks)
 }
 
 // ValidateTextRangeUTF16 checks ordered scalar-aligned UTF-16 endpoints. A
 // node without text accepts only 0..0. Grapheme boundaries are intentionally
 // not required; combining marks are valid semantic positions.
-func (n *node) ValidateTextRangeUTF16(from, to UTF16Offset) error {
+func (n *Node) ValidateTextRangeUTF16(from, to UTF16Offset) error {
 	_, err := n.TextByteRangeUTF16(from, to)
 	return err
 }
 
 // TextByteRangeUTF16 validates a UTF-16 range and adapts it to bytes.
-func (n *node) TextByteRangeUTF16(from, to UTF16Offset) (ByteRange, error) {
+func (n *Node) TextByteRangeUTF16(from, to UTF16Offset) (ByteRange, error) {
 	length := 0
 	if n.text != nil {
 		length = n.text.tree.UTF16Len()
@@ -157,12 +146,12 @@ func (n *node) TextByteRangeUTF16(from, to UTF16Offset) (ByteRange, error) {
 	return NewByteRange(ByteOffset(start), ByteOffset(end)), nil
 }
 
-func (n *node) clone() *node {
+func (n *Node) clone() *Node {
 	attributes := make(map[string]AttributeValue, len(n.attributes))
 	for key, value := range n.attributes {
 		attributes[key] = value
 	}
-	return &node{
+	return &Node{
 		id:         n.id,
 		kind:       n.kind,
 		parent:     n.parent,
@@ -175,7 +164,7 @@ func (n *node) clone() *node {
 	}
 }
 
-func sameNode(left, right *node) bool {
+func sameNode(left, right *Node) bool {
 	if left == right {
 		return true
 	}
@@ -206,92 +195,14 @@ func sameNode(left, right *node) bool {
 	return true
 }
 
-// ID returns the node identity.
-func (n Node) ID() NodeID {
-	return n.id
-}
-
-// Kind returns the application-defined node type.
-func (n Node) Kind() NodeTypeID {
-	return n.kind
-}
-
-// Parent returns the parent identity when this is not the root.
-func (n Node) Parent() (NodeID, bool) {
-	return n.parent, n.hasParent
-}
-
-// Children returns a copy of the ordered child identities.
-func (n Node) Children() []NodeID {
-	return slices.Clone(n.children)
-}
-
-// TextPresent reports whether the node has an allocated text root.
-func (n Node) TextPresent() bool {
-	return n.text != nil
-}
-
-// Text returns the immutable rope.
-func (n Node) Text() rope.Tree {
-	if n.text == nil {
-		return rope.Tree{}
-	}
-	return n.text.tree
-}
-
 // TextRoot returns the immutable text-root handle.
-func (n Node) TextRoot() (TextRoot, bool) {
+func (n *Node) TextRoot() (TextRoot, bool) {
 	if n.text == nil {
 		return TextRoot{}, false
 	}
 	return *n.text, true
 }
 
-// Attribute returns an attribute value by key.
-func (n Node) Attribute(key string) (AttributeValue, bool) {
-	value, ok := n.attributes[key]
-	return value, ok
-}
-
-// Attributes returns a copy of all attributes.
-func (n Node) Attributes() map[string]AttributeValue {
-	attributes := make(map[string]AttributeValue, len(n.attributes))
-	for key, value := range n.attributes {
-		attributes[key] = value
-	}
-	return attributes
-}
-
-// MarkCount returns the number of semantic inline marks.
-func (n Node) MarkCount() int {
-	return len(n.marks)
-}
-
-// Marks returns a copy of the ordered inline marks.
-func (n Node) Marks() []InlineMark {
-	return slices.Clone(n.marks)
-}
-
-// ValidateTextRangeUTF16 checks ordered scalar-aligned UTF-16 endpoints.
-func (n Node) ValidateTextRangeUTF16(from, to UTF16Offset) error {
-	return (*node)(&n).ValidateTextRangeUTF16(from, to)
-}
-
-// TextByteRangeUTF16 validates a UTF-16 range and adapts it to bytes.
-func (n Node) TextByteRangeUTF16(from, to UTF16Offset) (ByteRange, error) {
-	return (*node)(&n).TextByteRangeUTF16(from, to)
-}
-
-func (n *node) value() Node {
-	return Node{
-		id:         n.id,
-		kind:       n.kind,
-		parent:     n.parent,
-		hasParent:  n.hasParent,
-		children:   slices.Clone(n.children),
-		attributes: n.Attributes(),
-		marks:      slices.Clone(n.marks),
-		nextMarkID: n.nextMarkID,
-		text:       n.text,
-	}
+func (n *Node) value() *Node {
+	return n.clone()
 }

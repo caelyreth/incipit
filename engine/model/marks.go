@@ -153,7 +153,7 @@ func (d *DocumentDraft) FormatEmphasis(node NodeID, rangeUTF16 UTF16Range, level
 		source = target.text.tree.Slice(int(byteRange.Start), int(byteRange.End))
 	}
 	lines := splitNonEmptyLinesUTF16(source, rangeUTF16.Start)
-	remove := len(lines) > 0
+	remove := true
 	for _, line := range lines {
 		end := line.Start
 		for _, mark := range target.marks {
@@ -315,7 +315,7 @@ func dedupeMarks(marks *[]InlineMark) {
 	*marks = output
 }
 
-func validateMarks(node *node) error {
+func validateMarks(node *Node) error {
 	ends := make([]UTF16Offset, 0, len(node.marks))
 	identities := make(map[MarkID]struct{}, len(node.marks))
 	for _, mark := range node.marks {

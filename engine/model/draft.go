@@ -39,6 +39,19 @@ func (d *DocumentDraft) TextEdits() []TextEdit {
 	return slices.Clone(d.textEdits)
 }
 
+// ChangeCount returns the number of recorded change intents. Intents are not
+// deduplicated; use FinalChanges for the published structural diff.
+func (d *DocumentDraft) ChangeCount() int {
+	return len(d.changes)
+}
+
+// ChangesSince returns change intents recorded at or after one ChangeCount
+// snapshot. It lets dispatch associate writes made by one handler.
+func (d *DocumentDraft) ChangesSince(start int) []Change {
+	start = max(0, min(start, len(d.changes)))
+	return slices.Clone(d.changes[start:])
+}
+
 // Root returns the current draft's root identity.
 func (d *DocumentDraft) Root() NodeID {
 	return d.state.root
@@ -50,8 +63,7 @@ func (d *DocumentDraft) Node(id NodeID) (*Node, bool) {
 	if !ok {
 		return nil, false
 	}
-	value := node.value()
-	return &value, true
+	return node.value(), true
 }
 
 // Checkpoint captures state and all successful-write journals.
@@ -484,7 +496,7 @@ func (d *DocumentDraft) Validate() error {
 func (d *DocumentDraft) copyState() *documentState {
 	state := &documentState{
 		root:   d.state.root,
-		nodes:  make(map[NodeID]*node, len(d.state.nodes)),
+		nodes:  make(map[NodeID]*Node, len(d.state.nodes)),
 		nextID: d.state.nextID,
 	}
 	for id, node := range d.state.nodes {
@@ -493,7 +505,7 @@ func (d *DocumentDraft) copyState() *documentState {
 	return state
 }
 
-func collectSubtree(nodes map[NodeID]*node, root NodeID, output *[]NodeID) {
+func collectSubtree(nodes map[NodeID]*Node, root NodeID, output *[]NodeID) {
 	*output = append(*output, root)
 	node, ok := nodes[root]
 	if !ok {
