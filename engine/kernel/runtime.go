@@ -122,9 +122,10 @@ func (r *PolicyRuntime) PolicyConfiguration() PolicyConfiguration {
 	return r.policies.Configuration()
 }
 
-// Configuration returns an immutable prepared configuration snapshot.
+// Configuration returns the installed immutable prepared configuration. Its
+// maps and keymap are private and never mutate after installation.
 func (r *PolicyRuntime) Configuration() *PreparedPolicyConfiguration {
-	return r.policies.PreparedSnapshot()
+	return r.policies.Prepared()
 }
 
 // Program returns the currently installed linked event program.
@@ -266,7 +267,7 @@ func (r *PolicyRuntime) DispatchPreparedBatchWithInvoker[P any](
 	) (P, error),
 ) (EngineTransactionOutcome[BatchDispatchOutcome, P], error) {
 	var outcomeValue BatchDispatchOutcome
-	configuration := r.policies.PreparedSnapshot()
+	configuration := r.policies.Prepared()
 	transaction, err := TransactPrepared(
 		r.engine,
 		func(draft *EngineDraft) (BatchDispatchOutcome, error) {
