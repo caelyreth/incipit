@@ -13,7 +13,7 @@ func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 		lineHeight := l.style.Prose.LineHeight()
 		height := l.style.Prose.CaretHeight()
 		return ui.Rect{
-			Y: l.height - lineHeight + (lineHeight-height)/2,
+			Y: l.height - lineHeight + (lineHeight-height)/2 + l.style.Prose.CaretOffsetY(),
 			W: 2,
 			H: height,
 		}
@@ -23,6 +23,7 @@ func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 	lineHeight := l.style.Prose.LineHeight()
 	height := l.style.Prose.CaretHeight()
 	caret.Y += (lineHeight - height) / 2
+	caret.Y += l.style.Prose.CaretOffsetY()
 	caret.W = 2
 	caret.H = height
 	return caret

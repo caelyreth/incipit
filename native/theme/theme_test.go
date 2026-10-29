@@ -6,6 +6,7 @@ func TestProseMetricsKeepReferenceProportionsAndClamp(t *testing.T) {
 	t.Parallel()
 	prose := NewProseStyle(19)
 	if prose.FontSize != 19 || prose.LineHeight() != 34 || prose.CaretHeight() != 25 ||
+		prose.CaretOffsetY() != 1 ||
 		prose.TitleSize() != 34 || prose.TitleLineHeight() != 48 || prose.Column() != 700 {
 		t.Fatalf("default prose = %#v", prose)
 	}
@@ -14,6 +15,9 @@ func TestProseMetricsKeepReferenceProportionsAndClamp(t *testing.T) {
 	}
 	if got := NewProseStyle(90).FontSize; got != MaxProseFontSize {
 		t.Fatalf("maximum = %v", got)
+	}
+	if got := NewProseStyle(26).CaretOffsetY(); got <= 1 || got > 1.5 {
+		t.Fatalf("scaled caret offset = %v", got)
 	}
 }
 

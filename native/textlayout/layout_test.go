@@ -136,9 +136,10 @@ func TestCaretUsesProseHeightAndVisualRow(t *testing.T) {
 	if caret.H != style.Prose.CaretHeight() || caret.W != 2 {
 		t.Fatalf("caret = %#v, prose=%#v", caret, style.Prose)
 	}
-	if caret.Y < (style.Prose.LineHeight()-style.Prose.CaretHeight())/2 ||
-		caret.Y > style.Prose.LineHeight() {
-		t.Fatalf("wrapped first-row caret Y = %v", caret.Y)
+	wantY := (style.Prose.LineHeight()-style.Prose.CaretHeight())/2 +
+		style.Prose.CaretOffsetY()
+	if caret.Y != wantY {
+		t.Fatalf("wrapped first-row caret Y = %v, want %v", caret.Y, wantY)
 	}
 }
 
