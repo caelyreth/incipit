@@ -134,7 +134,9 @@ func (s *Session) SurfaceFlow() (*surface.Flow, error) {
 	return s.presentation.SurfaceFlow(s.runtime)
 }
 
-func (s *Session) SurfaceFrame(now time.Time, guideLabel *string) (*surface.Frame, error) {
+// SurfaceFrame composes the current visual intent. keys formats the
+// bindings guides show; nil shows none, as during a native composition.
+func (s *Session) SurfaceFrame(now time.Time, keys GuideKeys) (*surface.Frame, error) {
 	flow, err := s.SurfaceFlow()
 	if err != nil {
 		return nil, err
@@ -152,9 +154,7 @@ func (s *Session) SurfaceFrame(now time.Time, guideLabel *string) (*surface.Fram
 	if selection.Empty() {
 		decorations = append(decorations, s.inlineDecorations(node)...)
 		decorations = append(decorations, s.pairDecorations(node)...)
-		if guideLabel != nil {
-			decorations = append(decorations, s.navigationDecorations(now, *guideLabel)...)
-		}
+		decorations = append(decorations, s.guideDecorations(now, keys)...)
 	}
 	decorations = append(decorations, s.feedbackDecorations(now)...)
 	return surface.NewFrame(
@@ -262,26 +262,9 @@ func (s *Session) Tab(now time.Time) (kernel.Outcome, error) {
 	)); err != nil {
 		return 0, err
 	}
-	target, err := s.presentation.Projection.ProjectAnchor(offer.Target)
+	target, err := s.tabDestination(offer)
 	if err != nil {
 		return 0, err
-	}
-	if offer.HasMark {
-		key := MarkerKeyForMark(offer.Mark)
-		segments := s.presentation.Projection.Segments()
-		for index := len(segments) - 1; index >= 0; index-- {
-			attribute, found := segments[index].AttributeTarget()
-			if !found || attribute.Key() != key {
-				continue
-			}
-			target, err = s.presentation.Projection.Target(
-				model.EmptyUTF16Range(segments[index].ProjectedRange().End),
-			)
-			if err != nil {
-				return 0, err
-			}
-			break
-		}
 	}
 	s.presentation.Caret = target
 	s.inline.Activate(nil)
@@ -291,13 +274,26 @@ func (s *Session) Tab(now time.Time) (kernel.Outcome, error) {
 	return kernel.OutcomeHandled, nil
 }
 
-// GuideBinding returns the configured Tab binding, if one remains active.
-func (s *Session) GuideBinding() (kernel.BindingTarget, bool) {
-	bindings := s.runtime.Configuration().BindingsFor(TabCommand().ID)
-	if len(bindings) == 0 {
-		return kernel.BindingTarget{}, false
+// tabDestination is the exact visible landing point of offer, shared by Tab
+// and its guide. Emphasis lands after its generated closer rather than at
+// the semantic text edge.
+func (s *Session) tabDestination(offer TabOffer) (projection.Target, error) {
+	target, err := s.presentation.Projection.ProjectAnchor(offer.Target)
+	if err != nil || !offer.HasMark {
+		return target, err
 	}
-	return bindings[0], true
+	key := MarkerKeyForMark(offer.Mark)
+	segments := s.presentation.Projection.Segments()
+	for index := len(segments) - 1; index >= 0; index-- {
+		attribute, found := segments[index].AttributeTarget()
+		if !found || attribute.Key() != key {
+			continue
+		}
+		return s.presentation.Projection.Target(
+			model.EmptyUTF16Range(segments[index].ProjectedRange().End),
+		)
+	}
+	return target, nil
 }
 
 // SelectionTarget returns the current projected replacement target.
@@ -824,33 +820,6 @@ func (s *Session) pairDecorations(node *model.Node) []surface.Decoration {
 		},
 		Primitive:  surface.FillPrimitive(ranges, surface.ColorAccent, 4),
 		Opacity:    surface.FixedOpacity(20),
-		Visibility: surface.VisibilityFocused,
-	}}
-}
-
-func (s *Session) navigationDecorations(now time.Time, label string) []surface.Decoration {
-	offer, ok, err := s.navigation.TabOffer(
-		now,
-		mustNode(s.runtime.Snapshot().Document(), s.presentation.Selection.Node()),
-		s.presentation.Selection,
-		s.Pairs(),
-		activeMark(s.inline),
-		DefaultNavigationSettings(),
-	)
-	if err != nil || !ok {
-		return nil
-	}
-	target, err := s.presentation.Projection.ProjectAnchor(offer.Target)
-	if err != nil {
-		return nil
-	}
-	return []surface.Decoration{{
-		ID: surface.DecorationID{
-			Producer: surface.ProducerID(NavigationPolicyID),
-			Local:    uint64(offer.Kind),
-		},
-		Primitive:  surface.GuidePrimitive(target.RangeUTF16().Start, label, surface.ColorAccent),
-		Opacity:    surface.FixedOpacity(200),
 		Visibility: surface.VisibilityFocused,
 	}}
 }

@@ -45,6 +45,7 @@ type Element struct {
 	pointerHead       int
 	pointer           pointerPhase
 	lastWidth         float32
+	guides            Guides
 	focusPending      bool
 	current           *textlayout.Layout
 	placeholderLayout *ui.TextLayout
@@ -266,6 +267,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	if e.lastWidth != rect.W {
 		// Rewrapped rows have no previous identity; never morph across them.
 		e.Motion.ResetGeometry()
+		e.guides.Reset()
 		e.lastWidth = rect.W
 	}
 	e.current = e.Layout.Update(flow, rect.W, style)
@@ -316,6 +318,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Composing:         bridge.Controller.IsComposing(),
 		ContentTop:        contentTop,
 		BottomInset:       e.BottomInset,
+		Guides:            &e.guides,
 	}
 	Paint(p, rect, state)
 	e.drawnCaret = state.DrawnCaret

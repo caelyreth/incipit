@@ -25,8 +25,8 @@ func TestSessionTextSpanAndUnifiedCommandDispatch(t *testing.T) {
 	if session.Selection().Head().OffsetUTF16() != 4 {
 		t.Fatalf("command head = %d", session.Selection().Head().OffsetUTF16())
 	}
-	if _, ok := session.GuideBinding(); !ok {
-		t.Fatal("Tab guide binding missing")
+	if len(session.Runtime().Configuration().BindingsFor(TabCommand().ID)) == 0 {
+		t.Fatal("Tab binding missing")
 	}
 	if err := session.Select(model.NewTextSelection(
 		model.NewTextAnchor(node, 2, model.AffinityRight, session.Runtime().Revision()),

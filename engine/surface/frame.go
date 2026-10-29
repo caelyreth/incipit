@@ -59,6 +59,9 @@ func NewFrame(
 				return nil, err
 			}
 		case PrimitiveGuide:
+			if len(decoration.Primitive.Keys) == 0 {
+				return nil, fmt.Errorf("guide without keys")
+			}
 			if _, err := flow.byteRange(model.EmptyUTF16Range(decoration.Primitive.At)); err != nil {
 				return nil, err
 			}

@@ -60,6 +60,8 @@ func (c *DocumentController) refreshPreview() error {
 	if !ok {
 		return ErrNoComposition
 	}
+	// Guides stay hidden while a composition is open: its marked text owns
+	// the caret, and no shortcut lands until it commits.
 	frame, err := c.session.SurfaceFrame(c.now(), nil)
 	if err != nil {
 		return err

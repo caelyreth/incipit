@@ -135,7 +135,8 @@ type Primitive struct {
 	Radius    float32
 	Thickness float32
 	At        model.UTF16Offset
-	Label     string
+	// Keys are a guide's keycaps, already in the platform's notation.
+	Keys []string
 }
 
 func FillPrimitive(ranges []model.UTF16Range, color ColorRole, radius float32) Primitive {
@@ -146,12 +147,15 @@ func RulePrimitive(ranges []model.UTF16Range, color ColorRole, thickness float32
 	return Primitive{Kind: PrimitiveRule, Ranges: cloneRanges(ranges), Color: color, Thickness: thickness}
 }
 
-func GuidePrimitive(at model.UTF16Offset, label string, color ColorRole) Primitive {
-	return Primitive{Kind: PrimitiveGuide, At: at, Label: label, Color: color}
+// GuidePrimitive anchors keycaps at a landing point: the keys that would
+// take the caret there.
+func GuidePrimitive(at model.UTF16Offset, keys []string, color ColorRole) Primitive {
+	return Primitive{Kind: PrimitiveGuide, At: at, Keys: append([]string(nil), keys...), Color: color}
 }
 
 func (p Primitive) Clone() Primitive {
 	p.Ranges = cloneRanges(p.Ranges)
+	p.Keys = append([]string(nil), p.Keys...)
 	return p
 }
 

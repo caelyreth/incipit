@@ -27,6 +27,9 @@ type State struct {
 	Composing         bool
 	ContentTop        float32
 	BottomInset       float32
+	// Guides keeps the anchored key hints' motion across frames; without
+	// it guides still paint, settled.
+	Guides *Guides
 
 	// DrawnCaret is set by Paint: the caret geometry it settled on this
 	// frame, local to the content like the layout's.

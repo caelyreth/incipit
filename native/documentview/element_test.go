@@ -323,3 +323,30 @@ func TestElementDoubleClickGlidesCaretToWordEndAndFadesSelection(t *testing.T) {
 			settled.X, element.Motion.SelectionOpacity(), element.Motion.Moving())
 	}
 }
+
+func TestElementGuidesTabBackToTheLastEditAfterAClickAway(t *testing.T) {
+	document, element, tester := newAnimatedElement(t, "")
+	start := element.current.Caret(0)
+	tester.Press(start.X+1, start.Y+1)
+	tester.Release(start.X+1, start.Y+1)
+	tester.Type("a long enough edit")
+	tester.Advance(time.Second)
+	if len(element.guides.Visible()) != 0 {
+		t.Fatalf("guides while writing = %#v", element.guides.Visible())
+	}
+	start = element.current.Caret(0)
+	tester.Press(start.X+1, start.Y+1)
+	tester.Release(start.X+1, start.Y+1)
+	tester.Advance(time.Second)
+	if document.Caret() != 0 {
+		t.Fatalf("caret = %d after clicking away", document.Caret())
+	}
+	visible := element.guides.Visible()
+	if len(visible) != 1 || visible[0].Keys[len(visible[0].Keys)-1] != "Tab" ||
+		visible[0].Opacity < 0.99 {
+		t.Fatalf("guides = %#v, want one settled Tab guide", visible)
+	}
+	if want := element.current.Caret(18).X; visible[0].Rect.X != want {
+		t.Fatalf("guide x = %v, want the last edit at %v", visible[0].Rect.X, want)
+	}
+}

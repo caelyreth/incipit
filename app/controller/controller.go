@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/kernel/projection"
@@ -12,6 +13,11 @@ import (
 )
 
 const activityLimit = 64
+
+// guideKeys shows each guide's binding in the in-text notation.
+func guideKeys(target kernel.BindingTarget) []string {
+	return keymap.GuideKeycaps(target, keymap.PlatformCurrent)
+}
 
 type preedit struct {
 	original UTF16Range
@@ -167,7 +173,7 @@ func (c *DocumentController) FrameDeadline() (time.Time, bool) {
 	if c.previewFrame != nil {
 		return time.Time{}, false
 	}
-	frame, err := c.session.SurfaceFrame(c.now(), nil)
+	frame, err := c.session.SurfaceFrame(c.now(), guideKeys)
 	if err != nil {
 		c.recordError(err)
 		return time.Time{}, false
@@ -215,7 +221,7 @@ func (c *DocumentController) SurfaceFrame(at time.Time) (*surface.Frame, error) 
 	if c.previewFrame != nil {
 		return c.previewFrame, nil
 	}
-	frame, err := c.session.SurfaceFrame(at, nil)
+	frame, err := c.session.SurfaceFrame(at, guideKeys)
 	if err != nil {
 		c.recordError(err)
 		return nil, err

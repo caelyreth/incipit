@@ -180,35 +180,6 @@ func drawCaret(
 	p.Fill(caret, state.Theme.Accent.Foreground.Alpha(alpha), 1)
 }
 
-func drawGuides(
-	p *ui.Painter,
-	rect ui.Rect,
-	state *State,
-	options PaintOptions,
-) {
-	for _, decoration := range state.Frame.Decorations() {
-		visible := decoration.Visibility == surface.VisibilityAlways || options.Focused
-		if !visible || decoration.Primitive.Kind != surface.PrimitiveGuide {
-			continue
-		}
-		alpha := decoration.Sample(options.Now, options.Animate)
-		if alpha <= 0 {
-			continue
-		}
-		caret := state.Layout.Caret(decoration.Primitive.At)
-		x := rect.X + caret.X
-		y := rect.Y + state.ContentTop + caret.Y - state.ScrollY
-		if y+caret.H < rect.Y || y > rect.Y+rect.H {
-			continue
-		}
-		color := roleColor(state.Theme, decoration.Primitive.Color).Alpha(alpha)
-		p.Fill(ui.Rect{X: x, Y: y, W: 1, H: caret.H}, color, 0)
-		if decoration.Primitive.Label != "" {
-			p.Text(x+6, y-2, decoration.Primitive.Label, 11, color)
-		}
-	}
-}
-
 func decorationsMoving(frame *surface.Frame, options PaintOptions) bool {
 	if !options.Animate || frame == nil {
 		return false

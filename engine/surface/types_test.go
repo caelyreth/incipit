@@ -38,7 +38,7 @@ func TestFrameValidatesIdentityCoordinatesAndSteadyLifetimes(t *testing.T) {
 		ID: DecorationID{Producer: "test", Local: 7},
 		Primitive: GuidePrimitive(
 			1,
-			"guide",
+			[]string{"Tab"},
 			ColorMuted,
 		),
 		Opacity:    FixedOpacity(255),
