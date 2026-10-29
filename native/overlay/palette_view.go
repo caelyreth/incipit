@@ -27,14 +27,13 @@ func (p *CommandPalette) View(c *ui.Context, semantic theme.Theme, animate bool)
 		Content: func(panel ui.Element) {
 			panel.Padding(16 * scale).Children(func() {
 				ui.Column(c).Gap(8 * scale).Children(func() {
-					field := components.TextField{
+					components.TextField{
 						Key: "command-query", Label: "Search commands", Placeholder: "Search commands…",
 						Value: &p.Query, Icon: components.IconSearch.SVG(),
-						ClearIcon: components.IconClose.SVG(), Animate: animate,
+						ClearIcon: components.IconClose.SVG(), Animate: animate, AutoFocus: true,
 						Changed: func() { p.Selected = 0 },
 						Submit:  func() { p.Submit() },
 					}.View(c, semantic)
-					field.AutoFocus()
 					components.HorizontalDivider(c, semantic, components.VariantDivider)
 					if len(items) == 0 {
 						components.Label(c, "No commands match", theme.TextSmall,

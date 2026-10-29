@@ -16,7 +16,6 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	state := app.Shell
 	mygo.Theme.SetSource(themeSource(app.Shell.Settings))
 
 	mygo.App.WhenReady(func() {
@@ -30,7 +29,7 @@ func Run() error {
 			TitleBarStyle:        mygo.TitleBarHidden,
 			TrafficLightPosition: trafficLights(),
 			StateKey:             "neverland.main",
-			Content:              ui.View(state.View),
+			Content:              ui.View(app.View),
 			BackgroundColor:      colorHex(app.Shell.Settings.Semantic().Surface.Background),
 		})
 		window.OnFocus(func() {

@@ -13,6 +13,7 @@ type TextField struct {
 	Icon        *ui.SVG
 	ClearIcon   *ui.SVG
 	Animate     bool
+	AutoFocus   bool
 	Submit      func()
 	Changed     func()
 }
@@ -50,10 +51,14 @@ func (f TextField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 				Action: func() {
 					*f.Value = ""
 					input.SetChanged()
+					input.Focus()
 				},
 			}.View(c, semantic)
 		}
 	})
+	if f.AutoFocus {
+		input.AutoFocus()
+	}
 	if input.Focused() {
 		field.Border(1, semantic.Border.Focused)
 	}

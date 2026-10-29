@@ -23,8 +23,8 @@ func TestPageTitleCommitsNormalizedIntent(t *testing.T) {
 		title.View(c, theme.DefaultSettings().Semantic(), true)
 	}, 720, 520)
 	tester.Frame()
-	if err := tester.Click("Page title"); err != nil {
-		t.Fatal(err)
+	if active, _ := tester.TextInputActive(); !active {
+		t.Fatal("page title did not autofocus")
 	}
 	tester.Type("  Chapter one  ")
 	if err := tester.Click("Rename page"); err != nil {

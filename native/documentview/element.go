@@ -56,6 +56,7 @@ type Element struct {
 	lastViewportH     float32
 	lastTypewriter    bool
 	drawnCaret        ui.Rect
+	mounted           bool
 }
 
 // pointerPhase follows one press. A press keeps the caret on its springs, so a
@@ -106,15 +107,15 @@ func (e *Element) View(c *ui.Context) {
 		Label(e.label()).
 		Value(e.value()).
 		Focusable()
-	if e.AutoFocus {
-		if e.focusPending {
+	if e.focusPending {
+		if e.AutoFocus && !e.mounted {
 			box.AutoFocus()
-			e.focusPending = false
+		} else {
+			box.Focus()
 		}
-	} else if e.focusPending {
-		box.Focus()
 		e.focusPending = false
 	}
+	e.mounted = true
 	box.HandleInput(e.handleInput).
 		TextCaret(e.caret(c)).
 		Draw(func(p *ui.Painter, rect ui.Rect) {

@@ -45,13 +45,12 @@ func (p *PageTitle) View(c *ui.Context, semantic theme.Theme, animate bool) {
 						"A title for navigation. It stays in memory with this session.",
 						theme.TextSmall, semantic.Text.Muted,
 					)
-					field := components.TextField{
+					components.TextField{
 						Key: "page-title-field", Label: "Page title", Placeholder: "Page title",
 						Value: &p.Value, Icon: components.IconDocument.SVG(),
-						ClearIcon: components.IconClose.SVG(), Animate: animate,
+						ClearIcon: components.IconClose.SVG(), Animate: animate, AutoFocus: true,
 						Submit: func() { committed = true },
 					}.View(c, semantic)
-					field.AutoFocus()
 					ui.Row(c).Justify(ui.End).Gap(8 * scale).Children(func() {
 						components.Button{
 							Key: "cancel-page-title", Label: "Cancel",
