@@ -188,15 +188,19 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		e.Motion.Activity(event.Time)
 		offset := e.hit(event.X, event.Y)
 		anchor := offset
-		if event.Clicks >= 2 {
-			if word, ok := e.wordAt(offset); ok {
+		switch {
+		case event.Clicks >= 3:
+			if paragraph, ok := e.unitAt(offset, editor.SelectionParagraph); ok {
+				anchor, offset = paragraph.Start, paragraph.End
+			}
+		case event.Clicks == 2:
+			if word, ok := e.unitAt(offset, editor.SelectionWord); ok {
 				anchor, offset = word.Start, word.End
 			}
-		} else if event.Mods&ui.Shift != 0 {
-			anchor = e.pointerAnchor
-		} else {
-			e.pointerAnchor = offset
+		case event.Mods&ui.Shift != 0:
+			anchor = e.selectionAnchor(offset)
 		}
+		e.pointerAnchor = anchor
 		e.pointer = pointerPressed
 		e.pointerHead = offset
 		return e.Input.Select(anchor, offset, event.Time) == nil
@@ -256,19 +260,34 @@ func (e *Element) hit(x, y float32) int {
 	}))
 }
 
-func (e *Element) wordAt(offset int) (struct{ Start, End int }, bool) {
+func (e *Element) unitAt(offset int, unit editor.SelectionUnit) (struct{ Start, End int }, bool) {
 	var result struct{ Start, End int }
 	bridge, ok := e.Input.(*Bridge)
 	if !ok || bridge == nil || bridge.Controller == nil {
 		return result, false
 	}
 	text := bridge.Controller.Text()
-	unit, err := editor.EnclosingUTF16Range(text, model.UTF16Offset(offset), editor.SelectionWord)
-	if err != nil || unit.Start >= unit.End {
+	range16, err := editor.EnclosingUTF16Range(text, model.UTF16Offset(offset), unit)
+	if err != nil || range16.Start >= range16.End {
 		return result, false
 	}
-	result.Start, result.End = int(unit.Start), int(unit.End)
+	result.Start, result.End = int(range16.Start), int(range16.End)
 	return result, true
+}
+
+func (e *Element) selectionAnchor(fallback int) int {
+	bridge, ok := e.Input.(*Bridge)
+	if !ok || bridge == nil || bridge.Controller == nil {
+		return fallback
+	}
+	selection := bridge.Controller.Selection()
+	if selection.Range.Empty() {
+		return selection.Caret()
+	}
+	if selection.Reversed {
+		return selection.Range.End
+	}
+	return selection.Range.Start
 }
 
 func (e *Element) caret(c *ui.Context) ui.Rect {
