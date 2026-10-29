@@ -1008,15 +1008,19 @@ func (i *EditorInvoker) invokePair(
 		EditMates:        contextMarkupBool(context, "edit-mates", true),
 		ContextualQuotes: contextMarkupBool(context, "contextual-quotes", true),
 	}
+	pairInput := PairInput{
+		Range:       input.Target().RangeUTF16(),
+		Replacement: input.Text(),
+		Origin:      origin,
+	}
+	if !PairMayApply(rule, pairInput, settings) {
+		return kernel.OutcomePass, nil
+	}
 	text := ""
 	if node.TextPresent() {
 		text = node.Text().String()
 	}
-	plan, err := PlanPair(rule, text, PairInput{
-		Range:       input.Target().RangeUTF16(),
-		Replacement: input.Text(),
-		Origin:      origin,
-	}, settings)
+	plan, err := PlanPair(rule, text, pairInput, settings)
 	if err != nil {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}

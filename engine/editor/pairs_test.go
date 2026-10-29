@@ -17,6 +17,30 @@ func planPair(t *testing.T, rule PairRule, text string, input PairInput) PairPla
 	return plan
 }
 
+func TestPairMayApplyRejectsImpossibleTextBeforeDocumentScan(t *testing.T) {
+	t.Parallel()
+	settings := DefaultPairSettings()
+	tests := []struct {
+		rule  PairRule
+		input PairInput
+		want  bool
+	}{
+		{PairOpen, PairInput{Range: model.NewUTF16Range(0, 0), Replacement: "x", Origin: kernel.EventOriginTyping}, false},
+		{PairOpen, PairInput{Range: model.NewUTF16Range(0, 0), Replacement: "(", Origin: kernel.EventOriginTyping}, true},
+		{PairOvertype, PairInput{Range: model.NewUTF16Range(0, 0), Replacement: "x", Origin: kernel.EventOriginTyping}, false},
+		{PairOvertype, PairInput{Range: model.NewUTF16Range(0, 0), Replacement: ")", Origin: kernel.EventOriginTyping}, true},
+		{PairCloseQuote, PairInput{Range: model.NewUTF16Range(0, 0), Replacement: "x", Origin: kernel.EventOriginTyping}, false},
+		{PairCloseQuote, PairInput{Range: model.NewUTF16Range(0, 0), Replacement: "\"", Origin: kernel.EventOriginTyping}, true},
+		{PairMateEdit, PairInput{Range: model.NewUTF16Range(0, 0), Replacement: "x", Origin: kernel.EventOriginTyping}, false},
+		{PairMateEdit, PairInput{Range: model.NewUTF16Range(0, 1), Replacement: "x", Origin: kernel.EventOriginTyping}, true},
+	}
+	for _, test := range tests {
+		if got := PairMayApply(test.rule, test.input, settings); got != test.want {
+			t.Errorf("%s input=%#v may apply=%v, want %v", test.rule, test.input, got, test.want)
+		}
+	}
+}
+
 func applyPairPlan(t *testing.T, text string, plan PairPlan) string {
 	t.Helper()
 	if !plan.Handled {

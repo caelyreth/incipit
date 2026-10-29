@@ -57,6 +57,36 @@ func DefaultPairSettings() PairSettings {
 	return PairSettings{Quotes: true, Overtype: true, EditMates: true, ContextualQuotes: true}
 }
 
+// PairMayApply reports the cheap necessary conditions shared by the pair
+// rules. Callers use it to avoid materializing and scanning a document for
+// text that cannot participate in the selected rule.
+func PairMayApply(
+	rule PairRule,
+	input PairInput,
+	settings PairSettings,
+) bool {
+	if !rule.OriginAllowed(input.Origin) || !settings.SettingEnabled(rule) {
+		return false
+	}
+	if isQuote(input.Replacement) && !settings.Quotes {
+		return false
+	}
+	switch rule {
+	case PairOvertype:
+		return input.Range.Empty() && isClosing(input.Replacement)
+	case PairCloseQuote:
+		return input.Range.Empty() &&
+			(input.Replacement == "\"" || input.Replacement == "'")
+	case PairMateEdit:
+		return !input.Range.Empty()
+	case PairOpen:
+		_, ok := openingSpecification(input.Replacement)
+		return ok
+	default:
+		return false
+	}
+}
+
 // SettingEnabled reports whether one rule can run under these settings.
 func (s PairSettings) SettingEnabled(rule PairRule) bool {
 	switch rule {
