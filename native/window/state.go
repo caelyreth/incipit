@@ -639,5 +639,5 @@ func (a *AppState) View(c *ui.Context) {
 }
 
 func (a *AppState) commands() []overlay.Command {
-	return commandCatalog()
+	return a.commandCatalog()
 }
