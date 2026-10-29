@@ -32,19 +32,20 @@ type EditingOutcome struct {
 // input handlers, history, composition, feedback, navigation, pairs, and
 // metrics. It has no UI dependency.
 type Session struct {
-	runtime      *kernel.PolicyRuntime
-	invoker      *EditorInvoker
-	presentation Presentation
-	inline       *InlineState
-	history      *History
-	composition  *CompositionState
-	feedback     *Feedback
-	navigation   Navigation
-	pairs        []PairSpan
-	pairsValid   bool
-	statistics   TextMetricsSource
-	statsValid   bool
-	generation   uint64
+	runtime       *kernel.PolicyRuntime
+	invoker       *EditorInvoker
+	presentation  Presentation
+	inline        *InlineState
+	history       *History
+	composition   *CompositionState
+	feedback      *Feedback
+	navigation    Navigation
+	pairs         []PairSpan
+	pairsValid    bool
+	pairsRelevant bool
+	statistics    TextMetricsSource
+	statsValid    bool
+	generation    uint64
 }
 
 // NewSession mounts the editor policy assembly on one semantic node.
@@ -550,7 +551,10 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 		return EditingOutcome{}, err
 	}
 	if transaction.Value.Outcome.Status == kernel.OutcomeHandled {
+		hadPairs := s.pairsValid
+		hadRelevantPairs := s.pairsRelevant
 		s.applyPresentation(candidate)
+		s.retainPairsAfterEdit(hadPairs, hadRelevantPairs, edit.Replacement, transaction.Changes)
 		s.updateMetricsAfterEdit(beforeRoot, beforeHasRoot, transaction.Changes.TextEdits())
 		s.navigation.Remember(s.presentation.Selection)
 		group := ShouldGroupTyping(edit.Origin, inputValue.ApplyText(), edit.Replacement)
@@ -774,10 +778,36 @@ func (s *Session) refreshPairs() {
 	if !ok || !node.TextPresent() {
 		s.pairs = nil
 		s.pairsValid = true
+		s.pairsRelevant = false
 		return
 	}
-	s.pairs, _ = DiscoverPairs(node.Text().String())
+	text := node.Text().String()
+	s.pairsRelevant = containsPairSyntax(text)
+	if s.pairsRelevant {
+		s.pairs, _ = DiscoverPairs(text)
+	} else {
+		s.pairs = nil
+	}
 	s.pairsValid = true
+}
+
+func (s *Session) retainPairsAfterEdit(
+	wasValid, wasRelevant bool,
+	replacement string,
+	changes kernel.EngineChanges,
+) {
+	if !wasValid {
+		return
+	}
+	if len(changes.TextEdits()) == 0 {
+		s.pairsValid = true
+		return
+	}
+	if !wasRelevant && !containsPairSyntax(replacement) {
+		s.pairs = nil
+		s.pairsRelevant = false
+		s.pairsValid = true
+	}
 }
 
 func (s *Session) navigationSettings() NavigationSettings {

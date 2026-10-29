@@ -2,6 +2,7 @@ package editor
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
@@ -130,6 +131,10 @@ type PairPlan struct {
 type pairSpec struct {
 	opener string
 	closer string
+}
+
+func containsPairSyntax(text string) bool {
+	return strings.ContainsAny(text, "()[]{}（）［］｛｝“”‘’\"'")
 }
 
 var pairSpecs = [...]pairSpec{

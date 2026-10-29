@@ -41,6 +41,26 @@ func TestPairMayApplyRejectsImpossibleTextBeforeDocumentScan(t *testing.T) {
 	}
 }
 
+func TestPlainTypingRetainsIrrelevantPairCache(t *testing.T) {
+	t.Parallel()
+	session, _ := newSessionFixture(t, "plain prose", false)
+	if pairs := session.Pairs(); len(pairs) != 0 {
+		t.Fatalf("initial pairs = %#v", pairs)
+	}
+	if !session.pairsValid || session.pairsRelevant {
+		t.Fatal("plain document did not retain an irrelevant pair cache")
+	}
+	typeSession(t, session, "x")
+	if !session.pairsValid || session.pairsRelevant || len(session.pairs) != 0 {
+		t.Fatalf(
+			"pair cache after typing valid=%v relevant=%v pairs=%#v",
+			session.pairsValid,
+			session.pairsRelevant,
+			session.pairs,
+		)
+	}
+}
+
 func applyPairPlan(t *testing.T, text string, plan PairPlan) string {
 	t.Helper()
 	if !plan.Handled {
