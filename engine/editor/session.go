@@ -597,10 +597,6 @@ func (s *Session) CommitComposition() (kernel.Outcome, error) {
 	if err != nil {
 		return 0, err
 	}
-	target, err := s.presentation.Target(pending.Range)
-	if err != nil {
-		return 0, err
-	}
 	edit, err := FromSelectionAndRange(
 		s.presentation.Projection,
 		pending.Range,
@@ -610,17 +606,6 @@ func (s *Session) CommitComposition() (kernel.Outcome, error) {
 	)
 	if err != nil {
 		return 0, err
-	}
-	if pending.Range.Empty() {
-		edit, err = FromProjectionTarget(
-			s.presentation.Projection,
-			target,
-			pending.Text,
-			kernel.EventOriginIME,
-		)
-		if err != nil {
-			return 0, err
-		}
 	}
 	outcome, err := s.applyProjectedEdit(edit)
 	if err != nil {

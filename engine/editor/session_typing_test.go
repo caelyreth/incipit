@@ -96,3 +96,44 @@ func TestSessionTypingKeepsCollapsedGeneratedStrongPairOpen(t *testing.T) {
 		t.Fatalf("strong typing caret = %d", session.Caret().RangeUTF16().Start)
 	}
 }
+
+func TestSessionCompositionCommitReplacesPreeditInsideGeneratedStrongPair(t *testing.T) {
+	t.Parallel()
+	session, node := newSessionFixture(t, "", false)
+	if outcome, err := session.ExecuteMarkup(MarkupStrong); err != nil ||
+		outcome != kernel.OutcomeHandled {
+		t.Fatalf("strong outcome=%v err=%v", outcome, err)
+	}
+	typeSession(t, session, "a")
+
+	if err := session.BeginComposition(); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.UpdateComposition("に"); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.UpdateComposition("b"); err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := session.CommitComposition()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome != kernel.OutcomeHandled {
+		t.Fatalf("composition outcome = %v", outcome)
+	}
+	if _, active := session.Composition().Preview(); active {
+		t.Fatal("composition preview survived handled commit")
+	}
+	nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
+	if nodeValue.Text().String() != "ab" || session.Projection().Text() != "**ab**" {
+		t.Fatalf(
+			"semantic=%q projected=%q",
+			nodeValue.Text().String(),
+			session.Projection().Text(),
+		)
+	}
+	if session.Caret().RangeUTF16().Start != 4 {
+		t.Fatalf("composition caret = %d", session.Caret().RangeUTF16().Start)
+	}
+}
