@@ -40,10 +40,18 @@ func (p *CommandPalette) Filtered() []Command {
 	if query == "" {
 		return append([]Command(nil), p.Commands...)
 	}
+	words := strings.Fields(query)
 	result := make([]Command, 0, len(p.Commands))
 	for _, command := range p.Commands {
-		haystack := strings.ToLower(command.Label + " " + command.Group + " " + string(command.ID))
-		if strings.Contains(haystack, query) {
+		label := strings.ToLower(command.Label)
+		matches := true
+		for _, word := range words {
+			if !strings.Contains(label, word) {
+				matches = false
+				break
+			}
+		}
+		if matches {
 			result = append(result, command)
 		}
 	}

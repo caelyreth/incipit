@@ -24,10 +24,17 @@ func TestPaletteFiltersNavigatesAndConsumesChoice(t *testing.T) {
 		{ID: "italic", Label: "Italic", Group: "Format"},
 		{ID: "settings", Label: "Settings", Group: "App"},
 	})
-	palette.Query = "for"
-	if filtered := palette.Filtered(); len(filtered) != 2 {
+	palette.Query = "it"
+	if filtered := palette.Filtered(); len(filtered) != 1 || filtered[0].Label != "Italic" {
 		t.Fatalf("filtered = %#v", filtered)
 	}
+	palette.Query = "open set"
+	palette.Commands[2].Label = "Open Settings"
+	if filtered := palette.Filtered(); len(filtered) != 1 || filtered[0].Label != "Open Settings" {
+		t.Fatalf("token filtered = %#v", filtered)
+	}
+	palette.Commands[2].Label = "Italic"
+	palette.Query = "it"
 	palette.Move(1)
 	choice, ok := palette.Submit()
 	if !ok || choice != kernel.CommandID("italic") || palette.Open {
