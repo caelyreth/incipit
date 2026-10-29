@@ -37,6 +37,9 @@ func (c *RuleContext) Owner() PolicyID { return c.owner }
 
 func (c *RuleContext) Changed(key StateKey) (bool, error) {
 	if key.Document {
+		if _, err := c.Document(); err != nil {
+			return false, err
+		}
 		return c.draft.Document().WasWritten(), nil
 	}
 	return c.resources.Changed(key.Resource)
@@ -44,14 +47,14 @@ func (c *RuleContext) Changed(key StateKey) (bool, error) {
 
 func (c *RuleContext) Document() (*model.DocumentDraft, error) {
 	if c.effects.Document() == DocumentAccessNone {
-		return nil, &EngineError{Kind: EngineErrorDocument}
+		return nil, &EngineError{Kind: EngineErrorUndeclaredDocumentRead}
 	}
 	return c.draft.Document(), nil
 }
 
 func (c *RuleContext) DocumentMut() (*model.DocumentDraft, error) {
 	if c.effects.Document() != DocumentAccessWrite {
-		return nil, &EngineError{Kind: EngineErrorDocument}
+		return nil, &EngineError{Kind: EngineErrorUndeclaredDocumentWrite}
 	}
 	return c.draft.Document(), nil
 }
@@ -72,7 +75,7 @@ func (c *RuleContext) ApplyTextInput() (Outcome, error) {
 		return OutcomePass, nil
 	}
 	if c.effects.Document() != DocumentAccessWrite {
-		return 0, &EngineError{Kind: EngineErrorDocument}
+		return 0, &EngineError{Kind: EngineErrorUndeclaredDocumentWrite}
 	}
 	if c.textInputConsumed || c.draft.textInputConsumed {
 		return 0, &EngineError{
@@ -103,7 +106,7 @@ func (c *RuleContext) ReplaceTextInputMarked(active *model.MarkID) (model.NodeID
 		return 0, 0, false, nil
 	}
 	if c.effects.Document() != DocumentAccessWrite {
-		return 0, 0, false, &EngineError{Kind: EngineErrorDocument}
+		return 0, 0, false, &EngineError{Kind: EngineErrorUndeclaredDocumentWrite}
 	}
 	if c.textInputConsumed || c.draft.textInputConsumed {
 		return 0, 0, false, &EngineError{

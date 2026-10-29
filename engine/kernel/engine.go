@@ -265,6 +265,8 @@ const (
 	EngineErrorInvalidEventKey
 	EngineErrorOutOfScopeDocumentWrite
 	EngineErrorRevisionExhausted
+	EngineErrorUndeclaredDocumentRead
+	EngineErrorUndeclaredDocumentWrite
 )
 
 type EngineError struct {
@@ -276,8 +278,24 @@ type EngineError struct {
 }
 
 func (e *EngineError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
 	switch e.Kind {
-	case EngineErrorDocument, EngineErrorResource, EngineErrorInput:
+	case EngineErrorDocument:
+		if e.Err == nil {
+			return "semantic document operation failed"
+		}
+		return e.Err.Error()
+	case EngineErrorResource:
+		if e.Err == nil {
+			return "resource operation failed"
+		}
+		return e.Err.Error()
+	case EngineErrorInput:
+		if e.Err == nil {
+			return "input operation failed"
+		}
 		return e.Err.Error()
 	case EngineErrorInvalidEventKey:
 		return fmt.Sprintf("command event cannot use reserved input key %s", e.Key)
@@ -285,9 +303,18 @@ func (e *EngineError) Error() string {
 		return fmt.Sprintf("input targeted at %s cannot mutate document node %s", e.Target, e.Changed)
 	case EngineErrorRevisionExhausted:
 		return "engine revisions are exhausted"
+	case EngineErrorUndeclaredDocumentRead:
+		return "undeclared read of the semantic document"
+	case EngineErrorUndeclaredDocumentWrite:
+		return "undeclared write of the semantic document"
 	default:
 		return "unknown engine error"
 	}
 }
 
-func (e *EngineError) Unwrap() error { return e.Err }
+func (e *EngineError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
