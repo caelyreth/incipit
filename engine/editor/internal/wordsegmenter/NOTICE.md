@@ -13,5 +13,15 @@ the `cjdict.txt` index. It removes the Thai, Lao, Khmer, and Burmese engines and
 their dictionaries, plus PiG's application-specific strip state and WTF-8
 adapter.
 
+Pinned data:
+
+```text
+ICU cjdict.txt source sha256:
+e73fd72048981d0cc13e9dc436a7eaba07ffb6eff58c8a59dc75c1df746663a0
+
+embedded cjk_dictionary.bin sha256:
+5111be4597ef8370329df83b3a3f1f59628ee7c4eb3b30208df02f56062f0010
+```
+
 PiG is MIT licensed. The translated ICU engine and embedded CJK dictionary
 retain the notices under `LICENSES/`.

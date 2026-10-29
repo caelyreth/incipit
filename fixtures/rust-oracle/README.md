@@ -43,8 +43,10 @@ The generator refuses to run when the Rust exporter has uncommitted changes.
 
 `v2` adds focused regression evidence for:
 
-- ICU word-like classifications for underscore, numeric punctuation, middle
-  dot, Thai dictionary segmentation, and a standalone combining mark;
+- historical ICU4X word classifications for underscore, numeric punctuation,
+  middle dot, Thai dictionary segmentation, and a standalone combining mark;
+- the Go platform overrides for a bare underscore and deferred Thai lexical
+  segmentation, asserted directly rather than skipped;
 - final compound IME replacement inside a generated strong pair;
 - undo restoration of a marker-only projected selection;
 - the `allow-strong = false` command gate and exact rejection;

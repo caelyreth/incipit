@@ -34,6 +34,8 @@ engine's projected-edit path.
 - `engine/model`: semantic truth, immutable text roots, anchors, marks.
 - `engine/kernel`: policies, resources, transactions, dispatch, projection.
 - `engine/editor`: editor behavior above the kernel.
+- `engine/editor/internal/wordsegmenter`: vendored ICU-tailored Latin/CJK word
+  boundaries; not a public API.
 - `engine/surface`: validated UI-neutral presentation values.
 - `app/controller`: active session, preedit facade, metrics, clipboard.
 - `app/workspace`: page and tab lifecycle.

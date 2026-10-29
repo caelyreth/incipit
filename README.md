@@ -54,6 +54,16 @@ same step.
 The Nix shell provides Go 1.27.1 and enables the Go toolchain download for the
 exact 1.27.3 patch release required by MyGo.
 
+## Text segmentation
+
+Word selection, movement, and statistics use ICU-tailored Unicode word rules.
+Chinese and Japanese runs use an embedded ICU dictionary, while Korean and
+Latin text use the same UAX #29-compatible platform boundaries.
+
+Thai, Lao, Khmer, and Burmese remain valid editable text and use Unicode
+grapheme fallback boundaries. Their language-specific dictionary segmentation
+is deferred and is not part of the initial support contract.
+
 ## Status
 
 The engine, application boundary, custom writing surface, window shell,

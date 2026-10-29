@@ -9,7 +9,18 @@ go test -count=1 ./...                               PASS
 go test -race -count=1 ./...                         PASS
 go vet ./...                                         PASS
 go build ./cmd/neverland                             PASS
-GOOS=windows GOARCH=amd64 go test -c ./native/shell  PASS
+go tool mygo vet .                                   PASS
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64
+  go test -c -o /tmp/editor-windows.test.exe ./engine/editor
+                                                       PASS
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64
+  go test -c -o /tmp/shell-windows.test.exe ./native/shell
+                                                       PASS
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64
+  go test -c -o /tmp/editor-linux.test ./engine/editor
+                                                       PASS
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+  go build -o /tmp/neverland-linux ./cmd/neverland   PASS
 gofmt -l engine app cmd native                       clean
 git diff --check                                     PASS
 ```
@@ -36,22 +47,26 @@ Version 1 covers:
 
 Version 2 covers:
 
-- ICU word-like behavior for underscores, grouped numbers, middle dots,
-  Thai dictionary segmentation, and standalone combining marks;
+- platform word-like behavior for grouped numbers, middle dots, CJK
+  dictionary boundaries, and standalone combining marks;
+- explicit platform overrides for a bare underscore and deferred Thai lexical
+  segmentation;
 - compound IME final replacement inside nonempty generated pairs;
 - undo restoration of marker-only projected selections;
 - `allow-strong = false` state and exact rejection;
 - pair and typography decisions for Unicode `Other_Alphabetic`;
 - kernel undeclared document read/write errors.
 
-All v2 cases are mandatory assertions. There are no "known divergence" skips.
+All v2 cases are mandatory assertions. The two intentional word-boundary
+overrides execute against the current platform policy rather than being
+skipped.
 
 ## Proven
 
 - Semantic document transactions, anchors, marks, projection, policy runtime,
   deterministic dispatch, observer validation, rollback, and atomic
   publication.
-- Grapheme, ICU-compatible word, sentence, CJK, typography, pair, markup,
+- Grapheme, ICU-tailored Latin/CJK word, sentence, typography, pair, markup,
   projected-edit, composition, history, feedback, and statistics behavior.
 - UTF-16 native boundaries, compound projected replacement, IME preview
   retention, final compound commit, cancellation, and policy-decline handling.
@@ -67,6 +82,18 @@ All v2 cases are mandatory assertions. There are no "known divergence" skips.
   accessibility selection, and offscreen caret scheduling behavior.
 - Modal mounting and text-input focus for command search and page rename.
 - Portable MyGo test locking and Windows test compilation.
+
+## Segmentation Benchmarks
+
+Local reference on Apple M5 Pro with Go 1.27.3:
+
+```text
+BenchmarkWordLikeRanges/Latin          ~1.46 us/op   2864 B/op  8 allocs/op
+BenchmarkWordLikeRanges/CJK            ~6.90 us/op   4160 B/op 37 allocs/op
+BenchmarkWordLikeRanges/ThaiFallback   ~1.06 us/op   1504 B/op  7 allocs/op
+```
+
+These are comparative development measurements, not release latency budgets.
 
 ## MyGo v0.7.1 Accessibility Boundary
 

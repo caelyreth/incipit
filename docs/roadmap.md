@@ -14,6 +14,8 @@
 - [x] Resources and atomic publication
 - [x] Projection and source correspondence
 - [x] Editor commands, words, and statistics
+- [x] Latin, Chinese, Japanese, and Korean word boundaries
+- [ ] Thai, Lao, Khmer, and Burmese dictionary segmentation
 - [x] Markup, pairs, CJK, and typography
 - [x] Projected edits and IME composition
 - [x] History and correction feedback
