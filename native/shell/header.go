@@ -104,7 +104,8 @@ func (s *State) pageTabs(
 	activeChanged := s.lastActive != s.ActivePage
 	ui.ScrollHorizontal(c).Grow(1).MinWidth(0).Height(height).
 		TrackScroll(&s.TabsScroll).Children(func() {
-		ui.Row(c).HeightPercent(100).PaddingX(theme.Space08.DIPs(s.Settings.UIFontSize)).
+		ui.Row(c).Role(ui.RoleTabList).Label("Open pages").FocusGroup(ui.Horizontal).
+			HeightPercent(100).PaddingX(theme.Space08.DIPs(s.Settings.UIFontSize)).
 			AlignItems(ui.Center).Gap(theme.Space04.DIPs(s.Settings.UIFontSize)).Children(func() {
 			for _, page := range s.Pages {
 				active := page.ID == s.ActivePage

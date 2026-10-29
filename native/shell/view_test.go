@@ -197,6 +197,26 @@ func TestTabsShowAndSelectEachOpenPage(t *testing.T) {
 	}
 }
 
+func TestTabsFormOneHorizontalFocusGroup(t *testing.T) {
+	state := New()
+	state.Pages = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
+	state.ActivePage = "one"
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	tester.Click("First")
+	if !tester.Focused("First") {
+		t.Fatal("the selected tab did not take focus")
+	}
+	tester.Key(0, ui.KeyRight)
+	if !tester.Focused("Second") && !tester.Focused("Close First") {
+		t.Fatal("Right did not move within the tab focus group")
+	}
+	tester.Key(0, ui.KeyTab)
+	if tester.Focused("First") || tester.Focused("Second") || tester.Focused("Close First") {
+		t.Fatal("Tab did not leave the tab focus group")
+	}
+}
+
 func TestHeaderControlsUseReferenceActions(t *testing.T) {
 	state := New()
 	var commands, created, opened, closed bool

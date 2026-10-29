@@ -23,7 +23,7 @@ func (d ActionDock) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	return ui.Row(c).Key(d.Key).Role(ui.RoleToolbar).Label(d.Label).
 		MaxWidthPercent(100).Wrap().AlignItems(ui.Center).Justify(ui.Center).
 		Gap(theme.Space06.DIPs(scale)).Padding(theme.Space04.DIPs(scale)).
-		KeepFocus().
+		KeepFocus().FocusGroup(ui.Horizontal).
 		Radius(metrics.DockRadius).Border(1, semantic.Border.Variant).
 		Background(semantic.Surface.Panel).Children(func() {
 		for index, group := range d.Groups {

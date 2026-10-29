@@ -59,6 +59,31 @@ func TestSettingsCategoryNavigation(t *testing.T) {
 	}
 }
 
+func TestSettingsTreeIsOneVerticalFocusGroup(t *testing.T) {
+	state := New()
+	state.Data.Sections = []appsettings.Section{{
+		Title: "Automatic pairs",
+		Settings: []appsettings.ToggleSetting{{
+			Key: appsettings.PolicyBoolean("editor.pairs"), Label: "Pair punctuation",
+			Value: true, Enabled: true, Selector: "pairs",
+		}},
+	}}
+	tester := ui.NewTester(state.View, 900, 650)
+	tester.Frame()
+	tester.Click("Editor")
+	if !tester.Focused("Editor") {
+		t.Fatal("the selected settings category did not take focus")
+	}
+	tester.Key(0, ui.KeyDown)
+	if !tester.Focused("Automatic pairs") {
+		t.Fatal("Down did not move within the settings tree")
+	}
+	tester.Key(0, ui.KeyTab)
+	if tester.Focused("Editor") || tester.Focused("Automatic pairs") {
+		t.Fatal("Tab did not leave the settings tree")
+	}
+}
+
 func TestSettingsNavigationBuildsExpandedEditorTree(t *testing.T) {
 	state := New()
 	state.Data.Sections = []appsettings.Section{{

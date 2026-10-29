@@ -141,6 +141,33 @@ func TestSegmentedSharesOneSlidingHighlight(t *testing.T) {
 	}
 }
 
+func TestSegmentedArrowsMoveFocusAndChoose(t *testing.T) {
+	selected := "Starfield"
+	view := func(c *ui.Context) {
+		semantic := theme.DefaultSettings().Semantic()
+		c.SetTheme(theme.DefaultSettings().MyGoTheme())
+		options := make([]SegmentOption, 0, 2)
+		for _, label := range []string{"Starfield", "Daybreak"} {
+			label := label
+			options = append(options, SegmentOption{
+				Key: "option-" + label, Label: label, Selected: selected == label,
+				Action: func() { selected = label },
+			})
+		}
+		Segmented{Key: "theme", Label: "Theme", Options: options}.View(c, semantic)
+	}
+	tester := ui.NewTester(view, 300, 100)
+	tester.Frame()
+	tester.Key(0, ui.KeyTab)
+	if !tester.Focused("Starfield") {
+		t.Fatal("Tab did not enter the chosen segment")
+	}
+	tester.Key(0, ui.KeyRight)
+	if selected != "Daybreak" || !tester.Focused("Daybreak") {
+		t.Fatalf("Right chose %q with focus on Daybreak=%v", selected, tester.Focused("Daybreak"))
+	}
+}
+
 func TestNavigationRowHoverEasesInQuicklyAndOutGently(t *testing.T) {
 	semantic := theme.DefaultSettings().Semantic()
 	view := func(c *ui.Context) {

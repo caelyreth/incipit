@@ -65,6 +65,7 @@ func (s *State) navigation(
 			ui.Box(c).Height(theme.Space12.DIPs(scale))
 			ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 				list := ui.Column(c).Role(ui.RoleTree).Label("Settings Navigation").
+					FocusGroup(ui.Vertical).
 					Padding(0, 0, theme.Space12.DIPs(scale), 0).
 					Gap(theme.Space02.DIPs(scale))
 				track := components.TrackSelection(list,

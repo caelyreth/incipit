@@ -22,20 +22,28 @@ type Segmented struct {
 func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	metrics := theme.DefaultControls.Scaled(scale)
-	group := ui.Row(c).Key(s.Key).Role(ui.RoleRadioGroup).Label(s.Label).
+	selected := 0
+	for index, option := range s.Options {
+		if option.Selected {
+			selected = index
+			break
+		}
+	}
+	parts := ui.SegmentedBase(c.Key(s.Key), &selected, len(s.Options))
+	group := parts.Track.Role(ui.RoleRadioGroup).Label(s.Label).
 		Height(metrics.Height).Shrink(0).AlignItems(ui.Center).
 		Gap(theme.Space02.DIPs(scale)).Padding(theme.Space02.DIPs(scale)).
-		Radius(metrics.Radius).Background(semantic.Surface.Inset).
-		FocusGroup(ui.Horizontal)
+		Radius(metrics.Radius).Background(semantic.Surface.Inset)
 	track := TrackSelection(group, SelectionStyle{
 		Fill:   semantic.Surface.Elevated,
 		Border: semantic.Border.Variant,
 		Radius: 6 * scale / theme.DefaultUIFontSize,
 	}, s.Animate)
 	return group.Children(func() {
-		for _, option := range s.Options {
-			button := ui.ButtonBase(c.Key(option.Key)).Role(ui.RoleRadio).
-				Label(option.Label).Selected(option.Selected).
+		for index, option := range s.Options {
+			c.Key(option.Key)
+			button := parts.Segment(index).
+				Label(option.Label).
 				Height(metrics.Height-4*scale/theme.DefaultUIFontSize).
 				MinWidth(0).PaddingX(theme.Space08.DIPs(scale)).
 				Radius(6*scale/theme.DefaultUIFontSize).
@@ -50,8 +58,10 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 			button.Children(func() {
 				Label(c, option.Label, theme.TextSmall, textColor).SingleLine()
 			})
-			if button.Clicked() && option.Action != nil {
-				option.Action()
+		}
+		if group.Changed() && selected >= 0 && selected < len(s.Options) {
+			if action := s.Options[selected].Action; action != nil {
+				action()
 			}
 		}
 	})
