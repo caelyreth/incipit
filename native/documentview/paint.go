@@ -63,7 +63,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		p.AnimationFrame()
 	}
 	scheduleDecorationDeadline(p, state.Frame, now)
-	scheduleCaretBreathing(p, state, now)
+	scheduleCaretBreathing(p, rect, state, now)
 }
 
 func drawPlaceholder(p *ui.Painter, rect ui.Rect, state *State) {
@@ -213,9 +213,13 @@ func scheduleDecorationDeadline(p *ui.Painter, frame *surface.Frame, now time.Ti
 	}
 }
 
-func scheduleCaretBreathing(p *ui.Painter, state *State, now time.Time) {
+func scheduleCaretBreathing(p *ui.Painter, rect ui.Rect, state *State, now time.Time) {
 	if p == nil || state == nil || !state.Focused || !state.Animate ||
 		state.PointerActive || state.Composing || !state.Frame.Selection().Empty() {
+		return
+	}
+	caretTop := state.DrawnCaret.Y + state.ContentTop - state.ScrollY
+	if caretTop+state.DrawnCaret.H <= 0 || caretTop >= rect.H {
 		return
 	}
 	if deadline, ok := state.Motion.CaretWakeAt(now); ok {
