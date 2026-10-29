@@ -49,7 +49,7 @@ func (a *AppState) commandCatalog() []overlay.Command {
 			commands = append(commands, overlay.Command{
 				ID:      id,
 				Label:   command.Label,
-				Group:   commandGroup(policy.ID),
+				Group:   commandGroup(policy.ID, id),
 				Binding: bindingLabel(prepared, id),
 			})
 		}
@@ -85,7 +85,7 @@ func commandMetadata() map[kernel.CommandID]editor.Command {
 	return commands
 }
 
-func commandGroup(policy kernel.PolicyID) string {
+func commandGroup(policy kernel.PolicyID, command kernel.CommandID) string {
 	switch policy {
 	case editor.TextPolicyID:
 		return "Text"
@@ -98,7 +98,19 @@ func commandGroup(policy kernel.PolicyID) string {
 	case editor.NavigationPolicyID:
 		return "Navigation"
 	case editor.SurfacePolicyID:
-		return "Workspace"
+		surface, _ := editor.SurfaceCommandForID(command)
+		switch surface.Kind {
+		case editor.SurfaceClipboard:
+			return "Clipboard"
+		case editor.SurfacePage:
+			return "Workspace"
+		case editor.SurfacePresentation, editor.SurfacePolicy:
+			return "Appearance"
+		case editor.SurfaceApp:
+			return "Application"
+		default:
+			return "Workspace"
+		}
 	default:
 		return "Application"
 	}
