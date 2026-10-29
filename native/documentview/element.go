@@ -223,6 +223,18 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		e.manualScroll(event.DY, event.Time)
 		e.Input.Scroll(event.DY)
 		return true
+	case ui.InputSelect:
+		start, end := event.Start, event.End
+		if start > end {
+			start, end = end, start
+		}
+		text := e.value()
+		e.Motion.Activity(event.Time)
+		return e.Input.Select(
+			utf16OffsetForRune(text, start),
+			utf16OffsetForRune(text, end),
+			event.Time,
+		) == nil
 	case ui.InputText, ui.InputCompose:
 		e.Motion.Activity(event.Time)
 		return false
