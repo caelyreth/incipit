@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	appshowcase "github.com/caelyreth/neverland/app/showcase"
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/showcase"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -77,6 +79,7 @@ func (s *State) policyCard(
 		components.SettingGroup{
 			Key: "settings-group-" + section.Title, Label: section.Title,
 			Children: func() {
+				s.policyShowcase(c, semantic, section, on)
 				s.policyHeader(c, semantic, section, master, len(options), on)
 				if len(options) == 0 {
 					return
@@ -130,6 +133,38 @@ func (s *State) policyHeader(
 				},
 			}.View(c, semantic)
 		})
+}
+
+// policyShowcase opens the card with the policy's story on a small page:
+// the engine typing under the person's own options, centered as it grows.
+// A policy that is off still shows its story, dimmed, as what turning it
+// on would do.
+func (s *State) policyShowcase(
+	c *ui.Context,
+	semantic theme.Theme,
+	section appsettings.Section,
+	on bool,
+) {
+	script, ok := appshowcase.For(section.Policy)
+	if !ok {
+		return
+	}
+	scale := s.Theme.UIFontSize
+	inset := theme.Space16.DIPs(scale)
+	ui.Row(c).WidthPercent(100).Padding(inset, inset, 0, inset).Children(func() {
+		showcase.Stage{
+			Key:           "showcase-" + string(section.Policy),
+			Script:        script,
+			Configuration: appshowcase.Configuration(section.Policy, s.Data.PolicyConfiguration),
+			Theme:         semantic,
+			Prose:         theme.NewProseStyle(s.Theme.ProseFontSize * 0.9),
+			Height:        132 * scale / theme.DefaultUIFontSize,
+			Padding:       theme.Space24.DIPs(scale),
+			Radius:        10 * scale / theme.DefaultUIFontSize,
+			Off:           !on,
+			Animate:       s.motion(c),
+		}.View(c)
+	})
 }
 
 // policyOptions nests the tweaks under the header. They fold away while the

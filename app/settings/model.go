@@ -93,6 +93,7 @@ type ToggleSetting struct {
 
 // Section is one group of editor policy settings.
 type Section struct {
+	Policy      kernel.PolicyID
 	Title       string
 	Description string
 	Settings    []ToggleSetting

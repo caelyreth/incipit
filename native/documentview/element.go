@@ -125,6 +125,29 @@ func (e *Element) View(c *ui.Context) {
 	}
 }
 
+// Paint draws the document into rect from another element's drawing, as a
+// page that takes no input: a scripted showcase paints it as focused, so
+// its caret, guides and focused decorations show without keyboard focus.
+func (e *Element) Paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
+	if e != nil {
+		e.paint(p, rect, focused, animate)
+	}
+}
+
+// ContentSize is the laid-out document's extent as last painted: its
+// widest line and its height.
+func (e *Element) ContentSize() (float32, float32) {
+	if e == nil || e.current == nil {
+		return 0, 0
+	}
+	width := float32(0)
+	length := model.StringLenUTF16(e.current.Flow().Text())
+	for _, line := range e.current.RangeRects(model.NewUTF16Range(0, model.UTF16Offset(length))) {
+		width = max(width, line.X+line.W)
+	}
+	return width, e.current.Height()
+}
+
 // Focus requests keyboard focus on the next frame, as after a page switch.
 func (e *Element) Focus() {
 	if e != nil {

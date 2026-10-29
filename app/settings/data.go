@@ -84,6 +84,7 @@ func buildSections(
 			continue
 		}
 		sections = append(sections, Section{
+			Policy:      policy.ID,
 			Title:       info.label,
 			Description: info.description,
 			Settings:    toggles,
