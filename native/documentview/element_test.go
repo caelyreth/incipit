@@ -350,3 +350,49 @@ func TestElementGuidesTabBackToTheLastEditAfterAClickAway(t *testing.T) {
 		t.Fatalf("guide x = %v, want the last edit at %v", visible[0].Rect.X, want)
 	}
 }
+
+// testerClock lets the document's clock run on the tester's, so pulses the
+// engine stamps line up with the frames that paint them.
+type testerClock struct{ tester **ui.Tester }
+
+func (c testerClock) Now() time.Time {
+	if *c.tester == nil {
+		return time.Unix(0, 0)
+	}
+	return (*c.tester).Now()
+}
+
+func TestElementPulsesOverTextRefinementRewrote(t *testing.T) {
+	var tester *ui.Tester
+	document, err := controller.NewTextDocument("", testerClock{&tester})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := theme.DefaultSettings()
+	element := NewElement(
+		NewBridge(document, nil, testerClock{&tester}.Now),
+		settings.Semantic(), theme.NewProseStyle(settings.ProseFontSize), time.Unix(0, 0),
+	)
+	element.Animate = true
+	tester = ui.NewTester(func(c *ui.Context) { element.View(c) }, 600, 120)
+	tester.Frame()
+	start := element.current.Caret(0)
+	tester.Press(start.X+1, start.Y+1)
+	tester.Release(start.X+1, start.Y+1)
+	for _, r := range "She paused..." {
+		tester.Type(string(r))
+	}
+	if document.Text() != "She paused…" {
+		t.Fatalf("text = %q", document.Text())
+	}
+	ellipsis := element.current.RangeRects(model.NewUTF16Range(10, 11))[0]
+	// The band above the glyph's ink shows only a fill.
+	x, y := int(ellipsis.X+ellipsis.W/2), int(ellipsis.Y+2)
+	tester.Advance(250 * time.Millisecond)
+	pulsing := tester.Image().RGBAAt(x, y)
+	tester.Advance(time.Second)
+	settled := tester.Image().RGBAAt(x, y)
+	if pulsing == settled {
+		t.Fatalf("no pulse over the ellipsis: %v before and after", pulsing)
+	}
+}

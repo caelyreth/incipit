@@ -384,6 +384,7 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 	s.invoker.ActivateMark(resolved.ActiveMarkID)
 	s.invoker.hasCorrectionEffect = false
 	s.invoker.correctionEffectThrough = 0
+	s.invoker.corrections.Clear()
 	var candidate Presentation
 	var insertedHead model.UTF16Offset
 	transaction, err := s.runtime.DispatchPreparedBatchWithInvoker(
@@ -551,7 +552,13 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 		s.navigation.Remember(s.presentation.Selection)
 		group := ShouldGroupTyping(edit.Origin, inputValue.ApplyText(), edit.Replacement)
 		s.history.Record(beforeFrame, visualState, !transaction.Changes.Empty(), group)
-		s.feedback.Publish(nil)
+		// What refinement rewrote pulses once, so a changed character is
+		// noticed rather than discovered; any other edit ends the pulse.
+		s.feedback.PublishCorrections(
+			s.invoker.corrections,
+			transaction.Changes.TextEdits(),
+			s.runtime.Snapshot().Document(),
+		)
 	}
 	return EditingOutcome{
 		Outcome:  transaction.Value.Outcome.Status,
@@ -836,12 +843,17 @@ func (s *Session) feedbackDecorations(now time.Time) []surface.Decoration {
 	}
 	started, _ := s.feedback.Started()
 	return []surface.Decoration{{
-		ID:        surface.DecorationID{Producer: surface.ProducerID("feedback")},
-		Primitive: surface.RulePrimitive(ranges, surface.ColorAccent, 1),
+		// Each publication is its own pulse, so a correction right after
+		// another starts fresh rather than continuing the last one's fade.
+		ID: surface.DecorationID{
+			Producer: surface.ProducerID("feedback"),
+			Local:    s.runtime.Revision(),
+		},
+		Primitive: surface.FillPrimitive(ranges, surface.ColorAccent, 4),
 		Opacity: surface.TimedOpacity(
 			started,
 			FeedbackPulseDuration,
-			180,
+			100,
 			surface.EnvelopePulse,
 		),
 		Visibility: surface.VisibilityAlways,

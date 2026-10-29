@@ -735,6 +735,9 @@ type EditorInvoker struct {
 	correctionEffectHead    model.UTF16Offset
 	hasCorrectionEffect     bool
 	correctionEffectThrough int
+	// corrections are the document edits refinement observers made in
+	// the current dispatch, published as feedback once it succeeds.
+	corrections CorrectionLog
 }
 
 // ActiveMark returns the current active inline mark.
@@ -1089,13 +1092,20 @@ func (i *EditorInvoker) invokeCorrection(
 	}
 	for _, batch := range batches {
 		for _, edit := range batch.Edits() {
-			if err := document.ReplaceTextUTF16(
+			// A refinement inside the active mark stays inside it, as the
+			// typing it refines did.
+			start := document.TextEditCount()
+			if err := document.ReplaceTextMarked(
 				nodeID,
 				edit.Range.Start,
 				edit.Range.End,
 				edit.Replacement,
+				i.active,
 			); err != nil {
 				return 0, err
+			}
+			for index := start; index < document.TextEditCount(); index++ {
+				i.corrections.Record(index)
 			}
 		}
 	}
