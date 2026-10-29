@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/kernel"
@@ -33,6 +34,53 @@ func TestSessionExecutesMarkupCommandsAndTogglesMarks(t *testing.T) {
 	nodeValue, _ = session.Runtime().Snapshot().Document().Node(node)
 	if len(nodeValue.Marks()) != 0 || session.Projection().Text() != "abcd" {
 		t.Fatalf("toggle-off marks=%#v projection=%q", nodeValue.Marks(), session.Projection().Text())
+	}
+}
+
+func TestSessionStrongMarkupHonorsAllowStrong(t *testing.T) {
+	t.Parallel()
+	session, node := newSessionFixture(t, "abc", false)
+	if err := session.Select(model.NewTextSelection(
+		model.NewTextAnchor(node, 0, model.AffinityRight, session.Runtime().Revision()),
+		model.NewTextAnchor(node, 3, model.AffinityLeft, session.Runtime().Revision()),
+	)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := session.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
+		configuration.SetSetting(
+			NewMarkupSettingKey(allowStrongSetting),
+			kernel.BoolSetting(false),
+		)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	beforeRevision := session.Runtime().Revision()
+	beforeProjection := session.Projection().Text()
+	beforeSelection := session.Selection()
+
+	outcome, err := session.ExecuteMarkup(MarkupStrong)
+	if err == nil {
+		t.Fatal("strong formatting bypassed allow-strong")
+	}
+	if outcome != 0 {
+		t.Fatalf("strong outcome = %v", outcome)
+	}
+	var inputError *kernel.InputError
+	if !errors.As(err, &inputError) ||
+		inputError.Kind != kernel.InputErrorInvalidAttributeInput ||
+		inputError.Node != node ||
+		inputError.Key != legacyEmphasisAttribute {
+		t.Fatalf("strong error = %#v", err)
+	}
+	if session.Runtime().Revision() != beforeRevision ||
+		session.Projection().Text() != beforeProjection ||
+		session.Selection() != beforeSelection {
+		t.Fatal("rejected strong formatting mutated editor state")
+	}
+	nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
+	if nodeValue.MarkCount() != 0 {
+		t.Fatalf("rejected strong formatting marks = %#v", nodeValue.Marks())
 	}
 }
 

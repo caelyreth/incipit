@@ -16,6 +16,17 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 	if _, active := s.composition.Preview(); active {
 		return 0, ErrCompositionActive
 	}
+	if command == MarkupStrong &&
+		!markupSettingBool(s.runtime.Configuration(), allowStrongSetting, true) {
+		return 0, &kernel.EngineError{
+			Kind: kernel.EngineErrorInput,
+			Err: &kernel.InputError{
+				Kind: kernel.InputErrorInvalidAttributeInput,
+				Node: s.presentation.Selection.Node(),
+				Key:  legacyEmphasisAttribute,
+			},
+		}
+	}
 	beforeFrame, beforeOK := s.historyFrame()
 	beforeVisual, visualErr := s.ProjectedState()
 	if !beforeOK || visualErr != nil {
