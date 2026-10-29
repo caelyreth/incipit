@@ -45,6 +45,11 @@ const (
 )
 
 // Caret is a version-independent address inside one projection.
+//
+// One text offset can have several projected positions, one past each run
+// of zero-width generated notation there: "a|*b", "a*|b". A text caret
+// past such a run names it by Key and Side, so it resolves back to exactly
+// that position rather than to whichever one the anchor's affinity reaches.
 type Caret struct {
 	Kind   CaretKind
 	Text   model.TextAnchor
@@ -56,6 +61,12 @@ type Caret struct {
 
 func TextCaret(anchor model.TextAnchor) Caret {
 	return Caret{Kind: CaretText, Text: anchor}
+}
+
+// TextCaretAfter is a text caret standing just past the side run of the
+// notation key.
+func TextCaretAfter(anchor model.TextAnchor, key string, side AttributeCaretSide) Caret {
+	return Caret{Kind: CaretText, Text: anchor, Node: anchor.Node(), Key: key, Side: side}
 }
 
 func AttributeCaret(node model.NodeID, key string, side AttributeCaretSide, offset int) Caret {

@@ -101,7 +101,7 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 			if projectErr != nil {
 				return struct{}{}, projectErr
 			}
-			caret, projectErr := projectedValue.ProjectAnchor(rebased.Head())
+			caret, projectErr := placeCaret(projectedValue, node, rebased.Head(), active)
 			if projectErr != nil {
 				return struct{}{}, projectErr
 			}
@@ -128,7 +128,6 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 	}
 	if transaction.Value.Status == kernel.OutcomeHandled {
 		s.applyPresentation(candidate)
-		s.inline.Activate(active)
 		s.history.Record(beforeFrame, beforeVisual, !transaction.Changes.Empty(), false)
 	}
 	return transaction.Value.Status, nil

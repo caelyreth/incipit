@@ -65,6 +65,11 @@ func (s *Session) ExecuteWord(command WordCommand) (kernel.Outcome, error) {
 	}
 	return kernel.OutcomeHandled, s.Select(model.NewTextSelection(
 		model.NewTextAnchor(selection.Node(), plan.Anchor, model.AffinityRight, snapshot.Revision()),
-		model.NewTextAnchor(selection.Node(), plan.Head, model.AffinityRight, snapshot.Revision()),
+		model.NewTextAnchor(
+			selection.Node(),
+			plan.Head,
+			motionAffinity(selection.Head().OffsetUTF16(), plan.Head),
+			snapshot.Revision(),
+		),
 	))
 }

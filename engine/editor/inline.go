@@ -39,79 +39,14 @@ func (s *InlineState) Activate(id *model.MarkID) {
 	s.hasActive = true
 }
 
-// Select infers the active mark from a semantic selection. The narrowest
-// strictly containing mark wins; an already-active mark may contain the head
-// inclusively so typing at its end can exit it.
-func (s *InlineState) Select(node *model.Node, selection model.TextSelection) {
-	if node == nil || node.ID() != selection.Node() {
-		s.Activate(nil)
-		return
-	}
-	head := selection.Head().OffsetUTF16()
-	var best *model.InlineMark
-	for _, mark := range node.Marks() {
-		value := mark
-		contains := value.Range().Start < head && head < value.Range().End
-		if s.hasActive && *s.active == value.ID() {
-			contains = value.Range().Start <= head && head <= value.Range().End
-		}
-		if !contains {
-			continue
-		}
-		if best == nil || value.Range().Len() < best.Range().Len() {
-			best = &value
-		}
-	}
-	if best == nil {
-		s.Activate(nil)
-		return
-	}
-	id := best.ID()
-	s.Activate(&id)
-}
-
-// SelectProjected infers the active mark when the projected caret lies between
-// that mark's opener and closer. Generated notation is intentionally part of
-// this test, while semantic selection remains marker-free.
+// SelectProjected activates the caret's membership: the innermost mark
+// whose generated opener and closer bracket the projected head.
 func (s *InlineState) SelectProjected(
 	node *model.Node,
 	p *projection.Projection,
 	head model.UTF16Offset,
 ) {
-	if node == nil || p == nil {
-		s.Activate(nil)
-		return
-	}
-	var best *model.InlineMark
-	for _, mark := range node.Marks() {
-		value := mark
-		key := MarkerKeyForMark(value.ID())
-		firstEnd := -1
-		lastStart := -1
-		for _, segment := range p.Segments() {
-			target, ok := segment.AttributeTarget()
-			if !ok || target.Key() != key {
-				continue
-			}
-			if firstEnd < 0 {
-				firstEnd = int(segment.ProjectedRange().End)
-			}
-			lastStart = int(segment.ProjectedRange().Start)
-		}
-		if firstEnd < 0 || lastStart < 0 ||
-			head < model.UTF16Offset(firstEnd) || model.UTF16Offset(lastStart) < head {
-			continue
-		}
-		if best == nil || value.Range().Len() < best.Range().Len() {
-			best = &value
-		}
-	}
-	if best == nil {
-		s.Activate(nil)
-		return
-	}
-	id := best.ID()
-	s.Activate(&id)
+	s.Activate(caretMembership(node, p, head))
 }
 
 // MarkerKeyForMark returns the generated attribute identity for one mark.

@@ -267,7 +267,7 @@ func (s *Session) Tab(now time.Time) (kernel.Outcome, error) {
 		return 0, err
 	}
 	s.presentation.Caret = target
-	s.inline.Activate(nil)
+	s.refreshInline()
 	if offer.Kind == TabReturnToEdit {
 		s.navigation.ConsumeReturn()
 	}
@@ -417,19 +417,9 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 					insertedHead = inputValue.Input().Target().RangeUTF16().Start +
 						model.UTF16Offset(model.StringLenUTF16(inputValue.Input().Text()))
 				}
-				affinity := model.AffinityRight
 				node, ok := view.Document().Node(inputValue.Input().Target().Node())
 				if !ok {
 					return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
-				}
-				activeID := resolved.ActiveMarkID
-				if activeID != nil {
-					for _, mark := range node.Marks() {
-						if mark.ID() == *activeID && !mark.Range().Empty() &&
-							mark.Range().End == insertedHead {
-							affinity = model.AffinityLeft
-						}
-					}
 				}
 				targetLength := 0
 				if candidateNode, ok := view.Document().Node(inputValue.Input().Target().Node()); ok {
@@ -440,13 +430,13 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 					model.NewTextAnchor(
 						inputValue.Input().Target().Node(),
 						insertedHead,
-						affinity,
+						model.AffinityRight,
 						beforeRevision,
 					),
 					model.NewTextAnchor(
 						inputValue.Input().Target().Node(),
 						insertedHead,
-						affinity,
+						model.AffinityRight,
 						beforeRevision,
 					),
 				)
@@ -472,7 +462,7 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 				); projectErr != nil {
 					return struct{}{}, fmt.Errorf("validate collapsed edit projection: %w", projectErr)
 				}
-				caret, projectErr := projected.ProjectAnchor(nextSelection.Head())
+				caret, projectErr := placeCaret(projected, node, nextSelection.Head(), s.invoker.active)
 				if projectErr != nil {
 					return struct{}{}, fmt.Errorf(
 						"project collapsed edit caret head=%d text=%q segments=%#v revision=%d: %w",
@@ -531,7 +521,11 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 				); projectErr != nil {
 					return struct{}{}, fmt.Errorf("validate ranged edit projection: %w", projectErr)
 				}
-				caret, projectErr := projected.ProjectAnchor(nextSelection.Head())
+				node, ok := view.Document().Node(nextSelection.Node())
+				if !ok {
+					return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+				}
+				caret, projectErr := placeCaret(projected, node, nextSelection.Head(), s.invoker.active)
 				if projectErr != nil {
 					return struct{}{}, fmt.Errorf("project ranged edit caret: %w", wrapProjectionError(projectErr))
 				}
@@ -554,7 +548,6 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 	}
 	if transaction.Value.Outcome.Status == kernel.OutcomeHandled {
 		s.applyPresentation(candidate)
-		s.inline.Activate(s.invoker.active)
 		s.navigation.Remember(s.presentation.Selection)
 		group := ShouldGroupTyping(edit.Origin, inputValue.ApplyText(), edit.Replacement)
 		s.history.Record(beforeFrame, visualState, !transaction.Changes.Empty(), group)
@@ -667,7 +660,8 @@ func (s *Session) Reconfigure(
 			if err != nil {
 				return struct{}{}, err
 			}
-			caret, err := nextProjection.ProjectAnchor(rebased.Head())
+			node, _ := view.Document().Node(rebased.Node())
+			caret, err := placeCaret(nextProjection, node, rebased.Head(), activeMark(s.inline))
 			if err != nil {
 				return struct{}{}, wrapProjectionError(err)
 			}
@@ -707,13 +701,14 @@ func (s *Session) applyPresentation(next Presentation) {
 	s.refreshMetrics()
 }
 
+// refreshInline derives the active mark from the caret, its only source.
 func (s *Session) refreshInline() {
 	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
 	if !ok {
 		s.inline.Activate(nil)
 		return
 	}
-	s.inline.Select(node, s.presentation.Selection)
+	s.inline.SelectProjected(node, s.presentation.Projection, s.presentation.Caret.RangeUTF16().Start)
 }
 
 func (s *Session) refreshMetrics() {

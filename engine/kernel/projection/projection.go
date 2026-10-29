@@ -258,11 +258,7 @@ func (p *Projection) CaretAddress(target Target) (Caret, error) {
 		return Caret{}, err
 	}
 	if _, ok := segment.AttributeTarget(); !ok {
-		anchor, err := p.SemanticAnchor(target.range16.Start, target.affinity)
-		if err != nil {
-			return Caret{}, err
-		}
-		return TextCaret(anchor), nil
+		return p.textCaret(target.range16.Start, target.affinity)
 	}
 	attribute, _ := segment.AttributeTarget()
 	first, last := -1, -1
@@ -299,17 +295,69 @@ func (p *Projection) CollapsedCaretAddress(target Target) (Caret, error) {
 		return Caret{}, err
 	}
 	offset := target.range16.Start
-	onTextSide := target.affinity == model.AffinityLeft &&
-		offset == segment.range16.Start ||
-		target.affinity == model.AffinityRight && offset == segment.range16.End
-	if _, ok := segment.AttributeTarget(); ok && onTextSide {
-		anchor, err := p.SemanticAnchor(offset, target.affinity)
-		if err != nil {
-			return Caret{}, err
-		}
-		return TextCaret(anchor), nil
+	// Notation is zero-width semantically, so a collapsed caret on either
+	// edge of a run, whichever way it leans and even between two runs,
+	// stands at a text position. Only a stop strictly inside a run
+	// addresses the notation itself.
+	onEdge := offset == segment.range16.Start || offset == segment.range16.End
+	if _, ok := segment.AttributeTarget(); ok && onEdge {
+		return p.textCaret(offset, target.affinity)
 	}
 	return p.CaretAddress(target)
+}
+
+// textCaret addresses the text position at offset, naming the notation run
+// that ends there, if any, so the address resolves back to offset itself.
+func (p *Projection) textCaret(offset model.UTF16Offset, affinity model.Affinity) (Caret, error) {
+	anchor, err := p.SemanticAnchor(offset, affinity)
+	if err != nil {
+		return Caret{}, err
+	}
+	for index, segment := range p.segments {
+		attribute, ok := segment.AttributeTarget()
+		if !ok || segment.range16.End != offset || segment.range16.Empty() ||
+			attribute.Node() != anchor.Node() {
+			continue
+		}
+		side, ok := p.notationSide(index)
+		if !ok {
+			break
+		}
+		return TextCaretAfter(anchor, attribute.Key(), side), nil
+	}
+	return TextCaret(anchor), nil
+}
+
+// notationSide is whether the notation segment at index opens or closes its
+// key's notation.
+func (p *Projection) notationSide(index int) (AttributeCaretSide, bool) {
+	key, _ := p.segments[index].AttributeTarget()
+	first, last := p.notationRuns(key.Node(), key.Key())
+	switch index {
+	case first:
+		return AttributeCaretOpening, true
+	case last:
+		return AttributeCaretClosing, true
+	default:
+		return 0, false
+	}
+}
+
+// notationRuns are the indices of key's first and last notation segments
+// in node, or -1 when it has none.
+func (p *Projection) notationRuns(node model.NodeID, key string) (int, int) {
+	first, last := -1, -1
+	for index, segment := range p.segments {
+		other, ok := segment.AttributeTarget()
+		if !ok || other.Node() != node || other.Key() != key {
+			continue
+		}
+		if first < 0 {
+			first = index
+		}
+		last = index
+	}
+	return first, last
 }
 
 func (p *Projection) ResolveCaret(caret Caret, revision uint64) (Target, error) {
@@ -320,6 +368,11 @@ func (p *Projection) ResolveCaret(caret Caret, revision uint64) (Target, error) 
 			caret.Text.Affinity(),
 			revision,
 		)
+		if caret.Key != "" {
+			if target, ok := p.resolvePastNotation(anchor, caret.Key, caret.Side); ok {
+				return target, nil
+			}
+		}
 		return p.ProjectAnchor(anchor)
 	}
 	first, last := -1, -1
@@ -344,6 +397,47 @@ func (p *Projection) ResolveCaret(caret Caret, revision uint64) (Target, error) 
 	position := segment.range16.Start +
 		model.UTF16Offset(min(caret.Offset, segment.range16.Len()))
 	return p.Target(model.EmptyUTF16Range(position))
+}
+
+// resolvePastNotation is the position just past the side run of key, when
+// that run still borders anchor's offset: between the anchor's leftmost
+// and rightmost projected positions. A run an edit moved away from the
+// anchor no longer names its position, and the caller falls back.
+func (p *Projection) resolvePastNotation(
+	anchor model.TextAnchor,
+	key string,
+	side AttributeCaretSide,
+) (Target, bool) {
+	first, last := p.notationRuns(anchor.Node(), key)
+	index := first
+	if side == AttributeCaretClosing {
+		index = last
+	}
+	if index < 0 {
+		return Target{}, false
+	}
+	position := p.segments[index].range16.End
+	leaning := func(affinity model.Affinity) model.TextAnchor {
+		return model.NewTextAnchor(anchor.Node(), anchor.OffsetUTF16(), affinity, anchor.Revision())
+	}
+	leftmost, err := p.ProjectAnchor(leaning(model.AffinityLeft))
+	if err != nil {
+		return Target{}, false
+	}
+	rightmost, err := p.ProjectAnchor(leaning(model.AffinityRight))
+	if err != nil {
+		return Target{}, false
+	}
+	low := min(leftmost.range16.Start, rightmost.range16.Start)
+	high := max(leftmost.range16.Start, rightmost.range16.Start)
+	if position < low || high < position {
+		return Target{}, false
+	}
+	target, err := p.Target(model.EmptyUTF16Range(position))
+	if err != nil {
+		return Target{}, false
+	}
+	return target.WithAffinity(model.AffinityRight), true
 }
 
 func (p *Projection) ResolveSelection(selection Selection, revision uint64) (Target, Target, error) {

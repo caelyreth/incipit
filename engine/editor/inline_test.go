@@ -120,28 +120,31 @@ func TestMarkerPlanHonorsStrongGateAndOrigin(t *testing.T) {
 	}
 }
 
-func TestInlineStateUsesNarrowestContainingMark(t *testing.T) {
+func TestCaretMembershipIsTheNarrowestBracketingMark(t *testing.T) {
 	t.Parallel()
-	fixture := newEditingFixture(t, "abcdef")
-	if _, err := fixture.document.Transact(func(draft *model.DocumentDraft) error {
-		if _, err := draft.AddMark(fixture.node, model.NewUTF16Range(0, 5), 1); err != nil {
-			return err
+	session := newMarkedSession(t, "abcdef", markSpec{0, 5, 1}, markSpec{1, 4, 2})
+	if text := session.Projection().Text(); text != "*a**bcd**e*f" {
+		t.Fatalf("projection = %q", text)
+	}
+	node, _ := session.Runtime().Snapshot().Document().Node(session.Selection().Node())
+	outer, inner := node.Marks()[0].ID(), node.Marks()[1].ID()
+	cases := []struct {
+		at   model.UTF16Offset
+		want *model.MarkID
+	}{
+		{0, nil},     // |*a
+		{1, &outer},  // *|a
+		{2, &outer},  // *a|**
+		{4, &inner},  // **|bcd
+		{7, &inner},  // bcd|**
+		{9, &outer},  // **|e
+		{10, &outer}, // e|*
+		{11, nil},    // *|f
+	}
+	for _, test := range cases {
+		if got := caretMembership(node, session.Projection(), test.at); !sameMark(got, test.want) {
+			t.Errorf("membership at %d = %v, want %v", test.at, got, test.want)
 		}
-		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(1, 4), 2)
-		return err
-	}); err != nil {
-		t.Fatal(err)
-	}
-	node := fixture.nodeValue(t)
-	var state InlineState
-	state.Select(node, fixture.selection(t, 2, 2))
-	active, ok := state.Active()
-	if !ok || active != node.Marks()[1].ID() {
-		t.Fatalf("active=%d,%v marks=%#v", active, ok, node.Marks())
-	}
-	state.Select(node, fixture.selection(t, 6, 6))
-	if _, ok := state.Active(); ok {
-		t.Fatal("outside mark remained active")
 	}
 }
 

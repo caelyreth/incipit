@@ -181,11 +181,27 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 	if anchor == selection.Anchor().OffsetUTF16() && head == selection.Head().OffsetUTF16() {
 		return kernel.OutcomeHandled, nil
 	}
+	headAffinity := model.AffinityRight
+	switch command {
+	case TextLeft, TextRight, TextSelectLeft, TextSelectRight:
+		headAffinity = motionAffinity(selection.Head().OffsetUTF16(), head)
+	}
 	if err := s.Select(model.NewTextSelection(
 		model.NewTextAnchor(selection.Node(), anchor, model.AffinityRight, snapshot.Revision()),
-		model.NewTextAnchor(selection.Node(), head, model.AffinityRight, snapshot.Revision()),
+		model.NewTextAnchor(selection.Node(), head, headAffinity, snapshot.Revision()),
 	)); err != nil {
 		return 0, err
 	}
 	return kernel.OutcomeHandled, nil
+}
+
+// motionAffinity attaches a stepped head to the character it crossed, so a
+// step onto a mark boundary stops on the near side of the notation there:
+// "a*b|c*" steps right to "a*bc|*", inside, and the next step crosses the
+// closer by itself.
+func motionAffinity(from, to model.UTF16Offset) model.Affinity {
+	if to > from {
+		return model.AffinityLeft
+	}
+	return model.AffinityRight
 }

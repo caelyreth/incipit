@@ -52,6 +52,8 @@ func NewPresentation(
 }
 
 // Select installs a directed semantic selection and its projected caret.
+// The head's affinity chooses its side of any notation at a mark boundary:
+// left keeps it with the text before, right with the text after.
 func (p *Presentation) Select(
 	snapshot kernel.EngineSnapshot,
 	selection model.TextSelection,
@@ -69,7 +71,11 @@ func (p *Presentation) Select(
 	if err := selection.ValidateDocument(snapshot.Document()); err != nil {
 		return err
 	}
-	caret, err := p.Projection.ProjectAnchor(selection.Head())
+	projected, err := p.Projection.ProjectAnchor(selection.Head())
+	if err != nil {
+		return err
+	}
+	caret, err := caretTarget(p.Projection, projected.RangeUTF16().Start, projected.Affinity())
 	if err != nil {
 		return err
 	}
@@ -110,7 +116,10 @@ func (p *Presentation) SelectProjected(
 		return err
 	}
 	p.Selection = selection
-	p.Caret = headResult.WithAffinity(semanticHead.Affinity())
+	p.Caret, err = caretTarget(p.Projection, headResult.RangeUTF16().Start, semanticHead.Affinity())
+	if err != nil {
+		return err
+	}
 	viewAnchor := anchorResult.WithAffinity(semanticAnchor.Affinity())
 	p.ViewAnchor = &viewAnchor
 	return nil

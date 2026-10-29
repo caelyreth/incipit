@@ -56,7 +56,8 @@ func (s *Session) restoreHistoryFrame(frame Frame) error {
 			if err != nil {
 				return struct{}{}, err
 			}
-			caret, err := projected.ProjectAnchor(selection.Head())
+			node, _ := view.Document().Node(selection.Node())
+			caret, err := placeCaret(projected, node, selection.Head(), frame.active)
 			if err != nil {
 				return struct{}{}, err
 			}
@@ -77,7 +78,6 @@ func (s *Session) restoreHistoryFrame(frame Frame) error {
 		return err
 	}
 	s.applyPresentation(candidate)
-	s.inline.Activate(frame.active)
 	s.navigation.Clear()
 	s.feedback.Clear()
 	return nil
