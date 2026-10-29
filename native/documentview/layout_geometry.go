@@ -16,6 +16,7 @@ type LayoutGeometry struct {
 }
 
 var _ controller.Geometry = LayoutGeometry{}
+var _ controller.VerticalGeometry = LayoutGeometry{}
 
 func (g LayoutGeometry) BoundsForRange(
 	text string,
@@ -62,4 +63,21 @@ func (g LayoutGeometry) IndexForPoint(
 		X: point.X,
 		Y: point.Y + g.ScrollY - g.YOffset,
 	})), true
+}
+
+func (g LayoutGeometry) CaretLine(text string, caret int) (controller.Rect, bool) {
+	if g.Layout == nil || caret < 0 ||
+		!model.UTF16OffsetIsBoundary(text, model.UTF16Offset(caret)) {
+		return controller.Rect{}, false
+	}
+	line, ok := g.Layout.CaretLine(model.UTF16Offset(caret))
+	if !ok {
+		return controller.Rect{}, false
+	}
+	return controller.Rect{
+		X: line.X,
+		Y: line.Y + g.YOffset - g.ScrollY,
+		W: line.W,
+		H: line.H,
+	}, true
 }

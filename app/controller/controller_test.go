@@ -480,6 +480,7 @@ func TestDeclinedCompositionRetainsPreviewAndRecordsError(t *testing.T) {
 		for _, policy := range editor.AllEditorPolicies {
 			configuration.SetEnabled(policy.ID(), false)
 		}
+		configuration.SetEnabled(editor.SurfacePolicyID, false)
 		return nil
 	}); err != nil {
 		t.Fatal(err)

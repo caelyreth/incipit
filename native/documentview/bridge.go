@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/egoist/mygo/ui"
 )
@@ -118,6 +119,8 @@ func (b *Bridge) Execute(action keymap.Action) error {
 		}
 	case keymap.ActionClipboard:
 		return b.clipboard(action.Clipboard)
+	case keymap.ActionSurface:
+		return b.surface(action.Surface)
 	case keymap.ActionExternal:
 		if b.External == nil {
 			return nil
@@ -125,6 +128,25 @@ func (b *Bridge) Execute(action keymap.Action) error {
 		return b.External(action.ID)
 	default:
 		return nil
+	}
+}
+
+func (b *Bridge) surface(command editor.SurfaceCommand) error {
+	switch command.Kind {
+	case editor.SurfaceVisual:
+		direction := controller.VerticalUp
+		extend := command.ID == editor.SurfaceSelectUpCommandID ||
+			command.ID == editor.SurfaceSelectDownCommandID
+		if command.ID == editor.SurfaceDownCommandID ||
+			command.ID == editor.SurfaceSelectDownCommandID {
+			direction = controller.VerticalDown
+		}
+		return b.Controller.MoveVertical(direction, extend)
+	default:
+		if b.External == nil {
+			return nil
+		}
+		return b.External(command.ID)
 	}
 }
 
