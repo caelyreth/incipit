@@ -189,7 +189,7 @@ func TestRustOracleV2WordEvidence(t *testing.T) {
 					metrics, test.Characters, test.Paragraphs)
 			}
 			if metrics.Words != test.Words {
-				t.Skipf("known ICU word-like gap: got %d words, Rust oracle has %d",
+				t.Fatalf("word count: got %d, Rust oracle has %d",
 					metrics.Words, test.Words)
 			}
 			ends := make([]int, 0, len(test.WordEndOffsets))
@@ -250,7 +250,7 @@ func TestRustOracleV2OtherAlphabeticObservableFacts(t *testing.T) {
 		}
 		if session.Projection().Text() != fixture.Pair.Projection ||
 			len(session.Pairs()) != fixture.Pair.DiscoveredPairs {
-			t.Skipf("known Other_Alphabetic pair gap: projection=%q pairs=%d, oracle projection=%q pairs=%d",
+			t.Fatalf("pair state: projection=%q pairs=%d, oracle projection=%q pairs=%d",
 				session.Projection().Text(), len(session.Pairs()),
 				fixture.Pair.Projection, fixture.Pair.DiscoveredPairs)
 		}
@@ -274,7 +274,7 @@ func TestRustOracleV2OtherAlphabeticObservableFacts(t *testing.T) {
 			t.Fatalf("typography typing outcome=%v err=%v", result.Outcome, err)
 		}
 		if session.Projection().Text() != fixture.Typography.Projection {
-			t.Skipf("known Other_Alphabetic typography gap: projection=%q, oracle projection=%q",
+			t.Fatalf("typography projection=%q, oracle projection=%q",
 				session.Projection().Text(), fixture.Typography.Projection)
 		}
 	})
@@ -350,7 +350,7 @@ func TestRustOracleV2BlockingMutations(t *testing.T) {
 		}
 		outcome, err = session.CommitComposition()
 		if err != nil || outcome != kernel.OutcomeHandled {
-			t.Skipf("known compound IME gap: outcome=%v err=%v, oracle projection=%q",
+			t.Fatalf("composition commit: outcome=%v err=%v, oracle projection=%q",
 				outcome, err, fixture.Projection)
 		}
 		nodeValue, ok := session.Runtime().Snapshot().Document().Node(node)
@@ -363,7 +363,7 @@ func TestRustOracleV2BlockingMutations(t *testing.T) {
 			nodeValue.Text().String() != fixture.SemanticText ||
 			int(caret.Start) != fixture.Caret.Start || int(caret.End) != fixture.Caret.End ||
 			compositionActive != !fixture.CompositionCleared {
-			t.Skipf("known compound IME gap: projection=%q semantic=%q caret=%#v active=%v",
+			t.Fatalf("composition state: projection=%q semantic=%q caret=%#v active=%v",
 				session.Projection().Text(), nodeValue.Text().String(), caret,
 				compositionActive)
 		}
@@ -418,7 +418,7 @@ func TestRustOracleV2BlockingMutations(t *testing.T) {
 			int(caret.End) != fixture.AfterUndo.Caret.End ||
 			session.History().CanUndo() != fixture.CanUndo ||
 			session.History().CanRedo() != fixture.CanRedo {
-			t.Skipf("known marker-only undo gap: projection=%q visual=%#v caret=%#v err=%v",
+			t.Fatalf("undo state: projection=%q visual=%#v caret=%#v err=%v",
 				session.Projection().Text(), visual, caret, err)
 		}
 	})
@@ -442,11 +442,11 @@ func TestRustOracleV2BlockingMutations(t *testing.T) {
 		}
 		outcome, err = session.ExecuteMarkup(MarkupStrong)
 		if err == nil {
-			t.Skipf("known allow-strong gap: command returned %v without rejection", outcome)
+			t.Fatalf("strong formatting returned %v without rejection", outcome)
 		}
 		if err.Error() != fixture.Result.ErrorDisplay ||
 			session.Projection().Text() != fixture.ProjectionAfter {
-			t.Skipf("known allow-strong error drift: error=%q projection=%q",
+			t.Fatalf("strong rejection: error=%q projection=%q",
 				err.Error(), session.Projection().Text())
 		}
 	})
