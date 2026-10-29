@@ -59,10 +59,11 @@ exact 1.27.3 patch release required by MyGo.
 The engine, application boundary, custom writing surface, window shell,
 settings window, command palette, pointer selection, and contractual motion
 are implemented and covered by headless tests. The complete merged suite passes
-with the race detector and `go vet`.
+with the race detector and `go vet`. The focused Rust oracle corpus is
+mandatory and has no skipped parity cases.
 
-Still required before release: generated Rust oracle fixtures, randomized
-differential traces, native IME/accessibility acceptance on every target OS,
-performance benchmarks, and cross-platform packaging. See
+Still required before release: broader randomized differential traces, native
+IME/accessibility acceptance on every target OS, performance acceptance, and
+cross-platform runtime packaging. See
 `docs/architecture.md` and `docs/roadmap.md`.
 

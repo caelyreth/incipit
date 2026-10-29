@@ -44,7 +44,7 @@
 
 ## Verification
 
-- [ ] Rust oracle fixture generation
+- [x] Focused Rust oracle fixture generation (`v1` and regression `v2`)
 - [ ] Go golden and randomized parity tests
 - [x] MyGo Tester interaction tests for the implemented shell, surface, settings, overlays, focus, text input, and pointer selection
 - [ ] Native IME acceptance
