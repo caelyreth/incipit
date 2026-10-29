@@ -476,7 +476,7 @@ func (a *AppState) toggleZen() {
 // themeSource is the native appearance matching settings, so traffic
 // lights, menus and window chrome agree with the painted theme.
 func themeSource(settings theme.Settings) mygo.ThemeSource {
-	if settings.Appearance == theme.Paper {
+	if settings.Appearance == theme.Daybreak {
 		return mygo.ThemeLight
 	}
 	return mygo.ThemeDark

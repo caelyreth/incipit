@@ -4,12 +4,12 @@ package settings
 type ThemeChoice uint8
 
 const (
-	Ink ThemeChoice = iota + 1
-	Paper
+	Starfield ThemeChoice = iota + 1
+	Daybreak
 )
 
 func (a ThemeChoice) Valid() bool {
-	return a == Ink || a == Paper
+	return a == Starfield || a == Daybreak
 }
 
 // Accent is one of the design system's six hued families.
@@ -58,7 +58,7 @@ func (s AppearanceSettings) AccentNumber() uint8 {
 
 func DefaultAppearance() AppearanceSettings {
 	return AppearanceSettings{
-		Appearance:    Ink,
+		Appearance:    Starfield,
 		Accent:        Afterglow,
 		UIFontSize:    DefaultUIFontSize,
 		ProseFontSize: DefaultProseSize,
@@ -67,7 +67,7 @@ func DefaultAppearance() AppearanceSettings {
 
 func (s AppearanceSettings) Normalized() AppearanceSettings {
 	if !s.Appearance.Valid() {
-		s.Appearance = Ink
+		s.Appearance = Starfield
 	}
 	if !s.Accent.Valid() {
 		s.Accent = Afterglow

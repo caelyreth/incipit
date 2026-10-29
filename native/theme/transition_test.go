@@ -7,9 +7,9 @@ import (
 
 func TestBlendMixesEveryColorBetweenThemes(t *testing.T) {
 	t.Parallel()
-	ink, paper := DefaultSettings(), DefaultSettings()
-	paper.Appearance = Paper
-	from, to := ink.Semantic(), paper.Semantic()
+	starfield, daybreak := DefaultSettings(), DefaultSettings()
+	daybreak.Appearance = Daybreak
+	from, to := starfield.Semantic(), daybreak.Semantic()
 	if got := Blend(from, to, 0); !sameColors(got, from) {
 		t.Fatal("blending nothing changed the theme")
 	}
@@ -37,28 +37,28 @@ func sameColors(a, b Theme) bool {
 
 func TestTransitionCarriesAChangeAndResumesFromWhereItIs(t *testing.T) {
 	t.Parallel()
-	ink, paper := DefaultSettings(), DefaultSettings()
-	paper.Appearance = Paper
+	starfield, daybreak := DefaultSettings(), DefaultSettings()
+	daybreak.Appearance = Daybreak
 	start := time.Unix(1_700_000_000, 0)
 	var colors Transition
-	if got, moving := colors.At(ink, start); got != ink.Semantic() || moving {
+	if got, moving := colors.At(starfield, start); got != starfield.Semantic() || moving {
 		t.Fatal("an untouched transition must show its settings, still")
 	}
-	colors.Retarget(paper.Semantic(), start)
-	mid, moving := colors.At(paper, start.Add(ThemeTransition/2))
-	if !moving || mid == ink.Semantic() || mid == paper.Semantic() {
+	colors.Retarget(daybreak.Semantic(), start)
+	mid, moving := colors.At(daybreak, start.Add(ThemeTransition/2))
+	if !moving || mid == starfield.Semantic() || mid == daybreak.Semantic() {
 		t.Fatal("halfway through a change shows neither end")
 	}
 	// Switching back mid-change starts from what is showing, not a snap.
-	colors.Retarget(ink.Semantic(), start.Add(ThemeTransition/2))
-	if back, _ := colors.At(ink, start.Add(ThemeTransition/2)); !sameColors(back, mid) {
+	colors.Retarget(starfield.Semantic(), start.Add(ThemeTransition/2))
+	if back, _ := colors.At(starfield, start.Add(ThemeTransition/2)); !sameColors(back, mid) {
 		t.Fatal("reversing a change jumped")
 	}
-	if settled, moving := colors.At(ink, start.Add(2*ThemeTransition)); moving || settled != ink.Semantic() {
+	if settled, moving := colors.At(starfield, start.Add(2*ThemeTransition)); moving || settled != starfield.Semantic() {
 		t.Fatal("the change never settled")
 	}
-	colors.Jump(paper.Semantic())
-	if got, moving := colors.At(paper, start.Add(2*ThemeTransition)); moving || got != paper.Semantic() {
+	colors.Jump(daybreak.Semantic())
+	if got, moving := colors.At(daybreak, start.Add(2*ThemeTransition)); moving || got != daybreak.Semantic() {
 		t.Fatal("a jump did not show its theme at once")
 	}
 }

@@ -8,8 +8,8 @@ import "github.com/egoist/mygo/ui"
 type Appearance uint8
 
 const (
-	Ink Appearance = iota + 1
-	Paper
+	Starfield Appearance = iota + 1
+	Daybreak
 )
 
 // Accent is one of Cosmofi's six hued families. Static and Moonveil, the
@@ -150,7 +150,7 @@ const (
 
 func DefaultSettings() Settings {
 	return Settings{
-		Appearance:    Ink,
+		Appearance:    Starfield,
 		Accent:        Afterglow,
 		UIFontSize:    DefaultUIFontSize,
 		ProseFontSize: 19,
@@ -172,19 +172,19 @@ func (s Settings) Semantic() Theme {
 		Surface: Surfaces{
 			Background: palette.background,
 			Panel:      palette.background,
-			Page:       palette.page,
+			Page:       palette.working,
 			Inset:      palette.inset,
 			Backdrop:   ui.RGBA(0, 0, 0, 0.38),
 			Elevated:   palette.raised,
 		},
 		Text: TextColors{
-			Default: palette.text,
-			Heading: palette.heading,
-			Muted:   palette.secondary,
+			Default: palette.textPrimary,
+			Heading: palette.textEmphasis,
+			Muted:   palette.textSecondary,
 		},
 		Icon: IconColors{
-			Default: palette.text,
-			Muted:   palette.secondary,
+			Default: palette.textPrimary,
+			Muted:   palette.textSecondary,
 			Accent:  accent.Foreground,
 		},
 		Border: BorderColors{
@@ -219,9 +219,9 @@ func (s Settings) Semantic() Theme {
 			ThumbHover: palette.track,
 		},
 		Prose: ProseColors{
-			Text:     palette.text,
-			Heading:  palette.heading,
-			Notation: palette.secondary,
+			Text:     palette.textPrimary,
+			Heading:  palette.textEmphasis,
+			Notation: palette.textSecondary,
 			Rule:     palette.hairline,
 			// Selection is graphite, not tinted: the accent is the caret's.
 			Selection: palette.hairline,
@@ -239,7 +239,7 @@ func (s Settings) MyGoTheme() *ui.Theme {
 func (s Settings) MyGoThemeFor(semantic Theme) *ui.Theme {
 	normalized := s.Normalized()
 	result := ui.DarkTheme()
-	if normalized.Appearance == Paper {
+	if normalized.Appearance == Daybreak {
 		result = ui.LightTheme()
 	}
 	result.Background = semantic.Surface.Background
@@ -273,7 +273,7 @@ func AccentSwatch(appearance Appearance, accent Accent) ui.Color {
 }
 
 func paletteFor(appearance Appearance) palette {
-	if appearance == Paper {
+	if appearance == Daybreak {
 		return daybreak()
 	}
 	return starfield()

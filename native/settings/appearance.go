@@ -18,10 +18,10 @@ func (s *State) appearancePage(
 	s.section(c, semantic, "Theme", "Colors and chrome scale for every Neverland window.", func() {
 		components.SettingRow{
 			Label:       "Theme",
-			Description: "Ink is the default dark appearance; Paper provides a light alternative.",
+			Description: "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart.",
 			Control: func() {
 				options := make([]components.SegmentOption, 0, 2)
-				for index, label := range []string{"Ink", "Paper"} {
+				for index, label := range []string{"Starfield", "Daybreak"} {
 					value := index + 1
 					options = append(options, components.SegmentOption{
 						Key: "theme-" + label, Label: label,

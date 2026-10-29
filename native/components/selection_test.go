@@ -111,13 +111,13 @@ func TestSelectionTrackReselectMidFadeSlidesFromWhereItIs(t *testing.T) {
 }
 
 func TestSegmentedSharesOneSlidingHighlight(t *testing.T) {
-	selected := "Ink"
+	selected := "Starfield"
 	var track *SelectionTrack
 	view := func(c *ui.Context) {
 		semantic := theme.DefaultSettings().Semantic()
 		c.SetTheme(theme.DefaultSettings().MyGoTheme())
 		options := make([]SegmentOption, 0, 2)
-		for _, label := range []string{"Ink", "Paper"} {
+		for _, label := range []string{"Starfield", "Daybreak"} {
 			label := label
 			options = append(options, SegmentOption{
 				Key: "option-" + label, Label: label, Selected: selected == label,
@@ -131,12 +131,12 @@ func TestSegmentedSharesOneSlidingHighlight(t *testing.T) {
 	tester.Frame()
 	tester.Advance(time.Second)
 	start := track.Rect().X
-	if err := tester.Click("Paper"); err != nil {
+	if err := tester.Click("Daybreak"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Advance(48 * time.Millisecond)
 	if x := track.Rect().X; x <= start || track.Opacity() != 1 {
-		t.Fatalf("segment highlight did not slide toward Paper: x=%v from %v opacity=%v",
+		t.Fatalf("segment highlight did not slide toward Daybreak: x=%v from %v opacity=%v",
 			x, start, track.Opacity())
 	}
 }
