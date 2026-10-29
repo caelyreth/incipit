@@ -7,7 +7,7 @@ import (
 // RuleContext is guarded access to the engine draft for one linked rule.
 type RuleContext struct {
 	draft             *EngineDraft
-	resources         *ResourceWrite
+	resources         ResourceWrite
 	effects           EffectSet
 	owner             PolicyID
 	configuration     *PreparedPolicyConfiguration
@@ -23,7 +23,7 @@ func NewRuleContext(
 ) *RuleContext {
 	return &RuleContext{
 		draft:         draft,
-		resources:     draft.Resources().Write(rule.Effects),
+		resources:     draft.Resources().write(rule.Effects),
 		effects:       rule.Effects,
 		owner:         rule.Key.Owner,
 		configuration: configuration,
@@ -59,7 +59,7 @@ func (c *RuleContext) DocumentMut() (*model.DocumentDraft, error) {
 	return c.draft.Document(), nil
 }
 
-func (c *RuleContext) Resources() *ResourceWrite { return c.resources }
+func (c *RuleContext) Resources() *ResourceWrite { return &c.resources }
 
 func (c *RuleContext) Setting(id SettingID) (SettingValue, bool) {
 	if c.configuration == nil {

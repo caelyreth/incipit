@@ -212,7 +212,12 @@ func (d *ResourceDraft) Read(effects EffectSet) ResourceRead {
 }
 
 func (d *ResourceDraft) Write(effects EffectSet) *ResourceWrite {
-	return &ResourceWrite{draft: d, effects: effects}
+	write := d.write(effects)
+	return &write
+}
+
+func (d *ResourceDraft) write(effects EffectSet) ResourceWrite {
+	return ResourceWrite{draft: d, effects: effects}
 }
 
 func (d *ResourceDraft) FinalChanges() []ResourceChange {

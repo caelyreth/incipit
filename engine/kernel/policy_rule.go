@@ -54,10 +54,14 @@ func AfterRulePhase(changes ...StateKey) RulePhase {
 // ChangeKeys returns the observable post-handler state domains. Handler phases
 // have no dependency keys.
 func (p RulePhase) ChangeKeys() []StateKey {
+	return cloneSlice(p.changeKeys())
+}
+
+func (p RulePhase) changeKeys() []StateKey {
 	if p.Kind != RulePhaseKindAfter {
 		return nil
 	}
-	return cloneSlice(p.Changes)
+	return p.Changes
 }
 
 func (p RulePhase) clone() RulePhase {

@@ -38,7 +38,13 @@ type EventProgram struct {
 	after         []*LinkedRule
 	observers     []*LinkedRule
 	schedule      *ObserverProgram
+	eventPlans    map[string]*eventPlan
 	configuration *PreparedPolicyConfiguration
+}
+
+type eventPlan struct {
+	handlers  [EventOriginSemantic + 1][]*LinkedRule
+	observers [EventOriginSemantic + 1][]*LinkedRule
 }
 
 func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
@@ -87,10 +93,11 @@ func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 		return nil, err
 	}
 	return &EventProgram{
-		handlers:  handlers,
-		after:     after,
-		observers: schedule.Rules(),
-		schedule:  schedule,
+		handlers:   handlers,
+		after:      after,
+		observers:  schedule.Rules(),
+		schedule:   schedule,
+		eventPlans: linkEventPlans(handlers, after),
 	}, nil
 }
 
@@ -239,7 +246,12 @@ type PlanAnalysis struct {
 func (p *EventProgram) AnalyzeEvent(event Event) PlanAnalysis {
 	handlers, observers := p.plan(event)
 	dynamic := 0
-	for _, rule := range append(append([]*LinkedRule(nil), handlers...), observers...) {
+	for _, rule := range handlers {
+		if rule.Condition != nil {
+			dynamic++
+		}
+	}
+	for _, rule := range observers {
 		if rule.Condition != nil {
 			dynamic++
 		}
@@ -248,13 +260,18 @@ func (p *EventProgram) AnalyzeEvent(event Event) PlanAnalysis {
 }
 
 func (p *EventProgram) plan(event Event) ([]*LinkedRule, []*LinkedRule) {
-	origin, hasOrigin := event.Origin()
-	if !hasOrigin {
-		origin = EventOriginTyping
+	origin := normalizedEventOrigin(event)
+	if plan := p.eventPlans[event.Key()]; plan != nil &&
+		origin >= EventOriginTyping && origin <= EventOriginSemantic {
+		return plan.handlers[origin], plan.observers[origin]
 	}
+	return p.planLinear(event.Key(), origin)
+}
+
+func (p *EventProgram) planLinear(key string, origin EventOrigin) ([]*LinkedRule, []*LinkedRule) {
 	handlers := make([]*LinkedRule, 0, len(p.handlers))
 	for _, rule := range p.handlers {
-		if rule.Trigger.Matches(event.Key()) && rule.AllowsOrigin(origin) {
+		if rule.Trigger.Matches(key) && rule.AllowsOrigin(origin) {
 			handlers = append(handlers, rule)
 		}
 	}
@@ -264,11 +281,55 @@ func (p *EventProgram) plan(event Event) ([]*LinkedRule, []*LinkedRule) {
 			continue
 		}
 		if observer.Trigger.Kind() == TriggerStateWildcard ||
-			observer.Trigger.Matches(event.Key()) {
+			observer.Trigger.Matches(key) {
 			observers = append(observers, observer)
 		}
 	}
 	return handlers, observers
+}
+
+func linkEventPlans(handlers, observers []*LinkedRule) map[string]*eventPlan {
+	keys := make(map[string]struct{})
+	for _, rule := range handlers {
+		if rule.Trigger.Kind() == TriggerExact {
+			keys[rule.Trigger.Pattern()] = struct{}{}
+		}
+	}
+	for _, observer := range observers {
+		if observer.Trigger.Kind() == TriggerExact {
+			keys[observer.Trigger.Pattern()] = struct{}{}
+		}
+	}
+	plans := make(map[string]*eventPlan, len(keys))
+	for key := range keys {
+		plan := &eventPlan{}
+		for origin := EventOriginTyping; origin <= EventOriginSemantic; origin++ {
+			for _, rule := range handlers {
+				if rule.Trigger.Matches(key) && rule.AllowsOrigin(origin) {
+					plan.handlers[origin] = append(plan.handlers[origin], rule)
+				}
+			}
+			for _, observer := range observers {
+				if !observer.AllowsOrigin(origin) {
+					continue
+				}
+				if observer.Trigger.Kind() == TriggerStateWildcard ||
+					observer.Trigger.Matches(key) {
+					plan.observers[origin] = append(plan.observers[origin], observer)
+				}
+			}
+		}
+		plans[key] = plan
+	}
+	return plans
+}
+
+func normalizedEventOrigin(event Event) EventOrigin {
+	origin, ok := event.Origin()
+	if !ok {
+		return EventOriginTyping
+	}
+	return origin
 }
 
 // EngineInvoker invokes one handler leaf with checked state access.
@@ -349,15 +410,22 @@ func (p *EventProgram) executeEngine(
 	invoker EngineInvoker,
 ) (DispatchOutcome, error) {
 	handlers, observers := p.plan(event)
-	candidates := make([]*LinkedRule, 0, len(handlers))
+	candidates := handlers
 	for _, rule := range handlers {
-		matches, err := evaluateRuleCondition(rule, event, draft.Resources())
-		if err != nil {
-			return DispatchOutcome{}, err
+		if rule.Condition == nil {
+			continue
 		}
-		if matches {
-			candidates = append(candidates, rule)
+		candidates = make([]*LinkedRule, 0, len(handlers))
+		for _, candidate := range handlers {
+			matches, err := evaluateRuleCondition(candidate, event, draft.Resources())
+			if err != nil {
+				return DispatchOutcome{}, err
+			}
+			if matches {
+				candidates = append(candidates, candidate)
+			}
 		}
+		break
 	}
 	handled := OutcomePass
 	for _, rule := range candidates {
@@ -450,7 +518,7 @@ func invokeRule(
 }
 
 func observerChangesSurvived(observer *LinkedRule, draft *EngineDraft) bool {
-	changes := observer.Phase.ChangeKeys()
+	changes := observer.Phase.changeKeys()
 	if len(changes) == 0 {
 		return true
 	}

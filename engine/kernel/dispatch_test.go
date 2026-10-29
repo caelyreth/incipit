@@ -2,11 +2,77 @@ package kernel
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/kernel/planning"
 	"github.com/caelyreth/neverland/engine/model"
 )
+
+func TestPrecomputedEventPlansMatchLinearFallback(t *testing.T) {
+	t.Parallel()
+	catalog, err := LinkPolicyCatalog([]PolicyDescriptor{{
+		ID:               "benchmark.planning",
+		EnabledByDefault: true,
+		Rules: []RuleDescriptor{
+			{
+				ID:        "exact",
+				Phase:     HandleRulePhase(),
+				Trigger:   NewExactTrigger("benchmark:exact"),
+				Origins:   []EventOrigin{EventOriginTyping, EventOriginPaste},
+				Order:     10,
+				Algorithm: dispatchProgram(t, 1),
+			},
+			{
+				ID:        "prefix",
+				Phase:     HandleRulePhase(),
+				Trigger:   NewPrefixTrigger("benchmark:"),
+				Origins:   []EventOrigin{EventOriginTyping},
+				Order:     20,
+				Algorithm: dispatchProgram(t, 2),
+			},
+			{
+				ID:        "after-exact",
+				Phase:     AfterRulePhase(DocumentStateKey()),
+				Trigger:   NewExactTrigger("benchmark:exact"),
+				Origins:   []EventOrigin{EventOriginTyping},
+				Order:     30,
+				Effects:   NewEffectSet(nil, nil).WithDocument(DocumentAccessWrite),
+				Algorithm: dispatchProgram(t, 3),
+			},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := LinkEventProgram(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := []Event{
+		NewCommandEvent("benchmark:exact").WithOrigin(EventOriginTyping),
+		NewCommandEvent("benchmark:exact").WithOrigin(EventOriginPaste),
+		NewCommandEvent("benchmark:prefix-only").WithOrigin(EventOriginTyping),
+	}
+	for _, event := range events {
+		gotHandlers, gotObservers := program.plan(event)
+		wantHandlers, wantObservers := program.planLinear(
+			event.Key(),
+			normalizedEventOrigin(event),
+		)
+		if !slices.Equal(gotHandlers, wantHandlers) ||
+			!slices.Equal(gotObservers, wantObservers) {
+			t.Fatalf(
+				"event %#v: handlers=%v/%v observers=%v/%v",
+				event,
+				gotHandlers,
+				wantHandlers,
+				gotObservers,
+				wantObservers,
+			)
+		}
+	}
+}
 
 func dispatchProgram(t *testing.T, leaf uint32) *planning.ControlProgram {
 	t.Helper()
