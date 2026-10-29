@@ -50,7 +50,8 @@
 - [ ] Go golden and randomized parity tests
 - [x] MyGo Tester interaction tests for the implemented shell, surface, settings, overlays, focus, text input, and pointer selection
 - [ ] Native IME acceptance
-- [ ] Performance benchmarks
+- [x] Performance benchmarks
+- [ ] Absolute release latency and memory budgets on every target platform
 - [ ] Cross-platform packaging
 
 The checked items record implemented, tested behavior, not full Rust/native

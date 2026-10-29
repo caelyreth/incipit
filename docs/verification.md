@@ -95,6 +95,22 @@ BenchmarkWordLikeRanges/ThaiFallback   ~1.06 us/op   1504 B/op  7 allocs/op
 
 These are comparative development measurements, not release latency budgets.
 
+## Performance Evidence
+
+Long-prose, heavy-policy, retained-layout, and end-to-end typing benchmarks are
+reproducible with:
+
+```sh
+./scripts/bench-performance.sh
+```
+
+The reference result reduces 256 KiB end-to-end keystroke-to-paint from
+about `87.8 ms / 21.8 MB` to `3.77 ms / 1.03 MB`, and retained one-paragraph
+typing from `44-47 ms` to `0.58 ms`. The benchmark methodology, complete
+before/after matrix, profiles, and remaining bottlenecks are recorded in
+`docs/performance.md` and the Git-ignored
+`references/performance-2026-10-29/` archive.
+
 ## MyGo v0.7.1 Accessibility Boundary
 
 MyGo supports custom-document focus, role, label, value, and accessibility
