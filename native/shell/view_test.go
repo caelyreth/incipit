@@ -84,7 +84,7 @@ func TestShellSidebarAndZenUseSourceMotion(t *testing.T) {
 	if state.lastSidebarWidth <= 0 || state.lastSidebarWidth >= theme.DefaultLayout.Sidebar {
 		t.Fatalf("sidebar did not animate: %v", state.lastSidebarWidth)
 	}
-	tester.Advance(200 * time.Millisecond)
+	tester.Advance(time.Second)
 	if state.lastSidebarWidth != 0 {
 		t.Fatalf("sidebar did not settle: %v", state.lastSidebarWidth)
 	}
@@ -96,7 +96,7 @@ func TestShellSidebarAndZenUseSourceMotion(t *testing.T) {
 	if state.lastChrome <= 0 || state.lastChrome >= 1 {
 		t.Fatalf("chrome did not animate: %v", state.lastChrome)
 	}
-	tester.Advance(200 * time.Millisecond)
+	tester.Advance(time.Second)
 	if state.lastChrome != 0 {
 		t.Fatalf("chrome did not settle: %v", state.lastChrome)
 	}
@@ -445,5 +445,43 @@ func TestFloatingToolbarHonorsHistoryState(t *testing.T) {
 	}
 	if clicked != "undo" {
 		t.Fatalf("disabled redo fired: %q", clicked)
+	}
+}
+
+// Toggling the sidebar or zen mode again mid-flight carries on from where
+// the motion is, at its speed: no jump, and no instant reversal.
+func TestShellMotionTurnsAroundSmoothlyWhenInterrupted(t *testing.T) {
+	for name, toggle := range map[string]func(*State){
+		"sidebar": func(s *State) { s.ToggleSidebar() },
+		"zen":     func(s *State) { s.Appearance.Zen = !s.Appearance.Zen },
+	} {
+		state := New()
+		tester := ui.NewTester(state.View, 1260, 850)
+		tester.Frame()
+		value := func() float32 {
+			if name == "sidebar" {
+				return state.lastSidebarWidth / theme.DefaultLayout.Sidebar
+			}
+			return state.lastChrome
+		}
+		toggle(state)
+		tester.Frame()
+		tester.Advance(90 * time.Millisecond)
+		before := value()
+		tester.Advance(16 * time.Millisecond)
+		at := value()
+		closing := at - before // negative: still closing
+		toggle(state)
+		tester.Frame()
+		tester.Advance(16 * time.Millisecond)
+		after := value()
+		if step := after - at; step < closing*1.5-0.002 || step > -closing*0.5+0.002 {
+			t.Fatalf("%s: frames moved %v then %v after the toggle, want the motion carried on",
+				name, closing, step)
+		}
+		tester.Advance(time.Second)
+		if got := value(); got != 1 {
+			t.Fatalf("%s settled at %v after turning back", name, got)
+		}
 	}
 }

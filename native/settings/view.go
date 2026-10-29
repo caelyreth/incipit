@@ -112,7 +112,7 @@ func (s *State) tree(
 		group := ui.Column(c).Key("settings-tree-" + category.Title()).WidthPercent(100)
 		reveal := target
 		if animate {
-			reveal = group.AnimateWith("reveal", target, components.MotionPanel, components.Decelerate)
+			reveal = components.Follow(group, "reveal", target, components.MotionSettle)
 		}
 		current := s.Category == category
 		group.Children(func() {
@@ -327,7 +327,9 @@ func (s *State) followPending(c *ui.Context) {
 		}
 		animation := ui.Animation{}
 		if s.motion(c) {
-			animation = ui.Animation{Duration: components.MotionScene, Ease: components.Decelerate}
+			animation = components.Spring(components.MotionScene)
+			// A scroll is in DIPs: at rest within a quarter of one.
+			animation.Spring.Precision = 0.25
 		}
 		s.contentScroll.ScrollTo(0, max(0, section.Top), animation)
 		s.target, s.pending = s.pending, ""

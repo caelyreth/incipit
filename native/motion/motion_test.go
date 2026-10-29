@@ -204,8 +204,38 @@ func TestViewportGlideHandsOverWithoutJumping(t *testing.T) {
 	if handed, _ := motion.Scroll(now.Add(ViewportGlide/4), true); handed != midway {
 		t.Fatalf("retarget jumped from %v to %v", midway, handed)
 	}
-	end, _ := motion.Scroll(now.Add(ViewportGlide/4+ViewportGlide), true)
+	end, _ := motion.Scroll(now.Add(ViewportGlide/4+2*ViewportGlide), true)
 	if end != 300 || motion.Scrolling() {
 		t.Fatalf("glide settled at %v, scrolling=%v", end, motion.Scrolling())
+	}
+}
+
+// An interrupted glide keeps the speed it had: the page's velocity is
+// continuous across a new destination, not reset to a fresh hard rise.
+func TestViewportGlideKeepsItsSpeedAcrossANewDestination(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(0, 0)
+	frame := 250 * time.Microsecond
+	speed := func(m *Motion, at time.Time) float32 {
+		before, _ := m.Scroll(at.Add(-frame), true)
+		after, _ := m.Scroll(at, true)
+		return (after - before) / float32(frame.Seconds())
+	}
+	motion := New(now)
+	motion.ScrollTo(0, 100, now)
+	switchAt := now.Add(ViewportGlide / 2)
+	was := speed(motion, switchAt)
+	here, _ := motion.Scroll(switchAt, true)
+	motion.ScrollTo(here, 400, switchAt)
+	after, _ := motion.Scroll(switchAt.Add(frame), true)
+	is := (after - here) / float32(frame.Seconds())
+	if diff := is - was; diff > was*0.1+20 || diff < -(was*0.1+20) {
+		t.Fatalf("speed jumped from %v to %v DIP/s at the new destination", was, is)
+	}
+	// From rest a glide still rises hard.
+	fresh := New(now)
+	fresh.ScrollTo(0, 100, now)
+	if first, _ := fresh.Scroll(now.Add(ViewportGlide/10), true); first < 30 {
+		t.Fatalf("a glide from rest crept to %v in its first tenth", first)
 	}
 }

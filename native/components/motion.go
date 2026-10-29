@@ -12,6 +12,10 @@ const (
 	MotionNormal    = 200 * time.Millisecond
 	MotionPanel     = 240 * time.Millisecond
 	MotionScene     = 450 * time.Millisecond
+	// MotionSettle is how long a panel, a fold or the chrome takes to settle
+	// on its spring: a spring's tail is long and soft, so it reads about as
+	// quick as MotionPanel's curve.
+	MotionSettle = 340 * time.Millisecond
 )
 
 // Decelerate is the panel curve: a cubic ease-out that moves immediately and
@@ -37,6 +41,20 @@ const (
 	HoverOut = MotionNormal
 )
 
+// Spring is how every state-driven value in the app moves: a spring that
+// arrives in about settle without overshooting. Changing its target while
+// it moves takes over at the value's current speed, so a toggle pressed
+// again mid-flight, or any state change that interrupts another, carries
+// on smoothly from where things are instead of restarting a curve.
+func Spring(settle time.Duration) ui.Animation {
+	return ui.Animation{Spring: ui.SpringOptions{Duration: settle}}
+}
+
+// Follow returns element's value under key following target on Spring.
+func Follow(element ui.Element, key any, target float32, settle time.Duration) float32 {
+	return element.AnimateTo(key, target, Spring(settle))
+}
+
 // HoverAmount is element's hover tint from 0 to 1, eased in quickly and
 // out gently when animate is set.
 func HoverAmount(element ui.Element, hovered, animate bool) float32 {
@@ -51,7 +69,7 @@ func HoverAmount(element ui.Element, hovered, animate bool) float32 {
 	if hovered {
 		duration = HoverIn
 	}
-	return element.AnimateWith("hover", target, duration, Smoothstep)
+	return Follow(element, "hover", target, duration)
 }
 
 func ChromeAnimation(duration time.Duration) ui.Animation {

@@ -307,23 +307,32 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 			// The caret moved; a page glide alone leaves its breathing be.
 			e.Motion.Activity(p.Now())
 		}
-		e.revealCaret(e.current, caret.Y, p.Now())
-		if modeChanged {
-			// Glide into the new mode's range rather than snapping to it.
+		if modeChanged && !e.Typewriter {
+			// Leaving typewriter mode redirects whatever glide is under way,
+			// at its speed, into the plain range, rather than letting it
+			// reach a centered offset and then snapping into range.
 			low, high := e.scrollRange(e.current, rect.H)
-			if target := max(low, min(e.scroll, high)); target != e.scroll && !e.Motion.Scrolling() {
-				e.Motion.ScrollTo(e.scroll, target, p.Now())
-			}
+			e.Motion.Settle(e.scroll, low, high, p.Now())
+		} else {
+			// Entering it glides to the centered line from where the page
+			// is and at the speed it is moving.
+			e.revealCaret(e.current, caret.Y, p.Now())
 		}
 		e.lastCaretY = caret.Y
 		e.lastViewportH = rect.H
 		e.lastTypewriter = e.Typewriter
 	}
-	e.advanceScroll(p.Now())
 	scrollMin, scrollMax := e.scrollRange(e.current, rect.H)
-	if !e.Motion.Scrolling() {
-		e.scroll = max(scrollMin, min(e.scroll, scrollMax))
+	if !e.Motion.Scrolling() && (e.scroll < scrollMin || e.scroll > scrollMax) {
+		if animate {
+			// The range moved out from under the page, as when text is
+			// deleted: glide back into it rather than snap.
+			e.Motion.Settle(e.scroll, scrollMin, scrollMax, p.Now())
+		} else {
+			e.scroll = max(scrollMin, min(e.scroll, scrollMax))
+		}
 	}
+	e.advanceScroll(p.Now())
 	state := &State{
 		Flow:              flow,
 		Frame:             frame,

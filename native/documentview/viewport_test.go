@@ -221,3 +221,64 @@ func abs32(value float32) float32 {
 	}
 	return value
 }
+
+// Turning typewriter mode off while its glide is under way turns the page
+// around from where it is, at its speed: every frame moves a little, and
+// none snaps the page to the plain range.
+func TestTypewriterToggledOffMidGlideNeverSnaps(t *testing.T) {
+	for _, document := range []string{"first line", strings.Repeat("line\n", 40) + "line"} {
+		_, element, tester := newScrollElement(t, document, false)
+		element.Typewriter = true
+		tester.Frame()
+		tester.Advance(80 * time.Millisecond)
+		element.Typewriter = false
+		tester.Frame()
+		previous := element.ScrollY()
+		largest := float32(0)
+		for range 150 {
+			tester.Advance(8 * time.Millisecond)
+			current := element.ScrollY()
+			largest = max(largest, abs32(current-previous))
+			previous = current
+		}
+		if largest > 12 {
+			t.Fatalf("a frame jumped the page %v DIPs after typewriter turned off", largest)
+		}
+		low, high := element.scrollRange(element.current, 400)
+		if got := element.ScrollY(); got < low || got > high || element.Motion.Scrolling() {
+			t.Fatalf("page rests at %v, outside the plain range [%v, %v]", got, low, high)
+		}
+	}
+}
+
+// When deleting text pulls the scroll range out from under the page, the
+// page glides back into it instead of snapping.
+func TestShrinkingContentGlidesThePageBackIntoRange(t *testing.T) {
+	document, element, tester := newScrollElement(t, strings.Repeat("line\n", 40)+"line", false)
+	for range 40 {
+		tester.Scroll(200, 200, 0, 120)
+		tester.Advance(16 * time.Millisecond)
+	}
+	tester.Advance(time.Second)
+	if element.ScrollY() <= 0 {
+		t.Fatal("fixture did not scroll")
+	}
+	if err := document.SetSelection(controller.UTF16Range{Start: 0, End: document.TextLengthUTF16()}); err != nil {
+		t.Fatal(err)
+	}
+	document.ReplaceText(nil, "short")
+	tester.Frame()
+	start := element.ScrollY()
+	previous, largest := start, float32(0)
+	for range 150 {
+		tester.Advance(8 * time.Millisecond)
+		largest = max(largest, abs32(element.ScrollY()-previous))
+		previous = element.ScrollY()
+	}
+	if element.ScrollY() != 0 {
+		t.Fatalf("page rests at %v after the text shrank", element.ScrollY())
+	}
+	if largest >= start/2 {
+		t.Fatalf("one frame moved the page %v of its %v DIP way home", largest, start)
+	}
+}

@@ -23,24 +23,26 @@ func (s *State) View(c *ui.Context) {
 	if s.Appearance.Zen {
 		chromeTarget = 0
 	}
-	sidebarTarget := float32(0)
+	// The sidebar's openness, not its width, rides the spring: it settles to
+	// a visible precision, and a UI font change resizes it without motion.
+	fullSidebar := layout.Sidebar * scale / theme.DefaultUIFontSize
+	openTarget := float32(0)
 	if s.SidebarVisible() {
-		sidebarTarget = layout.Sidebar * scale / theme.DefaultUIFontSize
+		openTarget = 1
 	}
 
 	root := ui.Column(c).Fill().Background(semantic.Surface.Background)
 	animate := s.animate(c)
 	chrome := chromeTarget
-	sidebarWidth := sidebarTarget
+	reveal := openTarget
 	if animate {
-		chrome = root.AnimateWith("shell-chrome", chromeTarget, components.MotionPanel, components.Decelerate)
-		sidebarWidth = root.AnimateWith("sidebar-width", sidebarTarget, components.MotionPanel, components.Decelerate)
+		chrome = components.Follow(root, "shell-chrome", chromeTarget, components.MotionSettle)
+		reveal = components.Follow(root, "sidebar-open", openTarget, components.MotionSettle)
 	}
-	reveal := float32(0)
-	fullSidebar := layout.Sidebar * scale / theme.DefaultUIFontSize
-	if fullSidebar > 0 {
-		reveal = max(0, min(sidebarWidth/fullSidebar, 1))
-	}
+	// A spring may lean a hair past its end on the way back; layout may not.
+	reveal = max(0, min(reveal, 1))
+	chrome = max(0, min(chrome, 1))
+	sidebarWidth := fullSidebar * reveal
 	s.lastSidebarWidth = sidebarWidth
 	s.lastChrome = chrome
 

@@ -185,7 +185,7 @@ func (s *State) policyOptions(
 	fold := ui.Column(c).Key("settings-options-" + title).WidthPercent(100).Clip()
 	reveal := target
 	if animate {
-		reveal = fold.AnimateWith("reveal", target, components.MotionPanel, components.Decelerate)
+		reveal = components.Follow(fold, "reveal", target, components.MotionSettle)
 	}
 	natural := ui.Local(fold, "natural", func() float32 { return 0 })
 	if reveal <= 0.001 {

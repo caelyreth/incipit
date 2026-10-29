@@ -5,60 +5,67 @@ import (
 	"time"
 )
 
-func TestBlendMixesEveryColorBetweenThemes(t *testing.T) {
-	t.Parallel()
-	starfield, daybreak := DefaultSettings(), DefaultSettings()
-	daybreak.Appearance = Daybreak
-	from, to := starfield.Semantic(), daybreak.Semantic()
-	if got := Blend(from, to, 0); !sameColors(got, from) {
-		t.Fatal("blending nothing changed the theme")
-	}
-	if got := Blend(from, to, 1); got != to {
-		t.Fatal("blending fully missed the target")
-	}
-	half := Blend(from, to, 0.5)
-	for name, pair := range map[string][3]uint8{
-		"background": {from.Surface.Background.R, half.Surface.Background.R, to.Surface.Background.R},
-		"text":       {from.Prose.Text.R, half.Prose.Text.R, to.Prose.Text.R},
-		"accent":     {from.Accent.Foreground.G, half.Accent.Foreground.G, to.Accent.Foreground.G},
-	} {
-		low, high := min(pair[0], pair[2]), max(pair[0], pair[2])
-		if pair[1] <= low || pair[1] >= high {
-			t.Errorf("%s halfway = %d, want between %d and %d", name, pair[1], pair[0], pair[2])
-		}
-	}
-}
-
-// sameColors compares what Blend mixes; labels always name the target.
+// sameColors compares only colors; labels always name the target.
 func sameColors(a, b Theme) bool {
 	a.Appearance, a.AccentFamily = b.Appearance, b.AccentFamily
 	return a == b
 }
 
-func TestTransitionCarriesAChangeAndResumesFromWhereItIs(t *testing.T) {
+func TestTransitionCarriesAChangeAndSettles(t *testing.T) {
 	t.Parallel()
 	starfield, daybreak := DefaultSettings(), DefaultSettings()
 	daybreak.Appearance = Daybreak
 	start := time.Unix(1_700_000_000, 0)
 	var colors Transition
-	if got, moving := colors.At(starfield, start); got != starfield.Semantic() || moving {
+	if got, moving := colors.At(starfield, start); !sameColors(got, starfield.Semantic()) || moving {
 		t.Fatal("an untouched transition must show its settings, still")
 	}
 	colors.Retarget(daybreak.Semantic(), start)
-	mid, moving := colors.At(daybreak, start.Add(ThemeTransition/2))
-	if !moving || mid == starfield.Semantic() || mid == daybreak.Semantic() {
-		t.Fatal("halfway through a change shows neither end")
+	mid, moving := colors.At(daybreak, start.Add(ThemeTransition/3))
+	if !moving || sameColors(mid, starfield.Semantic()) || sameColors(mid, daybreak.Semantic()) {
+		t.Fatal("partway through a change shows neither end")
 	}
-	// Switching back mid-change starts from what is showing, not a snap.
-	colors.Retarget(starfield.Semantic(), start.Add(ThemeTransition/2))
-	if back, _ := colors.At(starfield, start.Add(ThemeTransition/2)); !sameColors(back, mid) {
-		t.Fatal("reversing a change jumped")
+	from, to := starfield.Semantic().Surface.Background.R, daybreak.Semantic().Surface.Background.R
+	if got := mid.Surface.Background.R; got <= from || got >= to {
+		t.Fatalf("background red partway = %d, want between %d and %d", got, from, to)
 	}
-	if settled, moving := colors.At(starfield, start.Add(2*ThemeTransition)); moving || settled != starfield.Semantic() {
+	if settled, moving := colors.At(daybreak, start.Add(3*ThemeTransition)); moving ||
+		!sameColors(settled, daybreak.Semantic()) {
 		t.Fatal("the change never settled")
 	}
-	colors.Jump(daybreak.Semantic())
-	if got, moving := colors.At(daybreak, start.Add(2*ThemeTransition)); moving || got != daybreak.Semantic() {
+	colors.Jump(starfield.Semantic())
+	if got, moving := colors.At(starfield, start.Add(3*ThemeTransition)); moving ||
+		!sameColors(got, starfield.Semantic()) {
 		t.Fatal("a jump did not show its theme at once")
+	}
+}
+
+// Flipping back mid-change neither jumps nor reverses instantly: the colors
+// keep their momentum for a moment, then ease back.
+func TestReversingAChangeKeepsItsMomentum(t *testing.T) {
+	t.Parallel()
+	starfield, daybreak := DefaultSettings(), DefaultSettings()
+	daybreak.Appearance = Daybreak
+	start := time.Unix(1_700_000_000, 0)
+	var colors Transition
+	colors.Jump(starfield.Semantic())
+	colors.Retarget(daybreak.Semantic(), start)
+	flip := start.Add(ThemeTransition / 4)
+	before, _ := colors.At(daybreak, flip)
+	colors.Retarget(starfield.Semantic(), flip)
+	same, _ := colors.At(starfield, flip)
+	if !sameColors(same, before) {
+		t.Fatal("reversing a change jumped")
+	}
+	// Still brightening just after the flip, toward Daybreak, before
+	// turning back.
+	later, _ := colors.At(starfield, flip.Add(8*time.Millisecond))
+	if later.Surface.Background.R <= before.Surface.Background.R {
+		t.Fatalf("the reversal snapped direction: %d then %d",
+			before.Surface.Background.R, later.Surface.Background.R)
+	}
+	if settled, moving := colors.At(starfield, flip.Add(3*ThemeTransition)); moving ||
+		!sameColors(settled, starfield.Semantic()) {
+		t.Fatal("the reversal never settled")
 	}
 }

@@ -42,19 +42,47 @@ func Focus(t float32) float32 {
 	return float32((1 - math.Exp2(-focusSharpness*float64(t))) / (1 - math.Exp2(-focusSharpness)))
 }
 
-// glide moves the viewport from one offset to another along Focus.
+// glide moves the viewport toward an offset. From rest it follows the
+// exponential that Focus normalizes: a hard rise and a soft landing. When a
+// new destination interrupts it, the new glide keeps the speed the old one
+// had at that instant, so the page never lurches:
+//
+//	x(t) = to + (lead + carry·t)·e^(-k·t)
+//
+// lead is where the glide starts relative to its destination, and carry
+// the velocity handed over beyond the exponential's own (zero from rest).
+// It is the critically damped path through that start and velocity, so it
+// still lands without overshoot.
 type glide struct {
-	from    float32
 	to      float32
+	lead    float32
+	carry   float32
 	started time.Time
 }
 
-func (g glide) at(now time.Time) (float32, bool) {
-	t := float32(now.Sub(g.started)) / float32(ViewportGlide)
-	if t >= 1 {
-		return g.to, false
+// glideRate is the exponential's rate, the one Focus normalizes over
+// ViewportGlide.
+var glideRate = float32(focusSharpness * math.Ln2 / ViewportGlide.Seconds())
+
+const (
+	// glideSettle is how close, in DIPs and DIPs a second, a glide must be
+	// to rest to end.
+	glideSettle   = float32(0.25)
+	glideStill    = float32(8)
+	glideDeadline = 3 * ViewportGlide / 2
+)
+
+func (g glide) at(now time.Time) (float32, float32, bool) {
+	elapsed := now.Sub(g.started)
+	t := float32(elapsed.Seconds())
+	decay := float32(math.Exp(float64(-glideRate * t)))
+	offset := (g.lead + g.carry*t) * decay
+	velocity := (g.carry - glideRate*(g.lead+g.carry*t)) * decay
+	if elapsed >= glideDeadline ||
+		abs(offset) < glideSettle && abs(velocity) < glideStill && elapsed > 0 {
+		return g.to, 0, false
 	}
-	return g.from + (g.to-g.from)*Focus(t), true
+	return g.to + offset, velocity, true
 }
 
 // SelectionFade is how long a selection takes to appear from an empty one.
@@ -87,23 +115,48 @@ func (m *Motion) Selection() []ui.Rect {
 }
 
 // ScrollTo glides the viewport to target. A glide already in flight hands
-// over from where it is now, so a new destination never jumps.
+// over from where it is now and at the speed it is going, so a new
+// destination neither jumps nor lurches.
 func (m *Motion) ScrollTo(current, target float32, now time.Time) {
-	if m.viewport != nil {
-		current, _ = m.viewport.at(now)
-	}
 	if m.viewport != nil && m.viewportTarget == target {
 		return
 	}
-	m.viewport = &glide{from: current, to: target, started: now}
+	lead := current - target
+	carry := float32(0)
+	if m.viewport != nil {
+		position, velocity, moving := m.viewport.at(now)
+		lead = position - target
+		if moving {
+			// Match the old glide's velocity: carry - rate·lead = velocity.
+			carry = velocity + glideRate*lead
+		}
+	}
+	m.viewport = &glide{to: target, lead: lead, carry: carry, started: now}
 	m.viewportTarget = target
+}
+
+// Settle redirects the viewport when its destination stops applying, as
+// when typewriter mode turns off mid-glide: the page coasts to where its
+// current speed would carry it, kept within [low, high], handing that
+// speed over so it eases to rest instead of finishing the old glide and
+// snapping into range.
+func (m *Motion) Settle(current, low, high float32, now time.Time) {
+	position, velocity := current, float32(0)
+	if m.viewport != nil {
+		position, velocity, _ = m.viewport.at(now)
+	}
+	target := max(low, min(position+velocity/glideRate, high))
+	if m.viewport == nil && target == current {
+		return
+	}
+	m.ScrollTo(position, target, now)
 }
 
 func (m *Motion) Scroll(now time.Time, animate bool) (float32, bool) {
 	if m.viewport == nil {
 		return 0, false
 	}
-	result, moving := m.viewport.at(now)
+	result, _, moving := m.viewport.at(now)
 	if !animate {
 		result, moving = m.viewportTarget, false
 	}

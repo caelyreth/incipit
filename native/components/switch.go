@@ -39,7 +39,7 @@ func (s Switch) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	}
 	progress := target
 	if s.Animate && !s.Disabled {
-		progress = toggle.AnimateWith("switch-progress", target, MotionQuick, Smoothstep)
+		progress = Follow(toggle, "switch-progress", target, MotionNormal)
 	}
 	// The thumb keeps one margin on every side of the track. The track's
 	// focus border is laid out inside its box, and an absolute child is
