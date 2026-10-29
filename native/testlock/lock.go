@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 )
 
 var once struct {
@@ -22,7 +21,7 @@ func Acquire() error {
 		if once.err != nil {
 			return
 		}
-		once.err = syscall.Flock(int(once.file.Fd()), syscall.LOCK_EX)
+		once.err = lockFile(once.file)
 	})
 	return once.err
 }
