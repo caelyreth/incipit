@@ -66,6 +66,46 @@ func TestTypographyConvergesApostropheWhenItIsTyped(t *testing.T) {
 	}
 }
 
+func TestTypographyConvergesApostropheAfterOtherAlphabetic(t *testing.T) {
+	t.Parallel()
+	for _, mark := range []rune{'\u0345', '\u05b0', '\u093e'} {
+		text := string(mark) + "'"
+		batch, ok := PlanTypography(text, utf16Offset(text), allTypography())
+		if !ok {
+			t.Fatalf("%U plan failed", mark)
+		}
+		result, _, ok := ApplyCorrections(text, utf16Offset(text), batch)
+		if expected := string(mark) + "’"; !ok || result != expected {
+			t.Errorf("%U result=%q, want %q, ok=%v", mark, result, expected, ok)
+		}
+	}
+}
+
+func TestAlphanumericMatchesRustCharacterClasses(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		r    rune
+		want bool
+	}{
+		{'a', true},
+		{'中', true},
+		{'7', true},
+		{'Ⅻ', true},
+		{'¾', true},
+		{'\u0345', true},
+		{'\u05b0', true},
+		{'\u093e', true},
+		{'\u0301', false},
+		{',', false},
+		{'🦀', false},
+	}
+	for _, test := range tests {
+		if got := isAlphanumeric(test.r); got != test.want {
+			t.Errorf("isAlphanumeric(%U) = %v, want %v", test.r, got, test.want)
+		}
+	}
+}
+
 func TestTypographyConvergesRepeatedTypedPunctuation(t *testing.T) {
 	t.Parallel()
 	text := ",,,"

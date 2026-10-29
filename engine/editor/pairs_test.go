@@ -114,6 +114,21 @@ func TestPairOpenDeclinesApostrophesAfterWordsAndNonTypingOrigins(t *testing.T) 
 	}
 }
 
+func TestPairOpenDeclinesApostrophesAfterOtherAlphabetic(t *testing.T) {
+	t.Parallel()
+	for _, mark := range []rune{'\u0345', '\u05b0', '\u093e'} {
+		text := string(mark)
+		plan := planPair(t, PairOpen, text, PairInput{
+			Range:       model.EmptyUTF16Range(model.UTF16Offset(model.StringLenUTF16(text))),
+			Replacement: "'",
+			Origin:      kernel.EventOriginTyping,
+		})
+		if plan.Handled {
+			t.Errorf("%U apostrophe after Other_Alphabetic was paired", mark)
+		}
+	}
+}
+
 func TestPairOvertypeConsumesMatchingCloserAndSmartQuote(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

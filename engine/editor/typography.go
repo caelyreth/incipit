@@ -223,7 +223,9 @@ func typographyCorrections(
 }
 
 func isAlphanumeric(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsNumber(r)
+	return unicode.IsLetter(r) ||
+		unicode.IsNumber(r) ||
+		unicode.Is(unicode.Other_Alphabetic, r)
 }
 
 func lastRune(text string) (rune, int) {
