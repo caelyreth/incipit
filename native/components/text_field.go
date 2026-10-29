@@ -1,6 +1,8 @@
 package components
 
 import (
+	"unicode/utf8"
+
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -14,6 +16,7 @@ type TextField struct {
 	ClearIcon      *ui.SVG
 	Animate        bool
 	AutoFocus      bool
+	SelectAll      bool
 	FocusRequested bool
 	Submit         func()
 	Changed        func()
@@ -62,6 +65,11 @@ func (f TextField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	})
 	if f.AutoFocus {
 		input.AutoFocus()
+	}
+	selectedAll := ui.Local(input, "select-all-once", func() bool { return false })
+	if f.SelectAll && !*selectedAll && input.Focused() && f.Value != nil {
+		input.SetTextSelection(0, utf8.RuneCountInString(*f.Value))
+		*selectedAll = true
 	}
 	if input.Focused() {
 		field.Border(1, semantic.Border.Focused)

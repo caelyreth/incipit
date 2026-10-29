@@ -59,3 +59,17 @@ func TestPageTitleCancellationClosesWithoutCommit(t *testing.T) {
 		t.Fatalf("cancel state = confirmed:%v cancelled:%v open:%v", confirmed, cancelled, title.Open)
 	}
 }
+
+func TestPageTitleSelectsExistingNameOnOpen(t *testing.T) {
+	title := &PageTitle{}
+	title.Begin("page-1", "Draft")
+	tester := ui.NewTester(func(c *ui.Context) {
+		title.View(c, theme.DefaultSettings().Semantic(), false)
+	}, 720, 520)
+	tester.Frame()
+	tester.Frame()
+	tester.Type("Renamed")
+	if title.Value != "Renamed" {
+		t.Fatalf("typed replacement = %q", title.Value)
+	}
+}

@@ -48,7 +48,8 @@ func (p *PageTitle) View(c *ui.Context, semantic theme.Theme, animate bool) {
 					components.TextField{
 						Key: "page-title-field", Label: "Page title", Placeholder: "Page title",
 						Value: &p.Value, Icon: components.IconDocument.SVG(),
-						ClearIcon: components.IconClose.SVG(), Animate: animate, AutoFocus: true,
+						ClearIcon: components.IconClose.SVG(), Animate: animate,
+						AutoFocus: true, SelectAll: true,
 						Submit: func() { committed = true },
 					}.View(c, semantic)
 					ui.Row(c).Justify(ui.End).Gap(8 * scale).Children(func() {
