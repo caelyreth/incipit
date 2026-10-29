@@ -17,6 +17,7 @@ func Run() error {
 		return err
 	}
 	state := app.Shell
+	mygo.Theme.SetSource(themeSource(app.Shell.Settings))
 
 	mygo.App.WhenReady(func() {
 		mygo.App.SetMenu(app.MainMenu())
@@ -30,6 +31,7 @@ func Run() error {
 			TrafficLightPosition: trafficLights(),
 			StateKey:             "neverland.main",
 			Content:              ui.View(state.View),
+			BackgroundColor:      colorHex(app.Shell.Settings.Semantic().Surface.Background),
 		})
 		window.OnFocus(func() {
 			app.Shell.SetWindowActive(true)

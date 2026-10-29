@@ -38,6 +38,8 @@ type AppState struct {
 	Error          string
 	mainWindow     *mygo.Window
 	settingsWindow *mygo.Window
+	// colors carries every window through a theme or accent change at once.
+	colors theme.Transition
 }
 
 func NewAppState() (*AppState, error) {
@@ -105,6 +107,8 @@ func NewAppState() (*AppState, error) {
 		time.Now(),
 	)
 	app.Element.Label = "Writing document"
+	app.Shell.Colors = &app.colors
+	app.Settings.Colors = &app.colors
 	app.BindShell()
 	return app, nil
 }
@@ -119,7 +123,7 @@ func (a *AppState) BindShell() {
 			a.mountBridge(c)
 		}
 		a.refreshShellReadouts()
-		a.Element.Theme = a.Shell.Settings.Semantic()
+		a.Element.Theme, _ = a.colors.At(a.Shell.Settings, c.Now())
 		a.Element.Prose = theme.NewProseStyle(a.Shell.Settings.ProseFontSize)
 		a.Element.Animate = a.Shell.Appearance.Motion && a.Shell.WindowActive &&
 			!c.Preferences().ReduceMotion
@@ -395,9 +399,27 @@ func (a *AppState) refreshSettingsData() {
 	}
 }
 
+// applyAppearance moves every window to the chosen theme together: the
+// views blend their colors over ThemeTransition, and the native chrome,
+// window backgrounds and traffic lights follow the new scheme.
 func (a *AppState) applyAppearance() {
 	values := a.Product.Appearance
 	a.Shell.Settings = appearanceSettings(values)
+	target := a.Shell.Settings.Semantic()
+	if a.Product.Presentation.Motion {
+		a.colors.Retarget(target, time.Now())
+	} else {
+		a.colors.Jump(target)
+	}
+	mygo.Theme.SetSource(themeSource(a.Shell.Settings))
+	background := colorHex(target.Surface.Background)
+	for _, window := range []*mygo.Window{a.mainWindow, a.settingsWindow} {
+		if window == nil || window.IsDestroyed() {
+			continue
+		}
+		_ = window.SetBackgroundColor(background)
+		window.Invalidate()
+	}
 	a.refreshAppearance()
 }
 
@@ -451,6 +473,15 @@ func (a *AppState) toggleZen() {
 	a.setPresentation(appsettings.PresentationZen, !a.Product.Presentation.Zen)
 }
 
+// themeSource is the native appearance matching settings, so traffic
+// lights, menus and window chrome agree with the painted theme.
+func themeSource(settings theme.Settings) mygo.ThemeSource {
+	if settings.Appearance == theme.Paper {
+		return mygo.ThemeLight
+	}
+	return mygo.ThemeDark
+}
+
 func appearanceSettings(values appsettings.AppearanceSettings) theme.Settings {
 	settings := theme.DefaultSettings()
 	settings.UIFontSize = values.UIFontSize
@@ -465,7 +496,7 @@ func (a *AppState) View(c *ui.Context) {
 	if a == nil || a.Shell == nil {
 		return
 	}
-	semantic := a.Shell.Settings.Semantic()
+	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	animate := a.Shell.Appearance.Motion && a.Shell.WindowActive &&
 		!c.Preferences().ReduceMotion
 	if a.Palette != nil {

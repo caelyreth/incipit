@@ -7,8 +7,11 @@ import (
 )
 
 func (s *State) View(c *ui.Context) {
-	semantic := s.Settings.Semantic()
-	c.SetTheme(s.Settings.MyGoTheme())
+	semantic, changing := s.Colors.At(s.Settings, c.Now())
+	c.SetTheme(s.Settings.MyGoThemeFor(semantic))
+	if changing {
+		c.AnimationFrame()
+	}
 	width, _ := c.Size()
 	scale := s.Settings.UIFontSize
 	s.lastWidth, s.lastUIFontSize = width, scale

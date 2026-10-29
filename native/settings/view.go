@@ -21,8 +21,11 @@ const (
 )
 
 func (s *State) View(c *ui.Context) {
-	c.SetTheme(s.Theme.MyGoTheme())
-	semantic := s.Theme.Semantic()
+	semantic, changing := s.Colors.At(s.Theme, c.Now())
+	c.SetTheme(s.Theme.MyGoThemeFor(semantic))
+	if changing {
+		c.AnimationFrame()
+	}
 	scale := s.Theme.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	s.followPending(c)

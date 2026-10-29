@@ -2,6 +2,7 @@ package window
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -20,7 +21,7 @@ func (a *AppState) OpenSettingsWindow() {
 	}
 	a.refreshSettingsData()
 	a.Settings.SetWindowActive(true)
-	semantic := a.Shell.Settings.Semantic()
+	semantic, _ := a.colors.At(a.Shell.Settings, time.Now())
 	window := mygo.NewWindow(mygo.WindowOptions{
 		Title:                "Neverland — Settings",
 		Width:                980,

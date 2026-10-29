@@ -231,8 +231,13 @@ func (s Settings) Semantic() Theme {
 
 // MyGoTheme overlays the Neverland semantic colors onto MyGo's control theme.
 func (s Settings) MyGoTheme() *ui.Theme {
+	return s.MyGoThemeFor(s.Normalized().Semantic())
+}
+
+// MyGoThemeFor is MyGoTheme painted in semantic, such as a theme partway
+// through a Transition, at these settings' scale.
+func (s Settings) MyGoThemeFor(semantic Theme) *ui.Theme {
 	normalized := s.Normalized()
-	semantic := normalized.Semantic()
 	result := ui.DarkTheme()
 	if normalized.Appearance == Paper {
 		result = ui.LightTheme()

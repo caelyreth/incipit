@@ -10,10 +10,12 @@ import (
 )
 
 type State struct {
-	Category     appsettings.Category
-	Query        string
-	Data         appsettings.Data
-	Theme        theme.Settings
+	Category appsettings.Category
+	Query    string
+	Data     appsettings.Data
+	Theme    theme.Settings
+	// Colors carries theme changes; nil shows Theme as it is.
+	Colors       *theme.Transition
 	Apply        func(appsettings.Change)
 	Animate      bool
 	WindowActive bool

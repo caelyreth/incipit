@@ -25,8 +25,10 @@ type ToolbarState struct {
 }
 
 type State struct {
-	Appearance   settings.PresentationState
-	Settings     theme.Settings
+	Appearance settings.PresentationState
+	Settings   theme.Settings
+	// Colors carries theme changes; nil shows Settings as they are.
+	Colors       *theme.Transition
 	Pages        []Page
 	ActivePage   string
 	Status       string
