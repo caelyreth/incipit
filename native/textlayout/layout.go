@@ -1,8 +1,6 @@
 package textlayout
 
 import (
-	"hash/fnv"
-
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/egoist/mygo/ui"
 )
@@ -74,13 +72,13 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	font := style.font()
 	lineHeight := style.Prose.LineHeight()
 	for _, raw := range paragraphs {
-		spans := spansFor(flow, raw.startByte, raw.endByte, style)
-		key := paragraphKey(spans, font, width)
+		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width)
 		var layout *ui.TextLayout
 		if available := c.layouts[key]; len(available) > 0 {
 			layout = available[len(available)-1]
 			c.layouts[key] = available[:len(available)-1]
 		} else {
+			spans := spansFor(flow, raw.startByte, raw.endByte, style)
 			layout = ui.ShapeRichTextWith(spans, font, ui.TextShape{Width: width})
 		}
 		next[key] = append(next[key], layout)
@@ -169,26 +167,64 @@ func spansFor(flow *surface.Flow, start, end int, style Style) []ui.Span {
 	return spans
 }
 
-func paragraphKey(spans []ui.Span, font ui.Font, width float32) uint64 {
-	hash := fnv.New64a()
+func paragraphKey(
+	flow *surface.Flow,
+	start, end int,
+	style Style,
+	font ui.Font,
+	width float32,
+) uint64 {
+	const (
+		fnvOffset64 = uint64(14695981039346656037)
+		fnvPrime64  = uint64(1099511628211)
+	)
+	hash := fnvOffset64
+	writeBytes := func(value []byte) {
+		for _, b := range value {
+			hash ^= uint64(b)
+			hash *= fnvPrime64
+		}
+	}
+	writeString := func(value string) {
+		for index := 0; index < len(value); index++ {
+			hash ^= uint64(value[index])
+			hash *= fnvPrime64
+		}
+	}
 	writeFloat := func(value float32) {
 		bits := mathFloat32bits(value)
-		_, _ = hash.Write([]byte{
+		writeBytes([]byte{
 			byte(bits >> 24), byte(bits >> 16), byte(bits >> 8), byte(bits),
 		})
 	}
 	writeFloat(width)
 	writeFloat(font.Size)
 	writeFloat(font.LineHeight)
-	_, _ = hash.Write([]byte(font.Family))
-	for _, span := range spans {
-		_, _ = hash.Write([]byte(span.Text))
-		_, _ = hash.Write([]byte(span.Font))
+	writeString(font.Family)
+	text := flow.Text()
+	wroteSpan := false
+	flow.EachRun(func(run surface.StyleRun) bool {
+		from, to := max(start, int(run.Bytes.Start)), min(end, int(run.Bytes.End))
+		if from >= to {
+			return true
+		}
+		span := style.span(text[from:to], run)
+		writeString(span.Text)
+		writeString(span.Font)
 		writeFloat(span.Size)
-		_, _ = hash.Write([]byte{byte(span.Weight), boolByte(span.Italic)})
-		_, _ = hash.Write([]byte{span.Color.R, span.Color.G, span.Color.B, span.Color.A})
+		writeBytes([]byte{byte(span.Weight), boolByte(span.Italic)})
+		writeBytes([]byte{span.Color.R, span.Color.G, span.Color.B, span.Color.A})
+		wroteSpan = true
+		return true
+	})
+	if !wroteSpan {
+		span := style.span("", surface.StyleRun{})
+		writeString(span.Font)
+		writeFloat(span.Size)
+		writeBytes([]byte{byte(span.Weight), boolByte(span.Italic)})
+		writeBytes([]byte{span.Color.R, span.Color.G, span.Color.B, span.Color.A})
 	}
-	return hash.Sum64()
+	return hash
 }
 
 func boolByte(value bool) byte {
