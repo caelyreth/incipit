@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 
@@ -25,6 +26,33 @@ func TestPlanCJKRefinesParagraphsAndPreservesTokens(t *testing.T) {
 	result, ok := applyPlan(text, plans[0].Corrections)
 	if !ok || result != "中文 test，123.4 https://x.com" {
 		t.Fatalf("result=%q ok=%v", result, ok)
+	}
+}
+
+func TestPlanCJKTreeMatchesMaterializedText(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		text string
+		rng  model.UTF16Range
+	}{
+		{"english，line\n中文line", model.NewUTF16Range(8, 8)},
+		{"中文, test.", model.NewUTF16Range(2, 2)},
+		{"before\n中文 ,test\nlast", model.NewUTF16Range(7, 14)},
+		{"😀中文test", model.NewUTF16Range(2, 3)},
+	}
+	settings := CJKSettings{Punctuation: true, Spacing: true}
+	for _, test := range tests {
+		want, err := PlanCJK(test.text, test.rng, settings)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := planCJKTree(model.NewTextRoot(test.text).Tree(), test.rng, settings)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%q range=%#v plans=%#v, want %#v", test.text, test.rng, got, want)
+		}
 	}
 }
 

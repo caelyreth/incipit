@@ -4,6 +4,7 @@ import (
 	"unicode"
 
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/text/rope"
 )
 
 // CJKSettings control CJK refinement independently. Both default to true when
@@ -55,6 +56,46 @@ func PlanCJK(text string, inserted model.UTF16Range, settings CJKSettings) ([]CJ
 		plans = append(plans, CJKPlan{
 			Line:        model.NewByteRange(model.ByteOffset(from), model.ByteOffset(to)),
 			Base:        model.UTF16Offset(prefixUnits),
+			Corrections: batch,
+		})
+	}
+	return plans, nil
+}
+
+func planCJKTree(tree rope.Tree, inserted model.UTF16Range, settings CJKSettings) ([]CJKPlan, error) {
+	if inserted.Start < 0 || inserted.End < inserted.Start {
+		return nil, &CorrectionError{Kind: CorrectionErrorInvalidRange}
+	}
+	length := tree.UTF16Len()
+	start := min(int(inserted.Start), length)
+	end := min(int(inserted.End), length)
+	startByte, ok := tree.CheckedByteOfUTF16(start)
+	if !ok {
+		return nil, &CorrectionError{Kind: CorrectionErrorInvalidRange}
+	}
+	endByte, ok := tree.CheckedByteOfUTF16(end)
+	if !ok {
+		return nil, &CorrectionError{Kind: CorrectionErrorInvalidRange}
+	}
+	firstLine := tree.LineOf(startByte)
+	lastLine := tree.LineOf(endByte)
+	plans := make([]CJKPlan, 0, lastLine-firstLine+1)
+	for line := firstLine; line <= lastLine; line++ {
+		from := tree.LineStart(line)
+		to := tree.ByteLen()
+		if line+1 < tree.LineCount() {
+			to = tree.LineStart(line + 1)
+		}
+		base := model.UTF16Offset(tree.UTF16UnitsIn(0, from))
+		parts := graphemeStrings(tree.Slice(from, to))
+		edits := cjkCorrections(parts, base, settings)
+		batch, err := NewCorrectionBatch(edits)
+		if err != nil {
+			return nil, err
+		}
+		plans = append(plans, CJKPlan{
+			Line:        model.NewByteRange(model.ByteOffset(from), model.ByteOffset(to)),
+			Base:        base,
 			Corrections: batch,
 		})
 	}

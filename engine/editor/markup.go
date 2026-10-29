@@ -1061,7 +1061,6 @@ func (i *EditorInvoker) invokeCorrection(
 	if !ok || !node.TextPresent() {
 		return kernel.OutcomePass, nil
 	}
-	text := node.Text().String()
 	var batches []CorrectionBatch
 	if policy == TypographyPolicyID {
 		settings := TypographySettings{
@@ -1072,6 +1071,7 @@ func (i *EditorInvoker) invokeCorrection(
 		if !TypographyTrigger(input.Text()) {
 			return kernel.OutcomePass, nil
 		}
+		text := node.Text().String()
 		plan, ok := PlanTypography(text, i.lastCorrectionHead(text, nodeID, input), settings)
 		if !ok {
 			return kernel.OutcomePass, nil
@@ -1084,7 +1084,7 @@ func (i *EditorInvoker) invokeCorrection(
 			Punctuation: contextMarkupBool(context, "punctuation", true),
 			Spacing:     contextMarkupBool(context, "spacing", true),
 		}
-		plans, err := PlanCJK(text, input.Target().RangeUTF16(), settings)
+		plans, err := planCJKTree(node.Text(), input.Target().RangeUTF16(), settings)
 		if err != nil {
 			return 0, err
 		}
