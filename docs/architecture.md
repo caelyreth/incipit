@@ -41,6 +41,26 @@ engine's projected-edit path.
 - `app/workspace`: page and tab lifecycle.
 - `native`: MyGo windows, layout, drawing, motion, focus, and chrome.
 
+## Actions and keys
+
+Policies, including the host's surface policy, declare actions by identity,
+name and scope only (`editor.Command`, read through `editor.Commands` and
+`editor.CommandFor`). Default keys live in one layer, `engine/editor/keymap.go`,
+linked with the catalog by `kernel.LinkPolicyCatalog(descriptors, defaults...)`.
+A configuration's remaps sit above the defaults, and preparation checks the
+combined keymap for conflicts.
+
+Settings never spell a key in prose. Text names an action as `{command.id}`
+(`appsettings.Phrase`), and the view draws the key it has now, which records
+a new one in place. A policy card edits the actions its text names right
+there in the sentence, and lists its other actions as rows.
+
+The Keymap groups actions by `Scope`: writing, pages, window, app. Built-in
+actions come first, and a key a switchable feature adds is marked with that
+feature, which leads to its card. Every key on either page records through
+the same recorder, which opens under the row or sentence holding the key,
+and goes through the same conflict check.
+
 ## Non-negotiable invariants
 
 1. Semantic text is authoritative; generated marker text is not stored.

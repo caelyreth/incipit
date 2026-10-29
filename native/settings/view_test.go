@@ -3,6 +3,7 @@ package settings
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -506,6 +507,7 @@ func TestKeymapAsksBeforeTakingAnotherActionsShortcut(t *testing.T) {
 	if !tester.HasText(warning) {
 		t.Fatalf("conflict not shown: %#v", tester.Texts())
 	}
+	tester.Advance(time.Second) // the prompt folds open
 	if err := tester.Click("Replace"); err != nil {
 		t.Fatal(err)
 	}
@@ -615,5 +617,286 @@ func TestKeycapsAreEvenSquaresWithCenteredGlyphs(t *testing.T) {
 	}
 	if len(widths) != 3 || widths[0] != widths[1] || widths[1] != widths[2] {
 		t.Fatalf("cap widths = %v", widths)
+	}
+}
+
+// A policy card lists the actions its policy answers to as the Keymap's own
+// rows: a shortcut recorded in the card is the same change, checked against
+// every other action's shortcut, as one recorded on the Keymap page.
+func TestPolicyCardEditsItsActionsLikeTheKeymap(t *testing.T) {
+	state, changes := keymapState()
+	state.Category = appsettings.Editor
+	state.Data.Sections = policyData(true)
+	state.Data.Sections[0].Policy = "editor.markup"
+	state.Data.Sections[0].Shortcuts = state.Data.Shortcuts[:2]
+	tester := ui.NewTester(state.View, 980, 900)
+	tester.Frame()
+	tester.Advance(time.Second)
+	if _, ok := tester.Find(keymap.Chord(chord("b"), keymap.PlatformCurrent)); !ok {
+		t.Fatalf("card shows no shortcut for its action: %#v", tester.Texts())
+	}
+	if tester.HasText("Undo") {
+		t.Fatal("card lists another policy's action")
+	}
+	if err := tester.Click("Change shortcut for Bold"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Key(primary(), ui.KeyZ)
+	tester.Frame()
+	if len(*changes) != 0 {
+		t.Fatalf("a shortcut held outside the card applied without asking: %#v", *changes)
+	}
+	tester.Advance(time.Second) // the prompt folds open
+	if err := tester.Click("Replace"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*changes) != 1 || (*changes)[0].Command != "markup.strong" ||
+		(*changes)[0].Displaced != "history.undo" || (*changes)[0].Binding != chord("z") {
+		t.Fatalf("card change = %#v", *changes)
+	}
+
+	state.Query = "italic"
+	tester.Frame()
+	tester.Advance(time.Second)
+	if !tester.HasText("Italic") || tester.HasText("Allow strong emphasis") {
+		t.Fatalf("search by action name = %#v", tester.Texts())
+	}
+}
+
+func tabSection(binding kernel.BindingTarget, overridden bool) appsettings.Data {
+	shortcut := appsettings.Shortcut{
+		Command: "navigation.tab", Label: "Leave scope", Group: "Writing",
+		Policy: "editor.navigation", Origin: "editor.navigation", OriginLabel: "Scope navigation",
+		Bindings: []kernel.BindingTarget{binding}, Enabled: true, Overridden: overridden,
+	}
+	return appsettings.Data{
+		Shortcuts: []appsettings.Shortcut{shortcut},
+		Sections: []appsettings.Section{{
+			Policy: "editor.navigation", Title: "Scope navigation",
+			Description: "Press {navigation.tab} to leave a pair.",
+			Settings: []appsettings.ToggleSetting{{
+				Key: appsettings.PolicyBoolean("editor.navigation"), Label: "Enable scope navigation",
+				Value: true, Enabled: true, Selector: "policy-navigation",
+			}, {
+				Key:   appsettings.OptionBoolean(kernel.NewSettingKey("editor.navigation", "pairs")),
+				Label: "Leave pairs", Description: "{navigation.tab} steps past the closer.",
+				Value: true, Enabled: true, Selector: "option-pairs",
+			}},
+		}},
+	}
+}
+
+func textContaining(tester *ui.Tester, part string) bool {
+	for _, text := range tester.Texts() {
+		if strings.Contains(text, part) {
+			return true
+		}
+	}
+	return false
+}
+
+// Text that names a key names the key it has now, and records a new one in
+// the sentence, where the Keymap would.
+func TestSentencesShowLiveKeysAndRecordInPlace(t *testing.T) {
+	state := New()
+	tab := kernel.NewBindingTarget(kernel.EditorBindingContext, "tab", 0)
+	state.Data = tabSection(tab, false)
+	changes := make([]appsettings.Change, 0)
+	state.Apply = func(change appsettings.Change) { changes = append(changes, change) }
+	tester := ui.NewTester(state.View, 980, 900)
+	tester.Frame()
+	tester.Advance(time.Second)
+	tabKey := keymap.Chord(tab, keymap.PlatformCurrent)
+	if !textContaining(tester, "Press "+tabKey+" to leave a pair.") {
+		t.Fatalf("description does not show the key: %#v", tester.Texts())
+	}
+	if textContaining(tester, "{navigation.tab}") {
+		t.Fatal("a raw key reference reached the screen")
+	}
+
+	if err := tester.Click("Change shortcut for Leave scope"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !tester.HasText("Press keys…") || state.keyHost != "policy-editor.navigation" {
+		t.Fatalf("recording did not open under the sentence: host=%q %#v", state.keyHost, tester.Texts())
+	}
+	tester.Key(primary(), ui.KeyJ)
+	if len(changes) != 1 || changes[0].Command != "navigation.tab" || changes[0].Binding != chord("j") {
+		t.Fatalf("sentence recorded %#v", changes)
+	}
+
+	// The key changes; every sentence that names it follows.
+	state.Data = tabSection(chord("j"), true)
+	tester.Frame()
+	now := keymap.Chord(chord("j"), keymap.PlatformCurrent)
+	if !textContaining(tester, "Press "+now+" to leave a pair.") ||
+		!textContaining(tester, now+" steps past the closer.") || textContaining(tester, tabKey) {
+		t.Fatalf("sentences kept the old key: %#v", tester.Texts())
+	}
+	state.Query = strings.ToLower(keymap.ChordWords(chord("j"), keymap.PlatformCurrent))
+	tester.Frame()
+	if !tester.HasText("Scope navigation") {
+		t.Fatalf("search by the new key's words missed the card: %#v", tester.Texts())
+	}
+}
+
+// The Keymap groups keys by what they act on, and names the feature that
+// adds a key, leading to that feature's card.
+func TestKeymapShowsScopeAndOrigin(t *testing.T) {
+	state := New()
+	state.Category = appsettings.Keymap
+	state.Data = tabSection(kernel.NewBindingTarget(kernel.EditorBindingContext, "tab", 0), false)
+	state.Data.Shortcuts = append(state.Data.Shortcuts, appsettings.Shortcut{
+		Command: "surface.settings", Label: "Open settings", Scope: 4, Group: "App",
+		Bindings: []kernel.BindingTarget{chord(",")}, Enabled: true,
+	})
+	state.Data.Shortcuts[0].Scope = 1
+	tester := ui.NewTester(state.View, 980, 900)
+	tester.Frame()
+	for _, text := range []string{"Writing", "App", appsettings.ScopeDescription(1), "Scope navigation"} {
+		if !tester.HasText(text) {
+			t.Fatalf("missing %q: %#v", text, tester.Texts())
+		}
+	}
+	if _, ok := tester.Find("From Scope navigation: show in Editor settings"); !ok {
+		t.Fatal("feature key has no origin")
+	}
+	if _, ok := tester.Find("From : show in Editor settings"); ok {
+		t.Fatal("built-in key claims an origin")
+	}
+	if err := tester.Click("From Scope navigation: show in Editor settings"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tab := keymap.Chord(kernel.NewBindingTarget(kernel.EditorBindingContext, "tab", 0), keymap.PlatformCurrent)
+	if state.Category != appsettings.Editor || !textContaining(tester, "Press "+tab+" to leave a pair.") {
+		t.Fatalf("origin led to %v: %#v", state.Category, tester.Texts())
+	}
+}
+
+// A key in a sentence is easy to press: caps the Keymap's size with a margin
+// of target around them. Its sentence takes a little more leading for them,
+// in the same size of type as any other description.
+func TestSentenceKeysAreLargeTargetsOnAnUnchangedLine(t *testing.T) {
+	state := New()
+	state.Data = tabSection(kernel.NewBindingTarget(kernel.EditorBindingContext, "tab", 0), false)
+	tester := ui.NewTester(state.View, 980, 900)
+	tester.Frame()
+	tester.Advance(time.Second)
+	tab := keymap.Chord(kernel.NewBindingTarget(kernel.EditorBindingContext, "tab", 0), keymap.PlatformCurrent)
+	sentence, ok := tester.Find("Press " + tab + " to leave a pair.")
+	plain, okPlain := tester.Find("Shape the way your words are edited.")
+	chip, okChip := tester.Find("Change shortcut for Leave scope")
+	if !ok || !okPlain || !okChip {
+		t.Fatalf("missing elements: %#v", tester.Texts())
+	}
+	geometry := chipGeometryFor(state.Theme.UIFontSize)
+	if sentence.H > geometry.line+0.5 || sentence.H < plain.H {
+		t.Fatalf("one line with a key is %v high, plain %v", sentence.H, plain.H)
+	}
+	if chip.H < geometry.cap+2*geometry.margin-0.5 || chip.W < geometry.cap+2*geometry.margin-0.5 {
+		t.Fatalf("key target %vx%v", chip.W, chip.H)
+	}
+}
+
+// A changed key eases to its new width, carrying the words after it along,
+// rather than jumping.
+func TestSentenceKeysEaseToANewWidth(t *testing.T) {
+	state := New()
+	tab := kernel.NewBindingTarget(kernel.EditorBindingContext, "tab", 0)
+	state.Data = tabSection(tab, false)
+	tester := ui.NewTester(state.View, 980, 900)
+	tester.Frame()
+	tester.Advance(time.Second)
+	before, _ := tester.Find("Change shortcut for Leave scope")
+
+	wide := kernel.NewBindingTarget(kernel.EditorBindingContext, "j",
+		kernel.ModifiersPrimary|kernel.ModifiersAlt|kernel.ModifiersShift)
+	state.Data = tabSection(wide, true)
+	tester.Frame()
+	tester.Advance(components.MotionNormal / 4)
+	during, _ := tester.Find("Change shortcut for Leave scope")
+	tester.Advance(time.Second)
+	after, _ := tester.Find("Change shortcut for Leave scope")
+	if !(before.W < during.W && during.W < after.W-0.5) {
+		t.Fatalf("key width %v → %v → %v, want an eased change", before.W, during.W, after.W)
+	}
+}
+
+// The recorder folds open under the sentence and folds shut again, rather
+// than appearing and vanishing.
+func TestRecorderFoldsOpenAndShut(t *testing.T) {
+	state := New()
+	state.Data = tabSection(kernel.NewBindingTarget(kernel.EditorBindingContext, "tab", 0), false)
+	tester := ui.NewTester(state.View, 980, 900)
+	tester.Frame()
+	tester.Advance(time.Second)
+	options, _ := tester.Find("Leave pairs")
+	if err := tester.Click("Change shortcut for Leave scope"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Advance(components.MotionSettle / 4)
+	opening, _ := tester.Find("Leave pairs")
+	tester.Advance(time.Second)
+	open, _ := tester.Find("Leave pairs")
+	if !(options.Y < opening.Y && opening.Y < open.Y-0.5) {
+		t.Fatalf("rows below at %v → %v → %v, want them eased down", options.Y, opening.Y, open.Y)
+	}
+	tester.Key(0, ui.KeyEscape)
+	tester.Frame()
+	tester.Advance(components.MotionSettle / 4)
+	closing, _ := tester.Find("Leave pairs")
+	if !tester.HasText("Press keys…") || !(closing.Y < open.Y && closing.Y > options.Y+0.5) {
+		t.Fatalf("recorder vanished instead of folding: rows at %v, %#v", closing.Y, tester.Texts())
+	}
+	tester.Advance(time.Second)
+	shut, _ := tester.Find("Leave pairs")
+	if tester.HasText("Press keys…") || shut.Y > options.Y+0.5 {
+		t.Fatalf("recorder never shut: rows at %v", shut.Y)
+	}
+}
+
+func TestSwappingKeysNeverShowsBothAtOnce(t *testing.T) {
+	for step := 0; step <= 100; step++ {
+		out, in := swapGlyphs(float32(step) / 100)
+		if out > 0 && in > 0 {
+			t.Fatalf("at %d%% both show: %v and %v", step, out, in)
+		}
+	}
+	if out, in := swapGlyphs(0); out != 1 || in != 0 {
+		t.Fatalf("start %v %v", out, in)
+	}
+	if out, in := swapGlyphs(1); out != 0 || in != 1 {
+		t.Fatalf("end %v %v", out, in)
+	}
+}
+
+// Mid-change, every cap stands inside the key's box as the sentence has made
+// room for it: none reaches over the words beside it.
+func TestReshapingCapsStayInsideTheKey(t *testing.T) {
+	geometry := chipGeometryFor(16)
+	font := ui.Font{Size: geometry.glyph}
+	one, oneW := layoutCaps([]string{"⇥"}, font, geometry)
+	four, fourW := layoutCaps([]string{"⌥", "⇧", "⌘", "J"}, font, geometry)
+	for _, change := range [][2][]keyCap{{one, four}, {four, one}} {
+		from, to := change[0], change[1]
+		fromW, toW := oneW, fourW
+		if len(from) == 4 {
+			fromW, toW = fourW, oneW
+		}
+		for step := 0; step <= 50; step++ {
+			ease := float32(step) / 50
+			box := fromW + (toW-fromW)*ease
+			for index := range max(len(from), len(to)) {
+				x, w := morph(from, to, index, ease)
+				if x < -0.01 || x+w > box+0.01 {
+					t.Fatalf("%d→%d caps at %.2f: cap %d spans %.2f..%.2f of %.2f",
+						len(from), len(to), ease, index, x, x+w, box)
+				}
+			}
+		}
 	}
 }

@@ -18,6 +18,12 @@ type SettingRow struct {
 	Control   func()
 	Reset     func()
 	ResetIcon *ui.SVG
+	// LabelText and DescriptionText draw the label and description in place
+	// of the plain strings, for text with live parts; Label still names the
+	// row. Footer draws under the row, above its divider.
+	LabelText       func()
+	DescriptionText func()
+	Footer          func()
 }
 
 func (r SettingRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
@@ -34,7 +40,11 @@ func (r SettingRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 				ui.Column(c).Grow(1).MinWidth(180 * scale / theme.DefaultUIFontSize).
 					MaxWidthPercent(100).Gap(theme.Space02.DIPs(scale)).Children(func() {
 					ui.Row(c).AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
-						Label(c, r.Label, theme.TextDefault, semantic.Text.Default)
+						if r.LabelText != nil {
+							r.LabelText()
+						} else {
+							Label(c, r.Label, theme.TextDefault, semantic.Text.Default)
+						}
 						if r.Reset != nil {
 							IconButton{
 								Key: "reset", Label: "Reset to Default", Icon: r.ResetIcon,
@@ -42,7 +52,10 @@ func (r SettingRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 							}.View(c, semantic)
 						}
 					})
-					if r.Description != "" {
+					switch {
+					case r.DescriptionText != nil:
+						r.DescriptionText()
+					case r.Description != "":
 						Label(c, r.Description, theme.TextSmall, semantic.Text.Muted)
 					}
 				})
@@ -50,6 +63,9 @@ func (r SettingRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 					ui.Box(c).MinWidth(0).MaxWidthPercent(100).Children(r.Control)
 				}
 			})
+		if r.Footer != nil {
+			r.Footer()
+		}
 		if !r.Last {
 			ui.Row(c).WidthPercent(100).PaddingStart(lead).Children(func() {
 				HorizontalDivider(c, semantic, VariantDivider)

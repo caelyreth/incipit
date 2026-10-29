@@ -34,20 +34,25 @@ type State struct {
 	target     string
 	lastActive string
 
-	// The keymap page: its own search text or recorded chord, the command
-	// whose shortcut is being recorded, and a recorded shortcut another
-	// command already holds, awaiting a decision.
+	// The keymap page's own search text or recorded chord. Then, on either
+	// page, the command whose shortcut is being recorded and the row or
+	// sentence it was started from, and a recorded shortcut another command
+	// already holds, awaiting a decision there.
 	keyQuery    string
 	keyFilter   *kernel.BindingTarget
 	keySearch   bool
 	keyEditing  kernel.CommandID
+	keyHost     string
 	keyConflict *keyConflict
+	// recorders is what each open or closing recorder shows, by host.
+	recorders map[string]recorderView
 }
 
 type keyConflict struct {
 	Command kernel.CommandID
 	Target  kernel.BindingTarget
 	Owner   appsettings.Shortcut
+	Host    string
 }
 
 type anchor struct {

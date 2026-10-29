@@ -120,7 +120,13 @@ func (s *State) apply(
 			if change.Displaced != "" && change.Displaced != change.Command {
 				configuration.Unbind(change.Displaced)
 			}
-			configuration.Remap(change.Command, change.Binding)
+			// Choosing a command's own default again is no customization.
+			defaults := store.PolicyCatalog().DefaultBindings(change.Command)
+			if len(defaults) == 1 && defaults[0] == change.Binding {
+				configuration.ResetRemap(change.Command)
+			} else {
+				configuration.Remap(change.Command, change.Binding)
+			}
 			return true
 		})
 	case ChangeUnbind:

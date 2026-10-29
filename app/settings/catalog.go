@@ -40,14 +40,14 @@ func infoForPolicy(id kernel.PolicyID) policyInfo {
 	case policyEditorMarkup:
 		return policyInfo{
 			"Emphasis",
-			"Inline emphasis with generated markers. Text stays semantic.",
+			"Emphasize with {markup.emphasis}, or strongly with {markup.strong}. Markers are generated; the text stays semantic.",
 			1,
 			true,
 		}
 	case policyEditorCJK:
 		return policyInfo{
 			"CJK refinement",
-			"Refine punctuation and spacing in edited paragraphs.",
+			"Refine punctuation and spacing in edited paragraphs. Switch it from anywhere with {surface.cjk}.",
 			2,
 			true,
 		}
@@ -61,21 +61,21 @@ func infoForPolicy(id kernel.PolicyID) policyInfo {
 	case policyEditorHistory:
 		return policyInfo{
 			"Undo & redo",
-			"Retain semantic edits and selection history.",
+			"Step back with {history.undo} and forward with {history.redo} through edits and selections.",
 			4,
 			true,
 		}
 	case policyEditorNavigation:
 		return policyInfo{
 			"Scope navigation",
-			"Tab out of pairs or emphasis, or return to the last edit.",
+			"Press {navigation.tab} to leave a pair or emphasis, or to return to your last edit.",
 			4,
 			true,
 		}
 	case policyEditorWords:
 		return policyInfo{
 			"Word navigation",
-			"Unicode word, sentence and paragraph selection.",
+			"Move and select by Unicode word, sentence and paragraph.",
 			4,
 			true,
 		}
@@ -88,6 +88,34 @@ func infoForPolicy(id kernel.PolicyID) policyInfo {
 		}
 	default:
 		return policyInfo{"Editor feature", "", 4, true}
+	}
+}
+
+// ScopeTitle names a group of the Keymap.
+func ScopeTitle(scope editor.Scope) string {
+	switch scope {
+	case editor.ScopePages:
+		return "Pages"
+	case editor.ScopeWindow:
+		return "Window"
+	case editor.ScopeApp:
+		return "App"
+	default:
+		return "Writing"
+	}
+}
+
+// ScopeDescription says what a group's keys act on.
+func ScopeDescription(scope editor.Scope) string {
+	switch scope {
+	case editor.ScopePages:
+		return "Open, find, switch and close pages."
+	case editor.ScopeWindow:
+		return "Change what the window shows around your page."
+	case editor.ScopeApp:
+		return "Open Neverland's own tools."
+	default:
+		return "Act on the page you are writing, at the caret."
 	}
 }
 
@@ -114,11 +142,11 @@ func labelForSetting(id kernel.SettingID) string {
 	case "quote-placement":
 		return "Punctuation around quotes"
 	case "pairs":
-		return "Tab out of pairs"
+		return "Leave pairs"
 	case "emphasis":
-		return "Tab out of emphasis"
+		return "Leave emphasis"
 	case "return-to-edit":
-		return "Offer return after pointer moves"
+		return "Return to your last edit"
 	default:
 		return "Option"
 	}
@@ -147,46 +175,21 @@ func descriptionForSetting(id kernel.SettingID) string {
 	case "quote-placement":
 		return "Refine punctuation around quotation marks."
 	case "pairs":
-		return "Offer the nearest enclosing pair as a Tab destination."
+		return "{navigation.tab} steps past the closer of the nearest enclosing pair."
 	case "emphasis":
-		return "Offer the end of an emphasis scope as a Tab destination."
+		return "{navigation.tab} steps past the end of the emphasis you are in."
 	case "return-to-edit":
-		return "Offer a temporary return destination after moving away from an edit."
+		return "After you click away from an edit, {navigation.tab} takes you back to it."
 	default:
 		return ""
 	}
 }
 
 func commandLabel(command kernel.CommandID) string {
-	for _, meta := range commandCatalog() {
-		if meta.ID == command {
-			return meta.Label
-		}
+	if meta, ok := editor.CommandFor(command); ok {
+		return meta.Label
 	}
 	return "Editor command"
-}
-
-func commandCatalog() []editor.Command {
-	commands := make([]editor.Command, 0, 48)
-	for _, command := range editor.AllTextCommands {
-		commands = append(commands, command.Description())
-	}
-	for _, command := range editor.AllHistoryCommands {
-		commands = append(commands, command.Description())
-	}
-	for _, command := range editor.AllWordCommands {
-		commands = append(commands, command.Description())
-	}
-	commands = append(
-		commands,
-		editor.MarkupEmphasis.Description(),
-		editor.MarkupStrong.Description(),
-		editor.TabCommand(),
-	)
-	for _, command := range editor.SurfaceCommands() {
-		commands = append(commands, command.Description())
-	}
-	return commands
 }
 
 func sortedPolicies(catalog kernel.PolicyCatalog) []kernel.PolicyDescriptor {

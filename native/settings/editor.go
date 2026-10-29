@@ -23,13 +23,15 @@ func (s *State) editorPage(
 	query := strings.ToLower(strings.TrimSpace(s.Query))
 	for _, section := range s.Data.Sections {
 		master, options := policyParts(section)
-		if query != "" && !sectionMatches(section, query) {
+		if query != "" && !s.sectionMatches(section, query) {
 			continue
 		}
-		if query != "" && !containsFold(section.Title+" "+section.Description, query) {
-			options = matchingOptions(options, query)
+		shortcuts := section.Shortcuts
+		if query != "" && !containsFold(section.Title+" "+s.spellWords(section.Description), query) {
+			options = s.matchingOptions(options, query)
+			shortcuts = matchingShortcuts(shortcuts, query)
 		}
-		s.policyCard(c, semantic, section, master, options, query != "")
+		s.policyCard(c, semantic, section, master, options, shortcuts, query != "")
 	}
 	_ = metrics
 }
@@ -50,11 +52,21 @@ func policyParts(section appsettings.Section) (*appsettings.ToggleSetting, []app
 	return master, options
 }
 
-func matchingOptions(options []appsettings.ToggleSetting, query string) []appsettings.ToggleSetting {
+func (s *State) matchingOptions(options []appsettings.ToggleSetting, query string) []appsettings.ToggleSetting {
 	matches := make([]appsettings.ToggleSetting, 0, len(options))
 	for _, option := range options {
-		if containsFold(option.Label+" "+option.Description, query) {
+		if containsFold(s.spellWords(option.Label+" "+option.Description), query) {
 			matches = append(matches, option)
+		}
+	}
+	return matches
+}
+
+func matchingShortcuts(shortcuts []appsettings.Shortcut, query string) []appsettings.Shortcut {
+	matches := make([]appsettings.Shortcut, 0, len(shortcuts))
+	for _, shortcut := range shortcuts {
+		if containsFold(shortcut.Label, query) {
+			matches = append(matches, shortcut)
 		}
 	}
 	return matches
@@ -70,6 +82,7 @@ func (s *State) policyCard(
 	section appsettings.Section,
 	master *appsettings.ToggleSetting,
 	options []appsettings.ToggleSetting,
+	shortcuts []appsettings.Shortcut,
 	searching bool,
 ) {
 	scale := s.Theme.UIFontSize
@@ -80,17 +93,19 @@ func (s *State) policyCard(
 			Key: "settings-group-" + section.Title, Label: section.Title,
 			Children: func() {
 				s.policyShowcase(c, semantic, section, on)
-				s.policyHeader(c, semantic, section, master, len(options), on)
-				if len(options) == 0 {
+				s.policyHeader(c, semantic, section, master, len(options)+len(shortcuts), on)
+				if len(options)+len(shortcuts) == 0 {
 					return
 				}
-				s.policyOptions(c, semantic, section.Title, options, on || searching, animate, scale)
+				s.policyOptions(c, semantic, section.Title, options, shortcuts, on || searching, animate, scale)
 			},
 		}.View(c, semantic)
 	})
 }
 
 // policyHeader is the card's first row: the policy and its master switch.
+// Its description names the policy's keys live; one pressed records there,
+// under the header, which stays open while the policy is off.
 func (s *State) policyHeader(
 	c *ui.Context,
 	semantic theme.Theme,
@@ -101,6 +116,8 @@ func (s *State) policyHeader(
 ) {
 	scale := s.Theme.UIFontSize
 	inset := theme.Space16.DIPs(scale)
+	host := "policy-" + string(section.Policy)
+	defer s.recorder(c, semantic, host, inset)
 	ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).
 		Gap(theme.Space16.DIPs(scale)).
 		Padding(theme.Space16.DIPs(scale), inset, theme.Space16.DIPs(scale), inset).
@@ -109,7 +126,7 @@ func (s *State) policyHeader(
 				components.Label(c, section.Title, theme.TextDefault, semantic.Text.Heading).
 					FontWeight(600)
 				if section.Description != "" {
-					components.Label(c, section.Description, theme.TextSmall, semantic.Text.Muted)
+					s.phrase(c, semantic, host, section.Description, theme.TextSmall, semantic.Text.Muted)
 				}
 				if !on && optionCount > 0 {
 					noun := "options"
@@ -125,7 +142,7 @@ func (s *State) policyHeader(
 			}
 			setting := *master
 			components.Switch{
-				Key: setting.Selector, Label: setting.Label,
+				Key: setting.Selector, Label: s.spell(setting.Label),
 				Selected: setting.Value, Disabled: !setting.Enabled,
 				Animate: s.motion(c),
 				Action: func(value bool) {
@@ -167,62 +184,55 @@ func (s *State) policyShowcase(
 	})
 }
 
-// policyOptions nests the tweaks under the header. They fold away while the
-// policy is off: the fold animates the measured height and fades with it.
+// policyOptions nests the tweaks under the header, then the actions the
+// policy answers to, each the Keymap's own row, so a shortcut recorded here
+// is checked and stored exactly as one recorded there. They fold away while
+// the policy is off: the fold animates the measured height and fades with it.
 func (s *State) policyOptions(
 	c *ui.Context,
 	semantic theme.Theme,
 	title string,
 	options []appsettings.ToggleSetting,
+	shortcuts []appsettings.Shortcut,
 	open bool,
 	animate bool,
 	scale float32,
 ) {
-	target := float32(0)
-	if open {
-		target = 1
-	}
-	fold := ui.Column(c).Key("settings-options-" + title).WidthPercent(100).Clip()
-	reveal := target
-	if animate {
-		reveal = components.Follow(fold, "reveal", target, components.MotionSettle)
-	}
-	natural := ui.Local(fold, "natural", func() float32 { return 0 })
-	if reveal <= 0.001 {
-		fold.Height(0)
-		return
-	}
-	if reveal < 1 && *natural > 0 {
-		fold.Height(*natural * reveal)
-	}
-	fold.Opacity(reveal)
 	indent := theme.Space16.DIPs(scale)
-	fold.Children(func() {
-		body := ui.Column(c).WidthPercent(100)
-		if bounds := body.LayoutBounds(); bounds.H > 0 && reveal >= 1 {
-			*natural = bounds.H
-		}
-		body.Children(func() {
-			ui.Row(c).WidthPercent(100).PaddingStart(theme.Space16.DIPs(scale)).Children(func() {
-				components.HorizontalDivider(c, semantic, components.VariantDivider)
-			})
-			for index, option := range options {
-				option := option
-				components.SettingRow{
-					Label: option.Label, Description: option.Description,
-					Last: index == len(options)-1, Indent: indent,
-					Control: func() {
-						components.Switch{
-							Key: option.Selector, Label: option.Label,
-							Selected: option.Value, Disabled: !option.Enabled,
-							Animate: animate,
-							Action: func(value bool) {
-								s.apply(appsettings.ToggleBoolean(option.Key, value))
-							},
-						}.View(c, semantic)
-					},
-				}.View(c, semantic)
-			}
+	components.Fold{Key: "settings-options-" + title, Open: open, Animate: animate}.View(c, func() {
+		ui.Row(c).WidthPercent(100).PaddingStart(theme.Space16.DIPs(scale)).Children(func() {
+			components.HorizontalDivider(c, semantic, components.VariantDivider)
 		})
+		for index, option := range options {
+			option := option
+			host := "option-" + option.Selector
+			label := s.spell(option.Label)
+			components.SettingRow{
+				Label: label, Description: s.spell(option.Description),
+				Last: index == len(options)-1 && len(shortcuts) == 0, Indent: indent,
+				LabelText: func() {
+					s.phrase(c, semantic, host, option.Label, theme.TextDefault, semantic.Text.Default)
+				},
+				DescriptionText: func() {
+					if option.Description != "" {
+						s.phrase(c, semantic, host, option.Description, theme.TextSmall, semantic.Text.Muted)
+					}
+				},
+				Footer: func() { s.recorder(c, semantic, host, theme.Space16.DIPs(scale)+indent) },
+				Control: func() {
+					components.Switch{
+						Key: option.Selector, Label: label,
+						Selected: option.Value, Disabled: !option.Enabled,
+						Animate: animate,
+						Action: func(value bool) {
+							s.apply(appsettings.ToggleBoolean(option.Key, value))
+						},
+					}.View(c, semantic)
+				},
+			}.View(c, semantic)
+		}
+		for index, shortcut := range shortcuts {
+			s.shortcutRow(c, semantic, shortcut, index == len(shortcuts)-1, indent)
+		}
 	})
 }

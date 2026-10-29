@@ -2,6 +2,7 @@ package settings
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/editor"
@@ -256,7 +257,8 @@ func TestBuildDataSnapshotsSectionsShortcutsDiagnosticsAndAppearance(t *testing.
 		}
 		if shortcut.Command == editor.SurfaceDownCommandID {
 			foundSurface = shortcut.Label == "Move down" &&
-				shortcut.Group == "Workspace" && shortcut.Enabled
+				shortcut.Group == "Writing" && shortcut.Scope == editor.ScopeDocument &&
+				shortcut.Origin == "" && shortcut.Enabled
 		}
 	}
 	if !foundText || !foundSurface {
@@ -320,5 +322,101 @@ func TestRemapReplacingMovesTakenShortcutAtomically(t *testing.T) {
 	}
 	if got, ok := prepared.CommandFor(taken); !ok || got != command {
 		t.Fatalf("shortcut now runs %q", got)
+	}
+}
+
+// Both pages list a command under the policy it is about, from one list: the
+// Editor card's shortcuts are the Keymap's entries for that policy.
+func TestShortcutsSitUnderThePolicyTheyAreAbout(t *testing.T) {
+	t.Parallel()
+	catalog := editorCatalog(t)
+	store := editorHost(t, catalog)
+	state := DefaultState()
+	data := BuildData(store, activeSession(), state.Presentation, state.Appearance)
+	sections := make(map[kernel.PolicyID]Section)
+	for _, section := range data.Sections {
+		sections[section.Policy] = section
+	}
+	listed := make(map[kernel.CommandID]kernel.PolicyID)
+	for _, shortcut := range data.Shortcuts {
+		if _, twice := listed[shortcut.Command]; twice {
+			t.Fatalf("%s listed twice", shortcut.Command)
+		}
+		listed[shortcut.Command] = shortcut.Policy
+	}
+	if got := listed[editor.SurfaceCJKCommandID]; got != editor.CJKPolicyID {
+		t.Fatalf("CJK toggle listed under %q", got)
+	}
+	// An action the card's text names is edited in that sentence, not
+	// repeated as a row; the rest are rows.
+	cjk := sections[editor.CJKPolicyID]
+	if len(cjk.Shortcuts) != 0 || !slices.Contains(References(cjk.Description), editor.SurfaceCJKCommandID) {
+		t.Fatalf("CJK card = %#v", cjk)
+	}
+	navigation := sections[editor.NavigationPolicyID]
+	if len(navigation.Shortcuts) != 0 ||
+		!slices.Contains(References(navigation.Description), editor.TabCommand().ID) {
+		t.Fatalf("navigation card = %#v", navigation)
+	}
+	if words := sections[editor.WordsPolicyID]; len(words.Shortcuts) != len(editor.AllWordCommands) {
+		t.Fatalf("word card rows = %d", len(words.Shortcuts))
+	}
+	// Every action a card names exists, and is the Keymap's own entry.
+	for _, section := range data.Sections {
+		for _, text := range sectionTexts(section.Description, section.Settings) {
+			for _, command := range References(text) {
+				if listed[command] != section.Policy {
+					t.Fatalf("%s names %s, listed under %q", section.Policy, command, listed[command])
+				}
+			}
+		}
+	}
+	// The Keymap groups by scope, built-in actions first, and marks the
+	// rest with the feature that adds them.
+	for index := 1; index < len(data.Shortcuts); index++ {
+		previous, current := data.Shortcuts[index-1], data.Shortcuts[index]
+		if current.Scope < previous.Scope ||
+			(current.Scope == previous.Scope && previous.Origin != "" && current.Origin == "") {
+			t.Fatalf("%s before %s", previous.Command, current.Command)
+		}
+	}
+	strong, _ := data.Shortcut(editor.MarkupStrong.ID())
+	if strong.Origin != editor.MarkupPolicyID || strong.OriginLabel != "Emphasis" {
+		t.Fatalf("strong origin = %#v", strong)
+	}
+	if paste, _ := data.Shortcut(editor.SurfacePasteCommandID); paste.Origin != "" {
+		t.Fatalf("paste origin = %q", paste.Origin)
+	}
+	for _, section := range data.Sections {
+		for _, shortcut := range section.Shortcuts {
+			if listed[shortcut.Command] != section.Policy {
+				t.Fatalf("%s card lists %s, which the keymap lists elsewhere", section.Policy, shortcut.Command)
+			}
+		}
+	}
+}
+
+// Recording a command's own default again is no customization.
+func TestRemappingToTheDefaultClearsTheOverride(t *testing.T) {
+	t.Parallel()
+	catalog := editorCatalog(t)
+	store := editorHost(t, catalog)
+	state := DefaultState()
+	session := activeSession()
+	command := editor.MarkupStrong.ID()
+	other := kernel.NewBindingTarget(kernel.EditorBindingContext, "e", kernel.ModifiersPrimary|kernel.ModifiersAlt)
+	if _, err := state.Apply(Remap(command, other), store, session); err != nil {
+		t.Fatal(err)
+	}
+	configuration := store.Configuration()
+	if _, overridden := configuration.BindingOverride(command); !overridden {
+		t.Fatal("remap left no override")
+	}
+	if _, err := state.Apply(Remap(command, catalog.DefaultBindings(command)[0]), store, session); err != nil {
+		t.Fatal(err)
+	}
+	configuration = store.Configuration()
+	if _, overridden := configuration.BindingOverride(command); overridden {
+		t.Fatal("choosing the default again kept a custom override")
 	}
 }

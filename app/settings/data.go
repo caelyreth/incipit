@@ -1,6 +1,11 @@
 package settings
 
-import "github.com/caelyreth/neverland/engine/kernel"
+import (
+	"sort"
+
+	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
+)
 
 // BuildData creates a fully owned declarative settings snapshot. It reads policy
 // shape from the session's catalog, active values from the app-wide source and
@@ -30,8 +35,8 @@ func BuildData(
 	if active {
 		data.PageID = &page
 	}
-	data.Sections = buildSections(catalog, source, prepared, active)
 	data.Shortcuts = buildShortcuts(catalog, source, prepared, active)
+	data.Sections = buildSections(catalog, source, prepared, active, data.Shortcuts)
 	entries := session.Activity()
 	data.ActivityEntries = append([]ActivityEntry(nil), entries...)
 	data.Activity = activityLines(entries)
@@ -45,6 +50,7 @@ func buildSections(
 	source kernel.PolicyConfiguration,
 	prepared *kernel.PreparedPolicyConfiguration,
 	available bool,
+	shortcuts []Shortcut,
 ) []Section {
 	if prepared == nil {
 		return []Section{}
@@ -83,16 +89,42 @@ func buildSections(
 		if len(toggles) == 0 {
 			continue
 		}
+		inline := make(map[kernel.CommandID]bool)
+		for _, text := range sectionTexts(info.description, toggles) {
+			for _, command := range References(text) {
+				inline[command] = true
+			}
+		}
+		own := make([]Shortcut, 0)
+		for _, shortcut := range shortcuts {
+			if shortcut.Policy == policy.ID && !inline[shortcut.Command] {
+				own = append(own, shortcut)
+			}
+		}
 		sections = append(sections, Section{
 			Policy:      policy.ID,
 			Title:       info.label,
 			Description: info.description,
 			Settings:    toggles,
+			Shortcuts:   own,
 		})
 	}
 	return sections
 }
 
+func sectionTexts(description string, toggles []ToggleSetting) []string {
+	texts := []string{description}
+	for _, toggle := range toggles {
+		texts = append(texts, toggle.Label, toggle.Description)
+	}
+	return texts
+}
+
+// buildShortcuts lists every command by what it acts on, in scope order.
+// Within a scope the built-in actions come first, then each switchable
+// feature's, in policy order. A command is about the policy it serves even
+// when another owns it (the CJK toggle, owned by the workspace so it works
+// while CJK is off), and that policy is its origin when it can be switched.
 func buildShortcuts(
 	catalog kernel.PolicyCatalog,
 	source kernel.PolicyConfiguration,
@@ -102,22 +134,49 @@ func buildShortcuts(
 	if prepared == nil {
 		return []Shortcut{}
 	}
-	shortcuts := make([]Shortcut, 0)
-	for _, policy := range sortedPolicies(catalog) {
-		group := infoForPolicy(policy.ID).label
+	policies := sortedPolicies(catalog)
+	rank := make(map[kernel.PolicyID]int, len(policies))
+	for index, policy := range policies {
+		rank[policy.ID] = index
+	}
+	entries := make([]Shortcut, 0, 64)
+	for _, policy := range policies {
 		for _, command := range policy.Commands {
-			_, overridden := source.BindingOverride(command)
-			shortcuts = append(shortcuts, Shortcut{
-				Command:    command,
-				Label:      commandLabel(command),
-				Group:      group,
-				Bindings:   prepared.BindingsFor(command),
-				Enabled:    available && prepared.IsCommandEnabled(command),
-				Overridden: overridden,
-			})
+			meta, known := editor.CommandFor(command)
+			subject, scope := policy.ID, editor.ScopeDocument
+			if known {
+				scope = meta.Scope
+				if _, ok := catalog.Policy(meta.About()); ok {
+					subject = meta.About()
+				}
+			}
+			entry := Shortcut{
+				Command:  command,
+				Label:    commandLabel(command),
+				Scope:    scope,
+				Group:    ScopeTitle(scope),
+				Policy:   subject,
+				Bindings: prepared.BindingsFor(command),
+				Enabled:  available && prepared.IsCommandEnabled(command),
+			}
+			_, entry.Overridden = source.BindingOverride(command)
+			if info := infoForPolicy(subject); info.toggleable {
+				entry.Origin, entry.OriginLabel = subject, info.label
+			}
+			entries = append(entries, entry)
 		}
 	}
-	return shortcuts
+	sort.SliceStable(entries, func(i, j int) bool {
+		left, right := entries[i], entries[j]
+		if left.Scope != right.Scope {
+			return left.Scope < right.Scope
+		}
+		if (left.Origin == "") != (right.Origin == "") {
+			return left.Origin == ""
+		}
+		return left.Origin != "" && rank[left.Origin] < rank[right.Origin]
+	})
+	return entries
 }
 
 func appearanceToggles(presentation PresentationState) []ToggleSetting {

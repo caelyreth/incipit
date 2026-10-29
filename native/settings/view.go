@@ -167,15 +167,14 @@ func (s *State) categoryChildren(category appsettings.Category, query string) []
 	switch category {
 	case appsettings.Editor:
 		for _, section := range s.Data.Sections {
-			if query == "" || sectionMatches(section, query) {
+			if query == "" || s.sectionMatches(section, query) {
 				labels = append(labels, section.Title)
 			}
 		}
 	case appsettings.Keymap:
 		seen := map[string]bool{}
 		for _, shortcut := range s.Data.Shortcuts {
-			if query != "" &&
-				!strings.Contains(strings.ToLower(shortcut.Label+" "+shortcut.Group), query) {
+			if query != "" && !strings.Contains(strings.ToLower(shortcutWords(shortcut)), query) {
 				continue
 			}
 			if !seen[shortcut.Group] {
@@ -376,12 +375,17 @@ func (s *State) statusText() string {
 	return page + " · changes stay in memory"
 }
 
-func sectionMatches(section appsettings.Section, query string) bool {
-	if strings.Contains(strings.ToLower(section.Title+" "+section.Description), query) {
+func (s *State) sectionMatches(section appsettings.Section, query string) bool {
+	if strings.Contains(strings.ToLower(section.Title+" "+s.spellWords(section.Description)), query) {
 		return true
 	}
 	for _, setting := range section.Settings {
-		if strings.Contains(strings.ToLower(setting.Label+" "+setting.Description), query) {
+		if strings.Contains(strings.ToLower(s.spellWords(setting.Label+" "+setting.Description)), query) {
+			return true
+		}
+	}
+	for _, shortcut := range section.Shortcuts {
+		if strings.Contains(strings.ToLower(shortcut.Label), query) {
 			return true
 		}
 	}

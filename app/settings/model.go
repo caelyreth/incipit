@@ -2,7 +2,10 @@
 // independent of native widgets. Policy state stays in engine/kernel types.
 package settings
 
-import "github.com/caelyreth/neverland/engine/kernel"
+import (
+	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
+)
 
 // Category is one top-level settings section.
 type Category uint8
@@ -33,7 +36,7 @@ func (c Category) Title() string {
 func (c Category) Description() string {
 	switch c {
 	case Keymap:
-		return "Make your most useful actions easy to reach."
+		return "Keys by what they act on. A feature's name marks the keys it adds."
 	case Appearance:
 		return "A comfortable space for your writing."
 	case Diagnostics:
@@ -91,22 +94,36 @@ type ToggleSetting struct {
 	Selector    string
 }
 
-// Section is one group of editor policy settings.
+// Section is one group of editor policy settings: the policy's switches and
+// the actions it answers to. An action its text names, as a key reference,
+// is edited there, in the sentence; Shortcuts are the rest, as rows. Both are
+// the entries the Keymap lists, so either page edits one binding.
 type Section struct {
 	Policy      kernel.PolicyID
 	Title       string
 	Description string
 	Settings    []ToggleSetting
+	Shortcuts   []Shortcut
 }
 
 // Shortcut is one command's complete binding display and override state.
+//
+// Scope says what the action acts on, which is how the Keymap groups it;
+// Group is that scope's title. Policy is the policy the command is about.
+// Origin is the switchable feature that adds the action, empty for the
+// built-in ones: an action with an origin also lives on that feature's
+// Editor card, and turns off with it.
 type Shortcut struct {
-	Command    kernel.CommandID
-	Label      string
-	Group      string
-	Bindings   []kernel.BindingTarget
-	Enabled    bool
-	Overridden bool
+	Command     kernel.CommandID
+	Label       string
+	Scope       editor.Scope
+	Group       string
+	Policy      kernel.PolicyID
+	Origin      kernel.PolicyID
+	OriginLabel string
+	Bindings    []kernel.BindingTarget
+	Enabled     bool
+	Overridden  bool
 }
 
 // ActivityEntry is one published document revision snapshot.
@@ -166,6 +183,16 @@ func Remap(command kernel.CommandID, binding kernel.BindingTarget) Change {
 // command that held it, in the same policy change.
 func RemapReplacing(command kernel.CommandID, binding kernel.BindingTarget, displaced kernel.CommandID) Change {
 	return Change{Kind: ChangeBinding, Command: command, Binding: binding, Displaced: displaced}
+}
+
+// Shortcut returns command's entry.
+func (d Data) Shortcut(command kernel.CommandID) (Shortcut, bool) {
+	for _, shortcut := range d.Shortcuts {
+		if shortcut.Command == command {
+			return shortcut, true
+		}
+	}
+	return Shortcut{}, false
 }
 
 // Owner returns the shortcut whose command holds target.
