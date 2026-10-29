@@ -121,29 +121,33 @@ type rawParagraph struct {
 func splitParagraphs(flow *surface.Flow) []rawParagraph {
 	text := flow.Text()
 	paragraphs := make([]rawParagraph, 0, 8)
-	startByte, units := 0, 0
-	for index := 0; index < len(text); index++ {
-		if text[index] != '\n' {
+	startByte, startUnits, units := 0, 0, 0
+	for index, r := range text {
+		if r != '\n' {
+			if r > 0xffff {
+				units += 2
+			} else {
+				units++
+			}
 			continue
 		}
-		contentUnits := units + flow.UTF16Units(startByte, index)
 		paragraphs = append(paragraphs, rawParagraph{
 			startByte:    startByte,
 			endByte:      index,
-			startUTF16:   units,
-			endUTF16:     contentUnits + 1,
-			contentUTF16: contentUnits,
+			startUTF16:   startUnits,
+			endUTF16:     units + 1,
+			contentUTF16: units,
 		})
 		startByte = index + 1
-		units = contentUnits + 1
+		units++
+		startUnits = units
 	}
-	contentUnits := units + flow.UTF16Units(startByte, len(text))
 	paragraphs = append(paragraphs, rawParagraph{
 		startByte:    startByte,
 		endByte:      len(text),
-		startUTF16:   units,
-		endUTF16:     contentUnits,
-		contentUTF16: contentUnits,
+		startUTF16:   startUnits,
+		endUTF16:     units,
+		contentUTF16: units,
 	})
 	return paragraphs
 }
@@ -151,14 +155,14 @@ func splitParagraphs(flow *surface.Flow) []rawParagraph {
 func spansFor(flow *surface.Flow, start, end int, style Style) []ui.Span {
 	text := flow.Text()
 	spans := make([]ui.Span, 0, 4)
-	for _, run := range flow.Runs() {
+	flow.EachRun(func(run surface.StyleRun) bool {
 		runStart, runEnd := int(run.Bytes.Start), int(run.Bytes.End)
 		from, to := max(start, runStart), min(end, runEnd)
-		if from >= to {
-			continue
+		if from < to {
+			spans = append(spans, style.span(text[from:to], run))
 		}
-		spans = append(spans, style.span(text[from:to], run))
-	}
+		return true
+	})
 	if len(spans) == 0 {
 		spans = append(spans, style.span("", surface.StyleRun{}))
 	}

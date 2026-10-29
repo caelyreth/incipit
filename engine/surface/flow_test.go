@@ -1,6 +1,8 @@
 package surface
 
 import (
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/kernel/projection"
@@ -47,6 +49,43 @@ func TestFlowRejectsGapsOverlapsAndSplitUnicode(t *testing.T) {
 		nil,
 	); err == nil {
 		t.Fatal("split-surrogate selection accepted")
+	}
+}
+
+func TestEachRunVisitsRunsInOrderAndStopsEarly(t *testing.T) {
+	t.Parallel()
+	flow, err := NewFlow(
+		projection.NewVersion(1, 2),
+		"abc",
+		[]StyleRun{
+			{
+				Bytes: model.NewByteRange(0, 1),
+				Style: TextStyle{Bold: true},
+			},
+			{
+				Bytes: model.NewByteRange(1, 3),
+				Style: TextStyle{Italic: true},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ranges []string
+	flow.EachRun(func(run StyleRun) bool {
+		ranges = append(ranges, fmt.Sprintf("%d:%d", run.Bytes.Start, run.Bytes.End))
+		return true
+	})
+	if !slices.Equal(ranges, []string{"0:1", "1:3"}) {
+		t.Fatalf("runs = %v", ranges)
+	}
+	ranges = nil
+	flow.EachRun(func(run StyleRun) bool {
+		ranges = append(ranges, fmt.Sprintf("%d:%d", run.Bytes.Start, run.Bytes.End))
+		return false
+	})
+	if !slices.Equal(ranges, []string{"0:1"}) {
+		t.Fatalf("early runs = %v", ranges)
 	}
 }
 

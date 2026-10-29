@@ -82,6 +82,17 @@ func (f *Flow) Runs() []StyleRun {
 	return append([]StyleRun(nil), f.runs...)
 }
 
+// EachRun visits style runs in document order without cloning the backing
+// slice. Callers must not retain or mutate the supplied value beyond callback
+// execution.
+func (f *Flow) EachRun(fn func(StyleRun) bool) {
+	for _, run := range f.runs {
+		if !fn(run) {
+			return
+		}
+	}
+}
+
 // UTF16Units reports the UTF-16 length of bytes start to end without
 // materializing the prefix.
 func (f *Flow) UTF16Units(start, end int) int {
