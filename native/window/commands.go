@@ -18,7 +18,6 @@ func (a *AppState) commandCatalog() []overlay.Command {
 	if prepared == nil {
 		return nil
 	}
-	metadata := commandMetadata()
 	active := false
 	if a.Workspace != nil {
 		_, active = a.Workspace.Active()
@@ -30,7 +29,7 @@ func (a *AppState) commandCatalog() []overlay.Command {
 			if seen[id] || !prepared.IsCommandEnabled(id) {
 				continue
 			}
-			command, ok := metadata[id]
+			command, ok := editor.CommandFor(id)
 			if !ok || command.ID == editor.SurfaceCommandsCommandID {
 				continue
 			}
@@ -53,34 +52,6 @@ func (a *AppState) commandCatalog() []overlay.Command {
 				Binding: bindingLabel(prepared, id),
 			})
 		}
-	}
-	return commands
-}
-
-func commandMetadata() map[kernel.CommandID]editor.Command {
-	commands := make(map[kernel.CommandID]editor.Command, 48)
-	for _, command := range editor.AllTextCommands {
-		meta := command.Description()
-		commands[meta.ID] = meta
-	}
-	for _, command := range editor.AllHistoryCommands {
-		meta := command.Description()
-		commands[meta.ID] = meta
-	}
-	for _, command := range editor.AllWordCommands {
-		meta := command.Description()
-		commands[meta.ID] = meta
-	}
-	for _, meta := range []editor.Command{
-		editor.MarkupEmphasis.Description(),
-		editor.MarkupStrong.Description(),
-		editor.TabCommand(),
-	} {
-		commands[meta.ID] = meta
-	}
-	for _, command := range editor.SurfaceCommands() {
-		meta := command.Description()
-		commands[meta.ID] = meta
 	}
 	return commands
 }

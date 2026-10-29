@@ -25,8 +25,7 @@ func preparedKeymap(t *testing.T, bindings ...kernel.BindingSpec) *kernel.Prepar
 		ID:               "test.keys",
 		EnabledByDefault: true,
 		Commands:         commands,
-		Bindings:         bindings,
-	}})
+	}}, bindings...)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,7 +22,6 @@ const (
 	PolicyErrorUnknownPolicy
 	PolicyErrorUnknownCommand
 	PolicyErrorUnknownSetting
-	PolicyErrorCommandNotOwned
 	PolicyErrorDisabledDependency
 	PolicyErrorInvalidSettingType
 	PolicyErrorInvalidBindingTarget
@@ -61,8 +60,6 @@ func (k PolicyErrorKind) String() string {
 		return "unknown-command"
 	case PolicyErrorUnknownSetting:
 		return "unknown-setting"
-	case PolicyErrorCommandNotOwned:
-		return "command-not-owned"
 	case PolicyErrorDisabledDependency:
 		return "disabled-dependency"
 	case PolicyErrorInvalidSettingType:
@@ -130,8 +127,6 @@ func (e *PolicyError) Error() string {
 		return fmt.Sprintf("unknown command %s", e.Command)
 	case PolicyErrorUnknownSetting:
 		return fmt.Sprintf("unknown setting %s", e.Setting)
-	case PolicyErrorCommandNotOwned:
-		return fmt.Sprintf("policy %s does not own command %s", e.Policy, e.Command)
 	case PolicyErrorDisabledDependency:
 		return fmt.Sprintf("enabled policy %s has disabled dependency %s", e.Policy, e.Dependency)
 	case PolicyErrorInvalidSettingType:

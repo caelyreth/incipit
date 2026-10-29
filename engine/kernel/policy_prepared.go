@@ -133,12 +133,7 @@ func preparePolicyKeymap(
 		for _, command := range policy.Commands {
 			targets, overridden := configuration.BindingOverride(command)
 			if !overridden {
-				targets = make([]BindingTarget, 0)
-				for _, binding := range policy.Bindings {
-					if binding.Command == command {
-						targets = append(targets, binding.Target)
-					}
-				}
+				targets = catalog.defaults[command]
 			}
 			if err := keymap.bind(command, targets); err != nil {
 				var conflict *KeyConflictError

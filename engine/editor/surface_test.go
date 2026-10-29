@@ -56,9 +56,11 @@ func TestSurfacePolicyMatchesRustCommandCatalog(t *testing.T) {
 		t.Fatal("surface policy is disabled by default")
 	}
 	for _, command := range SurfaceCommands() {
-		got, ok := configuration.CommandFor(command.Binding())
-		if !ok || got != command.ID {
-			t.Fatalf("%s binding resolves to %s, %v", command.ID, got, ok)
+		for _, target := range catalog.DefaultBindings(command.ID) {
+			got, ok := configuration.CommandFor(target)
+			if !ok || got != command.ID {
+				t.Fatalf("%s binding resolves to %s, %v", command.ID, got, ok)
+			}
 		}
 	}
 }
@@ -126,14 +128,54 @@ func TestSurfaceBindingsPreserveRustModifiersAndKeys(t *testing.T) {
 	if len(tests) != len(AllSurfaceCommands) {
 		t.Fatalf("test matrix=%d commands=%d", len(tests), len(AllSurfaceCommands))
 	}
+	catalog, err := EditorPolicyCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, test := range tests {
-		command, ok := SurfaceCommandForID(test.id)
-		if !ok {
-			t.Fatalf("%s missing", test.id)
+		want := []kernel.BindingTarget{
+			kernel.NewBindingTarget(kernel.EditorBindingContext, test.key, test.modifiers),
 		}
-		if command.Key != test.key || command.Modifiers != test.modifiers ||
-			command.BindingCtx != kernel.EditorBindingContext {
-			t.Fatalf("%s = %#v", test.id, command)
+		if got := catalog.DefaultBindings(test.id); !slices.Equal(got, want) {
+			t.Fatalf("%s defaults = %#v, want %#v", test.id, got, want)
+		}
+	}
+}
+
+// Every action is declared once, named once and given its keys only by the
+// default keymap; the registry every catalog reads is that same set.
+func TestActionRegistryMatchesThePolicyCatalog(t *testing.T) {
+	t.Parallel()
+	catalog, err := EditorPolicyCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared := make([]kernel.CommandID, 0, 64)
+	for _, policy := range catalog.Policies() {
+		declared = append(declared, policy.Commands...)
+	}
+	registered := make([]kernel.CommandID, 0, len(declared))
+	for _, command := range Commands() {
+		if command.Label == "" || command.Scope == 0 {
+			t.Fatalf("%s has no name or scope: %#v", command.ID, command)
+		}
+		owner, ok := catalog.CommandOwner(command.ID)
+		if !ok || owner != command.Policy {
+			t.Fatalf("%s is owned by %q, declared under %q", command.ID, owner, command.Policy)
+		}
+		if _, ok := catalog.Policy(command.About()); !ok {
+			t.Fatalf("%s is about an unknown policy %q", command.ID, command.About())
+		}
+		registered = append(registered, command.ID)
+	}
+	slices.Sort(declared)
+	slices.Sort(registered)
+	if !slices.Equal(declared, registered) {
+		t.Fatalf("registry %v, catalog %v", registered, declared)
+	}
+	for _, binding := range DefaultKeymap() {
+		if _, ok := CommandFor(binding.Command); !ok {
+			t.Fatalf("default key for unregistered %s", binding.Command)
 		}
 	}
 }

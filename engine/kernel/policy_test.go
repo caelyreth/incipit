@@ -71,6 +71,7 @@ func TestPolicyCatalogValidation(t *testing.T) {
 	tests := []struct {
 		name        string
 		descriptors func() []PolicyDescriptor
+		defaults    []BindingSpec
 		wantKind    PolicyErrorKind
 		check       func(*testing.T, *PolicyError)
 	}{
@@ -280,27 +281,24 @@ func TestPolicyCatalogValidation(t *testing.T) {
 			},
 		},
 		{
-			name: "command not owned",
+			name: "default for an undeclared command",
 			descriptors: func() []PolicyDescriptor {
-				policy := emptyPolicy("base")
-				policy.Bindings = []BindingSpec{{
-					Command: "foreign", Target: policyTarget("x"),
-				}}
-				return []PolicyDescriptor{policy}
+				return []PolicyDescriptor{emptyPolicy("base")}
 			},
-			wantKind: PolicyErrorCommandNotOwned,
+			defaults: []BindingSpec{{Command: "foreign", Target: policyTarget("x")}},
+			wantKind: PolicyErrorUnknownCommand,
 		},
 		{
 			name: "invalid binding target",
 			descriptors: func() []PolicyDescriptor {
 				policy := emptyPolicy("base")
 				policy.Commands = []CommandID{"command"}
-				policy.Bindings = []BindingSpec{{
-					Command: "command",
-					Target:  NewBindingTarget(EditorBindingContext, "", ModifiersPrimary),
-				}}
 				return []PolicyDescriptor{policy}
 			},
+			defaults: []BindingSpec{{
+				Command: "command",
+				Target:  NewBindingTarget(EditorBindingContext, "", ModifiersPrimary),
+			}},
 			wantKind: PolicyErrorInvalidBindingTarget,
 			check: func(t *testing.T, err *PolicyError) {
 				if err.Reason != "binding key cannot be empty" {
@@ -332,7 +330,7 @@ func TestPolicyCatalogValidation(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := LinkPolicyCatalog(test.descriptors())
+			_, err := LinkPolicyCatalog(test.descriptors(), test.defaults...)
 			var policyErr *PolicyError
 			if !errors.As(err, &policyErr) {
 				t.Fatalf("error = %v", err)
@@ -496,13 +494,16 @@ func TestPolicyConfigurationBindingsSettingsAndDisablement(t *testing.T) {
 				descriptors[index].Commands,
 				"marks.unbound",
 			)
-			descriptors[index].Bindings = append(
-				descriptors[index].Bindings,
-				BindingSpec{Command: "marks.toggle", Target: policyTarget("Mod-i")},
-			)
 		}
 	}
-	host, err := NewPolicyHost(mustPolicyCatalog(t, descriptors...))
+	catalog, err := LinkPolicyCatalog(descriptors, append(
+		policyFixtureKeymap,
+		BindingSpec{Command: "marks.toggle", Target: policyTarget("Mod-i")},
+	)...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := NewPolicyHost(catalog)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -770,10 +771,6 @@ func policyFixtureDescriptors() []PolicyDescriptor {
 			ID:               "base",
 			EnabledByDefault: true,
 			Commands:         []CommandID{"base.enter"},
-			Bindings: []BindingSpec{{
-				Command: "base.enter",
-				Target:  policyTarget("Enter"),
-			}},
 			Resources: []ResourceDescriptor{{
 				ID:       "document",
 				Lifetime: ResourceDocumentLifetime,
@@ -798,12 +795,14 @@ func policyFixtureDescriptors() []PolicyDescriptor {
 				Default: TextSetting("asterisk"),
 			}},
 			Commands: []CommandID{"marks.toggle"},
-			Bindings: []BindingSpec{{
-				Command: "marks.toggle",
-				Target:  policyTarget("Mod-b"),
-			}},
 		},
 	}
+}
+
+// policyFixtureKeymap is the fixture's default keymap layer.
+var policyFixtureKeymap = []BindingSpec{
+	{Command: "base.enter", Target: policyTarget("Enter")},
+	{Command: "marks.toggle", Target: policyTarget("Mod-b")},
 }
 
 func emptyPolicy(id PolicyID) PolicyDescriptor {
@@ -816,7 +815,19 @@ func policyTarget(key string) BindingTarget {
 
 func mustPolicyCatalog(t *testing.T, descriptors ...PolicyDescriptor) PolicyCatalog {
 	t.Helper()
-	catalog, err := LinkPolicyCatalog(descriptors)
+	declared := make(map[CommandID]bool)
+	for _, descriptor := range descriptors {
+		for _, command := range descriptor.Commands {
+			declared[command] = true
+		}
+	}
+	defaults := make([]BindingSpec, 0, len(policyFixtureKeymap))
+	for _, binding := range policyFixtureKeymap {
+		if declared[binding.Command] {
+			defaults = append(defaults, binding)
+		}
+	}
+	catalog, err := LinkPolicyCatalog(descriptors, defaults...)
 	if err != nil {
 		t.Fatal(err)
 	}

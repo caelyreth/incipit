@@ -44,132 +44,43 @@ const (
 
 // SurfaceCommand is one complete declaration in the Rust-compatible surface
 // policy. The ID is the stable routing identity; Kind selects its native owner.
+// Scope is what it acts on; Subject names the editor policy a command
+// switches, when it switches one.
 type SurfaceCommand struct {
-	ID         kernel.CommandID
-	Label      string
-	Key        string
-	Modifiers  kernel.Modifiers
-	Kind       SurfaceCommandKind
-	BindingCtx kernel.BindingContext
-}
-
-// Binding returns the normalized default binding for this command.
-func (c SurfaceCommand) Binding() kernel.BindingTarget {
-	return kernel.NewBindingTarget(c.BindingCtx, c.Key, c.Modifiers)
+	ID      kernel.CommandID
+	Label   string
+	Kind    SurfaceCommandKind
+	Scope   Scope
+	Subject kernel.PolicyID
 }
 
 // Description converts the declaration to the metadata shape used by the
 // shared policy, settings, and command catalogs.
 func (c SurfaceCommand) Description() Command {
-	return Command{
-		ID:         c.ID,
-		Label:      c.Label,
-		Key:        c.Key,
-		Modifiers:  c.Modifiers,
-		Policy:     SurfacePolicyID,
-		BindingCtx: c.BindingCtx,
-	}
+	return Command{ID: c.ID, Label: c.Label, Scope: c.Scope, Policy: SurfacePolicyID, Subject: c.Subject}
 }
 
 var surfaceCommands = [...]SurfaceCommand{
-	{
-		ID: SurfaceUpCommandID, Label: "Move up", Key: "up",
-		Kind: SurfaceVisual, BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceDownCommandID, Label: "Move down", Key: "down",
-		Kind: SurfaceVisual, BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceSelectUpCommandID, Label: "Extend up", Key: "up",
-		Modifiers: kernel.ModifiersShift, Kind: SurfaceVisual,
-		BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceSelectDownCommandID, Label: "Extend down", Key: "down",
-		Modifiers: kernel.ModifiersShift, Kind: SurfaceVisual,
-		BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceCopyCommandID, Label: "Copy", Key: "c",
-		Modifiers: kernel.ModifiersPrimary, Kind: SurfaceClipboard,
-		BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceCutCommandID, Label: "Cut", Key: "x",
-		Modifiers: kernel.ModifiersPrimary, Kind: SurfaceClipboard,
-		BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfacePasteCommandID, Label: "Paste", Key: "v",
-		Modifiers: kernel.ModifiersPrimary, Kind: SurfaceClipboard,
-		BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceNewPageCommandID, Label: "New page", Key: "n",
-		Modifiers: kernel.ModifiersPrimary, Kind: SurfacePage,
-		BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceRenamePageCommandID, Label: "Rename page", Key: "r",
-		Modifiers: kernel.ModifiersPrimary | kernel.ModifiersShift,
-		Kind:      SurfacePage, BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceNextPageCommandID, Label: "Next tab", Key: "]",
-		Modifiers: kernel.ModifiersPrimary | kernel.ModifiersShift,
-		Kind:      SurfacePage, BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfacePreviousPageCommandID, Label: "Previous tab", Key: "[",
-		Modifiers: kernel.ModifiersPrimary | kernel.ModifiersShift,
-		Kind:      SurfacePage, BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceClosePageCommandID, Label: "Close tab", Key: "w",
-		Modifiers: kernel.ModifiersPrimary, Kind: SurfacePage,
-		BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceZenCommandID, Label: "Toggle Zen mode", Key: "f",
-		Modifiers: kernel.ModifiersPrimary | kernel.ModifiersShift,
-		Kind:      SurfacePresentation, BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceTypewriterCommandID, Label: "Toggle typewriter mode",
-		Key: "t", Modifiers: kernel.ModifiersPrimary | kernel.ModifiersAlt,
-		Kind: SurfacePresentation, BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceMotionCommandID, Label: "Toggle motion", Key: "m",
-		Modifiers: kernel.ModifiersPrimary | kernel.ModifiersAlt,
-		Kind:      SurfacePresentation, BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceCJKCommandID, Label: "Toggle CJK refinement", Key: "j",
-		Modifiers: kernel.ModifiersPrimary | kernel.ModifiersShift,
-		Kind:      SurfacePolicy, BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceCommandsCommandID, Label: "Search commands", Key: "k",
-		Modifiers: kernel.ModifiersPrimary, Kind: SurfaceApp,
-		BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceFindPageCommandID, Label: "Find a page", Key: "p",
-		Modifiers: kernel.ModifiersPrimary, Kind: SurfaceApp,
-		BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceSidebarCommandID, Label: "Toggle sidebar", Key: "b",
-		Modifiers: kernel.ModifiersPrimary | kernel.ModifiersAlt,
-		Kind:      SurfaceApp, BindingCtx: kernel.EditorBindingContext,
-	},
-	{
-		ID: SurfaceSettingsCommandID, Label: "Open settings", Key: ",",
-		Modifiers: kernel.ModifiersPrimary, Kind: SurfaceApp,
-		BindingCtx: kernel.EditorBindingContext,
-	},
+	{ID: SurfaceUpCommandID, Label: "Move up", Kind: SurfaceVisual, Scope: ScopeDocument},
+	{ID: SurfaceDownCommandID, Label: "Move down", Kind: SurfaceVisual, Scope: ScopeDocument},
+	{ID: SurfaceSelectUpCommandID, Label: "Extend up", Kind: SurfaceVisual, Scope: ScopeDocument},
+	{ID: SurfaceSelectDownCommandID, Label: "Extend down", Kind: SurfaceVisual, Scope: ScopeDocument},
+	{ID: SurfaceCopyCommandID, Label: "Copy", Kind: SurfaceClipboard, Scope: ScopeDocument},
+	{ID: SurfaceCutCommandID, Label: "Cut", Kind: SurfaceClipboard, Scope: ScopeDocument},
+	{ID: SurfacePasteCommandID, Label: "Paste", Kind: SurfaceClipboard, Scope: ScopeDocument},
+	{ID: SurfaceNewPageCommandID, Label: "New page", Kind: SurfacePage, Scope: ScopePages},
+	{ID: SurfaceRenamePageCommandID, Label: "Rename page", Kind: SurfacePage, Scope: ScopePages},
+	{ID: SurfaceNextPageCommandID, Label: "Next tab", Kind: SurfacePage, Scope: ScopePages},
+	{ID: SurfacePreviousPageCommandID, Label: "Previous tab", Kind: SurfacePage, Scope: ScopePages},
+	{ID: SurfaceClosePageCommandID, Label: "Close tab", Kind: SurfacePage, Scope: ScopePages},
+	{ID: SurfaceZenCommandID, Label: "Toggle Zen mode", Kind: SurfacePresentation, Scope: ScopeWindow},
+	{ID: SurfaceTypewriterCommandID, Label: "Toggle typewriter mode", Kind: SurfacePresentation, Scope: ScopeWindow},
+	{ID: SurfaceMotionCommandID, Label: "Toggle motion", Kind: SurfacePresentation, Scope: ScopeWindow},
+	{ID: SurfaceCJKCommandID, Label: "Toggle CJK refinement", Kind: SurfacePolicy, Scope: ScopeDocument, Subject: CJKPolicyID},
+	{ID: SurfaceCommandsCommandID, Label: "Search commands", Kind: SurfaceApp, Scope: ScopeApp},
+	{ID: SurfaceFindPageCommandID, Label: "Find a page", Kind: SurfaceApp, Scope: ScopePages},
+	{ID: SurfaceSidebarCommandID, Label: "Toggle sidebar", Kind: SurfaceApp, Scope: ScopeWindow},
+	{ID: SurfaceSettingsCommandID, Label: "Open settings", Kind: SurfaceApp, Scope: ScopeApp},
 }
 
 // AllSurfaceCommands is the stable Rust declaration order. Callers may read
@@ -193,19 +104,13 @@ func SurfaceCommandForID(id kernel.CommandID) (SurfaceCommand, bool) {
 
 func surfacePolicyDescriptor() kernel.PolicyDescriptor {
 	commands := make([]kernel.CommandID, 0, len(surfaceCommands))
-	bindings := make([]kernel.BindingSpec, 0, len(surfaceCommands))
 	for _, command := range surfaceCommands {
 		commands = append(commands, command.ID)
-		bindings = append(bindings, kernel.BindingSpec{
-			Command: command.ID,
-			Target:  command.Binding(),
-		})
 	}
 	return kernel.PolicyDescriptor{
 		ID:               SurfacePolicyID,
 		Requires:         []kernel.PolicyID{TextPolicyID},
 		EnabledByDefault: true,
 		Commands:         commands,
-		Bindings:         bindings,
 	}
 }

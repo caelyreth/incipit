@@ -34,10 +34,6 @@ func runtimeCatalog(t *testing.T, conflict bool) PolicyCatalog {
 				Default: IntegerSetting(1),
 			}},
 			Commands: []CommandID{"core.apply"},
-			Bindings: []BindingSpec{{
-				Command: "core.apply",
-				Target:  NewBindingTarget("editor", "Enter", 0),
-			}},
 			Resources: []ResourceDescriptor{{
 				ID:       "count",
 				Lifetime: ResourceDocumentLifetime,
@@ -86,7 +82,7 @@ func runtimeCatalog(t *testing.T, conflict bool) PolicyCatalog {
 				Algorithm: runtimeLeaf(t, 2),
 			}},
 		},
-	})
+	}, BindingSpec{Command: "core.apply", Target: NewBindingTarget("editor", "Enter", 0)})
 	if err != nil {
 		t.Fatal(err)
 	}

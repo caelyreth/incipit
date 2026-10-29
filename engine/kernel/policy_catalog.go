@@ -8,14 +8,16 @@ type SettingDescriptor struct {
 	Default SettingValue
 }
 
-// PolicyDescriptor is one complete, weakly linked policy declaration.
+// PolicyDescriptor is one complete, weakly linked policy declaration. A
+// policy names the commands it owns and nothing about their keys: default
+// shortcuts are a separate keymap layer linked with the catalog, beneath the
+// configuration's own overrides.
 type PolicyDescriptor struct {
 	ID               PolicyID
 	Requires         []PolicyID
 	EnabledByDefault bool
 	Settings         []SettingDescriptor
 	Commands         []CommandID
-	Bindings         []BindingSpec
 	Resources        []ResourceDescriptor
 	Rules            []RuleDescriptor
 }
@@ -48,16 +50,21 @@ type PolicyRule struct {
 type PolicyCatalog struct {
 	policies  map[PolicyID]PolicyDescriptor
 	commands  map[CommandID]PolicyID
+	defaults  map[CommandID][]BindingTarget
 	settings  map[SettingKey]SettingDescriptor
 	resources map[ResourceID]ownedResource
 	rules     map[policyRuleKey]RuleDescriptor
 }
 
-// LinkPolicyCatalog validates and links a complete policy declaration set.
-func LinkPolicyCatalog(descriptors []PolicyDescriptor) (PolicyCatalog, error) {
+// LinkPolicyCatalog validates and links a complete policy declaration set
+// with its default keymap. Every default must name a declared command; keys
+// shared by two defaults are checked when a configuration is prepared, where
+// enablement decides which commands are live.
+func LinkPolicyCatalog(descriptors []PolicyDescriptor, defaults ...BindingSpec) (PolicyCatalog, error) {
 	catalog := PolicyCatalog{
 		policies:  make(map[PolicyID]PolicyDescriptor, len(descriptors)),
 		commands:  make(map[CommandID]PolicyID),
+		defaults:  make(map[CommandID][]BindingTarget),
 		settings:  make(map[SettingKey]SettingDescriptor),
 		resources: make(map[ResourceID]ownedResource),
 		rules:     make(map[policyRuleKey]RuleDescriptor),
@@ -143,22 +150,6 @@ func LinkPolicyCatalog(descriptors []PolicyDescriptor) (PolicyCatalog, error) {
 				}
 			}
 		}
-		for _, binding := range descriptor.Bindings {
-			if !containsCommand(descriptor.Commands, binding.Command) {
-				return PolicyCatalog{}, &PolicyError{
-					Kind:    PolicyErrorCommandNotOwned,
-					Policy:  descriptor.ID,
-					Command: binding.Command,
-				}
-			}
-			if err := binding.Target.Validate(); err != nil {
-				return PolicyCatalog{}, &PolicyError{
-					Kind:   PolicyErrorInvalidBindingTarget,
-					Target: binding.Target,
-					Reason: err.Error(),
-				}
-			}
-		}
 		for _, rule := range descriptor.Rules {
 			for _, key := range rule.Phase.ChangeKeys() {
 				if key.Document {
@@ -189,6 +180,19 @@ func LinkPolicyCatalog(descriptors []PolicyDescriptor) (PolicyCatalog, error) {
 	}
 	if err := catalog.validateDependencyOrder(); err != nil {
 		return PolicyCatalog{}, err
+	}
+	for _, binding := range defaults {
+		if _, ok := catalog.commands[binding.Command]; !ok {
+			return PolicyCatalog{}, &PolicyError{Kind: PolicyErrorUnknownCommand, Command: binding.Command}
+		}
+		if err := binding.Target.Validate(); err != nil {
+			return PolicyCatalog{}, &PolicyError{
+				Kind:   PolicyErrorInvalidBindingTarget,
+				Target: binding.Target,
+				Reason: err.Error(),
+			}
+		}
+		catalog.defaults[binding.Command] = append(catalog.defaults[binding.Command], binding.Target)
 	}
 	return catalog, nil
 }
@@ -281,6 +285,11 @@ func (c PolicyCatalog) Policy(id PolicyID) (PolicyDescriptor, bool) {
 	return clonePolicyDescriptor(descriptor), true
 }
 
+// DefaultBindings returns a command's shortcuts in the default keymap.
+func (c PolicyCatalog) DefaultBindings(id CommandID) []BindingTarget {
+	return cloneSlice(c.defaults[id])
+}
+
 // CommandOwner returns the policy that uniquely owns a command.
 func (c PolicyCatalog) CommandOwner(id CommandID) (PolicyID, bool) {
 	owner, ok := c.commands[id]
@@ -368,6 +377,7 @@ func (c PolicyCatalog) Clone() PolicyCatalog {
 	cloned := PolicyCatalog{
 		policies:  make(map[PolicyID]PolicyDescriptor, len(c.policies)),
 		commands:  make(map[CommandID]PolicyID, len(c.commands)),
+		defaults:  make(map[CommandID][]BindingTarget, len(c.defaults)),
 		settings:  make(map[SettingKey]SettingDescriptor, len(c.settings)),
 		resources: make(map[ResourceID]ownedResource, len(c.resources)),
 		rules:     make(map[policyRuleKey]RuleDescriptor, len(c.rules)),
@@ -377,6 +387,9 @@ func (c PolicyCatalog) Clone() PolicyCatalog {
 	}
 	for id, owner := range c.commands {
 		cloned.commands[id] = owner
+	}
+	for id, targets := range c.defaults {
+		cloned.defaults[id] = cloneSlice(targets)
 	}
 	for key, descriptor := range c.settings {
 		cloned.settings[key] = descriptor
@@ -457,7 +470,6 @@ func clonePolicyDescriptor(descriptor PolicyDescriptor) PolicyDescriptor {
 	descriptor.Requires = cloneSlice(descriptor.Requires)
 	descriptor.Settings = cloneSlice(descriptor.Settings)
 	descriptor.Commands = cloneSlice(descriptor.Commands)
-	descriptor.Bindings = cloneSlice(descriptor.Bindings)
 	descriptor.Resources = make([]ResourceDescriptor, len(resources))
 	for index, resource := range resources {
 		descriptor.Resources[index] = cloneResourceDescriptor(resource)

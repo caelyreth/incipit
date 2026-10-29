@@ -118,42 +118,40 @@ var AllTextCommands = [...]TextCommand{
 
 // Description returns stable command metadata.
 func (c TextCommand) Description() Command {
-	meta := Command{Policy: TextPolicyID, BindingCtx: kernel.EditorBindingContext}
+	meta := Command{Scope: ScopeDocument, Policy: TextPolicyID}
 	switch c {
 	case TextLeft:
-		meta.ID, meta.Label, meta.Key = "text.left", "Move left", "left"
+		meta.ID, meta.Label = "text.left", "Move left"
 	case TextRight:
-		meta.ID, meta.Label, meta.Key = "text.right", "Move right", "right"
+		meta.ID, meta.Label = "text.right", "Move right"
 	case TextSelectLeft:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.select-left", "Extend left", "left", kernel.ModifiersShift
+		meta.ID, meta.Label = "text.select-left", "Extend left"
 	case TextSelectRight:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.select-right", "Extend right", "right", kernel.ModifiersShift
+		meta.ID, meta.Label = "text.select-right", "Extend right"
 	case TextLineStart:
-		meta.ID, meta.Label, meta.Key = "text.line-start", "Start of line", "home"
+		meta.ID, meta.Label = "text.line-start", "Start of line"
 	case TextLineEnd:
-		meta.ID, meta.Label, meta.Key = "text.line-end", "End of line", "end"
+		meta.ID, meta.Label = "text.line-end", "End of line"
 	case TextSelectLineStart:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.select-line-start", "Extend to line start", "home", kernel.ModifiersShift
+		meta.ID, meta.Label = "text.select-line-start", "Extend to line start"
 	case TextSelectLineEnd:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.select-line-end", "Extend to line end", "end", kernel.ModifiersShift
+		meta.ID, meta.Label = "text.select-line-end", "Extend to line end"
 	case TextDocumentStart:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.document-start", "Start of document", "home", kernel.ModifiersPrimary
+		meta.ID, meta.Label = "text.document-start", "Start of document"
 	case TextDocumentEnd:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.document-end", "End of document", "end", kernel.ModifiersPrimary
+		meta.ID, meta.Label = "text.document-end", "End of document"
 	case TextSelectDocumentStart:
-		meta.ID, meta.Label, meta.Key = "text.select-document-start", "Extend to document start", "home"
-		meta.Modifiers = kernel.ModifiersPrimary | kernel.ModifiersShift
+		meta.ID, meta.Label = "text.select-document-start", "Extend to document start"
 	case TextSelectDocumentEnd:
-		meta.ID, meta.Label, meta.Key = "text.select-document-end", "Extend to document end", "end"
-		meta.Modifiers = kernel.ModifiersPrimary | kernel.ModifiersShift
+		meta.ID, meta.Label = "text.select-document-end", "Extend to document end"
 	case TextSelectAll:
-		meta.ID, meta.Label, meta.Key, meta.Modifiers = "text.select-all", "Select all", "a", kernel.ModifiersPrimary
+		meta.ID, meta.Label = "text.select-all", "Select all"
 	case TextBackspace:
-		meta.ID, meta.Label, meta.Key = "text.backspace", "Delete backward", "backspace"
+		meta.ID, meta.Label = "text.backspace", "Delete backward"
 	case TextDelete:
-		meta.ID, meta.Label, meta.Key = "text.delete", "Delete forward", "delete"
+		meta.ID, meta.Label = "text.delete", "Delete forward"
 	case TextNewline:
-		meta.ID, meta.Label, meta.Key = "text.newline", "Insert newline", "enter"
+		meta.ID, meta.Label = "text.newline", "Insert newline"
 	}
 	return meta
 }
@@ -175,23 +173,9 @@ var AllHistoryCommands = [...]HistoryCommand{HistoryUndo, HistoryRedo}
 // Description returns stable command metadata.
 func (c HistoryCommand) Description() Command {
 	if c == HistoryRedo {
-		return Command{
-			ID:         "history.redo",
-			Label:      "Redo",
-			Key:        "z",
-			Modifiers:  kernel.ModifiersPrimary | kernel.ModifiersShift,
-			Policy:     HistoryPolicyID,
-			BindingCtx: kernel.EditorBindingContext,
-		}
+		return Command{ID: "history.redo", Label: "Redo", Scope: ScopeDocument, Policy: HistoryPolicyID}
 	}
-	return Command{
-		ID:         "history.undo",
-		Label:      "Undo",
-		Key:        "z",
-		Modifiers:  kernel.ModifiersPrimary,
-		Policy:     HistoryPolicyID,
-		BindingCtx: kernel.EditorBindingContext,
-	}
+	return Command{ID: "history.undo", Label: "Undo", Scope: ScopeDocument, Policy: HistoryPolicyID}
 }
 
 // ID returns the stable command identity.
@@ -249,13 +233,14 @@ func EditorPolicyDescriptors() ([]kernel.PolicyDescriptor, error) {
 	}, nil
 }
 
-// EditorPolicyCatalog links the complete editor declaration set.
+// EditorPolicyCatalog links the complete editor declaration set with the
+// default keymap.
 func EditorPolicyCatalog() (kernel.PolicyCatalog, error) {
 	descriptors, err := EditorPolicyDescriptors()
 	if err != nil {
 		return kernel.PolicyCatalog{}, err
 	}
-	return kernel.LinkPolicyCatalog(descriptors)
+	return kernel.LinkPolicyCatalog(descriptors, defaultKeymap[:]...)
 }
 
 func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
@@ -264,11 +249,8 @@ func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 		return kernel.PolicyDescriptor{}, err
 	}
 	commands := make([]kernel.CommandID, 0, len(AllTextCommands))
-	bindings := make([]kernel.BindingSpec, 0, len(AllTextCommands))
 	for _, command := range AllTextCommands {
-		meta := command.Description()
-		commands = append(commands, meta.ID)
-		bindings = append(bindings, kernel.BindingSpec{Command: meta.ID, Target: meta.Binding()})
+		commands = append(commands, command.ID())
 	}
 	edit := kernel.RuleDescriptor{
 		ID:        "edit",
@@ -285,7 +267,6 @@ func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 		ID:               TextPolicyID,
 		EnabledByDefault: true,
 		Commands:         commands,
-		Bindings:         bindings,
 		Rules:            []kernel.RuleDescriptor{edit, projected},
 	}, nil
 }
@@ -296,10 +277,6 @@ func markupPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 		return kernel.PolicyDescriptor{}, err
 	}
 	commands := []kernel.CommandID{MarkupEmphasis.ID(), MarkupStrong.ID()}
-	bindings := []kernel.BindingSpec{
-		{Command: MarkupEmphasis.ID(), Target: MarkupEmphasis.Description().Binding()},
-		{Command: MarkupStrong.ID(), Target: MarkupStrong.Description().Binding()},
-	}
 	edit := kernel.RuleDescriptor{
 		ID:        "edit",
 		Phase:     kernel.HandleRulePhase(),
@@ -324,7 +301,6 @@ func markupPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 			{ID: underscoresSetting, Default: kernel.BoolSetting(false)},
 		},
 		Commands: commands,
-		Bindings: bindings,
 		Rules:    []kernel.RuleDescriptor{edit, marker, format},
 	}, nil
 }
@@ -407,23 +383,18 @@ func observerPolicyDescriptor(
 
 func historyPolicyDescriptor() kernel.PolicyDescriptor {
 	commands := make([]kernel.CommandID, 0, len(AllHistoryCommands))
-	bindings := make([]kernel.BindingSpec, 0, len(AllHistoryCommands))
 	for _, command := range AllHistoryCommands {
-		meta := command.Description()
-		commands = append(commands, meta.ID)
-		bindings = append(bindings, kernel.BindingSpec{Command: meta.ID, Target: meta.Binding()})
+		commands = append(commands, command.ID())
 	}
 	return kernel.PolicyDescriptor{
 		ID:               HistoryPolicyID,
 		Requires:         []kernel.PolicyID{TextPolicyID},
 		EnabledByDefault: true,
 		Commands:         commands,
-		Bindings:         bindings,
 	}
 }
 
 func navigationPolicyDescriptor() kernel.PolicyDescriptor {
-	meta := TabCommand()
 	return kernel.PolicyDescriptor{
 		ID:               NavigationPolicyID,
 		Requires:         []kernel.PolicyID{TextPolicyID},
@@ -433,25 +404,20 @@ func navigationPolicyDescriptor() kernel.PolicyDescriptor {
 			{ID: "emphasis", Default: kernel.BoolSetting(true)},
 			{ID: "return-to-edit", Default: kernel.BoolSetting(true)},
 		},
-		Commands: []kernel.CommandID{meta.ID},
-		Bindings: []kernel.BindingSpec{{Command: meta.ID, Target: meta.Binding()}},
+		Commands: []kernel.CommandID{navigationTabCommandID},
 	}
 }
 
 func wordsPolicyDescriptor() kernel.PolicyDescriptor {
 	commands := make([]kernel.CommandID, 0, len(AllWordCommands))
-	bindings := make([]kernel.BindingSpec, 0, len(AllWordCommands))
 	for _, command := range AllWordCommands {
-		meta := command.Description()
-		commands = append(commands, meta.ID)
-		bindings = append(bindings, kernel.BindingSpec{Command: meta.ID, Target: meta.Binding()})
+		commands = append(commands, command.ID())
 	}
 	return kernel.PolicyDescriptor{
 		ID:               WordsPolicyID,
 		Requires:         []kernel.PolicyID{TextPolicyID},
 		EnabledByDefault: true,
 		Commands:         commands,
-		Bindings:         bindings,
 	}
 }
 
