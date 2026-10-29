@@ -192,17 +192,22 @@ func TestRustOracleV2WordEvidence(t *testing.T) {
 				t.Skipf("known ICU word-like gap: got %d words, Rust oracle has %d",
 					metrics.Words, test.Words)
 			}
-			ranges, ok := WordLikeRanges(test.Text)
-			if !ok {
-				t.Fatal("current word segmentation rejected valid UTF-8")
-			}
-			ends := make([]int, 0, len(ranges))
-			for _, byteRange := range ranges {
-				range16, ok := model.ByteRangeToUTF16(test.Text, byteRange)
-				if !ok {
-					t.Fatalf("word range %#v is invalid UTF-16", byteRange)
+			ends := make([]int, 0, len(test.WordEndOffsets))
+			head := model.UTF16Offset(0)
+			for {
+				plan, err := PlanWordCommand(
+					test.Text,
+					WordSelection{Anchor: head, Head: head},
+					WordNext,
+				)
+				if err != nil {
+					t.Fatalf("word movement at %d: %v", head, err)
 				}
-				ends = append(ends, int(range16.End))
+				if plan.Head == head {
+					break
+				}
+				head = plan.Head
+				ends = append(ends, int(head))
 			}
 			if len(ends) != len(test.WordEndOffsets) {
 				t.Fatalf("word ends = %v, want %v", ends, test.WordEndOffsets)

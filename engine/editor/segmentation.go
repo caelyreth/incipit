@@ -29,19 +29,50 @@ type UTF16Segment struct {
 }
 
 // Words returns all UAX #29 word segments, including whitespace and
-// punctuation. The text must be valid UTF-8.
+// punctuation. Thai runs use the ICU4X codepoint LSTM, as Rust Shoreward does.
+// The text must be valid UTF-8.
 func Words(text string) ([]WordSegment, bool) {
 	if !model.ValidDocumentText(text) {
 		return nil, false
 	}
 	iterator := words.FromString(text)
-	segments := make([]WordSegment, 0)
+	uax29 := make([]WordSegment, 0)
 	for iterator.Next() {
-		value := iterator.Value()
-		segments = append(segments, WordSegment{
-			Range:    model.NewByteRange(model.ByteOffset(iterator.Start()), model.ByteOffset(iterator.End())),
-			WordLike: wordLike(value),
+		uax29 = append(uax29, WordSegment{
+			Range: model.NewByteRange(model.ByteOffset(iterator.Start()), model.ByteOffset(iterator.End())),
 		})
+	}
+	segments := make([]WordSegment, 0, len(uax29))
+	for index := 0; index < len(uax29); {
+		start := uax29[index].Range.Start
+		value := text[start:uax29[index].Range.End]
+		if !thaiSegment(value) {
+			segments = append(segments, WordSegment{
+				Range:    uax29[index].Range,
+				WordLike: wordLike(value),
+			})
+			index++
+			continue
+		}
+
+		end := uax29[index].Range.End
+		next := index + 1
+		for next < len(uax29) &&
+			uax29[next].Range.Start == end &&
+			thaiSegment(text[uax29[next].Range.Start:uax29[next].Range.End]) {
+			end = uax29[next].Range.End
+			next++
+		}
+		for _, boundary := range loadThaiLSTM().segment(text[start:end]) {
+			segments = append(segments, WordSegment{
+				Range: model.NewByteRange(
+					start+model.ByteOffset(boundary.start),
+					start+model.ByteOffset(boundary.end),
+				),
+				WordLike: true,
+			})
+		}
+		index = next
 	}
 	return segments, true
 }
@@ -184,18 +215,27 @@ func GraphemeAt(text string, offset model.UTF16Offset) (model.UTF16Range, bool) 
 }
 
 func wordLike(value string) bool {
-	wordCharacter := false
+	hasBase := false
+	hasExtendNumLet := false
 	for _, r := range value {
-		if unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsMark(r) {
-			wordCharacter = true
-			continue
+		switch {
+		case unicode.IsLetter(r) || unicode.IsNumber(r):
+			hasBase = true
+		case r == '_':
+			hasExtendNumLet = true
 		}
-		if r == '\'' || r == '.' || r == '_' || r == ':' {
-			continue
-		}
-		if wordCharacter {
+	}
+	return hasBase || hasExtendNumLet
+}
+
+func thaiSegment(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if r < '\u0e01' || '\u0e4e' < r {
 			return false
 		}
 	}
-	return wordCharacter
+	return true
 }

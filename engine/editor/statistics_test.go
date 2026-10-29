@@ -15,6 +15,11 @@ func TestComputeTextMetricsUsesScalarsWordsAndNonblankParagraphs(t *testing.T) {
 		{"one", TextMetrics{Characters: 3, Words: 1, Paragraphs: 1}},
 		{"Quiet 中🦀 prose\n \nsecond line e\u0301\n", TextMetrics{Characters: 32, Words: 6, Paragraphs: 2}},
 		{" \n\t\n", TextMetrics{Characters: 4, Words: 0, Paragraphs: 0}},
+		{"_", TextMetrics{Characters: 1, Words: 1, Paragraphs: 1}},
+		{"123,456", TextMetrics{Characters: 7, Words: 1, Paragraphs: 1}},
+		{"a·b", TextMetrics{Characters: 3, Words: 1, Paragraphs: 1}},
+		{"ภาษาไทย", TextMetrics{Characters: 7, Words: 2, Paragraphs: 1}},
+		{"\u0301", TextMetrics{Characters: 1, Words: 0, Paragraphs: 1}},
 	}
 	for _, test := range tests {
 		got, ok := ComputeTextMetrics(test.text)

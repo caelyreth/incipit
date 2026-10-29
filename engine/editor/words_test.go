@@ -187,6 +187,35 @@ func TestPlanWordCommandFallbackBoundsAndUnicodeEmoji(t *testing.T) {
 	}
 }
 
+func TestPlanWordCommandUsesICUThaiBoundaries(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		head     model.UTF16Offset
+		command  WordCommand
+		expected model.UTF16Offset
+	}{
+		{0, WordNext, 4},
+		{4, WordNext, 7},
+		{7, WordPrevious, 4},
+	} {
+		plan, err := PlanWordCommand(
+			"ภาษาไทย",
+			WordSelection{Anchor: test.head, Head: test.head},
+			test.command,
+		)
+		if err != nil || plan.Head != test.expected {
+			t.Errorf(
+				"head=%d command=%d => %#v, want %d, err=%v",
+				test.head,
+				test.command,
+				plan,
+				test.expected,
+				err,
+			)
+		}
+	}
+}
+
 func TestEnclosingUnitsAreDeterministicAndParagraphsKeepNewlines(t *testing.T) {
 	t.Parallel()
 	text := "one two\n\nthree"

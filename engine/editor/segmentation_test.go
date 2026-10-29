@@ -40,6 +40,84 @@ func TestWordLikeRangesIncludeUnicodeLettersAndNumbersOnly(t *testing.T) {
 	}
 }
 
+func TestWordSegmentationMatchesICU4XKnownDivergences(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		text     string
+		segments []WordSegment
+	}{
+		{
+			"_",
+			[]WordSegment{{Range: ranges(0, 1)[0], WordLike: true}},
+		},
+		{
+			"123,456",
+			[]WordSegment{{Range: ranges(0, 7)[0], WordLike: true}},
+		},
+		{
+			"a·b",
+			[]WordSegment{{Range: ranges(0, 4)[0], WordLike: true}},
+		},
+		{
+			"ภาษาไทย",
+			[]WordSegment{
+				{Range: ranges(0, 12)[0], WordLike: true},
+				{Range: ranges(12, 21)[0], WordLike: true},
+			},
+		},
+		{
+			"\u0301",
+			[]WordSegment{{Range: ranges(0, 2)[0], WordLike: false}},
+		},
+	}
+	for _, test := range tests {
+		got, ok := Words(test.text)
+		if !ok || !slices.Equal(got, test.segments) {
+			t.Errorf("%q segments = %#v, want %#v, ok=%v", test.text, got, test.segments, ok)
+		}
+	}
+}
+
+func TestThaiWordSegmentationMatchesICU4XLSTM(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		text     string
+		segments []WordSegment
+	}{
+		{
+			"ก่อนภาษาไทยหลัง",
+			[]WordSegment{
+				{Range: ranges(0, 12)[0], WordLike: true},
+				{Range: ranges(12, 24)[0], WordLike: true},
+				{Range: ranges(24, 33)[0], WordLike: true},
+				{Range: ranges(33, 45)[0], WordLike: true},
+			},
+		},
+		{
+			"ทุกสองสัปดาห์",
+			[]WordSegment{
+				{Range: ranges(0, 9)[0], WordLike: true},
+				{Range: ranges(9, 18)[0], WordLike: true},
+				{Range: ranges(18, 39)[0], WordLike: true},
+			},
+		},
+		{
+			"ภาษาไทยabc",
+			[]WordSegment{
+				{Range: ranges(0, 12)[0], WordLike: true},
+				{Range: ranges(12, 21)[0], WordLike: true},
+				{Range: ranges(21, 24)[0], WordLike: true},
+			},
+		},
+	}
+	for _, test := range tests {
+		got, ok := Words(test.text)
+		if !ok || !slices.Equal(got, test.segments) {
+			t.Errorf("%q segments = %#v, want %#v, ok=%v", test.text, got, test.segments, ok)
+		}
+	}
+}
+
 func TestSentenceRangesMatchUnicodeTrailingSpacePolicy(t *testing.T) {
 	t.Parallel()
 	text := "Hello world. 中文测试！\nNext line."
