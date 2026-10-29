@@ -18,6 +18,7 @@ const (
 	ActionWord
 	ActionNavigation
 	ActionClipboard
+	ActionSurface
 	ActionExternal
 )
 
@@ -35,6 +36,8 @@ func (k ActionKind) String() string {
 		return "navigation"
 	case ActionClipboard:
 		return "clipboard"
+	case ActionSurface:
+		return "surface"
 	case ActionExternal:
 		return "external"
 	default:
@@ -72,9 +75,9 @@ const (
 )
 
 const (
-	CopyCommandID  kernel.CommandID = "surface.copy"
-	CutCommandID   kernel.CommandID = "surface.cut"
-	PasteCommandID kernel.CommandID = "surface.paste"
+	CopyCommandID  = editor.SurfaceCopyCommandID
+	CutCommandID   = editor.SurfaceCutCommandID
+	PasteCommandID = editor.SurfacePasteCommandID
 )
 
 // ID returns Neverland's stable surface command identity.
@@ -103,6 +106,7 @@ type Action struct {
 	Word       editor.WordCommand
 	Navigation NavigationCommand
 	Clipboard  ClipboardCommand
+	Surface    editor.SurfaceCommand
 }
 
 // CommandID returns the stable identity of this action.
@@ -145,12 +149,23 @@ func buildEditorActions() map[kernel.CommandID]Action {
 		ID:         tab.ID,
 		Navigation: NavigationTab,
 	}
-	for _, command := range []ClipboardCommand{
-		ClipboardCopy,
-		ClipboardCut,
-		ClipboardPaste,
-	} {
-		actions[command.ID()] = clipboardAction(command)
+	for _, command := range editor.SurfaceCommands() {
+		if command.Kind == editor.SurfaceClipboard {
+			switch command.ID {
+			case CopyCommandID:
+				actions[command.ID] = clipboardAction(ClipboardCopy)
+			case CutCommandID:
+				actions[command.ID] = clipboardAction(ClipboardCut)
+			case PasteCommandID:
+				actions[command.ID] = clipboardAction(ClipboardPaste)
+			}
+			continue
+		}
+		actions[command.ID] = Action{
+			Kind:    ActionSurface,
+			ID:      command.ID,
+			Surface: command,
+		}
 	}
 	return actions
 }
@@ -172,13 +187,20 @@ func clipboardAction(command ClipboardCommand) Action {
 }
 
 // AllowsRepeat reports whether a held key may repeat the resolved action.
-// Neverland permits continuous semantic text and word navigation/edit commands
-// and history traversal. It suppresses markup, Tab navigation, clipboard, and
-// unclassified host commands.
+// Neverland permits continuous semantic navigation, visual-row movement,
+// history traversal, and page cycling. It suppresses markup, Tab navigation,
+// clipboard, and other host commands.
 func AllowsRepeat(action Action) bool {
 	switch action.Kind {
 	case ActionText, ActionHistory, ActionWord:
 		return true
+	case ActionSurface:
+		if action.Surface.Kind == editor.SurfaceVisual {
+			return true
+		}
+		return action.Surface.Kind == editor.SurfacePage &&
+			(action.ID == editor.SurfaceNextPageCommandID ||
+				action.ID == editor.SurfacePreviousPageCommandID)
 	default:
 		return false
 	}

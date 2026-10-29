@@ -260,8 +260,8 @@ func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
 		t.Fatal(err)
 	}
 	policies := catalog.Policies()
-	if len(policies) != len(AllEditorPolicies) {
-		t.Fatalf("policies=%d want %d", len(policies), len(AllEditorPolicies))
+	if len(policies) != len(AllEditorPolicies)+1 {
+		t.Fatalf("policies=%d want %d", len(policies), len(AllEditorPolicies)+1)
 	}
 	wantRequirements := map[kernel.PolicyID][]kernel.PolicyID{
 		TextPolicyID:       nil,
@@ -272,12 +272,17 @@ func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
 		HistoryPolicyID:    {TextPolicyID},
 		NavigationPolicyID: {TextPolicyID},
 		WordsPolicyID:      {TextPolicyID},
+		SurfacePolicyID:    {TextPolicyID},
 	}
 	for _, policy := range policies {
 		if !slices.Equal(policy.Requires, wantRequirements[policy.ID]) {
 			t.Fatalf("%s requires=%#v want %#v", policy.ID, policy.Requires, wantRequirements[policy.ID])
 		}
-		if resolved, ok := EditorPolicyFromID(policy.ID); !ok || resolved.ID() != policy.ID {
+		if policy.ID == SurfacePolicyID {
+			if _, ok := EditorPolicyFromID(policy.ID); ok {
+				t.Fatalf("surface host policy incorrectly resolved as an EditorPolicy")
+			}
+		} else if resolved, ok := EditorPolicyFromID(policy.ID); !ok || resolved.ID() != policy.ID {
 			t.Fatalf("policy identity %s did not resolve", policy.ID)
 		}
 	}
