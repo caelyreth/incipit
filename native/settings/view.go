@@ -49,8 +49,12 @@ func (s *State) navigation(
 	ui.Column(c).Width(240*scale/theme.DefaultUIFontSize).HeightPercent(100).
 		Shrink(0).Background(semantic.Surface.Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
+		// The sidebar's top, around the window controls, is the window's
+		// title bar: it drags the window, and the page beside it stays free
+		// to show content right up to the window's edge.
+		ui.Box(c).WidthPercent(100).Height(top).Shrink(0).DragWindow()
 		ui.Column(c).Grow(1).MinHeight(0).Padding(
-			top, theme.Space12.DIPs(scale), 0, theme.Space12.DIPs(scale),
+			0, theme.Space12.DIPs(scale), 0, theme.Space12.DIPs(scale),
 		).Children(func() {
 			components.TextField{
 				Key: "settings-search", Label: "Search settings",
@@ -202,11 +206,12 @@ func (s *State) page(
 	scale := s.Theme.UIFontSize
 	ui.Column(c).Grow(1).MinWidth(0).HeightPercent(100).
 		Background(semantic.Surface.Background).Children(func() {
-		ui.Box(c).Height(theme.DefaultLayout.Titlebar * scale / theme.DefaultUIFontSize).
-			Shrink(0).DragWindow()
+		// No title bar band: the page starts where the sidebar's search does
+		// and scrolls up beneath the window's top edge.
 		ui.Scroll(c).Grow(1).MinHeight(0).TrackScroll(&s.contentScroll).Children(func() {
 			ui.Row(c).WidthPercent(100).Justify(ui.Center).
-				PaddingX(theme.Space32.DIPs(scale)).Children(func() {
+				Padding(theme.DefaultLayout.Titlebar*scale/theme.DefaultUIFontSize,
+					theme.Space32.DIPs(scale), 0, theme.Space32.DIPs(scale)).Children(func() {
 				content := ui.Column(c).Key("settings-content").WidthPercent(100).
 					MaxWidth(contentWidth * scale / theme.DefaultUIFontSize).
 					Gap(28 * scale / theme.DefaultUIFontSize)
