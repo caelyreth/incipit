@@ -82,6 +82,14 @@ type Geometry interface {
 	IndexForPoint(text string, point Point) (int, bool)
 }
 
+// VerticalGeometry is the retained-layout capability required by visual-row
+// movement. CaretLine returns the caret's current line box in the same native
+// coordinate space consumed by IndexForPoint.
+type VerticalGeometry interface {
+	Geometry
+	CaretLine(text string, caret int) (Rect, bool)
+}
+
 // Command carries application-owned command routing. Policy commands are
 // executed by the session when possible; unrecognized commands are retained
 // by the controller for the workspace host.

@@ -28,6 +28,21 @@ func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 	return caret
 }
 
+// CaretLine returns the full retained line box containing the caret. The
+// returned H is the shaped visual-row height, not the drawn caret thickness.
+func (l *Layout) CaretLine(offset model.UTF16Offset) (ui.Rect, bool) {
+	if l == nil {
+		return ui.Rect{}, false
+	}
+	paragraph, local := l.paragraphAt(offset)
+	if paragraph == nil {
+		return ui.Rect{}, false
+	}
+	line := paragraph.layout.Caret(local)
+	line.Y += paragraph.top
+	return line, line.H > 0
+}
+
 func (l *Layout) Hit(point ui.Point) model.UTF16Offset {
 	if point.Y >= l.height {
 		return model.UTF16Offset(l.flow.UTF16Len())

@@ -245,6 +245,7 @@ func EditorPolicyDescriptors() ([]kernel.PolicyDescriptor, error) {
 		historyPolicyDescriptor(),
 		navigationPolicyDescriptor(),
 		wordsPolicyDescriptor(),
+		surfacePolicyDescriptor(),
 	}, nil
 }
 

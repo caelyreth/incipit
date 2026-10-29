@@ -24,7 +24,7 @@ func TestMainMenuExposesAppEditorAndWorkspaceCommands(t *testing.T) {
 	if settings == nil || settings.Label != "Settings..." || settings.Click == nil {
 		t.Fatalf("settings = %#v", settings)
 	}
-	if item := menu.ItemByID("new-page"); item == nil || item.Accelerator == "" {
+	if item := menu.ItemByID("new-page"); item == nil || item.Click == nil {
 		t.Fatalf("new page = %#v", item)
 	}
 	if item := menu.ItemByID("commands"); item == nil || item.Click == nil {

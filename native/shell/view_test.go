@@ -287,6 +287,22 @@ func TestIconControlsAreKeyboardReachableAndSidebarSearchFiltersPages(t *testing
 	}
 }
 
+func TestFindPageRequestFocusesExistingSidebarSearch(t *testing.T) {
+	state := New()
+	state.Pages = []Page{{ID: "one", Title: "First"}}
+	state.ActivePage = "one"
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	state.FindPageRequested = true
+	tester.Frame()
+	if active, _ := tester.TextInputActive(); !active {
+		t.Fatal("find-page request did not focus the page search")
+	}
+	if state.FindPageRequested {
+		t.Fatal("find-page request was not consumed")
+	}
+}
+
 func TestSidebarShowsHeadingAndEmptySearchWithoutFooter(t *testing.T) {
 	state := New()
 	state.Pages = []Page{{ID: "one", Title: "First"}}

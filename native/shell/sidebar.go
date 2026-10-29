@@ -36,7 +36,9 @@ func (s *State) sidebar(
 					Key: "page-search", Label: "Search pages", Placeholder: "Find a page…",
 					Value: &s.PageQuery, Icon: components.IconSearch.SVG(),
 					ClearIcon: components.IconClose.SVG(), Animate: animate,
+					FocusRequested: s.FindPageRequested,
 				}.View(c, semantic)
+				s.FindPageRequested = false
 				ui.Box(c).Height(theme.Space16.DIPs(scale))
 				ui.Row(c).Height(theme.DefaultControls.Scaled(scale).InlineHeight).
 					PaddingX(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Children(func() {

@@ -50,6 +50,8 @@ type DocumentController struct {
 	status        Status
 	lastError     error
 	pending       []Command
+	preferredX    float32
+	hasPreferredX bool
 }
 
 // NewTextDocument constructs a semantic text document with the complete
@@ -250,6 +252,14 @@ func (c *DocumentController) Reconfigure(operation func(*kernel.PolicyConfigurat
 	c.refreshVisible()
 	c.setStatus(kernel.OutcomeHandled, outcome.Changed, nil)
 	return nil
+}
+
+func (c *DocumentController) resetPreferredColumn() {
+	if c == nil {
+		return
+	}
+	c.preferredX = 0
+	c.hasPreferredX = false
 }
 
 // Adopt installs a complete source policy configuration.

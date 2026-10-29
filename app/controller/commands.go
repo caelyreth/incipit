@@ -7,6 +7,7 @@ import (
 
 // ExecuteTab lands on the current scope/navigation offer through the session.
 func (c *DocumentController) ExecuteTab() (kernel.Outcome, error) {
+	c.resetPreferredColumn()
 	outcome, err := c.session.Tab(c.now())
 	return c.finishCommand(outcome, err)
 }
@@ -25,18 +26,21 @@ func (c *DocumentController) Execute(command Command) (kernel.Outcome, error) {
 	}
 	for _, next := range editor.AllTextCommands {
 		if string(next.ID()) == command.ID {
+			c.resetPreferredColumn()
 			outcome, err := c.session.ExecuteText(next)
 			return c.finishCommand(outcome, err)
 		}
 	}
 	for _, next := range editor.AllHistoryCommands {
 		if string(next.ID()) == command.ID {
+			c.resetPreferredColumn()
 			outcome, err := c.session.ExecuteHistory(next)
 			return c.finishCommand(outcome, err)
 		}
 	}
 	for _, next := range editor.AllWordCommands {
 		if string(next.ID()) == command.ID {
+			c.resetPreferredColumn()
 			outcome, err := c.session.ExecuteWord(next)
 			return c.finishCommand(outcome, err)
 		}

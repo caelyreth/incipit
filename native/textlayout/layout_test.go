@@ -142,6 +142,36 @@ func TestCaretUsesProseHeightAndVisualRow(t *testing.T) {
 	}
 }
 
+func TestCaretLineExposesWholeVisualRowsAcrossWraps(t *testing.T) {
+	style := testStyle()
+	layout := NewCache().Update(
+		testFlow(t, "one two three four five six seven eight nine ten", 0),
+		80,
+		style,
+	)
+	first, ok := layout.CaretLine(0)
+	if !ok || first.H <= 0 {
+		t.Fatalf("first caret line = %#v, %v", first, ok)
+	}
+	secondOffset := -1
+	var second ui.Rect
+	for offset := 1; offset < int(layout.Flow().UTF16Len()); offset++ {
+		line, available := layout.CaretLine(model.UTF16Offset(offset))
+		if available && line.Y > first.Y {
+			secondOffset, second = offset, line
+			break
+		}
+	}
+	if secondOffset < 0 || second.Y != first.Y+first.H || second.H != first.H {
+		t.Fatalf("wrap rows first=%#v second=%#v offset=%d", first, second, secondOffset)
+	}
+	hit := layout.Hit(ui.Point{X: first.X, Y: second.Y + second.H/2})
+	if hit < model.UTF16Offset(secondOffset) ||
+		hit > model.UTF16Offset(secondOffset+4) {
+		t.Fatalf("second-row hit = %d, row starts at %d", hit, secondOffset)
+	}
+}
+
 func TestParagraphStartMapsToFollowingParagraph(t *testing.T) {
 	style := testStyle()
 	layout := NewCache().Update(testFlow(t, "a\nb", 0), 300, style)

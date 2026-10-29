@@ -43,6 +43,15 @@ func TestEveryEditorCommandResolvesToTypedAction(t *testing.T) {
 			t.Fatalf("clipboard %v => %#v,%v", command.ID(), action, ok)
 		}
 	}
+	for _, command := range editor.SurfaceCommands() {
+		if command.Kind == editor.SurfaceClipboard {
+			continue
+		}
+		action, ok := ResolveEditorCommand(command.ID)
+		if !ok || action.Kind != ActionSurface || action.Surface != command {
+			t.Fatalf("surface %v => %#v,%v", command.ID, action, ok)
+		}
+	}
 	if action, ok := ResolveEditorCommand(kernel.CommandID("host.external")); ok ||
 		action.Kind != ActionNone {
 		t.Fatalf("external command = %#v,%v", action, ok)
@@ -105,9 +114,21 @@ func TestRepeatPolicyMatchesSemanticCommandFamilies(t *testing.T) {
 		{Kind: ActionNavigation, Navigation: NavigationTab},
 		{Kind: ActionClipboard, Clipboard: ClipboardPaste},
 		{Kind: ActionExternal, ID: "host.external"},
+		{Kind: ActionSurface, Surface: editor.SurfaceCommand{
+			ID: editor.SurfaceNewPageCommandID, Kind: editor.SurfacePage,
+		}},
 	} {
 		if AllowsRepeat(action) {
 			t.Fatalf("%v allowed repeat", action)
+		}
+	}
+	for _, command := range editor.SurfaceCommands() {
+		action, _ := ResolveEditorCommand(command.ID)
+		want := command.Kind == editor.SurfaceVisual ||
+			command.ID == editor.SurfaceNextPageCommandID ||
+			command.ID == editor.SurfacePreviousPageCommandID
+		if AllowsRepeat(action) != want {
+			t.Fatalf("%s repeat = %v, want %v", command.ID, !want, want)
 		}
 	}
 }

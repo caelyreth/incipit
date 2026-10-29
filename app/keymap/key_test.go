@@ -188,6 +188,18 @@ func TestDefaultShortcutMatrixRoutesEveryEditorCommandFamily(t *testing.T) {
 			command: editor.TextRight.ID(),
 		},
 		{
+			name:    "visual movement",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyDown},
+			kind:    ActionSurface,
+			command: editor.SurfaceDownCommandID,
+		},
+		{
+			name:    "visual selection",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyDown, Mods: ui.Shift},
+			kind:    ActionSurface,
+			command: editor.SurfaceSelectDownCommandID,
+		},
+		{
 			name:    "text selection",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyRight, Mods: ui.Shift},
 			kind:    ActionText,
@@ -234,6 +246,12 @@ func TestDefaultShortcutMatrixRoutesEveryEditorCommandFamily(t *testing.T) {
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyTab},
 			kind:    ActionNavigation,
 			command: editor.TabCommand().ID,
+		},
+		{
+			name:    "search commands",
+			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyK, Mods: ui.Super},
+			kind:    ActionSurface,
+			command: editor.SurfaceCommandsCommandID,
 		},
 	}
 	for _, test := range tests {

@@ -255,6 +255,52 @@ func TestDispatcherRoutesConfiguredClipboardShortcut(t *testing.T) {
 	}
 }
 
+func TestDispatcherResolvesRemappedSurfaceCommand(t *testing.T) {
+	t.Parallel()
+	catalog, err := editor.EditorPolicyCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := kernel.NewPolicyHost(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remapped := target(
+		kernel.EditorBindingContext,
+		"n",
+		kernel.ModifiersPrimary|kernel.ModifiersAlt,
+	)
+	if err := host.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
+		configuration.Remap(editor.SurfaceNewPageCommandID, remapped)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	executor := &fakeExecutor{configuration: host.PreparedSnapshot()}
+	dispatcher := NewDispatcherForPlatform(executor, PlatformOther)
+	result := dispatcher.HandleEvent(ui.InputEvent{
+		Kind: ui.InputKeyDown,
+		Key:  ui.KeyN,
+		Mods: ui.Ctrl | ui.Alt,
+	})
+	if !result.Consumed || !result.Dispatched || result.Command != editor.SurfaceNewPageCommandID ||
+		result.Action.Kind != ActionSurface ||
+		result.Action.Surface.ID != editor.SurfaceNewPageCommandID {
+		t.Fatalf("remapped surface command = %#v", result)
+	}
+	if len(executor.executed) != 1 ||
+		executor.executed[0].Surface.ID != editor.SurfaceNewPageCommandID {
+		t.Fatalf("executed = %#v", executor.executed)
+	}
+	if _, ok := ResolveKey(executor.configuration, ui.InputEvent{
+		Kind: ui.InputKeyDown,
+		Key:  ui.KeyN,
+		Mods: ui.Ctrl,
+	}, PlatformOther); ok {
+		t.Fatal("surface remap retained the previous default binding")
+	}
+}
+
 func TestDispatcherNeverPanicsOnMissingState(t *testing.T) {
 	t.Parallel()
 	event := ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyRight}

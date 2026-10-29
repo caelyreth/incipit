@@ -18,6 +18,7 @@ func (c *DocumentController) Replace(
 	text string,
 	origin kernel.EventOrigin,
 ) (kernel.Outcome, error) {
+	c.resetPreferredColumn()
 	if c.preedit != nil {
 		return kernel.OutcomePass, c.fail(editor.ErrCompositionActive)
 	}
@@ -94,6 +95,7 @@ func (c *DocumentController) SelectedText() (string, error) {
 
 // SelectSemantic installs a version-valid semantic selection.
 func (c *DocumentController) SelectSemantic(selection model.TextSelection) error {
+	c.resetPreferredColumn()
 	if c.preedit != nil {
 		return c.fail(editor.ErrCompositionActive)
 	}
@@ -108,6 +110,11 @@ func (c *DocumentController) SelectSemantic(selection model.TextSelection) error
 
 // SelectProjected installs a directed projected selection.
 func (c *DocumentController) SelectProjected(anchor, head int) error {
+	c.resetPreferredColumn()
+	return c.selectProjected(anchor, head)
+}
+
+func (c *DocumentController) selectProjected(anchor, head int) error {
 	if c.preedit != nil {
 		return c.fail(editor.ErrCompositionActive)
 	}
@@ -129,6 +136,7 @@ func (c *DocumentController) SelectProjected(anchor, head int) error {
 // SelectPointer installs a pointer-derived projected selection and updates
 // Neverland's return-to-edit navigation offer.
 func (c *DocumentController) SelectPointer(anchor, head int, at time.Time) error {
+	c.resetPreferredColumn()
 	if c.preedit != nil {
 		return c.fail(editor.ErrCompositionActive)
 	}

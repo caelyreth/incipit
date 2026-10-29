@@ -48,4 +48,15 @@ func TestLayoutGeometryAppliesTitleOffsetAndScroll(t *testing.T) {
 	}); !ok || got != 4 {
 		t.Fatalf("scrolled hit = %d, %v", got, ok)
 	}
+	line, ok := geometry.CaretLine(text, 4)
+	if !ok {
+		t.Fatal("caret line unavailable")
+	}
+	shaped, ok := layout.CaretLine(4)
+	if !ok {
+		t.Fatal("retained caret line unavailable")
+	}
+	if line.Y != shaped.Y+contentTop-scroll || line.H != shaped.H {
+		t.Fatalf("caret line = %#v", line)
+	}
 }

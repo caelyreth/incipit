@@ -249,13 +249,18 @@ func TestBuildDataSnapshotsSectionsShortcutsDiagnosticsAndAppearance(t *testing.
 		t.Fatalf("pairs toggle=%v CJK label=%v", foundPairs, foundCJKLabel)
 	}
 	foundText := false
+	foundSurface := false
 	for _, shortcut := range data.Shortcuts {
 		if shortcut.Command == editor.TextSelectAll.ID() {
 			foundText = shortcut.Label == "Select all" && shortcut.Enabled
 		}
+		if shortcut.Command == editor.SurfaceDownCommandID {
+			foundSurface = shortcut.Label == "Move down" &&
+				shortcut.Group == "Workspace" && shortcut.Enabled
+		}
 	}
-	if !foundText {
-		t.Fatal("select-all shortcut missing")
+	if !foundText || !foundSurface {
+		t.Fatalf("select-all shortcut=%v surface shortcut=%v", foundText, foundSurface)
 	}
 	if data.PolicyConfiguration.IsEnabled(editor.EditorPolicyPairs.ID()) == false {
 		t.Fatal("data did not own source configuration")

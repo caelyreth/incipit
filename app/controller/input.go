@@ -48,6 +48,7 @@ func (c *DocumentController) SetMarkedText(
 	text string,
 	selected UTF16Range,
 ) {
+	c.resetPreferredColumn()
 	if !model.ValidDocumentText(text) {
 		c.recordNativeError(fmt.Errorf("controller: marked text is not valid document text"))
 		return

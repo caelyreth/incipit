@@ -16,6 +16,7 @@ const (
 	policyEditorHistory    kernel.PolicyID = "editor.history"
 	policyEditorNavigation kernel.PolicyID = "editor.navigation"
 	policyEditorWords      kernel.PolicyID = "editor.words"
+	policyEditorSurface    kernel.PolicyID = "editor.surface"
 )
 
 type policyInfo struct {
@@ -77,6 +78,13 @@ func infoForPolicy(id kernel.PolicyID) policyInfo {
 			"Unicode word, sentence and paragraph selection.",
 			4,
 			true,
+		}
+	case policyEditorSurface:
+		return policyInfo{
+			"Workspace",
+			"Visual navigation, clipboard, pages and application controls.",
+			4,
+			false,
 		}
 	default:
 		return policyInfo{"Editor feature", "", 4, true}
@@ -175,6 +183,9 @@ func commandCatalog() []editor.Command {
 		editor.MarkupStrong.Description(),
 		editor.TabCommand(),
 	)
+	for _, command := range editor.SurfaceCommands() {
+		commands = append(commands, command.Description())
+	}
 	return commands
 }
 
