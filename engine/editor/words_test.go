@@ -86,7 +86,7 @@ func TestPlanWordCommandMovementExtensionAndDeletion(t *testing.T) {
 			"next skips punctuation to CJK",
 			WordSelection{Anchor: 11, Head: 11},
 			WordNext,
-			WordCommandPlan{Command: WordNext, Anchor: 14, Head: 14},
+			WordCommandPlan{Command: WordNext, Anchor: 15, Head: 15},
 		},
 		{
 			"extend previous preserves anchor",
@@ -187,16 +187,16 @@ func TestPlanWordCommandFallbackBoundsAndUnicodeEmoji(t *testing.T) {
 	}
 }
 
-func TestPlanWordCommandUsesICUThaiBoundaries(t *testing.T) {
+func TestPlanWordCommandUsesUnicodeFallbackForThai(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
 		head     model.UTF16Offset
 		command  WordCommand
 		expected model.UTF16Offset
 	}{
-		{0, WordNext, 4},
-		{4, WordNext, 7},
-		{7, WordPrevious, 4},
+		{0, WordNext, 1},
+		{4, WordNext, 5},
+		{7, WordPrevious, 6},
 	} {
 		plan, err := PlanWordCommand(
 			"ภาษาไทย",

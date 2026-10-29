@@ -21,11 +21,11 @@ func TestWordLikeRangesIncludeUnicodeLettersAndNumbersOnly(t *testing.T) {
 		text     string
 		expected []model.ByteRange
 	}{
-		{"Hello world. 中文测试！\nNext line.", ranges(0, 5, 6, 11, 13, 16, 16, 19, 19, 22, 22, 25, 29, 33, 34, 38)},
+		{"Hello world. 中文测试！\nNext line.", ranges(0, 5, 6, 11, 13, 19, 19, 25, 29, 33, 34, 38)},
 		{"don't dogs'", ranges(0, 5, 6, 10)},
 		{"🦀word", ranges(4, 8)},
 		{"--word", ranges(2, 6)},
-		{"中文test, 123.4 https://x.com", ranges(0, 3, 3, 6, 6, 10, 12, 17, 18, 23, 26, 31)},
+		{"中文test, 123.4 https://x.com", ranges(0, 6, 6, 10, 12, 17, 18, 23, 26, 31)},
 		{"a\u0301x 🦀 🇨🇳", ranges(0, 4)},
 		{"é_1 ！", ranges(0, 4)},
 	}
@@ -40,7 +40,7 @@ func TestWordLikeRangesIncludeUnicodeLettersAndNumbersOnly(t *testing.T) {
 	}
 }
 
-func TestWordSegmentationMatchesICU4XKnownDivergences(t *testing.T) {
+func TestWordSegmentationMatchesPlatformBoundaries(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		text     string
@@ -48,7 +48,7 @@ func TestWordSegmentationMatchesICU4XKnownDivergences(t *testing.T) {
 	}{
 		{
 			"_",
-			[]WordSegment{{Range: ranges(0, 1)[0], WordLike: true}},
+			[]WordSegment{{Range: ranges(0, 1)[0], WordLike: false}},
 		},
 		{
 			"123,456",
@@ -61,8 +61,13 @@ func TestWordSegmentationMatchesICU4XKnownDivergences(t *testing.T) {
 		{
 			"ภาษาไทย",
 			[]WordSegment{
-				{Range: ranges(0, 12)[0], WordLike: true},
-				{Range: ranges(12, 21)[0], WordLike: true},
+				{Range: ranges(0, 3)[0], WordLike: true},
+				{Range: ranges(3, 6)[0], WordLike: true},
+				{Range: ranges(6, 9)[0], WordLike: true},
+				{Range: ranges(9, 12)[0], WordLike: true},
+				{Range: ranges(12, 15)[0], WordLike: true},
+				{Range: ranges(15, 18)[0], WordLike: true},
+				{Range: ranges(18, 21)[0], WordLike: true},
 			},
 		},
 		{
@@ -78,7 +83,27 @@ func TestWordSegmentationMatchesICU4XKnownDivergences(t *testing.T) {
 	}
 }
 
-func TestThaiWordSegmentationMatchesICU4XLSTM(t *testing.T) {
+func TestCJKWordLikeRangesUseDictionaryBoundaries(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		text     string
+		expected []model.ByteRange
+	}{
+		{"中文测试", ranges(0, 6, 6, 12)},
+		{"中华人民共和国", ranges(0, 6, 6, 12, 12, 21)},
+		{"南京市长江大桥", ranges(0, 9, 9, 15, 15, 18, 18, 21)},
+		{"日本語の文章です", ranges(0, 9, 9, 12, 12, 18, 18, 24)},
+		{"한국어 문장입니다", ranges(0, 9, 10, 25)},
+	}
+	for _, test := range tests {
+		got, ok := WordLikeRanges(test.text)
+		if !ok || !slices.Equal(got, test.expected) {
+			t.Errorf("%q words = %#v, want %#v, ok=%v", test.text, got, test.expected, ok)
+		}
+	}
+}
+
+func TestDeferredThaiUsesUnicodeFallback(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		text     string
@@ -87,25 +112,46 @@ func TestThaiWordSegmentationMatchesICU4XLSTM(t *testing.T) {
 		{
 			"ก่อนภาษาไทยหลัง",
 			[]WordSegment{
-				{Range: ranges(0, 12)[0], WordLike: true},
-				{Range: ranges(12, 24)[0], WordLike: true},
-				{Range: ranges(24, 33)[0], WordLike: true},
-				{Range: ranges(33, 45)[0], WordLike: true},
+				{Range: ranges(0, 6)[0], WordLike: true},
+				{Range: ranges(6, 9)[0], WordLike: true},
+				{Range: ranges(9, 12)[0], WordLike: true},
+				{Range: ranges(12, 15)[0], WordLike: true},
+				{Range: ranges(15, 18)[0], WordLike: true},
+				{Range: ranges(18, 21)[0], WordLike: true},
+				{Range: ranges(21, 24)[0], WordLike: true},
+				{Range: ranges(24, 27)[0], WordLike: true},
+				{Range: ranges(27, 30)[0], WordLike: true},
+				{Range: ranges(30, 33)[0], WordLike: true},
+				{Range: ranges(33, 36)[0], WordLike: true},
+				{Range: ranges(36, 42)[0], WordLike: true},
+				{Range: ranges(42, 45)[0], WordLike: true},
 			},
 		},
 		{
 			"ทุกสองสัปดาห์",
 			[]WordSegment{
-				{Range: ranges(0, 9)[0], WordLike: true},
-				{Range: ranges(9, 18)[0], WordLike: true},
-				{Range: ranges(18, 39)[0], WordLike: true},
+				{Range: ranges(0, 6)[0], WordLike: true},
+				{Range: ranges(6, 9)[0], WordLike: true},
+				{Range: ranges(9, 12)[0], WordLike: true},
+				{Range: ranges(12, 15)[0], WordLike: true},
+				{Range: ranges(15, 18)[0], WordLike: true},
+				{Range: ranges(18, 24)[0], WordLike: true},
+				{Range: ranges(24, 27)[0], WordLike: true},
+				{Range: ranges(27, 30)[0], WordLike: true},
+				{Range: ranges(30, 33)[0], WordLike: true},
+				{Range: ranges(33, 39)[0], WordLike: true},
 			},
 		},
 		{
 			"ภาษาไทยabc",
 			[]WordSegment{
-				{Range: ranges(0, 12)[0], WordLike: true},
-				{Range: ranges(12, 21)[0], WordLike: true},
+				{Range: ranges(0, 3)[0], WordLike: true},
+				{Range: ranges(3, 6)[0], WordLike: true},
+				{Range: ranges(6, 9)[0], WordLike: true},
+				{Range: ranges(9, 12)[0], WordLike: true},
+				{Range: ranges(12, 15)[0], WordLike: true},
+				{Range: ranges(15, 18)[0], WordLike: true},
+				{Range: ranges(18, 21)[0], WordLike: true},
 				{Range: ranges(21, 24)[0], WordLike: true},
 			},
 		},
@@ -115,6 +161,21 @@ func TestThaiWordSegmentationMatchesICU4XLSTM(t *testing.T) {
 		if !ok || !slices.Equal(got, test.segments) {
 			t.Errorf("%q segments = %#v, want %#v, ok=%v", test.text, got, test.segments, ok)
 		}
+	}
+}
+
+func TestWordRangesUTF16UseSegmenterIndexes(t *testing.T) {
+	t.Parallel()
+	text := "🦀中文 test"
+	got, ok := WordRangesUTF16(text)
+	expected := []UTF16Segment{
+		{Range: model.NewUTF16Range(0, 2), WordLike: false},
+		{Range: model.NewUTF16Range(2, 4), WordLike: true},
+		{Range: model.NewUTF16Range(4, 5), WordLike: false},
+		{Range: model.NewUTF16Range(5, 9), WordLike: true},
+	}
+	if !ok || !slices.Equal(got, expected) {
+		t.Fatalf("segments = %#v, want %#v, ok=%v", got, expected, ok)
 	}
 }
 
