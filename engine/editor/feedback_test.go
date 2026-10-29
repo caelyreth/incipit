@@ -1,11 +1,13 @@
 package editor
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/input"
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 )
 
 func feedbackSnapshot(
@@ -107,38 +109,86 @@ func TestResolveDeletionOnlyCorrectionsDeduplicatesAndSkipsInvalidIndices(t *tes
 	}
 }
 
-func TestFeedbackUsesOneGlobal1100MillisecondPulse(t *testing.T) {
+// Pulses play side by side, each to its own end; publishing another never
+// cuts one short, and an empty publication starts nothing.
+func TestFeedbackPulsesPlayToTheirOwnEnds(t *testing.T) {
 	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
 	clock := &fakeStateClock{now: now}
 	feedback := NewFeedback(clock)
-	document, root := stateDocument(t, "x")
+	document, root := stateDocument(t, "xy")
 	snapshot := document.Snapshot()
-	target := input.NewTextTarget(root, model.NewUTF16Range(0, 1), snapshot.Revision())
-	feedback.Publish([]input.TextTarget{target})
-	if started, ok := feedback.Started(); !ok || started != now {
-		t.Fatalf("started = %v %v", started, ok)
+	first := input.NewTextTarget(root, model.NewUTF16Range(0, 1), snapshot.Revision())
+	second := input.NewTextTarget(root, model.NewUTF16Range(1, 2), snapshot.Revision())
+	feedback.Publish([]input.TextTarget{first})
+	feedback.PublishAt([]input.TextTarget{second}, now.Add(300*time.Millisecond))
+	feedback.Publish(nil)
+	if pulses := feedback.Pulses(now.Add(400 * time.Millisecond)); len(pulses) != 2 ||
+		pulses[0].ID == pulses[1].ID {
+		t.Fatalf("pulses = %#v", pulses)
 	}
-	if !feedback.Active(now.Add(1099 * time.Millisecond)) {
-		t.Fatal("pulse ended before 1100ms")
+	if pulses := feedback.Pulses(now.Add(FeedbackPulseDuration)); len(pulses) != 1 ||
+		pulses[0].Targets[0] != second {
+		t.Fatalf("after the first ended: %#v", pulses)
 	}
-	if feedback.Active(now.Add(1100 * time.Millisecond)) {
-		t.Fatal("pulse survived its exact deadline")
-	}
-	if deadline, ok := feedback.Deadline(); !ok || deadline != now.Add(FeedbackPulseDuration) {
+	if deadline, ok := feedback.Deadline(); !ok || !deadline.Equal(now.Add(300*time.Millisecond+FeedbackPulseDuration)) {
 		t.Fatalf("deadline = %v %v", deadline, ok)
 	}
+	if feedback.Active(now.Add(300*time.Millisecond + FeedbackPulseDuration)) {
+		t.Fatal("a pulse outlived its end")
+	}
+}
 
-	later := now.Add(300 * time.Millisecond)
-	feedback.PublishAt([]input.TextTarget{target}, later)
-	if started, _ := feedback.Started(); started != later {
-		t.Fatalf("republication did not reset pulse: %v", started)
+// A pulse taken back plays from where it was to its start, in its share of
+// the rewind; played again, it goes on from there to its end.
+func TestFeedbackRewindsAndReplaysFromWhereItIs(t *testing.T) {
+	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	feedback := NewFeedback(&fakeStateClock{now: now})
+	document, root := stateDocument(t, "xyz")
+	revision := document.Snapshot().Revision()
+	target := input.NewTextTarget(root, model.NewUTF16Range(1, 2), revision)
+	feedback.Publish([]input.TextTarget{target})
+	midway := now.Add(FeedbackPulseDuration / 2)
+	phase, found := feedback.Take(root, model.NewUTF16Range(0, 1), midway)
+	if !found || phase < 0.49 || phase > 0.51 || len(feedback.Pulses(midway)) != 0 {
+		t.Fatalf("taken at %v %v", phase, found)
 	}
-	feedback.Publish(nil)
-	if _, ok := feedback.Started(); ok {
-		t.Fatal("empty publication retained pulse")
+	feedback.Rewind([]input.TextTarget{target}, phase, midway)
+	pulse := feedback.Pulses(midway)[0]
+	if pulse.From != phase || pulse.To != 0 ||
+		pulse.Duration != time.Duration(float32(FeedbackRewindDuration)*phase) {
+		t.Fatalf("rewind = %#v", pulse)
 	}
+	before := surface.TimedOpacity(now, FeedbackPulseDuration, 88, surface.EnvelopePulse).Sample(midway, true)
+	if after := pulse.Opacity(88).Sample(midway, true); math.Abs(float64(after-before)) > 1e-4 {
+		t.Fatalf("rewind starts at %v, the pulse was at %v", after, before)
+	}
+	back, _ := feedback.Take(root, target.RangeUTF16(), midway.Add(pulse.Duration/2))
+	feedback.Replay([]input.TextTarget{target}, back, midway)
+	replay := feedback.Pulses(midway)[0]
+	if replay.From != back || replay.To != 1 {
+		t.Fatalf("replay = %#v", replay)
+	}
+}
+
+// Typing beside a pulse leaves it over its own text: its ends keep out what
+// is typed against them, and it ends only with its text.
+func TestFeedbackRebasesWithoutSpreading(t *testing.T) {
+	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	feedback := NewFeedback(&fakeStateClock{now: now})
+	document, root := stateDocument(t, "abc")
+	revision := document.Snapshot().Revision()
+	feedback.Publish([]input.TextTarget{input.NewTextTarget(root, model.NewUTF16Range(1, 2), revision)})
+	feedback.Rebase([]model.TextEdit{
+		model.NewTextEdit(root, model.NewUTF16Range(2, 2), 1),
+		model.NewTextEdit(root, model.NewUTF16Range(1, 1), 2),
+	}, revision+1)
+	targets := feedback.Targets()
+	if len(targets) != 1 || targets[0].RangeUTF16() != model.NewUTF16Range(3, 4) || targets[0].Revision() != revision+1 {
+		t.Fatalf("rebased = %#v", targets)
+	}
+	feedback.Rebase([]model.TextEdit{model.NewTextEdit(root, model.NewUTF16Range(2, 5), 0)}, revision+2)
 	if len(feedback.Targets()) != 0 {
-		t.Fatal("empty publication retained targets")
+		t.Fatal("a pulse outlived its text")
 	}
 }
 

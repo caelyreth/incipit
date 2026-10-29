@@ -560,12 +560,19 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 		group := ShouldGroupTyping(edit.Origin, inputValue.ApplyText(), edit.Replacement)
 		s.history.Record(beforeFrame, visualState, !transaction.Changes.Empty(), group)
 		// What refinement rewrote pulses once, so a changed character is
-		// noticed rather than discovered; any other edit ends the pulse.
-		s.feedback.PublishCorrections(
-			s.invoker.corrections,
+		// noticed rather than discovered. Pulses already playing carry on
+		// through this edit to their end.
+		// The history step that made a correction remembers it, so undoing
+		// the step plays the pulse back and redoing it plays it again.
+		s.feedback.Rebase(transaction.Changes.TextEdits(), transaction.Revision)
+		corrected := s.invoker.corrections.Resolve(
 			transaction.Changes.TextEdits(),
 			s.runtime.Snapshot().Document(),
 		)
+		if len(corrected) > 0 {
+			s.history.MarkCorrected()
+			s.feedback.Publish(corrected)
+		}
 	}
 	return EditingOutcome{
 		Outcome:  transaction.Value.Outcome.Status,
@@ -695,7 +702,6 @@ func (s *Session) applyPresentation(next Presentation) {
 	s.presentation.Install(next)
 	s.generation = next.Projection.Version().Generation()
 	s.pairsValid = false
-	s.feedback.Clear()
 	s.refreshInline()
 }
 
@@ -895,38 +901,39 @@ func (s *Session) pairDecorations(node *model.Node) []surface.Decoration {
 	}}
 }
 
+// feedbackDecorations draws each correction pulse playing at now as its own
+// fill, under its own identity, so pulses side by side keep their own time.
+// A pulse whose targets were not carried to this revision draws nothing.
 func (s *Session) feedbackDecorations(now time.Time) []surface.Decoration {
-	if !s.feedback.Active(now) {
-		return nil
+	pulses := s.feedback.Pulses(now)
+	decorations := make([]surface.Decoration, 0, len(pulses))
+	revision := s.runtime.Revision()
+	for _, pulse := range pulses {
+		ranges := make([]model.UTF16Range, 0, len(pulse.Targets))
+		for _, target := range pulse.Targets {
+			if target.Revision() != revision {
+				continue
+			}
+			ranges = append(ranges, editableRanges(
+				s.presentation.Projection,
+				target.Node(),
+				target.RangeUTF16(),
+			)...)
+		}
+		if len(ranges) == 0 {
+			continue
+		}
+		decorations = append(decorations, surface.Decoration{
+			ID: surface.DecorationID{
+				Producer: surface.ProducerID("feedback"),
+				Local:    pulse.ID,
+			},
+			Primitive:  surface.FillPrimitive(ranges, surface.ColorMuted, 4),
+			Opacity:    pulse.Opacity(88),
+			Visibility: surface.VisibilityAlways,
+		})
 	}
-	ranges := make([]model.UTF16Range, 0)
-	for _, target := range s.feedback.Targets() {
-		ranges = append(ranges, editableRanges(
-			s.presentation.Projection,
-			target.Node(),
-			target.RangeUTF16(),
-		)...)
-	}
-	if len(ranges) == 0 {
-		return nil
-	}
-	started, _ := s.feedback.Started()
-	return []surface.Decoration{{
-		// Each publication is its own pulse, so a correction right after
-		// another starts fresh rather than continuing the last one's fade.
-		ID: surface.DecorationID{
-			Producer: surface.ProducerID("feedback"),
-			Local:    s.runtime.Revision(),
-		},
-		Primitive: surface.FillPrimitive(ranges, surface.ColorMuted, 4),
-		Opacity: surface.TimedOpacity(
-			started,
-			FeedbackPulseDuration,
-			88,
-			surface.EnvelopePulse,
-		),
-		Visibility: surface.VisibilityAlways,
-	}}
+	return decorations
 }
 
 func mustNode(document model.DocumentSnapshot, node model.NodeID) *model.Node {

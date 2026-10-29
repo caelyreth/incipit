@@ -93,3 +93,38 @@ func TestEmptyFlowConversions(t *testing.T) {
 		t.Fatalf("empty unit = %d,%v", unit, ok)
 	}
 }
+
+// A pulse marks plainly and lets go soon: it starts and ends at nothing,
+// peaks once early, is under half by halfway, and never jumps.
+func TestPulseEnvelopeIsSmoothAndComplete(t *testing.T) {
+	t.Parallel()
+	if EnvelopePulse.At(0) != 0 || EnvelopePulse.At(1) != 0 {
+		t.Fatalf("ends at %v and %v", EnvelopePulse.At(0), EnvelopePulse.At(1))
+	}
+	peak, previous := float32(0), float32(0)
+	for step := 1; step <= 1000; step++ {
+		value := EnvelopePulse.At(float32(step) / 1000)
+		if math.Abs(float64(value-previous)) > 0.035 {
+			t.Fatalf("steps by %v at %d‰", value-previous, step)
+		}
+		peak, previous = max(peak, value), value
+	}
+	if peak < 0.999 {
+		t.Fatalf("peak %v", peak)
+	}
+	if EnvelopePulse.At(0.08) > 0.95 || EnvelopePulse.At(0.16) < 0.999 || EnvelopePulse.At(0.5) > 0.5 {
+		t.Fatalf("%v at a twelfth, %v by a sixth, %v by halfway",
+			EnvelopePulse.At(0.08), EnvelopePulse.At(0.16), EnvelopePulse.At(0.5))
+	}
+	// Played backwards, a pulse shows the same strengths in reverse.
+	now := time.Unix(0, 0)
+	forward := TimedOpacity(now, time.Second, 255, EnvelopePulse)
+	backward := forward.Played(now, time.Second, 1, 0)
+	for _, at := range []time.Duration{100, 300, 700} {
+		f := forward.Sample(now.Add(at*time.Millisecond), true)
+		b := backward.Sample(now.Add((1000-at)*time.Millisecond), true)
+		if math.Abs(float64(f-b)) > 1e-4 {
+			t.Fatalf("at %v: forward %v, backward %v", at, f, b)
+		}
+	}
+}

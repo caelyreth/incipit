@@ -33,6 +33,14 @@ type Frame struct {
 	selection model.TextSelection
 	visual    projection.Selection
 	active    *model.MarkID
+	// corrected marks a step between this frame and the next that made a
+	// correction, so moving across it shows the correction again.
+	corrected bool
+}
+
+// Corrected reports whether the step leaving this frame made a correction.
+func (f Frame) Corrected() bool {
+	return f.corrected
 }
 
 // NewFrame captures one history position. It rejects a nil node so callers
@@ -199,6 +207,14 @@ func ShouldGroupTyping(origin kernel.EventOrigin, appliesText bool, replacement 
 		unicode.Is(unicode.Other_Alphabetic, r)
 }
 
+// MarkCorrected notes that the latest step, or the typing group it joined,
+// made a correction.
+func (h *History) MarkCorrected() {
+	if len(h.undo) > 0 {
+		h.undo[len(h.undo)-1].corrected = true
+	}
+}
+
 // RestoreFunc applies a history frame to the caller-owned editor state. The
 // stack movement is committed only when it returns nil.
 type RestoreFunc func(Frame) error
@@ -217,6 +233,8 @@ func (h *History) Undo(current Frame, restore RestoreFunc) (bool, error) {
 		return false, err
 	}
 	h.undo = h.undo[:len(h.undo)-1]
+	// Redoing crosses the same step, correction and all.
+	current.corrected = source.corrected
 	h.redo = append(h.redo, current)
 	h.BreakGroup()
 	return true, nil
@@ -236,6 +254,7 @@ func (h *History) Redo(current Frame, restore RestoreFunc) (bool, error) {
 		return false, err
 	}
 	h.redo = h.redo[:len(h.redo)-1]
+	current.corrected = source.corrected
 	h.undo = append(h.undo, current)
 	if len(h.undo) > HistoryLimit {
 		h.undo = h.undo[len(h.undo)-HistoryLimit:]

@@ -45,6 +45,10 @@ type Envelope uint8
 
 const (
 	EnvelopeFadeOut Envelope = iota + 1
+	// EnvelopePulse lands and lets go: it rises to full in about a sixth,
+	// easing into its peak, rests there a beat, then falls away and thins
+	// into a faint tail, so a change is marked plainly and the text is
+	// clear again soon after, as a sure hand's correction would be.
 	EnvelopePulse
 )
 
@@ -56,6 +60,11 @@ const (
 )
 
 // Opacity is either steady or a timed pulse/fade.
+//
+// A timed opacity plays its envelope over Duration from phase From to phase
+// To. A pulse runs 0 to 1; a pulse taken back runs from where it was to 0,
+// the envelope backwards, so undoing what a pulse showed rewinds it rather
+// than cutting it. From and To both zero mean 0 to 1.
 type Opacity struct {
 	Kind     OpacityKind
 	Fixed    uint8
@@ -63,6 +72,7 @@ type Opacity struct {
 	Duration time.Duration
 	Peak     uint8
 	Envelope Envelope
+	From, To float32
 }
 
 func FixedOpacity(value uint8) Opacity {
@@ -76,7 +86,39 @@ func TimedOpacity(started time.Time, duration time.Duration, peak uint8, envelop
 		Duration: duration,
 		Peak:     peak,
 		Envelope: envelope,
+		From:     0,
+		To:       1,
 	}
+}
+
+// Played returns this opacity played from phase from to phase to over
+// duration, starting at started.
+func (o Opacity) Played(started time.Time, duration time.Duration, from, to float32) Opacity {
+	o.Started, o.Duration, o.From, o.To = started, duration, from, to
+	return o
+}
+
+// Phase is where in its envelope a timed opacity is at now, from 0 to 1,
+// and whether it is still playing.
+func (o Opacity) Phase(now time.Time) (float32, bool) {
+	if o.Kind != OpacityTimed || o.Duration <= 0 || now.Before(o.Started) {
+		return 0, false
+	}
+	t := float32(now.Sub(o.Started).Seconds() / o.Duration.Seconds())
+	if t >= 1 {
+		return o.span().to, false
+	}
+	span := o.span()
+	return span.from + (span.to-span.from)*t, true
+}
+
+type phaseSpan struct{ from, to float32 }
+
+func (o Opacity) span() phaseSpan {
+	if o.From == 0 && o.To == 0 {
+		return phaseSpan{0, 1}
+	}
+	return phaseSpan{o.From, o.To}
 }
 
 func (o Opacity) Sample(now time.Time, animate bool) float32 {
@@ -84,25 +126,13 @@ func (o Opacity) Sample(now time.Time, animate bool) float32 {
 	case OpacityFixed:
 		return float32(o.Fixed) / 255
 	case OpacityTimed:
-		if now.Before(o.Started) || o.Duration <= 0 {
-			return 0
-		}
-		t := float32(now.Sub(o.Started).Seconds() / o.Duration.Seconds())
-		if t > 1 {
-			t = 1
-		}
-		if t >= 1 {
+		phase, playing := o.Phase(now)
+		if !playing {
 			return 0
 		}
 		value := float32(1)
 		if animate {
-			switch o.Envelope {
-			case EnvelopeFadeOut:
-				value = 1 - t
-			case EnvelopePulse:
-				enter := min(1, t*8)
-				value = (1 - cube(1-enter)) * square(1-t)
-			}
+			value = o.Envelope.At(phase)
 		}
 		return value * float32(o.Peak) / 255
 	default:
@@ -110,15 +140,36 @@ func (o Opacity) Sample(now time.Time, animate bool) float32 {
 	}
 }
 
+// At is the envelope's strength at phase, from 0 to 1.
+func (e Envelope) At(phase float32) float32 {
+	phase = max(0, min(1, phase))
+	switch e {
+	case EnvelopeFadeOut:
+		return 1 - phase
+	case EnvelopePulse:
+		const rise, hold = 0.16, 0.22
+		switch {
+		case phase < rise:
+			return 1 - cube(1-phase/rise)
+		case phase < hold:
+			return 1
+		default:
+			fall := 1 - (phase-hold)/(1-hold)
+			return fall * fall
+		}
+	default:
+		return 1
+	}
+}
+
+func cube(value float32) float32 { return value * value * value }
+
 func (o Opacity) Deadline() (time.Time, bool) {
 	if o.Kind != OpacityTimed {
 		return time.Time{}, false
 	}
 	return o.Started.Add(o.Duration), true
 }
-
-func cube(value float32) float32   { return value * value * value }
-func square(value float32) float32 { return value * value }
 
 type PrimitiveKind uint8
 

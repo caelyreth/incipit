@@ -192,6 +192,11 @@ func (p *Player) Finish() {
 		}
 		p.index, p.typed = p.index+1, 0
 	}
+	// A finished story stands still: nothing in it is being corrected, so
+	// no correction pulses over it.
+	if session := p.document.Session(); session != nil {
+		session.Feedback().Clear()
+	}
 	p.ended = p.due
 }
 
