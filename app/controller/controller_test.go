@@ -574,7 +574,7 @@ func TestEditableSpanAndVisibleLengthFollowGeneratedNotationAndPreview(t *testin
 	}
 }
 
-func TestMetricsQueueAndStaleInstall(t *testing.T) {
+func TestMetricsUpdateIncrementallyAndRejectStaleSource(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "one two\n\nthree")
 	if controller.Metrics() != (Metrics{Characters: 14, Words: 3, Paragraphs: 2}) {
@@ -589,22 +589,27 @@ func TestMetricsQueueAndStaleInstall(t *testing.T) {
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("append outcome=%v err=%v", outcome, err)
 	}
-	source, ok := controller.PendingMetricSource()
-	if !ok || !controller.MetricsPending() {
-		t.Fatal("replacement did not queue metrics")
+	if controller.MetricsPending() ||
+		controller.Metrics() != (Metrics{Characters: 19, Words: 4, Paragraphs: 2}) {
+		t.Fatalf("updated pending=%v metrics=%#v", controller.MetricsPending(), controller.Metrics())
 	}
-	computed, ok := source.Compute()
-	if !ok || computed.Words != 4 {
-		t.Fatalf("computed metrics = %#v, %v", computed, ok)
+	source, ok := controller.Session().Statistics()
+	if !ok {
+		t.Fatal("current metric source missing")
 	}
 	if controller.InstallMetrics(MetricSource{}, Metrics{Characters: 1}) {
 		t.Fatal("stale empty source installed")
 	}
-	if !controller.InstallMetrics(source, computed) {
+	if controller.InstallMetrics(metricSource(source), metricsFrom(source)) != true {
 		t.Fatal("current source did not install")
 	}
-	if controller.MetricsPending() || controller.Metrics() != computed {
-		t.Fatalf("installed pending=%v metrics=%#v", controller.MetricsPending(), controller.Metrics())
+	mustSelect(t, controller, controller.TextLengthUTF16(), controller.TextLengthUTF16())
+	if outcome, err := controller.ReplaceSelection(" five", kernel.EventOriginTyping); err != nil ||
+		outcome != kernel.OutcomeHandled {
+		t.Fatalf("second append outcome=%v err=%v", outcome, err)
+	}
+	if controller.InstallMetrics(metricSource(source), metricsFrom(source)) {
+		t.Fatal("old source installed after a later edit")
 	}
 }
 
@@ -623,7 +628,7 @@ func TestMetricsForCurrentTextTracksQueuedSemanticEdit(t *testing.T) {
 	}
 }
 
-func TestMetricSourceComputeAndStaleInstallAfterSecondEdit(t *testing.T) {
+func TestMetricSourceRejectsSourceFromEarlierEdit(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "one")
 	mustSelect(t, controller, 3, 3)
@@ -631,26 +636,26 @@ func TestMetricSourceComputeAndStaleInstallAfterSecondEdit(t *testing.T) {
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("first edit outcome=%v err=%v", outcome, err)
 	}
-	first, ok := controller.PendingMetricSource()
+	firstValue, ok := controller.Session().Statistics()
 	if !ok {
-		t.Fatal("first edit did not queue metrics")
+		t.Fatal("first edit metric source missing")
 	}
-	firstMetrics, ok := first.Compute()
-	if !ok || firstMetrics.Words != 2 {
-		t.Fatalf("first metrics = %#v, %v", firstMetrics, ok)
+	first := metricSource(firstValue)
+	if firstValue.Metrics.Words != 2 || controller.Metrics().Words != 2 {
+		t.Fatalf("first metrics = %#v controller=%#v", firstValue.Metrics, controller.Metrics())
 	}
 	if outcome, err := controller.ReplaceSelection(" three", kernel.EventOriginTyping); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("second edit outcome=%v err=%v", outcome, err)
 	}
-	if controller.InstallMetrics(first, firstMetrics) {
+	if controller.InstallMetrics(first, metricsFrom(firstValue)) {
 		t.Fatal("stale first metric source installed after second edit")
 	}
-	current, ok := controller.PendingMetricSource()
-	if !ok || !controller.RefreshMetrics() {
-		t.Fatal("current metrics did not refresh")
+	current, ok := controller.Session().Statistics()
+	if !ok {
+		t.Fatal("current metric source missing")
 	}
-	if current.Node == first.Node && current.Root.Same(first.Root) {
+	if current.Node == firstValue.Node && current.Root.Same(firstValue.Root) {
 		t.Fatal("successive edits retained the same metric root")
 	}
 	if currentMetrics := controller.Metrics(); currentMetrics.Words != 3 {

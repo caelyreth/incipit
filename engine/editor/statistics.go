@@ -41,10 +41,11 @@ func countParagraphs(text string) int {
 // TextMetricsSource identifies the exact immutable root a metrics snapshot
 // describes. It lets asynchronous work install only against current text.
 type TextMetricsSource struct {
-	Node    model.NodeID
-	Root    model.TextRoot
-	HasRoot bool
-	Metrics TextMetrics
+	Node     model.NodeID
+	Root     model.TextRoot
+	HasRoot  bool
+	Metrics  TextMetrics
+	Computed bool
 }
 
 // NewTextMetricsSource captures a node text root and its computed metrics.
@@ -57,7 +58,13 @@ func NewTextMetricsSource(node model.NodeID, root model.TextRoot, hasRoot bool) 
 			return TextMetricsSource{}, false
 		}
 	}
-	return TextMetricsSource{Node: node, Root: root, HasRoot: hasRoot, Metrics: metrics}, true
+	return TextMetricsSource{
+		Node:     node,
+		Root:     root,
+		HasRoot:  hasRoot,
+		Metrics:  metrics,
+		Computed: true,
+	}, true
 }
 
 // Matches reports whether this source still names the node's current text.

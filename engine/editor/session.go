@@ -174,7 +174,7 @@ func (s *Session) Select(selection model.TextSelection) error {
 	s.history.SelectionChanged()
 	s.pairsValid = false
 	s.refreshInline()
-	s.refreshMetrics()
+	s.retainMetrics()
 	return nil
 }
 
@@ -186,7 +186,7 @@ func (s *Session) SelectProjected(anchor, head model.UTF16Offset) error {
 	s.history.SelectionChanged()
 	s.pairsValid = false
 	s.refreshInline()
-	s.refreshMetrics()
+	s.retainMetrics()
 	return nil
 }
 
@@ -381,6 +381,8 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 		return EditingOutcome{Outcome: kernel.OutcomePass, Revision: s.runtime.Revision()}, nil
 	}
 	beforeRevision := s.runtime.Revision()
+	beforeNode, _ := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
+	beforeRoot, beforeHasRoot := beforeNode.TextRoot()
 	s.invoker.ActivateMark(resolved.ActiveMarkID)
 	s.invoker.hasCorrectionEffect = false
 	s.invoker.correctionEffectThrough = 0
@@ -549,6 +551,7 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 	}
 	if transaction.Value.Outcome.Status == kernel.OutcomeHandled {
 		s.applyPresentation(candidate)
+		s.updateMetricsAfterEdit(beforeRoot, beforeHasRoot, transaction.Changes.TextEdits())
 		s.navigation.Remember(s.presentation.Selection)
 		group := ShouldGroupTyping(edit.Origin, inputValue.ApplyText(), edit.Replacement)
 		s.history.Record(beforeFrame, visualState, !transaction.Changes.Empty(), group)
@@ -690,7 +693,6 @@ func (s *Session) applyPresentation(next Presentation) {
 	s.pairsValid = false
 	s.feedback.Clear()
 	s.refreshInline()
-	s.refreshMetrics()
 }
 
 // refreshInline derives the active mark from the caret, its only source.
@@ -713,6 +715,58 @@ func (s *Session) refreshMetrics() {
 	source, ok := NewTextMetricsSource(node.ID(), root, hasRoot)
 	s.statistics = source
 	s.statsValid = ok
+}
+
+func (s *Session) retainMetrics() {
+	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
+	if !ok {
+		s.statsValid = false
+		return
+	}
+	root, hasRoot := node.TextRoot()
+	if s.statsValid &&
+		s.statistics.Node == node.ID() &&
+		s.statistics.HasRoot == hasRoot &&
+		(!hasRoot || s.statistics.Root.Same(root)) {
+		return
+	}
+	s.refreshMetrics()
+}
+
+func (s *Session) updateMetricsAfterEdit(
+	beforeRoot model.TextRoot,
+	beforeHasRoot bool,
+	edits []model.TextEdit,
+) {
+	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
+	if !ok {
+		s.statsValid = false
+		return
+	}
+	root, hasRoot := node.TextRoot()
+	metrics, ok := incrementalTextMetrics(beforeRoot, beforeHasRoot, root, hasRoot, edits)
+	if ok && s.statsValid {
+		ok = s.statistics.Node == node.ID() &&
+			s.statistics.HasRoot == beforeHasRoot &&
+			(!beforeHasRoot || s.statistics.Root.Same(beforeRoot))
+	}
+	if ok {
+		metrics.Characters += s.statistics.Metrics.Characters
+		metrics.Words += s.statistics.Metrics.Words
+		metrics.Paragraphs += s.statistics.Metrics.Paragraphs
+	}
+	if !ok {
+		s.refreshMetrics()
+		return
+	}
+	s.statistics = TextMetricsSource{
+		Node:     node.ID(),
+		Root:     root,
+		HasRoot:  hasRoot,
+		Metrics:  metrics,
+		Computed: true,
+	}
+	s.statsValid = true
 }
 
 func (s *Session) refreshPairs() {

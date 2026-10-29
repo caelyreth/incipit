@@ -1,10 +1,87 @@
 package editor
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/model"
 )
+
+func TestIncrementalTextMetricsMatchesFullRecount(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		before   string
+		after    string
+		edit     model.TextEdit
+		multiple bool
+	}{
+		{
+			name:   "append within line",
+			before: "one two\nthree",
+			after:  "one two three\nthree",
+			edit:   model.NewTextEditReplacement(1, model.NewUTF16Range(7, 7), " three"),
+		},
+		{
+			name:   "insert paragraph",
+			before: "one two",
+			after:  "one two\nnext",
+			edit:   model.NewTextEditReplacement(1, model.NewUTF16Range(7, 7), "\nnext"),
+		},
+		{
+			name:   "remove paragraph break",
+			before: "one\n\ntwo",
+			after:  "onetwo",
+			edit:   model.NewTextEditReplacement(1, model.NewUTF16Range(3, 5), ""),
+		},
+		{
+			name:   "replace CJK",
+			before: "alpha 中文 omega",
+			after:  "alpha 日本語 omega",
+			edit:   model.NewTextEditReplacement(1, model.NewUTF16Range(6, 8), "日本語"),
+		},
+		{
+			name:     "multiple edits fall back",
+			before:   "one two",
+			after:    "two",
+			edit:     model.NewTextEditReplacement(1, model.NewUTF16Range(0, 4), ""),
+			multiple: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			previous, ok := ComputeTextMetrics(test.before)
+			if !ok {
+				t.Fatal("before metrics rejected")
+			}
+			edits := []model.TextEdit{test.edit}
+			if test.multiple {
+				edits = append(edits, model.NewTextEditReplacement(1, model.NewUTF16Range(0, 0), ""))
+			}
+			got, ok := incrementalTextMetrics(
+				model.NewTextRoot(test.before),
+				true,
+				model.NewTextRoot(test.after),
+				true,
+				edits,
+			)
+			if test.multiple {
+				if ok {
+					t.Fatalf("multiple edits returned incremental metrics %#v", got)
+				}
+				return
+			}
+			got.Characters += previous.Characters
+			got.Words += previous.Words
+			got.Paragraphs += previous.Paragraphs
+			want, ok := ComputeTextMetrics(test.after)
+			if !ok || !reflect.DeepEqual(got, want) {
+				t.Fatalf("metrics = %#v, want %#v, ok=%v", got, want, ok)
+			}
+		})
+	}
+}
 
 func TestComputeTextMetricsUsesScalarsWordsAndNonblankParagraphs(t *testing.T) {
 	t.Parallel()

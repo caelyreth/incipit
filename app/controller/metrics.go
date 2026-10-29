@@ -57,6 +57,9 @@ func metricsFrom(source editor.TextMetricsSource) Metrics {
 // It is the synchronous fallback for command-line and native status surfaces;
 // asynchronous callers can still use PendingMetricSource.
 func (c *DocumentController) MetricsForCurrentText() (Metrics, bool) {
+	if c.metricsReady && !c.metricsQueued {
+		return c.metrics, true
+	}
 	source, ok := c.session.Statistics()
 	if !ok {
 		return Metrics{}, false
@@ -100,6 +103,14 @@ func (c *DocumentController) refreshMetricSource() {
 	}
 	next := metricSource(source)
 	if !c.metricsReady || !c.metricsSource.same(next) {
+		if source.Computed {
+			c.metrics = metricsFrom(source)
+			c.metricsSource = next
+			c.metricsReady = true
+			c.metricsQueued = false
+			c.pendingMetric = MetricSource{}
+			return
+		}
 		c.pendingMetric = next
 		c.metricsQueued = true
 		return

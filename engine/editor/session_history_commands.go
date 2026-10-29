@@ -87,6 +87,7 @@ func (s *Session) restoreHistoryFrame(frame Frame) error {
 		return err
 	}
 	s.applyPresentation(candidate)
+	s.refreshMetrics()
 	s.navigation.Clear()
 	s.feedback.Clear()
 	return nil
