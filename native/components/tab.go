@@ -33,6 +33,7 @@ func (t Tab) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	}
 
 	tab := ui.ButtonBase(c.Key(t.Key)).Role(ui.RoleTab).Label(t.Title).
+		Tooltip(t.Title).
 		Selected(t.Selected).FocusRing(false).
 		Height(height).MinWidth(96 * scale / theme.DefaultUIFontSize).
 		MaxWidth(220 * scale / theme.DefaultUIFontSize).Shrink(0).

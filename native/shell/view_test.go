@@ -468,6 +468,23 @@ func TestFloatingToolbarHonorsHistoryState(t *testing.T) {
 	}
 }
 
+func TestFloatingToolbarShowsLiveCommandBindingInTooltip(t *testing.T) {
+	state := New()
+	state.Toolbar.BoldEnabled = true
+	state.Toolbar.Bindings.Bold = "⌘B"
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	bounds, ok := tester.Find("Bold")
+	if !ok {
+		t.Fatal("bold toolbar action missing")
+	}
+	tester.Move(bounds.X+bounds.W/2, bounds.Y+bounds.H/2)
+	tester.Advance(700 * time.Millisecond)
+	if !tester.HasText("Bold  ⌘B") {
+		t.Fatalf("toolbar tooltip texts = %#v", tester.Texts())
+	}
+}
+
 // Toggling the sidebar or zen mode again mid-flight carries on from where
 // the motion is, at its speed: no jump, and no instant reversal.
 func TestShellMotionTurnsAroundSmoothlyWhenInterrupted(t *testing.T) {

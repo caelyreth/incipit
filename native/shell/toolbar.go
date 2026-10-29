@@ -14,14 +14,15 @@ func (s *State) formatBar(
 	scale := s.Settings.UIFontSize
 	animate := s.animate(c)
 	Icon := func(
-		key, label string,
+		key, label, binding string,
 		icon components.IconName,
 		selected, enabled bool,
 		action func(),
 	) func() {
 		return func() {
 			components.IconButton{
-				Key: key, Label: label, Icon: icon.SVG(),
+				Key: key, Label: label, Tooltip: components.CommandTooltip(label, binding),
+				Icon:  icon.SVG(),
 				Style: components.SubtleButton, Size: components.MediumButton,
 				Selected: selected, Disabled: !enabled, Animate: animate,
 				IconColor: &semantic.Icon.Muted, Action: action,
@@ -34,14 +35,14 @@ func (s *State) formatBar(
 			{
 				Label: "Formatting",
 				Actions: []func(){
-					Icon("format-emphasis", "Italic", components.IconItalic,
+					Icon("format-emphasis", "Italic", s.Toolbar.Bindings.Italic, components.IconItalic,
 						s.Toolbar.Italic, s.Toolbar.ItalicEnabled,
 						func() {
 							if s.FormatItalic != nil {
 								s.FormatItalic(!s.Toolbar.Italic)
 							}
 						}),
-					Icon("format-strong", "Bold", components.IconBold,
+					Icon("format-strong", "Bold", s.Toolbar.Bindings.Bold, components.IconBold,
 						s.Toolbar.Bold, s.Toolbar.BoldEnabled,
 						func() {
 							if s.FormatBold != nil {
@@ -53,13 +54,13 @@ func (s *State) formatBar(
 			{
 				Label: "History",
 				Actions: []func(){
-					Icon("undo", "Undo", components.IconUndo, false, s.CanUndo,
+					Icon("undo", "Undo", s.Toolbar.Bindings.Undo, components.IconUndo, false, s.CanUndo,
 						func() {
 							if s.Undo != nil {
 								s.Undo()
 							}
 						}),
-					Icon("redo", "Redo", components.IconRedo, false, s.CanRedo,
+					Icon("redo", "Redo", s.Toolbar.Bindings.Redo, components.IconRedo, false, s.CanRedo,
 						func() {
 							if s.Redo != nil {
 								s.Redo()
@@ -70,20 +71,20 @@ func (s *State) formatBar(
 			{
 				Label: "Presentation",
 				Actions: []func(){
-					Icon("typewriter", "Typewriter", components.IconTypewriter,
+					Icon("typewriter", "Typewriter", "", components.IconTypewriter,
 						s.Appearance.Typewriter, true,
 						func() {
 							if s.Typewriter != nil {
 								s.Typewriter(!s.Appearance.Typewriter)
 							}
 						}),
-					Icon("zen", "Zen", components.IconZen, s.Appearance.Zen, true,
+					Icon("zen", "Zen", "", components.IconZen, s.Appearance.Zen, true,
 						func() {
 							if s.Zen != nil {
 								s.Zen(!s.Appearance.Zen)
 							}
 						}),
-					Icon("cjk", "CJK", components.IconLanguages, s.Toolbar.CJK, true,
+					Icon("cjk", "CJK", "", components.IconLanguages, s.Toolbar.CJK, true,
 						func() {
 							if s.ToggleCJK != nil {
 								s.ToggleCJK(!s.Toolbar.CJK)

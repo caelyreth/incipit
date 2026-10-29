@@ -22,6 +22,15 @@ type ToolbarState struct {
 	BoldEnabled   bool
 	ItalicEnabled bool
 	CJK           bool
+	Bindings      ToolbarBindings
+}
+
+// ToolbarBindings carries the current shortcut text for action tooltips.
+type ToolbarBindings struct {
+	Bold   string
+	Italic string
+	Undo   string
+	Redo   string
 }
 
 type State struct {

@@ -247,6 +247,24 @@ func (a *AppState) refreshToolbarState() {
 	}
 	configuration := controller.Runtime().PolicyConfiguration()
 	a.Shell.Toolbar.CJK = configuration.IsEnabled(editor.CJKPolicyID)
+	prepared := controller.Runtime().Configuration()
+	a.Shell.Toolbar.Bindings = shell.ToolbarBindings{
+		Bold:   bindingLabel(prepared, editor.MarkupStrong.ID()),
+		Italic: bindingLabel(prepared, editor.MarkupEmphasis.ID()),
+		Undo:   bindingLabel(prepared, editor.HistoryUndo.ID()),
+		Redo:   bindingLabel(prepared, editor.HistoryRedo.ID()),
+	}
+}
+
+func bindingLabel(configuration *kernel.PreparedPolicyConfiguration, command kernel.CommandID) string {
+	if configuration == nil {
+		return ""
+	}
+	bindings := configuration.BindingsFor(command)
+	if len(bindings) == 0 {
+		return ""
+	}
+	return keymap.Chord(bindings[0], keymap.PlatformCurrent)
 }
 
 func (a *AppState) executeEditorCommand(command kernel.CommandID) {

@@ -35,6 +35,7 @@ func (s ButtonSize) Height(scale float32) float32 {
 type Button struct {
 	Key      string
 	Label    string
+	Tooltip  string
 	Style    ButtonStyle
 	Size     ButtonSize
 	Selected bool
@@ -48,6 +49,7 @@ func (b Button) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	return buttonElement(c, semantic, buttonOptions{
 		key:      b.Key,
 		label:    b.Label,
+		tooltip:  b.Tooltip,
 		style:    b.Style,
 		size:     b.Size,
 		selected: b.Selected,
@@ -64,6 +66,7 @@ func (b Button) View(c *ui.Context, semantic theme.Theme) ui.Element {
 type IconButton struct {
 	Key       string
 	Label     string
+	Tooltip   string
 	Icon      *ui.SVG
 	Style     ButtonStyle
 	Size      ButtonSize
@@ -99,6 +102,7 @@ func (b IconButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	return buttonElement(c, semantic, buttonOptions{
 		key:      b.Key,
 		label:    b.Label,
+		tooltip:  b.Tooltip,
 		style:    b.Style,
 		size:     size,
 		selected: b.Selected,
@@ -114,6 +118,7 @@ func (b IconButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
 type buttonOptions struct {
 	key      string
 	label    string
+	tooltip  string
 	style    ButtonStyle
 	size     ButtonSize
 	selected bool
@@ -151,6 +156,10 @@ func buttonElement(
 	button := ui.ButtonBase(c.Key(options.key)).Label(options.label).
 		Height(height).Padding(0).Radius(theme.DefaultControls.Scaled(scale).Radius).
 		Border(1, border).Disabled(options.disabled)
+	button.Tooltip(CommandTooltip(options.label, ""))
+	if options.tooltip != "" {
+		button.Tooltip(options.tooltip)
+	}
 	if options.disabled {
 		button.Opacity(DisabledOpacity)
 	}
@@ -165,6 +174,14 @@ func buttonElement(
 		options.action()
 	}
 	return button
+}
+
+// CommandTooltip names a control and, when present, its live shortcut.
+func CommandTooltip(label, binding string) string {
+	if binding == "" {
+		return label
+	}
+	return label + "  " + binding
 }
 
 func buttonColors(

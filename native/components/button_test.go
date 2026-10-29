@@ -2,6 +2,7 @@ package components
 
 import (
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -57,5 +58,26 @@ func TestDisabledButtonDoesNotAct(t *testing.T) {
 	}
 	if acted {
 		t.Fatal("disabled button ran its action")
+	}
+}
+
+func TestButtonTooltipShowsLabelAndLiveBinding(t *testing.T) {
+	semantic := theme.DefaultSettings().Semantic()
+	tester := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(theme.DefaultSettings().MyGoTheme())
+		Button{
+			Key: "bold", Label: "Bold",
+			Tooltip: CommandTooltip("Bold", "⌘B"),
+		}.View(c, semantic)
+	}, 320, 140)
+	tester.Frame()
+	bounds, ok := tester.Find("Bold")
+	if !ok {
+		t.Fatal("button missing")
+	}
+	tester.Move(bounds.X+bounds.W/2, bounds.Y+bounds.H/2)
+	tester.Advance(700 * time.Millisecond)
+	if !tester.HasText("Bold  ⌘B") {
+		t.Fatalf("tooltip texts = %#v", tester.Texts())
 	}
 }

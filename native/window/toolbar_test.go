@@ -3,7 +3,9 @@ package window
 import (
 	"testing"
 
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -76,5 +78,32 @@ func TestToolbarBoldTypingStaysInGeneratedPair(t *testing.T) {
 	}
 	if active, _ := tester.TextInputActive(); !active {
 		t.Fatal("bold action removed document text-input focus")
+	}
+}
+
+func TestToolbarBindingsFollowPreparedKeymap(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared := app.Session.Document().Runtime().Configuration()
+	for _, test := range []struct {
+		name    string
+		command kernel.CommandID
+		got     string
+	}{
+		{"bold", editor.MarkupStrong.ID(), app.Shell.Toolbar.Bindings.Bold},
+		{"italic", editor.MarkupEmphasis.ID(), app.Shell.Toolbar.Bindings.Italic},
+		{"undo", editor.HistoryUndo.ID(), app.Shell.Toolbar.Bindings.Undo},
+		{"redo", editor.HistoryRedo.ID(), app.Shell.Toolbar.Bindings.Redo},
+	} {
+		bindings := prepared.BindingsFor(test.command)
+		want := ""
+		if len(bindings) > 0 {
+			want = keymap.Chord(bindings[0], keymap.PlatformCurrent)
+		}
+		if test.got != want {
+			t.Fatalf("%s toolbar binding = %q, want %q", test.name, test.got, want)
+		}
 	}
 }
