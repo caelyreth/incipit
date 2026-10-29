@@ -6,15 +6,16 @@ import (
 )
 
 type TextField struct {
-	Key         string
-	Label       string
-	Placeholder string
-	Value       *string
-	Icon        *ui.SVG
-	ClearIcon   *ui.SVG
-	Animate     bool
-	Submit      func()
-	Changed     func()
+	Key            string
+	Label          string
+	Placeholder    string
+	Value          *string
+	Icon           *ui.SVG
+	ClearIcon      *ui.SVG
+	Animate        bool
+	FocusRequested bool
+	Submit         func()
+	Changed        func()
 }
 
 func (f TextField) View(c *ui.Context, semantic theme.Theme) ui.Element {
@@ -36,6 +37,9 @@ func (f TextField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 			FixedLineHeight(theme.TextSmall.LineHeight(scale)).
 			TextColor(semantic.Text.Default).
 			Placeholder(f.Placeholder).Label(f.Label)
+		if f.FocusRequested {
+			input.Focus()
+		}
 		if input.Changed() && f.Changed != nil {
 			f.Changed()
 		}

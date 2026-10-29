@@ -4,7 +4,8 @@ import "github.com/egoist/mygo"
 
 // MainMenu builds the application menu around the editor's stable command
 // boundary. Edit and format roles remain MyGo's native commands; app actions
-// use the same state transitions as the in-window controls.
+// use the same state transitions as the in-window controls. Remappable command
+// accelerators stay in editor.surface so a native menu cannot bypass a remap.
 func (a *AppState) MainMenu() *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{
@@ -33,17 +34,15 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			Label: "File",
 			Submenu: []*mygo.MenuItem{
 				{
-					ID:          "new-page",
-					Label:       "New Page",
-					Accelerator: "CmdOrCtrl+N",
+					ID:    "new-page",
+					Label: "New Page",
 					Click: func(*mygo.MenuItem, *mygo.Window) {
 						a.newPage()
 					},
 				},
 				{
-					ID:          "close-page",
-					Label:       "Close Page",
-					Accelerator: "CmdOrCtrl+W",
+					ID:    "close-page",
+					Label: "Close Page",
 					Click: func(*mygo.MenuItem, *mygo.Window) {
 						a.closePage()
 					},
@@ -62,17 +61,15 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			Label: "View",
 			Submenu: []*mygo.MenuItem{
 				{
-					ID:          "toggle-sidebar",
-					Label:       "Toggle Pages",
-					Accelerator: "CmdOrCtrl+Shift+B",
+					ID:    "toggle-sidebar",
+					Label: "Toggle Pages",
 					Click: func(*mygo.MenuItem, *mygo.Window) {
 						a.toggleSidebar()
 					},
 				},
 				{
-					ID:          "commands",
-					Label:       "Command Palette",
-					Accelerator: "CmdOrCtrl+Shift+P",
+					ID:    "commands",
+					Label: "Command Palette",
 					Click: func(*mygo.MenuItem, *mygo.Window) {
 						a.openCommands()
 					},

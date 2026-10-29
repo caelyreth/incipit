@@ -184,6 +184,9 @@ func (a *AppState) BindShell() {
 	a.Shell.OpenSettings = func() {
 		a.OpenSettingsWindow()
 	}
+	a.Shell.FindPage = func() {
+		a.findPage()
+	}
 	a.Shell.FormatItalic = func(bool) {
 		a.executeEditorCommand(editor.MarkupEmphasis.ID())
 	}
@@ -277,19 +280,121 @@ func (a *AppState) ActiveSession() appsettings.Session {
 func (a *AppState) mountBridge(c *ui.Context) {
 	services := mygoServices{services: c.Services()}
 	a.Bridge = documentview.NewBridge(a.Session.Document(), services, time.Now)
-	a.Bridge.External = func(command kernel.CommandID) error {
-		switch string(command) {
-		case "workspace.new":
-			a.newPage()
-			if a.Error != "" {
-				return fmt.Errorf("%s", a.Error)
-			}
-			return nil
-		default:
-			return nil
-		}
-	}
+	a.Bridge.External = a.executeExternalCommand
 	a.Element.Input = a.Bridge
+}
+
+// executeExternalCommand routes policy-owned host commands through the same
+// callbacks used by the visible shell controls.
+func (a *AppState) executeExternalCommand(command kernel.CommandID) error {
+	if a == nil {
+		return fmt.Errorf("window: app state is unavailable")
+	}
+	switch command {
+	case "workspace.new", editor.SurfaceNewPageCommandID:
+		if a.Shell.NewPage != nil {
+			a.Shell.NewPage()
+		} else {
+			a.newPage()
+		}
+	case editor.SurfaceRenamePageCommandID:
+		a.renameActivePage()
+	case editor.SurfaceNextPageCommandID:
+		a.navigatePage(true)
+	case editor.SurfacePreviousPageCommandID:
+		a.navigatePage(false)
+	case editor.SurfaceClosePageCommandID:
+		if a.Shell.ClosePage != nil {
+			a.Shell.ClosePage()
+		} else {
+			a.closePage()
+		}
+	case editor.SurfaceZenCommandID:
+		a.togglePresentation(appsettings.PresentationZen, a.Shell.Zen)
+	case editor.SurfaceTypewriterCommandID:
+		a.togglePresentation(appsettings.PresentationTypewriter, a.Shell.Typewriter)
+	case editor.SurfaceMotionCommandID:
+		a.setPresentation(
+			appsettings.PresentationMotion,
+			!a.Product.Presentation.Motion,
+		)
+	case editor.SurfaceCJKCommandID:
+		configuration := a.Session.Document().Runtime().PolicyConfiguration()
+		on := !configuration.IsEnabled(editor.CJKPolicyID)
+		if a.Shell.ToggleCJK != nil {
+			a.Shell.ToggleCJK(on)
+		} else {
+			a.setPolicy(editor.CJKPolicyID, on)
+		}
+	case editor.SurfaceCommandsCommandID:
+		if a.Shell.OpenCommands != nil {
+			a.Shell.OpenCommands()
+		} else {
+			a.openCommands()
+		}
+	case editor.SurfaceFindPageCommandID:
+		if a.Shell.FindPage != nil {
+			a.Shell.FindPage()
+		} else {
+			a.findPage()
+		}
+	case editor.SurfaceSidebarCommandID:
+		a.toggleSidebar()
+	case editor.SurfaceSettingsCommandID:
+		if a.Shell.OpenSettings != nil {
+			a.Shell.OpenSettings()
+		} else {
+			a.OpenSettingsWindow()
+		}
+	default:
+		return nil
+	}
+	if a.Error != "" {
+		return fmt.Errorf("%s", a.Error)
+	}
+	return nil
+}
+
+func (a *AppState) togglePresentation(
+	mode appsettings.Presentation,
+	callback func(bool),
+) {
+	on := !a.Product.Presentation.Get(mode)
+	if callback != nil {
+		callback(on)
+		return
+	}
+	a.setPresentation(mode, on)
+}
+
+func (a *AppState) renameActivePage() {
+	id, ok := a.Workspace.Active()
+	if !ok || a.Shell.RenamePage == nil {
+		return
+	}
+	a.Shell.RenamePage(fmt.Sprintf("%d", id))
+}
+
+func (a *AppState) navigatePage(forward bool) {
+	a.parkScroll()
+	if _, ok, err := a.Workspace.Navigate(forward); err != nil {
+		a.Error = err.Error()
+		a.refreshShell()
+		return
+	} else if !ok {
+		return
+	}
+	a.selectMounted()
+}
+
+func (a *AppState) findPage() {
+	if a == nil || a.Shell == nil {
+		return
+	}
+	a.setPresentation(appsettings.PresentationZen, false)
+	visible := true
+	a.Shell.SidebarOverride = &visible
+	a.Shell.FindPageRequested = true
 }
 
 func (a *AppState) selectMounted() {

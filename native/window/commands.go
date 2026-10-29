@@ -30,11 +30,19 @@ func commandCatalog() []overlay.Command {
 	appendMeta("Format", editor.MarkupEmphasis.Description())
 	appendMeta("Format", editor.MarkupStrong.Description())
 	appendMeta("Navigation", editor.TabCommand())
-	commands = append(commands,
-		overlay.Command{ID: "workspace.new", Label: "New Page", Group: "Workspace"},
-		overlay.Command{ID: "surface.copy", Label: "Copy", Group: "Clipboard"},
-		overlay.Command{ID: "surface.cut", Label: "Cut", Group: "Clipboard"},
-		overlay.Command{ID: "surface.paste", Label: "Paste", Group: "Clipboard"},
-	)
+	for _, command := range editor.SurfaceCommands() {
+		group := "Workspace"
+		switch command.Kind {
+		case editor.SurfaceVisual:
+			group = "Navigation"
+		case editor.SurfaceClipboard:
+			group = "Clipboard"
+		case editor.SurfacePresentation, editor.SurfacePolicy:
+			group = "Appearance"
+		case editor.SurfaceApp:
+			group = "Application"
+		}
+		appendMeta(group, command.Description())
+	}
 	return commands
 }

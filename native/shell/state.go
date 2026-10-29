@@ -28,17 +28,18 @@ type State struct {
 	Appearance settings.PresentationState
 	Settings   theme.Settings
 	// Colors carries theme changes; nil shows Settings as they are.
-	Colors       *theme.Transition
-	Pages        []Page
-	ActivePage   string
-	Status       string
-	Statistics   string
-	PageQuery    string
-	Toolbar      ToolbarState
-	CanUndo      bool
-	CanRedo      bool
-	TabsScroll   ui.ScrollState
-	WindowActive bool
+	Colors            *theme.Transition
+	Pages             []Page
+	ActivePage        string
+	Status            string
+	Statistics        string
+	PageQuery         string
+	FindPageRequested bool
+	Toolbar           ToolbarState
+	CanUndo           bool
+	CanRedo           bool
+	TabsScroll        ui.ScrollState
+	WindowActive      bool
 
 	Content      func(c *ui.Context)
 	SelectPage   func(id string)
