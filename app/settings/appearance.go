@@ -12,19 +12,20 @@ func (a ThemeChoice) Valid() bool {
 	return a == Ink || a == Paper
 }
 
-// Accent is one calibrated semantic accent family.
+// Accent is one of the design system's six hued families.
 type Accent uint8
 
 const (
-	Clay Accent = iota + 1
-	Iris
-	Sage
-	Sand
-	Slate
+	Halo Accent = iota + 1
+	Afterglow
+	Remnant
+	Unripe
+	Life
+	Regolith
 )
 
 func (a Accent) Valid() bool {
-	return a >= Clay && a <= Slate
+	return a >= Halo && a <= Regolith
 }
 
 const (
@@ -58,7 +59,7 @@ func (s AppearanceSettings) AccentNumber() uint8 {
 func DefaultAppearance() AppearanceSettings {
 	return AppearanceSettings{
 		Appearance:    Ink,
-		Accent:        Clay,
+		Accent:        Afterglow,
 		UIFontSize:    DefaultUIFontSize,
 		ProseFontSize: DefaultProseSize,
 	}
@@ -69,7 +70,7 @@ func (s AppearanceSettings) Normalized() AppearanceSettings {
 		s.Appearance = Ink
 	}
 	if !s.Accent.Valid() {
-		s.Accent = Clay
+		s.Accent = Afterglow
 	}
 	s.UIFontSize = clampFloat(s.UIFontSize, MinUIFontSize, MaxUIFontSize)
 	s.ProseFontSize = clampFloat(s.ProseFontSize, MinProseFontSize, MaxProseFontSize)

@@ -12,37 +12,44 @@ const (
 	Paper
 )
 
+// Accent is one of Cosmofi's six hued families. Static and Moonveil, the
+// first and last of its palette, are the neutrals text is made of.
 type Accent uint8
 
 const (
-	Clay Accent = iota
-	Iris
-	Sage
-	Sand
-	Slate
+	Halo Accent = iota
+	Afterglow
+	Remnant
+	Unripe
+	Life
+	Regolith
 )
 
-var AllAccents = [...]Accent{Clay, Iris, Sage, Sand, Slate}
+var AllAccents = [...]Accent{Halo, Afterglow, Remnant, Unripe, Life, Regolith}
 
 func (a Accent) Label() string {
 	switch a {
-	case Iris:
-		return "Iris"
-	case Sage:
-		return "Sage"
-	case Sand:
-		return "Sand"
-	case Slate:
-		return "Slate"
+	case Halo:
+		return "Halo"
+	case Remnant:
+		return "Remnant"
+	case Unripe:
+		return "Unripe"
+	case Life:
+		return "Life"
+	case Regolith:
+		return "Regolith"
 	default:
-		return "Clay"
+		return "Afterglow"
 	}
 }
 
+// Family is one hue in Cosmofi's four roles.
 type Family struct {
 	Surface    ui.Color
 	Muted      ui.Color
 	Foreground ui.Color
+	Emphasis   ui.Color
 }
 
 type Surfaces struct {
@@ -144,7 +151,7 @@ const (
 func DefaultSettings() Settings {
 	return Settings{
 		Appearance:    Ink,
-		Accent:        Clay,
+		Accent:        Afterglow,
 		UIFontSize:    DefaultUIFontSize,
 		ProseFontSize: 19,
 	}
@@ -157,10 +164,7 @@ func (s Settings) Normalized() Settings {
 }
 
 func (s Settings) Semantic() Theme {
-	palette := paperPalette()
-	if s.Appearance == Ink {
-		palette = inkPalette()
-	}
+	palette := paletteFor(s.Appearance)
 	accent := familyFor(palette, s.Accent)
 	return Theme{
 		Appearance:   s.Appearance,
@@ -205,21 +209,22 @@ func (s Settings) Semantic() Theme {
 			OnAccent:   onAccent(s.Appearance),
 		},
 		Status: StatusColors{
-			Info:    statusColor(palette.slate),
-			Warning: statusColor(palette.sand),
-			Success: statusColor(palette.sage),
-			Danger:  statusColor(palette.danger),
+			Info:    statusColor(palette.accents[Halo]),
+			Warning: statusColor(palette.accents[Regolith]),
+			Success: statusColor(palette.accents[Life]),
+			Danger:  statusColor(palette.accents[Afterglow]),
 		},
 		Scrollbar: ScrollbarColors{
 			Thumb:      palette.guide,
 			ThumbHover: palette.track,
 		},
 		Prose: ProseColors{
-			Text:      palette.text,
-			Heading:   palette.heading,
-			Notation:  palette.secondary,
-			Rule:      palette.hairline,
-			Selection: accent.Surface,
+			Text:     palette.text,
+			Heading:  palette.heading,
+			Notation: palette.secondary,
+			Rule:     palette.hairline,
+			// Selection is graphite, not tinted: the accent is the caret's.
+			Selection: palette.hairline,
 		},
 	}
 }
@@ -259,11 +264,14 @@ func (s Settings) MyGoTheme() *ui.Theme {
 }
 
 func AccentSwatch(appearance Appearance, accent Accent) ui.Color {
-	palette := paperPalette()
-	if appearance == Ink {
-		palette = inkPalette()
+	return familyFor(paletteFor(appearance), accent).Foreground
+}
+
+func paletteFor(appearance Appearance) palette {
+	if appearance == Paper {
+		return daybreak()
 	}
-	return familyFor(palette, accent).Foreground
+	return starfield()
 }
 
 func statusColor(family Family) StatusColor {
@@ -275,25 +283,14 @@ func statusColor(family Family) StatusColor {
 }
 
 func familyFor(palette palette, accent Accent) Family {
-	switch accent {
-	case Iris:
-		return palette.iris
-	case Sage:
-		return palette.sage
-	case Sand:
-		return palette.sand
-	case Slate:
-		return palette.slate
-	default:
-		return palette.clay
+	if int(accent) >= len(palette.accents) {
+		accent = Afterglow
 	}
+	return palette.accents[accent]
 }
 
 func onAccent(appearance Appearance) ui.Color {
-	if appearance == Paper {
-		return ui.RGB(0xff, 0xff, 0xff)
-	}
-	return ui.RGB(0x21, 0x1a, 0x16)
+	return paletteFor(appearance).background
 }
 
 func clamp(value, low, high float32) float32 {

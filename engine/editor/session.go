@@ -797,8 +797,8 @@ func (s *Session) inlineDecorations(node *model.Node) []surface.Decoration {
 				Producer: surface.ProducerID(EditorPolicyMarkup),
 				Local:    uint64(mark.ID()),
 			},
-			Primitive:  surface.FillPrimitive(ranges, surface.ColorAccent, 4),
-			Opacity:    surface.FixedOpacity(20),
+			Primitive:  surface.FillPrimitive(ranges, surface.ColorMuted, 4),
+			Opacity:    surface.FixedOpacity(24),
 			Visibility: surface.VisibilityFocused,
 		}}
 	}
@@ -820,8 +820,8 @@ func (s *Session) pairDecorations(node *model.Node) []surface.Decoration {
 			Producer: surface.ProducerID(PairsPolicyID),
 			Local:    uint64(pair.Open),
 		},
-		Primitive:  surface.FillPrimitive(ranges, surface.ColorAccent, 4),
-		Opacity:    surface.FixedOpacity(20),
+		Primitive:  surface.FillPrimitive(ranges, surface.ColorMuted, 4),
+		Opacity:    surface.FixedOpacity(24),
 		Visibility: surface.VisibilityFocused,
 	}}
 }
@@ -849,11 +849,11 @@ func (s *Session) feedbackDecorations(now time.Time) []surface.Decoration {
 			Producer: surface.ProducerID("feedback"),
 			Local:    s.runtime.Revision(),
 		},
-		Primitive: surface.FillPrimitive(ranges, surface.ColorAccent, 4),
+		Primitive: surface.FillPrimitive(ranges, surface.ColorMuted, 4),
 		Opacity: surface.TimedOpacity(
 			started,
 			FeedbackPulseDuration,
-			100,
+			88,
 			surface.EnvelopePulse,
 		),
 		Visibility: surface.VisibilityAlways,

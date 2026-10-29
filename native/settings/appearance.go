@@ -40,7 +40,7 @@ func (s *State) appearancePage(
 			},
 		}.View(c, semantic)
 		components.SettingRow{
-			Label: "Accent", Description: "Focus, selection, caret and active controls.",
+			Label: "Accent", Description: "Focus, caret and active controls.",
 			Control: func() {
 				ui.Row(c).Wrap().Justify(ui.End).Gap(theme.Space06.DIPs(scale)).
 					Children(func() {
