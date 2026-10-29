@@ -63,6 +63,52 @@ func TestSessionHistoryRestoresSemanticAndVisualState(t *testing.T) {
 	}
 }
 
+func TestSessionHistoryRestoresMarkerOnlyVisualSelection(t *testing.T) {
+	t.Parallel()
+	session, _ := newSessionFixture(t, "", false)
+	typeSession(t, session, "*")
+	typeSession(t, session, "abc")
+	if err := session.SelectProjected(0, 1); err != nil {
+		t.Fatal(err)
+	}
+	if outcome, err := session.ExecuteMarkup(MarkupStrong); err != nil ||
+		outcome != kernel.OutcomeHandled {
+		t.Fatalf("strong outcome=%v err=%v", outcome, err)
+	}
+	if session.Projection().Text() != "**abc**" {
+		t.Fatalf("strong projection = %q", session.Projection().Text())
+	}
+
+	// Selection changes do not create history entries. Capture the marker-only
+	// selection in the redo frame as well as the undo frame.
+	if err := session.SelectProjected(0, 1); err != nil {
+		t.Fatal(err)
+	}
+	if outcome, err := session.ExecuteHistory(HistoryUndo); err != nil ||
+		outcome != kernel.OutcomeHandled {
+		t.Fatalf("undo outcome=%v err=%v", outcome, err)
+	}
+	if session.Projection().Text() != "*abc*" {
+		t.Fatalf("undo projection = %q", session.Projection().Text())
+	}
+	if visual, err := session.VisualSelection(); err != nil ||
+		visual != model.NewUTF16Range(0, 1) {
+		t.Fatalf("undo visual selection=%#v err=%v", visual, err)
+	}
+
+	if outcome, err := session.ExecuteHistory(HistoryRedo); err != nil ||
+		outcome != kernel.OutcomeHandled {
+		t.Fatalf("redo outcome=%v err=%v", outcome, err)
+	}
+	if session.Projection().Text() != "**abc**" {
+		t.Fatalf("redo projection = %q", session.Projection().Text())
+	}
+	if visual, err := session.VisualSelection(); err != nil ||
+		visual != model.NewUTF16Range(0, 1) {
+		t.Fatalf("redo visual selection=%#v err=%v", visual, err)
+	}
+}
+
 func TestSessionCommandsRejectActiveComposition(t *testing.T) {
 	t.Parallel()
 	session, _ := newSessionFixture(t, "abc", false)

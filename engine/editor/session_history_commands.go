@@ -61,6 +61,14 @@ func (s *Session) restoreHistoryFrame(frame Frame) error {
 			if err != nil {
 				return struct{}{}, err
 			}
+			var viewAnchor *projection.Target
+			if anchor, head, resolveErr := projected.ResolveSelection(
+				frame.visual,
+				view.Revision(),
+			); resolveErr == nil {
+				caret = head
+				viewAnchor = &anchor
+			}
 			flow, err := projectionFlowFromView(view, s.runtime.Configuration(), projected, selection)
 			if err != nil {
 				return struct{}{}, err
@@ -69,6 +77,7 @@ func (s *Session) restoreHistoryFrame(frame Frame) error {
 				Projection: projected,
 				Selection:  selection,
 				Caret:      caret,
+				ViewAnchor: viewAnchor,
 				Flow:       flow,
 			}
 			return struct{}{}, nil
