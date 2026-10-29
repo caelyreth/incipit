@@ -207,31 +207,17 @@ func AllowsRepeat(action Action) bool {
 }
 
 // MenuAction maps an edit or format menu role delivered by MyGo as
-// InputCommand. Paste-and-match-style deliberately degrades to plain Paste,
-// matching Neverland's plain-text clipboard scope.
+// InputCommand to the action MenuCommands pairs it with. Paste-and-match-style
+// degrades to plain Paste, matching Neverland's plain-text clipboard scope.
 func MenuAction(name string) (Action, bool) {
-	switch name {
-	case "copy":
-		return clipboardAction(ClipboardCopy), true
-	case "cut":
-		return clipboardAction(ClipboardCut), true
-	case "paste", "pasteAndMatchStyle":
-		return clipboardAction(ClipboardPaste), true
-	case "undo":
-		return ResolveEditorCommand(editor.HistoryUndo.ID())
-	case "redo":
-		return ResolveEditorCommand(editor.HistoryRedo.ID())
-	case "selectAll":
-		return ResolveEditorCommand(editor.TextSelectAll.ID())
-	case "delete":
+	if name == "delete" {
 		// MyGo's edit-menu Delete role is backward deletion, including a
 		// selected range, rather than the physical forward-delete key.
 		return ResolveEditorCommand(editor.TextBackspace.ID())
-	case "bold":
-		return ResolveEditorCommand(editor.MarkupStrong.ID())
-	case "italic":
-		return ResolveEditorCommand(editor.MarkupEmphasis.ID())
-	default:
+	}
+	command, ok := MenuCommandFor(name)
+	if !ok {
 		return Action{}, false
 	}
+	return ResolveEditorCommand(command)
 }

@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"testing"
@@ -898,5 +899,230 @@ func TestReshapingCapsStayInsideTheKey(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// The keycaps pressed to start recording take the focus as they are clicked;
+// the capture keeps it from them, so Tab is recorded rather than moving the
+// focus along.
+func TestRecordingTakesTabAndShiftTab(t *testing.T) {
+	for _, mods := range []ui.Modifiers{0, ui.Shift} {
+		state, changes := keymapState()
+		tester := ui.NewTester(state.View, 980, 740)
+		tester.Frame()
+		// Started from the keyboard, the keycaps hold the focus as the
+		// recorder opens, as a click leaves it with them natively.
+		keys, ok := tester.Find("Change shortcut for Bold")
+		if !ok {
+			t.Fatal("no keycaps")
+		}
+		tester.ClickAt(keys.X+keys.W/2, keys.Y+keys.H/2)
+		tester.Frame()
+		tester.Advance(time.Second)
+		tester.Key(0, ui.KeyEscape)
+		tester.Frame()
+		tester.Key(0, ui.KeySpace)
+		tester.Frame()
+		tester.Advance(time.Second)
+		tester.Key(mods, ui.KeyTab)
+		want := kernel.NewBindingTarget(kernel.EditorBindingContext, "tab",
+			keymap.NormalizeModifiers(mods, keymap.PlatformCurrent))
+		if len(*changes) != 1 || (*changes)[0].Binding != want {
+			t.Fatalf("mods %v: recorded %#v", mods, *changes)
+		}
+	}
+}
+
+// A chord the app menu takes arrives as the menu's command: the capture
+// reads it back as the chord, so it can still be recorded, and here, found
+// taken.
+func TestRecordingReadsMenuCommandsAsTheirKeys(t *testing.T) {
+	state, changes := keymapState()
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if err := tester.Click("Change shortcut for Italic"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Advance(time.Second)
+	tester.Command("bold")
+	tester.Frame()
+	tester.Advance(time.Second)
+	warning := keymap.Chord(chord("b"), keymap.PlatformCurrent) + " is assigned to “Bold”."
+	if len(*changes) != 0 || !tester.HasText(warning) {
+		t.Fatalf("menu command not read as its key: %#v %#v", *changes, tester.Texts())
+	}
+}
+
+// A key the system's menu keeps can never reach an action: recording one
+// says so and offers another try instead of assigning it.
+func TestRecordingRefusesKeysTheMenuKeeps(t *testing.T) {
+	state, changes := keymapState()
+	quit := kernel.NewBindingTarget(kernel.EditorBindingContext, "q", kernel.ModifiersPrimary)
+	state.Reserved = func(target kernel.BindingTarget) (string, bool) {
+		return "Quit Neverland", target == quit
+	}
+	recording := make([]bool, 0)
+	state.Recording = func(on bool) { recording = append(recording, on) }
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if err := tester.Click("Change shortcut for Bold"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Advance(time.Second)
+	tester.Key(primary(), ui.KeyQ)
+	tester.Frame()
+	tester.Advance(time.Second)
+	if len(*changes) != 0 || !textContaining(tester, "is kept by “Quit Neverland” in the app menu.") {
+		t.Fatalf("reserved key: %#v %#v", *changes, tester.Texts())
+	}
+	// The line stays live: another chord is simply tried instead.
+	tester.Key(primary(), ui.KeyK)
+	if len(*changes) != 1 || (*changes)[0].Binding != chord("k") {
+		t.Fatalf("second try = %#v", *changes)
+	}
+	tester.Frame()
+	// The host heard each recording begin and end, to stand its menu down.
+	if len(recording) < 2 || recording[0] != true || recording[len(recording)-1] != false {
+		t.Fatalf("recording reports %v", recording)
+	}
+	for index := 1; index < len(recording); index++ {
+		if recording[index] == recording[index-1] {
+			t.Fatalf("recording reports repeat: %v", recording)
+		}
+	}
+}
+
+// When a capture ends the key it started from takes the keyboard back
+// quietly: its outline eases away rather than staying on as a focus ring.
+func TestKeyOutlineEasesAwayAfterCapture(t *testing.T) {
+	state, _ := keymapState()
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if err := tester.Click("Change shortcut for Bold"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Advance(time.Second)
+	keys, ok := tester.Find("Change shortcut for Bold")
+	if !ok {
+		t.Fatal("no keycaps")
+	}
+	// How far the keys' left edge stands out from just inside it: the ring.
+	ring := func() float64 {
+		image := tester.Image()
+		y := int(keys.Y + keys.H/2)
+		edge := image.At(int(keys.X), y)
+		inside := image.At(int(keys.X)+3, y)
+		er, eg, eb, _ := edge.RGBA()
+		ir, ig, ib, _ := inside.RGBA()
+		d := func(a, b uint32) float64 { return math.Abs(float64(a) - float64(b)) }
+		return (d(er, ir) + d(eg, ig) + d(eb, ib)) / 3 / 0xffff
+	}
+	recording := ring()
+	tester.Key(primary(), ui.KeyK)
+	tester.Frame()
+	tester.Advance(components.MotionQuick / 4)
+	during := ring()
+	tester.Advance(time.Second)
+	after := ring()
+	if !(recording > 0.05 && during < recording && during > after) || after > 0.01 {
+		t.Fatalf("ring %.3f while recording, %.3f, then %.3f: want an eased fade to none",
+			recording, during, after)
+	}
+	if !tester.Focused("Change shortcut for Bold") {
+		t.Fatal("the keyboard did not come back to the keys")
+	}
+}
+
+// A capture started from the keyboard gives the focus back without a ring;
+// the ring returns when the keyboard brings the focus there again.
+func TestReturnedFocusIsQuietUntilTheKeyboardMovesIt(t *testing.T) {
+	state, _ := keymapState()
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	for range 60 {
+		if tester.Focused("Change shortcut for Bold") {
+			break
+		}
+		tester.Key(0, ui.KeyTab)
+		tester.Frame()
+	}
+	if !tester.Focused("Change shortcut for Bold") {
+		t.Fatal("Tab never reached the keys")
+	}
+	keys, _ := tester.Find("Change shortcut for Bold")
+	ring := func() float64 {
+		image := tester.Image()
+		y := int(keys.Y + keys.H/2)
+		er, eg, eb, _ := image.At(int(keys.X), y).RGBA()
+		ir, ig, ib, _ := image.At(int(keys.X)+3, y).RGBA()
+		d := func(a, b uint32) float64 { return math.Abs(float64(a) - float64(b)) }
+		return (d(er, ir) + d(eg, ig) + d(eb, ib)) / 3 / 0xffff
+	}
+	tester.Advance(time.Second)
+	if ring() < 0.05 {
+		t.Fatal("keys reached by Tab show no ring")
+	}
+	tester.Key(0, ui.KeySpace)
+	tester.Frame()
+	tester.Advance(time.Second)
+	tester.Key(primary(), ui.KeyK)
+	tester.Frame()
+	tester.Advance(time.Second)
+	if !tester.Focused("Change shortcut for Bold") || ring() > 0.01 {
+		t.Fatalf("returned focus rings %.3f", ring())
+	}
+	tester.Key(0, ui.KeyTab)
+	tester.Frame()
+	tester.Key(ui.Shift, ui.KeyTab)
+	tester.Frame()
+	tester.Advance(time.Second)
+	if !tester.Focused("Change shortcut for Bold") || ring() < 0.05 {
+		t.Fatalf("focus the keyboard brought back rings %.3f", ring())
+	}
+}
+
+// A taken key is answered in the recording's own line: it turns to a
+// warning in place, moving nothing around it, and stays live, so another
+// chord tries again and Return takes the key anyway.
+func TestConflictAnswersInTheCaptureLine(t *testing.T) {
+	state, changes := keymapState()
+	tester := ui.NewTester(state.View, 980, 740)
+	tester.Frame()
+	if err := tester.Click("Change shortcut for Bold"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Advance(time.Second)
+	recording, _ := tester.Find("Press keys…")
+	below, _ := tester.Find("Italic")
+
+	tester.Key(primary(), ui.KeyZ)
+	tester.Frame()
+	for _, step := range []time.Duration{0, components.MotionNormal / 3, time.Second} {
+		tester.Advance(step)
+		warning := keymap.Chord(chord("z"), keymap.PlatformCurrent) + " is assigned to “Undo”."
+		line, ok := tester.Find(warning)
+		moved, _ := tester.Find("Italic")
+		if !ok || line != recording || moved.Y != below.Y {
+			t.Fatalf("after %v: line %v (was %v), row below at %v (was %v)",
+				step, line, recording, moved.Y, below.Y)
+		}
+	}
+	if len(*changes) != 0 {
+		t.Fatalf("taken key applied: %#v", *changes)
+	}
+
+	// Another taken chord answers in place again; Return takes it.
+	tester.Key(primary(), ui.KeyI)
+	tester.Frame()
+	if !tester.HasText(keymap.Chord(chord("i"), keymap.PlatformCurrent) + " is assigned to “Italic”.") {
+		t.Fatalf("second chord: %#v", tester.Texts())
+	}
+	tester.Key(0, ui.KeyEnter)
+	if len(*changes) != 1 || (*changes)[0].Displaced != "markup.emphasis" || (*changes)[0].Binding != chord("i") {
+		t.Fatalf("Return took %#v", *changes)
 	}
 }

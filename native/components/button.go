@@ -15,6 +15,9 @@ const (
 	DestructiveButton
 	SubtleButton
 	OutlinedButton
+	// WarningButton is a subtle button in the warning hue: its words carry
+	// the color, over no fill, and the hue's surface answers the pointer.
+	WarningButton
 )
 
 type ButtonSize uint8
@@ -202,6 +205,8 @@ func buttonColors(
 		return rest, semantic.Surface.Page, ui.Transparent
 	case OutlinedButton:
 		return semantic.GhostElement.Background, semantic.GhostElement.Hover, semantic.Border.Variant
+	case WarningButton:
+		return semantic.GhostElement.Background, semantic.Status.Warning.Background, ui.Transparent
 	default:
 		return semantic.Element.Background, semantic.Element.Hover, semantic.Border.Default
 	}
@@ -210,6 +215,9 @@ func buttonColors(
 func buttonTextColor(semantic theme.Theme, style ButtonStyle) ui.Color {
 	if style == PrimaryButton || style == DestructiveButton {
 		return semantic.Accent.OnAccent
+	}
+	if style == WarningButton {
+		return semantic.Status.Warning.Foreground
 	}
 	return semantic.Text.Default
 }

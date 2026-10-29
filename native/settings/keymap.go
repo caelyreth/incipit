@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -91,13 +90,14 @@ func (s *State) keymapToolbar(c *ui.Context, semantic theme.Theme) {
 		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
 			switch {
 			case s.keySearch:
-				s.keyCapture(c, semantic, "keymap-search-capture", "Press a shortcut to find it", true,
-					func(target kernel.BindingTarget) {
+				s.captureLine(c, semantic, captureLine{
+					Key: "keymap-search-capture", Prompt: "Press a shortcut to find it",
+					Live: true, Compact: true,
+					Chosen: func(target kernel.BindingTarget) {
 						s.keyFilter, s.keySearch = &target, false
 					},
-					func() { s.keySearch = false },
-					nil,
-				)
+					Cancel: func() { s.keySearch = false },
+				})
 			case s.keyFilter != nil:
 				s.keyFilterChip(c, semantic)
 			default:
@@ -159,76 +159,6 @@ func (s *State) keyFilterChip(c *ui.Context, semantic theme.Theme) {
 			Animate: s.motion(c),
 			Action:  func() { s.keyFilter = nil },
 		}.View(c, semantic)
-	})
-}
-
-// keyCapture takes the next shortcut pressed. It focuses itself when it
-// appears; Escape, or focus moving elsewhere, cancels; a bare Backspace or
-// Delete clears, when clearing applies. A capture that is not live is the
-// picture of one, as a closing recorder shows it: it takes no focus or keys.
-func (s *State) keyCapture(
-	c *ui.Context,
-	semantic theme.Theme,
-	key string,
-	prompt string,
-	live bool,
-	chosen func(kernel.BindingTarget),
-	cancel func(),
-	clear func(),
-) {
-	scale := s.Theme.UIFontSize
-	metrics := theme.DefaultControls.Scaled(scale)
-	capture := ui.Row(c).Key(key).Role(ui.RoleTextField).Label(prompt).
-		Height(metrics.Height).MinWidth(0).AlignItems(ui.Center).
-		Gap(theme.Space06.DIPs(scale)).PaddingX(theme.Space08.DIPs(scale)).
-		Radius(metrics.Radius).Border(1, semantic.Border.Focused).
-		Background(semantic.Surface.Inset)
-	if live {
-		liveCapture(capture, chosen, cancel, clear)
-	}
-	capture.Children(func() {
-		ui.Icon(c, components.IconKeyboard.SVG()).
-			FontSize(16 * scale / theme.DefaultUIFontSize).TextColor(semantic.Icon.Accent)
-		components.Label(c, prompt, theme.TextSmall, semantic.Text.Default).
-			Grow(1).MinWidth(0).SingleLine()
-		hint := "Esc to cancel"
-		if clear != nil {
-			hint = "Esc cancels · ⌫ clears"
-		}
-		components.Label(c, hint, theme.TextXSmall, semantic.Text.Muted).SingleLine()
-	})
-}
-
-func liveCapture(
-	capture ui.Element,
-	chosen func(kernel.BindingTarget),
-	cancel func(),
-	clear func(),
-) {
-	capture.Focusable().FocusRing(false).AutoFocus()
-	held := ui.Local(capture, "held", func() bool { return false })
-	if *held && !capture.Focused() {
-		cancel()
-	}
-	*held = capture.Focused()
-	capture.HandleInput(func(event ui.InputEvent) bool {
-		if event.Kind != ui.InputKeyDown {
-			return false
-		}
-		if event.Mods == 0 && event.Key == ui.KeyEscape {
-			cancel()
-			return true
-		}
-		if event.Mods == 0 && clear != nil &&
-			(event.Key == ui.KeyBackspace || event.Key == ui.KeyDelete) {
-			clear()
-			return true
-		}
-		if targets := keymap.BindingTargets(event, keymap.PlatformCurrent); len(targets) > 0 {
-			chosen(targets[0])
-		}
-		// A bare modifier waits for the key it modifies.
-		return true
 	})
 }
 
@@ -354,17 +284,16 @@ func (s *State) shortcutKeys(c *ui.Context, semantic theme.Theme, shortcut appse
 	scale := s.Theme.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	recording := s.keyEditing == shortcut.Command && s.keyHost == host
-	edge := ui.Transparent
-	if recording {
-		edge = semantic.Border.Focused
-	}
-	button := ui.ButtonBase(c.Key("keys-"+string(shortcut.Command))).
+	button := ui.ButtonBase(c.Key("keys-" + string(shortcut.Command))).
 		Label(shortcutLabel(shortcut, shortcut.Command)).
-		Disabled(!shortcut.Enabled).
-		Height(metrics.InlineHeight+theme.Space04.DIPs(scale)).
+		Disabled(!shortcut.Enabled).FocusRing(false).
+		Height(metrics.InlineHeight + theme.Space04.DIPs(scale)).
 		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
-		PaddingX(theme.Space04.DIPs(scale)).Radius(metrics.Radius).
-		Border(1, edge)
+		PaddingX(theme.Space04.DIPs(scale)).Radius(metrics.Radius)
+	// The keys draw their own ring, the one a key in a sentence draws, so
+	// it eases away when recording ends rather than lingering as focus.
+	ring := s.keyRing(button, triggerKey(host, shortcut.Command), recording, s.motion(c))
+	button.Border(1, semantic.Border.Focused.Alpha(ring))
 	hover := components.HoverAmount(button, button.Hovered() && shortcut.Enabled, s.motion(c))
 	button.Background(semantic.GhostElement.Hover.Alpha(hover))
 	animate := s.motion(c)
@@ -394,6 +323,7 @@ func (s *State) shortcutKeys(c *ui.Context, semantic theme.Theme, shortcut appse
 	if button.Clicked() && shortcut.Enabled {
 		s.startRecording(shortcut.Command, host)
 	}
+	s.returnFocus(button, triggerKey(host, shortcut.Command))
 }
 
 // keycaps draws one binding as a run of keys.
@@ -431,8 +361,9 @@ func (s *State) keycaps(c *ui.Context, semantic theme.Theme, target kernel.Bindi
 
 var (
 	keySpring = components.Spring(components.MotionNormal)
-	// keyTransition moves a run of keys to its new width and colors.
-	keyTransition = ui.ElementTransition{Animation: &keySpring, Size: true, Colors: true}
+	// keyTransition moves a run of keys to its new width; their ring eases
+	// on its own spring (keyRing).
+	keyTransition = ui.ElementTransition{Animation: &keySpring, Size: true}
 	// keySwap replaces one key with another: the old one lifts out as the
 	// new one rises into its place.
 	keySwap = ui.ElementTransition{
@@ -461,57 +392,26 @@ func (s *State) tag(c *ui.Context, semantic theme.Theme, text string) {
 	})
 }
 
-// recordShortcut assigns target to command, or holds it for a decision, at
-// host, when another action already uses it.
-func (s *State) recordShortcut(command kernel.CommandID, target kernel.BindingTarget, host string) {
-	s.stopRecording()
-	if owner, taken := s.Data.Owner(target); taken {
-		if owner.Command != command {
-			s.keyConflict = &keyConflict{Command: command, Target: target, Owner: owner, Host: host}
+// recordShortcut assigns target to command, unless another action holds it
+// or the system keeps it: then the recording stays open and its line says
+// so, for the person to replace, try another chord or give up.
+func (s *State) recordShortcut(command kernel.CommandID, target kernel.BindingTarget) {
+	if s.Reserved != nil {
+		if label, reserved := s.Reserved(target); reserved {
+			s.keyConflict = &keyConflict{
+				Command: command, Target: target, Reserved: true,
+				Owner: appsettings.Shortcut{Label: label},
+			}
+			return
 		}
+	}
+	owner, taken := s.Data.Owner(target)
+	if taken && owner.Command != command {
+		s.keyConflict = &keyConflict{Command: command, Target: target, Owner: owner}
 		return
 	}
-	s.keyConflict = nil
-	s.apply(appsettings.Remap(command, target))
-}
-
-// conflictRow asks before taking a shortcut another action holds.
-func (s *State) conflictRow(c *ui.Context, semantic theme.Theme, conflict keyConflict, start float32) {
-	scale := s.Theme.UIFontSize
-	animate := s.motion(c)
-	inset := theme.Space16.DIPs(scale)
-	ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).Wrap().
-		Gap(theme.Space08.DIPs(scale)).
-		Padding(0, inset, theme.Space12.DIPs(scale), start).Children(func() {
-		ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center).
-			Gap(theme.Space06.DIPs(scale)).Children(func() {
-			ui.Icon(c, components.IconWarning.SVG()).
-				FontSize(14 * scale / theme.DefaultUIFontSize).TextColor(semantic.Status.Warning.Foreground)
-			components.Label(c, fmt.Sprintf("%s is assigned to “%s”.",
-				keymap.Chord(conflict.Target, keymap.PlatformCurrent), conflict.Owner.Label),
-				theme.TextSmall, semantic.Text.Default).MinWidth(0)
-		})
-		components.Button{
-			Key: "conflict-cancel", Label: "Cancel", Style: components.SubtleButton,
-			Size: components.CompactButton, Animate: animate,
-			Action: func() {
-				if s.keyConflict != nil {
-					s.keyConflict = nil
-				}
-			},
-		}.View(c, semantic)
-		components.Button{
-			Key: "conflict-replace", Label: "Replace", Style: components.PrimaryButton,
-			Size: components.CompactButton, Animate: animate,
-			Action: func() {
-				// A closing prompt still shows its buttons, but its
-				// decision has been made.
-				if s.keyConflict == nil {
-					return
-				}
-				s.keyConflict = nil
-				s.apply(appsettings.RemapReplacing(conflict.Command, conflict.Target, conflict.Owner.Command))
-			},
-		}.View(c, semantic)
-	})
+	s.stopRecording()
+	if !taken {
+		s.apply(appsettings.Remap(command, target))
+	}
 }

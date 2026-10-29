@@ -5,6 +5,11 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/app/controller"
+	"github.com/caelyreth/neverland/app/keymap"
+	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/egoist/mygo"
 )
 
 func TestMainMenuExposesAppEditorAndWorkspaceCommands(t *testing.T) {
@@ -102,4 +107,89 @@ func TestShellStatisticsUseReferenceStatusWording(t *testing.T) {
 	if app.Shell.Statistics != "3 words  ·  2 paragraphs  ·  14 characters" {
 		t.Fatalf("statistics = %q", app.Shell.Statistics)
 	}
+}
+
+// The menu's keys are the keymap's: a remap moves the item's key, clearing
+// it leaves the item without one, and a feature turned off disables its
+// items.
+func TestMenuKeysFollowTheKeymap(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	menu := app.MainMenu()
+	app.refreshSettingsData()
+	bold := menu.ItemByID("bold")
+	if want, _ := keymap.Accelerator(chordFor(t, app, editor.MarkupStrong.ID()), keymap.PlatformCurrent); bold.Accelerator != want || want == "" {
+		t.Fatalf("bold key %q, want %q", bold.Accelerator, want)
+	}
+	moved := kernel.NewBindingTarget(kernel.EditorBindingContext, "k", kernel.ModifiersPrimary|kernel.ModifiersShift)
+	app.Settings.Apply(appsettings.Remap(editor.MarkupStrong.ID(), moved))
+	if want, _ := keymap.Accelerator(moved, keymap.PlatformCurrent); bold.Accelerator != want {
+		t.Fatalf("remapped bold key %q, want %q", bold.Accelerator, want)
+	}
+	app.Settings.Apply(appsettings.Unbind(editor.MarkupStrong.ID()))
+	if bold.Accelerator != "" {
+		t.Fatalf("unbound bold kept %q", bold.Accelerator)
+	}
+	app.Settings.Apply(appsettings.ToggleBoolean(appsettings.PolicyBoolean(editor.MarkupPolicyID), false))
+	if bold.IsEnabled() || menu.ItemByID("italic").IsEnabled() {
+		t.Fatal("format items stayed enabled with emphasis off")
+	}
+}
+
+// While a shortcut is recorded every menu item lets go of its key, so the
+// recorder hears each chord; the system's keys cannot be given to actions.
+func TestMenuStandsDownWhileRecording(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	menu := app.MainMenu()
+	app.refreshSettingsData()
+	before := map[*mygo.MenuItem]string{}
+	eachMenuItem(menu, func(item *mygo.MenuItem) {
+		if item.Accelerator != "" {
+			before[item] = item.Accelerator
+		}
+	})
+	var quit *mygo.MenuItem
+	for item := range before {
+		if item.Role == mygo.RoleQuit {
+			quit = item
+		}
+	}
+	if len(before) < 5 || quit == nil {
+		t.Fatalf("keyed items %d, quit %v", len(before), quit)
+	}
+
+	app.Settings.Recording(true)
+	eachMenuItem(menu, func(item *mygo.MenuItem) {
+		if item.Accelerator != "" {
+			t.Fatalf("%q kept %q while recording", item.Label, item.Accelerator)
+		}
+	})
+	quitKey, _ := keymap.ParseAccelerator(before[quit], keymap.PlatformCurrent)
+	if label, reserved := app.Settings.Reserved(quitKey); !reserved || label != quit.Label {
+		t.Fatalf("quit key reserved = %v %q", reserved, label)
+	}
+	if _, reserved := app.Settings.Reserved(chordFor(t, app, editor.MarkupStrong.ID())); reserved {
+		t.Fatal("an action's own key reported as reserved")
+	}
+
+	app.Settings.Recording(false)
+	for item, accelerator := range before {
+		if item.Accelerator != accelerator {
+			t.Fatalf("%q came back as %q, want %q", item.Label, item.Accelerator, accelerator)
+		}
+	}
+}
+
+func chordFor(t *testing.T, app *AppState, command kernel.CommandID) kernel.BindingTarget {
+	t.Helper()
+	bindings := app.Store.PreparedConfiguration().BindingsFor(command)
+	if len(bindings) == 0 {
+		t.Fatalf("%s has no key", command)
+	}
+	return bindings[0]
 }

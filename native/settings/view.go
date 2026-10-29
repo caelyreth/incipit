@@ -21,6 +21,9 @@ const (
 )
 
 func (s *State) View(c *ui.Context) {
+	// A recording begun or ended while building, as a capture that lost
+	// the keyboard, is told before the frame ends.
+	defer s.reportRecording()
 	semantic, changing := s.Colors.At(s.Theme, c.Now())
 	c.SetTheme(s.Theme.MyGoThemeFor(semantic))
 	if changing {

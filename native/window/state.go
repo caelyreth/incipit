@@ -38,6 +38,11 @@ type AppState struct {
 	Error          string
 	mainWindow     *mygo.Window
 	settingsWindow *mygo.Window
+	// menu is the application menu; recording stands its keys down while
+	// the settings record a shortcut.
+	menu       *mygo.Menu
+	systemKeys map[*mygo.MenuItem]string
+	recording  bool
 	// colors carries every window through a theme or accent change at once.
 	colors theme.Transition
 }
@@ -503,6 +508,8 @@ func (a *AppState) refreshSettingsData() {
 	a.Settings.Data = a.Product.Data(a.Store, a.Session)
 	a.Settings.Theme = a.Shell.Settings
 	a.Settings.Animate = a.Product.Presentation.Motion
+	a.Settings.Recording = a.setRecording
+	a.Settings.Reserved = a.reservedKey
 	a.Settings.Apply = func(change appsettings.Change) {
 		outcome, err := a.Product.Apply(change, a.Store, a.Session)
 		if err != nil {
@@ -511,6 +518,7 @@ func (a *AppState) refreshSettingsData() {
 		}
 		if outcome.PolicyChanged {
 			a.Bridge = nil
+			a.syncMenu()
 		}
 		if change.Kind == appsettings.ChangeAppearance {
 			a.applyAppearance()

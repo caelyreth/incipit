@@ -15,8 +15,14 @@ type State struct {
 	Data     appsettings.Data
 	Theme    theme.Settings
 	// Colors carries theme changes; nil shows Theme as it is.
-	Colors       *theme.Transition
-	Apply        func(appsettings.Change)
+	Colors *theme.Transition
+	Apply  func(appsettings.Change)
+	// Recording hears when a shortcut recording starts and ends, so the
+	// host can stand its menu's keys down meanwhile. Reserved names what
+	// keeps a key for itself, as a menu item of the system's, which no
+	// action can be given.
+	Recording    func(bool)
+	Reserved     func(kernel.BindingTarget) (string, bool)
 	Animate      bool
 	WindowActive bool
 
@@ -43,16 +49,21 @@ type State struct {
 	keySearch   bool
 	keyEditing  kernel.CommandID
 	keyHost     string
+	keyReturn   string
+	keyQuiet    string
 	keyConflict *keyConflict
 	// recorders is what each open or closing recorder shows, by host.
 	recorders map[string]recorderView
+	// reported is the recording last told to Recording.
+	reported bool
 }
 
 type keyConflict struct {
 	Command kernel.CommandID
 	Target  kernel.BindingTarget
 	Owner   appsettings.Shortcut
-	Host    string
+	// Reserved marks a key the system keeps, which no action can take.
+	Reserved bool
 }
 
 type anchor struct {

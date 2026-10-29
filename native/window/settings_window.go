@@ -40,9 +40,13 @@ func (a *AppState) OpenSettingsWindow() {
 		a.Settings.SetWindowActive(true)
 	})
 	window.OnBlur(func() {
+		// A shortcut is recorded in this window: leaving it ends the
+		// recording, which gives the menu its keys back.
+		a.Settings.StopRecording()
 		a.Settings.SetWindowActive(false)
 	})
 	window.OnClosed(func() {
+		a.Settings.StopRecording()
 		a.settingsWindow = nil
 	})
 	a.settingsWindow = window

@@ -1,25 +1,29 @@
 package window
 
-import "github.com/egoist/mygo"
+import (
+	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/egoist/mygo"
+)
 
 // MainMenu builds the application menu around the editor's stable command
-// boundary. Edit and format roles remain MyGo's native commands; app actions
-// use the same state transitions as the in-window controls. Remappable command
-// accelerators stay in editor.surface so a native menu cannot bypass a remap.
+// boundary. Edit and format items keep MyGo's roles, so text fields anywhere
+// still cut, copy and paste; app items run the same host commands as their
+// shortcuts. Every item that performs a keymap action takes its key from the
+// keymap (syncMenu), so the menu shows, and a key press reaches, the action
+// the keymap gives that key.
 func (a *AppState) MainMenu() *mygo.Menu {
-	return mygo.NewMenu([]*mygo.MenuItem{
+	command := func(id kernel.CommandID) func(*mygo.MenuItem, *mygo.Window) {
+		return func(*mygo.MenuItem, *mygo.Window) { _ = a.executeExternalCommand(id) }
+	}
+	menu := mygo.NewMenu([]*mygo.MenuItem{
 		{
 			Role: mygo.RoleAppMenu,
 			Submenu: []*mygo.MenuItem{
 				{Role: mygo.RoleAbout},
 				mygo.Separator(),
-				{
-					ID:    "settings",
-					Label: "Settings...",
-					Click: func(*mygo.MenuItem, *mygo.Window) {
-						a.OpenSettingsWindow()
-					},
-				},
+				{ID: "settings", Label: "Settings...", Click: command(editor.SurfaceSettingsCommandID)},
 				mygo.Separator(),
 				{Role: mygo.RoleServices},
 				mygo.Separator(),
@@ -33,53 +37,152 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		{
 			Label: "File",
 			Submenu: []*mygo.MenuItem{
-				{
-					ID:    "new-page",
-					Label: "New Page",
-					Click: func(*mygo.MenuItem, *mygo.Window) {
-						a.newPage()
-					},
-				},
-				{
-					ID:    "close-page",
-					Label: "Close Page",
-					Click: func(*mygo.MenuItem, *mygo.Window) {
-						a.closePage()
-					},
-				},
+				{ID: "new-page", Label: "New Page", Click: command(editor.SurfaceNewPageCommandID)},
+				{ID: "close-page", Label: "Close Page", Click: command(editor.SurfaceClosePageCommandID)},
 			},
 		},
-		{Role: mygo.RoleEditMenu},
+		{
+			Label: "Edit",
+			Submenu: []*mygo.MenuItem{
+				{ID: "undo", Role: mygo.RoleUndo},
+				{ID: "redo", Role: mygo.RoleRedo},
+				mygo.Separator(),
+				{ID: "cut", Role: mygo.RoleCut},
+				{ID: "copy", Role: mygo.RoleCopy},
+				{ID: "paste", Role: mygo.RolePaste},
+				{Role: mygo.RolePasteAndMatchStyle},
+				{Role: mygo.RoleDelete},
+				{ID: "select-all", Role: mygo.RoleSelectAll},
+			},
+		},
 		{
 			Label: "Format",
 			Submenu: []*mygo.MenuItem{
-				{Role: mygo.RoleBold},
-				{Role: mygo.RoleItalic},
+				{ID: "bold", Role: mygo.RoleBold},
+				{ID: "italic", Role: mygo.RoleItalic},
 			},
 		},
 		{
 			Label: "View",
 			Submenu: []*mygo.MenuItem{
-				{
-					ID:    "toggle-sidebar",
-					Label: "Toggle Pages",
-					Click: func(*mygo.MenuItem, *mygo.Window) {
-						a.toggleSidebar()
-					},
-				},
-				{
-					ID:    "commands",
-					Label: "Command Palette",
-					Click: func(*mygo.MenuItem, *mygo.Window) {
-						a.openCommands()
-					},
-				},
+				{ID: "toggle-sidebar", Label: "Toggle Pages", Click: command(editor.SurfaceSidebarCommandID)},
+				{ID: "commands", Label: "Command Palette", Click: command(editor.SurfaceCommandsCommandID)},
 				mygo.Separator(),
 				{Role: mygo.RoleToggleFullScreen},
 			},
 		},
 		{Role: mygo.RoleWindowMenu},
 	})
+	a.menu = menu
+	// The system's items keep the keys their roles gave them; they stand
+	// down while recording, and come back from here.
+	keyed := make(map[string]bool, len(keymapMenu))
+	for _, entry := range keymapMenu {
+		keyed[entry.id] = true
+	}
+	a.systemKeys = make(map[*mygo.MenuItem]string)
+	eachMenuItem(menu, func(item *mygo.MenuItem) {
+		if !keyed[item.ID] && item.Accelerator != "" {
+			a.systemKeys[item] = item.Accelerator
+		}
+	})
+	a.syncMenu()
+	return menu
+}
+
+// keymapMenu pairs each menu item that performs a keymap action with it.
+var keymapMenu = [...]struct {
+	id      string
+	command kernel.CommandID
+}{
+	{"settings", editor.SurfaceSettingsCommandID},
+	{"new-page", editor.SurfaceNewPageCommandID},
+	{"close-page", editor.SurfaceClosePageCommandID},
+	{"undo", editor.HistoryUndo.ID()},
+	{"redo", editor.HistoryRedo.ID()},
+	{"cut", editor.SurfaceCutCommandID},
+	{"copy", editor.SurfaceCopyCommandID},
+	{"paste", editor.SurfacePasteCommandID},
+	{"select-all", editor.TextSelectAll.ID()},
+	{"bold", editor.MarkupStrong.ID()},
+	{"italic", editor.MarkupEmphasis.ID()},
+	{"toggle-sidebar", editor.SurfaceSidebarCommandID},
+	{"commands", editor.SurfaceCommandsCommandID},
+}
+
+// syncMenu gives each keymap item its action's first key, or none, and the
+// action's availability. While a shortcut is being recorded every item lets
+// go of its key, the system's too, so the recorder hears each chord as keys:
+// a disabled item would not do, as macOS validates the edit items enabled
+// and still lets them take their keys.
+func (a *AppState) syncMenu() {
+	if a == nil || a.menu == nil || a.Store == nil {
+		return
+	}
+	prepared := a.Store.PreparedConfiguration()
+	for _, entry := range keymapMenu {
+		item := a.menu.ItemByID(entry.id)
+		if item == nil {
+			continue
+		}
+		accelerator, enabled := "", false
+		if prepared != nil {
+			enabled = prepared.IsCommandEnabled(entry.command)
+			if bindings := prepared.BindingsFor(entry.command); len(bindings) > 0 && !a.recording {
+				accelerator, _ = keymap.Accelerator(bindings[0], keymap.PlatformCurrent)
+			}
+		}
+		setAccelerator(item, accelerator)
+		if item.IsEnabled() != enabled {
+			item.SetEnabled(enabled)
+		}
+	}
+	for item, accelerator := range a.systemKeys {
+		if a.recording {
+			accelerator = ""
+		}
+		setAccelerator(item, accelerator)
+	}
+}
+
+func setAccelerator(item *mygo.MenuItem, accelerator string) {
+	if item.Accelerator != accelerator {
+		item.SetAccelerator(accelerator)
+	}
+}
+
+// setRecording stands the menu's keys down while a shortcut is recorded.
+func (a *AppState) setRecording(recording bool) {
+	if a.recording != recording {
+		a.recording = recording
+		a.syncMenu()
+	}
+}
+
+// reservedKey names the menu item that keeps target for itself: a key of the
+// system's items, as Quit's, which no keymap action can be given, as the menu
+// would always take it first.
+func (a *AppState) reservedKey(target kernel.BindingTarget) (string, bool) {
+	if a == nil {
+		return "", false
+	}
+	for item, accelerator := range a.systemKeys {
+		if held, ok := keymap.ParseAccelerator(accelerator, keymap.PlatformCurrent); ok && held == target {
+			return item.Label, true
+		}
+	}
+	return "", false
+}
+
+func eachMenuItem(menu *mygo.Menu, visit func(*mygo.MenuItem)) {
+	eachItem(menu.Items(), visit)
+}
+
+func eachItem(items []*mygo.MenuItem, visit func(*mygo.MenuItem)) {
+	for _, item := range items {
+		visit(item)
+		eachItem(item.Submenu, visit)
+	}
 }
 
 func (a *AppState) newPage() {
