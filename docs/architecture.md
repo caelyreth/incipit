@@ -137,4 +137,13 @@ and goes through the same conflict check.
    mark identity.
 9. Observable iteration order is explicit.
 10. Shaping and layout are retained per paragraph, not rebuilt per frame.
+11. A projected position belongs to the node whose text or notation holds it
+    or touches it on the side it leans; generated text, as a block's break,
+    belongs to none, so a line's start is its own block's.
+12. Every projected position round-trips: its caret address, a text caret
+    past or before a notation run or a stop inside one, resolves back to it.
+13. A collapsed caret steps through a mark's notation but never rests in a
+    block's: it stands at the text the block's notation opens.
+14. An edit applies marks' notation, then the text, then blocks' notation, as
+    reading a block's notation back may rewrite its text.
 

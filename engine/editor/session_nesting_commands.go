@@ -93,7 +93,7 @@ func nestingCeiling(document *model.DocumentDraft, node *model.Node) int {
 		return 0
 	}
 	other, ok := groupOf(before)
-	if !ok || other.name != group.name {
+	if !ok || other.family != group.family {
 		return 0
 	}
 	return other.depth + 1

@@ -116,14 +116,17 @@ func orderedAnchors(document model.DocumentSnapshot, a, b model.TextAnchor) (mod
 	return a, b
 }
 
-// blockGroup is a block's place in a group of neighbours: a run of
-// consecutive blocks of one group is one scope, and the blocks deeper than
-// some depth within it are a scope nested inside. The core knows groups
-// only as names and depths; the page's kinds say which blocks group
+// blockGroup is a block's place in a group of neighbours. Groups come in
+// families, as lists, whose groups nest in one another; a family's groups
+// at one depth are its kinds, as bullet and numbered lists. A run of
+// consecutive blocks of one kind at a depth, with what nests deeper within
+// it of any kind of the family, is one scope. The core knows groups only as
+// these names and depths; the page's kinds say which blocks group
 // (groupOf, in writing.go).
 type blockGroup struct {
-	name  string
-	depth int
+	family string
+	kind   string
+	depth  int
 }
 
 // groupRuns are the runs of blocks around index that group with it, the
@@ -136,11 +139,29 @@ func groupRuns(blocks []*model.Node, index int) [][2]int {
 		return nil
 	}
 	runs := make([][2]int, 0, group.depth+1)
+	// The kind at each depth is the one the block nests in there: its own
+	// at its depth, and the nearest shallower block's before it above.
+	kinds := make([]string, group.depth+1)
+	kinds[group.depth] = group.kind
+	for at, depth := index-1, group.depth; at >= 0 && depth > 0; at-- {
+		other, ok := groupOf(blocks[at])
+		if !ok || other.family != group.family {
+			break
+		}
+		for depth > 0 && other.depth < depth {
+			depth--
+			kinds[depth] = other.kind
+		}
+	}
 	within := func(at, depth int) bool {
 		other, ok := groupOf(blocks[at])
-		return ok && other.name == group.name && other.depth >= depth
+		return ok && other.family == group.family &&
+			(other.depth > depth || other.depth == depth && other.kind == kinds[depth])
 	}
 	for depth := group.depth; depth >= 0; depth-- {
+		if kinds[depth] == "" {
+			continue
+		}
 		first, last := index, index
 		for first > 0 && within(first-1, depth) {
 			first--

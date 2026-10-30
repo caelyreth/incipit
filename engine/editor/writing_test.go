@@ -435,3 +435,48 @@ func TestSelectAllFromAnEmptyItem(t *testing.T) {
 		}
 	}
 }
+
+// Bullet and numbered items are different lists side by side, while a list
+// of either kind nested in another belongs to it.
+func TestListKindsAreSeparateScopes(t *testing.T) {
+	document, blocks, err := NewBlockDocument("Hello world\nHello?\nfoo\n\ninner\nouter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shapes := []blockShape{
+		{kind: HeadingNode, level: 1},
+		{kind: OrderedNode},
+		{kind: OrderedNode},
+		{kind: BulletNode},
+		{kind: OrderedNode, depth: 1},
+		{kind: BulletNode},
+	}
+	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		for index, shape := range shapes {
+			if err := shapeBlock(draft, blocks[index], shape); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	session := sessionFor(t, document, blocks[0])
+	text := session.Projection().Text()
+	steps := func(word string, want ...string) {
+		t.Helper()
+		at := strings.Index(text, word)
+		if err := session.SelectProjected(model.UTF16Offset(at), model.UTF16Offset(at)); err != nil {
+			t.Fatal(err)
+		}
+		for _, scope := range want {
+			run(t, session, TextSelectAll)
+			selected, _ := session.VisualSelection()
+			if got := string([]rune(text)[selected.Start:selected.End]); got != scope {
+				t.Fatalf("selected %q, want %q", got, scope)
+			}
+		}
+	}
+	steps("foo", "foo", "1. Hello?\n2. foo", text)
+	steps("inner", "inner", "  1. inner", "- \n  1. inner\n- outer", text)
+}

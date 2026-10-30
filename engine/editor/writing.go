@@ -223,14 +223,15 @@ func (s blockShape) nests() bool {
 }
 
 // groupOf is the group a block stands in: the Writing Profile's use of the
-// page's block groups (blocks.go). Items of either kind make one list.
+// page's block groups (blocks.go). Bullet and numbered items are two kinds
+// of list, which nest in one another; quote lines are a quote.
 func groupOf(node *model.Node) (blockGroup, bool) {
 	shape := shapeOf(node)
 	switch shape.kind {
 	case BulletNode, OrderedNode:
-		return blockGroup{name: "list", depth: shape.depth}, true
+		return blockGroup{family: "list", kind: string(shape.kind), depth: shape.depth}, true
 	case QuoteNode:
-		return blockGroup{name: "quote", depth: shape.depth}, true
+		return blockGroup{family: "quote", kind: string(shape.kind), depth: shape.depth}, true
 	}
 	return blockGroup{}, false
 }
@@ -386,7 +387,7 @@ func ordinals(blocks []*model.Node) []int {
 	counts := make([]int, maxDepth+1)
 	for index, block := range blocks {
 		group, ok := groupOf(block)
-		if !ok || group.name != "list" {
+		if !ok || group.family != "list" {
 			clear(counts)
 			continue
 		}
