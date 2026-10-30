@@ -494,3 +494,37 @@ func TestListKindsAreSeparateScopes(t *testing.T) {
 	steps("foo", "foo", "1. Hello?\n2. foo", text)
 	steps("inner", "inner", "  1. inner", "- \n  1. inner\n- outer", text)
 }
+
+// Each block's text takes the rhythm the Writing Profile gives its kind,
+// notation and the break after it included: headings open what follows,
+// items and quote lines are entries, code keeps its lines.
+func TestBlocksTakeTheirRhythm(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "# Top\nbody\n- one\n")
+	run(t, session, TextBackspace)
+	typeKeys(t, session, "> said\n")
+	run(t, session, TextBackspace)
+	typeKeys(t, session, "```\ncode")
+	flow := session.Presentation().Flow
+	lines := strings.Split(flow.Text(), "\n")
+	want := []surface.Rhythm{
+		surface.RhythmTitle, surface.RhythmProse, surface.RhythmEntry,
+		surface.RhythmEntry, surface.RhythmVerbatim, surface.RhythmVerbatim,
+	}
+	if len(lines) < len(want) {
+		t.Fatalf("page shows %q", flow.Text())
+	}
+	start := 0
+	for index, line := range lines[:len(want)] {
+		end := start + len(line) + 1
+		flow.EachRun(func(run surface.StyleRun) bool {
+			if int(run.Bytes.Start) < end && int(run.Bytes.End) > start &&
+				run.Style.Rhythm != want[index] {
+				t.Fatalf("line %q has a %v run, want rhythm %v: %q",
+					line, run.Style.Rhythm, want[index], flow.Text())
+			}
+			return true
+		})
+		start = end
+	}
+}

@@ -14,6 +14,8 @@ type Paragraph struct {
 	contentUTF16 int
 	top          float32
 	height       float32
+	// gap is the room left above the paragraph, after the one before it.
+	gap float32
 }
 
 func (p Paragraph) Layout() *ui.TextLayout { return p.layout }
@@ -71,8 +73,17 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	top := float32(0)
 	font := style.font()
 	lineHeight := style.Prose.LineHeight()
-	for _, raw := range paragraphs {
-		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font)
+	body := style.Prose.Leading()
+	previous := surface.RhythmProse
+	for index, raw := range paragraphs {
+		rhythm := paragraphRhythm(flow, raw.startByte)
+		above := float32(0)
+		if index > 0 {
+			above = gap(previous, rhythm, body)
+		}
+		previous = rhythm
+		top += above
+		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
 		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width)
 		var layout *ui.TextLayout
 		if available := c.layouts[key]; len(available) > 0 {
@@ -83,8 +94,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			layout = ui.ShapeRichTextWith(spans, font, ui.TextShape{Width: width})
 		}
 		next[key] = append(next[key], layout)
-		_, measuredHeight := layout.Size()
-		height := max(lineHeight, measuredHeight)
+		_, height := layout.Size()
 		paragraph := Paragraph{
 			layout:       layout,
 			startByte:    raw.startByte,
@@ -94,6 +104,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			contentUTF16: raw.contentUTF16,
 			top:          top,
 			height:       height,
+			gap:          above,
 		}
 		top += height
 		shaped = append(shaped, paragraph)
@@ -152,10 +163,10 @@ func splitParagraphs(flow *surface.Flow) []rawParagraph {
 }
 
 // paragraphFont is base set for a paragraph: its rows are as tall as its
-// largest text plus the body's leading, so lines keep the same room between
-// them whatever the size of their text, a heading's as body text's. A row
+// largest text plus its rhythm's leading (rhythm.go), so lines of a rhythm
+// keep the same room between them whatever the size of their text. A row
 // is never shorter than its face's own height.
-func (s Style) paragraphFont(flow *surface.Flow, start, end int, base ui.Font) ui.Font {
+func (s Style) paragraphFont(flow *surface.Flow, start, end int, base ui.Font, leading float32) ui.Font {
 	text := flow.Text()
 	size := base.Size
 	flow.EachRun(func(run surface.StyleRun) bool {
@@ -166,7 +177,7 @@ func (s Style) paragraphFont(flow *surface.Flow, start, end int, base ui.Font) u
 		return true
 	})
 	base.Size = size
-	base.LineHeight = (size + s.Prose.Leading()) / size
+	base.LineHeight = (size + leading) / size
 	return base
 }
 

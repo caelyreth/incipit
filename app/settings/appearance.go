@@ -37,10 +37,11 @@ const (
 	MinProseFontSize  float32 = 15
 	MaxProseFontSize  float32 = 26
 	DefaultProseSize  float32 = 19
-	// Line spacing is a body line's height over its text's size; the room
-	// it leaves between lines is kept between every line, whatever size
-	// its text. Below 1.5 a line would be shorter than the prose face's
-	// own height, which no row goes below.
+	// Line spacing is a body line's height over its text's size, from
+	// compact to loose. The page derives every other room from it: the
+	// leading of headings, lists and code, and the gaps between blocks.
+	// Below 1.5 a line would be shorter than the prose face's own height,
+	// which no row goes below.
 	MinLineSpacing     float32 = 1.5
 	MaxLineSpacing     float32 = 2.2
 	DefaultLineSpacing float32 = 1.8

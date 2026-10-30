@@ -16,6 +16,25 @@ const (
 	ColorSubtle
 )
 
+// Rhythm is how a block's lines are spaced, apart from what made the
+// block: a page's profile says which of its blocks take which rhythm, and
+// the surface derives the room every line takes from it.
+type Rhythm uint8
+
+const (
+	// RhythmProse is running text.
+	RhythmProse Rhythm = iota
+	// RhythmTitle opens what follows it: set apart from what comes before,
+	// and held close to what it opens.
+	RhythmTitle
+	// RhythmEntry is one of a run of sibling blocks, as items: close to the
+	// others of its run, which is set apart from the text around it.
+	RhythmEntry
+	// RhythmVerbatim is text kept line for line, as code: its lines packed
+	// close, and set apart from the text around it.
+	RhythmVerbatim
+)
+
 type TextStyle struct {
 	Bold   bool
 	Italic bool
@@ -25,6 +44,8 @@ type TextStyle struct {
 	Code   bool
 	Strike bool
 	Color  ColorRole
+	// Rhythm is the spacing of the block the text stands in.
+	Rhythm Rhythm
 }
 
 type StyleRun struct {

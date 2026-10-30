@@ -1,6 +1,7 @@
 package textlayout
 
 import (
+	"math"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/kernel/projection"
@@ -272,31 +273,118 @@ func TestSelectionBreakTakesItsRowHeight(t *testing.T) {
 	}
 }
 
-// Every row keeps the body's leading over its largest text: a larger
-// style's row grows by its text alone, and spacing moves every row alike.
-// No row is shorter than its face's own height.
-func TestRowsKeepTheBodyLeading(t *testing.T) {
-	text := "Heading\nbody"
-	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{
-		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Heading: 1}},
-		{Bytes: model.NewByteRange(8, model.ByteOffset(len(text))), Style: surface.TextStyle{}},
-	})
+// rhythmFlow is a flow of lines, each set in its own style.
+func rhythmFlow(t *testing.T, lines ...surface.TextStyle) *surface.Flow {
+	t.Helper()
+	text, runs := "", make([]surface.StyleRun, 0, len(lines))
+	for index, style := range lines {
+		line := "line"
+		if index < len(lines)-1 {
+			line += "\n"
+		}
+		runs = append(runs, surface.StyleRun{
+			Bytes: model.NewByteRange(model.ByteOffset(len(text)), model.ByteOffset(len(text)+len(line))),
+			Style: style,
+		})
+		text += line
+	}
+	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, runs)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return flow
+}
+
+func near(a, b float32) bool { return a-b < 0.5 && b-a < 0.5 }
+
+// Every room on the page follows the one spacing value: a body row is
+// its text plus the body leading, a heading's its larger text plus the
+// same, entries and verbatim lines are packed closer, and no row is
+// shorter than its face. A run of entries or code is set apart from prose
+// around it, and a heading from what is before it but not from what it
+// opens.
+func TestRhythmDerivesFromSpacing(t *testing.T) {
+	title := surface.TextStyle{Heading: 1, Rhythm: surface.RhythmTitle}
+	prose := surface.TextStyle{}
+	entry := surface.TextStyle{Rhythm: surface.RhythmEntry}
+	code := surface.TextStyle{Code: true, Rhythm: surface.RhythmVerbatim}
+	flow := rhythmFlow(t, prose, title, prose, prose, entry, entry, code, code, prose)
 	for _, spacing := range []float32{theme.MinLineSpacing, 1.8, theme.MaxLineSpacing} {
-		prose := theme.NewProseStyle(19).WithSpacing(spacing)
-		style := NewStyle(prose, theme.DefaultSettings().Semantic())
-		paragraphs := NewCache().Update(flow, 600, style).Paragraphs()
-		heading := style.span("Heading", surface.StyleRun{Style: surface.TextStyle{Heading: 1}}).Size
-		_, face := ui.ShapeText("Heading", ui.Font{Family: theme.ProseFontFamily, Size: heading, Weight: 700}, 0).Size()
-		body := paragraphs[1].Height()
-		if diff := body - prose.LineHeight(); diff < -0.5 || diff > 0.5 {
-			t.Fatalf("spacing %v: body row %v, want %v", spacing, body, prose.LineHeight())
+		p := theme.NewProseStyle(19).WithSpacing(spacing)
+		style := NewStyle(p, theme.DefaultSettings().Semantic())
+		rows := NewCache().Update(flow, 600, style).Paragraphs()
+		// A row starts at body size, so its floor is the prose face at least.
+		face := func(run surface.TextStyle) float32 {
+			span := style.span("line", surface.StyleRun{Style: run})
+			_, height := ui.ShapeText("line", ui.Font{Family: span.Font, Size: span.Size, Weight: span.Weight}, 0).Size()
+			return height
 		}
-		want := max(heading+prose.Leading(), face)
-		if diff := paragraphs[0].Height() - want; diff < -0.5 || diff > 0.5 {
-			t.Fatalf("spacing %v: heading row %v, want %v", spacing, paragraphs[0].Height(), want)
+		body := p.Leading()
+		heading := style.span("line", surface.StyleRun{Style: title}).Size
+		heights := []float32{
+			p.LineHeight(), max(heading+body, face(title)), p.LineHeight(), p.LineHeight(),
+			max(p.FontSize+body*entryLeading, face(prose)), 0,
+			max(p.FontSize+body*verbatimLeading, face(prose)), 0,
+			p.LineHeight(),
 		}
+		heights[5], heights[7] = heights[4], heights[6]
+		px := func(v float32) float32 { return float32(math.Round(float64(v))) }
+		gaps := []float32{0, px(body * titleGap), 0, 0, px(body * groupGap), 0, px(body * groupGap), 0, px(body * groupGap)}
+		for index, row := range rows {
+			if !near(row.Height(), heights[index]) || !near(row.gap, gaps[index]) {
+				t.Fatalf("spacing %v row %d: height %v gap %v, want %v and %v",
+					spacing, index, row.Height(), row.gap, heights[index], gaps[index])
+			}
+			if index > 0 {
+				previous := rows[index-1]
+				if !near(row.Top(), previous.Top()+previous.Height()+row.gap) {
+					t.Fatalf("spacing %v row %d top %v after %v", spacing, index, row.Top(), previous)
+				}
+			}
+		}
+		if spacing == 1.8 && !(rows[4].Height() < rows[0].Height() && rows[6].Height() < rows[4].Height()) {
+			t.Fatalf("entries %v and code %v are not packed closer than prose %v",
+				rows[4].Height(), rows[6].Height(), rows[0].Height())
+		}
+	}
+}
+
+// A selection across blocks takes the gaps between them, so it is one
+// unbroken area; one that starts at a block's text leaves the gap above.
+func TestSelectionSpansBlockGaps(t *testing.T) {
+	flow := rhythmFlow(t, surface.TextStyle{}, surface.TextStyle{Rhythm: surface.RhythmEntry}, surface.TextStyle{})
+	layout := NewCache().Update(flow, 600, testStyle())
+	rows := layout.Paragraphs()
+	if rows[1].gap <= 0 {
+		t.Fatalf("no gap before the entry: %v", rows[1])
+	}
+	rects := layout.RangeRects(model.NewUTF16Range(0, model.UTF16Offset(flow.UTF16Len())))
+	bottom := float32(0)
+	for _, rect := range rects {
+		if rect.Y > bottom+0.01 {
+			t.Fatalf("selection leaves a hole above %v: %v", rect, rects)
+		}
+		bottom = max(bottom, rect.Y+rect.H)
+	}
+	inside := layout.RangeRects(model.NewUTF16Range(model.UTF16Offset(rows[1].StartUTF16()), model.UTF16Offset(rows[1].ContentEndUTF16())))
+	if len(inside) == 0 || inside[0].Y != rows[1].Top() {
+		t.Fatalf("selection inside the entry %v starts at %v", inside, rows[1].Top())
+	}
+}
+
+// A caret in a row packed closer than body text keeps the body's size,
+// centered in its row.
+func TestCaretInACloseRow(t *testing.T) {
+	style := testStyle()
+	flow := rhythmFlow(t, surface.TextStyle{}, surface.TextStyle{Rhythm: surface.RhythmEntry})
+	layout := NewCache().Update(flow, 600, style)
+	row := layout.Paragraphs()[1]
+	caret := layout.Caret(model.UTF16Offset(row.StartUTF16() + 1))
+	if caret.H != style.Prose.CaretHeight() {
+		t.Fatalf("caret %v, want height %v", caret, style.Prose.CaretHeight())
+	}
+	above, below := caret.Y-row.Top(), row.Top()+row.Height()-caret.Y-caret.H
+	if d := above - below; d < -4 || d > 4 {
+		t.Fatalf("caret %v is not centered in row %v..%v", caret, row.Top(), row.Top()+row.Height())
 	}
 }

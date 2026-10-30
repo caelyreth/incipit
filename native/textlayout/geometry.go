@@ -21,10 +21,14 @@ func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 	caret := paragraph.layout.Caret(local)
 	caret.Y += paragraph.top
 	// The caret grows with its row: a heading's row is taller than body
-	// text's, and its caret is as much taller, centered alike.
+	// text's, and its caret is as much taller, centered alike. In a row
+	// packed closer than body text it keeps the body's size.
 	lineHeight := l.style.Prose.LineHeight()
-	row := max(lineHeight, caret.H)
-	scale := row / lineHeight
+	row := caret.H
+	if row <= 0 {
+		row = lineHeight
+	}
+	scale := max(1, row/lineHeight)
 	height := l.style.Prose.CaretHeight() * scale
 	caret.Y += (row-height)/2 + l.style.Prose.CaretOffsetY()*scale
 	caret.W = 2
@@ -75,6 +79,15 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 		}
 		from := max(start, paragraph.startUTF16)
 		to := min(end, paragraph.contentUTF16)
+		// A selection through the break before a paragraph takes the gap
+		// above it too, so a selection across blocks has no holes.
+		lift := func(rect ui.Rect) ui.Rect {
+			if start < paragraph.startUTF16 && rect.Y <= paragraph.top {
+				rect.Y -= paragraph.gap
+				rect.H += paragraph.gap
+			}
+			return rect
+		}
 		if from < to {
 			localRects := paragraph.layout.SelectionRects(ui.TextInputRange{
 				Start: from - paragraph.startUTF16,
@@ -82,7 +95,7 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			})
 			for _, rect := range localRects {
 				rect.Y += paragraph.top
-				rects = append(rects, rect)
+				rects = append(rects, lift(rect))
 			}
 		}
 		if end > paragraph.contentUTF16 && start <= paragraph.contentUTF16 {
@@ -92,8 +105,7 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			caret := paragraph.layout.Caret(paragraph.contentUTF16 - paragraph.startUTF16)
 			caret.Y += paragraph.top
 			caret.W = 6
-			caret.H = max(caret.H, l.style.Prose.LineHeight())
-			rects = append(rects, caret)
+			rects = append(rects, lift(caret))
 		}
 	}
 	sort.SliceStable(rects, func(i, j int) bool {

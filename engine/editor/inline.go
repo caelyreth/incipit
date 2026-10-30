@@ -343,7 +343,9 @@ func InlineStyleRuns(
 	return runs, nil
 }
 
-// blockStyle is how a block's text shows.
+// blockStyle is how a block's text shows: the Writing Profile's use of the
+// surface's styles and rhythms. Headings open what follows them; items and
+// quote lines are entries of the runs they stand in; code keeps its lines.
 func blockStyle(node *model.Node) surface.TextStyle {
 	style := surface.TextStyle{Color: surface.ColorText}
 	switch shape := shapeOf(node); shape.kind {
@@ -351,10 +353,15 @@ func blockStyle(node *model.Node) surface.TextStyle {
 		style.Heading = uint8(shape.level)
 		style.Bold = true
 		style.Color = surface.ColorHeading
+		style.Rhythm = surface.RhythmTitle
+	case BulletNode, OrderedNode:
+		style.Rhythm = surface.RhythmEntry
 	case QuoteNode:
 		style.Italic = true
+		style.Rhythm = surface.RhythmEntry
 	case CodeNode:
 		style.Code = true
+		style.Rhythm = surface.RhythmVerbatim
 	case RuleNode:
 		style.Color = surface.ColorSubtle
 	}

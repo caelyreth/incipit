@@ -80,8 +80,8 @@ func (s *State) appearancePage(
 				},
 			}.View(c, semantic)
 			components.SettingRow{
-				Label:       "Line Spacing",
-				Description: "A line's height over its text's size; headings keep the same room between lines.",
+				Label:       "Spacing",
+				Description: "From compact to loose: a body line's height over its text's size. The room around headings, lists and code follows in proportion.",
 				Last:        len(s.Data.Appearance) == 0,
 				Control: func() {
 					s.spacingStepper(c, semantic)
@@ -137,7 +137,7 @@ func (s *State) spacingStepper(c *ui.Context, semantic theme.Theme) {
 		}))
 	}
 	components.NumberField{
-		Key: "number-line-spacing", Label: "Line Spacing",
+		Key: "number-spacing", Label: "Spacing",
 		Value:       strconv.FormatFloat(float64(value), 'f', 1, 32) + "×",
 		CanDecrease: value > appsettings.MinLineSpacing+step/2,
 		CanIncrease: value < appsettings.MaxLineSpacing-step/2,
