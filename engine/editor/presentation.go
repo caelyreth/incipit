@@ -95,6 +95,10 @@ func (p *Presentation) SelectProjected(
 	if p == nil || p.Projection == nil {
 		return &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
 	}
+	if anchor == head {
+		anchor = blockNotationRest(p.Projection, anchor)
+		head = anchor
+	}
 	anchorResult, err := p.Projection.Target(model.EmptyUTF16Range(anchor))
 	if err != nil {
 		return err

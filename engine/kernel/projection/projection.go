@@ -317,7 +317,8 @@ func (p *Projection) CollapsedCaretAddress(target Target) (Caret, error) {
 }
 
 // textCaret addresses the text position at offset, naming the notation run
-// that ends there, if any, so the address resolves back to offset itself.
+// that ends there, or else the one that starts there, so the address
+// resolves back to offset itself.
 func (p *Projection) textCaret(offset model.UTF16Offset, affinity model.Affinity) (Caret, error) {
 	anchor, err := p.SemanticAnchor(offset, affinity)
 	if err != nil {
@@ -334,6 +335,18 @@ func (p *Projection) textCaret(offset model.UTF16Offset, affinity model.Affinity
 			break
 		}
 		return TextCaretAfter(anchor, attribute.Key(), side), nil
+	}
+	for index, segment := range p.segments {
+		attribute, ok := segment.AttributeTarget()
+		if !ok || segment.range16.Start != offset || segment.range16.Empty() ||
+			attribute.Node() != anchor.Node() {
+			continue
+		}
+		side, ok := p.notationSide(index)
+		if !ok {
+			break
+		}
+		return TextCaretBefore(anchor, attribute.Key(), side), nil
 	}
 	return TextCaret(anchor), nil
 }
@@ -379,7 +392,7 @@ func (p *Projection) ResolveCaret(caret Caret, revision uint64) (Target, error) 
 			revision,
 		)
 		if caret.Key != "" {
-			if target, ok := p.resolvePastNotation(anchor, caret.Key, caret.Side); ok {
+			if target, ok := p.resolvePastNotation(anchor, caret.Key, caret.Side, caret.Before); ok {
 				return target, nil
 			}
 		}
@@ -409,7 +422,8 @@ func (p *Projection) ResolveCaret(caret Caret, revision uint64) (Target, error) 
 	return p.Target(model.EmptyUTF16Range(position))
 }
 
-// resolvePastNotation is the position just past the side run of key, when
+// resolvePastNotation is the position just past the side run of key, or
+// just before it, when
 // that run still borders anchor's offset: between the anchor's leftmost
 // and rightmost projected positions. A run an edit moved away from the
 // anchor no longer names its position, and the caller falls back.
@@ -417,6 +431,7 @@ func (p *Projection) resolvePastNotation(
 	anchor model.TextAnchor,
 	key string,
 	side AttributeCaretSide,
+	before bool,
 ) (Target, bool) {
 	first, last := p.notationRuns(anchor.Node(), key)
 	index := first
@@ -427,6 +442,9 @@ func (p *Projection) resolvePastNotation(
 		return Target{}, false
 	}
 	position := p.segments[index].range16.End
+	if before {
+		position = p.segments[index].range16.Start
+	}
 	leaning := func(affinity model.Affinity) model.TextAnchor {
 		return model.NewTextAnchor(anchor.Node(), anchor.OffsetUTF16(), affinity, anchor.Revision())
 	}

@@ -102,10 +102,11 @@ func (p *Projection) SemanticAnchor(
 		rank     int
 		anchor   model.TextAnchor
 	}
+	owner, owned := p.owner(offset, affinity)
 	var best *bestCandidate
 	for _, segment := range p.segments {
 		target, ok := segment.SemanticTarget()
-		if !ok {
+		if !ok || owned && target.Node() != owner {
 			continue
 		}
 		start, end := int(segment.range16.Start), int(segment.range16.End)
@@ -214,4 +215,48 @@ func absInt(value int) int {
 		return -value
 	}
 	return value
+}
+
+// owner is the node a position belongs to: the one whose text or notation
+// holds it, or touches it on the side it leans. Generated text, as the
+// break between blocks, belongs to no node, so a position beside it
+// belongs to the node touching it on the other side: a line's start is its
+// own block's whichever way it leans, never the end of the line before.
+func (p *Projection) owner(offset model.UTF16Offset, affinity model.Affinity) (model.NodeID, bool) {
+	nodeOf := func(segment Segment) (model.NodeID, bool) {
+		if target, ok := segment.SemanticTarget(); ok {
+			return target.Node(), true
+		}
+		if target, ok := segment.AttributeTarget(); ok {
+			return target.Node(), true
+		}
+		return 0, false
+	}
+	var before, after *Segment
+	for index := range p.segments {
+		segment := &p.segments[index]
+		span := segment.range16
+		switch {
+		case span.Empty():
+		case span.Start < offset && offset < span.End:
+			return nodeOf(*segment)
+		case span.End == offset:
+			before = segment
+		case span.Start == offset && after == nil:
+			after = segment
+		}
+	}
+	first, second := after, before
+	if affinity == model.AffinityLeft {
+		first, second = before, after
+	}
+	for _, segment := range []*Segment{first, second} {
+		if segment == nil {
+			continue
+		}
+		if node, ok := nodeOf(*segment); ok {
+			return node, true
+		}
+	}
+	return 0, false
 }

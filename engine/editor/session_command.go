@@ -40,7 +40,11 @@ func (s *Session) ExecuteCommand(command kernel.CommandID, now time.Time) (kerne
 
 func markerAdjacent(p *projection.Projection, caret model.UTF16Offset, backward bool) bool {
 	for _, segment := range p.Segments() {
-		if _, ok := segment.AttributeTarget(); !ok {
+		// A caret steps through a mark's notation, where typing edits it,
+		// but not a block's: it stands at the text a block's notation
+		// opens (blockNotationRest).
+		target, ok := segment.AttributeTarget()
+		if !ok || !MarkerKeyIsInline(target.Key()) {
 			continue
 		}
 		r := segment.ProjectedRange()

@@ -375,13 +375,23 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 	}
 	inputValue := resolved.ProjectedEditInput
 	attributes := inputValue.Attributes()
+	// Marks' notation goes first, as it moves no text; a block's after the
+	// text, as reading it back may rewrite the block's text, which the
+	// text input's offsets do not foresee.
 	events := make([]kernel.Event, 0, len(attributes)+1)
+	var after []kernel.Event
 	for _, attribute := range attributes {
-		events = append(events, kernel.NewAttributeEvent(attribute, edit.Origin))
+		event := kernel.NewAttributeEvent(attribute, edit.Origin)
+		if MarkerKeyIsInline(attribute.Target().Key()) {
+			events = append(events, event)
+		} else {
+			after = append(after, event)
+		}
 	}
 	if inputValue.ApplyText() {
 		events = append(events, kernel.NewProjectedEvent(inputValue, edit.Origin))
 	}
+	events = append(events, after...)
 	if len(events) == 0 {
 		return EditingOutcome{Outcome: kernel.OutcomePass, Revision: s.runtime.Revision()}, nil
 	}
@@ -403,14 +413,10 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 			if batch.Outcome.Status == kernel.OutcomePass {
 				return struct{}{}, nil
 			}
-			for index := range attributes {
+			for index := range events {
 				if index >= len(batch.Handled) || !batch.Handled[index] {
 					return struct{}{}, ErrIncompleteProjectedEdit
 				}
-			}
-			if inputValue.ApplyText() &&
-				(len(batch.Handled) == 0 || !batch.Handled[len(batch.Handled)-1]) {
-				return struct{}{}, ErrIncompleteProjectedEdit
 			}
 			// The caret goes where the text went in: after it, or where a
 			// marker or a refinement left it, carried through everything

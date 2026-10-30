@@ -57,6 +57,9 @@ type Caret struct {
 	Key    string
 	Side   AttributeCaretSide
 	Offset int
+	// Before marks a text caret standing just before the side run of Key
+	// rather than just past it.
+	Before bool
 }
 
 func TextCaret(anchor model.TextAnchor) Caret {
@@ -67,6 +70,12 @@ func TextCaret(anchor model.TextAnchor) Caret {
 // notation key.
 func TextCaretAfter(anchor model.TextAnchor, key string, side AttributeCaretSide) Caret {
 	return Caret{Kind: CaretText, Text: anchor, Node: anchor.Node(), Key: key, Side: side}
+}
+
+// TextCaretBefore is a text caret standing just before the side run of the
+// notation key, as at a line's start, before the notation opening it.
+func TextCaretBefore(anchor model.TextAnchor, key string, side AttributeCaretSide) Caret {
+	return Caret{Kind: CaretText, Text: anchor, Node: anchor.Node(), Key: key, Side: side, Before: true}
 }
 
 func AttributeCaret(node model.NodeID, key string, side AttributeCaretSide, offset int) Caret {

@@ -116,6 +116,31 @@ func blockInterior(p *projection.Projection, node model.NodeID) (low, high model
 	return low, high
 }
 
+// blockNotationRest is where a collapsed caret at a stands: a block's
+// notation is no place to rest, so a caret within the notation that opens
+// a block stands at the text it opens, and one within a closing fence at
+// the text it closes.
+func blockNotationRest(p *projection.Projection, at model.UTF16Offset) model.UTF16Offset {
+	for _, segment := range p.Segments() {
+		target, ok := segment.AttributeTarget()
+		if !ok {
+			continue
+		}
+		span := segment.ProjectedRange()
+		switch target.Key() {
+		case blockNotationKey:
+			if span.Start <= at && at < span.End {
+				return span.End
+			}
+		case fenceNotationKey:
+			if span.Start < at && at <= span.End {
+				return span.Start
+			}
+		}
+	}
+	return at
+}
+
 // headPositions are the projected positions sharing at's semantic offset:
 // at, and every boundary reached by crossing the zero-width generated
 // notation of node on either side. Positions within one marker run are
