@@ -20,8 +20,8 @@ func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 	}
 	caret := paragraph.layout.Caret(local)
 	caret.Y += paragraph.top
-	// The caret grows with its row: a heading's row is taller than body
-	// text's, and its caret is as much taller, centered alike. In a row
+	// The caret grows with its row: a row of larger text is taller than
+	// body text's, and its caret is as much taller, centered alike. In a row
 	// packed closer than body text it keeps the body's size.
 	lineHeight := l.style.Prose.LineHeight()
 	row := caret.H
@@ -100,8 +100,8 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 		}
 		if end > paragraph.contentUTF16 && start <= paragraph.contentUTF16 {
 			// The break past a selected paragraph's end shows as a sliver of
-			// its last row, as tall as that row: a heading's is taller than
-			// body text's, and a shorter sliver would notch the selection.
+			// its last row, as tall as that row: larger text's is taller
+			// than body text's, and a shorter sliver would notch the selection.
 			caret := paragraph.layout.Caret(paragraph.contentUTF16 - paragraph.startUTF16)
 			caret.Y += paragraph.top
 			caret.W = 6

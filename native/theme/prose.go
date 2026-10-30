@@ -5,6 +5,7 @@ import "math"
 const (
 	ProseFontFamily    = "Noto Serif CJK SC"
 	UIFontFamily       = "system-ui"
+	MonoFontFamily     = "monospace"
 	referenceFontSize  = float32(19)
 	referenceCaret     = float32(25)
 	referenceCaretDrop = float32(1)

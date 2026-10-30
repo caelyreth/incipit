@@ -344,15 +344,16 @@ func InlineStyleRuns(
 }
 
 // blockStyle is how a block's text shows: the Writing Profile's use of the
-// surface's styles and rhythms. Headings open what follows them; items and
-// quote lines are entries of the runs they stand in; code keeps its lines.
+// surface's styles and rhythms. Headings are set larger by level and open
+// what follows them; items and quote lines are entries of the runs they
+// stand in; code is set in the mono face and keeps its lines.
 func blockStyle(node *model.Node) surface.TextStyle {
 	style := surface.TextStyle{Color: surface.ColorText}
 	switch shape := shapeOf(node); shape.kind {
 	case HeadingNode:
-		style.Heading = uint8(shape.level)
+		style.Scale = headingScale(shape.level)
 		style.Bold = true
-		style.Color = surface.ColorHeading
+		style.Color = surface.ColorStrong
 		style.Rhythm = surface.RhythmTitle
 	case BulletNode, OrderedNode:
 		style.Rhythm = surface.RhythmEntry
@@ -360,7 +361,7 @@ func blockStyle(node *model.Node) surface.TextStyle {
 		style.Italic = true
 		style.Rhythm = surface.RhythmEntry
 	case CodeNode:
-		style.Code = true
+		codeStyle(&style)
 		style.Rhythm = surface.RhythmVerbatim
 	case RuleNode:
 		style.Color = surface.ColorSubtle
@@ -379,10 +380,39 @@ func markStyle(style *surface.TextStyle, mark model.InlineMark) {
 			style.Bold = true
 		}
 	case CodeMark:
-		style.Code = true
+		codeStyle(style)
 	case StrikeMark:
 		style.Strike = true
 	}
+}
+
+// codeStyle sets code in the mono face, a little smaller than the text
+// around it, so the mono face's larger x-height reads at the same size.
+// Code within code stays as it is.
+func codeStyle(style *surface.TextStyle) {
+	if style.Face == surface.FaceMono {
+		return
+	}
+	style.Face = surface.FaceMono
+	style.Scale = style.Size() * codeScale
+}
+
+const codeScale = 0.88
+
+// headingScale is how much larger than body text a heading of a level is
+// set: a step down per level, the last two at body size.
+func headingScale(level int) float32 {
+	switch level {
+	case 1:
+		return 1.6
+	case 2:
+		return 1.36
+	case 3:
+		return 1.18
+	case 4:
+		return 1.06
+	}
+	return 1
 }
 
 func pushSurfaceRun(runs *[]surface.StyleRun, next surface.StyleRun) {

@@ -18,7 +18,7 @@ func (e *Element) revealCaret(layout *textlayout.Layout, box ui.Rect, now time.T
 	line, lineTop := max(box.H, e.Prose.LineHeight()), box.Y
 	// The reading space above the first line is that line's: revealing it
 	// reveals the page's top. A caret within the first line's height of
-	// the text's top is on it, however tall a heading makes it.
+	// the text's top is on it, however tall larger text makes it.
 	if lineTop < e.TopInset+line {
 		line, lineTop = line+lineTop, 0
 	}

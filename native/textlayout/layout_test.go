@@ -234,7 +234,7 @@ func TestCaretGrowsWithItsRow(t *testing.T) {
 	style := NewStyle(theme.NewProseStyle(19), theme.DefaultSettings().Semantic())
 	text := "Heading\nbody"
 	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{
-		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Heading: 1}},
+		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Scale: 1.6}},
 		{Bytes: model.NewByteRange(8, model.ByteOffset(len(text))), Style: surface.TextStyle{}},
 	})
 	if err != nil {
@@ -257,7 +257,7 @@ func TestSelectionBreakTakesItsRowHeight(t *testing.T) {
 	style := NewStyle(theme.NewProseStyle(19), theme.DefaultSettings().Semantic())
 	text := "Heading\nbody"
 	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{
-		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Heading: 1}},
+		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Scale: 1.6}},
 		{Bytes: model.NewByteRange(8, model.ByteOffset(len(text))), Style: surface.TextStyle{}},
 	})
 	if err != nil {
@@ -304,10 +304,10 @@ func near(a, b float32) bool { return a-b < 0.5 && b-a < 0.5 }
 // around it, and a heading from what is before it but not from what it
 // opens.
 func TestRhythmDerivesFromSpacing(t *testing.T) {
-	title := surface.TextStyle{Heading: 1, Rhythm: surface.RhythmTitle}
+	title := surface.TextStyle{Scale: 1.6, Rhythm: surface.RhythmTitle}
 	prose := surface.TextStyle{}
 	entry := surface.TextStyle{Rhythm: surface.RhythmEntry}
-	code := surface.TextStyle{Code: true, Rhythm: surface.RhythmVerbatim}
+	code := surface.TextStyle{Face: surface.FaceMono, Scale: 0.88, Rhythm: surface.RhythmVerbatim}
 	flow := rhythmFlow(t, prose, title, prose, prose, entry, entry, code, code, prose)
 	for _, spacing := range []float32{theme.MinLineSpacing, 1.8, theme.MaxLineSpacing} {
 		p := theme.NewProseStyle(19).WithSpacing(spacing)

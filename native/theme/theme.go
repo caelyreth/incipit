@@ -112,9 +112,9 @@ type StatusColors struct {
 
 type ProseColors struct {
 	Text      ui.Color
-	Heading   ui.Color
+	Strong    ui.Color
 	Notation  ui.Color
-	Rule      ui.Color
+	Subtle    ui.Color
 	Selection ui.Color
 }
 
@@ -228,9 +228,9 @@ func (s Settings) Semantic() Theme {
 		},
 		Prose: ProseColors{
 			Text:     palette.textPrimary,
-			Heading:  palette.textEmphasis,
+			Strong:   palette.textEmphasis,
 			Notation: palette.textSecondary,
-			Rule:     palette.hairline,
+			Subtle:   palette.hairline,
 			// Selection is the accent family's surface: the hue, quiet
 			// enough to read text through.
 			Selection: accent.Surface,

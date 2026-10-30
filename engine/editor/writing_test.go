@@ -528,3 +528,30 @@ func TestBlocksTakeTheirRhythm(t *testing.T) {
 		start = end
 	}
 }
+
+// The Writing Profile sets what its blocks look like in the surface's own
+// terms: a heading larger by its level and strong, code in the mono face a
+// little smaller, inline code within a heading smaller than the heading.
+func TestBlocksTakeTheirLook(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "# Top `x`\n```\ncode")
+	flow := session.Presentation().Flow
+	style := func(text string) surface.TextStyle {
+		at := strings.Index(flow.Text(), text)
+		found := surface.TextStyle{}
+		flow.EachRun(func(run surface.StyleRun) bool {
+			found = run.Style
+			return int(run.Bytes.End) <= at
+		})
+		return found
+	}
+	if got := style("Top"); got.Size() != 1.6 || got.Color != surface.ColorStrong || !got.Bold {
+		t.Fatalf("heading text style %#v in %q", got, flow.Text())
+	}
+	if got := style("x"); got.Face != surface.FaceMono || got.Size() != 1.6*codeScale {
+		t.Fatalf("inline code in a heading %#v", got)
+	}
+	if got := style("code"); got.Face != surface.FaceMono || got.Size() != codeScale {
+		t.Fatalf("code block text %#v", got)
+	}
+}

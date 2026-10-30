@@ -236,12 +236,12 @@ func roleColor(semantic theme.Theme, role surface.ColorRole) ui.Color {
 	switch role {
 	case surface.ColorMuted:
 		return semantic.Prose.Notation
-	case surface.ColorHeading:
-		return semantic.Prose.Heading
+	case surface.ColorStrong:
+		return semantic.Prose.Strong
 	case surface.ColorAccent:
 		return semantic.Accent.Foreground
 	case surface.ColorSubtle:
-		return semantic.Prose.Rule
+		return semantic.Prose.Subtle
 	default:
 		return semantic.Prose.Text
 	}

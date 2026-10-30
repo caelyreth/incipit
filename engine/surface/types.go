@@ -11,9 +11,20 @@ type ColorRole uint8
 const (
 	ColorText ColorRole = iota
 	ColorMuted
-	ColorHeading
+	// ColorStrong is text that stands out from the text around it.
+	ColorStrong
 	ColorAccent
 	ColorSubtle
+)
+
+// Face is the kind of typeface text is set in.
+type Face uint8
+
+const (
+	// FaceText is the page's reading face.
+	FaceText Face = iota
+	// FaceMono sets every character the same width.
+	FaceMono
 )
 
 // Rhythm is how a block's lines are spaced, apart from what made the
@@ -38,14 +49,21 @@ const (
 type TextStyle struct {
 	Bold   bool
 	Italic bool
-	// Heading is a heading's level, 1 to 6, or 0 for body text.
-	Heading uint8
-	// Code is text set in the monospace face.
-	Code   bool
+	// Scale is the text's size over the page's text size; 0 is 1.
+	Scale  float32
+	Face   Face
 	Strike bool
 	Color  ColorRole
 	// Rhythm is the spacing of the block the text stands in.
 	Rhythm Rhythm
+}
+
+// Size is the text's size over the page's text size.
+func (s TextStyle) Size() float32 {
+	if s.Scale <= 0 {
+		return 1
+	}
+	return s.Scale
 }
 
 type StyleRun struct {
