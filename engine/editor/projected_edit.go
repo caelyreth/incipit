@@ -635,6 +635,14 @@ func coveredNotation(p *projection.Projection, range16 model.UTF16Range) ([]attr
 // covered: one segment is edited as the text it is, while both of a mark's,
 // opener and closer, lose what the edit covers of either.
 func (s attributeSelection) remaining(replacement string) string {
+	// A block's notation is one unit: an edit covering any of it replaces
+	// all of it.
+	if !MarkerKeyIsInline(s.target.Key()) {
+		if s.selectedUnits == 0 && replacement == "" {
+			return s.notation
+		}
+		return replacement
+	}
 	if s.selectedSegments > 1 {
 		runes := []rune(s.notation)
 		return string(runes[:max(0, s.currentUnits-s.selectedUnits)])

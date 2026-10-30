@@ -80,16 +80,21 @@ and "1. " at a paragraph's start; "```" and Return; "---"; and the markers
 `*` `_` `` ` `` `~`. Return follows the block's kind, and code takes text
 literally: no marks, pairs or refinement read into it. An edit of projected
 notation is parsed back with the same grammar (`parseOpener`,
-`inlineLevel`); notation that no longer reads as syntax unfolds into the
-literal text it shows, so deleting the space of "## " leaves "##" in a
-paragraph, and typing it back makes the heading again. The policy's settings
-gate each trigger, never a kind.
+`inlineLevel`), and notation is never stored, not even when edited. A
+mark's notation is edited marker by marker, each a level the mark stores. A
+block's is one unit standing for its structure, as an ordered item's number
+is only its place: Backspace at its text peels the structure a level
+(a nested item steps out, anything else becomes a paragraph), and an edit
+covering any of it replaces all of it, read back as a shape or else leaving
+a paragraph of the block's own text. The policy's settings gate each
+trigger, never a kind.
 
 Blocks may group with their neighbours (`blockGroup`, `groupRuns` in
 `engine/editor/blocks.go`): a run of consecutive blocks of one group is one
 scope, and the blocks deeper than a level within it a scope nested inside.
-The core knows groups only as names and depths; the Writing Profile uses
-them (`groupOf`): items make a list and quote lines a quote, nested by a
+The core knows groups only as families, kinds and depths; the Writing
+Profile uses them (`groupOf`): bullet and numbered items are two kinds of
+list and quote lines a quote, nested by a
 `depth` attribute, written as CommonMark does, two spaces a level or one
 more `> `, and moved by Nest deeper and Nest shallower.
 

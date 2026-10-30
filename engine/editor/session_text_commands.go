@@ -63,6 +63,11 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		outcome, err := s.ReplaceSelection("", kernel.EventOriginSemantic)
 		return outcome.Outcome, err
 	}
+	if command == TextBackspace {
+		if outcome, peeled, err := s.peelBlock(); peeled || err != nil {
+			return outcome, err
+		}
+	}
 	if command == TextBackspace || command == TextDelete {
 		backward := command == TextBackspace
 		caret := s.presentation.Caret.RangeUTF16().Start

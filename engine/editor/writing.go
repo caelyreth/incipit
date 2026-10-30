@@ -13,10 +13,13 @@ import (
 // reads and writes. A page keeps only what its parts are: a heading and its
 // level, a quote, a list item, a code block and its info string, a mark's
 // kind and level. The notation that shows them ("## ", "> ", "*", a fence)
-// is projected from that and never stored. Typing notation where it reads
-// as syntax turns it into structure; editing projected notation parses it
-// back, and notation that no longer reads as syntax stays as the literal
-// text it shows.
+// is projected from that and never stored, not even when edited. Typing
+// notation where it reads as syntax turns it into structure. A mark's
+// notation is edited marker by marker, each a level the mark stores; a
+// block's is one unit standing for the block's structure: Backspace at its
+// text peels the structure a level (peel), and an edit that covers any of
+// the notation replaces all of it, read back as a shape, or else leaves a
+// paragraph of the block's own text (flatten).
 const (
 	// HeadingNode is a heading block; its "level" attribute is 1 to 6.
 	HeadingNode model.NodeTypeID = "heading"
@@ -181,9 +184,6 @@ type blockShape struct {
 	level int
 	info  string
 	depth int
-	// indent is how many spaces notation read as a nested item began
-	// with: two a level, an odd one rounding as the edit goes (deeper).
-	indent int
 }
 
 // shapeOf reads a block's shape from the page.
@@ -277,7 +277,7 @@ func parseOpener(text string) (blockShape, bool) {
 		if !ok || indent/2 > maxDepth || shape.kind != BulletNode && shape.kind != OrderedNode {
 			return blockShape{}, false
 		}
-		shape.depth, shape.indent = indent/2, indent
+		shape.depth = indent / 2
 		return shape, true
 	}
 	if quotes := strings.Count(text, "> "); quotes > 1 && text == strings.Repeat("> ", quotes) {
@@ -334,23 +334,26 @@ func shapeBlock(document *model.DocumentDraft, node model.NodeID, shape blockSha
 	return set(codeInfoAttribute, shape.kind == CodeNode && shape.info != "", model.TextValue(shape.info))
 }
 
-// unfold turns a block whose notation no longer reads as syntax into
-// paragraphs of what it shows: the notation becomes literal text around the
-// block's own, which breaks into blocks at its line breaks.
-func unfold(document *model.DocumentDraft, node model.NodeID, open, close string) error {
+// flatten makes a block a paragraph of its own text, as when its notation
+// is taken away: the notation goes with the structure it stood for, and is
+// never left behind as text. Lines it kept, as code does, become blocks.
+func flatten(document *model.DocumentDraft, node model.NodeID) error {
 	if err := shapeBlock(document, node, blockShape{kind: ParagraphNode}); err != nil {
 		return err
 	}
-	if err := document.ReplaceTextMarked(node, 0, 0, open, nil); err != nil {
-		return err
-	}
 	current, _ := document.Node(node)
-	end := blockLength(current)
-	if err := document.ReplaceTextMarked(node, end, end, close, nil); err != nil {
-		return err
-	}
-	current, _ = document.Node(node)
 	return splitAtNewlines(document, node, 0, current.Text().String())
+}
+
+// peel is the shape a block steps back to as its notation is taken from
+// the outside in: a nested item or quote line steps out a level, anything
+// else becomes a paragraph.
+func (s blockShape) peel() blockShape {
+	if s.nests() && s.depth > 0 {
+		s.depth--
+		return s
+	}
+	return blockShape{kind: ParagraphNode}
 }
 
 // blockKeepsLines reports whether a block's text holds line breaks of its
@@ -463,15 +466,14 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 		if text == "\n" {
 			return i.paragraphAfter(document, node.ID())
 		}
-		open, _ := blockNotation(shape, 0)
-		if err := unfold(document, node.ID(), open, ""); err != nil {
+		// Text typed on a rule makes the line a paragraph of that text.
+		if err := flatten(document, node.ID()); err != nil {
 			return fail(err)
 		}
-		end := model.UTF16Offset(len(open))
-		if err := document.ReplaceTextMarked(node.ID(), end, end, text, i.active); err != nil {
+		if err := document.ReplaceTextMarked(node.ID(), 0, 0, text, i.active); err != nil {
 			return fail(err)
 		}
-		i.placeHead(node.ID(), end+model.UTF16Offset(model.StringLenUTF16(text)), document)
+		i.placeHead(node.ID(), model.UTF16Offset(model.StringLenUTF16(text)), document)
 		return kernel.OutcomeHandled, nil
 	case text != "\n":
 		return kernel.OutcomePass, nil
@@ -542,7 +544,7 @@ func (i *EditorInvoker) placeHead(node model.NodeID, offset model.UTF16Offset, d
 }
 
 // invokeBlockNotation reads an edit of a block's projected notation back
-// into its shape, or unfolds the block when the notation no longer reads
+// into its shape, or makes the block a paragraph when it no longer reads
 // as one.
 func (i *EditorInvoker) invokeBlockNotation(
 	context *kernel.RuleContext,
@@ -568,18 +570,13 @@ func (i *EditorInvoker) invokeBlockNotation(
 		open = edited
 	}
 	reshaped, ok := parseOpener(open)
-	// A space typed into an item's indent nests it a level; one deleted
-	// from it takes it out a level.
-	if reshaped.indent%2 == 1 && reshaped.indent > 2*shape.depth {
-		reshaped.depth = min(maxDepth, reshaped.depth+1)
-	}
 	if _, fence := blockNotation(reshaped, 1); ok && reshaped.kind != ParagraphNode && fence == close {
 		if err := shapeBlock(document, node.ID(), reshaped); err != nil {
 			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 		}
 		return kernel.OutcomeHandled, nil
 	}
-	if err := unfold(document, node.ID(), open, close); err != nil {
+	if err := flatten(document, node.ID()); err != nil {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
 	return kernel.OutcomeHandled, nil

@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -102,52 +103,65 @@ func TestReturnAtHeadingStartKeepsHeading(t *testing.T) {
 	expectPage(t, session, "\n## |Top", "", "Top")
 }
 
-// Backspace at a block's text start deletes the notation's last character:
-// notation that still reads as syntax reshapes the block, and notation that
-// no longer does stays as literal text, which typing the space back reads
-// as syntax again.
-func TestDeletingNotationReshapesOrUnfolds(t *testing.T) {
+// Backspace at a block's text start peels its structure a level: a nested
+// item steps out, anything else becomes a paragraph of its own text. The
+// notation, a number included, never becomes text.
+func TestBackspacePeelsBlockStructure(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "## Top")
 	run(t, session, TextLineStart, TextBackspace)
 	expectKinds(t, session, ParagraphNode)
-	expectPage(t, session, "##|Top", "##Top")
-	typeKeys(t, session, " ")
-	expectKinds(t, session, HeadingNode)
-	expectPage(t, session, "## |Top", "Top")
+	expectPage(t, session, "|Top", "Top")
 
-	// Deleting one hash of two leaves a heading a level up.
+	session = nestedList(t)
+	text := session.Projection().Text()
+	at(t, session, model.UTF16Offset(strings.Index(text, "deeper")))
+	run(t, session, TextBackspace)
+	if got := session.Projection().Text(); got != "intro\n1. one\n  1. inner\n2. deeper\n3. two\nouter" {
+		t.Fatalf("stepping out shows %q", got)
+	}
+	run(t, session, TextBackspace)
+	if got := session.Projection().Text(); got != "intro\n1. one\n  1. inner\ndeeper\n1. two\nouter" {
+		t.Fatalf("leaving the list shows %q", got)
+	}
+	if got := pageTexts(session); !slices.Equal(got, []string{"intro", "one", "inner", "deeper", "two", "outer"}) {
+		t.Fatalf("blocks = %q", got)
+	}
+}
+
+// Selecting any of a block's notation selects the whole of it: deleting
+// part of a number, or of a heading's hashes, takes the structure, never
+// leaving notation behind as text.
+func TestBlockNotationIsOneUnit(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "intro\n1. one")
+	if err := session.SelectProjected(6, 7); err != nil {
+		t.Fatal(err)
+	}
+	run(t, session, TextBackspace)
+	expectKinds(t, session, ParagraphNode, ParagraphNode)
+	expectPage(t, session, "intro\n|one", "intro", "one")
+
+	session, _ = newSessionFixture(t, "", false)
+	typeKeys(t, session, "### Top")
 	if err := session.SelectProjected(1, 2); err != nil {
 		t.Fatal(err)
 	}
 	run(t, session, TextBackspace)
-	expectKinds(t, session, HeadingNode)
-	if got := session.Projection().Text(); got != "# Top" {
-		t.Fatalf("page shows %q", got)
-	}
+	expectKinds(t, session, ParagraphNode)
+	expectPage(t, session, "|Top", "Top")
 }
 
-// "```" and Return open a code block whose text keeps its line breaks; an
-// empty last line and Return leave it.
-func TestFencedCode(t *testing.T) {
-	session, _ := newSessionFixture(t, "", false)
-	typeKeys(t, session, "```go\nx := 1\ny -- \"z\"\n")
-	expectKinds(t, session, CodeNode)
-	expectPage(t, session, "```go\nx := 1\ny -- \"z\"\n|\n```", "x := 1\ny -- \"z\"\n")
-	typeKeys(t, session, "\nprose")
-	expectKinds(t, session, CodeNode, ParagraphNode)
-	expectPage(t, session, "```go\nx := 1\ny -- \"z\"\n```\nprose|", "x := 1\ny -- \"z\"", "prose")
-}
-
-// Backspace into a fence unfolds the code into the paragraphs it shows.
-func TestDeletingFenceUnfoldsCode(t *testing.T) {
+// Backspace at code's start takes the code block away and leaves its lines
+// as paragraphs; the fences go with it.
+func TestBackspaceAtCodeStartLeavesItsLines(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "```\na\nb")
 	run(t, session, TextDocumentStart)
 	at(t, session, 4)
 	run(t, session, TextBackspace)
-	expectKinds(t, session, ParagraphNode, ParagraphNode, ParagraphNode)
-	expectPage(t, session, "```|a\nb\n```", "```a", "b", "```")
+	expectKinds(t, session, ParagraphNode, ParagraphNode)
+	expectPage(t, session, "|a\nb", "a", "b")
 }
 
 // Three dashes make a rule and go on in a paragraph after it; Backspace

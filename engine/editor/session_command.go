@@ -107,3 +107,31 @@ func (s *Session) currentViewAnchor() (model.UTF16Offset, error) {
 	}
 	return target.RangeUTF16().Start, nil
 }
+
+// peelBlock is Backspace at the start of a block's text, after the
+// notation that opens it: the block's structure steps back a level, as
+// its shape's peel says, rather than a character of its notation going.
+func (s *Session) peelBlock() (kernel.Outcome, bool, error) {
+	if !s.presentation.Selection.IsCollapsed() || s.presentation.Selection.Head().Offset() != 0 {
+		return 0, false, nil
+	}
+	caret := s.presentation.Caret.RangeUTF16().Start
+	for _, segment := range s.presentation.Projection.Segments() {
+		target, ok := segment.AttributeTarget()
+		if !ok || target.Key() != blockNotationKey || segment.ProjectedRange().End != caret {
+			continue
+		}
+		node, ok := s.runtime.Snapshot().Document().Node(target.Node())
+		if !ok {
+			return 0, false, nil
+		}
+		peeled, _ := blockNotation(shapeOf(node).peel(), 1)
+		edit, err := FromProjectedRange(s.presentation.Projection, segment.ProjectedRange(), peeled, kernel.EventOriginSemantic)
+		if err != nil {
+			return 0, true, err
+		}
+		outcome, err := s.applyProjectedEdit(edit)
+		return outcome.Outcome, true, err
+	}
+	return 0, false, nil
+}
