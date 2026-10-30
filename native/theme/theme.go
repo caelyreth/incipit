@@ -151,7 +151,7 @@ const (
 func DefaultSettings() Settings {
 	return Settings{
 		Appearance:    Starfield,
-		Accent:        Afterglow,
+		Accent:        Halo,
 		UIFontSize:    DefaultUIFontSize,
 		ProseFontSize: 19,
 	}
@@ -290,7 +290,7 @@ func statusColor(family Family) StatusColor {
 
 func familyFor(palette palette, accent Accent) Family {
 	if int(accent) >= len(palette.accents) {
-		accent = Afterglow
+		accent = Halo
 	}
 	return palette.accents[accent]
 }

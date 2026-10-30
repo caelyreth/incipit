@@ -59,7 +59,7 @@ func (s AppearanceSettings) AccentNumber() uint8 {
 func DefaultAppearance() AppearanceSettings {
 	return AppearanceSettings{
 		Appearance:    Starfield,
-		Accent:        Afterglow,
+		Accent:        Halo,
 		UIFontSize:    DefaultUIFontSize,
 		ProseFontSize: DefaultProseSize,
 	}
@@ -70,7 +70,7 @@ func (s AppearanceSettings) Normalized() AppearanceSettings {
 		s.Appearance = Starfield
 	}
 	if !s.Accent.Valid() {
-		s.Accent = Afterglow
+		s.Accent = Halo
 	}
 	s.UIFontSize = clampFloat(s.UIFontSize, MinUIFontSize, MaxUIFontSize)
 	s.ProseFontSize = clampFloat(s.ProseFontSize, MinProseFontSize, MaxProseFontSize)
