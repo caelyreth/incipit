@@ -197,8 +197,16 @@ func (m *Motion) SelectionOpacity() float32 {
 // topology resets identities so unrelated rows never morph into new rows.
 func (m *Motion) Geometry(caret ui.Rect, selection []ui.Rect, now time.Time, animate bool) (ui.Rect, []ui.Rect) {
 	if !animate {
-		m.ResetGeometry()
-		m.selectionOutput = append(m.selectionOutput, selection...)
+		// Unanimated, as while a drag follows the pointer, the motion
+		// still holds what is drawn, settled there, so animation resumes
+		// from it rather than showing the selection anew.
+		m.caret.start(caret, now)
+		m.selection = make([]rectangle, len(selection))
+		for index, target := range selection {
+			m.selection[index].start(target, now)
+		}
+		m.selectionOutput = append(m.selectionOutput[:0], selection...)
+		m.selectionAlpha, m.selectionFading = 1, false
 		return caret, m.selectionOutput
 	}
 	sampledCaret := m.caret.sample(caret, now, caretFrequency)

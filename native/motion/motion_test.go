@@ -246,3 +246,24 @@ func TestViewportGlideKeepsItsSpeedAcrossANewDestination(t *testing.T) {
 		t.Fatalf("a glide from rest crept to %v in its first tenth", first)
 	}
 }
+
+// A selection drawn unanimated, as while dragging, goes on animated from
+// where it is: it neither fades in again nor moves.
+func TestSelectionResumesFromAnUnanimatedDrag(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(0, 0)
+	motion := New(now)
+	rows := []ui.Rect{{X: 0, Y: 0, W: 80, H: 34}, {X: 0, Y: 34, W: 40, H: 34}}
+	caret := ui.Rect{X: 40, Y: 34, W: 2, H: 25}
+	motion.Geometry(caret, rows, now, false)
+	later := now.Add(16 * time.Millisecond)
+	_, drawn := motion.Geometry(caret, rows, later, true)
+	if motion.SelectionOpacity() != 1 || motion.Moving() {
+		t.Fatalf("selection replayed: opacity %v, moving %v", motion.SelectionOpacity(), motion.Moving())
+	}
+	for index := range rows {
+		if drawn[index] != rows[index] {
+			t.Fatalf("selection moved: %#v", drawn)
+		}
+	}
+}
