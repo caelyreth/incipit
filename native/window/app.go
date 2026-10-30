@@ -40,6 +40,13 @@ func Run() error {
 		window.OnBlur(func() {
 			app.Shell.SetWindowActive(false)
 		})
+		window.OnClosed(func() {
+			// Settings belongs to the editor: it closes with it, and the
+			// app quits when no window is left.
+			if settings := app.settingsWindow; settings != nil && !settings.IsDestroyed() {
+				settings.Close()
+			}
+		})
 		app.mainWindow = window
 	})
 	return mygo.App.Run()

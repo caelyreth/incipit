@@ -10,6 +10,12 @@ import (
 
 // OpenSettingsWindow shows one app-owned settings window. Reopening while it
 // exists brings the same window forward rather than rebuilding its state.
+//
+// It is an ordinary window, not a child of the editor's: macOS reorders a
+// child above its parent each time the parent takes the keyboard, a beat
+// after AppKit brought the parent in front, so a click into the editor
+// showed it over Settings for a frame and the whole view flickered. It
+// closes with the editor instead (Run).
 func (a *AppState) OpenSettingsWindow() {
 	if a == nil {
 		return
@@ -28,7 +34,6 @@ func (a *AppState) OpenSettingsWindow() {
 		Height:               740,
 		MinWidth:             640,
 		MinHeight:            440,
-		Parent:               a.mainWindow,
 		TitleBarStyle:        mygo.TitleBarHidden,
 		TitleBarHeight:       40,
 		TrafficLightPosition: trafficLights(),
