@@ -22,54 +22,57 @@ const (
 type policyInfo struct {
 	label       string
 	description string
-	order       int
-	toggleable  bool
+	// order places the policy's section on the Editor page: Writing
+	// Profile, Typography, Automatic pairs, Scope navigation, Word
+	// navigation, CJK refinement, Undo & redo, then the rest.
+	order      int
+	toggleable bool
 }
 
 func infoForPolicy(id kernel.PolicyID) policyInfo {
 	switch id {
 	case policyEditorText:
-		return policyInfo{"Core editing", "Text input, selection and deletion.", 4, false}
+		return policyInfo{"Core editing", "Text input, selection and deletion.", 7, false}
 	case policyEditorPairs:
 		return policyInfo{
 			"Automatic pairs",
 			"Complete, wrap, overtype and edit matching punctuation.",
-			0,
+			2,
 			true,
 		}
 	case policyEditorWriting:
 		return policyInfo{
 			"Writing Profile",
 			"Type Markdown and it becomes what it marks. Headings, lists, quotes, code, rules and emphasis are always part of a page; these choose what typing turns into them.",
-			1,
+			0,
 			true,
 		}
 	case policyEditorCJK:
 		return policyInfo{
 			"CJK refinement",
 			"Refine punctuation and spacing in edited paragraphs. Switch it from anywhere with {surface.cjk}.",
-			2,
+			5,
 			true,
 		}
 	case policyEditorTypography:
 		return policyInfo{
 			"Typography",
 			"Refine typed symbols and punctuation.",
-			3,
+			1,
 			true,
 		}
 	case policyEditorHistory:
 		return policyInfo{
 			"Undo & redo",
 			"Step back with {history.undo} and forward with {history.redo} through edits and selections.",
-			4,
+			6,
 			true,
 		}
 	case policyEditorNavigation:
 		return policyInfo{
 			"Scope navigation",
 			"Press {navigation.tab} to leave a pair or emphasis, or to return to your last edit.",
-			4,
+			3,
 			true,
 		}
 	case policyEditorWords:
@@ -83,11 +86,11 @@ func infoForPolicy(id kernel.PolicyID) policyInfo {
 		return policyInfo{
 			"Workspace",
 			"Visual navigation, clipboard, pages and application controls.",
-			4,
+			7,
 			false,
 		}
 	default:
-		return policyInfo{"Editor feature", "", 4, true}
+		return policyInfo{"Editor feature", "", 7, true}
 	}
 }
 
