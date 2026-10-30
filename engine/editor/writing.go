@@ -425,13 +425,6 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 		}
 		i.placeHead(carried, 0, document)
 		return kernel.OutcomeHandled, nil
-	case shape.opensLine() && blockLength(node) == 0:
-		// A break in an empty item or quote line ends the list or quote.
-		if err := shapeBlock(document, node.ID(), blockShape{kind: ParagraphNode}); err != nil {
-			return fail(err)
-		}
-		i.placeHead(node.ID(), 0, document)
-		return kernel.OutcomeHandled, nil
 	case shape.kind == CodeNode:
 		content := node.Text().String()
 		if at != blockLength(node) || !strings.HasSuffix(content, "\n") {
