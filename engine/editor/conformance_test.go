@@ -10,8 +10,8 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-func TestRustOracleMarkupProjection(t *testing.T) {
-	data, err := os.ReadFile("../../fixtures/rust-oracle/v1.json")
+func TestConformanceMarkupProjection(t *testing.T) {
+	data, err := os.ReadFile("../../fixtures/conformance/v1.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestRustOracleMarkupProjection(t *testing.T) {
 	if err := json.Unmarshal(data, &fixtures); err != nil {
 		t.Fatal(err)
 	}
-	var oracle *struct {
+	var expected *struct {
 		Name           string `json:"fixture"`
 		SemanticText   string `json:"semantic_text"`
 		ProjectedText  string `json:"projected_text"`
@@ -46,15 +46,15 @@ func TestRustOracleMarkupProjection(t *testing.T) {
 	}
 	for index := range fixtures {
 		if fixtures[index].Name == "markup-projection-v1" {
-			oracle = &fixtures[index]
+			expected = &fixtures[index]
 			break
 		}
 	}
-	if oracle == nil {
+	if expected == nil {
 		t.Fatal("markup-projection-v1 fixture missing")
 	}
-	// The page and its block come in the one transaction the Rust fixture
-	// made its node in, so revisions line up.
+	// The page and its block come in one transaction, as the fixture's node
+	// was made in, so revisions line up.
 	document, err := model.NewDocument(DocumentNode)
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestRustOracleMarkupProjection(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err := draft.SetTextValue(node, oracle.SemanticText); err != nil {
+		if err := draft.SetTextValue(node, expected.SemanticText); err != nil {
 			return err
 		}
 		if _, err := draft.AddMark(node, model.NewUTF16Range(0, 5), EmphasisMark, 1); err != nil {
@@ -84,31 +84,31 @@ func TestRustOracleMarkupProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projected, err := ProjectSnapshot(runtime.Snapshot(), oracle.Generation, runtime.Configuration())
+	projected, err := ProjectSnapshot(runtime.Snapshot(), expected.Generation, runtime.Configuration())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if projected.Text() != oracle.ProjectedText {
-		t.Fatalf("projected text = %q, want %q", projected.Text(), oracle.ProjectedText)
+	if projected.Text() != expected.ProjectedText {
+		t.Fatalf("projected text = %q, want %q", projected.Text(), expected.ProjectedText)
 	}
-	if projected.Version().SourceRevision() != oracle.SourceRevision ||
-		projected.Version().Generation() != oracle.Generation {
+	if projected.Version().SourceRevision() != expected.SourceRevision ||
+		projected.Version().Generation() != expected.Generation {
 		t.Fatalf("version = %#v", projected.Version())
 	}
 	segments := projected.Segments()
-	if len(segments) != len(oracle.Segments) {
-		t.Fatalf("segments = %#v, want %#v", segments, oracle.Segments)
+	if len(segments) != len(expected.Segments) {
+		t.Fatalf("segments = %#v, want %#v", segments, expected.Segments)
 	}
 	for index, segment := range segments {
-		want := oracle.Segments[index]
+		want := expected.Segments[index]
 		if int(segment.ProjectedRange().Start) != want.Start ||
 			int(segment.ProjectedRange().End) != want.End {
 			t.Fatalf("segment %d range = %#v, want %#v", index, segment.ProjectedRange(), want)
 		}
 		switch want.Kind {
 		case "attribute":
-			// The Rust engine keys emphasis notation "emphasis/<id>"; here
-			// every mark's notation is keyed by the mark alone.
+			// The fixture keys emphasis notation "emphasis/<id>"; here every
+			// mark's notation is keyed by the mark alone.
 			target, ok := segment.AttributeTarget()
 			if !ok || want.Key == nil ||
 				target.Key() != strings.Replace(*want.Key, "emphasis/", markerKeyPrefix, 1) {

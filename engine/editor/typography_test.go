@@ -81,7 +81,7 @@ func TestTypographyConvergesApostropheAfterOtherAlphabetic(t *testing.T) {
 	}
 }
 
-func TestAlphanumericMatchesRustCharacterClasses(t *testing.T) {
+func TestAlphanumericMatchesUnicodeCharacterClasses(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		r    rune

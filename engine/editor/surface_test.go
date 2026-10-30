@@ -7,7 +7,7 @@ import (
 	"github.com/caelyreth/neverland/engine/kernel"
 )
 
-func TestSurfacePolicyMatchesRustCommandCatalog(t *testing.T) {
+func TestSurfacePolicyMatchesCommandCatalog(t *testing.T) {
 	t.Parallel()
 	catalog, err := EditorPolicyCatalog()
 	if err != nil {
@@ -64,7 +64,7 @@ func TestSurfacePolicyMatchesRustCommandCatalog(t *testing.T) {
 	}
 }
 
-func TestSurfaceBindingsPreserveRustModifiersAndKeys(t *testing.T) {
+func TestSurfaceBindingsPreserveModifiersAndKeys(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		id        kernel.CommandID

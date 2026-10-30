@@ -217,7 +217,7 @@ func TestMarkupProjectEmphasisAndSettings(t *testing.T) {
 	}
 }
 
-func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
+func TestEditorPolicyCatalogMatchesDeclarations(t *testing.T) {
 	t.Parallel()
 	catalog, err := EditorPolicyCatalog()
 	if err != nil {

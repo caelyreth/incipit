@@ -207,8 +207,8 @@ func (e ProjectedEdit) Validate(p *projection.Projection) error {
 }
 
 // ResolveProjectedEdit decomposes a visual replacement into ordered attribute
-// intents and at most one primary semantic text intent. It mirrors the Rust
-// engine's zero-width, marker-only, mixed-selection, and literal-marker branches.
+// intents and at most one primary semantic text intent, by its zero-width,
+// marker-only, mixed-selection, and literal-marker branches.
 func ResolveProjectedEdit(
 	p *projection.Projection,
 	edit ProjectedEdit,
@@ -498,9 +498,8 @@ func resolveRangeProjectedEdit(
 	} else {
 		target := insertionTarget
 		if target == nil {
-			// The Rust resolver uses the session's current node as an unused
-			// placeholder here. A pure resolver has no session selection, so
-			// it exposes the same unused primary as the zero value.
+			// A pure resolver has no session selection: the primary is unused
+			// here, and is the zero value.
 			primary = input.TextInput{}
 		} else {
 			primary = input.NewTextInput(*target, "")

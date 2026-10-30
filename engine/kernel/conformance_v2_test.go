@@ -6,16 +6,15 @@ import (
 	"testing"
 )
 
-func TestRustOracleV2DocumentAuthorityEvidence(t *testing.T) {
+func TestConformanceV2DocumentAuthorityEvidence(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile("../../fixtures/rust-oracle/v2.json")
+	data, err := os.ReadFile("../../fixtures/conformance/v2.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var fixtures []struct {
-		Fixture    string `json:"fixture"`
-		RustCommit string `json:"rust_commit"`
-		Cases      []struct {
+		Fixture string `json:"fixture"`
+		Cases   []struct {
 			Variant string `json:"variant"`
 			Debug   string `json:"debug"`
 			Display string `json:"display"`
@@ -26,9 +25,8 @@ func TestRustOracleV2DocumentAuthorityEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	var authority *struct {
-		Fixture    string `json:"fixture"`
-		RustCommit string `json:"rust_commit"`
-		Cases      []struct {
+		Fixture string `json:"fixture"`
+		Cases   []struct {
 			Variant string `json:"variant"`
 			Debug   string `json:"debug"`
 			Display string `json:"display"`
@@ -41,7 +39,7 @@ func TestRustOracleV2DocumentAuthorityEvidence(t *testing.T) {
 			break
 		}
 	}
-	if authority == nil || len(authority.RustCommit) != 40 || len(authority.Cases) != 2 {
+	if authority == nil || len(authority.Cases) != 2 {
 		t.Fatalf("kernel authority fixture = %#v", authority)
 	}
 	want := []struct {

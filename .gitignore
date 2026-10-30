@@ -22,10 +22,6 @@ coverage.*
 *.swp
 *.swo
 
-# Local oracle captures and generated artifacts
+# Local scratch
 /tmp/
-/fixtures/rust-oracle/raw/
-
-# Local research and design-reference archive
-/references/
 

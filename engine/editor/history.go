@@ -189,7 +189,7 @@ func (h *History) recordAt(
 
 // ShouldGroupTyping reports whether an edit may join an existing typing group.
 // Only one Alphabetic-or-Numeric Unicode scalar inserted by a typing-origin
-// text edit qualifies, matching Rust's char::is_alphanumeric.
+// text edit qualifies.
 func ShouldGroupTyping(origin kernel.EventOrigin, appliesText bool, replacement string) bool {
 	if origin != kernel.EventOriginTyping || !appliesText {
 		return false

@@ -3456,8 +3456,7 @@
         "utf16_len": 6
       }
     ],
-    "fixture": "coordinates-v1",
-    "rust_commit": "3fff58e089e57529bc725935cd37a2da63071f0b"
+    "fixture": "coordinates-v1"
   },
   {
     "cases": [
@@ -4022,8 +4021,7 @@
         "result": 8
       }
     ],
-    "fixture": "anchor-rebase-v1",
-    "rust_commit": "3fff58e089e57529bc725935cd37a2da63071f0b"
+    "fixture": "anchor-rebase-v1"
   },
   {
     "final_marks": [
@@ -4049,7 +4047,6 @@
         "start": 3
       }
     ],
-    "rust_commit": "3fff58e089e57529bc725935cd37a2da63071f0b",
     "text_after_insert": "界abcdef"
   },
   {
@@ -4120,14 +4117,12 @@
         "text": "á🦀\n中"
       }
     ],
-    "fixture": "text-metrics-v1",
-    "rust_commit": "3fff58e089e57529bc725935cd37a2da63071f0b"
+    "fixture": "text-metrics-v1"
   },
   {
     "fixture": "markup-projection-v1",
     "generation": 3,
     "projected_text": "*alpha* **beta** gamma",
-    "rust_commit": "3fff58e089e57529bc725935cd37a2da63071f0b",
     "segments": [
       {
         "end": 1,
@@ -4293,7 +4288,6 @@
         ]
       }
     ],
-    "fixture": "seeded-traces-v1",
-    "rust_commit": "3fff58e089e57529bc725935cd37a2da63071f0b"
+    "fixture": "seeded-traces-v1"
   }
 ]

@@ -37,7 +37,7 @@ const (
 	EditorPolicyWords      EditorPolicy = "editor.words"
 )
 
-// AllEditorPolicies is the Rust assembly order.
+// AllEditorPolicies is the policies' assembly order.
 var AllEditorPolicies = [...]EditorPolicy{
 	EditorPolicyText,
 	EditorPolicyWriting,
@@ -96,7 +96,7 @@ const (
 	TextNewline
 )
 
-// AllTextCommands is the declaration order used by the Rust command macro.
+// AllTextCommands is the text commands' stable declaration order.
 var AllTextCommands = [...]TextCommand{
 	TextLeft,
 	TextRight,
@@ -167,7 +167,7 @@ const (
 	HistoryRedo
 )
 
-// AllHistoryCommands is the Rust declaration order.
+// AllHistoryCommands is the history commands' stable declaration order.
 var AllHistoryCommands = [...]HistoryCommand{HistoryUndo, HistoryRedo}
 
 // Description returns stable command metadata.
@@ -181,7 +181,7 @@ func (c HistoryCommand) Description() Command {
 // ID returns the stable command identity.
 func (c HistoryCommand) ID() kernel.CommandID { return c.Description().ID }
 
-// EditorPolicyDescriptors returns the complete Rust policy assembly in stable
+// EditorPolicyDescriptors returns the complete policy assembly in stable
 // declaration order.
 func EditorPolicyDescriptors() ([]kernel.PolicyDescriptor, error) {
 	text, err := textPolicyDescriptor()
@@ -783,8 +783,8 @@ func (i *EditorInvoker) invokeText(context *kernel.RuleContext) (kernel.Outcome,
 	start := input.Target().RangeUTF16().Start
 	beforeEdits := document.TextEditCount()
 	// Projected edits batch attribute intents before this text intent, with
-	// every target validated against the pre-write draft. Like Rust's
-	// TextReplace, consume through the compound path: ApplyTextInput would
+	// every target validated against the pre-write draft. Consume through
+	// the compound path: ApplyTextInput would
 	// revalidate against the draft the attribute intents already wrote.
 	_, _, handled, err := context.ReplaceTextInputMarked(i.active)
 	if err != nil {

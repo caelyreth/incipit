@@ -2,8 +2,7 @@
 
 Neverland is a writing workspace built with Go and MyGo.
 
-The port follows the research dossier recorded under the ignored local
-`references/` tree:
+Its design:
 
 - the headless semantic and policy engine remains authoritative;
 - generated markup remains a projection rather than stored text;
@@ -29,7 +28,7 @@ native/motion        cursor, selection, viewport, and feedback animation
 native/documentview  custom writing surface
 native/shell         window composition and chrome
 native/overlay       command palette
-fixtures             Rust oracle traces and generated compatibility data
+fixtures             conformance data the engine tests check against
 ```
 
 ## Development
@@ -69,11 +68,10 @@ is deferred and is not part of the initial support contract.
 The engine, application boundary, custom writing surface, window shell,
 settings window, command palette, pointer selection, and contractual motion
 are implemented and covered by headless tests. The complete merged suite passes
-with the race detector and `go vet`. The focused Rust oracle corpus is
-mandatory and has no skipped parity cases.
+with the race detector and `go vet`. The conformance fixtures under
+`fixtures/` are mandatory and have no skipped cases.
 
-Still required before release: broader randomized differential traces, native
+Still required before release: broader randomized editor traces, native
 IME/accessibility acceptance on every target OS, performance acceptance, and
-cross-platform runtime packaging. See
-`docs/architecture.md` and `docs/roadmap.md`.
+cross-platform runtime packaging.
 

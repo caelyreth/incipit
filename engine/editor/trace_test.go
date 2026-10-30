@@ -33,8 +33,8 @@ type traceCase struct {
 	Snapshots  []traceSnapshot  `json:"snapshots"`
 }
 
-func TestRustSeededDocumentTraces(t *testing.T) {
-	data, err := os.ReadFile("../../fixtures/rust-oracle/v1.json")
+func TestSeededDocumentTraces(t *testing.T) {
+	data, err := os.ReadFile("../../fixtures/conformance/v1.json")
 	if err != nil {
 		t.Fatal(err)
 	}

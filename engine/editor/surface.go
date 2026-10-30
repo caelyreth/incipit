@@ -18,7 +18,7 @@ const (
 	SurfaceApp
 )
 
-// Surface command identities match the Rust Shoreward host catalog.
+// Surface command identities are stable routing names.
 const (
 	SurfaceUpCommandID           kernel.CommandID = "surface.up"
 	SurfaceDownCommandID         kernel.CommandID = "surface.down"
@@ -41,8 +41,7 @@ const (
 	SurfaceSettingsCommandID     kernel.CommandID = "surface.settings"
 )
 
-// SurfaceCommand is one complete declaration in the Rust-compatible surface
-// policy. The ID is the stable routing identity; Kind selects its native owner.
+// SurfaceCommand is one complete declaration in the surface policy. The ID is the stable routing identity; Kind selects its native owner.
 // Scope is what it acts on; Subject names the editor policy a command
 // switches, when it switches one.
 type SurfaceCommand struct {
@@ -81,7 +80,7 @@ var surfaceCommands = [...]SurfaceCommand{
 	{ID: SurfaceSettingsCommandID, Label: "Open settings", Kind: SurfaceApp, Scope: ScopeApp},
 }
 
-// AllSurfaceCommands is the stable Rust declaration order. Callers may read
+// AllSurfaceCommands is the stable declaration order. Callers may read
 // it directly but must not append to it.
 var AllSurfaceCommands = surfaceCommands
 

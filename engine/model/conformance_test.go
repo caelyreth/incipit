@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-type oracleCoordinateCase struct {
+type conformanceCoordinateCase struct {
 	Text     string `json:"text"`
 	UTF16Len int    `json:"utf16_len"`
 	ByteLen  int    `json:"byte_len"`
@@ -31,7 +31,7 @@ type oracleCoordinateCase struct {
 	} `json:"byte_strict"`
 }
 
-type oracleAnchorCase struct {
+type conformanceAnchorCase struct {
 	Edit struct {
 		Start    int `json:"start"`
 		End      int `json:"end"`
@@ -42,9 +42,9 @@ type oracleAnchorCase struct {
 	Result   *int   `json:"result"`
 }
 
-func loadOracle(t *testing.T) map[string]json.RawMessage {
+func loadConformance(t *testing.T) map[string]json.RawMessage {
 	t.Helper()
-	data, err := os.ReadFile("../../fixtures/rust-oracle/v1.json")
+	data, err := os.ReadFile("../../fixtures/conformance/v1.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,11 +72,11 @@ func loadOracle(t *testing.T) map[string]json.RawMessage {
 	return out
 }
 
-func TestRustOracleCoordinates(t *testing.T) {
+func TestConformanceCoordinates(t *testing.T) {
 	var fixture struct {
-		Cases []oracleCoordinateCase `json:"cases"`
+		Cases []conformanceCoordinateCase `json:"cases"`
 	}
-	if err := json.Unmarshal(loadOracle(t)["coordinates-v1"], &fixture); err != nil {
+	if err := json.Unmarshal(loadConformance(t)["coordinates-v1"], &fixture); err != nil {
 		t.Fatal(err)
 	}
 	for _, test := range fixture.Cases {
@@ -126,11 +126,11 @@ func TestRustOracleCoordinates(t *testing.T) {
 	}
 }
 
-func TestRustOracleAnchorRebase(t *testing.T) {
+func TestConformanceAnchorRebase(t *testing.T) {
 	var fixture struct {
-		Cases []oracleAnchorCase `json:"cases"`
+		Cases []conformanceAnchorCase `json:"cases"`
 	}
-	if err := json.Unmarshal(loadOracle(t)["anchor-rebase-v1"], &fixture); err != nil {
+	if err := json.Unmarshal(loadConformance(t)["anchor-rebase-v1"], &fixture); err != nil {
 		t.Fatal(err)
 	}
 	const node NodeID = 1
@@ -156,7 +156,7 @@ func TestRustOracleAnchorRebase(t *testing.T) {
 	}
 }
 
-func TestRustOracleTextMetricsPrefix(t *testing.T) {
+func TestConformanceTextMetricsPrefix(t *testing.T) {
 	var fixture struct {
 		Cases []struct {
 			Text       string `json:"text"`
@@ -164,7 +164,7 @@ func TestRustOracleTextMetricsPrefix(t *testing.T) {
 			Paragraphs int    `json:"paragraphs"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(loadOracle(t)["text-metrics-v1"], &fixture); err != nil {
+	if err := json.Unmarshal(loadConformance(t)["text-metrics-v1"], &fixture); err != nil {
 		t.Fatal(err)
 	}
 	for _, test := range fixture.Cases {
@@ -183,7 +183,7 @@ func TestRustOracleTextMetricsPrefix(t *testing.T) {
 	}
 }
 
-func TestRustOracleMarks(t *testing.T) {
+func TestConformanceMarks(t *testing.T) {
 	var fixture struct {
 		Initial []struct {
 			ID    uint64 `json:"id"`
@@ -199,7 +199,7 @@ func TestRustOracleMarks(t *testing.T) {
 		} `json:"final_marks"`
 		Text string `json:"text_after_insert"`
 	}
-	if err := json.Unmarshal(loadOracle(t)["marks-v1"], &fixture); err != nil {
+	if err := json.Unmarshal(loadConformance(t)["marks-v1"], &fixture); err != nil {
 		t.Fatal(err)
 	}
 	document, err := NewDocument("text")

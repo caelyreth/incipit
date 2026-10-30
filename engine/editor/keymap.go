@@ -7,8 +7,6 @@ import "github.com/caelyreth/neverland/engine/kernel"
 // them their default keys, and a configuration's own remaps sit above it. The
 // kernel checks the layers together, so a default and a remap that collide
 // are reported like any other conflict.
-//
-// The keys match the Rust Shoreward host catalog.
 var defaultKeymap = [...]kernel.BindingSpec{
 	defaultKey("text.left", "left", 0),
 	defaultKey("text.right", "right", 0),
