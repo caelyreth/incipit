@@ -13,8 +13,9 @@ import (
 )
 
 // editorPage draws one card per policy. A policy is a master switch with
-// tweaks under it, so the card's header is the policy and its switch, and
-// the tweaks nest beneath, folding away while the policy is off.
+// tweaks under it, so the card's first line is the policy and its switch;
+// its story plays beneath, and the tweaks nest under that, each with the
+// keys it answers to, folding away while the policy is off.
 func (s *State) editorPage(
 	c *ui.Context,
 	semantic theme.Theme,
@@ -92,8 +93,8 @@ func (s *State) policyCard(
 		components.SettingGroup{
 			Key: "settings-group-" + section.Title, Label: section.Title,
 			Children: func() {
-				s.policyShowcase(c, semantic, section, on)
 				s.policyHeader(c, semantic, section, master, len(options)+len(shortcuts), on)
+				s.policyShowcase(c, semantic, section, on)
 				if len(options)+len(shortcuts) == 0 {
 					return
 				}
@@ -103,7 +104,7 @@ func (s *State) policyCard(
 	})
 }
 
-// policyHeader is the card's first row: the policy and its master switch.
+// policyHeader is the card's first line: the policy and its master switch.
 // Its description names the policy's keys live; one pressed records there,
 // under the header, which stays open while the policy is off.
 func (s *State) policyHeader(
@@ -168,7 +169,7 @@ func (s *State) policyShowcase(
 	}
 	scale := s.Theme.UIFontSize
 	inset := theme.Space16.DIPs(scale)
-	ui.Row(c).WidthPercent(100).Padding(inset, inset, 0, inset).Children(func() {
+	ui.Row(c).WidthPercent(100).Padding(0, inset, inset, inset).Children(func() {
 		showcase.Stage{
 			Key:           "showcase-" + string(section.Policy),
 			Script:        script,

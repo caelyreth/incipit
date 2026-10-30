@@ -32,23 +32,21 @@ func (k TabKind) String() string {
 // NavigationSettings encode the feature and user-setting gates relevant to
 // Tab resolution.
 type NavigationSettings struct {
-	Enabled             bool
-	Pairs               bool
-	PairsPolicyEnabled  bool
-	Emphasis            bool
-	MarkupPolicyEnabled bool
-	ReturnToEdit        bool
+	Enabled            bool
+	Pairs              bool
+	PairsPolicyEnabled bool
+	Emphasis           bool
+	ReturnToEdit       bool
 }
 
 // DefaultNavigationSettings enables every Tab behavior.
 func DefaultNavigationSettings() NavigationSettings {
 	return NavigationSettings{
-		Enabled:             true,
-		Pairs:               true,
-		PairsPolicyEnabled:  true,
-		Emphasis:            true,
-		MarkupPolicyEnabled: true,
-		ReturnToEdit:        true,
+		Enabled:            true,
+		Pairs:              true,
+		PairsPolicyEnabled: true,
+		Emphasis:           true,
+		ReturnToEdit:       true,
 	}
 }
 
@@ -179,7 +177,7 @@ func (n Navigation) TabOffer(
 				}
 			}
 		}
-		if settings.Emphasis && settings.MarkupPolicyEnabled {
+		if settings.Emphasis {
 			for _, mark := range node.Marks() {
 				textRange := mark.Range()
 				active := activeMark != nil && *activeMark == mark.ID()

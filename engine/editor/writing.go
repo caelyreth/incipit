@@ -54,10 +54,12 @@ const (
 	rulesSetting       = "rules"
 )
 
-// writingSyntax is the profile's syntax as the writing policy's settings
-// shape it.
-type writingSyntax struct {
-	allowStrong bool
+// writingTriggers are the notation typing reads as structure, as the
+// writing policy's settings allow it. The kinds themselves are built in:
+// a page shows and edits every heading, list or mark whatever is allowed
+// here; these decide only what typing a marker makes.
+type writingTriggers struct {
+	asterisks   bool
 	underscores bool
 	headings    bool
 	quotes      bool
@@ -67,10 +69,10 @@ type writingSyntax struct {
 	rules       bool
 }
 
-func syntaxFrom(setting func(id string, fallback bool) bool) writingSyntax {
-	return writingSyntax{
-		allowStrong: setting(allowStrongSetting, true),
-		underscores: setting(underscoresSetting, false),
+func triggersFrom(setting func(id string, fallback bool) bool) writingTriggers {
+	return writingTriggers{
+		asterisks:   setting(asterisksSetting, true),
+		underscores: setting(underscoresSetting, true),
 		headings:    setting(headingsSetting, true),
 		quotes:      setting(blockquotesSetting, true),
 		lists:       setting(listsSetting, true),
@@ -80,57 +82,66 @@ func syntaxFrom(setting func(id string, fallback bool) bool) writingSyntax {
 	}
 }
 
-func configuredSyntax(configuration *kernel.PreparedPolicyConfiguration) writingSyntax {
-	return syntaxFrom(func(id string, fallback bool) bool {
-		return markupSettingBool(configuration, id, fallback)
-	})
-}
-
-func contextSyntax(context *kernel.RuleContext) writingSyntax {
-	return syntaxFrom(func(id string, fallback bool) bool {
+func contextTriggers(context *kernel.RuleContext) writingTriggers {
+	return triggersFrom(func(id string, fallback bool) bool {
 		return contextMarkupBool(context, id, fallback)
 	})
 }
 
+// writingSettingDescriptors are the triggers, in the order the Writing
+// Profile card lists them.
 func writingSettingDescriptors() []kernel.SettingDescriptor {
-	return []kernel.SettingDescriptor{
-		{ID: allowStrongSetting, Default: kernel.BoolSetting(true)},
-		{ID: underscoresSetting, Default: kernel.BoolSetting(false)},
-		{ID: headingsSetting, Default: kernel.BoolSetting(true)},
-		{ID: blockquotesSetting, Default: kernel.BoolSetting(true)},
-		{ID: listsSetting, Default: kernel.BoolSetting(true)},
-		{ID: codeSetting, Default: kernel.BoolSetting(true)},
-		{ID: strikeSetting, Default: kernel.BoolSetting(true)},
-		{ID: rulesSetting, Default: kernel.BoolSetting(true)},
+	ids := []string{
+		asterisksSetting, underscoresSetting, headingsSetting, listsSetting,
+		blockquotesSetting, codeSetting, strikeSetting, rulesSetting,
 	}
+	descriptors := make([]kernel.SettingDescriptor, 0, len(ids))
+	for _, id := range ids {
+		descriptors = append(descriptors, kernel.SettingDescriptor{
+			ID: kernel.SettingID(id), Default: kernel.BoolSetting(true),
+		})
+	}
+	return descriptors
 }
 
-// markerKind is the mark a typed marker opens, and the highest level the
-// mark goes to.
-func (w writingSyntax) markerKind(text string) (model.MarkKind, uint8, bool) {
+// markerKind is the mark a typed marker opens, when typing it is allowed to,
+// and the highest level the mark goes to.
+func (t writingTriggers) markerKind(text string) (model.MarkKind, uint8, bool) {
 	switch text {
-	case "*", "_":
-		if w.allowStrong {
-			return EmphasisMark, 2, true
-		}
-		return EmphasisMark, 1, true
+	case "*":
+		return EmphasisMark, 2, t.asterisks
+	case "_":
+		return EmphasisMark, 2, t.underscores
 	case "`":
-		return CodeMark, 1, w.code
+		return CodeMark, 1, t.code
 	case "~":
-		return StrikeMark, 1, w.strike
+		return StrikeMark, 1, t.strike
 	}
 	return "", 0, false
 }
 
+// opens reports whether typing may open a block of kind.
+func (t writingTriggers) opens(kind model.NodeTypeID) bool {
+	switch kind {
+	case HeadingNode:
+		return t.headings
+	case QuoteNode:
+		return t.quotes
+	case BulletNode, OrderedNode:
+		return t.lists
+	case CodeNode:
+		return t.code
+	case RuleNode:
+		return t.rules
+	}
+	return false
+}
+
 // inlineNotation is how a mark shows on either side of its text.
-func (w writingSyntax) inlineNotation(mark model.InlineMark) string {
+func inlineNotation(mark model.InlineMark) string {
 	switch mark.Kind() {
 	case EmphasisMark:
-		marker := "*"
-		if w.underscores {
-			marker = "_"
-		}
-		return strings.Repeat(marker, int(mark.Level()))
+		return strings.Repeat("*", int(mark.Level()))
 	case CodeMark:
 		return "`"
 	case StrikeMark:
@@ -140,20 +151,15 @@ func (w writingSyntax) inlineNotation(mark model.InlineMark) string {
 }
 
 // inlineLevel reads edited notation of a mark back to its level; zero takes
-// the mark away.
-func (w writingSyntax) inlineLevel(kind model.MarkKind, text string) (uint8, bool) {
+// the mark away. Emphasis reads either marker, as typing does.
+func inlineLevel(kind model.MarkKind, text string) (uint8, bool) {
 	if text == "" {
 		return 0, true
 	}
 	if kind != EmphasisMark {
-		probe := model.NewInlineMark(0, model.UTF16Range{}, kind, 1)
-		return 1, text == w.inlineNotation(probe)
+		return 1, text == inlineNotation(model.NewInlineMark(0, model.UTF16Range{}, kind, 1))
 	}
-	marker := w.inlineNotation(model.NewInlineMark(0, model.UTF16Range{}, EmphasisMark, 1))
-	if strings.Trim(text, marker) != "" {
-		return 0, false
-	}
-	if len(text) > 2 || len(text) == 2 && !w.allowStrong {
+	if strings.Trim(text, text[:1]) != "" || text[0] != '*' && text[0] != '_' || len(text) > 2 {
 		return 0, false
 	}
 	return uint8(len(text)), true
@@ -221,26 +227,26 @@ func blockNotation(shape blockShape, ordinal int) (open, close string) {
 }
 
 // parseOpener reads notation at a block's start as the shape it opens: the
-// inverse of blockNotation over what the profile allows.
-func (w writingSyntax) parseOpener(text string) (blockShape, bool) {
+// inverse of blockNotation.
+func parseOpener(text string) (blockShape, bool) {
 	paragraph := blockShape{kind: ParagraphNode}
 	switch {
 	case text == "":
 		return paragraph, true
-	case w.headings && strings.HasSuffix(text, " ") &&
+	case strings.HasSuffix(text, " ") &&
 		len(text) <= 7 && strings.Trim(text[:len(text)-1], "#") == "" && len(text) > 1:
 		return blockShape{kind: HeadingNode, level: len(text) - 1}, true
-	case w.quotes && text == "> ":
+	case text == "> ":
 		return blockShape{kind: QuoteNode}, true
-	case w.lists && (text == "- " || text == "+ "):
+	case (text == "- " || text == "+ "):
 		return blockShape{kind: BulletNode}, true
-	case w.lists && strings.HasSuffix(text, ". ") && len(text) > 2 && len(text) <= 11 &&
+	case strings.HasSuffix(text, ". ") && len(text) > 2 && len(text) <= 11 &&
 		strings.Trim(text[:len(text)-2], "0123456789") == "":
 		return blockShape{kind: OrderedNode}, true
-	case w.code && strings.HasPrefix(text, "```") && strings.HasSuffix(text, "\n") &&
+	case strings.HasPrefix(text, "```") && strings.HasSuffix(text, "\n") &&
 		!strings.ContainsAny(text[3:len(text)-1], "`\n"):
 		return blockShape{kind: CodeNode, info: strings.TrimSpace(text[3 : len(text)-1])}, true
-	case w.rules && text == "---":
+	case text == "---":
 		return blockShape{kind: RuleNode}, true
 	}
 	return blockShape{}, false
@@ -330,50 +336,63 @@ func ordinals(blocks []*model.Node) []int {
 	return numbers
 }
 
-// invokeBlockSyntax reads text typed into a block as block syntax: notation
-// typed at a paragraph's start that opens a block, a break typed where a
-// block's kind decides what follows it, and text typed onto a rule, which
-// has none of its own.
-func (i *EditorInvoker) invokeBlockSyntax(context *kernel.RuleContext) (kernel.Outcome, error) {
+// collapsedTyping is the block a collapsed text input types into, with the
+// offset and the text.
+func collapsedTyping(context *kernel.RuleContext) (*model.DocumentDraft, *model.Node, model.UTF16Offset, string, bool, error) {
 	input, ok := context.Event().TextInput()
 	if !ok || !input.Target().RangeUTF16().Empty() {
-		return kernel.OutcomePass, nil
+		return nil, nil, 0, "", false, nil
 	}
 	document, err := context.DocumentMut()
 	if err != nil {
-		return 0, err
+		return nil, nil, 0, "", false, err
 	}
 	node, ok := document.Node(input.Target().Node())
-	if !ok {
+	return document, node, input.Target().RangeUTF16().Start, input.Text(), ok, nil
+}
+
+// invokeBlockTrigger reads notation typed at a paragraph's start as the
+// block it opens, as far as the writing policy allows: "## " a heading,
+// "```" and Return a code block, "---" a rule.
+func (i *EditorInvoker) invokeBlockTrigger(context *kernel.RuleContext) (kernel.Outcome, error) {
+	document, node, at, text, ok, err := collapsedTyping(context)
+	if err != nil || !ok || node.Kind() != ParagraphNode ||
+		text != " " && text != "\n" && text != "-" {
+		return kernel.OutcomePass, err
+	}
+	content := node.Text().String()
+	split := int(model.UTF16OffsetToByteClamped(content, at))
+	opened, ok := parseOpener(content[:split] + text)
+	if !ok || !contextTriggers(context).opens(opened.kind) ||
+		!opened.opensLine() && split != len(content) {
 		return kernel.OutcomePass, nil
 	}
-	syntax := contextSyntax(context)
-	at := input.Target().RangeUTF16().Start
-	text := input.Text()
+	if err := shapeBlock(document, node.ID(), opened); err == nil {
+		err = document.ReplaceTextMarked(node.ID(), 0, at, "", nil)
+	}
+	if err != nil {
+		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
+	}
+	i.placeHead(node.ID(), 0, document)
+	if opened.kind == RuleNode {
+		return i.paragraphAfter(document, node.ID())
+	}
+	return kernel.OutcomeHandled, nil
+}
+
+// invokeBlockKind types into a block as its kind has it, whatever typing
+// may open: a break where the kind decides what follows it, and text onto
+// a rule, which has none of its own.
+func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Outcome, error) {
+	document, node, at, text, ok, err := collapsedTyping(context)
+	if err != nil || !ok {
+		return kernel.OutcomePass, err
+	}
 	shape := shapeOf(node)
 	fail := func(err error) (kernel.Outcome, error) {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
 	switch {
-	case shape.kind == ParagraphNode && (text == " " || text == "\n" || text == "-"):
-		content := node.Text().String()
-		split := int(model.UTF16OffsetToByteClamped(content, at))
-		opened, ok := syntax.parseOpener(content[:split] + text)
-		if !ok || opened.kind == ParagraphNode ||
-			!opened.opensLine() && split != len(content) {
-			return kernel.OutcomePass, nil
-		}
-		if err := shapeBlock(document, node.ID(), opened); err != nil {
-			return fail(err)
-		}
-		if err := document.ReplaceTextMarked(node.ID(), 0, at, "", nil); err != nil {
-			return fail(err)
-		}
-		i.placeHead(node.ID(), 0, document)
-		if opened.kind == RuleNode {
-			return i.paragraphAfter(document, node.ID())
-		}
-		return kernel.OutcomeHandled, nil
 	case shape.kind == RuleNode:
 		if text == "\n" {
 			return i.paragraphAfter(document, node.ID())
@@ -489,7 +508,7 @@ func (i *EditorInvoker) invokeBlockNotation(
 	} else {
 		open = edited
 	}
-	reshaped, ok := contextSyntax(context).parseOpener(open)
+	reshaped, ok := parseOpener(open)
 	if _, fence := blockNotation(reshaped, 1); ok && reshaped.kind != ParagraphNode && fence == close {
 		if err := shapeBlock(document, node.ID(), reshaped); err != nil {
 			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}

@@ -11,7 +11,7 @@ import (
 func TestMarkerPlanCreatesUpgradesAndExitsAtActiveEnd(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "")
-	settings := testSyntax(true)
+	settings := testTriggers()
 	node := fixture.nodeValue(t)
 
 	action, err := PlanMarkerTypes(
@@ -82,24 +82,26 @@ func TestMarkerPlanCreatesUpgradesAndExitsAtActiveEnd(t *testing.T) {
 	}
 }
 
-func TestMarkerPlanHonorsStrongGateAndOrigin(t *testing.T) {
+func TestMarkerPlanHonorsTriggersAndOrigin(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "word", model.EmptyUTF16Range(0))
 	node := fixture.nodeValue(t)
 	active := node.Marks()[0].ID()
+	off := testTriggers()
+	off.asterisks = false
 	action, err := PlanMarkerTypes(
 		node,
 		model.EmptyUTF16Range(0),
 		"*",
 		&active,
-		testSyntax(false),
+		off,
 		kernel.EventOriginTyping,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !action.Handled || !action.NoOp || action.Exited {
-		t.Fatalf("strong gate action=%#v", action)
+	if action.Handled {
+		t.Fatalf("a marker typing may not read was read: %#v", action)
 	}
 	for _, origin := range []kernel.EventOrigin{
 		kernel.EventOriginPaste,
@@ -111,7 +113,7 @@ func TestMarkerPlanHonorsStrongGateAndOrigin(t *testing.T) {
 			model.EmptyUTF16Range(0),
 			"*",
 			nil,
-			testSyntax(true),
+			testTriggers(),
 			origin,
 		)
 		if err != nil || action.Handled {
@@ -153,11 +155,11 @@ func TestInlineInputStyleAndMutedRuns(t *testing.T) {
 	fixture := newEditingFixture(t, "abc", model.NewUTF16Range(0, 3))
 	node := fixture.nodeValue(t)
 	active := node.Marks()[0].ID()
-	style := InlineInputStyle(node, &active, true)
+	style := InlineInputStyle(node, &active)
 	if !style.Italic || style.Bold {
 		t.Fatalf("input style=%#v", style)
 	}
-	configuration, err := markupConfiguration(t, true, false, true)
+	configuration, err := markupConfiguration(t, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +172,7 @@ func TestInlineInputStyleAndMutedRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs, err := InlineStyleRuns(projection, fixture.document.Snapshot(), true)
+	runs, err := InlineStyleRuns(projection, fixture.document.Snapshot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,9 +182,7 @@ func TestInlineInputStyleAndMutedRuns(t *testing.T) {
 	}
 }
 
-// testSyntax is the default writing profile, strong emphasis as asked.
-func testSyntax(allowStrong bool) writingSyntax {
-	syntax := syntaxFrom(func(_ string, fallback bool) bool { return fallback })
-	syntax.allowStrong = allowStrong
-	return syntax
+// testTriggers lets typing read every marker.
+func testTriggers() writingTriggers {
+	return triggersFrom(func(_ string, fallback bool) bool { return fallback })
 }

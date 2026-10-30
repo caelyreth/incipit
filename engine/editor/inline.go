@@ -83,14 +83,14 @@ func PlanMarkerTypes(
 	input model.UTF16Range,
 	text string,
 	active *model.MarkID,
-	syntax writingSyntax,
+	triggers writingTriggers,
 	origin kernel.EventOrigin,
 ) (MarkerAction, error) {
 	action := MarkerAction{Node: nodeID(node), Range: input, Head: input.End}
 	if node == nil || origin != kernel.EventOriginTyping {
 		return action, nil
 	}
-	kind, top, ok := syntax.markerKind(text)
+	kind, top, ok := triggers.markerKind(text)
 	if !ok || node.Kind() == CodeNode || literalAt(node, active) && kind != CodeMark {
 		return action, nil
 	}
@@ -234,10 +234,9 @@ func MarkerEffect(node *model.Node, range16 model.UTF16Range) (model.MarkID, boo
 func InlineInputStyle(
 	node *model.Node,
 	active *model.MarkID,
-	enabled bool,
 ) surface.TextStyle {
 	style := surface.TextStyle{Color: surface.ColorText}
-	if !enabled || node == nil {
+	if node == nil {
 		return style
 	}
 	style = blockStyle(node)
@@ -258,7 +257,6 @@ func InlineInputStyle(
 func InlineStyleRuns(
 	p *projection.Projection,
 	document model.DocumentSnapshot,
-	enabled bool,
 ) ([]surface.StyleRun, error) {
 	if p == nil {
 		return nil, &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
@@ -292,7 +290,7 @@ func InlineStyleRuns(
 		} else if target, ok := segment.AttributeTarget(); ok {
 			owner, _ = lookup(target.Node())
 		}
-		if owner != nil && enabled {
+		if owner != nil {
 			current = blockStyle(owner)
 		}
 		units := segment.ProjectedRange().Len()
@@ -318,7 +316,7 @@ func InlineStyleRuns(
 			return false
 		}
 		style := current
-		if target, ok := segment.SemanticTarget(); ok && enabled {
+		if target, ok := segment.SemanticTarget(); ok {
 			targetRange := target.RangeUTF16()
 			for _, mark := range owner.Marks() {
 				if mark.Range().Start <= targetRange.Start && targetRange.End <= mark.Range().End {

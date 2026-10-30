@@ -177,3 +177,20 @@ func TestWritingSettingsGateSyntax(t *testing.T) {
 	expectKinds(t, session, ParagraphNode)
 	expectPage(t, session, "# a|", "# a")
 }
+
+// Kinds are built in: with the writing policy off, typed notation stays
+// text, while a heading still shows its notation and Return after it still
+// starts a paragraph.
+func TestKindsOutliveTheWritingPolicy(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "## Top")
+	if _, err := session.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
+		configuration.SetEnabled(WritingPolicyID, false)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	typeKeys(t, session, "\n# *x*")
+	expectKinds(t, session, HeadingNode, ParagraphNode)
+	expectPage(t, session, "## Top\n# *x*|", "Top", "# *x*")
+}

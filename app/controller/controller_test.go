@@ -628,10 +628,11 @@ func TestReconfigureReprojectsAndRefreshesCaches(t *testing.T) {
 	if controller.Runtime().Revision() != before+1 {
 		t.Fatalf("reconfigure revision = %d", controller.Runtime().Revision())
 	}
-	if controller.Text() != "abc" {
-		t.Fatalf("reconfigure did not refresh projection: %q", controller.Text())
+	// Marks are built in: turning the writing policy off keeps them shown.
+	if controller.Text() != "*abc*" {
+		t.Fatalf("reconfigure changed the projection: %q", controller.Text())
 	}
-	if controller.Selection().Range != (UTF16Range{Start: 0, End: 3}) {
+	if controller.Selection().Range != (UTF16Range{Start: 1, End: 4}) {
 		t.Fatalf("selection after reconfigure = %#v", controller.Selection())
 	}
 	if controller.LastError() != nil {

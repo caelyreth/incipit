@@ -40,7 +40,7 @@ func infoForPolicy(id kernel.PolicyID) policyInfo {
 	case policyEditorWriting:
 		return policyInfo{
 			"Writing Profile",
-			"Write in Markdown: headings, quotes, lists, code, rules and emphasis, which {markup.emphasis} and {markup.strong} also set. The page keeps what you write, and shows its notation.",
+			"Type Markdown and it becomes what it marks. Headings, lists, quotes, code, rules and emphasis are always part of a page; these choose what typing turns into them.",
 			1,
 			true,
 		}
@@ -123,10 +123,10 @@ func labelForSetting(id kernel.SettingID) string {
 	switch id {
 	case "quotes":
 		return "Pair quotation marks"
+	case "asterisks":
+		return "Emphasis"
 	case "underscores":
-		return "Use underscore markers"
-	case "allow-strong":
-		return "Allow strong emphasis"
+		return "Underscore emphasis"
 	case "headings":
 		return "Headings"
 	case "blockquotes":
@@ -168,22 +168,22 @@ func descriptionForSetting(id kernel.SettingID) string {
 	switch id {
 	case "quotes":
 		return "Complete matching quotation marks while typing."
+	case "asterisks":
+		return "Type * around text to emphasize it, ** to make it strong. {markup.emphasis} and {markup.strong} do too."
 	case "underscores":
-		return "Show emphasis with underscores instead of asterisks."
-	case "allow-strong":
-		return "Double markers make strong emphasis."
+		return "Type _ and __ the same way. Off, snake_case stays as typed."
 	case "headings":
-		return "One to six # and a space start a heading."
+		return "Type one to six # and a space to start a heading."
 	case "blockquotes":
-		return "> and a space start a quote."
+		return "Type > and a space to start a quote."
 	case "lists":
-		return "- or + and a space start a bullet item, a number and a period a numbered one."
+		return "Type - or + and a space for a bullet, a number and a period for a numbered item."
 	case "code":
-		return "Backticks mark code, and ``` with Return opens a code block."
+		return "Type ` around text for code, ``` and Return for a code block."
 	case "strikethrough":
-		return "Tildes strike text through."
+		return "Type ~ around text to strike it through."
 	case "rules":
-		return "Three dashes on their own line make a thematic break."
+		return "Type --- on a line of its own for a thematic break."
 	case "overtype":
 		return "Move past a matching closer instead of inserting it again."
 	case "edit-mates":

@@ -19,13 +19,6 @@ func (s *Session) ToolbarState() ToolbarState {
 		return ToolbarState{}
 	}
 	configuration := s.runtime.Configuration()
-	allowStrong := false
-	if value, ok := configuration.Setting(NewWritingSettingKey(allowStrongSetting)); ok {
-		if enabled, ok := value.Bool(); ok {
-			allowStrong = enabled
-		}
-	}
-	commandEnabled := configuration.IsCommandEnabled(MarkupEmphasis.ID())
 	state := ToolbarState{
 		CanUndo: s.history != nil && s.history.UndoDepth() > 0,
 		CanRedo: s.history != nil && s.history.RedoDepth() > 0,
@@ -35,13 +28,14 @@ func (s *Session) ToolbarState() ToolbarState {
 		return state
 	}
 	active := activeMark(s.inline)
-	settings := MarkupSettings{
-		PolicyEnabled:  configuration.IsEnabled(WritingPolicyID),
-		CommandEnabled: commandEnabled,
-		AllowStrong:    allowStrong,
+	settings := func(command MarkupCommand) MarkupSettings {
+		return MarkupSettings{
+			PolicyEnabled:  configuration.IsEnabled(WritingPolicyID),
+			CommandEnabled: configuration.IsCommandEnabled(command.ID()),
+		}
 	}
-	emphasis := MarkupStateFor(MarkupEmphasis, settings, node, s.presentation.Selection, active)
-	strong := MarkupStateFor(MarkupStrong, settings, node, s.presentation.Selection, active)
+	emphasis := MarkupStateFor(MarkupEmphasis, settings(MarkupEmphasis), node, s.presentation.Selection, active)
+	strong := MarkupStateFor(MarkupStrong, settings(MarkupStrong), node, s.presentation.Selection, active)
 	state.EmphasisEnabled = emphasis.Enabled
 	state.Emphasis = emphasis.Selected
 	state.StrongEnabled = strong.Enabled

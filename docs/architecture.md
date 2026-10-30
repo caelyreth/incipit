@@ -62,9 +62,12 @@ nothing farther. History records whole-page snapshots and restores them with
 
 ## Writing Profile
 
-The writing policy (`editor.writing`) owns every piece of syntax, in
-`engine/editor/writing.go`; the engine below it knows only kinds, attributes
-and marks. A page stores what its parts are: a heading and its `level`, a
+Every block and mark kind is built in, in `engine/editor/writing.go`: the
+engine below it knows only kinds, attributes and marks, and core editing
+(`editor.text`) projects their notation, parses edits of it, and types into
+each kind as the kind has it. The writing policy (`editor.writing`) adds only
+what typing a marker makes, one switch per trigger, and the formatting
+commands; turning it off leaves every heading and mark as it is. A page stores what its parts are: a heading and its `level`, a
 quote, bullet and ordered items, a code block and its `info`, a rule; marks
 of kind emphasis, code and strike. Notation is never stored. The projection
 generates it: a block's opener as the attribute segment `block` ("## ",
@@ -72,7 +75,7 @@ generates it: a block's opener as the attribute segment `block` ("## ",
 `fence`, and each mark's markers as `mark/<id>`. Ordered items are numbered
 by their place in their run.
 
-Typing reads notation as structure: "# " to "###### ", "> ", "- " or "+ "
+With the policy on, typing reads notation as structure: "# " to "###### ", "> ", "- " or "+ "
 and "1. " at a paragraph's start; "```" and Return; "---"; and the markers
 `*` `_` `` ` `` `~`. Return follows the block's kind, and code takes text
 literally: no marks, pairs or refinement read into it. An edit of projected
@@ -80,7 +83,7 @@ notation is parsed back with the same grammar (`parseOpener`,
 `inlineLevel`); notation that no longer reads as syntax unfolds into the
 literal text it shows, so deleting the space of "## " leaves "##" in a
 paragraph, and typing it back makes the heading again. The policy's settings
-gate each kind of syntax.
+gate each trigger, never a kind.
 
 A page is named after its first heading, whatever its level, or "Untitled"
 when it has none (`Session.Title`); nothing else names it.

@@ -241,7 +241,7 @@ func projectionFlow(
 	selection model.TextSelection,
 	decorations []surface.Decoration,
 ) (*surface.Flow, error) {
-	runs, err := InlineStyleRuns(projectionValue, runtime.Snapshot().Document(), markupEnabled(runtime.Configuration()))
+	runs, err := InlineStyleRuns(projectionValue, runtime.Snapshot().Document())
 	if err != nil {
 		return nil, err
 	}

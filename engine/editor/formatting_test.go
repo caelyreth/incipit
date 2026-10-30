@@ -47,13 +47,13 @@ func TestFormattingLevelUsesActiveMarkForCollapsedSelection(t *testing.T) {
 	}
 }
 
-func TestMarkupStateAndPlanGateStrongAndComposition(t *testing.T) {
+func TestMarkupStateAndPlanGateComposition(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "abc", model.NewUTF16Range(0, 3))
 	node := fixture.nodeValue(t)
 	mark := node.Marks()[0].ID()
-	settings := MarkupSettings{PolicyEnabled: true, CommandEnabled: true, AllowStrong: false}
-	if state := MarkupStateFor(MarkupStrong, settings, node, fixture.selection(t, 0, 3), &mark); state.Enabled || state.Selected {
+	settings := MarkupSettings{PolicyEnabled: true, CommandEnabled: true}
+	if state := MarkupStateFor(MarkupStrong, settings, node, fixture.selection(t, 0, 3), &mark); !state.Enabled || state.Selected {
 		t.Fatalf("strong state=%#v", state)
 	}
 	if state := MarkupStateFor(MarkupEmphasis, settings, node, fixture.selection(t, 0, 3), &mark); !state.Enabled || !state.Selected {

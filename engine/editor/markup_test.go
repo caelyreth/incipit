@@ -22,7 +22,7 @@ func TestMarkupProjectNestedMarksWithoutStoringNotation(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	configuration, err := markupConfiguration(t, true, false, true)
+	configuration, err := markupConfiguration(t, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestMarkupProjectNestedMarksWithoutStoringNotation(t *testing.T) {
 	assertEditableSegment(t, segments[5], 8, 9)
 	assertAttributeSegment(t, segments[6], MarkerKeyForMark(1), 9, 10)
 
-	runs, err := InlineStyleRuns(projectionResult, fixture.document.Snapshot(), true)
+	runs, err := InlineStyleRuns(projectionResult, fixture.document.Snapshot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestMarkupProjectDisjointAndZeroLengthMarksAdjoinMarkers(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	configuration, err := markupConfiguration(t, true, false, true)
+	configuration, err := markupConfiguration(t, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestMarkupProjectMapsGeneratedMarkerExteriorsByAffinity(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	configuration, err := markupConfiguration(t, true, false, true)
+	configuration, err := markupConfiguration(t, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,18 +187,17 @@ func TestMarkupProjectEmphasisAndSettings(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// Marks are built in: the writing policy being off changes what typing
+	// makes, not what the page shows.
 	for _, test := range []struct {
-		name        string
-		underscores bool
-		enabled     bool
-		want        string
+		name    string
+		enabled bool
 	}{
-		{name: "stars", enabled: true, want: "**ab**"},
-		{name: "underscores", underscores: true, enabled: true, want: "__ab__"},
-		{name: "disabled", underscores: true, enabled: false, want: "ab"},
+		{name: "writing on", enabled: true},
+		{name: "writing off", enabled: false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			configuration, err := markupConfiguration(t, test.enabled, test.underscores, true)
+			configuration, err := markupConfiguration(t, test.enabled)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -211,8 +210,8 @@ func TestMarkupProjectEmphasisAndSettings(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := projectionResult.Text(); got != test.want {
-				t.Fatalf("text=%q want %q", got, test.want)
+			if got := projectionResult.Text(); got != "**ab**" {
+				t.Fatalf("text=%q", got)
 			}
 		})
 	}
@@ -230,7 +229,7 @@ func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
 	}
 	wantRequirements := map[kernel.PolicyID][]kernel.PolicyID{
 		TextPolicyID:       nil,
-		WritingPolicyID:    nil,
+		WritingPolicyID:    {TextPolicyID},
 		PairsPolicyID:      {TextPolicyID},
 		CJKPolicyID:        {TextPolicyID},
 		TypographyPolicyID: {TextPolicyID},
@@ -267,7 +266,11 @@ func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
 	) {
 		t.Fatalf("marker origins=%#v", rules[WritingPolicyID]["type-marker"].Origins)
 	}
-	assertRuleOrder(t, rules[WritingPolicyID]["edit"], 100, kernel.RulePhaseKindHandle, kernel.AttributeInputKey)
+	// Notation of the built-in kinds is core editing; the writing policy
+	// only reads typed markers as structure.
+	assertRuleOrder(t, rules[TextPolicyID]["notation"], 100, kernel.RulePhaseKindHandle, kernel.AttributeInputKey)
+	assertRuleOrder(t, rules[TextPolicyID]["block"], 5, kernel.RulePhaseKindHandle, kernel.TextInputKey)
+	assertRuleOrder(t, rules[WritingPolicyID]["block-syntax"], 6, kernel.RulePhaseKindHandle, kernel.TextInputKey)
 	assertRuleOrder(t, rules[WritingPolicyID]["format"], 100, kernel.RulePhaseKindHandle, markupFormatTrigger)
 	for id, order := range map[kernel.RuleID]uint32{
 		"overtype": 14, "mate-edit": 16, "close-quote": 18, "open": 20,
@@ -311,8 +314,8 @@ func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
 	markup := catalogPolicy(t, catalog, WritingPolicyID)
 	if !slices.Equal(markup.Commands, []kernel.CommandID{"markup.emphasis", "markup.strong"}) ||
 		!slices.Equal(settingIDs(markup.Settings), []kernel.SettingID{
-			"allow-strong", "underscores", "headings", "blockquotes",
-			"lists", "code", "strikethrough", "rules",
+			"asterisks", "underscores", "headings", "lists",
+			"blockquotes", "code", "strikethrough", "rules",
 		}) {
 		t.Fatalf("markup=%#v", markup)
 	}
@@ -455,7 +458,7 @@ func TestEditorInvokerEditsGeneratedMarkersAtomically(t *testing.T) {
 		return err
 	}
 	before := engine.Snapshot()
-	for _, invalid := range []string{"***", "*_", "__"} {
+	for _, invalid := range []string{"***", "*_", "_*"} {
 		if err := dispatch(invalid); err == nil {
 			t.Fatalf("invalid marker input %q was accepted", invalid)
 		}
@@ -560,8 +563,6 @@ func commandIDs(policy kernel.PolicyDescriptor) []kernel.CommandID {
 func markupConfiguration(
 	t *testing.T,
 	enabled bool,
-	underscores bool,
-	allowStrong bool,
 ) (*kernel.PreparedPolicyConfiguration, error) {
 	t.Helper()
 	catalog, err := EditorPolicyCatalog()
@@ -574,8 +575,6 @@ func markupConfiguration(
 	}
 	if err := host.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
 		configuration.SetEnabled(WritingPolicyID, enabled)
-		configuration.SetSetting(NewWritingSettingKey(underscoresSetting), kernel.BoolSetting(underscores))
-		configuration.SetSetting(NewWritingSettingKey(allowStrongSetting), kernel.BoolSetting(allowStrong))
 		return nil
 	}); err != nil {
 		return nil, err

@@ -153,7 +153,7 @@ func (s *Session) SurfaceFrame(now time.Time, keys GuideKeys) (*surface.Frame, e
 	if !ok {
 		return nil, &projection.ProjectionError{Kind: projection.ErrorSource}
 	}
-	inputStyle := InlineInputStyle(node, activeMark(s.inline), markupEnabled(s.runtime.Configuration()))
+	inputStyle := InlineInputStyle(node, activeMark(s.inline))
 	decorations := make([]surface.Decoration, 0)
 	if selection.Empty() {
 		decorations = append(decorations, s.inlineDecorations(node)...)
@@ -794,12 +794,11 @@ func (s *Session) navigationSettings() NavigationSettings {
 		return !ok || boolean
 	}
 	return NavigationSettings{
-		Enabled:             configuration.IsEnabled(NavigationPolicyID),
-		Pairs:               setting("pairs"),
-		PairsPolicyEnabled:  configuration.IsEnabled(PairsPolicyID),
-		Emphasis:            setting("emphasis"),
-		MarkupPolicyEnabled: configuration.IsEnabled(WritingPolicyID),
-		ReturnToEdit:        setting("return-to-edit"),
+		Enabled:            configuration.IsEnabled(NavigationPolicyID),
+		Pairs:              setting("pairs"),
+		PairsPolicyEnabled: configuration.IsEnabled(PairsPolicyID),
+		Emphasis:           setting("emphasis"),
+		ReturnToEdit:       setting("return-to-edit"),
 	}
 }
 
@@ -817,7 +816,7 @@ func activeMark(inline *InlineState) *model.MarkID {
 }
 
 func (s *Session) inlineDecorations(node *model.Node) []surface.Decoration {
-	if !markupEnabled(s.runtime.Configuration()) || !s.presentation.Selection.IsCollapsed() {
+	if !s.presentation.Selection.IsCollapsed() {
 		return nil
 	}
 	id := activeMark(s.inline)
@@ -912,7 +911,7 @@ func projectionFlowFromView(
 	projectionValue *projection.Projection,
 	selection model.TextSelection,
 ) (*surface.Flow, error) {
-	runs, err := InlineStyleRuns(projectionValue, view.Document().CandidateSnapshot(view.Revision()), markupEnabled(configuration))
+	runs, err := InlineStyleRuns(projectionValue, view.Document().CandidateSnapshot(view.Revision()))
 	if err != nil {
 		return nil, err
 	}

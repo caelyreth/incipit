@@ -6,7 +6,6 @@ import "github.com/caelyreth/neverland/engine/model"
 type MarkupSettings struct {
 	PolicyEnabled  bool
 	CommandEnabled bool
-	AllowStrong    bool
 }
 
 // MarkupState drives formatting controls independently from platform widgets.
@@ -56,9 +55,8 @@ func MarkupStateFor(
 	selection model.TextSelection,
 	activeMark *model.MarkID,
 ) MarkupState {
-	enabled := settings.PolicyEnabled && settings.CommandEnabled &&
-		(command == MarkupEmphasis || settings.AllowStrong)
-	level := FormattingLevel(node, selection, activeMark, settings.PolicyEnabled)
+	enabled := settings.PolicyEnabled && settings.CommandEnabled
+	level := FormattingLevel(node, selection, activeMark, true)
 	return MarkupState{
 		Enabled:  enabled,
 		Selected: level == command.Level(),
@@ -116,7 +114,6 @@ type MarkupErrorKind uint8
 
 const (
 	MarkupErrorCompositionActive MarkupErrorKind = iota + 1
-	MarkupErrorStrongDisallowed
 )
 
 // MarkupError reports a formatting command contract failure.
@@ -128,8 +125,6 @@ func (e *MarkupError) Error() string {
 	switch e.Kind {
 	case MarkupErrorCompositionActive:
 		return "markup command rejected while composition is active"
-	case MarkupErrorStrongDisallowed:
-		return "strong emphasis is not allowed by the writing profile"
 	}
 	return "unknown markup error"
 }

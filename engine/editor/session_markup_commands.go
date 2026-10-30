@@ -17,10 +17,6 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 	if _, active := s.composition.Preview(); active {
 		return 0, ErrCompositionActive
 	}
-	if command == MarkupStrong &&
-		!markupSettingBool(s.runtime.Configuration(), allowStrongSetting, true) {
-		return 0, &MarkupError{Kind: MarkupErrorStrongDisallowed}
-	}
 	beforeFrame, beforeOK := s.historyFrame()
 	beforeVisual, visualErr := s.ProjectedState()
 	if !beforeOK || visualErr != nil {
@@ -38,8 +34,7 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 		node, _ := s.runtime.Snapshot().Document().Node(target.Node())
 		for _, mark := range node.Marks() {
 			if MarkerKeyIdentifies(target.Key(), mark.ID()) && mark.Kind() == EmphasisMark {
-				notation := configuredSyntax(s.runtime.Configuration()).inlineNotation(
-					model.NewInlineMark(0, model.UTF16Range{}, EmphasisMark, command.Level()))
+				notation := inlineNotation(model.NewInlineMark(0, model.UTF16Range{}, EmphasisMark, command.Level()))
 				result, err := s.ReplaceSelection(notation, kernel.EventOriginSemantic)
 				return result.Outcome, err
 			}

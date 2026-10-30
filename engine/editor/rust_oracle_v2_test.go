@@ -2,7 +2,6 @@ package editor
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"testing"
 	"unicode"
@@ -293,39 +292,6 @@ func TestRustOracleV2OtherAlphabeticObservableFacts(t *testing.T) {
 	})
 }
 
-func TestRustOracleV2AllowStrongObservableState(t *testing.T) {
-	t.Parallel()
-	var fixture rustOracleV2StrongFixture
-	if err := json.Unmarshal(loadRustOracleV2(t)["allow-strong-v2"], &fixture); err != nil {
-		t.Fatal(err)
-	}
-	editing := newEditingFixture(t, fixture.SemanticText)
-	node := editing.nodeValue(t)
-	settings := MarkupSettings{
-		PolicyEnabled:  true,
-		CommandEnabled: true,
-		AllowStrong:    fixture.AllowStrong,
-	}
-	state := MarkupStateFor(
-		MarkupStrong,
-		settings,
-		node,
-		editing.selection(t, 0, model.UTF16Offset(model.StringLenUTF16(fixture.SemanticText))),
-		nil,
-	)
-	if state.Enabled != fixture.StateBefore.Enabled ||
-		state.Selected != fixture.StateBefore.Selected ||
-		state.Enabled != fixture.StateAfter.Enabled ||
-		state.Selected != fixture.StateAfter.Selected {
-		t.Fatalf("state = %#v, oracle before=%#v after=%#v",
-			state, fixture.StateBefore, fixture.StateAfter)
-	}
-	if fixture.ProjectionBefore != fixture.ProjectionAfter ||
-		fixture.ProjectionBefore != fixture.SemanticText {
-		t.Fatalf("strong rejection changed projection: %#v", fixture)
-	}
-}
-
 func TestRustOracleV2BlockingMutations(t *testing.T) {
 	t.Parallel()
 	fixtures := loadRustOracleV2(t)
@@ -433,38 +399,6 @@ func TestRustOracleV2BlockingMutations(t *testing.T) {
 			session.History().CanRedo() != fixture.CanRedo {
 			t.Fatalf("undo state: projection=%q visual=%#v caret=%#v err=%v",
 				session.Projection().Text(), visual, caret, err)
-		}
-	})
-
-	t.Run("allow-strong false rejects strong formatting", func(t *testing.T) {
-		var fixture rustOracleV2StrongFixture
-		if err := json.Unmarshal(fixtures["allow-strong-v2"], &fixture); err != nil {
-			t.Fatal(err)
-		}
-		session, _ := newSessionFixture(t, fixture.SemanticText, false)
-		outcome, err := session.ExecuteText(TextSelectAll)
-		if err != nil || outcome != kernel.OutcomeHandled {
-			t.Fatalf("select all outcome=%v err=%v", outcome, err)
-		}
-		_, err = session.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
-			configuration.SetSetting(NewWritingSettingKey("allow-strong"), kernel.BoolSetting(false))
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		outcome, err = session.ExecuteMarkup(MarkupStrong)
-		if err == nil {
-			t.Fatalf("strong formatting returned %v without rejection", outcome)
-		}
-		// The Rust engine rejects strong formatting as an invalid
-		// attribute input; here the writing profile refuses the command
-		// before it makes one.
-		var markupError *MarkupError
-		if !errors.As(err, &markupError) || markupError.Kind != MarkupErrorStrongDisallowed ||
-			session.Projection().Text() != fixture.ProjectionAfter {
-			t.Fatalf("strong rejection: error=%q projection=%q",
-				err.Error(), session.Projection().Text())
 		}
 	})
 }

@@ -17,7 +17,7 @@ const (
 	// HistoryPolicyID owns undo and redo commands.
 	HistoryPolicyID kernel.PolicyID = "editor.history"
 
-	allowStrongSetting  = "allow-strong"
+	asterisksSetting    = "asterisks"
 	underscoresSetting  = "underscores"
 	markupFormatTrigger = "markup:format"
 )
@@ -187,7 +187,7 @@ func EditorPolicyDescriptors() ([]kernel.PolicyDescriptor, error) {
 	if err != nil {
 		return nil, err
 	}
-	markup, err := markupPolicyDescriptor()
+	markup, err := writingPolicyDescriptor()
 	if err != nil {
 		return nil, err
 	}
@@ -265,51 +265,56 @@ func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	span := edit
 	span.ID = "span"
 	span.Trigger = kernel.NewExactTrigger(kernel.SpanInputKey)
+	// Every block and mark kind is built in: editing their projected
+	// notation, and typing as each kind has it, are core editing.
+	notation := edit
+	notation.ID = "notation"
+	notation.Trigger = kernel.NewExactTrigger(kernel.AttributeInputKey)
+	block := edit
+	block.ID = "block"
+	block.Origins = []kernel.EventOrigin{kernel.EventOriginTyping}
+	block.Order = 5
 	return kernel.PolicyDescriptor{
 		ID:               TextPolicyID,
 		EnabledByDefault: true,
 		Commands:         commands,
-		Rules:            []kernel.RuleDescriptor{edit, projected, span},
+		Rules:            []kernel.RuleDescriptor{edit, projected, span, notation, block},
 	}, nil
 }
 
-func markupPolicyDescriptor() (kernel.PolicyDescriptor, error) {
+// writingPolicyDescriptor declares what the writing policy adds over the
+// built-in kinds: typing markers as structure, and the formatting commands.
+func writingPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	algorithm, err := singleLeafProgram()
 	if err != nil {
 		return kernel.PolicyDescriptor{}, err
 	}
 	commands := []kernel.CommandID{MarkupEmphasis.ID(), MarkupStrong.ID()}
-	edit := kernel.RuleDescriptor{
-		ID:        "edit",
+	marker := kernel.RuleDescriptor{
+		ID:        "type-marker",
 		Phase:     kernel.HandleRulePhase(),
-		Trigger:   kernel.NewExactTrigger(kernel.AttributeInputKey),
-		Order:     100,
+		Trigger:   kernel.NewExactTrigger(kernel.TextInputKey),
+		Origins:   []kernel.EventOrigin{kernel.EventOriginTyping},
+		Order:     10,
 		Effects:   kernel.NewEffectSet(nil, nil).WithDocument(kernel.DocumentAccessWrite),
 		Algorithm: algorithm,
 	}
-	marker := edit
-	marker.ID = "type-marker"
-	marker.Trigger = kernel.NewExactTrigger(kernel.TextInputKey)
-	marker.Origins = []kernel.EventOrigin{kernel.EventOriginTyping}
-	marker.Order = 10
-	format := edit
-	format.ID = "format"
-	format.Trigger = kernel.NewExactTrigger(markupFormatTrigger)
-	// Block syntax reads typing before marks do, and the span rule goes
-	// before the text policy's own.
+	// Block triggers read typing before marks do.
 	block := marker
 	block.ID = "block-syntax"
-	block.Order = 5
-	span := edit
-	span.ID = "span"
-	span.Trigger = kernel.NewExactTrigger(kernel.SpanInputKey)
-	span.Order = 50
+	block.Order = 6
+	format := marker
+	format.ID = "format"
+	format.Trigger = kernel.NewExactTrigger(markupFormatTrigger)
+	format.Origins = nil
+	format.Order = 100
 	return kernel.PolicyDescriptor{
 		ID:               WritingPolicyID,
+		Requires:         []kernel.PolicyID{TextPolicyID},
 		EnabledByDefault: true,
 		Settings:         writingSettingDescriptors(),
 		Commands:         commands,
-		Rules:            []kernel.RuleDescriptor{edit, marker, format, block, span},
+		Rules:            []kernel.RuleDescriptor{marker, format, block},
 	}, nil
 }
 
@@ -502,8 +507,6 @@ func ProjectPage(
 		projection.NewVersion(revision, generation),
 	)
 	builder.Grow(4 * len(blocks))
-	enabled := markupEnabled(configuration)
-	syntax := configuredSyntax(configuration)
 	numbers := ordinals(blocks)
 	for index, node := range blocks {
 		if index > 0 {
@@ -511,7 +514,7 @@ func ProjectPage(
 				return nil, wrapProjectionError(err)
 			}
 		}
-		if err := projectBlock(builder, node, numbers[index], syntax, enabled); err != nil {
+		if err := projectBlock(builder, node, numbers[index]); err != nil {
 			return nil, err
 		}
 	}
@@ -531,13 +534,8 @@ func projectBlock(
 	builder *projection.Builder,
 	node *model.Node,
 	ordinal int,
-	syntax writingSyntax,
-	enabled bool,
 ) error {
-	open, close := "", ""
-	if enabled {
-		open, close = blockNotation(shapeOf(node), ordinal)
-	}
+	open, close := blockNotation(shapeOf(node), ordinal)
 	edge := func(key, notation string) error {
 		if notation == "" {
 			return wrapProjectionError(builder.Generated(""))
@@ -547,7 +545,7 @@ func projectBlock(
 	if err := edge(blockNotationKey, open); err != nil {
 		return err
 	}
-	if err := projectInlineBody(builder, node, syntax, enabled); err != nil {
+	if err := projectInlineBody(builder, node); err != nil {
 		return wrapProjectionError(err)
 	}
 	return edge(fenceNotationKey, close)
@@ -564,14 +562,12 @@ type inlineProjectionEvent struct {
 func projectInlineBody(
 	builder *projection.Builder,
 	node *model.Node,
-	syntax writingSyntax,
-	enabled bool,
 ) error {
 	length := model.UTF16Offset(0)
 	if node.TextPresent() {
 		length = model.UTF16Offset(node.Text().UTF16Len())
 	}
-	if !enabled || node.MarkCount() == 0 {
+	if node.MarkCount() == 0 {
 		return builder.Editable(node, model.NewUTF16Range(0, length))
 	}
 	events := make([]inlineProjectionEvent, 0, node.MarkCount()*2)
@@ -626,14 +622,14 @@ func projectInlineBody(
 			}
 		}
 		cursor = event.position
-		if err := appendInlineMarker(builder, node, event.mark, syntax); err != nil {
+		if err := appendInlineMarker(builder, node, event.mark); err != nil {
 			return err
 		}
 		if event.kind == 2 {
 			if err := builder.Editable(node, model.NewUTF16Range(cursor, cursor)); err != nil {
 				return err
 			}
-			if err := appendInlineMarker(builder, node, event.mark, syntax); err != nil {
+			if err := appendInlineMarker(builder, node, event.mark); err != nil {
 				return err
 			}
 		}
@@ -648,13 +644,8 @@ func appendInlineMarker(
 	builder *projection.Builder,
 	node *model.Node,
 	mark model.InlineMark,
-	syntax writingSyntax,
 ) error {
-	return builder.Attribute(node.ID(), MarkerKeyForMark(mark.ID()), syntax.inlineNotation(mark))
-}
-
-func markupEnabled(configuration *kernel.PreparedPolicyConfiguration) bool {
-	return configuration == nil || configuration.IsEnabled(WritingPolicyID)
+	return builder.Attribute(node.ID(), MarkerKeyForMark(mark.ID()), inlineNotation(mark))
 }
 
 func markupSettingBool(
@@ -741,20 +732,21 @@ func (i *EditorInvoker) Invoke(
 	}
 	switch rule.Key.Owner {
 	case TextPolicyID:
-		if rule.Key.ID == "span" {
-			return i.invokeSpan(context)
+		switch rule.Key.ID {
+		case "span":
+			return i.invokeSpanSyntax(context)
+		case "notation":
+			return i.invokeAttribute(context)
+		case "block":
+			return i.invokeBlockKind(context)
 		}
 		return i.invokeText(context)
 	case WritingPolicyID:
 		switch rule.Key.ID {
 		case "block-syntax":
-			return i.invokeBlockSyntax(context)
-		case "span":
-			return i.invokeSpanSyntax(context)
+			return i.invokeBlockTrigger(context)
 		case "type-marker":
 			return i.invokeMarker(context)
-		case "edit":
-			return i.invokeAttribute(context)
 		}
 	case PairsPolicyID:
 		return i.invokePair(context, rule.Key.ID)
@@ -823,7 +815,7 @@ func (i *EditorInvoker) invokeMarker(context *kernel.RuleContext) (kernel.Outcom
 		input.Target().RangeUTF16(),
 		input.Text(),
 		i.active,
-		contextSyntax(context),
+		contextTriggers(context),
 		origin,
 	)
 	if err != nil {
@@ -906,7 +898,7 @@ func (i *EditorInvoker) invokeAttribute(context *kernel.RuleContext) (kernel.Out
 	if mark == nil {
 		return 0, invalid
 	}
-	level, ok := contextSyntax(context).inlineLevel(mark.Kind(), input.Text())
+	level, ok := inlineLevel(mark.Kind(), input.Text())
 	if !ok {
 		return 0, invalid
 	}
