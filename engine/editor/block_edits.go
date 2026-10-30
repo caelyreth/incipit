@@ -79,7 +79,9 @@ func (i *EditorInvoker) invokeSpan(context *kernel.RuleContext) (kernel.Outcome,
 	if err := document.JoinText(first, last); err != nil {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
-	if err := document.ReplaceTextMarked(first, start, start, span.Text(), i.active); err != nil {
+	// What replaces a span starts no mark: the marks its ends were in had
+	// their notation taken with the span.
+	if err := document.ReplaceTextMarked(first, start, start, span.Text(), nil); err != nil {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
 	i.correctionEffectHead = start + model.UTF16Offset(model.StringLenUTF16(span.Text()))

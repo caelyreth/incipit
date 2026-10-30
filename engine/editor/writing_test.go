@@ -194,3 +194,60 @@ func TestKindsOutliveTheWritingPolicy(t *testing.T) {
 	expectKinds(t, session, HeadingNode, ParagraphNode)
 	expectPage(t, session, "## Top\n# *x*|", "Top", "# *x*")
 }
+
+// Deleting across blocks takes the notation it covers as a deletion within
+// a block does: Select All and Backspace leave an empty paragraph, not a
+// heading's "# " or a mark's empty "**".
+func TestSpanDeletionTakesCoveredNotation(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "# Title\nsome *emph* text")
+	run(t, session, TextSelectAll, TextBackspace)
+	expectKinds(t, session, ParagraphNode)
+	expectPage(t, session, "|", "")
+	if marks := DocumentBlocks(session.Runtime().Snapshot().Document())[0].Marks(); len(marks) != 0 {
+		t.Fatalf("marks left = %#v", marks)
+	}
+	undoTo(t, session, "# Title\nsome *emph* text")
+}
+
+// undoTo undoes once and expects the page to show text again.
+func undoTo(t *testing.T, session *Session, text string) {
+	t.Helper()
+	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.Projection().Text(); got != text {
+		t.Fatalf("undo shows %q, want %q", got, text)
+	}
+}
+
+// A span from inside one block into another keeps what stays before and
+// after it, its notation with it, and drops a mark whose markers it cut.
+func TestSpanDeletionBetweenBlocks(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		from, to model.UTF16Offset
+		view     string
+		kinds    []model.NodeTypeID
+		texts    []string
+	}{
+		// "# Title\nsome *emph* text": from inside the title into the mark.
+		{"into a mark", 4, 16, "# Ti|ph text", []model.NodeTypeID{HeadingNode}, []string{"Tiph text"}},
+		// From inside the title to past the mark: it goes whole.
+		{"past a mark", 4, 19, "# Ti| text", []model.NodeTypeID{HeadingNode}, []string{"Ti text"}},
+		// From the page's start, the heading's notation covered.
+		{"from the start", 0, 13, "|*emph* text", []model.NodeTypeID{ParagraphNode}, []string{"emph text"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			session, _ := newSessionFixture(t, "", false)
+			typeKeys(t, session, "# Title\nsome *emph* text")
+			if err := session.SelectProjected(test.from, test.to); err != nil {
+				t.Fatal(err)
+			}
+			run(t, session, TextBackspace)
+			expectKinds(t, session, test.kinds...)
+			expectPage(t, session, test.view, test.texts...)
+			undoTo(t, session, "# Title\nsome *emph* text")
+		})
+	}
+}

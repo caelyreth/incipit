@@ -352,7 +352,7 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 		return EditingOutcome{}, err
 	}
 	if from, to, spans := s.spanEnds(edit.UTF16Range); spans {
-		return s.applySpanEdit(from, to, edit.Replacement, edit.Origin)
+		return s.applySpanEdit(edit.UTF16Range, from, to, edit.Replacement, edit.Origin)
 	}
 	beforeFrame, beforeOK := s.historyFrame()
 	if !beforeOK {
@@ -505,8 +505,12 @@ func (s *Session) spanEnds(range16 model.UTF16Range) (model.TextAnchor, model.Te
 
 // applySpanEdit replaces the text between two blocks' positions: the text
 // policy takes the blocks between out and joins the ends around the
-// replacement, and the caret lands after it.
+// replacement, and the caret lands after it. Notation the projected range
+// covers goes as a single block's edit takes it: the markers of the end
+// blocks' marks before the join, which moves no text, and the notation of
+// the first block, the one that stays, after it.
 func (s *Session) applySpanEdit(
+	projected model.UTF16Range,
 	from, to model.TextAnchor,
 	replacement string,
 	origin kernel.EventOrigin,
@@ -520,14 +524,31 @@ func (s *Session) applySpanEdit(
 		return EditingOutcome{}, err
 	}
 	beforeRevision := s.runtime.Revision()
+	covered, err := coveredNotation(s.presentation.Projection, projected)
+	if err != nil {
+		return EditingOutcome{}, err
+	}
 	span := kernel.NewSpanInput(input.TextTargetFromAnchor(from), input.TextTargetFromAnchor(to), replacement)
+	events := make([]kernel.Event, 0, len(covered)+1)
+	var after []kernel.Event
+	for _, selection := range covered {
+		node, key := selection.target.Node(), selection.target.Key()
+		event := kernel.NewAttributeEvent(input.NewAttributeInput(selection.target, selection.remaining("")), origin)
+		switch {
+		case MarkerKeyIsInline(key) && (node == from.Node() || node == to.Node()):
+			events = append(events, event)
+		case !MarkerKeyIsInline(key) && node == from.Node():
+			after = append(after, event)
+		}
+	}
+	events = append(append(events, kernel.NewSpanEvent(span, origin)), after...)
 	s.invoker.ActivateMark(nil)
 	s.invoker.hasCorrectionEffect = false
 	s.invoker.correctionEffectThrough = 0
 	s.invoker.corrections.Clear()
 	var candidate Presentation
 	transaction, err := s.runtime.DispatchPreparedBatchWithInvoker(
-		[]kernel.Event{kernel.NewSpanEvent(span, origin)},
+		events,
 		s.invoker,
 		func(
 			view kernel.EngineView,
@@ -537,6 +558,11 @@ func (s *Session) applySpanEdit(
 		) (struct{}, error) {
 			if batch.Outcome.Status == kernel.OutcomePass {
 				return struct{}{}, nil
+			}
+			for index := range events {
+				if index >= len(batch.Handled) || !batch.Handled[index] {
+					return struct{}{}, ErrIncompleteProjectedEdit
+				}
 			}
 			edits := changes.TextEdits()
 			headNode := from.Node()

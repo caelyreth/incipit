@@ -434,51 +434,14 @@ func resolveRangeProjectedEdit(
 			textNode = &node
 			continue
 		}
-		target, ok := segment.AttributeTarget()
-		if !ok {
-			continue
-		}
-		notation, err := p.TextRange(segmentRange)
+		var notation bool
+		attributes, notation, err = collectNotation(attributes, p, index, from, to)
 		if err != nil {
 			return ResolvedProjectedEdit{}, err
 		}
-		selectedText, err := p.TextRange(model.NewUTF16Range(from, to))
-		if err != nil {
-			return ResolvedProjectedEdit{}, err
+		if notation {
+			selectedAttributeSegments++
 		}
-		currentUnits := utf8.RuneCountInString(notation)
-		selectedUnits := utf8.RuneCountInString(selectedText)
-		if notation == "" {
-			return ResolvedProjectedEdit{}, &projection.ProjectionError{
-				Kind: projection.ErrorNoCorrespondence,
-			}
-		}
-		selectedAttributeSegments++
-		found := -1
-		for candidate := range attributes {
-			if attributes[candidate].target.Node() == target.Node() &&
-				attributes[candidate].target.Key() == target.Key() {
-				found = candidate
-				break
-			}
-		}
-		if found >= 0 {
-			attributes[found].selectedUnits += selectedUnits
-			attributes[found].selectedSegments++
-			attributes[found].firstSegment = min(attributes[found].firstSegment, index)
-			attributes[found].lastSegment = max(attributes[found].lastSegment, index)
-			continue
-		}
-		attributes = append(attributes, attributeSelection{
-			target:           target,
-			notation:         notation,
-			selected:         model.NewUTF16Range(from-segmentRange.Start, to-segmentRange.Start),
-			currentUnits:     currentUnits,
-			selectedUnits:    selectedUnits,
-			selectedSegments: 1,
-			firstSegment:     index,
-			lastSegment:      index,
-		})
 	}
 
 	markerNotation := selectedAttributeSegments == 1 &&
@@ -491,13 +454,7 @@ func resolveRangeProjectedEdit(
 		if markerNotation && index == 0 {
 			replacement = takeReplacement()
 		}
-		// One segment of notation is edited as the text it is; both of a
-		// mark's, opener and closer, lose what the edit covers of either.
-		text := spliceUTF16(selection.notation, selection.selected, replacement)
-		if selection.selectedSegments > 1 {
-			runes := []rune(selection.notation)
-			text = string(runes[:max(0, selection.currentUnits-selection.selectedUnits)])
-		}
+		text := selection.remaining(replacement)
 		attributeInputs = append(
 			attributeInputs,
 			input.NewAttributeInput(selection.target, text),
@@ -602,6 +559,87 @@ func resolveRangeProjectedEdit(
 		ActiveMarkID:       resolvedActive,
 		VisualSelection:    cloneProjectedSelectionPtr(edit.ProjectedSelection),
 	}, nil
+}
+
+// collectNotation adds the part of segment index from..to covers to the
+// notation an edit covers, when the segment is notation, and reports
+// whether it was.
+func collectNotation(
+	attributes []attributeSelection,
+	p *projection.Projection,
+	index int,
+	from, to model.UTF16Offset,
+) ([]attributeSelection, bool, error) {
+	segment := p.Segments()[index]
+	target, ok := segment.AttributeTarget()
+	if !ok {
+		return attributes, false, nil
+	}
+	segmentRange := segment.ProjectedRange()
+	notation, err := p.TextRange(segmentRange)
+	if err != nil {
+		return attributes, false, err
+	}
+	selectedText, err := p.TextRange(model.NewUTF16Range(from, to))
+	if err != nil {
+		return attributes, false, err
+	}
+	if notation == "" {
+		return attributes, false, &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
+	}
+	selectedUnits := utf8.RuneCountInString(selectedText)
+	for candidate := range attributes {
+		if attributes[candidate].target.Node() == target.Node() &&
+			attributes[candidate].target.Key() == target.Key() {
+			attributes[candidate].selectedUnits += selectedUnits
+			attributes[candidate].selectedSegments++
+			attributes[candidate].firstSegment = min(attributes[candidate].firstSegment, index)
+			attributes[candidate].lastSegment = max(attributes[candidate].lastSegment, index)
+			return attributes, true, nil
+		}
+	}
+	return append(attributes, attributeSelection{
+		target:           target,
+		notation:         notation,
+		selected:         model.NewUTF16Range(from-segmentRange.Start, to-segmentRange.Start),
+		currentUnits:     utf8.RuneCountInString(notation),
+		selectedUnits:    selectedUnits,
+		selectedSegments: 1,
+		firstSegment:     index,
+		lastSegment:      index,
+	}), true, nil
+}
+
+// coveredNotation is the notation a projected range covers, any part of
+// it, wherever it lies.
+func coveredNotation(p *projection.Projection, range16 model.UTF16Range) ([]attributeSelection, error) {
+	start, end, err := p.OverlappingSegmentIndices(range16)
+	if err != nil {
+		return nil, err
+	}
+	var attributes []attributeSelection
+	for index := start; index < end; index++ {
+		segmentRange := p.Segments()[index].ProjectedRange()
+		from, to := max(range16.Start, segmentRange.Start), min(range16.End, segmentRange.End)
+		if from >= to {
+			continue
+		}
+		if attributes, _, err = collectNotation(attributes, p, index, from, to); err != nil {
+			return nil, err
+		}
+	}
+	return attributes, nil
+}
+
+// remaining is the notation an edit leaves, with replacement where it
+// covered: one segment is edited as the text it is, while both of a mark's,
+// opener and closer, lose what the edit covers of either.
+func (s attributeSelection) remaining(replacement string) string {
+	if s.selectedSegments > 1 {
+		runes := []rune(s.notation)
+		return string(runes[:max(0, s.currentUnits-s.selectedUnits)])
+	}
+	return spliceUTF16(s.notation, s.selected, replacement)
 }
 
 func markerInsertionTarget(
