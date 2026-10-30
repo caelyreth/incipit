@@ -28,6 +28,12 @@ func newSessionFixture(t *testing.T, text string, mark bool) (*Session, model.No
 			t.Fatal(err)
 		}
 	}
+	return sessionFor(t, document, node), node
+}
+
+// sessionFor mounts the editor on document, the caret in node.
+func sessionFor(t *testing.T, document *model.Document, node model.NodeID) *Session {
+	t.Helper()
 	catalog, err := EditorPolicyCatalog()
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +46,7 @@ func newSessionFixture(t *testing.T, text string, mark bool) (*Session, model.No
 	if err != nil {
 		t.Fatal(err)
 	}
-	return session, node
+	return session
 }
 
 func TestSessionMountsProjectionInlineMetricsAndPairs(t *testing.T) {

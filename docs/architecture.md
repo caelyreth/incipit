@@ -85,8 +85,17 @@ literal text it shows, so deleting the space of "## " leaves "##" in a
 paragraph, and typing it back makes the heading again. The policy's settings
 gate each trigger, never a kind.
 
+Blocks may group with their neighbours (`blockGroup`, `groupRuns` in
+`engine/editor/blocks.go`): a run of consecutive blocks of one group is one
+scope, and the blocks deeper than a level within it a scope nested inside.
+The core knows groups only as names and depths; the Writing Profile uses
+them (`groupOf`): items make a list and quote lines a quote, nested by a
+`depth` attribute, written as CommonMark does, two spaces a level or one
+more `> `, and moved by Nest deeper and Nest shallower.
+
 Select All selects by scope (`engine/editor/scopes.go`): the block's text,
-then the whole page, notation included. While a scope is selected, a guide
+each group it nests in from the deepest out, then the whole page, notation
+included. While a scope is selected, a guide
 marks the next one with the keys that select it: an area primitive
 (`surface.AreaPrimitive`) names the ranges and keys, and the view shows it
 as a bracket in the margin beside those rows, keycaps at its left, grown

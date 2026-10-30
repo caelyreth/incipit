@@ -29,6 +29,8 @@ var defaultKeymap = [...]kernel.BindingSpec{
 
 	defaultKey(markupEmphasisCommandID, "i", keyPrimary),
 	defaultKey(markupStrongCommandID, "b", keyPrimary),
+	defaultKey(nestDeeperCommandID, "]", keyPrimary),
+	defaultKey(nestShallowerCommandID, "[", keyPrimary),
 
 	defaultKey("history.undo", "z", keyPrimary),
 	defaultKey("history.redo", "z", keyPrimary|keyShift),

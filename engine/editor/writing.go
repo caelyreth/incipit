@@ -40,6 +40,11 @@ const (
 
 	headingLevelAttribute = "level"
 	codeInfoAttribute     = "info"
+	// depthAttribute nests an item or quote line within the ones before
+	// it: 0 is the outermost.
+	depthAttribute = "depth"
+	// maxDepth bounds nesting, as notation must stay legible.
+	maxDepth = 8
 
 	// blockNotationKey names the notation a block opens with, and
 	// fenceNotationKey the fence a code block closes with.
@@ -175,6 +180,10 @@ type blockShape struct {
 	kind  model.NodeTypeID
 	level int
 	info  string
+	depth int
+	// indent is how many spaces notation read as a nested item began
+	// with: two a level, an odd one rounding as the edit goes (deeper).
+	indent int
 }
 
 // shapeOf reads a block's shape from the page.
@@ -193,7 +202,37 @@ func shapeOf(node *model.Node) blockShape {
 			shape.info, _ = value.Text()
 		}
 	}
+	if shape.nests() {
+		if value, ok := node.Attribute(depthAttribute); ok {
+			if depth, ok := value.Integer(); ok {
+				shape.depth = int(max(0, min(maxDepth, depth)))
+			}
+		}
+	}
 	return shape
+}
+
+// nests reports whether a shape stands in a group with its neighbours,
+// nested by depth: items in a list, lines in a quote.
+func (s blockShape) nests() bool {
+	switch s.kind {
+	case BulletNode, OrderedNode, QuoteNode:
+		return true
+	}
+	return false
+}
+
+// groupOf is the group a block stands in: the Writing Profile's use of the
+// page's block groups (blocks.go). Items of either kind make one list.
+func groupOf(node *model.Node) (blockGroup, bool) {
+	shape := shapeOf(node)
+	switch shape.kind {
+	case BulletNode, OrderedNode:
+		return blockGroup{name: "list", depth: shape.depth}, true
+	case QuoteNode:
+		return blockGroup{name: "quote", depth: shape.depth}, true
+	}
+	return blockGroup{}, false
 }
 
 // opensLine reports whether a shape's notation is a prefix its text follows
@@ -213,11 +252,11 @@ func blockNotation(shape blockShape, ordinal int) (open, close string) {
 	case HeadingNode:
 		return strings.Repeat("#", shape.level) + " ", ""
 	case QuoteNode:
-		return "> ", ""
+		return strings.Repeat("> ", shape.depth+1), ""
 	case BulletNode:
-		return "- ", ""
+		return strings.Repeat("  ", shape.depth) + "- ", ""
 	case OrderedNode:
-		return strconv.Itoa(ordinal) + ". ", ""
+		return strings.Repeat("  ", shape.depth) + strconv.Itoa(ordinal) + ". ", ""
 	case CodeNode:
 		return "```" + shape.info + "\n", "\n```"
 	case RuleNode:
@@ -230,6 +269,22 @@ func blockNotation(shape blockShape, ordinal int) (open, close string) {
 // inverse of blockNotation.
 func parseOpener(text string) (blockShape, bool) {
 	paragraph := blockShape{kind: ParagraphNode}
+	// Nested items are indented two spaces a level, nested quote lines
+	// quoted again.
+	if indent := len(text) - len(strings.TrimLeft(text, " ")); indent > 0 {
+		shape, ok := parseOpener(text[indent:])
+		if !ok || indent/2 > maxDepth || shape.kind != BulletNode && shape.kind != OrderedNode {
+			return blockShape{}, false
+		}
+		shape.depth, shape.indent = indent/2, indent
+		return shape, true
+	}
+	if quotes := strings.Count(text, "> "); quotes > 1 && text == strings.Repeat("> ", quotes) {
+		if quotes-1 > maxDepth {
+			return blockShape{}, false
+		}
+		return blockShape{kind: QuoteNode, depth: quotes - 1}, true
+	}
 	switch {
 	case text == "":
 		return paragraph, true
@@ -270,6 +325,9 @@ func shapeBlock(document *model.DocumentDraft, node model.NodeID, shape blockSha
 		return nil
 	}
 	if err := set(headingLevelAttribute, shape.kind == HeadingNode, model.IntegerValue(int64(shape.level))); err != nil {
+		return err
+	}
+	if err := set(depthAttribute, shape.nests() && shape.depth > 0, model.IntegerValue(int64(shape.depth))); err != nil {
 		return err
 	}
 	return set(codeInfoAttribute, shape.kind == CodeNode && shape.info != "", model.TextValue(shape.info))
@@ -320,18 +378,25 @@ func literalAt(node *model.Node, active *model.MarkID) bool {
 	return false
 }
 
-// ordinals numbers each ordered item by its place in the run of ordered
-// items it stands in.
+// ordinals numbers each ordered item by its place among the ordered items
+// at its depth since its list, or the item it nests under, began. A bullet
+// at that depth starts the count again.
 func ordinals(blocks []*model.Node) []int {
 	numbers := make([]int, len(blocks))
-	run := 0
+	counts := make([]int, maxDepth+1)
 	for index, block := range blocks {
-		if block.Kind() != OrderedNode {
-			run = 0
+		group, ok := groupOf(block)
+		if !ok || group.name != "list" {
+			clear(counts)
 			continue
 		}
-		run++
-		numbers[index] = run
+		clear(counts[group.depth+1:])
+		if block.Kind() != OrderedNode {
+			counts[group.depth] = 0
+			continue
+		}
+		counts[group.depth]++
+		numbers[index] = counts[group.depth]
 	}
 	return numbers
 }
@@ -502,6 +567,11 @@ func (i *EditorInvoker) invokeBlockNotation(
 		open = edited
 	}
 	reshaped, ok := parseOpener(open)
+	// A space typed into an item's indent nests it a level; one deleted
+	// from it takes it out a level.
+	if reshaped.indent%2 == 1 && reshaped.indent > 2*shape.depth {
+		reshaped.depth = min(maxDepth, reshaped.depth+1)
+	}
 	if _, fence := blockNotation(reshaped, 1); ok && reshaped.kind != ParagraphNode && fence == close {
 		if err := shapeBlock(document, node.ID(), reshaped); err != nil {
 			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}

@@ -17,11 +17,6 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 	if _, active := s.composition.Preview(); active {
 		return 0, ErrCompositionActive
 	}
-	beforeFrame, beforeOK := s.historyFrame()
-	beforeVisual, visualErr := s.ProjectedState()
-	if !beforeOK || visualErr != nil {
-		return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
-	}
 	selection := s.presentation.Selection
 	ranges := selectionBlockRanges(s.runtime.Snapshot().Document(), selection)
 	projected, err := s.VisualSelection()
@@ -41,16 +36,38 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 		}
 		return kernel.OutcomePass, nil
 	}
+	return s.dispatchSelectionCommand(
+		markupFormatTrigger,
+		&markupFormatInvoker{session: s, command: command, ranges: ranges},
+		func(node *model.Node) *model.MarkID {
+			if selection.Spans() {
+				return nil
+			}
+			return findExactMark(node, ranges[0].Range)
+		},
+	)
+}
+
+// dispatchSelectionCommand dispatches a command that acts on what the
+// selection covers, as formatting and nesting do, and installs the page it
+// leaves: the selection carried through its edits, the caret in the mark
+// active names. It records one history step.
+func (s *Session) dispatchSelectionCommand(
+	trigger string,
+	invoker kernel.EngineInvoker,
+	active func(*model.Node) *model.MarkID,
+) (kernel.Outcome, error) {
+	beforeFrame, beforeOK := s.historyFrame()
+	beforeVisual, visualErr := s.ProjectedState()
+	if !beforeOK || visualErr != nil {
+		return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+	}
+	selection := s.presentation.Selection
 	var candidate Presentation
-	var active *model.MarkID
-	event := kernel.NewCommandEvent(markupFormatTrigger).WithOrigin(kernel.EventOriginSemantic)
+	event := kernel.NewCommandEvent(trigger).WithOrigin(kernel.EventOriginSemantic)
 	transaction, err := s.runtime.DispatchPreparedWithOutcome(
 		event,
-		&markupFormatInvoker{
-			session: s,
-			command: command,
-			ranges:  ranges,
-		},
+		invoker,
 		func(view kernel.EngineView, changes kernel.EngineChanges, outcome kernel.DispatchOutcome) (struct{}, error) {
 			if outcome.Status != kernel.OutcomeHandled {
 				return struct{}{}, nil
@@ -63,9 +80,6 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 			if !ok {
 				return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 			}
-			if !selection.Spans() {
-				active = findExactMark(node, ranges[0].Range)
-			}
 			projectedValue, projectErr := ProjectPage(
 				view.Document().CandidateSnapshot(view.Revision()),
 				view.Revision(),
@@ -75,7 +89,7 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 			if projectErr != nil {
 				return struct{}{}, projectErr
 			}
-			caret, projectErr := placeCaret(projectedValue, node, rebased.Head(), active)
+			caret, projectErr := placeCaret(projectedValue, node, rebased.Head(), active(node))
 			if projectErr != nil {
 				return struct{}{}, projectErr
 			}

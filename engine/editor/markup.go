@@ -20,6 +20,7 @@ const (
 	asterisksSetting    = "asterisks"
 	underscoresSetting  = "underscores"
 	markupFormatTrigger = "markup:format"
+	nestTrigger         = "writing:nest"
 )
 
 // EditorPolicy is the stable identity of one concrete editor policy.
@@ -289,7 +290,7 @@ func writingPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	if err != nil {
 		return kernel.PolicyDescriptor{}, err
 	}
-	commands := []kernel.CommandID{MarkupEmphasis.ID(), MarkupStrong.ID()}
+	commands := []kernel.CommandID{MarkupEmphasis.ID(), MarkupStrong.ID(), NestDeeper.ID(), NestShallower.ID()}
 	marker := kernel.RuleDescriptor{
 		ID:        "type-marker",
 		Phase:     kernel.HandleRulePhase(),
@@ -308,13 +309,16 @@ func writingPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	format.Trigger = kernel.NewExactTrigger(markupFormatTrigger)
 	format.Origins = nil
 	format.Order = 100
+	nest := format
+	nest.ID = "nest"
+	nest.Trigger = kernel.NewExactTrigger(nestTrigger)
 	return kernel.PolicyDescriptor{
 		ID:               WritingPolicyID,
 		Requires:         []kernel.PolicyID{TextPolicyID},
 		EnabledByDefault: true,
 		Settings:         writingSettingDescriptors(),
 		Commands:         commands,
-		Rules:            []kernel.RuleDescriptor{marker, format, block},
+		Rules:            []kernel.RuleDescriptor{marker, format, block, nest},
 	}, nil
 }
 

@@ -16,6 +16,7 @@ const (
 	ActionHistory
 	ActionMarkup
 	ActionWord
+	ActionNesting
 	ActionNavigation
 	ActionClipboard
 	ActionSurface
@@ -32,6 +33,8 @@ func (k ActionKind) String() string {
 		return "markup"
 	case ActionWord:
 		return "word"
+	case ActionNesting:
+		return "nesting"
 	case ActionNavigation:
 		return "navigation"
 	case ActionClipboard:
@@ -104,6 +107,7 @@ type Action struct {
 	History    editor.HistoryCommand
 	Markup     editor.MarkupCommand
 	Word       editor.WordCommand
+	Nesting    editor.NestingCommand
 	Navigation NavigationCommand
 	Clipboard  ClipboardCommand
 	Surface    editor.SurfaceCommand
@@ -142,6 +146,10 @@ func buildEditorActions() map[kernel.CommandID]Action {
 	for _, command := range editor.AllWordCommands {
 		meta := command.Description()
 		actions[meta.ID] = Action{Kind: ActionWord, ID: meta.ID, Word: command}
+	}
+	for _, command := range editor.AllNestingCommands {
+		meta := command.Description()
+		actions[meta.ID] = Action{Kind: ActionNesting, ID: meta.ID, Nesting: command}
 	}
 	tab := editor.TabCommand()
 	actions[tab.ID] = Action{

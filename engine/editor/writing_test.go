@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -305,5 +306,117 @@ func TestSelectAllStepsOutByScope(t *testing.T) {
 	}
 	if area := frames(); len(area) != 1 || area[0] != model.NewUTF16Range(0, 17) {
 		t.Fatalf("framed %v, want the page", area)
+	}
+}
+
+// Items nest by two spaces a level, quote lines by quoting again; ordered
+// items count at their own depth, and a nested list starts its own count.
+func TestNestedItemsAndQuotes(t *testing.T) {
+	for _, test := range []struct {
+		text  string
+		shape blockShape
+	}{
+		{"  - ", blockShape{kind: BulletNode, depth: 1}},
+		{"    3. ", blockShape{kind: OrderedNode, depth: 2}},
+		{"> > ", blockShape{kind: QuoteNode, depth: 1}},
+	} {
+		shape, ok := parseOpener(test.text)
+		if !ok || shape.kind != test.shape.kind || shape.depth != test.shape.depth {
+			t.Fatalf("parseOpener(%q) = %#v, %v", test.text, shape, ok)
+		}
+		open, _ := blockNotation(shape, 1)
+		if test.shape.kind != OrderedNode && open != test.text {
+			t.Fatalf("notation of %#v = %q", shape, open)
+		}
+	}
+	for _, bad := range []string{"  # ", "  > ", " "} {
+		if _, ok := parseOpener(bad); ok {
+			t.Fatalf("parseOpener(%q) read as syntax", bad)
+		}
+	}
+}
+
+// nestedList is a page of a nested ordered list between two paragraphs.
+func nestedList(t *testing.T) *Session {
+	t.Helper()
+	document, blocks, err := NewBlockDocument("intro\none\ninner\ndeeper\ntwo\nouter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shapes := []blockShape{
+		{kind: ParagraphNode},
+		{kind: OrderedNode},
+		{kind: OrderedNode, depth: 1},
+		{kind: OrderedNode, depth: 1},
+		{kind: OrderedNode},
+		{kind: ParagraphNode},
+	}
+	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		for index, shape := range shapes {
+			if err := shapeBlock(draft, blocks[index], shape); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return sessionFor(t, document, blocks[0])
+}
+
+func TestNestedListsNumberByDepth(t *testing.T) {
+	session := nestedList(t)
+	expectKinds(t, session, ParagraphNode, OrderedNode, OrderedNode, OrderedNode, OrderedNode, ParagraphNode)
+	if got := session.Projection().Text(); got != "intro\n1. one\n  1. inner\n  2. deeper\n2. two\nouter" {
+		t.Fatalf("page shows %q", got)
+	}
+}
+
+// Select All steps out of a nested item level by level: its text, the
+// nested list, the whole list, the page.
+func TestSelectAllStepsOutThroughNestedGroups(t *testing.T) {
+	session := nestedList(t)
+	text := session.Projection().Text()
+	at(t, session, model.UTF16Offset(strings.Index(text, "inner")+2))
+	want := []string{
+		"inner",
+		"  1. inner\n  2. deeper",
+		"1. one\n  1. inner\n  2. deeper\n2. two",
+		text,
+	}
+	for _, scope := range want {
+		run(t, session, TextSelectAll)
+		selected, _ := session.VisualSelection()
+		if got := string([]rune(text)[selected.Start:selected.End]); got != scope {
+			t.Fatalf("selected %q, want %q", got, scope)
+		}
+	}
+}
+
+// Items nest by command, a level at a time, never more than one level past
+// the item before them, and come back out the same way.
+func TestNestingCommands(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "- one\ntwo")
+	nest := func(command NestingCommand, view string) {
+		t.Helper()
+		if _, err := session.ExecuteNesting(command); err != nil {
+			t.Fatal(err)
+		}
+		if got := session.Projection().Text(); got != view {
+			t.Fatalf("page shows %q, want %q", got, view)
+		}
+	}
+	nest(NestDeeper, "- one\n  - two")
+	nest(NestDeeper, "- one\n  - two")
+	nest(NestShallower, "- one\n- two")
+	nest(NestShallower, "- one\n- two")
+	run(t, session, TextSelectAll, TextSelectAll, TextSelectAll)
+	nest(NestDeeper, "- one\n  - two")
+	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.Projection().Text(); got != "- one\n- two" {
+		t.Fatalf("undo shows %q", got)
 	}
 }

@@ -54,6 +54,12 @@ func (c *DocumentController) Execute(command Command) (kernel.Outcome, error) {
 			return c.finishCommand(outcome, err)
 		}
 	}
+	for _, next := range editor.AllNestingCommands {
+		if string(next.ID()) == command.ID {
+			outcome, err := c.session.ExecuteNesting(next)
+			return c.finishCommand(outcome, err)
+		}
+	}
 	c.pending = append(c.pending, command)
 	c.setStatus(kernel.OutcomePass, false, ErrUnknownCommand)
 	return kernel.OutcomePass, ErrUnknownCommand

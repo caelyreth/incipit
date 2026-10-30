@@ -109,6 +109,9 @@ func (b *Bridge) Execute(action keymap.Action) error {
 	case keymap.ActionWord:
 		outcome, err := b.Controller.Execute(controller.Command{ID: string(action.Word.ID())})
 		return editorOutcome(outcome, err)
+	case keymap.ActionNesting:
+		outcome, err := b.Controller.Execute(controller.Command{ID: string(action.Nesting.ID())})
+		return editorOutcome(outcome, err)
 	case keymap.ActionNavigation:
 		switch action.Navigation {
 		case keymap.NavigationTab:

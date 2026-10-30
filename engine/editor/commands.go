@@ -56,6 +56,8 @@ const (
 
 	markupEmphasisCommandID kernel.CommandID = "markup.emphasis"
 	markupStrongCommandID   kernel.CommandID = "markup.strong"
+	nestDeeperCommandID     kernel.CommandID = "writing.nest-deeper"
+	nestShallowerCommandID  kernel.CommandID = "writing.nest-shallower"
 )
 
 const (
@@ -174,6 +176,29 @@ func (c MarkupCommand) Description() Command {
 // ID returns the stable command identity.
 func (c MarkupCommand) ID() kernel.CommandID { return c.Description().ID }
 
+// NestingCommand moves the blocks a selection covers a level deeper into
+// the group they stand in, or a level out of it.
+type NestingCommand uint8
+
+const (
+	NestDeeper NestingCommand = iota + 1
+	NestShallower
+)
+
+// AllNestingCommands is the declaration order.
+var AllNestingCommands = [...]NestingCommand{NestDeeper, NestShallower}
+
+// Description returns stable command metadata.
+func (c NestingCommand) Description() Command {
+	if c == NestShallower {
+		return Command{ID: nestShallowerCommandID, Label: "Nest shallower", Scope: ScopeDocument, Policy: WritingPolicyID}
+	}
+	return Command{ID: nestDeeperCommandID, Label: "Nest deeper", Scope: ScopeDocument, Policy: WritingPolicyID}
+}
+
+// ID returns the stable command identity.
+func (c NestingCommand) ID() kernel.CommandID { return c.Description().ID }
+
 // commandRegistry is every editor and host action, in catalog order, and an
 // index by identity. It is built once; every catalog that lists actions (the
 // settings pages, the palette, the menus) reads it instead of keeping a list
@@ -191,6 +216,9 @@ func buildCommandRegistry() registry {
 		ordered = append(ordered, command.Description())
 	}
 	ordered = append(ordered, MarkupEmphasis.Description(), MarkupStrong.Description())
+	for _, command := range AllNestingCommands {
+		ordered = append(ordered, command.Description())
+	}
 	for _, command := range AllHistoryCommands {
 		ordered = append(ordered, command.Description())
 	}

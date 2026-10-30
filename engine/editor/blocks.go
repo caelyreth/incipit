@@ -115,3 +115,40 @@ func orderedAnchors(document model.DocumentSnapshot, a, b model.TextAnchor) (mod
 	}
 	return a, b
 }
+
+// blockGroup is a block's place in a group of neighbours: a run of
+// consecutive blocks of one group is one scope, and the blocks deeper than
+// some depth within it are a scope nested inside. The core knows groups
+// only as names and depths; the page's kinds say which blocks group
+// (groupOf, in writing.go).
+type blockGroup struct {
+	name  string
+	depth int
+}
+
+// groupRuns are the runs of blocks around index that group with it, the
+// deepest first: at each depth from the block's own to 0, the consecutive
+// blocks of its group no shallower than that depth. Each run is the first
+// and last index it spans.
+func groupRuns(blocks []*model.Node, index int) [][2]int {
+	group, ok := groupOf(blocks[index])
+	if !ok {
+		return nil
+	}
+	runs := make([][2]int, 0, group.depth+1)
+	within := func(at, depth int) bool {
+		other, ok := groupOf(blocks[at])
+		return ok && other.name == group.name && other.depth >= depth
+	}
+	for depth := group.depth; depth >= 0; depth-- {
+		first, last := index, index
+		for first > 0 && within(first-1, depth) {
+			first--
+		}
+		for last < len(blocks)-1 && within(last+1, depth) {
+			last++
+		}
+		runs = append(runs, [2]int{first, last})
+	}
+	return runs
+}
