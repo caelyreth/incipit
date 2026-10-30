@@ -24,16 +24,6 @@ func TestAppViewMountsTransientOverlays(t *testing.T) {
 	if app.Palette.Query != "bold" {
 		t.Fatalf("palette query = %q", app.Palette.Query)
 	}
-
-	app.Palette.Open = false
-	app.Shell.RenamePage("0")
-	tester.Frame()
-	if !tester.HasText("Name this page") {
-		t.Fatalf("rename overlay missing: %#v", tester.Texts())
-	}
-	if active, _ := tester.TextInputActive(); !active {
-		t.Fatal("rename overlay did not focus its text input")
-	}
 }
 
 func TestAppViewRestoresDocumentFocusAfterNewPage(t *testing.T) {

@@ -44,7 +44,7 @@ func New(initial Session, create Factory) (*Workspace, error) {
 	configuration = configuration.Clone()
 	return &Workspace{
 		pages: []pageState{{
-			Page:    Page{ID: 0, Title: DefaultTitle},
+			Page:    Page{ID: 0},
 			session: initial,
 		}},
 		tabs:          []PageID{0},
@@ -77,7 +77,17 @@ func (w *Workspace) Title() string {
 	if w == nil || !w.hasActive {
 		return NotebookTitle
 	}
-	return w.pages[w.active].Title
+	return w.snapshot(w.active).Title
+}
+
+// snapshot is a page's metadata, titled as its session names it now.
+func (w *Workspace) snapshot(id PageID) Page {
+	page := w.pages[id].Page
+	page.Title = strings.TrimSpace(w.pages[id].session.Title())
+	if page.Title == "" {
+		page.Title = DefaultTitle
+	}
+	return page
 }
 
 // Pages returns immutable metadata for every retained page in identity order.
@@ -87,7 +97,7 @@ func (w *Workspace) Pages() []Page {
 	}
 	pages := make([]Page, len(w.pages))
 	for index := range w.pages {
-		pages[index] = w.pages[index].Page
+		pages[index] = w.snapshot(PageID(index))
 	}
 	return pages
 }
@@ -107,7 +117,7 @@ func (w *Workspace) TabPages() []Page {
 	}
 	pages := make([]Page, 0, len(w.tabs))
 	for _, id := range w.tabs {
-		pages = append(pages, w.pages[id].Page)
+		pages = append(pages, w.snapshot(id))
 	}
 	return pages
 }
@@ -117,16 +127,7 @@ func (w *Workspace) Page(id PageID) (Page, bool) {
 	if w == nil || !w.validPage(id) {
 		return Page{}, false
 	}
-	return w.pages[id].Page, true
-}
-
-// Rename trims and normalizes a page title. Empty titles return to the default.
-func (w *Workspace) Rename(id PageID, title string) bool {
-	if w == nil || !w.validPage(id) {
-		return false
-	}
-	w.pages[id].Title = normalizeTitle(title)
-	return true
+	return w.snapshot(id), true
 }
 
 // Adjacent returns the next or previous active tab without changing ownership.
@@ -186,7 +187,6 @@ func (w *Workspace) createCandidate() (pageState, error) {
 	return pageState{
 		Page: Page{
 			ID:     id,
-			Title:  fmt.Sprintf("%s %d", DefaultTitle, int(id)+1),
 			Parked: true,
 		},
 		session: session,
@@ -360,12 +360,4 @@ func (w *Workspace) tabIndex(id PageID) int {
 
 func (w *Workspace) hasTab(id PageID) bool {
 	return w.tabIndex(id) >= 0
-}
-
-func normalizeTitle(title string) string {
-	title = strings.TrimSpace(title)
-	if title == "" {
-		return DefaultTitle
-	}
-	return title
 }

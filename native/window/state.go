@@ -31,7 +31,6 @@ type AppState struct {
 	Product        appsettings.State
 	Shell          *shell.State
 	Palette        *overlay.CommandPalette
-	PageTitle      *overlay.PageTitle
 	Element        *documentview.Element
 	Bridge         *documentview.Bridge
 	Session        *sheetSession
@@ -55,7 +54,6 @@ func NewAppState() (*AppState, error) {
 	session := &sheetSession{
 		page:       0,
 		controller: initial,
-		title:      workspace.DefaultTitle,
 	}
 	pages, err := workspace.New(session, func(
 		id workspace.PageID,
@@ -71,7 +69,6 @@ func NewAppState() (*AppState, error) {
 		return &sheetSession{
 			page:       id,
 			controller: document,
-			title:      workspace.DefaultTitle,
 		}, nil
 	})
 	if err != nil {
@@ -94,17 +91,6 @@ func NewAppState() (*AppState, error) {
 		Session:   session,
 	}
 	app.Palette = &overlay.CommandPalette{}
-	app.PageTitle = &overlay.PageTitle{
-		Confirm: func(id, title string) {
-			page, ok := parsePageID(id)
-			if !ok {
-				return
-			}
-			app.Workspace.Rename(page, title)
-			app.refreshShell()
-			app.refreshSettingsData()
-		},
-	}
 	app.Element = documentview.NewElement(
 		nil,
 		theme.DefaultSettings().Semantic(),
@@ -127,16 +113,16 @@ func (a *AppState) BindShell() {
 		if a.Bridge == nil || a.Element.Input != a.Bridge {
 			a.mountBridge(c)
 		}
-		a.refreshShellReadouts()
 		a.Element.Theme, _ = a.colors.At(a.Shell.Settings, c.Now())
 		a.Element.Prose = theme.NewProseStyle(a.Shell.Settings.ProseFontSize)
 		a.Element.Animate = a.Shell.Appearance.Motion && a.Shell.WindowActive &&
 			!c.Preferences().ReduceMotion
 		a.Element.Typewriter = a.Shell.Appearance.Typewriter
-		a.Element.Title = a.Workspace.Title()
-		a.Element.UIFontSize = a.Shell.Settings.UIFontSize
+		// The reading space above the first line scrolls with the page.
 		// The last line only needs to clear the floating dock; typewriter
 		// mode's centering space is the element's own.
+		a.Element.TopInset = theme.DefaultLayout.ReadingTop *
+			a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
 		a.Element.BottomInset = theme.DefaultLayout.DockClearance() *
 			a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
 		a.refreshToolbarState()
@@ -168,20 +154,6 @@ func (a *AppState) BindShell() {
 		a.closePageID(fmt.Sprintf("%d", id))
 	}
 	a.Shell.ClosePageID = a.closePageID
-	a.Shell.RenamePage = func(id string) {
-		page, ok := parsePageID(id)
-		if !ok {
-			return
-		}
-		value, ok := a.Workspace.Page(page)
-		if !ok {
-			return
-		}
-		a.PageTitle.Cancel = func(string) {
-			a.refreshShell()
-		}
-		a.PageTitle.Begin(id, value.Title)
-	}
 	a.Shell.OpenCommands = func() {
 		a.Palette.Open = true
 		a.Palette.Reset(a.commands())
@@ -219,6 +191,17 @@ func (a *AppState) BindShell() {
 func (a *AppState) refreshShellReadouts() {
 	if a == nil || a.Shell == nil || a.Session == nil || a.Session.Document() == nil {
 		return
+	}
+	// The page is named after its first heading, so its title follows
+	// what is written.
+	if id, ok := a.Workspace.Active(); ok {
+		title := a.Workspace.Title()
+		for index := range a.Shell.Pages {
+			if a.Shell.Pages[index].ID == fmt.Sprintf("%d", id) && a.Shell.Pages[index].Title != title {
+				a.refreshShell()
+				break
+			}
+		}
 	}
 	controller := a.Session.Document()
 	if err := controller.LastError(); err != nil {
@@ -320,8 +303,6 @@ func (a *AppState) executeExternalCommand(command kernel.CommandID) error {
 		} else {
 			a.newPage()
 		}
-	case editor.SurfaceRenamePageCommandID:
-		a.renameActivePage()
 	case editor.SurfaceNextPageCommandID:
 		a.navigatePage(true)
 	case editor.SurfacePreviousPageCommandID:
@@ -390,14 +371,6 @@ func (a *AppState) togglePresentation(
 	a.setPresentation(mode, on)
 }
 
-func (a *AppState) renameActivePage() {
-	id, ok := a.Workspace.Active()
-	if !ok || a.Shell.RenamePage == nil {
-		return
-	}
-	a.Shell.RenamePage(fmt.Sprintf("%d", id))
-}
-
 func (a *AppState) navigatePage(forward bool) {
 	a.parkScroll()
 	if _, ok, err := a.Workspace.Navigate(forward); err != nil {
@@ -449,9 +422,6 @@ func (a *AppState) closePageID(id string) {
 		a.Error = err.Error()
 		a.refreshShell()
 		return
-	}
-	if a.PageTitle != nil {
-		a.PageTitle.Open = false
 	}
 	a.selectMounted()
 }
@@ -640,10 +610,11 @@ func (a *AppState) View(c *ui.Context) {
 			}
 		}
 	}
+	// What the shell reads off the page, its title and counts, is read
+	// before the shell is built, so header, sidebar and status show this
+	// frame's page.
+	a.refreshShellReadouts()
 	a.Shell.View(c)
-	if a.PageTitle != nil {
-		a.PageTitle.View(c, semantic, animate)
-	}
 }
 
 func (a *AppState) commands() []overlay.Command {

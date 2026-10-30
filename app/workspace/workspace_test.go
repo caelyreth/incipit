@@ -13,7 +13,10 @@ type testSession struct {
 	configuration kernel.PolicyConfiguration
 	adoptions     int
 	adoptError    bool
+	title         string
 }
+
+func (s *testSession) Title() string { return s.title }
 
 func newTestSession(id PageID, text string, configuration kernel.PolicyConfiguration) *testSession {
 	return &testSession{id: id, text: text, configuration: configuration.Clone()}
@@ -111,7 +114,7 @@ func TestPagesParkSessionsAndRestoreIndependentState(t *testing.T) {
 		t.Fatalf("mounted first = %#v, %v", first, ok)
 	}
 	page, _ := workspace.Page(1)
-	if page.Title != "Untitled 2" || !page.Parked {
+	if page.Title != DefaultTitle || !page.Parked {
 		t.Fatalf("first parked state = %#v", page)
 	}
 	if scroll, _ := workspace.ActiveScroll(); scroll.Y != 0 {
@@ -174,25 +177,25 @@ func TestClosingLastTabLeavesAllPagesRetainedAndNewPageCanMount(t *testing.T) {
 	}
 }
 
-func TestTitleNormalizationAndDefaultNaming(t *testing.T) {
+// A page is titled as its session names it, trimmed, and Untitled when it
+// names nothing.
+func TestPagesTakeTheirSessionsTitles(t *testing.T) {
 	t.Parallel()
-	workspace, _, _ := newWorkspace(t, nil)
+	workspace, _, log := newWorkspace(t, nil)
 	second, err := workspace.NewPage()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page, _ := workspace.Page(second); page.Title != "Untitled 2" {
+	if page, _ := workspace.Page(second); page.Title != DefaultTitle {
 		t.Fatalf("new title = %q", page.Title)
 	}
-	if !workspace.Rename(second, "  Research notes  ") {
-		t.Fatal("rename rejected")
-	}
+	log.created[0].title = "  Research notes  "
 	if workspace.Title() != "Research notes" {
-		t.Fatalf("renamed title = %q", workspace.Title())
+		t.Fatalf("headed title = %q", workspace.Title())
 	}
-	workspace.Rename(second, "   ")
+	log.created[0].title = "   "
 	if workspace.Title() != DefaultTitle {
-		t.Fatalf("empty title = %q", workspace.Title())
+		t.Fatalf("blank title = %q", workspace.Title())
 	}
 }
 

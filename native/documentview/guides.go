@@ -177,7 +177,7 @@ func drawGuides(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions)
 	for _, sample := range guides.Visible() {
 		alpha := sample.Opacity
 		x := rect.X + sample.Rect.X
-		y := rect.Y + state.ContentTop + sample.Rect.Y - state.ScrollY
+		y := rect.Y + state.TopInset + sample.Rect.Y - state.ScrollY
 		if y+sample.Rect.H < rect.Y || y > rect.Y+rect.H {
 			continue
 		}

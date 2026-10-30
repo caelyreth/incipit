@@ -30,14 +30,6 @@ func TestSurfaceHostCommandsRouteThroughWindowCallbacks(t *testing.T) {
 		t.Fatalf("next-page active = %d", active)
 	}
 
-	if err := app.executeExternalCommand(editor.SurfaceRenamePageCommandID); err != nil {
-		t.Fatal(err)
-	}
-	if !app.PageTitle.Open {
-		t.Fatal("rename-page did not open the title dialog")
-	}
-	app.PageTitle.Open = false
-
 	if err := app.executeExternalCommand(editor.SurfaceTypewriterCommandID); err != nil {
 		t.Fatal(err)
 	}

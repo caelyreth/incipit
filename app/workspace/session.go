@@ -8,6 +8,9 @@ import "github.com/caelyreth/neverland/engine/kernel"
 type Session interface {
 	Configuration() kernel.PolicyConfiguration
 	AdoptConfiguration(kernel.PolicyConfiguration) error
+	// Title is what the page calls itself, or nothing when it names
+	// nothing.
+	Title() string
 }
 
 // Factory creates one empty page session with a stable page identity. The

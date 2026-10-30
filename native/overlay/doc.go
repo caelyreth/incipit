@@ -1,2 +1,2 @@
-// Package overlay owns command search, page menus, and title editing.
+// Package overlay owns command search.
 package overlay

@@ -28,7 +28,7 @@ native/textlayout    MyGo shaping and retained paragraph geometry
 native/motion        cursor, selection, viewport, and feedback animation
 native/documentview  custom writing surface
 native/shell         window composition and chrome
-native/overlay       command palette, menus, and title editing
+native/overlay       command palette
 fixtures             Rust oracle traces and generated compatibility data
 ```
 

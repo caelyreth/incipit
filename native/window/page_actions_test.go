@@ -5,21 +5,45 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/app/workspace"
+	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
 )
 
-func TestPageActionsRenameAndCloseTabsByID(t *testing.T) {
+// A page is named after its first heading, whatever its level, and its
+// tab follows as the heading is written.
+func TestPagesAreNamedAfterTheirFirstHeading(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	app.Shell.RenamePage("0")
-	if app.PageTitle == nil || !app.PageTitle.Open || app.PageTitle.Value != workspace.DefaultTitle {
-		t.Fatalf("page title state = %#v", app.PageTitle)
+	if page, _ := app.Workspace.Page(0); page.Title != workspace.DefaultTitle {
+		t.Fatalf("headless page = %q", page.Title)
 	}
-	app.PageTitle.Confirm("0", "  Chapter one  ")
-	page, ok := app.Workspace.Page(0)
-	if !ok || page.Title != "Chapter one" {
-		t.Fatalf("renamed page = %#v, %v", page, ok)
+	session := app.Session.Document().Session()
+	for _, r := range "prose\n### Chapter one" {
+		if r == '\n' {
+			if _, err := session.ExecuteText(editor.TextNewline); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		if _, err := session.ReplaceSelection(string(r), kernel.EventOriginTyping); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app.refreshShellReadouts()
+	if page, _ := app.Workspace.Page(0); page.Title != "Chapter one" {
+		t.Fatalf("headed page = %q", page.Title)
+	}
+	if app.Shell.Pages[0].Title != "Chapter one" {
+		t.Fatalf("tab title = %q", app.Shell.Pages[0].Title)
+	}
+}
+
+func TestPageActionsCloseTabsByID(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	second, err := app.Workspace.NewPage()

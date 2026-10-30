@@ -7,7 +7,7 @@ func TestProseMetricsKeepReferenceProportionsAndClamp(t *testing.T) {
 	prose := NewProseStyle(19)
 	if prose.FontSize != 19 || prose.LineHeight() != 34 || prose.CaretHeight() != 25 ||
 		prose.CaretOffsetY() != 1 ||
-		prose.TitleSize() != 34 || prose.TitleLineHeight() != 48 || prose.Column() != 700 {
+		prose.Column() != 700 {
 		t.Fatalf("default prose = %#v", prose)
 	}
 	if got := NewProseStyle(4).FontSize; got != MinProseFontSize {

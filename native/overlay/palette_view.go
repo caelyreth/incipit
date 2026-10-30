@@ -72,3 +72,12 @@ func (p *CommandPalette) View(c *ui.Context, semantic theme.Theme, animate bool)
 	}.View(c, semantic, &open)
 	p.Open = open && p.Open
 }
+
+// semanticScale is the UI's font size against the default one, which the
+// palette's spacing grows with.
+func semanticScale(c *ui.Context) float32 {
+	if c == nil || c.Theme() == nil || c.Theme().FontSize <= 0 {
+		return 1
+	}
+	return c.Theme().FontSize / theme.DefaultUIFontSize
+}

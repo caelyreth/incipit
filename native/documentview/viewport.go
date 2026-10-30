@@ -16,6 +16,12 @@ func (e *Element) revealCaret(layout *textlayout.Layout, caret float32, now time
 	line := e.Prose.LineHeight()
 	// The product caret is centered in its line; reveal the whole line.
 	lineTop := caret - (line-e.Prose.CaretHeight())/2
+	// The reading space above the first line is that line's: revealing it
+	// reveals the page's top. A caret within the first line's height of
+	// the text's top is on it, however tall a heading makes it.
+	if lineTop < e.TopInset+line {
+		line, lineTop = line+lineTop, 0
+	}
 	target, changed := motion.RevealOffset(motion.RevealOptions{
 		ViewportTop:    e.scroll,
 		ViewportHeight: e.lastHeight,

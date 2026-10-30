@@ -32,3 +32,18 @@ One changed paragraph in retained native layout:
 The complete evidence, profiles, implementation ledger, and remaining risks
 are under `references/performance-2026-10-29/`. These are development
 measurements, not universal release latency guarantees.
+
+## Pages of blocks
+
+Since a page became a document of blocks, each edit reprojects the whole
+page, block by block (`BenchmarkSessionTypingLongProse`, one keystroke in
+the session, no native layout):
+
+| Initial text | Per keystroke | Allocated |
+| --- | ---: | ---: |
+| 8 KiB | 0.21 ms | 307 KB |
+| 64 KiB | 1.18 ms | 2.29 MB |
+| 256 KiB | 5.06 ms | 8.96 MB |
+
+The cost grows linearly with the page. Reusing the projection of blocks an
+edit leaves alone is the next step here.

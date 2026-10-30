@@ -53,7 +53,6 @@ var defaultKeymap = [...]kernel.BindingSpec{
 	defaultKey(SurfaceCutCommandID, "x", keyPrimary),
 	defaultKey(SurfacePasteCommandID, "v", keyPrimary),
 	defaultKey(SurfaceNewPageCommandID, "n", keyPrimary),
-	defaultKey(SurfaceRenamePageCommandID, "r", keyPrimary|keyShift),
 	defaultKey(SurfaceNextPageCommandID, "]", keyPrimary|keyShift),
 	defaultKey(SurfacePreviousPageCommandID, "[", keyPrimary|keyShift),
 	defaultKey(SurfaceClosePageCommandID, "w", keyPrimary),

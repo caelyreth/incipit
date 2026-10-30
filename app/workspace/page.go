@@ -6,7 +6,8 @@ package workspace
 type PageID int
 
 const (
-	// DefaultTitle is used for an untitled first page and an empty rename.
+	// DefaultTitle names a page whose session names nothing: one without a
+	// heading.
 	DefaultTitle = "Untitled"
 	// NotebookTitle names the document window when no tab is active.
 	NotebookTitle = "Notebook"
@@ -22,7 +23,8 @@ type ScrollPosition struct {
 // Page is an immutable metadata snapshot. The page session itself is never
 // exposed, which keeps ownership exclusively with Workspace.
 type Page struct {
-	ID     PageID
+	ID PageID
+	// Title is the page's first heading, or DefaultTitle.
 	Title  string
 	Scroll ScrollPosition
 	Parked bool

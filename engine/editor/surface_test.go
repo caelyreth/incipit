@@ -30,7 +30,6 @@ func TestSurfacePolicyMatchesRustCommandCatalog(t *testing.T) {
 		SurfaceCutCommandID,
 		SurfacePasteCommandID,
 		SurfaceNewPageCommandID,
-		SurfaceRenamePageCommandID,
 		SurfaceNextPageCommandID,
 		SurfacePreviousPageCommandID,
 		SurfaceClosePageCommandID,
@@ -80,11 +79,6 @@ func TestSurfaceBindingsPreserveRustModifiersAndKeys(t *testing.T) {
 		{SurfaceCutCommandID, "x", kernel.ModifiersPrimary},
 		{SurfacePasteCommandID, "v", kernel.ModifiersPrimary},
 		{SurfaceNewPageCommandID, "n", kernel.ModifiersPrimary},
-		{
-			SurfaceRenamePageCommandID,
-			"r",
-			kernel.ModifiersPrimary | kernel.ModifiersShift,
-		},
 		{
 			SurfaceNextPageCommandID,
 			"]",

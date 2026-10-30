@@ -93,14 +93,6 @@ func (s *State) sidebar(
 
 func (s *State) pageMenu(page Page) func(*ui.Menu) {
 	return func(m *ui.Menu) {
-		if m.Item("Rename page…").Chosen() {
-			if s.SelectPage != nil {
-				s.SelectPage(page.ID)
-			}
-			if s.RenamePage != nil {
-				s.RenamePage(page.ID)
-			}
-		}
 		if m.Item("Close tab").Chosen() {
 			s.closePage(page.ID)
 		}

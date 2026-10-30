@@ -55,7 +55,6 @@ type State struct {
 	NewPage      func()
 	ClosePage    func()
 	ClosePageID  func(id string)
-	RenamePage   func(id string)
 	OpenSettings func()
 	OpenCommands func()
 	FindPage     func()

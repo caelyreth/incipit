@@ -9,8 +9,6 @@ const (
 	referenceLine      = float32(34)
 	referenceCaret     = float32(25)
 	referenceCaretDrop = float32(1)
-	referenceTitle     = float32(34)
-	referenceTitleLine = float32(48)
 	referenceColumn    = float32(700)
 	MinProseFontSize   = float32(15)
 	MaxProseFontSize   = float32(26)
@@ -35,14 +33,6 @@ func (p ProseStyle) CaretHeight() float32 {
 // CaretOffsetY is a small optical drop from the line's geometric center.
 func (p ProseStyle) CaretOffsetY() float32 {
 	return referenceCaretDrop * p.FontSize / referenceFontSize
-}
-
-func (p ProseStyle) TitleSize() float32 {
-	return p.scaled(referenceTitle)
-}
-
-func (p ProseStyle) TitleLineHeight() float32 {
-	return p.scaled(referenceTitleLine)
 }
 
 func (p ProseStyle) Column() float32 {

@@ -80,7 +80,7 @@ skipped.
   publication, settings reducers, and per-page scroll restoration.
 - Custom-document caret, click, drag, double-click, triple-click, Shift-click,
   accessibility selection, and offscreen caret scheduling behavior.
-- Modal mounting and text-input focus for command search and page rename.
+- Modal mounting and text-input focus for command search.
 - Portable MyGo test locking and Windows test compilation.
 
 ## Segmentation Benchmarks

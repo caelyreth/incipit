@@ -82,6 +82,9 @@ literal text it shows, so deleting the space of "## " leaves "##" in a
 paragraph, and typing it back makes the heading again. The policy's settings
 gate each kind of syntax.
 
+A page is named after its first heading, whatever its level, or "Untitled"
+when it has none (`Session.Title`); nothing else names it.
+
 ## Actions and keys
 
 Policies, including the host's surface policy, declare actions by identity,

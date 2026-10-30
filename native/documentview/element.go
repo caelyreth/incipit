@@ -35,8 +35,7 @@ type Element struct {
 	Placeholder       string
 	Layout            *textlayout.Cache
 	Motion            *motion.Motion
-	Title             string
-	UIFontSize        float32
+	TopInset          float32
 	BottomInset       float32
 	scroll            float32
 	lastHeight        float32
@@ -50,8 +49,6 @@ type Element struct {
 	current           *textlayout.Layout
 	placeholderLayout *ui.TextLayout
 	placeholderKey    placeholderKey
-	titleLayout       *ui.TextLayout
-	titleKey          placeholderKey
 	lastCaretY        float32
 	lastViewportH     float32
 	lastTypewriter    bool
@@ -256,7 +253,7 @@ func (e *Element) hit(x, y float32) int {
 	}
 	return int(e.current.Hit(ui.Point{
 		X: x,
-		Y: y + e.scroll - e.contentTop(),
+		Y: y + e.scroll - e.TopInset,
 	}))
 }
 
@@ -326,13 +323,8 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		e.lastWidth = rect.W
 	}
 	e.current = e.Layout.Update(flow, rect.W, style)
-	title := e.title(rect.W)
-	if title != nil {
-		p.TextLayout(title, rect.X, rect.Y-e.scroll, e.Theme.Prose.Heading)
-	}
-	contentTop := e.contentTop()
 	caret := productCaret(e.current.Caret(frame.Caret()), e.Prose)
-	caret.Y += contentTop
+	caret.Y += e.TopInset
 	modeChanged := e.lastTypewriter != e.Typewriter
 	if e.lastCaretY != caret.Y || e.lastViewportH != rect.H || modeChanged {
 		if e.lastCaretY != caret.Y {
@@ -380,14 +372,14 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		PointerActive:     e.pointer != pointerIdle,
 		PointerSelecting:  e.pointer == pointerSelecting,
 		Composing:         bridge.Controller.IsComposing(),
-		ContentTop:        contentTop,
+		TopInset:          e.TopInset,
 		BottomInset:       e.BottomInset,
 		Guides:            &e.guides,
 	}
 	Paint(p, rect, state)
 	e.drawnCaret = state.DrawnCaret
 	bridge.Controller.SetGeometry(LayoutGeometry{
-		Layout: e.current, YOffset: contentTop, ScrollY: e.scroll,
+		Layout: e.current, YOffset: e.TopInset, ScrollY: e.scroll,
 	})
 }
 
@@ -401,7 +393,7 @@ func (e *Element) scrollRange(layout *textlayout.Layout, viewport float32) (floa
 	if e == nil || layout == nil || viewport <= 0 {
 		return 0, 0
 	}
-	top := e.contentTop()
+	top := e.TopInset
 	if e.Typewriter {
 		line := e.Prose.LineHeight()
 		half := (viewport - line) / 2
@@ -441,38 +433,4 @@ func (e *Element) placeholder(width float32) *ui.TextLayout {
 	e.placeholderLayout = ui.ShapeText(e.Placeholder, font, width)
 	e.placeholderKey = key
 	return e.placeholderLayout
-}
-
-func (e *Element) title(width float32) *ui.TextLayout {
-	if e.Title == "" || width <= 0 {
-		return nil
-	}
-	key := placeholderKey{
-		Text:       e.Title,
-		FontSize:   e.Prose.TitleSize(),
-		LineHeight: e.Prose.TitleLineHeight(),
-		Width:      width,
-	}
-	if e.titleLayout != nil && e.titleKey == key {
-		return e.titleLayout
-	}
-	font := ui.Font{
-		Family:     theme.ProseFontFamily,
-		Size:       e.Prose.TitleSize(),
-		LineHeight: e.Prose.TitleLineHeight() / e.Prose.TitleSize(),
-	}
-	e.titleLayout = ui.ShapeText(e.Title, font, width)
-	e.titleKey = key
-	return e.titleLayout
-}
-
-func (e *Element) contentTop() float32 {
-	if e.Title == "" {
-		return 0
-	}
-	scale := e.UIFontSize
-	if scale <= 0 {
-		scale = theme.DefaultUIFontSize
-	}
-	return e.Prose.TitleLineHeight() + theme.Space24.DIPs(scale)
 }

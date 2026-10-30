@@ -97,11 +97,11 @@ func (s *State) document(
 		return
 	}
 	ui.Column(c).Grow(1).FillHeight().MinHeight(0).Clip().Children(func() {
-		ui.Row(c).Grow(1).MinHeight(0).WidthPercent(100).Justify(ui.Center).Padding(
-			layout.ReadingTop*scale/theme.DefaultUIFontSize,
-			layout.ContentGutter*scale/theme.DefaultUIFontSize,
-			0,
-			layout.ContentGutter*scale/theme.DefaultUIFontSize,
+		// The page reaches the header: its reading space above the first
+		// line is the document's own, scrolled with it, so text scrolls
+		// out at the header rather than at a clip below it.
+		ui.Row(c).Grow(1).MinHeight(0).WidthPercent(100).Justify(ui.Center).PaddingX(
+			layout.ContentGutter * scale / theme.DefaultUIFontSize,
 		).Children(func() {
 			ui.Column(c).FillHeight().Width(column).MaxWidthPercent(100).MinWidth(0).Children(func() {
 				if s.Content != nil {

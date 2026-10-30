@@ -13,12 +13,12 @@ import (
 type sheetSession struct {
 	page       workspace.PageID
 	controller *controller.DocumentController
-	title      string
 }
 
 func (s *sheetSession) Document() *controller.DocumentController { return s.controller }
 
-func (s *sheetSession) SetTitle(title string) { s.title = title }
+// Title is the page's first heading.
+func (s *sheetSession) Title() string { return s.controller.Session().Title() }
 
 func (s *sheetSession) Configuration() kernel.PolicyConfiguration {
 	return s.controller.Runtime().PolicyConfiguration()
@@ -29,7 +29,11 @@ func (s *sheetSession) AdoptConfiguration(configuration kernel.PolicyConfigurati
 }
 
 func (s *sheetSession) Page() (int, string, bool) {
-	return int(s.page), s.title, true
+	title := s.Title()
+	if title == "" {
+		title = workspace.DefaultTitle
+	}
+	return int(s.page), title, true
 }
 
 func (s *sheetSession) Activity() []settings.ActivityEntry {

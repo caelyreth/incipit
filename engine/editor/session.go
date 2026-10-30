@@ -46,7 +46,15 @@ type Session struct {
 	pairsRelevant bool
 	metrics       PageMetrics
 	metricsValid  bool
+	title         pageTitle
 	generation    uint64
+}
+
+// pageTitle is a page's title as of one revision.
+type pageTitle struct {
+	revision uint64
+	text     string
+	known    bool
 }
 
 // NewSession mounts the editor policy assembly on one semantic node.
@@ -103,6 +111,16 @@ func (s *Session) History() *History { return s.history }
 func (s *Session) Inline() *InlineState { return s.inline }
 
 func (s *Session) Navigation() *Navigation { return &s.navigation }
+
+// Title is the page's title: its first heading's text, of whatever level,
+// or nothing when it has none.
+func (s *Session) Title() string {
+	revision := s.runtime.Revision()
+	if !s.title.known || s.title.revision != revision {
+		s.title = pageTitle{revision: revision, text: PageTitle(s.runtime.Snapshot().Document()), known: true}
+	}
+	return s.title.text
+}
 
 // Statistics returns the page's counts.
 func (s *Session) Statistics() (TextMetrics, bool) {

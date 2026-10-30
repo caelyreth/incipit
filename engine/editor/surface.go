@@ -28,7 +28,6 @@ const (
 	SurfaceCutCommandID          kernel.CommandID = "surface.cut"
 	SurfacePasteCommandID        kernel.CommandID = "surface.paste"
 	SurfaceNewPageCommandID      kernel.CommandID = "surface.new-page"
-	SurfaceRenamePageCommandID   kernel.CommandID = "surface.rename-page"
 	SurfaceNextPageCommandID     kernel.CommandID = "surface.next-page"
 	SurfacePreviousPageCommandID kernel.CommandID = "surface.previous-page"
 	SurfaceClosePageCommandID    kernel.CommandID = "surface.close-page"
@@ -69,7 +68,6 @@ var surfaceCommands = [...]SurfaceCommand{
 	{ID: SurfaceCutCommandID, Label: "Cut", Kind: SurfaceClipboard, Scope: ScopeDocument},
 	{ID: SurfacePasteCommandID, Label: "Paste", Kind: SurfaceClipboard, Scope: ScopeDocument},
 	{ID: SurfaceNewPageCommandID, Label: "New page", Kind: SurfacePage, Scope: ScopePages},
-	{ID: SurfaceRenamePageCommandID, Label: "Rename page", Kind: SurfacePage, Scope: ScopePages},
 	{ID: SurfaceNextPageCommandID, Label: "Next tab", Kind: SurfacePage, Scope: ScopePages},
 	{ID: SurfacePreviousPageCommandID, Label: "Previous tab", Kind: SurfacePage, Scope: ScopePages},
 	{ID: SurfaceClosePageCommandID, Label: "Close tab", Kind: SurfacePage, Scope: ScopePages},

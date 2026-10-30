@@ -539,3 +539,14 @@ func MarkerKeyIsInline(key string) bool {
 func MarkerKeyIdentifies(key string, id model.MarkID) bool {
 	return key == MarkerKeyForMark(id)
 }
+
+// PageTitle is the text of a page's first heading, whatever its level, on
+// one line; a page without a heading has none.
+func PageTitle(document model.DocumentSnapshot) string {
+	for _, id := range blockOrder(document) {
+		if block, ok := document.Node(id); ok && block.Kind() == HeadingNode {
+			return strings.Join(strings.Fields(block.Text().String()), " ")
+		}
+	}
+	return ""
+}

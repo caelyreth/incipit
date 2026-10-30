@@ -10,7 +10,8 @@ import (
 // LayoutGeometry adapts a retained MyGo text layout to the controller's
 // geometry contract. It uses the visible controller text for range validation.
 type LayoutGeometry struct {
-	Layout  *textlayout.Layout
+	Layout *textlayout.Layout
+	// YOffset is where the layout's top lies in the unscrolled viewport.
 	YOffset float32
 	ScrollY float32
 }

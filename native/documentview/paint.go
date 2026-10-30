@@ -73,7 +73,7 @@ func drawPlaceholder(p *ui.Painter, rect ui.Rect, state *State) {
 	p.TextLayout(
 		state.PlaceholderLayout,
 		rect.X,
-		rect.Y+state.ContentTop-state.ScrollY,
+		rect.Y+state.TopInset-state.ScrollY,
 		state.Theme.Text.Muted.Alpha(0.65),
 	)
 }
@@ -82,7 +82,7 @@ func drawRangeFills(p *ui.Painter, rect ui.Rect, state *State, selection []ui.Re
 	color := state.Theme.Prose.Selection.Alpha(state.Motion.SelectionOpacity())
 	for _, bounds := range selection {
 		bounds.X += rect.X
-		bounds.Y += rect.Y + state.ContentTop - state.ScrollY
+		bounds.Y += rect.Y + state.TopInset - state.ScrollY
 		p.Fill(bounds, color, 0)
 	}
 }
@@ -90,7 +90,7 @@ func drawRangeFills(p *ui.Painter, rect ui.Rect, state *State, selection []ui.Re
 func drawText(p *ui.Painter, rect ui.Rect, state *State) {
 	visible := p.Visible()
 	for _, paragraph := range state.Layout.Paragraphs() {
-		top := rect.Y + state.ContentTop + paragraph.Top() - state.ScrollY
+		top := rect.Y + state.TopInset + paragraph.Top() - state.ScrollY
 		if top+paragraph.Height() < visible.Y || top > visible.Y+visible.H {
 			continue
 		}
@@ -124,7 +124,7 @@ func drawDecorationFills(
 		for _, range16 := range decoration.Primitive.Ranges {
 			for _, bounds := range state.Layout.RangeRects(range16) {
 				bounds.X += rect.X
-				bounds.Y += rect.Y + state.ContentTop - state.ScrollY
+				bounds.Y += rect.Y + state.TopInset - state.ScrollY
 				p.Fill(bounds, color, decoration.Primitive.Radius)
 			}
 		}
@@ -153,7 +153,7 @@ func drawRangeRules(
 				bounds.Y += bounds.H - thickness
 				bounds.H = thickness
 				bounds.X += rect.X
-				bounds.Y += rect.Y + state.ContentTop - state.ScrollY
+				bounds.Y += rect.Y + state.TopInset - state.ScrollY
 				p.Fill(bounds, color, 0)
 			}
 		}
@@ -176,7 +176,7 @@ func drawCaret(
 		return
 	}
 	caret.X += rect.X
-	caret.Y += rect.Y + state.ContentTop - state.ScrollY
+	caret.Y += rect.Y + state.TopInset - state.ScrollY
 	p.Fill(caret, state.Theme.Accent.Foreground.Alpha(alpha), 1)
 }
 
@@ -218,7 +218,7 @@ func scheduleCaretBreathing(p *ui.Painter, rect ui.Rect, state *State, now time.
 		state.PointerActive || state.Composing || !state.Frame.Selection().Empty() {
 		return
 	}
-	caretTop := state.DrawnCaret.Y + state.ContentTop - state.ScrollY
+	caretTop := state.DrawnCaret.Y + state.TopInset - state.ScrollY
 	if caretTop+state.DrawnCaret.H <= 0 || caretTop >= rect.H {
 		return
 	}

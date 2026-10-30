@@ -327,13 +327,12 @@ func TestSidebarShowsHeadingAndEmptySearchWithoutFooter(t *testing.T) {
 	}
 }
 
-func TestSidebarPageActionsExposeRenameAndClose(t *testing.T) {
+func TestSidebarPageActionsExposeClose(t *testing.T) {
 	state := New()
 	state.Pages = []Page{{ID: "one", Title: "First"}}
 	state.ActivePage = "one"
-	var selected, renamed, closed string
+	var selected, closed string
 	state.SelectPage = func(id string) { selected = id }
-	state.RenamePage = func(id string) { renamed = id }
 	state.ClosePageID = func(id string) { closed = id }
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
@@ -341,25 +340,17 @@ func TestSidebarPageActionsExposeRenameAndClose(t *testing.T) {
 	if err := tester.Click("Page actions for First"); err != nil {
 		t.Fatal(err)
 	}
-	if menu := tester.Menu(); len(menu) != 2 {
+	if menu := tester.Menu(); len(menu) != 1 {
 		t.Fatalf("page menu = %#v", menu)
 	}
-	if err := tester.ChooseMenuItem("Rename page…"); err != nil {
-		t.Fatal(err)
-	}
-	if selected != "one" || renamed != "one" || closed != "" {
-		t.Fatalf("rename action = selected:%q renamed:%q closed:%q", selected, renamed, closed)
-	}
-
-	selected, renamed = "", ""
 	if err := tester.Click("Page actions for First"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tester.ChooseMenuItem("Close tab"); err != nil {
 		t.Fatal(err)
 	}
-	if selected != "" || renamed != "" || closed != "one" {
-		t.Fatalf("close action = selected:%q renamed:%q closed:%q", selected, renamed, closed)
+	if selected != "" || closed != "one" {
+		t.Fatalf("close action = selected:%q closed:%q", selected, closed)
 	}
 }
 

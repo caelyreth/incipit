@@ -25,8 +25,11 @@ type State struct {
 	PointerActive     bool
 	PointerSelecting  bool
 	Composing         bool
-	ContentTop        float32
-	BottomInset       float32
+	// TopInset and BottomInset are space within the scrolled page above
+	// its first line and below its last, so text scrolls through them to
+	// the viewport's edges rather than to a clip short of them.
+	TopInset    float32
+	BottomInset float32
 	// Guides keeps the anchored key hints' motion across frames; without
 	// it guides still paint, settled.
 	Guides *Guides
