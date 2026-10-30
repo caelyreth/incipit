@@ -223,6 +223,7 @@ const (
 	SetAccent
 	SetUIFontSize
 	SetProseFontSize
+	SetLineSpacing
 )
 
 // AppearanceChange is one neutral theme, accent, or text-size request.
@@ -231,6 +232,7 @@ type AppearanceChange struct {
 	Theme    uint8
 	Accent   uint8
 	FontSize float32
+	Spacing  float32
 }
 
 func NewAppearanceChange(change AppearanceChange) Change {

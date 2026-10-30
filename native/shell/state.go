@@ -105,7 +105,7 @@ func (s *State) ToggleSidebar() {
 func (s *State) ColumnMargin() float32 {
 	scale := s.Settings.UIFontSize
 	gutter := theme.DefaultLayout.ContentGutter * scale / theme.DefaultUIFontSize
-	column := theme.NewProseStyle(s.Settings.ProseFontSize).Column()
+	column := s.Settings.Prose().Column()
 	return gutter + max(0, (s.lastWidth-s.lastSidebarWidth-2*gutter-column)/2)
 }
 

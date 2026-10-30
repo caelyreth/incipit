@@ -72,6 +72,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	font := style.font()
 	lineHeight := style.Prose.LineHeight()
 	for _, raw := range paragraphs {
+		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font)
 		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width)
 		var layout *ui.TextLayout
 		if available := c.layouts[key]; len(available) > 0 {
@@ -148,6 +149,25 @@ func splitParagraphs(flow *surface.Flow) []rawParagraph {
 		contentUTF16: units,
 	})
 	return paragraphs
+}
+
+// paragraphFont is base set for a paragraph: its rows are as tall as its
+// largest text plus the body's leading, so lines keep the same room between
+// them whatever the size of their text, a heading's as body text's. A row
+// is never shorter than its face's own height.
+func (s Style) paragraphFont(flow *surface.Flow, start, end int, base ui.Font) ui.Font {
+	text := flow.Text()
+	size := base.Size
+	flow.EachRun(func(run surface.StyleRun) bool {
+		from, to := max(start, int(run.Bytes.Start)), min(end, int(run.Bytes.End))
+		if from < to {
+			size = max(size, s.span(text[from:to], run).Size)
+		}
+		return true
+	})
+	base.Size = size
+	base.LineHeight = (size + s.Prose.Leading()) / size
+	return base
 }
 
 func spansFor(flow *surface.Flow, start, end int, style Style) []ui.Span {

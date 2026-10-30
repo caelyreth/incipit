@@ -69,7 +69,7 @@ func (s *State) document(
 	layout theme.Layout,
 ) {
 	scale := s.Settings.UIFontSize
-	prose := theme.NewProseStyle(s.Settings.ProseFontSize)
+	prose := s.Settings.Prose()
 	column := prose.Column()
 	if s.ActivePage == "" {
 		ui.Column(c).Grow(1).FillHeight().AlignItems(ui.Center).Justify(ui.Center).

@@ -74,10 +74,17 @@ func (s *State) appearancePage(
 		"Presentation choices shared across the workspace.", func() {
 			components.SettingRow{
 				Label:       "Document Text Size",
-				Description: "Prose, title and column scale together in every window.",
-				Last:        len(s.Data.Appearance) == 0,
+				Description: "Prose, headings and column scale together in every window.",
 				Control: func() {
 					s.fontStepper(c, semantic, false)
+				},
+			}.View(c, semantic)
+			components.SettingRow{
+				Label:       "Line Spacing",
+				Description: "A line's height over its text's size; headings keep the same room between lines.",
+				Last:        len(s.Data.Appearance) == 0,
+				Control: func() {
+					s.spacingStepper(c, semantic)
 				},
 			}.View(c, semantic)
 			for index, setting := range s.Data.Appearance {
@@ -118,6 +125,25 @@ func (s *State) fontStepper(c *ui.Context, semantic theme.Theme, uiFont bool) {
 		Animate:  s.motion(c),
 		Decrease: func() { s.setFontSize(kind, value-1) },
 		Increase: func() { s.setFontSize(kind, value+1) },
+	}.View(c, semantic)
+}
+
+func (s *State) spacingStepper(c *ui.Context, semantic theme.Theme) {
+	value := s.Theme.LineSpacing
+	step := appsettings.LineSpacingStep
+	set := func(spacing float32) {
+		s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
+			Kind: appsettings.SetLineSpacing, Spacing: spacing,
+		}))
+	}
+	components.NumberField{
+		Key: "number-line-spacing", Label: "Line Spacing",
+		Value:       strconv.FormatFloat(float64(value), 'f', 1, 32) + "×",
+		CanDecrease: value > appsettings.MinLineSpacing+step/2,
+		CanIncrease: value < appsettings.MaxLineSpacing-step/2,
+		Animate:     s.motion(c),
+		Decrease:    func() { set(value - step) },
+		Increase:    func() { set(value + step) },
 	}.View(c, semantic)
 }
 

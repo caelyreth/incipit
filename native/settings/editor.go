@@ -175,7 +175,7 @@ func (s *State) policyShowcase(
 			Script:        script,
 			Configuration: appshowcase.Configuration(section.Policy, s.Data.PolicyConfiguration),
 			Theme:         semantic,
-			Prose:         theme.NewProseStyle(s.Theme.ProseFontSize * 0.9),
+			Prose:         theme.NewProseStyle(s.Theme.ProseFontSize * 0.9).WithSpacing(s.Theme.LineSpacing),
 			Height:        132 * scale / theme.DefaultUIFontSize,
 			Padding:       theme.Space24.DIPs(scale),
 			Radius:        10 * scale / theme.DefaultUIFontSize,

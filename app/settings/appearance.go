@@ -1,5 +1,7 @@
 package settings
 
+import "math"
+
 // ThemeChoice selects one of Neverland's coherent built-in palettes.
 type ThemeChoice uint8
 
@@ -35,6 +37,14 @@ const (
 	MinProseFontSize  float32 = 15
 	MaxProseFontSize  float32 = 26
 	DefaultProseSize  float32 = 19
+	// Line spacing is a body line's height over its text's size; the room
+	// it leaves between lines is kept between every line, whatever size
+	// its text. Below 1.5 a line would be shorter than the prose face's
+	// own height, which no row goes below.
+	MinLineSpacing     float32 = 1.5
+	MaxLineSpacing     float32 = 2.2
+	DefaultLineSpacing float32 = 1.8
+	LineSpacingStep    float32 = 0.1
 )
 
 // AppearanceSettings is app-wide product display state, independent of MyGo.
@@ -43,6 +53,7 @@ type AppearanceSettings struct {
 	Accent        Accent
 	UIFontSize    float32
 	ProseFontSize float32
+	LineSpacing   float32
 }
 
 // ThemeNumber returns the stable one-based module representation used by the
@@ -62,6 +73,7 @@ func DefaultAppearance() AppearanceSettings {
 		Accent:        Halo,
 		UIFontSize:    DefaultUIFontSize,
 		ProseFontSize: DefaultProseSize,
+		LineSpacing:   DefaultLineSpacing,
 	}
 }
 
@@ -74,6 +86,7 @@ func (s AppearanceSettings) Normalized() AppearanceSettings {
 	}
 	s.UIFontSize = clampFloat(s.UIFontSize, MinUIFontSize, MaxUIFontSize)
 	s.ProseFontSize = clampFloat(s.ProseFontSize, MinProseFontSize, MaxProseFontSize)
+	s.LineSpacing = clampFloat(s.LineSpacing, MinLineSpacing, MaxLineSpacing)
 	return s
 }
 
@@ -105,6 +118,13 @@ func (s *AppearanceSettings) Apply(change AppearanceChange) bool {
 			return false
 		}
 		s.ProseFontSize = clampFloat(change.FontSize, MinProseFontSize, MaxProseFontSize)
+	case SetLineSpacing:
+		if change.Spacing != change.Spacing {
+			return false
+		}
+		// Spacing moves in steps, kept exact as they add up.
+		steps := float32(math.Round(float64(change.Spacing / LineSpacingStep)))
+		s.LineSpacing = clampFloat(steps*LineSpacingStep, MinLineSpacing, MaxLineSpacing)
 	default:
 		return false
 	}

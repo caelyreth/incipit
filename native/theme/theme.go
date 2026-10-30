@@ -140,6 +140,7 @@ type Settings struct {
 	Accent        Accent
 	UIFontSize    float32
 	ProseFontSize float32
+	LineSpacing   float32
 }
 
 const (
@@ -154,12 +155,19 @@ func DefaultSettings() Settings {
 		Accent:        Halo,
 		UIFontSize:    DefaultUIFontSize,
 		ProseFontSize: 19,
+		LineSpacing:   DefaultLineSpacing,
 	}
+}
+
+// Prose is document text's style under these settings.
+func (s Settings) Prose() ProseStyle {
+	return NewProseStyle(s.ProseFontSize).WithSpacing(s.LineSpacing)
 }
 
 func (s Settings) Normalized() Settings {
 	s.UIFontSize = clamp(s.UIFontSize, MinUIFontSize, MaxUIFontSize)
-	s.ProseFontSize = NewProseStyle(s.ProseFontSize).FontSize
+	prose := s.Prose()
+	s.ProseFontSize, s.LineSpacing = prose.FontSize, prose.Spacing
 	return s
 }
 

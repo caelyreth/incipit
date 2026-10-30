@@ -271,3 +271,32 @@ func TestSelectionBreakTakesItsRowHeight(t *testing.T) {
 		}
 	}
 }
+
+// Every row keeps the body's leading over its largest text: a larger
+// style's row grows by its text alone, and spacing moves every row alike.
+// No row is shorter than its face's own height.
+func TestRowsKeepTheBodyLeading(t *testing.T) {
+	text := "Heading\nbody"
+	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{
+		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Heading: 1}},
+		{Bytes: model.NewByteRange(8, model.ByteOffset(len(text))), Style: surface.TextStyle{}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, spacing := range []float32{theme.MinLineSpacing, 1.8, theme.MaxLineSpacing} {
+		prose := theme.NewProseStyle(19).WithSpacing(spacing)
+		style := NewStyle(prose, theme.DefaultSettings().Semantic())
+		paragraphs := NewCache().Update(flow, 600, style).Paragraphs()
+		heading := style.span("Heading", surface.StyleRun{Style: surface.TextStyle{Heading: 1}}).Size
+		_, face := ui.ShapeText("Heading", ui.Font{Family: theme.ProseFontFamily, Size: heading, Weight: 700}, 0).Size()
+		body := paragraphs[1].Height()
+		if diff := body - prose.LineHeight(); diff < -0.5 || diff > 0.5 {
+			t.Fatalf("spacing %v: body row %v, want %v", spacing, body, prose.LineHeight())
+		}
+		want := max(heading+prose.Leading(), face)
+		if diff := paragraphs[0].Height() - want; diff < -0.5 || diff > 0.5 {
+			t.Fatalf("spacing %v: heading row %v, want %v", spacing, paragraphs[0].Height(), want)
+		}
+	}
+}

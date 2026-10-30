@@ -420,3 +420,21 @@ func TestRemappingToTheDefaultClearsTheOverride(t *testing.T) {
 		t.Fatal("choosing the default again kept a custom override")
 	}
 }
+
+// Line spacing moves in exact steps within its bounds.
+func TestLineSpacingStepsWithinBounds(t *testing.T) {
+	settings := DefaultAppearance()
+	for _, test := range []struct{ request, want float32 }{
+		{DefaultLineSpacing + LineSpacingStep, 1.9},
+		{1.0, MinLineSpacing},
+		{9, MaxLineSpacing},
+		{1.749, 1.7},
+	} {
+		if !settings.Apply(AppearanceChange{Kind: SetLineSpacing, Spacing: test.request}) {
+			t.Fatalf("spacing %v rejected", test.request)
+		}
+		if settings.LineSpacing != test.want {
+			t.Fatalf("spacing %v gave %v, want %v", test.request, settings.LineSpacing, test.want)
+		}
+	}
+}

@@ -94,7 +94,7 @@ func NewAppState() (*AppState, error) {
 	app.Element = documentview.NewElement(
 		nil,
 		theme.DefaultSettings().Semantic(),
-		theme.NewProseStyle(theme.DefaultSettings().ProseFontSize),
+		theme.DefaultSettings().Prose(),
 		time.Now(),
 	)
 	app.Element.Label = "Writing document"
@@ -114,7 +114,7 @@ func (a *AppState) BindShell() {
 			a.mountBridge(c)
 		}
 		a.Element.Theme, _ = a.colors.At(a.Shell.Settings, c.Now())
-		a.Element.Prose = theme.NewProseStyle(a.Shell.Settings.ProseFontSize)
+		a.Element.Prose = a.Shell.Settings.Prose()
 		a.Element.Animate = a.Shell.Appearance.Motion && a.Shell.WindowActive &&
 			!c.Preferences().ReduceMotion
 		a.Element.Typewriter = a.Shell.Appearance.Typewriter
@@ -589,6 +589,7 @@ func appearanceSettings(values appsettings.AppearanceSettings) theme.Settings {
 	settings := theme.DefaultSettings()
 	settings.UIFontSize = values.UIFontSize
 	settings.ProseFontSize = values.ProseFontSize
+	settings.LineSpacing = values.LineSpacing
 	settings.Appearance = theme.Appearance(values.ThemeNumber())
 	settings.Accent = theme.Accent(values.AccentNumber() - 1)
 	return settings
