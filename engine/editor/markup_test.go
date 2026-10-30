@@ -332,7 +332,7 @@ func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
 	}
 	if !slices.Equal(
 		pairRuleOrder,
-		[]kernel.RuleID{"open", "overtype", "mate-edit", "close-quote"},
+		[]kernel.RuleID{"open", "overtype", "mate-edit", "mate-span", "close-quote"},
 	) {
 		t.Fatalf("pair declaration order=%#v", pairRuleOrder)
 	}

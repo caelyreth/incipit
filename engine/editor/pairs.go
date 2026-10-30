@@ -305,13 +305,7 @@ func planPairMateEdit(text string, input PairInput) (PairPlan, error) {
 	if input.Range.Empty() {
 		return plan, nil
 	}
-	pairs, _ := DiscoverPairs(text)
-	touched := make([]PairSpan, 0)
-	for _, pair := range pairs {
-		if contains(pair.Open, input.Range) != contains(pair.Close, input.Range) {
-			touched = append(touched, pair)
-		}
-	}
+	touched := cutPairs(text, input.Range)
 	if len(touched) == 0 {
 		return plan, nil
 	}
@@ -350,16 +344,7 @@ func planPairMateEdit(text string, input PairInput) (PairPlan, error) {
 			return plan, nil
 		}
 	}
-	mates := make([]model.UTF16Offset, 0, len(touched))
-	for _, pair := range touched {
-		if contains(pair.Open, input.Range) {
-			mates = append(mates, pair.Close)
-		} else {
-			mates = append(mates, pair.Open)
-		}
-	}
-	slices.Sort(mates)
-	mates = slices.Compact(mates)
+	mates := pairMates(touched, input.Range)
 	removedBefore := 0
 	for _, mate := range mates {
 		if mate < input.Range.Start {
@@ -488,6 +473,34 @@ func isQuote(value string) bool {
 	default:
 		return false
 	}
+}
+
+// cutPairs are the pairs an edit of a range takes one side of and not the
+// other.
+func cutPairs(text string, edited model.UTF16Range) []PairSpan {
+	pairs, _ := DiscoverPairs(text)
+	cut := make([]PairSpan, 0)
+	for _, pair := range pairs {
+		if contains(pair.Open, edited) != contains(pair.Close, edited) {
+			cut = append(cut, pair)
+		}
+	}
+	return cut
+}
+
+// pairMates are the sides of cut pairs an edit of edited leaves, in order:
+// the mates that go with it when mates are edited together.
+func pairMates(cut []PairSpan, edited model.UTF16Range) []model.UTF16Offset {
+	mates := make([]model.UTF16Offset, 0, len(cut))
+	for _, pair := range cut {
+		if contains(pair.Open, edited) {
+			mates = append(mates, pair.Close)
+		} else {
+			mates = append(mates, pair.Open)
+		}
+	}
+	slices.Sort(mates)
+	return slices.Compact(mates)
 }
 
 func contains(offset model.UTF16Offset, textRange model.UTF16Range) bool {

@@ -316,3 +316,36 @@ func TestShortestPairContainingUsesRightSideInclusiveCaret(t *testing.T) {
 		t.Fatal("pair after closing matched")
 	}
 }
+
+// Mates are edited together across blocks as within one: a deletion that
+// cuts a pair at either end of a span takes the mate it leaves, and puts
+// the caret where the span was.
+func TestSpanDeletionTakesCutMates(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		text     string
+		from, to model.UTF16Offset
+		view     string
+		texts    []string
+	}{
+		// An opener at the last block's head goes; its closer stays behind.
+		{"opener cut", "first line\none (two)", 10, 19, "first line|", []string{"first line"}},
+		// A closer at the first block's tail goes; its opener stays before.
+		{"closer cut", "one (two) x\nnext", 6, 14, "one t|xt", []string{"one txt"}},
+		// Brackets split over two blocks are no pair; the span takes both,
+		// and a whole pair before it stays.
+		{"split brackets", "a \"q\" (b\nc) d", 6, 11, "a \"q\" | d", []string{"a \"q\"  d"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			session, _ := newSessionFixture(t, test.text, false)
+			if err := session.SelectProjected(test.from, test.to); err != nil {
+				t.Fatal(err)
+			}
+			run(t, session, TextBackspace)
+			expectPage(t, session, test.view, test.texts...)
+			if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

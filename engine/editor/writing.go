@@ -521,8 +521,7 @@ func (i *EditorInvoker) invokeBlockNotation(
 	return kernel.OutcomeHandled, nil
 }
 
-// invokeSpanSyntax keeps a rule from taking text in: a span that starts on
-// a rule, as a deletion back into it does, takes the rule away with it.
+// invokeSpanSyntax replaces a span as its ends give it.
 func (i *EditorInvoker) invokeSpanSyntax(context *kernel.RuleContext) (kernel.Outcome, error) {
 	span, ok := context.Event().SpanInput()
 	if !ok {
@@ -532,12 +531,8 @@ func (i *EditorInvoker) invokeSpanSyntax(context *kernel.RuleContext) (kernel.Ou
 	if err != nil {
 		return 0, err
 	}
-	if first, ok := document.Node(span.From().Node()); ok && first.Kind() == RuleNode {
-		if err := shapeBlock(document, first.ID(), blockShape{kind: ParagraphNode}); err != nil {
-			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
-		}
-	}
-	return i.invokeSpan(context)
+	return i.joinSpan(document, span.From().Node(), span.From().RangeUTF16().Start,
+		span.To().Node(), span.To().RangeUTF16().Start, span.Text())
 }
 
 // markerKeyPrefix begins the notation key of every inline mark.

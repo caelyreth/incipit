@@ -344,6 +344,14 @@ func pairsPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 			Algorithm: algorithm,
 		}
 		rules = append(rules, rule)
+		// Mates are edited together across blocks too: a span that cuts a
+		// pair takes the mate it leaves, before core editing joins it.
+		if ruleID == "mate-edit" {
+			span := rule
+			span.ID = "mate-span"
+			span.Trigger = kernel.NewExactTrigger(kernel.SpanInputKey)
+			rules = append(rules, span)
+		}
 	}
 	return kernel.PolicyDescriptor{
 		ID:               PairsPolicyID,
@@ -749,6 +757,9 @@ func (i *EditorInvoker) Invoke(
 			return i.invokeMarker(context)
 		}
 	case PairsPolicyID:
+		if rule.Key.ID == "mate-span" {
+			return i.invokePairSpan(context)
+		}
 		return i.invokePair(context, rule.Key.ID)
 	case CJKPolicyID, TypographyPolicyID:
 		return i.invokeCorrection(context, rule.Key.Owner)
