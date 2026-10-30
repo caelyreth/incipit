@@ -41,6 +41,25 @@ engine's projected-edit path.
 - `app/workspace`: page and tab lifecycle.
 - `native`: MyGo windows, layout, drawing, motion, focus, and chrome.
 
+## Pages and blocks
+
+A page is a document whose root holds blocks in order. Each block is a node
+with a kind, attributes, its own text rope and inline marks; marks are typed
+(`model.MarkKind`) and carry a level, and the model gives kinds no meaning.
+Block boundaries are structure, never text: a block's text holds no line
+break, and splitting or joining blocks moves positions with transfer edits
+(`model.NewTextTransfer`), so anchors, pulses and selections follow the text
+into the block it lands in.
+
+The projection lays the whole page out, block after block, with one line
+break of generated text between blocks. Text policies work inside one block.
+An edit whose range reaches across a block boundary becomes a span input
+(`kernel.SpanInputKey`), which the text policy turns into taking out the
+blocks between and joining the ends; a line break typed or pasted splits the
+block. An input may change its block, the blocks beside it and their page,
+nothing farther. History records whole-page snapshots and restores them with
+`DocumentDraft.RestoreDocument`.
+
 ## Actions and keys
 
 Policies, including the host's surface policy, declare actions by identity,

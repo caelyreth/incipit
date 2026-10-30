@@ -14,10 +14,10 @@ func TestMarkupProjectNestedMarksWithoutStoringNotation(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "a🦀b")
 	if _, err := fixture.document.Transact(func(draft *model.DocumentDraft) error {
-		if _, err := draft.AddMark(fixture.node, model.NewUTF16Range(0, 4), 1); err != nil {
+		if _, err := draft.AddMark(fixture.node, model.NewUTF16Range(0, 4), EmphasisMark, 1); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(1, 3), 2)
+		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(1, 3), EmphasisMark, 2)
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -29,7 +29,6 @@ func TestMarkupProjectNestedMarksWithoutStoringNotation(t *testing.T) {
 	projectionResult, err := MarkupProjectDocument(
 		fixture.document.Snapshot(),
 		fixture.document.Revision(),
-		fixture.node,
 		3,
 		configuration,
 	)
@@ -58,7 +57,7 @@ func TestMarkupProjectNestedMarksWithoutStoringNotation(t *testing.T) {
 	assertEditableSegment(t, segments[5], 8, 9)
 	assertAttributeSegment(t, segments[6], MarkerKeyForMark(1), 9, 10)
 
-	runs, err := InlineStyleRuns(projectionResult, fixture.nodeValue(t), true)
+	runs, err := InlineStyleRuns(projectionResult, fixture.document.Snapshot(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,10 +80,10 @@ func TestMarkupProjectDisjointAndZeroLengthMarksAdjoinMarkers(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "abcd")
 	if _, err := fixture.document.Transact(func(draft *model.DocumentDraft) error {
-		if _, err := draft.AddMark(fixture.node, model.EmptyUTF16Range(1), 1); err != nil {
+		if _, err := draft.AddMark(fixture.node, model.EmptyUTF16Range(1), EmphasisMark, 1); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(2, 3), 2)
+		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(2, 3), EmphasisMark, 2)
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -96,7 +95,6 @@ func TestMarkupProjectDisjointAndZeroLengthMarksAdjoinMarkers(t *testing.T) {
 	projectionResult, err := MarkupProjectDocument(
 		fixture.document.Snapshot(),
 		fixture.document.Revision(),
-		fixture.node,
 		0,
 		configuration,
 	)
@@ -125,10 +123,10 @@ func TestMarkupProjectMapsGeneratedMarkerExteriorsByAffinity(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "a🦀b")
 	if _, err := fixture.document.Transact(func(draft *model.DocumentDraft) error {
-		if _, err := draft.AddMark(fixture.node, model.NewUTF16Range(0, 4), 1); err != nil {
+		if _, err := draft.AddMark(fixture.node, model.NewUTF16Range(0, 4), EmphasisMark, 1); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(1, 3), 2)
+		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(1, 3), EmphasisMark, 2)
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -140,7 +138,6 @@ func TestMarkupProjectMapsGeneratedMarkerExteriorsByAffinity(t *testing.T) {
 	projectionResult, err := MarkupProjectDocument(
 		fixture.document.Snapshot(),
 		fixture.document.Revision(),
-		fixture.node,
 		0,
 		configuration,
 	)
@@ -207,7 +204,6 @@ func TestMarkupProjectLegacyEmphasisAndSettings(t *testing.T) {
 			projectionResult, err := MarkupProjectDocument(
 				fixture.document.Snapshot(),
 				fixture.document.Revision(),
-				fixture.node,
 				0,
 				configuration,
 			)
@@ -232,7 +228,6 @@ func TestMarkupProjectLegacyEmphasisAndSettings(t *testing.T) {
 	if _, err := MarkupProjectDocument(
 		fixture.document.Snapshot(),
 		fixture.document.Revision(),
-		fixture.node,
 		0,
 		configuration,
 	); err == nil {
@@ -245,7 +240,6 @@ func TestMarkupProjectLegacyEmphasisAndSettings(t *testing.T) {
 	if _, err := MarkupProjectDocument(
 		fixture.document.Snapshot(),
 		fixture.document.Revision(),
-		fixture.node,
 		0,
 		configuration,
 	); err == nil {
@@ -384,11 +378,7 @@ func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
 
 func TestEditorInvokerTypesMarkersThroughKernelDispatch(t *testing.T) {
 	t.Parallel()
-	document, err := model.NewDocument("text")
-	if err != nil {
-		t.Fatal(err)
-	}
-	node := document.Snapshot().Root()
+	document, node := emptyBlockDocument(t)
 	catalog, err := EditorPolicyCatalog()
 	if err != nil {
 		t.Fatal(err)
@@ -446,16 +436,12 @@ func TestEditorInvokerTypesMarkersThroughKernelDispatch(t *testing.T) {
 
 func TestEditorInvokerEditsGeneratedMarkersAtomically(t *testing.T) {
 	t.Parallel()
-	document, err := model.NewDocument("text")
-	if err != nil {
-		t.Fatal(err)
-	}
-	node := document.Snapshot().Root()
+	document, node := emptyBlockDocument(t)
 	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
 		if err := draft.SetTextValue(node, "ab"); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(node, model.NewUTF16Range(0, 2), 2)
+		_, err := draft.AddMark(node, model.NewUTF16Range(0, 2), EmphasisMark, 2)
 		return err
 	}); err != nil {
 		t.Fatal(err)

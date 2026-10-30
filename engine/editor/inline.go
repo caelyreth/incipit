@@ -201,7 +201,7 @@ func (a MarkerAction) Apply(draft *model.DocumentDraft) error {
 	}
 	switch a.Kind {
 	case MarkerCreate:
-		_, err := draft.AddMark(a.Node, a.Range, a.Level)
+		_, err := draft.AddMark(a.Node, a.Range, EmphasisMark, a.Level)
 		return err
 	case MarkerUpgrade:
 		if !a.HasMark {
@@ -209,7 +209,7 @@ func (a MarkerAction) Apply(draft *model.DocumentDraft) error {
 		}
 		return draft.SetMarkLevel(a.Node, a.Mark, a.Level)
 	case MarkerFormat:
-		return draft.FormatEmphasis(a.Node, a.Range, a.Level)
+		return ToggleMark(draft, a.Node, a.Range, EmphasisMark, a.Level)
 	default:
 		return fmt.Errorf("unknown marker action %d", a.Kind)
 	}
@@ -261,29 +261,43 @@ func InlineInputStyle(
 
 // InlineStyleRuns converts projection segments to contiguous byte style runs.
 // Generated attribute notation is muted; editable semantic text receives the
-// strongest enclosing mark and falls back to legacy whole-node emphasis.
+// strongest enclosing mark of its own block and falls back to legacy
+// whole-node emphasis.
 func InlineStyleRuns(
 	p *projection.Projection,
-	node *model.Node,
+	document model.DocumentSnapshot,
 	enabled bool,
 ) ([]surface.StyleRun, error) {
-	if p == nil || node == nil {
+	if p == nil {
 		return nil, &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
+	}
+	nodes := make(map[model.NodeID]*model.Node)
+	lookup := func(id model.NodeID) (*model.Node, bool) {
+		if node, ok := nodes[id]; ok {
+			return node, true
+		}
+		node, ok := document.Node(id)
+		if ok {
+			nodes[id] = node
+		}
+		return node, ok
 	}
 	text := p.Text()
 	byteOffset := 0
-	runs := make([]surface.StyleRun, 0, len(p.Segments()))
-	for _, segment := range p.Segments() {
+	runs := make([]surface.StyleRun, 0, 8)
+	var failure error
+	p.EachSegment(func(_ int, segment projection.Segment) bool {
 		units := segment.ProjectedRange().Len()
 		if units == 0 {
-			continue
+			return true
 		}
 		end := byteOffset
 		seen := 0
 		for end < len(text) {
 			r, size := utf8.DecodeRuneInString(text[end:])
 			if size <= 0 {
-				return nil, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+				failure = &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+				return false
 			}
 			seen += model.RuneUTF16Len(r)
 			end += size
@@ -292,11 +306,17 @@ func InlineStyleRuns(
 			}
 		}
 		if seen != units {
-			return nil, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+			failure = &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+			return false
 		}
 		style := emphasisStyle(0)
 		style.Color = surface.ColorMuted
 		if target, ok := segment.SemanticTarget(); ok {
+			node, found := lookup(target.Node())
+			if !found {
+				failure = &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
+				return false
+			}
 			targetRange := target.RangeUTF16()
 			level := uint8(0)
 			if enabled {
@@ -314,6 +334,10 @@ func InlineStyleRuns(
 			Style: style,
 		})
 		byteOffset = end
+		return true
+	})
+	if failure != nil {
+		return nil, failure
 	}
 	if byteOffset != len(text) {
 		return nil, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}

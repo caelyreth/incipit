@@ -14,17 +14,13 @@ type editingFixture struct {
 
 func newEditingFixture(t *testing.T, text string, marks ...model.UTF16Range) editingFixture {
 	t.Helper()
-	document, err := model.NewDocument("text")
-	if err != nil {
-		t.Fatal(err)
-	}
-	node := document.Snapshot().Root()
+	document, node := emptyBlockDocument(t)
 	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
 		if err := draft.SetTextValue(node, text); err != nil {
 			return err
 		}
 		for _, mark := range marks {
-			if _, err := draft.AddMark(node, mark, 1); err != nil {
+			if _, err := draft.AddMark(node, mark, EmphasisMark, 1); err != nil {
 				return err
 			}
 		}

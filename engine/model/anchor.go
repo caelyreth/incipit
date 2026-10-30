@@ -94,8 +94,17 @@ func (a TextAnchor) ValidateDocument(snapshot DocumentSnapshot) error {
 	return nil
 }
 
-// Rebase maps this anchor across one successful replacement.
+// Rebase maps this anchor across one successful replacement, or across a
+// transfer, which carries it into another node with the text it stands in.
 func (a TextAnchor) Rebase(edit TextEdit, revision uint64) (TextAnchor, bool) {
+	if edit.transfer {
+		if a.node == edit.node && (a.offset > edit.rangeUTF16.Start ||
+			a.offset == edit.rangeUTF16.Start && (edit.whole || a.affinity == AffinityRight)) {
+			a.node, a.offset = edit.to, a.offset-edit.rangeUTF16.Start+edit.toOffset
+		}
+		a.revision = revision
+		return a, true
+	}
 	if a.node != edit.Node() {
 		a.revision = revision
 		return a, true
@@ -135,9 +144,15 @@ func (s TextSelection) Head() TextAnchor {
 	return s.head
 }
 
-// Node returns the anchor's node identity.
+// Node returns the head's node: the block a selection is focused in, which
+// for a selection within one block is its only node.
 func (s TextSelection) Node() NodeID {
-	return s.anchor.node
+	return s.head.node
+}
+
+// Spans reports whether the selection reaches across nodes.
+func (s TextSelection) Spans() bool {
+	return s.anchor.node != s.head.node
 }
 
 // Revision returns the selection's captured revision.
@@ -145,9 +160,9 @@ func (s TextSelection) Revision() uint64 {
 	return s.anchor.revision
 }
 
-// IsCollapsed reports whether both endpoints have the same UTF-16 offset.
+// IsCollapsed reports whether both endpoints are the same position.
 func (s TextSelection) IsCollapsed() bool {
-	return s.anchor.offset == s.head.offset
+	return s.anchor.node == s.head.node && s.anchor.offset == s.head.offset
 }
 
 // Range returns the normalized semantic range.
@@ -155,10 +170,14 @@ func (s TextSelection) Range() (UTF16Range, error) {
 	return s.anchor.RangeTo(s.head)
 }
 
-// ValidateDocument checks the normalized range and both endpoints.
+// ValidateDocument checks both endpoints, which may stand in different nodes.
 func (s TextSelection) ValidateDocument(snapshot DocumentSnapshot) error {
-	if _, err := s.Range(); err != nil {
-		return err
+	if s.anchor.revision != s.head.revision {
+		return &AnchorError{
+			Kind:      AnchorErrorRevisionMismatch,
+			FirstRev:  s.anchor.revision,
+			SecondRev: s.head.revision,
+		}
 	}
 	if err := s.anchor.ValidateDocument(snapshot); err != nil {
 		return err
@@ -235,11 +254,38 @@ func (e *AnchorError) Unwrap() error {
 	return e.Err
 }
 
-// TextEdit is one semantic replacement in UTF-16 coordinates.
+// TextEdit is one semantic replacement in UTF-16 coordinates, or a transfer:
+// the text of a node from one offset on moving into another node, as a block
+// splits or joins. A transfer changes no text by itself; positions in the
+// moved text follow it.
 type TextEdit struct {
 	node          NodeID
 	rangeUTF16    UTF16Range
 	insertedUTF16 UTF16Offset
+	transfer      bool
+	to            NodeID
+	toOffset      UTF16Offset
+	whole         bool
+}
+
+// NewTextTransfer moves the text of node from offset at onwards to node to,
+// starting at toOffset. A position exactly at at goes along when whole, as
+// when the node is joined away, and otherwise by its affinity, as at a split.
+func NewTextTransfer(node NodeID, at UTF16Offset, to NodeID, toOffset UTF16Offset, whole bool) TextEdit {
+	return TextEdit{
+		node:       node,
+		rangeUTF16: NewUTF16Range(at, at),
+		transfer:   true,
+		to:         to,
+		toOffset:   toOffset,
+		whole:      whole,
+	}
+}
+
+// Transfer reports where a transfer moves text: the node and the offset its
+// first moved position lands at.
+func (e TextEdit) Transfer() (NodeID, UTF16Offset, bool) {
+	return e.to, e.toOffset, e.transfer
 }
 
 // NewTextEdit creates a replacement whose inserted length is already known.

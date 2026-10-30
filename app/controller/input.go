@@ -58,9 +58,6 @@ func (c *DocumentController) SetMarkedText(
 		c.setStatus(kernel.OutcomeHandled, false, nil)
 		return
 	}
-	if c.metricsQueued {
-		c.RefreshMetrics()
-	}
 	if c.preedit != nil {
 		preview, err := c.updatedPreview(range16, text)
 		if err != nil {

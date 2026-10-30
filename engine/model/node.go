@@ -203,6 +203,9 @@ func (n *Node) TextRoot() (TextRoot, bool) {
 	return *n.text, true
 }
 
+// value is the node as callers see it. Nodes never change once published
+// to a state, and every accessor copies what it returns, so the node itself
+// is shared rather than copied on each lookup.
 func (n *Node) value() *Node {
-	return n.clone()
+	return n
 }

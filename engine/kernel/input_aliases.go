@@ -5,6 +5,13 @@ import "github.com/caelyreth/neverland/engine/input"
 const TextInputKey = "text:input"
 const AttributeInputKey = "attribute:input"
 
+// SpanInputKey triggers the rules that replace text across nodes.
+const SpanInputKey = "text:span"
+
+type SpanInput = input.SpanInput
+
+var NewSpanInput = input.NewSpanInput
+
 type TextTarget = input.TextTarget
 type TextInput = input.TextInput
 type AttributeTarget = input.AttributeTarget

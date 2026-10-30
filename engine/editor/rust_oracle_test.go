@@ -52,19 +52,25 @@ func TestRustOracleMarkupProjection(t *testing.T) {
 	if oracle == nil {
 		t.Fatal("markup-projection-v1 fixture missing")
 	}
-	document, err := model.NewDocument("text")
+	// The page and its block come in the one transaction the Rust fixture
+	// made its node in, so revisions line up.
+	document, err := model.NewDocument(DocumentNode)
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := document.Snapshot().Root()
+	var node model.NodeID
 	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		node, err = draft.CreateNode(document.Snapshot().Root(), 0, ParagraphNode)
+		if err != nil {
+			return err
+		}
 		if err := draft.SetTextValue(node, oracle.SemanticText); err != nil {
 			return err
 		}
-		if _, err := draft.AddMark(node, model.NewUTF16Range(0, 5), 1); err != nil {
+		if _, err := draft.AddMark(node, model.NewUTF16Range(0, 5), EmphasisMark, 1); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(node, model.NewUTF16Range(6, 10), 2)
+		_, err = draft.AddMark(node, model.NewUTF16Range(6, 10), EmphasisMark, 2)
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -77,7 +83,7 @@ func TestRustOracleMarkupProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projected, err := MarkupProject(runtime.Snapshot(), node, oracle.Generation, runtime.Configuration())
+	projected, err := MarkupProject(runtime.Snapshot(), oracle.Generation, runtime.Configuration())
 	if err != nil {
 		t.Fatal(err)
 	}

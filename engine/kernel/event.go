@@ -9,6 +9,7 @@ const (
 	EventText
 	EventAttribute
 	EventProjected
+	EventSpan
 )
 
 // Event is a typed command or checked input request. Text payload belongs to
@@ -19,6 +20,7 @@ type Event struct {
 	text      *TextInput
 	attr      *AttributeInput
 	projected *ProjectedEditInput
+	span      *SpanInput
 	origin    *EventOrigin
 }
 
@@ -32,6 +34,11 @@ func NewTextEvent(input TextInput, origin EventOrigin) Event {
 
 func NewAttributeEvent(input AttributeInput, origin EventOrigin) Event {
 	return Event{kind: EventAttribute, key: AttributeInputKey, attr: &input, origin: &origin}
+}
+
+// NewSpanEvent requests a replacement across nodes.
+func NewSpanEvent(input SpanInput, origin EventOrigin) Event {
+	return Event{kind: EventSpan, key: SpanInputKey, span: &input, origin: &origin}
 }
 
 func NewProjectedEvent(input ProjectedEditInput, origin EventOrigin) Event {
@@ -78,6 +85,13 @@ func (e Event) AttributeInput() (AttributeInput, bool) {
 	return *e.attr, true
 }
 
+func (e Event) SpanInput() (SpanInput, bool) {
+	if e.span == nil {
+		return SpanInput{}, false
+	}
+	return *e.span, true
+}
+
 func (e Event) ProjectedEdit() (ProjectedEditInput, bool) {
 	if e.projected == nil {
 		return ProjectedEditInput{}, false
@@ -90,5 +104,5 @@ func (e Event) ProjectedEditPayload() *ProjectedEditInput {
 }
 
 func (e Event) HasReservedCommandKey() bool {
-	return e.kind == EventCommand && (e.key == TextInputKey || e.key == AttributeInputKey)
+	return e.kind == EventCommand && (e.key == TextInputKey || e.key == AttributeInputKey || e.key == SpanInputKey)
 }

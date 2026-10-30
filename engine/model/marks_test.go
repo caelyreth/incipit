@@ -23,12 +23,12 @@ func TestSemanticMarksValidateRebaseAndRollbackWithText(t *testing.T) {
 			return err
 		}
 		var err error
-		mark, err = draft.AddMark(node, NewUTF16Range(1, 3), 1)
+		mark, err = draft.AddMark(node, NewUTF16Range(1, 3), "emphasis", 1)
 		return err
 	})
 	before := document.Snapshot()
 	_, err := document.Transact(func(draft *DocumentDraft) error {
-		_, err := draft.AddMark(node, NewUTF16Range(2, 3), 2)
+		_, err := draft.AddMark(node, NewUTF16Range(2, 3), "emphasis", 2)
 		return err
 	})
 	if err == nil {
@@ -61,13 +61,13 @@ func TestMarkAddExactRangeUpdatesLevelAndPreservesID(t *testing.T) {
 			return err
 		}
 		var err error
-		first, err = draft.AddMark(node, NewUTF16Range(0, 4), 1)
+		first, err = draft.AddMark(node, NewUTF16Range(0, 4), "emphasis", 1)
 		return err
 	})
 	var second MarkID
 	mustTransact(t, document, func(draft *DocumentDraft) error {
 		var err error
-		second, err = draft.AddMark(node, NewUTF16Range(0, 4), 2)
+		second, err = draft.AddMark(node, NewUTF16Range(0, 4), "emphasis", 2)
 		return err
 	})
 	if first != second {
@@ -88,10 +88,10 @@ func TestNestedMarksOrderingAndValidation(t *testing.T) {
 		if err := draft.SetTextValue(node, "a🦀b"); err != nil {
 			return err
 		}
-		if _, err := draft.AddMark(node, NewUTF16Range(1, 3), 2); err != nil {
+		if _, err := draft.AddMark(node, NewUTF16Range(1, 3), "emphasis", 2); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(node, NewUTF16Range(0, 4), 1)
+		_, err := draft.AddMark(node, NewUTF16Range(0, 4), "emphasis", 1)
 		return err
 	})
 	nodeValue, _ := document.Snapshot().Node(node)
@@ -113,11 +113,11 @@ func TestMarkRebaseAtSharedBoundaryExpandsOnlyEnclosingMarks(t *testing.T) {
 			return err
 		}
 		var err error
-		outer, err = draft.AddMark(node, NewUTF16Range(0, 3), 1)
+		outer, err = draft.AddMark(node, NewUTF16Range(0, 3), "emphasis", 1)
 		if err != nil {
 			return err
 		}
-		inner, err = draft.AddMark(node, NewUTF16Range(1, 3), 2)
+		inner, err = draft.AddMark(node, NewUTF16Range(1, 3), "emphasis", 2)
 		return err
 	})
 	mustTransact(t, document, func(draft *DocumentDraft) error {
@@ -146,7 +146,7 @@ func TestMarkRebaseWithoutActiveMarkExcludesBoundaryInsertion(t *testing.T) {
 		if err := draft.SetTextValue(node, "abc"); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(node, NewUTF16Range(0, 3), 1)
+		_, err := draft.AddMark(node, NewUTF16Range(0, 3), "emphasis", 1)
 		return err
 	})
 	mustTransact(t, document, func(draft *DocumentDraft) error {
@@ -166,10 +166,10 @@ func TestMarkRebaseDeduplicatesRangesAtMaximumLevel(t *testing.T) {
 		if err := draft.SetTextValue(node, "abcd"); err != nil {
 			return err
 		}
-		if _, err := draft.AddMark(node, NewUTF16Range(0, 2), 1); err != nil {
+		if _, err := draft.AddMark(node, NewUTF16Range(0, 2), "emphasis", 1); err != nil {
 			return err
 		}
-		if _, err := draft.AddMark(node, NewUTF16Range(2, 4), 2); err != nil {
+		if _, err := draft.AddMark(node, NewUTF16Range(2, 4), "emphasis", 2); err != nil {
 			return err
 		}
 		return draft.ReplaceTextUTF16(node, 0, 4, "")
@@ -191,7 +191,7 @@ func TestSetMarkLevelZeroRemovesAndIDsRemainMonotonicAfterRollback(t *testing.T)
 			return err
 		}
 		var err error
-		first, err = draft.AddMark(node, NewUTF16Range(0, 2), 1)
+		first, err = draft.AddMark(node, NewUTF16Range(0, 2), "emphasis", 1)
 		return err
 	})
 	mustTransact(t, document, func(draft *DocumentDraft) error {
@@ -200,7 +200,7 @@ func TestSetMarkLevelZeroRemovesAndIDsRemainMonotonicAfterRollback(t *testing.T)
 	var second MarkID
 	mustTransact(t, document, func(draft *DocumentDraft) error {
 		var err error
-		second, err = draft.AddMark(node, NewUTF16Range(0, 2), 1)
+		second, err = draft.AddMark(node, NewUTF16Range(0, 2), "emphasis", 1)
 		return err
 	})
 	if second <= first {
@@ -219,83 +219,18 @@ func TestSetMarkLevelZeroRemovesAndIDsRemainMonotonicAfterRollback(t *testing.T)
 	}
 }
 
-func TestFormatEmphasisTogglesAndPreservesOutsideCoverage(t *testing.T) {
+func TestMarkStrengthAndKindValidate(t *testing.T) {
 	t.Parallel()
 	document := mustDocument(t, "text")
 	node := document.Snapshot().Root()
 	mustTransact(t, document, func(draft *DocumentDraft) error {
-		if err := draft.SetTextValue(node, "abcdef"); err != nil {
-			return err
-		}
-		_, err := draft.AddMark(node, NewUTF16Range(0, 4), 1)
-		return err
+		return draft.SetTextValue(node, "word")
 	})
-	mustTransact(t, document, func(draft *DocumentDraft) error {
-		return draft.FormatEmphasis(node, NewUTF16Range(2, 6), 1)
-	})
-	nodeValue, _ := document.Snapshot().Node(node)
-	if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{
-		NewUTF16Range(0, 2),
-		NewUTF16Range(2, 6),
-	}) {
-		t.Fatalf("formatted ranges = %#v", got)
-	}
-	mustTransact(t, document, func(draft *DocumentDraft) error {
-		return draft.FormatEmphasis(node, NewUTF16Range(2, 6), 1)
-	})
-	nodeValue, _ = document.Snapshot().Node(node)
-	if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{NewUTF16Range(0, 2)}) {
-		t.Fatalf("toggled ranges = %#v", got)
-	}
-}
-
-func TestFormatEmphasisSplitsLinesAndNeverMarksNewlines(t *testing.T) {
-	t.Parallel()
-	document := mustDocument(t, "text")
-	node := document.Snapshot().Root()
-	mustTransact(t, document, func(draft *DocumentDraft) error {
-		if err := draft.SetTextValue(node, "ab\r\ncd\nef"); err != nil {
-			return err
-		}
-		return draft.FormatEmphasis(node, NewUTF16Range(0, 8), 2)
-	})
-	nodeValue, _ := document.Snapshot().Node(node)
-	if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{
-		NewUTF16Range(0, 2),
-		NewUTF16Range(4, 6),
-		NewUTF16Range(7, 8),
-	}) {
-		t.Fatalf("line ranges = %#v", got)
-	}
-}
-
-func TestEmptyMarkToggleAndValidation(t *testing.T) {
-	t.Parallel()
-	document := mustDocument(t, "text")
-	node := document.Snapshot().Root()
-	mustTransact(t, document, func(draft *DocumentDraft) error {
-		if err := draft.SetTextValue(node, "word"); err != nil {
-			return err
-		}
-		return draft.FormatEmphasis(node, NewUTF16Range(2, 2), 1)
-	})
-	nodeValue, _ := document.Snapshot().Node(node)
-	if nodeValue.MarkCount() != 1 || nodeValue.Marks()[0].Range() != NewUTF16Range(2, 2) {
-		t.Fatalf("empty mark = %#v", nodeValue.Marks())
-	}
-	mustTransact(t, document, func(draft *DocumentDraft) error {
-		return draft.FormatEmphasis(node, NewUTF16Range(2, 2), 1)
-	})
-	nodeValue, _ = document.Snapshot().Node(node)
-	if nodeValue.MarkCount() != 0 {
-		t.Fatal("empty mark did not toggle off")
-	}
-
 	draft := document.BeginDraft()
-	draft.state.nodes[node].marks = []InlineMark{NewInlineMark(1, NewUTF16Range(0, 1), 3)}
+	draft.state.nodes[node].marks = []InlineMark{NewInlineMark(1, NewUTF16Range(0, 1), "", 1)}
 	draft.state.nodes[node].nextMarkID = 2
 	if err := draft.Validate(); err == nil {
-		t.Fatal("invalid strength validated")
+		t.Fatal("a mark without a kind validated")
 	}
 }
 
@@ -304,21 +239,22 @@ func TestMarkOperationsRejectInvalidInputs(t *testing.T) {
 	document := mustDocument(t, "text")
 	node := document.Snapshot().Root()
 	draft := document.BeginDraft()
-	if _, err := draft.AddMark(node, NewUTF16Range(0, 1), 1); err == nil {
+	if _, err := draft.AddMark(node, NewUTF16Range(0, 1), "emphasis", 1); err == nil {
 		t.Fatal("out-of-range mark accepted")
 	}
 	if err := draft.SetTextValue(node, "abc"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := draft.AddMark(node, NewUTF16Range(0, 1), 0); err == nil {
+	if _, err := draft.AddMark(node, NewUTF16Range(0, 1), "emphasis", 0); err == nil {
 		t.Fatal("zero-strength mark accepted")
 	}
-	mark, err := draft.AddMark(node, NewUTF16Range(0, 1), 1)
+	mark, err := draft.AddMark(node, NewUTF16Range(0, 1), "emphasis", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := draft.SetMarkLevel(node, mark, 3); err == nil {
-		t.Fatal("strength above two accepted")
+	// The model reads no meaning into strength: a policy caps it.
+	if err := draft.SetMarkLevel(node, mark, 3); err != nil {
+		t.Fatal(err)
 	}
 	if err := draft.SetMarkLevel(node, mark+100, 1); err == nil {
 		t.Fatal("missing mark accepted")

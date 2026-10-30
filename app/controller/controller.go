@@ -41,11 +41,6 @@ type DocumentController struct {
 	preedit       *preedit
 	previewFrame  *surface.Frame
 	geometry      Geometry
-	metrics       Metrics
-	metricsSource MetricSource
-	metricsReady  bool
-	pendingMetric MetricSource
-	metricsQueued bool
 	activity      []Activity
 	status        Status
 	lastError     error
@@ -57,16 +52,11 @@ type DocumentController struct {
 // NewTextDocument constructs a semantic text document with the complete
 // editor policy catalog and mounts a controller on its root node.
 func NewTextDocument(text string, clock editor.Clock) (*DocumentController, error) {
-	document, err := model.NewDocument("text")
+	document, blocks, err := editor.NewBlockDocument(text)
 	if err != nil {
 		return nil, err
 	}
-	node := document.Snapshot().Root()
-	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
-		return draft.SetTextValue(node, text)
-	}); err != nil {
-		return nil, err
-	}
+	node := blocks[0]
 	catalog, err := editor.EditorPolicyCatalog()
 	if err != nil {
 		return nil, err
@@ -88,7 +78,6 @@ func NewDocumentController(session *editor.Session) (*DocumentController, error)
 		return nil, fmt.Errorf("controller: session is required")
 	}
 	controller := &DocumentController{session: session}
-	controller.initializeMetrics()
 	controller.refreshSource(false)
 	controller.refreshVisible()
 	controller.setStatus(kernel.OutcomeHandled, false, nil)

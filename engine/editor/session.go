@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/caelyreth/neverland/engine/input"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
@@ -43,8 +44,8 @@ type Session struct {
 	pairs         []PairSpan
 	pairsValid    bool
 	pairsRelevant bool
-	statistics    TextMetricsSource
-	statsValid    bool
+	metrics       PageMetrics
+	metricsValid  bool
 	generation    uint64
 }
 
@@ -67,7 +68,6 @@ func NewSession(runtime *kernel.PolicyRuntime, node model.NodeID, clock Clock) (
 		feedback:     NewFeedback(clock),
 		navigation:   Navigation{},
 		pairsValid:   false,
-		statsValid:   false,
 	}
 	session.refreshInline()
 	session.refreshMetrics()
@@ -104,24 +104,9 @@ func (s *Session) Inline() *InlineState { return s.inline }
 
 func (s *Session) Navigation() *Navigation { return &s.navigation }
 
-func (s *Session) Statistics() (TextMetricsSource, bool) {
-	if !s.statsValid {
-		return TextMetricsSource{}, false
-	}
-	return s.statistics, true
-}
-
-// InstallTextMetrics adopts an asynchronously computed metrics snapshot only
-// when its source still matches the current semantic text root.
-func (s *Session) InstallTextMetrics(source TextMetricsSource, metrics TextMetrics) bool {
-	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
-	if !ok || !source.Matches(node) {
-		return false
-	}
-	source.Metrics = metrics
-	s.statistics = source
-	s.statsValid = true
-	return true
+// Statistics returns the page's counts.
+func (s *Session) Statistics() (TextMetrics, bool) {
+	return s.metrics.Total(), s.metricsValid
 }
 
 func (s *Session) Pairs() []PairSpan {
@@ -175,7 +160,6 @@ func (s *Session) Select(selection model.TextSelection) error {
 	s.history.SelectionChanged()
 	s.pairsValid = false
 	s.refreshInline()
-	s.retainMetrics()
 	return nil
 }
 
@@ -187,7 +171,6 @@ func (s *Session) SelectProjected(anchor, head model.UTF16Offset) error {
 	s.history.SelectionChanged()
 	s.pairsValid = false
 	s.refreshInline()
-	s.retainMetrics()
 	return nil
 }
 
@@ -350,6 +333,9 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 	if err := edit.Validate(s.presentation.Projection); err != nil {
 		return EditingOutcome{}, err
 	}
+	if from, to, spans := s.spanEnds(edit.UTF16Range); spans {
+		return s.applySpanEdit(from, to, edit.Replacement, edit.Origin)
+	}
 	beforeFrame, beforeOK := s.historyFrame()
 	if !beforeOK {
 		return EditingOutcome{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
@@ -382,14 +368,11 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 		return EditingOutcome{Outcome: kernel.OutcomePass, Revision: s.runtime.Revision()}, nil
 	}
 	beforeRevision := s.runtime.Revision()
-	beforeNode, _ := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
-	beforeRoot, beforeHasRoot := beforeNode.TextRoot()
 	s.invoker.ActivateMark(resolved.ActiveMarkID)
 	s.invoker.hasCorrectionEffect = false
 	s.invoker.correctionEffectThrough = 0
 	s.invoker.corrections.Clear()
 	var candidate Presentation
-	var insertedHead model.UTF16Offset
 	transaction, err := s.runtime.DispatchPreparedBatchWithInvoker(
 		events,
 		s.invoker,
@@ -411,139 +394,29 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 				(len(batch.Handled) == 0 || !batch.Handled[len(batch.Handled)-1]) {
 				return struct{}{}, ErrIncompleteProjectedEdit
 			}
-			selection := resolved.VisualSelection
-			if edit.UTF16Range.Empty() || selection == nil {
+			// The caret goes where the text went in: after it, or where a
+			// marker or a refinement left it, carried through everything
+			// written after the input itself, as a block split.
+			target := inputValue.Input().Target()
+			insertedHead := target.RangeUTF16().Start +
+				model.UTF16Offset(model.StringLenUTF16(inputValue.Input().Text()))
+			through := len(changes.TextEdits())
+			if edit.UTF16Range.Empty() || resolved.VisualSelection == nil {
 				if action, ok := s.invoker.LastMarker(); ok && action.Handled && !action.Exited {
 					insertedHead = action.Head
 				} else if s.invoker.hasCorrectionEffect {
 					insertedHead = s.invoker.correctionEffectHead
-				} else {
-					insertedHead = inputValue.Input().Target().RangeUTF16().Start +
-						model.UTF16Offset(model.StringLenUTF16(inputValue.Input().Text()))
 				}
-				node, ok := view.Document().Node(inputValue.Input().Target().Node())
-				if !ok {
-					return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
-				}
-				targetLength := 0
-				if candidateNode, ok := view.Document().Node(inputValue.Input().Target().Node()); ok {
-					targetLength = candidateNode.Text().UTF16Len()
-				}
-				insertedHead = min(insertedHead, model.UTF16Offset(targetLength))
-				nextSelection := model.NewTextSelection(
-					model.NewTextAnchor(
-						inputValue.Input().Target().Node(),
-						insertedHead,
-						model.AffinityRight,
-						beforeRevision,
-					),
-					model.NewTextAnchor(
-						inputValue.Input().Target().Node(),
-						insertedHead,
-						model.AffinityRight,
-						beforeRevision,
-					),
-				)
-				through := min(s.invoker.correctionEffectThrough, len(changes.TextEdits()))
-				if rebased, ok := nextSelection.RebaseAll(changes.TextEdits()[through:], view.Revision()); ok {
-					nextSelection = rebased
-				} else {
-					return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
-				}
-				projected, projectErr := MarkupProjectDocument(
-					view.Document().CandidateSnapshot(view.Revision()),
-					view.Revision(),
-					nextSelection.Node(),
-					s.generation+1,
-					configuration,
-				)
-				if projectErr != nil {
-					return struct{}{}, fmt.Errorf("prepare collapsed edit projection: %w", projectErr)
-				}
-				if projectErr = projected.ValidateCandidate(
-					view.Revision(),
-					view.Document().CandidateSnapshot(view.Revision()),
-				); projectErr != nil {
-					return struct{}{}, fmt.Errorf("validate collapsed edit projection: %w", projectErr)
-				}
-				caret, projectErr := placeCaret(projected, node, nextSelection.Head(), s.invoker.active)
-				if projectErr != nil {
-					return struct{}{}, fmt.Errorf(
-						"project collapsed edit caret head=%d text=%q segments=%#v revision=%d: %w",
-						nextSelection.Head().OffsetUTF16(),
-						projected.Text(),
-						projected.Segments(),
-						view.Revision(),
-						wrapProjectionError(projectErr),
-					)
-				}
-				flow, flowErr := projectionFlowFromView(view, configuration, projected, nextSelection)
-				if flowErr != nil {
-					return struct{}{}, fmt.Errorf("compose collapsed edit flow: %w", flowErr)
-				}
-				candidate = Presentation{
-					Projection: projected,
-					Selection:  nextSelection,
-					Caret:      caret,
-					Flow:       flow,
-				}
+				through = min(s.invoker.correctionEffectThrough, len(changes.TextEdits()))
 			} else {
-				headOffset := inputValue.Input().Target().RangeUTF16().Start +
-					model.UTF16Offset(model.StringLenUTF16(inputValue.Input().Text()))
-				nextSelection := model.NewTextSelection(
-					model.NewTextAnchor(
-						inputValue.Input().Target().Node(),
-						headOffset,
-						model.AffinityRight,
-						beforeRevision,
-					),
-					model.NewTextAnchor(
-						inputValue.Input().Target().Node(),
-						headOffset,
-						model.AffinityRight,
-						beforeRevision,
-					),
-				)
-				if rebased, ok := nextSelection.RebaseAll(changes.TextEdits(), view.Revision()); ok {
-					nextSelection = rebased
-				} else {
-					return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
-				}
-				projected, projectErr := MarkupProjectDocument(
-					view.Document().CandidateSnapshot(view.Revision()),
-					view.Revision(),
-					nextSelection.Node(),
-					s.generation+1,
-					configuration,
-				)
-				if projectErr != nil {
-					return struct{}{}, fmt.Errorf("prepare ranged edit projection: %w", projectErr)
-				}
-				if projectErr = projected.ValidateCandidate(
-					view.Revision(),
-					view.Document().CandidateSnapshot(view.Revision()),
-				); projectErr != nil {
-					return struct{}{}, fmt.Errorf("validate ranged edit projection: %w", projectErr)
-				}
-				node, ok := view.Document().Node(nextSelection.Node())
-				if !ok {
-					return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
-				}
-				caret, projectErr := placeCaret(projected, node, nextSelection.Head(), s.invoker.active)
-				if projectErr != nil {
-					return struct{}{}, fmt.Errorf("project ranged edit caret: %w", wrapProjectionError(projectErr))
-				}
-				flow, flowErr := projectionFlowFromView(view, configuration, projected, nextSelection)
-				if flowErr != nil {
-					return struct{}{}, fmt.Errorf("compose ranged edit flow: %w", flowErr)
-				}
-				candidate = Presentation{
-					Projection: projected,
-					Selection:  nextSelection,
-					Caret:      caret,
-					Flow:       flow,
-				}
+				through = 0
 			}
+			head := model.NewTextAnchor(target.Node(), insertedHead, model.AffinityRight, beforeRevision)
+			next, err := s.editedPresentation(view, configuration, head, changes.TextEdits()[through:], s.invoker.active)
+			if err != nil {
+				return struct{}{}, err
+			}
+			candidate = next
 			return struct{}{}, nil
 		},
 	)
@@ -551,34 +424,163 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 		return EditingOutcome{}, err
 	}
 	if transaction.Value.Outcome.Status == kernel.OutcomeHandled {
-		hadPairs := s.pairsValid
-		hadRelevantPairs := s.pairsRelevant
-		s.applyPresentation(candidate)
-		s.retainPairsAfterEdit(hadPairs, hadRelevantPairs, edit.Replacement, transaction.Changes)
-		s.updateMetricsAfterEdit(beforeRoot, beforeHasRoot, transaction.Changes.TextEdits())
-		s.navigation.Remember(s.presentation.Selection)
 		group := ShouldGroupTyping(edit.Origin, inputValue.ApplyText(), edit.Replacement)
-		s.history.Record(beforeFrame, visualState, !transaction.Changes.Empty(), group)
-		// What refinement rewrote pulses once, so a changed character is
-		// noticed rather than discovered. Pulses already playing carry on
-		// through this edit to their end.
-		// The history step that made a correction remembers it, so undoing
-		// the step plays the pulse back and redoing it plays it again.
-		s.feedback.Rebase(transaction.Changes.TextEdits(), transaction.Revision)
-		corrected := s.invoker.corrections.Resolve(
-			transaction.Changes.TextEdits(),
-			s.runtime.Snapshot().Document(),
-		)
-		if len(corrected) > 0 {
-			s.history.MarkCorrected()
-			s.feedback.Publish(corrected)
-		}
+		s.afterEdit(candidate, beforeFrame, visualState, edit.Replacement, transaction.Changes, transaction.Revision, group)
 	}
 	return EditingOutcome{
 		Outcome:  transaction.Value.Outcome.Status,
 		Revision: transaction.Revision,
 		Changes:  transaction.Changes,
 	}, nil
+}
+
+// afterEdit installs an edit's page and keeps everything that follows the
+// text with it: pairs, the last edit, history, and correction pulses.
+func (s *Session) afterEdit(
+	candidate Presentation,
+	beforeFrame Frame,
+	visualState projection.Selection,
+	replacement string,
+	changes kernel.EngineChanges,
+	revision uint64,
+	group bool,
+) {
+	hadPairs := s.pairsValid
+	hadRelevantPairs := s.pairsRelevant
+	s.applyPresentation(candidate)
+	s.retainPairsAfterEdit(hadPairs, hadRelevantPairs, replacement, changes)
+	s.navigation.Remember(s.presentation.Selection)
+	s.history.Record(beforeFrame, visualState, !changes.Empty(), group)
+	// What refinement rewrote pulses once, so a changed character is
+	// noticed rather than discovered. Pulses already playing carry on
+	// through this edit to their end. The history step that made a
+	// correction remembers it, so undoing the step plays the pulse back
+	// and redoing it plays it again.
+	s.feedback.Rebase(changes.TextEdits(), revision)
+	corrected := s.invoker.corrections.Resolve(changes.TextEdits(), s.runtime.Snapshot().Document())
+	if len(corrected) > 0 {
+		s.history.MarkCorrected()
+		s.feedback.Publish(corrected)
+	}
+}
+
+// spanEnds are the semantic ends of a projected range when they lie in
+// different blocks, first to last.
+func (s *Session) spanEnds(range16 model.UTF16Range) (model.TextAnchor, model.TextAnchor, bool) {
+	if range16.Empty() {
+		return model.TextAnchor{}, model.TextAnchor{}, false
+	}
+	from, err := s.presentation.Projection.SemanticAnchor(range16.Start, model.AffinityRight)
+	if err != nil {
+		return model.TextAnchor{}, model.TextAnchor{}, false
+	}
+	to, err := s.presentation.Projection.SemanticAnchor(range16.End, model.AffinityLeft)
+	if err != nil || from.Node() == to.Node() {
+		return model.TextAnchor{}, model.TextAnchor{}, false
+	}
+	return from, to, true
+}
+
+// applySpanEdit replaces the text between two blocks' positions: the text
+// policy takes the blocks between out and joins the ends around the
+// replacement, and the caret lands after it.
+func (s *Session) applySpanEdit(
+	from, to model.TextAnchor,
+	replacement string,
+	origin kernel.EventOrigin,
+) (EditingOutcome, error) {
+	beforeFrame, ok := s.historyFrame()
+	if !ok {
+		return EditingOutcome{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+	}
+	visualState, err := s.ProjectedState()
+	if err != nil {
+		return EditingOutcome{}, err
+	}
+	beforeRevision := s.runtime.Revision()
+	span := kernel.NewSpanInput(input.TextTargetFromAnchor(from), input.TextTargetFromAnchor(to), replacement)
+	s.invoker.ActivateMark(nil)
+	s.invoker.hasCorrectionEffect = false
+	s.invoker.correctionEffectThrough = 0
+	s.invoker.corrections.Clear()
+	var candidate Presentation
+	transaction, err := s.runtime.DispatchPreparedBatchWithInvoker(
+		[]kernel.Event{kernel.NewSpanEvent(span, origin)},
+		s.invoker,
+		func(
+			view kernel.EngineView,
+			changes kernel.EngineChanges,
+			batch kernel.BatchDispatchOutcome,
+			configuration *kernel.PreparedPolicyConfiguration,
+		) (struct{}, error) {
+			if batch.Outcome.Status == kernel.OutcomePass {
+				return struct{}{}, nil
+			}
+			edits := changes.TextEdits()
+			head := model.NewTextAnchor(from.Node(), s.invoker.correctionEffectHead, model.AffinityRight, beforeRevision)
+			through := min(s.invoker.correctionEffectThrough, len(edits))
+			// The head stands in the first block once the span has joined;
+			// only what was written after the replacement moves it.
+			next, err := s.editedPresentation(view, configuration, head, edits[through:], nil)
+			if err != nil {
+				return struct{}{}, err
+			}
+			candidate = next
+			return struct{}{}, nil
+		},
+	)
+	if err != nil {
+		return EditingOutcome{}, err
+	}
+	if transaction.Value.Outcome.Status == kernel.OutcomeHandled {
+		s.afterEdit(candidate, beforeFrame, visualState, replacement, transaction.Changes, transaction.Revision, false)
+	}
+	return EditingOutcome{
+		Outcome:  transaction.Value.Outcome.Status,
+		Revision: transaction.Revision,
+		Changes:  transaction.Changes,
+	}, nil
+}
+
+// editedPresentation is the page after an edit, with a collapsed caret at
+// head: carried through edits to the published revision and kept within its
+// block, then placed among the notation there as the active mark asks.
+func (s *Session) editedPresentation(
+	view kernel.EngineView,
+	configuration *kernel.PreparedPolicyConfiguration,
+	head model.TextAnchor,
+	edits []model.TextEdit,
+	active *model.MarkID,
+) (Presentation, error) {
+	next, ok := model.CollapsedSelection(head).RebaseAll(edits, view.Revision())
+	if !ok {
+		return Presentation{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+	}
+	document := view.Document().CandidateSnapshot(view.Revision())
+	node, ok := document.Node(next.Node())
+	if !ok {
+		return Presentation{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+	}
+	if length := blockLength(node); next.Head().Offset() > length {
+		at := model.NewTextAnchor(node.ID(), length, model.AffinityRight, view.Revision())
+		next = model.CollapsedSelection(at)
+	}
+	projected, err := MarkupProjectDocument(document, view.Revision(), s.generation+1, configuration)
+	if err != nil {
+		return Presentation{}, fmt.Errorf("prepare edit projection: %w", err)
+	}
+	if err := projected.ValidateCandidate(view.Revision(), document); err != nil {
+		return Presentation{}, fmt.Errorf("validate edit projection: %w", err)
+	}
+	caret, err := placeCaret(projected, node, next.Head(), active)
+	if err != nil {
+		return Presentation{}, fmt.Errorf("place edit caret: %w", wrapProjectionError(err))
+	}
+	flow, err := projectionFlowFromView(view, configuration, projected, next)
+	if err != nil {
+		return Presentation{}, fmt.Errorf("compose edit flow: %w", err)
+	}
+	return Presentation{Projection: projected, Selection: next, Caret: caret, Flow: flow}, nil
 }
 
 // BeginComposition captures the current visual target.
@@ -630,15 +632,11 @@ func (s *Session) CommitComposition() (kernel.Outcome, error) {
 }
 
 func (s *Session) historyFrame() (Frame, bool) {
-	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
-	if !ok {
-		return Frame{}, false
-	}
 	visual, err := s.ProjectedState()
 	if err != nil {
 		return Frame{}, false
 	}
-	return NewFrame(node, s.presentation.Selection, visual, activeMark(s.inline))
+	return NewFrame(s.runtime.Snapshot().Document(), s.presentation.Selection, visual, activeMark(s.inline))
 }
 
 // Reconfigure changes policy settings and reattaches the current semantic
@@ -659,7 +657,6 @@ func (s *Session) Reconfigure(
 			nextProjection, err := MarkupProjectDocument(
 				view.Document().CandidateSnapshot(view.Revision()),
 				view.Revision(),
-				rebased.Node(),
 				s.generation+1,
 				configuration,
 			)
@@ -703,6 +700,7 @@ func (s *Session) applyPresentation(next Presentation) {
 	s.generation = next.Projection.Version().Generation()
 	s.pairsValid = false
 	s.refreshInline()
+	s.refreshMetrics()
 }
 
 // refreshInline derives the active mark from the caret, its only source.
@@ -715,68 +713,9 @@ func (s *Session) refreshInline() {
 	s.inline.SelectProjected(node, s.presentation.Projection, s.presentation.Caret.RangeUTF16().Start)
 }
 
+// refreshMetrics recounts the blocks whose text changed.
 func (s *Session) refreshMetrics() {
-	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
-	if !ok {
-		s.statsValid = false
-		return
-	}
-	root, hasRoot := node.TextRoot()
-	source, ok := NewTextMetricsSource(node.ID(), root, hasRoot)
-	s.statistics = source
-	s.statsValid = ok
-}
-
-func (s *Session) retainMetrics() {
-	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
-	if !ok {
-		s.statsValid = false
-		return
-	}
-	root, hasRoot := node.TextRoot()
-	if s.statsValid &&
-		s.statistics.Node == node.ID() &&
-		s.statistics.HasRoot == hasRoot &&
-		(!hasRoot || s.statistics.Root.Same(root)) {
-		return
-	}
-	s.refreshMetrics()
-}
-
-func (s *Session) updateMetricsAfterEdit(
-	beforeRoot model.TextRoot,
-	beforeHasRoot bool,
-	edits []model.TextEdit,
-) {
-	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
-	if !ok {
-		s.statsValid = false
-		return
-	}
-	root, hasRoot := node.TextRoot()
-	metrics, ok := incrementalTextMetrics(beforeRoot, beforeHasRoot, root, hasRoot, edits)
-	if ok && s.statsValid {
-		ok = s.statistics.Node == node.ID() &&
-			s.statistics.HasRoot == beforeHasRoot &&
-			(!beforeHasRoot || s.statistics.Root.Same(beforeRoot))
-	}
-	if ok {
-		metrics.Characters += s.statistics.Metrics.Characters
-		metrics.Words += s.statistics.Metrics.Words
-		metrics.Paragraphs += s.statistics.Metrics.Paragraphs
-	}
-	if !ok {
-		s.refreshMetrics()
-		return
-	}
-	s.statistics = TextMetricsSource{
-		Node:     node.ID(),
-		Root:     root,
-		HasRoot:  hasRoot,
-		Metrics:  metrics,
-		Computed: true,
-	}
-	s.statsValid = true
+	s.metricsValid = s.metrics.Update(s.runtime.Snapshot().Document())
 }
 
 func (s *Session) refreshPairs() {
@@ -947,11 +886,7 @@ func projectionFlowFromView(
 	projectionValue *projection.Projection,
 	selection model.TextSelection,
 ) (*surface.Flow, error) {
-	node, ok := view.Document().Node(selection.Node())
-	if !ok {
-		return nil, &projection.ProjectionError{Kind: projection.ErrorSource}
-	}
-	runs, err := InlineStyleRuns(projectionValue, node, markupEnabled(configuration))
+	runs, err := InlineStyleRuns(projectionValue, view.Document().CandidateSnapshot(view.Revision()), markupEnabled(configuration))
 	if err != nil {
 		return nil, err
 	}

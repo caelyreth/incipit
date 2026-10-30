@@ -164,14 +164,13 @@ func TestInlineInputStyleAndMutedRuns(t *testing.T) {
 	projection, err := MarkupProjectDocument(
 		fixture.document.Snapshot(),
 		fixture.document.Revision(),
-		fixture.node,
 		0,
 		configuration,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs, err := InlineStyleRuns(projection, node, true)
+	runs, err := InlineStyleRuns(projection, fixture.document.Snapshot(), true)
 	if err != nil {
 		t.Fatal(err)
 	}

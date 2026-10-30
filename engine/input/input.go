@@ -188,3 +188,22 @@ func (e *Error) Error() string {
 }
 
 func (e *Error) Unwrap() error { return e.Err }
+
+// SpanInput replaces the text from one position to another that lie in
+// different nodes, as a selection across blocks does: the blocks between are
+// taken out, the two ends join, and text goes in where they meet.
+type SpanInput struct {
+	from TextTarget
+	to   TextTarget
+	text string
+}
+
+// NewSpanInput spans from from's start to to's start; both are collapsed
+// targets, from first in document order.
+func NewSpanInput(from, to TextTarget, text string) SpanInput {
+	return SpanInput{from: from, to: to, text: text}
+}
+
+func (i SpanInput) From() TextTarget { return i.from }
+func (i SpanInput) To() TextTarget   { return i.to }
+func (i SpanInput) Text() string     { return i.text }

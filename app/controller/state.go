@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"github.com/caelyreth/neverland/engine/editor"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/kernel"
@@ -37,7 +38,6 @@ func (c *DocumentController) refreshSource(recordActivity bool) {
 		End:   int(selection.End),
 	}
 	c.sourceCaret = int(c.session.Caret().RangeUTF16().Start)
-	c.refreshMetricSource()
 }
 
 func (c *DocumentController) refreshVisible() {
@@ -109,12 +109,12 @@ func (c *DocumentController) sourceEditableSpan() (UTF16Range, error) {
 
 func (c *DocumentController) recordActivity() {
 	marks := 0
-	if node, ok := c.session.Runtime().Snapshot().Document().Node(c.session.Selection().Node()); ok {
-		marks = node.MarkCount()
+	for _, block := range editor.DocumentBlocks(c.session.Runtime().Snapshot().Document()) {
+		marks += block.MarkCount()
 	}
 	c.activity = append(c.activity, Activity{
 		Revision:   c.version.SourceRevision(),
-		Characters: c.metrics.Characters,
+		Characters: c.Metrics().Characters,
 		Marks:      marks,
 	})
 	if len(c.activity) > activityLimit {

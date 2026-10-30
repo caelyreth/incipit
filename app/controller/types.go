@@ -116,7 +116,7 @@ type Activity struct {
 	Marks      int
 }
 
-// Metrics are semantic counts for the current node, excluding generated
+// Metrics are semantic counts for the page, excluding generated
 // notation and transient preedit text.
 type Metrics struct {
 	Characters int

@@ -24,17 +24,13 @@ func newProjectedFixture(
 	marks ...model.UTF16Range,
 ) projectedFixture {
 	t.Helper()
-	document, err := model.NewDocument("text")
-	if err != nil {
-		t.Fatal(err)
-	}
-	node := document.Snapshot().Root()
+	document, node := emptyBlockDocument(t)
 	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
 		if err := draft.SetTextValue(node, text); err != nil {
 			return err
 		}
 		for _, mark := range marks {
-			if _, err := draft.AddMark(node, mark, 1); err != nil {
+			if _, err := draft.AddMark(node, mark, EmphasisMark, 1); err != nil {
 				return err
 			}
 		}
@@ -384,10 +380,10 @@ func TestNestedMarksDecomposeClosersBeforeOpenersByProjectionOrder(t *testing.T)
 		if err := draft.SetTextValue(nodeID, "abcd"); err != nil {
 			return err
 		}
-		if _, err := draft.AddMark(nodeID, model.NewUTF16Range(0, 4), 1); err != nil {
+		if _, err := draft.AddMark(nodeID, model.NewUTF16Range(0, 4), EmphasisMark, 1); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(nodeID, model.NewUTF16Range(1, 3), 2)
+		_, err := draft.AddMark(nodeID, model.NewUTF16Range(1, 3), EmphasisMark, 2)
 		return err
 	}); err != nil {
 		t.Fatal(err)

@@ -641,7 +641,7 @@ func TestSetTextClearsMarksAndRestoreContentKeepsIdentitySupply(t *testing.T) {
 		if err := draft.SetTextValue(root, "abc"); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(root, NewUTF16Range(0, 3), 1)
+		_, err := draft.AddMark(root, NewUTF16Range(0, 3), "emphasis", 1)
 		return err
 	})
 	source, _ := document.Snapshot().Node(root)
@@ -661,7 +661,7 @@ func TestSetTextClearsMarksAndRestoreContentKeepsIdentitySupply(t *testing.T) {
 		t.Fatalf("restored node text=%q marks=%d", restored.Text().String(), restored.MarkCount())
 	}
 	draft := document.BeginDraft()
-	id, err := draft.AddMark(root, NewUTF16Range(0, 1), 1)
+	id, err := draft.AddMark(root, NewUTF16Range(0, 1), "emphasis", 1)
 	if err != nil {
 		t.Fatal(err)
 	}

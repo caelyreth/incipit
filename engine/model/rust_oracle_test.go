@@ -215,11 +215,11 @@ func TestRustOracleMarks(t *testing.T) {
 	var first, nested MarkID
 	if _, err := document.Transact(func(draft *DocumentDraft) error {
 		var err error
-		first, err = draft.AddMark(node, NewUTF16Range(1, 5), 1)
+		first, err = draft.AddMark(node, NewUTF16Range(1, 5), "emphasis", 1)
 		if err != nil {
 			return err
 		}
-		nested, err = draft.AddMark(node, NewUTF16Range(2, 4), 2)
+		nested, err = draft.AddMark(node, NewUTF16Range(2, 4), "emphasis", 2)
 		return err
 	}); err != nil {
 		t.Fatal(err)

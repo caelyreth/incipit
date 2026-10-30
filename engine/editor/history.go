@@ -25,11 +25,11 @@ var ErrHistoryRestoreRequired = errors.New("editor: history restore callback is 
 
 // Frame is the complete data needed to restore one editor history position.
 //
-// Node is captured by value from an immutable document snapshot. Restoring it
-// with DocumentDraft.RestoreContent preserves semantic content, inline mark
-// identities, and the node's monotonic mark-identity supply.
+// The page is captured as an immutable document snapshot. Restoring it with
+// DocumentDraft.RestoreDocument brings back its blocks, their kinds, text and
+// marks and their order, while identity supplies never rewind.
 type Frame struct {
-	node      model.Node
+	document  model.DocumentSnapshot
 	selection model.TextSelection
 	visual    projection.Selection
 	active    *model.MarkID
@@ -43,19 +43,19 @@ func (f Frame) Corrected() bool {
 	return f.corrected
 }
 
-// NewFrame captures one history position. It rejects a nil node so callers
-// cannot accidentally record an unusable frame.
+// NewFrame captures one history position. It rejects a selection whose
+// focused block the page lacks, so callers cannot record an unusable frame.
 func NewFrame(
-	node *model.Node,
+	document model.DocumentSnapshot,
 	selection model.TextSelection,
 	visual projection.Selection,
 	active *model.MarkID,
 ) (Frame, bool) {
-	if node == nil {
+	if _, ok := document.Node(selection.Node()); !ok {
 		return Frame{}, false
 	}
 	frame := Frame{
-		node:      *node,
+		document:  document,
 		selection: selection,
 		visual:    visual,
 	}
@@ -66,9 +66,9 @@ func NewFrame(
 	return frame, true
 }
 
-// Node returns a copy of the immutable node snapshot captured by the frame.
-func (f Frame) Node() model.Node {
-	return f.node
+// Document returns the page as the frame captured it.
+func (f Frame) Document() model.DocumentSnapshot {
+	return f.document
 }
 
 // Selection returns the semantic selection captured by the frame.

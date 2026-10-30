@@ -45,13 +45,9 @@ func stateFrame(
 ) Frame {
 	t.Helper()
 	snapshot := document.Snapshot()
-	node, ok := snapshot.Node(nodeID)
-	if !ok {
-		t.Fatal("history fixture node missing")
-	}
 	anchor := model.NewTextAnchor(nodeID, offset, model.AffinityRight, snapshot.Revision())
 	frame, ok := NewFrame(
-		node,
+		snapshot,
 		model.CollapsedSelection(anchor),
 		projection.CollapsedSelection(projection.TextCaret(anchor)),
 		nil,
@@ -314,7 +310,7 @@ func TestHistoryBoundsTheUndoStackAtTwoHundredFrames(t *testing.T) {
 func TestHistoryRestorePreservesSemanticMarksAndMonotonicIdentity(t *testing.T) {
 	document, root := stateDocument(t, "abc")
 	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
-		_, err := draft.AddMark(root, model.NewUTF16Range(0, 1), 1)
+		_, err := draft.AddMark(root, model.NewUTF16Range(0, 1), EmphasisMark, 1)
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -327,7 +323,7 @@ func TestHistoryRestorePreservesSemanticMarksAndMonotonicIdentity(t *testing.T) 
 	}
 	active := first
 	frame, ok := NewFrame(
-		node,
+		snapshot,
 		model.CollapsedSelection(model.NewTextAnchor(root, 1, model.AffinityRight, snapshot.Revision())),
 		stateVisual(snapshot.Revision(), 1),
 		&active,
@@ -342,21 +338,18 @@ func TestHistoryRestorePreservesSemanticMarksAndMonotonicIdentity(t *testing.T) 
 		if err := draft.SetMarkLevel(root, first, 0); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(root, model.NewUTF16Range(1, 2), 1)
+		_, err := draft.AddMark(root, model.NewUTF16Range(1, 2), EmphasisMark, 1)
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
-	currentSnapshot := document.Snapshot()
-	currentNode, _ := currentSnapshot.Node(root)
-	current, ok := NewFrame(currentNode, frame.Selection(), frame.Visual(), nil)
+	current, ok := NewFrame(document.Snapshot(), frame.Selection(), frame.Visual(), nil)
 	if !ok {
 		t.Fatal("current frame rejected")
 	}
 	ok, err := history.Undo(current, func(source Frame) error {
 		_, err := document.Transact(func(draft *model.DocumentDraft) error {
-			node := source.Node()
-			return draft.RestoreContent(&node)
+			return draft.RestoreDocument(source.Document())
 		})
 		return err
 	})
@@ -370,7 +363,7 @@ func TestHistoryRestorePreservesSemanticMarksAndMonotonicIdentity(t *testing.T) 
 	var next model.MarkID
 	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
 		var err error
-		next, err = draft.AddMark(root, model.NewUTF16Range(1, 2), 1)
+		next, err = draft.AddMark(root, model.NewUTF16Range(1, 2), EmphasisMark, 1)
 		return err
 	}); err != nil {
 		t.Fatal(err)

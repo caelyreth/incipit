@@ -21,16 +21,30 @@ func (s *Session) ExecuteWord(command WordCommand) (kernel.Outcome, error) {
 		return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
 	text := node.Text().String()
+	spans := selection.Spans()
+	if spans && (command == WordDeletePrevious || command == WordDeleteNext) {
+		outcome, err := s.ReplaceSelection("", kernel.EventOriginSemantic)
+		return outcome.Outcome, err
+	}
+	// Words live within a block: a selection reaching into another plans
+	// from its head, keeping its anchor where it is.
+	planAnchor := selection.Anchor().OffsetUTF16()
+	if spans {
+		planAnchor = selection.Head().OffsetUTF16()
+	}
 	plan, err := PlanWordCommand(
 		text,
-		WordSelection{
-			Anchor: selection.Anchor().OffsetUTF16(),
-			Head:   selection.Head().OffsetUTF16(),
-		},
+		WordSelection{Anchor: planAnchor, Head: selection.Head().OffsetUTF16()},
 		command,
 	)
 	if err != nil {
 		return 0, err
+	}
+	// At a block's edge there is no word further that way; the step goes on
+	// into the next block as a character step would.
+	if beyond, ok := wordStepBeyond(command); ok && !plan.Delete && plan.Head == selection.Head().OffsetUTF16() ||
+		ok && plan.Delete && plan.DeleteAt.Empty() {
+		return s.ExecuteText(beyond)
 	}
 	if plan.Delete {
 		if plan.DeleteAt.Empty() {
@@ -63,8 +77,12 @@ func (s *Session) ExecuteWord(command WordCommand) (kernel.Outcome, error) {
 		result, err := s.applyProjectedEdit(edit)
 		return result.Outcome, err
 	}
+	anchor := model.NewTextAnchor(selection.Node(), plan.Anchor, model.AffinityRight, snapshot.Revision())
+	if spans && (command == WordExtendPrevious || command == WordExtendNext) {
+		anchor = selection.Anchor()
+	}
 	return kernel.OutcomeHandled, s.Select(model.NewTextSelection(
-		model.NewTextAnchor(selection.Node(), plan.Anchor, model.AffinityRight, snapshot.Revision()),
+		anchor,
 		model.NewTextAnchor(
 			selection.Node(),
 			plan.Head,
@@ -72,4 +90,25 @@ func (s *Session) ExecuteWord(command WordCommand) (kernel.Outcome, error) {
 			snapshot.Revision(),
 		),
 	))
+}
+
+// wordStepBeyond is the character command that continues a word command past
+// a block's edge.
+func wordStepBeyond(command WordCommand) (TextCommand, bool) {
+	switch command {
+	case WordPrevious:
+		return TextLeft, true
+	case WordNext:
+		return TextRight, true
+	case WordExtendPrevious:
+		return TextSelectLeft, true
+	case WordExtendNext:
+		return TextSelectRight, true
+	case WordDeletePrevious:
+		return TextBackspace, true
+	case WordDeleteNext:
+		return TextDelete, true
+	default:
+		return 0, false
+	}
 }

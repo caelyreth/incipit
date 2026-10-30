@@ -3,6 +3,7 @@ package editor
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"unicode"
 
@@ -440,7 +441,7 @@ func TestRustOracleV2BlockingMutations(t *testing.T) {
 		if err := json.Unmarshal(fixtures["allow-strong-v2"], &fixture); err != nil {
 			t.Fatal(err)
 		}
-		session, _ := newSessionFixture(t, fixture.SemanticText, false)
+		session, node := newSessionFixture(t, fixture.SemanticText, false)
 		outcome, err := session.ExecuteText(TextSelectAll)
 		if err != nil || outcome != kernel.OutcomeHandled {
 			t.Fatalf("select all outcome=%v err=%v", outcome, err)
@@ -456,7 +457,10 @@ func TestRustOracleV2BlockingMutations(t *testing.T) {
 		if err == nil {
 			t.Fatalf("strong formatting returned %v without rejection", outcome)
 		}
-		if err.Error() != fixture.Result.ErrorDisplay ||
+		// The Rust fixture's node is the document's first; here the page
+		// root comes first and its block after.
+		want := strings.Replace(fixture.Result.ErrorDisplay, "node-1", node.String(), 1)
+		if err.Error() != want ||
 			session.Projection().Text() != fixture.ProjectionAfter {
 			t.Fatalf("strong rejection: error=%q projection=%q",
 				err.Error(), session.Projection().Text())

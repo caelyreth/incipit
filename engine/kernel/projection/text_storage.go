@@ -1,6 +1,7 @@
 package projection
 
 import (
+	"sort"
 	"strings"
 	"sync"
 
@@ -112,12 +113,13 @@ func (t projectionText) ByteOffset(offset int) (int, bool) {
 	if offset == t.storage.utf16Len {
 		return t.storage.byteLen, true
 	}
-	index := 0
-	for index < len(t.storage.parts) &&
-		t.storage.parts[index].utf16Start+t.storage.parts[index].text.range16.Len() <= offset {
-		index++
-	}
-	if index == len(t.storage.parts) {
+	// Parts lie in order, so the one holding offset is found by halving:
+	// a page has a part or more per block.
+	parts := t.storage.parts
+	index := sort.Search(len(parts), func(index int) bool {
+		return parts[index].utf16Start+parts[index].text.range16.Len() > offset
+	})
+	if index == len(parts) {
 		return 0, false
 	}
 	part := t.storage.parts[index]

@@ -6,16 +6,29 @@ import (
 	"strings"
 )
 
-// InlineMark is semantic emphasis over a scalar-aligned UTF-16 range.
+// MarkKind names what an inline mark means. The model gives kinds no
+// meaning: a policy defines them, as the writing profile defines emphasis
+// and code, and decides how each shows.
+type MarkKind string
+
+// InlineMark is one kind of inline styling over a scalar-aligned UTF-16
+// range, at a strength the kind's policy reads, as emphasis reads one for
+// emphasis and two for strong.
 type InlineMark struct {
 	id         MarkID
 	rangeUTF16 UTF16Range
+	kind       MarkKind
 	level      uint8
 }
 
 // NewInlineMark constructs a mark value; drafts enforce identity and validity.
-func NewInlineMark(id MarkID, rangeUTF16 UTF16Range, level uint8) InlineMark {
-	return InlineMark{id: id, rangeUTF16: rangeUTF16, level: level}
+func NewInlineMark(id MarkID, rangeUTF16 UTF16Range, kind MarkKind, level uint8) InlineMark {
+	return InlineMark{id: id, rangeUTF16: rangeUTF16, kind: kind, level: level}
+}
+
+// Kind returns what the mark means.
+func (m InlineMark) Kind() MarkKind {
+	return m.kind
 }
 
 // ID returns the stable mark identity.
@@ -33,13 +46,14 @@ func (m InlineMark) RangeUTF16() UTF16Range {
 	return m.rangeUTF16
 }
 
-// Level returns strength one or two.
+// Level returns the mark's strength, one or more.
 func (m InlineMark) Level() uint8 {
 	return m.level
 }
 
-// AddMark creates or updates a mark for an exact range.
-func (d *DocumentDraft) AddMark(node NodeID, rangeUTF16 UTF16Range, level uint8) (MarkID, error) {
+// AddMark creates a mark of kind over an exact range, or sets the level of
+// the one of that kind already there.
+func (d *DocumentDraft) AddMark(node NodeID, rangeUTF16 UTF16Range, kind MarkKind, level uint8) (MarkID, error) {
 	target, ok := d.state.nodes[node]
 	if !ok {
 		return 0, &DocumentError{Kind: DocumentErrorMissingNode, Node: node}
@@ -47,19 +61,19 @@ func (d *DocumentDraft) AddMark(node NodeID, rangeUTF16 UTF16Range, level uint8)
 	if err := target.ValidateTextRangeUTF16(rangeUTF16.Start, rangeUTF16.End); err != nil {
 		return 0, err
 	}
-	if level < 1 || level > 2 {
-		return 0, invalidDocument("emphasis level must be one or two")
+	if level < 1 || kind == "" {
+		return 0, invalidDocument("a mark needs a kind and a level")
 	}
 	if target.nextMarkID == ^uint64(0) {
 		return 0, &DocumentError{Kind: DocumentErrorIdentityExhausted}
 	}
 	for _, mark := range target.marks {
 		if crosses(mark.rangeUTF16, rangeUTF16) {
-			return 0, invalidDocument("emphasis ranges cannot cross")
+			return 0, invalidDocument("inline ranges cannot cross")
 		}
 	}
 	for _, mark := range target.marks {
-		if mark.rangeUTF16 == rangeUTF16 {
+		if mark.rangeUTF16 == rangeUTF16 && mark.kind == kind {
 			if err := d.SetMarkLevel(node, mark.id, level); err != nil {
 				return 0, err
 			}
@@ -74,6 +88,7 @@ func (d *DocumentDraft) AddMark(node NodeID, rangeUTF16 UTF16Range, level uint8)
 	updated.marks = append(updated.marks, InlineMark{
 		id:         id,
 		rangeUTF16: rangeUTF16,
+		kind:       kind,
 		level:      level,
 	})
 	sortMarks(updated.marks, nil)
@@ -86,9 +101,6 @@ func (d *DocumentDraft) AddMark(node NodeID, rangeUTF16 UTF16Range, level uint8)
 
 // SetMarkLevel sets a mark's strength or removes it at level zero.
 func (d *DocumentDraft) SetMarkLevel(node NodeID, id MarkID, level uint8) error {
-	if level > 2 {
-		return invalidDocument("emphasis level exceeds two")
-	}
 	target, ok := d.state.nodes[node]
 	if !ok {
 		return &DocumentError{Kind: DocumentErrorMissingNode, Node: node}
@@ -97,7 +109,7 @@ func (d *DocumentDraft) SetMarkLevel(node NodeID, id MarkID, level uint8) error 
 		return mark.id == id
 	})
 	if index < 0 {
-		return invalidDocument("emphasis mark no longer exists")
+		return invalidDocument("inline mark no longer exists")
 	}
 	d.written = true
 	if level == 0 {
@@ -119,103 +131,6 @@ func (d *DocumentDraft) SetMarkLevel(node NodeID, id MarkID, level uint8) error 
 	d.state = state
 	d.changes = append(d.changes, Change{Kind: ChangeUpdated, Node: node})
 	return nil
-}
-
-// FormatEmphasis applies or toggles emphasis over a UTF-16 selection.
-// Newlines delimit ranges and never acquire marks.
-func (d *DocumentDraft) FormatEmphasis(node NodeID, rangeUTF16 UTF16Range, level uint8) error {
-	target, ok := d.state.nodes[node]
-	if !ok {
-		return &DocumentError{Kind: DocumentErrorMissingNode, Node: node}
-	}
-	if err := target.ValidateTextRangeUTF16(rangeUTF16.Start, rangeUTF16.End); err != nil {
-		return err
-	}
-	if level < 1 || level > 2 {
-		return invalidDocument("emphasis level must be one or two")
-	}
-	if rangeUTF16.Empty() {
-		for _, mark := range target.marks {
-			if mark.rangeUTF16 == rangeUTF16 && mark.level == level {
-				return d.SetMarkLevel(node, mark.id, 0)
-			}
-		}
-		_, err := d.AddMark(node, rangeUTF16, level)
-		return err
-	}
-
-	source := ""
-	if target.text != nil {
-		byteRange, err := target.TextByteRangeUTF16(rangeUTF16.Start, rangeUTF16.End)
-		if err != nil {
-			return err
-		}
-		source = target.text.tree.Slice(int(byteRange.Start), int(byteRange.End))
-	}
-	lines := splitNonEmptyLinesUTF16(source, rangeUTF16.Start)
-	remove := true
-	for _, line := range lines {
-		end := line.Start
-		for _, mark := range target.marks {
-			if mark.level == level && mark.rangeUTF16.Start <= end && end < mark.rangeUTF16.End {
-				end = max(end, mark.rangeUTF16.End)
-			}
-		}
-		if end < line.End {
-			remove = false
-			break
-		}
-	}
-	previous := make([]InlineMark, 0)
-	for _, mark := range target.marks {
-		if mark.rangeUTF16.Start < rangeUTF16.End && rangeUTF16.Start < mark.rangeUTF16.End {
-			previous = append(previous, mark)
-		}
-	}
-	for _, mark := range previous {
-		if err := d.SetMarkLevel(node, mark.id, 0); err != nil {
-			return err
-		}
-		if mark.rangeUTF16.Start < rangeUTF16.Start {
-			if _, err := d.AddMark(node, NewUTF16Range(mark.rangeUTF16.Start, rangeUTF16.Start), mark.level); err != nil {
-				return err
-			}
-		}
-		if rangeUTF16.End < mark.rangeUTF16.End {
-			if _, err := d.AddMark(node, NewUTF16Range(rangeUTF16.End, mark.rangeUTF16.End), mark.level); err != nil {
-				return err
-			}
-		}
-	}
-	if !remove {
-		for _, line := range lines {
-			if _, err := d.AddMark(node, line, level); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func splitNonEmptyLinesUTF16(text string, start UTF16Offset) []UTF16Range {
-	ranges := make([]UTF16Range, 0)
-	offset := start
-	for len(text) > 0 {
-		newline := strings.IndexByte(text, '\n')
-		line := text
-		if newline >= 0 {
-			line = text[:newline+1]
-		}
-		content := strings.TrimRight(line, "\r\n")
-		contentLength := UTF16Offset(StringLenUTF16(content))
-		if contentLength > 0 {
-			ranges = append(ranges, NewUTF16Range(offset, offset+contentLength))
-		}
-		lineLength := UTF16Offset(StringLenUTF16(line))
-		offset += lineLength
-		text = text[len(line):]
-	}
-	return ranges
 }
 
 func crosses(a, b UTF16Range) bool {
@@ -288,6 +203,9 @@ func sortMarks(marks []InlineMark, active *MarkID) {
 			}
 			return 1
 		}
+		if left.kind != right.kind {
+			return strings.Compare(string(left.kind), string(right.kind))
+		}
 		return compare(left.id, right.id)
 	})
 }
@@ -306,7 +224,8 @@ func compare[T ~int | ~uint64 | ~uint8](left, right T) int {
 func dedupeMarks(marks *[]InlineMark) {
 	output := (*marks)[:0]
 	for _, mark := range *marks {
-		if len(output) > 0 && output[len(output)-1].rangeUTF16 == mark.rangeUTF16 {
+		if len(output) > 0 && output[len(output)-1].rangeUTF16 == mark.rangeUTF16 &&
+			output[len(output)-1].kind == mark.kind {
 			output[len(output)-1].level = max(output[len(output)-1].level, mark.level)
 			continue
 		}
@@ -322,7 +241,7 @@ func validateMarks(node *Node) error {
 		if err := node.ValidateTextRangeUTF16(mark.rangeUTF16.Start, mark.rangeUTF16.End); err != nil {
 			return err
 		}
-		if mark.level < 1 || mark.level > 2 ||
+		if mark.level < 1 || mark.kind == "" ||
 			uint64(mark.id) >= node.nextMarkID {
 			return invalidDocument("invalid inline mark identity or strength")
 		}

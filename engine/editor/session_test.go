@@ -15,22 +15,18 @@ func (c *sessionClock) Now() time.Time { return c.now }
 
 func newSessionFixture(t *testing.T, text string, mark bool) (*Session, model.NodeID) {
 	t.Helper()
-	document, err := model.NewDocument("text")
+	document, blocks, err := NewBlockDocument(text)
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := document.Snapshot().Root()
-	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
-		if err := draft.SetTextValue(node, text); err != nil {
+	node := blocks[0]
+	if mark {
+		if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+			_, err := draft.AddMark(node, model.NewUTF16Range(1, 3), EmphasisMark, 1)
 			return err
+		}); err != nil {
+			t.Fatal(err)
 		}
-		if mark {
-			_, err := draft.AddMark(node, model.NewUTF16Range(1, 3), 1)
-			return err
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
 	}
 	catalog, err := EditorPolicyCatalog()
 	if err != nil {
@@ -54,7 +50,7 @@ func TestSessionMountsProjectionInlineMetricsAndPairs(t *testing.T) {
 		t.Fatalf("projection = %q", session.Projection().Text())
 	}
 	metrics, ok := session.Statistics()
-	if !ok || metrics.Metrics.Characters != 5 || metrics.Metrics.Paragraphs != 1 {
+	if !ok || metrics.Characters != 5 || metrics.Paragraphs != 1 {
 		t.Fatalf("metrics = %#v, %v", metrics, ok)
 	}
 	pairs := session.Pairs()
@@ -159,29 +155,6 @@ func TestSessionSelectionDrivesFrameAndComposition(t *testing.T) {
 	}
 }
 
-func TestSessionInstallsMetricsOnlyForCurrentTextRoot(t *testing.T) {
-	t.Parallel()
-	session, _ := newSessionFixture(t, "one", false)
-	source, ok := session.Statistics()
-	if !ok {
-		t.Fatal("initial metrics source missing")
-	}
-	if !session.InstallTextMetrics(source, TextMetrics{Characters: 3, Words: 1, Paragraphs: 1}) {
-		t.Fatal("current metrics source rejected")
-	}
-	stale := source
-	if _, err := session.ReplaceSelection("!", kernel.EventOriginTyping); err != nil {
-		t.Fatal(err)
-	}
-	if session.InstallTextMetrics(stale, TextMetrics{Characters: 9}) {
-		t.Fatal("stale metrics source accepted")
-	}
-	current, ok := session.Statistics()
-	if !ok || current.Metrics.Characters != 4 {
-		t.Fatalf("current metrics = %#v, %v", current, ok)
-	}
-}
-
 func TestSessionReplacementPublishesProjectionHistoryAndMetrics(t *testing.T) {
 	t.Parallel()
 	session, node := newSessionFixture(t, "ab", false)
@@ -209,7 +182,7 @@ func TestSessionReplacementPublishesProjectionHistoryAndMetrics(t *testing.T) {
 		t.Fatal("replacement did not record history")
 	}
 	metrics, ok := session.Statistics()
-	if !ok || metrics.Metrics.Characters != 3 {
+	if !ok || metrics.Characters != 3 {
 		t.Fatalf("metrics = %#v", metrics)
 	}
 }
@@ -274,4 +247,14 @@ func TestSessionCompositionRetainsPreviewUntilHandled(t *testing.T) {
 	if _, active := session.Composition().Preview(); active {
 		t.Fatal("composition preview survived handled commit")
 	}
+}
+
+// emptyBlockDocument is a page of one empty paragraph, and that paragraph.
+func emptyBlockDocument(t *testing.T) (*model.Document, model.NodeID) {
+	t.Helper()
+	document, blocks, err := NewBlockDocument("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return document, blocks[0]
 }

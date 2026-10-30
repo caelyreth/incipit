@@ -27,7 +27,7 @@ func NewPresentation(
 	if runtime == nil {
 		return Presentation{}, &MarkupProjectionError{Kind: projection.ErrorSource}
 	}
-	projectionValue, err := MarkupProject(runtime.Snapshot(), node, generation, runtime.Configuration())
+	projectionValue, err := MarkupProject(runtime.Snapshot(), generation, runtime.Configuration())
 	if err != nil {
 		return Presentation{}, err
 	}
@@ -241,12 +241,7 @@ func projectionFlow(
 	selection model.TextSelection,
 	decorations []surface.Decoration,
 ) (*surface.Flow, error) {
-	snapshot := runtime.Snapshot()
-	node, ok := snapshot.Document().Node(selection.Node())
-	if !ok {
-		return nil, &projection.ProjectionError{Kind: projection.ErrorSource}
-	}
-	runs, err := InlineStyleRuns(projectionValue, node, markupEnabled(runtime.Configuration()))
+	runs, err := InlineStyleRuns(projectionValue, runtime.Snapshot().Document(), markupEnabled(runtime.Configuration()))
 	if err != nil {
 		return nil, err
 	}

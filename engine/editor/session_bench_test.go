@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/engine/kernel"
-	"github.com/caelyreth/neverland/engine/model"
 )
 
 func benchmarkProse(size int) string {
@@ -16,16 +15,11 @@ func benchmarkProse(size int) string {
 
 func benchmarkSession(b *testing.B, text string, heavy bool) *Session {
 	b.Helper()
-	document, err := model.NewDocument("text")
+	document, blocks, err := NewBlockDocument(text)
 	if err != nil {
 		b.Fatal(err)
 	}
-	node := document.Snapshot().Root()
-	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
-		return draft.SetTextValue(node, text)
-	}); err != nil {
-		b.Fatal(err)
-	}
+	node := blocks[len(blocks)-1]
 	catalog, err := EditorPolicyCatalog()
 	if err != nil {
 		b.Fatal(err)
@@ -47,7 +41,7 @@ func benchmarkSession(b *testing.B, text string, heavy bool) *Session {
 			b.Fatal(err)
 		}
 	}
-	end := model.UTF16Offset(model.StringLenUTF16(text))
+	end := session.Projection().UTF16Len()
 	if err := session.SelectProjected(end, end); err != nil {
 		b.Fatal(err)
 	}

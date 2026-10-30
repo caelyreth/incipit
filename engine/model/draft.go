@@ -6,10 +6,14 @@ import (
 	"github.com/caelyreth/neverland/engine/text/rope"
 )
 
-// DocumentDraft is a copy-on-write semantic transaction.
+// DocumentDraft is a copy-on-write semantic transaction. Its first write
+// copies the node map and later writes change that copy in place, until a
+// checkpoint or a candidate snapshot shares it, after which the next write
+// copies again. Nodes themselves are immutable: a write replaces the node.
 type DocumentDraft struct {
 	base      *documentState
 	state     *documentState
+	owned     bool
 	changes   []Change
 	textEdits []TextEdit
 	written   bool
@@ -24,18 +28,8 @@ func (d *DocumentDraft) BaseSnapshot() DocumentSnapshot {
 // CandidateSnapshot exposes the candidate state for transaction preparation.
 // It must not be published until the caller validates and accepts the draft.
 func (d *DocumentDraft) CandidateSnapshot(revision uint64) DocumentSnapshot {
-	nodes := make(map[NodeID]*Node, len(d.state.nodes))
-	for id, node := range d.state.nodes {
-		nodes[id] = node.value()
-	}
-	return DocumentSnapshot{
-		state: &documentState{
-			root:   d.state.root,
-			nodes:  nodes,
-			nextID: d.state.nextID,
-		},
-		revision: revision,
-	}
+	d.owned = false
+	return DocumentSnapshot{state: d.state, revision: revision}
 }
 
 // Draft is a concise alias for DocumentDraft.
@@ -96,6 +90,7 @@ func (d *DocumentDraft) Node(id NodeID) (*Node, bool) {
 
 // Checkpoint captures state and all successful-write journals.
 func (d *DocumentDraft) Checkpoint() DraftCheckpoint {
+	d.owned = false
 	return DraftCheckpoint{
 		state:        d.state,
 		changesLen:   len(d.changes),
@@ -106,7 +101,7 @@ func (d *DocumentDraft) Checkpoint() DraftCheckpoint {
 
 // Rollback restores a checkpoint exactly.
 func (d *DocumentDraft) Rollback(checkpoint DraftCheckpoint) {
-	d.state = checkpoint.state
+	d.state, d.owned = checkpoint.state, false
 	d.changes = d.changes[:checkpoint.changesLen]
 	d.textEdits = d.textEdits[:checkpoint.textEditsLen]
 	d.written = checkpoint.written
@@ -522,6 +517,10 @@ func (d *DocumentDraft) Validate() error {
 }
 
 func (d *DocumentDraft) copyState() *documentState {
+	if d.owned {
+		return d.state
+	}
+	d.owned = true
 	state := &documentState{
 		root:   d.state.root,
 		nodes:  make(map[NodeID]*Node, len(d.state.nodes)),

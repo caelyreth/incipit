@@ -1,9 +1,11 @@
-package model
+package editor
 
 import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/caelyreth/neverland/engine/model"
 )
 
 type traceOperation struct {
@@ -55,34 +57,36 @@ func TestRustSeededDocumentTraces(t *testing.T) {
 	}
 	for _, trace := range cases {
 		t.Run(trace.Name, func(t *testing.T) {
-			document, err := NewDocument("text")
+			document, err := model.NewDocument("text")
 			if err != nil {
 				t.Fatal(err)
 			}
 			node := document.Snapshot().Root()
-			if _, err := document.Transact(func(draft *DocumentDraft) error {
+			if _, err := document.Transact(func(draft *model.DocumentDraft) error {
 				return draft.SetTextValue(node, trace.Initial)
 			}); err != nil {
 				t.Fatal(err)
 			}
 			for index, operation := range trace.Operations {
-				_, err := document.Transact(func(draft *DocumentDraft) error {
+				_, err := document.Transact(func(draft *model.DocumentDraft) error {
 					switch operation.Kind {
 					case "append":
 						return draft.AppendText(node, operation.Text)
 					case "replace":
 						return draft.ReplaceTextUTF16(
 							node,
-							UTF16Offset(operation.Start),
-							UTF16Offset(operation.End),
+							model.UTF16Offset(operation.Start),
+							model.UTF16Offset(operation.End),
 							operation.Text,
 						)
 					case "delete_prefix":
-						return draft.ReplaceTextUTF16(node, 0, UTF16Offset(operation.Start), "")
+						return draft.ReplaceTextUTF16(node, 0, model.UTF16Offset(operation.Start), "")
 					case "format":
-						return draft.FormatEmphasis(
+						return ToggleMark(
+							draft,
 							node,
-							NewUTF16Range(UTF16Offset(operation.Start), UTF16Offset(operation.End)),
+							model.NewUTF16Range(model.UTF16Offset(operation.Start), model.UTF16Offset(operation.End)),
+							EmphasisMark,
 							uint8(traceSeed(trace.Name)%2+1),
 						)
 					case "select":
@@ -112,7 +116,7 @@ func TestRustSeededDocumentTraces(t *testing.T) {
 	}
 }
 
-func snapshotForTrace(snapshot DocumentSnapshot, node NodeID) traceSnapshot {
+func snapshotForTrace(snapshot model.DocumentSnapshot, node model.NodeID) traceSnapshot {
 	value, _ := snapshot.Node(node)
 	result := traceSnapshot{Revision: snapshot.Revision(), Text: value.Text().String()}
 	for _, mark := range value.Marks() {

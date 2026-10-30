@@ -6,7 +6,7 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-// TextMetrics are semantic counts over the current node's text. Characters
+// TextMetrics are semantic counts over a page's text. Characters
 // means Unicode scalars, not UTF-16 units or graphemes.
 type TextMetrics struct {
 	Characters int
@@ -38,43 +38,45 @@ func countParagraphs(text string) int {
 	return count
 }
 
-// TextMetricsSource identifies the exact immutable root a metrics snapshot
-// describes. It lets asynchronous work install only against current text.
-type TextMetricsSource struct {
-	Node     model.NodeID
-	Root     model.TextRoot
-	HasRoot  bool
-	Metrics  TextMetrics
-	Computed bool
+// PageMetrics counts a page block by block. Each block keeps its counts for
+// as long as its text root is the same, so an edit recounts only the blocks
+// it touched, and the page's counts are their sum.
+type PageMetrics struct {
+	blocks map[model.NodeID]blockMetrics
+	total  TextMetrics
 }
 
-// NewTextMetricsSource captures a node text root and its computed metrics.
-func NewTextMetricsSource(node model.NodeID, root model.TextRoot, hasRoot bool) (TextMetricsSource, bool) {
-	metrics := TextMetrics{}
-	if hasRoot {
-		var ok bool
-		metrics, ok = ComputeTextMetrics(root.String())
-		if !ok {
-			return TextMetricsSource{}, false
+type blockMetrics struct {
+	root    model.TextRoot
+	hasRoot bool
+	metrics TextMetrics
+}
+
+// Update recounts what changed in document since the last update.
+func (m *PageMetrics) Update(document model.DocumentSnapshot) bool {
+	next := make(map[model.NodeID]blockMetrics, len(m.blocks))
+	total := TextMetrics{}
+	for _, block := range DocumentBlocks(document) {
+		root, hasRoot := block.TextRoot()
+		cached, ok := m.blocks[block.ID()]
+		if !ok || cached.hasRoot != hasRoot || hasRoot && !cached.root.Same(root) {
+			cached = blockMetrics{root: root, hasRoot: hasRoot}
+			if hasRoot {
+				metrics, valid := ComputeTextMetrics(root.String())
+				if !valid {
+					return false
+				}
+				cached.metrics = metrics
+			}
 		}
+		next[block.ID()] = cached
+		total.Characters += cached.metrics.Characters
+		total.Words += cached.metrics.Words
+		total.Paragraphs += cached.metrics.Paragraphs
 	}
-	return TextMetricsSource{
-		Node:     node,
-		Root:     root,
-		HasRoot:  hasRoot,
-		Metrics:  metrics,
-		Computed: true,
-	}, true
+	m.blocks, m.total = next, total
+	return true
 }
 
-// Matches reports whether this source still names the node's current text.
-func (s TextMetricsSource) Matches(node *model.Node) bool {
-	if node == nil || node.ID() != s.Node {
-		return false
-	}
-	root, hasRoot := node.TextRoot()
-	if hasRoot != s.HasRoot {
-		return false
-	}
-	return !s.HasRoot || root.Same(s.Root)
-}
+// Total returns the page's counts as last updated.
+func (m *PageMetrics) Total() TextMetrics { return m.total }

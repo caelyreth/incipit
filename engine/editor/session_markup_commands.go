@@ -33,10 +33,7 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 		return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
 	selection := s.presentation.Selection
-	range16, err := selection.Range()
-	if err != nil {
-		return 0, err
-	}
+	ranges := selectionBlockRanges(s.runtime.Snapshot().Document(), selection)
 	projected, err := s.VisualSelection()
 	if err != nil {
 		return 0, err
@@ -87,7 +84,7 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 		&markupFormatInvoker{
 			session: s,
 			command: command,
-			range16: range16,
+			ranges:  ranges,
 		},
 		func(view kernel.EngineView, changes kernel.EngineChanges, outcome kernel.DispatchOutcome) (struct{}, error) {
 			if outcome.Status != kernel.OutcomeHandled {
@@ -101,11 +98,12 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 			if !ok {
 				return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 			}
-			active = findExactMark(node, range16)
+			if !selection.Spans() {
+				active = findExactMark(node, ranges[0].Range)
+			}
 			projectedValue, projectErr := MarkupProjectDocument(
 				view.Document().CandidateSnapshot(view.Revision()),
 				view.Revision(),
-				rebased.Node(),
 				s.generation+1,
 				s.runtime.Configuration(),
 			)
@@ -147,7 +145,49 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 type markupFormatInvoker struct {
 	session *Session
 	command MarkupCommand
-	range16 model.UTF16Range
+	ranges  []blockRange
+}
+
+// blockRange is the part of a selection that lies in one block.
+type blockRange struct {
+	Node  model.NodeID
+	Range model.UTF16Range
+}
+
+// selectionBlockRanges splits a selection into its part in each block it
+// covers, in page order.
+func selectionBlockRanges(document model.DocumentSnapshot, selection model.TextSelection) []blockRange {
+	if !selection.Spans() {
+		range16, _ := selection.Range()
+		return []blockRange{{Node: selection.Node(), Range: range16}}
+	}
+	first, last := orderedAnchors(document, selection.Anchor(), selection.Head())
+	blocks := blocksBetween(document, first.Node(), last.Node())
+	ranges := make([]blockRange, 0, len(blocks))
+	for index, id := range blocks {
+		node, _ := document.Node(id)
+		start, end := model.UTF16Offset(0), blockLength(node)
+		if index == 0 {
+			start = first.Offset()
+		}
+		if index == len(blocks)-1 {
+			end = last.Offset()
+		}
+		ranges = append(ranges, blockRange{Node: id, Range: model.NewUTF16Range(start, end)})
+	}
+	return ranges
+}
+
+// markCovers reports whether marks of kind and level cover all of range16.
+func markCovers(node *model.Node, range16 model.UTF16Range, kind model.MarkKind, level uint8) bool {
+	end := range16.Start
+	for _, mark := range node.Marks() {
+		if mark.Kind() == kind && mark.Level() == level &&
+			mark.Range().Start <= end && end < mark.Range().End {
+			end = max(end, mark.Range().End)
+		}
+	}
+	return end >= range16.End
 }
 
 func (i *markupFormatInvoker) Invoke(
@@ -162,25 +202,40 @@ func (i *markupFormatInvoker) Invoke(
 	if err != nil {
 		return 0, err
 	}
-	nodeID := i.session.Selection().Node()
-	node, ok := document.Node(nodeID)
-	if !ok {
-		return 0, &kernel.EngineError{
-			Kind: kernel.EngineErrorDocument,
-			Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: nodeID},
-		}
-	}
 	level := i.command.Level()
-	for _, mark := range node.Marks() {
-		if mark.Range() == i.range16 && mark.Level() == level {
-			if err := document.SetMarkLevel(nodeID, mark.ID(), 0); err != nil {
-				return 0, err
+	if len(i.ranges) == 1 {
+		part := i.ranges[0]
+		node, ok := document.Node(part.Node)
+		if !ok {
+			return 0, &kernel.EngineError{
+				Kind: kernel.EngineErrorDocument,
+				Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: part.Node},
 			}
-			return kernel.OutcomeHandled, nil
+		}
+		for _, mark := range node.Marks() {
+			if mark.Range() == part.Range && mark.Kind() == EmphasisMark && mark.Level() == level {
+				if err := document.SetMarkLevel(part.Node, mark.ID(), 0); err != nil {
+					return 0, err
+				}
+				return kernel.OutcomeHandled, nil
+			}
 		}
 	}
-	if err := document.FormatEmphasis(nodeID, i.range16, level); err != nil {
-		return 0, err
+	// Across blocks the selection gains the mark everywhere it lacks it,
+	// or loses it everywhere when it already has it all over.
+	covered := true
+	for _, part := range i.ranges {
+		node, ok := document.Node(part.Node)
+		covered = covered && ok && markCovers(node, part.Range, EmphasisMark, level)
+	}
+	for _, part := range i.ranges {
+		node, _ := document.Node(part.Node)
+		if part.Range.Empty() && len(i.ranges) > 1 || !covered && markCovers(node, part.Range, EmphasisMark, level) {
+			continue
+		}
+		if err := ToggleMark(document, part.Node, part.Range, EmphasisMark, level); err != nil {
+			return 0, err
+		}
 	}
 	return kernel.OutcomeHandled, nil
 }

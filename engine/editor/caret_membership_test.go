@@ -17,17 +17,13 @@ type markSpec struct {
 // newMarkedSession is a session over text with the given inline marks.
 func newMarkedSession(t *testing.T, text string, marks ...markSpec) *Session {
 	t.Helper()
-	document, err := model.NewDocument("text")
-	if err != nil {
-		t.Fatal(err)
-	}
-	node := document.Snapshot().Root()
+	document, node := emptyBlockDocument(t)
 	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
 		if err := draft.SetTextValue(node, text); err != nil {
 			return err
 		}
 		for _, mark := range marks {
-			if _, err := draft.AddMark(node, model.NewUTF16Range(mark.start, mark.end), mark.level); err != nil {
+			if _, err := draft.AddMark(node, model.NewUTF16Range(mark.start, mark.end), EmphasisMark, mark.level); err != nil {
 				return err
 			}
 		}

@@ -263,11 +263,14 @@ func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	projected := edit
 	projected.ID = "projected-edit"
 	projected.Trigger = kernel.NewExactTrigger(kernel.ProjectedTextKey)
+	span := edit
+	span.ID = "span"
+	span.Trigger = kernel.NewExactTrigger(kernel.SpanInputKey)
 	return kernel.PolicyDescriptor{
 		ID:               TextPolicyID,
 		EnabledByDefault: true,
 		Commands:         commands,
-		Rules:            []kernel.RuleDescriptor{edit, projected},
+		Rules:            []kernel.RuleDescriptor{edit, projected, span},
 	}, nil
 }
 
@@ -433,22 +436,20 @@ type MarkupPolicy struct{}
 // Project builds a source-validated projection from one engine snapshot.
 func (MarkupPolicy) Project(
 	snapshot kernel.EngineSnapshot,
-	nodeID model.NodeID,
 	generation uint64,
 	configuration *kernel.PreparedPolicyConfiguration,
 ) (*projection.Projection, error) {
-	return MarkupProject(snapshot, nodeID, generation, configuration)
+	return MarkupProject(snapshot, generation, configuration)
 }
 
 // ProjectDocument builds a projection from a bare document snapshot.
 func (MarkupPolicy) ProjectDocument(
 	document model.DocumentSnapshot,
 	revision uint64,
-	nodeID model.NodeID,
 	generation uint64,
 	configuration *kernel.PreparedPolicyConfiguration,
 ) (*projection.Projection, error) {
-	return MarkupProjectDocument(document, revision, nodeID, generation, configuration)
+	return MarkupProjectDocument(document, revision, generation, configuration)
 }
 
 // MarkupProjectionError identifies projection construction failures.
@@ -466,62 +467,45 @@ func (e *MarkupProjectionError) Error() string {
 
 func (e *MarkupProjectionError) Unwrap() error { return e.Err }
 
-// MarkupProject builds the projected surface for one semantic node.
+// MarkupProject builds the projected surface of the whole document.
 func MarkupProject(
 	snapshot kernel.EngineSnapshot,
-	nodeID model.NodeID,
 	generation uint64,
 	configuration *kernel.PreparedPolicyConfiguration,
 ) (*projection.Projection, error) {
-	return MarkupProjectDocument(snapshot.Document(), snapshot.Revision(), nodeID, generation, configuration)
+	return MarkupProjectDocument(snapshot.Document(), snapshot.Revision(), generation, configuration)
 }
 
-// MarkupProjectDocument builds and source-validates a projection from a bare
-// semantic document snapshot.
+// MarkupProjectDocument builds and source-validates the projection of a bare
+// semantic document snapshot: its blocks in order, each with its notation,
+// one line break of generated text between one block and the next.
 func MarkupProjectDocument(
 	document model.DocumentSnapshot,
 	revision uint64,
-	nodeID model.NodeID,
 	generation uint64,
 	configuration *kernel.PreparedPolicyConfiguration,
 ) (*projection.Projection, error) {
-	node, ok := document.Node(nodeID)
-	if !ok {
+	blocks := DocumentBlocks(document)
+	if len(blocks) == 0 {
 		return nil, &MarkupProjectionError{
 			Kind: projection.ErrorSource,
-			Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: nodeID},
+			Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: document.Root()},
 		}
 	}
-	enabled := markupEnabled(configuration)
-	count, err := legacyEmphasisCount(node, enabled)
-	if err != nil {
-		return nil, err
-	}
-	marker := "*"
-	if markupSettingBool(configuration, underscoresSetting, false) {
-		marker = "_"
-	}
-	notation := strings.Repeat(marker, count)
 	builder := projection.NewBuilder(
-		projection.ProjectionID(fmt.Sprintf("markup/%d", nodeID)),
+		projection.ProjectionID(fmt.Sprintf("document/%d", document.Root())),
 		projection.NewVersion(revision, generation),
 	)
-	if count == 0 {
-		if err := builder.Generated(""); err != nil {
-			return nil, wrapProjectionError(err)
+	builder.Grow(4 * len(blocks))
+	for index, node := range blocks {
+		if index > 0 {
+			if err := builder.Generated("\n"); err != nil {
+				return nil, wrapProjectionError(err)
+			}
 		}
-	} else if err := builder.Attribute(nodeID, legacyEmphasisAttribute, notation); err != nil {
-		return nil, wrapProjectionError(err)
-	}
-	if err := projectInlineBody(builder, node, marker, enabled); err != nil {
-		return nil, wrapProjectionError(err)
-	}
-	if count == 0 {
-		if err := builder.Generated(""); err != nil {
-			return nil, wrapProjectionError(err)
+		if err := projectBlock(builder, node, configuration); err != nil {
+			return nil, err
 		}
-	} else if err := builder.Attribute(nodeID, legacyEmphasisAttribute, notation); err != nil {
-		return nil, wrapProjectionError(err)
 	}
 	result, err := builder.Build(nil)
 	if err != nil {
@@ -531,6 +515,37 @@ func MarkupProjectDocument(
 		return nil, wrapProjectionError(err)
 	}
 	return result, nil
+}
+
+// projectBlock projects one block: its text and the notation of its marks.
+func projectBlock(
+	builder *projection.Builder,
+	node *model.Node,
+	configuration *kernel.PreparedPolicyConfiguration,
+) error {
+	enabled := markupEnabled(configuration)
+	count, err := legacyEmphasisCount(node, enabled)
+	if err != nil {
+		return err
+	}
+	marker := "*"
+	if markupSettingBool(configuration, underscoresSetting, false) {
+		marker = "_"
+	}
+	notation := strings.Repeat(marker, count)
+	edge := func() error {
+		if count == 0 {
+			return wrapProjectionError(builder.Generated(""))
+		}
+		return wrapProjectionError(builder.Attribute(node.ID(), legacyEmphasisAttribute, notation))
+	}
+	if err := edge(); err != nil {
+		return err
+	}
+	if err := projectInlineBody(builder, node, marker, enabled); err != nil {
+		return wrapProjectionError(err)
+	}
+	return edge()
 }
 
 type inlineProjectionEvent struct {
@@ -739,6 +754,9 @@ func (i *EditorInvoker) Invoke(
 	}
 	switch rule.Key.Owner {
 	case TextPolicyID:
+		if rule.Key.ID == "span" {
+			return i.invokeSpan(context)
+		}
 		return i.invokeText(context)
 	case MarkupPolicyID:
 		switch rule.Key.ID {
@@ -780,6 +798,9 @@ func (i *EditorInvoker) invokeText(context *kernel.RuleContext) (kernel.Outcome,
 	i.correctionEffectHead = start + model.UTF16Offset(model.StringLenUTF16(input.Text()))
 	i.hasCorrectionEffect = true
 	i.correctionEffectThrough = min(beforeEdits+1, document.TextEditCount())
+	if err := splitAtNewlines(document, input.Target().Node(), start, input.Text()); err != nil {
+		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
+	}
 	return kernel.OutcomeHandled, nil
 }
 
@@ -1015,7 +1036,9 @@ func (i *EditorInvoker) invokeCorrection(
 	policy kernel.PolicyID,
 ) (kernel.Outcome, error) {
 	input, hasInput := context.Event().TextInput()
-	if !hasInput {
+	// Text that broke into blocks left the block it was typed in; the
+	// block it ended in is refined as it is typed on.
+	if !hasInput || strings.ContainsRune(input.Text(), '\n') {
 		return kernel.OutcomePass, nil
 	}
 	document, err := context.DocumentMut()

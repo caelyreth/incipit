@@ -47,13 +47,15 @@ func (s *Session) ExecuteHistory(command HistoryCommand) (kernel.Outcome, error)
 // pulse carries on over its text.
 func (s *Session) restoreHistoryFrame(frame Frame, undo bool) error {
 	now := s.feedback.clock.Now()
-	node := frame.node.ID()
-	was, changed, restored := s.historyChange(frame)
+	current := s.runtime.Snapshot().Document()
+	node := frame.selection.Node()
+	was, restored := textChange(blockText(current, node), blockText(frame.document, node))
 	phase, playing := s.feedback.Take(node, was, now)
+	carried := historyEdits(current, frame.document)
 	var candidate Presentation
 	transaction, err := s.runtime.TransactPrepared(
 		func(draft *kernel.EngineDraft) error {
-			return draft.Document().RestoreContent(&frame.node)
+			return draft.Document().RestoreDocument(frame.document)
 		},
 		func(view kernel.EngineView, _ kernel.EngineChanges) (struct{}, error) {
 			selection, ok := frame.selection.RebaseAll(nil, view.Revision())
@@ -63,7 +65,6 @@ func (s *Session) restoreHistoryFrame(frame Frame, undo bool) error {
 			projected, err := MarkupProjectDocument(
 				view.Document().CandidateSnapshot(view.Revision()),
 				view.Revision(),
-				selection.Node(),
 				s.generation+1,
 				s.runtime.Configuration(),
 			)
@@ -101,10 +102,9 @@ func (s *Session) restoreHistoryFrame(frame Frame, undo bool) error {
 		return err
 	}
 	s.applyPresentation(candidate)
-	s.refreshMetrics()
 	s.navigation.Clear()
 	revision := transaction.Revision
-	s.feedback.Rebase([]model.TextEdit{model.NewTextEdit(node, was, changed)}, revision)
+	s.feedback.Rebase(carried, revision)
 	if (frame.corrected || playing) && !restored.Empty() {
 		targets := []input.TextTarget{input.NewTextTarget(node, restored, revision)}
 		switch {
@@ -119,29 +119,47 @@ func (s *Session) restoreHistoryFrame(frame Frame, undo bool) error {
 	return nil
 }
 
-// historyChange is what moving to frame changes in its node's text: the
-// range it replaces in the text now, the length of what takes its place,
-// and that range in the restored text.
-func (s *Session) historyChange(frame Frame) (was model.UTF16Range, length model.UTF16Offset, restored model.UTF16Range) {
-	before := utf16.Encode([]rune(nodeText(mustNode(s.runtime.Snapshot().Document(), frame.node.ID()))))
-	after := utf16.Encode([]rune(nodeText(&frame.node)))
+// historyEdits are the text changes moving from one page to another makes
+// in the blocks both hold, each as the one replacement that covers it, so
+// what follows text, as a pulse does, keeps its place across the move.
+func historyEdits(from, to model.DocumentSnapshot) []model.TextEdit {
+	edits := make([]model.TextEdit, 0, 1)
+	for _, block := range DocumentBlocks(from) {
+		if _, kept := to.Node(block.ID()); !kept {
+			continue
+		}
+		was, restored := textChange(blockText(from, block.ID()), blockText(to, block.ID()))
+		if was.Empty() && restored.Empty() {
+			continue
+		}
+		edits = append(edits, model.NewTextEdit(block.ID(), was, restored.End-restored.Start))
+	}
+	return edits
+}
+
+// textChange is the one replacement that turns before into after: the
+// range it replaces in before, and the range its text takes in after.
+func textChange(before, after string) (was, restored model.UTF16Range) {
+	left, right := utf16.Encode([]rune(before)), utf16.Encode([]rune(after))
 	prefix := 0
-	for prefix < len(before) && prefix < len(after) && before[prefix] == after[prefix] {
+	for prefix < len(left) && prefix < len(right) && left[prefix] == right[prefix] {
 		prefix++
 	}
 	suffix := 0
-	for suffix < len(before)-prefix && suffix < len(after)-prefix &&
-		before[len(before)-1-suffix] == after[len(after)-1-suffix] {
+	for suffix < len(left)-prefix && suffix < len(right)-prefix &&
+		left[len(left)-1-suffix] == right[len(right)-1-suffix] {
 		suffix++
 	}
-	was = model.NewUTF16Range(model.UTF16Offset(prefix), model.UTF16Offset(len(before)-suffix))
-	restored = model.NewUTF16Range(model.UTF16Offset(prefix), model.UTF16Offset(len(after)-suffix))
-	return was, restored.End - restored.Start, restored
+	was = model.NewUTF16Range(model.UTF16Offset(prefix), model.UTF16Offset(len(left)-suffix))
+	restored = model.NewUTF16Range(model.UTF16Offset(prefix), model.UTF16Offset(len(right)-suffix))
+	return was, restored
 }
 
-func nodeText(node *model.Node) string {
-	if node == nil || !node.TextPresent() {
+// blockText is a block's text on a page, or nothing when the page lacks it.
+func blockText(document model.DocumentSnapshot, node model.NodeID) string {
+	block, ok := document.Node(node)
+	if !ok || !block.TextPresent() {
 		return ""
 	}
-	return node.Text().String()
+	return block.Text().String()
 }

@@ -18,7 +18,8 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 	}
 	selection := s.presentation.Selection
 	snapshot := s.runtime.Snapshot()
-	node, ok := snapshot.Document().Node(selection.Node())
+	document := snapshot.Document()
+	node, ok := document.Node(selection.Node())
 	if !ok {
 		return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
@@ -26,17 +27,10 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 	if node.TextPresent() {
 		text = node.Text().String()
 	}
-	range16, err := selection.Range()
-	if err != nil {
-		return 0, err
-	}
 	projected, err := s.VisualSelection()
 	if err != nil {
 		return 0, err
 	}
-	anchor := selection.Anchor().OffsetUTF16()
-	head := selection.Head().OffsetUTF16()
-
 	if command == TextLeft || command == TextRight ||
 		command == TextSelectLeft || command == TextSelectRight {
 		backward := command == TextLeft || command == TextSelectLeft
@@ -91,74 +85,109 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		return outcome.Outcome, err
 	}
 
-	previous := func() model.UTF16Offset {
-		if grapheme, ok := PreviousGrapheme(text, head); ok {
-			return grapheme.Start
-		}
-		return 0
+	// Positions carry their block: stepping past a block's edge lands in
+	// the next one, and the whole-page commands reach the first and last.
+	type position struct {
+		node   model.NodeID
+		offset model.UTF16Offset
 	}
-	next := func() model.UTF16Offset {
-		if grapheme, ok := NextGrapheme(text, head); ok {
-			return grapheme.End
-		}
-		return model.UTF16Offset(model.StringLenUTF16(text))
+	at := func(block *model.Node, offset model.UTF16Offset) position {
+		return position{node: block.ID(), offset: offset}
 	}
-	lineStart, lineEnd := lineOffsets(text, head)
-	length := model.UTF16Offset(model.StringLenUTF16(text))
+	head := at(node, selection.Head().Offset())
+	anchor := position{node: selection.Anchor().Node(), offset: selection.Anchor().Offset()}
+	blocks := DocumentBlocks(document)
+	first, last := blocks[0], blocks[len(blocks)-1]
+	previous := func() position {
+		if grapheme, ok := PreviousGrapheme(text, head.offset); ok {
+			return at(node, grapheme.Start)
+		}
+		if before, ok := neighborBlock(document, node.ID(), -1); ok {
+			return at(before, blockLength(before))
+		}
+		return head
+	}
+	next := func() position {
+		if grapheme, ok := NextGrapheme(text, head.offset); ok {
+			return at(node, grapheme.End)
+		}
+		if after, ok := neighborBlock(document, node.ID(), 1); ok {
+			return at(after, 0)
+		}
+		return head
+	}
+	// edge is the selection's start, or its end, in page order.
+	edge := func(end bool) position {
+		low, high := orderedAnchors(document,
+			model.NewTextAnchor(anchor.node, anchor.offset, model.AffinityRight, 0),
+			model.NewTextAnchor(head.node, head.offset, model.AffinityRight, 0))
+		if end {
+			return position{high.Node(), high.Offset()}
+		}
+		return position{low.Node(), low.Offset()}
+	}
+	collapsed := selection.IsCollapsed()
+	lineStart, lineEnd := lineOffsets(text, head.offset)
 	switch command {
 	case TextLeft:
-		offset := previous()
-		if !range16.Empty() {
-			offset = range16.Start
+		target := previous()
+		if !collapsed {
+			target = edge(false)
 		}
-		anchor, head = offset, offset
+		anchor, head = target, target
 	case TextRight:
-		offset := next()
-		if !range16.Empty() {
-			offset = range16.End
+		target := next()
+		if !collapsed {
+			target = edge(true)
 		}
-		anchor, head = offset, offset
+		anchor, head = target, target
 	case TextSelectLeft:
 		head = previous()
 	case TextSelectRight:
 		head = next()
 	case TextLineStart:
-		anchor, head = lineStart, lineStart
+		head = at(node, lineStart)
+		anchor = head
 	case TextLineEnd:
-		anchor, head = lineEnd, lineEnd
+		head = at(node, lineEnd)
+		anchor = head
 	case TextSelectLineStart:
-		head = lineStart
+		head = at(node, lineStart)
 	case TextSelectLineEnd:
-		head = lineEnd
+		head = at(node, lineEnd)
 	case TextDocumentStart:
-		anchor, head = 0, 0
+		head = at(first, 0)
+		anchor = head
 	case TextDocumentEnd:
-		anchor, head = length, length
+		head = at(last, blockLength(last))
+		anchor = head
 	case TextSelectDocumentStart:
-		head = 0
+		head = at(first, 0)
 	case TextSelectDocumentEnd:
-		head = length
+		head = at(last, blockLength(last))
 	case TextSelectAll:
-		anchor, head = 0, length
+		anchor, head = at(first, 0), at(last, blockLength(last))
 	case TextBackspace, TextDelete:
-		target := model.NewUTF16Range(previous(), head)
+		from, to := previous(), head
 		if command == TextDelete {
-			target = model.NewUTF16Range(head, next())
+			from, to = head, next()
 		}
-		if !range16.Empty() {
-			target = range16
+		if !collapsed {
+			from, to = edge(false), edge(true)
 		}
-		if target.Empty() {
+		if from == to {
 			return kernel.OutcomeHandled, nil
 		}
-		projectedTarget, projectErr := s.presentation.Projection.ProjectAnchor(
-			model.NewTextAnchor(selection.Node(), target.Start, model.AffinityRight, snapshot.Revision()),
+		// Projected, the range reaches across whatever notation and block
+		// boundary lies between, and the edit path decides what that means.
+		projectedFrom, projectErr := s.presentation.Projection.ProjectAnchor(
+			model.NewTextAnchor(from.node, from.offset, model.AffinityRight, snapshot.Revision()),
 		)
 		if projectErr != nil {
 			return 0, projectErr
 		}
-		projectedHead, projectErr := s.presentation.Projection.ProjectAnchor(
-			model.NewTextAnchor(selection.Node(), target.End, model.AffinityLeft, snapshot.Revision()),
+		projectedTo, projectErr := s.presentation.Projection.ProjectAnchor(
+			model.NewTextAnchor(to.node, to.offset, model.AffinityLeft, snapshot.Revision()),
 		)
 		if projectErr != nil {
 			return 0, projectErr
@@ -166,8 +195,8 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		edit, editErr := FromProjectedRange(
 			s.presentation.Projection,
 			model.NewUTF16Range(
-				min(projectedTarget.RangeUTF16().Start, projectedHead.RangeUTF16().Start),
-				max(projectedTarget.RangeUTF16().Start, projectedHead.RangeUTF16().Start),
+				min(projectedFrom.RangeUTF16().Start, projectedTo.RangeUTF16().Start),
+				max(projectedFrom.RangeUTF16().Start, projectedTo.RangeUTF16().Start),
 			),
 			"",
 			kernel.EventOriginSemantic,
@@ -178,17 +207,20 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		editOutcome, editErr := s.applyProjectedEdit(edit)
 		return editOutcome.Outcome, editErr
 	}
-	if anchor == selection.Anchor().OffsetUTF16() && head == selection.Head().OffsetUTF16() {
+	if anchor.node == selection.Anchor().Node() && anchor.offset == selection.Anchor().Offset() &&
+		head.node == selection.Head().Node() && head.offset == selection.Head().Offset() {
 		return kernel.OutcomeHandled, nil
 	}
 	headAffinity := model.AffinityRight
 	switch command {
 	case TextLeft, TextRight, TextSelectLeft, TextSelectRight:
-		headAffinity = motionAffinity(selection.Head().OffsetUTF16(), head)
+		if head.node == selection.Head().Node() {
+			headAffinity = motionAffinity(selection.Head().OffsetUTF16(), head.offset)
+		}
 	}
 	if err := s.Select(model.NewTextSelection(
-		model.NewTextAnchor(selection.Node(), anchor, model.AffinityRight, snapshot.Revision()),
-		model.NewTextAnchor(selection.Node(), head, headAffinity, snapshot.Revision()),
+		model.NewTextAnchor(anchor.node, anchor.offset, model.AffinityRight, snapshot.Revision()),
+		model.NewTextAnchor(head.node, head.offset, headAffinity, snapshot.Revision()),
 	)); err != nil {
 		return 0, err
 	}

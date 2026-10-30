@@ -10,10 +10,10 @@ func TestFormattingLevelUsesStrongestCoveringMark(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "abcdef")
 	if _, err := fixture.document.Transact(func(draft *model.DocumentDraft) error {
-		if _, err := draft.AddMark(fixture.node, model.NewUTF16Range(0, 4), 1); err != nil {
+		if _, err := draft.AddMark(fixture.node, model.NewUTF16Range(0, 4), EmphasisMark, 1); err != nil {
 			return err
 		}
-		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(1, 3), 2)
+		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(1, 3), EmphasisMark, 2)
 		return err
 	}); err != nil {
 		t.Fatal(err)

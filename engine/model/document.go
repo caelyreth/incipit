@@ -133,6 +133,7 @@ func (d *Document) Transact(operation func(*DocumentDraft) error) (TransactionOu
 		}
 		d.state = draft.state
 		d.revision = revision
+		draft.owned = false
 	}
 	return TransactionOutcome{Revision: revision, Changes: changes}, nil
 }
@@ -143,7 +144,7 @@ func (d *Document) PublishDraft(draft *DocumentDraft, revision uint64) error {
 	if err := draft.Validate(); err != nil {
 		return err
 	}
-	d.state = draft.state
+	d.state, draft.owned = draft.state, false
 	d.revision = revision
 	return nil
 }

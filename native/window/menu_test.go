@@ -104,7 +104,8 @@ func TestShellStatisticsUseReferenceStatusWording(t *testing.T) {
 	}
 	app.Session = &sheetSession{controller: document, title: "Untitled"}
 	app.refreshShell()
-	if app.Shell.Statistics != "3 words  ·  2 paragraphs  ·  14 characters" {
+	// Line breaks are block boundaries now, not characters.
+	if app.Shell.Statistics != "3 words  ·  2 paragraphs  ·  12 characters" {
 		t.Fatalf("statistics = %q", app.Shell.Statistics)
 	}
 }

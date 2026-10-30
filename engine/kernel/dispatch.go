@@ -505,7 +505,7 @@ func invokeRule(
 	}
 	if target, ok := eventTargetNode(event); ok {
 		for _, change := range draft.Document().ChangesSince(changeStart) {
-			if change.Node != target {
+			if !withinInputScope(draft.Document(), target, change.Node) {
 				return 0, &EngineError{
 					Kind:    EngineErrorOutOfScopeDocumentWrite,
 					Target:  target,
@@ -515,6 +515,37 @@ func invokeRule(
 		}
 	}
 	return status, nil
+}
+
+// withinInputScope reports whether an input at target may change changed:
+// the node it targets, or the container that node is a block of and the
+// blocks beside it there, as a block splits, joins or gives way to its
+// neighbors. Anything farther away is out of its reach.
+func withinInputScope(document *model.DocumentDraft, target, changed model.NodeID) bool {
+	if changed == target {
+		return true
+	}
+	container, ok := nodeParent(document, target)
+	if !ok {
+		return false
+	}
+	if changed == container {
+		return true
+	}
+	parent, ok := nodeParent(document, changed)
+	return ok && parent == container
+}
+
+// nodeParent is a node's parent in the draft, or in the snapshot the draft
+// began from for a node it removed.
+func nodeParent(document *model.DocumentDraft, id model.NodeID) (model.NodeID, bool) {
+	if node, ok := document.Node(id); ok {
+		return node.Parent()
+	}
+	if node, ok := document.BaseSnapshot().Node(id); ok {
+		return node.Parent()
+	}
+	return 0, false
 }
 
 func observerChangesSurvived(observer *LinkedRule, draft *EngineDraft) bool {
@@ -540,6 +571,9 @@ func eventTargetNode(event Event) (model.NodeID, bool) {
 	if input, ok := event.AttributeInput(); ok {
 		return input.Target().Node(), true
 	}
+	if input, ok := event.SpanInput(); ok {
+		return input.From().Node(), true
+	}
 	return 0, false
 }
 
@@ -552,6 +586,12 @@ func validateEventInput(event Event, draft *EngineDraft) error {
 	}
 	if attribute, ok := event.AttributeInput(); ok {
 		return ValidateAttributeTargetDraft(attribute.Target(), draft)
+	}
+	if span, ok := event.SpanInput(); ok {
+		if err := ValidateTextTargetDraft(span.From(), draft); err != nil {
+			return err
+		}
+		return ValidateTextTargetDraft(span.To(), draft)
 	}
 	return nil
 }

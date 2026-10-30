@@ -188,6 +188,16 @@ func (p *Projection) Segments() []Segment {
 	return append([]Segment(nil), p.segments...)
 }
 
+// EachSegment visits the segments in order, without copying them, until fn
+// returns false.
+func (p *Projection) EachSegment(fn func(index int, segment Segment) bool) {
+	for index, segment := range p.segments {
+		if !fn(index, segment) {
+			return
+		}
+	}
+}
+
 func (p *Projection) Dependencies() []Dependency {
 	return append([]Dependency(nil), p.dependencies...)
 }
@@ -691,8 +701,26 @@ func NewBuilder(id ProjectionID, version Version) *Builder {
 	return &Builder{id: id, version: version}
 }
 
+// Grow makes room for about segments more segments, for a caller that
+// knows the size of what it builds.
+func (b *Builder) Grow(segments int) {
+	b.parts = slices.Grow(b.parts, segments)
+	b.segments = slices.Grow(b.segments, segments)
+	b.witnesses = slices.Grow(b.witnesses, segments)
+}
+
+// Generated text a page repeats, as the break between blocks, shares one
+// immutable rope.
+var sharedGenerated = map[string]textPart{
+	"":   wholeTextPart(rope.New("")),
+	"\n": wholeTextPart(rope.New("\n")),
+}
+
 func (b *Builder) Generated(text string) error {
-	part := wholeTextPart(rope.New(text))
+	part, shared := sharedGenerated[text]
+	if !shared {
+		part = wholeTextPart(rope.New(text))
+	}
 	range16, err := b.nextRange(part.range16.Len(), part.bytes.Len())
 	if err != nil {
 		return err
