@@ -217,7 +217,16 @@ func (m *Motion) Geometry(caret ui.Rect, selection []ui.Rect, now time.Time, ani
 			m.selectionShown = now
 			m.selectionFading = true
 		}
+		// New rows grow out of the selection as it shows now: each starts
+		// as the drawn row nearest it and glides to its own place, so
+		// selecting more spreads from what was selected.
+		drawn := append([]ui.Rect(nil), m.selectionOutput...)
 		m.selection = make([]rectangle, len(selection))
+		if len(drawn) > 0 {
+			for index, target := range selection {
+				m.selection[index].start(nearestRow(drawn, target), now)
+			}
+		}
 	}
 	m.sampleSelectionFade(len(selection) > 0, now)
 	m.selectionOutput = m.selectionOutput[:0]
@@ -228,6 +237,22 @@ func (m *Motion) Geometry(caret ui.Rect, selection []ui.Rect, now time.Time, ani
 		)
 	}
 	return sampledCaret, m.selectionOutput
+}
+
+// nearestRow is the row of rows whose vertical middle is nearest target's.
+func nearestRow(rows []ui.Rect, target ui.Rect) ui.Rect {
+	best, distance := rows[0], float32(-1)
+	middle := target.Y + target.H/2
+	for _, row := range rows {
+		gap := row.Y + row.H/2 - middle
+		if gap < 0 {
+			gap = -gap
+		}
+		if distance < 0 || gap < distance {
+			best, distance = row, gap
+		}
+	}
+	return best
 }
 
 func (m *Motion) sampleSelectionFade(visible bool, now time.Time) {

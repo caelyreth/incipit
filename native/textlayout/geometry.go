@@ -86,10 +86,13 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			}
 		}
 		if end > paragraph.contentUTF16 && start <= paragraph.contentUTF16 {
+			// The break past a selected paragraph's end shows as a sliver of
+			// its last row, as tall as that row: a heading's is taller than
+			// body text's, and a shorter sliver would notch the selection.
 			caret := paragraph.layout.Caret(paragraph.contentUTF16 - paragraph.startUTF16)
 			caret.Y += paragraph.top
 			caret.W = 6
-			caret.H = l.style.Prose.LineHeight()
+			caret.H = max(caret.H, l.style.Prose.LineHeight())
 			rects = append(rects, caret)
 		}
 	}

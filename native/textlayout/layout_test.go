@@ -249,3 +249,25 @@ func TestCaretGrowsWithItsRow(t *testing.T) {
 		t.Fatalf("heading caret %v is not centered in its row %v", heading, row)
 	}
 }
+
+// A selection across a heading's end is as tall there as the heading's
+// row: the sliver standing for the break leaves no notch.
+func TestSelectionBreakTakesItsRowHeight(t *testing.T) {
+	style := NewStyle(theme.NewProseStyle(19), theme.DefaultSettings().Semantic())
+	text := "Heading\nbody"
+	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{
+		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Heading: 1}},
+		{Bytes: model.NewByteRange(8, model.ByteOffset(len(text))), Style: surface.TextStyle{}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout := NewCache().Update(flow, 600, style)
+	rects := layout.RangeRects(model.NewUTF16Range(0, 12))
+	row, _ := layout.CaretLine(3)
+	for _, rect := range rects {
+		if rect.Y < row.Y+row.H && (rect.Y != row.Y || rect.H != row.H) {
+			t.Fatalf("heading row %v, selection piece %v", row, rect)
+		}
+	}
+}

@@ -29,6 +29,14 @@ func (r *rectangle) sample(target ui.Rect, now time.Time, frequency float32) ui.
 	}
 }
 
+// start places the rectangle at from, to move on from there.
+func (r *rectangle) start(from ui.Rect, now time.Time) {
+	r.axes = []Spring{
+		NewSpring(from.X, now), NewSpring(from.Y, now),
+		NewSpring(from.W, now), NewSpring(from.H, now),
+	}
+}
+
 func (r *rectangle) row() (float32, bool) {
 	if r.axes == nil {
 		return 0, false

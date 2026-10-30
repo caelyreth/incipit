@@ -46,7 +46,9 @@ func TestRetargetIsContinuousAndPreservesVelocity(t *testing.T) {
 	}
 }
 
-func TestSelectionTopologyReset(t *testing.T) {
+// Rows a selection gains grow out of the selection as drawn: each starts
+// as the drawn row nearest it, then settles at its own place.
+func TestSelectionRowsGrowOutOfTheDrawnSelection(t *testing.T) {
 	t.Parallel()
 	now := time.Unix(0, 0)
 	motion := New(now)
@@ -57,15 +59,20 @@ func TestSelectionTopologyReset(t *testing.T) {
 	if sampled[0].W != 30 {
 		t.Fatalf("same-top width did not animate: %#v", sampled)
 	}
-	targets := []ui.Rect{selection(0, 0, 100), selection(0, 34, 40)}
+	targets := []ui.Rect{selection(0, 0, 100), selection(0, 34, 40), selection(0, 68, 70)}
 	_, sampled = motion.Geometry(caret, targets, now, true)
-	if len(sampled) != 2 || sampled[0] != targets[0] || sampled[1] != targets[1] {
-		t.Fatalf("new topology animated across rows: %#v", sampled)
+	if len(sampled) != 3 || sampled[1] != sampled[0] || sampled[2] != sampled[0] {
+		t.Fatalf("new rows did not start from the drawn row: %#v", sampled)
 	}
-	relocated := []ui.Rect{selection(0, 68, 50)}
-	_, sampled = motion.Geometry(caret, relocated, now, true)
-	if len(sampled) != 1 || sampled[0] != relocated[0] {
-		t.Fatalf("relocated topology animated: %#v", sampled)
+	later := now
+	for range 120 {
+		later = later.Add(16 * time.Millisecond)
+		_, sampled = motion.Geometry(caret, targets, later, true)
+	}
+	for index := range targets {
+		if sampled[index] != targets[index] {
+			t.Fatalf("rows did not settle: %#v", sampled)
+		}
 	}
 }
 
