@@ -121,14 +121,14 @@ func TestSessionReconfigureFailurePreservesPresentationAndRevision(t *testing.T)
 	before := session.Projection()
 	beforeRevision := session.Runtime().Revision()
 	_, err := session.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
-		configuration.SetEnabled(MarkupPolicyID, false)
+		configuration.SetEnabled(WritingPolicyID, false)
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if session.Projection() == before || session.Runtime().Revision() != beforeRevision+1 ||
-		session.Runtime().Configuration().IsEnabled(MarkupPolicyID) {
+		session.Runtime().Configuration().IsEnabled(WritingPolicyID) {
 		t.Fatalf("reconfiguration did not install new projection")
 	}
 }

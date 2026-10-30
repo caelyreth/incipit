@@ -44,7 +44,7 @@ func playLoop(t *testing.T, player *Player, now time.Time) (string, time.Time) {
 func TestEveryShowcasePlaysItsStory(t *testing.T) {
 	want := map[kernel.PolicyID]string{
 		editor.PairsPolicyID:      "The tide turned (slowly) and she said “stay.”",
-		editor.MarkupPolicyID:     "*Write* *softly*, or **firmly**.",
+		editor.WritingPolicyID:    "## Tides\n*Write* *softly*, or **firmly**.\n- keep `notes` and ~strike~ drafts",
 		editor.CJKPolicyID:        "我用 Go 写作，每天写 500 字。",
 		editor.TypographyPolicyID: "Wait… — it’s “almost” done.",
 		editor.HistoryPolicyID:    "A first draft, then a second thought.",

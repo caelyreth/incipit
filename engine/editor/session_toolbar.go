@@ -20,7 +20,7 @@ func (s *Session) ToolbarState() ToolbarState {
 	}
 	configuration := s.runtime.Configuration()
 	allowStrong := false
-	if value, ok := configuration.Setting(NewMarkupSettingKey(allowStrongSetting)); ok {
+	if value, ok := configuration.Setting(NewWritingSettingKey(allowStrongSetting)); ok {
 		if enabled, ok := value.Bool(); ok {
 			allowStrong = enabled
 		}
@@ -36,7 +36,7 @@ func (s *Session) ToolbarState() ToolbarState {
 	}
 	active := activeMark(s.inline)
 	settings := MarkupSettings{
-		PolicyEnabled:  configuration.IsEnabled(MarkupPolicyID),
+		PolicyEnabled:  configuration.IsEnabled(WritingPolicyID),
 		CommandEnabled: commandEnabled,
 		AllowStrong:    allowStrong,
 	}

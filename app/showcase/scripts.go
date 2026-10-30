@@ -34,13 +34,17 @@ var scripts = map[kernel.PolicyID]Script{
 		},
 		Hold: 2600 * time.Millisecond,
 	},
-	editor.MarkupPolicyID: {
+	editor.WritingPolicyID: {
 		Beats: []Beat{
-			Type("Write *softly"),
+			Type("## Tides"),
+			Wait(500 * time.Millisecond),
+			Type("\nWrite *softly"),
 			Wait(500 * time.Millisecond),
 			Type("*, or **firmly"),
 			Wait(500 * time.Millisecond),
-			Type("*."),
+			Type("*.\n- keep `notes"),
+			Wait(500 * time.Millisecond),
+			Type("` and ~strike~ drafts"),
 			Wait(500 * time.Millisecond),
 			Select("Write"),
 			Press(editor.MarkupEmphasis.ID()),

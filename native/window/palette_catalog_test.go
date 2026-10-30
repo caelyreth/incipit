@@ -55,7 +55,7 @@ func TestPaletteOmitsDisabledCommandsAndRequiresAPage(t *testing.T) {
 	app.refreshSettingsData()
 	if _, err := app.Product.Apply(
 		appsettings.ToggleBoolean(
-			appsettings.PolicyBoolean(editor.MarkupPolicyID),
+			appsettings.PolicyBoolean(editor.WritingPolicyID),
 			false,
 		),
 		app.Store,

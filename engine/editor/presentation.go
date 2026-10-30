@@ -27,7 +27,7 @@ func NewPresentation(
 	if runtime == nil {
 		return Presentation{}, &MarkupProjectionError{Kind: projection.ErrorSource}
 	}
-	projectionValue, err := MarkupProject(runtime.Snapshot(), generation, runtime.Configuration())
+	projectionValue, err := ProjectSnapshot(runtime.Snapshot(), generation, runtime.Configuration())
 	if err != nil {
 		return Presentation{}, err
 	}

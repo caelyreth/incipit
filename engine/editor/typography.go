@@ -124,7 +124,9 @@ func typographyCorrections(
 		if strings.HasSuffix(before, "...") {
 			return replace(3, "…"), true, true
 		}
-		if strings.HasSuffix(before, "--") {
+		// Dashes alone at a block's start are a rule being typed, not a
+		// dash.
+		if strings.HasSuffix(before, "--") && before != "--" {
 			return replace(2, "—"), true, true
 		}
 		if strings.HasSuffix(before, "'") {

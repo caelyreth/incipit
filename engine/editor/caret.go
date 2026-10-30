@@ -80,9 +80,11 @@ func placeCaret(
 	}
 	at := base.RangeUTF16().Start
 	if node != nil && node.ID() == head.Node() {
+		low, high := blockInterior(p, node.ID())
 		best, distance := at, -1
 		for _, candidate := range headPositions(p, head.Node(), at) {
-			if !sameMark(caretMembership(node, p, candidate), member) {
+			if !sameMark(caretMembership(node, p, candidate), member) ||
+				candidate < low || high < candidate {
 				continue
 			}
 			if gap := absOffset(candidate - at); distance < 0 || gap < distance {
@@ -92,6 +94,26 @@ func placeCaret(
 		at = best
 	}
 	return caretTarget(p, at, head.Affinity())
+}
+
+// blockInterior is where a block's text lies between the notation it opens
+// and closes with: a caret is never outside a block's own notation, as one
+// past a code block's closing fence would be.
+func blockInterior(p *projection.Projection, node model.NodeID) (low, high model.UTF16Offset) {
+	low, high = 0, model.UTF16Offset(p.UTF16Len())
+	for _, segment := range p.Segments() {
+		target, ok := segment.AttributeTarget()
+		if !ok || target.Node() != node {
+			continue
+		}
+		switch target.Key() {
+		case blockNotationKey:
+			low = segment.ProjectedRange().End
+		case fenceNotationKey:
+			high = segment.ProjectedRange().Start
+		}
+	}
+	return low, high
 }
 
 // headPositions are the projected positions sharing at's semantic offset:

@@ -85,8 +85,12 @@ func (i *EditorInvoker) invokeSpan(context *kernel.RuleContext) (kernel.Outcome,
 	i.correctionEffectHead = start + model.UTF16Offset(model.StringLenUTF16(span.Text()))
 	i.hasCorrectionEffect = true
 	i.correctionEffectThrough = document.TextEditCount()
-	if err := splitAtNewlines(document, first, start, span.Text()); err != nil {
-		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
+	// The joined block breaks at every line break it now holds, the ones
+	// code it took in brought too, unless it keeps lines itself.
+	if joined, _ := document.Node(first); !blockKeepsLines(joined) {
+		if err := splitAtNewlines(document, first, 0, joined.Text().String()); err != nil {
+			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
+		}
 	}
 	return kernel.OutcomeHandled, nil
 }

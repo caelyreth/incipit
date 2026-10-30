@@ -47,7 +47,7 @@ A page is a document whose root holds blocks in order. Each block is a node
 with a kind, attributes, its own text rope and inline marks; marks are typed
 (`model.MarkKind`) and carry a level, and the model gives kinds no meaning.
 Block boundaries are structure, never text: a block's text holds no line
-break, and splitting or joining blocks moves positions with transfer edits
+break (code, which keeps its lines, aside), and splitting or joining blocks moves positions with transfer edits
 (`model.NewTextTransfer`), so anchors, pulses and selections follow the text
 into the block it lands in.
 
@@ -59,6 +59,28 @@ blocks between and joining the ends; a line break typed or pasted splits the
 block. An input may change its block, the blocks beside it and their page,
 nothing farther. History records whole-page snapshots and restores them with
 `DocumentDraft.RestoreDocument`.
+
+## Writing Profile
+
+The writing policy (`editor.writing`) owns every piece of syntax, in
+`engine/editor/writing.go`; the engine below it knows only kinds, attributes
+and marks. A page stores what its parts are: a heading and its `level`, a
+quote, bullet and ordered items, a code block and its `info`, a rule; marks
+of kind emphasis, code and strike. Notation is never stored. The projection
+generates it: a block's opener as the attribute segment `block` ("## ",
+"> ", "1. ", a fence with its line break), a code block's closing fence as
+`fence`, and each mark's markers as `mark/<id>`. Ordered items are numbered
+by their place in their run.
+
+Typing reads notation as structure: "# " to "###### ", "> ", "- " or "+ "
+and "1. " at a paragraph's start; "```" and Return; "---"; and the markers
+`*` `_` `` ` `` `~`. Return follows the block's kind, and code takes text
+literally: no marks, pairs or refinement read into it. An edit of projected
+notation is parsed back with the same grammar (`parseOpener`,
+`inlineLevel`); notation that no longer reads as syntax unfolds into the
+literal text it shows, so deleting the space of "## " leaves "##" in a
+paragraph, and typing it back makes the heading again. The policy's settings
+gate each kind of syntax.
 
 ## Actions and keys
 

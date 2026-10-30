@@ -2,8 +2,8 @@ package editor
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
-	"strings"
 	"testing"
 	"unicode"
 
@@ -441,13 +441,13 @@ func TestRustOracleV2BlockingMutations(t *testing.T) {
 		if err := json.Unmarshal(fixtures["allow-strong-v2"], &fixture); err != nil {
 			t.Fatal(err)
 		}
-		session, node := newSessionFixture(t, fixture.SemanticText, false)
+		session, _ := newSessionFixture(t, fixture.SemanticText, false)
 		outcome, err := session.ExecuteText(TextSelectAll)
 		if err != nil || outcome != kernel.OutcomeHandled {
 			t.Fatalf("select all outcome=%v err=%v", outcome, err)
 		}
 		_, err = session.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
-			configuration.SetSetting(NewMarkupSettingKey("allow-strong"), kernel.BoolSetting(false))
+			configuration.SetSetting(NewWritingSettingKey("allow-strong"), kernel.BoolSetting(false))
 			return nil
 		})
 		if err != nil {
@@ -457,10 +457,11 @@ func TestRustOracleV2BlockingMutations(t *testing.T) {
 		if err == nil {
 			t.Fatalf("strong formatting returned %v without rejection", outcome)
 		}
-		// The Rust fixture's node is the document's first; here the page
-		// root comes first and its block after.
-		want := strings.Replace(fixture.Result.ErrorDisplay, "node-1", node.String(), 1)
-		if err.Error() != want ||
+		// The Rust engine rejects strong formatting as an invalid
+		// attribute input; here the writing profile refuses the command
+		// before it makes one.
+		var markupError *MarkupError
+		if !errors.As(err, &markupError) || markupError.Kind != MarkupErrorStrongDisallowed ||
 			session.Projection().Text() != fixture.ProjectionAfter {
 			t.Fatalf("strong rejection: error=%q projection=%q",
 				err.Error(), session.Projection().Text())

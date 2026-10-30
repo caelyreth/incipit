@@ -11,7 +11,7 @@ import (
 func TestMarkerPlanCreatesUpgradesAndExitsAtActiveEnd(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "")
-	settings := MarkerSettings{Enabled: true, AllowStrong: true}
+	settings := testSyntax(true)
 	node := fixture.nodeValue(t)
 
 	action, err := PlanMarkerTypes(
@@ -92,7 +92,7 @@ func TestMarkerPlanHonorsStrongGateAndOrigin(t *testing.T) {
 		model.EmptyUTF16Range(0),
 		"*",
 		&active,
-		MarkerSettings{Enabled: true, AllowStrong: false},
+		testSyntax(false),
 		kernel.EventOriginTyping,
 	)
 	if err != nil {
@@ -111,7 +111,7 @@ func TestMarkerPlanHonorsStrongGateAndOrigin(t *testing.T) {
 			model.EmptyUTF16Range(0),
 			"*",
 			nil,
-			MarkerSettings{Enabled: true, AllowStrong: true},
+			testSyntax(true),
 			origin,
 		)
 		if err != nil || action.Handled {
@@ -161,7 +161,7 @@ func TestInlineInputStyleAndMutedRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projection, err := MarkupProjectDocument(
+	projection, err := ProjectPage(
 		fixture.document.Snapshot(),
 		fixture.document.Revision(),
 		0,
@@ -178,4 +178,11 @@ func TestInlineInputStyleAndMutedRuns(t *testing.T) {
 		!runs[1].Style.Italic || runs[1].Style.Color != surface.ColorText {
 		t.Fatalf("runs=%#v", runs)
 	}
+}
+
+// testSyntax is the default writing profile, strong emphasis as asked.
+func testSyntax(allowStrong bool) writingSyntax {
+	syntax := syntaxFrom(func(_ string, fallback bool) bool { return fallback })
+	syntax.allowStrong = allowStrong
+	return syntax
 }

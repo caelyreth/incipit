@@ -17,10 +17,9 @@ const (
 	// HistoryPolicyID owns undo and redo commands.
 	HistoryPolicyID kernel.PolicyID = "editor.history"
 
-	legacyEmphasisAttribute = "emphasis"
-	allowStrongSetting      = "allow-strong"
-	underscoresSetting      = "underscores"
-	markupFormatTrigger     = "markup:format"
+	allowStrongSetting  = "allow-strong"
+	underscoresSetting  = "underscores"
+	markupFormatTrigger = "markup:format"
 )
 
 // EditorPolicy is the stable identity of one concrete editor policy.
@@ -28,7 +27,7 @@ type EditorPolicy string
 
 const (
 	EditorPolicyText       EditorPolicy = "editor.text"
-	EditorPolicyMarkup     EditorPolicy = "editor.markup"
+	EditorPolicyWriting    EditorPolicy = "editor.writing"
 	EditorPolicyPairs      EditorPolicy = "editor.pairs"
 	EditorPolicyCJK        EditorPolicy = "editor.cjk"
 	EditorPolicyTypography EditorPolicy = "editor.typography"
@@ -40,7 +39,7 @@ const (
 // AllEditorPolicies is the Rust assembly order.
 var AllEditorPolicies = [...]EditorPolicy{
 	EditorPolicyText,
-	EditorPolicyMarkup,
+	EditorPolicyWriting,
 	EditorPolicyPairs,
 	EditorPolicyCJK,
 	EditorPolicyTypography,
@@ -296,15 +295,21 @@ func markupPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	format := edit
 	format.ID = "format"
 	format.Trigger = kernel.NewExactTrigger(markupFormatTrigger)
+	// Block syntax reads typing before marks do, and the span rule goes
+	// before the text policy's own.
+	block := marker
+	block.ID = "block-syntax"
+	block.Order = 5
+	span := edit
+	span.ID = "span"
+	span.Trigger = kernel.NewExactTrigger(kernel.SpanInputKey)
+	span.Order = 50
 	return kernel.PolicyDescriptor{
-		ID:               MarkupPolicyID,
+		ID:               WritingPolicyID,
 		EnabledByDefault: true,
-		Settings: []kernel.SettingDescriptor{
-			{ID: allowStrongSetting, Default: kernel.BoolSetting(true)},
-			{ID: underscoresSetting, Default: kernel.BoolSetting(false)},
-		},
-		Commands: commands,
-		Rules:    []kernel.RuleDescriptor{edit, marker, format},
+		Settings:         writingSettingDescriptors(),
+		Commands:         commands,
+		Rules:            []kernel.RuleDescriptor{edit, marker, format, block, span},
 	}, nil
 }
 
@@ -430,26 +435,26 @@ func singleLeafProgram() (*planning.ControlProgram, error) {
 	return builder.Build(root)
 }
 
-// MarkupPolicy owns semantic inline emphasis projection.
-type MarkupPolicy struct{}
+// WritingPolicy owns semantic inline emphasis projection.
+type WritingPolicy struct{}
 
 // Project builds a source-validated projection from one engine snapshot.
-func (MarkupPolicy) Project(
+func (WritingPolicy) Project(
 	snapshot kernel.EngineSnapshot,
 	generation uint64,
 	configuration *kernel.PreparedPolicyConfiguration,
 ) (*projection.Projection, error) {
-	return MarkupProject(snapshot, generation, configuration)
+	return ProjectSnapshot(snapshot, generation, configuration)
 }
 
 // ProjectDocument builds a projection from a bare document snapshot.
-func (MarkupPolicy) ProjectDocument(
+func (WritingPolicy) ProjectDocument(
 	document model.DocumentSnapshot,
 	revision uint64,
 	generation uint64,
 	configuration *kernel.PreparedPolicyConfiguration,
 ) (*projection.Projection, error) {
-	return MarkupProjectDocument(document, revision, generation, configuration)
+	return ProjectPage(document, revision, generation, configuration)
 }
 
 // MarkupProjectionError identifies projection construction failures.
@@ -468,18 +473,18 @@ func (e *MarkupProjectionError) Error() string {
 func (e *MarkupProjectionError) Unwrap() error { return e.Err }
 
 // MarkupProject builds the projected surface of the whole document.
-func MarkupProject(
+func ProjectSnapshot(
 	snapshot kernel.EngineSnapshot,
 	generation uint64,
 	configuration *kernel.PreparedPolicyConfiguration,
 ) (*projection.Projection, error) {
-	return MarkupProjectDocument(snapshot.Document(), snapshot.Revision(), generation, configuration)
+	return ProjectPage(snapshot.Document(), snapshot.Revision(), generation, configuration)
 }
 
-// MarkupProjectDocument builds and source-validates the projection of a bare
+// ProjectPage builds and source-validates the projection of a bare
 // semantic document snapshot: its blocks in order, each with its notation,
 // one line break of generated text between one block and the next.
-func MarkupProjectDocument(
+func ProjectPage(
 	document model.DocumentSnapshot,
 	revision uint64,
 	generation uint64,
@@ -497,13 +502,16 @@ func MarkupProjectDocument(
 		projection.NewVersion(revision, generation),
 	)
 	builder.Grow(4 * len(blocks))
+	enabled := markupEnabled(configuration)
+	syntax := configuredSyntax(configuration)
+	numbers := ordinals(blocks)
 	for index, node := range blocks {
 		if index > 0 {
 			if err := builder.Generated("\n"); err != nil {
 				return nil, wrapProjectionError(err)
 			}
 		}
-		if err := projectBlock(builder, node, configuration); err != nil {
+		if err := projectBlock(builder, node, numbers[index], syntax, enabled); err != nil {
 			return nil, err
 		}
 	}
@@ -517,35 +525,32 @@ func MarkupProjectDocument(
 	return result, nil
 }
 
-// projectBlock projects one block: its text and the notation of its marks.
+// projectBlock projects one block: the notation it opens with, its text
+// with the notation of its marks, and the fence it closes with.
 func projectBlock(
 	builder *projection.Builder,
 	node *model.Node,
-	configuration *kernel.PreparedPolicyConfiguration,
+	ordinal int,
+	syntax writingSyntax,
+	enabled bool,
 ) error {
-	enabled := markupEnabled(configuration)
-	count, err := legacyEmphasisCount(node, enabled)
-	if err != nil {
-		return err
+	open, close := "", ""
+	if enabled {
+		open, close = blockNotation(shapeOf(node), ordinal)
 	}
-	marker := "*"
-	if markupSettingBool(configuration, underscoresSetting, false) {
-		marker = "_"
-	}
-	notation := strings.Repeat(marker, count)
-	edge := func() error {
-		if count == 0 {
+	edge := func(key, notation string) error {
+		if notation == "" {
 			return wrapProjectionError(builder.Generated(""))
 		}
-		return wrapProjectionError(builder.Attribute(node.ID(), legacyEmphasisAttribute, notation))
+		return wrapProjectionError(builder.Attribute(node.ID(), key, notation))
 	}
-	if err := edge(); err != nil {
+	if err := edge(blockNotationKey, open); err != nil {
 		return err
 	}
-	if err := projectInlineBody(builder, node, marker, enabled); err != nil {
+	if err := projectInlineBody(builder, node, syntax, enabled); err != nil {
 		return wrapProjectionError(err)
 	}
-	return edge()
+	return edge(fenceNotationKey, close)
 }
 
 type inlineProjectionEvent struct {
@@ -559,7 +564,7 @@ type inlineProjectionEvent struct {
 func projectInlineBody(
 	builder *projection.Builder,
 	node *model.Node,
-	marker string,
+	syntax writingSyntax,
 	enabled bool,
 ) error {
 	length := model.UTF16Offset(0)
@@ -621,14 +626,14 @@ func projectInlineBody(
 			}
 		}
 		cursor = event.position
-		if err := appendInlineMarker(builder, node, event.mark, marker); err != nil {
+		if err := appendInlineMarker(builder, node, event.mark, syntax); err != nil {
 			return err
 		}
 		if event.kind == 2 {
 			if err := builder.Editable(node, model.NewUTF16Range(cursor, cursor)); err != nil {
 				return err
 			}
-			if err := appendInlineMarker(builder, node, event.mark, marker); err != nil {
+			if err := appendInlineMarker(builder, node, event.mark, syntax); err != nil {
 				return err
 			}
 		}
@@ -643,35 +648,13 @@ func appendInlineMarker(
 	builder *projection.Builder,
 	node *model.Node,
 	mark model.InlineMark,
-	marker string,
+	syntax writingSyntax,
 ) error {
-	return builder.Attribute(
-		node.ID(),
-		MarkerKeyForMark(mark.ID()),
-		strings.Repeat(marker, int(mark.Level())),
-	)
-}
-
-func legacyEmphasisCount(node *model.Node, enabled bool) (int, error) {
-	value, ok := node.Attribute(legacyEmphasisAttribute)
-	if !ok {
-		return 0, nil
-	}
-	count, ok := value.Integer()
-	if !ok || count < 0 || count > 2 {
-		return 0, &MarkupProjectionError{
-			Kind: projection.ErrorSource,
-			Err:  &model.DocumentError{Kind: model.DocumentErrorInvalidTextRange, Node: node.ID()},
-		}
-	}
-	if !enabled {
-		return 0, nil
-	}
-	return int(count), nil
+	return builder.Attribute(node.ID(), MarkerKeyForMark(mark.ID()), syntax.inlineNotation(mark))
 }
 
 func markupEnabled(configuration *kernel.PreparedPolicyConfiguration) bool {
-	return configuration == nil || configuration.IsEnabled(MarkupPolicyID)
+	return configuration == nil || configuration.IsEnabled(WritingPolicyID)
 }
 
 func markupSettingBool(
@@ -682,7 +665,7 @@ func markupSettingBool(
 	if configuration == nil {
 		return fallback
 	}
-	value, ok := configuration.Setting(NewMarkupSettingKey(id))
+	value, ok := configuration.Setting(NewWritingSettingKey(id))
 	if !ok {
 		return fallback
 	}
@@ -693,9 +676,9 @@ func markupSettingBool(
 	return boolean
 }
 
-// NewMarkupSettingKey returns a setting key owned by editor.markup.
-func NewMarkupSettingKey(id string) kernel.SettingKey {
-	return EditorPolicyMarkup.Setting(id)
+// NewWritingSettingKey returns a setting key owned by editor.markup.
+func NewWritingSettingKey(id string) kernel.SettingKey {
+	return EditorPolicyWriting.Setting(id)
 }
 
 func wrapProjectionError(err error) error {
@@ -711,9 +694,12 @@ func wrapProjectionError(err error) error {
 // EditorInvoker executes text replace and markup rules against one engine
 // draft. Active and last-marker fields are session-owned facts.
 type EditorInvoker struct {
-	active                  *model.MarkID
-	lastMark                MarkerAction
-	hasMarker               bool
+	active    *model.MarkID
+	lastMark  MarkerAction
+	hasMarker bool
+	// correctionEffectNode, when set, is the block the caret goes to,
+	// rather than the one the input targeted.
+	correctionEffectNode    model.NodeID
 	correctionEffectHead    model.UTF16Offset
 	hasCorrectionEffect     bool
 	correctionEffectThrough int
@@ -751,6 +737,7 @@ func (i *EditorInvoker) Invoke(
 		i.lastMark = MarkerAction{}
 		i.hasMarker = false
 		i.hasCorrectionEffect = false
+		i.correctionEffectNode = 0
 	}
 	switch rule.Key.Owner {
 	case TextPolicyID:
@@ -758,8 +745,12 @@ func (i *EditorInvoker) Invoke(
 			return i.invokeSpan(context)
 		}
 		return i.invokeText(context)
-	case MarkupPolicyID:
+	case WritingPolicyID:
 		switch rule.Key.ID {
+		case "block-syntax":
+			return i.invokeBlockSyntax(context)
+		case "span":
+			return i.invokeSpanSyntax(context)
 		case "type-marker":
 			return i.invokeMarker(context)
 		case "edit":
@@ -798,6 +789,9 @@ func (i *EditorInvoker) invokeText(context *kernel.RuleContext) (kernel.Outcome,
 	i.correctionEffectHead = start + model.UTF16Offset(model.StringLenUTF16(input.Text()))
 	i.hasCorrectionEffect = true
 	i.correctionEffectThrough = min(beforeEdits+1, document.TextEditCount())
+	if node, _ := document.Node(input.Target().Node()); blockKeepsLines(node) {
+		return kernel.OutcomeHandled, nil
+	}
 	if err := splitAtNewlines(document, input.Target().Node(), start, input.Text()); err != nil {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
@@ -824,16 +818,12 @@ func (i *EditorInvoker) invokeMarker(context *kernel.RuleContext) (kernel.Outcom
 			Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: input.Target().Node()},
 		}
 	}
-	settings := MarkerSettings{
-		Enabled:     true,
-		AllowStrong: contextMarkupBool(context, allowStrongSetting, true),
-	}
 	action, err := PlanMarkerTypes(
 		node,
 		input.Target().RangeUTF16(),
 		input.Text(),
 		i.active,
-		settings,
+		contextSyntax(context),
 		origin,
 	)
 	if err != nil {
@@ -880,30 +870,19 @@ func (i *EditorInvoker) invokeAttribute(context *kernel.RuleContext) (kernel.Out
 		return kernel.OutcomePass, nil
 	}
 	key := input.Target().Key()
-	if key != legacyEmphasisAttribute && !MarkerKeyIsInline(key) {
+	if key == blockNotationKey || key == fenceNotationKey {
+		return i.invokeBlockNotation(context, input)
+	}
+	if !MarkerKeyIsInline(key) {
 		return kernel.OutcomePass, nil
 	}
-	marker := "*"
-	if contextMarkupBool(context, underscoresSetting, false) {
-		marker = "_"
-	}
-	count := len(input.Text())
-	valid := count <= 2
-	for _, r := range input.Text() {
-		valid = valid && string(r) == marker
-	}
-	if count == 2 && !contextMarkupBool(context, allowStrongSetting, true) {
-		valid = false
-	}
-	if !valid {
-		return 0, &kernel.EngineError{
-			Kind: kernel.EngineErrorInput,
-			Err: &kernel.InputError{
-				Kind: kernel.InputErrorInvalidAttributeInput,
-				Node: input.Target().Node(),
-				Key:  key,
-			},
-		}
+	invalid := &kernel.EngineError{
+		Kind: kernel.EngineErrorInput,
+		Err: &kernel.InputError{
+			Kind: kernel.InputErrorInvalidAttributeInput,
+			Node: input.Target().Node(),
+			Key:  key,
+		},
 	}
 	document, err := context.DocumentMut()
 	if err != nil {
@@ -916,46 +895,29 @@ func (i *EditorInvoker) invokeAttribute(context *kernel.RuleContext) (kernel.Out
 			Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: input.Target().Node()},
 		}
 	}
-	if MarkerKeyIsInline(key) {
-		var mark *model.InlineMark
-		for _, candidate := range node.Marks() {
-			if MarkerKeyIdentifies(key, candidate.ID()) {
-				value := candidate
-				mark = &value
-				break
-			}
+	var mark *model.InlineMark
+	for _, candidate := range node.Marks() {
+		if MarkerKeyIdentifies(key, candidate.ID()) {
+			value := candidate
+			mark = &value
+			break
 		}
-		if mark == nil {
-			return 0, &kernel.EngineError{
-				Kind: kernel.EngineErrorInput,
-				Err: &kernel.InputError{
-					Kind: kernel.InputErrorInvalidAttributeInput,
-					Node: input.Target().Node(),
-					Key:  key,
-				},
-			}
-		}
-		if err := document.SetMarkLevel(node.ID(), mark.ID(), uint8(count)); err != nil {
-			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
-		}
-		if count == 0 {
-			i.active = nil
-		} else {
-			id := mark.ID()
-			i.active = &id
-		}
-		return kernel.OutcomeHandled, nil
 	}
-	if count == 0 {
-		if err := document.RemoveAttribute(node.ID(), legacyEmphasisAttribute); err != nil {
-			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
-		}
-	} else if err := document.SetAttribute(
-		node.ID(),
-		legacyEmphasisAttribute,
-		model.IntegerValue(int64(count)),
-	); err != nil {
+	if mark == nil {
+		return 0, invalid
+	}
+	level, ok := contextSyntax(context).inlineLevel(mark.Kind(), input.Text())
+	if !ok {
+		return 0, invalid
+	}
+	if err := document.SetMarkLevel(node.ID(), mark.ID(), level); err != nil {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
+	}
+	if level == 0 {
+		i.active = nil
+	} else {
+		id := mark.ID()
+		i.active = &id
 	}
 	return kernel.OutcomeHandled, nil
 }
@@ -978,6 +940,9 @@ func (i *EditorInvoker) invokePair(
 			Kind: kernel.EngineErrorDocument,
 			Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: input.Target().Node()},
 		}
+	}
+	if literalAt(node, i.active) {
+		return kernel.OutcomePass, nil
 	}
 	origin, _ := context.Event().Origin()
 	rule := map[kernel.RuleID]PairRule{
@@ -1047,7 +1012,8 @@ func (i *EditorInvoker) invokeCorrection(
 	}
 	nodeID := input.Target().Node()
 	node, ok := document.Node(nodeID)
-	if !ok || !node.TextPresent() {
+	if !ok || !node.TextPresent() || literalAt(node, i.active) ||
+		i.correctionEffectNode != 0 && i.correctionEffectNode != nodeID {
 		return kernel.OutcomePass, nil
 	}
 	var batches []CorrectionBatch

@@ -48,7 +48,7 @@ func TestSessionStrongMarkupHonorsAllowStrong(t *testing.T) {
 	}
 	if _, err := session.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
 		configuration.SetSetting(
-			NewMarkupSettingKey(allowStrongSetting),
+			NewWritingSettingKey(allowStrongSetting),
 			kernel.BoolSetting(false),
 		)
 		return nil
@@ -66,11 +66,8 @@ func TestSessionStrongMarkupHonorsAllowStrong(t *testing.T) {
 	if outcome != 0 {
 		t.Fatalf("strong outcome = %v", outcome)
 	}
-	var inputError *kernel.InputError
-	if !errors.As(err, &inputError) ||
-		inputError.Kind != kernel.InputErrorInvalidAttributeInput ||
-		inputError.Node != node ||
-		inputError.Key != legacyEmphasisAttribute {
+	var markupError *MarkupError
+	if !errors.As(err, &markupError) || markupError.Kind != MarkupErrorStrongDisallowed {
 		t.Fatalf("strong error = %#v", err)
 	}
 	if session.Runtime().Revision() != beforeRevision ||

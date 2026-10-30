@@ -64,7 +64,7 @@ func commandGroup(policy kernel.PolicyID, command kernel.CommandID) string {
 		return "History"
 	case editor.WordsPolicyID:
 		return "Words"
-	case editor.MarkupPolicyID:
+	case editor.WritingPolicyID:
 		return "Format"
 	case editor.NavigationPolicyID:
 		return "Navigation"

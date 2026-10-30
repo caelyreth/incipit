@@ -9,7 +9,7 @@ import (
 
 const (
 	policyEditorText       kernel.PolicyID = "editor.text"
-	policyEditorMarkup     kernel.PolicyID = "editor.markup"
+	policyEditorWriting    kernel.PolicyID = "editor.writing"
 	policyEditorPairs      kernel.PolicyID = "editor.pairs"
 	policyEditorCJK        kernel.PolicyID = "editor.cjk"
 	policyEditorTypography kernel.PolicyID = "editor.typography"
@@ -37,10 +37,10 @@ func infoForPolicy(id kernel.PolicyID) policyInfo {
 			0,
 			true,
 		}
-	case policyEditorMarkup:
+	case policyEditorWriting:
 		return policyInfo{
-			"Emphasis",
-			"Emphasize with {markup.emphasis}, or strongly with {markup.strong}. Markers are generated; the text stays semantic.",
+			"Writing Profile",
+			"Write in Markdown: headings, quotes, lists, code, rules and emphasis, which {markup.emphasis} and {markup.strong} also set. The page keeps what you write, and shows its notation.",
 			1,
 			true,
 		}
@@ -127,6 +127,18 @@ func labelForSetting(id kernel.SettingID) string {
 		return "Use underscore markers"
 	case "allow-strong":
 		return "Allow strong emphasis"
+	case "headings":
+		return "Headings"
+	case "blockquotes":
+		return "Block quotes"
+	case "lists":
+		return "Lists"
+	case "code":
+		return "Code"
+	case "strikethrough":
+		return "Strikethrough"
+	case "rules":
+		return "Thematic breaks"
 	case "overtype":
 		return "Skip existing closers"
 	case "edit-mates":
@@ -157,9 +169,21 @@ func descriptionForSetting(id kernel.SettingID) string {
 	case "quotes":
 		return "Complete matching quotation marks while typing."
 	case "underscores":
-		return "Project emphasis with underscores instead of asterisks."
+		return "Show emphasis with underscores instead of asterisks."
 	case "allow-strong":
-		return "Allow double-marker strong emphasis commands."
+		return "Double markers make strong emphasis."
+	case "headings":
+		return "One to six # and a space start a heading."
+	case "blockquotes":
+		return "> and a space start a quote."
+	case "lists":
+		return "- or + and a space start a bullet item, a number and a period a numbered one."
+	case "code":
+		return "Backticks mark code, and ``` with Return opens a code block."
+	case "strikethrough":
+		return "Tildes strike text through."
+	case "rules":
+		return "Three dashes on their own line make a thematic break."
 	case "overtype":
 		return "Move past a matching closer instead of inserting it again."
 	case "edit-mates":

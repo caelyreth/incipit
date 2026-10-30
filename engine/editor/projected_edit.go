@@ -1,7 +1,6 @@
 package editor
 
 import (
-	"fmt"
 	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/engine/input"
@@ -337,6 +336,13 @@ func resolveCollapsedProjectedEdit(
 			),
 			"",
 		)
+		// What an edit of notation leaves is placed in the notation's own
+		// block, however near another block's text it lies.
+		if semantic.Node() != resolved.Attribute.Target().Node() {
+			if target, ok := nodeTextTarget(p, resolved.Attribute.Target().Node(), head.RangeUTF16().Start, revision); ok {
+				primary = input.NewTextInput(target, "")
+			}
+		}
 		attributeCaret := caret
 		projected = kernel.NewProjectedEditInput(
 			primary,
@@ -358,8 +364,11 @@ func resolveCollapsedProjectedEdit(
 }
 
 type attributeSelection struct {
-	target           input.AttributeTarget
-	marker           rune
+	target input.AttributeTarget
+	// notation is the segment's text, and selected the part of it, in
+	// UTF-16 units, the edit covers, while one segment is all it covers.
+	notation         string
+	selected         model.UTF16Range
 	currentUnits     int
 	selectedUnits    int
 	selectedSegments int
@@ -382,7 +391,6 @@ func resolveRangeProjectedEdit(
 	segments := p.Segments()
 	projectedRange := edit.UTF16Range
 	replacementUnits := utf8.RuneCountInString(edit.Replacement)
-	replacementIsMarker := edit.Replacement != "" && allMarkerRunes(edit.Replacement)
 	replacement := edit.Replacement
 	replacementTaken := false
 	takeReplacement := func() string {
@@ -430,18 +438,17 @@ func resolveRangeProjectedEdit(
 		if !ok {
 			continue
 		}
-		marker, hasMarker, currentUnits, err := textRangeCharMetrics(p, segmentRange)
+		notation, err := p.TextRange(segmentRange)
 		if err != nil {
 			return ResolvedProjectedEdit{}, err
 		}
-		_, _, selectedUnits, err := textRangeCharMetrics(
-			p,
-			model.NewUTF16Range(from, to),
-		)
+		selectedText, err := p.TextRange(model.NewUTF16Range(from, to))
 		if err != nil {
 			return ResolvedProjectedEdit{}, err
 		}
-		if !hasMarker {
+		currentUnits := utf8.RuneCountInString(notation)
+		selectedUnits := utf8.RuneCountInString(selectedText)
+		if notation == "" {
 			return ResolvedProjectedEdit{}, &projection.ProjectionError{
 				Kind: projection.ErrorNoCorrespondence,
 			}
@@ -464,7 +471,8 @@ func resolveRangeProjectedEdit(
 		}
 		attributes = append(attributes, attributeSelection{
 			target:           target,
-			marker:           marker,
+			notation:         notation,
+			selected:         model.NewUTF16Range(from-segmentRange.Start, to-segmentRange.Start),
 			currentUnits:     currentUnits,
 			selectedUnits:    selectedUnits,
 			selectedSegments: 1,
@@ -476,15 +484,19 @@ func resolveRangeProjectedEdit(
 	markerNotation := selectedAttributeSegments == 1 &&
 		replacementUnits != 0 &&
 		len(attributes) == 1 &&
-		replacementIsMarker
+		notationAccepts(attributes[0].target.Key(), edit.Replacement)
 	attributeInputs := make([]input.AttributeInput, 0, len(attributes))
 	for index, selection := range attributes {
-		text := ""
+		replacement := ""
 		if markerNotation && index == 0 {
-			text = takeReplacement()
-		} else {
-			finalUnits := max(0, selection.currentUnits-selection.selectedUnits)
-			text = repeatRune(selection.marker, finalUnits)
+			replacement = takeReplacement()
+		}
+		// One segment of notation is edited as the text it is; both of a
+		// mark's, opener and closer, lose what the edit covers of either.
+		text := spliceUTF16(selection.notation, selection.selected, replacement)
+		if selection.selectedSegments > 1 {
+			runes := []rune(selection.notation)
+			text = string(runes[:max(0, selection.currentUnits-selection.selectedUnits)])
 		}
 		attributeInputs = append(
 			attributeInputs,
@@ -602,29 +614,48 @@ func markerInsertionTarget(
 			Kind: projection.ErrorNoCorrespondence,
 		}
 	}
-	segments := p.Segments()
 	selection := attributes[0]
-	for index := selection.firstSegment - 1; index >= 0; index-- {
-		if target, ok := segments[index].SemanticTarget(); ok {
-			return input.NewTextTarget(
-				target.Node(),
-				model.EmptyUTF16Range(target.RangeUTF16().End),
-				revision,
-			), nil
+	at := p.Segments()[selection.firstSegment].ProjectedRange().Start
+	target, ok := nodeTextTarget(p, selection.target.Node(), at, revision)
+	if !ok {
+		return input.TextTarget{}, &projection.ProjectionError{
+			Kind: projection.ErrorNoCorrespondence,
 		}
 	}
-	for index := selection.lastSegment + 1; index < len(segments); index++ {
-		if target, ok := segments[index].SemanticTarget(); ok {
-			return input.NewTextTarget(
-				target.Node(),
-				model.EmptyUTF16Range(target.RangeUTF16().Start),
-				revision,
-			), nil
+	return target, nil
+}
+
+// nodeTextTarget is the place in node's own text nearest a projected
+// offset: where notation of node's leaves what is typed or kept, however
+// near another block's text it lies. Text before the offset wins a tie.
+func nodeTextTarget(
+	p *projection.Projection,
+	node model.NodeID,
+	at model.UTF16Offset,
+	revision uint64,
+) (input.TextTarget, bool) {
+	best, distance := model.UTF16Offset(0), model.UTF16Offset(-1)
+	for _, segment := range p.Segments() {
+		target, ok := segment.SemanticTarget()
+		if !ok || target.Node() != node {
+			continue
+		}
+		span := segment.ProjectedRange()
+		offset, gap := target.RangeUTF16().Start, span.Start-at
+		switch {
+		case span.End <= at:
+			offset, gap = target.RangeUTF16().End, at-span.End
+		case span.Start < at:
+			offset, gap = target.RangeUTF16().Start+at-span.Start, 0
+		}
+		if distance < 0 || gap < distance {
+			best, distance = offset, gap
 		}
 	}
-	return input.TextTarget{}, &projection.ProjectionError{
-		Kind: projection.ErrorNoCorrespondence,
+	if distance < 0 {
+		return input.TextTarget{}, false
 	}
+	return input.NewTextTarget(node, model.EmptyUTF16Range(best), revision), true
 }
 
 func projectedCaret(
@@ -671,7 +702,7 @@ func clearedActiveMark(
 	attributes []attributeSelection,
 	active model.MarkID,
 ) bool {
-	key := markerKey(active)
+	key := MarkerKeyForMark(active)
 	selected := 0
 	for _, selection := range attributes {
 		if selection.target.Key() == key {
@@ -697,41 +728,24 @@ func cloneProjectedSelectionPtr(
 	return cloneProjectedSelection(*selection)
 }
 
-func allMarkerRunes(text string) bool {
-	for _, value := range text {
-		if value != '*' && value != '_' {
+// notationAccepts reports whether a replacement typed over notation is an
+// edit of it: anything is for a block's notation, which is parsed back as
+// written, and only markers are for a mark's.
+func notationAccepts(key, replacement string) bool {
+	if !MarkerKeyIsInline(key) {
+		return true
+	}
+	for _, value := range replacement {
+		if !inlineMarkerRune(value) {
 			return false
 		}
 	}
 	return true
 }
 
-func textRangeCharMetrics(
-	p *projection.Projection,
-	range16 model.UTF16Range,
-) (rune, bool, int, error) {
-	text, err := p.TextRange(range16)
-	if err != nil {
-		return 0, false, 0, err
-	}
-	if text == "" {
-		return 0, false, 0, nil
-	}
-	first, _ := utf8.DecodeRuneInString(text)
-	return first, true, utf8.RuneCountInString(text), nil
-}
-
-func repeatRune(value rune, count int) string {
-	if count <= 0 {
-		return ""
-	}
-	runes := make([]rune, count)
-	for index := range runes {
-		runes[index] = value
-	}
-	return string(runes)
-}
-
-func markerKey(mark model.MarkID) string {
-	return fmt.Sprintf("emphasis/%d", mark.Value())
+// spliceUTF16 replaces a UTF-16 range of text.
+func spliceUTF16(text string, range16 model.UTF16Range, replacement string) string {
+	start := model.UTF16OffsetToByteClamped(text, range16.Start)
+	end := model.UTF16OffsetToByteClamped(text, range16.End)
+	return text[:start] + replacement + text[end:]
 }

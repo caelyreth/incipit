@@ -47,19 +47,6 @@ func TestFormattingLevelUsesActiveMarkForCollapsedSelection(t *testing.T) {
 	}
 }
 
-func TestFormattingLevelFallsBackToClampedLegacyAttribute(t *testing.T) {
-	t.Parallel()
-	fixture := newEditingFixture(t, "abc")
-	if _, err := fixture.document.Transact(func(draft *model.DocumentDraft) error {
-		return draft.SetAttribute(fixture.node, "emphasis", model.IntegerValue(9))
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if got := FormattingLevel(fixture.nodeValue(t), fixture.selection(t, 0, 0), nil, true); got != 2 {
-		t.Fatalf("legacy level=%d", got)
-	}
-}
-
 func TestMarkupStateAndPlanGateStrongAndComposition(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "abc", model.NewUTF16Range(0, 3))

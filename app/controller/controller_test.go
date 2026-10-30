@@ -518,7 +518,7 @@ func TestStaleCompositionFailureRetainsPreviewForCancellation(t *testing.T) {
 	preview := controller.Text()
 
 	if _, err := controller.Session().Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
-		configuration.SetEnabled(editor.MarkupPolicyID, false)
+		configuration.SetEnabled(editor.WritingPolicyID, false)
 		return nil
 	}); err != nil {
 		t.Fatal(err)
@@ -619,7 +619,7 @@ func TestReconfigureReprojectsAndRefreshesCaches(t *testing.T) {
 	}
 	before := controller.Runtime().Revision()
 	err := controller.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
-		configuration.SetEnabled(editor.MarkupPolicyID, false)
+		configuration.SetEnabled(editor.WritingPolicyID, false)
 		return nil
 	})
 	if err != nil {
@@ -646,7 +646,7 @@ func TestReconfigureIsRejectedDuringComposition(t *testing.T) {
 	controller.SetMarkedText(nil, "你", UTF16Range{Start: 1, End: 1})
 	before := controller.Runtime().Revision()
 	err := controller.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
-		configuration.SetEnabled(editor.MarkupPolicyID, false)
+		configuration.SetEnabled(editor.WritingPolicyID, false)
 		return nil
 	})
 	if !IsCompositionActiveError(err) {

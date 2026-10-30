@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"github.com/caelyreth/neverland/engine/input"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
@@ -10,7 +11,7 @@ import (
 // generated notation is handled by replacing the marker; ordinary ranges use
 // the semantic formatting event.
 func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
-	if !s.runtime.Configuration().IsEnabled(MarkupPolicyID) {
+	if !s.runtime.Configuration().IsEnabled(WritingPolicyID) {
 		return kernel.OutcomePass, nil
 	}
 	if _, active := s.composition.Preview(); active {
@@ -18,14 +19,7 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 	}
 	if command == MarkupStrong &&
 		!markupSettingBool(s.runtime.Configuration(), allowStrongSetting, true) {
-		return 0, &kernel.EngineError{
-			Kind: kernel.EngineErrorInput,
-			Err: &kernel.InputError{
-				Kind: kernel.InputErrorInvalidAttributeInput,
-				Node: s.presentation.Selection.Node(),
-				Key:  legacyEmphasisAttribute,
-			},
-		}
+		return 0, &MarkupError{Kind: MarkupErrorStrongDisallowed}
 	}
 	beforeFrame, beforeOK := s.historyFrame()
 	beforeVisual, visualErr := s.ProjectedState()
@@ -38,43 +32,19 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 	if err != nil {
 		return 0, err
 	}
-	if !projected.Empty() {
-		for _, segment := range s.presentation.Projection.Segments() {
-			target, ok := segment.AttributeTarget()
-			if !ok || (!MarkerKeyIsInline(target.Key()) && target.Key() != "emphasis") {
-				continue
-			}
-			if segment.ProjectedRange().Start <= projected.Start &&
-				projected.End <= segment.ProjectedRange().End {
-				text, err := s.presentation.Projection.TextRange(segment.ProjectedRange())
-				if err != nil {
-					return 0, err
-				}
-				runes := []rune(text)
-				if len(runes) > 0 {
-					replacement := ""
-					for index := 0; index < int(command.Level()); index++ {
-						replacement += string(runes[0])
-					}
-					result, err := s.ReplaceSelection(replacement, kernel.EventOriginSemantic)
-					return result.Outcome, err
-				}
+	// Selected notation of emphasis is rewritten to the command's; other
+	// notation is no place for it.
+	if target, ok := notationWithin(s.presentation.Projection, projected); ok {
+		node, _ := s.runtime.Snapshot().Document().Node(target.Node())
+		for _, mark := range node.Marks() {
+			if MarkerKeyIdentifies(target.Key(), mark.ID()) && mark.Kind() == EmphasisMark {
+				notation := configuredSyntax(s.runtime.Configuration()).inlineNotation(
+					model.NewInlineMark(0, model.UTF16Range{}, EmphasisMark, command.Level()))
+				result, err := s.ReplaceSelection(notation, kernel.EventOriginSemantic)
+				return result.Outcome, err
 			}
 		}
-	}
-	if markerNotationSelected(s.presentation.Projection, projected) {
-		name := "*"
-		if value, ok := s.runtime.Configuration().Setting(NewMarkupSettingKey(underscoresSetting)); ok {
-			if boolean, ok := value.Bool(); ok && boolean {
-				name = "_"
-			}
-		}
-		replacement := ""
-		for index := 0; index < int(command.Level()); index++ {
-			replacement += name
-		}
-		result, err := s.ReplaceSelection(replacement, kernel.EventOriginSemantic)
-		return result.Outcome, err
+		return kernel.OutcomePass, nil
 	}
 	var candidate Presentation
 	var active *model.MarkID
@@ -101,7 +71,7 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 			if !selection.Spans() {
 				active = findExactMark(node, ranges[0].Range)
 			}
-			projectedValue, projectErr := MarkupProjectDocument(
+			projectedValue, projectErr := ProjectPage(
 				view.Document().CandidateSnapshot(view.Revision()),
 				view.Revision(),
 				s.generation+1,
@@ -195,7 +165,7 @@ func (i *markupFormatInvoker) Invoke(
 	leaf kernel.LeafID,
 	context *kernel.RuleContext,
 ) (kernel.Outcome, error) {
-	if rule == nil || rule.Key.Owner != MarkupPolicyID || rule.Key.ID != "format" {
+	if rule == nil || rule.Key.Owner != WritingPolicyID || rule.Key.ID != "format" {
 		return i.session.invoker.Invoke(rule, leaf, context)
 	}
 	document, err := context.DocumentMut()
@@ -240,20 +210,19 @@ func (i *markupFormatInvoker) Invoke(
 	return kernel.OutcomeHandled, nil
 }
 
-func markerNotationSelected(p *projection.Projection, range16 model.UTF16Range) bool {
+// notationWithin is the notation a non-empty projected range lies within.
+func notationWithin(p *projection.Projection, range16 model.UTF16Range) (input.AttributeTarget, bool) {
 	if range16.Empty() {
-		return false
+		return input.AttributeTarget{}, false
 	}
 	for _, segment := range p.Segments() {
-		if _, ok := segment.AttributeTarget(); !ok {
-			continue
-		}
-		if segment.ProjectedRange().Start <= range16.Start &&
+		target, ok := segment.AttributeTarget()
+		if ok && segment.ProjectedRange().Start <= range16.Start &&
 			range16.End <= segment.ProjectedRange().End {
-			return true
+			return target, true
 		}
 	}
-	return false
+	return input.AttributeTarget{}, false
 }
 
 func findExactMark(node *model.Node, range16 model.UTF16Range) *model.MarkID {

@@ -2,7 +2,6 @@ package editor
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -11,8 +10,6 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 )
-
-const inlineMarkerPrefix = "emphasis/"
 
 // InlineState retains the mark that owns the caret. It deliberately stores
 // identity rather than a derived range so later edits cannot silently retarget
@@ -49,22 +46,6 @@ func (s *InlineState) SelectProjected(
 	s.Activate(caretMembership(node, p, head))
 }
 
-// MarkerKeyForMark returns the generated attribute identity for one mark.
-func MarkerKeyForMark(id model.MarkID) string {
-	return inlineMarkerPrefix + strconv.FormatUint(uint64(id), 10)
-}
-
-// MarkerKeyIsInline reports whether an attribute key belongs to inline
-// emphasis rather than a legacy or unrelated attribute.
-func MarkerKeyIsInline(key string) bool {
-	return strings.HasPrefix(key, inlineMarkerPrefix)
-}
-
-// MarkerKeyIdentifies reports whether a key names one concrete inline mark.
-func MarkerKeyIdentifies(key string, id model.MarkID) bool {
-	return key == MarkerKeyForMark(id)
-}
-
 // MarkerActionKind identifies one semantic marker-typing operation.
 type MarkerActionKind uint8
 
@@ -81,9 +62,10 @@ const (
 type MarkerAction struct {
 	Handled  bool
 	Kind     MarkerActionKind
+	Mark     model.MarkID
+	MarkKind model.MarkKind
 	Node     model.NodeID
 	Range    model.UTF16Range
-	Mark     model.MarkID
 	HasMark  bool
 	Level    uint8
 	Head     model.UTF16Offset
@@ -92,26 +74,32 @@ type MarkerAction struct {
 	Consumed bool
 }
 
-// MarkerSettings gate marker typing independently of projection settings.
-type MarkerSettings struct {
-	Enabled     bool
-	AllowStrong bool
-}
-
-// PlanMarkerTypes interprets one typed "*" or "_" replacement against the
-// active mark. Non-marker text and non-typing origins pass through.
+// PlanMarkerTypes interprets one typed inline marker ("*" or "_", "`",
+// "~") against the active mark. Non-marker text, non-typing origins and
+// text typed where it is literal pass through: inside code, and backticks
+// at a paragraph's start, where they may open a fence.
 func PlanMarkerTypes(
 	node *model.Node,
 	input model.UTF16Range,
 	text string,
 	active *model.MarkID,
-	settings MarkerSettings,
+	syntax writingSyntax,
 	origin kernel.EventOrigin,
 ) (MarkerAction, error) {
 	action := MarkerAction{Node: nodeID(node), Range: input, Head: input.End}
-	if node == nil || !settings.Enabled || origin != kernel.EventOriginTyping ||
-		(text != "*" && text != "_") {
+	if node == nil || origin != kernel.EventOriginTyping {
 		return action, nil
+	}
+	kind, top, ok := syntax.markerKind(text)
+	if !ok || node.Kind() == CodeNode || literalAt(node, active) && kind != CodeMark {
+		return action, nil
+	}
+	if kind == CodeMark && node.Kind() == ParagraphNode && input.Empty() {
+		content := node.Text().String()
+		before := content[:model.UTF16OffsetToByteClamped(content, input.Start)]
+		if strings.Trim(before, "`") == "" {
+			return action, nil
+		}
 	}
 	if err := node.ValidateTextRangeUTF16(input.Start, input.End); err != nil {
 		return MarkerAction{}, err
@@ -119,7 +107,7 @@ func PlanMarkerTypes(
 	var current *model.InlineMark
 	if active != nil {
 		for _, mark := range node.Marks() {
-			if mark.ID() == *active {
+			if mark.ID() == *active && mark.Kind() == kind {
 				value := mark
 				current = &value
 				break
@@ -141,11 +129,13 @@ func PlanMarkerTypes(
 				Consumed: true,
 			}, nil
 		}
-		next := uint8(2)
-		if current.Level() == 2 {
+		// Emphasis goes from emphasis to strong and back to none; a mark
+		// at the highest level the profile allows stays as it is.
+		next := current.Level() + 1
+		if current.Kind() == EmphasisMark && current.Level() == 2 {
 			next = 0
 		}
-		if next == 2 && !settings.AllowStrong {
+		if next > top {
 			return MarkerAction{
 				Handled:  true,
 				Kind:     MarkerUpgrade,
@@ -175,6 +165,7 @@ func PlanMarkerTypes(
 		return MarkerAction{
 			Handled:  true,
 			Kind:     MarkerCreate,
+			MarkKind: kind,
 			Node:     node.ID(),
 			Range:    input,
 			Level:    1,
@@ -185,6 +176,7 @@ func PlanMarkerTypes(
 	return MarkerAction{
 		Handled:  true,
 		Kind:     MarkerFormat,
+		MarkKind: kind,
 		Node:     node.ID(),
 		Range:    input,
 		Level:    1,
@@ -201,7 +193,7 @@ func (a MarkerAction) Apply(draft *model.DocumentDraft) error {
 	}
 	switch a.Kind {
 	case MarkerCreate:
-		_, err := draft.AddMark(a.Node, a.Range, EmphasisMark, a.Level)
+		_, err := draft.AddMark(a.Node, a.Range, a.MarkKind, a.Level)
 		return err
 	case MarkerUpgrade:
 		if !a.HasMark {
@@ -209,7 +201,7 @@ func (a MarkerAction) Apply(draft *model.DocumentDraft) error {
 		}
 		return draft.SetMarkLevel(a.Node, a.Mark, a.Level)
 	case MarkerFormat:
-		return ToggleMark(draft, a.Node, a.Range, EmphasisMark, a.Level)
+		return ToggleMark(draft, a.Node, a.Range, a.MarkKind, a.Level)
 	default:
 		return fmt.Errorf("unknown marker action %d", a.Kind)
 	}
@@ -237,32 +229,32 @@ func MarkerEffect(node *model.Node, range16 model.UTF16Range) (model.MarkID, boo
 	return best.ID(), true
 }
 
-// InlineInputStyle resolves the current typing style from the active mark,
-// then falls back to the legacy emphasis attribute.
+// InlineInputStyle resolves the style text typed at the caret takes: its
+// block's, with the active mark's.
 func InlineInputStyle(
 	node *model.Node,
 	active *model.MarkID,
 	enabled bool,
 ) surface.TextStyle {
+	style := surface.TextStyle{Color: surface.ColorText}
 	if !enabled || node == nil {
-		return emphasisStyle(0)
+		return style
 	}
-	level := legacyEmphasisLevel(node)
+	style = blockStyle(node)
 	if active != nil {
 		for _, mark := range node.Marks() {
 			if mark.ID() == *active {
-				level = mark.Level()
+				markStyle(&style, mark)
 				break
 			}
 		}
 	}
-	return emphasisStyle(level)
+	return style
 }
 
-// InlineStyleRuns converts projection segments to contiguous byte style runs.
-// Generated attribute notation is muted; editable semantic text receives the
-// strongest enclosing mark of its own block and falls back to legacy
-// whole-node emphasis.
+// InlineStyleRuns converts projection segments to contiguous byte style
+// runs. Every segment takes its block's style; generated notation is muted
+// within it, and editable text takes the marks enclosing it.
 func InlineStyleRuns(
 	p *projection.Projection,
 	document model.DocumentSnapshot,
@@ -285,8 +277,24 @@ func InlineStyleRuns(
 	text := p.Text()
 	byteOffset := 0
 	runs := make([]surface.StyleRun, 0, 8)
+	// Generated text between blocks has no block of its own; it goes as
+	// the block before it does, so a line break never changes its size.
+	current := surface.TextStyle{Color: surface.ColorText}
 	var failure error
 	p.EachSegment(func(_ int, segment projection.Segment) bool {
+		var owner *model.Node
+		if target, ok := segment.SemanticTarget(); ok {
+			owner, ok = lookup(target.Node())
+			if !ok {
+				failure = &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
+				return false
+			}
+		} else if target, ok := segment.AttributeTarget(); ok {
+			owner, _ = lookup(target.Node())
+		}
+		if owner != nil && enabled {
+			current = blockStyle(owner)
+		}
 		units := segment.ProjectedRange().Len()
 		if units == 0 {
 			return true
@@ -309,25 +317,17 @@ func InlineStyleRuns(
 			failure = &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 			return false
 		}
-		style := emphasisStyle(0)
-		style.Color = surface.ColorMuted
-		if target, ok := segment.SemanticTarget(); ok {
-			node, found := lookup(target.Node())
-			if !found {
-				failure = &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
-				return false
-			}
+		style := current
+		if target, ok := segment.SemanticTarget(); ok && enabled {
 			targetRange := target.RangeUTF16()
-			level := uint8(0)
-			if enabled {
-				level = legacyEmphasisLevel(node)
-				for _, mark := range node.Marks() {
-					if mark.Range().Start <= targetRange.Start && targetRange.End <= mark.Range().End {
-						level = max(level, mark.Level())
-					}
+			for _, mark := range owner.Marks() {
+				if mark.Range().Start <= targetRange.Start && targetRange.End <= mark.Range().End {
+					markStyle(&style, mark)
 				}
 			}
-			style = emphasisStyle(level)
+		} else if !ok {
+			style.Color = surface.ColorMuted
+			style.Bold, style.Italic, style.Strike = false, false, false
 		}
 		pushSurfaceRun(&runs, surface.StyleRun{
 			Bytes: model.NewByteRange(model.ByteOffset(byteOffset), model.ByteOffset(end)),
@@ -345,11 +345,38 @@ func InlineStyleRuns(
 	return runs, nil
 }
 
-func emphasisStyle(level uint8) surface.TextStyle {
-	return surface.TextStyle{
-		Bold:   level == 2,
-		Italic: level == 1,
-		Color:  surface.ColorText,
+// blockStyle is how a block's text shows.
+func blockStyle(node *model.Node) surface.TextStyle {
+	style := surface.TextStyle{Color: surface.ColorText}
+	switch shape := shapeOf(node); shape.kind {
+	case HeadingNode:
+		style.Heading = uint8(shape.level)
+		style.Bold = true
+		style.Color = surface.ColorHeading
+	case QuoteNode:
+		style.Italic = true
+	case CodeNode:
+		style.Code = true
+	case RuleNode:
+		style.Color = surface.ColorSubtle
+	}
+	return style
+}
+
+// markStyle adds what a mark shows to style.
+func markStyle(style *surface.TextStyle, mark model.InlineMark) {
+	switch mark.Kind() {
+	case EmphasisMark:
+		switch mark.Level() {
+		case 1:
+			style.Italic = !style.Italic
+		case 2:
+			style.Bold = true
+		}
+	case CodeMark:
+		style.Code = true
+	case StrikeMark:
+		style.Strike = true
 	}
 }
 

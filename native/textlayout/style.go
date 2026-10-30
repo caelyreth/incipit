@@ -45,12 +45,37 @@ func (s Style) span(text string, run surface.StyleRun) ui.Span {
 	if run.Style.Bold {
 		weight = 700
 	}
-	return ui.Span{
-		Text:   text,
-		Font:   theme.ProseFontFamily,
-		Size:   s.Prose.FontSize,
-		Weight: weight,
-		Italic: run.Style.Italic,
-		Color:  s.color(run.Style.Color),
+	family, size := theme.ProseFontFamily, s.Prose.FontSize*headingScale(run.Style.Heading)
+	if run.Style.Code {
+		family, size = "monospace", size*codeScale
 	}
+	return ui.Span{
+		Text:          text,
+		Font:          family,
+		Size:          size,
+		Weight:        weight,
+		Italic:        run.Style.Italic,
+		Strikethrough: run.Style.Strike,
+		Color:         s.color(run.Style.Color),
+	}
+}
+
+// codeScale sets code a little smaller than the prose around it, so the
+// monospace face's larger x-height reads at the same size.
+const codeScale = 0.88
+
+// headingScale is how much larger than body text a heading of a level is
+// set: a step down per level, the last two at body size.
+func headingScale(level uint8) float32 {
+	switch level {
+	case 1:
+		return 1.6
+	case 2:
+		return 1.36
+	case 3:
+		return 1.18
+	case 4:
+		return 1.06
+	}
+	return 1
 }

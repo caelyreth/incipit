@@ -63,8 +63,8 @@ const (
 	WordsPolicyID kernel.PolicyID = "editor.words"
 	// NavigationPolicyID owns scope and return-to-edit navigation.
 	NavigationPolicyID kernel.PolicyID = "editor.navigation"
-	// MarkupPolicyID owns inline formatting commands.
-	MarkupPolicyID kernel.PolicyID = "editor.markup"
+	// WritingPolicyID owns inline formatting commands.
+	WritingPolicyID kernel.PolicyID = "editor.writing"
 	// PairsPolicyID owns pair insertion and mate editing.
 	PairsPolicyID kernel.PolicyID = "editor.pairs"
 	// CJKPolicyID owns line refinement after text insertion.
@@ -166,9 +166,9 @@ func (c MarkupCommand) Level() uint8 { return uint8(c) }
 // Description returns stable command metadata.
 func (c MarkupCommand) Description() Command {
 	if c == MarkupStrong {
-		return Command{ID: markupStrongCommandID, Label: "Toggle strong emphasis", Scope: ScopeDocument, Policy: MarkupPolicyID}
+		return Command{ID: markupStrongCommandID, Label: "Toggle strong emphasis", Scope: ScopeDocument, Policy: WritingPolicyID}
 	}
-	return Command{ID: markupEmphasisCommandID, Label: "Toggle emphasis", Scope: ScopeDocument, Policy: MarkupPolicyID}
+	return Command{ID: markupEmphasisCommandID, Label: "Toggle emphasis", Scope: ScopeDocument, Policy: WritingPolicyID}
 }
 
 // ID returns the stable command identity.

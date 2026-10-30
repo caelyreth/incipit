@@ -133,7 +133,7 @@ func TestMenuKeysFollowTheKeymap(t *testing.T) {
 	if bold.Accelerator != "" {
 		t.Fatalf("unbound bold kept %q", bold.Accelerator)
 	}
-	app.Settings.Apply(appsettings.ToggleBoolean(appsettings.PolicyBoolean(editor.MarkupPolicyID), false))
+	app.Settings.Apply(appsettings.ToggleBoolean(appsettings.PolicyBoolean(editor.WritingPolicyID), false))
 	if bold.IsEnabled() || menu.ItemByID("italic").IsEnabled() {
 		t.Fatal("format items stayed enabled with emphasis off")
 	}

@@ -3,6 +3,7 @@ package editor
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/kernel"
@@ -83,7 +84,7 @@ func TestRustOracleMarkupProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projected, err := MarkupProject(runtime.Snapshot(), oracle.Generation, runtime.Configuration())
+	projected, err := ProjectSnapshot(runtime.Snapshot(), oracle.Generation, runtime.Configuration())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,8 +107,11 @@ func TestRustOracleMarkupProjection(t *testing.T) {
 		}
 		switch want.Kind {
 		case "attribute":
+			// The Rust engine keys emphasis notation "emphasis/<id>"; here
+			// every mark's notation is keyed by the mark alone.
 			target, ok := segment.AttributeTarget()
-			if !ok || want.Key == nil || target.Key() != *want.Key {
+			if !ok || want.Key == nil ||
+				target.Key() != strings.Replace(*want.Key, "emphasis/", markerKeyPrefix, 1) {
 				t.Fatalf("segment %d attribute = %#v, want %#v", index, target, want)
 			}
 		case "editable":

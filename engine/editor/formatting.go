@@ -17,8 +17,6 @@ type MarkupState struct {
 
 // FormattingLevel resolves the strongest applicable semantic mark. A collapsed
 // selection uses the active mark; non-empty selections require full coverage.
-// A legacy whole-node integer "emphasis" attribute is the fallback, clamped to
-// the supported 0..2 range.
 func FormattingLevel(
 	node *model.Node,
 	selection model.TextSelection,
@@ -34,6 +32,9 @@ func FormattingLevel(
 	}
 	level := uint8(0)
 	for _, mark := range node.Marks() {
+		if mark.Kind() != EmphasisMark {
+			continue
+		}
 		applicable := false
 		if rangeUTF16.Empty() {
 			applicable = activeMark != nil && *activeMark == mark.ID()
@@ -43,9 +44,6 @@ func FormattingLevel(
 		if applicable {
 			level = max(level, mark.Level())
 		}
-	}
-	if level == 0 {
-		level = legacyEmphasisLevel(node)
 	}
 	return level
 }
@@ -118,6 +116,7 @@ type MarkupErrorKind uint8
 
 const (
 	MarkupErrorCompositionActive MarkupErrorKind = iota + 1
+	MarkupErrorStrongDisallowed
 )
 
 // MarkupError reports a formatting command contract failure.
@@ -126,20 +125,11 @@ type MarkupError struct {
 }
 
 func (e *MarkupError) Error() string {
-	if e.Kind == MarkupErrorCompositionActive {
+	switch e.Kind {
+	case MarkupErrorCompositionActive:
 		return "markup command rejected while composition is active"
+	case MarkupErrorStrongDisallowed:
+		return "strong emphasis is not allowed by the writing profile"
 	}
 	return "unknown markup error"
-}
-
-func legacyEmphasisLevel(node *model.Node) uint8 {
-	value, ok := node.Attribute("emphasis")
-	if !ok {
-		return 0
-	}
-	level, ok := value.Integer()
-	if !ok {
-		return 0
-	}
-	return uint8(max(0, min(2, level)))
 }

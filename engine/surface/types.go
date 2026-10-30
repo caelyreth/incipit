@@ -19,6 +19,11 @@ const (
 type TextStyle struct {
 	Bold   bool
 	Italic bool
+	// Heading is a heading's level, 1 to 6, or 0 for body text.
+	Heading uint8
+	// Code is text set in the monospace face.
+	Code   bool
+	Strike bool
 	Color  ColorRole
 }
 

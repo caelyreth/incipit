@@ -316,15 +316,15 @@ func policyData(on bool) []appsettings.Section {
 		Title: "Emphasis", Description: "Inline emphasis with generated markers.",
 		Settings: []appsettings.ToggleSetting{
 			{
-				Key: appsettings.PolicyBoolean("editor.markup"), Label: "Enable emphasis",
+				Key: appsettings.PolicyBoolean("editor.writing"), Label: "Enable emphasis",
 				Value: on, Enabled: true, Selector: "policy-markup",
 			},
 			{
-				Key:   appsettings.OptionBoolean(kernel.NewSettingKey("editor.markup", "strong")),
+				Key:   appsettings.OptionBoolean(kernel.NewSettingKey("editor.writing", "strong")),
 				Label: "Allow strong emphasis", Value: true, Enabled: on, Selector: "option-strong",
 			},
 			{
-				Key:   appsettings.OptionBoolean(kernel.NewSettingKey("editor.markup", "underscores")),
+				Key:   appsettings.OptionBoolean(kernel.NewSettingKey("editor.writing", "underscores")),
 				Label: "Use underscore markers", Value: false, Enabled: on, Selector: "option-underscores",
 			},
 		},
@@ -628,7 +628,7 @@ func TestPolicyCardEditsItsActionsLikeTheKeymap(t *testing.T) {
 	state, changes := keymapState()
 	state.Category = appsettings.Editor
 	state.Data.Sections = policyData(true)
-	state.Data.Sections[0].Policy = "editor.markup"
+	state.Data.Sections[0].Policy = "editor.writing"
 	state.Data.Sections[0].Shortcuts = state.Data.Shortcuts[:2]
 	tester := ui.NewTester(state.View, 980, 900)
 	tester.Frame()

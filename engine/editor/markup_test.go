@@ -26,7 +26,7 @@ func TestMarkupProjectNestedMarksWithoutStoringNotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectionResult, err := MarkupProjectDocument(
+	projectionResult, err := ProjectPage(
 		fixture.document.Snapshot(),
 		fixture.document.Revision(),
 		3,
@@ -70,7 +70,7 @@ func TestMarkupProjectNestedMarksWithoutStoringNotation(t *testing.T) {
 	}
 	if len(runs) != 7 ||
 		runs[1].Style != (surface.TextStyle{Italic: true, Color: surface.ColorText}) ||
-		runs[3].Style != (surface.TextStyle{Bold: true, Color: surface.ColorText}) ||
+		runs[3].Style != (surface.TextStyle{Bold: true, Italic: true, Color: surface.ColorText}) ||
 		runs[5].Style != (surface.TextStyle{Italic: true, Color: surface.ColorText}) {
 		t.Fatalf("style runs=%#v", runs)
 	}
@@ -92,7 +92,7 @@ func TestMarkupProjectDisjointAndZeroLengthMarksAdjoinMarkers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectionResult, err := MarkupProjectDocument(
+	projectionResult, err := ProjectPage(
 		fixture.document.Snapshot(),
 		fixture.document.Revision(),
 		0,
@@ -135,7 +135,7 @@ func TestMarkupProjectMapsGeneratedMarkerExteriorsByAffinity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectionResult, err := MarkupProjectDocument(
+	projectionResult, err := ProjectPage(
 		fixture.document.Snapshot(),
 		fixture.document.Revision(),
 		0,
@@ -178,11 +178,12 @@ func TestMarkupProjectMapsGeneratedMarkerExteriorsByAffinity(t *testing.T) {
 	}
 }
 
-func TestMarkupProjectLegacyEmphasisAndSettings(t *testing.T) {
+func TestMarkupProjectEmphasisAndSettings(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "ab")
 	if _, err := fixture.document.Transact(func(draft *model.DocumentDraft) error {
-		return draft.SetAttribute(fixture.node, "emphasis", model.IntegerValue(2))
+		_, err := draft.AddMark(fixture.node, model.NewUTF16Range(0, 2), EmphasisMark, 2)
+		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +202,7 @@ func TestMarkupProjectLegacyEmphasisAndSettings(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			projectionResult, err := MarkupProjectDocument(
+			projectionResult, err := ProjectPage(
 				fixture.document.Snapshot(),
 				fixture.document.Revision(),
 				0,
@@ -214,36 +215,6 @@ func TestMarkupProjectLegacyEmphasisAndSettings(t *testing.T) {
 				t.Fatalf("text=%q want %q", got, test.want)
 			}
 		})
-	}
-	fixture = newEditingFixture(t, "ab")
-	if _, err := fixture.document.Transact(func(draft *model.DocumentDraft) error {
-		return draft.SetAttribute(fixture.node, "emphasis", model.IntegerValue(3))
-	}); err != nil {
-		t.Fatal(err)
-	}
-	configuration, err := markupConfiguration(t, true, false, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := MarkupProjectDocument(
-		fixture.document.Snapshot(),
-		fixture.document.Revision(),
-		0,
-		configuration,
-	); err == nil {
-		t.Fatal("invalid legacy emphasis projected")
-	}
-	configuration, err = markupConfiguration(t, false, false, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := MarkupProjectDocument(
-		fixture.document.Snapshot(),
-		fixture.document.Revision(),
-		0,
-		configuration,
-	); err == nil {
-		t.Fatal("invalid legacy emphasis was accepted after disabling markup")
 	}
 }
 
@@ -259,7 +230,7 @@ func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
 	}
 	wantRequirements := map[kernel.PolicyID][]kernel.PolicyID{
 		TextPolicyID:       nil,
-		MarkupPolicyID:     nil,
+		WritingPolicyID:    nil,
 		PairsPolicyID:      {TextPolicyID},
 		CJKPolicyID:        {TextPolicyID},
 		TypographyPolicyID: {TextPolicyID},
@@ -289,15 +260,15 @@ func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
 	}
 	assertRuleOrder(t, rules[TextPolicyID]["edit"], 100, kernel.RulePhaseKindHandle, kernel.TextInputKey)
 	assertRuleOrder(t, rules[TextPolicyID]["projected-edit"], 100, kernel.RulePhaseKindHandle, kernel.ProjectedTextKey)
-	assertRuleOrder(t, rules[MarkupPolicyID]["type-marker"], 10, kernel.RulePhaseKindHandle, kernel.TextInputKey)
+	assertRuleOrder(t, rules[WritingPolicyID]["type-marker"], 10, kernel.RulePhaseKindHandle, kernel.TextInputKey)
 	if !slices.Equal(
-		rules[MarkupPolicyID]["type-marker"].Origins,
+		rules[WritingPolicyID]["type-marker"].Origins,
 		[]kernel.EventOrigin{kernel.EventOriginTyping},
 	) {
-		t.Fatalf("marker origins=%#v", rules[MarkupPolicyID]["type-marker"].Origins)
+		t.Fatalf("marker origins=%#v", rules[WritingPolicyID]["type-marker"].Origins)
 	}
-	assertRuleOrder(t, rules[MarkupPolicyID]["edit"], 100, kernel.RulePhaseKindHandle, kernel.AttributeInputKey)
-	assertRuleOrder(t, rules[MarkupPolicyID]["format"], 100, kernel.RulePhaseKindHandle, markupFormatTrigger)
+	assertRuleOrder(t, rules[WritingPolicyID]["edit"], 100, kernel.RulePhaseKindHandle, kernel.AttributeInputKey)
+	assertRuleOrder(t, rules[WritingPolicyID]["format"], 100, kernel.RulePhaseKindHandle, markupFormatTrigger)
 	for id, order := range map[kernel.RuleID]uint32{
 		"overtype": 14, "mate-edit": 16, "close-quote": 18, "open": 20,
 	} {
@@ -337,9 +308,12 @@ func TestEditorPolicyCatalogMatchesRustDeclarations(t *testing.T) {
 	if got := len(text.Commands); got != len(AllTextCommands) {
 		t.Fatalf("text commands=%d", got)
 	}
-	markup := catalogPolicy(t, catalog, MarkupPolicyID)
+	markup := catalogPolicy(t, catalog, WritingPolicyID)
 	if !slices.Equal(markup.Commands, []kernel.CommandID{"markup.emphasis", "markup.strong"}) ||
-		len(markup.Settings) != 2 {
+		!slices.Equal(settingIDs(markup.Settings), []kernel.SettingID{
+			"allow-strong", "underscores", "headings", "blockquotes",
+			"lists", "code", "strikethrough", "rules",
+		}) {
 		t.Fatalf("markup=%#v", markup)
 	}
 	pairs := catalogPolicy(t, catalog, PairsPolicyID)
@@ -599,9 +573,9 @@ func markupConfiguration(
 		return nil, err
 	}
 	if err := host.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
-		configuration.SetEnabled(MarkupPolicyID, enabled)
-		configuration.SetSetting(NewMarkupSettingKey(underscoresSetting), kernel.BoolSetting(underscores))
-		configuration.SetSetting(NewMarkupSettingKey(allowStrongSetting), kernel.BoolSetting(allowStrong))
+		configuration.SetEnabled(WritingPolicyID, enabled)
+		configuration.SetSetting(NewWritingSettingKey(underscoresSetting), kernel.BoolSetting(underscores))
+		configuration.SetSetting(NewWritingSettingKey(allowStrongSetting), kernel.BoolSetting(allowStrong))
 		return nil
 	}); err != nil {
 		return nil, err

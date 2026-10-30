@@ -44,13 +44,13 @@ func newProjectedFixture(
 	length := model.UTF16Offset(model.StringLenUTF16(text))
 	builder := projection.NewBuilder("markup/1", projection.NewVersion(revision, 1))
 	for _, mark := range root.Marks() {
-		if err := builder.Attribute(node, markerKey(mark.ID()), "*"); err != nil {
+		if err := builder.Attribute(node, MarkerKeyForMark(mark.ID()), "*"); err != nil {
 			t.Fatal(err)
 		}
 		if err := builder.Editable(root, mark.Range()); err != nil {
 			t.Fatal(err)
 		}
-		if err := builder.Attribute(node, markerKey(mark.ID()), "*"); err != nil {
+		if err := builder.Attribute(node, MarkerKeyForMark(mark.ID()), "*"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -209,7 +209,7 @@ func TestCollapsedAttributeCaretKeepsMarkerIdentityAndNoninteractiveInput(t *tes
 		attributes := resolved.ProjectedEditInput.Attributes()
 		expected := "!*"
 		if len(attributes) != 1 || attributes[0].Text() != expected ||
-			attributes[0].Target().Key() != markerKey(mustMark(f)) {
+			attributes[0].Target().Key() != MarkerKeyForMark(mustMark(f)) {
 			t.Fatalf("offset %d attributes = %#v", test.offset, attributes)
 		}
 		if resolved.ProjectedEditInput.ApplyText() || resolved.ProjectedEditInput.Interactive() ||
@@ -412,7 +412,7 @@ func TestNestedMarksDecomposeClosersBeforeOpenersByProjectionOrder(t *testing.T)
 			}
 			continue
 		}
-		if err := builder.Attribute(nodeID, markerKey(step.mark), step.text); err != nil {
+		if err := builder.Attribute(nodeID, MarkerKeyForMark(step.mark), step.text); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -443,7 +443,7 @@ func TestNestedMarksDecomposeClosersBeforeOpenersByProjectionOrder(t *testing.T)
 		t.Fatal(err)
 	}
 	attributes := resolved.ProjectedEditInput.Attributes()
-	if len(attributes) != 1 || attributes[0].Target().Key() != markerKey(inner) ||
+	if len(attributes) != 1 || attributes[0].Target().Key() != MarkerKeyForMark(inner) ||
 		attributes[0].Text() != "*" {
 		t.Fatalf("attributes = %#v", attributes)
 	}

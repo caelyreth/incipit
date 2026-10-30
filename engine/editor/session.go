@@ -401,17 +401,21 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 			insertedHead := target.RangeUTF16().Start +
 				model.UTF16Offset(model.StringLenUTF16(inputValue.Input().Text()))
 			through := len(changes.TextEdits())
+			headNode := target.Node()
 			if edit.UTF16Range.Empty() || resolved.VisualSelection == nil {
 				if action, ok := s.invoker.LastMarker(); ok && action.Handled && !action.Exited {
 					insertedHead = action.Head
 				} else if s.invoker.hasCorrectionEffect {
 					insertedHead = s.invoker.correctionEffectHead
+					if s.invoker.correctionEffectNode != 0 {
+						headNode = s.invoker.correctionEffectNode
+					}
 				}
 				through = min(s.invoker.correctionEffectThrough, len(changes.TextEdits()))
 			} else {
 				through = 0
 			}
-			head := model.NewTextAnchor(target.Node(), insertedHead, model.AffinityRight, beforeRevision)
+			head := model.NewTextAnchor(headNode, insertedHead, model.AffinityRight, beforeRevision)
 			next, err := s.editedPresentation(view, configuration, head, changes.TextEdits()[through:], s.invoker.active)
 			if err != nil {
 				return struct{}{}, err
@@ -517,7 +521,11 @@ func (s *Session) applySpanEdit(
 				return struct{}{}, nil
 			}
 			edits := changes.TextEdits()
-			head := model.NewTextAnchor(from.Node(), s.invoker.correctionEffectHead, model.AffinityRight, beforeRevision)
+			headNode := from.Node()
+			if s.invoker.correctionEffectNode != 0 {
+				headNode = s.invoker.correctionEffectNode
+			}
+			head := model.NewTextAnchor(headNode, s.invoker.correctionEffectHead, model.AffinityRight, beforeRevision)
 			through := min(s.invoker.correctionEffectThrough, len(edits))
 			// The head stands in the first block once the span has joined;
 			// only what was written after the replacement moves it.
@@ -565,7 +573,7 @@ func (s *Session) editedPresentation(
 		at := model.NewTextAnchor(node.ID(), length, model.AffinityRight, view.Revision())
 		next = model.CollapsedSelection(at)
 	}
-	projected, err := MarkupProjectDocument(document, view.Revision(), s.generation+1, configuration)
+	projected, err := ProjectPage(document, view.Revision(), s.generation+1, configuration)
 	if err != nil {
 		return Presentation{}, fmt.Errorf("prepare edit projection: %w", err)
 	}
@@ -654,7 +662,7 @@ func (s *Session) Reconfigure(
 			if !ok {
 				return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 			}
-			nextProjection, err := MarkupProjectDocument(
+			nextProjection, err := ProjectPage(
 				view.Document().CandidateSnapshot(view.Revision()),
 				view.Revision(),
 				s.generation+1,
@@ -772,7 +780,7 @@ func (s *Session) navigationSettings() NavigationSettings {
 		Pairs:               setting("pairs"),
 		PairsPolicyEnabled:  configuration.IsEnabled(PairsPolicyID),
 		Emphasis:            setting("emphasis"),
-		MarkupPolicyEnabled: configuration.IsEnabled(MarkupPolicyID),
+		MarkupPolicyEnabled: configuration.IsEnabled(WritingPolicyID),
 		ReturnToEdit:        setting("return-to-edit"),
 	}
 }
@@ -808,7 +816,7 @@ func (s *Session) inlineDecorations(node *model.Node) []surface.Decoration {
 		}
 		return []surface.Decoration{{
 			ID: surface.DecorationID{
-				Producer: surface.ProducerID(EditorPolicyMarkup),
+				Producer: surface.ProducerID(EditorPolicyWriting),
 				Local:    uint64(mark.ID()),
 			},
 			Primitive:  surface.FillPrimitive(ranges, surface.ColorMuted, 4),

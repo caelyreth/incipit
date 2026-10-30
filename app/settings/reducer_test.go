@@ -381,7 +381,7 @@ func TestShortcutsSitUnderThePolicyTheyAreAbout(t *testing.T) {
 		}
 	}
 	strong, _ := data.Shortcut(editor.MarkupStrong.ID())
-	if strong.Origin != editor.MarkupPolicyID || strong.OriginLabel != "Emphasis" {
+	if strong.Origin != editor.WritingPolicyID || strong.OriginLabel != "Writing Profile" {
 		t.Fatalf("strong origin = %#v", strong)
 	}
 	if paste, _ := data.Shortcut(editor.SurfacePasteCommandID); paste.Origin != "" {
