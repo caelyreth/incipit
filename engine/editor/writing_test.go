@@ -420,3 +420,18 @@ func TestNestingCommands(t *testing.T) {
 		t.Fatalf("undo shows %q", got)
 	}
 }
+
+// An empty item is a scope like any other: Select All there selects its
+// list, then the page.
+func TestSelectAllFromAnEmptyItem(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "# Hello world\nhello world\n- hello?\nfoo\n")
+	text := session.Projection().Text()
+	for _, scope := range []string{"- hello?\n- foo\n- ", text} {
+		run(t, session, TextSelectAll)
+		selected, _ := session.VisualSelection()
+		if got := string([]rune(text)[selected.Start:selected.End]); got != scope {
+			t.Fatalf("selected %q, want %q", got, scope)
+		}
+	}
+}

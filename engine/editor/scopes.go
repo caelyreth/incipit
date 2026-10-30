@@ -31,8 +31,15 @@ func (s *Session) selectionScopes() []model.UTF16Range {
 		target, err := p.ProjectAnchor(model.NewTextAnchor(block.ID(), offset, affinity, revision))
 		return target.RangeUTF16().Start, err == nil
 	}
+	start := func(at int) (model.UTF16Offset, bool) {
+		return project(blocks[at], 0, model.AffinityRight)
+	}
+	// A block's text ends no earlier than it starts: leaning left, an empty
+	// block's end would fall before its own notation.
 	end := func(at int) (model.UTF16Offset, bool) {
-		return project(blocks[at], blockLength(blocks[at]), model.AffinityLeft)
+		first, firstOK := start(at)
+		last, lastOK := project(blocks[at], blockLength(blocks[at]), model.AffinityLeft)
+		return max(first, last), firstOK && lastOK
 	}
 	// A line starts past the break that ends the line before it.
 	lineStart := func(at int) (model.UTF16Offset, bool) {
@@ -43,10 +50,10 @@ func (s *Session) selectionScopes() []model.UTF16Range {
 		return previous + 1, ok
 	}
 	scopes := make([]model.UTF16Range, 0, 4)
-	start, startOK := project(blocks[index], 0, model.AffinityRight)
-	stop, stopOK := end(index)
-	if startOK && stopOK {
-		scopes = append(scopes, model.NewUTF16Range(start, stop))
+	first, firstOK := start(index)
+	last, lastOK := end(index)
+	if firstOK && lastOK {
+		scopes = append(scopes, model.NewUTF16Range(first, last))
 	}
 	for _, run := range groupRuns(blocks, index) {
 		first, firstOK := lineStart(run[0])
