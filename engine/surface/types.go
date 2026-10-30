@@ -182,6 +182,7 @@ const (
 	PrimitiveFill PrimitiveKind = iota + 1
 	PrimitiveRule
 	PrimitiveGuide
+	PrimitiveArea
 )
 
 type Primitive struct {
@@ -207,6 +208,16 @@ func RulePrimitive(ranges []model.UTF16Range, color ColorRole, thickness float32
 // take the caret there.
 func GuidePrimitive(at model.UTF16Offset, keys []string, color ColorRole) Primitive {
 	return Primitive{Kind: PrimitiveGuide, At: at, Keys: append([]string(nil), keys...), Color: color}
+}
+
+// AreaPrimitive marks the area some ranges of text take, with the keys
+// that would make that area the selection. How an area shows is the
+// surface's to decide; it should not read as a selection itself.
+func AreaPrimitive(ranges []model.UTF16Range, keys []string, color ColorRole) Primitive {
+	return Primitive{
+		Kind: PrimitiveArea, Ranges: cloneRanges(ranges),
+		Keys: append([]string(nil), keys...), Color: color,
+	}
 }
 
 func (p Primitive) Clone() Primitive {

@@ -58,6 +58,13 @@ func NewFrame(
 			if err := validateRanges(flow, decoration.Primitive.Ranges); err != nil {
 				return nil, err
 			}
+		case PrimitiveArea:
+			if len(decoration.Primitive.Ranges) == 0 {
+				return nil, fmt.Errorf("area without ranges")
+			}
+			if err := validateRanges(flow, decoration.Primitive.Ranges); err != nil {
+				return nil, err
+			}
 		case PrimitiveGuide:
 			if len(decoration.Primitive.Keys) == 0 {
 				return nil, fmt.Errorf("guide without keys")

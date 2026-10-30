@@ -91,7 +91,7 @@ func TestTypingOverASpanJoinsAndPastingLinesSplits(t *testing.T) {
 	}
 	expectPage(t, session, "abX1\n2\n3|ef", "abX1", "2", "3ef")
 
-	run(t, session, TextSelectAll, TextBackspace)
+	run(t, session, TextSelectAll, TextSelectAll, TextBackspace)
 	expectPage(t, session, "|", "")
 }
 

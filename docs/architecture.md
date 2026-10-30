@@ -85,6 +85,13 @@ literal text it shows, so deleting the space of "## " leaves "##" in a
 paragraph, and typing it back makes the heading again. The policy's settings
 gate each trigger, never a kind.
 
+Select All selects by scope (`engine/editor/scopes.go`): the block's text,
+then the whole page, notation included. While a scope is selected, a guide
+marks the next one with the keys that select it: an area primitive
+(`surface.AreaPrimitive`) names the ranges and keys, and the view shows it
+as a bracket in the margin beside those rows, keycaps at its left, grown
+out of the selection's rows; it never reads as a selection.
+
 A page is named after its first heading, whatever its level, or "Untitled"
 when it has none (`Session.Title`); nothing else names it.
 

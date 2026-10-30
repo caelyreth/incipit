@@ -30,6 +30,10 @@ type State struct {
 	// the viewport's edges rather than to a clip short of them.
 	TopInset    float32
 	BottomInset float32
+	// Margin is the room beside the column, where areas show, and
+	// UIFontSize the size keys are named in.
+	Margin     float32
+	UIFontSize float32
 	// Guides keeps the anchored key hints' motion across frames; without
 	// it guides still paint, settled.
 	Guides *Guides

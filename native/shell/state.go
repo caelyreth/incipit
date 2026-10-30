@@ -100,6 +100,15 @@ func (s *State) ToggleSidebar() {
 	s.SidebarOverride = &next
 }
 
+// ColumnMargin is the room beside the document column: the gutter and half
+// of what the page's width leaves over the column.
+func (s *State) ColumnMargin() float32 {
+	scale := s.Settings.UIFontSize
+	gutter := theme.DefaultLayout.ContentGutter * scale / theme.DefaultUIFontSize
+	column := theme.NewProseStyle(s.Settings.ProseFontSize).Column()
+	return gutter + max(0, (s.lastWidth-s.lastSidebarWidth-2*gutter-column)/2)
+}
+
 func (s *State) SidebarVisible() bool {
 	if s == nil || s.Appearance.Zen {
 		return false

@@ -2,7 +2,6 @@ package settings
 
 import (
 	"strings"
-	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
@@ -328,35 +327,10 @@ func (s *State) shortcutKeys(c *ui.Context, semantic theme.Theme, shortcut appse
 
 // keycaps draws one binding as a run of keys.
 func (s *State) keycaps(c *ui.Context, semantic theme.Theme, target kernel.BindingTarget, compact bool) {
-	scale := s.Theme.UIFontSize
-	ui.Row(c).AlignItems(ui.Center).Gap(theme.Space02.DIPs(scale)).
-		Label(keymap.Chord(target, keymap.PlatformCurrent)).Children(func() {
-		for _, key := range keymap.Keycaps(target, keymap.PlatformCurrent) {
-			height := 22 * scale / theme.DefaultUIFontSize
-			face := semantic.Surface.Inset
-			if compact {
-				// Inside an inset field the caps sit on the page surface.
-				height = 20 * scale / theme.DefaultUIFontSize
-				face = semantic.Surface.Page
-			}
-			cap := ui.Row(c).Height(height).Justify(ui.Center).AlignItems(ui.Center).
-				Radius(5*scale/theme.DefaultUIFontSize).
-				Border(1, semantic.Border.Variant).Background(face)
-			if utf8.RuneCountInString(key) == 1 {
-				// One glyph: a square cap, so a row of caps is even.
-				cap.Width(height)
-			} else {
-				cap.MinWidth(height).PaddingX(theme.Space06.DIPs(scale))
-			}
-			cap.Children(func() {
-				// The UI face's ink sits half a DIP below its line box;
-				// lift it so glyphs center optically in the cap.
-				components.Label(c, key, theme.TextXSmall, semantic.Text.Default).
-					SingleLine().FontFeatures("tnum").
-					Translate(0, -0.5*scale/theme.DefaultUIFontSize)
-			})
-		}
-	})
+	components.Keycaps(c,
+		components.KeycapStyle(semantic, s.Theme.UIFontSize, compact),
+		keymap.Keycaps(target, keymap.PlatformCurrent),
+		keymap.Chord(target, keymap.PlatformCurrent))
 }
 
 var (

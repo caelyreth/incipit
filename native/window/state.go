@@ -121,6 +121,8 @@ func (a *AppState) BindShell() {
 		// The reading space above the first line scrolls with the page.
 		// The last line only needs to clear the floating dock; typewriter
 		// mode's centering space is the element's own.
+		a.Element.Margin = a.Shell.ColumnMargin()
+		a.Element.UIFontSize = a.Shell.Settings.UIFontSize
 		a.Element.TopInset = theme.DefaultLayout.ReadingTop *
 			a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
 		a.Element.BottomInset = theme.DefaultLayout.DockClearance() *

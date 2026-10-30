@@ -158,8 +158,8 @@ func (s *Session) SurfaceFrame(now time.Time, keys GuideKeys) (*surface.Frame, e
 	if selection.Empty() {
 		decorations = append(decorations, s.inlineDecorations(node)...)
 		decorations = append(decorations, s.pairDecorations(node)...)
-		decorations = append(decorations, s.guideDecorations(now, keys)...)
 	}
+	decorations = append(decorations, s.guideDecorations(now, keys)...)
 	decorations = append(decorations, s.feedbackDecorations(now)...)
 	return surface.NewFrame(
 		flow,

@@ -25,18 +25,22 @@ type TextInput interface {
 // Element is the reusable custom writing surface. It owns retained paragraph
 // layout and contractual caret/selection motion, but not the document.
 type Element struct {
-	Input             TextInput
-	Theme             theme.Theme
-	Prose             theme.ProseStyle
-	Animate           bool
-	Typewriter        bool
-	Label             string
-	AutoFocus         bool
-	Placeholder       string
-	Layout            *textlayout.Cache
-	Motion            *motion.Motion
-	TopInset          float32
-	BottomInset       float32
+	Input       TextInput
+	Theme       theme.Theme
+	Prose       theme.ProseStyle
+	Animate     bool
+	Typewriter  bool
+	Label       string
+	AutoFocus   bool
+	Placeholder string
+	Layout      *textlayout.Cache
+	Motion      *motion.Motion
+	TopInset    float32
+	BottomInset float32
+	// Margin is the room beside the column, where hints that must not
+	// read as part of the text show; UIFontSize sizes the keys they name.
+	Margin            float32
+	UIFontSize        float32
 	scroll            float32
 	lastHeight        float32
 	manualUntil       time.Time
@@ -378,6 +382,8 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		PointerSelecting:  e.pointer == pointerSelecting,
 		Composing:         bridge.Controller.IsComposing(),
 		TopInset:          e.TopInset,
+		Margin:            e.Margin,
+		UIFontSize:        e.UIFontSize,
 		BottomInset:       e.BottomInset,
 		Guides:            &e.guides,
 	}

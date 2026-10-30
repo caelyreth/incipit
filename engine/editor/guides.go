@@ -16,9 +16,12 @@ type Guide struct {
 	Producer surface.ProducerID
 	// Local distinguishes one producer's guides. A guide that keeps its
 	// identity while its destination changes glides there.
-	Local     uint64
-	Command   kernel.CommandID
-	At        model.UTF16Offset
+	Local   uint64
+	Command kernel.CommandID
+	At      model.UTF16Offset
+	// Area, when set, is the region invoking Command would select: the
+	// guide marks that area, with its keys, rather than the point At.
+	Area      []model.UTF16Range
 	ExpiresAt *time.Time
 }
 
@@ -27,11 +30,13 @@ type Guide struct {
 type GuideKeys func(kernel.BindingTarget) []string
 
 // guideProducer reports the guides one feature offers for the current
-// collapsed selection. Producers gate themselves on their own policies.
+// selection. Producers gate themselves, on their own policies and on the
+// selection they offer for.
 type guideProducer func(*Session, time.Time) []Guide
 
 var guideProducers = []guideProducer{
 	(*Session).navigationGuides,
+	(*Session).scopeGuides,
 }
 
 // Guides returns every guide offered now, before key resolution.
@@ -61,9 +66,13 @@ func (s *Session) guideDecorations(now time.Time, keys GuideKeys) []surface.Deco
 		if len(caps) == 0 {
 			continue
 		}
+		primitive := surface.GuidePrimitive(guide.At, caps, surface.ColorMuted)
+		if len(guide.Area) > 0 {
+			primitive = surface.AreaPrimitive(guide.Area, caps, surface.ColorMuted)
+		}
 		decorations = append(decorations, surface.Decoration{
 			ID:         surface.DecorationID{Producer: guide.Producer, Local: guide.Local},
-			Primitive:  surface.GuidePrimitive(guide.At, caps, surface.ColorMuted),
+			Primitive:  primitive,
 			Opacity:    surface.FixedOpacity(255),
 			Visibility: surface.VisibilityFocused,
 			ExpiresAt:  guide.ExpiresAt,
@@ -76,6 +85,9 @@ func (s *Session) guideDecorations(now time.Time, keys GuideKeys) []surface.Deco
 // or emphasis, or back at the last edit. One identity across offer kinds
 // lets the guide glide between destinations instead of blinking.
 func (s *Session) navigationGuides(now time.Time) []Guide {
+	if !s.presentation.Selection.IsCollapsed() {
+		return nil
+	}
 	offer, ok, err := s.TabOffer(now)
 	if err != nil || !ok {
 		return nil

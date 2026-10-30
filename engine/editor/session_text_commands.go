@@ -84,12 +84,17 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		outcome, err := s.ReplaceSelection("\n", kernel.EventOriginTyping)
 		return outcome.Outcome, err
 	}
-	// Selecting the whole page, or to either end of it, reaches the page's
-	// ends as it shows them, the notation there included: deleting it then
-	// takes a heading's "# " along with its text.
+	// Select All steps out scope by scope (scopes.go). Selecting the whole
+	// page, or to either end of it, reaches the page's ends as it shows
+	// them, the notation there included: deleting it then takes a
+	// heading's "# " along with its text.
 	switch command {
 	case TextSelectAll:
-		return kernel.OutcomeHandled, s.SelectProjected(0, model.UTF16Offset(s.presentation.Projection.UTF16Len()))
+		scope, ok := s.nextScope()
+		if !ok {
+			return kernel.OutcomeHandled, nil
+		}
+		return kernel.OutcomeHandled, s.SelectProjected(scope.Start, scope.End)
 	case TextSelectDocumentStart, TextSelectDocumentEnd:
 		viewAnchor, err := s.currentViewAnchor()
 		if err != nil {

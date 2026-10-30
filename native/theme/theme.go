@@ -223,8 +223,9 @@ func (s Settings) Semantic() Theme {
 			Heading:  palette.textEmphasis,
 			Notation: palette.textSecondary,
 			Rule:     palette.hairline,
-			// Selection is graphite, not tinted: the accent is the caret's.
-			Selection: palette.hairline,
+			// Selection is the accent family's surface: the hue, quiet
+			// enough to read text through.
+			Selection: accent.Surface,
 		},
 	}
 }

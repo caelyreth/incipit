@@ -2,9 +2,11 @@ package editor
 
 import (
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 )
 
 // typeKeys types text one character at a time, a line break as Return.
@@ -201,7 +203,7 @@ func TestKindsOutliveTheWritingPolicy(t *testing.T) {
 func TestSpanDeletionTakesCoveredNotation(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "# Title\nsome *emph* text")
-	run(t, session, TextSelectAll, TextBackspace)
+	run(t, session, TextSelectAll, TextSelectAll, TextBackspace)
 	expectKinds(t, session, ParagraphNode)
 	expectPage(t, session, "|", "")
 	if marks := DocumentBlocks(session.Runtime().Snapshot().Document())[0].Marks(); len(marks) != 0 {
@@ -249,5 +251,52 @@ func TestSpanDeletionBetweenBlocks(t *testing.T) {
 			expectPage(t, session, test.view, test.texts...)
 			undoTo(t, session, "# Title\nsome *emph* text")
 		})
+	}
+}
+
+// Select All steps out scope by scope: a block's text, then the whole page,
+// then no further. While a scope is selected, the next one is framed with
+// the keys that select it; the page, the last, frames nothing.
+func TestSelectAllStepsOutByScope(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "# Title\nsome text")
+	at(t, session, 12)
+	keys := func(kernel.BindingTarget) []string { return []string{"⌘", "A"} }
+	frames := func() []model.UTF16Range {
+		frame, err := session.SurfaceFrame(time.Unix(0, 0), keys)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var area []model.UTF16Range
+		for _, decoration := range frame.Decorations() {
+			if decoration.Primitive.Kind == surface.PrimitiveArea {
+				area = append(area, decoration.Primitive.Ranges...)
+			}
+		}
+		return area
+	}
+	if len(frames()) != 0 {
+		t.Fatal("a caret framed a scope")
+	}
+	for _, want := range []model.UTF16Range{model.NewUTF16Range(8, 17), model.NewUTF16Range(0, 17)} {
+		run(t, session, TextSelectAll)
+		if got, _ := session.VisualSelection(); got != want {
+			t.Fatalf("selected %v, want %v", got, want)
+		}
+	}
+	if area := frames(); len(area) != 0 {
+		t.Fatalf("the page framed %v", area)
+	}
+	run(t, session, TextSelectAll)
+	if got, _ := session.VisualSelection(); got != model.NewUTF16Range(0, 17) {
+		t.Fatalf("selected %v past the page", got)
+	}
+	at(t, session, 3)
+	run(t, session, TextSelectAll)
+	if got, _ := session.VisualSelection(); got != model.NewUTF16Range(2, 7) {
+		t.Fatalf("heading scope %v, want its text", got)
+	}
+	if area := frames(); len(area) != 1 || area[0] != model.NewUTF16Range(0, 17) {
+		t.Fatalf("framed %v, want the page", area)
 	}
 }
