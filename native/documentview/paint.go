@@ -26,7 +26,6 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	}
 	now := p.Now()
 	caret := state.Layout.Caret(state.Frame.Caret())
-	caret = productCaret(caret, state.Prose)
 	selection := state.Layout.RangeRects(state.Frame.Selection())
 	// Only a moving drag follows the pointer directly; a press retargets the
 	// retained springs so quick clicks glide instead of snapping.

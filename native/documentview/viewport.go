@@ -5,17 +5,17 @@ import (
 
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/textlayout"
+	"github.com/egoist/mygo/ui"
 )
 
 const manualScrollGrace = 650 * time.Millisecond
 
-func (e *Element) revealCaret(layout *textlayout.Layout, caret float32, now time.Time) {
+// revealCaret brings the caret's whole line box into view.
+func (e *Element) revealCaret(layout *textlayout.Layout, box ui.Rect, now time.Time) {
 	if e == nil || layout == nil || e.lastHeight <= 0 {
 		return
 	}
-	line := e.Prose.LineHeight()
-	// The product caret is centered in its line; reveal the whole line.
-	lineTop := caret - (line-e.Prose.CaretHeight())/2
+	line, lineTop := max(box.H, e.Prose.LineHeight()), box.Y
 	// The reading space above the first line is that line's: revealing it
 	// reveals the page's top. A caret within the first line's height of
 	// the text's top is on it, however tall a heading makes it.

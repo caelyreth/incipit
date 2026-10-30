@@ -20,10 +20,13 @@ func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 	}
 	caret := paragraph.layout.Caret(local)
 	caret.Y += paragraph.top
+	// The caret grows with its row: a heading's row is taller than body
+	// text's, and its caret is as much taller, centered alike.
 	lineHeight := l.style.Prose.LineHeight()
-	height := l.style.Prose.CaretHeight()
-	caret.Y += (lineHeight - height) / 2
-	caret.Y += l.style.Prose.CaretOffsetY()
+	row := max(lineHeight, caret.H)
+	scale := row / lineHeight
+	height := l.style.Prose.CaretHeight() * scale
+	caret.Y += (row-height)/2 + l.style.Prose.CaretOffsetY()*scale
 	caret.W = 2
 	caret.H = height
 	return caret

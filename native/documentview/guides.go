@@ -103,7 +103,7 @@ func (g *Guides) step(state *State, options PaintOptions) bool {
 		if alpha <= 0 {
 			continue
 		}
-		marker := productCaret(state.Layout.Caret(decoration.Primitive.At), state.Prose)
+		marker := state.Layout.Caret(decoration.Primitive.At)
 		track, ok := g.tracks[decoration.ID]
 		if !ok {
 			track = &guideTrack{}

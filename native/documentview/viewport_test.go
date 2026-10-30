@@ -41,7 +41,7 @@ func TestViewportRevealsCaretAndTranslatesPaint(t *testing.T) {
 		lastHeight: layout.Height() / 4,
 	}
 	caret := layout.Caret(layout.Flow().UTF16Len())
-	element.revealCaret(layout, caret.Y, now)
+	element.revealCaret(layout, caret, now)
 	if !element.Motion.Moving() {
 		t.Fatal("off-screen caret did not start reveal motion")
 	}
@@ -83,7 +83,7 @@ func TestViewportAnimationUsesRetainedLayout(t *testing.T) {
 		t.Fatal("empty layout has height")
 	}
 	element := &Element{Prose: theme.NewProseStyle(19), Motion: motion.New(now), lastHeight: -1}
-	element.revealCaret(layout, 10, now)
+	element.revealCaret(layout, ui.Rect{Y: 10}, now)
 	if element.Motion.Moving() {
 		t.Fatal("unmeasurable layout started motion")
 	}

@@ -323,8 +323,13 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		e.lastWidth = rect.W
 	}
 	e.current = e.Layout.Update(flow, rect.W, style)
-	caret := productCaret(e.current.Caret(frame.Caret()), e.Prose)
+	caret := e.current.Caret(frame.Caret())
 	caret.Y += e.TopInset
+	line, ok := e.current.CaretLine(frame.Caret())
+	if !ok {
+		line = caret
+	}
+	line.Y += e.TopInset
 	modeChanged := e.lastTypewriter != e.Typewriter
 	if e.lastCaretY != caret.Y || e.lastViewportH != rect.H || modeChanged {
 		if e.lastCaretY != caret.Y {
@@ -340,7 +345,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		} else {
 			// Entering it glides to the centered line from where the page
 			// is and at the speed it is moving.
-			e.revealCaret(e.current, caret.Y, p.Now())
+			e.revealCaret(e.current, line, p.Now())
 		}
 		e.lastCaretY = caret.Y
 		e.lastViewportH = rect.H
@@ -402,14 +407,6 @@ func (e *Element) scrollRange(layout *textlayout.Layout, viewport float32) (floa
 		return first, max(first, last)
 	}
 	return 0, max(0, top+layout.Height()+e.BottomInset-viewport)
-}
-
-func productCaret(caret ui.Rect, prose theme.ProseStyle) ui.Rect {
-	height := min(caret.H, prose.CaretHeight())
-	caret.Y += (caret.H - height) / 2
-	caret.H = height
-	caret.W = 2
-	return caret
 }
 
 func (e *Element) placeholder(width float32) *ui.TextLayout {

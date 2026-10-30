@@ -226,3 +226,26 @@ func TestDocumentEndBelongsToFinalParagraph(t *testing.T) {
 		}
 	}
 }
+
+// A caret grows with its row: on a heading it is taller than in body text,
+// and stays centered in the heading's row.
+func TestCaretGrowsWithItsRow(t *testing.T) {
+	style := NewStyle(theme.NewProseStyle(19), theme.DefaultSettings().Semantic())
+	text := "Heading\nbody"
+	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{
+		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Heading: 1}},
+		{Bytes: model.NewByteRange(8, model.ByteOffset(len(text))), Style: surface.TextStyle{}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout := NewCache().Update(flow, 600, style)
+	heading, body := layout.Caret(3), layout.Caret(10)
+	if body.H != style.Prose.CaretHeight() || heading.H <= body.H {
+		t.Fatalf("heading caret %v, body caret %v", heading, body)
+	}
+	row, _ := layout.CaretLine(3)
+	if gap := (heading.Y - row.Y) - (row.Y + row.H - heading.Y - heading.H); gap < -4 || gap > 4 {
+		t.Fatalf("heading caret %v is not centered in its row %v", heading, row)
+	}
+}
