@@ -308,6 +308,7 @@ func (s *State) sheetRows(
 		&s.sheetScroll,
 		&s.sheetOverscroll,
 		scrollfx.Vertical,
+		components.OverscrollList,
 		scroll.LayoutBounds().H,
 		scale,
 	)

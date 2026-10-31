@@ -165,6 +165,7 @@ func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 		&s.libraryScroll,
 		&s.libraryOverscroll,
 		scrollfx.Vertical,
+		components.OverscrollList,
 		scroll.LayoutBounds().H,
 		scale,
 	)

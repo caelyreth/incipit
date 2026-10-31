@@ -7,13 +7,6 @@ import (
 )
 
 const (
-	// stiffness and damping return quickly without a second visible swing
-	// around the edge.
-	stiffness = float32(260)
-	damping   = float32(32)
-	// rubberBand is the resistance beyond an edge. Smaller values make
-	// extra wheel travel move the surface less.
-	rubberBand = float32(0.55)
 	// maxSpeed keeps a rapid stream of input from making the recoil
 	// physically implausible.
 	maxSpeed = float32(1200)
@@ -26,10 +19,23 @@ const (
 	substep      = float32(1) / 240
 )
 
+// Profile is how one scroll surface answers being pulled past its edge.
+// Resistance below 1 makes travel progressively harder; Stiffness and
+// Damping are the return spring's physical terms.
+type Profile struct {
+	Resistance float32
+	Stiffness  float32
+	Damping    float32
+}
+
+// DefaultProfile is a quick return with no second visible swing.
+var DefaultProfile = Profile{Resistance: 0.55, Stiffness: 260, Damping: 32}
+
 // Elastic is one axis of a surface pulled beyond its content edge.
 type Elastic struct {
 	offset   float32
 	velocity float32
+	spring   Profile
 	updated  time.Time
 	last     time.Time
 	held     bool
@@ -58,7 +64,12 @@ func (e Elastic) moving() bool {
 
 // Add pulls the axis by delta DIPs, resisting as it moves farther out. A pull
 // toward the edge follows the input directly and never crosses through it.
-func (e *Elastic) Add(delta, limit float32, now time.Time, phase InputPhase) {
+func (e *Elastic) Add(
+	delta, limit float32,
+	now time.Time,
+	phase InputPhase,
+	profile Profile,
+) {
 	if e == nil {
 		return
 	}
@@ -70,6 +81,7 @@ func (e *Elastic) Add(delta, limit float32, now time.Time, phase InputPhase) {
 	if delta == 0 {
 		return
 	}
+	e.spring = profile.normalized()
 	if phase == Momentum && e.coasting {
 		// Momentum after the first release keeps driving an ordinary
 		// scroll, but at an edge it must not keep restretching the band.
@@ -91,7 +103,7 @@ func (e *Elastic) Add(delta, limit float32, now time.Time, phase InputPhase) {
 		return
 	}
 	room := max(0, limit-abs(e.offset))
-	moved := rubber(delta, room)
+	moved := rubber(delta, room, e.spring.Resistance)
 	e.offset = clamp(e.offset+moved, -limit, limit)
 	if hold && wasHeld {
 		// Keep only a modest part of the hand's current speed. The spring
@@ -166,7 +178,7 @@ func (e *Elastic) advance(now time.Time) {
 	}
 	for dt > 0 {
 		step := min(dt, substep)
-		acceleration := -stiffness*e.offset - damping*e.velocity
+		acceleration := -e.spring.Stiffness*e.offset - e.spring.Damping*e.velocity
 		e.velocity = clamp(e.velocity+acceleration*step, -maxSpeed, maxSpeed)
 		e.offset += e.velocity * step
 		dt -= step
@@ -177,7 +189,7 @@ func (e *Elastic) advance(now time.Time) {
 // rubber maps unbounded pull to bounded travel. It follows the usual
 // diminishing-return curve: the first DIPs move nearly as far as the input,
 // while the edge becomes progressively harder to leave.
-func rubber(delta, room float32) float32 {
+func rubber(delta, room, resistance float32) float32 {
 	if delta == 0 || room <= 0 {
 		return 0
 	}
@@ -186,17 +198,20 @@ func rubber(delta, room float32) float32 {
 		direction = -1
 	}
 	distance := abs(delta)
-	return direction * distance * room / (room/rubberBand + distance)
+	return direction * distance * room / (room/resistance + distance)
 }
 
-// Limit keeps the visible pull proportionate to the viewport while retaining
-// a useful minimum for compact controls such as the tab strip.
-func Limit(viewport, preferred, minimum float32) float32 {
-	if viewport <= 0 {
-		return preferred
+func (p Profile) normalized() Profile {
+	if p.Resistance <= 0 {
+		p.Resistance = DefaultProfile.Resistance
 	}
-	const viewportShare = 0.18
-	return min(preferred, max(minimum, viewport*viewportShare))
+	if p.Stiffness <= 0 {
+		p.Stiffness = DefaultProfile.Stiffness
+	}
+	if p.Damping <= 0 {
+		p.Damping = DefaultProfile.Damping
+	}
+	return p
 }
 
 func clamp(value, low, high float32) float32 {

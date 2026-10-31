@@ -28,6 +28,7 @@ func (o *Overscroll) Handle(
 	state *ui.ScrollState,
 	axis Axis,
 	limit float32,
+	profile Profile,
 ) bool {
 	if o == nil || state == nil || event.Kind != ui.InputScroll {
 		return false
@@ -40,7 +41,7 @@ func (o *Overscroll) Handle(
 	if axis&Horizontal != 0 && dx != 0 {
 		position, ok := o.pull(
 			&o.x, dx, state.X, state.MaxX,
-			phase(event.Precise, event.Momentum), limit, event.Time,
+			phase(event.Precise, event.Momentum), limit, event.Time, profile,
 		)
 		if ok {
 			state.X = position
@@ -50,7 +51,7 @@ func (o *Overscroll) Handle(
 	if axis&Vertical != 0 && dy != 0 {
 		position, ok := o.pull(
 			&o.y, dy, state.Y, state.MaxY,
-			phase(event.Precise, event.Momentum), limit, event.Time,
+			phase(event.Precise, event.Momentum), limit, event.Time, profile,
 		)
 		if ok {
 			state.Y = position
@@ -107,31 +108,32 @@ func (o *Overscroll) pull(
 	phase InputPhase,
 	limit float32,
 	now time.Time,
+	profile Profile,
 ) (float32, bool) {
 	if delta == 0 {
 		return position, false
 	}
 	if elastic.Offset() != 0 {
-		elastic.Add(-delta, limit, now, phase)
+		elastic.Add(-delta, limit, now, phase, profile)
 		return position, true
 	}
 	if delta > 0 {
 		switch {
 		case position >= maximum-0.5:
-			elastic.Add(-delta, limit, now, phase)
+			elastic.Add(-delta, limit, now, phase, profile)
 			return position, true
 		case phase != Notch && position+delta > maximum:
-			elastic.Add(-(position + delta - maximum), limit, now, phase)
+			elastic.Add(-(position + delta - maximum), limit, now, phase, profile)
 			return maximum, true
 		}
 		return position, false
 	}
 	switch {
 	case position <= 0.5:
-		elastic.Add(-delta, limit, now, phase)
+		elastic.Add(-delta, limit, now, phase, profile)
 		return position, true
 	case phase != Notch && position+delta < 0:
-		elastic.Add(-(position + delta), limit, now, phase)
+		elastic.Add(-(position + delta), limit, now, phase, profile)
 		return 0, true
 	}
 	return position, false

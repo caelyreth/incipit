@@ -47,6 +47,7 @@ func (p *CommandPalette) View(c *ui.Context, semantic theme.Theme, animate bool)
 						&p.scroll,
 						&p.over,
 						scrollfx.Vertical,
+						components.OverscrollList,
 						scroll.LayoutBounds().H,
 						scale*theme.DefaultUIFontSize,
 					)

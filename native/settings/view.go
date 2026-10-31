@@ -73,6 +73,7 @@ func (s *State) navigation(
 				&s.navScroll,
 				&s.navOver,
 				scrollfx.Vertical,
+				components.OverscrollList,
 				scroll.LayoutBounds().H,
 				scale,
 			)
@@ -228,6 +229,7 @@ func (s *State) page(
 			&s.contentScroll,
 			&s.contentOver,
 			scrollfx.Vertical,
+			components.OverscrollPanel,
 			scroll.LayoutBounds().H,
 			scale,
 		)

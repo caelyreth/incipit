@@ -145,6 +145,7 @@ func (s *State) pageTabs(
 		&s.TabsScroll,
 		&s.tabsOverscroll,
 		scrollfx.Horizontal,
+		components.OverscrollCompact,
 		scroll.LayoutBounds().W,
 		scale,
 	)
