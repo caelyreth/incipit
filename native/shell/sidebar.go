@@ -19,10 +19,13 @@ type navigation struct {
 	// searching shows search results in the sheet list instead of the
 	// place.
 	searching bool
-	// shown is what the sheet list last showed and from what it fades;
-	// moved asks the next frame to start the fade.
-	shown, from listView
-	moved       bool
+	// shown is what the sheet list shows, since shownAt while its rows
+	// come in; fresh marks the frame it changed, and rank counts the rows
+	// drawn so far in this one.
+	shown   listView
+	shownAt time.Time
+	fresh   bool
+	rank    int
 	// expanded are the groups open in the library's tree.
 	expanded map[string]bool
 	// renaming is the group being named in place, and name its text.

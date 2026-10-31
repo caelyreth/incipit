@@ -15,7 +15,7 @@ import (
 const (
 	// motionReveal opens and closes the sidebar.
 	motionReveal = components.MotionPanel
-	// motionPlace fades the sheet list from one place to the next.
+	// motionPlace moves the place chips from one place to the next.
 	motionPlace = 220 * time.Millisecond
 	// motionFold opens and closes a group in the tree.
 	motionFold = components.MotionPanel
@@ -26,6 +26,13 @@ const (
 	motionTurn = components.MotionQuick
 	// motionArm turns a button to ask for its second click.
 	motionArm = components.MotionQuick
+	// motionEnter brings one row of a newly shown list in; each waits
+	// enterStagger after the one above, up to enterRanks rows, so a long
+	// list is in as soon as a short one. enterRise is how far a row rises.
+	motionEnter  = 180 * time.Millisecond
+	enterStagger = 24 * time.Millisecond
+	enterRanks   = 8
+	enterRise    = float32(8)
 )
 
 // listTransition is how rows and tabs come, go and make room.
@@ -52,6 +59,15 @@ func fadeTransition(animate bool) ui.ElementTransition {
 		Enter:    &ui.Motion{Y: 6, Opacity: 0},
 		Exit:     &ui.Motion{Opacity: 0},
 	}
+}
+
+// swapTransition shows what replaces something in place: the old goes at
+// once, the new fades in, so the two are never seen together.
+func swapTransition(animate bool) ui.ElementTransition {
+	if !animate {
+		return ui.ElementTransition{Duration: 1}
+	}
+	return ui.ElementTransition{Duration: motionList, Enter: &ui.Motion{Opacity: 0}}
 }
 
 // popTransition lets something small appear and leave where it stands.

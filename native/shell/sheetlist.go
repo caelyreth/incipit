@@ -78,35 +78,51 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal f
 	})
 }
 
-// listStage draws what the list shows and, while it changes, what it
-// showed: the old fades and lifts away as the new fades and settles in.
+// listStage draws what the list shows. A new place replaces the old at
+// once, never over it: two lists at half strength read as a flicker, the
+// more so where they share sheets. Its rows come in instead (enter).
 func (s *State) listStage(c *ui.Context, semantic theme.Theme, animate bool) {
 	view := s.listView()
+	s.nav.fresh, s.nav.rank = false, 0
 	if view != s.nav.shown {
-		s.nav.from, s.nav.shown, s.nav.moved = s.nav.shown, view, true
-	}
-	stage := ui.Box(c).Grow(1).MinHeight(0).WidthPercent(100).Clip()
-	progress := float32(1)
-	if animate {
-		if s.nav.moved {
-			stage.Jump("fade", 0)
+		s.nav.shown, s.nav.fresh, s.nav.shownAt = view, true, time.Time{}
+		if animate {
+			s.nav.shownAt = c.Now()
 		}
-		progress = components.Follow(stage, "fade", 1, motionPlace)
 	}
-	s.nav.moved = false
-	progress = max(0, min(progress, 1))
-	rise := 10 * s.Settings.UIFontSize / theme.DefaultUIFontSize
-	stage.Children(func() {
-		if progress < 0.999 {
-			s.listLayer(c, semantic, s.nav.from, -rise*progress/2, 1-progress, animate)
-		}
-		s.listLayer(c, semantic, view, rise*(1-progress), progress, animate)
+	ui.Box(c).Grow(1).MinHeight(0).WidthPercent(100).Clip().Children(func() {
+		s.listLayer(c, semantic, view, animate)
 	})
 }
 
-func (s *State) listLayer(c *ui.Context, semantic theme.Theme, view listView, offset, opacity float32, animate bool) {
-	ui.Column(c).Key("list-"+view.key()).Absolute().Top(0).Left(0).Right(0).Bottom(0).
-		Translate(0, offset).Opacity(opacity).Children(func() {
+// enter brings in the next row of a list just shown: each rises and fades
+// in a moment after the one above, so the place arrives top down.
+func (s *State) enter(c *ui.Context, row ui.Element) {
+	rank := min(s.nav.rank, enterRanks)
+	s.nav.rank++
+	if s.nav.shownAt.IsZero() {
+		return
+	}
+	t := float32(c.Now().Sub(s.nav.shownAt)-time.Duration(rank)*enterStagger) / float32(motionEnter)
+	if t >= 1 {
+		return
+	}
+	c.AnimationFrame()
+	p := components.Decelerate(max(0, t))
+	row.Opacity(p).Translate(0, (1-p)*enterRise*s.Settings.UIFontSize/theme.DefaultUIFontSize)
+}
+
+// listRowTransition is rowTransition, but rows that arrive with the list
+// leave their coming in to enter.
+func (s *State) listRowTransition(animate bool) ui.ElementTransition {
+	if !animate || !s.nav.fresh {
+		return rowTransition(animate)
+	}
+	return ui.ElementTransition{Duration: motionList, Position: true, Exit: &ui.Motion{Collapse: true}}
+}
+
+func (s *State) listLayer(c *ui.Context, semantic theme.Theme, view listView, animate bool) {
+	ui.Column(c).Key("list-" + view.key()).Absolute().Top(0).Left(0).Right(0).Bottom(0).Children(func() {
 		switch {
 		case view.search:
 			s.searchList(c, semantic, animate)
@@ -174,9 +190,13 @@ func (s *State) emptyList(
 	animate bool,
 ) {
 	scale := s.Settings.UIFontSize
-	ui.Column(c).Key("empty").Grow(1).FillHeight().AlignItems(ui.Center).Justify(ui.Center).
-		PaddingX(theme.Space24.DIPs(scale)).Gap(theme.Space08.DIPs(scale)).
-		Transition(fadeTransition(animate)).Children(func() {
+	empty := ui.Column(c).Key("empty").Grow(1).FillHeight().AlignItems(ui.Center).Justify(ui.Center).
+		PaddingX(theme.Space24.DIPs(scale)).Gap(theme.Space08.DIPs(scale))
+	if !s.nav.fresh {
+		empty.Transition(fadeTransition(animate))
+	}
+	s.enter(c, empty)
+	empty.Children(func() {
 		ui.Icon(c, icon.SVG()).FontSize(36 * scale / theme.DefaultUIFontSize).
 			TextColor(semantic.Icon.Muted).Opacity(0.35)
 		components.Label(c, text, theme.TextSmall, semantic.Text.Muted).TextAlign(ui.Center)
@@ -259,7 +279,8 @@ func (s *State) sheetRow(
 		PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space08.DIPs(scale)).
 		Gap(theme.Space02.DIPs(scale)).
 		Radius(metrics.Radius).Border(1, ui.Transparent).
-		Focusable().FocusRing(false).Transition(rowTransition(animate))
+		Focusable().FocusRing(false).Transition(s.listRowTransition(animate))
+	s.enter(c, row)
 	if selected {
 		track.Mark(row)
 	}
@@ -316,7 +337,8 @@ func (s *State) trashedGroupRow(c *ui.Context, semantic theme.Theme, group Group
 		WidthPercent(100).Shrink(0).
 		PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space08.DIPs(scale)).
 		AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-		Radius(metrics.Radius).Transition(rowTransition(animate))
+		Radius(metrics.Radius).Transition(s.listRowTransition(animate))
+	s.enter(c, row)
 	hover := components.HoverAmount(row, row.Hovered(), animate)
 	row.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
 	row.Children(func() {
@@ -392,7 +414,7 @@ func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal fl
 		ui.Box(c).WidthPercent(100).HeightPercent(100).Opacity(reveal).Children(func() {
 			layer := ui.Row(c).Key("head-" + view.key()).Absolute().Top(0).Left(0).Right(0).Bottom(0).
 				PaddingStart(theme.Space12.DIPs(scale)).PaddingEnd(theme.Space06.DIPs(scale)).
-				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Transition(fadeTransition(animate))
+				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Transition(swapTransition(animate))
 			layer.Children(func() {
 				if view.search {
 					s.searchHeader(c, semantic, animate)
