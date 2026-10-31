@@ -100,10 +100,16 @@ func TestTheSidebarGoesIntoAGroupAndBack(t *testing.T) {
 	state, library := libraryState()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	for _, text := range []string{"Filters", "All", "Last 7 Days", "Inbox", "Novel", "Trash"} {
-		if !tester.HasText(text) {
-			t.Fatalf("library page lacks %q: %#v", text, tester.Texts())
+	texts := tester.Texts()
+	at := func(text string) int { return slices.Index(texts, text) }
+	for _, text := range []string{"Inbox", "All", "Last 7 Days", "Groups", "Novel", "Trash"} {
+		if at(text) < 0 {
+			t.Fatalf("library page lacks %q: %#v", text, texts)
 		}
+	}
+	if !(at("Inbox") < at("All") && at("Last 7 Days") < at("Groups") && at("Groups") < at("Novel")) ||
+		slices.Index(texts[at("Groups"):], "Inbox") >= 0 {
+		t.Fatalf("the Inbox is not on top, apart from the groups: %#v", texts)
 	}
 	if err := tester.Click("Novel"); err != nil {
 		t.Fatal(err)
@@ -112,7 +118,7 @@ func TestTheSidebarGoesIntoAGroupAndBack(t *testing.T) {
 	if state.Place() != (Place{Kind: PlaceGroup, Group: "2"}) || !tester.HasText("Chapter") || !tester.HasText("It begins") {
 		t.Fatalf("group page: %#v", tester.Texts())
 	}
-	if tester.HasText("Filters") {
+	if tester.HasText("Groups") {
 		t.Fatal("the library page is still drawn once the slide settled")
 	}
 	if err := tester.ClickWith(ui.Cmd, "Chapter"); err != nil {
@@ -122,7 +128,7 @@ func TestTheSidebarGoesIntoAGroupAndBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if state.Place().Kind != PlaceLibrary || !tester.HasText("Filters") {
+	if state.Place().Kind != PlaceLibrary || !tester.HasText("Groups") {
 		t.Fatalf("back: %#v", tester.Texts())
 	}
 	if !slices.Contains(library.calls, "open in new tab 7") {

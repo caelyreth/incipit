@@ -167,13 +167,18 @@ func (s *State) libraryPage(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
 	ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 		ui.Column(c).Gap(theme.Space02.DIPs(scale)).Children(func() {
-			s.sectionLabel(c, semantic, "Filters", nil)
+			// The Inbox leads, with the filters; below are the groups.
+			for _, group := range s.Library.Groups("") {
+				if group.Inbox {
+					s.groupRow(c, semantic, group, 0, false, animate)
+				}
+			}
 			s.placeRow(c, semantic, Place{Kind: PlaceAll}, "All", components.IconSheets,
 				len(s.Library.Sheets(Place{Kind: PlaceAll})), animate)
 			s.placeRow(c, semantic, Place{Kind: PlaceRecent}, "Last 7 Days", components.IconClock,
 				len(s.Library.Sheets(Place{Kind: PlaceRecent})), animate)
 			ui.Box(c).Height(theme.Space12.DIPs(scale))
-			s.sectionLabel(c, semantic, "Library", func() {
+			s.sectionLabel(c, semantic, "Groups", func() {
 				components.IconButton{
 					Key: "new-group", Label: "New group", Icon: components.IconNewGroup.SVG(),
 					Style: components.SubtleButton, Size: components.CompactButton,
@@ -251,6 +256,9 @@ func (s *State) count(c *ui.Context, semantic theme.Theme, count int) {
 // groupTree lists the groups in parent, each opening on its own groups.
 func (s *State) groupTree(c *ui.Context, semantic theme.Theme, parent string, depth int, animate bool) {
 	for _, group := range s.Library.Groups(parent) {
+		if group.Inbox {
+			continue
+		}
 		ui.Column(c).Key("tree-" + group.ID).WidthPercent(100).Transition(rowTransition(animate)).Children(func() {
 			s.groupRow(c, semantic, group, depth, true, animate)
 			if group.HasGroups {
