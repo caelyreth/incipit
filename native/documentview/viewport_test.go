@@ -56,6 +56,47 @@ func TestViewportRevealsCaretAndTranslatesPaint(t *testing.T) {
 	}
 }
 
+func TestCaretRevealClearsTheFloatingDock(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	text := strings.Repeat("line\n", 40) + "line"
+	flow, err := surface.NewFlow(
+		projection.NewVersion(0, 0),
+		text,
+		[]surface.StyleRun{{
+			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
+			Style: surface.TextStyle{},
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prose := theme.NewProseStyle(19)
+	layout := textlayout.NewCache().Update(
+		flow,
+		400,
+		textlayout.NewStyle(prose, theme.DefaultSettings().Semantic()),
+	)
+	element := &Element{
+		Prose:       prose,
+		Motion:      motion.New(now),
+		Animate:     true,
+		lastHeight:  400,
+		BottomInset: theme.DefaultLayout.DockClearance(),
+	}
+	line := ui.Rect{Y: 330, H: prose.LineHeight()}
+	element.revealCaret(layout, line, now)
+	if !element.Motion.Moving() {
+		t.Fatal("caret inside the dock clearance was treated as visible")
+	}
+	for frame := range 180 {
+		element.advanceScroll(now.Add(time.Duration(frame) * 16 * time.Millisecond))
+	}
+	visibleBottom := element.lastHeight - element.BottomInset
+	if bottom := line.Y + line.H - element.scroll; bottom > visibleBottom+0.5 {
+		t.Fatalf("caret bottom %v is below the dock's top at %v", bottom, visibleBottom)
+	}
+}
+
 func TestManualScrollCancelsRevealForGracePeriod(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	element := &Element{

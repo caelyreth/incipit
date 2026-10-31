@@ -24,9 +24,15 @@ func (e *Element) revealCaret(layout *textlayout.Layout, box ui.Rect, now time.T
 	if lineTop < e.TopInset+line {
 		line, lineTop = line+lineTop, 0
 	}
+	viewportHeight := e.lastHeight
+	if !e.Typewriter {
+		// The floating writing dock covers the bottom inset. Reveal only
+		// within the room above it, not merely inside the component box.
+		viewportHeight = max(0, viewportHeight-e.BottomInset)
+	}
 	target, changed := motion.RevealOffset(motion.RevealOptions{
 		ViewportTop:    e.scroll,
-		ViewportHeight: e.lastHeight,
+		ViewportHeight: viewportHeight,
 		CaretY:         lineTop,
 		LineHeight:     line,
 		CurrentOffset:  e.scroll,
