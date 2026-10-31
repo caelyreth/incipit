@@ -20,7 +20,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		// MyGo runs a click without a frame after it, so the window is
 		// redrawn here, or the change would wait for the next event.
 		return func(_ *mygo.MenuItem, window *mygo.Window) {
-			_ = a.executeExternalCommand(id)
+			_ = a.executeWindowCommand(window, id)
 			for _, w := range []*mygo.Window{window, a.mainWindow, a.settingsWindow} {
 				if w != nil && !w.IsDestroyed() {
 					w.Invalidate()
@@ -105,6 +105,25 @@ func (a *AppState) MainMenu() *mygo.Menu {
 	})
 	a.syncMenu()
 	return menu
+}
+
+// executeWindowCommand applies a menu command in the window that received
+// it. Editor and workspace commands belong to the main window; an auxiliary
+// window closes itself instead of reaching back into the editor.
+func (a *AppState) executeWindowCommand(window *mygo.Window, command kernel.CommandID) error {
+	if a == nil {
+		return nil
+	}
+	if window == nil || a.mainWindow == nil || window == a.mainWindow {
+		return a.executeExternalCommand(command)
+	}
+	switch command {
+	case editor.SurfaceClosePageCommandID:
+		if a.closeWindow != nil {
+			a.closeWindow(window)
+		}
+	}
+	return nil
 }
 
 // keymapMenu pairs each menu item that performs a keymap action with it.

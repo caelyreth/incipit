@@ -5,6 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/egoist/mygo"
 )
 
 func TestSurfaceHostCommandsRouteThroughWindowCallbacks(t *testing.T) {
@@ -123,5 +124,36 @@ func TestSurfaceHostCommandsRouteThroughWindowCallbacks(t *testing.T) {
 	}
 	if len(app.Workspace.Tabs()) != 1 {
 		t.Fatalf("close-page tabs = %#v", app.Workspace.Tabs())
+	}
+}
+
+func TestMenuCommandsStayInTheWindowThatReceivedThem(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mainWindow := &mygo.Window{}
+	settingsWindow := &mygo.Window{}
+	app.mainWindow = mainWindow
+	app.settingsWindow = settingsWindow
+
+	var closed *mygo.Window
+	app.closeWindow = func(window *mygo.Window) { closed = window }
+	tabs := len(app.Workspace.Tabs())
+	if err := app.executeWindowCommand(settingsWindow, editor.SurfaceClosePageCommandID); err != nil {
+		t.Fatal(err)
+	}
+	if closed != settingsWindow {
+		t.Fatalf("closed window = %p, want settings window %p", closed, settingsWindow)
+	}
+	if got := len(app.Workspace.Tabs()); got != tabs {
+		t.Fatalf("settings window command changed editor tabs: %d -> %d", tabs, got)
+	}
+
+	if err := app.executeWindowCommand(mainWindow, editor.SurfaceClosePageCommandID); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(app.Workspace.Tabs()); got != tabs-1 {
+		t.Fatalf("main-window command left %d tabs, want %d", got, tabs-1)
 	}
 }

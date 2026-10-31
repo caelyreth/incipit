@@ -43,6 +43,8 @@ type AppState struct {
 	menu       *mygo.Menu
 	systemKeys map[*mygo.MenuItem]string
 	recording  bool
+	// closeWindow closes a window from its own command route.
+	closeWindow func(*mygo.Window)
 	// colors carries every window through a theme or accent change at once.
 	colors theme.Transition
 	// sessions are the pages' sessions by identity, which the notebook
@@ -68,7 +70,11 @@ func OpenAppState(store *storage.Store) (*AppState, error) {
 }
 
 func newAppState(store *storage.Store) (*AppState, error) {
-	app := &AppState{sessions: map[workspace.PageID]*sheetSession{}, nextKey: 1}
+	app := &AppState{
+		sessions:    map[workspace.PageID]*sheetSession{},
+		nextKey:     1,
+		closeWindow: func(window *mygo.Window) { window.Close() },
+	}
 	sessions, layout, err := app.openNotebook(store)
 	if err != nil {
 		return nil, err
