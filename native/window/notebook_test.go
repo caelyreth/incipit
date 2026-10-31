@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/native/shell"
 )
 
 func openNotebookApp(t *testing.T, root string) *AppState {
@@ -139,5 +140,50 @@ func TestSelectionsAreWhereTheyWereLeft(t *testing.T) {
 	}
 	if err := app.Session.Document().LastError(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Groups, the sheets filed in them and the trash come back with the
+// notebook; deleting for good takes a sheet off the disk.
+func TestTheLibraryIsKeptAndItsTrashEmptied(t *testing.T) {
+	root := t.TempDir()
+	app := openNotebookApp(t, root)
+	novel := app.NewGroup("")
+	app.RenameGroup(novel, "Novel")
+	app.NewSheet(novel)
+	typeText(t, app, "# Chapter one")
+	chapter := app.Shell.ActivePage
+	app.DuplicateSheet(chapter)
+	if sheets := app.Sheets(shell.Place{Kind: shell.PlaceGroup, Group: novel}); len(sheets) != 2 ||
+		sheets[0].Title != "Chapter one" || sheets[1].Title != "Chapter one" {
+		t.Fatalf("novel holds %+v", sheets)
+	}
+	app.TrashSheet(chapter)
+	if slices.ContainsFunc(app.Shell.Tabs, func(tab shell.Page) bool { return tab.ID == chapter }) {
+		t.Fatal("a trashed sheet keeps its tab")
+	}
+	inbox := app.Sheets(shell.Place{Kind: shell.PlaceGroup, Group: "1"})
+	app.TrashSheet(inbox[0].ID)
+	app.EmptyTrash()
+	if trash := app.Sheets(shell.Place{Kind: shell.PlaceTrash}); len(trash) != 0 {
+		t.Fatalf("trash after emptying %+v", trash)
+	}
+	app.save()
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	app = openNotebookApp(t, root)
+	defer app.Close()
+	groups := app.Groups("")
+	if len(groups) != 2 || groups[1].Name != "Novel" {
+		t.Fatalf("groups %+v", groups)
+	}
+	sheets := app.Sheets(shell.Place{Kind: shell.PlaceGroup, Group: groups[1].ID})
+	if len(sheets) != 1 || sheets[0].Title != "Chapter one" {
+		t.Fatalf("novel after reopening %+v", sheets)
+	}
+	if len(app.Workspace.Pages()) != 1 {
+		t.Fatalf("%d pages on disk after emptying the trash", len(app.Workspace.Pages()))
 	}
 }

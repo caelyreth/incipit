@@ -222,6 +222,10 @@ func buttonTextColor(semantic theme.Theme, style ButtonStyle) ui.Color {
 	return semantic.Text.Default
 }
 
+// Blend lays overlay over base at amount, as a hover tint over a rest
+// color.
+func Blend(base, overlay ui.Color, amount float32) ui.Color { return blend(base, overlay, amount) }
+
 func blend(base, overlay ui.Color, amount float32) ui.Color {
 	amount = max(0, min(amount, 1))
 	baseAlpha := float32(base.A) / 255

@@ -18,13 +18,15 @@ func TestMain(m *testing.M) {
 }
 
 func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
-	state := New()
+	state := openState()
+	state.Tabs = []Page{{ID: "1", Title: "Untitled"}}
+	state.ActivePage = "1"
 	state.Content = func(c *ui.Context) {
 		ui.Text(c, "Body copy")
 	}
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	for _, text := range []string{"Your pages · 1", "Untitled", "Body copy"} {
+	for _, text := range []string{"Untitled", "Body copy"} {
 		if !tester.HasText(text) {
 			t.Fatalf("missing %q in %#v", text, tester.Texts())
 		}
@@ -32,11 +34,11 @@ func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
 }
 
 func TestShellSidebarCanCollapse(t *testing.T) {
-	state := New()
+	state := openState()
 	state.Appearance.Zen = true
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	if tester.HasText("Your pages · 1") {
+	if _, ok := tester.Find("Search sheets"); ok {
 		t.Fatal("zen shell built sidebar")
 	}
 	if tester.HasText("Neverland") || tester.HasText("No open document") {
@@ -44,35 +46,20 @@ func TestShellSidebarCanCollapse(t *testing.T) {
 	}
 }
 
-func TestEmptyWorkspaceShowsReferenceRecoveryState(t *testing.T) {
+func TestWithNoTabTheEditorIsQuiet(t *testing.T) {
 	state := New()
-	state.Pages = nil
-	state.ActivePage = ""
-	created := false
-	state.NewPage = func() { created = true }
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	for _, text := range []string{
-		"Space for your next idea",
-		"Start a fresh page, or reopen one from your sidebar. Pages stay in memory for this session.",
-	} {
-		if !tester.HasText(text) {
-			t.Fatalf("missing %q in %#v", text, tester.Texts())
-		}
+	if !tester.HasText("Open a sheet from the library, or press ⌘N for a new one") {
+		t.Fatalf("missing the empty line in %#v", tester.Texts())
 	}
 	if _, ok := tester.Find("Formatting"); ok {
 		t.Fatal("empty workspace still shows the writing toolbar")
 	}
-	if err := tester.Click("New page"); err != nil {
-		t.Fatal(err)
-	}
-	if !created {
-		t.Fatal("empty state did not create a page")
-	}
 }
 
 func TestShellSidebarAndZenUseSourceMotion(t *testing.T) {
-	state := New()
+	state := openState()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
 	if state.lastSidebarWidth != theme.DefaultLayout.Sidebar {
@@ -103,7 +90,7 @@ func TestShellSidebarAndZenUseSourceMotion(t *testing.T) {
 }
 
 func TestShellGeometryScalesWithUIFontSizeAndNarrowWidth(t *testing.T) {
-	state := New()
+	state := openState()
 	state.Settings.UIFontSize = 20
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
@@ -121,7 +108,7 @@ func TestShellGeometryScalesWithUIFontSizeAndNarrowWidth(t *testing.T) {
 }
 
 func TestShellMotionHonorsReduceMotion(t *testing.T) {
-	state := New()
+	state := openState()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.SetPreferences(ui.Preferences{ReduceMotion: true})
 	tester.Frame()
@@ -133,7 +120,7 @@ func TestShellMotionHonorsReduceMotion(t *testing.T) {
 }
 
 func TestDocumentRegionKeepsCustomSurfaceContent(t *testing.T) {
-	state := New()
+	state := openState()
 	state.Content = func(c *ui.Context) {
 		ui.Text(c, "Body copy")
 	}
@@ -144,27 +131,10 @@ func TestDocumentRegionKeepsCustomSurfaceContent(t *testing.T) {
 	}
 }
 
-func TestSidebarSelectsPagesWithScreenReaderFriendlyItems(t *testing.T) {
-	state := New()
-	state.Pages = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
-	state.ActivePage = "one"
-	var selected string
-	state.SelectPage = func(id string) { selected = id }
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	if !tester.HasText("Your pages · 2") || !tester.HasText("First") || !tester.HasText("Second") {
-		t.Fatalf("texts = %#v", tester.Texts())
-	}
-	if err := tester.Click("Second"); err != nil {
-		t.Fatal(err)
-	}
-	if selected != "two" {
-		t.Fatalf("selected = %q", selected)
-	}
-}
-
 func TestDocumentWriterReceivesDefiniteViewportHeight(t *testing.T) {
-	state := New()
+	state := openState()
+	state.Tabs = []Page{{ID: "1", Title: "Untitled"}}
+	state.ActivePage = "1"
 	var painted ui.Rect
 	state.Content = func(c *ui.Context) {
 		ui.Box(c).Fill().Draw(func(_ *ui.Painter, rect ui.Rect) {
@@ -179,8 +149,8 @@ func TestDocumentWriterReceivesDefiniteViewportHeight(t *testing.T) {
 }
 
 func TestTabsShowAndSelectEachOpenPage(t *testing.T) {
-	state := New()
-	state.Pages = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
+	state := openState()
+	state.Tabs = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
 	state.ActivePage = "one"
 	var selected string
 	state.SelectPage = func(id string) { selected = id }
@@ -198,8 +168,8 @@ func TestTabsShowAndSelectEachOpenPage(t *testing.T) {
 }
 
 func TestTabsFormOneHorizontalFocusGroup(t *testing.T) {
-	state := New()
-	state.Pages = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
+	state := openState()
+	state.Tabs = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
 	state.ActivePage = "one"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
@@ -218,7 +188,7 @@ func TestTabsFormOneHorizontalFocusGroup(t *testing.T) {
 }
 
 func TestHeaderControlsUseReferenceActions(t *testing.T) {
-	state := New()
+	state := openState()
 	var commands, created, opened, closed bool
 	state.OpenCommands = func() { commands = true }
 	state.NewPage = func() { created = true }
@@ -262,10 +232,8 @@ func TestHeaderControlsUseReferenceActions(t *testing.T) {
 	}
 }
 
-func TestIconControlsAreKeyboardReachableAndSidebarSearchFiltersPages(t *testing.T) {
-	state := New()
-	state.Pages = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
-	state.ActivePage = "one"
+func TestIconControlsAreKeyboardReachable(t *testing.T) {
+	state := openState()
 	tester := ui.NewTester(state.View, 1260, 850)
 
 	tester.Key(0, ui.KeyTab)
@@ -276,20 +244,11 @@ func TestIconControlsAreKeyboardReachableAndSidebarSearchFiltersPages(t *testing
 	if state.SidebarVisible() {
 		t.Fatal("keyboard activation did not hide navigation")
 	}
-
-	tester.Frame()
-	if err := tester.Click("Search pages"); err != nil {
-		t.Fatal(err)
-	}
-	tester.Type("Second")
-	if !tester.HasText("Your pages · 2") {
-		t.Fatalf("filtered sidebar section missing from %#v", tester.Texts())
-	}
 }
 
 func TestFindPageRequestFocusesExistingSidebarSearch(t *testing.T) {
-	state := New()
-	state.Pages = []Page{{ID: "one", Title: "First"}}
+	state := openState()
+	state.Tabs = []Page{{ID: "one", Title: "First"}}
 	state.ActivePage = "one"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
@@ -303,59 +262,8 @@ func TestFindPageRequestFocusesExistingSidebarSearch(t *testing.T) {
 	}
 }
 
-func TestSidebarShowsHeadingAndEmptySearchWithoutFooter(t *testing.T) {
-	state := New()
-	state.Pages = []Page{{ID: "one", Title: "First"}}
-	state.ActivePage = "one"
-	state.PageQuery = "missing"
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	for _, text := range []string{
-		"Your pages · 1",
-		"No pages match your search.",
-	} {
-		if !tester.HasText(text) {
-			t.Fatalf("missing %q in %#v", text, tester.Texts())
-		}
-	}
-	if tester.HasText("Kept in this session") {
-		t.Fatal("sidebar still shows its footer")
-	}
-	// Settings stays reachable from the header alone.
-	if _, ok := tester.Find("Open settings"); !ok {
-		t.Fatal("header settings control is missing")
-	}
-}
-
-func TestSidebarPageActionsExposeClose(t *testing.T) {
-	state := New()
-	state.Pages = []Page{{ID: "one", Title: "First"}}
-	state.ActivePage = "one"
-	var selected, closed string
-	state.SelectPage = func(id string) { selected = id }
-	state.ClosePageID = func(id string) { closed = id }
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-
-	if err := tester.Click("Page actions for First"); err != nil {
-		t.Fatal(err)
-	}
-	if menu := tester.Menu(); len(menu) != 1 {
-		t.Fatalf("page menu = %#v", menu)
-	}
-	if err := tester.Click("Page actions for First"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tester.ChooseMenuItem("Close tab"); err != nil {
-		t.Fatal(err)
-	}
-	if selected != "" || closed != "one" {
-		t.Fatalf("close action = selected:%q closed:%q", selected, closed)
-	}
-}
-
 func TestStatusPlacesStatisticsBeforeTransientMessage(t *testing.T) {
-	state := New()
+	state := openState()
 	state.Statistics = "3 words  ·  2 paragraphs  ·  14 characters"
 	state.Status = "Saved"
 	tester := ui.NewTester(state.View, 1260, 850)
@@ -374,7 +282,7 @@ func TestStatusPlacesStatisticsBeforeTransientMessage(t *testing.T) {
 }
 
 func TestFormattingControlsKeepStateAndRunEveryCallback(t *testing.T) {
-	state := New()
+	state := openState()
 	state.CanUndo = true
 	state.CanRedo = true
 	state.Toolbar.ItalicEnabled = true
@@ -426,7 +334,7 @@ func TestFormattingControlsKeepStateAndRunEveryCallback(t *testing.T) {
 }
 
 func TestFloatingToolbarUsesReferenceActionOrder(t *testing.T) {
-	state := New()
+	state := openState()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
 
@@ -455,7 +363,7 @@ func TestFloatingToolbarUsesReferenceActionOrder(t *testing.T) {
 }
 
 func TestFloatingToolbarHonorsHistoryState(t *testing.T) {
-	state := New()
+	state := openState()
 	state.CanUndo = true
 	var clicked string
 	state.Undo = func() { clicked = "undo" }
@@ -476,7 +384,7 @@ func TestFloatingToolbarHonorsHistoryState(t *testing.T) {
 }
 
 func TestFloatingToolbarShowsLiveCommandBindingInTooltip(t *testing.T) {
-	state := New()
+	state := openState()
 	state.Toolbar.BoldEnabled = true
 	state.Toolbar.Bindings.Bold = "⌘B"
 	tester := ui.NewTester(state.View, 1260, 850)
@@ -499,7 +407,7 @@ func TestShellMotionTurnsAroundSmoothlyWhenInterrupted(t *testing.T) {
 		"sidebar": func(s *State) { s.ToggleSidebar() },
 		"zen":     func(s *State) { s.Appearance.Zen = !s.Appearance.Zen },
 	} {
-		state := New()
+		state := openState()
 		tester := ui.NewTester(state.View, 1260, 850)
 		tester.Frame()
 		value := func() float32 {
@@ -528,4 +436,12 @@ func TestShellMotionTurnsAroundSmoothlyWhenInterrupted(t *testing.T) {
 			t.Fatalf("%s settled at %v after turning back", name, got)
 		}
 	}
+}
+
+// openState is a shell with one sheet open.
+func openState() *State {
+	state := New()
+	state.Tabs = []Page{{ID: "1", Title: "Untitled"}}
+	state.ActivePage = "1"
+	return state
 }

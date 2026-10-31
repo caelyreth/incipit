@@ -95,39 +95,100 @@ func (s *State) pageTabs(
 	height float32,
 	animate bool,
 ) {
-	if len(s.Pages) == 0 {
-		ui.Text(c, "No open page").Grow(1).PaddingX(
-			theme.Space16.DIPs(s.Settings.UIFontSize),
-		).TextColor(semantic.Text.Muted)
-		return
-	}
+	scale := s.Settings.UIFontSize
 	activeChanged := s.lastActive != s.ActivePage
-	ui.ScrollHorizontal(c).Grow(1).MinWidth(0).Height(height).
-		TrackScroll(&s.TabsScroll).Children(func() {
-		ui.Row(c).Role(ui.RoleTabList).Label("Open pages").FocusGroup(ui.Horizontal).
-			HeightPercent(100).PaddingX(theme.Space08.DIPs(s.Settings.UIFontSize)).
-			AlignItems(ui.Center).Gap(theme.Space04.DIPs(s.Settings.UIFontSize)).Children(func() {
-			for _, page := range s.Pages {
-				active := page.ID == s.ActivePage
-				tab := components.Tab{
-					Key: "tab-" + page.ID, Title: page.Title, Selected: active,
-					Animate: animate, Icon: components.IconDocument.SVG(),
-					CloseIcon: components.IconClose.SVG(),
-					OnSelect: func() {
-						if s.SelectPage != nil {
-							s.SelectPage(page.ID)
-						}
-					},
-					OnClose: func() { s.closePage(page.ID) },
-				}.View(c, semantic)
-				if active && activeChanged {
-					tab.ScrollIntoView()
-				}
+	scroll := ui.ScrollHorizontal(c).Grow(1).MinWidth(0).Height(height).
+		TrackScroll(&s.TabsScroll)
+	scroll.Children(func() {
+		ui.Row(c).Role(ui.RoleTabList).Label("Open sheets").FocusGroup(ui.Horizontal).
+			HeightPercent(100).PaddingX(theme.Space08.DIPs(scale)).
+			AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
+			for index, page := range s.Tabs {
+				s.pageTab(c, semantic, page, index, activeChanged, animate)
 			}
 		})
 	})
+	// Double-clicking the free tab line opens a new sheet, as in a browser.
+	if scroll.DoubleClicked() && s.NewPage != nil {
+		s.NewPage()
+	}
 	s.lastActive = s.ActivePage
 	_ = metrics
+}
+
+func (s *State) pageTab(
+	c *ui.Context,
+	semantic theme.Theme,
+	page Page,
+	index int,
+	activeChanged bool,
+	animate bool,
+) {
+	active := page.ID == s.ActivePage
+	transition := ui.ElementTransition{Duration: 1}
+	if animate {
+		transition = ui.ElementTransition{
+			Duration: components.MotionNormal,
+			Position: true, Size: true,
+			Enter: &ui.Motion{Collapse: true},
+			Exit:  &ui.Motion{Collapse: true},
+		}
+	}
+	tab := components.Tab{
+		Key: "tab-" + page.ID, Title: page.Title, Selected: active,
+		Animate: animate, Icon: components.IconDocument.SVG(),
+		CloseIcon: components.IconClose.SVG(),
+		OnSelect: func() {
+			if s.SelectPage != nil {
+				s.SelectPage(page.ID)
+			}
+		},
+		OnClose: func() { s.closePage(page.ID) },
+	}.View(c, semantic)
+	tab.Transition(transition).Drag(tabDrag{id: page.ID})
+	if _, over := ui.DragOver[tabDrag](tab); over {
+		tab.Border(1, semantic.Border.Focused)
+	}
+	if dragged, ok := ui.Drop[tabDrag](tab); ok && dragged.id != page.ID && s.MoveTab != nil {
+		s.MoveTab(dragged.id, index)
+	}
+	// A sheet dragged from the library onto a tab opens there.
+	if sheet, ok := ui.Drop[sheetDrag](tab); ok && s.Library != nil {
+		if s.SelectPage != nil {
+			s.SelectPage(page.ID)
+		}
+		s.Library.OpenSheet(sheet.id, false)
+	}
+	tab.ContextMenu(func(m *ui.Menu) {
+		if m.Item("Close Tab").Chosen() {
+			s.closePage(page.ID)
+		}
+		if m.Item("Close Other Tabs").Disabled(len(s.Tabs) < 2).Chosen() && s.CloseOtherTabs != nil {
+			s.CloseOtherTabs(page.ID)
+		}
+		if m.Item("Close Tabs to the Right").Disabled(index == len(s.Tabs)-1).Chosen() && s.CloseTabsAfter != nil {
+			s.CloseTabsAfter(page.ID)
+		}
+		m.Separator()
+		if m.Item("Show in Library").Disabled(s.Library == nil).Chosen() {
+			s.reveal(page.ID)
+		}
+	})
+	if active && activeChanged {
+		tab.ScrollIntoView()
+	}
+}
+
+// reveal shows the group a sheet is filed in.
+func (s *State) reveal(sheet string) {
+	group := s.Library.SheetGroup(sheet)
+	if group == "" {
+		return
+	}
+	visible := true
+	s.SidebarOverride = &visible
+	s.PageQuery = ""
+	s.Go(Place{Kind: PlaceGroup, Group: group}, true)
 }
 
 func (s *State) closePage(id string) {

@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// Page is an open tab: the sheet it shows.
 type Page struct {
 	ID    string
 	Title string
@@ -37,9 +38,12 @@ type State struct {
 	Appearance settings.PresentationState
 	Settings   theme.Settings
 	// Colors carries theme changes; nil shows Settings as they are.
-	Colors            *theme.Transition
-	Pages             []Page
-	ActivePage        string
+	Colors *theme.Transition
+	// Tabs are the open tabs, in order; ActivePage is the one in front.
+	Tabs       []Page
+	ActivePage string
+	// Library is what the sidebar shows and files; nil shows none.
+	Library           Library
 	Status            string
 	Statistics        string
 	PageQuery         string
@@ -58,16 +62,22 @@ type State struct {
 	OpenSettings func()
 	OpenCommands func()
 	FindPage     func()
-	MoveTab      func(id, delta int)
-	FormatItalic func(bool)
-	FormatBold   func(bool)
-	Undo         func()
-	Redo         func()
-	ToggleCJK    func(bool)
-	Typewriter   func(bool)
-	Zen          func(bool)
+	// MoveTab puts a tab at index among the tabs.
+	MoveTab func(id string, index int)
+	// CloseOtherTabs closes every tab but one; CloseTabsAfter those after
+	// it.
+	CloseOtherTabs func(id string)
+	CloseTabsAfter func(id string)
+	FormatItalic   func(bool)
+	FormatBold     func(bool)
+	Undo           func()
+	Redo           func()
+	ToggleCJK      func(bool)
+	Typewriter     func(bool)
+	Zen            func(bool)
 
 	SidebarOverride  *bool
+	nav              navigation
 	lastActive       string
 	lastWidth        float32
 	lastUIFontSize   float32
@@ -79,9 +89,8 @@ func New() *State {
 	return &State{
 		Appearance:   settings.DefaultPresentation(),
 		Settings:     theme.DefaultSettings(),
-		Pages:        []Page{{ID: "1", Title: "Untitled"}},
-		ActivePage:   "1",
 		WindowActive: true,
+		nav:          navigation{expanded: map[string]bool{}},
 	}
 }
 

@@ -35,8 +35,8 @@ func TestPagesAreNamedAfterTheirFirstHeading(t *testing.T) {
 	if page, _ := app.Workspace.Page(0); page.Title != "Chapter one" {
 		t.Fatalf("headed page = %q", page.Title)
 	}
-	if app.Shell.Pages[0].Title != "Chapter one" {
-		t.Fatalf("tab title = %q", app.Shell.Pages[0].Title)
+	if app.Shell.Tabs[0].Title != "Chapter one" {
+		t.Fatalf("tab title = %q", app.Shell.Tabs[0].Title)
 	}
 }
 

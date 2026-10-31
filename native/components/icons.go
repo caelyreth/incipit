@@ -14,22 +14,30 @@ var iconFiles embed.FS
 type IconName string
 
 const (
+	IconBack         IconName = "chevron-left"
 	IconBold         IconName = "bold"
 	IconCheck        IconName = "check"
 	IconChevronDown  IconName = "chevron-down"
 	IconChevronRight IconName = "chevron-right"
+	IconClock        IconName = "clock"
 	IconClose        IconName = "x"
 	IconDocument     IconName = "file-text"
+	IconFolder       IconName = "folder"
+	IconInbox        IconName = "inbox"
 	IconInfo         IconName = "info"
 	IconItalic       IconName = "italic"
 	IconKeyboard     IconName = "keyboard"
 	IconLanguages    IconName = "languages"
 	IconMinus        IconName = "minus"
+	IconNewGroup     IconName = "folder-plus"
+	IconNewSheet     IconName = "file-plus"
 	IconPlus         IconName = "plus"
 	IconRedo         IconName = "redo-2"
 	IconSearch       IconName = "search"
-	IconSidebar      IconName = "panel-left"
 	IconSettings     IconName = "settings"
+	IconSheets       IconName = "files"
+	IconSidebar      IconName = "panel-left"
+	IconTrash        IconName = "trash-2"
 	IconTypewriter   IconName = "align-vertical-justify-center"
 	IconUndo         IconName = "undo-2"
 	IconWarning      IconName = "triangle-alert"
@@ -37,22 +45,30 @@ const (
 )
 
 var AllIcons = [...]IconName{
+	IconBack,
 	IconBold,
 	IconCheck,
 	IconChevronDown,
 	IconChevronRight,
+	IconClock,
 	IconClose,
 	IconDocument,
+	IconFolder,
+	IconInbox,
 	IconInfo,
 	IconItalic,
 	IconKeyboard,
 	IconLanguages,
 	IconMinus,
+	IconNewGroup,
+	IconNewSheet,
 	IconPlus,
 	IconRedo,
 	IconSearch,
-	IconSidebar,
 	IconSettings,
+	IconSheets,
+	IconSidebar,
+	IconTrash,
 	IconTypewriter,
 	IconUndo,
 	IconWarning,

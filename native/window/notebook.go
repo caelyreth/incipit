@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/caelyreth/neverland/app/controller"
+	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/kernel"
@@ -18,8 +20,6 @@ import (
 type notebook struct {
 	store *storage.Store
 	saver *storage.Saver
-	// next is the key the next new page takes.
-	next storage.PageKey
 	// layout is the last layout handed to the saver.
 	layout storage.Layout
 	// notice reports what opening repaired or could not read.
@@ -31,13 +31,16 @@ type notebook struct {
 // holds, or one empty page for a new notebook or one held in memory.
 func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, workspace.Layout, error) {
 	if store == nil {
+		a.library = library.New()
 		return a.firstPage()
 	}
 	contents, err := store.Load()
 	if err != nil {
 		return nil, workspace.Layout{}, err
 	}
-	a.notebook = &notebook{store: store, next: contents.NextKey, notice: notice(store, contents)}
+	a.notebook = &notebook{store: store, notice: notice(store, contents)}
+	a.nextKey = contents.NextKey
+	a.library = library.Restore(contents.Library)
 	stored := make(map[storage.PageKey]model.DocumentSnapshot, len(contents.Pages))
 	ids := make(map[storage.PageKey]workspace.PageID, len(contents.Pages))
 	sessions := make([]workspace.Session, 0, len(contents.Pages))
@@ -52,12 +55,17 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 		id := workspace.PageID(len(sessions))
 		session := &sheetSession{page: id, controller: document, key: page.Key}
 		session.noteSaved()
+		if _, ok := a.library.Sheet(library.SheetID(page.Key)); !ok {
+			_ = a.library.AddSheet(library.SheetID(page.Key), library.Inbox, page.Created)
+		}
 		a.sessions[id] = session
 		sessions = append(sessions, session)
 		ids[page.Key] = id
 		stored[page.Key] = page.Document.Snapshot()
 	}
 	a.notebook.saver = store.Autosave(stored)
+	// Pages filed just now, as those the library did not know, are kept so.
+	a.notebook.saver.Library(a.library.Records())
 	if len(sessions) == 0 {
 		return a.firstPage()
 	}
@@ -94,6 +102,7 @@ func (a *AppState) firstPage() ([]workspace.Session, workspace.Layout, error) {
 	if err != nil {
 		return nil, workspace.Layout{}, err
 	}
+	_ = a.library.AddSheet(library.SheetID(session.key), library.Inbox, time.Now())
 	return []workspace.Session{session}, workspace.Layout{Tabs: []workspace.PageID{0}, HasActive: true}, nil
 }
 
@@ -136,14 +145,17 @@ func (a *AppState) newSession(id workspace.PageID) (*sheetSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	session := &sheetSession{page: id, controller: document}
-	if a.notebook != nil {
-		session.key = a.notebook.next
-		a.notebook.next++
-		session.unsaved = true
-	}
+	return a.adoptSession(id, document), nil
+}
+
+// adoptSession makes a new page's session, with a key no page has had,
+// which the notebook saves at once.
+func (a *AppState) adoptSession(id workspace.PageID, document *controller.DocumentController) *sheetSession {
+	session := &sheetSession{page: id, controller: document, key: a.nextKey}
+	a.nextKey++
+	session.unsaved = a.notebook != nil
 	a.sessions[id] = session
-	return session, nil
+	return session
 }
 
 // save hands the saver whatever changed since the last frame: the mounted
@@ -152,6 +164,7 @@ func (a *AppState) save() {
 	if a == nil || a.notebook == nil || a.notebook.closed {
 		return
 	}
+	a.fileUnfiled()
 	if a.Session != nil {
 		a.savePage(a.Session)
 	}
@@ -171,6 +184,7 @@ func (a *AppState) savePage(session *sheetSession) {
 	}
 	a.notebook.saver.Page(session.key, session.Title(), runtime.Snapshot().Document())
 	session.noteSaved()
+	a.library.Touch(library.SheetID(session.key), time.Now())
 }
 
 func (a *AppState) saveLayout() {

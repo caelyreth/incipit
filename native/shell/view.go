@@ -72,27 +72,14 @@ func (s *State) document(
 	prose := s.Settings.Prose()
 	column := prose.Column()
 	if s.ActivePage == "" {
+		// With no tab open the page is quiet: a large dim mark, and one
+		// small line saying what brings a sheet back.
 		ui.Column(c).Grow(1).FillHeight().AlignItems(ui.Center).Justify(ui.Center).
-			Padding(theme.Space32.DIPs(scale)).Children(func() {
-			ui.Column(c).Width(520).MaxWidthPercent(90).AlignItems(ui.Center).
-				Gap(theme.Space12.DIPs(scale)).Children(func() {
-				components.Headline(c, "Space for your next idea",
-					theme.HeadlineXLarge, semantic.Text.Heading)
-				components.Label(c,
-					"Start a fresh page, or reopen one from your sidebar. Pages stay in memory for this session.",
-					theme.TextSmall, semantic.Text.Muted,
-				).TextAlign(ui.Center)
-				components.Button{
-					Key: "empty-new-page", Label: "New page",
-					Style: components.PrimaryButton, Size: components.MediumButton,
-					Animate: s.animate(c),
-					Action: func() {
-						if s.NewPage != nil {
-							s.NewPage()
-						}
-					},
-				}.View(c, semantic)
-			})
+			Gap(theme.Space12.DIPs(scale)).Children(func() {
+			ui.Icon(c, components.IconDocument.SVG()).FontSize(72 * scale / theme.DefaultUIFontSize).
+				TextColor(semantic.Icon.Muted).Opacity(0.35)
+			components.Label(c, "Open a sheet from the library, or press ⌘N for a new one",
+				theme.TextXSmall, semantic.Text.Muted).Opacity(0.8).TextAlign(ui.Center)
 		})
 		return
 	}
@@ -114,7 +101,7 @@ func (s *State) document(
 }
 
 func (s *State) activeTitle() string {
-	for _, page := range s.Pages {
+	for _, page := range s.Tabs {
 		if page.ID == s.ActivePage {
 			return page.Title
 		}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/app/library"
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
@@ -49,6 +50,13 @@ type AppState struct {
 	sessions map[workspace.PageID]*sheetSession
 	// notebook keeps the pages on disk; nil holds them in memory alone.
 	notebook *notebook
+	// library files the pages, as the sidebar shows them.
+	library *library.Library
+	// nextKey is the notebook key the next new page takes.
+	nextKey storage.PageKey
+	// Confirm asks before what cannot be undone; nil asks with a native
+	// dialog.
+	Confirm func(message, detail string) bool
 }
 
 // NewAppState is a notebook held in memory alone, as tests use.
@@ -63,7 +71,7 @@ func OpenAppState(store *storage.Store) (*AppState, error) {
 }
 
 func newAppState(store *storage.Store) (*AppState, error) {
-	app := &AppState{sessions: map[workspace.PageID]*sheetSession{}}
+	app := &AppState{sessions: map[workspace.PageID]*sheetSession{}, nextKey: 1}
 	sessions, layout, err := app.openNotebook(store)
 	if err != nil {
 		return nil, err
@@ -143,14 +151,16 @@ func (a *AppState) BindShell() {
 		}
 		a.selectMounted()
 	}
-	a.Shell.NewPage = func() {
-		a.parkScroll()
-		if _, err := a.Workspace.NewPage(); err != nil {
-			a.Error = err.Error()
-			return
+	a.Shell.Library = a
+	a.Shell.NewPage = func() { a.NewSheet(a.Shell.CurrentGroup()) }
+	a.Shell.MoveTab = func(name string, index int) {
+		if session, ok := a.sessionOf(name); ok {
+			a.Workspace.MoveTab(session.page, index)
+			a.refreshShell()
 		}
-		a.selectMounted()
 	}
+	a.Shell.CloseOtherTabs = func(name string) { a.closeTabsWhere(name, func(at, kept int) bool { return at != kept }) }
+	a.Shell.CloseTabsAfter = func(name string) { a.closeTabsWhere(name, func(at, kept int) bool { return at > kept }) }
 	a.Shell.ClosePage = func() {
 		id, ok := a.Workspace.Active()
 		if !ok {
@@ -201,8 +211,8 @@ func (a *AppState) refreshShellReadouts() {
 	// what is written.
 	if id, ok := a.Workspace.Active(); ok {
 		title := a.Workspace.Title()
-		for index := range a.Shell.Pages {
-			if a.Shell.Pages[index].ID == fmt.Sprintf("%d", id) && a.Shell.Pages[index].Title != title {
+		for index := range a.Shell.Tabs {
+			if a.Shell.Tabs[index].ID == fmt.Sprintf("%d", id) && a.Shell.Tabs[index].Title != title {
 				a.refreshShell()
 				break
 			}
@@ -449,9 +459,9 @@ func (a *AppState) parkScroll() {
 }
 
 func (a *AppState) refreshShell() {
-	a.Shell.Pages = nil
-	for _, page := range a.Workspace.Pages() {
-		a.Shell.Pages = append(a.Shell.Pages, shell.Page{
+	a.Shell.Tabs = nil
+	for _, page := range a.Workspace.TabPages() {
+		a.Shell.Tabs = append(a.Shell.Tabs, shell.Page{
 			ID:    fmt.Sprintf("%d", page.ID),
 			Title: page.Title,
 		})

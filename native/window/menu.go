@@ -189,13 +189,7 @@ func (a *AppState) newPage() {
 	if a == nil || a.Workspace == nil {
 		return
 	}
-	a.parkScroll()
-	if _, err := a.Workspace.NewPage(); err != nil {
-		a.Error = err.Error()
-		a.refreshShell()
-		return
-	}
-	a.selectMounted()
+	a.NewSheet(a.Shell.CurrentGroup())
 }
 
 func (a *AppState) closePage() {
