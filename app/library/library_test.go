@@ -90,6 +90,60 @@ func TestSheetsAreFiledMovedAndCounted(t *testing.T) {
 	}
 }
 
+func TestChaptersDivideTheirFollowingSheets(t *testing.T) {
+	l := New()
+	must(t, l.AddSheet(1, Inbox, now))
+	must(t, l.AddSheet(2, Inbox, now))
+	opening, err := l.AddChapter(Inbox, "Opening")
+	must(t, err)
+	must(t, l.AddSheet(3, Inbox, now))
+	closing, err := l.AddChapter(Inbox, "Closing")
+	must(t, err)
+	must(t, l.AddSheet(4, Inbox, now))
+
+	if chapter, ok := l.SheetChapter(1); ok {
+		t.Fatalf("sheet before every chapter belongs to %d", chapter)
+	}
+	if chapter, ok := l.SheetChapter(3); !ok || chapter != opening {
+		t.Fatalf("sheet 3 belongs to %d, want %d", chapter, opening)
+	}
+	if chapter, ok := l.SheetChapter(4); !ok || chapter != closing {
+		t.Fatalf("sheet 4 belongs to %d, want %d", chapter, closing)
+	}
+	entries := l.Entries(Inbox)
+	if len(entries) != 6 || !entries[2].IsChapter() || entries[2].Chapter != opening ||
+		!entries[4].IsChapter() || entries[4].Chapter != closing {
+		t.Fatalf("entries %+v", entries)
+	}
+
+	must(t, l.MoveSheet(2, Inbox, 3))
+	if chapter, ok := l.SheetChapter(2); !ok || chapter != opening {
+		t.Fatalf("moved sheet belongs to %d, want %d", chapter, opening)
+	}
+	must(t, l.MoveSheet(2, Inbox, 0))
+	if chapter, ok := l.SheetChapter(2); ok {
+		t.Fatalf("sheet before every chapter belongs to %d", chapter)
+	}
+	must(t, l.MoveChapter(closing, Inbox, 1))
+	if chapter, ok := l.SheetChapter(3); !ok || chapter != opening {
+		t.Fatalf("chapter after the moved divider belongs to %d, want %d", chapter, closing)
+	}
+	if chapter, ok := l.SheetChapter(4); !ok || chapter != opening {
+		t.Fatalf("sheet before the moved divider belongs to %d, want %d", chapter, closing)
+	}
+	must(t, l.RenameChapter(opening, "  "))
+	if chapter, _ := l.Chapter(opening); chapter.Name != "Untitled Chapter" {
+		t.Fatalf("blank chapter name %q", chapter.Name)
+	}
+	must(t, l.DeleteChapter(opening))
+	if _, ok := l.Chapter(opening); ok {
+		t.Fatal("deleted chapter remains")
+	}
+	if chapter, ok := l.SheetChapter(3); !ok || chapter != closing {
+		t.Fatalf("deleting a divider did not merge its sheets into %d", chapter)
+	}
+}
+
 func TestAllUsesCreatedTimeWhileRecentUsesUpdatedTime(t *testing.T) {
 	l := New()
 	must(t, l.AddSheet(1, Inbox, now))
@@ -168,14 +222,19 @@ func TestRecordsRestoreTheLibrary(t *testing.T) {
 	must(t, l.MoveGroup(notes, 0, 1))
 	must(t, l.AddSheet(1, part, now))
 	must(t, l.AddSheet(2, part, now))
+	chapter, _ := l.AddChapter(part, "Interlude")
+	must(t, l.AddSheet(3, part, now))
 	must(t, l.MoveSheet(2, part, 0))
 	must(t, l.TrashGroup(notes, now))
 	restored := Restore(l.Records())
 	if got := groupIDs(restored.Groups(0)); !equal(got, []GroupID{Inbox, novel}) {
 		t.Fatalf("top %v", got)
 	}
-	if got := sheetIDs(restored.Sheets(part)); !equal(got, []SheetID{2, 1}) {
+	if got := sheetIDs(restored.Sheets(part)); !equal(got, []SheetID{2, 1, 3}) {
 		t.Fatalf("sheets %v", got)
+	}
+	if got, ok := restored.SheetChapter(3); !ok || got != chapter {
+		t.Fatalf("restored chapter membership %d %v", got, ok)
 	}
 	if !restored.GroupInTrash(notes) {
 		t.Fatal("trash lost")

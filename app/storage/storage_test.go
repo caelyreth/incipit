@@ -397,6 +397,10 @@ func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
 	if err := shelf.AddSheet(1, novel, at); err != nil {
 		t.Fatal(err)
 	}
+	chapter, err := shelf.AddChapter(novel, "Part One")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := shelf.AddSheet(2, library.Inbox, at); err != nil {
 		t.Fatal(err)
 	}
@@ -432,6 +436,13 @@ func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
 	}
 	if sheets := restored.Sheets(novel); len(sheets) != 1 || sheets[0].ID != 1 {
 		t.Fatalf("novel holds %+v", sheets)
+	}
+	if got, _ := restored.Chapter(chapter); got.Name != "Part One" {
+		t.Fatalf("chapter %+v", got)
+	}
+	entries := restored.Entries(novel)
+	if len(entries) != 2 || !entries[1].IsChapter() || entries[1].Chapter != chapter {
+		t.Fatalf("novel entries %+v", entries)
 	}
 	if !restored.SheetInTrash(2) {
 		t.Fatal("the trash was lost")

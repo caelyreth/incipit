@@ -150,6 +150,21 @@ func (s *Store) loadLibrary(ctx context.Context, pages []Page) (library.Records,
 	if err := rows.Close(); err != nil {
 		return records, err
 	}
+	rows, err = s.db.QueryContext(ctx, `SELECT id, grp, name, position FROM chapters`)
+	if err != nil {
+		return records, err
+	}
+	for rows.Next() {
+		var chapter library.ChapterRecord
+		if err := rows.Scan(&chapter.ID, &chapter.Group, &chapter.Name, &chapter.Position); err != nil {
+			rows.Close()
+			return records, err
+		}
+		records.Chapters = append(records.Chapters, chapter)
+	}
+	if err := rows.Close(); err != nil {
+		return records, err
+	}
 	known := make(map[PageKey]Page, len(pages))
 	for _, page := range pages {
 		known[page.Key] = page
@@ -354,6 +369,9 @@ func writeLibrary(ctx context.Context, tx *sql.Tx, records library.Records) erro
 	if _, err := tx.ExecContext(ctx, `DELETE FROM sheets`); err != nil {
 		return err
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM chapters`); err != nil {
+		return err
+	}
 	for _, group := range records.Groups {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO groups (id, parent, name, icon, color, position, trashed) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -366,6 +384,13 @@ func writeLibrary(ctx context.Context, tx *sql.Tx, records library.Records) erro
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO sheets (page, grp, position, trashed) VALUES (?, ?, ?, ?)`,
 			sheet.ID, sheet.Group, sheet.Position, millisecondsOf(sheet.Trashed)); err != nil {
+			return err
+		}
+	}
+	for _, chapter := range records.Chapters {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO chapters (id, grp, name, position) VALUES (?, ?, ?, ?)`,
+			chapter.ID, chapter.Group, chapter.Name, chapter.Position); err != nil {
 			return err
 		}
 	}

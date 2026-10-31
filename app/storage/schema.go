@@ -57,6 +57,14 @@ var migrations = []string{
 	ALTER TABLE groups ADD COLUMN icon  TEXT    NOT NULL DEFAULT '';
 	ALTER TABLE groups ADD COLUMN color INTEGER NOT NULL DEFAULT 0;
 	`,
+	`
+	CREATE TABLE chapters (
+		id       INTEGER PRIMARY KEY,
+		grp      INTEGER NOT NULL,
+		name     TEXT    NOT NULL,
+		position INTEGER NOT NULL
+	) STRICT;
+	`,
 }
 
 // migrate brings the notebook to the current schema, claiming a new file
