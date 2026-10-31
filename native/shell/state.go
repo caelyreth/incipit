@@ -4,6 +4,7 @@ package shell
 
 import (
 	"github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -52,6 +53,11 @@ type State struct {
 	CanUndo           bool
 	CanRedo           bool
 	TabsScroll        ui.ScrollState
+	libraryScroll     ui.ScrollState
+	sheetScroll       ui.ScrollState
+	tabsOverscroll    scrollfx.Overscroll
+	libraryOverscroll scrollfx.Overscroll
+	sheetOverscroll   scrollfx.Overscroll
 	WindowActive      bool
 
 	Content      func(c *ui.Context)

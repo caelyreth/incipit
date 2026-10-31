@@ -68,6 +68,11 @@ var DefaultControls = ControlMetrics{
 	DockRadius:   12,
 }
 
+// DefaultOverscroll is the greatest pull past a content edge at the 16 DIP
+// UI size. Compact surfaces take a fraction of it, proportional to their
+// viewport.
+const DefaultOverscroll float32 = 80
+
 // Scaled converts a reference-at-16px chrome measure to the app's UI size.
 func (m ControlMetrics) Scaled(uiFontSize float32) ControlMetrics {
 	scale := uiFontSize / DefaultUIFontSize

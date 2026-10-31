@@ -33,7 +33,7 @@ fixtures             conformance data the engine tests check against
 
 ## Development
 
-The repository uses Go 1.27.3 and MyGo v0.7.1.
+The repository uses Go 1.27.3 and MyGo v0.7.3.
 
 ```sh
 direnv allow
@@ -44,7 +44,7 @@ go tool mygo build    # app bundle and installer under dist/<os>-<arch>
 ```
 
 The MyGo CLI is pinned as a Go tool in `go.mod`, so `go tool mygo` runs the
-same v0.7.1 release as the framework. `mygo.json` holds the app configuration.
+same v0.7.3 release as the framework. `mygo.json` holds the app configuration.
 
 The reference prose font is fetched into an ignored local path and verified
 against a pinned SHA-256 checksum. `go generate ./native/theme` performs the

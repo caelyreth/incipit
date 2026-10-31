@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -59,12 +60,14 @@ func (s *State) Go(place Place) {
 	}
 	s.nav.place = place
 	s.nav.renaming = ""
+	s.sheetOverscroll.Reset()
 	s.disarm()
 }
 
 // Search shows search in the sheet list, its field focused.
 func (s *State) Search() {
 	s.nav.searching = true
+	s.sheetOverscroll.Reset()
 	s.showSheetList()
 	s.FindPageRequested = true
 	s.disarm()
@@ -73,6 +76,7 @@ func (s *State) Search() {
 // stopSearching gives the sheet list back to the place.
 func (s *State) stopSearching() {
 	s.nav.searching = false
+	s.sheetOverscroll.Reset()
 	s.PageQuery = ""
 }
 
@@ -142,8 +146,18 @@ func (s *State) wordmark(c *ui.Context, semantic theme.Theme) {
 
 func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
-	ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+	scroll := ui.Scroll(c).Grow(1).MinHeight(0).TrackScroll(&s.libraryScroll)
+	scroll = components.BindOverscroll(
+		scroll,
+		&s.libraryScroll,
+		&s.libraryOverscroll,
+		scrollfx.Vertical,
+		scroll.LayoutBounds().H,
+		scale,
+	)
+	scroll.Children(func() {
 		list := ui.Column(c).Gap(theme.Space04.DIPs(scale))
+		s.libraryOverscroll.Apply(c, list, animate)
 		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
 		list.Children(func() {
 			s.placeChips(c, semantic, animate)

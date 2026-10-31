@@ -2,6 +2,7 @@ package overlay
 
 import (
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -40,8 +41,19 @@ func (p *CommandPalette) View(c *ui.Context, semantic theme.Theme, animate bool)
 							semantic.Text.Muted)
 						return
 					}
-					ui.Scroll(c).MaxHeight(420 * scale).Children(func() {
-						ui.Column(c).Gap(2 * scale).Children(func() {
+					scroll := ui.Scroll(c).MaxHeight(420 * scale).TrackScroll(&p.scroll)
+					scroll = components.BindOverscroll(
+						scroll,
+						&p.scroll,
+						&p.over,
+						scrollfx.Vertical,
+						scroll.LayoutBounds().H,
+						scale*theme.DefaultUIFontSize,
+					)
+					scroll.Children(func() {
+						list := ui.Column(c).Gap(2 * scale)
+						p.over.Apply(c, list, animate)
+						list.Children(func() {
 							for index, command := range items {
 								index, command := index, command
 								components.NavigationRow{

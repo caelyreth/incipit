@@ -12,7 +12,9 @@ import (
 // fakeLibrary is a small library: an Inbox, a Novel group holding a
 // Chapter sheet, and a Draft in the Inbox. It records what it is asked.
 type fakeLibrary struct {
-	calls []string
+	calls       []string
+	extraGroups int
+	extraSheets int
 }
 
 func (f *fakeLibrary) call(name string) { f.calls = append(f.calls, name) }
@@ -21,7 +23,13 @@ func (f *fakeLibrary) Groups(parent string) []GroupItem {
 	if parent != "" {
 		return nil
 	}
-	return []GroupItem{{ID: "1", Name: "Inbox", Count: 1, Inbox: true}, {ID: "2", Name: "Novel", Count: 1}}
+	groups := []GroupItem{{ID: "1", Name: "Inbox", Count: 1, Inbox: true}, {ID: "2", Name: "Novel", Count: 1}}
+	for index := range f.extraGroups {
+		groups = append(groups, GroupItem{
+			ID: fmt.Sprintf("extra-%d", index), Name: fmt.Sprintf("Group %d", index+1), Count: 1,
+		})
+	}
+	return groups
 }
 
 func (f *fakeLibrary) Group(id string) (GroupItem, bool) {
@@ -38,13 +46,83 @@ func (f *fakeLibrary) Parent(string) string { return "" }
 func (f *fakeLibrary) Sheets(place Place) []SheetItem {
 	switch {
 	case place.Kind == PlaceGroup && place.Group == "2":
-		return []SheetItem{{ID: "7", Title: "Chapter", Excerpt: "It begins", Updated: time.Now(), Words: 1204}}
+		sheets := []SheetItem{{ID: "7", Title: "Chapter", Excerpt: "It begins", Updated: time.Now(), Words: 1204}}
+		for index := range f.extraSheets {
+			sheets = append(sheets, SheetItem{
+				ID: fmt.Sprintf("extra-%d", index), Title: fmt.Sprintf("Sheet %d", index+1),
+				Excerpt: "Another sheet.", Updated: time.Now(), Words: 100,
+			})
+		}
+		return sheets
 	case place.Kind == PlaceGroup && place.Group == "1", place.Kind == PlaceAll:
 		return []SheetItem{{ID: "8", Title: "Draft"}}
 	case place.Kind == PlaceTrash:
 		return []SheetItem{{ID: "9", Title: "Scrap"}}
 	}
 	return nil
+}
+
+func TestLibraryListsPullPastTheirEdges(t *testing.T) {
+	t.Run("groups", func(t *testing.T) {
+		state, library := libraryState()
+		library.extraGroups = 40
+		state.ShowPanes(true, false)
+		tester := ui.NewTester(state.View, 1260, 850)
+		tester.Frame()
+		tester.Advance(time.Second)
+		tester.Scroll(100, 500, 0, 100000)
+		if state.libraryScroll.MaxY <= 0 || state.libraryScroll.Y != state.libraryScroll.MaxY {
+			t.Fatalf("library stopped at %v of %v", state.libraryScroll.Y, state.libraryScroll.MaxY)
+		}
+		if _, y := state.libraryOverscroll.Offset(); y >= 0 {
+			t.Fatalf("library pull = %v, want past its end", y)
+		}
+		tester.Advance(time.Second)
+		if _, y := state.libraryOverscroll.Offset(); y != 0 {
+			t.Fatalf("library pull did not settle: %v", y)
+		}
+	})
+
+	t.Run("sheets", func(t *testing.T) {
+		state, library := libraryState()
+		library.extraSheets = 40
+		state.Go(Place{Kind: PlaceGroup, Group: "2"})
+		tester := ui.NewTester(state.View, 1260, 850)
+		tester.Frame()
+		tester.Advance(time.Second)
+		tester.Scroll(400, 500, 0, 100000)
+		if state.sheetScroll.MaxY <= 0 || state.sheetScroll.Y != state.sheetScroll.MaxY {
+			t.Fatalf("sheets stopped at %v of %v", state.sheetScroll.Y, state.sheetScroll.MaxY)
+		}
+		if _, y := state.sheetOverscroll.Offset(); y >= 0 {
+			t.Fatalf("sheet pull = %v, want past its end", y)
+		}
+		tester.Advance(time.Second)
+		if _, y := state.sheetOverscroll.Offset(); y != 0 {
+			t.Fatalf("sheet pull did not settle: %v", y)
+		}
+	})
+
+	t.Run("tabs", func(t *testing.T) {
+		state := openState()
+		for index := range 40 {
+			state.Tabs = append(state.Tabs, Page{ID: fmt.Sprintf("extra-%d", index), Title: fmt.Sprintf("Tab %d", index+1)})
+		}
+		state.ActivePage = state.Tabs[0].ID
+		tester := ui.NewTester(state.View, 1260, 850)
+		tester.Frame()
+		tester.Scroll(700, 20, 100000, 0)
+		if state.TabsScroll.MaxX <= 0 || state.TabsScroll.X != state.TabsScroll.MaxX {
+			t.Fatalf("tabs stopped at %v of %v", state.TabsScroll.X, state.TabsScroll.MaxX)
+		}
+		if x, _ := state.tabsOverscroll.Offset(); x >= 0 {
+			t.Fatalf("tab pull = %v, want past its end", x)
+		}
+		tester.Advance(time.Second)
+		if x, _ := state.tabsOverscroll.Offset(); x != 0 {
+			t.Fatalf("tab pull did not settle: %v", x)
+		}
+	})
 }
 
 func (f *fakeLibrary) Search(query string) []SheetItem {

@@ -7,6 +7,7 @@ import (
 
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -66,11 +67,21 @@ func (s *State) navigation(
 				Animate: animate,
 			}.View(c, semantic)
 			ui.Box(c).Height(theme.Space12.DIPs(scale))
-			ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+			scroll := ui.Scroll(c).Grow(1).MinHeight(0).TrackScroll(&s.navScroll)
+			scroll = components.BindOverscroll(
+				scroll,
+				&s.navScroll,
+				&s.navOver,
+				scrollfx.Vertical,
+				scroll.LayoutBounds().H,
+				scale,
+			)
+			scroll.Children(func() {
 				list := ui.Column(c).Role(ui.RoleTree).Label("Settings Navigation").
 					FocusGroup(ui.Vertical).
 					Padding(0, 0, theme.Space12.DIPs(scale), 0).
 					Gap(theme.Space02.DIPs(scale))
+				s.navOver.Apply(c, list, animate)
 				track := components.TrackSelection(list,
 					components.NavigationSelection(c, semantic), animate)
 				list.Children(func() {
@@ -211,10 +222,21 @@ func (s *State) page(
 		Background(semantic.Surface.Background).Children(func() {
 		// No title bar band: the page starts where the sidebar's search does
 		// and scrolls up beneath the window's top edge.
-		ui.Scroll(c).Grow(1).MinHeight(0).TrackScroll(&s.contentScroll).Children(func() {
-			ui.Row(c).WidthPercent(100).Justify(ui.Center).
+		scroll := ui.Scroll(c).Grow(1).MinHeight(0).TrackScroll(&s.contentScroll)
+		scroll = components.BindOverscroll(
+			scroll,
+			&s.contentScroll,
+			&s.contentOver,
+			scrollfx.Vertical,
+			scroll.LayoutBounds().H,
+			scale,
+		)
+		scroll.Children(func() {
+			row := ui.Row(c).WidthPercent(100).Justify(ui.Center).
 				Padding(theme.DefaultLayout.Titlebar*scale/theme.DefaultUIFontSize,
-					theme.Space32.DIPs(scale), 0, theme.Space32.DIPs(scale)).Children(func() {
+					theme.Space32.DIPs(scale), 0, theme.Space32.DIPs(scale))
+			s.contentOver.Apply(c, row, s.motion(c))
+			row.Children(func() {
 				content := ui.Column(c).Key("settings-content").WidthPercent(100).
 					MaxWidth(contentWidth * scale / theme.DefaultUIFontSize).
 					Gap(28 * scale / theme.DefaultUIFontSize)
@@ -361,6 +383,7 @@ func (s *State) chooseSection(category appsettings.Category, label string) {
 func (s *State) selectCategory(category appsettings.Category) {
 	if s.Category != category {
 		s.contentScroll.Y = 0
+		s.contentOver.Reset()
 		s.anchors = s.anchors[:0]
 		s.pending, s.target = "", ""
 	}

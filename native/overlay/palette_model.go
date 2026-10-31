@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/native/scrollfx"
+	"github.com/egoist/mygo/ui"
 )
 
 type Command struct {
@@ -21,6 +23,8 @@ type CommandPalette struct {
 	Commands []Command
 	Selected int
 	Chosen   *kernel.CommandID
+	scroll   ui.ScrollState
+	over     scrollfx.Overscroll
 }
 
 func (p *CommandPalette) Reset(commands []Command) {
@@ -33,6 +37,8 @@ func (p *CommandPalette) Reset(commands []Command) {
 	})
 	p.Query = ""
 	p.Selected = 0
+	p.scroll = ui.ScrollState{}
+	p.over.Reset()
 }
 
 func (p *CommandPalette) Filtered() []Command {

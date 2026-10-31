@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/native/motion"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -42,6 +43,7 @@ type Element struct {
 	Margin            float32
 	UIFontSize        float32
 	scroll            float32
+	overscroll        scrollfx.Elastic
 	lastHeight        float32
 	manualUntil       time.Time
 	pointerAnchor     int
@@ -225,7 +227,7 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		e.Motion.Activity(event.Time)
 		return true
 	case ui.InputScroll:
-		e.manualScroll(event.DY, event.Time)
+		e.manualScroll(event.DY, event.Time, event.Precise, event.Momentum)
 		e.Input.Scroll(event.DY)
 		return true
 	case ui.InputSelect:
@@ -257,7 +259,7 @@ func (e *Element) hit(x, y float32) int {
 	}
 	return int(e.current.Hit(ui.Point{
 		X: x,
-		Y: y + e.scroll - e.TopInset,
+		Y: y + e.visibleScroll() - e.TopInset,
 	}))
 }
 
@@ -312,6 +314,9 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	bridge, ok := e.Input.(*Bridge)
 	if !ok || bridge == nil || bridge.Controller == nil {
 		return
+	}
+	if _, moving := e.overscroll.Step(p.Now(), animate); moving {
+		p.AnimationFrame()
 	}
 	frame, err := bridge.Controller.SurfaceFrame(p.Now())
 	if err != nil {
@@ -373,7 +378,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Motion:            e.Motion,
 		Theme:             e.Theme,
 		Prose:             e.Prose,
-		ScrollY:           e.scroll,
+		ScrollY:           e.visibleScroll(),
 		Focused:           focused,
 		Animate:           animate,
 		Placeholder:       e.Placeholder,
@@ -390,8 +395,15 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	Paint(p, rect, state)
 	e.drawnCaret = state.DrawnCaret
 	bridge.Controller.SetGeometry(LayoutGeometry{
-		Layout: e.current, YOffset: e.TopInset, ScrollY: e.scroll,
+		Layout: e.current, YOffset: e.TopInset, ScrollY: e.visibleScroll(),
 	})
+}
+
+func (e *Element) visibleScroll() float32 {
+	if e == nil {
+		return 0
+	}
+	return e.scroll - e.overscroll.Offset()
 }
 
 // scrollRange is the span of offsets the viewport may take. Normally it is

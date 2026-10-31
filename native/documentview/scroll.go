@@ -17,10 +17,20 @@ func (e *Element) SetScrollY(offset float32) {
 	}
 	// The element clamps it into the mode's range when it next paints.
 	e.scroll = offset
+	e.overscroll.Reset()
 	if e.Motion != nil {
 		e.Motion.CancelScroll()
 	}
 	e.manualUntil = time.Time{}
+}
+
+// OverscrollY is the transient pull past the viewport edge. Unlike ScrollY,
+// it is visual feedback and is never saved.
+func (e *Element) OverscrollY() float32 {
+	if e == nil {
+		return 0
+	}
+	return e.overscroll.Offset()
 }
 
 // SwitchPage resets presentation identity before a newly mounted document is

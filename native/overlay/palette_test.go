@@ -1,8 +1,10 @@
 package overlay
 
 import (
+	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/testlock"
@@ -58,5 +60,32 @@ func TestPaletteViewBuildsModal(t *testing.T) {
 	}
 	if active, _ := tester.TextInputActive(); !active {
 		t.Fatal("command palette did not autofocus its query")
+	}
+}
+
+func TestPaletteResultsPullPastTheEnd(t *testing.T) {
+	palette := CommandPalette{Open: true}
+	commands := make([]Command, 0, 80)
+	for index := range 80 {
+		commands = append(commands, Command{
+			ID: kernel.CommandID(fmt.Sprintf("command-%d", index)), Label: "Command",
+			Group: "Test",
+		})
+	}
+	palette.Reset(commands)
+	tester := ui.NewTester(func(c *ui.Context) {
+		palette.View(c, theme.DefaultSettings().Semantic(), true)
+	}, 900, 600)
+	tester.Frame()
+	tester.Scroll(450, 400, 0, 100000)
+	if palette.scroll.MaxY <= 0 || palette.scroll.Y != palette.scroll.MaxY {
+		t.Fatalf("palette stopped at %v of %v", palette.scroll.Y, palette.scroll.MaxY)
+	}
+	if _, y := palette.over.Offset(); y >= 0 {
+		t.Fatalf("palette pull = %v, want past its end", y)
+	}
+	tester.Advance(time.Second)
+	if _, y := palette.over.Offset(); y != 0 {
+		t.Fatalf("palette pull did not settle: %v", y)
 	}
 }

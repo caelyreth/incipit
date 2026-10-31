@@ -2,6 +2,7 @@ package shell
 
 import (
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -139,10 +140,20 @@ func (s *State) pageTabs(
 	// double click on it zooms, as on any title bar.
 	scroll := ui.ScrollHorizontal(c).Key("tabs").Grow(1).MinWidth(0).Height(height).
 		TrackScroll(&s.TabsScroll).DragWindow()
+	scroll = components.BindOverscroll(
+		scroll,
+		&s.TabsScroll,
+		&s.tabsOverscroll,
+		scrollfx.Horizontal,
+		scroll.LayoutBounds().W,
+		scale,
+	)
 	scroll.Children(func() {
-		ui.Row(c).Role(ui.RoleTabList).Label("Open sheets").FocusGroup(ui.Horizontal).DragWindow().
+		row := ui.Row(c).Role(ui.RoleTabList).Label("Open sheets").FocusGroup(ui.Horizontal).DragWindow().
 			HeightPercent(100).PaddingX(theme.Space08.DIPs(scale)).
-			AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
+			AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale))
+		s.tabsOverscroll.Apply(c, row, animate)
+		row.Children(func() {
 			for index, page := range s.Tabs {
 				s.pageTab(c, semantic, page, index, activeChanged, animate)
 			}

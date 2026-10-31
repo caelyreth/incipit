@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/clipperhouse/uax29/v2 v2.7.0
-	github.com/egoist/mygo v0.7.1
+	github.com/egoist/mygo v0.7.3
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
 	modernc.org/sqlite v1.61.0

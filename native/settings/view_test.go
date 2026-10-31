@@ -305,6 +305,58 @@ func TestSettingsNavigationScrollsToSectionAndFollowsScrolling(t *testing.T) {
 	}
 }
 
+func TestSettingsScrollSurfacesPullPastTheirEdges(t *testing.T) {
+	t.Run("page", func(t *testing.T) {
+		state := New()
+		state.Data.Sections = scrollingEditorData(10)
+		tester := ui.NewTester(state.View, 900, 650)
+		tester.Frame()
+		tester.Advance(time.Second)
+		tester.Scroll(700, 400, 0, 100000)
+		if state.contentScroll.Y != state.contentScroll.MaxY {
+			t.Fatalf("page stopped at %v of %v", state.contentScroll.Y, state.contentScroll.MaxY)
+		}
+		if _, y := state.contentOver.Offset(); y >= 0 {
+			t.Fatalf("page pull = %v, want past its end", y)
+		}
+		tester.Frame()
+		pulled, ok := tester.Find("Section 10 option 1")
+		if !ok {
+			t.Fatal("last section is not in the built page")
+		}
+		tester.Advance(time.Second)
+		if _, y := state.contentOver.Offset(); y != 0 {
+			t.Fatalf("page pull did not settle: %v", y)
+		}
+		settled, ok := tester.Find("Section 10 option 1")
+		if !ok {
+			t.Fatal("last section vanished after the pull")
+		}
+		if pulled.Y >= settled.Y {
+			t.Fatalf("end pull moved content down: %v then %v", pulled.Y, settled.Y)
+		}
+	})
+
+	t.Run("navigation", func(t *testing.T) {
+		state := New()
+		state.Data.Sections = scrollingEditorData(20)
+		tester := ui.NewTester(state.View, 900, 650)
+		tester.Frame()
+		tester.Advance(time.Second)
+		tester.Scroll(100, 500, 0, 100000)
+		if state.navScroll.MaxY <= 0 || state.navScroll.Y != state.navScroll.MaxY {
+			t.Fatalf("navigation stopped at %v of %v", state.navScroll.Y, state.navScroll.MaxY)
+		}
+		if _, y := state.navOver.Offset(); y >= 0 {
+			t.Fatalf("navigation pull = %v, want past its end", y)
+		}
+		tester.Advance(time.Second)
+		if _, y := state.navOver.Offset(); y != 0 {
+			t.Fatalf("navigation pull did not settle: %v", y)
+		}
+	})
+}
+
 // railRow finds a navigation row by its label, ignoring page content.
 func railRow(tester *ui.Tester, label string) (ui.Rect, bool) {
 	rect, ok := tester.Find(label)

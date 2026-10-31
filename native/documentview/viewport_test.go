@@ -62,7 +62,7 @@ func TestManualScrollCancelsRevealForGracePeriod(t *testing.T) {
 		Prose:  theme.NewProseStyle(19),
 		Motion: motion.New(now),
 	}
-	element.manualScroll(30, now)
+	element.manualScroll(30, now, false, false)
 	if element.scroll != 30 {
 		t.Fatalf("scroll = %v", element.scroll)
 	}
@@ -123,6 +123,55 @@ func TestScrollStopsWhereLastLineClearsDock(t *testing.T) {
 	want := element.current.Height() + element.BottomInset - 400
 	if got := element.ScrollY(); got != want {
 		t.Fatalf("scroll end = %v, want %v", got, want)
+	}
+}
+
+func TestScrollPullsPastEitherEdgeAndReturns(t *testing.T) {
+	_, element, tester := newScrollElement(t, strings.Repeat("line\n", 29)+"line", false)
+	for range 40 {
+		tester.Scroll(200, 200, 0, 120)
+		tester.Advance(16 * time.Millisecond)
+	}
+	previous := float32(0)
+	for frame := range 6 {
+		tester.Scroll(200, 200, 0, 12)
+		tester.Advance(16 * time.Millisecond)
+		current := element.OverscrollY()
+		if current > previous {
+			t.Fatalf("end frame %d reversed the gesture: %v after %v", frame, current, previous)
+		}
+		previous = current
+	}
+	if visible := element.visibleScroll(); visible <= element.ScrollY() {
+		t.Fatalf("end pull did not move content above the viewport: scroll %v, visible %v",
+			element.ScrollY(), visible)
+	}
+	for frame := range 6 {
+		tester.Scroll(200, 200, 0, -2)
+		tester.Advance(16 * time.Millisecond)
+		current := element.OverscrollY()
+		if current < previous {
+			t.Fatalf("reverse frame %d moved farther out: %v after %v", frame, current, previous)
+		}
+		previous = current
+	}
+	tester.Advance(time.Second)
+	if got := element.OverscrollY(); got != 0 {
+		t.Fatalf("end pull did not settle: %v", got)
+	}
+
+	element.SetScrollY(0)
+	tester.Frame()
+	tester.Scroll(200, 200, 0, -100)
+	if got := element.OverscrollY(); got <= 0 {
+		t.Fatalf("start pull = %v, want the page drawn below its start", got)
+	}
+	if visible := element.visibleScroll(); visible >= 0 {
+		t.Fatalf("start pull moved content the wrong way: %v", visible)
+	}
+	tester.Advance(time.Second)
+	if got := element.OverscrollY(); got != 0 {
+		t.Fatalf("start pull did not settle: %v", got)
 	}
 }
 

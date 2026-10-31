@@ -5,6 +5,7 @@ package settings
 import (
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -28,6 +29,9 @@ type State struct {
 
 	expanded      map[appsettings.Category]bool
 	contentScroll ui.ScrollState
+	navScroll     ui.ScrollState
+	contentOver   scrollfx.Overscroll
+	navOver       scrollfx.Overscroll
 
 	// anchors are the current page's section tops in content coordinates,
 	// in page order, as the previous frame laid them out. pending is a

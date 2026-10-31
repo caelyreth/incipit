@@ -28,7 +28,7 @@
             jq
           ];
 
-          # MyGo v0.7.1 declares Go 1.27.3. nixpkgs currently provides 1.27.1,
+          # MyGo v0.7.3 declares Go 1.27.3. nixpkgs currently provides 1.27.1,
           # so let the Go command fetch the exact patch toolchain once.
           GOTOOLCHAIN = "go1.27.3+auto";
           CGO_ENABLED = "0";

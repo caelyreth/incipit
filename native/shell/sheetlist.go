@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -300,10 +301,20 @@ func (s *State) sheetRows(
 	// Keyed, and fading out, so a list that empties, as the trash does,
 	// gives way to what says it is empty rather than going at once.
 	scroll := ui.Scroll(c).Key("rows").Grow(1).MinHeight(0).
+		TrackScroll(&s.sheetScroll).
 		Transition(appearing(motionList, nil, &ui.Motion{Opacity: 0}))
+	scroll = components.BindOverscroll(
+		scroll,
+		&s.sheetScroll,
+		&s.sheetOverscroll,
+		scrollfx.Vertical,
+		scroll.LayoutBounds().H,
+		scale,
+	)
 	scroll.Children(func() {
 		list := ui.Column(c).Gap(theme.Space06.DIPs(scale)).
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
+		s.sheetOverscroll.Apply(c, list, animate)
 		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
 		ordered := create != nil && place.Kind == PlaceGroup
 		// Where the pointer was by a sheet's top last frame calls up the
