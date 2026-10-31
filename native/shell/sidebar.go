@@ -108,11 +108,28 @@ func (s *State) sidebar(
 			if s.Library == nil {
 				return
 			}
+			s.wordmark(c, semantic)
 			s.libraryList(c, semantic, animate)
 			s.trashRow(c, semantic, animate)
 		})
 	})
 	_ = metrics
+}
+
+// wordmark heads the library with the app's name, in the system face. Its
+// full stop wears the accent, so it turns, with the theme, to the group of
+// the sheet open.
+func (s *State) wordmark(c *ui.Context, semantic theme.Theme) {
+	scale := s.Settings.UIFontSize
+	size := 22 * scale / theme.DefaultUIFontSize
+	ui.Row(c).Key("wordmark").WidthPercent(100).Shrink(0).AlignItems(ui.End).
+		Padding(theme.Space04.DIPs(scale), theme.Space08.DIPs(scale), theme.Space08.DIPs(scale), theme.Space08.DIPs(scale)).
+		Children(func() {
+			ui.Text(c, "Neverland").Font(theme.UIFontFamily).FontSize(size).FontWeight(700).
+				LetterSpacing(-0.02 * size).TextColor(semantic.Text.Heading).SingleLine()
+			ui.Text(c, ".").Font(theme.UIFontFamily).FontSize(size).FontWeight(700).
+				TextColor(semantic.Accent.Foreground).SingleLine()
+		})
 }
 
 func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {

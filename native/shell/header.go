@@ -33,9 +33,10 @@ func (s *State) header(
 
 	ui.Row(c).Height(height).Opacity(chrome).Clip().AlignItems(ui.Center).
 		Background(semantic.Surface.Background).DragWindow().Children(func() {
-		// The library's line: the sidebar's toggle by the window's
-		// controls, then search, which leaves with the library. Groups
-		// and sheets are made in the lists, where they come in.
+		// The library's line: search, then the library's toggle at its
+		// end. Search leaves with the library, closing up as it goes, so
+		// the toggle slides to the end of what is left and stays put.
+		// Groups and sheets are made in the lists, where they come in.
 		leading := ui.Row(c).Width(leadingWidth).HeightPercent(100).Shrink(0).
 			PaddingStart(left).PaddingEnd(theme.Space08.DIPs(scale)).
 			AlignItems(ui.Center).Gap(theme.Space02.DIPs(scale))
@@ -43,16 +44,10 @@ func (s *State) header(
 			leading.BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant)
 		}
 		leading.Children(func() {
-			components.IconButton{
-				Key: "toggle-sidebar", Label: "Toggle library",
-				Icon:  components.IconSidebar.SVG(),
-				Style: components.SubtleButton, Size: components.MediumButton,
-				IconSize:  16 * scale / theme.DefaultUIFontSize,
-				IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.ToggleSidebar,
-			}.View(c, semantic)
 			ui.Box(c).Grow(1)
 			if reveal > 0.01 && s.Library != nil {
-				ui.Row(c).Opacity(reveal).Gap(theme.Space02.DIPs(scale)).Children(func() {
+				button := components.MediumButton.Height(scale)
+				ui.Row(c).Width(button * reveal).Shrink(0).Opacity(reveal).Clip().Children(func() {
 					components.IconButton{
 						Key: "search-sheets", Label: "Search sheets", Icon: components.IconSearch.SVG(),
 						Style: components.SubtleButton, Size: components.MediumButton,
@@ -62,6 +57,13 @@ func (s *State) header(
 					}.View(c, semantic)
 				})
 			}
+			components.IconButton{
+				Key: "toggle-sidebar", Label: "Toggle library",
+				Icon:  components.IconSidebar.SVG(),
+				Style: components.SubtleButton, Size: components.MediumButton,
+				IconSize:  16 * scale / theme.DefaultUIFontSize,
+				IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.ToggleSidebar,
+			}.View(c, semantic)
 		})
 		s.listHeader(c, semantic, listWidth, listReveal, animate)
 
