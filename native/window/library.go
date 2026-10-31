@@ -89,6 +89,8 @@ func (a *AppState) groupItem(group library.Group) shell.GroupItem {
 		Count:     a.library.Count(group.ID),
 		HasGroups: len(a.library.Groups(group.ID)) > 0,
 		Inbox:     group.ID == library.Inbox,
+		Icon:      group.Icon,
+		Color:     int(group.Color),
 	}
 }
 
@@ -108,6 +110,7 @@ func (a *AppState) sheetItems(sheets []library.Sheet) []shell.SheetItem {
 			Title:   title,
 			Excerpt: excerpt(session.controller.Text()),
 			Updated: sheet.Updated,
+			Words:   session.words(),
 		})
 	}
 	return items
@@ -397,6 +400,13 @@ func (a *AppState) NewGroup(parent string) string {
 // RenameGroup is part of shell.Library.
 func (a *AppState) RenameGroup(id, name string) {
 	if err := a.library.RenameGroup(groupOf(id), name); err == nil {
+		a.libraryChanged()
+	}
+}
+
+// StyleGroup is part of shell.Library.
+func (a *AppState) StyleGroup(id, icon string, color int) {
+	if err := a.library.StyleGroup(groupOf(id), icon, uint8(max(0, min(color, 255)))); err == nil {
 		a.libraryChanged()
 	}
 }

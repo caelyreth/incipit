@@ -12,6 +12,9 @@ func (s *State) View(c *ui.Context) {
 	if changing {
 		c.AnimationFrame()
 	}
+	if s.FindPageRequested && !s.nav.searching && s.Library != nil {
+		s.Search()
+	}
 	width, _ := c.Size()
 	scale := s.Settings.UIFontSize
 	s.lastWidth, s.lastUIFontSize = width, scale
@@ -26,9 +29,13 @@ func (s *State) View(c *ui.Context) {
 	// The sidebar's openness, not its width, rides the spring: it settles to
 	// a visible precision, and a UI font change resizes it without motion.
 	fullSidebar := layout.Sidebar * scale / theme.DefaultUIFontSize
-	openTarget := float32(0)
+	fullList := layout.SheetList * scale / theme.DefaultUIFontSize
+	openTarget, listTarget := float32(0), float32(0)
 	if s.SidebarVisible() {
 		openTarget = 1
+	}
+	if s.SheetListVisible() {
+		listTarget = 1
 	}
 
 	root := ui.Column(c).Fill().Background(semantic.Surface.Background)
@@ -39,19 +46,26 @@ func (s *State) View(c *ui.Context) {
 		chrome = components.Follow(root, "shell-chrome", chromeTarget, components.MotionSettle)
 		reveal = components.Follow(root, "sidebar-open", openTarget, motionReveal)
 	}
+	listReveal := listTarget
+	if animate {
+		listReveal = components.Follow(root, "sheets-open", listTarget, motionReveal)
+	}
+	listReveal = max(0, min(listReveal, 1))
 	// A spring may lean a hair past its end on the way back; layout may not.
 	reveal = max(0, min(reveal, 1))
 	chrome = max(0, min(chrome, 1))
 	sidebarWidth := fullSidebar * reveal
-	s.lastSidebarWidth = sidebarWidth
+	listWidth := fullList * listReveal
+	s.lastSidebarWidth = sidebarWidth + listWidth
 	s.lastChrome = chrome
 
 	root.Children(func() {
 		if chrome > 0.001 {
-			s.header(c, semantic, metrics, layout, bar, chrome, reveal)
+			s.header(c, semantic, metrics, layout, bar, chrome, reveal, listWidth, listReveal)
 		}
 		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
+			s.sheetColumn(c, semantic, listWidth, listReveal)
 			ui.Column(c).Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
 				s.document(c, semantic, metrics, layout)
 				if chrome > 0.001 {

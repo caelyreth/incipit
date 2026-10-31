@@ -10,21 +10,29 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// navigation is where the sidebar is and how it got there: going into a
-// place slides it in from the trailing side over the one left, and going
-// back slides the other way.
+// navigation is what the library and the sheet list show. The library
+// keeps the places, and a place is chosen in it, never gone into: the
+// sheet list beside it shows the place's sheets, and crossfades from one
+// place to the next.
 type navigation struct {
 	place Place
-	from  Place
-	// direction is +1 going in and -1 going back.
-	direction float32
-	// moved asks the next frame to start the slide.
-	moved bool
+	// searching shows search results in the sheet list instead of the
+	// place.
+	searching bool
+	// shown is what the sheet list last showed and from what it fades;
+	// moved asks the next frame to start the fade.
+	shown, from listView
+	moved       bool
+	// listClosed hides the sheet list until a place is chosen.
+	listClosed bool
 	// expanded are the groups open in the library's tree.
 	expanded map[string]bool
 	// renaming is the group being named in place, and name its text.
 	renaming string
 	name     string
+	// styling is the group whose icon and color are being chosen.
+	styling     string
+	stylingOpen bool
 	// armed is what waits for a second click to be deleted, since armedAt.
 	armed   string
 	armedAt time.Time
@@ -33,30 +41,29 @@ type navigation struct {
 // Place is where the sidebar is.
 func (s *State) Place() Place { return s.nav.place }
 
-// Go shows a place in the sidebar, going in when forward.
-func (s *State) Go(place Place, forward bool) {
+// Go chooses a place in the library and shows its sheets.
+func (s *State) Go(place Place) {
+	s.nav.listClosed = false
+	s.nav.searching = false
 	if place == s.nav.place {
 		return
 	}
-	s.nav.from, s.nav.place = s.nav.place, place
-	s.nav.direction = 1
-	if !forward {
-		s.nav.direction = -1
-	}
-	s.nav.moved = true
+	s.nav.place = place
 	s.nav.renaming = ""
 	s.disarm()
 }
 
-// back is the place a place goes back to: a group's parent group, or the
-// library.
-func (s *State) back(place Place) Place {
-	if place.Kind == PlaceGroup && s.Library != nil {
-		if parent := s.Library.Parent(place.Group); parent != "" {
-			return Place{Kind: PlaceGroup, Group: parent}
-		}
-	}
-	return Place{Kind: PlaceLibrary}
+// Search shows search in the sheet list, its field focused.
+func (s *State) Search() {
+	s.nav.searching, s.nav.listClosed = true, false
+	s.FindPageRequested = true
+	s.disarm()
+}
+
+// stopSearching gives the sheet list back to the place.
+func (s *State) stopSearching() {
+	s.nav.searching = false
+	s.PageQuery = ""
 }
 
 // CurrentGroup is the group a new sheet goes in: the one shown, else the
@@ -68,6 +75,8 @@ func (s *State) CurrentGroup() string {
 	return ""
 }
 
+// sidebar is the library: the Inbox and the filters, the groups, and the
+// trash.
 func (s *State) sidebar(
 	c *ui.Context,
 	semantic theme.Theme,
@@ -84,109 +93,42 @@ func (s *State) sidebar(
 	ui.Column(c).Width(width).HeightPercent(100).Shrink(0).Clip().
 		Background(semantic.Surface.Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
-		ui.Column(c).Width(fullWidth).HeightPercent(100).Opacity(reveal).Children(func() {
-			ui.Column(c).Grow(1).MinHeight(0).Padding(
-				theme.Space12.DIPs(scale),
-				theme.Space12.DIPs(scale),
-				theme.Space12.DIPs(scale),
-				theme.Space12.DIPs(scale),
-			).Children(func() {
-				components.TextField{
-					Key: "page-search", Label: "Search sheets", Placeholder: "Search sheets…",
-					Value: &s.PageQuery, Icon: components.IconSearch.SVG(),
-					ClearIcon: components.IconClose.SVG(), Animate: animate,
-					FocusRequested: s.FindPageRequested,
-				}.View(c, semantic)
-				s.FindPageRequested = false
-				ui.Box(c).Height(theme.Space12.DIPs(scale))
-				if s.Library == nil {
-					return
-				}
-				if strings.TrimSpace(s.PageQuery) != "" {
-					s.searchPage(c, semantic, animate)
-					return
-				}
-				s.places(c, semantic, fullWidth, animate)
-			})
+		ui.Column(c).Width(fullWidth).HeightPercent(100).Opacity(reveal).
+			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale)).Children(func() {
+			if s.Library == nil {
+				return
+			}
+			s.libraryList(c, semantic, animate)
+			s.trashRow(c, semantic, animate)
 		})
 	})
 	_ = metrics
 }
 
-// places draws the place shown and, while the sidebar slides between two,
-// the one it leaves.
-func (s *State) places(c *ui.Context, semantic theme.Theme, width float32, animate bool) {
-	stage := ui.Box(c).Grow(1).MinHeight(0).WidthPercent(100).Clip()
-	progress := float32(1)
-	if animate {
-		if s.nav.moved {
-			stage.Jump("slide", 0)
-		}
-		progress = components.Follow(stage, "slide", 1, motionPlace)
-	}
-	s.nav.moved = false
-	progress = max(0, min(progress, 1))
-	// A place slides a third of the sidebar: enough to say which way, not
-	// so far that the eye loses either.
-	distance := width / 3
-	stage.Children(func() {
-		if progress < 0.999 {
-			s.placeLayer(c, semantic, s.nav.from, -s.nav.direction*progress*distance, 1-progress, animate)
-		}
-		s.placeLayer(c, semantic, s.nav.place, s.nav.direction*(1-progress)*distance, progress, animate)
-	})
-}
-
-func (s *State) placeLayer(
-	c *ui.Context,
-	semantic theme.Theme,
-	place Place,
-	offset, opacity float32,
-	animate bool,
-) {
-	ui.Column(c).Key(placeKey(place)).Absolute().Top(0).Left(0).Right(0).Bottom(0).
-		Translate(offset, 0).Opacity(opacity).Children(func() {
-		switch place.Kind {
-		case PlaceLibrary:
-			s.libraryPage(c, semantic, animate)
-		case PlaceGroup:
-			s.groupPage(c, semantic, place.Group, animate)
-		case PlaceTrash:
-			s.trashPage(c, semantic, animate)
-		default:
-			s.filterPage(c, semantic, place, animate)
-		}
-	})
-}
-
-func placeKey(place Place) string {
-	return fmt.Sprintf("place-%d-%s", place.Kind, place.Group)
-}
-
-func (s *State) libraryPage(c *ui.Context, semantic theme.Theme, animate bool) {
+func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
 	ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-		ui.Column(c).Gap(theme.Space02.DIPs(scale)).Children(func() {
-			// The Inbox leads, with the filters; below are the groups.
+		list := ui.Column(c).Gap(theme.Space02.DIPs(scale))
+		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
+		list.Children(func() {
 			for _, group := range s.Library.Groups("") {
 				if group.Inbox {
-					s.groupRow(c, semantic, group, 0, false, animate)
+					s.groupRow(c, semantic, group, 0, false, track, animate)
 				}
 			}
 			s.placeRow(c, semantic, Place{Kind: PlaceAll}, "All", components.IconSheets,
-				len(s.Library.Sheets(Place{Kind: PlaceAll})), animate)
+				len(s.Library.Sheets(Place{Kind: PlaceAll})), track, animate)
 			s.placeRow(c, semantic, Place{Kind: PlaceRecent}, "Last 7 Days", components.IconClock,
-				len(s.Library.Sheets(Place{Kind: PlaceRecent})), animate)
-			ui.Box(c).Height(theme.Space12.DIPs(scale))
-			s.sectionLabel(c, semantic, "Groups", func() {
-				components.IconButton{
-					Key: "new-group", Label: "New group", Icon: components.IconNewGroup.SVG(),
-					Style: components.SubtleButton, Size: components.CompactButton,
-					IconColor: &semantic.Icon.Muted, Animate: animate,
-					Action: func() { s.startRename(s.Library.NewGroup("")) },
-				}.View(c, semantic)
-			})
-			s.groupTree(c, semantic, "", 0, animate)
+				len(s.Library.Sheets(Place{Kind: PlaceRecent})), track, animate)
+			s.groupsLabel(c, semantic, animate)
+			s.groupTree(c, semantic, "", 0, track, animate)
+			if len(s.Library.Groups("")) <= 1 {
+				ui.Box(c).Key("no-groups").PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space04.DIPs(scale)).
+					Transition(rowTransition(animate)).Children(func() {
+					components.Label(c, "Make a group with + to file sheets by project.",
+						theme.TextXSmall, semantic.Text.Muted).Opacity(0.8)
+				})
+			}
 		})
 	}).ContextMenu(func(m *ui.Menu) {
 		if m.Item("New Group").Chosen() {
@@ -196,35 +138,25 @@ func (s *State) libraryPage(c *ui.Context, semantic theme.Theme, animate bool) {
 			s.Library.NewSheet("")
 		}
 	})
-	trash := len(s.Library.Sheets(Place{Kind: PlaceTrash})) + len(s.Library.TrashedGroups())
-	row := s.placeRow(c, semantic, Place{Kind: PlaceTrash}, "Trash", components.IconTrash, trash, animate)
-	row.ContextMenu(func(m *ui.Menu) {
-		if m.Item("Empty Trash…").Disabled(trash == 0).Chosen() {
-			// The trash shows what goes, and asks there.
-			s.Go(Place{Kind: PlaceTrash}, true)
-			s.arm(emptyTrashKey)
-		}
-	})
-	if sheet, ok := ui.Drop[sheetDrag](row); ok {
-		s.Library.TrashSheet(sheet.id)
-	}
-	if group, ok := ui.Drop[groupDrag](row); ok {
-		s.Library.TrashGroup(group.id)
-	}
 }
 
-func (s *State) sectionLabel(c *ui.Context, semantic theme.Theme, title string, trailing func()) {
+// groupsLabel heads the groups. A group dropped on it goes to the top.
+func (s *State) groupsLabel(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
-	ui.Row(c).Height(theme.DefaultControls.Scaled(scale).InlineHeight).
-		PaddingStart(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Children(func() {
-		components.Label(c, title, theme.TextXSmall, semantic.Text.Muted).Grow(1).SingleLine()
-		if trailing != nil {
-			trailing()
-		}
+	label := ui.Row(c).Key("groups-label").WidthPercent(100).
+		Height(theme.DefaultControls.Scaled(scale).InlineHeight).MarginY(theme.Space06.DIPs(scale)).
+		PaddingStart(theme.Space08.DIPs(scale)).AlignItems(ui.End).
+		Radius(theme.DefaultControls.Scaled(scale).Radius)
+	label.Children(func() {
+		components.Label(c, "Groups", theme.TextXSmall, semantic.Text.Muted).Grow(1).SingleLine()
 	})
+	s.dropHighlight(c, semantic, label, false, true, false, animate)
+	if dragged, ok := ui.Drop[groupDrag](label); ok {
+		s.Library.MoveGroup(dragged.id, "", 1<<30)
+	}
 }
 
-// placeRow is a row that goes to a place.
+// placeRow is a filter in the library.
 func (s *State) placeRow(
 	c *ui.Context,
 	semantic theme.Theme,
@@ -232,38 +164,101 @@ func (s *State) placeRow(
 	label string,
 	icon components.IconName,
 	count int,
+	track *components.SelectionTrack,
 	animate bool,
 ) ui.Element {
 	return components.NavigationRow{
 		Key: placeKey(place), Label: label, Role: ui.RoleButton, FullWidth: true, Animate: animate,
-		Leading:  func() { s.rowIcon(c, semantic, icon) },
+		Selected: s.chosen(place), Track: track,
+		Leading:  func() { s.rowIcon(c, semantic, icon, nil, animate) },
 		Trailing: func() { s.count(c, semantic, count) },
-		Action:   func() { s.Go(place, true) },
+		Action:   func() { s.Go(place) },
 	}.View(c, semantic)
 }
 
-func (s *State) rowIcon(c *ui.Context, semantic theme.Theme, icon components.IconName) {
-	ui.Icon(c, icon.SVG()).FontSize(16 * s.Settings.UIFontSize / theme.DefaultUIFontSize).
-		TextColor(semantic.Icon.Muted)
+// chosen reports the place the sheet list shows.
+func (s *State) chosen(place Place) bool {
+	return !s.nav.searching && !s.nav.listClosed && s.nav.place == place
+}
+
+func placeKey(place Place) string {
+	return fmt.Sprintf("place-%d-%s", place.Kind, place.Group)
+}
+
+// trashRow keeps the trash at the library's foot, where anything dragged
+// onto it goes.
+func (s *State) trashRow(c *ui.Context, semantic theme.Theme, animate bool) {
+	scale := s.Settings.UIFontSize
+	place := Place{Kind: PlaceTrash}
+	trash := len(s.Library.Sheets(place)) + len(s.Library.TrashedGroups())
+	foot := ui.Column(c).WidthPercent(100).Shrink(0).Padding(theme.Space06.DIPs(scale), 0, 0, 0).
+		BorderWidth(1, 0, 0, 0).BorderColor(semantic.Border.Variant)
+	var row ui.Element
+	foot.Children(func() {
+		track := components.TrackSelection(foot, components.NavigationSelection(c, semantic), animate)
+		row = s.placeRow(c, semantic, place, "Trash", components.IconTrash, trash, track, animate)
+	})
+	row.ContextMenu(func(m *ui.Menu) {
+		if m.Item("Empty Trash…").Disabled(trash == 0).Chosen() {
+			// The trash shows what goes, and asks there.
+			s.Go(place)
+			s.arm(emptyTrashKey)
+		}
+	})
+	s.dropHighlight(c, semantic, row, true, true, true, animate)
+	if sheet, ok := ui.Drop[sheetDrag](row); ok {
+		s.Library.TrashSheet(sheet.id)
+	}
+	if tab, ok := ui.Drop[tabDrag](row); ok {
+		s.Library.TrashSheet(tab.id)
+	}
+	if group, ok := ui.Drop[groupDrag](row); ok {
+		s.Library.TrashGroup(group.id)
+	}
+}
+
+// rowIcon draws a row's icon, in color when it has one.
+func (s *State) rowIcon(c *ui.Context, semantic theme.Theme, icon components.IconName, tint *ui.Color, animate bool) {
+	glyph := ui.Icon(c.Key("icon"), icon.SVG()).FontSize(16 * s.Settings.UIFontSize / theme.DefaultUIFontSize)
+	color := semantic.Icon.Muted
+	if tint != nil {
+		color = *tint
+	}
+	if animate {
+		color = glyph.AnimateColor("tint", color, components.Spring(components.MotionNormal))
+	}
+	glyph.TextColor(color)
 }
 
 func (s *State) count(c *ui.Context, semantic theme.Theme, count int) {
 	if count > 0 {
-		components.Label(c, fmt.Sprint(count), theme.TextXSmall, semantic.Text.Muted).SingleLine()
+		components.Label(c, fmt.Sprint(count), theme.TextXSmall, semantic.Text.Muted).
+			SingleLine().FontFeatures("tnum").Opacity(0.85)
 	}
 }
 
 // groupTree lists the groups in parent, each opening on its own groups.
-func (s *State) groupTree(c *ui.Context, semantic theme.Theme, parent string, depth int, animate bool) {
+// The Inbox leads the library apart from them.
+func (s *State) groupTree(
+	c *ui.Context,
+	semantic theme.Theme,
+	parent string,
+	depth int,
+	track *components.SelectionTrack,
+	animate bool,
+) {
+	scale := s.Settings.UIFontSize
 	for _, group := range s.Library.Groups(parent) {
 		if group.Inbox {
 			continue
 		}
 		ui.Column(c).Key("tree-" + group.ID).WidthPercent(100).Transition(rowTransition(animate)).Children(func() {
-			s.groupRow(c, semantic, group, depth, true, animate)
+			s.groupRow(c, semantic, group, depth, true, track, animate)
 			if group.HasGroups {
 				components.Fold{Key: "fold", Open: s.nav.expanded[group.ID], Animate: animate, Settle: motionFold}.View(c, func() {
-					s.groupTree(c, semantic, group.ID, depth+1, animate)
+					ui.Column(c).Gap(theme.Space02.DIPs(scale)).Padding(theme.Space02.DIPs(scale), 0, 0, 0).Children(func() {
+						s.groupTree(c, semantic, group.ID, depth+1, track, animate)
+					})
 				})
 			}
 		})
@@ -276,36 +271,67 @@ func rowTransition(animate bool) ui.ElementTransition {
 	return listTransition(animate, false)
 }
 
-func (s *State) groupRow(c *ui.Context, semantic theme.Theme, group GroupItem, depth int, tree bool, animate bool) {
+// groupIcon is the icon a group wears.
+func groupIcon(group GroupItem) components.IconName {
+	switch {
+	case group.Inbox:
+		return components.IconInbox
+	case group.Icon != "":
+		return components.IconName(group.Icon)
+	}
+	return components.IconFolder
+}
+
+// groupTint is a group's color, nil for none.
+func groupTint(semantic theme.Theme, group GroupItem) *ui.Color {
+	if group.Color < 1 || group.Color > len(semantic.Families) {
+		return nil
+	}
+	return &semantic.Families[group.Color-1].Foreground
+}
+
+func (s *State) groupRow(
+	c *ui.Context,
+	semantic theme.Theme,
+	group GroupItem,
+	depth int,
+	tree bool,
+	track *components.SelectionTrack,
+	animate bool,
+) {
 	scale := s.Settings.UIFontSize
 	indent := float32(depth) * theme.Space16.DIPs(scale)
-	icon := components.IconFolder
-	if group.Inbox {
-		icon = components.IconInbox
-	}
 	if s.nav.renaming == group.ID {
-		s.renameRow(c, semantic, group, indent, icon)
+		s.renameRow(c, semantic, group, indent, animate)
 		return
 	}
+	place := Place{Kind: PlaceGroup, Group: group.ID}
 	open := s.nav.expanded[group.ID]
 	row := components.NavigationRow{
 		Key: "group-" + group.ID, Label: group.Name, Role: ui.RoleButton, FullWidth: true,
-		Indent: indent, Animate: animate,
-		Leading: func() {
-			if tree {
+		Indent: indent, Animate: animate, Selected: s.chosen(place), Track: track,
+		Leading: func() { s.rowIcon(c, semantic, groupIcon(group), groupTint(semantic, group), animate) },
+		Trailing: func() {
+			s.count(c, semantic, group.Count)
+			if tree && group.HasGroups {
 				s.disclosure(c, semantic, group, open, animate)
 			}
-			s.rowIcon(c, semantic, icon)
 		},
-		Trailing: func() { s.count(c, semantic, group.Count) },
-		Action:   func() { s.Go(Place{Kind: PlaceGroup, Group: group.ID}, true) },
+		Action: func() { s.Go(place) },
 	}.View(c, semantic)
-	row.Drag(groupDrag{id: group.ID}).ContextMenu(s.groupMenu(group))
-	s.dropInto(c, semantic, row, group.ID)
+	if !group.Inbox {
+		row.Drag(groupDrag{id: group.ID})
+		if row.DoubleClicked() {
+			s.startRename(group.ID)
+		}
+	}
+	row.ContextMenu(s.groupMenu(group))
+	s.dropInto(c, semantic, row, group, animate)
+	s.stylePicker(c, semantic, row, group, animate)
 }
 
-// disclosure opens and closes a group in the tree; a group without groups
-// keeps its room, so names line up.
+// disclosure opens and closes a group in the tree. It trails the row, so
+// every icon in the library lines up, nested or not.
 func (s *State) disclosure(c *ui.Context, semantic theme.Theme, group GroupItem, open bool, animate bool) {
 	size := 16 * s.Settings.UIFontSize / theme.DefaultUIFontSize
 	toggle := ui.ButtonBase(c.Key("disclose")).Label("Show groups in " + group.Name).
@@ -318,54 +344,87 @@ func (s *State) disclosure(c *ui.Context, semantic theme.Theme, group GroupItem,
 		turn = components.Follow(toggle, "turn", turn, motionTurn)
 	}
 	toggle.Children(func() {
-		if group.HasGroups {
-			ui.Icon(c, components.IconChevronRight.SVG()).FontSize(size * 0.8).
-				TextColor(semantic.Icon.Muted).Rotate(turn)
-		}
+		ui.Icon(c, components.IconChevronRight.SVG()).FontSize(size * 0.8).
+			TextColor(semantic.Icon.Muted).Rotate(turn)
 	})
-	if group.HasGroups && toggle.Clicked() {
+	if toggle.Clicked() {
 		s.nav.expanded[group.ID] = !open
 	}
 }
 
-// dropInto lets sheets and groups dragged onto a group's row file into it.
-func (s *State) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, group string) {
-	if _, over := ui.DragOver[sheetDrag](row); over {
-		row.Border(1, semantic.Border.Focused)
+// dropHighlight tints a row while something it takes is dragged over it.
+func (s *State) dropHighlight(
+	c *ui.Context,
+	semantic theme.Theme,
+	row ui.Element,
+	sheets, groups, tabs bool,
+	animate bool,
+) {
+	over := false
+	if _, ok := ui.DragOver[sheetDrag](row); ok && sheets {
+		over = true
 	}
-	if _, over := ui.DragOver[groupDrag](row); over {
-		row.Border(1, semantic.Border.Focused)
+	if _, ok := ui.DragOver[groupDrag](row); ok && groups {
+		over = true
 	}
+	if _, ok := ui.DragOver[tabDrag](row); ok && tabs {
+		over = true
+	}
+	amount := float32(0)
+	if over {
+		amount = 1
+	}
+	if animate {
+		amount = components.Follow(row, "drop", amount, components.MotionQuick)
+	}
+	if amount > 0.001 {
+		row.Background(components.Blend(ui.Transparent, semantic.Accent.Muted, amount))
+		row.Border(1, components.Blend(ui.Transparent, semantic.Accent.Foreground, amount))
+	}
+}
+
+// dropInto files sheets, tabs' sheets and groups dragged onto a group's row
+// into it.
+func (s *State) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, group GroupItem, animate bool) {
+	s.dropHighlight(c, semantic, row, true, !group.Inbox, true, animate)
+	end := 1 << 30
 	if sheet, ok := ui.Drop[sheetDrag](row); ok {
-		s.Library.MoveSheet(sheet.id, group, len(s.Library.Sheets(Place{Kind: PlaceGroup, Group: group})))
+		s.Library.MoveSheet(sheet.id, group.ID, end)
 	}
-	if dragged, ok := ui.Drop[groupDrag](row); ok && dragged.id != group {
-		s.Library.MoveGroup(dragged.id, group, len(s.Library.Groups(group)))
-		s.nav.expanded[group] = true
+	if tab, ok := ui.Drop[tabDrag](row); ok {
+		s.Library.MoveSheet(tab.id, group.ID, end)
 	}
-	_ = c
+	if dragged, ok := ui.Drop[groupDrag](row); ok && dragged.id != group.ID && !group.Inbox {
+		s.Library.MoveGroup(dragged.id, group.ID, end)
+		s.nav.expanded[group.ID] = true
+	}
 }
 
 func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if m.Item("New Sheet").Chosen() {
+			s.Go(Place{Kind: PlaceGroup, Group: group.ID})
 			s.Library.NewSheet(group.ID)
 		}
-		if m.Item("New Group").Chosen() {
+		if group.Inbox {
+			return
+		}
+		if m.Item("New Group Inside").Chosen() {
 			s.nav.expanded[group.ID] = true
 			s.startRename(s.Library.NewGroup(group.ID))
 		}
 		m.Separator()
-		if m.Item("Rename…").Disabled(group.Inbox).Chosen() {
+		if m.Item("Rename…").Chosen() {
 			s.startRename(group.ID)
 		}
-		if !group.Inbox {
-			s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, 1<<30) }, group.ID)
+		if m.Item("Icon & Color…").Chosen() {
+			s.nav.styling, s.nav.stylingOpen = group.ID, true
 		}
+		s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, 1<<30) }, group.ID)
 		m.Separator()
-		if m.Item(trashGroupLabel(group)).Disabled(group.Inbox).Chosen() {
+		if m.Item(trashGroupLabel(group)).Chosen() {
 			if s.nav.place == (Place{Kind: PlaceGroup, Group: group.ID}) {
-				s.Go(s.back(s.nav.place), false)
+				s.Go(Place{Kind: PlaceAll})
 			}
 			s.Library.TrashGroup(group.ID)
 		}
@@ -409,15 +468,16 @@ func (s *State) startRename(id string) {
 
 // renameRow names a group in place: Return or leaving the field keeps the
 // name, Escape keeps the old one.
-func (s *State) renameRow(c *ui.Context, semantic theme.Theme, group GroupItem, indent float32, icon components.IconName) {
+func (s *State) renameRow(c *ui.Context, semantic theme.Theme, group GroupItem, indent float32, animate bool) {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
+	lead := theme.Space08.DIPs(scale) + indent
 	ui.Row(c).Key("rename-"+group.ID).WidthPercent(100).Height(metrics.Height).
-		PaddingStart(theme.Space08.DIPs(scale)+indent+16*scale/theme.DefaultUIFontSize+theme.Space06.DIPs(scale)).
-		PaddingEnd(theme.Space04.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
+		PaddingStart(lead-1).PaddingEnd(theme.Space04.DIPs(scale)).
+		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
 		Radius(metrics.Radius).Border(1, semantic.Border.Focused).Background(semantic.Surface.Inset).
 		Children(func() {
-			s.rowIcon(c, semantic, icon)
+			s.rowIcon(c, semantic, groupIcon(group), groupTint(semantic, group), animate)
 			input := ui.TextInputBase(c.Key("name"), &s.nav.name).Grow(1).MinWidth(0).
 				Font(theme.UIFontFamily).FontSize(theme.TextSmall.Size(scale)).
 				FixedLineHeight(theme.TextSmall.LineHeight(scale)).
@@ -436,245 +496,6 @@ func (s *State) renameRow(c *ui.Context, semantic theme.Theme, group GroupItem, 
 			}
 			*focused = input.Focused()
 		})
-}
-
-func (s *State) groupPage(c *ui.Context, semantic theme.Theme, id string, animate bool) {
-	group, ok := s.Library.Group(id)
-	if !ok {
-		s.placeHeader(c, semantic, "Gone", nil, animate)
-		return
-	}
-	place := Place{Kind: PlaceGroup, Group: id}
-	s.placeHeader(c, semantic, group.Name, func() {
-		components.IconButton{
-			Key: "new-sheet", Label: "New sheet in " + group.Name, Icon: components.IconNewSheet.SVG(),
-			Style: components.SubtleButton, Size: components.CompactButton,
-			IconColor: &semantic.Icon.Muted, Animate: animate,
-			Action: func() { s.Library.NewSheet(id) },
-		}.View(c, semantic)
-	}, animate)
-	groups := s.Library.Groups(id)
-	sheets := s.Library.Sheets(place)
-	s.sheetList(c, semantic, sheets, place, animate, func() {
-		for _, child := range groups {
-			ui.Column(c).Key("sub-" + child.ID).WidthPercent(100).Transition(rowTransition(animate)).Children(func() {
-				s.groupRow(c, semantic, child, 0, false, animate)
-			})
-		}
-	}, func(m *ui.Menu) {
-		if m.Item("New Sheet").Chosen() {
-			s.Library.NewSheet(id)
-		}
-		if m.Item("New Group").Chosen() {
-			s.startRename(s.Library.NewGroup(id))
-		}
-	}, len(groups) == 0 && len(sheets) == 0, "No sheets yet")
-}
-
-func (s *State) filterPage(c *ui.Context, semantic theme.Theme, place Place, animate bool) {
-	title := "All"
-	if place.Kind == PlaceRecent {
-		title = "Last 7 Days"
-	}
-	s.placeHeader(c, semantic, title, nil, animate)
-	sheets := s.Library.Sheets(place)
-	s.sheetList(c, semantic, sheets, place, animate, nil, nil, len(sheets) == 0, "Nothing here yet")
-}
-
-func (s *State) trashPage(c *ui.Context, semantic theme.Theme, animate bool) {
-	groups := s.Library.TrashedGroups()
-	sheets := s.Library.Sheets(Place{Kind: PlaceTrash})
-	empty := len(groups) == 0 && len(sheets) == 0
-	s.placeHeader(c, semantic, "Trash", func() {
-		if !empty {
-			s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
-		}
-	}, animate)
-	s.sheetList(c, semantic, sheets, Place{Kind: PlaceTrash}, animate, func() {
-		for _, group := range groups {
-			group := group
-			ui.Column(c).Key("trashed-" + group.ID).WidthPercent(100).Transition(rowTransition(animate)).Children(func() {
-				key := "delete-group-" + group.ID
-				components.NavigationRow{
-					Key: "group-" + group.ID, Label: group.Name, Role: ui.RoleButton, FullWidth: true,
-					Animate: animate,
-					Leading: func() { s.rowIcon(c, semantic, components.IconFolder) },
-					Trailing: func() {
-						if s.nav.armed != key {
-							s.count(c, semantic, group.Count)
-						}
-						// A group is deleted with all it holds.
-						armed := "Delete"
-						if group.Count > 0 {
-							armed = "Delete All"
-						}
-						s.confirmButton(c, semantic, key, "", armed, animate, func() { s.Library.DeleteGroup(group.ID) })
-					},
-				}.View(c, semantic).ContextMenu(func(m *ui.Menu) {
-					if m.Item("Put Back").Chosen() {
-						s.Library.RestoreGroup(group.ID)
-					}
-					m.Separator()
-					if m.Item(deleteGroupLabel(group)).Chosen() {
-						s.arm(key)
-					}
-				})
-			})
-		}
-	}, nil, empty, "The trash is empty")
-}
-
-func (s *State) searchPage(c *ui.Context, semantic theme.Theme, animate bool) {
-	sheets := s.Library.Search(strings.TrimSpace(s.PageQuery))
-	s.sectionLabel(c, semantic, fmt.Sprintf("Results · %d", len(sheets)), nil)
-	s.sheetList(c, semantic, sheets, Place{Kind: PlaceAll}, animate, nil, nil, len(sheets) == 0, "No sheets match your search")
-}
-
-// placeHeader is a place's title, with the way back before it.
-func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, title string, trailing func(), animate bool) {
-	scale := s.Settings.UIFontSize
-	ui.Row(c).Height(theme.DefaultControls.Scaled(scale).Height).Shrink(0).
-		AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
-		components.IconButton{
-			Key: "back", Label: "Back", Icon: components.IconBack.SVG(),
-			Style: components.SubtleButton, Size: components.CompactButton,
-			IconColor: &semantic.Icon.Muted, Animate: animate,
-			Action: func() { s.Go(s.back(s.nav.place), false) },
-		}.View(c, semantic)
-		components.Label(c, title, theme.TextSmall, semantic.Text.Heading).Grow(1).MinWidth(0).SingleLine()
-		if trailing != nil {
-			trailing()
-		}
-	})
-}
-
-// sheetList lists sheets under what leading draws, or says empty when
-// there is nothing.
-func (s *State) sheetList(
-	c *ui.Context,
-	semantic theme.Theme,
-	sheets []SheetItem,
-	place Place,
-	animate bool,
-	leading func(),
-	menu func(*ui.Menu),
-	empty bool,
-	emptyText string,
-) {
-	scale := s.Settings.UIFontSize
-	scroll := ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-		list := ui.Column(c).Gap(theme.Space02.DIPs(scale))
-		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
-		list.Children(func() {
-			if leading != nil {
-				leading()
-			}
-			if empty {
-				ui.Box(c).Padding(theme.Space08.DIPs(scale)).Children(func() {
-					components.Label(c, emptyText, theme.TextSmall, semantic.Text.Muted)
-				})
-				return
-			}
-			for index, sheet := range sheets {
-				s.sheetRow(c, semantic, sheet, index, place, track, animate)
-			}
-		})
-	})
-	if menu != nil {
-		scroll.ContextMenu(menu)
-	}
-}
-
-func (s *State) sheetRow(
-	c *ui.Context,
-	semantic theme.Theme,
-	sheet SheetItem,
-	index int,
-	place Place,
-	track *components.SelectionTrack,
-	animate bool,
-) {
-	scale := s.Settings.UIFontSize
-	metrics := theme.DefaultControls.Scaled(scale)
-	selected := sheet.ID == s.ActivePage
-	row := ui.Row(c).Key("sheet-"+sheet.ID).Role(ui.RoleButton).Label(sheet.Title).Selected(selected).
-		WidthPercent(100).Shrink(0).
-		PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale)).
-		AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-		Radius(metrics.Radius).Border(1, ui.Transparent).
-		Focusable().FocusRing(false).Transition(rowTransition(animate))
-	rest := semantic.GhostElement.Background
-	if selected {
-		track.Mark(row)
-	}
-	hover := components.HoverAmount(row, !selected && row.Hovered(), animate)
-	row.Background(components.Blend(rest, semantic.GhostElement.Hover, hover))
-	if row.FocusVisible() {
-		row.Border(1, semantic.Border.Focused)
-	}
-	trashed := place.Kind == PlaceTrash
-	deleteKey := "delete-sheet-" + sheet.ID
-	confirming := s.nav.armed == deleteKey
-	row.Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Space02.DIPs(scale)).Children(func() {
-			title := semantic.Text.Default
-			if selected {
-				title = semantic.Text.Heading
-			}
-			components.Label(c, sheet.Title, theme.TextSmall, title).SingleLine()
-			if sheet.Excerpt != "" {
-				components.Label(c, sheet.Excerpt, theme.TextXSmall, semantic.Text.Muted).SingleLine()
-			}
-		})
-		if trashed {
-			s.confirmButton(c, semantic, deleteKey, "", "Delete", animate, func() { s.Library.DeleteSheet(sheet.ID) })
-		}
-	})
-	row.Drag(sheetDrag{id: sheet.ID}).ContextMenu(s.sheetMenu(sheet, trashed))
-	if place.Kind == PlaceGroup {
-		// A sheet dropped on another in its group takes its place.
-		if _, over := ui.DragOver[sheetDrag](row); over {
-			row.Border(1, semantic.Border.Focused)
-		}
-		if dragged, ok := ui.Drop[sheetDrag](row); ok && dragged.id != sheet.ID {
-			s.Library.MoveSheet(dragged.id, place.Group, index)
-		}
-	}
-	if !confirming && (row.Clicked() || row.Shortcut(0, ui.KeyEnter)) {
-		s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Cmd != 0)
-	}
-}
-
-func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
-	return func(m *ui.Menu) {
-		if m.Item("Open").Chosen() {
-			s.Library.OpenSheet(sheet.ID, false)
-		}
-		if m.Item("Open in New Tab").Chosen() {
-			s.Library.OpenSheet(sheet.ID, true)
-		}
-		m.Separator()
-		if trashed {
-			if m.Item("Put Back").Chosen() {
-				s.Library.RestoreSheet(sheet.ID)
-			}
-			m.Separator()
-			if m.Item("Delete Immediately…").Chosen() {
-				s.arm("delete-sheet-" + sheet.ID)
-			}
-			return
-		}
-		if m.Item("Duplicate").Chosen() {
-			s.Library.DuplicateSheet(sheet.ID)
-		}
-		s.moveMenu(m, func(group string) {
-			s.Library.MoveSheet(sheet.ID, group, 1<<30)
-		}, "")
-		m.Separator()
-		if m.Item("Move to Trash").Chosen() {
-			s.Library.TrashSheet(sheet.ID)
-		}
-	}
 }
 
 // emptyTrashKey names the trash's Empty button, for arming from a menu.

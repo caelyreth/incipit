@@ -246,8 +246,8 @@ func TestIconControlsAreKeyboardReachable(t *testing.T) {
 	}
 }
 
-func TestFindPageRequestFocusesExistingSidebarSearch(t *testing.T) {
-	state := openState()
+func TestFindPageRequestFocusesTheSheetSearch(t *testing.T) {
+	state, _ := libraryState()
 	state.Tabs = []Page{{ID: "one", Title: "First"}}
 	state.ActivePage = "one"
 	tester := ui.NewTester(state.View, 1260, 850)

@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func (f *fakeLibrary) Parent(string) string { return "" }
 func (f *fakeLibrary) Sheets(place Place) []SheetItem {
 	switch {
 	case place.Kind == PlaceGroup && place.Group == "2":
-		return []SheetItem{{ID: "7", Title: "Chapter", Excerpt: "It begins", Updated: time.Now()}}
+		return []SheetItem{{ID: "7", Title: "Chapter", Excerpt: "It begins", Updated: time.Now(), Words: 1204}}
 	case place.Kind == PlaceGroup && place.Group == "1", place.Kind == PlaceAll:
 		return []SheetItem{{ID: "8", Title: "Draft"}}
 	case place.Kind == PlaceTrash:
@@ -74,6 +75,9 @@ func (f *fakeLibrary) RestoreSheet(id string)            { f.call("restore " + i
 func (f *fakeLibrary) DeleteSheet(id string)             { f.call("delete " + id) }
 func (f *fakeLibrary) NewGroup(parent string) string     { f.call("new group " + parent); return "2" }
 func (f *fakeLibrary) RenameGroup(id, name string)       { f.call("rename " + id + " " + name) }
+func (f *fakeLibrary) StyleGroup(id, icon string, color int) {
+	f.call(fmt.Sprintf("style %s %s %d", id, icon, color))
+}
 func (f *fakeLibrary) MoveGroup(id, parent string, _ int) {
 	f.call("move group " + id + " to " + parent)
 }
@@ -96,40 +100,48 @@ func settle(tester *ui.Tester) {
 	}
 }
 
-func TestTheSidebarGoesIntoAGroupAndBack(t *testing.T) {
+func TestChoosingAPlaceShowsItsSheetsBesideTheLibrary(t *testing.T) {
 	state, library := libraryState()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
 	texts := tester.Texts()
+	texts = texts[slices.Index(texts, "Inbox"):]
 	at := func(text string) int { return slices.Index(texts, text) }
-	for _, text := range []string{"Inbox", "All", "Last 7 Days", "Groups", "Novel", "Trash"} {
+	for _, text := range []string{"Inbox", "All", "Last 7 Days", "Groups", "Novel", "Trash", "Draft"} {
 		if at(text) < 0 {
-			t.Fatalf("library page lacks %q: %#v", text, texts)
+			t.Fatalf("lacks %q: %#v", text, texts)
 		}
 	}
-	if !(at("Inbox") < at("All") && at("Last 7 Days") < at("Groups") && at("Groups") < at("Novel")) ||
-		slices.Index(texts[at("Groups"):], "Inbox") >= 0 {
+	if !(at("Inbox") < at("All") && at("Last 7 Days") < at("Groups") && at("Groups") < at("Novel")) {
 		t.Fatalf("the Inbox is not on top, apart from the groups: %#v", texts)
 	}
 	if err := tester.Click("Novel"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if state.Place() != (Place{Kind: PlaceGroup, Group: "2"}) || !tester.HasText("Chapter") || !tester.HasText("It begins") {
-		t.Fatalf("group page: %#v", tester.Texts())
+	if state.Place() != (Place{Kind: PlaceGroup, Group: "2"}) || !tester.HasText("Chapter") ||
+		!tester.HasText("It begins") || !tester.HasText("1 sheet · 1,204 words") {
+		t.Fatalf("group's sheets: %#v", tester.Texts())
 	}
-	if tester.HasText("Groups") {
-		t.Fatal("the library page is still drawn once the slide settled")
+	if !tester.HasText("All") || tester.HasText("Draft") {
+		t.Fatalf("the library left, or the old list stayed: %#v", tester.Texts())
 	}
 	if err := tester.ClickWith(ui.Cmd, "Chapter"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("Back"); err != nil {
+	if err := tester.Click("Hide sheet list"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if state.Place().Kind != PlaceLibrary || !tester.HasText("Groups") {
-		t.Fatalf("back: %#v", tester.Texts())
+	if tester.HasText("Chapter") || !tester.HasText("Novel") {
+		t.Fatalf("hidden list: %#v", tester.Texts())
+	}
+	if err := tester.Click("Novel"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if !tester.HasText("Chapter") {
+		t.Fatalf("choosing a place did not bring the list back: %#v", tester.Texts())
 	}
 	if !slices.Contains(library.calls, "open in new tab 7") {
 		t.Fatalf("calls %v", library.calls)
@@ -138,14 +150,14 @@ func TestTheSidebarGoesIntoAGroupAndBack(t *testing.T) {
 
 func TestSheetsAndGroupsAreChangedFromTheirMenus(t *testing.T) {
 	state, library := libraryState()
-	state.Go(Place{Kind: PlaceGroup, Group: "2"}, true)
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
 	tester := ui.NewTester(state.View, 1260, 850)
 	settle(tester)
 	if err := tester.RightClick("Chapter"); err != nil {
 		t.Fatal(err)
 	}
 	menu := tester.Menu()
-	for _, item := range []string{"Open", "Open in New Tab", "Duplicate", "Move To", "Move to Trash"} {
+	for _, item := range []string{"Open", "Open in New Tab", "Duplicate", "Move To", "Show in Library", "Move to Trash"} {
 		if !slices.Contains(menu, item) {
 			t.Fatalf("sheet menu %v lacks %q", menu, item)
 		}
@@ -162,8 +174,6 @@ func TestSheetsAndGroupsAreChangedFromTheirMenus(t *testing.T) {
 	}
 	tester.Frame()
 
-	state.Go(Place{Kind: PlaceLibrary}, false)
-	settle(tester)
 	if err := tester.RightClick("Novel"); err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +188,23 @@ func TestSheetsAndGroupsAreChangedFromTheirMenus(t *testing.T) {
 	tester.Type("Saga")
 	tester.Key(0, ui.KeyEnter)
 	tester.Frame()
-	want := []string{"move 7 to 1", "trash 7", "rename 2 Saga"}
+
+	if err := tester.RightClick("Novel"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tester.ChooseMenuItem("Icon & Color…"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if err := tester.Click("Life"); err != nil {
+		t.Fatalf("no colors: %v %#v", err, tester.Texts())
+	}
+	tester.Frame()
+	if err := tester.Click("feather"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	want := []string{"move 7 to 1", "trash 7", "rename 2 Saga", "style 2  5", "style 2 feather 0"}
 	for _, call := range want {
 		if !slices.Contains(library.calls, call) {
 			t.Fatalf("calls %v lack %q", library.calls, call)
@@ -186,20 +212,25 @@ func TestSheetsAndGroupsAreChangedFromTheirMenus(t *testing.T) {
 	}
 }
 
-func TestSearchListsMatchingSheets(t *testing.T) {
+func TestSearchListsMatchingSheetsInTheSheetList(t *testing.T) {
 	state, library := libraryState()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
 	if err := tester.Click("Search sheets"); err != nil {
 		t.Fatal(err)
 	}
+	settle(tester)
 	tester.Type("chap")
-	tester.Frame()
-	if !tester.HasText("Results · 1") || !tester.HasText("Chapter") {
-		t.Fatalf("search: %#v", tester.Texts())
+	settle(tester)
+	if !tester.HasText("Chapter") || !slices.Contains(library.calls, "search chap") {
+		t.Fatalf("search: %v %#v", library.calls, tester.Texts())
 	}
-	if !slices.Contains(library.calls, "search chap") {
-		t.Fatalf("calls %v", library.calls)
+	if err := tester.Click("Done"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.PageQuery != "" || tester.HasText("Chapter") || !tester.HasText("Draft") {
+		t.Fatalf("done searching: %#v", tester.Texts())
 	}
 }
 
@@ -234,9 +265,9 @@ func TestDeletingAsksForASecondClick(t *testing.T) {
 	}
 	tester.Frame()
 
-	for _, row := range []struct{ name, item, call string }{
-		{"Scrap", "Delete Immediately…", "delete 9"},
-		{"Old", "Delete Immediately with 2 Sheets…", "delete group 3"},
+	for _, row := range []struct{ name, item, armed, call string }{
+		{"Scrap", "Delete Immediately…", "Delete", "delete 9"},
+		{"Old", "Delete Immediately with 2 Sheets…", "Delete All", "delete group 3"},
 	} {
 		if err := tester.RightClick(row.name); err != nil {
 			t.Fatal(err)
@@ -244,13 +275,13 @@ func TestDeletingAsksForASecondClick(t *testing.T) {
 		if err := tester.ChooseMenuItem(row.item); err != nil {
 			t.Fatal(err)
 		}
-		tester.Frame()
-		if slices.Contains(library.calls, row.call) {
-			t.Fatalf("the menu deleted %s at once", row.name)
+		settle(tester)
+		if slices.Contains(library.calls, row.call) || !tester.HasText(row.armed) {
+			t.Fatalf("the menu deleted %s at once, or did not ask: %#v", row.name, tester.Texts())
 		}
 		tester.Key(0, ui.KeyEscape)
-		tester.Frame()
-		if tester.HasText("Delete") {
+		settle(tester)
+		if tester.HasText("Delete") || tester.HasText("Delete All") {
 			t.Fatalf("Escape kept asking: %#v", tester.Texts())
 		}
 		if err := tester.RightClick(row.name); err != nil {
@@ -259,8 +290,8 @@ func TestDeletingAsksForASecondClick(t *testing.T) {
 		if err := tester.ChooseMenuItem(row.item); err != nil {
 			t.Fatal(err)
 		}
-		tester.Frame()
-		if err := tester.Click(map[bool]string{true: "Delete All", false: "Delete"}[row.name == "Old"]); err != nil {
+		settle(tester)
+		if err := tester.Click(row.armed); err != nil {
 			t.Fatal(err)
 		}
 		tester.Frame()

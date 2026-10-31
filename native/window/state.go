@@ -402,7 +402,7 @@ func (a *AppState) findPage() {
 	a.setPresentation(appsettings.PresentationZen, false)
 	visible := true
 	a.Shell.SidebarOverride = &visible
-	a.Shell.FindPageRequested = true
+	a.Shell.Search()
 }
 
 func (a *AppState) selectMounted() {

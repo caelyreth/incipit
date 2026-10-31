@@ -2,24 +2,22 @@ package shell
 
 import "time"
 
-// PlaceKind is a kind of place the sidebar shows.
+// PlaceKind is a kind of place the library holds, whose sheets the sheet
+// list shows.
 type PlaceKind uint8
 
 const (
-	// PlaceLibrary is the sidebar's home: the filters, the groups and the
-	// trash.
-	PlaceLibrary PlaceKind = iota
-	// PlaceGroup is one group: its groups, then its sheets.
-	PlaceGroup
 	// PlaceAll is every sheet out of the trash, the latest changed first.
-	PlaceAll
+	PlaceAll PlaceKind = iota
 	// PlaceRecent is the sheets changed in the last seven days.
 	PlaceRecent
+	// PlaceGroup is one group's sheets, the Inbox's included.
+	PlaceGroup
 	// PlaceTrash is what was put in the trash.
 	PlaceTrash
 )
 
-// Place is where the sidebar is.
+// Place is a place in the library.
 type Place struct {
 	Kind  PlaceKind
 	Group string
@@ -35,6 +33,10 @@ type GroupItem struct {
 	HasGroups bool
 	// Inbox marks the group that cannot be renamed, moved or trashed.
 	Inbox bool
+	// Icon names the group's icon, empty for the folder; Color is its
+	// tint, 1 to 6 for the hue families in Accent order, zero for none.
+	Icon  string
+	Color int
 }
 
 // SheetItem is a sheet as the sidebar lists it.
@@ -44,6 +46,7 @@ type SheetItem struct {
 	Title   string
 	Excerpt string
 	Updated time.Time
+	Words   int
 }
 
 // MoveTarget is a group a sheet or group can be moved into.
@@ -81,6 +84,8 @@ type Library interface {
 	// NewGroup makes a group in parent and returns it, for naming.
 	NewGroup(parent string) string
 	RenameGroup(id, name string)
+	// StyleGroup sets a group's icon and tint, as GroupItem holds them.
+	StyleGroup(id, icon string, color int)
 	MoveGroup(id, parent string, index int)
 	TrashGroup(id string)
 	RestoreGroup(id string)

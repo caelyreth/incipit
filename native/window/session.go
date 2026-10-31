@@ -20,6 +20,24 @@ type sheetSession struct {
 	// page never handed to it.
 	saved   uint64
 	unsaved bool
+	// wordCount is the page's words at revision counted.
+	wordCount int
+	counted   uint64
+	hasCount  bool
+}
+
+// words is how many words the page holds, counted again only once it
+// changed.
+func (s *sheetSession) words() int {
+	revision := s.controller.Runtime().Revision()
+	if !s.hasCount || s.counted != revision {
+		metrics, ok := s.controller.MetricsForCurrentText()
+		if !ok {
+			metrics = s.controller.Metrics()
+		}
+		s.wordCount, s.counted, s.hasCount = metrics.Words, revision, true
+	}
+	return s.wordCount
 }
 
 // noteSaved records that the page's current revision is with the notebook.

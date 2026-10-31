@@ -14,6 +14,8 @@ func (s *State) header(
 	bar ui.TitleBar,
 	chrome float32,
 	reveal float32,
+	listWidth float32,
+	listReveal float32,
 ) {
 	scale := s.Settings.UIFontSize
 	height := layout.Titlebar * scale / theme.DefaultUIFontSize * chrome
@@ -27,26 +29,44 @@ func (s *State) header(
 
 	ui.Row(c).Height(height).Opacity(chrome).Clip().AlignItems(ui.Center).
 		Background(semantic.Surface.Background).DragWindow().Children(func() {
-		leading := ui.Row(c).Width(leadingWidth).HeightPercent(100).
-			PaddingStart(left).PaddingEnd(theme.Space12.DIPs(scale)).
-			AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale))
+		// The library's line: the sidebar's toggle by the window's
+		// controls, then search and a new group, which leave with the
+		// library.
+		leading := ui.Row(c).Width(leadingWidth).HeightPercent(100).Shrink(0).
+			PaddingStart(left).PaddingEnd(theme.Space08.DIPs(scale)).
+			AlignItems(ui.Center).Gap(theme.Space02.DIPs(scale))
 		if reveal > 0.01 {
 			leading.BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant)
 		}
 		leading.Children(func() {
-			ui.Box(c).Grow(1).MinWidth(0).Children(func() {
-				brand := components.Label(c, "Neverland", theme.TextSmall, semantic.Text.Heading).
-					Opacity(reveal).SingleLine()
-				_ = brand
-			})
 			components.IconButton{
 				Key: "toggle-sidebar", Label: "Toggle sidebar",
 				Icon:  components.IconSidebar.SVG(),
 				Style: components.SubtleButton, Size: components.MediumButton,
-				IconSize: 16 * scale / theme.DefaultUIFontSize,
-				Animate:  animate, Action: s.ToggleSidebar,
+				IconSize:  16 * scale / theme.DefaultUIFontSize,
+				IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.ToggleSidebar,
 			}.View(c, semantic)
+			ui.Box(c).Grow(1)
+			if reveal > 0.01 && s.Library != nil {
+				ui.Row(c).Opacity(reveal).Gap(theme.Space02.DIPs(scale)).Children(func() {
+					components.IconButton{
+						Key: "search-sheets", Label: "Search sheets", Icon: components.IconSearch.SVG(),
+						Style: components.SubtleButton, Size: components.MediumButton,
+						IconSize:  16 * scale / theme.DefaultUIFontSize,
+						IconColor: &semantic.Icon.Muted, Selected: s.nav.searching,
+						Animate: animate, Action: s.Search,
+					}.View(c, semantic)
+					components.IconButton{
+						Key: "new-group", Label: "New group", Icon: components.IconNewGroup.SVG(),
+						Style: components.SubtleButton, Size: components.MediumButton,
+						IconSize:  16 * scale / theme.DefaultUIFontSize,
+						IconColor: &semantic.Icon.Muted, Animate: animate,
+						Action: func() { s.startRename(s.Library.NewGroup("")) },
+					}.View(c, semantic)
+				})
+			}
 		})
+		s.listHeader(c, semantic, listWidth, listReveal, animate)
 
 		s.pageTabs(c, semantic, metrics, height, animate)
 
@@ -137,9 +157,7 @@ func (s *State) pageTab(
 		OnClose: func() { s.closePage(page.ID) },
 	}.View(c, semantic)
 	tab.Transition(listTransition(animate, true)).Drag(tabDrag{id: page.ID})
-	if _, over := ui.DragOver[tabDrag](tab); over {
-		tab.Border(1, semantic.Border.Focused)
-	}
+	s.dropHighlight(c, semantic, tab, true, false, true, animate)
 	if dragged, ok := ui.Drop[tabDrag](tab); ok && dragged.id != page.ID && s.MoveTab != nil {
 		s.MoveTab(dragged.id, index)
 	}
@@ -178,8 +196,11 @@ func (s *State) reveal(sheet string) {
 	}
 	visible := true
 	s.SidebarOverride = &visible
-	s.PageQuery = ""
-	s.Go(Place{Kind: PlaceGroup, Group: group}, true)
+	s.stopSearching()
+	for parent := s.Library.Parent(group); parent != ""; parent = s.Library.Parent(parent) {
+		s.nav.expanded[parent] = true
+	}
+	s.Go(Place{Kind: PlaceGroup, Group: group})
 }
 
 func (s *State) closePage(id string) {
