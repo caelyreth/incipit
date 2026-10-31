@@ -384,6 +384,8 @@ func (s *State) sheetRows(
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
 		s.sheetOverscroll.Apply(c, list, animate)
 		selection := components.NavigationSelection(c, semantic)
+		// The menu's ring stands midway across the space between rows.
+		selection.RingOutset = rowGap / 2
 		track := components.TrackSelection(list, selection, animate)
 		s.noteOrder(entries)
 		ordered := create != nil && place.Kind == PlaceGroup
@@ -523,6 +525,7 @@ func (s *State) sheetRows(
 			}
 		})
 		s.unpickOnPressElsewhere(sheets)
+		s.ringMenu(list, track)
 	})
 	if place.Kind != PlaceTrash {
 		scroll.ContextMenu(s.listMenu())
@@ -917,10 +920,12 @@ func (s *State) sheetRow(
 	if !trashed {
 		row.Drag(sheetDrag{id: sheet.ID})
 	}
+	// A menu on a picked sheet is for all the picked; one on a sheet not
+	// picked is for that sheet alone, and leaves the picked as they are.
 	if picked && len(s.pickedSheets()) > 1 {
-		row.ContextMenu(func(m *ui.Menu) { s.batchMenu(m, sheet.ID, trashed) })
+		row.ContextMenu(s.ringedMenu(s.pickedSheets(), func(m *ui.Menu) { s.batchMenu(m, sheet.ID, trashed) }))
 	} else {
-		row.ContextMenu(s.sheetMenu(sheet, trashed))
+		row.ContextMenu(s.ringedMenu([]string{sheet.ID}, s.sheetMenu(sheet, trashed)))
 	}
 	if !confirming && row.Clicked() {
 		if !s.pickClick(sheet.ID, row.ClickModifiers()) {
@@ -1170,39 +1175,35 @@ func (s *State) trashedGroupRow(c *ui.Context, semantic theme.Theme, group Group
 
 func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
-		// A menu on a sheet not among the picked is for that sheet alone,
-		// so the picked let go.
-		if !s.picked(sheet.ID) {
-			s.unpick()
-		}
-		if m.Item("Open").Chosen() {
+		if s.chose(m.Item("Open")) {
 			s.Library.OpenSheet(sheet.ID, false)
 		}
-		if m.Item("Open in New Tab").Chosen() {
+		if s.chose(m.Item("Open in New Tab")) {
 			s.Library.OpenSheet(sheet.ID, true)
 		}
 		m.Separator()
 		if trashed {
-			if m.Item("Put Back").Chosen() {
+			if s.chose(m.Item("Put Back")) {
 				s.Library.RestoreSheet(sheet.ID)
 			}
 			m.Separator()
-			if m.Item("Delete Immediately…").Chosen() {
+			if s.chose(m.Item("Delete Immediately…")) {
 				s.arm("delete-sheet-" + sheet.ID)
 			}
 			return
 		}
-		if m.Item("Duplicate").Chosen() {
+		if s.chose(m.Item("Duplicate")) {
 			s.Library.DuplicateSheet(sheet.ID)
 		}
 		s.moveMenu(m, func(group string) {
+			s.nav.menuRing.chose = true
 			s.Library.MoveSheet(sheet.ID, group, Last)
 		}, "")
-		if m.Item("Show in Library").Chosen() {
+		if s.chose(m.Item("Show in Library")) {
 			s.reveal(sheet.ID)
 		}
 		m.Separator()
-		if m.Item("Move to Trash").Chosen() {
+		if s.chose(m.Item("Move to Trash")) {
 			s.Library.TrashSheet(sheet.ID)
 		}
 	}

@@ -89,7 +89,7 @@ func TestThePickedSheetsTakeABatchMenu(t *testing.T) {
 		t.Fatalf("the picked stayed after the move: %v", state.pickedSheets())
 	}
 
-	// A menu on a sheet not picked is its own, and lets the picked go.
+	// A menu on a sheet not picked is its own, and leaves the picked be.
 	if err := tester.ClickWith(ui.Shift, "Sheet 1"); err != nil {
 		t.Fatal(err)
 	}
@@ -99,8 +99,12 @@ func TestThePickedSheetsTakeABatchMenu(t *testing.T) {
 	if menu := tester.Menu(); !slices.Contains(menu, "Move to Trash") {
 		t.Fatalf("an unpicked sheet's menu %v", menu)
 	}
-	if len(state.pickedSheets()) != 0 {
-		t.Fatalf("the picked stayed for another sheet's menu: %v", state.pickedSheets())
+	if err := tester.ChooseMenuItem("Move to Trash"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !slices.Contains(library.calls, "trash extra-2") || len(state.pickedSheets()) != 2 {
+		t.Fatalf("calls %v, picked %v after another sheet's menu", library.calls, state.pickedSheets())
 	}
 }
 
@@ -412,5 +416,67 @@ func TestAPickedRowsHoverIsAStepOfTheAccent(t *testing.T) {
 	if toward(hovered.R, accent.R)+toward(hovered.G, accent.G)+toward(hovered.B, accent.B) >=
 		toward(rest.R, accent.R)+toward(rest.G, accent.G)+toward(rest.B, accent.B) {
 		t.Fatalf("the hover went from %v to %v, not toward the accent %v", rest, hovered, accent)
+	}
+}
+
+// ringAt reports whether the menu's ring crosses the list's middle on the
+// line just above row, where it stands clear of the row.
+func ringAbove(state *State, tester *ui.Tester, row ui.Rect) bool {
+	ring := state.Settings.Semantic().Accent.Foreground
+	image := tester.Image()
+	for _, y := range []int{int(row.Y) - 4, int(row.Y) - 3, int(row.Y) - 2} {
+		n := 0
+		for x := int(row.X + row.W*0.3); x < int(row.X+row.W*0.7); x++ {
+			c := image.RGBAAt(x, y)
+			d := func(a, b uint8) int { return max(int(a)-int(b), int(b)-int(a)) }
+			if d(c.R, ring.R)+d(c.G, ring.G)+d(c.B, ring.B) < 90 {
+				n++
+			}
+		}
+		if n*2 > int(row.W*0.4) {
+			return true
+		}
+	}
+	return false
+}
+
+// A menu rings what it acts on while it shows: the picked for theirs, a
+// sheet alone for its own; the ring goes as an item is chosen or the
+// pointer moves on.
+func TestAMenuRingsWhatItActsOn(t *testing.T) {
+	state, _, tester := pickingState(t, 3)
+	clickAway(t, tester, ui.Shift, "Sheet 1")
+	settle(tester)
+	open, _ := tester.Find("Chapter")
+	lone, _ := tester.Find("Sheet 3")
+	if ringAbove(state, tester, open) {
+		t.Fatal("a ring showed with no menu open")
+	}
+	if err := tester.RightClick("Sheet 1"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !ringAbove(state, tester, open) || ringAbove(state, tester, lone) {
+		t.Fatal("the picked sheets' menu did not ring the run, and it alone")
+	}
+	if err := tester.ChooseMenuItem("Duplicate 2 Sheets"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if ringAbove(state, tester, open) {
+		t.Fatal("the ring stayed after an item was chosen")
+	}
+	clickAway(t, tester, ui.Shift, "Sheet 1")
+	if err := tester.RightClick("Sheet 3"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !ringAbove(state, tester, lone) || ringAbove(state, tester, open) {
+		t.Fatal("a sheet's own menu did not ring it alone")
+	}
+	tester.Move(1100, 500)
+	tester.Frame()
+	if ringAbove(state, tester, lone) {
+		t.Fatal("the ring stayed after the pointer moved on")
 	}
 }

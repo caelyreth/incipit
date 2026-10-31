@@ -43,6 +43,8 @@ type navigation struct {
 	armedAt time.Time
 	// picking is the sheets picked together in the list.
 	picking picking
+	// menuRing is what a menu open on the sheet list acts on.
+	menuRing menuRing
 	// sheetsGap calls up a create area above a sheet in a group, and
 	// groupsTop one at the head of the groups.
 	sheetsGap, groupsTop gap

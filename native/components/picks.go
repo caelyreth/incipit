@@ -58,6 +58,14 @@ func (t *SelectionTrack) Pick(row ui.Element, id string, picked bool) {
 	t.picks = append(t.picks, pickedRow{id: id, bounds: t.relative(row), picked: picked && id != ""})
 }
 
+// Ring rings the rows ids, as those a menu open on the list acts on: one
+// ring round each run of them, clear of the rows' edges.
+func (t *SelectionTrack) Ring(ids []string) {
+	if t != nil {
+		t.ring = ids
+	}
+}
+
 // Covers is how strongly the picked rows' fill is over row, as it was last
 // drawn, 0 to 1: what goes over the fill on the row goes with it, so the
 // two leave together.
@@ -239,7 +247,8 @@ func (t *SelectionTrack) part(runs []pickRun, origins []int, now time.Time) {
 	}
 }
 
-// paintPicks fills the picked rows' runs, each block gliding to its run.
+// paintPicks fills the picked rows' runs, each block gliding to its run,
+// and rings what a menu open on them acts on.
 func (t *SelectionTrack) paintPicks(p *ui.Painter, rect ui.Rect, style SelectionStyle) {
 	now := p.Now()
 	runs := t.runs(func(row pickedRow) bool { return row.picked })
@@ -321,6 +330,25 @@ func (t *SelectionTrack) paintPicks(p *ui.Painter, rect ui.Rect, style Selection
 		p.FillPath(&whole, style.Picked)
 	}
 }
+
+// paintRing rings the runs of the rows Ring named, standing RingOutset out
+// from them, its corners rounded about theirs.
+func (t *SelectionTrack) paintRing(p *ui.Painter, rect ui.Rect, style SelectionStyle) {
+	if len(t.ring) == 0 {
+		return
+	}
+	out := style.RingOutset
+	for _, run := range t.runs(func(row pickedRow) bool { return slices.Contains(t.ring, row.id) }) {
+		box := ui.Rect{
+			X: rect.X + run.frame.X - out, Y: rect.Y + run.frame.Y - out,
+			W: run.frame.W + 2*out, H: run.frame.H + 2*out,
+		}
+		p.Stroke(box, style.Ring, style.Radius+out, ringWidth)
+	}
+}
+
+// ringWidth is how wide the menu's ring is drawn.
+const ringWidth = 1.5
 
 func abs32(v float32) float32 { return max(v, -v) }
 

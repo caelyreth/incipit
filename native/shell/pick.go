@@ -140,6 +140,67 @@ func (s *State) pickAmount(row ui.Element, id string, animate bool) float32 {
 	return components.Follow(row, "picked", target, components.MotionQuick)
 }
 
+// menuRing is what a menu open on the sheet list acts on, which the list
+// rings while the menu shows, as menus elsewhere show what they are for:
+// the picked sheets for theirs, a sheet alone for its own. MyGo builds the
+// menu as it opens and draws the frame before showing it, but says nothing
+// when it closes unchosen: the ring goes with the first move of the
+// pointer after it opened, or as an item is chosen.
+type menuRing struct {
+	ids []string
+	// fresh is a ring set this frame, whose pointer is yet to be noted.
+	fresh bool
+	// pointer is where the pointer was over the list as the menu opened.
+	pointer [2]float32
+	over    bool
+	// chose is set as the menu reports an item chosen.
+	chose bool
+}
+
+// ringedMenu is build as the menu acting on ids, ringing them while it is
+// open.
+func (s *State) ringedMenu(ids []string, build func(*ui.Menu)) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		ring := &s.nav.menuRing
+		ring.chose = false
+		build(m)
+		if ring.chose {
+			*ring = menuRing{}
+			return
+		}
+		*ring = menuRing{ids: ids, fresh: true}
+	}
+}
+
+// chose reports whether item was chosen, noting it for the ring.
+func (s *State) chose(item *ui.MenuItem) bool {
+	if item.Chosen() {
+		s.nav.menuRing.chose = true
+		return true
+	}
+	return false
+}
+
+// ringMenu rings on track what a menu open on the list acts on, and lets
+// the ring go once the pointer moves after the menu opened, or presses
+// away from the list. The menu takes the press that opened it, so the list
+// may still count that press as held while the menu shows: it is no sign
+// the menu closed.
+func (s *State) ringMenu(list ui.Element, track *components.SelectionTrack) {
+	ring := &s.nav.menuRing
+	if len(ring.ids) == 0 {
+		return
+	}
+	x, y, over := list.PointerPosition()
+	if ring.fresh {
+		ring.fresh, ring.pointer, ring.over = false, [2]float32{x, y}, over
+	} else if over != ring.over || [2]float32{x, y} != ring.pointer || list.PressedOutside() {
+		*ring = menuRing{}
+		return
+	}
+	track.Ring(ring.ids)
+}
+
 // batchMenu is the menu of what the picked sheets take together: as the
 // single sheet's menu has it, each item saying how many it does.
 func (s *State) batchMenu(m *ui.Menu, row string, trashed bool) {
@@ -152,29 +213,30 @@ func (s *State) batchMenu(m *ui.Menu, row string, trashed bool) {
 		s.unpick()
 	}
 	if trashed {
-		if m.Item(fmt.Sprintf("Put Back %d Sheets", n)).Chosen() {
+		if s.chose(m.Item(fmt.Sprintf("Put Back %d Sheets", n))) {
 			each(s.Library.RestoreSheet)
 		}
 		m.Separator()
-		if m.Item(fmt.Sprintf("Delete %d Sheets Immediately…", n)).Chosen() {
+		if s.chose(m.Item(fmt.Sprintf("Delete %d Sheets Immediately…", n))) {
 			// The row the menu opened on asks to be sure, for all of them.
 			s.arm(deletePickedKey(row))
 		}
 		return
 	}
-	if m.Item(fmt.Sprintf("Open %d Sheets in Tabs", n)).Chosen() {
+	if s.chose(m.Item(fmt.Sprintf("Open %d Sheets in Tabs", n))) {
 		each(func(id string) { s.Library.OpenSheet(id, true) })
 	}
 	m.Separator()
-	if m.Item(fmt.Sprintf("Duplicate %d Sheets", n)).Chosen() {
+	if s.chose(m.Item(fmt.Sprintf("Duplicate %d Sheets", n))) {
 		each(s.Library.DuplicateSheet)
 	}
 	s.moveMenu(m, func(group string) {
+		s.nav.menuRing.chose = true
 		// In their order, each after the last.
 		each(func(id string) { s.Library.MoveSheet(id, group, Last) })
 	}, "")
 	m.Separator()
-	if m.Item(fmt.Sprintf("Move %d Sheets to Trash", n)).Chosen() {
+	if s.chose(m.Item(fmt.Sprintf("Move %d Sheets to Trash", n))) {
 		each(s.Library.TrashSheet)
 	}
 }
