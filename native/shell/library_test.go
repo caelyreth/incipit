@@ -732,7 +732,7 @@ func TestChoosingAPlaceShowsItsSheetsBesideTheLibrary(t *testing.T) {
 	if !tester.HasText("All") || tester.HasText("Draft") {
 		t.Fatalf("the library left, or the old list stayed: %#v", tester.Texts())
 	}
-	if err := tester.ClickWith(ui.Cmd, "Chapter"); err != nil {
+	if err := tester.ClickWith(ui.Alt, "Chapter"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tester.Click("Hide sheet list"); err != nil {

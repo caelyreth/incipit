@@ -916,7 +916,8 @@ func (s *State) sheetRow(
 	}
 	if !confirming && row.Clicked() {
 		if !s.pickClick(sheet.ID, row.ClickModifiers()) {
-			s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Cmd != 0)
+			// Cmd picks, so Option opens in a tab of its own.
+			s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Alt != 0)
 		}
 	} else if !confirming && row.Shortcut(0, ui.KeyEnter) {
 		s.Library.OpenSheet(sheet.ID, false)
@@ -1163,7 +1164,9 @@ func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		// A menu on a sheet not among the picked is for that sheet alone,
 		// so the picked let go.
-		s.unpick()
+		if !s.picked(sheet.ID) {
+			s.unpick()
+		}
 		if m.Item("Open").Chosen() {
 			s.Library.OpenSheet(sheet.ID, false)
 		}

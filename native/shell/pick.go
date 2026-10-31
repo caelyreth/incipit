@@ -9,14 +9,19 @@ import (
 )
 
 // picking is the sheets picked together in the sheet list, for what is
-// done to several at once. A shift-click picks every sheet from the anchor
-// to the one clicked, as lists elsewhere do; a plain click picks none and
-// moves the anchor to the sheet it opens.
+// done to several at once, as lists elsewhere pick them: a Cmd-click picks
+// a sheet or lets it go, a shift-click picks every sheet from the anchor to
+// the one clicked, and a plain click picks none and opens its sheet. Each
+// moves the anchor to the sheet clicked but the shift-click, which keeps
+// it, so shift-clicks in turn reshape one run.
 type picking struct {
 	// ids is the picked sheets in the list's order.
 	ids []string
 	// anchor is where a shift-click's run begins.
 	anchor string
+	// base is what was picked as the anchor was set: a shift-click's run
+	// adds to it, so a run reshaped leaves the sheets picked apart alone.
+	base []string
 	// order is the sheets the list shows, in order, as last built.
 	order []string
 }
@@ -31,7 +36,20 @@ func (s *State) noteOrder(entries []GroupEntry) {
 			p.order = append(p.order, entry.ID)
 		}
 	}
-	p.ids = slices.DeleteFunc(p.ids, func(id string) bool { return !slices.Contains(p.order, id) })
+	gone := func(id string) bool { return !slices.Contains(p.order, id) }
+	p.ids = slices.DeleteFunc(p.ids, gone)
+	p.base = slices.DeleteFunc(p.base, gone)
+}
+
+// setPicked picks the sheets in set, in the list's order.
+func (s *State) setPicked(set []string) {
+	p := &s.nav.picking
+	p.ids = p.ids[:0]
+	for _, id := range p.order {
+		if slices.Contains(set, id) {
+			p.ids = append(p.ids, id)
+		}
+	}
 }
 
 // picked reports whether the sheet is picked.
@@ -41,15 +59,17 @@ func (s *State) picked(id string) bool { return slices.Contains(s.nav.picking.id
 func (s *State) pickedSheets() []string { return slices.Clone(s.nav.picking.ids) }
 
 // unpick lets the picked sheets go, keeping the anchor.
-func (s *State) unpick() { s.nav.picking.ids = nil }
+func (s *State) unpick() { s.nav.picking.ids, s.nav.picking.base = nil, nil }
 
-// pickTo picks every sheet from the anchor to id. Without an anchor in the
-// list it runs from the open sheet, or else picks id alone.
+// pickTo picks every sheet from the anchor to id, on top of what was picked
+// as the anchor was set. Without an anchor in the list it runs from the
+// open sheet, or else picks id alone.
 func (s *State) pickTo(id string) {
 	p := &s.nav.picking
 	from := slices.Index(p.order, p.anchor)
 	if from < 0 {
 		from = slices.Index(p.order, s.ActivePage)
+		p.base = nil
 	}
 	to := slices.Index(p.order, id)
 	if to < 0 {
@@ -59,7 +79,28 @@ func (s *State) pickTo(id string) {
 		from = to
 	}
 	p.anchor = p.order[from]
-	p.ids = slices.Clone(p.order[min(from, to) : max(from, to)+1])
+	s.setPicked(append(slices.Clone(p.base), p.order[min(from, to):max(from, to)+1]...))
+}
+
+// pickToggle picks id or lets it go, leaving the rest as they are. With
+// none picked, the open sheet is the one the list already marks, so it is
+// picked with id, as a selection a Cmd-click adds to.
+func (s *State) pickToggle(id string) {
+	p := &s.nav.picking
+	if !slices.Contains(p.order, id) {
+		return
+	}
+	set := slices.Clone(p.ids)
+	if len(set) == 0 && s.ActivePage != id && slices.Contains(p.order, s.ActivePage) {
+		set = append(set, s.ActivePage)
+	}
+	if index := slices.Index(set, id); index >= 0 {
+		set = slices.Delete(set, index, index+1)
+	} else {
+		set = append(set, id)
+	}
+	s.setPicked(set)
+	p.anchor, p.base = id, slices.Clone(p.ids)
 }
 
 // unpickOnPressElsewhere lets the picked go on a press on none of the
@@ -80,7 +121,7 @@ func (s *State) unpickOnPressElsewhere(sheets []ui.Element) {
 // pickAll picks every sheet the list shows.
 func (s *State) pickAll() {
 	p := &s.nav.picking
-	p.ids = slices.Clone(p.order)
+	p.ids, p.base = slices.Clone(p.order), nil
 	if p.anchor == "" && len(p.order) > 0 {
 		p.anchor = p.order[0]
 	}
@@ -151,7 +192,7 @@ func (s *State) deletePicked() {
 }
 
 // pickedDetail is what the header says of the picked sheets among sheets,
-// with two or more picked: how many, and their words.
+// with any picked: how many, and their words.
 func (s *State) pickedDetail(sheets []SheetItem) (string, bool) {
 	n, total := 0, 0
 	for _, sheet := range sheets {
@@ -160,18 +201,23 @@ func (s *State) pickedDetail(sheets []SheetItem) (string, bool) {
 			total += sheet.Words
 		}
 	}
-	if n < 2 {
+	if n == 0 {
 		return "", false
 	}
 	return fmt.Sprintf("%d selected · %s", n, words(total)), true
 }
 
 // pickClick does what a click on a sheet's row does to the picking: with
-// Shift it picks the run up to the sheet and reports that the sheet is not
-// to open; without, it lets the picked go and starts the next run there.
+// Shift it picks the run up to the sheet, with Cmd it picks the sheet or
+// lets it go, and either way reports that the sheet is not to open;
+// without, it lets the picked go and starts the next run there.
 func (s *State) pickClick(id string, modifiers ui.Modifiers) bool {
-	if modifiers&ui.Shift != 0 {
+	switch {
+	case modifiers&ui.Shift != 0:
 		s.pickTo(id)
+		return true
+	case modifiers&ui.Cmd != 0:
+		s.pickToggle(id)
 		return true
 	}
 	s.unpick()

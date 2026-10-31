@@ -213,3 +213,43 @@ func TestARunLetsGoStraightToTheRowsOwnFill(t *testing.T) {
 		}
 	}
 }
+
+func TestCmdClickPicksOrLetsGoOfOneSheet(t *testing.T) {
+	state, library, tester := pickingState(t, 3)
+	// The open sheet is the selection a Cmd-click adds to.
+	if err := tester.ClickWith(ui.Cmd, "Sheet 2"); err != nil {
+		t.Fatal(err)
+	}
+	if got := state.pickedSheets(); !slices.Equal(got, []string{"7", "extra-1"}) {
+		t.Fatalf("picked %v", got)
+	}
+	if err := tester.ClickWith(ui.Cmd, "Chapter"); err != nil {
+		t.Fatal(err)
+	}
+	if got := state.pickedSheets(); !slices.Equal(got, []string{"extra-1"}) {
+		t.Fatalf("picked %v after letting the open sheet go", got)
+	}
+	settle(tester)
+	if !tester.HasText("1 selected · 100 words") {
+		t.Fatalf("the header does not count one picked: %v", tester.Texts())
+	}
+	// A shift-click runs from the last Cmd-clicked sheet, keeping what was
+	// picked apart; another reshapes that run alone.
+	if err := tester.ClickWith(ui.Shift, "Sheet 3"); err != nil {
+		t.Fatal(err)
+	}
+	if got := state.pickedSheets(); !slices.Equal(got, []string{"7", "extra-0", "extra-1", "extra-2"}) {
+		t.Fatalf("picked %v after a shift-click", got)
+	}
+	if err := tester.ClickWith(ui.Shift, "Sheet 1"); err != nil {
+		t.Fatal(err)
+	}
+	if got := state.pickedSheets(); !slices.Equal(got, []string{"7", "extra-0", "extra-1"}) {
+		t.Fatalf("picked %v after reshaping the run", got)
+	}
+	for _, call := range library.calls {
+		if call != "open 7" && len(call) > 4 && call[:4] == "open" {
+			t.Fatalf("picking opened a sheet: %v", library.calls)
+		}
+	}
+}
