@@ -73,6 +73,7 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal f
 		Background(semantic.Surface.Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
 		ui.Column(c).Width(full).HeightPercent(100).Opacity(reveal).Children(func() {
+			s.placeBand(c, semantic, s.listView(), s.listDock, animate)
 			s.listStage(c, semantic, animate)
 		})
 	})
@@ -497,16 +498,22 @@ func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal fl
 	ui.Box(c).Width(width).HeightPercent(100).Shrink(0).Clip().
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
 		ui.Box(c).WidthPercent(100).HeightPercent(100).Opacity(reveal).Children(func() {
+			// Where the place's title has gone down to the list, the line
+			// starts at the library's toggle, so the two toggles sit together.
+			dock := s.listDock
+			if view.search {
+				dock = 0
+			}
 			layer := ui.Row(c).Key("head-" + view.key()).Absolute().Top(0).Left(0).Right(0).Bottom(0).
-				PaddingStart(theme.Space12.DIPs(scale)).PaddingEnd(theme.Space06.DIPs(scale)).
-				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
+				PaddingStart(theme.Space12.DIPs(scale) * (1 - dock)).PaddingEnd(theme.Space06.DIPs(scale)).
+				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale) * (1 - dock)).
 				Transition(swapTransition(animate, s.nav.side*enterSlide*scale/theme.DefaultUIFontSize))
 			layer.Children(func() {
 				if view.search {
 					s.searchHeader(c, semantic, animate)
 					return
 				}
-				s.placeHeader(c, semantic, view.place, animate)
+				s.placeHeader(c, semantic, view.place, s.listDock, animate)
 			})
 		})
 	})
@@ -530,11 +537,12 @@ func (s *State) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) 
 	}.View(c, semantic)
 }
 
-func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, animate bool) {
-	scale := s.Settings.UIFontSize
-	title, icon, tint := "All", components.IconSheets, (*ui.Color)(nil)
+// placeInfo is what the list says of a place: its title, icon and tint,
+// and the count of what it holds.
+func (s *State) placeInfo(semantic theme.Theme, place Place) (title string, icon components.IconName, tint *ui.Color, detail string) {
+	title, icon = "All", components.IconSheets
 	sheets := s.Library.Sheets(place)
-	detail := sheetCount(len(sheets))
+	detail = sheetCount(len(sheets))
 	switch place.Kind {
 	case PlaceRecent:
 		title, icon = "Last 7 Days", components.IconClock
@@ -552,28 +560,83 @@ func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, an
 		}
 		detail += " · " + words(total)
 	}
-	s.rowIcon(c, semantic, icon, tint, animate)
-	heading := ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-		components.Label(c, title, theme.TextSmall, semantic.Text.Heading).SingleLine()
-		components.Label(c, detail, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
-	})
-	// The title is the group, with the group's menu.
-	if place.Kind == PlaceGroup {
-		if group, ok := s.Library.Group(place.Group); ok {
-			heading.ContextMenu(s.groupMenu(group))
-		}
+	return title, icon, tint, detail
+}
+
+// placeHeader is the place's line in the title bar. Where the library is
+// closed its title and count go down to the top of the list (placeBand),
+// leaving the bar to the buttons; dock is how far they have gone.
+func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, dock float32, animate bool) {
+	title, icon, tint, detail := s.placeInfo(semantic, place)
+	scale := s.Settings.UIFontSize
+	// The title's room closes as it goes, and room after the buttons opens
+	// as much, so the buttons travel to the library's toggle.
+	info := ui.Row(c).Key("head-info").Grow(1 - dock).MinWidth(0).Clip().AlignItems(ui.Center).
+		Gap(theme.Space06.DIPs(scale))
+	if dock > 0.001 {
+		info.Opacity(1 - dock)
 	}
-	if place.Kind == PlaceTrash {
-		if detail != itemCount(0) {
+	info.Children(func() {
+		if dock >= 0.999 {
+			return
+		}
+		s.rowIcon(c, semantic, icon, tint, animate)
+		heading := ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			components.Label(c, title, theme.TextSmall, semantic.Text.Heading).SingleLine()
+			components.Label(c, detail, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
+		})
+		// The title is the group, with the group's menu.
+		if place.Kind == PlaceGroup && dock < 0.5 {
+			if group, ok := s.Library.Group(place.Group); ok {
+				heading.ContextMenu(s.groupMenu(group))
+			}
+		}
+	})
+	ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Children(func() {
+		if place.Kind == PlaceTrash && detail != itemCount(0) {
 			s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
 		}
+		components.IconButton{
+			Key: "hide-sheets", Label: "Hide sheet list", Icon: components.IconSidebarClose.SVG(),
+			Style: components.SubtleButton, Size: components.MediumButton,
+			IconSize:  16 * scale / theme.DefaultUIFontSize,
+			IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.ToggleSheetList,
+		}.View(c, semantic)
+	})
+	if dock > 0.001 {
+		ui.Box(c).Basis(0).Grow(dock)
 	}
-	components.IconButton{
-		Key: "hide-sheets", Label: "Hide sheet list", Icon: components.IconSidebarClose.SVG(),
-		Style: components.SubtleButton, Size: components.CompactButton,
-		IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.ToggleSheetList,
-	}.View(c, semantic)
-	_ = scale
+}
+
+// placeBand is the place's title and count at the top of the list, where
+// the library is closed and the title bar has the window's controls to
+// share. It opens as the header's give way, so the two read as one title
+// moving down and back up.
+func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, dock float32, animate bool) {
+	if dock <= 0.001 || view.search {
+		return
+	}
+	scale := s.Settings.UIFontSize
+	height := theme.TextLarge.LineHeight(scale) + theme.TextXSmall.LineHeight(scale) + 2*theme.Space08.DIPs(scale)
+	ui.Box(c).Key("place-band").WidthPercent(100).Height(height * dock).Shrink(0).Clip().Children(func() {
+		layer := ui.Row(c).Key("band-"+view.key()).Absolute().Top(0).Left(0).Right(0).Height(height).
+			PaddingX(theme.Space12.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+			Opacity(dock).Translate(0, -(1-dock)*dockShift*scale/theme.DefaultUIFontSize).
+			Transition(swapTransition(animate, s.nav.side*enterSlide*scale/theme.DefaultUIFontSize))
+		layer.Children(func() {
+			title, icon, tint, detail := s.placeInfo(semantic, view.place)
+			s.rowIcon(c, semantic, icon, tint, animate)
+			heading := ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+				components.Label(c, title, theme.TextLarge, semantic.Text.Heading).SingleLine().FontWeight(600)
+				components.Label(c, detail, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
+			})
+			if view.place.Kind == PlaceGroup {
+				if group, ok := s.Library.Group(view.place.Group); ok {
+					heading.ContextMenu(s.groupMenu(group))
+				}
+			}
+		})
+	})
 }
 
 // when is a sheet's last change as the list says it: the time today, the

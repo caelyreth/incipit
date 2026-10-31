@@ -51,6 +51,14 @@ func (s *State) View(c *ui.Context) {
 		listReveal = components.Follow(root, "sheets-open", listTarget, motionReveal)
 	}
 	listReveal = max(0, min(listReveal, 1))
+	dockTarget := float32(0)
+	if !s.SidebarVisible() && !s.nav.searching {
+		dockTarget = 1
+	}
+	s.listDock = dockTarget
+	if animate {
+		s.listDock = max(0, min(components.Follow(root, "sheets-dock", dockTarget, motionReveal), 1))
+	}
 	// A spring may lean a hair past its end on the way back; layout may not.
 	reveal = max(0, min(reveal, 1))
 	chrome = max(0, min(chrome, 1))

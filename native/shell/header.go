@@ -38,7 +38,10 @@ func (s *State) header(
 		// the toggle slides to the end of what is left and stays put.
 		// Groups and sheets are made in the lists, where they come in.
 		leading := ui.Row(c).Width(leadingWidth).HeightPercent(100).Shrink(0).
-			PaddingStart(left).PaddingEnd(theme.Space08.DIPs(scale)).
+			// With the library closed the sheet list's toggle sits beside
+			// this one, as search does: the end closes in to their gap.
+			PaddingStart(left).
+			PaddingEnd(theme.Space02.DIPs(scale) + (theme.Space08-theme.Space02).DIPs(scale)*reveal).
 			AlignItems(ui.Center).Gap(theme.Space02.DIPs(scale))
 		if reveal > 0.01 {
 			leading.BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant)

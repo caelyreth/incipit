@@ -72,6 +72,10 @@ func fadeTransition(animate bool) ui.ElementTransition {
 // swapTransition shows what replaces something in place: the old goes at
 // once, the new fades in, sliding x DIPs, so the two are never seen
 // together.
+// dockShift is how far the place's title drops as it goes from the title
+// bar to the top of the list, and rises coming back.
+const dockShift = 8
+
 func swapTransition(animate bool, x float32) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
