@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -124,6 +125,19 @@ func (s *State) pickAll() {
 	if p.anchor == "" && len(p.order) > 0 {
 		p.anchor = p.order[0]
 	}
+}
+
+// pickAmount is how far the sheet's row is picked, following its picking
+// on a spring, for what of the row's look goes with it.
+func (s *State) pickAmount(row ui.Element, id string, animate bool) float32 {
+	target := float32(0)
+	if s.picked(id) {
+		target = 1
+	}
+	if !animate {
+		return target
+	}
+	return components.Follow(row, "picked", target, components.MotionQuick)
 }
 
 // batchMenu is the menu of what the picked sheets take together: as the

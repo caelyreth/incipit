@@ -384,8 +384,6 @@ func (s *State) sheetRows(
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
 		s.sheetOverscroll.Apply(c, list, animate)
 		selection := components.NavigationSelection(c, semantic)
-		// The picked rows' frame stands midway across the space between rows.
-		selection.PickedOutset = rowGap / 2
 		track := components.TrackSelection(list, selection, animate)
 		s.noteOrder(entries)
 		ordered := create != nil && place.Kind == PlaceGroup
@@ -839,7 +837,14 @@ func (s *State) sheetRow(
 	s.land(c, row, sheet.ID, animate)
 	picked := s.picked(sheet.ID)
 	track.Pick(row, sheet.ID, picked)
+	pick := s.pickAmount(row, sheet.ID, animate)
+	// The picked rows' fill is over the row while it is picked and until
+	// it has gone from it.
+	cover := track.Covers(row)
+	covered := picked || cover > 0.001
 	if selected {
+		// Under the picked fill, which hides it, so a run letting go goes
+		// straight to it.
 		track.Mark(row)
 	}
 	hover := components.HoverAmount(row, !selected && row.Hovered(), animate)
@@ -860,7 +865,7 @@ func (s *State) sheetRow(
 			Radius(metrics.Radius).Border(1, ui.Transparent)
 		card.Children(func() {
 			ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
-				title := semantic.Text.Default
+				title := components.Blend(semantic.Text.Default, semantic.Text.Heading, pick)
 				if selected {
 					title = semantic.Text.Heading
 				}
@@ -883,7 +888,15 @@ func (s *State) sheetRow(
 				SingleLine().FontFeatures("tnum").Opacity(0.7)
 		})
 	})
-	card.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
+	hoverFill := components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover)
+	if covered {
+		// Over the picked fill the hover is a step of the accent; the grey
+		// one waits under the fill, there as the fill goes, so the row goes
+		// straight from the one look to the other either way.
+		track.Beneath(row, hoverFill)
+		hoverFill = components.Blend(semantic.GhostElement.Background, selection.PickedHover, hover*cover)
+	}
+	card.Background(hoverFill)
 	press := pressTarget
 	if animate {
 		press = components.Follow(card, "press", pressTarget, components.MotionQuick)
@@ -891,7 +904,7 @@ func (s *State) sheetRow(
 	if dragging {
 		press = 0
 	}
-	if selected && (entering || pressTarget > 0 || press > 0.001) {
+	if selected && !covered && (entering || pressTarget > 0 || press > 0.001) {
 		// The shared highlight cannot shrink with one row. While the card
 		// enters or presses, it owns the same fill so both scale together.
 		track.Hide()

@@ -14,16 +14,15 @@ const (
 	selectionFade  = float32(24)
 )
 
-// SelectionStyle is how a list paints its shared selection highlight, and
-// Picked the dashed frame round the rows picked together (Pick), which
-// stands PickedOutset out from them, clear of their own edges: half the
-// space between the list's rows puts it midway across.
+// SelectionStyle is how a list paints its shared selection highlight.
+// Picked fills the rows picked together (Pick), and PickedHover goes over
+// a picked row under the pointer, a step stronger.
 type SelectionStyle struct {
-	Fill         ui.Color
-	Border       ui.Color
-	Radius       float32
-	Picked       ui.Color
-	PickedOutset float32
+	Fill        ui.Color
+	Border      ui.Color
+	Radius      float32
+	Picked      ui.Color
+	PickedHover ui.Color
 }
 
 // SelectionTrack is a list's shared selection highlight: one background
@@ -42,8 +41,9 @@ type SelectionTrack struct {
 	opacity motion.Spring
 	started bool
 
-	picks  []pickedRow
-	blocks []pickBlock
+	picks   []pickedRow
+	blocks  []pickBlock
+	beneath []beneathRow
 }
 
 type selectionKey struct{}
@@ -56,11 +56,10 @@ func TrackSelection(list ui.Element, style SelectionStyle, animate bool) *Select
 	})
 	track.list = list.LayoutBounds()
 	track.marked, track.known, track.hidden, track.animate = false, false, false, animate
-	track.picks = track.picks[:0]
+	track.picks, track.beneath = track.picks[:0], track.beneath[:0]
 	list.Draw(func(p *ui.Painter, rect ui.Rect) {
 		track.paint(p, rect, style)
-	})
-	list.DrawOver(func(p *ui.Painter, rect ui.Rect) {
+		track.paintBeneath(p, rect, style)
 		track.paintPicks(p, rect, style)
 	})
 	return track

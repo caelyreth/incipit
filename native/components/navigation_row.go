@@ -28,11 +28,10 @@ type NavigationRow struct {
 // NavigationSelection is the shared highlight style for navigation lists.
 func NavigationSelection(c *ui.Context, semantic theme.Theme) SelectionStyle {
 	return SelectionStyle{
-		Fill:   semantic.Surface.Inset,
-		Radius: theme.DefaultControls.Scaled(UIFontSize(c)).Radius,
-		// Short of the full accent, the picked rows' frame marks them
-		// without outshouting the open one.
-		Picked: semantic.Accent.Foreground.Alpha(0.76),
+		Fill:        semantic.Surface.Inset,
+		Radius:      theme.DefaultControls.Scaled(UIFontSize(c)).Radius,
+		Picked:      semantic.Accent.Muted,
+		PickedHover: semantic.Accent.Foreground.Alpha(0.1),
 	}
 }
 

@@ -1,8 +1,6 @@
 package components
 
 import (
-	"cmp"
-	"math"
 	"slices"
 	"time"
 
@@ -25,7 +23,7 @@ type pickRun struct {
 	frame ui.Rect
 }
 
-// pickBlock is the frame round one run of picked rows. It follows the run,
+// pickBlock is the fill of one run of picked rows. It follows the run,
 // gliding its edges as the run grows, shrinks or moves; it fades in where a
 // run appears apart from any other and out where one goes.
 type pickBlock struct {
@@ -43,33 +41,79 @@ type pickBlock struct {
 	run int
 }
 
-// pickInset is how far in from the rows' sides a frame stands as it
+// pickInset is how far in from the rows' sides a block stands as it
 // appears or leaves.
 const pickInset = 6
 
 // Pick records row, in the list's order, by id and whether it is picked.
 // Call it for every row the list shows, and for what stands between rows
-// too, with no id, not picked: rows picked side by side share one dashed
-// frame round them all, and anything not picked parts it in two. As the
-// picked change, the frames' edges glide to the runs' new ones. The frame
-// goes over the rows, so it leaves their own fills, as their hover or the
-// open one's, as they are.
+// too, with no id, not picked: rows picked side by side share one fill
+// across the space between them, rounded only where the run begins and
+// ends, and anything not picked parts it. As the picked change, the
+// fill's edges glide to the runs' new ones.
 func (t *SelectionTrack) Pick(row ui.Element, id string, picked bool) {
 	if t == nil {
 		return
 	}
+	t.picks = append(t.picks, pickedRow{id: id, bounds: t.relative(row), picked: picked && id != ""})
+}
+
+// Covers is how strongly the picked rows' fill is over row, as it was last
+// drawn, 0 to 1: what goes over the fill on the row goes with it, so the
+// two leave together.
+func (t *SelectionTrack) Covers(row ui.Element) float32 {
+	if t == nil {
+		return 0
+	}
+	bounds := t.relative(row)
+	strength := float32(0)
+	for _, block := range t.blocks {
+		if block.top.Value() < bounds.Y+bounds.H && block.bottom.Value() > bounds.Y {
+			strength = max(strength, block.presence.Value())
+		}
+	}
+	return strength
+}
+
+// Beneath fills row in color under the picked rows' fill, for a row that
+// keeps a fill of its own while covered, as its hover: the picked fill
+// hides it, and it is there as that fill goes, so the row goes straight
+// from the one to the other. Call it each frame the row has it.
+func (t *SelectionTrack) Beneath(row ui.Element, color ui.Color) {
+	if t == nil || color.A == 0 {
+		return
+	}
+	t.beneath = append(t.beneath, beneathRow{bounds: t.relative(row), color: color})
+}
+
+// beneathRow is a fill under the picked rows' (Beneath).
+type beneathRow struct {
+	bounds ui.Rect
+	color  ui.Color
+}
+
+// relative is row's geometry as last laid out, relative to the list.
+func (t *SelectionTrack) relative(row ui.Element) ui.Rect {
 	bounds := row.LayoutBounds()
 	bounds.X -= t.list.X
 	bounds.Y -= t.list.Y
-	t.picks = append(t.picks, pickedRow{id: id, bounds: bounds, picked: picked && id != ""})
+	return bounds
 }
 
-// runs is the runs of picked rows, top down.
-func (t *SelectionTrack) runs() []pickRun {
+func (t *SelectionTrack) paintBeneath(p *ui.Painter, rect ui.Rect, style SelectionStyle) {
+	for _, row := range t.beneath {
+		row.bounds.X += rect.X
+		row.bounds.Y += rect.Y
+		p.Fill(row.bounds, row.color, style.Radius)
+	}
+}
+
+// runs is the runs of the rows in, side by side, top down.
+func (t *SelectionTrack) runs(in func(pickedRow) bool) []pickRun {
 	var runs []pickRun
 	open := false
 	for _, row := range t.picks {
-		if !row.picked || row.bounds.W <= 0 || row.bounds.H <= 0 {
+		if !in(row) || row.bounds.W <= 0 || row.bounds.H <= 0 {
 			open = false
 			continue
 		}
@@ -195,10 +239,10 @@ func (t *SelectionTrack) part(runs []pickRun, origins []int, now time.Time) {
 	}
 }
 
-// paintPicks frames the picked rows' runs, each block gliding to its run.
+// paintPicks fills the picked rows' runs, each block gliding to its run.
 func (t *SelectionTrack) paintPicks(p *ui.Painter, rect ui.Rect, style SelectionStyle) {
 	now := p.Now()
-	runs := t.runs()
+	runs := t.runs(func(row pickedRow) bool { return row.picked })
 	if !t.animate {
 		t.blocks = t.blocks[:0]
 		for r, run := range runs {
@@ -250,35 +294,53 @@ func (t *SelectionTrack) paintPicks(p *ui.Painter, rect ui.Rect, style Selection
 	if moving {
 		p.AnimationFrame()
 	}
-	// Blocks that overlap, as two meeting, are one frame round them both.
-	type frame struct {
-		top, bottom, left, width, presence float32
-	}
-	var frames []frame
+	// The blocks wholly there are one shape, so where they overlap, as two
+	// meeting, they fill once; those fading are each their own.
+	var whole ui.Path
+	filled := false
 	for _, block := range t.blocks {
-		if a := block.presence.Value(); a > 0.001 {
-			frames = append(frames, frame{block.top.Value(), block.bottom.Value(), block.left, block.width, a})
+		a := block.presence.Value()
+		if a <= 0.001 {
+			continue
 		}
+		inset := pickInset * (1 - a)
+		share := ui.Rect{
+			X: rect.X + block.left + inset, Y: rect.Y + block.top.Value(),
+			W: block.width - 2*inset, H: block.bottom.Value() - block.top.Value(),
+		}
+		if a >= 0.999 {
+			roundedRect(&whole, share, style.Radius)
+			filled = true
+			continue
+		}
+		var path ui.Path
+		roundedRect(&path, share, style.Radius)
+		p.FillPath(&path, style.Picked.Alpha(a))
 	}
-	slices.SortFunc(frames, func(a, b frame) int { return cmp.Compare(a.top, b.top) })
-	// On whole pixels, so the dashes stay sharp as the edges glide.
-	scale := max(1, p.Scale())
-	snap := func(v float32) float32 { return float32(math.Round(float64(v*scale))) / scale }
-	for index := 0; index < len(frames); index++ {
-		f := frames[index]
-		for index+1 < len(frames) && frames[index+1].top <= f.bottom {
-			next := frames[index+1]
-			f.bottom, f.presence = max(f.bottom, next.bottom), max(f.presence, next.presence)
-			index++
-		}
-		out := style.PickedOutset
-		inset := pickInset*(1-f.presence) - out
-		left, right := snap(rect.X+f.left+inset), snap(rect.X+f.left+f.width-inset)
-		top, bottom := snap(rect.Y+f.top-out), snap(rect.Y+f.bottom+out)
-		box := ui.Rect{X: left, Y: top, W: right - left, H: bottom - top}
-		// Its corners round about the rows' own.
-		DashedOutline(p, box, style.Radius+out, 1, style.Picked.Alpha(f.presence))
+	if filled {
+		p.FillPath(&whole, style.Picked)
 	}
 }
 
 func abs32(v float32) float32 { return max(v, -v) }
+
+// roundedRect adds r, its corners rounded by radius, to path. Every rect it
+// adds winds the same way, so a path of several fills their union.
+func roundedRect(path *ui.Path, r ui.Rect, radius float32) {
+	if r.W <= 0 || r.H <= 0 {
+		return
+	}
+	radius = max(0, min(radius, r.W/2, r.H/2))
+	k := radius * (1 - 0.5522848)
+	right, bottom := r.X+r.W, r.Y+r.H
+	path.MoveTo(r.X+radius, r.Y)
+	path.LineTo(right-radius, r.Y)
+	path.CubeTo(right-k, r.Y, right, r.Y+k, right, r.Y+radius)
+	path.LineTo(right, bottom-radius)
+	path.CubeTo(right, bottom-k, right-k, bottom, right-radius, bottom)
+	path.LineTo(r.X+radius, bottom)
+	path.CubeTo(r.X+k, bottom, r.X, bottom-k, r.X, bottom-radius)
+	path.LineTo(r.X, r.Y+radius)
+	path.CubeTo(r.X, r.Y+k, r.X+k, r.Y, r.X+radius, r.Y)
+	path.Close()
+}
