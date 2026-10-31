@@ -3,9 +3,9 @@ package documentview
 import (
 	"slices"
 	"time"
-	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/engine/surface"
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/egoist/mygo/ui"
 )
@@ -159,8 +159,8 @@ func (t *guideTrack) moving() bool {
 }
 
 // drawGuides paints each guide as a hairline where the caret would land and
-// a run of small keycaps riding just above its top, clear of the glyphs
-// that follow on the same line.
+// its keys on the compact caps the Keymap draws, riding just above its top,
+// clear of the glyphs that follow on the same line.
 func drawGuides(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions) {
 	guides := state.Guides
 	if guides == nil {
@@ -173,6 +173,7 @@ func drawGuides(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions)
 	}
 	// Areas show in the margin, past this clip.
 	state.Guides = guides
+	style := components.KeycapStyle(state.Theme, state.UIFontSize, true)
 	for _, sample := range guides.Visible() {
 		alpha := sample.Opacity
 		x := rect.X + sample.Rect.X
@@ -183,57 +184,12 @@ func drawGuides(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions)
 		ink := roleColor(state.Theme, guides.tracks[sample.ID].color)
 		p.Fill(ui.Rect{X: x, Y: y, W: 1, H: sample.Rect.H}, ink.Alpha(0.6*alpha), 0)
 
-		caps := measureKeycaps(p, sample.Keys, state.Prose.FontSize)
-		left := min(x+caps.height*0.3, rect.X+rect.W-caps.total-2)
+		_, width := style.Widths(sample.Keys)
+		left := min(x+style.Height*0.3, rect.X+rect.W-width-2)
 		left = max(left, rect.X)
-		top := max(y-caps.height+2, rect.Y)
-		caps.paint(p, state, sample.Keys, left, top, ink, alpha)
+		top := max(y-style.Height+2, rect.Y)
+		caps := style
+		caps.Ink = ink
+		caps.Paint(p, sample.Keys, left, top, alpha)
 	}
-}
-
-// keycaps are a run of small keycaps measured for one prose size.
-type keycaps struct {
-	widths              []float32
-	total, height, size float32
-}
-
-func measureKeycaps(p *ui.Painter, keys []string, prose float32) keycaps {
-	caps := keycaps{
-		widths: make([]float32, len(keys)),
-		height: max(14, prose*0.78),
-		size:   max(9, prose*0.5),
-	}
-	pad := caps.height * 0.3
-	for index, key := range keys {
-		w, _ := p.MeasureText(0, guideSpan(key, caps.size, ui.Color{}))
-		caps.widths[index] = caps.height
-		if utf8.RuneCountInString(key) > 1 {
-			caps.widths[index] = max(caps.height, w+2*pad)
-		}
-		caps.total += caps.widths[index]
-	}
-	caps.total += caps.gap() * float32(max(0, len(keys)-1))
-	return caps
-}
-
-func (k keycaps) gap() float32 { return k.height * 0.14 }
-
-// paint draws the caps from left, their tops at top.
-func (k keycaps) paint(p *ui.Painter, state *State, keys []string, left, top float32, ink ui.Color, alpha float32) {
-	radius := k.height * 0.28
-	for index, key := range keys {
-		box := ui.Rect{X: left, Y: top, W: k.widths[index], H: k.height}
-		p.Fill(box, state.Theme.Surface.Page.Alpha(0.94*alpha), radius)
-		p.Stroke(box, state.Theme.Border.Variant.Alpha(alpha), radius, 1)
-		span := guideSpan(key, k.size, ink.Alpha(alpha))
-		w, h := p.MeasureText(0, span)
-		// The face's ink sits a little below its line box; lift it so the
-		// glyphs center optically in the cap.
-		p.RichText(box.X+(box.W-w)/2, box.Y+(box.H-h)/2-k.size/32, 0, span)
-		left += k.widths[index] + k.gap()
-	}
-}
-
-func guideSpan(key string, size float32, color ui.Color) ui.Span {
-	return ui.Span{Text: key, Size: size, Weight: 600, Color: color, Features: "tnum"}
 }

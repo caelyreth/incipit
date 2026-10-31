@@ -1,10 +1,14 @@
 package documentview
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/caelyreth/neverland/app/controller"
+	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -342,12 +346,39 @@ func TestElementGuidesTabBackToTheLastEditAfterAClickAway(t *testing.T) {
 		t.Fatalf("caret = %d after clicking away", document.Caret())
 	}
 	visible := element.guides.Visible()
-	if len(visible) != 1 || visible[0].Keys[len(visible[0].Keys)-1] != "Tab" ||
+	tab := kernel.NewBindingTarget(kernel.EditorBindingContext, "tab", kernel.ModifiersNone)
+	if len(visible) != 1 || !slices.Equal(visible[0].Keys, keymap.Keycaps(tab, keymap.PlatformCurrent)) ||
 		visible[0].Opacity < 0.99 {
 		t.Fatalf("guides = %#v, want one settled Tab guide", visible)
 	}
 	if want := element.current.Caret(18).X; visible[0].Rect.X != want {
 		t.Fatalf("guide x = %v, want the last edit at %v", visible[0].Rect.X, want)
+	}
+}
+
+// A guide shows the keys the Keymap binds its command to, whatever they
+// are, on the caps the Keymap shows them on.
+func TestElementGuidesShowTheBoundKeys(t *testing.T) {
+	document, element, tester := newAnimatedElement(t, "")
+	remapped := kernel.NewBindingTarget(kernel.EditorBindingContext, "j", kernel.ModifiersControl)
+	if err := document.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
+		configuration.Remap(editor.TabCommand().ID, remapped)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	start := element.current.Caret(0)
+	tester.Press(start.X+1, start.Y+1)
+	tester.Release(start.X+1, start.Y+1)
+	tester.Type("a long enough edit")
+	tester.Advance(time.Second)
+	start = element.current.Caret(0)
+	tester.Press(start.X+1, start.Y+1)
+	tester.Release(start.X+1, start.Y+1)
+	tester.Advance(time.Second)
+	visible := element.guides.Visible()
+	if len(visible) != 1 || !slices.Equal(visible[0].Keys, keymap.Keycaps(remapped, keymap.PlatformCurrent)) {
+		t.Fatalf("guides = %#v, want the rebound keys", visible)
 	}
 }
 

@@ -14,9 +14,9 @@ import (
 
 const activityLimit = 64
 
-// guideKeys shows each guide's binding in the in-text notation.
+// guideKeys shows each guide's binding on the caps the Keymap shows it on.
 func guideKeys(target kernel.BindingTarget) []string {
-	return keymap.GuideKeycaps(target, keymap.PlatformCurrent)
+	return keymap.Keycaps(target, keymap.PlatformCurrent)
 }
 
 type preedit struct {

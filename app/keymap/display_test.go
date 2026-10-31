@@ -43,17 +43,3 @@ func TestChordWordsFindSymbolChordsByName(t *testing.T) {
 		t.Fatalf("other words = %q", got)
 	}
 }
-
-func TestGuideKeycapsSpellNamedKeys(t *testing.T) {
-	tab := kernel.NewBindingTarget(kernel.EditorBindingContext, "tab", kernel.ModifiersNone)
-	if got := GuideKeycaps(tab, PlatformDarwin); !reflect.DeepEqual(got, []string{"Tab"}) {
-		t.Fatalf("mac tab = %#v", got)
-	}
-	enter := kernel.NewBindingTarget(kernel.EditorBindingContext, "enter", kernel.ModifiersPrimary)
-	if got := GuideKeycaps(enter, PlatformDarwin); !reflect.DeepEqual(got, []string{"⌘", "Return"}) {
-		t.Fatalf("mac enter = %#v", got)
-	}
-	if got := GuideKeycaps(enter, PlatformOther); !reflect.DeepEqual(got, []string{"Ctrl", "Enter"}) {
-		t.Fatalf("other enter = %#v", got)
-	}
-}

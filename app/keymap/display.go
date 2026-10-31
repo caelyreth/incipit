@@ -129,19 +129,3 @@ func keyLabel(key string, platform Platform) string {
 	}
 	return key
 }
-
-// GuideKeycaps are target's keycaps for a hint inside the text: modifiers
-// as Keycaps draws them, but a named key spelled as a word ("Tab", not ⇥),
-// since a glyph alone at hint size reads as punctuation in the prose.
-func GuideKeycaps(target kernel.BindingTarget, platform Platform) []string {
-	if platform == PlatformCurrent {
-		platform = CurrentPlatform()
-	}
-	caps := Keycaps(target, platform)
-	word := keyLabel(target.Key(), PlatformOther)
-	if word == "Enter" && platform == PlatformDarwin {
-		word = "Return"
-	}
-	caps[len(caps)-1] = word
-	return caps
-}
