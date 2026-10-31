@@ -243,6 +243,11 @@ func (s *State) page(
 				s.anchors = append(s.anchors[:0], s.building...)
 			})
 		})
+		// Until the page scrolls up into it, the band above it is the
+		// title bar's, and drags the window.
+		if band := theme.DefaultLayout.Titlebar*scale/theme.DefaultUIFontSize - s.contentScroll.Y; band > 0.5 {
+			ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(band).DragWindow()
+		}
 	})
 }
 

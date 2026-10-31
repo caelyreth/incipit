@@ -117,10 +117,12 @@ func (s *State) pageTabs(
 ) {
 	scale := s.Settings.UIFontSize
 	activeChanged := s.lastActive != s.ActivePage
+	// The free tab line is the title bar's: it drags the window, and a
+	// double click on it zooms, as on any title bar.
 	scroll := ui.ScrollHorizontal(c).Grow(1).MinWidth(0).Height(height).
-		TrackScroll(&s.TabsScroll)
+		TrackScroll(&s.TabsScroll).DragWindow()
 	scroll.Children(func() {
-		ui.Row(c).Role(ui.RoleTabList).Label("Open sheets").FocusGroup(ui.Horizontal).
+		ui.Row(c).Role(ui.RoleTabList).Label("Open sheets").FocusGroup(ui.Horizontal).DragWindow().
 			HeightPercent(100).PaddingX(theme.Space08.DIPs(scale)).
 			AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
 			for index, page := range s.Tabs {
