@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -92,6 +93,7 @@ func (s *State) noteView(c *ui.Context, animate bool) {
 		s.nav.sheetsGap, s.nav.sheetsNear = gap{}, -1
 		s.nav.sheetDropSlot, s.nav.sheetDropHeight = -1, 0
 		s.nav.sheetDropVisible, s.nav.sheetDropRows = false, nil
+		s.nav.picking = picking{}
 		if animate {
 			s.nav.shownAt = c.Now()
 		}
@@ -381,6 +383,7 @@ func (s *State) sheetRows(
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
 		s.sheetOverscroll.Apply(c, list, animate)
 		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
+		s.noteOrder(entries)
 		ordered := create != nil && place.Kind == PlaceGroup
 		if !ordered {
 			s.nav.sheetDropSlot, s.nav.sheetDropHeight = -1, 0
@@ -432,8 +435,9 @@ func (s *State) sheetRows(
 				leading(track)
 			}
 			for index, entry := range entries {
+				// What stands between sheets parts their runs of picks.
 				if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == index {
-					s.sheetDropPlaceholder(c, semantic, dragging, animate)
+					track.Pick(s.sheetDropPlaceholder(c, semantic, dragging, animate), 0)
 				}
 				if open && at == index {
 					sheetAction := func() {
@@ -450,6 +454,7 @@ func (s *State) sheetRows(
 						area = s.createArea(c, semantic, "new-sheet-at-"+entry.ID, "New sheet", animate, sheetAction)
 					}
 					area.Transition(unfoldTransition(animate))
+					track.Pick(area, 0)
 					// The pointer that called it up is in the space between
 					// the rows around it: that keeps it open too, so it
 					// keeps the list's spacing rather than reaching into
@@ -464,6 +469,7 @@ func (s *State) sheetRows(
 					// lands above it takes its room while the drop is open.
 					apart := index > 0 || ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == 0
 					row = s.chapterRow(c, semantic, entry.Chapter, chapterSheets(entries, index), apart, animate)
+					track.Pick(row, 0)
 				} else {
 					row = s.sheetRow(c, semantic, entry.Sheet, index, place, track, now, animate)
 				}
@@ -513,6 +519,12 @@ func (s *State) sheetRows(
 	})
 	if place.Kind != PlaceTrash {
 		scroll.ContextMenu(s.listMenu())
+	}
+	if scroll.Shortcut(0, ui.KeyEscape) {
+		s.unpick()
+	}
+	if scroll.Shortcut(ui.Cmd, ui.KeyA) {
+		s.pickAll()
 	}
 }
 
@@ -807,7 +819,7 @@ func (s *State) sheetRow(
 	selected := sheet.ID == s.ActivePage
 	trashed := place.Kind == PlaceTrash
 	deleteKey := "delete-sheet-" + sheet.ID
-	confirming := s.nav.armed == deleteKey
+	confirming := s.nav.armed == deleteKey || s.nav.armed == deletePickedKey(sheet.ID)
 	row := ui.Column(c).Key("sheet-" + sheet.ID).Role(ui.RoleButton).Label(sheet.Title).Selected(selected).
 		WidthPercent(100).Shrink(0).
 		Focusable().FocusRing(false).Transition(s.listRowTransition(animate))
@@ -819,7 +831,11 @@ func (s *State) sheetRow(
 	if selected {
 		track.Mark(row)
 	}
-	hover := components.HoverAmount(row, !selected && row.Hovered(), animate)
+	picked := s.picked(sheet.ID)
+	track.Pick(row, s.pickAmount(row, sheet.ID, animate))
+	// A picked row keeps the run's fill under the pointer, as the open one
+	// keeps its own.
+	hover := components.HoverAmount(row, !selected && !picked && row.Hovered(), animate)
 	selection := components.NavigationSelection(c, semantic)
 	dragging := s.dragging(row)
 	s.noteGrab(row, sheet.ID, dragging)
@@ -838,11 +854,14 @@ func (s *State) sheetRow(
 		card.Children(func() {
 			ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
 				title := semantic.Text.Default
-				if selected {
+				if selected || picked {
 					title = semantic.Text.Heading
 				}
 				components.Label(c, sheet.Title, theme.TextSmall, title).Grow(1).MinWidth(0).SingleLine()
-				if trashed && confirming {
+				if trashed && s.nav.armed == deletePickedKey(sheet.ID) {
+					label := fmt.Sprintf("Delete %d", len(s.pickedSheets()))
+					s.confirmButton(c, semantic, deletePickedKey(sheet.ID), "", label, animate, s.deletePicked)
+				} else if trashed && confirming {
 					s.confirmButton(c, semantic, deleteKey, "", "Delete", animate, func() { s.Library.DeleteSheet(sheet.ID) })
 				} else {
 					components.Label(c, when(sheet.Updated, now), theme.TextXSmall, semantic.Text.Muted).
@@ -878,9 +897,17 @@ func (s *State) sheetRow(
 	if !trashed {
 		row.Drag(sheetDrag{id: sheet.ID})
 	}
-	row.ContextMenu(s.sheetMenu(sheet, trashed))
-	if !confirming && (row.Clicked() || row.Shortcut(0, ui.KeyEnter)) {
-		s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Cmd != 0)
+	if picked && len(s.pickedSheets()) > 1 {
+		row.ContextMenu(func(m *ui.Menu) { s.batchMenu(m, sheet.ID, trashed) })
+	} else {
+		row.ContextMenu(s.sheetMenu(sheet, trashed))
+	}
+	if !confirming && row.Clicked() {
+		if !s.pickClick(sheet.ID, row.ClickModifiers()) {
+			s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Cmd != 0)
+		}
+	} else if !confirming && row.Shortcut(0, ui.KeyEnter) {
+		s.Library.OpenSheet(sheet.ID, false)
 	}
 	return row
 }
@@ -1122,6 +1149,9 @@ func (s *State) trashedGroupRow(c *ui.Context, semantic theme.Theme, group Group
 
 func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
+		// A menu on a sheet not among the picked is for that sheet alone,
+		// so the picked let go.
+		s.unpick()
 		if m.Item("Open").Chosen() {
 			s.Library.OpenSheet(sheet.ID, false)
 		}
@@ -1222,6 +1252,9 @@ func (s *State) placeInfo(semantic theme.Theme, place Place) (title string, icon
 			total += sheet.Words
 		}
 		detail += " · " + words(total)
+	}
+	if picked, ok := s.pickedDetail(sheets); ok {
+		detail = picked
 	}
 	return title, icon, tint, detail
 }

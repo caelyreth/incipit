@@ -41,6 +41,8 @@ type navigation struct {
 	// armed is what waits for a second click to be deleted, since armedAt.
 	armed   string
 	armedAt time.Time
+	// picking is the sheets picked together in the list.
+	picking picking
 	// sheetsGap calls up a create area above a sheet in a group, and
 	// groupsTop one at the head of the groups.
 	sheetsGap, groupsTop gap
