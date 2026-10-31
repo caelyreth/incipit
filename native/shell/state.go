@@ -76,13 +76,16 @@ type State struct {
 	Typewriter     func(bool)
 	Zen            func(bool)
 
-	SidebarOverride  *bool
-	nav              navigation
-	lastActive       string
-	lastWidth        float32
-	lastUIFontSize   float32
-	lastSidebarWidth float32
-	lastChrome       float32
+	// SidebarOverride shows or hides the library, SheetListOverride the
+	// sheet list, against what the window's width would choose.
+	SidebarOverride   *bool
+	SheetListOverride *bool
+	nav               navigation
+	lastActive        string
+	lastWidth         float32
+	lastUIFontSize    float32
+	lastSidebarWidth  float32
+	lastChrome        float32
 }
 
 func New() *State {
@@ -116,6 +119,13 @@ func (s *State) ColumnMargin() float32 {
 	gutter := theme.DefaultLayout.ContentGutter * scale / theme.DefaultUIFontSize
 	column := s.Settings.Prose().Column()
 	return gutter + max(0, (s.lastWidth-s.lastSidebarWidth-2*gutter-column)/2)
+}
+
+// ShowPanes shows the library and the sheet list as asked.
+func (s *State) ShowPanes(library, sheets bool) {
+	if s != nil {
+		s.SidebarOverride, s.SheetListOverride = &library, &sheets
+	}
 }
 
 func (s *State) SidebarVisible() bool {

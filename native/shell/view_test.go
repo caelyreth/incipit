@@ -198,7 +198,7 @@ func TestHeaderControlsUseReferenceActions(t *testing.T) {
 	tester.Frame()
 
 	for _, label := range []string{
-		"Toggle sidebar",
+		"Toggle library",
 		"New page",
 		"Search commands",
 		"Open settings",
@@ -221,10 +221,10 @@ func TestHeaderControlsUseReferenceActions(t *testing.T) {
 			t.Fatalf("clicking %q skipped its callback", label)
 		}
 	}
-	if _, ok := tester.Find("Toggle sidebar"); !ok {
+	if _, ok := tester.Find("Toggle library"); !ok {
 		t.Fatal("sidebar toggle missing")
 	}
-	if err := tester.Click("Toggle sidebar"); err != nil {
+	if err := tester.Click("Toggle library"); err != nil {
 		t.Fatal(err)
 	}
 	if state.SidebarVisible() {
@@ -237,7 +237,7 @@ func TestIconControlsAreKeyboardReachable(t *testing.T) {
 	tester := ui.NewTester(state.View, 1260, 850)
 
 	tester.Key(0, ui.KeyTab)
-	if !tester.Focused("Toggle sidebar") {
+	if !tester.Focused("Toggle library") {
 		t.Fatalf("first keyboard stop is not the labeled sidebar control: %#v", tester.Texts())
 	}
 	tester.Key(0, ui.KeySpace)

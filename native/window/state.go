@@ -356,6 +356,14 @@ func (a *AppState) executeExternalCommand(command kernel.CommandID) error {
 		}
 	case editor.SurfaceSidebarCommandID:
 		a.toggleSidebar()
+	case editor.SurfaceSheetListCommandID:
+		a.toggleSheetList()
+	case editor.SurfaceLibraryViewCommandID:
+		a.showPanes(true, true)
+	case editor.SurfaceSheetsViewCommandID:
+		a.showPanes(false, true)
+	case editor.SurfaceEditorViewCommandID:
+		a.showPanes(false, false)
 	case editor.SurfaceSettingsCommandID:
 		if a.Shell.OpenSettings != nil {
 			a.Shell.OpenSettings()

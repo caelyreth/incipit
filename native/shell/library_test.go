@@ -301,3 +301,33 @@ func TestDeletingAsksForASecondClick(t *testing.T) {
 		t.Fatalf("calls %v, want %v", library.calls, want)
 	}
 }
+
+func TestTheLibraryAndTheSheetListOpenOnTheirOwn(t *testing.T) {
+	state, _ := libraryState()
+	tester := ui.NewTester(state.View, 1260, 850)
+	for _, panes := range []struct{ library, sheets bool }{
+		{false, true}, {true, false}, {false, false}, {true, true},
+	} {
+		state.ShowPanes(panes.library, panes.sheets)
+		settle(tester)
+		if tester.HasText("Last 7 Days") != panes.library || tester.HasText("Draft") != panes.sheets {
+			t.Fatalf("panes %+v: %#v", panes, tester.Texts())
+		}
+	}
+	if err := tester.Click("Hide sheet list"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.SheetListVisible() || !state.SidebarVisible() {
+		t.Fatal("hiding the list hid the library, or kept the list")
+	}
+	if err := tester.Click("Toggle library"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	state.ToggleSheetList()
+	settle(tester)
+	if state.SidebarVisible() || !tester.HasText("Draft") {
+		t.Fatalf("the list did not come back alone: %#v", tester.Texts())
+	}
+}

@@ -25,6 +25,10 @@ func (s *State) header(
 	glyphInset := (theme.DefaultControls.Height - 16) / 2
 	right := (layout.ChromeGutter - glyphInset) * scale / theme.DefaultUIFontSize
 	leadingWidth := ((layout.Sidebar-140)*reveal + 140) * scale / theme.DefaultUIFontSize
+	// The sheet list's line starts where the list does; where the library
+	// is closed, the window's controls take the first of it.
+	libraryWidth := layout.Sidebar * scale / theme.DefaultUIFontSize * reveal
+	listWidth = max(0, listWidth-(leadingWidth-libraryWidth))
 	animate := s.animate(c)
 
 	ui.Row(c).Height(height).Opacity(chrome).Clip().AlignItems(ui.Center).
@@ -40,7 +44,7 @@ func (s *State) header(
 		}
 		leading.Children(func() {
 			components.IconButton{
-				Key: "toggle-sidebar", Label: "Toggle sidebar",
+				Key: "toggle-sidebar", Label: "Toggle library",
 				Icon:  components.IconSidebar.SVG(),
 				Style: components.SubtleButton, Size: components.MediumButton,
 				IconSize:  16 * scale / theme.DefaultUIFontSize,

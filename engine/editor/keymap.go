@@ -63,6 +63,10 @@ var defaultKeymap = [...]kernel.BindingSpec{
 	defaultKey(SurfaceCommandsCommandID, "k", keyPrimary),
 	defaultKey(SurfaceFindPageCommandID, "p", keyPrimary),
 	defaultKey(SurfaceSidebarCommandID, "b", keyPrimary|keyAlt),
+	defaultKey(SurfaceSheetListCommandID, "l", keyPrimary|keyAlt),
+	defaultKey(SurfaceLibraryViewCommandID, "1", keyPrimary),
+	defaultKey(SurfaceSheetsViewCommandID, "2", keyPrimary),
+	defaultKey(SurfaceEditorViewCommandID, "3", keyPrimary),
 	defaultKey(SurfaceSettingsCommandID, ",", keyPrimary),
 }
 

@@ -38,6 +38,10 @@ const (
 	SurfaceCommandsCommandID     kernel.CommandID = "surface.commands"
 	SurfaceFindPageCommandID     kernel.CommandID = "surface.find-page"
 	SurfaceSidebarCommandID      kernel.CommandID = "surface.sidebar"
+	SurfaceSheetListCommandID    kernel.CommandID = "surface.sheet-list"
+	SurfaceLibraryViewCommandID  kernel.CommandID = "surface.view-library"
+	SurfaceSheetsViewCommandID   kernel.CommandID = "surface.view-sheets"
+	SurfaceEditorViewCommandID   kernel.CommandID = "surface.view-editor"
 	SurfaceSettingsCommandID     kernel.CommandID = "surface.settings"
 )
 
@@ -76,7 +80,11 @@ var surfaceCommands = [...]SurfaceCommand{
 	{ID: SurfaceCJKCommandID, Label: "Toggle CJK refinement", Kind: SurfacePolicy, Scope: ScopeDocument, Subject: CJKPolicyID},
 	{ID: SurfaceCommandsCommandID, Label: "Search commands", Kind: SurfaceApp, Scope: ScopeApp},
 	{ID: SurfaceFindPageCommandID, Label: "Find a page", Kind: SurfaceApp, Scope: ScopePages},
-	{ID: SurfaceSidebarCommandID, Label: "Toggle sidebar", Kind: SurfaceApp, Scope: ScopeWindow},
+	{ID: SurfaceSidebarCommandID, Label: "Toggle library", Kind: SurfaceApp, Scope: ScopeWindow},
+	{ID: SurfaceSheetListCommandID, Label: "Toggle sheet list", Kind: SurfaceApp, Scope: ScopeWindow},
+	{ID: SurfaceLibraryViewCommandID, Label: "Show library and sheets", Kind: SurfaceApp, Scope: ScopeWindow},
+	{ID: SurfaceSheetsViewCommandID, Label: "Show sheet list only", Kind: SurfaceApp, Scope: ScopeWindow},
+	{ID: SurfaceEditorViewCommandID, Label: "Show editor only", Kind: SurfaceApp, Scope: ScopeWindow},
 	{ID: SurfaceSettingsCommandID, Label: "Open settings", Kind: SurfaceApp, Scope: ScopeApp},
 }
 

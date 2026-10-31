@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
 )
 
 func TestSurfaceHostCommandsRouteThroughWindowCallbacks(t *testing.T) {
@@ -67,6 +68,28 @@ func TestSurfaceHostCommandsRouteThroughWindowCallbacks(t *testing.T) {
 	}
 	if !app.Shell.SidebarVisible() {
 		t.Fatal("sidebar command did not show navigation")
+	}
+	for _, view := range []struct {
+		command         kernel.CommandID
+		library, sheets bool
+	}{
+		{editor.SurfaceSheetsViewCommandID, false, true},
+		{editor.SurfaceEditorViewCommandID, false, false},
+		{editor.SurfaceLibraryViewCommandID, true, true},
+	} {
+		if err := app.executeExternalCommand(view.command); err != nil {
+			t.Fatal(err)
+		}
+		if app.Shell.SidebarVisible() != view.library || app.Shell.SheetListVisible() != view.sheets {
+			t.Fatalf("%s: library %v, sheets %v", view.command,
+				app.Shell.SidebarVisible(), app.Shell.SheetListVisible())
+		}
+	}
+	if err := app.executeExternalCommand(editor.SurfaceSheetListCommandID); err != nil {
+		t.Fatal(err)
+	}
+	if !app.Shell.SidebarVisible() || app.Shell.SheetListVisible() {
+		t.Fatal("the sheet list command did not hide the list alone")
 	}
 	if err := app.executeExternalCommand(editor.SurfaceFindPageCommandID); err != nil {
 		t.Fatal(err)

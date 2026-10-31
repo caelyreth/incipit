@@ -2,6 +2,7 @@ package window
 
 import (
 	"github.com/caelyreth/neverland/app/keymap"
+	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/egoist/mygo"
@@ -65,7 +66,13 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		{
 			Label: "View",
 			Submenu: []*mygo.MenuItem{
-				{ID: "toggle-sidebar", Label: "Toggle Pages", Click: command(editor.SurfaceSidebarCommandID)},
+				{ID: "view-library", Label: "Library", Click: command(editor.SurfaceLibraryViewCommandID)},
+				{ID: "view-sheets", Label: "Sheet List", Click: command(editor.SurfaceSheetsViewCommandID)},
+				{ID: "view-editor", Label: "Editor Only", Click: command(editor.SurfaceEditorViewCommandID)},
+				mygo.Separator(),
+				{ID: "toggle-sidebar", Label: "Toggle Library", Click: command(editor.SurfaceSidebarCommandID)},
+				{ID: "toggle-sheet-list", Label: "Toggle Sheet List", Click: command(editor.SurfaceSheetListCommandID)},
+				mygo.Separator(),
 				{ID: "commands", Label: "Command Palette", Click: command(editor.SurfaceCommandsCommandID)},
 				mygo.Separator(),
 				{Role: mygo.RoleToggleFullScreen},
@@ -106,7 +113,11 @@ var keymapMenu = [...]struct {
 	{"select-all", editor.TextSelectAll.ID()},
 	{"bold", editor.MarkupStrong.ID()},
 	{"italic", editor.MarkupEmphasis.ID()},
+	{"view-library", editor.SurfaceLibraryViewCommandID},
+	{"view-sheets", editor.SurfaceSheetsViewCommandID},
+	{"view-editor", editor.SurfaceEditorViewCommandID},
 	{"toggle-sidebar", editor.SurfaceSidebarCommandID},
+	{"toggle-sheet-list", editor.SurfaceSheetListCommandID},
 	{"commands", editor.SurfaceCommandsCommandID},
 }
 
@@ -211,8 +222,28 @@ func (a *AppState) closePage() {
 
 func (a *AppState) toggleSidebar() {
 	if a != nil && a.Shell != nil {
+		a.setPresentation(appsettings.PresentationZen, false)
 		a.Shell.ToggleSidebar()
 	}
+}
+
+func (a *AppState) toggleSheetList() {
+	if a != nil && a.Shell != nil {
+		a.setPresentation(appsettings.PresentationZen, false)
+		a.Shell.ToggleSheetList()
+	}
+}
+
+// showPanes shows the library and the sheet list as asked, leaving Zen
+// for either.
+func (a *AppState) showPanes(library, sheets bool) {
+	if a == nil || a.Shell == nil {
+		return
+	}
+	if library || sheets {
+		a.setPresentation(appsettings.PresentationZen, false)
+	}
+	a.Shell.ShowPanes(library, sheets)
 }
 
 func (a *AppState) openCommands() {

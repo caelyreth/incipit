@@ -28,17 +28,36 @@ func (v listView) key() string {
 	return placeKey(v.place)
 }
 
-// SheetListVisible reports whether the sheet list is shown beside the
-// library.
+// SheetListVisible reports whether the sheet list is shown. It goes on
+// its own, with the library or without it; left to the window, it shows
+// when there is room for it beside the library and the page.
 func (s *State) SheetListVisible() bool {
-	return s != nil && s.Library != nil && !s.nav.listClosed && s.SidebarVisible()
+	if s == nil || s.Library == nil || s.Appearance.Zen {
+		return false
+	}
+	if s.SheetListOverride != nil {
+		return *s.SheetListOverride
+	}
+	scale := s.lastUIFontSize
+	if scale <= 0 {
+		scale = theme.DefaultUIFontSize
+	}
+	layout := theme.DefaultLayout
+	return s.lastWidth >= (layout.Narrow+layout.SheetList)*scale/theme.DefaultUIFontSize
 }
 
 // ToggleSheetList shows or hides the sheet list.
 func (s *State) ToggleSheetList() {
 	if s != nil {
-		s.nav.listClosed = !s.nav.listClosed
+		visible := !s.SheetListVisible()
+		s.SheetListOverride = &visible
 	}
+}
+
+// showSheetList shows the sheet list, as choosing what it lists does.
+func (s *State) showSheetList() {
+	visible := true
+	s.SheetListOverride = &visible
 }
 
 // sheetColumn is the sheet list: the chosen place's sheets beside the
@@ -367,11 +386,10 @@ func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal fl
 		return
 	}
 	scale := s.Settings.UIFontSize
-	full := theme.DefaultLayout.SheetList * scale / theme.DefaultUIFontSize
 	view := s.listView()
 	ui.Box(c).Width(width).HeightPercent(100).Shrink(0).Clip().
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
-		ui.Box(c).Width(full).HeightPercent(100).Opacity(reveal).Children(func() {
+		ui.Box(c).WidthPercent(100).HeightPercent(100).Opacity(reveal).Children(func() {
 			layer := ui.Row(c).Key("head-" + view.key()).Absolute().Top(0).Left(0).Right(0).Bottom(0).
 				PaddingStart(theme.Space12.DIPs(scale)).PaddingEnd(theme.Space06.DIPs(scale)).
 				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Transition(fadeTransition(animate))

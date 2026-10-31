@@ -40,6 +40,10 @@ func TestSurfacePolicyMatchesCommandCatalog(t *testing.T) {
 		SurfaceCommandsCommandID,
 		SurfaceFindPageCommandID,
 		SurfaceSidebarCommandID,
+		SurfaceSheetListCommandID,
+		SurfaceLibraryViewCommandID,
+		SurfaceSheetsViewCommandID,
+		SurfaceEditorViewCommandID,
 		SurfaceSettingsCommandID,
 	}
 	if !slices.Equal(policy.Commands, want) {
@@ -117,6 +121,14 @@ func TestSurfaceBindingsPreserveModifiersAndKeys(t *testing.T) {
 			"b",
 			kernel.ModifiersPrimary | kernel.ModifiersAlt,
 		},
+		{
+			SurfaceSheetListCommandID,
+			"l",
+			kernel.ModifiersPrimary | kernel.ModifiersAlt,
+		},
+		{SurfaceLibraryViewCommandID, "1", kernel.ModifiersPrimary},
+		{SurfaceSheetsViewCommandID, "2", kernel.ModifiersPrimary},
+		{SurfaceEditorViewCommandID, "3", kernel.ModifiersPrimary},
 		{SurfaceSettingsCommandID, ",", kernel.ModifiersPrimary},
 	}
 	if len(tests) != len(AllSurfaceCommands) {

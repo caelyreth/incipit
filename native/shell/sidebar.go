@@ -23,8 +23,6 @@ type navigation struct {
 	// moved asks the next frame to start the fade.
 	shown, from listView
 	moved       bool
-	// listClosed hides the sheet list until a place is chosen.
-	listClosed bool
 	// expanded are the groups open in the library's tree.
 	expanded map[string]bool
 	// renaming is the group being named in place, and name its text.
@@ -43,7 +41,7 @@ func (s *State) Place() Place { return s.nav.place }
 
 // Go chooses a place in the library and shows its sheets.
 func (s *State) Go(place Place) {
-	s.nav.listClosed = false
+	s.showSheetList()
 	s.nav.searching = false
 	if place == s.nav.place {
 		return
@@ -55,7 +53,8 @@ func (s *State) Go(place Place) {
 
 // Search shows search in the sheet list, its field focused.
 func (s *State) Search() {
-	s.nav.searching, s.nav.listClosed = true, false
+	s.nav.searching = true
+	s.showSheetList()
 	s.FindPageRequested = true
 	s.disarm()
 }
@@ -178,7 +177,7 @@ func (s *State) placeRow(
 
 // chosen reports the place the sheet list shows.
 func (s *State) chosen(place Place) bool {
-	return !s.nav.searching && !s.nav.listClosed && s.nav.place == place
+	return !s.nav.searching && s.SheetListVisible() && s.nav.place == place
 }
 
 func placeKey(place Place) string {
