@@ -323,6 +323,59 @@ func TestSelectAllStepsOutByScope(t *testing.T) {
 	}
 }
 
+// Generated notation belongs to the block whose text it brackets even when
+// the range Select All chooses leaves that notation out. A caret past an
+// inline mark's closer is still in its block, and in every group that
+// contains that block.
+func TestSelectAllFromGeneratedNotationKeepsSemanticScope(t *testing.T) {
+	steps := func(t *testing.T, session *Session, caret model.UTF16Offset, want ...string) {
+		t.Helper()
+		page := session.Projection().Text()
+		if err := session.SelectProjected(caret, caret); err != nil {
+			t.Fatal(err)
+		}
+		for _, scope := range want {
+			run(t, session, TextSelectAll)
+			selected, err := session.VisualSelection()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := string([]rune(page)[selected.Start:selected.End]); got != scope {
+				t.Fatalf("selected %q, want %q", got, scope)
+			}
+		}
+	}
+
+	t.Run("paragraph", func(t *testing.T) {
+		session := newMarkedSession(t, "inline emphasis", markSpec{start: 0, end: 15, level: 1})
+		page := session.Projection().Text()
+		steps(t, session, model.UTF16Offset(strings.LastIndex(page, "*")+1),
+			"inline emphasis", page)
+	})
+
+	t.Run("list item", func(t *testing.T) {
+		document, blocks, err := NewBlockDocument("alpha\nbeta\ngamma")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+			for _, block := range blocks[:2] {
+				if err := shapeBlock(draft, block, blockShape{kind: BulletNode}); err != nil {
+					return err
+				}
+			}
+			_, err := draft.AddMark(blocks[0], model.NewUTF16Range(0, 5), EmphasisMark, 1)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		session := sessionFor(t, document, blocks[0])
+		page := session.Projection().Text()
+		steps(t, session, model.UTF16Offset(strings.Index(page, "\n")),
+			"alpha", "- *alpha*\n- beta", page)
+	})
+}
+
 // Items nest by two spaces a level, quote lines by quoting again; ordered
 // items count at their own depth, and a nested list starts its own count.
 func TestNestedItemsAndQuotes(t *testing.T) {
@@ -483,11 +536,11 @@ func TestListKindsAreSeparateScopes(t *testing.T) {
 		if err := session.SelectProjected(model.UTF16Offset(at), model.UTF16Offset(at)); err != nil {
 			t.Fatal(err)
 		}
-		for _, scope := range want {
+		for step, scope := range want {
 			run(t, session, TextSelectAll)
 			selected, _ := session.VisualSelection()
 			if got := string([]rune(text)[selected.Start:selected.End]); got != scope {
-				t.Fatalf("selected %q, want %q", got, scope)
+				t.Fatalf("step %d selected %q, want %q", step+1, got, scope)
 			}
 		}
 	}
