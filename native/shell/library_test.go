@@ -493,9 +493,19 @@ func TestNewChapterAppearsBesideNewSheetAndStartsNaming(t *testing.T) {
 	tester.Move(newSheet.X+newSheet.W/2, newSheet.Y+newSheet.H/2)
 	tester.Frame()
 	if !tester.FramePending() {
-		t.Fatal("hovering New sheet did not animate the chapter creator")
+		t.Fatal("hovering New sheet did not wait to reveal the chapter creator")
 	}
-	for range 12 {
+	tester.Advance(dwellOpen - 16*time.Millisecond)
+	tester.Frame()
+	if tester.HasText("New chapter") {
+		t.Fatal("New chapter showed before the hover timeout")
+	}
+	tester.Advance(32 * time.Millisecond)
+	tester.Frame()
+	if !tester.FramePending() {
+		t.Fatal("the chapter creator did not animate open after the hover timeout")
+	}
+	for range 20 {
 		tester.Advance(16 * time.Millisecond)
 		tester.Frame()
 	}
@@ -506,6 +516,9 @@ func TestNewChapterAppearsBesideNewSheetAndStartsNaming(t *testing.T) {
 	}
 	if newChapter.X <= newSheet.X+newSheet.W || abs(newChapter.Y-newSheet.Y) > 0.5 {
 		t.Fatalf("creators do not share the row: sheet %+v chapter %+v", newSheet, newChapter)
+	}
+	if ratio := newChapter.W / (newSheet.W + newChapter.W); abs(ratio-0.4) > 0.04 {
+		t.Fatalf("chapter creator takes %.3f of the row, want 40%%", ratio)
 	}
 
 	if err := tester.Click("New chapter"); err != nil {

@@ -1,7 +1,9 @@
 package shell
 
 import (
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
@@ -24,6 +26,18 @@ func (s *State) createAreaIcon(
 	semantic theme.Theme,
 	key, label string,
 	icon components.IconName,
+	animate bool,
+	action func(),
+) ui.Element {
+	return s.createAreaReveal(c, semantic, key, label, icon, 1, 1, 0, animate, action)
+}
+
+func (s *State) createAreaReveal(
+	c *ui.Context,
+	semantic theme.Theme,
+	key, label string,
+	icon components.IconName,
+	contentReveal, labelReveal, labelShift float32,
 	animate bool,
 	action func(),
 ) ui.Element {
@@ -50,8 +64,9 @@ func (s *State) createAreaIcon(
 	ink := components.Blend(semantic.Text.Muted, semantic.Accent.Foreground, hover)
 	area.Children(func() {
 		ui.Icon(c, icon.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).
-			TextColor(ink).Shrink(0)
-		components.Label(c, label, theme.TextSmall, ink).SingleLine().MinWidth(0)
+			TextColor(ink).Shrink(0).Opacity(contentReveal)
+		components.Label(c, creatorLabel(label), theme.TextSmall, ink).SingleLine().MinWidth(0).
+			Opacity(labelReveal).Translate(labelShift, 0)
 	})
 	if area.Clicked() {
 		action()
@@ -59,8 +74,24 @@ func (s *State) createAreaIcon(
 	return area
 }
 
+func creatorLabel(label string) string {
+	visible := strings.TrimPrefix(label, "New ")
+	if runes := []rune(visible); len(runes) > 0 {
+		runes[0] = unicode.ToUpper(runes[0])
+		visible = string(runes)
+	}
+	return visible
+}
+
+type createPairDwell struct {
+	since time.Time
+	open  bool
+}
+
+type createPairDwellKey struct{}
+
 // createPair calls a chapter divider up beside a sheet creator as the
-// pointer reaches it. Both creators share the row while it is open.
+// pointer rests on it. Both creators share the row while it is open.
 func (s *State) createPair(
 	c *ui.Context,
 	semantic theme.Theme,
@@ -70,20 +101,49 @@ func (s *State) createPair(
 ) ui.Element {
 	scale := s.Settings.UIFontSize
 	pair := ui.Row(c).Key(key + "-pair").WidthPercent(100).Shrink(0)
-	reveal := components.HoverAmount(pair, pair.Hovered(), animate)
+	dwell := *ui.Local(pair, createPairDwellKey{}, func() *createPairDwell {
+		return &createPairDwell{}
+	})
+	now := c.Now()
+	if pair.Hovered() {
+		if !dwell.open {
+			if dwell.since.IsZero() {
+				dwell.since = now
+			}
+			if left := dwellOpen - now.Sub(dwell.since); left > 0 {
+				c.After(left)
+			} else {
+				dwell.open, dwell.since = true, time.Time{}
+			}
+		}
+	} else {
+		dwell.open, dwell.since = false, time.Time{}
+	}
+	target := float32(0)
+	if dwell.open {
+		target = 1
+	}
+	reveal := target
+	if animate {
+		reveal = components.Follow(pair, "chapter-reveal", target, components.MotionNormal)
+	}
+	reveal = max(0, min(reveal, 1))
 	gap := theme.Space06.DIPs(scale) * reveal
-	chapterWidth := max(0, (pair.LayoutBounds().W-gap)/2)
+	chapterWidth := max(0, (pair.LayoutBounds().W-gap)*0.4) * reveal
 	pair.Gap(gap)
+	contentReveal := min(1, reveal*2)
+	labelReveal := components.Smoothstep(max(0, (reveal-0.25)/0.75))
+	labelShift := (1 - labelReveal) * 4 * scale / theme.DefaultUIFontSize
 	pair.Children(func() {
 		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
 			s.createArea(c, semantic, key, "New sheet", animate, sheetAction)
 		})
 		chapter := ui.Box(c).Width(chapterWidth).Shrink(0).Clip().
-			Opacity(reveal).Translate((1-reveal)*4*scale/theme.DefaultUIFontSize, 0).
 			Hidden(reveal <= 0.01)
 		chapter.Children(func() {
-			s.createAreaIcon(
-				c, semantic, key+"-chapter", "New chapter", components.IconMinus, animate, chapterAction,
+			s.createAreaReveal(
+				c, semantic, key+"-chapter", "New chapter", components.IconPlus,
+				contentReveal, labelReveal, labelShift, animate, chapterAction,
 			)
 		})
 	})
