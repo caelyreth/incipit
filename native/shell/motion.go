@@ -60,17 +60,21 @@ func listTransition(animate, size bool) ui.ElementTransition {
 	}
 }
 
+// appearing is a transition that only brings an element in and takes it
+// out. MyGo animates an element's place, size and colors when none of
+// them is chosen, so one choosing nothing would also trail behind every
+// move of its parent, as a pane opening: it chooses colors, which stay.
+func appearing(d time.Duration, enter, exit *ui.Motion) ui.ElementTransition {
+	return ui.ElementTransition{Duration: d, Colors: true, Enter: enter, Exit: exit}
+}
+
 // fadeTransition swaps what stands in one place: the new rises in as the
 // old fades.
 func fadeTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
-	return ui.ElementTransition{
-		Duration: motionPlace,
-		Enter:    &ui.Motion{Y: 6, Opacity: 0},
-		Exit:     &ui.Motion{Opacity: 0},
-	}
+	return appearing(motionPlace, &ui.Motion{Y: 6, Opacity: 0}, &ui.Motion{Opacity: 0})
 }
 
 // swapTransition shows what replaces something in place: the old goes at
@@ -80,7 +84,7 @@ func swapTransition(animate bool, x float32) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
-	return ui.ElementTransition{Duration: motionEnter, Enter: &ui.Motion{Opacity: 0, X: x}}
+	return appearing(motionEnter, &ui.Motion{Opacity: 0, X: x}, nil)
 }
 
 // popTransition lets something small appear and leave where it stands.
@@ -88,11 +92,7 @@ func popTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
-	return ui.ElementTransition{
-		Duration: motionList,
-		Enter:    &ui.Motion{Scale: 0.9, Opacity: 0},
-		Exit:     &ui.Motion{Scale: 0.9, Opacity: 0},
-	}
+	return appearing(motionList, &ui.Motion{Scale: 0.9, Opacity: 0}, &ui.Motion{Scale: 0.9, Opacity: 0})
 }
 
 // unfoldTransition opens something called up in a list, pushing the rows
