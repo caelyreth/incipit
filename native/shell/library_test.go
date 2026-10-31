@@ -337,6 +337,50 @@ func TestAllAndRecentDoNotReorder(t *testing.T) {
 	}
 }
 
+func TestSheetPressScalesTheWholeCardWithoutChangingItsFill(t *testing.T) {
+	state, _ := libraryState()
+	state.ActivePage = "7"
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	chapter, ok := tester.Find("Chapter")
+	if !ok {
+		t.Fatal("Chapter is not in the sheet list")
+	}
+	edgeX, centerY := int(chapter.X+1), int(chapter.Y+chapter.H/2)
+	insideX := int(chapter.X + 4)
+	beforeEdge := tester.Image().RGBAAt(edgeX, centerY)
+	beforeInside := tester.Image().RGBAAt(insideX, centerY)
+	selection := state.Settings.Semantic().Surface.Inset
+	if beforeInside.R != selection.R || beforeInside.G != selection.G || beforeInside.B != selection.B {
+		t.Fatalf("normal selection fill = %v, want %v", beforeInside, selection)
+	}
+
+	tester.Press(chapter.X+chapter.W/2, chapter.Y+chapter.H/2)
+	tester.Frame()
+	if !tester.FramePending() {
+		t.Fatal("pressing the sheet did not animate its card")
+	}
+	for range 12 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+	}
+	pressedEdge := tester.Image().RGBAAt(edgeX, centerY)
+	pressedInside := tester.Image().RGBAAt(insideX, centerY)
+	if pressedEdge == beforeEdge {
+		t.Fatal("the card background stayed at its original bounds while pressing")
+	}
+	if pressedInside != beforeInside {
+		t.Fatalf("press changed the card fill: %v, want %v", pressedInside, beforeInside)
+	}
+
+	tester.Release(chapter.X+chapter.W/2, chapter.Y+chapter.H/2)
+	settle(tester)
+	if got := tester.Image().RGBAAt(edgeX, centerY); got != beforeEdge {
+		t.Fatalf("the card background did not return after release: %v, want %v", got, beforeEdge)
+	}
+}
+
 func TestCreateSheetHoverTargetsTheSpaceBetweenRows(t *testing.T) {
 	state, library := libraryState()
 	library.extraSheets = 1

@@ -607,48 +607,71 @@ func (s *State) sheetRow(
 	trashed := place.Kind == PlaceTrash
 	deleteKey := "delete-sheet-" + sheet.ID
 	confirming := s.nav.armed == deleteKey
-	row := ui.Column(c).Key("sheet-"+sheet.ID).Role(ui.RoleButton).Label(sheet.Title).Selected(selected).
+	row := ui.Column(c).Key("sheet-" + sheet.ID).Role(ui.RoleButton).Label(sheet.Title).Selected(selected).
 		WidthPercent(100).Shrink(0).
-		PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space08.DIPs(scale)).
-		Gap(theme.Space02.DIPs(scale)).
-		Radius(metrics.Radius).Border(1, ui.Transparent).
 		Focusable().FocusRing(false).Transition(s.listRowTransition(animate))
+	// MyGo paints Selected rows in the accent; the shared track or the
+	// card below owns this row's fill.
+	row.Background(ui.Transparent)
 	entering := s.enter(c, row)
 	if selected {
 		track.Mark(row)
 	}
 	hover := components.HoverAmount(row, !selected && row.Hovered(), animate)
-	row.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
-	// A selected row coming in with its list wears its own highlight, so
-	// the two move as one; the list's takes over where the row lands.
-	if selected && entering {
-		track.Hide()
-		row.Background(components.NavigationSelection(c, semantic).Fill)
+	selection := components.NavigationSelection(c, semantic)
+	dragging := row.Dragging()
+	pressTarget := float32(0)
+	if !dragging && row.Pressed() {
+		pressTarget = 1
 	}
-	if row.FocusVisible() {
-		row.Border(1, semantic.Border.Focused)
-	}
+	var card ui.Element
 	row.Children(func() {
-		ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
-			title := semantic.Text.Default
-			if selected {
-				title = semantic.Text.Heading
+		// MyGo only measures children built in this pass as flow content.
+		card = ui.Column(c).Key("sheet-card-"+sheet.ID).
+			WidthPercent(100).Shrink(0).
+			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space08.DIPs(scale)).
+			Gap(theme.Space02.DIPs(scale)).
+			Radius(metrics.Radius).Border(1, ui.Transparent)
+		card.Children(func() {
+			ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
+				title := semantic.Text.Default
+				if selected {
+					title = semantic.Text.Heading
+				}
+				components.Label(c, sheet.Title, theme.TextSmall, title).Grow(1).MinWidth(0).SingleLine()
+				if trashed && confirming {
+					s.confirmButton(c, semantic, deleteKey, "", "Delete", animate, func() { s.Library.DeleteSheet(sheet.ID) })
+				} else {
+					components.Label(c, when(sheet.Updated, now), theme.TextXSmall, semantic.Text.Muted).
+						SingleLine().Shrink(0).FontFeatures("tnum")
+				}
+			})
+			if sheet.Excerpt != "" {
+				components.Label(c, sheet.Excerpt, theme.TextXSmall, semantic.Text.Muted).
+					WidthPercent(100).MaxLines(2)
 			}
-			components.Label(c, sheet.Title, theme.TextSmall, title).Grow(1).MinWidth(0).SingleLine()
-			if trashed && confirming {
-				s.confirmButton(c, semantic, deleteKey, "", "Delete", animate, func() { s.Library.DeleteSheet(sheet.ID) })
-			} else {
-				components.Label(c, when(sheet.Updated, now), theme.TextXSmall, semantic.Text.Muted).
-					SingleLine().Shrink(0).FontFeatures("tnum")
-			}
+			components.Label(c, words(sheet.Words), theme.TextXSmall, semantic.Text.Muted).
+				SingleLine().FontFeatures("tnum").Opacity(0.7)
 		})
-		if sheet.Excerpt != "" {
-			components.Label(c, sheet.Excerpt, theme.TextXSmall, semantic.Text.Muted).
-				WidthPercent(100).MaxLines(2)
-		}
-		components.Label(c, words(sheet.Words), theme.TextXSmall, semantic.Text.Muted).
-			SingleLine().FontFeatures("tnum").Opacity(0.7)
 	})
+	card.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
+	press := pressTarget
+	if animate {
+		press = components.Follow(card, "press", pressTarget, components.MotionQuick)
+	}
+	if dragging {
+		press = 0
+	}
+	if selected && (entering || pressTarget > 0 || press > 0.001) {
+		// The shared highlight cannot shrink with one row. While the card
+		// enters or presses, it owns the same fill so both scale together.
+		track.Hide()
+		card.Background(selection.Fill)
+	}
+	card.Scale(1-0.012*press, 1-0.012*press)
+	if row.FocusVisible() {
+		card.Border(1, semantic.Border.Focused)
+	}
 	if !trashed {
 		row.Drag(sheetDrag{id: sheet.ID})
 	}
