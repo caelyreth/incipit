@@ -37,7 +37,7 @@ func (s *State) View(c *ui.Context) {
 	reveal := openTarget
 	if animate {
 		chrome = components.Follow(root, "shell-chrome", chromeTarget, components.MotionSettle)
-		reveal = components.Follow(root, "sidebar-open", openTarget, components.MotionSettle)
+		reveal = components.Follow(root, "sidebar-open", openTarget, motionReveal)
 	}
 	// A spring may lean a hair past its end on the way back; layout may not.
 	reveal = max(0, min(reveal, 1))

@@ -125,15 +125,6 @@ func (s *State) pageTab(
 	animate bool,
 ) {
 	active := page.ID == s.ActivePage
-	transition := ui.ElementTransition{Duration: 1}
-	if animate {
-		transition = ui.ElementTransition{
-			Duration: components.MotionNormal,
-			Position: true, Size: true,
-			Enter: &ui.Motion{Collapse: true},
-			Exit:  &ui.Motion{Collapse: true},
-		}
-	}
 	tab := components.Tab{
 		Key: "tab-" + page.ID, Title: page.Title, Selected: active,
 		Animate: animate, Icon: components.IconDocument.SVG(),
@@ -145,7 +136,7 @@ func (s *State) pageTab(
 		},
 		OnClose: func() { s.closePage(page.ID) },
 	}.View(c, semantic)
-	tab.Transition(transition).Drag(tabDrag{id: page.ID})
+	tab.Transition(listTransition(animate, true)).Drag(tabDrag{id: page.ID})
 	if _, over := ui.DragOver[tabDrag](tab); over {
 		tab.Border(1, semantic.Border.Focused)
 	}

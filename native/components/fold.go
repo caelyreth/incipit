@@ -1,6 +1,10 @@
 package components
 
-import "github.com/egoist/mygo/ui"
+import (
+	"time"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // Fold opens and closes content in place. Its height follows the content's
 // measured height on a spring, open or not, so what sits below slides rather
@@ -16,6 +20,8 @@ type Fold struct {
 	// that appears on demand does; without it a fold first built open
 	// starts open, as the page it belongs to arrives.
 	Appear bool
+	// Settle is how long it takes to open or close; MotionSettle when zero.
+	Settle time.Duration
 }
 
 type foldState struct {
@@ -43,8 +49,12 @@ func (f Fold) View(c *ui.Context, content func()) float32 {
 			fold.Jump("alpha", 0)
 		}
 	case f.Animate:
-		height = Follow(fold, "height", height, MotionSettle)
-		alpha = Follow(fold, "alpha", alpha, MotionSettle)
+		settle := f.Settle
+		if settle == 0 {
+			settle = MotionSettle
+		}
+		height = Follow(fold, "height", height, settle)
+		alpha = Follow(fold, "alpha", alpha, settle)
 	}
 	if !f.Open && alpha <= 0.001 && st.measured {
 		fold.Height(0)

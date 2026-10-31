@@ -117,7 +117,7 @@ func (s *State) places(c *ui.Context, semantic theme.Theme, width float32, anima
 		if s.nav.moved {
 			stage.Jump("slide", 0)
 		}
-		progress = components.Follow(stage, "slide", 1, components.MotionSettle)
+		progress = components.Follow(stage, "slide", 1, motionPlace)
 	}
 	s.nav.moved = false
 	progress = max(0, min(progress, 1))
@@ -247,7 +247,7 @@ func (s *State) groupTree(c *ui.Context, semantic theme.Theme, parent string, de
 		ui.Column(c).Key("tree-" + group.ID).WidthPercent(100).Transition(rowTransition(animate)).Children(func() {
 			s.groupRow(c, semantic, group, depth, true, animate)
 			if group.HasGroups {
-				components.Fold{Key: "fold", Open: s.nav.expanded[group.ID], Animate: animate}.View(c, func() {
+				components.Fold{Key: "fold", Open: s.nav.expanded[group.ID], Animate: animate, Settle: motionFold}.View(c, func() {
 					s.groupTree(c, semantic, group.ID, depth+1, animate)
 				})
 			}
@@ -258,15 +258,7 @@ func (s *State) groupTree(c *ui.Context, semantic theme.Theme, parent string, de
 // rowTransition moves rows as others come and go, and lets them come and
 // go by opening and closing in place.
 func rowTransition(animate bool) ui.ElementTransition {
-	if !animate {
-		return ui.ElementTransition{Duration: 1}
-	}
-	return ui.ElementTransition{
-		Duration: components.MotionNormal,
-		Position: true,
-		Enter:    &ui.Motion{Collapse: true},
-		Exit:     &ui.Motion{Collapse: true},
-	}
+	return listTransition(animate, false)
 }
 
 func (s *State) groupRow(c *ui.Context, semantic theme.Theme, group GroupItem, depth int, tree bool, animate bool) {
@@ -308,7 +300,7 @@ func (s *State) disclosure(c *ui.Context, semantic theme.Theme, group GroupItem,
 		turn = 90
 	}
 	if animate {
-		turn = components.Follow(toggle, "turn", turn, components.MotionNormal)
+		turn = components.Follow(toggle, "turn", turn, motionTurn)
 	}
 	toggle.Children(func() {
 		if group.HasGroups {
