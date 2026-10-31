@@ -322,9 +322,9 @@ func (s *State) listMenu() func(*ui.Menu) {
 	}
 }
 
-// sheetRows lists sheets under what leading draws. In a group, a sheet
-// dropped on another takes its place, and one dropped below the last goes
-// last.
+// sheetRows lists a place's sheets, and a group's chapter dividers among
+// them, under what leading draws. In a group, an entry dropped on another
+// takes its place, and one dropped below the last goes last.
 //
 // create, where sheets can be made, puts a create area below the last
 // sheet. In a group, where sheets keep the order they are put in, the
@@ -774,6 +774,10 @@ func (s *State) chapterRow(
 		components.Label(c, chapter.Name, theme.TextXSmall, ink).Shrink(0).SingleLine()
 		ui.Box(c).Height(1).Grow(1).Background(line).Opacity(0.7 + 0.3*hover)
 	})
+	if row.FocusVisible() {
+		row.Border(1, semantic.Border.Focused)
+	}
+	row.Drag(chapterDrag{id: chapter.ID})
 	row.ContextMenu(s.chapterMenu(chapter))
 	if row.DoubleClicked() || row.Shortcut(0, ui.KeyEnter) {
 		s.startChapterRename(chapter.ID, chapter.Name)
@@ -791,7 +795,8 @@ func (s *State) renameChapterRow(
 	metrics := theme.DefaultControls.Scaled(scale)
 	row := ui.Row(c).Key("rename-"+chapter.ID).WidthPercent(100).Height(metrics.InlineHeight).
 		PaddingX(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-		Radius(metrics.Radius).Border(1, semantic.Border.Focused).Background(semantic.Surface.Inset)
+		Radius(metrics.Radius).Border(1, semantic.Border.Focused).Background(semantic.Surface.Inset).
+		Transition(s.listRowTransition(animate))
 	row.Children(func() {
 		ui.Box(c).Height(1).Grow(1).Background(semantic.Accent.Foreground).Opacity(0.7)
 		input := ui.TextInputBase(c.Key("name"), &s.nav.name).Grow(1).MinWidth(0).

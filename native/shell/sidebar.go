@@ -455,6 +455,9 @@ func (s *State) dropHighlight(
 	if _, ok := ui.DragOver[tabDrag](row); ok && tabs {
 		over = true
 	}
+	if _, ok := ui.DragOver[chapterDrag](row); ok && sheets {
+		over = true
+	}
 	amount := float32(0)
 	if over {
 		amount = 1
@@ -478,6 +481,9 @@ func (s *State) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, gr
 	}
 	if tab, ok := ui.Drop[tabDrag](row); ok {
 		s.Library.MoveSheet(tab.id, group.ID, end)
+	}
+	if chapter, ok := ui.Drop[chapterDrag](row); ok {
+		s.Library.MoveChapter(chapter.id, group.ID, end)
 	}
 	if dragged, ok := ui.Drop[groupDrag](row); ok && dragged.id != group.ID && !group.Inbox {
 		s.Library.MoveGroup(dragged.id, group.ID, end)

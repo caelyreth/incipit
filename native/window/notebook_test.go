@@ -212,6 +212,12 @@ func TestChaptersAreKeptAndFileTheSheetsBelowThem(t *testing.T) {
 		chapterName(got) != chapter {
 		t.Fatalf("second sheet chapter %q %v", chapterName(got), ok)
 	}
+	app.MoveEntry(first, novel, 2)
+	session, _ = app.sessionOf(first)
+	if got, ok := app.library.SheetChapter(library.SheetID(session.key)); !ok ||
+		chapterName(got) != chapter {
+		t.Fatalf("moved sheet chapter %q %v", chapterName(got), ok)
+	}
 	app.save()
 	if err := app.Close(); err != nil {
 		t.Fatal(err)
@@ -220,7 +226,8 @@ func TestChaptersAreKeptAndFileTheSheetsBelowThem(t *testing.T) {
 	app = openNotebookApp(t, root)
 	defer app.Close()
 	entries = app.Entries(novel)
-	if len(entries) != 3 || entries[1].Title != "Act One" || entries[1].ID != chapter {
+	if len(entries) != 3 || entries[0].Title != "Act One" || entries[0].ID != chapter ||
+		entries[2].ID != first {
 		t.Fatalf("chapters after reopening %+v", entries)
 	}
 }

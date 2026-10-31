@@ -144,10 +144,16 @@ const (
 // sheetDrag is a sheet dragged in the sidebar or onto it.
 type sheetDrag struct{ id string }
 
-// sheetMove is a sheet or tab being inserted into a sheet list.
+// chapterDrag is a chapter divider dragged in a sheet list.
+type chapterDrag struct{ id string }
+
+// sheetMove is a sheet, tab or chapter inserted into a sheet list.
 type sheetMove interface{ sheetMoveID() string }
 
 func (d sheetDrag) sheetMoveID() string { return d.id }
+func (d chapterDrag) sheetMoveID() string {
+	return d.id
+}
 
 // groupDrag is a group dragged in the sidebar.
 type groupDrag struct{ id string }

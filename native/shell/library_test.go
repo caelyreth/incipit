@@ -295,6 +295,50 @@ func TestSheetDragMovesAnItemToTheBottom(t *testing.T) {
 	}
 }
 
+func TestChapterDragReordersTheDivider(t *testing.T) {
+	state, library := libraryState()
+	library.entries = []GroupEntry{
+		{Kind: EntrySheet, ID: "7", Title: "Chapter", Sheet: SheetItem{ID: "7", Title: "Chapter"}},
+		{
+			Kind: EntryChapter, ID: "chapter:9", Title: "Part One",
+			Chapter: ChapterItem{ID: "chapter:9", Name: "Part One"},
+		},
+		{Kind: EntrySheet, ID: "8", Title: "After", Sheet: SheetItem{ID: "8", Title: "After"}},
+	}
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	divider, ok := tester.Find("Part One")
+	if !ok {
+		t.Fatal("Part One is not in the sheet list")
+	}
+	last, ok := tester.Find("After")
+	if !ok {
+		t.Fatal("After is not in the sheet list")
+	}
+	x := divider.X + divider.W/2
+	tester.Press(x, divider.Y+divider.H/2)
+	tester.Move(x, divider.Y+divider.H/2+10)
+	tester.Frame()
+	tester.Move(x, last.Y+last.H+8)
+	tester.Frame()
+	if state.nav.sheetDropSlot != 3 || !state.nav.sheetDropVisible {
+		t.Fatalf("chapter drop = slot %d visible %v",
+			state.nav.sheetDropSlot, state.nav.sheetDropVisible)
+	}
+	if !tester.FramePending() {
+		t.Fatal("the chapter drag did not animate the placeholder")
+	}
+	tester.Release(x, last.Y+last.H+8)
+	settle(tester)
+	if len(library.moves) != 1 {
+		t.Fatalf("chapter moves = %#v", library.moves)
+	}
+	if move := library.moves[0]; move.id != "chapter:9" || move.group != "2" || move.index != 2 {
+		t.Fatalf("chapter move = %#v, want the divider at the bottom", move)
+	}
+}
+
 func TestAllAndRecentCreateAtTheTopInTheInbox(t *testing.T) {
 	for _, place := range []Place{{Kind: PlaceAll}, {Kind: PlaceRecent}} {
 		t.Run(fmt.Sprint("place-", place.Kind), func(t *testing.T) {
@@ -572,8 +616,15 @@ func (f *fakeLibrary) DuplicateSheet(id string) { f.call("duplicate " + id) }
 func (f *fakeLibrary) MoveSheet(id, group string, index int) {
 	f.call("move " + id + " to " + group)
 	f.moves = append(f.moves, sheetMoveCall{id: id, group: group, index: index})
+	f.moveEntry(id, index)
 }
 func (f *fakeLibrary) MoveEntry(id, group string, index int) {
+	if slices.ContainsFunc(f.entries, func(entry GroupEntry) bool {
+		return entry.ID == id && entry.Kind == EntryChapter
+	}) {
+		f.MoveChapter(id, group, index)
+		return
+	}
 	f.MoveSheet(id, group, index)
 }
 func (f *fakeLibrary) TrashSheet(id string)   { f.call("trash " + id) }
