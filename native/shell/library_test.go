@@ -331,3 +331,34 @@ func TestTheLibraryAndTheSheetListOpenOnTheirOwn(t *testing.T) {
 		t.Fatalf("the list did not come back alone: %#v", tester.Texts())
 	}
 }
+
+func TestThePlacesAreChipsThatWidenWhenChosen(t *testing.T) {
+	state, library := libraryState()
+	tester := ui.NewTester(state.View, 1260, 850)
+	state.Go(Place{Kind: PlaceAll})
+	settle(tester)
+	all, _ := tester.Find("All")
+	recent, _ := tester.Find("Last 7 Days")
+	if all.W <= recent.W*2 || !tester.HasText("All") {
+		t.Fatalf("the chosen chip is not the wide one: %+v %+v", all, recent)
+	}
+	if err := tester.Click("Last 7 Days"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	all, _ = tester.Find("All")
+	recent, _ = tester.Find("Last 7 Days")
+	if state.Place().Kind != PlaceRecent || recent.W <= all.W*2 {
+		t.Fatalf("choosing a chip did not widen it: %+v %+v", all, recent)
+	}
+	if err := tester.RightClick("Inbox"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tester.ChooseMenuItem("New Sheet"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !slices.Contains(library.calls, "new sheet 1") || state.Place() != (Place{Kind: PlaceGroup, Group: "1"}) {
+		t.Fatalf("the Inbox chip's menu: %v %+v", library.calls, state.Place())
+	}
+}

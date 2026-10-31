@@ -110,15 +110,7 @@ func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 		list := ui.Column(c).Gap(theme.Space02.DIPs(scale))
 		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
 		list.Children(func() {
-			for _, group := range s.Library.Groups("") {
-				if group.Inbox {
-					s.groupRow(c, semantic, group, 0, false, track, animate)
-				}
-			}
-			s.placeRow(c, semantic, Place{Kind: PlaceAll}, "All", components.IconSheets,
-				len(s.Library.Sheets(Place{Kind: PlaceAll})), track, animate)
-			s.placeRow(c, semantic, Place{Kind: PlaceRecent}, "Last 7 Days", components.IconClock,
-				len(s.Library.Sheets(Place{Kind: PlaceRecent})), track, animate)
+			s.placeChips(c, semantic, animate)
 			s.groupsLabel(c, semantic, animate)
 			s.groupTree(c, semantic, "", 0, track, animate)
 			if len(s.Library.Groups("")) <= 1 {
