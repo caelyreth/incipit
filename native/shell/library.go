@@ -50,6 +50,31 @@ type SheetItem struct {
 	Words   int
 }
 
+// GroupEntryKind is what a group's ordered list holds at one position.
+type GroupEntryKind uint8
+
+const (
+	// EntrySheet is a sheet in a group's list.
+	EntrySheet GroupEntryKind = iota
+	// EntryChapter is a chapter divider in a group's list.
+	EntryChapter
+)
+
+// ChapterItem is a chapter divider as the sheet list shows it.
+type ChapterItem struct {
+	ID   string
+	Name string
+}
+
+// GroupEntry is one item in a group's ordered list.
+type GroupEntry struct {
+	Kind    GroupEntryKind
+	ID      string
+	Title   string
+	Sheet   SheetItem
+	Chapter ChapterItem
+}
+
 // MoveTarget is a group a sheet or group can be moved into.
 type MoveTarget struct {
 	ID    string
@@ -65,6 +90,9 @@ type Library interface {
 	// Parent is the group a group is in, "" at the top level.
 	Parent(group string) string
 	Sheets(place Place) []SheetItem
+	// Entries is a group's sheets and chapter dividers in their shared
+	// order.
+	Entries(group string) []GroupEntry
 	// Search is the sheets out of the trash whose text holds query.
 	Search(query string) []SheetItem
 	// TrashedGroups is the groups put in the trash themselves.
@@ -73,15 +101,24 @@ type Library interface {
 	Targets() []MoveTarget
 	// SheetGroup is the group a sheet is filed in.
 	SheetGroup(sheet string) string
+	// EntryGroup is the group a sheet or chapter is filed in.
+	EntryGroup(entry string) string
 
 	// NewSheet makes a sheet at index in group, as MoveSheet places one.
 	NewSheet(group string, index int)
+	// NewChapter makes a chapter divider at index and returns it, for
+	// naming.
+	NewChapter(group string, index int) string
 	OpenSheet(id string, newTab bool)
 	DuplicateSheet(id string)
 	MoveSheet(id, group string, index int)
+	MoveEntry(id, group string, index int)
 	TrashSheet(id string)
 	RestoreSheet(id string)
 	DeleteSheet(id string)
+	RenameChapter(id, name string)
+	MoveChapter(id, group string, index int)
+	DeleteChapter(id string)
 
 	// NewGroup makes a group at index in parent and returns it, for
 	// naming.

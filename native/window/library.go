@@ -37,6 +37,21 @@ func groupOf(name string) library.GroupID {
 	return library.GroupID(id)
 }
 
+const chapterPrefix = "chapter:"
+
+func chapterName(id library.ChapterID) string {
+	return chapterPrefix + strconv.FormatInt(int64(id), 10)
+}
+
+func chapterOf(name string) (library.ChapterID, bool) {
+	raw, ok := strings.CutPrefix(name, chapterPrefix)
+	if !ok {
+		return 0, false
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	return library.ChapterID(id), err == nil
+}
+
 // sessionOf is the session a shell's sheet name names.
 func (a *AppState) sessionOf(name string) (*sheetSession, bool) {
 	id, err := strconv.Atoi(name)
@@ -184,6 +199,36 @@ func (a *AppState) Sheets(place shell.Place) []shell.SheetItem {
 	return nil
 }
 
+// Entries is part of shell.Library.
+func (a *AppState) Entries(group string) []shell.GroupEntry {
+	groupID := groupOf(group)
+	if _, ok := a.library.Group(groupID); !ok || a.library.GroupInTrash(groupID) {
+		return nil
+	}
+	var entries []shell.GroupEntry
+	for _, entry := range a.library.Entries(groupID) {
+		if entry.IsChapter() {
+			chapter, _ := a.library.Chapter(entry.Chapter)
+			id := chapterName(chapter.ID)
+			entries = append(entries, shell.GroupEntry{
+				Kind: shell.EntryChapter, ID: id, Title: chapter.Name,
+				Chapter: shell.ChapterItem{ID: id, Name: chapter.Name},
+			})
+			continue
+		}
+		sheet, _ := a.library.Sheet(entry.Sheet)
+		items := a.sheetItems([]library.Sheet{sheet})
+		if len(items) == 0 {
+			continue
+		}
+		item := items[0]
+		entries = append(entries, shell.GroupEntry{
+			Kind: shell.EntrySheet, ID: item.ID, Title: item.Title, Sheet: item,
+		})
+	}
+	return entries
+}
+
 // Search is part of shell.Library.
 func (a *AppState) Search(query string) []shell.SheetItem {
 	query = strings.ToLower(query)
@@ -237,6 +282,18 @@ func (a *AppState) SheetGroup(name string) string {
 	return groupName(sheet.Group)
 }
 
+// EntryGroup is part of shell.Library.
+func (a *AppState) EntryGroup(name string) string {
+	if chapter, ok := chapterOf(name); ok {
+		item, found := a.library.Chapter(chapter)
+		if !found {
+			return ""
+		}
+		return groupName(item.Group)
+	}
+	return a.SheetGroup(name)
+}
+
 // NewSheet is part of shell.Library: an empty sheet at index in a group,
 // the Inbox for none, open in a tab of its own.
 func (a *AppState) NewSheet(group string, index int) {
@@ -256,6 +313,25 @@ func (a *AppState) NewSheet(group string, index int) {
 	}
 	a.selectMounted()
 	a.libraryChanged()
+}
+
+// NewChapter is part of shell.Library.
+func (a *AppState) NewChapter(group string, index int) string {
+	target := groupOf(group)
+	if target == 0 || a.library.GroupInTrash(target) {
+		target = library.Inbox
+	}
+	id, err := a.library.AddChapter(target, "")
+	if err != nil {
+		a.fail(err)
+		return ""
+	}
+	if err := a.library.MoveChapter(id, target, index); err != nil {
+		a.fail(err)
+		return ""
+	}
+	a.libraryChanged()
+	return chapterName(id)
 }
 
 // OpenSheet is part of shell.Library: a sheet opens in the tab in front,
@@ -336,6 +412,52 @@ func (a *AppState) MoveSheet(name, group string, index int) {
 	target := groupOf(group)
 	sheet, _ := a.library.Sheet(library.SheetID(session.key))
 	if err := a.library.MoveSheet(sheet.ID, target, index); err != nil {
+		a.fail(err)
+		return
+	}
+	a.libraryChanged()
+}
+
+// MoveEntry is part of shell.Library.
+func (a *AppState) MoveEntry(name, group string, index int) {
+	if _, ok := chapterOf(name); ok {
+		a.MoveChapter(name, group, index)
+		return
+	}
+	a.MoveSheet(name, group, index)
+}
+
+// RenameChapter is part of shell.Library.
+func (a *AppState) RenameChapter(id, name string) {
+	chapter, ok := chapterOf(id)
+	if !ok {
+		return
+	}
+	if err := a.library.RenameChapter(chapter, name); err == nil {
+		a.libraryChanged()
+	}
+}
+
+// MoveChapter is part of shell.Library.
+func (a *AppState) MoveChapter(id, group string, index int) {
+	chapter, ok := chapterOf(id)
+	if !ok {
+		return
+	}
+	if err := a.library.MoveChapter(chapter, groupOf(group), index); err != nil {
+		a.fail(err)
+		return
+	}
+	a.libraryChanged()
+}
+
+// DeleteChapter is part of shell.Library.
+func (a *AppState) DeleteChapter(id string) {
+	chapter, ok := chapterOf(id)
+	if !ok {
+		return
+	}
+	if err := a.library.DeleteChapter(chapter); err != nil {
 		a.fail(err)
 		return
 	}

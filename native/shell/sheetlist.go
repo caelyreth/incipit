@@ -200,13 +200,22 @@ func (s *State) listLayer(c *ui.Context, semantic theme.Theme, view listView, an
 }
 
 func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, animate bool) {
-	sheets := s.Library.Sheets(place)
+	var entries []GroupEntry
+	if place.Kind == PlaceGroup {
+		entries = s.Library.Entries(place.Group)
+	} else {
+		entries = sheetEntries(s.Library.Sheets(place))
+	}
 	group := place.Group
 	if place.Kind != PlaceGroup {
 		group = s.CurrentGroup()
 	}
 	create := func(index int) { s.Library.NewSheet(group, index) }
-	if len(sheets) == 0 {
+	var createChapter func(index int)
+	if place.Kind == PlaceGroup {
+		createChapter = func(index int) { s.newChapter(group, index) }
+	}
+	if len(entries) == 0 {
 		text, icon := "Nothing changed in the last seven days", components.IconClock
 		switch place.Kind {
 		case PlaceAll:
@@ -215,38 +224,54 @@ func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, anim
 			group, _ := s.Library.Group(place.Group)
 			text, icon = "No sheets in "+group.Name, groupIcon(group)
 		}
-		s.emptyList(c, semantic, icon, text, create, animate)
+		s.emptyList(c, semantic, icon, text, create, createChapter, animate)
 		return
 	}
-	s.sheetRows(c, semantic, sheets, place, nil, create, place.Kind != PlaceGroup, animate)
+	s.sheetRows(c, semantic, entries, place, nil, create, createChapter, place.Kind != PlaceGroup, animate)
+}
+
+func sheetEntries(sheets []SheetItem) []GroupEntry {
+	entries := make([]GroupEntry, 0, len(sheets))
+	for _, sheet := range sheets {
+		entries = append(entries, GroupEntry{
+			Kind: EntrySheet, ID: sheet.ID, Title: sheet.Title, Sheet: sheet,
+		})
+	}
+	return entries
+}
+
+func (s *State) newChapter(group string, index int) {
+	if id := s.Library.NewChapter(group, index); id != "" {
+		s.startChapterRename(id, "Untitled Chapter")
+	}
 }
 
 func (s *State) trashList(c *ui.Context, semantic theme.Theme, animate bool) {
 	groups := s.Library.TrashedGroups()
 	sheets := s.Library.Sheets(Place{Kind: PlaceTrash})
 	if len(groups) == 0 && len(sheets) == 0 {
-		s.emptyList(c, semantic, components.IconTrash, "The trash is empty", nil, animate)
+		s.emptyList(c, semantic, components.IconTrash, "The trash is empty", nil, nil, animate)
 		return
 	}
-	s.sheetRows(c, semantic, sheets, Place{Kind: PlaceTrash}, func(track *components.SelectionTrack) {
+	s.sheetRows(c, semantic, sheetEntries(sheets), Place{Kind: PlaceTrash}, func(track *components.SelectionTrack) {
 		for _, group := range groups {
 			s.trashedGroupRow(c, semantic, group, animate)
 		}
-	}, nil, false, animate)
+	}, nil, nil, false, animate)
 }
 
 func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
 	query := strings.TrimSpace(s.PageQuery)
 	if query == "" {
-		s.emptyList(c, semantic, components.IconSearch, "Search the words of every sheet", nil, animate)
+		s.emptyList(c, semantic, components.IconSearch, "Search the words of every sheet", nil, nil, animate)
 		return
 	}
 	sheets := s.Library.Search(query)
 	if len(sheets) == 0 {
-		s.emptyList(c, semantic, components.IconSearch, "No sheets hold “"+query+"”", nil, animate)
+		s.emptyList(c, semantic, components.IconSearch, "No sheets hold “"+query+"”", nil, nil, animate)
 		return
 	}
-	s.sheetRows(c, semantic, sheets, Place{Kind: PlaceAll}, nil, nil, false, animate)
+	s.sheetRows(c, semantic, sheetEntries(sheets), Place{Kind: PlaceAll}, nil, nil, nil, false, animate)
 }
 
 // emptyList says there is nothing to list, quietly, with the area that
@@ -257,6 +282,7 @@ func (s *State) emptyList(
 	icon components.IconName,
 	text string,
 	create func(index int),
+	createChapter func(index int),
 	animate bool,
 ) {
 	scale := s.Settings.UIFontSize
@@ -271,8 +297,16 @@ func (s *State) emptyList(
 			TextColor(semantic.Icon.Muted).Opacity(0.35)
 		components.Label(c, text, theme.TextSmall, semantic.Text.Muted).TextAlign(ui.Center)
 		if create != nil {
-			s.createArea(c, semantic, "new-sheet", "New sheet", animate, func() { create(Last) }).
-				MaxWidth(180*scale/theme.DefaultUIFontSize).Margin(theme.Space08.DIPs(scale), 0, 0, 0)
+			if createChapter != nil {
+				s.createPair(
+					c, semantic, "empty-create", animate,
+					func() { create(Last) }, func() { createChapter(Last) },
+				).
+					MaxWidth(360*scale/theme.DefaultUIFontSize).Margin(theme.Space08.DIPs(scale), 0, 0, 0)
+			} else {
+				area := s.createArea(c, semantic, "new-sheet", "New sheet", animate, func() { create(Last) })
+				area.MaxWidth(180*scale/theme.DefaultUIFontSize).Margin(theme.Space08.DIPs(scale), 0, 0, 0)
+			}
 		}
 	}).ContextMenu(s.listMenu())
 }
@@ -281,6 +315,9 @@ func (s *State) listMenu() func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if m.Item("New Sheet").Chosen() {
 			s.Library.NewSheet(s.CurrentGroup(), Last)
+		}
+		if s.nav.place.Kind == PlaceGroup && m.Item("New Chapter").Chosen() {
+			s.newChapter(s.nav.place.Group, Last)
 		}
 	}
 }
@@ -296,10 +333,11 @@ func (s *State) listMenu() func(*ui.Menu) {
 func (s *State) sheetRows(
 	c *ui.Context,
 	semantic theme.Theme,
-	sheets []SheetItem,
+	entries []GroupEntry,
 	place Place,
 	leading func(*components.SelectionTrack),
 	create func(index int),
+	createChapter func(index int),
 	createAtTop bool,
 	animate bool,
 ) {
@@ -333,10 +371,10 @@ func (s *State) sheetRows(
 		dragging = ordered && dragging
 		dropSlot := s.nav.sheetDropSlot
 		if dragging {
-			slot, height := s.sheetDropPlan(list, sheets, dragged)
+			slot, height := s.sheetDropPlan(list, entries, dragged)
 			dropSlot = slot
 			s.nav.sheetDropSlot = slot
-			if _, moves := s.reorderSlot(dragged.sheetMoveID(), place.Group, slot, sheets); moves {
+			if _, moves := s.reorderSlot(dragged.sheetMoveID(), place.Group, slot, entries); moves {
 				s.nav.sheetDropHeight = height
 				s.nav.sheetDropVisible = true
 			} else {
@@ -358,7 +396,7 @@ func (s *State) sheetRows(
 		}
 		at, open := s.nav.sheetsGap.follow(c, near)
 		open = open && ordered && !dragging
-		rows := make([]ui.Element, 0, len(sheets))
+		rows := make([]ui.Element, 0, len(entries))
 		list.Children(func() {
 			if create != nil && createAtTop {
 				area := s.createArea(c, semantic, "new-sheet", "New sheet", animate, func() { create(Last) })
@@ -367,15 +405,25 @@ func (s *State) sheetRows(
 			if leading != nil {
 				leading(track)
 			}
-			for index, sheet := range sheets {
+			for index, entry := range entries {
 				if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == index {
 					s.sheetDropPlaceholder(c, semantic, dragging, animate)
 				}
 				if open && at == index {
-					area := s.createArea(c, semantic, "new-sheet-at-"+sheet.ID, "New sheet", animate, func() {
+					sheetAction := func() {
 						s.nav.sheetsGap.use()
 						create(index)
-					}).Transition(unfoldTransition(animate))
+					}
+					var area ui.Element
+					if createChapter != nil {
+						area = s.createPair(c, semantic, "gap-create-"+entry.ID, animate, sheetAction, func() {
+							s.nav.sheetsGap.use()
+							createChapter(index)
+						})
+					} else {
+						area = s.createArea(c, semantic, "new-sheet-at-"+entry.ID, "New sheet", animate, sheetAction)
+					}
+					area.Transition(unfoldTransition(animate))
 					if at > 0 {
 						// Reach into the gap's proximity band so the pointer
 						// is already over the area as it unfolds.
@@ -384,7 +432,12 @@ func (s *State) sheetRows(
 					}
 					s.nav.sheetsGap.hold(area)
 				}
-				row := s.sheetRow(c, semantic, sheet, index, place, track, now, animate)
+				var row ui.Element
+				if entry.Kind == EntryChapter {
+					row = s.chapterRow(c, semantic, entry.Chapter, animate)
+				} else {
+					row = s.sheetRow(c, semantic, entry.Sheet, index, place, track, now, animate)
+				}
 				rows = append(rows, row)
 			}
 			if ordered && !dragging {
@@ -394,21 +447,29 @@ func (s *State) sheetRows(
 					s.nav.sheetsNear = s.sheetCreateGap(list, rows)
 				}
 			}
-			if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == len(sheets) {
+			if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == len(entries) {
 				s.sheetDropPlaceholder(c, semantic, dragging, animate)
 			}
 			if create != nil && !createAtTop {
-				area := s.createArea(c, semantic, "new-sheet", "New sheet", animate, func() { create(Last) })
+				var area ui.Element
+				if createChapter != nil {
+					area = s.createPair(
+						c, semantic, "bottom-create", animate,
+						func() { create(Last) }, func() { createChapter(Last) },
+					)
+				} else {
+					area = s.createArea(c, semantic, "new-sheet", "New sheet", animate, func() { create(Last) })
+				}
 				s.enter(c, area.Transition(s.listRowTransition(animate)))
 			}
 			if ordered {
 				// Keep the pre-placeholder geometry for the whole drag:
 				// moving rows must not chase the pointer into a new slot.
 				if !dragging && !s.nav.sheetDropVisible {
-					s.trackSheetDropRows(list, sheets, rows)
+					s.trackSheetDropRows(list, entries, rows)
 				}
 				if moved, ok := ui.Drop[sheetMove](list); ok {
-					s.moveSheetToSlot(moved.sheetMoveID(), place.Group, dropSlot, sheets)
+					s.moveSheetToSlot(moved.sheetMoveID(), place.Group, dropSlot, entries)
 				}
 			}
 		})
@@ -459,14 +520,14 @@ func (s *State) sheetCreateGap(list ui.Element, rows []ui.Element) int {
 // and keeps the dragged row's height for the in-flow placeholder.
 func (s *State) sheetDropPlan(
 	list ui.Element,
-	sheets []SheetItem,
+	entries []GroupEntry,
 	dragged sheetMove,
 ) (slot int, height float32) {
-	slot = len(sheets)
+	slot = len(entries)
 	_, pointerY, over := list.PointerPosition()
 	if over {
-		for index, sheet := range sheets {
-			span, ok := s.sheetDropSpan(sheet.ID)
+		for index, entry := range entries {
+			span, ok := s.sheetDropSpan(entry.ID)
 			if !ok {
 				continue
 			}
@@ -481,8 +542,8 @@ func (s *State) sheetDropPlan(
 			height = span.height
 		}
 	}
-	if height <= 0 && slot < len(sheets) {
-		if span, ok := s.sheetDropSpan(sheets[slot].ID); ok {
+	if height <= 0 && slot < len(entries) {
+		if span, ok := s.sheetDropSpan(entries[slot].ID); ok {
 			height = span.height
 		}
 	}
@@ -503,13 +564,13 @@ func (s *State) sheetDropSpan(id string) (sheetDropSpan, bool) {
 
 // trackSheetDropRows keeps the row geometry the next frame uses to choose
 // an insertion slot.
-func (s *State) trackSheetDropRows(list ui.Element, sheets []SheetItem, rows []ui.Element) {
+func (s *State) trackSheetDropRows(list ui.Element, entries []GroupEntry, rows []ui.Element) {
 	listTop := list.LayoutBounds().Y
 	spans := make([]sheetDropSpan, 0, len(rows))
 	for index, row := range rows {
 		bounds := row.LayoutBounds()
 		spans = append(spans, sheetDropSpan{
-			id:     sheets[index].ID,
+			id:     entries[index].ID,
 			top:    bounds.Y - listTop,
 			height: bounds.H,
 		})
@@ -561,17 +622,17 @@ func (s *State) sheetDropPlaceholder(
 func (s *State) reorderSlot(
 	id, group string,
 	slot int,
-	sheets []SheetItem,
+	entries []GroupEntry,
 ) (int, bool) {
 	if id == "" {
 		return 0, false
 	}
-	if s.Library.SheetGroup(id) != group {
+	if s.Library.EntryGroup(id) != group {
 		return slot, true
 	}
 	source := -1
-	for index, sheet := range sheets {
-		if sheet.ID == id {
+	for index, entry := range entries {
+		if entry.ID == id {
 			source = index
 			break
 		}
@@ -585,9 +646,9 @@ func (s *State) reorderSlot(
 	return slot, true
 }
 
-func (s *State) moveSheetToSlot(id, group string, slot int, sheets []SheetItem) {
-	if target, ok := s.reorderSlot(id, group, slot, sheets); ok {
-		s.Library.MoveSheet(id, group, target)
+func (s *State) moveSheetToSlot(id, group string, slot int, entries []GroupEntry) {
+	if target, ok := s.reorderSlot(id, group, slot, entries); ok {
+		s.Library.MoveEntry(id, group, target)
 	}
 }
 
@@ -680,6 +741,91 @@ func (s *State) sheetRow(
 		s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Cmd != 0)
 	}
 	return row
+}
+
+func (s *State) startChapterRename(id, name string) {
+	s.nav.renaming, s.nav.name = id, name
+}
+
+// chapterRow is a divider in a group's ordered list. Its sheets are those
+// below it, up to the next divider.
+func (s *State) chapterRow(
+	c *ui.Context,
+	semantic theme.Theme,
+	chapter ChapterItem,
+	animate bool,
+) ui.Element {
+	if s.nav.renaming == chapter.ID {
+		return s.renameChapterRow(c, semantic, chapter, animate)
+	}
+	scale := s.Settings.UIFontSize
+	metrics := theme.DefaultControls.Scaled(scale)
+	row := ui.Row(c).Key("chapter-" + chapter.ID).Role(ui.RoleButton).Label(chapter.Name).
+		WidthPercent(100).Height(metrics.InlineHeight).Shrink(0).
+		PaddingX(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+		Radius(metrics.Radius).Focusable().FocusRing(false).Transition(s.listRowTransition(animate))
+	s.enter(c, row)
+	hover := components.HoverAmount(row, row.Hovered() || row.FocusVisible(), animate)
+	row.Background(components.Blend(ui.Transparent, semantic.GhostElement.Hover, 0.55*hover))
+	line := components.Blend(semantic.Border.Default, semantic.Accent.Foreground, hover)
+	ink := components.Blend(semantic.Text.Muted, semantic.Text.Heading, hover)
+	row.Children(func() {
+		ui.Box(c).Height(1).Grow(1).Background(line).Opacity(0.7 + 0.3*hover)
+		components.Label(c, chapter.Name, theme.TextXSmall, ink).Shrink(0).SingleLine()
+		ui.Box(c).Height(1).Grow(1).Background(line).Opacity(0.7 + 0.3*hover)
+	})
+	row.ContextMenu(s.chapterMenu(chapter))
+	if row.DoubleClicked() || row.Shortcut(0, ui.KeyEnter) {
+		s.startChapterRename(chapter.ID, chapter.Name)
+	}
+	return row
+}
+
+func (s *State) renameChapterRow(
+	c *ui.Context,
+	semantic theme.Theme,
+	chapter ChapterItem,
+	animate bool,
+) ui.Element {
+	scale := s.Settings.UIFontSize
+	metrics := theme.DefaultControls.Scaled(scale)
+	row := ui.Row(c).Key("rename-"+chapter.ID).WidthPercent(100).Height(metrics.InlineHeight).
+		PaddingX(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+		Radius(metrics.Radius).Border(1, semantic.Border.Focused).Background(semantic.Surface.Inset)
+	row.Children(func() {
+		ui.Box(c).Height(1).Grow(1).Background(semantic.Accent.Foreground).Opacity(0.7)
+		input := ui.TextInputBase(c.Key("name"), &s.nav.name).Grow(1).MinWidth(0).
+			Font(theme.UIFontFamily).FontSize(theme.TextSmall.Size(scale)).
+			FixedLineHeight(theme.TextSmall.LineHeight(scale)).
+			TextColor(semantic.Text.Heading).Label("Chapter name")
+		input.AutoFocus()
+		focused := ui.Local(input, "was-focused", func() bool { return false })
+		if !*focused && input.Focused() {
+			input.SetTextSelection(0, len([]rune(s.nav.name)))
+		}
+		switch {
+		case input.Shortcut(0, ui.KeyEscape):
+			s.nav.renaming = ""
+		case input.Submitted(), *focused && !input.Focused():
+			s.nav.renaming = ""
+			s.Library.RenameChapter(chapter.ID, s.nav.name)
+		}
+		*focused = input.Focused()
+		ui.Box(c).Height(1).Grow(1).Background(semantic.Accent.Foreground).Opacity(0.7)
+	})
+	return row
+}
+
+func (s *State) chapterMenu(chapter ChapterItem) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		if m.Item("Rename…").Chosen() {
+			s.startChapterRename(chapter.ID, chapter.Name)
+		}
+		m.Separator()
+		if m.Item("Remove Chapter").Chosen() {
+			s.Library.DeleteChapter(chapter.ID)
+		}
+	}
 }
 
 // trashedGroupRow is a group in the trash, with what it would take with it.

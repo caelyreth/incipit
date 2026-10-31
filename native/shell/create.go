@@ -16,6 +16,17 @@ const Last = 1 << 30
 // for a button that makes things, so what is made comes in beside the
 // pointer that made it.
 func (s *State) createArea(c *ui.Context, semantic theme.Theme, key, label string, animate bool, action func()) ui.Element {
+	return s.createAreaIcon(c, semantic, key, label, components.IconPlus, animate, action)
+}
+
+func (s *State) createAreaIcon(
+	c *ui.Context,
+	semantic theme.Theme,
+	key, label string,
+	icon components.IconName,
+	animate bool,
+	action func(),
+) ui.Element {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	area := ui.ButtonBase(c.Key(key)).Label(label).
@@ -38,7 +49,7 @@ func (s *State) createArea(c *ui.Context, semantic theme.Theme, key, label strin
 		Draw(func(p *ui.Painter, r ui.Rect) { components.DashedOutline(p, r, metrics.Radius, 1, line) })
 	ink := components.Blend(semantic.Text.Muted, semantic.Accent.Foreground, hover)
 	area.Children(func() {
-		ui.Icon(c, components.IconPlus.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).
+		ui.Icon(c, icon.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).
 			TextColor(ink).Shrink(0)
 		components.Label(c, label, theme.TextSmall, ink).SingleLine().MinWidth(0)
 	})
@@ -46,6 +57,37 @@ func (s *State) createArea(c *ui.Context, semantic theme.Theme, key, label strin
 		action()
 	}
 	return area
+}
+
+// createPair calls a chapter divider up beside a sheet creator as the
+// pointer reaches it. Both creators share the row while it is open.
+func (s *State) createPair(
+	c *ui.Context,
+	semantic theme.Theme,
+	key string,
+	animate bool,
+	sheetAction, chapterAction func(),
+) ui.Element {
+	scale := s.Settings.UIFontSize
+	pair := ui.Row(c).Key(key + "-pair").WidthPercent(100).Shrink(0)
+	reveal := components.HoverAmount(pair, pair.Hovered(), animate)
+	gap := theme.Space06.DIPs(scale) * reveal
+	chapterWidth := max(0, (pair.LayoutBounds().W-gap)/2)
+	pair.Gap(gap)
+	pair.Children(func() {
+		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
+			s.createArea(c, semantic, key, "New sheet", animate, sheetAction)
+		})
+		chapter := ui.Box(c).Width(chapterWidth).Shrink(0).Clip().
+			Opacity(reveal).Translate((1-reveal)*4*scale/theme.DefaultUIFontSize, 0).
+			Hidden(reveal <= 0.01)
+		chapter.Children(func() {
+			s.createAreaIcon(
+				c, semantic, key+"-chapter", "New chapter", components.IconMinus, animate, chapterAction,
+			)
+		})
+	})
+	return pair
 }
 
 // gap is a place in a list where a create area is called up: the pointer

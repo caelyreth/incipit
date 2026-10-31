@@ -17,6 +17,8 @@ type fakeLibrary struct {
 	extraSheets int
 	recentSheet bool
 	moves       []sheetMoveCall
+	entries     []GroupEntry
+	chapterNo   int
 }
 
 type sheetMoveCall struct {
@@ -69,6 +71,19 @@ func (f *fakeLibrary) Sheets(place Place) []SheetItem {
 		return []SheetItem{{ID: "9", Title: "Scrap"}}
 	}
 	return nil
+}
+
+func (f *fakeLibrary) Entries(group string) []GroupEntry {
+	if f.entries != nil {
+		return f.entries
+	}
+	var entries []GroupEntry
+	for _, sheet := range f.Sheets(Place{Kind: PlaceGroup, Group: group}) {
+		entries = append(entries, GroupEntry{
+			Kind: EntrySheet, ID: sheet.ID, Title: sheet.Title, Sheet: sheet,
+		})
+	}
+	return entries
 }
 
 func TestLibraryListsPullPastTheirEdges(t *testing.T) {
@@ -408,9 +423,109 @@ func TestCreateSheetHoverTargetsTheSpaceBetweenRows(t *testing.T) {
 	}
 	// The area reaches into the gap's proximity band, so the pointer can
 	// click where it came to rest.
-	tester.ClickAt(x, y)
+	area, ok := tester.Find("New sheet")
+	if !ok {
+		t.Fatal("the gap's New sheet did not open")
+	}
+	tester.ClickAt(area.X+area.W/2, area.Y+area.H/2)
 	if !slices.Contains(library.calls, "new sheet 2 1") {
 		t.Fatalf("gap click did not create in place: %v", library.calls)
+	}
+}
+
+func TestNewChapterAppearsBesideNewSheetAndStartsNaming(t *testing.T) {
+	state, library := libraryState()
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	newSheet, ok := tester.Find("New sheet")
+	if !ok {
+		t.Fatal("New sheet is not shown")
+	}
+	if tester.HasText("New chapter") {
+		t.Fatal("New chapter showed before the creator was hovered")
+	}
+
+	tester.Move(newSheet.X+newSheet.W/2, newSheet.Y+newSheet.H/2)
+	tester.Frame()
+	if !tester.FramePending() {
+		t.Fatal("hovering New sheet did not animate the chapter creator")
+	}
+	for range 12 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+	}
+	newSheet, _ = tester.Find("New sheet")
+	newChapter, ok := tester.Find("New chapter")
+	if !ok {
+		t.Fatal("New chapter did not open beside New sheet")
+	}
+	if newChapter.X <= newSheet.X+newSheet.W || abs(newChapter.Y-newSheet.Y) > 0.5 {
+		t.Fatalf("creators do not share the row: sheet %+v chapter %+v", newSheet, newChapter)
+	}
+
+	if err := tester.Click("New chapter"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !slices.Contains(library.calls, fmt.Sprint("new chapter 2 ", Last)) {
+		t.Fatalf("new chapter calls %v", library.calls)
+	}
+	if _, ok := tester.Find("Chapter name"); !ok {
+		t.Fatalf("new chapter did not start naming: %#v", tester.Texts())
+	}
+	tester.Type("Act One")
+	tester.Key(0, ui.KeyEnter)
+	tester.Frame()
+	if !slices.Contains(library.calls, "rename chapter chapter:1 Act One") {
+		t.Fatalf("chapter rename calls %v", library.calls)
+	}
+}
+
+func TestChapterDividersRenameInPlace(t *testing.T) {
+	state, library := libraryState()
+	library.entries = []GroupEntry{
+		{Kind: EntrySheet, ID: "7", Title: "Chapter", Sheet: SheetItem{ID: "7", Title: "Chapter"}},
+		{
+			Kind: EntryChapter, ID: "chapter:9", Title: "Interlude",
+			Chapter: ChapterItem{ID: "chapter:9", Name: "Interlude"},
+		},
+		{Kind: EntrySheet, ID: "8", Title: "After", Sheet: SheetItem{ID: "8", Title: "After"}},
+	}
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	at, ok := tester.Find("Interlude")
+	if !ok {
+		t.Fatal("chapter divider is not shown")
+	}
+	tester.ClickAt(at.X+at.W/2, at.Y+at.H/2)
+	tester.ClickAt(at.X+at.W/2, at.Y+at.H/2)
+	tester.Frame()
+	if _, ok := tester.Find("Chapter name"); !ok {
+		t.Fatalf("double-clicking the divider did not name it: %#v", tester.Texts())
+	}
+	tester.Type("Act Two")
+	tester.Key(0, ui.KeyEnter)
+	tester.Frame()
+	if !slices.Contains(library.calls, "rename chapter chapter:9 Act Two") {
+		t.Fatalf("chapter rename calls %v", library.calls)
+	}
+
+	if err := tester.RightClick("Act Two"); err != nil {
+		t.Fatal(err)
+	}
+	menu := tester.Menu()
+	for _, item := range []string{"Rename…", "Remove Chapter"} {
+		if !slices.Contains(menu, item) {
+			t.Fatalf("chapter menu %v lacks %q", menu, item)
+		}
+	}
+	if err := tester.ChooseMenuItem("Remove Chapter"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(library.calls, "delete chapter chapter:9") {
+		t.Fatalf("chapter removal calls %v", library.calls)
 	}
 }
 
@@ -426,9 +541,25 @@ func (f *fakeLibrary) Targets() []MoveTarget {
 	return []MoveTarget{{ID: "1", Name: "Inbox"}, {ID: "2", Name: "Novel"}}
 }
 func (f *fakeLibrary) SheetGroup(string) string { return "2" }
+func (f *fakeLibrary) EntryGroup(string) string { return "2" }
 
 func (f *fakeLibrary) NewSheet(group string, index int) {
 	f.call(fmt.Sprint("new sheet ", group, " ", index))
+}
+func (f *fakeLibrary) NewChapter(group string, index int) string {
+	f.chapterNo++
+	id := fmt.Sprintf("chapter:%d", f.chapterNo)
+	f.call(fmt.Sprint("new chapter ", group, " ", index))
+	if f.entries == nil {
+		f.entries = append([]GroupEntry(nil), f.Entries(group)...)
+	}
+	entry := GroupEntry{
+		Kind: EntryChapter, ID: id, Title: "Untitled Chapter",
+		Chapter: ChapterItem{ID: id, Name: "Untitled Chapter"},
+	}
+	index = max(0, min(index, len(f.entries)))
+	f.entries = slices.Insert(f.entries, index, entry)
+	return id
 }
 func (f *fakeLibrary) OpenSheet(id string, newTab bool) {
 	if newTab {
@@ -442,9 +573,42 @@ func (f *fakeLibrary) MoveSheet(id, group string, index int) {
 	f.call("move " + id + " to " + group)
 	f.moves = append(f.moves, sheetMoveCall{id: id, group: group, index: index})
 }
+func (f *fakeLibrary) MoveEntry(id, group string, index int) {
+	f.MoveSheet(id, group, index)
+}
 func (f *fakeLibrary) TrashSheet(id string)   { f.call("trash " + id) }
 func (f *fakeLibrary) RestoreSheet(id string) { f.call("restore " + id) }
 func (f *fakeLibrary) DeleteSheet(id string)  { f.call("delete " + id) }
+func (f *fakeLibrary) RenameChapter(id, name string) {
+	f.call("rename chapter " + id + " " + name)
+	for index := range f.entries {
+		if f.entries[index].ID == id {
+			f.entries[index].Title, f.entries[index].Chapter.Name = name, name
+		}
+	}
+}
+func (f *fakeLibrary) MoveChapter(id, group string, index int) {
+	f.call("move chapter " + id + " to " + group)
+	f.moves = append(f.moves, sheetMoveCall{id: id, group: group, index: index})
+	f.moveEntry(id, index)
+}
+func (f *fakeLibrary) DeleteChapter(id string) {
+	f.call("delete chapter " + id)
+	f.entries = slices.DeleteFunc(f.entries, func(entry GroupEntry) bool { return entry.ID == id })
+}
+
+func (f *fakeLibrary) moveEntry(id string, index int) {
+	if f.entries == nil {
+		return
+	}
+	source := slices.IndexFunc(f.entries, func(entry GroupEntry) bool { return entry.ID == id })
+	if source < 0 {
+		return
+	}
+	entry := f.entries[source]
+	f.entries = slices.Delete(f.entries, source, source+1)
+	f.entries = slices.Insert(f.entries, max(0, min(index, len(f.entries))), entry)
+}
 func (f *fakeLibrary) NewGroup(parent string, index int) string {
 	f.call(fmt.Sprint("new group ", parent, " ", index))
 	return "2"

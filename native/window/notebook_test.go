@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/editor"
@@ -185,5 +186,41 @@ func TestTheLibraryIsKeptAndItsTrashEmptied(t *testing.T) {
 	}
 	if len(app.Workspace.Pages()) != 1 {
 		t.Fatalf("%d pages on disk after emptying the trash", len(app.Workspace.Pages()))
+	}
+}
+
+func TestChaptersAreKeptAndFileTheSheetsBelowThem(t *testing.T) {
+	root := t.TempDir()
+	app := openNotebookApp(t, root)
+	novel := app.NewGroup("", shell.Last)
+	app.RenameGroup(novel, "Novel")
+	app.NewSheet(novel, shell.Last)
+	first := app.Shell.ActivePage
+	app.NewSheet(novel, shell.Last)
+	second := app.Shell.ActivePage
+	chapter := app.NewChapter(novel, 1)
+	app.RenameChapter(chapter, "Act One")
+
+	entries := app.Entries(novel)
+	if len(entries) != 3 || entries[0].ID != first ||
+		entries[1].Kind != shell.EntryChapter || entries[1].ID != chapter ||
+		entries[2].ID != second {
+		t.Fatalf("novel entries %+v", entries)
+	}
+	session, _ := app.sessionOf(second)
+	if got, ok := app.library.SheetChapter(library.SheetID(session.key)); !ok ||
+		chapterName(got) != chapter {
+		t.Fatalf("second sheet chapter %q %v", chapterName(got), ok)
+	}
+	app.save()
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	app = openNotebookApp(t, root)
+	defer app.Close()
+	entries = app.Entries(novel)
+	if len(entries) != 3 || entries[1].Title != "Act One" || entries[1].ID != chapter {
+		t.Fatalf("chapters after reopening %+v", entries)
 	}
 }

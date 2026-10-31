@@ -491,6 +491,10 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 			s.Go(Place{Kind: PlaceGroup, Group: group.ID})
 			s.Library.NewSheet(group.ID, Last)
 		}
+		if m.Item("New Chapter").Chosen() {
+			s.Go(Place{Kind: PlaceGroup, Group: group.ID})
+			s.newChapter(group.ID, Last)
+		}
 		if group.Inbox {
 			return
 		}
