@@ -14,11 +14,13 @@ const (
 	selectionFade  = float32(24)
 )
 
-// SelectionStyle is how a list paints its shared selection highlight.
+// SelectionStyle is how a list paints its shared selection highlight, and
+// Picked the rows picked together (Pick).
 type SelectionStyle struct {
 	Fill   ui.Color
 	Border ui.Color
 	Radius float32
+	Picked ui.Color
 }
 
 // SelectionTrack is a list's shared selection highlight: one background
@@ -36,6 +38,8 @@ type SelectionTrack struct {
 	axes    [4]motion.Spring
 	opacity motion.Spring
 	started bool
+
+	picks []pickedRow
 }
 
 type selectionKey struct{}
@@ -48,8 +52,10 @@ func TrackSelection(list ui.Element, style SelectionStyle, animate bool) *Select
 	})
 	track.list = list.LayoutBounds()
 	track.marked, track.known, track.hidden, track.animate = false, false, false, animate
+	track.picks = track.picks[:0]
 	list.Draw(func(p *ui.Painter, rect ui.Rect) {
 		track.paint(p, rect, style)
+		track.paintPicks(p, rect, style)
 	})
 	return track
 }

@@ -30,6 +30,7 @@ func NavigationSelection(c *ui.Context, semantic theme.Theme) SelectionStyle {
 	return SelectionStyle{
 		Fill:   semantic.Surface.Inset,
 		Radius: theme.DefaultControls.Scaled(UIFontSize(c)).Radius,
+		Picked: semantic.Accent.Muted,
 	}
 }
 
