@@ -562,7 +562,7 @@ func (s *State) placeInfo(semantic theme.Theme, place Place) (title string, icon
 	detail = sheetCount(len(sheets))
 	switch place.Kind {
 	case PlaceRecent:
-		title, icon = "Last 7 Days", components.IconClock
+		title, icon = "Recent", components.IconClock
 	case PlaceTrash:
 		title, icon = "Trash", components.IconTrash
 		detail = itemCount(len(sheets) + len(s.Library.TrashedGroups()))

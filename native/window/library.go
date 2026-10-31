@@ -20,7 +20,7 @@ import (
 // the library calls sheets, by their notebook keys, and names them to the
 // shell by their page identities.
 
-// recent is how far back Last 7 Days looks.
+// recent is how far back Recent looks.
 const recent = 7 * 24 * time.Hour
 
 func sheetName(id workspace.PageID) string { return strconv.Itoa(int(id)) }

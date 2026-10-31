@@ -146,6 +146,19 @@ func (s *State) wordmark(c *ui.Context, semantic theme.Theme) {
 
 func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
+	// The chips and the section title stand above the scrolling groups.
+	s.placeChips(c, semantic, animate)
+	label := s.groupsLabel(c, semantic, animate)
+	none := len(s.Library.Groups("")) <= 1
+	// Resting on the heading calls up an area at the head of the groups.
+	_, _, near := label.PointerPosition()
+	at := -1
+	if near {
+		at = 0
+	}
+	_, topOpen := s.nav.groupsTop.follow(c, at)
+	topOpen = topOpen && !none
+
 	scroll := ui.Scroll(c).Grow(1).MinHeight(0).TrackScroll(&s.libraryScroll)
 	scroll = components.BindOverscroll(
 		scroll,
@@ -160,17 +173,7 @@ func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 		s.libraryOverscroll.Apply(c, list, animate)
 		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
 		list.Children(func() {
-			s.placeChips(c, semantic, animate)
-			label := s.groupsLabel(c, semantic, animate)
-			none := len(s.Library.Groups("")) <= 1
-			// Resting on the heading calls up a second area there, for a
-			// group at the top.
-			_, _, near := label.PointerPosition()
-			at := -1
-			if near {
-				at = 0
-			}
-			if _, open := s.nav.groupsTop.follow(c, at); open && !none {
+			if topOpen {
 				s.nav.groupsTop.hold(s.createArea(c, semantic, "new-group-top", "New group", animate, func() {
 					s.nav.groupsTop.use()
 					s.startRename(s.Library.NewGroup("", 0))

@@ -125,6 +125,41 @@ func TestLibraryListsPullPastTheirEdges(t *testing.T) {
 	})
 }
 
+func TestSidebarKeepsChipsAndGroupsHeadingAboveTheScroll(t *testing.T) {
+	state, library := libraryState()
+	library.extraGroups = 40
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	placesBefore, ok := tester.Find("Places")
+	if !ok {
+		t.Fatal("chip strip is not in the sidebar")
+	}
+	headingBefore, ok := tester.Find("Groups")
+	if !ok {
+		t.Fatal("groups heading is not in the sidebar")
+	}
+	novelBefore, ok := tester.Find("Novel")
+	if !ok {
+		t.Fatal("group rows are not in the sidebar")
+	}
+
+	tester.Scroll(100, 500, 0, 100000)
+	tester.Frame()
+	placesAfter, _ := tester.Find("Places")
+	headingAfter, _ := tester.Find("Groups")
+	novelAfter, novelShown := tester.Find("Novel")
+	novelShown = novelShown && novelAfter.H > 0
+	if placesAfter != placesBefore {
+		t.Fatalf("chip strip moved with the groups: %+v then %+v", placesBefore, placesAfter)
+	}
+	if headingAfter != headingBefore {
+		t.Fatalf("groups heading moved with the rows: %+v then %+v", headingBefore, headingAfter)
+	}
+	if state.libraryScroll.Y <= 0 || novelShown && novelAfter.Y >= novelBefore.Y {
+		t.Fatalf("group rows did not scroll: %+v then %+v", novelBefore, novelAfter)
+	}
+}
+
 func (f *fakeLibrary) Search(query string) []SheetItem {
 	f.call("search " + query)
 	return []SheetItem{{ID: "7", Title: "Chapter"}}
@@ -190,12 +225,12 @@ func TestChoosingAPlaceShowsItsSheetsBesideTheLibrary(t *testing.T) {
 	texts := tester.Texts()
 	texts = texts[slices.Index(texts, "Inbox"):]
 	at := func(text string) int { return slices.Index(texts, text) }
-	for _, text := range []string{"Inbox", "All", "Last 7 Days", "Groups", "Novel", "Trash", "Draft"} {
+	for _, text := range []string{"Inbox", "All", "Recent", "Groups", "Novel", "Trash", "Draft"} {
 		if at(text) < 0 {
 			t.Fatalf("lacks %q: %#v", text, texts)
 		}
 	}
-	if !(at("Inbox") < at("All") && at("Last 7 Days") < at("Groups") && at("Groups") < at("Novel")) {
+	if !(at("Inbox") < at("All") && at("Recent") < at("Groups") && at("Groups") < at("Novel")) {
 		t.Fatalf("the Inbox is not on top, apart from the groups: %#v", texts)
 	}
 	if err := tester.Click("Novel"); err != nil {
@@ -393,7 +428,7 @@ func TestTheLibraryAndTheSheetListOpenOnTheirOwn(t *testing.T) {
 	} {
 		state.ShowPanes(panes.library, panes.sheets)
 		settle(tester)
-		if tester.HasText("Last 7 Days") != panes.library || tester.HasText("Draft") != panes.sheets {
+		if tester.HasText("Recent") != panes.library || tester.HasText("Draft") != panes.sheets {
 			t.Fatalf("panes %+v: %#v", panes, tester.Texts())
 		}
 	}
@@ -421,16 +456,16 @@ func TestThePlacesAreChipsThatWidenWhenChosen(t *testing.T) {
 	state.Go(Place{Kind: PlaceAll})
 	settle(tester)
 	all, _ := tester.Find("All")
-	recent, _ := tester.Find("Last 7 Days")
+	recent, _ := tester.Find("Recent")
 	if all.W <= recent.W*2 || !tester.HasText("All") {
 		t.Fatalf("the chosen chip is not the wide one: %+v %+v", all, recent)
 	}
-	if err := tester.Click("Last 7 Days"); err != nil {
+	if err := tester.Click("Recent"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
 	all, _ = tester.Find("All")
-	recent, _ = tester.Find("Last 7 Days")
+	recent, _ = tester.Find("Recent")
 	if state.Place().Kind != PlaceRecent || recent.W <= all.W*2 {
 		t.Fatalf("choosing a chip did not widen it: %+v %+v", all, recent)
 	}
