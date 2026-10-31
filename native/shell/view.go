@@ -69,14 +69,18 @@ func (s *State) View(c *ui.Context) {
 	s.takeFlight(listReveal, chrome, animate)
 
 	s.noteView(c, animate)
+	// Every pane and line here is keyed. A pane that is closed is left out,
+	// and MyGo knows an element without a key by its place among its
+	// siblings: those after a pane that went would be taken for new ones,
+	// their state and motion lost, as the list's highlight and the tabs were.
 	root.Children(func() {
 		if chrome > 0.001 {
 			s.header(c, semantic, metrics, layout, bar, chrome, reveal, listWidth, listReveal)
 		}
-		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+		ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
 			s.sheetColumn(c, semantic, listWidth, listReveal)
-			ui.Column(c).Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
+			ui.Column(c).Key("editor").Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
 				s.document(c, semantic, metrics, layout)
 				if chrome > 0.001 {
 					s.footer(c, semantic, metrics, layout, chrome)

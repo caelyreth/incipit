@@ -100,7 +100,7 @@ func (s *State) sidebar(
 	scale := s.Settings.UIFontSize
 	fullWidth := theme.DefaultLayout.Sidebar * scale / theme.DefaultUIFontSize
 	animate := s.animate(c)
-	ui.Column(c).Width(width).HeightPercent(100).Shrink(0).Clip().
+	ui.Column(c).Key("library").Width(width).HeightPercent(100).Shrink(0).Clip().
 		Background(semantic.Surface.Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
 		ui.Column(c).Width(fullWidth).HeightPercent(100).Opacity(reveal).

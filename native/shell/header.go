@@ -31,13 +31,13 @@ func (s *State) header(
 	listWidth = max(0, listWidth-(leadingWidth-libraryWidth))
 	animate := s.animate(c)
 
-	ui.Row(c).Height(height).Opacity(chrome).Clip().AlignItems(ui.Center).
+	ui.Row(c).Key("header").Height(height).Opacity(chrome).Clip().AlignItems(ui.Center).
 		Background(semantic.Surface.Background).DragWindow().Children(func() {
 		// The library's line: search, then the library's toggle at its
 		// end. Search leaves with the library, closing up as it goes, so
 		// the toggle slides to the end of what is left and stays put.
 		// Groups and sheets are made in the lists, where they come in.
-		leading := ui.Row(c).Width(leadingWidth).HeightPercent(100).Shrink(0).
+		leading := ui.Row(c).Key("library-line").Width(leadingWidth).HeightPercent(100).Shrink(0).
 			// With the library closed the sheet list's toggle sits beside
 			// this one, as search does: the end closes in to their gap.
 			PaddingStart(left).
@@ -72,7 +72,7 @@ func (s *State) header(
 
 		s.pageTabs(c, semantic, metrics, height, animate)
 
-		ui.Row(c).HeightPercent(100).Shrink(0).PaddingEnd(right).
+		ui.Row(c).Key("tools").HeightPercent(100).Shrink(0).PaddingEnd(right).
 			AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Children(func() {
 			components.IconButton{
 				Key: "new-page", Label: "New page", Icon: components.IconPlus.SVG(),
@@ -121,7 +121,7 @@ func (s *State) pageTabs(
 	activeChanged := s.lastActive != s.ActivePage
 	// The free tab line is the title bar's: it drags the window, and a
 	// double click on it zooms, as on any title bar.
-	scroll := ui.ScrollHorizontal(c).Grow(1).MinWidth(0).Height(height).
+	scroll := ui.ScrollHorizontal(c).Key("tabs").Grow(1).MinWidth(0).Height(height).
 		TrackScroll(&s.TabsScroll).DragWindow()
 	scroll.Children(func() {
 		ui.Row(c).Role(ui.RoleTabList).Label("Open sheets").FocusGroup(ui.Horizontal).DragWindow().

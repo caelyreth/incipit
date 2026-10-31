@@ -69,7 +69,7 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal f
 	scale := s.Settings.UIFontSize
 	full := theme.DefaultLayout.SheetList * scale / theme.DefaultUIFontSize
 	animate := s.animate(c)
-	ui.Column(c).Width(width).HeightPercent(100).Shrink(0).Clip().
+	ui.Column(c).Key("sheets").Width(width).HeightPercent(100).Shrink(0).Clip().
 		Background(semantic.Surface.Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
 		ui.Column(c).Width(full).HeightPercent(100).Opacity(reveal).Children(func() {
@@ -144,7 +144,7 @@ func (s *State) side(from, to listView) float32 {
 // more so where they share sheets. Its rows come in instead (enter).
 func (s *State) listStage(c *ui.Context, semantic theme.Theme, animate bool) {
 	view := s.listView()
-	ui.Box(c).Grow(1).MinHeight(0).WidthPercent(100).Clip().Children(func() {
+	ui.Box(c).Key("list-stage").Grow(1).MinHeight(0).WidthPercent(100).Clip().Children(func() {
 		s.listLayer(c, semantic, view, animate)
 	})
 }
@@ -503,7 +503,7 @@ func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal fl
 	}
 	scale := s.Settings.UIFontSize
 	view := s.listView()
-	ui.Box(c).Width(width).HeightPercent(100).Shrink(0).Clip().
+	ui.Box(c).Key("sheets-line").Width(width).HeightPercent(100).Shrink(0).Clip().
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
 		ui.Box(c).WidthPercent(100).HeightPercent(100).Opacity(reveal).Children(func() {
 			// Where the place's title has gone down to the list, the line
