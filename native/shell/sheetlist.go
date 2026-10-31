@@ -152,24 +152,26 @@ func (s *State) listStage(c *ui.Context, semantic theme.Theme, animate bool) {
 // enter brings in the next row of a list just shown: each slides in from
 // the side the place lies on and fades in a moment after the one above, so
 // the place arrives top down; with no side, as for search, it rises.
-func (s *State) enter(c *ui.Context, row ui.Element) {
+// It reports whether the row is still on its way.
+func (s *State) enter(c *ui.Context, row ui.Element) bool {
 	rank := min(s.nav.rank, enterRanks)
 	s.nav.rank++
 	if s.nav.shownAt.IsZero() {
-		return
+		return false
 	}
 	t := float32(c.Now().Sub(s.nav.shownAt)-time.Duration(rank)*enterStagger) / float32(motionEnter)
 	if t >= 1 {
-		return
+		return false
 	}
 	c.AnimationFrame()
 	p := components.Decelerate(max(0, t))
 	k := (1 - p) * s.Settings.UIFontSize / theme.DefaultUIFontSize
 	if s.nav.side != 0 {
 		row.Opacity(p).Translate(s.nav.side*enterSlide*k, 0)
-		return
+		return true
 	}
 	row.Opacity(p).Translate(0, enterRise*k)
+	return true
 }
 
 // listRowTransition is rowTransition, but rows that arrive with the list
@@ -365,12 +367,18 @@ func (s *State) sheetRow(
 		Gap(theme.Space02.DIPs(scale)).
 		Radius(metrics.Radius).Border(1, ui.Transparent).
 		Focusable().FocusRing(false).Transition(s.listRowTransition(animate))
-	s.enter(c, row)
+	entering := s.enter(c, row)
 	if selected {
 		track.Mark(row)
 	}
 	hover := components.HoverAmount(row, !selected && row.Hovered(), animate)
 	row.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
+	// A selected row coming in with its list wears its own highlight, so
+	// the two move as one; the list's takes over where the row lands.
+	if selected && entering {
+		track.Hide()
+		row.Background(components.NavigationSelection(c, semantic).Fill)
+	}
 	if row.FocusVisible() {
 		row.Border(1, semantic.Border.Focused)
 	}

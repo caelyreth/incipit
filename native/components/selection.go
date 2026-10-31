@@ -30,6 +30,7 @@ type SelectionTrack struct {
 	target  ui.Rect
 	marked  bool
 	known   bool
+	hidden  bool
 	animate bool
 
 	axes    [4]motion.Spring
@@ -46,7 +47,7 @@ func TrackSelection(list ui.Element, style SelectionStyle, animate bool) *Select
 		return &SelectionTrack{}
 	})
 	track.list = list.LayoutBounds()
-	track.marked, track.known, track.animate = false, false, animate
+	track.marked, track.known, track.hidden, track.animate = false, false, false, animate
 	list.Draw(func(p *ui.Painter, rect ui.Rect) {
 		track.paint(p, rect, style)
 	})
@@ -69,6 +70,15 @@ func (t *SelectionTrack) Mark(row ui.Element) {
 		W: bounds.W, H: bounds.H,
 	}
 	t.known = true
+}
+
+// Hide keeps the highlight from showing this frame while it keeps up with
+// the selected row, for a row that draws its own as it comes in: when the
+// row has arrived the highlight is there already, with nothing to fade.
+func (t *SelectionTrack) Hide() {
+	if t != nil {
+		t.hidden = true
+	}
 }
 
 // Opacity is the highlight's current fade, for tests and callers that
@@ -106,6 +116,13 @@ func (t *SelectionTrack) paint(p *ui.Painter, rect ui.Rect, style SelectionStyle
 		}
 		t.place(t.target, 0, now)
 		t.started = true
+	}
+	if t.hidden {
+		// The row shows its own; this one waits where the row lands, full.
+		if visible {
+			t.place(t.target, 1, now)
+		}
+		return
 	}
 	if visible && t.opacity.Target() < 1 {
 		if t.opacity.Value() <= 0.01 {
