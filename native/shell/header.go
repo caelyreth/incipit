@@ -185,6 +185,7 @@ func (s *State) pageTab(
 		OnClose: func() { s.closePage(page.ID) },
 	}.View(c, semantic)
 	tab.Transition(listTransition(animate, true)).Drag(tabDrag{id: page.ID})
+	s.dragging(tab)
 	s.dropHighlight(c, semantic, tab, true, false, true, animate)
 	if dragged, ok := ui.Drop[tabDrag](tab); ok && dragged.id != page.ID && s.MoveTab != nil {
 		s.MoveTab(dragged.id, index)

@@ -1087,3 +1087,50 @@ func TestTheSheetListSlidesFromTheSideOfItsPlace(t *testing.T) {
 		t.Fatalf("going down to a group came from %v", state.nav.side)
 	}
 }
+
+// A row dropped at the head of a list leaves the pointer by its top: the
+// create area there waits a while after the drop before its rest counts.
+func TestADropDoesNotCallUpACreateArea(t *testing.T) {
+	state, library := libraryState()
+	library.entries = []GroupEntry{
+		{Kind: EntrySheet, ID: "7", Title: "First", Sheet: SheetItem{ID: "7", Title: "First"}},
+		{Kind: EntrySheet, ID: "8", Title: "Second", Sheet: SheetItem{ID: "8", Title: "Second"}},
+		{Kind: EntrySheet, ID: "9", Title: "Third", Sheet: SheetItem{ID: "9", Title: "Third"}},
+	}
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	count := func() int {
+		n := 0
+		for _, shown := range tester.Texts() {
+			if shown == "New sheet" {
+				n++
+			}
+		}
+		return n
+	}
+	areas := count()
+	first, _ := tester.Find("First")
+	third, _ := tester.Find("Third")
+	x := third.X + third.W/2
+	tester.Press(x, third.Y+third.H/2)
+	tester.Move(x, third.Y+third.H/2-10)
+	tester.Frame()
+	tester.Move(x, first.Y+6)
+	tester.Frame()
+	tester.Release(x, first.Y+6)
+	if len(library.moves) != 1 || library.moves[0].id != "9" || library.moves[0].index != 0 {
+		t.Fatalf("moves = %#v, want Third at the top", library.moves)
+	}
+	for elapsed := time.Duration(0); elapsed < dropQuiet+dwellOpen-50*time.Millisecond; elapsed += 50 * time.Millisecond {
+		tester.Advance(50 * time.Millisecond)
+		tester.Frame()
+		if count() != areas {
+			t.Fatalf("a create area opened %v after the drop", elapsed)
+		}
+	}
+	settle(tester)
+	if count() <= areas {
+		t.Fatalf("resting by the top opened nothing after the quiet: %#v", tester.Texts())
+	}
+}

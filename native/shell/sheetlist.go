@@ -85,17 +85,34 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal f
 func (s *State) noteView(c *ui.Context, animate bool) {
 	s.nav.fresh, s.nav.rank = false, 0
 	view := s.listView()
-	if s.Library == nil || view == s.nav.shown {
-		return
+	if s.Library != nil && view != s.nav.shown {
+		s.nav.side = s.side(s.nav.shown, view)
+		s.nav.shown, s.nav.fresh, s.nav.shownAt = view, true, time.Time{}
+		s.nav.sheetsGap, s.nav.sheetsNear = gap{}, -1
+		s.nav.sheetDropSlot, s.nav.sheetDropHeight = -1, 0
+		s.nav.sheetDropVisible, s.nav.sheetDropRows = false, nil
+		if animate {
+			s.nav.shownAt = c.Now()
+		}
 	}
-	s.nav.side = s.side(s.nav.shown, view)
-	s.nav.shown, s.nav.fresh, s.nav.shownAt = view, true, time.Time{}
-	s.nav.sheetsGap, s.nav.sheetsNear = gap{}, -1
-	s.nav.sheetDropSlot, s.nav.sheetDropHeight = -1, 0
-	s.nav.sheetDropVisible, s.nav.sheetDropRows = false, nil
-	if animate {
-		s.nav.shownAt = c.Now()
+	// A row was dragged last frame: the create areas stay shut until a
+	// while after the drag ends, wherever it dropped.
+	if s.nav.dragged {
+		s.nav.dragged = false
+		until := c.Now().Add(dropQuiet)
+		s.nav.sheetsGap.hush(until)
+		s.nav.groupsTop.hush(until)
 	}
+}
+
+// dragging reports whether row is being dragged, and notes it for the
+// create areas.
+func (s *State) dragging(row ui.Element) bool {
+	if row.Dragging() {
+		s.nav.dragged = true
+		return true
+	}
+	return false
 }
 
 // side is where a list comes in from as the list goes from one view to
@@ -680,7 +697,7 @@ func (s *State) sheetRow(
 	}
 	hover := components.HoverAmount(row, !selected && row.Hovered(), animate)
 	selection := components.NavigationSelection(c, semantic)
-	dragging := row.Dragging()
+	dragging := s.dragging(row)
 	pressTarget := float32(0)
 	if !dragging && row.Pressed() {
 		pressTarget = 1
@@ -780,7 +797,7 @@ func (s *State) chapterRow(
 		Role(ui.RoleButton).Label(chapter.Name).Focusable().FocusRing(false)
 	s.enter(c, row)
 	hover := components.HoverAmount(row, row.Hovered() || row.FocusVisible(), animate)
-	dragging := row.Dragging()
+	dragging := s.dragging(row)
 	pressTarget := float32(0)
 	if !dragging && row.Pressed() {
 		pressTarget = 1

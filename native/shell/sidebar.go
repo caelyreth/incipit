@@ -44,6 +44,8 @@ type navigation struct {
 	// sheetsGap calls up a create area above a sheet in a group, and
 	// groupsTop one at the head of the groups.
 	sheetsGap, groupsTop gap
+	// dragged is whether a row was dragged this frame.
+	dragged bool
 	// sheetsNear is the sheet whose top the pointer was by, -1 for none.
 	sheetsNear int
 	// sheetDropSlot is the insertion slot while a sheet is dragged over a
@@ -406,6 +408,7 @@ func (s *State) groupRow(
 	}.View(c, semantic)
 	if !group.Inbox {
 		row.Drag(groupDrag{id: group.ID})
+		s.dragging(row)
 		if row.DoubleClicked() {
 			s.startRename(group.ID)
 		}

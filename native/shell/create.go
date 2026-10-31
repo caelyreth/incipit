@@ -165,11 +165,18 @@ type gap struct {
 	// want is where the pointer has rested since since, -1 away.
 	want  int
 	since time.Time
+	// quiet keeps the gap shut until then, as after a drag.
+	quiet time.Time
 }
 
 // follow reports whether the gap is open, and where, at being the gap the
 // pointer is by, -1 for none.
 func (g *gap) follow(c *ui.Context, at int) (int, bool) {
+	if now := c.Now(); now.Before(g.quiet) {
+		g.close()
+		c.After(g.quiet.Sub(now))
+		return g.at, false
+	}
 	if g.over {
 		at = g.at
 	}
@@ -222,6 +229,13 @@ func (g *gap) hold(area ui.Element) {
 // use closes the gap as what it made comes in.
 func (g *gap) use() {
 	g.open, g.spent, g.since = false, true, time.Time{}
+}
+
+// hush keeps the gap shut until then.
+func (g *gap) hush(until time.Time) {
+	if until.After(g.quiet) {
+		g.quiet = until
+	}
 }
 
 // close hides the gap at once, without waiting for the pointer to leave,
