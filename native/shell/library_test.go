@@ -40,6 +40,8 @@ func (f *fakeLibrary) Sheets(place Place) []SheetItem {
 		return []SheetItem{{ID: "7", Title: "Chapter", Excerpt: "It begins", Updated: time.Now()}}
 	case place.Kind == PlaceGroup && place.Group == "1", place.Kind == PlaceAll:
 		return []SheetItem{{ID: "8", Title: "Draft"}}
+	case place.Kind == PlaceTrash:
+		return []SheetItem{{ID: "9", Title: "Scrap"}}
 	}
 	return nil
 }
@@ -49,7 +51,9 @@ func (f *fakeLibrary) Search(query string) []SheetItem {
 	return []SheetItem{{ID: "7", Title: "Chapter"}}
 }
 
-func (f *fakeLibrary) TrashedGroups() []GroupItem { return nil }
+func (f *fakeLibrary) TrashedGroups() []GroupItem {
+	return []GroupItem{{ID: "3", Name: "Old", Count: 2}}
+}
 func (f *fakeLibrary) Targets() []MoveTarget {
 	return []MoveTarget{{ID: "1", Name: "Inbox"}, {ID: "2", Name: "Novel"}}
 }
@@ -190,5 +194,73 @@ func TestSearchListsMatchingSheets(t *testing.T) {
 	}
 	if !slices.Contains(library.calls, "search chap") {
 		t.Fatalf("calls %v", library.calls)
+	}
+}
+
+func TestDeletingAsksForASecondClick(t *testing.T) {
+	state, library := libraryState()
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	if err := tester.RightClick("Trash"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tester.ChooseMenuItem("Empty Trash…"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.Place().Kind != PlaceTrash || !tester.HasText("Delete All") || len(library.calls) != 0 {
+		t.Fatalf("the menu did not ask in the trash: %v %#v", library.calls, tester.Texts())
+	}
+	tester.Advance(confirmWindow)
+	tester.Frame()
+	if !tester.HasText("Empty") || tester.HasText("Delete All") {
+		t.Fatalf("still asking after the wait: %#v", tester.Texts())
+	}
+	if err := tester.Click("Empty"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if len(library.calls) != 0 {
+		t.Fatalf("one click deleted: %v", library.calls)
+	}
+	if err := tester.Click("Delete All"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+
+	for _, row := range []struct{ name, item, call string }{
+		{"Scrap", "Delete Immediately…", "delete 9"},
+		{"Old", "Delete Immediately with 2 Sheets…", "delete group 3"},
+	} {
+		if err := tester.RightClick(row.name); err != nil {
+			t.Fatal(err)
+		}
+		if err := tester.ChooseMenuItem(row.item); err != nil {
+			t.Fatal(err)
+		}
+		tester.Frame()
+		if slices.Contains(library.calls, row.call) {
+			t.Fatalf("the menu deleted %s at once", row.name)
+		}
+		tester.Key(0, ui.KeyEscape)
+		tester.Frame()
+		if tester.HasText("Delete") {
+			t.Fatalf("Escape kept asking: %#v", tester.Texts())
+		}
+		if err := tester.RightClick(row.name); err != nil {
+			t.Fatal(err)
+		}
+		if err := tester.ChooseMenuItem(row.item); err != nil {
+			t.Fatal(err)
+		}
+		tester.Frame()
+		if err := tester.Click(map[bool]string{true: "Delete All", false: "Delete"}[row.name == "Old"]); err != nil {
+			t.Fatal(err)
+		}
+		tester.Frame()
+	}
+	want := []string{"empty trash", "delete 9", "delete group 3"}
+	if !slices.Equal(library.calls, want) {
+		t.Fatalf("calls %v, want %v", library.calls, want)
 	}
 }

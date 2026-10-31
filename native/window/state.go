@@ -54,9 +54,6 @@ type AppState struct {
 	library *library.Library
 	// nextKey is the notebook key the next new page takes.
 	nextKey storage.PageKey
-	// Confirm asks before what cannot be undone; nil asks with a native
-	// dialog.
-	Confirm func(message, detail string) bool
 }
 
 // NewAppState is a notebook held in memory alone, as tests use.

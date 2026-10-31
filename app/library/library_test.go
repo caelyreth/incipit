@@ -2,6 +2,7 @@ package library
 
 import (
 	"errors"
+	"slices"
 	"testing"
 	"time"
 )
@@ -191,4 +192,38 @@ func TestRestoreReadsBrokenRecordsForWhatTheyStillSay(t *testing.T) {
 	if sheet, _ := l.Sheet(1); sheet.Group != Inbox {
 		t.Fatal("a sheet of a missing group is not in the Inbox")
 	}
+}
+
+func TestAGroupGoesWithAllItHolds(t *testing.T) {
+	l := New()
+	novel, _ := l.AddGroup(0, "Novel")
+	part, _ := l.AddGroup(novel, "Part one")
+	must(t, l.AddSheet(1, novel, now))
+	must(t, l.AddSheet(2, part, now))
+	must(t, l.AddSheet(3, part, now))
+	must(t, l.TrashSheet(3, now))
+	if groups, sheets := l.Holds(novel); groups != 1 || sheets != 3 {
+		t.Fatalf("holds %d groups, %d sheets", groups, sheets)
+	}
+	must(t, l.TrashGroup(novel, now.Add(time.Second)))
+	must(t, l.RestoreGroup(novel))
+	if l.SheetInTrash(2) || !l.SheetInTrash(3) {
+		t.Fatal("a group came back without what it held, or with what was trashed on its own")
+	}
+	must(t, l.TrashGroup(novel, now.Add(2*time.Second)))
+	deleted, err := l.DeleteGroup(novel)
+	must(t, err)
+	slices.Sort(deleted)
+	if !equal(deleted, []SheetID{1, 2, 3}) {
+		t.Fatalf("deleted %v", deleted)
+	}
+	if _, _, ok := sheetOrGroupLeft(l, part, 3); ok {
+		t.Fatal("something the group held is left")
+	}
+}
+
+func sheetOrGroupLeft(l *Library, group GroupID, sheet SheetID) (Group, Sheet, bool) {
+	g, gok := l.Group(group)
+	s, sok := l.Sheet(sheet)
+	return g, s, gok || sok
 }

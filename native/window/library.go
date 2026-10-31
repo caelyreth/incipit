@@ -14,7 +14,6 @@ import (
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/native/shell"
-	"github.com/egoist/mygo"
 )
 
 // The app is the sidebar's library: it files the workspace's pages, which
@@ -202,26 +201,10 @@ func (a *AppState) TrashedGroups() []shell.GroupItem {
 	items := make([]shell.GroupItem, 0, len(groups))
 	for _, group := range groups {
 		item := a.groupItem(group)
-		item.Count = a.trashedCount(group.ID)
+		_, item.Count = a.library.Holds(group.ID)
 		items = append(items, item)
 	}
 	return items
-}
-
-// trashedCount is every sheet a trashed group holds.
-func (a *AppState) trashedCount(group library.GroupID) int {
-	count := 0
-	for _, sheet := range a.library.Records().Sheets {
-		for at := sheet.Group; at != 0; {
-			if at == group {
-				count++
-				break
-			}
-			parent, _ := a.library.Group(at)
-			at = parent.Parent
-		}
-	}
-	return count
 }
 
 // Targets is part of shell.Library.
@@ -386,11 +369,11 @@ func (a *AppState) RestoreSheet(name string) {
 	}
 }
 
-// DeleteSheet is part of shell.Library: after asking, the sheet is gone
-// for good.
+// DeleteSheet is part of shell.Library: the sheet is gone for good. The
+// sidebar asks first.
 func (a *AppState) DeleteSheet(name string) {
 	session, ok := a.sessionOf(name)
-	if !ok || !a.confirm("Delete this sheet immediately?", "You can’t undo this action.") {
+	if !ok {
 		return
 	}
 	if err := a.library.DeleteSheet(library.SheetID(session.key)); err != nil {
@@ -452,12 +435,9 @@ func (a *AppState) RestoreGroup(id string) {
 	}
 }
 
-// DeleteGroup is part of shell.Library: after asking, the group and all it
-// holds are gone for good.
+// DeleteGroup is part of shell.Library: the group and all it holds are
+// gone for good. The sidebar asks first.
 func (a *AppState) DeleteGroup(id string) {
-	if !a.confirm("Delete this group immediately?", "Its sheets and groups go with it. You can’t undo this action.") {
-		return
-	}
 	deleted, err := a.library.DeleteGroup(groupOf(id))
 	if err != nil {
 		a.fail(err)
@@ -466,11 +446,9 @@ func (a *AppState) DeleteGroup(id string) {
 	a.discard(deleted)
 }
 
-// EmptyTrash is part of shell.Library.
+// EmptyTrash is part of shell.Library: everything in the trash is gone for
+// good. The sidebar asks first.
 func (a *AppState) EmptyTrash() {
-	if !a.confirm("Empty the trash?", "Everything in it is deleted. You can’t undo this action.") {
-		return
-	}
 	a.discard(a.library.EmptyTrash())
 }
 
@@ -535,23 +513,6 @@ func (a *AppState) closeTabsWhere(kept string, close func(at, kept int) bool) {
 		}
 	}
 	a.selectMounted()
-}
-
-// confirm asks before something that cannot be undone. Without a window,
-// as in tests, the answer is yes.
-func (a *AppState) confirm(message, detail string) bool {
-	if a.Confirm != nil {
-		return a.Confirm(message, detail)
-	}
-	if a.mainWindow == nil {
-		return true
-	}
-	result, err := mygo.Dialog.Message(mygo.MessageOptions{
-		Parent: a.mainWindow, Type: mygo.MessageWarning,
-		Message: message, Detail: detail,
-		Buttons: []string{"Delete", "Cancel"}, DefaultButton: 1, CancelButton: 1,
-	})
-	return err == nil && result.Button == 0
 }
 
 func (a *AppState) fail(err error) {

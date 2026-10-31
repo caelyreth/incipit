@@ -2,6 +2,12 @@
 // as wanted, each holding sheets in an order of its own, with an Inbox for
 // what is not filed yet and a Trash that keeps what is put away until it is
 // emptied. It has no persistence or UI dependency.
+//
+// A group always goes with everything it holds: put in the trash, its
+// groups and sheets go with it and come back with it; deleted, they are
+// deleted with it, those put in the trash on their own before it included.
+// What was put in the trash on its own stays there when its group comes
+// back.
 package library
 
 import (
@@ -131,6 +137,17 @@ func (l *Library) Count(group GroupID) int {
 		count += l.Count(child.ID)
 	}
 	return count
+}
+
+// Holds is everything inside a group, at any depth and in the trash or
+// not: what deleting the group deletes with it.
+func (l *Library) Holds(group GroupID) (groups, sheets int) {
+	sheets = len(l.filed[group])
+	for _, child := range l.children[group] {
+		inner, filed := l.Holds(child)
+		groups, sheets = groups+1+inner, sheets+filed
+	}
+	return groups, sheets
 }
 
 // Path is the group and the groups it is in, outermost first.

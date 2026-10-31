@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
@@ -24,6 +25,9 @@ type navigation struct {
 	// renaming is the group being named in place, and name its text.
 	renaming string
 	name     string
+	// armed is what waits for a second click to be deleted, since armedAt.
+	armed   string
+	armedAt time.Time
 }
 
 // Place is where the sidebar is.
@@ -41,6 +45,7 @@ func (s *State) Go(place Place, forward bool) {
 	}
 	s.nav.moved = true
 	s.nav.renaming = ""
+	s.disarm()
 }
 
 // back is the place a place goes back to: a group's parent group, or the
@@ -189,8 +194,10 @@ func (s *State) libraryPage(c *ui.Context, semantic theme.Theme, animate bool) {
 	trash := len(s.Library.Sheets(Place{Kind: PlaceTrash})) + len(s.Library.TrashedGroups())
 	row := s.placeRow(c, semantic, Place{Kind: PlaceTrash}, "Trash", components.IconTrash, trash, animate)
 	row.ContextMenu(func(m *ui.Menu) {
-		if m.Item("Empty Trash").Disabled(trash == 0).Chosen() {
-			s.Library.EmptyTrash()
+		if m.Item("Empty Trash…").Disabled(trash == 0).Chosen() {
+			// The trash shows what goes, and asks there.
+			s.Go(Place{Kind: PlaceTrash}, true)
+			s.arm(emptyTrashKey)
 		}
 	})
 	if sheet, ok := ui.Drop[sheetDrag](row); ok {
@@ -348,7 +355,7 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 			s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, 1<<30) }, group.ID)
 		}
 		m.Separator()
-		if m.Item("Move to Trash").Disabled(group.Inbox).Chosen() {
+		if m.Item(trashGroupLabel(group)).Disabled(group.Inbox).Chosen() {
 			if s.nav.place == (Place{Kind: PlaceGroup, Group: group.ID}) {
 				s.Go(s.back(s.nav.place), false)
 			}
@@ -472,29 +479,36 @@ func (s *State) trashPage(c *ui.Context, semantic theme.Theme, animate bool) {
 	empty := len(groups) == 0 && len(sheets) == 0
 	s.placeHeader(c, semantic, "Trash", func() {
 		if !empty {
-			components.Button{
-				Key: "empty-trash", Label: "Empty",
-				Style: components.SubtleButton, Size: components.CompactButton,
-				Animate: animate, Action: s.Library.EmptyTrash,
-			}.View(c, semantic)
+			s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
 		}
 	}, animate)
 	s.sheetList(c, semantic, sheets, Place{Kind: PlaceTrash}, animate, func() {
 		for _, group := range groups {
 			group := group
 			ui.Column(c).Key("trashed-" + group.ID).WidthPercent(100).Transition(rowTransition(animate)).Children(func() {
+				key := "delete-group-" + group.ID
 				components.NavigationRow{
 					Key: "group-" + group.ID, Label: group.Name, Role: ui.RoleButton, FullWidth: true,
-					Animate:  animate,
-					Leading:  func() { s.rowIcon(c, semantic, components.IconFolder) },
-					Trailing: func() { s.count(c, semantic, group.Count) },
+					Animate: animate,
+					Leading: func() { s.rowIcon(c, semantic, components.IconFolder) },
+					Trailing: func() {
+						if s.nav.armed != key {
+							s.count(c, semantic, group.Count)
+						}
+						// A group is deleted with all it holds.
+						armed := "Delete"
+						if group.Count > 0 {
+							armed = "Delete All"
+						}
+						s.confirmButton(c, semantic, key, "", armed, animate, func() { s.Library.DeleteGroup(group.ID) })
+					},
 				}.View(c, semantic).ContextMenu(func(m *ui.Menu) {
 					if m.Item("Put Back").Chosen() {
 						s.Library.RestoreGroup(group.ID)
 					}
 					m.Separator()
-					if m.Item("Delete Immediately…").Chosen() {
-						s.Library.DeleteGroup(group.ID)
+					if m.Item(deleteGroupLabel(group)).Chosen() {
+						s.arm(key)
 					}
 				})
 			})
@@ -590,6 +604,9 @@ func (s *State) sheetRow(
 	if row.FocusVisible() {
 		row.Border(1, semantic.Border.Focused)
 	}
+	trashed := place.Kind == PlaceTrash
+	deleteKey := "delete-sheet-" + sheet.ID
+	confirming := s.nav.armed == deleteKey
 	row.Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Space02.DIPs(scale)).Children(func() {
 			title := semantic.Text.Default
@@ -601,8 +618,10 @@ func (s *State) sheetRow(
 				components.Label(c, sheet.Excerpt, theme.TextXSmall, semantic.Text.Muted).SingleLine()
 			}
 		})
+		if trashed {
+			s.confirmButton(c, semantic, deleteKey, "", "Delete", animate, func() { s.Library.DeleteSheet(sheet.ID) })
+		}
 	})
-	trashed := place.Kind == PlaceTrash
 	row.Drag(sheetDrag{id: sheet.ID}).ContextMenu(s.sheetMenu(sheet, trashed))
 	if place.Kind == PlaceGroup {
 		// A sheet dropped on another in its group takes its place.
@@ -613,7 +632,7 @@ func (s *State) sheetRow(
 			s.Library.MoveSheet(dragged.id, place.Group, index)
 		}
 	}
-	if row.Clicked() || row.Shortcut(0, ui.KeyEnter) {
+	if !confirming && (row.Clicked() || row.Shortcut(0, ui.KeyEnter)) {
 		s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Cmd != 0)
 	}
 }
@@ -633,7 +652,7 @@ func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 			}
 			m.Separator()
 			if m.Item("Delete Immediately…").Chosen() {
-				s.Library.DeleteSheet(sheet.ID)
+				s.arm("delete-sheet-" + sheet.ID)
 			}
 			return
 		}
@@ -648,4 +667,29 @@ func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 			s.Library.TrashSheet(sheet.ID)
 		}
 	}
+}
+
+// emptyTrashKey names the trash's Empty button, for arming from a menu.
+const emptyTrashKey = "empty-trash"
+
+// trashGroupLabel says that a group goes to the trash with what it holds.
+func trashGroupLabel(group GroupItem) string {
+	switch group.Count {
+	case 0:
+		return "Move to Trash"
+	case 1:
+		return "Move to Trash with 1 Sheet"
+	}
+	return fmt.Sprintf("Move to Trash with %d Sheets", group.Count)
+}
+
+// deleteGroupLabel says that a group is deleted with what it holds.
+func deleteGroupLabel(group GroupItem) string {
+	switch group.Count {
+	case 0:
+		return "Delete Immediately…"
+	case 1:
+		return "Delete Immediately with 1 Sheet…"
+	}
+	return fmt.Sprintf("Delete Immediately with %d Sheets…", group.Count)
 }
