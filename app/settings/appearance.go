@@ -14,22 +14,6 @@ func (a ThemeChoice) Valid() bool {
 	return a == Starfield || a == Daybreak
 }
 
-// Accent is one of the design system's six hued families.
-type Accent uint8
-
-const (
-	Halo Accent = iota + 1
-	Afterglow
-	Remnant
-	Unripe
-	Life
-	Regolith
-)
-
-func (a Accent) Valid() bool {
-	return a >= Halo && a <= Regolith
-}
-
 const (
 	MinUIFontSize     float32 = 12
 	MaxUIFontSize     float32 = 24
@@ -51,7 +35,6 @@ const (
 // AppearanceSettings is app-wide product display state, independent of MyGo.
 type AppearanceSettings struct {
 	Appearance    ThemeChoice
-	Accent        Accent
 	UIFontSize    float32
 	ProseFontSize float32
 	LineSpacing   float32
@@ -63,15 +46,9 @@ func (s AppearanceSettings) ThemeNumber() uint8 {
 	return uint8(s.Appearance)
 }
 
-// AccentNumber returns the stable one-based accent representation.
-func (s AppearanceSettings) AccentNumber() uint8 {
-	return uint8(s.Accent)
-}
-
 func DefaultAppearance() AppearanceSettings {
 	return AppearanceSettings{
 		Appearance:    Starfield,
-		Accent:        Halo,
 		UIFontSize:    DefaultUIFontSize,
 		ProseFontSize: DefaultProseSize,
 		LineSpacing:   DefaultLineSpacing,
@@ -81,9 +58,6 @@ func DefaultAppearance() AppearanceSettings {
 func (s AppearanceSettings) Normalized() AppearanceSettings {
 	if !s.Appearance.Valid() {
 		s.Appearance = Starfield
-	}
-	if !s.Accent.Valid() {
-		s.Accent = Halo
 	}
 	s.UIFontSize = clampFloat(s.UIFontSize, MinUIFontSize, MaxUIFontSize)
 	s.ProseFontSize = clampFloat(s.ProseFontSize, MinProseFontSize, MaxProseFontSize)
@@ -103,12 +77,6 @@ func (s *AppearanceSettings) Apply(change AppearanceChange) bool {
 			return false
 		}
 		s.Appearance = appearance
-	case SetAccent:
-		accent := Accent(change.Accent)
-		if !accent.Valid() {
-			return false
-		}
-		s.Accent = accent
 	case SetUIFontSize:
 		if change.FontSize != change.FontSize {
 			return false

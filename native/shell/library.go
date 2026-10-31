@@ -34,7 +34,8 @@ type GroupItem struct {
 	// Inbox marks the group that cannot be renamed, moved or trashed.
 	Inbox bool
 	// Icon names the group's icon, empty for the folder; Color is its
-	// tint, 1 to 6 for the hue families in Accent order, zero for none.
+	// tint, a Tint: Moonveil, or a hue, which its sheets' pages take as
+	// their accent.
 	Icon  string
 	Color int
 }
@@ -94,6 +95,14 @@ type Library interface {
 	DeleteGroup(id string)
 	EmptyTrash()
 }
+
+// A group's tint is TintMoonveil, the neutral family the text is set in,
+// or one of the six hue families from TintHalo on, in Accent order. A new
+// group is in Halo.
+const (
+	TintMoonveil = 0
+	TintHalo     = 1
+)
 
 // sheetDrag is a sheet dragged in the sidebar or onto it.
 type sheetDrag struct{ id string }

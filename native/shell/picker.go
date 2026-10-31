@@ -28,19 +28,20 @@ func (s *State) stylePicker(c *ui.Context, semantic theme.Theme, row ui.Element,
 			Label("Icon and color for " + group.Name).Transition(popTransition(animate))
 		panel.Children(func() {
 			components.Label(c, "Color", theme.TextXSmall, semantic.Text.Muted)
+			// Moonveil, the neutral the text is set in, then the hues; a
+			// group's sheets take its hue as their pages' accent.
 			ui.Row(c).Gap(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Children(func() {
-				none := semantic.Icon.Muted
 				components.Swatch{
-					Key: "color-0", Label: "No color", Color: none.Alpha(0.35),
-					Selected: group.Color == 0, Animate: animate,
-					Action: func() { s.Library.StyleGroup(group.ID, group.Icon, 0) },
+					Key: "color-moonveil", Label: "Moonveil", Color: semantic.Text.Default,
+					Selected: group.Color == TintMoonveil, Animate: animate,
+					Action: func() { s.Library.StyleGroup(group.ID, group.Icon, TintMoonveil) },
 				}.View(c, semantic)
 				for index, accent := range theme.AllAccents {
 					components.Swatch{
 						Key: "color-" + accent.Label(), Label: accent.Label(),
-						Color: semantic.Families[index].Foreground, Selected: group.Color == index+1,
-						Animate: animate,
-						Action:  func() { s.Library.StyleGroup(group.ID, group.Icon, index+1) },
+						Color:    semantic.Families[index].Foreground,
+						Selected: group.Color == TintHalo+index, Animate: animate,
+						Action: func() { s.Library.StyleGroup(group.ID, group.Icon, TintHalo+index) },
 					}.View(c, semantic)
 				}
 			})

@@ -319,12 +319,16 @@ func groupIcon(group GroupItem) components.IconName {
 	return components.IconFolder
 }
 
-// groupTint is a group's color, nil for none.
+// groupTint is a group's color: Moonveil's, the text's, or its hue's.
+// The Inbox, which wears none, is nil, as the places are.
 func groupTint(semantic theme.Theme, group GroupItem) *ui.Color {
-	if group.Color < 1 || group.Color > len(semantic.Families) {
+	switch {
+	case group.Inbox:
 		return nil
+	case group.Color >= TintHalo && group.Color < TintHalo+len(semantic.Families):
+		return &semantic.Families[group.Color-TintHalo].Foreground
 	}
-	return &semantic.Families[group.Color-1].Foreground
+	return &semantic.Text.Default
 }
 
 func (s *State) groupRow(

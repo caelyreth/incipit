@@ -177,7 +177,6 @@ func TestPresentationAndAppearanceChangesAreLocalAndBounded(t *testing.T) {
 		ToggleBoolean(PresentationBoolean(PresentationTypewriter), true),
 		ToggleBoolean(PresentationBoolean(PresentationZen), true),
 		NewAppearanceChange(AppearanceChange{Kind: SetTheme, Theme: uint8(Daybreak)}),
-		NewAppearanceChange(AppearanceChange{Kind: SetAccent, Accent: uint8(Life)}),
 		NewAppearanceChange(AppearanceChange{Kind: SetUIFontSize, FontSize: 99}),
 		NewAppearanceChange(AppearanceChange{Kind: SetProseFontSize, FontSize: 2}),
 	} {
@@ -189,7 +188,6 @@ func TestPresentationAndAppearanceChangesAreLocalAndBounded(t *testing.T) {
 		t.Fatalf("presentation = %#v", state.Presentation)
 	}
 	if state.Appearance.Appearance != Daybreak ||
-		state.Appearance.Accent != Life ||
 		state.Appearance.UIFontSize != MaxUIFontSize ||
 		state.Appearance.ProseFontSize != MinProseFontSize {
 		t.Fatalf("appearance = %#v", state.Appearance)

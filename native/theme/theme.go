@@ -284,10 +284,6 @@ func (s Settings) MyGoThemeFor(semantic Theme) *ui.Theme {
 	return result
 }
 
-func AccentSwatch(appearance Appearance, accent Accent) ui.Color {
-	return familyFor(paletteFor(appearance), accent).Foreground
-}
-
 func paletteFor(appearance Appearance) palette {
 	if appearance == Daybreak {
 		return daybreak()

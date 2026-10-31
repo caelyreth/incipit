@@ -14,7 +14,6 @@ func (s *State) appearancePage(
 	semantic theme.Theme,
 	metrics theme.ControlMetrics,
 ) {
-	scale := s.Theme.UIFontSize
 	s.section(c, semantic, "Theme", "Colors and chrome scale for every Neverland window.", func() {
 		components.SettingRow{
 			Label:       "Theme",
@@ -37,28 +36,6 @@ func (s *State) appearancePage(
 					Key: "theme-choice", Label: "Theme", Options: options,
 					Animate: s.motion(c),
 				}.View(c, semantic)
-			},
-		}.View(c, semantic)
-		components.SettingRow{
-			Label: "Accent", Description: "Focus, caret and active controls.",
-			Control: func() {
-				ui.Row(c).Wrap().Justify(ui.End).Gap(theme.Space06.DIPs(scale)).
-					Children(func() {
-						for _, accent := range theme.AllAccents {
-							accent := accent
-							components.Swatch{
-								Key: "accent-" + accent.Label(), Label: accent.Label(),
-								Color:    theme.AccentSwatch(s.Theme.Appearance, accent),
-								Selected: s.Theme.Accent == accent,
-								Animate:  s.motion(c),
-								Action: func() {
-									s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
-										Kind: appsettings.SetAccent, Accent: uint8(accent + 1),
-									}))
-								},
-							}.View(c, semantic)
-						}
-					})
 			},
 		}.View(c, semantic)
 		components.SettingRow{

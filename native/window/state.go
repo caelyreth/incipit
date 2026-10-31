@@ -526,6 +526,7 @@ func (a *AppState) refreshSettingsData() {
 func (a *AppState) applyAppearance() {
 	values := a.Product.Appearance
 	a.Shell.Settings = appearanceSettings(values)
+	a.Shell.Settings.Accent = a.groupAccent()
 	target := a.Shell.Settings.Semantic()
 	if a.Product.Presentation.Motion {
 		a.colors.Retarget(target, time.Now())
@@ -609,8 +610,37 @@ func appearanceSettings(values appsettings.AppearanceSettings) theme.Settings {
 	settings.ProseFontSize = values.ProseFontSize
 	settings.LineSpacing = values.LineSpacing
 	settings.Appearance = theme.Appearance(values.ThemeNumber())
-	settings.Accent = theme.Accent(values.AccentNumber() - 1)
 	return settings
+}
+
+// groupAccent is the accent the window wears: the color of the open
+// sheet's group, Halo for a group in Moonveil, the Inbox, or no sheet.
+func (a *AppState) groupAccent() theme.Accent {
+	if a.library == nil || a.Shell == nil {
+		return theme.Halo
+	}
+	group, ok := a.Group(a.SheetGroup(a.Shell.ActivePage))
+	if !ok || group.Color < shell.TintHalo || group.Color >= shell.TintHalo+len(theme.AllAccents) {
+		return theme.Halo
+	}
+	return theme.AllAccents[group.Color-shell.TintHalo]
+}
+
+// followAccent turns the window to its group's accent when another
+// sheet comes to the front or its group's color changes, blending as a
+// theme change does.
+func (a *AppState) followAccent(now time.Time) {
+	accent := a.groupAccent()
+	if accent == a.Shell.Settings.Accent {
+		return
+	}
+	a.Shell.Settings.Accent = accent
+	target := a.Shell.Settings.Semantic()
+	if a.Product.Presentation.Motion {
+		a.colors.Retarget(target, now)
+	} else {
+		a.colors.Jump(target)
+	}
 }
 
 // View composes the live shell, command overlay, and settings diagnostics.
@@ -618,6 +648,7 @@ func (a *AppState) View(c *ui.Context) {
 	if a == nil || a.Shell == nil {
 		return
 	}
+	a.followAccent(c.Now())
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	animate := a.Shell.Appearance.Motion && a.Shell.WindowActive &&
 		!c.Preferences().ReduceMotion

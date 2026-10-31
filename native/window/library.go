@@ -395,6 +395,8 @@ func (a *AppState) NewGroup(parent string, index int) string {
 		return ""
 	}
 	_ = a.library.MoveGroup(id, groupOf(parent), index)
+	// A group starts in Halo, the accent of a page in no group.
+	_ = a.library.StyleGroup(id, "", shell.TintHalo)
 	a.libraryChanged()
 	return groupName(id)
 }

@@ -11,7 +11,7 @@ var (
 	ErrPageRequired = errors.New("settings: open a page before changing editor settings")
 	// ErrInvalidChange rejects a partially populated or unknown typed change.
 	ErrInvalidChange = errors.New("settings: invalid change")
-	// ErrInvalidAppearance rejects an out-of-range theme or accent choice.
+	// ErrInvalidAppearance rejects an out-of-range theme choice.
 	ErrInvalidAppearance = errors.New("settings: invalid appearance change")
 )
 

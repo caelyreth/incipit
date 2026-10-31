@@ -220,17 +220,16 @@ type AppearanceKind uint8
 
 const (
 	SetTheme AppearanceKind = iota + 1
-	SetAccent
 	SetUIFontSize
 	SetProseFontSize
 	SetLineSpacing
 )
 
-// AppearanceChange is one neutral theme, accent, or text-size request.
+// AppearanceChange is one neutral theme or text-size request. The accent
+// is no setting: it follows the group of the sheet open.
 type AppearanceChange struct {
 	Kind     AppearanceKind
 	Theme    uint8
-	Accent   uint8
 	FontSize float32
 	Spacing  float32
 }
