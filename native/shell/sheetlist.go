@@ -379,10 +379,14 @@ func (s *State) sheetRows(
 		scale,
 	)
 	scroll.Children(func() {
-		list := ui.Column(c).Gap(theme.Space06.DIPs(scale)).
+		rowGap := theme.Space06.DIPs(scale)
+		list := ui.Column(c).Gap(rowGap).
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
 		s.sheetOverscroll.Apply(c, list, animate)
-		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
+		selection := components.NavigationSelection(c, semantic)
+		// The picked rows' frame stands midway across the space between rows.
+		selection.PickedOutset = rowGap / 2
+		track := components.TrackSelection(list, selection, animate)
 		s.noteOrder(entries)
 		ordered := create != nil && place.Kind == PlaceGroup
 		if !ordered {
@@ -438,7 +442,7 @@ func (s *State) sheetRows(
 			for index, entry := range entries {
 				// What stands between sheets parts their runs of picks.
 				if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == index {
-					track.Pick(s.sheetDropPlaceholder(c, semantic, dragging, animate), 0)
+					track.Pick(s.sheetDropPlaceholder(c, semantic, dragging, animate), "", false)
 				}
 				if open && at == index {
 					sheetAction := func() {
@@ -455,7 +459,7 @@ func (s *State) sheetRows(
 						area = s.createArea(c, semantic, "new-sheet-at-"+entry.ID, "New sheet", animate, sheetAction)
 					}
 					area.Transition(unfoldTransition(animate))
-					track.Pick(area, 0)
+					track.Pick(area, "", false)
 					// The pointer that called it up is in the space between
 					// the rows around it: that keeps it open too, so it
 					// keeps the list's spacing rather than reaching into
@@ -470,7 +474,7 @@ func (s *State) sheetRows(
 					// lands above it takes its room while the drop is open.
 					apart := index > 0 || ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == 0
 					row = s.chapterRow(c, semantic, entry.Chapter, chapterSheets(entries, index), apart, animate)
-					track.Pick(row, 0)
+					track.Pick(row, "", false)
 				} else {
 					row = s.sheetRow(c, semantic, entry.Sheet, index, place, track, now, animate)
 					sheets = append(sheets, row)
@@ -832,11 +836,8 @@ func (s *State) sheetRow(
 	entering := s.enter(c, row)
 	s.land(c, row, sheet.ID, animate)
 	picked := s.picked(sheet.ID)
-	pick := s.pickAmount(row, sheet.ID, animate)
-	track.Pick(row, pick)
+	track.Pick(row, sheet.ID, picked)
 	if selected {
-		// Under the run's fill, which hides it, so the run lets go
-		// straight to it.
 		track.Mark(row)
 	}
 	hover := components.HoverAmount(row, !selected && row.Hovered(), animate)
@@ -857,7 +858,7 @@ func (s *State) sheetRow(
 			Radius(metrics.Radius).Border(1, ui.Transparent)
 		card.Children(func() {
 			ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
-				title := components.Blend(semantic.Text.Default, semantic.Text.Heading, pick)
+				title := semantic.Text.Default
 				if selected {
 					title = semantic.Text.Heading
 				}
@@ -880,15 +881,7 @@ func (s *State) sheetRow(
 				SingleLine().FontFeatures("tnum").Opacity(0.7)
 		})
 	})
-	hoverFill := components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover)
-	if pick > 0.001 {
-		// The card's fill is over the run's: while the row is picked its
-		// hover goes under the run, which covers it and leaves it as the
-		// run lets go, so the row goes straight from the one to the other.
-		track.Beneath(row, hoverFill)
-		hoverFill = semantic.GhostElement.Background
-	}
-	card.Background(hoverFill)
+	card.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
 	press := pressTarget
 	if animate {
 		press = components.Follow(card, "press", pressTarget, components.MotionQuick)
@@ -896,7 +889,7 @@ func (s *State) sheetRow(
 	if dragging {
 		press = 0
 	}
-	if selected && !picked && (entering || pressTarget > 0 || press > 0.001) {
+	if selected && (entering || pressTarget > 0 || press > 0.001) {
 		// The shared highlight cannot shrink with one row. While the card
 		// enters or presses, it owns the same fill so both scale together.
 		track.Hide()

@@ -1,10 +1,12 @@
 package shell
 
 import (
+	"image"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -104,34 +106,6 @@ func TestThePickedSheetsTakeABatchMenu(t *testing.T) {
 	}
 }
 
-// Sheets picked side by side share one fill, across the space between
-// them; a sheet not picked keeps the space to the list.
-func TestPickedNeighboursShareOneFill(t *testing.T) {
-	state, _, tester := pickingState(t, 3)
-	state.ActivePage = ""
-	if err := tester.Click("Sheet 1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
-		t.Fatal(err)
-	}
-	settle(tester)
-	first, _ := tester.Find("Sheet 1")
-	second, _ := tester.Find("Sheet 2")
-	third, _ := tester.Find("Sheet 3")
-	x := int(first.X + first.W/2)
-	image := tester.Image()
-	joined := image.RGBAAt(x, int((first.Y+first.H+second.Y)/2))
-	inside := image.RGBAAt(x, int(first.Y+first.H/2))
-	apart := image.RGBAAt(x, int((second.Y+second.H+third.Y)/2))
-	if joined != inside {
-		t.Fatalf("the space between picked sheets is %v, their fill %v", joined, inside)
-	}
-	if apart == inside {
-		t.Fatalf("the fill reached past the run: %v", apart)
-	}
-}
-
 func TestAPressElsewhereLetsThePickedGo(t *testing.T) {
 	state, _, tester := pickingState(t, 3)
 	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
@@ -152,65 +126,6 @@ func TestAPressElsewhereLetsThePickedGo(t *testing.T) {
 	tester.Frame()
 	if len(state.pickedSheets()) != 0 {
 		t.Fatalf("a press on the page kept %v", state.pickedSheets())
-	}
-}
-
-// The open sheet, picked, is one of the run: no grey of its own, not even
-// as it is pressed.
-func TestTheOpenSheetTakesTheRunsFill(t *testing.T) {
-	_, _, tester := pickingState(t, 2)
-	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
-		t.Fatal(err)
-	}
-	settle(tester)
-	open, _ := tester.Find("Chapter")
-	other, _ := tester.Find("Sheet 1")
-	tester.Press(open.X+open.W/2, open.Y+open.H/2)
-	for range 12 {
-		tester.Advance(16 * time.Millisecond)
-		tester.Frame()
-	}
-	image := tester.Image()
-	x := int(open.X + open.W - 12)
-	if got, want := image.RGBAAt(x, int(open.Y+open.H/2)), image.RGBAAt(x, int(other.Y+other.H/2)); got != want {
-		t.Fatalf("the pressed open sheet's fill is %v, the run's %v", got, want)
-	}
-}
-
-// As the run lets go, the open sheet and the hovered one go straight from
-// the run's fill to their own, never through none.
-func TestARunLetsGoStraightToTheRowsOwnFill(t *testing.T) {
-	_, _, tester := pickingState(t, 2)
-	open, _ := tester.Find("Chapter")
-	hovered, _ := tester.Find("Sheet 2")
-	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
-		t.Fatal(err)
-	}
-	settle(tester)
-	// By a row's edge, which the run's fill leaves first.
-	at := func(row ui.Rect) (int, int) { return int(row.X + row.W - 10), int(row.Y + 6) }
-	light := func(row ui.Rect) int {
-		c := tester.Image().RGBAAt(at(row))
-		return int(c.R) + int(c.G) + int(c.B)
-	}
-	rows := []ui.Rect{open, hovered}
-	var frames [][]int
-	for frame := range 24 {
-		if frame == 1 {
-			tester.Key(0, ui.KeyEscape)
-		}
-		tester.Advance(16 * time.Millisecond)
-		tester.Frame()
-		frames = append(frames, []int{light(open), light(hovered)})
-	}
-	for index := range rows {
-		from, to := frames[0][index], frames[len(frames)-1][index]
-		low, high := min(from, to)-2, max(from, to)+2
-		for frame, values := range frames {
-			if values[index] < low || values[index] > high {
-				t.Fatalf("row %d went from %d to %d through %d at frame %d", index, from, to, values[index], frame)
-			}
-		}
 	}
 }
 
@@ -250,6 +165,166 @@ func TestCmdClickPicksOrLetsGoOfOneSheet(t *testing.T) {
 	for _, call := range library.calls {
 		if call != "open 7" && len(call) > 4 && call[:4] == "open" {
 			t.Fatalf("picking opened a sheet: %v", library.calls)
+		}
+	}
+}
+
+// frameEdges finds the picked rows' frames down the list's middle: the
+// lines across the rows that the frames' dashes ink.
+type frameEdges struct {
+	t        *testing.T
+	tester   *ui.Tester
+	ink      ui.Color
+	x0, x1   int
+	from, to int
+}
+
+func newFrameEdges(t *testing.T, state *State, tester *ui.Tester, first, last string) frameEdges {
+	semantic := state.Settings.Semantic()
+	top, _ := tester.Find(first)
+	bottom, _ := tester.Find(last)
+	return frameEdges{
+		t: t, tester: tester, ink: components.Blend(semantic.Surface.Panel, semantic.Accent.Foreground, 0.76),
+		x0: int(top.X + top.W*0.3), x1: int(top.X + top.W*0.7),
+		from: int(top.Y) - 8, to: int(bottom.Y+bottom.H) + 8,
+	}
+}
+
+func (f frameEdges) inked(image *image.RGBA, x, y int) bool {
+	c := image.RGBAAt(x, y)
+	d := func(a, b uint8) int { return max(int(a)-int(b), int(b)-int(a)) }
+	return d(c.R, f.ink.R)+d(c.G, f.ink.G)+d(c.B, f.ink.B) < 60
+}
+
+// edges is the lines inked a good part of the way across, top down.
+func (f frameEdges) edges() []int {
+	var edges []int
+	image := f.tester.Image()
+	for y := f.from; y <= f.to; y++ {
+		n := 0
+		for x := f.x0; x < f.x1; x++ {
+			if f.inked(image, x, y) {
+				n++
+			}
+		}
+		if n*10 < (f.x1-f.x0)*3 {
+			continue
+		}
+		if len(edges) > 0 && y-edges[len(edges)-1] <= 2 {
+			continue
+		}
+		edges = append(edges, y)
+	}
+	return edges
+}
+
+// outset is how far the frame stands out from the rows it holds.
+const outset = 3
+
+// near reports whether an edge lies within two pixels of y.
+func near(edges []int, y float32) bool {
+	return slices.ContainsFunc(edges, func(edge int) bool { return max(float32(edge)-y, y-float32(edge)) <= 2 })
+}
+
+// frames runs the next frames, calling check on each.
+func (f frameEdges) frames(check func(frame int, edges []int)) {
+	for frame := range 24 {
+		f.tester.Advance(16 * time.Millisecond)
+		f.tester.Frame()
+		check(frame, f.edges())
+	}
+}
+
+// Sheets picked side by side share one frame round them all.
+func TestPickedNeighboursShareOneFrame(t *testing.T) {
+	state, _, tester := pickingState(t, 3)
+	if err := tester.ClickWith(ui.Shift, "Sheet 1"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	frame := newFrameEdges(t, state, tester, "Chapter", "Sheet 3")
+	first, _ := tester.Find("Chapter")
+	last, _ := tester.Find("Sheet 1")
+	edges := frame.edges()
+	if len(edges) != 2 || !near(edges, first.Y-outset) || !near(edges, last.Y+last.H+outset) {
+		t.Fatalf("frame edges %v, want one frame from %v to %v, clear of the rows", edges, first.Y, last.Y+last.H)
+	}
+}
+
+// Picking leaves the rows' own look alone: the open sheet keeps its fill.
+func TestPickingLeavesTheRowsOwnStyle(t *testing.T) {
+	_, _, tester := pickingState(t, 2)
+	open, _ := tester.Find("Chapter")
+	x, y := int(open.X+open.W-12), int(open.Y+open.H/2)
+	before := tester.Image().RGBAAt(x, y)
+	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if got := tester.Image().RGBAAt(x, y); got != before {
+		t.Fatalf("picking changed the open sheet's fill from %v to %v", before, got)
+	}
+}
+
+// A run that grows is one frame whose edge glides over the rows it takes.
+func TestARunGrowsAsOneFrame(t *testing.T) {
+	state, _, tester := pickingState(t, 3)
+	if err := tester.ClickWith(ui.Shift, "Sheet 1"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	frame := newFrameEdges(t, state, tester, "Chapter", "Sheet 3")
+	first, _ := tester.Find("Chapter")
+	last, _ := tester.Find("Sheet 3")
+	if err := tester.ClickWith(ui.Shift, "Sheet 3"); err != nil {
+		t.Fatal(err)
+	}
+	bottoms := map[int]bool{}
+	previous := 0
+	frame.frames(func(n int, edges []int) {
+		if len(edges) != 2 || !near(edges, first.Y-outset) {
+			t.Fatalf("frame %d: edges %v, want one frame from the top", n, edges)
+		}
+		if edges[1] < previous {
+			t.Fatalf("frame %d: the bottom went back from %d to %d", n, previous, edges[1])
+		}
+		previous = edges[1]
+		bottoms[previous] = true
+	})
+	if !near([]int{previous}, last.Y+last.H+outset) {
+		t.Fatalf("the frame ended at %d, not Sheet 3's bottom %v", previous, last.Y+last.H)
+	}
+	if len(bottoms) < 4 {
+		t.Fatalf("the bottom jumped rather than glided: %v", bottoms)
+	}
+}
+
+// Letting go of a sheet inside a run parts its frame there, the outer
+// edges staying put; picking it again joins the two.
+func TestARunPartsAndJoinsWhereASheetIsCmdClicked(t *testing.T) {
+	state, _, tester := pickingState(t, 3)
+	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	frame := newFrameEdges(t, state, tester, "Chapter", "Sheet 2")
+	first, _ := tester.Find("Chapter")
+	last, _ := tester.Find("Sheet 2")
+	for _, step := range []struct {
+		name  string
+		edges int
+	}{{"parts", 4}, {"joins", 2}} {
+		if err := tester.ClickWith(ui.Cmd, "Sheet 1"); err != nil {
+			t.Fatal(err)
+		}
+		frame.frames(func(n int, edges []int) {
+			if !near(edges, first.Y-outset) || !near(edges, last.Y+last.H+outset) {
+				t.Fatalf("%s, frame %d: the outer edges moved: %v", step.name, n, edges)
+			}
+		})
+		settle(tester)
+		if edges := frame.edges(); len(edges) != step.edges {
+			t.Fatalf("%s: edges %v, want %d", step.name, edges, step.edges)
 		}
 	}
 }

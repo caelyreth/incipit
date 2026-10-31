@@ -30,7 +30,9 @@ func NavigationSelection(c *ui.Context, semantic theme.Theme) SelectionStyle {
 	return SelectionStyle{
 		Fill:   semantic.Surface.Inset,
 		Radius: theme.DefaultControls.Scaled(UIFontSize(c)).Radius,
-		Picked: semantic.Accent.Muted,
+		// Short of the full accent, the picked rows' frame marks them
+		// without outshouting the open one.
+		Picked: semantic.Accent.Foreground.Alpha(0.76),
 	}
 }
 
