@@ -34,8 +34,8 @@ func (s *State) header(
 	ui.Row(c).Height(height).Opacity(chrome).Clip().AlignItems(ui.Center).
 		Background(semantic.Surface.Background).DragWindow().Children(func() {
 		// The library's line: the sidebar's toggle by the window's
-		// controls, then search and a new group, which leave with the
-		// library.
+		// controls, then search, which leaves with the library. Groups
+		// and sheets are made in the lists, where they come in.
 		leading := ui.Row(c).Width(leadingWidth).HeightPercent(100).Shrink(0).
 			PaddingStart(left).PaddingEnd(theme.Space08.DIPs(scale)).
 			AlignItems(ui.Center).Gap(theme.Space02.DIPs(scale))
@@ -59,13 +59,6 @@ func (s *State) header(
 						IconSize:  16 * scale / theme.DefaultUIFontSize,
 						IconColor: &semantic.Icon.Muted, Selected: s.nav.searching,
 						Animate: animate, Action: s.Search,
-					}.View(c, semantic)
-					components.IconButton{
-						Key: "new-group", Label: "New group", Icon: components.IconNewGroup.SVG(),
-						Style: components.SubtleButton, Size: components.MediumButton,
-						IconSize:  16 * scale / theme.DefaultUIFontSize,
-						IconColor: &semantic.Icon.Muted, Animate: animate,
-						Action: func() { s.startRename(s.Library.NewGroup("")) },
 					}.View(c, semantic)
 				})
 			}

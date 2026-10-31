@@ -60,7 +60,9 @@ func (f *fakeLibrary) Targets() []MoveTarget {
 }
 func (f *fakeLibrary) SheetGroup(string) string { return "2" }
 
-func (f *fakeLibrary) NewSheet(group string) { f.call("new sheet " + group) }
+func (f *fakeLibrary) NewSheet(group string, index int) {
+	f.call(fmt.Sprint("new sheet ", group, " ", index))
+}
 func (f *fakeLibrary) OpenSheet(id string, newTab bool) {
 	if newTab {
 		f.call("open in new tab " + id)
@@ -73,8 +75,11 @@ func (f *fakeLibrary) MoveSheet(id, group string, _ int) { f.call("move " + id +
 func (f *fakeLibrary) TrashSheet(id string)              { f.call("trash " + id) }
 func (f *fakeLibrary) RestoreSheet(id string)            { f.call("restore " + id) }
 func (f *fakeLibrary) DeleteSheet(id string)             { f.call("delete " + id) }
-func (f *fakeLibrary) NewGroup(parent string) string     { f.call("new group " + parent); return "2" }
-func (f *fakeLibrary) RenameGroup(id, name string)       { f.call("rename " + id + " " + name) }
+func (f *fakeLibrary) NewGroup(parent string, index int) string {
+	f.call(fmt.Sprint("new group ", parent, " ", index))
+	return "2"
+}
+func (f *fakeLibrary) RenameGroup(id, name string) { f.call("rename " + id + " " + name) }
 func (f *fakeLibrary) StyleGroup(id, icon string, color int) {
 	f.call(fmt.Sprintf("style %s %s %d", id, icon, color))
 }
@@ -358,7 +363,94 @@ func TestThePlacesAreChipsThatWidenWhenChosen(t *testing.T) {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	if !slices.Contains(library.calls, "new sheet 1") || state.Place() != (Place{Kind: PlaceGroup, Group: "1"}) {
+	if !slices.Contains(library.calls, fmt.Sprint("new sheet 1 ", Last)) || state.Place() != (Place{Kind: PlaceGroup, Group: "1"}) {
 		t.Fatalf("the Inbox chip's menu: %v %+v", library.calls, state.Place())
+	}
+}
+
+// Groups and sheets are made in their lists, by a dashed area at the end,
+// or where the pointer rests: at the head of the groups, or above a sheet.
+func TestThingsAreMadeWhereTheyComeIn(t *testing.T) {
+	state, library := libraryState()
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	count := func(text string) int {
+		n := 0
+		for _, shown := range tester.Texts() {
+			if shown == text {
+				n++
+			}
+		}
+		return n
+	}
+	made := func(call string) {
+		t.Helper()
+		if !slices.Contains(library.calls, call) {
+			t.Fatalf("lacks %q in %v", call, library.calls)
+		}
+	}
+	areas := count("New group")
+	if areas == 0 {
+		t.Fatalf("no area makes a group: %#v", tester.Texts())
+	}
+	if err := tester.Click("New group"); err != nil {
+		t.Fatal(err)
+	}
+	made(fmt.Sprint("new group  ", Last))
+	settle(tester)
+
+	// Resting on the heading opens a second area above the groups.
+	heading, _ := tester.Find("Groups")
+	tester.Move(heading.X+heading.W/2, heading.Y+heading.H/2)
+	tester.Frame()
+	if count("New group") != areas {
+		t.Fatal("the head opened before the pointer rested")
+	}
+	tester.Advance(dwellOpen)
+	settle(tester)
+	if count("New group") <= areas {
+		t.Fatalf("resting on the heading opened nothing: %#v", tester.Texts())
+	}
+	if err := tester.Click("New group"); err != nil {
+		t.Fatal(err)
+	}
+	made("new group  0")
+
+	if err := tester.Click("All"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if err := tester.Click("New sheet"); err != nil {
+		t.Fatal(err)
+	}
+	made(fmt.Sprint("new sheet  ", Last))
+
+	if err := tester.Click("Novel"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	areas = count("New sheet")
+	sheet, _ := tester.Find("Chapter")
+	tester.Move(sheet.X+sheet.W/2, sheet.Y+16)
+	tester.Advance(dwellOpen)
+	settle(tester)
+	if count("New sheet") <= areas {
+		t.Fatalf("resting by a sheet's top opened nothing: %#v", tester.Texts())
+	}
+	if err := tester.Click("New sheet"); err != nil {
+		t.Fatal(err)
+	}
+	made("new sheet 2 0")
+	settle(tester)
+	if count("New sheet") != areas {
+		t.Fatal("the head stayed open after making a sheet")
+	}
+	// Away a while and back, it opens again.
+	tester.Move(sheet.X+sheet.W/2, 600)
+	settle(tester)
+	tester.Move(sheet.X+sheet.W/2, sheet.Y+16)
+	settle(tester)
+	if count("New sheet") <= areas {
+		t.Fatalf("the area did not open again: %#v", tester.Texts())
 	}
 }

@@ -86,6 +86,7 @@ func (s *State) listStage(c *ui.Context, semantic theme.Theme, animate bool) {
 	s.nav.fresh, s.nav.rank = false, 0
 	if view != s.nav.shown {
 		s.nav.shown, s.nav.fresh, s.nav.shownAt = view, true, time.Time{}
+		s.nav.sheetsGap, s.nav.sheetsNear = gap{}, -1
 		if animate {
 			s.nav.shownAt = c.Now()
 		}
@@ -136,6 +137,7 @@ func (s *State) listLayer(c *ui.Context, semantic theme.Theme, view listView, an
 
 func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, animate bool) {
 	sheets := s.Library.Sheets(place)
+	create := func(index int) { s.Library.NewSheet(s.CurrentGroup(), index) }
 	if len(sheets) == 0 {
 		text, icon := "Nothing changed in the last seven days", components.IconClock
 		switch place.Kind {
@@ -145,48 +147,48 @@ func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, anim
 			group, _ := s.Library.Group(place.Group)
 			text, icon = "No sheets in "+group.Name, groupIcon(group)
 		}
-		s.emptyList(c, semantic, icon, text, "New Sheet", func() { s.Library.NewSheet(s.CurrentGroup()) }, animate)
+		s.emptyList(c, semantic, icon, text, create, animate)
 		return
 	}
-	s.sheetRows(c, semantic, sheets, place, nil, animate)
+	s.sheetRows(c, semantic, sheets, place, nil, create, animate)
 }
 
 func (s *State) trashList(c *ui.Context, semantic theme.Theme, animate bool) {
 	groups := s.Library.TrashedGroups()
 	sheets := s.Library.Sheets(Place{Kind: PlaceTrash})
 	if len(groups) == 0 && len(sheets) == 0 {
-		s.emptyList(c, semantic, components.IconTrash, "The trash is empty", "", nil, animate)
+		s.emptyList(c, semantic, components.IconTrash, "The trash is empty", nil, animate)
 		return
 	}
 	s.sheetRows(c, semantic, sheets, Place{Kind: PlaceTrash}, func(track *components.SelectionTrack) {
 		for _, group := range groups {
 			s.trashedGroupRow(c, semantic, group, animate)
 		}
-	}, animate)
+	}, nil, animate)
 }
 
 func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
 	query := strings.TrimSpace(s.PageQuery)
 	if query == "" {
-		s.emptyList(c, semantic, components.IconSearch, "Search the words of every sheet", "", nil, animate)
+		s.emptyList(c, semantic, components.IconSearch, "Search the words of every sheet", nil, animate)
 		return
 	}
 	sheets := s.Library.Search(query)
 	if len(sheets) == 0 {
-		s.emptyList(c, semantic, components.IconSearch, "No sheets hold “"+query+"”", "", nil, animate)
+		s.emptyList(c, semantic, components.IconSearch, "No sheets hold “"+query+"”", nil, animate)
 		return
 	}
-	s.sheetRows(c, semantic, sheets, Place{Kind: PlaceAll}, nil, animate)
+	s.sheetRows(c, semantic, sheets, Place{Kind: PlaceAll}, nil, nil, animate)
 }
 
-// emptyList says there is nothing to list, quietly, with what makes
-// something when there is such a thing.
+// emptyList says there is nothing to list, quietly, with the area that
+// makes the first sheet where there can be one.
 func (s *State) emptyList(
 	c *ui.Context,
 	semantic theme.Theme,
 	icon components.IconName,
-	text, action string,
-	act func(),
+	text string,
+	create func(index int),
 	animate bool,
 ) {
 	scale := s.Settings.UIFontSize
@@ -200,12 +202,9 @@ func (s *State) emptyList(
 		ui.Icon(c, icon.SVG()).FontSize(36 * scale / theme.DefaultUIFontSize).
 			TextColor(semantic.Icon.Muted).Opacity(0.35)
 		components.Label(c, text, theme.TextSmall, semantic.Text.Muted).TextAlign(ui.Center)
-		if act != nil {
-			components.Button{
-				Key: "empty-action", Label: action,
-				Style: components.SubtleButton, Size: components.CompactButton,
-				Animate: animate, Action: act,
-			}.View(c, semantic)
+		if create != nil {
+			s.createArea(c, semantic, "new-sheet", "New sheet", animate, func() { create(Last) }).
+				MaxWidth(180*scale/theme.DefaultUIFontSize).Margin(theme.Space08.DIPs(scale), 0, 0, 0)
 		}
 	}).ContextMenu(s.listMenu())
 }
@@ -213,7 +212,7 @@ func (s *State) emptyList(
 func (s *State) listMenu() func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if m.Item("New Sheet").Chosen() {
-			s.Library.NewSheet(s.CurrentGroup())
+			s.Library.NewSheet(s.CurrentGroup(), Last)
 		}
 	}
 }
@@ -221,27 +220,54 @@ func (s *State) listMenu() func(*ui.Menu) {
 // sheetRows lists sheets under what leading draws. In a group, a sheet
 // dropped on another takes its place, and one dropped below the last goes
 // last.
+//
+// create, where sheets can be made, puts a create area below the last
+// sheet. In a group, where sheets keep the order they are put in, the
+// pointer resting by the top of a sheet opens another above it, for a
+// sheet in its place.
 func (s *State) sheetRows(
 	c *ui.Context,
 	semantic theme.Theme,
 	sheets []SheetItem,
 	place Place,
 	leading func(*components.SelectionTrack),
+	create func(index int),
 	animate bool,
 ) {
 	scale := s.Settings.UIFontSize
 	now := c.Now()
 	scroll := ui.Scroll(c).Grow(1).MinHeight(0)
 	scroll.Children(func() {
-		list := ui.Column(c).Gap(theme.Space02.DIPs(scale)).
+		list := ui.Column(c).Gap(theme.Space06.DIPs(scale)).
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
 		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
+		ordered := create != nil && place.Kind == PlaceGroup
+		// Where the pointer was by a sheet's top last frame calls up the
+		// area above it.
+		near := s.nav.sheetsNear
+		s.nav.sheetsNear = -1
+		at, open := s.nav.sheetsGap.follow(c, near)
+		open = open && ordered
+		band := 20 * scale / theme.DefaultUIFontSize
 		list.Children(func() {
 			if leading != nil {
 				leading(track)
 			}
 			for index, sheet := range sheets {
-				s.sheetRow(c, semantic, sheet, index, place, track, now, animate)
+				if open && at == index {
+					s.nav.sheetsGap.hold(s.createArea(c, semantic, "new-sheet-at-"+sheet.ID, "New sheet", animate, func() {
+						s.nav.sheetsGap.use()
+						create(index)
+					}).Transition(unfoldTransition(animate)))
+				}
+				row := s.sheetRow(c, semantic, sheet, index, place, track, now, animate)
+				if _, y, over := row.PointerPosition(); ordered && over && y < band {
+					s.nav.sheetsNear = index
+				}
+			}
+			if create != nil {
+				area := s.createArea(c, semantic, "new-sheet", "New sheet", animate, func() { create(Last) })
+				s.enter(c, area.Transition(s.listRowTransition(animate)))
 			}
 		})
 	})
@@ -250,10 +276,10 @@ func (s *State) sheetRows(
 	}
 	if place.Kind == PlaceGroup {
 		if dragged, ok := ui.Drop[sheetDrag](scroll); ok {
-			s.Library.MoveSheet(dragged.id, place.Group, 1<<30)
+			s.Library.MoveSheet(dragged.id, place.Group, Last)
 		}
 		if tab, ok := ui.Drop[tabDrag](scroll); ok {
-			s.Library.MoveSheet(tab.id, place.Group, 1<<30)
+			s.Library.MoveSheet(tab.id, place.Group, Last)
 		}
 	}
 }
@@ -267,7 +293,7 @@ func (s *State) sheetRow(
 	track *components.SelectionTrack,
 	now time.Time,
 	animate bool,
-) {
+) ui.Element {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	selected := sheet.ID == s.ActivePage
@@ -326,6 +352,7 @@ func (s *State) sheetRow(
 	if !confirming && (row.Clicked() || row.Shortcut(0, ui.KeyEnter)) {
 		s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Cmd != 0)
 	}
+	return row
 }
 
 // trashedGroupRow is a group in the trash, with what it would take with it.
@@ -389,7 +416,7 @@ func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 			s.Library.DuplicateSheet(sheet.ID)
 		}
 		s.moveMenu(m, func(group string) {
-			s.Library.MoveSheet(sheet.ID, group, 1<<30)
+			s.Library.MoveSheet(sheet.ID, group, Last)
 		}, "")
 		if m.Item("Show in Library").Chosen() {
 			s.reveal(sheet.ID)
@@ -481,13 +508,6 @@ func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, an
 		if detail != itemCount(0) {
 			s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
 		}
-	} else {
-		components.IconButton{
-			Key: "new-sheet", Label: "New sheet", Icon: components.IconNewSheet.SVG(),
-			Style: components.SubtleButton, Size: components.CompactButton,
-			IconColor: &semantic.Icon.Muted, Animate: animate,
-			Action: func() { s.Library.NewSheet(s.CurrentGroup()) },
-		}.View(c, semantic)
 	}
 	components.IconButton{
 		Key: "hide-sheets", Label: "Hide sheet list", Icon: components.IconSidebarClose.SVG(),

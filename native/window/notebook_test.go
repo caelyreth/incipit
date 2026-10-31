@@ -148,9 +148,9 @@ func TestSelectionsAreWhereTheyWereLeft(t *testing.T) {
 func TestTheLibraryIsKeptAndItsTrashEmptied(t *testing.T) {
 	root := t.TempDir()
 	app := openNotebookApp(t, root)
-	novel := app.NewGroup("")
+	novel := app.NewGroup("", shell.Last)
 	app.RenameGroup(novel, "Novel")
-	app.NewSheet(novel)
+	app.NewSheet(novel, shell.Last)
 	typeText(t, app, "# Chapter one")
 	chapter := app.Shell.ActivePage
 	app.DuplicateSheet(chapter)

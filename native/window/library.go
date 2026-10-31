@@ -237,9 +237,9 @@ func (a *AppState) SheetGroup(name string) string {
 	return groupName(sheet.Group)
 }
 
-// NewSheet is part of shell.Library: an empty sheet at the end of a group,
+// NewSheet is part of shell.Library: an empty sheet at index in a group,
 // the Inbox for none, open in a tab of its own.
-func (a *AppState) NewSheet(group string) {
+func (a *AppState) NewSheet(group string, index int) {
 	target := groupOf(group)
 	if target == 0 || a.library.GroupInTrash(target) {
 		target = library.Inbox
@@ -252,6 +252,7 @@ func (a *AppState) NewSheet(group string) {
 	}
 	if session, ok := a.sessions[id]; ok {
 		_ = a.library.AddSheet(library.SheetID(session.key), target, time.Now())
+		_ = a.library.MoveSheet(library.SheetID(session.key), target, index)
 	}
 	a.selectMounted()
 	a.libraryChanged()
@@ -387,12 +388,13 @@ func (a *AppState) DeleteSheet(name string) {
 }
 
 // NewGroup is part of shell.Library.
-func (a *AppState) NewGroup(parent string) string {
+func (a *AppState) NewGroup(parent string, index int) string {
 	id, err := a.library.AddGroup(groupOf(parent), "Untitled Group")
 	if err != nil {
 		a.fail(err)
 		return ""
 	}
+	_ = a.library.MoveGroup(id, groupOf(parent), index)
 	a.libraryChanged()
 	return groupName(id)
 }

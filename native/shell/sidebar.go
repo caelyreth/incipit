@@ -37,6 +37,11 @@ type navigation struct {
 	// armed is what waits for a second click to be deleted, since armedAt.
 	armed   string
 	armedAt time.Time
+	// sheetsGap calls up a create area above a sheet in a group, and
+	// groupsTop one at the head of the groups.
+	sheetsGap, groupsTop gap
+	// sheetsNear is the sheet whose top the pointer was by, -1 for none.
+	sheetsNear int
 }
 
 // Place is where the sidebar is.
@@ -110,32 +115,49 @@ func (s *State) sidebar(
 func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
 	ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
-		list := ui.Column(c).Gap(theme.Space02.DIPs(scale))
+		list := ui.Column(c).Gap(theme.Space04.DIPs(scale))
 		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
 		list.Children(func() {
 			s.placeChips(c, semantic, animate)
-			s.groupsLabel(c, semantic, animate)
+			label := s.groupsLabel(c, semantic, animate)
+			none := len(s.Library.Groups("")) <= 1
+			// Resting on the heading calls up a second area there, for a
+			// group at the top.
+			_, _, near := label.PointerPosition()
+			at := -1
+			if near {
+				at = 0
+			}
+			if _, open := s.nav.groupsTop.follow(c, at); open && !none {
+				s.nav.groupsTop.hold(s.createArea(c, semantic, "new-group-top", "New group", animate, func() {
+					s.nav.groupsTop.use()
+					s.startRename(s.Library.NewGroup("", 0))
+				}).Transition(unfoldTransition(animate)))
+			}
 			s.groupTree(c, semantic, "", 0, track, animate)
-			if len(s.Library.Groups("")) <= 1 {
+			if none {
 				ui.Box(c).Key("no-groups").PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space04.DIPs(scale)).
 					Transition(rowTransition(animate)).Children(func() {
-					components.Label(c, "Make a group with + to file sheets by project.",
+					components.Label(c, "Groups file sheets by project.",
 						theme.TextXSmall, semantic.Text.Muted).Opacity(0.8)
 				})
 			}
+			s.createArea(c, semantic, "new-group", "New group", animate, func() {
+				s.startRename(s.Library.NewGroup("", Last))
+			}).Transition(rowTransition(animate))
 		})
 	}).ContextMenu(func(m *ui.Menu) {
 		if m.Item("New Group").Chosen() {
-			s.startRename(s.Library.NewGroup(""))
+			s.startRename(s.Library.NewGroup("", Last))
 		}
 		if m.Item("New Sheet").Chosen() {
-			s.Library.NewSheet("")
+			s.Library.NewSheet("", Last)
 		}
 	})
 }
 
 // groupsLabel heads the groups. A group dropped on it goes to the top.
-func (s *State) groupsLabel(c *ui.Context, semantic theme.Theme, animate bool) {
+func (s *State) groupsLabel(c *ui.Context, semantic theme.Theme, animate bool) ui.Element {
 	scale := s.Settings.UIFontSize
 	label := ui.Row(c).Key("groups-label").WidthPercent(100).
 		Height(theme.DefaultControls.Scaled(scale).InlineHeight).MarginY(theme.Space06.DIPs(scale)).
@@ -146,8 +168,9 @@ func (s *State) groupsLabel(c *ui.Context, semantic theme.Theme, animate bool) {
 	})
 	s.dropHighlight(c, semantic, label, false, true, false, animate)
 	if dragged, ok := ui.Drop[groupDrag](label); ok {
-		s.Library.MoveGroup(dragged.id, "", 1<<30)
+		s.Library.MoveGroup(dragged.id, "", Last)
 	}
+	return label
 }
 
 // placeRow is a filter in the library.
@@ -250,7 +273,7 @@ func (s *State) groupTree(
 			s.groupRow(c, semantic, group, depth, true, track, animate)
 			if group.HasGroups {
 				components.Fold{Key: "fold", Open: s.nav.expanded[group.ID], Animate: animate, Settle: motionFold}.View(c, func() {
-					ui.Column(c).Gap(theme.Space02.DIPs(scale)).Padding(theme.Space02.DIPs(scale), 0, 0, 0).Children(func() {
+					ui.Column(c).Gap(theme.Space04.DIPs(scale)).Padding(theme.Space04.DIPs(scale), 0, 0, 0).Children(func() {
 						s.groupTree(c, semantic, group.ID, depth+1, track, animate)
 					})
 				})
@@ -381,7 +404,7 @@ func (s *State) dropHighlight(
 // into it.
 func (s *State) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, group GroupItem, animate bool) {
 	s.dropHighlight(c, semantic, row, true, !group.Inbox, true, animate)
-	end := 1 << 30
+	end := Last
 	if sheet, ok := ui.Drop[sheetDrag](row); ok {
 		s.Library.MoveSheet(sheet.id, group.ID, end)
 	}
@@ -398,14 +421,14 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if m.Item("New Sheet").Chosen() {
 			s.Go(Place{Kind: PlaceGroup, Group: group.ID})
-			s.Library.NewSheet(group.ID)
+			s.Library.NewSheet(group.ID, Last)
 		}
 		if group.Inbox {
 			return
 		}
 		if m.Item("New Group Inside").Chosen() {
 			s.nav.expanded[group.ID] = true
-			s.startRename(s.Library.NewGroup(group.ID))
+			s.startRename(s.Library.NewGroup(group.ID, Last))
 		}
 		m.Separator()
 		if m.Item("Rename…").Chosen() {
@@ -414,7 +437,7 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 		if m.Item("Icon & Color…").Chosen() {
 			s.nav.styling, s.nav.stylingOpen = group.ID, true
 		}
-		s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, 1<<30) }, group.ID)
+		s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, Last) }, group.ID)
 		m.Separator()
 		if m.Item(trashGroupLabel(group)).Chosen() {
 			if s.nav.place == (Place{Kind: PlaceGroup, Group: group.ID}) {

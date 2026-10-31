@@ -5,6 +5,7 @@ import (
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/native/shell"
 	"github.com/egoist/mygo"
 )
 
@@ -200,7 +201,7 @@ func (a *AppState) newPage() {
 	if a == nil || a.Workspace == nil {
 		return
 	}
-	a.NewSheet(a.Shell.CurrentGroup())
+	a.NewSheet(a.Shell.CurrentGroup(), shell.Last)
 }
 
 func (a *AppState) closePage() {

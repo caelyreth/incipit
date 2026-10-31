@@ -149,7 +149,7 @@ func (a *AppState) BindShell() {
 		a.selectMounted()
 	}
 	a.Shell.Library = a
-	a.Shell.NewPage = func() { a.NewSheet(a.Shell.CurrentGroup()) }
+	a.Shell.NewPage = func() { a.NewSheet(a.Shell.CurrentGroup(), shell.Last) }
 	a.Shell.MoveTab = func(name string, index int) {
 		if session, ok := a.sessionOf(name); ok {
 			a.Workspace.MoveTab(session.page, index)

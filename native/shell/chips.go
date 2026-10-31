@@ -126,10 +126,10 @@ func (s *State) chip(c *ui.Context, semantic theme.Theme, chip placeChip, small,
 	if chip.inbox {
 		s.dropHighlight(c, semantic, button, true, false, true, animate)
 		if sheet, ok := ui.Drop[sheetDrag](button); ok {
-			s.Library.MoveSheet(sheet.id, chip.place.Group, 1<<30)
+			s.Library.MoveSheet(sheet.id, chip.place.Group, Last)
 		}
 		if tab, ok := ui.Drop[tabDrag](button); ok {
-			s.Library.MoveSheet(tab.id, chip.place.Group, 1<<30)
+			s.Library.MoveSheet(tab.id, chip.place.Group, Last)
 		}
 	}
 	if button.Clicked() {

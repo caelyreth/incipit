@@ -33,6 +33,11 @@ const (
 	enterStagger = 24 * time.Millisecond
 	enterRanks   = 8
 	enterRise    = float32(8)
+	// dwellOpen is how long the pointer rests by the head of a list before
+	// a create area opens there, and dwellClose how long it is away before
+	// the area closes.
+	dwellOpen  = 350 * time.Millisecond
+	dwellClose = 250 * time.Millisecond
 )
 
 // listTransition is how rows and tabs come, go and make room.
@@ -79,5 +84,19 @@ func popTransition(animate bool) ui.ElementTransition {
 		Duration: motionList,
 		Enter:    &ui.Motion{Scale: 0.9, Opacity: 0},
 		Exit:     &ui.Motion{Scale: 0.9, Opacity: 0},
+	}
+}
+
+// unfoldTransition opens something called up in a list, pushing the rows
+// below aside, and folds it away.
+func unfoldTransition(animate bool) ui.ElementTransition {
+	if !animate {
+		return ui.ElementTransition{Duration: 1}
+	}
+	return ui.ElementTransition{
+		Duration: motionList,
+		Position: true,
+		Enter:    &ui.Motion{Collapse: true, Opacity: 0},
+		Exit:     &ui.Motion{Collapse: true, Opacity: 0},
 	}
 }

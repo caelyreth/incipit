@@ -73,7 +73,8 @@ type Library interface {
 	// SheetGroup is the group a sheet is filed in.
 	SheetGroup(sheet string) string
 
-	NewSheet(group string)
+	// NewSheet makes a sheet at index in group, as MoveSheet places one.
+	NewSheet(group string, index int)
 	OpenSheet(id string, newTab bool)
 	DuplicateSheet(id string)
 	MoveSheet(id, group string, index int)
@@ -81,8 +82,9 @@ type Library interface {
 	RestoreSheet(id string)
 	DeleteSheet(id string)
 
-	// NewGroup makes a group in parent and returns it, for naming.
-	NewGroup(parent string) string
+	// NewGroup makes a group at index in parent and returns it, for
+	// naming.
+	NewGroup(parent string, index int) string
 	RenameGroup(id, name string)
 	// StyleGroup sets a group's icon and tint, as GroupItem holds them.
 	StyleGroup(id, icon string, color int)
