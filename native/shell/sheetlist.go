@@ -392,8 +392,14 @@ func (s *State) sheetRows(
 			slot, height := s.sheetDropPlan(list, entries, dragged)
 			dropSlot = slot
 			s.nav.sheetDropSlot = slot
-			if _, moves := s.reorderSlot(dragged.sheetMoveID(), place.Group, slot, entries); moves {
+			if target, moves := s.reorderSlot(dragged.sheetMoveID(), place.Group, slot, entries); moves {
 				s.nav.sheetDropHeight = height
+				s.nav.sheetDropRoom = 0
+				if isChapter(entries, dragged.sheetMoveID()) && target > 0 {
+					// The placeholder holds the room the chapter will take,
+					// so nothing moves again as it lands.
+					s.nav.sheetDropRoom = chapterRoom(scale)
+				}
 				s.nav.sheetDropVisible = true
 			} else {
 				// Either side of the dragged row is its original place.
@@ -452,7 +458,10 @@ func (s *State) sheetRows(
 				if entry.Kind == EntryChapter {
 					// An area open above a chapter makes a sheet in the
 					// section before, so the room stays between the two.
-					row = s.chapterRow(c, semantic, entry.Chapter, chapterSheets(entries, index), index > 0, animate)
+					// A chapter at the head that a drop will put below what
+					// lands above it takes its room while the drop is open.
+					apart := index > 0 || ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == 0
+					row = s.chapterRow(c, semantic, entry.Chapter, chapterSheets(entries, index), apart, animate)
 				} else {
 					row = s.sheetRow(c, semantic, entry.Sheet, index, place, track, now, animate)
 				}
@@ -488,6 +497,11 @@ func (s *State) sheetRows(
 				}
 				if moved, ok := ui.Drop[sheetMove](list); ok {
 					s.moveSheetToSlot(moved.sheetMoveID(), place.Group, dropSlot, entries)
+					// The row lands in the placeholder's space: it goes at
+					// once rather than closing behind the row, which would
+					// move the rows after it a second time.
+					s.nav.sheetDropVisible, s.nav.sheetDropSlot = false, -1
+					s.nav.sheetDropHeight, s.nav.sheetDropRoom = 0, 0
 				}
 			}
 		})
@@ -609,8 +623,9 @@ func (s *State) sheetDropPlaceholder(
 	height := float32(0)
 	opacity := float32(0)
 	if active {
-		height, opacity = s.nav.sheetDropHeight, 1
+		height, opacity = s.nav.sheetDropRoom+s.nav.sheetDropHeight, 1
 	}
+	room := s.nav.sheetDropRoom
 	area := ui.Box(c).Key("sheet-drop-placeholder").WidthPercent(100).
 		Height(0).Shrink(0).Clip().Radius(metrics.Radius).
 		Transition(s.listRowTransition(animate))
@@ -620,6 +635,9 @@ func (s *State) sheetDropPlaceholder(
 	}
 	area.Height(height).Opacity(opacity).
 		Draw(func(p *ui.Painter, r ui.Rect) {
+			// The outline takes the row's own extent, below the room a
+			// chapter keeps above it.
+			r.Y, r.H = r.Y+min(room, r.H), max(0, r.H-room)
 			if r.H <= 0.5 {
 				return
 			}
@@ -761,6 +779,16 @@ func (s *State) sheetRow(
 	return row
 }
 
+// isChapter reports whether id is a chapter among entries.
+func isChapter(entries []GroupEntry, id string) bool {
+	for _, entry := range entries {
+		if entry.ID == id {
+			return entry.Kind == EntryChapter
+		}
+	}
+	return false
+}
+
 // chapterSheets counts the sheets under the chapter at index, up to the
 // next one.
 func chapterSheets(entries []GroupEntry, index int) int {
@@ -832,10 +860,14 @@ func (s *State) chapterRow(
 		row.Border(1, semantic.Border.Focused)
 	}
 	// The contents keep the row's whole height and its top, so a row that
-	// unfolds shows them from the top down instead of sliding them.
+	// unfolds shows them from the top down instead of sliding them. A line
+	// box centered in the row sets its letters low, by the room it keeps
+	// for descenders: they go up to put their optical middle, between the
+	// capitals' middle and the lowercase's, at the row's.
 	row.Children(func() {
 		ui.Row(c).WidthPercent(100).Height(metrics.Height).Shrink(0).
 			PaddingX(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+			Translate(0, -chapterLift*theme.TextSmall.Size(scale)).
 			Children(func() { s.chapterContents(c, semantic, chapter, sheets, editing, hover, edit) })
 	})
 	if editing {
@@ -869,15 +901,23 @@ func (s *State) chapterContents(
 			Shrink(1).MinWidth(0).SingleLine()
 		// Centered as the name's line box is, the rule would sit at the
 		// capitals' middle, which reads high beside lowercase: it goes down
-		// to between the capitals' middle and the lowercase's. Back from a
-		// rename, it draws in again as the field goes.
+		// to the letters' optical middle. Back from a rename, it draws in
+		// again as the field goes.
 		ui.Box(c).Height(1).Grow(1).MinWidth(theme.Space12.DIPs(scale)).
-			Translate(0, 0.1*theme.TextSmall.Size(scale)).
+			Translate(0, chapterRule*theme.TextSmall.Size(scale)).
 			Background(line).Opacity((0.6 + 0.4*hover) * (1 - edit))
 	}
 	components.Label(c, sheetCount(sheets), theme.TextXSmall, semantic.Text.Muted).
 		Shrink(0).SingleLine().FontFeatures("tnum").Opacity(1 - 0.5*edit)
 }
+
+// chapterLift raises a chapter's letters, and chapterRule lowers its rule
+// from their line box's middle, both in parts of the text size, to put the
+// two on the row's middle.
+const (
+	chapterLift = 0.14
+	chapterRule = 0.1
+)
 
 // chapterRoom is the room above a chapter that sets its section apart
 // from the sheets before it: with the list's gap, four times the space

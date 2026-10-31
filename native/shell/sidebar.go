@@ -52,9 +52,11 @@ type navigation struct {
 	sheetsNear int
 	// sheetDropSlot is the insertion slot while a sheet is dragged over a
 	// group's list, -1 when none; sheetDropRows is the last geometry used
-	// to choose it, and sheetDropHeight is the dragged row's extent.
+	// to choose it, and sheetDropHeight is the dragged row's extent;
+	// sheetDropRoom is the room a chapter takes above it where it lands.
 	sheetDropSlot    int
 	sheetDropHeight  float32
+	sheetDropRoom    float32
 	sheetDropVisible bool
 	sheetDropRows    []sheetDropSpan
 }

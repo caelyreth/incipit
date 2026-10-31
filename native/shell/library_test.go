@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -243,8 +244,10 @@ func TestSheetDragReordersWithAnAnimatedPlaceholder(t *testing.T) {
 	}
 	tester.Release(x, second.Y+second.H*0.8)
 	tester.Frame()
-	if !state.nav.sheetDropVisible || !tester.FramePending() {
-		t.Fatal("placeholder did not animate out after the drop")
+	// The row lands in the placeholder's space, which goes at once rather
+	// than closing behind it; the row still moves there.
+	if state.nav.sheetDropVisible || !tester.FramePending() {
+		t.Fatal("the placeholder lingered after the drop, or the row did not move to it")
 	}
 	settle(tester)
 	if len(library.moves) != 1 {
@@ -1161,5 +1164,49 @@ func TestRenamingAChapterKeepsItsPlace(t *testing.T) {
 	}
 	if !slices.Contains(tester.Texts(), "1 sheet") {
 		t.Fatalf("the count left the renamed chapter: %#v", tester.Texts())
+	}
+}
+
+// A chapter dropped lands in the space the drop held open for it, room
+// and all: the rows after that space do not move again as it lands.
+func TestADroppedChapterLandsInOneMove(t *testing.T) {
+	state, library := libraryState()
+	sheet := func(id, title string) GroupEntry {
+		return GroupEntry{Kind: EntrySheet, ID: id, Title: title, Sheet: SheetItem{ID: id, Title: title}}
+	}
+	library.entries = []GroupEntry{
+		sheet("7", "First"), sheet("8", "Second"),
+		{
+			Kind: EntryChapter, ID: "chapter:9", Title: "Part Two",
+			Chapter: ChapterItem{ID: "chapter:9", Name: "Part Two"},
+		},
+		sheet("10", "Last"),
+	}
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	divider, _ := tester.Find("Part Two")
+	second, _ := tester.Find("Second")
+	x := divider.X + divider.W/2
+	tester.Press(x, divider.Y+divider.H/2)
+	tester.Move(x, divider.Y+divider.H/2-10)
+	tester.Frame()
+	target := second.Y + 4
+	tester.Move(x, target)
+	settle(tester)
+	if state.nav.sheetDropSlot != 1 || !state.nav.sheetDropVisible {
+		t.Fatalf("drop = slot %d visible %v", state.nav.sheetDropSlot, state.nav.sheetDropVisible)
+	}
+	held, _ := tester.Find("Second")
+	tester.Release(x, target)
+	for frame := range 30 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+		if now, _ := tester.Find("Second"); math.Abs(float64(now.Y-held.Y)) > 0.5 {
+			t.Fatalf("frame %d after the drop moved Second from %v to %v", frame, held.Y, now.Y)
+		}
+	}
+	if len(library.moves) != 1 || library.moves[0].index != 1 {
+		t.Fatalf("moves = %#v, want the chapter at 1", library.moves)
 	}
 }
