@@ -32,6 +32,34 @@ func (t *SelectionTrack) Pick(row ui.Element, amount float32) {
 	t.picks = append(t.picks, pickedRow{bounds: bounds, amount: max(0, min(amount, 1))})
 }
 
+// Beneath fills row in color under the picked rows' fill, as a picked row
+// keeps a fill of its own, as its hover: the fill picking it covers it, and
+// it is there as that fill goes, so the row goes straight from the one to
+// the other. Call it each frame the row has it.
+func (t *SelectionTrack) Beneath(row ui.Element, color ui.Color) {
+	if t == nil || color.A == 0 {
+		return
+	}
+	bounds := row.LayoutBounds()
+	bounds.X -= t.list.X
+	bounds.Y -= t.list.Y
+	t.beneath = append(t.beneath, beneathRow{bounds: bounds, color: color})
+}
+
+// beneathRow is a fill under the picked rows' (Beneath).
+type beneathRow struct {
+	bounds ui.Rect
+	color  ui.Color
+}
+
+func (t *SelectionTrack) paintBeneath(p *ui.Painter, rect ui.Rect, style SelectionStyle) {
+	for _, row := range t.beneath {
+		row.bounds.X += rect.X
+		row.bounds.Y += rect.Y
+		p.Fill(row.bounds, row.color, style.Radius)
+	}
+}
+
 // Picking reports whether any row is picked, wholly or on its way.
 func (t *SelectionTrack) Picking() bool {
 	if t == nil {

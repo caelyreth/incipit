@@ -39,7 +39,8 @@ type SelectionTrack struct {
 	opacity motion.Spring
 	started bool
 
-	picks []pickedRow
+	picks   []pickedRow
+	beneath []beneathRow
 }
 
 type selectionKey struct{}
@@ -52,9 +53,10 @@ func TrackSelection(list ui.Element, style SelectionStyle, animate bool) *Select
 	})
 	track.list = list.LayoutBounds()
 	track.marked, track.known, track.hidden, track.animate = false, false, false, animate
-	track.picks = track.picks[:0]
+	track.picks, track.beneath = track.picks[:0], track.beneath[:0]
 	list.Draw(func(p *ui.Painter, rect ui.Rect) {
 		track.paint(p, rect, style)
+		track.paintBeneath(p, rect, style)
 		track.paintPicks(p, rect, style)
 	})
 	return track

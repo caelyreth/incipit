@@ -3,6 +3,7 @@ package shell
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -128,5 +129,87 @@ func TestPickedNeighboursShareOneFill(t *testing.T) {
 	}
 	if apart == inside {
 		t.Fatalf("the fill reached past the run: %v", apart)
+	}
+}
+
+func TestAPressElsewhereLetsThePickedGo(t *testing.T) {
+	state, _, tester := pickingState(t, 3)
+	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
+		t.Fatal(err)
+	}
+	if len(state.pickedSheets()) != 3 {
+		t.Fatalf("picked %v", state.pickedSheets())
+	}
+	// Another shift-click is the run's to change, not a press elsewhere.
+	if err := tester.ClickWith(ui.Shift, "Sheet 1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(state.pickedSheets()) != 2 {
+		t.Fatalf("picked %v after narrowing the run", state.pickedSheets())
+	}
+	// The page, right of the list.
+	tester.ClickAt(1100, 500)
+	tester.Frame()
+	if len(state.pickedSheets()) != 0 {
+		t.Fatalf("a press on the page kept %v", state.pickedSheets())
+	}
+}
+
+// The open sheet, picked, is one of the run: no grey of its own, not even
+// as it is pressed.
+func TestTheOpenSheetTakesTheRunsFill(t *testing.T) {
+	_, _, tester := pickingState(t, 2)
+	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	open, _ := tester.Find("Chapter")
+	other, _ := tester.Find("Sheet 1")
+	tester.Press(open.X+open.W/2, open.Y+open.H/2)
+	for range 12 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+	}
+	image := tester.Image()
+	x := int(open.X + open.W - 12)
+	if got, want := image.RGBAAt(x, int(open.Y+open.H/2)), image.RGBAAt(x, int(other.Y+other.H/2)); got != want {
+		t.Fatalf("the pressed open sheet's fill is %v, the run's %v", got, want)
+	}
+}
+
+// As the run lets go, the open sheet and the hovered one go straight from
+// the run's fill to their own, never through none.
+func TestARunLetsGoStraightToTheRowsOwnFill(t *testing.T) {
+	_, _, tester := pickingState(t, 2)
+	open, _ := tester.Find("Chapter")
+	hovered, _ := tester.Find("Sheet 2")
+	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	// By a row's edge, which the run's fill leaves first.
+	at := func(row ui.Rect) (int, int) { return int(row.X + row.W - 10), int(row.Y + 6) }
+	light := func(row ui.Rect) int {
+		c := tester.Image().RGBAAt(at(row))
+		return int(c.R) + int(c.G) + int(c.B)
+	}
+	rows := []ui.Rect{open, hovered}
+	var frames [][]int
+	for frame := range 24 {
+		if frame == 1 {
+			tester.Key(0, ui.KeyEscape)
+		}
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+		frames = append(frames, []int{light(open), light(hovered)})
+	}
+	for index := range rows {
+		from, to := frames[0][index], frames[len(frames)-1][index]
+		low, high := min(from, to)-2, max(from, to)+2
+		for frame, values := range frames {
+			if values[index] < low || values[index] > high {
+				t.Fatalf("row %d went from %d to %d through %d at frame %d", index, from, to, values[index], frame)
+			}
+		}
 	}
 }

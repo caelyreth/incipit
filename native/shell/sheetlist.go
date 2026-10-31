@@ -426,6 +426,7 @@ func (s *State) sheetRows(
 		at, open := s.nav.sheetsGap.follow(c, near)
 		open = open && ordered && !dragging
 		rows := make([]ui.Element, 0, len(entries))
+		var sheets []ui.Element
 		list.Children(func() {
 			if create != nil && createAtTop {
 				area := s.createArea(c, semantic, "new-sheet", "New sheet", animate, func() { create(Last) })
@@ -472,6 +473,7 @@ func (s *State) sheetRows(
 					track.Pick(row, 0)
 				} else {
 					row = s.sheetRow(c, semantic, entry.Sheet, index, place, track, now, animate)
+					sheets = append(sheets, row)
 				}
 				rows = append(rows, row)
 			}
@@ -516,6 +518,7 @@ func (s *State) sheetRows(
 				}
 			}
 		})
+		s.unpickOnPressElsewhere(sheets)
 	})
 	if place.Kind != PlaceTrash {
 		scroll.ContextMenu(s.listMenu())
@@ -828,14 +831,15 @@ func (s *State) sheetRow(
 	row.Background(ui.Transparent)
 	entering := s.enter(c, row)
 	s.land(c, row, sheet.ID, animate)
+	picked := s.picked(sheet.ID)
+	pick := s.pickAmount(row, sheet.ID, animate)
+	track.Pick(row, pick)
 	if selected {
+		// Under the run's fill, which hides it, so the run lets go
+		// straight to it.
 		track.Mark(row)
 	}
-	picked := s.picked(sheet.ID)
-	track.Pick(row, s.pickAmount(row, sheet.ID, animate))
-	// A picked row keeps the run's fill under the pointer, as the open one
-	// keeps its own.
-	hover := components.HoverAmount(row, !selected && !picked && row.Hovered(), animate)
+	hover := components.HoverAmount(row, !selected && row.Hovered(), animate)
 	selection := components.NavigationSelection(c, semantic)
 	dragging := s.dragging(row)
 	s.noteGrab(row, sheet.ID, dragging)
@@ -853,8 +857,8 @@ func (s *State) sheetRow(
 			Radius(metrics.Radius).Border(1, ui.Transparent)
 		card.Children(func() {
 			ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
-				title := semantic.Text.Default
-				if selected || picked {
+				title := components.Blend(semantic.Text.Default, semantic.Text.Heading, pick)
+				if selected {
 					title = semantic.Text.Heading
 				}
 				components.Label(c, sheet.Title, theme.TextSmall, title).Grow(1).MinWidth(0).SingleLine()
@@ -876,7 +880,15 @@ func (s *State) sheetRow(
 				SingleLine().FontFeatures("tnum").Opacity(0.7)
 		})
 	})
-	card.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
+	hoverFill := components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover)
+	if pick > 0.001 {
+		// The card's fill is over the run's: while the row is picked its
+		// hover goes under the run, which covers it and leaves it as the
+		// run lets go, so the row goes straight from the one to the other.
+		track.Beneath(row, hoverFill)
+		hoverFill = semantic.GhostElement.Background
+	}
+	card.Background(hoverFill)
 	press := pressTarget
 	if animate {
 		press = components.Follow(card, "press", pressTarget, components.MotionQuick)
@@ -884,7 +896,7 @@ func (s *State) sheetRow(
 	if dragging {
 		press = 0
 	}
-	if selected && (entering || pressTarget > 0 || press > 0.001) {
+	if selected && !picked && (entering || pressTarget > 0 || press > 0.001) {
 		// The shared highlight cannot shrink with one row. While the card
 		// enters or presses, it owns the same fill so both scale together.
 		track.Hide()

@@ -62,6 +62,21 @@ func (s *State) pickTo(id string) {
 	p.ids = slices.Clone(p.order[min(from, to) : max(from, to)+1])
 }
 
+// unpickOnPressElsewhere lets the picked go on a press on none of the
+// sheets: in the list's empty space, on a chapter, in the library or the
+// page. A press on a sheet is its click's to decide.
+func (s *State) unpickOnPressElsewhere(sheets []ui.Element) {
+	if len(s.nav.picking.ids) == 0 || len(sheets) == 0 {
+		return
+	}
+	for _, row := range sheets {
+		if !row.PressedOutside() {
+			return
+		}
+	}
+	s.unpick()
+}
+
 // pickAll picks every sheet the list shows.
 func (s *State) pickAll() {
 	p := &s.nav.picking
