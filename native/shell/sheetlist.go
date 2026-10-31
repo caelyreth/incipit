@@ -78,26 +78,79 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal f
 	})
 }
 
+// noteView notes, once a frame before the header and the list draw, when
+// the list comes to show something else, and from which side it comes.
+func (s *State) noteView(c *ui.Context, animate bool) {
+	s.nav.fresh, s.nav.rank = false, 0
+	view := s.listView()
+	if s.Library == nil || view == s.nav.shown {
+		return
+	}
+	s.nav.side = s.side(s.nav.shown, view)
+	s.nav.shown, s.nav.fresh, s.nav.shownAt = view, true, time.Time{}
+	s.nav.sheetsGap, s.nav.sheetsNear = gap{}, -1
+	if animate {
+		s.nav.shownAt = c.Now()
+	}
+}
+
+// side is where a list comes in from as the list goes from one view to
+// another: 1 from the right, for a place after the last, -1 from the left
+// for one before, 0 for none, as to or from search. The places run as the
+// library shows them: the chips left to right, the groups top to bottom,
+// then the trash.
+func (s *State) side(from, to listView) float32 {
+	if from.search || to.search {
+		return 0
+	}
+	order := map[Place]int{}
+	add := func(place Place) {
+		if _, ok := order[place]; !ok {
+			order[place] = len(order)
+		}
+	}
+	for _, group := range s.Library.Groups("") {
+		if group.Inbox {
+			add(Place{Kind: PlaceGroup, Group: group.ID})
+		}
+	}
+	add(Place{Kind: PlaceAll})
+	add(Place{Kind: PlaceRecent})
+	var walk func(parent string)
+	walk = func(parent string) {
+		for _, group := range s.Library.Groups(parent) {
+			if !group.Inbox {
+				add(Place{Kind: PlaceGroup, Group: group.ID})
+				walk(group.ID)
+			}
+		}
+	}
+	walk("")
+	add(Place{Kind: PlaceTrash})
+	a, okA := order[from.place]
+	b, okB := order[to.place]
+	switch {
+	case !okA || !okB || a == b:
+		return 0
+	case b > a:
+		return 1
+	}
+	return -1
+}
+
 // listStage draws what the list shows. A new place replaces the old at
 // once, never over it: two lists at half strength read as a flicker, the
 // more so where they share sheets. Its rows come in instead (enter).
 func (s *State) listStage(c *ui.Context, semantic theme.Theme, animate bool) {
 	view := s.listView()
-	s.nav.fresh, s.nav.rank = false, 0
-	if view != s.nav.shown {
-		s.nav.shown, s.nav.fresh, s.nav.shownAt = view, true, time.Time{}
-		s.nav.sheetsGap, s.nav.sheetsNear = gap{}, -1
-		if animate {
-			s.nav.shownAt = c.Now()
-		}
-	}
 	ui.Box(c).Grow(1).MinHeight(0).WidthPercent(100).Clip().Children(func() {
 		s.listLayer(c, semantic, view, animate)
 	})
 }
 
-// enter brings in the next row of a list just shown: each rises and fades
-// in a moment after the one above, so the place arrives top down.
+// enter brings in the next row of a list just shown: each slides in from
+// the side the place lies on and fades in a moment after the one above, so
+// the place arrives top down; with no side, as for search, it rises.
 func (s *State) enter(c *ui.Context, row ui.Element) {
 	rank := min(s.nav.rank, enterRanks)
 	s.nav.rank++
@@ -110,7 +163,12 @@ func (s *State) enter(c *ui.Context, row ui.Element) {
 	}
 	c.AnimationFrame()
 	p := components.Decelerate(max(0, t))
-	row.Opacity(p).Translate(0, (1-p)*enterRise*s.Settings.UIFontSize/theme.DefaultUIFontSize)
+	k := (1 - p) * s.Settings.UIFontSize / theme.DefaultUIFontSize
+	if s.nav.side != 0 {
+		row.Opacity(p).Translate(s.nav.side*enterSlide*k, 0)
+		return
+	}
+	row.Opacity(p).Translate(0, enterRise*k)
 }
 
 // listRowTransition is rowTransition, but rows that arrive with the list
@@ -441,7 +499,8 @@ func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal fl
 		ui.Box(c).WidthPercent(100).HeightPercent(100).Opacity(reveal).Children(func() {
 			layer := ui.Row(c).Key("head-" + view.key()).Absolute().Top(0).Left(0).Right(0).Bottom(0).
 				PaddingStart(theme.Space12.DIPs(scale)).PaddingEnd(theme.Space06.DIPs(scale)).
-				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Transition(swapTransition(animate))
+				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
+				Transition(swapTransition(animate, s.nav.side*enterSlide*scale/theme.DefaultUIFontSize))
 			layer.Children(func() {
 				if view.search {
 					s.searchHeader(c, semantic, animate)

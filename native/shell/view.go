@@ -59,6 +59,7 @@ func (s *State) View(c *ui.Context) {
 	s.lastSidebarWidth = sidebarWidth + listWidth
 	s.lastChrome = chrome
 
+	s.noteView(c, animate)
 	root.Children(func() {
 		if chrome > 0.001 {
 			s.header(c, semantic, metrics, layout, bar, chrome, reveal, listWidth, listReveal)

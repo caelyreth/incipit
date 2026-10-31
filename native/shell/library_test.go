@@ -454,3 +454,38 @@ func TestThingsAreMadeWhereTheyComeIn(t *testing.T) {
 		t.Fatalf("the area did not open again: %#v", tester.Texts())
 	}
 }
+
+// The list slides in from the side its place lies on, the places running
+// as the library shows them: the chips left to right, then the groups,
+// then the trash.
+func TestTheSheetListSlidesFromTheSideOfItsPlace(t *testing.T) {
+	state, _ := libraryState()
+	view := func(place Place) listView { return listView{place: place} }
+	inbox := view(Place{Kind: PlaceGroup, Group: "1"})
+	all := view(Place{Kind: PlaceAll})
+	recent := view(Place{Kind: PlaceRecent})
+	novel := view(Place{Kind: PlaceGroup, Group: "2"})
+	trash := view(Place{Kind: PlaceTrash})
+	for _, step := range []struct {
+		from, to listView
+		side     float32
+	}{
+		{inbox, all, 1}, {all, recent, 1}, {recent, novel, 1}, {novel, trash, 1},
+		{trash, inbox, -1}, {novel, all, -1}, {all, all, 0},
+		{all, listView{search: true}, 0}, {listView{search: true}, novel, 0},
+	} {
+		if side := state.side(step.from, step.to); side != step.side {
+			t.Errorf("%v to %v comes from %v, not %v", step.from, step.to, side, step.side)
+		}
+	}
+
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	settle(tester)
+	if err := tester.Click("Novel"); err != nil {
+		t.Fatal(err)
+	}
+	if state.nav.side != 1 {
+		t.Fatalf("going down to a group came from %v", state.nav.side)
+	}
+}

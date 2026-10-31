@@ -33,6 +33,9 @@ const (
 	enterStagger = 24 * time.Millisecond
 	enterRanks   = 8
 	enterRise    = float32(8)
+	// enterSlide is how far a row slides in from the side its place lies
+	// on.
+	enterSlide = float32(24)
 	// dwellOpen is how long the pointer rests by the head of a list before
 	// a create area opens there, and dwellClose how long it is away before
 	// the area closes.
@@ -67,12 +70,13 @@ func fadeTransition(animate bool) ui.ElementTransition {
 }
 
 // swapTransition shows what replaces something in place: the old goes at
-// once, the new fades in, so the two are never seen together.
-func swapTransition(animate bool) ui.ElementTransition {
+// once, the new fades in, sliding x DIPs, so the two are never seen
+// together.
+func swapTransition(animate bool, x float32) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
-	return ui.ElementTransition{Duration: motionList, Enter: &ui.Motion{Opacity: 0}}
+	return ui.ElementTransition{Duration: motionEnter, Enter: &ui.Motion{Opacity: 0, X: x}}
 }
 
 // popTransition lets something small appear and leave where it stands.

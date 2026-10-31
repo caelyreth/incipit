@@ -26,6 +26,9 @@ type navigation struct {
 	shownAt time.Time
 	fresh   bool
 	rank    int
+	// side is where the list shown came in from: 1 the right, -1 the
+	// left, 0 neither.
+	side float32
 	// expanded are the groups open in the library's tree.
 	expanded map[string]bool
 	// renaming is the group being named in place, and name its text.
