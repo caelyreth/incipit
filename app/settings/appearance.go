@@ -36,7 +36,7 @@ const (
 	DefaultUIFontSize float32 = 16
 	MinProseFontSize  float32 = 15
 	MaxProseFontSize  float32 = 26
-	DefaultProseSize  float32 = 19
+	DefaultProseSize  float32 = 17
 	// Line spacing is a body line's height over its text's size, from
 	// compact to loose. The page derives every other room from it: the
 	// leading of headings, lists and code, and the gaps between blocks.

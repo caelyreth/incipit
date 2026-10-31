@@ -150,6 +150,9 @@ const (
 	MinUIFontSize     float32 = 12
 	MaxUIFontSize     float32 = 24
 	DefaultUIFontSize float32 = 16
+	// DefaultProseFontSize is a reading size for a page: larger than the
+	// interface, as a book's text is, but not a display size.
+	DefaultProseFontSize float32 = 17
 )
 
 func DefaultSettings() Settings {
@@ -157,7 +160,7 @@ func DefaultSettings() Settings {
 		Appearance:    Starfield,
 		Accent:        Halo,
 		UIFontSize:    DefaultUIFontSize,
-		ProseFontSize: 19,
+		ProseFontSize: DefaultProseFontSize,
 		LineSpacing:   DefaultLineSpacing,
 	}
 }
