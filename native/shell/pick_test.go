@@ -419,64 +419,82 @@ func TestAPickedRowsHoverIsAStepOfTheAccent(t *testing.T) {
 	}
 }
 
-// ringAt reports whether the menu's ring crosses the list's middle on the
-// line just above row, where it stands clear of the row.
-func ringAbove(state *State, tester *ui.Tester, row ui.Rect) bool {
-	ring := state.Settings.Semantic().Accent.Foreground
+// ringAbove is how much of the line just above row, across the list's
+// middle, the menu's ring inks, 0 to 1, on the most inked of the lines it
+// stands on as it comes, sits and goes.
+func ringAbove(state *State, tester *ui.Tester, row ui.Rect) float32 {
+	panel := state.Settings.Semantic().Surface.Panel
 	image := tester.Image()
-	for _, y := range []int{int(row.Y) - 4, int(row.Y) - 3, int(row.Y) - 2} {
-		n := 0
+	d := func(a, b uint8) int { return max(int(a)-int(b), int(b)-int(a)) }
+	most := float32(0)
+	for y := int(row.Y) - 6; y <= int(row.Y)-1; y++ {
+		n, span := 0, 0
 		for x := int(row.X + row.W*0.3); x < int(row.X+row.W*0.7); x++ {
 			c := image.RGBAAt(x, y)
-			d := func(a, b uint8) int { return max(int(a)-int(b), int(b)-int(a)) }
-			if d(c.R, ring.R)+d(c.G, ring.G)+d(c.B, ring.B) < 90 {
+			if d(c.R, panel.R)+d(c.G, panel.G)+d(c.B, panel.B) > 24 {
 				n++
 			}
+			span++
 		}
-		if n*2 > int(row.W*0.4) {
-			return true
-		}
+		most = max(most, float32(n)/float32(span))
 	}
-	return false
+	return most
+}
+
+// runFrames runs n frames.
+func runFrames(tester *ui.Tester, n int) {
+	for range n {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+	}
 }
 
 // A menu rings what it acts on while it shows: the picked for theirs, a
-// sheet alone for its own; the ring goes as an item is chosen or the
-// pointer moves on.
+// sheet alone for its own. The ring fades in as the menu opens, and out as
+// an item is chosen or the pointer moves on.
 func TestAMenuRingsWhatItActsOn(t *testing.T) {
 	state, _, tester := pickingState(t, 3)
 	clickAway(t, tester, ui.Shift, "Sheet 1")
 	settle(tester)
 	open, _ := tester.Find("Chapter")
 	lone, _ := tester.Find("Sheet 3")
-	if ringAbove(state, tester, open) {
+	ringed := func(row ui.Rect) bool { return ringAbove(state, tester, row) > 0.5 }
+	if ringed(open) {
 		t.Fatal("a ring showed with no menu open")
 	}
 	if err := tester.RightClick("Sheet 1"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	if !ringAbove(state, tester, open) || ringAbove(state, tester, lone) {
+	if ringed(open) {
+		t.Fatal("the ring showed at once as the menu opened, rather than fading in")
+	}
+	runFrames(tester, 12)
+	if !ringed(open) || ringed(lone) {
 		t.Fatal("the picked sheets' menu did not ring the run, and it alone")
 	}
 	if err := tester.ChooseMenuItem("Duplicate 2 Sheets"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	if ringAbove(state, tester, open) {
+	if !ringed(open) {
+		t.Fatal("the ring went at once as an item was chosen, rather than fading")
+	}
+	runFrames(tester, 20)
+	if ringed(open) {
 		t.Fatal("the ring stayed after an item was chosen")
 	}
 	clickAway(t, tester, ui.Shift, "Sheet 1")
 	if err := tester.RightClick("Sheet 3"); err != nil {
 		t.Fatal(err)
 	}
-	tester.Frame()
-	if !ringAbove(state, tester, lone) || ringAbove(state, tester, open) {
+	runFrames(tester, 12)
+	if !ringed(lone) || ringed(open) {
 		t.Fatal("a sheet's own menu did not ring it alone")
 	}
 	tester.Move(1100, 500)
-	tester.Frame()
-	if ringAbove(state, tester, lone) {
+	runFrames(tester, 20)
+	if ringed(lone) {
 		t.Fatal("the ring stayed after the pointer moved on")
 	}
 }

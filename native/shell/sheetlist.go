@@ -384,7 +384,7 @@ func (s *State) sheetRows(
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
 		s.sheetOverscroll.Apply(c, list, animate)
 		selection := components.NavigationSelection(c, semantic)
-		// The menu's ring stands midway across the space between rows.
+		// The menu's ring stands midway between the rows, clear of both.
 		selection.RingOutset = rowGap / 2
 		track := components.TrackSelection(list, selection, animate)
 		s.noteOrder(entries)

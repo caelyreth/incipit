@@ -1,6 +1,7 @@
 package components
 
 import (
+	"math"
 	"slices"
 	"time"
 
@@ -332,23 +333,53 @@ func (t *SelectionTrack) paintPicks(p *ui.Painter, rect ui.Rect, style Selection
 }
 
 // paintRing rings the runs of the rows Ring named, standing RingOutset out
-// from them, its corners rounded about theirs.
+// from them, its corners rounded about theirs: a point-wide line on whole
+// pixels, clear of the fill, which fades in and out where it stands, so it
+// reads as the menu's mark without drawing the eye from the menu.
+//
+// It fades in from nothing as the menu opens, the window drawing on while
+// the system's menu shows; a ring that moves to other rows fades in anew
+// there, rather than jumping across.
 func (t *SelectionTrack) paintRing(p *ui.Painter, rect ui.Rect, style SelectionStyle) {
-	if len(t.ring) == 0 {
+	now := p.Now()
+	target := float32(0)
+	if len(t.ring) > 0 {
+		target = 1
+		if !slices.Equal(t.ring, t.ringShown) {
+			t.ringShown = slices.Clone(t.ring)
+			t.ringAmount = motion.NewSpring(0, now)
+		}
+		t.ringRuns = t.ringRuns[:0]
+		for _, run := range t.runs(func(row pickedRow) bool { return slices.Contains(t.ring, row.id) }) {
+			t.ringRuns = append(t.ringRuns, run.frame)
+		}
+	} else {
+		t.ringShown = nil
+	}
+	if !t.animate {
+		t.ringAmount = motion.NewSpring(target, now)
+	}
+	a := t.ringAmount.Step(target, now, selectionFade)
+	if t.ringAmount.Moving() {
+		p.AnimationFrame()
+	}
+	if a <= 0.001 {
+		t.ringRuns = t.ringRuns[:0]
 		return
 	}
 	out := style.RingOutset
-	for _, run := range t.runs(func(row pickedRow) bool { return slices.Contains(t.ring, row.id) }) {
-		box := ui.Rect{
-			X: rect.X + run.frame.X - out, Y: rect.Y + run.frame.Y - out,
-			W: run.frame.W + 2*out, H: run.frame.H + 2*out,
-		}
-		p.Stroke(box, style.Ring, style.Radius+out, ringWidth)
+	scale := max(1, p.Scale())
+	snap := func(v float32) float32 { return float32(math.Round(float64(v*scale))) / scale }
+	width := max(1/scale, snap(1))
+	for _, run := range t.ringRuns {
+		left, top := snap(rect.X+run.X-out), snap(rect.Y+run.Y-out)
+		right, bottom := snap(rect.X+run.X+run.W+out), snap(rect.Y+run.Y+run.H+out)
+		// The stroke lies just inside the box: on whole pixels, it is whole
+		// rows of them, not a blur across one more.
+		box := ui.Rect{X: left, Y: top, W: right - left, H: bottom - top}
+		p.Stroke(box, style.Ring.Alpha(a), style.Radius+out, width)
 	}
 }
-
-// ringWidth is how wide the menu's ring is drawn.
-const ringWidth = 1.5
 
 func abs32(v float32) float32 { return max(v, -v) }
 

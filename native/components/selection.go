@@ -50,6 +50,13 @@ type SelectionTrack struct {
 	blocks  []pickBlock
 	beneath []beneathRow
 	ring    []string
+
+	// ringShown is the rows the ring last went round, ringRuns their runs
+	// as last drawn, which it keeps as it fades, and ringAmount how far it
+	// is there.
+	ringShown  []string
+	ringRuns   []ui.Rect
+	ringAmount motion.Spring
 }
 
 type selectionKey struct{}
