@@ -388,6 +388,9 @@ func (s *State) sheetRows(
 		dragged, dragging := ui.DragOver[sheetMove](list)
 		dragging = ordered && dragging
 		dropSlot := s.nav.sheetDropSlot
+		s.nav.listTop = list.LayoutBounds().Y
+		var placeholder ui.Element
+		hasPlaceholder := false
 		if dragging {
 			slot, height := s.sheetDropPlan(list, entries, dragged)
 			dropSlot = slot
@@ -431,7 +434,7 @@ func (s *State) sheetRows(
 			}
 			for index, entry := range entries {
 				if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == index {
-					s.sheetDropPlaceholder(c, semantic, dragging, animate)
+					placeholder, hasPlaceholder = s.sheetDropPlaceholder(c, semantic, dragging, animate), true
 				}
 				if open && at == index {
 					sheetAction := func() {
@@ -475,7 +478,7 @@ func (s *State) sheetRows(
 				}
 			}
 			if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == len(entries) {
-				s.sheetDropPlaceholder(c, semantic, dragging, animate)
+				placeholder, hasPlaceholder = s.sheetDropPlaceholder(c, semantic, dragging, animate), true
 			}
 			if create != nil && !createAtTop {
 				var area ui.Element
@@ -496,6 +499,9 @@ func (s *State) sheetRows(
 					s.trackSheetDropRows(list, entries, rows)
 				}
 				if moved, ok := ui.Drop[sheetMove](list); ok {
+					if hasPlaceholder && s.nav.sheetDropVisible {
+						s.startLanding(c, list, placeholder, moved.sheetMoveID(), dropSlot, entries)
+					}
 					s.moveSheetToSlot(moved.sheetMoveID(), place.Group, dropSlot, entries)
 					// The row lands in the placeholder's space: it goes at
 					// once rather than closing behind the row, which would
@@ -617,7 +623,7 @@ func (s *State) sheetDropPlaceholder(
 	c *ui.Context,
 	semantic theme.Theme,
 	active, animate bool,
-) {
+) ui.Element {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	height := float32(0)
@@ -650,6 +656,94 @@ func (s *State) sheetDropPlaceholder(
 	if !active && (!animate || area.Arrived("height")) {
 		s.nav.sheetDropVisible = false
 	}
+	return area
+}
+
+// grab is where the pointer took a row: its id, and how far below the
+// row's top.
+type grab struct {
+	id string
+	y  float32
+}
+
+// landing is a dropped row on its way from where it was let go to its
+// place. Both are tops in the list: from, the dragged copy's, and guess,
+// the place's until the row has been laid out there.
+type landing struct {
+	id          string
+	from, guess float32
+	at          time.Time
+	placed      bool
+}
+
+// noteGrab keeps where the pointer took row, for a drag that may follow.
+func (s *State) noteGrab(row ui.Element, id string, dragging bool) {
+	if dragging || !row.Pressed() {
+		return
+	}
+	if _, y, ok := row.PointerPosition(); ok {
+		s.nav.grab = grab{id: id, y: y}
+	}
+}
+
+// startLanding begins a dropped row's landing from where its dragged copy
+// was let go. The row's place is the placeholder's, after the room a
+// chapter keeps above it and less the row's own extent where it came
+// from above.
+func (s *State) startLanding(
+	c *ui.Context,
+	list, placeholder ui.Element,
+	id string,
+	slot int,
+	entries []GroupEntry,
+) {
+	if s.nav.grab.id != id {
+		return
+	}
+	_, pointer, over := list.PointerPosition()
+	if !over {
+		return
+	}
+	guess := placeholder.LayoutBounds().Y - s.nav.listTop + s.nav.sheetDropRoom
+	scale := s.Settings.UIFontSize
+	for index, entry := range entries {
+		if entry.ID != id || index >= slot {
+			continue
+		}
+		if span, ok := s.sheetDropSpan(id); ok {
+			guess -= span.height + theme.Space06.DIPs(scale)
+			if entry.Kind == EntryChapter && index > 0 {
+				guess -= chapterRoom(scale)
+			}
+		}
+	}
+	s.nav.landing = landing{id: id, from: pointer - s.nav.grab.y, guess: guess, at: c.Now()}
+}
+
+// land carries a dropped row from where it was let go into its place,
+// instead of from where it was dragged from. It reports whether the row
+// is landing.
+func (s *State) land(c *ui.Context, row ui.Element, id string, animate bool) bool {
+	l := &s.nav.landing
+	if l.id != id {
+		return false
+	}
+	t := float32(c.Now().Sub(l.at)) / float32(motionList)
+	if !animate || t >= 1 {
+		*l = landing{}
+		return false
+	}
+	// The first frame after the drop has not laid the row out in its
+	// place yet: it goes by the guess, every later one by the layout.
+	top := l.guess
+	if l.placed {
+		top = row.LayoutBounds().Y - s.nav.listTop
+	}
+	l.placed = true
+	c.AnimationFrame()
+	p := components.Decelerate(max(0, t))
+	row.Transition(ui.ElementTransition{Duration: 1}).Translate(0, (l.from-top)*(1-p))
+	return true
 }
 
 // reorderSlot converts a gap in the visible list to the index MoveSheet
@@ -711,12 +805,14 @@ func (s *State) sheetRow(
 	// card below owns this row's fill.
 	row.Background(ui.Transparent)
 	entering := s.enter(c, row)
+	s.land(c, row, sheet.ID, animate)
 	if selected {
 		track.Mark(row)
 	}
 	hover := components.HoverAmount(row, !selected && row.Hovered(), animate)
 	selection := components.NavigationSelection(c, semantic)
 	dragging := s.dragging(row)
+	s.noteGrab(row, sheet.ID, dragging)
 	pressTarget := float32(0)
 	if !dragging && row.Pressed() {
 		pressTarget = 1
@@ -833,6 +929,7 @@ func (s *State) chapterRow(
 		row.Role(ui.RoleButton).Focusable().FocusRing(false)
 	}
 	s.enter(c, row)
+	s.land(c, row, chapter.ID, animate)
 	if s.nav.revealing == chapter.ID {
 		// Just made: wherever it lands, its field comes into view.
 		s.nav.revealing = ""
@@ -843,8 +940,10 @@ func (s *State) chapterRow(
 	if editing {
 		edit = 1
 	}
+	dragging := s.dragging(row)
+	s.noteGrab(row, chapter.ID, dragging)
 	pressTarget := float32(0)
-	if !editing && !s.dragging(row) && row.Pressed() {
+	if !editing && !dragging && row.Pressed() {
 		pressTarget = 1
 	}
 	press := pressTarget

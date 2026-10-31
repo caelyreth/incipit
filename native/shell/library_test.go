@@ -1210,3 +1210,45 @@ func TestADroppedChapterLandsInOneMove(t *testing.T) {
 		t.Fatalf("moves = %#v, want the chapter at 1", library.moves)
 	}
 }
+
+// A dropped row comes into its place from where it was let go, not from
+// where it was dragged from.
+func TestADroppedRowLandsFromWhereItWasLetGo(t *testing.T) {
+	state, library := libraryState()
+	sheet := func(id, title string) GroupEntry {
+		return GroupEntry{Kind: EntrySheet, ID: id, Title: title, Sheet: SheetItem{ID: id, Title: title}}
+	}
+	library.entries = []GroupEntry{
+		sheet("7", "First"), sheet("8", "Second"), sheet("11", "Third"),
+		{
+			Kind: EntryChapter, ID: "chapter:9", Title: "Part Two",
+			Chapter: ChapterItem{ID: "chapter:9", Name: "Part Two"},
+		},
+	}
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	divider, _ := tester.Find("Part Two")
+	first, _ := tester.Find("First")
+	x := divider.X + divider.W/2
+	grab := divider.H / 2
+	tester.Press(x, divider.Y+grab)
+	tester.Move(x, divider.Y+grab-10)
+	tester.Frame()
+	release := first.Y + 4
+	tester.Move(x, release)
+	settle(tester)
+	tester.Release(x, release)
+	tester.Advance(16 * time.Millisecond)
+	tester.Frame()
+	landing, _ := tester.Find("Part Two")
+	if from := release - grab; math.Abs(float64(landing.Y-from)) > 12 {
+		t.Fatalf("the chapter came in at %v, far from where it was let go at %v (it was dragged from %v)",
+			landing.Y, from, divider.Y)
+	}
+	settle(tester)
+	placed, _ := tester.Find("Part Two")
+	if below, _ := tester.Find("First"); placed.Y >= below.Y {
+		t.Fatalf("the chapter settled at %v, not above First at %v", placed.Y, below.Y)
+	}
+}

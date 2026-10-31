@@ -59,6 +59,12 @@ type navigation struct {
 	sheetDropRoom    float32
 	sheetDropVisible bool
 	sheetDropRows    []sheetDropSpan
+	// grab is where the pointer took the row it drags, landing the row a
+	// drop is bringing to its place, and listTop the sheet list's top as
+	// last laid out.
+	grab    grab
+	landing landing
+	listTop float32
 }
 
 type sheetDropSpan struct {
