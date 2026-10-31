@@ -867,8 +867,12 @@ func (s *State) chapterContents(
 		line := components.Blend(semantic.Border.Default, semantic.Accent.Foreground, hover)
 		components.Label(c, chapter.Name, theme.TextSmall, ink).FontWeight(600).
 			Shrink(1).MinWidth(0).SingleLine()
-		// Back from a rename, the rule draws in again as the field goes.
+		// Centered as the name's line box is, the rule would sit at the
+		// capitals' middle, which reads high beside lowercase: it goes down
+		// to between the capitals' middle and the lowercase's. Back from a
+		// rename, it draws in again as the field goes.
 		ui.Box(c).Height(1).Grow(1).MinWidth(theme.Space12.DIPs(scale)).
+			Translate(0, 0.1*theme.TextSmall.Size(scale)).
 			Background(line).Opacity((0.6 + 0.4*hover) * (1 - edit))
 	}
 	components.Label(c, sheetCount(sheets), theme.TextXSmall, semantic.Text.Muted).
@@ -876,8 +880,9 @@ func (s *State) chapterContents(
 }
 
 // chapterRoom is the room above a chapter that sets its section apart
-// from the sheets before it.
-func chapterRoom(scale float32) float32 { return theme.Space06.DIPs(scale) }
+// from the sheets before it: with the list's gap, four times the space
+// between sheets, so it reads as a division and not as a gap a little off.
+func chapterRoom(scale float32) float32 { return theme.Space20.DIPs(scale) }
 
 // chapterTransition brings a chapter in as its row unfolds, its name or
 // field showing only as the row has room for it.
