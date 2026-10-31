@@ -1,7 +1,10 @@
 package window
 
 import (
+	"fmt"
 	"log"
+
+	"github.com/caelyreth/neverland/app/storage"
 
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo"
@@ -12,10 +15,31 @@ func Run() error {
 	if err := theme.RegisterFonts(); err != nil {
 		return err
 	}
-	app, err := NewAppState()
+	root, err := storage.Root()
 	if err != nil {
 		return err
 	}
+	store, err := storage.Open(root)
+	if err != nil {
+		return fmt.Errorf("opening the notebook in %s: %w", root, err)
+	}
+	app, err := OpenAppState(store)
+	if err != nil {
+		_ = store.Close()
+		return err
+	}
+	// Whatever is pending is written before the app goes, and once more
+	// should the loop stop some other way.
+	defer func() {
+		if err := app.Close(); err != nil {
+			log.Printf("saving the notebook: %v", err)
+		}
+	}()
+	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
+		if err := app.Close(); err != nil {
+			log.Printf("saving the notebook: %v", err)
+		}
+	})
 	mygo.Theme.SetSource(themeSource(app.Shell.Settings))
 
 	mygo.App.WhenReady(func() {

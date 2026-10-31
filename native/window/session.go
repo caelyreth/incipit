@@ -5,6 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/egoist/mygo/ui"
@@ -13,6 +14,18 @@ import (
 type sheetSession struct {
 	page       workspace.PageID
 	controller *controller.DocumentController
+	// key is the page's identity in the notebook.
+	key storage.PageKey
+	// saved is the revision last handed to the notebook; unsaved marks a
+	// page never handed to it.
+	saved   uint64
+	unsaved bool
+}
+
+// noteSaved records that the page's current revision is with the notebook.
+func (s *sheetSession) noteSaved() {
+	s.saved = s.controller.Runtime().Revision()
+	s.unsaved = false
 }
 
 func (s *sheetSession) Document() *controller.DocumentController { return s.controller }

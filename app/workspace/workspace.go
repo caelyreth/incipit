@@ -37,23 +37,85 @@ type Workspace struct {
 // New constructs the initial mounted page and records its policy source as the
 // workspace's app-wide configuration baseline.
 func New(initial Session, create Factory) (*Workspace, error) {
-	if initial == nil || create == nil {
+	return Restore([]Session{initial}, Layout{Tabs: []PageID{0}, Active: 0, HasActive: true}, create)
+}
+
+// Layout is what a workspace shows: its tabs in display order, the page
+// mounted among them, and where each page was scrolled.
+type Layout struct {
+	Tabs      []PageID
+	Active    PageID
+	HasActive bool
+	Scroll    map[PageID]ScrollPosition
+}
+
+// Restore rebuilds a workspace around existing pages, identified by their
+// order, as a layout left them. The first page's policy source becomes the
+// app-wide baseline. A layout naming pages that are not there is read for
+// what it still says: unknown and repeated tabs are dropped, and an active
+// page that is no tab gives way to the first tab.
+func Restore(sessions []Session, layout Layout, create Factory) (*Workspace, error) {
+	if len(sessions) == 0 || create == nil {
 		return nil, ErrSessionRequired
 	}
-	configuration := initial.Configuration()
-	configuration = configuration.Clone()
-	return &Workspace{
-		pages: []pageState{{
-			Page:    Page{ID: 0},
-			session: initial,
-		}},
-		tabs:          []PageID{0},
-		active:        0,
-		hasActive:     true,
-		mounted:       initial,
-		configuration: configuration,
+	for _, session := range sessions {
+		if session == nil {
+			return nil, ErrSessionRequired
+		}
+	}
+	configuration := sessions[0].Configuration()
+	w := &Workspace{
+		pages:         make([]pageState, len(sessions)),
+		configuration: configuration.Clone(),
 		create:        create,
-	}, nil
+	}
+	for index, session := range sessions {
+		id := PageID(index)
+		w.pages[index] = pageState{
+			Page:    Page{ID: id, Parked: true, Scroll: layout.Scroll[id]},
+			session: session,
+		}
+	}
+	for _, id := range layout.Tabs {
+		if w.validPage(id) && !w.hasTab(id) {
+			w.tabs = append(w.tabs, id)
+		}
+	}
+	active, hasActive := layout.Active, layout.HasActive
+	if hasActive && !w.hasTab(active) {
+		hasActive = len(w.tabs) > 0
+		if hasActive {
+			active = w.tabs[0]
+		}
+	}
+	if hasActive {
+		if err := w.adopt(w.pages[active].session); err != nil {
+			return nil, err
+		}
+		w.active, w.hasActive = active, true
+		w.mounted = w.pages[active].session
+		w.pages[active].Parked = false
+	}
+	return w, nil
+}
+
+// Layout returns the workspace's tabs, mounted page and scroll positions.
+func (w *Workspace) Layout() Layout {
+	if w == nil {
+		return Layout{}
+	}
+	layout := Layout{
+		Tabs:      append([]PageID(nil), w.tabs...),
+		Active:    w.active,
+		HasActive: w.hasActive,
+		Scroll:    make(map[PageID]ScrollPosition, len(w.pages)),
+	}
+	for _, page := range w.pages {
+		if page.Scroll != (ScrollPosition{}) {
+			layout.Scroll[page.ID] = page.Scroll
+		}
+	}
+	return layout
 }
 
 // Active returns the mounted page identity.

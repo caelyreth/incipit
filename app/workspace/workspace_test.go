@@ -351,3 +351,70 @@ func TestFailedCloseAdoptionPreservesTabsAndMountedSession(t *testing.T) {
 		t.Fatal("failed close parked the active page")
 	}
 }
+
+func TestRestoreReturnsTheLayoutItWasGiven(t *testing.T) {
+	t.Parallel()
+	first, _ := configurationFixture(t)
+	sessions := []Session{
+		newTestSession(0, "a", first),
+		newTestSession(1, "b", first),
+		newTestSession(2, "c", first),
+	}
+	create := func(id PageID, configuration kernel.PolicyConfiguration) (Session, error) {
+		return newTestSession(id, "", configuration), nil
+	}
+	layout := Layout{
+		Tabs:      []PageID{2, 0},
+		Active:    0,
+		HasActive: true,
+		Scroll:    map[PageID]ScrollPosition{2: {Y: 80}},
+	}
+	workspace, err := Restore(sessions, layout, create)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mounted, ok := workspace.Mounted()
+	if !ok || mounted.(*testSession).text != "a" {
+		t.Fatalf("mounted %#v", mounted)
+	}
+	if page, _ := workspace.Page(1); !page.Parked {
+		t.Fatal("a page that is no tab is mounted")
+	}
+	got := workspace.Layout()
+	if len(got.Tabs) != 2 || got.Tabs[0] != 2 || got.Tabs[1] != 0 || got.Active != 0 ||
+		!got.HasActive || got.Scroll[2].Y != 80 || len(got.Scroll) != 1 {
+		t.Fatalf("layout %#v", got)
+	}
+	if err := workspace.Open(2); err != nil {
+		t.Fatal(err)
+	}
+	if scroll, _ := workspace.ActiveScroll(); scroll.Y != 80 {
+		t.Fatalf("restored scroll %#v", scroll)
+	}
+}
+
+func TestRestoreReadsAStaleLayoutForWhatItStillSays(t *testing.T) {
+	t.Parallel()
+	first, _ := configurationFixture(t)
+	sessions := []Session{newTestSession(0, "a", first), newTestSession(1, "b", first)}
+	create := func(id PageID, configuration kernel.PolicyConfiguration) (Session, error) {
+		return newTestSession(id, "", configuration), nil
+	}
+	workspace, err := Restore(sessions, Layout{Tabs: []PageID{5, 1, 1}, Active: 5, HasActive: true}, create)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tabs := workspace.Tabs(); len(tabs) != 1 || tabs[0] != 1 {
+		t.Fatalf("tabs %v", tabs)
+	}
+	if active, ok := workspace.Active(); !ok || active != 1 {
+		t.Fatalf("active %v %v", active, ok)
+	}
+	closed, err := Restore(sessions, Layout{}, create)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := closed.Active(); ok || len(closed.Tabs()) != 0 {
+		t.Fatal("a layout with every tab closed opened one")
+	}
+}

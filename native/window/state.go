@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
@@ -44,35 +44,37 @@ type AppState struct {
 	recording  bool
 	// colors carries every window through a theme or accent change at once.
 	colors theme.Transition
+	// sessions are the pages' sessions by identity, which the notebook
+	// saves.
+	sessions map[workspace.PageID]*sheetSession
+	// notebook keeps the pages on disk; nil holds them in memory alone.
+	notebook *notebook
 }
 
+// NewAppState is a notebook held in memory alone, as tests use.
 func NewAppState() (*AppState, error) {
-	initial, err := controller.NewTextDocument("", clock{})
+	return newAppState(nil)
+}
+
+// OpenAppState opens the notebook a store holds, and saves it there as it
+// changes.
+func OpenAppState(store *storage.Store) (*AppState, error) {
+	return newAppState(store)
+}
+
+func newAppState(store *storage.Store) (*AppState, error) {
+	app := &AppState{sessions: map[workspace.PageID]*sheetSession{}}
+	sessions, layout, err := app.openNotebook(store)
 	if err != nil {
 		return nil, err
 	}
-	session := &sheetSession{
-		page:       0,
-		controller: initial,
-	}
-	pages, err := workspace.New(session, func(
-		id workspace.PageID,
-		configuration kernel.PolicyConfiguration,
-	) (workspace.Session, error) {
-		document, err := controller.NewTextDocument("", clock{})
-		if err != nil {
-			return nil, err
-		}
-		if err := document.Adopt(configuration); err != nil {
-			return nil, err
-		}
-		return &sheetSession{
-			page:       id,
-			controller: document,
-		}, nil
-	})
+	pages, err := workspace.Restore(sessions, layout, app.createPage)
 	if err != nil {
 		return nil, err
+	}
+	var session *sheetSession
+	if mounted, ok := pages.Mounted(); ok {
+		session = mounted.(*sheetSession)
 	}
 	catalog, err := editor.EditorPolicyCatalog()
 	if err != nil {
@@ -82,14 +84,12 @@ func NewAppState() (*AppState, error) {
 	if err != nil {
 		return nil, err
 	}
-	app := &AppState{
-		Workspace: pages,
-		Store:     newPolicyStore(catalog, host.Configuration(), host.PreparedSnapshot(), pages),
-		Settings:  *settings.New(),
-		Product:   appsettings.DefaultState(),
-		Shell:     shell.New(),
-		Session:   session,
-	}
+	app.Workspace = pages
+	app.Store = newPolicyStore(catalog, host.Configuration(), host.PreparedSnapshot(), pages)
+	app.Settings = *settings.New()
+	app.Product = appsettings.DefaultState()
+	app.Shell = shell.New()
+	app.Session = session
 	app.Palette = &overlay.CommandPalette{}
 	app.Element = documentview.NewElement(
 		nil,
@@ -98,6 +98,9 @@ func NewAppState() (*AppState, error) {
 		time.Now(),
 	)
 	app.Element.Label = "Writing document"
+	if scroll, ok := pages.ActiveScroll(); ok {
+		app.Element.SwitchPage(scroll.Y)
+	}
 	app.Shell.Colors = &app.colors
 	app.Settings.Colors = &app.colors
 	app.BindShell()
@@ -209,7 +212,7 @@ func (a *AppState) refreshShellReadouts() {
 	if err := controller.LastError(); err != nil {
 		a.Shell.Status = err.Error()
 	} else if a.Error == "" {
-		a.Shell.Status = ""
+		a.Shell.Status = a.saveStatus()
 	}
 	metrics, ok := controller.MetricsForCurrentText()
 	if !ok {
@@ -458,7 +461,7 @@ func (a *AppState) refreshShell() {
 	} else {
 		a.Shell.ActivePage = ""
 	}
-	a.Shell.Status = ""
+	a.Shell.Status = a.saveStatus()
 	if a.Error != "" {
 		a.Shell.Status = a.Error
 	}
@@ -618,6 +621,8 @@ func (a *AppState) View(c *ui.Context) {
 	// frame's page.
 	a.refreshShellReadouts()
 	a.Shell.View(c)
+	// What this frame's input changed goes to the notebook.
+	a.save()
 }
 
 func (a *AppState) commands() []overlay.Command {

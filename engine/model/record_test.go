@@ -1,0 +1,113 @@
+package model
+
+import "testing"
+
+func recordedDocument(t *testing.T) (*Document, NodeID) {
+	t.Helper()
+	document, err := NewDocument("doc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var block NodeID
+	if _, err := document.Transact(func(draft *DocumentDraft) error {
+		block, err = draft.CreateNode(draft.Root(), 0, "paragraph")
+		if err != nil {
+			return err
+		}
+		if err := draft.SetTextValue(block, "hello world"); err != nil {
+			return err
+		}
+		if err := draft.SetAttribute(block, "level", IntegerValue(2)); err != nil {
+			return err
+		}
+		_, err = draft.AddMark(block, NewUTF16Range(0, 5), "strong", 1)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return document, block
+}
+
+func TestRecordsRestoreTheirDocument(t *testing.T) {
+	document, _ := recordedDocument(t)
+	snapshot := document.Snapshot()
+	var records []NodeRecord
+	for _, node := range snapshot.Nodes() {
+		records = append(records, node.Record())
+	}
+	restored, err := RestoreDocument(snapshot.Root(), snapshot.NextID(), records)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again := restored.Snapshot()
+	if again.NextID() != snapshot.NextID() || len(again.Nodes()) != len(snapshot.Nodes()) {
+		t.Fatalf("restored %d nodes, next %d", len(again.Nodes()), again.NextID())
+	}
+	for _, node := range snapshot.Nodes() {
+		other, ok := again.Node(node.ID())
+		if !ok || !sameNode(node, other) {
+			t.Fatalf("node %s did not round-trip", node.ID())
+		}
+	}
+}
+
+func TestRestoreRefusesABrokenTree(t *testing.T) {
+	document, block := recordedDocument(t)
+	snapshot := document.Snapshot()
+	records := []NodeRecord{}
+	for _, node := range snapshot.Nodes() {
+		records = append(records, node.Record())
+	}
+	orphan := records[1]
+	orphan.ID = 9
+	cases := map[string][]NodeRecord{
+		"orphan":     append(append([]NodeRecord{}, records...), orphan),
+		"no child":   {records[0]},
+		"duplicated": append(append([]NodeRecord{}, records...), records[1]),
+	}
+	for name, broken := range cases {
+		if _, err := RestoreDocument(snapshot.Root(), 10, broken); err == nil {
+			t.Errorf("%s: restored a broken tree", name)
+		}
+	}
+	if _, err := RestoreDocument(snapshot.Root(), uint64(block), records); err == nil {
+		t.Error("restored identities at or past the next identity")
+	}
+}
+
+func TestSinceNamesOnlyWrittenNodes(t *testing.T) {
+	document, block := recordedDocument(t)
+	before := document.Snapshot()
+	var added NodeID
+	if _, err := document.Transact(func(draft *DocumentDraft) error {
+		if err := draft.SetTextValue(block, "changed"); err != nil {
+			return err
+		}
+		var err error
+		added, err = draft.CreateNode(draft.Root(), 1, "paragraph")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	written, removed := document.Snapshot().Since(before)
+	ids := map[NodeID]bool{}
+	for _, node := range written {
+		ids[node.ID()] = true
+	}
+	if len(written) != 3 || !ids[block] || !ids[added] || !ids[before.Root()] || len(removed) != 0 {
+		t.Fatalf("written %v, removed %v", ids, removed)
+	}
+	middle := document.Snapshot()
+	if _, err := document.Transact(func(draft *DocumentDraft) error {
+		return draft.RemoveNode(added)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	written, removed = document.Snapshot().Since(middle)
+	if len(removed) != 1 || removed[0] != added || len(written) != 1 {
+		t.Fatalf("written %d, removed %v", len(written), removed)
+	}
+	if written, removed := middle.Since(middle); written != nil || removed != nil {
+		t.Fatal("a snapshot differs from itself")
+	}
+}

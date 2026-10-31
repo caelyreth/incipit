@@ -52,11 +52,21 @@ type DocumentController struct {
 // NewTextDocument constructs a semantic text document with the complete
 // editor policy catalog and mounts a controller on its root node.
 func NewTextDocument(text string, clock editor.Clock) (*DocumentController, error) {
-	document, blocks, err := editor.NewBlockDocument(text)
+	document, _, err := editor.NewBlockDocument(text)
 	if err != nil {
 		return nil, err
 	}
-	node := blocks[0]
+	return OpenDocument(document, clock)
+}
+
+// OpenDocument mounts a controller on an existing page document, such as
+// one restored from disk, with the caret at the start of its first block.
+func OpenDocument(document *model.Document, clock editor.Clock) (*DocumentController, error) {
+	blocks := editor.DocumentBlocks(document.Snapshot())
+	if len(blocks) == 0 {
+		return nil, fmt.Errorf("controller: the page has no blocks")
+	}
+	node := blocks[0].ID()
 	catalog, err := editor.EditorPolicyCatalog()
 	if err != nil {
 		return nil, err
