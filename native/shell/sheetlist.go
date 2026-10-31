@@ -573,7 +573,9 @@ func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, do
 	// as much, so the buttons travel to the library's toggle.
 	info := ui.Row(c).Key("head-info").Grow(1 - dock).MinWidth(0).Clip().AlignItems(ui.Center).
 		Gap(theme.Space06.DIPs(scale))
-	if dock > 0.001 {
+	if s.flying() {
+		info.Opacity(0)
+	} else if dock > 0.001 {
 		info.Opacity(1 - dock)
 	}
 	info.Children(func() {
@@ -617,11 +619,16 @@ func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, do
 		return
 	}
 	scale := s.Settings.UIFontSize
-	height := theme.TextLarge.LineHeight(scale) + theme.TextXSmall.LineHeight(scale) + 2*theme.Space08.DIPs(scale)
+	height := placeBandHeight(scale)
+	// On the way, placeFlight draws the title; the band only makes room.
+	shown := dock
+	if s.flying() {
+		shown = 0
+	}
 	ui.Box(c).Key("place-band").WidthPercent(100).Height(height * dock).Shrink(0).Clip().Children(func() {
-		layer := ui.Row(c).Key("band-"+view.key()).Absolute().Top(0).Left(0).Right(0).Height(height).
+		layer := ui.Row(c).Key("band-" + view.key()).Absolute().Top(0).Left(0).Right(0).Height(height).
 			PaddingX(theme.Space12.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-			Opacity(dock).Translate(0, -(1-dock)*dockShift*scale/theme.DefaultUIFontSize).
+			Opacity(shown).
 			Transition(swapTransition(animate, s.nav.side*enterSlide*scale/theme.DefaultUIFontSize))
 		layer.Children(func() {
 			title, icon, tint, detail := s.placeInfo(semantic, view.place)

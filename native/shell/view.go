@@ -66,6 +66,7 @@ func (s *State) View(c *ui.Context) {
 	listWidth := fullList * listReveal
 	s.lastSidebarWidth = sidebarWidth + listWidth
 	s.lastChrome = chrome
+	s.takeFlight(listReveal, chrome, animate)
 
 	s.noteView(c, animate)
 	root.Children(func() {
@@ -82,6 +83,7 @@ func (s *State) View(c *ui.Context) {
 				}
 			})
 		})
+		s.placeFlight(c, semantic, layout, reveal, listWidth, listReveal, animate)
 	})
 }
 

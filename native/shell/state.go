@@ -89,6 +89,8 @@ type State struct {
 	// listDock is how far the place's title has gone from the title bar
 	// to the top of the sheet list, as it does where the library is closed.
 	listDock float32
+	// flight is whether that title is on its way this frame (takeFlight).
+	flight bool
 }
 
 func New() *State {
