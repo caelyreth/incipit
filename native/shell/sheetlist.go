@@ -434,7 +434,7 @@ func (s *State) sheetRows(
 				}
 				var row ui.Element
 				if entry.Kind == EntryChapter {
-					row = s.chapterRow(c, semantic, entry.Chapter, animate)
+					row = s.chapterRow(c, semantic, entry.Chapter, chapterSheets(entries, index), index == 0, animate)
 				} else {
 					row = s.sheetRow(c, semantic, entry.Sheet, index, place, track, now, animate)
 				}
@@ -743,36 +743,66 @@ func (s *State) sheetRow(
 	return row
 }
 
+// chapterSheets counts the sheets under the chapter at index, up to the
+// next one.
+func chapterSheets(entries []GroupEntry, index int) int {
+	n := 0
+	for _, entry := range entries[index+1:] {
+		if entry.Kind == EntryChapter {
+			break
+		}
+		n++
+	}
+	return n
+}
+
 func (s *State) startChapterRename(id, name string) {
 	s.nav.renaming, s.nav.name = id, name
 }
 
 // chapterRow is a divider in a group's ordered list. Its sheets are those
-// below it, up to the next divider.
+// below it, up to the next divider. It reads as the head of a section, set
+// at the sheets' text edge with its count at their dates' edge, and answers
+// the pointer as a sheet card does.
 func (s *State) chapterRow(
 	c *ui.Context,
 	semantic theme.Theme,
 	chapter ChapterItem,
+	sheets int,
+	first bool,
 	animate bool,
 ) ui.Element {
 	if s.nav.renaming == chapter.ID {
-		return s.renameChapterRow(c, semantic, chapter, animate)
+		return s.renameChapterRow(c, semantic, chapter, first, animate)
 	}
 	scale := s.Settings.UIFontSize
-	metrics := theme.DefaultControls.Scaled(scale)
-	row := ui.Row(c).Key("chapter-" + chapter.ID).Role(ui.RoleButton).Label(chapter.Name).
-		WidthPercent(100).Height(metrics.InlineHeight).Shrink(0).
-		PaddingX(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-		Radius(metrics.Radius).Focusable().FocusRing(false).Transition(s.listRowTransition(animate))
+	row := s.chapterFrame(c, "chapter-"+chapter.ID, first, animate).
+		Role(ui.RoleButton).Label(chapter.Name).Focusable().FocusRing(false)
 	s.enter(c, row)
 	hover := components.HoverAmount(row, row.Hovered() || row.FocusVisible(), animate)
-	row.Background(components.Blend(ui.Transparent, semantic.GhostElement.Hover, 0.55*hover))
+	dragging := row.Dragging()
+	pressTarget := float32(0)
+	if !dragging && row.Pressed() {
+		pressTarget = 1
+	}
+	press := pressTarget
+	if animate {
+		press = components.Follow(row, "press", pressTarget, components.MotionQuick)
+	}
+	if dragging {
+		press = 0
+	}
+	row.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover)).
+		Scale(1-0.012*press, 1-0.012*press)
+	ink := components.Blend(semantic.Text.Default, semantic.Text.Heading, hover)
 	line := components.Blend(semantic.Border.Default, semantic.Accent.Foreground, hover)
-	ink := components.Blend(semantic.Text.Muted, semantic.Text.Heading, hover)
 	row.Children(func() {
-		ui.Box(c).Height(1).Grow(1).Background(line).Opacity(0.7 + 0.3*hover)
-		components.Label(c, chapter.Name, theme.TextXSmall, ink).Shrink(0).SingleLine()
-		ui.Box(c).Height(1).Grow(1).Background(line).Opacity(0.7 + 0.3*hover)
+		components.Label(c, chapter.Name, theme.TextSmall, ink).FontWeight(600).
+			Shrink(1).MinWidth(0).SingleLine()
+		ui.Box(c).Height(1).Grow(1).MinWidth(theme.Space12.DIPs(scale)).
+			Background(line).Opacity(0.6 + 0.4*hover)
+		components.Label(c, sheetCount(sheets), theme.TextXSmall, semantic.Text.Muted).
+			Shrink(0).SingleLine().FontFeatures("tnum")
 	})
 	if row.FocusVisible() {
 		row.Border(1, semantic.Border.Focused)
@@ -785,22 +815,34 @@ func (s *State) chapterRow(
 	return row
 }
 
+// chapterFrame is the row a chapter and its rename share: a control's
+// height, so it is as easy to take as a button, with room above it that
+// sets the section apart from the sheets before it.
+func (s *State) chapterFrame(c *ui.Context, key string, first, animate bool) ui.Element {
+	scale := s.Settings.UIFontSize
+	metrics := theme.DefaultControls.Scaled(scale)
+	row := ui.Row(c).Key(key).WidthPercent(100).Height(metrics.Height).Shrink(0).
+		PaddingX(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+		Radius(metrics.Radius).Border(1, ui.Transparent).Transition(s.listRowTransition(animate))
+	if !first {
+		row.Margin(theme.Space06.DIPs(scale), 0, 0, 0)
+	}
+	return row
+}
+
 func (s *State) renameChapterRow(
 	c *ui.Context,
 	semantic theme.Theme,
 	chapter ChapterItem,
+	first bool,
 	animate bool,
 ) ui.Element {
 	scale := s.Settings.UIFontSize
-	metrics := theme.DefaultControls.Scaled(scale)
-	row := ui.Row(c).Key("rename-"+chapter.ID).WidthPercent(100).Height(metrics.InlineHeight).
-		PaddingX(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-		Radius(metrics.Radius).Border(1, semantic.Border.Focused).Background(semantic.Surface.Inset).
-		Transition(s.listRowTransition(animate))
+	row := s.chapterFrame(c, "rename-"+chapter.ID, first, animate).
+		Border(1, semantic.Border.Focused).Background(semantic.Surface.Inset)
 	row.Children(func() {
-		ui.Box(c).Height(1).Grow(1).Background(semantic.Accent.Foreground).Opacity(0.7)
 		input := ui.TextInputBase(c.Key("name"), &s.nav.name).Grow(1).MinWidth(0).
-			Font(theme.UIFontFamily).FontSize(theme.TextSmall.Size(scale)).
+			Font(theme.UIFontFamily).FontSize(theme.TextSmall.Size(scale)).FontWeight(600).
 			FixedLineHeight(theme.TextSmall.LineHeight(scale)).
 			TextColor(semantic.Text.Heading).Label("Chapter name")
 		input.AutoFocus()
@@ -816,7 +858,6 @@ func (s *State) renameChapterRow(
 			s.Library.RenameChapter(chapter.ID, s.nav.name)
 		}
 		*focused = input.Focused()
-		ui.Box(c).Height(1).Grow(1).Background(semantic.Accent.Foreground).Opacity(0.7)
 	})
 	return row
 }
