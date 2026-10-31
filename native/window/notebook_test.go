@@ -106,3 +106,38 @@ func TestANewNotebookOpensOnOneSavedPage(t *testing.T) {
 		t.Fatalf("%d pages after reopening an empty notebook", len(app.Workspace.Pages()))
 	}
 }
+
+// Each page's caret, or the text selected on it, is where it was left.
+func TestSelectionsAreWhereTheyWereLeft(t *testing.T) {
+	root := t.TempDir()
+	app := openNotebookApp(t, root)
+	typeText(t, app, "# Title\nfirst line\nsecond line")
+	if err := app.Session.Document().SelectProjected(10, 14); err != nil {
+		t.Fatal(err)
+	}
+	first := app.Session.Document().Selection()
+	app.save()
+	app.Shell.NewPage()
+	typeText(t, app, "other page")
+	if err := app.Session.Document().SelectProjected(3, 3); err != nil {
+		t.Fatal(err)
+	}
+	second := app.Session.Document().Selection()
+	app.save()
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	app = openNotebookApp(t, root)
+	defer app.Close()
+	if got := app.Session.Document().Selection(); got != second {
+		t.Fatalf("front page selection %+v, want %+v", got, second)
+	}
+	app.Shell.SelectPage("0")
+	if got := app.Session.Document().Selection(); got != first {
+		t.Fatalf("first page selection %+v, want %+v", got, first)
+	}
+	if err := app.Session.Document().LastError(); err != nil {
+		t.Fatal(err)
+	}
+}

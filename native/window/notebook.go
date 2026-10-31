@@ -2,6 +2,7 @@ package window
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/caelyreth/neverland/app/controller"
@@ -44,6 +45,9 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 		document, err := controller.OpenDocument(page.Document, clock{})
 		if err != nil {
 			return nil, workspace.Layout{}, fmt.Errorf("page %d: %w", page.Key, err)
+		}
+		if selection, ok := contents.Layout.Selections[page.Key]; ok {
+			restoreSelection(document, selection)
 		}
 		id := workspace.PageID(len(sessions))
 		session := &sheetSession{page: id, controller: document, key: page.Key}
@@ -175,8 +179,12 @@ func (a *AppState) saveLayout() {
 	}
 	layout := a.Workspace.Layout()
 	stored := storage.Layout{
-		HasActive: layout.HasActive,
-		Scroll:    map[storage.PageKey]float32{},
+		HasActive:  layout.HasActive,
+		Scroll:     map[storage.PageKey]float32{},
+		Selections: make(map[storage.PageKey]storage.Selection, len(a.sessions)),
+	}
+	for _, session := range a.sessions {
+		stored.Selections[session.key] = storedSelection(session.controller.Session().Selection())
 	}
 	for _, id := range layout.Tabs {
 		if session, ok := a.sessions[id]; ok {
@@ -199,16 +207,43 @@ func (a *AppState) saveLayout() {
 }
 
 func sameLayout(left, right storage.Layout) bool {
-	if left.Active != right.Active || left.HasActive != right.HasActive ||
-		!slices.Equal(left.Tabs, right.Tabs) || len(left.Scroll) != len(right.Scroll) {
-		return false
-	}
-	for key, y := range left.Scroll {
-		if other, ok := right.Scroll[key]; !ok || other != y {
-			return false
+	return left.Active == right.Active && left.HasActive == right.HasActive &&
+		slices.Equal(left.Tabs, right.Tabs) &&
+		maps.Equal(left.Scroll, right.Scroll) &&
+		maps.Equal(left.Selections, right.Selections)
+}
+
+func storedSelection(selection model.TextSelection) storage.Selection {
+	position := func(anchor model.TextAnchor) storage.Position {
+		return storage.Position{
+			Node:     anchor.Node().Value(),
+			Offset:   int(anchor.Offset()),
+			Affinity: uint8(anchor.Affinity()),
 		}
 	}
-	return true
+	return storage.Selection{Anchor: position(selection.Anchor()), Head: position(selection.Head())}
+}
+
+// restoreSelection puts a page's selection back where it was left. One that
+// no longer fits the page is let go, leaving the caret at the start.
+func restoreSelection(document *controller.DocumentController, stored storage.Selection) {
+	runtime := document.Runtime()
+	snapshot := runtime.Snapshot().Document()
+	anchor := func(position storage.Position) model.TextAnchor {
+		return model.NewTextAnchor(
+			model.NodeID(position.Node),
+			model.UTF16Offset(position.Offset),
+			model.Affinity(position.Affinity),
+			runtime.Revision(),
+		)
+	}
+	from, to := anchor(stored.Anchor), anchor(stored.Head)
+	if from.ValidateDocument(snapshot) != nil || to.ValidateDocument(snapshot) != nil {
+		return
+	}
+	if document.SelectSemantic(model.NewTextSelection(from, to)) != nil {
+		document.ClearError()
+	}
 }
 
 // saveStatus is what the status line says about saving: a write that is

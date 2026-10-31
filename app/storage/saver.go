@@ -86,6 +86,7 @@ func (v *Saver) Page(key PageKey, title string, snapshot model.DocumentSnapshot)
 func (v *Saver) Layout(layout Layout) {
 	layout.Tabs = append([]PageKey(nil), layout.Tabs...)
 	layout.Scroll = maps.Clone(layout.Scroll)
+	layout.Selections = maps.Clone(layout.Selections)
 	v.mu.Lock()
 	v.layout = &layout
 	v.touch()

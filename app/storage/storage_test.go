@@ -102,7 +102,12 @@ func TestANotebookReopensAsItWasLeft(t *testing.T) {
 	saver := store.Autosave(nil)
 	saver.Page(1, "Title", first.Snapshot())
 	saver.Page(2, "", second.Snapshot())
-	saver.Layout(Layout{Tabs: []PageKey{2, 1}, Active: 1, HasActive: true, Scroll: map[PageKey]float32{1: 120}})
+	selection := Selection{Anchor: Position{Node: 3, Offset: 2, Affinity: 1}, Head: Position{Node: 3, Offset: 5}}
+	saver.Layout(Layout{
+		Tabs: []PageKey{2, 1}, Active: 1, HasActive: true,
+		Scroll:     map[PageKey]float32{1: 120},
+		Selections: map[PageKey]Selection{1: selection},
+	})
 	if err := saver.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +127,8 @@ func TestANotebookReopensAsItWasLeft(t *testing.T) {
 	sameDocument(t, first.Snapshot(), notebook.Pages[0].Document.Snapshot())
 	sameDocument(t, second.Snapshot(), notebook.Pages[1].Document.Snapshot())
 	layout := notebook.Layout
-	if len(layout.Tabs) != 2 || layout.Tabs[0] != 2 || layout.Active != 1 || !layout.HasActive || layout.Scroll[1] != 120 {
+	if len(layout.Tabs) != 2 || layout.Tabs[0] != 2 || layout.Active != 1 || !layout.HasActive ||
+		layout.Scroll[1] != 120 || layout.Selections[1] != selection {
 		t.Fatalf("layout %+v", layout)
 	}
 }

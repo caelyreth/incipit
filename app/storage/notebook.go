@@ -22,12 +22,28 @@ type Page struct {
 }
 
 // Layout is how the notebook was left: its open tabs in order, the page in
-// front, and where each page was scrolled.
+// front, and where each page was scrolled and selected.
 type Layout struct {
-	Tabs      []PageKey           `json:"tabs"`
-	Active    PageKey             `json:"active"`
-	HasActive bool                `json:"hasActive"`
-	Scroll    map[PageKey]float32 `json:"scroll,omitempty"`
+	Tabs       []PageKey             `json:"tabs"`
+	Active     PageKey               `json:"active"`
+	HasActive  bool                  `json:"hasActive"`
+	Scroll     map[PageKey]float32   `json:"scroll,omitempty"`
+	Selections map[PageKey]Selection `json:"selections,omitempty"`
+}
+
+// Position is a place in a page's text, as the model addresses it: a node,
+// a UTF-16 offset in its text, and the side of that boundary it keeps to.
+type Position struct {
+	Node     uint64 `json:"node"`
+	Offset   int    `json:"offset"`
+	Affinity uint8  `json:"affinity"`
+}
+
+// Selection is a page's selection, from where it was started to where it
+// was moved; a caret is one whose ends are the same.
+type Selection struct {
+	Anchor Position `json:"anchor"`
+	Head   Position `json:"head"`
 }
 
 // Damage is a page whose records no longer make a document. Its rows stay
