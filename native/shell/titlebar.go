@@ -12,31 +12,82 @@ type titleLines struct {
 	// sheets is the sheet list's line after it: the place's title, and
 	// the list's toggle at its end.
 	sheets float32
+	// libraryEdge and sheetsEdge are where the panes below end, where the
+	// title bar draws their seams.
+	libraryEdge, sheetsEdge float32
 }
 
 // titleLines shares the title bar out for the panes' openness: reveal the
 // library's, listWidth the sheet list's width, dock how far the place's
-// title has gone down to the list. The library's line keeps room for the
-// window's controls while the library is closed, taken from the list's.
-// As the title goes down, the list's line keeps only its toggle and the
-// library's reaches over the rest, so the library's toggle moves out to
-// sit beside the list's, which stays where it is.
+// title has gone down to the list.
+//
+// The two lines end where the panes below do, but the library's keeps room
+// for the window's controls (titleFloor), which it eases into rather than
+// meets: a line that stopped dead there would stop the tabs after it dead
+// as the panes close. As the title goes down, the list's line keeps only
+// its toggle and the library's reaches over the rest, so the library's
+// toggle moves out to sit beside the list's, which stays where it is.
 func (s *State) titleLines(layout theme.Layout, reveal, listWidth, dock float32) titleLines {
-	scale := s.Settings.UIFontSize
-	k := scale / theme.DefaultUIFontSize
-	library := ((layout.Sidebar-140)*reveal + 140) * k
+	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	edge := layout.Sidebar * k * reveal
-	sheets := max(0, listWidth-(library-edge))
-	toggle := theme.DefaultControls.Scaled(scale).Height + listLineEnd.DIPs(scale)
-	// The reach is the room the list's line has once the library is shut,
-	// past its toggle; going by the title's way down, it brings the toggle
-	// out one way. Reaching over what the list's line has now instead
-	// would overshoot and come back as that line widens.
-	reach := max(0, listWidth-140*k-toggle)
-	reach = min(reach, max(0, sheets-min(sheets, toggle))) * dock
-	return titleLines{library: library + reach, sheets: sheets - reach}
+	floor := titleFloor * k
+	panes := edge + listWidth
+	end := softFloor(panes, floor, titleEase*k)
+	toggle := listToggle(s.Settings.UIFontSize)
+	// As the title goes down the line goes from where it was to just before
+	// the list's toggle, in a straight line by the title's way. Both ends
+	// hold still as the panes move: from, the library's line as it was
+	// before the title set out, which the library closing with the title
+	// (reveal + dock stays 1) leaves whole; to, beside the toggle as the
+	// list's own width puts it, not as the list slides there. An end that
+	// moved would take the toggle past its place and back.
+	from := softFloor(layout.Sidebar*k*min(1, reveal+dock), floor, titleEase*k)
+	to := max(floor, softFloor(listWidth, floor, titleEase*k)-toggle)
+	library := softFloor(edge, floor, titleEase*k)
+	if dock > 0 {
+		library = from + (to-from)*dock
+	}
+	return titleLines{
+		library: library, sheets: max(0, end-library),
+		libraryEdge: edge, sheetsEdge: panes,
+	}
 }
+
+const (
+	// titleFloor is the least the library's line keeps, for the window's
+	// controls and the library's toggle.
+	titleFloor = 140
+	// titleEase is how far either side of titleFloor the line eases into
+	// it, and a seam coming to it fades out.
+	titleEase = 40
+)
 
 // listLineEnd is the room after the sheet list's toggle, at the end of its
 // line.
 const listLineEnd = theme.Space06
+
+// listToggle is the room the sheet list's toggle takes at its line's end.
+func listToggle(scale float32) float32 {
+	return theme.DefaultControls.Scaled(scale).Height + listLineEnd.DIPs(scale)
+}
+
+// softFloor is max(x, floor) with the corner rounded over band either
+// side: it meets x and floor, and how fast it changes, at the band's ends,
+// so what follows it slows into the floor instead of stopping.
+func softFloor(x, floor, band float32) float32 {
+	d := x - floor
+	switch {
+	case d >= band:
+		return x
+	case d <= -band:
+		return floor
+	}
+	return floor + (d+band)*(d+band)/(4*band)
+}
+
+// seamFade is how strong a pane's seam in the title bar is at x: whole
+// past the window's controls, gone where it would cross them.
+func seamFade(x, k float32) float32 {
+	t := (x - (titleFloor-titleEase)*k) / (2 * titleEase * k)
+	return max(0, min(1, t))
+}

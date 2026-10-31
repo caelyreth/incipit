@@ -503,9 +503,10 @@ func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal fl
 	}
 	scale := s.Settings.UIFontSize
 	view := s.listView()
-	ui.Box(c).Key("sheets-line").Width(width).HeightPercent(100).Shrink(0).Clip().
-		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
-		ui.Box(c).WidthPercent(100).HeightPercent(100).Opacity(reveal).Children(func() {
+	ui.Box(c).Key("sheets-line").Width(width).HeightPercent(100).Shrink(0).Clip().Children(func() {
+		// The line fades out well before the list is shut, so its toggle
+		// is gone before the closing line comes to cut it off.
+		ui.Box(c).WidthPercent(100).HeightPercent(100).Opacity(reveal * reveal).Children(func() {
 			layer := ui.Row(c).Key("head-" + view.key()).Absolute().Top(0).Left(0).WidthPercent(100).HeightPercent(100).
 				PaddingStart(theme.Space12.DIPs(scale) * (1 - s.listDock)).PaddingEnd(listLineEnd.DIPs(scale)).
 				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale) * (1 - s.listDock)).

@@ -51,10 +51,17 @@ func (s *State) View(c *ui.Context) {
 		listReveal = components.Follow(root, "sheets-open", listTarget, motionReveal)
 	}
 	listReveal = max(0, min(listReveal, 1))
-	dockTarget := float32(0)
-	if !s.SidebarVisible() && !s.nav.searching {
-		dockTarget = 1
+	// The place's title goes down to the list where the library is shut.
+	// While the list is shut it stays where it was: going to the list as
+	// both close, or back up as the list closes alone, would move it for a
+	// line that is going.
+	if s.SheetListVisible() {
+		s.dockTarget = 0
+		if !s.SidebarVisible() && !s.nav.searching {
+			s.dockTarget = 1
+		}
 	}
+	dockTarget := s.dockTarget
 	s.listDock = dockTarget
 	if animate {
 		s.listDock = max(0, min(components.Follow(root, "sheets-dock", dockTarget, motionReveal), 1))

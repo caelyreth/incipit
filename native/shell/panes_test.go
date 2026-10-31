@@ -57,9 +57,11 @@ func highlight(tester *ui.Tester) int {
 	return int(c.R)
 }
 
-// TestTheTabsStayAsPanesMove watches the first tab while the panes move:
-// it slides with the panes' edge, one way, and never folds away and comes
-// back, as it would if the tab line were made anew.
+// TestTheTabsStayAsPanesMove watches the first tab and the library's
+// toggle while the panes move: each slides one way to where it rests, and
+// the tab never folds away and comes back, as it would if the tab line
+// were made anew. A title bar line that met its least width, or a toggle
+// that followed both a pane's edge and the moving title, would turn back.
 func TestTheTabsStayAsPanesMove(t *testing.T) {
 	for _, move := range paneMoves {
 		state, _ := libraryState()
@@ -67,9 +69,12 @@ func TestTheTabsStayAsPanesMove(t *testing.T) {
 		tester := ui.NewTester(state.View, 1260, 400)
 		settle(tester)
 		from, _ := tester.Find("Untitled")
+		toggleFrom, _ := tester.Find("Toggle library")
 		state.ShowPanes(move.toLibrary, move.toSheets)
 		settle(tester)
 		to, _ := tester.Find("Untitled")
+		toggleTo, _ := tester.Find("Toggle library")
+		toggleLast := toggleFrom
 		state.ShowPanes(move.library, move.sheets)
 		settle(tester)
 		state.ShowPanes(move.toLibrary, move.toSheets)
@@ -85,6 +90,11 @@ func TestTheTabsStayAsPanesMove(t *testing.T) {
 				t.Fatalf("%s: frame %d the tab turned back: %v after %v, going to %v", move.name, frame, at.X, last.X, to.X)
 			}
 			last = at
+			toggle, _ := tester.Find("Toggle library")
+			if (toggleTo.X-toggleFrom.X)*(toggle.X-toggleLast.X) < -0.5 || (toggleTo.X == toggleFrom.X && abs(toggle.X-toggleFrom.X) > 0.5) {
+				t.Fatalf("%s: frame %d the library's toggle turned back: %v after %v, going to %v", move.name, frame, toggle.X, toggleLast.X, toggleTo.X)
+			}
+			toggleLast = toggle
 		}
 	}
 }
@@ -108,3 +118,5 @@ func TestTheSheetListsToggleStaysInSight(t *testing.T) {
 		}
 	}
 }
+
+func abs(x float32) float32 { return max(x, -x) }

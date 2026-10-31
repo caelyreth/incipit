@@ -40,9 +40,6 @@ func (s *State) header(
 			// search's is beside it.
 			PaddingEnd(theme.Space08.DIPs(scale) - (theme.Space08-theme.Space02).DIPs(scale)*s.listDock).
 			AlignItems(ui.Center).Gap(theme.Space02.DIPs(scale))
-		if reveal > 0.01 {
-			leading.BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant)
-		}
 		leading.Children(func() {
 			ui.Box(c).Grow(1)
 			if reveal > 0.01 && s.Library != nil {
@@ -104,7 +101,29 @@ func (s *State) header(
 				},
 			}.View(c, semantic)
 		})
+		s.seams(c, semantic, lines, reveal, listReveal)
 	})
+}
+
+// seams draws the panes' edges across the title bar, where the panes
+// below end, not where the lines over them do: the lines keep room for the
+// window's controls, the panes do not. A seam fades as it comes to the
+// controls, rather than crossing them, or going out at once.
+func (s *State) seams(c *ui.Context, semantic theme.Theme, lines titleLines, reveal, listReveal float32) {
+	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
+	for _, seam := range [...]struct {
+		key   string
+		x     float32
+		shown bool
+	}{
+		{"library-seam", lines.libraryEdge, reveal > 0.001},
+		{"sheets-seam", lines.sheetsEdge, listReveal > 0.001 && s.Library != nil},
+	} {
+		if fade := seamFade(seam.x, k); seam.shown && fade > 0.001 {
+			ui.Box(c).Key(seam.key).Absolute().Top(0).Bottom(0).Left(seam.x - 1).Width(1).
+				Background(semantic.Border.Variant).Opacity(fade)
+		}
+	}
 }
 
 func (s *State) pageTabs(
