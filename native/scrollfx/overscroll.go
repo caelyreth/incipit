@@ -20,9 +20,10 @@ type Overscroll struct {
 	y Elastic
 }
 
-// Handle takes wheel input that would leave the scroll at an edge. It also
-// gives a precise touchpad move that crosses an edge in one event its exact
-// remaining travel, without delaying the resistance until a later event.
+// Handle takes scroll input the surface cannot use at an edge, and a
+// touchpad move that crosses an edge in one event gets its exact remaining
+// travel at once. Pulling back from a stretched edge returns to the
+// content whatever passes through the edge.
 func (o *Overscroll) Handle(
 	event ui.InputEvent,
 	state *ui.ScrollState,
@@ -37,23 +38,18 @@ func (o *Overscroll) Handle(
 	if event.Mods&ui.Shift != 0 && dx == 0 {
 		dx, dy = dy, 0
 	}
+	input := phase(event.Precise, event.Momentum)
+	o.x.Observe(input)
+	o.y.Observe(input)
 	handled := false
 	if axis&Horizontal != 0 && dx != 0 {
-		position, ok := o.pull(
-			&o.x, dx, state.X, state.MaxX,
-			phase(event.Precise, event.Momentum), limit, event.Time, profile,
-		)
-		if ok {
+		if position, ok := pull(&o.x, dx, state.X, state.MaxX, input, limit, profile); ok {
 			state.X = position
 			handled = true
 		}
 	}
 	if axis&Vertical != 0 && dy != 0 {
-		position, ok := o.pull(
-			&o.y, dy, state.Y, state.MaxY,
-			phase(event.Precise, event.Momentum), limit, event.Time, profile,
-		)
-		if ok {
+		if position, ok := pull(&o.y, dy, state.Y, state.MaxY, input, limit, profile); ok {
 			state.Y = position
 			handled = true
 		}
@@ -102,41 +98,52 @@ func (o *Overscroll) Reset() {
 	o.y.Reset()
 }
 
-func (o *Overscroll) pull(
+// pull gives an axis the part of a scroll by delta that goes past an edge
+// of content scrolled to position of maximum, and reports where the
+// content goes and whether the input was taken. A wheel notch is left to
+// the container until the content is at its edge, as the container glides
+// notches there itself.
+func pull(
 	elastic *Elastic,
 	delta, position, maximum float32,
-	phase InputPhase,
+	input InputPhase,
 	limit float32,
-	now time.Time,
 	profile Profile,
 ) (float32, bool) {
-	if delta == 0 {
-		return position, false
-	}
 	if elastic.Offset() != 0 {
-		elastic.Add(-delta, limit, now, phase, profile)
-		return position, true
-	}
-	if delta > 0 {
-		switch {
-		case position >= maximum-0.5:
-			elastic.Add(-delta, limit, now, phase, profile)
+		rest := -elastic.Add(-delta, limit, input, profile)
+		if rest == 0 {
 			return position, true
-		case phase != Notch && position+delta > maximum:
-			elastic.Add(-(position + delta - maximum), limit, now, phase, profile)
-			return maximum, true
 		}
+		if input != Direct {
+			// Scrolling away from a pushed edge: the container takes it
+			// as it would, while the edge settles.
+			return position, false
+		}
+		return max(0, min(position+rest, maximum)), true
+	}
+	beyond, edge := float32(0), position
+	switch {
+	case delta > 0 && position >= maximum-0.5:
+		beyond = delta
+	case delta < 0 && position <= 0.5:
+		beyond = delta
+	case input == Notch:
+		return position, false
+	case position+delta > maximum:
+		beyond, edge = position+delta-maximum, maximum
+	case position+delta < 0:
+		beyond, edge = position+delta, 0
+	default:
 		return position, false
 	}
-	switch {
-	case position <= 0.5:
-		elastic.Add(-delta, limit, now, phase, profile)
-		return position, true
-	case phase != Notch && position+delta < 0:
-		elastic.Add(-(position + delta), limit, now, phase, profile)
-		return 0, true
+	push := beyond
+	if input == Momentum {
+		// Inertia's push is measured by its speed, the whole event.
+		push = delta
 	}
-	return position, false
+	elastic.Add(-push, limit, input, profile)
+	return edge, true
 }
 
 func phase(precise, momentum bool) InputPhase {

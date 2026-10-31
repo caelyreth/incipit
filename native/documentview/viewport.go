@@ -74,19 +74,30 @@ func (e *Element) manualScroll(delta float32, now time.Time, precise, momentum b
 	case !precise:
 		input = scrollfx.Notch
 	}
+	e.overscroll.Observe(input)
 	if e.overscroll.Offset() != 0 {
-		style.Add(&e.overscroll, -delta, e.lastHeight, e.UIFontSize, now, input)
-		return
+		// What passes back through the edge scrolls the page.
+		delta = -style.Add(&e.overscroll, -delta, e.lastHeight, e.UIFontSize, input)
+		if delta == 0 {
+			return
+		}
 	}
 	next := e.scroll + delta
 	if e.current != nil {
 		low, high := e.scrollRange(e.current, e.lastHeight)
+		push := func(beyond float32) {
+			if input == scrollfx.Momentum {
+				// Inertia pushes by its speed, the whole event.
+				beyond = -delta
+			}
+			style.Add(&e.overscroll, beyond, e.lastHeight, e.UIFontSize, input)
+		}
 		switch {
 		case next < low:
-			style.Add(&e.overscroll, low-next, e.lastHeight, e.UIFontSize, now, input)
+			push(low - next)
 			next = low
 		case next > high:
-			style.Add(&e.overscroll, high-next, e.lastHeight, e.UIFontSize, now, input)
+			push(high - next)
 			next = high
 		}
 	}
