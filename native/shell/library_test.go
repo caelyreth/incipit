@@ -1134,3 +1134,32 @@ func TestADropDoesNotCallUpACreateArea(t *testing.T) {
 		t.Fatalf("resting by the top opened nothing after the quiet: %#v", tester.Texts())
 	}
 }
+
+// A chapter renamed is the same row, its field where its name was: the
+// rows after it stay put, and its count stays beside the field.
+func TestRenamingAChapterKeepsItsPlace(t *testing.T) {
+	state, library := libraryState()
+	library.entries = []GroupEntry{
+		{Kind: EntrySheet, ID: "7", Title: "First", Sheet: SheetItem{ID: "7", Title: "First"}},
+		{
+			Kind: EntryChapter, ID: "chapter:9", Title: "Part Two",
+			Chapter: ChapterItem{ID: "chapter:9", Name: "Part Two"},
+		},
+		{Kind: EntrySheet, ID: "8", Title: "After", Sheet: SheetItem{ID: "8", Title: "After"}},
+	}
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	after, _ := tester.Find("After")
+	state.startChapterRename("chapter:9", "Part Two")
+	for range 6 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+		if moved, _ := tester.Find("After"); moved.Y != after.Y {
+			t.Fatalf("the row after moved from %v to %v as the rename began", after.Y, moved.Y)
+		}
+	}
+	if !slices.Contains(tester.Texts(), "1 sheet") {
+		t.Fatalf("the count left the renamed chapter: %#v", tester.Texts())
+	}
+}

@@ -226,6 +226,22 @@ func (g *gap) hold(area ui.Element) {
 	g.over = area.Hovered()
 }
 
+// holdAround keeps the gap open while the pointer is on its area or within
+// reach of it in list, as in the space between it and the rows around it.
+func (g *gap) holdAround(area, list ui.Element, reach float32) {
+	g.hold(area)
+	if g.over {
+		return
+	}
+	_, y, in := list.PointerPosition()
+	bounds := area.LayoutBounds()
+	if !in || bounds.H <= 0 {
+		return
+	}
+	top := bounds.Y - list.LayoutBounds().Y
+	g.over = y >= top-reach && y <= top+bounds.H+reach
+}
+
 // use closes the gap as what it made comes in.
 func (g *gap) use() {
 	g.open, g.spent, g.since = false, true, time.Time{}

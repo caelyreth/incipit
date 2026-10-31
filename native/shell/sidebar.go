@@ -46,6 +46,8 @@ type navigation struct {
 	sheetsGap, groupsTop gap
 	// dragged is whether a row was dragged this frame.
 	dragged bool
+	// revealing is a chapter just made, to bring into view as it comes.
+	revealing string
 	// sheetsNear is the sheet whose top the pointer was by, -1 for none.
 	sheetsNear int
 	// sheetDropSlot is the insertion slot while a sheet is dragged over a
