@@ -1252,3 +1252,45 @@ func TestADroppedRowLandsFromWhereItWasLetGo(t *testing.T) {
 		t.Fatalf("the chapter settled at %v, not above First at %v", placed.Y, below.Y)
 	}
 }
+
+// A row dropped at the end takes the placeholder's space at once: the
+// placeholder's outline does not linger under it as it lands.
+func TestADropLeavesNoPlaceholderBehind(t *testing.T) {
+	state, library := libraryState()
+	sheet := func(id, title string) GroupEntry {
+		return GroupEntry{Kind: EntrySheet, ID: id, Title: title, Sheet: SheetItem{ID: id, Title: title}}
+	}
+	library.entries = []GroupEntry{
+		sheet("7", "First"),
+		{
+			Kind: EntryChapter, ID: "chapter:9", Title: "Part Two",
+			Chapter: ChapterItem{ID: "chapter:9", Name: "Part Two"},
+		},
+		sheet("8", "Second"), sheet("11", "Third"),
+	}
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	divider, _ := tester.Find("Part Two")
+	x := divider.X + divider.W/2
+	tester.Press(x, divider.Y+divider.H/2)
+	tester.Move(x, divider.Y+divider.H/2+10)
+	tester.Frame()
+	area, _ := tester.Find("New sheet")
+	tester.Move(x, area.Y+area.H/2)
+	settle(tester)
+	tester.Release(x, area.Y+area.H/2)
+	tester.Advance(16 * time.Millisecond)
+	tester.Frame()
+	landed, _ := tester.Find("Part Two")
+	below, _ := tester.Find("New sheet")
+	img := tester.Image()
+	background := img.RGBAAt(int(landed.X+landed.W/2), int(below.Y+below.H+12))
+	for y := int(landed.Y + landed.H + 2); y < int(below.Y-2); y++ {
+		for px := int(landed.X + 2); px < int(landed.X+landed.W-2); px++ {
+			if img.RGBAAt(px, y) != background {
+				t.Fatalf("something is drawn at %d,%d between the landed chapter and the area below", px, y)
+			}
+		}
+	}
+}

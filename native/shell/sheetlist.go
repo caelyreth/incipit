@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -389,8 +390,6 @@ func (s *State) sheetRows(
 		dragging = ordered && dragging
 		dropSlot := s.nav.sheetDropSlot
 		s.nav.listTop = list.LayoutBounds().Y
-		var placeholder ui.Element
-		hasPlaceholder := false
 		if dragging {
 			slot, height := s.sheetDropPlan(list, entries, dragged)
 			dropSlot = slot
@@ -434,7 +433,7 @@ func (s *State) sheetRows(
 			}
 			for index, entry := range entries {
 				if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == index {
-					placeholder, hasPlaceholder = s.sheetDropPlaceholder(c, semantic, dragging, animate), true
+					s.sheetDropPlaceholder(c, semantic, dragging, animate)
 				}
 				if open && at == index {
 					sheetAction := func() {
@@ -478,7 +477,7 @@ func (s *State) sheetRows(
 				}
 			}
 			if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == len(entries) {
-				placeholder, hasPlaceholder = s.sheetDropPlaceholder(c, semantic, dragging, animate), true
+				s.sheetDropPlaceholder(c, semantic, dragging, animate)
 			}
 			if create != nil && !createAtTop {
 				var area ui.Element
@@ -499,8 +498,8 @@ func (s *State) sheetRows(
 					s.trackSheetDropRows(list, entries, rows)
 				}
 				if moved, ok := ui.Drop[sheetMove](list); ok {
-					if hasPlaceholder && s.nav.sheetDropVisible {
-						s.startLanding(c, list, placeholder, moved.sheetMoveID(), dropSlot, entries)
+					if s.nav.sheetDropVisible {
+						s.startLanding(c, list, moved.sheetMoveID())
 					}
 					s.moveSheetToSlot(moved.sheetMoveID(), place.Group, dropSlot, entries)
 					// The row lands in the placeholder's space: it goes at
@@ -632,9 +631,16 @@ func (s *State) sheetDropPlaceholder(
 		height, opacity = s.nav.sheetDropRoom+s.nav.sheetDropHeight, 1
 	}
 	room := s.nav.sheetDropRoom
+	// It opens and closes by its own height, and only moves between
+	// slots by its transition: one that also took it out would leave its
+	// outline under a row that has just landed in its space.
+	transition := ui.ElementTransition{Duration: 1}
+	if animate {
+		transition = ui.ElementTransition{Duration: motionList, Position: true}
+	}
 	area := ui.Box(c).Key("sheet-drop-placeholder").WidthPercent(100).
 		Height(0).Shrink(0).Clip().Radius(metrics.Radius).
-		Transition(s.listRowTransition(animate))
+		Transition(transition)
 	if animate {
 		height = components.Follow(area, "height", height, components.MotionQuick)
 		opacity = components.Follow(area, "opacity", opacity, components.MotionQuick)
@@ -659,44 +665,43 @@ func (s *State) sheetDropPlaceholder(
 	return area
 }
 
-// grab is where the pointer took a row: its id, and how far below the
-// row's top.
+// grab is where the pointer took a row: its id, how far below the row's
+// top, and where in the list the row stands while dragged.
 type grab struct {
-	id string
-	y  float32
+	id     string
+	y, top float32
 }
 
 // landing is a dropped row on its way from where it was let go to its
-// place. Both are tops in the list: from, the dragged copy's, and guess,
-// the place's until the row has been laid out there.
+// place. from is the dragged copy's top in the list as it was let go,
+// source the row's top before the drop; at is when the row was first laid
+// out in its place, and dropped when it was let go.
 type landing struct {
-	id          string
-	from, guess float32
-	at          time.Time
-	placed      bool
+	id           string
+	from, source float32
+	at, dropped  time.Time
 }
 
-// noteGrab keeps where the pointer took row, for a drag that may follow.
+// noteGrab keeps where the pointer took row, for a drag that may follow,
+// and where the row stands while it is dragged.
 func (s *State) noteGrab(row ui.Element, id string, dragging bool) {
-	if dragging || !row.Pressed() {
+	if dragging {
+		if s.nav.grab.id == id {
+			s.nav.grab.top = row.LayoutBounds().Y - s.nav.listTop
+		}
+		return
+	}
+	if !row.Pressed() {
 		return
 	}
 	if _, y, ok := row.PointerPosition(); ok {
-		s.nav.grab = grab{id: id, y: y}
+		s.nav.grab = grab{id: id, y: y, top: row.LayoutBounds().Y - s.nav.listTop}
 	}
 }
 
 // startLanding begins a dropped row's landing from where its dragged copy
-// was let go. The row's place is the placeholder's, after the room a
-// chapter keeps above it and less the row's own extent where it came
-// from above.
-func (s *State) startLanding(
-	c *ui.Context,
-	list, placeholder ui.Element,
-	id string,
-	slot int,
-	entries []GroupEntry,
-) {
+// was let go.
+func (s *State) startLanding(c *ui.Context, list ui.Element, id string) {
 	if s.nav.grab.id != id {
 		return
 	}
@@ -704,42 +709,47 @@ func (s *State) startLanding(
 	if !over {
 		return
 	}
-	guess := placeholder.LayoutBounds().Y - s.nav.listTop + s.nav.sheetDropRoom
-	scale := s.Settings.UIFontSize
-	for index, entry := range entries {
-		if entry.ID != id || index >= slot {
-			continue
-		}
-		if span, ok := s.sheetDropSpan(id); ok {
-			guess -= span.height + theme.Space06.DIPs(scale)
-			if entry.Kind == EntryChapter && index > 0 {
-				guess -= chapterRoom(scale)
-			}
-		}
+	s.nav.landing = landing{
+		id: id, from: pointer - s.nav.grab.y, source: s.nav.grab.top, dropped: c.Now(),
 	}
-	s.nav.landing = landing{id: id, from: pointer - s.nav.grab.y, guess: guess, at: c.Now()}
 }
+
+// landWait bounds how long a dropped row waits to be laid out in its
+// place before it shows there without landing.
+const landWait = 100 * time.Millisecond
 
 // land carries a dropped row from where it was let go into its place,
 // instead of from where it was dragged from. It reports whether the row
 // is landing.
+//
+// Its place is known only once the list has laid the row out there,
+// which can take more than one build: until its layout leaves where it was
+// dragged from, it stays hidden, as the dragged copy has just gone, rather
+// than be drawn from a place it is not.
 func (s *State) land(c *ui.Context, row ui.Element, id string, animate bool) bool {
 	l := &s.nav.landing
 	if l.id != id {
 		return false
 	}
-	t := float32(c.Now().Sub(l.at)) / float32(motionList)
+	now := c.Now()
+	top := row.LayoutBounds().Y - s.nav.listTop
+	if l.at.IsZero() {
+		if !animate || now.Sub(l.dropped) > landWait {
+			*l = landing{}
+			return false
+		}
+		if math.Abs(float64(top-l.source)) < 0.5 {
+			c.AnimationFrame()
+			row.Transition(ui.ElementTransition{Duration: 1}).Opacity(0)
+			return true
+		}
+		l.at = now
+	}
+	t := float32(now.Sub(l.at)) / float32(motionList)
 	if !animate || t >= 1 {
 		*l = landing{}
 		return false
 	}
-	// The first frame after the drop has not laid the row out in its
-	// place yet: it goes by the guess, every later one by the layout.
-	top := l.guess
-	if l.placed {
-		top = row.LayoutBounds().Y - s.nav.listTop
-	}
-	l.placed = true
 	c.AnimationFrame()
 	p := components.Decelerate(max(0, t))
 	row.Transition(ui.ElementTransition{Duration: 1}).Translate(0, (l.from-top)*(1-p))
