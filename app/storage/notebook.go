@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/engine/model"
 )
 
@@ -60,6 +61,9 @@ type Notebook struct {
 	Layout Layout
 	// HasLayout reports whether a layout was saved at all.
 	HasLayout bool
+	// Library is how the pages are filed. A page it does not file is for
+	// the caller to file.
+	Library library.Records
 	// Damaged pages are left on disk as they are, and their keys are never
 	// given to a new page.
 	Damaged []Damage
@@ -109,6 +113,9 @@ func (s *Store) Load() (Notebook, error) {
 			Updated:  time.UnixMilli(row.updated),
 		})
 	}
+	if notebook.Library, err = s.loadLibrary(ctx, notebook.Pages); err != nil {
+		return Notebook{}, err
+	}
 	var encoded string
 	switch err := s.db.QueryRowContext(ctx,
 		`SELECT value FROM layout WHERE key = ?`, layoutKey).Scan(&encoded); err {
@@ -121,6 +128,66 @@ func (s *Store) Load() (Notebook, error) {
 		return Notebook{}, err
 	}
 	return notebook, nil
+}
+
+// loadLibrary reads the groups and the filing of the sound pages.
+func (s *Store) loadLibrary(ctx context.Context, pages []Page) (library.Records, error) {
+	var records library.Records
+	rows, err := s.db.QueryContext(ctx, `SELECT id, parent, name, position, trashed FROM groups`)
+	if err != nil {
+		return records, err
+	}
+	for rows.Next() {
+		var group library.GroupRecord
+		var trashed sql.NullInt64
+		if err := rows.Scan(&group.ID, &group.Parent, &group.Name, &group.Position, &trashed); err != nil {
+			rows.Close()
+			return records, err
+		}
+		group.Trashed = timeOf(trashed)
+		records.Groups = append(records.Groups, group)
+	}
+	if err := rows.Close(); err != nil {
+		return records, err
+	}
+	known := make(map[PageKey]Page, len(pages))
+	for _, page := range pages {
+		known[page.Key] = page
+	}
+	rows, err = s.db.QueryContext(ctx, `SELECT page, grp, position, trashed FROM sheets`)
+	if err != nil {
+		return records, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var sheet library.SheetRecord
+		var trashed sql.NullInt64
+		if err := rows.Scan(&sheet.ID, &sheet.Group, &sheet.Position, &trashed); err != nil {
+			return records, err
+		}
+		page, ok := known[PageKey(sheet.ID)]
+		if !ok {
+			continue
+		}
+		sheet.Trashed = timeOf(trashed)
+		sheet.Created, sheet.Updated = page.Created, page.Updated
+		records.Sheets = append(records.Sheets, sheet)
+	}
+	return records, rows.Err()
+}
+
+func timeOf(milliseconds sql.NullInt64) time.Time {
+	if !milliseconds.Valid {
+		return time.Time{}
+	}
+	return time.UnixMilli(milliseconds.Int64)
+}
+
+func millisecondsOf(at time.Time) sql.NullInt64 {
+	if at.IsZero() {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: at.UnixMilli(), Valid: true}
 }
 
 func (s *Store) loadDocument(
@@ -186,9 +253,19 @@ type pageWrite struct {
 	known    bool
 }
 
-// write commits page changes and the layout in one transaction: all of it
-// is on disk, or none of it.
-func (s *Store) write(ctx context.Context, pages []pageWrite, layout *Layout, now time.Time) error {
+// change is one transaction's worth of writes: page changes, pages
+// deleted for good, the library's filing and the layout.
+type change struct {
+	pages   []pageWrite
+	deleted []PageKey
+	library *library.Records
+	layout  *Layout
+}
+
+// write commits a change in one transaction: all of it is on disk, or
+// none of it.
+func (s *Store) write(ctx context.Context, change change, now time.Time) error {
+	pages, layout := change.pages, change.layout
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -240,6 +317,19 @@ func (s *Store) write(ctx context.Context, pages []pageWrite, layout *Layout, no
 			}
 		}
 	}
+	for _, key := range change.deleted {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM pages WHERE id = ?`, key); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM sheets WHERE page = ?`, key); err != nil {
+			return err
+		}
+	}
+	if change.library != nil {
+		if err := writeLibrary(ctx, tx, *change.library); err != nil {
+			return err
+		}
+	}
 	if layout != nil {
 		encoded, err := json.Marshal(layout)
 		if err != nil {
@@ -253,6 +343,32 @@ func (s *Store) write(ctx context.Context, pages []pageWrite, layout *Layout, no
 		}
 	}
 	return tx.Commit()
+}
+
+// writeLibrary replaces the library's groups and filing: they are small,
+// and change a few at a time.
+func writeLibrary(ctx context.Context, tx *sql.Tx, records library.Records) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM groups`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sheets`); err != nil {
+		return err
+	}
+	for _, group := range records.Groups {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO groups (id, parent, name, position, trashed) VALUES (?, ?, ?, ?, ?)`,
+			group.ID, group.Parent, group.Name, group.Position, millisecondsOf(group.Trashed)); err != nil {
+			return err
+		}
+	}
+	for _, sheet := range records.Sheets {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO sheets (page, grp, position, trashed) VALUES (?, ?, ?, ?)`,
+			sheet.ID, sheet.Group, sheet.Position, millisecondsOf(sheet.Trashed)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func writeNode(ctx context.Context, statement *sql.Stmt, page PageKey, record model.NodeRecord) error {

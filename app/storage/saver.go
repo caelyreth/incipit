@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/engine/model"
 )
 
@@ -29,6 +30,8 @@ type Saver struct {
 
 	mu      sync.Mutex
 	pending map[PageKey]pendingPage
+	deleted map[PageKey]bool
+	library *library.Records
 	layout  *Layout
 	first   time.Time
 	last    time.Time
@@ -60,6 +63,7 @@ func (s *Store) Autosave(stored map[PageKey]model.DocumentSnapshot) *Saver {
 	saver := &Saver{
 		store:      s,
 		pending:    map[PageKey]pendingPage{},
+		deleted:    map[PageKey]bool{},
 		wake:       make(chan struct{}, 1),
 		done:       make(chan struct{}),
 		stored:     maps.Clone(stored),
@@ -78,6 +82,24 @@ func (s *Store) Autosave(stored map[PageKey]model.DocumentSnapshot) *Saver {
 func (v *Saver) Page(key PageKey, title string, snapshot model.DocumentSnapshot) {
 	v.mu.Lock()
 	v.pending[key] = pendingPage{title: title, snapshot: snapshot}
+	v.touch()
+	v.mu.Unlock()
+}
+
+// Delete asks for a page to be removed from disk for good. A change of it
+// still pending goes with it.
+func (v *Saver) Delete(key PageKey) {
+	v.mu.Lock()
+	delete(v.pending, key)
+	v.deleted[key] = true
+	v.touch()
+	v.mu.Unlock()
+}
+
+// Library asks for the library's filing to be saved.
+func (v *Saver) Library(records library.Records) {
+	v.mu.Lock()
+	v.library = &records
 	v.touch()
 	v.mu.Unlock()
 }
@@ -161,7 +183,7 @@ func (v *Saver) run() {
 	for {
 		v.mu.Lock()
 		urgent := v.closing || len(v.flushes) > 0
-		dirty := len(v.pending) > 0 || v.layout != nil
+		dirty := len(v.pending) > 0 || len(v.deleted) > 0 || v.library != nil || v.layout != nil
 		var wait time.Duration
 		if dirty && !urgent {
 			now := v.now()
@@ -208,20 +230,20 @@ func (v *Saver) run() {
 }
 
 // writePending takes what is pending and writes it in one transaction. On
-// failure it goes back, unless a newer change of the same page arrived.
+// failure it goes back, unless something newer of the same kind arrived.
 func (v *Saver) writePending() error {
 	v.mu.Lock()
-	pending, layout := v.pending, v.layout
-	v.pending, v.layout = map[PageKey]pendingPage{}, nil
+	pending, deleted, records, layout := v.pending, v.deleted, v.library, v.layout
+	v.pending, v.deleted, v.library, v.layout = map[PageKey]pendingPage{}, map[PageKey]bool{}, nil, nil
 	v.first = time.Time{}
 	v.mu.Unlock()
-	if len(pending) == 0 && layout == nil {
+	if len(pending) == 0 && len(deleted) == 0 && records == nil && layout == nil {
 		return nil
 	}
-	writes := make([]pageWrite, 0, len(pending))
+	work := change{library: records, layout: layout}
 	for key, page := range pending {
 		stored, known := v.stored[key]
-		writes = append(writes, pageWrite{
+		work.pages = append(work.pages, pageWrite{
 			key:      key,
 			title:    page.title,
 			snapshot: page.snapshot,
@@ -229,14 +251,23 @@ func (v *Saver) writePending() error {
 			known:    known,
 		})
 	}
-	err := v.store.write(context.Background(), writes, layout, v.now())
+	for key := range deleted {
+		work.deleted = append(work.deleted, key)
+	}
+	err := v.store.write(context.Background(), work, v.now())
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if err != nil {
 		for key, page := range pending {
-			if _, newer := v.pending[key]; !newer {
+			if _, newer := v.pending[key]; !newer && !v.deleted[key] {
 				v.pending[key] = page
 			}
+		}
+		for key := range deleted {
+			v.deleted[key] = true
+		}
+		if v.library == nil {
+			v.library = records
 		}
 		if v.layout == nil {
 			v.layout = layout
@@ -250,6 +281,9 @@ func (v *Saver) writePending() error {
 	}
 	for key, page := range pending {
 		v.stored[key] = page.snapshot
+	}
+	for key := range deleted {
+		delete(v.stored, key)
 	}
 	v.err = nil
 	v.wrote = true

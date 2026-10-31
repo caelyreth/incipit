@@ -111,7 +111,7 @@ func (w *Workspace) Layout() Layout {
 		Scroll:    make(map[PageID]ScrollPosition, len(w.pages)),
 	}
 	for _, page := range w.pages {
-		if page.Scroll != (ScrollPosition{}) {
+		if !page.discarded && page.Scroll != (ScrollPosition{}) {
 			layout.Scroll[page.ID] = page.Scroll
 		}
 	}
@@ -157,9 +157,11 @@ func (w *Workspace) Pages() []Page {
 	if w == nil {
 		return nil
 	}
-	pages := make([]Page, len(w.pages))
+	pages := make([]Page, 0, len(w.pages))
 	for index := range w.pages {
-		pages[index] = w.snapshot(PageID(index))
+		if !w.pages[index].discarded {
+			pages = append(pages, w.snapshot(PageID(index)))
+		}
 	}
 	return pages
 }
@@ -234,9 +236,27 @@ func (w *Workspace) CreatePage() (PageID, error) {
 	return candidate.ID, nil
 }
 
+// CreatePageFrom creates a parked page as create makes it, such as a copy
+// of another, and retains it without activating a tab.
+func (w *Workspace) CreatePageFrom(create Factory) (PageID, error) {
+	if w == nil || create == nil {
+		return 0, ErrSessionRequired
+	}
+	candidate, err := w.candidate(create)
+	if err != nil {
+		return 0, err
+	}
+	w.pages = append(w.pages, candidate)
+	return candidate.ID, nil
+}
+
 func (w *Workspace) createCandidate() (pageState, error) {
+	return w.candidate(w.create)
+}
+
+func (w *Workspace) candidate(create Factory) (pageState, error) {
 	id := PageID(len(w.pages))
-	session, err := w.create(id, w.configuration.Clone())
+	session, err := create(id, w.configuration.Clone())
 	if err != nil {
 		return pageState{}, err
 	}
@@ -341,6 +361,55 @@ func (w *Workspace) Close(id PageID) error {
 	return nil
 }
 
+// OpenInPlace shows a page in the active tab, as following a link does:
+// a page with a tab of its own is brought to it, and with no tab active
+// the page opens one.
+func (w *Workspace) OpenInPlace(id PageID) error {
+	if w == nil || !w.validPage(id) {
+		return ErrPageNotFound
+	}
+	if !w.hasActive || w.hasTab(id) {
+		return w.Open(id)
+	}
+	index := w.tabIndex(w.active)
+	if err := w.Open(id); err != nil {
+		return err
+	}
+	// Open put the page's tab last; it takes the place of the one it
+	// replaced, which closes.
+	w.tabs = w.tabs[:len(w.tabs)-1]
+	w.tabs[index] = id
+	return nil
+}
+
+// MoveTab puts a page's tab at index among the tabs, clamped to them.
+func (w *Workspace) MoveTab(id PageID, index int) {
+	if w == nil {
+		return
+	}
+	from := w.tabIndex(id)
+	if from < 0 {
+		return
+	}
+	w.tabs = append(w.tabs[:from], w.tabs[from+1:]...)
+	index = max(0, min(index, len(w.tabs)))
+	w.tabs = append(w.tabs[:index], append([]PageID{id}, w.tabs[index:]...)...)
+}
+
+// Discard lets a page go for good: its tab closes, and the page is no
+// longer listed or opened. Its identity is never given to another page.
+func (w *Workspace) Discard(id PageID) error {
+	if w == nil || !w.validPage(id) {
+		return ErrPageNotFound
+	}
+	if err := w.Close(id); err != nil {
+		return err
+	}
+	w.pages[id].discarded = true
+	w.pages[id].session = nil
+	return nil
+}
+
 // ActiveScroll returns the active page's parked scroll state.
 func (w *Workspace) ActiveScroll() (ScrollPosition, bool) {
 	if w == nil || !w.hasActive {
@@ -408,7 +477,7 @@ func (w *Workspace) closeNeighbor(index int) (PageID, bool) {
 }
 
 func (w *Workspace) validPage(id PageID) bool {
-	return int(id) >= 0 && int(id) < len(w.pages)
+	return int(id) >= 0 && int(id) < len(w.pages) && !w.pages[id].discarded
 }
 
 func (w *Workspace) tabIndex(id PageID) int {

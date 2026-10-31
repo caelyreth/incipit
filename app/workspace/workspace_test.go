@@ -418,3 +418,52 @@ func TestRestoreReadsAStaleLayoutForWhatItStillSays(t *testing.T) {
 		t.Fatal("a layout with every tab closed opened one")
 	}
 }
+
+func TestOpeningInPlaceReplacesTheActiveTab(t *testing.T) {
+	t.Parallel()
+	workspace, _, _ := newWorkspace(t, nil)
+	second, _ := workspace.NewPage()
+	third, _ := workspace.CreatePage()
+	if err := workspace.Open(0); err != nil {
+		t.Fatal(err)
+	}
+	if err := workspace.OpenInPlace(third); err != nil {
+		t.Fatal(err)
+	}
+	if tabs := workspace.Tabs(); len(tabs) != 2 || tabs[0] != third || tabs[1] != second {
+		t.Fatalf("tabs %v", tabs)
+	}
+	if page, _ := workspace.Page(0); !page.Parked {
+		t.Fatal("the replaced page is still mounted")
+	}
+	if err := workspace.OpenInPlace(second); err != nil {
+		t.Fatal(err)
+	}
+	if tabs := workspace.Tabs(); len(tabs) != 2 {
+		t.Fatalf("a page with a tab opened another: %v", tabs)
+	}
+}
+
+func TestTabsMoveAndDiscardedPagesGo(t *testing.T) {
+	t.Parallel()
+	workspace, _, _ := newWorkspace(t, nil)
+	second, _ := workspace.NewPage()
+	third, _ := workspace.NewPage()
+	workspace.MoveTab(third, 0)
+	if tabs := workspace.Tabs(); tabs[0] != third || tabs[1] != 0 || tabs[2] != second {
+		t.Fatalf("moved tabs %v", tabs)
+	}
+	if err := workspace.Discard(second); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := workspace.Page(second); ok || len(workspace.Pages()) != 2 || len(workspace.Tabs()) != 2 {
+		t.Fatal("a discarded page is still listed")
+	}
+	if err := workspace.Open(second); err == nil {
+		t.Fatal("opened a discarded page")
+	}
+	next, _ := workspace.CreatePage()
+	if next == second {
+		t.Fatal("a discarded identity was given again")
+	}
+}

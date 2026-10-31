@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/model"
 )
@@ -381,5 +382,55 @@ func TestTheNotebookFolderIsMarkedLocal(t *testing.T) {
 	}
 	if output, err := exec.Command("xattr", "-p", "com.apple.fileprovider.ignore#P", root).CombinedOutput(); err != nil {
 		t.Fatalf("the folder is not ignored by the File Provider: %v %s", err, output)
+	}
+}
+
+func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
+	root := t.TempDir()
+	store := openStore(t, root)
+	shelf := library.New()
+	novel, _ := shelf.AddGroup(0, "Novel")
+	at := time.Now()
+	if err := shelf.AddSheet(1, novel, at); err != nil {
+		t.Fatal(err)
+	}
+	if err := shelf.AddSheet(2, library.Inbox, at); err != nil {
+		t.Fatal(err)
+	}
+	if err := shelf.TrashSheet(2, at); err != nil {
+		t.Fatal(err)
+	}
+	saver := store.Autosave(nil)
+	saver.Page(1, "", page(t, "one").Snapshot())
+	saver.Page(2, "", page(t, "two").Snapshot())
+	saver.Page(3, "", page(t, "three").Snapshot())
+	saver.Library(shelf.Records())
+	if err := saver.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	saver.Delete(3)
+	if err := saver.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store.Close()
+
+	store = openStore(t, root)
+	defer store.Close()
+	notebook, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notebook.Pages) != 2 {
+		t.Fatalf("%d pages after deleting one", len(notebook.Pages))
+	}
+	restored := library.Restore(notebook.Library)
+	if sheets := restored.Sheets(novel); len(sheets) != 1 || sheets[0].ID != 1 {
+		t.Fatalf("novel holds %+v", sheets)
+	}
+	if !restored.SheetInTrash(2) {
+		t.Fatal("the trash was lost")
+	}
+	if group, _ := restored.Group(novel); group.Name != "Novel" {
+		t.Fatalf("group %+v", group)
 	}
 }

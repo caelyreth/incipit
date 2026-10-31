@@ -35,6 +35,19 @@ var migrations = []string{
 		text       TEXT,
 		PRIMARY KEY (page, id)
 	) STRICT, WITHOUT ROWID;
+	CREATE TABLE groups (
+		id       INTEGER PRIMARY KEY,
+		parent   INTEGER NOT NULL,
+		name     TEXT    NOT NULL,
+		position INTEGER NOT NULL,
+		trashed  INTEGER
+	) STRICT;
+	CREATE TABLE sheets (
+		page     INTEGER PRIMARY KEY,
+		grp      INTEGER NOT NULL,
+		position INTEGER NOT NULL,
+		trashed  INTEGER
+	) STRICT;
 	CREATE TABLE layout (
 		key   TEXT PRIMARY KEY,
 		value TEXT NOT NULL
