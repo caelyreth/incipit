@@ -13,8 +13,9 @@ import (
 //
 // Within a block of one rhythm, rows are their largest text plus the
 // rhythm's leading. Between blocks, a gap sets groups apart: a run of
-// entries or verbatim lines reads as one unit, and a title binds to what
-// it opens more than to what came before.
+// entries or verbatim lines reads as one unit, and a title stands clear of
+// the text on both sides, yet nearer to what it opens than to what came
+// before, so it reads as the head of what follows.
 const (
 	// entryLeading packs a run's lines a little closer than prose, so its
 	// entries read as a set.
@@ -22,7 +23,11 @@ const (
 	// verbatimLeading packs verbatim lines closest: they are read as lines.
 	verbatimLeading = 0.55
 	// titleGap sets a title apart from what comes before it.
-	titleGap = 1.0
+	titleGap = 1.5
+	// titleBond is the room below a title, a third of the room above it:
+	// enough that the title does not sit on the text it opens, little
+	// enough that it stays with it.
+	titleBond = 0.5
 	// groupGap sets a run of entries or verbatim lines apart from the text
 	// around it.
 	groupGap = 0.5
@@ -40,12 +45,14 @@ func leading(rhythm surface.Rhythm, body float32) float32 {
 }
 
 // gap is the room above a block of rhythm next, after one of rhythm
-// previous. Blocks of one rhythm follow on with none; nothing is set apart
-// from a title above it, which it opens.
+// previous. Blocks of one rhythm follow on with none; what a title opens,
+// a title of its own too, keeps close below it.
 func gap(previous, next surface.Rhythm, body float32) float32 {
 	share := float32(0)
 	switch {
-	case previous == next || previous == surface.RhythmTitle:
+	case previous == surface.RhythmTitle:
+		share = titleBond
+	case previous == next:
 	case next == surface.RhythmTitle:
 		share = titleGap
 	case isGroup(previous) || isGroup(next):

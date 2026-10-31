@@ -301,7 +301,7 @@ func near(a, b float32) bool { return a-b < 0.5 && b-a < 0.5 }
 // its text plus the body leading, a heading's its larger text plus the
 // same, entries and verbatim lines are packed closer, and no row is
 // shorter than its face. A run of entries or code is set apart from prose
-// around it, and a heading from what is before it but not from what it
+// around it, and a heading from what is before it, and less from what it
 // opens.
 func TestRhythmDerivesFromSpacing(t *testing.T) {
 	title := surface.TextStyle{Scale: 1.6, Rhythm: surface.RhythmTitle}
@@ -329,7 +329,7 @@ func TestRhythmDerivesFromSpacing(t *testing.T) {
 		}
 		heights[5], heights[7] = heights[4], heights[6]
 		px := func(v float32) float32 { return float32(math.Round(float64(v))) }
-		gaps := []float32{0, px(body * titleGap), 0, 0, px(body * groupGap), 0, px(body * groupGap), 0, px(body * groupGap)}
+		gaps := []float32{0, px(body * titleGap), px(body * titleBond), 0, px(body * groupGap), 0, px(body * groupGap), 0, px(body * groupGap)}
 		for index, row := range rows {
 			if !near(row.Height(), heights[index]) || !near(row.gap, gaps[index]) {
 				t.Fatalf("spacing %v row %d: height %v gap %v, want %v and %v",
