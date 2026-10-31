@@ -12,6 +12,10 @@ import (
 // the hand drives over and over, so its motion only says where things went
 // and gets out of the way. Settings, dialogs and the editor keep their own
 // pace.
+//
+// Motion moves, scales, fades and tints; it never animates a font size or
+// weight. Each size is a font of its own, and MyGo lets all its fonts go
+// when they pile up, under text layouts that may still be drawn with them.
 const (
 	// motionReveal opens and closes the sidebar.
 	motionReveal = components.MotionPanel

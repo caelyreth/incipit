@@ -9,8 +9,8 @@ import (
 // The place's title in its two spots, in DIPs at the default UI size: the
 // title bar's line, and the band at the top of the list.
 const (
-	headTitle, headLine, headGap, headWeight = 12, 16, 6, 400
-	bandTitle, bandLine, bandGap, bandWeight = 16, 24, 8, 600
+	headTitle, headLine, headGap, headWeight = float32(12), float32(16), float32(6), 400
+	bandTitle, bandLine, bandGap, bandWeight = float32(16), float32(24), float32(8), 600
 )
 
 // placeBandHeight is the band's height at the top of the list.
@@ -62,14 +62,33 @@ func (s *State) placeFlight(
 	width := max(0, lerp(headWidth, listWidth-2*pad))
 
 	title, icon, tint, detail := s.placeInfo(semantic, s.listView().place)
+	// The title keeps the two fonts it rests in and travels by transform:
+	// each spot's copy is scaled to the size on the way and the two cross,
+	// as a font of every size between would make a font a frame.
+	line := lerp(headLine, bandLine) * k
+	text := max(0, width-16*k-lerp(headGap, bandGap)*k)
 	ui.Row(c).Key("place-flight").Absolute().Left(x).Top(center - height/2).
 		Width(width).Height(height).Clip().Opacity(listReveal).
 		AlignItems(ui.Center).Gap(lerp(headGap, bandGap) * k).Children(func() {
 		s.rowIcon(c, semantic, icon, tint, animate)
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			components.Label(c, title, theme.TextSmall, semantic.Text.Heading).SingleLine().
-				FontSize(lerp(headTitle, bandTitle) * k).FixedLineHeight(lerp(headLine, bandLine) * k).
-				FontWeight(int(lerp(headWeight, bandWeight) + 0.5))
+			ui.Box(c).WidthPercent(100).Height(line).Shrink(0).Children(func() {
+				for _, copy := range [...]struct {
+					size     theme.TextSize
+					font, at float32
+					weight   int
+					opacity  float32
+				}{
+					{theme.TextSmall, headTitle, headLine, headWeight, 1 - p},
+					{theme.TextLarge, bandTitle, bandLine, bandWeight, p},
+				} {
+					grow := lerp(headTitle, bandTitle) / copy.font
+					components.Label(c, title, copy.size, semantic.Text.Heading).SingleLine().
+						FontWeight(copy.weight).Absolute().Left(0).Top(0).
+						Width(text/grow).Height(copy.at*k).
+						TransformOrigin(0, 0).Scale(grow, grow).Opacity(copy.opacity)
+				}
+			})
 			components.Label(c, detail, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
 		})
 	})
