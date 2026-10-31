@@ -506,15 +506,9 @@ func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal fl
 	ui.Box(c).Key("sheets-line").Width(width).HeightPercent(100).Shrink(0).Clip().
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
 		ui.Box(c).WidthPercent(100).HeightPercent(100).Opacity(reveal).Children(func() {
-			// Where the place's title has gone down to the list, the line
-			// starts at the library's toggle, so the two toggles sit together.
-			dock := s.listDock
-			if view.search {
-				dock = 0
-			}
-			layer := ui.Row(c).Key("head-" + view.key()).Absolute().Top(0).Left(0).Right(0).Bottom(0).
-				PaddingStart(theme.Space12.DIPs(scale) * (1 - dock)).PaddingEnd(theme.Space06.DIPs(scale)).
-				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale) * (1 - dock)).
+			layer := ui.Row(c).Key("head-" + view.key()).Absolute().Top(0).Left(0).WidthPercent(100).HeightPercent(100).
+				PaddingStart(theme.Space12.DIPs(scale) * (1 - s.listDock)).PaddingEnd(listLineEnd.DIPs(scale)).
+				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale) * (1 - s.listDock)).
 				Transition(swapTransition(animate, s.nav.side*enterSlide*scale/theme.DefaultUIFontSize))
 			layer.Children(func() {
 				if view.search {
@@ -577,9 +571,9 @@ func (s *State) placeInfo(semantic theme.Theme, place Place) (title string, icon
 func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, dock float32, animate bool) {
 	title, icon, tint, detail := s.placeInfo(semantic, place)
 	scale := s.Settings.UIFontSize
-	// The title's room closes as it goes, and room after the buttons opens
-	// as much, so the buttons travel to the library's toggle.
-	info := ui.Row(c).Key("head-info").Grow(1 - dock).MinWidth(0).Clip().AlignItems(ui.Center).
+	// The line narrows to its toggle as the title goes (titleLines); the
+	// title takes what is left, which closes to none.
+	info := ui.Row(c).Key("head-info").Grow(1).MinWidth(0).Clip().AlignItems(ui.Center).
 		Gap(theme.Space06.DIPs(scale))
 	if s.flying() {
 		info.Opacity(0)
@@ -603,7 +597,8 @@ func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, do
 		}
 	})
 	ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Children(func() {
-		if place.Kind == PlaceTrash && detail != itemCount(0) {
+		// Where the title is down in the list, the trash is emptied there.
+		if place.Kind == PlaceTrash && detail != itemCount(0) && dock < 0.5 {
 			s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
 		}
 		components.IconButton{
@@ -613,9 +608,6 @@ func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, do
 			IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.ToggleSheetList,
 		}.View(c, semantic)
 	})
-	if dock > 0.001 {
-		ui.Box(c).Basis(0).Grow(dock)
-	}
 }
 
 // placeBand is the place's title and count at the top of the list, where
@@ -649,6 +641,9 @@ func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, do
 				if group, ok := s.Library.Group(view.place.Group); ok {
 					heading.ContextMenu(s.groupMenu(group))
 				}
+			}
+			if view.place.Kind == PlaceTrash && detail != itemCount(0) && dock >= 0.5 {
+				s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
 			}
 		})
 	})

@@ -88,3 +88,23 @@ func TestTheTabsStayAsPanesMove(t *testing.T) {
 		}
 	}
 }
+
+// TestTheSheetListsToggleStaysInSight follows the sheet list's toggle as
+// the library closes and opens: the place's title goes down to the list,
+// and the toggle stays where it is, in sight all the way.
+func TestTheSheetListsToggleStaysInSight(t *testing.T) {
+	state, _ := libraryState()
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 400)
+	settle(tester)
+	for _, library := range []bool{false, true} {
+		state.ShowPanes(library, true)
+		for frame := range 20 {
+			tester.Advance(16 * time.Millisecond)
+			tester.Frame()
+			if at, ok := tester.Find("Hide sheet list"); !ok || at.W < 31 {
+				t.Fatalf("library %v, frame %d: the toggle is at %+v", library, frame, at)
+			}
+		}
+	}
+}

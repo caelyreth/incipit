@@ -24,24 +24,21 @@ func (s *State) header(
 	// shows, sits half the remaining width inside the button's edge.
 	glyphInset := (theme.DefaultControls.Height - 16) / 2
 	right := (layout.ChromeGutter - glyphInset) * scale / theme.DefaultUIFontSize
-	leadingWidth := ((layout.Sidebar-140)*reveal + 140) * scale / theme.DefaultUIFontSize
-	// The sheet list's line starts where the list does; where the library
-	// is closed, the window's controls take the first of it.
-	libraryWidth := layout.Sidebar * scale / theme.DefaultUIFontSize * reveal
-	listWidth = max(0, listWidth-(leadingWidth-libraryWidth))
+	lines := s.titleLines(layout, reveal, listWidth, s.listDock)
 	animate := s.animate(c)
 
 	ui.Row(c).Key("header").Height(height).Opacity(chrome).Clip().AlignItems(ui.Center).
 		Background(semantic.Surface.Background).DragWindow().Children(func() {
 		// The library's line: search, then the library's toggle at its
-		// end. Search leaves with the library, closing up as it goes, so
-		// the toggle slides to the end of what is left and stays put.
+		// end. Search leaves with the library, closing up as it goes; the
+		// line reaches out to the sheet list's toggle as the place's title
+		// goes down to the list (titleLines), and the toggle with it.
 		// Groups and sheets are made in the lists, where they come in.
-		leading := ui.Row(c).Key("library-line").Width(leadingWidth).HeightPercent(100).Shrink(0).
-			// With the library closed the sheet list's toggle sits beside
-			// this one, as search does: the end closes in to their gap.
+		leading := ui.Row(c).Key("library-line").Width(lines.library).HeightPercent(100).Shrink(0).
 			PaddingStart(left).
-			PaddingEnd(theme.Space02.DIPs(scale) + (theme.Space08-theme.Space02).DIPs(scale)*reveal).
+			// Beside the list's toggle its end closes to their gap, as
+			// search's is beside it.
+			PaddingEnd(theme.Space08.DIPs(scale) - (theme.Space08-theme.Space02).DIPs(scale)*s.listDock).
 			AlignItems(ui.Center).Gap(theme.Space02.DIPs(scale))
 		if reveal > 0.01 {
 			leading.BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant)
@@ -68,7 +65,7 @@ func (s *State) header(
 				IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.ToggleSidebar,
 			}.View(c, semantic)
 		})
-		s.listHeader(c, semantic, listWidth, listReveal, animate)
+		s.listHeader(c, semantic, lines.sheets, listReveal, animate)
 
 		s.pageTabs(c, semantic, metrics, height, animate)
 

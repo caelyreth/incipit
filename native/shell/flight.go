@@ -50,13 +50,15 @@ func (s *State) placeFlight(
 	lerp := func(a, b float32) float32 { return a + (b-a)*p }
 
 	bar := layout.Titlebar * k
-	leading := ((layout.Sidebar-140)*reveal + 140) * k
+	// It leaves from where the title stands with its line at full length,
+	// as the header lays it out with the title up (titleLines).
+	up := s.titleLines(layout, reveal, listWidth, 0)
 	library := layout.Sidebar * k * reveal
 	pad := theme.Space12.DIPs(scale)
 	button := theme.DefaultControls.Scaled(scale).Height
-	headWidth := max(0, listWidth-(leading-library)) - pad - 2*theme.Space06.DIPs(scale) - button
+	headWidth := max(0, up.sheets-pad-theme.Space06.DIPs(scale)-button-listLineEnd.DIPs(scale))
 
-	x := lerp(leading+pad, library+pad)
+	x := lerp(up.library+pad, library+pad)
 	center := lerp(bar/2, bar+placeBandHeight(scale)/2)
 	height := lerp(2*headLine, bandLine+headLine) * k
 	width := max(0, lerp(headWidth, listWidth-2*pad))
