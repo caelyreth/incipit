@@ -328,3 +328,29 @@ func TestARunPartsAndJoinsWhereASheetIsCmdClicked(t *testing.T) {
 		}
 	}
 }
+
+// Picked sheets are for what is done to them: resting between two rows
+// calls up no create area, and one open goes.
+func TestPickingKeepsTheCreateAreasShut(t *testing.T) {
+	state, _, tester := pickingState(t, 2)
+	first, _ := tester.Find("Chapter")
+	second, _ := tester.Find("Sheet 1")
+	hover := func() {
+		tester.Move(first.X+first.W/2, (first.Y+first.H+second.Y)/2)
+		for range 30 {
+			tester.Advance(16 * time.Millisecond)
+			tester.Frame()
+		}
+	}
+	hover()
+	if !state.nav.sheetsGap.open {
+		t.Fatal("resting between rows did not call up a create area")
+	}
+	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
+		t.Fatal(err)
+	}
+	hover()
+	if state.nav.sheetsGap.open {
+		t.Fatal("a create area opened between rows while sheets were picked")
+	}
+}

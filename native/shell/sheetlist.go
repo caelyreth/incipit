@@ -421,14 +421,16 @@ func (s *State) sheetRows(
 		// area above it.
 		near := s.nav.sheetsNear
 		s.nav.sheetsNear = -1
-		if dragging {
-			// A drag chooses an insertion point; it never calls up a create
-			// area, even while the pointer rests near a row's top.
+		// A drag chooses an insertion point, and sheets picked are for
+		// what is done to them: neither calls up a create area, even
+		// while the pointer rests near a row's top.
+		quiet := dragging || len(s.nav.picking.ids) > 0
+		if quiet {
 			near = -1
 			s.nav.sheetsGap.close()
 		}
 		at, open := s.nav.sheetsGap.follow(c, near)
-		open = open && ordered && !dragging
+		open = open && ordered && !quiet
 		rows := make([]ui.Element, 0, len(entries))
 		var sheets []ui.Element
 		list.Children(func() {
