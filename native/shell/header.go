@@ -128,10 +128,6 @@ func (s *State) pageTabs(
 			}
 		})
 	})
-	// Double-clicking the free tab line opens a new sheet, as in a browser.
-	if scroll.DoubleClicked() && s.NewPage != nil {
-		s.NewPage()
-	}
 	s.lastActive = s.ActivePage
 	_ = metrics
 }
