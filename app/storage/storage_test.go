@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -361,4 +362,18 @@ func TestChangesAreWrittenWithoutBeingAsked(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatal("nothing was written while changes kept arriving")
+}
+
+func TestTheNotebookFolderIsMarkedLocal(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("only macOS syncs Documents implicitly")
+	}
+	root := t.TempDir()
+	openStore(t, root).Close()
+	if _, err := os.Stat(filepath.Join(root, ".nosync")); err != nil {
+		t.Fatalf("no .nosync marker: %v", err)
+	}
+	if output, err := exec.Command("xattr", "-p", "com.apple.fileprovider.ignore#P", root).CombinedOutput(); err != nil {
+		t.Fatalf("the folder is not ignored by the File Provider: %v %s", err, output)
+	}
 }

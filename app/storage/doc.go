@@ -15,6 +15,10 @@
 //     second while it goes on: the most a crash can take back. Quitting
 //     writes what is pending before the app goes; should even that fail,
 //     the unsaved pages' text goes to plain files in the Recovery folder.
+//   - On macOS the folder carries a .nosync marker and the File Provider's
+//     ignore attribute, so iCloud's Desktop & Documents sync never uploads
+//     the database mid-write or evicts it. Syncing on purpose is for native
+//     code to do later.
 //   - One process holds the notebook at a time (a lock file beside it), so
 //     two windows never write past each other.
 //   - Opening checks the database. A damaged one is moved aside, never
