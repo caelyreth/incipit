@@ -17,7 +17,16 @@ import (
 // the keymap gives that key.
 func (a *AppState) MainMenu() *mygo.Menu {
 	command := func(id kernel.CommandID) func(*mygo.MenuItem, *mygo.Window) {
-		return func(*mygo.MenuItem, *mygo.Window) { _ = a.executeExternalCommand(id) }
+		// MyGo runs a click without a frame after it, so the window is
+		// redrawn here, or the change would wait for the next event.
+		return func(_ *mygo.MenuItem, window *mygo.Window) {
+			_ = a.executeExternalCommand(id)
+			for _, w := range []*mygo.Window{window, a.mainWindow, a.settingsWindow} {
+				if w != nil && !w.IsDestroyed() {
+					w.Invalidate()
+				}
+			}
+		}
 	}
 	menu := mygo.NewMenu([]*mygo.MenuItem{
 		{
