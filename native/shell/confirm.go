@@ -66,13 +66,10 @@ func (s *State) confirmButton(
 	if armed {
 		button.Tooltip("Click again to delete. You can’t undo this.")
 	}
+	// The fill and border follow the arming spring below; a transition that
+	// also eased the colors would chase each frame's, and lag behind.
 	transition := popTransition(animate)
-	if label != "" && animate {
-		transition = ui.ElementTransition{
-			Duration: motionList, Size: true,
-			Enter: &ui.Motion{Opacity: 0}, Exit: &ui.Motion{Opacity: 0},
-		}
-	}
+	transition.Colors, transition.Position = false, true
 	button.Transition(transition)
 	amount := float32(0)
 	if armed {
@@ -84,6 +81,7 @@ func (s *State) confirmButton(
 	}
 	if animate {
 		amount = components.Follow(button, "armed", amount, motionArm)
+		amount = max(0, min(amount, 1))
 		hover = components.HoverAmount(button, button.Hovered(), animate)
 	}
 	rest := components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover)
@@ -93,9 +91,34 @@ func (s *State) confirmButton(
 	if button.FocusVisible() {
 		button.Border(1, semantic.Border.Focused)
 	}
+	// Both labels stand in one cell, so the button is as wide as the longer
+	// from the first and keeps its width as it turns: the turn crosses the
+	// labels in place, and nothing beside it moves.
+	ink := components.Blend(semantic.Text.Default, danger.Foreground, amount)
 	button.Children(func() {
-		components.Label(c, text, theme.TextSmall,
-			components.Blend(semantic.Text.Default, danger.Foreground, amount)).SingleLine()
+		ui.Grid(c).ColumnTracks(ui.FitContent()).Children(func() {
+			for _, face := range [...]struct {
+				text    string
+				opacity float32
+				// The label going leaves before the one coming arrives, each
+				// shifting a little, so the two are never read over each other.
+				shift float32
+			}{
+				{label, 1 - min(1, amount/0.5), -amount},
+				{armedLabel, max(0, amount-0.5) / 0.5, 1 - amount},
+			} {
+				if face.text == "" {
+					continue
+				}
+				shown := components.Label(c, face.text, theme.TextSmall, ink).SingleLine().
+					ColumnStart(1).RowStart(1).JustifySelf(ui.Center).Opacity(face.opacity).
+					Translate(0, face.shift*4*scale/theme.DefaultUIFontSize)
+				if face.opacity < 0.01 {
+					// Out of sight, it keeps its room, and is not read out.
+					shown.Invisible()
+				}
+			}
+		})
 	})
 	if button.Clicked() {
 		if armed {
@@ -109,4 +132,26 @@ func (s *State) confirmButton(
 	if armed && (button.PressedOutside() || c.Shortcut(0, ui.KeyEscape)) {
 		s.disarm()
 	}
+}
+
+// lingering keeps what goes on standing where it stood while it fades,
+// as a button that empties what it stands for: an exit copy goes from
+// where its row lays it out, and a row that changes as the button goes
+// takes the copy across its neighbors. The wrapper is built every frame,
+// under key, so the fade knows where it was.
+func (s *State) lingering(c *ui.Context, key string, shown, animate bool, fn func()) {
+	box := ui.Row(c).Key(key).Shrink(0).AlignItems(ui.Center)
+	target := float32(0)
+	if shown {
+		target = 1
+	}
+	p := target
+	if animate {
+		p = max(0, min(components.Follow(box, "shown", target, motionList), 1))
+	}
+	if p < 0.01 {
+		box.Hidden(true)
+		return
+	}
+	box.Opacity(p).Children(fn)
 }

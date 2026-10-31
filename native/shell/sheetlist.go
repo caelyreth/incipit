@@ -297,7 +297,10 @@ func (s *State) sheetRows(
 ) {
 	scale := s.Settings.UIFontSize
 	now := c.Now()
-	scroll := ui.Scroll(c).Grow(1).MinHeight(0)
+	// Keyed, and fading out, so a list that empties, as the trash does,
+	// gives way to what says it is empty rather than going at once.
+	scroll := ui.Scroll(c).Key("rows").Grow(1).MinHeight(0).
+		Transition(appearing(motionList, nil, &ui.Motion{Opacity: 0}))
 	scroll.Children(func() {
 		list := ui.Column(c).Gap(theme.Space06.DIPs(scale)).
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
@@ -599,8 +602,10 @@ func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, do
 	})
 	ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Children(func() {
 		// Where the title is down in the list, the trash is emptied there.
-		if place.Kind == PlaceTrash && detail != itemCount(0) && dock < 0.5 {
-			s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
+		if place.Kind == PlaceTrash {
+			s.lingering(c, "empty-trash-head", detail != itemCount(0) && dock < 0.5, animate, func() {
+				s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
+			})
 		}
 		components.IconButton{
 			Key: "hide-sheets", Label: "Hide sheet list", Icon: components.IconSidebarClose.SVG(),
@@ -643,8 +648,10 @@ func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, do
 					heading.ContextMenu(s.groupMenu(group))
 				}
 			}
-			if view.place.Kind == PlaceTrash && detail != itemCount(0) && dock >= 0.5 {
-				s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
+			if view.place.Kind == PlaceTrash {
+				s.lingering(c, "empty-trash-band", detail != itemCount(0) && dock >= 0.5, animate, func() {
+					s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
+				})
 			}
 		})
 	})
