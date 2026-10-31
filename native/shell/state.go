@@ -106,7 +106,7 @@ func New() *State {
 		Appearance:   settings.DefaultPresentation(),
 		Settings:     theme.DefaultSettings(),
 		WindowActive: true,
-		nav:          navigation{expanded: map[string]bool{}},
+		nav:          navigation{expanded: map[string]bool{}, sheetDropSlot: -1},
 	}
 }
 

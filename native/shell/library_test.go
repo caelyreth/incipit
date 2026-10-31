@@ -15,6 +15,13 @@ type fakeLibrary struct {
 	calls       []string
 	extraGroups int
 	extraSheets int
+	recentSheet bool
+	moves       []sheetMoveCall
+}
+
+type sheetMoveCall struct {
+	id, group string
+	index     int
 }
 
 func (f *fakeLibrary) call(name string) { f.calls = append(f.calls, name) }
@@ -56,6 +63,8 @@ func (f *fakeLibrary) Sheets(place Place) []SheetItem {
 		return sheets
 	case place.Kind == PlaceGroup && place.Group == "1", place.Kind == PlaceAll:
 		return []SheetItem{{ID: "8", Title: "Draft"}}
+	case place.Kind == PlaceRecent && f.recentSheet:
+		return []SheetItem{{ID: "8", Title: "Draft", Updated: time.Now(), Words: 100}}
 	case place.Kind == PlaceTrash:
 		return []SheetItem{{ID: "9", Title: "Scrap"}}
 	}
@@ -160,6 +169,207 @@ func TestSidebarKeepsChipsAndGroupsHeadingAboveTheScroll(t *testing.T) {
 	}
 }
 
+func TestSheetDragReordersWithAnAnimatedPlaceholder(t *testing.T) {
+	state, library := libraryState()
+	library.extraSheets = 2
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	chapter, ok := tester.Find("Chapter")
+	if !ok {
+		t.Fatal("Chapter is not in the sheet list")
+	}
+	second, ok := tester.Find("Sheet 1")
+	if !ok {
+		t.Fatal("second sheet is not in the sheet list")
+	}
+	countNewSheet := func() int {
+		n := 0
+		for _, text := range tester.Texts() {
+			if text == "New sheet" {
+				n++
+			}
+		}
+		return n
+	}
+	before := countNewSheet()
+
+	x := chapter.X + chapter.W/2
+	tester.Press(x, chapter.Y+chapter.H/2)
+	tester.Move(x, chapter.Y+chapter.H/2+10)
+	tester.Frame()
+	// The gap immediately after the dragged row is its original place: no
+	// placeholder, and no create-sheet hover area.
+	tester.Move(x, second.Y+2)
+	for range 20 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+	}
+	if state.nav.sheetDropSlot != 1 || state.nav.sheetDropVisible {
+		t.Fatalf("own-place target showed a placeholder: slot %d visible %v",
+			state.nav.sheetDropSlot, state.nav.sheetDropVisible)
+	}
+	if got := countNewSheet(); got != before {
+		t.Fatalf("drag opened %d create areas, want %d", got, before)
+	}
+
+	// The lower half of the same row is a different place, after it.
+	tester.Move(x, second.Y+second.H*0.8)
+	tester.Frame()
+	if state.nav.sheetDropSlot != 2 {
+		t.Fatalf("insertion slot = %d, want after the second sheet", state.nav.sheetDropSlot)
+	}
+	if !state.nav.sheetDropVisible || state.nav.sheetDropHeight <= 0 {
+		t.Fatalf("drag placeholder = visible %v, height %v",
+			state.nav.sheetDropVisible, state.nav.sheetDropHeight)
+	}
+	if !tester.FramePending() {
+		t.Fatal("placeholder and rows did not animate to the new target")
+	}
+	tester.Release(x, second.Y+second.H*0.8)
+	tester.Frame()
+	if !state.nav.sheetDropVisible || !tester.FramePending() {
+		t.Fatal("placeholder did not animate out after the drop")
+	}
+	settle(tester)
+	if len(library.moves) != 1 {
+		t.Fatalf("sheet moves = %#v", library.moves)
+	}
+	if move := library.moves[0]; move.id != "7" || move.group != "2" || move.index != 1 {
+		t.Fatalf("sheet move = %#v, want Chapter after the second sheet", move)
+	}
+	if state.nav.sheetDropVisible {
+		t.Fatal("drag placeholder did not close after the drop")
+	}
+}
+
+func TestSheetDragMovesAnItemToTheBottom(t *testing.T) {
+	state, library := libraryState()
+	library.extraSheets = 2
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	chapter, ok := tester.Find("Chapter")
+	if !ok {
+		t.Fatal("Chapter is not in the sheet list")
+	}
+	last, ok := tester.Find("Sheet 2")
+	if !ok {
+		t.Fatal("last sheet is not in the sheet list")
+	}
+	x := chapter.X + chapter.W/2
+	tester.Press(x, chapter.Y+chapter.H/2)
+	tester.Move(x, chapter.Y+chapter.H/2+10)
+	tester.Frame()
+	tester.Move(x, last.Y+last.H+8)
+	tester.Frame()
+	if state.nav.sheetDropSlot != 3 {
+		t.Fatalf("insertion slot = %d, want the end", state.nav.sheetDropSlot)
+	}
+	if !state.nav.sheetDropVisible || state.nav.sheetDropHeight <= 0 {
+		t.Fatalf("end placeholder = visible %v, height %v",
+			state.nav.sheetDropVisible, state.nav.sheetDropHeight)
+	}
+	tester.Release(x, last.Y+last.H+8)
+	settle(tester)
+	if len(library.moves) != 1 {
+		t.Fatalf("sheet moves = %#v", library.moves)
+	}
+	if move := library.moves[0]; move.id != "7" || move.group != "2" || move.index != 2 {
+		t.Fatalf("sheet move = %#v, want Chapter at the bottom", move)
+	}
+}
+
+func TestAllAndRecentCreateAtTheTopInTheInbox(t *testing.T) {
+	for _, place := range []Place{{Kind: PlaceAll}, {Kind: PlaceRecent}} {
+		t.Run(fmt.Sprint("place-", place.Kind), func(t *testing.T) {
+			state, library := libraryState()
+			library.recentSheet = true
+			state.Go(place)
+			tester := ui.NewTester(state.View, 1260, 850)
+			settle(tester)
+			create, ok := tester.Find("New sheet")
+			if !ok {
+				t.Fatal("New sheet is not shown")
+			}
+			draft, ok := tester.Find("Draft")
+			if !ok {
+				t.Fatal("Draft is not shown")
+			}
+			if create.Y >= draft.Y {
+				t.Fatalf("New sheet at %v is not above Draft at %v", create, draft)
+			}
+			if err := tester.Click("New sheet"); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Contains(library.calls, fmt.Sprint("new sheet 1 ", Last)) {
+				t.Fatalf("creation did not enter the Inbox: %v", library.calls)
+			}
+		})
+	}
+}
+
+func TestAllAndRecentDoNotReorder(t *testing.T) {
+	for _, place := range []Place{{Kind: PlaceAll}, {Kind: PlaceRecent}} {
+		t.Run(fmt.Sprint("place-", place.Kind), func(t *testing.T) {
+			state, library := libraryState()
+			library.recentSheet = true
+			state.Go(place)
+			tester := ui.NewTester(state.View, 1260, 850)
+			settle(tester)
+			draft, ok := tester.Find("Draft")
+			if !ok {
+				t.Fatal("Draft is not shown")
+			}
+			x := draft.X + draft.W/2
+			tester.Press(x, draft.Y+draft.H/2)
+			tester.Move(x, draft.Y+draft.H/2+10)
+			tester.Frame()
+			if state.nav.sheetDropVisible {
+				t.Fatal("All/Recent drag showed a reorder placeholder")
+			}
+			tester.Release(x, draft.Y+draft.H/2+10)
+			settle(tester)
+			if len(library.moves) != 0 {
+				t.Fatalf("All/Recent drag reordered: %#v", library.moves)
+			}
+		})
+	}
+}
+
+func TestCreateSheetHoverTargetsTheSpaceBetweenRows(t *testing.T) {
+	state, library := libraryState()
+	library.extraSheets = 1
+	state.Go(Place{Kind: PlaceGroup, Group: "2"})
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	first, ok := tester.Find("Chapter")
+	if !ok {
+		t.Fatal("first sheet is not shown")
+	}
+	second, ok := tester.Find("Sheet 1")
+	if !ok {
+		t.Fatal("second sheet is not shown")
+	}
+	x := first.X + first.W/2
+	y := (first.Y + first.H + second.Y) / 2
+	tester.Move(x, y)
+	for range 30 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+	}
+	if !state.nav.sheetsGap.open || state.nav.sheetsGap.at != 1 || !state.nav.sheetsGap.over {
+		t.Fatalf("gap = open %v at %d over %v",
+			state.nav.sheetsGap.open, state.nav.sheetsGap.at, state.nav.sheetsGap.over)
+	}
+	// The area reaches into the gap's proximity band, so the pointer can
+	// click where it came to rest.
+	tester.ClickAt(x, y)
+	if !slices.Contains(library.calls, "new sheet 2 1") {
+		t.Fatalf("gap click did not create in place: %v", library.calls)
+	}
+}
+
 func (f *fakeLibrary) Search(query string) []SheetItem {
 	f.call("search " + query)
 	return []SheetItem{{ID: "7", Title: "Chapter"}}
@@ -183,11 +393,14 @@ func (f *fakeLibrary) OpenSheet(id string, newTab bool) {
 	}
 	f.call("open " + id)
 }
-func (f *fakeLibrary) DuplicateSheet(id string)          { f.call("duplicate " + id) }
-func (f *fakeLibrary) MoveSheet(id, group string, _ int) { f.call("move " + id + " to " + group) }
-func (f *fakeLibrary) TrashSheet(id string)              { f.call("trash " + id) }
-func (f *fakeLibrary) RestoreSheet(id string)            { f.call("restore " + id) }
-func (f *fakeLibrary) DeleteSheet(id string)             { f.call("delete " + id) }
+func (f *fakeLibrary) DuplicateSheet(id string) { f.call("duplicate " + id) }
+func (f *fakeLibrary) MoveSheet(id, group string, index int) {
+	f.call("move " + id + " to " + group)
+	f.moves = append(f.moves, sheetMoveCall{id: id, group: group, index: index})
+}
+func (f *fakeLibrary) TrashSheet(id string)   { f.call("trash " + id) }
+func (f *fakeLibrary) RestoreSheet(id string) { f.call("restore " + id) }
+func (f *fakeLibrary) DeleteSheet(id string)  { f.call("delete " + id) }
 func (f *fakeLibrary) NewGroup(parent string, index int) string {
 	f.call(fmt.Sprint("new group ", parent, " ", index))
 	return "2"
@@ -536,7 +749,7 @@ func TestThingsAreMadeWhereTheyComeIn(t *testing.T) {
 	if err := tester.Click("New sheet"); err != nil {
 		t.Fatal(err)
 	}
-	made(fmt.Sprint("new sheet  ", Last))
+	made(fmt.Sprint("new sheet 1 ", Last))
 
 	if err := tester.Click("Novel"); err != nil {
 		t.Fatal(err)

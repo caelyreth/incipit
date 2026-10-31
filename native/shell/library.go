@@ -7,7 +7,7 @@ import "time"
 type PlaceKind uint8
 
 const (
-	// PlaceAll is every sheet out of the trash, the latest changed first.
+	// PlaceAll is every sheet out of the trash, the latest created first.
 	PlaceAll PlaceKind = iota
 	// PlaceRecent is the sheets changed in the last seven days.
 	PlaceRecent
@@ -107,8 +107,15 @@ const (
 // sheetDrag is a sheet dragged in the sidebar or onto it.
 type sheetDrag struct{ id string }
 
+// sheetMove is a sheet or tab being inserted into a sheet list.
+type sheetMove interface{ sheetMoveID() string }
+
+func (d sheetDrag) sheetMoveID() string { return d.id }
+
 // groupDrag is a group dragged in the sidebar.
 type groupDrag struct{ id string }
 
 // tabDrag is a tab dragged along the tab line.
 type tabDrag struct{ id string }
+
+func (d tabDrag) sheetMoveID() string { return d.id }

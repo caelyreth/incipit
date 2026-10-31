@@ -121,3 +121,9 @@ func (g *gap) hold(area ui.Element) {
 func (g *gap) use() {
 	g.open, g.spent, g.since = false, true, time.Time{}
 }
+
+// close hides the gap at once, without waiting for the pointer to leave,
+// as while a sheet is dragged over the list.
+func (g *gap) close() {
+	g.open, g.over, g.want, g.since = false, false, -1, time.Time{}
+}

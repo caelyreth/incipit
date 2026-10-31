@@ -90,6 +90,20 @@ func TestSheetsAreFiledMovedAndCounted(t *testing.T) {
 	}
 }
 
+func TestAllUsesCreatedTimeWhileRecentUsesUpdatedTime(t *testing.T) {
+	l := New()
+	must(t, l.AddSheet(1, Inbox, now))
+	must(t, l.AddSheet(2, Inbox, now.Add(time.Hour)))
+	must(t, l.AddSheet(3, Inbox, now.Add(2*time.Hour)))
+	l.Touch(1, now.Add(3*time.Hour))
+	if got := sheetIDs(l.All()); !equal(got, []SheetID{3, 2, 1}) {
+		t.Fatalf("All order = %v, want newest created first", got)
+	}
+	if got := sheetIDs(l.Since(now)); !equal(got, []SheetID{1, 3, 2}) {
+		t.Fatalf("Recent order = %v, want latest updated first", got)
+	}
+}
+
 func TestTheTrashKeepsWhatIsPutAwayUntilEmptied(t *testing.T) {
 	l := New()
 	novel, _ := l.AddGroup(0, "Novel")

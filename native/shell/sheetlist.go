@@ -91,6 +91,8 @@ func (s *State) noteView(c *ui.Context, animate bool) {
 	s.nav.side = s.side(s.nav.shown, view)
 	s.nav.shown, s.nav.fresh, s.nav.shownAt = view, true, time.Time{}
 	s.nav.sheetsGap, s.nav.sheetsNear = gap{}, -1
+	s.nav.sheetDropSlot, s.nav.sheetDropHeight = -1, 0
+	s.nav.sheetDropVisible, s.nav.sheetDropRows = false, nil
 	if animate {
 		s.nav.shownAt = c.Now()
 	}
@@ -199,7 +201,11 @@ func (s *State) listLayer(c *ui.Context, semantic theme.Theme, view listView, an
 
 func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, animate bool) {
 	sheets := s.Library.Sheets(place)
-	create := func(index int) { s.Library.NewSheet(s.CurrentGroup(), index) }
+	group := place.Group
+	if place.Kind != PlaceGroup {
+		group = s.CurrentGroup()
+	}
+	create := func(index int) { s.Library.NewSheet(group, index) }
 	if len(sheets) == 0 {
 		text, icon := "Nothing changed in the last seven days", components.IconClock
 		switch place.Kind {
@@ -212,7 +218,7 @@ func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, anim
 		s.emptyList(c, semantic, icon, text, create, animate)
 		return
 	}
-	s.sheetRows(c, semantic, sheets, place, nil, create, animate)
+	s.sheetRows(c, semantic, sheets, place, nil, create, place.Kind != PlaceGroup, animate)
 }
 
 func (s *State) trashList(c *ui.Context, semantic theme.Theme, animate bool) {
@@ -226,7 +232,7 @@ func (s *State) trashList(c *ui.Context, semantic theme.Theme, animate bool) {
 		for _, group := range groups {
 			s.trashedGroupRow(c, semantic, group, animate)
 		}
-	}, nil, animate)
+	}, nil, false, animate)
 }
 
 func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
@@ -240,7 +246,7 @@ func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
 		s.emptyList(c, semantic, components.IconSearch, "No sheets hold “"+query+"”", nil, animate)
 		return
 	}
-	s.sheetRows(c, semantic, sheets, Place{Kind: PlaceAll}, nil, nil, animate)
+	s.sheetRows(c, semantic, sheets, Place{Kind: PlaceAll}, nil, nil, false, animate)
 }
 
 // emptyList says there is nothing to list, quietly, with the area that
@@ -294,6 +300,7 @@ func (s *State) sheetRows(
 	place Place,
 	leading func(*components.SelectionTrack),
 	create func(index int),
+	createAtTop bool,
 	animate bool,
 ) {
 	scale := s.Settings.UIFontSize
@@ -318,45 +325,269 @@ func (s *State) sheetRows(
 		s.sheetOverscroll.Apply(c, list, animate)
 		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
 		ordered := create != nil && place.Kind == PlaceGroup
+		if !ordered {
+			s.nav.sheetDropSlot, s.nav.sheetDropHeight = -1, 0
+			s.nav.sheetDropVisible, s.nav.sheetDropRows = false, nil
+		}
+		dragged, dragging := ui.DragOver[sheetMove](list)
+		dragging = ordered && dragging
+		dropSlot := s.nav.sheetDropSlot
+		if dragging {
+			slot, height := s.sheetDropPlan(list, sheets, dragged)
+			dropSlot = slot
+			s.nav.sheetDropSlot = slot
+			if _, moves := s.reorderSlot(dragged.sheetMoveID(), place.Group, slot, sheets); moves {
+				s.nav.sheetDropHeight = height
+				s.nav.sheetDropVisible = true
+			} else {
+				// Either side of the dragged row is its original place.
+				s.nav.sheetDropVisible = false
+			}
+		} else if ordered && !s.nav.sheetDropVisible {
+			s.nav.sheetDropSlot = -1
+		}
 		// Where the pointer was by a sheet's top last frame calls up the
 		// area above it.
 		near := s.nav.sheetsNear
 		s.nav.sheetsNear = -1
+		if dragging {
+			// A drag chooses an insertion point; it never calls up a create
+			// area, even while the pointer rests near a row's top.
+			near = -1
+			s.nav.sheetsGap.close()
+		}
 		at, open := s.nav.sheetsGap.follow(c, near)
-		open = open && ordered
-		band := 20 * scale / theme.DefaultUIFontSize
+		open = open && ordered && !dragging
+		rows := make([]ui.Element, 0, len(sheets))
 		list.Children(func() {
+			if create != nil && createAtTop {
+				area := s.createArea(c, semantic, "new-sheet", "New sheet", animate, func() { create(Last) })
+				s.enter(c, area.Transition(s.listRowTransition(animate)))
+			}
 			if leading != nil {
 				leading(track)
 			}
 			for index, sheet := range sheets {
+				if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == index {
+					s.sheetDropPlaceholder(c, semantic, dragging, animate)
+				}
 				if open && at == index {
-					s.nav.sheetsGap.hold(s.createArea(c, semantic, "new-sheet-at-"+sheet.ID, "New sheet", animate, func() {
+					area := s.createArea(c, semantic, "new-sheet-at-"+sheet.ID, "New sheet", animate, func() {
 						s.nav.sheetsGap.use()
 						create(index)
-					}).Transition(unfoldTransition(animate)))
+					}).Transition(unfoldTransition(animate))
+					if at > 0 {
+						// Reach into the gap's proximity band so the pointer
+						// is already over the area as it unfolds.
+						lift := theme.Space06.DIPs(scale)/2 + theme.Space08.DIPs(scale)
+						area.Margin(-lift, 0, 0, 0)
+					}
+					s.nav.sheetsGap.hold(area)
 				}
 				row := s.sheetRow(c, semantic, sheet, index, place, track, now, animate)
-				if _, y, over := row.PointerPosition(); ordered && over && y < band {
-					s.nav.sheetsNear = index
+				rows = append(rows, row)
+			}
+			if ordered && !dragging {
+				if s.nav.sheetsGap.over {
+					s.nav.sheetsNear = s.nav.sheetsGap.at
+				} else {
+					s.nav.sheetsNear = s.sheetCreateGap(list, rows)
 				}
 			}
-			if create != nil {
+			if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == len(sheets) {
+				s.sheetDropPlaceholder(c, semantic, dragging, animate)
+			}
+			if create != nil && !createAtTop {
 				area := s.createArea(c, semantic, "new-sheet", "New sheet", animate, func() { create(Last) })
 				s.enter(c, area.Transition(s.listRowTransition(animate)))
+			}
+			if ordered {
+				// Keep the pre-placeholder geometry for the whole drag:
+				// moving rows must not chase the pointer into a new slot.
+				if !dragging && !s.nav.sheetDropVisible {
+					s.trackSheetDropRows(list, sheets, rows)
+				}
+				if moved, ok := ui.Drop[sheetMove](list); ok {
+					s.moveSheetToSlot(moved.sheetMoveID(), place.Group, dropSlot, sheets)
+				}
 			}
 		})
 	})
 	if place.Kind != PlaceTrash {
 		scroll.ContextMenu(s.listMenu())
 	}
-	if place.Kind == PlaceGroup {
-		if dragged, ok := ui.Drop[sheetDrag](scroll); ok {
-			s.Library.MoveSheet(dragged.id, place.Group, Last)
+}
+
+// sheetCreateGap chooses the create-sheet gap nearest the pointer. The
+// first row keeps the larger top-edge target; boundaries between rows use
+// the center of the actual gap.
+func (s *State) sheetCreateGap(list ui.Element, rows []ui.Element) int {
+	if len(rows) == 0 {
+		return -1
+	}
+	_, pointerY, over := list.PointerPosition()
+	if !over {
+		return -1
+	}
+	scale := s.Settings.UIFontSize
+	listTop := list.LayoutBounds().Y
+	first := rows[0].LayoutBounds()
+	if pointerY < first.Y-listTop+20*scale/theme.DefaultUIFontSize {
+		return 0
+	}
+	reach := theme.Space08.DIPs(scale)
+	best, nearest := -1, reach+1
+	for index := 1; index < len(rows); index++ {
+		before := rows[index-1].LayoutBounds()
+		after := rows[index].LayoutBounds()
+		center := (before.Y+before.H+after.Y)/2 - listTop
+		distance := pointerY - center
+		if distance < 0 {
+			distance = -distance
 		}
-		if tab, ok := ui.Drop[tabDrag](scroll); ok {
-			s.Library.MoveSheet(tab.id, place.Group, Last)
+		if distance < nearest {
+			best, nearest = index, distance
 		}
+	}
+	if nearest <= reach {
+		return best
+	}
+	return -1
+}
+
+// sheetDropPlan chooses the insertion slot from the rows as last laid out,
+// and keeps the dragged row's height for the in-flow placeholder.
+func (s *State) sheetDropPlan(
+	list ui.Element,
+	sheets []SheetItem,
+	dragged sheetMove,
+) (slot int, height float32) {
+	slot = len(sheets)
+	_, pointerY, over := list.PointerPosition()
+	if over {
+		for index, sheet := range sheets {
+			span, ok := s.sheetDropSpan(sheet.ID)
+			if !ok {
+				continue
+			}
+			if pointerY < span.top+span.height/2 {
+				slot = index
+				break
+			}
+		}
+	}
+	if dragged != nil {
+		if span, ok := s.sheetDropSpan(dragged.sheetMoveID()); ok {
+			height = span.height
+		}
+	}
+	if height <= 0 && slot < len(sheets) {
+		if span, ok := s.sheetDropSpan(sheets[slot].ID); ok {
+			height = span.height
+		}
+	}
+	if height <= 0 {
+		height = theme.DefaultControls.Scaled(s.Settings.UIFontSize).Row * 2
+	}
+	return slot, height
+}
+
+func (s *State) sheetDropSpan(id string) (sheetDropSpan, bool) {
+	for _, span := range s.nav.sheetDropRows {
+		if span.id == id {
+			return span, true
+		}
+	}
+	return sheetDropSpan{}, false
+}
+
+// trackSheetDropRows keeps the row geometry the next frame uses to choose
+// an insertion slot.
+func (s *State) trackSheetDropRows(list ui.Element, sheets []SheetItem, rows []ui.Element) {
+	listTop := list.LayoutBounds().Y
+	spans := make([]sheetDropSpan, 0, len(rows))
+	for index, row := range rows {
+		bounds := row.LayoutBounds()
+		spans = append(spans, sheetDropSpan{
+			id:     sheets[index].ID,
+			top:    bounds.Y - listTop,
+			height: bounds.H,
+		})
+	}
+	s.nav.sheetDropRows = spans
+}
+
+// sheetDropPlaceholder reserves the dragged row's space at the insertion
+// target. It opens and closes on a spring, so rows move around it instead
+// of underneath the dragged copy.
+func (s *State) sheetDropPlaceholder(
+	c *ui.Context,
+	semantic theme.Theme,
+	active, animate bool,
+) {
+	scale := s.Settings.UIFontSize
+	metrics := theme.DefaultControls.Scaled(scale)
+	height := float32(0)
+	opacity := float32(0)
+	if active {
+		height, opacity = s.nav.sheetDropHeight, 1
+	}
+	area := ui.Box(c).Key("sheet-drop-placeholder").WidthPercent(100).
+		Height(0).Shrink(0).Clip().Radius(metrics.Radius).
+		Transition(s.listRowTransition(animate))
+	if animate {
+		height = components.Follow(area, "height", height, components.MotionQuick)
+		opacity = components.Follow(area, "opacity", opacity, components.MotionQuick)
+	}
+	area.Height(height).Opacity(opacity).
+		Draw(func(p *ui.Painter, r ui.Rect) {
+			if r.H <= 0.5 {
+				return
+			}
+			p.Fill(r, semantic.Accent.Muted.Alpha(0.14), metrics.Radius)
+			components.DashedOutline(
+				p, r, metrics.Radius, 1,
+				semantic.Accent.Foreground.Alpha(0.65),
+			)
+		})
+	if !active && (!animate || area.Arrived("height")) {
+		s.nav.sheetDropVisible = false
+	}
+}
+
+// reorderSlot converts a gap in the visible list to the index MoveSheet
+// takes after removing the dragged sheet. Either side of its own row is
+// not a move.
+func (s *State) reorderSlot(
+	id, group string,
+	slot int,
+	sheets []SheetItem,
+) (int, bool) {
+	if id == "" {
+		return 0, false
+	}
+	if s.Library.SheetGroup(id) != group {
+		return slot, true
+	}
+	source := -1
+	for index, sheet := range sheets {
+		if sheet.ID == id {
+			source = index
+			break
+		}
+	}
+	if source < 0 || slot == source || slot == source+1 {
+		return 0, false
+	}
+	if source < slot {
+		slot--
+	}
+	return slot, true
+}
+
+func (s *State) moveSheetToSlot(id, group string, slot int, sheets []SheetItem) {
+	if target, ok := s.reorderSlot(id, group, slot, sheets); ok {
+		s.Library.MoveSheet(id, group, target)
 	}
 }
 
@@ -422,15 +653,6 @@ func (s *State) sheetRow(
 		row.Drag(sheetDrag{id: sheet.ID})
 	}
 	row.ContextMenu(s.sheetMenu(sheet, trashed))
-	if place.Kind == PlaceGroup {
-		s.dropHighlight(c, semantic, row, true, false, true, animate)
-		if dragged, ok := ui.Drop[sheetDrag](row); ok && dragged.id != sheet.ID {
-			s.Library.MoveSheet(dragged.id, place.Group, index)
-		}
-		if tab, ok := ui.Drop[tabDrag](row); ok && tab.id != sheet.ID {
-			s.Library.MoveSheet(tab.id, place.Group, index)
-		}
-	}
 	if !confirming && (row.Clicked() || row.Shortcut(0, ui.KeyEnter)) {
 		s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Cmd != 0)
 	}

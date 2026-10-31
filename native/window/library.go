@@ -174,7 +174,7 @@ func (a *AppState) Sheets(place shell.Place) []shell.SheetItem {
 	case shell.PlaceGroup:
 		return a.sheetItems(a.library.Sheets(groupOf(place.Group)))
 	case shell.PlaceAll:
-		return a.sheetItems(a.library.Live())
+		return a.sheetItems(a.library.All())
 	case shell.PlaceRecent:
 		return a.sheetItems(a.library.Since(time.Now().Add(-recent)))
 	case shell.PlaceTrash:
@@ -335,14 +335,6 @@ func (a *AppState) MoveSheet(name, group string, index int) {
 	}
 	target := groupOf(group)
 	sheet, _ := a.library.Sheet(library.SheetID(session.key))
-	if sheet.Group == target {
-		// Moving later in the same group counts the sheet's own place.
-		for at, other := range a.library.Sheets(target) {
-			if other.ID == sheet.ID && at < index {
-				index--
-			}
-		}
-	}
 	if err := a.library.MoveSheet(sheet.ID, target, index); err != nil {
 		a.fail(err)
 		return

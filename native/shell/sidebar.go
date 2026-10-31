@@ -46,6 +46,19 @@ type navigation struct {
 	sheetsGap, groupsTop gap
 	// sheetsNear is the sheet whose top the pointer was by, -1 for none.
 	sheetsNear int
+	// sheetDropSlot is the insertion slot while a sheet is dragged over a
+	// group's list, -1 when none; sheetDropRows is the last geometry used
+	// to choose it, and sheetDropHeight is the dragged row's extent.
+	sheetDropSlot    int
+	sheetDropHeight  float32
+	sheetDropVisible bool
+	sheetDropRows    []sheetDropSpan
+}
+
+type sheetDropSpan struct {
+	id     string
+	top    float32
+	height float32
 }
 
 // Place is where the sidebar is.
@@ -85,6 +98,11 @@ func (s *State) stopSearching() {
 func (s *State) CurrentGroup() string {
 	if s.nav.place.Kind == PlaceGroup {
 		return s.nav.place.Group
+	}
+	for _, group := range s.Library.Groups("") {
+		if group.Inbox {
+			return group.ID
+		}
 	}
 	return ""
 }

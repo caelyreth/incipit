@@ -202,6 +202,18 @@ func (l *Library) Live() []Sheet {
 	return sheets
 }
 
+// All returns every sheet out of the trash, the latest created first.
+func (l *Library) All() []Sheet {
+	var sheets []Sheet
+	for id, sheet := range l.sheets {
+		if !l.SheetInTrash(id) {
+			sheets = append(sheets, *sheet)
+		}
+	}
+	slices.SortFunc(sheets, createdFirst)
+	return sheets
+}
+
 // Since returns the sheets out of the trash changed at or after a time,
 // the latest first.
 func (l *Library) Since(at time.Time) []Sheet {
@@ -231,6 +243,13 @@ func (l *Library) Trash() ([]Group, []Sheet) {
 
 func latestFirst(a, b Sheet) int {
 	if order := b.Updated.Compare(a.Updated); order != 0 {
+		return order
+	}
+	return int(b.ID - a.ID)
+}
+
+func createdFirst(a, b Sheet) int {
+	if order := b.Created.Compare(a.Created); order != 0 {
 		return order
 	}
 	return int(b.ID - a.ID)
