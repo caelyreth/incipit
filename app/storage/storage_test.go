@@ -390,6 +390,9 @@ func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
 	store := openStore(t, root)
 	shelf := library.New()
 	novel, _ := shelf.AddGroup(0, "Novel")
+	if err := shelf.StyleGroup(novel, "feather", 3); err != nil {
+		t.Fatal(err)
+	}
 	at := time.Now()
 	if err := shelf.AddSheet(1, novel, at); err != nil {
 		t.Fatal(err)
@@ -424,6 +427,9 @@ func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
 		t.Fatalf("%d pages after deleting one", len(notebook.Pages))
 	}
 	restored := library.Restore(notebook.Library)
+	if group, _ := restored.Group(novel); group.Icon != "feather" || group.Color != 3 {
+		t.Fatalf("novel's look %+v", group)
+	}
 	if sheets := restored.Sheets(novel); len(sheets) != 1 || sheets[0].ID != 1 {
 		t.Fatalf("novel holds %+v", sheets)
 	}

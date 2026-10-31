@@ -48,6 +48,10 @@ type Group struct {
 	ID     GroupID
 	Parent GroupID
 	Name   string
+	// Icon names the group's icon, empty for the plain folder; Color is
+	// its tint, zero for none.
+	Icon  string
+	Color uint8
 	// Trashed is when the group was put in the trash; zero while it is not.
 	Trashed time.Time
 }
@@ -267,6 +271,19 @@ func (l *Library) RenameGroup(id GroupID, name string) error {
 		return ErrInbox
 	}
 	group.Name = groupName(name)
+	return nil
+}
+
+// StyleGroup sets a group's icon and tint.
+func (l *Library) StyleGroup(id GroupID, icon string, color uint8) error {
+	group, ok := l.groups[id]
+	switch {
+	case !ok:
+		return ErrUnknown
+	case id == Inbox:
+		return ErrInbox
+	}
+	group.Icon, group.Color = icon, color
 	return nil
 }
 

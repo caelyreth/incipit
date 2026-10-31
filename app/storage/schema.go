@@ -53,6 +53,10 @@ var migrations = []string{
 		value TEXT NOT NULL
 	) STRICT;
 	`,
+	`
+	ALTER TABLE groups ADD COLUMN icon  TEXT    NOT NULL DEFAULT '';
+	ALTER TABLE groups ADD COLUMN color INTEGER NOT NULL DEFAULT 0;
+	`,
 }
 
 // migrate brings the notebook to the current schema, claiming a new file
