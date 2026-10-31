@@ -18,3 +18,11 @@ func TestSourceIconsLoadAtOneOpticalSize(t *testing.T) {
 		seen[icon] = name
 	}
 }
+
+func TestGroupIconsLoad(t *testing.T) {
+	for _, name := range GroupIcons {
+		if icon := name.SVG(); icon == nil {
+			t.Fatalf("%s did not load", name)
+		}
+	}
+}

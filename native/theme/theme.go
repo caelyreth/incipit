@@ -133,6 +133,9 @@ type Theme struct {
 	Status       StatusColors
 	Scrollbar    ScrollbarColors
 	Prose        ProseColors
+	// Families are the six hues, by Accent, for what wears a color of its
+	// own, as a group.
+	Families [len(AllAccents)]Family
 }
 
 type Settings struct {
@@ -235,6 +238,7 @@ func (s Settings) Semantic() Theme {
 			// enough to read text through.
 			Selection: accent.Surface,
 		},
+		Families: palette.accents,
 	}
 }
 

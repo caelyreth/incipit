@@ -127,6 +127,10 @@ func colorsOf(theme *Theme) []*ui.Color {
 			for index := range value.NumField() {
 				walk(value.Field(index))
 			}
+		case value.Kind() == reflect.Array:
+			for index := range value.Len() {
+				walk(value.Index(index))
+			}
 		}
 	}
 	walk(reflect.ValueOf(theme).Elem())

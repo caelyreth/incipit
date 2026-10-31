@@ -5,7 +5,10 @@ package theme
 // chrome: the sidebar and settings search fields, the macOS traffic lights,
 // and the header's trailing icon glyphs.
 type Layout struct {
+	// Sidebar is the library's width; SheetList that of the sheets beside
+	// it.
 	Sidebar           float32
+	SheetList         float32
 	Titlebar          float32
 	Status            float32
 	Narrow            float32
@@ -19,7 +22,8 @@ type Layout struct {
 }
 
 var DefaultLayout = Layout{
-	Sidebar:           256,
+	Sidebar:           232,
+	SheetList:         288,
 	Titlebar:          40,
 	Status:            32,
 	Narrow:            920,

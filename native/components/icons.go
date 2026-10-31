@@ -37,6 +37,7 @@ const (
 	IconSettings     IconName = "settings"
 	IconSheets       IconName = "files"
 	IconSidebar      IconName = "panel-left"
+	IconSidebarClose IconName = "panel-left-close"
 	IconTrash        IconName = "trash-2"
 	IconTypewriter   IconName = "align-vertical-justify-center"
 	IconUndo         IconName = "undo-2"
@@ -68,11 +69,23 @@ var AllIcons = [...]IconName{
 	IconSettings,
 	IconSheets,
 	IconSidebar,
+	IconSidebarClose,
 	IconTrash,
 	IconTypewriter,
 	IconUndo,
 	IconWarning,
 	IconZen,
+}
+
+// GroupIcons are the icons a group can wear, in the order the picker
+// shows them: the folder first, as every group starts.
+var GroupIcons = [...]IconName{
+	"folder", "book", "book-open", "notebook-pen", "feather", "rocket",
+	"pen-line", "quote", "scroll", "newspaper", "bookmark", "tag",
+	"lightbulb", "sparkles", "star", "heart", "flag", "archive",
+	"briefcase", "graduation-cap", "code", "puzzle", "palette", "music",
+	"camera", "film", "globe", "map", "compass", "mountain",
+	"leaf", "coffee", "moon", "sun", "users", "calendar",
 }
 
 var (
@@ -88,8 +101,11 @@ func (n IconName) SVG() *ui.SVG {
 
 func loadIcons() {
 	iconOnce.Do(func() {
-		icons = make(map[IconName]*ui.SVG, len(AllIcons))
-		for _, name := range AllIcons {
+		icons = make(map[IconName]*ui.SVG, len(AllIcons)+len(GroupIcons))
+		for _, name := range append(AllIcons[:], GroupIcons[:]...) {
+			if icons[name] != nil {
+				continue
+			}
 			data, err := iconFiles.ReadFile("icons/" + string(name) + ".svg")
 			if err != nil {
 				iconErr = fmt.Errorf("components: read icon %s: %w", name, err)
