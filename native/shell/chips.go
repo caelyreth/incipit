@@ -113,14 +113,6 @@ func (s *State) chip(c *ui.Context, semantic theme.Theme, chip placeChip, small,
 				}
 			})
 		}
-		// Unfiled sheets wait in the Inbox: a dot says so while it is not
-		// the place shown.
-		if chip.inbox && chip.count > 0 && !chosen {
-			dot := 6 * scale / theme.DefaultUIFontSize
-			ui.Box(c).Key("dot").Absolute().Top(theme.Space06.DIPs(scale)).Right(theme.Space08.DIPs(scale)).
-				Size(dot, dot).Radius(dot / 2).Background(semantic.Accent.Foreground).
-				Transition(popTransition(animate))
-		}
 	})
 	if chip.menu != nil {
 		button.ContextMenu(chip.menu)
