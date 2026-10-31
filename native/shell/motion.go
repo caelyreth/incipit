@@ -49,7 +49,7 @@ const (
 	// before the pointer's rest begins to count: a row dropped at the head
 	// of a list leaves the pointer by its top, which is not a call for a
 	// new one.
-	dropQuiet = 800 * time.Millisecond
+	dropQuiet = time.Second
 )
 
 // listTransition is how rows and tabs come, go and make room.
