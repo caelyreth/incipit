@@ -47,13 +47,15 @@ func (s *State) placeChips(c *ui.Context, semantic theme.Theme, animate bool) {
 	// length.
 	height := theme.DefaultControls.Scaled(scale).Height
 	gap := theme.Space06.DIPs(scale)
-	width := (theme.DefaultLayout.Sidebar - 2*float32(theme.Space08)) * scale / theme.DefaultUIFontSize
+	// It keeps to the traffic lights' line on both sides.
+	inset := s.lightLine()
+	width := (theme.DefaultLayout.Sidebar-2*float32(theme.Space08))*scale/theme.DefaultUIFontSize - 2*inset
 	small := height + theme.Space08.DIPs(scale)
 	large := width - float32(len(chips)-1)*(small+gap)
 	// One stop for the keyboard: the arrows move along the strip.
 	ui.Row(c).Key("place-chips").Role(ui.RoleTabList).Label("Places").FocusGroup(ui.Horizontal).
 		WidthPercent(100).Gap(gap).
-		Padding(theme.Space02.DIPs(scale), 0, theme.Space04.DIPs(scale), 0).Children(func() {
+		Padding(theme.Space02.DIPs(scale), inset, theme.Space04.DIPs(scale), inset).Children(func() {
 		for _, chip := range chips {
 			s.chip(c, semantic, chip, small, large, animate)
 		}

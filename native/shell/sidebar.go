@@ -116,14 +116,22 @@ func (s *State) sidebar(
 	_ = metrics
 }
 
+// lightLine is how far inside the library's own padding the traffic
+// lights' left edge lies, so the head of the library lines up with them.
+func (s *State) lightLine() float32 {
+	return max(0, theme.DefaultLayout.TrafficLightLeft-theme.Space08.DIPs(s.Settings.UIFontSize))
+}
+
 // wordmark heads the library with the app's name, in the system face. Its
 // full stop wears the accent, so it turns, with the theme, to the group of
 // the sheet open.
 func (s *State) wordmark(c *ui.Context, semantic theme.Theme) {
 	scale := s.Settings.UIFontSize
 	size := 22 * scale / theme.DefaultUIFontSize
+	// It starts on the traffic lights' line, sits close under them and
+	// stands a little apart from the chips.
 	ui.Row(c).Key("wordmark").WidthPercent(100).Shrink(0).AlignItems(ui.End).
-		Padding(theme.Space04.DIPs(scale), theme.Space08.DIPs(scale), theme.Space08.DIPs(scale), theme.Space08.DIPs(scale)).
+		Padding(0, 0, theme.Space12.DIPs(scale), s.lightLine()).
 		Children(func() {
 			ui.Text(c, "Neverland").Font(theme.UIFontFamily).FontSize(size).FontWeight(700).
 				LetterSpacing(-0.02 * size).TextColor(semantic.Text.Heading).SingleLine()

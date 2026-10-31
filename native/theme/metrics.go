@@ -17,8 +17,11 @@ type Layout struct {
 	ChromeGutter      float32
 	ContentGutter     float32
 	TrafficLightInset float32
-	Tab               float32
-	DockOffset        float32
+	// TrafficLightLeft is where the window's traffic lights begin, in
+	// the window's points: the line the library's head keeps to.
+	TrafficLightLeft float32
+	Tab              float32
+	DockOffset       float32
 }
 
 var DefaultLayout = Layout{
@@ -32,6 +35,7 @@ var DefaultLayout = Layout{
 	ChromeGutter:      12,
 	ContentGutter:     24,
 	TrafficLightInset: 96,
+	TrafficLightLeft:  12,
 	Tab:               30,
 	DockOffset:        20,
 }
