@@ -31,3 +31,14 @@ func TestMoveSheetUsesItsFinalIndex(t *testing.T) {
 		t.Fatalf("Inbox after moving to the final index = %v", after)
 	}
 }
+
+func TestTheLibraryOpensOnTheInbox(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := shell.Place{Kind: shell.PlaceGroup, Group: strconv.Itoa(int(library.Inbox))}
+	if got := app.Shell.Place(); got != want {
+		t.Fatalf("the library opens on %+v, want the Inbox", got)
+	}
+}

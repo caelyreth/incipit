@@ -76,6 +76,10 @@ type sheetDropSpan struct {
 // Place is where the sidebar is.
 func (s *State) Place() Place { return s.nav.place }
 
+// StartAt sets the place the library opens on, without showing its
+// sheets as Go does.
+func (s *State) StartAt(place Place) { s.nav.place = place }
+
 // Go chooses a place in the library and shows its sheets.
 func (s *State) Go(place Place) {
 	s.showSheetList()
