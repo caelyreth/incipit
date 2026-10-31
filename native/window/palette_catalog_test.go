@@ -1,6 +1,7 @@
 package window
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/caelyreth/neverland/app/keymap"
@@ -44,6 +45,9 @@ func TestPaletteUsesLiveConfiguredBindings(t *testing.T) {
 	command := paletteCommand(t, app.commandCatalog(), editor.SurfaceSettingsCommandID)
 	if want := keymap.Chord(target, keymap.PlatformCurrent); command.Binding != want {
 		t.Fatalf("binding = %q, want %q", command.Binding, want)
+	}
+	if want := keymap.Keycaps(target, keymap.PlatformCurrent); !slices.Equal(command.Keys, want) {
+		t.Fatalf("keys = %q, want %q", command.Keys, want)
 	}
 }
 

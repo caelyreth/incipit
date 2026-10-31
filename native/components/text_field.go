@@ -20,25 +20,32 @@ type TextField struct {
 	FocusRequested bool
 	Submit         func()
 	Changed        func()
+	// Prominent is the field a surface is for, as the command palette's
+	// query: a list row's height and the default text.
+	Prominent bool
 }
 
 func (f TextField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	metrics := theme.DefaultControls.Scaled(scale)
+	height, text, icon := metrics.Height, theme.TextSmall, 16*scale/theme.DefaultUIFontSize
+	if f.Prominent {
+		height, text, icon = metrics.Row, theme.TextDefault, metrics.Icon
+	}
 	var input ui.Element
-	field := ui.Row(c).Height(metrics.Height).MinWidth(0).
+	field := ui.Row(c).Height(height).MinWidth(0).
 		PaddingStart(theme.Space08.DIPs(scale)).
 		PaddingEnd(theme.Space04.DIPs(scale)).
 		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
 		Radius(metrics.Radius).Border(1, semantic.Border.Variant).
 		Background(semantic.Surface.Inset).Cursor(ui.CursorText)
 	field.Children(func() {
-		ui.Icon(c, f.Icon).FontSize(16 * scale / theme.DefaultUIFontSize).
+		ui.Icon(c, f.Icon).FontSize(icon).
 			TextColor(semantic.Icon.Muted)
 		input = ui.TextInputBase(c.Key(f.Key), f.Value).
 			Grow(1).MinWidth(0).Font(theme.UIFontFamily).
-			FontSize(theme.TextSmall.Size(scale)).
-			FixedLineHeight(theme.TextSmall.LineHeight(scale)).
+			FontSize(text.Size(scale)).
+			FixedLineHeight(text.LineHeight(scale)).
 			TextColor(semantic.Text.Default).
 			Placeholder(f.Placeholder).Label(f.Label)
 		if f.FocusRequested {

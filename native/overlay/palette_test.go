@@ -55,8 +55,8 @@ func TestPaletteViewBuildsModal(t *testing.T) {
 		palette.View(c, theme.DefaultSettings().Semantic(), true)
 	}, 900, 600)
 	tester.Frame()
-	if !tester.HasText("Open Settings") {
-		t.Fatalf("texts = %#v", tester.Texts())
+	if !tester.HasText("Open Settings") || !tester.HasText("App") {
+		t.Fatalf("the palette did not show the command under its group: %#v", tester.Texts())
 	}
 	if active, _ := tester.TextInputActive(); !active {
 		t.Fatal("command palette did not autofocus its query")

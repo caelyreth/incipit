@@ -23,6 +23,9 @@ type NavigationRow struct {
 	// Track, when set, is the list's shared selection highlight: a selected
 	// row marks itself on it instead of painting its own background.
 	Track *SelectionTrack
+	// Prominent is a row of a list a surface is for, as the command
+	// palette's: a list row's height and the default text.
+	Prominent bool
 }
 
 // NavigationSelection is the shared highlight style for navigation lists.
@@ -39,8 +42,12 @@ func NavigationSelection(c *ui.Context, semantic theme.Theme) SelectionStyle {
 func (r NavigationRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	metrics := theme.DefaultControls.Scaled(scale)
+	height, text := metrics.Height, theme.TextSmall
+	if r.Prominent {
+		height, text = metrics.Row, theme.TextDefault
+	}
 	row := ui.Row(c).Key(r.Key).Role(r.Role).Label(r.Label).Selected(r.Selected).
-		Height(metrics.Height).Shrink(0).
+		Height(height).Shrink(0).
 		PaddingStart(theme.Space08.DIPs(scale)+r.Indent).
 		PaddingEnd(theme.Space08.DIPs(scale)).
 		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
@@ -76,7 +83,7 @@ func (r NavigationRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		if r.Leading != nil {
 			r.Leading()
 		}
-		Label(c, r.Label, theme.TextSmall, textColor).Grow(1).MinWidth(0).SingleLine()
+		Label(c, r.Label, text, textColor).Grow(1).MinWidth(0).SingleLine()
 		if r.Trailing != nil {
 			r.Trailing()
 		}

@@ -50,6 +50,7 @@ func (a *AppState) commandCatalog() []overlay.Command {
 				Label:   command.Label,
 				Group:   commandGroup(policy.ID, id),
 				Binding: bindingLabel(prepared, id),
+				Keys:    bindingKeys(prepared, id),
 			})
 		}
 	}

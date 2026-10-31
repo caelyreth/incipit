@@ -21,6 +21,7 @@ const (
 	IconChevronRight IconName = "chevron-right"
 	IconClock        IconName = "clock"
 	IconClose        IconName = "x"
+	IconCommand      IconName = "command"
 	IconDocument     IconName = "file-text"
 	IconFolder       IconName = "folder"
 	IconInbox        IconName = "inbox"
@@ -53,6 +54,7 @@ var AllIcons = [...]IconName{
 	IconChevronRight,
 	IconClock,
 	IconClose,
+	IconCommand,
 	IconDocument,
 	IconFolder,
 	IconInbox,

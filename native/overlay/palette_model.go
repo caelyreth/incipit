@@ -1,4 +1,3 @@
-// Package overlay owns transient command and page surfaces.
 package overlay
 
 import (
@@ -11,10 +10,12 @@ import (
 )
 
 type Command struct {
-	ID      kernel.CommandID
-	Label   string
-	Group   string
+	ID    kernel.CommandID
+	Label string
+	Group string
+	// Binding is the command's shortcut as one chord, and Keys its caps.
 	Binding string
+	Keys    []string
 }
 
 type CommandPalette struct {

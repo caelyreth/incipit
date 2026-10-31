@@ -278,6 +278,18 @@ func bindingLabel(configuration *kernel.PreparedPolicyConfiguration, command ker
 	return keymap.Chord(bindings[0], keymap.PlatformCurrent)
 }
 
+// bindingKeys is the caps of the command's first binding.
+func bindingKeys(configuration *kernel.PreparedPolicyConfiguration, command kernel.CommandID) []string {
+	if configuration == nil {
+		return nil
+	}
+	bindings := configuration.BindingsFor(command)
+	if len(bindings) == 0 {
+		return nil
+	}
+	return keymap.Keycaps(bindings[0], keymap.PlatformCurrent)
+}
+
 func (a *AppState) executeEditorCommand(command kernel.CommandID) {
 	if a == nil || a.Bridge == nil {
 		return

@@ -82,7 +82,7 @@ func (s *State) header(
 			}.View(c, semantic)
 			components.VerticalDivider(c, semantic)
 			components.IconButton{
-				Key: "commands", Label: "Search commands", Icon: components.IconSearch.SVG(),
+				Key: "commands", Label: "Search commands", Icon: components.IconCommand.SVG(),
 				Style: components.SubtleButton, Size: components.MediumButton,
 				IconSize: 16 * scale / theme.DefaultUIFontSize, Animate: animate,
 				Action: func() {
