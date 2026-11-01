@@ -273,21 +273,26 @@ func (p *EventProgram) plan(event Event) ([]*LinkedRule, []*LinkedRule) {
 func (p *EventProgram) planLinear(key string, origin EventOrigin) ([]*LinkedRule, []*LinkedRule) {
 	handlers := make([]*LinkedRule, 0, len(p.handlers))
 	for _, rule := range p.handlers {
-		if rule.Trigger.Matches(key) && rule.AllowsOrigin(origin) {
+		if handlerMatches(rule, key, origin) {
 			handlers = append(handlers, rule)
 		}
 	}
 	observers := make([]*LinkedRule, 0, len(p.after))
 	for _, observer := range p.after {
-		if !observer.AllowsOrigin(origin) {
-			continue
-		}
-		if observer.Trigger.Kind() == TriggerStateWildcard ||
-			observer.Trigger.Matches(key) {
+		if afterMatches(observer, key, origin) {
 			observers = append(observers, observer)
 		}
 	}
 	return handlers, observers
+}
+
+func handlerMatches(rule *LinkedRule, key string, origin EventOrigin) bool {
+	return rule.Trigger.Matches(key) && rule.AllowsOrigin(origin)
+}
+
+func afterMatches(rule *LinkedRule, key string, origin EventOrigin) bool {
+	return rule.AllowsOrigin(origin) &&
+		(rule.Trigger.Kind() == TriggerStateWildcard || rule.Trigger.Matches(key))
 }
 
 func linkEventPlans(handlers, observers []*LinkedRule) map[string]*eventPlan {
@@ -307,16 +312,12 @@ func linkEventPlans(handlers, observers []*LinkedRule) map[string]*eventPlan {
 		plan := &eventPlan{}
 		for origin := EventOriginTyping; origin <= EventOriginSemantic; origin++ {
 			for _, rule := range handlers {
-				if rule.Trigger.Matches(key) && rule.AllowsOrigin(origin) {
+				if handlerMatches(rule, key, origin) {
 					plan.handlers[origin] = append(plan.handlers[origin], rule)
 				}
 			}
 			for _, observer := range observers {
-				if !observer.AllowsOrigin(origin) {
-					continue
-				}
-				if observer.Trigger.Kind() == TriggerStateWildcard ||
-					observer.Trigger.Matches(key) {
+				if afterMatches(observer, key, origin) {
 					plan.observers[origin] = append(plan.observers[origin], observer)
 				}
 			}

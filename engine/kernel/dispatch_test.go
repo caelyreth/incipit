@@ -74,6 +74,44 @@ func TestPrecomputedEventPlansMatchLinearFallback(t *testing.T) {
 	}
 }
 
+func TestEventPlansMatchLinearAcrossTriggersAndOrigins(t *testing.T) {
+	handlers := []*LinkedRule{
+		{Key: RuleKey{ID: "exact"}, Trigger: NewExactTrigger("edit:exact"), Origins: []EventOrigin{EventOriginTyping, EventOriginPaste}},
+		{Key: RuleKey{ID: "prefix"}, Trigger: NewPrefixTrigger("edit:")},
+	}
+	after := []*LinkedRule{
+		{Key: RuleKey{ID: "wildcard"}, Trigger: NewStateWildcardTrigger()},
+		{Key: RuleKey{ID: "exact-after"}, Trigger: NewExactTrigger("edit:exact"), Origins: []EventOrigin{EventOriginPaste}},
+		{Key: RuleKey{ID: "prefix-after"}, Trigger: NewPrefixTrigger("edit:"), Origins: []EventOrigin{EventOriginTyping, EventOriginTyping}},
+	}
+	program := &EventProgram{handlers: handlers, after: after, eventPlans: linkEventPlans(handlers, after)}
+	for _, key := range []string{"edit:exact", "edit:other", "unmatched"} {
+		for origin := EventOrigin(0); origin <= EventOriginSemantic+1; origin++ {
+			event := NewCommandEvent(key).WithOrigin(origin)
+			gotHandlers, gotAfter := program.plan(event)
+			var wantHandlers, wantAfter []*LinkedRule
+			for _, rule := range handlers {
+				if rule.Trigger.Matches(key) && rule.AllowsOrigin(normalizedEventOrigin(event)) {
+					wantHandlers = append(wantHandlers, rule)
+				}
+			}
+			for _, rule := range after {
+				if rule.AllowsOrigin(normalizedEventOrigin(event)) &&
+					(rule.Trigger.Kind() == TriggerStateWildcard || rule.Trigger.Matches(key)) {
+					wantAfter = append(wantAfter, rule)
+				}
+			}
+			if !slices.Equal(gotHandlers, wantHandlers) || !slices.Equal(gotAfter, wantAfter) {
+				t.Fatalf("key=%q origin=%v: handlers %v/%v after %v/%v", key, origin, gotHandlers, wantHandlers, gotAfter, wantAfter)
+			}
+			linearHandlers, linearAfter := program.planLinear(key, normalizedEventOrigin(event))
+			if !slices.Equal(linearHandlers, wantHandlers) || !slices.Equal(linearAfter, wantAfter) {
+				t.Fatalf("linear key=%q origin=%v: handlers %v/%v after %v/%v", key, origin, linearHandlers, wantHandlers, linearAfter, wantAfter)
+			}
+		}
+	}
+}
+
 func TestAfterRulesFollowTheirDeclaredOrder(t *testing.T) {
 	t.Parallel()
 	catalog, err := LinkPolicyCatalog([]PolicyDescriptor{{
