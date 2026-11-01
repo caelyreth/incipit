@@ -53,8 +53,10 @@ type Element struct {
 	dropActive bool
 	resizing   *figureResize
 	hover      figureHover
-	// announced is the figure last read out as it became the selection.
+	// announced is the figure last read out as it became the selection,
+	// and menuFigure the one a secondary click opened the menu of.
 	announced         model.NodeID
+	menuFigure        model.NodeID
 	scroll            float32
 	overscroll        scrollfx.Elastic
 	lastHeight        float32
@@ -136,6 +138,7 @@ func (e *Element) View(c *ui.Context) {
 	e.Pictures.SetWake(c.Services().Invalidate)
 	e.takeDrops(box)
 	e.followFigures(c, box)
+	box.ContextMenu(e.contextMenu)
 	box.HandleInput(e.handleInput).
 		TextCaret(e.caret(c)).
 		Draw(func(p *ui.Painter, rect ui.Rect) {

@@ -1,0 +1,150 @@
+package documentview
+
+import (
+	"runtime"
+	"strings"
+
+	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
+	"github.com/egoist/mygo/ui"
+)
+
+// FigureHost does for a figure what the page cannot do itself: it views,
+// copies, saves and shows its picture's file, replaces it with another,
+// and asks for the words that describe it.
+type FigureHost interface {
+	ViewPicture(figure surface.Figure)
+	CopyPicture(media string)
+	SavePicture(media string)
+	RevealPicture(media string)
+	ReplacePicture(node model.NodeID)
+	EditAlt(node model.NodeID, alt string)
+}
+
+// A figure's menu opens over it on a secondary click, which selects it
+// first, as a click does: what is done to the picture, then how it is set
+// on the page, then what describes it. Elsewhere the page's menu is the
+// editing commands, as any text's.
+func (e *Element) contextMenu(m *ui.Menu) {
+	bridge, ok := e.Input.(*Bridge)
+	if !ok || bridge == nil || bridge.Figures == nil {
+		m.EditItems()
+		return
+	}
+	figure, ok := bridge.figureSelection()
+	if !ok || figure.Node != e.menuFigure {
+		m.EditItems()
+		return
+	}
+	host := bridge.Figures
+	if m.Item("View Image").Chosen() {
+		host.ViewPicture(figure)
+	}
+	m.Separator()
+	if m.Item("Copy Image").Chosen() {
+		host.CopyPicture(figure.Media)
+	}
+	if m.Item("Save Image As…").Chosen() {
+		host.SavePicture(figure.Media)
+	}
+	if m.Item(revealLabel()).Chosen() {
+		host.RevealPicture(figure.Media)
+	}
+	if m.Item("Replace Image…").Chosen() {
+		host.ReplacePicture(figure.Node)
+	}
+	m.Separator()
+	shape := func(change func(*editor.ImageShape)) {
+		_, _ = bridge.Controller.ShapeImage(figure.Node, change)
+	}
+	m.Submenu("Align", func(m *ui.Menu) {
+		if m.Item("Center").Radio(figure.Align == surface.FigureCenter).Chosen() {
+			shape(func(s *editor.ImageShape) { s.Align = surface.FigureCenter })
+		}
+		if m.Item("Start").Radio(figure.Align == surface.FigureStart).Chosen() {
+			shape(func(s *editor.ImageShape) { s.Align = surface.FigureStart })
+		}
+	})
+	if m.Item("Fill Column Width").Checked(figure.Span == 1).Chosen() {
+		shape(func(s *editor.ImageShape) { s.Span = 1 })
+	}
+	if m.Item("Original Size").Disabled(figure.Span == 0).Chosen() {
+		shape(func(s *editor.ImageShape) { s.Span = 0 })
+	}
+	m.Separator()
+	if m.Item("Edit Alt Text…").Chosen() {
+		host.EditAlt(figure.Node, figure.Alt)
+	}
+	m.Separator()
+	if m.Item("Delete Image").Chosen() {
+		_, _ = bridge.Controller.ReplaceSelection("", kernel.EventOriginSemantic)
+	}
+}
+
+// revealLabel names showing a file where it is, as the system does.
+func revealLabel() string {
+	if runtime.GOOS == "darwin" {
+		return "Show in Finder"
+	}
+	return "Show in Folder"
+}
+
+// figureSelection is the figure the selection is, as its whole line.
+func (b *Bridge) figureSelection() (surface.Figure, bool) {
+	if b == nil || b.Controller == nil {
+		return surface.Figure{}, false
+	}
+	flow, err := b.Controller.Session().SurfaceFlow()
+	if err != nil {
+		return surface.Figure{}, false
+	}
+	selection := b.Controller.Selection().Range
+	figure, ok := flow.FigureAt(model.UTF16Offset(selection.Start))
+	if !ok {
+		return surface.Figure{}, false
+	}
+	text := b.Controller.Text()
+	start, _ := b.textOffset(selection.Start)
+	end := len(text)
+	if index := strings.IndexByte(text[start:], '\n'); index >= 0 {
+		end = start + index
+	}
+	if selection.End != selection.Start+model.StringLenUTF16(text[start:end]) {
+		return surface.Figure{}, false
+	}
+	return figure, true
+}
+
+// textOffset is the byte offset of a UTF-16 offset in the page's text.
+func (b *Bridge) textOffset(offset int) (int, bool) {
+	byteOffset, ok := model.UTF16OffsetToByte(b.Controller.Text(), model.UTF16Offset(offset))
+	return int(byteOffset), ok
+}
+
+// copyFigure copies the selected figure's picture, when the selection is
+// one, as Copy copies text.
+func (b *Bridge) copyFigure() bool {
+	if b.Figures == nil {
+		return false
+	}
+	figure, ok := b.figureSelection()
+	if !ok {
+		return false
+	}
+	b.Figures.CopyPicture(figure.Media)
+	return true
+}
+
+// viewSelectedFigure views the selected figure's picture.
+func (b *Bridge) viewSelectedFigure() bool {
+	if b == nil || b.Figures == nil {
+		return false
+	}
+	figure, ok := b.figureSelection()
+	if ok {
+		b.Figures.ViewPicture(figure)
+	}
+	return ok
+}

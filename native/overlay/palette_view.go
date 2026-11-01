@@ -136,19 +136,29 @@ func groupLabel(c *ui.Context, semantic theme.Theme, group string, first bool) {
 
 // foot names the keys the palette takes, each on its caps.
 func (p *CommandPalette) foot(c *ui.Context, semantic theme.Theme) {
+	keyHints(c, semantic, []keyHint{
+		{[]string{"↑", "↓"}, "Up or Down", "Move"},
+		{[]string{"↩"}, "Return", "Run"},
+		{[]string{"esc"}, "Escape", "Close"},
+	})
+}
+
+// keyHint is a key an overlay takes: its caps, their spoken name, and
+// what it does.
+type keyHint struct {
+	keys        []string
+	label, does string
+}
+
+// keyHints names the keys an overlay takes along its foot, each on its
+// caps.
+func keyHints(c *ui.Context, semantic theme.Theme, hints []keyHint) {
 	scale := components.UIFontSize(c)
 	keys := components.KeycapStyle(semantic, scale, true)
 	ui.Row(c).WidthPercent(100).Height(theme.DefaultControls.Scaled(scale).Row).
 		PaddingX(theme.Space16.DIPs(scale)).AlignItems(ui.Center).
 		Gap(theme.Space16.DIPs(scale)).Children(func() {
-		for _, hint := range [...]struct {
-			keys        []string
-			label, does string
-		}{
-			{[]string{"↑", "↓"}, "Up or Down", "Move"},
-			{[]string{"↩"}, "Return", "Run"},
-			{[]string{"esc"}, "Escape", "Close"},
-		} {
+		for _, hint := range hints {
 			ui.Row(c).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Children(func() {
 				components.Keycaps(c, keys, hint.keys, hint.label)
 				components.Label(c, hint.does, theme.TextSmall, semantic.Text.Muted).SingleLine()

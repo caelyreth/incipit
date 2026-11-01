@@ -76,8 +76,14 @@ func (e *Element) figureAt(x, y float32) (textlayout.PlacedFigure, float32, bool
 // elsewhere it selects the figure.
 func (e *Element) pressFigure(event ui.InputEvent) (bool, bool) {
 	figure, side, ok := e.figureAt(event.X, event.Y)
+	e.menuFigure = 0
 	if !ok || event.Mods&ui.Shift != 0 {
 		return false, false
+	}
+	if event.Button != 0 {
+		// A secondary click selects the figure its menu acts on.
+		e.menuFigure = figure.Node
+		side = 0
 	}
 	if side != 0 {
 		e.resizing = &figureResize{
@@ -93,7 +99,13 @@ func (e *Element) pressFigure(event ui.InputEvent) (bool, bool) {
 	}
 	e.pointer = pointerPressed
 	e.pointerAnchor, e.pointerHead = int(figure.Line.Start), int(figure.Line.End)
-	return true, e.Input.Select(e.pointerAnchor, e.pointerHead, event.Time) == nil
+	if err := e.Input.Select(e.pointerAnchor, e.pointerHead, event.Time); err != nil {
+		return true, false
+	}
+	if bridge, ok := e.Input.(*Bridge); ok && event.Clicks == 2 && event.Button == 0 {
+		bridge.viewSelectedFigure()
+	}
+	return true, true
 }
 
 // dragResize follows the pointer with the figure's side.
@@ -192,10 +204,21 @@ func (e *Element) figureKey(event ui.InputEvent) (bool, bool) {
 		return true, true
 	}
 	figure, ok := e.selectedFigure()
-	if !ok || event.Mods != 0 || event.Key != ui.KeyEnter && event.Key != ui.KeyEscape {
+	if !ok || event.Mods != 0 {
 		return false, false
 	}
 	bridge := e.Input.(*Bridge)
+	switch event.Key {
+	case ui.KeySpace:
+		// Space looks at the picture, as in the system's file views.
+		if bridge.viewSelectedFigure() {
+			return true, true
+		}
+		return false, false
+	case ui.KeyEnter, ui.KeyEscape:
+	default:
+		return false, false
+	}
 	end := int(figure.Line.End)
 	if err := bridge.Controller.SetSelection(controller.UTF16Range{Start: end, End: end}); err != nil {
 		return true, false

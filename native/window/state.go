@@ -26,12 +26,16 @@ func (clock) Now() time.Time { return time.Now() }
 
 // AppState owns one main-window notebook and its app-wide settings.
 type AppState struct {
-	Workspace      *workspace.Workspace
-	Store          *policyStore
-	Settings       settings.State
-	Product        appsettings.State
-	Shell          *shell.State
-	Palette        *overlay.CommandPalette
+	Workspace *workspace.Workspace
+	Store     *policyStore
+	Settings  settings.State
+	Product   appsettings.State
+	Shell     *shell.State
+	Palette   *overlay.CommandPalette
+	// AltText asks for a picture's words, and Viewer shows a picture over
+	// the window.
+	AltText        *overlay.AltText
+	Viewer         *overlay.Viewer
 	Element        *documentview.Element
 	Bridge         *documentview.Bridge
 	Session        *sheetSession
@@ -102,6 +106,8 @@ func newAppState(store *storage.Store) (*AppState, error) {
 	app.Shell = shell.New()
 	app.Session = session
 	app.Palette = &overlay.CommandPalette{}
+	app.AltText = &overlay.AltText{}
+	app.Viewer = &overlay.Viewer{}
 	app.Element = documentview.NewElement(
 		nil,
 		theme.DefaultSettings().Semantic(),
@@ -321,6 +327,7 @@ func (a *AppState) mountBridge(c *ui.Context) {
 	a.Bridge = documentview.NewBridge(a.Session.Document(), services, time.Now)
 	a.Bridge.External = a.executeExternalCommand
 	a.Bridge.Images = pictureIntake{app: a}
+	a.Bridge.Figures = figureHost{app: a}
 	a.Element.Input = a.Bridge
 }
 
@@ -686,6 +693,11 @@ func (a *AppState) View(c *ui.Context) {
 			}
 		}
 	}
+	a.AltText.View(c, semantic, animate)
+	if node, alt, ok := a.AltText.ConsumeChoice(); ok && a.Bridge != nil {
+		_, _ = a.Bridge.Controller.ShapeImage(node, func(shape *editor.ImageShape) { shape.Alt = alt })
+	}
+	a.Viewer.View(c, semantic, animate)
 	// What the shell reads off the page, its title and counts, is read
 	// before the shell is built, so header, sidebar and status show this
 	// frame's page.

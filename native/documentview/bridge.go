@@ -35,9 +35,11 @@ type Bridge struct {
 	// Images keeps the pictures a paste or a drop brings; without it the
 	// page takes text alone.
 	Images Images
-	Now    func() time.Time
-	native *NativeTextClient
-	now    time.Time
+	// Figures does what a figure's menu asks that the page cannot.
+	Figures FigureHost
+	Now     func() time.Time
+	native  *NativeTextClient
+	now     time.Time
 }
 
 var (
@@ -181,6 +183,9 @@ func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 	}
 	switch command {
 	case keymap.ClipboardCopy:
+		if b.copyFigure() {
+			return nil
+		}
 		text, err := b.Controller.SelectedText()
 		if err != nil {
 			return err
@@ -188,6 +193,10 @@ func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 		b.Services.WriteClipboard(text)
 		return nil
 	case keymap.ClipboardCut:
+		if b.copyFigure() {
+			_, err := b.Controller.ReplaceSelection("", kernel.EventOriginSemantic)
+			return err
+		}
 		text, err := b.Controller.SelectedText()
 		if err != nil {
 			return err

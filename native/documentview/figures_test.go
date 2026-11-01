@@ -9,7 +9,10 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/app/controller"
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -214,5 +217,55 @@ func TestDraggingASideResizesAFigure(t *testing.T) {
 	tester.Frame()
 	if got := figureBox(t, element); got.Span != 0 || got.Box.W != 200 {
 		t.Fatalf("Escape kept the resize: %+v", got)
+	}
+}
+
+// shownFigures records what a figure's menu and keys ask of the host.
+type shownFigures struct {
+	viewed, copied []string
+}
+
+func (s *shownFigures) ViewPicture(figure surface.Figure) { s.viewed = append(s.viewed, figure.Media) }
+func (s *shownFigures) CopyPicture(media string)          { s.copied = append(s.copied, media) }
+func (s *shownFigures) SavePicture(string)                {}
+func (s *shownFigures) RevealPicture(string)              {}
+func (s *shownFigures) ReplacePicture(model.NodeID)       {}
+func (s *shownFigures) EditAlt(model.NodeID, string)      {}
+
+// A selected figure copies as its picture, Space and a double click view
+// it, and text around it still copies as text.
+func TestASelectedFigureCopiesAndViewsAsAPicture(t *testing.T) {
+	data := redPicture(t)
+	document, element, tester := figurePage(t, func(string) ([]byte, error) { return data, nil })
+	host := &shownFigures{}
+	bridge := element.Input.(*Bridge)
+	bridge.Figures = host
+	bridge.Services = &memoryClipboard{}
+	figure := figureBox(t, element)
+	tester.ClickAt(figureAtScreen(element, figure, figure.Box.W/2))
+	if err := bridge.Execute(keymap.Action{Kind: keymap.ActionClipboard, Clipboard: keymap.ClipboardCopy}); err != nil {
+		t.Fatal(err)
+	}
+	if len(host.copied) != 1 || host.copied[0] != "red" {
+		t.Fatalf("copied %v", host.copied)
+	}
+	element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeySpace})
+	if len(host.viewed) != 1 || document.Text() != "before\n![]\n" {
+		t.Fatalf("Space viewed %v and left %q", host.viewed, document.Text())
+	}
+	x, y := figureAtScreen(element, figure, figure.Box.W/2)
+	element.handleInput(ui.InputEvent{Kind: ui.InputPointerDown, X: x, Y: y, Clicks: 2})
+	element.handleInput(ui.InputEvent{Kind: ui.InputPointerUp, X: x, Y: y})
+	if len(host.viewed) != 2 {
+		t.Fatalf("a double click viewed %v", host.viewed)
+	}
+	if err := document.SetSelection(controller.UTF16Range{Start: 0, End: 6}); err != nil {
+		t.Fatal(err)
+	}
+	if err := bridge.Execute(keymap.Action{Kind: keymap.ActionClipboard, Clipboard: keymap.ClipboardCopy}); err != nil {
+		t.Fatal(err)
+	}
+	if got := bridge.Services.ReadClipboard(); got != "before" || len(host.copied) != 1 {
+		t.Fatalf("text copied as %q, pictures %v", got, host.copied)
 	}
 }
