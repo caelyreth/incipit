@@ -234,6 +234,9 @@ func (s *Session) TabOffer(now time.Time) (TabOffer, bool, error) {
 	if !s.runtime.Configuration().IsEnabled(NavigationPolicyID) {
 		return TabOffer{}, false, nil
 	}
+	if !s.presentation.VisualCollapsed() {
+		return TabOffer{}, false, nil
+	}
 	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
 	if !ok {
 		return TabOffer{}, false, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
@@ -867,7 +870,7 @@ func activeMark(inline *InlineState) *model.MarkID {
 }
 
 func (s *Session) inlineDecorations(node *model.Node) []surface.Decoration {
-	if !s.presentation.Selection.IsCollapsed() {
+	if !s.presentation.VisualCollapsed() {
 		return nil
 	}
 	id := activeMark(s.inline)

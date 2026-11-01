@@ -85,7 +85,7 @@ func (s *Session) guideDecorations(now time.Time, keys GuideKeys) []surface.Deco
 // or emphasis, or back at the last edit. One identity across offer kinds
 // lets the guide glide between destinations instead of blinking.
 func (s *Session) navigationGuides(now time.Time) []Guide {
-	if !s.presentation.Selection.IsCollapsed() {
+	if !s.presentation.VisualCollapsed() {
 		return nil
 	}
 	offer, ok, err := s.TabOffer(now)

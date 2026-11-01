@@ -112,7 +112,7 @@ func (s *Session) currentViewAnchor() (model.UTF16Offset, error) {
 // notation that opens it: the block's structure steps back a level, as
 // its shape's peel says, rather than a character of its notation going.
 func (s *Session) peelBlock() (kernel.Outcome, bool, error) {
-	if !s.presentation.Selection.IsCollapsed() || s.presentation.Selection.Head().Offset() != 0 {
+	if !s.presentation.VisualCollapsed() || s.presentation.Selection.Head().Offset() != 0 {
 		return 0, false, nil
 	}
 	caret := s.presentation.Caret.RangeUTF16().Start

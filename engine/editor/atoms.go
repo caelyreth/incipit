@@ -34,7 +34,7 @@ func (s blockShape) atomic() bool {
 // block does, the caret going to the end of the atomic block's text.
 func (s *Session) guardAtom(backward bool) (kernel.Outcome, bool, error) {
 	selection := s.presentation.Selection
-	if !selection.IsCollapsed() {
+	if !s.presentation.VisualCollapsed() {
 		return 0, false, nil
 	}
 	document := s.runtime.Snapshot().Document()

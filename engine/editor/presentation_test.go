@@ -115,6 +115,39 @@ func TestPresentationRejectsStaleSelection(t *testing.T) {
 	}
 }
 
+func TestPresentationRejectsAnUnprojectableSelectionAnchor(t *testing.T) {
+	t.Parallel()
+	runtime, node := presentationFixture(t, "abc", false)
+	presentation, err := NewPresentation(runtime, node, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := runtime.Snapshot().Document().Root()
+	selection := model.NewTextSelection(
+		model.NewTextAnchor(root, 0, model.AffinityRight, runtime.Revision()),
+		model.NewTextAnchor(node, 0, model.AffinityRight, runtime.Revision()),
+	)
+	if err := presentation.Select(runtime.Snapshot(), selection); err == nil {
+		t.Fatal("selection with an unprojectable anchor was accepted")
+	}
+}
+
+func TestPresentationKeepsCollapsedSemanticCaretOutOfBlockNotation(t *testing.T) {
+	t.Parallel()
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "# Title")
+	node := DocumentBlocks(session.Runtime().Snapshot().Document())[0]
+	selection := model.CollapsedSelection(model.NewTextAnchor(
+		node.ID(), 0, model.AffinityLeft, session.Runtime().Revision(),
+	))
+	if err := session.Select(selection); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.Caret().RangeUTF16(); got != model.EmptyUTF16Range(2) {
+		t.Fatalf("caret = %v, want after the heading notation", got)
+	}
+}
+
 func TestPresentationFlowIsRetainedUntilReplacement(t *testing.T) {
 	t.Parallel()
 	runtime, node := presentationFixture(t, "abc", false)

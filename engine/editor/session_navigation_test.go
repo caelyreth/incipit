@@ -89,3 +89,20 @@ func TestSessionCommandDispatchRejectsUnknownCommands(t *testing.T) {
 		t.Fatalf("unknown command outcome=%v err=%v", outcome, err)
 	}
 }
+
+func TestSessionOffersNoTabWhileMarkerNotationIsSelected(t *testing.T) {
+	t.Parallel()
+	session, _ := newSessionFixture(t, "abc", false)
+	if _, err := session.ExecuteMarkup(MarkupEmphasis); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.SelectProjected(0, 1); err != nil {
+		t.Fatal(err)
+	}
+	if session.Presentation().VisualCollapsed() {
+		t.Fatal("marker-only selection reported visually collapsed")
+	}
+	if _, ok, err := session.TabOffer(time.Unix(1_700_000_000, 0)); err != nil || ok {
+		t.Fatalf("Tab offer while marker selected: ok=%v err=%v", ok, err)
+	}
+}

@@ -158,7 +158,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		}
 		return position{low.Node(), low.Offset()}
 	}
-	collapsed := selection.IsCollapsed()
+	collapsed := s.presentation.VisualCollapsed()
 	lineStart, lineEnd := lineOffsets(text, head.offset)
 	switch command {
 	case TextLeft:

@@ -71,13 +71,25 @@ func (p *Presentation) Select(
 	if err := selection.ValidateDocument(snapshot.Document()); err != nil {
 		return err
 	}
+	if _, err := p.Projection.ProjectAnchor(selection.Anchor()); err != nil {
+		return err
+	}
 	projected, err := p.Projection.ProjectAnchor(selection.Head())
 	if err != nil {
 		return err
 	}
-	caret, err := caretTarget(p.Projection, projected.RangeUTF16().Start, projected.Affinity())
-	if err != nil {
-		return err
+	caret := projected
+	if selection.IsCollapsed() {
+		at := blockNotationRest(p.Projection, projected.RangeUTF16().Start)
+		caret, err = caretTarget(p.Projection, at, projected.Affinity())
+		if err != nil {
+			return err
+		}
+	} else {
+		caret, err = caretTarget(p.Projection, projected.RangeUTF16().Start, projected.Affinity())
+		if err != nil {
+			return err
+		}
 	}
 	p.Selection = selection
 	p.Caret = caret
@@ -140,7 +152,7 @@ func (p *Presentation) ProjectedSelection() (model.UTF16Range, error) {
 		anchor := p.ViewAnchor.RangeUTF16().Start
 		return model.NewUTF16Range(min(anchor, head), max(anchor, head)), nil
 	}
-	if p.Selection.IsCollapsed() {
+	if p.VisualCollapsed() {
 		return model.EmptyUTF16Range(head), nil
 	}
 	anchor, err := p.Projection.ProjectAnchor(p.Selection.Anchor())
@@ -158,11 +170,7 @@ func (p *Presentation) ProjectedState() (projection.Selection, error) {
 	if p == nil || p.Projection == nil {
 		return projection.Selection{}, &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
 	}
-	collapsed := p.Selection.IsCollapsed()
-	if p.ViewAnchor != nil {
-		collapsed = collapsed && p.ViewAnchor.RangeUTF16() == p.Caret.RangeUTF16()
-	}
-	if collapsed {
+	if p.VisualCollapsed() {
 		head, err := p.Projection.CollapsedCaretAddress(p.Caret)
 		if err != nil {
 			return projection.Selection{}, err
@@ -187,6 +195,16 @@ func (p *Presentation) ProjectedState() (projection.Selection, error) {
 		return projection.Selection{}, err
 	}
 	return projection.NewSelection(anchor, head), nil
+}
+
+// VisualCollapsed reports whether the projected selection has no visible
+// extent. A marker-only selection may map to one semantic text offset and
+// still be visibly nonempty.
+func (p Presentation) VisualCollapsed() bool {
+	if p.ViewAnchor != nil {
+		return p.ViewAnchor.RangeUTF16() == p.Caret.RangeUTF16()
+	}
+	return p.Selection.IsCollapsed()
 }
 
 // Install replaces the presentation from a prepared candidate and drops the
