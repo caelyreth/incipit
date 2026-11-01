@@ -136,8 +136,7 @@ func TestCollapsedReplacementAtCaretPreservesVisualCaretIdentity(t *testing.T) {
 	if controller.Caret() != 3 {
 		t.Fatalf("caret before generated-marker insert = %d", controller.Caret())
 	}
-	atCaret := UTF16Range{Start: 3, End: 3}
-	if outcome, err := controller.Replace(&atCaret, "d", kernel.EventOriginTyping); err != nil ||
+	if outcome, err := controller.Replace(nil, "d", kernel.EventOriginTyping); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("caret insert outcome=%v err=%v", outcome, err)
 	}
@@ -146,6 +145,19 @@ func TestCollapsedReplacementAtCaretPreservesVisualCaretIdentity(t *testing.T) {
 	}
 	if controller.Caret() != 4 {
 		t.Fatalf("caret after generated-marker insert = %d", controller.Caret())
+	}
+}
+
+func TestExplicitCollapsedRangeDoesNotReplaceTheSelection(t *testing.T) {
+	controller := newController(t, "abcd")
+	mustSelect(t, controller, 1, 3)
+	range16 := UTF16Range{Start: 3, End: 3}
+	outcome, err := controller.Replace(&range16, "X", kernel.EventOriginTyping)
+	if err != nil || outcome != kernel.OutcomeHandled {
+		t.Fatalf("replace outcome=%v err=%v", outcome, err)
+	}
+	if got := controller.Text(); got != "abcXd" {
+		t.Fatalf("text = %q", got)
 	}
 }
 

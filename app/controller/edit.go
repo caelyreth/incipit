@@ -29,10 +29,9 @@ func (c *DocumentController) Replace(
 		result editor.EditingOutcome
 		err    error
 	)
-	// A collapsed range at the live caret names the selection, matching
-	// Neverland's projected_edit_for_range bridge. This preserves generated
-	// marker caret identity instead of flattening it to an ordinary target.
-	if range16 == nil || (range16.Empty() && range16.Start == c.sourceCaret) {
+	// Only nil names the live selection. An explicit range, collapsed or
+	// not, is the caller's exact intent.
+	if range16 == nil {
 		result, err = c.session.ReplaceSelection(text, origin)
 	} else {
 		normalized := range16.Normalized()
