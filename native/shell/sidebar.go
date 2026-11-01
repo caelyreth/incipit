@@ -291,7 +291,7 @@ func placeKey(place Place) string {
 func (s *State) trashRow(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
 	place := Place{Kind: PlaceTrash}
-	trash := len(s.Library.Sheets(place)) + len(s.Library.TrashedGroups())
+	trash := s.Library.SheetCount(place) + len(s.Library.TrashedGroups())
 	foot := ui.Column(c).WidthPercent(100).Shrink(0).Padding(theme.Space06.DIPs(scale), 0, 0, 0).
 		BorderWidth(1, 0, 0, 0).BorderColor(semantic.Border.Variant)
 	var row ui.Element

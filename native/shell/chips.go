@@ -37,9 +37,9 @@ func (s *State) placeChips(c *ui.Context, semantic theme.Theme, animate bool) {
 	}
 	chips = append(chips,
 		placeChip{place: Place{Kind: PlaceAll}, label: "All", icon: components.IconSheets,
-			count: len(s.Library.Sheets(Place{Kind: PlaceAll}))},
+			count: s.Library.SheetCount(Place{Kind: PlaceAll})},
 		placeChip{place: Place{Kind: PlaceRecent}, label: "Recent", icon: components.IconClock,
-			count: len(s.Library.Sheets(Place{Kind: PlaceRecent}))},
+			count: s.Library.SheetCount(Place{Kind: PlaceRecent})},
 	)
 	// The strip shares the library's width: each chip is its icon's width,
 	// and the chosen one takes the rest. Each rides its own spring, so as

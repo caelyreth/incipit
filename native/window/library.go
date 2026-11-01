@@ -71,6 +71,16 @@ func (a *AppState) sessionFor(sheet library.SheetID) (*sheetSession, bool) {
 	return nil, false
 }
 
+// sessionsBySheet builds an operation-local index. Sessions may be added or
+// removed between frames, so a retained index would need its own lifecycle.
+func (a *AppState) sessionsBySheet() map[library.SheetID]*sheetSession {
+	sessions := make(map[library.SheetID]*sheetSession, len(a.sessions))
+	for _, session := range a.sessions {
+		sessions[library.SheetID(session.key)] = session
+	}
+	return sessions
+}
+
 // fileUnfiled puts every page the library does not file yet in the Inbox,
 // so each page is always somewhere.
 func (a *AppState) fileUnfiled() {
@@ -109,9 +119,13 @@ func (a *AppState) groupItem(group library.Group) shell.GroupItem {
 }
 
 func (a *AppState) sheetItems(sheets []library.Sheet) []shell.SheetItem {
+	return sheetItemsWithSessions(sheets, a.sessionsBySheet())
+}
+
+func sheetItemsWithSessions(sheets []library.Sheet, sessions map[library.SheetID]*sheetSession) []shell.SheetItem {
 	items := make([]shell.SheetItem, 0, len(sheets))
 	for _, sheet := range sheets {
-		session, ok := a.sessionFor(sheet.ID)
+		session, ok := sessions[sheet.ID]
 		if !ok {
 			continue
 		}
@@ -185,15 +199,37 @@ func (a *AppState) Parent(id string) string {
 // Sheets is part of shell.Library.
 func (a *AppState) Sheets(place shell.Place) []shell.SheetItem {
 	switch place.Kind {
+	case shell.PlaceGroup, shell.PlaceAll, shell.PlaceRecent, shell.PlaceTrash:
+		return a.sheetItems(a.sheetsIn(place))
+	default:
+		return nil
+	}
+}
+
+// SheetCount counts only sheets with a session, like Sheets, but avoids
+// composing titles, excerpts and word counts for a badge.
+func (a *AppState) SheetCount(place shell.Place) int {
+	sessions := a.sessionsBySheet()
+	count := 0
+	for _, sheet := range a.sheetsIn(place) {
+		if _, ok := sessions[sheet.ID]; ok {
+			count++
+		}
+	}
+	return count
+}
+
+func (a *AppState) sheetsIn(place shell.Place) []library.Sheet {
+	switch place.Kind {
 	case shell.PlaceGroup:
-		return a.sheetItems(a.library.Sheets(groupOf(place.Group)))
+		return a.library.Sheets(groupOf(place.Group))
 	case shell.PlaceAll:
-		return a.sheetItems(a.library.All())
+		return a.library.All()
 	case shell.PlaceRecent:
-		return a.sheetItems(a.library.Since(time.Now().Add(-recent)))
+		return a.library.Since(time.Now().Add(-recent))
 	case shell.PlaceTrash:
 		_, sheets := a.library.Trash()
-		return a.sheetItems(sheets)
+		return sheets
 	}
 	return nil
 }
@@ -205,6 +241,7 @@ func (a *AppState) Entries(group string) []shell.GroupEntry {
 		return nil
 	}
 	var entries []shell.GroupEntry
+	sessions := a.sessionsBySheet()
 	for _, entry := range a.library.Entries(groupID) {
 		if entry.IsChapter() {
 			chapter, _ := a.library.Chapter(entry.Chapter)
@@ -216,7 +253,7 @@ func (a *AppState) Entries(group string) []shell.GroupEntry {
 			continue
 		}
 		sheet, _ := a.library.Sheet(entry.Sheet)
-		items := a.sheetItems([]library.Sheet{sheet})
+		items := sheetItemsWithSessions([]library.Sheet{sheet}, sessions)
 		if len(items) == 0 {
 			continue
 		}
@@ -232,14 +269,15 @@ func (a *AppState) Entries(group string) []shell.GroupEntry {
 func (a *AppState) Search(query string) []shell.SheetItem {
 	query = strings.ToLower(query)
 	var found []library.Sheet
+	sessions := a.sessionsBySheet()
 	for _, sheet := range a.library.Live() {
-		session, ok := a.sessionFor(sheet.ID)
+		session, ok := sessions[sheet.ID]
 		if ok && (strings.Contains(strings.ToLower(session.Title()), query) ||
 			strings.Contains(strings.ToLower(session.controller.Text()), query)) {
 			found = append(found, sheet)
 		}
 	}
-	return a.sheetItems(found)
+	return sheetItemsWithSessions(found, sessions)
 }
 
 // TrashedGroups is part of shell.Library.

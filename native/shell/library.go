@@ -90,6 +90,8 @@ type Library interface {
 	// Parent is the group a group is in, "" at the top level.
 	Parent(group string) string
 	Sheets(place Place) []SheetItem
+	// SheetCount counts displayable sheets without preparing their row data.
+	SheetCount(place Place) int
 	// Entries is a group's sheets and chapter dividers in their shared
 	// order.
 	Entries(group string) []GroupEntry

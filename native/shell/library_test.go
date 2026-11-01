@@ -75,6 +75,8 @@ func (f *fakeLibrary) Sheets(place Place) []SheetItem {
 	return nil
 }
 
+func (f *fakeLibrary) SheetCount(place Place) int { return len(f.Sheets(place)) }
+
 func (f *fakeLibrary) Entries(group string) []GroupEntry {
 	if f.entries != nil {
 		return f.entries
