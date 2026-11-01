@@ -116,3 +116,70 @@ func TestCollectionRowsDiffAndCheckpointRollback(t *testing.T) {
 		t.Fatalf("row 2 = %#v", rows[1])
 	}
 }
+
+func TestCollectionAccessReturnsIndependentNestedValues(t *testing.T) {
+	store := NewResourceStore([]ResourceDescriptor{{
+		ID: "rows", Lifetime: ResourceSessionLifetime, Kind: ResourceCollection,
+		Initial: CollectionResource(map[RowID]ResourceValue{
+			1: CollectionResource(map[RowID]ResourceValue{2: TextResource("original")}),
+		}),
+	}})
+	draft := store.BeginDraft()
+	effects := NewEffectSet([]ResourceID{"rows"}, []ResourceID{"rows"})
+	read, write := draft.Read(effects), draft.Write(effects)
+	for _, access := range []struct {
+		name string
+		get  func(ResourceID) (ResourceValue, error)
+		rows func(ResourceID) (map[RowID]ResourceValue, error)
+		row  func(ResourceID, RowID) (ResourceValue, bool, error)
+	}{
+		{"read", read.Get, read.Rows, read.Row},
+		{"write", write.Get, write.Rows, write.Row},
+	} {
+		t.Run(access.name, func(t *testing.T) {
+			value, err := access.get("rows")
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows, err := access.rows("rows")
+			if err != nil {
+				t.Fatal(err)
+			}
+			row, ok, err := access.row("rows", 1)
+			if err != nil || !ok {
+				t.Fatalf("row: ok=%v err=%v", ok, err)
+			}
+			value.collection[1].collection[2] = TextResource("changed through get")
+			rows[1].collection[2] = TextResource("changed through rows")
+			row.collection[2] = TextResource("changed through row")
+			stored, ok, err := read.Row("rows", 1)
+			if err != nil || !ok {
+				t.Fatalf("stored row: ok=%v err=%v", ok, err)
+			}
+			child, _ := stored.Row(2)
+			if text, _ := child.Text(); text != "original" {
+				t.Fatalf("stored nested row = %q", text)
+			}
+		})
+	}
+}
+
+func TestCollectionRowLookupDoesNotCloneOtherRows(t *testing.T) {
+	rows := make(map[RowID]ResourceValue, 1024)
+	for id := range 1024 {
+		rows[RowID(id)] = TextResource("value")
+	}
+	read := ResourceRead{
+		values:  map[ResourceID]ResourceValue{"rows": CollectionResource(rows)},
+		effects: NewEffectSet([]ResourceID{"rows"}, nil),
+	}
+	allocations := testing.AllocsPerRun(100, func() {
+		_, ok, err := read.Row("rows", 1)
+		if err != nil || !ok {
+			t.Fatalf("row: ok=%v err=%v", ok, err)
+		}
+	})
+	if allocations > 1 {
+		t.Fatalf("one scalar row lookup allocated %v times", allocations)
+	}
+}

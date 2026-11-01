@@ -7,18 +7,19 @@ type ResourceRead struct {
 }
 
 func (r ResourceRead) Get(id ResourceID) (ResourceValue, error) {
+	value, err := r.lookup(id)
+	return value.Clone(), err
+}
+
+func (r ResourceRead) lookup(id ResourceID) (ResourceValue, error) {
 	if !r.effects.CanRead(id) {
 		return ResourceValue{}, &ResourceError{Kind: ResourceErrorUndeclaredRead, Resource: id}
 	}
-	value, ok := r.values[id]
-	if !ok {
-		return ResourceValue{}, &ResourceError{Kind: ResourceErrorUnknown, Resource: id}
-	}
-	return value.Clone(), nil
+	return lookupResource(r.values, id)
 }
 
 func (r ResourceRead) Rows(id ResourceID) (map[RowID]ResourceValue, error) {
-	value, err := r.Get(id)
+	value, err := r.lookup(id)
 	if err != nil {
 		return nil, err
 	}
@@ -30,12 +31,11 @@ func (r ResourceRead) Rows(id ResourceID) (map[RowID]ResourceValue, error) {
 }
 
 func (r ResourceRead) Row(id ResourceID, row RowID) (ResourceValue, bool, error) {
-	rows, err := r.Rows(id)
+	value, err := r.lookup(id)
 	if err != nil {
 		return ResourceValue{}, false, err
 	}
-	value, ok := rows[row]
-	return value, ok, nil
+	return resourceRow(value, id, row)
 }
 
 // ResourceWrite grants declared reads plus declared writes, journaling every
@@ -46,7 +46,7 @@ type ResourceWrite struct {
 }
 
 func (w *ResourceWrite) Changed(id ResourceID) (bool, error) {
-	if _, err := w.Get(id); err != nil {
+	if _, err := w.lookup(id); err != nil {
 		return false, err
 	}
 	_, changed := w.draft.writes[id]
@@ -54,18 +54,19 @@ func (w *ResourceWrite) Changed(id ResourceID) (bool, error) {
 }
 
 func (w *ResourceWrite) Get(id ResourceID) (ResourceValue, error) {
+	value, err := w.lookup(id)
+	return value.Clone(), err
+}
+
+func (w *ResourceWrite) lookup(id ResourceID) (ResourceValue, error) {
 	if !w.effects.CanRead(id) && !w.effects.CanWrite(id) {
 		return ResourceValue{}, &ResourceError{Kind: ResourceErrorUndeclaredRead, Resource: id}
 	}
-	value, ok := w.draft.values[id]
-	if !ok {
-		return ResourceValue{}, &ResourceError{Kind: ResourceErrorUnknown, Resource: id}
-	}
-	return value.Clone(), nil
+	return lookupResource(w.draft.values, id)
 }
 
 func (w *ResourceWrite) Rows(id ResourceID) (map[RowID]ResourceValue, error) {
-	value, err := w.Get(id)
+	value, err := w.lookup(id)
 	if err != nil {
 		return nil, err
 	}
@@ -77,12 +78,27 @@ func (w *ResourceWrite) Rows(id ResourceID) (map[RowID]ResourceValue, error) {
 }
 
 func (w *ResourceWrite) Row(id ResourceID, row RowID) (ResourceValue, bool, error) {
-	rows, err := w.Rows(id)
+	value, err := w.lookup(id)
 	if err != nil {
 		return ResourceValue{}, false, err
 	}
-	value, ok := rows[row]
-	return value, ok, nil
+	return resourceRow(value, id, row)
+}
+
+func lookupResource(values map[ResourceID]ResourceValue, id ResourceID) (ResourceValue, error) {
+	value, ok := values[id]
+	if !ok {
+		return ResourceValue{}, &ResourceError{Kind: ResourceErrorUnknown, Resource: id}
+	}
+	return value, nil
+}
+
+func resourceRow(value ResourceValue, id ResourceID, row RowID) (ResourceValue, bool, error) {
+	if value.Kind() != ResourceCollection {
+		return ResourceValue{}, false, &ResourceError{Kind: ResourceErrorNotCollection, Resource: id}
+	}
+	result, ok := value.Row(row)
+	return result, ok, nil
 }
 
 func (w *ResourceWrite) Set(id ResourceID, value ResourceValue) error {
