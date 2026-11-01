@@ -172,6 +172,9 @@ func (s *Session) SurfaceFrame(now time.Time, keys GuideKeys) (*surface.Frame, e
 
 // Select installs a validated semantic selection.
 func (s *Session) Select(selection model.TextSelection) error {
+	if _, active := s.composition.Preview(); active {
+		return ErrCompositionActive
+	}
 	if err := s.presentation.Select(s.runtime.Snapshot(), selection); err != nil {
 		return err
 	}
@@ -183,6 +186,9 @@ func (s *Session) Select(selection model.TextSelection) error {
 
 // SelectProjected installs a projected visual selection.
 func (s *Session) SelectProjected(anchor, head model.UTF16Offset) error {
+	if _, active := s.composition.Preview(); active {
+		return ErrCompositionActive
+	}
 	if err := s.presentation.SelectProjected(s.runtime.Snapshot(), anchor, head); err != nil {
 		return err
 	}
@@ -743,6 +749,9 @@ func (s *Session) historyFrame() (Frame, bool) {
 func (s *Session) Reconfigure(
 	operation func(*kernel.PolicyConfiguration) error,
 ) (kernel.ConfigurationOutcome[struct{}], error) {
+	if _, active := s.composition.Preview(); active {
+		return kernel.ConfigurationOutcome[struct{}]{}, ErrCompositionActive
+	}
 	s.history.ConfigurationChanged()
 	visualState, visualErr := s.ProjectedState()
 	var candidate Presentation

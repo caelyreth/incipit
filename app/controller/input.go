@@ -69,12 +69,7 @@ func (c *DocumentController) SetMarkedText(
 			c.recordNativeError(fmt.Errorf("controller: invalid marked selection: %w", err))
 			return
 		}
-		if err := c.session.UpdateComposition(preview); err != nil {
-			c.recordNativeError(err)
-			return
-		}
-		c.preedit.selected = selected
-		if err := c.refreshPreview(); err != nil {
+		if err := c.updatePreedit(preview, selected); err != nil {
 			c.recordNativeError(err)
 			return
 		}
@@ -169,11 +164,7 @@ func (c *DocumentController) commitPreedit(
 			return kernel.OutcomePass, c.fail(err)
 		}
 		end := model.StringLenUTF16(preview)
-		if err := c.session.UpdateComposition(preview); err != nil {
-			return kernel.OutcomePass, c.fail(err)
-		}
-		c.preedit.selected = UTF16Range{Start: end, End: end}
-		if err := c.refreshPreview(); err != nil {
+		if err := c.updatePreedit(preview, UTF16Range{Start: end, End: end}); err != nil {
 			return kernel.OutcomePass, c.fail(err)
 		}
 	}
@@ -207,6 +198,24 @@ func (c *DocumentController) commitPreedit(
 	}
 	c.lastError = ErrPolicyDeclined
 	return outcome, nil
+}
+
+// updatePreedit stages composition text and marked selection together. A
+// preview failure restores the prior composition and selection instead of
+// leaving hidden state ahead of the visible frame.
+func (c *DocumentController) updatePreedit(preview string, selected UTF16Range) error {
+	before := c.session.Composition().Clone()
+	previousSelected := c.preedit.selected
+	if err := c.session.UpdateComposition(preview); err != nil {
+		return err
+	}
+	c.preedit.selected = selected
+	if err := c.refreshPreview(); err != nil {
+		c.session.Composition().Restore(before)
+		c.preedit.selected = previousSelected
+		return err
+	}
+	return nil
 }
 
 func (c *DocumentController) updatedPreview(

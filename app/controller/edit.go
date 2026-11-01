@@ -188,11 +188,17 @@ func (c *DocumentController) SetSelection(range16 UTF16Range) error {
 			Start: range16.Start - marked.Start,
 			End:   range16.End - marked.Start,
 		}
-		if err := c.validateTextRange(c.text, relative); err != nil {
+		composition, ok := c.session.Composition().Preview()
+		if !ok {
+			return c.fail(ErrNoComposition)
+		}
+		if err := c.validateTextRange(composition.Text(), relative); err != nil {
 			return c.fail(err)
 		}
+		previous := c.preedit.selected
 		c.preedit.selected = relative
 		if err := c.refreshPreview(); err != nil {
+			c.preedit.selected = previous
 			return c.fail(err)
 		}
 		c.setStatus(kernel.OutcomeHandled, false, nil)

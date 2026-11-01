@@ -129,3 +129,38 @@ func TestPreviewPreservesSurroundingRuns(t *testing.T) {
 		t.Fatal("preview mutated source")
 	}
 }
+
+func TestPreviewRemapsFigureMetadata(t *testing.T) {
+	t.Parallel()
+	text := "intro\n" + FigureObject + "\ncaption"
+	flow, err := NewFlow(
+		projection.NewVersion(1, 1),
+		text,
+		[]StyleRun{{
+			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
+			Style: TextStyle{},
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := model.UTF16Offset(model.StringLenUTF16("intro\n"))
+	flow, err = flow.WithFigures([]Figure{{
+		At: at, Node: 2, Media: "media/1", Width: 100, Height: 50,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame, err := NewFrame(flow, model.EmptyUTF16Range(at), at, TextStyle{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview, err := frame.WithPreview(model.EmptyUTF16Range(0), "x", model.EmptyUTF16Range(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	figures := preview.Flow().Figures()
+	if len(figures) != 1 || figures[0].At != at+1 || figures[0].Media != "media/1" {
+		t.Fatalf("preview figures = %#v", figures)
+	}
+}

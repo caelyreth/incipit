@@ -8,6 +8,10 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
+// ErrCrossBlockComposition rejects preedit that would replace more than one
+// semantic block. A span composition needs its own explicit target model.
+var ErrCrossBlockComposition = errors.New("editor: composition cannot span blocks")
+
 // Composition is transient preedit text bound to the semantic target captured
 // when composition began. It never enters document storage.
 type Composition struct {
@@ -43,6 +47,20 @@ type CompositionState struct {
 	selection   projection.Selection
 	range16     model.UTF16Range
 	version     projection.Version
+}
+
+// Clone returns an independent copy for staged controller updates.
+func (s CompositionState) Clone() CompositionState {
+	if s.composition != nil {
+		composition := *s.composition
+		s.composition = &composition
+	}
+	return s
+}
+
+// Restore installs a previously cloned state.
+func (s *CompositionState) Restore(other CompositionState) {
+	*s = other.Clone()
 }
 
 // NewCompositionState creates an idle composition state.
@@ -125,6 +143,9 @@ func (s *CompositionState) Begin(
 	semanticEnd, err := proj.SemanticAnchor(target.RangeUTF16().End, model.AffinityLeft)
 	if err != nil {
 		return err
+	}
+	if semanticStart.Node() != semanticEnd.Node() {
+		return ErrCrossBlockComposition
 	}
 	semanticRange := model.NewUTF16Range(
 		min(semanticStart.OffsetUTF16(), semanticEnd.OffsetUTF16()),

@@ -159,6 +159,29 @@ func (f *Frame) WithPreview(
 	if err != nil {
 		return nil, err
 	}
+	figures := make([]Figure, 0, len(f.flow.figures))
+	delta := model.UTF16Offset(model.StringLenUTF16(text) - original.Len())
+	for _, figure := range f.flow.figures {
+		at := figure.At
+		switch {
+		case at < original.Start:
+		case at >= original.End:
+			at += delta
+		default:
+			continue
+		}
+		if at != 0 && !flow.lineStart(at) {
+			continue
+		}
+		figure.At = at
+		figures = append(figures, figure)
+	}
+	if len(figures) > 0 {
+		flow, err = flow.WithFigures(figures)
+		if err != nil {
+			return nil, err
+		}
+	}
 	marked := model.NewUTF16Range(
 		original.Start,
 		original.Start+model.UTF16Offset(model.StringLenUTF16(text)),

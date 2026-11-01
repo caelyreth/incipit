@@ -170,3 +170,33 @@ func TestCompositionRejectsInvalidOrOverlappingStartsWithoutState(t *testing.T) 
 		}
 	}
 }
+
+func TestCompositionRejectsCrossBlockTargets(t *testing.T) {
+	document, blocks, err := NewBlockDocument("a\nb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := sessionFor(t, document, blocks[0])
+	target, err := session.Projection().Target(model.NewUTF16Range(1, 3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Composition().Begin(
+		session.Projection(),
+		target,
+		session.Runtime().Snapshot().Document(),
+	); !errors.Is(err, ErrCrossBlockComposition) {
+		t.Fatalf("cross-block composition error = %v", err)
+	}
+}
+
+func TestSessionSelectionWaitsForComposition(t *testing.T) {
+	session, _ := newSessionFixture(t, "abc", false)
+	if err := session.BeginComposition(); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.SelectProjected(1, 1); !errors.Is(err, ErrCompositionActive) {
+		t.Fatalf("selection during composition = %v", err)
+	}
+	session.CancelComposition()
+}

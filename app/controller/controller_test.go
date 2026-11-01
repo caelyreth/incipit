@@ -213,6 +213,30 @@ func TestSelectedTextDuringCompositionReadsTheVisiblePreedit(t *testing.T) {
 	}
 }
 
+func TestSetSelectionDuringCompositionUsesPreeditCoordinates(t *testing.T) {
+	controller := newController(t, "🦀abc")
+	mustSelect(t, controller, 2, 2)
+	controller.SetMarkedText(nil, "XYZ", UTF16Range{Start: 0, End: 0})
+	if err := controller.SetSelection(UTF16Range{Start: 3, End: 4}); err != nil {
+		t.Fatal(err)
+	}
+	if got := controller.Selection().Range; got != (UTF16Range{Start: 3, End: 4}) {
+		t.Fatalf("preedit selection = %#v", got)
+	}
+}
+
+func TestInvalidPreeditSelectionRollsBack(t *testing.T) {
+	controller := newController(t, "ab")
+	mustSelect(t, controller, 1, 1)
+	controller.SetMarkedText(nil, "🦀", UTF16Range{Start: 0, End: 0})
+	if err := controller.SetSelection(UTF16Range{Start: 1, End: 2}); err == nil {
+		t.Fatal("split-surrogate preedit selection accepted")
+	}
+	if got := controller.Selection().Range; got != (UTF16Range{Start: 1, End: 1}) {
+		t.Fatalf("selection after failed update = %#v", got)
+	}
+}
+
 func TestSuccessfulNativeReplacementClearsPriorError(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "abc")
@@ -538,7 +562,7 @@ func TestDeclinedCompositionRetainsPreviewAndRecordsError(t *testing.T) {
 	}
 }
 
-func TestStaleCompositionFailureRetainsPreviewForCancellation(t *testing.T) {
+func TestReconfigurationWaitsForComposition(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "abc")
 	mustSelect(t, controller, 1, 1)
@@ -548,22 +572,14 @@ func TestStaleCompositionFailureRetainsPreviewForCancellation(t *testing.T) {
 	if _, err := controller.Session().Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
 		configuration.SetEnabled(editor.WritingPolicyID, false)
 		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	controller.Refresh()
-	outcome, err := controller.CommitComposition(nil, nil)
-	if err == nil || outcome != kernel.OutcomePass {
-		t.Fatalf("stale commit outcome=%v err=%v", outcome, err)
-	}
-	if controller.LastError() == nil {
-		t.Fatal("stale commit did not record an error")
+	}); !errors.Is(err, editor.ErrCompositionActive) {
+		t.Fatalf("session reconfiguration during composition = %v", err)
 	}
 	if !controller.IsComposing() {
-		t.Fatal("stale commit cleared composition")
+		t.Fatal("reconfiguration cleared composition")
 	}
 	if controller.Text() != preview {
-		t.Fatalf("stale preview = %q, want %q", controller.Text(), preview)
+		t.Fatalf("preview after reconfiguration = %q, want %q", controller.Text(), preview)
 	}
 	controller.CancelComposition()
 	if controller.Text() != "abc" || controller.IsComposing() {
