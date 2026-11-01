@@ -2,9 +2,9 @@ package controller
 
 import (
 	"fmt"
-	"github.com/caelyreth/neverland/engine/editor"
 	"time"
 
+	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
 )
@@ -87,24 +87,11 @@ func (c *DocumentController) refreshPreview() error {
 }
 
 func (c *DocumentController) sourceEditableSpan() (UTF16Range, error) {
-	node := c.session.Selection().Node()
-	first := -1
-	last := -1
-	for _, segment := range c.session.Projection().Segments() {
-		target, ok := segment.SemanticTarget()
-		if !ok || target.Node() != node {
-			continue
-		}
-		projected := segment.ProjectedRange()
-		if first < 0 {
-			first = int(projected.Start)
-		}
-		last = int(projected.End)
+	span, err := c.session.TextSpan()
+	if err != nil {
+		return UTF16Range{}, fmt.Errorf("controller: document span has no correspondence: %w", err)
 	}
-	if first < 0 || last < first {
-		return UTF16Range{}, fmt.Errorf("controller: document span has no correspondence")
-	}
-	return UTF16Range{Start: first, End: last}, nil
+	return UTF16Range{Start: int(span.Start), End: int(span.End)}, nil
 }
 
 func (c *DocumentController) recordActivity() {

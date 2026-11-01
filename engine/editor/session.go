@@ -217,22 +217,25 @@ func (s *Session) TextSpan() (model.UTF16Range, error) {
 		return model.UTF16Range{}, &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
 	}
 	nodeID := s.presentation.Selection.Node()
-	first, last := -1, -1
-	for index, segment := range s.presentation.Projection.Segments() {
+	var span model.UTF16Range
+	found := false
+	s.presentation.Projection.EachSegment(func(_ int, segment projection.Segment) bool {
 		target, ok := segment.SemanticTarget()
 		if !ok || target.Node() != nodeID {
-			continue
+			return true
 		}
-		if first < 0 {
-			first = index
+		projected := segment.ProjectedRange()
+		if !found {
+			span.Start = projected.Start
+			found = true
 		}
-		last = index
-	}
-	if first < 0 || last < 0 {
+		span.End = projected.End
+		return true
+	})
+	if !found {
 		return model.UTF16Range{}, &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
 	}
-	segments := s.presentation.Projection.Segments()
-	return model.NewUTF16Range(segments[first].ProjectedRange().Start, segments[last].ProjectedRange().End), nil
+	return span, nil
 }
 
 // TabOffer returns the current scope/return navigation offer.
