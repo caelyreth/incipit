@@ -154,6 +154,20 @@ func figureAtScreen(element *Element, figure textlayout.PlacedFigure, x float32)
 	return figure.Box.X + x, figure.Box.Y + element.TopInset - element.visibleScroll() + figure.Box.H/2
 }
 
+func TestFigureCursor(t *testing.T) {
+	data := redPicture(t)
+	_, element, tester := figurePage(t, func(string) ([]byte, error) { return data, nil })
+	figure := figureBox(t, element)
+	tester.Move(figureAtScreen(element, figure, figure.Box.W/2))
+	if cursor := tester.Cursor(); cursor != ui.CursorDefault {
+		t.Fatalf("over a figure the cursor is %v, want default", cursor)
+	}
+	tester.Move(figureAtScreen(element, figure, figure.Box.W-2))
+	if cursor := tester.Cursor(); cursor != ui.CursorResizeEW {
+		t.Fatalf("over a figure's edge the cursor is %v, want horizontal resize", cursor)
+	}
+}
+
 // A click on a figure selects its whole line; Return then goes on below
 // it, keeping it, and Escape leaves it with the caret after it.
 func TestAClickSelectsAFigure(t *testing.T) {

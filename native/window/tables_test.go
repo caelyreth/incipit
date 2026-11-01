@@ -113,6 +113,44 @@ func tableWidths(t *testing.T, app *AppState) []float32 {
 	return flow.Tables()[0].Widths
 }
 
+func TestColumnBorderCursor(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	typeText(t, app, "Before the table\n| Name | Born | Field |\nAda Lovelace wrote the first program for a machine that did not yet exist")
+	frames(tester, 40)
+	tester.Move(900, 225)
+	frames(tester, 10)
+	if cursor := tester.Cursor(); cursor != ui.CursorText {
+		t.Fatalf("over a cell the cursor is %v, want text", cursor)
+	}
+	tester.Move(992, 225)
+	frames(tester, 10)
+	if cursor := tester.Cursor(); cursor != ui.CursorResizeEW {
+		t.Fatalf("over a column border the cursor is %v, want horizontal resize", cursor)
+	}
+	tester.Press(992, 225)
+	tester.Move(980, 225)
+	if cursor := tester.Cursor(); cursor != ui.CursorResizeEW {
+		t.Fatalf("resizing a column the cursor is %v, want horizontal resize", cursor)
+	}
+	tester.Key(0, ui.KeyEscape)
+	tester.Release(980, 225)
+	tester.Move(900, 225)
+	frames(tester, 10)
+	if cursor := tester.Cursor(); cursor != ui.CursorText {
+		t.Fatalf("leaving the border the cursor is %v, want text", cursor)
+	}
+	tester.Move(1202, 225)
+	frames(tester, 10)
+	if cursor := tester.Cursor(); cursor != ui.CursorResizeEW {
+		t.Fatalf("over the table edge the cursor is %v, want horizontal resize", cursor)
+	}
+}
+
 // A border between two columns trades width between them as it is
 // dragged, the caret staying where it was; Escape puts a drag back, the
 // table's edge sizes its last column with the others kept as they show,

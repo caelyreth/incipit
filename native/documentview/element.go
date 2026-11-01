@@ -172,6 +172,10 @@ func (e *Element) View(c *ui.Context) {
 		Label(e.label()).
 		Value(e.value()).
 		Focusable()
+	if client != nil {
+		// Text input sets the default cursor; figure and table hit tests override it.
+		box.HandleTextInput(client)
+	}
 	if e.focusPending {
 		if e.AutoFocus && !e.mounted {
 			box.AutoFocus()
@@ -214,9 +218,6 @@ func (e *Element) View(c *ui.Context) {
 		Draw(func(p *ui.Painter, rect ui.Rect) {
 			e.paint(p, rect, box.Focused(), animate)
 		})
-	if client != nil {
-		box.HandleTextInput(client)
-	}
 }
 
 // Paint draws the document into rect from another element's drawing, as a
