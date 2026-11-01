@@ -165,14 +165,14 @@ func TestAClickSelectsAFigure(t *testing.T) {
 	if !element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEscape}) {
 		t.Fatal("Escape was not taken")
 	}
-	// The caret stays on the line, at the caption's end, inside its fence.
-	if got := document.Selection(); !got.Range.Empty() || got.Caret() != int(figure.Line.End)-1 {
+	// The caret stays on the line, at the caption's end.
+	if got := document.Selection(); !got.Range.Empty() || got.Caret() != int(figure.Line.End) {
 		t.Fatalf("Escape left the selection at %+v", got)
 	}
 	tester.ClickAt(figureAtScreen(element, figure, figure.Box.W/2))
 	element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEnter})
 	tester.Frame()
-	if got := document.Text(); got != "before\n![]\n\n" {
+	if got := document.Text(); got != "before\n\uFFFC\n\n" {
 		t.Fatalf("Return on a figure left %q", got)
 	}
 	if len(element.current.Figures()) != 1 {
@@ -250,7 +250,7 @@ func TestASelectedFigureCopiesAndViewsAsAPicture(t *testing.T) {
 		t.Fatalf("copied %v", host.copied)
 	}
 	element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeySpace})
-	if len(host.viewed) != 1 || document.Text() != "before\n![]\n" {
+	if len(host.viewed) != 1 || document.Text() != "before\n\uFFFC\n" {
 		t.Fatalf("Space viewed %v and left %q", host.viewed, document.Text())
 	}
 	x, y := figureAtScreen(element, figure, figure.Box.W/2)
@@ -267,5 +267,44 @@ func TestASelectedFigureCopiesAndViewsAsAPicture(t *testing.T) {
 	}
 	if got := bridge.Services.ReadClipboard(); got != "before" || len(host.copied) != 1 {
 		t.Fatalf("text copied as %q, pictures %v", got, host.copied)
+	}
+}
+
+// The caret in an empty caption brings its hint in after it, fading, and
+// leaving takes it away.
+func TestAnEmptyCaptionHintsWhileTheCaretIsInIt(t *testing.T) {
+	data := redPicture(t)
+	document, element, tester := figurePage(t, func(string) ([]byte, error) { return data, nil })
+	figure := figureBox(t, element)
+	caret := element.current.Caret(figure.Line.End)
+	top := caret.Y + element.TopInset - element.visibleScroll()
+	inked := func() int {
+		count := 0
+		image := tester.Image()
+		for y := top; y < top+caret.H; y++ {
+			for x := caret.X + 4; x < caret.X+60; x++ {
+				if image.RGBAAt(int(x), int(y)) != image.RGBAAt(2, int(y)) {
+					count++
+				}
+			}
+		}
+		return count
+	}
+	tester.Advance(time.Second)
+	tester.Frame()
+	if inked() != 0 {
+		t.Fatal("the hint showed with the caret elsewhere")
+	}
+	if err := document.SetSelection(controller.UTF16Range{Start: int(figure.Line.End), End: int(figure.Line.End)}); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if inked() != 0 {
+		t.Fatal("the hint showed at once rather than fading in")
+	}
+	tester.Advance(time.Second)
+	tester.Frame()
+	if inked() == 0 {
+		t.Fatal("an empty caption shows no hint")
 	}
 }

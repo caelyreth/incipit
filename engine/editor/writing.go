@@ -7,6 +7,7 @@ import (
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 )
 
 // The Writing Profile is the CommonMark-shaped syntax the writing policy
@@ -263,7 +264,7 @@ func blockNotation(shape blockShape, ordinal int) (open, close string) {
 	case RuleNode:
 		return "---", ""
 	case ImageNode:
-		return "![", "]"
+		return surface.FigureObject, ""
 	}
 	return "", ""
 }

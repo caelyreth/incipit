@@ -18,7 +18,8 @@ import (
 // as light as the page from bleeding into it. Selected as a whole, as a
 // click on it selects its line, it wears the accent's ring, as the lists'
 // menus ring what they act on; inside a larger selection, it takes the
-// selection's tint.
+// selection's tint. While the caret is in a caption still empty, a hint
+// fades in after it, as an empty page's does.
 
 const (
 	figureFade = float32(14)
@@ -26,6 +27,9 @@ const (
 	// in DIPs.
 	figureRingOutset = 3
 	figureRingWidth  = 2
+	// figureCaptionHint is what an empty caption shows while the caret is
+	// in it.
+	figureCaptionHint = "Caption"
 )
 
 // FigureMotion keeps each figure's fade and ring across frames, by its
@@ -35,8 +39,8 @@ type FigureMotion struct {
 }
 
 type figureTrack struct {
-	shown, ring, grips motion.Spring
-	seen               bool
+	shown, ring, grips, hint motion.Spring
+	seen                     bool
 }
 
 // Reset forgets every figure's motion, so each shows settled.
@@ -102,12 +106,16 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 		box.X += rect.X
 		box.Y += rect.Y + state.TopInset - state.ScrollY
 		bitmap, picture := state.Pictures.Picture(figure.Media, now)
-		shown, ring, grips := float32(0), float32(0), float32(0)
+		shown, ring, grips, hint := float32(0), float32(0), float32(0), float32(0)
 		if picture == PictureReady {
 			shown = 1
 		}
 		if figureSelected(figure, selection) && options.Focused {
 			ring = 1
+		}
+		// The line is only the picture's character while it has no caption.
+		if options.Focused && selection.Empty() && selection.Start == figure.Line.End && figure.Line.Len() == 1 {
+			hint = 1
 		}
 		resizing := state.Resizing != nil && state.Resizing.node == figure.Node
 		if resizing || ring > 0 || state.HoverFigure.ok && state.HoverFigure.node == figure.Node {
@@ -121,6 +129,7 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 				shown: motion.NewSpring(shown, now),
 				ring:  motion.NewSpring(0, now),
 				grips: motion.NewSpring(0, now),
+				hint:  motion.NewSpring(0, now),
 			}
 			motionState.tracks[key] = track
 		}
@@ -129,11 +138,15 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 			track.shown.Step(shown, now, figureFade)
 			track.ring.Step(ring, now, figureFade)
 			track.grips.Step(grips, now, figureFade)
+			track.hint.Step(hint, now, figureFade)
 		} else {
 			track.shown, track.ring = motion.NewSpring(shown, now), motion.NewSpring(ring, now)
-			track.grips = motion.NewSpring(grips, now)
+			track.grips, track.hint = motion.NewSpring(grips, now), motion.NewSpring(hint, now)
 		}
-		moving = moving || track.shown.Moving() || track.ring.Moving() || track.grips.Moving()
+		moving = moving || track.shown.Moving() || track.ring.Moving() || track.grips.Moving() || track.hint.Moving()
+		if alpha := track.hint.Value(); alpha > 0.001 {
+			drawCaptionHint(p, rect, state, figure, alpha)
+		}
 		if box.Y+box.H+figureRingOutset < visible.Y || box.Y-figureRingOutset > visible.Y+visible.H {
 			continue
 		}
@@ -190,6 +203,16 @@ func drawFigure(
 		p.ImageRegion(bitmap, ui.Rect{}, box, ui.ImageOptions{Tint: ui.Color{R: 255, G: 255, B: 255, A: 255}.Alpha(shown)})
 	})
 	p.Stroke(box, state.Theme.Prose.Subtle.Alpha(shown), radius, 1)
+}
+
+// drawCaptionHint shows an empty caption's hint after the caret, in the
+// caption's face, as quiet as an empty page's.
+func drawCaptionHint(p *ui.Painter, rect ui.Rect, state *State, figure textlayout.PlacedFigure, alpha float32) {
+	caret := state.Layout.Caret(figure.Line.End)
+	span := state.Layout.SpanAt(figure.At, figureCaptionHint)
+	span.Color = state.Theme.Text.Muted.Alpha(0.65 * alpha)
+	_, height := p.MeasureText(0, span)
+	p.RichText(rect.X+caret.X, rect.Y+state.TopInset-state.ScrollY+caret.Y+(caret.H-height)/2, 0, span)
 }
 
 // drawGrips paints the grips on the sides a figure resizes from: both of

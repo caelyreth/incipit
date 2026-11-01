@@ -444,10 +444,13 @@ func resolveRangeProjectedEdit(
 		}
 	}
 
+	// What replaces a block's notation along with its text is text: the
+	// notation goes, as a whole line typed over goes to a paragraph.
 	markerNotation := selectedAttributeSegments == 1 &&
 		replacementUnits != 0 &&
 		len(attributes) == 1 &&
-		notationAccepts(attributes[0].target.Key(), edit.Replacement)
+		notationAccepts(attributes[0].target.Key(), edit.Replacement) &&
+		(selectedText == nil || MarkerKeyIsInline(attributes[0].target.Key()))
 	attributeInputs := make([]input.AttributeInput, 0, len(attributes))
 	for index, selection := range attributes {
 		replacement := ""

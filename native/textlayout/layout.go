@@ -50,6 +50,21 @@ func (l *Layout) Paragraphs() []Paragraph {
 	return append([]Paragraph(nil), l.paragraphs...)
 }
 
+// SpanAt is text as the flow sets its own at offset, its face and size,
+// for what shows in its place, as a hint does.
+func (l *Layout) SpanAt(offset model.UTF16Offset, text string) ui.Span {
+	at, _ := model.UTF16OffsetToByte(l.flow.Text(), offset)
+	run := surface.StyleRun{}
+	l.flow.EachRun(func(candidate surface.StyleRun) bool {
+		if candidate.Bytes.Start <= at && at < candidate.Bytes.End {
+			run = candidate
+			return false
+		}
+		return true
+	})
+	return l.style.span(text, run)
+}
+
 // Cache retains MyGo paragraph layouts by content and style. A changed
 // paragraph reshapes alone; unchanged paragraphs, including duplicate content
 // within the document, reuse their immutable layouts.
@@ -105,13 +120,16 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		}
 		top += above
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
-		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width, align)
+		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width, align, hasFigure)
 		var layout *ui.TextLayout
 		if available := c.layouts[key]; len(available) > 0 {
 			layout = available[len(available)-1]
 			c.layouts[key] = available[:len(available)-1]
 		} else {
 			spans := spansFor(flow, raw.startByte, raw.endByte, style)
+			if hasFigure {
+				spans = figureObject(spans)
+			}
 			layout = ui.ShapeRichTextWith(spans, font, ui.TextShape{Width: width, Align: align})
 		}
 		next[key] = append(next[key], layout)
@@ -229,6 +247,7 @@ func paragraphKey(
 	font ui.Font,
 	width float32,
 	align ui.Align,
+	figure bool,
 ) uint64 {
 	const (
 		fnvOffset64 = uint64(14695981039346656037)
@@ -254,7 +273,7 @@ func paragraphKey(
 		})
 	}
 	writeFloat(width)
-	writeBytes([]byte{byte(align)})
+	writeBytes([]byte{byte(align), boolByte(figure)})
 	writeFloat(font.Size)
 	writeFloat(font.LineHeight)
 	writeString(font.Family)

@@ -3,11 +3,13 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 )
 
 // Replace performs one projected edit in an optional native range. A nil
@@ -90,7 +92,8 @@ func (c *DocumentController) SelectedText() (string, error) {
 	if int(aligned.Start) != selection.Start || int(aligned.End) != selection.End {
 		return "", c.fail(fmt.Errorf("%w: selection does not align to text", ErrInvalidUTF16Range))
 	}
-	return c.text[int(bytes.Start):int(bytes.End)], nil
+	// The character a picture stands on is no text of its own.
+	return strings.ReplaceAll(c.text[int(bytes.Start):int(bytes.End)], surface.FigureObject, ""), nil
 }
 
 // SelectSemantic installs a version-valid semantic selection.

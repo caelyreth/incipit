@@ -11,6 +11,9 @@ import (
 
 var sunset = ImageShape{Media: "ab12", Width: 800, Height: 600, Alt: "A sunset"}
 
+// pic is the character a picture stands on, as a page's text shows it.
+const pic = surface.FigureObject
+
 // imagePage is a page of a paragraph, a captioned image and a paragraph.
 func imagePage(t *testing.T) *Session {
 	t.Helper()
@@ -21,7 +24,7 @@ func imagePage(t *testing.T) *Session {
 	}
 	typeSession(t, session, "after")
 	text := session.Projection().Text()
-	at(t, session, model.UTF16Offset(strings.Index(text, "![")+2))
+	at(t, session, model.UTF16Offset(strings.Index(text, pic)+1))
 	typeSession(t, session, "Dusk")
 	return session
 }
@@ -40,7 +43,7 @@ func figures(t *testing.T, session *Session) []surface.Figure {
 func TestAnImageGoesOnThePageAboveItsCaption(t *testing.T) {
 	session := imagePage(t)
 	expectKinds(t, session, ParagraphNode, ImageNode, ParagraphNode)
-	expectPage(t, session, "before\n![Dusk|]\nafter", "before", "Dusk", "after")
+	expectPage(t, session, "before\n"+pic+"Dusk|\nafter", "before", "Dusk", "after")
 	shown := figures(t, session)
 	if len(shown) != 1 {
 		t.Fatalf("figures = %+v", shown)
@@ -60,7 +63,7 @@ func TestAnImageTakesAnEmptyParagraph(t *testing.T) {
 		t.Fatal(err)
 	}
 	expectKinds(t, session, ImageNode, ParagraphNode)
-	expectPage(t, session, "![]\n|", "", "")
+	expectPage(t, session, pic+"\n|", "", "")
 }
 
 // Return in a caption opens a paragraph, never another picture; nor does a
@@ -78,21 +81,40 @@ func TestACaptionBreaksIntoParagraphs(t *testing.T) {
 		t.Fatal(err)
 	}
 	expectKinds(t, session, ParagraphNode, ImageNode, ParagraphNode, ParagraphNode)
-	expectPage(t, session, "before\n![Duskone]\ntwo|\nafter", "before", "Duskone", "two", "after")
+	expectPage(t, session, "before\n"+pic+"Duskone\ntwo|\nafter", "before", "Duskone", "two", "after")
 }
 
-// Backspace at a caption's start peels the picture away, as it peels any
-// block's notation, leaving the caption; undo brings the picture back.
-func TestPeelingAnImageLeavesItsCaption(t *testing.T) {
+// Backspace at a caption's start, or Delete at the end of the block
+// above, selects the picture rather than taking it away; deleting it then
+// leaves an empty line, and undo brings it back.
+func TestDeletingTowardAPictureSelectsItFirst(t *testing.T) {
 	session := imagePage(t)
 	text := session.Projection().Text()
-	at(t, session, model.UTF16Offset(strings.Index(text, "Dusk")))
+	start := model.UTF16Offset(strings.Index(text, pic))
+	// The line is the picture's character and its caption, "Dusk".
+	line := model.NewUTF16Range(start, start+5)
+	selected := func() model.UTF16Range {
+		presentation := session.Presentation()
+		got, err := presentation.ProjectedSelection()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	at(t, session, line.Start+1)
+	run(t, session, TextBackspace)
+	if got := selected(); got != line {
+		t.Fatalf("Backspace selected %v, not the figure's line %v", got, line)
+	}
+	expectKinds(t, session, ParagraphNode, ImageNode, ParagraphNode)
+	at(t, session, 6)
+	run(t, session, TextDelete)
+	if got := selected(); got != line {
+		t.Fatalf("Delete selected %v, not the figure's line %v", got, line)
+	}
 	run(t, session, TextBackspace)
 	expectKinds(t, session, ParagraphNode, ParagraphNode, ParagraphNode)
-	expectPage(t, session, "before\n|Dusk\nafter", "before", "Dusk", "after")
-	if len(figures(t, session)) != 0 {
-		t.Fatal("the picture stayed on a paragraph")
-	}
+	expectPage(t, session, "before\n|\nafter", "before", "", "after")
 	node, _ := session.Runtime().Snapshot().Document().Node(session.Selection().Node())
 	if _, has := node.Attribute(MediaAttribute); has {
 		t.Fatal("the paragraph still names the picture")
@@ -109,8 +131,8 @@ func TestPeelingAnImageLeavesItsCaption(t *testing.T) {
 func TestTypingOverAnImageReplacesIt(t *testing.T) {
 	session := imagePage(t)
 	text := session.Projection().Text()
-	start := model.UTF16Offset(strings.Index(text, "!["))
-	if err := session.SelectProjected(start, start+7); err != nil {
+	start := model.UTF16Offset(strings.Index(text, pic))
+	if err := session.SelectProjected(start, start+5); err != nil {
 		t.Fatal(err)
 	}
 	typeSession(t, session, "x")

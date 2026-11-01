@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/model"
 	"github.com/egoist/mygo/transfer"
 )
 
@@ -61,10 +62,10 @@ func TestPastingAPicturePlacesIt(t *testing.T) {
 	if len(images.taken) != 1 {
 		t.Fatalf("taken %+v", images.taken)
 	}
-	if got := bridge.Controller.Text(); got != "before\n![]\n" {
+	if got := bridge.Controller.Text(); got != "before\n\uFFFC\n" {
 		t.Fatalf("page shows %q", got)
 	}
-	if caret := bridge.Controller.Selection().Caret(); caret != len("before\n![]\n") {
+	if caret := bridge.Controller.Selection().Caret(); caret != model.StringLenUTF16("before\n\uFFFC\n") {
 		t.Fatalf("caret at %d, not below the picture", caret)
 	}
 
@@ -72,7 +73,7 @@ func TestPastingAPicturePlacesIt(t *testing.T) {
 	if err := bridge.Execute(keymap.Action{Kind: keymap.ActionClipboard, Clipboard: keymap.ClipboardPaste}); err != nil {
 		t.Fatal(err)
 	}
-	if got := bridge.Controller.Text(); got != "before\n![]\ntext" || len(images.taken) != 1 {
+	if got := bridge.Controller.Text(); got != "before\n\uFFFC\ntext" || len(images.taken) != 1 {
 		t.Fatalf("page shows %q after pasting text", got)
 	}
 }
@@ -84,10 +85,12 @@ func TestDroppedPicturesGoAfterTheirBlock(t *testing.T) {
 	bridge.Images = &keptImages{}
 	files, _ := transfer.FileData("/tmp/a.png", "/tmp/b.png")
 	bridge.dropPictures(files, 1)
-	if got := bridge.Controller.Text(); got != "one\n![]\n![]\ntwo" {
+	if got := bridge.Controller.Text(); got != "one\n\uFFFC\n\uFFFC\ntwo" {
 		t.Fatalf("page shows %q", got)
 	}
-	if !strings.HasPrefix(bridge.Controller.Text()[bridge.Controller.Selection().Caret():], "two") {
+	text := bridge.Controller.Text()
+	caret, _ := model.UTF16OffsetToByte(text, model.UTF16Offset(bridge.Controller.Selection().Caret()))
+	if !strings.HasPrefix(text[caret:], "two") {
 		t.Fatal("the caret did not go on below the pictures")
 	}
 }

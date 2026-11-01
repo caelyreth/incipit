@@ -70,7 +70,7 @@ func (s TextStyle) Size() float32 {
 // above its caption: what it shows, named by its media, its size in
 // pixels, and how the column sets it.
 type Figure struct {
-	// At is where the line it stands above starts.
+	// At is where the line it stands above starts, at its FigureObject.
 	At    model.UTF16Offset
 	Node  model.NodeID
 	Media string
@@ -84,6 +84,12 @@ type Figure struct {
 	// Alt is what it shows, in words, for whoever cannot see it.
 	Alt string
 }
+
+// FigureObject is the character a figure's line opens with, standing for
+// its picture as an object replacement character stands for an attachment
+// in text: the caret steps over it, and it shows as nothing, so the line
+// is the figure's whether or not it has a caption.
+const FigureObject = "\uFFFC"
 
 // FigureAlign is where a figure narrower than the column stands.
 type FigureAlign uint8

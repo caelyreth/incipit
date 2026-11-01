@@ -2,6 +2,7 @@ package textlayout
 
 import (
 	"math"
+	"strings"
 
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
@@ -24,7 +25,28 @@ const (
 	// figureNarrowest is the least a figure is set at, in DIPs, so a tiny
 	// picture still shows as one.
 	figureNarrowest = 24
+	// figureObjectWidth is the width of the character a figure's line
+	// opens with, in DIPs: an object as narrow as one is and still is.
+	figureObjectWidth = 1e-3
 )
+
+// figureObject sets the character a figure's line opens with, its
+// picture's, as an inline object that draws nothing and takes no room, so
+// the caption stands as if alone on its line.
+func figureObject(spans []ui.Span) []ui.Span {
+	if len(spans) == 0 || !strings.HasPrefix(spans[0].Text, surface.FigureObject) {
+		return spans
+	}
+	object, rest := spans[0], spans[0]
+	object.Text = surface.FigureObject
+	object.ObjectWidth = figureObjectWidth
+	rest.Text = rest.Text[len(surface.FigureObject):]
+	objects := []ui.Span{object}
+	if rest.Text != "" {
+		objects = append(objects, rest)
+	}
+	return append(objects, spans[1:]...)
+}
 
 func figureGap(body float32) float32 {
 	return float32(math.Round(float64(body * figureSpace)))

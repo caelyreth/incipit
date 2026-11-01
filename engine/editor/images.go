@@ -11,11 +11,13 @@ import (
 
 // An image block shows a picture above its line, and its text is the
 // picture's caption: the caret, typing, marks and history all work in a
-// caption as in any block's text. Its notation, "![" and "]" around the
-// caption, stands for the picture as "## " stands for a heading, so
-// taking it away leaves a paragraph of the caption, and an edit across
-// the whole line replaces the picture with what was typed. The picture
-// itself is named by its media, kept by the notebook, never by the page.
+// caption as in any block's text. Its notation is the one character the
+// picture stands on, surface.FigureObject, which shows as nothing. A
+// picture is never taken away a character at a time: Backspace at its
+// caption's start, or Delete at the end of the block above it, selects it
+// (selectFigure), and only deleting it then, or an edit across its whole
+// line, takes it away. The picture itself is named by its media, kept by
+// the notebook, never by the page.
 const (
 	// ImageNode is an image block; its text is its caption.
 	ImageNode model.NodeTypeID = "image"
@@ -232,6 +234,67 @@ func (s *Session) ShapeImage(node model.NodeID, change func(*ImageShape)) (kerne
 		}
 		return true, writeImageShape(document, node, next)
 	})
+}
+
+// guardFigure is Backspace at the start of an image's caption, or Delete
+// at the end of the block above an image: either selects the picture, for
+// a second press to delete, rather than taking it away with the character
+// it stands on.
+func (s *Session) guardFigure(backward bool) (kernel.Outcome, bool, error) {
+	selection := s.presentation.Selection
+	if !selection.IsCollapsed() {
+		return 0, false, nil
+	}
+	document := s.runtime.Snapshot().Document()
+	node, ok := document.Node(selection.Head().Node())
+	if !ok {
+		return 0, false, nil
+	}
+	image := node
+	if backward {
+		ok = selection.Head().Offset() == 0
+	} else if selection.Head().Offset() == blockLength(node) {
+		image, ok = neighborBlock(document, node.ID(), 1)
+	} else {
+		ok = false
+	}
+	if !ok || image.Kind() != ImageNode {
+		return 0, false, nil
+	}
+	return kernel.OutcomeHandled, true, s.selectFigure(image.ID())
+}
+
+// selectFigure selects an image block's whole line, the character its
+// picture stands on and its caption, as a click on the picture does.
+func (s *Session) selectFigure(node model.NodeID) error {
+	start, end, found := model.UTF16Offset(0), model.UTF16Offset(0), false
+	s.presentation.Projection.EachSegment(func(_ int, segment projection.Segment) bool {
+		if owner, ok := segmentNode(segment); !ok || owner != node {
+			return true
+		}
+		span := segment.ProjectedRange()
+		if !found {
+			start, found = span.Start, true
+		}
+		end = span.End
+		return true
+	})
+	if !found {
+		return nil
+	}
+	return s.SelectProjected(start, end)
+}
+
+// segmentNode is the block a segment of the projection shows, its text or
+// its notation.
+func segmentNode(segment projection.Segment) (model.NodeID, bool) {
+	if target, ok := segment.AttributeTarget(); ok {
+		return target.Node(), true
+	}
+	if target, ok := segment.SemanticTarget(); ok {
+		return target.Node(), true
+	}
+	return 0, false
 }
 
 // dispatchFigure runs an edit of image blocks as the writing policy's

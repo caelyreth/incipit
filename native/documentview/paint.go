@@ -45,9 +45,16 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	p.Clip(rect, 0, func() {
 		drawDecorationFills(p, rect, state, options)
 		drawRangeFills(p, rect, state, animatedSelection)
+	})
+	// A figure as wide as the column wears its ring beside it.
+	reach := float32(figureRingOutset + figureRingWidth)
+	figures := ui.Rect{X: rect.X - reach, Y: rect.Y, W: rect.W + 2*reach, H: rect.H}
+	p.Clip(figures, 0, func() {
 		if drawFigures(p, rect, state, options) {
 			p.AnimationFrame()
 		}
+	})
+	p.Clip(rect, 0, func() {
 		drawText(p, rect, state)
 		drawPlaceholder(p, rect, state)
 		drawRangeRules(p, rect, state, options)
