@@ -365,6 +365,10 @@ func blockStyle(node *model.Node) surface.TextStyle {
 		style.Rhythm = surface.RhythmVerbatim
 	case RuleNode:
 		style.Color = surface.ColorSubtle
+	case ImageNode:
+		// A caption reads as the picture's, a step below the text.
+		style.Scale = captionScale
+		style.Color = surface.ColorMuted
 	}
 	return style
 }

@@ -943,11 +943,7 @@ func projectionFlowFromView(
 	projectionValue *projection.Projection,
 	selection model.TextSelection,
 ) (*surface.Flow, error) {
-	runs, err := InlineStyleRuns(projectionValue, view.Document().CandidateSnapshot(view.Revision()))
-	if err != nil {
-		return nil, err
-	}
-	return surface.NewFlow(projectionValue.Version(), projectionValue.Text(), runs)
+	return pageFlow(projectionValue, view.Document().CandidateSnapshot(view.Revision()))
 }
 
 // editableRanges clips one semantic attachment to the corresponding editable

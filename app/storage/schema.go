@@ -65,6 +65,17 @@ var migrations = []string{
 		position INTEGER NOT NULL
 	) STRICT;
 	`,
+	`
+	CREATE TABLE media (
+		hash   TEXT    PRIMARY KEY,
+		type   TEXT    NOT NULL,
+		width  INTEGER NOT NULL,
+		height INTEGER NOT NULL,
+		bytes  INTEGER NOT NULL,
+		name   TEXT    NOT NULL DEFAULT '',
+		added  INTEGER NOT NULL
+	) STRICT, WITHOUT ROWID;
+	`,
 }
 
 // migrate brings the notebook to the current schema, claiming a new file

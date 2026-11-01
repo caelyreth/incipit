@@ -38,6 +38,8 @@ type Store struct {
 	root string
 	db   *sql.DB
 	lock *os.File
+	// media is what the notebook keeps of its pictures, by hash.
+	media map[string]Media
 	// Recovery is what opening found wrong and did about it.
 	Recovery Recovery
 
@@ -124,6 +126,12 @@ func (s *Store) open() error {
 			return err
 		}
 	}
+	if err := s.loadMedia(ctx); err != nil {
+		return err
+	}
+	// A sweep that cannot finish keeps every picture it did not reach,
+	// to try again at the next launch: it never stops the notebook opening.
+	_ = s.sweepMedia(ctx)
 	return nil
 }
 

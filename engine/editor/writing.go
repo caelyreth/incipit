@@ -262,6 +262,8 @@ func blockNotation(shape blockShape, ordinal int) (open, close string) {
 		return "```" + shape.info + "\n", "\n```"
 	case RuleNode:
 		return "---", ""
+	case ImageNode:
+		return "![", "]"
 	}
 	return "", ""
 }
@@ -331,7 +333,19 @@ func shapeBlock(document *model.DocumentDraft, node model.NodeID, shape blockSha
 	if err := set(depthAttribute, shape.nests() && shape.depth > 0, model.IntegerValue(int64(shape.depth))); err != nil {
 		return err
 	}
-	return set(codeInfoAttribute, shape.kind == CodeNode && shape.info != "", model.TextValue(shape.info))
+	if err := set(codeInfoAttribute, shape.kind == CodeNode && shape.info != "", model.TextValue(shape.info)); err != nil {
+		return err
+	}
+	// A block that is no longer an image no longer names its picture; an
+	// image's own are written as it is placed (writeImageShape).
+	if shape.kind != ImageNode {
+		for _, key := range imageAttributes {
+			if err := set(key, false, model.AttributeValue{}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // flatten makes a block a paragraph of its own text, as when its notation
@@ -477,9 +491,10 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 		return kernel.OutcomeHandled, nil
 	case text != "\n":
 		return kernel.OutcomePass, nil
-	case shape.kind == HeadingNode:
-		// A heading ends at a break: what follows is a paragraph, and a
-		// break before its text leaves a paragraph above it.
+	case shape.kind == HeadingNode || shape.kind == ImageNode:
+		// A heading or a caption ends at a break: what follows is a
+		// paragraph, and a break before its text leaves a paragraph above
+		// it.
 		created, err := document.SplitText(node.ID(), at)
 		if err != nil {
 			return fail(err)

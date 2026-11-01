@@ -245,9 +245,5 @@ func projectionFlow(
 	selection model.TextSelection,
 	decorations []surface.Decoration,
 ) (*surface.Flow, error) {
-	runs, err := InlineStyleRuns(projectionValue, runtime.Snapshot().Document())
-	if err != nil {
-		return nil, err
-	}
-	return surface.NewFlow(projectionValue.Version(), projectionValue.Text(), runs)
+	return pageFlow(projectionValue, runtime.Snapshot().Document())
 }

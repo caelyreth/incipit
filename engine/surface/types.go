@@ -66,6 +66,33 @@ func (s TextStyle) Size() float32 {
 	return s.Scale
 }
 
+// Figure is a picture a block shows above its line, as an image block
+// above its caption: what it shows, named by its media, its size in
+// pixels, and how the column sets it.
+type Figure struct {
+	// At is where the line it stands above starts.
+	At    model.UTF16Offset
+	Node  model.NodeID
+	Media string
+	// Width and Height are its size in pixels, so it takes its room before
+	// its pixels are read.
+	Width, Height int
+	// Span is the share of the column's width it takes; zero sets it at
+	// its own size, as wide as the column at most.
+	Span  float32
+	Align FigureAlign
+	// Alt is what it shows, in words, for whoever cannot see it.
+	Alt string
+}
+
+// FigureAlign is where a figure narrower than the column stands.
+type FigureAlign uint8
+
+const (
+	FigureCenter FigureAlign = iota
+	FigureStart
+)
+
 type StyleRun struct {
 	Bytes model.ByteRange
 	Style TextStyle

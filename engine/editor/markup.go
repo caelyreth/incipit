@@ -312,13 +312,16 @@ func writingPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	nest := format
 	nest.ID = "nest"
 	nest.Trigger = kernel.NewExactTrigger(nestTrigger)
+	figure := format
+	figure.ID = "figure"
+	figure.Trigger = kernel.NewExactTrigger(figureTrigger)
 	return kernel.PolicyDescriptor{
 		ID:               WritingPolicyID,
 		Requires:         []kernel.PolicyID{TextPolicyID},
 		EnabledByDefault: true,
 		Settings:         writingSettingDescriptors(),
 		Commands:         commands,
-		Rules:            []kernel.RuleDescriptor{marker, format, block, nest},
+		Rules:            []kernel.RuleDescriptor{marker, format, block, nest, figure},
 	}, nil
 }
 

@@ -2,6 +2,7 @@ package surface
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
@@ -20,6 +21,7 @@ type Flow struct {
 	runs    []StyleRun
 	offsets []offsetCheckpoint
 	ascii   bool
+	figures []Figure
 }
 
 func EmptyFlow(version projection.Version) *Flow {
@@ -60,6 +62,44 @@ func NewFlow(version projection.Version, text string, runs []StyleRun) (*Flow, e
 		flow.offsets = append(flow.offsets, offsetCheckpoint{byte: len(text), units: units})
 	}
 	return flow, nil
+}
+
+// WithFigures is the flow with the pictures its lines show, in order, each
+// at the start of a line.
+func (f *Flow) WithFigures(figures []Figure) (*Flow, error) {
+	previous := model.UTF16Offset(-1)
+	for _, figure := range figures {
+		if figure.At <= previous || figure.At > f.UTF16Len() ||
+			figure.At > 0 && !f.lineStart(figure.At) {
+			return nil, fmt.Errorf("a figure must start a line, in order")
+		}
+		if figure.Width <= 0 || figure.Height <= 0 || figure.Span < 0 || figure.Span > 1 {
+			return nil, fmt.Errorf("invalid figure size")
+		}
+		previous = figure.At
+	}
+	next := *f
+	next.figures = append([]Figure(nil), figures...)
+	return &next, nil
+}
+
+func (f *Flow) lineStart(at model.UTF16Offset) bool {
+	before, ok := f.ByteOfUTF16(at)
+	return ok && before > 0 && f.text[before-1] == '\n'
+}
+
+// Figures are the pictures the flow's lines show, in order.
+func (f *Flow) Figures() []Figure { return append([]Figure(nil), f.figures...) }
+
+// FigureAt is the picture the line starting at offset shows.
+func (f *Flow) FigureAt(at model.UTF16Offset) (Figure, bool) {
+	index, found := slices.BinarySearchFunc(f.figures, at, func(figure Figure, at model.UTF16Offset) int {
+		return int(figure.At - at)
+	})
+	if !found {
+		return Figure{}, false
+	}
+	return f.figures[index], true
 }
 
 func (f *Flow) Version() projection.Version { return f.version }

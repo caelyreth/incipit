@@ -27,8 +27,16 @@ func splitAtNewlines(
 			continue
 		}
 		at := start + model.UTF16Offset(index)
-		if _, err := document.SplitText(node, at+1); err != nil {
+		created, err := document.SplitText(node, at+1)
+		if err != nil {
 			return err
+		}
+		// Lines broken from a caption are paragraphs: the picture stays
+		// with the first.
+		if current, _ := document.Node(node); current.Kind() == ImageNode {
+			if err := shapeBlock(document, created, blockShape{kind: ParagraphNode}); err != nil {
+				return err
+			}
 		}
 		if err := document.ReplaceTextMarked(node, at, at+1, "", nil); err != nil {
 			return err
