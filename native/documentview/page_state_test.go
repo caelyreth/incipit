@@ -20,6 +20,7 @@ func TestPageSwitchDiscardsDocumentStateButKeepsContentCaches(t *testing.T) {
 	settings := theme.DefaultSettings()
 	bridge := NewBridge(doc, nil, nil)
 	client := bridge.Client()
+	doc.SetGeometry(LayoutGeometry{})
 	element := NewElement(bridge, settings.Semantic(), settings.Prose(), time.Now())
 	layout := element.Layout
 	pictures := &Pictures{}
@@ -38,6 +39,9 @@ func TestPageSwitchDiscardsDocumentStateButKeepsContentCaches(t *testing.T) {
 	element.SwitchPage(42)
 	if element.Input != nil || !reflect.DeepEqual(element.pageState, pageState{scroll: 42}) {
 		t.Fatalf("page switch retained input or transient state: %+v", element.pageState)
+	}
+	if doc.Geometry() != nil {
+		t.Fatal("page switch retained the old viewport geometry")
 	}
 	if element.Layout != layout || element.Pictures != pictures {
 		t.Fatal("page switch discarded content-addressed caches")

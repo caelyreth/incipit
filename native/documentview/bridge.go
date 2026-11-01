@@ -92,6 +92,9 @@ func (b *Bridge) Detach() {
 		return
 	}
 	b.detached = true
+	if b.Controller != nil {
+		b.Controller.SetGeometry(nil)
+	}
 	if b.native != nil {
 		b.native.Controller = nil
 	}
