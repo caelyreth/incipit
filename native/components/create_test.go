@@ -1,4 +1,4 @@
-package shell
+package components
 
 import "testing"
 
@@ -8,8 +8,8 @@ func TestCreatorLabelsUseCapitalizedNouns(t *testing.T) {
 		"New chapter": "Chapter",
 		"New group":   "Group",
 	} {
-		if got := creatorLabel(label); got != want {
-			t.Errorf("creatorLabel(%q) = %q, want %q", label, got, want)
+		if got := CreatorLabel(label); got != want {
+			t.Errorf("CreatorLabel(%q) = %q, want %q", label, got, want)
 		}
 	}
 }

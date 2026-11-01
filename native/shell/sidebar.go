@@ -47,7 +47,7 @@ type navigation struct {
 	menuRing menuRing
 	// sheetsGap calls up a create area above a sheet in a group, and
 	// groupsTop one at the head of the groups.
-	sheetsGap, groupsTop gap
+	sheetsGap, groupsTop components.CreateGap
 	// dragged is whether a row was dragged this frame.
 	dragged bool
 	// revealing is a chapter just made, to bring into view as it comes.
@@ -194,7 +194,7 @@ func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 	if near {
 		at = 0
 	}
-	_, topOpen := s.nav.groupsTop.follow(c, at)
+	_, topOpen := s.nav.groupsTop.Follow(c, at)
 	topOpen = topOpen && !none
 
 	scroll := ui.Scroll(c).Grow(1).MinHeight(0).TrackScroll(&s.libraryScroll)
@@ -213,8 +213,8 @@ func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
 		list.Children(func() {
 			if topOpen {
-				s.nav.groupsTop.hold(s.createArea(c, semantic, "new-group-top", "New group", animate, func() {
-					s.nav.groupsTop.use()
+				s.nav.groupsTop.Hold(s.createArea(c, semantic, "new-group-top", "New group", animate, func() {
+					s.nav.groupsTop.Use()
 					s.startRename(s.Library.NewGroup("", 0))
 				}).Transition(unfoldTransition(animate)))
 			}

@@ -90,7 +90,7 @@ func (s *State) noteView(c *ui.Context, animate bool) {
 	if s.Library != nil && view != s.nav.shown {
 		s.nav.side = s.side(s.nav.shown, view)
 		s.nav.shown, s.nav.fresh, s.nav.shownAt = view, true, time.Time{}
-		s.nav.sheetsGap, s.nav.sheetsNear = gap{}, -1
+		s.nav.sheetsGap, s.nav.sheetsNear = components.CreateGap{}, -1
 		s.nav.sheetDropSlot, s.nav.sheetDropHeight = -1, 0
 		s.nav.sheetDropVisible, s.nav.sheetDropRows = false, nil
 		s.nav.picking = picking{}
@@ -103,8 +103,8 @@ func (s *State) noteView(c *ui.Context, animate bool) {
 	if s.nav.dragged {
 		s.nav.dragged = false
 		until := c.Now().Add(dropQuiet)
-		s.nav.sheetsGap.hush(until)
-		s.nav.groupsTop.hush(until)
+		s.nav.sheetsGap.Hush(until)
+		s.nav.groupsTop.Hush(until)
 	}
 }
 
@@ -427,9 +427,9 @@ func (s *State) sheetRows(
 		quiet := dragging || len(s.nav.picking.ids) > 0
 		if quiet {
 			near = -1
-			s.nav.sheetsGap.close()
+			s.nav.sheetsGap.Close()
 		}
-		at, open := s.nav.sheetsGap.follow(c, near)
+		at, open := s.nav.sheetsGap.Follow(c, near)
 		open = open && ordered && !quiet
 		rows := make([]ui.Element, 0, len(entries))
 		var sheets []ui.Element
@@ -448,13 +448,13 @@ func (s *State) sheetRows(
 				}
 				if open && at == index {
 					sheetAction := func() {
-						s.nav.sheetsGap.use()
+						s.nav.sheetsGap.Use()
 						create(index)
 					}
 					var area ui.Element
 					if createChapter != nil {
 						area = s.createPair(c, semantic, "gap-create-"+entry.ID, animate, sheetAction, func() {
-							s.nav.sheetsGap.use()
+							s.nav.sheetsGap.Use()
 							createChapter(index)
 						})
 					} else {
@@ -466,7 +466,7 @@ func (s *State) sheetRows(
 					// the rows around it: that keeps it open too, so it
 					// keeps the list's spacing rather than reaching into
 					// the space.
-					s.nav.sheetsGap.holdAround(area, list, theme.Space06.DIPs(scale)/2+theme.Space08.DIPs(scale))
+					s.nav.sheetsGap.HoldAround(area, list, theme.Space06.DIPs(scale)/2+theme.Space08.DIPs(scale))
 				}
 				var row ui.Element
 				if entry.Kind == EntryChapter {
@@ -484,8 +484,8 @@ func (s *State) sheetRows(
 				rows = append(rows, row)
 			}
 			if ordered && !dragging {
-				if s.nav.sheetsGap.over {
-					s.nav.sheetsNear = s.nav.sheetsGap.at
+				if s.nav.sheetsGap.Over() {
+					s.nav.sheetsNear, _ = s.nav.sheetsGap.Open()
 				} else {
 					s.nav.sheetsNear = s.sheetCreateGap(list, rows)
 				}

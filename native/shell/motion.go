@@ -40,11 +40,6 @@ const (
 	// enterSlide is how far a row slides in from the side its place lies
 	// on.
 	enterSlide = float32(24)
-	// dwellOpen is how long the pointer rests by the head of a list before
-	// a create area opens there, and dwellClose how long it is away before
-	// the area closes.
-	dwellOpen  = 350 * time.Millisecond
-	dwellClose = 250 * time.Millisecond
 	// dropQuiet is how long create areas stay shut after a drag ends,
 	// before the pointer's rest begins to count: a row dropped at the head
 	// of a list leaves the pointer by its top, which is not a call for a

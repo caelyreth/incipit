@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -464,9 +465,8 @@ func TestCreateSheetHoverTargetsTheSpaceBetweenRows(t *testing.T) {
 		tester.Advance(16 * time.Millisecond)
 		tester.Frame()
 	}
-	if !state.nav.sheetsGap.open || state.nav.sheetsGap.at != 1 || !state.nav.sheetsGap.over {
-		t.Fatalf("gap = open %v at %d over %v",
-			state.nav.sheetsGap.open, state.nav.sheetsGap.at, state.nav.sheetsGap.over)
+	if at, open := state.nav.sheetsGap.Open(); !open || at != 1 || !state.nav.sheetsGap.Over() {
+		t.Fatalf("gap = open %v at %d over %v", open, at, state.nav.sheetsGap.Over())
 	}
 	// The area reaches into the gap's proximity band, so the pointer can
 	// click where it came to rest.
@@ -498,7 +498,7 @@ func TestNewChapterAppearsBesideNewSheetAndStartsNaming(t *testing.T) {
 	if !tester.FramePending() {
 		t.Fatal("hovering New sheet did not wait to reveal the chapter creator")
 	}
-	tester.Advance(dwellOpen - 16*time.Millisecond)
+	tester.Advance(components.DwellOpen - 16*time.Millisecond)
 	tester.Frame()
 	if tester.HasText("New chapter") {
 		t.Fatal("New chapter showed before the hover timeout")
@@ -1007,7 +1007,7 @@ func TestThingsAreMadeWhereTheyComeIn(t *testing.T) {
 	if count("New group") != areas {
 		t.Fatal("the head opened before the pointer rested")
 	}
-	tester.Advance(dwellOpen)
+	tester.Advance(components.DwellOpen)
 	settle(tester)
 	if count("New group") <= areas {
 		t.Fatalf("resting on the heading opened nothing: %#v", tester.Texts())
@@ -1033,7 +1033,7 @@ func TestThingsAreMadeWhereTheyComeIn(t *testing.T) {
 	areas = count("New sheet")
 	sheet, _ := tester.Find("Chapter")
 	tester.Move(sheet.X+sheet.W/2, sheet.Y+16)
-	tester.Advance(dwellOpen)
+	tester.Advance(components.DwellOpen)
 	settle(tester)
 	if count("New sheet") <= areas {
 		t.Fatalf("resting by a sheet's top opened nothing: %#v", tester.Texts())
@@ -1125,7 +1125,7 @@ func TestADropDoesNotCallUpACreateArea(t *testing.T) {
 	if len(library.moves) != 1 || library.moves[0].id != "9" || library.moves[0].index != 0 {
 		t.Fatalf("moves = %#v, want Third at the top", library.moves)
 	}
-	for elapsed := time.Duration(0); elapsed < dropQuiet+dwellOpen-50*time.Millisecond; elapsed += 50 * time.Millisecond {
+	for elapsed := time.Duration(0); elapsed < dropQuiet+components.DwellOpen-50*time.Millisecond; elapsed += 50 * time.Millisecond {
 		tester.Advance(50 * time.Millisecond)
 		tester.Frame()
 		if count() != areas {

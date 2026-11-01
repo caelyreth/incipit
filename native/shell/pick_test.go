@@ -185,14 +185,14 @@ func TestPickingKeepsTheCreateAreasShut(t *testing.T) {
 		}
 	}
 	hover()
-	if !state.nav.sheetsGap.open {
+	if _, open := state.nav.sheetsGap.Open(); !open {
 		t.Fatal("resting between rows did not call up a create area")
 	}
 	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
 		t.Fatal(err)
 	}
 	hover()
-	if state.nav.sheetsGap.open {
+	if _, open := state.nav.sheetsGap.Open(); open {
 		t.Fatal("a create area opened between rows while sheets were picked")
 	}
 }
