@@ -325,13 +325,16 @@ func writingPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	table := format
 	table.ID = "table"
 	table.Trigger = kernel.NewExactTrigger(tableTrigger)
+	arrange := format
+	arrange.ID = "arrange"
+	arrange.Trigger = kernel.NewExactTrigger(arrangeTrigger)
 	return kernel.PolicyDescriptor{
 		ID:               WritingPolicyID,
 		Requires:         []kernel.PolicyID{TextPolicyID},
 		EnabledByDefault: true,
 		Settings:         writingSettingDescriptors(),
 		Commands:         commands,
-		Rules:            []kernel.RuleDescriptor{marker, format, block, nest, figure, table},
+		Rules:            []kernel.RuleDescriptor{marker, format, block, nest, figure, table, arrange},
 	}, nil
 }
 

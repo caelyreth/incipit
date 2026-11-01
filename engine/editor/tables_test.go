@@ -284,3 +284,41 @@ func TestTheFlowKnowsItsTables(t *testing.T) {
 		t.Fatalf("Date's range = %v", got)
 	}
 }
+
+// A block moves whole between two others, a table with all its cells, and
+// never between a table's cells; Undo takes it back.
+func TestBlocksMoveWhole(t *testing.T) {
+	session, _ := newSessionFixture(t, "one", false)
+	at(t, session, 3)
+	if _, err := session.InsertTable([][]string{{"a", "b"}, {"c", "d"}}); err != nil {
+		t.Fatal(err)
+	}
+	units := session.Units()
+	if len(units) != 3 || !units[1].Table || units[2].Table {
+		t.Fatalf("units = %+v", units)
+	}
+	one, table, after := units[0].Node, units[1].Node, units[2].Node
+	if _, err := session.MoveBlock(one, 0); err != nil {
+		t.Fatal(err)
+	}
+	if units = session.Units(); units[0].Node != table || units[2].Node != one {
+		t.Fatalf("moved down: %+v", units)
+	}
+	if _, err := session.MoveBlock(table, one); err != nil {
+		t.Fatal(err)
+	}
+	if units = session.Units(); units[0].Node != after || units[1].Node != table {
+		t.Fatalf("the table moved to %+v", units)
+	}
+	expectTable(t, session, []string{"a", "b"}, []string{"c", "d"})
+	cell := readTables(session.Runtime().Snapshot().Document())[0].Rows[1][0]
+	if outcome, _ := session.MoveBlock(one, cell); outcome == kernel.OutcomeHandled {
+		t.Fatal("a block moved between a table's cells")
+	}
+	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+		t.Fatal(err)
+	}
+	if units = session.Units(); units[0].Node != table {
+		t.Fatalf("undo left %+v", units)
+	}
+}

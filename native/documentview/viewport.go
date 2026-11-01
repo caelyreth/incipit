@@ -92,6 +92,18 @@ func (e *Element) applyLift() {
 	}
 }
 
+// pagePointer is where the pointer is in the page's content, and whether
+// it is over the page: the column, and the margins beside it, where the
+// page's grips and gutters are.
+func (e *Element) pagePointer(box ui.Element) (ui.Point, bool) {
+	x, y, inside := box.PointerPosition()
+	if !inside && e.current != nil && y >= 0 && y < e.lastHeight &&
+		x >= -e.Margin && x <= e.current.Width()+e.Margin {
+		inside = true
+	}
+	return e.contentPoint(x, y), inside
+}
+
 // control notes a control set over the page at r, in the element's space.
 func (e *Element) control(r ui.Rect) {
 	e.controls = append(e.controls, r)

@@ -57,6 +57,9 @@ type State struct {
 	TableDrag  *tableDrag
 	// TableMade is the row or column a create area just made.
 	TableMade *tableMade
+	// BlockBand is a block its grip's drag carries, while BlockDragging.
+	BlockBand     ui.Rect
+	BlockDragging bool
 
 	// DrawnCaret is set by Paint: the caret geometry it settled on this
 	// frame, local to the content like the layout's.

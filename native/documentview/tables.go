@@ -19,25 +19,28 @@ import (
 // A table on the page is made where it grows, as the sheet list makes
 // sheets. The pointer resting by a table opens a dashed area below it that
 // makes a row, the page below gliding down for it, and one beside it that
-// makes a column; resting on a border between two rows or two columns
-// opens one there, the rows or columns gliding apart. A row or column made
-// comes in from nothing where its area was. Over a row or a column, a grip
-// at its edge selects its cells whole, and dragging it moves it among the
-// others; the table's corner drags it larger or smaller, its new size
-// outlined and named as it goes, kept on letting go, and Escape puts it
-// back. A drag across cells selects them whole: Delete empties them,
-// copying gives their texts between tabs, and typing writes over the
-// first. A secondary click on a cell opens the table's menu.
+// makes a column. The table's edges hold what changes its shape, its cells
+// only its text: resting in the gutter before it by a border between two
+// rows, or above it by one between two columns, opens an area there, the
+// rows or columns gliding apart. What an area makes stands in its place.
+// Over a row or a column, a grip in the gutter selects its cells whole,
+// and dragging it moves it among the others; the grip at the corner where
+// they meet moves the table among the page's blocks (blocks.go), and the
+// corner across drags it larger or smaller, its new size outlined and
+// named as it goes, kept on letting go, and Escape puts it back. A drag
+// across cells selects them whole: Delete empties them, copying gives
+// their texts between tabs, and typing writes over the first. A secondary
+// click on a cell opens the table's menu.
 
 const (
 	// tableReach is how near a table, in DIPs, the pointer calls up the
 	// areas that make its rows and columns, and tableHold how near it keeps
 	// them once open, so a pointer wandering a little past does not shut
-	// them; tableBorder is how near a border between two rows or columns
-	// calls up one there.
+	// them; tableBorder is how near a border between two rows or columns,
+	// in the gutter, calls up one there.
 	tableReach  = 28
 	tableHold   = 56
-	tableBorder = 6
+	tableBorder = 8
 	// gripLong and gripShort size a row's or column's grip, in DIPs at
 	// the default UI size, and gripOff sets it off the table.
 	gripLong, gripShort, gripOff = 18, 6, 6
@@ -93,6 +96,9 @@ type tableUI struct {
 	tables                   map[model.NodeID]bool
 	growingRows, growingCols map[model.NodeID]motion.Spring
 	drag                     *tableDrag
+	// held is the grip a press holds, kept under it until it lets go
+	// though the pointer leaves its row or column.
+	held *tableDrag
 	// press is the cell a press began in, for a drag across cells.
 	press      model.NodeID
 	pressTable model.NodeID
@@ -238,12 +244,11 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 	inner := theme.Space08.DIPs(e.chromeSize())
 	border := tableBorder * scale
 	nearAt, nearOpen := e.tables.below.Open()
-	x, y, inside := box.PointerPosition()
-	point := e.contentPoint(x, y)
+	point, inside := e.pagePointer(box)
 	e.tables.pointer, e.tables.pointerIn = point, inside
 	near, rowAt, columnAt := -1, -1, -1
 	rowNear, columnNear := float32(0), float32(0)
-	free := inside && e.pointer == pointerIdle && e.tables.drag == nil
+	free := inside && e.pointer == pointerIdle && e.tables.drag == nil && e.tables.held == nil && !e.blocks.holding
 	for index, table := range placed {
 		reach := tableReach * scale
 		if nearOpen && nearAt == index {
@@ -260,24 +265,27 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 			continue
 		}
 		near = index
-		if point.X < table.Box.X || point.X > table.Box.X+table.Box.W {
-			continue
-		}
-		// A border calls up its gap, and the gap opening from it holds
-		// it, the border's reach around it as well.
+		// Room between rows is called up from the gutter before the
+		// table, where its rows' grips are, and between columns from the
+		// gutter above it, where its columns' are: never from over its
+		// cells, where the pointer is for the text. An open gap holds
+		// while the pointer is on it, the border's reach around it.
+		gutter := tableReach * scale
+		inRows := point.X >= table.Box.X-gutter && point.X < table.Box.X
+		inColumns := point.Y >= table.Box.Y-gutter && point.Y < table.Box.Y
 		rowGap, columnGap := grown(table.RowGap, 0, border), grown(table.ColumnGap, border, 0)
+		rowGap.X, rowGap.W = rowGap.X-gutter, rowGap.W+gutter
+		columnGap.Y, columnGap.H = columnGap.Y-gutter, columnGap.H+gutter
 		for r := 1; r < len(table.Rows); r++ {
-			if abs(point.Y-table.Rows[r]) <= border || contains(rowGap, point) && table.RowGap.Y < table.Rows[r] {
+			if inRows && abs(point.Y-table.Rows[r]) <= border || contains(rowGap, point) && table.RowGap.Y < table.Rows[r] {
 				rowAt, rowNear = index*gapStride+r, abs(point.Y-table.Rows[r])
 				break
 			}
 		}
-		if point.Y >= table.Box.Y && point.Y <= table.Box.Y+table.Box.H {
-			for column := 1; column < len(table.Columns); column++ {
-				if abs(point.X-table.Columns[column]) <= border || contains(columnGap, point) && table.ColumnGap.X < table.Columns[column] {
-					columnAt, columnNear = index*gapStride+column, abs(point.X-table.Columns[column])
-					break
-				}
+		for column := 1; column < len(table.Columns); column++ {
+			if inColumns && abs(point.X-table.Columns[column]) <= border || contains(columnGap, point) && table.ColumnGap.X < table.Columns[column] {
+				columnAt, columnNear = index*gapStride+column, abs(point.X-table.Columns[column])
+				break
 			}
 		}
 	}
@@ -496,6 +504,9 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 		return false
 	}
 	row, column := e.hoveredCell(placed)
+	if drag == nil && e.tables.held != nil && e.tables.held.table == first {
+		drag = e.tables.held
+	}
 	if drag != nil {
 		switch drag.kind {
 		case dragRow:
@@ -507,20 +518,16 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 	long, short, off := gripLong*scale, gripShort*scale, gripOff*scale
 	over := false
 	grip := func(key, label string, r ui.Rect, kind tableDragKind, from int) {
-		handle := ui.ButtonBase(c.Key(fmt.Sprintf("table-%d-%s", first, key))).Label(label).
-			Absolute().Left(r.X).Top(r.Y).Width(r.W).Height(r.H).FocusRing(false).Opacity(shown)
-		over = over || handle.Hovered() || handle.Pressed()
-		e.control(r)
-		hover := components.HoverAmount(handle, handle.Hovered() || handle.Pressed(), animate)
-		radius := min(r.W, r.H) / 2
-		handle.Radius(radius).
-			Background(components.Blend(e.Theme.Surface.Elevated, e.Theme.Accent.Foreground, hover)).
-			Border(1, components.Blend(e.Theme.Border.Default, e.Theme.Accent.Foreground, hover)).
-			Shadow(0, 1, 4, 0, ui.Color{A: 255}.Alpha(0.2))
+		cursor := ui.CursorGrab
 		if kind == dragCorner {
-			handle.Cursor(ui.CursorResizeNWSE)
-		} else {
-			handle.Cursor(ui.CursorGrab)
+			cursor = ui.CursorResizeNWSE
+		}
+		handle := e.grip(c, fmt.Sprintf("table-%d-%s", first, key), label, r, shown, cursor, animate)
+		over = over || handle.Hovered() || handle.Pressed()
+		if handle.Pressed() {
+			e.tables.held = &tableDrag{table: first, kind: kind, from: from}
+		} else if held := e.tables.held; held != nil && held.table == first && held.kind == kind {
+			e.tables.held = nil
 		}
 		e.followGrip(handle, bridge, placed, kind, from)
 	}
@@ -545,6 +552,22 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 	}
 	grip("corner", "Resize table", corner, dragCorner, 0)
 	return over
+}
+
+// grip places a handle over the page at r, in the element's space: a
+// pill that takes the accent under the pointer, as every grip of the page
+// does, a block's, a table's and its rows' and columns'.
+func (e *Element) grip(c *ui.Context, key, label string, r ui.Rect, shown float32, cursor ui.Cursor, animate bool) ui.Element {
+	handle := ui.ButtonBase(c.Key(key)).Label(label).
+		Absolute().Left(r.X).Top(r.Y).Width(r.W).Height(r.H).FocusRing(false).Opacity(shown)
+	e.control(r)
+	hover := components.HoverAmount(handle, handle.Hovered() || handle.Pressed(), animate)
+	handle.Radius(min(r.W, r.H)/2).
+		Background(components.Blend(e.Theme.Surface.Elevated, e.Theme.Accent.Foreground, hover)).
+		Border(1, components.Blend(e.Theme.Border.Default, e.Theme.Accent.Foreground, hover)).
+		Shadow(0, 1, 4, 0, ui.Color{A: 255}.Alpha(0.2)).
+		Cursor(cursor)
+	return handle
 }
 
 // followGrip follows a press on a grip: a click selects the row or column

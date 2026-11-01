@@ -45,6 +45,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	}
 	p.Clip(rect, 0, func() {
 		drawTables(p, rect, state)
+		drawBlockDrag(p, rect, state)
 		drawDecorationFills(p, rect, state, options)
 		drawRangeFills(p, rect, state, animatedSelection)
 	})

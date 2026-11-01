@@ -163,3 +163,35 @@ func (l *Layout) BlockEdge(offset model.UTF16Offset) float32 {
 	}
 	return bottom
 }
+
+// Extent is how far down the page the blocks of r stand, from the top of
+// the first to the bottom of the last, a figure's picture and a table's
+// grid taken in.
+func (l *Layout) Extent(r model.UTF16Range) (top, bottom float32, ok bool) {
+	take := func(from, to float32) {
+		if !ok {
+			top, bottom, ok = from, to, true
+			return
+		}
+		top, bottom = min(top, from), max(bottom, to)
+	}
+	for _, paragraph := range l.paragraphs {
+		start := model.UTF16Offset(paragraph.startUTF16)
+		if start < r.Start {
+			continue
+		}
+		if start > r.End {
+			break
+		}
+		take(paragraph.top, paragraph.top+paragraph.height)
+		if paragraph.hasFigure {
+			take(paragraph.box.Y, paragraph.box.Y+paragraph.box.H)
+		}
+	}
+	for _, table := range l.tables {
+		if span := table.Table.Range(); span.Start <= r.End && span.End >= r.Start {
+			take(table.Box.Y, table.Box.Y+table.Box.H)
+		}
+	}
+	return top, bottom, ok
+}

@@ -56,6 +56,7 @@ type Element struct {
 	// captions is how open each figure's caption is.
 	captions map[model.NodeID]motion.Spring
 	tables   tableUI
+	blocks   blockUI
 	// announced is the figure last read out as it became the selection,
 	// and menuFigure the one a secondary click opened the menu of.
 	announced         model.NodeID
@@ -185,7 +186,14 @@ func (e *Element) View(c *ui.Context) {
 	e.takeDrops(box)
 	e.followFigures(c, box)
 	e.followTables(c, box, animate)
-	box.Children(func() { e.tableControls(c, animate) })
+	bridge, _ := e.Input.(*Bridge)
+	e.followBlocks(box, bridge, animate)
+	box.Children(func() {
+		e.tableControls(c, animate)
+		if bridge != nil {
+			e.blockControls(c, bridge, animate)
+		}
+	})
 	box.ContextMenu(e.contextMenu)
 	box.HandleInput(e.handleInput).
 		TextCaret(e.caret(c)).
@@ -593,7 +601,14 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		TableDrag:         e.tables.drag,
 		TableMade:         e.tables.made,
 	}
-	if e.drop.advance(e.current.BlockEdge(model.UTF16Offset(e.dropOver)), e.dropActive, p.Now(), animate) {
+	// The drop line shows where dragged pictures would go, or a block its
+	// grip carries.
+	dropY, dropping := e.current.BlockEdge(model.UTF16Offset(e.dropOver)), e.dropActive
+	if y, ok := e.blockDropLine(bridge); ok {
+		dropY, dropping = y, true
+	}
+	state.BlockBand, state.BlockDragging = e.blockBand(bridge)
+	if e.drop.advance(dropY, dropping, p.Now(), animate) {
 		p.AnimationFrame()
 	}
 	Paint(p, rect, state)
