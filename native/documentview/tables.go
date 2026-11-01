@@ -27,7 +27,8 @@ import (
 // and dragging it moves it among the others; the grip at the corner where
 // they meet moves the table among the page's blocks (blocks.go), and the
 // corner across drags it larger or smaller, its new size outlined and
-// named as it goes, kept on letting go, and Escape puts it back. A drag
+// named as it goes, kept on letting go, and Escape puts it back. The
+// borders between columns set their widths (columns.go). A drag
 // across cells selects them whole: Delete empties them, copying gives
 // their texts between tabs, and typing writes over the first. A secondary
 // click on a cell opens the table's menu.
@@ -113,11 +114,17 @@ type tableUI struct {
 	generation map[model.NodeID]int
 	// scroll is how far each table wider than its room is scrolled
 	// across, by its first cell, and wheeled those the wheel moved this
-	// frame, which follow it at once; caret is where the caret was, so
-	// one moved into a cell out of its room scrolls it in.
-	scroll  map[model.NodeID]float32
-	wheeled map[model.NodeID]bool
-	caret   int
+	// frame, which follow it at once; caret is where the caret was, and
+	// caretGrid how wide its table's grid, so one moved into a cell out
+	// of its room, or left out of it as the grid changes, scrolls it in.
+	scroll    map[model.NodeID]float32
+	wheeled   map[model.NodeID]bool
+	caret     int
+	caretGrid float32
+	// sizing is a drag of a column's border under way, and border the
+	// border the pointer is on (columns.go).
+	sizing *columnSizing
+	border columnBorder
 }
 
 // tableMade is a row or column a create area made: it comes in at the
@@ -205,6 +212,10 @@ func (e *Element) tabledFlow(flow *surface.Flow, now time.Time, animate bool) (*
 		known[node] = true
 		seen := e.tables.tables[node]
 		room := e.tables.room[node]
+		if sizing := e.tables.sizing; sizing != nil && sizing.table == node {
+			// A border's drag sets the widths it would keep as it goes.
+			table.Widths = sizing.widths
+		}
 		room.RowShown = make([]float32, len(table.Rows))
 		room.ColumnShown = make([]float32, table.Columns())
 		for r, row := range table.Rows {
@@ -255,7 +266,9 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 	e.tables.pointer, e.tables.pointerIn = point, inside
 	near, rowAt, columnAt := -1, -1, -1
 	rowNear, columnNear := float32(0), float32(0)
-	free := inside && e.pointer == pointerIdle && e.tables.drag == nil && e.tables.held == nil && !e.blocks.holding
+	free := inside && e.pointer == pointerIdle && e.tables.drag == nil && e.tables.held == nil &&
+		e.tables.sizing == nil && !e.blocks.holding
+	e.followBorder(box, point, free)
 	for index, table := range placed {
 		reach := tableReach * scale
 		if nearOpen && nearAt == index {
@@ -391,9 +404,13 @@ func (e *Element) tableReaches(c *ui.Context) {
 			{X: max(box.X, width), Y: box.Y, W: box.X + box.W - max(box.X, width), H: box.H},
 		} {
 			if part.W > 0.5 {
+				cursor := ui.CursorText
+				if e.tables.border.on && e.tables.border.table == placed.Table.Node() {
+					cursor = ui.CursorResizeEW
+				}
 				ui.Box(c.Key(fmt.Sprintf("table-%d-reach-%d", placed.Table.Node(), index))).
 					Absolute().Left(part.X).Top(part.Y).Width(part.W).Height(part.H).
-					Cursor(ui.CursorText)
+					Cursor(cursor)
 			}
 		}
 	}
@@ -434,12 +451,21 @@ func (e *Element) wheelTable(x, y, dx float32) bool {
 // revealCell scrolls the table the caret has moved into across, as little
 // as shows its caret within its room.
 func (e *Element) revealCell(head int) {
-	if e.current == nil || head == e.tables.caret {
+	if e.current == nil || e.tables.sizing != nil {
 		return
 	}
-	e.tables.caret = head
 	caret := e.current.Caret(model.UTF16Offset(head))
 	placed, ok := e.current.TableAt(caret.Y)
+	grid := float32(0)
+	if ok {
+		grid = placed.Grid.W
+	}
+	// The caret moving, or its table's grid changing width under it, as
+	// a column's is set, brings its cell in.
+	if head == e.tables.caret && grid == e.tables.caretGrid {
+		return
+	}
+	e.tables.caret, e.tables.caretGrid = head, grid
 	if !ok || placed.Overflow <= 0 {
 		return
 	}
@@ -662,6 +688,9 @@ func (e *Element) grip(c *ui.Context, key, label string, r ui.Rect, shown float3
 	handle := ui.ButtonBase(c.Key(key)).Label(label).
 		Absolute().Left(r.X).Top(r.Y).Width(r.W).Height(r.H).FocusRing(false).Opacity(shown)
 	e.control(r)
+	if cursor == ui.CursorGrab && handle.Pressed() {
+		cursor = ui.CursorGrabbing
+	}
 	hover := components.HoverAmount(handle, handle.Hovered() || handle.Pressed(), animate)
 	handle.Radius(min(r.W, r.H)/2).
 		Background(components.Blend(e.Theme.Surface.Elevated, e.Theme.Accent.Foreground, hover)).
@@ -1072,6 +1101,7 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 				})
 			}
 		}
+		drawBorder(p, state, placed, box, dx)
 		drawTableEdges(p, state, placed, box)
 		drawTableDrag(p, state, placed, box, dx, dy)
 	}

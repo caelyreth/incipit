@@ -76,7 +76,7 @@ func (e *Element) followBlocks(box ui.Element, bridge *Bridge, animate bool) {
 		e.blocks.hovered = e.blocks.drag.from
 	} else if e.blocks.holding {
 		e.blocks.hovered = e.blocks.held
-	} else if inside && e.pointer == pointerIdle && e.tables.drag == nil {
+	} else if inside && e.pointer == pointerIdle && e.tables.drag == nil && e.tables.sizing == nil {
 		gutter := tableReach * e.uiScale()
 		for index, unit := range e.placedUnits(bridge) {
 			left, right := -gutter, e.current.Width()

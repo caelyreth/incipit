@@ -275,6 +275,9 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		// it.
 		e.Motion.CancelScroll()
 		e.pointerAt = ui.Point{X: event.X, Y: event.Y}
+		if e.pressBorder(event) {
+			return true
+		}
 		if handled, ok := e.pressFigure(event); handled {
 			return ok
 		}
@@ -302,6 +305,10 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 			e.dragResize(event.X)
 			return true
 		}
+		if e.tables.sizing != nil {
+			e.dragBorder(event.X)
+			return true
+		}
 		e.pointerAt = ui.Point{X: event.X, Y: event.Y}
 		if e.pointer == pointerIdle || e.current == nil || event.Button != 0 {
 			return false
@@ -320,6 +327,11 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 	case ui.InputPointerUp:
 		if e.resizing != nil {
 			e.finishResize()
+			e.Motion.Activity(event.Time)
+			return true
+		}
+		if e.tables.sizing != nil {
+			e.finishBorder()
 			e.Motion.Activity(event.Time)
 			return true
 		}
@@ -367,6 +379,13 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		e.Motion.Activity(event.Time)
 		e.pointerHold = false
 		if event.Kind == ui.InputKeyDown {
+			if e.tables.sizing != nil {
+				// A border's drag takes the keys: Escape puts it back.
+				if event.Key == ui.KeyEscape {
+					e.tables.sizing = nil
+				}
+				return true
+			}
 			if handled, ok := e.figureKey(event); handled {
 				return ok
 			}
@@ -608,6 +627,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		TableCells:        bridge.Cells,
 		TableDrag:         e.tables.drag,
 		TableMade:         e.tables.made,
+		TableBorder:       e.tables.border,
 	}
 	// The drop line shows where dragged pictures would go, or a block its
 	// grip carries.

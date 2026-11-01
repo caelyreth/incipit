@@ -103,3 +103,65 @@ func TestAWideTablesCellsInTheMarginTakeTheCaret(t *testing.T) {
 		t.Fatalf("the press in the margin did not reach the last cell: %q", text)
 	}
 }
+
+func tableWidths(t *testing.T, app *AppState) []float32 {
+	t.Helper()
+	flow, err := app.Session.Document().Session().SurfaceFlow()
+	if err != nil || len(flow.Tables()) == 0 {
+		t.Fatal("the page has no table")
+	}
+	return flow.Tables()[0].Widths
+}
+
+// A border between two columns trades width between them as it is
+// dragged, the caret staying where it was; Escape puts a drag back, the
+// table's edge sizes its last column with the others kept as they show,
+// and a double-click gives the columns back their widths as their text
+// asks.
+func TestAColumnsBorderSetsItsWidth(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	typeText(t, app, "Before the table\n| Name | Born | Field |\nAda Lovelace wrote the first program for a machine that did not yet exist")
+	frames(tester, 40)
+	caret := app.Bridge.Controller.Selection().Caret()
+	tester.Move(992, 225)
+	frames(tester, 10)
+	dragFrom(tester, 992, 225, 842, 225)
+	widths := tableWidths(t, app)
+	if widths[0] <= 0 || widths[1] <= 0 || widths[2] != 0 || widths[0] > 0.5 {
+		t.Fatalf("the border set %v", widths)
+	}
+	if after := app.Bridge.Controller.Selection().Caret(); after != caret {
+		t.Fatalf("the caret went from %d to %d", caret, after)
+	}
+	tester.Press(842, 225)
+	frames(tester, 2)
+	tester.Move(700, 225)
+	frames(tester, 2)
+	tester.Key(0, ui.KeyEscape)
+	tester.Release(700, 225)
+	frames(tester, 10)
+	if again := tableWidths(t, app); again[0] != widths[0] {
+		t.Fatalf("Escape kept %v", again)
+	}
+	tester.Move(1202, 225)
+	frames(tester, 10)
+	dragFrom(tester, 1202, 225, 1152, 225)
+	if edge := tableWidths(t, app); edge[2] <= 0 || edge[0] != widths[0] {
+		t.Fatalf("the edge set %v", edge)
+	}
+	tester.Move(1152, 225)
+	frames(tester, 10)
+	tester.ClickAt(1152, 225)
+	tester.ClickAt(1152, 225)
+	frames(tester, 10)
+	for _, width := range tableWidths(t, app) {
+		if width != 0 {
+			t.Fatalf("a double-click on the edge kept %v", tableWidths(t, app))
+		}
+	}
+}

@@ -44,8 +44,8 @@ const (
 	// header and two rows, to grow from where it shows.
 	newTableColumns = 3
 	newTableRows    = 3
-	// leastColumnWidth is the narrowest a column is set, as a share.
-	leastColumnWidth = 0.05
+	// LeastColumnWidth is the narrowest a column is set, as a share.
+	LeastColumnWidth = 0.05
 )
 
 // cellAttributes are the attributes only a cell has.
@@ -57,8 +57,9 @@ type Table struct {
 	Rows   [][]model.NodeID
 	Header bool
 	Align  []surface.CellAlign
-	// Widths are each column's share of the table's width, 0 for an even
-	// share of what the others leave.
+	// Widths are each column's width as a share of the page's column, 0
+	// for one as wide as its text asks with an even share of what the
+	// others leave.
 	Widths []float32
 }
 

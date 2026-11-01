@@ -34,8 +34,8 @@ type Table struct {
 	// Header sets the first row apart, as the names of the columns.
 	Header bool
 	// Align and Widths are each column's: how it sets its text, and the
-	// share of the table's width it takes, 0 to share what the others
-	// leave.
+	// share of the page's column it takes, 0 to be as wide as its text
+	// asks and share what the others leave.
 	Align  []CellAlign
 	Widths []float32
 	// Room is what a view opens in and below the table as it shows what

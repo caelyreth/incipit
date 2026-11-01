@@ -22,10 +22,10 @@ const (
 	// of the body's line.
 	cellPadX = 0.4
 	cellPadY = 0.2
-	// leastColumn is the narrowest a column is set, in DIPs, so a table of
+	// LeastColumn is the narrowest a column is set, in DIPs, so a table of
 	// many columns still shows each; widestColumn the widest a column's
 	// text sets it, as a share of the column, before it wraps.
-	leastColumn  = 32
+	LeastColumn  = 32
 	widestColumn = 0.6
 	// headerWeight sets a header's text, as the app's own headings are.
 	headerWeight = 600
@@ -46,6 +46,9 @@ type PlacedTable struct {
 	// open between them.
 	Columns, Widths, Rows, Heights []float32
 	RowGap, ColumnGap              ui.Rect
+	// Natural is each column's width as its text asks, before any share
+	// of the room over is spread to it.
+	Natural []float32
 }
 
 // Cell is the box of the cell at row and column.
@@ -133,7 +136,7 @@ func placeTable(
 	cells := make([][][]rawParagraph, len(table.Rows))
 	natural := make([]float32, table.Columns())
 	for index := range natural {
-		natural[index] = leastColumn
+		natural[index] = LeastColumn
 	}
 	next := 0
 	for r, row := range table.Rows {
@@ -165,7 +168,7 @@ func placeTable(
 	left := min(0, (width-shows)/2)
 	overflow := max(0, grid-shows)
 	scroll := max(0, min(room.Scroll, overflow))
-	placed := PlacedTable{Table: table, Widths: widths, Scroll: scroll, Overflow: overflow}
+	placed := PlacedTable{Table: table, Widths: widths, Natural: natural, Scroll: scroll, Overflow: overflow}
 	x := left - scroll
 	for index, w := range widths {
 		if index == room.Column && columnRoom > 0 {

@@ -299,7 +299,7 @@ func (s *Session) ShapeTable(cell model.NodeID, change func(*Table)) (kernel.Out
 		}
 		for index := range next.Widths {
 			if next.Widths[index] > 0 {
-				next.Widths[index] = max(leastColumnWidth, min(1, next.Widths[index]))
+				next.Widths[index] = max(LeastColumnWidth, min(1, next.Widths[index]))
 			}
 		}
 		return 0, writeTable(document, next)
