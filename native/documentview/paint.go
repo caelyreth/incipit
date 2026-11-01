@@ -48,7 +48,6 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	wide := ui.Rect{X: rect.X - state.Margin, Y: rect.Y, W: rect.W + 2*state.Margin, H: rect.H}
 	p.Clip(wide, 0, func() {
 		drawTables(p, rect, state)
-		drawBlockDrag(p, rect, state)
 		drawDecorationFills(p, rect, state, options)
 		drawRangeFills(p, rect, state, animatedSelection)
 	})
@@ -71,6 +70,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		}
 		drawGuides(p, rect, state, options)
 		drawDropLine(p, rect, state)
+		drawCarry(p, rect, state)
 	})
 	if state.Guides != nil {
 		p.Clip(wide, 0, func() { drawAreas(p, rect, state, state.Guides) })

@@ -672,14 +672,7 @@ func (s *State) sheetDropPlaceholder(
 			// The outline takes the row's own extent, below the room a
 			// chapter keeps above it.
 			r.Y, r.H = r.Y+min(room, r.H), max(0, r.H-room)
-			if r.H <= 0.5 {
-				return
-			}
-			p.Fill(r, semantic.Accent.Muted.Alpha(0.14), metrics.Radius)
-			components.DashedOutline(
-				p, r, metrics.Radius, 1,
-				semantic.Accent.Foreground.Alpha(0.65),
-			)
+			components.DropFrame(p, r, metrics.Radius, 1, semantic)
 		})
 	if !active && (!animate || area.Arrived("height")) {
 		s.nav.sheetDropVisible = false

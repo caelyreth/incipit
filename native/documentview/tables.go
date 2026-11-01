@@ -24,7 +24,7 @@ import (
 // rows, or above it by one between two columns, opens an area there, the
 // rows or columns gliding apart. What an area makes stands in its place.
 // Over a row or a column, a grip in the gutter selects its cells whole,
-// and dragging it moves it among the others; the grip at the corner where
+// and dragging it carries it among the others (carry.go); the grip at the corner where
 // they meet moves the table among the page's blocks (blocks.go), and the
 // corner across drags it larger or smaller, its new size outlined and
 // named as it goes, kept on letting go, and Escape puts it back. The
@@ -158,15 +158,13 @@ const (
 	dragCorner
 )
 
-// tableDrag follows a grip or the corner while it is dragged.
+// tableDrag is a grip a press holds, and the corner while it is dragged:
+// how far the pointer has gone, and the rows and columns it sets.
 type tableDrag struct {
-	table model.NodeID
-	kind  tableDragKind
-	from  int
-	// moved is how far the pointer has gone, and to where the row or
-	// column would go, or the rows and columns the corner sets.
+	table         model.NodeID
+	kind          tableDragKind
+	from          int
 	moved         ui.Point
-	to            int
 	rows, columns int
 }
 
@@ -235,6 +233,7 @@ func (e *Element) tabledFlow(flow *surface.Flow, now time.Time, animate bool) (*
 			start, _ := e.tables.madeShare(node, true, c)
 			room.ColumnShown[c] = grow(columns, e.tables.growingCols, table.Rows[0][c].Node, fresh, start)
 		}
+		e.tableApart(*table, &room)
 		table.Room = room
 	}
 	e.tables.cells, e.tables.tables = cells, known
@@ -267,7 +266,13 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 	near, rowAt, columnAt := -1, -1, -1
 	rowNear, columnNear := float32(0), float32(0)
 	free := inside && e.pointer == pointerIdle && e.tables.drag == nil && e.tables.held == nil &&
-		e.tables.sizing == nil && !e.blocks.holding
+		e.tables.sizing == nil && e.carry == nil && !e.blocks.holding
+	if e.carry != nil {
+		// A carry chooses where to land: nothing is made meanwhile.
+		e.tables.below.Close()
+		e.tables.rows.Close()
+		e.tables.columns.Close()
+	}
 	e.followBorder(box, point, free)
 	for index, table := range placed {
 		reach := tableReach * scale
@@ -365,7 +370,7 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 			return 0
 		}
 		next.Below = follow(tableKey{node, "below", generation}, open(nearOpen && nearAt == index, step))
-		grips[node] = follow(tableKey{node, "grips", 0}, open(near == index || e.tables.drag != nil, 1))
+		grips[node] = follow(tableKey{node, "grips", 0}, open(near == index || e.tables.drag != nil || e.tables.held != nil, 1))
 		if rowOpen && rowGap/gapStride == index {
 			next.Row = rowGap % gapStride
 		}
@@ -648,13 +653,15 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 			cursor = ui.CursorResizeNWSE
 		}
 		handle := e.grip(c, fmt.Sprintf("table-%d-%s", first, key), label, r, shown, cursor, animate)
+		now := c.Now()
 		over = over || handle.Hovered() || handle.Pressed()
+		// A grip stays held until its press, and what it carries, lets go.
 		if handle.Pressed() {
 			e.tables.held = &tableDrag{table: first, kind: kind, from: from}
-		} else if held := e.tables.held; held != nil && held.table == first && held.kind == kind {
+		} else if held := e.tables.held; held != nil && held.table == first && held.kind == kind && e.carry == nil {
 			e.tables.held = nil
 		}
-		e.followGrip(handle, bridge, placed, kind, from)
+		e.followGrip(handle, bridge, placed, kind, from, now)
 	}
 	if row >= 0 && row < len(placed.Rows) {
 		box := ui.Rect{
@@ -701,49 +708,49 @@ func (e *Element) grip(c *ui.Context, key, label string, r ui.Rect, shown float3
 }
 
 // followGrip follows a press on a grip: a click selects the row or column
-// whole, a drag moves it, and the corner's drag resizes the table.
-func (e *Element) followGrip(handle ui.Element, bridge *Bridge, placed textlayout.PlacedTable, kind tableDragKind, from int) {
+// whole, a drag carries it among the others (carry.go), and the corner's
+// drag resizes the table.
+func (e *Element) followGrip(handle ui.Element, bridge *Bridge, placed textlayout.PlacedTable, kind tableDragKind, from int, now time.Time) {
 	table := placed.Table
 	first := table.Node()
-	if dx, dy, dragging := handle.Dragged(); dragging {
+	if kind != dragCorner {
+		if dx, dy, dragging := handle.Dragged(); dragging && e.carry == nil {
+			if kind == dragRow {
+				e.startCarry(bridge, carryRow, table.Rows[from][0].Node, from, ui.Point{X: dx, Y: dy})
+			} else {
+				e.startCarry(bridge, carryColumn, table.Rows[0][from].Node, from, ui.Point{X: dx, Y: dy})
+			}
+		}
+		if _, _, ended := handle.DragEnded(); ended {
+			e.dropCarry(bridge, false, now)
+			return
+		}
+	} else if dx, dy, dragging := handle.Dragged(); dragging {
 		drag := e.tables.drag
 		if drag == nil || drag.table != first || drag.kind != kind {
-			drag = &tableDrag{table: first, kind: kind, from: from, to: from,
+			drag = &tableDrag{table: first, kind: kind, from: from,
 				rows: len(table.Rows), columns: table.Columns()}
 			e.tables.drag = drag
 		}
 		drag.moved.X += dx
 		drag.moved.Y += dy
-		switch kind {
-		case dragRow:
-			drag.to = nearestIndex(placed.Rows, placed.Heights, placed.Rows[from]+placed.Heights[from]/2+drag.moved.Y)
-		case dragColumn:
-			drag.to = nearestIndex(placed.Columns, placed.Widths, placed.Columns[from]+placed.Widths[from]/2+drag.moved.X)
-		case dragCorner:
-			cellW := placed.Grid.W / float32(max(1, table.Columns()))
-			cellH := placed.Box.H / float32(max(1, len(table.Rows)))
-			drag.columns = max(1, table.Columns()+int(math.Round(float64(drag.moved.X/cellW))))
-			drag.rows = max(1, len(table.Rows)+int(math.Round(float64(drag.moved.Y/cellH))))
-		}
+		cellW := placed.Grid.W / float32(max(1, table.Columns()))
+		cellH := placed.Box.H / float32(max(1, len(table.Rows)))
+		drag.columns = max(1, table.Columns()+int(math.Round(float64(drag.moved.X/cellW))))
+		drag.rows = max(1, len(table.Rows)+int(math.Round(float64(drag.moved.Y/cellH))))
 	}
-	if _, _, ended := handle.DragEnded(); ended {
-		drag := e.tables.drag
-		e.tables.drag = nil
-		e.focusPending = true
-		if drag == nil {
+	if kind == dragCorner {
+		if _, _, ended := handle.DragEnded(); ended {
+			drag := e.tables.drag
+			e.tables.drag = nil
+			e.focusPending = true
+			if drag != nil {
+				_, _ = bridge.Controller.ResizeTable(first, drag.rows, drag.columns)
+			}
 			return
 		}
-		switch drag.kind {
-		case dragRow:
-			_, _ = bridge.Controller.MoveTableRow(first, drag.from, drag.to)
-		case dragColumn:
-			_, _ = bridge.Controller.MoveTableColumn(first, drag.from, drag.to)
-		case dragCorner:
-			_, _ = bridge.Controller.ResizeTable(first, drag.rows, drag.columns)
-		}
-		return
 	}
-	if !handle.Clicked() || e.tables.drag != nil {
+	if !handle.Clicked() || e.tables.drag != nil || e.carry != nil {
 		return
 	}
 	e.focusPending = true
@@ -755,17 +762,6 @@ func (e *Element) followGrip(handle ui.Element, bridge *Bridge, placed textlayou
 	case dragCorner:
 		_ = bridge.Controller.SelectTable(first)
 	}
-}
-
-// nearestIndex is the row or column whose middle is nearest at.
-func nearestIndex(starts, sizes []float32, at float32) int {
-	best, distance := 0, float32(math.Inf(1))
-	for index := range starts {
-		if d := abs(starts[index] + sizes[index]/2 - at); d < distance {
-			best, distance = index, d
-		}
-	}
-	return best
 }
 
 // hoveredCell is the row and column under the pointer in placed, -1 for
@@ -1066,8 +1062,15 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 			header = cell(0, 0)
 			header.X, header.W = box.X, box.W
 		}
-		ys := tableSpans(box.Y, box.H, placed.RowGap.Y+dy, placed.RowGap.H)
-		xs := tableSpans(box.X, box.W, placed.ColumnGap.X+dx, placed.ColumnGap.W)
+		var rowGaps, columnGaps [][2]float32
+		for _, gap := range append([]ui.Rect{placed.RowGap}, placed.RowsApart...) {
+			rowGaps = append(rowGaps, [2]float32{gap.Y + dy, gap.H})
+		}
+		for _, gap := range append([]ui.Rect{placed.ColumnGap}, placed.ColumnsApart...) {
+			columnGaps = append(columnGaps, [2]float32{gap.X + dx, gap.W})
+		}
+		ys := tableSpans(box.Y, box.H, rowGaps)
+		xs := tableSpans(box.X, box.W, columnGaps)
 		for _, y := range ys {
 			for _, x := range xs {
 				part := ui.Rect{X: x[0], Y: y[0], W: x[1] - x[0], H: y[1] - y[0]}
@@ -1103,7 +1106,7 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 		}
 		drawBorder(p, state, placed, box, dx)
 		drawTableEdges(p, state, placed, box)
-		drawTableDrag(p, state, placed, box, dx, dy)
+		drawTableDrag(p, state, placed, box)
 	}
 }
 
@@ -1151,60 +1154,47 @@ func drawMade(p *ui.Painter, state *State, placed textlayout.PlacedTable, cell f
 	components.DashedOutline(p, span, radius, 1, state.Theme.Accent.Foreground.Alpha(fade))
 }
 
-// drawTableDrag shows what a drag under way would do: where a row or a
-// column would go, or the table's new size, named on a chip.
-func drawTableDrag(p *ui.Painter, state *State, placed textlayout.PlacedTable, box ui.Rect, dx, dy float32) {
+// drawTableDrag shows the size the corner's drag would make the table,
+// named on a chip.
+func drawTableDrag(p *ui.Painter, state *State, placed textlayout.PlacedTable, box ui.Rect) {
 	drag := state.TableDrag
-	if drag == nil || drag.table != placed.Table.Node() {
+	if drag == nil || drag.table != placed.Table.Node() || drag.kind != dragCorner {
 		return
 	}
-	accent := state.Theme.Accent.Foreground
-	switch drag.kind {
-	case dragRow:
-		from := placed.Cell(drag.from, 0)
-		band := ui.Rect{X: box.X, Y: from.Y + dy + drag.moved.Y, W: box.W, H: from.H}
-		p.Fill(band, state.Theme.Accent.Muted.Alpha(0.6), 0)
-		p.Stroke(band, accent.Alpha(0.85), 0, figureRingWidth)
-		y := placed.Rows[drag.to] + dy
-		if drag.to > drag.from {
-			y += placed.Heights[drag.to]
-		}
-		p.Fill(ui.Rect{X: box.X, Y: y - 1, W: box.W, H: 2}, accent, 1)
-	case dragColumn:
-		from := placed.Cell(0, drag.from)
-		band := ui.Rect{X: from.X + dx + drag.moved.X, Y: box.Y, W: from.W, H: box.H}
-		p.Fill(band, state.Theme.Accent.Muted.Alpha(0.6), 0)
-		p.Stroke(band, accent.Alpha(0.85), 0, figureRingWidth)
-		x := placed.Columns[drag.to] + dx
-		if drag.to > drag.from {
-			x += placed.Widths[drag.to]
-		}
-		p.Fill(ui.Rect{X: x - 1, Y: box.Y, W: 2, H: box.H}, accent, 1)
-	case dragCorner:
-		columns, rows := placed.Table.Columns(), len(placed.Table.Rows)
-		size := ui.Rect{
-			X: box.X, Y: box.Y,
-			W: max(box.W/float32(columns), box.W*float32(drag.columns)/float32(columns)),
-			H: max(box.H/float32(rows), box.H*float32(drag.rows)/float32(rows)),
-		}
-		components.DashedOutline(p, size, figureRadius(state), 1.5, accent)
-		drawResizeLabel(p, size, state, fmt.Sprintf("%d × %d", drag.columns, drag.rows))
+	columns, rows := placed.Table.Columns(), len(placed.Table.Rows)
+	size := ui.Rect{
+		X: box.X, Y: box.Y,
+		W: max(box.W/float32(columns), box.W*float32(drag.columns)/float32(columns)),
+		H: max(box.H/float32(rows), box.H*float32(drag.rows)/float32(rows)),
 	}
+	components.DashedOutline(p, size, figureRadius(state), 1.5, state.Theme.Accent.Foreground)
+	drawResizeLabel(p, size, state, fmt.Sprintf("%d × %d", drag.columns, drag.rows))
 }
 
-// tableSpans are the stretches from start over size that room of open at
-// at leaves, each a start and an end: the whole, until the room is open
-// enough to part it.
-func tableSpans(start, size, at, open float32) [][2]float32 {
-	if open < 1 {
-		return [][2]float32{{start, start + size}}
-	}
-	var spans [][2]float32
-	if at-start >= 1 {
-		spans = append(spans, [2]float32{start, at})
-	}
-	if end := start + size; end-(at+open) >= 1 {
-		spans = append(spans, [2]float32{at + open, end})
+// tableSpans are the stretches from start over size that gaps leave, each
+// gap where it opens and how far, and each stretch a start and an end:
+// the whole, until a gap is open enough to part it.
+func tableSpans(start, size float32, gaps [][2]float32) [][2]float32 {
+	spans := [][2]float32{{start, start + size}}
+	for _, gap := range gaps {
+		at, open := gap[0], gap[1]
+		if open < 1 {
+			continue
+		}
+		var parted [][2]float32
+		for _, span := range spans {
+			if at+open <= span[0] || at >= span[1] {
+				parted = append(parted, span)
+				continue
+			}
+			if at-span[0] >= 1 {
+				parted = append(parted, [2]float32{span[0], at})
+			}
+			if span[1]-(at+open) >= 1 {
+				parted = append(parted, [2]float32{at + open, span[1]})
+			}
+		}
+		spans = parted
 	}
 	return spans
 }

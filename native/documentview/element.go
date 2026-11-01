@@ -102,7 +102,13 @@ type Element struct {
 	pointerHold bool
 	// followUntil is how long the caret's line is followed as what an edit
 	// opened settles.
-	followUntil          time.Time
+	followUntil time.Time
+	// carry is a block, row or column a grip's drag carries, landing one
+	// let go on its way to its place, and apart the room the page opens
+	// and closes for them (carry.go).
+	carry                *carry
+	landing              *carryLanding
+	apart                map[apartKey]*apartRoom
 	drawnCaret           ui.Rect
 	caretPresentationKey caretPresentationKey
 	mounted              bool
@@ -189,6 +195,7 @@ func (e *Element) View(c *ui.Context) {
 		e.revealCell(bridge.Controller.Selection().Caret())
 	}
 	e.followTables(c, box, animate)
+	e.followCarry(box, animate)
 	bridge, _ := e.Input.(*Bridge)
 	e.followBlocks(box, bridge, animate)
 	box.Children(func() {
@@ -379,6 +386,14 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		e.Motion.Activity(event.Time)
 		e.pointerHold = false
 		if event.Kind == ui.InputKeyDown {
+			if e.carry != nil {
+				// A carry takes the keys: Escape sets it back down.
+				if event.Key == ui.KeyEscape {
+					bridge, _ := e.Input.(*Bridge)
+					e.dropCarry(bridge, true, event.Time)
+				}
+				return true
+			}
 			if e.tables.sizing != nil {
 				// A border's drag takes the keys: Escape puts it back.
 				if event.Key == ui.KeyEscape {
@@ -553,7 +568,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	if err != nil {
 		return
 	}
-	tabled, growing := e.tabledFlow(e.resizedFlow(frame.Flow()), p.Now(), animate)
+	tabled, growing := e.tabledFlow(e.apartFlow(e.resizedFlow(frame.Flow()), bridge), p.Now(), animate)
 	flow, opening := e.captionedFlow(tabled, frame.Selection(), p.Now(), animate)
 	if opening || growing {
 		p.AnimationFrame()
@@ -629,14 +644,14 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		TableMade:         e.tables.made,
 		TableBorder:       e.tables.border,
 	}
-	// The drop line shows where dragged pictures would go, or a block its
-	// grip carries.
-	dropY, dropping := e.current.BlockEdge(model.UTF16Offset(e.dropOver)), e.dropActive
-	if y, ok := e.blockDropLine(bridge); ok {
-		dropY, dropping = y, true
+	// The drop line shows where dragged pictures would go.
+	dropY := e.current.BlockEdge(model.UTF16Offset(e.dropOver))
+	if e.drop.advance(dropY, e.dropActive, p.Now(), animate) {
+		p.AnimationFrame()
 	}
-	state.BlockBand, state.BlockDragging = e.blockBand(bridge)
-	if e.drop.advance(dropY, dropping, p.Now(), animate) {
+	var landing bool
+	state.Carry, landing = e.showCarry(e.current, bridge, p.Now(), animate)
+	if landing {
 		p.AnimationFrame()
 	}
 	Paint(p, rect, state)

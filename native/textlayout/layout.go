@@ -59,8 +59,19 @@ type Layout struct {
 	style      Style
 	paragraphs []Paragraph
 	tables     []PlacedTable
+	rooms      []PlacedRoom
 	height     float32
 }
+
+// PlacedRoom is room the flow opens before a line, where the layout set
+// it: Box above the line's block, the room before it given.
+type PlacedRoom struct {
+	At  model.UTF16Offset
+	Box ui.Rect
+}
+
+// Rooms are the rooms the flow opens, in order.
+func (l *Layout) Rooms() []PlacedRoom { return append([]PlacedRoom(nil), l.rooms...) }
 
 func (l *Layout) Flow() *surface.Flow { return l.flow }
 func (l *Layout) Width() float32      { return l.width }
@@ -136,6 +147,15 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		return layout
 	}
 	var tables []PlacedTable
+	var rooms []PlacedRoom
+	// open takes room the flow opens before the line at, above what stands
+	// there, the gap before it given.
+	open := func(at model.UTF16Offset, above float32) {
+		if room := flow.RoomAt(at); room > 0 {
+			rooms = append(rooms, PlacedRoom{At: at, Box: ui.Rect{Y: top + above, W: width, H: room}})
+			top += room
+		}
+	}
 	for index := 0; index < len(paragraphs); index++ {
 		raw := paragraphs[index]
 		rhythm := paragraphRhythm(flow, raw.startByte)
@@ -149,6 +169,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			}
 		}
 		previous, previousFigure = rhythm, hasFigure || hasTable
+		open(model.UTF16Offset(raw.startUTF16), above)
 		if hasTable {
 			top += above
 			placed, cells, height := placeTable(table, paragraphs[index:], top, width, style, func(raw rawParagraph, width float32, align ui.Align, header bool) *ui.TextLayout {
@@ -196,6 +217,11 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		top += height
 		shaped = append(shaped, paragraph)
 	}
+	// Room after the last line stands a figure's gap below it.
+	if room := flow.RoomAt(-1); room > 0 {
+		rooms = append(rooms, PlacedRoom{At: -1, Box: ui.Rect{Y: top + figureGap(body), W: width, H: room}})
+		top += figureGap(body) + room
+	}
 	c.layouts = next
 	c.layout = &Layout{
 		flow:       flow,
@@ -203,6 +229,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		style:      style,
 		paragraphs: shaped,
 		tables:     tables,
+		rooms:      rooms,
 		height:     max(lineHeight, top),
 	}
 	return c.layout

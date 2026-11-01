@@ -59,9 +59,8 @@ type State struct {
 	// TableBorder the column border the pointer is on or a drag holds.
 	TableMade   *tableMade
 	TableBorder columnBorder
-	// BlockBand is a block its grip's drag carries, while BlockDragging.
-	BlockBand     ui.Rect
-	BlockDragging bool
+	// Carry is a block, row or column a drag carries or that lands.
+	Carry *carryShown
 
 	// DrawnCaret is set by Paint: the caret geometry it settled on this
 	// frame, local to the content like the layout's.

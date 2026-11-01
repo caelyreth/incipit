@@ -46,6 +46,9 @@ type PlacedTable struct {
 	// open between them.
 	Columns, Widths, Rows, Heights []float32
 	RowGap, ColumnGap              ui.Rect
+	// RowsApart and ColumnsApart are the room a drag opens before each
+	// row and column, the last after them all; empty where it opens none.
+	RowsApart, ColumnsApart []ui.Rect
 	// Natural is each column's width as its text asks, before any share
 	// of the room over is spread to it.
 	Natural []float32
@@ -158,8 +161,14 @@ func placeTable(
 		}
 	}
 	columnRoom := min(room.ColumnRoom, width/2)
-	widths := columnWidths(table, width-columnRoom, natural)
-	grid := columnRoom
+	apart := float32(0)
+	for column := range table.Columns() + 1 {
+		apart += room.ColumnApart(column)
+	}
+	// Room a drag opens between columns is taken from the others, as the
+	// room an area opens between them is.
+	widths := columnWidths(table, width-columnRoom-apart, natural)
+	grid := columnRoom + apart
 	for _, w := range widths {
 		grid += w
 	}
@@ -168,23 +177,34 @@ func placeTable(
 	left := min(0, (width-shows)/2)
 	overflow := max(0, grid-shows)
 	scroll := max(0, min(room.Scroll, overflow))
-	placed := PlacedTable{Table: table, Widths: widths, Natural: natural, Scroll: scroll, Overflow: overflow}
+	placed := PlacedTable{
+		Table: table, Widths: widths, Natural: natural, Scroll: scroll, Overflow: overflow,
+		RowsApart:    make([]ui.Rect, len(table.Rows)+1),
+		ColumnsApart: make([]ui.Rect, len(widths)+1),
+	}
 	x := left - scroll
-	for index, w := range widths {
+	for index := range len(widths) + 1 {
+		if a := room.ColumnApart(index); a > 0 {
+			placed.ColumnsApart[index] = ui.Rect{X: x, Y: top, W: a}
+			x += a
+		}
 		if index == room.Column && columnRoom > 0 {
 			placed.ColumnGap = ui.Rect{X: x, Y: top, W: columnRoom}
 			x += columnRoom
 		}
-		placed.Columns = append(placed.Columns, x)
-		x += w
-	}
-	if room.Column >= len(widths) && columnRoom > 0 {
-		placed.ColumnGap = ui.Rect{X: x, Y: top, W: columnRoom}
+		if index < len(widths) {
+			placed.Columns = append(placed.Columns, x)
+			x += widths[index]
+		}
 	}
 	var clip ui.Rect
 	var shaped []Paragraph
 	y := top
 	for r, row := range table.Rows {
+		if a := room.RowApart(r); a > 0 {
+			placed.RowsApart[r] = ui.Rect{X: left, Y: y, W: shows, H: a}
+			y += a
+		}
 		if r == room.Row && room.RowRoom > 0 {
 			placed.RowGap = ui.Rect{X: left, Y: y, W: shows, H: room.RowRoom}
 			y += room.RowRoom
@@ -225,6 +245,10 @@ func placeTable(
 		placed.Heights = append(placed.Heights, rowHeight)
 		y += rowHeight
 	}
+	if a := room.RowApart(len(table.Rows)); a > 0 {
+		placed.RowsApart[len(table.Rows)] = ui.Rect{X: left, Y: y, W: shows, H: a}
+		y += a
+	}
 	if room.Row >= len(table.Rows) && room.RowRoom > 0 {
 		placed.RowGap = ui.Rect{X: left, Y: y, W: shows, H: room.RowRoom}
 		y += room.RowRoom
@@ -232,6 +256,11 @@ func placeTable(
 	placed.Box = ui.Rect{X: left, Y: top, W: shows, H: y - top}
 	placed.Grid = ui.Rect{X: left - scroll, Y: top, W: grid, H: y - top}
 	placed.ColumnGap.H = placed.Box.H
+	for index := range placed.ColumnsApart {
+		if placed.ColumnsApart[index].W > 0 {
+			placed.ColumnsApart[index].H = placed.Box.H
+		}
+	}
 	placed.Below = ui.Rect{X: left, Y: y, W: shows, H: room.Below}
 	if overflow > 0 {
 		clip = placed.Box

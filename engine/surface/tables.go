@@ -58,7 +58,24 @@ type TableRoom struct {
 	// Scroll is how far a table wider than the room it shows in is
 	// scrolled across.
 	Scroll float32
+	// RowsApart and ColumnsApart are room a drag opens before each row
+	// and column, the last after them all, where what it carries would
+	// land.
+	RowsApart, ColumnsApart []float32
 }
+
+// apart is the room at index of rooms, none past them.
+func apart(rooms []float32, index int) float32 {
+	if index < len(rooms) {
+		return max(0, rooms[index])
+	}
+	return 0
+}
+
+// RowApart and ColumnApart are the room a drag opens before row and
+// column.
+func (r TableRoom) RowApart(row int) float32       { return apart(r.RowsApart, row) }
+func (r TableRoom) ColumnApart(column int) float32 { return apart(r.ColumnsApart, column) }
 
 // RowShare and ColumnShare are row's and column's share of their size.
 func (r TableRoom) RowShare(row int) float32 {

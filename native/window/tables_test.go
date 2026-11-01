@@ -165,3 +165,56 @@ func TestAColumnsBorderSetsItsWidth(t *testing.T) {
 		}
 	}
 }
+
+// A column moves by its grip above the table, as a row does by its own.
+func TestAColumnsGripMovesIt(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	typeText(t, app, "Before the table\n| Name | Born | Field |\nAda")
+	frames(tester, 30)
+	tester.Move(900, 165)
+	frames(tester, 30)
+	dragFrom(tester, 894, 137, 1140, 137)
+	if text := app.Session.Document().Text(); strings.Index(text, "Field") > strings.Index(text, "Born") {
+		t.Fatalf("the column did not move: %q", text)
+	}
+}
+
+// A block carried to the page's bottom edge scrolls the page on, and lets
+// go where it is then.
+func TestACarriedBlockScrollsThePage(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	lines := []string{"Carried"}
+	for index := range 40 {
+		lines = append(lines, "Line "+strings.Repeat("of prose ", index%4+1))
+	}
+	typeText(t, app, strings.Join(lines, "\n"))
+	_ = app.Bridge.Controller.SelectProjected(0, 0)
+	frames(tester, 60)
+	tester.Move(700, 120)
+	frames(tester, 30)
+	tester.Press(568, 120)
+	frames(tester, 2)
+	for step := float32(1); step <= 10; step++ {
+		tester.Move(568, 120+68*step)
+		frames(tester, 1)
+	}
+	frames(tester, 60)
+	if app.Element.ScrollY() <= 0 {
+		t.Fatal("the page did not scroll on by its edge")
+	}
+	tester.Release(568, 800)
+	frames(tester, 20)
+	if text := app.Session.Document().Text(); strings.HasPrefix(text, "Carried") {
+		t.Fatalf("the block did not move: %q", text[:40])
+	}
+}

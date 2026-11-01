@@ -23,6 +23,7 @@ type Flow struct {
 	ascii   bool
 	figures []Figure
 	tables  []Table
+	rooms   []Room
 }
 
 func EmptyFlow(version projection.Version) *Flow {

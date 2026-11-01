@@ -3,6 +3,7 @@ package components
 import (
 	"math"
 
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -65,4 +66,15 @@ func arc(path *ui.Path, center [2]float32, radius float32, a0, a1 float64, begin
 		x1+k*float32(math.Sin(a1)), y1-k*float32(math.Cos(a1)),
 		x1, y1,
 	)
+}
+
+// DropFrame is where something dragged would land: a dashed outline in the
+// accent over its faint tint, as a list's drop place and the page's show.
+// shown fades it in and out.
+func DropFrame(p *ui.Painter, r ui.Rect, radius, shown float32, t theme.Theme) {
+	if r.W <= 0.5 || r.H <= 0.5 || shown <= 0 {
+		return
+	}
+	p.Fill(r, t.Accent.Muted.Alpha(0.14*shown), radius)
+	DashedOutline(p, r, radius, 1, t.Accent.Foreground.Alpha(0.65*shown))
 }

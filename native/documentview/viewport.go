@@ -62,7 +62,7 @@ func (e *Element) followCaret(layout *textlayout.Layout, line ui.Rect, caretY, h
 		e.Motion.Settle(e.scroll, low, high, now)
 		return
 	}
-	if e.pointer != pointerIdle || e.pointerHold || e.tables.sizing != nil {
+	if e.pointer != pointerIdle || e.pointerHold || e.tables.sizing != nil || e.carry != nil {
 		e.followUntil = time.Time{}
 		return
 	}
@@ -135,7 +135,8 @@ func (e *Element) stepViewport(now time.Time, animate bool) bool {
 // comes into view.
 func (e *Element) followDragEdge(c *ui.Context) {
 	bridge, _ := e.Input.(*Bridge)
-	if e.pointer != pointerSelecting || e.current == nil || e.Motion == nil || bridge != nil && bridge.Cells != nil {
+	selecting := e.pointer == pointerSelecting && (bridge == nil || bridge.Cells == nil)
+	if !selecting && e.carry == nil || e.current == nil || e.Motion == nil {
 		e.edgeAt = time.Time{}
 		return
 	}
@@ -171,6 +172,9 @@ func (e *Element) followDragEdge(c *ui.Context) {
 	}
 	e.Motion.CancelScroll()
 	e.scroll = next
+	if !selecting {
+		return
+	}
 	if head := e.hit(e.pointerAt.X, e.pointerAt.Y); head != e.pointerHead {
 		e.pointerHead = head
 		_ = e.Input.Select(e.pointerAnchor, head, now)
