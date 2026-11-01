@@ -48,7 +48,7 @@ than force unrelated operations through a generic abstraction.
 | C7 | Public target rebasing and affinity | Settled | Position affinity is distinct from mark-boundary affinity; collapsed targets remain collapsed, including when given opposing boundary affinities. |
 | C8 | Resource cloning and dispatch predicates | Settled | Row/collection reads clone only returned values while preserving authority and isolation. Compiled and linear plans share trigger predicates, with independent expected-plan coverage. |
 | C9 | Settings row variants and timing gates | In progress | Shared effective motion policy now covers settings, shell, overlays and table feedback; row/disclosure extraction remains open. |
-| C10 | Place-title flight geometry | Open | Preserve endpoint appearance and interaction |
+| C10 | Place-title flight geometry | Settled | Header, band and flight share type, gap and weight descriptors derived from theme metrics; menu anchors remain separate. Scale and interrupted-flight tests pass. |
 
 ## Final Verification
 

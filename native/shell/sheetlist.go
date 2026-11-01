@@ -1285,7 +1285,7 @@ func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, do
 	// The line narrows to its toggle as the title goes (titleLines); the
 	// title takes what is left, which closes to none.
 	info := ui.Row(c).Key("head-info").Grow(1).MinWidth(0).Clip().AlignItems(ui.Center).
-		Gap(theme.Space06.DIPs(scale))
+		Gap(headTitle.gap.DIPs(scale))
 	if s.flying() {
 		info.Opacity(0)
 	} else if dock > 0.001 {
@@ -1297,7 +1297,7 @@ func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, do
 		}
 		s.rowIcon(c, semantic, icon, tint, animate)
 		heading := ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			components.Label(c, title, theme.TextSmall, semantic.Text.Heading).SingleLine()
+			components.Label(c, title, headTitle.text, semantic.Text.Heading).SingleLine().FontWeight(headTitle.weight)
 			components.Label(c, detail, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
 		})
 		// The title is the group, with the group's menu.
@@ -1340,14 +1340,14 @@ func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, do
 	}
 	ui.Box(c).Key("place-band").WidthPercent(100).Height(height * dock).Shrink(0).Clip().Children(func() {
 		layer := ui.Row(c).Key("band-" + view.key()).Absolute().Top(0).Left(0).Right(0).Height(height).
-			PaddingX(theme.Space12.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+			PaddingX(theme.Space12.DIPs(scale)).AlignItems(ui.Center).Gap(bandTitle.gap.DIPs(scale)).
 			Opacity(shown).
 			Transition(swapTransition(animate, s.nav.side*enterSlide*scale/theme.DefaultUIFontSize))
 		layer.Children(func() {
 			title, icon, tint, detail := s.placeInfo(semantic, view.place)
 			s.rowIcon(c, semantic, icon, tint, animate)
 			heading := ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				components.Label(c, title, theme.TextLarge, semantic.Text.Heading).SingleLine().FontWeight(600)
+				components.Label(c, title, bandTitle.text, semantic.Text.Heading).SingleLine().FontWeight(bandTitle.weight)
 				components.Label(c, detail, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
 			})
 			if view.place.Kind == PlaceGroup {

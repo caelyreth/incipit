@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -19,6 +20,32 @@ var paneMoves = []struct {
 	{"sheets from editor", false, false, false, true},
 	{"editor from sheets", false, true, false, false},
 	{"all from editor", false, false, true, true},
+}
+
+func TestPlaceTitleKeepsItsSharedFlightAtDifferentScales(t *testing.T) {
+	for _, scale := range []float32{12, 16, 24} {
+		state, _ := libraryState()
+		state.Settings.UIFontSize = scale
+		state.Go(Place{Kind: PlaceGroup, Group: "2"})
+		state.ShowPanes(true, true)
+		tester := ui.NewTester(state.View, 1260, 500)
+		settle(tester)
+		if got, want := placeBandHeight(scale), float32(56)*scale/theme.DefaultUIFontSize; abs(got-want) > 0.001 {
+			t.Fatalf("scale %v band height = %v, want %v", scale, got, want)
+		}
+		state.ShowPanes(false, true)
+		tester.Frame()
+		tester.Advance(60 * time.Millisecond)
+		if !state.flying() || state.listDock <= 0 || state.listDock >= 1 {
+			t.Fatalf("scale %v did not fly: dock=%v", scale, state.listDock)
+		}
+		state.ShowPanes(true, true)
+		tester.Frame()
+		settle(tester)
+		if state.flying() || state.listDock > 0.001 || !tester.HasText("Novel") {
+			t.Fatalf("scale %v did not settle after reversal: dock=%v", scale, state.listDock)
+		}
+	}
 }
 
 // TestTheSelectedSheetStaysHighlightedAsPanesMove watches the open sheet's

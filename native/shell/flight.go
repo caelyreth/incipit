@@ -6,16 +6,21 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The place's title in its two spots, in DIPs at the default UI size: the
-// title bar's line, and the band at the top of the list.
-const (
-	headTitle, headLine, headGap, headWeight = float32(12), float32(16), float32(6), 400
-	bandTitle, bandLine, bandGap, bandWeight = float32(16), float32(24), float32(8), 600
+// placeTitleStyle is shared by each resting title and the copy in flight.
+type placeTitleStyle struct {
+	text   theme.TextSize
+	gap    theme.Spacing
+	weight int
+}
+
+var (
+	headTitle = placeTitleStyle{text: theme.TextSmall, gap: theme.Space06, weight: 400}
+	bandTitle = placeTitleStyle{text: theme.TextLarge, gap: theme.Space08, weight: 600}
 )
 
 // placeBandHeight is the band's height at the top of the list.
 func placeBandHeight(scale float32) float32 {
-	return (bandLine + headLine + 2*float32(theme.Space08)) * scale / theme.DefaultUIFontSize
+	return bandTitle.text.LineHeight(scale) + theme.TextXSmall.LineHeight(scale) + 2*theme.Space08.DIPs(scale)
 }
 
 // takeFlight notes whether the place's title is on its way between the
@@ -45,49 +50,48 @@ func (s *State) placeFlight(
 		return
 	}
 	scale := s.Settings.UIFontSize
-	k := scale / theme.DefaultUIFontSize
 	p := s.listDock
 	lerp := func(a, b float32) float32 { return a + (b-a)*p }
 
-	bar := layout.Titlebar * k
+	bar := layout.Titlebar * scale / theme.DefaultUIFontSize
 	// It leaves from where the title stands with its line at full length,
 	// as the header lays it out with the title up (titleLines).
 	up := s.titleLines(layout, reveal, listWidth, 0)
-	library := layout.Sidebar * k * reveal
+	library := layout.Sidebar * scale / theme.DefaultUIFontSize * reveal
 	pad := theme.Space12.DIPs(scale)
 	button := theme.DefaultControls.Scaled(scale).Height
-	headWidth := max(0, up.sheets-pad-theme.Space06.DIPs(scale)-button-listLineEnd.DIPs(scale))
+	headWidth := max(0, up.sheets-pad-headTitle.gap.DIPs(scale)-button-listLineEnd.DIPs(scale))
 
 	x := lerp(up.library+pad, library+pad)
 	center := lerp(bar/2, bar+placeBandHeight(scale)/2)
-	height := lerp(2*headLine, bandLine+headLine) * k
+	detailLine := theme.TextXSmall.LineHeight(scale)
+	height := lerp(headTitle.text.LineHeight(scale)+detailLine, bandTitle.text.LineHeight(scale)+detailLine)
 	width := max(0, lerp(headWidth, listWidth-2*pad))
 
 	title, icon, tint, detail := s.placeInfo(semantic, s.listView().place)
 	// The title keeps the two fonts it rests in and travels by transform:
 	// each spot's copy is scaled to the size on the way and the two cross,
 	// as a font of every size between would make a font a frame.
-	line := lerp(headLine, bandLine) * k
-	text := max(0, width-16*k-lerp(headGap, bandGap)*k)
+	line := lerp(headTitle.text.LineHeight(scale), bandTitle.text.LineHeight(scale))
+	gap := lerp(headTitle.gap.DIPs(scale), bandTitle.gap.DIPs(scale))
+	text := max(0, width-16*scale/theme.DefaultUIFontSize-gap)
 	ui.Row(c).Key("place-flight").Absolute().Left(x).Top(center - height/2).
 		Width(width).Height(height).Clip().Opacity(listReveal).
-		AlignItems(ui.Center).Gap(lerp(headGap, bandGap) * k).Children(func() {
+		AlignItems(ui.Center).Gap(gap).Children(func() {
 		s.rowIcon(c, semantic, icon, tint, animate)
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 			ui.Box(c).WidthPercent(100).Height(line).Shrink(0).Children(func() {
 				for _, copy := range [...]struct {
-					size     theme.TextSize
-					font, at float32
-					weight   int
-					opacity  float32
+					style   placeTitleStyle
+					opacity float32
 				}{
-					{theme.TextSmall, headTitle, headLine, headWeight, 1 - p},
-					{theme.TextLarge, bandTitle, bandLine, bandWeight, p},
+					{headTitle, 1 - p},
+					{bandTitle, p},
 				} {
-					grow := lerp(headTitle, bandTitle) / copy.font
-					components.Label(c, title, copy.size, semantic.Text.Heading).SingleLine().
-						FontWeight(copy.weight).Absolute().Left(0).Top(0).
-						Width(text/grow).Height(copy.at*k).
+					grow := lerp(headTitle.text.Size(scale), bandTitle.text.Size(scale)) / copy.style.text.Size(scale)
+					components.Label(c, title, copy.style.text, semantic.Text.Heading).SingleLine().
+						FontWeight(copy.style.weight).Absolute().Left(0).Top(0).
+						Width(text/grow).Height(copy.style.text.LineHeight(scale)).
 						TransformOrigin(0, 0).Scale(grow, grow).Opacity(copy.opacity)
 				}
 			})
