@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/caelyreth/neverland/app/library"
@@ -53,6 +55,47 @@ type Selection struct {
 type ProjectedSelection struct {
 	Anchor int `json:"anchor"`
 	Head   int `json:"head"`
+}
+
+// Equal reports whether two layouts say the same thing. Optional visual
+// selections are compared by value because callers allocate them afresh.
+func (l Layout) Equal(other Layout) bool {
+	return l.Active == other.Active && l.HasActive == other.HasActive &&
+		slices.Equal(l.Tabs, other.Tabs) &&
+		maps.Equal(l.Scroll, other.Scroll) &&
+		maps.EqualFunc(l.Selections, other.Selections, Selection.Equal)
+}
+
+// Equal reports whether two selections choose the same semantic range and,
+// when present, the same projected visual range.
+func (s Selection) Equal(other Selection) bool {
+	if s.Anchor != other.Anchor || s.Head != other.Head ||
+		(s.Visual == nil) != (other.Visual == nil) {
+		return false
+	}
+	return s.Visual == nil || *s.Visual == *other.Visual
+}
+
+// clone returns a layout that shares no mutable storage with the caller.
+func (l Layout) clone() Layout {
+	l.Tabs = slices.Clone(l.Tabs)
+	l.Scroll = maps.Clone(l.Scroll)
+	if l.Selections != nil {
+		selections := make(map[PageKey]Selection, len(l.Selections))
+		for key, selection := range l.Selections {
+			selections[key] = selection.clone()
+		}
+		l.Selections = selections
+	}
+	return l
+}
+
+func (s Selection) clone() Selection {
+	if s.Visual != nil {
+		visual := *s.Visual
+		s.Visual = &visual
+	}
+	return s
 }
 
 // Damage is a page whose records no longer make a document. Its rows stay

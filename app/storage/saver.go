@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -98,19 +99,22 @@ func (v *Saver) Delete(key PageKey) {
 	v.mu.Unlock()
 }
 
-// Library asks for the library's filing to be saved.
+// Library asks for the library's filing to be saved. The saver copies the
+// records before returning, so the caller may reuse them immediately.
 func (v *Saver) Library(records library.Records) {
+	records.Groups = slices.Clone(records.Groups)
+	records.Sheets = slices.Clone(records.Sheets)
+	records.Chapters = slices.Clone(records.Chapters)
 	v.mu.Lock()
 	v.library = &records
 	v.touch()
 	v.mu.Unlock()
 }
 
-// Layout asks for the notebook's layout to be saved.
+// Layout asks for the notebook's layout to be saved. The saver copies maps
+// and the optional visual selections before returning.
 func (v *Saver) Layout(layout Layout) {
-	layout.Tabs = append([]PageKey(nil), layout.Tabs...)
-	layout.Scroll = maps.Clone(layout.Scroll)
-	layout.Selections = maps.Clone(layout.Selections)
+	layout = layout.clone()
 	v.mu.Lock()
 	v.layout = &layout
 	v.touch()

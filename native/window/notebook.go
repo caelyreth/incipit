@@ -2,9 +2,7 @@ package window
 
 import (
 	"fmt"
-	"maps"
 	"os"
-	"slices"
 	"time"
 
 	"github.com/caelyreth/neverland/app/controller"
@@ -214,18 +212,11 @@ func (a *AppState) saveLayout() {
 			stored.Scroll[session.key] = scroll.Y
 		}
 	}
-	if sameLayout(stored, a.notebook.layout) {
+	if stored.Equal(a.notebook.layout) {
 		return
 	}
 	a.notebook.layout = stored
 	a.notebook.saver.Layout(stored)
-}
-
-func sameLayout(left, right storage.Layout) bool {
-	return left.Active == right.Active && left.HasActive == right.HasActive &&
-		slices.Equal(left.Tabs, right.Tabs) &&
-		maps.Equal(left.Scroll, right.Scroll) &&
-		maps.Equal(left.Selections, right.Selections)
 }
 
 func storedSelection(session *editor.Session) storage.Selection {

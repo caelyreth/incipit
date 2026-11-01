@@ -258,3 +258,25 @@ func TestMarkerOnlySelectionIsKeptAcrossRestart(t *testing.T) {
 		t.Fatalf("restored visual selection = %v, want %v", after, before)
 	}
 }
+
+func TestUnchangedFramesDoNotEnqueueAnotherLayout(t *testing.T) {
+	app := openNotebookApp(t, t.TempDir())
+	defer app.Close()
+	typeText(t, app, "unchanged")
+	if err := app.Session.Document().SelectProjected(0, 3); err != nil {
+		t.Fatal(err)
+	}
+
+	app.saveLayout()
+	key := app.Session.key
+	saved := app.notebook.layout.Selections[key].Visual
+	if saved == nil {
+		t.Fatal("the frame has no visual selection")
+	}
+	for range 5 {
+		app.saveLayout()
+	}
+	if got := app.notebook.layout.Selections[key].Visual; got != saved {
+		t.Fatal("an unchanged frame handed the layout to the saver again")
+	}
+}

@@ -22,7 +22,7 @@ than force unrelated operations through a generic abstraction.
 | A4 | IME preview surface metadata | In progress | `codex/audit-ime` worktree |
 | A5 | Formatting coverage and mark identity | In progress | `codex/audit-marks` worktree |
 | A6 | Visible keyboard focus | In progress | `codex/audit-ui-focus` worktree |
-| B1 | Layout equality and saver ownership | In progress | `codex/audit-persistence` worktree |
+| B1 | Layout equality and saver ownership | Settled | Storage compares selections by value and clones queued layouts and library records. Added unchanged-frame, ownership and concurrent-save tests. |
 | B2 | Mark canonicalization and identity allocation | In progress | `codex/audit-marks` worktree |
 | B3 | Semantic text normalization | In progress | `codex/audit-invariants` worktree |
 | B4 | After-rule co-schedulability | In progress | `codex/audit-invariants` worktree |
