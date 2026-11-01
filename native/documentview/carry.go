@@ -13,7 +13,8 @@ import (
 
 // A block of the page, and a row or a column of a table, moves as the
 // sheet list's rows do. Dragging its grip lifts a copy of it under the
-// pointer, raised off the page, the thing itself dimmed in its place.
+// pointer, only what it shows, as a list's row goes, the thing itself
+// dimmed in its place.
 // Where it would land the page parts, a dashed frame its size opening
 // there as the one it leaves closes, and what stands around glides to make
 // room. Where it would land is read from where things stood as the drag
@@ -379,12 +380,11 @@ func tableHas(table surface.Table, cell model.NodeID) bool {
 }
 
 // carryShown is how a carry under way or a landing shows this frame: the
-// thing where it stands, its copy's corner, how raised the copy is and
-// how hidden the thing; the frames where it would land, by their room.
+// thing where it stands, its copy's corner and how hidden the thing; the
+// frames where it would land, by their room.
 type carryShown struct {
 	thing  carried
 	at     ui.Point
-	lift   float32
 	veil   float32
 	frames []ui.Rect
 	// size and space size a frame within its room.
@@ -405,7 +405,7 @@ func (e *Element) showCarry(layout *textlayout.Layout, bridge *Bridge, now time.
 			X: l.from.X + (thing.rect.X-l.from.X)*p,
 			Y: l.from.Y + (thing.rect.Y-l.from.Y)*p,
 		}
-		return &carryShown{thing: thing, at: at, lift: 1 - p, veil: 1}, true
+		return &carryShown{thing: thing, at: at, veil: 1}, true
 	}
 	c := e.carry
 	if c == nil {
@@ -415,7 +415,7 @@ func (e *Element) showCarry(layout *textlayout.Layout, bridge *Bridge, now time.
 	if !thing.ok {
 		return nil, false
 	}
-	shown := &carryShown{thing: thing, at: c.at, lift: 1, veil: carryVeil, size: c.size, space: c.margin}
+	shown := &carryShown{thing: thing, at: c.at, veil: carryVeil, size: c.size, space: c.margin}
 	for key, room := range e.apart {
 		if !room.frame || key.kind != c.kind {
 			continue
@@ -452,8 +452,8 @@ func blockSlotAt(units []editor.Unit, slot int) model.UTF16Offset {
 }
 
 // drawCarry shows a carry under way or a landing: the frame where it
-// would land, the thing veiled in its place, and its copy raised where the
-// pointer carries it.
+// would land, the thing veiled in its place, and its copy where the
+// pointer carries it, nothing set behind it, as a list's row is carried.
 func drawCarry(p *ui.Painter, rect ui.Rect, state *State) {
 	shown := state.Carry
 	if shown == nil {
@@ -482,20 +482,11 @@ func drawCarry(p *ui.Painter, rect ui.Rect, state *State) {
 	place := screen(thing.rect)
 	p.Fill(place, state.Theme.Surface.Page.Alpha(shown.veil), 0)
 	d := ui.Point{X: shown.at.X - thing.rect.X, Y: shown.at.Y - thing.rect.Y}
-	card := place
-	card.X += d.X
-	card.Y += d.Y
-	pad := float32(0)
-	if thing.kind == carryBlock && thing.table.Table.Rows == nil {
-		pad = state.Prose.LineHeight() / 4
-	}
-	card = grown(card, pad, pad)
-	lift := shown.lift
-	if lift > 0.01 {
-		p.Shadow(card, radius, 0, 6*lift, 18*lift, 0, ui.Color{A: 255}.Alpha(0.28*lift))
-	}
-	p.Fill(card, state.Theme.Surface.Elevated, radius)
-	p.Clip(card, radius, func() {
+	copied := place
+	copied.X += d.X
+	copied.Y += d.Y
+	// A table's cells keep within what is carried of them.
+	p.Clip(grown(copied, 1, 1), 0, func() {
 		drawCarriedTable(p, state, thing, d, offset)
 		for _, paragraph := range state.Layout.Paragraphs() {
 			start := model.UTF16Offset(paragraph.StartUTF16())
@@ -510,7 +501,6 @@ func drawCarry(p *ui.Painter, rect ui.Rect, state *State) {
 			)
 		}
 	})
-	p.Stroke(card, state.Theme.Border.Default.Alpha(lift), radius, 1)
 }
 
 func carriedHolds(ranges []model.UTF16Range, at model.UTF16Offset) bool {
@@ -522,8 +512,9 @@ func carriedHolds(ranges []model.UTF16Range, at model.UTF16Offset) bool {
 	return false
 }
 
-// drawCarriedTable draws the lines of what of a table a copy carries: a
-// row's between its cells, a column's between its rows, a table's all.
+// drawCarriedTable draws the lines of what of a table a copy carries, as
+// the table draws them: its edge, and a row's between its cells, a
+// column's between its rows, a table's all.
 func drawCarriedTable(p *ui.Painter, state *State, thing carried, d, offset ui.Point) {
 	placed := thing.table
 	if placed.Table.Rows == nil {
@@ -537,6 +528,7 @@ func drawCarriedTable(p *ui.Painter, state *State, thing carried, d, offset ui.P
 	}
 	box := thing.rect
 	header := placed.Table.Header
+	defer p.Stroke(at(box), line, 0, 1)
 	switch thing.kind {
 	case carryRow:
 		if header && thing.index == 0 {
