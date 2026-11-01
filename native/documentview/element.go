@@ -49,8 +49,12 @@ type Element struct {
 	drop     dropLine
 	// dropOver is where dragged pictures would go, while they are over the
 	// page: the offset of the block they would follow.
-	dropOver          int
-	dropActive        bool
+	dropOver   int
+	dropActive bool
+	resizing   *figureResize
+	hover      figureHover
+	// announced is the figure last read out as it became the selection.
+	announced         model.NodeID
 	scroll            float32
 	overscroll        scrollfx.Elastic
 	lastHeight        float32
@@ -131,6 +135,7 @@ func (e *Element) View(c *ui.Context) {
 	// A picture decoded off the UI thread redraws the page that asked.
 	e.Pictures.SetWake(c.Services().Invalidate)
 	e.takeDrops(box)
+	e.followFigures(c, box)
 	box.HandleInput(e.handleInput).
 		TextCaret(e.caret(c)).
 		Draw(func(p *ui.Painter, rect ui.Rect) {
@@ -201,6 +206,9 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 			return false
 		}
 		e.Motion.Activity(event.Time)
+		if handled, ok := e.pressFigure(event); handled {
+			return ok
+		}
 		offset := e.hit(event.X, event.Y)
 		anchor := offset
 		switch {
@@ -220,6 +228,10 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		e.pointerHead = offset
 		return e.Input.Select(anchor, offset, event.Time) == nil
 	case ui.InputPointerMove:
+		if e.resizing != nil {
+			e.dragResize(event.X)
+			return true
+		}
 		if e.pointer == pointerIdle || e.current == nil || event.Button != 0 {
 			return false
 		}
@@ -232,6 +244,11 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		e.pointerHead = head
 		return e.Input.Select(e.pointerAnchor, head, event.Time) == nil
 	case ui.InputPointerUp:
+		if e.resizing != nil {
+			e.finishResize()
+			e.Motion.Activity(event.Time)
+			return true
+		}
 		if e.pointer == pointerIdle {
 			return false
 		}
@@ -259,9 +276,39 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		return false
 	case ui.InputKeyDown, ui.InputCommand:
 		e.Motion.Activity(event.Time)
+		if event.Kind == ui.InputKeyDown {
+			if handled, ok := e.figureKey(event); handled {
+				return ok
+			}
+		}
 		return e.Input.Keymap(event)
 	default:
 		return false
+	}
+}
+
+// followFigures shows what the pointer can do over a figure, as its
+// cursor, and reads out a figure as it becomes the selection.
+func (e *Element) followFigures(c *ui.Context, box ui.Element) {
+	e.hover = figureHover{}
+	if x, y, inside := box.PointerPosition(); inside {
+		if figure, side, ok := e.figureAt(x, y); ok {
+			e.hover = figureHover{node: figure.Node, side: side, ok: true}
+		}
+	}
+	switch {
+	case e.resizing != nil || e.hover.ok && e.hover.side != 0:
+		box.Cursor(ui.CursorResizeEW)
+	case e.hover.ok:
+		box.Cursor(ui.CursorDefault)
+	}
+	figure, selected := e.selectedFigure()
+	switch {
+	case !selected:
+		e.announced = 0
+	case figure.Node != e.announced:
+		e.announced = figure.Node
+		c.Announce(figureAnnouncement(figure))
 	}
 }
 
@@ -357,7 +404,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	if err != nil {
 		return
 	}
-	flow := frame.Flow()
+	flow := e.resizedFlow(frame.Flow())
 	style := textlayout.NewStyle(e.Prose, e.Theme)
 	e.lastHeight = rect.H
 	if e.lastWidth != rect.W {
@@ -429,6 +476,8 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Pictures:          e.Pictures,
 		FigureMotion:      &e.figures,
 		Drop:              &e.drop,
+		HoverFigure:       e.hover,
+		Resizing:          e.resizing,
 	}
 	if e.drop.advance(e.current.BlockEdge(model.UTF16Offset(e.dropOver)), e.dropActive, p.Now(), animate) {
 		p.AnimationFrame()

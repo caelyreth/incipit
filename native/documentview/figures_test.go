@@ -143,3 +143,76 @@ func TestASelectedFigureWearsTheRing(t *testing.T) {
 		t.Fatal("a selected figure wears no ring")
 	}
 }
+
+// figureAtScreen is a point of a figure's box, as the element takes it.
+func figureAtScreen(element *Element, figure textlayout.PlacedFigure, x float32) (float32, float32) {
+	return figure.Box.X + x, figure.Box.Y + element.TopInset - element.visibleScroll() + figure.Box.H/2
+}
+
+// A click on a figure selects its whole line; Return then goes on below
+// it, keeping it, and Escape leaves it with the caret after it.
+func TestAClickSelectsAFigure(t *testing.T) {
+	data := redPicture(t)
+	document, element, tester := figurePage(t, func(string) ([]byte, error) { return data, nil })
+	figure := figureBox(t, element)
+	tester.ClickAt(figureAtScreen(element, figure, figure.Box.W/2))
+	if got := document.Selection().Range; got != (controller.UTF16Range{Start: int(figure.Line.Start), End: int(figure.Line.End)}) {
+		t.Fatalf("a click selected %+v, not the figure's line %+v", got, figure.Line)
+	}
+	if !element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEscape}) {
+		t.Fatal("Escape was not taken")
+	}
+	// The caret stays on the line, at the caption's end, inside its fence.
+	if got := document.Selection(); !got.Range.Empty() || got.Caret() != int(figure.Line.End)-1 {
+		t.Fatalf("Escape left the selection at %+v", got)
+	}
+	tester.ClickAt(figureAtScreen(element, figure, figure.Box.W/2))
+	element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEnter})
+	tester.Frame()
+	if got := document.Text(); got != "before\n![]\n\n" {
+		t.Fatalf("Return on a figure left %q", got)
+	}
+	if len(element.current.Figures()) != 1 {
+		t.Fatal("Return on a figure took it away")
+	}
+}
+
+// Dragging a figure's side resizes it, the page reflowing as it goes,
+// snapping to half the column; letting go keeps the size in one step, and
+// Escape during a drag puts it back.
+func TestDraggingASideResizesAFigure(t *testing.T) {
+	data := redPicture(t)
+	document, element, tester := figurePage(t, func(string) ([]byte, error) { return data, nil })
+	figure := figureBox(t, element)
+	column := element.current.Width()
+	x, y := figureAtScreen(element, figure, figure.Box.W-2)
+	tester.Press(x, y)
+	half := column/2 + column/4 + 3
+	tester.Move(half, y)
+	tester.Frame()
+	resized := figureBox(t, element)
+	if resized.Box.W != column/2 {
+		t.Fatalf("mid-drag the figure is %v wide, want it snapped to %v", resized.Box.W, column/2)
+	}
+	tester.Release(half, y)
+	tester.Frame()
+	if got := figureBox(t, element); got.Span != 0.5 || got.Box.W != column/2 {
+		t.Fatalf("the kept figure is %+v", got)
+	}
+	if _, err := document.Execute(controller.Command{ID: string(editor.HistoryUndo.ID())}); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if got := figureBox(t, element); got.Span != 0 || got.Box.W != 200 {
+		t.Fatalf("one undo left %+v", got)
+	}
+
+	tester.Press(x, y)
+	tester.Move(half, y)
+	element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEscape})
+	tester.Release(half, y)
+	tester.Frame()
+	if got := figureBox(t, element); got.Span != 0 || got.Box.W != 200 {
+		t.Fatalf("Escape kept the resize: %+v", got)
+	}
+}

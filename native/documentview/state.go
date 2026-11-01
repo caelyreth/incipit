@@ -43,6 +43,10 @@ type State struct {
 	FigureMotion *FigureMotion
 	// Drop is the line showing where dragged pictures would go.
 	Drop *dropLine
+	// HoverFigure is the figure under the pointer, whose sides show their
+	// grips, and Resizing the resize under way.
+	HoverFigure figureHover
+	Resizing    *figureResize
 
 	// DrawnCaret is set by Paint: the caret geometry it settled on this
 	// frame, local to the content like the layout's.

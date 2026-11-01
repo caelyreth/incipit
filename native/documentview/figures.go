@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/textlayout"
@@ -34,8 +35,8 @@ type FigureMotion struct {
 }
 
 type figureTrack struct {
-	shown, ring motion.Spring
-	seen        bool
+	shown, ring, grips motion.Spring
+	seen               bool
 }
 
 // Reset forgets every figure's motion, so each shows settled.
@@ -64,10 +65,16 @@ func figureSelected(figure textlayout.PlacedFigure, selection model.UTF16Range) 
 }
 
 func figureRadius(state *State) float32 {
+	return theme.DefaultControls.Scaled(uiFontSize(state)).Radius
+}
+
+// uiFontSize is the size the page's chrome is set at, the default when
+// none is given.
+func uiFontSize(state *State) float32 {
 	if state.UIFontSize > 0 {
-		return theme.DefaultControls.Scaled(state.UIFontSize).Radius
+		return state.UIFontSize
 	}
-	return theme.DefaultControls.Radius
+	return theme.DefaultUIFontSize
 }
 
 // drawFigures paints the figures in view and reports whether one is still
@@ -95,28 +102,38 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 		box.X += rect.X
 		box.Y += rect.Y + state.TopInset - state.ScrollY
 		bitmap, picture := state.Pictures.Picture(figure.Media, now)
-		shown, ring := float32(0), float32(0)
+		shown, ring, grips := float32(0), float32(0), float32(0)
 		if picture == PictureReady {
 			shown = 1
 		}
 		if figureSelected(figure, selection) && options.Focused {
 			ring = 1
 		}
+		resizing := state.Resizing != nil && state.Resizing.node == figure.Node
+		if resizing || ring > 0 || state.HoverFigure.ok && state.HoverFigure.node == figure.Node {
+			grips = 1
+		}
 		track, known := motionState.tracks[key]
 		if !known {
 			// A figure already decoded shows at once, as when a page
 			// opens again; one that has to wait fades in.
-			track = &figureTrack{shown: motion.NewSpring(shown, now), ring: motion.NewSpring(0, now)}
+			track = &figureTrack{
+				shown: motion.NewSpring(shown, now),
+				ring:  motion.NewSpring(0, now),
+				grips: motion.NewSpring(0, now),
+			}
 			motionState.tracks[key] = track
 		}
 		track.seen = true
 		if options.Animate {
 			track.shown.Step(shown, now, figureFade)
 			track.ring.Step(ring, now, figureFade)
+			track.grips.Step(grips, now, figureFade)
 		} else {
 			track.shown, track.ring = motion.NewSpring(shown, now), motion.NewSpring(ring, now)
+			track.grips = motion.NewSpring(grips, now)
 		}
-		moving = moving || track.shown.Moving() || track.ring.Moving()
+		moving = moving || track.shown.Moving() || track.ring.Moving() || track.grips.Moving()
 		if box.Y+box.H+figureRingOutset < visible.Y || box.Y-figureRingOutset > visible.Y+visible.H {
 			continue
 		}
@@ -130,6 +147,12 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 				W: box.W + 2*figureRingOutset, H: box.H + 2*figureRingOutset,
 			}
 			p.Stroke(out, state.Theme.Accent.Foreground.Alpha(0.85*alpha), radius+figureRingOutset, figureRingWidth)
+		}
+		if alpha := track.grips.Value(); alpha > 0.001 && picture != PictureMissing {
+			drawGrips(p, box, figure, state, alpha)
+		}
+		if resizing {
+			drawResizeLabel(p, box, state, state.Resizing.label())
 		}
 	}
 	for key, track := range motionState.tracks {
@@ -155,7 +178,7 @@ func drawFigure(
 		p.Fill(box, state.Theme.Surface.Inset.Alpha(1-shown), radius)
 	}
 	if picture == PictureMissing {
-		size := min(box.W, box.H, 20*max(1, state.UIFontSize)/theme.DefaultUIFontSize)
+		size := min(box.W, box.H, 20*uiFontSize(state)/theme.DefaultUIFontSize)
 		icon := ui.Rect{X: box.X + (box.W-size)/2, Y: box.Y + (box.H-size)/2, W: size, H: size}
 		p.Icon(components.IconImageOff.SVG(), icon, state.Theme.Text.Muted)
 		return
@@ -167,6 +190,42 @@ func drawFigure(
 		p.ImageRegion(bitmap, ui.Rect{}, box, ui.ImageOptions{Tint: ui.Color{R: 255, G: 255, B: 255, A: 255}.Alpha(shown)})
 	})
 	p.Stroke(box, state.Theme.Prose.Subtle.Alpha(shown), radius, 1)
+}
+
+// drawGrips paints the grips on the sides a figure resizes from: both of
+// a centered one, the end of one at the start.
+func drawGrips(p *ui.Painter, box ui.Rect, figure textlayout.PlacedFigure, state *State, alpha float32) {
+	const width, inset = 6, 8
+	height := min(36, box.H*0.4)
+	if height < 12 || box.W < 3*inset {
+		return
+	}
+	sides := []float32{box.X + box.W - inset - width}
+	if figure.Align == surface.FigureCenter {
+		sides = append(sides, box.X+inset)
+	}
+	for _, x := range sides {
+		grip := ui.Rect{X: x, Y: box.Y + (box.H-height)/2, W: width, H: height}
+		p.Shadow(grip, width/2, 0, 1, 4, 0, ui.Color{A: 255}.Alpha(0.3*alpha))
+		p.Fill(grip, state.Theme.Surface.Elevated.Alpha(alpha), width/2)
+		p.Stroke(grip, state.Theme.Border.Default.Alpha(alpha), width/2, 1)
+	}
+}
+
+// drawResizeLabel names the width a figure is being resized to, on a chip
+// at the top of the figure.
+func drawResizeLabel(p *ui.Painter, box ui.Rect, state *State, label string) {
+	size := theme.TextSmall.Size(uiFontSize(state))
+	span := ui.Span{Text: label, Size: size, Color: state.Theme.Text.Default}
+	width, height := p.MeasureText(0, span)
+	padX, padY := size*0.75, size*0.3
+	chip := ui.Rect{W: width + 2*padX, H: height + 2*padY}
+	chip.X, chip.Y = box.X+(box.W-chip.W)/2, box.Y+padX
+	if chip.W > box.W || chip.H*2 > box.H {
+		return
+	}
+	p.Fill(chip, state.Theme.Surface.Elevated.Alpha(0.94), chip.H/2)
+	p.RichText(chip.X+padX, chip.Y+padY, 0, span)
 }
 
 // covers reports whether a selection takes all of line.
