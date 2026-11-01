@@ -56,8 +56,9 @@ type TableRoom struct {
 	// size, coming in from 0; all 1 when nil.
 	RowShown, ColumnShown []float32
 	// Scroll is how far a table wider than the room it shows in is
-	// scrolled across.
-	Scroll float32
+	// scrolled across, and Pull how far an edge's pull draws it on past
+	// that, elastic, as a scroll goes past its end.
+	Scroll, Pull float32
 	// RowsApart and ColumnsApart are room a drag opens before each row
 	// and column, the last after them all, where what it carries would
 	// land.

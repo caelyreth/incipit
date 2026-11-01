@@ -176,7 +176,7 @@ func placeTable(
 	shows := min(grid, width+2*style.Spread)
 	left := min(0, (width-shows)/2)
 	overflow := max(0, grid-shows)
-	scroll := max(0, min(room.Scroll, overflow))
+	scroll := max(0, min(room.Scroll, overflow)) + room.Pull
 	placed := PlacedTable{
 		Table: table, Widths: widths, Natural: natural, Scroll: scroll, Overflow: overflow,
 		RowsApart:    make([]ui.Rect, len(table.Rows)+1),

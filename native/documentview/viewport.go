@@ -1,6 +1,7 @@
 package documentview
 
 import (
+	"math"
 	"time"
 
 	"github.com/caelyreth/neverland/app/controller"
@@ -235,40 +236,53 @@ func (e *Element) manualScroll(delta float32, now time.Time, precise, momentum b
 	}
 	e.Motion.CancelScroll()
 	e.manualUntil = now.Add(manualScrollGrace)
-	style := components.OverscrollEditor
-	input := scrollfx.Direct
+	low, high := float32(math.Inf(-1)), float32(math.Inf(1))
+	if e.current != nil {
+		low, high = e.scrollRange(e.current, e.lastHeight)
+	}
+	e.scroll = elasticScroll(&e.overscroll, e.scroll, delta, low, high, e.lastHeight, e.UIFontSize, scrollInput(precise, momentum))
+}
+
+// scrollInput is the phase of a scroll event, as an edge's pull takes it.
+func scrollInput(precise, momentum bool) scrollfx.InputPhase {
 	switch {
 	case momentum:
-		input = scrollfx.Momentum
+		return scrollfx.Momentum
 	case !precise:
-		input = scrollfx.Notch
+		return scrollfx.Notch
 	}
-	e.overscroll.Observe(input)
-	if e.overscroll.Offset() != 0 {
-		// What passes back through the edge scrolls the page.
-		delta = -style.Add(&e.overscroll, -delta, e.lastHeight, e.UIFontSize, input)
+	return scrollfx.Direct
+}
+
+// elasticScroll scrolls from position by delta within low and high, the
+// page's and a wide table's alike: what would pass an edge pulls it,
+// elastic, a viewport's share at most, and what passes back through the
+// edge scrolls on. It returns where it scrolls to.
+func elasticScroll(elastic *scrollfx.Elastic, position, delta, low, high, viewport, uiFontSize float32, input scrollfx.InputPhase) float32 {
+	style := components.OverscrollEditor
+	elastic.Observe(input)
+	if elastic.Offset() != 0 {
+		// What passes back through the edge scrolls on.
+		delta = -style.Add(elastic, -delta, viewport, uiFontSize, input)
 		if delta == 0 {
-			return
+			return position
 		}
 	}
-	next := e.scroll + delta
-	if e.current != nil {
-		low, high := e.scrollRange(e.current, e.lastHeight)
-		push := func(beyond float32) {
-			if input == scrollfx.Momentum {
-				// Inertia pushes by its speed, the whole event.
-				beyond = -delta
-			}
-			style.Add(&e.overscroll, beyond, e.lastHeight, e.UIFontSize, input)
+	next := position + delta
+	push := func(beyond float32) {
+		if input == scrollfx.Momentum {
+			// Inertia pushes by its speed, the whole event.
+			beyond = -delta
 		}
-		switch {
-		case next < low:
-			push(low - next)
-			next = low
-		case next > high:
-			push(high - next)
-			next = high
-		}
+		style.Add(elastic, beyond, viewport, uiFontSize, input)
 	}
-	e.scroll = next
+	switch {
+	case next < low:
+		push(low - next)
+		next = low
+	case next > high:
+		push(high - next)
+		next = high
+	}
+	return next
 }

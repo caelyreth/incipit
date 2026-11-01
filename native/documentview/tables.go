@@ -11,6 +11,7 @@ import (
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -121,6 +122,9 @@ type tableUI struct {
 	wheeled   map[model.NodeID]bool
 	caret     int
 	caretGrid float32
+	// pull is each such table's give past the ends of its scroll, as the
+	// page's past its own.
+	pull map[model.NodeID]*scrollfx.Elastic
 	// sizing is a drag of a column's border under way, and border the
 	// border the pointer is on (columns.go).
 	sizing *columnSizing
@@ -387,6 +391,13 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 		} else if animate {
 			next.Scroll = box.Jump(tableKey{node, "scroll", 0}, next.Scroll)
 		}
+		if pull := e.tables.pull[node]; pull != nil {
+			offset, pulling := pull.Step(c.Now(), animate)
+			next.Pull = -offset
+			if pulling {
+				c.AnimationFrame()
+			}
+		}
 		next.ColumnRoom = follow(tableKey{node, "column", generation}, open(columnOpen && columnGap/gapStride == index, between))
 		room[node] = next
 	}
@@ -428,13 +439,14 @@ func (e *Element) tableSpread() float32 {
 	return max(0, e.Margin-tableReach*e.uiScale()-metrics.Height)
 }
 
-// wheelTable scrolls the table under a point of the element across by dx,
-// when it is wider than its room, and reports whether it took it.
-func (e *Element) wheelTable(x, y, dx float32) bool {
-	if e.current == nil || dx == 0 {
+// wheelTable scrolls the table under the wheel across, when it is wider
+// than its room, its ends giving as the page's do, and reports whether it
+// took the wheel.
+func (e *Element) wheelTable(event ui.InputEvent) bool {
+	if e.current == nil || event.DX == 0 {
 		return false
 	}
-	point := e.contentPoint(x, y)
+	point := e.contentPoint(event.X, event.Y)
 	for _, placed := range e.current.Tables() {
 		if placed.Overflow <= 0 || !contains(placed.Box, point) {
 			continue
@@ -446,7 +458,16 @@ func (e *Element) wheelTable(x, y, dx float32) bool {
 		if e.tables.wheeled == nil {
 			e.tables.wheeled = map[model.NodeID]bool{}
 		}
-		e.tables.scroll[node] = max(0, min(e.tables.scroll[node]+dx, placed.Overflow))
+		if e.tables.pull == nil {
+			e.tables.pull = map[model.NodeID]*scrollfx.Elastic{}
+		}
+		pull := e.tables.pull[node]
+		if pull == nil {
+			pull = &scrollfx.Elastic{}
+			e.tables.pull[node] = pull
+		}
+		input := scrollInput(event.Precise, event.Momentum)
+		e.tables.scroll[node] = elasticScroll(pull, e.tables.scroll[node], event.DX, 0, placed.Overflow, placed.Box.W, e.UIFontSize, input)
 		e.tables.wheeled[node] = true
 		return true
 	}

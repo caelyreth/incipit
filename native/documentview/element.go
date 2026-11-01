@@ -351,7 +351,7 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		return true
 	case ui.InputScroll:
 		// Across a table wider than its room, the wheel scrolls it.
-		if dx := event.DX; dx != 0 && e.wheelTable(event.X, event.Y, dx) && abs(event.DY) <= abs(dx) {
+		if e.wheelTable(event) && abs(event.DY) <= abs(event.DX) {
 			return true
 		}
 		e.manualScroll(event.DY, event.Time, event.Precise, event.Momentum)
