@@ -439,19 +439,19 @@ func (a *AppState) findPage() {
 }
 
 func (a *AppState) selectMounted() {
+	var session *sheetSession
 	if mounted, ok := a.Workspace.Mounted(); ok {
-		if session, ok := mounted.(*sheetSession); ok {
-			a.Session = session
-			a.Bridge = nil
-			if scroll, ok := a.Workspace.ActiveScroll(); ok && a.Element != nil {
-				a.Element.SwitchPage(scroll.Y)
-			}
-		}
-	} else {
-		a.Session = nil
+		session, _ = mounted.(*sheetSession)
+	}
+	if a.Session != session {
+		a.Session = session
 		a.Bridge = nil
 		if a.Element != nil {
-			a.Element.Input = nil
+			var offset float32
+			if scroll, ok := a.Workspace.ActiveScroll(); ok {
+				offset = scroll.Y
+			}
+			a.Element.SwitchPage(offset)
 		}
 	}
 	a.refreshShell()

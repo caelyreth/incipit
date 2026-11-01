@@ -78,6 +78,14 @@ func (b *Bridge) textClient() ui.TextInputClient {
 	return b.native
 }
 
+// Detach prevents late native text callbacks from editing a page that is no
+// longer mounted. A newly mounted page gets its own bridge and client.
+func (b *Bridge) Detach() {
+	if b != nil && b.native != nil {
+		b.native.Controller = nil
+	}
+}
+
 func (b *Bridge) Configuration() *kernel.PreparedPolicyConfiguration {
 	if b == nil || b.Controller == nil {
 		return nil

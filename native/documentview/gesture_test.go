@@ -240,9 +240,14 @@ func TestGripPageSwitchClearsDrag(t *testing.T) {
 		t.Fatal("drag did not start")
 	}
 	e.SwitchPage(0)
-	if e.carry != nil || e.landing != nil || e.gesture.owner != "" || e.blocks.holding {
+	if e.Input != nil || e.carry != nil || e.landing != nil || e.gesture.owner != "" || e.blocks.holding {
 		t.Fatal("switching pages retained drag state")
 	}
+	next, err := controller.NewTextDocument("other page", nativeClock{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.Input = NewBridge(next, nil, nil)
 	tester.Frame()
 	tester.Move(x, y+80)
 	tester.Release(x, y+80)

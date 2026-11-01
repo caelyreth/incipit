@@ -45,8 +45,23 @@ type Element struct {
 	UIFontSize float32
 	// Pictures reads the pictures the page's figures show.
 	Pictures *Pictures
-	figures  FigureMotion
-	drop     dropLine
+
+	// A page's interactions and presentation must not follow another page
+	// through this reusable element. Shaped text and decoded pictures remain
+	// outside it because their caches are keyed by content.
+	pageState
+	pageEpoch         uint64
+	focusPending      bool
+	mounted           bool
+	placeholderLayout *ui.TextLayout
+	placeholderKey    placeholderKey
+}
+
+// pageState is the transient state owned by one mounted document. A page
+// switch discards it as a unit, without committing any unfinished gesture.
+type pageState struct {
+	figures FigureMotion
+	drop    dropLine
 	// dropOver is where dragged pictures would go, while they are over the
 	// page: the offset of the block they would follow.
 	dropOver   int
@@ -59,24 +74,21 @@ type Element struct {
 	blocks   blockUI
 	// announced is the figure last read out as it became the selection,
 	// and menuFigure the one a secondary click opened the menu of.
-	announced         model.NodeID
-	menuFigure        model.NodeID
-	scroll            float32
-	overscroll        scrollfx.Elastic
-	lastHeight        float32
-	manualUntil       time.Time
-	pointerAnchor     int
-	pointerHead       int
-	pointer           pointerPhase
-	lastWidth         float32
-	guides            Guides
-	focusPending      bool
-	current           *textlayout.Layout
-	placeholderLayout *ui.TextLayout
-	placeholderKey    placeholderKey
-	lastCaretY        float32
-	lastViewportH     float32
-	lastTypewriter    bool
+	announced      model.NodeID
+	menuFigure     model.NodeID
+	scroll         float32
+	overscroll     scrollfx.Elastic
+	lastHeight     float32
+	manualUntil    time.Time
+	pointerAnchor  int
+	pointerHead    int
+	pointer        pointerPhase
+	lastWidth      float32
+	guides         Guides
+	current        *textlayout.Layout
+	lastCaretY     float32
+	lastViewportH  float32
+	lastTypewriter bool
 	// revealed is the text and selection the caret was last revealed
 	// for, and revealPending a change made under a held pointer, revealed
 	// once it lets go: the page never moves under a held pointer but by
@@ -113,8 +125,11 @@ type Element struct {
 	gripPointer          ui.Point
 	drawnCaret           ui.Rect
 	caretPresentationKey caretPresentationKey
-	mounted              bool
 }
+
+// pageKey gives MyGo's retained controls and animation channels the same
+// lifetime as their document, even when local node IDs repeat on another.
+type pageKey uint64
 
 type caretPresentationKey struct {
 	text      string
@@ -167,7 +182,7 @@ func (e *Element) View(c *ui.Context) {
 	}
 	client := e.Input.Client()
 	animate := e.Animate && !c.Preferences().ReduceMotion
-	box := ui.Box(c).Fill().FocusRing(false).
+	box := ui.Box(c.Key(pageKey(e.pageEpoch))).Fill().FocusRing(false).
 		Role(ui.RoleTextField).
 		Label(e.label()).
 		Value(e.value()).

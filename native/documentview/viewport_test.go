@@ -35,10 +35,10 @@ func TestViewportRevealsCaretAndTranslatesPaint(t *testing.T) {
 		t.Fatal("layout is nil")
 	}
 	element := &Element{
-		Prose:      theme.NewProseStyle(19),
-		Motion:     motion.New(now),
-		Animate:    true,
-		lastHeight: layout.Height() / 4,
+		Prose:     theme.NewProseStyle(19),
+		Motion:    motion.New(now),
+		Animate:   true,
+		pageState: pageState{lastHeight: layout.Height() / 4},
 	}
 	caret := layout.Caret(layout.Flow().UTF16Len())
 	element.revealCaret(layout, caret, now)
@@ -80,7 +80,7 @@ func TestCaretRevealClearsTheFloatingDock(t *testing.T) {
 		Prose:       prose,
 		Motion:      motion.New(now),
 		Animate:     true,
-		lastHeight:  400,
+		pageState:   pageState{lastHeight: 400},
 		BottomInset: theme.DefaultLayout.DockClearance(),
 	}
 	line := ui.Rect{Y: 330, H: prose.LineHeight()}
@@ -123,7 +123,7 @@ func TestViewportAnimationUsesRetainedLayout(t *testing.T) {
 	if layout.Height() != 0 {
 		t.Fatal("empty layout has height")
 	}
-	element := &Element{Prose: theme.NewProseStyle(19), Motion: motion.New(now), lastHeight: -1}
+	element := &Element{Prose: theme.NewProseStyle(19), Motion: motion.New(now), pageState: pageState{lastHeight: -1}}
 	element.revealCaret(layout, ui.Rect{Y: 10}, now)
 	if element.Motion.Moving() {
 		t.Fatal("unmeasurable layout started motion")
@@ -391,7 +391,7 @@ func TestCaretRevealFollowsIntentNotLayout(t *testing.T) {
 	}
 	prose := theme.NewProseStyle(19)
 	layout := textlayout.NewCache().Update(flow, 400, textlayout.NewStyle(prose, theme.DefaultSettings().Semantic()))
-	element := &Element{Prose: prose, Motion: motion.New(now), Animate: true, lastHeight: 300}
+	element := &Element{Prose: prose, Motion: motion.New(now), Animate: true, pageState: pageState{lastHeight: 300}}
 	key := revealKey{text: text}
 	element.followCaret(layout, ui.Rect{Y: 10, H: prose.LineHeight()}, 10, 300, key, now)
 	// What the edit opened settling moves the line, and the page follows.

@@ -33,25 +33,22 @@ func (e *Element) OverscrollY() float32 {
 	return e.overscroll.Offset()
 }
 
-// SwitchPage resets presentation identity before a newly mounted document is
-// painted. Retained shaping caches remain reusable by content identity.
+// SwitchPage detaches the old input and cancels its transient presentation
+// before a newly mounted document is painted. Retained shaping caches remain
+// reusable by content identity.
 func (e *Element) SwitchPage(offset float32) {
 	if e == nil {
 		return
 	}
+	if input, ok := e.Input.(interface{ Detach() }); ok {
+		input.Detach()
+	}
+	e.Input = nil
+	e.pageState = pageState{}
+	e.pageEpoch++
 	e.SetScrollY(offset)
 	if e.Motion != nil {
 		e.Motion.ResetGeometry()
 	}
-	e.pointerAnchor = 0
-	e.pointer = pointerIdle
-	e.gesture = gripGesture{}
-	e.carry = nil
-	e.landing = nil
-	e.apart = nil
-	e.blocks.holding = false
-	e.tables.held = nil
-	e.tables.drag = nil
-	e.current = nil
 	e.Focus()
 }

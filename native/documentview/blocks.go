@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/egoist/mygo/ui"
@@ -17,10 +18,13 @@ import (
 
 // blockUI is what the page keeps of its blocks across frames.
 type blockUI struct {
-	// text is the page's text units were read for, and units the page's
-	// blocks as they move.
-	text  string
-	units []editor.Unit
+	// Units name semantic nodes, so identical text alone cannot identify
+	// them. The session, projection, and revision name what they were read
+	// from, including structure-only changes.
+	session    *editor.Session
+	projection *projection.Projection
+	revision   uint64
+	units      []editor.Unit
 	// hovered is the block the pointer is by, its place in units, and
 	// shown how far its grip has come in.
 	hovered int

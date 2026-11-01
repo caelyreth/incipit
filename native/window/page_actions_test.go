@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/native/documentview"
 )
 
 // A page is named after its first heading, whatever its level, and its
@@ -62,5 +63,39 @@ func TestPageActionsCloseTabsByID(t *testing.T) {
 	app.Shell.ClosePageID("1")
 	if _, active := app.Workspace.Active(); len(app.Workspace.Tabs()) != 0 || active {
 		t.Fatalf("tabs after closing final page 1/%d = %#v", second, app.Workspace.Tabs())
+	}
+}
+
+func TestMountedPageChangeDetachesInputSynchronously(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := app.Session
+	app.Bridge = documentview.NewBridge(first.Document(), nil, nil)
+	app.Element.Input = app.Bridge
+	second, err := app.Workspace.NewPage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.selectMounted()
+	if app.Session == first || app.Bridge != nil || app.Element.Input != nil {
+		t.Fatal("selecting a new page retained the old page's input")
+	}
+	bridge := documentview.NewBridge(app.Session.Document(), nil, nil)
+	app.Bridge, app.Element.Input = bridge, bridge
+	if err := app.Workspace.Close(0); err != nil {
+		t.Fatal(err)
+	}
+	app.selectMounted()
+	if app.Bridge != bridge || app.Element.Input != bridge {
+		t.Fatal("closing an inactive page detached the current input")
+	}
+	if err := app.Workspace.Close(second); err != nil {
+		t.Fatal(err)
+	}
+	app.selectMounted()
+	if app.Session != nil || app.Bridge != nil || app.Element.Input != nil {
+		t.Fatal("closing the last page retained a mounted input")
 	}
 }

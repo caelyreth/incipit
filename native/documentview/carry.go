@@ -326,10 +326,15 @@ func carryIndex(from, slot int) int {
 	return slot
 }
 
-// unitsOf are the page's blocks, as its text has them now.
+// unitsOf are the page's blocks in the current semantic projection.
 func (e *Element) unitsOf(bridge *Bridge) []editor.Unit {
-	if text := bridge.Controller.Text(); text != e.blocks.text || e.blocks.units == nil {
-		e.blocks.text, e.blocks.units = text, bridge.Controller.Units()
+	session := bridge.Controller.Session()
+	projection := session.Projection()
+	revision := session.Runtime().Revision()
+	if e.blocks.session != session || e.blocks.projection != projection ||
+		e.blocks.revision != revision || e.blocks.units == nil {
+		e.blocks.session, e.blocks.projection, e.blocks.revision = session, projection, revision
+		e.blocks.units = bridge.Controller.Units()
 	}
 	return e.blocks.units
 }
