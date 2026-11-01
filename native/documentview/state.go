@@ -47,12 +47,8 @@ type State struct {
 	// HoverFigure is the figure under the pointer, whose sides show their
 	// grips, and Resizing the resize under way.
 	HoverFigure figureHover
-	// OfferCaption is the figure offering a caption, the pointer having
-	// rested on it. Painting leaves where it drew the offer in
-	// CaptionOffer, and how far each caption is off its place, gliding to
-	// it, in CaptionShift, by its line's start.
-	OfferCaption model.NodeID
-	CaptionOffer shownOffer
+	// CaptionShift is how far painting found each caption off its place,
+	// gliding to it, by its line's start.
 	CaptionShift map[model.UTF16Offset]float32
 	Resizing     *figureResize
 

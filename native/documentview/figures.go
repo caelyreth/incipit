@@ -19,8 +19,7 @@ import (
 // click on it selects its line, it wears the accent's ring, as the lists'
 // menus ring what they act on; inside a larger selection, it takes the
 // selection's tint. While the caret is in a caption still empty, a hint
-// fades in there, as an empty page's does; and a picture with no caption
-// offers one, on a chip, once the pointer rests on it (figure_caption.go).
+// fades in there, as an empty page's does (figure_caption.go).
 
 const (
 	figureFade = float32(14)
@@ -40,7 +39,7 @@ type FigureMotion struct {
 }
 
 type figureTrack struct {
-	shown, ring, grips, hint, offer motion.Spring
+	shown, ring, grips, hint motion.Spring
 	// left is where a caption's line starts, gliding as it is typed.
 	left motion.Spring
 	seen bool
@@ -109,7 +108,7 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 		box.X += rect.X
 		box.Y += rect.Y + state.TopInset - state.ScrollY
 		bitmap, picture := state.Pictures.Picture(figure.Media, now)
-		shown, ring, grips, hint, offer := float32(0), float32(0), float32(0), float32(0), float32(0)
+		shown, ring, grips, hint := float32(0), float32(0), float32(0), float32(0)
 		if picture == PictureReady {
 			shown = 1
 		}
@@ -118,9 +117,6 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 		}
 		if options.Focused && captionHinted(figure, selection) {
 			hint = 1
-		}
-		if state.OfferCaption == figure.Node && captionless(figure, selection) {
-			offer = 1
 		}
 		left := state.Layout.Caret(figure.Line.Start).X
 		resizing := state.Resizing != nil && state.Resizing.node == figure.Node
@@ -136,7 +132,6 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 				ring:  motion.NewSpring(0, now),
 				grips: motion.NewSpring(0, now),
 				hint:  motion.NewSpring(0, now),
-				offer: motion.NewSpring(0, now),
 				left:  motion.NewSpring(left, now),
 			}
 			motionState.tracks[key] = track
@@ -147,15 +142,14 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 			track.ring.Step(ring, now, figureFade)
 			track.grips.Step(grips, now, figureFade)
 			track.hint.Step(hint, now, figureFade)
-			track.offer.Step(offer, now, figureFade)
 			track.left.Step(left, now, motion.TextFrequency)
 		} else {
 			track.shown, track.ring = motion.NewSpring(shown, now), motion.NewSpring(ring, now)
 			track.grips, track.hint = motion.NewSpring(grips, now), motion.NewSpring(hint, now)
-			track.offer, track.left = motion.NewSpring(offer, now), motion.NewSpring(left, now)
+			track.left = motion.NewSpring(left, now)
 		}
 		moving = moving || track.shown.Moving() || track.ring.Moving() || track.grips.Moving() ||
-			track.hint.Moving() || track.offer.Moving() || track.left.Moving()
+			track.hint.Moving() || track.left.Moving()
 		if shift := track.left.Value() - left; shift != 0 {
 			if state.CaptionShift == nil {
 				state.CaptionShift = make(map[model.UTF16Offset]float32)
@@ -183,15 +177,7 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 			drawGrips(p, box, figure, state, alpha)
 		}
 		if resizing {
-			figureChip(p, box, state, state.Resizing.label(), false, 1)
-		}
-		if alpha := track.offer.Value(); alpha > 0.001 && !resizing {
-			chip, ok := figureChip(p, box, state, captionOffer, true, alpha)
-			if ok && offer > 0 {
-				chip.X -= rect.X
-				chip.Y -= rect.Y + state.TopInset - state.ScrollY
-				state.CaptionOffer = shownOffer{node: figure.Node, box: chip}
-			}
+			drawResizeLabel(p, box, state, state.Resizing.label())
 		}
 	}
 	for key, track := range motionState.tracks {
@@ -290,25 +276,20 @@ func drawGrips(p *ui.Painter, box ui.Rect, figure textlayout.PlacedFigure, state
 	}
 }
 
-// figureChip shows a word on a chip over a figure, at its top, as the
-// width a resize sets, or at its foot, as the offer of a caption, and
-// reports where, when the figure has room for it.
-func figureChip(p *ui.Painter, box ui.Rect, state *State, label string, foot bool, alpha float32) (ui.Rect, bool) {
+// drawResizeLabel names the width a figure is being resized to, on a chip
+// at the top of the figure.
+func drawResizeLabel(p *ui.Painter, box ui.Rect, state *State, label string) {
 	size := theme.TextSmall.Size(uiFontSize(state))
-	span := ui.Span{Text: label, Size: size, Color: state.Theme.Text.Default.Alpha(alpha)}
+	span := ui.Span{Text: label, Size: size, Color: state.Theme.Text.Default}
 	width, height := p.MeasureText(0, span)
 	padX, padY := size*0.75, size*0.3
 	chip := ui.Rect{W: width + 2*padX, H: height + 2*padY}
 	chip.X, chip.Y = box.X+(box.W-chip.W)/2, box.Y+padX
-	if foot {
-		chip.Y = box.Y + box.H - padX - chip.H
-	}
 	if chip.W > box.W || chip.H*2 > box.H {
-		return chip, false
+		return
 	}
-	p.Fill(chip, state.Theme.Surface.Elevated.Alpha(0.94*alpha), chip.H/2)
+	p.Fill(chip, state.Theme.Surface.Elevated.Alpha(0.94), chip.H/2)
 	p.RichText(chip.X+padX, chip.Y+padY, 0, span)
-	return chip, true
 }
 
 // covers reports whether a selection takes all of line.

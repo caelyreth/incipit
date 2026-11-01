@@ -53,12 +53,8 @@ type Element struct {
 	dropActive bool
 	resizing   *figureResize
 	hover      figureHover
-	// captions is how open each figure's caption is, dwell how long the
-	// pointer has rested on a figure, and captionOffer the chip offering
-	// a caption as last drawn.
-	captions     map[model.NodeID]motion.Spring
-	dwell        figureDwell
-	captionOffer shownOffer
+	// captions is how open each figure's caption is.
+	captions map[model.NodeID]motion.Spring
 	// announced is the figure last read out as it became the selection,
 	// and menuFigure the one a secondary click opened the menu of.
 	announced         model.NodeID
@@ -300,17 +296,12 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 // cursor, and reads out a figure as it becomes the selection.
 func (e *Element) followFigures(c *ui.Context, box ui.Element) {
 	e.hover = figureHover{}
-	offering := false
 	if x, y, inside := box.PointerPosition(); inside {
 		if figure, side, ok := e.figureAt(x, y); ok {
 			e.hover = figureHover{node: figure.Node, side: side, ok: true}
-			point := e.contentPoint(x, y)
-			offering = e.captionOffer.node == figure.Node && e.captionOffer.box.Contains(point.X, point.Y)
 		}
 	}
 	switch {
-	case offering:
-		box.Cursor(ui.CursorPointer)
 	case e.resizing != nil || e.hover.ok && e.hover.side != 0:
 		box.Cursor(ui.CursorResizeEW)
 	case e.hover.ok:
@@ -422,10 +413,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	if opening {
 		p.AnimationFrame()
 	}
-	offer, wait := e.offerCaption(p.Now())
-	if wait > 0 {
-		p.After(wait)
-	}
+
 	style := textlayout.NewStyle(e.Prose, e.Theme)
 	e.lastHeight = rect.H
 	if e.lastWidth != rect.W {
@@ -498,7 +486,6 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		FigureMotion:      &e.figures,
 		Drop:              &e.drop,
 		HoverFigure:       e.hover,
-		OfferCaption:      offer,
 		Resizing:          e.resizing,
 	}
 	if e.drop.advance(e.current.BlockEdge(model.UTF16Offset(e.dropOver)), e.dropActive, p.Now(), animate) {
@@ -506,7 +493,6 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	}
 	Paint(p, rect, state)
 	e.drawnCaret = state.DrawnCaret
-	e.captionOffer = state.CaptionOffer
 	bridge.Controller.SetGeometry(LayoutGeometry{
 		Layout: e.current, YOffset: e.TopInset, ScrollY: e.visibleScroll(),
 	})

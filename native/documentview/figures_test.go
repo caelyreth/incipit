@@ -355,28 +355,31 @@ func TestAnEmptyCaptionOpensWhileTheCaretIsInIt(t *testing.T) {
 	}
 }
 
-// Resting on a picture with no caption offers one, fading in; a click on
-// the offer puts the caret in the caption.
-func TestRestingOnAPictureOffersACaption(t *testing.T) {
+// Selecting a picture with no caption opens its line, so Escape writes
+// one there; selecting elsewhere closes it.
+func TestASelectedPictureOpensItsCaption(t *testing.T) {
 	data := redPicture(t)
 	document, element, tester := figurePage(t, func(string) ([]byte, error) { return data, nil })
 	figure := figureBox(t, element)
-	tester.Move(figureAtScreen(element, figure, figure.Box.W/2))
-	tester.Frame()
-	if element.captionOffer.node != 0 {
-		t.Fatal("the offer showed before the pointer rested")
-	}
+	tester.ClickAt(figureAtScreen(element, figure, figure.Box.W/2))
 	tester.Advance(time.Second)
 	tester.Frame()
-	offer := element.captionOffer
-	if offer.node != figure.Node {
-		t.Fatal("resting on the picture offered no caption")
+	if room := captionRoom(t, element); room == 0 {
+		t.Fatal("a selected picture keeps its caption closed")
 	}
-	x := offer.box.X + offer.box.W/2
-	y := offer.box.Y + offer.box.H/2 + element.TopInset - element.visibleScroll()
-	tester.ClickAt(x, y)
+	element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEscape})
 	if got := document.Selection(); !got.Range.Empty() || got.Caret() != int(figure.Line.End) {
-		t.Fatalf("a click on the offer left the selection at %+v", got)
+		t.Fatalf("Escape left the selection at %+v", got)
+	}
+	if err := document.SetSelection(controller.UTF16Range{Start: 0, End: 0}); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		tester.Advance(time.Second)
+		tester.Frame()
+	}
+	if room := captionRoom(t, element); room != 0 {
+		t.Fatalf("the caption left empty keeps %v", room)
 	}
 }
 

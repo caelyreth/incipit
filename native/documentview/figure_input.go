@@ -85,9 +85,6 @@ func (e *Element) pressFigure(event ui.InputEvent) (bool, bool) {
 	if !ok || event.Mods&ui.Shift != 0 {
 		return false, false
 	}
-	if e.pressCaptionOffer(figure, e.contentPoint(event.X, event.Y), event) {
-		return true, true
-	}
 	if event.Button != 0 {
 		// A secondary click selects the figure its menu acts on.
 		e.menuFigure = figure.Node
