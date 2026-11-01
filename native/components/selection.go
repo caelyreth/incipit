@@ -88,14 +88,11 @@ func (t *SelectionTrack) Mark(row ui.Element) {
 		return
 	}
 	t.marked = true
-	bounds := row.LayoutBounds()
+	bounds := t.relative(row)
 	if bounds.W <= 0 || bounds.H <= 0 || t.list.W <= 0 {
 		return
 	}
-	t.target = ui.Rect{
-		X: bounds.X - t.list.X, Y: bounds.Y - t.list.Y,
-		W: bounds.W, H: bounds.H,
-	}
+	t.target = bounds
 	t.known = true
 }
 
@@ -126,6 +123,25 @@ func (t *SelectionTrack) Rect() ui.Rect {
 		X: t.axes[0].Value(), Y: t.axes[1].Value(),
 		W: t.axes[2].Value(), H: t.axes[3].Value(),
 	}
+}
+
+// At reports whether the highlight has reached row, so the row can take
+// over its fill for a local transformation without interrupting a glide.
+func (t *SelectionTrack) At(row ui.Element) bool {
+	if t == nil || !t.started || t.opacity.Value() < 0.99 {
+		return false
+	}
+	want, got := t.relative(row), t.Rect()
+	return abs32(got.X-want.X) < 1 && abs32(got.Y-want.Y) < 1 &&
+		abs32(got.W-want.W) < 1 && abs32(got.H-want.H) < 1
+}
+
+// relative is row's geometry as last laid out, relative to the list.
+func (t *SelectionTrack) relative(row ui.Element) ui.Rect {
+	bounds := row.LayoutBounds()
+	bounds.X -= t.list.X
+	bounds.Y -= t.list.Y
+	return bounds
 }
 
 func (t *SelectionTrack) paint(p *ui.Painter, rect ui.Rect, style SelectionStyle) {

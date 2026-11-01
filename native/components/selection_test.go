@@ -13,6 +13,7 @@ type selectionFixture struct {
 	selected int
 	track    *SelectionTrack
 	tops     [3]float32
+	at       [3]bool
 }
 
 func (f *selectionFixture) view(c *ui.Context) {
@@ -27,8 +28,32 @@ func (f *selectionFixture) view(c *ui.Context) {
 				Selected: f.selected == index, Track: f.track, FullWidth: true,
 			}.View(c, semantic)
 			f.tops[index] = row.LayoutBounds().Y
+			f.at[index] = f.track.At(row)
 		}
 	})
+}
+
+func TestSelectionTrackAtFollowsTheVisibleHighlight(t *testing.T) {
+	fixture := &selectionFixture{selected: 0}
+	tester := ui.NewTester(fixture.view, 300, 200)
+	tester.Frame()
+	tester.Advance(time.Second)
+	tester.Frame()
+	if !fixture.at[0] || fixture.at[2] {
+		t.Fatalf("highlight positions = %v", fixture.at)
+	}
+	fixture.selected = 2
+	tester.Frame()
+	tester.Advance(48 * time.Millisecond)
+	tester.Frame()
+	if fixture.at[2] {
+		t.Fatal("highlight reported arrival while it was still gliding")
+	}
+	tester.Advance(time.Second)
+	tester.Frame()
+	if !fixture.at[2] || fixture.at[0] {
+		t.Fatalf("highlight positions after moving = %v", fixture.at)
+	}
 }
 
 func (f *selectionFixture) rowY(index int) float32 {

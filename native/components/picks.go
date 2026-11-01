@@ -101,14 +101,6 @@ type beneathRow struct {
 	color  ui.Color
 }
 
-// relative is row's geometry as last laid out, relative to the list.
-func (t *SelectionTrack) relative(row ui.Element) ui.Rect {
-	bounds := row.LayoutBounds()
-	bounds.X -= t.list.X
-	bounds.Y -= t.list.Y
-	return bounds
-}
-
 func (t *SelectionTrack) paintBeneath(p *ui.Painter, rect ui.Rect, style SelectionStyle) {
 	for _, row := range t.beneath {
 		row.bounds.X += rect.X

@@ -900,9 +900,9 @@ func (s *State) sheetRow(
 	if dragging {
 		press = 0
 	}
-	if selected && !covered && (entering || pressTarget > 0 || press > 0.001) {
-		// The shared highlight cannot shrink with one row. While the card
-		// enters or presses, it owns the same fill so both scale together.
+	if selected && !covered && (entering || (pressTarget > 0 || press > 0.001) && track.At(row)) {
+		// Let the card carry its fill on entry or a press once the shared
+		// highlight has arrived; a new selection must glide there first.
 		track.Hide()
 		card.Background(selection.Fill)
 	}
