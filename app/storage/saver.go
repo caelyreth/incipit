@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 	"sync"
@@ -224,7 +225,11 @@ func (v *Saver) run() {
 			}
 			if closing {
 				if err != nil {
-					v.rescue()
+					if rescueErr := v.rescue(); rescueErr != nil {
+						v.mu.Lock()
+						v.err = errors.Join(v.err, rescueErr)
+						v.mu.Unlock()
+					}
 				}
 				return
 			}

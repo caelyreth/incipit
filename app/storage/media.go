@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,30 +179,10 @@ func writeMediaFile(path string, data []byte) error {
 	if err := os.MkdirAll(folder, 0o755); err != nil {
 		return err
 	}
-	partial, err := os.CreateTemp(folder, ".*.partial")
-	if err != nil {
+	return writePreparedFile(path, func(target io.Writer) error {
+		_, err := target.Write(data)
 		return err
-	}
-	fail := func(err error) error {
-		_ = partial.Close()
-		_ = os.Remove(partial.Name())
-		return err
-	}
-	if _, err := partial.Write(data); err != nil {
-		return fail(err)
-	}
-	if err := partial.Sync(); err != nil {
-		return fail(err)
-	}
-	if err := partial.Close(); err != nil {
-		_ = os.Remove(partial.Name())
-		return err
-	}
-	if err := os.Rename(partial.Name(), path); err != nil {
-		_ = os.Remove(partial.Name())
-		return err
-	}
-	return syncDir(folder)
+	}, nil)
 }
 
 // loadMedia reads what the notebook keeps of its pictures.

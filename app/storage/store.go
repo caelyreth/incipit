@@ -301,14 +301,3 @@ func (s *Store) maintain(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`)
 	return err
 }
-
-func syncDir(path string) error {
-	dir, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	// Some systems cannot sync a directory; the rename still stands.
-	_ = dir.Sync()
-	return nil
-}

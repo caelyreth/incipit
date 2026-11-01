@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -85,22 +84,14 @@ func (s *Store) backup(ctx context.Context, now time.Time) error {
 	partial := name + ".partial"
 	_ = os.Remove(partial)
 	if _, err := s.db.ExecContext(ctx, `VACUUM INTO ?`, partial); err != nil {
-		_ = os.Remove(partial)
+		if removeErr := os.Remove(partial); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			return errors.Join(err, removeErr)
+		}
 		return err
 	}
-	if err := syncFile(partial); err != nil {
-		_ = os.Remove(partial)
-		return err
-	}
-	if err := verifyFile(ctx, partial); err != nil {
-		_ = os.Remove(partial)
-		return err
-	}
-	if err := os.Rename(partial, name); err != nil {
-		_ = os.Remove(partial)
-		return err
-	}
-	if err := syncDir(folder); err != nil {
+	if err := completePreparedFile(name, partial, func(path string) error {
+		return verifyFile(ctx, path)
+	}); err != nil {
 		return err
 	}
 	return s.prune()
@@ -145,46 +136,4 @@ func verifyFile(ctx context.Context, path string) error {
 		return ErrForeign
 	}
 	return nil
-}
-
-// copyDurably copies a file in full and synced before it takes the
-// target's name, so the target is never half written.
-func copyDurably(from, to string) error {
-	source, err := os.Open(from)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-	partial := to + ".partial"
-	target, err := os.OpenFile(partial, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(target, source); err != nil {
-		_ = target.Close()
-		_ = os.Remove(partial)
-		return err
-	}
-	if err := target.Sync(); err != nil {
-		_ = target.Close()
-		_ = os.Remove(partial)
-		return err
-	}
-	if err := target.Close(); err != nil {
-		_ = os.Remove(partial)
-		return err
-	}
-	if err := os.Rename(partial, to); err != nil {
-		return err
-	}
-	return syncDir(filepath.Dir(to))
-}
-
-func syncFile(path string) error {
-	file, err := os.OpenFile(path, os.O_RDWR, 0)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	return file.Sync()
 }
