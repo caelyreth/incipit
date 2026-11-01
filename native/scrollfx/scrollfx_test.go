@@ -29,6 +29,37 @@ func TestScrollPhase(t *testing.T) {
 	}
 }
 
+func TestAxisScrollPreservesSurfaceOwnership(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		position float32
+		delta    float32
+		phase    InputPhase
+		policy   AxisPolicy
+		want     AxisResult
+		pull     bool
+	}{
+		{"owned notch", 0, 20, Notch, AxisPolicy{}, AxisResult{Position: 20, Handled: true}, false},
+		{"container notch", 0, 20, Notch, AxisPolicy{Container: true}, AxisResult{Position: 0}, false},
+		{"owned crossing", 90, 20, Direct, AxisPolicy{}, AxisResult{Position: 100, Handled: true}, true},
+		{"container crossing", 90, 20, Direct, AxisPolicy{Container: true}, AxisResult{Position: 100, Handled: true}, true},
+		{"container tolerance", 99.7, 1, Direct, AxisPolicy{Container: true, EdgeTolerance: 0.5}, AxisResult{Position: 99.7, Handled: true}, true},
+		{"owned tolerance", 99.7, 0.1, Direct, AxisPolicy{}, AxisResult{Position: 99.8, Handled: true}, false},
+		{"negative lower bound", -40, -20, Direct, AxisPolicy{}, AxisResult{Position: -50, Handled: true}, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var elastic Elastic
+			got := AxisScroll(&elastic, test.delta, test.position, -50, 100, test.phase, 64, DefaultProfile, test.policy)
+			if got.Handled != test.want.Handled || abs(got.Position-test.want.Position) > 0.001 {
+				t.Fatalf("result = %+v, want %+v", got, test.want)
+			}
+			if (elastic.Offset() != 0) != test.pull {
+				t.Fatalf("pull = %v, want pull %v", elastic.Offset(), test.pull)
+			}
+		})
+	}
+}
+
 func TestElasticResistsHoldsAndReturns(t *testing.T) {
 	var elastic Elastic
 	elastic.Step(at(0), true)

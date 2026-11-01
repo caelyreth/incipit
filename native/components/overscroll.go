@@ -55,14 +55,14 @@ func (s OverscrollStyle) Limit(viewport, uiFontSize float32) float32 {
 	return min(distance, max(s.Minimum*scale, viewport*s.ViewportShare))
 }
 
-// Add pulls an elastic axis with this style and returns the part of delta
-// it left to the content.
-func (s OverscrollStyle) Add(
+// Scroll owns an axis's position and applies this style at its bounds.
+func (s OverscrollStyle) Scroll(
 	elastic *scrollfx.Elastic,
-	delta, viewport, uiFontSize float32,
+	position, delta, low, high, viewport, uiFontSize float32,
 	phase scrollfx.InputPhase,
 ) float32 {
-	return elastic.Add(delta, s.Limit(viewport, uiFontSize), phase, s.profile())
+	return scrollfx.AxisScroll(elastic, delta, position, low, high, phase,
+		s.Limit(viewport, uiFontSize), s.profile(), scrollfx.AxisPolicy{}).Position
 }
 
 // Handle takes edge input for one scroll surface with this style.

@@ -110,32 +110,88 @@ func pull(
 	limit float32,
 	profile Profile,
 ) (float32, bool) {
+	result := AxisScroll(elastic, delta, position, 0, maximum, input, limit, profile, AxisPolicy{
+		EdgeTolerance: 0.5,
+		Container:     true,
+	})
+	return result.Position, result.Handled
+}
+
+// AxisPolicy distinguishes a view that owns its scroll position from one
+// where MyGo owns ordinary scrolling and only edge input is intercepted.
+type AxisPolicy struct {
+	EdgeTolerance float32
+	Container     bool
+}
+
+// AxisResult reports the new position and whether a host scroll container
+// should consume this input. An owning viewport always consumes it.
+type AxisResult struct {
+	Position float32
+	Handled  bool
+}
+
+// AxisScroll applies one axis of input, allowing arbitrary content bounds.
+// A container leaves notches and ordinary in-bounds input to MyGo; an owning
+// viewport handles all phases and exact bounds itself.
+func AxisScroll(
+	elastic *Elastic,
+	delta, position, low, high float32,
+	input InputPhase,
+	limit float32,
+	profile Profile,
+	policy AxisPolicy,
+) AxisResult {
+	if elastic == nil {
+		return AxisResult{Position: position}
+	}
+	elastic.Observe(input)
 	if elastic.Offset() != 0 {
 		rest := -elastic.Add(-delta, limit, input, profile)
 		if rest == 0 {
-			return position, true
+			return AxisResult{Position: position, Handled: true}
 		}
-		if input != Direct {
+		if policy.Container && input != Direct {
 			// Scrolling away from a pushed edge: the container takes it
 			// as it would, while the edge settles.
-			return position, false
+			return AxisResult{Position: position}
 		}
-		return max(0, min(position+rest, maximum)), true
+		if policy.Container {
+			return AxisResult{Position: max(low, min(position+rest, high)), Handled: true}
+		}
+		delta = rest
+	}
+	if !policy.Container {
+		next := position + delta
+		beyond := float32(0)
+		switch {
+		case next < low:
+			beyond, next = low-next, low
+		case next > high:
+			beyond, next = high-next, high
+		default:
+			return AxisResult{Position: next, Handled: true}
+		}
+		if input == Momentum {
+			beyond = -delta
+		}
+		elastic.Add(beyond, limit, input, profile)
+		return AxisResult{Position: next, Handled: true}
 	}
 	beyond, edge := float32(0), position
 	switch {
-	case delta > 0 && position >= maximum-0.5:
+	case delta > 0 && position >= high-policy.EdgeTolerance:
 		beyond = delta
-	case delta < 0 && position <= 0.5:
+	case delta < 0 && position <= low+policy.EdgeTolerance:
 		beyond = delta
 	case input == Notch:
-		return position, false
-	case position+delta > maximum:
-		beyond, edge = position+delta-maximum, maximum
-	case position+delta < 0:
-		beyond, edge = position+delta, 0
+		return AxisResult{Position: position}
+	case position+delta > high:
+		beyond, edge = position+delta-high, high
+	case position+delta < low:
+		beyond, edge = position+delta-low, low
 	default:
-		return position, false
+		return AxisResult{Position: position}
 	}
 	push := beyond
 	if input == Momentum {
@@ -143,7 +199,7 @@ func pull(
 		push = delta
 	}
 	elastic.Add(-push, limit, input, profile)
-	return edge, true
+	return AxisResult{Position: edge, Handled: true}
 }
 
 // Phase converts native scroll flags to the shared edge-physics input phase.

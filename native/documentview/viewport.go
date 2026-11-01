@@ -248,30 +248,5 @@ func (e *Element) manualScroll(delta float32, now time.Time, precise, momentum b
 // elastic, a viewport's share at most, and what passes back through the
 // edge scrolls on. It returns where it scrolls to.
 func elasticScroll(elastic *scrollfx.Elastic, position, delta, low, high, viewport, uiFontSize float32, input scrollfx.InputPhase) float32 {
-	style := components.OverscrollEditor
-	elastic.Observe(input)
-	if elastic.Offset() != 0 {
-		// What passes back through the edge scrolls on.
-		delta = -style.Add(elastic, -delta, viewport, uiFontSize, input)
-		if delta == 0 {
-			return position
-		}
-	}
-	next := position + delta
-	push := func(beyond float32) {
-		if input == scrollfx.Momentum {
-			// Inertia pushes by its speed, the whole event.
-			beyond = -delta
-		}
-		style.Add(elastic, beyond, viewport, uiFontSize, input)
-	}
-	switch {
-	case next < low:
-		push(low - next)
-		next = low
-	case next > high:
-		push(high - next)
-		next = high
-	}
-	return next
+	return components.OverscrollEditor.Scroll(elastic, position, delta, low, high, viewport, uiFontSize, input)
 }
