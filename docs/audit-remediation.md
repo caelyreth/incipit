@@ -33,7 +33,7 @@ than force unrelated operations through a generic abstraction.
 | B9 | Layout and shaping invalidation | In progress | Equal, immutable visual flows retain their layout; nested table data is detached from callers. A 100-row MyGo tester benchmark improved from about 560 us/424 KB to 59 us/126 KB per stable frame on Apple M5 Pro. Theme-color changes still reshape because MyGo stores paint spans in text layouts. |
 | B10 | Scroll input physics | Settled | Shared axis physics exposes explicit ownership, bounds and edge tolerance; editor and MyGo containers retain their distinct notch behavior. Tests cover phases, crossing, tolerance and arbitrary bounds. |
 | B11 | Keycaps and inline shortcut chips | Open | Preserve interactive inline behavior |
-| B12 | Inline rename lifecycle | Open | |
+| B12 | Inline rename lifecycle | Settled | Group and chapter fields share focus-arrival selection, Escape, submit and blur handling while retaining separate row visuals and model actions. MyGo tester covers Unicode replacement, empty drafts, submit, cancellation and click-away. |
 | B13 | Elevated materials and small controls | Settled | Dialogs, notices and popovers share a material with explicit existing shadow variants. Pixel comparisons cover both themes and UI scales; switch documentation and unused swatch animation input now match behavior. |
 | B14 | Selection-track lifetimes | Open | Keep independent selections and clip spaces |
 | B15 | Navigation accessibility and focus | Open | Platform acceptance required |
@@ -47,7 +47,7 @@ than force unrelated operations through a generic abstraction.
 | C6 | Geometry, role mappings and deterministic helpers | Settled | Surface color-role mapping, setting-key sorting and notation lookup are shared. Viewport/content conversion now has one explicit inset/visible-scroll transform while retaining separate controller and painting adapters; tests cover negative overscroll, fractional offsets and existing geometry. |
 | C7 | Public target rebasing and affinity | Settled | Position affinity is distinct from mark-boundary affinity; collapsed targets remain collapsed, including when given opposing boundary affinities. |
 | C8 | Resource cloning and dispatch predicates | Settled | Row/collection reads clone only returned values while preserving authority and isolation. Compiled and linear plans share trigger predicates, with independent expected-plan coverage. |
-| C9 | Settings row variants and timing gates | In progress | Shared effective motion policy now covers settings, shell, overlays and table feedback; row/disclosure extraction remains open. |
+| C9 | Settings row variants and timing gates | In progress | Shared effective motion policy now covers settings, shell, overlays and table feedback; state and origin tags share geometry without merging interaction or paint. Row/disclosure extraction remains open. |
 | C10 | Place-title flight geometry | Settled | Header, band and flight share type, gap and weight descriptors derived from theme metrics; menu anchors remain separate. Scale and interrupted-flight tests pass. |
 
 ## Final Verification

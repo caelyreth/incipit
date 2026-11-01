@@ -599,18 +599,13 @@ func (s *State) renameRow(c *ui.Context, semantic theme.Theme, group GroupItem, 
 				FixedLineHeight(theme.TextSmall.LineHeight(scale)).
 				TextColor(semantic.Text.Heading).Label("Group name")
 			input.AutoFocus()
-			focused := ui.Local(input, "was-focused", func() bool { return false })
-			if !*focused && input.Focused() {
-				input.SetTextSelection(0, len([]rune(s.nav.name)))
-			}
-			switch {
-			case input.Shortcut(0, ui.KeyEscape):
+			switch inlineName(input, s.nav.name) {
+			case nameCancel:
 				s.nav.renaming = ""
-			case input.Submitted(), *focused && !input.Focused():
+			case nameCommit:
 				s.nav.renaming = ""
 				s.Library.RenameGroup(group.ID, s.nav.name)
 			}
-			*focused = input.Focused()
 		})
 }
 

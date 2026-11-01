@@ -224,11 +224,10 @@ func (s *State) originTag(c *ui.Context, semantic theme.Theme, shortcut appsetti
 	scale := s.Theme.UIFontSize
 	animate := s.motion(c)
 	origin := shortcut.OriginLabel
-	tag := ui.ButtonBase(c.Key("origin-"+string(shortcut.Command))).
-		Label("From "+origin+": show in Editor settings").Tooltip("Added by "+origin).
-		Shrink(0).Height(18*scale/theme.DefaultUIFontSize).AlignItems(ui.Center).
+	tag := ui.ButtonBase(c.Key("origin-" + string(shortcut.Command))).
+		Label("From " + origin + ": show in Editor settings").Tooltip("Added by " + origin)
+	settingsTagFrame(tag, scale).
 		Gap(theme.Space02.DIPs(scale)).
-		PaddingX(theme.Space06.DIPs(scale)).Radius(9*scale/theme.DefaultUIFontSize).
 		Border(1, semantic.Border.Variant)
 	hover := components.HoverAmount(tag, tag.Hovered(), animate)
 	tag.Background(semantic.GhostElement.Hover.Alpha(hover))
@@ -359,11 +358,17 @@ func (s *State) tag(c *ui.Context, semantic theme.Theme, text string) {
 	if s.motion(c) {
 		tag.Transition(tagFade)
 	}
-	tag.Shrink(0).Height(18 * scale / theme.DefaultUIFontSize).AlignItems(ui.Center).
-		PaddingX(theme.Space06.DIPs(scale)).Radius(9 * scale / theme.DefaultUIFontSize).
+	settingsTagFrame(tag, scale).
 		Background(semantic.Surface.Inset).Children(func() {
 		components.Label(c, text, theme.TextXSmall, semantic.Text.Muted).SingleLine()
 	})
+}
+
+// settingsTagFrame gives filled state tags and outlined origin actions the
+// same compact geometry without sharing their interaction or paint.
+func settingsTagFrame(tag ui.Element, scale float32) ui.Element {
+	return tag.Shrink(0).Height(18 * scale / theme.DefaultUIFontSize).AlignItems(ui.Center).
+		PaddingX(theme.Space06.DIPs(scale)).Radius(9 * scale / theme.DefaultUIFontSize)
 }
 
 // recordShortcut assigns target to command, unless another action holds it
