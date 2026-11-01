@@ -128,10 +128,10 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 			// A figure already decoded shows at once, as when a page
 			// opens again; one that has to wait fades in.
 			track = &figureTrack{
-				shown: motion.NewSpring(shown, now),
-				ring:  motion.NewSpring(0, now),
-				grips: motion.NewSpring(0, now),
-				hint:  motion.NewSpring(0, now),
+				shown: motion.NewUnitSpring(shown, now),
+				ring:  motion.NewUnitSpring(0, now),
+				grips: motion.NewUnitSpring(0, now),
+				hint:  motion.NewUnitSpring(0, now),
 				left:  motion.NewSpring(left, now),
 			}
 			motionState.tracks[key] = track
@@ -144,8 +144,8 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 			track.hint.Step(hint, now, figureFade)
 			track.left.Step(left, now, motion.TextFrequency)
 		} else {
-			track.shown, track.ring = motion.NewSpring(shown, now), motion.NewSpring(ring, now)
-			track.grips, track.hint = motion.NewSpring(grips, now), motion.NewSpring(hint, now)
+			track.shown, track.ring = motion.NewUnitSpring(shown, now), motion.NewUnitSpring(ring, now)
+			track.grips, track.hint = motion.NewUnitSpring(grips, now), motion.NewUnitSpring(hint, now)
 			track.left = motion.NewSpring(left, now)
 		}
 		moving = moving || track.shown.Moving() || track.ring.Moving() || track.grips.Moving() ||

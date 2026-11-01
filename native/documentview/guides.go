@@ -140,7 +140,7 @@ func (t *guideTrack) place(marker ui.Rect, opacity float32, now time.Time) {
 	t.x = motion.NewSpring(marker.X, now)
 	t.y = motion.NewSpring(marker.Y, now)
 	t.h = motion.NewSpring(marker.H, now)
-	t.opacity = motion.NewSpring(opacity, now)
+	t.opacity = motion.NewUnitSpring(opacity, now)
 }
 
 func (t *guideTrack) advance(marker ui.Rect, opacity float32, now time.Time, animate bool) {

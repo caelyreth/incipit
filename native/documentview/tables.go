@@ -51,9 +51,6 @@ const (
 	// gapStride numbers a border gap by its table and its place, so two
 	// tables' gaps never share a number.
 	gapStride = 1 << 12
-	// tableShowScale counts how far a row or column has come in, in
-	// hundredths, so its spring settles as finely as a position's.
-	tableShowScale = 100
 )
 
 // CellRange is a selection of whole cells: the rectangle between two
@@ -199,14 +196,14 @@ func (e *Element) tabledFlow(flow *surface.Flow, now time.Time, animate bool) (*
 			if !fresh || !animate {
 				return 1
 			}
-			spring = motion.NewSpring(start*tableShowScale, now)
+			spring = motion.NewUnitSpring(start, now)
 		}
-		spring.Step(tableShowScale, now, figureFade)
+		spring.Step(1, now, figureFade)
 		if spring.Moving() {
 			springs[key] = spring
 			moving = true
 		}
-		return spring.Value() / tableShowScale
+		return spring.Value()
 	}
 	for index := range tables {
 		table := &tables[index]

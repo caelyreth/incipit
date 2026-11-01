@@ -197,7 +197,7 @@ func (t *SelectionTrack) followRuns(runs []pickRun, now time.Time) {
 		t.blocks = append(t.blocks, pickBlock{
 			top:      motion.NewSpring(center-short, now),
 			bottom:   motion.NewSpring(center+short, now),
-			presence: motion.NewSpring(0, now),
+			presence: motion.NewUnitSpring(0, now),
 			run:      r,
 		})
 		origins = append(origins, -1)
@@ -254,7 +254,7 @@ func (t *SelectionTrack) paintPicks(p *ui.Painter, rect ui.Rect, style Selection
 				bottom:   motion.NewSpring(run.frame.Y+run.frame.H, now),
 				left:     run.frame.X,
 				width:    run.frame.W,
-				presence: motion.NewSpring(1, now),
+				presence: motion.NewUnitSpring(1, now),
 				run:      r,
 			})
 		}
@@ -339,7 +339,7 @@ func (t *SelectionTrack) paintRing(p *ui.Painter, rect ui.Rect, style SelectionS
 		target = 1
 		if !slices.Equal(t.ring, t.ringShown) {
 			t.ringShown = slices.Clone(t.ring)
-			t.ringAmount = motion.NewSpring(0, now)
+			t.ringAmount = motion.NewUnitSpring(0, now)
 		}
 		t.ringRuns = t.ringRuns[:0]
 		for _, run := range t.runs(func(row pickedRow) bool { return slices.Contains(t.ring, row.id) }) {
@@ -349,7 +349,7 @@ func (t *SelectionTrack) paintRing(p *ui.Painter, rect ui.Rect, style SelectionS
 		t.ringShown = nil
 	}
 	if !t.animate {
-		t.ringAmount = motion.NewSpring(target, now)
+		t.ringAmount = motion.NewUnitSpring(target, now)
 	}
 	a := t.ringAmount.Step(target, now, selectionFade)
 	if t.ringAmount.Moving() {

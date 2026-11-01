@@ -42,7 +42,7 @@ const (
 // Show opens the viewer on a picture.
 func (v *Viewer) Show(bitmap *ui.Bitmap, width, height int, title string, now time.Time) {
 	v.Open, v.bitmap, v.width, v.height, v.title = true, bitmap, width, height, title
-	v.zoom, v.panX, v.panY = motion.NewSpring(1, now), motion.NewSpring(0, now), motion.NewSpring(0, now)
+	v.zoom, v.panX, v.panY = motion.NewUnitSpring(1, now), motion.NewSpring(0, now), motion.NewSpring(0, now)
 	v.zoomTo, v.panToX, v.panToY, v.dragging = 1, 0, 0, false
 }
 
@@ -189,7 +189,7 @@ func (v *Viewer) draw(p *ui.Painter, rect ui.Rect, animate bool) bool {
 		v.panX.Step(v.panToX, now, viewerGlide)
 		v.panY.Step(v.panToY, now, viewerGlide)
 	} else {
-		v.zoom, v.panX, v.panY = motion.NewSpring(v.zoomTo, now), motion.NewSpring(v.panToX, now), motion.NewSpring(v.panToY, now)
+		v.zoom, v.panX, v.panY = motion.NewUnitSpring(v.zoomTo, now), motion.NewSpring(v.panToX, now), motion.NewSpring(v.panToY, now)
 	}
 	zoom := v.zoom.Value()
 	w, h := rect.W*zoom, rect.H*zoom

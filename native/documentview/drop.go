@@ -31,10 +31,13 @@ func (d *dropLine) advance(y float32, shown bool, now time.Time, animate bool) b
 	if shown {
 		target = 1
 	}
+	if !d.known {
+		d.opacity = motion.NewUnitSpring(0, now)
+	}
 	if !d.known || !animate || d.opacity.Value() <= 0.001 && shown {
 		d.y = motion.NewSpring(y, now)
 		if !animate {
-			d.opacity = motion.NewSpring(target, now)
+			d.opacity = motion.NewUnitSpring(target, now)
 		}
 		d.known = true
 	}

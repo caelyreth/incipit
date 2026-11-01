@@ -101,7 +101,7 @@ func (g *Guides) stepAreas(state *State, options PaintOptions) bool {
 
 func (t *areaTrack) place(top, bottom, head, opacity float32, now time.Time) {
 	t.top, t.bottom = motion.NewSpring(top, now), motion.NewSpring(bottom, now)
-	t.head, t.opacity = motion.NewSpring(head, now), motion.NewSpring(opacity, now)
+	t.head, t.opacity = motion.NewSpring(head, now), motion.NewUnitSpring(opacity, now)
 }
 
 func (t *areaTrack) advance(top, bottom, head, opacity float32, now time.Time, animate bool) {

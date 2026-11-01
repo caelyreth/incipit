@@ -23,10 +23,17 @@ type Spring struct {
 	velocity float32
 	target   float32
 	updated  time.Time
+	unit     bool
 }
 
 func NewSpring(value float32, now time.Time) Spring {
 	return Spring{value: value, target: value, updated: now}
+}
+
+// NewUnitSpring follows a dimensionless value, such as opacity or zoom. Its
+// stopping thresholds are scaled to that domain rather than to DIPs.
+func NewUnitSpring(value float32, now time.Time) Spring {
+	return Spring{value: value, target: value, updated: now, unit: true}
 }
 
 func (s *Spring) Step(target float32, now time.Time, frequency float32) float32 {
@@ -55,7 +62,12 @@ func (s Spring) Target() float32   { return s.target }
 func (s Spring) Velocity() float32 { return s.velocity }
 
 func (s Spring) MovingTo(target float32) bool {
-	return abs(s.value-target) > positionEpsilon || abs(s.velocity) > velocityEpsilon
+	position, velocity := positionEpsilon, velocityEpsilon
+	if s.unit {
+		position /= 100
+		velocity /= 100
+	}
+	return abs(s.value-target) > position || abs(s.velocity) > velocity
 }
 
 func (s Spring) Moving() bool {

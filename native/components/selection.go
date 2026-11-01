@@ -175,7 +175,7 @@ func (t *SelectionTrack) paint(p *ui.Painter, rect ui.Rect, style SelectionStyle
 		} else {
 			// A fade reversing direction starts from where it is: carried
 			// velocity would keep dimming the highlight before it returns.
-			t.opacity = motion.NewSpring(t.opacity.Value(), now)
+			t.opacity = motion.NewUnitSpring(t.opacity.Value(), now)
 		}
 	}
 	opacity := float32(0)
@@ -216,5 +216,5 @@ func (t *SelectionTrack) place(rect ui.Rect, opacity float32, now time.Time) {
 	for index, value := range [4]float32{rect.X, rect.Y, rect.W, rect.H} {
 		t.axes[index] = motion.NewSpring(value, now)
 	}
-	t.opacity = motion.NewSpring(opacity, now)
+	t.opacity = motion.NewUnitSpring(opacity, now)
 }

@@ -46,6 +46,47 @@ func TestRetargetIsContinuousAndPreservesVelocity(t *testing.T) {
 	}
 }
 
+func TestUnitSpringSettlesWithoutAVisibleTerminalJump(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(0, 0)
+	spring := NewUnitSpring(0, now)
+	spring.Step(1, now, 18)
+	previous := float32(0)
+	for frame := 1; frame <= 180; frame++ {
+		value := spring.Step(1, now.Add(time.Duration(frame)*time.Second/60), 18)
+		if value < previous || value > 1 {
+			t.Fatalf("frame %d value %v after %v", frame, value, previous)
+		}
+		if value == 1 {
+			if 1-previous > 0.01 {
+				t.Fatalf("terminal jump from %v to %v", previous, value)
+			}
+			if spring.Moving() {
+				t.Fatal("unit spring still moving at its target")
+			}
+			return
+		}
+		previous = value
+	}
+	t.Fatal("unit spring did not settle")
+}
+
+func TestUnitSpringMatchesScaledGeometrySpring(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(0, 0)
+	unit, scaled := NewUnitSpring(0, now), NewSpring(0, now)
+	unit.Step(1, now, 14)
+	scaled.Step(100, now, 14)
+	for frame := 1; frame <= 120; frame++ {
+		at := now.Add(time.Duration(frame) * time.Second / 60)
+		actual := unit.Step(1, at, 14) * 100
+		want := scaled.Step(100, at, 14)
+		if math.Abs(float64(actual-want)) > 0.001 || unit.Moving() != scaled.Moving() {
+			t.Fatalf("frame %d: unit=%v moving=%v, scaled=%v moving=%v", frame, actual, unit.Moving(), want, scaled.Moving())
+		}
+	}
+}
+
 // Rows a selection gains grow out of the selection as drawn: each starts
 // as the drawn row nearest it, then settles at its own place.
 func TestSelectionRowsGrowOutOfTheDrawnSelection(t *testing.T) {

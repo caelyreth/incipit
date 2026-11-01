@@ -16,10 +16,6 @@ import (
 // it is typed, and its hint is centered too, the caret at the hint's
 // start, as an empty field's.
 
-// captionScale counts how open a caption is in hundredths, so its spring
-// settles as finely as a position's.
-const captionScale = 100
-
 // captionedFlow is flow with each figure's caption as open as it shows:
 // one with a caption all the way, one without as far as its line has
 // opened, opening while it or its picture is selected. It reports whether one is
@@ -34,17 +30,17 @@ func (e *Element) captionedFlow(flow *surface.Flow, selection model.UTF16Range, 
 	moving := false
 	for index := range figures {
 		figure := &figures[index]
-		open := figure.Caption * captionScale
+		open := figure.Caption
 		if captionCaret(*figure, selection) || selection == figure.Object() {
-			open = captionScale
+			open = 1
 		}
 		spring, known := e.captions[figure.Node]
 		if !known || !animate {
-			spring = motion.NewSpring(open, now)
+			spring = motion.NewUnitSpring(open, now)
 		}
 		spring.Step(open, now, figureFade)
 		captions[figure.Node] = spring
-		figure.Caption = spring.Value() / captionScale
+		figure.Caption = spring.Value()
 		moving = moving || spring.Moving()
 	}
 	e.captions = captions

@@ -29,7 +29,7 @@ than force unrelated operations through a generic abstraction.
 | B5 | Atomic library operations and navigation reconciliation | In progress | `codex/audit-library` worktree |
 | B6 | Durable file publication | In progress | `codex/audit-durability` worktree |
 | B7 | Native text hit affinity | In progress | `codex/audit-affinity` worktree |
-| B8 | Spring tolerances by value domain | Open | |
+| B8 | Spring tolerances by value domain | Settled | Dimensionless opacity, zoom and reveal springs have finer stopping thresholds; caption and table 100x workarounds are removed. Tests cover terminal jumps and equivalence with the former scaled geometry. |
 | B9 | Layout and shaping invalidation | Open | Profile before changing cache semantics |
 | B10 | Scroll input physics | Open | Preserve editor and scroll-view differences |
 | B11 | Keycaps and inline shortcut chips | Open | Preserve interactive inline behavior |
