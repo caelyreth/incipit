@@ -87,6 +87,21 @@ func (s *State) Place() Place { return s.nav.place }
 // sheets as Go does.
 func (s *State) StartAt(place Place) { s.nav.place = place }
 
+// ReconcileLibrary leaves an invalid group place after filing changes without
+// opening a pane or ending a search the user already has open.
+func (s *State) ReconcileLibrary() {
+	if s == nil || s.Library == nil || s.nav.place.Kind != PlaceGroup {
+		return
+	}
+	if _, ok := s.Library.Group(s.nav.place.Group); ok {
+		return
+	}
+	s.nav.place = Place{Kind: PlaceAll}
+	s.nav.renaming = ""
+	s.sheetOverscroll.Reset()
+	s.disarm()
+}
+
 // Go chooses a place in the library and shows its sheets.
 func (s *State) Go(place Place) {
 	s.showSheetList()
@@ -318,6 +333,7 @@ func (s *State) trashRow(c *ui.Context, semantic theme.Theme, animate bool) {
 	}
 	if group, ok := ui.Drop[groupDrag](row); ok {
 		s.Library.TrashGroup(group.id)
+		s.ReconcileLibrary()
 	}
 }
 
@@ -551,10 +567,8 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 		s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, Last) }, group.ID)
 		m.Separator()
 		if m.Item(trashGroupLabel(group)).Chosen() {
-			if s.nav.place == (Place{Kind: PlaceGroup, Group: group.ID}) {
-				s.Go(Place{Kind: PlaceAll})
-			}
 			s.Library.TrashGroup(group.ID)
+			s.ReconcileLibrary()
 		}
 	}
 }

@@ -90,6 +90,59 @@ func TestSheetsAreFiledMovedAndCounted(t *testing.T) {
 	}
 }
 
+func TestAddingExistingSheetLeavesLibraryUnchanged(t *testing.T) {
+	l := New()
+	other, err := l.AddGroup(0, "Other")
+	must(t, err)
+	must(t, l.AddSheet(7, Inbox, now))
+	before := l.Records()
+	if err := l.AddSheetAt(7, other, now.Add(time.Hour), 0); !errors.Is(err, ErrDuplicate) {
+		t.Fatalf("duplicate error = %v", err)
+	}
+	after := l.Records()
+	if !slices.Equal(before.Groups, after.Groups) || !slices.Equal(before.Sheets, after.Sheets) ||
+		!slices.Equal(before.Chapters, after.Chapters) {
+		t.Fatalf("duplicate changed records: before %+v, after %+v", before, after)
+	}
+	if got := sheetIDs(Restore(after).Sheets(Inbox)); !slices.Equal(got, []SheetID{7}) {
+		t.Fatalf("restored placements = %v", got)
+	}
+}
+
+func TestAddAtPlacesEntriesOnceAndValidatesBeforeMutation(t *testing.T) {
+	l := New()
+	first, err := l.AddGroup(0, "First")
+	must(t, err)
+	second, err := l.AddGroupAt(0, "Second", 1)
+	must(t, err)
+	if got := groupIDs(l.Groups(0)); !slices.Equal(got, []GroupID{Inbox, second, first}) {
+		t.Fatalf("group order = %v", got)
+	}
+	must(t, l.AddSheet(1, Inbox, now))
+	must(t, l.AddSheet(2, Inbox, now))
+	chapter, err := l.AddChapterAt(Inbox, "Middle", 1)
+	must(t, err)
+	must(t, l.AddSheetAt(3, Inbox, now, 2))
+	if got := l.Entries(Inbox); !slices.Equal(got, []Entry{
+		{Sheet: 1}, {Chapter: chapter}, {Sheet: 3}, {Sheet: 2},
+	}) {
+		t.Fatalf("entry order = %v", got)
+	}
+	before := l.Records()
+	for _, id := range []SheetID{0, -1} {
+		if err := l.AddSheetAt(id, Inbox, now, 0); !errors.Is(err, ErrInvalidID) {
+			t.Errorf("invalid identity %d: %v", id, err)
+		}
+	}
+	if err := l.AddSheetAt(4, GroupID(999), now, 0); !errors.Is(err, ErrUnknown) {
+		t.Fatalf("invalid group error = %v", err)
+	}
+	if after := l.Records(); !slices.Equal(before.Sheets, after.Sheets) ||
+		!slices.Equal(before.Groups, after.Groups) || !slices.Equal(before.Chapters, after.Chapters) {
+		t.Fatalf("failed insertion changed records: before %+v, after %+v", before, after)
+	}
+}
+
 func TestChaptersDivideTheirFollowingSheets(t *testing.T) {
 	l := New()
 	must(t, l.AddSheet(1, Inbox, now))

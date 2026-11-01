@@ -37,6 +37,10 @@ const InboxName = "Inbox"
 var (
 	// ErrUnknown reports a group or sheet the library does not hold.
 	ErrUnknown = errors.New("library: no such group or sheet")
+	// ErrDuplicate reports an identity the library already holds.
+	ErrDuplicate = errors.New("library: the identity already exists")
+	// ErrInvalidID reports an identity that cannot name a stored sheet.
+	ErrInvalidID = errors.New("library: invalid identity")
 	// ErrInbox reports a change the Inbox does not take.
 	ErrInbox = errors.New("library: the Inbox stays as it is")
 	// ErrCycle reports a group moved into itself or one of its own.
@@ -366,6 +370,13 @@ func groupIDDescending(a, b GroupID) int {
 
 // AddGroup makes a group at the end of parent.
 func (l *Library) AddGroup(parent GroupID, name string) (GroupID, error) {
+	return l.AddGroupAt(parent, name, len(l.children[parent]))
+}
+
+// AddGroupAt makes a group in parent at index, clamped to its groups. It
+// inserts the group and its placement together, so a failed call changes
+// neither.
+func (l *Library) AddGroupAt(parent GroupID, name string, index int) (GroupID, error) {
 	if parent != 0 {
 		if _, ok := l.groups[parent]; !ok {
 			return 0, ErrUnknown
@@ -377,7 +388,7 @@ func (l *Library) AddGroup(parent GroupID, name string) (GroupID, error) {
 	id := l.nextGroup
 	l.nextGroup++
 	l.groups[id] = &Group{ID: id, Parent: parent, Name: groupName(name)}
-	l.children[parent] = append(l.children[parent], id)
+	l.children[parent] = insertAt(l.children[parent], index, id)
 	return id, nil
 }
 
@@ -475,6 +486,12 @@ func (l *Library) RestoreGroup(id GroupID) error {
 
 // AddChapter makes a chapter divider at the end of a group.
 func (l *Library) AddChapter(group GroupID, name string) (ChapterID, error) {
+	return l.AddChapterAt(group, name, len(l.order[group]))
+}
+
+// AddChapterAt makes a chapter divider in group at index, clamped to its
+// entries. It validates before inserting either the chapter or its placement.
+func (l *Library) AddChapterAt(group GroupID, name string, index int) (ChapterID, error) {
 	if _, ok := l.groups[group]; !ok {
 		return 0, ErrUnknown
 	}
@@ -484,7 +501,7 @@ func (l *Library) AddChapter(group GroupID, name string) (ChapterID, error) {
 	id := l.nextChapter
 	l.nextChapter++
 	l.chapters[id] = &Chapter{ID: id, Group: group, Name: chapterName(name)}
-	l.order[group] = append(l.order[group], chapterEntry(id))
+	l.order[group] = insertAt(l.order[group], index, chapterEntry(id))
 	return id, nil
 }
 
@@ -540,14 +557,27 @@ func (l *Library) DeleteChapter(id ChapterID) error {
 
 // AddSheet files a new sheet at the end of a group.
 func (l *Library) AddSheet(id SheetID, group GroupID, at time.Time) error {
+	return l.AddSheetAt(id, group, at, len(l.order[group]))
+}
+
+// AddSheetAt files a new sheet in group at index, clamped to its entries. A
+// sheet ID names one sheet for its life: a repeated ID is rejected without
+// changing its filing, timestamps, or ordered placements.
+func (l *Library) AddSheetAt(id SheetID, group GroupID, at time.Time, index int) error {
+	if id <= 0 {
+		return ErrInvalidID
+	}
 	if _, ok := l.groups[group]; !ok {
 		return ErrUnknown
 	}
 	if l.GroupInTrash(group) {
 		return ErrTrashed
 	}
+	if _, ok := l.sheets[id]; ok {
+		return ErrDuplicate
+	}
 	l.sheets[id] = &Sheet{ID: id, Group: group, Created: at, Updated: at}
-	l.order[group] = append(l.order[group], sheetEntry(id))
+	l.order[group] = insertAt(l.order[group], index, sheetEntry(id))
 	return nil
 }
 

@@ -57,6 +57,66 @@ func TestLibraryProjectionsFollowCurrentSessions(t *testing.T) {
 	checkCounts()
 }
 
+func TestTrashingAncestorReconcilesSelectedGroupWithoutOpeningPanes(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := app.NewGroup("", shell.Last)
+	child := app.NewGroup(parent, shell.Last)
+	app.Shell.Go(shell.Place{Kind: shell.PlaceGroup, Group: child})
+	app.Shell.ShowPanes(false, false)
+	app.TrashGroup("1") // The Inbox cannot be trashed.
+	if got := app.Shell.Place(); got != (shell.Place{Kind: shell.PlaceGroup, Group: child}) {
+		t.Fatalf("failed trash changed place to %+v", got)
+	}
+	app.TrashGroup(parent)
+	if got := app.Shell.Place(); got != (shell.Place{Kind: shell.PlaceAll}) {
+		t.Fatalf("place after ancestor trash = %+v, want All", got)
+	}
+	if app.Shell.SidebarVisible() || app.Shell.SheetListVisible() {
+		t.Fatal("reconciliation opened a hidden pane")
+	}
+}
+
+func TestFailedSheetFilingRollsBackNewAndDuplicatePages(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := app.Session
+	active, _ := app.Workspace.Active()
+	for _, create := range []func(){
+		func() { app.NewSheet("1", shell.Last) },
+		func() { app.DuplicateSheet(sheetName(first.page)) },
+	} {
+		app.nextKey = first.key
+		create()
+		if current, ok := app.Workspace.Active(); !ok || current != active || app.Session != first {
+			t.Fatalf("failed filing changed the mounted page: %v, %v", current, ok)
+		}
+		if len(app.Workspace.Pages()) != 1 || len(app.sessions) != 1 || len(app.library.Records().Sheets) != 1 {
+			t.Fatalf("failed filing left pages or duplicate records: pages %v, sessions %d, records %+v",
+				app.Workspace.Pages(), len(app.sessions), app.library.Records())
+		}
+	}
+}
+
+func TestDuplicateSheetFollowsSourceAmongChapterEntries(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := sheetName(app.Session.page)
+	chapter := app.NewChapter("1", 0)
+	app.DuplicateSheet(original)
+	entries := app.Entries("1")
+	if len(entries) != 3 || entries[0].ID != chapter || entries[1].ID != original ||
+		entries[2].Kind != shell.EntrySheet || entries[2].ID == original {
+		t.Fatalf("entries after duplicate = %+v", entries)
+	}
+}
+
 func BenchmarkLibrarySessionLookup(b *testing.B) {
 	for _, size := range []int{100, 1000} {
 		app := &AppState{sessions: make(map[workspace.PageID]*sheetSession, size)}

@@ -769,6 +769,18 @@ func nestedGroupState() (*State, *fakeLibrary) {
 	return state, library
 }
 
+func TestLibraryReconciliationKeepsSearchOpen(t *testing.T) {
+	state, library := nestedGroupState()
+	state.Go(Place{Kind: PlaceGroup, Group: "4"})
+	state.Search()
+	state.PageQuery = "needle"
+	library.groupTree["3"] = nil
+	state.ReconcileLibrary()
+	if state.Place() != (Place{Kind: PlaceAll}) || !state.nav.searching || state.PageQuery != "needle" {
+		t.Fatalf("place = %+v, searching = %v, query = %q", state.Place(), state.nav.searching, state.PageQuery)
+	}
+}
+
 func settle(tester *ui.Tester) {
 	for range 30 {
 		tester.Advance(50 * time.Millisecond)

@@ -1,6 +1,8 @@
 package window
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -102,6 +104,7 @@ func (a *AppState) libraryChanged() {
 		a.notebook.saver.Library(a.library.Records())
 	}
 	if a.Shell != nil {
+		a.Shell.ReconcileLibrary()
 		a.refreshShell()
 	}
 }
@@ -344,9 +347,17 @@ func (a *AppState) NewSheet(group string, index int) {
 		a.fail("Couldn't create the sheet", err)
 		return
 	}
-	if session, ok := a.sessions[id]; ok {
-		_ = a.library.AddSheet(library.SheetID(session.key), target, time.Now())
-		_ = a.library.MoveSheet(library.SheetID(session.key), target, index)
+	session, ok := a.sessions[id]
+	if !ok {
+		err = errors.New("new page has no session")
+	} else {
+		err = a.library.AddSheetAt(library.SheetID(session.key), target, time.Now(), index)
+	}
+	if err != nil {
+		err = a.discardUnfiledPage(id, err)
+		a.selectMounted()
+		a.fail("Couldn't create the sheet", err)
+		return
 	}
 	a.selectMounted()
 	a.libraryChanged()
@@ -358,12 +369,8 @@ func (a *AppState) NewChapter(group string, index int) string {
 	if target == 0 || a.library.GroupInTrash(target) {
 		target = library.Inbox
 	}
-	id, err := a.library.AddChapter(target, "")
+	id, err := a.library.AddChapterAt(target, "", index)
 	if err != nil {
-		a.fail("Couldn't create the chapter", err)
-		return ""
-	}
-	if err := a.library.MoveChapter(id, target, index); err != nil {
 		a.fail("Couldn't create the chapter", err)
 		return ""
 	}
@@ -429,15 +436,29 @@ func (a *AppState) DuplicateSheet(name string) {
 		return
 	}
 	copied := library.SheetID(a.sessions[id].key)
-	_ = a.library.AddSheet(copied, sheet.Group, time.Now())
-	position := 0
-	for index, other := range a.library.Sheets(sheet.Group) {
-		if other.ID == sheet.ID {
+	entries := a.library.Entries(sheet.Group)
+	position := len(entries)
+	for index, entry := range entries {
+		if entry.Sheet == sheet.ID {
 			position = index + 1
+			break
 		}
 	}
-	_ = a.library.MoveSheet(copied, sheet.Group, position)
+	if err := a.library.AddSheetAt(copied, sheet.Group, time.Now(), position); err != nil {
+		err = a.discardUnfiledPage(id, err)
+		a.selectMounted()
+		a.fail("Couldn't duplicate the sheet", err)
+		return
+	}
 	a.libraryChanged()
+}
+
+func (a *AppState) discardUnfiledPage(id workspace.PageID, cause error) error {
+	if err := a.Workspace.Discard(id); err != nil {
+		return errors.Join(cause, fmt.Errorf("discard unfiled page: %w", err))
+	}
+	delete(a.sessions, id)
+	return cause
 }
 
 // MoveSheet is part of shell.Library.
@@ -540,12 +561,11 @@ func (a *AppState) DeleteSheet(name string) {
 
 // NewGroup is part of shell.Library.
 func (a *AppState) NewGroup(parent string, index int) string {
-	id, err := a.library.AddGroup(groupOf(parent), "Untitled Group")
+	id, err := a.library.AddGroupAt(groupOf(parent), "Untitled Group", index)
 	if err != nil {
 		a.fail("Couldn't create the group", err)
 		return ""
 	}
-	_ = a.library.MoveGroup(id, groupOf(parent), index)
 	// A group starts in Halo, the accent of a page in no group.
 	_ = a.library.StyleGroup(id, "", shell.TintHalo)
 	a.libraryChanged()
