@@ -213,6 +213,38 @@ func TestAttributeCaretAddressesAndResolves(t *testing.T) {
 	}
 }
 
+func TestSingleNotationRunKeepsItsOpeningAddress(t *testing.T) {
+	f := newFixture(t, "abc")
+	builder := NewBuilder("single", NewVersion(f.document.Revision(), 1))
+	if err := builder.Attribute(f.node, "heading", "##"); err != nil {
+		t.Fatal(err)
+	}
+	if err := builder.Editable(f.root, model.NewUTF16Range(0, 3)); err != nil {
+		t.Fatal(err)
+	}
+	p, err := builder.Build(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := p.Target(model.EmptyUTF16Range(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	caret, err := p.CaretAddress(target)
+	if err != nil || caret.Kind != CaretAttribute || caret.Side != AttributeCaretOpening {
+		t.Fatalf("single-run caret = %+v, %v", caret, err)
+	}
+	resolved, err := p.ResolveCaret(caret, f.document.Revision())
+	if err != nil || resolved.RangeUTF16() != target.RangeUTF16() {
+		t.Fatalf("single-run resolution = %+v, %v", resolved, err)
+	}
+	closing := AttributeCaret(f.node, "heading", AttributeCaretClosing, 1)
+	resolved, err = p.ResolveCaret(closing, f.document.Revision())
+	if err != nil || resolved.RangeUTF16() != target.RangeUTF16() {
+		t.Fatalf("single closing run = %+v, %v", resolved, err)
+	}
+}
+
 func TestProjectionUpdatesReportExactChangedRanges(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "abc")

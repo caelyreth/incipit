@@ -290,17 +290,7 @@ func (p *Projection) CaretAddress(target Target) (Caret, error) {
 		return p.textCaret(target.range16.Start, target.affinity)
 	}
 	attribute, _ := segment.AttributeTarget()
-	first, last := -1, -1
-	for candidateIndex, candidate := range p.segments {
-		other, ok := candidate.AttributeTarget()
-		if !ok || other.Node() != attribute.Node() || other.Key() != attribute.Key() {
-			continue
-		}
-		if first < 0 {
-			first = candidateIndex
-		}
-		last = candidateIndex
-	}
+	first, last := p.notationRuns(attribute.Node(), attribute.Key())
 	if first < 0 || last < 0 {
 		return Caret{}, &ProjectionError{Kind: ErrorNoCorrespondence}
 	}
@@ -417,17 +407,7 @@ func (p *Projection) ResolveCaret(caret Caret, revision uint64) (Target, error) 
 		}
 		return p.ProjectAnchor(anchor)
 	}
-	first, last := -1, -1
-	for index, segment := range p.segments {
-		target, ok := segment.AttributeTarget()
-		if !ok || target.Node() != caret.Node || target.Key() != caret.Key {
-			continue
-		}
-		if first < 0 {
-			first = index
-		}
-		last = index
-	}
+	first, last := p.notationRuns(caret.Node, caret.Key)
 	index := first
 	if caret.Side == AttributeCaretClosing {
 		index = last
@@ -615,9 +595,7 @@ func (p *Projection) ValidateSource(revision uint64, document model.DocumentSnap
 }
 
 func (p *Projection) ValidateCandidate(revision uint64, document model.DocumentSnapshot) error {
-	return p.validateNodes(revision, func(id model.NodeID) (*model.Node, bool) {
-		return document.Node(id)
-	})
+	return p.ValidateSource(revision, document)
 }
 
 func (p *Projection) validateNodes(revision uint64, lookup func(model.NodeID) (*model.Node, bool)) error {
