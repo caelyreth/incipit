@@ -72,11 +72,6 @@ func (e *Element) figureAt(x, y float32) (textlayout.PlacedFigure, float32, bool
 	return figure, side, true
 }
 
-// contentPoint is a point of the element in the page's content.
-func (e *Element) contentPoint(x, y float32) ui.Point {
-	return ui.Point{X: x, Y: y + e.visibleScroll() - e.TopInset}
-}
-
 // pressFigure handles a press on a figure: on a side it starts a resize,
 // elsewhere it selects the figure.
 func (e *Element) pressFigure(event ui.InputEvent) (bool, bool) {

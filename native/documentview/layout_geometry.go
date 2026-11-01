@@ -31,6 +31,10 @@ type CaretPresentation struct {
 var _ controller.Geometry = LayoutGeometry{}
 var _ controller.VerticalGeometry = LayoutGeometry{}
 
+func (g LayoutGeometry) coordinates() pageCoordinates {
+	return pageCoordinates{top: g.YOffset, scroll: g.ScrollY}
+}
+
 func (g LayoutGeometry) BoundsForRange(
 	text string,
 	range16 controller.UTF16Range,
@@ -54,7 +58,7 @@ func (g LayoutGeometry) BoundsForRange(
 	if g.Caret != nil && range16 == g.Caret.Selection &&
 		g.Caret.Text == text && range16.Empty() {
 		rect := g.Caret.Rect
-		rect.Y += g.YOffset - g.ScrollY
+		rect.Y = g.coordinates().viewportY(rect.Y)
 		return rect, range16, true
 	}
 	rect, ok := g.Layout.BoundsForRange(aligned)
@@ -66,7 +70,7 @@ func (g LayoutGeometry) BoundsForRange(
 	}
 	return controller.Rect{
 			X: rect.X,
-			Y: rect.Y + g.YOffset - g.ScrollY,
+			Y: g.coordinates().viewportY(rect.Y),
 			W: rect.W,
 			H: rect.H,
 		},
@@ -81,10 +85,10 @@ func (g LayoutGeometry) IndexForPoint(
 	if g.Layout == nil || g.Layout.Flow().Text() != text {
 		return 0, false
 	}
-	return int(g.Layout.Hit(ui.Point{
+	return int(g.Layout.Hit(g.coordinates().contentPoint(ui.Point{
 		X: point.X,
-		Y: point.Y + g.ScrollY - g.YOffset,
-	})), true
+		Y: point.Y,
+	}))), true
 }
 
 func (g LayoutGeometry) RowIndex(
@@ -111,7 +115,7 @@ func (g LayoutGeometry) CaretLine(text string, caret int) (controller.Rect, bool
 	}
 	return controller.Rect{
 		X: line.X,
-		Y: line.Y + g.YOffset - g.ScrollY,
+		Y: g.coordinates().viewportY(line.Y),
 		W: line.W,
 		H: line.H,
 	}, true

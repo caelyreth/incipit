@@ -491,10 +491,7 @@ func (e *Element) hit(x, y float32) int {
 	if e == nil || e.current == nil {
 		return 0
 	}
-	return int(e.current.Hit(ui.Point{
-		X: x,
-		Y: y + e.visibleScroll() - e.TopInset,
-	}))
+	return int(e.current.Hit(e.contentPoint(x, y)))
 }
 
 func (e *Element) unitAt(offset int, unit editor.SelectionUnit) (struct{ Start, End int }, bool) {
