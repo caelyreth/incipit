@@ -174,6 +174,27 @@ func TestToolbarModesTrackSelectionAndAvailability(t *testing.T) {
 	}
 }
 
+func TestToolbarResetsDocumentStateWithoutAPage(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.Shell.Typewriter(true)
+	app.Shell.ToggleCJK(true)
+	app.closePage()
+	if app.Shell.CanUndo || app.Shell.CanRedo || app.Shell.Toolbar.BoldEnabled ||
+		app.Shell.Toolbar.ItalicEnabled || app.Shell.Toolbar.CJKEnabled || app.Shell.Toolbar.CJK {
+		t.Fatalf("page-less toolbar retained document state: %+v", app.Shell.Toolbar)
+	}
+	if !app.Shell.Toolbar.Typewriter || !app.Shell.Toolbar.TypewriterEnabled {
+		t.Fatalf("page-less toolbar lost presentation state: %+v", app.Shell.Toolbar)
+	}
+	app.Shell.Typewriter(false)
+	if app.Shell.Toolbar.Typewriter {
+		t.Fatal("page-less toolbar did not follow presentation change")
+	}
+}
+
 func TestToolbarModeTooltipsShowCommandBindings(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {

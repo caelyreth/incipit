@@ -156,7 +156,8 @@ func (a *AppState) syncMenu() {
 		if item == nil {
 			continue
 		}
-		accelerator, enabled := "", a.commandAvailable(entry.command)
+		action, known := keymap.ResolveCommand(entry.command)
+		accelerator, enabled := "", known && a.commandEnabledWith(prepared, action)
 		if prepared != nil {
 			if bindings := prepared.BindingsFor(entry.command); len(bindings) > 0 && !a.recording {
 				accelerator, _ = keymap.Accelerator(bindings[0], keymap.PlatformCurrent)

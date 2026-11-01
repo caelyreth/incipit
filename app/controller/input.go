@@ -168,6 +168,7 @@ func (c *DocumentController) commitPreedit(
 			return kernel.OutcomePass, c.fail(err)
 		}
 	}
+	before := c.Runtime().Revision()
 	outcome, err := c.session.CommitComposition()
 	if err != nil {
 		c.recordError(err)
@@ -184,7 +185,7 @@ func (c *DocumentController) commitPreedit(
 		c.previewFrame = nil
 		c.refreshSource(true)
 		c.refreshVisible()
-		c.setStatus(outcome, true, nil)
+		c.setStatus(outcome, c.Runtime().Revision() != before, nil)
 		return outcome, nil
 	}
 	if err := c.refreshPreview(); err != nil {

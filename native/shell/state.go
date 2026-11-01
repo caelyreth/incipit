@@ -16,9 +16,8 @@ type Page struct {
 	Title string
 }
 
-// ToolbarState is the editor-owned state rendered by the floating writing
-// toolbar. Presentation modes live in Appearance; CJK lives in the policy
-// configuration.
+// ToolbarState combines editor formatting, product modes and current bindings
+// for the floating writing toolbar.
 type ToolbarState struct {
 	Bold              bool
 	Italic            bool

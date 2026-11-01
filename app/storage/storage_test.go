@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/model"
@@ -131,6 +132,59 @@ func TestANotebookReopensAsItWasLeft(t *testing.T) {
 	if len(layout.Tabs) != 2 || layout.Tabs[0] != 2 || layout.Active != 1 || !layout.HasActive ||
 		layout.Scroll[1] != 120 || layout.Selections[1] != selection {
 		t.Fatalf("layout %+v", layout)
+	}
+}
+
+func TestLegacyLineEndingsRemainAvailableWithFilingAndSelection(t *testing.T) {
+	root := t.TempDir()
+	store := openStore(t, root)
+	document := page(t, "hello\nworld")
+	first := block(document, 0)
+	selection := Selection{
+		Anchor: Position{Node: first.Value(), Offset: 3},
+		Head:   Position{Node: first.Value(), Offset: 5},
+		Visual: &ProjectedSelection{Anchor: 3, Head: 5},
+	}
+	shelf := library.New()
+	group, err := shelf.AddGroup(0, "Research")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := shelf.AddSheet(1, group, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	saver := store.Autosave(nil)
+	saver.Page(1, "", document.Snapshot())
+	saver.Library(shelf.Records())
+	saver.Layout(Layout{Tabs: []PageKey{1}, Active: 1, HasActive: true, Selections: map[PageKey]Selection{1: selection}})
+	if err := saver.Close(); err != nil {
+		t.Fatal(err)
+	}
+	legacy := "hello\r\nworld"
+	if _, err := store.db.Exec(`UPDATE nodes SET text = ? WHERE page = ? AND id = ?`, legacy, 1, first); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := store.Load()
+	if err != nil || len(loaded.Damaged) != 0 || len(loaded.Pages) != 1 {
+		t.Fatalf("load = %+v, error = %v", loaded, err)
+	}
+	node, _ := loaded.Pages[0].Document.Snapshot().Node(first)
+	if node.Text().String() != legacy || !loaded.Layout.Selections[1].Equal(selection) ||
+		len(loaded.Library.Sheets) != 1 || loaded.Library.Sheets[0].Group != group {
+		t.Fatalf("legacy content or metadata changed: %q, %+v, %+v", node.Text().String(), loaded.Layout, loaded.Library)
+	}
+	if _, err := controller.OpenDocument(loaded.Pages[0].Document, nil); err != nil {
+		t.Fatalf("legacy page cannot open in editor: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store = openStore(t, root)
+	defer store.Close()
+	loaded, err = store.Load()
+	if err != nil || len(loaded.Damaged) != 0 || len(loaded.Pages) != 1 ||
+		!loaded.Layout.Selections[1].Equal(selection) || len(loaded.Library.Sheets) != 1 || loaded.Library.Sheets[0].Group != group {
+		t.Fatalf("reopened legacy page = %+v, error = %v", loaded, err)
 	}
 }
 

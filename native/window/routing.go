@@ -140,18 +140,16 @@ func (a *AppState) commandEnabled(action keymap.Action) bool {
 	if a == nil || a.Store == nil {
 		return false
 	}
-	prepared := a.Store.PreparedConfiguration()
+	return a.commandEnabledWith(a.Store.PreparedConfiguration(), action)
+}
+
+func (a *AppState) commandEnabledWith(prepared *kernel.PreparedPolicyConfiguration, action keymap.Action) bool {
 	if prepared == nil || !prepared.IsCommandEnabled(action.ID) {
 		return false
 	}
 	document := a.Session != nil && a.Session.Document() != nil
 	table := document && a.Session.Document().Session().InTable()
 	return action.Requirements.Satisfied(document, table)
-}
-
-func (a *AppState) commandAvailable(command kernel.CommandID) bool {
-	action, err := a.resolveCommand(command)
-	return err == nil && a.commandEnabled(action)
 }
 
 // routeWindowCommand is the common menu, palette, toolbar and keyboard bridge

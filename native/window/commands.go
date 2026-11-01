@@ -1,11 +1,12 @@
 package window
 
 import (
+	"strings"
+
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/overlay"
-	"strings"
 )
 
 // commandCatalog returns every command the palette and native menus can
@@ -15,8 +16,8 @@ func (a *AppState) commandCatalog() []overlay.Command {
 	if a == nil || a.Store == nil {
 		return nil
 	}
-	prepared := a.Store.PreparedConfiguration()
-	catalog := a.Store.PolicyCatalog()
+	snapshot := a.Store.Snapshot()
+	prepared, catalog := snapshot.Prepared, snapshot.Catalog
 	if prepared == nil {
 		return nil
 	}
@@ -32,7 +33,7 @@ func (a *AppState) commandCatalog() []overlay.Command {
 				continue
 			}
 			action, ok := keymap.ResolveCommand(id)
-			if !ok || !a.commandEnabled(action) {
+			if !ok || !a.commandEnabledWith(prepared, action) {
 				continue
 			}
 			if surface, ok := editor.SurfaceCommandForID(id); ok {

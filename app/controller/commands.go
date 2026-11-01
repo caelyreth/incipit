@@ -85,10 +85,11 @@ func (c *DocumentController) finishCommand(
 	if err != nil {
 		return kernel.OutcomePass, c.fail(err)
 	}
+	changed := c.hasVersion && c.version.SourceRevision() != c.session.Runtime().Revision()
 	if outcome == kernel.OutcomeHandled {
 		c.refreshSource(true)
 		c.refreshVisible()
 	}
-	c.setStatus(outcome, outcome == kernel.OutcomeHandled, nil)
+	c.setStatus(outcome, changed, nil)
 	return outcome, nil
 }

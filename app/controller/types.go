@@ -106,8 +106,10 @@ type Command struct {
 
 // Status is the outcome of the latest controller operation.
 type Status struct {
-	Outcome   kernel.Outcome
-	Revision  uint64
+	Outcome  kernel.Outcome
+	Revision uint64
+	// Changed reports a published document or policy change, not selection
+	// movement or merely handling a command.
 	Changed   bool
 	Composing bool
 	FrameAt   time.Time

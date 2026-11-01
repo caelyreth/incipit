@@ -956,6 +956,7 @@ func chapterSheets(entries []GroupEntry, index int) int {
 
 func (s *State) startChapterRename(id, name string) {
 	s.nav.renaming, s.nav.name = id, name
+	s.nav.groupRename = false
 }
 
 // chapterRow is a divider in a group's ordered list. Its sheets are those

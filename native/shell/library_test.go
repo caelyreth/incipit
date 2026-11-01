@@ -781,6 +781,24 @@ func TestLibraryReconciliationKeepsSearchOpen(t *testing.T) {
 	}
 }
 
+func TestLibraryReconciliationCancelsDisappearedGroupActions(t *testing.T) {
+	for _, styling := range []bool{false, true} {
+		state, library := nestedGroupState()
+		state.Go(Place{Kind: PlaceAll})
+		if styling {
+			state.startStyling("4")
+		} else {
+			state.startRename("4")
+		}
+		library.groupTree["3"] = nil
+		state.ReconcileLibrary()
+		if state.nav.renaming != "" || state.nav.groupRename || state.nav.styling != "" ||
+			state.nav.stylingOpen || state.nav.focusGroup != "" {
+			t.Fatalf("disappeared group action remains: %+v", state.nav)
+		}
+	}
+}
+
 func settle(tester *ui.Tester) {
 	for range 30 {
 		tester.Advance(50 * time.Millisecond)

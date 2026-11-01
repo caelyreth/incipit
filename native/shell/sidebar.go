@@ -32,9 +32,11 @@ type navigation struct {
 	side float32
 	// expanded are the groups open in the library's tree.
 	expanded map[string]bool
-	// renaming is the group being named in place, and name its text.
-	renaming string
-	name     string
+	// renaming is a group or chapter being named in place; groupRename
+	// distinguishes a group target for lifecycle reconciliation.
+	renaming    string
+	groupRename bool
+	name        string
 	// focusGroup is a group row or name field to bring into view and focus
 	// once its presentation host has drawn it.
 	focusGroup string
@@ -90,16 +92,30 @@ func (s *State) StartAt(place Place) { s.nav.place = place }
 // ReconcileLibrary leaves an invalid group place after filing changes without
 // opening a pane or ending a search the user already has open.
 func (s *State) ReconcileLibrary() {
-	if s == nil || s.Library == nil || s.nav.place.Kind != PlaceGroup {
+	if s == nil || s.Library == nil {
 		return
 	}
-	if _, ok := s.Library.Group(s.nav.place.Group); ok {
-		return
+	if s.nav.groupRename {
+		if _, ok := s.Library.Group(s.nav.renaming); !ok {
+			s.nav.renaming, s.nav.focusGroup = "", ""
+			s.nav.groupRename = false
+		}
 	}
-	s.nav.place = Place{Kind: PlaceAll}
-	s.nav.renaming = ""
-	s.sheetOverscroll.Reset()
-	s.disarm()
+	if s.nav.styling != "" {
+		if _, ok := s.Library.Group(s.nav.styling); !ok {
+			s.nav.styling, s.nav.focusGroup = "", ""
+			s.nav.stylingOpen = false
+		}
+	}
+	if s.nav.place.Kind == PlaceGroup {
+		if _, ok := s.Library.Group(s.nav.place.Group); !ok {
+			s.nav.place = Place{Kind: PlaceAll}
+			s.nav.renaming = ""
+			s.nav.groupRename = false
+			s.sheetOverscroll.Reset()
+			s.disarm()
+		}
+	}
 }
 
 // Go chooses a place in the library and shows its sheets.
@@ -111,6 +127,7 @@ func (s *State) Go(place Place) {
 	}
 	s.nav.place = place
 	s.nav.renaming = ""
+	s.nav.groupRename = false
 	s.sheetOverscroll.Reset()
 	s.disarm()
 }
@@ -604,6 +621,7 @@ func (s *State) startRename(id string) {
 	}
 	s.revealGroup(id)
 	s.nav.renaming, s.nav.name = id, group.Name
+	s.nav.groupRename = true
 	s.nav.focusGroup = id
 }
 

@@ -1,6 +1,9 @@
 package model
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func recordedDocument(t *testing.T) (*Document, NodeID) {
 	t.Helper()
@@ -51,7 +54,7 @@ func TestRecordsRestoreTheirDocument(t *testing.T) {
 	}
 }
 
-func TestRestoreRejectsNoncanonicalAndInvalidStoredText(t *testing.T) {
+func TestRestoreRejectsInvalidStoredText(t *testing.T) {
 	document, block := recordedDocument(t)
 	snapshot := document.Snapshot()
 	records := make([]NodeRecord, 0, len(snapshot.Nodes()))
@@ -62,8 +65,6 @@ func TestRestoreRejectsNoncanonicalAndInvalidStoredText(t *testing.T) {
 		name string
 		text string
 	}{
-		{name: "CRLF", text: "hello\r\nworld"},
-		{name: "bare CR", text: "hello\rworld"},
 		{name: "invalid UTF-8", text: string([]byte{0xff})},
 		{name: "NUL", text: "hello\x00world"},
 	} {
@@ -80,6 +81,36 @@ func TestRestoreRejectsNoncanonicalAndInvalidStoredText(t *testing.T) {
 				t.Fatalf("restored %q", test.text)
 			}
 		})
+	}
+}
+
+func TestRestorePreservesLegacyLineEndingsAndMarkOffsets(t *testing.T) {
+	for _, text := range []string{"hello\r\nworld", "hello\rworld"} {
+		document, block := recordedDocument(t)
+		snapshot := document.Snapshot()
+		var records []NodeRecord
+		for _, node := range snapshot.Nodes() {
+			record := node.Record()
+			if record.ID == block {
+				record.Text = &text
+				record.Marks = []InlineMark{NewInlineMark(1, NewUTF16Range(0, 5), "strong", 1)}
+			}
+			records = append(records, record)
+		}
+		restored, err := RestoreDocument(snapshot.Root(), snapshot.NextID(), records)
+		if err != nil {
+			t.Fatalf("restore %q: %v", text, err)
+		}
+		node, _ := restored.Snapshot().Node(block)
+		want := []InlineMark{NewInlineMark(1, NewUTF16Range(0, 5), "strong", 1)}
+		if node.Text().String() != text || !slices.Equal(node.Marks(), want) {
+			t.Fatalf("restore changed legacy text or offsets: %q %+v", node.Text().String(), node.Marks())
+		}
+		if _, err := restored.Transact(func(draft *DocumentDraft) error {
+			return draft.SetAttribute(block, "note", TextValue("editable"))
+		}); err != nil {
+			t.Fatalf("edit legacy document %q: %v", text, err)
+		}
 	}
 }
 

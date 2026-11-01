@@ -259,7 +259,8 @@ func (l *Layout) BoundsForRange(selection model.UTF16Range) (ui.Rect, bool) {
 }
 
 // CaretAtPoint returns the projected caret rect for an IME candidate anchor.
-// It preserves the shaped visual affinity selected by IndexAt.
+// Hit currently narrows the shaped position to an index, so a bidi or soft-wrap
+// boundary's visual affinity cannot yet be preserved here.
 func (l *Layout) CaretAtPoint(point ui.Point) ui.Rect {
 	return l.Caret(l.Hit(point))
 }

@@ -253,28 +253,21 @@ func (a *AppState) refreshShellReadouts() {
 }
 
 func (a *AppState) refreshToolbarState() {
-	if a == nil || a.Shell == nil || a.Session == nil || a.Session.Document() == nil {
+	if a == nil || a.Shell == nil || a.Store == nil {
 		return
 	}
-	controller := a.Session.Document()
-	if controller.Session() != nil {
-		toolbar := controller.Session().ToolbarState()
-		a.Shell.Toolbar.Italic = toolbar.Emphasis
-		a.Shell.Toolbar.Bold = toolbar.Strong
-		a.Shell.Toolbar.ItalicEnabled = toolbar.EmphasisEnabled
-		a.Shell.Toolbar.BoldEnabled = toolbar.StrongEnabled
-		a.Shell.CanUndo = toolbar.CanUndo
-		a.Shell.CanRedo = toolbar.CanRedo
+	prepared := a.Store.PreparedConfiguration()
+	enabled := func(command kernel.CommandID) bool {
+		action, ok := keymap.ResolveCommand(command)
+		return ok && a.commandEnabledWith(prepared, action)
 	}
-	configuration := controller.Runtime().PolicyConfiguration()
-	toolbar := a.Shell.Toolbar
-	toolbar.Typewriter = a.Product.Presentation.Typewriter
-	toolbar.Zen = a.Product.Presentation.Zen
-	toolbar.CJK = configuration.IsEnabled(editor.CJKPolicyID)
-	toolbar.TypewriterEnabled = a.commandAvailable(editor.SurfaceTypewriterCommandID)
-	toolbar.ZenEnabled = a.commandAvailable(editor.SurfaceZenCommandID)
-	toolbar.CJKEnabled = a.commandAvailable(editor.SurfaceCJKCommandID)
-	prepared := controller.Runtime().Configuration()
+	toolbar := shell.ToolbarState{
+		Typewriter:        a.Product.Presentation.Typewriter,
+		Zen:               a.Product.Presentation.Zen,
+		TypewriterEnabled: enabled(editor.SurfaceTypewriterCommandID),
+		ZenEnabled:        enabled(editor.SurfaceZenCommandID),
+		CJKEnabled:        enabled(editor.SurfaceCJKCommandID),
+	}
 	toolbar.Bindings = shell.ToolbarBindings{
 		Bold:       bindingLabel(prepared, editor.MarkupStrong.ID()),
 		Italic:     bindingLabel(prepared, editor.MarkupEmphasis.ID()),
@@ -284,6 +277,20 @@ func (a *AppState) refreshToolbarState() {
 		Zen:        bindingLabel(prepared, editor.SurfaceZenCommandID),
 		CJK:        bindingLabel(prepared, editor.SurfaceCJKCommandID),
 	}
+	a.Shell.CanUndo, a.Shell.CanRedo = false, false
+	if a.Session == nil || a.Session.Document() == nil {
+		a.Shell.Toolbar = toolbar
+		return
+	}
+	controller := a.Session.Document()
+	if controller.Session() != nil {
+		state := controller.Session().ToolbarState()
+		toolbar.Italic, toolbar.Bold = state.Emphasis, state.Strong
+		toolbar.ItalicEnabled, toolbar.BoldEnabled = state.EmphasisEnabled, state.StrongEnabled
+		a.Shell.CanUndo, a.Shell.CanRedo = state.CanUndo, state.CanRedo
+	}
+	configuration := controller.Runtime().PolicyConfiguration()
+	toolbar.CJK = configuration.IsEnabled(editor.CJKPolicyID)
 	a.Shell.Toolbar = toolbar
 }
 
@@ -468,6 +475,7 @@ func (a *AppState) refreshShell() {
 		a.Shell.CanRedo = controller.Session().History().RedoDepth() > 0
 	} else {
 		a.Shell.Statistics = "No open document"
+		a.refreshToolbarState()
 	}
 }
 

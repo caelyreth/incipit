@@ -321,6 +321,32 @@ func TestExecuteRoutesTextHistoryWordMarkupAndApplicationCommands(t *testing.T) 
 	}
 }
 
+func TestCommandStatusDistinguishesHandlingFromDocumentChanges(t *testing.T) {
+	controller := newController(t, "hello")
+	for _, command := range []editor.Command{
+		editor.HistoryUndo.Description(), editor.TextSelectAll.Description(),
+	} {
+		if outcome, err := controller.Execute(Command{ID: string(command.ID)}); err != nil || outcome != kernel.OutcomeHandled {
+			t.Fatalf("%s outcome = %v, error = %v", command.ID, outcome, err)
+		}
+		if status := controller.Status(); status.Changed {
+			t.Fatalf("%s reported a document change: %+v", command.ID, status)
+		}
+	}
+	if _, err := controller.Execute(Command{ID: string(editor.MarkupStrong.ID())}); err != nil {
+		t.Fatal(err)
+	}
+	if !controller.Status().Changed {
+		t.Fatal("formatting did not report a document change")
+	}
+	if _, err := controller.Execute(Command{ID: string(editor.HistoryUndo.ID())}); err != nil {
+		t.Fatal(err)
+	}
+	if !controller.Status().Changed {
+		t.Fatal("undo did not report a document change")
+	}
+}
+
 func TestCompositionPreviewCommitsOneHandledEdit(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "a🦀z")
