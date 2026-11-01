@@ -1,11 +1,39 @@
 package editor
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
 )
+
+func TestNotationEditUsesTheResolvedCaretAfterTheNewCloser(t *testing.T) {
+	session := newMarkedSession(t, "abc", markSpec{start: 0, end: 3, level: 2})
+	before := session.Projection().Text()
+	closing := strings.LastIndex(before, "**")
+	if closing < 0 {
+		t.Fatalf("projection %q lacks a strong closer", before)
+	}
+	if err := session.SelectProjected(
+		model.UTF16Offset(closing),
+		model.UTF16Offset(closing+2),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := session.ReplaceSelection("*", kernel.EventOriginSemantic); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.Projection().Text(); got != "*abc*" {
+		t.Fatalf("after marker edit = %q", got)
+	}
+	if _, err := session.ReplaceSelection("d", kernel.EventOriginTyping); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.Projection().Text(); got != "*abc*d" {
+		t.Fatalf("after typing = %q", got)
+	}
+}
 
 func TestSessionExecutesMarkupCommandsAndTogglesMarks(t *testing.T) {
 	t.Parallel()

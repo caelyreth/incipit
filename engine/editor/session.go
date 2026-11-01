@@ -446,7 +446,14 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 				}
 			}
 			head := model.NewTextAnchor(headNode, insertedHead, model.AffinityRight, beforeRevision)
-			next, err := s.editedPresentation(view, configuration, head, changes.TextEdits()[through:], s.invoker.active)
+			next, err := s.editedPresentation(
+				view,
+				configuration,
+				head,
+				changes.TextEdits()[through:],
+				s.invoker.active,
+				resolved.ProjectedEditInput.Caret(),
+			)
 			if err != nil {
 				return struct{}{}, err
 			}
@@ -601,7 +608,7 @@ func (s *Session) applySpanEdit(
 			through := min(s.invoker.correctionEffectThrough, len(edits))
 			// The head stands in the first block once the span has joined;
 			// only what was written after the replacement moves it.
-			next, err := s.editedPresentation(view, configuration, head, edits[through:], nil)
+			next, err := s.editedPresentation(view, configuration, head, edits[through:], nil, nil)
 			if err != nil {
 				return struct{}{}, err
 			}
@@ -631,6 +638,7 @@ func (s *Session) editedPresentation(
 	head model.TextAnchor,
 	edits []model.TextEdit,
 	active *model.MarkID,
+	visualCaret *projection.Caret,
 ) (Presentation, error) {
 	next, ok := model.CollapsedSelection(head).RebaseAll(edits, view.Revision())
 	if !ok {
@@ -655,6 +663,17 @@ func (s *Session) editedPresentation(
 	caret, err := placeCaret(projected, node, next.Head(), active)
 	if err != nil {
 		return Presentation{}, fmt.Errorf("place edit caret: %w", wrapProjectionError(err))
+	}
+	if visualCaret != nil {
+		if target, resolveErr := projected.ResolveCaret(*visualCaret, view.Revision()); resolveErr == nil {
+			if semantic, semanticErr := projected.SemanticAnchor(
+				target.RangeUTF16().Start,
+				target.Affinity(),
+			); semanticErr == nil {
+				next = model.CollapsedSelection(semantic)
+				caret = target
+			}
+		}
 	}
 	flow, err := projectionFlowFromView(view, configuration, projected, next)
 	if err != nil {

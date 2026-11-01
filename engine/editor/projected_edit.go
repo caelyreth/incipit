@@ -86,7 +86,7 @@ func FromProjectionTarget(
 	range16 := target.RangeUTF16()
 	var caret *projection.Caret
 	if range16.Empty() {
-		address, err := p.CaretAddress(target)
+		address, err := p.CollapsedCaretAddress(target)
 		if err != nil {
 			return ProjectedEdit{}, err
 		}
@@ -188,6 +188,18 @@ func (e ProjectedEdit) Validate(p *projection.Projection) error {
 	}
 	if _, err := p.Target(e.UTF16Range); err != nil {
 		return err
+	}
+	if e.UTF16Range.Empty() {
+		if e.ProjectedCaret == nil {
+			return &ProjectedEditError{Kind: ProjectedEditInvalidCaret}
+		}
+		target, err := p.ResolveCaret(*e.ProjectedCaret, p.Version().SourceRevision())
+		if err != nil {
+			return err
+		}
+		if target.RangeUTF16() != e.UTF16Range {
+			return &ProjectedEditError{Kind: ProjectedEditInvalidCaret}
+		}
 	}
 	if !e.UTF16Range.Empty() && e.ProjectedCaret != nil {
 		return &ProjectedEditError{Kind: ProjectedEditInvalidCaret}

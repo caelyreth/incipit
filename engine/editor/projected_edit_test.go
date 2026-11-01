@@ -181,45 +181,60 @@ func TestCollapsedTextCaretProducesPrimaryTextInput(t *testing.T) {
 	}
 }
 
-func TestCollapsedAttributeCaretKeepsMarkerIdentityAndNoninteractiveInput(t *testing.T) {
+func TestCollapsedMarkerEdgesUseTextInsertionAddresses(t *testing.T) {
 	t.Parallel()
 	f := newProjectedFixture(t, "abc", model.NewUTF16Range(0, 3))
 	for _, test := range []struct {
-		offset model.UTF16Offset
-		side   projection.AttributeCaretSide
+		offset       model.UTF16Offset
+		wantSemantic model.UTF16Offset
 	}{
-		{0, projection.AttributeCaretOpening},
-		{4, projection.AttributeCaretClosing},
+		{0, 0},
+		{4, 3},
 	} {
 		edit, err := FromProjectedRange(
 			f.projection,
 			model.EmptyUTF16Range(test.offset),
-			"*",
+			"x",
 			kernel.EventOriginTyping,
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if edit.ProjectedCaret == nil || edit.ProjectedCaret.Kind != projection.CaretAttribute ||
-			edit.ProjectedCaret.Side != test.side {
+		if edit.ProjectedCaret == nil || edit.ProjectedCaret.Kind != projection.CaretText {
 			t.Fatalf("offset %d caret = %#v", test.offset, edit.ProjectedCaret)
 		}
 		resolved := f.resolve(t, edit, nil)
 		inputValue := resolved.ProjectedEditInput.Input()
-		if inputValue.Text() != "" || inputValue.Target().Node() != f.node {
+		if inputValue.Text() != "x" || inputValue.Target().Node() != f.node ||
+			inputValue.Target().RangeUTF16() != model.EmptyUTF16Range(test.wantSemantic) {
 			t.Fatalf("offset %d primary = %#v", test.offset, inputValue)
 		}
-		attributes := resolved.ProjectedEditInput.Attributes()
-		expected := "**"
-		if len(attributes) != 1 || attributes[0].Text() != expected ||
-			attributes[0].Target().Key() != MarkerKeyForMark(mustMark(f)) {
-			t.Fatalf("offset %d attributes = %#v", test.offset, attributes)
-		}
-		if resolved.ProjectedEditInput.ApplyText() || resolved.ProjectedEditInput.Interactive() ||
-			resolved.ProjectedEditInput.Caret() == nil ||
-			resolved.ProjectedEditInput.Caret().Kind != projection.CaretAttribute {
+		if !resolved.ProjectedEditInput.ApplyText() ||
+			!resolved.ProjectedEditInput.Interactive() ||
+			len(resolved.ProjectedEditInput.Attributes()) != 0 {
 			t.Fatalf("offset %d flags = %#v", test.offset, resolved.ProjectedEditInput)
 		}
+	}
+}
+
+func TestCollapsedEditRejectsCaretOutsideItsRange(t *testing.T) {
+	t.Parallel()
+	f := newProjectedFixture(t, "abc")
+	edit, err := FromProjectedRange(
+		f.projection,
+		model.EmptyUTF16Range(0),
+		"x",
+		kernel.EventOriginTyping,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	caret := projection.TextCaret(model.NewTextAnchor(
+		f.node, 1, model.AffinityRight, f.projection.Version().SourceRevision(),
+	))
+	edit.ProjectedCaret = &caret
+	if err := edit.Validate(f.projection); err == nil {
+		t.Fatal("collapsed edit accepted a caret outside its target")
 	}
 }
 
