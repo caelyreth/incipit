@@ -82,17 +82,8 @@ func lineOffsets(text string, head model.UTF16Offset) (model.UTF16Offset, model.
 	if !ok {
 		return 0, 0
 	}
-	start := 0
-	for index := int(byteOffset) - 1; index >= 0; index-- {
-		if text[index] == '\n' {
-			start = index + 1
-			break
-		}
-	}
-	end := int(byteOffset)
-	for end < len(text) && text[end] != '\n' && text[end] != '\r' {
-		end++
-	}
+	start := lineStartByte(text, lineOfByte(text, int(byteOffset)))
+	end := lineEndByte(text, int(byteOffset))
 	return model.UTF16Offset(model.StringLenUTF16(text[:start])),
 		model.UTF16Offset(model.StringLenUTF16(text[:end]))
 }

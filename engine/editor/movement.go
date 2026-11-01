@@ -1,10 +1,6 @@
 package editor
 
-import (
-	"strings"
-
-	"github.com/caelyreth/neverland/engine/model"
-)
+import "github.com/caelyreth/neverland/engine/model"
 
 type TextPlan struct {
 	Command  TextCommand
@@ -47,21 +43,15 @@ func PlanTextCommand(
 		if !ok {
 			return 0
 		}
-		prefix := text[:byteOffset]
-		if newline := strings.LastIndexByte(prefix, '\n'); newline >= 0 {
-			return model.UTF16Offset(model.StringLenUTF16(text[:newline+1]))
-		}
-		return 0
+		start := lineStartByte(text, lineOfByte(text, int(byteOffset)))
+		return model.UTF16Offset(model.StringLenUTF16(text[:start]))
 	}
 	lineEnd := func(offset model.UTF16Offset) model.UTF16Offset {
 		byteOffset, ok := model.UTF16OffsetToByte(text, offset)
 		if !ok {
 			return 0
 		}
-		end := int(byteOffset)
-		for end < len(text) && text[end] != '\n' && text[end] != '\r' {
-			end++
-		}
+		end := lineEndByte(text, int(byteOffset))
 		return model.UTF16Offset(model.StringLenUTF16(text[:end]))
 	}
 	length := model.UTF16Offset(model.StringLenUTF16(text))

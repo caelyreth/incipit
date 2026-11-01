@@ -95,6 +95,21 @@ func TestTypingOverASpanJoinsAndPastingLinesSplits(t *testing.T) {
 	expectPage(t, session, "|", "")
 }
 
+func TestPastedLineEndingsUseTheCanonicalSeparator(t *testing.T) {
+	for _, input := range []string{"a\r\nb", "a\rb"} {
+		session, _ := newSessionFixture(t, "", false)
+		if _, err := session.ReplaceSelection(input, kernel.EventOriginPaste); err != nil {
+			t.Fatal(err)
+		}
+		if got := session.Projection().Text(); got != "a\nb" {
+			t.Fatalf("%q pasted as %q", input, got)
+		}
+		if got := pageTexts(session); !slices.Equal(got, []string{"a", "b"}) {
+			t.Fatalf("%q blocks = %#v", input, got)
+		}
+	}
+}
+
 // Undo brings back the page as it was, blocks and all; redo goes forward.
 func TestUndoAndRedoRestoreBlocks(t *testing.T) {
 	session, _ := newSessionFixture(t, "abcd", false)

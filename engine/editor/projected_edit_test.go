@@ -181,6 +181,28 @@ func TestCollapsedTextCaretProducesPrimaryTextInput(t *testing.T) {
 	}
 }
 
+func TestProjectedEditNormalizesLineEndings(t *testing.T) {
+	t.Parallel()
+	f := newProjectedFixture(t, "abc")
+	edit, err := FromProjectedRange(
+		f.projection,
+		model.EmptyUTF16Range(1),
+		"x\r\ny\rz",
+		kernel.EventOriginTyping,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edit.Replacement != "x\ny\nz" {
+		t.Fatalf("replacement = %q", edit.Replacement)
+	}
+	malformed := edit
+	malformed.Replacement = "x\r\ny"
+	if err := malformed.Validate(f.projection); err == nil {
+		t.Fatal("non-canonical projected replacement accepted")
+	}
+}
+
 func TestCollapsedMarkerEdgesUseTextInsertionAddresses(t *testing.T) {
 	t.Parallel()
 	f := newProjectedFixture(t, "abc", model.NewUTF16Range(0, 3))

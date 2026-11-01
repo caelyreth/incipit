@@ -201,9 +201,11 @@ func (d *DocumentDraft) SetText(node NodeID, text *string) error {
 		return &DocumentError{Kind: DocumentErrorMissingNode, Node: node}
 	}
 	if text != nil {
-		if err := validateText(*text); err != nil {
+		value := NormalizeLineEndings(*text)
+		if err := validateText(value); err != nil {
 			return err
 		}
+		text = &value
 	}
 	var replacement *TextRoot
 	if text != nil {
@@ -254,6 +256,7 @@ func (d *DocumentDraft) AppendText(node NodeID, text string) error {
 	if !ok {
 		return &DocumentError{Kind: DocumentErrorMissingNode, Node: node}
 	}
+	text = NormalizeLineEndings(text)
 	if err := validateText(text); err != nil {
 		return err
 	}
@@ -311,6 +314,7 @@ func (d *DocumentDraft) ReplaceTextMarked(
 	if !ok {
 		return &DocumentError{Kind: DocumentErrorMissingNode, Node: node}
 	}
+	replacement = NormalizeLineEndings(replacement)
 	if err := validateText(replacement); err != nil {
 		return err
 	}

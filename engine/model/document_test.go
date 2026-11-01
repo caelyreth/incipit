@@ -160,6 +160,29 @@ func TestAppendAndReplaceTextAcrossUnicode(t *testing.T) {
 	}
 }
 
+func TestDocumentTextNormalizesLineEndings(t *testing.T) {
+	t.Parallel()
+	document := mustDocument(t, "document")
+	root := document.Snapshot().Root()
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.SetTextValue(root, "a\r\nb\rc")
+	})
+	node, _ := document.Snapshot().Node(root)
+	if got := node.Text().String(); got != "a\nb\nc" {
+		t.Fatalf("normalized text = %q", got)
+	}
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.AppendText(root, "\r")
+	})
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.ReplaceTextUTF16(root, 0, 1, "x\r\ny")
+	})
+	node, _ = document.Snapshot().Node(root)
+	if got := node.Text().String(); got != "x\ny\nb\nc\n" {
+		t.Fatalf("normalized replacement = %q", got)
+	}
+}
+
 func TestEqualUpdatesDoNotAdvanceRevision(t *testing.T) {
 	t.Parallel()
 	document := mustDocument(t, "document")
@@ -226,6 +249,7 @@ func TestUTF16ReplacementMatchesIndependentStringModel(t *testing.T) {
 	t.Parallel()
 	for _, source := range []string{"", "plain", "a🦀中🐻z", "e\u0301👩‍💻\r\n"} {
 		t.Run(source, func(t *testing.T) {
+			source = NormalizeLineEndings(source)
 			base := mustDocument(t, "document")
 			root := base.Snapshot().Root()
 			mustTransact(t, base, func(draft *DocumentDraft) error {

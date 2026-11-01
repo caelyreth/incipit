@@ -246,3 +246,23 @@ func AlignUTF16RangeForNativeQuery(text string, r UTF16Range) (UTF16Range, ByteR
 func ValidDocumentText(text string) bool {
 	return utf8.ValidString(text) && !strings.ContainsRune(text, '\x00')
 }
+
+// NormalizeLineEndings makes LF the one semantic line separator.
+func NormalizeLineEndings(text string) string {
+	if !strings.ContainsRune(text, '\r') {
+		return text
+	}
+	var builder strings.Builder
+	builder.Grow(len(text))
+	for index := 0; index < len(text); index++ {
+		if text[index] != '\r' {
+			builder.WriteByte(text[index])
+			continue
+		}
+		builder.WriteByte('\n')
+		if index+1 < len(text) && text[index+1] == '\n' {
+			index++
+		}
+	}
+	return builder.String()
+}

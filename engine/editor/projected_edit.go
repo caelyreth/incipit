@@ -143,6 +143,7 @@ func newProjectedEdit(
 	caret *projection.Caret,
 	selection *projection.Selection,
 ) (ProjectedEdit, error) {
+	replacement = model.NormalizeLineEndings(replacement)
 	if !model.ValidDocumentText(replacement) {
 		return ProjectedEdit{}, &ProjectedEditError{Kind: ProjectedEditInvalidReplacement}
 	}
@@ -184,6 +185,9 @@ func (e ProjectedEdit) Validate(p *projection.Projection) error {
 		}
 	}
 	if !model.ValidDocumentText(e.Replacement) {
+		return &ProjectedEditError{Kind: ProjectedEditInvalidReplacement}
+	}
+	if e.Replacement != model.NormalizeLineEndings(e.Replacement) {
 		return &ProjectedEditError{Kind: ProjectedEditInvalidReplacement}
 	}
 	if _, err := p.Target(e.UTF16Range); err != nil {
