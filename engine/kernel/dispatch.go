@@ -75,11 +75,26 @@ func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 		}
 	}
 	sortRules(handlers)
+	sortRules(after)
 	for index, first := range handlers {
 		for _, second := range handlers[index+1:] {
 			if first.Order == second.Order &&
 				first.Trigger.Overlaps(second.Trigger) &&
 				OriginsOverlap(first.Origins, second.Origins) {
+				return nil, &DispatchError{
+					Kind:   DispatchErrorAmbiguousOrder,
+					First:  first.Key,
+					Second: second.Key,
+				}
+			}
+		}
+	}
+	for index, first := range after {
+		for _, second := range after[index+1:] {
+			if first.Order == second.Order &&
+				first.Trigger.Overlaps(second.Trigger) &&
+				OriginsOverlap(first.Origins, second.Origins) &&
+				first.Effects.Interferes(second.Effects) {
 				return nil, &DispatchError{
 					Kind:   DispatchErrorAmbiguousOrder,
 					First:  first.Key,

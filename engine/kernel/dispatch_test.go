@@ -74,6 +74,88 @@ func TestPrecomputedEventPlansMatchLinearFallback(t *testing.T) {
 	}
 }
 
+func TestAfterRulesFollowTheirDeclaredOrder(t *testing.T) {
+	t.Parallel()
+	catalog, err := LinkPolicyCatalog([]PolicyDescriptor{{
+		ID:               "ordered.after",
+		EnabledByDefault: true,
+		Rules: []RuleDescriptor{
+			{
+				ID:        "later",
+				Phase:     AfterRulePhase(ResourceStateKey("a")),
+				Trigger:   NewExactTrigger("ordered"),
+				Order:     20,
+				Effects:   NewEffectSet(nil, []ResourceID{"b"}),
+				Algorithm: dispatchProgram(t, 2),
+			},
+			{
+				ID:        "earlier",
+				Phase:     AfterRulePhase(ResourceStateKey("a")),
+				Trigger:   NewExactTrigger("ordered"),
+				Order:     10,
+				Effects:   NewEffectSet(nil, []ResourceID{"c"}),
+				Algorithm: dispatchProgram(t, 1),
+			},
+		},
+		Resources: []ResourceDescriptor{
+			{ID: "a", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+			{ID: "b", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+			{ID: "c", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := LinkEventProgram(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, observers := program.plan(NewCommandEvent("ordered"))
+	if len(observers) != 2 ||
+		observers[0].Key.ID != "earlier" || observers[1].Key.ID != "later" {
+		t.Fatalf("observers = %#v", observers)
+	}
+}
+
+func TestExactAfterRulesRejectEqualOrderInterference(t *testing.T) {
+	t.Parallel()
+	catalog, err := LinkPolicyCatalog([]PolicyDescriptor{{
+		ID:               "conflicting.after",
+		EnabledByDefault: true,
+		Rules: []RuleDescriptor{
+			{
+				ID:        "first",
+				Phase:     AfterRulePhase(ResourceStateKey("a")),
+				Trigger:   NewExactTrigger("ordered"),
+				Order:     10,
+				Effects:   NewEffectSet(nil, []ResourceID{"b"}),
+				Algorithm: dispatchProgram(t, 1),
+			},
+			{
+				ID:        "second",
+				Phase:     AfterRulePhase(ResourceStateKey("a")),
+				Trigger:   NewExactTrigger("ordered"),
+				Order:     10,
+				Effects:   NewEffectSet(nil, []ResourceID{"b"}),
+				Algorithm: dispatchProgram(t, 2),
+			},
+		},
+		Resources: []ResourceDescriptor{
+			{ID: "a", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+			{ID: "b", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = LinkEventProgram(catalog)
+	var dispatchErr *DispatchError
+	if err == nil || !errors.As(err, &dispatchErr) ||
+		dispatchErr.Kind != DispatchErrorAmbiguousOrder {
+		t.Fatalf("error = %#v", err)
+	}
+}
+
 func dispatchProgram(t *testing.T, leaf uint32) *planning.ControlProgram {
 	t.Helper()
 	builder := &planning.ControlBuilder{}
