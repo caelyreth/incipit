@@ -319,6 +319,44 @@ func TestPolicyRuntimeBatchValidationAndRollback(t *testing.T) {
 	}
 }
 
+func TestAtomicBatchRejectsMultiplePrimaryTextInputs(t *testing.T) {
+	t.Parallel()
+	runtime := runtimeFixture(t, false)
+	root := runtime.Snapshot().Document().Root()
+	revision := runtime.Revision()
+	event := func(text string, at model.UTF16Offset) Event {
+		return NewTextEvent(
+			NewTextInput(NewTextTarget(root, model.EmptyUTF16Range(at), revision), text),
+			EventOriginTyping,
+		)
+	}
+	program, err := LinkEventProgram(runtimeCatalog(t, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft := &EngineDraft{
+		document:     runtime.engine.Document().BeginDraft(),
+		resources:    runtime.engine.Resources().BeginDraft(),
+		baseRevision: runtime.engine.Revision(),
+	}
+	_, err = program.DispatchEngineBatch(
+		[]Event{event("a", 0), event("b", 0)},
+		draft,
+		EngineInvokerFunc(func(*LinkedRule, LeafID, *RuleContext) (Outcome, error) {
+			return OutcomeHandled, nil
+		}),
+	)
+	var engineErr *EngineError
+	var inputErr *InputError
+	if !errors.As(err, &engineErr) || engineErr.Kind != EngineErrorInput ||
+		!errors.As(err, &inputErr) || inputErr.Kind != InputErrorMultipleTextInputs {
+		t.Fatalf("error = %#v", err)
+	}
+	if draft.Document().WasWritten() {
+		t.Fatal("rejected batch wrote text")
+	}
+}
+
 func TestEventProgramBatchRecordsHandledOrderAndRollsBackLaterFailure(t *testing.T) {
 	t.Parallel()
 	engine := dispatchEngine(t)

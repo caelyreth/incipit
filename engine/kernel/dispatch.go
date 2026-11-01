@@ -386,6 +386,7 @@ func (p *EventProgram) DispatchEngineBatch(
 	draft *EngineDraft,
 	invoker EngineInvoker,
 ) (BatchDispatchOutcome, error) {
+	primaryText := 0
 	for _, event := range events {
 		if event.HasReservedCommandKey() {
 			return BatchDispatchOutcome{}, &EngineError{
@@ -395,6 +396,15 @@ func (p *EventProgram) DispatchEngineBatch(
 		}
 		if err := validateEventInput(event, draft); err != nil {
 			return BatchDispatchOutcome{}, err
+		}
+		if eventWritesPrimaryText(event) {
+			primaryText++
+		}
+	}
+	if primaryText > 1 {
+		return BatchDispatchOutcome{}, &EngineError{
+			Kind: EngineErrorInput,
+			Err:  &InputError{Kind: InputErrorMultipleTextInputs},
 		}
 	}
 	checkpoint := draft.Checkpoint()
@@ -417,6 +427,21 @@ func (p *EventProgram) DispatchEngineBatch(
 		}
 	}
 	return BatchDispatchOutcome{Outcome: aggregate, Handled: handled}, nil
+}
+
+// eventWritesPrimaryText reports whether an event owns the one text
+// replacement an atomic input batch may make. Attribute-only projected edits
+// and commands may accompany that one text intent.
+func eventWritesPrimaryText(event Event) bool {
+	switch event.Kind() {
+	case EventText, EventSpan:
+		return true
+	case EventProjected:
+		projected, ok := event.ProjectedEdit()
+		return ok && projected.ApplyText()
+	default:
+		return false
+	}
 }
 
 func (p *EventProgram) executeEngine(

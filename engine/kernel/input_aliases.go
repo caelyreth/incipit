@@ -27,6 +27,7 @@ const (
 	InputErrorCompositionActive     = input.ErrorCompositionActive
 	InputErrorNoComposition         = input.ErrorNoComposition
 	InputErrorInvalidAttributeInput = input.ErrorInvalidAttributeInput
+	InputErrorMultipleTextInputs    = input.ErrorMultipleTextInputs
 )
 
 var NewTextTarget = input.NewTextTarget

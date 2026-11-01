@@ -155,6 +155,7 @@ const (
 	ErrorCompositionActive
 	ErrorNoComposition
 	ErrorInvalidAttributeInput
+	ErrorMultipleTextInputs
 )
 
 type Error struct {
@@ -180,6 +181,8 @@ func (e *Error) Error() string {
 		return "finish composition before starting new input"
 	case ErrorInvalidAttributeInput:
 		return fmt.Sprintf("invalid projected input for %s attribute %s", e.Node, e.Key)
+	case ErrorMultipleTextInputs:
+		return "an atomic input batch may contain only one primary text input"
 	case ErrorNoComposition:
 		return "no composition is active"
 	default:
