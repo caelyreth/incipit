@@ -20,6 +20,9 @@ type Pictures struct {
 	entries map[string]*pictureEntry
 	wake    func()
 	swept   time.Time
+	// asked is when a picture was last asked for: the page's last frame
+	// with pictures, before which the window may have drawn nothing.
+	asked time.Time
 }
 
 // PictureState is how far a picture is from showing.
@@ -39,7 +42,9 @@ type pictureEntry struct {
 	drawn  time.Time
 }
 
-// pictureLinger is how long a picture no page draws keeps its pixels.
+// pictureLinger is how long a picture no page draws keeps its pixels,
+// counted in the time the page went on drawing others: a window that draws
+// nothing while it waits keeps all it showed.
 const pictureLinger = time.Minute
 
 // Picture is the picture media names, as far as it has come; asking for
@@ -54,6 +59,7 @@ func (p *Pictures) Picture(media string, now time.Time) (*ui.Bitmap, PictureStat
 		p.entries = make(map[string]*pictureEntry)
 	}
 	p.sweep(now)
+	p.asked = now
 	entry, ok := p.entries[media]
 	if !ok {
 		entry = &pictureEntry{state: PictureLoading}
@@ -92,15 +98,17 @@ func (p *Pictures) decode(media string, entry *pictureEntry) {
 	}
 }
 
-// sweep lets go of the pictures not drawn for a while, at most once a
-// second; the caller holds the lock.
+// sweep lets go of the pictures not drawn for a while before the last
+// one asked for, at most once a second; the caller holds the lock. It
+// measures from that ask, not from now: after an idle spell, the first
+// frame asks again for what it showed before anything counts as unseen.
 func (p *Pictures) sweep(now time.Time) {
 	if now.Sub(p.swept) < time.Second {
 		return
 	}
 	p.swept = now
 	for media, entry := range p.entries {
-		if entry.state != PictureLoading && now.Sub(entry.drawn) > pictureLinger {
+		if entry.state != PictureLoading && p.asked.Sub(entry.drawn) > pictureLinger {
 			delete(p.entries, media)
 		}
 	}
