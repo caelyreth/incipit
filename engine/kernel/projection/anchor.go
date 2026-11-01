@@ -44,10 +44,8 @@ func (p *Projection) ProjectAnchor(anchor model.TextAnchor) (Target, error) {
 			empty = append(empty, candidate)
 		}
 	}
-	chosen, err := uniqueCandidate(empty)
-	if err != nil {
-		return Target{}, err
-	}
+	chosen := candidateByAffinity(empty, anchor.Affinity())
+	var err error
 	if chosen == nil {
 		chosen, err = uniqueCandidate(preferred)
 		if err != nil {
@@ -88,6 +86,21 @@ func (p *Projection) ProjectAnchor(anchor model.TextAnchor) (Target, error) {
 		return Target{}, err
 	}
 	return target.WithAffinity(affinity), nil
+}
+
+// candidateByAffinity chooses among zero-width attachments at one semantic
+// offset. Projection order is stable; left affinity takes the first, right
+// affinity the last. This gives the same anchor a deterministic side when
+// several empty marks coexist at one position.
+func candidateByAffinity[T any](candidates []T, affinity model.Affinity) *T {
+	if len(candidates) == 0 {
+		return nil
+	}
+	index := 0
+	if affinity == model.AffinityRight {
+		index = len(candidates) - 1
+	}
+	return &candidates[index]
 }
 
 func (p *Projection) SemanticAnchor(

@@ -165,3 +165,19 @@ func TestSessionRejectsNULText(t *testing.T) {
 		t.Fatalf("projection changed to %q", got)
 	}
 }
+
+func TestMultipleEmptyMarksShareOneAddressableOffset(t *testing.T) {
+	session, node := newSessionFixture(t, "", false)
+	for _, marker := range []string{"*", "~"} {
+		if _, err := session.ReplaceSelection(marker, kernel.EventOriginTyping); err != nil {
+			t.Fatal(err)
+		}
+	}
+	nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
+	if nodeValue.MarkCount() != 2 {
+		t.Fatalf("marks = %d, want 2", nodeValue.MarkCount())
+	}
+	if err := session.Projection().ValidateTarget(session.Caret()); err != nil {
+		t.Fatal(err)
+	}
+}
