@@ -11,6 +11,7 @@ import (
 	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/textlayout"
@@ -306,5 +307,107 @@ func TestAnEmptyCaptionHintsWhileTheCaretIsInIt(t *testing.T) {
 	tester.Frame()
 	if inked() == 0 {
 		t.Fatal("an empty caption shows no hint")
+	}
+}
+
+// captionRoom is the room a figure's caption line takes on the page.
+func captionRoom(t *testing.T, element *Element) float32 {
+	t.Helper()
+	for _, paragraph := range element.current.Paragraphs() {
+		if _, ok := paragraph.Figure(); ok {
+			return paragraph.Height()
+		}
+	}
+	t.Fatal("no caption line")
+	return 0
+}
+
+// A picture with no caption takes no room for one; the caret coming into
+// its line opens it, gliding, and leaving it empty closes it again.
+func TestAnEmptyCaptionOpensWhileTheCaretIsInIt(t *testing.T) {
+	data := redPicture(t)
+	document, element, tester := figurePage(t, func(string) ([]byte, error) { return data, nil })
+	if room := captionRoom(t, element); room != 0 {
+		t.Fatalf("an empty caption takes %v", room)
+	}
+	figure := figureBox(t, element)
+	if err := document.SetSelection(controller.UTF16Range{Start: int(figure.Line.End), End: int(figure.Line.End)}); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+	}
+	opening := captionRoom(t, element)
+	tester.Advance(time.Second)
+	tester.Frame()
+	open := captionRoom(t, element)
+	if !(0 < opening && opening < open) {
+		t.Fatalf("the caption opened through %v to %v", opening, open)
+	}
+	if err := document.SetSelection(controller.UTF16Range{Start: 0, End: 0}); err != nil {
+		t.Fatal(err)
+	}
+	tester.Advance(time.Second)
+	tester.Frame()
+	if room := captionRoom(t, element); room != 0 {
+		t.Fatalf("the caption left empty keeps %v", room)
+	}
+}
+
+// Resting on a picture with no caption offers one, fading in; a click on
+// the offer puts the caret in the caption.
+func TestRestingOnAPictureOffersACaption(t *testing.T) {
+	data := redPicture(t)
+	document, element, tester := figurePage(t, func(string) ([]byte, error) { return data, nil })
+	figure := figureBox(t, element)
+	tester.Move(figureAtScreen(element, figure, figure.Box.W/2))
+	tester.Frame()
+	if element.captionOffer.node != 0 {
+		t.Fatal("the offer showed before the pointer rested")
+	}
+	tester.Advance(time.Second)
+	tester.Frame()
+	offer := element.captionOffer
+	if offer.node != figure.Node {
+		t.Fatal("resting on the picture offered no caption")
+	}
+	x := offer.box.X + offer.box.W/2
+	y := offer.box.Y + offer.box.H/2 + element.TopInset - element.visibleScroll()
+	tester.ClickAt(x, y)
+	if got := document.Selection(); !got.Range.Empty() || got.Caret() != int(figure.Line.End) {
+		t.Fatalf("a click on the offer left the selection at %+v", got)
+	}
+}
+
+// A centered caption glides to its middle as it is typed, rather than
+// jumping there.
+func TestACenteredCaptionGlidesAsItIsTyped(t *testing.T) {
+	data := redPicture(t)
+	document, element, tester := figurePage(t, func(string) ([]byte, error) { return data, nil })
+	figure := figureBox(t, element)
+	if err := document.SetSelection(controller.UTF16Range{Start: int(figure.Line.End), End: int(figure.Line.End)}); err != nil {
+		t.Fatal(err)
+	}
+	tester.Advance(time.Second)
+	tester.Frame()
+	if _, err := document.ReplaceSelection("Dusk", kernel.EventOriginTyping); err != nil {
+		t.Fatal(err)
+	}
+	tester.Advance(16 * time.Millisecond)
+	tester.Frame()
+	moving := false
+	for _, track := range element.figures.tracks {
+		moving = moving || track.left.Moving()
+	}
+	if !moving {
+		t.Fatal("the caption jumped to its middle")
+	}
+	tester.Advance(time.Second)
+	tester.Frame()
+	for _, track := range element.figures.tracks {
+		if track.left.Moving() || track.left.Value() >= figure.Box.X+figure.Box.W/2 {
+			t.Fatalf("the caption settled at %v", track.left.Value())
+		}
 	}
 }

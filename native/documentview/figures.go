@@ -19,7 +19,8 @@ import (
 // click on it selects its line, it wears the accent's ring, as the lists'
 // menus ring what they act on; inside a larger selection, it takes the
 // selection's tint. While the caret is in a caption still empty, a hint
-// fades in after it, as an empty page's does.
+// fades in there, as an empty page's does; and a picture with no caption
+// offers one, on a chip, once the pointer rests on it (figure_caption.go).
 
 const (
 	figureFade = float32(14)
@@ -39,8 +40,10 @@ type FigureMotion struct {
 }
 
 type figureTrack struct {
-	shown, ring, grips, hint motion.Spring
-	seen                     bool
+	shown, ring, grips, hint, offer motion.Spring
+	// left is where a caption's line starts, gliding as it is typed.
+	left motion.Spring
+	seen bool
 }
 
 // Reset forgets every figure's motion, so each shows settled.
@@ -106,17 +109,20 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 		box.X += rect.X
 		box.Y += rect.Y + state.TopInset - state.ScrollY
 		bitmap, picture := state.Pictures.Picture(figure.Media, now)
-		shown, ring, grips, hint := float32(0), float32(0), float32(0), float32(0)
+		shown, ring, grips, hint, offer := float32(0), float32(0), float32(0), float32(0), float32(0)
 		if picture == PictureReady {
 			shown = 1
 		}
 		if figureSelected(figure, selection) && options.Focused {
 			ring = 1
 		}
-		// The line is only the picture's character while it has no caption.
-		if options.Focused && selection.Empty() && selection.Start == figure.Line.End && figure.Line.Len() == 1 {
+		if options.Focused && captionHinted(figure, selection) {
 			hint = 1
 		}
+		if state.OfferCaption == figure.Node && captionless(figure, selection) {
+			offer = 1
+		}
+		left := state.Layout.Caret(figure.Line.Start).X
 		resizing := state.Resizing != nil && state.Resizing.node == figure.Node
 		if resizing || ring > 0 || state.HoverFigure.ok && state.HoverFigure.node == figure.Node {
 			grips = 1
@@ -130,6 +136,8 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 				ring:  motion.NewSpring(0, now),
 				grips: motion.NewSpring(0, now),
 				hint:  motion.NewSpring(0, now),
+				offer: motion.NewSpring(0, now),
+				left:  motion.NewSpring(left, now),
 			}
 			motionState.tracks[key] = track
 		}
@@ -139,11 +147,21 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 			track.ring.Step(ring, now, figureFade)
 			track.grips.Step(grips, now, figureFade)
 			track.hint.Step(hint, now, figureFade)
+			track.offer.Step(offer, now, figureFade)
+			track.left.Step(left, now, motion.TextFrequency)
 		} else {
 			track.shown, track.ring = motion.NewSpring(shown, now), motion.NewSpring(ring, now)
 			track.grips, track.hint = motion.NewSpring(grips, now), motion.NewSpring(hint, now)
+			track.offer, track.left = motion.NewSpring(offer, now), motion.NewSpring(left, now)
 		}
-		moving = moving || track.shown.Moving() || track.ring.Moving() || track.grips.Moving() || track.hint.Moving()
+		moving = moving || track.shown.Moving() || track.ring.Moving() || track.grips.Moving() ||
+			track.hint.Moving() || track.offer.Moving() || track.left.Moving()
+		if shift := track.left.Value() - left; shift != 0 {
+			if state.CaptionShift == nil {
+				state.CaptionShift = make(map[model.UTF16Offset]float32)
+			}
+			state.CaptionShift[figure.Line.Start] = shift
+		}
 		if alpha := track.hint.Value(); alpha > 0.001 {
 			drawCaptionHint(p, rect, state, figure, alpha)
 		}
@@ -165,7 +183,15 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 			drawGrips(p, box, figure, state, alpha)
 		}
 		if resizing {
-			drawResizeLabel(p, box, state, state.Resizing.label())
+			figureChip(p, box, state, state.Resizing.label(), false, 1)
+		}
+		if alpha := track.offer.Value(); alpha > 0.001 && !resizing {
+			chip, ok := figureChip(p, box, state, captionOffer, true, alpha)
+			if ok && offer > 0 {
+				chip.X -= rect.X
+				chip.Y -= rect.Y + state.TopInset - state.ScrollY
+				state.CaptionOffer = shownOffer{node: figure.Node, box: chip}
+			}
 		}
 	}
 	for key, track := range motionState.tracks {
@@ -205,14 +231,43 @@ func drawFigure(
 	p.Stroke(box, state.Theme.Prose.Subtle.Alpha(shown), radius, 1)
 }
 
-// drawCaptionHint shows an empty caption's hint after the caret, in the
-// caption's face, as quiet as an empty page's.
-func drawCaptionHint(p *ui.Painter, rect ui.Rect, state *State, figure textlayout.PlacedFigure, alpha float32) {
+// captionHinted reports whether a figure's caption shows its hint: it is
+// empty, and the caret is in it.
+func captionHinted(figure textlayout.PlacedFigure, selection model.UTF16Range) bool {
+	return figure.Line.Len() == 1 && captionCaret(figure.At, selection)
+}
+
+// captionHint is an empty caption's hint, in the caption's face, and
+// where it starts: at the caret, or around it under a centered figure.
+func captionHint(p *ui.Painter, state *State, figure textlayout.PlacedFigure) (ui.Span, ui.Rect) {
 	caret := state.Layout.Caret(figure.Line.End)
 	span := state.Layout.SpanAt(figure.At, figureCaptionHint)
+	width, height := p.MeasureText(0, span)
+	if figure.Align == surface.FigureCenter {
+		caret.X -= width / 2
+	}
+	return span, ui.Rect{X: caret.X, Y: caret.Y + (caret.H-height)/2, W: width, H: height}
+}
+
+// drawCaptionHint shows an empty caption's hint, as quiet as an empty
+// page's.
+func drawCaptionHint(p *ui.Painter, rect ui.Rect, state *State, figure textlayout.PlacedFigure, alpha float32) {
+	span, at := captionHint(p, state, figure)
 	span.Color = state.Theme.Text.Muted.Alpha(0.65 * alpha)
-	_, height := p.MeasureText(0, span)
-	p.RichText(rect.X+caret.X, rect.Y+state.TopInset-state.ScrollY+caret.Y+(caret.H-height)/2, 0, span)
+	p.RichText(rect.X+at.X, rect.Y+state.TopInset-state.ScrollY+at.Y, 0, span)
+}
+
+// hintedCaret is the caret in an empty caption, at its hint's start, as an
+// empty field's stands at its placeholder's.
+func hintedCaret(p *ui.Painter, state *State, caret ui.Rect) ui.Rect {
+	selection := state.Frame.Selection()
+	for _, figure := range state.Layout.Figures() {
+		if captionHinted(figure, selection) {
+			_, at := captionHint(p, state, figure)
+			caret.X = at.X
+		}
+	}
+	return caret
 }
 
 // drawGrips paints the grips on the sides a figure resizes from: both of
@@ -235,20 +290,25 @@ func drawGrips(p *ui.Painter, box ui.Rect, figure textlayout.PlacedFigure, state
 	}
 }
 
-// drawResizeLabel names the width a figure is being resized to, on a chip
-// at the top of the figure.
-func drawResizeLabel(p *ui.Painter, box ui.Rect, state *State, label string) {
+// figureChip shows a word on a chip over a figure, at its top, as the
+// width a resize sets, or at its foot, as the offer of a caption, and
+// reports where, when the figure has room for it.
+func figureChip(p *ui.Painter, box ui.Rect, state *State, label string, foot bool, alpha float32) (ui.Rect, bool) {
 	size := theme.TextSmall.Size(uiFontSize(state))
-	span := ui.Span{Text: label, Size: size, Color: state.Theme.Text.Default}
+	span := ui.Span{Text: label, Size: size, Color: state.Theme.Text.Default.Alpha(alpha)}
 	width, height := p.MeasureText(0, span)
 	padX, padY := size*0.75, size*0.3
 	chip := ui.Rect{W: width + 2*padX, H: height + 2*padY}
 	chip.X, chip.Y = box.X+(box.W-chip.W)/2, box.Y+padX
-	if chip.W > box.W || chip.H*2 > box.H {
-		return
+	if foot {
+		chip.Y = box.Y + box.H - padX - chip.H
 	}
-	p.Fill(chip, state.Theme.Surface.Elevated.Alpha(0.94), chip.H/2)
+	if chip.W > box.W || chip.H*2 > box.H {
+		return chip, false
+	}
+	p.Fill(chip, state.Theme.Surface.Elevated.Alpha(0.94*alpha), chip.H/2)
 	p.RichText(chip.X+padX, chip.Y+padY, 0, span)
+	return chip, true
 }
 
 // covers reports whether a selection takes all of line.

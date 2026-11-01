@@ -12,6 +12,10 @@ const (
 	velocityEpsilon    = float32(8)
 )
 
+// TextFrequency is how fast what moves with the text glides: as the caret
+// does, so text gliding under the caret keeps with it.
+const TextFrequency = caretFrequency
+
 // Spring is a critically configured exponential spring that preserves velocity
 // across retargeting. Time is always supplied by the caller.
 type Spring struct {

@@ -32,7 +32,7 @@ func TestAFigureIsSetAtItsSizeWithinTheColumn(t *testing.T) {
 func TestAFigureTakesItsRoomAboveItsLine(t *testing.T) {
 	plain := NewCache().Update(testFlow(t, "one\ntwo\nthree", 0), 400, testStyle())
 	flow, err := testFlow(t, "one\ntwo\nthree", 0).WithFigures([]surface.Figure{
-		{At: 4, Node: 9, Media: "m", Width: 200, Height: 100},
+		{At: 4, Node: 9, Media: "m", Width: 200, Height: 100, Caption: 1},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -70,6 +70,30 @@ func TestAFigureTakesItsRoomAboveItsLine(t *testing.T) {
 	caption := layout.Caret(5)
 	if caption.X < 150 {
 		t.Fatalf("the caption starts at %v, not centered", caption.X)
+	}
+}
+
+// A figure with no caption takes no room for its line, and one opening
+// takes its line's room as far as it has opened.
+func TestAClosedCaptionTakesNoRoom(t *testing.T) {
+	place := func(caption float32) (PlacedFigure, Paragraph) {
+		flow, err := testFlow(t, "one\n\uFFFC\nthree", 0).WithFigures([]surface.Figure{
+			{At: 4, Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		layout := NewCache().Update(flow, 400, testStyle())
+		return layout.Figures()[0], layout.Paragraphs()[2]
+	}
+	figure, closed := place(0)
+	if below := closed.Top() - closed.gap - (figure.Box.Y + figure.Box.H); below != 0 {
+		t.Fatalf("a closed caption keeps %v below its figure", below)
+	}
+	_, half := place(0.5)
+	_, open := place(1)
+	if !(closed.Top() < half.Top() && half.Top() < open.Top()) {
+		t.Fatalf("the line after sits at %v, %v and %v as the caption opens", closed.Top(), half.Top(), open.Top())
 	}
 }
 

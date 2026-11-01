@@ -33,6 +33,9 @@ func (p Paragraph) ContentEndUTF16() int   { return p.contentUTF16 }
 func (p Paragraph) Top() float32           { return p.top }
 func (p Paragraph) Height() float32        { return p.height }
 
+// Figure is the figure the paragraph's line stands under, if one does.
+func (p Paragraph) Figure() (surface.Figure, bool) { return p.figure, p.hasFigure }
+
 // Layout is an immutable shaped document. Paragraph layouts are retained by
 // Cache and can be shared across frames and documents.
 type Layout struct {
@@ -113,7 +116,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		if hasFigure {
 			box = figureBox(figure, width)
 			box.Y = top + above
-			above += box.H + figureBond(body)
+			above += box.H + figureBond(body)*captionRoom(figure)
 			if figure.Align == surface.FigureCenter {
 				align = ui.Center
 			}
@@ -134,6 +137,9 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		}
 		next[key] = append(next[key], layout)
 		_, height := layout.Size()
+		if hasFigure {
+			height *= captionRoom(figure)
+		}
 		paragraph := Paragraph{
 			layout:       layout,
 			startByte:    raw.startByte,

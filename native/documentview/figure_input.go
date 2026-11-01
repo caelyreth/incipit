@@ -56,7 +56,7 @@ func (e *Element) figureAt(x, y float32) (textlayout.PlacedFigure, float32, bool
 	if e.current == nil {
 		return textlayout.PlacedFigure{}, 0, false
 	}
-	point := ui.Point{X: x, Y: y + e.visibleScroll() - e.TopInset}
+	point := e.contentPoint(x, y)
 	figure, ok := e.current.FigureAt(point)
 	if !ok {
 		return figure, 0, false
@@ -72,6 +72,11 @@ func (e *Element) figureAt(x, y float32) (textlayout.PlacedFigure, float32, bool
 	return figure, side, true
 }
 
+// contentPoint is a point of the element in the page's content.
+func (e *Element) contentPoint(x, y float32) ui.Point {
+	return ui.Point{X: x, Y: y + e.visibleScroll() - e.TopInset}
+}
+
 // pressFigure handles a press on a figure: on a side it starts a resize,
 // elsewhere it selects the figure.
 func (e *Element) pressFigure(event ui.InputEvent) (bool, bool) {
@@ -79,6 +84,9 @@ func (e *Element) pressFigure(event ui.InputEvent) (bool, bool) {
 	e.menuFigure = 0
 	if !ok || event.Mods&ui.Shift != 0 {
 		return false, false
+	}
+	if e.pressCaptionOffer(figure, e.contentPoint(event.X, event.Y), event) {
+		return true, true
 	}
 	if event.Button != 0 {
 		// A secondary click selects the figure its menu acts on.

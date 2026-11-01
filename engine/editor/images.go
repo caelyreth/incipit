@@ -152,6 +152,9 @@ func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surfa
 			Align:  shape.Align,
 			Alt:    shape.Alt,
 		})
+		if blockLength(node) > 0 {
+			figures[len(figures)-1].Caption = 1
+		}
 		return true
 	})
 	if len(figures) == 0 {

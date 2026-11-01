@@ -4,6 +4,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
@@ -25,8 +26,8 @@ type FigureHost interface {
 
 // A figure's menu opens over it on a secondary click, which selects it
 // first, as a click does: what is done to the picture, then how it is set
-// on the page, then what describes it. Elsewhere the page's menu is the
-// editing commands, as any text's.
+// on the page, then what describes it, its caption among them. Elsewhere
+// the page's menu is the editing commands, as any text's.
 func (e *Element) contextMenu(m *ui.Menu) {
 	bridge, ok := e.Input.(*Bridge)
 	if !ok || bridge == nil || bridge.Figures == nil {
@@ -74,6 +75,10 @@ func (e *Element) contextMenu(m *ui.Menu) {
 		shape(func(s *editor.ImageShape) { s.Span = 0 })
 	}
 	m.Separator()
+	if figure.Caption == 0 && m.Item("Add Caption").Chosen() {
+		caption := int(figure.At) + 1
+		_ = bridge.Controller.SetSelection(controller.UTF16Range{Start: caption, End: caption})
+	}
 	if m.Item("Edit Alt Text…").Chosen() {
 		host.EditAlt(figure.Node, figure.Alt)
 	}

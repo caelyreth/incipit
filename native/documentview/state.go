@@ -3,6 +3,7 @@
 package documentview
 
 import (
+	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/textlayout"
@@ -46,7 +47,14 @@ type State struct {
 	// HoverFigure is the figure under the pointer, whose sides show their
 	// grips, and Resizing the resize under way.
 	HoverFigure figureHover
-	Resizing    *figureResize
+	// OfferCaption is the figure offering a caption, the pointer having
+	// rested on it. Painting leaves where it drew the offer in
+	// CaptionOffer, and how far each caption is off its place, gliding to
+	// it, in CaptionShift, by its line's start.
+	OfferCaption model.NodeID
+	CaptionOffer shownOffer
+	CaptionShift map[model.UTF16Offset]float32
+	Resizing     *figureResize
 
 	// DrawnCaret is set by Paint: the caret geometry it settled on this
 	// frame, local to the content like the layout's.

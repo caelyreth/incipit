@@ -83,6 +83,10 @@ type Figure struct {
 	Align FigureAlign
 	// Alt is what it shows, in words, for whoever cannot see it.
 	Alt string
+	// Caption is how much room its line takes below it, from 0, none, to 1,
+	// a line's: a picture with no caption takes none until a view opens
+	// its line, as the caret coming into it does.
+	Caption float32
 }
 
 // FigureObject is the character a figure's line opens with, standing for

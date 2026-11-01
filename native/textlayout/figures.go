@@ -30,6 +30,12 @@ const (
 	figureObjectWidth = 1e-3
 )
 
+// captionRoom is the share of its line a figure's caption takes, closed
+// to none while it has no caption.
+func captionRoom(figure surface.Figure) float32 {
+	return max(0, min(1, figure.Caption))
+}
+
 // figureObject sets the character a figure's line opens with, its
 // picture's, as an inline object that draws nothing and takes no room, so
 // the caption stands as if alone on its line.

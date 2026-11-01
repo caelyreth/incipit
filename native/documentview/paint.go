@@ -3,6 +3,7 @@ package documentview
 import (
 	"time"
 
+	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -25,7 +26,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		return
 	}
 	now := p.Now()
-	caret := state.Layout.Caret(state.Frame.Caret())
+	caret := hintedCaret(p, state, state.Layout.Caret(state.Frame.Caret()))
 	selection := state.Layout.RangeRects(state.Frame.Selection())
 	// Only a moving drag follows the pointer directly; a press retargets the
 	// retained springs so quick clicks glide instead of snapping.
@@ -108,9 +109,11 @@ func drawText(p *ui.Painter, rect ui.Rect, state *State) {
 		if top+paragraph.Height() < visible.Y || top > visible.Y+visible.H {
 			continue
 		}
+		// A caption gliding to its place as it is typed shows where it is.
+		shift := state.CaptionShift[model.UTF16Offset(paragraph.StartUTF16())]
 		p.TextLayout(
 			paragraph.Layout(),
-			rect.X,
+			rect.X+shift,
 			top,
 			state.Theme.Prose.Text,
 		)
