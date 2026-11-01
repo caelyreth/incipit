@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 )
@@ -52,35 +53,10 @@ func (s *Session) selectionScopes() []selectionScope {
 	if lastSelected < firstSelected {
 		firstSelected, lastSelected = lastSelected, firstSelected
 	}
-	revision := s.runtime.Revision()
-	project := func(block *model.Node, offset model.UTF16Offset, affinity model.Affinity) (model.UTF16Offset, bool) {
-		target, err := p.ProjectAnchor(model.NewTextAnchor(block.ID(), offset, affinity, revision))
-		return target.RangeUTF16().Start, err == nil
-	}
-	start := func(at int) (model.UTF16Offset, bool) {
-		return project(blocks[at], 0, model.AffinityRight)
-	}
-	// A block's text ends no earlier than it starts: leaning left, an empty
-	// block's end would fall before its own notation.
-	end := func(at int) (model.UTF16Offset, bool) {
-		first, firstOK := start(at)
-		last, lastOK := project(blocks[at], blockLength(blocks[at]), model.AffinityLeft)
-		return max(first, last), firstOK && lastOK
-	}
-	// A line starts past the break that ends the line before it.
-	lineStart := func(at int) (model.UTF16Offset, bool) {
-		if at == 0 {
-			return 0, true
-		}
-		previous, ok := end(at - 1)
-		return previous + 1, ok
-	}
 	scopes := make([]selectionScope, 0, 4)
-	first, firstOK := start(index)
-	last, lastOK := end(index)
-	if firstOK && lastOK {
+	if text, ok := blockProjectedRange(p, blocks[index], true); ok {
 		scope := selectionScope{
-			range16:    model.NewUTF16Range(first, last),
+			range16:    text,
 			firstBlock: index,
 			lastBlock:  index,
 		}
@@ -88,11 +64,11 @@ func (s *Session) selectionScopes() []selectionScope {
 		scopes = append(scopes, scope)
 	}
 	for _, run := range groupRuns(blocks, index) {
-		first, firstOK := lineStart(run[0])
-		last, lastOK := end(run[1])
+		first, firstOK := blockProjectedRange(p, blocks[run[0]], false)
+		last, lastOK := blockProjectedRange(p, blocks[run[1]], false)
 		if firstOK && lastOK {
 			scope := selectionScope{
-				range16:    model.NewUTF16Range(first, last),
+				range16:    model.NewUTF16Range(first.Start, last.End),
 				firstBlock: run[0],
 				lastBlock:  run[1],
 			}
@@ -104,6 +80,51 @@ func (s *Session) selectionScopes() []selectionScope {
 		range16: page, firstBlock: 0, lastBlock: len(blocks) - 1, ownsSelection: true,
 	})
 	return scopes
+}
+
+// blockProjectedRange is a block's projected extent. Semantic text scopes
+// take only semantic segments, while group scopes take the block's notation
+// and object too. Neither reads a neighbor's generated boundary.
+func blockProjectedRange(
+	p *projection.Projection,
+	block *model.Node,
+	textOnly bool,
+) (model.UTF16Range, bool) {
+	if textOnly {
+		if text, ok := projectedSegments(p, block, true, false); ok {
+			return text, true
+		}
+		return projectedSegments(p, block, true, true)
+	}
+	return projectedSegments(p, block, false, false)
+}
+
+func projectedSegments(
+	p *projection.Projection,
+	block *model.Node,
+	textOnly, emptyOnly bool,
+) (model.UTF16Range, bool) {
+	start, end, found := model.UTF16Offset(0), model.UTF16Offset(0), false
+	for _, segment := range p.Segments() {
+		owner, ok := segmentNode(segment)
+		if !ok || owner != block.ID() {
+			continue
+		}
+		if textOnly {
+			if _, ok := segment.SemanticTarget(); !ok {
+				continue
+			}
+		}
+		span := segment.ProjectedRange()
+		if emptyOnly != span.Empty() {
+			continue
+		}
+		if !found {
+			start, found = span.Start, true
+		}
+		end = max(end, span.End)
+	}
+	return model.NewUTF16Range(start, end), found
 }
 
 // nextScope is the narrowest scope holding more than the selection.
