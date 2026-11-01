@@ -137,3 +137,21 @@ func TestSessionCompositionCommitReplacesPreeditInsideGeneratedStrongPair(t *tes
 		t.Fatalf("composition caret = %d", session.Caret().RangeUTF16().Start)
 	}
 }
+
+func TestTypingInsideEmptyMarkerNotationInsertsText(t *testing.T) {
+	session, _ := newSessionFixture(t, "abc", false)
+	if outcome, err := session.ExecuteMarkup(MarkupStrong); err != nil ||
+		outcome != kernel.OutcomeHandled {
+		t.Fatalf("strong outcome=%v err=%v", outcome, err)
+	}
+	run(t, session, TextRight)
+	if _, err := session.ReplaceSelection("a", kernel.EventOriginTyping); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.Projection().Text(); got != "****aabc" {
+		t.Fatalf("projection = %q", got)
+	}
+	if got := session.Caret().RangeUTF16(); got != model.EmptyUTF16Range(5) {
+		t.Fatalf("caret = %v", got)
+	}
+}

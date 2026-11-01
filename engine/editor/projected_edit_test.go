@@ -191,7 +191,7 @@ func TestCollapsedAttributeCaretKeepsMarkerIdentityAndNoninteractiveInput(t *tes
 		edit, err := FromProjectedRange(
 			f.projection,
 			model.EmptyUTF16Range(test.offset),
-			"!",
+			"*",
 			kernel.EventOriginTyping,
 		)
 		if err != nil {
@@ -207,7 +207,7 @@ func TestCollapsedAttributeCaretKeepsMarkerIdentityAndNoninteractiveInput(t *tes
 			t.Fatalf("offset %d primary = %#v", test.offset, inputValue)
 		}
 		attributes := resolved.ProjectedEditInput.Attributes()
-		expected := "!*"
+		expected := "**"
 		if len(attributes) != 1 || attributes[0].Text() != expected ||
 			attributes[0].Target().Key() != MarkerKeyForMark(mustMark(f)) {
 			t.Fatalf("offset %d attributes = %#v", test.offset, attributes)
@@ -217,6 +217,32 @@ func TestCollapsedAttributeCaretKeepsMarkerIdentityAndNoninteractiveInput(t *tes
 			resolved.ProjectedEditInput.Caret().Kind != projection.CaretAttribute {
 			t.Fatalf("offset %d flags = %#v", test.offset, resolved.ProjectedEditInput)
 		}
+	}
+}
+
+func TestCollapsedAttributeCaretFallbackTypesAtTheMarkerSide(t *testing.T) {
+	t.Parallel()
+	f := newProjectedFixture(t, "abc", model.NewUTF16Range(0, 3))
+	edit, err := FromProjectedRange(
+		f.projection,
+		model.EmptyUTF16Range(0),
+		"x",
+		kernel.EventOriginTyping,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved := f.resolve(t, edit, nil)
+	if !resolved.ProjectedEditInput.ApplyText() ||
+		!resolved.ProjectedEditInput.Interactive() ||
+		len(resolved.ProjectedEditInput.Attributes()) != 0 {
+		t.Fatalf("fallback flags = %#v", resolved.ProjectedEditInput)
+	}
+	inputValue := resolved.ProjectedEditInput.Input()
+	if inputValue.Target().Node() != f.node ||
+		inputValue.Target().RangeUTF16() != model.EmptyUTF16Range(0) ||
+		inputValue.Text() != "x" {
+		t.Fatalf("fallback input = %#v", inputValue)
 	}
 }
 

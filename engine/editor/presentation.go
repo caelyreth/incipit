@@ -158,12 +158,20 @@ func (p *Presentation) ProjectedState() (projection.Selection, error) {
 	if p == nil || p.Projection == nil {
 		return projection.Selection{}, &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
 	}
-	head, err := p.caretAddress()
+	collapsed := p.Selection.IsCollapsed()
+	if p.ViewAnchor != nil {
+		collapsed = collapsed && p.ViewAnchor.RangeUTF16() == p.Caret.RangeUTF16()
+	}
+	if collapsed {
+		head, err := p.Projection.CollapsedCaretAddress(p.Caret)
+		if err != nil {
+			return projection.Selection{}, err
+		}
+		return projection.CollapsedSelection(head), nil
+	}
+	head, err := p.Projection.CaretAddress(p.Caret)
 	if err != nil {
 		return projection.Selection{}, err
-	}
-	if p.ViewAnchor == nil && p.Selection.IsCollapsed() {
-		return projection.CollapsedSelection(head), nil
 	}
 	anchor := head
 	if p.ViewAnchor != nil {
@@ -179,17 +187,6 @@ func (p *Presentation) ProjectedState() (projection.Selection, error) {
 		return projection.Selection{}, err
 	}
 	return projection.NewSelection(anchor, head), nil
-}
-
-func (p *Presentation) caretAddress() (projection.Caret, error) {
-	collapsed := p.Selection.IsCollapsed()
-	if p.ViewAnchor != nil {
-		collapsed = p.ViewAnchor.RangeUTF16() == p.Caret.RangeUTF16()
-	}
-	if collapsed {
-		return p.Projection.CollapsedCaretAddress(p.Caret)
-	}
-	return p.Projection.CaretAddress(p.Caret)
 }
 
 // Install replaces the presentation from a prepared candidate and drops the

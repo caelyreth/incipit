@@ -243,7 +243,14 @@ func resolveProjectedEdit(
 		return ResolvedProjectedEdit{}, err
 	}
 	if edit.UTF16Range.Empty() {
-		return resolveCollapsedProjectedEdit(p, edit, activeMark, revision)
+		return resolveCollapsedProjectedEdit(
+			p,
+			document,
+			haveDocument,
+			edit,
+			activeMark,
+			revision,
+		)
 	}
 	return resolveRangeProjectedEdit(
 		p,
@@ -270,6 +277,8 @@ func cloneProjectedSelection(selection projection.Selection) *projection.Selecti
 
 func resolveCollapsedProjectedEdit(
 	p *projection.Projection,
+	document *model.DocumentSnapshot,
+	haveDocument bool,
 	edit ProjectedEdit,
 	activeMark *model.MarkID,
 	revision uint64,
@@ -324,6 +333,29 @@ func resolveCollapsedProjectedEdit(
 			nil,
 		)
 	case projection.InputAttribute:
+		if haveDocument {
+			text, ok := ordinaryTextAtAttributeCaret(
+				p,
+				*document,
+				caret,
+				resolved.Attribute,
+				edit.Replacement,
+				revision,
+			)
+			if ok {
+				return ResolvedProjectedEdit{
+					ProjectedEditInput: kernel.NewProjectedEditInput(
+						input.NewTextInput(text, edit.Replacement),
+						nil,
+						true,
+						true,
+						nil,
+					),
+					ActiveMarkID:    cloneMarkID(activeMark),
+					VisualSelection: cloneProjectedSelectionPtr(edit.ProjectedSelection),
+				}, nil
+			}
+		}
 		semantic, err := p.SemanticAnchor(head.RangeUTF16().Start, head.Affinity())
 		if err != nil {
 			return ResolvedProjectedEdit{}, err
@@ -361,6 +393,51 @@ func resolveCollapsedProjectedEdit(
 		ActiveMarkID:       cloneMarkID(activeMark),
 		VisualSelection:    cloneProjectedSelectionPtr(edit.ProjectedSelection),
 	}, nil
+}
+
+// ordinaryTextAtAttributeCaret redirects ordinary typing over marker
+// notation to the semantic text the notation belongs to. Marker characters
+// continue to edit the notation itself; arbitrary text is never rejected
+// merely because the visible caret stopped inside a generated marker.
+func ordinaryTextAtAttributeCaret(
+	p *projection.Projection,
+	document model.DocumentSnapshot,
+	caret projection.Caret,
+	attribute input.AttributeInput,
+	replacement string,
+	revision uint64,
+) (input.TextTarget, bool) {
+	if attribute.Target().Key() == blockNotationKey ||
+		attribute.Target().Key() == fenceNotationKey ||
+		!MarkerKeyIsInline(attribute.Target().Key()) {
+		return input.TextTarget{}, false
+	}
+	node, ok := document.Node(attribute.Target().Node())
+	if !ok {
+		return input.TextTarget{}, false
+	}
+	for _, mark := range node.Marks() {
+		if !MarkerKeyIdentifies(attribute.Target().Key(), mark.ID()) {
+			continue
+		}
+		if _, valid := inlineLevel(mark.Kind(), attribute.Text()); valid {
+			return input.TextTarget{}, false
+		}
+		break
+	}
+	head, err := p.ResolveCaret(caret, revision)
+	if err != nil {
+		return input.TextTarget{}, false
+	}
+	semantic, err := p.SemanticAnchor(head.RangeUTF16().Start, head.Affinity())
+	if err != nil {
+		return input.TextTarget{}, false
+	}
+	return input.NewTextTarget(
+		semantic.Node(),
+		model.EmptyUTF16Range(semantic.OffsetUTF16()),
+		revision,
+	), replacement != ""
 }
 
 type attributeSelection struct {

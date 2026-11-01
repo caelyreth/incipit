@@ -458,6 +458,25 @@ func (p *Projection) resolvePastNotation(
 	}
 	low := min(leftmost.range16.Start, rightmost.range16.Start)
 	high := max(leftmost.range16.Start, rightmost.range16.Start)
+	// A zero-width mark has no text body to project on either side of its
+	// notation. Extend the admissible span through adjacent notation owned
+	// by the same node so a caret at either edge of that notation resolves
+	// back to the position it names.
+	for changed := true; changed; {
+		changed = false
+		for _, segment := range p.segments {
+			attribute, ok := segment.AttributeTarget()
+			if !ok || attribute.Node() != anchor.Node() || segment.range16.Empty() {
+				continue
+			}
+			switch {
+			case segment.range16.End == low && segment.range16.Start < low:
+				low, changed = segment.range16.Start, true
+			case segment.range16.Start == high && segment.range16.End > high:
+				high, changed = segment.range16.End, true
+			}
+		}
+	}
 	if position < low || high < position {
 		return Target{}, false
 	}

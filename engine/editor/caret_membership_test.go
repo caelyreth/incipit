@@ -324,3 +324,57 @@ func TestReplacingASelectionKeepsItsPlace(t *testing.T) {
 		}
 	}
 }
+
+func TestZeroWidthMarkCaretRoundTripsThroughProjectedState(t *testing.T) {
+	session, _ := newSessionFixture(t, "abc", false)
+	run(t, session, TextLineEnd)
+	if _, err := session.ExecuteMarkup(MarkupStrong); err != nil {
+		t.Fatal(err)
+	}
+	run(t, session, TextSelectAll)
+	run(t, session, TextDelete)
+	run(t, session, TextBackspace)
+	if got := session.Projection().Text(); got != "****" {
+		t.Fatalf("projection = %q", got)
+	}
+	if err := session.SelectProjected(4, 4); err != nil {
+		t.Fatal(err)
+	}
+	visual, err := session.VisualSelection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := session.ProjectedState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	anchor, head, err := session.Projection().ResolveSelection(state, session.Runtime().Revision())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if visual != model.EmptyUTF16Range(4) ||
+		anchor.RangeUTF16() != visual || head.RangeUTF16() != visual {
+		t.Fatalf("visual=%v state=%#v resolved=%v/%v",
+			visual, state, anchor.RangeUTF16(), head.RangeUTF16())
+	}
+	if _, err := session.ReplaceSelection("a", kernel.EventOriginTyping); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDeletingPartOfAnEmptyMarkerRemovesItsNotation(t *testing.T) {
+	session, _ := newSessionFixture(t, "abc", false)
+	if _, err := session.ExecuteMarkup(MarkupEmphasis); err != nil {
+		t.Fatal(err)
+	}
+	run(t, session, TextSelectRight)
+	if _, err := session.ExecuteText(TextDelete); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.Projection().Text(); got != "abc" {
+		t.Fatalf("projection = %q", got)
+	}
+	if got := session.Caret().RangeUTF16(); got != model.EmptyUTF16Range(0) {
+		t.Fatalf("caret = %v", got)
+	}
+}
