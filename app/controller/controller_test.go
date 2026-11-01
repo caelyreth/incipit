@@ -197,6 +197,22 @@ func TestIMECommitInsideGeneratedStrongPair(t *testing.T) {
 	}
 }
 
+func TestSelectedTextDuringCompositionReadsTheVisiblePreedit(t *testing.T) {
+	controller := newController(t, "abc")
+	mustSelect(t, controller, 1, 1)
+	controller.SetMarkedText(nil, "你", UTF16Range{Start: 0, End: 1})
+	if got := controller.Text(); got != "a你bc" {
+		t.Fatalf("visible text = %q", got)
+	}
+	selected, err := controller.SelectedText()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected != "你" {
+		t.Fatalf("selected text = %q", selected)
+	}
+}
+
 func TestSuccessfulNativeReplacementClearsPriorError(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "abc")

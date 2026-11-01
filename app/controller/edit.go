@@ -89,6 +89,13 @@ func (c *DocumentController) SelectedText() (string, error) {
 	if int(aligned.Start) != selection.Start || int(aligned.End) != selection.End {
 		return "", c.fail(fmt.Errorf("%w: selection does not align to text", ErrInvalidUTF16Range))
 	}
+	if c.preedit != nil {
+		bytes, ok := model.UTF16RangeToByte(c.text, aligned)
+		if !ok {
+			return "", c.fail(ErrInvalidUTF16Range)
+		}
+		return c.text[bytes.Start:bytes.End], nil
+	}
 	// The page's text as a reader takes it: an atomic block's object is
 	// no text.
 	return c.session.ReadableText(aligned)
