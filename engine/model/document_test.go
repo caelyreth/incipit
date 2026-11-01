@@ -593,21 +593,22 @@ func TestAttributeValuesAndNodeIdentity(t *testing.T) {
 	}
 }
 
-func TestDocumentTextMustBeValidUTF8(t *testing.T) {
+func TestDocumentTextMustBeValidUTF8WithoutNUL(t *testing.T) {
 	t.Parallel()
-	document := mustDocument(t, "text")
-	root := document.Snapshot().Root()
-	invalid := string([]byte{0xff, 'a'})
-	_, err := document.Transact(func(draft *DocumentDraft) error {
-		return draft.SetTextValue(root, invalid)
-	})
-	var documentError *DocumentError
-	if !errors.As(err, &documentError) ||
-		documentError.Kind != DocumentErrorInvalidDocument {
-		t.Fatalf("invalid UTF-8 error = %v", err)
-	}
-	if document.Revision() != 0 {
-		t.Fatal("invalid UTF-8 was published")
+	for _, invalid := range []string{string([]byte{0xff, 'a'}), "a\x00b"} {
+		document := mustDocument(t, "text")
+		root := document.Snapshot().Root()
+		_, err := document.Transact(func(draft *DocumentDraft) error {
+			return draft.SetTextValue(root, invalid)
+		})
+		var documentError *DocumentError
+		if !errors.As(err, &documentError) ||
+			documentError.Kind != DocumentErrorInvalidDocument {
+			t.Fatalf("%q error = %v", invalid, err)
+		}
+		if document.Revision() != 0 {
+			t.Fatalf("%q was published", invalid)
+		}
 	}
 }
 

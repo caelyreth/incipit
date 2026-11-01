@@ -155,3 +155,13 @@ func TestTypingInsideEmptyMarkerNotationInsertsText(t *testing.T) {
 		t.Fatalf("caret = %v", got)
 	}
 }
+
+func TestSessionRejectsNULText(t *testing.T) {
+	session, _ := newSessionFixture(t, "abc", false)
+	if _, err := session.ReplaceSelection("\x00", kernel.EventOriginTyping); err == nil {
+		t.Fatal("NUL text accepted")
+	}
+	if got := session.Projection().Text(); got != "abc" {
+		t.Fatalf("projection changed to %q", got)
+	}
+}

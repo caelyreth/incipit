@@ -1,8 +1,6 @@
 package model
 
 import (
-	"unicode/utf8"
-
 	"github.com/caelyreth/neverland/engine/text/rope"
 )
 
@@ -49,8 +47,8 @@ func sameText(left, right *TextRoot) bool {
 }
 
 func validateText(text string) error {
-	if !utf8.ValidString(text) {
-		return invalidDocument("document text must be valid UTF-8")
+	if !ValidDocumentText(text) {
+		return invalidDocument("document text must be valid UTF-8 without NUL")
 	}
 	return nil
 }

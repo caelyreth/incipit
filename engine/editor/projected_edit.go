@@ -143,7 +143,7 @@ func newProjectedEdit(
 	caret *projection.Caret,
 	selection *projection.Selection,
 ) (ProjectedEdit, error) {
-	if !utf8.ValidString(replacement) {
+	if !model.ValidDocumentText(replacement) {
 		return ProjectedEdit{}, &ProjectedEditError{Kind: ProjectedEditInvalidReplacement}
 	}
 	edit := ProjectedEdit{
@@ -183,7 +183,7 @@ func (e ProjectedEdit) Validate(p *projection.Projection) error {
 			Actual:   e.ProjectionVersion,
 		}
 	}
-	if !utf8.ValidString(e.Replacement) {
+	if !model.ValidDocumentText(e.Replacement) {
 		return &ProjectedEditError{Kind: ProjectedEditInvalidReplacement}
 	}
 	if _, err := p.Target(e.UTF16Range); err != nil {

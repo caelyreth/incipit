@@ -132,9 +132,12 @@ func TestProjectedEditValueValidationRejectsForeignStaleAndMalformed(t *testing.
 		t.Fatalf("stale error = %v", err)
 	}
 	invalid := edit
-	invalid.Replacement = string([]byte{0xff})
-	if err := invalid.Validate(f.projection); err == nil {
-		t.Fatal("invalid UTF-8 replacement accepted")
+	for _, replacement := range []string{string([]byte{0xff}), "x\x00"} {
+		invalid = edit
+		invalid.Replacement = replacement
+		if err := invalid.Validate(f.projection); err == nil {
+			t.Fatalf("invalid replacement %q accepted", replacement)
+		}
 	}
 	invalid = edit
 	invalid.UTF16Range = model.NewUTF16Range(2, 1)
