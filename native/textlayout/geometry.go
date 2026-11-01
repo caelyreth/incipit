@@ -1,6 +1,7 @@
 package textlayout
 
 import (
+	"slices"
 	"sort"
 
 	"github.com/caelyreth/neverland/engine/model"
@@ -51,6 +52,40 @@ func (l *Layout) CaretLine(offset model.UTF16Offset) (ui.Rect, bool) {
 	return line, line.H > 0
 }
 
+// RowNear is the offset on the visual row above (direction -1) or below
+// (1) the row offset is on, nearest x: its paragraph's next row, or the
+// nearest row of the paragraph beside it, whatever room lies between them,
+// as a figure's or a closed caption's. Above the first row is that row,
+// at x, and below the last the page's end.
+func (l *Layout) RowNear(offset model.UTF16Offset, direction int, x float32) model.UTF16Offset {
+	paragraph, local := l.paragraphAt(offset)
+	if paragraph == nil {
+		return model.UTF16Offset(l.flow.UTF16Len())
+	}
+	row := paragraph.layout.Caret(local)
+	_, height := paragraph.layout.Size()
+	if y := row.Y + row.H/2 + float32(direction)*row.H; y >= 0 && y < height {
+		return model.UTF16Offset(paragraph.startUTF16 + paragraph.layout.IndexAt(ui.Point{X: x, Y: y}))
+	}
+	index := slices.IndexFunc(l.paragraphs, func(candidate Paragraph) bool {
+		return candidate.startUTF16 == paragraph.startUTF16
+	}) + direction
+	switch {
+	case index < 0:
+		return model.UTF16Offset(paragraph.startUTF16 + paragraph.layout.IndexAt(ui.Point{X: x, Y: row.Y + row.H/2}))
+	case index >= len(l.paragraphs):
+		return model.UTF16Offset(l.flow.UTF16Len())
+	}
+	beside := &l.paragraphs[index]
+	// Its first row going down, its last coming up.
+	_, height = beside.layout.Size()
+	y := min(1, height/2)
+	if direction < 0 {
+		y = height - y
+	}
+	return model.UTF16Offset(beside.startUTF16 + beside.layout.IndexAt(ui.Point{X: x, Y: y}))
+}
+
 func (l *Layout) Hit(point ui.Point) model.UTF16Offset {
 	if point.Y >= l.height {
 		return model.UTF16Offset(l.flow.UTF16Len())
@@ -77,11 +112,21 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 		if start > paragraph.endUTF16 {
 			continue
 		}
+		// A caption takes as much of its row as it is open; a closed one
+		// shows no selection, its picture showing it instead.
+		room := float32(1)
+		if paragraph.hasFigure {
+			room = captionRoom(paragraph.figure)
+		}
+		if room == 0 {
+			continue
+		}
 		from := max(start, paragraph.startUTF16)
 		to := min(end, paragraph.contentUTF16)
 		// A selection through the break before a paragraph takes the gap
 		// above it too, so a selection across blocks has no holes.
 		lift := func(rect ui.Rect) ui.Rect {
+			rect.H *= room
 			if start < paragraph.startUTF16 && rect.Y <= paragraph.top {
 				rect.Y -= paragraph.gap
 				rect.H += paragraph.gap

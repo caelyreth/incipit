@@ -84,10 +84,14 @@ type Geometry interface {
 
 // VerticalGeometry is the retained-layout capability required by visual-row
 // movement. CaretLine returns the caret's current line box in the same native
-// coordinate space consumed by IndexForPoint.
+// coordinate space consumed by IndexForPoint. RowIndex is the index on the
+// visual row above (direction -1) or below (1) the caret's, nearest x:
+// rows, not distances, so whatever room lies between two rows, as a
+// figure's, the caret crosses it in one step.
 type VerticalGeometry interface {
 	Geometry
 	CaretLine(text string, caret int) (Rect, bool)
+	RowIndex(text string, caret int, direction VerticalDirection, x float32) (int, bool)
 }
 
 // Command carries application-owned command routing. Policy commands are

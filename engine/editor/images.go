@@ -13,10 +13,12 @@ import (
 // picture's caption: the caret, typing, marks and history all work in a
 // caption as in any block's text. Its notation is the one character the
 // picture stands on, surface.FigureObject, which shows as nothing. A
-// picture is never taken away a character at a time: Backspace at its
-// caption's start, or Delete at the end of the block above it, selects it
+// picture is never taken away a character at a time, nor text joined to
+// it unseen: Backspace at its caption's start or at the start of the block
+// below it, or Delete at the end of the block above it, selects it
 // (selectFigure), and only deleting it then, or an edit across its whole
-// line, takes it away. The picture itself is named by its media, kept by
+// line, takes it away. An empty block below it goes as any empty block
+// does, the caret going to the caption's end. The picture itself is named by its media, kept by
 // the notebook, never by the page.
 const (
 	// ImageNode is an image block; its text is its caption.
@@ -239,10 +241,11 @@ func (s *Session) ShapeImage(node model.NodeID, change func(*ImageShape)) (kerne
 	})
 }
 
-// guardFigure is Backspace at the start of an image's caption, or Delete
-// at the end of the block above an image: either selects the picture, for
-// a second press to delete, rather than taking it away with the character
-// it stands on.
+// guardFigure is Backspace at the start of an image's caption or of a
+// block with text below an image, or Delete at the end of the block above
+// one: each selects the picture, for a second press to delete, rather than
+// taking it away with the character it stands on or joining text to it
+// unseen.
 func (s *Session) guardFigure(backward bool) (kernel.Outcome, bool, error) {
 	selection := s.presentation.Selection
 	if !selection.IsCollapsed() {
@@ -254,11 +257,15 @@ func (s *Session) guardFigure(backward bool) (kernel.Outcome, bool, error) {
 		return 0, false, nil
 	}
 	image := node
-	if backward {
-		ok = selection.Head().Offset() == 0
-	} else if selection.Head().Offset() == blockLength(node) {
+	switch {
+	case backward && selection.Head().Offset() != 0:
+		ok = false
+	case backward && node.Kind() != ImageNode:
+		image, ok = neighborBlock(document, node.ID(), -1)
+		ok = ok && blockLength(node) > 0
+	case !backward && selection.Head().Offset() == blockLength(node):
 		image, ok = neighborBlock(document, node.ID(), 1)
-	} else {
+	case !backward:
 		ok = false
 	}
 	if !ok || image.Kind() != ImageNode {

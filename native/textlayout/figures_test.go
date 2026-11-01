@@ -109,3 +109,43 @@ func TestFiguresStartLinesInOrder(t *testing.T) {
 		}
 	}
 }
+
+// Up and Down step a row at a time across a figure, whatever room it
+// takes, its caption open or closed; a closed caption shows no selection.
+func TestRowsStepAcrossAFigure(t *testing.T) {
+	for _, caption := range []float32{0, 1} {
+		flow, err := testFlow(t, "one\n￼\nthree", 0).WithFigures([]surface.Figure{
+			{At: 4, Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		layout := NewCache().Update(flow, 400, testStyle())
+		x := layout.Caret(0).X
+		if got := layout.RowNear(6, -1, x); got != 4 && got != 5 {
+			t.Fatalf("caption %v: Up from below the figure reached %v, not its line", caption, got)
+		}
+		if got := layout.RowNear(5, -1, x); got != 0 {
+			t.Fatalf("caption %v: Up from the figure's line reached %v", caption, got)
+		}
+		if got := layout.RowNear(0, 1, x); got != 4 && got != 5 {
+			t.Fatalf("caption %v: Down to the figure reached %v", caption, got)
+		}
+		if got := layout.RowNear(5, 1, x); got != 6 {
+			t.Fatalf("caption %v: Down from the figure's line reached %v", caption, got)
+		}
+		// The caption's row, from the figure's foot to the gap above the
+		// next line.
+		top := layout.Figures()[0].Box.Y + layout.Figures()[0].Box.H
+		bottom := layout.Paragraphs()[2].Top() - layout.Paragraphs()[2].gap
+		shown := false
+		for _, rect := range layout.RangeRects(model.NewUTF16Range(0, 11)) {
+			if rect.Y < bottom && rect.Y+rect.H > top && rect.H > 0 {
+				shown = true
+			}
+		}
+		if shown != (caption == 1) {
+			t.Fatalf("caption %v: the caption's row shows selected: %v", caption, shown)
+		}
+	}
+}

@@ -66,6 +66,19 @@ func (g LayoutGeometry) IndexForPoint(
 	})), true
 }
 
+func (g LayoutGeometry) RowIndex(
+	text string,
+	caret int,
+	direction controller.VerticalDirection,
+	x float32,
+) (int, bool) {
+	if g.Layout == nil || caret < 0 ||
+		!model.UTF16OffsetIsBoundary(text, model.UTF16Offset(caret)) {
+		return 0, false
+	}
+	return int(g.Layout.RowNear(model.UTF16Offset(caret), int(direction), x)), true
+}
+
 func (g LayoutGeometry) CaretLine(text string, caret int) (controller.Rect, bool) {
 	if g.Layout == nil || caret < 0 ||
 		!model.UTF16OffsetIsBoundary(text, model.UTF16Offset(caret)) {

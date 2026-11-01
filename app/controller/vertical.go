@@ -41,8 +41,7 @@ func (c *DocumentController) MoveVertical(direction VerticalDirection, extend bo
 		c.preferredX = line.X
 		c.hasPreferredX = true
 	}
-	targetY := line.Y + line.H/2 + float32(direction)*line.H
-	head, ok := geometry.IndexForPoint(c.text, Point{X: c.preferredX, Y: targetY})
+	head, ok := geometry.RowIndex(c.text, caret, direction, c.preferredX)
 	if !ok {
 		return c.fail(fmt.Errorf("controller: vertical hit test failed"))
 	}

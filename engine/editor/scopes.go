@@ -130,9 +130,12 @@ func (s *Session) nextScope() (model.UTF16Range, bool) {
 		return model.UTF16Range{}, false
 	}
 	// A selection not matching a scope, as a caret in generated notation,
-	// starts at the narrowest scope that owns its semantic endpoints.
+	// starts at the narrowest scope that owns its semantic endpoints, never
+	// one inside it: a selected picture widens to the page, not narrowing
+	// to its caption.
 	for _, scope := range scopes {
-		if scope.ownsSelection && scope.range16 != selected {
+		inside := !selected.Empty() && selected.Start <= scope.range16.Start && scope.range16.End <= selected.End
+		if scope.ownsSelection && scope.range16 != selected && !inside {
 			return scope.range16, true
 		}
 	}

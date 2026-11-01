@@ -414,3 +414,35 @@ func TestACenteredCaptionGlidesAsItIsTyped(t *testing.T) {
 		}
 	}
 }
+
+// Up and Down cross a picture a row at a time, stopping in its caption's
+// line, which opens for the caret.
+func TestArrowsCrossAPicture(t *testing.T) {
+	data := redPicture(t)
+	document, element, tester := figurePage(t, func(string) ([]byte, error) { return data, nil })
+	figure := figureBox(t, element)
+	press := func(key ui.Key) int {
+		t.Helper()
+		element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: key})
+		tester.Advance(time.Second)
+		tester.Frame()
+		return document.Selection().Caret()
+	}
+	end := len([]rune(document.Text()))
+	if err := document.SetSelection(controller.UTF16Range{Start: end, End: end}); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if got := press(ui.KeyUp); got != int(figure.Line.End) {
+		t.Fatalf("Up from below reached %d, not the caption at %d", got, figure.Line.End)
+	}
+	if got := press(ui.KeyUp); got > 6 {
+		t.Fatalf("Up from the caption reached %d, not the line above", got)
+	}
+	if got := press(ui.KeyDown); got != int(figure.Line.End) {
+		t.Fatalf("Down from above reached %d, not the caption", got)
+	}
+	if got := press(ui.KeyDown); got != end {
+		t.Fatalf("Down from the caption reached %d, not the line below", got)
+	}
+}

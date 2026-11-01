@@ -163,7 +163,9 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 			continue
 		}
 		drawFigure(p, box, radius, state, bitmap, picture, track.shown.Value())
-		if covers(selection, figure.Line) && !figureSelected(figure, selection) {
+		// A picture is in a selection that takes the character it stands
+		// on, whether or not its caption is taken too.
+		if covers(selection, model.NewUTF16Range(figure.At, figure.At+1)) && !figureSelected(figure, selection) {
 			p.Fill(box, state.Theme.Prose.Selection.Alpha(0.5*state.Motion.SelectionOpacity()), radius)
 		}
 		if alpha := track.ring.Value(); alpha > 0.001 {

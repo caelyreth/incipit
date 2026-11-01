@@ -170,3 +170,55 @@ func TestShapingAnImageIsOneStep(t *testing.T) {
 		t.Fatal("a missing block was shaped")
 	}
 }
+
+// pictureBetween is a page of a paragraph, an image captioned as given and
+// a paragraph, with where the picture's line starts and ends.
+func pictureBetween(t *testing.T, caption string) (*Session, model.UTF16Range) {
+	t.Helper()
+	session, _ := newSessionFixture(t, "before", false)
+	at(t, session, 6)
+	if _, err := session.InsertImage(sunset); err != nil {
+		t.Fatal(err)
+	}
+	typeSession(t, session, "after")
+	start := model.UTF16Offset(strings.Index(session.Projection().Text(), pic))
+	at(t, session, start+1)
+	typeSession(t, session, caption)
+	return session, model.NewUTF16Range(start, start+1+model.UTF16Offset(len(caption)))
+}
+
+// The edges around a picture behave alike whether or not it has a
+// caption: Backspace from the block below selects it rather than joining
+// text to it, Backspace in an empty block below takes the block away, the
+// caret going to the caption's end, and Select All on the picture widens
+// to the page.
+func TestAPictureEdgesAlikeWithOrWithoutACaption(t *testing.T) {
+	for _, caption := range []string{"", "Dusk"} {
+		session, line := pictureBetween(t, caption)
+		selected := func() model.UTF16Range {
+			presentation := session.Presentation()
+			got, err := presentation.ProjectedSelection()
+			if err != nil {
+				t.Fatal(err)
+			}
+			return got
+		}
+		at(t, session, line.End+1)
+		run(t, session, TextBackspace)
+		if got := selected(); got != line {
+			t.Fatalf("%q: Backspace below selected %v, not the picture's line %v", caption, got, line)
+		}
+		run(t, session, TextSelectAll)
+		if got, page := selected(), model.UTF16Offset(session.Projection().UTF16Len()); got != model.NewUTF16Range(0, page) {
+			t.Fatalf("%q: Select All on the picture selected %v of %v", caption, got, page)
+		}
+
+		at(t, session, line.End)
+		run(t, session, TextNewline)
+		run(t, session, TextBackspace)
+		if got := selected(); got != model.EmptyUTF16Range(line.End) {
+			t.Fatalf("%q: Backspace in an empty block below left %v", caption, got)
+		}
+		expectKinds(t, session, ParagraphNode, ImageNode, ParagraphNode)
+	}
+}

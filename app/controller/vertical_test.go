@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/editor"
@@ -52,6 +53,23 @@ func (g *wrapGeometry) IndexForPoint(_ string, point Point) (int, bool) {
 		return best, true
 	}
 	return len(g.text), true
+}
+
+func (g *wrapGeometry) RowIndex(text string, caret int, direction VerticalDirection, x float32) (int, bool) {
+	for index, row := range g.rows {
+		if !slices.Contains(row.offsets, caret) {
+			continue
+		}
+		switch next := index + int(direction); {
+		case next < 0:
+			return g.IndexForPoint(text, Point{X: x, Y: row.top + row.height/2})
+		case next >= len(g.rows):
+			return len(g.text), true
+		default:
+			return g.IndexForPoint(text, Point{X: x, Y: g.rows[next].top + g.rows[next].height/2})
+		}
+	}
+	return 0, false
 }
 
 func (g *wrapGeometry) CaretLine(_ string, caret int) (Rect, bool) {

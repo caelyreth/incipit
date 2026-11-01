@@ -46,6 +46,18 @@ func (bridgeVerticalGeometry) IndexForPoint(
 	return 0, true
 }
 
+func (bridgeVerticalGeometry) RowIndex(
+	_ string,
+	_ int,
+	direction controller.VerticalDirection,
+	_ float32,
+) (int, bool) {
+	if direction == controller.VerticalDown {
+		return 1, true
+	}
+	return 0, true
+}
+
 func (bridgeVerticalGeometry) CaretLine(
 	_ string,
 	caret int,
