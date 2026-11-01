@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 )
@@ -18,58 +19,56 @@ func (c *DocumentController) Execute(command Command) (kernel.Outcome, error) {
 	if command.ID == "" {
 		return kernel.OutcomePass, c.fail(ErrUnknownCommand)
 	}
-	if command.ID == string(editor.TabCommand().ID) {
-		return c.ExecuteTab()
-	}
 	if command.Range != nil {
 		return c.Replace(command.Range, command.Text, command.Origin)
 	}
-	for _, next := range editor.AllTextCommands {
-		if string(next.ID()) == command.ID {
-			c.resetPreferredColumn()
-			outcome, err := c.session.ExecuteText(next)
-			return c.finishCommand(outcome, err)
-		}
-	}
-	for _, next := range editor.AllHistoryCommands {
-		if string(next.ID()) == command.ID {
-			c.resetPreferredColumn()
-			outcome, err := c.session.ExecuteHistory(next)
-			return c.finishCommand(outcome, err)
-		}
-	}
-	for _, next := range editor.AllWordCommands {
-		if string(next.ID()) == command.ID {
-			c.resetPreferredColumn()
-			outcome, err := c.session.ExecuteWord(next)
-			return c.finishCommand(outcome, err)
-		}
-	}
-	for _, next := range []editor.MarkupCommand{
-		editor.MarkupEmphasis,
-		editor.MarkupStrong,
-	} {
-		if string(next.ID()) == command.ID {
-			outcome, err := c.session.ExecuteMarkup(next)
-			return c.finishCommand(outcome, err)
-		}
-	}
-	for _, next := range editor.AllTableCommands {
-		if string(next.ID()) == command.ID {
-			c.resetPreferredColumn()
-			outcome, err := c.session.ExecuteTable(next)
-			return c.finishCommand(outcome, err)
-		}
-	}
-	for _, next := range editor.AllNestingCommands {
-		if string(next.ID()) == command.ID {
-			outcome, err := c.session.ExecuteNesting(next)
-			return c.finishCommand(outcome, err)
-		}
+	action, ok := keymap.ResolveCommand(kernel.CommandID(command.ID))
+	if ok && action.Owner == editor.CommandOwnerEditor {
+		return c.ExecuteAction(action)
 	}
 	c.pending = append(c.pending, command)
 	c.setStatus(kernel.OutcomePass, false, ErrUnknownCommand)
 	return kernel.OutcomePass, ErrUnknownCommand
+}
+
+// ExecuteAction runs one already-resolved editor action. Routing by typed
+// payload keeps menus, keys, and palette choices on the same command path.
+func (c *DocumentController) ExecuteAction(action keymap.Action) (kernel.Outcome, error) {
+	if c == nil || c.session == nil {
+		return kernel.OutcomePass, keymap.ErrCommandUnavailable
+	}
+	if action.Owner != editor.CommandOwnerEditor {
+		return kernel.OutcomePass, keymap.ErrUnsupportedCommand
+	}
+	var outcome kernel.Outcome
+	var err error
+	switch action.Kind {
+	case keymap.ActionText:
+		c.resetPreferredColumn()
+		outcome, err = c.session.ExecuteText(action.Text)
+	case keymap.ActionHistory:
+		c.resetPreferredColumn()
+		outcome, err = c.session.ExecuteHistory(action.History)
+	case keymap.ActionMarkup:
+		outcome, err = c.session.ExecuteMarkup(action.Markup)
+	case keymap.ActionWord:
+		c.resetPreferredColumn()
+		outcome, err = c.session.ExecuteWord(action.Word)
+	case keymap.ActionNesting:
+		outcome, err = c.session.ExecuteNesting(action.Nesting)
+	case keymap.ActionTable:
+		c.resetPreferredColumn()
+		outcome, err = c.session.ExecuteTable(action.Table)
+	case keymap.ActionNavigation:
+		if action.Navigation != keymap.NavigationTab {
+			return kernel.OutcomePass, keymap.ErrUnsupportedCommand
+		}
+		c.resetPreferredColumn()
+		outcome, err = c.session.Tab(c.now())
+	default:
+		return kernel.OutcomePass, keymap.ErrUnsupportedCommand
+	}
+	return c.finishCommand(outcome, err)
 }
 
 // DrainCommands returns queued commands outside the editor's command set.

@@ -41,29 +41,39 @@ const (
 // Description returns stable command metadata.
 func (c TableCommand) Description() Command {
 	command := func(id kernel.CommandID, label string) Command {
-		return Command{ID: id, Label: label, Scope: ScopeDocument, Policy: WritingPolicyID}
+		return Command{
+			ID: id, Label: label,
+			Scope: ScopeDocument, Policy: WritingPolicyID,
+			Owner:        CommandOwnerEditor,
+			Requirements: RequiresDocument,
+		}
+	}
+	inTable := func(id kernel.CommandID, label string) Command {
+		meta := command(id, label)
+		meta.Requirements |= RequiresTable
+		return meta
 	}
 	switch c {
 	case TableRowAbove:
-		return command("table.row-above", "Insert row above")
+		return inTable("table.row-above", "Insert row above")
 	case TableRowBelow:
-		return command("table.row-below", "Insert row below")
+		return inTable("table.row-below", "Insert row below")
 	case TableColumnLeft:
-		return command("table.column-left", "Insert column left")
+		return inTable("table.column-left", "Insert column left")
 	case TableColumnRight:
-		return command("table.column-right", "Insert column right")
+		return inTable("table.column-right", "Insert column right")
 	case TableDeleteRow:
-		return command("table.delete-row", "Delete row")
+		return inTable("table.delete-row", "Delete row")
 	case TableDeleteColumn:
-		return command("table.delete-column", "Delete column")
+		return inTable("table.delete-column", "Delete column")
 	case TableDelete:
-		return command("table.delete", "Delete table")
+		return inTable("table.delete", "Delete table")
 	case TableHeader:
-		return command("table.header", "Toggle header row")
+		return inTable("table.header", "Toggle header row")
 	case TablePreviousCell:
-		return command(tablePreviousCellCommandID, "Previous cell")
+		return inTable(tablePreviousCellCommandID, "Previous cell")
 	case TableLineBreak:
-		return command(tableLineBreakCommandID, "Line break in cell")
+		return inTable(tableLineBreakCommandID, "Line break in cell")
 	}
 	return command("table.insert", "Insert table")
 }
@@ -108,6 +118,15 @@ func (s *Session) ExecuteTable(command TableCommand) (kernel.Outcome, error) {
 		return outcome.Outcome, err
 	}
 	return kernel.OutcomePass, nil
+}
+
+// InTable reports whether the caret's block is a table cell.
+func (s *Session) InTable() bool {
+	if s == nil {
+		return false
+	}
+	_, ok := TableOf(s.runtime.Snapshot().Document(), s.presentation.Selection.Head().Node())
+	return ok
 }
 
 // InsertTable puts a table of rows on the page, its first row its header:

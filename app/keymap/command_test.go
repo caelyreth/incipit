@@ -10,35 +10,47 @@ import (
 func TestEveryEditorCommandResolvesToTypedAction(t *testing.T) {
 	t.Parallel()
 	for _, command := range editor.AllTextCommands {
-		action, ok := ResolveEditorCommand(command.ID())
+		action, ok := ResolveCommand(command.ID())
 		if !ok || action.Kind != ActionText || action.Text != command {
 			t.Fatalf("text %v => %#v,%v", command.ID(), action, ok)
 		}
 	}
 	for _, command := range editor.AllHistoryCommands {
-		action, ok := ResolveEditorCommand(command.ID())
+		action, ok := ResolveCommand(command.ID())
 		if !ok || action.Kind != ActionHistory || action.History != command {
 			t.Fatalf("history %v => %#v,%v", command.ID(), action, ok)
 		}
 	}
 	for _, command := range []editor.MarkupCommand{editor.MarkupEmphasis, editor.MarkupStrong} {
-		action, ok := ResolveEditorCommand(command.ID())
+		action, ok := ResolveCommand(command.ID())
 		if !ok || action.Kind != ActionMarkup || action.Markup != command {
 			t.Fatalf("markup %v => %#v,%v", command.ID(), action, ok)
 		}
 	}
 	for _, command := range editor.AllWordCommands {
-		action, ok := ResolveEditorCommand(command.ID())
+		action, ok := ResolveCommand(command.ID())
 		if !ok || action.Kind != ActionWord || action.Word != command {
 			t.Fatalf("word %v => %#v,%v", command.ID(), action, ok)
 		}
 	}
-	action, ok := ResolveEditorCommand(editor.TabCommand().ID)
+	for _, command := range editor.AllNestingCommands {
+		action, ok := ResolveCommand(command.ID())
+		if !ok || action.Kind != ActionNesting || action.Nesting != command {
+			t.Fatalf("nesting %v => %#v,%v", command.ID(), action, ok)
+		}
+	}
+	for _, command := range editor.AllTableCommands {
+		action, ok := ResolveCommand(command.ID())
+		if !ok || action.Kind != ActionTable || action.Table != command {
+			t.Fatalf("table %v => %#v,%v", command.ID(), action, ok)
+		}
+	}
+	action, ok := ResolveCommand(editor.TabCommand().ID)
 	if !ok || action.Kind != ActionNavigation || action.Navigation != NavigationTab {
 		t.Fatalf("tab => %#v,%v", action, ok)
 	}
 	for _, command := range []ClipboardCommand{ClipboardCopy, ClipboardCut, ClipboardPaste} {
-		action, ok := ResolveEditorCommand(command.ID())
+		action, ok := ResolveCommand(command.ID())
 		if !ok || action.Kind != ActionClipboard || action.Clipboard != command {
 			t.Fatalf("clipboard %v => %#v,%v", command.ID(), action, ok)
 		}
@@ -47,12 +59,19 @@ func TestEveryEditorCommandResolvesToTypedAction(t *testing.T) {
 		if command.Kind == editor.SurfaceClipboard {
 			continue
 		}
-		action, ok := ResolveEditorCommand(command.ID)
+		action, ok := ResolveCommand(command.ID)
 		if !ok || action.Kind != ActionSurface || action.Surface != command {
 			t.Fatalf("surface %v => %#v,%v", command.ID, action, ok)
 		}
 	}
-	if action, ok := ResolveEditorCommand(kernel.CommandID("host.external")); ok ||
+	for _, command := range editor.Commands() {
+		action, ok := ResolveCommand(command.ID)
+		if !ok || !action.Resolved || action.Owner != command.Owner ||
+			action.Requirements != command.Requirements {
+			t.Fatalf("metadata %s => %#v,%v; command %#v", command.ID, action, ok, command)
+		}
+	}
+	if action, ok := ResolveCommand(kernel.CommandID("host.external")); ok ||
 		action.Kind != ActionNone {
 		t.Fatalf("external command = %#v,%v", action, ok)
 	}
@@ -123,7 +142,7 @@ func TestRepeatPolicyMatchesSemanticCommandFamilies(t *testing.T) {
 		}
 	}
 	for _, command := range editor.SurfaceCommands() {
-		action, _ := ResolveEditorCommand(command.ID)
+		action, _ := ResolveCommand(command.ID)
 		want := command.Kind == editor.SurfaceVisual ||
 			command.ID == editor.SurfaceNextPageCommandID ||
 			command.ID == editor.SurfacePreviousPageCommandID

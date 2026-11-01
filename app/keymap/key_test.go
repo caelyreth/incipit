@@ -270,7 +270,7 @@ func TestDefaultShortcutMatrixRoutesEveryEditorCommandFamily(t *testing.T) {
 			t.Errorf("%s lookup = %q,%v, want %q", test.name, command, ok, test.command)
 			continue
 		}
-		action, ok := ResolveEditorCommand(command)
+		action, ok := ResolveCommand(command)
 		if !ok || action.Kind != test.kind || action.ID != test.command {
 			t.Errorf("%s action = %#v,%v", test.name, action, ok)
 		}

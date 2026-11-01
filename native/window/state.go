@@ -1,6 +1,7 @@
 package window
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -266,17 +267,35 @@ func (a *AppState) refreshToolbarState() {
 		a.Shell.CanRedo = toolbar.CanRedo
 	}
 	configuration := controller.Runtime().PolicyConfiguration()
-	a.Shell.Toolbar.CJK = configuration.IsEnabled(editor.CJKPolicyID)
+	toolbar := a.Shell.Toolbar
+	toolbar.Typewriter = a.Product.Presentation.Typewriter
+	toolbar.Zen = a.Product.Presentation.Zen
+	toolbar.CJK = configuration.IsEnabled(editor.CJKPolicyID)
+	toolbar.TypewriterEnabled = a.commandAvailable(editor.SurfaceTypewriterCommandID)
+	toolbar.ZenEnabled = a.commandAvailable(editor.SurfaceZenCommandID)
+	toolbar.CJKEnabled = a.commandAvailable(editor.SurfaceCJKCommandID)
 	prepared := controller.Runtime().Configuration()
-	a.Shell.Toolbar.Bindings = shell.ToolbarBindings{
-		Bold:   bindingLabel(prepared, editor.MarkupStrong.ID()),
-		Italic: bindingLabel(prepared, editor.MarkupEmphasis.ID()),
-		Undo:   bindingLabel(prepared, editor.HistoryUndo.ID()),
-		Redo:   bindingLabel(prepared, editor.HistoryRedo.ID()),
+	toolbar.Bindings = shell.ToolbarBindings{
+		Bold:       bindingLabel(prepared, editor.MarkupStrong.ID()),
+		Italic:     bindingLabel(prepared, editor.MarkupEmphasis.ID()),
+		Undo:       bindingLabel(prepared, editor.HistoryUndo.ID()),
+		Redo:       bindingLabel(prepared, editor.HistoryRedo.ID()),
+		Typewriter: bindingLabel(prepared, editor.SurfaceTypewriterCommandID),
+		Zen:        bindingLabel(prepared, editor.SurfaceZenCommandID),
+		CJK:        bindingLabel(prepared, editor.SurfaceCJKCommandID),
 	}
+	a.Shell.Toolbar = toolbar
 }
 
 func bindingLabel(configuration *kernel.PreparedPolicyConfiguration, command kernel.CommandID) string {
+	return bindingLabelFor(configuration, command, keymap.PlatformCurrent)
+}
+
+func bindingLabelFor(
+	configuration *kernel.PreparedPolicyConfiguration,
+	command kernel.CommandID,
+	platform keymap.Platform,
+) string {
 	if configuration == nil {
 		return ""
 	}
@@ -284,7 +303,7 @@ func bindingLabel(configuration *kernel.PreparedPolicyConfiguration, command ker
 	if len(bindings) == 0 {
 		return ""
 	}
-	return keymap.Chord(bindings[0], keymap.PlatformCurrent)
+	return keymap.Chord(bindings[0], platform)
 }
 
 // bindingKeys is the caps of the command's first binding.
@@ -300,14 +319,10 @@ func bindingKeys(configuration *kernel.PreparedPolicyConfiguration, command kern
 }
 
 func (a *AppState) executeEditorCommand(command kernel.CommandID) {
-	if a == nil || a.Bridge == nil {
+	if a == nil {
 		return
 	}
-	action, ok := keymap.ResolveEditorCommand(command)
-	if !ok {
-		return
-	}
-	if err := a.Bridge.Execute(action); err != nil {
+	if err := a.routeWindowCommand(a.mainWindow, command); err != nil {
 		a.fail("Couldn't run the command", err)
 	}
 }
@@ -344,80 +359,10 @@ func (a *AppState) sessionMounted(session *sheetSession) bool {
 	return ok && mounted == session
 }
 
-// executeExternalCommand routes policy-owned host commands through the same
-// callbacks used by the visible shell controls.
+// executeExternalCommand runs the host-owned commands documentview's surface
+// boundary delegates back to the window.
 func (a *AppState) executeExternalCommand(command kernel.CommandID) error {
-	if a == nil {
-		return fmt.Errorf("window: app state is unavailable")
-	}
-	switch command {
-	case "workspace.new", editor.SurfaceNewPageCommandID:
-		if a.Shell.NewPage != nil {
-			a.Shell.NewPage()
-		} else {
-			a.newPage()
-		}
-	case editor.SurfaceNextPageCommandID:
-		a.navigatePage(true)
-	case editor.SurfacePreviousPageCommandID:
-		a.navigatePage(false)
-	case editor.SurfaceClosePageCommandID:
-		if a.Shell.ClosePage != nil {
-			a.Shell.ClosePage()
-		} else {
-			a.closePage()
-		}
-	case editor.SurfaceZenCommandID:
-		a.togglePresentation(appsettings.PresentationZen, a.Shell.Zen)
-	case editor.SurfaceTypewriterCommandID:
-		a.togglePresentation(appsettings.PresentationTypewriter, a.Shell.Typewriter)
-	case editor.SurfaceMotionCommandID:
-		a.setPresentation(
-			appsettings.PresentationMotion,
-			!a.Product.Presentation.Motion,
-		)
-	case editor.SurfaceCJKCommandID:
-		configuration := a.Session.Document().Runtime().PolicyConfiguration()
-		on := !configuration.IsEnabled(editor.CJKPolicyID)
-		if a.Shell.ToggleCJK != nil {
-			a.Shell.ToggleCJK(on)
-		} else {
-			a.setPolicy(editor.CJKPolicyID, on)
-		}
-	case editor.SurfaceInsertImageCommandID:
-		a.chooseImages()
-	case editor.SurfaceCommandsCommandID:
-		if a.Shell.OpenCommands != nil {
-			a.Shell.OpenCommands()
-		} else {
-			a.openCommands()
-		}
-	case editor.SurfaceFindPageCommandID:
-		if a.Shell.FindPage != nil {
-			a.Shell.FindPage()
-		} else {
-			a.findPage()
-		}
-	case editor.SurfaceSidebarCommandID:
-		a.toggleSidebar()
-	case editor.SurfaceSheetListCommandID:
-		a.toggleSheetList()
-	case editor.SurfaceLibraryViewCommandID:
-		a.showPanes(true, true)
-	case editor.SurfaceSheetsViewCommandID:
-		a.showPanes(false, true)
-	case editor.SurfaceEditorViewCommandID:
-		a.showPanes(false, false)
-	case editor.SurfaceSettingsCommandID:
-		if a.Shell.OpenSettings != nil {
-			a.Shell.OpenSettings()
-		} else {
-			a.OpenSettingsWindow()
-		}
-	default:
-		return nil
-	}
-	return nil
+	return a.executeHostCommand(command)
 }
 
 func (a *AppState) togglePresentation(
@@ -470,6 +415,7 @@ func (a *AppState) selectMounted() {
 		}
 	}
 	a.refreshShell()
+	a.syncMenu()
 }
 
 func (a *AppState) closePageID(id string) {
@@ -686,11 +632,10 @@ func (a *AppState) View(c *ui.Context) {
 	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion, a.Shell.WindowActive)
 	if a.Palette != nil {
 		a.Palette.View(c, semantic, animate)
-		if command, ok := a.Palette.ConsumeChoice(); ok && a.Bridge != nil {
-			if action, known := keymap.ResolveEditorCommand(command); known {
-				_ = a.Bridge.Execute(action)
-			} else {
-				_ = a.Bridge.ExecuteExternal(command)
+		if command, ok := a.Palette.ConsumeChoice(); ok {
+			if err := a.routeWindowCommand(a.mainWindow, command); err != nil &&
+				!errors.Is(err, keymap.ErrCommandUnavailable) {
+				a.fail("Couldn't run the command", err)
 			}
 		}
 	}

@@ -164,7 +164,7 @@ func TestActionRegistryMatchesThePolicyCatalog(t *testing.T) {
 	}
 	registered := make([]kernel.CommandID, 0, len(declared))
 	for _, command := range Commands() {
-		if command.Label == "" || command.Scope == 0 {
+		if command.Label == "" || command.Scope == 0 || command.Owner == 0 {
 			t.Fatalf("%s has no name or scope: %#v", command.ID, command)
 		}
 		owner, ok := catalog.CommandOwner(command.ID)
@@ -180,6 +180,15 @@ func TestActionRegistryMatchesThePolicyCatalog(t *testing.T) {
 	slices.Sort(registered)
 	if !slices.Equal(declared, registered) {
 		t.Fatalf("registry %v, catalog %v", registered, declared)
+	}
+	for _, command := range AllTableCommands {
+		meta := command.Description()
+		if command != TableInsert && !meta.Requirements.Has(RequiresTable) {
+			t.Fatalf("%s does not require a table: %#v", meta.ID, meta)
+		}
+		if command == TableInsert && meta.Requirements.Has(RequiresTable) {
+			t.Fatalf("insert table requires an existing table: %#v", meta)
+		}
 	}
 	for _, binding := range DefaultKeymap() {
 		if _, ok := CommandFor(binding.Command); !ok {

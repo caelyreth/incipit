@@ -49,48 +49,80 @@ const (
 	SurfaceInsertImageCommandID  kernel.CommandID = "surface.insert-image"
 )
 
-// SurfaceCommand is one complete declaration in the surface policy. The ID is the stable routing identity; Kind selects its native owner.
+// SurfaceCommand is one complete declaration in the surface policy. The ID
+// is the stable routing identity; Owner and Requirements select where and
+// when it may run. Kind groups surface behavior for UI and repeat policy.
 // Scope is what it acts on; Subject names the editor policy a command
 // switches, when it switches one.
 type SurfaceCommand struct {
-	ID      kernel.CommandID
-	Label   string
-	Kind    SurfaceCommandKind
-	Scope   Scope
-	Subject kernel.PolicyID
+	ID           kernel.CommandID
+	Label        string
+	Kind         SurfaceCommandKind
+	Scope        Scope
+	Subject      kernel.PolicyID
+	Owner        CommandOwner
+	Requirements CommandRequirements
 }
 
 // Description converts the declaration to the metadata shape used by the
 // shared policy, settings, and command catalogs.
 func (c SurfaceCommand) Description() Command {
-	return Command{ID: c.ID, Label: c.Label, Scope: c.Scope, Policy: SurfacePolicyID, Subject: c.Subject}
+	return Command{
+		ID: c.ID, Label: c.Label, Scope: c.Scope,
+		Policy: SurfacePolicyID, Subject: c.Subject,
+		Owner: c.Owner, Requirements: c.Requirements,
+	}
 }
 
 var surfaceCommands = [...]SurfaceCommand{
-	{ID: SurfaceUpCommandID, Label: "Move up", Kind: SurfaceVisual, Scope: ScopeDocument},
-	{ID: SurfaceDownCommandID, Label: "Move down", Kind: SurfaceVisual, Scope: ScopeDocument},
-	{ID: SurfaceSelectUpCommandID, Label: "Extend up", Kind: SurfaceVisual, Scope: ScopeDocument},
-	{ID: SurfaceSelectDownCommandID, Label: "Extend down", Kind: SurfaceVisual, Scope: ScopeDocument},
-	{ID: SurfaceCopyCommandID, Label: "Copy", Kind: SurfaceClipboard, Scope: ScopeDocument},
-	{ID: SurfaceCutCommandID, Label: "Cut", Kind: SurfaceClipboard, Scope: ScopeDocument},
-	{ID: SurfacePasteCommandID, Label: "Paste", Kind: SurfaceClipboard, Scope: ScopeDocument},
-	{ID: SurfaceNewPageCommandID, Label: "New page", Kind: SurfacePage, Scope: ScopePages},
-	{ID: SurfaceNextPageCommandID, Label: "Next tab", Kind: SurfacePage, Scope: ScopePages},
-	{ID: SurfacePreviousPageCommandID, Label: "Previous tab", Kind: SurfacePage, Scope: ScopePages},
-	{ID: SurfaceClosePageCommandID, Label: "Close tab", Kind: SurfacePage, Scope: ScopePages},
-	{ID: SurfaceZenCommandID, Label: "Toggle Zen mode", Kind: SurfacePresentation, Scope: ScopeWindow},
-	{ID: SurfaceTypewriterCommandID, Label: "Toggle typewriter mode", Kind: SurfacePresentation, Scope: ScopeWindow},
-	{ID: SurfaceMotionCommandID, Label: "Toggle motion", Kind: SurfacePresentation, Scope: ScopeWindow},
-	{ID: SurfaceCJKCommandID, Label: "Toggle CJK refinement", Kind: SurfacePolicy, Scope: ScopeDocument, Subject: CJKPolicyID},
-	{ID: SurfaceCommandsCommandID, Label: "Search commands", Kind: SurfaceApp, Scope: ScopeApp},
-	{ID: SurfaceFindPageCommandID, Label: "Find a page", Kind: SurfaceApp, Scope: ScopePages},
-	{ID: SurfaceSidebarCommandID, Label: "Toggle library", Kind: SurfaceApp, Scope: ScopeWindow},
-	{ID: SurfaceSheetListCommandID, Label: "Toggle sheet list", Kind: SurfaceApp, Scope: ScopeWindow},
-	{ID: SurfaceLibraryViewCommandID, Label: "Show library and sheets", Kind: SurfaceApp, Scope: ScopeWindow},
-	{ID: SurfaceSheetsViewCommandID, Label: "Show sheet list only", Kind: SurfaceApp, Scope: ScopeWindow},
-	{ID: SurfaceEditorViewCommandID, Label: "Show editor only", Kind: SurfaceApp, Scope: ScopeWindow},
-	{ID: SurfaceSettingsCommandID, Label: "Open settings", Kind: SurfaceApp, Scope: ScopeApp},
-	{ID: SurfaceInsertImageCommandID, Label: "Insert image…", Kind: SurfaceInsert, Scope: ScopeDocument},
+	{ID: SurfaceUpCommandID, Label: "Move up", Kind: SurfaceVisual, Scope: ScopeDocument,
+		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
+	{ID: SurfaceDownCommandID, Label: "Move down", Kind: SurfaceVisual, Scope: ScopeDocument,
+		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
+	{ID: SurfaceSelectUpCommandID, Label: "Extend up", Kind: SurfaceVisual, Scope: ScopeDocument,
+		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
+	{ID: SurfaceSelectDownCommandID, Label: "Extend down", Kind: SurfaceVisual, Scope: ScopeDocument,
+		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
+	{ID: SurfaceCopyCommandID, Label: "Copy", Kind: SurfaceClipboard, Scope: ScopeDocument,
+		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
+	{ID: SurfaceCutCommandID, Label: "Cut", Kind: SurfaceClipboard, Scope: ScopeDocument,
+		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
+	{ID: SurfacePasteCommandID, Label: "Paste", Kind: SurfaceClipboard, Scope: ScopeDocument,
+		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
+	{ID: SurfaceNewPageCommandID, Label: "New page", Kind: SurfacePage, Scope: ScopePages,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceNextPageCommandID, Label: "Next tab", Kind: SurfacePage, Scope: ScopePages,
+		Owner: CommandOwnerHost},
+	{ID: SurfacePreviousPageCommandID, Label: "Previous tab", Kind: SurfacePage, Scope: ScopePages,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceClosePageCommandID, Label: "Close tab", Kind: SurfacePage, Scope: ScopePages,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceZenCommandID, Label: "Toggle Zen mode", Kind: SurfacePresentation, Scope: ScopeWindow,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceTypewriterCommandID, Label: "Toggle typewriter mode", Kind: SurfacePresentation, Scope: ScopeWindow,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceMotionCommandID, Label: "Toggle motion", Kind: SurfacePresentation, Scope: ScopeWindow,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceCJKCommandID, Label: "Toggle CJK refinement", Kind: SurfacePolicy, Scope: ScopeDocument,
+		Subject: CJKPolicyID, Owner: CommandOwnerHost, Requirements: RequiresDocument},
+	{ID: SurfaceCommandsCommandID, Label: "Search commands", Kind: SurfaceApp, Scope: ScopeApp,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceFindPageCommandID, Label: "Find a page", Kind: SurfaceApp, Scope: ScopePages,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceSidebarCommandID, Label: "Toggle library", Kind: SurfaceApp, Scope: ScopeWindow,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceSheetListCommandID, Label: "Toggle sheet list", Kind: SurfaceApp, Scope: ScopeWindow,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceLibraryViewCommandID, Label: "Show library and sheets", Kind: SurfaceApp, Scope: ScopeWindow,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceSheetsViewCommandID, Label: "Show sheet list only", Kind: SurfaceApp, Scope: ScopeWindow,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceEditorViewCommandID, Label: "Show editor only", Kind: SurfaceApp, Scope: ScopeWindow,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceSettingsCommandID, Label: "Open settings", Kind: SurfaceApp, Scope: ScopeApp,
+		Owner: CommandOwnerHost},
+	{ID: SurfaceInsertImageCommandID, Label: "Insert image…", Kind: SurfaceInsert, Scope: ScopeDocument,
+		Owner: CommandOwnerHost, Requirements: RequiresDocument},
 }
 
 // AllSurfaceCommands is the stable declaration order. Callers may read

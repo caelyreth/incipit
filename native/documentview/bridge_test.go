@@ -1,6 +1,7 @@
 package documentview
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -83,7 +84,7 @@ func bridgeFixture(t *testing.T, text string) (*Bridge, *memoryClipboard) {
 
 func TestBridgeRoutesTypedEditorActions(t *testing.T) {
 	bridge, _ := bridgeFixture(t, "abc")
-	action, ok := keymap.ResolveEditorCommand("text.document-end")
+	action, ok := keymap.ResolveCommand("text.document-end")
 	if !ok {
 		t.Fatal("command missing")
 	}
@@ -98,7 +99,7 @@ func TestBridgeRoutesTypedEditorActions(t *testing.T) {
 func TestBridgeRoutesVisualSurfaceActionsThroughController(t *testing.T) {
 	bridge, _ := bridgeFixture(t, "ab")
 	bridge.Controller.SetGeometry(bridgeVerticalGeometry{})
-	action, ok := keymap.ResolveEditorCommand(editor.SurfaceDownCommandID)
+	action, ok := keymap.ResolveCommand(editor.SurfaceDownCommandID)
 	if !ok || action.Kind != keymap.ActionSurface {
 		t.Fatalf("surface action = %#v, %v", action, ok)
 	}
@@ -148,7 +149,7 @@ func TestBridgeRejectsExternalWithoutHost(t *testing.T) {
 		Kind: keymap.ActionExternal,
 		ID:   kernel.CommandID("workspace.new"),
 	})
-	if err != nil {
-		t.Fatalf("external command without host = %v", err)
+	if !errors.Is(err, keymap.ErrUnsupportedCommand) {
+		t.Fatalf("external command without host = %v, want unsupported", err)
 	}
 }

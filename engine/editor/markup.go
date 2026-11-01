@@ -120,7 +120,12 @@ var AllTextCommands = [...]TextCommand{
 
 // Description returns stable command metadata.
 func (c TextCommand) Description() Command {
-	meta := Command{Scope: ScopeDocument, Policy: TextPolicyID}
+	meta := Command{
+		Scope:        ScopeDocument,
+		Policy:       TextPolicyID,
+		Owner:        CommandOwnerEditor,
+		Requirements: RequiresDocument,
+	}
 	switch c {
 	case TextLeft:
 		meta.ID, meta.Label = "text.left", "Move left"
@@ -177,9 +182,17 @@ var AllHistoryCommands = [...]HistoryCommand{HistoryUndo, HistoryRedo}
 // Description returns stable command metadata.
 func (c HistoryCommand) Description() Command {
 	if c == HistoryRedo {
-		return Command{ID: "history.redo", Label: "Redo", Scope: ScopeDocument, Policy: HistoryPolicyID}
+		return Command{
+			ID: "history.redo", Label: "Redo",
+			Scope: ScopeDocument, Policy: HistoryPolicyID,
+			Owner: CommandOwnerEditor, Requirements: RequiresDocument,
+		}
 	}
-	return Command{ID: "history.undo", Label: "Undo", Scope: ScopeDocument, Policy: HistoryPolicyID}
+	return Command{
+		ID: "history.undo", Label: "Undo",
+		Scope: ScopeDocument, Policy: HistoryPolicyID,
+		Owner: CommandOwnerEditor, Requirements: RequiresDocument,
+	}
 }
 
 // ID returns the stable command identity.

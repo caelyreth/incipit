@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"errors"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/kernel"
@@ -8,9 +9,16 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
+// ErrUnknownCommand reports an identity outside the editor command registry.
+var ErrUnknownCommand = errors.New("editor: unknown command")
+
 // ExecuteCommand is the common command entry point used by controllers and
-// keymap adapters. It returns Pass for an unknown or disabled command.
+// keymap adapters. A known but disabled command returns Pass; an identity
+// outside the command registry returns ErrUnknownCommand.
 func (s *Session) ExecuteCommand(command kernel.CommandID, now time.Time) (kernel.Outcome, error) {
+	if _, ok := CommandFor(command); !ok {
+		return kernel.OutcomePass, ErrUnknownCommand
+	}
 	for _, textCommand := range AllTextCommands {
 		if textCommand.ID() == command {
 			return s.ExecuteText(textCommand)

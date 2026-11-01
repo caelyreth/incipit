@@ -17,6 +17,7 @@ const (
 	ActionMarkup
 	ActionWord
 	ActionNesting
+	ActionTable
 	ActionNavigation
 	ActionClipboard
 	ActionSurface
@@ -35,6 +36,8 @@ func (k ActionKind) String() string {
 		return "word"
 	case ActionNesting:
 		return "nesting"
+	case ActionTable:
+		return "table"
 	case ActionNavigation:
 		return "navigation"
 	case ActionClipboard:
@@ -101,16 +104,20 @@ func (c ClipboardCommand) ID() kernel.CommandID {
 // by Kind. It contains no document, selection, clipboard, window, or widget
 // state.
 type Action struct {
-	Kind       ActionKind
-	ID         kernel.CommandID
-	Text       editor.TextCommand
-	History    editor.HistoryCommand
-	Markup     editor.MarkupCommand
-	Word       editor.WordCommand
-	Nesting    editor.NestingCommand
-	Navigation NavigationCommand
-	Clipboard  ClipboardCommand
-	Surface    editor.SurfaceCommand
+	Kind         ActionKind
+	ID           kernel.CommandID
+	Owner        editor.CommandOwner
+	Requirements editor.CommandRequirements
+	Resolved     bool
+	Text         editor.TextCommand
+	History      editor.HistoryCommand
+	Markup       editor.MarkupCommand
+	Word         editor.WordCommand
+	Nesting      editor.NestingCommand
+	Table        editor.TableCommand
+	Navigation   NavigationCommand
+	Clipboard    ClipboardCommand
+	Surface      editor.SurfaceCommand
 }
 
 // CommandID returns the stable identity of this action.
@@ -124,40 +131,55 @@ func (a Action) String() string {
 	return fmt.Sprintf("%s:%s", a.Kind, a.ID)
 }
 
-var editorActions = buildEditorActions()
+var catalogActions = buildCatalogActions()
 
-func buildEditorActions() map[kernel.CommandID]Action {
+func buildCatalogActions() map[kernel.CommandID]Action {
 	actions := make(map[kernel.CommandID]Action)
 	for _, command := range editor.AllTextCommands {
 		meta := command.Description()
-		actions[meta.ID] = Action{Kind: ActionText, ID: meta.ID, Text: command}
+		action := resolvedAction(meta, ActionText)
+		action.Text = command
+		actions[meta.ID] = action
 	}
 	for _, command := range editor.AllHistoryCommands {
 		meta := command.Description()
-		actions[meta.ID] = Action{Kind: ActionHistory, ID: meta.ID, History: command}
+		action := resolvedAction(meta, ActionHistory)
+		action.History = command
+		actions[meta.ID] = action
 	}
 	for _, command := range []editor.MarkupCommand{
 		editor.MarkupEmphasis,
 		editor.MarkupStrong,
 	} {
 		meta := command.Description()
-		actions[meta.ID] = Action{Kind: ActionMarkup, ID: meta.ID, Markup: command}
+		action := resolvedAction(meta, ActionMarkup)
+		action.Markup = command
+		actions[meta.ID] = action
 	}
 	for _, command := range editor.AllWordCommands {
 		meta := command.Description()
-		actions[meta.ID] = Action{Kind: ActionWord, ID: meta.ID, Word: command}
+		action := resolvedAction(meta, ActionWord)
+		action.Word = command
+		actions[meta.ID] = action
 	}
 	for _, command := range editor.AllNestingCommands {
 		meta := command.Description()
-		actions[meta.ID] = Action{Kind: ActionNesting, ID: meta.ID, Nesting: command}
+		action := resolvedAction(meta, ActionNesting)
+		action.Nesting = command
+		actions[meta.ID] = action
+	}
+	for _, command := range editor.AllTableCommands {
+		meta := command.Description()
+		action := resolvedAction(meta, ActionTable)
+		action.Table = command
+		actions[meta.ID] = action
 	}
 	tab := editor.TabCommand()
-	actions[tab.ID] = Action{
-		Kind:       ActionNavigation,
-		ID:         tab.ID,
-		Navigation: NavigationTab,
-	}
+	action := resolvedAction(tab, ActionNavigation)
+	action.Navigation = NavigationTab
+	actions[tab.ID] = action
 	for _, command := range editor.SurfaceCommands() {
+		meta := command.Description()
 		if command.Kind == editor.SurfaceClipboard {
 			switch command.ID {
 			case CopyCommandID:
@@ -169,29 +191,35 @@ func buildEditorActions() map[kernel.CommandID]Action {
 			}
 			continue
 		}
-		actions[command.ID] = Action{
-			Kind:    ActionSurface,
-			ID:      command.ID,
-			Surface: command,
-		}
+		action := resolvedAction(meta, ActionSurface)
+		action.Surface = command
+		actions[command.ID] = action
 	}
 	return actions
 }
 
-// ResolveEditorCommand maps a command identity to one of the editor's closed
-// typed action sets. A false result means the command belongs to another host
-// policy and should be routed as an external action.
-func ResolveEditorCommand(command kernel.CommandID) (Action, bool) {
-	action, ok := editorActions[command]
+func resolvedAction(command editor.Command, kind ActionKind) Action {
+	return Action{
+		Kind:         kind,
+		ID:           command.ID,
+		Owner:        command.Owner,
+		Requirements: command.Requirements,
+		Resolved:     true,
+	}
+}
+
+// ResolveCommand maps a catalog command identity to one typed action. A false
+// result means the identity is not in the editor's command inventory.
+func ResolveCommand(command kernel.CommandID) (Action, bool) {
+	action, ok := catalogActions[command]
 	return action, ok
 }
 
 func clipboardAction(command ClipboardCommand) Action {
-	return Action{
-		Kind:      ActionClipboard,
-		ID:        command.ID(),
-		Clipboard: command,
-	}
+	meta, _ := editor.CommandFor(command.ID())
+	action := resolvedAction(meta, ActionClipboard)
+	action.Clipboard = command
+	return action
 }
 
 // AllowsRepeat reports whether a held key may repeat the resolved action.
@@ -221,11 +249,11 @@ func MenuAction(name string) (Action, bool) {
 	if name == "delete" {
 		// MyGo's edit-menu Delete role is backward deletion, including a
 		// selected range, rather than the physical forward-delete key.
-		return ResolveEditorCommand(editor.TextBackspace.ID())
+		return ResolveCommand(editor.TextBackspace.ID())
 	}
 	command, ok := MenuCommandFor(name)
 	if !ok {
 		return Action{}, false
 	}
-	return ResolveEditorCommand(command)
+	return ResolveCommand(command)
 }

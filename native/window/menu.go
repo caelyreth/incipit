@@ -113,19 +113,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 // it. Editor and workspace commands belong to the main window; an auxiliary
 // window closes itself instead of reaching back into the editor.
 func (a *AppState) executeWindowCommand(window *mygo.Window, command kernel.CommandID) error {
-	if a == nil {
-		return nil
-	}
-	if window == nil || a.mainWindow == nil || window == a.mainWindow {
-		return a.executeExternalCommand(command)
-	}
-	switch command {
-	case editor.SurfaceClosePageCommandID:
-		if a.closeWindow != nil {
-			a.closeWindow(window)
-		}
-	}
-	return nil
+	return a.routeWindowCommand(window, command)
 }
 
 // keymapMenu pairs each menu item that performs a keymap action with it.
@@ -144,6 +132,7 @@ var keymapMenu = [...]struct {
 	{"select-all", editor.TextSelectAll.ID()},
 	{"bold", editor.MarkupStrong.ID()},
 	{"italic", editor.MarkupEmphasis.ID()},
+	{"insert-table", editor.TableInsert.ID()},
 	{"view-library", editor.SurfaceLibraryViewCommandID},
 	{"view-sheets", editor.SurfaceSheetsViewCommandID},
 	{"view-editor", editor.SurfaceEditorViewCommandID},
@@ -167,9 +156,8 @@ func (a *AppState) syncMenu() {
 		if item == nil {
 			continue
 		}
-		accelerator, enabled := "", false
+		accelerator, enabled := "", a.commandAvailable(entry.command)
 		if prepared != nil {
-			enabled = prepared.IsCommandEnabled(entry.command)
 			if bindings := prepared.BindingsFor(entry.command); len(bindings) > 0 && !a.recording {
 				accelerator, _ = keymap.Accelerator(bindings[0], keymap.PlatformCurrent)
 			}

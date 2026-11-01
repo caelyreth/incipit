@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -107,7 +108,7 @@ func TestSessionCommandDispatchRejectsUnknownCommands(t *testing.T) {
 	t.Parallel()
 	session, _ := newSessionFixture(t, "abc", false)
 	outcome, err := session.ExecuteCommand("missing.command", time.Unix(1_700_000_000, 0))
-	if err != nil || outcome != kernel.OutcomePass {
+	if !errors.Is(err, ErrUnknownCommand) || outcome != kernel.OutcomePass {
 		t.Fatalf("unknown command outcome=%v err=%v", outcome, err)
 	}
 }

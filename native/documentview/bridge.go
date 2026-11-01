@@ -133,40 +133,22 @@ func (b *Bridge) Execute(action keymap.Action) error {
 		return errors.New("documentview: bridge requires a controller")
 	}
 	switch action.Kind {
-	case keymap.ActionText:
-		outcome, err := b.Controller.Execute(controller.Command{ID: string(action.Text.ID())})
+	case keymap.ActionText, keymap.ActionHistory, keymap.ActionMarkup,
+		keymap.ActionWord, keymap.ActionNesting, keymap.ActionTable,
+		keymap.ActionNavigation:
+		outcome, err := b.Controller.ExecuteAction(action)
 		return editorOutcome(outcome, err)
-	case keymap.ActionHistory:
-		outcome, err := b.Controller.Execute(controller.Command{ID: string(action.History.ID())})
-		return editorOutcome(outcome, err)
-	case keymap.ActionMarkup:
-		outcome, err := b.Controller.Execute(controller.Command{ID: string(action.Markup.ID())})
-		return editorOutcome(outcome, err)
-	case keymap.ActionWord:
-		outcome, err := b.Controller.Execute(controller.Command{ID: string(action.Word.ID())})
-		return editorOutcome(outcome, err)
-	case keymap.ActionNesting:
-		outcome, err := b.Controller.Execute(controller.Command{ID: string(action.Nesting.ID())})
-		return editorOutcome(outcome, err)
-	case keymap.ActionNavigation:
-		switch action.Navigation {
-		case keymap.NavigationTab:
-			outcome, err := b.Controller.ExecuteTab()
-			return editorOutcome(outcome, err)
-		default:
-			return errors.New("documentview: unknown navigation action")
-		}
 	case keymap.ActionClipboard:
 		return b.clipboard(action.Clipboard)
 	case keymap.ActionSurface:
 		return b.surface(action.Surface)
 	case keymap.ActionExternal:
 		if b.External == nil {
-			return nil
+			return keymap.ErrUnsupportedCommand
 		}
 		return b.External(action.ID)
 	default:
-		return nil
+		return keymap.ErrUnsupportedCommand
 	}
 }
 
@@ -183,7 +165,7 @@ func (b *Bridge) surface(command editor.SurfaceCommand) error {
 		return b.Controller.MoveVertical(direction, extend)
 	default:
 		if b.External == nil {
-			return nil
+			return keymap.ErrUnsupportedCommand
 		}
 		return b.External(command.ID)
 	}
@@ -196,7 +178,7 @@ func (b *Bridge) ExecuteExternal(command kernel.CommandID) error {
 		return errors.New("documentview: external command is required")
 	}
 	if b.External == nil {
-		return nil
+		return keymap.ErrUnsupportedCommand
 	}
 	return b.External(command)
 }

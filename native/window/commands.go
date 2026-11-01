@@ -1,6 +1,7 @@
 package window
 
 import (
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/overlay"
@@ -19,10 +20,6 @@ func (a *AppState) commandCatalog() []overlay.Command {
 	if prepared == nil {
 		return nil
 	}
-	active := false
-	if a.Workspace != nil {
-		_, active = a.Workspace.Active()
-	}
 	commands := make([]overlay.Command, 0, 48)
 	seen := make(map[kernel.CommandID]bool)
 	for _, policy := range catalog.Policies() {
@@ -34,16 +31,14 @@ func (a *AppState) commandCatalog() []overlay.Command {
 			if !ok || command.ID == editor.SurfaceCommandsCommandID {
 				continue
 			}
+			action, ok := keymap.ResolveCommand(id)
+			if !ok || !a.commandEnabled(action) {
+				continue
+			}
 			if surface, ok := editor.SurfaceCommandForID(id); ok {
 				if surface.Kind == editor.SurfaceVisual {
 					continue
 				}
-				if !active && surface.Kind != editor.SurfaceApp &&
-					id != editor.SurfaceNewPageCommandID {
-					continue
-				}
-			} else if !active {
-				continue
 			}
 			seen[id] = true
 			commands = append(commands, overlay.Command{

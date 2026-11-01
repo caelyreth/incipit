@@ -4,11 +4,16 @@ import (
 	"errors"
 	"reflect"
 
+	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/egoist/mygo/ui"
 )
 
-var ErrNoExecutor = errors.New("keymap: no executor configured")
+var (
+	ErrNoExecutor         = errors.New("keymap: no executor configured")
+	ErrUnsupportedCommand = errors.New("keymap: unsupported command")
+	ErrCommandUnavailable = errors.New("keymap: command unavailable")
+)
 
 // ResultReason explains how a MyGo input event was classified.
 type ResultReason uint8
@@ -136,9 +141,9 @@ func (d *Dispatcher) handleKeyDown(event ui.InputEvent) Result {
 	if !ok {
 		return Result{Reason: ResultIgnored}
 	}
-	action, ok := ResolveEditorCommand(command)
+	action, ok := ResolveCommand(command)
 	if !ok {
-		action = Action{Kind: ActionExternal, ID: command}
+		action = Action{Kind: ActionExternal, ID: command, Owner: editor.CommandOwnerHost}
 	}
 	result := Result{
 		Consumed: true,
@@ -150,7 +155,14 @@ func (d *Dispatcher) handleKeyDown(event ui.InputEvent) Result {
 		return result
 	}
 	if err := d.executor.Execute(action); err != nil {
-		result.Reason = ResultFailed
+		switch {
+		case errors.Is(err, ErrUnsupportedCommand):
+			result.Reason = ResultUnsupported
+		case errors.Is(err, ErrCommandUnavailable):
+			result.Reason = ResultDisabled
+		default:
+			result.Reason = ResultFailed
+		}
 		result.Err = err
 		return result
 	}
@@ -184,7 +196,14 @@ func (d *Dispatcher) handleMenuCommand(name string) Result {
 		}
 	}
 	if err := d.executor.Execute(action); err != nil {
-		result.Reason = ResultFailed
+		switch {
+		case errors.Is(err, ErrUnsupportedCommand):
+			result.Reason = ResultUnsupported
+		case errors.Is(err, ErrCommandUnavailable):
+			result.Reason = ResultDisabled
+		default:
+			result.Reason = ResultFailed
+		}
 		result.Err = err
 		return result
 	}

@@ -139,6 +139,27 @@ func TestMenuKeysFollowTheKeymap(t *testing.T) {
 	}
 }
 
+func TestMenuAvailabilityTracksMountedPage(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	menu := app.MainMenu()
+	check := func(want bool) {
+		t.Helper()
+		for _, id := range []string{"bold", "insert-table"} {
+			if got := menu.ItemByID(id).IsEnabled(); got != want {
+				t.Errorf("%s enabled = %v, want %v", id, got, want)
+			}
+		}
+	}
+	check(true)
+	app.closePage()
+	check(false)
+	app.newPage()
+	check(true)
+}
+
 // While a shortcut is recorded every menu item lets go of its key, so the
 // recorder hears each chord; the system's keys cannot be given to actions.
 func TestMenuStandsDownWhileRecording(t *testing.T) {

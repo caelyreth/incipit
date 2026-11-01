@@ -71,20 +71,22 @@ func (s *State) formatBar(
 			{
 				Label: "Presentation",
 				Actions: []func(){
-					Icon("typewriter", "Typewriter", "", components.IconTypewriter,
-						s.Appearance.Typewriter, true,
+					Icon("typewriter", "Typewriter", s.Toolbar.Bindings.Typewriter, components.IconTypewriter,
+						s.Toolbar.Typewriter, s.Toolbar.TypewriterEnabled,
 						func() {
 							if s.Typewriter != nil {
-								s.Typewriter(!s.Appearance.Typewriter)
+								s.Typewriter(!s.Toolbar.Typewriter)
 							}
 						}),
-					Icon("zen", "Zen", "", components.IconZen, s.Appearance.Zen, true,
+					Icon("zen", "Zen", s.Toolbar.Bindings.Zen, components.IconZen,
+						s.Toolbar.Zen, s.Toolbar.ZenEnabled,
 						func() {
 							if s.Zen != nil {
-								s.Zen(!s.Appearance.Zen)
+								s.Zen(!s.Toolbar.Zen)
 							}
 						}),
-					Icon("cjk", "CJK", "", components.IconLanguages, s.Toolbar.CJK, true,
+					Icon("cjk", "CJK", s.Toolbar.Bindings.CJK, components.IconLanguages,
+						s.Toolbar.CJK, s.Toolbar.CJKEnabled,
 						func() {
 							if s.ToggleCJK != nil {
 								s.ToggleCJK(!s.Toolbar.CJK)

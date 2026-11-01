@@ -20,20 +20,28 @@ type Page struct {
 // toolbar. Presentation modes live in Appearance; CJK lives in the policy
 // configuration.
 type ToolbarState struct {
-	Bold          bool
-	Italic        bool
-	BoldEnabled   bool
-	ItalicEnabled bool
-	CJK           bool
-	Bindings      ToolbarBindings
+	Bold              bool
+	Italic            bool
+	Typewriter        bool
+	Zen               bool
+	CJK               bool
+	BoldEnabled       bool
+	ItalicEnabled     bool
+	TypewriterEnabled bool
+	ZenEnabled        bool
+	CJKEnabled        bool
+	Bindings          ToolbarBindings
 }
 
 // ToolbarBindings carries the current shortcut text for action tooltips.
 type ToolbarBindings struct {
-	Bold   string
-	Italic string
-	Undo   string
-	Redo   string
+	Bold       string
+	Italic     string
+	Undo       string
+	Redo       string
+	Typewriter string
+	Zen        string
+	CJK        string
 }
 
 type State struct {
@@ -107,6 +115,11 @@ func New() *State {
 		Settings:     theme.DefaultSettings(),
 		WindowActive: true,
 		nav:          navigation{expanded: map[string]bool{}, sheetDropSlot: -1},
+		Toolbar: ToolbarState{
+			TypewriterEnabled: true,
+			ZenEnabled:        true,
+			CJKEnabled:        true,
+		},
 	}
 }
 

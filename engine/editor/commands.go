@@ -19,14 +19,61 @@ const (
 // AllScopes is display order: closest to the text first.
 var AllScopes = [...]Scope{ScopeDocument, ScopePages, ScopeWindow, ScopeApp}
 
+// CommandOwner is the layer that must execute a command.
+type CommandOwner uint8
+
+const (
+	// CommandOwnerEditor executes against the mounted document.
+	CommandOwnerEditor CommandOwner = iota + 1
+	// CommandOwnerHost executes in the window or application around it.
+	CommandOwnerHost
+)
+
+// String returns a diagnostic owner name.
+func (o CommandOwner) String() string {
+	switch o {
+	case CommandOwnerEditor:
+		return "editor"
+	case CommandOwnerHost:
+		return "host"
+	default:
+		return "none"
+	}
+}
+
+// CommandRequirements are context a command needs beyond policy enablement.
+// Requirements gate availability; they do not decide dispatch or selection.
+type CommandRequirements uint8
+
+const (
+	// RequiresDocument needs an active page and its session.
+	RequiresDocument CommandRequirements = 1 << iota
+	// RequiresTable needs the caret to stand in a table cell.
+	RequiresTable
+)
+
+// Has reports whether requirements include want.
+func (r CommandRequirements) Has(want CommandRequirements) bool {
+	return r&want != 0
+}
+
+// Satisfied reports whether the current document and caret context meet r.
+func (r CommandRequirements) Satisfied(document, table bool) bool {
+	return (!r.Has(RequiresDocument) || document) &&
+		(!r.Has(RequiresTable) || table)
+}
+
 // Command is a stable action declaration: its identity, its name, what it
-// acts on and the policy that owns it. It says nothing about keys; the
-// default keymap gives those, and a configuration may change them.
+// acts on, the policy that owns it, the layer that executes it, and the
+// context it needs. It says nothing about keys; the default keymap gives
+// those, and a configuration may change them.
 type Command struct {
-	ID     kernel.CommandID
-	Label  string
-	Scope  Scope
-	Policy kernel.PolicyID
+	ID           kernel.CommandID
+	Label        string
+	Scope        Scope
+	Policy       kernel.PolicyID
+	Owner        CommandOwner
+	Requirements CommandRequirements
 	// Subject is the policy the command is about, when that is not its
 	// owner: the CJK toggle belongs to the workspace, so it still works
 	// while CJK refinement is off, but it is about CJK refinement.
@@ -105,7 +152,12 @@ var AllWordCommands = [...]WordCommand{
 
 // Description returns stable command metadata.
 func (c WordCommand) Description() Command {
-	meta := Command{Scope: ScopeDocument, Policy: WordsPolicyID}
+	meta := Command{
+		Scope:        ScopeDocument,
+		Policy:       WordsPolicyID,
+		Owner:        CommandOwnerEditor,
+		Requirements: RequiresDocument,
+	}
 	switch c {
 	case WordPrevious:
 		meta.ID, meta.Label = previousWordCommandID, "Previous word"
@@ -147,10 +199,12 @@ func WordCommands() []Command {
 // TabCommand declares the scope/return navigation command.
 func TabCommand() Command {
 	return Command{
-		ID:     navigationTabCommandID,
-		Label:  "Leave scope / return to edit",
-		Scope:  ScopeDocument,
-		Policy: NavigationPolicyID,
+		ID:           navigationTabCommandID,
+		Label:        "Leave scope / return to edit",
+		Scope:        ScopeDocument,
+		Policy:       NavigationPolicyID,
+		Owner:        CommandOwnerEditor,
+		Requirements: RequiresDocument,
 	}
 }
 
@@ -168,9 +222,17 @@ func (c MarkupCommand) Level() uint8 { return uint8(c) }
 // Description returns stable command metadata.
 func (c MarkupCommand) Description() Command {
 	if c == MarkupStrong {
-		return Command{ID: markupStrongCommandID, Label: "Toggle strong emphasis", Scope: ScopeDocument, Policy: WritingPolicyID}
+		return Command{
+			ID: markupStrongCommandID, Label: "Toggle strong emphasis",
+			Scope: ScopeDocument, Policy: WritingPolicyID,
+			Owner: CommandOwnerEditor, Requirements: RequiresDocument,
+		}
 	}
-	return Command{ID: markupEmphasisCommandID, Label: "Toggle emphasis", Scope: ScopeDocument, Policy: WritingPolicyID}
+	return Command{
+		ID: markupEmphasisCommandID, Label: "Toggle emphasis",
+		Scope: ScopeDocument, Policy: WritingPolicyID,
+		Owner: CommandOwnerEditor, Requirements: RequiresDocument,
+	}
 }
 
 // ID returns the stable command identity.
@@ -191,9 +253,17 @@ var AllNestingCommands = [...]NestingCommand{NestDeeper, NestShallower}
 // Description returns stable command metadata.
 func (c NestingCommand) Description() Command {
 	if c == NestShallower {
-		return Command{ID: nestShallowerCommandID, Label: "Nest shallower", Scope: ScopeDocument, Policy: WritingPolicyID}
+		return Command{
+			ID: nestShallowerCommandID, Label: "Nest shallower",
+			Scope: ScopeDocument, Policy: WritingPolicyID,
+			Owner: CommandOwnerEditor, Requirements: RequiresDocument,
+		}
 	}
-	return Command{ID: nestDeeperCommandID, Label: "Nest deeper", Scope: ScopeDocument, Policy: WritingPolicyID}
+	return Command{
+		ID: nestDeeperCommandID, Label: "Nest deeper",
+		Scope: ScopeDocument, Policy: WritingPolicyID,
+		Owner: CommandOwnerEditor, Requirements: RequiresDocument,
+	}
 }
 
 // ID returns the stable command identity.

@@ -227,11 +227,33 @@ func TestDispatcherRoutesExternalConfiguredCommands(t *testing.T) {
 		Mods: ui.Ctrl,
 	})
 	if !result.Consumed || !result.Dispatched ||
-		result.Action.Kind != ActionExternal || result.Action.ID != "host.save" {
+		result.Action.Kind != ActionExternal || result.Action.ID != "host.save" ||
+		result.Action.Owner != editor.CommandOwnerHost || result.Action.Resolved {
 		t.Fatalf("external result = %#v", result)
 	}
 	if !reflect.DeepEqual(executor.executed, []Action{result.Action}) {
 		t.Fatalf("executed = %#v", executor.executed)
+	}
+}
+
+func TestDispatcherDistinguishesUnsupportedAndUnavailableActions(t *testing.T) {
+	t.Parallel()
+	executor := &fakeExecutor{configuration: editorKeymap(t)}
+	dispatcher := NewDispatcherForPlatform(executor, PlatformDarwin)
+	event := ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyRight}
+
+	executor.executeErr = ErrUnsupportedCommand
+	result := dispatcher.HandleEvent(event)
+	if !result.Consumed || result.Dispatched || result.Reason != ResultUnsupported ||
+		!errors.Is(result.Err, ErrUnsupportedCommand) {
+		t.Fatalf("unsupported result = %#v", result)
+	}
+
+	executor.executeErr = ErrCommandUnavailable
+	result = dispatcher.HandleEvent(event)
+	if !result.Consumed || result.Dispatched || result.Reason != ResultDisabled ||
+		!errors.Is(result.Err, ErrCommandUnavailable) {
+		t.Fatalf("unavailable result = %#v", result)
 	}
 }
 
