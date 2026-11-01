@@ -59,4 +59,10 @@ func TestLayoutGeometryAppliesTitleOffsetAndScroll(t *testing.T) {
 	if line.Y != shaped.Y+contentTop-scroll || line.H != shaped.H {
 		t.Fatalf("caret line = %#v", line)
 	}
+	if _, _, ok := geometry.BoundsForRange("different", controller.UTF16Range{Start: 0, End: 1}); ok {
+		t.Fatal("stale geometry accepted different visible text")
+	}
+	if _, ok := geometry.IndexForPoint("different", controller.Point{}); ok {
+		t.Fatal("stale hit testing accepted different visible text")
+	}
 }

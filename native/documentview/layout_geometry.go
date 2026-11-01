@@ -26,6 +26,9 @@ func (g LayoutGeometry) BoundsForRange(
 	if g.Layout == nil {
 		return controller.Rect{}, range16, false
 	}
+	if g.Layout.Flow().Text() != text {
+		return controller.Rect{}, range16, false
+	}
 	aligned, _, ok := model.AlignUTF16RangeForNativeQuery(
 		text,
 		model.NewUTF16Range(
@@ -54,10 +57,10 @@ func (g LayoutGeometry) BoundsForRange(
 }
 
 func (g LayoutGeometry) IndexForPoint(
-	_ string,
+	text string,
 	point controller.Point,
 ) (int, bool) {
-	if g.Layout == nil {
+	if g.Layout == nil || g.Layout.Flow().Text() != text {
 		return 0, false
 	}
 	return int(g.Layout.Hit(ui.Point{
@@ -72,7 +75,7 @@ func (g LayoutGeometry) RowIndex(
 	direction controller.VerticalDirection,
 	x float32,
 ) (int, bool) {
-	if g.Layout == nil || caret < 0 ||
+	if g.Layout == nil || g.Layout.Flow().Text() != text || caret < 0 ||
 		!model.UTF16OffsetIsBoundary(text, model.UTF16Offset(caret)) {
 		return 0, false
 	}
@@ -80,7 +83,7 @@ func (g LayoutGeometry) RowIndex(
 }
 
 func (g LayoutGeometry) CaretLine(text string, caret int) (controller.Rect, bool) {
-	if g.Layout == nil || caret < 0 ||
+	if g.Layout == nil || g.Layout.Flow().Text() != text || caret < 0 ||
 		!model.UTF16OffsetIsBoundary(text, model.UTF16Offset(caret)) {
 		return controller.Rect{}, false
 	}

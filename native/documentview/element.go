@@ -270,10 +270,19 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 			start, end = end, start
 		}
 		text := e.value()
+		start16 := utf16OffsetForRune(text, start)
+		end16 := utf16OffsetForRune(text, end)
+		if start == end {
+			start16 = snapGraphemeBoundary(text, start16, false)
+			end16 = start16
+		} else {
+			start16 = snapGraphemeBoundary(text, start16, false)
+			end16 = snapGraphemeBoundary(text, end16, true)
+		}
 		e.Motion.Activity(event.Time)
 		return e.Input.Select(
-			utf16OffsetForRune(text, start),
-			utf16OffsetForRune(text, end),
+			start16,
+			end16,
 			event.Time,
 		) == nil
 	case ui.InputText, ui.InputCompose:

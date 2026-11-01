@@ -86,3 +86,13 @@ func TestMyGoRichAccessibilityHookIsInternal(t *testing.T) {
 		t.Fatalf("MyGo accessibility node package = %q; a public hook is now possible", path)
 	}
 }
+
+func TestAccessibilitySelectionSnapsToGraphemeBoundaries(t *testing.T) {
+	text := "a\u0301b"
+	if got := snapGraphemeBoundary(text, 1, false); got != 0 {
+		t.Fatalf("lower snap = %d, want 0", got)
+	}
+	if got := snapGraphemeBoundary(text, 1, true); got != 2 {
+		t.Fatalf("upper snap = %d, want 2", got)
+	}
+}

@@ -1,5 +1,10 @@
 package documentview
 
+import (
+	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/model"
+)
+
 // MyGo v0.7.1 exposes two accessibility paths for a custom text surface:
 //
 //   - Element.HandleTextInput contributes the native text-input client, while
@@ -38,4 +43,16 @@ func utf16OffsetForRune(text string, offset int) int {
 		runes++
 	}
 	return units
+}
+
+func snapGraphemeBoundary(text string, offset int, upper bool) int {
+	cluster, ok := editor.GraphemeAt(text, model.UTF16Offset(offset))
+	if !ok || !(cluster.Start < model.UTF16Offset(offset) &&
+		model.UTF16Offset(offset) < cluster.End) {
+		return offset
+	}
+	if upper {
+		return int(cluster.End)
+	}
+	return int(cluster.Start)
 }

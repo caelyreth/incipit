@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/engine/input"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/text/rope"
+	"github.com/clipperhouse/uax29/v2/graphemes"
 )
 
 type witnessKind uint8
@@ -40,6 +41,7 @@ type Projection struct {
 	text          projectionText
 	utf16Len      int
 	ascii         bool
+	graphemeBytes map[int]struct{}
 	semanticNodes map[model.NodeID]struct{}
 	segments      []Segment
 	segmentBytes  []model.ByteRange
@@ -76,6 +78,11 @@ func fromText(
 		return nil, &ProjectionError{Kind: ErrorEmptyID}
 	}
 	length := text.UTF16Len()
+	graphemeBytes := make(map[int]struct{})
+	for iterator := graphemes.FromString(text.Flat()); iterator.Next(); {
+		graphemeBytes[iterator.End()] = struct{}{}
+	}
+	graphemeBytes[0], graphemeBytes[text.storage.byteLen] = struct{}{}, struct{}{}
 	semanticNodes := make(map[model.NodeID]struct{})
 	previousEnd := 0
 	segmentBytes := make([]model.ByteRange, len(segments))
@@ -179,6 +186,7 @@ func fromText(
 		text:          text,
 		utf16Len:      length,
 		ascii:         text.isASCII(),
+		graphemeBytes: graphemeBytes,
 		semanticNodes: semanticNodes,
 		segments:      append([]Segment(nil), segments...),
 		segmentBytes:  segmentBytes,
@@ -713,7 +721,11 @@ func (p *Projection) validateRange(range16 model.UTF16Range) error {
 	}
 	if !p.ascii {
 		for _, offset := range []model.UTF16Offset{range16.Start, range16.End} {
-			if _, ok := p.text.ByteOffset(int(offset)); !ok {
+			byteOffset, ok := p.text.ByteOffset(int(offset))
+			if !ok {
+				return &ProjectionError{Kind: ErrorInvalidBoundary, Offset: int(offset)}
+			}
+			if _, ok := p.graphemeBytes[byteOffset]; !ok {
 				return &ProjectionError{Kind: ErrorInvalidBoundary, Offset: int(offset)}
 			}
 		}

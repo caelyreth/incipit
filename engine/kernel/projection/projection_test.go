@@ -131,6 +131,29 @@ func TestAffinityMapsGeneratedExteriorsAndTextInteriors(t *testing.T) {
 	}
 }
 
+func TestProjectedTargetsRejectGraphemeInteriors(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, "a\u0301b")
+	revision := f.document.Revision()
+	target := input.NewTextTarget(f.node, model.NewUTF16Range(0, 3), revision)
+	projection, err := New(
+		"grapheme",
+		NewVersion(revision, 1),
+		"a\u0301b",
+		[]Segment{EditableSegment(model.NewUTF16Range(0, 3), target)},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := projection.Target(model.EmptyUTF16Range(1)); err == nil {
+		t.Fatal("target inside a grapheme cluster accepted")
+	}
+	if _, err := projection.Target(model.EmptyUTF16Range(2)); err != nil {
+		t.Fatalf("grapheme boundary rejected: %v", err)
+	}
+}
+
 func TestProjectedTargetsResolveAndRejectStaleOrForeign(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, "abc")
