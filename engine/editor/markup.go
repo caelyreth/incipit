@@ -295,6 +295,9 @@ func writingPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 		return kernel.PolicyDescriptor{}, err
 	}
 	commands := []kernel.CommandID{MarkupEmphasis.ID(), MarkupStrong.ID(), NestDeeper.ID(), NestShallower.ID()}
+	for _, command := range AllTableCommands {
+		commands = append(commands, command.ID())
+	}
 	marker := kernel.RuleDescriptor{
 		ID:        "type-marker",
 		Phase:     kernel.HandleRulePhase(),
@@ -319,13 +322,16 @@ func writingPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	figure := format
 	figure.ID = "figure"
 	figure.Trigger = kernel.NewExactTrigger(figureTrigger)
+	table := format
+	table.ID = "table"
+	table.Trigger = kernel.NewExactTrigger(tableTrigger)
 	return kernel.PolicyDescriptor{
 		ID:               WritingPolicyID,
 		Requires:         []kernel.PolicyID{TextPolicyID},
 		EnabledByDefault: true,
 		Settings:         writingSettingDescriptors(),
 		Commands:         commands,
-		Rules:            []kernel.RuleDescriptor{marker, format, block, nest, figure},
+		Rules:            []kernel.RuleDescriptor{marker, format, block, nest, figure, table},
 	}, nil
 }
 

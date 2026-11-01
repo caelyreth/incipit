@@ -22,6 +22,7 @@ type Flow struct {
 	offsets []offsetCheckpoint
 	ascii   bool
 	figures []Figure
+	tables  []Table
 }
 
 func EmptyFlow(version projection.Version) *Flow {

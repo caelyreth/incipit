@@ -74,6 +74,9 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		if outcome, guarded, err := s.guardAtom(command == TextBackspace); guarded || err != nil {
 			return outcome, err
 		}
+		if outcome, guarded, err := s.guardTable(command == TextBackspace); guarded || err != nil {
+			return outcome, err
+		}
 	}
 	if command == TextBackspace {
 		if outcome, peeled, err := s.peelBlock(); peeled || err != nil {
@@ -98,6 +101,12 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		}
 	}
 	if command == TextNewline {
+		// Return in a cell goes down from it, whatever of it is selected.
+		if head := s.presentation.Selection.Head(); s.inCell(head.Node()) && head.Node() == s.presentation.Selection.Anchor().Node() {
+			if err := s.Select(model.NewTextSelection(head, head)); err != nil {
+				return 0, err
+			}
+		}
 		outcome, err := s.ReplaceSelection("\n", kernel.EventOriginTyping)
 		return outcome.Outcome, err
 	}

@@ -312,10 +312,15 @@ func TestEditorPolicyCatalogMatchesDeclarations(t *testing.T) {
 		t.Fatalf("text commands=%d", got)
 	}
 	markup := catalogPolicy(t, catalog, WritingPolicyID)
-	if !slices.Equal(markup.Commands, []kernel.CommandID{"markup.emphasis", "markup.strong", "writing.nest-deeper", "writing.nest-shallower"}) ||
+	if !slices.Equal(markup.Commands, []kernel.CommandID{
+		"markup.emphasis", "markup.strong", "writing.nest-deeper", "writing.nest-shallower",
+		"table.insert", "table.row-above", "table.row-below", "table.column-left", "table.column-right",
+		"table.delete-row", "table.delete-column", "table.delete", "table.header",
+		"table.previous-cell", "table.line-break",
+	}) ||
 		!slices.Equal(settingIDs(markup.Settings), []kernel.SettingID{
 			"asterisks", "underscores", "headings", "lists",
-			"blockquotes", "code", "strikethrough", "rules",
+			"blockquotes", "code", "strikethrough", "rules", "tables",
 		}) {
 		t.Fatalf("markup=%#v", markup)
 	}

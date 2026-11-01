@@ -142,6 +142,8 @@ func labelForSetting(id kernel.SettingID) string {
 		return "Strikethrough"
 	case "rules":
 		return "Thematic breaks"
+	case "tables":
+		return "Tables"
 	case "overtype":
 		return "Skip existing closers"
 	case "edit-mates":
@@ -187,6 +189,8 @@ func descriptionForSetting(id kernel.SettingID) string {
 		return "Type ~ around text to strike it through."
 	case "rules":
 		return "Type --- on a line of its own for a thematic break."
+	case "tables":
+		return "Type | between a row's cells and Return to start a table."
 	case "overtype":
 		return "Move past a matching closer instead of inserting it again."
 	case "edit-mates":

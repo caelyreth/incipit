@@ -76,6 +76,7 @@ type writingTriggers struct {
 	code        bool
 	strike      bool
 	rules       bool
+	tables      bool
 }
 
 func triggersFrom(setting func(id string, fallback bool) bool) writingTriggers {
@@ -88,6 +89,7 @@ func triggersFrom(setting func(id string, fallback bool) bool) writingTriggers {
 		code:        setting(codeSetting, true),
 		strike:      setting(strikeSetting, true),
 		rules:       setting(rulesSetting, true),
+		tables:      setting(tablesSetting, true),
 	}
 }
 
@@ -102,7 +104,7 @@ func contextTriggers(context *kernel.RuleContext) writingTriggers {
 func writingSettingDescriptors() []kernel.SettingDescriptor {
 	ids := []string{
 		asterisksSetting, underscoresSetting, headingsSetting, listsSetting,
-		blockquotesSetting, codeSetting, strikeSetting, rulesSetting,
+		blockquotesSetting, codeSetting, strikeSetting, rulesSetting, tablesSetting,
 	}
 	descriptors := make([]kernel.SettingDescriptor, 0, len(ids))
 	for _, id := range ids {
@@ -347,6 +349,13 @@ func shapeBlock(document *model.DocumentDraft, node model.NodeID, shape blockSha
 			}
 		}
 	}
+	if shape.kind != CellNode {
+		for _, key := range cellAttributes {
+			if err := set(key, false, model.AttributeValue{}); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -375,7 +384,7 @@ func (s blockShape) peel() blockShape {
 // blockKeepsLines reports whether a block's text holds line breaks of its
 // own, as code does, rather than breaking into blocks at them.
 func blockKeepsLines(node *model.Node) bool {
-	return node != nil && node.Kind() == CodeNode
+	return node != nil && (node.Kind() == CodeNode || node.Kind() == CellNode)
 }
 
 // literalAt reports whether text typed at a block, inside the active mark,
@@ -447,6 +456,11 @@ func (i *EditorInvoker) invokeBlockTrigger(context *kernel.RuleContext) (kernel.
 	}
 	content := node.Text().String()
 	split := int(model.UTF16OffsetToByteClamped(content, at))
+	if text == "\n" && split == len(content) && contextTriggers(context).tables {
+		if outcome, opened, err := i.openTable(document, node); opened || err != nil {
+			return outcome, err
+		}
+	}
 	opened, ok := parseOpener(content[:split] + text)
 	if !ok || !contextTriggers(context).opens(opened.kind) ||
 		!opened.opensLine() && split != len(content) {
@@ -493,6 +507,8 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 		return kernel.OutcomeHandled, nil
 	case text != "\n":
 		return kernel.OutcomePass, nil
+	case shape.kind == CellNode:
+		return i.cellBreak(document, node.ID())
 	case shape.kind == HeadingNode || shape.kind == ImageNode:
 		// A heading or a caption ends at a break: what follows is a
 		// paragraph, and a break before its text leaves a paragraph above

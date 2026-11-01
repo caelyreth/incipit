@@ -35,6 +35,8 @@ var defaultKeymap = [...]kernel.BindingSpec{
 	defaultKey("history.redo", "z", keyPrimary|keyShift),
 
 	defaultKey(navigationTabCommandID, "tab", 0),
+	defaultKey(tablePreviousCellCommandID, "tab", keyShift),
+	defaultKey(tableLineBreakCommandID, "enter", keyShift),
 
 	defaultKey(previousWordCommandID, "left", keyAlt),
 	defaultKey(nextWordCommandID, "right", keyAlt),

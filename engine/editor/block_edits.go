@@ -59,6 +59,9 @@ func (i *EditorInvoker) joinSpan(
 	end model.UTF16Offset,
 	text string,
 ) (kernel.Outcome, error) {
+	if spansTable(document, first, last) {
+		return i.tableSpan(document, first, start, last, end, text)
+	}
 	if head, ok := document.Node(first); ok && head.Kind() == RuleNode {
 		if err := shapeBlock(document, first, blockShape{kind: ParagraphNode}); err != nil {
 			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}

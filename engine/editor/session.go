@@ -260,6 +260,10 @@ func (s *Session) TabOffer(now time.Time) (TabOffer, bool, error) {
 // Tab lands at the selected navigation offer. Emphasis offers land after the
 // generated closer rather than at the semantic text edge.
 func (s *Session) Tab(now time.Time) (kernel.Outcome, error) {
+	// In a table, Tab goes to the next cell before anything else.
+	if outcome, inTable, err := s.stepCell(1); inTable || err != nil {
+		return outcome, err
+	}
 	offer, ok, err := s.TabOffer(now)
 	if err != nil {
 		return 0, err

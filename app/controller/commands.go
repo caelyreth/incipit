@@ -54,6 +54,13 @@ func (c *DocumentController) Execute(command Command) (kernel.Outcome, error) {
 			return c.finishCommand(outcome, err)
 		}
 	}
+	for _, next := range editor.AllTableCommands {
+		if string(next.ID()) == command.ID {
+			c.resetPreferredColumn()
+			outcome, err := c.session.ExecuteTable(next)
+			return c.finishCommand(outcome, err)
+		}
+	}
 	for _, next := range editor.AllNestingCommands {
 		if string(next.ID()) == command.ID {
 			outcome, err := c.session.ExecuteNesting(next)

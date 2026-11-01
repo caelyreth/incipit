@@ -166,3 +166,31 @@ func (d *DocumentDraft) RestoreDocument(source DocumentSnapshot) error {
 	d.written = true
 	return nil
 }
+
+// MoveNode moves node to index among its parent's children, counted
+// without it, keeping its identity, text and marks: a table's row goes
+// where it is dragged, the caret in it going along.
+func (d *DocumentDraft) MoveNode(node NodeID, index int) error {
+	target, ok := d.state.nodes[node]
+	if !ok {
+		return &DocumentError{Kind: DocumentErrorMissingNode, Node: node}
+	}
+	parent, ok := target.Parent()
+	if !ok {
+		return &DocumentError{Kind: DocumentErrorRootMutation, Node: node}
+	}
+	children := slices.DeleteFunc(slices.Clone(d.state.nodes[parent].children), func(child NodeID) bool {
+		return child == node
+	})
+	if index < 0 || index > len(children) {
+		return &DocumentError{Kind: DocumentErrorChildIndexOutOfBounds, Parent: parent, Index: index}
+	}
+	d.written = true
+	state := d.copyState()
+	container := state.nodes[parent].clone()
+	container.children = slices.Insert(children, index, node)
+	state.nodes[parent] = container
+	d.state = state
+	d.changes = append(d.changes, Change{Kind: ChangeUpdated, Node: parent})
+	return nil
+}

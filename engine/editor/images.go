@@ -129,6 +129,11 @@ func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surfa
 	if err != nil {
 		return nil, err
 	}
+	if tables := tableFlow(p, document); len(tables) > 0 {
+		if flow, err = flow.WithTables(tables); err != nil {
+			return nil, err
+		}
+	}
 	var figures []surface.Figure
 	p.EachSegment(func(_ int, segment projection.Segment) bool {
 		target, ok := segment.AttributeTarget()
@@ -240,6 +245,13 @@ func (s *Session) ShapeImage(node model.NodeID, change func(*ImageShape)) (kerne
 // dispatchFigure runs an edit of image blocks as the writing policy's
 // figure rule, keeping the selection where it was.
 func (s *Session) dispatchFigure(edit func(*model.DocumentDraft) (bool, error)) (kernel.Outcome, error) {
+	return s.dispatchWriting(figureTrigger, "figure", edit)
+}
+
+// dispatchWriting runs an edit of the page's structure as the writing
+// policy's rule named rule, keeping the selection where it was, in one
+// step of history.
+func (s *Session) dispatchWriting(trigger, rule string, edit func(*model.DocumentDraft) (bool, error)) (kernel.Outcome, error) {
 	if !s.runtime.Configuration().IsEnabled(WritingPolicyID) {
 		return kernel.OutcomePass, nil
 	}
@@ -247,23 +259,26 @@ func (s *Session) dispatchFigure(edit func(*model.DocumentDraft) (bool, error)) 
 		return 0, ErrCompositionActive
 	}
 	return s.dispatchSelectionCommand(
-		figureTrigger,
-		&figureInvoker{session: s, edit: edit},
+		trigger,
+		&writingInvoker{session: s, rule: kernel.RuleID(rule), edit: edit},
 		func(*model.Node) *model.MarkID { return activeMark(s.inline) },
 	)
 }
 
-type figureInvoker struct {
+// writingInvoker runs edit for its rule of the writing policy, and every
+// other rule as the session does.
+type writingInvoker struct {
 	session *Session
+	rule    kernel.RuleID
 	edit    func(*model.DocumentDraft) (bool, error)
 }
 
-func (i *figureInvoker) Invoke(
+func (i *writingInvoker) Invoke(
 	rule *kernel.LinkedRule,
 	leaf kernel.LeafID,
 	context *kernel.RuleContext,
 ) (kernel.Outcome, error) {
-	if rule == nil || rule.Key.Owner != WritingPolicyID || rule.Key.ID != "figure" {
+	if rule == nil || rule.Key.Owner != WritingPolicyID || rule.Key.ID != i.rule {
 		return i.session.invoker.Invoke(rule, leaf, context)
 	}
 	document, err := context.DocumentMut()

@@ -89,6 +89,17 @@ func (s *Session) BlockRange(node model.NodeID) (model.UTF16Range, bool) {
 func (s *Session) ReadableText(range16 model.UTF16Range) (string, error) {
 	p := s.presentation.Projection
 	document := s.runtime.Snapshot().Document()
+	// The break before a cell that does not start its row reads as a tab.
+	tabs := map[model.UTF16Offset]bool{}
+	if tables := tableFlow(p, document); len(tables) > 0 {
+		for _, table := range tables {
+			for _, row := range table.Rows {
+				for _, cell := range row[1:] {
+					tabs[cell.Range.Start-1] = true
+				}
+			}
+		}
+	}
 	var text strings.Builder
 	var failure error
 	p.EachSegment(func(_ int, segment projection.Segment) bool {
@@ -106,6 +117,9 @@ func (s *Session) ReadableText(range16 model.UTF16Range) (string, error) {
 		if err != nil {
 			failure = err
 			return false
+		}
+		if part == "\n" && tabs[from] {
+			part = "\t"
 		}
 		text.WriteString(part)
 		return true

@@ -76,6 +76,20 @@ func (s *Session) selectionScopes() []selectionScope {
 			scopes = append(scopes, scope)
 		}
 	}
+	document := s.runtime.Snapshot().Document()
+	if table, ok := TableOf(document, blocks[index].ID()); ok {
+		first, firstOK := blockProjectedRange(p, mustNode(document, table.First()), blockExtentAll)
+		last, lastOK := blockProjectedRange(p, mustNode(document, table.Last()), blockExtentAll)
+		if firstOK && lastOK {
+			scope := selectionScope{
+				range16:    model.NewUTF16Range(first.Start, last.End),
+				firstBlock: slices.IndexFunc(blocks, func(b *model.Node) bool { return b.ID() == table.First() }),
+				lastBlock:  slices.IndexFunc(blocks, func(b *model.Node) bool { return b.ID() == table.Last() }),
+			}
+			scope.ownsSelection = scope.owns(firstSelected, lastSelected)
+			scopes = append(scopes, scope)
+		}
+	}
 	scopes = append(scopes, selectionScope{
 		range16: page, firstBlock: 0, lastBlock: len(blocks) - 1, ownsSelection: true,
 	})

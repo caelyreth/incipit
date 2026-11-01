@@ -219,6 +219,9 @@ func buildCommandRegistry() registry {
 	for _, command := range AllNestingCommands {
 		ordered = append(ordered, command.Description())
 	}
+	for _, command := range AllTableCommands {
+		ordered = append(ordered, command.Description())
+	}
 	for _, command := range AllHistoryCommands {
 		ordered = append(ordered, command.Description())
 	}
