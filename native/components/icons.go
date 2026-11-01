@@ -17,12 +17,14 @@ const (
 	IconBack         IconName = "chevron-left"
 	IconBold         IconName = "bold"
 	IconCheck        IconName = "check"
+	IconCheckCircle  IconName = "circle-check"
 	IconChevronDown  IconName = "chevron-down"
 	IconChevronRight IconName = "chevron-right"
 	IconClock        IconName = "clock"
 	IconClose        IconName = "x"
 	IconCommand      IconName = "command"
 	IconDocument     IconName = "file-text"
+	IconError        IconName = "circle-alert"
 	IconFolder       IconName = "folder"
 	IconImage        IconName = "image"
 	IconImageOff     IconName = "image-off"
@@ -52,12 +54,14 @@ var AllIcons = [...]IconName{
 	IconBack,
 	IconBold,
 	IconCheck,
+	IconCheckCircle,
 	IconChevronDown,
 	IconChevronRight,
 	IconClock,
 	IconClose,
 	IconCommand,
 	IconDocument,
+	IconError,
 	IconFolder,
 	IconImage,
 	IconImageOff,
