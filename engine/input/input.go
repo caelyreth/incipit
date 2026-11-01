@@ -10,13 +10,39 @@ import (
 
 // TextTarget is a semantic UTF-16 range captured at an engine revision.
 type TextTarget struct {
-	node     model.NodeID
-	range16  model.UTF16Range
-	revision uint64
+	node          model.NodeID
+	range16       model.UTF16Range
+	revision      uint64
+	startAffinity model.Affinity
+	endAffinity   model.Affinity
 }
 
 func NewTextTarget(node model.NodeID, range16 model.UTF16Range, revision uint64) TextTarget {
-	return TextTarget{node: node, range16: range16, revision: revision}
+	return TextTarget{
+		node:          node,
+		range16:       range16,
+		revision:      revision,
+		startAffinity: model.AffinityLeft,
+		endAffinity:   model.AffinityRight,
+	}
+}
+
+// WithAffinity chooses which side of an insertion leaves an empty inline
+// mark at the target boundary.
+func (t TextTarget) WithAffinity(affinity model.Affinity) TextTarget {
+	t.startAffinity = affinity
+	t.endAffinity = affinity
+	return t
+}
+
+// WithBoundaryAffinity chooses independent insertion sides for the two
+// boundaries of a replacement range.
+func (t TextTarget) WithBoundaryAffinity(
+	start, end model.Affinity,
+) TextTarget {
+	t.startAffinity = start
+	t.endAffinity = end
+	return t
 }
 
 func TextTargetFromAnchor(anchor model.TextAnchor) TextTarget {
@@ -24,13 +50,16 @@ func TextTargetFromAnchor(anchor model.TextAnchor) TextTarget {
 		anchor.Node(),
 		model.EmptyUTF16Range(anchor.OffsetUTF16()),
 		anchor.Revision(),
-	)
+	).WithAffinity(anchor.Affinity())
 }
 
 func TextTargetFromAnchors(start, end model.TextAnchor) (TextTarget, error) {
 	range16, err := start.RangeTo(end)
 	if err != nil {
 		return TextTarget{}, err
+	}
+	if range16.Empty() {
+		return TextTargetFromAnchor(end), nil
 	}
 	return NewTextTarget(start.Node(), range16, start.Revision()), nil
 }
@@ -39,9 +68,11 @@ func TextTargetFromSelection(selection model.TextSelection) (TextTarget, error) 
 	return TextTargetFromAnchors(selection.Anchor(), selection.Head())
 }
 
-func (t TextTarget) Node() model.NodeID           { return t.node }
-func (t TextTarget) RangeUTF16() model.UTF16Range { return t.range16 }
-func (t TextTarget) Revision() uint64             { return t.revision }
+func (t TextTarget) Node() model.NodeID            { return t.node }
+func (t TextTarget) RangeUTF16() model.UTF16Range  { return t.range16 }
+func (t TextTarget) Revision() uint64              { return t.revision }
+func (t TextTarget) StartAffinity() model.Affinity { return t.startAffinity }
+func (t TextTarget) EndAffinity() model.Affinity   { return t.endAffinity }
 
 func (t TextTarget) Anchors() (model.TextAnchor, model.TextAnchor) {
 	return model.NewTextAnchor(t.node, t.range16.Start, model.AffinityLeft, t.revision),
@@ -55,6 +86,9 @@ func (t TextTarget) Rebase(edits []model.TextEdit, revision uint64) (TextTarget,
 		return TextTarget{}, false
 	}
 	rebased, err := TextTargetFromSelection(selection)
+	if err == nil {
+		rebased = rebased.WithBoundaryAffinity(t.startAffinity, t.endAffinity)
+	}
 	return rebased, err == nil
 }
 

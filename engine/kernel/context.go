@@ -117,12 +117,14 @@ func (c *RuleContext) ReplaceTextInputMarked(active *model.MarkID) (model.NodeID
 	c.textInputConsumed = true
 	c.draft.textInputConsumed = true
 	target := input.Target()
-	if err := c.draft.Document().ReplaceTextMarked(
+	if err := c.draft.Document().ReplaceTextMarkedWithBoundaryAffinity(
 		target.Node(),
 		target.RangeUTF16().Start,
 		target.RangeUTF16().End,
 		input.Text(),
 		active,
+		target.StartAffinity(),
+		target.EndAffinity(),
 	); err != nil {
 		return 0, 0, false, &EngineError{Kind: EngineErrorDocument, Err: err}
 	}

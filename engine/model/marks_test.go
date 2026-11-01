@@ -158,6 +158,67 @@ func TestMarkRebaseWithoutActiveMarkExcludesBoundaryInsertion(t *testing.T) {
 	}
 }
 
+func TestEmptyMarkRebaseUsesTheEditedBoundarySide(t *testing.T) {
+	newDocument := func(t *testing.T) (*Document, NodeID) {
+		t.Helper()
+		document := mustDocument(t, "text")
+		node := document.Snapshot().Root()
+		mustTransact(t, document, func(draft *DocumentDraft) error {
+			if err := draft.SetTextValue(node, "abc"); err != nil {
+				return err
+			}
+			_, err := draft.AddMark(node, NewUTF16Range(3, 3), "emphasis", 1)
+			return err
+		})
+		return document, node
+	}
+
+	t.Run("replacement before the mark keeps it after the text", func(t *testing.T) {
+		document, node := newDocument(t)
+		mustTransact(t, document, func(draft *DocumentDraft) error {
+			return draft.ReplaceTextMarkedWithBoundaryAffinity(
+				node, 2, 3, "y", nil, AffinityLeft, AffinityRight,
+			)
+		})
+		nodeValue, _ := document.Snapshot().Node(node)
+		if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{
+			NewUTF16Range(3, 3),
+		}) {
+			t.Fatalf("mark ranges = %#v, want the mark at the new text end", got)
+		}
+	})
+
+	t.Run("right affinity keeps an insertion before the mark", func(t *testing.T) {
+		document, node := newDocument(t)
+		mustTransact(t, document, func(draft *DocumentDraft) error {
+			return draft.ReplaceTextMarkedWithBoundaryAffinity(
+				node, 3, 3, "x", nil, AffinityRight, AffinityRight,
+			)
+		})
+		nodeValue, _ := document.Snapshot().Node(node)
+		if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{
+			NewUTF16Range(4, 4),
+		}) {
+			t.Fatalf("mark ranges = %#v, want the mark after inserted text", got)
+		}
+	})
+
+	t.Run("left affinity keeps an insertion after the mark", func(t *testing.T) {
+		document, node := newDocument(t)
+		mustTransact(t, document, func(draft *DocumentDraft) error {
+			return draft.ReplaceTextMarkedWithBoundaryAffinity(
+				node, 3, 3, "x", nil, AffinityLeft, AffinityLeft,
+			)
+		})
+		nodeValue, _ := document.Snapshot().Node(node)
+		if got := markRanges(nodeValue.Marks()); !slices.Equal(got, []UTF16Range{
+			NewUTF16Range(3, 3),
+		}) {
+			t.Fatalf("mark ranges = %#v, want the mark before inserted text", got)
+		}
+	})
+}
+
 func TestMarkRebaseDeduplicatesRangesAtMaximumLevel(t *testing.T) {
 	t.Parallel()
 	document := mustDocument(t, "text")

@@ -534,7 +534,15 @@ func (p *Projection) ResolveTarget(target Target) (input.TextTarget, error) {
 		(target.range16.Start - segment.range16.Start)
 	end := semantic.RangeUTF16().Start +
 		(target.range16.End - segment.range16.Start)
-	return input.NewTextTarget(semantic.Node(), model.NewUTF16Range(start, end), semantic.Revision()), nil
+	resolved := input.NewTextTarget(
+		semantic.Node(),
+		model.NewUTF16Range(start, end),
+		semantic.Revision(),
+	)
+	if target.range16.Empty() {
+		resolved = resolved.WithAffinity(target.Affinity())
+	}
+	return resolved, nil
 }
 
 func (p *Projection) ResolveEdit(target Target, replacement string) (Input, error) {

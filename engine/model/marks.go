@@ -146,6 +146,7 @@ func rebaseMarks(
 	rangeUTF16 UTF16Range,
 	text string,
 	active *MarkID,
+	startAffinity, endAffinity Affinity,
 ) {
 	edit := NewTextEditReplacement(node, rangeUTF16, text)
 	var activeRange *UTF16Range
@@ -164,16 +165,29 @@ func rebaseMarks(
 			activeRange.End <= mark.rangeUTF16.End {
 			expanding = true
 		}
-		startAffinity := AffinityRight
+		markStartAffinity := AffinityRight
 		if expanding {
-			startAffinity = AffinityLeft
+			markStartAffinity = AffinityLeft
 		}
-		endAffinity := AffinityLeft
+		markEndAffinity := AffinityLeft
 		if expanding {
-			endAffinity = AffinityRight
+			markEndAffinity = AffinityRight
+		} else if mark.rangeUTF16.Empty() {
+			// An empty mark is an insertion point, not a shrinking interval.
+			// Its boundary picks the side of the replacement edge it meets:
+			// a mark at the start follows the start bias, while one at the
+			// end follows the end bias.
+			switch {
+			case mark.rangeUTF16.Start == rangeUTF16.Start:
+				markStartAffinity, markEndAffinity = startAffinity, startAffinity
+			case mark.rangeUTF16.End == rangeUTF16.End:
+				markStartAffinity, markEndAffinity = endAffinity, endAffinity
+			default:
+				markStartAffinity, markEndAffinity = AffinityLeft, AffinityLeft
+			}
 		}
-		start := NewTextAnchor(node, mark.rangeUTF16.Start, startAffinity, 0)
-		end := NewTextAnchor(node, mark.rangeUTF16.End, endAffinity, 0)
+		start := NewTextAnchor(node, mark.rangeUTF16.Start, markStartAffinity, 0)
+		end := NewTextAnchor(node, mark.rangeUTF16.End, markEndAffinity, 0)
 		start, startOK := start.Rebase(edit, 0)
 		end, endOK := end.Rebase(edit, 0)
 		if startOK && endOK {

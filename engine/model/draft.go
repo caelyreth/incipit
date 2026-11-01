@@ -278,7 +278,7 @@ func (d *DocumentDraft) AppendText(node NodeID, text string) error {
 	rebaseMarks(&updated.marks, node, NewUTF16Range(
 		UTF16Offset(offset),
 		UTF16Offset(offset),
-	), text, nil)
+	), text, nil, AffinityRight, AffinityRight)
 	updated.text = &root
 	state.nodes[node] = updated
 	d.state = state
@@ -309,6 +309,21 @@ func (d *DocumentDraft) ReplaceTextMarked(
 	to UTF16Offset,
 	replacement string,
 	active *MarkID,
+) error {
+	return d.ReplaceTextMarkedWithBoundaryAffinity(
+		node, from, to, replacement, active, AffinityRight, AffinityRight,
+	)
+}
+
+// ReplaceTextMarkedWithBoundaryAffinity replaces text and chooses the sides
+// that empty inline marks keep at the edit's start and end boundaries.
+func (d *DocumentDraft) ReplaceTextMarkedWithBoundaryAffinity(
+	node NodeID,
+	from UTF16Offset,
+	to UTF16Offset,
+	replacement string,
+	active *MarkID,
+	startAffinity, endAffinity Affinity,
 ) error {
 	target, ok := d.state.nodes[node]
 	if !ok {
@@ -347,6 +362,8 @@ func (d *DocumentDraft) ReplaceTextMarked(
 		NewUTF16Range(from, to),
 		replacement,
 		active,
+		startAffinity,
+		endAffinity,
 	)
 	updated.text = &root
 	state.nodes[node] = updated
