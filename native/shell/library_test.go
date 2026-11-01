@@ -21,6 +21,9 @@ type fakeLibrary struct {
 	moves       []sheetMoveCall
 	entries     []GroupEntry
 	chapterNo   int
+	groupTree   map[string][]GroupItem
+	groupParent map[string]string
+	newGroupNo  int
 }
 
 type sheetMoveCall struct {
@@ -31,6 +34,9 @@ type sheetMoveCall struct {
 func (f *fakeLibrary) call(name string) { f.calls = append(f.calls, name) }
 
 func (f *fakeLibrary) Groups(parent string) []GroupItem {
+	if f.groupTree != nil {
+		return f.groupTree[parent]
+	}
 	if parent != "" {
 		return nil
 	}
@@ -44,6 +50,16 @@ func (f *fakeLibrary) Groups(parent string) []GroupItem {
 }
 
 func (f *fakeLibrary) Group(id string) (GroupItem, bool) {
+	if f.groupTree != nil {
+		for _, groups := range f.groupTree {
+			for _, group := range groups {
+				if group.ID == id {
+					return group, true
+				}
+			}
+		}
+		return GroupItem{}, false
+	}
 	for _, group := range f.Groups("") {
 		if group.ID == id {
 			return group, true
@@ -52,7 +68,9 @@ func (f *fakeLibrary) Group(id string) (GroupItem, bool) {
 	return GroupItem{}, false
 }
 
-func (f *fakeLibrary) Parent(string) string { return "" }
+func (f *fakeLibrary) Parent(id string) string {
+	return f.groupParent[id]
+}
 
 func (f *fakeLibrary) Sheets(place Place) []SheetItem {
 	switch {
@@ -680,11 +698,47 @@ func (f *fakeLibrary) moveEntry(id string, index int) {
 }
 func (f *fakeLibrary) NewGroup(parent string, index int) string {
 	f.call(fmt.Sprint("new group ", parent, " ", index))
+	if f.groupTree == nil {
+		return "2"
+	}
+	f.newGroupNo++
+	id := fmt.Sprintf("new-group-%d", f.newGroupNo)
+	f.groupTree[parent] = append(f.groupTree[parent], GroupItem{ID: id, Name: "Untitled Group"})
+	f.groupParent[id] = parent
+	for key, groups := range f.groupTree {
+		for at := range groups {
+			if groups[at].ID == parent {
+				groups[at].HasGroups = true
+				f.groupTree[key] = groups
+				return id
+			}
+		}
+	}
 	return "2"
 }
-func (f *fakeLibrary) RenameGroup(id, name string) { f.call("rename " + id + " " + name) }
+func (f *fakeLibrary) RenameGroup(id, name string) {
+	f.call("rename " + id + " " + name)
+	for key, groups := range f.groupTree {
+		for at := range groups {
+			if groups[at].ID == id {
+				groups[at].Name = name
+				f.groupTree[key] = groups
+				return
+			}
+		}
+	}
+}
 func (f *fakeLibrary) StyleGroup(id, icon string, color int) {
 	f.call(fmt.Sprintf("style %s %s %d", id, icon, color))
+	for key, groups := range f.groupTree {
+		for at := range groups {
+			if groups[at].ID == id {
+				groups[at].Icon, groups[at].Color = icon, color
+				f.groupTree[key] = groups
+				return
+			}
+		}
+	}
 }
 func (f *fakeLibrary) MoveGroup(id, parent string, _ int) {
 	f.call("move group " + id + " to " + parent)
@@ -698,6 +752,20 @@ func libraryState() (*State, *fakeLibrary) {
 	state := openState()
 	library := &fakeLibrary{}
 	state.Library = library
+	return state, library
+}
+
+func nestedGroupState() (*State, *fakeLibrary) {
+	state, library := libraryState()
+	library.groupTree = map[string][]GroupItem{
+		"": {
+			{ID: "1", Name: "Inbox", Count: 1, Inbox: true},
+			{ID: "2", Name: "Novel", HasGroups: true},
+		},
+		"2": {{ID: "3", Name: "Arc", HasGroups: true}},
+		"3": {{ID: "4", Name: "Scene"}},
+	}
+	library.groupParent = map[string]string{"2": "", "3": "2", "4": "3"}
 	return state, library
 }
 
@@ -793,6 +861,9 @@ func TestSheetsAndGroupsAreChangedFromTheirMenus(t *testing.T) {
 	if _, ok := tester.Find("Group name"); !ok {
 		t.Fatalf("no name field: %#v", tester.Texts())
 	}
+	if !tester.Focused("Group name") {
+		t.Fatal("Rename did not focus the group name field")
+	}
 	tester.Type("Saga")
 	tester.Key(0, ui.KeyEnter)
 	tester.Frame()
@@ -804,6 +875,9 @@ func TestSheetsAndGroupsAreChangedFromTheirMenus(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
+	if !tester.Focused("Novel") || !tester.HasText("Icon and color for Novel") {
+		t.Fatalf("Icon & Color did not focus and anchor its row: %#v", tester.Texts())
+	}
 	if err := tester.Click("Life"); err != nil {
 		t.Fatalf("no colors: %v %#v", err, tester.Texts())
 	}
@@ -816,6 +890,148 @@ func TestSheetsAndGroupsAreChangedFromTheirMenus(t *testing.T) {
 	for _, call := range want {
 		if !slices.Contains(library.calls, call) {
 			t.Fatalf("calls %v lack %q", library.calls, call)
+		}
+	}
+}
+
+func TestDisclosureDrawsKeyboardFocusAtItself(t *testing.T) {
+	state, _ := nestedGroupState()
+	state.ShowPanes(true, false)
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	label := "Show groups in Novel"
+	disclosure, ok := tester.Find(label)
+	if !ok {
+		t.Fatal("the group disclosure is missing")
+	}
+	before := tester.Image()
+	focused := false
+	for range 80 {
+		tester.Key(0, ui.KeyTab)
+		// Tester.Focused also reports a focused ancestor of the label.
+		if tester.Focused(label) && !tester.Focused("Novel") {
+			focused = true
+			break
+		}
+	}
+	if !focused {
+		t.Fatal("Tab did not focus the group disclosure")
+	}
+	after := tester.Image()
+	changed := 0
+	for y := int(disclosure.Y); y < int(disclosure.Y+disclosure.H); y++ {
+		for x := int(disclosure.X); x < int(disclosure.X+disclosure.W); x++ {
+			if before.RGBAAt(x, y) != after.RGBAAt(x, y) {
+				changed++
+			}
+		}
+	}
+	if changed == 0 {
+		rect := ui.Rect{X: float32(1 << 20), Y: float32(1 << 20)}
+		for y := 0; y < after.Bounds().Dy(); y++ {
+			for x := 0; x < after.Bounds().Dx(); x++ {
+				if before.RGBAAt(x, y) != after.RGBAAt(x, y) {
+					rect.X = min(rect.X, float32(x))
+					rect.Y = min(rect.Y, float32(y))
+					rect.W = max(rect.W, float32(x))
+					rect.H = max(rect.H, float32(y))
+				}
+			}
+		}
+		t.Fatalf("the focused disclosure changed no pixels in %+v; changed %+v", disclosure, rect)
+	}
+}
+
+func TestGroupMenuActionsFromSheetTitlePresentTheirTarget(t *testing.T) {
+	for _, libraryVisible := range []bool{true, false} {
+		for _, action := range []string{"Rename…", "Icon & Color…", "New Group Inside"} {
+			name := fmt.Sprintf("%s/library-%v", action, libraryVisible)
+			t.Run(name, func(t *testing.T) {
+				state, library := nestedGroupState()
+				state.Go(Place{Kind: PlaceGroup, Group: "4"})
+				state.ShowPanes(libraryVisible, true)
+				tester := ui.NewTester(state.View, 1260, 850)
+				settle(tester)
+
+				if err := tester.RightClick("Scene"); err != nil {
+					t.Fatal(err)
+				}
+				if err := tester.ChooseMenuItem(action); err != nil {
+					t.Fatal(err)
+				}
+				assertGroupPresented(t, state, tester, "4")
+
+				switch action {
+				case "Rename…":
+					if !tester.Focused("Group name") {
+						t.Fatal("Rename did not focus the revealed group's field")
+					}
+					tester.Type("Renamed")
+					tester.Key(0, ui.KeyEnter)
+					tester.Frame()
+					if !slices.Contains(library.calls, "rename 4 Renamed") {
+						t.Fatalf("rename calls %v", library.calls)
+					}
+				case "Icon & Color…":
+					if !tester.Focused("Scene") || !tester.HasText("Icon and color for Scene") {
+						t.Fatalf("style picker lost its revealed row anchor: %#v", tester.Texts())
+					}
+					if err := tester.Click("Life"); err != nil {
+						t.Fatal(err)
+					}
+					if !slices.Contains(library.calls, "style 4  5") {
+						t.Fatalf("style calls %v", library.calls)
+					}
+				case "New Group Inside":
+					if !slices.Contains(library.calls, fmt.Sprint("new group 4 ", Last)) {
+						t.Fatalf("new group calls %v", library.calls)
+					}
+					if !tester.Focused("Group name") {
+						t.Fatal("New Group Inside did not focus the new group's field")
+					}
+					tester.Type("Child group")
+					tester.Key(0, ui.KeyEnter)
+					tester.Frame()
+					if !slices.Contains(library.calls, "rename new-group-1 Child group") {
+						t.Fatalf("rename calls %v", library.calls)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestNewGroupInsideFromSidebarPresentsTheNewChild(t *testing.T) {
+	state, library := nestedGroupState()
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	if err := tester.RightClick("Novel"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tester.ChooseMenuItem("New Group Inside"); err != nil {
+		t.Fatal(err)
+	}
+	assertGroupPresented(t, state, tester, "new-group-1")
+	if !tester.Focused("Group name") {
+		t.Fatal("the new child's name field did not take focus")
+	}
+	tester.Type("Children")
+	tester.Key(0, ui.KeyEnter)
+	tester.Frame()
+	if !slices.Contains(library.calls, "rename new-group-1 Children") {
+		t.Fatalf("rename calls %v", library.calls)
+	}
+}
+
+func assertGroupPresented(t *testing.T, state *State, tester *ui.Tester, id string) {
+	t.Helper()
+	settle(tester)
+	if !state.SidebarVisible() {
+		t.Fatal("the group action did not reveal the library")
+	}
+	for parent := state.Library.Parent(id); parent != ""; parent = state.Library.Parent(parent) {
+		if !state.nav.expanded[parent] {
+			t.Fatalf("ancestor %q stayed collapsed", parent)
 		}
 	}
 }

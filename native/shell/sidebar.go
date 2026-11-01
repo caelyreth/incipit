@@ -35,6 +35,9 @@ type navigation struct {
 	// renaming is the group being named in place, and name its text.
 	renaming string
 	name     string
+	// focusGroup is a group row or name field to bring into view and focus
+	// once its presentation host has drawn it.
+	focusGroup string
 	// styling is the group whose icon and color are being chosen.
 	styling     string
 	stylingOpen bool
@@ -433,15 +436,22 @@ func (s *State) groupRow(
 	}
 	row.ContextMenu(s.groupMenu(group))
 	s.dropInto(c, semantic, row, group, animate)
+	if s.nav.focusGroup == group.ID {
+		s.nav.focusGroup = ""
+		row.Focus()
+		row.ScrollIntoView()
+	}
 	s.stylePicker(c, semantic, row, group, animate)
 }
 
 // disclosure opens and closes a group in the tree. It trails the row, so
 // every icon in the library lines up, nested or not.
 func (s *State) disclosure(c *ui.Context, semantic theme.Theme, group GroupItem, open bool, animate bool) {
+	metrics := theme.DefaultControls.Scaled(s.Settings.UIFontSize)
 	size := 16 * s.Settings.UIFontSize / theme.DefaultUIFontSize
-	toggle := ui.ButtonBase(c.Key("disclose")).Label("Show groups in " + group.Name).
-		Width(size).Height(size).AlignItems(ui.Center).Justify(ui.Center).FocusRing(false)
+	toggle := ui.ButtonBase(c.Key("disclose")).Label("Show groups in "+group.Name).
+		Width(size).Height(size).AlignItems(ui.Center).Justify(ui.Center).
+		Radius(metrics.Radius).Border(1, ui.Transparent).FocusRing(false)
 	turn := float32(0)
 	if open {
 		turn = 90
@@ -453,6 +463,9 @@ func (s *State) disclosure(c *ui.Context, semantic theme.Theme, group GroupItem,
 		ui.Icon(c, components.IconChevronRight.SVG()).FontSize(size * 0.8).
 			TextColor(semantic.Icon.Muted).Rotate(turn)
 	})
+	if toggle.FocusVisible() {
+		toggle.Border(1, semantic.Border.Focused)
+	}
 	if toggle.Clicked() {
 		s.nav.expanded[group.ID] = !open
 	}
@@ -526,7 +539,6 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 			return
 		}
 		if m.Item("New Group Inside").Chosen() {
-			s.nav.expanded[group.ID] = true
 			s.startRename(s.Library.NewGroup(group.ID, Last))
 		}
 		m.Separator()
@@ -534,7 +546,7 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 			s.startRename(group.ID)
 		}
 		if m.Item("Icon & Color…").Chosen() {
-			s.nav.styling, s.nav.stylingOpen = group.ID, true
+			s.startStyling(group.ID)
 		}
 		s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, Last) }, group.ID)
 		m.Separator()
@@ -576,8 +588,29 @@ func (s *State) startRename(id string) {
 	if !ok || group.Inbox {
 		return
 	}
+	s.revealGroup(id)
 	s.nav.renaming, s.nav.name = id, group.Name
-	if parent := s.Library.Parent(id); parent != "" {
+	s.nav.focusGroup = id
+}
+
+// startStyling chooses a group's look beside its row, showing the library
+// and opening the group's ancestors if the action came from the sheet list.
+func (s *State) startStyling(id string) {
+	group, ok := s.Library.Group(id)
+	if !ok || group.Inbox {
+		return
+	}
+	s.revealGroup(group.ID)
+	s.nav.styling, s.nav.stylingOpen = group.ID, true
+	s.nav.focusGroup = group.ID
+}
+
+// revealGroup shows the library and opens every ancestor of id, so the
+// group's row has a presentation host for an in-place action.
+func (s *State) revealGroup(id string) {
+	visible := true
+	s.SidebarOverride = &visible
+	for parent := s.Library.Parent(id); parent != ""; parent = s.Library.Parent(parent) {
 		s.nav.expanded[parent] = true
 	}
 }
@@ -599,6 +632,11 @@ func (s *State) renameRow(c *ui.Context, semantic theme.Theme, group GroupItem, 
 				FixedLineHeight(theme.TextSmall.LineHeight(scale)).
 				TextColor(semantic.Text.Heading).Label("Group name")
 			input.AutoFocus()
+			if s.nav.focusGroup == group.ID {
+				s.nav.focusGroup = ""
+				input.Focus()
+				input.ScrollIntoView()
+			}
 			switch inlineName(input, s.nav.name) {
 			case nameCancel:
 				s.nav.renaming = ""

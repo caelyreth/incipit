@@ -35,13 +35,17 @@ func (t Tab) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	tab := ui.ButtonBase(c.Key(t.Key)).Role(ui.RoleTab).Label(t.Title).
 		Tooltip(t.Title).
 		Selected(t.Selected).FocusRing(false).
-		Height(height).MinWidth(96 * scale / theme.DefaultUIFontSize).
-		MaxWidth(220 * scale / theme.DefaultUIFontSize).Shrink(0).
-		PaddingStart(10 * scale / theme.DefaultUIFontSize).
-		PaddingEnd(3 * scale / theme.DefaultUIFontSize).
-		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Radius(metrics.Radius)
+		Height(height).MinWidth(96*scale/theme.DefaultUIFontSize).
+		MaxWidth(220*scale/theme.DefaultUIFontSize).Shrink(0).
+		PaddingStart(10*scale/theme.DefaultUIFontSize).
+		PaddingEnd(3*scale/theme.DefaultUIFontSize).
+		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Radius(metrics.Radius).
+		Border(1, ui.Transparent)
 	hover := HoverAmount(tab, !t.Selected && tab.Hovered(), t.Animate)
 	tab.Background(blend(rest, semantic.GhostElement.Hover, hover))
+	if tab.FocusVisible() {
+		tab.Border(1, semantic.Border.Focused)
+	}
 	tab.Children(func() {
 		ui.Icon(c, t.Icon).FontSize(16 * scale / theme.DefaultUIFontSize).
 			TextColor(iconColor)

@@ -223,12 +223,8 @@ func (s *State) reveal(sheet string) {
 	if group == "" {
 		return
 	}
-	visible := true
-	s.SidebarOverride = &visible
+	s.revealGroup(group)
 	s.stopSearching()
-	for parent := s.Library.Parent(group); parent != ""; parent = s.Library.Parent(parent) {
-		s.nav.expanded[parent] = true
-	}
 	s.Go(Place{Kind: PlaceGroup, Group: group})
 }
 
