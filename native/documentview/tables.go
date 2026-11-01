@@ -329,6 +329,7 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 		}
 	}()
 	for index, placed := range e.current.Tables() {
+		e.overlaid = true
 		table := placed.Table
 		first := table.Node()
 		at := func(r ui.Rect) ui.Rect { r.Y += offset; return r }

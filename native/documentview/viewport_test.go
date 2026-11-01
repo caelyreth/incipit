@@ -372,3 +372,63 @@ func TestShrinkingContentGlidesThePageBackIntoRange(t *testing.T) {
 		t.Fatalf("one frame moved the page %v of its %v DIP way home", largest, start)
 	}
 }
+
+// The caret is revealed for what changes its text or selection, not for
+// room opening by its line, and not under a held pointer until it lets go.
+func TestCaretRevealFollowsIntentNotLayout(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	text := strings.Repeat("line\n", 40) + "line"
+	flow, err := surface.NewFlow(
+		projection.NewVersion(0, 0),
+		text,
+		[]surface.StyleRun{{
+			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
+			Style: surface.TextStyle{},
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prose := theme.NewProseStyle(19)
+	layout := textlayout.NewCache().Update(flow, 400, textlayout.NewStyle(prose, theme.DefaultSettings().Semantic()))
+	element := &Element{Prose: prose, Motion: motion.New(now), Animate: true, lastHeight: 300}
+	key := revealKey{text: text}
+	element.followCaret(layout, ui.Rect{Y: 10, H: prose.LineHeight()}, 10, 300, key, now)
+	below := ui.Rect{Y: 600, H: prose.LineHeight()}
+	element.followCaret(layout, below, below.Y, 300, key, now)
+	if element.Motion.Moving() {
+		t.Fatal("the caret's line moving with the layout scrolled the page")
+	}
+	element.pointer = pointerPressed
+	key.selection = controller.UTF16Range{Start: 200, End: 200}
+	element.followCaret(layout, below, below.Y, 300, key, now)
+	if element.Motion.Moving() {
+		t.Fatal("the page moved under a held pointer")
+	}
+	element.pointer = pointerIdle
+	element.followCaret(layout, below, below.Y, 300, key, now)
+	if !element.Motion.Moving() {
+		t.Fatal("the caret set under the pointer was not revealed as it let go")
+	}
+}
+
+// A drag held below the page's room scrolls it, the selection following.
+func TestDragPastTheBottomScrollsTheSelectionOn(t *testing.T) {
+	document, element, tester := newAnimatedElement(t, strings.Repeat("line\n", 60)+"end")
+	start := element.current.Caret(0)
+	tester.Press(start.X+1, start.Y+1)
+	tester.Move(start.X+1, start.Y+40)
+	tester.Move(start.X+1, 398)
+	selected := document.Selection().Range.End
+	for range 30 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+	}
+	if element.scroll <= 0 {
+		t.Fatal("the drag past the bottom did not scroll the page")
+	}
+	if document.Selection().Range.End <= selected {
+		t.Fatalf("the selection stayed at %d", selected)
+	}
+	tester.Release(start.X+1, 398)
+}

@@ -58,24 +58,39 @@ type Element struct {
 	tables   tableUI
 	// announced is the figure last read out as it became the selection,
 	// and menuFigure the one a secondary click opened the menu of.
-	announced            model.NodeID
-	menuFigure           model.NodeID
-	scroll               float32
-	overscroll           scrollfx.Elastic
-	lastHeight           float32
-	manualUntil          time.Time
-	pointerAnchor        int
-	pointerHead          int
-	pointer              pointerPhase
-	lastWidth            float32
-	guides               Guides
-	focusPending         bool
-	current              *textlayout.Layout
-	placeholderLayout    *ui.TextLayout
-	placeholderKey       placeholderKey
-	lastCaretY           float32
-	lastViewportH        float32
-	lastTypewriter       bool
+	announced         model.NodeID
+	menuFigure        model.NodeID
+	scroll            float32
+	overscroll        scrollfx.Elastic
+	lastHeight        float32
+	manualUntil       time.Time
+	pointerAnchor     int
+	pointerHead       int
+	pointer           pointerPhase
+	lastWidth         float32
+	guides            Guides
+	focusPending      bool
+	current           *textlayout.Layout
+	placeholderLayout *ui.TextLayout
+	placeholderKey    placeholderKey
+	lastCaretY        float32
+	lastViewportH     float32
+	lastTypewriter    bool
+	// revealed is the text and selection the caret was last revealed
+	// for, and revealPending a change made under a held pointer, revealed
+	// once it lets go: the page never moves under a held pointer but by
+	// its drag past an edge (followDragEdge).
+	revealed      revealKey
+	revealPending bool
+	// pointerAt is where the pointer last moved over the page, and edgeAt
+	// when a drag past an edge last scrolled it.
+	pointerAt ui.Point
+	edgeAt    time.Time
+	// overlaid is whether the last view set controls over the page, as a
+	// table's; they move with it only in frames that build the view, which
+	// wake asks for.
+	overlaid             bool
+	wake                 func()
 	drawnCaret           ui.Rect
 	caretPresentationKey caretPresentationKey
 	mounted              bool
@@ -146,6 +161,14 @@ func (e *Element) View(c *ui.Context) {
 		e.focusPending = false
 	}
 	e.mounted = true
+	// The page moves before what is set over it is placed, so both show
+	// it at the same offset.
+	e.wake = c.Services().Invalidate
+	if e.stepViewport(c.Now(), animate) && e.overlaid {
+		c.AnimationFrame()
+	}
+	e.followDragEdge(c)
+	e.overlaid = false
 	// A picture decoded off the UI thread redraws the page that asked.
 	e.Pictures.SetWake(c.Services().Invalidate)
 	e.takeDrops(box)
@@ -223,6 +246,10 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 			return false
 		}
 		e.Motion.Activity(event.Time)
+		// A press stops the page where it is, so what it hit stays under
+		// it.
+		e.Motion.CancelScroll()
+		e.pointerAt = ui.Point{X: event.X, Y: event.Y}
 		if handled, ok := e.pressFigure(event); handled {
 			return ok
 		}
@@ -250,6 +277,7 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 			e.dragResize(event.X)
 			return true
 		}
+		e.pointerAt = ui.Point{X: event.X, Y: event.Y}
 		if e.pointer == pointerIdle || e.current == nil || event.Button != 0 {
 			return false
 		}
@@ -274,6 +302,7 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 			return false
 		}
 		e.pointer = pointerIdle
+		e.edgeAt = time.Time{}
 		e.Motion.Activity(event.Time)
 		return true
 	case ui.InputScroll:
@@ -470,9 +499,6 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	if !ok || bridge == nil || bridge.Controller == nil {
 		return
 	}
-	if _, moving := e.overscroll.Step(p.Now(), animate); moving {
-		p.AnimationFrame()
-	}
 	frame, err := bridge.Controller.SurfaceFrame(p.Now())
 	if err != nil {
 		return
@@ -499,27 +525,11 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		line = caret
 	}
 	line.Y += e.TopInset
-	modeChanged := e.lastTypewriter != e.Typewriter
-	if e.lastCaretY != caret.Y || e.lastViewportH != rect.H || modeChanged {
-		if e.lastCaretY != caret.Y {
-			// The caret moved; a page glide alone leaves its breathing be.
-			e.Motion.Activity(p.Now())
-		}
-		if modeChanged && !e.Typewriter {
-			// Leaving typewriter mode redirects whatever glide is under way,
-			// at its speed, into the plain range, rather than letting it
-			// reach a centered offset and then snapping into range.
-			low, high := e.scrollRange(e.current, rect.H)
-			e.Motion.Settle(e.scroll, low, high, p.Now())
-		} else {
-			// Entering it glides to the centered line from where the page
-			// is and at the speed it is moving.
-			e.revealCaret(e.current, line, p.Now())
-		}
-		e.lastCaretY = caret.Y
-		e.lastViewportH = rect.H
-		e.lastTypewriter = e.Typewriter
+	if e.lastCaretY != caret.Y {
+		// The caret moved; a page glide alone leaves its breathing be.
+		e.Motion.Activity(p.Now())
 	}
+	e.followCaret(e.current, line, caret.Y, rect.H, e.revealKeyOf(bridge.Controller), p.Now())
 	scrollMin, scrollMax := e.scrollRange(e.current, rect.H)
 	if !e.Motion.Scrolling() && (e.scroll < scrollMin || e.scroll > scrollMax) {
 		if animate {
@@ -530,7 +540,13 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 			e.scroll = max(scrollMin, min(e.scroll, scrollMax))
 		}
 	}
-	e.advanceScroll(p.Now())
+	if e.stepViewport(p.Now(), animate) {
+		if e.overlaid && e.wake != nil {
+			e.wake()
+		} else {
+			p.AnimationFrame()
+		}
+	}
 	state := &State{
 		Flow:              flow,
 		Frame:             frame,
