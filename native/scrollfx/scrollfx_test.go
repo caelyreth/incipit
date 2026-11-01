@@ -13,6 +13,22 @@ var epoch = time.Unix(1_700_000_000, 0)
 
 func at(frames int) time.Time { return epoch.Add(time.Duration(frames) * frame) }
 
+func TestScrollPhase(t *testing.T) {
+	for _, test := range []struct {
+		precise, momentum bool
+		want              InputPhase
+	}{
+		{false, false, Notch},
+		{true, false, Direct},
+		{false, true, Momentum},
+		{true, true, Momentum},
+	} {
+		if got := Phase(test.precise, test.momentum); got != test.want {
+			t.Fatalf("Phase(%v, %v) = %v, want %v", test.precise, test.momentum, got, test.want)
+		}
+	}
+}
+
 func TestElasticResistsHoldsAndReturns(t *testing.T) {
 	var elastic Elastic
 	elastic.Step(at(0), true)

@@ -463,7 +463,7 @@ func (e *Element) wheelTable(event ui.InputEvent) bool {
 			pull = &scrollfx.Elastic{}
 			e.tables.pull[node] = pull
 		}
-		input := scrollInput(event.Precise, event.Momentum)
+		input := scrollfx.Phase(event.Precise, event.Momentum)
 		e.tables.scroll[node] = elasticScroll(pull, e.tables.scroll[node], event.DX, 0, placed.Overflow, placed.Box.W, e.UIFontSize, input)
 		e.tables.wheeled[node] = true
 		return true

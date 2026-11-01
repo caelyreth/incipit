@@ -38,7 +38,7 @@ func (o *Overscroll) Handle(
 	if event.Mods&ui.Shift != 0 && dx == 0 {
 		dx, dy = dy, 0
 	}
-	input := phase(event.Precise, event.Momentum)
+	input := Phase(event.Precise, event.Momentum)
 	o.x.Observe(input)
 	o.y.Observe(input)
 	handled := false
@@ -146,7 +146,8 @@ func pull(
 	return edge, true
 }
 
-func phase(precise, momentum bool) InputPhase {
+// Phase converts native scroll flags to the shared edge-physics input phase.
+func Phase(precise, momentum bool) InputPhase {
 	if momentum {
 		return Momentum
 	}

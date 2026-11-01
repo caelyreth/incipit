@@ -31,7 +31,7 @@ than force unrelated operations through a generic abstraction.
 | B7 | Native text hit affinity | In progress | `codex/audit-affinity` worktree |
 | B8 | Spring tolerances by value domain | Settled | Dimensionless opacity, zoom and reveal springs have finer stopping thresholds; caption and table 100x workarounds are removed. Tests cover terminal jumps and equivalence with the former scaled geometry. |
 | B9 | Layout and shaping invalidation | Open | Profile before changing cache semantics |
-| B10 | Scroll input physics | Open | Preserve editor and scroll-view differences |
+| B10 | Scroll input physics | In progress | Native input-phase mapping is shared; editor-owned and MyGo-owned axis policies remain separate pending a safe common primitive. |
 | B11 | Keycaps and inline shortcut chips | Open | Preserve interactive inline behavior |
 | B12 | Inline rename lifecycle | Open | |
 | B13 | Elevated materials and small controls | Open | Preserve intentional visual variants |

@@ -240,18 +240,7 @@ func (e *Element) manualScroll(delta float32, now time.Time, precise, momentum b
 	if e.current != nil {
 		low, high = e.scrollRange(e.current, e.lastHeight)
 	}
-	e.scroll = elasticScroll(&e.overscroll, e.scroll, delta, low, high, e.lastHeight, e.UIFontSize, scrollInput(precise, momentum))
-}
-
-// scrollInput is the phase of a scroll event, as an edge's pull takes it.
-func scrollInput(precise, momentum bool) scrollfx.InputPhase {
-	switch {
-	case momentum:
-		return scrollfx.Momentum
-	case !precise:
-		return scrollfx.Notch
-	}
-	return scrollfx.Direct
+	e.scroll = elasticScroll(&e.overscroll, e.scroll, delta, low, high, e.lastHeight, e.UIFontSize, scrollfx.Phase(precise, momentum))
 }
 
 // elasticScroll scrolls from position by delta within low and high, the
