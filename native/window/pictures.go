@@ -88,7 +88,7 @@ func (a *AppState) chooseImages() {
 		for _, path := range paths {
 			pictures = append(pictures, documentview.Incoming{Path: path, Name: filepath.Base(path)})
 		}
-		take := func() { pictureIntake{app: a}.Take(pictures, bridge.PlaceImages) }
+		take := func() { bridge.TakeImages(pictures, bridge.PlaceImages) }
 		if window == nil {
 			take()
 			return
@@ -219,7 +219,10 @@ func (h figureHost) ReplacePicture(node model.NodeID) {
 		}
 		replace := func() {
 			picture := documentview.Incoming{Path: paths[0], Name: filepath.Base(paths[0])}
-			pictureIntake{app: a}.Take([]documentview.Incoming{picture}, func(shapes []editor.ImageShape) {
+			if a.Bridge == nil {
+				return
+			}
+			a.Bridge.TakeImages([]documentview.Incoming{picture}, func(shapes []editor.ImageShape) {
 				if len(shapes) == 0 || a.Bridge == nil {
 					return
 				}

@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/egoist/mygo/transfer"
 )
@@ -22,6 +23,14 @@ func (k *keptImages) Take(pictures []Incoming, place func([]editor.ImageShape)) 
 		shapes = append(shapes, editor.ImageShape{Media: string(rune('a' + index)), Width: 4, Height: 3})
 	}
 	place(shapes)
+}
+
+type pendingImages struct {
+	place func([]editor.ImageShape)
+}
+
+func (p *pendingImages) Take(_ []Incoming, place func([]editor.ImageShape)) {
+	p.place = place
 }
 
 func TestAPictureIsTakenFromWhatTheClipboardHolds(t *testing.T) {
@@ -92,5 +101,23 @@ func TestDroppedPicturesGoAfterTheirBlock(t *testing.T) {
 	caret, _ := model.UTF16OffsetToByte(text, model.UTF16Offset(bridge.Controller.Selection().Caret()))
 	if !strings.HasPrefix(text[caret:], "two") {
 		t.Fatal("the caret did not go on below the pictures")
+	}
+}
+
+func TestAnAsyncDropDoesNotWriteIntoAnotherRevision(t *testing.T) {
+	bridge, _ := bridgeFixture(t, "one\ntwo")
+	images := &pendingImages{}
+	bridge.Images = images
+	files, _ := transfer.FileData("/tmp/a.png")
+	bridge.dropPictures(files, 1)
+	if images.place == nil {
+		t.Fatal("the drop did not start its picture intake")
+	}
+	if _, err := bridge.Controller.ReplaceSelection("changed", kernel.EventOriginTyping); err != nil {
+		t.Fatal(err)
+	}
+	images.place([]editor.ImageShape{{Media: "a", Width: 4, Height: 3}})
+	if got := bridge.Controller.Text(); got != "changedone\ntwo" {
+		t.Fatalf("an async drop wrote into a newer revision: %q", got)
 	}
 }

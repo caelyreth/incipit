@@ -25,6 +25,51 @@ type Images interface {
 	Take(pictures []Incoming, place func([]editor.ImageShape))
 }
 
+// placementSnapshot identifies the document revision and session that an
+// asynchronous picture placement was started for. Media storage can outlive
+// the page that asked for it, so its callback must not write into a later
+// document snapshot.
+type placementSnapshot struct {
+	controller *controller.DocumentController
+	session    *editor.Session
+	revision   uint64
+}
+
+func (b *Bridge) placementSnapshot() (placementSnapshot, bool) {
+	if b == nil || b.Controller == nil || b.Images == nil {
+		return placementSnapshot{}, false
+	}
+	session := b.Controller.Session()
+	if session == nil {
+		return placementSnapshot{}, false
+	}
+	return placementSnapshot{
+		controller: b.Controller,
+		session:    session,
+		revision:   b.Controller.Runtime().Revision(),
+	}, true
+}
+
+func (s placementSnapshot) current(b *Bridge) bool {
+	return b != nil && b.Controller == s.controller &&
+		b.Controller.Session() == s.session &&
+		b.Controller.Runtime().Revision() == s.revision
+}
+
+// TakeImages starts an asynchronous picture intake only if its eventual
+// placement still belongs to the same document revision.
+func (b *Bridge) TakeImages(pictures []Incoming, place func([]editor.ImageShape)) {
+	snapshot, ok := b.placementSnapshot()
+	if !ok {
+		return
+	}
+	b.Images.Take(pictures, func(shapes []editor.ImageShape) {
+		if snapshot.current(b) {
+			place(shapes)
+		}
+	})
+}
+
 // pictureFormats are what a page takes as pictures from the clipboard or
 // a drop: files, or a picture's own bytes, which MyGo gives as a PNG
 // whatever the system's format.
@@ -130,7 +175,14 @@ func (b *Bridge) dropPictures(data transfer.Data, offset int) {
 	if len(pictures) == 0 {
 		return
 	}
+	snapshot, ok := b.placementSnapshot()
+	if !ok {
+		return
+	}
 	b.Images.Take(pictures, func(shapes []editor.ImageShape) {
+		if !snapshot.current(b) {
+			return
+		}
 		if len(shapes) == 0 {
 			return
 		}

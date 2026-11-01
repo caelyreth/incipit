@@ -214,7 +214,7 @@ func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 		return nil
 	case keymap.ClipboardPaste:
 		if pictures := clipboardPictures(b.Services); len(pictures) > 0 && b.Images != nil {
-			b.Images.Take(pictures, b.PlaceImages)
+			b.TakeImages(pictures, b.PlaceImages)
 			return nil
 		}
 		text := b.Services.ReadClipboard()
