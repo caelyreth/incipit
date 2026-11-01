@@ -76,6 +76,12 @@ func TestProjectionConstructorValidatesSegments(t *testing.T) {
 		}},
 		{"out of bounds", "p", "abc", []Segment{GeneratedSegment(model.NewUTF16Range(0, 4))}},
 		{"mapping length", "p", "ab", []Segment{EditableSegment(model.NewUTF16Range(0, 2), target)}},
+		{"leading gap", "p", "abc", []Segment{GeneratedSegment(model.NewUTF16Range(1, 3))}},
+		{"internal gap", "p", "abc", []Segment{
+			GeneratedSegment(model.NewUTF16Range(0, 1)),
+			GeneratedSegment(model.NewUTF16Range(2, 3)),
+		}},
+		{"trailing gap", "p", "abc", []Segment{GeneratedSegment(model.NewUTF16Range(0, 2))}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -86,7 +92,7 @@ func TestProjectionConstructorValidatesSegments(t *testing.T) {
 		})
 	}
 	builder := NewBuilder("p", NewVersion(revision, 0))
-	if err := builder.Editable(node, model.NewUTF16Range(0, 1)); err != nil {
+	if err := builder.Editable(node, model.NewUTF16Range(0, 3)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := builder.Build(nil); err != nil {

@@ -181,6 +181,7 @@ const (
 	ErrorAmbiguousCorrespondence
 	ErrorInvalidMapping
 	ErrorLengthOverflow
+	ErrorIncompleteCoverage
 )
 
 type ProjectionError struct {
@@ -226,6 +227,8 @@ func (e *ProjectionError) Error() string {
 		return "projected and semantic ranges cannot be mapped"
 	case ErrorLengthOverflow:
 		return "projected text length exceeds addressable memory"
+	case ErrorIncompleteCoverage:
+		return fmt.Sprintf("projected text is not covered at UTF-16 offsets %d..%d", e.PreviousEnd, e.Length)
 	default:
 		return "unknown projection error"
 	}

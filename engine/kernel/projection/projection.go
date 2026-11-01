@@ -101,9 +101,13 @@ func fromText(
 				return nil, &ProjectionError{Kind: ErrorInvalidBoundary, Offset: int(offset)}
 			}
 		}
-		if int(range16.Start) < previousEnd {
+		if int(range16.Start) != previousEnd {
+			kind := ErrorIncompleteCoverage
+			if int(range16.Start) < previousEnd {
+				kind = ErrorOverlap
+			}
 			return nil, &ProjectionError{
-				Kind:        ErrorOverlap,
+				Kind:        kind,
 				PreviousEnd: previousEnd,
 				NextStart:   int(range16.Start),
 			}
@@ -141,6 +145,13 @@ func fromText(
 		end, _ := text.ByteOffset(int(range16.End))
 		segmentBytes[index] = model.NewByteRange(model.ByteOffset(start), model.ByteOffset(end))
 		previousEnd = int(range16.End)
+	}
+	if previousEnd != length {
+		return nil, &ProjectionError{
+			Kind:        ErrorIncompleteCoverage,
+			PreviousEnd: previousEnd,
+			Length:      length,
+		}
 	}
 	if len(witnesses) != len(segments) {
 		return nil, fmt.Errorf("projection: witness count does not match segments")

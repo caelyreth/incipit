@@ -536,7 +536,7 @@ func ProjectPage(
 			return nil, err
 		}
 	}
-	result, err := builder.Build(nil)
+	result, err := builder.Build([]projection.Dependency{{Document: true}})
 	if err != nil {
 		return nil, wrapProjectionError(err)
 	}

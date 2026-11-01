@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
 )
 
@@ -56,6 +57,18 @@ func TestPresentationProjectsGeneratedMarkersAndBody(t *testing.T) {
 	}
 	if presentation.Caret.RangeUTF16() != model.EmptyUTF16Range(0) {
 		t.Fatalf("caret = %#v", presentation.Caret)
+	}
+	documentDependency := false
+	for _, dependency := range presentation.Projection.Dependencies() {
+		documentDependency = documentDependency || dependency.Document
+	}
+	if !documentDependency {
+		t.Fatal("page projection has no structural document dependency")
+	}
+	if !presentation.Projection.InvalidatedBy(projection.Changes{
+		Document: []model.Change{{Kind: model.ChangeCreated, Node: 99}},
+	}) {
+		t.Fatal("new sibling did not invalidate the page projection")
 	}
 }
 
