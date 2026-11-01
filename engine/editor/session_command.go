@@ -26,6 +26,11 @@ func (s *Session) ExecuteCommand(command kernel.CommandID, now time.Time) (kerne
 			return s.ExecuteWord(wordCommand)
 		}
 	}
+	for _, nestingCommand := range AllNestingCommands {
+		if nestingCommand.ID() == command {
+			return s.ExecuteNesting(nestingCommand)
+		}
+	}
 	switch command {
 	case MarkupEmphasis.ID():
 		return s.ExecuteMarkup(MarkupEmphasis)

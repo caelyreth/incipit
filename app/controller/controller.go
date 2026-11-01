@@ -62,7 +62,11 @@ func NewTextDocument(text string, clock editor.Clock) (*DocumentController, erro
 // OpenDocument mounts a controller on an existing page document, such as
 // one restored from disk, with the caret at the start of its first block.
 func OpenDocument(document *model.Document, clock editor.Clock) (*DocumentController, error) {
-	blocks := editor.DocumentBlocks(document.Snapshot())
+	snapshot := document.Snapshot()
+	if err := editor.ValidatePage(snapshot); err != nil {
+		return nil, err
+	}
+	blocks := editor.DocumentBlocks(snapshot)
 	if len(blocks) == 0 {
 		return nil, fmt.Errorf("controller: the page has no blocks")
 	}

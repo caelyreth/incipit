@@ -63,52 +63,6 @@ func MarkupStateFor(
 	}
 }
 
-// MarkupPlan is a checked semantic formatting request. The model draft remains
-// responsible for applying or toggling the mark.
-type MarkupPlan struct {
-	Handled bool
-	Node    model.NodeID
-	Range   model.UTF16Range
-	Level   uint8
-	State   MarkupState
-}
-
-// PlanMarkup validates composition, selection, policy, and range before a
-// formatting command reaches the model.
-func PlanMarkup(
-	command MarkupCommand,
-	node *model.Node,
-	selection model.TextSelection,
-	activeMark *model.MarkID,
-	settings MarkupSettings,
-	compositionActive bool,
-) (MarkupPlan, error) {
-	if node == nil || node.ID() != selection.Node() {
-		return MarkupPlan{}, &WordError{Kind: WordErrorInvalidOffset}
-	}
-	if compositionActive {
-		return MarkupPlan{}, &MarkupError{Kind: MarkupErrorCompositionActive}
-	}
-	rangeUTF16, err := selection.Range()
-	if err != nil {
-		return MarkupPlan{}, err
-	}
-	if err := node.ValidateTextRangeUTF16(rangeUTF16.Start, rangeUTF16.End); err != nil {
-		return MarkupPlan{}, err
-	}
-	state := MarkupStateFor(command, settings, node, selection, activeMark)
-	if !state.Enabled {
-		return MarkupPlan{Node: node.ID(), Range: rangeUTF16, Level: command.Level(), State: state}, nil
-	}
-	return MarkupPlan{
-		Handled: true,
-		Node:    node.ID(),
-		Range:   rangeUTF16,
-		Level:   command.Level(),
-		State:   state,
-	}, nil
-}
-
 // MarkupErrorKind identifies formatting command failures.
 type MarkupErrorKind uint8
 

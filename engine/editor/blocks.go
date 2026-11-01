@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -58,6 +59,28 @@ func DocumentBlocks(document model.DocumentSnapshot) []*model.Node {
 		}
 	}
 	return blocks
+}
+
+// ValidatePage enforces the editor's flat page shape: a document root whose
+// children are childless blocks.
+func ValidatePage(document model.DocumentSnapshot) error {
+	root, ok := document.Node(document.Root())
+	if !ok {
+		return &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: document.Root()}
+	}
+	if root.Kind() != DocumentNode {
+		return fmt.Errorf("editor: page root is %s, want %s", root.Kind(), DocumentNode)
+	}
+	for _, child := range root.Children() {
+		node, ok := document.Node(child)
+		if !ok {
+			return &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: child}
+		}
+		if len(node.Children()) > 0 {
+			return fmt.Errorf("editor: page block %s has nested children", child)
+		}
+	}
+	return nil
 }
 
 // blockOrder lists a page's block identities in order.

@@ -510,6 +510,9 @@ func ProjectPage(
 	generation uint64,
 	configuration *kernel.PreparedPolicyConfiguration,
 ) (*projection.Projection, error) {
+	if err := ValidatePage(document); err != nil {
+		return nil, &MarkupProjectionError{Kind: projection.ErrorSource, Err: err}
+	}
 	blocks := DocumentBlocks(document)
 	if len(blocks) == 0 {
 		return nil, &MarkupProjectionError{

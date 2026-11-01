@@ -47,7 +47,7 @@ func TestFormattingLevelUsesActiveMarkForCollapsedSelection(t *testing.T) {
 	}
 }
 
-func TestMarkupStateAndPlanGateComposition(t *testing.T) {
+func TestMarkupStateStrongAndEmphasis(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "abc", model.NewUTF16Range(0, 3))
 	node := fixture.nodeValue(t)
@@ -59,16 +59,8 @@ func TestMarkupStateAndPlanGateComposition(t *testing.T) {
 	if state := MarkupStateFor(MarkupEmphasis, settings, node, fixture.selection(t, 0, 3), &mark); !state.Enabled || !state.Selected {
 		t.Fatalf("emphasis state=%#v", state)
 	}
-	plan, err := PlanMarkup(MarkupEmphasis, node, fixture.selection(t, 0, 3), &mark, settings, false)
-	if err != nil || !plan.Handled || plan.Level != 1 || plan.Range != model.NewUTF16Range(0, 3) {
-		t.Fatalf("plan=%#v err=%v", plan, err)
-	}
-	if _, err := PlanMarkup(MarkupEmphasis, node, fixture.selection(t, 0, 3), &mark, settings, true); err == nil {
-		t.Fatal("composition-active formatting accepted")
-	}
 	settings.PolicyEnabled = false
-	plan, err = PlanMarkup(MarkupEmphasis, node, fixture.selection(t, 0, 3), &mark, settings, false)
-	if err != nil || plan.Handled || plan.State.Enabled {
-		t.Fatalf("disabled plan=%#v err=%v", plan, err)
+	if state := MarkupStateFor(MarkupEmphasis, settings, node, fixture.selection(t, 0, 3), &mark); state.Enabled {
+		t.Fatalf("disabled state=%#v", state)
 	}
 }

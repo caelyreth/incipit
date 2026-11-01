@@ -110,6 +110,22 @@ func TestPastedLineEndingsUseTheCanonicalSeparator(t *testing.T) {
 	}
 }
 
+func TestPageRejectsNestedBlockShapes(t *testing.T) {
+	document, blocks, err := NewBlockDocument("outer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		_, err := draft.CreateNode(blocks[0], 0, ParagraphNode)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidatePage(document.Snapshot()); err == nil {
+		t.Fatal("nested page block accepted")
+	}
+}
+
 // Undo brings back the page as it was, blocks and all; redo goes forward.
 func TestUndoAndRedoRestoreBlocks(t *testing.T) {
 	session, _ := newSessionFixture(t, "abcd", false)

@@ -17,10 +17,13 @@ func (s *Session) ExecuteWord(command WordCommand) (kernel.Outcome, error) {
 	selection := s.presentation.Selection
 	snapshot := s.runtime.Snapshot()
 	node, ok := snapshot.Document().Node(selection.Node())
-	if !ok || !node.TextPresent() {
+	if !ok {
 		return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
-	text := node.Text().String()
+	text := ""
+	if node.TextPresent() {
+		text = node.Text().String()
+	}
 	spans := selection.Spans()
 	if spans && (command == WordDeletePrevious || command == WordDeleteNext) {
 		outcome, err := s.ReplaceSelection("", kernel.EventOriginSemantic)

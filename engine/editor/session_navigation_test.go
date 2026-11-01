@@ -106,3 +106,51 @@ func TestSessionOffersNoTabWhileMarkerNotationIsSelected(t *testing.T) {
 		t.Fatalf("Tab offer while marker selected: ok=%v err=%v", ok, err)
 	}
 }
+
+func TestUnifiedDispatchIncludesNestingCommands(t *testing.T) {
+	t.Parallel()
+	document, blocks, err := NewBlockDocument("one\ntwo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		for _, block := range blocks {
+			if err := shapeBlock(draft, block, blockShape{kind: BulletNode}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	session := sessionFor(t, document, blocks[0])
+	revision := session.Runtime().Revision()
+	if err := session.Select(model.NewTextSelection(
+		model.NewTextAnchor(blocks[1], 0, model.AffinityRight, revision),
+		model.NewTextAnchor(blocks[1], 3, model.AffinityLeft, revision),
+	)); err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := session.ExecuteCommand(NestDeeper.ID(), time.Unix(1_700_000_000, 0))
+	if err != nil || outcome != kernel.OutcomeHandled {
+		t.Fatalf("nest outcome=%v err=%v", outcome, err)
+	}
+	if got := session.Projection().Text(); got != "- one\n  - two" {
+		t.Fatalf("projection = %q", got)
+	}
+}
+
+func TestWordCommandsTreatAbsentTextAsEmpty(t *testing.T) {
+	t.Parallel()
+	document, node := emptyBlockDocument(t)
+	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		return draft.ClearText(node)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	session := sessionFor(t, document, node)
+	if outcome, err := session.ExecuteWord(WordNext); err != nil ||
+		outcome != kernel.OutcomeHandled {
+		t.Fatalf("word outcome=%v err=%v", outcome, err)
+	}
+}
