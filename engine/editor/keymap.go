@@ -21,6 +21,7 @@ var defaultKeymap = [...]kernel.BindingSpec{
 	defaultKey("text.select-document-start", "home", keyPrimary|keyShift),
 	defaultKey("text.select-document-end", "end", keyPrimary|keyShift),
 	defaultKey("text.select-all", "a", keyPrimary),
+	defaultKey("text.dismiss-selection", "escape", 0),
 	defaultKey("text.backspace", "backspace", 0),
 	defaultKey("text.delete", "delete", 0),
 	defaultKey("text.newline", "enter", 0),

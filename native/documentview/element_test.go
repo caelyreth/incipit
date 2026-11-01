@@ -255,6 +255,37 @@ func TestElementClickGlidesCaretAndRetargetsInFlight(t *testing.T) {
 	}
 }
 
+func TestElementEscapeDismissesSelectionThroughTheKeymap(t *testing.T) {
+	document, err := controller.NewTextDocument("abcdef", nativeClock{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bridge := NewBridge(document, nil, func() time.Time {
+		return time.Unix(1_700_000_000, 0)
+	})
+	settings := theme.DefaultSettings()
+	element := NewElement(
+		bridge,
+		settings.Semantic(),
+		theme.NewProseStyle(settings.ProseFontSize),
+		time.Unix(1_700_000_000, 0),
+	)
+	tester := ui.NewTester(func(c *ui.Context) {
+		element.View(c)
+	}, 600, 400)
+	tester.Frame()
+	if err := document.SetSelection(controller.UTF16Range{Start: 2, End: 5}); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEscape}) {
+		t.Fatal("Escape was not taken by the keymap")
+	}
+	if selection := document.Selection(); !selection.Range.Empty() || selection.Caret() != 5 {
+		t.Fatalf("Escape left selection %#v", selection)
+	}
+}
+
 func TestElementDragSelectionFollowsPointerDirectly(t *testing.T) {
 	document, element, tester := newAnimatedElement(t, "hello world")
 	start := element.current.Caret(0)

@@ -100,6 +100,17 @@ func TestKeyNamesFollowBindingVocabulary(t *testing.T) {
 	}
 }
 
+func TestEscapeResolvesToDismissSelection(t *testing.T) {
+	t.Parallel()
+	command, ok := ResolveKey(editorKeymap(t), ui.InputEvent{
+		Kind: ui.InputKeyDown,
+		Key:  ui.KeyEscape,
+	}, PlatformDarwin)
+	if !ok || command != editor.TextDismissSelection.ID() {
+		t.Fatalf("escape = %q,%v, want %q", command, ok, editor.TextDismissSelection.ID())
+	}
+}
+
 func TestResolveKeyPrefersLogicalAndFallsBackToPhysical(t *testing.T) {
 	t.Parallel()
 	configuration := preparedKeymap(t,

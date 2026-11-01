@@ -94,6 +94,7 @@ const (
 	TextBackspace
 	TextDelete
 	TextNewline
+	TextDismissSelection
 )
 
 // AllTextCommands is the text commands' stable declaration order.
@@ -111,6 +112,7 @@ var AllTextCommands = [...]TextCommand{
 	TextSelectDocumentStart,
 	TextSelectDocumentEnd,
 	TextSelectAll,
+	TextDismissSelection,
 	TextBackspace,
 	TextDelete,
 	TextNewline,
@@ -146,6 +148,8 @@ func (c TextCommand) Description() Command {
 		meta.ID, meta.Label = "text.select-document-end", "Extend to document end"
 	case TextSelectAll:
 		meta.ID, meta.Label = "text.select-all", "Select all"
+	case TextDismissSelection:
+		meta.ID, meta.Label = "text.dismiss-selection", "Dismiss selection"
 	case TextBackspace:
 		meta.ID, meta.Label = "text.backspace", "Delete backward"
 	case TextDelete:

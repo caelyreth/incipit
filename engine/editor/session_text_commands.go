@@ -23,6 +23,13 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 	if !ok {
 		return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
+	if command == TextDismissSelection {
+		if s.presentation.VisualCollapsed() {
+			return kernel.OutcomeHandled, nil
+		}
+		at := s.presentation.Caret.RangeUTF16().Start
+		return kernel.OutcomeHandled, s.SelectProjected(at, at)
+	}
 	text := ""
 	if node.TextPresent() {
 		text = node.Text().String()

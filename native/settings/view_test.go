@@ -10,6 +10,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/testlock"
@@ -58,6 +59,25 @@ func TestSettingsCategoryNavigation(t *testing.T) {
 	}
 	if state.Category != appsettings.Keymap || !tester.HasText("Bold") {
 		t.Fatalf("category=%v texts=%#v", state.Category, tester.Texts())
+	}
+}
+
+func TestKeymapSettingsShowsDismissSelection(t *testing.T) {
+	state := New()
+	state.Category = appsettings.Keymap
+	state.Data.Shortcuts = []appsettings.Shortcut{{
+		Command: editor.TextDismissSelection.ID(),
+		Label:   "Dismiss selection",
+		Group:   "Writing",
+		Bindings: []kernel.BindingTarget{
+			kernel.NewBindingTarget(kernel.EditorBindingContext, "escape", 0),
+		},
+		Enabled: true,
+	}}
+	tester := ui.NewTester(state.View, 900, 650)
+	tester.Frame()
+	if !tester.HasText("Dismiss selection") {
+		t.Fatalf("dismiss selection missing from settings: %#v", tester.Texts())
 	}
 }
 

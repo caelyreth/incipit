@@ -81,6 +81,28 @@ func TestSessionPointerSelectsProjectedPosition(t *testing.T) {
 	}
 }
 
+func TestDismissSelectionCollapsesToItsVisualHead(t *testing.T) {
+	t.Parallel()
+	session, _ := newSessionFixture(t, "abcdef", false)
+	if err := session.SelectProjected(4, 1); err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := session.ExecuteCommand(
+		TextDismissSelection.ID(),
+		time.Unix(1_700_000_000, 0),
+	)
+	if err != nil || outcome != kernel.OutcomeHandled {
+		t.Fatalf("dismiss outcome=%v err=%v", outcome, err)
+	}
+	if visual, err := session.VisualSelection(); err != nil ||
+		visual != model.EmptyUTF16Range(1) {
+		t.Fatalf("visual selection = %v, %v", visual, err)
+	}
+	if got := session.Projection().Text(); got != "abcdef" {
+		t.Fatalf("dismiss changed text to %q", got)
+	}
+}
+
 func TestSessionCommandDispatchRejectsUnknownCommands(t *testing.T) {
 	t.Parallel()
 	session, _ := newSessionFixture(t, "abc", false)
