@@ -139,7 +139,13 @@ func rebaseInside(target input.TextTarget, edits []model.TextEdit, revision uint
 	if to <= from {
 		return input.TextTarget{}, false
 	}
-	return input.NewTextTarget(target.Node(), model.NewUTF16Range(from, to), revision), true
+	// A split or join can transfer the corrected text into another block.
+	// Feedback must name the block that now owns the range, not the block
+	// where it was first published.
+	if selection.Anchor().Node() != selection.Head().Node() {
+		return input.TextTarget{}, false
+	}
+	return input.NewTextTarget(selection.Head().Node(), model.NewUTF16Range(from, to), revision), true
 }
 
 // Take ends the pulses touching range16 of node and reports the furthest

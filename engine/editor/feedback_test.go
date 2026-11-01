@@ -47,6 +47,33 @@ func TestResolveCorrectionTargetsRebasesThroughLaterEdits(t *testing.T) {
 	}
 }
 
+func TestFeedbackRebaseUsesTheNodeThatOwnsTransferredText(t *testing.T) {
+	document, root := stateDocument(t, "abc")
+	var other model.NodeID
+	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		var err error
+		other, err = draft.CreateNode(root, 0, model.NewNodeTypeID("paragraph"))
+		if err != nil {
+			return err
+		}
+		return draft.SetTextValue(other, "xyz")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := document.Snapshot()
+	target := input.NewTextTarget(root, model.NewUTF16Range(1, 2), snapshot.Revision())
+	rebased, ok := rebaseInside(target, []model.TextEdit{
+		model.NewTextTransfer(root, 1, other, 0, false),
+	}, snapshot.Revision())
+	if !ok || rebased.Node() != other ||
+		rebased.RangeUTF16() != model.NewUTF16Range(0, 1) {
+		t.Fatalf("transferred target = %#v, %v", rebased, ok)
+	}
+	if err := rebased.Validate(snapshot.Revision(), snapshot); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestResolveDeletionOnlyCorrectionsHighlightsNearestSurvivingGrapheme(t *testing.T) {
 	tests := []struct {
 		name          string
