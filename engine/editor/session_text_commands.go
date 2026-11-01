@@ -107,6 +107,9 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 				return 0, err
 			}
 		}
+		if outcome, ok, err := s.growDown(); ok {
+			return outcome, err
+		}
 		outcome, err := s.ReplaceSelection("\n", kernel.EventOriginTyping)
 		return outcome.Outcome, err
 	}

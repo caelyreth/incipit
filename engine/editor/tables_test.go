@@ -108,6 +108,19 @@ func TestTabAndReturnGoThroughTheTable(t *testing.T) {
 	}
 }
 
+// Return in a written last row, from any of its cells, makes a row below
+// and writing goes on in it, under the cell it came from.
+func TestReturnInTheLastRowGrowsTheTable(t *testing.T) {
+	session := tablePage(t)
+	typeSession(t, session, "Ada")
+	run(t, session, TextNewline)
+	if row, column := caretCell(t, session); row != 2 || column != 0 {
+		t.Fatalf("Return went to %d,%d", row, column)
+	}
+	typeSession(t, session, "Grace")
+	expectTable(t, session, []string{"Name", "Date"}, []string{"Ada", ""}, []string{"Grace", ""})
+}
+
 // Rows and columns go in and out where asked, every row as long as the
 // others, the first row keeping the columns' shape; Undo takes each back.
 func TestRowsAndColumnsComeAndGo(t *testing.T) {

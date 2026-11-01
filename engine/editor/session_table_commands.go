@@ -478,6 +478,28 @@ func (s *Session) stepCell(step int) (kernel.Outcome, bool, error) {
 	return kernel.OutcomeHandled, true, s.SelectCell(cells[next])
 }
 
+// growDown is Return in a written last row: a row comes in below it, as a
+// table's own edit, so it may reach past the caret's cell, and the caret
+// goes down into it. It reports whether it took the Return.
+func (s *Session) growDown() (kernel.Outcome, bool, error) {
+	cell := s.presentation.Selection.Head().Node()
+	document := s.runtime.Snapshot().Document()
+	table, ok := TableOf(document, cell)
+	if !ok {
+		return kernel.OutcomePass, false, nil
+	}
+	row, column, _ := table.Find(cell)
+	if row+1 < len(table.Rows) || emptyRow(document, table.Rows[row]) {
+		return kernel.OutcomePass, false, nil
+	}
+	outcome, err := s.InsertTableRows(cell, len(table.Rows), 1)
+	if err == nil && outcome == kernel.OutcomeHandled {
+		grown, _ := TableOf(s.runtime.Snapshot().Document(), cell)
+		err = s.SelectCell(grown.Rows[len(grown.Rows)-1][column])
+	}
+	return outcome, true, err
+}
+
 // guardTable keeps Backspace and Delete at a cell's edge from joining it to
 // what is beside it: at a cell's start, Backspace goes to the end of the
 // cell before, and at its end Delete to the start of the next; at the
