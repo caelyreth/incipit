@@ -5,6 +5,7 @@ package settings
 import (
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -102,5 +103,5 @@ func (s *State) SetWindowActive(active bool) {
 }
 
 func (s *State) motion(c *ui.Context) bool {
-	return s != nil && s.Animate && s.WindowActive && !c.Preferences().ReduceMotion
+	return s != nil && components.MotionEnabled(c, s.Animate, s.WindowActive)
 }

@@ -356,7 +356,7 @@ var (
 func (s *State) tag(c *ui.Context, semantic theme.Theme, text string) {
 	scale := s.Theme.UIFontSize
 	tag := ui.Row(c).Key("tag-" + text)
-	if s.Animate {
+	if s.motion(c) {
 		tag.Transition(tagFade)
 	}
 	tag.Shrink(0).Height(18 * scale / theme.DefaultUIFontSize).AlignItems(ui.Center).

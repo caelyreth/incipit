@@ -4,6 +4,7 @@ package shell
 
 import (
 	"github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -155,6 +156,5 @@ func (s *State) SidebarVisible() bool {
 }
 
 func (s *State) animate(c *ui.Context) bool {
-	return s != nil && s.Appearance.Motion && s.WindowActive &&
-		!c.Preferences().ReduceMotion
+	return s != nil && components.MotionEnabled(c, s.Appearance.Motion, s.WindowActive)
 }

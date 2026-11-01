@@ -18,6 +18,13 @@ const (
 	MotionSettle = 340 * time.Millisecond
 )
 
+// MotionEnabled is the app's effective motion policy for a window. MyGo
+// handles reduced motion in its own animations, while custom painting also
+// needs the window's active state and the app's preference.
+func MotionEnabled(c *ui.Context, enabled, active bool) bool {
+	return c != nil && enabled && active && !c.Preferences().ReduceMotion
+}
+
 // Decelerate is the panel curve: a cubic ease-out that moves immediately and
 // settles softly, so sidebar and chrome changes answer the click at once.
 func Decelerate(t float32) float32 {

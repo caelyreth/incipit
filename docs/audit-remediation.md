@@ -47,7 +47,7 @@ than force unrelated operations through a generic abstraction.
 | C6 | Geometry, role mappings and deterministic helpers | Open | |
 | C7 | Public target rebasing and affinity | Settled | Position affinity is distinct from mark-boundary affinity; collapsed targets remain collapsed, including when given opposing boundary affinities. |
 | C8 | Resource cloning and dispatch predicates | Open | Preserve authority and oracle paths |
-| C9 | Settings row variants and timing gates | Open | Distinguish app and MyGo motion policy |
+| C9 | Settings row variants and timing gates | In progress | Shared effective motion policy now covers settings, shell, overlays and table feedback; row/disclosure extraction remains open. |
 | C10 | Place-title flight geometry | Open | Preserve endpoint appearance and interaction |
 
 ## Final Verification

@@ -1194,11 +1194,18 @@ func drawMade(p *ui.Painter, state *State, placed textlayout.PlacedTable, cell f
 	if made == nil || made.table != placed.Table.Node() {
 		return
 	}
-	fade := 1 - float32(p.Now().Sub(made.at))/float32(madeFade)
-	if fade <= 0 {
+	now := p.Now()
+	deadline := made.at.Add(madeFade)
+	if !now.Before(deadline) {
 		return
 	}
-	p.AnimationFrame()
+	fade := float32(1)
+	if state.Animate {
+		fade -= float32(now.Sub(made.at)) / float32(madeFade)
+		p.AnimationFrame()
+	} else {
+		p.After(deadline.Sub(now))
+	}
 	var span ui.Rect
 	switch {
 	case !made.column && made.index < len(placed.Rows):

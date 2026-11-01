@@ -11,6 +11,7 @@ import (
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/documentview"
 	"github.com/caelyreth/neverland/native/notices"
 	"github.com/caelyreth/neverland/native/overlay"
@@ -143,8 +144,7 @@ func (a *AppState) BindShell() {
 		}
 		a.Element.Theme, _ = a.colors.At(a.Shell.Settings, c.Now())
 		a.Element.Prose = a.Shell.Settings.Prose()
-		a.Element.Animate = a.Shell.Appearance.Motion && a.Shell.WindowActive &&
-			!c.Preferences().ReduceMotion
+		a.Element.Animate = components.MotionEnabled(c, a.Shell.Appearance.Motion, a.Shell.WindowActive)
 		a.Element.Typewriter = a.Shell.Appearance.Typewriter
 		// The reading space above the first line scrolls with the page.
 		// The last line only needs to clear the floating dock; typewriter
@@ -683,8 +683,7 @@ func (a *AppState) View(c *ui.Context) {
 	}
 	a.followAccent(c.Now())
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
-	animate := a.Shell.Appearance.Motion && a.Shell.WindowActive &&
-		!c.Preferences().ReduceMotion
+	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion, a.Shell.WindowActive)
 	if a.Palette != nil {
 		a.Palette.View(c, semantic, animate)
 		if command, ok := a.Palette.ConsumeChoice(); ok && a.Bridge != nil {
