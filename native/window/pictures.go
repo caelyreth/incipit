@@ -219,15 +219,16 @@ func (h figureHost) ReplacePicture(node model.NodeID) {
 		}
 		replace := func() {
 			picture := documentview.Incoming{Path: paths[0], Name: filepath.Base(paths[0])}
-			if a.Bridge == nil {
+			bridge := a.Bridge
+			if bridge == nil {
 				return
 			}
-			a.Bridge.TakeImages([]documentview.Incoming{picture}, func(shapes []editor.ImageShape) {
-				if len(shapes) == 0 || a.Bridge == nil {
+			bridge.TakeImages([]documentview.Incoming{picture}, func(shapes []editor.ImageShape) {
+				if len(shapes) == 0 || a.Bridge != bridge {
 					return
 				}
 				kept := shapes[0]
-				_, _ = a.Bridge.Controller.ShapeImage(node, func(shape *editor.ImageShape) {
+				_, _ = bridge.Controller.ShapeImage(node, func(shape *editor.ImageShape) {
 					shape.Media, shape.Width, shape.Height = kept.Media, kept.Width, kept.Height
 				})
 			})
