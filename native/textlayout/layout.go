@@ -22,6 +22,10 @@ type Paragraph struct {
 	figure    surface.Figure
 	box       ui.Rect
 	hasFigure bool
+	// left is where the paragraph's lines start, a cell's from the
+	// page's edge; cell says it stands in a table's cell.
+	left float32
+	cell bool
 }
 
 func (p Paragraph) Layout() *ui.TextLayout { return p.layout }
@@ -32,6 +36,10 @@ func (p Paragraph) EndUTF16() int          { return p.endUTF16 }
 func (p Paragraph) ContentEndUTF16() int   { return p.contentUTF16 }
 func (p Paragraph) Top() float32           { return p.top }
 func (p Paragraph) Height() float32        { return p.height }
+func (p Paragraph) Left() float32          { return p.left }
+
+// InCell reports whether the paragraph is a line of a table's cell.
+func (p Paragraph) InCell() bool { return p.cell }
 
 // Figure is the figure the paragraph's line stands under, if one does.
 func (p Paragraph) Figure() (surface.Figure, bool) { return p.figure, p.hasFigure }
@@ -43,6 +51,7 @@ type Layout struct {
 	width      float32
 	style      Style
 	paragraphs []Paragraph
+	tables     []PlacedTable
 	height     float32
 }
 
@@ -100,17 +109,52 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	body := style.Prose.Leading()
 	previous := surface.RhythmProse
 	previousFigure := false
-	for index, raw := range paragraphs {
+	shape := func(raw rawParagraph, font ui.Font, width float32, align ui.Align, figure, header bool) *ui.TextLayout {
+		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width, align, figure, header)
+		var layout *ui.TextLayout
+		if available := c.layouts[key]; len(available) > 0 {
+			layout = available[len(available)-1]
+			c.layouts[key] = available[:len(available)-1]
+		} else {
+			spans := spansFor(flow, raw.startByte, raw.endByte, style)
+			if figure {
+				spans = figureObject(spans)
+			}
+			if header {
+				spans = headerSpans(spans)
+			}
+			layout = ui.ShapeRichTextWith(spans, font, ui.TextShape{Width: width, Align: align})
+		}
+		next[key] = append(next[key], layout)
+		return layout
+	}
+	var tables []PlacedTable
+	for index := 0; index < len(paragraphs); index++ {
+		raw := paragraphs[index]
 		rhythm := paragraphRhythm(flow, raw.startByte)
 		figure, hasFigure := flow.FigureAt(model.UTF16Offset(raw.startUTF16))
+		table, hasTable := flow.TableAt(model.UTF16Offset(raw.startUTF16))
 		above := float32(0)
 		if index > 0 {
 			above = gap(previous, rhythm, body)
-			if hasFigure || previousFigure {
+			if hasFigure || hasTable || previousFigure {
 				above = max(above, figureGap(body))
 			}
 		}
-		previous, previousFigure = rhythm, hasFigure
+		previous, previousFigure = rhythm, hasFigure || hasTable
+		if hasTable {
+			top += above
+			placed, cells, height := placeTable(table, paragraphs[index:], top, width, style, func(raw rawParagraph, width float32, align ui.Align, header bool) *ui.TextLayout {
+				font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
+				return shape(raw, font, width, align, false, header)
+			})
+			cells[0].gap = above
+			shaped = append(shaped, cells...)
+			tables = append(tables, placed)
+			top += height
+			index += len(cells) - 1
+			continue
+		}
 		var box ui.Rect
 		align := ui.Start
 		if hasFigure {
@@ -123,19 +167,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		}
 		top += above
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
-		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width, align, hasFigure)
-		var layout *ui.TextLayout
-		if available := c.layouts[key]; len(available) > 0 {
-			layout = available[len(available)-1]
-			c.layouts[key] = available[:len(available)-1]
-		} else {
-			spans := spansFor(flow, raw.startByte, raw.endByte, style)
-			if hasFigure {
-				spans = figureObject(spans)
-			}
-			layout = ui.ShapeRichTextWith(spans, font, ui.TextShape{Width: width, Align: align})
-		}
-		next[key] = append(next[key], layout)
+		layout := shape(raw, font, width, align, hasFigure, false)
 		_, height := layout.Size()
 		if hasFigure {
 			height *= captionRoom(figure)
@@ -163,6 +195,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		width:      width,
 		style:      style,
 		paragraphs: shaped,
+		tables:     tables,
 		height:     max(lineHeight, top),
 	}
 	return c.layout
@@ -253,7 +286,7 @@ func paragraphKey(
 	font ui.Font,
 	width float32,
 	align ui.Align,
-	figure bool,
+	figure, header bool,
 ) uint64 {
 	const (
 		fnvOffset64 = uint64(14695981039346656037)
@@ -279,7 +312,7 @@ func paragraphKey(
 		})
 	}
 	writeFloat(width)
-	writeBytes([]byte{byte(align), boolByte(figure)})
+	writeBytes([]byte{byte(align), boolByte(figure), boolByte(header)})
 	writeFloat(font.Size)
 	writeFloat(font.LineHeight)
 	writeString(font.Family)

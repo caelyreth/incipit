@@ -20,6 +20,7 @@ func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 		}
 	}
 	caret := paragraph.layout.Caret(local)
+	caret.X += paragraph.left
 	caret.Y += paragraph.top
 	// The caret grows with its row: a row of larger text is taller than
 	// body text's, and its caret is as much taller, centered alike. In a row
@@ -48,6 +49,7 @@ func (l *Layout) CaretLine(offset model.UTF16Offset) (ui.Rect, bool) {
 		return ui.Rect{}, false
 	}
 	line := paragraph.layout.Caret(local)
+	line.X += paragraph.left
 	line.Y += paragraph.top
 	return line, line.H > 0
 }
@@ -65,25 +67,81 @@ func (l *Layout) RowNear(offset model.UTF16Offset, direction int, x float32) mod
 	row := paragraph.layout.Caret(local)
 	_, height := paragraph.layout.Size()
 	if y := row.Y + row.H/2 + float32(direction)*row.H; y >= 0 && y < height {
-		return model.UTF16Offset(paragraph.startUTF16 + indexOnRow(paragraph.layout, x, y))
+		return model.UTF16Offset(paragraph.startUTF16 + indexOnRow(paragraph.layout, x-paragraph.left, y))
 	}
 	index := slices.IndexFunc(l.paragraphs, func(candidate Paragraph) bool {
 		return candidate.startUTF16 == paragraph.startUTF16
-	}) + direction
-	switch {
-	case index < 0:
-		return model.UTF16Offset(paragraph.startUTF16 + indexOnRow(paragraph.layout, x, row.Y+row.H/2))
-	case index >= len(l.paragraphs):
+	})
+	beside, ok := l.verticalNeighbor(index, direction, x)
+	if !ok {
+		if direction < 0 {
+			return model.UTF16Offset(paragraph.startUTF16 + indexOnRow(paragraph.layout, x-paragraph.left, row.Y+row.H/2))
+		}
 		return model.UTF16Offset(l.flow.UTF16Len())
 	}
-	beside := &l.paragraphs[index]
 	// Its first row going down, its last coming up.
 	_, height = beside.layout.Size()
 	y := min(1, height/2)
 	if direction < 0 {
 		y = height - y
 	}
-	return model.UTF16Offset(beside.startUTF16 + indexOnRow(beside.layout, x, y))
+	return model.UTF16Offset(beside.startUTF16 + indexOnRow(beside.layout, x-beside.left, y))
+}
+
+// verticalNeighbor is the paragraph above (direction -1) or below (1) the
+// one at index, nearest x: in a table, the next line of its cell or the
+// cell above or below in its column, then the text beside the table; into
+// a table, the cell of its first or last row under x.
+func (l *Layout) verticalNeighbor(index, direction int, x float32) (*Paragraph, bool) {
+	paragraph := &l.paragraphs[index]
+	if table, row, column, ok := l.cellOf(paragraph); ok {
+		lines := l.cellLines(table, row, column)
+		at := slices.Index(lines, paragraph) + direction
+		if at >= 0 && at < len(lines) {
+			return lines[at], true
+		}
+		if next := row + direction; next >= 0 && next < len(table.Table.Rows) {
+			lines = l.cellLines(table, next, column)
+			if direction > 0 {
+				return lines[0], true
+			}
+			return lines[len(lines)-1], true
+		}
+		// Out of the table, past its first or last cell's lines.
+		edge := table.Table.Range().Start
+		if direction > 0 {
+			edge = table.Table.Range().End
+		}
+		index = slices.IndexFunc(l.paragraphs, func(candidate Paragraph) bool {
+			return model.UTF16Offset(candidate.startUTF16) <= edge && edge <= model.UTF16Offset(candidate.contentUTF16)
+		})
+		if direction > 0 {
+			for index+1 < len(l.paragraphs) && l.paragraphs[index+1].cell {
+				index++
+			}
+		} else {
+			for index-1 >= 0 && l.paragraphs[index-1].cell {
+				index--
+			}
+		}
+	}
+	index += direction
+	if index < 0 || index >= len(l.paragraphs) {
+		return nil, false
+	}
+	beside := &l.paragraphs[index]
+	if table, _, _, ok := l.cellOf(beside); ok {
+		row := 0
+		if direction < 0 {
+			row = len(table.Table.Rows) - 1
+		}
+		lines := l.cellLines(table, row, edgeIndex(table.Columns, x))
+		if direction > 0 {
+			return lines[0], true
+		}
+		return lines[len(lines)-1], true
+	}
+	return beside, true
 }
 
 // indexOnRow is the index nearest x on a paragraph's row at y. Past the
@@ -102,10 +160,14 @@ func (l *Layout) Hit(point ui.Point) model.UTF16Offset {
 		return model.UTF16Offset(l.flow.UTF16Len())
 	}
 	paragraph := l.paragraphAtY(point.Y)
+	if table, ok := l.TableAt(point.Y); ok {
+		row, column := table.At(point)
+		paragraph = paragraphIn(l.cellLines(table, row, column), point.Y)
+	}
 	if paragraph == nil {
 		return model.UTF16Offset(l.flow.UTF16Len())
 	}
-	localPoint := ui.Point{X: point.X, Y: point.Y - paragraph.top}
+	localPoint := ui.Point{X: point.X - paragraph.left, Y: point.Y - paragraph.top}
 	local := paragraph.layout.IndexAt(localPoint)
 	return model.UTF16Offset(paragraph.startUTF16 + local)
 }
@@ -138,7 +200,8 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 		// above it too, so a selection across blocks has no holes.
 		lift := func(rect ui.Rect) ui.Rect {
 			rect.H *= room
-			if start < paragraph.startUTF16 && rect.Y <= paragraph.top {
+			rect.X += paragraph.left
+			if start < paragraph.startUTF16 && rect.Y <= paragraph.top && !paragraph.cell {
 				rect.Y -= paragraph.gap
 				rect.H += paragraph.gap
 			}

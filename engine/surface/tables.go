@@ -38,6 +38,38 @@ type Table struct {
 	// leave.
 	Align  []CellAlign
 	Widths []float32
+	// Room is what a view opens in and below the table as it shows what
+	// makes rows and columns there.
+	Room TableRoom
+}
+
+// TableRoom is room a view opens in and below a table, in DIPs, and how
+// far each row and column has come in. Its zero value opens none.
+type TableRoom struct {
+	// Below is room under the table, for a new row's area.
+	Below float32
+	// RowRoom and ColumnRoom open before row Row and column Column, for
+	// an area making one there.
+	Row, Column         int
+	RowRoom, ColumnRoom float32
+	// RowShown and ColumnShown are each row's and column's share of its
+	// size, coming in from 0; all 1 when nil.
+	RowShown, ColumnShown []float32
+}
+
+// RowShare and ColumnShare are row's and column's share of their size.
+func (r TableRoom) RowShare(row int) float32 {
+	if row < len(r.RowShown) {
+		return max(0, min(1, r.RowShown[row]))
+	}
+	return 1
+}
+
+func (r TableRoom) ColumnShare(column int) float32 {
+	if column < len(r.ColumnShown) {
+		return max(0, min(1, r.ColumnShown[column]))
+	}
+	return 1
 }
 
 // Columns is how many cells each row has.
