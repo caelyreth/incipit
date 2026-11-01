@@ -58,7 +58,6 @@ func Run() error {
 		})
 		window.OnFocus(func() {
 			app.Shell.SetWindowActive(true)
-			app.Error = ""
 			app.refreshShell()
 		})
 		window.OnBlur(func() {
@@ -72,6 +71,7 @@ func Run() error {
 			}
 		})
 		app.mainWindow = window
+		app.Notices.SetWake(window.Invalidate)
 	})
 	return mygo.App.Run()
 }

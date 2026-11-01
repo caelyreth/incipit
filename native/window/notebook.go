@@ -76,6 +76,10 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 		stored[page.Key] = page.Document.Snapshot()
 	}
 	a.notebook.saver = store.Autosave(stored)
+	a.watchSaving(a.notebook.saver)
+	if notice, ok := recovered(store, contents); ok {
+		a.Notices.Post(notice)
+	}
 	// Pages filed just now, as those the library did not know, are kept so.
 	a.notebook.saver.Library(a.library.Records())
 	if len(sessions) == 0 {

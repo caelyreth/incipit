@@ -451,3 +451,25 @@ func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
 		t.Fatalf("group %+v", group)
 	}
 }
+
+// Whoever watches the saver is told after each write, to read how it went.
+func TestTheWatcherIsToldAfterEachWrite(t *testing.T) {
+	store := openStore(t, t.TempDir())
+	defer store.Close()
+	saver := store.Autosave(nil)
+	defer saver.Close()
+	told := make(chan error, 4)
+	saver.Watch(func() { told <- saver.Err() })
+	saver.Page(1, "", page(t, "typed").Snapshot())
+	if err := saver.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-told:
+		if err != nil {
+			t.Fatalf("told of %v after a write that went well", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the watcher was not told of the write")
+	}
+}

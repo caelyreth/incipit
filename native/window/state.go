@@ -12,6 +12,7 @@ import (
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/documentview"
+	"github.com/caelyreth/neverland/native/notices"
 	"github.com/caelyreth/neverland/native/overlay"
 	"github.com/caelyreth/neverland/native/settings"
 	"github.com/caelyreth/neverland/native/shell"
@@ -34,12 +35,14 @@ type AppState struct {
 	Palette   *overlay.CommandPalette
 	// AltText asks for a picture's words, and Viewer shows a picture over
 	// the window.
-	AltText        *overlay.AltText
-	Viewer         *overlay.Viewer
-	Element        *documentview.Element
-	Bridge         *documentview.Bridge
-	Session        *sheetSession
-	Error          string
+	AltText *overlay.AltText
+	Viewer  *overlay.Viewer
+	Element *documentview.Element
+	Bridge  *documentview.Bridge
+	Session *sheetSession
+	// Notices tells the user what happened apart from what they did, as
+	// toasts at the window's foot.
+	Notices        *notices.Center
 	mainWindow     *mygo.Window
 	settingsWindow *mygo.Window
 	// menu is the application menu; recording stands its keys down while
@@ -75,6 +78,7 @@ func OpenAppState(store *storage.Store) (*AppState, error) {
 
 func newAppState(store *storage.Store) (*AppState, error) {
 	app := &AppState{
+		Notices:     &notices.Center{},
 		sessions:    map[workspace.PageID]*sheetSession{},
 		nextKey:     1,
 		closeWindow: func(window *mygo.Window) { window.Close() },
@@ -156,7 +160,7 @@ func (a *AppState) BindShell() {
 		var page workspace.PageID
 		_, _ = fmt.Sscanf(id, "%d", &page)
 		if err := a.Workspace.Open(page); err != nil {
-			a.Error = err.Error()
+			a.fail("Couldn't open the page", err)
 			return
 		}
 		a.selectMounted()
@@ -301,8 +305,7 @@ func (a *AppState) executeEditorCommand(command kernel.CommandID) {
 		return
 	}
 	if err := a.Bridge.Execute(action); err != nil {
-		a.Error = err.Error()
-		a.refreshShell()
+		a.fail("Couldn't run the command", err)
 	}
 }
 
@@ -399,9 +402,6 @@ func (a *AppState) executeExternalCommand(command kernel.CommandID) error {
 	default:
 		return nil
 	}
-	if a.Error != "" {
-		return fmt.Errorf("%s", a.Error)
-	}
 	return nil
 }
 
@@ -420,8 +420,7 @@ func (a *AppState) togglePresentation(
 func (a *AppState) navigatePage(forward bool) {
 	a.parkScroll()
 	if _, ok, err := a.Workspace.Navigate(forward); err != nil {
-		a.Error = err.Error()
-		a.refreshShell()
+		a.fail("Couldn't go to the page", err)
 		return
 	} else if !ok {
 		return
@@ -465,8 +464,7 @@ func (a *AppState) closePageID(id string) {
 	}
 	a.parkScroll()
 	if err := a.Workspace.Close(page); err != nil {
-		a.Error = err.Error()
-		a.refreshShell()
+		a.fail("Couldn't close the page", err)
 		return
 	}
 	a.selectMounted()
@@ -525,7 +523,7 @@ func (a *AppState) refreshSettingsData() {
 	a.Settings.Apply = func(change appsettings.Change) {
 		outcome, err := a.Product.Apply(change, a.Store, a.Session)
 		if err != nil {
-			a.Error = err.Error()
+			a.fail("Couldn't change the setting", err)
 			return
 		}
 		if outcome.PolicyChanged {
@@ -579,14 +577,13 @@ func (a *AppState) setPresentation(mode appsettings.Presentation, on bool) {
 	change := appsettings.ToggleBoolean(appsettings.PresentationBoolean(mode), on)
 	outcome, err := a.Product.Apply(change, a.Store, a.Session)
 	if err != nil {
-		a.Error = err.Error()
+		a.fail("Couldn't change the setting", err)
 		a.refreshAppearance()
 		return
 	}
 	if !outcome.Applied {
 		return
 	}
-	a.Error = ""
 	a.refreshAppearance()
 	a.refreshSettingsData()
 }
@@ -598,14 +595,13 @@ func (a *AppState) setPolicy(policy kernel.PolicyID, on bool) {
 	change := appsettings.ToggleBoolean(appsettings.PolicyBoolean(policy), on)
 	outcome, err := a.Product.Apply(change, a.Store, a.Session)
 	if err != nil {
-		a.Error = err.Error()
+		a.fail("Couldn't change the setting", err)
 		a.refreshShell()
 		return
 	}
 	if outcome.PolicyChanged {
 		a.Bridge = nil
 	}
-	a.Error = ""
 	a.refreshShell()
 	a.refreshSettingsData()
 }
@@ -696,6 +692,10 @@ func (a *AppState) View(c *ui.Context) {
 	a.Shell.View(c)
 	// What this frame's input changed goes to the notebook.
 	a.save()
+	// The toasts stand above the foot's counter, and over all else.
+	a.reportEditing()
+	scale := a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
+	a.Notices.View(c, semantic, animate, theme.DefaultLayout.Status*scale)
 }
 
 func (a *AppState) commands() []overlay.Command {

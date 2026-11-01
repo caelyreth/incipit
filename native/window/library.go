@@ -1,7 +1,6 @@
 package window
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -304,7 +303,7 @@ func (a *AppState) NewSheet(group string, index int) {
 	a.parkScroll()
 	id, err := a.Workspace.NewPage()
 	if err != nil {
-		a.fail(err)
+		a.fail("Couldn't create the sheet", err)
 		return
 	}
 	if session, ok := a.sessions[id]; ok {
@@ -323,11 +322,11 @@ func (a *AppState) NewChapter(group string, index int) string {
 	}
 	id, err := a.library.AddChapter(target, "")
 	if err != nil {
-		a.fail(err)
+		a.fail("Couldn't create the chapter", err)
 		return ""
 	}
 	if err := a.library.MoveChapter(id, target, index); err != nil {
-		a.fail(err)
+		a.fail("Couldn't create the chapter", err)
 		return ""
 	}
 	a.libraryChanged()
@@ -347,7 +346,7 @@ func (a *AppState) OpenSheet(name string, newTab bool) {
 		open = a.Workspace.Open
 	}
 	if err := open(session.page); err != nil {
-		a.fail(err)
+		a.fail("Couldn't open the sheet", err)
 		return
 	}
 	a.selectMounted()
@@ -371,7 +370,7 @@ func (a *AppState) DuplicateSheet(name string) {
 	}
 	document, err := model.RestoreDocument(snapshot.Root(), snapshot.NextID(), records)
 	if err != nil {
-		a.fail(err)
+		a.fail("Couldn't duplicate the sheet", err)
 		return
 	}
 	id, err := a.Workspace.CreatePageFrom(func(
@@ -388,7 +387,7 @@ func (a *AppState) DuplicateSheet(name string) {
 		return a.adoptSession(id, opened), nil
 	})
 	if err != nil {
-		a.fail(err)
+		a.fail("Couldn't duplicate the sheet", err)
 		return
 	}
 	copied := library.SheetID(a.sessions[id].key)
@@ -412,7 +411,7 @@ func (a *AppState) MoveSheet(name, group string, index int) {
 	target := groupOf(group)
 	sheet, _ := a.library.Sheet(library.SheetID(session.key))
 	if err := a.library.MoveSheet(sheet.ID, target, index); err != nil {
-		a.fail(err)
+		a.fail("Couldn't move the sheet", err)
 		return
 	}
 	a.libraryChanged()
@@ -445,7 +444,7 @@ func (a *AppState) MoveChapter(id, group string, index int) {
 		return
 	}
 	if err := a.library.MoveChapter(chapter, groupOf(group), index); err != nil {
-		a.fail(err)
+		a.fail("Couldn't move the chapter", err)
 		return
 	}
 	a.libraryChanged()
@@ -458,7 +457,7 @@ func (a *AppState) DeleteChapter(id string) {
 		return
 	}
 	if err := a.library.DeleteChapter(chapter); err != nil {
-		a.fail(err)
+		a.fail("Couldn't delete the chapter", err)
 		return
 	}
 	a.libraryChanged()
@@ -472,7 +471,7 @@ func (a *AppState) TrashSheet(name string) {
 		return
 	}
 	if err := a.library.TrashSheet(library.SheetID(session.key), time.Now()); err != nil {
-		a.fail(err)
+		a.fail("Couldn't move the sheet to the Trash", err)
 		return
 	}
 	a.closeTabs([]*sheetSession{session})
@@ -495,7 +494,7 @@ func (a *AppState) DeleteSheet(name string) {
 		return
 	}
 	if err := a.library.DeleteSheet(library.SheetID(session.key)); err != nil {
-		a.fail(err)
+		a.fail("Couldn't delete the sheet", err)
 		return
 	}
 	a.discard([]library.SheetID{library.SheetID(session.key)})
@@ -505,7 +504,7 @@ func (a *AppState) DeleteSheet(name string) {
 func (a *AppState) NewGroup(parent string, index int) string {
 	id, err := a.library.AddGroup(groupOf(parent), "Untitled Group")
 	if err != nil {
-		a.fail(err)
+		a.fail("Couldn't create the group", err)
 		return ""
 	}
 	_ = a.library.MoveGroup(id, groupOf(parent), index)
@@ -532,7 +531,7 @@ func (a *AppState) StyleGroup(id, icon string, color int) {
 // MoveGroup is part of shell.Library.
 func (a *AppState) MoveGroup(id, parent string, index int) {
 	if err := a.library.MoveGroup(groupOf(id), groupOf(parent), index); err != nil {
-		a.fail(err)
+		a.fail("Couldn't move the group", err)
 		return
 	}
 	a.libraryChanged()
@@ -543,7 +542,7 @@ func (a *AppState) MoveGroup(id, parent string, index int) {
 func (a *AppState) TrashGroup(id string) {
 	group := groupOf(id)
 	if err := a.library.TrashGroup(group, time.Now()); err != nil {
-		a.fail(err)
+		a.fail("Couldn't move the group to the Trash", err)
 		return
 	}
 	var closing []*sheetSession
@@ -568,7 +567,7 @@ func (a *AppState) RestoreGroup(id string) {
 func (a *AppState) DeleteGroup(id string) {
 	deleted, err := a.library.DeleteGroup(groupOf(id))
 	if err != nil {
-		a.fail(err)
+		a.fail("Couldn't delete the group", err)
 		return
 	}
 	a.discard(deleted)
@@ -588,7 +587,7 @@ func (a *AppState) discard(sheets []library.SheetID) {
 			continue
 		}
 		if err := a.Workspace.Discard(session.page); err != nil {
-			a.fail(err)
+			a.fail("Couldn't delete the sheet", err)
 			continue
 		}
 		delete(a.sessions, session.page)
@@ -605,7 +604,7 @@ func (a *AppState) closeTabs(sessions []*sheetSession) {
 	a.parkScroll()
 	for _, session := range sessions {
 		if err := a.Workspace.Close(session.page); err != nil {
-			a.fail(err)
+			a.fail("Couldn't close the tab", err)
 		}
 	}
 	a.selectMounted()
@@ -630,22 +629,23 @@ func (a *AppState) closeTabsWhere(kept string, close func(at, kept int) bool) {
 	}
 	a.parkScroll()
 	if err := a.Workspace.Open(session.page); err != nil {
-		a.fail(err)
+		a.fail("Couldn't close the tabs", err)
 		return
 	}
 	for at, id := range tabs {
 		if close(at, index) {
 			if err := a.Workspace.Close(id); err != nil {
-				a.fail(err)
+				a.fail("Couldn't close the tabs", err)
 			}
 		}
 	}
 	a.selectMounted()
 }
 
-func (a *AppState) fail(err error) {
-	a.Error = fmt.Sprint(err)
-	a.refreshShell()
+// fail tells the user what could not be done, and why. It is safe from
+// any goroutine.
+func (a *AppState) fail(title string, err error) {
+	a.Notices.Report(title, err)
 }
 
 var _ shell.Library = (*AppState)(nil)

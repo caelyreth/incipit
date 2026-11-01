@@ -242,8 +242,7 @@ func (a *AppState) closePage() {
 		return
 	}
 	if err := a.Workspace.Close(id); err != nil {
-		a.Error = err.Error()
-		a.refreshShell()
+		a.fail("Couldn't close the page", err)
 		return
 	}
 	a.selectMounted()

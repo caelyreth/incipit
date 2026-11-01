@@ -40,9 +40,11 @@ type Saver struct {
 	// backupErr is the last backup's failure: the notebook itself is
 	// saved, only its copy is behind.
 	backupErr error
-	closing   bool
-	wake      chan struct{}
-	done      chan struct{}
+	// watch is told after each attempt to write.
+	watch   func()
+	closing bool
+	wake    chan struct{}
+	done    chan struct{}
 
 	// stored is what is on disk for each page, read by the loop alone.
 	stored map[PageKey]model.DocumentSnapshot
@@ -160,6 +162,14 @@ func (v *Saver) BackupErr() error {
 	return v.backupErr
 }
 
+// Watch has fn called, from the saver's goroutine, after each attempt to
+// write and back up, for Err and BackupErr to be read anew.
+func (v *Saver) Watch(fn func()) {
+	v.mu.Lock()
+	v.watch = fn
+	v.mu.Unlock()
+}
+
 // Close writes everything pending, takes a backup when the notebook
 // changed, and stops. It reports a write that could not be made.
 func (v *Saver) Close() error {
@@ -202,6 +212,12 @@ func (v *Saver) run() {
 				v.backup(closing)
 			}
 			v.answer(err)
+			v.mu.Lock()
+			watch := v.watch
+			v.mu.Unlock()
+			if watch != nil && !closing {
+				watch()
+			}
 			if closing {
 				if err != nil {
 					v.rescue()

@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 
+	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 )
 
@@ -25,17 +26,17 @@ func (c *DocumentController) MoveVertical(direction VerticalDirection, extend bo
 		return c.fail(fmt.Errorf("controller: invalid vertical direction %d", direction))
 	}
 	if c.preedit != nil {
-		return c.fail(fmt.Errorf("controller: vertical movement during composition"))
+		return c.fail(fmt.Errorf("controller: vertical movement: %w", editor.ErrCompositionActive))
 	}
 	geometry, ok := c.geometry.(VerticalGeometry)
 	if !ok || geometry == nil {
-		return c.fail(fmt.Errorf("controller: retained vertical geometry unavailable"))
+		return c.fail(fmt.Errorf("%w: no retained vertical geometry", ErrNoGeometry))
 	}
 
 	caret := c.Caret()
 	line, ok := geometry.CaretLine(c.text, caret)
 	if !ok || line.H <= 0 {
-		return c.fail(fmt.Errorf("controller: caret line is unavailable"))
+		return c.fail(fmt.Errorf("%w: no caret line", ErrNoGeometry))
 	}
 	if !c.hasPreferredX {
 		c.preferredX = line.X
@@ -43,7 +44,7 @@ func (c *DocumentController) MoveVertical(direction VerticalDirection, extend bo
 	}
 	head, ok := geometry.RowIndex(c.text, caret, direction, c.preferredX)
 	if !ok {
-		return c.fail(fmt.Errorf("controller: vertical hit test failed"))
+		return c.fail(fmt.Errorf("%w: vertical hit test failed", ErrNoGeometry))
 	}
 
 	anchor := head

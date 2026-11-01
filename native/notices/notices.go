@@ -104,7 +104,7 @@ func (n *Center) Report(title string, err error) {
 	if err == nil {
 		return
 	}
-	n.Post(Notice{Kind: Error, Title: title, Description: describe(err)})
+	n.Post(Notice{Kind: Error, Title: title, Description: Describe(err)})
 }
 
 // Dismiss closes the notice with id, if it shows.
@@ -134,8 +134,8 @@ func (n *Center) take() []change {
 	return pending
 }
 
-// describe is an error as a sentence: its first letter raised.
-func describe(err error) string {
+// Describe is an error as a notice's sentence: its first letter raised.
+func Describe(err error) string {
 	text := []rune(err.Error())
 	if len(text) > 0 && text[0] >= 'a' && text[0] <= 'z' {
 		text[0] -= 'a' - 'A'

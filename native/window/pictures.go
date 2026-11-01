@@ -29,7 +29,7 @@ type pictureIntake struct{ app *AppState }
 func (p pictureIntake) Take(pictures []documentview.Incoming, place func([]editor.ImageShape)) {
 	a := p.app
 	if a.notebook == nil {
-		a.fail(errNoNotebook)
+		a.fail("Couldn't add the picture", errNoNotebook)
 		return
 	}
 	store, window := a.notebook.store, a.mainWindow
@@ -56,7 +56,7 @@ func (p pictureIntake) Take(pictures []documentview.Incoming, place func([]edito
 		done := func() {
 			place(shapes)
 			if failed != nil {
-				a.fail(failed)
+				a.fail("Couldn't add the picture", failed)
 			}
 		}
 		if window == nil {
@@ -146,12 +146,12 @@ func (h figureHost) CopyPicture(hash string) {
 		data, err = asPNG(data)
 	}
 	if err != nil {
-		a.fail(err)
+		a.fail("Couldn't copy the picture", err)
 		return
 	}
 	file, err := transfer.FileData(path)
 	if err != nil {
-		a.fail(err)
+		a.fail("Couldn't copy the picture", err)
 		return
 	}
 	a.Bridge.Services.WriteClipboardData(transfer.New(append(
@@ -192,9 +192,7 @@ func (h figureHost) SavePicture(hash string) {
 		if err == nil {
 			err = os.WriteFile(target, data, 0o644)
 		}
-		if err != nil && window != nil {
-			window.Update(func() { a.fail(err) })
-		}
+		a.fail("Couldn't save the picture", err)
 	}()
 }
 
