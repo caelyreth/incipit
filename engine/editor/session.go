@@ -489,6 +489,12 @@ func textEditThrough(
 	edits []model.TextEdit,
 	target input.TextTarget,
 ) (int, error) {
+	// Replacing a range with exactly the same text is a handled no-op: the
+	// policy may accept the intent without emitting a TextEdit. There is
+	// nothing after the primary edit to rebase through in that case.
+	if len(edits) == 0 {
+		return 0, nil
+	}
 	for index, edit := range edits {
 		if edit.Node() == target.Node() && edit.RangeUTF16() == target.RangeUTF16() {
 			return index + 1, nil
