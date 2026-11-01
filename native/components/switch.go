@@ -6,7 +6,7 @@ import (
 )
 
 // Switch is Neverland's controlled settings switch. Its track and thumb use
-// the source 34x20/14 geometry and a 120 ms smoothstep transition.
+// the source 34x20/14 geometry and the shared normal spring transition.
 type Switch struct {
 	Key      string
 	Label    string

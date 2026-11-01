@@ -54,15 +54,11 @@ func view(c *ui.Context, semantic theme.Theme, animate bool, shown ui.Toast) {
 	scale := components.UIFontSize(c)
 	kind, _ := shown.Data.(Kind)
 	parts := ui.ToastBase(c, shown)
+	components.ElevatedSurface(parts.Root, semantic, scale, components.PanelElevation)
 	parts.Root.Row().Width(toastWidth*scale/theme.DefaultUIFontSize).MaxWidthPercent(100).
 		AlignItems(ui.Start).Gap(theme.Space08.DIPs(scale)).
 		Padding(theme.Space12.DIPs(scale), theme.Space08.DIPs(scale),
 			theme.Space12.DIPs(scale), theme.Space12.DIPs(scale)).
-		Radius(11*scale/theme.DefaultUIFontSize).
-		Border(1, semantic.Border.Default).
-		Background(semantic.Surface.Elevated).
-		Shadow(0, 4*scale/theme.DefaultUIFontSize,
-			12*scale/theme.DefaultUIFontSize, 0, ui.RGBA(0, 0, 0, 0.25)).
 		Transition(transition(animate, scale)).
 		Children(func() {
 			line := theme.TextSmall.LineHeight(scale)

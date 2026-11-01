@@ -10,7 +10,6 @@ type Swatch struct {
 	Label    string
 	Color    ui.Color
 	Selected bool
-	Animate  bool
 	Action   func()
 }
 

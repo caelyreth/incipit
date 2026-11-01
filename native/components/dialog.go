@@ -28,12 +28,8 @@ func (d Dialog) View(c *ui.Context, semantic theme.Theme, open *bool) ui.Element
 				24*scale/theme.DefaultUIFontSize,
 				24*scale/theme.DefaultUIFontSize)
 		panel.Key(d.Key).Label(d.Label).Width(width).MaxWidthPercent(100).
-			MaxHeightPercent(100).MinHeight(0).Clip().
-			Radius(11*scale/theme.DefaultUIFontSize).
-			Border(1, semantic.Border.Default).
-			Background(semantic.Surface.Elevated).
-			Shadow(0, 4*scale/theme.DefaultUIFontSize,
-				12*scale/theme.DefaultUIFontSize, 0, ui.RGBA(0, 0, 0, 0.25))
+			MaxHeightPercent(100).MinHeight(0).Clip()
+		ElevatedSurface(panel, semantic, scale, PanelElevation)
 		if d.Animate {
 			panel.Transition(ui.ElementTransition{
 				Duration: MotionNormal,

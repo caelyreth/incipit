@@ -22,9 +22,8 @@ func (s *State) stylePicker(c *ui.Context, semantic theme.Theme, row ui.Element,
 	cell := metrics.Height
 	gap := theme.Space04.DIPs(scale)
 	ui.PopoverBase(c.Key("style-"+group.ID), row, &s.nav.stylingOpen, func(panel ui.Element) {
+		components.ElevatedSurface(panel, semantic, scale, components.PopoverElevation)
 		panel.Padding(theme.Space12.DIPs(scale)).Gap(theme.Space12.DIPs(scale)).
-			Radius(metrics.PanelRadius).Background(semantic.Surface.Elevated).
-			Border(1, semantic.Border.Default).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.28)).
 			Label("Icon and color for " + group.Name).Transition(popTransition(animate))
 		panel.Children(func() {
 			components.Label(c, "Color", theme.TextXSmall, semantic.Text.Muted)
@@ -33,15 +32,15 @@ func (s *State) stylePicker(c *ui.Context, semantic theme.Theme, row ui.Element,
 			ui.Row(c).Gap(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Children(func() {
 				components.Swatch{
 					Key: "color-moonveil", Label: "Moonveil", Color: semantic.Text.Default,
-					Selected: group.Color == TintMoonveil, Animate: animate,
-					Action: func() { s.Library.StyleGroup(group.ID, group.Icon, TintMoonveil) },
+					Selected: group.Color == TintMoonveil,
+					Action:   func() { s.Library.StyleGroup(group.ID, group.Icon, TintMoonveil) },
 				}.View(c, semantic)
 				for index, accent := range theme.AllAccents {
 					components.Swatch{
 						Key: "color-" + accent.Label(), Label: accent.Label(),
 						Color:    semantic.Families[index].Foreground,
-						Selected: group.Color == TintHalo+index, Animate: animate,
-						Action: func() { s.Library.StyleGroup(group.ID, group.Icon, TintHalo+index) },
+						Selected: group.Color == TintHalo+index,
+						Action:   func() { s.Library.StyleGroup(group.ID, group.Icon, TintHalo+index) },
 					}.View(c, semantic)
 				}
 			})

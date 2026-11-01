@@ -34,7 +34,7 @@ than force unrelated operations through a generic abstraction.
 | B10 | Scroll input physics | Settled | Shared axis physics exposes explicit ownership, bounds and edge tolerance; editor and MyGo containers retain their distinct notch behavior. Tests cover phases, crossing, tolerance and arbitrary bounds. |
 | B11 | Keycaps and inline shortcut chips | Open | Preserve interactive inline behavior |
 | B12 | Inline rename lifecycle | Open | |
-| B13 | Elevated materials and small controls | Open | Preserve intentional visual variants |
+| B13 | Elevated materials and small controls | Settled | Dialogs, notices and popovers share a material with explicit existing shadow variants. Pixel comparisons cover both themes and UI scales; switch documentation and unused swatch animation input now match behavior. |
 | B14 | Selection-track lifetimes | Open | Keep independent selections and clip spaces |
 | B15 | Navigation accessibility and focus | Open | Platform acceptance required |
 | B16 | Group menu presentation host | In progress | `codex/audit-ui-focus` worktree |
