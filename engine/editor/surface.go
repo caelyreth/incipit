@@ -16,6 +16,9 @@ const (
 	SurfacePresentation
 	SurfacePolicy
 	SurfaceApp
+	// SurfaceInsert brings content the host holds into the page, as a
+	// picture from a file.
+	SurfaceInsert
 )
 
 // Surface command identities are stable routing names.
@@ -43,6 +46,7 @@ const (
 	SurfaceSheetsViewCommandID   kernel.CommandID = "surface.view-sheets"
 	SurfaceEditorViewCommandID   kernel.CommandID = "surface.view-editor"
 	SurfaceSettingsCommandID     kernel.CommandID = "surface.settings"
+	SurfaceInsertImageCommandID  kernel.CommandID = "surface.insert-image"
 )
 
 // SurfaceCommand is one complete declaration in the surface policy. The ID is the stable routing identity; Kind selects its native owner.
@@ -86,6 +90,7 @@ var surfaceCommands = [...]SurfaceCommand{
 	{ID: SurfaceSheetsViewCommandID, Label: "Show sheet list only", Kind: SurfaceApp, Scope: ScopeWindow},
 	{ID: SurfaceEditorViewCommandID, Label: "Show editor only", Kind: SurfaceApp, Scope: ScopeWindow},
 	{ID: SurfaceSettingsCommandID, Label: "Open settings", Kind: SurfaceApp, Scope: ScopeApp},
+	{ID: SurfaceInsertImageCommandID, Label: "Insert image…", Kind: SurfaceInsert, Scope: ScopeDocument},
 }
 
 // AllSurfaceCommands is the stable declaration order. Callers may read

@@ -106,3 +106,26 @@ func (p *Paragraph) placed() (PlacedFigure, bool) {
 		Line:   model.NewUTF16Range(model.UTF16Offset(p.startUTF16), model.UTF16Offset(p.contentUTF16)),
 	}, true
 }
+
+// BlockEdge is the height of the edge below the block holding offset,
+// midway into the room before the next, content-local: where what goes
+// after the block would go.
+func (l *Layout) BlockEdge(offset model.UTF16Offset) float32 {
+	paragraph, _ := l.paragraphAt(offset)
+	if paragraph == nil {
+		return l.height
+	}
+	bottom := paragraph.top + paragraph.height
+	for index := range l.paragraphs {
+		if &l.paragraphs[index] == paragraph && index+1 < len(l.paragraphs) {
+			next := l.paragraphs[index+1]
+			// The room before the next block's figure, not the figure.
+			room := next.gap
+			if next.hasFigure {
+				room = next.box.Y - bottom
+			}
+			return bottom + room/2
+		}
+	}
+	return bottom
+}

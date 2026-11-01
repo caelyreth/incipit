@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -92,3 +93,11 @@ type mygoServices struct{ services ui.Services }
 
 func (s mygoServices) ReadClipboard() string      { return s.services.ReadClipboard() }
 func (s mygoServices) WriteClipboard(text string) { s.services.WriteClipboard(text) }
+
+func (s mygoServices) ClipboardFormats() []transfer.Format { return s.services.ClipboardFormats() }
+
+func (s mygoServices) ReadClipboardData(formats ...transfer.Format) transfer.Data {
+	return s.services.ReadClipboardData(formats...)
+}
+
+func (s mygoServices) WriteClipboardData(data transfer.Data) { s.services.WriteClipboardData(data) }

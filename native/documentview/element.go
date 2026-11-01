@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -43,8 +44,13 @@ type Element struct {
 	Margin     float32
 	UIFontSize float32
 	// Pictures reads the pictures the page's figures show.
-	Pictures          *Pictures
-	figures           FigureMotion
+	Pictures *Pictures
+	figures  FigureMotion
+	drop     dropLine
+	// dropOver is where dragged pictures would go, while they are over the
+	// page: the offset of the block they would follow.
+	dropOver          int
+	dropActive        bool
 	scroll            float32
 	overscroll        scrollfx.Elastic
 	lastHeight        float32
@@ -124,6 +130,7 @@ func (e *Element) View(c *ui.Context) {
 	e.mounted = true
 	// A picture decoded off the UI thread redraws the page that asked.
 	e.Pictures.SetWake(c.Services().Invalidate)
+	e.takeDrops(box)
 	box.HandleInput(e.handleInput).
 		TextCaret(e.caret(c)).
 		Draw(func(p *ui.Painter, rect ui.Rect) {
@@ -255,6 +262,29 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		return e.Input.Keymap(event)
 	default:
 		return false
+	}
+}
+
+// takeDrops makes the page take pictures dragged onto it, following the
+// pointer with the line that shows where they would go.
+func (e *Element) takeDrops(box ui.Element) {
+	bridge, ok := e.Input.(*Bridge)
+	if !ok || bridge == nil || bridge.Images == nil {
+		return
+	}
+	options := transfer.DropOptions{Formats: pictureFormats}
+	_, over := ui.DataDragOver(box, options)
+	if over && e.current != nil {
+		if x, y, inside := box.PointerPosition(); inside {
+			e.dropOver = e.hit(x, y)
+		} else if !e.dropActive {
+			e.dropOver = bridge.Controller.Selection().Caret()
+		}
+	}
+	e.dropActive = over
+	if drop, ok := ui.DropData(box, options); ok {
+		e.dropActive = false
+		bridge.dropPictures(drop.Data, e.dropOver)
 	}
 }
 
@@ -398,6 +428,10 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Guides:            &e.guides,
 		Pictures:          e.Pictures,
 		FigureMotion:      &e.figures,
+		Drop:              &e.drop,
+	}
+	if e.drop.advance(e.current.BlockEdge(model.UTF16Offset(e.dropOver)), e.dropActive, p.Now(), animate) {
+		p.AnimationFrame()
 	}
 	Paint(p, rect, state)
 	e.drawnCaret = state.DrawnCaret

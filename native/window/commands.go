@@ -80,6 +80,8 @@ func commandGroup(policy kernel.PolicyID, command kernel.CommandID) string {
 			return "Appearance"
 		case editor.SurfaceApp:
 			return "Application"
+		case editor.SurfaceInsert:
+			return "Insert"
 		default:
 			return "Workspace"
 		}

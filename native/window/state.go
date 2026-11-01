@@ -320,6 +320,7 @@ func (a *AppState) mountBridge(c *ui.Context) {
 	services := mygoServices{services: c.Services()}
 	a.Bridge = documentview.NewBridge(a.Session.Document(), services, time.Now)
 	a.Bridge.External = a.executeExternalCommand
+	a.Bridge.Images = pictureIntake{app: a}
 	a.Element.Input = a.Bridge
 }
 
@@ -363,6 +364,8 @@ func (a *AppState) executeExternalCommand(command kernel.CommandID) error {
 		} else {
 			a.setPolicy(editor.CJKPolicyID, on)
 		}
+	case editor.SurfaceInsertImageCommandID:
+		a.chooseImages()
 	case editor.SurfaceCommandsCommandID:
 		if a.Shell.OpenCommands != nil {
 			a.Shell.OpenCommands()

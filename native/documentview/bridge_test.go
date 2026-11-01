@@ -8,12 +8,24 @@ import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/egoist/mygo/transfer"
 )
 
-type memoryClipboard struct{ text string }
+type memoryClipboard struct {
+	text string
+	data transfer.Data
+}
 
 func (c *memoryClipboard) ReadClipboard() string      { return c.text }
-func (c *memoryClipboard) WriteClipboard(text string) { c.text = text }
+func (c *memoryClipboard) WriteClipboard(text string) { c.text, c.data = text, transfer.Data{} }
+
+func (c *memoryClipboard) ClipboardFormats() []transfer.Format { return c.data.Formats() }
+
+func (c *memoryClipboard) ReadClipboardData(formats ...transfer.Format) transfer.Data {
+	return c.data
+}
+
+func (c *memoryClipboard) WriteClipboardData(data transfer.Data) { c.data = data.Snapshot() }
 
 type bridgeVerticalGeometry struct{}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -16,6 +17,12 @@ import (
 type Services interface {
 	ReadClipboard() string
 	WriteClipboard(string)
+	// ClipboardFormats lists what the clipboard holds without reading it,
+	// and ReadClipboardData and WriteClipboardData carry pictures and
+	// files as well as text.
+	ClipboardFormats() []transfer.Format
+	ReadClipboardData(formats ...transfer.Format) transfer.Data
+	WriteClipboardData(transfer.Data)
 }
 
 // Bridge connects one controller to MyGo input, keymap dispatch, and document
@@ -25,9 +32,12 @@ type Bridge struct {
 	Dispatcher *keymap.Dispatcher
 	Services   Services
 	External   func(kernel.CommandID) error
-	Now        func() time.Time
-	native     *NativeTextClient
-	now        time.Time
+	// Images keeps the pictures a paste or a drop brings; without it the
+	// page takes text alone.
+	Images Images
+	Now    func() time.Time
+	native *NativeTextClient
+	now    time.Time
 }
 
 var (
@@ -194,6 +204,10 @@ func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 		b.Services.WriteClipboard(text)
 		return nil
 	case keymap.ClipboardPaste:
+		if pictures := clipboardPictures(b.Services); len(pictures) > 0 && b.Images != nil {
+			b.Images.Take(pictures, b.PlaceImages)
+			return nil
+		}
 		text := b.Services.ReadClipboard()
 		outcome, err := b.Controller.ReplaceSelection(text, kernel.EventOriginPaste)
 		return editorOutcome(outcome, err)

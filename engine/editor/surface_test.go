@@ -45,6 +45,7 @@ func TestSurfacePolicyMatchesCommandCatalog(t *testing.T) {
 		SurfaceSheetsViewCommandID,
 		SurfaceEditorViewCommandID,
 		SurfaceSettingsCommandID,
+		SurfaceInsertImageCommandID,
 	}
 	if !slices.Equal(policy.Commands, want) {
 		t.Fatalf("surface commands = %#v", policy.Commands)
@@ -130,6 +131,7 @@ func TestSurfaceBindingsPreserveModifiersAndKeys(t *testing.T) {
 		{SurfaceSheetsViewCommandID, "2", kernel.ModifiersPrimary},
 		{SurfaceEditorViewCommandID, "3", kernel.ModifiersPrimary},
 		{SurfaceSettingsCommandID, ",", kernel.ModifiersPrimary},
+		{SurfaceInsertImageCommandID, "i", kernel.ModifiersPrimary | kernel.ModifiersShift},
 	}
 	if len(tests) != len(AllSurfaceCommands) {
 		t.Fatalf("test matrix=%d commands=%d", len(tests), len(AllSurfaceCommands))

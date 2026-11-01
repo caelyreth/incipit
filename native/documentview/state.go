@@ -41,6 +41,8 @@ type State struct {
 	// their fades; without either figures show their places, settled.
 	Pictures     *Pictures
 	FigureMotion *FigureMotion
+	// Drop is the line showing where dragged pictures would go.
+	Drop *dropLine
 
 	// DrawnCaret is set by Paint: the caret geometry it settled on this
 	// frame, local to the content like the layout's.
