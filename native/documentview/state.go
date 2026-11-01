@@ -55,6 +55,8 @@ type State struct {
 	// table's grip or corner under way.
 	TableCells *CellRange
 	TableDrag  *tableDrag
+	// TableMade is the row or column a create area just made.
+	TableMade *tableMade
 
 	// DrawnCaret is set by Paint: the caret geometry it settled on this
 	// frame, local to the content like the layout's.

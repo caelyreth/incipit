@@ -100,6 +100,34 @@ type tableUI struct {
 	// last read it.
 	pointer   ui.Point
 	pointerIn bool
+	// made is the row or column a create area made, taking the area's
+	// place; generation renumbers a table's room as one is used, so the
+	// room the area had goes at once, the new row or column standing in it.
+	made       *tableMade
+	generation map[model.NodeID]int
+}
+
+// tableMade is a row or column a create area made: it comes in at the
+// area's size, the area's outline fading into it.
+type tableMade struct {
+	table  model.NodeID
+	column bool
+	index  int
+	// from is the share of its own size it comes in at.
+	from float32
+	at   time.Time
+}
+
+// madeFade is how long a made row or column shows the area it was.
+const madeFade = 2 * components.MotionNormal
+
+// madeShare is how far the made row or column at index of table comes in
+// from, if one is: its area's size, as a share of its own.
+func (t *tableUI) madeShare(table model.NodeID, column bool, index int) (float32, bool) {
+	if m := t.made; m != nil && m.table == table && m.column == column && m.index == index {
+		return m.from, true
+	}
+	return 0, false
 }
 
 type tableDragKind uint8
@@ -143,13 +171,13 @@ func (e *Element) tabledFlow(flow *surface.Flow, now time.Time, animate bool) (*
 	known := map[model.NodeID]bool{}
 	rows, columns := map[model.NodeID]motion.Spring{}, map[model.NodeID]motion.Spring{}
 	moving := false
-	grow := func(springs map[model.NodeID]motion.Spring, from map[model.NodeID]motion.Spring, key model.NodeID, fresh bool) float32 {
+	grow := func(springs map[model.NodeID]motion.Spring, from map[model.NodeID]motion.Spring, key model.NodeID, fresh bool, start float32) float32 {
 		spring, ok := from[key]
 		if !ok {
 			if !fresh || !animate {
 				return 1
 			}
-			spring = motion.NewSpring(0, now)
+			spring = motion.NewSpring(start*tableShowScale, now)
 		}
 		spring.Step(tableShowScale, now, figureFade)
 		if spring.Moving() {
@@ -172,14 +200,16 @@ func (e *Element) tabledFlow(flow *surface.Flow, now time.Time, animate bool) (*
 				cells[cell.Node] = true
 				fresh = fresh && !e.tables.cells[cell.Node]
 			}
-			room.RowShown[r] = grow(rows, e.tables.growingRows, row[0].Node, fresh)
+			start, _ := e.tables.madeShare(node, false, r)
+			room.RowShown[r] = grow(rows, e.tables.growingRows, row[0].Node, fresh, start)
 		}
 		for c := range table.Columns() {
 			fresh := seen
 			for _, row := range table.Rows {
 				fresh = fresh && !e.tables.cells[row[c].Node]
 			}
-			room.ColumnShown[c] = grow(columns, e.tables.growingCols, table.Rows[0][c].Node, fresh)
+			start, _ := e.tables.madeShare(node, true, c)
+			room.ColumnShown[c] = grow(columns, e.tables.growingCols, table.Rows[0][c].Node, fresh, start)
 		}
 		table.Room = room
 	}
@@ -212,6 +242,7 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 	point := e.contentPoint(x, y)
 	e.tables.pointer, e.tables.pointerIn = point, inside
 	near, rowAt, columnAt := -1, -1, -1
+	rowNear, columnNear := float32(0), float32(0)
 	free := inside && e.pointer == pointerIdle && e.tables.drag == nil
 	for index, table := range placed {
 		reach := tableReach * scale
@@ -237,28 +268,46 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 		rowGap, columnGap := grown(table.RowGap, 0, border), grown(table.ColumnGap, border, 0)
 		for r := 1; r < len(table.Rows); r++ {
 			if abs(point.Y-table.Rows[r]) <= border || contains(rowGap, point) && table.RowGap.Y < table.Rows[r] {
-				rowAt = index*gapStride + r
+				rowAt, rowNear = index*gapStride+r, abs(point.Y-table.Rows[r])
 				break
 			}
 		}
 		if point.Y >= table.Box.Y && point.Y <= table.Box.Y+table.Box.H {
 			for column := 1; column < len(table.Columns); column++ {
 				if abs(point.X-table.Columns[column]) <= border || contains(columnGap, point) && table.ColumnGap.X < table.Columns[column] {
-					columnAt = index*gapStride + column
+					columnAt, columnNear = index*gapStride+column, abs(point.X-table.Columns[column])
 					break
 				}
 			}
 		}
+	}
+	// One gap opens at a time: by a crossing of a row's border and a
+	// column's, the one open already, else the nearer border's.
+	_, rowsOpen := e.tables.rows.Open()
+	_, columnsOpen := e.tables.columns.Open()
+	switch {
+	case rowsOpen:
+		columnAt = -1
+	case columnsOpen:
+		rowAt = -1
+	case rowAt >= 0 && columnAt >= 0 && rowNear <= columnNear:
+		columnAt = -1
+	case rowAt >= 0 && columnAt >= 0:
+		rowAt = -1
+	}
+	if near < 0 {
+		// The pointer has left what it made.
+		e.pointerHold = false
 	}
 	nearAt, nearOpen = e.tables.below.Follow(c, near)
 	rowGap, rowOpen := e.tables.rows.Follow(c, rowAt)
 	columnGap, columnOpen := e.tables.columns.Follow(c, columnAt)
 	// The open areas hold their gaps while the pointer is on them.
 	for _, table := range placed {
-		if contains(grown(table.RowGap, 0, border), point) && inside {
+		if contains(grown(table.RowGap, 0, border), point) && inside && rowOpen {
 			e.tables.rows.HoldOver(true)
 		}
-		if contains(grown(table.ColumnGap, border, 0), point) && inside {
+		if contains(grown(table.ColumnGap, border, 0), point) && inside && columnOpen {
 			e.tables.columns.HoldOver(true)
 		}
 	}
@@ -271,8 +320,13 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 		}
 		return components.Follow(box, key, target, components.MotionNormal)
 	}
+	if m := e.tables.made; m != nil && c.Now().Sub(m.at) > madeFade {
+		e.tables.made = nil
+	}
+	lift := float32(0)
 	for index, table := range placed {
 		node := table.Table.Node()
+		generation := e.tables.generation[node]
 		previous := e.tables.room[node]
 		next := surface.TableRoom{Row: previous.Row, Column: previous.Column}
 		open := func(is bool, size float32) float32 {
@@ -281,24 +335,29 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 			}
 			return 0
 		}
-		next.Below = follow(tableKey{node, "below"}, open(nearOpen && nearAt == index, step))
-		grips[node] = follow(tableKey{node, "grips"}, open(near == index || e.tables.drag != nil, 1))
+		next.Below = follow(tableKey{node, "below", generation}, open(nearOpen && nearAt == index, step))
+		grips[node] = follow(tableKey{node, "grips", 0}, open(near == index || e.tables.drag != nil, 1))
 		if rowOpen && rowGap/gapStride == index {
 			next.Row = rowGap % gapStride
 		}
-		next.RowRoom = follow(tableKey{node, "row"}, open(rowOpen && rowGap/gapStride == index, between))
+		next.RowRoom = follow(tableKey{node, "row", generation}, open(rowOpen && rowGap/gapStride == index, between))
+		// A gap between rows opens about the border the pointer is on,
+		// the page lifting by half of it.
+		lift += next.RowRoom / 2
 		if columnOpen && columnGap/gapStride == index {
 			next.Column = columnGap % gapStride
 		}
-		next.ColumnRoom = follow(tableKey{node, "column"}, open(columnOpen && columnGap/gapStride == index, between))
+		next.ColumnRoom = follow(tableKey{node, "column", generation}, open(columnOpen && columnGap/gapStride == index, between))
 		room[node] = next
 	}
 	e.tables.room, e.tables.grips = room, grips
+	e.liftTo = lift
 }
 
 type tableKey struct {
-	node model.NodeID
-	part string
+	node       model.NodeID
+	part       string
+	generation int
 }
 
 // tableControls places what makes and moves a table's rows and columns
@@ -329,13 +388,29 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 		}
 	}()
 	for index, placed := range e.current.Tables() {
-		e.overlaid = true
 		table := placed.Table
 		first := table.Node()
 		at := func(r ui.Rect) ui.Rect { r.Y += offset; return r }
-		made := func(gap *components.CreateGap) {
+		// What an area makes stands where the area was, at its size, as a
+		// share of the size it settles at.
+		rowShare := func(size float32) float32 {
+			return min(1, size/max(1, placed.Heights[len(placed.Heights)-1]))
+		}
+		columnShare := func(size float32) float32 {
+			return min(1, size*float32(table.Columns()+1)/max(1, placed.Box.W))
+		}
+		made := func(gap *components.CreateGap, column bool, index int, from float32) {
 			gap.Use()
 			e.focusPending = true
+			// The page keeps where the gap lifted it, the row standing in
+			// the gap's place, and comes back down as it settles.
+			e.lift, e.liftTo = 0, 0
+			if e.tables.generation == nil {
+				e.tables.generation = map[model.NodeID]int{}
+			}
+			e.tables.generation[first]++
+			e.tables.made = &tableMade{table: first, column: column, index: index, from: from, at: c.Now()}
+			e.pointerHold = true
 		}
 		// Below the table, a row; beside it, a column.
 		if below := at(placed.Below); below.H > 1 {
@@ -344,12 +419,13 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 				Key: fmt.Sprintf("table-%d-new-row", first), Label: "New row",
 				Reveal: reveal, LabelReveal: components.Smoothstep(reveal), Partial: true, Animate: animate,
 				Action: func() {
-					made(&e.tables.below)
+					made(&e.tables.below, false, len(table.Rows), rowShare(below.H))
 					_, _ = bridge.Controller.InsertTableRows(first, len(table.Rows), 1)
 				},
 			}.View(c, e.Theme)
-			area.Absolute().Left(below.X).Top(below.Y + gap).Width(below.W).
-				Height(max(1, below.H-gap)).Opacity(reveal)
+			box := ui.Rect{X: below.X, Y: below.Y + gap, W: below.W, H: max(1, below.H-gap)}
+			area.Absolute().Left(box.X).Top(box.Y).Width(box.W).Height(box.H).Opacity(reveal)
+			e.control(box)
 			overNear = overNear || area.Hovered()
 		}
 		if nearOpen && nearAt == index {
@@ -359,13 +435,14 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 				Key: fmt.Sprintf("table-%d-new-column", first), Label: "New column",
 				Compact: true, Animate: animate,
 				Action: func() {
-					made(&e.tables.below)
+					made(&e.tables.below, true, table.Columns(), 0)
 					_, _ = bridge.Controller.InsertTableColumns(first, table.Columns(), 1)
 				},
 			}.View(c, e.Theme)
-			area.Absolute().Left(grid.X+grid.W+gap).Top(grid.Y).
-				Width(metrics.Height).Height(grid.H).Opacity(reveal).
+			box := ui.Rect{X: grid.X + grid.W + gap, Y: grid.Y, W: metrics.Height, H: grid.H}
+			area.Absolute().Left(box.X).Top(box.Y).Width(box.W).Height(box.H).Opacity(reveal).
 				Translate((1-reveal)*-gap, 0)
+			e.control(box)
 			overNear = overNear || area.Hovered()
 		}
 		if gapBox := at(placed.RowGap); gapBox.H > 1 {
@@ -375,12 +452,13 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 				Key: fmt.Sprintf("table-%d-row-gap", first), Label: "New row",
 				Reveal: reveal, LabelReveal: components.Smoothstep(reveal), Partial: true, Animate: animate,
 				Action: func() {
-					made(&e.tables.rows)
+					made(&e.tables.rows, false, row, rowShare(gapBox.H))
 					_, _ = bridge.Controller.InsertTableRows(first, row, 1)
 				},
 			}.View(c, e.Theme)
-			area.Absolute().Left(gapBox.X).Top(gapBox.Y + inner).Width(gapBox.W).
-				Height(max(1, gapBox.H-2*inner)).Opacity(reveal)
+			box := ui.Rect{X: gapBox.X, Y: gapBox.Y + inner, W: gapBox.W, H: max(1, gapBox.H-2*inner)}
+			area.Absolute().Left(box.X).Top(box.Y).Width(box.W).Height(box.H).Opacity(reveal)
+			e.control(box)
 			overRow = overRow || area.Hovered()
 		}
 		if gapBox := at(placed.ColumnGap); gapBox.W > 1 {
@@ -390,12 +468,13 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 				Key: fmt.Sprintf("table-%d-column-gap", first), Label: "New column",
 				Compact: true, Reveal: reveal, Partial: true, Animate: animate,
 				Action: func() {
-					made(&e.tables.columns)
+					made(&e.tables.columns, true, column, columnShare(gapBox.W))
 					_, _ = bridge.Controller.InsertTableColumns(first, column, 1)
 				},
 			}.View(c, e.Theme)
-			area.Absolute().Left(gapBox.X + inner).Top(gapBox.Y).Width(max(1, gapBox.W-2*inner)).
-				Height(gapBox.H).Opacity(reveal)
+			box := ui.Rect{X: gapBox.X + inner, Y: gapBox.Y, W: max(1, gapBox.W-2*inner), H: gapBox.H}
+			area.Absolute().Left(box.X).Top(box.Y).Width(box.W).Height(box.H).Opacity(reveal)
+			e.control(box)
 			overColumn = overColumn || area.Hovered()
 		}
 		overNear = e.tableGrips(c, bridge, placed, offset, scale, animate) || overNear
@@ -431,6 +510,7 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 		handle := ui.ButtonBase(c.Key(fmt.Sprintf("table-%d-%s", first, key))).Label(label).
 			Absolute().Left(r.X).Top(r.Y).Width(r.W).Height(r.H).FocusRing(false).Opacity(shown)
 		over = over || handle.Hovered() || handle.Pressed()
+		e.control(r)
 		hover := components.HoverAmount(handle, handle.Hovered() || handle.Pressed(), animate)
 		radius := min(r.W, r.H) / 2
 		handle.Radius(radius).
@@ -856,6 +936,7 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 				p.Stroke(part, line, radius, 1)
 			}
 		}
+		drawMade(p, state, placed, cell, radius)
 		if cells := state.TableCells; cells != nil && cells.Table == placed.Table.Node() {
 			top, left, bottom, right := cells.Bounds()
 			if bottom < len(placed.Rows) && right < len(placed.Columns) {
@@ -867,6 +948,34 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 		}
 		drawTableDrag(p, state, placed, box, dx, dy)
 	}
+}
+
+// drawMade shows a row or column a create area made as the area it was,
+// its tint and dashed outline fading into the cells.
+func drawMade(p *ui.Painter, state *State, placed textlayout.PlacedTable, cell func(row, column int) ui.Rect, radius float32) {
+	made := state.TableMade
+	if made == nil || made.table != placed.Table.Node() {
+		return
+	}
+	fade := 1 - float32(p.Now().Sub(made.at))/float32(madeFade)
+	if fade <= 0 {
+		return
+	}
+	p.AnimationFrame()
+	var span ui.Rect
+	switch {
+	case !made.column && made.index < len(placed.Rows):
+		from, to := cell(made.index, 0), cell(made.index, len(placed.Columns)-1)
+		span = ui.Rect{X: from.X, Y: from.Y, W: to.X + to.W - from.X, H: from.H}
+	case made.column && made.index < len(placed.Columns):
+		from, to := cell(0, made.index), cell(len(placed.Rows)-1, made.index)
+		span = ui.Rect{X: from.X, Y: from.Y, W: from.W, H: to.Y + to.H - from.Y}
+	default:
+		return
+	}
+	fade = components.Smoothstep(fade)
+	p.Fill(span, state.Theme.Accent.Muted.Alpha(0.6*fade), radius)
+	components.DashedOutline(p, span, radius, 1, state.Theme.Accent.Foreground.Alpha(fade))
 }
 
 // drawTableDrag shows what a drag under way would do: where a row or a

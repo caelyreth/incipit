@@ -86,11 +86,22 @@ type Element struct {
 	// when a drag past an edge last scrolled it.
 	pointerAt ui.Point
 	edgeAt    time.Time
-	// overlaid is whether the last view set controls over the page, as a
-	// table's; they move with it only in frames that build the view, which
-	// wake asks for.
-	overlaid             bool
-	wake                 func()
+	// controls are what the last view set over the page, as a table's:
+	// presses on them are theirs, and they move with the page only in
+	// frames that build the view, which wake asks for.
+	controls []ui.Rect
+	wake     func()
+	// lift is how far the page is scrolled to open room about the pointer
+	// rather than below it, half above, as a gap between a table's rows;
+	// liftTo is where the view would have it.
+	lift, liftTo float32
+	// pointerHold keeps the caret where it is while the pointer stays by
+	// a control it used: what the control made is revealed as the pointer
+	// leaves it or the keyboard is used.
+	pointerHold bool
+	// followUntil is how long the caret's line is followed as what an edit
+	// opened settles.
+	followUntil          time.Time
 	drawnCaret           ui.Rect
 	caretPresentationKey caretPresentationKey
 	mounted              bool
@@ -164,11 +175,11 @@ func (e *Element) View(c *ui.Context) {
 	// The page moves before what is set over it is placed, so both show
 	// it at the same offset.
 	e.wake = c.Services().Invalidate
-	if e.stepViewport(c.Now(), animate) && e.overlaid {
+	if e.stepViewport(c.Now(), animate) && len(e.controls) > 0 {
 		c.AnimationFrame()
 	}
 	e.followDragEdge(c)
-	e.overlaid = false
+	e.controls = e.controls[:0]
 	// A picture decoded off the UI thread redraws the page that asked.
 	e.Pictures.SetWake(c.Services().Invalidate)
 	e.takeDrops(box)
@@ -243,6 +254,9 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 	switch event.Kind {
 	case ui.InputPointerDown:
 		if e.current == nil {
+			return false
+		}
+		if e.onControl(event.X, event.Y) {
 			return false
 		}
 		e.Motion.Activity(event.Time)
@@ -332,9 +346,11 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		) == nil
 	case ui.InputText, ui.InputCompose:
 		e.Motion.Activity(event.Time)
+		e.pointerHold = false
 		return false
 	case ui.InputKeyDown, ui.InputCommand:
 		e.Motion.Activity(event.Time)
+		e.pointerHold = false
 		if event.Kind == ui.InputKeyDown {
 			if handled, ok := e.figureKey(event); handled {
 				return ok
@@ -518,6 +534,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		e.lastWidth = rect.W
 	}
 	e.current = e.Layout.Update(flow, rect.W, style)
+	e.applyLift()
 	caret := e.current.Caret(frame.Caret())
 	caret.Y += e.TopInset
 	line, ok := e.current.CaretLine(frame.Caret())
@@ -541,7 +558,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		}
 	}
 	if e.stepViewport(p.Now(), animate) {
-		if e.overlaid && e.wake != nil {
+		if len(e.controls) > 0 && e.wake != nil {
 			e.wake()
 		} else {
 			p.AnimationFrame()
@@ -574,6 +591,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Resizing:          e.resizing,
 		TableCells:        bridge.Cells,
 		TableDrag:         e.tables.drag,
+		TableMade:         e.tables.made,
 	}
 	if e.drop.advance(e.current.BlockEdge(model.UTF16Offset(e.dropOver)), e.dropActive, p.Now(), animate) {
 		p.AnimationFrame()
@@ -610,9 +628,9 @@ func (e *Element) scrollRange(layout *textlayout.Layout, viewport float32) (floa
 		half := (viewport - line) / 2
 		first := top - half
 		last := top + layout.Height() - line - half
-		return first, max(first, last)
+		return first, max(first, last) + e.lift
 	}
-	return 0, max(0, top+layout.Height()+e.BottomInset-viewport)
+	return 0, max(0, top+layout.Height()+e.BottomInset-viewport) + e.lift
 }
 
 func (e *Element) placeholder(width float32) *ui.TextLayout {

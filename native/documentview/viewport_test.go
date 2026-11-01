@@ -394,6 +394,14 @@ func TestCaretRevealFollowsIntentNotLayout(t *testing.T) {
 	element := &Element{Prose: prose, Motion: motion.New(now), Animate: true, lastHeight: 300}
 	key := revealKey{text: text}
 	element.followCaret(layout, ui.Rect{Y: 10, H: prose.LineHeight()}, 10, 300, key, now)
+	// What the edit opened settling moves the line, and the page follows.
+	settling := ui.Rect{Y: 400, H: prose.LineHeight()}
+	element.followCaret(layout, settling, settling.Y, 300, key, now.Add(revealSettle/2))
+	if !element.Motion.Moving() {
+		t.Fatal("the line was not followed as the edit settled")
+	}
+	element.Motion.CancelScroll()
+	now = now.Add(time.Second)
 	below := ui.Rect{Y: 600, H: prose.LineHeight()}
 	element.followCaret(layout, below, below.Y, 300, key, now)
 	if element.Motion.Moving() {

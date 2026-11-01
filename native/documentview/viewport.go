@@ -13,6 +13,10 @@ import (
 
 const manualScrollGrace = 650 * time.Millisecond
 
+// revealSettle is how long the caret's line is followed after it is
+// revealed, as a row or a caption an edit opened comes in.
+const revealSettle = 450 * time.Millisecond
+
 const (
 	// edgeRate is how fast a drag past the page's edge scrolls it, in DIPs
 	// a second for each DIP past, and edgeFastest the most.
@@ -32,11 +36,16 @@ func (e *Element) revealKeyOf(controllerValue *controller.DocumentController) re
 	return revealKey{text: controllerValue.Text(), selection: selection.Range, reversed: selection.Reversed}
 }
 
-// followCaret reveals the caret's line as its text or selection changes,
-// the viewport resizes or typewriter mode turns on, and in typewriter mode
-// as its line moves at all, but never under a held pointer: what a press
-// or a drag changes is revealed as it lets go. Room opening by the caret,
-// as a table's for a row, moves its line and is no reason to scroll.
+// followCaret keeps the caret's line in view, in either mode, by one
+// rule: the page moves for what the writer does, never for what the page
+// does on its own. It reveals the line as its text or selection changes,
+// the viewport resizes or the mode changes, and follows it while what that
+// change opened settles, as a new row growing; typewriter mode centers it
+// where the plain mode keeps it in view. Room the page opens by the
+// pointer, as a table's for a row, moves the line and is no reason to
+// scroll: in typewriter mode the line stays off center until the writer
+// next acts. Nothing moves under a held pointer, or while the pointer
+// stays by a control it used; what changed meanwhile is revealed after.
 func (e *Element) followCaret(layout *textlayout.Layout, line ui.Rect, caretY, height float32, key revealKey, now time.Time) {
 	modeChanged := e.lastTypewriter != e.Typewriter
 	moved := e.lastCaretY != caretY
@@ -53,15 +62,50 @@ func (e *Element) followCaret(layout *textlayout.Layout, line ui.Rect, caretY, h
 		e.Motion.Settle(e.scroll, low, high, now)
 		return
 	}
-	if e.pointer != pointerIdle {
+	if e.pointer != pointerIdle || e.pointerHold {
+		e.followUntil = time.Time{}
 		return
 	}
-	if e.revealPending || resized || modeChanged || e.Typewriter && moved {
+	switch {
+	case e.revealPending || resized || modeChanged:
 		e.revealPending = false
-		// Entering typewriter mode glides to the centered line from where
-		// the page is and at the speed it is moving.
-		e.revealCaret(layout, line, now)
+		e.followUntil = now.Add(revealSettle)
+	case moved && now.Before(e.followUntil) && e.liftTo == 0:
+	default:
+		return
 	}
+	// Entering typewriter mode glides to the centered line from where the
+	// page is and at the speed it is moving.
+	e.revealCaret(layout, line, now)
+}
+
+// applyLift scrolls the page by what the room opening about the pointer
+// asks since the last frame, so what is about the pointer stays under it,
+// carrying a glide under way along.
+func (e *Element) applyLift() {
+	if delta := e.liftTo - e.lift; delta != 0 {
+		e.lift = e.liftTo
+		e.scroll += delta
+		if e.Motion != nil {
+			e.Motion.Shift(delta)
+		}
+	}
+}
+
+// control notes a control set over the page at r, in the element's space.
+func (e *Element) control(r ui.Rect) {
+	e.controls = append(e.controls, r)
+}
+
+// onControl reports whether a point of the element is on a control set
+// over the page, whose presses are its own.
+func (e *Element) onControl(x, y float32) bool {
+	for _, control := range e.controls {
+		if contains(control, ui.Point{X: x, Y: y}) {
+			return true
+		}
+	}
+	return false
 }
 
 // stepViewport brings the page's scroll and its pull past an edge to now,

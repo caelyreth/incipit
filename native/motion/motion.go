@@ -135,6 +135,15 @@ func (m *Motion) ScrollTo(current, target float32, now time.Time) {
 	m.viewportTarget = target
 }
 
+// Shift moves a glide under way by delta, its destination with it, as the
+// page it scrolls moves under it.
+func (m *Motion) Shift(delta float32) {
+	if m.viewport != nil {
+		m.viewport.to += delta
+		m.viewportTarget += delta
+	}
+}
+
 // Settle redirects the viewport when its destination stops applying, as
 // when typewriter mode turns off mid-glide: the page coasts to where its
 // current speed would carry it, kept within [low, high], handing that
