@@ -15,13 +15,14 @@ func testTable(t *testing.T, texts []string, room surface.TableRoom) *surface.Fl
 	table := surface.Table{Rows: [][]surface.TableCell{{}}, Room: room}
 	at := 0
 	for index, cell := range texts {
+		units := model.StringLenUTF16(cell)
 		table.Rows[0] = append(table.Rows[0], surface.TableCell{
 			Node:  model.NodeID(index + 1),
-			Range: model.NewUTF16Range(model.UTF16Offset(at), model.UTF16Offset(at+len(cell))),
+			Range: model.NewUTF16Range(model.UTF16Offset(at), model.UTF16Offset(at+units)),
 		})
 		table.Align = append(table.Align, surface.CellStart)
 		table.Widths = append(table.Widths, 0)
-		at += len(cell) + 1
+		at += units + 1
 	}
 	flow, err := testFlow(t, text, 0).WithTables([]surface.Table{table})
 	if err != nil {

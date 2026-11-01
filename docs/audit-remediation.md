@@ -19,7 +19,7 @@ than force unrelated operations through a generic abstraction.
 | A1 | Page-scoped interactions and semantic caches | Settled | One lifecycle boundary resets page-owned state and detaches native input; control identity and block units follow the page. Regression tests cover resize, stale units and late callbacks. Native IME page-switch acceptance remains outstanding. |
 | A2 | Async image operation identity and targets | In progress | `codex/audit-async` worktree |
 | A3 | Command inventory and entry-point routing | In progress | `codex/audit-routing` worktree |
-| A4 | IME preview surface metadata | In progress | `codex/audit-ime` worktree |
+| A4 | IME preview surface metadata | Settled | A shared range transform preserves table, figure and room metadata; tests include empty/cell-end composition and candidate updates. Cross-cell composition remains unsupported by the editor; native IME acceptance remains outstanding. |
 | A5 | Formatting coverage and mark identity | In progress | `codex/audit-marks` worktree |
 | A6 | Visible keyboard focus | In progress | `codex/audit-ui-focus` worktree |
 | B1 | Layout equality and saver ownership | Settled | Storage compares selections by value and clones queued layouts and library records. Added unchanged-frame, ownership and concurrent-save tests. |

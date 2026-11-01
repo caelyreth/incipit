@@ -109,78 +109,27 @@ func (f *Frame) WithoutDecorations() *Frame {
 }
 
 // WithPreview mounts transient preedit text and a marked underline without
-// mutating the published flow or semantic selection.
+// mutating the published flow or semantic selection. The frame's decorations
+// are deliberately replaced: composition owns the marked underline, and
+// guides and other hints stay out of its transient surface.
 func (f *Frame) WithPreview(
 	original model.UTF16Range,
 	text string,
 	selected model.UTF16Range,
 ) (*Frame, error) {
-	bytes, err := f.flow.byteRange(original)
-	if err != nil {
-		return nil, err
-	}
 	if selected.Start > selected.End || !model.ValidDocumentText(text) {
 		return nil, fmt.Errorf("invalid preview selection or text")
 	}
-	preview := f.flow.Text()[:int(bytes.Start)] + text + f.flow.Text()[int(bytes.End):]
 	if _, ok := model.UTF16RangeToByte(text, selected); !ok {
 		return nil, fmt.Errorf("invalid preview selection")
 	}
-	runs := make([]StyleRun, 0, len(f.flow.runs)+1)
-	for _, run := range f.flow.runs {
-		beforeEnd := min(int(run.Bytes.End), int(bytes.Start))
-		if int(run.Bytes.Start) < beforeEnd {
-			runs = append(runs, StyleRun{
-				Bytes: model.NewByteRange(run.Bytes.Start, model.ByteOffset(beforeEnd)),
-				Style: run.Style,
-			})
-		}
-	}
-	if text != "" {
-		runs = append(runs, StyleRun{
-			Bytes: model.NewByteRange(bytes.Start, bytes.Start+model.ByteOffset(len(text))),
-			Style: f.inputStyle,
-		})
-	}
-	shift := len(text) - bytes.Len()
-	for _, run := range f.flow.runs {
-		afterStart := max(int(run.Bytes.Start), int(bytes.End))
-		if afterStart < int(run.Bytes.End) {
-			runs = append(runs, StyleRun{
-				Bytes: model.NewByteRange(
-					model.ByteOffset(afterStart+shift),
-					model.ByteOffset(int(run.Bytes.End)+shift),
-				),
-				Style: run.Style,
-			})
-		}
-	}
-	flow, err := NewFlow(f.flow.version, preview, runs)
+	flow, err := f.flow.replaceRange(replacement{
+		original: original,
+		text:     text,
+		style:    f.inputStyle,
+	})
 	if err != nil {
 		return nil, err
-	}
-	figures := make([]Figure, 0, len(f.flow.figures))
-	delta := model.UTF16Offset(model.StringLenUTF16(text) - original.Len())
-	for _, figure := range f.flow.figures {
-		at := figure.At
-		switch {
-		case at < original.Start:
-		case at >= original.End:
-			at += delta
-		default:
-			continue
-		}
-		if at != 0 && !flow.lineStart(at) {
-			continue
-		}
-		figure.At = at
-		figures = append(figures, figure)
-	}
-	if len(figures) > 0 {
-		flow, err = flow.WithFigures(figures)
-		if err != nil {
-			return nil, err
-		}
 	}
 	marked := model.NewUTF16Range(
 		original.Start,

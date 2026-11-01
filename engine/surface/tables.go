@@ -134,28 +134,35 @@ func (t Table) CellAt(offset model.UTF16Offset) (int, int, bool) {
 // WithTables is the flow with the tables its lines are set out in, in
 // order, each cell starting a line.
 func (f *Flow) WithTables(tables []Table) (*Flow, error) {
+	if err := validateTables(f, tables); err != nil {
+		return nil, err
+	}
+	next := *f
+	next.tables = slices.Clone(tables)
+	return &next, nil
+}
+
+func validateTables(f *Flow, tables []Table) error {
 	previous := model.UTF16Offset(-1)
 	for _, table := range tables {
 		columns := table.Columns()
 		if columns == 0 || len(table.Align) != columns || len(table.Widths) != columns {
-			return nil, fmt.Errorf("a table must have cells and each column's shape")
+			return fmt.Errorf("a table must have cells and each column's shape")
 		}
 		for _, row := range table.Rows {
 			if len(row) != columns {
-				return nil, fmt.Errorf("a table's rows must be as long as each other")
+				return fmt.Errorf("a table's rows must be as long as each other")
 			}
 			for _, cell := range row {
 				if cell.Range.Start <= previous || cell.Range.End < cell.Range.Start ||
 					cell.Range.End > f.UTF16Len() || cell.Range.Start > 0 && !f.lineStart(cell.Range.Start) {
-					return nil, fmt.Errorf("a cell must start a line, in order")
+					return fmt.Errorf("a cell must start a line, in order")
 				}
 				previous = cell.Range.End
 			}
 		}
 	}
-	next := *f
-	next.tables = slices.Clone(tables)
-	return &next, nil
+	return nil
 }
 
 // Tables are the tables the flow's lines are set out in, in order.
