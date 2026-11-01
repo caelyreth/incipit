@@ -47,6 +47,68 @@ func TestFormattingLevelUsesActiveMarkForCollapsedSelection(t *testing.T) {
 	}
 }
 
+func TestFormattingLevelTreatsAdjacentMarksAsCoverageWithoutMergingThem(t *testing.T) {
+	t.Parallel()
+	fixture := newEditingFixture(t,
+		"abcd",
+		model.NewUTF16Range(0, 2),
+		model.NewUTF16Range(2, 4),
+	)
+	node := fixture.nodeValue(t)
+	if node.MarkCount() != 2 {
+		t.Fatalf("adjacent fixture marks = %#v", node.Marks())
+	}
+	if got := FormattingLevel(node, fixture.selection(t, 0, 4), nil, true); got != 1 {
+		t.Fatalf("adjacent coverage level = %d", got)
+	}
+	settings := MarkupSettings{PolicyEnabled: true, CommandEnabled: true}
+	if state := MarkupStateFor(MarkupEmphasis, settings, node, fixture.selection(t, 0, 4), nil); !state.Selected {
+		t.Fatalf("adjacent emphasis state = %#v", state)
+	}
+	if node.MarkCount() != 2 {
+		t.Fatal("coverage merged adjacent marks")
+	}
+}
+
+func TestFormattingLevelPreservesNestedAndMixedCoverageMeaning(t *testing.T) {
+	t.Parallel()
+	nested := newEditingFixture(t, "abcd")
+	if _, err := nested.document.Transact(func(draft *model.DocumentDraft) error {
+		if _, err := draft.AddMark(nested.node, model.NewUTF16Range(0, 4), EmphasisMark, 1); err != nil {
+			return err
+		}
+		_, err := draft.AddMark(nested.node, model.NewUTF16Range(1, 3), EmphasisMark, 2)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	node := nested.nodeValue(t)
+	if got := FormattingLevel(node, nested.selection(t, 1, 3), nil, true); got != 2 {
+		t.Fatalf("nested inner level = %d", got)
+	}
+	if got := FormattingLevel(node, nested.selection(t, 0, 2), nil, true); got != 1 {
+		t.Fatalf("nested outer level = %d", got)
+	}
+
+	mixed := newEditingFixture(t,
+		"abcd",
+		model.NewUTF16Range(0, 2),
+	)
+	if _, err := mixed.document.Transact(func(draft *model.DocumentDraft) error {
+		_, err := draft.AddMark(mixed.node, model.NewUTF16Range(2, 4), EmphasisMark, 2)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mixedNode := mixed.nodeValue(t)
+	if got := FormattingLevel(mixedNode, mixed.selection(t, 0, 4), nil, true); got != 0 {
+		t.Fatalf("mixed adjacent level = %d, want no single effective level", got)
+	}
+	if got := FormattingLevel(mixedNode, mixed.selection(t, 0, 3), nil, true); got != 0 {
+		t.Fatalf("partially covered level = %d", got)
+	}
+}
+
 func TestMarkupStateStrongAndEmphasis(t *testing.T) {
 	t.Parallel()
 	fixture := newEditingFixture(t, "abc", model.NewUTF16Range(0, 3))

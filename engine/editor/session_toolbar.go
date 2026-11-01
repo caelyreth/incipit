@@ -23,19 +23,18 @@ func (s *Session) ToolbarState() ToolbarState {
 		CanUndo: s.history != nil && s.history.UndoDepth() > 0,
 		CanRedo: s.history != nil && s.history.RedoDepth() > 0,
 	}
-	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
-	if !ok {
-		return state
-	}
+	document := s.runtime.Snapshot().Document()
 	active := activeMark(s.inline)
+	ranges := selectionBlockRanges(document, s.presentation.Selection)
+	coverage := formattingCoverageFor(document, ranges, EmphasisMark, active)
 	settings := func(command MarkupCommand) MarkupSettings {
 		return MarkupSettings{
 			PolicyEnabled:  configuration.IsEnabled(WritingPolicyID),
 			CommandEnabled: configuration.IsCommandEnabled(command.ID()),
 		}
 	}
-	emphasis := MarkupStateFor(MarkupEmphasis, settings(MarkupEmphasis), node, s.presentation.Selection, active)
-	strong := MarkupStateFor(MarkupStrong, settings(MarkupStrong), node, s.presentation.Selection, active)
+	emphasis := markupStateFor(MarkupEmphasis, settings(MarkupEmphasis), coverage.strongest())
+	strong := markupStateFor(MarkupStrong, settings(MarkupStrong), coverage.strongest())
 	state.EmphasisEnabled = emphasis.Enabled
 	state.Emphasis = emphasis.Selected
 	state.StrongEnabled = strong.Enabled

@@ -43,6 +43,16 @@ func (d *DocumentDraft) SplitText(node NodeID, at UTF16Offset) (NodeID, error) {
 	if err != nil {
 		return 0, err
 	}
+	movedMarks := 0
+	for _, mark := range target.marks {
+		if mark.rangeUTF16.End > at {
+			movedMarks++
+		}
+	}
+	// The new node starts with the same mark-identity supply as any new node.
+	if err := checkNextMarkIDSupply(1, movedMarks); err != nil {
+		return 0, err
+	}
 	index := slices.Index(d.state.nodes[parent].children, node)
 	created, err := d.CreateNode(parent, index+1, target.kind)
 	if err != nil {
@@ -68,8 +78,10 @@ func (d *DocumentDraft) SplitText(node NodeID, at UTF16Offset) (NodeID, error) {
 		}
 		if end > at {
 			moved := mark
-			moved.id = MarkID(second.nextMarkID)
-			second.nextMarkID++
+			moved.id, err = allocateMarkID(second)
+			if err != nil {
+				return 0, err
+			}
 			moved.rangeUTF16 = NewUTF16Range(max(start, at)-at, end-at)
 			second.marks = append(second.marks, moved)
 		}
@@ -77,8 +89,8 @@ func (d *DocumentDraft) SplitText(node NodeID, at UTF16Offset) (NodeID, error) {
 	if target.text != nil {
 		first.text, second.text = &head, &tail
 	}
-	sortMarks(first.marks, nil)
-	sortMarks(second.marks, nil)
+	canonicalizeMarks(&first.marks, nil)
+	canonicalizeMarks(&second.marks, nil)
 	state.nodes[node], state.nodes[created] = first, second
 	d.state = state
 	d.textEdits = append(d.textEdits,
@@ -103,6 +115,19 @@ func (d *DocumentDraft) JoinText(first, second NodeID) error {
 	if first == second || len(right.children) > 0 {
 		return invalidDocument("only a different, childless node can be joined")
 	}
+	if second == d.state.root {
+		return &DocumentError{Kind: DocumentErrorRootMutation, Node: second}
+	}
+	parent, ok := right.Parent()
+	if !ok {
+		return invalidDocument("only a child node can be joined")
+	}
+	if _, ok := d.state.nodes[parent]; !ok {
+		return &DocumentError{Kind: DocumentErrorMissingParent, Parent: parent}
+	}
+	if err := checkMarkIDSupply(left, len(right.marks)); err != nil {
+		return err
+	}
 	offset := UTF16Offset(left.Text().UTF16Len())
 	state := d.copyState()
 	joined := state.nodes[first].clone()
@@ -113,12 +138,15 @@ func (d *DocumentDraft) JoinText(first, second NodeID) error {
 	}
 	for _, mark := range right.marks {
 		moved := mark
-		moved.id = MarkID(joined.nextMarkID)
-		joined.nextMarkID++
+		id, err := allocateMarkID(joined)
+		if err != nil {
+			return err
+		}
+		moved.id = id
 		moved.rangeUTF16 = NewUTF16Range(mark.rangeUTF16.Start+offset, mark.rangeUTF16.End+offset)
 		joined.marks = append(joined.marks, moved)
 	}
-	sortMarks(joined.marks, nil)
+	canonicalizeMarks(&joined.marks, nil)
 	state.nodes[first] = joined
 	d.state = state
 	d.textEdits = append(d.textEdits, NewTextTransfer(second, 0, first, offset, true))

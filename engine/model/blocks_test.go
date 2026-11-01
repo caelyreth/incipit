@@ -93,10 +93,97 @@ func TestSplitAndJoinCarryTextMarksAndPositions(t *testing.T) {
 	if got := markRanges(head.Marks()); !slices.Equal(got, []UTF16Range{NewUTF16Range(2, 4), NewUTF16Range(4, 6)}) {
 		t.Fatalf("joined marks %v", got)
 	}
+	if head.Marks()[0].ID() == head.Marks()[1].ID() {
+		t.Fatal("adjacent joined fragments share one identity")
+	}
 	back, ok := NewTextSelection(NewTextAnchor(second, 0, AffinityLeft, 0), NewTextAnchor(second, 3, AffinityLeft, 0)).
 		RebaseAll(joined, 10)
 	if !ok || back.Anchor().Node() != first || back.Anchor().Offset() != 4 || back.Head().Offset() != 7 {
 		t.Fatalf("join carried %v", back)
+	}
+}
+
+func TestJoinCanonicalizesDuplicateBoundaryMarksAtMaximumLevel(t *testing.T) {
+	t.Parallel()
+	document, ids := blockDocument(t, "a", "b")
+	var leftID MarkID
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		var err error
+		leftID, err = draft.AddMark(ids[0], NewUTF16Range(1, 1), "emphasis", 1)
+		if err != nil {
+			return err
+		}
+		_, err = draft.AddMark(ids[1], NewUTF16Range(0, 0), "emphasis", 2)
+		return err
+	})
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.JoinText(ids[0], ids[1])
+	})
+	joined, _ := document.Snapshot().Node(ids[0])
+	marks := joined.Marks()
+	if len(marks) != 1 || marks[0].Range() != NewUTF16Range(1, 1) ||
+		marks[0].Level() != 2 || marks[0].ID() != leftID {
+		t.Fatalf("joined marks = %#v, want left id %d at maximum level", marks, leftID)
+	}
+}
+
+func TestSplitCanonicalizesMarksThatMeetAtTheBoundary(t *testing.T) {
+	t.Parallel()
+	document, ids := blockDocument(t, "ab")
+	var outer MarkID
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		var err error
+		outer, err = draft.AddMark(ids[0], NewUTF16Range(0, 2), "emphasis", 1)
+		if err != nil {
+			return err
+		}
+		_, err = draft.AddMark(ids[0], NewUTF16Range(0, 1), "emphasis", 2)
+		return err
+	})
+	var tail NodeID
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		var err error
+		tail, err = draft.SplitText(ids[0], 1)
+		return err
+	})
+	snapshot := document.Snapshot()
+	head, _ := snapshot.Node(ids[0])
+	tailNode, _ := snapshot.Node(tail)
+	if marks := head.Marks(); len(marks) != 1 || marks[0].ID() != outer ||
+		marks[0].Range() != NewUTF16Range(0, 1) || marks[0].Level() != 2 {
+		t.Fatalf("head marks = %#v", marks)
+	}
+	if marks := tailNode.Marks(); len(marks) != 1 ||
+		marks[0].Range() != NewUTF16Range(0, 1) || marks[0].Level() != 1 {
+		t.Fatalf("tail marks = %#v", marks)
+	}
+}
+
+func TestJoinKeepsIntentionalAdjacentMarksSeparate(t *testing.T) {
+	t.Parallel()
+	document, ids := blockDocument(t, "a", "b")
+	var leftID, rightID MarkID
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		var err error
+		leftID, err = draft.AddMark(ids[0], NewUTF16Range(0, 1), "emphasis", 1)
+		if err != nil {
+			return err
+		}
+		rightID, err = draft.AddMark(ids[1], NewUTF16Range(0, 1), "emphasis", 2)
+		return err
+	})
+	mustTransact(t, document, func(draft *DocumentDraft) error {
+		return draft.JoinText(ids[0], ids[1])
+	})
+	joined, _ := document.Snapshot().Node(ids[0])
+	marks := joined.Marks()
+	if len(marks) != 2 ||
+		marks[0].Range() != NewUTF16Range(0, 1) ||
+		marks[1].Range() != NewUTF16Range(1, 2) {
+		t.Fatalf("joined marks = %#v", marks)
+	}
+	if marks[0].ID() != leftID || marks[1].ID() == rightID || marks[0].ID() == marks[1].ID() {
+		t.Fatalf("joined identities = %d, %d; right source = %d", marks[0].ID(), marks[1].ID(), rightID)
 	}
 }
 

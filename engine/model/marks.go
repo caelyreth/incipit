@@ -64,9 +64,6 @@ func (d *DocumentDraft) AddMark(node NodeID, rangeUTF16 UTF16Range, kind MarkKin
 	if level < 1 || kind == "" {
 		return 0, invalidDocument("a mark needs a kind and a level")
 	}
-	if target.nextMarkID == ^uint64(0) {
-		return 0, &DocumentError{Kind: DocumentErrorIdentityExhausted}
-	}
 	for _, mark := range target.marks {
 		if crosses(mark.rangeUTF16, rangeUTF16) {
 			return 0, invalidDocument("inline ranges cannot cross")
@@ -80,11 +77,16 @@ func (d *DocumentDraft) AddMark(node NodeID, rangeUTF16 UTF16Range, kind MarkKin
 			return mark.id, nil
 		}
 	}
+	if err := checkMarkIDSupply(target, 1); err != nil {
+		return 0, err
+	}
 
 	state := d.copyState()
 	updated := state.nodes[node].clone()
-	id := MarkID(updated.nextMarkID)
-	updated.nextMarkID++
+	id, err := allocateMarkID(updated)
+	if err != nil {
+		return 0, err
+	}
 	updated.marks = append(updated.marks, InlineMark{
 		id:         id,
 		rangeUTF16: rangeUTF16,
@@ -197,8 +199,7 @@ func rebaseMarks(
 			)
 		}
 	}
-	sortMarks(*marks, active)
-	dedupeMarks(marks)
+	canonicalizeMarks(marks, active)
 }
 
 func sortMarks(marks []InlineMark, active *MarkID) {
@@ -236,16 +237,57 @@ func compare[T ~int | ~uint64 | ~uint8](left, right T) int {
 }
 
 func dedupeMarks(marks *[]InlineMark) {
+	if len(*marks) < 2 {
+		return
+	}
 	output := (*marks)[:0]
+	first := make(map[markRangeKind]int, len(*marks))
 	for _, mark := range *marks {
-		if len(output) > 0 && output[len(output)-1].rangeUTF16 == mark.rangeUTF16 &&
-			output[len(output)-1].kind == mark.kind {
-			output[len(output)-1].level = max(output[len(output)-1].level, mark.level)
+		key := markRangeKind{rangeUTF16: mark.rangeUTF16, kind: mark.kind}
+		if index, exists := first[key]; exists {
+			output[index].level = max(output[index].level, mark.level)
 			continue
 		}
+		first[key] = len(output)
 		output = append(output, mark)
 	}
 	*marks = output
+}
+
+type markRangeKind struct {
+	rangeUTF16 UTF16Range
+	kind       MarkKind
+}
+
+func canonicalizeMarks(marks *[]InlineMark, active *MarkID) {
+	sortMarks(*marks, active)
+	dedupeMarks(marks)
+}
+
+// checkMarkIDSupply reserves identities before a multi-mark operation begins.
+// A supply equal to the maximum is exhausted because successors cannot advance
+// past it.
+func checkMarkIDSupply(node *Node, count int) error {
+	return checkNextMarkIDSupply(node.nextMarkID, count)
+}
+
+func checkNextMarkIDSupply(next uint64, count int) error {
+	if count <= 0 {
+		return nil
+	}
+	if next == ^uint64(0) || uint64(count) > ^uint64(0)-next {
+		return &DocumentError{Kind: DocumentErrorIdentityExhausted}
+	}
+	return nil
+}
+
+func allocateMarkID(node *Node) (MarkID, error) {
+	if err := checkMarkIDSupply(node, 1); err != nil {
+		return 0, err
+	}
+	id := MarkID(node.nextMarkID)
+	node.nextMarkID++
+	return id, nil
 }
 
 func validateMarks(node *Node) error {

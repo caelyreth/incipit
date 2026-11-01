@@ -18,7 +18,8 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 		return 0, ErrCompositionActive
 	}
 	selection := s.presentation.Selection
-	ranges := selectionBlockRanges(s.runtime.Snapshot().Document(), selection)
+	document := s.runtime.Snapshot().Document()
+	ranges := selectionBlockRanges(document, selection)
 	projected, err := s.VisualSelection()
 	if err != nil {
 		return 0, err
@@ -36,9 +37,15 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 		}
 		return kernel.OutcomePass, nil
 	}
+	invoker := &markupFormatInvoker{
+		session:  s,
+		command:  command,
+		ranges:   ranges,
+		coverage: formattingCoverageFor(document, ranges, EmphasisMark, activeMark(s.inline)),
+	}
 	return s.dispatchSelectionCommand(
 		markupFormatTrigger,
-		&markupFormatInvoker{session: s, command: command, ranges: ranges},
+		invoker,
 		func(node *model.Node) *model.MarkID {
 			if selection.Spans() {
 				return nil
@@ -122,9 +129,10 @@ func (s *Session) dispatchSelectionCommand(
 }
 
 type markupFormatInvoker struct {
-	session *Session
-	command MarkupCommand
-	ranges  []blockRange
+	session  *Session
+	command  MarkupCommand
+	ranges   []blockRange
+	coverage formattingCoverage
 }
 
 // blockRange is the part of a selection that lies in one block.
@@ -157,18 +165,6 @@ func selectionBlockRanges(document model.DocumentSnapshot, selection model.TextS
 	return ranges
 }
 
-// markCovers reports whether marks of kind and level cover all of range16.
-func markCovers(node *model.Node, range16 model.UTF16Range, kind model.MarkKind, level uint8) bool {
-	end := range16.Start
-	for _, mark := range node.Marks() {
-		if mark.Kind() == kind && mark.Level() == level &&
-			mark.Range().Start <= end && end < mark.Range().End {
-			end = max(end, mark.Range().End)
-		}
-	}
-	return end >= range16.End
-}
-
 func (i *markupFormatInvoker) Invoke(
 	rule *kernel.LinkedRule,
 	leaf kernel.LeafID,
@@ -182,7 +178,7 @@ func (i *markupFormatInvoker) Invoke(
 		return 0, err
 	}
 	level := i.command.Level()
-	if len(i.ranges) == 1 {
+	if i.coverage.collapsed && len(i.ranges) == 1 {
 		part := i.ranges[0]
 		node, ok := document.Node(part.Node)
 		if !ok {
@@ -192,7 +188,8 @@ func (i *markupFormatInvoker) Invoke(
 			}
 		}
 		for _, mark := range node.Marks() {
-			if mark.Range() == part.Range && mark.Kind() == EmphasisMark && mark.Level() == level {
+			if mark.Range() == part.Range && mark.Kind() == EmphasisMark && mark.Level() == level &&
+				(i.coverage.active == nil || mark.ID() == i.coverage.active.ID()) {
 				if err := document.SetMarkLevel(part.Node, mark.ID(), 0); err != nil {
 					return 0, err
 				}
@@ -200,19 +197,43 @@ func (i *markupFormatInvoker) Invoke(
 			}
 		}
 	}
-	// Across blocks the selection gains the mark everywhere it lacks it,
-	// or loses it everywhere when it already has it all over.
-	covered := true
-	for _, part := range i.ranges {
-		node, ok := document.Node(part.Node)
-		covered = covered && ok && markCovers(node, part.Range, EmphasisMark, level)
+	if i.coverage.collapsed {
+		if i.coverage.active != nil && i.coverage.active.Level() == level {
+			if err := document.SetMarkLevel(i.ranges[0].Node, i.coverage.active.ID(), 0); err != nil {
+				return 0, err
+			}
+			return kernel.OutcomeHandled, nil
+		}
+		if _, err := applyMarkToggle(
+			document,
+			i.ranges[0].Node,
+			i.ranges[0].Range,
+			EmphasisMark,
+			level,
+			false,
+		); err != nil {
+			return 0, err
+		}
+		return kernel.OutcomeHandled, nil
 	}
-	for _, part := range i.ranges {
-		node, _ := document.Node(part.Node)
-		if part.Range.Empty() && len(i.ranges) > 1 || !covered && markCovers(node, part.Range, EmphasisMark, level) {
+	// Across blocks the selection gains the mark everywhere it lacks it, or
+	// loses it everywhere when it is the strongest effective level throughout.
+	remove := i.coverage.strongest() == level
+	for index, part := range i.ranges {
+		if part.Range.Empty() && len(i.ranges) > 1 {
 			continue
 		}
-		if err := ToggleMark(document, part.Node, part.Range, EmphasisMark, level); err != nil {
+		if !remove && i.coverage.partStrongest(index) == level {
+			continue
+		}
+		if _, err := applyMarkToggle(
+			document,
+			part.Node,
+			part.Range,
+			EmphasisMark,
+			level,
+			remove,
+		); err != nil {
 			return 0, err
 		}
 	}
