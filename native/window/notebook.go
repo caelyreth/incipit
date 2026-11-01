@@ -11,6 +11,7 @@ import (
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
+	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
 )
@@ -198,7 +199,7 @@ func (a *AppState) saveLayout() {
 		Selections: make(map[storage.PageKey]storage.Selection, len(a.sessions)),
 	}
 	for _, session := range a.sessions {
-		stored.Selections[session.key] = storedSelection(session.controller.Session().Selection())
+		stored.Selections[session.key] = storedSelection(session.controller.Session())
 	}
 	for _, id := range layout.Tabs {
 		if session, ok := a.sessions[id]; ok {
@@ -227,7 +228,8 @@ func sameLayout(left, right storage.Layout) bool {
 		maps.Equal(left.Selections, right.Selections)
 }
 
-func storedSelection(selection model.TextSelection) storage.Selection {
+func storedSelection(session *editor.Session) storage.Selection {
+	selection := session.Selection()
 	position := func(anchor model.TextAnchor) storage.Position {
 		return storage.Position{
 			Node:     anchor.Node().Value(),
@@ -235,7 +237,22 @@ func storedSelection(selection model.TextSelection) storage.Selection {
 			Affinity: uint8(anchor.Affinity()),
 		}
 	}
-	return storage.Selection{Anchor: position(selection.Anchor()), Head: position(selection.Head())}
+	stored := storage.Selection{
+		Anchor: position(selection.Anchor()),
+		Head:   position(selection.Head()),
+	}
+	if visual, err := session.VisualSelection(); err == nil {
+		caret := session.Caret().RangeUTF16().Start
+		anchor, head := visual.Start, visual.End
+		if !visual.Empty() && caret == visual.Start {
+			anchor, head = visual.End, visual.Start
+		}
+		stored.Visual = &storage.ProjectedSelection{
+			Anchor: int(anchor),
+			Head:   int(head),
+		}
+	}
+	return stored
 }
 
 // restoreSelection puts a page's selection back where it was left. One that
@@ -243,6 +260,15 @@ func storedSelection(selection model.TextSelection) storage.Selection {
 func restoreSelection(document *controller.DocumentController, stored storage.Selection) {
 	runtime := document.Runtime()
 	snapshot := runtime.Snapshot().Document()
+	if stored.Visual != nil {
+		anchor, head := stored.Visual.Anchor, stored.Visual.Head
+		length := int(document.Session().Projection().UTF16Len())
+		if anchor >= 0 && head >= 0 && anchor <= length && head <= length &&
+			document.SelectProjected(anchor, head) == nil {
+			return
+		}
+		document.ClearError()
+	}
 	anchor := func(position storage.Position) model.TextAnchor {
 		return model.NewTextAnchor(
 			model.NodeID(position.Node),

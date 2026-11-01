@@ -231,3 +231,30 @@ func TestChaptersAreKeptAndFileTheSheetsBelowThem(t *testing.T) {
 		t.Fatalf("chapters after reopening %+v", entries)
 	}
 }
+
+func TestMarkerOnlySelectionIsKeptAcrossRestart(t *testing.T) {
+	root := t.TempDir()
+	app := openNotebookApp(t, root)
+	typeText(t, app, "*abc*")
+	if err := app.Session.Document().SelectProjected(0, 1); err != nil {
+		t.Fatal(err)
+	}
+	before, err := app.Session.Document().Session().VisualSelection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.save()
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	app = openNotebookApp(t, root)
+	defer app.Close()
+	after, err := app.Session.Document().Session().VisualSelection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatalf("restored visual selection = %v, want %v", after, before)
+	}
+}

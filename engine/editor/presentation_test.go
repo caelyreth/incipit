@@ -148,6 +148,31 @@ func TestPresentationKeepsCollapsedSemanticCaretOutOfBlockNotation(t *testing.T)
 	}
 }
 
+func TestReconfigurePreservesMarkerOnlyVisualSelection(t *testing.T) {
+	t.Parallel()
+	session := newMarkedSession(t, "abc", markSpec{start: 0, end: 3, level: 1})
+	if err := session.SelectProjected(0, 1); err != nil {
+		t.Fatal(err)
+	}
+	before, err := session.VisualSelection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := session.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
+		configuration.SetEnabled(CJKPolicyID, true)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := session.VisualSelection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before || session.Presentation().ViewAnchor == nil {
+		t.Fatalf("visual selection after reconfigure = %v, want %v", after, before)
+	}
+}
+
 func TestPresentationFlowIsRetainedUntilReplacement(t *testing.T) {
 	t.Parallel()
 	runtime, node := presentationFixture(t, "abc", false)

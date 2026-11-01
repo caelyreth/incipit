@@ -725,6 +725,7 @@ func (s *Session) Reconfigure(
 	operation func(*kernel.PolicyConfiguration) error,
 ) (kernel.ConfigurationOutcome[struct{}], error) {
 	s.history.ConfigurationChanged()
+	visualState, visualErr := s.ProjectedState()
 	var candidate Presentation
 	outcome, err := s.runtime.ReconfigurePrepared(
 		operation,
@@ -748,6 +749,27 @@ func (s *Session) Reconfigure(
 			if err != nil {
 				return struct{}{}, wrapProjectionError(err)
 			}
+			var viewAnchor *projection.Target
+			if visualErr == nil {
+				if anchorTarget, headTarget, resolveErr := nextProjection.ResolveSelection(
+					visualState,
+					view.Revision(),
+				); resolveErr == nil {
+					anchorValue, anchorErr := nextProjection.SemanticAnchor(
+						anchorTarget.RangeUTF16().Start,
+						anchorTarget.Affinity(),
+					)
+					headValue, headErr := nextProjection.SemanticAnchor(
+						headTarget.RangeUTF16().Start,
+						headTarget.Affinity(),
+					)
+					if anchorErr == nil && headErr == nil {
+						rebased = model.NewTextSelection(anchorValue, headValue)
+						caret = headTarget
+						viewAnchor = &anchorTarget
+					}
+				}
+			}
 			flow, err := projectionFlowFromView(view, configuration, nextProjection, rebased)
 			if err != nil {
 				return struct{}{}, err
@@ -756,6 +778,7 @@ func (s *Session) Reconfigure(
 				Projection: nextProjection,
 				Selection:  rebased,
 				Caret:      caret,
+				ViewAnchor: viewAnchor,
 				Flow:       flow,
 			}
 			return struct{}{}, nil

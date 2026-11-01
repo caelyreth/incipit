@@ -43,8 +43,16 @@ type Position struct {
 // Selection is a page's selection, from where it was started to where it
 // was moved; a caret is one whose ends are the same.
 type Selection struct {
-	Anchor Position `json:"anchor"`
-	Head   Position `json:"head"`
+	Anchor Position            `json:"anchor"`
+	Head   Position            `json:"head"`
+	Visual *ProjectedSelection `json:"visual,omitempty"`
+}
+
+// ProjectedSelection preserves a directed visual selection when semantic
+// offsets alone cannot name generated notation or its side.
+type ProjectedSelection struct {
+	Anchor int `json:"anchor"`
+	Head   int `json:"head"`
 }
 
 // Damage is a page whose records no longer make a document. Its rows stay
