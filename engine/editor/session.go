@@ -426,7 +426,7 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 				model.UTF16Offset(model.StringLenUTF16(inputValue.Input().Text()))
 			through := len(changes.TextEdits())
 			headNode := target.Node()
-			if edit.UTF16Range.Empty() || resolved.VisualSelection == nil {
+			if edit.UTF16Range.Empty() || resolved.VisualSelection == nil || !inputValue.ApplyText() {
 				if action, ok := s.invoker.LastMarker(); ok && action.Handled && !action.Exited {
 					insertedHead = action.Head
 				} else if s.invoker.hasCorrectionEffect {
@@ -437,7 +437,10 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 				}
 				through = min(s.invoker.correctionEffectThrough, len(changes.TextEdits()))
 			} else {
-				through = 0
+				through, err = textEditThrough(changes.TextEdits(), target)
+				if err != nil {
+					return struct{}{}, err
+				}
 			}
 			head := model.NewTextAnchor(headNode, insertedHead, model.AffinityRight, beforeRevision)
 			next, err := s.editedPresentation(view, configuration, head, changes.TextEdits()[through:], s.invoker.active)
@@ -460,6 +463,22 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 		Revision: transaction.Revision,
 		Changes:  transaction.Changes,
 	}, nil
+}
+
+// textEditThrough returns the first edit after the semantic text target's
+// own replacement. The target is a pre-image coordinate; the replacement
+// itself owns the post-image head, so rebasing through it would apply the
+// inserted length twice.
+func textEditThrough(
+	edits []model.TextEdit,
+	target input.TextTarget,
+) (int, error) {
+	for index, edit := range edits {
+		if edit.Node() == target.Node() && edit.RangeUTF16() == target.RangeUTF16() {
+			return index + 1, nil
+		}
+	}
+	return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 }
 
 // afterEdit installs an edit's page and keeps everything that follows the

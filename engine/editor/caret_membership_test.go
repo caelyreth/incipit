@@ -378,3 +378,37 @@ func TestDeletingPartOfAnEmptyMarkerRemovesItsNotation(t *testing.T) {
 		t.Fatalf("caret = %v", got)
 	}
 }
+
+func TestReplacingASelectionWithLongerTextLandsAfterIt(t *testing.T) {
+	for _, test := range []struct {
+		name, text, replacement string
+		from, to                model.UTF16Offset
+		want                    string
+		caretAt                 model.UTF16Offset
+	}{
+		{
+			name: "ascii", text: "abcdef", replacement: "XYZ",
+			from: 2, to: 3, want: "abXYZdef", caretAt: 5,
+		},
+		{
+			name: "before supplementary scalar", text: "a🦀", replacement: "XY",
+			from: 0, to: 1, want: "XY🦀", caretAt: 2,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			session, _ := newSessionFixture(t, test.text, false)
+			if err := session.SelectProjected(test.from, test.to); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := session.ReplaceSelection(test.replacement, kernel.EventOriginTyping); err != nil {
+				t.Fatal(err)
+			}
+			if got := session.Projection().Text(); got != test.want {
+				t.Fatalf("projection = %q, want %q", got, test.want)
+			}
+			if got := session.Caret().RangeUTF16(); got != model.EmptyUTF16Range(test.caretAt) {
+				t.Fatalf("caret = %v, want %d", got, test.caretAt)
+			}
+		})
+	}
+}
