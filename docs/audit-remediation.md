@@ -41,7 +41,7 @@ than force unrelated operations through a generic abstraction.
 | B17 | Toolbar shortcut metadata | In progress | `codex/audit-routing` worktree |
 | C1 | Presentation assembly and publication | Open | Preserve transaction and history semantics |
 | C2 | Policy rules, outcomes, spans and composition ownership | Open | |
-| C3 | Settings policy host and coherent snapshots | Open | |
+| C3 | Settings policy host and coherent snapshots | Settled | One synchronized app-level host validates candidates, publishes through the workspace, and exposes owned coherent snapshots. Failed validation/publication leaves the host unchanged. Tests cover publication failures, ownership and concurrent snapshot reads; settings edits themselves remain UI-thread operations. |
 | C4 | Media format metadata | Settled | One app-level registry describes input aliases, dialog extensions, decoder names, canonical stored MIME/extensions and PNG normalization; TIFF remains accepted and stored as PNG. Tests cover aliases, isolation, sorted filters, unknown types and actual converted bytes. Native dialog acceptance remains outstanding. |
 | C5 | Library projections, search and counts | Open | Profile large notebooks |
 | C6 | Geometry, role mappings and deterministic helpers | In progress | Surface color-role mapping and setting-key sorting are shared; coordinate and notation-run helpers remain open. |

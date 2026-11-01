@@ -19,10 +19,18 @@ var (
 // dependency. Adopt must be atomic and preserve the previous configuration on
 // failure.
 type Store interface {
+	Snapshot() PolicySnapshot
 	PolicyCatalog() kernel.PolicyCatalog
 	Configuration() kernel.PolicyConfiguration
 	PreparedConfiguration() *kernel.PreparedPolicyConfiguration
 	Adopt(kernel.PolicyConfiguration) error
+}
+
+// PolicySnapshot is one owned generation of the settings policy source.
+type PolicySnapshot struct {
+	Catalog       kernel.PolicyCatalog
+	Configuration kernel.PolicyConfiguration
+	Prepared      *kernel.PreparedPolicyConfiguration
 }
 
 // Session exposes only the settings-relevant read surface of the mounted page.

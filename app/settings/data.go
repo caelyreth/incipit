@@ -27,9 +27,8 @@ func BuildData(
 		data.Scopes = []string{}
 		return data
 	}
-	source := store.Configuration()
-	prepared := store.PreparedConfiguration()
-	catalog := store.PolicyCatalog()
+	snapshot := store.Snapshot()
+	source, prepared, catalog := snapshot.Configuration, snapshot.Prepared, snapshot.Catalog
 	page, title, active := session.Page()
 	data.Page = title
 	if active {

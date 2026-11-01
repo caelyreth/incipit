@@ -29,7 +29,7 @@ func (clock) Now() time.Time { return time.Now() }
 // AppState owns one main-window notebook and its app-wide settings.
 type AppState struct {
 	Workspace *workspace.Workspace
-	Store     *policyStore
+	Store     *appsettings.HostStore
 	Settings  settings.State
 	Product   appsettings.State
 	Shell     *shell.State
@@ -103,12 +103,12 @@ func newAppState(store *storage.Store) (*AppState, error) {
 	if err != nil {
 		return nil, err
 	}
-	host, err := kernel.NewPolicyHost(catalog)
+	policy, err := appsettings.NewHostStoreWithPublisher(catalog, pages.PublishPolicy)
 	if err != nil {
 		return nil, err
 	}
 	app.Workspace = pages
-	app.Store = newPolicyStore(catalog, host.Configuration(), host.PreparedSnapshot(), pages)
+	app.Store = policy
 	app.Settings = *settings.New()
 	app.Product = appsettings.DefaultState()
 	app.Shell = shell.New()
