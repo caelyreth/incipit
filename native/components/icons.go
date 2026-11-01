@@ -24,6 +24,8 @@ const (
 	IconCommand      IconName = "command"
 	IconDocument     IconName = "file-text"
 	IconFolder       IconName = "folder"
+	IconImage        IconName = "image"
+	IconImageOff     IconName = "image-off"
 	IconInbox        IconName = "inbox"
 	IconInfo         IconName = "info"
 	IconItalic       IconName = "italic"
@@ -57,6 +59,8 @@ var AllIcons = [...]IconName{
 	IconCommand,
 	IconDocument,
 	IconFolder,
+	IconImage,
+	IconImageOff,
 	IconInbox,
 	IconInfo,
 	IconItalic,

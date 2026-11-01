@@ -109,6 +109,7 @@ func newAppState(store *storage.Store) (*AppState, error) {
 		time.Now(),
 	)
 	app.Element.Label = "Writing document"
+	app.Element.Pictures = &documentview.Pictures{Read: app.readPicture}
 	if scroll, ok := pages.ActiveScroll(); ok {
 		app.Element.SwitchPage(scroll.Y)
 	}

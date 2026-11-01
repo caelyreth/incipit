@@ -3,6 +3,7 @@ package window
 import (
 	"fmt"
 	"maps"
+	"os"
 	"slices"
 	"time"
 
@@ -25,6 +26,19 @@ type notebook struct {
 	// notice reports what opening repaired or could not read.
 	notice string
 	closed bool
+}
+
+// readPicture gives the bytes of a picture the notebook keeps, for the
+// page to show; a notebook held in memory keeps none.
+func (a *AppState) readPicture(hash string) ([]byte, error) {
+	if a.notebook == nil {
+		return nil, os.ErrNotExist
+	}
+	media, ok := a.notebook.store.Media(hash)
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return os.ReadFile(a.notebook.store.MediaFile(media))
 }
 
 // openNotebook builds the pages' sessions and their layout: those the store

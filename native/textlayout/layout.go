@@ -1,6 +1,7 @@
 package textlayout
 
 import (
+	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/egoist/mygo/ui"
 )
@@ -14,8 +15,13 @@ type Paragraph struct {
 	contentUTF16 int
 	top          float32
 	height       float32
-	// gap is the room left above the paragraph, after the one before it.
+	// gap is the room left above the paragraph, after the one before it,
+	// a figure's included.
 	gap float32
+	// figure is the picture the paragraph's line shows above it, at box.
+	figure    surface.Figure
+	box       ui.Rect
+	hasFigure bool
 }
 
 func (p Paragraph) Layout() *ui.TextLayout { return p.layout }
@@ -75,23 +81,38 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	lineHeight := style.Prose.LineHeight()
 	body := style.Prose.Leading()
 	previous := surface.RhythmProse
+	previousFigure := false
 	for index, raw := range paragraphs {
 		rhythm := paragraphRhythm(flow, raw.startByte)
+		figure, hasFigure := flow.FigureAt(model.UTF16Offset(raw.startUTF16))
 		above := float32(0)
 		if index > 0 {
 			above = gap(previous, rhythm, body)
+			if hasFigure || previousFigure {
+				above = max(above, figureGap(body))
+			}
 		}
-		previous = rhythm
+		previous, previousFigure = rhythm, hasFigure
+		var box ui.Rect
+		align := ui.Start
+		if hasFigure {
+			box = figureBox(figure, width)
+			box.Y = top + above
+			above += box.H + figureBond(body)
+			if figure.Align == surface.FigureCenter {
+				align = ui.Center
+			}
+		}
 		top += above
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
-		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width)
+		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width, align)
 		var layout *ui.TextLayout
 		if available := c.layouts[key]; len(available) > 0 {
 			layout = available[len(available)-1]
 			c.layouts[key] = available[:len(available)-1]
 		} else {
 			spans := spansFor(flow, raw.startByte, raw.endByte, style)
-			layout = ui.ShapeRichTextWith(spans, font, ui.TextShape{Width: width})
+			layout = ui.ShapeRichTextWith(spans, font, ui.TextShape{Width: width, Align: align})
 		}
 		next[key] = append(next[key], layout)
 		_, height := layout.Size()
@@ -105,6 +126,9 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			top:          top,
 			height:       height,
 			gap:          above,
+			figure:       figure,
+			box:          box,
+			hasFigure:    hasFigure,
 		}
 		top += height
 		shaped = append(shaped, paragraph)
@@ -204,6 +228,7 @@ func paragraphKey(
 	style Style,
 	font ui.Font,
 	width float32,
+	align ui.Align,
 ) uint64 {
 	const (
 		fnvOffset64 = uint64(14695981039346656037)
@@ -229,6 +254,7 @@ func paragraphKey(
 		})
 	}
 	writeFloat(width)
+	writeBytes([]byte{byte(align)})
 	writeFloat(font.Size)
 	writeFloat(font.LineHeight)
 	writeString(font.Family)

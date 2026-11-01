@@ -45,6 +45,9 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	p.Clip(rect, 0, func() {
 		drawDecorationFills(p, rect, state, options)
 		drawRangeFills(p, rect, state, animatedSelection)
+		if drawFigures(p, rect, state, options) {
+			p.AnimationFrame()
+		}
 		drawText(p, rect, state)
 		drawPlaceholder(p, rect, state)
 		drawRangeRules(p, rect, state, options)

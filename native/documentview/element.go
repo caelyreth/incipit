@@ -40,8 +40,11 @@ type Element struct {
 	BottomInset float32
 	// Margin is the room beside the column, where hints that must not
 	// read as part of the text show; UIFontSize sizes the keys they name.
-	Margin            float32
-	UIFontSize        float32
+	Margin     float32
+	UIFontSize float32
+	// Pictures reads the pictures the page's figures show.
+	Pictures          *Pictures
+	figures           FigureMotion
 	scroll            float32
 	overscroll        scrollfx.Elastic
 	lastHeight        float32
@@ -119,6 +122,8 @@ func (e *Element) View(c *ui.Context) {
 		e.focusPending = false
 	}
 	e.mounted = true
+	// A picture decoded off the UI thread redraws the page that asked.
+	e.Pictures.SetWake(c.Services().Invalidate)
 	box.HandleInput(e.handleInput).
 		TextCaret(e.caret(c)).
 		Draw(func(p *ui.Painter, rect ui.Rect) {
@@ -391,6 +396,8 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		UIFontSize:        e.UIFontSize,
 		BottomInset:       e.BottomInset,
 		Guides:            &e.guides,
+		Pictures:          e.Pictures,
+		FigureMotion:      &e.figures,
 	}
 	Paint(p, rect, state)
 	e.drawnCaret = state.DrawnCaret

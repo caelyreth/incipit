@@ -37,6 +37,10 @@ type State struct {
 	// Guides keeps the anchored key hints' motion across frames; without
 	// it guides still paint, settled.
 	Guides *Guides
+	// Pictures gives the figures their pictures, and FigureMotion keeps
+	// their fades; without either figures show their places, settled.
+	Pictures     *Pictures
+	FigureMotion *FigureMotion
 
 	// DrawnCaret is set by Paint: the caret geometry it settled on this
 	// frame, local to the content like the layout's.
