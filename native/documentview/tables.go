@@ -111,6 +111,13 @@ type tableUI struct {
 	// room the area had goes at once, the new row or column standing in it.
 	made       *tableMade
 	generation map[model.NodeID]int
+	// scroll is how far each table wider than its room is scrolled
+	// across, by its first cell, and wheeled those the wheel moved this
+	// frame, which follow it at once; caret is where the caret was, so
+	// one moved into a cell out of its room scrolls it in.
+	scroll  map[model.NodeID]float32
+	wheeled map[model.NodeID]bool
+	caret   int
 }
 
 // tableMade is a row or column a create area made: it comes in at the
@@ -272,7 +279,8 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 		// while the pointer is on it, the border's reach around it.
 		gutter := tableReach * scale
 		inRows := point.X >= table.Box.X-gutter && point.X < table.Box.X
-		inColumns := point.Y >= table.Box.Y-gutter && point.Y < table.Box.Y
+		inColumns := point.Y >= table.Box.Y-gutter && point.Y < table.Box.Y &&
+			point.X >= table.Box.X && point.X <= table.Box.X+table.Box.W
 		rowGap, columnGap := grown(table.RowGap, 0, border), grown(table.ColumnGap, border, 0)
 		rowGap.X, rowGap.W = rowGap.X-gutter, rowGap.W+gutter
 		columnGap.Y, columnGap.H = columnGap.Y-gutter, columnGap.H+gutter
@@ -355,11 +363,101 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 		if columnOpen && columnGap/gapStride == index {
 			next.Column = columnGap % gapStride
 		}
+		next.Scroll = e.tables.scroll[node]
+		if animate && !e.tables.wheeled[node] {
+			next.Scroll = components.Follow(box, tableKey{node, "scroll", 0}, next.Scroll, components.MotionNormal)
+		} else if animate {
+			next.Scroll = box.Jump(tableKey{node, "scroll", 0}, next.Scroll)
+		}
 		next.ColumnRoom = follow(tableKey{node, "column", generation}, open(columnOpen && columnGap/gapStride == index, between))
 		room[node] = next
 	}
 	e.tables.room, e.tables.grips = room, grips
+	e.tables.wheeled = nil
 	e.liftTo = lift
+}
+
+// tableReaches lays what of a table reaches past the column into the
+// margins over the page as its own, so the page takes a press there as
+// on the rest of its cells: the page's input comes before its children's.
+func (e *Element) tableReaches(c *ui.Context) {
+	offset := e.TopInset - e.visibleScroll()
+	width := e.current.Width()
+	for _, placed := range e.current.Tables() {
+		box := placed.Box
+		box.Y += offset
+		for index, part := range []ui.Rect{
+			{X: box.X, Y: box.Y, W: min(box.W, -box.X), H: box.H},
+			{X: max(box.X, width), Y: box.Y, W: box.X + box.W - max(box.X, width), H: box.H},
+		} {
+			if part.W > 0.5 {
+				ui.Box(c.Key(fmt.Sprintf("table-%d-reach-%d", placed.Table.Node(), index))).
+					Absolute().Left(part.X).Top(part.Y).Width(part.W).Height(part.H).
+					Cursor(ui.CursorText)
+			}
+		}
+	}
+}
+
+// tableSpread is how far a table wider than the column may reach into
+// each margin, leaving the gutters their grips and areas stand in.
+func (e *Element) tableSpread() float32 {
+	metrics := theme.DefaultControls.Scaled(e.chromeSize())
+	return max(0, e.Margin-tableReach*e.uiScale()-metrics.Height)
+}
+
+// wheelTable scrolls the table under a point of the element across by dx,
+// when it is wider than its room, and reports whether it took it.
+func (e *Element) wheelTable(x, y, dx float32) bool {
+	if e.current == nil || dx == 0 {
+		return false
+	}
+	point := e.contentPoint(x, y)
+	for _, placed := range e.current.Tables() {
+		if placed.Overflow <= 0 || !contains(placed.Box, point) {
+			continue
+		}
+		node := placed.Table.Node()
+		if e.tables.scroll == nil {
+			e.tables.scroll = map[model.NodeID]float32{}
+		}
+		if e.tables.wheeled == nil {
+			e.tables.wheeled = map[model.NodeID]bool{}
+		}
+		e.tables.scroll[node] = max(0, min(e.tables.scroll[node]+dx, placed.Overflow))
+		e.tables.wheeled[node] = true
+		return true
+	}
+	return false
+}
+
+// revealCell scrolls the table the caret has moved into across, as little
+// as shows its caret within its room.
+func (e *Element) revealCell(head int) {
+	if e.current == nil || head == e.tables.caret {
+		return
+	}
+	e.tables.caret = head
+	caret := e.current.Caret(model.UTF16Offset(head))
+	placed, ok := e.current.TableAt(caret.Y)
+	if !ok || placed.Overflow <= 0 {
+		return
+	}
+	node := placed.Table.Node()
+	pad := e.Prose.LineHeight()
+	scroll := placed.Scroll
+	switch {
+	case caret.X < placed.Box.X+pad:
+		scroll -= placed.Box.X + pad - caret.X
+	case caret.X > placed.Box.X+placed.Box.W-pad:
+		scroll += caret.X - (placed.Box.X + placed.Box.W - pad)
+	default:
+		return
+	}
+	if e.tables.scroll == nil {
+		e.tables.scroll = map[model.NodeID]float32{}
+	}
+	e.tables.scroll[node] = max(0, min(scroll, placed.Overflow))
 }
 
 type tableKey struct {
@@ -375,6 +473,7 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 	if !ok || bridge == nil || bridge.Controller == nil || e.current == nil {
 		return
 	}
+	e.tableReaches(c)
 	scale := e.uiScale()
 	metrics := theme.DefaultControls.Scaled(e.chromeSize())
 	gap := theme.Space06.DIPs(e.chromeSize())
@@ -540,7 +639,9 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 	}
 	if column >= 0 && column < len(placed.Columns) {
 		box := ui.Rect{
-			X: placed.Columns[column] + (placed.Widths[column]-long)/2, Y: placed.Box.Y - off - short + offset,
+			// A column scrolled partly out of the room keeps its grip in it.
+			X: max(placed.Box.X, min(placed.Columns[column]+(placed.Widths[column]-long)/2, placed.Box.X+placed.Box.W-long)),
+			Y: placed.Box.Y - off - short + offset,
 			W: long, H: short,
 		}
 		grip(fmt.Sprintf("column-%d", column), fmt.Sprintf("Column %d", column+1), box, dragColumn, column)
@@ -590,7 +691,7 @@ func (e *Element) followGrip(handle ui.Element, bridge *Bridge, placed textlayou
 		case dragColumn:
 			drag.to = nearestIndex(placed.Columns, placed.Widths, placed.Columns[from]+placed.Widths[from]/2+drag.moved.X)
 		case dragCorner:
-			cellW := placed.Box.W / float32(max(1, table.Columns()))
+			cellW := placed.Grid.W / float32(max(1, table.Columns()))
 			cellH := placed.Box.H / float32(max(1, len(table.Rows)))
 			drag.columns = max(1, table.Columns()+int(math.Round(float64(drag.moved.X/cellW))))
 			drag.rows = max(1, len(table.Rows)+int(math.Round(float64(drag.moved.Y/cellH))))
@@ -965,11 +1066,30 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 			if bottom < len(placed.Rows) && right < len(placed.Columns) {
 				from, to := cell(top, left), cell(bottom, right)
 				span := ui.Rect{X: from.X, Y: from.Y, W: to.X + to.W - from.X, H: to.Y + to.H - from.Y}
-				p.Fill(span, state.Theme.Prose.Selection.Alpha(state.Motion.SelectionOpacity()), 0)
-				p.Stroke(span, state.Theme.Accent.Foreground.Alpha(0.85), 0, figureRingWidth)
+				p.Clip(box, radius, func() {
+					p.Fill(span, state.Theme.Prose.Selection.Alpha(state.Motion.SelectionOpacity()), 0)
+					p.Stroke(span, state.Theme.Accent.Foreground.Alpha(0.85), 0, figureRingWidth)
+				})
 			}
 		}
+		drawTableEdges(p, state, placed, box)
 		drawTableDrag(p, state, placed, box, dx, dy)
+	}
+}
+
+// drawTableEdges fades the sides of a table wider than its room where
+// more of it lies past them, as far as it does, up to a line's height.
+func drawTableEdges(p *ui.Painter, state *State, placed textlayout.PlacedTable, box ui.Rect) {
+	if placed.Overflow <= 0 {
+		return
+	}
+	reach := state.Prose.LineHeight()
+	page := state.Theme.Surface.Page
+	if past := min(placed.Scroll, reach); past > 0.5 {
+		p.FillGradient(ui.Rect{X: box.X, Y: box.Y, W: past, H: box.H}, ui.LinearGradient{From: page, To: page.Alpha(0), Angle: 90}, 0)
+	}
+	if past := min(placed.Overflow-placed.Scroll, reach); past > 0.5 {
+		p.FillGradient(ui.Rect{X: box.X + box.W - past, Y: box.Y, W: past, H: box.H}, ui.LinearGradient{From: page.Alpha(0), To: page, Angle: 90}, 0)
 	}
 }
 

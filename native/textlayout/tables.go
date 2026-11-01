@@ -8,28 +8,39 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// A table takes the column's width and sets its cells out in a grid: each
-// column as wide as its share, or an even part of what the shared ones
-// leave, each row as tall as its tallest cell, a cell's lines stacked in it
-// inside a little room of its own. Set apart from the text around it as a
-// figure is, a table reads as one thing on the page.
+// A table is as wide as its cells' text asks, each column as wide as its
+// longest line up to a share of the column, where longer text wraps. One
+// that asks for less takes the column's width, what is over shared evenly
+// among its columns; one that asks for more reaches past the column into
+// the margins, as far each side, and one wider still shows as much as the
+// margins hold, scrolled across within it. Each row is as tall as its
+// tallest cell, a cell's lines stacked in it inside a little room of its
+// own. Set apart from the text around it as a figure is, a table reads as
+// one thing on the page.
 const (
 	// cellPadX and cellPadY are a cell's room around its text, as shares
 	// of the body's line.
 	cellPadX = 0.4
 	cellPadY = 0.2
 	// leastColumn is the narrowest a column is set, in DIPs, so a table of
-	// many columns still shows each.
-	leastColumn = 32
+	// many columns still shows each; widestColumn the widest a column's
+	// text sets it, as a share of the column, before it wraps.
+	leastColumn  = 32
+	widestColumn = 0.6
 	// headerWeight sets a header's text, as the app's own headings are.
 	headerWeight = 600
+	// unwrapped is the width text is set in to read its longest line.
+	unwrapped = 1 << 16
 )
 
 // PlacedTable is a table as the layout sets it out.
 type PlacedTable struct {
 	Table surface.Table
-	// Box is the grid, and Below the room open under it.
-	Box, Below ui.Rect
+	// Box is the room the grid shows in, and Below the room open under
+	// it; the grid itself is Grid, as wide as its columns, scrolled across
+	// Box by Scroll when it is wider, as far as Overflow.
+	Box, Below, Grid ui.Rect
+	Scroll, Overflow float32
 	// Columns and Rows are each column's left edge and each row's top, and
 	// Widths and Heights their sizes; RowGap and ColumnGap are the room
 	// open between them.
@@ -72,40 +83,33 @@ func (l *Layout) TableAt(y float32) (*PlacedTable, bool) {
 	return nil, false
 }
 
-// columnWidths shares width among a table's columns: one with a share
-// takes it, and the rest share what is left evenly; each as far as it has
-// come in.
-func columnWidths(table surface.Table, width float32) []float32 {
-	columns := table.Columns()
-	widths := make([]float32, columns)
-	shared, open := float32(0), float32(0)
-	for index, share := range table.Widths {
-		if share > 0 {
-			widths[index] = share * width
-			shared += widths[index]
+// columnWidths sets each of a table's columns as wide as natural asks, or
+// its share of width where it has one, and shares what the column has over
+// evenly among those without; each as far as it has come in.
+func columnWidths(table surface.Table, width float32, natural []float32) []float32 {
+	widths := make([]float32, len(natural))
+	total, open := float32(0), float32(0)
+	for index := range widths {
+		if index < len(table.Widths) && table.Widths[index] > 0 {
+			widths[index] = table.Widths[index] * width
 		} else {
+			widths[index] = natural[index]
 			open += table.Room.ColumnShare(index)
 		}
+		total += widths[index]
 	}
-	left := max(0, width-shared)
-	for index := range widths {
-		if widths[index] == 0 && open > 0 {
-			widths[index] = left / open
-		}
-	}
-	// Shares above the whole shrink together to fit.
-	total := float32(0)
-	for _, w := range widths {
-		total += w
-	}
-	if total > width && total > 0 {
-		for index := range widths {
-			widths[index] *= width / total
-		}
-	}
+	// Each column's edges are rounded, not its width, so the columns
+	// together are as wide as they are before rounding.
+	over := max(0, width-total)
+	edge := float32(0)
 	for index := range widths {
 		share := table.Room.ColumnShare(index)
-		widths[index] = float32(math.Round(float64(max(leastColumn, widths[index]) * share)))
+		if (index >= len(table.Widths) || table.Widths[index] <= 0) && open > 0 {
+			widths[index] += over / open
+		}
+		from := float32(math.Round(float64(edge)))
+		edge += widths[index] * share
+		widths[index] = float32(math.Round(float64(edge))) - from
 	}
 	return widths
 }
@@ -124,10 +128,45 @@ func placeTable(
 	padX := float32(math.Round(float64(line * cellPadX)))
 	padY := float32(math.Round(float64(line * cellPadY)))
 	room := table.Room
+	// Each cell's lines, and the width its longest asks.
+	end := table.Range().End
+	cells := make([][][]rawParagraph, len(table.Rows))
+	natural := make([]float32, table.Columns())
+	for index := range natural {
+		natural[index] = leastColumn
+	}
+	next := 0
+	for r, row := range table.Rows {
+		cells[r] = make([][]rawParagraph, len(row))
+		for c, cell := range row {
+			for next < len(paragraphs) && model.UTF16Offset(paragraphs[next].startUTF16) <= cell.Range.End {
+				raw := paragraphs[next]
+				cells[r][c] = append(cells[r][c], raw)
+				next++
+				longest := float32(0)
+				for _, set := range shape(raw, unwrapped, ui.Start, table.Header && r == 0).Lines() {
+					longest = max(longest, set.Rect.W)
+				}
+				natural[c] = max(natural[c], min(float32(math.Ceil(float64(longest)))+2*padX, width*widestColumn))
+				if model.UTF16Offset(raw.endUTF16) > end {
+					break
+				}
+			}
+		}
+	}
 	columnRoom := min(room.ColumnRoom, width/2)
-	widths := columnWidths(table, width-columnRoom)
-	placed := PlacedTable{Table: table, Widths: widths}
-	x := float32(0)
+	widths := columnWidths(table, width-columnRoom, natural)
+	grid := columnRoom
+	for _, w := range widths {
+		grid += w
+	}
+	// Past the column, as far each side; past the margins, scrolled.
+	shows := min(grid, width+2*style.Spread)
+	left := min(0, (width-shows)/2)
+	overflow := max(0, grid-shows)
+	scroll := max(0, min(room.Scroll, overflow))
+	placed := PlacedTable{Table: table, Widths: widths, Scroll: scroll, Overflow: overflow}
+	x := left - scroll
 	for index, w := range widths {
 		if index == room.Column && columnRoom > 0 {
 			placed.ColumnGap = ui.Rect{X: x, Y: top, W: columnRoom}
@@ -138,20 +177,18 @@ func placeTable(
 	}
 	if room.Column >= len(widths) && columnRoom > 0 {
 		placed.ColumnGap = ui.Rect{X: x, Y: top, W: columnRoom}
-		x += columnRoom
 	}
-	end := table.Range().End
+	var clip ui.Rect
 	var shaped []Paragraph
-	next := 0
 	y := top
 	for r, row := range table.Rows {
 		if r == room.Row && room.RowRoom > 0 {
-			placed.RowGap = ui.Rect{Y: y, W: x, H: room.RowRoom}
+			placed.RowGap = ui.Rect{X: left, Y: y, W: shows, H: room.RowRoom}
 			y += room.RowRoom
 		}
 		share := room.RowShare(r)
 		rowHeight := float32(0)
-		for c, cell := range row {
+		for c := range row {
 			align := ui.Start
 			switch table.Align[c] {
 			case surface.CellCenter:
@@ -161,8 +198,7 @@ func placeTable(
 			}
 			inner := max(1, widths[c]-2*padX)
 			cellTop := padY
-			for next < len(paragraphs) && model.UTF16Offset(paragraphs[next].startUTF16) <= cell.Range.End {
-				raw := paragraphs[next]
+			for _, raw := range cells[r][c] {
 				layout := shape(raw, inner, align, table.Header && r == 0)
 				_, height := layout.Size()
 				shaped = append(shaped, Paragraph{
@@ -178,10 +214,6 @@ func placeTable(
 					cell:         true,
 				})
 				cellTop += height
-				next++
-				if model.UTF16Offset(raw.endUTF16) > end {
-					break
-				}
 			}
 			rowHeight = max(rowHeight, cellTop+padY)
 		}
@@ -191,12 +223,19 @@ func placeTable(
 		y += rowHeight
 	}
 	if room.Row >= len(table.Rows) && room.RowRoom > 0 {
-		placed.RowGap = ui.Rect{Y: y, W: x, H: room.RowRoom}
+		placed.RowGap = ui.Rect{X: left, Y: y, W: shows, H: room.RowRoom}
 		y += room.RowRoom
 	}
-	placed.Box = ui.Rect{Y: top, W: x, H: y - top}
+	placed.Box = ui.Rect{X: left, Y: top, W: shows, H: y - top}
+	placed.Grid = ui.Rect{X: left - scroll, Y: top, W: grid, H: y - top}
 	placed.ColumnGap.H = placed.Box.H
-	placed.Below = ui.Rect{Y: y, W: x, H: room.Below}
+	placed.Below = ui.Rect{X: left, Y: y, W: shows, H: room.Below}
+	if overflow > 0 {
+		clip = placed.Box
+		for index := range shaped {
+			shaped[index].clip = clip
+		}
+	}
 	return placed, shaped, y - top + room.Below
 }
 

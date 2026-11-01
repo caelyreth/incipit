@@ -185,6 +185,9 @@ func (e *Element) View(c *ui.Context) {
 	e.Pictures.SetWake(c.Services().Invalidate)
 	e.takeDrops(box)
 	e.followFigures(c, box)
+	if bridge, ok := e.Input.(*Bridge); ok && bridge != nil && bridge.Controller != nil {
+		e.revealCell(bridge.Controller.Selection().Caret())
+	}
 	e.followTables(c, box, animate)
 	bridge, _ := e.Input.(*Bridge)
 	e.followBlocks(box, bridge, animate)
@@ -328,6 +331,10 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		e.Motion.Activity(event.Time)
 		return true
 	case ui.InputScroll:
+		// Across a table wider than its room, the wheel scrolls it.
+		if dx := event.DX; dx != 0 && e.wheelTable(event.X, event.Y, dx) && abs(event.DY) <= abs(dx) {
+			return true
+		}
 		e.manualScroll(event.DY, event.Time, event.Precise, event.Momentum)
 		e.Input.Scroll(event.DY)
 		return true
@@ -534,6 +541,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	}
 
 	style := textlayout.NewStyle(e.Prose, e.Theme)
+	style.Spread = e.tableSpread()
 	e.lastHeight = rect.H
 	if e.lastWidth != rect.W {
 		// Rewrapped rows have no previous identity; never morph across them.

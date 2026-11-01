@@ -207,6 +207,17 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			}
 			return rect
 		}
+		// A cell scrolled out of its table's room shows none of it.
+		add := func(rect ui.Rect) {
+			if clip, ok := paragraph.Clip(); ok {
+				left, right := max(rect.X, clip.X), min(rect.X+rect.W, clip.X+clip.W)
+				if right <= left {
+					return
+				}
+				rect.X, rect.W = left, right-left
+			}
+			rects = append(rects, rect)
+		}
 		if from < to {
 			localRects := paragraph.layout.SelectionRects(ui.TextInputRange{
 				Start: from - paragraph.startUTF16,
@@ -214,7 +225,7 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			})
 			for _, rect := range localRects {
 				rect.Y += paragraph.top
-				rects = append(rects, lift(rect))
+				add(lift(rect))
 			}
 		}
 		if end > paragraph.contentUTF16 && start <= paragraph.contentUTF16 {
@@ -224,7 +235,7 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			caret := paragraph.layout.Caret(paragraph.contentUTF16 - paragraph.startUTF16)
 			caret.Y += paragraph.top
 			caret.W = 6
-			rects = append(rects, lift(caret))
+			add(lift(caret))
 		}
 	}
 	sort.SliceStable(rects, func(i, j int) bool {

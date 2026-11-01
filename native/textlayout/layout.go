@@ -26,6 +26,9 @@ type Paragraph struct {
 	// page's edge; cell says it stands in a table's cell.
 	left float32
 	cell bool
+	// clip is the room a cell of a table wider than it shows in, where
+	// its text is cut off; empty for the rest.
+	clip ui.Rect
 }
 
 func (p Paragraph) Layout() *ui.TextLayout { return p.layout }
@@ -40,6 +43,10 @@ func (p Paragraph) Left() float32          { return p.left }
 
 // InCell reports whether the paragraph is a line of a table's cell.
 func (p Paragraph) InCell() bool { return p.cell }
+
+// Clip is the room the paragraph shows in when it is cut off, as a cell of
+// a table scrolled across; ok is false for one shown whole.
+func (p Paragraph) Clip() (ui.Rect, bool) { return p.clip, p.clip.W > 0 }
 
 // Figure is the figure the paragraph's line stands under, if one does.
 func (p Paragraph) Figure() (surface.Figure, bool) { return p.figure, p.hasFigure }

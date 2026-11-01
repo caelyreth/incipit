@@ -43,7 +43,10 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		Animate: state.Animate,
 		Focused: state.Focused,
 	}
-	p.Clip(rect, 0, func() {
+	// A table wider than the column reaches into the margins, and what
+	// is drawn over it with it.
+	wide := ui.Rect{X: rect.X - state.Margin, Y: rect.Y, W: rect.W + 2*state.Margin, H: rect.H}
+	p.Clip(wide, 0, func() {
 		drawTables(p, rect, state)
 		drawBlockDrag(p, rect, state)
 		drawDecorationFills(p, rect, state, options)
@@ -57,7 +60,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 			p.AnimationFrame()
 		}
 	})
-	p.Clip(rect, 0, func() {
+	p.Clip(wide, 0, func() {
 		drawText(p, rect, state)
 		drawPlaceholder(p, rect, state)
 		drawRangeRules(p, rect, state, options)
@@ -70,7 +73,6 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		drawDropLine(p, rect, state)
 	})
 	if state.Guides != nil {
-		wide := ui.Rect{X: rect.X - state.Margin, Y: rect.Y, W: rect.W + 2*state.Margin, H: rect.H}
 		p.Clip(wide, 0, func() { drawAreas(p, rect, state, state.Guides) })
 	}
 	if geometryAnimate && state.Motion.Moving() {
@@ -113,12 +115,22 @@ func drawText(p *ui.Painter, rect ui.Rect, state *State) {
 		}
 		// A caption gliding to its place as it is typed shows where it is.
 		shift := state.CaptionShift[model.UTF16Offset(paragraph.StartUTF16())]
-		p.TextLayout(
-			paragraph.Layout(),
-			rect.X+paragraph.Left()+shift,
-			top,
-			state.Theme.Prose.Text,
-		)
+		draw := func() {
+			p.TextLayout(
+				paragraph.Layout(),
+				rect.X+paragraph.Left()+shift,
+				top,
+				state.Theme.Prose.Text,
+			)
+		}
+		// A cell of a table scrolled across shows only within its room.
+		if clip, ok := paragraph.Clip(); ok {
+			clip.X += rect.X
+			clip.Y += rect.Y + state.TopInset - state.ScrollY
+			p.Clip(clip, 0, draw)
+			continue
+		}
+		draw()
 	}
 }
 

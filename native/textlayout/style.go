@@ -11,6 +11,9 @@ import (
 type Style struct {
 	Prose theme.ProseStyle
 	Theme theme.Theme
+	// Spread is how far past the column each side a block wider than it,
+	// as a table, may reach into the margins.
+	Spread float32
 }
 
 func NewStyle(prose theme.ProseStyle, semantic theme.Theme) Style {

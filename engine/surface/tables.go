@@ -55,6 +55,9 @@ type TableRoom struct {
 	// RowShown and ColumnShown are each row's and column's share of its
 	// size, coming in from 0; all 1 when nil.
 	RowShown, ColumnShown []float32
+	// Scroll is how far a table wider than the room it shows in is
+	// scrolled across.
+	Scroll float32
 }
 
 // RowShare and ColumnShare are row's and column's share of their size.

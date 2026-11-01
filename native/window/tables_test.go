@@ -82,3 +82,24 @@ func TestGripsInTheGutterMoveRowsAndBlocks(t *testing.T) {
 		t.Fatalf("the block did not move: %q", text)
 	}
 }
+
+// A table wider than the column reaches into the margins, and a press on
+// a cell there goes to that cell as on any other.
+func TestAWideTablesCellsInTheMarginTakeTheCaret(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1900, 850)
+	tester.Frame()
+	typeText(t, app, "Before the table\n| Name of the person | Year they were born | Field of their work | Where they lived | What they are known for | Notes |\nAda")
+	frames(tester, 40)
+	tester.Move(1695, 211)
+	frames(tester, 10)
+	tester.ClickAt(1695, 211)
+	frames(tester, 10)
+	typeText(t, app, "Z")
+	if text := app.Session.Document().Text(); !strings.HasSuffix(strings.TrimRight(text, "\n"), "\nZ") {
+		t.Fatalf("the press in the margin did not reach the last cell: %q", text)
+	}
+}
