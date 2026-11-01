@@ -159,6 +159,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		return position{low.Node(), low.Offset()}
 	}
 	collapsed := s.presentation.VisualCollapsed()
+	var projectedHead *model.UTF16Offset
 	lineStart, lineEnd := lineOffsets(text, head.offset)
 	switch command {
 	case TextLeft:
@@ -166,17 +167,51 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		if !collapsed {
 			target = edge(false)
 		}
+		if collapsed && target.node == node.ID() {
+			if at, ok := s.visualStepTarget(
+				node.ID(), s.presentation.Caret.RangeUTF16().Start, target.offset, -1,
+			); ok {
+				projectedHead = &at
+			}
+		}
 		anchor, head = target, target
 	case TextRight:
 		target := next()
 		if !collapsed {
 			target = edge(true)
 		}
+		if collapsed && target.node == node.ID() {
+			if at, ok := s.visualStepTarget(
+				node.ID(), s.presentation.Caret.RangeUTF16().Start, target.offset, 1,
+			); ok {
+				projectedHead = &at
+			}
+		}
 		anchor, head = target, target
 	case TextSelectLeft:
-		head = previous()
+		target := previous()
+		if target.node == node.ID() {
+			if at, ok := s.visualStepTarget(
+				node.ID(), s.presentation.Caret.RangeUTF16().Start, target.offset, -1,
+			); ok {
+				if anchor, anchorErr := s.currentViewAnchor(); anchorErr == nil {
+					return kernel.OutcomeHandled, s.SelectProjected(anchor, at)
+				}
+			}
+		}
+		head = target
 	case TextSelectRight:
-		head = next()
+		target := next()
+		if target.node == node.ID() {
+			if at, ok := s.visualStepTarget(
+				node.ID(), s.presentation.Caret.RangeUTF16().Start, target.offset, 1,
+			); ok {
+				if anchor, anchorErr := s.currentViewAnchor(); anchorErr == nil {
+					return kernel.OutcomeHandled, s.SelectProjected(anchor, at)
+				}
+			}
+		}
+		head = target
 	case TextLineStart:
 		head = at(node, lineStart)
 		anchor = head
@@ -243,6 +278,9 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		head.node == selection.Head().Node() && head.offset == selection.Head().Offset() {
 		return kernel.OutcomeHandled, nil
 	}
+	if collapsed && projectedHead != nil {
+		return kernel.OutcomeHandled, s.SelectProjected(*projectedHead, *projectedHead)
+	}
 	headAffinity := model.AffinityRight
 	switch command {
 	case TextLeft, TextRight, TextSelectLeft, TextSelectRight:
@@ -268,4 +306,42 @@ func motionAffinity(from, to model.UTF16Offset) model.Affinity {
 		return model.AffinityLeft
 	}
 	return model.AffinityRight
+}
+
+// visualStepTarget chooses the nearest drawn stop at a semantic offset on
+// the requested side of from. A group of zero-width marks can give one
+// semantic offset several stops; semantic projection alone would pick an
+// interior one and skip over the caret's neighboring drawn position.
+func (s *Session) visualStepTarget(
+	node model.NodeID,
+	from, to model.UTF16Offset,
+	direction int,
+) (model.UTF16Offset, bool) {
+	projectionValue := s.presentation.Projection
+	if projectionValue == nil {
+		return 0, false
+	}
+	base, err := projectionValue.ProjectAnchor(model.NewTextAnchor(
+		node,
+		to,
+		model.AffinityRight,
+		s.runtime.Revision(),
+	))
+	if err != nil {
+		return 0, false
+	}
+	best, found := from, false
+	for _, candidate := range headPositions(projectionValue, node, base.RangeUTF16().Start) {
+		switch {
+		case direction < 0 && candidate < from:
+			if !found || candidate > best {
+				best, found = candidate, true
+			}
+		case direction > 0 && from < candidate:
+			if !found || candidate < best {
+				best, found = candidate, true
+			}
+		}
+	}
+	return best, found
 }

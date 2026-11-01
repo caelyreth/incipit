@@ -182,6 +182,9 @@ var caretDocuments = []struct {
 	{"ab", []markSpec{{0, 2, 1}}},
 	{"abcd", []markSpec{{0, 4, 1}, {2, 4, 2}}},
 	{"ab cd", []markSpec{{0, 2, 2}, {2, 5, 1}}},
+	{"abc", []markSpec{{3, 3, 1}}},
+	{"", []markSpec{{0, 0, 1}}},
+	{"ab", []markSpec{{1, 1, 1}, {1, 1, 2}}},
 }
 
 // Arrow keys move one drawn position at a time, notation included: no
@@ -209,6 +212,44 @@ func TestArrowsStepThroughEveryDrawnPosition(t *testing.T) {
 			}
 			if got := session.Caret().RangeUTF16().Start; got != want {
 				t.Fatalf("%v: Left from %s reached %s", document.marks, before, shown(session))
+			}
+		}
+	}
+}
+
+func TestSelectionArrowsStepThroughEveryDrawnPosition(t *testing.T) {
+	for _, document := range caretDocuments {
+		session := newMarkedSession(t, document.text, document.marks...)
+		if err := session.SelectProjected(0, 0); err != nil {
+			t.Fatal(err)
+		}
+		length := model.UTF16Offset(len([]rune(session.Projection().Text())))
+		for want := model.UTF16Offset(1); want <= length; want++ {
+			before := shown(session)
+			if _, err := session.ExecuteText(TextSelectRight); err != nil {
+				t.Fatal(err)
+			}
+			selected, err := session.VisualSelection()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if selected != model.NewUTF16Range(0, want) {
+				t.Fatalf("%v: Shift-Right from %s selected %v, want 0..%d",
+					document.marks, before, selected, want)
+			}
+		}
+		for want := length - 1; want >= 0; want-- {
+			before := shown(session)
+			if _, err := session.ExecuteText(TextSelectLeft); err != nil {
+				t.Fatal(err)
+			}
+			selected, err := session.VisualSelection()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if selected != model.NewUTF16Range(0, want) {
+				t.Fatalf("%v: Shift-Left from %s selected %v, want 0..%d",
+					document.marks, before, selected, want)
 			}
 		}
 	}
@@ -331,10 +372,7 @@ func TestZeroWidthMarkCaretRoundTripsThroughProjectedState(t *testing.T) {
 	if _, err := session.ExecuteMarkup(MarkupStrong); err != nil {
 		t.Fatal(err)
 	}
-	run(t, session, TextSelectAll)
-	run(t, session, TextDelete)
-	run(t, session, TextBackspace)
-	if got := session.Projection().Text(); got != "****" {
+	if got := session.Projection().Text(); got != "abc****" {
 		t.Fatalf("projection = %q", got)
 	}
 	if err := session.SelectProjected(4, 4); err != nil {

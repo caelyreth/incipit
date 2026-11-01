@@ -317,6 +317,16 @@ func resolveCollapsedProjectedEdit(
 			model.EmptyUTF16Range(anchor.OffsetUTF16()),
 			revision,
 		)
+		if caret.Key != "" {
+			// The text anchor names the side of a generated marker run.
+			// Before the opener, right affinity carries the mark past typed
+			// text; after the closer, left affinity keeps it before typing.
+			affinity := model.AffinityLeft
+			if caret.Before {
+				affinity = model.AffinityRight
+			}
+			textTarget = textTarget.WithAffinity(affinity)
+		}
 		textInput := input.NewTextInput(textTarget, edit.Replacement)
 		return ResolvedProjectedEdit{
 			ProjectedEditInput: kernel.NewProjectedEditInput(
@@ -432,12 +442,16 @@ func ordinaryTextAtAttributeCaret(
 	if !ok {
 		return input.TextTarget{}, false
 	}
+	affinity := model.AffinityRight
 	for _, mark := range node.Marks() {
 		if !MarkerKeyIdentifies(attribute.Target().Key(), mark.ID()) {
 			continue
 		}
 		if _, valid := inlineLevel(mark.Kind(), attribute.Text()); valid {
 			return input.TextTarget{}, false
+		}
+		if mark.Range().Empty() {
+			affinity = model.AffinityLeft
 		}
 		break
 	}
@@ -453,7 +467,7 @@ func ordinaryTextAtAttributeCaret(
 		semantic.Node(),
 		model.EmptyUTF16Range(semantic.OffsetUTF16()),
 		revision,
-	), replacement != ""
+	).WithAffinity(affinity), replacement != ""
 }
 
 type attributeSelection struct {
@@ -572,10 +586,10 @@ func resolveRangeProjectedEdit(
 
 	var text *input.TextInput
 	if textNode != nil && selectedText != nil {
-		value := input.NewTextInput(
-			input.NewTextTarget(*textNode, *selectedText, revision),
-			takeReplacement(),
-		)
+		startAffinity, endAffinity := projectedRangeAffinities(p, edit.ProjectedSelection)
+		target := input.NewTextTarget(*textNode, *selectedText, revision).
+			WithBoundaryAffinity(startAffinity, endAffinity)
+		value := input.NewTextInput(target, takeReplacement())
 		text = &value
 	} else if literalMarkerInsertion {
 		if insertionTarget == nil {
@@ -654,6 +668,42 @@ func resolveRangeProjectedEdit(
 		ActiveMarkID:       resolvedActive,
 		VisualSelection:    cloneProjectedSelectionPtr(edit.ProjectedSelection),
 	}, nil
+}
+
+// projectedRangeAffinities selects the sides of a replacement range that
+// keep a zero-width mark on the outside of a selection: a mark at the start
+// stays left, while one at the end stays right.
+func projectedRangeAffinities(
+	p *projection.Projection,
+	selection *projection.Selection,
+) (model.Affinity, model.Affinity) {
+	start, end := model.AffinityLeft, model.AffinityRight
+	if p == nil || selection == nil {
+		return start, end
+	}
+	anchor, head, err := p.ResolveSelection(*selection, p.Version().SourceRevision())
+	if err != nil {
+		return start, end
+	}
+	anchorCaret, headCaret := selection.Anchor(), selection.Head()
+	if anchor.RangeUTF16().Start > head.RangeUTF16().Start {
+		anchorCaret, headCaret = headCaret, anchorCaret
+	}
+	return boundaryAffinity(anchorCaret, start),
+		boundaryAffinity(headCaret, end)
+}
+
+func boundaryAffinity(
+	caret projection.Caret,
+	fallback model.Affinity,
+) model.Affinity {
+	if caret.Kind != projection.CaretText || caret.Key == "" {
+		return fallback
+	}
+	if caret.Before {
+		return model.AffinityRight
+	}
+	return model.AffinityLeft
 }
 
 // collectNotation adds the part of segment index from..to covers to the
