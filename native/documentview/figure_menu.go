@@ -35,7 +35,9 @@ func (e *Element) contextMenu(m *ui.Menu) {
 	}
 	figure, ok := bridge.figureSelection()
 	if !ok || figure.Node != e.menuFigure {
-		m.EditItems()
+		if !e.tableMenu(m, bridge) {
+			m.EditItems()
+		}
 		return
 	}
 	host := bridge.Figures

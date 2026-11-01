@@ -1,0 +1,912 @@
+package documentview
+
+import (
+	"fmt"
+	"math"
+	"strings"
+	"time"
+
+	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
+	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/motion"
+	"github.com/caelyreth/neverland/native/textlayout"
+	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/ui"
+)
+
+// A table on the page is made where it grows, as the sheet list makes
+// sheets. The pointer resting by a table opens a dashed area below it that
+// makes a row, the page below gliding down for it, and one beside it that
+// makes a column; resting on a border between two rows or two columns
+// opens one there, the rows or columns gliding apart. A row or column made
+// comes in from nothing where its area was. Over a row or a column, a grip
+// at its edge selects its cells whole, and dragging it moves it among the
+// others; the table's corner drags it larger or smaller, its new size
+// outlined and named as it goes, kept on letting go, and Escape puts it
+// back. A drag across cells selects them whole: Delete empties them,
+// copying gives their texts between tabs, and typing writes over the
+// first. A secondary click on a cell opens the table's menu.
+
+const (
+	// tableReach is how near a table, in DIPs, the pointer calls up the
+	// areas that make its rows and columns; tableBorder how near a border
+	// between two rows or columns one there.
+	tableReach  = 28
+	tableBorder = 4
+	// gripLong and gripShort size a row's or column's grip, in DIPs at
+	// the default UI size, and gripOff sets it off the table.
+	gripLong, gripShort, gripOff = 18, 6, 6
+	// cornerSize is the corner's handle.
+	cornerSize = 10
+	// gapStride numbers a border gap by its table and its place, so two
+	// tables' gaps never share a number.
+	gapStride = 1 << 12
+	// tableShowScale counts how far a row or column has come in, in
+	// hundredths, so its spring settles as finely as a position's.
+	tableShowScale = 100
+)
+
+// CellRange is a selection of whole cells: the rectangle between two
+// corners of a table, named by its first cell.
+type CellRange struct {
+	Table        model.NodeID
+	Anchor, Head [2]int
+}
+
+// Bounds are the range's first and last row and column.
+func (r CellRange) Bounds() (top, left, bottom, right int) {
+	top, bottom = min(r.Anchor[0], r.Head[0]), max(r.Anchor[0], r.Head[0])
+	left, right = min(r.Anchor[1], r.Head[1]), max(r.Anchor[1], r.Head[1])
+	return
+}
+
+// Cells are the range's cells in table, row by row.
+func (r CellRange) Cells(table editor.Table) [][]model.NodeID {
+	top, left, bottom, right := r.Bounds()
+	var rows [][]model.NodeID
+	for row := top; row <= min(bottom, len(table.Rows)-1); row++ {
+		cells := table.Rows[row]
+		rows = append(rows, append([]model.NodeID(nil), cells[left:min(right+1, len(cells))]...))
+	}
+	return rows
+}
+
+// tableUI is what the page keeps of its tables across frames.
+type tableUI struct {
+	// below opens the areas by a table, numbered by its place; rows and
+	// columns those on a border, numbered by gapStride.
+	below, rows, columns components.CreateGap
+	// room is what each table opens, by its first cell, as the view sets
+	// it each frame for the next layout.
+	room map[model.NodeID]surface.TableRoom
+	// cells are the cells seen last frame, and growing the rows and
+	// columns coming in, by their first cell.
+	cells                    map[model.NodeID]bool
+	tables                   map[model.NodeID]bool
+	growingRows, growingCols map[model.NodeID]motion.Spring
+	drag                     *tableDrag
+	// press is the cell a press began in, for a drag across cells.
+	press      model.NodeID
+	pressTable model.NodeID
+	// pointer is where the pointer was in the page's content, as the view
+	// last read it.
+	pointer   ui.Point
+	pointerIn bool
+}
+
+type tableDragKind uint8
+
+const (
+	dragRow tableDragKind = iota + 1
+	dragColumn
+	dragCorner
+)
+
+// tableDrag follows a grip or the corner while it is dragged.
+type tableDrag struct {
+	table model.NodeID
+	kind  tableDragKind
+	from  int
+	// moved is how far the pointer has gone, and to where the row or
+	// column would go, or the rows and columns the corner sets.
+	moved         ui.Point
+	to            int
+	rows, columns int
+}
+
+// tableShape reads the page's table at its first cell.
+func (b *Bridge) tableShape(node model.NodeID) (editor.Table, bool) {
+	if b == nil || b.Controller == nil {
+		return editor.Table{}, false
+	}
+	return b.Controller.Table(node)
+}
+
+// tabledFlow is flow with each table as the view opens it, and each new
+// row and column coming in. It reports whether one is still coming.
+func (e *Element) tabledFlow(flow *surface.Flow, now time.Time, animate bool) (*surface.Flow, bool) {
+	tables := flow.Tables()
+	if len(tables) == 0 {
+		e.tables.cells, e.tables.tables = nil, nil
+		e.tables.growingRows, e.tables.growingCols = nil, nil
+		return flow, false
+	}
+	cells := map[model.NodeID]bool{}
+	known := map[model.NodeID]bool{}
+	rows, columns := map[model.NodeID]motion.Spring{}, map[model.NodeID]motion.Spring{}
+	moving := false
+	grow := func(springs map[model.NodeID]motion.Spring, from map[model.NodeID]motion.Spring, key model.NodeID, fresh bool) float32 {
+		spring, ok := from[key]
+		if !ok {
+			if !fresh || !animate {
+				return 1
+			}
+			spring = motion.NewSpring(0, now)
+		}
+		spring.Step(tableShowScale, now, figureFade)
+		if spring.Moving() {
+			springs[key] = spring
+			moving = true
+		}
+		return spring.Value() / tableShowScale
+	}
+	for index := range tables {
+		table := &tables[index]
+		node := table.Node()
+		known[node] = true
+		seen := e.tables.tables[node]
+		room := e.tables.room[node]
+		room.RowShown = make([]float32, len(table.Rows))
+		room.ColumnShown = make([]float32, table.Columns())
+		for r, row := range table.Rows {
+			fresh := seen
+			for _, cell := range row {
+				cells[cell.Node] = true
+				fresh = fresh && !e.tables.cells[cell.Node]
+			}
+			room.RowShown[r] = grow(rows, e.tables.growingRows, row[0].Node, fresh)
+		}
+		for c := range table.Columns() {
+			fresh := seen
+			for _, row := range table.Rows {
+				fresh = fresh && !e.tables.cells[row[c].Node]
+			}
+			room.ColumnShown[c] = grow(columns, e.tables.growingCols, table.Rows[0][c].Node, fresh)
+		}
+		table.Room = room
+	}
+	e.tables.cells, e.tables.tables = cells, known
+	e.tables.growingRows, e.tables.growingCols = rows, columns
+	opened, err := flow.WithTables(tables)
+	if err != nil {
+		return flow, moving
+	}
+	return opened, moving
+}
+
+// followTables reads where the pointer is by the page's tables, as the
+// last frame set them out, opens the areas it calls up, and sets the room
+// they take for the next layout.
+func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
+	layout := e.current
+	if layout == nil {
+		e.tables.room = nil
+		return
+	}
+	placed := layout.Tables()
+	scale := e.uiScale()
+	metrics := theme.DefaultControls.Scaled(e.chromeSize())
+	reach, border := tableReach*scale, tableBorder*scale
+	x, y, inside := box.PointerPosition()
+	point := e.contentPoint(x, y)
+	e.tables.pointer, e.tables.pointerIn = point, inside
+	near, rowAt, columnAt := -1, -1, -1
+	free := inside && e.pointer == pointerIdle && e.tables.drag == nil
+	for index, table := range placed {
+		area := table.Box
+		area.X -= reach
+		area.W += 2*reach + metrics.Height
+		area.H += table.Below.H + reach
+		if !free || !contains(area, point) {
+			continue
+		}
+		near = index
+		if point.X < table.Box.X || point.X > table.Box.X+table.Box.W {
+			continue
+		}
+		for r := 1; r < len(table.Rows); r++ {
+			if abs(point.Y-table.Rows[r]) <= border || contains(table.RowGap, point) && table.RowGap.Y < table.Rows[r] {
+				rowAt = index*gapStride + r
+				break
+			}
+		}
+		if point.Y >= table.Box.Y && point.Y <= table.Box.Y+table.Box.H {
+			for column := 1; column < len(table.Columns); column++ {
+				if abs(point.X-table.Columns[column]) <= border || contains(table.ColumnGap, point) && table.ColumnGap.X < table.Columns[column] {
+					columnAt = index*gapStride + column
+					break
+				}
+			}
+		}
+	}
+	nearAt, nearOpen := e.tables.below.Follow(c, near)
+	rowGap, rowOpen := e.tables.rows.Follow(c, rowAt)
+	columnGap, columnOpen := e.tables.columns.Follow(c, columnAt)
+	// The open areas hold their gaps while the pointer is on them.
+	for _, table := range placed {
+		if contains(table.RowGap, point) && inside {
+			e.tables.rows.HoldOver(true)
+		}
+		if contains(table.ColumnGap, point) && inside {
+			e.tables.columns.HoldOver(true)
+		}
+	}
+	room := make(map[model.NodeID]surface.TableRoom, len(placed))
+	step := metrics.Height + theme.Space06.DIPs(e.chromeSize())
+	follow := func(key any, target float32) float32 {
+		if !animate {
+			return target
+		}
+		return components.Follow(box, key, target, components.MotionNormal)
+	}
+	for index, table := range placed {
+		node := table.Table.Node()
+		previous := e.tables.room[node]
+		next := surface.TableRoom{Row: previous.Row, Column: previous.Column}
+		open := func(is bool) float32 {
+			if is {
+				return step
+			}
+			return 0
+		}
+		next.Below = follow(tableKey{node, "below"}, open(nearOpen && nearAt == index))
+		if rowOpen && rowGap/gapStride == index {
+			next.Row = rowGap % gapStride
+		}
+		next.RowRoom = follow(tableKey{node, "row"}, open(rowOpen && rowGap/gapStride == index))
+		if columnOpen && columnGap/gapStride == index {
+			next.Column = columnGap % gapStride
+		}
+		next.ColumnRoom = follow(tableKey{node, "column"}, open(columnOpen && columnGap/gapStride == index))
+		room[node] = next
+	}
+	e.tables.room = room
+}
+
+type tableKey struct {
+	node model.NodeID
+	part string
+}
+
+// tableControls places what makes and moves a table's rows and columns
+// over the page, where the last frame set the table out.
+func (e *Element) tableControls(c *ui.Context, animate bool) {
+	bridge, ok := e.Input.(*Bridge)
+	if !ok || bridge == nil || bridge.Controller == nil || e.current == nil {
+		return
+	}
+	scale := e.uiScale()
+	metrics := theme.DefaultControls.Scaled(e.chromeSize())
+	gap := theme.Space06.DIPs(e.chromeSize())
+	offset := e.TopInset - e.visibleScroll()
+	nearAt, nearOpen := e.tables.below.Open()
+	for index, placed := range e.current.Tables() {
+		table := placed.Table
+		first := table.Node()
+		at := func(r ui.Rect) ui.Rect { r.Y += offset; return r }
+		made := func(gap *components.CreateGap) {
+			gap.Use()
+			e.focusPending = true
+		}
+		// Below the table, a row; beside it, a column.
+		if below := at(placed.Below); below.H > 1 {
+			reveal := min(1, below.H/(metrics.Height+gap))
+			area := components.CreateArea{
+				Key: fmt.Sprintf("table-%d-new-row", first), Label: "New row",
+				Reveal: reveal, LabelReveal: components.Smoothstep(reveal), Partial: true, Animate: animate,
+				Action: func() {
+					made(&e.tables.below)
+					_, _ = bridge.Controller.InsertTableRows(first, len(table.Rows), 1)
+				},
+			}.View(c, e.Theme)
+			area.Absolute().Left(below.X).Top(below.Y + gap).Width(below.W).
+				Height(max(1, below.H-gap)).Opacity(reveal)
+		}
+		if nearOpen && nearAt == index {
+			grid := at(placed.Box)
+			reveal := min(1, placed.Below.H/(metrics.Height+gap))
+			area := components.CreateArea{
+				Key: fmt.Sprintf("table-%d-new-column", first), Label: "New column",
+				Compact: true, Animate: animate,
+				Action: func() {
+					made(&e.tables.below)
+					_, _ = bridge.Controller.InsertTableColumns(first, table.Columns(), 1)
+				},
+			}.View(c, e.Theme)
+			area.Absolute().Left(grid.X+grid.W+gap).Top(grid.Y).
+				Width(metrics.Height).Height(grid.H).Opacity(reveal).
+				Translate((1-reveal)*-gap, 0)
+		}
+		if gapBox := at(placed.RowGap); gapBox.H > 1 {
+			row := e.tables.room[first].Row
+			reveal := min(1, gapBox.H/(metrics.Height+gap))
+			area := components.CreateArea{
+				Key: fmt.Sprintf("table-%d-row-gap", first), Label: "New row",
+				Reveal: reveal, LabelReveal: components.Smoothstep(reveal), Partial: true, Animate: animate,
+				Action: func() {
+					made(&e.tables.rows)
+					_, _ = bridge.Controller.InsertTableRows(first, row, 1)
+				},
+			}.View(c, e.Theme)
+			area.Absolute().Left(gapBox.X).Top(gapBox.Y + gap/2).Width(gapBox.W).
+				Height(max(1, gapBox.H-gap)).Opacity(reveal)
+		}
+		if gapBox := at(placed.ColumnGap); gapBox.W > 1 {
+			column := e.tables.room[first].Column
+			reveal := min(1, gapBox.W/(metrics.Height+gap))
+			area := components.CreateArea{
+				Key: fmt.Sprintf("table-%d-column-gap", first), Label: "New column",
+				Compact: true, Reveal: reveal, Partial: true, Animate: animate,
+				Action: func() {
+					made(&e.tables.columns)
+					_, _ = bridge.Controller.InsertTableColumns(first, column, 1)
+				},
+			}.View(c, e.Theme)
+			area.Absolute().Left(gapBox.X + gap/2).Top(gapBox.Y).Width(max(1, gapBox.W-gap)).
+				Height(gapBox.H).Opacity(reveal)
+		}
+		e.tableGrips(c, bridge, placed, offset, scale, animate)
+	}
+}
+
+// tableGrips places the grips of the row and column under the pointer,
+// and the table's corner.
+func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.PlacedTable, offset, scale float32, animate bool) {
+	table := placed.Table
+	first := table.Node()
+	drag := e.tables.drag
+	if drag != nil && drag.table != first {
+		drag = nil
+	}
+	nearAt, nearOpen := e.tables.below.Open()
+	index := -1
+	for at, other := range e.current.Tables() {
+		if other.Table.Node() == first {
+			index = at
+		}
+	}
+	if drag == nil && (!nearOpen || nearAt != index) {
+		return
+	}
+	row, column := e.hoveredCell(placed)
+	if drag != nil {
+		switch drag.kind {
+		case dragRow:
+			row = drag.from
+		case dragColumn:
+			column = drag.from
+		}
+	}
+	long, short, off := gripLong*scale, gripShort*scale, gripOff*scale
+	grip := func(key, label string, r ui.Rect, kind tableDragKind, from int) {
+		handle := ui.ButtonBase(c.Key(fmt.Sprintf("table-%d-%s", first, key))).Label(label).
+			Absolute().Left(r.X).Top(r.Y).Width(r.W).Height(r.H).FocusRing(false)
+		hover := components.HoverAmount(handle, handle.Hovered() || handle.Pressed(), animate)
+		radius := min(r.W, r.H) / 2
+		handle.Radius(radius).
+			Background(components.Blend(e.Theme.Surface.Elevated, e.Theme.Accent.Foreground, hover)).
+			Border(1, components.Blend(e.Theme.Border.Default, e.Theme.Accent.Foreground, hover)).
+			Shadow(0, 1, 4, 0, ui.Color{A: 255}.Alpha(0.2))
+		if kind == dragCorner {
+			handle.Cursor(ui.CursorResizeNWSE)
+		} else {
+			handle.Cursor(ui.CursorGrab)
+		}
+		e.followGrip(handle, bridge, placed, kind, from)
+	}
+	if row >= 0 && row < len(placed.Rows) {
+		box := ui.Rect{
+			X: placed.Box.X - off - short, Y: placed.Rows[row] + (placed.Heights[row]-long)/2 + offset,
+			W: short, H: long,
+		}
+		grip(fmt.Sprintf("row-%d", row), fmt.Sprintf("Row %d", row+1), box, dragRow, row)
+	}
+	if column >= 0 && column < len(placed.Columns) {
+		box := ui.Rect{
+			X: placed.Columns[column] + (placed.Widths[column]-long)/2, Y: placed.Box.Y - off - short + offset,
+			W: long, H: short,
+		}
+		grip(fmt.Sprintf("column-%d", column), fmt.Sprintf("Column %d", column+1), box, dragColumn, column)
+	}
+	size := cornerSize * scale
+	corner := ui.Rect{
+		X: placed.Box.X + placed.Box.W - size/2, Y: placed.Box.Y + placed.Box.H - size/2 + offset,
+		W: size, H: size,
+	}
+	grip("corner", "Resize table", corner, dragCorner, 0)
+}
+
+// followGrip follows a press on a grip: a click selects the row or column
+// whole, a drag moves it, and the corner's drag resizes the table.
+func (e *Element) followGrip(handle ui.Element, bridge *Bridge, placed textlayout.PlacedTable, kind tableDragKind, from int) {
+	table := placed.Table
+	first := table.Node()
+	if dx, dy, dragging := handle.Dragged(); dragging {
+		drag := e.tables.drag
+		if drag == nil || drag.table != first || drag.kind != kind {
+			drag = &tableDrag{table: first, kind: kind, from: from, to: from,
+				rows: len(table.Rows), columns: table.Columns()}
+			e.tables.drag = drag
+		}
+		drag.moved.X += dx
+		drag.moved.Y += dy
+		switch kind {
+		case dragRow:
+			drag.to = nearestIndex(placed.Rows, placed.Heights, placed.Rows[from]+placed.Heights[from]/2+drag.moved.Y)
+		case dragColumn:
+			drag.to = nearestIndex(placed.Columns, placed.Widths, placed.Columns[from]+placed.Widths[from]/2+drag.moved.X)
+		case dragCorner:
+			cellW := placed.Box.W / float32(max(1, table.Columns()))
+			cellH := placed.Box.H / float32(max(1, len(table.Rows)))
+			drag.columns = max(1, table.Columns()+int(math.Round(float64(drag.moved.X/cellW))))
+			drag.rows = max(1, len(table.Rows)+int(math.Round(float64(drag.moved.Y/cellH))))
+		}
+	}
+	if _, _, ended := handle.DragEnded(); ended {
+		drag := e.tables.drag
+		e.tables.drag = nil
+		e.focusPending = true
+		if drag == nil {
+			return
+		}
+		switch drag.kind {
+		case dragRow:
+			_, _ = bridge.Controller.MoveTableRow(first, drag.from, drag.to)
+		case dragColumn:
+			_, _ = bridge.Controller.MoveTableColumn(first, drag.from, drag.to)
+		case dragCorner:
+			_, _ = bridge.Controller.ResizeTable(first, drag.rows, drag.columns)
+		}
+		return
+	}
+	if !handle.Clicked() || e.tables.drag != nil {
+		return
+	}
+	e.focusPending = true
+	switch kind {
+	case dragRow:
+		bridge.selectCells(CellRange{Table: first, Anchor: [2]int{from, 0}, Head: [2]int{from, table.Columns() - 1}})
+	case dragColumn:
+		bridge.selectCells(CellRange{Table: first, Anchor: [2]int{0, from}, Head: [2]int{len(table.Rows) - 1, from}})
+	case dragCorner:
+		_ = bridge.Controller.SelectTable(first)
+	}
+}
+
+// nearestIndex is the row or column whose middle is nearest at.
+func nearestIndex(starts, sizes []float32, at float32) int {
+	best, distance := 0, float32(math.Inf(1))
+	for index := range starts {
+		if d := abs(starts[index] + sizes[index]/2 - at); d < distance {
+			best, distance = index, d
+		}
+	}
+	return best
+}
+
+// hoveredCell is the row and column under the pointer in placed, -1 for
+// each it is outside of, as the grips are taken in as well.
+func (e *Element) hoveredCell(placed textlayout.PlacedTable) (int, int) {
+	point, ok := e.pointerPoint()
+	if !ok {
+		return -1, -1
+	}
+	reach := (gripOff + gripShort + 4) * e.uiScale()
+	row, column := placed.At(point)
+	box := placed.Box
+	if point.Y < box.Y-reach || point.Y > box.Y+box.H {
+		row = -1
+	}
+	if point.X < box.X-reach || point.X > box.X+box.W {
+		column = -1
+	}
+	if point.Y < box.Y {
+		row = -1
+	}
+	if point.X < box.X {
+		column = -1
+	}
+	return row, column
+}
+
+// selectCells selects cells whole: the text selection goes to the first
+// cell's text, which typing writes over.
+func (b *Bridge) selectCells(cells CellRange) {
+	table, ok := b.tableShape(cells.Table)
+	if !ok {
+		b.Cells = nil
+		return
+	}
+	rows := cells.Cells(table)
+	if len(rows) == 0 || len(rows[0]) == 0 {
+		b.Cells = nil
+		return
+	}
+	anchor := table.Rows[cells.Anchor[0]][cells.Anchor[1]]
+	_ = b.Controller.SelectCell(anchor)
+	if cells.Anchor == cells.Head {
+		b.Cells = nil
+		return
+	}
+	b.Cells = &cells
+}
+
+// selectedCells are the cells selected whole, row by row.
+func (b *Bridge) selectedCells() ([][]model.NodeID, bool) {
+	if b == nil || b.Cells == nil {
+		return nil, false
+	}
+	table, ok := b.tableShape(b.Cells.Table)
+	if !ok {
+		b.Cells = nil
+		return nil, false
+	}
+	return b.Cells.Cells(table), true
+}
+
+// cellsText is the selected cells' texts as a spreadsheet copies them.
+func (b *Bridge) cellsText() (string, bool) {
+	rows, ok := b.selectedCells()
+	if !ok {
+		return "", false
+	}
+	var text strings.Builder
+	for _, row := range b.Controller.CellTexts(rows) {
+		text.WriteString(strings.Join(row, "\t"))
+		text.WriteByte('\n')
+	}
+	return text.String(), true
+}
+
+// clearCells empties the selected cells.
+func (b *Bridge) clearCells() bool {
+	rows, ok := b.selectedCells()
+	if !ok {
+		return false
+	}
+	var cells []model.NodeID
+	for _, row := range rows {
+		cells = append(cells, row...)
+	}
+	_, _ = b.Controller.ClearTableCells(cells)
+	return true
+}
+
+// pasteTable writes text into the page as a table when it is one: from
+// the caret's cell on in a table, or as a new table elsewhere when it has
+// rows and columns. It reports whether it did.
+func (b *Bridge) pasteTable(text string) bool {
+	rows, ok := editor.ParseTable(text)
+	if !ok {
+		return false
+	}
+	head := b.Controller.Session().Selection().Head().Node()
+	if b.Cells != nil {
+		if table, ok := b.tableShape(b.Cells.Table); ok {
+			top, left, _, _ := b.Cells.Bounds()
+			head = table.Rows[top][left]
+		}
+	}
+	if _, inTable := b.Controller.Table(head); inTable {
+		b.Cells = nil
+		_, _ = b.Controller.FillTable(head, rows)
+		return true
+	}
+	if len(rows) < 2 || len(rows[0]) < 2 {
+		return false
+	}
+	_, _ = b.Controller.InsertTable(rows)
+	return true
+}
+
+// cellAt is the cell under a point of the element, its table's first
+// cell, row and column.
+func (e *Element) cellAt(x, y float32) (model.NodeID, int, int, bool) {
+	if e.current == nil {
+		return 0, 0, 0, false
+	}
+	point := e.contentPoint(x, y)
+	for _, placed := range e.current.Tables() {
+		if !contains(placed.Box, point) {
+			continue
+		}
+		row, column := placed.At(point)
+		return placed.Table.Node(), row, column, true
+	}
+	return 0, 0, 0, false
+}
+
+// dragCells follows a drag that began in a cell: into another cell of its
+// table it selects the cells between whole; back in its own cell, the
+// text again. It reports whether it took the move.
+func (e *Element) dragCells(bridge *Bridge, x, y float32) bool {
+	if e.tables.press == 0 {
+		return false
+	}
+	table, row, column, ok := e.cellAt(x, y)
+	if !ok || table != e.tables.pressTable {
+		return bridge.Cells != nil
+	}
+	shape, ok := bridge.tableShape(table)
+	if !ok {
+		return false
+	}
+	pressRow, pressColumn, _ := shape.Find(e.tables.press)
+	if pressRow == row && pressColumn == column {
+		if bridge.Cells == nil {
+			return false
+		}
+		bridge.Cells = nil
+		return false
+	}
+	bridge.selectCells(CellRange{Table: table, Anchor: [2]int{pressRow, pressColumn}, Head: [2]int{row, column}})
+	e.pointer = pointerSelecting
+	return true
+}
+
+// cellsKey handles the keys a selection of whole cells takes before the
+// keymap: Delete and Backspace empty them, Escape lets them go; any other
+// key lets them go and goes on as it would.
+func (e *Element) cellsKey(event ui.InputEvent) (bool, bool) {
+	bridge, ok := e.Input.(*Bridge)
+	if !ok || bridge == nil || bridge.Cells == nil {
+		return false, false
+	}
+	switch {
+	case event.Key == ui.KeyBackspace || event.Key == ui.KeyDelete:
+		return true, bridge.clearCells()
+	case event.Key == ui.KeyEscape:
+		bridge.Cells = nil
+		return true, true
+	case event.Mods&(ui.Cmd|ui.Ctrl) != 0:
+		// Copying and the like read the cells.
+		return false, false
+	}
+	bridge.Cells = nil
+	return false, false
+}
+
+// tableMenu fills a table's menu for the cell at the caret, or the cells
+// selected whole: making rows and columns beside them, aligning their
+// columns, the header, and taking them away.
+func (e *Element) tableMenu(m *ui.Menu, bridge *Bridge) bool {
+	head := bridge.Controller.Session().Selection().Head().Node()
+	table, ok := bridge.Controller.Table(head)
+	if !ok {
+		return false
+	}
+	first := table.First()
+	top, left, _ := table.Find(head)
+	bottom, right := top, left
+	if bridge.Cells != nil && bridge.Cells.Table == first {
+		top, left, bottom, right = bridge.Cells.Bounds()
+	}
+	m.EditItems()
+	m.Separator()
+	control := bridge.Controller
+	if m.Item("Insert Row Above").Chosen() {
+		_, _ = control.InsertTableRows(first, top, 1)
+	}
+	if m.Item("Insert Row Below").Chosen() {
+		_, _ = control.InsertTableRows(first, bottom+1, 1)
+	}
+	if m.Item("Insert Column Left").Chosen() {
+		_, _ = control.InsertTableColumns(first, left, 1)
+	}
+	if m.Item("Insert Column Right").Chosen() {
+		_, _ = control.InsertTableColumns(first, right+1, 1)
+	}
+	m.Separator()
+	align := func(to surface.CellAlign) {
+		_, _ = control.ShapeTable(first, func(next *editor.Table) {
+			for index := left; index <= right; index++ {
+				next.Align[index] = to
+			}
+		})
+	}
+	m.Submenu("Align Column", func(m *ui.Menu) {
+		current := table.Align[left]
+		if m.Item("Left").Radio(current == surface.CellStart).Chosen() {
+			align(surface.CellStart)
+		}
+		if m.Item("Center").Radio(current == surface.CellCenter).Chosen() {
+			align(surface.CellCenter)
+		}
+		if m.Item("Right").Radio(current == surface.CellEnd).Chosen() {
+			align(surface.CellEnd)
+		}
+	})
+	if m.Item("Even Column Widths").Disabled(!uneven(table.Widths)).Chosen() {
+		_, _ = control.ShapeTable(first, func(next *editor.Table) { clear(next.Widths) })
+	}
+	if m.Item("Header Row").Checked(table.Header).Chosen() {
+		_, _ = control.ShapeTable(first, func(next *editor.Table) { next.Header = !next.Header })
+	}
+	m.Separator()
+	rows, columns := "Delete Row", "Delete Column"
+	if bottom > top {
+		rows = "Delete Rows"
+	}
+	if right > left {
+		columns = "Delete Columns"
+	}
+	if m.Item(rows).Chosen() {
+		bridge.Cells = nil
+		_, _ = control.DeleteTableRows(first, top, bottom)
+	}
+	if m.Item(columns).Chosen() {
+		bridge.Cells = nil
+		_, _ = control.DeleteTableColumns(first, left, right)
+	}
+	if m.Item("Delete Table").Chosen() {
+		bridge.Cells = nil
+		_, _ = control.DeleteTable(first)
+	}
+	return true
+}
+
+func uneven(widths []float32) bool {
+	for _, width := range widths {
+		if width > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// drawTables paints each table in view: its header's inset, the lines
+// between its cells, its edge, the cells selected whole, and what a drag
+// of a grip or the corner would do.
+func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
+	visible := p.Visible()
+	radius := figureRadius(state)
+	line := state.Theme.Border.Default
+	for _, placed := range state.Layout.Tables() {
+		box := placed.Box
+		box.X += rect.X
+		box.Y += rect.Y + state.TopInset - state.ScrollY
+		if box.Y+box.H < visible.Y || box.Y > visible.Y+visible.H {
+			continue
+		}
+		dx, dy := box.X-placed.Box.X, box.Y-placed.Box.Y
+		cell := func(row, column int) ui.Rect {
+			r := placed.Cell(row, column)
+			r.X += dx
+			r.Y += dy
+			return r
+		}
+		p.Clip(box, radius, func() {
+			if placed.Table.Header && len(placed.Rows) > 0 {
+				header := cell(0, 0)
+				header.W = box.X + box.W - header.X
+				header.X = box.X
+				p.Fill(header, state.Theme.Surface.Inset, 0)
+			}
+			for row := 1; row < len(placed.Rows); row++ {
+				p.Fill(ui.Rect{X: box.X, Y: placed.Rows[row] + dy, W: box.W, H: 1}, line, 0)
+				if end := placed.Rows[row-1] + placed.Heights[row-1]; end < placed.Rows[row]-0.5 {
+					p.Fill(ui.Rect{X: box.X, Y: end + dy, W: box.W, H: 1}, line, 0)
+				}
+			}
+			for column := 1; column < len(placed.Columns); column++ {
+				p.Fill(ui.Rect{X: placed.Columns[column] + dx, Y: box.Y, W: 1, H: box.H}, line, 0)
+				if end := placed.Columns[column-1] + placed.Widths[column-1]; end < placed.Columns[column]-0.5 {
+					p.Fill(ui.Rect{X: end + dx, Y: box.Y, W: 1, H: box.H}, line, 0)
+				}
+			}
+		})
+		p.Stroke(box, line, radius, 1)
+		if cells := state.TableCells; cells != nil && cells.Table == placed.Table.Node() {
+			top, left, bottom, right := cells.Bounds()
+			if bottom < len(placed.Rows) && right < len(placed.Columns) {
+				from, to := cell(top, left), cell(bottom, right)
+				span := ui.Rect{X: from.X, Y: from.Y, W: to.X + to.W - from.X, H: to.Y + to.H - from.Y}
+				p.Fill(span, state.Theme.Prose.Selection.Alpha(state.Motion.SelectionOpacity()), 0)
+				p.Stroke(span, state.Theme.Accent.Foreground.Alpha(0.85), 0, figureRingWidth)
+			}
+		}
+		drawTableDrag(p, state, placed, box, dx, dy)
+	}
+}
+
+// drawTableDrag shows what a drag under way would do: where a row or a
+// column would go, or the table's new size, named on a chip.
+func drawTableDrag(p *ui.Painter, state *State, placed textlayout.PlacedTable, box ui.Rect, dx, dy float32) {
+	drag := state.TableDrag
+	if drag == nil || drag.table != placed.Table.Node() {
+		return
+	}
+	accent := state.Theme.Accent.Foreground
+	switch drag.kind {
+	case dragRow:
+		from := placed.Cell(drag.from, 0)
+		band := ui.Rect{X: box.X, Y: from.Y + dy + drag.moved.Y, W: box.W, H: from.H}
+		p.Fill(band, state.Theme.Accent.Muted.Alpha(0.6), 0)
+		p.Stroke(band, accent.Alpha(0.85), 0, figureRingWidth)
+		y := placed.Rows[drag.to] + dy
+		if drag.to > drag.from {
+			y += placed.Heights[drag.to]
+		}
+		p.Fill(ui.Rect{X: box.X, Y: y - 1, W: box.W, H: 2}, accent, 1)
+	case dragColumn:
+		from := placed.Cell(0, drag.from)
+		band := ui.Rect{X: from.X + dx + drag.moved.X, Y: box.Y, W: from.W, H: box.H}
+		p.Fill(band, state.Theme.Accent.Muted.Alpha(0.6), 0)
+		p.Stroke(band, accent.Alpha(0.85), 0, figureRingWidth)
+		x := placed.Columns[drag.to] + dx
+		if drag.to > drag.from {
+			x += placed.Widths[drag.to]
+		}
+		p.Fill(ui.Rect{X: x - 1, Y: box.Y, W: 2, H: box.H}, accent, 1)
+	case dragCorner:
+		columns, rows := placed.Table.Columns(), len(placed.Table.Rows)
+		size := ui.Rect{
+			X: box.X, Y: box.Y,
+			W: max(box.W/float32(columns), box.W*float32(drag.columns)/float32(columns)),
+			H: max(box.H/float32(rows), box.H*float32(drag.rows)/float32(rows)),
+		}
+		components.DashedOutline(p, size, figureRadius(state), 1.5, accent)
+		drawResizeLabel(p, size, state, fmt.Sprintf("%d × %d", drag.columns, drag.rows))
+	}
+}
+
+func contains(r ui.Rect, point ui.Point) bool {
+	return r.W > 0 && r.H > 0 && point.X >= r.X && point.X <= r.X+r.W && point.Y >= r.Y && point.Y <= r.Y+r.H
+}
+
+func abs(value float32) float32 {
+	if value < 0 {
+		return -value
+	}
+	return value
+}
+
+// chromeSize is the size the page's chrome is set at, and uiScale its
+// share of the default.
+func (e *Element) chromeSize() float32 {
+	if e.UIFontSize > 0 {
+		return e.UIFontSize
+	}
+	return theme.DefaultUIFontSize
+}
+
+func (e *Element) uiScale() float32 { return e.chromeSize() / theme.DefaultUIFontSize }
+
+func (e *Element) pointerPoint() (ui.Point, bool) { return e.tables.pointer, e.tables.pointerIn }
+
+// pressTable notes the cell a press begins in, for a drag across cells,
+// and lets cells selected whole go, unless a secondary click is on them,
+// for their menu.
+func (e *Element) pressTable(event ui.InputEvent) {
+	e.tables.press, e.tables.pressTable = 0, 0
+	bridge, ok := e.Input.(*Bridge)
+	if !ok || bridge == nil {
+		return
+	}
+	table, row, column, inTable := e.cellAt(event.X, event.Y)
+	if event.Button != 0 && bridge.Cells != nil && inTable && bridge.Cells.Table == table {
+		top, left, bottom, right := bridge.Cells.Bounds()
+		if row >= top && row <= bottom && column >= left && column <= right {
+			return
+		}
+	}
+	bridge.Cells = nil
+	if !inTable || event.Button != 0 {
+		return
+	}
+	if shape, ok := bridge.tableShape(table); ok && row < len(shape.Rows) && column < len(shape.Rows[row]) {
+		e.tables.press, e.tables.pressTable = shape.Rows[row][column], table
+	}
+}

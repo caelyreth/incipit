@@ -71,6 +71,8 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			Submenu: []*mygo.MenuItem{
 				{ID: "bold", Role: mygo.RoleBold},
 				{ID: "italic", Role: mygo.RoleItalic},
+				mygo.Separator(),
+				{ID: "insert-table", Label: "Insert Table", Click: command(editor.TableInsert.ID())},
 			},
 		},
 		{

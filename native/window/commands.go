@@ -4,6 +4,7 @@ import (
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/overlay"
+	"strings"
 )
 
 // commandCatalog returns every command the palette and native menus can
@@ -66,6 +67,12 @@ func commandGroup(policy kernel.PolicyID, command kernel.CommandID) string {
 	case editor.WordsPolicyID:
 		return "Words"
 	case editor.WritingPolicyID:
+		switch {
+		case command == editor.TableInsert.ID():
+			return "Insert"
+		case strings.HasPrefix(string(command), "table."):
+			return "Table"
+		}
 		return "Format"
 	case editor.NavigationPolicyID:
 		return "Navigation"

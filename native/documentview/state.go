@@ -51,6 +51,10 @@ type State struct {
 	// gliding to it, by its line's start.
 	CaptionShift map[model.UTF16Offset]float32
 	Resizing     *figureResize
+	// TableCells are the cells selected whole, and TableDrag a drag of a
+	// table's grip or corner under way.
+	TableCells *CellRange
+	TableDrag  *tableDrag
 
 	// DrawnCaret is set by Paint: the caret geometry it settled on this
 	// frame, local to the content like the layout's.

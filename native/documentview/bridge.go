@@ -37,9 +37,11 @@ type Bridge struct {
 	Images Images
 	// Figures does what a figure's menu asks that the page cannot.
 	Figures FigureHost
-	Now     func() time.Time
-	native  *NativeTextClient
-	now     time.Time
+	// Cells are the cells of a table selected whole, if any are.
+	Cells  *CellRange
+	Now    func() time.Time
+	native *NativeTextClient
+	now    time.Time
 }
 
 var (
@@ -186,6 +188,10 @@ func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 		if b.copyFigure() {
 			return nil
 		}
+		if text, ok := b.cellsText(); ok {
+			b.Services.WriteClipboard(text)
+			return nil
+		}
 		text, err := b.Controller.SelectedText()
 		if err != nil {
 			return err
@@ -196,6 +202,11 @@ func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 		if b.copyFigure() {
 			_, err := b.Controller.ReplaceSelection("", kernel.EventOriginSemantic)
 			return err
+		}
+		if text, ok := b.cellsText(); ok {
+			b.Services.WriteClipboard(text)
+			b.clearCells()
+			return nil
 		}
 		text, err := b.Controller.SelectedText()
 		if err != nil {
@@ -218,6 +229,9 @@ func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 			return nil
 		}
 		text := b.Services.ReadClipboard()
+		if b.pasteTable(text) {
+			return nil
+		}
 		outcome, err := b.Controller.ReplaceSelection(text, kernel.EventOriginPaste)
 		return editorOutcome(outcome, err)
 	default:

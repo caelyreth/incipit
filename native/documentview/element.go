@@ -55,6 +55,7 @@ type Element struct {
 	hover      figureHover
 	// captions is how open each figure's caption is.
 	captions map[model.NodeID]motion.Spring
+	tables   tableUI
 	// announced is the figure last read out as it became the selection,
 	// and menuFigure the one a secondary click opened the menu of.
 	announced            model.NodeID
@@ -149,6 +150,8 @@ func (e *Element) View(c *ui.Context) {
 	e.Pictures.SetWake(c.Services().Invalidate)
 	e.takeDrops(box)
 	e.followFigures(c, box)
+	e.followTables(c, box, animate)
+	box.Children(func() { e.tableControls(c, animate) })
 	box.ContextMenu(e.contextMenu)
 	box.HandleInput(e.handleInput).
 		TextCaret(e.caret(c)).
@@ -223,6 +226,7 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		if handled, ok := e.pressFigure(event); handled {
 			return ok
 		}
+		e.pressTable(event)
 		offset := e.hit(event.X, event.Y)
 		anchor := offset
 		switch {
@@ -248,6 +252,9 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		}
 		if e.pointer == pointerIdle || e.current == nil || event.Button != 0 {
 			return false
+		}
+		if bridge, ok := e.Input.(*Bridge); ok && e.dragCells(bridge, event.X, event.Y) {
+			return true
 		}
 		head := e.hit(event.X, event.Y)
 		if head == e.pointerHead {
@@ -301,6 +308,9 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		e.Motion.Activity(event.Time)
 		if event.Kind == ui.InputKeyDown {
 			if handled, ok := e.figureKey(event); handled {
+				return ok
+			}
+			if handled, ok := e.cellsKey(event); handled {
 				return ok
 			}
 		}
@@ -467,8 +477,9 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	if err != nil {
 		return
 	}
-	flow, opening := e.captionedFlow(e.resizedFlow(frame.Flow()), frame.Selection(), p.Now(), animate)
-	if opening {
+	tabled, growing := e.tabledFlow(e.resizedFlow(frame.Flow()), p.Now(), animate)
+	flow, opening := e.captionedFlow(tabled, frame.Selection(), p.Now(), animate)
+	if opening || growing {
 		p.AnimationFrame()
 	}
 
@@ -545,6 +556,8 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Drop:              &e.drop,
 		HoverFigure:       e.hover,
 		Resizing:          e.resizing,
+		TableCells:        bridge.Cells,
+		TableDrag:         e.tables.drag,
 	}
 	if e.drop.advance(e.current.BlockEdge(model.UTF16Offset(e.dropOver)), e.dropActive, p.Now(), animate) {
 		p.AnimationFrame()

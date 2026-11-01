@@ -44,6 +44,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		Focused: state.Focused,
 	}
 	p.Clip(rect, 0, func() {
+		drawTables(p, rect, state)
 		drawDecorationFills(p, rect, state, options)
 		drawRangeFills(p, rect, state, animatedSelection)
 	})
@@ -113,7 +114,7 @@ func drawText(p *ui.Painter, rect ui.Rect, state *State) {
 		shift := state.CaptionShift[model.UTF16Offset(paragraph.StartUTF16())]
 		p.TextLayout(
 			paragraph.Layout(),
-			rect.X+shift,
+			rect.X+paragraph.Left()+shift,
 			top,
 			state.Theme.Prose.Text,
 		)
