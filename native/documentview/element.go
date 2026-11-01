@@ -109,6 +109,8 @@ type Element struct {
 	carry                *carry
 	landing              *carryLanding
 	apart                map[apartKey]*apartRoom
+	gesture              gripGesture
+	gripPointer          ui.Point
 	drawnCaret           ui.Rect
 	caretPresentationKey caretPresentationKey
 	mounted              bool
@@ -190,6 +192,8 @@ func (e *Element) View(c *ui.Context) {
 	// A picture decoded off the UI thread redraws the page that asked.
 	e.Pictures.SetWake(c.Services().Invalidate)
 	e.takeDrops(box)
+	x, y, _ := box.PointerPosition()
+	e.gripPointer = ui.Point{X: x, Y: y}
 	e.followFigures(c, box)
 	if bridge, ok := e.Input.(*Bridge); ok && bridge != nil && bridge.Controller != nil {
 		e.revealCell(bridge.Controller.Selection().Caret())
@@ -386,6 +390,9 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		e.Motion.Activity(event.Time)
 		e.pointerHold = false
 		if event.Kind == ui.InputKeyDown {
+			if e.handleGripInput(event) {
+				return true
+			}
 			if e.carry != nil {
 				// A carry takes the keys: Escape sets it back down.
 				if event.Key == ui.KeyEscape {

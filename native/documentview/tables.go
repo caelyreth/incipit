@@ -680,7 +680,8 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 		now := c.Now()
 		over = over || handle.Hovered() || handle.Pressed()
 		// A grip stays held until its press, and what it carries, lets go.
-		if handle.Pressed() {
+		_, _, pressed := handle.Dragged()
+		if pressed {
 			e.tables.held = &tableDrag{table: first, kind: kind, from: from}
 		} else if held := e.tables.held; held != nil && held.table == first && held.kind == kind && e.carry == nil {
 			e.tables.held = nil
@@ -720,7 +721,8 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 // not there, or there out of sight, comes in where it is. The corner's,
 // which resizes rather than moves, is a knob without an icon.
 func (e *Element) grip(c *ui.Context, key, label string, r ui.Rect, shown float32, icon components.IconName, animate bool) ui.Element {
-	handle := ui.ButtonBase(c.Key(key)).Label(label).FocusRing(false).Opacity(shown)
+	handle := ui.ButtonBase(c.Key(key)).Label(label).FocusRing(false).Opacity(shown).
+		HandleInput(e.handleGripInput)
 	offset := e.TopInset - e.visibleScroll()
 	if animate {
 		x := components.Follow(handle, "x", r.X, components.MotionNormal)
@@ -767,34 +769,42 @@ func (e *Element) grip(c *ui.Context, key, label string, r ui.Rect, shown float3
 func (e *Element) followGrip(handle ui.Element, bridge *Bridge, placed textlayout.PlacedTable, kind tableDragKind, from int, now time.Time) {
 	table := placed.Table
 	first := table.Node()
+	event, moved := e.followGripGesture(handle, fmt.Sprintf("table-%d-%d", first, kind))
 	if kind != dragCorner {
-		if dx, dy, dragging := handle.Dragged(); dragging && e.carry == nil {
+		if event == gripStart {
 			if kind == dragRow {
-				e.startCarry(bridge, carryRow, table.Rows[from][0].Node, from, ui.Point{X: dx, Y: dy})
+				e.startCarry(bridge, carryRow, table.Rows[from][0].Node, from, moved)
 			} else {
-				e.startCarry(bridge, carryColumn, table.Rows[0][from].Node, from, ui.Point{X: dx, Y: dy})
+				e.startCarry(bridge, carryColumn, table.Rows[0][from].Node, from, moved)
 			}
 		}
-		if _, _, ended := handle.DragEnded(); ended {
+		if event == gripEnd {
 			e.dropCarry(bridge, false, now)
 			return
 		}
-	} else if dx, dy, dragging := handle.Dragged(); dragging {
+		if event == gripCancel {
+			e.dropCarry(bridge, true, now)
+			return
+		}
+	} else if event == gripStart || event == gripMove {
 		drag := e.tables.drag
 		if drag == nil || drag.table != first || drag.kind != kind {
 			drag = &tableDrag{table: first, kind: kind, from: from,
 				rows: len(table.Rows), columns: table.Columns()}
 			e.tables.drag = drag
 		}
-		drag.moved.X += dx
-		drag.moved.Y += dy
+		drag.moved = moved
 		cellW := placed.Grid.W / float32(max(1, table.Columns()))
 		cellH := placed.Box.H / float32(max(1, len(table.Rows)))
 		drag.columns = max(1, table.Columns()+int(math.Round(float64(drag.moved.X/cellW))))
 		drag.rows = max(1, len(table.Rows)+int(math.Round(float64(drag.moved.Y/cellH))))
 	}
 	if kind == dragCorner {
-		if _, _, ended := handle.DragEnded(); ended {
+		if event == gripCancel {
+			e.tables.drag = nil
+			return
+		}
+		if event == gripEnd {
 			drag := e.tables.drag
 			e.tables.drag = nil
 			e.focusPending = true
@@ -804,7 +814,7 @@ func (e *Element) followGrip(handle ui.Element, bridge *Bridge, placed textlayou
 			return
 		}
 	}
-	if !handle.Clicked() || e.tables.drag != nil || e.carry != nil {
+	if event != gripClick || e.tables.drag != nil || e.carry != nil {
 		return
 	}
 	e.focusPending = true

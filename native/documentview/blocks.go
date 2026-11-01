@@ -122,7 +122,8 @@ func (e *Element) blockControls(c *ui.Context, bridge *Bridge, animate bool) {
 	handle := e.grip(c, "block-grip", label, r, e.blocks.shown, components.IconGrip, animate)
 	// A grip stays held until its press, and what it carries, lets go.
 	e.blocks.held = e.blocks.hovered
-	e.blocks.holding = handle.Pressed() || e.carry != nil && e.carry.kind == carryBlock
+	_, _, pressed := handle.Dragged()
+	e.blocks.holding = pressed || e.carry != nil && e.carry.kind == carryBlock
 	e.followBlockGrip(handle, bridge, units, e.blocks.hovered, c.Now())
 }
 
@@ -130,20 +131,20 @@ func (e *Element) blockControls(c *ui.Context, bridge *Bridge, animate bool) {
 // block whole, and a drag carries it among the others.
 func (e *Element) followBlockGrip(handle ui.Element, bridge *Bridge, units []placedUnit, from int, now time.Time) {
 	unit := units[from].unit
-	if dx, dy, dragging := handle.Dragged(); dragging && e.carry == nil {
-		e.startCarry(bridge, carryBlock, unit.Node, from, ui.Point{X: dx, Y: dy})
-	}
-	if _, _, ended := handle.DragEnded(); ended {
+	event, moved := e.followGripGesture(handle, "block")
+	switch event {
+	case gripStart:
+		e.startCarry(bridge, carryBlock, unit.Node, from, moved)
+	case gripEnd:
 		e.dropCarry(bridge, false, now)
-		return
+	case gripCancel:
+		e.dropCarry(bridge, true, now)
+	case gripClick:
+		e.focusPending = true
+		if unit.Table {
+			_ = bridge.Controller.SelectTable(unit.Node)
+		} else {
+			_ = bridge.Controller.SelectProjected(int(unit.Range.Start), int(unit.Range.End))
+		}
 	}
-	if !handle.Clicked() || e.carry != nil {
-		return
-	}
-	e.focusPending = true
-	if unit.Table {
-		_ = bridge.Controller.SelectTable(unit.Node)
-		return
-	}
-	_ = bridge.Controller.SelectProjected(int(unit.Range.Start), int(unit.Range.End))
 }
