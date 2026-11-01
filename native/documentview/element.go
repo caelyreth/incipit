@@ -6,6 +6,7 @@ import (
 	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/textlayout"
@@ -86,6 +87,7 @@ type pageState struct {
 	lastWidth      float32
 	guides         Guides
 	current        *textlayout.Layout
+	visualFlow     *surface.Flow
 	lastCaretY     float32
 	lastViewportH  float32
 	lastTypewriter bool
@@ -593,6 +595,11 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	}
 	tabled, growing := e.tabledFlow(e.apartFlow(e.resizedFlow(frame.Flow()), bridge), p.Now(), animate)
 	flow, opening := e.captionedFlow(tabled, frame.Selection(), p.Now(), animate)
+	if e.visualFlow != nil && e.visualFlow.Equal(flow) {
+		flow = e.visualFlow
+	} else {
+		e.visualFlow = flow
+	}
 	if opening || growing {
 		p.AnimationFrame()
 	}

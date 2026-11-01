@@ -106,6 +106,26 @@ func (f *Flow) FigureAt(at model.UTF16Offset) (Figure, bool) {
 
 func (f *Flow) Version() projection.Version { return f.version }
 
+// Equal reports whether two immutable flows have the same content and
+// presentation metadata. It includes table geometry and room state, not only
+// text, so a renderer may retain layout when a transformation is unchanged.
+func (f *Flow) Equal(other *Flow) bool {
+	if f == other {
+		return true
+	}
+	if f == nil || other == nil || f.version != other.version || f.text != other.text ||
+		!slices.Equal(f.runs, other.runs) || !slices.Equal(f.figures, other.figures) ||
+		!slices.Equal(f.rooms, other.rooms) || len(f.tables) != len(other.tables) {
+		return false
+	}
+	for index := range f.tables {
+		if !f.tables[index].equal(other.tables[index]) {
+			return false
+		}
+	}
+	return true
+}
+
 func (f *Flow) Text() string { return f.text }
 
 func (f *Flow) SharedText() string { return f.text }

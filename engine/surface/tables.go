@@ -65,6 +65,49 @@ type TableRoom struct {
 	RowsApart, ColumnsApart []float32
 }
 
+func (t Table) clone() Table {
+	t.Rows = slices.Clone(t.Rows)
+	for row := range t.Rows {
+		t.Rows[row] = slices.Clone(t.Rows[row])
+	}
+	t.Align = slices.Clone(t.Align)
+	t.Widths = slices.Clone(t.Widths)
+	t.Room.RowShown = slices.Clone(t.Room.RowShown)
+	t.Room.ColumnShown = slices.Clone(t.Room.ColumnShown)
+	t.Room.RowsApart = slices.Clone(t.Room.RowsApart)
+	t.Room.ColumnsApart = slices.Clone(t.Room.ColumnsApart)
+	return t
+}
+
+func cloneTables(tables []Table) []Table {
+	cloned := slices.Clone(tables)
+	for index := range cloned {
+		cloned[index] = cloned[index].clone()
+	}
+	return cloned
+}
+
+func (t Table) equal(other Table) bool {
+	if t.Header != other.Header || !slices.Equal(t.Align, other.Align) ||
+		!slices.Equal(t.Widths, other.Widths) || !t.Room.equal(other.Room) || len(t.Rows) != len(other.Rows) {
+		return false
+	}
+	for row := range t.Rows {
+		if !slices.Equal(t.Rows[row], other.Rows[row]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (r TableRoom) equal(other TableRoom) bool {
+	return r.Below == other.Below && r.Row == other.Row && r.Column == other.Column &&
+		r.RowRoom == other.RowRoom && r.ColumnRoom == other.ColumnRoom &&
+		r.Scroll == other.Scroll && r.Pull == other.Pull &&
+		slices.Equal(r.RowShown, other.RowShown) && slices.Equal(r.ColumnShown, other.ColumnShown) &&
+		slices.Equal(r.RowsApart, other.RowsApart) && slices.Equal(r.ColumnsApart, other.ColumnsApart)
+}
+
 // apart is the room at index of rooms, none past them.
 func apart(rooms []float32, index int) float32 {
 	if index < len(rooms) {
@@ -138,7 +181,7 @@ func (f *Flow) WithTables(tables []Table) (*Flow, error) {
 		return nil, err
 	}
 	next := *f
-	next.tables = slices.Clone(tables)
+	next.tables = cloneTables(tables)
 	return &next, nil
 }
 
@@ -166,13 +209,13 @@ func validateTables(f *Flow, tables []Table) error {
 }
 
 // Tables are the tables the flow's lines are set out in, in order.
-func (f *Flow) Tables() []Table { return slices.Clone(f.tables) }
+func (f *Flow) Tables() []Table { return cloneTables(f.tables) }
 
 // TableAt is the table whose cells hold offset.
 func (f *Flow) TableAt(offset model.UTF16Offset) (Table, bool) {
 	for _, table := range f.tables {
 		if r := table.Range(); r.Start <= offset && offset <= r.End {
-			return table, true
+			return table.clone(), true
 		}
 	}
 	return Table{}, false

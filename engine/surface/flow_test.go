@@ -52,6 +52,74 @@ func TestFlowRejectsGapsOverlapsAndSplitUnicode(t *testing.T) {
 	}
 }
 
+func TestFlowEqualIncludesPresentationMetadata(t *testing.T) {
+	flow, table := addTable(t, "", [][]string{{"A", "B"}, {"C", "D"}})
+	copyOf := func() *Flow {
+		copy, err := flow.WithTables(flow.Tables())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return copy
+	}
+	if !flow.Equal(copyOf()) || flow.Equal(nil) || (*Flow)(nil).Equal(flow) {
+		t.Fatal("equal flows or nil handling differ")
+	}
+	for _, change := range []struct {
+		name string
+		edit func(*Flow)
+	}{
+		{"version", func(f *Flow) { f.version = projection.NewVersion(9, 2) }},
+		{"text", func(f *Flow) { f.text += "x" }},
+		{"style", func(f *Flow) { f.runs = []StyleRun{{Style: TextStyle{Bold: true}}} }},
+		{"figure", func(f *Flow) { f.figures = []Figure{{Node: 99}} }},
+		{"room", func(f *Flow) { f.rooms = []Room{{At: -1, Height: 2}} }},
+		{"table node", func(f *Flow) {
+			f.tables[0].Rows = [][]TableCell{{{Node: 99, Range: table.Rows[0][0].Range}}}
+		}},
+		{"table width", func(f *Flow) { f.tables[0].Widths = []float32{0.4, 0} }},
+		{"table room", func(f *Flow) { f.tables[0].Room.Scroll++ }},
+		{"table row reveal", func(f *Flow) { f.tables[0].Room.RowShown = []float32{1, 0.5} }},
+	} {
+		t.Run(change.name, func(t *testing.T) {
+			other := copyOf()
+			change.edit(other)
+			if flow.Equal(other) {
+				t.Fatal("different flow compared equal")
+			}
+		})
+	}
+}
+
+func TestFlowOwnsNestedTableValues(t *testing.T) {
+	base := textFlow(t, "a\nb")
+	table := Table{
+		Rows:   [][]TableCell{{{Node: 1, Range: model.NewUTF16Range(0, 1)}, {Node: 2, Range: model.NewUTF16Range(2, 3)}}},
+		Align:  []CellAlign{CellStart, CellEnd},
+		Widths: []float32{0.2, 0.3},
+		Room:   TableRoom{RowShown: []float32{1}, ColumnsApart: []float32{0, 4, 0}},
+	}
+	flow, err := base.WithTables([]Table{table})
+	if err != nil {
+		t.Fatal(err)
+	}
+	table.Rows[0][0].Node = 99
+	table.Widths[0] = 0.9
+	table.Room.RowShown[0] = 0
+	tables := flow.Tables()
+	tables[0].Align[0] = CellCenter
+	tables[0].Room.ColumnsApart[1] = 99
+	at, ok := flow.TableAt(0)
+	if !ok {
+		t.Fatal("table missing")
+	}
+	at.Rows[0][1].Node = 99
+	got := flow.Tables()[0]
+	if got.Rows[0][0].Node != 1 || got.Rows[0][1].Node != 2 || got.Widths[0] != 0.2 ||
+		got.Align[0] != CellStart || got.Room.RowShown[0] != 1 || got.Room.ColumnsApart[1] != 4 {
+		t.Fatalf("flow table changed through an external slice: %+v", got)
+	}
+}
+
 func TestEachRunVisitsRunsInOrderAndStopsEarly(t *testing.T) {
 	t.Parallel()
 	flow, err := NewFlow(

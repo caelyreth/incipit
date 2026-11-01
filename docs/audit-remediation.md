@@ -30,7 +30,7 @@ than force unrelated operations through a generic abstraction.
 | B6 | Durable file publication | In progress | `codex/audit-durability` worktree |
 | B7 | Native text hit affinity | In progress | `codex/audit-affinity` worktree |
 | B8 | Spring tolerances by value domain | Settled | Dimensionless opacity, zoom and reveal springs have finer stopping thresholds; caption and table 100x workarounds are removed. Tests cover terminal jumps and equivalence with the former scaled geometry. |
-| B9 | Layout and shaping invalidation | Open | Profile before changing cache semantics |
+| B9 | Layout and shaping invalidation | In progress | Equal, immutable visual flows retain their layout; nested table data is detached from callers. A 100-row MyGo tester benchmark improved from about 560 us/424 KB to 59 us/126 KB per stable frame on Apple M5 Pro. Theme-color changes still reshape because MyGo stores paint spans in text layouts. |
 | B10 | Scroll input physics | Settled | Shared axis physics exposes explicit ownership, bounds and edge tolerance; editor and MyGo containers retain their distinct notch behavior. Tests cover phases, crossing, tolerance and arbitrary bounds. |
 | B11 | Keycaps and inline shortcut chips | Open | Preserve interactive inline behavior |
 | B12 | Inline rename lifecycle | Open | |
