@@ -196,6 +196,31 @@ func TestTheTrashKeepsWhatIsPutAwayUntilEmptied(t *testing.T) {
 	}
 }
 
+func TestTrashOrdersEqualTimesByID(t *testing.T) {
+	l := New()
+	for _, name := range []string{"One", "Two", "Three"} {
+		_, err := l.AddGroup(0, name)
+		must(t, err)
+	}
+	for id := SheetID(2); id <= 5; id++ {
+		must(t, l.AddSheet(id, Inbox, now))
+		must(t, l.TrashSheet(id, now))
+	}
+	for _, id := range []GroupID{2, 3, 4} {
+		must(t, l.TrashGroup(id, now))
+	}
+
+	for range 100 {
+		groups, sheets := l.Trash()
+		if got := groupIDs(groups); !equal(got, []GroupID{4, 3, 2}) {
+			t.Fatalf("equal-time groups = %v, want newest ID first", got)
+		}
+		if got := sheetIDs(sheets); !equal(got, []SheetID{5, 4, 3, 2}) {
+			t.Fatalf("equal-time sheets = %v, want newest ID first", got)
+		}
+	}
+}
+
 func TestRestoringOutOfATrashedGroupComesBackToTheTop(t *testing.T) {
 	l := New()
 	novel, _ := l.AddGroup(0, "Novel")

@@ -11,6 +11,7 @@
 package library
 
 import (
+	"cmp"
 	"errors"
 	"slices"
 	"strings"
@@ -326,8 +327,18 @@ func (l *Library) Trash() ([]Group, []Sheet) {
 			sheets = append(sheets, *sheet)
 		}
 	}
-	slices.SortFunc(groups, func(a, b Group) int { return b.Trashed.Compare(a.Trashed) })
-	slices.SortFunc(sheets, func(a, b Sheet) int { return b.Trashed.Compare(a.Trashed) })
+	slices.SortFunc(groups, func(a, b Group) int {
+		return cmp.Or(
+			b.Trashed.Compare(a.Trashed),
+			groupIDDescending(a.ID, b.ID),
+		)
+	})
+	slices.SortFunc(sheets, func(a, b Sheet) int {
+		return cmp.Or(
+			b.Trashed.Compare(a.Trashed),
+			sheetIDDescending(a.ID, b.ID),
+		)
+	})
 	return groups, sheets
 }
 
@@ -335,14 +346,22 @@ func latestFirst(a, b Sheet) int {
 	if order := b.Updated.Compare(a.Updated); order != 0 {
 		return order
 	}
-	return int(b.ID - a.ID)
+	return sheetIDDescending(a.ID, b.ID)
 }
 
 func createdFirst(a, b Sheet) int {
 	if order := b.Created.Compare(a.Created); order != 0 {
 		return order
 	}
-	return int(b.ID - a.ID)
+	return sheetIDDescending(a.ID, b.ID)
+}
+
+func sheetIDDescending(a, b SheetID) int {
+	return cmp.Compare(b, a)
+}
+
+func groupIDDescending(a, b GroupID) int {
+	return cmp.Compare(b, a)
 }
 
 // AddGroup makes a group at the end of parent.
