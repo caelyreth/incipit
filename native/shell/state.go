@@ -45,7 +45,6 @@ type State struct {
 	ActivePage string
 	// Library is what the sidebar shows and files; nil shows none.
 	Library           Library
-	Status            string
 	Statistics        string
 	PageQuery         string
 	FindPageRequested bool

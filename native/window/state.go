@@ -231,11 +231,6 @@ func (a *AppState) refreshShellReadouts() {
 		}
 	}
 	controller := a.Session.Document()
-	if err := controller.LastError(); err != nil {
-		a.Shell.Status = err.Error()
-	} else if a.Error == "" {
-		a.Shell.Status = a.saveStatus()
-	}
 	metrics, ok := controller.MetricsForCurrentText()
 	if !ok {
 		metrics = controller.Metrics()
@@ -507,10 +502,6 @@ func (a *AppState) refreshShell() {
 	} else {
 		a.Shell.ActivePage = ""
 	}
-	a.Shell.Status = a.saveStatus()
-	if a.Error != "" {
-		a.Shell.Status = a.Error
-	}
 	if a.Session != nil && a.Session.Document() != nil {
 		controller := a.Session.Document()
 		a.refreshShellReadouts()
@@ -699,7 +690,7 @@ func (a *AppState) View(c *ui.Context) {
 	}
 	a.Viewer.View(c, semantic, animate)
 	// What the shell reads off the page, its title and counts, is read
-	// before the shell is built, so header, sidebar and status show this
+	// before the shell is built, so header, sidebar and counter show this
 	// frame's page.
 	a.refreshShellReadouts()
 	a.Shell.View(c)

@@ -90,7 +90,7 @@ func (s *State) View(c *ui.Context) {
 			ui.Column(c).Key("editor").Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
 				s.document(c, semantic, metrics, layout)
 				if chrome > 0.001 {
-					s.footer(c, semantic, metrics, layout, chrome)
+					s.footer(c, semantic, layout, chrome)
 				}
 			})
 		})

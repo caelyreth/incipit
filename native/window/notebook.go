@@ -23,8 +23,6 @@ type notebook struct {
 	saver *storage.Saver
 	// layout is the last layout handed to the saver.
 	layout storage.Layout
-	// notice reports what opening repaired or could not read.
-	notice string
 	closed bool
 }
 
@@ -52,7 +50,7 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 	if err != nil {
 		return nil, workspace.Layout{}, err
 	}
-	a.notebook = &notebook{store: store, notice: notice(store, contents)}
+	a.notebook = &notebook{store: store}
 	a.nextKey = contents.NextKey
 	a.library = library.Restore(contents.Library)
 	stored := make(map[storage.PageKey]model.DocumentSnapshot, len(contents.Pages))
@@ -118,22 +116,6 @@ func (a *AppState) firstPage() ([]workspace.Session, workspace.Layout, error) {
 	}
 	_ = a.library.AddSheet(library.SheetID(session.key), library.Inbox, time.Now())
 	return []workspace.Session{session}, workspace.Layout{Tabs: []workspace.PageID{0}, HasActive: true}, nil
-}
-
-// notice describes what opening the notebook found, for the status line.
-func notice(store *storage.Store, contents storage.Notebook) string {
-	recovery := store.Recovery
-	switch {
-	case recovery.Repaired() && recovery.Restored != "":
-		return "The notebook was damaged and has been restored from its latest backup"
-	case recovery.Repaired():
-		return "The notebook was damaged and no backup could be read; it was kept in " + recovery.Damaged
-	case len(contents.Damaged) == 1:
-		return "One page could not be read; it is kept as it was"
-	case len(contents.Damaged) > 1:
-		return fmt.Sprintf("%d pages could not be read; they are kept as they were", len(contents.Damaged))
-	}
-	return ""
 }
 
 // createPage is the workspace's factory: an empty page under the
@@ -272,20 +254,6 @@ func restoreSelection(document *controller.DocumentController, stored storage.Se
 	if document.SelectSemantic(model.NewTextSelection(from, to)) != nil {
 		document.ClearError()
 	}
-}
-
-// saveStatus is what the status line says about saving: a write that is
-// failing, then what opening repaired.
-func (a *AppState) saveStatus() string {
-	if a == nil || a.notebook == nil {
-		return ""
-	}
-	if a.notebook.saver != nil {
-		if err := a.notebook.saver.Err(); err != nil {
-			return "Not saved yet: " + err.Error()
-		}
-	}
-	return a.notebook.notice
 }
 
 // Close saves everything still pending and lets go of the notebook. It is
