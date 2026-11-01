@@ -32,7 +32,8 @@ func (k RulePhaseKind) String() string {
 }
 
 // RulePhase describes when a linked rule runs. Handler rules react directly to
-// an event; after rules observe the committed post-handler state.
+// an event; after rules observe the committed post-handler state. After rules
+// with equal order must be unable to co-schedule, or must not interfere.
 type RulePhase struct {
 	Kind    RulePhaseKind
 	Changes []StateKey

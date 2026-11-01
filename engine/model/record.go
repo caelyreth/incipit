@@ -89,7 +89,7 @@ func RestoreDocument(root NodeID, nextID uint64, records []NodeRecord) (*Documen
 			return nil, invalidDocument("node " + record.ID.String() + " is outside the identity range")
 		}
 		if record.Text != nil {
-			if err := validateText(*record.Text); err != nil {
+			if err := ValidateStoredDocumentText(*record.Text); err != nil {
 				return nil, err
 			}
 		}

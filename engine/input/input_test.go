@@ -49,6 +49,150 @@ func TestTextTargetsCaptureAnchorsAndRebaseInEditOrder(t *testing.T) {
 	}
 }
 
+func TestCollapsedTargetAtInsertionKeepsPositionalAffinity(t *testing.T) {
+	t.Parallel()
+	const node model.NodeID = 1
+	target := NewTextTarget(node, model.EmptyUTF16Range(2), 7).
+		WithAffinity(model.AffinityLeft).
+		WithBoundaryAffinity(model.AffinityLeft, model.AffinityRight)
+	if target.StartAffinity() != model.AffinityLeft ||
+		target.EndAffinity() != model.AffinityRight {
+		t.Fatalf("editing affinities changed: %#v", target)
+	}
+	if target.StartPositionAffinity() != model.AffinityRight ||
+		target.EndPositionAffinity() != model.AffinityRight {
+		t.Fatalf("editing affinity overloaded as position: %#v", target)
+	}
+	insert := model.NewTextEditReplacement(node, model.EmptyUTF16Range(2), "🦀")
+	defaultRebased, ok := target.Rebase([]model.TextEdit{insert}, 8)
+	if !ok || defaultRebased.RangeUTF16() != model.EmptyUTF16Range(4) {
+		t.Fatalf("default rebase = %#v, %v", defaultRebased, ok)
+	}
+	left := target.WithPositionAffinity(model.AffinityLeft)
+	leftRebased, ok := left.Rebase([]model.TextEdit{insert}, 8)
+	if !ok || leftRebased.RangeUTF16() != model.EmptyUTF16Range(2) {
+		t.Fatalf("left rebase = %#v, %v", leftRebased, ok)
+	}
+	if leftRebased.StartAffinity() != model.AffinityLeft ||
+		leftRebased.EndAffinity() != model.AffinityRight {
+		t.Fatalf("rebased editing affinities = %#v", leftRebased)
+	}
+	fromAnchor := TextTargetFromAnchor(model.NewTextAnchor(
+		node,
+		2,
+		model.AffinityLeft,
+		7,
+	))
+	fromAnchor, ok = fromAnchor.Rebase([]model.TextEdit{insert}, 8)
+	if !ok || fromAnchor.RangeUTF16() != model.EmptyUTF16Range(2) {
+		t.Fatalf("anchor target rebase = %#v, %v", fromAnchor, ok)
+	}
+}
+
+func TestCollapsedTargetCannotAcquireOpposingPositionAffinities(t *testing.T) {
+	target := NewTextTarget(1, model.EmptyUTF16Range(2), 1).
+		WithPositionBoundaryAffinity(model.AffinityLeft, model.AffinityRight)
+	edit := model.NewTextEditReplacement(1, model.EmptyUTF16Range(2), "x")
+	rebased, ok := target.Rebase([]model.TextEdit{edit}, 2)
+	if !ok || rebased.RangeUTF16() != model.EmptyUTF16Range(3) {
+		t.Fatalf("collapsed target rebased to %v, ok=%v", rebased.RangeUTF16(), ok)
+	}
+}
+
+func TestTextTargetRebaseCoversEditsAndTransfers(t *testing.T) {
+	t.Parallel()
+	const (
+		node  model.NodeID = 1
+		other model.NodeID = 2
+	)
+	tests := []struct {
+		name      string
+		edit      model.TextEdit
+		want      model.NodeID
+		collapsed model.UTF16Offset
+		nonempty  model.UTF16Range
+	}{
+		{
+			name:      "insertion before",
+			edit:      model.NewTextEditReplacement(node, model.EmptyUTF16Range(1), "🦀"),
+			want:      node,
+			collapsed: 4,
+			nonempty:  model.NewUTF16Range(4, 6),
+		},
+		{
+			name:      "deletion before",
+			edit:      model.NewTextEditReplacement(node, model.NewUTF16Range(1, 2), ""),
+			want:      node,
+			collapsed: 1,
+			nonempty:  model.NewUTF16Range(1, 3),
+		},
+		{
+			name:      "replacement before",
+			edit:      model.NewTextEditReplacement(node, model.NewUTF16Range(0, 1), "界"),
+			want:      node,
+			collapsed: 2,
+			nonempty:  model.NewUTF16Range(2, 4),
+		},
+		{
+			name:      "deletion covers target",
+			edit:      model.NewTextEditReplacement(node, model.NewUTF16Range(1, 4), ""),
+			want:      node,
+			collapsed: 1,
+			nonempty:  model.NewUTF16Range(1, 1),
+		},
+		{
+			name:      "replacement covers target",
+			edit:      model.NewTextEditReplacement(node, model.NewUTF16Range(1, 4), "x"),
+			want:      node,
+			collapsed: 2,
+			nonempty:  model.NewUTF16Range(1, 2),
+		},
+		{
+			name:      "transfer",
+			edit:      model.NewTextTransfer(node, 1, other, 0, false),
+			want:      other,
+			collapsed: 1,
+			nonempty:  model.NewUTF16Range(1, 3),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			collapsed := NewTextTarget(node, model.EmptyUTF16Range(2), 3)
+			collapsed, ok := collapsed.Rebase([]model.TextEdit{test.edit}, 4)
+			if !ok || collapsed.Node() != test.want ||
+				collapsed.RangeUTF16() != model.EmptyUTF16Range(test.collapsed) {
+				t.Fatalf("collapsed = %#v, %v", collapsed, ok)
+			}
+			nonempty := NewTextTarget(node, model.NewUTF16Range(2, 4), 3)
+			nonempty, ok = nonempty.Rebase([]model.TextEdit{test.edit}, 4)
+			if !ok || nonempty.Node() != test.want ||
+				nonempty.RangeUTF16() != test.nonempty {
+				t.Fatalf("nonempty = %#v, %v", nonempty, ok)
+			}
+		})
+	}
+}
+
+func TestCollapsedTargetAtTransferUsesPositionalAffinity(t *testing.T) {
+	t.Parallel()
+	const (
+		node  model.NodeID = 1
+		other model.NodeID = 2
+	)
+	transfer := model.NewTextTransfer(node, 2, other, 0, false)
+	right := NewTextTarget(node, model.EmptyUTF16Range(2), 3)
+	right, ok := right.Rebase([]model.TextEdit{transfer}, 4)
+	if !ok || right.Node() != other || right.RangeUTF16() != model.EmptyUTF16Range(0) {
+		t.Fatalf("right transfer = %#v, %v", right, ok)
+	}
+	left := NewTextTarget(node, model.EmptyUTF16Range(2), 3).
+		WithPositionAffinity(model.AffinityLeft)
+	left, ok = left.Rebase([]model.TextEdit{transfer}, 4)
+	if !ok || left.Node() != node || left.RangeUTF16() != model.EmptyUTF16Range(2) {
+		t.Fatalf("left transfer = %#v, %v", left, ok)
+	}
+}
+
 func TestTargetValidationRejectsStaleMissingAndSplitScalar(t *testing.T) {
 	document, node := inputDocument(t, "a🦀b")
 	snapshot := document.Snapshot()

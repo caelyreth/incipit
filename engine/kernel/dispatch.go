@@ -90,20 +90,6 @@ func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 			}
 		}
 	}
-	for index, first := range after {
-		for _, second := range after[index+1:] {
-			if first.Order == second.Order &&
-				first.Trigger.Overlaps(second.Trigger) &&
-				OriginsOverlap(first.Origins, second.Origins) &&
-				first.Effects.Interferes(second.Effects) {
-				return nil, &DispatchError{
-					Kind:   DispatchErrorAmbiguousOrder,
-					First:  first.Key,
-					Second: second.Key,
-				}
-			}
-		}
-	}
 	schedule, err := LinkObserverProgram(all)
 	if err != nil {
 		return nil, err

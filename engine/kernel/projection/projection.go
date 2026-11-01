@@ -540,7 +540,9 @@ func (p *Projection) ResolveTarget(target Target) (input.TextTarget, error) {
 		semantic.Revision(),
 	)
 	if target.range16.Empty() {
-		resolved = resolved.WithAffinity(target.Affinity())
+		resolved = resolved.
+			WithAffinity(target.Affinity()).
+			WithPositionAffinity(target.Affinity())
 	}
 	return resolved, nil
 }

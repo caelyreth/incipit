@@ -10,13 +10,18 @@ type ObserverProgram struct {
 }
 
 // LinkObserverProgram validates after-phase rules against every rule in the
-// linked catalog. An observer cannot depend on state written by a rule at or
-// after its own order, and observers at equal order cannot interfere.
+// linked catalog. A state observer cannot depend on state written by a rule at
+// or after its own order. After rules at equal order cannot interfere when
+// they can run for the same event and origin.
 func LinkObserverProgram(rules []*LinkedRule) (*ObserverProgram, error) {
 	all := append([]*LinkedRule(nil), rules...)
 	sortRules(all)
+	after := make([]*LinkedRule, 0)
 	observers := make([]*LinkedRule, 0)
 	for _, rule := range all {
+		if rule.Phase.Kind == RulePhaseKindAfter {
+			after = append(after, rule)
+		}
 		if rule.Trigger.Kind() == TriggerStateWildcard {
 			observers = append(observers, rule)
 		}
@@ -40,18 +45,8 @@ func LinkObserverProgram(rules []*LinkedRule) (*ObserverProgram, error) {
 			}
 		}
 	}
-	for index, first := range observers {
-		for _, second := range observers[index+1:] {
-			if first.Order == second.Order &&
-				first.Effects.Interferes(second.Effects) &&
-				OriginsOverlap(first.Origins, second.Origins) {
-				return nil, &DispatchError{
-					Kind:   DispatchErrorAmbiguousOrder,
-					First:  first.Key,
-					Second: second.Key,
-				}
-			}
-		}
+	if err := validateAfterRuleOrder(after); err != nil {
+		return nil, err
 	}
 	watchers := make(map[StateKey][]int)
 	for index, observer := range observers {
@@ -60,6 +55,34 @@ func LinkObserverProgram(rules []*LinkedRule) (*ObserverProgram, error) {
 		}
 	}
 	return &ObserverProgram{rules: observers, watchers: watchers}, nil
+}
+
+// afterTriggersCoSchedule reports whether both trigger forms can select an
+// after rule for one event. A state wildcard observes every event; keyed
+// triggers still use their normal overlap semantics.
+func afterTriggersCoSchedule(first, second Trigger) bool {
+	if first.Kind() == TriggerStateWildcard || second.Kind() == TriggerStateWildcard {
+		return true
+	}
+	return first.Overlaps(second)
+}
+
+func validateAfterRuleOrder(rules []*LinkedRule) error {
+	for index, first := range rules {
+		for _, second := range rules[index+1:] {
+			if first.Order == second.Order &&
+				afterTriggersCoSchedule(first.Trigger, second.Trigger) &&
+				OriginsOverlap(first.Origins, second.Origins) &&
+				first.Effects.Interferes(second.Effects) {
+				return &DispatchError{
+					Kind:   DispatchErrorAmbiguousOrder,
+					First:  first.Key,
+					Second: second.Key,
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // Rules returns immutable observer declarations in deterministic order.

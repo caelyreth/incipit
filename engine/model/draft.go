@@ -201,8 +201,8 @@ func (d *DocumentDraft) SetText(node NodeID, text *string) error {
 		return &DocumentError{Kind: DocumentErrorMissingNode, Node: node}
 	}
 	if text != nil {
-		value := NormalizeLineEndings(*text)
-		if err := validateText(value); err != nil {
+		value, err := CanonicalDocumentText(*text)
+		if err != nil {
 			return err
 		}
 		text = &value
@@ -256,8 +256,8 @@ func (d *DocumentDraft) AppendText(node NodeID, text string) error {
 	if !ok {
 		return &DocumentError{Kind: DocumentErrorMissingNode, Node: node}
 	}
-	text = NormalizeLineEndings(text)
-	if err := validateText(text); err != nil {
+	text, err := CanonicalDocumentText(text)
+	if err != nil {
 		return err
 	}
 	d.written = true
@@ -329,8 +329,8 @@ func (d *DocumentDraft) ReplaceTextMarkedWithBoundaryAffinity(
 	if !ok {
 		return &DocumentError{Kind: DocumentErrorMissingNode, Node: node}
 	}
-	replacement = NormalizeLineEndings(replacement)
-	if err := validateText(replacement); err != nil {
+	replacement, err := CanonicalDocumentText(replacement)
+	if err != nil {
 		return err
 	}
 	byteRange, err := target.TextByteRangeUTF16(from, to)

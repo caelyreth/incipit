@@ -10,25 +10,37 @@ import (
 
 // TextTarget is a semantic UTF-16 range captured at an engine revision.
 type TextTarget struct {
-	node          model.NodeID
-	range16       model.UTF16Range
-	revision      uint64
-	startAffinity model.Affinity
-	endAffinity   model.Affinity
+	node                  model.NodeID
+	range16               model.UTF16Range
+	revision              uint64
+	startAffinity         model.Affinity
+	endAffinity           model.Affinity
+	startPositionAffinity model.Affinity
+	endPositionAffinity   model.Affinity
 }
 
 func NewTextTarget(node model.NodeID, range16 model.UTF16Range, revision uint64) TextTarget {
-	return TextTarget{
-		node:          node,
-		range16:       range16,
-		revision:      revision,
-		startAffinity: model.AffinityLeft,
-		endAffinity:   model.AffinityRight,
+	target := TextTarget{
+		node:                  node,
+		range16:               range16,
+		revision:              revision,
+		startAffinity:         model.AffinityLeft,
+		endAffinity:           model.AffinityRight,
+		startPositionAffinity: model.AffinityLeft,
+		endPositionAffinity:   model.AffinityRight,
 	}
+	if range16.Empty() {
+		// A zero-width target is one position, so both endpoints move with the
+		// same positional affinity. Right matches a default collapsed caret.
+		target.startPositionAffinity = model.AffinityRight
+		target.endPositionAffinity = model.AffinityRight
+	}
+	return target
 }
 
 // WithAffinity chooses which side of an insertion leaves an empty inline
-// mark at the target boundary.
+// mark at the target boundary. It does not choose how the target itself moves
+// across later edits; use WithPositionAffinity for that.
 func (t TextTarget) WithAffinity(affinity model.Affinity) TextTarget {
 	t.startAffinity = affinity
 	t.endAffinity = affinity
@@ -45,12 +57,37 @@ func (t TextTarget) WithBoundaryAffinity(
 	return t
 }
 
+// WithPositionAffinity chooses which side of an insertion owns both target
+// endpoints when the target is rebased. A collapsed target uses the same side
+// for both endpoints and therefore remains collapsed.
+func (t TextTarget) WithPositionAffinity(affinity model.Affinity) TextTarget {
+	t.startPositionAffinity = affinity
+	t.endPositionAffinity = affinity
+	return t
+}
+
+// WithPositionBoundaryAffinity chooses independent movement sides for a
+// nonempty target's start and end endpoints. A collapsed target is one
+// position and follows the end affinity, as a collapsed selection does.
+func (t TextTarget) WithPositionBoundaryAffinity(
+	start, end model.Affinity,
+) TextTarget {
+	if t.range16.Empty() {
+		start = end
+	}
+	t.startPositionAffinity = start
+	t.endPositionAffinity = end
+	return t
+}
+
 func TextTargetFromAnchor(anchor model.TextAnchor) TextTarget {
 	return NewTextTarget(
 		anchor.Node(),
 		model.EmptyUTF16Range(anchor.OffsetUTF16()),
 		anchor.Revision(),
-	).WithAffinity(anchor.Affinity())
+	).
+		WithAffinity(anchor.Affinity()).
+		WithPositionAffinity(anchor.Affinity())
 }
 
 func TextTargetFromAnchors(start, end model.TextAnchor) (TextTarget, error) {
@@ -61,7 +98,12 @@ func TextTargetFromAnchors(start, end model.TextAnchor) (TextTarget, error) {
 	if range16.Empty() {
 		return TextTargetFromAnchor(end), nil
 	}
-	return NewTextTarget(start.Node(), range16, start.Revision()), nil
+	low, high := start, end
+	if low.OffsetUTF16() > high.OffsetUTF16() {
+		low, high = high, low
+	}
+	return NewTextTarget(start.Node(), range16, start.Revision()).
+		WithPositionBoundaryAffinity(low.Affinity(), high.Affinity()), nil
 }
 
 func TextTargetFromSelection(selection model.TextSelection) (TextTarget, error) {
@@ -73,10 +115,16 @@ func (t TextTarget) RangeUTF16() model.UTF16Range  { return t.range16 }
 func (t TextTarget) Revision() uint64              { return t.revision }
 func (t TextTarget) StartAffinity() model.Affinity { return t.startAffinity }
 func (t TextTarget) EndAffinity() model.Affinity   { return t.endAffinity }
+func (t TextTarget) StartPositionAffinity() model.Affinity {
+	return t.startPositionAffinity
+}
+func (t TextTarget) EndPositionAffinity() model.Affinity {
+	return t.endPositionAffinity
+}
 
 func (t TextTarget) Anchors() (model.TextAnchor, model.TextAnchor) {
-	return model.NewTextAnchor(t.node, t.range16.Start, model.AffinityLeft, t.revision),
-		model.NewTextAnchor(t.node, t.range16.End, model.AffinityRight, t.revision)
+	return model.NewTextAnchor(t.node, t.range16.Start, t.startPositionAffinity, t.revision),
+		model.NewTextAnchor(t.node, t.range16.End, t.endPositionAffinity, t.revision)
 }
 
 func (t TextTarget) Rebase(edits []model.TextEdit, revision uint64) (TextTarget, bool) {

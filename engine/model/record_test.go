@@ -51,6 +51,72 @@ func TestRecordsRestoreTheirDocument(t *testing.T) {
 	}
 }
 
+func TestRestoreRejectsNoncanonicalAndInvalidStoredText(t *testing.T) {
+	document, block := recordedDocument(t)
+	snapshot := document.Snapshot()
+	records := make([]NodeRecord, 0, len(snapshot.Nodes()))
+	for _, node := range snapshot.Nodes() {
+		records = append(records, node.Record())
+	}
+	for _, test := range []struct {
+		name string
+		text string
+	}{
+		{name: "CRLF", text: "hello\r\nworld"},
+		{name: "bare CR", text: "hello\rworld"},
+		{name: "invalid UTF-8", text: string([]byte{0xff})},
+		{name: "NUL", text: "hello\x00world"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			broken := append([]NodeRecord(nil), records...)
+			text := test.text
+			for index := range broken {
+				if broken[index].ID == block {
+					broken[index].Text = &text
+					break
+				}
+			}
+			if _, err := RestoreDocument(snapshot.Root(), snapshot.NextID(), broken); err == nil {
+				t.Fatalf("restored %q", test.text)
+			}
+		})
+	}
+}
+
+func TestRestorePreservesCanonicalUnicodeMarksAndOffsets(t *testing.T) {
+	document, block := recordedDocument(t)
+	snapshot := document.Snapshot()
+	records := make([]NodeRecord, 0, len(snapshot.Nodes()))
+	for _, node := range snapshot.Nodes() {
+		records = append(records, node.Record())
+	}
+	const text = "a🦀\nb"
+	for index := range records {
+		if records[index].ID == block {
+			value := text
+			records[index].Text = &value
+		}
+	}
+	restored, err := RestoreDocument(snapshot.Root(), snapshot.NextID(), records)
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, ok := restored.Snapshot().Node(block)
+	if !ok {
+		t.Fatal("restored block is missing")
+	}
+	if got := node.Text().String(); got != text {
+		t.Fatalf("text = %q", got)
+	}
+	marks := node.Marks()
+	if len(marks) != 1 || marks[0].Range() != NewUTF16Range(0, 5) {
+		t.Fatalf("marks = %#v", marks)
+	}
+	if err := node.ValidateTextRangeUTF16(0, UTF16Offset(node.Text().UTF16Len())); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRestoreRefusesABrokenTree(t *testing.T) {
 	document, block := recordedDocument(t)
 	snapshot := document.Snapshot()

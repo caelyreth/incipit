@@ -183,6 +183,29 @@ func TestDocumentTextNormalizesLineEndings(t *testing.T) {
 	}
 }
 
+func TestCanonicalDocumentTextUsesNormalizedLength(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{input: "a\r\nb\rc", want: "a\nb\nc"},
+		{input: "🦀\r\n中\r", want: "🦀\n中\n"},
+		{input: "plain\n文本", want: "plain\n文本"},
+	}
+	for _, test := range cases {
+		got, err := CanonicalDocumentText(test.input)
+		if err != nil || got != test.want {
+			t.Fatalf("CanonicalDocumentText(%q) = %q, %v; want %q", test.input, got, err, test.want)
+		}
+	}
+	for _, input := range []string{"x\x00", string([]byte{0xff})} {
+		if _, err := CanonicalDocumentText(input); err == nil {
+			t.Fatalf("CanonicalDocumentText(%q) accepted invalid text", input)
+		}
+	}
+}
+
 func TestEqualUpdatesDoNotAdvanceRevision(t *testing.T) {
 	t.Parallel()
 	document := mustDocument(t, "document")

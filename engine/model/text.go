@@ -10,7 +10,9 @@ type TextRoot struct {
 	tree rope.Tree
 }
 
-// NewTextRoot creates an immutable semantic text root.
+// NewTextRoot creates an immutable text root from text that has already
+// passed CanonicalDocumentText or ValidateStoredDocumentText. Rope slices and
+// other derived semantic text are already canonical.
 func NewTextRoot(text string) TextRoot {
 	return TextRoot{tree: rope.New(text)}
 }
@@ -49,6 +51,30 @@ func sameText(left, right *TextRoot) bool {
 func validateText(text string) error {
 	if !ValidDocumentText(text) {
 		return invalidDocument("document text must be valid UTF-8 without NUL")
+	}
+	return nil
+}
+
+// CanonicalDocumentText normalizes line endings and validates text entering
+// semantic storage. Callers that need an edit footprint use the returned
+// value, not the original input.
+func CanonicalDocumentText(text string) (string, error) {
+	text = NormalizeLineEndings(text)
+	if err := validateText(text); err != nil {
+		return "", err
+	}
+	return text, nil
+}
+
+// ValidateStoredDocumentText rejects text that is invalid or not already
+// canonical. Restored records retain their stored offsets, so normalizing here
+// would silently move them relative to persisted marks and anchors.
+func ValidateStoredDocumentText(text string) error {
+	if err := validateText(text); err != nil {
+		return err
+	}
+	if text != NormalizeLineEndings(text) {
+		return invalidDocument("stored document text must use canonical LF line endings")
 	}
 	return nil
 }

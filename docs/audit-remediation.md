@@ -24,8 +24,8 @@ than force unrelated operations through a generic abstraction.
 | A6 | Visible keyboard focus | In progress | `codex/audit-ui-focus` worktree |
 | B1 | Layout equality and saver ownership | Settled | Storage compares selections by value and clones queued layouts and library records. Added unchanged-frame, ownership and concurrent-save tests. |
 | B2 | Mark canonicalization and identity allocation | In progress | `codex/audit-marks` worktree |
-| B3 | Semantic text normalization | In progress | `codex/audit-invariants` worktree |
-| B4 | After-rule co-schedulability | In progress | `codex/audit-invariants` worktree |
+| B3 | Semantic text normalization | Settled | Edits share checked LF normalization and the kernel uses the actual inserted length. A noncanonical legacy record is quarantined as damaged rather than silently shifting offsets; its page rows remain on disk, but automatic migration is not implemented. |
+| B4 | After-rule co-schedulability | Settled | One validation checks interfering equal-order wildcard and keyed after-rules without changing handler trigger semantics. |
 | B5 | Atomic library operations and navigation reconciliation | In progress | `codex/audit-library` worktree |
 | B6 | Durable file publication | In progress | `codex/audit-durability` worktree |
 | B7 | Native text hit affinity | In progress | `codex/audit-affinity` worktree |
@@ -45,7 +45,7 @@ than force unrelated operations through a generic abstraction.
 | C4 | Media format metadata | Open | Preserve accepted versus stored formats |
 | C5 | Library projections, search and counts | Open | Profile large notebooks |
 | C6 | Geometry, role mappings and deterministic helpers | Open | |
-| C7 | Public target rebasing and affinity | In progress | `codex/audit-invariants` worktree; contract needs care |
+| C7 | Public target rebasing and affinity | Settled | Position affinity is distinct from mark-boundary affinity; collapsed targets remain collapsed, including when given opposing boundary affinities. |
 | C8 | Resource cloning and dispatch predicates | Open | Preserve authority and oracle paths |
 | C9 | Settings row variants and timing gates | Open | Distinguish app and MyGo motion policy |
 | C10 | Place-title flight geometry | Open | Preserve endpoint appearance and interaction |

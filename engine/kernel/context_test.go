@@ -116,6 +116,71 @@ func TestRuleContextTextInputRequiresDocumentWriteAuthority(t *testing.T) {
 	}
 }
 
+func TestReplaceTextInputMarkedUsesNormalizedContentForHeadAndMarks(t *testing.T) {
+	t.Parallel()
+	document, err := model.NewDocument("text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := document.Snapshot().Root()
+	var markID model.MarkID
+	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		if err := draft.SetTextValue(root, "ab"); err != nil {
+			return err
+		}
+		var err error
+		markID, err = draft.AddMark(root, model.EmptyUTF16Range(1), "strong", 1)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	engine := NewEngine(document, NewResourceStore(nil))
+	draft := &EngineDraft{
+		document:     engine.Document().BeginDraft(),
+		resources:    engine.Resources().BeginDraft(),
+		baseRevision: engine.Revision(),
+	}
+	event := NewTextEvent(
+		NewTextInput(
+			NewTextTarget(root, model.EmptyUTF16Range(1), engine.Revision()),
+			"🦀\r\nx\r",
+		),
+		EventOriginTyping,
+	)
+	rule := &LinkedRule{
+		Key:     RuleKey{Owner: "test", ID: "normalized-input"},
+		Effects: NewEffectSet(nil, nil).WithDocument(DocumentAccessWrite),
+	}
+	context := NewRuleContext(draft, rule, event, nil)
+	node, head, handled, err := context.ReplaceTextInputMarked(&markID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !handled || node != root {
+		t.Fatalf("node = %d, handled = %v", node, handled)
+	}
+	updated, ok := draft.Document().Node(root)
+	if !ok {
+		t.Fatal("updated node is missing")
+	}
+	const normalized = "🦀\nx\n"
+	if got := updated.Text().String(); got != "a"+normalized+"b" {
+		t.Fatalf("text = %q", got)
+	}
+	wantHead := 1 + model.StringLenUTF16(normalized)
+	if head != wantHead {
+		t.Fatalf("head = %d, want %d", head, wantHead)
+	}
+	edits := draft.Document().TextEdits()
+	if len(edits) != 1 || int(edits[0].InsertedUTF16Len()) != model.StringLenUTF16(normalized) {
+		t.Fatalf("text edits = %#v", edits)
+	}
+	marks := updated.Marks()
+	if len(marks) != 1 || marks[0].Range() != model.NewUTF16Range(1, model.UTF16Offset(wantHead)) {
+		t.Fatalf("marks = %#v", marks)
+	}
+}
+
 func TestEngineErrorStringIsNilSafe(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

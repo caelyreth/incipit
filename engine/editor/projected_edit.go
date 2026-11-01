@@ -325,7 +325,9 @@ func resolveCollapsedProjectedEdit(
 			if caret.Before {
 				affinity = model.AffinityRight
 			}
-			textTarget = textTarget.WithAffinity(affinity)
+			textTarget = textTarget.
+				WithAffinity(affinity).
+				WithPositionAffinity(affinity)
 		}
 		textInput := input.NewTextInput(textTarget, edit.Replacement)
 		return ResolvedProjectedEdit{
@@ -467,7 +469,9 @@ func ordinaryTextAtAttributeCaret(
 		semantic.Node(),
 		model.EmptyUTF16Range(semantic.OffsetUTF16()),
 		revision,
-	).WithAffinity(affinity), replacement != ""
+	).
+		WithAffinity(affinity).
+		WithPositionAffinity(affinity), replacement != ""
 }
 
 type attributeSelection struct {

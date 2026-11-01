@@ -156,6 +156,174 @@ func TestExactAfterRulesRejectEqualOrderInterference(t *testing.T) {
 	}
 }
 
+func TestAfterRulesRejectCoSchedulableWildcardInterference(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name  string
+		keyed Trigger
+	}{
+		{name: "exact", keyed: NewExactTrigger("ordered")},
+		{name: "prefix", keyed: NewPrefixTrigger("order")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			catalog, err := LinkPolicyCatalog([]PolicyDescriptor{{
+				ID:               "conflicting.mixed.after",
+				EnabledByDefault: true,
+				Rules: []RuleDescriptor{
+					{
+						ID:        "wildcard",
+						Phase:     AfterRulePhase(ResourceStateKey("a")),
+						Trigger:   NewStateWildcardTrigger(),
+						Order:     10,
+						Effects:   NewEffectSet(nil, []ResourceID{"b"}),
+						Algorithm: dispatchProgram(t, 1),
+					},
+					{
+						ID:        "keyed",
+						Phase:     AfterRulePhase(ResourceStateKey("a")),
+						Trigger:   test.keyed,
+						Order:     10,
+						Effects:   NewEffectSet(nil, []ResourceID{"b"}),
+						Algorithm: dispatchProgram(t, 2),
+					},
+				},
+				Resources: []ResourceDescriptor{
+					{ID: "a", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+					{ID: "b", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+				},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = LinkEventProgram(catalog)
+			var dispatchErr *DispatchError
+			if err == nil || !errors.As(err, &dispatchErr) ||
+				dispatchErr.Kind != DispatchErrorAmbiguousOrder {
+				t.Fatalf("error = %#v", err)
+			}
+		})
+	}
+}
+
+func TestAfterRulesAllowEqualOrderWhenEffectsOrOriginsDoNotConflict(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name          string
+		firstTrigger  Trigger
+		secondTrigger Trigger
+		firstWrite    ResourceID
+		secondWrite   ResourceID
+		firstOrigins  []EventOrigin
+		secondOrigins []EventOrigin
+	}{
+		{
+			name:          "non-interfering effects",
+			firstTrigger:  NewStateWildcardTrigger(),
+			secondTrigger: NewExactTrigger("ordered"),
+			firstWrite:    "b",
+			secondWrite:   "c",
+		},
+		{
+			name:          "disjoint origins",
+			firstTrigger:  NewExactTrigger("ordered"),
+			secondTrigger: NewExactTrigger("ordered"),
+			firstWrite:    "b",
+			secondWrite:   "b",
+			firstOrigins:  []EventOrigin{EventOriginTyping},
+			secondOrigins: []EventOrigin{EventOriginPaste},
+		},
+		{
+			name:          "disjoint keyed triggers",
+			firstTrigger:  NewExactTrigger("alpha"),
+			secondTrigger: NewPrefixTrigger("beta"),
+			firstWrite:    "b",
+			secondWrite:   "b",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			catalog, err := LinkPolicyCatalog([]PolicyDescriptor{{
+				ID:               "allowed.mixed.after",
+				EnabledByDefault: true,
+				Rules: []RuleDescriptor{
+					{
+						ID:        "first",
+						Phase:     AfterRulePhase(ResourceStateKey("a")),
+						Trigger:   test.firstTrigger,
+						Origins:   test.firstOrigins,
+						Order:     10,
+						Effects:   NewEffectSet(nil, []ResourceID{test.firstWrite}),
+						Algorithm: dispatchProgram(t, 1),
+					},
+					{
+						ID:        "second",
+						Phase:     AfterRulePhase(ResourceStateKey("a")),
+						Trigger:   test.secondTrigger,
+						Origins:   test.secondOrigins,
+						Order:     10,
+						Effects:   NewEffectSet(nil, []ResourceID{test.secondWrite}),
+						Algorithm: dispatchProgram(t, 2),
+					},
+				},
+				Resources: []ResourceDescriptor{
+					{ID: "a", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+					{ID: "b", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+					{ID: "c", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+				},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := LinkEventProgram(catalog); err != nil {
+				t.Fatalf("non-conflicting after rules rejected: %v", err)
+			}
+		})
+	}
+}
+
+func TestWildcardAndKeyedAfterRulesFollowDeclaredOrder(t *testing.T) {
+	t.Parallel()
+	catalog, err := LinkPolicyCatalog([]PolicyDescriptor{{
+		ID:               "ordered.mixed.after",
+		EnabledByDefault: true,
+		Rules: []RuleDescriptor{
+			{
+				ID:        "wildcard",
+				Phase:     AfterRulePhase(ResourceStateKey("a")),
+				Trigger:   NewStateWildcardTrigger(),
+				Order:     30,
+				Effects:   NewEffectSet(nil, []ResourceID{"c"}),
+				Algorithm: dispatchProgram(t, 3),
+			},
+			{
+				ID:        "keyed",
+				Phase:     AfterRulePhase(ResourceStateKey("a")),
+				Trigger:   NewExactTrigger("ordered"),
+				Order:     20,
+				Effects:   NewEffectSet(nil, []ResourceID{"b"}),
+				Algorithm: dispatchProgram(t, 2),
+			},
+		},
+		Resources: []ResourceDescriptor{
+			{ID: "a", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+			{ID: "b", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+			{ID: "c", Kind: ResourceBool, Initial: BoolResource(false), Lifetime: ResourceDocumentLifetime},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := LinkEventProgram(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, observers := program.plan(NewCommandEvent("ordered"))
+	if len(observers) != 2 ||
+		observers[0].Key.ID != "keyed" ||
+		observers[1].Key.ID != "wildcard" {
+		t.Fatalf("observers = %#v", observers)
+	}
+}
+
 func TestInputScopeAllowsOnlyTheTargetGap(t *testing.T) {
 	t.Parallel()
 	document, err := model.NewDocument("document")
@@ -403,6 +571,59 @@ func TestLinkRejectsAmbiguousRuleOrder(t *testing.T) {
 	}
 	if _, err := LinkEventProgram(catalog); err == nil {
 		t.Fatal("ambiguous order accepted")
+	}
+}
+
+func TestHandlerAmbiguityKeepsTriggerOverlapSemantics(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name    string
+		first   Trigger
+		second  Trigger
+		wantErr bool
+	}{
+		{
+			name:    "overlapping exact and prefix",
+			first:   NewExactTrigger("command:run"),
+			second:  NewPrefixTrigger("command:"),
+			wantErr: true,
+		},
+		{
+			name:   "disjoint exact and prefix",
+			first:  NewExactTrigger("alpha"),
+			second: NewPrefixTrigger("beta:"),
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			catalog, err := LinkPolicyCatalog([]PolicyDescriptor{{
+				ID:               "handlers",
+				EnabledByDefault: true,
+				Rules: []RuleDescriptor{
+					{
+						ID:        "first",
+						Trigger:   test.first,
+						Order:     1,
+						Algorithm: dispatchProgram(t, 1),
+					},
+					{
+						ID:        "second",
+						Trigger:   test.second,
+						Order:     1,
+						Algorithm: dispatchProgram(t, 2),
+					},
+				},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = LinkEventProgram(catalog)
+			if test.wantErr && err == nil {
+				t.Fatal("overlapping handlers accepted")
+			}
+			if !test.wantErr && err != nil {
+				t.Fatalf("disjoint handlers rejected: %v", err)
+			}
+		})
 	}
 }
 
