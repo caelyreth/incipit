@@ -2,6 +2,7 @@ package kernel
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/caelyreth/neverland/engine/kernel/planning"
@@ -543,12 +544,12 @@ func invokeRule(
 		draft.Rollback(checkpoint)
 		return status, nil
 	}
-	if target, ok := eventTargetNode(event); ok {
+	if scope, ok := makeInputScope(draft.Document().BaseSnapshot(), event); ok {
 		for _, change := range draft.Document().ChangesSince(changeStart) {
-			if !withinInputScope(draft.Document(), target, change.Node) {
+			if !scope.allows(draft.Document(), change.Node) {
 				return 0, &EngineError{
 					Kind:    EngineErrorOutOfScopeDocumentWrite,
-					Target:  target,
+					Target:  scope.target,
 					Changed: change.Node,
 				}
 			}
@@ -557,23 +558,118 @@ func invokeRule(
 	return status, nil
 }
 
-// withinInputScope reports whether an input at target may change changed:
-// the node it targets, or the container that node is a block of and the
-// blocks beside it there, as a block splits, joins or gives way to its
-// neighbors. Anything farther away is out of its reach.
-func withinInputScope(document *model.DocumentDraft, target, changed model.NodeID) bool {
-	if changed == target {
+// inputScope is the document region one event may write. For ordinary
+// input it is the target block, its container, and the gap to its original
+// neighbors; new blocks from splits may occupy that gap. A span owns every
+// block between its endpoints instead.
+type inputScope struct {
+	target      model.NodeID
+	parent      model.NodeID
+	left, right model.NodeID
+	allowed     map[model.NodeID]struct{}
+}
+
+func makeInputScope(base model.DocumentSnapshot, event Event) (inputScope, bool) {
+	if span, ok := event.SpanInput(); ok {
+		first, last := span.From().Node(), span.To().Node()
+		parent, ok := baseNodeParent(base, first)
+		if !ok {
+			return inputScope{}, false
+		}
+		container, ok := base.Node(parent)
+		if !ok {
+			return inputScope{}, false
+		}
+		allowed := map[model.NodeID]struct{}{first: {}, last: {}, parent: {}}
+		from, to := -1, -1
+		for index, child := range container.Children() {
+			switch child {
+			case first:
+				from = index
+			case last:
+				to = index
+			}
+		}
+		if from < 0 || to < 0 || to < from {
+			return inputScope{}, false
+		}
+		for _, child := range container.Children()[from : to+1] {
+			allowed[child] = struct{}{}
+		}
+		scope := inputScope{target: first, parent: parent, left: first, allowed: allowed}
+		if to+1 < len(container.Children()) {
+			scope.right = container.Children()[to+1]
+		}
+		return scope, true
+	}
+	target, ok := eventTargetNode(event)
+	if !ok {
+		return inputScope{}, false
+	}
+	parent, ok := baseNodeParent(base, target)
+	if !ok {
+		return inputScope{}, false
+	}
+	scope := inputScope{
+		target: target, parent: parent,
+		allowed: map[model.NodeID]struct{}{target: {}, parent: {}},
+	}
+	container, ok := base.Node(parent)
+	if !ok {
+		return scope, true
+	}
+	for index, child := range container.Children() {
+		if child != target {
+			continue
+		}
+		if index > 0 {
+			scope.left = container.Children()[index-1]
+			scope.allowed[scope.left] = struct{}{}
+		}
+		if index+1 < len(container.Children()) {
+			scope.right = container.Children()[index+1]
+			scope.allowed[scope.right] = struct{}{}
+		}
+		break
+	}
+	return scope, true
+}
+
+func (s inputScope) allows(document *model.DocumentDraft, changed model.NodeID) bool {
+	if _, ok := s.allowed[changed]; ok {
 		return true
 	}
-	container, ok := nodeParent(document, target)
+	if _, existed := document.BaseSnapshot().Node(changed); existed {
+		return false
+	}
+	parent, ok := nodeParent(document, changed)
+	if !ok || parent != s.parent {
+		return false
+	}
+	container, ok := document.Node(parent)
 	if !ok {
 		return false
 	}
-	if changed == container {
-		return true
+	index := slices.Index(container.Children(), changed)
+	if index < 0 {
+		return false
 	}
-	parent, ok := nodeParent(document, changed)
-	return ok && parent == container
+	left, right := -1, len(container.Children())
+	if s.left != 0 {
+		left = slices.Index(container.Children(), s.left)
+	}
+	if s.right != 0 {
+		right = slices.Index(container.Children(), s.right)
+	}
+	return left < index && index < right
+}
+
+func baseNodeParent(base model.DocumentSnapshot, id model.NodeID) (model.NodeID, bool) {
+	node, ok := base.Node(id)
+	if !ok {
+		return 0, false
+	}
+	return node.Parent()
 }
 
 // nodeParent is a node's parent in the draft, or in the snapshot the draft

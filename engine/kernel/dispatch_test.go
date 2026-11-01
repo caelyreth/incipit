@@ -156,6 +156,61 @@ func TestExactAfterRulesRejectEqualOrderInterference(t *testing.T) {
 	}
 }
 
+func TestInputScopeAllowsOnlyTheTargetGap(t *testing.T) {
+	t.Parallel()
+	document, err := model.NewDocument("document")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := document.Snapshot().Root()
+	var blocks []model.NodeID
+	if _, err := document.Transact(func(draft *model.DocumentDraft) error {
+		for range 3 {
+			id, err := draft.CreateNode(root, len(blocks), "paragraph")
+			if err != nil {
+				return err
+			}
+			blocks = append(blocks, id)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	base := document.Snapshot()
+	event := NewTextEvent(
+		NewTextInput(
+			NewTextTarget(blocks[0], model.EmptyUTF16Range(0), base.Revision()),
+			"x",
+		),
+		EventOriginTyping,
+	)
+	scope, ok := makeInputScope(base, event)
+	if !ok {
+		t.Fatal("no input scope")
+	}
+	draft := document.BeginDraft()
+	if !scope.allows(draft, blocks[1]) {
+		t.Fatal("adjacent sibling rejected")
+	}
+	if scope.allows(draft, blocks[2]) {
+		t.Fatal("distant sibling accepted")
+	}
+	inserted, err := draft.CreateNode(root, 1, "paragraph")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !scope.allows(draft, inserted) {
+		t.Fatal("split block in the target gap rejected")
+	}
+	far, err := draft.CreateNode(root, 4, "paragraph")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scope.allows(draft, far) {
+		t.Fatal("new block beyond the adjacent gap accepted")
+	}
+}
+
 func dispatchProgram(t *testing.T, leaf uint32) *planning.ControlProgram {
 	t.Helper()
 	builder := &planning.ControlBuilder{}
