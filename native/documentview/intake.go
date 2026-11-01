@@ -8,6 +8,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/egoist/mygo/transfer"
 )
@@ -40,6 +41,7 @@ type ImageOperation struct {
 	bridge     *Bridge
 	controller *controller.DocumentController
 	session    *editor.Session
+	projection *projection.Projection
 	revision   uint64
 	// caret is the insertion point captured before a dialog or intake.
 	caret int
@@ -70,6 +72,7 @@ func (b *Bridge) beginImageOperationAt(caret int) (ImageOperation, bool) {
 		bridge:     b,
 		controller: b.Controller,
 		session:    session,
+		projection: session.Projection(),
 		revision:   b.Controller.Runtime().Revision(),
 		caret:      caret,
 		mounted:    b.Mounted,
@@ -103,6 +106,7 @@ func (operation ImageOperation) Current() bool {
 	}
 	if operation.bridge.detached || operation.bridge.Controller != operation.controller ||
 		operation.controller.Session() != operation.session ||
+		operation.session.Projection() != operation.projection ||
 		operation.controller.Runtime().Revision() != operation.revision {
 		return false
 	}

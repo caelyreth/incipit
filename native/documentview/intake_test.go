@@ -180,3 +180,24 @@ func TestAnAsyncDropStopsWhenItsBridgeIsDetached(t *testing.T) {
 		t.Fatalf("detached drop reported %v", reported)
 	}
 }
+
+func TestImageOperationRejectsARebuiltProjection(t *testing.T) {
+	bridge, _ := bridgeFixture(t, "one\ntwo")
+	operation, ok := bridge.BeginImageOperation()
+	if !ok {
+		t.Fatal("image operation did not start")
+	}
+	before := bridge.Controller.Session().Projection()
+	if err := bridge.Controller.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
+		configuration.SetEnabled(editor.CJKPolicyID, !configuration.IsEnabled(editor.CJKPolicyID))
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if bridge.Controller.Session().Projection() == before {
+		t.Fatal("fixture did not rebuild the projection")
+	}
+	if err := operation.PlaceImages([]editor.ImageShape{{Media: "a", Width: 4, Height: 3}}); !errors.Is(err, ErrStaleImageOperation) {
+		t.Fatalf("operation after projection rebuild = %v", err)
+	}
+}
