@@ -255,14 +255,12 @@ func TestPolicyRuntimePreparationFailurePublishesNothing(t *testing.T) {
 			return nil
 		},
 		func(view EngineView, prepared *PreparedPolicyConfiguration) (struct{}, error) {
-			if !view.Resources().WasWritten("extra-session") {
-				// Reading the newly available resource proves preparation sees
-				// candidate state, not the old schema.
-				if _, err := view.Resources().Read(
-					NewEffectSet([]ResourceID{"extra-session"}, nil),
-				).Get("extra-session"); err != nil {
-					return struct{}{}, err
-				}
+			// Reading the newly available resource proves preparation sees
+			// candidate state, not the old schema.
+			if _, err := view.Resources().Read(
+				NewEffectSet([]ResourceID{"extra-session"}, nil),
+			).Get("extra-session"); err != nil {
+				return struct{}{}, err
 			}
 			if !prepared.IsEnabled("extra") {
 				return struct{}{}, errors.New("candidate configuration not prepared")

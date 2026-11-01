@@ -118,8 +118,8 @@ func (e *Engine) PrepareConfiguration[P any](
 		return zero, err
 	}
 	return prepare(EngineView{
-		document:  e.document.BeginDraft(),
-		resources: draft,
+		document:  e.document.BeginDraft().CandidateSnapshot(revision),
+		resources: draft.Snapshot(),
 		revision:  revision,
 	})
 }
@@ -169,8 +169,8 @@ func TransactPrepared[T any, P any](
 		revision++
 	}
 	prepared, err := prepare(EngineView{
-		document:  draft.document,
-		resources: draft.resources,
+		document:  draft.document.CandidateSnapshot(revision),
+		resources: draft.resources.Snapshot(),
 		revision:  revision,
 	}, changes, value)
 	if err != nil {
@@ -244,17 +244,17 @@ func (d *EngineDraft) Rollback(checkpoint EngineCheckpoint) {
 	d.textInputConsumed = checkpoint.textInputConsumed
 }
 
-// EngineView is the validated candidate visible during output preparation.
-// Its revision is the revision publication would produce.
+// EngineView is the immutable validated candidate visible during output
+// preparation. Its revision is the revision publication would produce.
 type EngineView struct {
-	document  *model.DocumentDraft
-	resources *ResourceDraft
+	document  model.DocumentSnapshot
+	resources ResourceSnapshot
 	revision  uint64
 }
 
-func (v EngineView) Revision() uint64               { return v.revision }
-func (v EngineView) Document() *model.DocumentDraft { return v.document }
-func (v EngineView) Resources() *ResourceDraft      { return v.resources }
+func (v EngineView) Revision() uint64                 { return v.revision }
+func (v EngineView) Document() model.DocumentSnapshot { return v.document }
+func (v EngineView) Resources() ResourceSnapshot      { return v.resources }
 
 type EngineErrorKind uint8
 

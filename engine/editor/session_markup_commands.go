@@ -81,7 +81,7 @@ func (s *Session) dispatchSelectionCommand(
 				return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 			}
 			projectedValue, projectErr := ProjectPage(
-				view.Document().CandidateSnapshot(view.Revision()),
+				view.Document(),
 				view.Revision(),
 				s.generation+1,
 				s.runtime.Configuration(),

@@ -644,7 +644,7 @@ func (s *Session) editedPresentation(
 	if !ok {
 		return Presentation{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
-	document := view.Document().CandidateSnapshot(view.Revision())
+	document := view.Document()
 	node, ok := document.Node(next.Node())
 	if !ok {
 		return Presentation{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
@@ -755,7 +755,7 @@ func (s *Session) Reconfigure(
 				return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 			}
 			nextProjection, err := ProjectPage(
-				view.Document().CandidateSnapshot(view.Revision()),
+				view.Document(),
 				view.Revision(),
 				s.generation+1,
 				configuration,
@@ -1007,7 +1007,7 @@ func projectionFlowFromView(
 	projectionValue *projection.Projection,
 	selection model.TextSelection,
 ) (*surface.Flow, error) {
-	return pageFlow(projectionValue, view.Document().CandidateSnapshot(view.Revision()))
+	return pageFlow(projectionValue, view.Document())
 }
 
 // editableRanges clips one semantic attachment to the corresponding editable

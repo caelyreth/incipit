@@ -63,7 +63,7 @@ func (s *Session) restoreHistoryFrame(frame Frame, undo bool) error {
 				return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 			}
 			projected, err := ProjectPage(
-				view.Document().CandidateSnapshot(view.Revision()),
+				view.Document(),
 				view.Revision(),
 				s.generation+1,
 				s.runtime.Configuration(),
