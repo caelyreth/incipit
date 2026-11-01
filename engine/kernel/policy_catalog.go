@@ -455,12 +455,7 @@ func sortedSettingKeys(settings map[SettingKey]SettingDescriptor) []SettingKey {
 	for key := range settings {
 		keys = append(keys, key)
 	}
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].Policy != keys[j].Policy {
-			return keys[i].Policy < keys[j].Policy
-		}
-		return keys[i].Setting < keys[j].Setting
-	})
+	sortSettingKeys(keys)
 	return keys
 }
 

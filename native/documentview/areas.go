@@ -6,6 +6,7 @@ import (
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
+	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -135,7 +136,7 @@ func drawAreas(p *ui.Painter, rect ui.Rect, state *State, guides *Guides) {
 		shift := rect.Y + state.TopInset - state.ScrollY
 		top, bottom := track.top.Value()+shift, track.bottom.Value()+shift
 		x := rect.X - offset
-		ink := roleColor(state.Theme, track.color).Alpha(0.55 * alpha)
+		ink := textlayout.RoleColor(state.Theme, track.color).Alpha(0.55 * alpha)
 		p.Fill(ui.Rect{X: x, Y: top, W: weight, H: bottom - top}, ink, weight/2)
 		p.Fill(ui.Rect{X: x, Y: top, W: tick, H: weight}, ink, weight/2)
 		p.Fill(ui.Rect{X: x, Y: bottom - weight, W: tick, H: weight}, ink, weight/2)

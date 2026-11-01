@@ -28,18 +28,20 @@ func (s Style) font() ui.Font {
 	}
 }
 
-func (s Style) color(role surface.ColorRole) ui.Color {
+// RoleColor resolves a surface color role in the native theme. Text shaping
+// and document decorations use the same mapping.
+func RoleColor(semantic theme.Theme, role surface.ColorRole) ui.Color {
 	switch role {
 	case surface.ColorMuted:
-		return s.Theme.Prose.Notation
+		return semantic.Prose.Notation
 	case surface.ColorStrong:
-		return s.Theme.Prose.Strong
+		return semantic.Prose.Strong
 	case surface.ColorAccent:
-		return s.Theme.Accent.Foreground
+		return semantic.Accent.Foreground
 	case surface.ColorSubtle:
-		return s.Theme.Prose.Subtle
+		return semantic.Prose.Subtle
 	default:
-		return s.Theme.Prose.Text
+		return semantic.Prose.Text
 	}
 }
 
@@ -59,6 +61,6 @@ func (s Style) span(text string, run surface.StyleRun) ui.Span {
 		Weight:        weight,
 		Italic:        run.Style.Italic,
 		Strikethrough: run.Style.Strike,
-		Color:         s.color(run.Style.Color),
+		Color:         RoleColor(s.Theme, run.Style.Color),
 	}
 }

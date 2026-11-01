@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
+	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -181,7 +182,7 @@ func drawGuides(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions)
 		if y+sample.Rect.H < rect.Y || y > rect.Y+rect.H {
 			continue
 		}
-		ink := roleColor(state.Theme, guides.tracks[sample.ID].color)
+		ink := textlayout.RoleColor(state.Theme, guides.tracks[sample.ID].color)
 		p.Fill(ui.Rect{X: x, Y: y, W: 1, H: sample.Rect.H}, ink.Alpha(0.6*alpha), 0)
 
 		_, width := style.Widths(sample.Keys)

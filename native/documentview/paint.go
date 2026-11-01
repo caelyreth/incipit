@@ -5,7 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
-	"github.com/caelyreth/neverland/native/theme"
+	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -151,7 +151,7 @@ func drawDecorationFills(
 		if alpha <= 0 {
 			continue
 		}
-		color := roleColor(state.Theme, decoration.Primitive.Color).Alpha(alpha)
+		color := textlayout.RoleColor(state.Theme, decoration.Primitive.Color).Alpha(alpha)
 		for _, range16 := range decoration.Primitive.Ranges {
 			for _, bounds := range state.Layout.RangeRects(range16) {
 				bounds.X += rect.X
@@ -177,7 +177,7 @@ func drawRangeRules(
 		if alpha <= 0 {
 			continue
 		}
-		color := roleColor(state.Theme, decoration.Primitive.Color).Alpha(alpha)
+		color := textlayout.RoleColor(state.Theme, decoration.Primitive.Color).Alpha(alpha)
 		for _, range16 := range decoration.Primitive.Ranges {
 			for _, bounds := range state.Layout.RangeRects(range16) {
 				thickness := min(decoration.Primitive.Thickness, bounds.H)
@@ -258,19 +258,4 @@ func scheduleCaretBreathing(p *ui.Painter, rect ui.Rect, state *State, now time.
 		return
 	}
 	p.AnimationFrame()
-}
-
-func roleColor(semantic theme.Theme, role surface.ColorRole) ui.Color {
-	switch role {
-	case surface.ColorMuted:
-		return semantic.Prose.Notation
-	case surface.ColorStrong:
-		return semantic.Prose.Strong
-	case surface.ColorAccent:
-		return semantic.Accent.Foreground
-	case surface.ColorSubtle:
-		return semantic.Prose.Subtle
-	default:
-		return semantic.Prose.Text
-	}
 }

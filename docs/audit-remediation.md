@@ -44,7 +44,7 @@ than force unrelated operations through a generic abstraction.
 | C3 | Settings policy host and coherent snapshots | Open | |
 | C4 | Media format metadata | Open | Preserve accepted versus stored formats |
 | C5 | Library projections, search and counts | Open | Profile large notebooks |
-| C6 | Geometry, role mappings and deterministic helpers | Open | |
+| C6 | Geometry, role mappings and deterministic helpers | In progress | Surface color-role mapping and setting-key sorting are shared; coordinate and notation-run helpers remain open. |
 | C7 | Public target rebasing and affinity | Settled | Position affinity is distinct from mark-boundary affinity; collapsed targets remain collapsed, including when given opposing boundary affinities. |
 | C8 | Resource cloning and dispatch predicates | Open | Preserve authority and oracle paths |
 | C9 | Settings row variants and timing gates | In progress | Shared effective motion policy now covers settings, shell, overlays and table feedback; row/disclosure extraction remains open. |
