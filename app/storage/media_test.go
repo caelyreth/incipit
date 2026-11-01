@@ -90,6 +90,13 @@ func TestATIFFIsKeptAsAPNG(t *testing.T) {
 	if media.Type != "image/png" || media.Name != "scan.png" || filepath.Ext(store.MediaFile(media)) != ".png" {
 		t.Fatalf("kept %+v at %s", media, store.MediaFile(media))
 	}
+	written, err := os.ReadFile(store.MediaFile(media))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, format, err := image.Decode(bytes.NewReader(written)); err != nil || format != "png" {
+		t.Fatalf("stored format = %q, error = %v; want PNG", format, err)
+	}
 }
 
 func TestPicturesNoPageNamesAreSweptAtTheNextLaunch(t *testing.T) {

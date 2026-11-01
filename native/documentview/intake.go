@@ -3,10 +3,9 @@ package documentview
 import (
 	"errors"
 	"path/filepath"
-	"slices"
-	"strings"
 
 	"github.com/caelyreth/neverland/app/controller"
+	"github.com/caelyreth/neverland/app/media"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
@@ -207,29 +206,6 @@ func (b *Bridge) reportImageError(err error) {
 // whatever the system's format.
 var pictureFormats = []transfer.Format{transfer.FileList, transfer.PNG}
 
-// pictureExtensions are the files a page takes as pictures, as the
-// notebook keeps them.
-var pictureExtensions = map[string]bool{
-	".png": true, ".jpg": true, ".jpeg": true, ".gif": true,
-	".webp": true, ".bmp": true, ".tif": true, ".tiff": true,
-}
-
-// PictureExtensions are the file extensions a page takes as pictures,
-// without their dots, in order.
-func PictureExtensions() []string {
-	extensions := make([]string, 0, len(pictureExtensions))
-	for extension := range pictureExtensions {
-		extensions = append(extensions, strings.TrimPrefix(extension, "."))
-	}
-	slices.Sort(extensions)
-	return extensions
-}
-
-// isPictureFile reports whether a path names a picture the page takes.
-func isPictureFile(path string) bool {
-	return pictureExtensions[strings.ToLower(filepath.Ext(path))]
-}
-
 // picturesOf reads the pictures data holds: its picture files, else its
 // picture, unless it holds text too, which reads as the text it copied
 // (a document's text often comes with a picture of itself).
@@ -246,7 +222,7 @@ func picturesOf(data transfer.Data, formats []transfer.Format) []Incoming {
 	if has(transfer.FileList) {
 		files, _ := data.Files()
 		for _, path := range files {
-			if isPictureFile(path) {
+			if media.AcceptsFile(path) {
 				pictures = append(pictures, Incoming{Path: path, Name: filepath.Base(path)})
 			}
 		}

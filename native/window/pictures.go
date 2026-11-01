@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/caelyreth/neverland/app/media"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/model"
@@ -98,7 +99,7 @@ func (a *AppState) chooseImages() {
 			Title:       "Insert image",
 			ButtonLabel: "Insert",
 			Multiple:    true,
-			Filters:     []mygo.FileFilter{{Name: "Images", Extensions: documentview.PictureExtensions()}},
+			Filters:     []mygo.FileFilter{{Name: "Images", Extensions: media.Extensions()}},
 		})
 		if err != nil || len(paths) == 0 {
 			return
@@ -238,7 +239,7 @@ func (h figureHost) ReplacePicture(node model.NodeID) {
 			Parent:      window,
 			Title:       "Replace image",
 			ButtonLabel: "Replace",
-			Filters:     []mygo.FileFilter{{Name: "Images", Extensions: documentview.PictureExtensions()}},
+			Filters:     []mygo.FileFilter{{Name: "Images", Extensions: media.Extensions()}},
 		})
 		if err != nil || len(paths) == 0 {
 			return

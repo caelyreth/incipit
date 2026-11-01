@@ -16,12 +16,14 @@ import (
 	"strings"
 	"time"
 
+	mediaformat "github.com/caelyreth/neverland/app/media"
+
 	// The formats a picture may come in, as MyGo draws them.
 	_ "image/gif"
 	_ "image/jpeg"
 
 	_ "golang.org/x/image/bmp"
-	"golang.org/x/image/tiff"
+	_ "golang.org/x/image/tiff"
 	_ "golang.org/x/image/webp"
 )
 
@@ -72,25 +74,6 @@ type Media struct {
 	Added time.Time
 }
 
-// mediaTypes are the formats kept as they come, by the name image.Decode
-// gives each, with the extension their file takes.
-var mediaTypes = map[string]struct{ mime, extension string }{
-	"png":  {"image/png", "png"},
-	"jpeg": {"image/jpeg", "jpg"},
-	"gif":  {"image/gif", "gif"},
-	"webp": {"image/webp", "webp"},
-	"bmp":  {"image/bmp", "bmp"},
-}
-
-func mediaExtension(mime string) string {
-	for _, kind := range mediaTypes {
-		if kind.mime == mime {
-			return kind.extension
-		}
-	}
-	return "bin"
-}
-
 // AddMedia keeps a picture: written once, the same bytes adding nothing
 // more. name is the file name it came with, if any. A TIFF, as the system
 // copies some pictures, is kept as a PNG.
@@ -108,24 +91,23 @@ func (s *Store) AddMedia(data []byte, name string) (Media, error) {
 	if config.Width*config.Height > maxMediaPixels {
 		return Media{}, ErrMediaSize
 	}
-	if format == "tiff" {
-		if data, err = tiffAsPNG(data); err != nil {
-			return Media{}, fmt.Errorf("%w: %v", ErrMediaFormat, err)
-		}
-		format = "png"
-		name = strings.TrimSuffix(name, filepath.Ext(name))
-		if name != "" {
-			name += ".png"
-		}
-	}
-	kind, ok := mediaTypes[format]
+	kind, ok := mediaformat.DecoderFormat(format)
 	if !ok {
 		return Media{}, ErrMediaFormat
+	}
+	if kind.NormalizePNG {
+		if data, err = asPNG(data); err != nil {
+			return Media{}, fmt.Errorf("%w: %v", ErrMediaFormat, err)
+		}
+		name = strings.TrimSuffix(name, filepath.Ext(name))
+		if name != "" {
+			name += "." + kind.StoredExtension
+		}
 	}
 	sum := sha256.Sum256(data)
 	media := Media{
 		Hash:   hex.EncodeToString(sum[:]),
-		Type:   kind.mime,
+		Type:   kind.StoredMIME,
 		Width:  config.Width,
 		Height: config.Height,
 		Bytes:  int64(len(data)),
@@ -161,8 +143,8 @@ func (s *Store) AddMedia(data []byte, name string) (Media, error) {
 	return media, nil
 }
 
-func tiffAsPNG(data []byte) ([]byte, error) {
-	picture, err := tiff.Decode(bytes.NewReader(data))
+func asPNG(data []byte) ([]byte, error) {
+	picture, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +169,7 @@ func (s *Store) MediaFile(media Media) string {
 	if len(media.Hash) < 2 {
 		return filepath.Join(s.root, mediaDir, media.Hash)
 	}
-	return filepath.Join(s.root, mediaDir, media.Hash[:2], media.Hash+"."+mediaExtension(media.Type))
+	return filepath.Join(s.root, mediaDir, media.Hash[:2], media.Hash+"."+mediaformat.StoredExtension(media.Type))
 }
 
 // writeMediaFile writes a picture under its name once it is whole.

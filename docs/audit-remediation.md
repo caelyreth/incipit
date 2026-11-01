@@ -42,7 +42,7 @@ than force unrelated operations through a generic abstraction.
 | C1 | Presentation assembly and publication | Open | Preserve transaction and history semantics |
 | C2 | Policy rules, outcomes, spans and composition ownership | Open | |
 | C3 | Settings policy host and coherent snapshots | Open | |
-| C4 | Media format metadata | Open | Preserve accepted versus stored formats |
+| C4 | Media format metadata | Settled | One app-level registry describes input aliases, dialog extensions, decoder names, canonical stored MIME/extensions and PNG normalization; TIFF remains accepted and stored as PNG. Tests cover aliases, isolation, sorted filters, unknown types and actual converted bytes. Native dialog acceptance remains outstanding. |
 | C5 | Library projections, search and counts | Open | Profile large notebooks |
 | C6 | Geometry, role mappings and deterministic helpers | In progress | Surface color-role mapping and setting-key sorting are shared; coordinate and notation-run helpers remain open. |
 | C7 | Public target rebasing and affinity | Settled | Position affinity is distinct from mark-boundary affinity; collapsed targets remain collapsed, including when given opposing boundary affinities. |
