@@ -26,6 +26,8 @@ const (
 	IconDocument     IconName = "file-text"
 	IconError        IconName = "circle-alert"
 	IconFolder       IconName = "folder"
+	IconGrip         IconName = "grip-vertical"
+	IconGripAcross   IconName = "grip-horizontal"
 	IconImage        IconName = "image"
 	IconImageOff     IconName = "image-off"
 	IconInbox        IconName = "inbox"
@@ -63,6 +65,8 @@ var AllIcons = [...]IconName{
 	IconDocument,
 	IconError,
 	IconFolder,
+	IconGrip,
+	IconGripAcross,
 	IconImage,
 	IconImageOff,
 	IconInbox,

@@ -1,7 +1,6 @@
 package documentview
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/editor"
@@ -107,10 +106,9 @@ func (e *Element) blockControls(c *ui.Context, bridge *Bridge, animate bool) {
 	unit := units[e.blocks.hovered]
 	scale := e.uiScale()
 	long, short, off := gripLong*scale, gripShort*scale, gripOff*scale
-	offset := e.TopInset - e.visibleScroll()
 	r := ui.Rect{
 		X: -off - short,
-		Y: unit.top + (min(e.Prose.LineHeight(), unit.bottom-unit.top)-long)/2 + offset,
+		Y: unit.top + (min(e.Prose.LineHeight(), unit.bottom-unit.top)-long)/2,
 		W: short, H: long,
 	}
 	label := "Move block"
@@ -118,10 +116,10 @@ func (e *Element) blockControls(c *ui.Context, bridge *Bridge, animate bool) {
 		// A table's grip is at its corner, where its rows' grips and its
 		// columns' meet.
 		box, _ := e.tableBox(unit.unit.Node)
-		r = ui.Rect{X: box.X - off - short, Y: box.Y - off - short + offset, W: short, H: short}
+		r = ui.Rect{X: box.X - off - short, Y: box.Y - off - short, W: short, H: short}
 		label = "Move table"
 	}
-	handle := e.grip(c, fmt.Sprintf("block-%d", unit.unit.Node), label, r, e.blocks.shown, ui.CursorGrab, animate)
+	handle := e.grip(c, "block-grip", label, r, e.blocks.shown, components.IconGrip, animate)
 	// A grip stays held until its press, and what it carries, lets go.
 	e.blocks.held = e.blocks.hovered
 	e.blocks.holding = handle.Pressed() || e.carry != nil && e.carry.kind == carryBlock

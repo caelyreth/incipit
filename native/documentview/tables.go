@@ -43,9 +43,9 @@ const (
 	tableReach  = 28
 	tableHold   = 56
 	tableBorder = 8
-	// gripLong and gripShort size a row's or column's grip, in DIPs at
-	// the default UI size, and gripOff sets it off the table.
-	gripLong, gripShort, gripOff = 18, 6, 6
+	// gripLong and gripShort size a grip, in DIPs at the default UI size,
+	// gripIcon its icon, and gripOff sets it off what it moves.
+	gripLong, gripShort, gripIcon, gripOff = 22, 16, 14, 4
 	// cornerSize is the corner's handle.
 	cornerSize = 10
 	// gapStride numbers a border gap by its table and its place, so two
@@ -636,14 +636,14 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 			e.control(box)
 			overColumn = overColumn || area.Hovered()
 		}
-		overNear = e.tableGrips(c, bridge, placed, offset, scale, animate) || overNear
+		overNear = e.tableGrips(c, bridge, placed, scale, animate) || overNear
 	}
 }
 
 // tableGrips places the grips of the row and column under the pointer,
 // and the table's corner, coming in as the pointer comes by the table. It
 // reports whether the pointer is on one.
-func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.PlacedTable, offset, scale float32, animate bool) bool {
+func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.PlacedTable, scale float32, animate bool) bool {
 	table := placed.Table
 	first := table.Node()
 	drag := e.tables.drag
@@ -669,11 +669,14 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 	long, short, off := gripLong*scale, gripShort*scale, gripOff*scale
 	over := false
 	grip := func(key, label string, r ui.Rect, kind tableDragKind, from int) {
-		cursor := ui.CursorGrab
-		if kind == dragCorner {
-			cursor = ui.CursorResizeNWSE
+		icon := components.IconGrip
+		switch kind {
+		case dragColumn:
+			icon = components.IconGripAcross
+		case dragCorner:
+			icon = ""
 		}
-		handle := e.grip(c, fmt.Sprintf("table-%d-%s", first, key), label, r, shown, cursor, animate)
+		handle := e.grip(c, fmt.Sprintf("table-%d-%s", first, key), label, r, shown, icon, animate)
 		now := c.Now()
 		over = over || handle.Hovered() || handle.Pressed()
 		// A grip stays held until its press, and what it carries, lets go.
@@ -686,45 +689,75 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 	}
 	if row >= 0 && row < len(placed.Rows) {
 		box := ui.Rect{
-			X: placed.Box.X - off - short, Y: placed.Rows[row] + (placed.Heights[row]-long)/2 + offset,
+			X: placed.Box.X - off - short, Y: placed.Rows[row] + (placed.Heights[row]-long)/2,
 			W: short, H: long,
 		}
-		grip(fmt.Sprintf("row-%d", row), fmt.Sprintf("Row %d", row+1), box, dragRow, row)
+		grip("row", fmt.Sprintf("Row %d", row+1), box, dragRow, row)
 	}
 	if column >= 0 && column < len(placed.Columns) {
 		box := ui.Rect{
 			// A column scrolled partly out of the room keeps its grip in it.
 			X: max(placed.Box.X, min(placed.Columns[column]+(placed.Widths[column]-long)/2, placed.Box.X+placed.Box.W-long)),
-			Y: placed.Box.Y - off - short + offset,
+			Y: placed.Box.Y - off - short,
 			W: long, H: short,
 		}
-		grip(fmt.Sprintf("column-%d", column), fmt.Sprintf("Column %d", column+1), box, dragColumn, column)
+		grip("column", fmt.Sprintf("Column %d", column+1), box, dragColumn, column)
 	}
 	size := cornerSize * scale
 	corner := ui.Rect{
-		X: placed.Box.X + placed.Box.W - size/2, Y: placed.Box.Y + placed.Box.H - size/2 + offset,
+		X: placed.Box.X + placed.Box.W - size/2, Y: placed.Box.Y + placed.Box.H - size/2,
 		W: size, H: size,
 	}
 	grip("corner", "Resize table", corner, dragCorner, 0)
 	return over
 }
 
-// grip places a handle over the page at r, in the element's space: a
-// pill that takes the accent under the pointer, as every grip of the page
-// does, a block's, a table's and its rows' and columns'.
-func (e *Element) grip(c *ui.Context, key, label string, r ui.Rect, shown float32, cursor ui.Cursor, animate bool) ui.Element {
-	handle := ui.ButtonBase(c.Key(key)).Label(label).
-		Absolute().Left(r.X).Top(r.Y).Width(r.W).Height(r.H).FocusRing(false).Opacity(shown)
+// grip places a handle over the page at r, in the page's content: its
+// icon on nothing at rest, as the app's quiet buttons are, a tint coming in
+// under the pointer and the accent as it is held. Every grip of the page
+// is one of these, a block's, a table's and its rows' and columns'; one
+// called up again by key glides there from where it was, and one that was
+// not there, or there out of sight, comes in where it is. The corner's,
+// which resizes rather than moves, is a knob without an icon.
+func (e *Element) grip(c *ui.Context, key, label string, r ui.Rect, shown float32, icon components.IconName, animate bool) ui.Element {
+	handle := ui.ButtonBase(c.Key(key)).Label(label).FocusRing(false).Opacity(shown)
+	offset := e.TopInset - e.visibleScroll()
+	if animate {
+		x := components.Follow(handle, "x", r.X, components.MotionNormal)
+		y := components.Follow(handle, "y", r.Y, components.MotionNormal)
+		if top := y + offset; top+r.H < 0 || top > e.lastHeight {
+			x, y = handle.Jump("x", r.X), handle.Jump("y", r.Y)
+		}
+		r.X, r.Y = x, y
+	}
+	r.Y += offset
+	handle.Absolute().Left(r.X).Top(r.Y).Width(r.W).Height(r.H)
 	e.control(r)
-	if cursor == ui.CursorGrab && handle.Pressed() {
+	held := handle.Pressed()
+	hover := components.HoverAmount(handle, handle.Hovered() || held, animate)
+	if icon == "" {
+		handle.Radius(min(r.W, r.H)/2).
+			Background(components.Blend(e.Theme.Surface.Elevated, e.Theme.Accent.Foreground, hover)).
+			Border(1, components.Blend(e.Theme.Border.Default, e.Theme.Accent.Foreground, hover)).
+			Shadow(0, 1, 4, 0, ui.Color{A: 255}.Alpha(0.2)).
+			Cursor(ui.CursorResizeNWSE)
+		return handle
+	}
+	cursor := ui.CursorGrab
+	if held {
 		cursor = ui.CursorGrabbing
 	}
-	hover := components.HoverAmount(handle, handle.Hovered() || handle.Pressed(), animate)
-	handle.Radius(min(r.W, r.H)/2).
-		Background(components.Blend(e.Theme.Surface.Elevated, e.Theme.Accent.Foreground, hover)).
-		Border(1, components.Blend(e.Theme.Border.Default, e.Theme.Accent.Foreground, hover)).
-		Shadow(0, 1, 4, 0, ui.Color{A: 255}.Alpha(0.2)).
-		Cursor(cursor)
+	ink := components.Blend(e.Theme.Icon.Muted, e.Theme.Icon.Default, hover)
+	if held || e.carry != nil {
+		ink = e.Theme.Accent.Foreground
+	}
+	metrics := theme.DefaultControls.Scaled(e.chromeSize())
+	handle.Radius(metrics.Radius).
+		Background(e.Theme.GhostElement.Hover.Alpha(hover)).
+		Cursor(cursor).
+		Children(func() {
+			ui.Icon(c, icon.SVG()).FontSize(gripIcon * e.uiScale()).TextColor(ink)
+		})
 	return handle
 }
 
