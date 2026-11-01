@@ -63,8 +63,13 @@ type carryLanding struct {
 	at   time.Time
 }
 
-// carryLand is how long a landing takes.
-const carryLand = components.MotionNormal
+// carryLand is how long a landing takes, and carryPart how softly the page
+// parts where a carry would land and closes where it no longer would: a
+// spring's tail is long, so it reads about as quick as the list's rows.
+const (
+	carryLand = components.MotionNormal
+	carryPart = components.MotionPanel
+)
 
 // apartKey names room the page opens where a carried thing would land, or
 // closes where one was: before slot among the page's blocks, or among
@@ -76,7 +81,7 @@ type apartKey struct {
 }
 
 // apartRoom is one such room: how far it opens, how far it shows open,
-// and whether it is where a carry would land, which shows its frame. jump
+// and whether it shows a frame, where a carry would land or did. jump
 // sets it open that far at once, as one is left behind by a move.
 type apartRoom struct {
 	target, shown float32
@@ -219,7 +224,8 @@ func (e *Element) followCarry(box ui.Element, animate bool) {
 		}
 		for key, room := range e.apart {
 			if room.frame && (key.kind != c.kind || key.slot != c.to) {
-				room.target, room.frame = 0, false
+				// The frame it leaves folds away with its room.
+				room.target = 0
 			}
 		}
 		if c.moves(c.to) {
@@ -235,7 +241,7 @@ func (e *Element) followCarry(box ui.Element, animate bool) {
 		}
 		room.shown = room.target
 		if animate {
-			room.shown = components.Follow(box, key, room.target, components.MotionQuick)
+			room.shown = components.Follow(box, key, room.target, carryPart)
 		}
 		if room.target == 0 && room.shown < 0.5 {
 			delete(e.apart, key)
@@ -275,10 +281,12 @@ func (e *Element) dropCarry(bridge *Bridge, back bool, now time.Time) {
 	e.focusPending = true
 	e.landing = &carryLanding{kind: c.kind, item: c.item, from: c.at, at: now}
 	for _, room := range e.apart {
-		if room.frame {
+		if room.frame && room.target > 0 {
 			// The copy lands in the frame's room: it goes at once.
-			room.target, room.shown, room.frame, room.jump = 0, 0, false, 0
+			room.target, room.shown, room.jump = 0, 0, 0
 		}
+		// Frames still folding away close bare under the landing.
+		room.frame = false
 	}
 	if back || !c.moves(c.to) || bridge == nil || bridge.Controller == nil {
 		return
