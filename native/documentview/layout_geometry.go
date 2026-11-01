@@ -14,6 +14,18 @@ type LayoutGeometry struct {
 	// YOffset is where the layout's top lies in the unscrolled viewport.
 	YOffset float32
 	ScrollY float32
+	// Caret is the caret geometry painted for the current layout snapshot.
+	// Paint and the native input method must share one presentation, including
+	// the hint position used by an empty figure caption.
+	Caret *CaretPresentation
+}
+
+// CaretPresentation is the painted caret geometry for one collapsed
+// selection. Rect uses the layout's unscrolled coordinates.
+type CaretPresentation struct {
+	Text      string
+	Selection controller.UTF16Range
+	Rect      controller.Rect
 }
 
 var _ controller.Geometry = LayoutGeometry{}
@@ -38,6 +50,12 @@ func (g LayoutGeometry) BoundsForRange(
 	)
 	if !ok {
 		return controller.Rect{}, range16, false
+	}
+	if g.Caret != nil && range16 == g.Caret.Selection &&
+		g.Caret.Text == text && range16.Empty() {
+		rect := g.Caret.Rect
+		rect.Y += g.YOffset - g.ScrollY
+		return rect, range16, true
 	}
 	rect, ok := g.Layout.BoundsForRange(aligned)
 	if !ok {

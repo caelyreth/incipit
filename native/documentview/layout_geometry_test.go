@@ -59,6 +59,20 @@ func TestLayoutGeometryAppliesTitleOffsetAndScroll(t *testing.T) {
 	if line.Y != shaped.Y+contentTop-scroll || line.H != shaped.H {
 		t.Fatalf("caret line = %#v", line)
 	}
+	geometry.Caret = &CaretPresentation{
+		Text:      text,
+		Selection: controller.UTF16Range{Start: 4, End: 4},
+		Rect:      controller.Rect{X: 13, Y: 29, W: 2, H: 18},
+	}
+	bounds, actual, ok := geometry.BoundsForRange(text, controller.UTF16Range{Start: 4, End: 4})
+	if !ok || actual != (controller.UTF16Range{Start: 4, End: 4}) ||
+		bounds != (controller.Rect{X: 13, Y: 29 + contentTop - scroll, W: 2, H: 18}) {
+		t.Fatalf("presented caret = %#v, %#v, %v", bounds, actual, ok)
+	}
+	if bounds, _, ok := geometry.BoundsForRange(text, controller.UTF16Range{Start: 0, End: 0}); !ok ||
+		bounds == geometry.Caret.Rect {
+		t.Fatal("presented caret leaked to another selection")
+	}
 	if _, _, ok := geometry.BoundsForRange("different", controller.UTF16Range{Start: 0, End: 1}); ok {
 		t.Fatal("stale geometry accepted different visible text")
 	}

@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"testing"
 	"time"
 
@@ -307,6 +308,16 @@ func TestAnEmptyCaptionHintsWhileTheCaretIsInIt(t *testing.T) {
 	tester.Frame()
 	if inked() == 0 {
 		t.Fatal("an empty caption shows no hint")
+	}
+	tester.Frame()
+	tester.Frame()
+	nativeCaret, ok := tester.TextCaret()
+	if !ok {
+		t.Fatal("native text caret is unavailable")
+	}
+	if math.Abs(float64(nativeCaret.X-element.drawnCaret.X)) > 1 ||
+		math.Abs(float64(nativeCaret.Y-element.drawnCaret.Y)) > 1 {
+		t.Fatalf("native caret %v differs from drawn caret %v", nativeCaret, element.drawnCaret)
 	}
 }
 

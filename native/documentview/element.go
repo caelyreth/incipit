@@ -57,26 +57,35 @@ type Element struct {
 	captions map[model.NodeID]motion.Spring
 	// announced is the figure last read out as it became the selection,
 	// and menuFigure the one a secondary click opened the menu of.
-	announced         model.NodeID
-	menuFigure        model.NodeID
-	scroll            float32
-	overscroll        scrollfx.Elastic
-	lastHeight        float32
-	manualUntil       time.Time
-	pointerAnchor     int
-	pointerHead       int
-	pointer           pointerPhase
-	lastWidth         float32
-	guides            Guides
-	focusPending      bool
-	current           *textlayout.Layout
-	placeholderLayout *ui.TextLayout
-	placeholderKey    placeholderKey
-	lastCaretY        float32
-	lastViewportH     float32
-	lastTypewriter    bool
-	drawnCaret        ui.Rect
-	mounted           bool
+	announced            model.NodeID
+	menuFigure           model.NodeID
+	scroll               float32
+	overscroll           scrollfx.Elastic
+	lastHeight           float32
+	manualUntil          time.Time
+	pointerAnchor        int
+	pointerHead          int
+	pointer              pointerPhase
+	lastWidth            float32
+	guides               Guides
+	focusPending         bool
+	current              *textlayout.Layout
+	placeholderLayout    *ui.TextLayout
+	placeholderKey       placeholderKey
+	lastCaretY           float32
+	lastViewportH        float32
+	lastTypewriter       bool
+	drawnCaret           ui.Rect
+	caretPresentationKey caretPresentationKey
+	mounted              bool
+}
+
+type caretPresentationKey struct {
+	text      string
+	selection controller.UTF16Range
+	reversed  bool
+	width     float32
+	height    float32
 }
 
 // pointerPhase follows one press. A press keeps the caret on its springs, so a
@@ -394,6 +403,10 @@ func (e *Element) caret(c *ui.Context) ui.Rect {
 	if !ok || bridge == nil || bridge.Controller == nil {
 		return ui.Rect{}
 	}
+	if e.caretPresentationKey == e.currentCaretKey(bridge.Controller) &&
+		e.drawnCaret.H > 0 {
+		return e.drawnCaret
+	}
 	selection := bridge.Controller.Selection()
 	bounds, _, ok := bridge.Controller.BoundsForRange(controller.UTF16Range{
 		Start: selection.Caret(),
@@ -404,6 +417,42 @@ func (e *Element) caret(c *ui.Context) ui.Rect {
 	}
 	rect := ui.Rect{X: bounds.X, Y: bounds.Y, W: bounds.W, H: bounds.H}
 	return rect
+}
+
+func (e *Element) currentCaretKey(controllerValue *controller.DocumentController) caretPresentationKey {
+	if e == nil || controllerValue == nil {
+		return caretPresentationKey{}
+	}
+	height := float32(0)
+	if e.current != nil {
+		height = e.current.Height()
+	}
+	selection := controllerValue.Selection()
+	return caretPresentationKey{
+		text:      controllerValue.Text(),
+		selection: selection.Range,
+		reversed:  selection.Reversed,
+		width:     e.lastWidth,
+		height:    height,
+	}
+}
+
+func (e *Element) caretPresentation(controllerValue *controller.DocumentController) *CaretPresentation {
+	if e == nil || controllerValue == nil || e.current == nil ||
+		e.drawnCaret.H <= 0 ||
+		e.caretPresentationKey != e.currentCaretKey(controllerValue) {
+		return nil
+	}
+	return &CaretPresentation{
+		Text:      controllerValue.Text(),
+		Selection: controllerValue.Selection().Range,
+		Rect: controller.Rect{
+			X: e.drawnCaret.X,
+			Y: e.drawnCaret.Y,
+			W: e.drawnCaret.W,
+			H: e.drawnCaret.H,
+		},
+	}
 }
 
 func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
@@ -502,8 +551,10 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	}
 	Paint(p, rect, state)
 	e.drawnCaret = state.DrawnCaret
+	e.caretPresentationKey = e.currentCaretKey(bridge.Controller)
 	bridge.Controller.SetGeometry(LayoutGeometry{
 		Layout: e.current, YOffset: e.TopInset, ScrollY: e.visibleScroll(),
+		Caret: e.caretPresentation(bridge.Controller),
 	})
 }
 
