@@ -67,12 +67,31 @@ func (p pictureIntake) Take(pictures []documentview.Incoming, place func([]edito
 	}()
 }
 
+func (a *AppState) takePictures(
+	title string,
+	operation documentview.ImageOperation,
+	pictures []documentview.Incoming,
+) {
+	started := operation.Take(pictures, func(shapes []editor.ImageShape) {
+		if err := operation.PlaceImages(shapes); err != nil {
+			a.fail(title, err)
+		}
+	})
+	if !started {
+		a.fail(title, documentview.ErrStaleImageOperation)
+	}
+}
+
 // chooseImages asks for picture files to put on the page.
 func (a *AppState) chooseImages() {
 	if a.Bridge == nil {
 		return
 	}
 	bridge, window := a.Bridge, a.mainWindow
+	operation, ok := bridge.BeginImageOperation()
+	if !ok {
+		return
+	}
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent:      window,
@@ -88,7 +107,7 @@ func (a *AppState) chooseImages() {
 		for _, path := range paths {
 			pictures = append(pictures, documentview.Incoming{Path: path, Name: filepath.Base(path)})
 		}
-		take := func() { bridge.TakeImages(pictures, bridge.PlaceImages) }
+		take := func() { a.takePictures("Couldn't add the picture", operation, pictures) }
 		if window == nil {
 			take()
 			return
@@ -206,6 +225,13 @@ func (h figureHost) RevealPicture(hash string) {
 // keeping its caption, words and how it is set.
 func (h figureHost) ReplacePicture(node model.NodeID) {
 	a := h.app
+	if a.Bridge == nil {
+		return
+	}
+	operation, ok := a.Bridge.BeginImageTarget(node)
+	if !ok {
+		return
+	}
 	window := a.mainWindow
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
@@ -218,20 +244,17 @@ func (h figureHost) ReplacePicture(node model.NodeID) {
 			return
 		}
 		replace := func() {
-			picture := documentview.Incoming{Path: paths[0], Name: filepath.Base(paths[0])}
-			bridge := a.Bridge
-			if bridge == nil {
-				return
-			}
-			bridge.TakeImages([]documentview.Incoming{picture}, func(shapes []editor.ImageShape) {
-				if len(shapes) == 0 || a.Bridge != bridge {
-					return
+			pictures := []documentview.Incoming{{
+				Path: paths[0], Name: filepath.Base(paths[0]),
+			}}
+			started := operation.Take(pictures, func(shapes []editor.ImageShape) {
+				if err := operation.ReplaceImage(shapes[0]); err != nil {
+					a.fail("Couldn't replace the picture", err)
 				}
-				kept := shapes[0]
-				_, _ = bridge.Controller.ShapeImage(node, func(shape *editor.ImageShape) {
-					shape.Media, shape.Width, shape.Height = kept.Media, kept.Width, kept.Height
-				})
 			})
+			if !started {
+				a.fail("Couldn't replace the picture", documentview.ErrStaleImageOperation)
+			}
 		}
 		if window == nil {
 			replace()
@@ -242,7 +265,19 @@ func (h figureHost) ReplacePicture(node model.NodeID) {
 }
 
 func (h figureHost) EditAlt(node model.NodeID, alt string) {
-	if h.app.AltText != nil {
-		h.app.AltText.Edit(node, alt)
+	a := h.app
+	if a.AltText == nil || a.Bridge == nil {
+		return
 	}
+	operation, ok := a.Bridge.BeginImageTarget(node)
+	if !ok {
+		return
+	}
+	a.altTextTarget = &altTextTarget{operation: operation, node: node}
+	a.AltText.Edit(node, alt)
+}
+
+type altTextTarget struct {
+	operation documentview.ImageOperation
+	node      model.NodeID
 }

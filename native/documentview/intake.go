@@ -1,12 +1,14 @@
 package documentview
 
 import (
+	"errors"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/engine/editor"
+	"github.com/caelyreth/neverland/engine/model"
 	"github.com/egoist/mygo/transfer"
 )
 
@@ -25,49 +27,175 @@ type Images interface {
 	Take(pictures []Incoming, place func([]editor.ImageShape))
 }
 
-// placementSnapshot identifies the document revision and session that an
-// asynchronous picture placement was started for. Media storage can outlive
-// the page that asked for it, so its callback must not write into a later
-// document snapshot.
-type placementSnapshot struct {
+// ErrStaleImageOperation reports that the page, revision, or image node an
+// asynchronous picture operation began with is no longer its target.
+var ErrStaleImageOperation = errors.New("the page changed before the picture was ready")
+
+// ImageOperation binds asynchronous picture work to the document state that
+// asked for it: its mounted page, controller, session, revision, selection,
+// and target node. The host supplies mounting through Bridge.Mounted. Work
+// performed through the operation rejects a stale target before changing any
+// page. Each successfully inserted picture retains its own editing history.
+type ImageOperation struct {
+	bridge     *Bridge
 	controller *controller.DocumentController
 	session    *editor.Session
 	revision   uint64
+	// caret is the insertion point captured before a dialog or intake.
+	caret int
+	// node and hasNode name a replacement or description target.
+	node    model.NodeID
+	hasNode bool
+	mounted func() bool
 }
 
-func (b *Bridge) placementSnapshot() (placementSnapshot, bool) {
-	if b == nil || b.Controller == nil || b.Images == nil {
-		return placementSnapshot{}, false
+// BeginImageOperation captures where a picture inserted later belongs,
+// before a dialog or asynchronous work can move the caret or switch pages.
+func (b *Bridge) BeginImageOperation() (ImageOperation, bool) {
+	if b == nil || b.Controller == nil {
+		return ImageOperation{}, false
+	}
+	return b.beginImageOperationAt(b.Controller.Selection().Caret())
+}
+
+func (b *Bridge) beginImageOperationAt(caret int) (ImageOperation, bool) {
+	if b == nil || b.detached || b.Controller == nil || caret < 0 {
+		return ImageOperation{}, false
 	}
 	session := b.Controller.Session()
 	if session == nil {
-		return placementSnapshot{}, false
+		return ImageOperation{}, false
 	}
-	return placementSnapshot{
+	return ImageOperation{
+		bridge:     b,
 		controller: b.Controller,
 		session:    session,
 		revision:   b.Controller.Runtime().Revision(),
+		caret:      caret,
+		mounted:    b.Mounted,
 	}, true
 }
 
-func (s placementSnapshot) current(b *Bridge) bool {
-	return b != nil && b.Controller == s.controller &&
-		b.Controller.Session() == s.session &&
-		b.Controller.Runtime().Revision() == s.revision
+// BeginImageTarget captures an image node for a delayed replacement or
+// description. Node IDs are page-local, so later work uses this operation's
+// controller rather than whichever page happens to be mounted then.
+func (b *Bridge) BeginImageTarget(node model.NodeID) (ImageOperation, bool) {
+	operation, ok := b.BeginImageOperation()
+	if !ok {
+		return ImageOperation{}, false
+	}
+	current, ok := operation.controller.Runtime().Snapshot().Document().Node(node)
+	if !ok {
+		return ImageOperation{}, false
+	}
+	if _, ok := editor.ImageShapeOf(current); !ok {
+		return ImageOperation{}, false
+	}
+	operation.node, operation.hasNode = node, true
+	return operation, true
 }
 
-// TakeImages starts an asynchronous picture intake only if its eventual
-// placement still belongs to the same document revision.
-func (b *Bridge) TakeImages(pictures []Incoming, place func([]editor.ImageShape)) {
-	snapshot, ok := b.placementSnapshot()
-	if !ok {
-		return
+// Current reports whether the operation still names the same mounted page
+// and untouched document revision.
+func (operation ImageOperation) Current() bool {
+	if operation.bridge == nil || operation.controller == nil || operation.session == nil {
+		return false
 	}
-	b.Images.Take(pictures, func(shapes []editor.ImageShape) {
-		if snapshot.current(b) {
+	if operation.bridge.detached || operation.bridge.Controller != operation.controller ||
+		operation.controller.Session() != operation.session ||
+		operation.controller.Runtime().Revision() != operation.revision {
+		return false
+	}
+	return operation.mounted == nil || operation.mounted()
+}
+
+// Take starts picture intake for this operation. The callback runs when
+// media storage finishes; its caller applies the result through this same
+// operation, which checks ownership again.
+func (operation ImageOperation) Take(
+	pictures []Incoming,
+	place func([]editor.ImageShape),
+) bool {
+	if !operation.Current() || operation.bridge.Images == nil {
+		return false
+	}
+	operation.bridge.Images.Take(pictures, func(shapes []editor.ImageShape) {
+		if len(shapes) > 0 {
 			place(shapes)
 		}
 	})
+	return true
+}
+
+func (operation ImageOperation) selectTarget() error {
+	if !operation.Current() {
+		return ErrStaleImageOperation
+	}
+	return operation.controller.SetSelection(controller.UTF16Range{
+		Start: operation.caret,
+		End:   operation.caret,
+	})
+}
+
+// PlaceImages puts kept pictures at the operation's original caret.
+func (operation ImageOperation) PlaceImages(shapes []editor.ImageShape) error {
+	if len(shapes) == 0 {
+		return nil
+	}
+	if err := operation.selectTarget(); err != nil {
+		return err
+	}
+	return operation.bridge.placeImages(shapes)
+}
+
+// ReplaceImage changes the operation's captured image block's picture.
+func (operation ImageOperation) ReplaceImage(shape editor.ImageShape) error {
+	if !operation.hasNode || !operation.Current() {
+		return ErrStaleImageOperation
+	}
+	_, err := operation.controller.ShapeImage(operation.node, func(current *editor.ImageShape) {
+		current.Media, current.Width, current.Height = shape.Media, shape.Width, shape.Height
+	})
+	return err
+}
+
+// DescribeImage changes the operation's captured image block's alt text.
+func (operation ImageOperation) DescribeImage(alt string) error {
+	if !operation.hasNode || !operation.Current() {
+		return ErrStaleImageOperation
+	}
+	_, err := operation.controller.ShapeImage(operation.node, func(shape *editor.ImageShape) {
+		shape.Alt = alt
+	})
+	return err
+}
+
+// TakeImages starts an asynchronous picture intake at the current caret.
+// New dialog-driven work should retain BeginImageOperation's value across the
+// dialog instead, so the location does not follow a later caret move.
+func (b *Bridge) TakeImages(pictures []Incoming, place func([]editor.ImageShape)) {
+	if b == nil || b.Images == nil {
+		return
+	}
+	operation, ok := b.BeginImageOperation()
+	if !ok {
+		return
+	}
+	if !operation.Take(pictures, func(shapes []editor.ImageShape) {
+		if err := operation.selectTarget(); err != nil {
+			b.reportImageError(err)
+			return
+		}
+		place(shapes)
+	}) {
+		b.reportImageError(ErrStaleImageOperation)
+	}
+}
+
+func (b *Bridge) reportImageError(err error) {
+	if err != nil && b != nil && b.ImageError != nil {
+		b.ImageError(err)
+	}
 }
 
 // pictureFormats are what a page takes as pictures from the clipboard or
@@ -147,22 +275,30 @@ func clipboardPictures(services Services) []Incoming {
 // PlaceImages puts kept pictures on the page in order, after the caret's
 // block, the caret going on below the last.
 func (b *Bridge) PlaceImages(shapes []editor.ImageShape) {
+	operation, ok := b.BeginImageOperation()
+	if ok {
+		_ = operation.PlaceImages(shapes)
+	}
+}
+
+func (b *Bridge) placeImages(shapes []editor.ImageShape) error {
 	if b == nil || b.Controller == nil {
-		return
+		return nil
 	}
 	for index, shape := range shapes {
 		// Each after the one before: the caret, below it, steps back onto
 		// its line.
 		if index > 0 {
 			caret := b.Controller.Selection().Caret() - 1
-			if b.Controller.SetSelection(controller.UTF16Range{Start: caret, End: caret}) != nil {
-				return
+			if err := b.Controller.SetSelection(controller.UTF16Range{Start: caret, End: caret}); err != nil {
+				return err
 			}
 		}
 		if _, err := b.Controller.InsertImage(shape); err != nil {
-			return
+			return err
 		}
 	}
+	return nil
 }
 
 // dropPictures takes the pictures a drop brings, placed after the block at
@@ -175,20 +311,13 @@ func (b *Bridge) dropPictures(data transfer.Data, offset int) {
 	if len(pictures) == 0 {
 		return
 	}
-	snapshot, ok := b.placementSnapshot()
+	operation, ok := b.beginImageOperationAt(offset)
 	if !ok {
 		return
 	}
-	b.Images.Take(pictures, func(shapes []editor.ImageShape) {
-		if !snapshot.current(b) {
-			return
-		}
-		if len(shapes) == 0 {
-			return
-		}
-		if b.Controller.SetSelection(controller.UTF16Range{Start: offset, End: offset}) != nil {
-			return
-		}
-		b.PlaceImages(shapes)
-	})
+	if !operation.Take(pictures, func(shapes []editor.ImageShape) {
+		b.reportImageError(operation.PlaceImages(shapes))
+	}) {
+		b.reportImageError(ErrStaleImageOperation)
+	}
 }

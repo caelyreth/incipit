@@ -17,7 +17,7 @@ than force unrelated operations through a generic abstraction.
 | ID | Concern | Status | Notes |
 | --- | --- | --- | --- |
 | A1 | Page-scoped interactions and semantic caches | Settled | One lifecycle boundary resets page-owned state and detaches native input; control identity and block units follow the page. Regression tests cover resize, stale units and late callbacks. Native IME page-switch acceptance remains outstanding. |
-| A2 | Async image operation identity and targets | In progress | `codex/audit-async` worktree |
+| A2 | Async image operation identity and targets | Settled | Image operations capture page, session, revision, caret and optional node; detached/stale operations report failure. Delayed-intake, remount, colliding-ID, history and autosave regressions are covered. Native file-dialog acceptance remains outstanding; unused stored media can remain until the existing sweep. |
 | A3 | Command inventory and entry-point routing | In progress | `codex/audit-routing` worktree |
 | A4 | IME preview surface metadata | Settled | A shared range transform preserves table, figure and room metadata; tests include empty/cell-end composition and candidate updates. Cross-cell composition remains unsupported by the editor; native IME acceptance remains outstanding. |
 | A5 | Formatting coverage and mark identity | In progress | `codex/audit-marks` worktree |

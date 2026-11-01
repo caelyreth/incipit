@@ -35,13 +35,20 @@ type Bridge struct {
 	// Images keeps the pictures a paste or a drop brings; without it the
 	// page takes text alone.
 	Images Images
+	// ImageError reports a picture operation that could not be applied.
+	ImageError func(error)
+	// Mounted reports whether this bridge's page is still the host's mounted
+	// target. Picture operations retain the predicate that was current when
+	// their work began.
+	Mounted func() bool
 	// Figures does what a figure's menu asks that the page cannot.
 	Figures FigureHost
 	// Cells are the cells of a table selected whole, if any are.
-	Cells  *CellRange
-	Now    func() time.Time
-	native *NativeTextClient
-	now    time.Time
+	Cells    *CellRange
+	Now      func() time.Time
+	native   *NativeTextClient
+	detached bool
+	now      time.Time
 }
 
 var (
@@ -81,7 +88,11 @@ func (b *Bridge) textClient() ui.TextInputClient {
 // Detach prevents late native text callbacks from editing a page that is no
 // longer mounted. A newly mounted page gets its own bridge and client.
 func (b *Bridge) Detach() {
-	if b != nil && b.native != nil {
+	if b == nil {
+		return
+	}
+	b.detached = true
+	if b.native != nil {
 		b.native.Controller = nil
 	}
 }
@@ -233,7 +244,13 @@ func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 		return nil
 	case keymap.ClipboardPaste:
 		if pictures := clipboardPictures(b.Services); len(pictures) > 0 && b.Images != nil {
-			b.TakeImages(pictures, b.PlaceImages)
+			if operation, ok := b.BeginImageOperation(); ok {
+				if !operation.Take(pictures, func(shapes []editor.ImageShape) {
+					b.reportImageError(operation.PlaceImages(shapes))
+				}) {
+					b.reportImageError(ErrStaleImageOperation)
+				}
+			}
 			return nil
 		}
 		text := b.Services.ReadClipboard()

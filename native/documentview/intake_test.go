@@ -1,6 +1,7 @@
 package documentview
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -119,5 +120,63 @@ func TestAnAsyncDropDoesNotWriteIntoAnotherRevision(t *testing.T) {
 	images.place([]editor.ImageShape{{Media: "a", Width: 4, Height: 3}})
 	if got := bridge.Controller.Text(); got != "changedone\ntwo" {
 		t.Fatalf("an async drop wrote into a newer revision: %q", got)
+	}
+}
+
+func TestAnAsyncDropKeepsTheCaretWhereItBegan(t *testing.T) {
+	bridge, _ := bridgeFixture(t, "one\ntwo")
+	images := &pendingImages{}
+	bridge.Images = images
+	files, _ := transfer.FileData("/tmp/a.png")
+	bridge.dropPictures(files, 1)
+	if images.place == nil {
+		t.Fatal("the drop did not start its picture intake")
+	}
+	if err := bridge.Controller.SetSelection(controller.UTF16Range{Start: 4, End: 4}); err != nil {
+		t.Fatal(err)
+	}
+	images.place([]editor.ImageShape{{Media: "a", Width: 4, Height: 3}})
+	if got := bridge.Controller.Text(); got != "one\n\uFFFC\ntwo" {
+		t.Fatalf("a moved caret changed the drop target: %q", got)
+	}
+}
+
+func TestAnAsyncDropStopsWhenItsPageIsNoLongerMounted(t *testing.T) {
+	bridge, _ := bridgeFixture(t, "one\ntwo")
+	images := &pendingImages{}
+	bridge.Images = images
+	active := true
+	bridge.Mounted = func() bool { return active }
+	files, _ := transfer.FileData("/tmp/a.png")
+	bridge.dropPictures(files, 1)
+	if images.place == nil {
+		t.Fatal("the drop did not start its picture intake")
+	}
+	active = false
+	images.place([]editor.ImageShape{{Media: "a", Width: 4, Height: 3}})
+	if got := bridge.Controller.Text(); got != "one\ntwo" {
+		t.Fatalf("an async drop wrote into a parked page: %q", got)
+	}
+}
+
+func TestAnAsyncDropStopsWhenItsBridgeIsDetached(t *testing.T) {
+	bridge, _ := bridgeFixture(t, "one\ntwo")
+	document := bridge.Controller
+	images := &pendingImages{}
+	bridge.Images = images
+	var reported error
+	bridge.ImageError = func(err error) { reported = err }
+	files, _ := transfer.FileData("/tmp/a.png")
+	bridge.dropPictures(files, 1)
+	if images.place == nil {
+		t.Fatal("the drop did not start its picture intake")
+	}
+	bridge.Detach()
+	images.place([]editor.ImageShape{{Media: "a", Width: 4, Height: 3}})
+	if got := document.Text(); got != "one\ntwo" {
+		t.Fatalf("an async drop used a detached bridge: %q", got)
+	}
+	if !errors.Is(reported, ErrStaleImageOperation) {
+		t.Fatalf("detached drop reported %v", reported)
 	}
 }

@@ -40,6 +40,9 @@ type AppState struct {
 	Element *documentview.Element
 	Bridge  *documentview.Bridge
 	Session *sheetSession
+	// altTextTarget binds the open description dialog to the image and page
+	// that opened it.
+	altTextTarget *altTextTarget
 	// Notices tells the user what happened apart from what they did, as
 	// toasts at the window's foot.
 	Notices        *notices.Center
@@ -322,11 +325,23 @@ func (a *AppState) ActiveSession() appsettings.Session {
 
 func (a *AppState) mountBridge(c *ui.Context) {
 	services := mygoServices{services: c.Services()}
+	session := a.Session
 	a.Bridge = documentview.NewBridge(a.Session.Document(), services, time.Now)
+	a.Bridge.Mounted = func() bool { return a.sessionMounted(session) }
 	a.Bridge.External = a.executeExternalCommand
 	a.Bridge.Images = pictureIntake{app: a}
+	a.Bridge.ImageError = func(err error) { a.fail("Couldn't add the picture", err) }
 	a.Bridge.Figures = figureHost{app: a}
 	a.Element.Input = a.Bridge
+}
+
+func (a *AppState) sessionMounted(session *sheetSession) bool {
+	if a == nil || a.Workspace == nil || session == nil ||
+		a.Session != session || a.sessions[session.page] != session {
+		return false
+	}
+	mounted, ok := a.Workspace.Mounted()
+	return ok && mounted == session
 }
 
 // executeExternalCommand routes policy-owned host commands through the same
@@ -681,8 +696,16 @@ func (a *AppState) View(c *ui.Context) {
 		}
 	}
 	a.AltText.View(c, semantic, animate)
-	if node, alt, ok := a.AltText.ConsumeChoice(); ok && a.Bridge != nil {
-		_, _ = a.Bridge.Controller.ShapeImage(node, func(shape *editor.ImageShape) { shape.Alt = alt })
+	if node, alt, ok := a.AltText.ConsumeChoice(); ok {
+		target := a.altTextTarget
+		a.altTextTarget = nil
+		if target == nil || target.node != node {
+			a.fail("Couldn't change the image", documentview.ErrStaleImageOperation)
+		} else if err := target.operation.DescribeImage(alt); err != nil {
+			a.fail("Couldn't change the image", err)
+		}
+	} else if !a.AltText.Open {
+		a.altTextTarget = nil
 	}
 	a.Viewer.View(c, semantic, animate)
 	// What the shell reads off the page, its title and counts, is read
