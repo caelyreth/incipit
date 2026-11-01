@@ -71,7 +71,7 @@ func TestSelectAllDoesNotTakePrecedingClosingNotation(t *testing.T) {
 	}
 }
 
-func TestSelectAllBlockScopeSkipsEmptyMarkNotation(t *testing.T) {
+func TestSelectAllBlockScopeIncludesInlineMarkNotation(t *testing.T) {
 	session, _ := newSessionFixture(t, "abc", false)
 	if _, err := session.ReplaceSelection("*", kernel.EventOriginTyping); err != nil {
 		t.Fatal(err)
@@ -80,7 +80,43 @@ func TestSelectAllBlockScopeSkipsEmptyMarkNotation(t *testing.T) {
 		t.Fatalf("projection = %q", got)
 	}
 	run(t, session, TextSelectAll)
-	if got := selectedText(t, session); got != "abc" {
+	if got := selectedText(t, session); got != "**abc" {
 		t.Fatalf("block scope = %q", got)
+	}
+	if _, err := session.ReplaceSelection("", kernel.EventOriginSemantic); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.Projection().Text(); got != "" {
+		t.Fatalf("deleting the selected ghost block left %q", got)
+	}
+}
+
+func TestSelectAllBlockScopeIncludesInlineNotationAroundText(t *testing.T) {
+	for _, test := range []struct {
+		text string
+		from int
+		to   int
+		want string
+	}{
+		{"hello", 0, 5, "*hello*"},
+		{"hello world", 0, 5, "*hello* world"},
+	} {
+		t.Run(test.text, func(t *testing.T) {
+			session := newMarkedSession(t, test.text, markSpec{
+				start: model.UTF16Offset(test.from),
+				end:   model.UTF16Offset(test.to),
+				level: 1,
+			})
+			run(t, session, TextSelectAll)
+			if got := selectedText(t, session); got != test.want {
+				t.Fatalf("block scope = %q, want %q", got, test.want)
+			}
+			if _, err := session.ReplaceSelection("", kernel.EventOriginSemantic); err != nil {
+				t.Fatal(err)
+			}
+			if got := session.Projection().Text(); got != "" {
+				t.Fatalf("deleting the selected inline block left %q", got)
+			}
+		})
 	}
 }

@@ -323,10 +323,9 @@ func TestSelectAllStepsOutByScope(t *testing.T) {
 	}
 }
 
-// Generated notation belongs to the block whose text it brackets even when
-// the range Select All chooses leaves that notation out. A caret past an
-// inline mark's closer is still in its block, and in every group that
-// contains that block.
+// Generated inline notation belongs to the block whose text it brackets.
+// A caret past an inline mark's closer still starts in its block, so Select
+// All includes that notation before widening to the group and page.
 func TestSelectAllFromGeneratedNotationKeepsSemanticScope(t *testing.T) {
 	steps := func(t *testing.T, session *Session, caret model.UTF16Offset, want ...string) {
 		t.Helper()
@@ -350,7 +349,7 @@ func TestSelectAllFromGeneratedNotationKeepsSemanticScope(t *testing.T) {
 		session := newMarkedSession(t, "inline emphasis", markSpec{start: 0, end: 15, level: 1})
 		page := session.Projection().Text()
 		steps(t, session, model.UTF16Offset(strings.LastIndex(page, "*")+1),
-			"inline emphasis", page)
+			page, page)
 	})
 
 	t.Run("list item", func(t *testing.T) {
@@ -372,7 +371,7 @@ func TestSelectAllFromGeneratedNotationKeepsSemanticScope(t *testing.T) {
 		session := sessionFor(t, document, blocks[0])
 		page := session.Projection().Text()
 		steps(t, session, model.UTF16Offset(strings.Index(page, "\n")),
-			"alpha", "- *alpha*\n- beta", page)
+			"*alpha*", "- *alpha*\n- beta", page)
 	})
 }
 

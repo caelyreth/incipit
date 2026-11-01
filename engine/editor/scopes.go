@@ -54,7 +54,7 @@ func (s *Session) selectionScopes() []selectionScope {
 		firstSelected, lastSelected = lastSelected, firstSelected
 	}
 	scopes := make([]selectionScope, 0, 4)
-	if text, ok := blockProjectedRange(p, blocks[index], true); ok {
+	if text, ok := blockProjectedRange(p, blocks[index], blockExtentInline); ok {
 		scope := selectionScope{
 			range16:    text,
 			firstBlock: index,
@@ -64,8 +64,8 @@ func (s *Session) selectionScopes() []selectionScope {
 		scopes = append(scopes, scope)
 	}
 	for _, run := range groupRuns(blocks, index) {
-		first, firstOK := blockProjectedRange(p, blocks[run[0]], false)
-		last, lastOK := blockProjectedRange(p, blocks[run[1]], false)
+		first, firstOK := blockProjectedRange(p, blocks[run[0]], blockExtentAll)
+		last, lastOK := blockProjectedRange(p, blocks[run[1]], blockExtentAll)
 		if firstOK && lastOK {
 			scope := selectionScope{
 				range16:    model.NewUTF16Range(first.Start, last.End),
@@ -82,27 +82,32 @@ func (s *Session) selectionScopes() []selectionScope {
 	return scopes
 }
 
-// blockProjectedRange is a block's projected extent. Semantic text scopes
-// take only semantic segments, while group scopes take the block's notation
-// and object too. Neither reads a neighbor's generated boundary.
+// blockExtent is how much of one block a selection scope includes.
+type blockExtent uint8
+
+const (
+	// blockExtentInline keeps inline notation with its text, but leaves the
+	// block's structural notation to the enclosing group or page.
+	blockExtentInline blockExtent = iota
+	// blockExtentAll includes structural notation and objects as well.
+	blockExtentAll
+)
+
+// blockProjectedRange is a block's projected extent at one scope level.
+// Inline notation belongs to the block's local scope; structural notation
+// belongs only once selection widens to its group or page.
 func blockProjectedRange(
 	p *projection.Projection,
 	block *model.Node,
-	textOnly bool,
+	extent blockExtent,
 ) (model.UTF16Range, bool) {
-	if textOnly {
-		if text, ok := projectedSegments(p, block, true, false); ok {
-			return text, true
-		}
-		return projectedSegments(p, block, true, true)
-	}
-	return projectedSegments(p, block, false, false)
+	return projectedSegments(p, block, extent)
 }
 
 func projectedSegments(
 	p *projection.Projection,
 	block *model.Node,
-	textOnly, emptyOnly bool,
+	extent blockExtent,
 ) (model.UTF16Range, bool) {
 	start, end, found := model.UTF16Offset(0), model.UTF16Offset(0), false
 	for _, segment := range p.Segments() {
@@ -110,15 +115,16 @@ func projectedSegments(
 		if !ok || owner != block.ID() {
 			continue
 		}
-		if textOnly {
-			if _, ok := segment.SemanticTarget(); !ok {
+		if extent == blockExtentInline {
+			if target, ok := segment.AttributeTarget(); ok {
+				if !MarkerKeyIsInline(target.Key()) {
+					continue
+				}
+			} else if _, ok := segment.SemanticTarget(); !ok {
 				continue
 			}
 		}
 		span := segment.ProjectedRange()
-		if emptyOnly != span.Empty() {
-			continue
-		}
 		if !found {
 			start, found = span.Start, true
 		}
