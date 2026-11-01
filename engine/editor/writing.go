@@ -250,6 +250,9 @@ func (s blockShape) opensLine() bool {
 // blockNotation is the notation a block opens with, and the fence it closes
 // with. ordinal is an ordered item's number.
 func blockNotation(shape blockShape, ordinal int) (open, close string) {
+	if shape.atomic() {
+		return surface.FigureObject, ""
+	}
 	switch shape.kind {
 	case HeadingNode:
 		return strings.Repeat("#", shape.level) + " ", ""
@@ -263,8 +266,6 @@ func blockNotation(shape blockShape, ordinal int) (open, close string) {
 		return "```" + shape.info + "\n", "\n```"
 	case RuleNode:
 		return "---", ""
-	case ImageNode:
-		return surface.FigureObject, ""
 	}
 	return "", ""
 }

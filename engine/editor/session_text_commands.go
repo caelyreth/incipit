@@ -64,7 +64,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		return outcome.Outcome, err
 	}
 	if command == TextBackspace || command == TextDelete {
-		if outcome, guarded, err := s.guardFigure(command == TextBackspace); guarded || err != nil {
+		if outcome, guarded, err := s.guardAtom(command == TextBackspace); guarded || err != nil {
 			return outcome, err
 		}
 	}

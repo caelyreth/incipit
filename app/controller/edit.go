@@ -3,13 +3,11 @@ package controller
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
-	"github.com/caelyreth/neverland/engine/surface"
 )
 
 // Replace performs one projected edit in an optional native range. A nil
@@ -79,7 +77,7 @@ func (c *DocumentController) SelectedText() (string, error) {
 	if selection.Empty() {
 		return "", nil
 	}
-	aligned, bytes, ok := model.AlignUTF16RangeForNativeQuery(
+	aligned, _, ok := model.AlignUTF16RangeForNativeQuery(
 		c.text,
 		model.NewUTF16Range(
 			model.UTF16Offset(selection.Start),
@@ -92,8 +90,9 @@ func (c *DocumentController) SelectedText() (string, error) {
 	if int(aligned.Start) != selection.Start || int(aligned.End) != selection.End {
 		return "", c.fail(fmt.Errorf("%w: selection does not align to text", ErrInvalidUTF16Range))
 	}
-	// The character a picture stands on is no text of its own.
-	return strings.ReplaceAll(c.text[int(bytes.Start):int(bytes.End)], surface.FigureObject, ""), nil
+	// The page's text as a reader takes it: an atomic block's object is
+	// no text.
+	return c.session.ReadableText(aligned)
 }
 
 // SelectSemantic installs a version-valid semantic selection.

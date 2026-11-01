@@ -165,7 +165,7 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 		drawFigure(p, box, radius, state, bitmap, picture, track.shown.Value())
 		// A picture is in a selection that takes the character it stands
 		// on, whether or not its caption is taken too.
-		if covers(selection, model.NewUTF16Range(figure.At, figure.At+1)) && !figureSelected(figure, selection) {
+		if covers(selection, figure.Object()) && !figureSelected(figure, selection) {
 			p.Fill(box, state.Theme.Prose.Selection.Alpha(0.5*state.Motion.SelectionOpacity()), radius)
 		}
 		if alpha := track.ring.Value(); alpha > 0.001 {
@@ -222,7 +222,7 @@ func drawFigure(
 // captionHinted reports whether a figure's caption shows its hint: it is
 // empty, and the caret is in it.
 func captionHinted(figure textlayout.PlacedFigure, selection model.UTF16Range) bool {
-	return figure.Line.Len() == 1 && captionCaret(figure.At, selection)
+	return figure.CaptionText().Empty() && captionCaret(figure.Figure, selection)
 }
 
 // captionHint is an empty caption's hint, in the caption's face, and

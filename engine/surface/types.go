@@ -95,6 +95,17 @@ type Figure struct {
 // is the figure's whether or not it has a caption.
 const FigureObject = "\uFFFC"
 
+// Object is the range of the character a figure stands on, the start of
+// its line.
+func (f Figure) Object() model.UTF16Range {
+	return model.NewUTF16Range(f.At, f.CaptionStart())
+}
+
+// CaptionStart is where a figure's caption starts, past its object.
+func (f Figure) CaptionStart() model.UTF16Offset {
+	return f.At + model.UTF16Offset(model.StringLenUTF16(FigureObject))
+}
+
 // FigureAlign is where a figure narrower than the column stands.
 type FigureAlign uint8
 

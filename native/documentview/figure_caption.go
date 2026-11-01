@@ -35,7 +35,7 @@ func (e *Element) captionedFlow(flow *surface.Flow, selection model.UTF16Range, 
 	for index := range figures {
 		figure := &figures[index]
 		open := figure.Caption * captionScale
-		if captionCaret(figure.At, selection) || selection == model.NewUTF16Range(figure.At, figure.At+1) {
+		if captionCaret(*figure, selection) || selection == figure.Object() {
 			open = captionScale
 		}
 		spring, known := e.captions[figure.Node]
@@ -55,8 +55,8 @@ func (e *Element) captionedFlow(flow *surface.Flow, selection model.UTF16Range, 
 	return captioned, moving
 }
 
-// captionCaret reports whether the caret is in the caption of the figure
-// whose line starts at at, past the character its picture stands on.
-func captionCaret(at model.UTF16Offset, selection model.UTF16Range) bool {
-	return selection.Empty() && selection.Start == at+1
+// captionCaret reports whether the caret is at the start of a figure's
+// caption, as it is in one with none.
+func captionCaret(figure surface.Figure, selection model.UTF16Range) bool {
+	return selection.Empty() && selection.Start == figure.CaptionStart()
 }

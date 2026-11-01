@@ -1,6 +1,8 @@
 package textlayout
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/model"
@@ -146,6 +148,52 @@ func TestRowsStepAcrossAFigure(t *testing.T) {
 		}
 		if shown != (caption == 1) {
 			t.Fatalf("caption %v: the caption's row shows selected: %v", caption, shown)
+		}
+	}
+}
+
+// From every row of a page, Up and Down step exactly one row, across
+// wrapped lines, figures, and captions open or closed alike.
+func TestUpAndDownStepOneRowFromEveryRow(t *testing.T) {
+	long := "a paragraph long enough to wrap across more than one row of the narrow column"
+	text := "one\n" + long + "\n￼\n￼caption\nend"
+	figureAt := func(line int) model.UTF16Offset {
+		return model.UTF16Offset(len([]rune(strings.Join(strings.Split(text, "\n")[:line], "\n"))) + 1)
+	}
+	flow, err := testFlow(t, text, 0).WithFigures([]surface.Figure{
+		{At: figureAt(2), Node: 1, Media: "m", Width: 200, Height: 100, Caption: 0},
+		{At: figureAt(3), Node: 2, Media: "m", Width: 200, Height: 100, Caption: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout := NewCache().Update(flow, 240, testStyle())
+	rowOf := func(offset model.UTF16Offset) float32 {
+		line, ok := layout.CaretLine(offset)
+		if !ok {
+			t.Fatalf("no row at %d", offset)
+		}
+		return line.Y
+	}
+	end := model.UTF16Offset(len([]rune(text)))
+	var rows []float32
+	for offset := model.UTF16Offset(0); offset <= end; offset++ {
+		if row := rowOf(offset); !slices.Contains(rows, row) {
+			rows = append(rows, row)
+		}
+	}
+	slices.Sort(rows)
+	if len(rows) < 7 {
+		t.Fatalf("rows = %v: the page did not wrap or lost a line", rows)
+	}
+	for offset := model.UTF16Offset(0); offset <= end; offset++ {
+		row := slices.Index(rows, rowOf(offset))
+		x := layout.Caret(offset).X
+		if down := slices.Index(rows, rowOf(layout.RowNear(offset, 1, x))); row < len(rows)-1 && down != row+1 {
+			t.Errorf("Down from %d, row %d, reached row %d", offset, row, down)
+		}
+		if up := slices.Index(rows, rowOf(layout.RowNear(offset, -1, x))); up != max(0, row-1) {
+			t.Errorf("Up from %d, row %d, reached row %d", offset, row, up)
 		}
 	}
 }

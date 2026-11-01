@@ -96,6 +96,12 @@ type PlacedFigure struct {
 	Line model.UTF16Range
 }
 
+// CaptionText is the range of a figure's caption, past its object to its
+// line's end, empty while it has none.
+func (f PlacedFigure) CaptionText() model.UTF16Range {
+	return model.NewUTF16Range(f.CaptionStart(), f.Line.End)
+}
+
 // Figures are the figures the layout sets, in order.
 func (l *Layout) Figures() []PlacedFigure {
 	if l == nil {

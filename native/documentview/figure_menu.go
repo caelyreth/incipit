@@ -2,7 +2,6 @@ package documentview
 
 import (
 	"runtime"
-	"strings"
 
 	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/engine/editor"
@@ -76,7 +75,7 @@ func (e *Element) contextMenu(m *ui.Menu) {
 	}
 	m.Separator()
 	if figure.Caption == 0 && m.Item("Add Caption").Chosen() {
-		caption := int(figure.At) + 1
+		caption := int(figure.CaptionStart())
 		_ = bridge.Controller.SetSelection(controller.UTF16Range{Start: caption, End: caption})
 	}
 	if m.Item("Edit Alt Text…").Chosen() {
@@ -110,22 +109,11 @@ func (b *Bridge) figureSelection() (surface.Figure, bool) {
 	if !ok {
 		return surface.Figure{}, false
 	}
-	text := b.Controller.Text()
-	start, _ := b.textOffset(selection.Start)
-	end := len(text)
-	if index := strings.IndexByte(text[start:], '\n'); index >= 0 {
-		end = start + index
-	}
-	if selection.End != selection.Start+model.StringLenUTF16(text[start:end]) {
+	line, ok := b.Controller.Session().BlockRange(figure.Node)
+	if !ok || line != model.NewUTF16Range(model.UTF16Offset(selection.Start), model.UTF16Offset(selection.End)) {
 		return surface.Figure{}, false
 	}
 	return figure, true
-}
-
-// textOffset is the byte offset of a UTF-16 offset in the page's text.
-func (b *Bridge) textOffset(offset int) (int, bool) {
-	byteOffset, ok := model.UTF16OffsetToByte(b.Controller.Text(), model.UTF16Offset(offset))
-	return int(byteOffset), ok
 }
 
 // copyFigure copies the selected figure's picture, when the selection is

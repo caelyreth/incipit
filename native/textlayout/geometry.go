@@ -65,14 +65,14 @@ func (l *Layout) RowNear(offset model.UTF16Offset, direction int, x float32) mod
 	row := paragraph.layout.Caret(local)
 	_, height := paragraph.layout.Size()
 	if y := row.Y + row.H/2 + float32(direction)*row.H; y >= 0 && y < height {
-		return model.UTF16Offset(paragraph.startUTF16 + paragraph.layout.IndexAt(ui.Point{X: x, Y: y}))
+		return model.UTF16Offset(paragraph.startUTF16 + indexOnRow(paragraph.layout, x, y))
 	}
 	index := slices.IndexFunc(l.paragraphs, func(candidate Paragraph) bool {
 		return candidate.startUTF16 == paragraph.startUTF16
 	}) + direction
 	switch {
 	case index < 0:
-		return model.UTF16Offset(paragraph.startUTF16 + paragraph.layout.IndexAt(ui.Point{X: x, Y: row.Y + row.H/2}))
+		return model.UTF16Offset(paragraph.startUTF16 + indexOnRow(paragraph.layout, x, row.Y+row.H/2))
 	case index >= len(l.paragraphs):
 		return model.UTF16Offset(l.flow.UTF16Len())
 	}
@@ -83,7 +83,18 @@ func (l *Layout) RowNear(offset model.UTF16Offset, direction int, x float32) mod
 	if direction < 0 {
 		y = height - y
 	}
-	return model.UTF16Offset(beside.startUTF16 + beside.layout.IndexAt(ui.Point{X: x, Y: y}))
+	return model.UTF16Offset(beside.startUTF16 + indexOnRow(beside.layout, x, y))
+}
+
+// indexOnRow is the index nearest x on a paragraph's row at y. Past the
+// end of a row that wraps, the nearest index is where the next row
+// starts, which the caret shows there: it steps back onto its own row.
+func indexOnRow(layout *ui.TextLayout, x, y float32) int {
+	index := layout.IndexAt(ui.Point{X: x, Y: y})
+	if index > 0 && layout.Caret(index).Y > y {
+		return layout.PreviousBoundary(index)
+	}
+	return index
 }
 
 func (l *Layout) Hit(point ui.Point) model.UTF16Offset {
