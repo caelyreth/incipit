@@ -126,7 +126,9 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	lineHeight := style.Prose.LineHeight()
 	body := style.Prose.Leading()
 	previous := surface.RhythmProse
-	previousFigure := false
+	// apart is the room the block before asks below it, as a figure or a
+	// table does.
+	apart := float32(0)
 	shape := func(raw rawParagraph, font ui.Font, width float32, align ui.Align, figure, header bool) *ui.TextLayout {
 		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width, align, figure, header)
 		var layout *ui.TextLayout
@@ -165,14 +167,20 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		rhythm := paragraphRhythm(flow, raw.startByte)
 		figure, hasFigure := flow.FigureAt(model.UTF16Offset(raw.startUTF16))
 		table, hasTable := flow.TableAt(model.UTF16Offset(raw.startUTF16))
+		// A figure or a table stands apart from the blocks on both
+		// sides, the wider room of the two blocks between them.
+		own := float32(0)
+		switch {
+		case hasTable:
+			own = tableGap(body)
+		case hasFigure:
+			own = figureGap(body)
+		}
 		above := float32(0)
 		if index > 0 {
-			above = gap(previous, rhythm, body)
-			if hasFigure || hasTable || previousFigure {
-				above = max(above, figureGap(body))
-			}
+			above = max(gap(previous, rhythm, body), own, apart)
 		}
-		previous, previousFigure = rhythm, hasFigure || hasTable
+		previous, apart = rhythm, own
 		open(model.UTF16Offset(raw.startUTF16), above)
 		if hasTable {
 			top += above

@@ -27,6 +27,11 @@ const (
 	// of the body's line.
 	cellPadX = 0.4
 	cellPadY = 0.2
+	// tableSpace sets a table apart from the blocks around it, as a share
+	// of the body leading: wider than a figure's room, its grid standing
+	// on the text's edge with no margin of its own, yet short of a line,
+	// so an empty line by it still reads as one.
+	tableSpace = 1.25
 	// LeastColumn is the narrowest a column is set, in DIPs, so a table of
 	// many columns still shows each; readColumn the least a column that
 	// wraps keeps, in the body's lines, its longest word if wider.
@@ -216,6 +221,10 @@ func longestLine(text *ui.TextLayout) float32 {
 		longest = max(longest, set.Rect.W)
 	}
 	return float32(math.Ceil(float64(longest)))
+}
+
+func tableGap(body float32) float32 {
+	return float32(math.Round(float64(body * tableSpace)))
 }
 
 // placeTable sets table out from top, in paragraphs from its first cell's
