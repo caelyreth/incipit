@@ -17,6 +17,28 @@ import (
 // can put a caret outside that range while its semantic head remains in an
 // owned block, so membership never reads projected containment.
 
+// widening is a run of Select All: the selection it grew from, which
+// dismissing what it selected goes back to, and the page's revision and
+// the scope it last selected, which tell the run still stands.
+type widening struct {
+	from     model.TextSelection
+	revision uint64
+	to       model.UTF16Range
+}
+
+// widenedFrom is what the run of Select All that made the selection grew
+// from, while the page and the selection stay as it left them.
+func (s *Session) widenedFrom() (model.TextSelection, bool) {
+	w := s.widening
+	if w == nil || w.revision != s.runtime.Revision() {
+		return model.TextSelection{}, false
+	}
+	if selected, err := s.VisualSelection(); err != nil || selected != w.to {
+		return model.TextSelection{}, false
+	}
+	return w.from, true
+}
+
 // selectionScope is one scope around the selection. Its block interval owns
 // the selection semantically; range16 is the projected range selecting it
 // shows.

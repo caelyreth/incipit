@@ -256,6 +256,13 @@ func (m *Motion) Geometry(caret ui.Rect, selection []ui.Rect, now time.Time, ani
 	return sampledCaret, m.selectionOutput
 }
 
+// HideCaret lets the caret's motion go as it is not drawn: having shown
+// nowhere, it has nowhere to glide from, so the next caret Geometry
+// samples stands at its place at once.
+func (m *Motion) HideCaret() {
+	m.caret = rectangle{}
+}
+
 // nearestRow is the row of rows whose vertical middle is nearest target's.
 func nearestRow(rows []ui.Rect, target ui.Rect) ui.Rect {
 	best, distance := rows[0], float32(-1)

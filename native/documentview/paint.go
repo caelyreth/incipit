@@ -38,6 +38,15 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		now,
 		geometryAnimate,
 	)
+	// The caret stays at the selection head, so extending a selection or
+	// double-clicking a word shows it gliding to the range's end. A
+	// selection of whole blocks shows the blocks, with no caret among
+	// them; a caret not drawn was seen nowhere, so drawn again it stands
+	// in its place rather than gliding from where it was hidden.
+	caretShown := state.Focused && !state.Composing && !state.Frame.Whole()
+	if !caretShown {
+		state.Motion.HideCaret()
+	}
 	state.DrawnCaret = animatedCaret
 	options := PaintOptions{
 		Now:     now,
@@ -64,11 +73,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		drawText(p, rect, state)
 		drawPlaceholder(p, rect, state)
 		drawRangeRules(p, rect, state, options)
-		// The caret stays at the selection head, so extending a selection or
-		// double-clicking a word shows it gliding to the range's end. A
-		// selection of whole blocks shows the blocks, with no caret among
-		// them.
-		if state.Focused && !state.Composing && !state.Frame.Whole() {
+		if caretShown {
 			drawCaret(p, rect, state, options, animatedCaret)
 		}
 		drawGuides(p, rect, state, options)

@@ -48,6 +48,7 @@ type Session struct {
 	metricsValid  bool
 	title         pageTitle
 	generation    uint64
+	widening      *widening
 }
 
 // pageTitle is a page's title as of one revision.

@@ -120,3 +120,40 @@ func TestSelectAllBlockScopeIncludesInlineNotationAroundText(t *testing.T) {
 		})
 	}
 }
+
+// Dismissing what Select All selected goes back to where it began, however
+// far it widened, not to the far end of what it took: from an empty cell,
+// not into the cell after it. A selection made otherwise leaves its caret
+// at its head.
+func TestDismissingSelectAllGoesBackToWhereItBegan(t *testing.T) {
+	session, _ := newSessionFixture(t, "Alpha", false)
+	at(t, session, 5)
+	if _, err := session.InsertTable([][]string{{"a", ""}, {"", ""}}); err != nil {
+		t.Fatal(err)
+	}
+	table := readTables(session.Runtime().Snapshot().Document())[0]
+	cell, _ := session.BlockRange(table.Rows[1][0])
+	caret := func(want model.UTF16Offset) {
+		t.Helper()
+		selected, err := session.VisualSelection()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if selected != model.EmptyUTF16Range(want) {
+			t.Fatalf("dismissed to %v, not %d", selected, want)
+		}
+	}
+	for _, presses := range []int{1, 2} {
+		at(t, session, cell.Start)
+		for range presses {
+			run(t, session, TextSelectAll)
+		}
+		run(t, session, TextDismissSelection)
+		caret(cell.Start)
+	}
+	if err := session.SelectProjected(1, 3); err != nil {
+		t.Fatal(err)
+	}
+	run(t, session, TextDismissSelection)
+	caret(3)
+}

@@ -308,3 +308,21 @@ func TestSelectionResumesFromAnUnanimatedDrag(t *testing.T) {
 		}
 	}
 }
+
+// A caret not drawn glides from nowhere: drawn again, it stands at its
+// place, where one drawn throughout glides there.
+func TestAHiddenCaretShowsInItsPlace(t *testing.T) {
+	now := time.Now()
+	from, to := ui.Rect{X: 300, Y: 200, W: 2, H: 20}, ui.Rect{X: 10, Y: 20, W: 2, H: 20}
+	var motion Motion
+	motion.Geometry(from, nil, now, true)
+	if caret, _ := motion.Geometry(to, nil, now.Add(time.Millisecond), true); caret == to {
+		t.Fatal("a caret drawn throughout did not glide")
+	}
+	motion = Motion{}
+	motion.Geometry(from, nil, now, true)
+	motion.HideCaret()
+	if caret, _ := motion.Geometry(to, nil, now.Add(time.Millisecond), true); caret != to {
+		t.Fatalf("a caret shown again stands at %+v, not %+v", caret, to)
+	}
+}

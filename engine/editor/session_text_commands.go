@@ -27,6 +27,12 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		if s.presentation.VisualCollapsed() {
 			return kernel.OutcomeHandled, nil
 		}
+		// What Select All widened to goes back to what it grew from;
+		// any other selection leaves its caret at its head.
+		if from, ok := s.widenedFrom(); ok {
+			s.widening = nil
+			return kernel.OutcomeHandled, s.Select(from)
+		}
 		at := s.presentation.Caret.RangeUTF16().Start
 		return kernel.OutcomeHandled, s.SelectProjected(at, at)
 	}
@@ -123,7 +129,15 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		if !ok {
 			return kernel.OutcomeHandled, nil
 		}
-		return kernel.OutcomeHandled, s.SelectProjected(scope.Start, scope.End)
+		from, ok := s.widenedFrom()
+		if !ok {
+			from = s.presentation.Selection
+		}
+		if err := s.SelectProjected(scope.Start, scope.End); err != nil {
+			return 0, err
+		}
+		s.widening = &widening{from: from, revision: s.runtime.Revision(), to: scope}
+		return kernel.OutcomeHandled, nil
 	case TextSelectDocumentStart, TextSelectDocumentEnd:
 		viewAnchor, err := s.currentViewAnchor()
 		if err != nil {
