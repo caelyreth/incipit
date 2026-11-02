@@ -27,7 +27,11 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		return
 	}
 	now := p.Now()
-	caret := hintedCaret(p, state, state.Layout.Caret(state.Frame.Caret()))
+	head := state.Frame.Caret()
+	if selection := state.Frame.Selection(); !selection.Empty() && head == selection.End {
+		head = state.Layout.Upstream(head)
+	}
+	caret := hintedCaret(p, state, state.Layout.Caret(head))
 	selection := state.Layout.RangeRects(state.Frame.Selection())
 	// Only a moving drag follows the pointer directly; a press retargets the
 	// retained springs so quick clicks glide instead of snapping.
@@ -66,7 +70,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 		drawRangeRules(p, rect, state, options)
 		// The caret stays at the selection head, so extending a selection or
 		// double-clicking a word shows it gliding to the range's end.
-		if state.Focused && !state.Composing {
+		if state.Focused && !state.Composing && !inWholeTable(state, head) {
 			drawCaret(p, rect, state, options, animatedCaret)
 		}
 		drawGuides(p, rect, state, options)
@@ -118,6 +122,18 @@ func withoutTables(state *State, selection []ui.Rect) []ui.Rect {
 		}
 	}
 	return kept
+}
+
+// inWholeTable reports whether the caret at offset stands in a table the
+// selection takes whole, whose ring shows the selection instead.
+func inWholeTable(state *State, offset model.UTF16Offset) bool {
+	for _, placed := range state.Layout.Tables() {
+		table := placed.Table.Range()
+		if table.Start <= offset && offset <= table.End && covers(state.Frame.Selection(), table) {
+			return true
+		}
+	}
+	return false
 }
 
 func drawRangeFills(p *ui.Painter, rect ui.Rect, state *State, selection []ui.Rect) {

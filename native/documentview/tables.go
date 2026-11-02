@@ -18,9 +18,9 @@ import (
 )
 
 // A table on the page is made where it grows, as the sheet list makes
-// sheets. The pointer resting by a table opens a dashed area below it that
-// makes a row, the page below gliding down for it, and one beside it that
-// makes a column. The table's edges hold what changes its shape, its cells
+// sheets. The pointer resting by a table's foot opens a dashed area below
+// it that makes a row, the page below gliding down for it, and by its end
+// one beside it that makes a column. The table's edges hold what changes its shape, its cells
 // only its text: resting in the gutter before it by a border between two
 // rows, or above it by one between two columns, opens an area there, the
 // rows or columns gliding apart. What an area makes stands in its place.
@@ -38,10 +38,12 @@ const (
 	// tableReach is how near a table, in DIPs, the pointer calls up the
 	// areas that make its rows and columns, and tableHold how near it keeps
 	// them once open, so a pointer wandering a little past does not shut
-	// them; tableBorder is how near a border between two rows or columns,
-	// in the gutter, calls up one there.
+	// them; tableEdge is how far within the table's foot or end the pointer
+	// calls up the area there. tableBorder is how near a border between two
+	// rows or columns, in the gutter, calls up one there.
 	tableReach  = 28
 	tableHold   = 56
+	tableEdge   = 12
 	tableBorder = 8
 	// gripLong and gripShort size a grip, in DIPs at the default UI size,
 	// gripIcon its icon, and gripOff sets it off what it moves.
@@ -55,15 +57,17 @@ const (
 
 // tableUI is what the page keeps of its tables across frames.
 type tableUI struct {
-	// below opens the areas by a table, numbered by its place; rows and
-	// columns those on a border, numbered by gapStride.
+	// below opens the area at a table's foot, numbered twice its place,
+	// or the one at its end, once more; rows and columns those on a
+	// border, numbered by gapStride.
 	below, rows, columns components.CreateGap
 	// room is what each table opens, by its first cell, as the view sets
 	// it each frame for the next layout.
 	room map[model.NodeID]surface.TableRoom
 	// grips are how far each table's grips have come in, by its first
-	// cell, as the pointer comes by it.
-	grips map[model.NodeID]float32
+	// cell, as the pointer comes by it, and beside how far the area at its
+	// end has.
+	grips, beside map[model.NodeID]float32
 	// cells are the cells seen last frame, and growing the rows and
 	// columns coming in, by their first cell.
 	cells                    map[model.NodeID]bool
@@ -231,7 +235,7 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 	nearAt, nearOpen := e.tables.below.Open()
 	point, inside := e.pagePointer(box)
 	e.tables.pointer, e.tables.pointerIn = point, inside
-	near, rowAt, columnAt := -1, -1, -1
+	near, edgeAt, rowAt, columnAt := -1, -1, -1, -1
 	rowNear, columnNear := float32(0), float32(0)
 	free := inside && e.pointer == pointerIdle && e.tables.drag == nil && e.tables.held == nil &&
 		e.carry == nil && !e.blocks.holding
@@ -243,7 +247,7 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 	}
 	for index, table := range placed {
 		reach := tableReach * scale
-		if nearOpen && nearAt == index {
+		if nearOpen && nearAt/2 == index {
 			reach = tableHold * scale
 		}
 		// The table, its grips above and before it, the column area
@@ -257,6 +261,29 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 			continue
 		}
 		near = index
+		// The areas that make a row and a column are called up by the
+		// table's foot and its end, not from over its cells: the pointer
+		// just within the edge, or past it. Where the two meet, the one
+		// open holds, else the nearer edge's.
+		hold := func(side int) float32 {
+			if nearOpen && nearAt == 2*index+side {
+				return tableHold * scale
+			}
+			return tableReach * scale
+		}
+		edge := tableEdge * scale
+		bottom, right := table.Box.Y+table.Box.H, table.Box.X+table.Box.W
+		foot := ui.Rect{X: table.Box.X - edge, Y: bottom - edge, W: table.Box.W + 2*edge, H: edge + table.Below.H + hold(0)}
+		end := ui.Rect{X: right - edge, Y: table.Box.Y - edge, W: edge + gap + metrics.Height + hold(1), H: table.Box.H + 2*edge}
+		inFoot, inEnd := contains(foot, point), contains(end, point)
+		switch {
+		case inFoot && inEnd && nearOpen && nearAt/2 == index:
+			edgeAt = nearAt
+		case inEnd && (!inFoot || abs(point.X-right) < abs(point.Y-bottom)):
+			edgeAt = 2*index + 1
+		case inFoot:
+			edgeAt = 2 * index
+		}
 		// Room between rows is called up from the gutter before the
 		// table, where its rows' grips are, and between columns from the
 		// gutter above it, where its columns' are: never from over its
@@ -300,7 +327,7 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 		// The pointer has left what it made.
 		e.pointerHold = false
 	}
-	nearAt, nearOpen = e.tables.below.Follow(c, near)
+	nearAt, nearOpen = e.tables.below.Follow(c, edgeAt)
 	rowGap, rowOpen := e.tables.rows.Follow(c, rowAt)
 	columnGap, columnOpen := e.tables.columns.Follow(c, columnAt)
 	// The open areas hold their gaps while the pointer is on them.
@@ -314,7 +341,7 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 	}
 	room := make(map[model.NodeID]surface.TableRoom, len(placed))
 	step, between := metrics.Height+gap, metrics.Height+2*inner
-	grips := make(map[model.NodeID]float32, len(placed))
+	grips, beside := make(map[model.NodeID]float32, len(placed)), make(map[model.NodeID]float32, len(placed))
 	follow := func(key any, target float32) float32 {
 		if !animate {
 			return target
@@ -336,7 +363,8 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 			}
 			return 0
 		}
-		next.Below = follow(tableKey{node, "below", generation}, open(nearOpen && nearAt == index, step))
+		next.Below = follow(tableKey{node, "below", generation}, open(nearOpen && nearAt == 2*index, step))
+		beside[node] = follow(tableKey{node, "beside", generation}, open(nearOpen && nearAt == 2*index+1, 1))
 		grips[node] = follow(tableKey{node, "grips", 0}, open(near == index || e.tables.drag != nil || e.tables.held != nil, 1))
 		if rowOpen && rowGap/gapStride == index {
 			next.Row = rowGap % gapStride
@@ -364,7 +392,7 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 		next.ColumnRoom = follow(tableKey{node, "column", generation}, open(columnOpen && columnGap/gapStride == index, between))
 		room[node] = next
 	}
-	e.tables.room, e.tables.grips = room, grips
+	e.tables.room, e.tables.grips, e.tables.beside = room, grips, beside
 	e.tables.wheeled = nil
 	e.liftTo = lift
 }
@@ -490,7 +518,6 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 	gap := theme.Space06.DIPs(e.chromeSize())
 	inner := theme.Space08.DIPs(e.chromeSize())
 	offset := e.TopInset - e.visibleScroll()
-	nearAt, nearOpen := e.tables.below.Open()
 	// What the pointer is on keeps open what it is on, wherever it is
 	// set, as beside the page in its margin.
 	var overNear, overRow, overColumn bool
@@ -505,7 +532,7 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 			e.tables.columns.HoldOver(true)
 		}
 	}()
-	for index, placed := range e.current.Tables() {
+	for _, placed := range e.current.Tables() {
 		table := placed.Table
 		first := table.Node()
 		at := func(r ui.Rect) ui.Rect { r.Y += offset; return r }
@@ -546,9 +573,8 @@ func (e *Element) tableControls(c *ui.Context, animate bool) {
 			e.control(box)
 			overNear = overNear || area.Hovered()
 		}
-		if nearOpen && nearAt == index {
+		if reveal := e.tables.beside[first]; reveal > 0.001 {
 			grid := at(placed.Box)
-			reveal := min(1, placed.Below.H/(metrics.Height+gap))
 			area := components.CreateArea{
 				Key: fmt.Sprintf("table-%d-new-column", first), Label: "New column",
 				Compact: true, Animate: animate,
@@ -1135,6 +1161,10 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 		}
 		ys := tableSpans(box.Y, box.H, rowGaps)
 		xs := tableSpans(box.X, box.W, columnGaps)
+		shown, ring, moving := cellMotion.step(state, placed, p.Now(), state.Animate)
+		if moving {
+			p.AnimationFrame()
+		}
 		for _, y := range ys {
 			for _, x := range xs {
 				part := ui.Rect{X: x[0], Y: y[0], W: x[1] - x[0], H: y[1] - y[0]}
@@ -1142,6 +1172,8 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 					if header.H > 0 {
 						p.Fill(header, state.Theme.Surface.Inset, 0)
 					}
+					// Picked cells are tinted under the lines between them.
+					tintPicked(p, state, placed, cell, shown)
 					for row := 1; row < len(placed.Rows); row++ {
 						if at := placed.Rows[row] + dy; at > part.Y+0.5 && at < part.Y+part.H-0.5 {
 							p.Fill(ui.Rect{X: part.X, Y: at, W: part.W, H: 1}, line, 0)
@@ -1157,11 +1189,7 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 			}
 		}
 		drawMade(p, state, placed, cell, radius)
-		shown, ring, moving := cellMotion.step(state, placed, p.Now(), state.Animate)
-		if moving {
-			p.AnimationFrame()
-		}
-		p.Clip(box, radius, func() { drawPicked(p, state, placed, cell, shown) })
+		p.Clip(box, radius, func() { ringPicked(p, state, placed, cell, shown) })
 		drawTableEdges(p, state, placed, box)
 		// Selected whole, a table wears the ring a picture does.
 		if ring > 0.001 {

@@ -235,8 +235,9 @@ func (b *Bridge) clearCells() bool {
 	return true
 }
 
-// cellsFade is how quickly a picked cell's tint and ring come and go.
-const cellsFade = figureFade
+// cellsFade is how quickly a picked cell's tint and ring come and go,
+// and a table's ring: quicker than a picture's, as a selection's own.
+const cellsFade = 26
 
 // CellMotion keeps each picked cell's fade, and each table's ring as it
 // is selected whole, across frames.
@@ -319,11 +320,24 @@ func (m *CellMotion) step(state *State, placed textlayout.PlacedTable, now time.
 	return shown, ring, moving
 }
 
-// drawPicked tints each picked cell of placed as far as it has faded in,
-// and rings what is picked together: each side of a cell where the one
-// beyond is not picked as far, so two cells side by side share one ring.
-func drawPicked(p *ui.Painter, state *State, placed textlayout.PlacedTable, cell func(row, column int) ui.Rect, shown func(row, column int) float32) {
-	tint, ink := state.Theme.Prose.Selection, state.Theme.Accent.Foreground
+// tintPicked tints each picked cell of placed as far as it has faded in.
+func tintPicked(p *ui.Painter, state *State, placed textlayout.PlacedTable, cell func(row, column int) ui.Rect, shown func(row, column int) float32) {
+	tint := state.Theme.Prose.Selection
+	for r := range placed.Rows {
+		for c := range placed.Columns {
+			if a := shown(r, c); a > 0.001 {
+				p.Fill(cell(r, c), tint.Alpha(a*state.Motion.SelectionOpacity()), 0)
+			}
+		}
+	}
+}
+
+// ringPicked rings what is picked together: each side of a cell where the
+// one beyond is not picked as far, so two cells side by side share one
+// ring. It stands within the lines about the cell, which a cell's rect
+// begins with, so they still show.
+func ringPicked(p *ui.Painter, state *State, placed textlayout.PlacedTable, cell func(row, column int) ui.Rect, shown func(row, column int) float32) {
+	ink := state.Theme.Accent.Foreground
 	scale := max(1, p.Scale())
 	width := 1 / scale * float32(int(scale+0.5))
 	for r := range placed.Rows {
@@ -333,7 +347,7 @@ func drawPicked(p *ui.Painter, state *State, placed textlayout.PlacedTable, cell
 				continue
 			}
 			box := cell(r, c)
-			p.Fill(box, tint.Alpha(a*state.Motion.SelectionOpacity()), 0)
+			box.X, box.Y, box.W, box.H = box.X+1, box.Y+1, box.W-1, box.H-1
 			for _, side := range []struct {
 				beyond float32
 				line   ui.Rect
