@@ -351,6 +351,8 @@ func spansFor(flow *surface.Flow, start, end int, style Style) []ui.Span {
 		object := plainSpans(flow, from, from+1, style)[0]
 		object.Text = "\uFFFC"
 		object.ObjectWidth = style.Prose.FontSize * 0.95
+		// The checkbox stands on the text baseline, regardless of leading.
+		object.ObjectHeight = style.Prose.FontSize * 0.78
 		spans = append(spans, object)
 		return append(spans, plainSpans(flow, to, end, style)...)
 	}

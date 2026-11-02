@@ -21,8 +21,10 @@ func (l *Layout) CheckboxMarker(checkbox surface.Checkbox) (ui.Rect, bool) {
 	local = paragraph.shapedOffset(local, false)
 	for _, object := range paragraph.layout.Objects() {
 		if object.Index == local {
-			line := paragraph.layout.Caret(local)
-			return ui.Rect{X: paragraph.left + object.Rect.X, Y: paragraph.top + line.Y, W: object.Rect.W, H: line.H}, true
+			box := object.Rect
+			box.X += paragraph.left
+			box.Y += paragraph.top
+			return box, true
 		}
 	}
 	return ui.Rect{}, false

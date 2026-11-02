@@ -1,6 +1,8 @@
 package documentview
 
 import (
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -90,6 +92,60 @@ func TestCheckboxClickKeyboardAndUndo(t *testing.T) {
 	tester.Frame()
 	if !checkboxChecked(t, document) {
 		t.Fatal("undo did not restore the checked item")
+	}
+}
+
+func TestCheckboxPaintAndControlFollowTextBaseline(t *testing.T) {
+	if err := theme.RegisterFonts(); err != nil {
+		t.Fatal(err)
+	}
+	for _, appearance := range []theme.Appearance{theme.Starfield, theme.Daybreak} {
+		for _, size := range []float32{15, 17, 26} {
+			for _, spacing := range []float32{1.5, 1.8, 2.2} {
+				t.Run(fmt.Sprintf("appearance=%d/size=%g/spacing=%g", appearance, size, spacing), func(t *testing.T) {
+					document, element, tester := checkboxPage(t, "- [ task")
+					settings := theme.DefaultSettings()
+					settings.Appearance = appearance
+					element.Theme = settings.Semantic()
+					element.Prose = theme.NewProseStyle(size).WithSpacing(spacing)
+					element.TopInset = 20
+					element.Animate = false
+					tester.Frame()
+
+					checkbox := element.current.Flow().Checkboxes()[0]
+					painted, ok := checkboxBox(element.current, checkbox)
+					if !ok {
+						t.Fatal("checkbox box missing")
+					}
+					painted.Y += element.TopInset - element.visibleScroll()
+					control, ok := tester.Find("task")
+					near := func(a, b float32) bool { return math.Abs(float64(a-b)) < 0.001 }
+					if !ok || !near(control.X, painted.X) || !near(control.Y, painted.Y) ||
+						!near(control.W, painted.W) || !near(control.H, painted.H) {
+						t.Fatalf("control = %+v, painted box = %+v", control, painted)
+					}
+					paragraph := element.current.Paragraphs()[0]
+					baseline := paragraph.Top() + paragraph.Layout().Lines()[0].Baseline + element.TopInset - element.visibleScroll()
+					if !near(control.Y+control.H, baseline) {
+						t.Fatalf("control bottom %g, text baseline %g", control.Y+control.H, baseline)
+					}
+					x, y := control.X+control.W/2, control.Y+control.H/2
+					before := pixel(tester, x, y)
+					tester.Move(x, control.Y+control.H-1)
+					if tester.Cursor() != ui.CursorPointer {
+						t.Fatal("painted checkbox edge has no pointer cursor")
+					}
+					tester.ClickAt(x, control.Y+control.H-1)
+					if !checkboxChecked(t, document) {
+						t.Fatal("click on painted checkbox edge did not toggle")
+					}
+					tester.Frame()
+					if after := pixel(tester, x, y); after == before {
+						t.Fatal("checkbox did not repaint at the control's position")
+					}
+				})
+			}
+		}
 	}
 }
 

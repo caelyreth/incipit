@@ -22,12 +22,12 @@ type CheckboxMotion struct {
 	tracks map[model.NodeID]*motion.Spring
 }
 
-func checkboxBox(layout *textlayout.Layout, checkbox surface.Checkbox, fontSize float32) (ui.Rect, bool) {
+func checkboxBox(layout *textlayout.Layout, checkbox surface.Checkbox) (ui.Rect, bool) {
 	marker, ok := layout.CheckboxMarker(checkbox)
 	if !ok || marker.W <= 0 || marker.H <= 0 {
 		return ui.Rect{}, false
 	}
-	size := min(marker.W, marker.H, fontSize*0.78)
+	size := min(marker.W, marker.H)
 	return ui.Rect{X: marker.X + (marker.W-size)/2, Y: marker.Y + (marker.H-size)/2, W: size, H: size}, true
 }
 
@@ -42,7 +42,7 @@ func (e *Element) checkboxControls(c *ui.Context, bridge *Bridge) {
 		if !ok || line.Y+line.H+e.TopInset-e.visibleScroll() < 0 || line.Y+e.TopInset-e.visibleScroll() > e.lastHeight {
 			continue
 		}
-		box, ok := checkboxBox(e.current, checkbox, e.Prose.FontSize)
+		box, ok := checkboxBox(e.current, checkbox)
 		if !ok {
 			continue
 		}
@@ -121,7 +121,7 @@ func drawCheckboxes(p *ui.Painter, rect ui.Rect, state *State, options PaintOpti
 		}
 		amount, active := state.CheckboxMotion.step(checkbox, options.Now, options.Animate)
 		moving = moving || active
-		box, ok := checkboxBox(state.Layout, checkbox, state.Prose.FontSize)
+		box, ok := checkboxBox(state.Layout, checkbox)
 		if !ok {
 			continue
 		}
