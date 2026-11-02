@@ -64,6 +64,18 @@ func (s *Session) dispatchSelectionCommand(
 	invoker kernel.EngineInvoker,
 	active func(*model.Node) *model.MarkID,
 ) (kernel.Outcome, error) {
+	return s.dispatchSelectionCommandWithVisual(trigger, invoker, active, false)
+}
+
+// dispatchSelectionCommandWithVisual can retain the exact projected selection
+// for commands that change no text or notation positions, such as checking an
+// item elsewhere on the page.
+func (s *Session) dispatchSelectionCommandWithVisual(
+	trigger string,
+	invoker kernel.EngineInvoker,
+	active func(*model.Node) *model.MarkID,
+	preserveVisual bool,
+) (kernel.Outcome, error) {
 	beforeFrame, beforeOK := s.historyFrame()
 	beforeVisual, visualErr := s.ProjectedState()
 	if !beforeOK || visualErr != nil {
@@ -100,6 +112,17 @@ func (s *Session) dispatchSelectionCommand(
 			if projectErr != nil {
 				return struct{}{}, projectErr
 			}
+			var viewAnchor *projection.Target
+			if preserveVisual {
+				if len(changes.TextEdits()) != 0 {
+					return struct{}{}, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
+				}
+				anchor, head, resolveErr := projectedValue.ResolveSelection(beforeVisual, view.Revision())
+				if resolveErr != nil {
+					return struct{}{}, resolveErr
+				}
+				caret, viewAnchor = head, &anchor
+			}
 			flow, flowErr := projectionFlowFromView(
 				view,
 				s.runtime.Configuration(),
@@ -113,6 +136,7 @@ func (s *Session) dispatchSelectionCommand(
 				Projection: projectedValue,
 				Selection:  rebased,
 				Caret:      caret,
+				ViewAnchor: viewAnchor,
 				Flow:       flow,
 			}
 			return struct{}{}, nil

@@ -2,13 +2,14 @@ package surface
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/caelyreth/neverland/engine/model"
 )
 
 // replacement is one checked UTF-16 range edit over a flow. All metadata
 // positions are mapped in UTF-16 units from the same edit, so runs, figures,
-// tables, and rooms cannot drift relative to the replacement text.
+// checkboxes, tables, and rooms cannot drift relative to the replacement text.
 type replacement struct {
 	original model.UTF16Range
 	text     string
@@ -61,6 +62,7 @@ func (f *Flow) replaceRange(next replacement) (*Flow, error) {
 
 func (e rangeEdit) checkboxes(flow *Flow, checkboxes []Checkbox) []Checkbox {
 	next := make([]Checkbox, 0, len(checkboxes))
+	previousEnd := model.ByteOffset(0)
 	for _, checkbox := range checkboxes {
 		r := checkbox.Marker
 		if e.original.Empty() {
@@ -76,9 +78,12 @@ func (e rangeEdit) checkboxes(flow *Flow, checkboxes []Checkbox) []Checkbox {
 			continue
 		}
 		checkbox.Marker = model.NewUTF16Range(start, end)
-		if _, err := flow.byteRange(checkbox.Marker); err == nil {
-			next = append(next, checkbox)
+		bytes, err := flow.byteRange(checkbox.Marker)
+		if err != nil || len(next) > 0 && !strings.Contains(flow.text[previousEnd:bytes.Start], "\n") {
+			continue
 		}
+		next = append(next, checkbox)
+		previousEnd = bytes.End
 	}
 	return next
 }

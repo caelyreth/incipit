@@ -29,6 +29,34 @@ type Paragraph struct {
 	// clip is the room a cell of a table wider than it shows in, where
 	// its text is cut off; empty for the rest.
 	clip ui.Rect
+	// object maps a projected marker to the one object shaping uses for it.
+	object inlineObject
+}
+
+// inlineObject is a paragraph-local UTF-16 range represented by one shaped
+// object. Its zero value leaves source and shaped positions identical.
+type inlineObject struct{ start, end int }
+
+func (p *Paragraph) shapedOffset(source int, end bool) int {
+	object := p.object
+	if object.end <= object.start || source <= object.start {
+		return source
+	}
+	if source >= object.end {
+		return source - (object.end - object.start - 1)
+	}
+	if end {
+		return object.start + 1
+	}
+	return object.start
+}
+
+func (p *Paragraph) sourceOffset(shaped int) int {
+	object := p.object
+	if object.end > object.start && shaped > object.start {
+		return shaped + object.end - object.start - 1
+	}
+	return shaped
 }
 
 func (p Paragraph) Layout() *ui.TextLayout { return p.layout }
@@ -234,6 +262,15 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		rooms = append(rooms, PlacedRoom{At: -1, Box: ui.Rect{Y: top + figureGap(body), W: width, H: room}})
 		top += figureGap(body) + room
 	}
+	for index := range shaped {
+		paragraph := &shaped[index]
+		if checkbox, _, _, ok := checkboxIn(flow, paragraph.startByte, paragraph.endByte); ok {
+			paragraph.object = inlineObject{
+				start: int(checkbox.Marker.Start) - paragraph.startUTF16,
+				end:   int(checkbox.Marker.End) - paragraph.startUTF16,
+			}
+		}
+	}
 	c.layouts = next
 	c.layout = &Layout{
 		flow:       flow,
@@ -309,6 +346,36 @@ func (s Style) paragraphFont(flow *surface.Flow, start, end int, base ui.Font, l
 }
 
 func spansFor(flow *surface.Flow, start, end int, style Style) []ui.Span {
+	if _, from, to, ok := checkboxIn(flow, start, end); ok {
+		spans := plainSpans(flow, start, from, style)
+		object := plainSpans(flow, from, from+1, style)[0]
+		object.Text = "\uFFFC"
+		object.ObjectWidth = style.Prose.FontSize * 0.95
+		spans = append(spans, object)
+		return append(spans, plainSpans(flow, to, end, style)...)
+	}
+	spans := plainSpans(flow, start, end, style)
+	if len(spans) == 0 {
+		spans = append(spans, style.span("", surface.StyleRun{}))
+	}
+	return spans
+}
+
+// checkboxIn finds the complete marker within a paragraph's byte range.
+func checkboxIn(flow *surface.Flow, start, end int) (surface.Checkbox, int, int, bool) {
+	start16, _ := flow.UTF16OfByte(model.ByteOffset(start))
+	marker, ok := flow.CheckboxAfter(start16)
+	if ok {
+		from, fromOK := flow.ByteOfUTF16(marker.Marker.Start)
+		to, toOK := flow.ByteOfUTF16(marker.Marker.End)
+		if fromOK && toOK && int(from) >= start && int(to) <= end {
+			return marker, int(from), int(to), true
+		}
+	}
+	return surface.Checkbox{}, 0, 0, false
+}
+
+func plainSpans(flow *surface.Flow, start, end int, style Style) []ui.Span {
 	text := flow.Text()
 	spans := make([]ui.Span, 0, 4)
 	flow.EachRun(func(run surface.StyleRun) bool {
@@ -319,9 +386,6 @@ func spansFor(flow *surface.Flow, start, end int, style Style) []ui.Span {
 		}
 		return true
 	})
-	if len(spans) == 0 {
-		spans = append(spans, style.span("", surface.StyleRun{}))
-	}
 	return spans
 }
 
@@ -362,6 +426,12 @@ func paragraphKey(
 	writeFloat(font.Size)
 	writeFloat(font.LineHeight)
 	writeString(font.Family)
+	_, from, to, hasCheckbox := checkboxIn(flow, start, end)
+	writeBytes([]byte{boolByte(hasCheckbox)})
+	if hasCheckbox {
+		writeFloat(float32(from - start))
+		writeFloat(float32(to - start))
+	}
 	text := flow.Text()
 	wroteSpan := false
 	flow.EachRun(func(run surface.StyleRun) bool {

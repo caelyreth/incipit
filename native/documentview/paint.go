@@ -71,6 +71,9 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	})
 	p.Clip(wide, 0, func() {
 		drawText(p, rect, state)
+		if drawCheckboxes(p, rect, state, options) {
+			p.AnimationFrame()
+		}
 		drawPlaceholder(p, rect, state)
 		drawRangeRules(p, rect, state, options)
 		if caretShown {

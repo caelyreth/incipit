@@ -62,6 +62,7 @@ type Element struct {
 // switch discards it as a unit, without committing any unfinished gesture.
 type pageState struct {
 	figures    FigureMotion
+	checkboxes CheckboxMotion
 	cellMotion CellMotion
 	drop       dropLine
 	// dropOver is where dragged pictures would go, while they are over the
@@ -227,6 +228,7 @@ func (e *Element) View(c *ui.Context) {
 	box.Children(func() {
 		e.tableControls(c, animate)
 		if bridge != nil {
+			e.checkboxControls(c, bridge)
 			e.blockControls(c, bridge, animate)
 		}
 	})
@@ -595,7 +597,13 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		e.guides.Reset()
 		e.lastWidth = rect.W
 	}
+	previous := e.current
 	e.current = e.Layout.Update(flow, rect.W, style)
+	if previous != e.current && e.wake != nil &&
+		(flow.HasCheckboxes() || previous != nil && previous.Flow().HasCheckboxes()) {
+		// Controls are built from the last painted layout; rebuild after it moves.
+		e.wake()
+	}
 	e.applyLift()
 	caret := e.current.Caret(frame.Caret())
 	caret.Y += e.TopInset
@@ -648,6 +656,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Guides:            &e.guides,
 		Pictures:          e.Pictures,
 		FigureMotion:      &e.figures,
+		CheckboxMotion:    &e.checkboxes,
 		CellMotion:        &e.cellMotion,
 		Drop:              &e.drop,
 		HoverFigure:       e.hover,

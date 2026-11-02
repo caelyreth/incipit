@@ -27,6 +27,10 @@ var blockFixtures = []blockFixture{
 	{"empty heading", blockShape{kind: HeadingNode, level: 2}, ""},
 	{"quote", blockShape{kind: QuoteNode}, "said"},
 	{"nested item", blockShape{kind: BulletNode, depth: 1}, "item"},
+	{"checkbox", blockShape{kind: CheckboxNode}, "task"},
+	{"empty checkbox", blockShape{kind: CheckboxNode}, ""},
+	{"checked checkbox", blockShape{kind: CheckboxNode, checked: true}, "task"},
+	{"empty checked checkbox", blockShape{kind: CheckboxNode, checked: true}, ""},
 	{"code", blockShape{kind: CodeNode, info: "go"}, "x := 1"},
 	{"image", blockShape{kind: ImageNode}, ""},
 	{"captioned image", blockShape{kind: ImageNode}, "Dusk"},
@@ -37,6 +41,8 @@ var blockFixtures = []blockFixture{
 var alikeFixtures = [][2]string{
 	{"paragraph", "empty paragraph"},
 	{"heading", "empty heading"},
+	{"checkbox", "empty checkbox"},
+	{"checked checkbox", "empty checked checkbox"},
 	{"captioned image", "image"},
 }
 

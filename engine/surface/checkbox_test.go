@@ -39,9 +39,25 @@ func TestCheckboxMetadataRejectsInvalidRanges(t *testing.T) {
 		{{Node: 1, Marker: model.NewUTF16Range(1, 1)}},
 		{{Node: 1, Marker: model.NewUTF16Range(1, 4)}},
 		{{Node: 1, Marker: model.NewUTF16Range(1, 3)}, {Node: 2, Marker: model.NewUTF16Range(2, 3)}},
+		{{Node: 1, Marker: model.NewUTF16Range(0, 1)}, {Node: 2, Marker: model.NewUTF16Range(2, 3)}},
 	} {
 		if _, err := flow.WithCheckboxes(checks); err == nil {
 			t.Fatalf("accepted %+v", checks)
 		}
+	}
+}
+
+func TestPreviewThatJoinsCheckboxLinesKeepsRepresentableMarkers(t *testing.T) {
+	flow, err := textFlow(t, "- [ ] a\n- [ ] b").WithCheckboxes([]Checkbox{
+		{Node: 1, Marker: model.NewUTF16Range(0, 5)},
+		{Node: 2, Marker: model.NewUTF16Range(8, 13)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview := previewFrame(t, flow, model.NewUTF16Range(7, 8), "")
+	checks := preview.Flow().Checkboxes()
+	if len(checks) != 1 || checks[0].Node != 1 {
+		t.Fatalf("joined preview markers = %+v", checks)
 	}
 }

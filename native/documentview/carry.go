@@ -513,6 +513,16 @@ func drawCarry(p *ui.Painter, rect ui.Rect, state *State) {
 				state.Theme.Prose.Text,
 			)
 		}
+		for _, checkbox := range state.Flow.Checkboxes() {
+			if !carriedHolds(thing.ranges, checkbox.Marker.Start) {
+				continue
+			}
+			if box, ok := checkboxBox(state.Layout, checkbox, state.Prose.FontSize); ok {
+				box.X += offset.X + d.X
+				box.Y += offset.Y + d.Y
+				paintCheckbox(p, box, state.Theme, checkboxAmount(state.CheckboxMotion, checkbox))
+			}
+		}
 	})
 }
 

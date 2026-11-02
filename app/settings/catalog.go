@@ -182,7 +182,7 @@ func descriptionForSetting(id kernel.SettingID) string {
 	case "blockquotes":
 		return "Type > and a space to start a quote."
 	case "lists":
-		return "Type - or + and a space for a bullet, a number and a period for a numbered item. In a bullet, type [ then a space or x to make a checkbox."
+		return "Type - or + and a space for a bullet, a number and a period for a numbered item. In a bullet, type a space or x inside [] for a checkbox."
 	case "code":
 		return "Type ` around text for code, ``` and Return for a code block."
 	case "strikethrough":

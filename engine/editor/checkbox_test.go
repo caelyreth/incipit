@@ -165,3 +165,33 @@ func TestCheckboxConversionUndo(t *testing.T) {
 	}
 	expectPage(t, session, "- [x] |", "")
 }
+
+func TestCheckboxTogglePreservesProjectedSelection(t *testing.T) {
+	for _, selection := range [][2]model.UTF16Offset{{0, 2}, {8, 6}, {0, 10}} {
+		session, _ := newSessionFixture(t, "", false)
+		typeKeys(t, session, "- [ task")
+		if err := session.SelectProjected(selection[0], selection[1]); err != nil {
+			t.Fatal(err)
+		}
+		before, err := session.ProjectedState()
+		if err != nil {
+			t.Fatal(err)
+		}
+		beforeAnchor, beforeHead, err := session.Projection().ResolveSelection(before, session.Runtime().Revision())
+		if err != nil {
+			t.Fatal(err)
+		}
+		block := DocumentBlocks(session.Runtime().Snapshot().Document())[0]
+		if _, err := session.SetCheckbox(block.ID(), true); err != nil {
+			t.Fatal(err)
+		}
+		after, err := session.ProjectedState()
+		if err != nil {
+			t.Fatal(err)
+		}
+		afterAnchor, afterHead, err := session.Projection().ResolveSelection(after, session.Runtime().Revision())
+		if err != nil || beforeAnchor.RangeUTF16() != afterAnchor.RangeUTF16() || beforeHead.RangeUTF16() != afterHead.RangeUTF16() {
+			t.Fatalf("%v: projected selection changed from %+v to %+v, error %v", selection, before, after, err)
+		}
+	}
+}

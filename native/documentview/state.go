@@ -40,8 +40,9 @@ type State struct {
 	Guides *Guides
 	// Pictures gives the figures their pictures, and FigureMotion keeps
 	// their fades; without either figures show their places, settled.
-	Pictures     *Pictures
-	FigureMotion *FigureMotion
+	Pictures       *Pictures
+	FigureMotion   *FigureMotion
+	CheckboxMotion *CheckboxMotion
 	// CellMotion keeps the fades of the cells selected whole.
 	CellMotion *CellMotion
 	// Drop is the line showing where dragged pictures would go.

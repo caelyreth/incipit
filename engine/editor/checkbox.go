@@ -41,9 +41,9 @@ func (s *Session) SetCheckbox(node model.NodeID, checked bool) (kernel.Outcome, 
 	if _, active := s.composition.Preview(); active {
 		return 0, ErrCompositionActive
 	}
-	return s.dispatchSelectionCommand(checkboxTrigger,
+	return s.dispatchSelectionCommandWithVisual(checkboxTrigger,
 		&checkboxInvoker{session: s, node: node, checked: checked},
-		func(*model.Node) *model.MarkID { return activeMark(s.inline) })
+		func(*model.Node) *model.MarkID { return activeMark(s.inline) }, true)
 }
 
 type checkboxInvoker struct {

@@ -5,8 +5,28 @@ import (
 	"sort"
 
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/egoist/mygo/ui"
 )
+
+// CheckboxMarker returns the reserved inline object's box in content space.
+func (l *Layout) CheckboxMarker(checkbox surface.Checkbox) (ui.Rect, bool) {
+	if l == nil {
+		return ui.Rect{}, false
+	}
+	paragraph, local := l.paragraphAt(checkbox.Marker.Start)
+	if paragraph == nil {
+		return ui.Rect{}, false
+	}
+	local = paragraph.shapedOffset(local, false)
+	for _, object := range paragraph.layout.Objects() {
+		if object.Index == local {
+			line := paragraph.layout.Caret(local)
+			return ui.Rect{X: paragraph.left + object.Rect.X, Y: paragraph.top + line.Y, W: object.Rect.W, H: line.H}, true
+		}
+	}
+	return ui.Rect{}, false
+}
 
 func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 	paragraph, local := l.paragraphAt(offset)
@@ -19,7 +39,7 @@ func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 			H: height,
 		}
 	}
-	caret := paragraph.layout.Caret(local)
+	caret := paragraph.layout.Caret(paragraph.shapedOffset(local, false))
 	caret.X += paragraph.left
 	caret.Y += paragraph.top
 	// The caret grows with its row: a row of larger text is taller than
@@ -48,7 +68,7 @@ func (l *Layout) CaretLine(offset model.UTF16Offset) (ui.Rect, bool) {
 	if paragraph == nil {
 		return ui.Rect{}, false
 	}
-	line := paragraph.layout.Caret(local)
+	line := paragraph.layout.Caret(paragraph.shapedOffset(local, false))
 	line.X += paragraph.left
 	line.Y += paragraph.top
 	return line, line.H > 0
@@ -64,10 +84,10 @@ func (l *Layout) RowNear(offset model.UTF16Offset, direction int, x float32) mod
 	if paragraph == nil {
 		return model.UTF16Offset(l.flow.UTF16Len())
 	}
-	row := paragraph.layout.Caret(local)
+	row := paragraph.layout.Caret(paragraph.shapedOffset(local, false))
 	_, height := paragraph.layout.Size()
 	if y := row.Y + row.H/2 + float32(direction)*row.H; y >= 0 && y < height {
-		return model.UTF16Offset(paragraph.startUTF16 + indexOnRow(paragraph.layout, x-paragraph.left, y))
+		return model.UTF16Offset(paragraph.startUTF16 + paragraph.sourceOffset(indexOnRow(paragraph.layout, x-paragraph.left, y)))
 	}
 	index := slices.IndexFunc(l.paragraphs, func(candidate Paragraph) bool {
 		return candidate.startUTF16 == paragraph.startUTF16
@@ -75,7 +95,7 @@ func (l *Layout) RowNear(offset model.UTF16Offset, direction int, x float32) mod
 	beside, ok := l.verticalNeighbor(index, direction, x)
 	if !ok {
 		if direction < 0 {
-			return model.UTF16Offset(paragraph.startUTF16 + indexOnRow(paragraph.layout, x-paragraph.left, row.Y+row.H/2))
+			return model.UTF16Offset(paragraph.startUTF16 + paragraph.sourceOffset(indexOnRow(paragraph.layout, x-paragraph.left, row.Y+row.H/2)))
 		}
 		return model.UTF16Offset(l.flow.UTF16Len())
 	}
@@ -85,7 +105,7 @@ func (l *Layout) RowNear(offset model.UTF16Offset, direction int, x float32) mod
 	if direction < 0 {
 		y = height - y
 	}
-	return model.UTF16Offset(beside.startUTF16 + indexOnRow(beside.layout, x-beside.left, y))
+	return model.UTF16Offset(beside.startUTF16 + beside.sourceOffset(indexOnRow(beside.layout, x-beside.left, y)))
 }
 
 // verticalNeighbor is the paragraph above (direction -1) or below (1) the
@@ -169,7 +189,7 @@ func (l *Layout) Hit(point ui.Point) model.UTF16Offset {
 	}
 	localPoint := ui.Point{X: point.X - paragraph.left, Y: point.Y - paragraph.top}
 	local := paragraph.layout.IndexAt(localPoint)
-	return model.UTF16Offset(paragraph.startUTF16 + local)
+	return model.UTF16Offset(paragraph.startUTF16 + paragraph.sourceOffset(local))
 }
 
 func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
@@ -220,8 +240,8 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 		}
 		if from < to {
 			localRects := paragraph.layout.SelectionRects(ui.TextInputRange{
-				Start: from - paragraph.startUTF16,
-				End:   to - paragraph.startUTF16,
+				Start: paragraph.shapedOffset(from-paragraph.startUTF16, false),
+				End:   paragraph.shapedOffset(to-paragraph.startUTF16, true),
 			})
 			for _, rect := range localRects {
 				rect.Y += paragraph.top
@@ -232,7 +252,7 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			// The break past a selected paragraph's end shows as a sliver of
 			// its last row, as tall as that row: larger text's is taller
 			// than body text's, and a shorter sliver would notch the selection.
-			caret := paragraph.layout.Caret(paragraph.contentUTF16 - paragraph.startUTF16)
+			caret := paragraph.layout.Caret(paragraph.shapedOffset(paragraph.contentUTF16-paragraph.startUTF16, false))
 			caret.Y += paragraph.top
 			caret.W = 6
 			add(lift(caret))
@@ -285,7 +305,8 @@ func (l *Layout) PreviousBoundary(offset model.UTF16Offset) model.UTF16Offset {
 		return model.UTF16Offset(l.flow.UTF16Len())
 	}
 	if local > 0 {
-		return model.UTF16Offset(paragraph.startUTF16 + paragraph.layout.PreviousBoundary(local))
+		before := paragraph.layout.PreviousBoundary(paragraph.shapedOffset(local, true))
+		return model.UTF16Offset(paragraph.startUTF16 + paragraph.sourceOffset(before))
 	}
 	if paragraph.startUTF16 == 0 {
 		return 0
@@ -299,7 +320,8 @@ func (l *Layout) NextBoundary(offset model.UTF16Offset) model.UTF16Offset {
 		return model.UTF16Offset(l.flow.UTF16Len())
 	}
 	if local < paragraph.contentUTF16-paragraph.startUTF16 {
-		return model.UTF16Offset(paragraph.startUTF16 + paragraph.layout.NextBoundary(local))
+		after := paragraph.layout.NextBoundary(paragraph.shapedOffset(local, false))
+		return model.UTF16Offset(paragraph.startUTF16 + paragraph.sourceOffset(after))
 	}
 	if paragraph.endUTF16 > paragraph.contentUTF16 {
 		return model.UTF16Offset(paragraph.contentUTF16 + 1)
