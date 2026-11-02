@@ -27,7 +27,7 @@ func TestPageSwitchDiscardsDocumentStateButKeepsContentCaches(t *testing.T) {
 	element.Pictures = pictures
 	element.pageState = pageState{
 		resizing:      &figureResize{node: 2},
-		tables:        tableUI{sizing: &columnSizing{table: 2}, scroll: map[model.NodeID]float32{2: 12}},
+		tables:        tableUI{scroll: map[model.NodeID]float32{2: 12}},
 		blocks:        blockUI{holding: true},
 		announced:     2,
 		revealed:      revealKey{text: "same"},
@@ -124,51 +124,6 @@ func TestBlockUnitsFollowSemanticIdentityNotVisibleText(t *testing.T) {
 	}
 	if got, want := element.unitsOf(firstBridge), first.Units(); !slices.Equal(got, want) {
 		t.Fatalf("same-page structure change left units %v, want %v", got, want)
-	}
-}
-
-func TestPageSwitchCancelsTableColumnResize(t *testing.T) {
-	first, element, tester := gripTestDocument(t, true)
-	second, err := controller.NewTextDocument("one\ntwo\nthree", nativeClock{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := second.InsertTable([][]string{{"a", "b"}, {"c", "d"}}); err != nil {
-		t.Fatal(err)
-	}
-	placed := element.current.Tables()[0]
-	firstTable, ok := first.Table(placed.Table.Node())
-	if !ok {
-		t.Fatal("first table missing")
-	}
-	secondTable, ok := second.Table(placed.Table.Node())
-	if !ok {
-		t.Fatal("fixture needs colliding table node IDs")
-	}
-	x := 70 + placed.Columns[0] + placed.Widths[0]
-	y := 70 + placed.Box.Y + placed.Box.H/2
-	tester.Press(x, y)
-	if element.tables.sizing == nil {
-		t.Fatal("column resize did not start")
-	}
-	tester.Move(x+30, y)
-	element.SwitchPage(0)
-	element.Input = NewBridge(second, nil, nil)
-	tester.Frame()
-	tester.Release(x+30, y)
-	tester.Frame()
-	for _, tc := range []struct {
-		name string
-		doc  *controller.DocumentController
-		want []float32
-	}{
-		{"first", first, firstTable.Widths},
-		{"second", second, secondTable.Widths},
-	} {
-		table, ok := tc.doc.Table(placed.Table.Node())
-		if !ok || !slices.Equal(table.Widths, tc.want) {
-			t.Fatalf("%s page changed after switch: widths=%v, want %v", tc.name, table.Widths, tc.want)
-		}
 	}
 }
 

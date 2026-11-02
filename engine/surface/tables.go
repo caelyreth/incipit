@@ -33,11 +33,11 @@ type Table struct {
 	Rows [][]TableCell
 	// Header sets the first row apart, as the names of the columns.
 	Header bool
-	// Align and Widths are each column's: how it sets its text, and the
-	// share of the page's column it takes, 0 to be as wide as its text
-	// asks and share what the others leave.
-	Align  []CellAlign
-	Widths []float32
+	// Align and Fit are each column's: how it sets its text, and whether
+	// it fits its text on one line rather than wrap it as the table has
+	// room.
+	Align []CellAlign
+	Fit   []bool
 	// Room is what a view opens in and below the table as it shows what
 	// makes rows and columns there.
 	Room TableRoom
@@ -71,7 +71,7 @@ func (t Table) clone() Table {
 		t.Rows[row] = slices.Clone(t.Rows[row])
 	}
 	t.Align = slices.Clone(t.Align)
-	t.Widths = slices.Clone(t.Widths)
+	t.Fit = slices.Clone(t.Fit)
 	t.Room.RowShown = slices.Clone(t.Room.RowShown)
 	t.Room.ColumnShown = slices.Clone(t.Room.ColumnShown)
 	t.Room.RowsApart = slices.Clone(t.Room.RowsApart)
@@ -89,7 +89,7 @@ func cloneTables(tables []Table) []Table {
 
 func (t Table) equal(other Table) bool {
 	if t.Header != other.Header || !slices.Equal(t.Align, other.Align) ||
-		!slices.Equal(t.Widths, other.Widths) || !t.Room.equal(other.Room) || len(t.Rows) != len(other.Rows) {
+		!slices.Equal(t.Fit, other.Fit) || !t.Room.equal(other.Room) || len(t.Rows) != len(other.Rows) {
 		return false
 	}
 	for row := range t.Rows {
@@ -189,7 +189,7 @@ func validateTables(f *Flow, tables []Table) error {
 	previous := model.UTF16Offset(-1)
 	for _, table := range tables {
 		columns := table.Columns()
-		if columns == 0 || len(table.Align) != columns || len(table.Widths) != columns {
+		if columns == 0 || len(table.Align) != columns || len(table.Fit) != columns {
 			return fmt.Errorf("a table must have cells and each column's shape")
 		}
 		for _, row := range table.Rows {

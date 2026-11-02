@@ -307,19 +307,14 @@ func (s *Session) ResizeTable(cell model.NodeID, rows, columns int) (kernel.Outc
 }
 
 // ShapeTable changes cell's table's header and columns as change has it:
-// change sees the table and may set Header, Align and Widths.
+// change sees the table and may set Header, Align and Fit.
 func (s *Session) ShapeTable(cell model.NodeID, change func(*Table)) (kernel.Outcome, error) {
 	return s.editTable(cell, 0, func(document *model.DocumentDraft, table Table) (model.NodeID, error) {
 		next := table.clone()
 		change(&next)
 		next.Rows = table.Rows
-		if next.Header == table.Header && slices.Equal(next.Align, table.Align) && slices.Equal(next.Widths, table.Widths) {
+		if next.Header == table.Header && slices.Equal(next.Align, table.Align) && slices.Equal(next.Fit, table.Fit) {
 			return 0, errNoChange
-		}
-		for index := range next.Widths {
-			if next.Widths[index] > 0 {
-				next.Widths[index] = max(LeastColumnWidth, min(1, next.Widths[index]))
-			}
 		}
 		return 0, writeTable(document, next)
 	})
@@ -615,7 +610,7 @@ func tableFlow(p *projection.Projection, document model.DocumentSnapshot) []surf
 	shown := make([]surface.Table, 0, len(tables))
 	for _, table := range tables {
 		next := surface.Table{
-			Header: table.Header, Align: table.Align, Widths: table.Widths,
+			Header: table.Header, Align: table.Align, Fit: table.Fit,
 			Rows: make([][]surface.TableCell, len(table.Rows)),
 		}
 		whole := true

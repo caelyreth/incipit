@@ -104,104 +104,55 @@ func TestAWideTablesCellsInTheMarginTakeTheCaret(t *testing.T) {
 	}
 }
 
-func tableWidths(t *testing.T, app *AppState) []float32 {
+func tableFit(t *testing.T, app *AppState) []bool {
 	t.Helper()
 	flow, err := app.Session.Document().Session().SurfaceFlow()
 	if err != nil || len(flow.Tables()) == 0 {
 		t.Fatal("the page has no table")
 	}
-	return flow.Tables()[0].Widths
+	return flow.Tables()[0].Fit
 }
 
-func TestColumnBorderCursor(t *testing.T) {
+// A row's grip opens a menu of the row's alone, and a column's of the
+// column's alone, where it is set to fit its text or wrap it.
+func TestAGripsMenuIsItsRowsOrColumns(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
 	tester := ui.NewTester(app.View, 1260, 850)
 	tester.Frame()
-	typeText(t, app, "Before the table\n| Name | Born | Field |\nAda Lovelace wrote the first program for a machine that did not yet exist")
+	typeText(t, app, "Before the table\n| Name | Born | Field |\nAda")
 	frames(tester, 40)
-	tester.Move(900, 225)
-	frames(tester, 10)
-	if cursor := tester.Cursor(); cursor != ui.CursorText {
-		t.Fatalf("over a cell the cursor is %v, want text", cursor)
-	}
-	tester.Move(955, 225)
-	frames(tester, 10)
-	if cursor := tester.Cursor(); cursor != ui.CursorResizeEW {
-		t.Fatalf("over a column border the cursor is %v, want horizontal resize", cursor)
-	}
-	tester.Press(955, 225)
-	tester.Move(945, 225)
-	if cursor := tester.Cursor(); cursor != ui.CursorResizeEW {
-		t.Fatalf("resizing a column the cursor is %v, want horizontal resize", cursor)
-	}
-	tester.Key(0, ui.KeyEscape)
-	tester.Release(945, 225)
-	tester.Move(900, 225)
-	frames(tester, 10)
-	if cursor := tester.Cursor(); cursor != ui.CursorText {
-		t.Fatalf("leaving the border the cursor is %v, want text", cursor)
-	}
-	tester.Move(1202, 225)
-	frames(tester, 10)
-	if cursor := tester.Cursor(); cursor != ui.CursorResizeEW {
-		t.Fatalf("over the table edge the cursor is %v, want horizontal resize", cursor)
-	}
-}
-
-// A border between two columns trades width between them as it is
-// dragged, the caret staying where it was; Escape puts a drag back, the
-// table's edge sizes its last column with the others kept as they show,
-// and a double-click gives the columns back their widths as their text
-// asks.
-func TestAColumnsBorderSetsItsWidth(t *testing.T) {
-	app, err := NewAppState()
-	if err != nil {
+	// Over the header's middle cell, which calls up its grips.
+	tester.Move(889, 168)
+	frames(tester, 30)
+	if err := tester.RightClick("Column 2"); err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
-	typeText(t, app, "Before the table\n| Name | Born | Field |\nAda Lovelace wrote the first program for a machine that did not yet exist")
-	frames(tester, 40)
-	caret := app.Bridge.Controller.Selection().Caret()
-	tester.Move(955, 225)
-	frames(tester, 10)
-	dragFrom(tester, 955, 225, 805, 225)
-	widths := tableWidths(t, app)
-	if widths[0] <= 0 || widths[1] <= 0 || widths[2] != 0 || widths[0] > 0.5 {
-		t.Fatalf("the border set %v", widths)
-	}
-	if after := app.Bridge.Controller.Selection().Caret(); after != caret {
-		t.Fatalf("the caret went from %d to %d", caret, after)
-	}
-	tester.Press(805, 225)
 	frames(tester, 2)
-	tester.Move(700, 225)
+	menu := strings.Join(tester.Menu(), "|")
+	if strings.Contains(menu, "Row") || !strings.Contains(menu, "Fit to Text") {
+		t.Fatalf("a column's grip shows %q", menu)
+	}
+	if err := tester.ChooseMenuItem("Fit to Text"); err != nil {
+		t.Fatal(err)
+	}
+	frames(tester, 10)
+	if fit := tableFit(t, app); !fit[1] || fit[0] || fit[2] {
+		t.Fatalf("Fit to Text set %v", fit)
+	}
+	tester.Move(889, 168)
+	frames(tester, 30)
+	if err := tester.RightClick("Row 1"); err != nil {
+		t.Fatal(err)
+	}
 	frames(tester, 2)
-	tester.Key(0, ui.KeyEscape)
-	tester.Release(700, 225)
-	frames(tester, 10)
-	if again := tableWidths(t, app); again[0] != widths[0] {
-		t.Fatalf("Escape kept %v", again)
+	menu = strings.Join(tester.Menu(), "|")
+	if strings.Contains(menu, "Column") || !strings.Contains(menu, "Header Row") {
+		t.Fatalf("a row's grip shows %q", menu)
 	}
-	tester.Move(1202, 225)
-	frames(tester, 10)
-	dragFrom(tester, 1202, 225, 1172, 225)
-	if edge := tableWidths(t, app); edge[2] <= 0 || edge[0] != widths[0] {
-		t.Fatalf("the edge set %v", edge)
-	}
-	tester.Move(1172, 225)
-	frames(tester, 10)
-	tester.ClickAt(1172, 225)
-	tester.ClickAt(1172, 225)
-	frames(tester, 10)
-	for _, width := range tableWidths(t, app) {
-		if width != 0 {
-			t.Fatalf("a double-click on the edge kept %v", tableWidths(t, app))
-		}
-	}
+	tester.CloseMenu()
 }
 
 // A column moves by its grip above the table, as a row does by its own.

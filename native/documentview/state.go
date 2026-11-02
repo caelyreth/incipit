@@ -55,10 +55,8 @@ type State struct {
 	// table's grip or corner under way.
 	TableCells *CellRange
 	TableDrag  *tableDrag
-	// TableMade is the row or column a create area just made, and
-	// TableBorder the column border the pointer is on or a drag holds.
-	TableMade   *tableMade
-	TableBorder columnBorder
+	// TableMade is the row or column a create area just made.
+	TableMade *tableMade
 	// Carry is a block, row or column a drag carries or that lands.
 	Carry *carryShown
 

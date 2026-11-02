@@ -63,7 +63,7 @@ func (e *Element) followCaret(layout *textlayout.Layout, line ui.Rect, caretY, h
 		e.Motion.Settle(e.scroll, low, high, now)
 		return
 	}
-	if e.pointer != pointerIdle || e.pointerHold || e.tables.sizing != nil || e.carry != nil {
+	if e.pointer != pointerIdle || e.pointerHold || e.carry != nil {
 		e.followUntil = time.Time{}
 		return
 	}

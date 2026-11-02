@@ -127,7 +127,7 @@ func TestRowsAndColumnsComeAndGo(t *testing.T) {
 	session := tablePage(t)
 	typeSession(t, session, "Ada")
 	cell := session.Selection().Head().Node()
-	if _, err := session.ShapeTable(cell, func(table *Table) { table.Widths[1] = 0.3 }); err != nil {
+	if _, err := session.ShapeTable(cell, func(table *Table) { table.Fit[1] = true }); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := session.InsertTableRows(cell, 0, 1); err != nil {
@@ -138,8 +138,8 @@ func TestRowsAndColumnsComeAndGo(t *testing.T) {
 	}
 	expectTable(t, session, []string{"", "", ""}, []string{"Name", "", "Date"}, []string{"Ada", "", ""})
 	table, _ := TableOf(session.Runtime().Snapshot().Document(), cell)
-	if table.Widths[2] != 0.3 || table.Widths[1] != 0 {
-		t.Fatalf("widths = %v", table.Widths)
+	if !table.Fit[2] || table.Fit[1] {
+		t.Fatalf("fit = %v", table.Fit)
 	}
 	if _, err := session.DeleteTableColumns(cell, 1, 1); err != nil {
 		t.Fatal(err)

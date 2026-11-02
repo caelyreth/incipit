@@ -30,7 +30,7 @@ func addTable(t *testing.T, prefix string, rows [][]string) (*Flow, Table) {
 	table := Table{
 		Header: true,
 		Align:  []CellAlign{CellStart, CellCenter},
-		Widths: []float32{0, 0.4},
+		Fit:    []bool{false, true},
 		Room:   TableRoom{Below: 12, Scroll: 3},
 	}
 	at := start

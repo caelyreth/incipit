@@ -185,7 +185,7 @@ func TestIMEPreviewRetainsFigureDuringCaptionEdit(t *testing.T) {
 
 func sameTableNodes(a, b surface.Table) bool {
 	if a.Header != b.Header || len(a.Rows) != len(b.Rows) ||
-		len(a.Align) != len(b.Align) || len(a.Widths) != len(b.Widths) {
+		len(a.Align) != len(b.Align) || len(a.Fit) != len(b.Fit) {
 		return false
 	}
 	for row := range a.Rows {
@@ -199,7 +199,7 @@ func sameTableNodes(a, b surface.Table) bool {
 		}
 	}
 	for column := range a.Align {
-		if a.Align[column] != b.Align[column] || a.Widths[column] != b.Widths[column] {
+		if a.Align[column] != b.Align[column] || a.Fit[column] != b.Fit[column] {
 			return false
 		}
 	}

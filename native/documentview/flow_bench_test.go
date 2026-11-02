@@ -57,11 +57,11 @@ func TestTableVisualFlowRetainsOnlyUnchangedLayout(t *testing.T) {
 		t.Fatal("unchanged table rebuilt its retained layout")
 	}
 	table := element.current.Tables()[0].Table.Node()
-	if _, err := doc.ShapeTable(table, func(shape *editor.Table) { shape.Widths[0] = 0.6 }); err != nil {
+	if _, err := doc.ShapeTable(table, func(shape *editor.Table) { shape.Fit[0] = true }); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	if element.current == before || element.current.Tables()[0].Table.Widths[0] != 0.6 {
+	if element.current == before || !element.current.Tables()[0].Table.Fit[0] {
 		t.Fatal("changed table geometry reused the old layout")
 	}
 	previous := element.current

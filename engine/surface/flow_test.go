@@ -76,7 +76,7 @@ func TestFlowEqualIncludesPresentationMetadata(t *testing.T) {
 		{"table node", func(f *Flow) {
 			f.tables[0].Rows = [][]TableCell{{{Node: 99, Range: table.Rows[0][0].Range}}}
 		}},
-		{"table width", func(f *Flow) { f.tables[0].Widths = []float32{0.4, 0} }},
+		{"table fit", func(f *Flow) { f.tables[0].Fit = []bool{true, false} }},
 		{"table room", func(f *Flow) { f.tables[0].Room.Scroll++ }},
 		{"table row reveal", func(f *Flow) { f.tables[0].Room.RowShown = []float32{1, 0.5} }},
 	} {
@@ -93,17 +93,17 @@ func TestFlowEqualIncludesPresentationMetadata(t *testing.T) {
 func TestFlowOwnsNestedTableValues(t *testing.T) {
 	base := textFlow(t, "a\nb")
 	table := Table{
-		Rows:   [][]TableCell{{{Node: 1, Range: model.NewUTF16Range(0, 1)}, {Node: 2, Range: model.NewUTF16Range(2, 3)}}},
-		Align:  []CellAlign{CellStart, CellEnd},
-		Widths: []float32{0.2, 0.3},
-		Room:   TableRoom{RowShown: []float32{1}, ColumnsApart: []float32{0, 4, 0}},
+		Rows:  [][]TableCell{{{Node: 1, Range: model.NewUTF16Range(0, 1)}, {Node: 2, Range: model.NewUTF16Range(2, 3)}}},
+		Align: []CellAlign{CellStart, CellEnd},
+		Fit:   []bool{true, false},
+		Room:  TableRoom{RowShown: []float32{1}, ColumnsApart: []float32{0, 4, 0}},
 	}
 	flow, err := base.WithTables([]Table{table})
 	if err != nil {
 		t.Fatal(err)
 	}
 	table.Rows[0][0].Node = 99
-	table.Widths[0] = 0.9
+	table.Fit[0] = false
 	table.Room.RowShown[0] = 0
 	tables := flow.Tables()
 	tables[0].Align[0] = CellCenter
@@ -114,7 +114,7 @@ func TestFlowOwnsNestedTableValues(t *testing.T) {
 	}
 	at.Rows[0][1].Node = 99
 	got := flow.Tables()[0]
-	if got.Rows[0][0].Node != 1 || got.Rows[0][1].Node != 2 || got.Widths[0] != 0.2 ||
+	if got.Rows[0][0].Node != 1 || got.Rows[0][1].Node != 2 || !got.Fit[0] ||
 		got.Align[0] != CellStart || got.Room.RowShown[0] != 1 || got.Room.ColumnsApart[1] != 4 {
 		t.Fatalf("flow table changed through an external slice: %+v", got)
 	}

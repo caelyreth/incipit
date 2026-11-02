@@ -28,11 +28,11 @@ const (
 	cellStartsAttribute = "starts"
 	cellStartsTable     = "table"
 	cellStartsRow       = "row"
-	// cellAlignAttribute and cellWidthAttribute are a column's, on its cell
-	// in the first row: "center" or "end", and the share of the table's
-	// width it takes in thousandths.
+	// cellAlignAttribute and cellFitAttribute are a column's, on its cell
+	// in the first row: "center" or "end", and that it fits its text on
+	// one line.
 	cellAlignAttribute = "align"
-	cellWidthAttribute = "width"
+	cellFitAttribute   = "fit"
 	// tablePlainAttribute, on a table's first cell, says its first row is
 	// a row like the others, not its header.
 	tablePlainAttribute = "plain"
@@ -44,12 +44,10 @@ const (
 	// header and two rows, to grow from where it shows.
 	newTableColumns = 3
 	newTableRows    = 3
-	// LeastColumnWidth is the narrowest a column is set, as a share.
-	LeastColumnWidth = 0.05
 )
 
 // cellAttributes are the attributes only a cell has.
-var cellAttributes = []string{cellStartsAttribute, cellAlignAttribute, cellWidthAttribute, tablePlainAttribute}
+var cellAttributes = []string{cellStartsAttribute, cellAlignAttribute, cellFitAttribute, tablePlainAttribute}
 
 // Table is a table on a page: its cells row by row, each row as long as
 // the others once written, and its columns' shape.
@@ -57,10 +55,9 @@ type Table struct {
 	Rows   [][]model.NodeID
 	Header bool
 	Align  []surface.CellAlign
-	// Widths are each column's width as a share of the page's column, 0
-	// for one as wide as its text asks with an even share of what the
-	// others leave.
-	Widths []float32
+	// Fit is whether each column fits its text on one line, rather than
+	// wrap it as the table has room.
+	Fit []bool
 }
 
 // Columns is how many cells the longest row has.
@@ -105,7 +102,7 @@ func (t Table) clone() Table {
 	for index, row := range t.Rows {
 		next.Rows[index] = slices.Clone(row)
 	}
-	next.Align, next.Widths = slices.Clone(t.Align), slices.Clone(t.Widths)
+	next.Align, next.Fit = slices.Clone(t.Align), slices.Clone(t.Fit)
 	return next
 }
 
@@ -151,7 +148,7 @@ func readTables(document blockReader) []Table {
 	for index := range tables {
 		table := &tables[index]
 		columns := table.Columns()
-		table.Align, table.Widths = make([]surface.CellAlign, columns), make([]float32, columns)
+		table.Align, table.Fit = make([]surface.CellAlign, columns), make([]bool, columns)
 		for column, id := range table.Rows[0] {
 			node, _ := document.Node(id)
 			switch textAttribute(node, cellAlignAttribute) {
@@ -160,10 +157,8 @@ func readTables(document blockReader) []Table {
 			case "end":
 				table.Align[column] = surface.CellEnd
 			}
-			if value, ok := node.Attribute(cellWidthAttribute); ok {
-				if width, ok := value.Integer(); ok {
-					table.Widths[column] = float32(max(0, min(1000, width))) / 1000
-				}
+			if value, ok := node.Attribute(cellFitAttribute); ok {
+				table.Fit[column], _ = value.Bool()
 			}
 		}
 	}
@@ -223,8 +218,8 @@ func writeTable(document *model.DocumentDraft, t Table) error {
 	for len(t.Align) < columns {
 		t.Align = append(t.Align, surface.CellStart)
 	}
-	for len(t.Widths) < columns {
-		t.Widths = append(t.Widths, 0)
+	for len(t.Fit) < columns {
+		t.Fit = append(t.Fit, false)
 	}
 	for r := range t.Rows {
 		for len(t.Rows[r]) < columns {
@@ -249,7 +244,6 @@ func writeTable(document *model.DocumentDraft, t Table) error {
 			case surface.CellEnd:
 				align = "end"
 			}
-			width := int64(max(0, min(1, t.Widths[c])) * 1000)
 			if err := keepAttribute(document, id, cellStartsAttribute, starts != "", model.TextValue(starts)); err != nil {
 				return err
 			}
@@ -259,7 +253,7 @@ func writeTable(document *model.DocumentDraft, t Table) error {
 			if err := keepAttribute(document, id, cellAlignAttribute, r == 0 && align != "", model.TextValue(align)); err != nil {
 				return err
 			}
-			if err := keepAttribute(document, id, cellWidthAttribute, r == 0 && width > 0, model.IntegerValue(width)); err != nil {
+			if err := keepAttribute(document, id, cellFitAttribute, r == 0 && t.Fit[c], model.BoolValue(true)); err != nil {
 				return err
 			}
 		}
@@ -351,7 +345,7 @@ func insertColumns(document *model.DocumentDraft, t Table, at, count int) (Table
 		t.Rows[r] = slices.Insert(row, at, cells...)
 	}
 	t.Align = slices.Insert(t.Align, at, make([]surface.CellAlign, count)...)
-	t.Widths = slices.Insert(t.Widths, at, make([]float32, count)...)
+	t.Fit = slices.Insert(t.Fit, at, make([]bool, count)...)
 	return t, writeTable(document, t)
 }
 
@@ -381,7 +375,7 @@ func removeColumns(document *model.DocumentDraft, t Table, first, last int) (Tab
 		t.Rows[r] = slices.Delete(row, first, last+1)
 	}
 	t.Align = slices.Delete(t.Align, first, last+1)
-	t.Widths = slices.Delete(t.Widths, first, last+1)
+	t.Fit = slices.Delete(t.Fit, first, last+1)
 	return t, writeTable(document, t)
 }
 
@@ -416,9 +410,9 @@ func moveColumn(document *model.DocumentDraft, t Table, from, to int) (Table, er
 		cell := row[from]
 		t.Rows[r] = slices.Insert(slices.Delete(row, from, from+1), to, cell)
 	}
-	align, width := t.Align[from], t.Widths[from]
+	align, fit := t.Align[from], t.Fit[from]
 	t.Align = slices.Insert(slices.Delete(t.Align, from, from+1), to, align)
-	t.Widths = slices.Insert(slices.Delete(t.Widths, from, from+1), to, width)
+	t.Fit = slices.Insert(slices.Delete(t.Fit, from, from+1), to, fit)
 	return t, arrange(document, t)
 }
 

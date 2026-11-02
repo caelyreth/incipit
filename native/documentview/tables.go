@@ -122,10 +122,6 @@ type tableUI struct {
 	// pull is each such table's give past the ends of its scroll, as the
 	// page's past its own.
 	pull map[model.NodeID]*scrollfx.Elastic
-	// sizing is a drag of a column's border under way, and border the
-	// border the pointer is on (columns.go).
-	sizing *columnSizing
-	border columnBorder
 }
 
 // tableMade is a row or column a create area made: it comes in at the
@@ -211,10 +207,6 @@ func (e *Element) tabledFlow(flow *surface.Flow, now time.Time, animate bool) (*
 		known[node] = true
 		seen := e.tables.tables[node]
 		room := e.tables.room[node]
-		if sizing := e.tables.sizing; sizing != nil && sizing.table == node {
-			// A border's drag sets the widths it would keep as it goes.
-			table.Widths = sizing.widths
-		}
 		room.RowShown = make([]float32, len(table.Rows))
 		room.ColumnShown = make([]float32, table.Columns())
 		for r, row := range table.Rows {
@@ -267,14 +259,13 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 	near, rowAt, columnAt := -1, -1, -1
 	rowNear, columnNear := float32(0), float32(0)
 	free := inside && e.pointer == pointerIdle && e.tables.drag == nil && e.tables.held == nil &&
-		e.tables.sizing == nil && e.carry == nil && !e.blocks.holding
+		e.carry == nil && !e.blocks.holding
 	if e.carry != nil {
 		// A carry chooses where to land: nothing is made meanwhile.
 		e.tables.below.Close()
 		e.tables.rows.Close()
 		e.tables.columns.Close()
 	}
-	e.followBorder(box, point, free)
 	for index, table := range placed {
 		reach := tableReach * scale
 		if nearOpen && nearAt == index {
@@ -417,13 +408,9 @@ func (e *Element) tableReaches(c *ui.Context) {
 			{X: max(box.X, width), Y: box.Y, W: box.X + box.W - max(box.X, width), H: box.H},
 		} {
 			if part.W > 0.5 {
-				cursor := ui.CursorText
-				if e.tables.border.on && e.tables.border.table == placed.Table.Node() {
-					cursor = ui.CursorResizeEW
-				}
 				ui.Box(c.Key(fmt.Sprintf("table-%d-reach-%d", placed.Table.Node(), index))).
 					Absolute().Left(part.X).Top(part.Y).Width(part.W).Height(part.H).
-					Cursor(cursor)
+					Cursor(ui.CursorText)
 			}
 		}
 	}
@@ -474,7 +461,7 @@ func (e *Element) wheelTable(event ui.InputEvent) bool {
 // revealCell scrolls the table the caret has moved into across, as little
 // as shows its caret within its room.
 func (e *Element) revealCell(head int) {
-	if e.current == nil || e.tables.sizing != nil {
+	if e.current == nil {
 		return
 	}
 	caret := e.current.Caret(model.UTF16Offset(head))
@@ -684,6 +671,13 @@ func (e *Element) tableGrips(c *ui.Context, bridge *Bridge, placed textlayout.Pl
 			e.tables.held = nil
 		}
 		e.followGrip(handle, bridge, placed, kind, from, now)
+		// A grip's menu is what its row's or column's alone is.
+		switch kind {
+		case dragRow:
+			handle.ContextMenu(func(m *ui.Menu) { e.rowMenu(m, bridge, first, from) })
+		case dragColumn:
+			handle.ContextMenu(func(m *ui.Menu) { e.columnMenu(m, bridge, first, from) })
+		}
 	}
 	if row >= 0 && row < len(placed.Rows) {
 		box := ui.Rect{
@@ -1008,91 +1002,155 @@ func (e *Element) cellsKey(event ui.InputEvent) (bool, bool) {
 }
 
 // tableMenu fills a table's menu for the cell at the caret, or the cells
-// selected whole: making rows and columns beside them, aligning their
-// columns, the header, and taking them away.
+// selected whole: making rows and columns beside them, how their columns
+// set their text, the header, and taking them away. A row's grip and a
+// column's have menus of their own, of what is the row's and the
+// column's alone.
 func (e *Element) tableMenu(m *ui.Menu, bridge *Bridge) bool {
 	head := bridge.Controller.Session().Selection().Head().Node()
 	table, ok := bridge.Controller.Table(head)
 	if !ok {
 		return false
 	}
-	first := table.First()
 	top, left, _ := table.Find(head)
 	bottom, right := top, left
-	if bridge.Cells != nil && bridge.Cells.Table == first {
+	if bridge.Cells != nil && bridge.Cells.Table == table.First() {
 		top, left, bottom, right = bridge.Cells.Bounds()
 	}
 	m.EditItems()
 	m.Separator()
-	control := bridge.Controller
-	if m.Item("Insert Row Above").Chosen() {
-		_, _ = control.InsertTableRows(first, top, 1)
-	}
-	if m.Item("Insert Row Below").Chosen() {
-		_, _ = control.InsertTableRows(first, bottom+1, 1)
-	}
-	if m.Item("Insert Column Left").Chosen() {
-		_, _ = control.InsertTableColumns(first, left, 1)
-	}
-	if m.Item("Insert Column Right").Chosen() {
-		_, _ = control.InsertTableColumns(first, right+1, 1)
-	}
+	rows, columns := tableLines{bridge, table, top, bottom}, tableLines{bridge, table, left, right}
+	rows.insertRows(m)
+	columns.insertColumns(m)
 	m.Separator()
-	align := func(to surface.CellAlign) {
-		_, _ = control.ShapeTable(first, func(next *editor.Table) {
-			for index := left; index <= right; index++ {
-				next.Align[index] = to
-			}
-		})
-	}
-	m.Submenu("Align Column", func(m *ui.Menu) {
-		current := table.Align[left]
-		if m.Item("Left").Radio(current == surface.CellStart).Chosen() {
-			align(surface.CellStart)
-		}
-		if m.Item("Center").Radio(current == surface.CellCenter).Chosen() {
-			align(surface.CellCenter)
-		}
-		if m.Item("Right").Radio(current == surface.CellEnd).Chosen() {
-			align(surface.CellEnd)
-		}
-	})
-	if m.Item("Even Column Widths").Disabled(!uneven(table.Widths)).Chosen() {
-		_, _ = control.ShapeTable(first, func(next *editor.Table) { clear(next.Widths) })
-	}
-	if m.Item("Header Row").Checked(table.Header).Chosen() {
-		_, _ = control.ShapeTable(first, func(next *editor.Table) { next.Header = !next.Header })
-	}
+	columns.columnShape(m)
+	rows.header(m)
 	m.Separator()
-	rows, columns := "Delete Row", "Delete Column"
-	if bottom > top {
-		rows = "Delete Rows"
-	}
-	if right > left {
-		columns = "Delete Columns"
-	}
-	if m.Item(rows).Chosen() {
-		bridge.Cells = nil
-		_, _ = control.DeleteTableRows(first, top, bottom)
-	}
-	if m.Item(columns).Chosen() {
-		bridge.Cells = nil
-		_, _ = control.DeleteTableColumns(first, left, right)
-	}
+	rows.deleteRows(m)
+	columns.deleteColumns(m)
 	if m.Item("Delete Table").Chosen() {
 		bridge.Cells = nil
-		_, _ = control.DeleteTable(first)
+		_, _ = bridge.Controller.DeleteTable(table.First())
 	}
 	return true
 }
 
-func uneven(widths []float32) bool {
-	for _, width := range widths {
-		if width > 0 {
-			return true
-		}
+// rowMenu is the menu of a row's grip, which selects the row whole as it
+// opens, and columnMenu a column's.
+func (e *Element) rowMenu(m *ui.Menu, bridge *Bridge, first model.NodeID, row int) {
+	table, ok := bridge.Controller.Table(first)
+	if !ok || row >= len(table.Rows) {
+		return
 	}
-	return false
+	bridge.selectCells(CellRange{Table: first, Anchor: [2]int{row, 0}, Head: [2]int{row, table.Columns() - 1}})
+	rows := tableLines{bridge, table, row, row}
+	rows.insertRows(m)
+	if row == 0 {
+		m.Separator()
+		rows.header(m)
+	}
+	m.Separator()
+	rows.deleteRows(m)
+}
+
+func (e *Element) columnMenu(m *ui.Menu, bridge *Bridge, first model.NodeID, column int) {
+	table, ok := bridge.Controller.Table(first)
+	if !ok || column >= table.Columns() {
+		return
+	}
+	bridge.selectCells(CellRange{Table: first, Anchor: [2]int{0, column}, Head: [2]int{len(table.Rows) - 1, column}})
+	columns := tableLines{bridge, table, column, column}
+	columns.insertColumns(m)
+	m.Separator()
+	columns.columnShape(m)
+	m.Separator()
+	columns.deleteColumns(m)
+}
+
+// tableLines are the rows, or the columns, from first to last of a table,
+// that a menu's items act on.
+type tableLines struct {
+	bridge      *Bridge
+	table       editor.Table
+	first, last int
+}
+
+func (l tableLines) insertRows(m *ui.Menu) {
+	control, cell := l.bridge.Controller, l.table.First()
+	if m.Item("Insert Row Above").Chosen() {
+		_, _ = control.InsertTableRows(cell, l.first, 1)
+	}
+	if m.Item("Insert Row Below").Chosen() {
+		_, _ = control.InsertTableRows(cell, l.last+1, 1)
+	}
+}
+
+func (l tableLines) insertColumns(m *ui.Menu) {
+	control, cell := l.bridge.Controller, l.table.First()
+	if m.Item("Insert Column Left").Chosen() {
+		_, _ = control.InsertTableColumns(cell, l.first, 1)
+	}
+	if m.Item("Insert Column Right").Chosen() {
+		_, _ = control.InsertTableColumns(cell, l.last+1, 1)
+	}
+}
+
+// columnShape is how the columns set their text: aligned, and wrapped as
+// the table has room or fitted on one line.
+func (l tableLines) columnShape(m *ui.Menu) {
+	shape := func(change func(next *editor.Table, column int)) {
+		_, _ = l.bridge.Controller.ShapeTable(l.table.First(), func(next *editor.Table) {
+			for column := l.first; column <= l.last; column++ {
+				change(next, column)
+			}
+		})
+	}
+	align := l.table.Align[l.first]
+	m.Submenu("Align Column", func(m *ui.Menu) {
+		for _, choice := range []struct {
+			label string
+			to    surface.CellAlign
+		}{{"Left", surface.CellStart}, {"Center", surface.CellCenter}, {"Right", surface.CellEnd}} {
+			if m.Item(choice.label).Radio(align == choice.to).Chosen() {
+				shape(func(next *editor.Table, column int) { next.Align[column] = choice.to })
+			}
+		}
+	})
+	fit := l.table.Fit[l.first]
+	if m.Item("Wrap Text").Radio(!fit).Chosen() {
+		shape(func(next *editor.Table, column int) { next.Fit[column] = false })
+	}
+	if m.Item("Fit to Text").Radio(fit).Chosen() {
+		shape(func(next *editor.Table, column int) { next.Fit[column] = true })
+	}
+}
+
+func (l tableLines) header(m *ui.Menu) {
+	if m.Item("Header Row").Checked(l.table.Header).Chosen() {
+		_, _ = l.bridge.Controller.ShapeTable(l.table.First(), func(next *editor.Table) { next.Header = !next.Header })
+	}
+}
+
+func (l tableLines) deleteRows(m *ui.Menu) {
+	label := "Delete Row"
+	if l.last > l.first {
+		label = "Delete Rows"
+	}
+	if m.Item(label).Chosen() {
+		l.bridge.Cells = nil
+		_, _ = l.bridge.Controller.DeleteTableRows(l.table.First(), l.first, l.last)
+	}
+}
+
+func (l tableLines) deleteColumns(m *ui.Menu) {
+	label := "Delete Column"
+	if l.last > l.first {
+		label = "Delete Columns"
+	}
+	if m.Item(label).Chosen() {
+		l.bridge.Cells = nil
+		_, _ = l.bridge.Controller.DeleteTableColumns(l.table.First(), l.first, l.last)
+	}
 }
 
 // drawTables paints each table in view: its header's inset, the lines
@@ -1165,7 +1223,6 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 				})
 			}
 		}
-		drawBorder(p, state, placed, box, dx)
 		drawTableEdges(p, state, placed, box)
 		drawTableDrag(p, state, placed, box)
 	}

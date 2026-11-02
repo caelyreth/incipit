@@ -21,7 +21,7 @@ func testTable(t *testing.T, texts []string, room surface.TableRoom) *surface.Fl
 			Range: model.NewUTF16Range(model.UTF16Offset(at), model.UTF16Offset(at+units)),
 		})
 		table.Align = append(table.Align, surface.CellStart)
-		table.Widths = append(table.Widths, 0)
+		table.Fit = append(table.Fit, false)
 		at += units + 1
 	}
 	flow, err := testFlow(t, text, 0).WithTables([]surface.Table{table})
@@ -85,5 +85,40 @@ func TestALongCellWrapsWithinTheColumn(t *testing.T) {
 	}
 	if placed.Widths[0]+placed.Widths[1] != 400 {
 		t.Fatalf("the columns are %v wide in a column of 400", placed.Widths)
+	}
+}
+
+// Empty columns keep room to write in, however many there are: the table
+// reaches into the margins rather than thin them.
+func TestEmptyColumnsKeepRoomToWrite(t *testing.T) {
+	style := testStyle()
+	style.Spread = 40
+	placed := NewCache().Update(testTable(t, make([]string, 8), surface.TableRoom{}), 400, style).Tables()[0]
+	read := style.Prose.LineHeight() * readColumn
+	for _, width := range placed.Widths {
+		if width < read-1 {
+			t.Fatalf("empty columns are %v wide, under %v", placed.Widths, read)
+		}
+	}
+	if placed.Box.W != 480 || placed.Overflow <= 0 {
+		t.Fatalf("the table shows in %+v, overflowing %v", placed.Box, placed.Overflow)
+	}
+}
+
+// A column set to fit its text keeps it on one line, the others wrapping
+// in what it leaves.
+func TestAFittedColumnKeepsItsLine(t *testing.T) {
+	style := testStyle()
+	long := strings.Repeat("words that run on ", 4)
+	flow := testTable(t, []string{long, long}, surface.TableRoom{})
+	tables := flow.Tables()
+	tables[0].Fit[0] = true
+	flow, err := flow.WithTables(tables)
+	if err != nil {
+		t.Fatal(err)
+	}
+	placed := NewCache().Update(flow, 400, style).Tables()[0]
+	if placed.Widths[0] != placed.Natural[0] || placed.Widths[1] >= placed.Natural[1] {
+		t.Fatalf("the columns are %v, asking %v", placed.Widths, placed.Natural)
 	}
 }
