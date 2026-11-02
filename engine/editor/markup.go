@@ -292,11 +292,14 @@ func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	block.ID = "block"
 	block.Origins = []kernel.EventOrigin{kernel.EventOriginTyping}
 	block.Order = 5
+	checkbox := edit
+	checkbox.ID = "checkbox"
+	checkbox.Trigger = kernel.NewExactTrigger(checkboxTrigger)
 	return kernel.PolicyDescriptor{
 		ID:               TextPolicyID,
 		EnabledByDefault: true,
 		Commands:         commands,
-		Rules:            []kernel.RuleDescriptor{edit, projected, span, notation, block},
+		Rules:            []kernel.RuleDescriptor{edit, projected, span, notation, block, checkbox},
 	}, nil
 }
 

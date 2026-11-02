@@ -28,6 +28,8 @@ const (
 	QuoteNode model.NodeTypeID = "quote"
 	// BulletNode is an item of a bullet list.
 	BulletNode model.NodeTypeID = "bullet"
+	// CheckboxNode is a list item whose checked state belongs to the page.
+	CheckboxNode model.NodeTypeID = "checkbox"
 	// OrderedNode is an item of an ordered list, numbered by its place in
 	// the run of items it stands in.
 	OrderedNode model.NodeTypeID = "ordered"
@@ -46,7 +48,8 @@ const (
 	codeInfoAttribute     = "info"
 	// depthAttribute nests an item or quote line within the ones before
 	// it: 0 is the outermost.
-	depthAttribute = "depth"
+	depthAttribute   = "depth"
+	checkedAttribute = "checked"
 	// maxDepth bounds nesting, as notation must stay legible.
 	maxDepth = 8
 
@@ -138,7 +141,7 @@ func (t writingTriggers) opens(kind model.NodeTypeID) bool {
 		return t.headings
 	case QuoteNode:
 		return t.quotes
-	case BulletNode, OrderedNode:
+	case BulletNode, OrderedNode, CheckboxNode:
 		return t.lists
 	case CodeNode:
 		return t.code
@@ -183,10 +186,11 @@ func inlineMarkerRune(r rune) bool {
 
 // blockShape is what a block is, apart from its text.
 type blockShape struct {
-	kind  model.NodeTypeID
-	level int
-	info  string
-	depth int
+	kind    model.NodeTypeID
+	level   int
+	info    string
+	depth   int
+	checked bool
 }
 
 // shapeOf reads a block's shape from the page.
@@ -204,6 +208,10 @@ func shapeOf(node *model.Node) blockShape {
 		if value, ok := node.Attribute(codeInfoAttribute); ok {
 			shape.info, _ = value.Text()
 		}
+	case CheckboxNode:
+		if value, ok := node.Attribute(checkedAttribute); ok {
+			shape.checked, _ = value.Bool()
+		}
 	}
 	if shape.nests() {
 		if value, ok := node.Attribute(depthAttribute); ok {
@@ -219,7 +227,7 @@ func shapeOf(node *model.Node) blockShape {
 // nested by depth: items in a list, lines in a quote.
 func (s blockShape) nests() bool {
 	switch s.kind {
-	case BulletNode, OrderedNode, QuoteNode:
+	case BulletNode, OrderedNode, CheckboxNode, QuoteNode:
 		return true
 	}
 	return false
@@ -231,7 +239,7 @@ func (s blockShape) nests() bool {
 func groupOf(node *model.Node) (blockGroup, bool) {
 	shape := shapeOf(node)
 	switch shape.kind {
-	case BulletNode, OrderedNode:
+	case BulletNode, OrderedNode, CheckboxNode:
 		return blockGroup{family: "list", kind: string(shape.kind), depth: shape.depth}, true
 	case QuoteNode:
 		return blockGroup{family: "quote", kind: string(shape.kind), depth: shape.depth}, true
@@ -243,7 +251,7 @@ func groupOf(node *model.Node) (blockGroup, bool) {
 // on the same line, rather than a line of its own.
 func (s blockShape) opensLine() bool {
 	switch s.kind {
-	case HeadingNode, QuoteNode, BulletNode, OrderedNode:
+	case HeadingNode, QuoteNode, BulletNode, OrderedNode, CheckboxNode:
 		return true
 	}
 	return false
@@ -262,6 +270,12 @@ func blockNotation(shape blockShape, ordinal int) (open, close string) {
 		return strings.Repeat("> ", shape.depth+1), ""
 	case BulletNode:
 		return strings.Repeat("  ", shape.depth) + "- ", ""
+	case CheckboxNode:
+		mark := " "
+		if shape.checked {
+			mark = "x"
+		}
+		return strings.Repeat("  ", shape.depth) + "- [" + mark + "] ", ""
 	case OrderedNode:
 		return strings.Repeat("  ", shape.depth) + strconv.Itoa(ordinal) + ". ", ""
 	case CodeNode:
@@ -280,7 +294,7 @@ func parseOpener(text string) (blockShape, bool) {
 	// quoted again.
 	if indent := len(text) - len(strings.TrimLeft(text, " ")); indent > 0 {
 		shape, ok := parseOpener(text[indent:])
-		if !ok || indent/2 > maxDepth || shape.kind != BulletNode && shape.kind != OrderedNode {
+		if !ok || indent/2 > maxDepth || shape.kind != BulletNode && shape.kind != OrderedNode && shape.kind != CheckboxNode {
 			return blockShape{}, false
 		}
 		shape.depth = indent / 2
@@ -302,6 +316,10 @@ func parseOpener(text string) (blockShape, bool) {
 		return blockShape{kind: QuoteNode}, true
 	case (text == "- " || text == "+ "):
 		return blockShape{kind: BulletNode}, true
+	case text == "- [ ] " || text == "+ [ ] ":
+		return blockShape{kind: CheckboxNode}, true
+	case text == "- [x] " || text == "- [X] " || text == "+ [x] " || text == "+ [X] ":
+		return blockShape{kind: CheckboxNode, checked: true}, true
 	case strings.HasSuffix(text, ". ") && len(text) > 2 && len(text) <= 11 &&
 		strings.Trim(text[:len(text)-2], "0123456789") == "":
 		return blockShape{kind: OrderedNode}, true
@@ -338,6 +356,9 @@ func shapeBlock(document *model.DocumentDraft, node model.NodeID, shape blockSha
 		return err
 	}
 	if err := set(codeInfoAttribute, shape.kind == CodeNode && shape.info != "", model.TextValue(shape.info)); err != nil {
+		return err
+	}
+	if err := set(checkedAttribute, shape.kind == CheckboxNode && shape.checked, model.BoolValue(true)); err != nil {
 		return err
 	}
 	// A block that is no longer an image no longer names its picture; an
@@ -450,7 +471,15 @@ func collapsedTyping(context *kernel.RuleContext) (*model.DocumentDraft, *model.
 // "```" and Return a code block, "---" a rule.
 func (i *EditorInvoker) invokeBlockTrigger(context *kernel.RuleContext) (kernel.Outcome, error) {
 	document, node, at, text, ok, err := collapsedTyping(context)
-	if err != nil || !ok || node.Kind() != ParagraphNode ||
+	if err != nil || !ok {
+		return kernel.OutcomePass, err
+	}
+	if node.Kind() == BulletNode && contextTriggers(context).lists {
+		if outcome, handled, err := i.openCheckbox(document, node, at, text); handled || err != nil {
+			return outcome, err
+		}
+	}
+	if node.Kind() != ParagraphNode ||
 		text != " " && text != "\n" && text != "-" {
 		return kernel.OutcomePass, err
 	}

@@ -37,6 +37,13 @@ func splitAtNewlines(
 			if err := shapeBlock(document, created, blockShape{kind: ParagraphNode}); err != nil {
 				return err
 			}
+		} else if current.Kind() == CheckboxNode {
+			// A new item starts unchecked even when the split item is checked.
+			shape := shapeOf(current)
+			shape.checked = false
+			if err := shapeBlock(document, created, shape); err != nil {
+				return err
+			}
 		}
 		if err := document.ReplaceTextMarked(node, at, at+1, "", nil); err != nil {
 			return err

@@ -53,9 +53,34 @@ func (f *Flow) replaceRange(next replacement) (*Flow, error) {
 		replaced: model.UTF16Offset(model.StringLenUTF16(next.text)),
 	}
 	flow.figures = edit.figures(flow, f.figures)
+	flow.checkboxes = edit.checkboxes(flow, f.checkboxes)
 	flow.tables = edit.tables(flow, f.tables)
 	flow.rooms = edit.rooms(flow, f.rooms)
 	return flow, nil
+}
+
+func (e rangeEdit) checkboxes(flow *Flow, checkboxes []Checkbox) []Checkbox {
+	next := make([]Checkbox, 0, len(checkboxes))
+	for _, checkbox := range checkboxes {
+		r := checkbox.Marker
+		if e.original.Empty() {
+			if r.Start < e.original.Start && e.original.Start < r.End {
+				continue
+			}
+		} else if e.original.Start < r.End && r.Start < e.original.End {
+			continue
+		}
+		start, startOK := e.point(r.Start)
+		end, endOK := e.point(r.End)
+		if !startOK || !endOK {
+			continue
+		}
+		checkbox.Marker = model.NewUTF16Range(start, end)
+		if _, err := flow.byteRange(checkbox.Marker); err == nil {
+			next = append(next, checkbox)
+		}
+	}
+	return next
 }
 
 func replacementRuns(

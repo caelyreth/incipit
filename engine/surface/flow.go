@@ -16,14 +16,15 @@ type offsetCheckpoint struct {
 // Flow is an immutable flattened projected text plus contiguous style runs and
 // sparse UTF-16 checkpoints.
 type Flow struct {
-	version projection.Version
-	text    string
-	runs    []StyleRun
-	offsets []offsetCheckpoint
-	ascii   bool
-	figures []Figure
-	tables  []Table
-	rooms   []Room
+	version    projection.Version
+	text       string
+	runs       []StyleRun
+	offsets    []offsetCheckpoint
+	ascii      bool
+	figures    []Figure
+	checkboxes []Checkbox
+	tables     []Table
+	rooms      []Room
 }
 
 func EmptyFlow(version projection.Version) *Flow {
@@ -115,6 +116,7 @@ func (f *Flow) Equal(other *Flow) bool {
 	}
 	if f == nil || other == nil || f.version != other.version || f.text != other.text ||
 		!slices.Equal(f.runs, other.runs) || !slices.Equal(f.figures, other.figures) ||
+		!slices.Equal(f.checkboxes, other.checkboxes) ||
 		!slices.Equal(f.rooms, other.rooms) || len(f.tables) != len(other.tables) {
 		return false
 	}

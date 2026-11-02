@@ -355,7 +355,7 @@ func blockStyle(node *model.Node) surface.TextStyle {
 		style.Bold = true
 		style.Color = surface.ColorStrong
 		style.Rhythm = surface.RhythmTitle
-	case BulletNode, OrderedNode:
+	case BulletNode, OrderedNode, CheckboxNode:
 		style.Rhythm = surface.RhythmEntry
 	case QuoteNode:
 		style.Italic = true

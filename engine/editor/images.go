@@ -135,12 +135,22 @@ func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surfa
 		}
 	}
 	var figures []surface.Figure
+	var checkboxes []surface.Checkbox
 	p.EachSegment(func(_ int, segment projection.Segment) bool {
 		target, ok := segment.AttributeTarget()
 		if !ok || target.Key() != blockNotationKey {
 			return true
 		}
 		node, ok := document.Node(target.Node())
+		if ok && node.Kind() == CheckboxNode {
+			shape := shapeOf(node)
+			start := segment.ProjectedRange().Start + model.UTF16Offset(2*shape.depth)
+			checkboxes = append(checkboxes, surface.Checkbox{
+				Node: node.ID(), Marker: model.NewUTF16Range(start, start+5),
+				Checked: shape.checked, Label: node.Text().String(),
+			})
+			return true
+		}
 		shape, image := ImageShapeOf(node)
 		if !ok || !image {
 			return true
@@ -160,6 +170,11 @@ func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surfa
 		}
 		return true
 	})
+	if len(checkboxes) > 0 {
+		if flow, err = flow.WithCheckboxes(checkboxes); err != nil {
+			return nil, err
+		}
+	}
 	if len(figures) == 0 {
 		return flow, nil
 	}
