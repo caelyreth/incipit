@@ -359,18 +359,26 @@ func (t *SelectionTrack) paintRing(p *ui.Painter, rect ui.Rect, style SelectionS
 		t.ringRuns = t.ringRuns[:0]
 		return
 	}
-	out := style.RingOutset
+	for _, run := range t.ringRuns {
+		run.X, run.Y = rect.X+run.X, rect.Y+run.Y
+		PaintRing(p, run, style.Radius, style.RingOutset, style.Ring.Alpha(a))
+	}
+}
+
+// PaintRing rings box, standing outset out from it, its corners rounded
+// about radius: a point-wide line on whole pixels, the app's mark for
+// what is picked whole, as a list's rows a menu acts on or a page's
+// picture.
+func PaintRing(p *ui.Painter, box ui.Rect, radius, outset float32, color ui.Color) {
 	scale := max(1, p.Scale())
 	snap := func(v float32) float32 { return float32(math.Round(float64(v*scale))) / scale }
 	width := max(1/scale, snap(1))
-	for _, run := range t.ringRuns {
-		left, top := snap(rect.X+run.X-out), snap(rect.Y+run.Y-out)
-		right, bottom := snap(rect.X+run.X+run.W+out), snap(rect.Y+run.Y+run.H+out)
-		// The stroke lies just inside the box: on whole pixels, it is whole
-		// rows of them, not a blur across one more.
-		box := ui.Rect{X: left, Y: top, W: right - left, H: bottom - top}
-		p.Stroke(box, style.Ring.Alpha(a), style.Radius+out, width)
-	}
+	left, top := snap(box.X-outset), snap(box.Y-outset)
+	right, bottom := snap(box.X+box.W+outset), snap(box.Y+box.H+outset)
+	// The stroke lies just inside the box: on whole pixels, it is whole
+	// rows of them, not a blur across one more.
+	ring := ui.Rect{X: left, Y: top, W: right - left, H: bottom - top}
+	p.Stroke(ring, color, radius+outset, width)
 }
 
 func abs32(v float32) float32 { return max(v, -v) }

@@ -15,16 +15,16 @@ import (
 // A figure shows its picture in the room the layout keeps for it, from
 // the moment its line does: its place first, as quiet as an inset, and
 // the picture fading in over it once decoded. A hairline keeps a picture
-// as light as the page from bleeding into it. Selected as a whole, as a
-// click on it selects its line, it wears the accent's ring, as the lists'
-// menus ring what they act on; inside a larger selection, it takes the
-// selection's tint. While the caret is in a caption still empty, a hint
+// as light as the page from bleeding into it. In the selection, alone as
+// a click on it selects its line or inside a larger one, it wears the
+// ring the lists wear for what is picked whole, never a tint over what it
+// shows; alone, its grips show too. While the caret is in a caption still empty, a hint
 // fades in there, as an empty page's does (figure_caption.go).
 
 const (
 	figureFade = float32(14)
-	// figureRingOutset and figureRingWidth set the ring off the picture,
-	// in DIPs.
+	// figureRingOutset sets the ring off the picture, in DIPs, and
+	// figureRingWidth is how wide the accent's lines over the page are.
 	figureRingOutset = 3
 	figureRingWidth  = 2
 	// figureCaptionHint is what an empty caption shows while the caret is
@@ -112,7 +112,9 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 		if picture == PictureReady {
 			shown = 1
 		}
-		if figureSelected(figure, selection) && options.Focused {
+		// A picture is in a selection that takes the character it stands
+		// on, whether or not its caption is taken too.
+		if covers(selection, figure.Object()) {
 			ring = 1
 		}
 		if options.Focused && captionHinted(figure, selection) {
@@ -120,7 +122,7 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 		}
 		left := state.Layout.Caret(figure.Line.Start).X
 		resizing := state.Resizing != nil && state.Resizing.node == figure.Node
-		if resizing || ring > 0 || state.HoverFigure.ok && state.HoverFigure.node == figure.Node {
+		if resizing || figureSelected(figure, selection) && options.Focused || state.HoverFigure.ok && state.HoverFigure.node == figure.Node {
 			grips = 1
 		}
 		track, known := motionState.tracks[key]
@@ -163,17 +165,8 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 			continue
 		}
 		drawFigure(p, box, radius, state, bitmap, picture, track.shown.Value())
-		// A picture is in a selection that takes the character it stands
-		// on, whether or not its caption is taken too.
-		if covers(selection, figure.Object()) && !figureSelected(figure, selection) {
-			p.Fill(box, state.Theme.Prose.Selection.Alpha(0.5*state.Motion.SelectionOpacity()), radius)
-		}
 		if alpha := track.ring.Value(); alpha > 0.001 {
-			out := ui.Rect{
-				X: box.X - figureRingOutset, Y: box.Y - figureRingOutset,
-				W: box.W + 2*figureRingOutset, H: box.H + 2*figureRingOutset,
-			}
-			p.Stroke(out, state.Theme.Accent.Foreground.Alpha(0.85*alpha), radius+figureRingOutset, figureRingWidth)
+			components.PaintRing(p, box, radius, figureRingOutset, state.Theme.Accent.Foreground.Alpha(0.85*alpha))
 		}
 		if alpha := track.grips.Value(); alpha > 0.001 && picture != PictureMissing {
 			drawGrips(p, box, figure, state, alpha)
