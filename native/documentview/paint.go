@@ -1,6 +1,7 @@
 package documentview
 
 import (
+	"slices"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/model"
@@ -49,7 +50,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	p.Clip(wide, 0, func() {
 		drawTables(p, rect, state)
 		drawDecorationFills(p, rect, state, options)
-		drawRangeFills(p, rect, state, animatedSelection)
+		drawRangeFills(p, rect, state, withoutTables(state, animatedSelection))
 	})
 	// A figure as wide as the column wears its ring beside it.
 	reach := float32(figureRingOutset + figureRingWidth)
@@ -95,6 +96,28 @@ func drawPlaceholder(p *ui.Painter, rect ui.Rect, state *State) {
 		rect.Y+state.TopInset-state.ScrollY,
 		state.Theme.Text.Muted.Alpha(0.65),
 	)
+}
+
+// withoutTables is selection but where it takes a table whole, which wears
+// the ring for what is picked whole instead of a tint over its cells.
+func withoutTables(state *State, selection []ui.Rect) []ui.Rect {
+	var whole []ui.Rect
+	for _, placed := range state.Layout.Tables() {
+		if covers(state.Frame.Selection(), placed.Table.Range()) {
+			whole = append(whole, placed.Box)
+		}
+	}
+	if len(whole) == 0 {
+		return selection
+	}
+	kept := make([]ui.Rect, 0, len(selection))
+	for _, bounds := range selection {
+		x, y := bounds.X+bounds.W/2, bounds.Y+bounds.H/2
+		if !slices.ContainsFunc(whole, func(box ui.Rect) bool { return box.Contains(x, y) }) {
+			kept = append(kept, bounds)
+		}
+	}
+	return kept
 }
 
 func drawRangeFills(p *ui.Painter, rect ui.Rect, state *State, selection []ui.Rect) {

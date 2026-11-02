@@ -1219,11 +1219,16 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 				span := ui.Rect{X: from.X, Y: from.Y, W: to.X + to.W - from.X, H: to.Y + to.H - from.Y}
 				p.Clip(box, radius, func() {
 					p.Fill(span, state.Theme.Prose.Selection.Alpha(state.Motion.SelectionOpacity()), 0)
-					p.Stroke(span, state.Theme.Accent.Foreground.Alpha(0.85), 0, figureRingWidth)
+					components.PaintRing(p, span, 0, 0, state.Theme.Accent.Foreground.Alpha(0.85))
 				})
 			}
 		}
 		drawTableEdges(p, state, placed, box)
+		// Selected whole, a table wears the ring a picture does.
+		if covers(state.Frame.Selection(), placed.Table.Range()) {
+			alpha := 0.85 * state.Motion.SelectionOpacity()
+			components.PaintRing(p, box, radius, figureRingOutset, state.Theme.Accent.Foreground.Alpha(alpha))
+		}
 		drawTableDrag(p, state, placed, box)
 	}
 }
