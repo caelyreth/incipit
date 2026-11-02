@@ -42,6 +42,8 @@ type State struct {
 	// their fades; without either figures show their places, settled.
 	Pictures     *Pictures
 	FigureMotion *FigureMotion
+	// CellMotion keeps the fades of the cells selected whole.
+	CellMotion *CellMotion
 	// Drop is the line showing where dragged pictures would go.
 	Drop *dropLine
 	// HoverFigure is the figure under the pointer, whose sides show their
@@ -53,7 +55,7 @@ type State struct {
 	Resizing     *figureResize
 	// TableCells are the cells selected whole, and TableDrag a drag of a
 	// table's grip or corner under way.
-	TableCells *CellRange
+	TableCells *CellSelection
 	TableDrag  *tableDrag
 	// TableMade is the row or column a create area just made.
 	TableMade *tableMade

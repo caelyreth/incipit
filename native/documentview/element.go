@@ -61,8 +61,9 @@ type Element struct {
 // pageState is the transient state owned by one mounted document. A page
 // switch discards it as a unit, without committing any unfinished gesture.
 type pageState struct {
-	figures FigureMotion
-	drop    dropLine
+	figures    FigureMotion
+	cellMotion CellMotion
+	drop       dropLine
 	// dropOver is where dragged pictures would go, while they are over the
 	// page: the offset of the block they would follow.
 	dropOver   int
@@ -307,7 +308,10 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 		if handled, ok := e.pressFigure(event); handled {
 			return ok
 		}
-		e.pressTable(event)
+		if e.pressTable(event) {
+			e.focusPending = true
+			return true
+		}
 		offset := e.hit(event.X, event.Y)
 		anchor := offset
 		switch {
@@ -644,6 +648,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Guides:            &e.guides,
 		Pictures:          e.Pictures,
 		FigureMotion:      &e.figures,
+		CellMotion:        &e.cellMotion,
 		Drop:              &e.drop,
 		HoverFigure:       e.hover,
 		Resizing:          e.resizing,

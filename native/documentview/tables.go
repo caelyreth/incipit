@@ -3,7 +3,7 @@ package documentview
 import (
 	"fmt"
 	"math"
-	"strings"
+	"slices"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/editor"
@@ -52,31 +52,6 @@ const (
 	// tables' gaps never share a number.
 	gapStride = 1 << 12
 )
-
-// CellRange is a selection of whole cells: the rectangle between two
-// corners of a table, named by its first cell.
-type CellRange struct {
-	Table        model.NodeID
-	Anchor, Head [2]int
-}
-
-// Bounds are the range's first and last row and column.
-func (r CellRange) Bounds() (top, left, bottom, right int) {
-	top, bottom = min(r.Anchor[0], r.Head[0]), max(r.Anchor[0], r.Head[0])
-	left, right = min(r.Anchor[1], r.Head[1]), max(r.Anchor[1], r.Head[1])
-	return
-}
-
-// Cells are the range's cells in table, row by row.
-func (r CellRange) Cells(table editor.Table) [][]model.NodeID {
-	top, left, bottom, right := r.Bounds()
-	var rows [][]model.NodeID
-	for row := top; row <= min(bottom, len(table.Rows)-1); row++ {
-		cells := table.Rows[row]
-		rows = append(rows, append([]model.NodeID(nil), cells[left:min(right+1, len(cells))]...))
-	}
-	return rows
-}
 
 // tableUI is what the page keeps of its tables across frames.
 type tableUI struct {
@@ -811,9 +786,9 @@ func (e *Element) followGrip(handle ui.Element, bridge *Bridge, placed textlayou
 	e.focusPending = true
 	switch kind {
 	case dragRow:
-		bridge.selectCells(CellRange{Table: first, Anchor: [2]int{from, 0}, Head: [2]int{from, table.Columns() - 1}})
+		bridge.pickLines(first, pickedRows, from, handle.ClickModifiers())
 	case dragColumn:
-		bridge.selectCells(CellRange{Table: first, Anchor: [2]int{0, from}, Head: [2]int{len(table.Rows) - 1, from}})
+		bridge.pickLines(first, pickedColumns, from, handle.ClickModifiers())
 	case dragCorner:
 		_ = bridge.Controller.SelectTable(first)
 	}
@@ -844,69 +819,6 @@ func (e *Element) hoveredCell(placed textlayout.PlacedTable) (int, int) {
 	return row, column
 }
 
-// selectCells selects cells whole: the text selection goes to the first
-// cell's text, which typing writes over.
-func (b *Bridge) selectCells(cells CellRange) {
-	table, ok := b.tableShape(cells.Table)
-	if !ok {
-		b.Cells = nil
-		return
-	}
-	rows := cells.Cells(table)
-	if len(rows) == 0 || len(rows[0]) == 0 {
-		b.Cells = nil
-		return
-	}
-	anchor := table.Rows[cells.Anchor[0]][cells.Anchor[1]]
-	_ = b.Controller.SelectCell(anchor)
-	if cells.Anchor == cells.Head {
-		b.Cells = nil
-		return
-	}
-	b.Cells = &cells
-}
-
-// selectedCells are the cells selected whole, row by row.
-func (b *Bridge) selectedCells() ([][]model.NodeID, bool) {
-	if b == nil || b.Cells == nil {
-		return nil, false
-	}
-	table, ok := b.tableShape(b.Cells.Table)
-	if !ok {
-		b.Cells = nil
-		return nil, false
-	}
-	return b.Cells.Cells(table), true
-}
-
-// cellsText is the selected cells' texts as a spreadsheet copies them.
-func (b *Bridge) cellsText() (string, bool) {
-	rows, ok := b.selectedCells()
-	if !ok {
-		return "", false
-	}
-	var text strings.Builder
-	for _, row := range b.Controller.CellTexts(rows) {
-		text.WriteString(strings.Join(row, "\t"))
-		text.WriteByte('\n')
-	}
-	return text.String(), true
-}
-
-// clearCells empties the selected cells.
-func (b *Bridge) clearCells() bool {
-	rows, ok := b.selectedCells()
-	if !ok {
-		return false
-	}
-	var cells []model.NodeID
-	for _, row := range rows {
-		cells = append(cells, row...)
-	}
-	_, _ = b.Controller.ClearTableCells(cells)
-	return true
-}
-
 // pasteTable writes text into the page as a table when it is one: from
 // the caret's cell on in a table, or as a new table elsewhere when it has
 // rows and columns. It reports whether it did.
@@ -918,8 +830,9 @@ func (b *Bridge) pasteTable(text string) bool {
 	head := b.Controller.Session().Selection().Head().Node()
 	if b.Cells != nil {
 		if table, ok := b.tableShape(b.Cells.Table); ok {
-			top, left, _, _ := b.Cells.Bounds()
-			head = table.Rows[top][left]
+			if picked := b.Cells.Picked(table); len(picked) > 0 {
+				head = picked[0][0]
+			}
 		}
 	}
 	if _, inTable := b.Controller.Table(head); inTable {
@@ -974,7 +887,7 @@ func (e *Element) dragCells(bridge *Bridge, x, y float32) bool {
 		bridge.Cells = nil
 		return false
 	}
-	bridge.selectCells(CellRange{Table: table, Anchor: [2]int{pressRow, pressColumn}, Head: [2]int{row, column}})
+	bridge.selectCells(cellRect(table, [2]int{pressRow, pressColumn}, [2]int{row, column}))
 	e.pointer = pointerSelecting
 	return true
 }
@@ -1012,14 +925,14 @@ func (e *Element) tableMenu(m *ui.Menu, bridge *Bridge) bool {
 	if !ok {
 		return false
 	}
-	top, left, _ := table.Find(head)
-	bottom, right := top, left
+	row, column, _ := table.Find(head)
+	rowsAt, columnsAt := []int{row}, []int{column}
 	if bridge.Cells != nil && bridge.Cells.Table == table.First() {
-		top, left, bottom, right = bridge.Cells.Bounds()
+		rowsAt, columnsAt = bridge.Cells.spans(table)
 	}
 	m.EditItems()
 	m.Separator()
-	rows, columns := tableLines{bridge, table, top, bottom}, tableLines{bridge, table, left, right}
+	rows, columns := tableLines{bridge, table, rowsAt}, tableLines{bridge, table, columnsAt}
 	rows.insertRows(m)
 	columns.insertColumns(m)
 	m.Separator()
@@ -1035,17 +948,27 @@ func (e *Element) tableMenu(m *ui.Menu, bridge *Bridge) bool {
 	return true
 }
 
-// rowMenu is the menu of a row's grip, which selects the row whole as it
-// opens, and columnMenu a column's.
+// gripLines are the rows, or the columns, a grip's menu acts on: those
+// picked, when its own is among them, or else its own, which it picks as
+// the menu opens.
+func gripLines(bridge *Bridge, table editor.Table, kind cellsKind, line int) tableLines {
+	first := table.First()
+	if cells := bridge.Cells; cells != nil && cells.Table == first && cells.Kind == kind && slices.Contains(cells.Lines, line) {
+		return tableLines{bridge, table, slices.Clone(cells.Lines)}
+	}
+	bridge.selectCells(CellSelection{Table: first, Kind: kind, Lines: []int{line}, Anchor: [2]int{line}})
+	return tableLines{bridge, table, []int{line}}
+}
+
+// rowMenu is the menu of a row's grip, and columnMenu a column's.
 func (e *Element) rowMenu(m *ui.Menu, bridge *Bridge, first model.NodeID, row int) {
 	table, ok := bridge.Controller.Table(first)
 	if !ok || row >= len(table.Rows) {
 		return
 	}
-	bridge.selectCells(CellRange{Table: first, Anchor: [2]int{row, 0}, Head: [2]int{row, table.Columns() - 1}})
-	rows := tableLines{bridge, table, row, row}
+	rows := gripLines(bridge, table, pickedRows, row)
 	rows.insertRows(m)
-	if row == 0 {
+	if slices.Equal(rows.lines, []int{0}) {
 		m.Separator()
 		rows.header(m)
 	}
@@ -1058,8 +981,7 @@ func (e *Element) columnMenu(m *ui.Menu, bridge *Bridge, first model.NodeID, col
 	if !ok || column >= table.Columns() {
 		return
 	}
-	bridge.selectCells(CellRange{Table: first, Anchor: [2]int{0, column}, Head: [2]int{len(table.Rows) - 1, column}})
-	columns := tableLines{bridge, table, column, column}
+	columns := gripLines(bridge, table, pickedColumns, column)
 	columns.insertColumns(m)
 	m.Separator()
 	columns.columnShape(m)
@@ -1067,31 +989,31 @@ func (e *Element) columnMenu(m *ui.Menu, bridge *Bridge, first model.NodeID, col
 	columns.deleteColumns(m)
 }
 
-// tableLines are the rows, or the columns, from first to last of a table,
-// that a menu's items act on.
+// tableLines are the rows, or the columns, of a table a menu's items act
+// on, in order.
 type tableLines struct {
-	bridge      *Bridge
-	table       editor.Table
-	first, last int
+	bridge *Bridge
+	table  editor.Table
+	lines  []int
 }
 
 func (l tableLines) insertRows(m *ui.Menu) {
 	control, cell := l.bridge.Controller, l.table.First()
 	if m.Item("Insert Row Above").Chosen() {
-		_, _ = control.InsertTableRows(cell, l.first, 1)
+		_, _ = control.InsertTableRows(cell, l.lines[0], 1)
 	}
 	if m.Item("Insert Row Below").Chosen() {
-		_, _ = control.InsertTableRows(cell, l.last+1, 1)
+		_, _ = control.InsertTableRows(cell, l.lines[len(l.lines)-1]+1, 1)
 	}
 }
 
 func (l tableLines) insertColumns(m *ui.Menu) {
 	control, cell := l.bridge.Controller, l.table.First()
 	if m.Item("Insert Column Left").Chosen() {
-		_, _ = control.InsertTableColumns(cell, l.first, 1)
+		_, _ = control.InsertTableColumns(cell, l.lines[0], 1)
 	}
 	if m.Item("Insert Column Right").Chosen() {
-		_, _ = control.InsertTableColumns(cell, l.last+1, 1)
+		_, _ = control.InsertTableColumns(cell, l.lines[len(l.lines)-1]+1, 1)
 	}
 }
 
@@ -1100,12 +1022,12 @@ func (l tableLines) insertColumns(m *ui.Menu) {
 func (l tableLines) columnShape(m *ui.Menu) {
 	shape := func(change func(next *editor.Table, column int)) {
 		_, _ = l.bridge.Controller.ShapeTable(l.table.First(), func(next *editor.Table) {
-			for column := l.first; column <= l.last; column++ {
+			for _, column := range l.lines {
 				change(next, column)
 			}
 		})
 	}
-	align := l.table.Align[l.first]
+	align := l.table.Align[l.lines[0]]
 	m.Submenu("Align Column", func(m *ui.Menu) {
 		for _, choice := range []struct {
 			label string
@@ -1116,7 +1038,7 @@ func (l tableLines) columnShape(m *ui.Menu) {
 			}
 		}
 	})
-	fit := l.table.Fit[l.first]
+	fit := l.table.Fit[l.lines[0]]
 	if m.Item("Wrap Text").Radio(!fit).Chosen() {
 		shape(func(next *editor.Table, column int) { next.Fit[column] = false })
 	}
@@ -1131,25 +1053,44 @@ func (l tableLines) header(m *ui.Menu) {
 	}
 }
 
+// runs are the lines as runs side by side, each its first and last, the
+// last run first, so taking each away leaves those before where they are.
+func (l tableLines) runs() [][2]int {
+	var runs [][2]int
+	for _, line := range l.lines {
+		if n := len(runs); n > 0 && runs[n-1][1] == line-1 {
+			runs[n-1][1] = line
+			continue
+		}
+		runs = append(runs, [2]int{line, line})
+	}
+	slices.Reverse(runs)
+	return runs
+}
+
 func (l tableLines) deleteRows(m *ui.Menu) {
 	label := "Delete Row"
-	if l.last > l.first {
+	if len(l.lines) > 1 {
 		label = "Delete Rows"
 	}
 	if m.Item(label).Chosen() {
 		l.bridge.Cells = nil
-		_, _ = l.bridge.Controller.DeleteTableRows(l.table.First(), l.first, l.last)
+		for _, run := range l.runs() {
+			_, _ = l.bridge.Controller.DeleteTableRows(l.table.First(), run[0], run[1])
+		}
 	}
 }
 
 func (l tableLines) deleteColumns(m *ui.Menu) {
 	label := "Delete Column"
-	if l.last > l.first {
+	if len(l.lines) > 1 {
 		label = "Delete Columns"
 	}
 	if m.Item(label).Chosen() {
 		l.bridge.Cells = nil
-		_, _ = l.bridge.Controller.DeleteTableColumns(l.table.First(), l.first, l.last)
+		for _, run := range l.runs() {
+			_, _ = l.bridge.Controller.DeleteTableColumns(l.table.First(), run[0], run[1])
+		}
 	}
 }
 
@@ -1162,6 +1103,10 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 	visible := p.Visible()
 	radius := figureRadius(state)
 	line := state.Theme.Border.Default
+	cellMotion := state.CellMotion
+	if cellMotion == nil {
+		cellMotion = &CellMotion{}
+	}
 	for _, placed := range state.Layout.Tables() {
 		box := placed.Box
 		box.X += rect.X
@@ -1212,21 +1157,15 @@ func drawTables(p *ui.Painter, rect ui.Rect, state *State) {
 			}
 		}
 		drawMade(p, state, placed, cell, radius)
-		if cells := state.TableCells; cells != nil && cells.Table == placed.Table.Node() {
-			top, left, bottom, right := cells.Bounds()
-			if bottom < len(placed.Rows) && right < len(placed.Columns) {
-				from, to := cell(top, left), cell(bottom, right)
-				span := ui.Rect{X: from.X, Y: from.Y, W: to.X + to.W - from.X, H: to.Y + to.H - from.Y}
-				p.Clip(box, radius, func() {
-					p.Fill(span, state.Theme.Prose.Selection.Alpha(state.Motion.SelectionOpacity()), 0)
-					components.PaintRing(p, span, 0, 0, state.Theme.Accent.Foreground.Alpha(0.85))
-				})
-			}
+		shown, ring, moving := cellMotion.step(state, placed, p.Now(), state.Animate)
+		if moving {
+			p.AnimationFrame()
 		}
+		p.Clip(box, radius, func() { drawPicked(p, state, placed, cell, shown) })
 		drawTableEdges(p, state, placed, box)
 		// Selected whole, a table wears the ring a picture does.
-		if covers(state.Frame.Selection(), placed.Table.Range()) {
-			alpha := 0.85 * state.Motion.SelectionOpacity()
+		if ring > 0.001 {
+			alpha := 0.85 * ring * state.Motion.SelectionOpacity()
 			components.PaintRing(p, box, radius, figureRingOutset, state.Theme.Accent.Foreground.Alpha(alpha))
 		}
 		drawTableDrag(p, state, placed, box)
@@ -1364,25 +1303,27 @@ func (e *Element) pointerPoint() (ui.Point, bool) { return e.tables.pointer, e.t
 
 // pressTable notes the cell a press begins in, for a drag across cells,
 // and lets cells selected whole go, unless a secondary click is on them,
-// for their menu.
-func (e *Element) pressTable(event ui.InputEvent) {
+// for their menu. A click with Shift or Command picks cells whole, as a
+// spreadsheet's does, and reports that it took the press.
+func (e *Element) pressTable(event ui.InputEvent) bool {
 	e.tables.press, e.tables.pressTable = 0, 0
 	bridge, ok := e.Input.(*Bridge)
 	if !ok || bridge == nil {
-		return
+		return false
 	}
 	table, row, column, inTable := e.cellAt(event.X, event.Y)
-	if event.Button != 0 && bridge.Cells != nil && inTable && bridge.Cells.Table == table {
-		top, left, bottom, right := bridge.Cells.Bounds()
-		if row >= top && row <= bottom && column >= left && column <= right {
-			return
-		}
+	if event.Button != 0 && bridge.Cells != nil && inTable && bridge.Cells.Table == table && bridge.Cells.Has(row, column) {
+		return false
+	}
+	if inTable && event.Button == 0 && event.Clicks < 2 && bridge.pickCell(table, row, column, event.Mods) {
+		return true
 	}
 	bridge.Cells = nil
 	if !inTable || event.Button != 0 {
-		return
+		return false
 	}
 	if shape, ok := bridge.tableShape(table); ok && row < len(shape.Rows) && column < len(shape.Rows[row]) {
 		e.tables.press, e.tables.pressTable = shape.Rows[row][column], table
 	}
+	return false
 }

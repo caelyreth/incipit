@@ -44,7 +44,7 @@ type Bridge struct {
 	// Figures does what a figure's menu asks that the page cannot.
 	Figures FigureHost
 	// Cells are the cells of a table selected whole, if any are.
-	Cells    *CellRange
+	Cells    *CellSelection
 	Now      func() time.Time
 	native   *NativeTextClient
 	detached bool
