@@ -15,6 +15,7 @@ type Frame struct {
 	caret       model.UTF16Offset
 	inputStyle  TextStyle
 	decorations []Decoration
+	whole       bool
 }
 
 func NewFrame(
@@ -93,6 +94,18 @@ func (f *Frame) Selection() model.UTF16Range { return f.selection }
 func (f *Frame) Caret() model.UTF16Offset { return f.caret }
 
 func (f *Frame) InputStyle() TextStyle { return f.inputStyle }
+
+// Whole reports whether the selection takes whole blocks, from the start of
+// the first's line to the end of the last's, as selecting a block, a table
+// or the page does, rather than text within them.
+func (f *Frame) Whole() bool { return f.whole }
+
+// WithWhole is the frame, its selection taking whole blocks as whole says.
+func (f *Frame) WithWhole(whole bool) *Frame {
+	next := *f
+	next.whole = whole
+	return &next
+}
 
 func (f *Frame) Decorations() []Decoration {
 	decorations := make([]Decoration, len(f.decorations))

@@ -38,17 +38,6 @@ func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 	return caret
 }
 
-// Upstream is where a range drawn up to offset shows its end: at a
-// paragraph's start, the end of the paragraph before, so a range that ends
-// where the next block begins shows its caret at what it took, not in the
-// block after.
-func (l *Layout) Upstream(offset model.UTF16Offset) model.UTF16Offset {
-	if paragraph, _ := l.paragraphAt(offset); paragraph != nil && offset > 0 && int(offset) == paragraph.startUTF16 {
-		return offset - 1
-	}
-	return offset
-}
-
 // CaretLine returns the full retained line box containing the caret. The
 // returned H is the shaped visual-row height, not the drawn caret thickness.
 func (l *Layout) CaretLine(offset model.UTF16Offset) (ui.Rect, bool) {

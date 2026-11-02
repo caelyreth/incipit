@@ -161,13 +161,33 @@ func (s *Session) SurfaceFrame(now time.Time, keys GuideKeys) (*surface.Frame, e
 	}
 	decorations = append(decorations, s.guideDecorations(now, keys)...)
 	decorations = append(decorations, s.feedbackDecorations(now)...)
-	return surface.NewFrame(
+	frame, err := surface.NewFrame(
 		flow,
 		selection,
 		s.presentation.Caret.RangeUTF16().Start,
 		inputStyle,
 		decorations,
 	)
+	if err != nil {
+		return nil, err
+	}
+	return frame.WithWhole(s.selectsWhole(selection)), nil
+}
+
+// selectsWhole reports whether selected takes whole blocks: the line of the
+// block at each of its ends, notation and text.
+func (s *Session) selectsWhole(selected model.UTF16Range) bool {
+	if selected.Empty() {
+		return false
+	}
+	selection := s.presentation.Selection
+	for _, node := range []model.NodeID{selection.Anchor().Node(), selection.Head().Node()} {
+		line, ok := s.BlockRange(node)
+		if !ok || line.Start < selected.Start || line.End > selected.End {
+			return false
+		}
+	}
+	return true
 }
 
 // Select installs a validated semantic selection.

@@ -322,3 +322,46 @@ func TestBlocksMoveWhole(t *testing.T) {
 		t.Fatalf("undo left %+v", units)
 	}
 }
+
+// A selection of whole blocks, a table's or a picture's as much as a
+// paragraph's, says so in its frame, its caret not standing in the block
+// past it; one ending at a block's start, or within text, does not.
+func TestASelectionOfWholeBlocksSaysSo(t *testing.T) {
+	session, _ := newSessionFixture(t, "Alpha\n\nBravo", false)
+	at(t, session, 12)
+	if _, err := session.InsertTable([][]string{{"a", ""}, {"", ""}}); err != nil {
+		t.Fatal(err)
+	}
+	at(t, session, 0)
+	if _, err := session.InsertImage(sunset); err != nil {
+		t.Fatal(err)
+	}
+	document := session.Runtime().Snapshot().Document()
+	table := readTables(document)[0]
+	picture, _ := session.BlockRange(DocumentBlocks(document)[1].ID())
+	whole := func(name string, start, end model.UTF16Offset, want bool) {
+		t.Helper()
+		if err := session.SelectProjected(start, end); err != nil {
+			t.Fatal(err)
+		}
+		frame, err := session.SurfaceFrame(time.Now(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if frame.Whole() != want {
+			t.Fatalf("%s %d..%d whole = %v", name, start, end, frame.Whole())
+		}
+	}
+	if err := session.SelectTable(table.First()); err != nil {
+		t.Fatal(err)
+	}
+	selected, _ := session.VisualSelection()
+	whole("the table", selected.Start, selected.End, true)
+	whole("the picture", picture.Start, picture.End, true)
+	whole("the page", 0, model.UTF16Offset(session.Projection().UTF16Len()), true)
+	whole("a word", 1, 3, false)
+	empty, _ := session.BlockRange(DocumentBlocks(document)[2].ID())
+	bravo, _ := session.BlockRange(DocumentBlocks(document)[3].ID())
+	whole("to the next block's start", empty.Start, bravo.Start, false)
+	whole("a caret", 2, 2, false)
+}
