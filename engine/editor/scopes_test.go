@@ -156,4 +156,14 @@ func TestDismissingSelectAllGoesBackToWhereItBegan(t *testing.T) {
 	}
 	run(t, session, TextDismissSelection)
 	caret(3)
+	// Selecting otherwise ends the run, though it selects what the run did.
+	at(t, session, cell.Start)
+	run(t, session, TextSelectAll)
+	at(t, session, 1)
+	if err := session.SelectTable(table.First()); err != nil {
+		t.Fatal(err)
+	}
+	selected, _ := session.VisualSelection()
+	run(t, session, TextDismissSelection)
+	caret(selected.End)
 }

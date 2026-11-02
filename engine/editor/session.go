@@ -199,6 +199,7 @@ func (s *Session) Select(selection model.TextSelection) error {
 	if err := s.presentation.Select(s.runtime.Snapshot(), selection); err != nil {
 		return err
 	}
+	s.widening = nil
 	s.history.SelectionChanged()
 	s.pairsValid = false
 	s.refreshInline()
@@ -213,6 +214,7 @@ func (s *Session) SelectProjected(anchor, head model.UTF16Offset) error {
 	if err := s.presentation.SelectProjected(s.runtime.Snapshot(), anchor, head); err != nil {
 		return err
 	}
+	s.widening = nil
 	s.history.SelectionChanged()
 	s.pairsValid = false
 	s.refreshInline()
