@@ -195,9 +195,15 @@ func TestNewlineSelectionUsesOneLineHeight(t *testing.T) {
 	if len(rects) == 0 {
 		t.Fatal("selection produced no rectangles")
 	}
+	// The first row of the second paragraph takes the gap above it too.
+	second := layout.Paragraphs()[1]
 	for _, rect := range rects {
-		if rect.H != style.Prose.LineHeight() {
-			t.Fatalf("selection row height = %v, want %v", rect.H, style.Prose.LineHeight())
+		want := style.Prose.LineHeight()
+		if rect.Y == second.Top()-second.gap {
+			want += second.gap
+		}
+		if rect.H != want {
+			t.Fatalf("selection row %v height = %v, want %v", rect, rect.H, want)
 		}
 	}
 }
@@ -300,9 +306,9 @@ func near(a, b float32) bool { return a-b < 0.5 && b-a < 0.5 }
 // Every room on the page follows the one spacing value: a body row is
 // its text plus the body leading, a heading's its larger text plus the
 // same, entries and verbatim lines are packed closer, and no row is
-// shorter than its face. A run of entries or code is set apart from prose
-// around it, and a heading from what is before it, and less from what it
-// opens.
+// shorter than its face. Blocks stand a block step apart, paragraphs of
+// prose too, but the lines of a run of entries or code do not; a heading
+// stands two steps from what is before it, and one from what it opens.
 func TestRhythmDerivesFromSpacing(t *testing.T) {
 	title := surface.TextStyle{Scale: 1.6, Rhythm: surface.RhythmTitle}
 	prose := surface.TextStyle{}
@@ -329,7 +335,8 @@ func TestRhythmDerivesFromSpacing(t *testing.T) {
 		}
 		heights[5], heights[7] = heights[4], heights[6]
 		px := func(v float32) float32 { return float32(math.Round(float64(v))) }
-		gaps := []float32{0, px(body * titleGap), px(body * titleBond), 0, px(body * groupGap), 0, px(body * groupGap), 0, px(body * groupGap)}
+		step := px(body * blockStep)
+		gaps := []float32{0, px(body * blockStep * titleSteps), step, step, step, 0, step, 0, step}
 		for index, row := range rows {
 			if !near(row.Height(), heights[index]) || !near(row.gap, gaps[index]) {
 				t.Fatalf("spacing %v row %d: height %v gap %v, want %v and %v",

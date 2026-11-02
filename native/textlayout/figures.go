@@ -9,16 +9,14 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// A figure stands above its caption's line, set apart from the text
-// around it as a run of entries is, a little more, and held close to its
-// caption, which reads as its own. It takes its room from its size in
+// A figure stands above its caption's line, a block step apart from the
+// text around it as any block is, and held close to its caption, which
+// reads as its own. It takes its room from its size in
 // pixels, so the page never moves as its pixels arrive.
 const (
-	// figureSpace sets a figure and its caption apart from the blocks
-	// around them.
-	figureSpace = 0.75
-	// figureCaption is the room between a figure and its caption.
-	figureCaption = 0.35
+	// figureCaption is the room between a figure and its caption, in block
+	// steps.
+	figureCaption = 0.5
 	// figureTallest bounds a figure's height, as a share of the column's
 	// width: a long screenshot shows narrower rather than pages tall.
 	figureTallest = 1.25
@@ -55,11 +53,11 @@ func figureObject(spans []ui.Span) []ui.Span {
 }
 
 func figureGap(body float32) float32 {
-	return float32(math.Round(float64(body * figureSpace)))
+	return blockGap(body, 1)
 }
 
 func figureBond(body float32) float32 {
-	return float32(math.Round(float64(body * figureCaption)))
+	return blockGap(body, figureCaption)
 }
 
 // figureBox is where a figure stands in a column of width, its top at

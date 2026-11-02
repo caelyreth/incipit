@@ -141,8 +141,8 @@ func newScrollElement(t *testing.T, text string, typewriter bool) (*controller.D
 }
 
 func TestScrollStaysPutWhenContentFits(t *testing.T) {
-	// Eight lines and the dock clearance fit the 400 DIP viewport.
-	_, element, tester := newScrollElement(t, strings.Repeat("line\n", 7)+"line", false)
+	// Six lines and the dock clearance fit the 400 DIP viewport.
+	_, element, tester := newScrollElement(t, strings.Repeat("line\n", 5)+"line", false)
 	if height := element.current.Height() + element.BottomInset; height >= 400 {
 		t.Fatalf("fixture overflows: %v", height)
 	}

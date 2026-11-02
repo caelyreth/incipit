@@ -11,27 +11,31 @@ import (
 // spacing setting moves. Every other room is a fixed share of it, so the
 // rhythm stays in proportion from compact to loose.
 //
-// Within a block of one rhythm, rows are their largest text plus the
-// rhythm's leading. Between blocks, a gap sets groups apart: a run of
-// entries or verbatim lines reads as one unit, and a title stands clear of
-// the text on both sides, yet nearer to what it opens than to what came
-// before, so it reads as the head of what follows.
+// Within a block, rows are their largest text plus the rhythm's leading.
+// Between blocks stands a block step, so a new paragraph reads apart from
+// the next row of the same one; every other room between blocks is counted
+// in steps. A run of entries or verbatim lines reads as one unit, with no
+// step between its lines, and a title stands clear of what comes before it
+// by twice what it keeps from what it opens, so it reads as the head of
+// what follows.
 const (
 	// entryLeading packs a run's lines a little closer than prose, so its
 	// entries read as a set.
 	entryLeading = 0.75
 	// verbatimLeading packs verbatim lines closest: they are read as lines.
 	verbatimLeading = 0.55
-	// titleGap sets a title apart from what comes before it.
-	titleGap = 1.5
-	// titleBond is the room below a title, a third of the room above it:
-	// enough that the title does not sit on the text it opens, little
-	// enough that it stays with it.
-	titleBond = 0.5
-	// groupGap sets a run of entries or verbatim lines apart from the text
-	// around it.
-	groupGap = 0.5
+	// blockStep is the room between blocks, as a share of the body
+	// leading: with a row's own leading it sets paragraphs further apart
+	// than the rows of one, yet well short of an empty line.
+	blockStep = 0.75
+	// titleSteps is the room above a title, in block steps.
+	titleSteps = 2
 )
+
+// blockGap is steps block steps of room.
+func blockGap(body, steps float32) float32 {
+	return float32(math.Round(float64(body * blockStep * steps)))
+}
 
 // leading is the room a row of a rhythm leaves beside its text.
 func leading(rhythm surface.Rhythm, body float32) float32 {
@@ -45,20 +49,16 @@ func leading(rhythm surface.Rhythm, body float32) float32 {
 }
 
 // gap is the room above a block of rhythm next, after one of rhythm
-// previous. Blocks of one rhythm follow on with none; what a title opens,
-// a title of its own too, keeps close below it.
+// previous: a block step, none between the lines of one run, and more above
+// a title.
 func gap(previous, next surface.Rhythm, body float32) float32 {
-	share := float32(0)
 	switch {
-	case previous == surface.RhythmTitle:
-		share = titleBond
-	case previous == next:
-	case next == surface.RhythmTitle:
-		share = titleGap
-	case isGroup(previous) || isGroup(next):
-		share = groupGap
+	case previous == next && isGroup(next):
+		return 0
+	case next == surface.RhythmTitle && previous != surface.RhythmTitle:
+		return blockGap(body, titleSteps)
 	}
-	return float32(math.Round(float64(body * share)))
+	return blockGap(body, 1)
 }
 
 func isGroup(rhythm surface.Rhythm) bool {
