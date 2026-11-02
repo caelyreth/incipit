@@ -18,6 +18,10 @@ type LayoutGeometry struct {
 	// Paint and the native input method must share one presentation, including
 	// the hint position used by an empty figure caption.
 	Caret *CaretPresentation
+	// Relayout sets the page out for its current text when that is not
+	// what Layout shows yet: an input method asks where the text it just
+	// set lies before the page repaints.
+	Relayout func() *textlayout.Layout
 }
 
 // CaretPresentation is the painted caret geometry for one collapsed
@@ -35,14 +39,22 @@ func (g LayoutGeometry) coordinates() pageCoordinates {
 	return pageCoordinates{top: g.YOffset, scroll: g.ScrollY}
 }
 
+// layoutOf is the layout of text: Layout, or the page set out again when
+// text has changed since. A layout of other text answers nothing.
+func (g LayoutGeometry) layoutOf(text string) (*textlayout.Layout, bool) {
+	layout := g.Layout
+	if layout != nil && layout.Flow().Text() != text && g.Relayout != nil {
+		layout = g.Relayout()
+	}
+	return layout, layout != nil && layout.Flow().Text() == text
+}
+
 func (g LayoutGeometry) BoundsForRange(
 	text string,
 	range16 controller.UTF16Range,
 ) (controller.Rect, controller.UTF16Range, bool) {
-	if g.Layout == nil {
-		return controller.Rect{}, range16, false
-	}
-	if g.Layout.Flow().Text() != text {
+	layout, ok := g.layoutOf(text)
+	if !ok {
 		return controller.Rect{}, range16, false
 	}
 	aligned, _, ok := model.AlignUTF16RangeForNativeQuery(
@@ -61,7 +73,7 @@ func (g LayoutGeometry) BoundsForRange(
 		rect.Y = g.coordinates().viewportY(rect.Y)
 		return rect, range16, true
 	}
-	rect, ok := g.Layout.BoundsForRange(aligned)
+	rect, ok := layout.BoundsForRange(aligned)
 	if !ok {
 		return controller.Rect{}, controller.UTF16Range{
 			Start: int(aligned.Start),
@@ -82,10 +94,11 @@ func (g LayoutGeometry) IndexForPoint(
 	text string,
 	point controller.Point,
 ) (int, bool) {
-	if g.Layout == nil || g.Layout.Flow().Text() != text {
+	layout, ok := g.layoutOf(text)
+	if !ok {
 		return 0, false
 	}
-	return int(g.Layout.Hit(g.coordinates().contentPoint(ui.Point{
+	return int(layout.Hit(g.coordinates().contentPoint(ui.Point{
 		X: point.X,
 		Y: point.Y,
 	}))), true
@@ -97,19 +110,21 @@ func (g LayoutGeometry) RowIndex(
 	direction controller.VerticalDirection,
 	x float32,
 ) (int, bool) {
-	if g.Layout == nil || g.Layout.Flow().Text() != text || caret < 0 ||
+	layout, ok := g.layoutOf(text)
+	if !ok || caret < 0 ||
 		!model.UTF16OffsetIsBoundary(text, model.UTF16Offset(caret)) {
 		return 0, false
 	}
-	return int(g.Layout.RowNear(model.UTF16Offset(caret), int(direction), x)), true
+	return int(layout.RowNear(model.UTF16Offset(caret), int(direction), x)), true
 }
 
 func (g LayoutGeometry) CaretLine(text string, caret int) (controller.Rect, bool) {
-	if g.Layout == nil || g.Layout.Flow().Text() != text || caret < 0 ||
+	layout, ok := g.layoutOf(text)
+	if !ok || caret < 0 ||
 		!model.UTF16OffsetIsBoundary(text, model.UTF16Offset(caret)) {
 		return controller.Rect{}, false
 	}
-	line, ok := g.Layout.CaretLine(model.UTF16Offset(caret))
+	line, ok := layout.CaretLine(model.UTF16Offset(caret))
 	if !ok {
 		return controller.Rect{}, false
 	}

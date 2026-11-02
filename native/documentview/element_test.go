@@ -458,3 +458,41 @@ func TestElementPulsesOverTextRefinementRewrote(t *testing.T) {
 		t.Fatalf("no pulse over the ellipsis: %v before and after", pulsing)
 	}
 }
+
+// An input method asks where the text it just set lies before the page
+// repaints, and places its candidates there.
+func TestNativeInputFindsMarkedTextBeforeThePageRepaints(t *testing.T) {
+	document, err := controller.NewTextDocument("# What\n\nhello world\n", nativeClock{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := NewBridge(document, nil, func() time.Time {
+		return time.Unix(1_700_000_000, 0)
+	})
+	settings := theme.DefaultSettings()
+	element := NewElement(
+		input,
+		settings.Semantic(),
+		theme.NewProseStyle(settings.ProseFontSize),
+		time.Unix(1_700_000_000, 0),
+	)
+	tester := ui.NewTester(func(c *ui.Context) {
+		element.View(c)
+	}, 600, 400)
+	if err := document.SelectProjected(13, 13); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	client := input.Client()
+	client.SetMarkedText(nil, "ni", ui.TextInputRange{Start: 2, End: 2})
+	marked := ui.TextInputRange{Start: 13, End: 15}
+	before, actual, ok := client.BoundsForRange(marked)
+	if !ok || actual != marked {
+		t.Fatalf("marked text before the repaint = %#v, %#v, %v", before, actual, ok)
+	}
+	tester.Frame()
+	after, _, ok := client.BoundsForRange(marked)
+	if !ok || after != before {
+		t.Fatalf("marked text after the repaint = %#v, before %#v", after, before)
+	}
+}

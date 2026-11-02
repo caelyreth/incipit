@@ -78,6 +78,14 @@ func NewBridge(
 	return bridge
 }
 
+// clock is the time the bridge's page goes by.
+func (b *Bridge) clock() time.Time {
+	if b.Now == nil {
+		return time.Now()
+	}
+	return b.Now()
+}
+
 func (b *Bridge) textClient() ui.TextInputClient {
 	if b == nil || b.native == nil {
 		return nil

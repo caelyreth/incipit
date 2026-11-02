@@ -122,12 +122,15 @@ type pageState struct {
 	// carry is a block, row or column a grip's drag carries, landing one
 	// let go on its way to its place, and apart the room the page opens
 	// and closes for them (carry.go).
-	carry                *carry
-	landing              *carryLanding
-	apart                map[apartKey]*apartRoom
-	gesture              gripGesture
-	gripPointer          ui.Point
-	drawnCaret           ui.Rect
+	carry       *carry
+	landing     *carryLanding
+	apart       map[apartKey]*apartRoom
+	gesture     gripGesture
+	gripPointer ui.Point
+	drawnCaret  ui.Rect
+	// lastAnimate is whether the last paint animated, as a layout between
+	// frames must too.
+	lastAnimate          bool
 	caretPresentationKey caretPresentationKey
 }
 
@@ -573,23 +576,6 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	if !ok || bridge == nil || bridge.Controller == nil {
 		return
 	}
-	frame, err := bridge.Controller.SurfaceFrame(p.Now())
-	if err != nil {
-		return
-	}
-	tabled, growing := e.tabledFlow(e.apartFlow(e.resizedFlow(frame.Flow()), bridge), p.Now(), animate)
-	flow, opening := e.captionedFlow(tabled, frame.Selection(), p.Now(), animate)
-	if e.visualFlow != nil && e.visualFlow.Equal(flow) {
-		flow = e.visualFlow
-	} else {
-		e.visualFlow = flow
-	}
-	if opening || growing {
-		p.AnimationFrame()
-	}
-
-	style := textlayout.NewStyle(e.Prose, e.Theme)
-	style.Spread = e.tableSpread()
 	e.lastHeight = rect.H
 	if e.lastWidth != rect.W {
 		// Rewrapped rows have no previous identity; never morph across them.
@@ -597,12 +583,13 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		e.guides.Reset()
 		e.lastWidth = rect.W
 	}
-	previous := e.current
-	e.current = e.Layout.Update(flow, rect.W, style)
-	if previous != e.current && e.wake != nil &&
-		(flow.HasCheckboxes() || previous != nil && previous.Flow().HasCheckboxes()) {
-		// Controls are built from the last painted layout; rebuild after it moves.
-		e.wake()
+	e.lastAnimate = animate
+	frame, flow, moving, ok := e.layOut(bridge, p.Now(), animate)
+	if !ok {
+		return
+	}
+	if moving {
+		p.AnimationFrame()
 	}
 	e.applyLift()
 	caret := e.current.Caret(frame.Caret())
@@ -681,7 +668,41 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 	bridge.Controller.SetGeometry(LayoutGeometry{
 		Layout: e.current, YOffset: e.TopInset, ScrollY: e.visibleScroll(),
 		Caret: e.caretPresentation(bridge.Controller),
+		Relayout: func() *textlayout.Layout {
+			_, _, _, _ = e.layOut(bridge, bridge.clock(), e.lastAnimate)
+			return e.current
+		},
 	})
+}
+
+// layOut sets the page out for the controller's current frame at the last
+// painted width: the visual flow, with the room the view opens in it, and
+// its retained layout. Paint does it each frame; a native text query does
+// it between frames, as an input method asks where the text it just set
+// lies before the page repaints. It reports whether what the view opens
+// is still moving.
+func (e *Element) layOut(bridge *Bridge, now time.Time, animate bool) (*surface.Frame, *surface.Flow, bool, bool) {
+	frame, err := bridge.Controller.SurfaceFrame(now)
+	if err != nil {
+		return nil, nil, false, false
+	}
+	tabled, growing := e.tabledFlow(e.apartFlow(e.resizedFlow(frame.Flow()), bridge), now, animate)
+	flow, opening := e.captionedFlow(tabled, frame.Selection(), now, animate)
+	if e.visualFlow != nil && e.visualFlow.Equal(flow) {
+		flow = e.visualFlow
+	} else {
+		e.visualFlow = flow
+	}
+	style := textlayout.NewStyle(e.Prose, e.Theme)
+	style.Spread = e.tableSpread()
+	previous := e.current
+	e.current = e.Layout.Update(flow, e.lastWidth, style)
+	if previous != e.current && e.wake != nil &&
+		(flow.HasCheckboxes() || previous != nil && previous.Flow().HasCheckboxes()) {
+		// Controls are built from the last painted layout; rebuild after it moves.
+		e.wake()
+	}
+	return frame, flow, opening || growing, true
 }
 
 func (e *Element) visibleScroll() float32 {
