@@ -389,6 +389,40 @@ func TestCompositionPreviewCommitsOneHandledEdit(t *testing.T) {
 	}
 }
 
+// Composing over paragraphs selected together replaces them as typing
+// does, as one edit that undoes back to the selection.
+func TestCompositionReplacesASelectionAcrossBlocks(t *testing.T) {
+	t.Parallel()
+	controller := newController(t, "# What\n\nabc\ndef\n")
+	mustSelect(t, controller, 9, 14)
+	before := controller.Runtime().Revision()
+
+	controller.SetMarkedText(nil, "ni", UTF16Range{Start: 2, End: 2})
+	if err := controller.LastError(); err != nil || !controller.IsComposing() {
+		t.Fatalf("composition across blocks: composing=%v err=%v", controller.IsComposing(), err)
+	}
+	if controller.Text() != "# What\n\nanif\n" {
+		t.Fatalf("preview text = %q", controller.Text())
+	}
+	final := "你好"
+	if outcome, err := controller.CommitComposition(nil, &final); err != nil || outcome != kernel.OutcomeHandled {
+		t.Fatalf("commit outcome=%v err=%v", outcome, err)
+	}
+	if controller.Text() != "# What\n\na你好f\n" || controller.Caret() != 11 {
+		t.Fatalf("committed text=%q caret=%d", controller.Text(), controller.Caret())
+	}
+	if controller.Runtime().Revision() != before+1 {
+		t.Fatalf("revision = %d, want %d", controller.Runtime().Revision(), before+1)
+	}
+	if _, err := controller.Execute(Command{ID: "history.undo"}); err != nil {
+		t.Fatal(err)
+	}
+	if controller.Text() != "# What\n\nabc\ndef\n" ||
+		controller.Selection().Range != (UTF16Range{Start: 9, End: 14}) {
+		t.Fatalf("undone text=%q selection=%#v", controller.Text(), controller.Selection())
+	}
+}
+
 func TestMarkedTextReplacesExplicitSourceRange(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "a🦀z")

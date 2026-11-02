@@ -724,9 +724,10 @@ func (s *Session) editedPresentation(
 	return Presentation{Projection: projected, Selection: next, Caret: caret, Flow: flow}, nil
 }
 
-// BeginComposition captures the current visual target.
+// BeginComposition captures the current visual selection, which the
+// commit replaces.
 func (s *Session) BeginComposition() error {
-	target, err := s.presentation.CollapsedTarget()
+	target, err := s.SelectionTarget()
 	if err != nil {
 		return err
 	}

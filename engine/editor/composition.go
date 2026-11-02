@@ -8,20 +8,10 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-// ErrCrossBlockComposition rejects preedit that would replace more than one
-// semantic block. A span composition needs its own explicit target model.
-var ErrCrossBlockComposition = errors.New("editor: composition cannot span blocks")
-
-// Composition is transient preedit text bound to the semantic target captured
+// Composition is transient preedit text over the projected range captured
 // when composition began. It never enters document storage.
 type Composition struct {
-	target input.TextTarget
-	text   string
-}
-
-// Target returns the captured semantic replacement target.
-func (c Composition) Target() input.TextTarget {
-	return c.target
+	text string
 }
 
 // Text returns the current transient preedit text.
@@ -37,7 +27,6 @@ type PendingComposition struct {
 	Range     model.UTF16Range
 	Version   projection.Version
 	Text      string
-	Target    input.TextTarget
 }
 
 // CompositionState owns one optional composition and its captured projected
@@ -100,9 +89,9 @@ func (s *CompositionState) Version() (projection.Version, bool) {
 	return s.version, true
 }
 
-// Begin captures a projected target, its projected selection and range, the
-// projection version, and the semantic target. The semantic target is
-// validated against document before any transient text is accepted.
+// Begin captures a projected target, its projected selection and range, and
+// the projection version. The range is the one the commit replaces, as
+// typing replaces it, whatever blocks it spans.
 func (s *CompositionState) Begin(
 	proj *projection.Projection,
 	target projection.Target,
@@ -136,34 +125,18 @@ func (s *CompositionState) Begin(
 	}
 	selection := projection.NewSelection(start, end)
 
-	semanticStart, err := proj.SemanticAnchor(target.RangeUTF16().Start, model.AffinityRight)
-	if err != nil {
-		return err
-	}
-	semanticEnd, err := proj.SemanticAnchor(target.RangeUTF16().End, model.AffinityLeft)
-	if err != nil {
-		return err
-	}
-	if semanticStart.Node() != semanticEnd.Node() {
-		return ErrCrossBlockComposition
-	}
-	semanticRange := model.NewUTF16Range(
-		min(semanticStart.OffsetUTF16(), semanticEnd.OffsetUTF16()),
-		max(semanticStart.OffsetUTF16(), semanticEnd.OffsetUTF16()),
-	)
-	semantic := input.NewTextTarget(
-		semanticStart.Node(),
-		semanticRange,
-		proj.Version().SourceRevision(),
-	)
 	// The projection may have been built against an older semantic snapshot.
-	// Validate the captured target against the document revision that will
-	// actually receive the commit, not merely against the projection header.
-	if err := semantic.Validate(document.Revision(), document); err != nil {
-		return err
+	// Check it against the document revision that will actually receive the
+	// commit, not merely against the projection header.
+	if revision := proj.Version().SourceRevision(); revision != document.Revision() {
+		return &input.Error{
+			Kind:     input.ErrorStaleTarget,
+			Captured: revision,
+			Current:  document.Revision(),
+		}
 	}
 
-	s.composition = &Composition{target: semantic}
+	s.composition = &Composition{}
 	s.selection = selection
 	s.range16 = target.RangeUTF16()
 	s.version = proj.Version()
@@ -214,7 +187,6 @@ func (s *CompositionState) Candidate(proj *projection.Projection) (PendingCompos
 		Range:     s.range16,
 		Version:   s.version,
 		Text:      s.composition.text,
-		Target:    s.composition.target,
 	}, nil
 }
 

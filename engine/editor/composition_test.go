@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/engine/input"
+	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
 )
@@ -54,11 +55,6 @@ func TestCompositionCapturesProjectedStateAndRetainsPreviewUntilHandled(t *testi
 	if !ok || preview.Text() != "" {
 		t.Fatalf("preview = %#v %v", preview, ok)
 	}
-	if preview.Target().Node() != root ||
-		preview.Target().RangeUTF16() != model.NewUTF16Range(1, 2) ||
-		preview.Target().Revision() != snapshot.Revision() {
-		t.Fatalf("semantic target = %#v", preview.Target())
-	}
 	range16, ok := state.Range()
 	if !ok || range16 != model.NewUTF16Range(3, 4) {
 		t.Fatalf("range = %#v %v", range16, ok)
@@ -87,8 +83,7 @@ func TestCompositionCapturesProjectedStateAndRetainsPreviewUntilHandled(t *testi
 	}
 	if candidate.Text != "に" ||
 		candidate.Range != target.RangeUTF16() ||
-		candidate.Version != proj.Version() ||
-		candidate.Target != preview.Target() {
+		candidate.Version != proj.Version() {
 		t.Fatalf("candidate = %#v", candidate)
 	}
 	if state.CompleteCommit(false) {
@@ -150,7 +145,7 @@ func TestCompositionRejectsInvalidOrOverlappingStartsWithoutState(t *testing.T) 
 	future := compositionProjection(t, document, root, projection.NewVersion(snapshot.Revision()+1, 1))
 	futureTarget := projection.NewTarget(future.ID(), future.Version(), model.EmptyUTF16Range(1))
 	if err := state.Begin(future, futureTarget, snapshot); err == nil {
-		t.Fatal("stale semantic target began composition")
+		t.Fatal("stale projection began composition")
 	}
 	if _, ok := state.Preview(); ok {
 		t.Fatal("failed begin left a preview")
@@ -171,22 +166,46 @@ func TestCompositionRejectsInvalidOrOverlappingStartsWithoutState(t *testing.T) 
 	}
 }
 
-func TestCompositionRejectsCrossBlockTargets(t *testing.T) {
-	document, blocks, err := NewBlockDocument("a\nb")
+// A composition replaces what is selected as typing does, whatever blocks
+// the selection spans.
+func TestCompositionAcrossBlocksCommitsAsTyping(t *testing.T) {
+	composed, _, err := NewBlockDocument("ab\ncd\nef")
 	if err != nil {
 		t.Fatal(err)
 	}
-	session := sessionFor(t, document, blocks[0])
-	target, err := session.Projection().Target(model.NewUTF16Range(1, 3))
+	typed, _, err := NewBlockDocument("ab\ncd\nef")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := session.Composition().Begin(
-		session.Projection(),
-		target,
-		session.Runtime().Snapshot().Document(),
-	); !errors.Is(err, ErrCrossBlockComposition) {
-		t.Fatalf("cross-block composition error = %v", err)
+	composing := sessionFor(t, composed, DocumentBlocks(composed.Snapshot())[0].ID())
+	typing := sessionFor(t, typed, DocumentBlocks(typed.Snapshot())[0].ID())
+	for _, session := range []*Session{composing, typing} {
+		if err := session.SelectProjected(1, 7); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := composing.Runtime().Revision()
+	if err := composing.BeginComposition(); err != nil {
+		t.Fatal(err)
+	}
+	if err := composing.UpdateComposition("你"); err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := composing.CommitComposition()
+	if err != nil || outcome != kernel.OutcomeHandled {
+		t.Fatalf("commit = %v, %v", outcome, err)
+	}
+	if _, err := typing.ReplaceSelection("你", kernel.EventOriginTyping); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := composing.Projection().Text(), typing.Projection().Text(); got != want || got != "a你f" {
+		t.Fatalf("composed %q, typed %q", got, want)
+	}
+	if composing.Runtime().Revision() != before+1 {
+		t.Fatalf("revision = %d, want one edit after %d", composing.Runtime().Revision(), before)
+	}
+	if _, active := composing.Composition().Preview(); active {
+		t.Fatal("handled commit kept its preview")
 	}
 }
 
