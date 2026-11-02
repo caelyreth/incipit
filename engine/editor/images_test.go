@@ -66,6 +66,28 @@ func TestAnImageTakesAnEmptyParagraph(t *testing.T) {
 	expectPage(t, session, pic+"\n|", "", "")
 }
 
+// An image taken in a table's cell, which cannot hold it, goes after the
+// table, which stays whole.
+func TestAnImageInACellGoesAfterTheTable(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	if _, err := session.InsertTable([][]string{{"a", "b"}, {"c", "d"}}); err != nil {
+		t.Fatal(err)
+	}
+	at(t, session, 0)
+	if _, err := session.InsertImage(sunset); err != nil {
+		t.Fatal(err)
+	}
+	expectTable(t, session, []string{"a", "b"}, []string{"c", "d"})
+	document := session.Runtime().Snapshot().Document()
+	table, _ := tableAround(document, readTables(document)[0].First())
+	root, _ := document.Node(document.Root())
+	children := root.Children()
+	next, _ := document.Node(children[blockIndex(document, table.Last())+1])
+	if next.Kind() != ImageNode {
+		t.Fatalf("after the table stands a %v", next.Kind())
+	}
+}
+
 // Return in a caption opens a paragraph, never another picture; nor does a
 // pasted line break.
 func TestACaptionBreaksIntoParagraphs(t *testing.T) {

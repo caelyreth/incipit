@@ -168,11 +168,16 @@ func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surfa
 
 // InsertImage puts a picture on the page: in place of the empty paragraph
 // the caret is in, or after the caret's block, with a paragraph after it
-// to go on writing in, where the caret goes.
+// to go on writing in, where the caret goes. In a table, which a cell
+// cannot hold it in, it goes after the table.
 func (s *Session) InsertImage(shape ImageShape) (kernel.Outcome, error) {
-	at := s.presentation.Selection.Node()
+	caret := s.presentation.Selection.Node()
 	var resume model.NodeID
 	outcome, err := s.dispatchFigure(func(document *model.DocumentDraft) (bool, error) {
+		at := caret
+		if table, ok := tableAround(document, at); ok {
+			at = table.Last()
+		}
 		current, ok := document.Node(at)
 		if !ok {
 			return false, nil
