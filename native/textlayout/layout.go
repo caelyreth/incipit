@@ -141,7 +141,11 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			if header {
 				spans = headerSpans(spans)
 			}
-			layout = ui.ShapeRichTextWith(spans, font, ui.TextShape{Width: width, Align: align})
+			shaped := ui.TextShape{Width: width, Align: align}
+			if width == narrowest {
+				shaped.Width, shaped.NoBreakWords = 1, true
+			}
+			layout = ui.ShapeRichTextWith(spans, font, shaped)
 		}
 		next[key] = append(next[key], layout)
 		return layout

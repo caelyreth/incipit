@@ -83,8 +83,8 @@ func TestGripsInTheGutterMoveRowsAndBlocks(t *testing.T) {
 	}
 }
 
-// A table wider than the column reaches into the margins, and a press on
-// a cell there goes to that cell as on any other.
+// A table whose columns ask for more than the column reaches into the
+// margins, and a press on a cell there goes to that cell as on any other.
 func TestAWideTablesCellsInTheMarginTakeTheCaret(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
@@ -92,11 +92,11 @@ func TestAWideTablesCellsInTheMarginTakeTheCaret(t *testing.T) {
 	}
 	tester := ui.NewTester(app.View, 1900, 850)
 	tester.Frame()
-	typeText(t, app, "Before the table\n| Name of the person | Year they were born | Field of their work | Where they lived | What they are known for | Notes |\nAda")
+	typeText(t, app, "Before the table\n| Column one | Column two | Column three | Column four | Column five | Column six | Column seven | Column eight | Column nine | Column ten |\nAda")
 	frames(tester, 40)
-	tester.Move(1695, 211)
+	tester.Move(1780, 241)
 	frames(tester, 10)
-	tester.ClickAt(1695, 211)
+	tester.ClickAt(1780, 241)
 	frames(tester, 10)
 	typeText(t, app, "Z")
 	if text := app.Session.Document().Text(); !strings.HasSuffix(strings.TrimRight(text, "\n"), "\nZ") {
@@ -127,18 +127,18 @@ func TestColumnBorderCursor(t *testing.T) {
 	if cursor := tester.Cursor(); cursor != ui.CursorText {
 		t.Fatalf("over a cell the cursor is %v, want text", cursor)
 	}
-	tester.Move(992, 225)
+	tester.Move(955, 225)
 	frames(tester, 10)
 	if cursor := tester.Cursor(); cursor != ui.CursorResizeEW {
 		t.Fatalf("over a column border the cursor is %v, want horizontal resize", cursor)
 	}
-	tester.Press(992, 225)
-	tester.Move(980, 225)
+	tester.Press(955, 225)
+	tester.Move(945, 225)
 	if cursor := tester.Cursor(); cursor != ui.CursorResizeEW {
 		t.Fatalf("resizing a column the cursor is %v, want horizontal resize", cursor)
 	}
 	tester.Key(0, ui.KeyEscape)
-	tester.Release(980, 225)
+	tester.Release(945, 225)
 	tester.Move(900, 225)
 	frames(tester, 10)
 	if cursor := tester.Cursor(); cursor != ui.CursorText {
@@ -166,9 +166,9 @@ func TestAColumnsBorderSetsItsWidth(t *testing.T) {
 	typeText(t, app, "Before the table\n| Name | Born | Field |\nAda Lovelace wrote the first program for a machine that did not yet exist")
 	frames(tester, 40)
 	caret := app.Bridge.Controller.Selection().Caret()
-	tester.Move(992, 225)
+	tester.Move(955, 225)
 	frames(tester, 10)
-	dragFrom(tester, 992, 225, 842, 225)
+	dragFrom(tester, 955, 225, 805, 225)
 	widths := tableWidths(t, app)
 	if widths[0] <= 0 || widths[1] <= 0 || widths[2] != 0 || widths[0] > 0.5 {
 		t.Fatalf("the border set %v", widths)
@@ -176,7 +176,7 @@ func TestAColumnsBorderSetsItsWidth(t *testing.T) {
 	if after := app.Bridge.Controller.Selection().Caret(); after != caret {
 		t.Fatalf("the caret went from %d to %d", caret, after)
 	}
-	tester.Press(842, 225)
+	tester.Press(805, 225)
 	frames(tester, 2)
 	tester.Move(700, 225)
 	frames(tester, 2)
@@ -188,14 +188,14 @@ func TestAColumnsBorderSetsItsWidth(t *testing.T) {
 	}
 	tester.Move(1202, 225)
 	frames(tester, 10)
-	dragFrom(tester, 1202, 225, 1152, 225)
+	dragFrom(tester, 1202, 225, 1172, 225)
 	if edge := tableWidths(t, app); edge[2] <= 0 || edge[0] != widths[0] {
 		t.Fatalf("the edge set %v", edge)
 	}
-	tester.Move(1152, 225)
+	tester.Move(1172, 225)
 	frames(tester, 10)
-	tester.ClickAt(1152, 225)
-	tester.ClickAt(1152, 225)
+	tester.ClickAt(1172, 225)
+	tester.ClickAt(1172, 225)
 	frames(tester, 10)
 	for _, width := range tableWidths(t, app) {
 		if width != 0 {

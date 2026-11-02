@@ -31,9 +31,10 @@ func testTable(t *testing.T, texts []string, room surface.TableRoom) *surface.Fl
 	return flow
 }
 
-// A table no wider than its text keeps to the column; one wider reaches
-// into the margins as far on each side, and past them is scrolled across,
-// its cells cut off at the room it shows in.
+// A table whose text fits keeps to the column; one whose columns ask for
+// more than it even wrapped reaches into the margins as far on each side,
+// and past them is scrolled across, its cells cut off at the room it shows
+// in.
 func TestAWideTableSpreadsBothWaysThenScrolls(t *testing.T) {
 	style := testStyle()
 	style.Spread = 40
@@ -61,5 +62,28 @@ func TestAWideTableSpreadsBothWaysThenScrolls(t *testing.T) {
 		if clip, ok := paragraph.Clip(); !ok || clip != placed.Box {
 			t.Fatalf("a cell of a wide table shows in %+v", clip)
 		}
+	}
+}
+
+// A table whose text fits has even columns; one whose text asks for more
+// than the column wraps within it, its short column keeping its line, and
+// room to write more, and its long one taking the rest.
+func TestALongCellWrapsWithinTheColumn(t *testing.T) {
+	style := testStyle()
+	style.Spread = 40
+	long := strings.Repeat("words that run on ", 8)
+	short := NewCache().Update(testTable(t, []string{"short", ""}, surface.TableRoom{}), 400, style).Tables()[0]
+	if short.Widths[0] != 200 || short.Widths[1] != 200 {
+		t.Fatalf("a table whose text fits has columns %v", short.Widths)
+	}
+	placed := NewCache().Update(testTable(t, []string{"short", long}, surface.TableRoom{}), 400, style).Tables()[0]
+	if placed.Box.W > 401 || placed.Overflow != 0 {
+		t.Fatalf("the table stands at %+v, overflowing %v", placed.Box, placed.Overflow)
+	}
+	if placed.Widths[0] < placed.Natural[0] || placed.Widths[0] >= placed.Widths[1] {
+		t.Fatalf("the short column is %v wide, asking %v, by %v", placed.Widths[0], placed.Natural[0], placed.Widths[1])
+	}
+	if placed.Widths[0]+placed.Widths[1] != 400 {
+		t.Fatalf("the columns are %v wide in a column of 400", placed.Widths)
 	}
 }

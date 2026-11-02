@@ -2,20 +2,24 @@ package textlayout
 
 import (
 	"math"
+	"slices"
 
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/egoist/mygo/ui"
 )
 
-// A table is as wide as its cells' text asks, each column as wide as its
-// longest line up to a share of the column, where longer text wraps. One
-// that asks for less takes the column's width, what is over shared evenly
-// among its columns; one that asks for more reaches past the column into
-// the margins, as far each side, and one wider still shows as much as the
-// margins hold, scrolled across within it. Each row is as tall as its
-// tallest cell, a cell's lines stacked in it inside a little room of its
-// own. Set apart from the text around it as a figure is, a table reads as
+// A table keeps to the column as a paragraph does, as a page's tables do
+// on the web. One whose text fits on a line in each cell takes the
+// column's width, what is over shared evenly among its columns. One that
+// asks for more wraps: a short column keeps its line, and the long ones
+// share the rest, each keeping the least it reads well in, its longest
+// word or a few words' width. A table whose columns ask for more than the
+// column to read well, or that its columns were set wider, reaches past
+// the column into the margins as far as they ask, as far each side, and
+// one wider still shows as much as the margins hold, scrolled across
+// within it. Each row is as tall as its tallest cell, a cell's lines
+// stacked in it inside a little room of its own. Set apart from the text around it as a figure is, a table reads as
 // one thing on the page.
 const (
 	// cellPadX and cellPadY are a cell's room around its text, as shares
@@ -23,14 +27,18 @@ const (
 	cellPadX = 0.4
 	cellPadY = 0.2
 	// LeastColumn is the narrowest a column is set, in DIPs, so a table of
-	// many columns still shows each; widestColumn the widest a column's
-	// text sets it, as a share of the column, before it wraps.
-	LeastColumn  = 32
-	widestColumn = 0.6
+	// many columns still shows each; readColumn the least a column keeps,
+	// in the body's lines, while the table has room for it, its longest
+	// word if wider.
+	LeastColumn = 32
+	readColumn  = 4
 	// headerWeight sets a header's text, as the app's own headings are.
 	headerWeight = 600
-	// unwrapped is the width text is set in to read its longest line.
+	// unwrapped is the width text is set in to read its longest line, and
+	// narrowest the one to read its longest word: as narrow as it goes,
+	// its words kept whole.
 	unwrapped = 1 << 16
+	narrowest = 0
 )
 
 // PlacedTable is a table as the layout sets it out.
@@ -49,8 +57,9 @@ type PlacedTable struct {
 	// RowsApart and ColumnsApart are the room a drag opens before each
 	// row and column, the last after them all; empty where it opens none.
 	RowsApart, ColumnsApart []ui.Rect
-	// Natural is each column's width as its text asks, before any share
-	// of the room over is spread to it.
+	// Natural is each column's width as its text asks on one line, at
+	// most the column's, before any share of the room over is spread to
+	// it.
 	Natural []float32
 }
 
@@ -89,35 +98,138 @@ func (l *Layout) TableAt(y float32) (*PlacedTable, bool) {
 	return nil, false
 }
 
-// columnWidths sets each of a table's columns as wide as natural asks, or
-// its share of width where it has one, and shares what the column has over
-// evenly among those without; each as far as it has come in.
-func columnWidths(table surface.Table, width float32, natural []float32) []float32 {
+// columnWidths sets each of a table's columns at its share of width
+// where it has one, and shares the rest among those without. Each of those
+// keeps a floor, its longest word or read, whichever is wider, but no more
+// than an even share. Where every column's text fits on a line, they are
+// even but for those whose text asks for more, as wide as it asks: typing
+// in a cell moves no border until its line outgrows its share. Where it
+// does not, those whose text asks for less keep their line, and the rest
+// share what is left evenly, none under its floor; the two meet where the
+// text just fits. Only where the floors ask for more than the room is the
+// table wider still. Each as far as it has come in.
+//
+// Where the columns' text, each as far as read, asks for more than width,
+// they take the room it asks past width, as far as reach.
+func columnWidths(table surface.Table, width, reach float32, natural, least []float32, read float32) []float32 {
 	widths := make([]float32, len(natural))
-	total, open := float32(0), float32(0)
+	set := func(index int) bool { return index < len(table.Widths) && table.Widths[index] > 0 }
+	room, open := width, float32(0)
 	for index := range widths {
-		if index < len(table.Widths) && table.Widths[index] > 0 {
+		share := table.Room.ColumnShare(index)
+		if set(index) {
 			widths[index] = table.Widths[index] * width
+			room -= widths[index] * share
 		} else {
-			widths[index] = natural[index]
-			open += table.Room.ColumnShare(index)
+			open += share
 		}
-		total += widths[index]
+	}
+	if open > 0 {
+		asks := float32(0)
+		for index := range widths {
+			if !set(index) {
+				asks += max(least[index], min(read, natural[index])) * table.Room.ColumnShare(index)
+			}
+		}
+		if asks > room {
+			room = min(asks, room+reach)
+		}
+		even := max(0, room) / open
+		floor, want := make([]float32, len(widths)), make([]float32, len(widths))
+		fits, floors := float32(0), float32(0)
+		for index := range widths {
+			if set(index) {
+				continue
+			}
+			share := table.Room.ColumnShare(index)
+			floor[index] = max(least[index], min(read, even))
+			want[index] = max(floor[index], natural[index])
+			fits += want[index] * share
+			floors += floor[index] * share
+		}
+		unbounded := make([]float32, len(widths))
+		for index := range unbounded {
+			unbounded[index] = float32(math.Inf(1))
+		}
+		var level []float32
+		switch {
+		case fits <= room:
+			level = levelled(table, set, room, want, unbounded)
+		case floors < room:
+			level = levelled(table, set, room, floor, want)
+		default:
+			level = floor
+		}
+		for index := range widths {
+			if !set(index) {
+				widths[index] = level[index]
+			}
+		}
 	}
 	// Each column's edges are rounded, not its width, so the columns
 	// together are as wide as they are before rounding.
-	over := max(0, width-total)
 	edge := float32(0)
 	for index := range widths {
-		share := table.Room.ColumnShare(index)
-		if (index >= len(table.Widths) || table.Widths[index] <= 0) && open > 0 {
-			widths[index] += over / open
-		}
 		from := float32(math.Round(float64(edge)))
-		edge += widths[index] * share
+		edge += widths[index] * table.Room.ColumnShare(index)
 		widths[index] = float32(math.Round(float64(edge))) - from
 	}
 	return widths
+}
+
+// levelled sets the columns not set as one level, each kept between its
+// low and high, the level such that they fill room as far as each has
+// come in.
+func levelled(table surface.Table, set func(int) bool, room float32, low, high []float32) []float32 {
+	filled := func(level float32) (sum, slope float32) {
+		for index := range low {
+			if set(index) {
+				continue
+			}
+			share := table.Room.ColumnShare(index)
+			sum += max(low[index], min(high[index], level)) * share
+			if level >= low[index] && level < high[index] {
+				slope += share
+			}
+		}
+		return sum, slope
+	}
+	// The sum rises in a straight line between the columns' bounds: find
+	// the stretch room falls in, and the level along it.
+	bounds := make([]float32, 0, 2*len(low))
+	for index := range low {
+		if !set(index) {
+			bounds = append(bounds, low[index])
+			if !math.IsInf(float64(high[index]), 1) {
+				bounds = append(bounds, high[index])
+			}
+		}
+	}
+	slices.Sort(bounds)
+	level := bounds[0]
+	for _, bound := range bounds {
+		if sum, _ := filled(bound); sum > room {
+			break
+		}
+		level = bound
+	}
+	if sum, slope := filled(level); slope > 0 {
+		level += (room - sum) / slope
+	}
+	widths := make([]float32, len(low))
+	for index := range widths {
+		widths[index] = max(low[index], min(high[index], level))
+	}
+	return widths
+}
+
+// longestLine is how wide the longest of text's lines is, to the pixel.
+func longestLine(text *ui.TextLayout) float32 {
+	longest := float32(0)
+	for _, set := range text.Lines() {
+		longest = max(longest, set.Rect.W)
+	}
+	return float32(math.Ceil(float64(longest)))
 }
 
 // placeTable sets table out from top, in paragraphs from its first cell's
@@ -137,9 +249,9 @@ func placeTable(
 	// Each cell's lines, and the width its longest asks.
 	end := table.Range().End
 	cells := make([][][]rawParagraph, len(table.Rows))
-	natural := make([]float32, table.Columns())
+	natural, least := make([]float32, table.Columns()), make([]float32, table.Columns())
 	for index := range natural {
-		natural[index] = LeastColumn
+		natural[index], least[index] = LeastColumn, LeastColumn
 	}
 	next := 0
 	for r, row := range table.Rows {
@@ -149,11 +261,9 @@ func placeTable(
 				raw := paragraphs[next]
 				cells[r][c] = append(cells[r][c], raw)
 				next++
-				longest := float32(0)
-				for _, set := range shape(raw, unwrapped, ui.Start, table.Header && r == 0).Lines() {
-					longest = max(longest, set.Rect.W)
-				}
-				natural[c] = max(natural[c], min(float32(math.Ceil(float64(longest)))+2*padX, width*widestColumn))
+				header := table.Header && r == 0
+				natural[c] = max(natural[c], min(longestLine(shape(raw, unwrapped, ui.Start, header))+2*padX, width))
+				least[c] = max(least[c], min(longestLine(shape(raw, narrowest, ui.Start, header))+2*padX, width))
 				if model.UTF16Offset(raw.endUTF16) > end {
 					break
 				}
@@ -167,7 +277,7 @@ func placeTable(
 	}
 	// Room a drag opens between columns is taken from the others, as the
 	// room an area opens between them is.
-	widths := columnWidths(table, width-columnRoom-apart, natural)
+	widths := columnWidths(table, width-columnRoom-apart, 2*style.Spread, natural, least, line*readColumn)
 	grid := columnRoom + apart
 	for _, w := range widths {
 		grid += w
