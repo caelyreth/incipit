@@ -1280,7 +1280,8 @@ func TestThingsAreMadeWhereTheyComeIn(t *testing.T) {
 	settle(tester)
 	areas = count("New sheet")
 	sheet, _ := tester.Find("Chapter")
-	tester.Move(sheet.X+sheet.W/2, sheet.Y+16)
+	// By the row's edge, above its label.
+	tester.Move(sheet.X+sheet.W/2, sheet.Y-4)
 	tester.Advance(components.DwellOpen)
 	settle(tester)
 	if count("New sheet") <= areas {
@@ -1297,7 +1298,7 @@ func TestThingsAreMadeWhereTheyComeIn(t *testing.T) {
 	// Away a while and back, it opens again.
 	tester.Move(sheet.X+sheet.W/2, 600)
 	settle(tester)
-	tester.Move(sheet.X+sheet.W/2, sheet.Y+16)
+	tester.Move(sheet.X+sheet.W/2, sheet.Y-4)
 	settle(tester)
 	if count("New sheet") <= areas {
 		t.Fatalf("the area did not open again: %#v", tester.Texts())
@@ -1370,6 +1371,8 @@ func TestADropDoesNotCallUpACreateArea(t *testing.T) {
 	tester.Move(x, first.Y+6)
 	tester.Frame()
 	tester.Release(x, first.Y+6)
+	// The pointer stays by the top of what it dropped.
+	tester.Move(x, first.Y-4)
 	if len(library.moves) != 1 || library.moves[0].id != "9" || library.moves[0].index != 0 {
 		t.Fatalf("moves = %#v, want Third at the top", library.moves)
 	}

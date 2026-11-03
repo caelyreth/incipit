@@ -541,9 +541,10 @@ func (s *State) sheetRows(
 	}
 }
 
-// sheetCreateGap chooses the create-sheet gap nearest the pointer. The
-// first row keeps the larger top-edge target; boundaries between rows use
-// the center of the actual gap.
+// sheetCreateGap chooses the create-sheet gap nearest the pointer: within
+// reach of the middle of the gap between two rows, or of the first row's
+// top as if a gap as wide stood above it, and anywhere above that. The
+// rows keep the rest of their height for their own clicks.
 func (s *State) sheetCreateGap(list ui.Element, rows []ui.Element) int {
 	if len(rows) == 0 {
 		return -1
@@ -554,12 +555,16 @@ func (s *State) sheetCreateGap(list ui.Element, rows []ui.Element) int {
 	}
 	scale := s.Settings.UIFontSize
 	listTop := list.LayoutBounds().Y
-	first := rows[0].LayoutBounds()
-	if pointerY < first.Y-listTop+20*scale/theme.DefaultUIFontSize {
-		return 0
-	}
 	reach := theme.Space08.DIPs(scale)
+	gap := theme.Space06.DIPs(scale)
+	first := rows[0].LayoutBounds()
+	if len(rows) > 1 {
+		gap = rows[1].LayoutBounds().Y - first.Y - first.H
+	}
 	best, nearest := -1, reach+1
+	if head := first.Y - gap/2 - listTop; pointerY <= head+reach {
+		best, nearest = 0, max(0, pointerY-head)
+	}
 	for index := 1; index < len(rows); index++ {
 		before := rows[index-1].LayoutBounds()
 		after := rows[index].LayoutBounds()
