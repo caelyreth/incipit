@@ -45,7 +45,7 @@ func (s *State) SheetListVisible() bool {
 	if scale <= 0 {
 		scale = theme.DefaultUIFontSize
 	}
-	layout := theme.DefaultLayout
+	layout := s.paneLayout()
 	return s.lastWidth >= (layout.Narrow+layout.SheetList)*scale/theme.DefaultUIFontSize
 }
 
@@ -70,7 +70,8 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal f
 		return
 	}
 	scale := s.Settings.UIFontSize
-	full := theme.DefaultLayout.SheetList * scale / theme.DefaultUIFontSize
+	layout := s.paneLayout()
+	full := layout.SheetList * scale / theme.DefaultUIFontSize
 	animate := s.animate(c)
 	ui.Column(c).Key("sheets").Width(width).HeightPercent(100).Shrink(0).Clip().
 		Background(semantic.Surface.Panel).
@@ -79,6 +80,8 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal f
 			s.placeBand(c, semantic, s.listView(), s.listDock, animate)
 			s.listStage(c, semantic, animate)
 		})
+		s.paneEdge(c, semantic, "sheets-edge", &s.panes.sheets,
+			layout.SheetList, layout.SheetListMin, layout.SheetListMax, animate)
 	})
 }
 

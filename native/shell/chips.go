@@ -49,7 +49,7 @@ func (s *State) placeChips(c *ui.Context, semantic theme.Theme, animate bool) {
 	gap := theme.Space06.DIPs(scale)
 	// It keeps to the traffic lights' line on both sides.
 	inset := s.lightLine()
-	width := (theme.DefaultLayout.Sidebar-2*float32(theme.Space08))*scale/theme.DefaultUIFontSize - 2*inset
+	width := (s.paneLayout().Sidebar-2*float32(theme.Space08))*scale/theme.DefaultUIFontSize - 2*inset
 	small := height + theme.Space08.DIPs(scale)
 	large := width - float32(len(chips)-1)*(small+gap)
 	// One stop for the keyboard: the arrows move along the strip.

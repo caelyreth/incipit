@@ -19,7 +19,7 @@ func (s *State) View(c *ui.Context) {
 	scale := s.Settings.UIFontSize
 	s.lastWidth, s.lastUIFontSize = width, scale
 	metrics := theme.DefaultControls.Scaled(scale)
-	layout := theme.DefaultLayout
+	layout := s.paneLayout()
 	bar := c.TitleBar()
 
 	chromeTarget := float32(1)

@@ -175,7 +175,8 @@ func (s *State) sidebar(
 		return
 	}
 	scale := s.Settings.UIFontSize
-	fullWidth := theme.DefaultLayout.Sidebar * scale / theme.DefaultUIFontSize
+	layout := s.paneLayout()
+	fullWidth := layout.Sidebar * scale / theme.DefaultUIFontSize
 	animate := s.animate(c)
 	ui.Column(c).Key("library").Width(width).HeightPercent(100).Shrink(0).Clip().
 		Background(semantic.Surface.Panel).
@@ -189,6 +190,8 @@ func (s *State) sidebar(
 			s.libraryList(c, semantic, animate)
 			s.trashRow(c, semantic, animate)
 		})
+		s.paneEdge(c, semantic, "library-edge", &s.panes.library,
+			layout.Sidebar, layout.SidebarMin, layout.SidebarMax, animate)
 	})
 	_ = metrics
 }

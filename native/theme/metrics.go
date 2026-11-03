@@ -6,9 +6,13 @@ package theme
 // and the header's trailing icon glyphs.
 type Layout struct {
 	// Sidebar is the library's width; SheetList that of the sheets beside
-	// it.
+	// it. Either is dragged wider or narrower within its Min and Max.
 	Sidebar           float32
 	SheetList         float32
+	SidebarMin        float32
+	SidebarMax        float32
+	SheetListMin      float32
+	SheetListMax      float32
 	Titlebar          float32
 	Status            float32
 	Narrow            float32
@@ -27,6 +31,10 @@ type Layout struct {
 var DefaultLayout = Layout{
 	Sidebar:           232,
 	SheetList:         288,
+	SidebarMin:        200,
+	SidebarMax:        320,
+	SheetListMin:      240,
+	SheetListMax:      420,
 	Titlebar:          40,
 	Status:            32,
 	Narrow:            920,

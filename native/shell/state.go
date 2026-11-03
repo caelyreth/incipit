@@ -93,12 +93,15 @@ type State struct {
 	// sheet list, against what the window's width would choose.
 	SidebarOverride   *bool
 	SheetListOverride *bool
-	nav               navigation
-	lastActive        string
-	lastWidth         float32
-	lastUIFontSize    float32
-	lastSidebarWidth  float32
-	lastChrome        float32
+	// panes are how wide the library and the sheet list were dragged, at
+	// the reference UI size; zero is the layout's own width.
+	panes            paneWidths
+	nav              navigation
+	lastActive       string
+	lastWidth        float32
+	lastUIFontSize   float32
+	lastSidebarWidth float32
+	lastChrome       float32
 	// listDock is how far the place's title has gone from the title bar
 	// to the top of the sheet list, as it does where the library is closed.
 	listDock float32
@@ -169,4 +172,25 @@ func (s *State) SidebarVisible() bool {
 
 func (s *State) animate(c *ui.Context) bool {
 	return s != nil && components.MotionEnabled(c, s.Appearance.Motion, s.WindowActive)
+}
+
+// paneWidths are the library's and the sheet list's dragged widths.
+type paneWidths struct {
+	library, sheets float32
+}
+
+// paneLayout is the window's reference layout with the library and the
+// sheet list as wide as they were dragged, each within its range.
+func (s *State) paneLayout() theme.Layout {
+	layout := theme.DefaultLayout
+	if s == nil {
+		return layout
+	}
+	if s.panes.library > 0 {
+		layout.Sidebar = max(layout.SidebarMin, min(s.panes.library, layout.SidebarMax))
+	}
+	if s.panes.sheets > 0 {
+		layout.SheetList = max(layout.SheetListMin, min(s.panes.sheets, layout.SheetListMax))
+	}
+	return layout
 }
