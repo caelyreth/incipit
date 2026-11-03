@@ -19,24 +19,27 @@ func TestGripGesture(t *testing.T) {
 			t.Fatalf("follow(%q, %v, %v, %v) = %v, want %v", owner, pressed, clicked, point, got, want)
 		}
 	}
+	// Short of the drag distance a press stays a click; at it, a drag.
+	short, far := ui.Point{X: 10 + gripDragDistance - 1}, ui.Point{X: 10 + gripDragDistance}
+	beyond := ui.Point{X: 10 + 2*gripDragDistance}
 	check("block", true, false, ui.Point{X: 10}, gripNone)
-	check("other", true, false, ui.Point{X: 20}, gripNone)
-	check("block", true, false, ui.Point{X: 13}, gripNone)
-	check("block", false, true, ui.Point{X: 13}, gripClick)
+	check("other", true, false, beyond, gripNone)
+	check("block", true, false, short, gripNone)
+	check("block", false, true, short, gripClick)
 	check("block", true, false, ui.Point{X: 10}, gripNone)
-	check("block", true, false, ui.Point{X: 14}, gripStart)
-	check("block", true, false, ui.Point{X: 20}, gripMove)
-	check("block", false, true, ui.Point{X: 20}, gripEnd)
+	check("block", true, false, far, gripStart)
+	check("block", true, false, beyond, gripMove)
+	check("block", false, true, beyond, gripEnd)
 	check("block", true, false, ui.Point{X: 10}, gripNone)
-	check("block", true, false, ui.Point{X: 15}, gripStart)
+	check("block", true, false, far, gripStart)
 	g.cancel()
-	check("block", true, false, ui.Point{X: 20}, gripNone)
-	check("block", false, true, ui.Point{X: 20}, gripNone)
+	check("block", true, false, beyond, gripNone)
+	check("block", false, true, beyond, gripNone)
 	check("block", true, false, ui.Point{X: 10}, gripNone)
 	check("block", false, false, ui.Point{X: 10}, gripNone)
 	check("block", true, false, ui.Point{X: 10}, gripNone)
-	check("block", true, false, ui.Point{X: 15}, gripStart)
-	check("block", false, false, ui.Point{X: 15}, gripCancel)
+	check("block", true, false, far, gripStart)
+	check("block", false, false, far, gripCancel)
 }
 
 func gripTestDocument(t *testing.T, table bool) (*controller.DocumentController, *Element, *ui.Tester) {

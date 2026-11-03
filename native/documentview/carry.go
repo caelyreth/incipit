@@ -48,6 +48,11 @@ type carry struct {
 	// after it, some even where blocks stand close.
 	mids                []float32
 	size, space, margin float32
+	// over is the slot the pointer is by since since: the page parts
+	// there, and to follows it, only once the pointer has stayed a moment,
+	// so a pass over the page does not part it at every block.
+	over  int
+	since time.Time
 }
 
 // moves reports whether landing at slot moves it: either side of its own
@@ -69,6 +74,9 @@ type carryLanding struct {
 const (
 	carryLand = components.MotionNormal
 	carryPart = components.MotionPanel
+	// carrySettle is how long the pointer stays by a slot before the page
+	// parts there.
+	carrySettle = 120 * time.Millisecond
 )
 
 // apartKey names room the page opens where a carried thing would land, or
@@ -169,7 +177,7 @@ func (e *Element) startCarry(bridge *Bridge, kind carryKind, item model.NodeID, 
 	pointer, _ := e.pointerPoint()
 	press := ui.Point{X: pointer.X - moved.X, Y: pointer.Y - moved.Y}
 	next := &carry{
-		kind: kind, item: item, from: from, to: from,
+		kind: kind, item: item, from: from, to: from, over: from,
 		grab: ui.Point{X: press.X - found.rect.X, Y: press.Y - found.rect.Y},
 		at:   ui.Point{X: found.rect.X, Y: found.rect.Y},
 	}
@@ -201,37 +209,48 @@ func (e *Element) startCarry(bridge *Bridge, kind carryKind, item model.NodeID, 
 }
 
 // followCarry carries what a drag holds with the pointer, and opens the
-// page where it would land.
-func (e *Element) followCarry(box ui.Element, animate bool) {
-	if c := e.carry; c != nil {
+// page where it would land once the pointer has stayed there a moment.
+func (e *Element) followCarry(c *ui.Context, box ui.Element, animate bool) {
+	if held := e.carry; held != nil {
 		// The page scrolls on by its edges as the pointer comes to them.
 		x, y, _ := box.PointerPosition()
 		e.pointerAt = ui.Point{X: x, Y: y}
 		pointer, _ := e.pointerPoint()
 		middle := float32(0)
-		if c.kind == carryColumn {
-			c.at.X = pointer.X - c.grab.X
-			middle = c.at.X + c.size/2
+		if held.kind == carryColumn {
+			held.at.X = pointer.X - held.grab.X
+			middle = held.at.X + held.size/2
 		} else {
-			c.at.Y = pointer.Y - c.grab.Y
-			middle = c.at.Y + c.size/2
+			held.at.Y = pointer.Y - held.grab.Y
+			middle = held.at.Y + held.size/2
 		}
-		c.to = 0
-		for _, mid := range c.mids {
+		over := 0
+		for _, mid := range held.mids {
 			if mid < middle {
-				c.to++
+				over++
+			}
+		}
+		now := c.Now()
+		if over != held.over || held.since.IsZero() {
+			held.over, held.since = over, now
+		}
+		if over != held.to {
+			if left := carrySettle - now.Sub(held.since); animate && left > 0 {
+				c.After(left)
+			} else {
+				held.to = over
 			}
 		}
 		for key, room := range e.apart {
-			if room.frame && (key.kind != c.kind || key.slot != c.to) {
+			if room.frame && (key.kind != held.kind || key.slot != held.to) {
 				// The frame it leaves folds away with its room.
 				room.target = 0
 			}
 		}
-		if c.moves(c.to) {
-			key := apartKey{kind: c.kind, cell: c.cell(), slot: c.to}
+		if held.moves(held.to) {
+			key := apartKey{kind: held.kind, cell: held.cell(), slot: held.to}
 			room := e.apartRoom(key)
-			room.target, room.frame = c.size+c.margin, true
+			room.target, room.frame = held.size+held.margin, true
 		}
 	}
 	for key, room := range e.apart {

@@ -225,7 +225,7 @@ func (e *Element) View(c *ui.Context) {
 		e.revealCell(bridge.Controller.Selection().Caret())
 	}
 	e.followTables(c, box, animate)
-	e.followCarry(box, animate)
+	e.followCarry(c, box, animate)
 	bridge, _ := e.Input.(*Bridge)
 	e.followBlocks(box, bridge, animate)
 	box.Children(func() {

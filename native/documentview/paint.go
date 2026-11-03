@@ -30,8 +30,12 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	caret := hintedCaret(p, state, state.Layout.Caret(state.Frame.Caret()))
 	selection := state.Layout.RangeRects(state.Frame.Selection())
 	// Only a moving drag follows the pointer directly; a press retargets the
-	// retained springs so quick clicks glide instead of snapping.
-	geometryAnimate := state.Animate && !state.PointerSelecting
+	// retained springs so quick clicks glide instead of snapping. While a
+	// thing is carried or lands, the page parts and closes under it; its
+	// selection and caret stand aside, settled where they are, so they
+	// neither chase the parting page nor glide in from where they were.
+	carrying := state.Carry != nil
+	geometryAnimate := state.Animate && !state.PointerSelecting && !carrying
 	animatedCaret, animatedSelection := state.Motion.Geometry(
 		caret,
 		selection,
@@ -43,7 +47,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	// selection of whole blocks shows the blocks, with no caret among
 	// them; a caret not drawn was seen nowhere, so drawn again it stands
 	// in its place rather than gliding from where it was hidden.
-	caretShown := state.Focused && !state.Composing && !state.Frame.Whole()
+	caretShown := state.Focused && !state.Composing && !state.Frame.Whole() && !carrying
 	if !caretShown {
 		state.Motion.HideCaret()
 	}
@@ -59,7 +63,9 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	p.Clip(wide, 0, func() {
 		drawTables(p, rect, state)
 		drawDecorationFills(p, rect, state, options)
-		drawRangeFills(p, rect, state, withoutTables(state, animatedSelection))
+		if !carrying {
+			drawRangeFills(p, rect, state, withoutTables(state, animatedSelection))
+		}
 	})
 	// A figure as wide as the column wears its ring beside it.
 	reach := float32(figureRingOutset + figureRingWidth)

@@ -22,8 +22,10 @@ const (
 	gripCancel
 )
 
-// gripDragDistance matches the distance at which MyGo starts a value drag.
-const gripDragDistance = 4
+// gripDragDistance is how far a pressed grip moves before it carries what
+// it holds: twice the distance at which MyGo starts a value drag, so a
+// click that wobbles still selects rather than lifting the block.
+const gripDragDistance = 8
 
 // follow reads a grip once per build. point is in the stationary viewport,
 // not in the grip or the scrolling document.
