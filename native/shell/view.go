@@ -92,7 +92,7 @@ func (s *State) View(c *ui.Context) {
 				if chrome > 0.001 {
 					s.footer(c, semantic, layout, chrome)
 				}
-				s.zenBands(c, layout, chrome)
+				s.zenHeader(c, layout, chrome)
 			})
 		})
 		s.placeFlight(c, semantic, layout, reveal, listWidth, listReveal, animate)
@@ -146,24 +146,14 @@ func (s *State) activeTitle() string {
 	return "Notebook"
 }
 
-// zenBands keep the window draggable where the header was, as Zen takes
-// the header away: a band as tall as the title bar beside the text
-// column, on each side. The column itself stays the page's, as text may
-// scroll under its top, and the page's grips stand below the band, past
-// the reading space above its first line.
-func (s *State) zenBands(c *ui.Context, layout theme.Layout, chrome float32) {
-	scale := s.Settings.UIFontSize
-	height := layout.Titlebar * scale / theme.DefaultUIFontSize * (1 - chrome)
+// zenHeader keeps the window draggable where the header was, as Zen
+// takes the header away: one band as tall as the title bar across the
+// editor, unseen, over the page. Text scrolled under it shows through,
+// and a press on it moves the window rather than the caret.
+func (s *State) zenHeader(c *ui.Context, layout theme.Layout, chrome float32) {
+	height := layout.Titlebar * s.Settings.UIFontSize / theme.DefaultUIFontSize * (1 - chrome)
 	if height < 1 {
 		return
 	}
-	gutter := layout.ContentGutter * scale / theme.DefaultUIFontSize
-	editor := max(0, s.lastWidth-s.lastSidebarWidth)
-	column := min(s.Settings.Prose().Column(), max(0, editor-2*gutter))
-	side := (editor - column) / 2
-	if side < 1 {
-		return
-	}
-	ui.Box(c).Key("zen-band-start").Absolute().Top(0).Left(0).Width(side).Height(height).DragWindow()
-	ui.Box(c).Key("zen-band-end").Absolute().Top(0).Right(0).Width(side).Height(height).DragWindow()
+	ui.Box(c).Key("zen-header").Absolute().Top(0).Left(0).Right(0).Height(height).DragWindow()
 }
