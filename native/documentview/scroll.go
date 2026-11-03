@@ -21,7 +21,7 @@ func (e *Element) SetScrollY(offset float32) {
 	if e.Motion != nil {
 		e.Motion.CancelScroll()
 	}
-	e.manualUntil = time.Time{}
+	e.restUntil = time.Time{}
 }
 
 // OverscrollY is the transient pull past the viewport edge. Unlike ScrollY,

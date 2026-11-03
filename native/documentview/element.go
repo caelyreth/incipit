@@ -82,7 +82,6 @@ type pageState struct {
 	scroll         float32
 	overscroll     scrollfx.Elastic
 	lastHeight     float32
-	manualUntil    time.Time
 	pointerAnchor  int
 	pointerHead    int
 	pointer        pointerPhase
@@ -119,6 +118,9 @@ type pageState struct {
 	// followUntil is how long the caret's line is followed as what an edit
 	// opened settles.
 	followUntil time.Time
+	// restUntil is when typewriter mode, rested by the writer's scroll,
+	// centers the caret's line again.
+	restUntil time.Time
 	// carry is a block, row or column a grip's drag carries, landing one
 	// let go on its way to its place, and apart the room the page opens
 	// and closes for them (carry.go).
@@ -604,6 +606,9 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		e.Motion.Activity(p.Now())
 	}
 	e.followCaret(e.current, line, caret.Y, rect.H, e.revealKeyOf(bridge.Controller), p.Now())
+	if rest := e.restUntil.Sub(p.Now()); rest > 0 {
+		p.After(rest)
+	}
 	scrollMin, scrollMax := e.scrollRange(e.current, rect.H)
 	if !e.Motion.Scrolling() && (e.scroll < scrollMin || e.scroll > scrollMax) {
 		if animate {
