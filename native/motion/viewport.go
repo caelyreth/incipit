@@ -7,6 +7,7 @@ type RevealOptions struct {
 	LineHeight     float32
 	CurrentOffset  float32
 	Typewriter     bool
+	ManualOverride bool
 }
 
 // RevealOffset computes the viewport target that keeps the caret visible.
@@ -20,7 +21,7 @@ func RevealOffset(options RevealOptions) (float32, bool) {
 	var target float32
 	changed := true
 	switch {
-	case options.Typewriter:
+	case options.Typewriter && !options.ManualOverride:
 		// The caret's line sits at the exact vertical center.
 		target = options.CaretY + options.LineHeight/2 - options.ViewportHeight/2
 	case options.CaretY < top+margin:

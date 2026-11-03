@@ -12,11 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// typewriterRest is how long typewriter mode rests after the writer
-// scrolls: the page stays where the wheel left it, and once the wheel has
-// been still that long the caret's line glides back to the center, sooner
-// if the writer edits or moves the caret.
-const typewriterRest = 1500 * time.Millisecond
+const manualScrollGrace = 650 * time.Millisecond
 
 // revealSettle is how long the caret's line is followed after it is
 // revealed, as a row or a caption an edit opened comes in.
@@ -51,8 +47,6 @@ func (e *Element) revealKeyOf(controllerValue *controller.DocumentController) re
 // scroll: in typewriter mode the line stays off center until the writer
 // next acts. Nothing moves under a held pointer, or while the pointer
 // stays by a control it used; what changed meanwhile is revealed after.
-// A scroll rests typewriter mode (typewriterRest), and its end is revealed
-// like a change.
 func (e *Element) followCaret(layout *textlayout.Layout, line ui.Rect, caretY, height float32, key revealKey, now time.Time) {
 	modeChanged := e.lastTypewriter != e.Typewriter
 	moved := e.lastCaretY != caretY
@@ -62,7 +56,6 @@ func (e *Element) followCaret(layout *textlayout.Layout, line ui.Rect, caretY, h
 		e.revealed, e.revealPending = key, true
 	}
 	if modeChanged && !e.Typewriter {
-		e.restUntil = time.Time{}
 		// Leaving typewriter mode redirects whatever glide is under way,
 		// at its speed, into the plain range, rather than letting it
 		// reach a centered offset and then snapping into range.
@@ -73,12 +66,6 @@ func (e *Element) followCaret(layout *textlayout.Layout, line ui.Rect, caretY, h
 	if e.pointer != pointerIdle || e.pointerHold || e.carry != nil {
 		e.followUntil = time.Time{}
 		return
-	}
-	if !e.restUntil.IsZero() {
-		if !e.revealPending && now.Before(e.restUntil) {
-			return
-		}
-		e.restUntil, e.revealPending = time.Time{}, true
 	}
 	switch {
 	case e.revealPending || resized || modeChanged:
@@ -220,6 +207,7 @@ func (e *Element) revealCaret(layout *textlayout.Layout, box ui.Rect, now time.T
 		LineHeight:     line,
 		CurrentOffset:  e.scroll,
 		Typewriter:     e.Typewriter,
+		ManualOverride: now.Before(e.manualUntil),
 	})
 	if !changed {
 		return
@@ -247,9 +235,7 @@ func (e *Element) manualScroll(delta float32, now time.Time, precise, momentum b
 		return
 	}
 	e.Motion.CancelScroll()
-	if e.Typewriter {
-		e.restUntil = now.Add(typewriterRest)
-	}
+	e.manualUntil = now.Add(manualScrollGrace)
 	low, high := float32(math.Inf(-1)), float32(math.Inf(1))
 	if e.current != nil {
 		low, high = e.scrollRange(e.current, e.lastHeight)

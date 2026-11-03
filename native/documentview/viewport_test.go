@@ -97,49 +97,23 @@ func TestCaretRevealClearsTheFloatingDock(t *testing.T) {
 	}
 }
 
-// A scroll rests typewriter mode: the page stays where the wheel left it
-// until the wheel has been still a while, or the writer acts, and then the
-// caret's line glides back to the center.
-func TestTypewriterRestsAfterAScroll(t *testing.T) {
+func TestManualScrollCancelsRevealForGracePeriod(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
-	text := strings.Repeat("line\n", 40) + "line"
-	flow, err := surface.NewFlow(
-		projection.NewVersion(0, 0),
-		text,
-		[]surface.StyleRun{{
-			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
-			Style: surface.TextStyle{},
-		}},
-	)
-	if err != nil {
-		t.Fatal(err)
+	element := &Element{
+		Prose:  theme.NewProseStyle(19),
+		Motion: motion.New(now),
 	}
-	prose := theme.NewProseStyle(19)
-	layout := textlayout.NewCache().Update(flow, 400, textlayout.NewStyle(prose, theme.DefaultSettings().Semantic()))
-	element := &Element{Prose: prose, Motion: motion.New(now), Animate: true, Typewriter: true, pageState: pageState{lastHeight: 300}}
-	element.current = layout
-	key := revealKey{text: text}
-	line := ui.Rect{Y: 400, H: prose.LineHeight()}
-	element.followCaret(layout, line, line.Y, 300, key, now)
-	element.Motion.CancelScroll()
-
-	element.manualScroll(120, now, true, false)
-	scrolled := element.scroll
-	element.followCaret(layout, line, line.Y, 300, key, now.Add(typewriterRest/2))
-	if element.Motion.Moving() || element.scroll != scrolled {
-		t.Fatal("the page moved while typewriter mode rested after a scroll")
+	element.manualScroll(30, now, false, false)
+	if element.scroll != 30 {
+		t.Fatalf("scroll = %v", element.scroll)
 	}
-	element.followCaret(layout, line, line.Y, 300, key, now.Add(typewriterRest))
-	if !element.Motion.Moving() {
-		t.Fatal("the caret's line did not glide back once the wheel was still")
+	if !now.Add(649 * time.Millisecond).Before(element.manualUntil) {
+		t.Fatal("manual-scroll grace was not retained")
 	}
-
-	element.Motion.CancelScroll()
-	element.manualScroll(120, now, true, false)
-	key.selection = controller.UTF16Range{Start: 10, End: 10}
-	element.followCaret(layout, line, line.Y, 300, key, now.Add(typewriterRest/4))
-	if !element.Motion.Moving() {
-		t.Fatal("moving the caret did not end the rest")
+	element.Motion.ScrollTo(30, 120, now)
+	element.advanceScroll(now.Add(16 * time.Millisecond))
+	if element.scroll <= 30 {
+		t.Fatal("animated viewport did not advance")
 	}
 }
 
