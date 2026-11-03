@@ -115,13 +115,6 @@ type Status struct {
 	FrameAt   time.Time
 }
 
-// Activity is one retained projection publication.
-type Activity struct {
-	Revision   uint64
-	Characters int
-	Marks      int
-}
-
 // Metrics are semantic counts for the page, excluding generated
 // notation and transient preedit text.
 type Metrics struct {

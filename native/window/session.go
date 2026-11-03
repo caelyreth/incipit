@@ -1,10 +1,7 @@
 package window
 
 import (
-	"time"
-
 	"github.com/caelyreth/neverland/app/controller"
-	"github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/kernel"
@@ -66,27 +63,6 @@ func (s *sheetSession) Page() (int, string, bool) {
 		title = workspace.DefaultTitle
 	}
 	return int(s.page), title, true
-}
-
-func (s *sheetSession) Activity() []settings.ActivityEntry {
-	activity := s.controller.Activity()
-	result := make([]settings.ActivityEntry, 0, len(activity))
-	for _, item := range activity {
-		result = append(result, settings.ActivityEntry{
-			Revision:   item.Revision,
-			Characters: item.Characters,
-			Marks:      item.Marks,
-		})
-	}
-	return result
-}
-
-func (s *sheetSession) Scopes() []string {
-	out, ok, err := s.controller.Session().TabOffer(time.Now())
-	if err != nil || !ok {
-		return nil
-	}
-	return []string{out.Kind.String()}
 }
 
 type mygoServices struct{ services ui.Services }

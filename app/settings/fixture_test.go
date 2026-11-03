@@ -26,23 +26,13 @@ func editorHost(t *testing.T, catalog kernel.PolicyCatalog) *HostStore {
 }
 
 type fakeSession struct {
-	pageID   int
-	title    string
-	active   bool
-	activity []ActivityEntry
-	scopes   []string
+	pageID int
+	title  string
+	active bool
 }
 
 func (s *fakeSession) Page() (int, string, bool) {
 	return s.pageID, s.title, s.active
-}
-
-func (s *fakeSession) Activity() []ActivityEntry {
-	return append([]ActivityEntry(nil), s.activity...)
-}
-
-func (s *fakeSession) Scopes() []string {
-	return append([]string(nil), s.scopes...)
 }
 
 func activeSession() *fakeSession {
@@ -50,10 +40,5 @@ func activeSession() *fakeSession {
 		pageID: 1,
 		title:  "Research notes",
 		active: true,
-		activity: []ActivityEntry{
-			{Revision: 3, Characters: 8, Marks: 1},
-			{Revision: 4, Characters: 9, Marks: 2},
-		},
-		scopes: []string{"Selection 2 → 4"},
 	}
 }

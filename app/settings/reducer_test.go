@@ -210,7 +210,7 @@ func TestPresentationAndAppearanceChangesAreLocalAndBounded(t *testing.T) {
 	}
 }
 
-func TestBuildDataSnapshotsSectionsShortcutsDiagnosticsAndAppearance(t *testing.T) {
+func TestBuildDataSnapshotsSectionsShortcutsAndAppearance(t *testing.T) {
 	t.Parallel()
 	catalog := editorCatalog(t)
 	store := editorHost(t, catalog)
@@ -223,13 +223,6 @@ func TestBuildDataSnapshotsSectionsShortcutsDiagnosticsAndAppearance(t *testing.
 	}
 	if len(data.Sections) == 0 || len(data.Shortcuts) == 0 || len(data.Appearance) != 3 {
 		t.Fatalf("data sizes = %d/%d/%d", len(data.Sections), len(data.Shortcuts), len(data.Appearance))
-	}
-	if data.Activity[0] != "Revision 4  ·  9 characters  ·  2 marks" ||
-		data.Activity[1] != "Revision 3  ·  8 characters  ·  1 marks" {
-		t.Fatalf("activity = %#v", data.Activity)
-	}
-	if len(data.Scopes) != 1 || data.Scopes[0] != "Selection 2 → 4" {
-		t.Fatalf("scopes = %#v", data.Scopes)
 	}
 	pairsSelector := "policy-editor.pairs"
 	foundPairs := false

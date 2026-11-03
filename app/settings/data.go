@@ -22,9 +22,6 @@ func BuildData(
 		Appearance:       appearanceToggles(presentation),
 	}
 	if store == nil || session == nil {
-		data.Activity = []string{}
-		data.ActivityEntries = []ActivityEntry{}
-		data.Scopes = []string{}
 		return data
 	}
 	snapshot := store.Snapshot()
@@ -36,10 +33,6 @@ func BuildData(
 	}
 	data.Shortcuts = buildShortcuts(catalog, source, prepared, active)
 	data.Sections = buildSections(catalog, source, prepared, active, data.Shortcuts)
-	entries := session.Activity()
-	data.ActivityEntries = append([]ActivityEntry(nil), entries...)
-	data.Activity = activityLines(entries)
-	data.Scopes = append([]string{}, session.Scopes()...)
 	data.PolicyConfiguration = source.Clone()
 	return data
 }
@@ -225,21 +218,6 @@ func presentationSelector(mode Presentation) string {
 	default:
 		return "unknown"
 	}
-}
-
-func activityLines(entries []ActivityEntry) []string {
-	lines := make([]string, 0, len(entries))
-	for index := len(entries) - 1; index >= 0; index-- {
-		entry := entries[index]
-		lines = append(lines, formatActivity(entry))
-	}
-	return lines
-}
-
-func formatActivity(entry ActivityEntry) string {
-	return "Revision " + uintString(entry.Revision) +
-		"  ·  " + intString(entry.Characters) + " characters" +
-		"  ·  " + intString(entry.Marks) + " marks"
 }
 
 func lowerFirst(value string) string {

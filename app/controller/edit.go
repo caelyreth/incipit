@@ -55,7 +55,7 @@ func (c *DocumentController) Replace(
 		return kernel.OutcomePass, c.fail(err)
 	}
 	if result.Outcome == kernel.OutcomeHandled {
-		c.refreshSource(true)
+		c.refreshSource()
 		c.refreshVisible()
 	}
 	c.setStatus(result.Outcome, !result.Changes.Empty(), nil)
@@ -110,7 +110,7 @@ func (c *DocumentController) SelectSemantic(selection model.TextSelection) error
 	if err := c.session.Select(selection); err != nil {
 		return c.fail(err)
 	}
-	c.refreshSource(false)
+	c.refreshSource()
 	c.refreshVisible()
 	c.setStatus(kernel.OutcomeHandled, false, nil)
 	return nil
@@ -135,7 +135,7 @@ func (c *DocumentController) selectProjected(anchor, head int) error {
 	); err != nil {
 		return c.fail(err)
 	}
-	c.refreshSource(false)
+	c.refreshSource()
 	c.refreshVisible()
 	c.setStatus(kernel.OutcomeHandled, false, nil)
 	return nil
@@ -157,7 +157,7 @@ func (c *DocumentController) SelectPointer(anchor, head int, at time.Time) error
 	); err != nil {
 		return c.fail(err)
 	}
-	c.refreshSource(false)
+	c.refreshSource()
 	c.refreshVisible()
 	if node, ok := c.Runtime().Snapshot().Document().Node(c.session.Selection().Node()); ok {
 		if err := c.session.Navigation().SelectPointer(

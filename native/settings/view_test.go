@@ -238,8 +238,7 @@ func TestSettingsDefaultsToEditorOnlyAndReferenceSearch(t *testing.T) {
 	if _, ok := tester.Find("Close"); ok {
 		t.Fatal("settings footer still has a Close action")
 	}
-	if state.expanded[appsettings.Keymap] || state.expanded[appsettings.Appearance] ||
-		state.expanded[appsettings.Diagnostics] {
+	if state.expanded[appsettings.Keymap] || state.expanded[appsettings.Appearance] {
 		t.Fatalf("settings categories expand by default: %#v", state.expanded)
 	}
 }

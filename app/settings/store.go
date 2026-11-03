@@ -34,11 +34,8 @@ type PolicySnapshot struct {
 }
 
 // Session exposes only the settings-relevant read surface of the mounted page.
-// The diagnostic readers must describe the same current session revision.
 type Session interface {
 	Page() (int, string, bool)
-	Activity() []ActivityEntry
-	Scopes() []string
 }
 
 // State is the reducer-owned settings state shared by the settings window.

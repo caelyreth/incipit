@@ -100,9 +100,6 @@ func TestReplacementUsesExplicitRangesAndPreservesOrigin(t *testing.T) {
 	if controller.Caret() != 2 {
 		t.Fatalf("caret = %d", controller.Caret())
 	}
-	if len(controller.Activity()) != 1 {
-		t.Fatalf("activity = %#v", controller.Activity())
-	}
 
 	bad := UTF16Range{Start: 1, End: 99}
 	if _, err := controller.Replace(&bad, "x", kernel.EventOriginTyping); !errors.Is(err, ErrInvalidUTF16Range) {

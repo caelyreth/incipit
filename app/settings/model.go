@@ -14,11 +14,10 @@ const (
 	Editor Category = iota + 1
 	Keymap
 	Appearance
-	Diagnostics
 )
 
 // AllCategories is display order.
-var AllCategories = [...]Category{Editor, Keymap, Appearance, Diagnostics}
+var AllCategories = [...]Category{Editor, Keymap, Appearance}
 
 func (c Category) Title() string {
 	switch c {
@@ -26,8 +25,6 @@ func (c Category) Title() string {
 		return "Keymap"
 	case Appearance:
 		return "Appearance"
-	case Diagnostics:
-		return "Diagnostics"
 	default:
 		return "Editor"
 	}
@@ -39,8 +36,6 @@ func (c Category) Description() string {
 		return "Keys by what they act on. A feature's name marks the keys it adds."
 	case Appearance:
 		return "A comfortable space for your writing."
-	case Diagnostics:
-		return "Inspect the current page and its recent changes."
 	default:
 		return "Shape the way your words are edited."
 	}
@@ -126,13 +121,6 @@ type Shortcut struct {
 	Overridden  bool
 }
 
-// ActivityEntry is one published document revision snapshot.
-type ActivityEntry struct {
-	Revision   uint64
-	Characters int
-	Marks      int
-}
-
 // Data is the complete declarative snapshot consumed by any settings view.
 type Data struct {
 	PageID              *int
@@ -141,9 +129,6 @@ type Data struct {
 	Shortcuts           []Shortcut
 	Appearance          []ToggleSetting
 	AppearanceValues    AppearanceSettings
-	Activity            []string
-	ActivityEntries     []ActivityEntry
-	Scopes              []string
 	PolicyConfiguration kernel.PolicyConfiguration
 }
 

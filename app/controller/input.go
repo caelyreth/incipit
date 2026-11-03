@@ -183,7 +183,7 @@ func (c *DocumentController) commitPreedit(
 	if outcome == kernel.OutcomeHandled {
 		c.preedit = nil
 		c.previewFrame = nil
-		c.refreshSource(true)
+		c.refreshSource()
 		c.refreshVisible()
 		c.setStatus(outcome, c.Runtime().Revision() != before, nil)
 		return outcome, nil

@@ -12,8 +12,6 @@ import (
 	"github.com/caelyreth/neverland/engine/surface"
 )
 
-const activityLimit = 64
-
 // guideKeys shows each guide's binding on the caps the Keymap shows it on.
 func guideKeys(target kernel.BindingTarget) []string {
 	return keymap.Keycaps(target, keymap.PlatformCurrent)
@@ -41,7 +39,6 @@ type DocumentController struct {
 	preedit       *preedit
 	previewFrame  *surface.Frame
 	geometry      Geometry
-	activity      []Activity
 	status        Status
 	lastError     error
 	pending       []Command
@@ -92,7 +89,7 @@ func NewDocumentController(session *editor.Session) (*DocumentController, error)
 		return nil, fmt.Errorf("controller: session is required")
 	}
 	controller := &DocumentController{session: session}
-	controller.refreshSource(false)
+	controller.refreshSource()
 	controller.refreshVisible()
 	controller.setStatus(kernel.OutcomeHandled, false, nil)
 	return controller, nil
@@ -201,11 +198,6 @@ func (c *DocumentController) LastError() error { return c.lastError }
 // ClearError removes retained error state without changing the document.
 func (c *DocumentController) ClearError() { c.lastError = nil }
 
-// Activity returns retained projection publications in chronological order.
-func (c *DocumentController) Activity() []Activity {
-	return append([]Activity(nil), c.activity...)
-}
-
 // SetGeometry installs retained-layout queries used by native text services.
 func (c *DocumentController) SetGeometry(geometry Geometry) { c.geometry = geometry }
 
@@ -236,7 +228,7 @@ func (c *DocumentController) SurfaceFrame(at time.Time) (*surface.Frame, error) 
 
 // Refresh reconciles controller caches after direct session changes.
 func (c *DocumentController) Refresh() {
-	c.refreshSource(true)
+	c.refreshSource()
 	c.refreshVisible()
 	c.setStatus(kernel.OutcomeHandled, false, nil)
 }
@@ -251,7 +243,7 @@ func (c *DocumentController) Reconfigure(operation func(*kernel.PolicyConfigurat
 	if err != nil {
 		return c.fail(err)
 	}
-	c.refreshSource(true)
+	c.refreshSource()
 	c.refreshVisible()
 	c.setStatus(kernel.OutcomeHandled, outcome.Changed, nil)
 	return nil

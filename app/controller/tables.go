@@ -102,7 +102,7 @@ func (c *DocumentController) selectWith(selectIt func() error) error {
 	if err := selectIt(); err != nil {
 		return c.fail(err)
 	}
-	c.refreshSource(false)
+	c.refreshSource()
 	c.refreshVisible()
 	c.setStatus(kernel.OutcomeHandled, false, nil)
 	return nil

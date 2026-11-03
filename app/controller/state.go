@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-func (c *DocumentController) refreshSource(recordActivity bool) {
+func (c *DocumentController) refreshSource() {
 	projection := c.session.Projection()
 	version := projection.Version()
 	changed := !c.hasVersion || version != c.version
@@ -17,9 +16,6 @@ func (c *DocumentController) refreshSource(recordActivity bool) {
 		c.sourceText = projection.Text()
 		c.textLength = model.StringLenUTF16(c.sourceText)
 		c.version = version
-		if recordActivity && c.hasVersion {
-			c.recordActivity()
-		}
 		c.hasVersion = true
 	}
 	span, spanErr := c.sourceEditableSpan()
@@ -92,21 +88,6 @@ func (c *DocumentController) sourceEditableSpan() (UTF16Range, error) {
 		return UTF16Range{}, fmt.Errorf("controller: document span has no correspondence: %w", err)
 	}
 	return UTF16Range{Start: int(span.Start), End: int(span.End)}, nil
-}
-
-func (c *DocumentController) recordActivity() {
-	marks := 0
-	for _, block := range editor.DocumentBlocks(c.session.Runtime().Snapshot().Document()) {
-		marks += block.MarkCount()
-	}
-	c.activity = append(c.activity, Activity{
-		Revision:   c.version.SourceRevision(),
-		Characters: c.Metrics().Characters,
-		Marks:      marks,
-	})
-	if len(c.activity) > activityLimit {
-		c.activity = c.activity[len(c.activity)-activityLimit:]
-	}
 }
 
 func (c *DocumentController) setStatus(outcome kernel.Outcome, changed bool, err error) {

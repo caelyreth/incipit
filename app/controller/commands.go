@@ -87,7 +87,7 @@ func (c *DocumentController) finishCommand(
 	}
 	changed := c.hasVersion && c.version.SourceRevision() != c.session.Runtime().Revision()
 	if outcome == kernel.OutcomeHandled {
-		c.refreshSource(true)
+		c.refreshSource()
 		c.refreshVisible()
 	}
 	c.setStatus(outcome, changed, nil)

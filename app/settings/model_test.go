@@ -8,7 +8,7 @@ import (
 
 func TestCategoryOrderAndMetadata(t *testing.T) {
 	t.Parallel()
-	if len(AllCategories) != 4 {
+	if len(AllCategories) != 3 {
 		t.Fatalf("categories = %d", len(AllCategories))
 	}
 	for _, category := range AllCategories {

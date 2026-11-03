@@ -203,12 +203,6 @@ func (s *State) categoryChildren(category appsettings.Category, query string) []
 				labels = append(labels, label)
 			}
 		}
-	case appsettings.Diagnostics:
-		for _, label := range []string{"Activity", "Scopes"} {
-			if query == "" || strings.Contains(strings.ToLower(label), query) {
-				labels = append(labels, label)
-			}
-		}
 	}
 	return labels
 }
@@ -255,8 +249,6 @@ func (s *State) page(
 						s.keymapPage(c, semantic, metrics)
 					case appsettings.Appearance:
 						s.appearancePage(c, semantic, metrics)
-					case appsettings.Diagnostics:
-						s.diagnosticsPage(c, semantic)
 					}
 					if len(s.building) == 0 {
 						components.Label(c, "No settings match your search.",
