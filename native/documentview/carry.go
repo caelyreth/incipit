@@ -288,15 +288,17 @@ func (e *Element) apartRoom(key apartKey) *apartRoom {
 	return room
 }
 
-// dropCarry lets what a drag holds go: where it would land, in one step of
-// history, unless back is set or it would land where it is. Either way
-// its copy lands from where it was let go.
+// dropCarry lets what a drag holds go: by the pointer, in one step of
+// history, unless back is set or it would land where it is, even where
+// the pointer was let go before the page parted for it. Either way its
+// copy lands from where it was let go.
 func (e *Element) dropCarry(bridge *Bridge, back bool, now time.Time) {
 	c := e.carry
 	if c == nil {
 		return
 	}
 	e.carry = nil
+	c.to = c.over
 	e.focusPending = true
 	e.landing = &carryLanding{kind: c.kind, item: c.item, from: c.at, at: now}
 	for _, room := range e.apart {
