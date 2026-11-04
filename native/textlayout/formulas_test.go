@@ -224,3 +224,39 @@ func TestAFormulaSourceTellsItsProblems(t *testing.T) {
 		t.Fatalf("a sound source tells %+v", sound)
 	}
 }
+
+// A selection through a formula block holds what it sets, as its tint
+// does, not the column its line spans, empty or not; the caret beside it
+// stands at its edges.
+func TestASelectedFormulaBlockHoldsWhatItSets(t *testing.T) {
+	for _, source := range []string{"", `\frac12`} {
+		text := "before\n$$\n" + source + "\n$$\nafter"
+		end := model.UTF16Offset(7 + 3 + len(source) + 3)
+		block := surface.Formula{
+			Range: model.NewUTF16Range(7, end), Text: model.NewUTF16Range(10, 10+model.UTF16Offset(len(source))),
+			Source: source, Display: true,
+		}
+		for _, open := range []bool{false, true} {
+			f := block
+			if open {
+				f.Open, f.Card = true, 1
+			}
+			layout := NewCache().Update(formulaFlow(t, text, f), 400, testStyle())
+			mark := layout.Formulas()[0].Mark
+			if mark.W >= 200 {
+				t.Fatalf("%q: mark %+v spans the column", source, mark)
+			}
+			for _, rect := range layout.RangeRects(model.NewUTF16Range(0, end+3)) {
+				if middle := rect.Y + rect.H/2; middle <= mark.Y || middle >= mark.Y+mark.H {
+					continue
+				}
+				if rect.X < mark.X-0.5 || rect.X+rect.W > mark.X+mark.W+0.5 {
+					t.Fatalf("%q open %v: selection %+v outside the mark %+v", source, open, rect, mark)
+				}
+			}
+			if caret := layout.Caret(end); caret.X != mark.X+mark.W {
+				t.Fatalf("%q open %v: caret after the block at %v, its mark ends at %v", source, open, caret.X, mark.X+mark.W)
+			}
+		}
+	}
+}

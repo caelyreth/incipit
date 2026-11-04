@@ -44,6 +44,14 @@ func (l *Layout) Caret(offset model.UTF16Offset) ui.Rect {
 	caret := paragraph.layout.Caret(paragraph.shapedOffset(local, false))
 	caret.X += paragraph.left
 	caret.Y += paragraph.top
+	// Beside a formula block the caret stands at what it sets, not at the
+	// column's edges its line spans.
+	if mark, ok := l.blockMark(paragraph); ok {
+		caret.X = mark.X
+		if local > 0 {
+			caret.X = mark.X + mark.W
+		}
+	}
 	// The caret grows with its row: a row of larger text is taller than
 	// body text's, and its caret is as much taller, centered alike. In a row
 	// packed closer than body text it keeps the body's size.
@@ -271,6 +279,7 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			}
 			rects = append(rects, rect)
 		}
+		mark, block := l.blockMark(&paragraph)
 		if from < to {
 			localRects := paragraph.layout.SelectionRects(ui.TextInputRange{
 				Start: paragraph.shapedOffset(from-paragraph.startUTF16, false),
@@ -278,6 +287,11 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			})
 			for _, rect := range localRects {
 				rect.Y += paragraph.top
+				// A formula block's line spans the column; a selection
+				// holds what it sets, as its tint does.
+				if block {
+					rect.X, rect.W = mark.X-paragraph.left, mark.W
+				}
 				add(lift(rect))
 			}
 		}
@@ -288,6 +302,9 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 			caret := paragraph.layout.Caret(paragraph.shapedOffset(paragraph.contentUTF16-paragraph.startUTF16, false))
 			caret.Y += paragraph.top
 			caret.W = 6
+			if block {
+				caret.X = mark.X + mark.W - caret.W - paragraph.left
+			}
 			add(lift(caret))
 		}
 	}
@@ -413,4 +430,16 @@ func (l *Layout) paragraphAtY(y float32) *Paragraph {
 		return nil
 	}
 	return &l.paragraphs[index]
+}
+
+// blockMark is the tint of the formula block a paragraph is, which holds
+// what it sets, if it is one.
+func (l *Layout) blockMark(paragraph *Paragraph) (ui.Rect, bool) {
+	for _, placed := range l.formulas {
+		f := placed.Formula
+		if f.Display && int(f.Range.Start) == paragraph.startUTF16 && int(f.Range.End) == paragraph.contentUTF16 {
+			return placed.Mark, true
+		}
+	}
+	return ui.Rect{}, false
 }
