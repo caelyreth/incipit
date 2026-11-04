@@ -198,7 +198,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	var tables []PlacedTable
 	var rooms []PlacedRoom
 	var cards []FormulaCard
-	inset := cardInset * style.Prose.FontSize
+	padX, _ := style.cardPad()
 	// source is a formula's source shaped as its card holds it, its
 	// lines one paragraph, set as its block's are.
 	source := func(f surface.Formula, rhythm surface.Rhythm) (Paragraph, bool) {
@@ -207,7 +207,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			return Paragraph{}, false
 		}
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
-		layout := shape(raw, font, max(1, width-2*inset), ui.Start, false, false)
+		layout := shape(raw, font, max(1, width-2*padX), ui.Start, false, false)
 		_, height := layout.Size()
 		return Paragraph{
 			layout: layout, startByte: raw.startByte, endByte: raw.endByte,
@@ -260,6 +260,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		var box ui.Rect
 		align := ui.Start
 		var block *FormulaCard
+		blockAfter := float32(0)
 		if formulaBlock(flow, raw) {
 			align = ui.Center
 		}
@@ -280,9 +281,9 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 				if !ok {
 					continue
 				}
-				room, _ := style.blockRoom(lines, f.Card)
-				lines.top, lines.left = top+inset, inset
-				block = &FormulaCard{Formula: f, Rect: ui.Rect{Y: top, W: width}, Shown: f.Card, Source: lines, Rule: top + room}
+				card, room, after := style.blockCard(f, lines, top, width)
+				card.Hint = style.hint(flow, f)
+				block, blockAfter = &card, after
 				top += room
 			}
 		}
@@ -309,8 +310,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		top += height
 		shaped = append(shaped, paragraph)
 		if block != nil {
-			_, below := style.blockRoom(block.Source, block.Shown)
-			top += below
+			top += blockAfter
 			block.Rect.H = top - block.Rect.Y
 			block.Source.host = len(shaped) - 1
 			cards = append(cards, *block)
@@ -322,10 +322,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			if !ok {
 				continue
 			}
-			card, room, ok := style.inlineCard(flow, f, lines, top, width)
-			if !ok {
-				continue
-			}
+			card, room := style.inlineCard(f, lines, style.hint(flow, f), top)
 			card.Source.host = len(shaped) - 1
 			cards = append(cards, card)
 			top += room
@@ -348,6 +345,11 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			})
 		}
 		formulas = append(formulas, placeFormulas(flow, paragraph, style, width)...)
+	}
+	for index := range cards {
+		if card := &cards[index]; !card.Formula.Display {
+			style.placeInlineCard(card, &shaped[card.Source.host], width)
+		}
 	}
 	c.layouts = next
 	c.layout = &Layout{

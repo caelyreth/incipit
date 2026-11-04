@@ -134,3 +134,14 @@ func Ink(box *untie.Box) (from, to float32) {
 	}
 	return from, to
 }
+
+// Extent is how far above and below its baseline box draws: its ascent and
+// descent, or further where its ink reaches past them, as a limit set
+// below an integral does.
+func Extent(box *untie.Box) (ascent, descent float32) {
+	if box == nil {
+		return 0, 0
+	}
+	bounds := box.Bounds()
+	return max(box.Ascent, -bounds.Y), max(box.Descent, bounds.Y+bounds.Height)
+}

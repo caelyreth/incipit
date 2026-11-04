@@ -1,6 +1,7 @@
 package documentview
 
 import (
+	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/app/controller"
@@ -8,7 +9,7 @@ import (
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/formula"
 	"github.com/caelyreth/neverland/native/motion"
-	"github.com/caelyreth/neverland/native/theme"
+	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -101,38 +102,65 @@ func (e *Element) formulaPress(x, y float32) (int, bool) {
 	return int(placed.Formula.Text.End), true
 }
 
-// drawFormulaCards draws the cards of the formulas being edited, beneath
-// the selection and text, and marks in its line the formula an inline
-// card edits.
+// formulaTint is the tint a formula being edited, or one empty, is marked
+// with: the page's own for what is being edited, as an active mark's.
+func formulaTint(state *State, amount float32) ui.Color {
+	return textlayout.RoleColor(state.Theme, surface.ColorMuted).Alpha(tintOpacity * amount)
+}
+
+// tintOpacity is the active mark's fill, which a formula's tint matches.
+const tintOpacity = 24.0 / 255
+
+// blank reports whether a formula has nothing in it to set.
+func blank(f surface.Formula) bool { return strings.TrimSpace(f.Source) == "" }
+
+// drawFormulaCards tints the sources of the formulas being edited,
+// beneath the selection and text, and the formulas in their lines: those
+// being edited as far as their source has opened, and empty ones always,
+// so they show where they stand.
 func drawFormulaCards(p *ui.Painter, state *State, origin ui.Point) {
-	radius := theme.DefaultControls.Scaled(uiFontSize(state)).Radius
 	for _, card := range state.Layout.FormulaCards() {
 		rect := card.Rect
 		rect.X += origin.X
 		rect.Y += origin.Y
-		p.Fill(rect, state.Theme.Surface.Inset.Alpha(card.Shown), radius)
-		p.Stroke(rect, state.Theme.Border.Variant.Alpha(card.Shown), radius, 1)
+		p.Fill(rect, formulaTint(state, card.Shown), formulaRadius)
 	}
 	for _, placed := range state.Layout.Formulas() {
-		if placed.Formula.Display || placed.Formula.Card <= 0 {
+		f := placed.Formula
+		amount := f.Card
+		if blank(f) {
+			amount = 1
+		}
+		// A block's card tints it while it is edited.
+		if amount <= 0 || f.Display && (!blank(f) || f.Card > 0) {
 			continue
 		}
-		pad := float32(2)
-		rect := ui.Rect{X: origin.X + placed.Rect.X - pad, Y: origin.Y + placed.Rect.Y - pad, W: placed.Rect.W + 2*pad, H: placed.Rect.H + 2*pad}
-		p.Fill(rect, state.Theme.Surface.Inset.Alpha(placed.Formula.Card), radius/2)
+		padX, padY := float32(2), float32(1)
+		rect := placed.Rect
+		if f.Display {
+			// An empty block's line is the column's; its mark stands in
+			// the middle, as what it would set would.
+			mark := 3 * state.Prose.FontSize
+			rect.X, rect.W = rect.X+(rect.W-mark)/2, mark
+		}
+		p.Fill(ui.Rect{X: origin.X + rect.X - padX, Y: origin.Y + rect.Y - padY, W: rect.W + 2*padX, H: rect.H + 2*padY}, formulaTint(state, amount), formulaRadius)
 	}
 }
 
+// formulaRadius rounds a formula's tint as an active mark's is.
+const formulaRadius = 4
+
 // drawFormulas draws the formulas the layout set that holds says to, the
-// layout's content origin at origin, and what the cards of those being
-// edited hold: their source, and what an inline one sets beneath it.
+// layout's content origin at origin, and the sources of those being edited,
+// as far as each has opened. An empty one draws nothing, its tint showing
+// where it is.
 func drawFormulas(p *ui.Painter, state *State, origin ui.Point, holds func(model.UTF16Range) bool) {
 	visible := p.Visible()
 	shown := func(rect ui.Rect) bool {
 		return rect.Y+origin.Y+rect.H >= visible.Y && rect.Y+origin.Y <= visible.Y+visible.H
 	}
 	for _, placed := range state.Layout.Formulas() {
-		if holds != nil && !holds(placed.Formula.Range) || !shown(placed.Rect) {
+		if holds != nil && !holds(placed.Formula.Range) || !shown(placed.Rect) || blank(placed.Formula) {
 			continue
 		}
 		formula.Draw(p, placed.Box, ui.Point{X: origin.X + placed.Origin.X, Y: origin.Y + placed.Origin.Y}, placed.Inks)
@@ -147,29 +175,19 @@ func drawFormulas(p *ui.Painter, state *State, origin ui.Point, holds func(model
 		rect := card.Rect
 		rect.X += origin.X
 		rect.Y += origin.Y
-		alpha := card.Shown
-		// The card opens from its top as its room does, the source in the
-		// room above a block's line.
-		clip := rect
-		if !card.HasSet {
-			clip.H = card.Rule - card.Rect.Y
-		}
 		source := card.Source
-		p.Clip(clip, 0, func() {
-			p.TextLayout(source.Layout(), origin.X+source.Left(), origin.Y+source.Top(), state.Theme.Prose.Text.Alpha(alpha))
-		})
-		rule := ui.Rect{X: rect.X, Y: origin.Y + card.Rule, W: rect.W, H: 1}
-		if rule.Y < rect.Y+rect.H {
-			p.Fill(rule, state.Theme.Border.Variant.Alpha(alpha), 0)
+		// The source opens from its top as its room does.
+		clip := ui.Rect{X: rect.X, Y: rect.Y, W: rect.W, H: source.Top() + source.Height() - card.Rect.Y}
+		if !card.Formula.Display {
+			clip.H = rect.H
 		}
-		if !card.HasSet {
-			continue
-		}
-		set := card.Set
-		inks := set.Inks
-		inks.Text, inks.Error, inks.Placeholder = inks.Text.Alpha(alpha), inks.Error.Alpha(alpha), inks.Placeholder.Alpha(alpha)
-		p.Clip(rect, 0, func() {
-			formula.Draw(p, set.Box, ui.Point{X: origin.X + set.Origin.X, Y: origin.Y + set.Origin.Y}, inks)
+		clip.H = min(clip.H, rect.H)
+		p.Clip(clip, formulaRadius, func() {
+			x, y := origin.X+source.Left(), origin.Y+source.Top()
+			if card.Hint != nil {
+				p.TextLayout(card.Hint, x, y, state.Theme.Text.Muted.Alpha(0.65*card.Shown))
+			}
+			p.TextLayout(source.Layout(), x, y, state.Theme.Prose.Text.Alpha(card.Shown))
 		})
 	}
 }

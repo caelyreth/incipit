@@ -5,6 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
+	"github.com/caelyreth/neverland/native/formula"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -29,8 +30,8 @@ func TestInlineFormulaIsSetInItsLine(t *testing.T) {
 		t.Fatalf("placed = %+v", placed)
 	}
 	box := placed[0].Box
-	if got := placed[0].Origin.Y - placed[0].Rect.Y; got != box.Ascent {
-		t.Fatalf("baseline %v below the object's top, ascent %v", got, box.Ascent)
+	if ascent, _ := formula.Extent(box); placed[0].Origin.Y-placed[0].Rect.Y != ascent {
+		t.Fatalf("baseline %v below the object's top, ascent %v", placed[0].Origin.Y-placed[0].Rect.Y, ascent)
 	}
 	before, after := layout.Caret(2), layout.Caret(7)
 	if after.X-before.X < box.Width-0.5 {
@@ -72,9 +73,9 @@ func TestFormulaBlockIsOneLine(t *testing.T) {
 }
 
 // An inline formula being edited stays set in its line, its paragraph
-// unmoved, and opens its card below the paragraph as far as it is shown:
-// the source across the top, where the caret and selection in it are, and
-// what it sets centered beneath. Arrows leave the source past its ends.
+// unmoved, and opens its source below the paragraph as far as it is shown:
+// one line, under where the formula stands, where the caret and selection
+// in it are. Arrows leave the source past its ends.
 func TestInlineFormulaEditsOnItsCard(t *testing.T) {
 	text := "a $x^2$ b\nafter"
 	f := surface.Formula{Range: model.NewUTF16Range(2, 7), Text: model.NewUTF16Range(3, 6), Source: "x^2"}
@@ -93,23 +94,23 @@ func TestInlineFormulaEditsOnItsCard(t *testing.T) {
 		t.Fatalf("room below: %v shown, %v halfway", room, partial)
 	}
 	cards := layout.FormulaCards()
-	if len(cards) != 1 || !cards[0].HasSet || cards[0].Shown != 1 {
+	if len(cards) != 1 || cards[0].Shown != 1 || cards[0].Hint != nil {
 		t.Fatalf("cards = %+v", cards)
 	}
 	card := cards[0]
 	line := layout.Caret(8)
-	if card.Rect.X != 0 || card.Rect.W != 400 || card.Rect.Y < line.Y+line.H || card.Rect.Y+card.Rect.H > layout.Caret(10).Y {
-		t.Fatalf("card %+v, line %+v, next at %v", card.Rect, line, layout.Caret(10).Y)
+	set := layout.Formulas()[0].Rect
+	if card.Rect.Y < line.Y+line.H || card.Rect.Y+card.Rect.H > layout.Caret(10).Y ||
+		card.Source.Left() != set.X || card.Rect.W >= 200 {
+		t.Fatalf("card %+v under %+v, line %+v, next at %v", card.Rect, set, line, layout.Caret(10).Y)
 	}
-	// The caret in the source is on the card, above its rule; the set
-	// formula beneath it is centered.
+	if rows := card.Source.Layout().Lines(); len(rows) != 1 {
+		t.Fatalf("the source is %d lines", len(rows))
+	}
 	for _, at := range []model.UTF16Offset{3, 4, 6} {
-		if caret := layout.Caret(at); !card.Rect.Contains(caret.X+1, caret.Y+1) || caret.Y+caret.H > card.Rule+0.5 {
+		if caret := layout.Caret(at); !card.Rect.Contains(caret.X+1, caret.Y+1) {
 			t.Fatalf("caret %d = %+v off the source of %+v", at, caret, card)
 		}
-	}
-	if set := card.Set.Rect; set.Y < card.Rule || set.X+set.W/2 < 199 || set.X+set.W/2 > 201 {
-		t.Fatalf("set %+v is not centered beneath the rule at %v", set, card.Rule)
 	}
 	if rects := layout.RangeRects(model.NewUTF16Range(3, 5)); len(rects) != 1 || rects[0].Y < card.Rect.Y {
 		t.Fatalf("selection in the source = %+v", rects)
@@ -127,17 +128,11 @@ func TestInlineFormulaEditsOnItsCard(t *testing.T) {
 	if got := layout.Hit(ui.Point{X: caret.X, Y: caret.Y + caret.H/2}); got != 4 {
 		t.Fatalf("hit in the source = %d", got)
 	}
-	if got := layout.Hit(ui.Point{X: 5, Y: card.Set.Rect.Y + 1}); got != 6 {
-		t.Fatalf("hit on what it sets = %d", got)
-	}
 	if got := layout.RowNear(4, 1, caret.X); got < 10 {
 		t.Fatalf("down from the source = %d", got)
 	}
 	if got := layout.RowNear(4, -1, 0); got > 2 {
 		t.Fatalf("up from the source = %d", got)
-	}
-	if _, ok := layout.FormulaAt(ui.Point{X: card.Set.Rect.X + 1, Y: card.Set.Rect.Y + 1}); ok {
-		t.Fatal("what a card sets is pressed as a formula in its place")
 	}
 }
 
@@ -151,17 +146,31 @@ func TestFormulaBlockEditsOnItsCard(t *testing.T) {
 	}
 	layout := NewCache().Update(formulaFlow(t, text, block), 400, testStyle())
 	cards, set := layout.FormulaCards(), layout.Formulas()
-	if len(cards) != 1 || cards[0].HasSet || len(set) != 1 {
+	if len(cards) != 1 || len(set) != 1 {
 		t.Fatalf("cards = %+v, set %+v", cards, set)
 	}
 	card := cards[0]
-	if card.Rect.W != 400 || set[0].Rect.Y < card.Rule || set[0].Rect.Y+set[0].Rect.H > card.Rect.Y+card.Rect.H {
+	if card.Rect.W <= 400 || card.Source.Left() != 0 || set[0].Rect.Y < card.below || set[0].Rect.Y+set[0].Rect.H > card.Rect.Y+card.Rect.H {
 		t.Fatalf("card %+v does not hold its line %+v below its source", card, set[0].Rect)
 	}
-	if caret := layout.Caret(10); caret.Y < card.Rect.Y || caret.Y+caret.H > card.Rule+0.5 {
+	if caret := layout.Caret(10); caret.Y < card.Rect.Y || caret.Y+caret.H > card.below+0.5 {
 		t.Fatalf("caret at the source's end %+v, card %+v", caret, card)
 	}
 	if got := layout.NextBoundary(10); got != 13 {
 		t.Fatalf("right from the source's end = %d", got)
+	}
+}
+
+// An empty formula's card holds a hint in its source's place, wide enough
+// for it.
+func TestEmptyFormulaHintsItsSource(t *testing.T) {
+	f := surface.Formula{Range: model.NewUTF16Range(2, 4), Text: model.NewUTF16Range(3, 3), Open: true, Card: 1}
+	layout := NewCache().Update(formulaFlow(t, "a $$ b", f), 400, testStyle())
+	cards := layout.FormulaCards()
+	if len(cards) != 1 || cards[0].Hint == nil {
+		t.Fatalf("cards = %+v", cards)
+	}
+	if hinted, _ := cards[0].Hint.Size(); cards[0].Rect.W < hinted {
+		t.Fatalf("card %+v narrower than its hint %v", cards[0].Rect, hinted)
 	}
 }
