@@ -36,12 +36,13 @@ type cardKey struct {
 func (e *Element) openedFlow(flow *surface.Flow, selection model.UTF16Range, now time.Time, animate bool) (*surface.Flow, bool) {
 	formulas := flow.Formulas()
 	if len(formulas) == 0 {
-		e.opened, e.cards = nil, nil
+		e.opened, e.cards, e.sound = nil, nil, nil
 		return flow, false
 	}
 	held := e.pointer != pointerIdle
 	opened := make(map[model.UTF16Range]bool, len(e.opened))
 	cards := make(map[cardKey]motion.Spring, len(e.cards))
+	sound := make(map[cardKey]string, len(e.sound))
 	moving := false
 	for index := range formulas {
 		f := &formulas[index]
@@ -58,6 +59,9 @@ func (e *Element) openedFlow(flow *surface.Flow, selection model.UTF16Range, now
 			target = 1
 		}
 		key := cardKey{node: f.Node, start: f.Range.Start}
+		if formula.Sound(f.Source, f.Display) {
+			sound[key] = f.Source
+		}
 		spring, known := e.cards[key]
 		if !known {
 			if target == 0 {
@@ -70,12 +74,20 @@ func (e *Element) openedFlow(flow *surface.Flow, selection model.UTF16Range, now
 		}
 		spring.Step(target, now, figureFade)
 		f.Card = max(0, min(1, spring.Value()))
+		// While it is edited a formula shows what it last set soundly, or
+		// nothing yet, never a half typed one's errors.
+		if _, ok := sound[key]; !ok {
+			f.Source = e.sound[key]
+			if f.Source != "" {
+				sound[key] = f.Source
+			}
+		}
 		moving = moving || spring.Moving()
 		if target > 0 || spring.Moving() {
 			cards[key] = spring
 		}
 	}
-	e.opened, e.cards = opened, cards
+	e.opened, e.cards, e.sound = opened, cards, sound
 	next, err := flow.WithFormulas(formulas)
 	if err != nil {
 		return flow, false
@@ -115,36 +127,38 @@ const tintOpacity = 24.0 / 255
 func blank(f surface.Formula) bool { return strings.TrimSpace(f.Source) == "" }
 
 // drawFormulaCards tints the sources of the formulas being edited,
-// beneath the selection and text, and the formulas in their lines: those
+// beneath the selection and text, and the formulas in their places: those
 // being edited as far as their source has opened, and empty ones always,
-// so they show where they stand.
-func drawFormulaCards(p *ui.Painter, state *State, origin ui.Point) {
+// so they show where they stand. A formula's tint glides as what it sets
+// changes size.
+func drawFormulaCards(p *ui.Painter, state *State, origin ui.Point, options PaintOptions) {
 	for _, card := range state.Layout.FormulaCards() {
 		rect := card.Rect
 		rect.X += origin.X
 		rect.Y += origin.Y
 		p.Fill(rect, formulaTint(state, card.Shown), formulaRadius)
 	}
+	seen := make(map[cardKey]bool)
 	for _, placed := range state.Layout.Formulas() {
 		f := placed.Formula
 		amount := f.Card
 		if blank(f) {
 			amount = 1
 		}
-		// A block's card tints it while it is edited.
-		if amount <= 0 || f.Display && (!blank(f) || f.Card > 0) {
+		key := cardKey{node: f.Node, start: f.Range.Start}
+		seen[key] = true
+		rect, moving := state.FormulaMarks.step(key, placed.Mark, options.Now, options.Animate && amount > 0)
+		if moving {
+			p.AnimationFrame()
+		}
+		if amount <= 0 {
 			continue
 		}
-		padX, padY := float32(2), float32(1)
-		rect := placed.Rect
-		if f.Display {
-			// An empty block's line is the column's; its mark stands in
-			// the middle, as what it would set would.
-			mark := 3 * state.Prose.FontSize
-			rect.X, rect.W = rect.X+(rect.W-mark)/2, mark
-		}
-		p.Fill(ui.Rect{X: origin.X + rect.X - padX, Y: origin.Y + rect.Y - padY, W: rect.W + 2*padX, H: rect.H + 2*padY}, formulaTint(state, amount), formulaRadius)
+		rect.X += origin.X
+		rect.Y += origin.Y
+		p.Fill(rect, formulaTint(state, amount), formulaRadius)
 	}
+	state.FormulaMarks.keep(seen)
 }
 
 // formulaRadius rounds a formula's tint as an active mark's is.
@@ -231,4 +245,64 @@ func (e *Element) formulaKey(event ui.InputEvent) (bool, bool) {
 		return true, bridge.Controller.SetSelection(controller.UTF16Range{Start: to, End: to}) == nil
 	}
 	return false, false
+}
+
+// FormulaMarks glide each formula's tint from where it was to where it is
+// as what the formula sets grows or shrinks.
+type FormulaMarks struct {
+	tracks map[cardKey]markTrack
+}
+
+type markTrack struct {
+	from, to ui.Rect
+	started  time.Time
+}
+
+// markGlide is how long a tint takes to reach its new size.
+const markGlide = 180 * time.Millisecond
+
+// step is where key's tint is drawn at now, gliding to target, and whether
+// it is still moving.
+func (m *FormulaMarks) step(key cardKey, target ui.Rect, now time.Time, animate bool) (ui.Rect, bool) {
+	if m == nil {
+		return target, false
+	}
+	if m.tracks == nil {
+		m.tracks = make(map[cardKey]markTrack)
+	}
+	track, ok := m.tracks[key]
+	if !ok || !animate {
+		m.tracks[key] = markTrack{from: target, to: target, started: now}
+		return target, false
+	}
+	if track.to != target {
+		track.from, _ = track.at(now)
+		track.to, track.started = target, now
+		m.tracks[key] = track
+	}
+	return track.at(now)
+}
+
+// at is where a track's tint stands at now, eased out.
+func (t markTrack) at(now time.Time) (ui.Rect, bool) {
+	progress := float32(now.Sub(t.started)) / float32(markGlide)
+	if progress >= 1 || t.from == t.to {
+		return t.to, false
+	}
+	progress = max(0, progress)
+	eased := 1 - (1-progress)*(1-progress)*(1-progress)
+	lerp := func(a, b float32) float32 { return a + (b-a)*eased }
+	return ui.Rect{X: lerp(t.from.X, t.to.X), Y: lerp(t.from.Y, t.to.Y), W: lerp(t.from.W, t.to.W), H: lerp(t.from.H, t.to.H)}, true
+}
+
+// keep forgets the tints of formulas no longer on the page.
+func (m *FormulaMarks) keep(seen map[cardKey]bool) {
+	if m == nil {
+		return
+	}
+	for key := range m.tracks {
+		if !seen[key] {
+			delete(m.tracks, key)
+		}
+	}
 }

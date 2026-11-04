@@ -184,12 +184,9 @@ func (l *Layout) Hit(point ui.Point) model.UTF16Offset {
 	if point.Y >= l.height {
 		return model.UTF16Offset(l.flow.UTF16Len())
 	}
-	// On a card, its source, or the source's end below it.
+	// On a card, its source.
 	if card, ok := l.cardAt(point); ok {
 		source := &card.Source
-		if point.Y >= card.below {
-			return model.UTF16Offset(source.endUTF16)
-		}
 		local := source.layout.IndexAt(ui.Point{X: point.X - source.left, Y: point.Y - source.top})
 		return model.UTF16Offset(source.startUTF16 + local)
 	}

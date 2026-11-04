@@ -77,6 +77,10 @@ type pageState struct {
 	// and cards how far each one's card has opened.
 	opened map[model.UTF16Range]bool
 	cards  map[cardKey]motion.Spring
+	// sound is what each formula last set soundly, which it shows while
+	// it is edited, and marks where each one's tint glides.
+	sound  map[cardKey]string
+	marks  FormulaMarks
 	tables tableUI
 	blocks blockUI
 	// announced is the figure last read out as it became the selection,
@@ -654,6 +658,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Pictures:          e.Pictures,
 		FigureMotion:      &e.figures,
 		CheckboxMotion:    &e.checkboxes,
+		FormulaMarks:      &e.marks,
 		CellMotion:        &e.cellMotion,
 		Drop:              &e.drop,
 		HoverFigure:       e.hover,

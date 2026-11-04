@@ -138,3 +138,34 @@ func TestEscapeLeavesAFormulaBlockForTheLineAfter(t *testing.T) {
 		t.Fatalf("Escape left the caret at %d in %q, cards %+v", got, document.Text(), element.current.FormulaCards())
 	}
 }
+
+// While a formula is edited it shows what it last set soundly, or nothing
+// before it has set anything; a half typed command is never set.
+func TestAFormulaBeingTypedKeepsWhatItLastSet(t *testing.T) {
+	element := &Element{}
+	shows := func(source string) string {
+		text := "a $" + source + "$"
+		flow, err := surface.NewFlow(projection.NewVersion(0, 0), text, []surface.StyleRun{{
+			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
+		}})
+		if err == nil {
+			end := model.UTF16Offset(len(text))
+			flow, err = flow.WithFormulas([]surface.Formula{{
+				Node: 1, Range: model.NewUTF16Range(2, end), Text: model.NewUTF16Range(3, end-1), Source: source,
+			}})
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		caret := model.UTF16Offset(len(text) - 1)
+		opened, _ := element.openedFlow(flow, model.NewUTF16Range(caret, caret), time.Unix(0, 0), false)
+		return opened.Formulas()[0].Source
+	}
+	for _, step := range []struct{ typed, shown string }{
+		{"\\f", ""}, {"x", "x"}, {"x+", "x+"}, {"x+\\fr", "x+"}, {"x+\\frac{1}{2}", "x+\\frac{1}{2}"},
+	} {
+		if got := shows(step.typed); got != step.shown {
+			t.Fatalf("typing %q shows %q, want %q", step.typed, got, step.shown)
+		}
+	}
+}

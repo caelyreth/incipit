@@ -200,13 +200,17 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	var cards []FormulaCard
 	padX, _ := style.cardPad()
 	// source is a formula's source shaped as its card holds it, its
-	// lines one paragraph, set as its block's are.
-	source := func(f surface.Formula, rhythm surface.Rhythm) (Paragraph, bool) {
+	// lines one paragraph, spaced as code's are.
+	source := func(f surface.Formula) (Paragraph, bool) {
 		raw, ok := sourceOf(flow, f)
 		if !ok {
 			return Paragraph{}, false
 		}
-		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
+		// Its lines are as tall as its code face asks, not the page's,
+		// so the source stands in the middle of its tint.
+		code := font
+		code.Size = style.Prose.FontSize * codeScale
+		font := style.paragraphFont(flow, raw.startByte, raw.endByte, code, leading(surface.RhythmVerbatim, body))
 		layout := shape(raw, font, max(1, width-2*padX), ui.Start, false, false)
 		_, height := layout.Size()
 		return Paragraph{
@@ -259,8 +263,6 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		}
 		var box ui.Rect
 		align := ui.Start
-		var block *FormulaCard
-		blockAfter := float32(0)
 		if formulaBlock(flow, raw) {
 			align = ui.Center
 		}
@@ -273,20 +275,6 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			}
 		}
 		top += above
-		// A block being edited opens its card around its line, its source
-		// above it.
-		if align == ui.Center && !hasFigure {
-			for _, f := range editing(flow, raw, true) {
-				lines, ok := source(f, rhythm)
-				if !ok {
-					continue
-				}
-				card, room, after := style.blockCard(f, lines, top, width)
-				card.Hint = style.hint(flow, f)
-				block, blockAfter = &card, after
-				top += room
-			}
-		}
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
 		layout := shape(raw, font, width, align, hasFigure, false)
 		_, height := layout.Size()
@@ -309,20 +297,14 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		}
 		top += height
 		shaped = append(shaped, paragraph)
-		if block != nil {
-			top += blockAfter
-			block.Rect.H = top - block.Rect.Y
-			block.Source.host = len(shaped) - 1
-			cards = append(cards, *block)
-		}
-		// An inline formula being edited opens its card below its
-		// paragraph.
-		for _, f := range editing(flow, raw, false) {
-			lines, ok := source(f, rhythm)
+		// A formula being edited opens its source below its paragraph: a
+		// block's across the column, an inline one's under where it stands.
+		for _, f := range editing(flow, raw, align == ui.Center && !hasFigure) {
+			lines, ok := source(f)
 			if !ok {
 				continue
 			}
-			card, room := style.inlineCard(f, lines, style.hint(flow, f), top)
+			card, room := style.card(f, lines, style.hint(flow, f), top, width)
 			card.Source.host = len(shaped) - 1
 			cards = append(cards, card)
 			top += room

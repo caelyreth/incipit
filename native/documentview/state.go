@@ -43,6 +43,7 @@ type State struct {
 	Pictures       *Pictures
 	FigureMotion   *FigureMotion
 	CheckboxMotion *CheckboxMotion
+	FormulaMarks   *FormulaMarks
 	// CellMotion keeps the fades of the cells selected whole.
 	CellMotion *CellMotion
 	// Drop is the line showing where dragged pictures would go.

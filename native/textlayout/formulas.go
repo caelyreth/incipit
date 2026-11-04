@@ -1,7 +1,7 @@
 package textlayout
 
 import (
-	"math"
+	"strings"
 
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
@@ -14,11 +14,12 @@ import (
 // notation and source: an inline one on the line's baseline, as tall and
 // deep as it reaches, and a formula block as one line of its own, its
 // fences and source lines in it, broken within the column and centered
-// there. One being edited stays set in its place, set again as it is
-// typed, while its source opens below it in the page's own code text, on
-// the muted tint the page marks what is being edited with, as far as its
-// Card says: an inline formula's one line under where it stands, a block's
-// lines across the column above its line, the tint taking both.
+// there, as tall as a fraction at least. One being edited stays set in its
+// place, set again as it is typed, while its source opens below its
+// paragraph in the page's own code text, as far as its Card says: an
+// inline formula's one line under where it stands, a block's lines across
+// the column. Both wear the muted tint the page marks what is being edited
+// with, the formula in its place too.
 
 const (
 	// formulaScale sets formulas a step larger than their text: the math
@@ -31,10 +32,11 @@ const (
 	cardPadX = 0.4
 	cardPadY = 0.25
 	cardGap  = 0.2
-	// emptyHint stands in for the source of a formula with none yet, in
-	// the mono face at the size the Writing Profile sets code (codeScale).
+	// emptyHint stands in for the source of a formula with none yet.
 	emptyHint = "TeX"
-	hintScale = 0.88
+	// codeScale is the size the Writing Profile sets code at, which a
+	// formula's source is: its lines, and the hint, are as tall as it asks.
+	codeScale = 0.88
 )
 
 // PlacedFormula is a formula as the layout set it: Box is what untie set,
@@ -46,20 +48,22 @@ type PlacedFormula struct {
 	Origin  ui.Point
 	Rect    ui.Rect
 	Inks    formula.Inks
+	// Mark is where its tint goes while it is edited, or while it is
+	// empty: around what it sets, and an inline one's line of text, so it
+	// keeps its height as it is typed.
+	Mark ui.Rect
 }
 
 // FormulaCard is the source of a formula being edited where the page
-// opens it, in content space: Rect is its tint as far as it has opened,
-// Shown how far. Hint stands in for a source with nothing in it yet.
+// opens it below its paragraph, in content space: Rect is its tint as far
+// as it has opened, Shown how far. Hint stands in for a source with
+// nothing in it yet.
 type FormulaCard struct {
 	Formula surface.Formula
 	Rect    ui.Rect
 	Shown   float32
 	Source  Paragraph
 	Hint    *ui.TextLayout
-	// below is where a block's own line starts on the card, a press there
-	// going to its source's end.
-	below float32
 }
 
 // Formulas are what the layout set of the page's formulas, in order.
@@ -153,7 +157,7 @@ func replacementsIn(flow *surface.Flow, start, end int, style Style, width float
 		object := plainSpans(flow, int(from), int(from)+1, style)[0]
 		object.Text = "￼"
 		object.ObjectWidth = min(box.Width+max(0, box.Italic), max(width, box.Width))
-		object.ObjectHeight, object.ObjectDescent = formula.Extent(box)
+		object.ObjectHeight, object.ObjectDescent = style.extentOf(f, box, width)
 		objects = append(objects, replacement{from: int(from), to: int(to), object: object})
 	}
 	return objects
@@ -218,10 +222,11 @@ func placeFormulas(flow *surface.Flow, paragraph *Paragraph, style Style, width 
 			rect := object.Rect
 			rect.X += paragraph.left
 			rect.Y += paragraph.top
-			ascent, _ := formula.Extent(box)
+			ascent, _ := style.extentOf(f, box, width)
+			origin := ui.Point{X: rect.X, Y: rect.Y + ascent}
 			placed = append(placed, PlacedFormula{
-				Formula: f, Box: box, Rect: rect, Inks: inks,
-				Origin: ui.Point{X: rect.X, Y: rect.Y + ascent},
+				Formula: f, Box: box, Rect: rect, Inks: inks, Origin: origin,
+				Mark: style.markOf(f, box, paragraph, at, rect, origin),
 			})
 			break
 		}
@@ -250,7 +255,7 @@ func (l *Layout) FormulaAt(point ui.Point) (PlacedFormula, bool) {
 	return PlacedFormula{}, false
 }
 
-// editing are the formulas of a paragraph whose cards show: a block the
+// editing are the formulas of a paragraph whose cards show: the block the
 // paragraph is, or the inline formulas it holds.
 func editing(flow *surface.Flow, raw rawParagraph, display bool) []surface.Formula {
 	var cards []surface.Formula
@@ -281,24 +286,26 @@ func (s Style) cardPad() (x, y float32) {
 	return cardPadX * s.Prose.FontSize, cardPadY * s.Prose.FontSize
 }
 
-// inlineCard is the card of an inline formula from top below its
-// paragraph, its source shaped already: one line, under where the formula
-// stands once its line is known (placeInlineCard). room is how much of the
-// page it takes.
-func (s Style) inlineCard(f surface.Formula, source Paragraph, hint *ui.TextLayout, top float32) (card FormulaCard, room float32) {
+// card is the card of a formula from top below its paragraph, its source
+// shaped already: a block's across the column, an inline formula's as wide
+// as its source, under where the formula stands once its line is known
+// (placeInlineCard). room is how much of the page it takes.
+func (s Style) card(f surface.Formula, source Paragraph, hint *ui.TextLayout, top, width float32) (card FormulaCard, room float32) {
 	padX, padY := s.cardPad()
 	gap := cardGap * s.Prose.FontSize
-	width, _ := source.layout.Size()
+	lines, _ := source.layout.Size()
 	if hint != nil {
 		hinted, _ := hint.Size()
-		width = max(width, hinted)
+		lines = max(lines, hinted)
 	}
 	card = FormulaCard{
 		Formula: f,
 		Hint:    hint,
-		Rect:    ui.Rect{Y: top + gap*f.Card, W: width + 2*padX, H: (source.height + 2*padY) * f.Card},
+		Rect:    ui.Rect{Y: top + gap*f.Card, W: lines + 2*padX, H: (source.height + 2*padY) * f.Card},
 		Shown:   f.Card,
-		below:   float32(math.Inf(1)),
+	}
+	if f.Display {
+		card.Rect.X, card.Rect.W = -padX, width+2*padX
 	}
 	source.top = card.Rect.Y + padY
 	card.Source = source
@@ -317,23 +324,23 @@ func (s Style) placeInlineCard(card *FormulaCard, host *Paragraph, width float32
 	card.Rect.X = left - padX
 }
 
-// blockCard is the card of a formula block from top, around its line: its
-// source across the column above the line, which starts at below. above
-// and after are the room it opens before and after the line.
-func (s Style) blockCard(f surface.Formula, source Paragraph, top, width float32) (card FormulaCard, above, after float32) {
-	padX, padY := s.cardPad()
-	above = (2*padY + source.height) * f.Card
-	// What a block sets reaches its line's edges, where the source's
-	// line has its leading: twice the room below keeps the two alike.
-	after = 2 * padY * f.Card
-	source.top, source.left = top+padY, 0
-	return FormulaCard{
-		Formula: f,
-		Rect:    ui.Rect{X: -padX, Y: top, W: width + 2*padX},
-		Shown:   f.Card,
-		Source:  source,
-		below:   top + above,
-	}, above, after
+// blockFloor is the least a formula block's line keeps above and below
+// its baseline, so it does not change height as it is typed: a fraction's.
+const blockFloor = `\frac{1}{2}`
+
+// extentOf is how far above and below its baseline f's line keeps room for
+// box.
+func (s Style) extentOf(f surface.Formula, box *untie.Box, width float32) (ascent, descent float32) {
+	ascent, descent = formula.Extent(box)
+	// An empty one draws nothing: a block's keeps its floor alone.
+	if f.Display && strings.TrimSpace(f.Source) == "" {
+		ascent, descent = 0, 0
+	}
+	if f.Display {
+		floorA, floorD := formula.Extent(formula.Set(blockFloor, true, s.Prose.FontSize*formulaScale, width))
+		ascent, descent = max(ascent, floorA), max(descent, floorD)
+	}
+	return ascent, descent
 }
 
 // hint is what stands in for an empty source, in its face, muted.
@@ -346,11 +353,13 @@ func (s Style) hint(flow *surface.Flow, f surface.Formula) *ui.TextLayout {
 	run := s.runAt(flow, f.Text.Start)
 	if run.Style.Face != surface.FaceMono {
 		run.Style.Face = surface.FaceMono
-		run.Style.Scale = run.Style.Size() * hintScale
+		run.Style.Scale = run.Style.Size() * codeScale
 	}
 	span := s.span(emptyHint, run)
 	span.Color = s.Theme.Text.Muted.Alpha(0.65)
-	return ui.ShapeRichTextWith([]ui.Span{span}, s.font(), ui.TextShape{})
+	font := s.font()
+	font.Size = s.Prose.FontSize * codeScale
+	return ui.ShapeRichTextWith([]ui.Span{span}, font, ui.TextShape{})
 }
 
 // editorAt is the source being edited on a card that holds offset.
@@ -405,4 +414,33 @@ func (l *Layout) rowBeyondSource(source *Paragraph, direction int, x float32) mo
 		y = height - y
 	}
 	return model.UTF16Offset(beside.startUTF16 + beside.sourceOffset(indexOnRow(beside.layout, x-beside.left, y)))
+}
+
+// markOf is where a formula's tint goes: around its ink, and the text of
+// the row an inline one stands in, so it holds what is set, as tall as the
+// text at least; an empty one's where it would stand.
+func (s Style) markOf(f surface.Formula, box *untie.Box, paragraph *Paragraph, at int, rect ui.Rect, origin ui.Point) ui.Rect {
+	padX, padY := s.cardPad()
+	padX, padY = padX/2, padY/2
+	from, to := formula.Ink(box)
+	if strings.TrimSpace(f.Source) == "" {
+		// Nothing set: a block's mark as wide as a short formula would be,
+		// an inline one's its object's.
+		from, to = 0, box.Width
+		if f.Display {
+			mark := 3 * s.Prose.FontSize
+			from = (box.Width - mark) / 2
+			to = from + mark
+		}
+	}
+	top, bottom := rect.Y, rect.Y+rect.H
+	if !f.Display {
+		for _, line := range paragraph.layout.Lines() {
+			if line.Start <= at && at < line.End {
+				baseline := paragraph.top + line.Baseline
+				top, bottom = min(top, baseline-line.Ascent), max(bottom, baseline+line.Descent)
+			}
+		}
+	}
+	return ui.Rect{X: origin.X + from - padX, Y: top - padY, W: to - from + 2*padX, H: bottom - top + 2*padY}
 }

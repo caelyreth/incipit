@@ -136,9 +136,11 @@ func TestInlineFormulaEditsOnItsCard(t *testing.T) {
 	}
 }
 
-// A formula block being edited opens its card around its own line, its
-// source above it.
-func TestFormulaBlockEditsOnItsCard(t *testing.T) {
+// A formula block being edited opens its source below its own line,
+// across the column, as an inline formula's opens below its paragraph; its
+// line keeps a fraction's height at least, empty or not, so it does not
+// change height as it is typed.
+func TestFormulaBlockEditsBelowItsLine(t *testing.T) {
 	text := "$$\n\\frac12\n$$"
 	block := surface.Formula{
 		Range: model.NewUTF16Range(0, 13), Text: model.NewUTF16Range(3, 10),
@@ -150,14 +152,32 @@ func TestFormulaBlockEditsOnItsCard(t *testing.T) {
 		t.Fatalf("cards = %+v, set %+v", cards, set)
 	}
 	card := cards[0]
-	if card.Rect.W <= 400 || card.Source.Left() != 0 || set[0].Rect.Y < card.below || set[0].Rect.Y+set[0].Rect.H > card.Rect.Y+card.Rect.H {
-		t.Fatalf("card %+v does not hold its line %+v below its source", card, set[0].Rect)
+	if card.Rect.W <= 400 || card.Source.Left() != 0 || card.Rect.Y < set[0].Rect.Y+set[0].Rect.H {
+		t.Fatalf("card %+v is not below its line %+v", card, set[0].Rect)
 	}
-	if caret := layout.Caret(10); caret.Y < card.Rect.Y || caret.Y+caret.H > card.below+0.5 {
+	if mark := set[0].Mark; mark.Y+mark.H > card.Rect.Y || mark.W >= 200 {
+		t.Fatalf("the formula's tint %+v reaches its source's %+v, or the column", mark, card.Rect)
+	}
+	if caret := layout.Caret(10); !card.Rect.Contains(caret.X+1, caret.Y+1) {
 		t.Fatalf("caret at the source's end %+v, card %+v", caret, card)
 	}
 	if got := layout.NextBoundary(10); got != 13 {
 		t.Fatalf("right from the source's end = %d", got)
+	}
+	empty := block
+	empty.Source, empty.Text = "", model.NewUTF16Range(3, 3)
+	short := block
+	short.Source = "x"
+	heights := map[string]float32{}
+	for name, f := range map[string]surface.Formula{"empty": empty, "x": short, "frac": block} {
+		text := "$$\n" + f.Source + "\n$$"
+		f.Range = model.NewUTF16Range(0, model.UTF16Offset(len(text)))
+		f.Text = model.NewUTF16Range(3, model.UTF16Offset(3+len(f.Source)))
+		layout := NewCache().Update(formulaFlow(t, text, f), 400, testStyle())
+		heights[name] = layout.FormulaCards()[0].Rect.Y
+	}
+	if heights["empty"] != heights["x"] || heights["x"] != heights["frac"] {
+		t.Fatalf("the source moves as the block is typed: %v", heights)
 	}
 }
 

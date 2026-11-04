@@ -4,11 +4,13 @@ package formula
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/caelyreth/untie"
 	untiemygo "github.com/caelyreth/untie/contrib/mygo"
+	untiesource "github.com/caelyreth/untie/source"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -30,9 +32,16 @@ var (
 	})
 	cache = struct {
 		sync.Mutex
-		boxes map[key]*untie.Box
-	}{boxes: make(map[key]*untie.Box)}
+		boxes map[key]set
+	}{boxes: make(map[key]set)}
 )
+
+// set is what a source set, and whether it set all of it: nothing it could
+// not read, nothing missing.
+type set struct {
+	box   *untie.Box
+	sound bool
+}
 
 type key struct {
 	source      string
@@ -45,19 +54,33 @@ type key struct {
 // formula half typed still sets what it can, its errors marked. It is nil
 // only when the math font cannot be read, when a page shows the source.
 func Set(source string, display bool, size, width float32) *untie.Box {
+	return setOf(source, display, size, width).box
+}
+
+// Sound reports whether source sets as written, wholly: no error is set
+// in it, as a half typed formula's is.
+func Sound(source string, display bool) bool {
+	return setOf(source, display, soundSize, 0).sound
+}
+
+// soundSize is the size Sound sets a source at: what it reads, not its
+// size, decides.
+const soundSize = 16
+
+func setOf(source string, display bool, size, width float32) set {
 	if !display {
 		width = 0
 	}
 	request := key{source: source, display: display, size: size, width: width}
 	cache.Lock()
-	box, ok := cache.boxes[request]
+	found, ok := cache.boxes[request]
 	cache.Unlock()
 	if ok {
-		return box
+		return found
 	}
 	renderer := prepare()
 	if renderer == nil || size <= 0 {
-		return nil
+		return set{}
 	}
 	mode := untie.Inline
 	style := untie.Style{Size: size}
@@ -66,15 +89,21 @@ func Set(source string, display bool, size, width float32) *untie.Box {
 	}
 	result, err := renderer.Render(context.Background(), source, untie.RenderRequest{Mode: mode, Style: style})
 	if err != nil || result == nil || result.Box == nil {
-		return nil
+		return set{}
+	}
+	made := set{box: result.Box, sound: strings.TrimSpace(source) != ""}
+	for _, diagnostic := range append(result.Diagnostics, result.Box.Diagnostics...) {
+		if diagnostic.Severity == untiesource.SeverityError {
+			made.sound = false
+		}
 	}
 	cache.Lock()
 	if len(cache.boxes) >= kept {
 		clear(cache.boxes)
 	}
-	cache.boxes[request] = result.Box
+	cache.boxes[request] = made
 	cache.Unlock()
-	return result.Box
+	return made
 }
 
 // Inks are the colors a formula is drawn in: its own, as the text around
