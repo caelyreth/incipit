@@ -188,6 +188,62 @@ func TestInlineCodeAndStrike(t *testing.T) {
 	}
 }
 
+// Dollars mark an inline formula as backticks mark code: its source is
+// taken as written, other markers included, and a backtick inside code is
+// no formula. Two dollars and Return open a formula block, which keeps its
+// lines as code does and is left by Return on an empty last line.
+func TestMathMarksAndBlocks(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "a $x_1*y$ `$c$`")
+	expectPage(t, session, "a $x_1*y$ `$c$`|", "a x_1*y $c$")
+	marks := DocumentBlocks(session.Runtime().Snapshot().Document())[0].Marks()
+	if len(marks) != 2 || marks[0].Kind() != MathMark || marks[1].Kind() != CodeMark {
+		t.Fatalf("marks = %#v", marks)
+	}
+	if got := marks[0].Range(); got != model.NewUTF16Range(2, 7) {
+		t.Fatalf("formula covers %v", got)
+	}
+
+	// A dollar opens a formula closed already, a paragraph's first too;
+	// its brackets pair as they are typed, one written out after a
+	// backslash not; an escaped dollar is a dollar. A backtick opening a
+	// paragraph, in case it opened a fence, still closes code.
+	for _, test := range []struct{ typed, view, text string }{
+		{"$", "$|$", ""},
+		{"$x_1$ y", "$x_1$ y|", "x_1 y"},
+		{"a $\\frac{1", "a $\\frac{1|}$", "a \\frac{1}"},
+		{"a $\\frac{1}{2", "a $\\frac{1}{2|}$", "a \\frac{1}{2}"},
+		{"a $f(x) \\{y", "a $f(x) \\{y|$", "a f(x) \\{y"},
+		{"`a_b` c", "`a_b` c|", "a_b c"},
+		{"$a\\$b$ c", "$a\\$b$ c|", "a\\$b c"},
+		{"\\$5", "\\$5|", "\\$5"},
+	} {
+		session, _ = newSessionFixture(t, "", false)
+		typeKeys(t, session, test.typed)
+		expectPage(t, session, test.view, test.text)
+	}
+
+	// Backspace in an empty pair, or an empty formula, takes both sides.
+	session, _ = newSessionFixture(t, "", false)
+	typeKeys(t, session, "a $x{")
+	run(t, session, TextBackspace)
+	expectPage(t, session, "a $x|$", "a x")
+	run(t, session, TextBackspace, TextBackspace)
+	expectPage(t, session, "a |", "a ")
+
+	// $$ alone in a paragraph opens a formula block.
+	session, _ = newSessionFixture(t, "", false)
+	typeKeys(t, session, "$$")
+	expectKinds(t, session, MathNode)
+	expectPage(t, session, "$$\n|\n$$", "")
+	typeKeys(t, session, "a\nb")
+	expectKinds(t, session, MathNode)
+	expectPage(t, session, "$$\na\nb|\n$$", "a\nb")
+	typeKeys(t, session, "\n\nafter")
+	expectKinds(t, session, MathNode, ParagraphNode)
+	expectPage(t, session, "$$\na\nb\n$$\nafter|", "a\nb", "after")
+}
+
 // Writing settings gate what typing reads as syntax.
 func TestWritingSettingsGateSyntax(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
@@ -605,5 +661,33 @@ func TestBlocksTakeTheirLook(t *testing.T) {
 	}
 	if got := style("code"); got.Face != surface.FaceMono || got.Size() != codeScale {
 		t.Fatalf("code block text %#v", got)
+	}
+}
+
+// The flow carries each formula the page sets, from its first notation to
+// its last, with its TeX.
+func TestFormulasInTheFlow(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "a $x^2$ b\n$$\\frac12\n\n")
+	flow, err := session.SurfaceFlow()
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := flow.Text()
+	got := flow.Formulas()
+	if len(got) != 2 {
+		t.Fatalf("formulas = %+v in %q", got, text)
+	}
+	for index, want := range []struct {
+		notation, source string
+		display          bool
+	}{{"$x^2$", "x^2", false}, {"$$\n\\frac12\n$$", "\\frac12", true}} {
+		formula := got[index]
+		start := strings.Index(text, want.notation)
+		if formula.Range != model.NewUTF16Range(model.UTF16Offset(start), model.UTF16Offset(start+len(want.notation))) ||
+			formula.Source != want.source || formula.Display != want.display ||
+			text[formula.Text.Start:formula.Text.End] != want.source {
+			t.Fatalf("formula %d = %+v in %q", index, formula, text)
+		}
 	}
 }

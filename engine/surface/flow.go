@@ -23,6 +23,7 @@ type Flow struct {
 	ascii      bool
 	figures    []Figure
 	checkboxes []Checkbox
+	formulas   []Formula
 	tables     []Table
 	rooms      []Room
 }
@@ -117,6 +118,7 @@ func (f *Flow) Equal(other *Flow) bool {
 	if f == nil || other == nil || f.version != other.version || f.text != other.text ||
 		!slices.Equal(f.runs, other.runs) || !slices.Equal(f.figures, other.figures) ||
 		!slices.Equal(f.checkboxes, other.checkboxes) ||
+		!slices.Equal(f.formulas, other.formulas) ||
 		!slices.Equal(f.rooms, other.rooms) || len(f.tables) != len(other.tables) {
 		return false
 	}

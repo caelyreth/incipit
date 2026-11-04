@@ -320,7 +320,7 @@ func TestEditorPolicyCatalogMatchesDeclarations(t *testing.T) {
 	}) ||
 		!slices.Equal(settingIDs(markup.Settings), []kernel.SettingID{
 			"asterisks", "underscores", "headings", "lists",
-			"blockquotes", "code", "strikethrough", "rules", "tables",
+			"blockquotes", "code", "math", "strikethrough", "rules", "tables",
 		}) {
 		t.Fatalf("markup=%#v", markup)
 	}

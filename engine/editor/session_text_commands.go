@@ -55,6 +55,18 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 			}
 			return kernel.OutcomeHandled, s.SelectProjected(edge, edge)
 		}
+		// A formula is passed as one character from outside it; its
+		// source is edited where a click, Tab or typing puts the caret.
+		if to, ok := pastFormula(s.presentation.Projection, document, caret, backward); ok {
+			viewAnchor := to
+			if extend {
+				viewAnchor, err = s.currentViewAnchor()
+				if err != nil {
+					return 0, err
+				}
+			}
+			return kernel.OutcomeHandled, s.SelectProjected(viewAnchor, to)
+		}
 		if markerAdjacent(s.presentation.Projection, caret, backward) {
 			next := caret + 1
 			if backward {

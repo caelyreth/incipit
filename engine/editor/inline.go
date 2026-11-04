@@ -54,6 +54,13 @@ const (
 	MarkerUpgrade
 	MarkerExit
 	MarkerFormat
+	// MarkerEnclose closes a span a paragraph opened with a marker typed as
+	// text (heldOpener): the opener goes, and what followed it takes the
+	// mark.
+	MarkerEnclose
+	// MarkerFormulaBlock makes a paragraph holding only an empty formula,
+	// a second dollar typed in it, a formula block.
+	MarkerFormulaBlock
 )
 
 // MarkerAction is a checked, pure marker-typing plan. It is deliberately
@@ -75,9 +82,11 @@ type MarkerAction struct {
 }
 
 // PlanMarkerTypes interprets one typed inline marker ("*" or "_", "`",
-// "~") against the active mark. Non-marker text, non-typing origins and
-// text typed where it is literal pass through: inside code, and backticks
-// at a paragraph's start, where they may open a fence.
+// "~", "$") against the active mark. Non-marker text, non-typing origins
+// and text typed where it is literal pass through: inside code or a
+// formula, and backticks at a paragraph's start, where they may open a
+// fence. A dollar opens a formula as it is typed, closed already; $$ alone
+// in a paragraph opens a formula block.
 func PlanMarkerTypes(
 	node *model.Node,
 	input model.UTF16Range,
@@ -91,15 +100,45 @@ func PlanMarkerTypes(
 		return action, nil
 	}
 	kind, top, ok := triggers.markerKind(text)
-	if !ok || node.Kind() == CodeNode || literalAt(node, active) && kind != CodeMark {
+	if !ok || literalBlock(node) {
 		return action, nil
 	}
-	if kind == CodeMark && node.Kind() == ParagraphNode && input.Empty() {
+	// A dollar after a backslash is one, as TeX writes it, opening and
+	// closing nothing.
+	if kind == MathMark {
 		content := node.Text().String()
 		before := content[:model.UTF16OffsetToByteClamped(content, input.Start)]
-		if strings.Trim(before, "`") == "" {
+		if slashes := len(before) - len(strings.TrimRight(before, "\\")); slashes%2 == 1 {
 			return action, nil
 		}
+	}
+	// Within code or a formula only its own marker is notation, the one
+	// closing it.
+	if literal, ok := literalMark(node, active); ok && kind != literal {
+		return action, nil
+	}
+	// Backticks all a paragraph holds may be opening a fence, and stay
+	// text; what follows one of them is taken as written until a second
+	// closes it as code, or it opens no fence.
+	if opener, ok := heldOpener(node, active, text); ok && input.Empty() {
+		content := node.Text().String()
+		before := content[:model.UTF16OffsetToByteClamped(content, input.Start)]
+		switch {
+		case strings.Trim(before, opener) == "":
+			return action, nil
+		case text != opener || openers(before, opener) != 1 || kind != CodeMark:
+			return action, nil
+		}
+		return MarkerAction{
+			Handled:  true,
+			Kind:     MarkerEnclose,
+			MarkKind: kind,
+			Node:     node.ID(),
+			Range:    model.NewUTF16Range(0, input.Start),
+			Level:    1,
+			Head:     input.End,
+			Consumed: true,
+		}, nil
 	}
 	if err := node.ValidateTextRangeUTF16(input.Start, input.End); err != nil {
 		return MarkerAction{}, err
@@ -114,7 +153,23 @@ func PlanMarkerTypes(
 			}
 		}
 	}
+	// Within code or a formula a marker short of its end is text, as TeX's
+	// \$ is.
+	if current != nil && (kind == CodeMark || kind == MathMark) && current.Range().End != input.Start {
+		return action, nil
+	}
 	if current != nil && input.Empty() && current.Range().End == input.Start {
+		// $$ alone in a paragraph opens a formula block.
+		if kind == MathMark && current.Range().Empty() && node.Kind() == ParagraphNode && blockLength(node) == 0 {
+			return MarkerAction{
+				Handled:  true,
+				Kind:     MarkerFormulaBlock,
+				Node:     node.ID(),
+				Mark:     current.ID(),
+				HasMark:  true,
+				Consumed: true,
+			}, nil
+		}
 		if !current.Range().Empty() {
 			return MarkerAction{
 				Handled:  true,
@@ -185,6 +240,40 @@ func PlanMarkerTypes(
 	}, nil
 }
 
+// openers counts the markers in text, a dollar after a backslash not one.
+func openers(text, marker string) int {
+	count := 0
+	for index := strings.Index(text, marker); index >= 0; {
+		slashes := len(text[:index]) - len(strings.TrimRight(text[:index], "\\"))
+		if marker != "$" || slashes%2 == 0 {
+			count++
+		}
+		next := strings.Index(text[index+len(marker):], marker)
+		if next < 0 {
+			break
+		}
+		index += len(marker) + next
+	}
+	return count
+}
+
+// heldOpener is the backtick a paragraph opens with, typed as
+// text in case it opened a fence, while no mark is in it to say otherwise;
+// in an empty paragraph, typed is about to be one.
+func heldOpener(node *model.Node, active *model.MarkID, typed string) (string, bool) {
+	if node == nil || node.Kind() != ParagraphNode || active != nil || node.MarkCount() > 0 {
+		return "", false
+	}
+	content := node.Text().String()
+	if content == "" {
+		content = typed
+	}
+	if strings.HasPrefix(content, "`") {
+		return "`", true
+	}
+	return "", false
+}
+
 // Apply writes a marker action to a document draft. Caller-owned selection
 // state must still consume Exited/Head after the transaction succeeds.
 func (a MarkerAction) Apply(draft *model.DocumentDraft) error {
@@ -202,6 +291,18 @@ func (a MarkerAction) Apply(draft *model.DocumentDraft) error {
 		return draft.SetMarkLevel(a.Node, a.Mark, a.Level)
 	case MarkerFormat:
 		return ToggleMark(draft, a.Node, a.Range, a.MarkKind, a.Level)
+	case MarkerFormulaBlock:
+		if err := draft.SetMarkLevel(a.Node, a.Mark, 0); err != nil {
+			return err
+		}
+		return shapeBlock(draft, a.Node, blockShape{kind: MathNode})
+	case MarkerEnclose:
+		// The opener is one unit of text at the range's start.
+		if err := draft.ReplaceTextMarked(a.Node, a.Range.Start, a.Range.Start+1, "", nil); err != nil {
+			return err
+		}
+		_, err := draft.AddMark(a.Node, model.NewUTF16Range(a.Range.Start, a.Range.End-1), a.MarkKind, a.Level)
+		return err
 	default:
 		return fmt.Errorf("unknown marker action %d", a.Kind)
 	}
@@ -346,7 +447,8 @@ func InlineStyleRuns(
 // blockStyle is how a block's text shows: the Writing Profile's use of the
 // surface's styles and rhythms. Headings are set larger by level and open
 // what follows them; items and quote lines are entries of the runs they
-// stand in; code is set in the mono face and keeps its lines.
+// stand in; code, and a formula's source, are set in the mono face and
+// keep their lines.
 func blockStyle(node *model.Node) surface.TextStyle {
 	style := surface.TextStyle{Color: surface.ColorText}
 	switch shape := shapeOf(node); shape.kind {
@@ -360,7 +462,7 @@ func blockStyle(node *model.Node) surface.TextStyle {
 	case QuoteNode:
 		style.Italic = true
 		style.Rhythm = surface.RhythmEntry
-	case CodeNode:
+	case CodeNode, MathNode:
 		codeStyle(&style)
 		style.Rhythm = surface.RhythmVerbatim
 	case RuleNode:
@@ -383,7 +485,7 @@ func markStyle(style *surface.TextStyle, mark model.InlineMark) {
 		case 2:
 			style.Bold = true
 		}
-	case CodeMark:
+	case CodeMark, MathMark:
 		codeStyle(style)
 	case StrikeMark:
 		style.Strike = true

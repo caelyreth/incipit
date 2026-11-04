@@ -969,6 +969,10 @@ func (s *Session) inlineDecorations(node *model.Node) []surface.Decoration {
 		if mark.ID() != *id {
 			continue
 		}
+		// A formula being edited shows on its own card instead.
+		if mark.Kind() == MathMark {
+			return nil
+		}
 		ranges := editableRanges(s.presentation.Projection, node.ID(), mark.Range())
 		if len(ranges) == 0 {
 			return nil

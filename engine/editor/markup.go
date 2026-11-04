@@ -882,7 +882,7 @@ func (i *EditorInvoker) invokeMarker(context *kernel.RuleContext) (kernel.Outcom
 	i.lastMark = action
 	i.hasMarker = true
 	switch {
-	case action.Exited:
+	case action.Exited, action.Kind == MarkerEnclose, action.Kind == MarkerFormulaBlock:
 		i.active = nil
 	case action.Kind == MarkerUpgrade && action.Level == 0:
 		i.active = nil
@@ -983,7 +983,10 @@ func (i *EditorInvoker) invokePair(
 			Err:  &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: input.Target().Node()},
 		}
 	}
-	if literalAt(node, i.active) {
+	// A formula's source pairs its brackets, a code span's or block's text
+	// nothing: both are taken as written.
+	scope, inFormula := formulaScope(node, i.active)
+	if literalAt(node, i.active) && !inFormula {
 		return kernel.OutcomePass, nil
 	}
 	origin, _ := context.Event().Origin()
@@ -1014,7 +1017,12 @@ func (i *EditorInvoker) invokePair(
 	if node.TextPresent() {
 		text = node.Text().String()
 	}
-	plan, err := PlanPair(rule, text, pairInput, settings)
+	var plan PairPlan
+	if inFormula {
+		plan, err = planFormulaPair(rule, text, scope, pairInput, settings)
+	} else {
+		plan, err = PlanPair(rule, text, pairInput, settings)
+	}
 	if err != nil {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}

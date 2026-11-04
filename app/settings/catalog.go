@@ -138,6 +138,8 @@ func labelForSetting(id kernel.SettingID) string {
 		return "Lists"
 	case "code":
 		return "Code"
+	case "math":
+		return "Math"
 	case "strikethrough":
 		return "Strikethrough"
 	case "rules":
@@ -185,6 +187,8 @@ func descriptionForSetting(id kernel.SettingID) string {
 		return "Type - or + and a space for a bullet, a number and a period for a numbered item. In a bullet, type a space or x inside [] for a checkbox."
 	case "code":
 		return "Type ` around text for code, ``` and Return for a code block."
+	case "math":
+		return "Type $ for a formula in the line, $$ on an empty line for a formula of its own."
 	case "strikethrough":
 		return "Type ~ around text to strike it through."
 	case "rules":

@@ -12,8 +12,8 @@ import (
 
 // The Writing Profile is the CommonMark-shaped syntax the writing policy
 // reads and writes. A page keeps only what its parts are: a heading and its
-// level, a quote, a list item, a code block and its info string, a mark's
-// kind and level. The notation that shows them ("## ", "> ", "*", a fence)
+// level, a quote, a list item, a code block and its info string, a math
+// block, a mark's kind and level. The notation that shows them ("## ", "> ", "*", a fence)
 // is projected from that and never stored, not even when edited. Typing
 // notation where it reads as syntax turns it into structure. A mark's
 // notation is edited marker by marker, each a level the mark stores; a
@@ -36,6 +36,9 @@ const (
 	// CodeNode is a fenced code block; its text keeps its line breaks and
 	// its "info" attribute names the language.
 	CodeNode model.NodeTypeID = "code"
+	// MathNode is a display formula; its text is the formula's TeX source,
+	// kept line for line as code's is.
+	MathNode model.NodeTypeID = "math"
 	// RuleNode is a thematic break.
 	RuleNode model.NodeTypeID = "rule"
 
@@ -43,6 +46,8 @@ const (
 	CodeMark model.MarkKind = "code"
 	// StrikeMark is struck-through text.
 	StrikeMark model.MarkKind = "strike"
+	// MathMark is an inline formula; the text it covers is its TeX source.
+	MathMark model.MarkKind = "math"
 
 	headingLevelAttribute = "level"
 	codeInfoAttribute     = "info"
@@ -62,6 +67,7 @@ const (
 	blockquotesSetting = "blockquotes"
 	listsSetting       = "lists"
 	codeSetting        = "code"
+	mathSetting        = "math"
 	strikeSetting      = "strikethrough"
 	rulesSetting       = "rules"
 )
@@ -77,6 +83,7 @@ type writingTriggers struct {
 	quotes      bool
 	lists       bool
 	code        bool
+	math        bool
 	strike      bool
 	rules       bool
 	tables      bool
@@ -90,6 +97,7 @@ func triggersFrom(setting func(id string, fallback bool) bool) writingTriggers {
 		quotes:      setting(blockquotesSetting, true),
 		lists:       setting(listsSetting, true),
 		code:        setting(codeSetting, true),
+		math:        setting(mathSetting, true),
 		strike:      setting(strikeSetting, true),
 		rules:       setting(rulesSetting, true),
 		tables:      setting(tablesSetting, true),
@@ -107,7 +115,7 @@ func contextTriggers(context *kernel.RuleContext) writingTriggers {
 func writingSettingDescriptors() []kernel.SettingDescriptor {
 	ids := []string{
 		asterisksSetting, underscoresSetting, headingsSetting, listsSetting,
-		blockquotesSetting, codeSetting, strikeSetting, rulesSetting, tablesSetting,
+		blockquotesSetting, codeSetting, mathSetting, strikeSetting, rulesSetting, tablesSetting,
 	}
 	descriptors := make([]kernel.SettingDescriptor, 0, len(ids))
 	for _, id := range ids {
@@ -128,6 +136,8 @@ func (t writingTriggers) markerKind(text string) (model.MarkKind, uint8, bool) {
 		return EmphasisMark, 2, t.underscores
 	case "`":
 		return CodeMark, 1, t.code
+	case "$":
+		return MathMark, 1, t.math
 	case "~":
 		return StrikeMark, 1, t.strike
 	}
@@ -145,6 +155,8 @@ func (t writingTriggers) opens(kind model.NodeTypeID) bool {
 		return t.lists
 	case CodeNode:
 		return t.code
+	case MathNode:
+		return t.math
 	case RuleNode:
 		return t.rules
 	}
@@ -158,6 +170,8 @@ func inlineNotation(mark model.InlineMark) string {
 		return strings.Repeat("*", int(mark.Level()))
 	case CodeMark:
 		return "`"
+	case MathMark:
+		return "$"
 	case StrikeMark:
 		return "~"
 	}
@@ -181,7 +195,7 @@ func inlineLevel(kind model.MarkKind, text string) (uint8, bool) {
 
 // inlineMarkerRune reports whether r is notation of some inline mark.
 func inlineMarkerRune(r rune) bool {
-	return r == '*' || r == '_' || r == '`' || r == '~'
+	return r == '*' || r == '_' || r == '`' || r == '~' || r == '$'
 }
 
 // blockShape is what a block is, apart from its text.
@@ -280,6 +294,8 @@ func blockNotation(shape blockShape, ordinal int) (open, close string) {
 		return strings.Repeat("  ", shape.depth) + strconv.Itoa(ordinal) + ". ", ""
 	case CodeNode:
 		return "```" + shape.info + "\n", "\n```"
+	case MathNode:
+		return "$$\n", "\n$$"
 	case RuleNode:
 		return "---", ""
 	}
@@ -326,6 +342,8 @@ func parseOpener(text string) (blockShape, bool) {
 	case strings.HasPrefix(text, "```") && strings.HasSuffix(text, "\n") &&
 		!strings.ContainsAny(text[3:len(text)-1], "`\n"):
 		return blockShape{kind: CodeNode, info: strings.TrimSpace(text[3 : len(text)-1])}, true
+	case text == "$$\n":
+		return blockShape{kind: MathNode}, true
 	case text == "---":
 		return blockShape{kind: RuleNode}, true
 	}
@@ -405,27 +423,39 @@ func (s blockShape) peel() blockShape {
 // blockKeepsLines reports whether a block's text holds line breaks of its
 // own, as code does, rather than breaking into blocks at them.
 func blockKeepsLines(node *model.Node) bool {
-	return node != nil && (node.Kind() == CodeNode || node.Kind() == CellNode)
+	return node != nil && (literalBlock(node) || node.Kind() == CellNode)
+}
+
+// literalBlock reports whether a block's text is all taken as written:
+// code's and a formula's source.
+func literalBlock(node *model.Node) bool {
+	return node != nil && (node.Kind() == CodeNode || node.Kind() == MathNode)
 }
 
 // literalAt reports whether text typed at a block, inside the active mark,
-// is taken as written: code is, so no syntax, pairing or refinement reads
-// into it.
+// is taken as written: code and a formula's source are, so no syntax,
+// pairing or refinement reads into them.
 func literalAt(node *model.Node, active *model.MarkID) bool {
-	if node == nil {
-		return false
-	}
-	if node.Kind() == CodeNode {
+	if literalBlock(node) {
 		return true
 	}
-	if active != nil {
-		for _, mark := range node.Marks() {
-			if mark.ID() == *active {
-				return mark.Kind() == CodeMark
-			}
+	_, ok := literalMark(node, active)
+	return ok
+}
+
+// literalMark is the kind of the active mark when what it covers is taken
+// as written, as code and an inline formula are.
+func literalMark(node *model.Node, active *model.MarkID) (model.MarkKind, bool) {
+	if node == nil || active == nil {
+		return "", false
+	}
+	for _, mark := range node.Marks() {
+		if mark.ID() == *active {
+			kind := mark.Kind()
+			return kind, kind == CodeMark || kind == MathMark
 		}
 	}
-	return false
+	return "", false
 }
 
 // ordinals numbers each ordered item by its place among the ordered items
@@ -555,7 +585,7 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 		}
 		i.placeHead(carried, 0, document)
 		return kernel.OutcomeHandled, nil
-	case shape.kind == CodeNode:
+	case literalBlock(node):
 		content := node.Text().String()
 		if at != blockLength(node) || !strings.HasSuffix(content, "\n") {
 			if err := document.ReplaceTextMarked(node.ID(), at, at, "\n", nil); err != nil {
