@@ -46,8 +46,8 @@ go tool mygo build    # app bundle and installer under dist/<os>-<arch>
 The MyGo CLI is pinned as a Go tool in `go.mod`, so `go tool mygo` runs the
 same v0.7.4 release as the framework. `mygo.json` holds the app configuration.
 
-The reference prose font is fetched into an ignored local path and verified
-against a pinned SHA-256 checksum. `go generate ./native/theme` performs the
+The reference prose font and the math font are fetched into ignored local
+paths and verified against pinned SHA-256 checksums. `go generate ./native/theme` performs the
 same step.
 
 The Nix shell provides Go 1.27.1 and enables the Go toolchain download for the
