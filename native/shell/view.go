@@ -95,6 +95,7 @@ func (s *State) View(c *ui.Context) {
 				s.zenHeader(c, layout, chrome)
 			})
 		})
+		s.paneEdges(c, semantic, sidebarWidth, listWidth, animate)
 		s.placeFlight(c, semantic, layout, reveal, listWidth, listReveal, animate)
 	})
 }

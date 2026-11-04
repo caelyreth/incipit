@@ -96,6 +96,7 @@ type State struct {
 	// panes are how wide the library and the sheet list were dragged, at
 	// the reference UI size; zero is the layout's own width.
 	panes            paneWidths
+	edgeHover        edgeHover
 	nav              navigation
 	lastActive       string
 	lastWidth        float32

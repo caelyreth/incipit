@@ -190,8 +190,6 @@ func (s *State) sidebar(
 			s.libraryList(c, semantic, animate)
 			s.trashRow(c, semantic, animate)
 		})
-		s.paneEdge(c, semantic, "library-edge", &s.panes.library,
-			layout.Sidebar, layout.SidebarMin, layout.SidebarMax, animate)
 	})
 	_ = metrics
 }

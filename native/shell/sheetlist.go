@@ -80,8 +80,6 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal f
 			s.placeBand(c, semantic, s.listView(), s.listDock, animate)
 			s.listStage(c, semantic, animate)
 		})
-		s.paneEdge(c, semantic, "sheets-edge", &s.panes.sheets,
-			layout.SheetList, layout.SheetListMin, layout.SheetListMax, animate)
 	})
 }
 
