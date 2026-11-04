@@ -37,6 +37,9 @@ const (
 	// codeScale is the size the Writing Profile sets code at, which a
 	// formula's source is: its lines, and the hint, are as tall as it asks.
 	codeScale = 0.88
+	// staleInk is how faint a formula is drawn while it shows what it
+	// last set rather than what it reads.
+	staleInk = 0.4
 )
 
 // PlacedFormula is a formula as the layout set it: Box is what untie set,
@@ -57,13 +60,74 @@ type PlacedFormula struct {
 // FormulaCard is the source of a formula being edited where the page
 // opens it below its paragraph, in content space: Rect is its tint as far
 // as it has opened, Shown how far. Hint stands in for a source with
-// nothing in it yet.
+// nothing in it yet. Note tells the first problem that keeps the source
+// from being set, at NoteAt after its last line, each problem marked in
+// the source (Faults).
 type FormulaCard struct {
-	Formula surface.Formula
-	Rect    ui.Rect
-	Shown   float32
-	Source  Paragraph
-	Hint    *ui.TextLayout
+	Formula  surface.Formula
+	Rect     ui.Rect
+	Shown    float32
+	Source   Paragraph
+	Hint     *ui.TextLayout
+	Note     *ui.TextLayout
+	NoteAt   ui.Point
+	problems []model.UTF16Range
+}
+
+// Faults are the rects of the source the problems of a card's formula are
+// in, in content space, one a character wide where something is missing.
+func (c FormulaCard) Faults() []ui.Rect {
+	var rects []ui.Rect
+	length := c.Source.endUTF16 - c.Source.startUTF16
+	for _, problem := range c.problems {
+		from, to := int(problem.Start), int(problem.End)
+		if from == to {
+			// What is missing is marked at the end it is missing from.
+			from = max(0, to-1)
+		}
+		from, to = min(from, length), min(to, length)
+		if from >= to {
+			continue
+		}
+		for _, rect := range c.Source.layout.SelectionRects(ui.TextInputRange{Start: from, End: to}) {
+			rect.X += c.Source.left
+			rect.Y += c.Source.top
+			rects = append(rects, rect)
+		}
+	}
+	return rects
+}
+
+// noteGap is the room between a source and its note, in the text's size.
+const noteGap = 1.0
+
+// problemsOf are the problems in what f's source now reads, from its
+// start, and the note that tells the first, in its face, as code is set.
+func (s Style) problemsOf(flow *surface.Flow, f surface.Formula) ([]model.UTF16Range, *ui.TextLayout) {
+	from, fromOK := flow.ByteOfUTF16(f.Text.Start)
+	to, toOK := flow.ByteOfUTF16(f.Text.End)
+	if !fromOK || !toOK || from >= to {
+		return nil, nil
+	}
+	found := formula.Problems(flow.Text()[from:to], f.Display)
+	if len(found) == 0 {
+		return nil, nil
+	}
+	at := func(offset int) model.UTF16Offset {
+		offset16, _ := flow.UTF16OfByte(from + model.ByteOffset(min(max(0, offset), int(to-from))))
+		return offset16 - f.Text.Start
+	}
+	problems := make([]model.UTF16Range, 0, len(found))
+	for _, problem := range found {
+		problems = append(problems, model.NewUTF16Range(at(problem.From), at(problem.To)))
+	}
+	run := s.runAt(flow, f.Text.Start)
+	span := s.span(found[0].Message, run)
+	// Its color is the page's to give, as the card fades in.
+	span.Color = ui.Color{}
+	font := s.font()
+	font.Size = s.Prose.FontSize * codeScale
+	return problems, ui.ShapeRichTextWith([]ui.Span{span}, font, ui.TextShape{})
 }
 
 // Formulas are what the layout set of the page's formulas, in order.
@@ -105,6 +169,11 @@ func (s Style) formulaOf(flow *surface.Flow, f surface.Formula, width float32) (
 	}
 	if f.Display {
 		inks.Text = s.Theme.Prose.Text
+	}
+	// What it last set, while its source cannot be set as it now reads,
+	// is drawn faint: it is not what the source says.
+	if f.Stale {
+		inks.Text = inks.Text.Alpha(staleInk)
 	}
 	return box, inks, true
 }
@@ -290,7 +359,7 @@ func (s Style) cardPad() (x, y float32) {
 // shaped already: a block's across the column, an inline formula's as wide
 // as its source, under where the formula stands once its line is known
 // (placeInlineCard). room is how much of the page it takes.
-func (s Style) card(f surface.Formula, source Paragraph, hint *ui.TextLayout, top, width float32) (card FormulaCard, room float32) {
+func (s Style) card(f surface.Formula, source Paragraph, hint, note *ui.TextLayout, problems []model.UTF16Range, top, width float32) (card FormulaCard, room float32) {
 	padX, padY := s.cardPad()
 	gap := cardGap * s.Prose.FontSize
 	lines, _ := source.layout.Size()
@@ -298,17 +367,33 @@ func (s Style) card(f surface.Formula, source Paragraph, hint *ui.TextLayout, to
 		hinted, _ := hint.Size()
 		lines = max(lines, hinted)
 	}
+	// The note follows the source's last line, on its baseline.
+	var noteAt ui.Point
+	if note != nil {
+		rows, told := source.layout.Lines(), note.Lines()
+		if len(rows) > 0 && len(told) > 0 {
+			last := rows[len(rows)-1]
+			noteAt = ui.Point{X: last.Rect.X + last.Rect.W + noteGap*s.Prose.FontSize, Y: last.Baseline - told[0].Baseline}
+			noted, _ := note.Size()
+			lines = max(lines, noteAt.X+noted)
+		} else {
+			note = nil
+		}
+	}
 	card = FormulaCard{
-		Formula: f,
-		Hint:    hint,
-		Rect:    ui.Rect{Y: top + gap*f.Card, W: lines + 2*padX, H: (source.height + 2*padY) * f.Card},
-		Shown:   f.Card,
+		Formula:  f,
+		Hint:     hint,
+		Note:     note,
+		Rect:     ui.Rect{Y: top + gap*f.Card, W: lines + 2*padX, H: (source.height + 2*padY) * f.Card},
+		Shown:    f.Card,
+		problems: problems,
 	}
 	if f.Display {
 		card.Rect.X, card.Rect.W = -padX, width+2*padX
 	}
 	source.top = card.Rect.Y + padY
 	card.Source = source
+	card.NoteAt = ui.Point{X: source.left + noteAt.X, Y: source.top + noteAt.Y}
 	return card, (gap + source.height + 2*padY) * f.Card
 }
 
@@ -320,6 +405,7 @@ func (s Style) placeInlineCard(card *FormulaCard, host *Paragraph, width float32
 	at := host.layout.Caret(host.shapedOffset(int(f.Range.Start)-host.startUTF16, false))
 	lines := card.Rect.W - 2*padX
 	left := max(0, min(host.left+at.X, width-lines))
+	card.NoteAt.X += left - card.Source.left
 	card.Source.left = left
 	card.Rect.X = left - padX
 }

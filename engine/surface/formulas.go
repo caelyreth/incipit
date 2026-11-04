@@ -28,6 +28,9 @@ type Formula struct {
 	Open bool
 	// Card is how far its card has opened: 0 none, 1 all of it.
 	Card float32
+	// Stale sets Source as what the formula last set soundly, not what it
+	// now reads, which cannot be set as it is.
+	Stale bool
 }
 
 // WithFormulas is the flow with the formulas its text sets, in order, none

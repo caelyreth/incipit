@@ -194,3 +194,33 @@ func TestEmptyFormulaHintsItsSource(t *testing.T) {
 		t.Fatalf("card %+v narrower than its hint %v", cards[0].Rect, hinted)
 	}
 }
+
+// A source that cannot be set has what keeps it so marked in it and told
+// after it, on its line, the card wide enough for both; a sound one has
+// neither.
+func TestAFormulaSourceTellsItsProblems(t *testing.T) {
+	text := `a $x+\fr$ b`
+	f := surface.Formula{Range: model.NewUTF16Range(2, 9), Text: model.NewUTF16Range(3, 8), Source: `x+\fr`, Open: true, Card: 1}
+	layout := NewCache().Update(formulaFlow(t, text, f), 400, testStyle())
+	cards := layout.FormulaCards()
+	if len(cards) != 1 || cards[0].Note == nil {
+		t.Fatalf("cards = %+v", cards)
+	}
+	card := cards[0]
+	faults := card.Faults()
+	command := layout.RangeRects(model.NewUTF16Range(5, 8))
+	if len(faults) != 1 || len(command) != 1 || faults[0] != command[0] {
+		t.Fatalf("faults %+v, the command at %+v", faults, command)
+	}
+	noted, _ := card.Note.Size()
+	if line := card.Source.Layout().Lines()[0]; card.NoteAt.X < card.Source.Left()+line.Rect.W ||
+		card.NoteAt.X+noted > card.Rect.X+card.Rect.W || card.NoteAt.Y < card.Rect.Y {
+		t.Fatalf("note at %+v, %v wide, after a line of %v, card %+v", card.NoteAt, noted, line.Rect.W, card.Rect)
+	}
+
+	f.Source, f.Text, f.Range = "x", model.NewUTF16Range(3, 4), model.NewUTF16Range(2, 5)
+	sound := NewCache().Update(formulaFlow(t, "a $x$ b", f), 400, testStyle()).FormulaCards()
+	if len(sound) != 1 || sound[0].Note != nil || len(sound[0].Faults()) != 0 {
+		t.Fatalf("a sound source tells %+v", sound)
+	}
+}

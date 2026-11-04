@@ -139,11 +139,12 @@ func TestEscapeLeavesAFormulaBlockForTheLineAfter(t *testing.T) {
 	}
 }
 
-// While a formula is edited it shows what it last set soundly, or nothing
-// before it has set anything; a half typed command is never set.
+// While a formula is edited it shows what it last set soundly, faint, or
+// nothing before it has set anything; a half typed command is never set.
+// One emptied shows nothing, and forgets what it was.
 func TestAFormulaBeingTypedKeepsWhatItLastSet(t *testing.T) {
 	element := &Element{}
-	shows := func(source string) string {
+	shows := func(source string) (string, bool) {
 		text := "a $" + source + "$"
 		flow, err := surface.NewFlow(projection.NewVersion(0, 0), text, []surface.StyleRun{{
 			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
@@ -159,13 +160,18 @@ func TestAFormulaBeingTypedKeepsWhatItLastSet(t *testing.T) {
 		}
 		caret := model.UTF16Offset(len(text) - 1)
 		opened, _ := element.openedFlow(flow, model.NewUTF16Range(caret, caret), time.Unix(0, 0), false)
-		return opened.Formulas()[0].Source
+		set := opened.Formulas()[0]
+		return set.Source, set.Stale
 	}
-	for _, step := range []struct{ typed, shown string }{
-		{"\\f", ""}, {"x", "x"}, {"x+", "x+"}, {"x+\\fr", "x+"}, {"x+\\frac{1}{2}", "x+\\frac{1}{2}"},
+	for _, step := range []struct {
+		typed, shown string
+		stale        bool
+	}{
+		{"\\f", "", true}, {"x", "x", false}, {"x+", "x+", false}, {"x+\\fr", "x+", true},
+		{"x+\\frac{1}{2}", "x+\\frac{1}{2}", false}, {"", "", false}, {"\\fr", "", true},
 	} {
-		if got := shows(step.typed); got != step.shown {
-			t.Fatalf("typing %q shows %q, want %q", step.typed, got, step.shown)
+		if got, stale := shows(step.typed); got != step.shown || stale != step.stale {
+			t.Fatalf("typing %q shows %q (stale %v), want %q (%v)", step.typed, got, stale, step.shown, step.stale)
 		}
 	}
 }

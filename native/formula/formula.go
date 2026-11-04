@@ -3,7 +3,9 @@
 package formula
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"strings"
 	"sync"
 
@@ -37,10 +39,19 @@ var (
 )
 
 // set is what a source set, and whether it set all of it: nothing it could
-// not read, nothing missing.
+// not read, nothing missing, the problems it has else.
 type set struct {
-	box   *untie.Box
-	sound bool
+	box      *untie.Box
+	sound    bool
+	problems []Problem
+}
+
+// Problem is what keeps part of a source from being set: From and To are
+// where, in its bytes, an empty range a place, as its end, where something
+// is missing.
+type Problem struct {
+	From, To int
+	Message  string
 }
 
 type key struct {
@@ -61,6 +72,11 @@ func Set(source string, display bool, size, width float32) *untie.Box {
 // in it, as a half typed formula's is.
 func Sound(source string, display bool) bool {
 	return setOf(source, display, soundSize, 0).sound
+}
+
+// Problems are what keep source from being set as written, in order.
+func Problems(source string, display bool) []Problem {
+	return slices.Clone(setOf(source, display, soundSize, 0).problems)
 }
 
 // soundSize is the size Sound sets a source at: what it reads, not its
@@ -91,12 +107,29 @@ func setOf(source string, display bool, size, width float32) set {
 	if err != nil || result == nil || result.Box == nil {
 		return set{}
 	}
-	made := set{box: result.Box, sound: strings.TrimSpace(source) != ""}
+	made := set{box: result.Box}
+	// A layout repeats what the parse found: each problem is told once, as
+	// the parse tells it, a command it does not know rather than the glyph
+	// it then has none for.
+	glyph := make([]bool, 0, 2)
 	for _, diagnostic := range append(result.Diagnostics, result.Box.Diagnostics...) {
-		if diagnostic.Severity == untiesource.SeverityError {
-			made.sound = false
+		if diagnostic.Severity != untiesource.SeverityError {
+			continue
+		}
+		problem := Problem{From: diagnostic.Range.Start, To: diagnostic.Range.End, Message: diagnostic.Message}
+		missing := diagnostic.Code == untiesource.CodeMissingGlyph
+		at := slices.IndexFunc(made.problems, func(known Problem) bool {
+			return known.From == problem.From && known.To == problem.To
+		})
+		switch {
+		case at < 0:
+			made.problems, glyph = append(made.problems, problem), append(glyph, missing)
+		case glyph[at] && !missing:
+			made.problems[at], glyph[at] = problem, false
 		}
 	}
+	slices.SortStableFunc(made.problems, func(a, b Problem) int { return cmp.Compare(a.From, b.From) })
+	made.sound = strings.TrimSpace(source) != "" && len(made.problems) == 0
 	cache.Lock()
 	if len(cache.boxes) >= kept {
 		clear(cache.boxes)

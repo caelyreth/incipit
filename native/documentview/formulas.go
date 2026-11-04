@@ -73,12 +73,15 @@ func (e *Element) openedFlow(flow *surface.Flow, selection model.UTF16Range, now
 		}
 		spring.Step(target, now, figureFade)
 		f.Card = max(0, min(1, spring.Value()))
-		// While it is edited a formula shows what it last set soundly, or
-		// nothing yet, never a half typed one's errors.
-		if _, ok := sound[key]; !ok {
-			f.Source = e.sound[key]
-			if f.Source != "" {
-				sound[key] = f.Source
+		// While it is edited a formula that cannot be set as it reads
+		// shows what it last set soundly, faint, its source telling what
+		// is wrong, or nothing before it set anything; one emptied shows
+		// nothing, as it reads.
+		if _, ok := sound[key]; !ok && !blank(*f) {
+			last := e.sound[key]
+			f.Source, f.Stale = last, true
+			if last != "" {
+				sound[key] = last
 			}
 		}
 		moving = moving || spring.Moving()
@@ -160,6 +163,9 @@ func drawFormulaCards(p *ui.Painter, state *State, origin ui.Point, options Pain
 	state.FormulaMarks.keep(seen)
 }
 
+// faultRule is how thick the line under a problem in a source is.
+const faultRule = 1.5
+
 // formulaRadius rounds a formula's tint as an active mark's is.
 const formulaRadius = 4
 
@@ -200,7 +206,16 @@ func drawFormulas(p *ui.Painter, state *State, origin ui.Point, holds func(model
 			if card.Hint != nil {
 				p.TextLayout(card.Hint, x, y, state.Theme.Text.Muted.Alpha(0.65*card.Shown))
 			}
+			// What keeps the source from being set is underlined in it,
+			// and told after it.
+			for _, fault := range card.Faults() {
+				p.Fill(ui.Rect{X: origin.X + fault.X, Y: origin.Y + fault.Y + fault.H - faultRule, W: fault.W, H: faultRule},
+					state.Theme.Status.Danger.Foreground.Alpha(0.85*card.Shown), faultRule/2)
+			}
 			p.TextLayout(source.Layout(), x, y, state.Theme.Prose.Text.Alpha(card.Shown))
+			if card.Note != nil {
+				p.TextLayout(card.Note, origin.X+card.NoteAt.X, origin.Y+card.NoteAt.Y, state.Theme.Status.Danger.Foreground.Alpha(0.85*card.Shown))
+			}
 		})
 	}
 }

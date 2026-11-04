@@ -304,7 +304,8 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			if !ok {
 				continue
 			}
-			card, room := style.card(f, lines, style.hint(flow, f), top, width)
+			problems, note := style.problemsOf(flow, f)
+			card, room := style.card(f, lines, style.hint(flow, f), note, problems, top, width)
 			card.Source.host = len(shaped) - 1
 			cards = append(cards, card)
 			top += room
