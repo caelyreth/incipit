@@ -25,6 +25,11 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 	}
 	if command == TextDismissSelection {
 		if s.presentation.VisualCollapsed() {
+			// Escape in a formula's source leaves it: after an inline
+			// one, for the line after a block, or before it at the end.
+			if to, ok := leaveFormula(s.presentation.Projection, document, s.presentation.Caret.RangeUTF16().Start); ok {
+				return kernel.OutcomeHandled, s.SelectProjected(to, to)
+			}
 			return kernel.OutcomeHandled, nil
 		}
 		// What Select All widened to goes back to what it grew from;

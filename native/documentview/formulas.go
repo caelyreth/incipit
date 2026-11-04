@@ -4,7 +4,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/formula"
@@ -204,47 +203,6 @@ func drawFormulas(p *ui.Painter, state *State, origin ui.Point, holds func(model
 			p.TextLayout(source.Layout(), x, y, state.Theme.Prose.Text.Alpha(card.Shown))
 		})
 	}
-}
-
-// formulaKey handles the keys a formula takes before the keymap: Escape in
-// its source leaves it, the caret after it, and Tab just after an inline
-// one opens it, the caret at its source's end.
-func (e *Element) formulaKey(event ui.InputEvent) (bool, bool) {
-	if event.Mods != 0 || event.Key != ui.KeyEscape && event.Key != ui.KeyTab {
-		return false, false
-	}
-	bridge, ok := e.Input.(*Bridge)
-	if !ok || bridge == nil || bridge.Controller == nil || e.current == nil {
-		return false, false
-	}
-	selection := bridge.Controller.Selection().Range
-	head := model.UTF16Offset(selection.End)
-	for _, f := range e.current.Flow().Formulas() {
-		to := -1
-		switch {
-		case event.Key == ui.KeyEscape && (within(f.Text, model.UTF16Offset(selection.Start)) || within(f.Text, head)):
-			to = int(f.Range.End)
-			// A block has no place for the caret beside it but the lines
-			// around it: the one after, or the one before at the page's end.
-			if f.Display {
-				switch length := e.current.Flow().UTF16Len(); {
-				case f.Range.End < length:
-					to = int(f.Range.End) + 1
-				case f.Range.Start > 0:
-					to = int(f.Range.Start) - 1
-				default:
-					return true, true
-				}
-			}
-		case event.Key == ui.KeyTab && selection.Start == selection.End && head == f.Range.End && !f.Display:
-			to = int(f.Text.End)
-		}
-		if to < 0 {
-			continue
-		}
-		return true, bridge.Controller.SetSelection(controller.UTF16Range{Start: to, End: to}) == nil
-	}
-	return false, false
 }
 
 // FormulaMarks glide each formula's tint from where it was to where it is

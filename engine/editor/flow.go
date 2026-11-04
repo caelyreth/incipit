@@ -151,3 +151,23 @@ func pastFormula(p *projection.Projection, document model.DocumentSnapshot, care
 	}
 	return 0, false
 }
+
+// leaveFormula is where Escape at caret in a formula's source goes: after
+// an inline formula; the line after a block, or the one before it at the
+// page's end, a block having no place beside it of its own.
+func leaveFormula(p *projection.Projection, document model.DocumentSnapshot, caret model.UTF16Offset) (model.UTF16Offset, bool) {
+	for _, f := range formulaFlow(p, document) {
+		if caret < f.Text.Start || caret > f.Text.End {
+			continue
+		}
+		switch {
+		case !f.Display:
+			return f.Range.End, true
+		case f.Range.End < p.UTF16Len():
+			return f.Range.End + 1, true
+		case f.Range.Start > 0:
+			return f.Range.Start - 1, true
+		}
+	}
+	return 0, false
+}

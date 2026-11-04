@@ -273,7 +273,7 @@ func (s *Session) TabOffer(now time.Time) (TabOffer, bool, error) {
 	if !ok {
 		return TabOffer{}, false, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
-	return s.navigation.TabOffer(
+	offer, ok, err := s.navigation.TabOffer(
 		now,
 		node,
 		s.presentation.Selection,
@@ -281,6 +281,40 @@ func (s *Session) TabOffer(now time.Time) (TabOffer, bool, error) {
 		activeMark(s.inline),
 		s.navigationSettings(),
 	)
+	if err != nil || !s.navigationSettings().Enabled {
+		return offer, ok, err
+	}
+	// A formula is a scope as a pair is: the narrowest one the caret is
+	// at wins.
+	if formula, found := s.formulaTabOffer(node); found && (!ok || betterTabOffer(formula, offer)) {
+		return formula, true, nil
+	}
+	return offer, ok, nil
+}
+
+// formulaTabOffer is Tab at a formula: just after an inline one, into its
+// source at its end; in a formula block's source, out of it for the line
+// after it. A pair in the source, narrower, goes first.
+func (s *Session) formulaTabOffer(node *model.Node) (TabOffer, bool) {
+	caret := s.presentation.Caret.RangeUTF16().Start
+	length := s.presentation.Projection.UTF16Len()
+	for _, f := range formulaFlow(s.presentation.Projection, s.runtime.Snapshot().Document()) {
+		offer := TabOffer{
+			Kind:     TabFormula,
+			Target:   model.NewTextAnchor(node.ID(), s.presentation.Selection.Head().OffsetUTF16(), model.AffinityRight, s.presentation.Selection.Revision()),
+			Scope:    f.Range,
+			HasScope: true,
+		}
+		switch {
+		case !f.Display && caret == f.Range.End:
+			offer.Landing, offer.HasLanding = f.Text.End, true
+			return offer, true
+		case f.Display && f.Text.Start <= caret && caret <= f.Text.End && f.Range.End < length:
+			offer.Landing, offer.HasLanding = f.Range.End+1, true
+			return offer, true
+		}
+	}
+	return TabOffer{}, false
 }
 
 // Tab lands at the selected navigation offer. Emphasis offers land after the
@@ -296,6 +330,9 @@ func (s *Session) Tab(now time.Time) (kernel.Outcome, error) {
 	}
 	if !ok {
 		return kernel.OutcomePass, nil
+	}
+	if offer.HasLanding {
+		return kernel.OutcomeHandled, s.SelectProjected(offer.Landing, offer.Landing)
 	}
 	if err := s.Select(model.NewTextSelection(
 		offer.Target,
@@ -319,6 +356,9 @@ func (s *Session) Tab(now time.Time) (kernel.Outcome, error) {
 // and its guide. Emphasis lands after its generated closer rather than at
 // the semantic text edge.
 func (s *Session) tabDestination(offer TabOffer) (projection.Target, error) {
+	if offer.HasLanding {
+		return s.presentation.Projection.Target(model.EmptyUTF16Range(offer.Landing))
+	}
 	target, err := s.presentation.Projection.ProjectAnchor(offer.Target)
 	if err != nil || !offer.HasMark {
 		return target, err

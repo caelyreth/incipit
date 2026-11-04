@@ -13,6 +13,9 @@ const (
 	TabPair TabKind = iota + 1
 	TabEmphasis
 	TabReturnToEdit
+	// TabFormula goes into the source of the inline formula just before
+	// the caret, or out of a formula block for the line after it.
+	TabFormula
 )
 
 // String returns the stable offer kind.
@@ -24,6 +27,8 @@ func (k TabKind) String() string {
 		return "emphasis"
 	case TabReturnToEdit:
 		return "return-to-edit"
+	case TabFormula:
+		return "formula"
 	default:
 		return "unknown"
 	}
@@ -62,6 +67,11 @@ type TabOffer struct {
 	HasMark   bool
 	ExpiresAt time.Time
 	HasExpiry bool
+	// Landing, when HasLanding, is where the offer lands in the projected
+	// text, rather than at Target: a formula's source has no semantic
+	// place of its own to name apart from its notation.
+	Landing    model.UTF16Offset
+	HasLanding bool
 }
 
 // ReturnTarget is the last edit and its return-to-edit expiry.

@@ -430,9 +430,6 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 			if handled, ok := e.figureKey(event); handled {
 				return ok
 			}
-			if handled, ok := e.formulaKey(event); handled {
-				return ok
-			}
 			if handled, ok := e.cellsKey(event); handled {
 				return ok
 			}
