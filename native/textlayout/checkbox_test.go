@@ -90,7 +90,7 @@ func TestCheckboxMarkerStandsOnTextBaseline(t *testing.T) {
 
 					// Giving the object a height must not change the text's rows,
 					// caret, selection, or wrapping.
-					spans := spansFor(flow, paragraph.startByte, paragraph.endByte, style)
+					spans := spansFor(flow, paragraph.startByte, paragraph.endByte, style, test.width)
 					for i := range spans {
 						spans[i].ObjectHeight = 0
 					}

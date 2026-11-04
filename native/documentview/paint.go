@@ -62,6 +62,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	wide := ui.Rect{X: rect.X - state.Margin, Y: rect.Y, W: rect.W + 2*state.Margin, H: rect.H}
 	p.Clip(wide, 0, func() {
 		drawTables(p, rect, state)
+		drawFormulaCards(p, state, ui.Point{X: rect.X, Y: rect.Y + state.TopInset - state.ScrollY})
 		drawDecorationFills(p, rect, state, options)
 		if !carrying {
 			drawRangeFills(p, rect, state, withoutTables(state, animatedSelection))
@@ -77,6 +78,7 @@ func Paint(p *ui.Painter, rect ui.Rect, state *State) {
 	})
 	p.Clip(wide, 0, func() {
 		drawText(p, rect, state)
+		drawFormulas(p, state, ui.Point{X: rect.X, Y: rect.Y + state.TopInset - state.ScrollY}, nil)
 		if drawCheckboxes(p, rect, state, options) {
 			p.AnimationFrame()
 		}

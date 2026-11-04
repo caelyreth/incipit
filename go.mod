@@ -3,9 +3,11 @@ module github.com/caelyreth/neverland
 go 1.27.3
 
 require (
+	github.com/caelyreth/untie v0.4.2
+	github.com/caelyreth/untie/contrib/mygo v0.4.2
 	github.com/clipperhouse/uax29/v2 v2.7.0
 	github.com/egoist/mygo v0.7.4
-	golang.org/x/image v0.46.0
+	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
 	modernc.org/sqlite v1.61.0
@@ -15,6 +17,7 @@ require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
+	github.com/go-typeset/bidi v0.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect

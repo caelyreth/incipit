@@ -73,8 +73,12 @@ type pageState struct {
 	hover      figureHover
 	// captions is how open each figure's caption is.
 	captions map[model.NodeID]motion.Spring
-	tables   tableUI
-	blocks   blockUI
+	// opened are the formulas the last frame showed open, by their range,
+	// and cards how far each one's card has opened.
+	opened map[model.UTF16Range]bool
+	cards  map[cardKey]motion.Spring
+	tables tableUI
+	blocks blockUI
 	// announced is the figure last read out as it became the selection,
 	// and menuFigure the one a secondary click opened the menu of.
 	announced      model.NodeID
@@ -318,6 +322,9 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 			return true
 		}
 		offset := e.hit(event.X, event.Y)
+		if at, ok := e.formulaPress(event.X, event.Y); ok && event.Clicks == 1 && event.Mods&ui.Shift == 0 {
+			offset = at
+		}
 		anchor := offset
 		switch {
 		case event.Clicks >= 3:
@@ -417,6 +424,9 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 				return true
 			}
 			if handled, ok := e.figureKey(event); handled {
+				return ok
+			}
+			if handled, ok := e.formulaKey(event); handled {
 				return ok
 			}
 			if handled, ok := e.cellsKey(event); handled {
@@ -688,6 +698,7 @@ func (e *Element) layOut(bridge *Bridge, now time.Time, animate bool) (*surface.
 	}
 	tabled, growing := e.tabledFlow(e.apartFlow(e.resizedFlow(frame.Flow()), bridge), now, animate)
 	flow, opening := e.captionedFlow(tabled, frame.Selection(), now, animate)
+	flow, editing := e.openedFlow(flow, frame.Selection(), now, animate)
 	if e.visualFlow != nil && e.visualFlow.Equal(flow) {
 		flow = e.visualFlow
 	} else {
@@ -702,7 +713,7 @@ func (e *Element) layOut(bridge *Bridge, now time.Time, animate bool) (*surface.
 		// Controls are built from the last painted layout; rebuild after it moves.
 		e.wake()
 	}
-	return frame, flow, opening || growing, true
+	return frame, flow, opening || growing || editing, true
 }
 
 func (e *Element) visibleScroll() float32 {

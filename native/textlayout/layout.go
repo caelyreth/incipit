@@ -29,34 +29,47 @@ type Paragraph struct {
 	// clip is the room a cell of a table wider than it shows in, where
 	// its text is cut off; empty for the rest.
 	clip ui.Rect
-	// object maps a projected marker to the one object shaping uses for it.
-	object inlineObject
+	// objects map each projected range shaping sets as one object, a
+	// checkbox's marker or a formula, to that object, in order. With none,
+	// source and shaped positions are identical.
+	objects []inlineObject
+	// editor says the paragraph is the source of formula, being edited on
+	// its card below or around host, the paragraph that sets it.
+	editor  bool
+	formula surface.Formula
+	host    int
 }
 
 // inlineObject is a paragraph-local UTF-16 range represented by one shaped
-// object. Its zero value leaves source and shaped positions identical.
+// object.
 type inlineObject struct{ start, end int }
 
 func (p *Paragraph) shapedOffset(source int, end bool) int {
-	object := p.object
-	if object.end <= object.start || source <= object.start {
-		return source
+	// shift is how many units the objects before took away.
+	shift := 0
+	for _, object := range p.objects {
+		switch {
+		case source <= object.start:
+			return source - shift
+		case source < object.end && end:
+			return object.start + 1 - shift
+		case source < object.end:
+			return object.start - shift
+		}
+		shift += object.end - object.start - 1
 	}
-	if source >= object.end {
-		return source - (object.end - object.start - 1)
-	}
-	if end {
-		return object.start + 1
-	}
-	return object.start
+	return source - shift
 }
 
 func (p *Paragraph) sourceOffset(shaped int) int {
-	object := p.object
-	if object.end > object.start && shaped > object.start {
-		return shaped + object.end - object.start - 1
+	shift := 0
+	for _, object := range p.objects {
+		if shaped <= object.start-shift {
+			break
+		}
+		shift += object.end - object.start - 1
 	}
-	return shaped
+	return shaped + shift
 }
 
 func (p Paragraph) Layout() *ui.TextLayout { return p.layout }
@@ -88,6 +101,8 @@ type Layout struct {
 	paragraphs []Paragraph
 	tables     []PlacedTable
 	rooms      []PlacedRoom
+	formulas   []PlacedFormula
+	cards      []FormulaCard
 	height     float32
 }
 
@@ -164,7 +179,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			layout = available[len(available)-1]
 			c.layouts[key] = available[:len(available)-1]
 		} else {
-			spans := spansFor(flow, raw.startByte, raw.endByte, style)
+			spans := spansFor(flow, raw.startByte, raw.endByte, style, width)
 			if figure {
 				spans = figureObject(spans)
 			}
@@ -182,6 +197,24 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	}
 	var tables []PlacedTable
 	var rooms []PlacedRoom
+	var cards []FormulaCard
+	inset := cardInset * style.Prose.FontSize
+	// source is a formula's source shaped as its card holds it, its
+	// lines one paragraph, set as its block's are.
+	source := func(f surface.Formula, rhythm surface.Rhythm) (Paragraph, bool) {
+		raw, ok := sourceOf(flow, f)
+		if !ok {
+			return Paragraph{}, false
+		}
+		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
+		layout := shape(raw, font, max(1, width-2*inset), ui.Start, false, false)
+		_, height := layout.Size()
+		return Paragraph{
+			layout: layout, startByte: raw.startByte, endByte: raw.endByte,
+			startUTF16: raw.startUTF16, endUTF16: raw.endUTF16, contentUTF16: raw.contentUTF16,
+			height: height, editor: true, formula: f,
+		}, true
+	}
 	// open takes room the flow opens before the line at, above what stands
 	// there, the gap before it given.
 	open := func(at model.UTF16Offset, above float32) {
@@ -190,6 +223,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			top += room
 		}
 	}
+	paragraphs = joinFormulaBlocks(flow, paragraphs, style, width)
 	for index := 0; index < len(paragraphs); index++ {
 		raw := paragraphs[index]
 		rhythm := paragraphRhythm(flow, raw.startByte)
@@ -225,6 +259,10 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		}
 		var box ui.Rect
 		align := ui.Start
+		var block *FormulaCard
+		if formulaBlock(flow, raw) {
+			align = ui.Center
+		}
 		if hasFigure {
 			box = figureBox(figure, width)
 			box.Y = top + above
@@ -234,6 +272,20 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			}
 		}
 		top += above
+		// A block being edited opens its card around its line, its source
+		// above it.
+		if align == ui.Center && !hasFigure {
+			for _, f := range editing(flow, raw, true) {
+				lines, ok := source(f, rhythm)
+				if !ok {
+					continue
+				}
+				room, _ := style.blockRoom(lines, f.Card)
+				lines.top, lines.left = top+inset, inset
+				block = &FormulaCard{Formula: f, Rect: ui.Rect{Y: top, W: width}, Shown: f.Card, Source: lines, Rule: top + room}
+				top += room
+			}
+		}
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
 		layout := shape(raw, font, width, align, hasFigure, false)
 		_, height := layout.Size()
@@ -256,20 +308,46 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		}
 		top += height
 		shaped = append(shaped, paragraph)
+		if block != nil {
+			_, below := style.blockRoom(block.Source, block.Shown)
+			top += below
+			block.Rect.H = top - block.Rect.Y
+			block.Source.host = len(shaped) - 1
+			cards = append(cards, *block)
+		}
+		// An inline formula being edited opens its card below its
+		// paragraph.
+		for _, f := range editing(flow, raw, false) {
+			lines, ok := source(f, rhythm)
+			if !ok {
+				continue
+			}
+			card, room, ok := style.inlineCard(flow, f, lines, top, width)
+			if !ok {
+				continue
+			}
+			card.Source.host = len(shaped) - 1
+			cards = append(cards, card)
+			top += room
+		}
 	}
 	// Room after the last line stands a figure's gap below it.
 	if room := flow.RoomAt(-1); room > 0 {
 		rooms = append(rooms, PlacedRoom{At: -1, Box: ui.Rect{Y: top + figureGap(body), W: width, H: room}})
 		top += figureGap(body) + room
 	}
+	var formulas []PlacedFormula
 	for index := range shaped {
 		paragraph := &shaped[index]
-		if checkbox, _, _, ok := checkboxIn(flow, paragraph.startByte, paragraph.endByte); ok {
-			paragraph.object = inlineObject{
-				start: int(checkbox.Marker.Start) - paragraph.startUTF16,
-				end:   int(checkbox.Marker.End) - paragraph.startUTF16,
-			}
+		for _, object := range replacementsIn(flow, paragraph.startByte, paragraph.endByte, style, width) {
+			from, _ := flow.UTF16OfByte(model.ByteOffset(object.from))
+			to, _ := flow.UTF16OfByte(model.ByteOffset(object.to))
+			paragraph.objects = append(paragraph.objects, inlineObject{
+				start: int(from) - paragraph.startUTF16,
+				end:   int(to) - paragraph.startUTF16,
+			})
 		}
+		formulas = append(formulas, placeFormulas(flow, paragraph, style, width)...)
 	}
 	c.layouts = next
 	c.layout = &Layout{
@@ -279,6 +357,8 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		paragraphs: shaped,
 		tables:     tables,
 		rooms:      rooms,
+		formulas:   formulas,
+		cards:      cards,
 		height:     max(lineHeight, top),
 	}
 	return c.layout
@@ -345,18 +425,14 @@ func (s Style) paragraphFont(flow *surface.Flow, start, end int, base ui.Font, l
 	return base
 }
 
-func spansFor(flow *surface.Flow, start, end int, style Style) []ui.Span {
-	if _, from, to, ok := checkboxIn(flow, start, end); ok {
-		spans := plainSpans(flow, start, from, style)
-		object := plainSpans(flow, from, from+1, style)[0]
-		object.Text = "\uFFFC"
-		object.ObjectWidth = style.Prose.FontSize * 0.95
-		// The checkbox stands on the text baseline, regardless of leading.
-		object.ObjectHeight = style.Prose.FontSize * 0.78
-		spans = append(spans, object)
-		return append(spans, plainSpans(flow, to, end, style)...)
+func spansFor(flow *surface.Flow, start, end int, style Style, width float32) []ui.Span {
+	var spans []ui.Span
+	for _, object := range replacementsIn(flow, start, end, style, width) {
+		spans = append(spans, plainSpans(flow, start, object.from, style)...)
+		spans = append(spans, object.object)
+		start = object.to
 	}
-	spans := plainSpans(flow, start, end, style)
+	spans = append(spans, plainSpans(flow, start, end, style)...)
 	if len(spans) == 0 {
 		spans = append(spans, style.span("", surface.StyleRun{}))
 	}
@@ -433,6 +509,13 @@ func paragraphKey(
 	if hasCheckbox {
 		writeFloat(float32(from - start))
 		writeFloat(float32(to - start))
+	}
+	// What a formula sets follows from its source, the text's size and
+	// the width.
+	start16, _ := flow.UTF16OfByte(model.ByteOffset(start))
+	end16, _ := flow.UTF16OfByte(model.ByteOffset(end))
+	for _, f := range flow.FormulasIn(start16, end16) {
+		writeFloat(float32(f.Range.Start - start16))
 	}
 	text := flow.Text()
 	wroteSpan := false

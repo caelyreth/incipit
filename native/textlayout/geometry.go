@@ -91,6 +91,9 @@ func (l *Layout) RowNear(offset model.UTF16Offset, direction int, x float32) mod
 	if y := row.Y + row.H/2 + float32(direction)*row.H; y >= 0 && y < height {
 		return model.UTF16Offset(paragraph.startUTF16 + paragraph.sourceOffset(indexOnRow(paragraph.layout, x-paragraph.left, y)))
 	}
+	if paragraph.editor {
+		return l.rowBeyondSource(paragraph, direction, x)
+	}
 	index := slices.IndexFunc(l.paragraphs, func(candidate Paragraph) bool {
 		return candidate.startUTF16 == paragraph.startUTF16
 	})
@@ -181,6 +184,15 @@ func (l *Layout) Hit(point ui.Point) model.UTF16Offset {
 	if point.Y >= l.height {
 		return model.UTF16Offset(l.flow.UTF16Len())
 	}
+	// On a card, its source, or the source's end below it.
+	if card, ok := l.cardAt(point); ok {
+		source := &card.Source
+		if point.Y >= card.Rule {
+			return model.UTF16Offset(source.endUTF16)
+		}
+		local := source.layout.IndexAt(ui.Point{X: point.X - source.left, Y: point.Y - source.top})
+		return model.UTF16Offset(source.startUTF16 + local)
+	}
 	paragraph := l.paragraphAtY(point.Y)
 	if table, ok := l.TableAt(point.Y); ok {
 		row, column := table.At(point)
@@ -200,7 +212,29 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 	}
 	start, end := int(selection.Start), int(selection.End)
 	rects := make([]ui.Rect, 0, 4)
+	// Within a source being edited the selection is the card's; one
+	// reaching past it takes the formula it sets too.
+	within := false
+	for _, card := range l.cards {
+		source := card.Source
+		if !source.formula.Open || end < source.startUTF16 || start > source.endUTF16 {
+			continue
+		}
+		within = within || start >= source.startUTF16 && end <= source.endUTF16
+		from, to := max(start, source.startUTF16), min(end, source.endUTF16)
+		if from >= to {
+			continue
+		}
+		for _, rect := range source.layout.SelectionRects(ui.TextInputRange{Start: from - source.startUTF16, End: to - source.startUTF16}) {
+			rect.X += source.left
+			rect.Y += source.top
+			rects = append(rects, rect)
+		}
+	}
 	for _, paragraph := range l.paragraphs {
+		if within {
+			break
+		}
 		if end < paragraph.startUTF16 {
 			break
 		}
@@ -310,6 +344,10 @@ func (l *Layout) PreviousBoundary(offset model.UTF16Offset) model.UTF16Offset {
 		before := paragraph.layout.PreviousBoundary(paragraph.shapedOffset(local, true))
 		return model.UTF16Offset(paragraph.startUTF16 + paragraph.sourceOffset(before))
 	}
+	// Back past a source's start leaves its formula, before it.
+	if paragraph.editor {
+		return paragraph.formula.Range.Start
+	}
 	if paragraph.startUTF16 == 0 {
 		return 0
 	}
@@ -325,18 +363,25 @@ func (l *Layout) NextBoundary(offset model.UTF16Offset) model.UTF16Offset {
 		after := paragraph.layout.NextBoundary(paragraph.shapedOffset(local, false))
 		return model.UTF16Offset(paragraph.startUTF16 + paragraph.sourceOffset(after))
 	}
+	if paragraph.editor {
+		return paragraph.formula.Range.End
+	}
 	if paragraph.endUTF16 > paragraph.contentUTF16 {
 		return model.UTF16Offset(paragraph.contentUTF16 + 1)
 	}
 	return model.UTF16Offset(paragraph.endUTF16)
 }
 
-// paragraphAt resolves an offset to its owning paragraph. An interior
+// paragraphAt resolves an offset to its owning paragraph: the source of a
+// formula being edited, on its card, owns its own. An interior
 // paragraph owns [start, end), where end follows its newline, so a paragraph
 // start belongs to the following paragraph. The final paragraph has no
 // newline and also owns its end: the document end is a caret position.
 func (l *Layout) paragraphAt(offset model.UTF16Offset) (*Paragraph, int) {
 	value := int(offset)
+	if source, local, ok := l.editorAt(offset); ok {
+		return source, local
+	}
 	if len(l.paragraphs) == 0 {
 		return nil, 0
 	}

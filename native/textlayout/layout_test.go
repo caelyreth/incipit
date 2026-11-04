@@ -105,7 +105,7 @@ func TestCaretHitSelectionAndBoundaries(t *testing.T) {
 
 func TestBoldStyleReachesMyGoSpans(t *testing.T) {
 	flow := testFlow(t, "plainbold", 5)
-	spans := spansFor(flow, 0, len(flow.Text()), testStyle())
+	spans := spansFor(flow, 0, len(flow.Text()), testStyle(), 400)
 	if len(spans) != 2 || spans[0].Weight != 400 || spans[1].Weight != 700 {
 		t.Fatalf("spans = %#v", spans)
 	}
