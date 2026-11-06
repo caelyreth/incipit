@@ -365,3 +365,24 @@ func TestASelectionOfWholeBlocksSaysSo(t *testing.T) {
 	whole("to the next block's start", empty.Start, bravo.Start, false)
 	whole("a caret", 2, 2, false)
 }
+
+// A table's cell is a place like any other: Tab in a formula inside a cell
+// leaves the formula first, and only then goes on to the next cell.
+func TestTabLeavesAFormulaInACellBeforeTheCell(t *testing.T) {
+	session := tablePage(t)
+	typeKeys(t, session, "$x")
+	if places := session.innerPlaces(); len(places) == 0 || places[0].Kind != PlaceFormula {
+		t.Fatalf("typing $x in a cell put the caret in %#v, not a formula", places)
+	}
+	tab(t, session)
+	if row, column := caretCell(t, session); row != 1 || column != 0 {
+		t.Fatalf("leaving the formula went to cell %d,%d", row, column)
+	}
+	if places := session.innerPlaces(); len(places) != 0 {
+		t.Fatalf("after leaving the formula, places = %#v", places)
+	}
+	tab(t, session)
+	if row, column := caretCell(t, session); row != 1 || column != 1 {
+		t.Fatalf("the second Tab went to cell %d,%d, not the next", row, column)
+	}
+}
