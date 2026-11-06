@@ -71,8 +71,8 @@ func TestTypedNotationOpensBlocks(t *testing.T) {
 }
 
 // Return after a heading starts a paragraph; in a list it starts the next
-// item, numbered by its place. An empty block is kept as what it is, as an
-// empty heading is: Return on an empty item opens another item.
+// item, numbered by its place, and on an empty item it ends the list, one
+// level at a time. An empty heading stays a heading.
 func TestReturnFollowsBlockKind(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "# Top\nbody")
@@ -83,9 +83,20 @@ func TestReturnFollowsBlockKind(t *testing.T) {
 	typeKeys(t, session, "1. one\ntwo\n")
 	expectKinds(t, session, OrderedNode, OrderedNode, OrderedNode)
 	expectPage(t, session, "1. one\n2. two\n3. |", "one", "two", "")
-	typeKeys(t, session, "\nfour")
-	expectKinds(t, session, OrderedNode, OrderedNode, OrderedNode, OrderedNode)
-	expectPage(t, session, "1. one\n2. two\n3. \n4. four|", "one", "two", "", "four")
+	typeKeys(t, session, "\nafter")
+	expectKinds(t, session, OrderedNode, OrderedNode, ParagraphNode)
+	expectPage(t, session, "1. one\n2. two\nafter|", "one", "two", "after")
+
+	session = nestedList(t)
+	text := session.Projection().Text()
+	at(t, session, model.UTF16Offset(strings.Index(text, "inner")+len("inner")))
+	typeKeys(t, session, "\n")
+	nested := shapeOf(DocumentBlocks(session.Runtime().Snapshot().Document())[3])
+	typeKeys(t, session, "\n")
+	outer := shapeOf(DocumentBlocks(session.Runtime().Snapshot().Document())[3])
+	if nested.depth != 1 || outer.depth != 0 || outer.kind != OrderedNode {
+		t.Fatalf("empty nested item stepped from depth %d to %d %s, want 1 to 0 in the list", nested.depth, outer.depth, outer.kind)
+	}
 
 	// An empty heading stays a heading the same way.
 	session, _ = newSessionFixture(t, "", false)

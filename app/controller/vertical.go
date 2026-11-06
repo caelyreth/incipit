@@ -5,6 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/engine/model"
 )
 
 // VerticalDirection is the visual-row direction of a vertical caret command.
@@ -46,6 +47,9 @@ func (c *DocumentController) MoveVertical(direction VerticalDirection, extend bo
 	if !ok {
 		return c.fail(fmt.Errorf("%w: vertical hit test failed", ErrNoGeometry))
 	}
+	// The row's hit lands as the engine's own motion does: past an atom
+	// whole, never inside a formula seen from outside.
+	head = int(c.session.SnapMotion(model.UTF16Offset(caret), model.UTF16Offset(head)))
 
 	anchor := head
 	if extend {

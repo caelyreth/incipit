@@ -126,3 +126,27 @@ func TestAFormulaIsEditedWithASelectionEndInItsSource(t *testing.T) {
 		}
 	}
 }
+
+// Word motion passes an inline formula whole from outside it, as a
+// character step does: it never stops inside the formula's source.
+func TestWordMotionPassesAFormulaWhole(t *testing.T) {
+	session, _ := newSessionFixture(t, "", false)
+	typeKeys(t, session, "a $x+y$ b")
+	step := func(dir Direction, want model.UTF16Offset) {
+		t.Helper()
+		if _, err := session.Do(Move(ByWord, dir, false), time.Time{}); err != nil {
+			t.Fatal(err)
+		}
+		if got := session.Caret().RangeUTF16().Start; got != want {
+			t.Fatalf("word step %d landed at %d, want %d", dir, got, want)
+		}
+	}
+	step(Backward, 8)
+	step(Backward, 2)
+	step(Backward, 0)
+	step(Forward, 1)
+	step(Forward, 7)
+	if got := session.SnapMotion(0, 4); got != 7 {
+		t.Fatalf("a row's hit inside the formula snapped to %d, want 7", got)
+	}
+}

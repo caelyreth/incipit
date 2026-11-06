@@ -495,6 +495,15 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 		}
 		i.land(carried, 0, document)
 		return kernel.OutcomeHandled, nil
+	case shape.nests() && blockLength(node) == 0:
+		// A break on an empty item or quote line steps out of it one
+		// level, to a paragraph from the outermost: the break that ends a
+		// list.
+		if err := shapeBlock(document, node.ID(), shape.peel()); err != nil {
+			return fail(err)
+		}
+		i.land(node.ID(), 0, document)
+		return kernel.OutcomeHandled, nil
 	case literalBlock(node):
 		content := node.Text().String()
 		if at != blockLength(node) || !strings.HasSuffix(content, "\n") {

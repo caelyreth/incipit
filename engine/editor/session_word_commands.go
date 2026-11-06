@@ -84,6 +84,8 @@ func (s *Session) doWord(command wordOp) (kernel.Outcome, error) {
 	if spans && (command == wordExtendPrevious || command == wordExtendNext) {
 		anchor = selection.Anchor()
 	}
+	from := s.presentation.Caret.RangeUTF16().Start
+	defer s.snapAtoms(from, command == wordExtendPrevious || command == wordExtendNext)
 	return kernel.OutcomeHandled, s.Select(model.NewTextSelection(
 		anchor,
 		model.NewTextAnchor(
@@ -114,4 +116,21 @@ func wordStepBeyond(command wordOp) (textOp, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// snapAtoms passes an atom whole that motion from `from` came to rest in,
+// keeping the selection's anchor when it extends.
+func (s *Session) snapAtoms(from model.UTF16Offset, extend bool) {
+	to := s.presentation.Caret.RangeUTF16().Start
+	snapped := s.SnapMotion(from, to)
+	if snapped == to {
+		return
+	}
+	anchor := snapped
+	if extend {
+		if at, err := s.currentViewAnchor(); err == nil {
+			anchor = at
+		}
+	}
+	_ = s.SelectProjected(anchor, snapped)
 }

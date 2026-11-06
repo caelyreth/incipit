@@ -222,3 +222,31 @@ func pastFormula(flow *surface.Flow, caret model.UTF16Offset, backward bool) (mo
 	f, ok := surface.ObjectOf[surface.Formula](flow, caret)
 	return f.Range.End, ok && f.Range.Start == caret
 }
+
+// atomSnap is where motion from one offset to another stops when it would
+// land inside an atom seen from outside, a formula the caret is not editing:
+// at the atom's edge it moved toward. Inside an atom's source, motion moves
+// as it does anywhere.
+func atomSnap(flow *surface.Flow, from, to model.UTF16Offset) (model.UTF16Offset, bool) {
+	f, ok := surface.ObjectOf[surface.Formula](flow, to)
+	if !ok || to <= f.Range.Start || to >= f.Range.End || inSource(f, from) {
+		return to, false
+	}
+	if to < from {
+		return f.Range.Start, true
+	}
+	return f.Range.End, true
+}
+
+// SnapMotion is where motion from one projected offset to another lands:
+// an atom it would land inside, seen from outside, is passed whole. Motion
+// planned outside the engine, as by rows on the view's geometry, lands
+// here as the engine's own does.
+func (s *Session) SnapMotion(from, to model.UTF16Offset) model.UTF16Offset {
+	flow, err := s.SurfaceFlow()
+	if err != nil {
+		return to
+	}
+	snapped, _ := atomSnap(flow, from, to)
+	return snapped
+}
