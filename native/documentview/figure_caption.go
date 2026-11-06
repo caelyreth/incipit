@@ -16,26 +16,22 @@ import (
 // it is typed, and its hint is centered too, the caret at the hint's
 // start, as an empty field's.
 
-// captionedFlow is flow with each figure's caption as open as it shows:
-// one with a caption all the way, one without as far as its line has
-// opened, opening while it or its picture is selected. It reports whether one is
-// still opening or closing.
-func (e *Element) captionedFlow(flow *surface.Flow, selection model.UTF16Range, now time.Time, animate bool) (*surface.Flow, bool) {
-	objects := flow.Objects()
-	if len(surface.ObjectsOf[surface.Figure](flow)) == 0 {
+// captionsOf is how open each figure's caption line shows: one with a
+// caption all the way, one without as far as its line has opened, opening
+// while it or its picture is selected. It reports whether one is still
+// opening or closing.
+func (e *Element) captionsOf(flow *surface.Flow, selection model.UTF16Range, now time.Time, animate bool) (map[model.NodeID]float32, bool) {
+	figures := surface.ObjectsOf[surface.Figure](flow)
+	if len(figures) == 0 {
 		e.captions = nil
-		return flow, false
+		return nil, false
 	}
-	captions := make(map[model.NodeID]motion.Spring, len(objects))
+	springs := make(map[model.NodeID]motion.Spring, len(figures))
+	shown := make(map[model.NodeID]float32, len(figures))
 	moving := false
-	for index := range objects {
-		shown, isFigure := objects[index].(surface.Figure)
-		if !isFigure {
-			continue
-		}
-		figure := &shown
-		open := figure.Caption
-		if captionCaret(*figure, selection) || selection == figure.Range {
+	for _, figure := range figures {
+		open := float32(0)
+		if figure.Captioned || captionCaret(figure, selection) || selection == figure.Range {
 			open = 1
 		}
 		spring, known := e.captions[figure.Node]
@@ -43,17 +39,12 @@ func (e *Element) captionedFlow(flow *surface.Flow, selection model.UTF16Range, 
 			spring = motion.NewUnitSpring(open, now)
 		}
 		spring.Step(open, now, figureFade)
-		captions[figure.Node] = spring
-		figure.Caption = spring.Value()
+		springs[figure.Node] = spring
+		shown[figure.Node] = spring.Value()
 		moving = moving || spring.Moving()
-		objects[index] = shown
 	}
-	e.captions = captions
-	captioned, err := flow.WithObjects(objects)
-	if err != nil {
-		return flow, false
-	}
-	return captioned, moving
+	e.captions = springs
+	return shown, moving
 }
 
 // captionCaret reports whether the caret is at the start of a figure's

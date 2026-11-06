@@ -3,6 +3,7 @@ package surface
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/caelyreth/neverland/engine/model"
 )
@@ -16,6 +17,9 @@ type Frame struct {
 	inputStyle  TextStyle
 	decorations []Decoration
 	whole       bool
+	// editing are the runs of the objects edited within, as a formula is
+	// while an end of the selection is in its source.
+	editing []model.UTF16Range
 }
 
 func NewFrame(
@@ -107,6 +111,26 @@ func (f *Frame) WithWhole(whole bool) *Frame {
 	return &next
 }
 
+// Editing are the runs of the flow's objects being edited within, in
+// order: which they are is the editor's to say, as the caret in one's text
+// does; a view shows each as it shows one being edited.
+func (f *Frame) Editing() []model.UTF16Range { return slices.Clone(f.editing) }
+
+// WithEditing is the frame with the objects whose runs are runs edited
+// within.
+func (f *Frame) WithEditing(runs []model.UTF16Range) (*Frame, error) {
+	previous := model.UTF16Offset(-1)
+	for _, run := range runs {
+		if _, ok := f.flow.objectAt(run); !ok || run.Start < previous {
+			return nil, fmt.Errorf("an object edited within must be one of the flow's, in order")
+		}
+		previous = run.End
+	}
+	next := *f
+	next.editing = slices.Clone(runs)
+	return &next, nil
+}
+
 func (f *Frame) Decorations() []Decoration {
 	decorations := make([]Decoration, len(f.decorations))
 	for index, decoration := range f.decorations {
@@ -136,11 +160,8 @@ func (f *Frame) WithPreview(
 	if _, ok := model.UTF16RangeToByte(text, selected); !ok {
 		return nil, fmt.Errorf("invalid preview selection")
 	}
-	flow, err := f.flow.replaceRange(replacement{
-		original: original,
-		text:     text,
-		style:    f.inputStyle,
-	})
+	edit := replacement{original: original, text: text, style: f.inputStyle}
+	flow, err := f.flow.replaceRange(edit)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +179,7 @@ func (f *Frame) WithPreview(
 		Opacity:    FixedOpacity(255),
 		Visibility: VisibilityAlways,
 	}
-	return NewFrame(
+	preview, err := NewFrame(
 		flow,
 		model.NewUTF16Range(
 			original.Start+selected.Start,
@@ -168,6 +189,23 @@ func (f *Frame) WithPreview(
 		f.inputStyle,
 		[]Decoration{decoration},
 	)
+	if err != nil {
+		return nil, err
+	}
+	// What is edited within stays so as the composition moves or
+	// stretches it, as long as the preview keeps it.
+	for _, run := range f.editing {
+		object, ok := f.flow.objectAt(run)
+		if !ok {
+			continue
+		}
+		if shifted, ok := object.shifted(edit.edit()); ok {
+			if _, kept := flow.objectAt(shifted.Run()); kept {
+				preview.editing = append(preview.editing, shifted.Run())
+			}
+		}
+	}
+	return preview, nil
 }
 
 func validateRanges(flow *Flow, ranges []model.UTF16Range) error {

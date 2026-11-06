@@ -40,7 +40,7 @@ func newGuideFixture(t *testing.T, text string, width float32) guideFixture {
 	prose := theme.NewProseStyle(settings.ProseFontSize)
 	return guideFixture{
 		flow:   flow,
-		layout: textlayout.NewCache().Update(flow, width, textlayout.NewStyle(prose, semantic)),
+		layout: textlayout.NewCache().Update(flow, nil, width, textlayout.NewStyle(prose, semantic)),
 		theme:  semantic,
 		prose:  prose,
 	}

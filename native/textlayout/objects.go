@@ -16,7 +16,7 @@ type replacement struct {
 // replacementsIn are the objects shaping sets for the paragraph from start
 // to end, in order: each of the flow's objects wholly within it that the
 // page can set.
-func replacementsIn(flow *surface.Flow, start, end int, style Style, width float32) []replacement {
+func replacementsIn(flow *surface.Flow, o *Overlay, start, end int, style Style, width float32) []replacement {
 	start16, _ := flow.UTF16OfByte(model.ByteOffset(start))
 	end16, _ := flow.UTF16OfByte(model.ByteOffset(end))
 	var objects []replacement
@@ -27,7 +27,7 @@ func replacementsIn(flow *surface.Flow, start, end int, style Style, width float
 		if !fromOK || !toOK || int(from) < start || int(to) > end {
 			continue
 		}
-		span, ok := style.objectSpan(flow, object, width)
+		span, ok := style.objectSpan(flow, o, object, width)
 		if !ok {
 			continue
 		}
@@ -37,9 +37,9 @@ func replacementsIn(flow *surface.Flow, start, end int, style Style, width float
 }
 
 // objectSpan is the span shaping sets for object, in the style of the text
-// it stands for, or false when the page cannot set it, which shows its
-// text.
-func (s Style) objectSpan(flow *surface.Flow, object surface.Object, width float32) (ui.Span, bool) {
+// it stands for, as o shows it, or false when the page cannot set it,
+// which shows its text.
+func (s Style) objectSpan(flow *surface.Flow, o *Overlay, object surface.Object, width float32) (ui.Span, bool) {
 	from, _ := flow.ByteOfUTF16(object.Run().Start)
 	span := plainSpans(flow, int(from), int(from)+1, s)[0]
 	span.Text = "￼"
@@ -53,12 +53,13 @@ func (s Style) objectSpan(flow *surface.Flow, object surface.Object, width float
 		// above it: it sets nothing, as wide as nothing.
 		span.ObjectWidth = figureObjectWidth
 	case surface.Formula:
-		box, _, ok := s.setFormula(flow, object, width)
+		f := o.formula(object)
+		box, _, ok := s.setFormula(flow, f, width)
 		if !ok {
 			return ui.Span{}, false
 		}
 		span.ObjectWidth = min(box.Width+max(0, box.Italic), max(width, box.Width))
-		span.ObjectHeight, span.ObjectDescent = s.extentOf(object, box, width)
+		span.ObjectHeight, span.ObjectDescent = s.extentOf(f, box, width)
 	default:
 		return ui.Span{}, false
 	}
@@ -68,14 +69,14 @@ func (s Style) objectSpan(flow *surface.Flow, object surface.Object, width float
 // paragraphsOf are the paragraphs the page shapes: the lines of each
 // block, those an object the page sets runs across one paragraph, as a
 // formula block's fences and source are.
-func (s Style) paragraphsOf(flow *surface.Flow, width float32) []rawParagraph {
+func (s Style) paragraphsOf(flow *surface.Flow, o *Overlay, width float32) []rawParagraph {
 	text := flow.Text()
 	paragraphs := make([]rawParagraph, 0, 8)
 	length := int(flow.UTF16Len())
 	flow.EachBlock(func(index int, block surface.Block) bool {
 		var joined []model.UTF16Range
 		for _, object := range flow.ObjectsIn(block.Range) {
-			if _, ok := s.objectSpan(flow, object, width); ok {
+			if _, ok := s.objectSpan(flow, o, object, width); ok {
 				joined = append(joined, object.Run())
 			}
 		}

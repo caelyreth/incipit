@@ -99,7 +99,7 @@ func BenchmarkFirstLayout(b *testing.B) {
 			b.ResetTimer()
 			for index := 0; index < b.N; index++ {
 				cache := NewCache()
-				benchmarkLayout = cache.Update(flow, benchmarkLayoutWidth, style)
+				benchmarkLayout = cache.Update(flow, nil, benchmarkLayoutWidth, style)
 			}
 		})
 	}
@@ -110,13 +110,13 @@ func BenchmarkRetainedLayout(b *testing.B) {
 	for _, fixture := range benchmarkSizes() {
 		flow := benchmarkFlow(b, benchmarkProse(fixture.size))
 		cache := NewCache()
-		cache.Update(flow, benchmarkLayoutWidth, style)
+		cache.Update(flow, nil, benchmarkLayoutWidth, style)
 		b.Run(fixture.name, func(b *testing.B) {
 			b.ReportAllocs()
 			b.SetBytes(int64(fixture.size))
 			b.ResetTimer()
 			for index := 0; index < b.N; index++ {
-				benchmarkLayout = cache.Update(flow, benchmarkLayoutWidth, style)
+				benchmarkLayout = cache.Update(flow, nil, benchmarkLayoutWidth, style)
 			}
 		})
 	}
@@ -134,7 +134,7 @@ func BenchmarkTypingLastParagraph(b *testing.B) {
 		}
 		cache := NewCache()
 		for _, flow := range flows {
-			cache.Update(flow, benchmarkLayoutWidth, style)
+			cache.Update(flow, nil, benchmarkLayoutWidth, style)
 		}
 		b.Run(fixture.name, func(b *testing.B) {
 			b.ReportAllocs()
@@ -142,7 +142,7 @@ func BenchmarkTypingLastParagraph(b *testing.B) {
 			b.ResetTimer()
 			for index := 0; index < b.N; index++ {
 				benchmarkLayout = cache.Update(
-					flows[index%len(flows)],
+					flows[index%len(flows)], nil,
 					benchmarkLayoutWidth,
 					style,
 				)
@@ -155,7 +155,7 @@ func BenchmarkCaretGeometry(b *testing.B) {
 	style := testStyle()
 	for _, fixture := range benchmarkSizes() {
 		layout := NewCache().Update(
-			benchmarkFlow(b, benchmarkProse(fixture.size)),
+			benchmarkFlow(b, benchmarkProse(fixture.size)), nil,
 			benchmarkLayoutWidth,
 			style,
 		)
@@ -178,7 +178,7 @@ func BenchmarkSelectionGeometry(b *testing.B) {
 	style := testStyle()
 	for _, fixture := range benchmarkSizes() {
 		layout := NewCache().Update(
-			benchmarkFlow(b, benchmarkProse(fixture.size)),
+			benchmarkFlow(b, benchmarkProse(fixture.size)), nil,
 			benchmarkLayoutWidth,
 			style,
 		)

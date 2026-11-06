@@ -250,7 +250,7 @@ func (l *Layout) RangeRects(selection model.UTF16Range) []ui.Rect {
 		// shows no selection, its picture showing it instead.
 		room := float32(1)
 		if paragraph.hasFigure {
-			room = captionRoom(paragraph.figure)
+			room = paragraph.caption
 		}
 		if room == 0 {
 			continue

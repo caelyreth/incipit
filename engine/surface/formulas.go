@@ -9,8 +9,7 @@ import (
 // Formula is TeX a page sets as math: an inline formula, from its opening
 // dollar to its closing one, or a formula block, from its opening fence to
 // its closing one. A view sets it in its place, as one object of its
-// lines, and edits its source on a card of its own while it is open, as
-// the caret in its source opens it.
+// lines; how a view shows one being edited is its own.
 type Formula struct {
 	Node model.NodeID
 	// Range is the formula's notation and source in the projected text.
@@ -22,13 +21,6 @@ type Formula struct {
 	// Display sets it as a formula of its own, centered on its lines,
 	// rather than within a line of text.
 	Display bool
-	// Open edits its source on its card, where the caret is.
-	Open bool
-	// Card is how far its card has opened: 0 none, 1 all of it.
-	Card float32
-	// Stale sets Source as what the formula last set soundly, not what it
-	// now reads, which cannot be set as it is.
-	Stale bool
 }
 
 func (f Formula) Run() model.UTF16Range { return f.Range }

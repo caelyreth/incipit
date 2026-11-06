@@ -29,7 +29,7 @@ func TestLayoutGeometryAppliesTitleOffsetAndScroll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	layout := textlayout.NewCache().Update(flow, 400, style)
+	layout := textlayout.NewCache().Update(flow, nil, 400, style)
 	contentTop := float32(72)
 	scroll := style.Prose.LineHeight()
 	geometry := LayoutGeometry{Layout: layout, YOffset: contentTop, ScrollY: scroll}

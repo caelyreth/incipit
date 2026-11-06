@@ -172,6 +172,9 @@ func (s *Session) SurfaceFrame(now time.Time, keys GuideKeys) (*surface.Frame, e
 	if err != nil {
 		return nil, err
 	}
+	if frame, err = frame.WithEditing(editedFormulas(flow, selection)); err != nil {
+		return nil, err
+	}
 	return frame.WithWhole(s.selectsWhole(selection)), nil
 }
 

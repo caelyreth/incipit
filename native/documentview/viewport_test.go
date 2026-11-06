@@ -31,7 +31,7 @@ func TestViewportRevealsCaretAndTranslatesPaint(t *testing.T) {
 		t.Fatal(err)
 	}
 	style := textlayout.NewStyle(theme.NewProseStyle(19), theme.DefaultSettings().Semantic())
-	layout := textlayout.NewCache().Update(flow, 400, style)
+	layout := textlayout.NewCache().Update(flow, nil, 400, style)
 	if layout == nil {
 		t.Fatal("layout is nil")
 	}
@@ -75,6 +75,7 @@ func TestCaretRevealClearsTheFloatingDock(t *testing.T) {
 	prose := theme.NewProseStyle(19)
 	layout := textlayout.NewCache().Update(
 		flow,
+		nil,
 		400,
 		textlayout.NewStyle(prose, theme.DefaultSettings().Semantic()),
 	)
@@ -393,7 +394,7 @@ func TestCaretRevealFollowsIntentNotLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	prose := theme.NewProseStyle(19)
-	layout := textlayout.NewCache().Update(flow, 400, textlayout.NewStyle(prose, theme.DefaultSettings().Semantic()))
+	layout := textlayout.NewCache().Update(flow, nil, 400, textlayout.NewStyle(prose, theme.DefaultSettings().Semantic()))
 	element := &Element{Prose: prose, Motion: motion.New(now), Animate: true, pageState: pageState{lastHeight: 300}}
 	key := revealKey{text: text}
 	element.followCaret(layout, ui.Rect{Y: 10, H: prose.LineHeight()}, 10, 300, key, now)

@@ -38,31 +38,6 @@ type Table struct {
 	// room.
 	Align []CellAlign
 	Fit   []bool
-	// Room is what a view opens in and below the table as it shows what
-	// makes rows and columns there.
-	Room TableRoom
-}
-
-// TableRoom is room a view opens in and below a table, in DIPs, and how
-// far each row and column has come in. Its zero value opens none.
-type TableRoom struct {
-	// Below is room under the table, for a new row's area.
-	Below float32
-	// RowRoom and ColumnRoom open before row Row and column Column, for
-	// an area making one there.
-	Row, Column         int
-	RowRoom, ColumnRoom float32
-	// RowShown and ColumnShown are each row's and column's share of its
-	// size, coming in from 0; all 1 when nil.
-	RowShown, ColumnShown []float32
-	// Scroll is how far a table wider than the room it shows in is
-	// scrolled across, and Pull how far an edge's pull draws it on past
-	// that, elastic, as a scroll goes past its end.
-	Scroll, Pull float32
-	// RowsApart and ColumnsApart are room a drag opens before each row
-	// and column, the last after them all, where what it carries would
-	// land.
-	RowsApart, ColumnsApart []float32
 }
 
 func (t Table) clone() Table {
@@ -72,10 +47,6 @@ func (t Table) clone() Table {
 	}
 	t.Align = slices.Clone(t.Align)
 	t.Fit = slices.Clone(t.Fit)
-	t.Room.RowShown = slices.Clone(t.Room.RowShown)
-	t.Room.ColumnShown = slices.Clone(t.Room.ColumnShown)
-	t.Room.RowsApart = slices.Clone(t.Room.RowsApart)
-	t.Room.ColumnsApart = slices.Clone(t.Room.ColumnsApart)
 	return t
 }
 
@@ -89,7 +60,7 @@ func cloneTables(tables []Table) []Table {
 
 func (t Table) equal(other Table) bool {
 	if t.Header != other.Header || !slices.Equal(t.Align, other.Align) ||
-		!slices.Equal(t.Fit, other.Fit) || !t.Room.equal(other.Room) || len(t.Rows) != len(other.Rows) {
+		!slices.Equal(t.Fit, other.Fit) || len(t.Rows) != len(other.Rows) {
 		return false
 	}
 	for row := range t.Rows {
@@ -98,42 +69,6 @@ func (t Table) equal(other Table) bool {
 		}
 	}
 	return true
-}
-
-func (r TableRoom) equal(other TableRoom) bool {
-	return r.Below == other.Below && r.Row == other.Row && r.Column == other.Column &&
-		r.RowRoom == other.RowRoom && r.ColumnRoom == other.ColumnRoom &&
-		r.Scroll == other.Scroll && r.Pull == other.Pull &&
-		slices.Equal(r.RowShown, other.RowShown) && slices.Equal(r.ColumnShown, other.ColumnShown) &&
-		slices.Equal(r.RowsApart, other.RowsApart) && slices.Equal(r.ColumnsApart, other.ColumnsApart)
-}
-
-// apart is the room at index of rooms, none past them.
-func apart(rooms []float32, index int) float32 {
-	if index < len(rooms) {
-		return max(0, rooms[index])
-	}
-	return 0
-}
-
-// RowApart and ColumnApart are the room a drag opens before row and
-// column.
-func (r TableRoom) RowApart(row int) float32       { return apart(r.RowsApart, row) }
-func (r TableRoom) ColumnApart(column int) float32 { return apart(r.ColumnsApart, column) }
-
-// RowShare and ColumnShare are row's and column's share of their size.
-func (r TableRoom) RowShare(row int) float32 {
-	if row < len(r.RowShown) {
-		return max(0, min(1, r.RowShown[row]))
-	}
-	return 1
-}
-
-func (r TableRoom) ColumnShare(column int) float32 {
-	if column < len(r.ColumnShown) {
-		return max(0, min(1, r.ColumnShown[column]))
-	}
-	return 1
 }
 
 // Columns is how many cells each row has.

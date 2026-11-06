@@ -9,13 +9,14 @@ import (
 	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
+	"github.com/caelyreth/neverland/native/textlayout"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
-// The caret in a formula's source opens it, beside its notation leaves it
-// closed; under a held pointer what shows stays as it was.
-func TestCaretOpensTheFormulaItIsIn(t *testing.T) {
+// A formula the editor says is being edited opens; under a held pointer
+// what shows stays as it was.
+func TestAnEditedFormulaOpens(t *testing.T) {
 	text := "a $x$ b"
 	flow, err := surface.NewFlow(projection.NewVersion(0, 0), text, []surface.StyleRun{{
 		Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
@@ -29,22 +30,23 @@ func TestCaretOpensTheFormulaItIsIn(t *testing.T) {
 		t.Fatal(err)
 	}
 	element := &Element{}
-	open := func(selection model.UTF16Range) bool {
-		opened, _ := element.openedFlow(flow, selection, time.Unix(0, 0), false)
-		return surface.ObjectsOf[surface.Formula](opened)[0].Open
+	f := surface.ObjectsOf[surface.Formula](flow)[0]
+	open := func(edited ...model.UTF16Range) bool {
+		shown, _ := element.formulasShown(flow, edited, time.Unix(0, 0), false)
+		return shown[textlayout.KeyOf(f)].Open
 	}
-	if open(model.NewUTF16Range(2, 2)) || open(model.NewUTF16Range(5, 5)) || open(model.NewUTF16Range(0, 7)) {
-		t.Fatal("a caret beside a formula, or a selection over all of it, opened it")
+	if open() {
+		t.Fatal("a formula no one edits opened")
 	}
-	if !open(model.NewUTF16Range(4, 4)) || !open(model.NewUTF16Range(0, 3)) {
-		t.Fatal("an end of the selection in a formula left it set")
+	if !open(f.Range) {
+		t.Fatal("an edited formula stayed set")
 	}
 	element.pointer = pointerSelecting
-	if !open(model.NewUTF16Range(7, 7)) {
+	if !open() {
 		t.Fatal("the formula closed under a held pointer")
 	}
 	element.pointer = pointerIdle
-	if open(model.NewUTF16Range(7, 7)) {
+	if open() {
 		t.Fatal("the formula stayed open once the pointer let go")
 	}
 }
@@ -158,10 +160,13 @@ func TestAFormulaBeingTypedKeepsWhatItLastSet(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		caret := model.UTF16Offset(len(text) - 1)
-		opened, _ := element.openedFlow(flow, model.NewUTF16Range(caret, caret), time.Unix(0, 0), false)
-		set := surface.ObjectsOf[surface.Formula](opened)[0]
-		return set.Source, set.Stale
+		f := surface.ObjectsOf[surface.Formula](flow)[0]
+		shown, _ := element.formulasShown(flow, []model.UTF16Range{f.Range}, time.Unix(0, 0), false)
+		show := shown[textlayout.KeyOf(f)]
+		if show.Stale {
+			return show.Last, true
+		}
+		return source, false
 	}
 	for _, step := range []struct {
 		typed, shown string

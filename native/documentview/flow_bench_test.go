@@ -92,7 +92,7 @@ func TestFigureVisualFlowTracksCaptionAndPageIdentity(t *testing.T) {
 		t.Fatal("opening a caption reused the closed layout")
 	}
 	element.SwitchPage(0)
-	if element.visualFlow != nil || element.current != nil {
-		t.Fatal("page switch retained another document's visual flow")
+	if element.current != nil {
+		t.Fatal("page switch retained another document's layout")
 	}
 }

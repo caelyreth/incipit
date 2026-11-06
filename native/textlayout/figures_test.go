@@ -23,7 +23,7 @@ func TestAFigureIsSetAtItsSizeWithinTheColumn(t *testing.T) {
 		{"no taller than its bound", surface.Figure{Width: 100, Height: 1000}, ui.Rect{X: 175, W: 50, H: 500}},
 		{"never too small to see", surface.Figure{Width: 4, Height: 4}, ui.Rect{X: 188, W: 24, H: 24}},
 	} {
-		if got := figureBox(test.figure, 400); got != test.want {
+		if got := figureBox(test.figure, test.figure.Span, 400); got != test.want {
 			t.Errorf("%s: %+v, want %+v", test.name, got, test.want)
 		}
 	}
@@ -32,7 +32,7 @@ func TestAFigureIsSetAtItsSizeWithinTheColumn(t *testing.T) {
 // A figure takes its room above its caption's line, so the line and what
 // follows move down by it, and a click in it finds it.
 func TestAFigureTakesItsRoomAboveItsLine(t *testing.T) {
-	plain := NewCache().Update(testFlow(t, "one\ntwo\nthree", 0), 400, testStyle())
+	plain := NewCache().Update(testFlow(t, "one\ntwo\nthree", 0), nil, 400, testStyle())
 	// The profile centers a centered figure's line.
 	lines := testFlow(t, "one\n\uFFFC\nthree", 0)
 	blocks := lines.Blocks()
@@ -42,12 +42,12 @@ func TestAFigureTakesItsRoomAboveItsLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	flow, err := ownedBy(centered, asObjects([]surface.Figure{
-		{Range: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: 1},
+		{Range: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Captioned: true},
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	layout := NewCache().Update(flow, 400, testStyle())
+	layout := NewCache().Update(flow, nil, 400, testStyle())
 	figures := layout.Figures()
 	if len(figures) != 1 {
 		t.Fatalf("figures = %+v", figures)
@@ -88,12 +88,12 @@ func TestAFigureTakesItsRoomAboveItsLine(t *testing.T) {
 func TestAClosedCaptionTakesNoRoom(t *testing.T) {
 	place := func(caption float32) (PlacedFigure, Paragraph) {
 		flow, err := ownedBy(testFlow(t, "one\n\uFFFC\nthree", 0), asObjects([]surface.Figure{
-			{Range: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
+			{Range: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100},
 		}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		layout := NewCache().Update(flow, 400, testStyle())
+		layout := NewCache().Update(flow, &Overlay{Captions: map[model.NodeID]float32{9: caption}}, 400, testStyle())
 		return layout.Figures()[0], layout.Paragraphs()[2]
 	}
 	figure, closed := place(0)
@@ -125,12 +125,12 @@ func TestFiguresStartLinesInOrder(t *testing.T) {
 func TestRowsStepAcrossAFigure(t *testing.T) {
 	for _, caption := range []float32{0, 1} {
 		flow, err := ownedBy(testFlow(t, "one\n￼\nthree", 0), asObjects([]surface.Figure{
-			{Range: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
+			{Range: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100},
 		}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		layout := NewCache().Update(flow, 400, testStyle())
+		layout := NewCache().Update(flow, &Overlay{Captions: map[model.NodeID]float32{9: caption}}, 400, testStyle())
 		x := layout.Caret(0).X
 		if got := layout.RowNear(6, -1, x); got != 4 && got != 5 {
 			t.Fatalf("caption %v: Up from below the figure reached %v, not its line", caption, got)
@@ -169,13 +169,13 @@ func TestUpAndDownStepOneRowFromEveryRow(t *testing.T) {
 		return model.UTF16Offset(len([]rune(strings.Join(strings.Split(text, "\n")[:line], "\n"))) + 1)
 	}
 	flow, err := ownedBy(testFlow(t, text, 0), asObjects([]surface.Figure{
-		{Range: model.NewUTF16Range(figureAt(2), figureAt(2)+1), Node: 1, Media: "m", Width: 200, Height: 100, Caption: 0},
-		{Range: model.NewUTF16Range(figureAt(3), figureAt(3)+1), Node: 2, Media: "m", Width: 200, Height: 100, Caption: 1},
+		{Range: model.NewUTF16Range(figureAt(2), figureAt(2)+1), Node: 1, Media: "m", Width: 200, Height: 100},
+		{Range: model.NewUTF16Range(figureAt(3), figureAt(3)+1), Node: 2, Media: "m", Width: 200, Height: 100, Captioned: true},
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	layout := NewCache().Update(flow, 240, testStyle())
+	layout := NewCache().Update(flow, nil, 240, testStyle())
 	rowOf := func(offset model.UTF16Offset) float32 {
 		line, ok := layout.CaretLine(offset)
 		if !ok {

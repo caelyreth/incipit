@@ -75,13 +75,10 @@ func TestFlowEqualIncludesPresentationMetadata(t *testing.T) {
 		{"style", func(f *Flow) { f.runs = []StyleRun{{Style: TextStyle{Bold: true}}} }},
 		{"object", func(f *Flow) { f.objects = []Object{Figure{Node: 99}} }},
 		{"block", func(f *Flow) { f.blocks = []Block{{Rhythm: RhythmTitle}} }},
-		{"room", func(f *Flow) { f.rooms = []Room{{At: -1, Height: 2}} }},
 		{"table node", func(f *Flow) {
 			f.tables[0].Rows = [][]TableCell{{{Node: 99, Range: table.Rows[0][0].Range}}}
 		}},
 		{"table fit", func(f *Flow) { f.tables[0].Fit = []bool{true, false} }},
-		{"table room", func(f *Flow) { f.tables[0].Room.Scroll++ }},
-		{"table row reveal", func(f *Flow) { f.tables[0].Room.RowShown = []float32{1, 0.5} }},
 	} {
 		t.Run(change.name, func(t *testing.T) {
 			other := copyOf()
@@ -99,7 +96,6 @@ func TestFlowOwnsNestedTableValues(t *testing.T) {
 		Rows:  [][]TableCell{{{Node: 1, Range: model.NewUTF16Range(0, 1)}, {Node: 2, Range: model.NewUTF16Range(2, 3)}}},
 		Align: []CellAlign{CellStart, CellEnd},
 		Fit:   []bool{true, false},
-		Room:  TableRoom{RowShown: []float32{1}, ColumnsApart: []float32{0, 4, 0}},
 	}
 	flow, err := base.WithTables([]Table{table})
 	if err != nil {
@@ -107,10 +103,9 @@ func TestFlowOwnsNestedTableValues(t *testing.T) {
 	}
 	table.Rows[0][0].Node = 99
 	table.Fit[0] = false
-	table.Room.RowShown[0] = 0
 	tables := flow.Tables()
 	tables[0].Align[0] = CellCenter
-	tables[0].Room.ColumnsApart[1] = 99
+	tables[0].Fit[1] = true
 	at, ok := flow.TableAt(0)
 	if !ok {
 		t.Fatal("table missing")
@@ -118,7 +113,7 @@ func TestFlowOwnsNestedTableValues(t *testing.T) {
 	at.Rows[0][1].Node = 99
 	got := flow.Tables()[0]
 	if got.Rows[0][0].Node != 1 || got.Rows[0][1].Node != 2 || !got.Fit[0] ||
-		got.Align[0] != CellStart || got.Room.RowShown[0] != 1 || got.Room.ColumnsApart[1] != 4 {
+		got.Align[0] != CellStart || got.Fit[1] {
 		t.Fatalf("flow table changed through an external slice: %+v", got)
 	}
 }

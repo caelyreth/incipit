@@ -1,12 +1,15 @@
 package editor
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 )
 
 // Tab just after an inline formula goes into its source at its end, where
@@ -91,4 +94,37 @@ func TestEscapeLeavesAFormula(t *testing.T) {
 			t.Fatalf("Escape in %q went to %d, want %d", text, got, want)
 		}
 	})
+}
+
+// A formula is edited while an end of the selection is in its source,
+// either end of the source included; beside its notation, or a selection
+// over all of it, it is not.
+func TestAFormulaIsEditedWithASelectionEndInItsSource(t *testing.T) {
+	inline := surface.Formula{Node: 1, Range: model.NewUTF16Range(2, 5), Text: model.NewUTF16Range(3, 4), Source: "x"}
+	other := surface.Formula{Node: 1, Range: model.NewUTF16Range(8, 11), Text: model.NewUTF16Range(9, 10), Source: "y"}
+	text := "a $x$ b $y$"
+	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{{Bytes: model.NewByteRange(0, model.ByteOffset(len(text)))}}, []surface.Block{{Node: 1, Range: model.NewUTF16Range(0, 11)}})
+	if err == nil {
+		flow, err = flow.WithObjects([]surface.Object{inline, other})
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		selected model.UTF16Range
+		want     []model.UTF16Range
+	}{
+		{model.EmptyUTF16Range(2), nil},
+		{model.EmptyUTF16Range(5), nil},
+		{model.NewUTF16Range(0, 7), nil},
+		{model.EmptyUTF16Range(3), []model.UTF16Range{inline.Range}},
+		{model.EmptyUTF16Range(4), []model.UTF16Range{inline.Range}},
+		{model.NewUTF16Range(0, 3), []model.UTF16Range{inline.Range}},
+		{model.NewUTF16Range(3, 4), []model.UTF16Range{inline.Range}},
+		{model.NewUTF16Range(4, 10), []model.UTF16Range{inline.Range, other.Range}},
+	} {
+		if got := editedFormulas(flow, test.selected); !slices.Equal(got, test.want) {
+			t.Errorf("selecting %v edits %v, want %v", test.selected, got, test.want)
+		}
+	}
 }

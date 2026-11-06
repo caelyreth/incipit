@@ -25,9 +25,9 @@ func previewOf(t *testing.T, flow *surface.Flow, at model.UTF16Offset, text stri
 }
 
 func TestIMEPreviewKeepsTableLayoutAndCandidateGeometry(t *testing.T) {
-	flow := testTable(t, []string{"🦀", "b"}, surface.TableRoom{})
+	flow := testTable(t, []string{"🦀", "b"})
 	preview := previewOf(t, flow, 0, "界")
-	layout := NewCache().Update(preview, 400, testStyle())
+	layout := NewCache().Update(preview, nil, 400, testStyle())
 
 	tables := layout.Tables()
 	if len(tables) != 1 || tables[0].Table.Columns() != 2 {
@@ -58,18 +58,18 @@ func TestIMEPreviewKeepsFigureLayout(t *testing.T) {
 	text := "one\n\uFFFC\ncaption"
 	flow := testFlow(t, text, 0)
 	flow, err := ownedBy(flow, asObjects([]surface.Figure{{
-		Range: model.NewUTF16Range(4, 5), Node: 9, Media: "m", Width: 200, Height: 100, Caption: 1,
+		Range: model.NewUTF16Range(4, 5), Node: 9, Media: "m", Width: 200, Height: 100, Captioned: true,
 	}}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	preview := previewOf(t, flow, 1, "🦀")
-	layout := NewCache().Update(preview, 400, testStyle())
+	layout := NewCache().Update(preview, nil, 400, testStyle())
 	figures := layout.Figures()
 	if len(figures) != 1 {
 		t.Fatalf("preview figures = %#v", figures)
 	}
-	if figures[0].Range.Start != 6 || figures[0].Media != "m" || figures[0].Caption != 1 {
+	if figures[0].Range.Start != 6 || figures[0].Media != "m" || !figures[0].Captioned {
 		t.Fatalf("preview figure = %#v", figures[0])
 	}
 	if caption := figures[0].CaptionText(); caption.Start != figures[0].CaptionStart() {

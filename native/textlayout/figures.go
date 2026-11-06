@@ -27,12 +27,6 @@ const (
 	figureObjectWidth = 1e-3
 )
 
-// captionRoom is the share of its line a figure's caption takes, closed
-// to none while it has no caption.
-func captionRoom(figure surface.Figure) float32 {
-	return max(0, min(1, figure.Caption))
-}
-
 func figureGap(body float32) float32 {
 	return blockGap(body, 1)
 }
@@ -42,16 +36,17 @@ func figureBond(body float32) float32 {
 }
 
 // figureBox is where a figure stands in a column of width, its top at
-// zero: its span of the column, or its own size, as wide as the column at
-// most; no taller than figureTallest of it, keeping its proportions.
-func figureBox(figure surface.Figure, column float32) ui.Rect {
+// zero: span of the column, or with none its own size, as wide as the
+// column at most; no taller than figureTallest of it, keeping its
+// proportions.
+func figureBox(figure surface.Figure, span, column float32) ui.Rect {
 	if column <= 0 || figure.Width <= 0 || figure.Height <= 0 {
 		return ui.Rect{}
 	}
 	ratio := float32(figure.Height) / float32(figure.Width)
 	width := float32(figure.Width)
-	if figure.Span > 0 {
-		width = figure.Span * column
+	if span > 0 {
+		width = span * column
 	}
 	width = min(column, max(width, min(column, figureNarrowest)))
 	height := width * ratio

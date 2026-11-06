@@ -63,7 +63,7 @@ type tableUI struct {
 	below, rows, columns components.CreateGap
 	// room is what each table opens, by its first cell, as the view sets
 	// it each frame for the next layout.
-	room map[model.NodeID]surface.TableRoom
+	room map[model.NodeID]textlayout.TableRoom
 	// grips are how far each table's grips have come in, by its first
 	// cell, as the pointer comes by it, and beside how far the area at its
 	// end has.
@@ -152,15 +152,17 @@ func (b *Bridge) tableShape(node model.NodeID) (editor.Table, bool) {
 	return b.Controller.Table(node)
 }
 
-// tabledFlow is flow with each table as the view opens it, and each new
-// row and column coming in. It reports whether one is still coming.
-func (e *Element) tabledFlow(flow *surface.Flow, now time.Time, animate bool) (*surface.Flow, bool) {
+// tableRooms are the room each of flow's tables opens as the view shows
+// it, each new row and column coming in. It reports whether one is still
+// coming.
+func (e *Element) tableRooms(flow *surface.Flow, now time.Time, animate bool) (map[model.NodeID]textlayout.TableRoom, bool) {
 	tables := flow.Tables()
 	if len(tables) == 0 {
 		e.tables.cells, e.tables.tables = nil, nil
 		e.tables.growingRows, e.tables.growingCols = nil, nil
-		return flow, false
+		return nil, false
 	}
+	shown := make(map[model.NodeID]textlayout.TableRoom, len(tables))
 	cells := map[model.NodeID]bool{}
 	known := map[model.NodeID]bool{}
 	rows, columns := map[model.NodeID]motion.Spring{}, map[model.NodeID]motion.Spring{}
@@ -206,15 +208,11 @@ func (e *Element) tabledFlow(flow *surface.Flow, now time.Time, animate bool) (*
 			room.ColumnShown[c] = grow(columns, e.tables.growingCols, table.Rows[0][c].Node, fresh, start)
 		}
 		e.tableApart(*table, &room)
-		table.Room = room
+		shown[node] = room
 	}
 	e.tables.cells, e.tables.tables = cells, known
 	e.tables.growingRows, e.tables.growingCols = rows, columns
-	opened, err := flow.WithTables(tables)
-	if err != nil {
-		return flow, moving
-	}
-	return opened, moving
+	return shown, moving
 }
 
 // followTables reads where the pointer is by the page's tables, as the
@@ -339,7 +337,7 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 			e.tables.columns.HoldOver(true)
 		}
 	}
-	room := make(map[model.NodeID]surface.TableRoom, len(placed))
+	room := make(map[model.NodeID]textlayout.TableRoom, len(placed))
 	step, between := metrics.Height+gap, metrics.Height+2*inner
 	grips, beside := make(map[model.NodeID]float32, len(placed)), make(map[model.NodeID]float32, len(placed))
 	follow := func(key any, target float32) float32 {
@@ -356,7 +354,7 @@ func (e *Element) followTables(c *ui.Context, box ui.Element, animate bool) {
 		node := table.Table.Node()
 		generation := e.tables.generation[node]
 		previous := e.tables.room[node]
-		next := surface.TableRoom{Row: previous.Row, Column: previous.Column}
+		next := textlayout.TableRoom{Row: previous.Row, Column: previous.Column}
 		open := func(is bool, size float32) float32 {
 			if is {
 				return size

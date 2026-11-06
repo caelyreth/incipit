@@ -8,7 +8,7 @@ import (
 
 // replacement is one checked UTF-16 range edit over a flow. All metadata
 // positions are mapped in UTF-16 units from the same edit, so runs, blocks,
-// objects, tables, and rooms cannot drift relative to the replacement text.
+// objects, and tables cannot drift relative to the replacement text.
 type replacement struct {
 	original model.UTF16Range
 	text     string
@@ -44,10 +44,7 @@ func (f *Flow) replaceRange(next replacement) (*Flow, error) {
 
 	text := f.text[:int(bytes.Start)] + next.text + f.text[int(bytes.End):]
 	runs := replacementRuns(f.runs, bytes, next.text, next.style)
-	edit := rangeEdit{
-		original: next.original,
-		replaced: model.UTF16Offset(model.StringLenUTF16(next.text)),
-	}
+	edit := next.edit()
 	flow, err := NewFlow(f.version, text, runs, edit.blocks(f.blocks))
 	if err != nil {
 		return nil, err
@@ -62,8 +59,12 @@ func (f *Flow) replaceRange(next replacement) (*Flow, error) {
 		}
 	}
 	flow.tables = edit.tables(flow, f.tables)
-	flow.rooms = edit.rooms(flow, f.rooms)
 	return flow, nil
+}
+
+// edit is how the replacement maps the flow's positions.
+func (r replacement) edit() rangeEdit {
+	return rangeEdit{original: r.original, replaced: model.UTF16Offset(model.StringLenUTF16(r.text))}
 }
 
 func replacementRuns(
@@ -239,21 +240,4 @@ func (e rangeEdit) tableRepresentable(table Table) bool {
 		}
 	}
 	return false
-}
-
-func (e rangeEdit) rooms(flow *Flow, rooms []Room) []Room {
-	next := make([]Room, 0, len(rooms))
-	for _, room := range rooms {
-		if room.At == -1 {
-			next = append(next, room)
-			continue
-		}
-		at, ok := e.point(room.At)
-		if !ok || at != 0 && !flow.lineStart(at) {
-			continue
-		}
-		room.At = at
-		next = append(next, room)
-	}
-	return next
 }

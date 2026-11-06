@@ -32,7 +32,6 @@ func addTable(t *testing.T, prefix string, rows [][]string) (*Flow, Table) {
 		Header: true,
 		Align:  []CellAlign{CellStart, CellCenter},
 		Fit:    []bool{false, true},
-		Room:   TableRoom{Below: 12, Scroll: 3},
 	}
 	at := start
 	lines := make([]string, 0, len(rows))
@@ -190,7 +189,7 @@ func TestPreviewRemapsFiguresAroundCaptionEdits(t *testing.T) {
 	at := model.UTF16Offset(model.StringLenUTF16("intro\n"))
 	figure := Figure{
 		Range: model.NewUTF16Range(at, at+1), Node: 2, Media: "media/1", Width: 100, Height: 50,
-		Span: 0.5, Align: FigureStart, Alt: "A crab", Caption: 1,
+		Span: 0.5, Align: FigureStart, Alt: "A crab", Captioned: true,
 	}
 	flow, err := ownedBy(flow, asObjects([]Figure{figure}))
 	if err != nil {
@@ -229,21 +228,6 @@ func TestPreviewRemapsFiguresAroundCaptionEdits(t *testing.T) {
 			t.Fatalf("preview figures = %#v", figures)
 		}
 	})
-}
-
-func TestPreviewRemapsRoomsAndKeepsThePageEnd(t *testing.T) {
-	t.Parallel()
-	flow := textFlow(t, "one\n🦀two").WithRooms([]Room{
-		{At: 4, Height: 12},
-		{At: -1, Height: 8},
-	})
-	preview := previewFrame(t, flow, model.EmptyUTF16Range(1), "界🦀")
-	if got := preview.Flow().RoomAt(7); got != 12 {
-		t.Fatalf("moved room = %v", got)
-	}
-	if got := preview.Flow().RoomAt(-1); got != 8 {
-		t.Fatalf("page-end room = %v", got)
-	}
 }
 
 func TestPreviewKeepsCompositionDecorationPolicy(t *testing.T) {

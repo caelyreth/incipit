@@ -70,7 +70,7 @@ func TestSurfacePaintsTextSelectionCursorDecorations(t *testing.T) {
 		theme.NewProseStyle(settings.ProseFontSize),
 		settings.Semantic(),
 	)
-	layout := textlayout.NewCache().Update(flow, 360, style)
+	layout := textlayout.NewCache().Update(flow, nil, 360, style)
 	state := &State{
 		Flow:    flow,
 		Frame:   frame,
@@ -100,7 +100,7 @@ func TestSurfacePaintsPlaceholderOnlyForEmptyFlow(t *testing.T) {
 		theme.NewProseStyle(settings.ProseFontSize),
 		settings.Semantic(),
 	)
-	layout := textlayout.NewCache().Update(flow, 360, style)
+	layout := textlayout.NewCache().Update(flow, nil, 360, style)
 	frame, err := surface.NewFrame(flow, model.EmptyUTF16Range(0), 0, surface.TextStyle{}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +148,7 @@ func TestSurfacePaintsFocusedFillDecorationsBeneathText(t *testing.T) {
 	settings := theme.DefaultSettings()
 	semantic := settings.Semantic()
 	prose := theme.NewProseStyle(settings.ProseFontSize)
-	layout := textlayout.NewCache().Update(flow, 360, textlayout.NewStyle(prose, semantic))
+	layout := textlayout.NewCache().Update(flow, nil, 360, textlayout.NewStyle(prose, semantic))
 	tinted := model.NewUTF16Range(0, 5)
 	render := func(decorated, focused bool) *image.RGBA {
 		var decorations []surface.Decoration

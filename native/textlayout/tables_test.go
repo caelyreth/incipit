@@ -9,10 +9,10 @@ import (
 )
 
 // testTable is a flow of one table row, a cell for each text.
-func testTable(t *testing.T, texts []string, room surface.TableRoom) *surface.Flow {
+func testTable(t *testing.T, texts []string) *surface.Flow {
 	t.Helper()
 	text := strings.Join(texts, "\n")
-	table := surface.Table{Rows: [][]surface.TableCell{{}}, Room: room}
+	table := surface.Table{Rows: [][]surface.TableCell{{}}}
 	at := 0
 	for index, cell := range texts {
 		units := model.StringLenUTF16(cell)
@@ -38,7 +38,7 @@ func testTable(t *testing.T, texts []string, room surface.TableRoom) *surface.Fl
 func TestAWideTableSpreadsBothWaysThenScrolls(t *testing.T) {
 	style := testStyle()
 	style.Spread = 40
-	narrow := NewCache().Update(testTable(t, []string{"a", "b"}, surface.TableRoom{}), 400, style).Tables()[0]
+	narrow := NewCache().Update(testTable(t, []string{"a", "b"}), nil, 400, style).Tables()[0]
 	if narrow.Box.X > 0 || narrow.Box.W > 401 || narrow.Overflow != 0 {
 		t.Fatalf("a narrow table stands at %+v, overflowing %v", narrow.Box, narrow.Overflow)
 	}
@@ -46,14 +46,14 @@ func TestAWideTableSpreadsBothWaysThenScrolls(t *testing.T) {
 	for range 6 {
 		words = append(words, "a heading long enough to want room")
 	}
-	wide := NewCache().Update(testTable(t, words, surface.TableRoom{}), 400, style).Tables()[0]
+	wide := NewCache().Update(testTable(t, words), nil, 400, style).Tables()[0]
 	if wide.Box.X != narrow.Box.X-40 || wide.Box.W != narrow.Box.W+80 {
 		t.Fatalf("a wide table shows in %+v, not spread 40 each way", wide.Box)
 	}
 	if wide.Overflow <= 0 || wide.Grid.W != wide.Box.W+wide.Overflow || wide.Grid.X != wide.Box.X {
 		t.Fatalf("a wide table's grid %+v overflows %v", wide.Grid, wide.Overflow)
 	}
-	scrolled := NewCache().Update(testTable(t, words, surface.TableRoom{Scroll: 1e6}), 400, style)
+	scrolled := NewCache().Update(testTable(t, words), &Overlay{Tables: map[model.NodeID]TableRoom{1: {Scroll: 1e6}}}, 400, style)
 	placed := scrolled.Tables()[0]
 	if placed.Scroll != placed.Overflow || placed.Grid.X != placed.Box.X-placed.Overflow {
 		t.Fatalf("scrolled past its end, the table stands at %+v scrolled %v", placed.Grid, placed.Scroll)
@@ -72,11 +72,11 @@ func TestALongCellWrapsWithinTheColumn(t *testing.T) {
 	style := testStyle()
 	style.Spread = 40
 	long := strings.Repeat("words that run on ", 8)
-	short := NewCache().Update(testTable(t, []string{"short", ""}, surface.TableRoom{}), 400, style).Tables()[0]
+	short := NewCache().Update(testTable(t, []string{"short", ""}), nil, 400, style).Tables()[0]
 	if short.Widths[0] != 200 || short.Widths[1] != 200 {
 		t.Fatalf("a table whose text fits has columns %v", short.Widths)
 	}
-	placed := NewCache().Update(testTable(t, []string{"short", long}, surface.TableRoom{}), 400, style).Tables()[0]
+	placed := NewCache().Update(testTable(t, []string{"short", long}), nil, 400, style).Tables()[0]
 	if placed.Box.W > 401 || placed.Overflow != 0 {
 		t.Fatalf("the table stands at %+v, overflowing %v", placed.Box, placed.Overflow)
 	}
@@ -93,7 +93,7 @@ func TestALongCellWrapsWithinTheColumn(t *testing.T) {
 func TestEmptyColumnsKeepRoomToWrite(t *testing.T) {
 	style := testStyle()
 	style.Spread = 40
-	placed := NewCache().Update(testTable(t, make([]string, 8), surface.TableRoom{}), 400, style).Tables()[0]
+	placed := NewCache().Update(testTable(t, make([]string, 8)), nil, 400, style).Tables()[0]
 	read := style.Prose.LineHeight() * readColumn
 	for _, width := range placed.Widths {
 		if width < read-1 {
@@ -110,14 +110,14 @@ func TestEmptyColumnsKeepRoomToWrite(t *testing.T) {
 func TestAFittedColumnKeepsItsLine(t *testing.T) {
 	style := testStyle()
 	long := strings.Repeat("words that run on ", 4)
-	flow := testTable(t, []string{long, long}, surface.TableRoom{})
+	flow := testTable(t, []string{long, long})
 	tables := flow.Tables()
 	tables[0].Fit[0] = true
 	flow, err := flow.WithTables(tables)
 	if err != nil {
 		t.Fatal(err)
 	}
-	placed := NewCache().Update(flow, 400, style).Tables()[0]
+	placed := NewCache().Update(flow, nil, 400, style).Tables()[0]
 	if placed.Widths[0] != placed.Natural[0] || placed.Widths[1] >= placed.Natural[1] {
 		t.Fatalf("the columns are %v, asking %v", placed.Widths, placed.Natural)
 	}

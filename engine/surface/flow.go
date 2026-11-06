@@ -24,7 +24,6 @@ type Flow struct {
 	blocks  []Block
 	objects []Object
 	tables  []Table
-	rooms   []Room
 }
 
 // EmptyFlow is a flow of no text, one empty block.
@@ -82,8 +81,8 @@ func (f *Flow) lineStart(at model.UTF16Offset) bool {
 func (f *Flow) Version() projection.Version { return f.version }
 
 // Equal reports whether two immutable flows have the same content and
-// presentation metadata. It includes table geometry and room state, not only
-// text, so a renderer may retain layout when a transformation is unchanged.
+// presentation metadata: its blocks, objects and tables, not only its text,
+// so a renderer may retain layout when a transformation is unchanged.
 func (f *Flow) Equal(other *Flow) bool {
 	if f == other {
 		return true
@@ -91,7 +90,7 @@ func (f *Flow) Equal(other *Flow) bool {
 	if f == nil || other == nil || f.version != other.version || f.text != other.text ||
 		!slices.Equal(f.runs, other.runs) || !slices.Equal(f.blocks, other.blocks) ||
 		!slices.Equal(f.objects, other.objects) ||
-		!slices.Equal(f.rooms, other.rooms) || len(f.tables) != len(other.tables) {
+		len(f.tables) != len(other.tables) {
 		return false
 	}
 	for index := range f.tables {

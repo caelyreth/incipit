@@ -158,24 +158,13 @@ func (r *figureResize) label() string {
 	return fmt.Sprintf("%d%%", int(math.Round(float64(r.span*100))))
 }
 
-// resizedFlow is flow as a resize under way sets its figure, so the page
-// reflows around it before the size is kept.
-func (e *Element) resizedFlow(flow *surface.Flow) *surface.Flow {
-	if e.resizing == nil || flow == nil {
-		return flow
+// resizedSpans are the shares of the column a resize under way sets its
+// figure at, so the page reflows around it before the size is kept.
+func (e *Element) resizedSpans() map[model.NodeID]float32 {
+	if e.resizing == nil {
+		return nil
 	}
-	objects := flow.Objects()
-	for index, object := range objects {
-		if figure, ok := object.(surface.Figure); ok && figure.Node == e.resizing.node {
-			figure.Span = e.resizing.span
-			objects[index] = figure
-		}
-	}
-	resized, err := flow.WithObjects(objects)
-	if err != nil {
-		return flow
-	}
-	return resized
+	return map[model.NodeID]float32{e.resizing.node: e.resizing.span}
 }
 
 // selectedFigure is the figure the selection is, if it is one's whole

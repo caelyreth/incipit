@@ -109,9 +109,7 @@ func pageObjects(p *projection.Projection, document model.DocumentSnapshot) []su
 				Range: span.Range, Node: node.ID(), Media: shape.Media,
 				Width: shape.Width, Height: shape.Height, Span: shape.Span, Align: shape.Align, Alt: shape.Alt,
 			}
-			if blockLength(node) > 0 {
-				figure.Caption = 1
-			}
+			figure.Captioned = blockLength(node) > 0
 			objects = append(objects, figure)
 		case roleFormulaOpen:
 			opener = span
@@ -160,6 +158,29 @@ func formulaFlow(p *projection.Projection, document model.DocumentSnapshot) []su
 	return formulas
 }
 
+// inSource reports whether offset is in a formula's source, either end
+// included: a caret beside its notation is outside it. A formula is being
+// edited while an end of the selection is so, and its source is what
+// Escape leaves.
+func inSource(f surface.Formula, offset model.UTF16Offset) bool {
+	return f.Text.Start <= offset && offset <= f.Text.End
+}
+
+// editedFormulas are the runs of the formulas of flow being edited, an end
+// of selected in the source of each, in order.
+func editedFormulas(flow *surface.Flow, selected model.UTF16Range) []model.UTF16Range {
+	var runs []model.UTF16Range
+	for _, end := range []model.UTF16Offset{selected.Start, selected.End} {
+		for _, object := range flow.ObjectsIn(model.EmptyUTF16Range(end)) {
+			f, ok := object.(surface.Formula)
+			if ok && inSource(f, end) && (len(runs) == 0 || runs[len(runs)-1] != f.Range) {
+				runs = append(runs, f.Range)
+			}
+		}
+	}
+	return runs
+}
+
 // pastFormula is where a step from caret goes past the formula beside it,
 // backward from its end to its start or forward from its start to its end.
 func pastFormula(p *projection.Projection, document model.DocumentSnapshot, caret model.UTF16Offset, backward bool) (model.UTF16Offset, bool) {
@@ -179,7 +200,7 @@ func pastFormula(p *projection.Projection, document model.DocumentSnapshot, care
 // page's end, a block having no place beside it of its own.
 func leaveFormula(p *projection.Projection, document model.DocumentSnapshot, caret model.UTF16Offset) (model.UTF16Offset, bool) {
 	for _, f := range formulaFlow(p, document) {
-		if caret < f.Text.Start || caret > f.Text.End {
+		if !inSource(f, caret) {
 			continue
 		}
 		switch {

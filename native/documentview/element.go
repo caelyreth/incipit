@@ -73,13 +73,13 @@ type pageState struct {
 	hover      figureHover
 	// captions is how open each figure's caption is.
 	captions map[model.NodeID]motion.Spring
-	// opened are the formulas the last frame showed open, by their range,
-	// and cards how far each one's card has opened.
-	opened map[model.UTF16Range]bool
-	cards  map[cardKey]motion.Spring
+	// opened are the formulas the last frame showed being edited, and
+	// cards how far each one's card has opened.
+	opened map[textlayout.FormulaKey]bool
+	cards  map[textlayout.FormulaKey]motion.Spring
 	// sound is what each formula last set soundly, which it shows while
 	// it is edited, and marks where each one's tint glides.
-	sound  map[cardKey]string
+	sound  map[textlayout.FormulaKey]string
 	marks  FormulaMarks
 	tables tableUI
 	blocks blockUI
@@ -97,7 +97,6 @@ type pageState struct {
 	lastWidth      float32
 	guides         Guides
 	current        *textlayout.Layout
-	visualFlow     *surface.Flow
 	lastCaretY     float32
 	lastViewportH  float32
 	lastTypewriter bool
@@ -698,18 +697,23 @@ func (e *Element) layOut(bridge *Bridge, now time.Time, animate bool) (*surface.
 	if err != nil {
 		return nil, nil, false, false
 	}
-	tabled, growing := e.tabledFlow(e.apartFlow(e.resizedFlow(frame.Flow()), bridge), now, animate)
-	flow, opening := e.captionedFlow(tabled, frame.Selection(), now, animate)
-	flow, editing := e.openedFlow(flow, frame.Selection(), now, animate)
-	if e.visualFlow != nil && e.visualFlow.Equal(flow) {
-		flow = e.visualFlow
-	} else {
-		e.visualFlow = flow
+	// The flow is the editor's, as it says; how the page shows it as
+	// things open, come in and move is the view's own, over it.
+	flow := frame.Flow()
+	tables, growing := e.tableRooms(flow, now, animate)
+	captions, opening := e.captionsOf(flow, frame.Selection(), now, animate)
+	formulas, editing := e.formulasShown(flow, frame.Editing(), now, animate)
+	overlay := &textlayout.Overlay{
+		Formulas: formulas,
+		Captions: captions,
+		Spans:    e.resizedSpans(),
+		Tables:   tables,
+		Rooms:    e.apartRooms(bridge),
 	}
 	style := textlayout.NewStyle(e.Prose, e.Theme)
 	style.Spread = e.tableSpread()
 	previous := e.current
-	e.current = e.Layout.Update(flow, e.lastWidth, style)
+	e.current = e.Layout.Update(flow, overlay, e.lastWidth, style)
 	if previous != e.current && e.wake != nil &&
 		(hasCheckboxes(flow) || previous != nil && hasCheckboxes(previous.Flow())) {
 		// Controls are built from the last painted layout; rebuild after it moves.

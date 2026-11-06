@@ -47,8 +47,8 @@ func testStyle() Style {
 
 func TestParagraphRetentionAndUnicodeCoordinates(t *testing.T) {
 	cache := NewCache()
-	first := cache.Update(testFlow(t, "alpha\nbeta", 0), 240, testStyle())
-	second := cache.Update(testFlow(t, "alpha\ngamma", 0), 240, testStyle())
+	first := cache.Update(testFlow(t, "alpha\nbeta", 0), nil, 240, testStyle())
+	second := cache.Update(testFlow(t, "alpha\ngamma", 0), nil, 240, testStyle())
 	firstParagraphs := first.Paragraphs()
 	secondParagraphs := second.Paragraphs()
 	if len(firstParagraphs) != 2 || len(secondParagraphs) != 2 {
@@ -72,7 +72,7 @@ func TestParagraphRetentionAndUnicodeCoordinates(t *testing.T) {
 
 func TestCaretHitSelectionAndBoundaries(t *testing.T) {
 	style := testStyle()
-	layout := NewCache().Update(testFlow(t, "one\n\n中文🦀", 0), 300, style)
+	layout := NewCache().Update(testFlow(t, "one\n\n中文🦀", 0), nil, 300, style)
 	if len(layout.Paragraphs()) != 3 {
 		t.Fatalf("paragraphs = %d", len(layout.Paragraphs()))
 	}
@@ -105,7 +105,7 @@ func TestCaretHitSelectionAndBoundaries(t *testing.T) {
 
 func TestBoldStyleReachesMyGoSpans(t *testing.T) {
 	flow := testFlow(t, "plainbold", 5)
-	spans := spansFor(flow, 0, len(flow.Text()), testStyle(), 400)
+	spans := spansFor(flow, nil, 0, len(flow.Text()), testStyle(), 400)
 	if len(spans) != 2 || spans[0].Weight != 400 || spans[1].Weight != 700 {
 		t.Fatalf("spans = %#v", spans)
 	}
@@ -116,7 +116,7 @@ func TestBoldStyleReachesMyGoSpans(t *testing.T) {
 
 func TestVisibleBoundsAndCaretAtPointRespectViewport(t *testing.T) {
 	flow := testFlow(t, "one\ntwo\nthree", -1)
-	layout := NewCache().Update(flow, 300, testStyle())
+	layout := NewCache().Update(flow, nil, 300, testStyle())
 	if layout == nil {
 		t.Fatal("layout missing")
 	}
@@ -132,7 +132,7 @@ func TestVisibleBoundsAndCaretAtPointRespectViewport(t *testing.T) {
 
 func TestCaretUsesProseHeightAndVisualRow(t *testing.T) {
 	style := testStyle()
-	layout := NewCache().Update(testFlow(t, "one two three four five six seven eight nine ten", 0), 80, style)
+	layout := NewCache().Update(testFlow(t, "one two three four five six seven eight nine ten", 0), nil, 80, style)
 	caret := layout.Caret(0)
 	if caret.H != style.Prose.CaretHeight() || caret.W != 2 {
 		t.Fatalf("caret = %#v, prose=%#v", caret, style.Prose)
@@ -147,7 +147,7 @@ func TestCaretUsesProseHeightAndVisualRow(t *testing.T) {
 func TestCaretLineExposesWholeVisualRowsAcrossWraps(t *testing.T) {
 	style := testStyle()
 	layout := NewCache().Update(
-		testFlow(t, "one two three four five six seven eight nine ten", 0),
+		testFlow(t, "one two three four five six seven eight nine ten", 0), nil,
 		80,
 		style,
 	)
@@ -176,7 +176,7 @@ func TestCaretLineExposesWholeVisualRowsAcrossWraps(t *testing.T) {
 
 func TestParagraphStartMapsToFollowingParagraph(t *testing.T) {
 	style := testStyle()
-	layout := NewCache().Update(testFlow(t, "a\nb", 0), 300, style)
+	layout := NewCache().Update(testFlow(t, "a\nb", 0), nil, 300, style)
 	first := layout.Caret(0)
 	second := layout.Caret(2)
 	if second.Y <= first.Y || second.Y < style.Prose.LineHeight() {
@@ -187,7 +187,7 @@ func TestParagraphStartMapsToFollowingParagraph(t *testing.T) {
 func TestNewlineSelectionUsesOneLineHeight(t *testing.T) {
 	style := testStyle()
 	text := "one two three four five six seven eight nine\nten"
-	layout := NewCache().Update(testFlow(t, text, 0), 80, style)
+	layout := NewCache().Update(testFlow(t, text, 0), nil, 80, style)
 	rects := layout.RangeRects(model.NewUTF16Range(
 		0,
 		model.UTF16Offset(model.StringLenUTF16(text)),
@@ -211,7 +211,7 @@ func TestNewlineSelectionUsesOneLineHeight(t *testing.T) {
 func TestDocumentEndBelongsToFinalParagraph(t *testing.T) {
 	style := testStyle()
 	for _, text := range []string{"hello", "one\nhello", "one two three four five six seven eight nine ten"} {
-		layout := NewCache().Update(testFlow(t, text, 0), 80, style)
+		layout := NewCache().Update(testFlow(t, text, 0), nil, 80, style)
 		end := model.UTF16Offset(layout.Flow().UTF16Len())
 		last := layout.Paragraphs()[len(layout.Paragraphs())-1]
 		before := layout.Caret(end - 1)
@@ -246,7 +246,7 @@ func TestCaretGrowsWithItsRow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	layout := NewCache().Update(flow, 600, style)
+	layout := NewCache().Update(flow, nil, 600, style)
 	heading, body := layout.Caret(3), layout.Caret(10)
 	if body.H != style.Prose.CaretHeight() || heading.H <= body.H {
 		t.Fatalf("heading caret %v, body caret %v", heading, body)
@@ -269,7 +269,7 @@ func TestSelectionBreakTakesItsRowHeight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	layout := NewCache().Update(flow, 600, style)
+	layout := NewCache().Update(flow, nil, 600, style)
 	rects := layout.RangeRects(model.NewUTF16Range(0, 12))
 	row, _ := layout.CaretLine(3)
 	for _, rect := range rects {
@@ -333,7 +333,7 @@ func TestRhythmDerivesFromSpacing(t *testing.T) {
 	for _, spacing := range []float32{theme.MinLineSpacing, 1.8, theme.MaxLineSpacing} {
 		p := theme.NewProseStyle(19).WithSpacing(spacing)
 		style := NewStyle(p, theme.DefaultSettings().Semantic())
-		rows := NewCache().Update(flow, 600, style).Paragraphs()
+		rows := NewCache().Update(flow, nil, 600, style).Paragraphs()
 		// A row starts at body size, so its floor is the prose face at least.
 		face := func(run surface.TextStyle) float32 {
 			span := style.span("line", surface.StyleRun{Style: run})
@@ -375,7 +375,7 @@ func TestRhythmDerivesFromSpacing(t *testing.T) {
 // unbroken area; one that starts at a block's text leaves the gap above.
 func TestSelectionSpansBlockGaps(t *testing.T) {
 	flow := rhythmFlow(t, rhythmLine{}, rhythmLine{rhythm: surface.RhythmEntry}, rhythmLine{})
-	layout := NewCache().Update(flow, 600, testStyle())
+	layout := NewCache().Update(flow, nil, 600, testStyle())
 	rows := layout.Paragraphs()
 	if rows[1].gap <= 0 {
 		t.Fatalf("no gap before the entry: %v", rows[1])
@@ -399,7 +399,7 @@ func TestSelectionSpansBlockGaps(t *testing.T) {
 func TestCaretInACloseRow(t *testing.T) {
 	style := testStyle()
 	flow := rhythmFlow(t, rhythmLine{}, rhythmLine{rhythm: surface.RhythmEntry})
-	layout := NewCache().Update(flow, 600, style)
+	layout := NewCache().Update(flow, nil, 600, style)
 	row := layout.Paragraphs()[1]
 	caret := layout.Caret(model.UTF16Offset(row.StartUTF16() + 1))
 	if caret.H != style.Prose.CaretHeight() {

@@ -69,6 +69,16 @@ func (f *Flow) ObjectsIn(range16 model.UTF16Range) []Object {
 	return slices.Clone(f.objects[index:end])
 }
 
+// objectAt is the object whose run is run.
+func (f *Flow) objectAt(run model.UTF16Range) (Object, bool) {
+	for _, object := range f.ObjectsIn(run) {
+		if object.Run() == run {
+			return object, true
+		}
+	}
+	return nil, false
+}
+
 // ObjectsOf are the flow's objects of one kind, in order.
 func ObjectsOf[T Object](f *Flow) []T {
 	var found []T

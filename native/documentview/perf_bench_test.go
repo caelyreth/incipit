@@ -102,6 +102,7 @@ func BenchmarkHeadlessPaint(b *testing.B) {
 		semantic := settings.Semantic()
 		layout := textlayout.NewCache().Update(
 			flow,
+			nil,
 			700,
 			textlayout.NewStyle(prose, semantic),
 		)

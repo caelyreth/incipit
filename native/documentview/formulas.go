@@ -1,6 +1,7 @@
 package documentview
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -22,53 +23,43 @@ import (
 // caret leaves, the card goes. Under a held pointer what is open stays so,
 // so the lines do not move under a drag.
 
-// cardKey names a formula's card by its block and where it starts, which
-// typing in it does not move.
-type cardKey struct {
-	node  model.NodeID
-	start model.UTF16Offset
-}
-
-// openedFlow is flow with the formulas an end of the selection is in the
-// source of open, and each one's card as far as it has opened. It reports
-// whether one is still opening or closing.
-func (e *Element) openedFlow(flow *surface.Flow, selection model.UTF16Range, now time.Time, animate bool) (*surface.Flow, bool) {
-	objects := flow.Objects()
-	if len(surface.ObjectsOf[surface.Formula](flow)) == 0 {
+// formulasShown is how each of flow's formulas shows being edited: those
+// the editor says are, its editing runs, open, each one's card as far as it
+// has opened, and one that cannot be set as it reads shows what it last
+// set soundly. Under a held pointer what is open stays so, so the lines do
+// not move under a drag. It reports whether a card is still opening or
+// closing.
+func (e *Element) formulasShown(flow *surface.Flow, edited []model.UTF16Range, now time.Time, animate bool) (map[textlayout.FormulaKey]textlayout.FormulaShow, bool) {
+	formulas := surface.ObjectsOf[surface.Formula](flow)
+	if len(formulas) == 0 {
 		e.opened, e.cards, e.sound = nil, nil, nil
-		return flow, false
+		return nil, false
 	}
 	held := e.pointer != pointerIdle
-	opened := make(map[model.UTF16Range]bool, len(e.opened))
-	cards := make(map[cardKey]motion.Spring, len(e.cards))
-	sound := make(map[cardKey]string, len(e.sound))
+	opened := make(map[textlayout.FormulaKey]bool, len(e.opened))
+	cards := make(map[textlayout.FormulaKey]motion.Spring, len(e.cards))
+	sound := make(map[textlayout.FormulaKey]string, len(e.sound))
+	shown := make(map[textlayout.FormulaKey]textlayout.FormulaShow)
 	moving := false
-	for index := range objects {
-		set, isFormula := objects[index].(surface.Formula)
-		if !isFormula {
-			continue
-		}
-		f := &set
+	for _, f := range formulas {
+		key := textlayout.KeyOf(f)
+		open := slices.Contains(edited, f.Range)
 		if held {
-			f.Open = e.opened[f.Range]
-		} else {
-			f.Open = within(f.Text, selection.Start) || within(f.Text, selection.End)
+			open = e.opened[key]
 		}
-		if f.Open {
-			opened[f.Range] = true
+		if open {
+			opened[key] = true
 		}
-		target := float32(0)
-		if f.Open {
-			target = 1
-		}
-		key := cardKey{node: f.Node, start: f.Range.Start}
 		if formula.Sound(f.Source, f.Display) {
 			sound[key] = f.Source
+		}
+		target := float32(0)
+		if open {
+			target = 1
 		}
 		spring, known := e.cards[key]
 		if !known {
 			if target == 0 {
-				objects[index] = set
 				continue
 			}
 			spring = motion.NewUnitSpring(0, now)
@@ -77,36 +68,25 @@ func (e *Element) openedFlow(flow *surface.Flow, selection model.UTF16Range, now
 			spring = motion.NewUnitSpring(target, now)
 		}
 		spring.Step(target, now, figureFade)
-		f.Card = max(0, min(1, spring.Value()))
+		show := textlayout.FormulaShow{Open: open, Card: max(0, min(1, spring.Value()))}
 		// While it is edited a formula that cannot be set as it reads
 		// shows what it last set soundly, faint, its source telling what
 		// is wrong, or nothing before it set anything; one emptied shows
 		// nothing, as it reads.
-		if _, ok := sound[key]; !ok && !blank(*f) {
-			last := e.sound[key]
-			f.Source, f.Stale = last, true
-			if last != "" {
-				sound[key] = last
+		if _, ok := sound[key]; !ok && strings.TrimSpace(f.Source) != "" {
+			show.Stale, show.Last = true, e.sound[key]
+			if show.Last != "" {
+				sound[key] = show.Last
 			}
 		}
+		shown[key] = show
 		moving = moving || spring.Moving()
 		if target > 0 || spring.Moving() {
 			cards[key] = spring
 		}
-		objects[index] = set
 	}
 	e.opened, e.cards, e.sound = opened, cards, sound
-	next, err := flow.WithObjects(objects)
-	if err != nil {
-		return flow, false
-	}
-	return next, moving
-}
-
-// within reports whether offset is in a formula's source, either end
-// included: a caret beside its notation is outside it.
-func within(source model.UTF16Range, offset model.UTF16Offset) bool {
-	return source.Start <= offset && offset <= source.End
+	return shown, moving
 }
 
 // formulaPress is where a press at a point of the element puts the caret
@@ -132,7 +112,7 @@ func formulaTint(state *State, amount float32) ui.Color {
 const tintOpacity = 24.0 / 255
 
 // blank reports whether a formula has nothing in it to set.
-func blank(f surface.Formula) bool { return strings.TrimSpace(f.Source) == "" }
+func blank(f textlayout.Formula) bool { return strings.TrimSpace(f.Set) == "" }
 
 // drawFormulaCards tints the sources of the formulas being edited,
 // beneath the selection and text, and the formulas in their places: those
@@ -146,14 +126,14 @@ func drawFormulaCards(p *ui.Painter, state *State, origin ui.Point, options Pain
 		rect.Y += origin.Y
 		p.Fill(rect, formulaTint(state, card.Shown), formulaRadius)
 	}
-	seen := make(map[cardKey]bool)
+	seen := make(map[textlayout.FormulaKey]bool)
 	for _, placed := range state.Layout.Formulas() {
 		f := placed.Formula
 		amount := f.Card
 		if blank(f) {
 			amount = 1
 		}
-		key := cardKey{node: f.Node, start: f.Range.Start}
+		key := textlayout.KeyOf(f.Formula)
 		seen[key] = true
 		rect, moving := state.FormulaMarks.step(key, placed.Mark, options.Now, options.Animate && amount > 0)
 		if moving {
@@ -229,7 +209,7 @@ func drawFormulas(p *ui.Painter, state *State, origin ui.Point, holds func(model
 // FormulaMarks glide each formula's tint from where it was to where it is
 // as what the formula sets grows or shrinks.
 type FormulaMarks struct {
-	tracks map[cardKey]markTrack
+	tracks map[textlayout.FormulaKey]markTrack
 }
 
 type markTrack struct {
@@ -242,12 +222,12 @@ const markGlide = 180 * time.Millisecond
 
 // step is where key's tint is drawn at now, gliding to target, and whether
 // it is still moving.
-func (m *FormulaMarks) step(key cardKey, target ui.Rect, now time.Time, animate bool) (ui.Rect, bool) {
+func (m *FormulaMarks) step(key textlayout.FormulaKey, target ui.Rect, now time.Time, animate bool) (ui.Rect, bool) {
 	if m == nil {
 		return target, false
 	}
 	if m.tracks == nil {
-		m.tracks = make(map[cardKey]markTrack)
+		m.tracks = make(map[textlayout.FormulaKey]markTrack)
 	}
 	track, ok := m.tracks[key]
 	if !ok || !animate {
@@ -275,7 +255,7 @@ func (t markTrack) at(now time.Time) (ui.Rect, bool) {
 }
 
 // keep forgets the tints of formulas no longer on the page.
-func (m *FormulaMarks) keep(seen map[cardKey]bool) {
+func (m *FormulaMarks) keep(seen map[textlayout.FormulaKey]bool) {
 	if m == nil {
 		return
 	}

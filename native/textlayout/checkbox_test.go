@@ -50,7 +50,7 @@ func TestCheckboxMarkerStandsOnTextBaseline(t *testing.T) {
 					}
 					style := testStyle()
 					style.Prose = theme.NewProseStyle(size).WithSpacing(spacing)
-					layout := NewCache().Update(flow, test.width, style)
+					layout := NewCache().Update(flow, nil, test.width, style)
 					paragraph, local := layout.paragraphAt(checkbox.Marker.Start)
 					if paragraph == nil {
 						t.Fatal("checkbox paragraph missing")
@@ -90,7 +90,7 @@ func TestCheckboxMarkerStandsOnTextBaseline(t *testing.T) {
 
 					// Giving the object a height must not change the text's rows,
 					// caret, selection, or wrapping.
-					spans := spansFor(flow, paragraph.startByte, paragraph.endByte, style, test.width)
+					spans := spansFor(flow, nil, paragraph.startByte, paragraph.endByte, style, test.width)
 					for i := range spans {
 						spans[i].ObjectHeight = 0
 					}
@@ -130,7 +130,7 @@ func TestCheckboxMarkerReservesOneObjectAndKeepsTextOffsets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	layout := NewCache().Update(flow, 300, testStyle())
+	layout := NewCache().Update(flow, nil, 300, testStyle())
 	objects := layout.Paragraphs()[0].Layout().Objects()
 	if len(objects) != 1 || objects[0].Index != 2 || objects[0].Rect.W <= 0 {
 		t.Fatalf("objects = %+v", objects)
@@ -153,7 +153,7 @@ func TestCheckboxCoordinatesRoundTripAcrossUnicodeAndLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	layout := NewCache().Update(flow, 300, testStyle())
+	layout := NewCache().Update(flow, nil, 300, testStyle())
 	for _, test := range []struct {
 		at, previous, next model.UTF16Offset
 	}{
@@ -187,8 +187,8 @@ func TestCheckboxAndLiteralTextDoNotShareShapedLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	cache := NewCache()
-	first := cache.Update(literal, 300, testStyle())
-	second := cache.Update(checkbox, 300, testStyle())
+	first := cache.Update(literal, nil, 300, testStyle())
+	second := cache.Update(checkbox, nil, 300, testStyle())
 	if first.Paragraphs()[0].Layout() == second.Paragraphs()[0].Layout() {
 		t.Fatal("literal marker reused a checkbox layout")
 	}
@@ -201,7 +201,7 @@ func TestCheckboxMarkerFollowsItsWrappedLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	layout := NewCache().Update(flow, 40, testStyle())
+	layout := NewCache().Update(flow, nil, 40, testStyle())
 	paragraph := layout.Paragraphs()[0]
 	objects := paragraph.Layout().Objects()
 	if len(objects) != 1 {

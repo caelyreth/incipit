@@ -114,16 +114,16 @@ func (l *Layout) TableAt(y float32) (*PlacedTable, bool) {
 // its floor; the two meet where the text just fits. Where the floors ask
 // for more than width, the table takes what its text asks past it, as far
 // as reach, and past that is wider still. Each as far as it has come in.
-func columnWidths(table surface.Table, width, reach float32, natural, least []float32, read float32) []float32 {
+func columnWidths(table surface.Table, room TableRoom, width, reach float32, natural, least []float32, read float32) []float32 {
 	widths := make([]float32, len(natural))
 	fit := func(index int) bool { return index < len(table.Fit) && table.Fit[index] }
 	floor, want := make([]float32, len(widths)), make([]float32, len(widths))
-	room, open, floors, fits := width, float32(0), float32(0), float32(0)
+	left, open, floors, fits := width, float32(0), float32(0), float32(0)
 	for index := range widths {
-		share := table.Room.ColumnShare(index)
+		share := room.ColumnShare(index)
 		if fit(index) {
 			widths[index] = natural[index]
-			room -= natural[index] * share
+			left -= natural[index] * share
 			continue
 		}
 		floor[index] = max(least[index], read)
@@ -133,10 +133,10 @@ func columnWidths(table surface.Table, width, reach float32, natural, least []fl
 		open += share
 	}
 	if open > 0 {
-		if floors > room {
+		if floors > left {
 			// Out of the column, the table may as well spare its text
 			// a wrap, as far as reach.
-			room = min(max(floors, fits), room+reach)
+			left = min(max(floors, fits), left+reach)
 		}
 		unbounded := make([]float32, len(widths))
 		for index := range unbounded {
@@ -144,10 +144,10 @@ func columnWidths(table surface.Table, width, reach float32, natural, least []fl
 		}
 		var level []float32
 		switch {
-		case fits <= room:
-			level = levelled(table, fit, room, want, unbounded)
-		case floors < room:
-			level = levelled(table, fit, room, floor, want)
+		case fits <= left:
+			level = levelled(room, fit, left, want, unbounded)
+		case floors < left:
+			level = levelled(room, fit, left, floor, want)
 		default:
 			level = floor
 		}
@@ -162,7 +162,7 @@ func columnWidths(table surface.Table, width, reach float32, natural, least []fl
 	edge := float32(0)
 	for index := range widths {
 		from := float32(math.Round(float64(edge)))
-		edge += widths[index] * table.Room.ColumnShare(index)
+		edge += widths[index] * room.ColumnShare(index)
 		widths[index] = float32(math.Round(float64(edge))) - from
 	}
 	return widths
@@ -170,14 +170,14 @@ func columnWidths(table surface.Table, width, reach float32, natural, least []fl
 
 // levelled sets the columns not fitted as one level, each kept between its
 // low and high, the level such that they fill room as far as each has
-// come in.
-func levelled(table surface.Table, fit func(int) bool, room float32, low, high []float32) []float32 {
+// come in, as shown says.
+func levelled(shown TableRoom, fit func(int) bool, room float32, low, high []float32) []float32 {
 	filled := func(level float32) (sum, slope float32) {
 		for index := range low {
 			if fit(index) {
 				continue
 			}
-			share := table.Room.ColumnShare(index)
+			share := shown.ColumnShare(index)
 			sum += max(low[index], min(high[index], level)) * share
 			if level >= low[index] && level < high[index] {
 				slope += share
@@ -227,11 +227,12 @@ func tableGap(body float32) float32 {
 	return blockGap(body, tableSteps)
 }
 
-// placeTable sets table out from top, in paragraphs from its first cell's
+// placeTable sets table out from top, as room opens it, in paragraphs from its first cell's
 // first line on, shaping each line with shape. It returns the table, its
 // paragraphs, and its height, the room below it included.
 func placeTable(
 	table surface.Table,
+	room TableRoom,
 	paragraphs []rawParagraph,
 	top, width float32,
 	style Style,
@@ -240,7 +241,6 @@ func placeTable(
 	line := style.Prose.LineHeight()
 	padX := float32(math.Round(float64(line * cellPadX)))
 	padY := float32(math.Round(float64(line * cellPadY)))
-	room := table.Room
 	// Each cell's lines, and the width its longest asks.
 	end := table.Range().End
 	cells := make([][][]rawParagraph, len(table.Rows))
@@ -273,7 +273,7 @@ func placeTable(
 	}
 	// Room a drag opens between columns is taken from the others, as the
 	// room an area opens between them is.
-	widths := columnWidths(table, width-columnRoom-apart, 2*style.Spread, natural, least, line*readColumn)
+	widths := columnWidths(table, room, width-columnRoom-apart, 2*style.Spread, natural, least, line*readColumn)
 	grid := columnRoom + apart
 	for _, w := range widths {
 		grid += w

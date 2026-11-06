@@ -24,6 +24,8 @@ type Paragraph struct {
 	figure    surface.Figure
 	box       ui.Rect
 	hasFigure bool
+	// caption is the share of its row the figure's caption takes.
+	caption float32
 	// left is where the paragraph's lines start, a cell's from the
 	// page's edge; cell says it stands in a table's cell.
 	left float32
@@ -38,7 +40,7 @@ type Paragraph struct {
 	// editor says the paragraph is the source of formula, being edited on
 	// its card below or around host, the paragraph that sets it.
 	editor  bool
-	formula surface.Formula
+	formula Formula
 	host    int
 }
 
@@ -146,6 +148,7 @@ func (l *Layout) SpanAt(offset model.UTF16Offset, text string) ui.Span {
 type Cache struct {
 	layouts map[uint64][]*ui.TextLayout
 	flow    *surface.Flow
+	overlay *Overlay
 	width   float32
 	style   Style
 	layout  *Layout
@@ -155,15 +158,19 @@ func NewCache() *Cache {
 	return &Cache{layouts: make(map[uint64][]*ui.TextLayout)}
 }
 
-func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
+// Update lays flow out within width as overlay shows it, reusing the last
+// layout while both read as they did, as a composition's preview of an
+// unchanged page does, a new flow each frame.
+func (c *Cache) Update(flow *surface.Flow, overlay *Overlay, width float32, style Style) *Layout {
 	if flow == nil {
 		return nil
 	}
-	if c.layout != nil && c.flow == flow && c.width == width && c.style == style {
+	if c.layout != nil && c.width == width && c.style == style && c.flow.Equal(flow) && c.overlay.Equal(overlay) {
 		return c.layout
 	}
-	c.flow, c.width, c.style = flow, width, style
-	paragraphs := style.paragraphsOf(flow, width)
+	overlay = overlay.clone()
+	c.flow, c.overlay, c.width, c.style = flow, overlay, width, style
+	paragraphs := style.paragraphsOf(flow, overlay, width)
 	blocks := flow.Blocks()
 	next := make(map[uint64][]*ui.TextLayout, len(paragraphs))
 	shaped := make([]Paragraph, 0, len(paragraphs))
@@ -176,13 +183,13 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	// table does.
 	apart := float32(0)
 	shape := func(raw rawParagraph, font ui.Font, width float32, align ui.Align, header bool) *ui.TextLayout {
-		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width, align, header)
+		key := paragraphKey(flow, overlay, raw.startByte, raw.endByte, style, font, width, align, header)
 		var layout *ui.TextLayout
 		if available := c.layouts[key]; len(available) > 0 {
 			layout = available[len(available)-1]
 			c.layouts[key] = available[:len(available)-1]
 		} else {
-			spans := spansFor(flow, raw.startByte, raw.endByte, style, width)
+			spans := spansFor(flow, overlay, raw.startByte, raw.endByte, style, width)
 			if header {
 				spans = headerSpans(spans)
 			}
@@ -201,8 +208,8 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	padX, _ := style.cardPad()
 	// source is a formula's source shaped as its card holds it, its
 	// lines one paragraph, spaced as code's are.
-	source := func(f surface.Formula) (Paragraph, bool) {
-		raw, ok := sourceOf(flow, f)
+	source := func(f Formula) (Paragraph, bool) {
+		raw, ok := sourceOf(flow, f.Formula)
 		if !ok {
 			return Paragraph{}, false
 		}
@@ -222,7 +229,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	// open takes room the flow opens before the line at, above what stands
 	// there, the gap before it given.
 	open := func(at model.UTF16Offset, above float32) {
-		if room := flow.RoomAt(at); room > 0 {
+		if room := overlay.roomAt(at); room > 0 {
 			rooms = append(rooms, PlacedRoom{At: at, Box: ui.Rect{Y: top + above, W: width, H: room}})
 			top += room
 		}
@@ -251,7 +258,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		open(model.UTF16Offset(raw.startUTF16), above)
 		if hasTable {
 			top += above
-			placed, cells, height := placeTable(table, paragraphs[index:], top, width, style, func(raw rawParagraph, width float32, align ui.Align, header bool) *ui.TextLayout {
+			placed, cells, height := placeTable(table, overlay.table(table), paragraphs[index:], top, width, style, func(raw rawParagraph, width float32, align ui.Align, header bool) *ui.TextLayout {
 				font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
 				return shape(raw, font, width, align, header)
 			})
@@ -263,22 +270,21 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			continue
 		}
 		var box ui.Rect
+		caption := float32(1)
 		align := ui.Start
 		if block.Align == surface.AlignCenter {
 			align = ui.Center
 		}
 		if hasFigure {
-			box = figureBox(figure, width)
+			box, caption = figureBox(figure, overlay.span(figure), width), overlay.caption(figure)
 			box.Y = top + above
-			above += box.H + figureBond(body)*captionRoom(figure)
+			above += box.H + figureBond(body)*caption
 		}
 		top += above
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
 		layout := shape(raw, font, width, align, false)
 		_, height := layout.Size()
-		if hasFigure {
-			height *= captionRoom(figure)
-		}
+		height *= caption
 		paragraph := Paragraph{
 			layout:       layout,
 			block:        raw.block,
@@ -293,32 +299,33 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			figure:       figure,
 			box:          box,
 			hasFigure:    hasFigure,
+			caption:      caption,
 		}
 		top += height
 		shaped = append(shaped, paragraph)
 		// A formula being edited opens its source below its paragraph: a
 		// block's across the column, an inline one's under where it stands.
-		for _, f := range editing(flow, raw) {
+		for _, f := range editing(flow, overlay, raw) {
 			lines, ok := source(f)
 			if !ok {
 				continue
 			}
-			problems, note := style.problemsOf(flow, f)
-			card, room := style.card(f, lines, style.hint(flow, f), note, problems, top, width)
+			problems, note := style.problemsOf(flow, f.Formula)
+			card, room := style.card(f, lines, style.hint(flow, f.Formula), note, problems, top, width)
 			card.Source.host = len(shaped) - 1
 			cards = append(cards, card)
 			top += room
 		}
 	}
 	// Room after the last line stands a figure's gap below it.
-	if room := flow.RoomAt(-1); room > 0 {
+	if room := overlay.roomAt(-1); room > 0 {
 		rooms = append(rooms, PlacedRoom{At: -1, Box: ui.Rect{Y: top + figureGap(body), W: width, H: room}})
 		top += figureGap(body) + room
 	}
 	var formulas []PlacedFormula
 	for index := range shaped {
 		paragraph := &shaped[index]
-		for _, object := range replacementsIn(flow, paragraph.startByte, paragraph.endByte, style, width) {
+		for _, object := range replacementsIn(flow, overlay, paragraph.startByte, paragraph.endByte, style, width) {
 			from, _ := flow.UTF16OfByte(model.ByteOffset(object.from))
 			to, _ := flow.UTF16OfByte(model.ByteOffset(object.to))
 			paragraph.objects = append(paragraph.objects, inlineObject{
@@ -326,7 +333,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 				end:   int(to) - paragraph.startUTF16,
 			})
 		}
-		formulas = append(formulas, placeFormulas(flow, paragraph, style, width)...)
+		formulas = append(formulas, placeFormulas(flow, overlay, paragraph, style, width)...)
 	}
 	for index := range cards {
 		if card := &cards[index]; !card.Formula.Display {
@@ -378,9 +385,9 @@ func (s Style) paragraphFont(flow *surface.Flow, start, end int, base ui.Font, l
 	return base
 }
 
-func spansFor(flow *surface.Flow, start, end int, style Style, width float32) []ui.Span {
+func spansFor(flow *surface.Flow, o *Overlay, start, end int, style Style, width float32) []ui.Span {
 	var spans []ui.Span
-	for _, object := range replacementsIn(flow, start, end, style, width) {
+	for _, object := range replacementsIn(flow, o, start, end, style, width) {
 		spans = append(spans, plainSpans(flow, start, object.from, style)...)
 		spans = append(spans, object.object)
 		start = object.to
@@ -408,6 +415,7 @@ func plainSpans(flow *surface.Flow, start, end int, style Style) []ui.Span {
 
 func paragraphKey(
 	flow *surface.Flow,
+	o *Overlay,
 	start, end int,
 	style Style,
 	font ui.Font,
@@ -444,7 +452,7 @@ func paragraphKey(
 	writeFloat(font.LineHeight)
 	writeString(font.Family)
 	// The objects the text sets, where they stand and the room each takes.
-	for _, object := range replacementsIn(flow, start, end, style, width) {
+	for _, object := range replacementsIn(flow, o, start, end, style, width) {
 		writeFloat(float32(object.from - start))
 		writeFloat(float32(object.to - start))
 		writeFloat(object.object.ObjectWidth)

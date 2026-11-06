@@ -18,13 +18,23 @@ func formulaFlow(t *testing.T, text string, formulas ...surface.Formula) *surfac
 	return flow
 }
 
+// opened is an overlay showing formulas being edited on cards opened as
+// far as card.
+func opened(card float32, formulas ...surface.Formula) *Overlay {
+	shown := make(map[FormulaKey]FormulaShow, len(formulas))
+	for _, f := range formulas {
+		shown[KeyOf(f)] = FormulaShow{Open: true, Card: card}
+	}
+	return &Overlay{Formulas: shown}
+}
+
 // A formula the caret is not in is set as one object of its line, on the
 // baseline, its notation and source mapped to either side of it; an open
 // one is laid out as text.
 func TestInlineFormulaIsSetInItsLine(t *testing.T) {
 	text := "a $x^2$ b"
 	set := surface.Formula{Range: model.NewUTF16Range(2, 7), Text: model.NewUTF16Range(3, 6), Source: "x^2"}
-	layout := NewCache().Update(formulaFlow(t, text, set), 400, testStyle())
+	layout := NewCache().Update(formulaFlow(t, text, set), nil, 400, testStyle())
 	placed := layout.Formulas()
 	if len(placed) != 1 || placed[0].Box == nil || placed[0].Rect.W <= 0 {
 		t.Fatalf("placed = %+v", placed)
@@ -52,7 +62,7 @@ func TestFormulaBlockIsOneLine(t *testing.T) {
 		Range: model.NewUTF16Range(7, 20), Text: model.NewUTF16Range(10, 17),
 		Source: "\\frac12", Display: true,
 	}
-	layout := NewCache().Update(formulaFlow(t, text, block), 400, testStyle())
+	layout := NewCache().Update(formulaFlow(t, text, block), nil, 400, testStyle())
 	if got := len(layout.Paragraphs()); got != 3 {
 		t.Fatalf("paragraphs = %d", got)
 	}
@@ -65,8 +75,7 @@ func TestFormulaBlockIsOneLine(t *testing.T) {
 		t.Fatalf("hit in the formula = %d", got)
 	}
 
-	block.Open, block.Card = true, 1
-	open := NewCache().Update(formulaFlow(t, text, block), 400, testStyle())
+	open := NewCache().Update(formulaFlow(t, text, block), opened(1, block), 400, testStyle())
 	if got := len(open.Paragraphs()); got != 3 || len(open.Formulas()) != 1 {
 		t.Fatalf("edited block has %d paragraphs, %d set", got, len(open.Formulas()))
 	}
@@ -79,12 +88,9 @@ func TestFormulaBlockIsOneLine(t *testing.T) {
 func TestInlineFormulaEditsOnItsCard(t *testing.T) {
 	text := "a $x^2$ b\nafter"
 	f := surface.Formula{Range: model.NewUTF16Range(2, 7), Text: model.NewUTF16Range(3, 6), Source: "x^2"}
-	closed := NewCache().Update(formulaFlow(t, text, f), 400, testStyle())
-	f.Open = true
-	half, full := f, f
-	half.Card, full.Card = 0.5, 1
-	halfway := NewCache().Update(formulaFlow(t, text, half), 400, testStyle())
-	layout := NewCache().Update(formulaFlow(t, text, full), 400, testStyle())
+	closed := NewCache().Update(formulaFlow(t, text, f), nil, 400, testStyle())
+	halfway := NewCache().Update(formulaFlow(t, text, f), opened(0.5, f), 400, testStyle())
+	layout := NewCache().Update(formulaFlow(t, text, f), opened(1, f), 400, testStyle())
 
 	if got, want := layout.Caret(8), closed.Caret(8); got != want {
 		t.Fatalf("the line moved as its formula opened: %+v, was %+v", got, want)
@@ -144,9 +150,9 @@ func TestFormulaBlockEditsBelowItsLine(t *testing.T) {
 	text := "$$\n\\frac12\n$$"
 	block := surface.Formula{
 		Range: model.NewUTF16Range(0, 13), Text: model.NewUTF16Range(3, 10),
-		Source: "\\frac12", Display: true, Open: true, Card: 1,
+		Source: "\\frac12", Display: true,
 	}
-	layout := NewCache().Update(formulaFlow(t, text, block), 400, testStyle())
+	layout := NewCache().Update(formulaFlow(t, text, block), opened(1, block), 400, testStyle())
 	cards, set := layout.FormulaCards(), layout.Formulas()
 	if len(cards) != 1 || len(set) != 1 {
 		t.Fatalf("cards = %+v, set %+v", cards, set)
@@ -173,7 +179,7 @@ func TestFormulaBlockEditsBelowItsLine(t *testing.T) {
 		text := "$$\n" + f.Source + "\n$$"
 		f.Range = model.NewUTF16Range(0, model.UTF16Offset(len(text)))
 		f.Text = model.NewUTF16Range(3, model.UTF16Offset(3+len(f.Source)))
-		layout := NewCache().Update(formulaFlow(t, text, f), 400, testStyle())
+		layout := NewCache().Update(formulaFlow(t, text, f), opened(1, f), 400, testStyle())
 		heights[name] = layout.FormulaCards()[0].Rect.Y
 	}
 	if heights["empty"] != heights["x"] || heights["x"] != heights["frac"] {
@@ -184,8 +190,8 @@ func TestFormulaBlockEditsBelowItsLine(t *testing.T) {
 // An empty formula's card holds a hint in its source's place, wide enough
 // for it.
 func TestEmptyFormulaHintsItsSource(t *testing.T) {
-	f := surface.Formula{Range: model.NewUTF16Range(2, 4), Text: model.NewUTF16Range(3, 3), Open: true, Card: 1}
-	layout := NewCache().Update(formulaFlow(t, "a $$ b", f), 400, testStyle())
+	f := surface.Formula{Range: model.NewUTF16Range(2, 4), Text: model.NewUTF16Range(3, 3)}
+	layout := NewCache().Update(formulaFlow(t, "a $$ b", f), opened(1, f), 400, testStyle())
 	cards := layout.FormulaCards()
 	if len(cards) != 1 || cards[0].Hint == nil {
 		t.Fatalf("cards = %+v", cards)
@@ -200,8 +206,8 @@ func TestEmptyFormulaHintsItsSource(t *testing.T) {
 // neither.
 func TestAFormulaSourceTellsItsProblems(t *testing.T) {
 	text := `a $x+\fr$ b`
-	f := surface.Formula{Range: model.NewUTF16Range(2, 9), Text: model.NewUTF16Range(3, 8), Source: `x+\fr`, Open: true, Card: 1}
-	layout := NewCache().Update(formulaFlow(t, text, f), 400, testStyle())
+	f := surface.Formula{Range: model.NewUTF16Range(2, 9), Text: model.NewUTF16Range(3, 8), Source: `x+\fr`}
+	layout := NewCache().Update(formulaFlow(t, text, f), opened(1, f), 400, testStyle())
 	cards := layout.FormulaCards()
 	if len(cards) != 1 || cards[0].Note == nil {
 		t.Fatalf("cards = %+v", cards)
@@ -219,7 +225,7 @@ func TestAFormulaSourceTellsItsProblems(t *testing.T) {
 	}
 
 	f.Source, f.Text, f.Range = "x", model.NewUTF16Range(3, 4), model.NewUTF16Range(2, 5)
-	sound := NewCache().Update(formulaFlow(t, "a $x$ b", f), 400, testStyle()).FormulaCards()
+	sound := NewCache().Update(formulaFlow(t, "a $x$ b", f), opened(1, f), 400, testStyle()).FormulaCards()
 	if len(sound) != 1 || sound[0].Note != nil || len(sound[0].Faults()) != 0 {
 		t.Fatalf("a sound source tells %+v", sound)
 	}
@@ -237,11 +243,11 @@ func TestASelectedFormulaBlockHoldsWhatItSets(t *testing.T) {
 			Source: source, Display: true,
 		}
 		for _, open := range []bool{false, true} {
-			f := block
+			var overlay *Overlay
 			if open {
-				f.Open, f.Card = true, 1
+				overlay = opened(1, block)
 			}
-			layout := NewCache().Update(formulaFlow(t, text, f), 400, testStyle())
+			layout := NewCache().Update(formulaFlow(t, text, block), overlay, 400, testStyle())
 			mark := layout.Formulas()[0].Mark
 			if mark.W >= 200 {
 				t.Fatalf("%q: mark %+v spans the column", source, mark)

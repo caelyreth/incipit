@@ -360,13 +360,13 @@ func (e *Element) unitsOf(bridge *Bridge) []editor.Unit {
 	return e.blocks.units
 }
 
-// apartFlow is flow with the room the page opens between its blocks.
-func (e *Element) apartFlow(flow *surface.Flow, bridge *Bridge) *surface.Flow {
+// apartRooms are the room the page opens between its blocks.
+func (e *Element) apartRooms(bridge *Bridge) []textlayout.Room {
 	if len(e.apart) == 0 || bridge == nil || bridge.Controller == nil {
-		return flow
+		return nil
 	}
 	units := e.unitsOf(bridge)
-	var rooms []surface.Room
+	var rooms []textlayout.Room
 	for key, room := range e.apart {
 		if key.kind != carryBlock || room.shown < 0.5 {
 			continue
@@ -375,14 +375,14 @@ func (e *Element) apartFlow(flow *surface.Flow, bridge *Bridge) *surface.Flow {
 		if key.slot < len(units) {
 			at = units[key.slot].Range.Start
 		}
-		rooms = append(rooms, surface.Room{At: at, Height: room.shown})
+		rooms = append(rooms, textlayout.Room{At: at, Height: room.shown})
 	}
-	return flow.WithRooms(rooms)
+	return rooms
 }
 
 // tableApart sets the room the page opens between table's rows and its
 // columns.
-func (e *Element) tableApart(table surface.Table, room *surface.TableRoom) {
+func (e *Element) tableApart(table surface.Table, room *textlayout.TableRoom) {
 	room.RowsApart, room.ColumnsApart = nil, nil
 	for key, open := range e.apart {
 		if key.kind == carryBlock || open.shown < 0.5 || !tableHas(table, key.cell) {

@@ -76,7 +76,7 @@ func (e *Element) contextMenu(m *ui.Menu) {
 		shape(func(s *editor.ImageShape) { s.Span = 0 })
 	}
 	m.Separator()
-	if figure.Caption == 0 && m.Item("Add Caption").Chosen() {
+	if !figure.Captioned && m.Item("Add Caption").Chosen() {
 		caption := int(figure.CaptionStart())
 		_ = bridge.Controller.SetSelection(controller.UTF16Range{Start: caption, End: caption})
 	}

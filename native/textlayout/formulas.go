@@ -46,7 +46,7 @@ const (
 // Origin its baseline's start and Rect the room its line keeps for it, in
 // content space, and Inks the colors it is drawn in.
 type PlacedFormula struct {
-	Formula surface.Formula
+	Formula Formula
 	Box     *untie.Box
 	Origin  ui.Point
 	Rect    ui.Rect
@@ -64,7 +64,7 @@ type PlacedFormula struct {
 // from being set, at NoteAt after its last line, each problem marked in
 // the source (Faults).
 type FormulaCard struct {
-	Formula  surface.Formula
+	Formula  Formula
 	Rect     ui.Rect
 	Shown    float32
 	Source   Paragraph
@@ -144,12 +144,7 @@ func (l *Layout) FormulaCards() []FormulaCard {
 // the text it stands in, a block at the page's text size, in the color of
 // its source's text. ok is false for what cannot be set, which shows its
 // source.
-func (s Style) setFormula(flow *surface.Flow, f surface.Formula, width float32) (*untie.Box, formula.Inks, bool) {
-	return s.formulaOf(flow, f, width)
-}
-
-// formulaOf is f as it is set.
-func (s Style) formulaOf(flow *surface.Flow, f surface.Formula, width float32) (*untie.Box, formula.Inks, bool) {
+func (s Style) setFormula(flow *surface.Flow, f Formula, width float32) (*untie.Box, formula.Inks, bool) {
 	// The notation runs at the text's size, the source in code's face; the
 	// source's color is its block's.
 	notation, source := s.runAt(flow, f.Range.Start), s.runAt(flow, f.Range.Start+1)
@@ -158,7 +153,7 @@ func (s Style) formulaOf(flow *surface.Flow, f surface.Formula, width float32) (
 		size = s.Prose.FontSize
 	}
 	size *= formulaScale
-	box := formula.Set(f.Source, f.Display, size, width)
+	box := formula.Set(f.Set, f.Display, size, width)
 	if box == nil {
 		return nil, formula.Inks{}, false
 	}
@@ -194,7 +189,7 @@ func (s Style) runAt(flow *surface.Flow, offset model.UTF16Offset) surface.Style
 
 // placeFormulas finds where the paragraph's line set each formula it
 // holds that is not open.
-func placeFormulas(flow *surface.Flow, paragraph *Paragraph, style Style, width float32) []PlacedFormula {
+func placeFormulas(flow *surface.Flow, o *Overlay, paragraph *Paragraph, style Style, width float32) []PlacedFormula {
 	held := flow.ObjectsIn(model.NewUTF16Range(model.UTF16Offset(paragraph.startUTF16), model.UTF16Offset(paragraph.endUTF16)))
 	if len(held) == 0 {
 		return nil
@@ -202,10 +197,11 @@ func placeFormulas(flow *surface.Flow, paragraph *Paragraph, style Style, width 
 	objects := paragraph.layout.Objects()
 	var placed []PlacedFormula
 	for _, object := range held {
-		f, isFormula := object.(surface.Formula)
+		set, isFormula := object.(surface.Formula)
 		if !isFormula {
 			continue
 		}
+		f := o.formula(set)
 		box, inks, ok := style.setFormula(flow, f, width)
 		if !ok {
 			continue
@@ -243,14 +239,17 @@ func (l *Layout) FormulaAt(point ui.Point) (PlacedFormula, bool) {
 	return PlacedFormula{}, false
 }
 
-// editing are the formulas of a paragraph whose cards show: the formula
+// editing are the formulas of a paragraph whose cards o shows: the formula
 // block the paragraph is, or the inline formulas it holds.
-func editing(flow *surface.Flow, raw rawParagraph) []surface.Formula {
-	var cards []surface.Formula
+func editing(flow *surface.Flow, o *Overlay, raw rawParagraph) []Formula {
+	var cards []Formula
 	paragraph := model.NewUTF16Range(model.UTF16Offset(raw.startUTF16), model.UTF16Offset(raw.contentUTF16))
 	for _, object := range flow.ObjectsIn(paragraph) {
-		f, ok := object.(surface.Formula)
-		if ok && f.Card > 0 && (!f.Display || f.Range == paragraph) {
+		set, ok := object.(surface.Formula)
+		if !ok {
+			continue
+		}
+		if f := o.formula(set); f.Card > 0 && (!f.Display || f.Range == paragraph) {
 			cards = append(cards, f)
 		}
 	}
@@ -280,7 +279,7 @@ func (s Style) cardPad() (x, y float32) {
 // shaped already: a block's across the column, an inline formula's as wide
 // as its source, under where the formula stands once its line is known
 // (placeInlineCard). room is how much of the page it takes.
-func (s Style) card(f surface.Formula, source Paragraph, hint, note *ui.TextLayout, problems []model.UTF16Range, top, width float32) (card FormulaCard, room float32) {
+func (s Style) card(f Formula, source Paragraph, hint, note *ui.TextLayout, problems []model.UTF16Range, top, width float32) (card FormulaCard, room float32) {
 	padX, padY := s.cardPad()
 	gap := cardGap * s.Prose.FontSize
 	lines, _ := source.layout.Size()
@@ -337,10 +336,10 @@ const blockFloor = `\frac{1}{2}`
 
 // extentOf is how far above and below its baseline f's line keeps room for
 // box.
-func (s Style) extentOf(f surface.Formula, box *untie.Box, width float32) (ascent, descent float32) {
+func (s Style) extentOf(f Formula, box *untie.Box, width float32) (ascent, descent float32) {
 	ascent, descent = formula.Extent(box)
 	// An empty one draws nothing: a block's keeps its floor alone.
-	if f.Display && strings.TrimSpace(f.Source) == "" {
+	if f.Display && strings.TrimSpace(f.Set) == "" {
 		ascent, descent = 0, 0
 	}
 	if f.Display {
@@ -426,11 +425,11 @@ func (l *Layout) rowBeyondSource(source *Paragraph, direction int, x float32) mo
 // markOf is where a formula's tint goes: around its ink, and the text of
 // the row an inline one stands in, so it holds what is set, as tall as the
 // text at least; an empty one's where it would stand.
-func (s Style) markOf(f surface.Formula, box *untie.Box, paragraph *Paragraph, at int, rect ui.Rect, origin ui.Point) ui.Rect {
+func (s Style) markOf(f Formula, box *untie.Box, paragraph *Paragraph, at int, rect ui.Rect, origin ui.Point) ui.Rect {
 	padX, padY := s.cardPad()
 	padX, padY = padX/2, padY/2
 	from, to := formula.Ink(box)
-	if strings.TrimSpace(f.Source) == "" {
+	if strings.TrimSpace(f.Set) == "" {
 		// Nothing set: a block's mark as wide as a short formula would be,
 		// an inline one's its object's.
 		from, to = 0, box.Width
