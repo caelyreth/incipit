@@ -22,6 +22,13 @@ type Object interface {
 	// shifted is the object after an edit of the flow, or false when the
 	// edit takes it away.
 	shifted(edit rangeEdit) (Object, bool)
+	// moved is the object by units further on, its text and all.
+	moved(by model.UTF16Offset) Object
+}
+
+// by is r by units further on.
+func by(r model.UTF16Range, units model.UTF16Offset) model.UTF16Range {
+	return model.NewUTF16Range(r.Start+units, r.End+units)
 }
 
 // WithObjects is the flow with objects standing for its text, in order,

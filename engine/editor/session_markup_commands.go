@@ -123,12 +123,7 @@ func (s *Session) dispatchSelectionCommandWithVisual(
 				}
 				caret, viewAnchor = head, &anchor
 			}
-			flow, flowErr := projectionFlowFromView(
-				view,
-				s.runtime.Configuration(),
-				projectedValue,
-				rebased,
-			)
+			flow, flowErr := s.pieces.pageFlow(projectedValue, view.Document())
 			if flowErr != nil {
 				return struct{}{}, flowErr
 			}

@@ -425,8 +425,7 @@ func InlineStyleRuns(
 				}
 			}
 		} else if !ok {
-			style.Color = surface.ColorMuted
-			style.Bold, style.Italic, style.Strike = false, false, false
+			style = notationStyle(style)
 		}
 		pushSurfaceRun(&runs, surface.StyleRun{
 			Bytes: model.NewByteRange(model.ByteOffset(byteOffset), model.ByteOffset(end)),
@@ -442,6 +441,14 @@ func InlineStyleRuns(
 		return nil, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
 	return runs, nil
+}
+
+// notationStyle is how notation and generated text show in text of style:
+// muted, at its size and in its face, but not as its marks are.
+func notationStyle(style surface.TextStyle) surface.TextStyle {
+	style.Color = surface.ColorMuted
+	style.Bold, style.Italic, style.Strike = false, false, false
+	return style
 }
 
 // blockStyle is how a block's text shows: the Writing Profile's use of the

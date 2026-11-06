@@ -579,34 +579,18 @@ func emptyTable(document blockReader, table Table) bool {
 	return true
 }
 
-// cellRanges are the projected ranges of the page's cells' text.
-func cellRanges(p *projection.Projection, document model.DocumentSnapshot) map[model.NodeID]model.UTF16Range {
-	ranges := map[model.NodeID]model.UTF16Range{}
-	p.EachSegment(func(_ int, segment projection.Segment) bool {
-		owner, ok := segmentNode(segment)
-		if !ok {
-			return true
-		}
-		if node, ok := document.Node(owner); !ok || node.Kind() != CellNode {
-			return true
-		}
-		span := segment.ProjectedRange()
-		if known, ok := ranges[owner]; ok {
-			span = model.NewUTF16Range(min(known.Start, span.Start), max(known.End, span.End))
-		}
-		ranges[owner] = span
-		return true
-	})
-	return ranges
-}
-
-// tableFlow is each table of the page as the surface sets it out.
-func tableFlow(p *projection.Projection, document model.DocumentSnapshot) []surface.Table {
+// tableFlow is each table of the page as the surface sets it out, each
+// cell the block of flow it is.
+func tableFlow(flow *surface.Flow, document model.DocumentSnapshot) []surface.Table {
 	tables := readTables(document)
 	if len(tables) == 0 {
 		return nil
 	}
-	ranges := cellRanges(p, document)
+	ranges := make(map[model.NodeID]model.UTF16Range)
+	flow.EachBlock(func(_ int, block surface.Block) bool {
+		ranges[block.Node] = block.Range
+		return true
+	})
 	shown := make([]surface.Table, 0, len(tables))
 	for _, table := range tables {
 		next := surface.Table{

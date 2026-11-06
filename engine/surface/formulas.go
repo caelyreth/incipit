@@ -37,6 +37,11 @@ func (f Formula) validate(_ *Flow, block Block) error {
 	return nil
 }
 
+func (f Formula) moved(units model.UTF16Offset) Object {
+	f.Range, f.Text = by(f.Range, units), by(f.Text, units)
+	return f
+}
+
 // shifted moves a formula whole past an edit beside it, and stretches it
 // with an edit within its source, as typing it does; any other takes it
 // away.

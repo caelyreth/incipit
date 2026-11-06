@@ -6,22 +6,63 @@ import (
 	"github.com/caelyreth/neverland/engine/surface"
 )
 
-// pageFlow prepares the projected text, its styles, its blocks and the
-// page's objects for layout without giving the surface ownership of
-// semantic state.
-func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surface.Flow, error) {
-	runs, err := InlineStyleRuns(p, document)
+// flowPieces keeps the flow of each block of the page as it was prepared,
+// by the node it is and its ordinal: a node does not change, so the same
+// node numbered alike is the same flow, and an edit prepares again only
+// the blocks it made.
+type flowPieces struct {
+	kept map[pieceKey]*surface.Flow
+}
+
+type pieceKey struct {
+	node    *model.Node
+	ordinal int
+}
+
+// pageFlow prepares the projected page for layout without giving the
+// surface ownership of semantic state: each block's flow, kept or prepared
+// alone, one after another, a break between each and the next, and the
+// tables their cells are set out in. Without pieces, every block is
+// prepared afresh.
+func (c *flowPieces) pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surface.Flow, error) {
+	blocks := DocumentBlocks(document)
+	if len(blocks) == 0 {
+		return surface.EmptyFlow(p.Version()), nil
+	}
+	numbers := ordinals(blocks)
+	parts := make([]*surface.Flow, len(blocks))
+	breaks := make([]surface.TextStyle, len(blocks)-1)
+	kept := make(map[pieceKey]*surface.Flow, len(blocks))
+	for index, node := range blocks {
+		key := pieceKey{node: node, ordinal: numbers[index]}
+		part, ok := (*surface.Flow)(nil), false
+		if c != nil {
+			part, ok = c.kept[key]
+		}
+		if !ok {
+			var err error
+			if part, err = blockFlow(node, numbers[index], document); err != nil {
+				return nil, err
+			}
+		}
+		kept[key], parts[index] = part, part
+		if index > 0 {
+			// The break between blocks goes as the block before it does,
+			// so a line break never changes its size.
+			breaks[index-1] = notationStyle(blockStyle(blocks[index-1]))
+		}
+	}
+	if c != nil {
+		c.kept = kept
+	}
+	flow, err := surface.Join(p.Version(), parts, breaks)
 	if err != nil {
 		return nil, err
 	}
-	flow, err := surface.NewFlow(p.Version(), p.Text(), runs, flowBlocks(p, document))
-	if err != nil {
-		return nil, err
+	if flow.UTF16Len() != p.UTF16Len() {
+		return nil, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
-	if flow, err = flow.WithObjects(pageObjects(p, document)); err != nil {
-		return nil, err
-	}
-	if tables := tableFlow(p, document); len(tables) > 0 {
+	if tables := tableFlow(flow, document); len(tables) > 0 {
 		if flow, err = flow.WithTables(tables); err != nil {
 			return nil, err
 		}
@@ -29,38 +70,29 @@ func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surfa
 	return flow, nil
 }
 
-// flowBlocks are the page's blocks as the projection shows them, each from
-// the first text or notation of its node to the break before the next.
-func flowBlocks(p *projection.Projection, document model.DocumentSnapshot) []surface.Block {
-	var blocks []surface.Block
-	p.EachSegment(func(_ int, segment projection.Segment) bool {
-		var owner model.NodeID
-		if target, ok := segment.SemanticTarget(); ok {
-			owner = target.Node()
-		} else if target, ok := segment.AttributeTarget(); ok {
-			owner = target.Node()
-		}
-		if owner == 0 || len(blocks) > 0 && blocks[len(blocks)-1].Node == owner {
-			return true
-		}
-		if node, ok := document.Node(owner); ok {
-			block := blockLayout(node)
-			block.Range = model.EmptyUTF16Range(segment.ProjectedRange().Start)
-			blocks = append(blocks, block)
-		}
-		return true
-	})
-	for index := range blocks {
-		end := p.UTF16Len()
-		if index+1 < len(blocks) {
-			end = blocks[index+1].Range.Start - 1
-		}
-		blocks[index].Range.End = end
+// blockFlow is the flow of one block, numbered ordinal, as the page
+// projects it: its notation and text, their styles, how its lines are set,
+// and the objects its notation stands for.
+func blockFlow(node *model.Node, ordinal int, document model.DocumentSnapshot) (*surface.Flow, error) {
+	builder := projection.NewBuilder("block", projection.NewVersion(0, 0))
+	if err := projectBlock(builder, node, ordinal); err != nil {
+		return nil, err
 	}
-	if len(blocks) == 0 {
-		blocks = append(blocks, surface.Block{})
+	p, err := builder.Build(nil)
+	if err != nil {
+		return nil, wrapProjectionError(err)
 	}
-	return blocks
+	runs, err := InlineStyleRuns(p, document)
+	if err != nil {
+		return nil, err
+	}
+	block := blockLayout(node)
+	block.Range = model.NewUTF16Range(0, p.UTF16Len())
+	flow, err := surface.NewFlow(p.Version(), p.Text(), runs, []surface.Block{block})
+	if err != nil {
+		return nil, err
+	}
+	return flow.WithObjects(pageObjects(p, document))
 }
 
 // blockLayout is how the Writing Profile spaces and sets a block's lines:

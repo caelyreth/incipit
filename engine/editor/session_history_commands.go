@@ -84,7 +84,7 @@ func (s *Session) restoreHistoryFrame(frame Frame, undo bool) error {
 				caret = head
 				viewAnchor = &anchor
 			}
-			flow, err := projectionFlowFromView(view, s.runtime.Configuration(), projected, selection)
+			flow, err := s.pieces.pageFlow(projected, view.Document())
 			if err != nil {
 				return struct{}{}, err
 			}

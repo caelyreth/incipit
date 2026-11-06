@@ -88,10 +88,13 @@ func (s *Session) BlockRange(node model.NodeID) (model.UTF16Range, bool) {
 // atomic block stands on is no text.
 func (s *Session) ReadableText(range16 model.UTF16Range) (string, error) {
 	p := s.presentation.Projection
-	document := s.runtime.Snapshot().Document()
+	flow, err := s.SurfaceFlow()
+	if err != nil {
+		return "", err
+	}
 	// The break before a cell that does not start its row reads as a tab.
 	tabs := map[model.UTF16Offset]bool{}
-	if tables := tableFlow(p, document); len(tables) > 0 {
+	if tables := flow.Tables(); len(tables) > 0 {
 		for _, table := range tables {
 			for _, row := range table.Rows {
 				for _, cell := range row[1:] {

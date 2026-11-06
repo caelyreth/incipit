@@ -37,6 +37,11 @@ func (c Checkbox) validate(f *Flow, _ Block) error {
 
 // shifted moves a checkbox whole past an edit beside its marker; one
 // within its marker takes it away.
+func (c Checkbox) moved(units model.UTF16Offset) Object {
+	c.Marker = by(c.Marker, units)
+	return c
+}
+
 func (c Checkbox) shifted(e rangeEdit) (Object, bool) {
 	marker, ok := e.whole(c.Marker)
 	c.Marker = marker

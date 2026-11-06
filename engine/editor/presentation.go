@@ -24,6 +24,17 @@ func NewPresentation(
 	node model.NodeID,
 	generation uint64,
 ) (Presentation, error) {
+	return newPresentation(runtime, node, generation, nil)
+}
+
+// newPresentation is the initial presentation, its blocks' flows kept in
+// pieces.
+func newPresentation(
+	runtime *kernel.PolicyRuntime,
+	node model.NodeID,
+	generation uint64,
+	pieces *flowPieces,
+) (Presentation, error) {
 	if runtime == nil {
 		return Presentation{}, &MarkupProjectionError{Kind: projection.ErrorSource}
 	}
@@ -39,7 +50,7 @@ func NewPresentation(
 	if err != nil {
 		return Presentation{}, wrapProjectionError(err)
 	}
-	flow, err := projectionFlow(runtime, projectionValue, selection, nil)
+	flow, err := pieces.pageFlow(projectionValue, runtime.Snapshot().Document())
 	if err != nil {
 		return Presentation{}, err
 	}
@@ -246,19 +257,10 @@ func (p *Presentation) SurfaceFlow(
 	if p.Flow != nil {
 		return p.Flow, nil
 	}
-	flow, err := projectionFlow(runtime, p.Projection, p.Selection, nil)
+	flow, err := (*flowPieces)(nil).pageFlow(p.Projection, runtime.Snapshot().Document())
 	if err != nil {
 		return nil, err
 	}
 	p.Flow = flow
 	return flow, nil
-}
-
-func projectionFlow(
-	runtime *kernel.PolicyRuntime,
-	projectionValue *projection.Projection,
-	selection model.TextSelection,
-	decorations []surface.Decoration,
-) (*surface.Flow, error) {
-	return pageFlow(projectionValue, runtime.Snapshot().Document())
 }

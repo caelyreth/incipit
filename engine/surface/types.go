@@ -107,6 +107,11 @@ func (f Figure) validate(_ *Flow, block Block) error {
 	return nil
 }
 
+func (f Figure) moved(units model.UTF16Offset) Object {
+	f.Range = by(f.Range, units)
+	return f
+}
+
 // shifted moves a figure whole past an edit beside its object, as typing
 // at its caption's start; one within its object takes it away.
 func (f Figure) shifted(e rangeEdit) (Object, bool) {

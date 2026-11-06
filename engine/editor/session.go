@@ -49,6 +49,9 @@ type Session struct {
 	title         pageTitle
 	generation    uint64
 	widening      *widening
+	// pieces are the flows of the page's blocks, kept from one edit to
+	// the next.
+	pieces *flowPieces
 }
 
 // pageTitle is a page's title as of one revision.
@@ -63,7 +66,8 @@ func NewSession(runtime *kernel.PolicyRuntime, node model.NodeID, clock Clock) (
 	if runtime == nil {
 		return nil, &MarkupProjectionError{Kind: projection.ErrorSource}
 	}
-	presentation, err := NewPresentation(runtime, node, 0)
+	pieces := &flowPieces{}
+	presentation, err := newPresentation(runtime, node, 0, pieces)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +81,7 @@ func NewSession(runtime *kernel.PolicyRuntime, node model.NodeID, clock Clock) (
 		feedback:     NewFeedback(clock),
 		navigation:   Navigation{},
 		pairsValid:   false,
+		pieces:       pieces,
 	}
 	session.refreshInline()
 	session.refreshMetrics()
@@ -763,7 +768,7 @@ func (s *Session) editedPresentation(
 			}
 		}
 	}
-	flow, err := projectionFlowFromView(view, configuration, projected, next)
+	flow, err := s.pieces.pageFlow(projected, view.Document())
 	if err != nil {
 		return Presentation{}, fmt.Errorf("compose edit flow: %w", err)
 	}
@@ -881,7 +886,7 @@ func (s *Session) Reconfigure(
 					}
 				}
 			}
-			flow, err := projectionFlowFromView(view, configuration, nextProjection, rebased)
+			flow, err := s.pieces.pageFlow(nextProjection, view.Document())
 			if err != nil {
 				return struct{}{}, err
 			}
@@ -1095,15 +1100,6 @@ func (s *Session) feedbackDecorations(now time.Time) []surface.Decoration {
 func mustNode(document model.DocumentSnapshot, node model.NodeID) *model.Node {
 	value, _ := document.Node(node)
 	return value
-}
-
-func projectionFlowFromView(
-	view kernel.EngineView,
-	configuration *kernel.PreparedPolicyConfiguration,
-	projectionValue *projection.Projection,
-	selection model.TextSelection,
-) (*surface.Flow, error) {
-	return pageFlow(projectionValue, view.Document())
 }
 
 // editableRanges clips one semantic attachment to the corresponding editable
