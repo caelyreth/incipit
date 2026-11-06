@@ -609,16 +609,7 @@ func appendInlineMarker(
 	mark model.InlineMark,
 	opening bool,
 ) error {
-	role := roleMarkClose
-	switch {
-	case mark.Kind() == MathMark && opening:
-		role = roleFormulaOpen
-	case mark.Kind() == MathMark:
-		role = roleFormulaClose
-	case opening:
-		role = roleMarkOpen
-	}
-	return builder.Attribute(node.ID(), MarkerKeyForMark(mark.ID()), projection.Part{Text: inlineNotation(mark), Role: role})
+	return builder.Attribute(node.ID(), MarkerKeyForMark(mark.ID()), projection.Part{Text: inlineNotation(mark), Role: markRole(mark, opening)})
 }
 
 func markupSettingBool(

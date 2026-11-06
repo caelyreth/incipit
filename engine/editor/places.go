@@ -124,7 +124,7 @@ func (s *Session) innerPlaces() []Place {
 		for _, mark := range node.Marks() {
 			// A formula is a place of its own, read from its source.
 			text := mark.Range()
-			if mark.Kind() == MathMark || !(active != nil && *active == mark.ID() || text.Start < head && head < text.End) {
+			if markOf(mark).Formula || !(active != nil && *active == mark.ID() || text.Start < head && head < text.End) {
 				continue
 			}
 			start, _, okStart := project(text.Start)

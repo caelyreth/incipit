@@ -57,7 +57,7 @@ func (s *Session) ShapeOptions(node model.NodeID) []ShapeOption {
 	}
 	var options []ShapeOption
 	add := func(label string, next blockShape) {
-		if next.desc().Group != "" && next.desc().Group == desc.Group {
+		if next.desc().Group != nil && next.desc().Group == desc.Group {
 			next.depth = current.depth
 		}
 		if next.desc().Checks {

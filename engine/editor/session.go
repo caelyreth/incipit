@@ -899,7 +899,7 @@ func (s *Session) inlineDecorations(node *model.Node) []surface.Decoration {
 			continue
 		}
 		// A formula being edited shows on its own card instead.
-		if mark.Kind() == MathMark {
+		if markOf(mark).Formula {
 			return nil
 		}
 		ranges := editableRanges(s.presentation.Projection, node.ID(), mark.Range())

@@ -52,9 +52,16 @@ type KindDesc struct {
 	Plain bool
 	// Leveled blocks store a level, as a heading's 1 to 6.
 	Leveled bool
-	// Group is the run of neighbours a block stands in, nested by depth:
-	// "list" or "quote"; empty for a block standing alone.
-	Group string
+	// Group is the family of runs a block stands in with its neighbours,
+	// nested by depth; nil for a block standing alone.
+	Group *GroupDesc
+	// Raise is what the block's own glyph typed at its marker raises.
+	Raise Raise
+	// Box is the state the block's marker holds in a box, if it holds one.
+	Box *BoxGrammar
+	// Marker is the role of the glyphs of the marker opening the block,
+	// its token, which the caret stops in (tokens.go).
+	Marker projection.Role
 	// Prefix notation opens the block's line, its text following on it,
 	// rather than a line of its own.
 	Prefix bool
@@ -93,13 +100,98 @@ type KindDesc struct {
 	notation func(shape blockShape, ordinal int) (open, close notation)
 	opens    func(writingTriggers) bool
 	read     func(*model.Node, *blockShape)
+	// parse reads notation opening a block, unnested, as this kind's shape.
+	parse func(text string) (blockShape, bool)
+}
+
+// GroupDesc is a family of blocks standing in runs with their neighbours,
+// nested in one another by depth.
+type GroupDesc struct {
+	Family string
+	// Indented groups nest by an indent before the marker, as lists do;
+	// others by repeating the marker, as quotes do.
+	Indented bool
+	// Counts numbered items in the group by their place in its run.
+	Counts bool
+}
+
+var (
+	listGroup  = &GroupDesc{Family: "list", Indented: true, Counts: true}
+	quoteGroup = &GroupDesc{Family: "quote"}
+)
+
+// Raise is what a block's own glyph typed at its marker raises.
+type Raise uint8
+
+const (
+	// RaiseNothing leaves the block as it is: another of a list's markers.
+	RaiseNothing Raise = iota
+	// RaiseLevel steps the block's level up, as "#" a heading's.
+	RaiseLevel
+	// RaiseDepth nests the block a level deeper, as ">" a quote line.
+	RaiseDepth
+)
+
+// BoxGrammar is a state a block's marker holds in a box between Open and
+// Close: Clear's first glyph shows it unset, Set's set, and any of either
+// typed in the box reads as that state.
+type BoxGrammar struct {
+	Open, Close rune
+	Clear, Set  string
+}
+
+// reads is the state glyph r typed in the box sets.
+func (b *BoxGrammar) reads(r rune) (set, ok bool) {
+	switch {
+	case strings.ContainsRune(b.Set, r):
+		return true, true
+	case strings.ContainsRune(b.Clear, r):
+		return false, true
+	}
+	return false, false
+}
+
+// String is the box showing a state.
+func (b *BoxGrammar) show(set bool) string {
+	state := b.Clear[:1]
+	if set {
+		state = b.Set[:1]
+	}
+	return string(b.Open) + state + string(b.Close)
+}
+
+// parse reads a box at the start of text, reporting its state and length.
+func (b *BoxGrammar) parse(text string) (set bool, length int, ok bool) {
+	runes := []rune(text)
+	if len(runes) < 3 || runes[0] != b.Open || runes[2] != b.Close {
+		return false, 0, false
+	}
+	set, ok = b.reads(runes[1])
+	return set, len(string(runes[:3])), ok
+}
+
+var checkBox = &BoxGrammar{Open: '[', Close: ']', Clear: " ", Set: "xX"}
+
+// listMarker reads a list item's marker, "-" or "+", and the space after.
+func listMarker(text string) (string, bool) {
+	if len(text) >= 2 && (text[0] == '-' || text[0] == '+') && text[1] == ' ' {
+		return text[2:], true
+	}
+	return "", false
 }
 
 var kindTable = []KindDesc{
 	{Kind: DocumentNode, Root: true},
 	{Kind: ParagraphNode, Plain: true, Label: "Text"},
 	{
-		Kind: HeadingNode, Label: "Heading", Leveled: true, Prefix: true, BreakLeaves: true, Glyphs: "#",
+		Kind: HeadingNode, Label: "Heading", Leveled: true, Prefix: true, BreakLeaves: true, Glyphs: "#", Raise: RaiseLevel, Marker: roleHeading,
+		parse: func(text string) (blockShape, bool) {
+			hashes := strings.TrimSuffix(text, " ")
+			if hashes == text || hashes == "" || len(hashes) > 6 || strings.Trim(hashes, "#") != "" {
+				return blockShape{}, false
+			}
+			return blockShape{kind: HeadingNode, level: len(hashes)}, true
+		},
 		rhythm: surface.RhythmTitle,
 		style: func(shape blockShape, style *surface.TextStyle) {
 			style.Size, style.Bold, style.Color = titleSize(shape.level), true, surface.ColorStrong
@@ -118,7 +210,14 @@ var kindTable = []KindDesc{
 		},
 	},
 	{
-		Kind: QuoteNode, Label: "Quote", Group: "quote", Prefix: true, Glyphs: ">",
+		Kind: QuoteNode, Label: "Quote", Group: quoteGroup, Prefix: true, Glyphs: ">", Raise: RaiseDepth, Marker: roleQuote,
+		parse: func(text string) (blockShape, bool) {
+			quotes := strings.Count(text, "> ")
+			if quotes == 0 || quotes-1 > maxDepth || text != strings.Repeat("> ", quotes) {
+				return blockShape{}, false
+			}
+			return blockShape{kind: QuoteNode, depth: quotes - 1}, true
+		},
 		rhythm: surface.RhythmEntry,
 		style:  func(_ blockShape, style *surface.TextStyle) { style.Italic = true },
 		notation: func(shape blockShape, _ int) (notation, notation) {
@@ -127,7 +226,11 @@ var kindTable = []KindDesc{
 		opens: func(t writingTriggers) bool { return t.quotes },
 	},
 	{
-		Kind: BulletNode, Label: "Bulleted List", Group: "list", Prefix: true, Checkable: true, Glyphs: "-*+",
+		Kind: BulletNode, Label: "Bulleted List", Group: listGroup, Prefix: true, Checkable: true, Glyphs: "-*+", Marker: roleBullet,
+		parse: func(text string) (blockShape, bool) {
+			rest, ok := listMarker(text)
+			return blockShape{kind: BulletNode}, ok && rest == ""
+		},
 		rhythm: surface.RhythmEntry,
 		notation: func(shape blockShape, _ int) (notation, notation) {
 			return notation{indentPart(shape), {Text: "-", Role: roleBullet}, spacePart}, nil
@@ -135,14 +238,18 @@ var kindTable = []KindDesc{
 		opens: func(t writingTriggers) bool { return t.lists },
 	},
 	{
-		Kind: CheckboxNode, Label: "Checklist", Group: "list", Prefix: true, Checks: true,
+		Kind: CheckboxNode, Label: "Checklist", Group: listGroup, Prefix: true, Checks: true, Box: checkBox, Marker: roleCheckbox,
 		rhythm: surface.RhythmEntry,
 		notation: func(shape blockShape, _ int) (notation, notation) {
-			mark := " "
-			if shape.checked {
-				mark = "x"
+			return notation{indentPart(shape), {Text: "- " + checkBox.show(shape.checked), Role: roleCheckbox}, spacePart}, nil
+		},
+		parse: func(text string) (blockShape, bool) {
+			rest, ok := listMarker(text)
+			if !ok {
+				return blockShape{}, false
 			}
-			return notation{indentPart(shape), {Text: "- [" + mark + "]", Role: roleCheckbox}, spacePart}, nil
+			checked, length, ok := checkBox.parse(rest)
+			return blockShape{kind: CheckboxNode, checked: checked}, ok && rest[length:] == " "
 		},
 		opens: func(t writingTriggers) bool { return t.lists },
 		read: func(node *model.Node, shape *blockShape) {
@@ -152,7 +259,12 @@ var kindTable = []KindDesc{
 		},
 	},
 	{
-		Kind: OrderedNode, Label: "Numbered List", Group: "list", Prefix: true, Numbered: true, Glyphs: "0123456789",
+		Kind: OrderedNode, Label: "Numbered List", Group: listGroup, Prefix: true, Numbered: true, Glyphs: "0123456789", Marker: roleOrdinal,
+		parse: func(text string) (blockShape, bool) {
+			digits := strings.TrimSuffix(text, ". ")
+			ok := digits != text && digits != "" && len(digits) <= 9 && strings.Trim(digits, "0123456789") == ""
+			return blockShape{kind: OrderedNode}, ok
+		},
 		rhythm: surface.RhythmEntry,
 		notation: func(shape blockShape, ordinal int) (notation, notation) {
 			return notation{indentPart(shape), {Text: strconv.Itoa(ordinal) + ".", Role: roleOrdinal}, spacePart}, nil
@@ -165,6 +277,12 @@ var kindTable = []KindDesc{
 		style:  func(_ blockShape, style *surface.TextStyle) { codeStyle(style) },
 		notation: func(shape blockShape, _ int) (notation, notation) {
 			return notation{{Text: "```" + shape.info + "\n", Role: roleCodeOpen}}, notation{{Text: "\n```", Role: roleCodeClose}}
+		},
+		parse: func(text string) (blockShape, bool) {
+			if !strings.HasPrefix(text, "```") || !strings.HasSuffix(text, "\n") || strings.ContainsAny(text[3:len(text)-1], "`\n") {
+				return blockShape{}, false
+			}
+			return blockShape{kind: CodeNode, info: strings.TrimSpace(text[3 : len(text)-1])}, true
 		},
 		opens: func(t writingTriggers) bool { return t.code },
 		read: func(node *model.Node, shape *blockShape) {
@@ -180,6 +298,7 @@ var kindTable = []KindDesc{
 		notation: func(blockShape, int) (notation, notation) {
 			return notation{{Text: "$$\n", Role: roleFormulaOpen}}, notation{{Text: "\n$$", Role: roleFormulaClose}}
 		},
+		parse: func(text string) (blockShape, bool) { return blockShape{kind: MathNode}, text == "$$\n" },
 		opens: func(t writingTriggers) bool { return t.math },
 	},
 	{
@@ -188,6 +307,7 @@ var kindTable = []KindDesc{
 		notation: func(blockShape, int) (notation, notation) {
 			return notation{{Text: "---", Role: roleRule}}, nil
 		},
+		parse: func(text string) (blockShape, bool) { return blockShape{kind: RuleNode}, text == "---" },
 		opens: func(t writingTriggers) bool { return t.rules },
 	},
 	{
@@ -231,6 +351,36 @@ func kindOf(node *model.Node) *KindDesc {
 
 // Describe returns what kind of node the editor takes kind for.
 func Describe(kind model.NodeTypeID) KindDesc { return *describe(kind) }
+
+// plainKind is the kind of block every edit falls back to.
+func plainKind() model.NodeTypeID {
+	for _, desc := range kindTable {
+		if desc.Plain {
+			return desc.Kind
+		}
+	}
+	return ""
+}
+
+// boxedKind is the kind of group whose marker holds a box.
+func boxedKind(group *GroupDesc) (*KindDesc, bool) {
+	for i := range kindTable {
+		if group != nil && kindTable[i].Group == group && kindTable[i].Box != nil {
+			return &kindTable[i], true
+		}
+	}
+	return nil, false
+}
+
+// markerKind is the kind whose marker plays role, if one's does.
+func markerKind(role projection.Role) (*KindDesc, bool) {
+	for i := range kindTable {
+		if role != 0 && kindTable[i].Marker == role {
+			return &kindTable[i], true
+		}
+	}
+	return nil, false
+}
 
 // desc is what a shape's kind is.
 func (s blockShape) desc() *KindDesc { return describe(s.kind) }

@@ -144,11 +144,11 @@ func FormattingLevel(
 	if err != nil {
 		return 0
 	}
-	levels := formattingLevelsCovering(node, rangeUTF16, EmphasisMark)
+	levels := formattingLevelsCovering(node, rangeUTF16, FormatMark)
 	var active *model.InlineMark
 	if rangeUTF16.Empty() && activeMark != nil {
 		for _, mark := range node.Marks() {
-			if mark.ID() == *activeMark && mark.Kind() == EmphasisMark {
+			if mark.ID() == *activeMark && mark.Kind() == FormatMark {
 				value := mark
 				active = &value
 				break

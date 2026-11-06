@@ -141,6 +141,8 @@ func orderedAnchors(document model.DocumentSnapshot, a, b model.TextAnchor) (mod
 // (groupOf, in writing.go).
 type blockGroup struct {
 	family string
+	// counts numbers the group's numbered items by their place in its run.
+	counts bool
 	kind   string
 	depth  int
 }

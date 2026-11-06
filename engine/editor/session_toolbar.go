@@ -29,7 +29,7 @@ func (s *Session) ToolbarState() ToolbarState {
 	document := s.runtime.Snapshot().Document()
 	active := activeMark(s.inline)
 	ranges := selectionBlockRanges(document, s.presentation.Selection)
-	coverage := formattingCoverageFor(document, ranges, EmphasisMark, active)
+	coverage := formattingCoverageFor(document, ranges, FormatMark, active)
 	settings := func(command markupOp) MarkupSettings {
 		return MarkupSettings{
 			PolicyEnabled:  configuration.IsEnabled(WritingPolicyID),

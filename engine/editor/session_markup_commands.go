@@ -29,8 +29,8 @@ func (s *Session) doFormat(command markupOp) (kernel.Outcome, error) {
 	if target, ok := notationWithin(s.presentation.Projection, projected); ok {
 		node, _ := s.runtime.Snapshot().Document().Node(target.Node())
 		for _, mark := range node.Marks() {
-			if MarkerKeyIdentifies(target.Key(), mark.ID()) && mark.Kind() == EmphasisMark {
-				notation := inlineNotation(model.NewInlineMark(0, model.UTF16Range{}, EmphasisMark, command.Level()))
+			if MarkerKeyIdentifies(target.Key(), mark.ID()) && mark.Kind() == FormatMark {
+				notation := inlineNotation(model.NewInlineMark(0, model.UTF16Range{}, FormatMark, command.Level()))
 				result, err := s.replaceSelection(notation, kernel.EventOriginSemantic)
 				return result.Outcome, err
 			}
@@ -41,7 +41,7 @@ func (s *Session) doFormat(command markupOp) (kernel.Outcome, error) {
 		session:  s,
 		command:  command,
 		ranges:   ranges,
-		coverage: formattingCoverageFor(document, ranges, EmphasisMark, activeMark(s.inline)),
+		coverage: formattingCoverageFor(document, ranges, FormatMark, activeMark(s.inline)),
 	}
 	return s.dispatchSelectionCommand(
 		markupFormatTrigger,
@@ -207,7 +207,7 @@ func (i *markupFormatInvoker) Invoke(
 			}
 		}
 		for _, mark := range node.Marks() {
-			if mark.Range() == part.Range && mark.Kind() == EmphasisMark && mark.Level() == level &&
+			if mark.Range() == part.Range && mark.Kind() == FormatMark && mark.Level() == level &&
 				(i.coverage.active == nil || mark.ID() == i.coverage.active.ID()) {
 				if err := document.SetMarkLevel(part.Node, mark.ID(), 0); err != nil {
 					return 0, err
@@ -227,7 +227,7 @@ func (i *markupFormatInvoker) Invoke(
 			document,
 			i.ranges[0].Node,
 			i.ranges[0].Range,
-			EmphasisMark,
+			FormatMark,
 			level,
 			false,
 		); err != nil {
@@ -249,7 +249,7 @@ func (i *markupFormatInvoker) Invoke(
 			document,
 			part.Node,
 			part.Range,
-			EmphasisMark,
+			FormatMark,
 			level,
 			remove,
 		); err != nil {

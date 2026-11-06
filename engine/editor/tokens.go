@@ -16,15 +16,6 @@ import (
 // and the space after a marker: the caret skips it, and it never reads as
 // text.
 
-// tokenRole reports whether role is a marker's glyphs, not a gap.
-func tokenRole(role projection.Role) bool {
-	switch role {
-	case roleHeading, roleQuote, roleBullet, roleOrdinal, roleCheckbox:
-		return true
-	}
-	return false
-}
-
 // openingNotation is the notation opening a block that at stands in or at
 // the end of: its segment, its block and its range.
 func openingNotation(p *projection.Projection, at model.UTF16Offset) (model.NodeID, model.UTF16Range, bool) {
@@ -41,24 +32,28 @@ func openingNotation(p *projection.Projection, at model.UTF16Offset) (model.Node
 }
 
 // tokenStops are the caret stops in a block's opening notation at span:
-// before each glyph of its tokens, and in a checkbox's box.
+// before each glyph of its marker but a space, and in a box the marker
+// holds, as its kind's grammar declares.
 func tokenStops(p *projection.Projection, span model.UTF16Range) []model.UTF16Offset {
 	text, err := p.TextRange(span)
 	if err != nil {
 		return nil
 	}
 	var stops []model.UTF16Offset
-	at, box := span.Start, false
+	at, inBox := span.Start, false
 	for _, r := range text {
-		if role, ok := p.RoleAt(at); ok && tokenRole(role.Role) {
-			switch {
-			case r == '[':
-				box = true
-				stops = append(stops, at)
-			case r == ']':
-				box = false
-			case r != ' ' || box:
-				stops = append(stops, at)
+		if role, ok := p.RoleAt(at); ok {
+			if desc, ok := markerKind(role.Role); ok {
+				box := desc.Box
+				switch {
+				case box != nil && r == box.Open:
+					inBox = true
+					stops = append(stops, at)
+				case box != nil && r == box.Close:
+					inBox = false
+				case r != ' ' || inBox:
+					stops = append(stops, at)
+				}
 			}
 		}
 		at += model.UTF16Offset(utf16Len(r))
@@ -146,37 +141,39 @@ func (s *Session) typeAtToken(text string) (EditingOutcome, bool, error) {
 	desc := shape.desc()
 	next, land, absorb := shape, span.End, ""
 	inBox := false
-	if desc.Checks {
-		if before, err := p.TextRange(model.NewUTF16Range(caret.Start-1, caret.Start)); err == nil && before == "[" {
-			inBox = true
-		}
+	if box := desc.Box; box != nil {
+		before, err := p.TextRange(model.NewUTF16Range(caret.Start-1, caret.Start))
+		inBox = err == nil && before == string(box.Open)
 	}
 	switch opened, opens := glyphOpener(r); {
-	case inBox && (r == ' ' || r == 'x' || r == 'X'):
-		next.checked = r != ' ' || !shape.checked
-		land = caret.Start
 	case inBox:
-		return EditingOutcome{}, false, nil
+		set, ok := desc.Box.reads(r)
+		if !ok {
+			return EditingOutcome{}, false, nil
+		}
+		// A glyph setting the state sets it; one clearing it toggles.
+		next.checked = set || !shape.checked
+		land = caret.Start
 	case opens && opened == shape.kind:
-		switch {
-		case desc.Leveled:
+		switch desc.Raise {
+		case RaiseLevel:
 			next.level = min(6, shape.level+1)
 			land = caret.Start + 1
-		case desc.Group == "quote":
+		case RaiseDepth:
 			next.depth = min(maxDepth, shape.depth+1)
 			land = caret.Start
 		default:
-			// Another of a list's own markers leaves it as it is.
 			return EditingOutcome{Outcome: kernel.OutcomeHandled}, true, nil
 		}
 	case opens:
 		next = blockShape{kind: opened, level: 1}
-		if describe(opened).Group == desc.Group && desc.Group != "" {
+		if group := describe(opened).Group; group != nil && group == desc.Group {
 			next.depth = shape.depth
 		}
-		if describe(opened).Numbered {
-			absorb = ". "
-		}
+		// What of the new marker follows its glyphs is what the writer
+		// types next: typing it is typing nothing.
+		token, _ := blockNotation(blockShape{kind: opened, level: 1}, 1)
+		absorb = strings.TrimLeft(token, describe(opened).Glyphs)
 	default:
 		return EditingOutcome{}, false, nil
 	}

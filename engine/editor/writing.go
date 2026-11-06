@@ -20,13 +20,6 @@ import (
 // the notation replaces all of it, read back as a shape, or else leaves a
 // paragraph of the block's own text (flatten).
 const (
-	// CodeMark is inline code.
-	CodeMark model.MarkKind = "code"
-	// StrikeMark is struck-through text.
-	StrikeMark model.MarkKind = "strike"
-	// MathMark is an inline formula; the text it covers is its TeX source.
-	MathMark model.MarkKind = "math"
-
 	headingLevelAttribute = "level"
 	codeInfoAttribute     = "info"
 	// depthAttribute nests an item or quote line within the ones before
@@ -104,58 +97,10 @@ func writingSettingDescriptors() []kernel.SettingDescriptor {
 	return descriptors
 }
 
-// markerKind is the mark a typed marker opens, when typing it is allowed to,
-// and the highest level the mark goes to.
-func (t writingTriggers) markerKind(text string) (model.MarkKind, uint8, bool) {
-	switch text {
-	case "*":
-		return EmphasisMark, 2, t.asterisks
-	case "_":
-		return EmphasisMark, 2, t.underscores
-	case "`":
-		return CodeMark, 1, t.code
-	case "$":
-		return MathMark, 1, t.math
-	case "~":
-		return StrikeMark, 1, t.strike
-	}
-	return "", 0, false
-}
-
 // opens reports whether typing may open a block of kind.
 func (t writingTriggers) opens(kind model.NodeTypeID) bool {
 	desc := describe(kind)
 	return desc.opens != nil && desc.opens(t)
-}
-
-// inlineNotation is how a mark shows on either side of its text.
-func inlineNotation(mark model.InlineMark) string {
-	switch mark.Kind() {
-	case EmphasisMark:
-		return strings.Repeat("*", int(mark.Level()))
-	case CodeMark:
-		return "`"
-	case MathMark:
-		return "$"
-	case StrikeMark:
-		return "~"
-	}
-	return ""
-}
-
-// inlineLevel reads edited notation of a mark back to its level; zero takes
-// the mark away. Emphasis reads either marker, as typing does.
-func inlineLevel(kind model.MarkKind, text string) (uint8, bool) {
-	if text == "" {
-		return 0, true
-	}
-	if kind != EmphasisMark {
-		return 1, text == inlineNotation(model.NewInlineMark(0, model.UTF16Range{}, kind, 1))
-	}
-	if strings.Trim(text, text[:1]) != "" || text[0] != '*' && text[0] != '_' || len(text) > 2 {
-		return 0, false
-	}
-	return uint8(len(text)), true
 }
 
 // inlineMarkerRune reports whether r is notation of some inline mark.
@@ -190,15 +135,15 @@ func shapeOf(node *model.Node) blockShape {
 
 // nests reports whether a shape stands in a group with its neighbours,
 // nested by depth: items in a list, lines in a quote.
-func (s blockShape) nests() bool { return s.desc().Group != "" }
+func (s blockShape) nests() bool { return s.desc().Group != nil }
 
 // groupOf is the group a block stands in: the Writing Profile's use of the
 // page's block groups (blocks.go). Bullet and numbered items are two kinds
 // of list, which nest in one another; quote lines are a quote.
 func groupOf(node *model.Node) (blockGroup, bool) {
 	shape := shapeOf(node)
-	if family := shape.desc().Group; family != "" {
-		return blockGroup{family: family, kind: string(shape.kind), depth: shape.depth}, true
+	if group := shape.desc().Group; group != nil {
+		return blockGroup{family: group.Family, counts: group.Counts, kind: string(shape.kind), depth: shape.depth}, true
 	}
 	return blockGroup{}, false
 }
@@ -208,49 +153,27 @@ func groupOf(node *model.Node) (blockGroup, bool) {
 func (s blockShape) opensLine() bool { return s.desc().Prefix }
 
 // parseOpener reads notation at a block's start as the shape it opens: the
-// inverse of blockNotation.
+// inverse of blockNotation, read by the kind whose notation it is. An
+// indent nests an item of an indented group, two spaces a level.
 func parseOpener(text string) (blockShape, bool) {
-	paragraph := blockShape{kind: ParagraphNode}
-	// Nested items are indented two spaces a level, nested quote lines
-	// quoted again.
+	if text == "" {
+		return blockShape{kind: plainKind()}, true
+	}
 	if indent := len(text) - len(strings.TrimLeft(text, " ")); indent > 0 {
 		shape, ok := parseOpener(text[indent:])
-		if !ok || indent/2 > maxDepth || shape.desc().Group != "list" {
+		if group := shape.desc().Group; !ok || indent/2 > maxDepth || group == nil || !group.Indented {
 			return blockShape{}, false
 		}
 		shape.depth = indent / 2
 		return shape, true
 	}
-	if quotes := strings.Count(text, "> "); quotes > 1 && text == strings.Repeat("> ", quotes) {
-		if quotes-1 > maxDepth {
-			return blockShape{}, false
+	for _, desc := range kindTable {
+		if desc.parse == nil {
+			continue
 		}
-		return blockShape{kind: QuoteNode, depth: quotes - 1}, true
-	}
-	switch {
-	case text == "":
-		return paragraph, true
-	case strings.HasSuffix(text, " ") &&
-		len(text) <= 7 && strings.Trim(text[:len(text)-1], "#") == "" && len(text) > 1:
-		return blockShape{kind: HeadingNode, level: len(text) - 1}, true
-	case text == "> ":
-		return blockShape{kind: QuoteNode}, true
-	case (text == "- " || text == "+ "):
-		return blockShape{kind: BulletNode}, true
-	case text == "- [ ] " || text == "+ [ ] ":
-		return blockShape{kind: CheckboxNode}, true
-	case text == "- [x] " || text == "- [X] " || text == "+ [x] " || text == "+ [X] ":
-		return blockShape{kind: CheckboxNode, checked: true}, true
-	case strings.HasSuffix(text, ". ") && len(text) > 2 && len(text) <= 11 &&
-		strings.Trim(text[:len(text)-2], "0123456789") == "":
-		return blockShape{kind: OrderedNode}, true
-	case strings.HasPrefix(text, "```") && strings.HasSuffix(text, "\n") &&
-		!strings.ContainsAny(text[3:len(text)-1], "`\n"):
-		return blockShape{kind: CodeNode, info: strings.TrimSpace(text[3 : len(text)-1])}, true
-	case text == "$$\n":
-		return blockShape{kind: MathNode}, true
-	case text == "---":
-		return blockShape{kind: RuleNode}, true
+		if shape, ok := desc.parse(text); ok {
+			return shape, true
+		}
 	}
 	return blockShape{}, false
 }
@@ -362,7 +285,7 @@ func literalMark(node *model.Node, active *model.MarkID) (model.MarkKind, bool) 
 	for _, mark := range node.Marks() {
 		if mark.ID() == *active {
 			kind := mark.Kind()
-			return kind, kind == CodeMark || kind == MathMark
+			return kind, describeMark(kind).Literal
 		}
 	}
 	return "", false
@@ -376,7 +299,7 @@ func ordinals(blocks []*model.Node) []int {
 	counts := make([]int, maxDepth+1)
 	for index, block := range blocks {
 		group, ok := groupOf(block)
-		if !ok || group.family != "list" {
+		if !ok || !group.counts {
 			clear(counts)
 			continue
 		}

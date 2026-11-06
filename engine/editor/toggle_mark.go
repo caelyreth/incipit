@@ -6,10 +6,6 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-// EmphasisMark is the kind of an emphasis mark: level one for emphasis,
-// two for strong.
-const EmphasisMark model.MarkKind = "emphasis"
-
 // ToggleMark applies or takes away one kind and level of mark over a range
 // of node's text, as a formatting command does. A range already wholly
 // covered loses the mark; otherwise every line of it gains it, newlines never

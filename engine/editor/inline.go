@@ -105,7 +105,7 @@ func PlanMarkerTypes(
 	}
 	// A dollar after a backslash is one, as TeX writes it, opening and
 	// closing nothing.
-	if kind == MathMark {
+	if describeMark(kind).Escapes {
 		content := node.Text().String()
 		before := content[:model.UTF16OffsetToByteClamped(content, input.Start)]
 		if slashes := len(before) - len(strings.TrimRight(before, "\\")); slashes%2 == 1 {
@@ -126,7 +126,7 @@ func PlanMarkerTypes(
 		switch {
 		case strings.Trim(before, opener) == "":
 			return action, nil
-		case text != opener || openers(before, opener) != 1 || kind != CodeMark:
+		case text != opener || openers(before, opener) != 1 || !describeMark(kind).Fences:
 			return action, nil
 		}
 		return MarkerAction{
@@ -155,12 +155,12 @@ func PlanMarkerTypes(
 	}
 	// Within code or a formula a marker short of its end is text, as TeX's
 	// \$ is.
-	if current != nil && (kind == CodeMark || kind == MathMark) && current.Range().End != input.Start {
+	if current != nil && describeMark(kind).Literal && current.Range().End != input.Start {
 		return action, nil
 	}
 	if current != nil && input.Empty() && current.Range().End == input.Start {
 		// $$ alone in a paragraph opens a formula block.
-		if kind == MathMark && current.Range().Empty() && kindOf(node).Plain && blockLength(node) == 0 {
+		if describeMark(kind).Opens != "" && current.Range().Empty() && kindOf(node).Plain && blockLength(node) == 0 {
 			return MarkerAction{
 				Handled:  true,
 				Kind:     MarkerFormulaBlock,
@@ -187,7 +187,7 @@ func PlanMarkerTypes(
 		// Emphasis goes from emphasis to strong and back to none; a mark
 		// at the highest level the profile allows stays as it is.
 		next := current.Level() + 1
-		if current.Kind() == EmphasisMark && current.Level() == 2 {
+		if desc := markOf(*current); desc.Cycles && current.Level() == desc.Top {
 			next = 0
 		}
 		if next > top {
@@ -461,23 +461,6 @@ func blockStyle(node *model.Node) surface.TextStyle {
 		shape.desc().style(shape, &style)
 	}
 	return style
-}
-
-// markStyle adds what a mark shows to style.
-func markStyle(style *surface.TextStyle, mark model.InlineMark) {
-	switch mark.Kind() {
-	case EmphasisMark:
-		switch mark.Level() {
-		case 1:
-			style.Italic = !style.Italic
-		case 2:
-			style.Bold = true
-		}
-	case CodeMark, MathMark:
-		codeStyle(style)
-	case StrikeMark:
-		style.Strike = true
-	}
 }
 
 // codeStyle sets code in the mono face, at the size of the text around
