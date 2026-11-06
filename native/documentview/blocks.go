@@ -169,15 +169,14 @@ func (e *Element) followBlockGrip(handle ui.Element, bridge *Bridge, units []pla
 func shapeItems(m *ui.Menu, bridge *Bridge, node model.NodeID) bool {
 	options := bridge.Controller.ShapeOptions(node)
 	for _, option := range options {
-		check := option.Label == "Checked"
 		var item *ui.MenuItem
-		if check {
+		if option.Toggle {
 			m.Separator()
 			item = m.Item(option.Label).Checked(option.Current)
 		} else {
 			item = m.Item(option.Label).Radio(option.Current)
 		}
-		if item.Chosen() && (check || !option.Current) {
+		if item.Chosen() && (option.Toggle || !option.Current) {
 			_, _ = bridge.Controller.Shape(node, option.Shape)
 		}
 	}

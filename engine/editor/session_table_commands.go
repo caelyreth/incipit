@@ -73,7 +73,7 @@ func (s *Session) InTable() bool {
 func (s *Session) InsertTable(rows [][]string) (kernel.Outcome, error) {
 	at := s.presentation.Selection.Node()
 	var land model.NodeID
-	outcome, err := s.dispatchWriting(tableTrigger, "table", func(document *model.DocumentDraft) (bool, error) {
+	outcome, err := s.dispatchWriting(tableTrigger, tableRule, func(document *model.DocumentDraft) (bool, error) {
 		current, ok := document.Node(at)
 		if !ok || len(rows) == 0 || len(rows[0]) == 0 {
 			return false, nil
@@ -340,7 +340,7 @@ func (s *Session) editTable(
 		}
 	}
 	var land model.NodeID
-	outcome, err := s.dispatchWriting(tableTrigger, "table", func(document *model.DocumentDraft) (bool, error) {
+	outcome, err := s.dispatchWriting(tableTrigger, tableRule, func(document *model.DocumentDraft) (bool, error) {
 		table, ok := tableAround(document, cell)
 		if !ok {
 			return false, nil

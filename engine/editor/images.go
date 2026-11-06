@@ -196,13 +196,13 @@ func (s *Session) ShapeImage(node model.NodeID, change func(*ImageShape)) (kerne
 // dispatchFigure runs an edit of image blocks as the writing policy's
 // figure rule, keeping the selection where it was.
 func (s *Session) dispatchFigure(edit func(*model.DocumentDraft) (bool, error)) (kernel.Outcome, error) {
-	return s.dispatchWriting(figureTrigger, "figure", edit)
+	return s.dispatchWriting(figureTrigger, figureRule, edit)
 }
 
 // dispatchWriting runs an edit of the page's structure as the writing
 // policy's rule named rule, keeping the selection where it was, in one
 // step of history.
-func (s *Session) dispatchWriting(trigger, rule string, edit func(*model.DocumentDraft) (bool, error)) (kernel.Outcome, error) {
+func (s *Session) dispatchWriting(trigger string, rule kernel.RuleKey, edit func(*model.DocumentDraft) (bool, error)) (kernel.Outcome, error) {
 	if !s.runtime.Configuration().IsEnabled(WritingPolicyID) {
 		return kernel.OutcomePass, nil
 	}
@@ -211,7 +211,7 @@ func (s *Session) dispatchWriting(trigger, rule string, edit func(*model.Documen
 	}
 	return s.dispatchSelectionCommand(
 		trigger,
-		&writingInvoker{session: s, rule: kernel.RuleID(rule), edit: edit},
+		s.command(rule, (&writingInvoker{edit: edit}).run),
 		func(*model.Node) *model.MarkID { return activeMark(s.inline) },
 	)
 }
@@ -219,19 +219,10 @@ func (s *Session) dispatchWriting(trigger, rule string, edit func(*model.Documen
 // writingInvoker runs edit for its rule of the writing policy, and every
 // other rule as the session does.
 type writingInvoker struct {
-	session *Session
-	rule    kernel.RuleID
-	edit    func(*model.DocumentDraft) (bool, error)
+	edit func(*model.DocumentDraft) (bool, error)
 }
 
-func (i *writingInvoker) Invoke(
-	rule *kernel.LinkedRule,
-	leaf kernel.LeafID,
-	context *kernel.RuleContext,
-) (kernel.Outcome, error) {
-	if rule == nil || rule.Key.Owner != WritingPolicyID || rule.Key.ID != i.rule {
-		return i.session.invoker.Invoke(rule, leaf, context)
-	}
+func (i *writingInvoker) run(context *kernel.RuleContext) (kernel.Outcome, error) {
 	document, err := context.DocumentMut()
 	if err != nil {
 		return 0, err

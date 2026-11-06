@@ -169,6 +169,35 @@ func EditorPolicyCatalog() (kernel.PolicyCatalog, error) {
 	return kernel.LinkPolicyCatalog(descriptors, defaultKeymap[:]...)
 }
 
+// The rules commands run as.
+var (
+	shapeRule   = textRule("shape")
+	formatRule  = writingRule("format")
+	nestRule    = writingRule("nest")
+	figureRule  = writingRule("figure")
+	tableRule   = writingRule("table")
+	arrangeRule = writingRule("arrange")
+)
+
+// commandInvoker runs a command's edit as its rule, within the dispatch the
+// command makes; every other rule answers as the session's do.
+type commandInvoker struct {
+	session *Session
+	rule    kernel.RuleKey
+	run     func(*kernel.RuleContext) (kernel.Outcome, error)
+}
+
+func (s *Session) command(rule kernel.RuleKey, run func(*kernel.RuleContext) (kernel.Outcome, error)) *commandInvoker {
+	return &commandInvoker{session: s, rule: rule, run: run}
+}
+
+func (i *commandInvoker) Invoke(rule *kernel.LinkedRule, leaf kernel.LeafID, context *kernel.RuleContext) (kernel.Outcome, error) {
+	if rule == nil || rule.Key != i.rule {
+		return i.session.invoker.Invoke(rule, leaf, context)
+	}
+	return i.run(context)
+}
+
 func textRule(id kernel.RuleID) kernel.RuleKey {
 	return kernel.RuleKey{Owner: TextPolicyID, ID: id}
 }
@@ -207,7 +236,7 @@ func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	// Typing as a block's kind has it comes before writing it literally.
 	block.Before = []kernel.RuleKey{textRule("edit")}
 	shape := edit
-	shape.ID = "shape"
+	shape.ID = shapeRule.ID
 	shape.Trigger = kernel.NewExactTrigger(shapeTrigger)
 	return kernel.PolicyDescriptor{
 		ID:               TextPolicyID,
@@ -240,21 +269,21 @@ func writingPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	block.ID = "block-syntax"
 	block.After = []kernel.RuleKey{textRule("block")}
 	format := marker
-	format.ID = "format"
+	format.ID = formatRule.ID
 	format.Trigger = kernel.NewExactTrigger(markupFormatTrigger)
 	format.Origins = nil
 	format.After, format.Before = nil, nil
 	nest := format
-	nest.ID = "nest"
+	nest.ID = nestRule.ID
 	nest.Trigger = kernel.NewExactTrigger(nestTrigger)
 	figure := format
-	figure.ID = "figure"
+	figure.ID = figureRule.ID
 	figure.Trigger = kernel.NewExactTrigger(figureTrigger)
 	table := format
-	table.ID = "table"
+	table.ID = tableRule.ID
 	table.Trigger = kernel.NewExactTrigger(tableTrigger)
 	arrange := format
-	arrange.ID = "arrange"
+	arrange.ID = arrangeRule.ID
 	arrange.Trigger = kernel.NewExactTrigger(arrangeTrigger)
 	return kernel.PolicyDescriptor{
 		ID:               WritingPolicyID,

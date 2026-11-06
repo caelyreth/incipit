@@ -34,11 +34,14 @@ func exportShape(s blockShape) BlockShape {
 // ShapeOf returns what node is apart from its text.
 func ShapeOf(node *model.Node) BlockShape { return exportShape(shapeOf(node)) }
 
-// ShapeOption is one shape a block's modifier control offers.
+// ShapeOption is one shape a block's modifier control offers: a choice
+// among kinds, the block's own Current, or with Toggle a state the block
+// holds, set while Current.
 type ShapeOption struct {
 	Label   string
 	Shape   BlockShape
 	Current bool
+	Toggle  bool
 }
 
 // ShapeOptions are the shapes node's modifier control offers: for a block
@@ -73,17 +76,17 @@ func (s *Session) ShapeOptions(node model.NodeID) []ShapeOption {
 		case kind.Plain:
 			add(kind.Label, blockShape{kind: kind.Kind})
 		case kind.Leveled:
-			for level := 1; level <= 3; level++ {
+			for level := 1; level <= max(1, kind.Offers); level++ {
 				add(fmt.Sprintf("%s %d", kind.Label, level), blockShape{kind: kind.Kind, level: level})
 			}
 		case kind.Prefix:
 			add(kind.Label, blockShape{kind: kind.Kind})
 		}
 	}
-	if desc.Checks {
+	if box := desc.Box; box != nil {
 		checked := current
 		checked.checked = !current.checked
-		options = append(options, ShapeOption{Label: "Checked", Shape: exportShape(checked), Current: current.checked})
+		options = append(options, ShapeOption{Label: box.Label, Shape: exportShape(checked), Current: current.checked, Toggle: true})
 	}
 	return options
 }
@@ -94,20 +97,16 @@ func (s *Session) reshape(node model.NodeID, shape BlockShape) (kernel.Outcome, 
 		return 0, ErrCompositionActive
 	}
 	return s.dispatchSelectionCommandWithVisual(shapeTrigger,
-		&shapeInvoker{session: s, node: node, shape: shape.internal()},
+		s.command(shapeRule, (&shapeInvoker{node: node, shape: shape.internal()}).run),
 		func(*model.Node) *model.MarkID { return activeMark(s.inline) }, true)
 }
 
 type shapeInvoker struct {
-	session *Session
-	node    model.NodeID
-	shape   blockShape
+	node  model.NodeID
+	shape blockShape
 }
 
-func (i *shapeInvoker) Invoke(rule *kernel.LinkedRule, leaf kernel.LeafID, context *kernel.RuleContext) (kernel.Outcome, error) {
-	if rule == nil || rule.Key.Owner != TextPolicyID || rule.Key.ID != "shape" {
-		return i.session.invoker.Invoke(rule, leaf, context)
-	}
+func (i *shapeInvoker) run(context *kernel.RuleContext) (kernel.Outcome, error) {
 	document, err := context.DocumentMut()
 	if err != nil {
 		return 0, err

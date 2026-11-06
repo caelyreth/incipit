@@ -78,7 +78,7 @@ func unitBlocks(document blockReader, node model.NodeID) []model.NodeID {
 // MoveBlock moves node's block, a table whole, to stand before the unit
 // before stands first in, nothing for the page's end.
 func (s *Session) MoveBlock(node, before model.NodeID) (kernel.Outcome, error) {
-	return s.dispatchWriting(arrangeTrigger, "arrange", func(document *model.DocumentDraft) (bool, error) {
+	return s.dispatchWriting(arrangeTrigger, arrangeRule, func(document *model.DocumentDraft) (bool, error) {
 		blocks := draftBlocks(document)
 		unit := unitBlocks(document, node)
 		first := blockIndex(document, unit[0])

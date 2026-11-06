@@ -88,8 +88,10 @@ type KindDesc struct {
 	Cell bool
 	// BreakLeaves blocks end at a break: what follows is a paragraph.
 	BreakLeaves bool
-	// Label names the kind where a block's modifier control offers it.
-	Label string
+	// Label names the kind where a block's modifier control offers it,
+	// and Offers how many of its levels it offers there.
+	Label  string
+	Offers int
 	// Glyphs typed at a block's token make it this kind, or step its level
 	// when it is this kind already.
 	Glyphs string
@@ -138,6 +140,9 @@ const (
 type BoxGrammar struct {
 	Open, Close rune
 	Clear, Set  string
+	// Label names the set state where a block's modifier control offers
+	// it.
+	Label string
 }
 
 // reads is the state glyph r typed in the box sets.
@@ -170,7 +175,7 @@ func (b *BoxGrammar) parse(text string) (set bool, length int, ok bool) {
 	return set, len(string(runes[:3])), ok
 }
 
-var checkBox = &BoxGrammar{Open: '[', Close: ']', Clear: " ", Set: "xX"}
+var checkBox = &BoxGrammar{Open: '[', Close: ']', Clear: " ", Set: "xX", Label: "Checked"}
 
 // listMarker reads a list item's marker, "-" or "+", and the space after.
 func listMarker(text string) (string, bool) {
@@ -184,7 +189,7 @@ var kindTable = []KindDesc{
 	{Kind: DocumentNode, Root: true},
 	{Kind: ParagraphNode, Plain: true, Label: "Text"},
 	{
-		Kind: HeadingNode, Label: "Heading", Leveled: true, Prefix: true, BreakLeaves: true, Glyphs: "#", Raise: RaiseLevel, Marker: roleHeading,
+		Kind: HeadingNode, Label: "Heading", Offers: 3, Leveled: true, Prefix: true, BreakLeaves: true, Glyphs: "#", Raise: RaiseLevel, Marker: roleHeading,
 		parse: func(text string) (blockShape, bool) {
 			hashes := strings.TrimSuffix(text, " ")
 			if hashes == text || hashes == "" || len(hashes) > 6 || strings.Trim(hashes, "#") != "" {

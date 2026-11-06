@@ -23,25 +23,17 @@ func (s *Session) doNest(command nestingOp) (kernel.Outcome, error) {
 	}
 	return s.dispatchSelectionCommand(
 		nestTrigger,
-		&nestingInvoker{session: s, command: command, nodes: nodes},
+		s.command(nestRule, (&nestingInvoker{command: command, nodes: nodes}).run),
 		func(*model.Node) *model.MarkID { return activeMark(s.inline) },
 	)
 }
 
 type nestingInvoker struct {
-	session *Session
 	command nestingOp
 	nodes   []model.NodeID
 }
 
-func (i *nestingInvoker) Invoke(
-	rule *kernel.LinkedRule,
-	leaf kernel.LeafID,
-	context *kernel.RuleContext,
-) (kernel.Outcome, error) {
-	if rule == nil || rule.Key.Owner != WritingPolicyID || rule.Key.ID != "nest" {
-		return i.session.invoker.Invoke(rule, leaf, context)
-	}
+func (i *nestingInvoker) run(context *kernel.RuleContext) (kernel.Outcome, error) {
 	document, err := context.DocumentMut()
 	if err != nil {
 		return 0, err

@@ -38,14 +38,13 @@ func (s *Session) doFormat(command markupOp) (kernel.Outcome, error) {
 		return kernel.OutcomePass, nil
 	}
 	invoker := &markupFormatInvoker{
-		session:  s,
 		command:  command,
 		ranges:   ranges,
 		coverage: formattingCoverageFor(document, ranges, FormatMark, activeMark(s.inline)),
 	}
 	return s.dispatchSelectionCommand(
 		markupFormatTrigger,
-		invoker,
+		s.command(formatRule, invoker.run),
 		func(node *model.Node) *model.MarkID {
 			if selection.Spans() {
 				return nil
@@ -184,14 +183,7 @@ func selectionBlockRanges(document model.DocumentSnapshot, selection model.TextS
 	return ranges
 }
 
-func (i *markupFormatInvoker) Invoke(
-	rule *kernel.LinkedRule,
-	leaf kernel.LeafID,
-	context *kernel.RuleContext,
-) (kernel.Outcome, error) {
-	if rule == nil || rule.Key.Owner != WritingPolicyID || rule.Key.ID != "format" {
-		return i.session.invoker.Invoke(rule, leaf, context)
-	}
+func (i *markupFormatInvoker) run(context *kernel.RuleContext) (kernel.Outcome, error) {
 	document, err := context.DocumentMut()
 	if err != nil {
 		return 0, err
