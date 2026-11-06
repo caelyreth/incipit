@@ -22,7 +22,19 @@ type Event struct {
 	projected *ProjectedEditInput
 	span      *SpanInput
 	origin    *EventOrigin
+	scopes    []ScopeKind
 }
+
+// WithScopes is the event standing in scopes, innermost first: rules of an
+// inner scope answer it before an outer one's.
+func (e Event) WithScopes(scopes ...ScopeKind) Event {
+	e.scopes = append([]ScopeKind(nil), scopes...)
+	return e
+}
+
+// Scopes are the scopes the event stands in, innermost first, the page
+// left implicit.
+func (e Event) Scopes() []ScopeKind { return e.scopes }
 
 func NewCommandEvent(key string) Event {
 	return Event{kind: EventCommand, key: key}

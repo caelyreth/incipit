@@ -778,10 +778,10 @@ func policyFixtureDescriptors() []PolicyDescriptor {
 				Initial:  TextResource(""),
 			}},
 			Rules: []RuleDescriptor{{
-				ID:        "enter",
-				Phase:     HandleRulePhase(),
-				Trigger:   NewExactTrigger("text:\n"),
-				Order:     10,
+				ID:      "enter",
+				Phase:   HandleRulePhase(),
+				Trigger: NewExactTrigger("text:\n"),
+
 				Effects:   NewEffectSet([]ResourceID{"document"}, []ResourceID{"document"}),
 				Algorithm: leaf,
 			}},

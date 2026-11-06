@@ -41,10 +41,10 @@ func runtimeCatalog(t *testing.T, conflict bool) PolicyCatalog {
 				Initial:  IntegerResource(0),
 			}},
 			Rules: []RuleDescriptor{{
-				ID:        "apply",
-				Trigger:   NewExactTrigger("cmd:apply"),
-				Phase:     HandleRulePhase(),
-				Order:     10,
+				ID:      "apply",
+				Trigger: NewExactTrigger("cmd:apply"),
+				Phase:   HandleRulePhase(),
+
 				Effects:   NewEffectSet(nil, []ResourceID{"count"}).WithDocument(DocumentAccessWrite),
 				Algorithm: runtimeLeaf(t, 1),
 			}},
@@ -74,7 +74,7 @@ func runtimeCatalog(t *testing.T, conflict bool) PolicyCatalog {
 				ID:      "apply",
 				Trigger: NewExactTrigger(extraTrigger),
 				Phase:   HandleRulePhase(),
-				Order:   10,
+
 				Effects: NewEffectSet(nil, []ResourceID{
 					"extra-document",
 					"extra-session",
@@ -413,10 +413,10 @@ func TestPolicyRuntimeBatchPublicationIsAtomic(t *testing.T) {
 		ID:               "writer",
 		EnabledByDefault: true,
 		Rules: []RuleDescriptor{{
-			ID:        "text",
-			Trigger:   NewExactTrigger(TextInputKey),
-			Phase:     HandleRulePhase(),
-			Order:     100,
+			ID:      "text",
+			Trigger: NewExactTrigger(TextInputKey),
+			Phase:   HandleRulePhase(),
+
 			Effects:   NewEffectSet(nil, nil).WithDocument(DocumentAccessWrite),
 			Algorithm: runtimeLeaf(t, 10),
 		}},

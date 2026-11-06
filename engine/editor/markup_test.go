@@ -257,9 +257,9 @@ func TestEditorPolicyCatalogMatchesDeclarations(t *testing.T) {
 		}
 		rules[entry.Policy][entry.Rule.ID] = entry.Rule
 	}
-	assertRuleOrder(t, rules[TextPolicyID]["edit"], 100, kernel.RulePhaseKindHandle, kernel.TextInputKey)
-	assertRuleOrder(t, rules[TextPolicyID]["projected-edit"], 100, kernel.RulePhaseKindHandle, kernel.ProjectedTextKey)
-	assertRuleOrder(t, rules[WritingPolicyID]["type-marker"], 10, kernel.RulePhaseKindHandle, kernel.TextInputKey)
+	assertRule(t, rules[TextPolicyID]["edit"], kernel.RulePhaseKindHandle, kernel.TextInputKey)
+	assertRule(t, rules[TextPolicyID]["projected-edit"], kernel.RulePhaseKindHandle, kernel.ProjectedTextKey)
+	assertRule(t, rules[WritingPolicyID]["type-marker"], kernel.RulePhaseKindHandle, kernel.TextInputKey)
 	if !slices.Equal(
 		rules[WritingPolicyID]["type-marker"].Origins,
 		[]kernel.EventOrigin{kernel.EventOriginTyping},
@@ -268,14 +268,27 @@ func TestEditorPolicyCatalogMatchesDeclarations(t *testing.T) {
 	}
 	// Notation of the built-in kinds is core editing; the writing policy
 	// only reads typed markers as structure.
-	assertRuleOrder(t, rules[TextPolicyID]["notation"], 100, kernel.RulePhaseKindHandle, kernel.AttributeInputKey)
-	assertRuleOrder(t, rules[TextPolicyID]["block"], 5, kernel.RulePhaseKindHandle, kernel.TextInputKey)
-	assertRuleOrder(t, rules[WritingPolicyID]["block-syntax"], 6, kernel.RulePhaseKindHandle, kernel.TextInputKey)
-	assertRuleOrder(t, rules[WritingPolicyID]["format"], 100, kernel.RulePhaseKindHandle, markupFormatTrigger)
-	for id, order := range map[kernel.RuleID]uint32{
-		"overtype": 14, "mate-edit": 16, "close-quote": 18, "open": 20,
-	} {
-		assertRuleOrder(t, rules[PairsPolicyID][id], order, kernel.RulePhaseKindHandle, kernel.TextInputKey)
+	assertRule(t, rules[TextPolicyID]["notation"], kernel.RulePhaseKindHandle, kernel.AttributeInputKey)
+	assertRule(t, rules[TextPolicyID]["block"], kernel.RulePhaseKindHandle, kernel.TextInputKey)
+	assertRule(t, rules[WritingPolicyID]["block-syntax"], kernel.RulePhaseKindHandle, kernel.TextInputKey)
+	assertRule(t, rules[WritingPolicyID]["format"], kernel.RulePhaseKindHandle, markupFormatTrigger)
+	for _, id := range []kernel.RuleID{"overtype", "mate-edit", "close-quote", "open"} {
+		assertRule(t, rules[PairsPolicyID][id], kernel.RulePhaseKindHandle, kernel.TextInputKey)
+	}
+	// Typing is read by block kind, block syntax, markers and pairs, in
+	// that declared order, before it is written as text.
+	program, err := kernel.LinkEventProgram(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	typed := kernel.NewTextEvent(kernel.TextInput{}, kernel.EventOriginTyping)
+	if got := program.Handlers(typed); !slices.Equal(got, []kernel.RuleKey{
+		{Owner: TextPolicyID, ID: "block"}, {Owner: WritingPolicyID, ID: "block-syntax"},
+		{Owner: WritingPolicyID, ID: "type-marker"}, {Owner: PairsPolicyID, ID: "overtype"},
+		{Owner: PairsPolicyID, ID: "mate-edit"}, {Owner: PairsPolicyID, ID: "close-quote"},
+		{Owner: PairsPolicyID, ID: "open"}, {Owner: TextPolicyID, ID: "edit"},
+	}) {
+		t.Fatalf("typing handlers = %v", got)
 	}
 	if !slices.Equal(
 		rules[PairsPolicyID]["mate-edit"].Origins,
@@ -283,8 +296,8 @@ func TestEditorPolicyCatalogMatchesDeclarations(t *testing.T) {
 	) {
 		t.Fatalf("mate origins=%#v", rules[PairsPolicyID]["mate-edit"].Origins)
 	}
-	assertRuleOrder(t, rules[CJKPolicyID]["refine"], 300, kernel.RulePhaseKindAfter, kernel.TextInputKey)
-	assertRuleOrder(t, rules[TypographyPolicyID]["refine"], 320, kernel.RulePhaseKindAfter, kernel.TextInputKey)
+	assertRule(t, rules[CJKPolicyID]["refine"], kernel.RulePhaseKindAfter, kernel.TextInputKey)
+	assertRule(t, rules[TypographyPolicyID]["refine"], kernel.RulePhaseKindAfter, kernel.TextInputKey)
 	if !slices.Equal(
 		rules[CJKPolicyID]["refine"].Origins,
 		[]kernel.EventOrigin{
@@ -490,26 +503,16 @@ func TestEditorInvokerEditsGeneratedMarkersAtomically(t *testing.T) {
 	}
 }
 
-func assertRuleOrder(
+func assertRule(
 	t *testing.T,
 	rule kernel.RuleDescriptor,
-	order uint32,
 	phase kernel.RulePhaseKind,
 	trigger string,
 ) {
 	t.Helper()
-	if rule.Order != order || rule.Phase.Kind != phase ||
-		rule.Trigger.Pattern() != trigger {
-		t.Fatalf(
-			"rule=%s order=%d phase=%v trigger=%q want %d %v %q",
-			rule.ID,
-			rule.Order,
-			rule.Phase.Kind,
-			rule.Trigger.Pattern(),
-			order,
-			phase,
-			trigger,
-		)
+	if rule.Phase.Kind != phase || rule.Trigger.Pattern() != trigger {
+		t.Fatalf("rule=%s phase=%v trigger=%q want %v %q",
+			rule.ID, rule.Phase.Kind, rule.Trigger.Pattern(), phase, trigger)
 	}
 }
 

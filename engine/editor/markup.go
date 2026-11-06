@@ -123,7 +123,7 @@ func EditorPolicyDescriptors() ([]kernel.PolicyDescriptor, error) {
 	}
 	cjk, err := observerPolicyDescriptor(
 		EditorPolicyCJK,
-		300,
+		nil,
 		false,
 		[]string{"punctuation", "spacing"},
 		[]kernel.EventOrigin{
@@ -135,9 +135,10 @@ func EditorPolicyDescriptors() ([]kernel.PolicyDescriptor, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Typography refines what CJK refinement leaves.
 	typography, err := observerPolicyDescriptor(
 		EditorPolicyTypography,
-		320,
+		[]kernel.RuleKey{{Owner: CJKPolicyID, ID: "refine"}},
 		true,
 		[]string{"symbols", "punctuation", "quote-placement"},
 		[]kernel.EventOrigin{kernel.EventOriginTyping},
@@ -168,6 +169,14 @@ func EditorPolicyCatalog() (kernel.PolicyCatalog, error) {
 	return kernel.LinkPolicyCatalog(descriptors, defaultKeymap[:]...)
 }
 
+func textRule(id kernel.RuleID) kernel.RuleKey {
+	return kernel.RuleKey{Owner: TextPolicyID, ID: id}
+}
+
+func writingRule(id kernel.RuleID) kernel.RuleKey {
+	return kernel.RuleKey{Owner: WritingPolicyID, ID: id}
+}
+
 func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	algorithm, err := singleLeafProgram()
 	if err != nil {
@@ -178,7 +187,6 @@ func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 		ID:        "edit",
 		Phase:     kernel.HandleRulePhase(),
 		Trigger:   kernel.NewExactTrigger(kernel.TextInputKey),
-		Order:     100,
 		Effects:   kernel.NewEffectSet(nil, nil).WithDocument(kernel.DocumentAccessWrite),
 		Algorithm: algorithm,
 	}
@@ -196,7 +204,8 @@ func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	block := edit
 	block.ID = "block"
 	block.Origins = []kernel.EventOrigin{kernel.EventOriginTyping}
-	block.Order = 5
+	// Typing as a block's kind has it comes before writing it literally.
+	block.Before = []kernel.RuleKey{textRule("edit")}
 	checkbox := edit
 	checkbox.ID = "checkbox"
 	checkbox.Trigger = kernel.NewExactTrigger(checkboxTrigger)
@@ -221,19 +230,20 @@ func writingPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 		Phase:     kernel.HandleRulePhase(),
 		Trigger:   kernel.NewExactTrigger(kernel.TextInputKey),
 		Origins:   []kernel.EventOrigin{kernel.EventOriginTyping},
-		Order:     10,
+		After:     []kernel.RuleKey{writingRule("block-syntax")},
+		Before:    []kernel.RuleKey{textRule("edit")},
 		Effects:   kernel.NewEffectSet(nil, nil).WithDocument(kernel.DocumentAccessWrite),
 		Algorithm: algorithm,
 	}
 	// Block triggers read typing before marks do.
 	block := marker
 	block.ID = "block-syntax"
-	block.Order = 6
+	block.After = []kernel.RuleKey{textRule("block")}
 	format := marker
 	format.ID = "format"
 	format.Trigger = kernel.NewExactTrigger(markupFormatTrigger)
 	format.Origins = nil
-	format.Order = 100
+	format.After, format.Before = nil, nil
 	nest := format
 	nest.ID = "nest"
 	nest.Trigger = kernel.NewExactTrigger(nestTrigger)
@@ -261,35 +271,42 @@ func pairsPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	if err != nil {
 		return kernel.PolicyDescriptor{}, err
 	}
-	declarations := PairRuleDeclarations()
-	rules := make([]kernel.RuleDescriptor, 0, len(declarations))
-	for _, ruleID := range []string{"open", "overtype", "mate-edit", "close-quote"} {
-		var declaration RuleDeclaration
-		for _, candidate := range declarations {
-			if candidate.ID == kernel.RuleID(ruleID) {
-				declaration = candidate
-				break
-			}
-		}
-		effects := kernel.NewEffectSet(nil, nil).WithDocument(kernel.DocumentAccessWrite)
-		rule := kernel.RuleDescriptor{
-			ID:        kernel.RuleID(declaration.ID),
+	effects := kernel.NewEffectSet(nil, nil).WithDocument(kernel.DocumentAccessWrite)
+	typing := []kernel.EventOrigin{kernel.EventOriginTyping}
+	rule := func(id kernel.RuleID, origins []kernel.EventOrigin, after ...kernel.RuleID) kernel.RuleDescriptor {
+		descriptor := kernel.RuleDescriptor{
+			ID:        id,
 			Phase:     kernel.HandleRulePhase(),
-			Trigger:   kernel.NewExactTrigger(TextInputKey),
-			Origins:   append([]kernel.EventOrigin(nil), declaration.Origins...),
-			Order:     uint32(declaration.Order),
+			Trigger:   kernel.NewExactTrigger(kernel.TextInputKey),
+			Origins:   origins,
+			After:     []kernel.RuleKey{textRule("block"), writingRule("type-marker")},
+			Before:    []kernel.RuleKey{textRule("edit")},
 			Effects:   effects,
 			Algorithm: algorithm,
 		}
-		rules = append(rules, rule)
-		// Mates are edited together across blocks too: a span that cuts a
-		// pair takes the mate it leaves, before core editing joins it.
-		if ruleID == "mate-edit" {
-			span := rule
-			span.ID = "mate-span"
-			span.Trigger = kernel.NewExactTrigger(kernel.SpanInputKey)
-			rules = append(rules, span)
+		for _, first := range after {
+			descriptor.After = append(descriptor.After, kernel.RuleKey{Owner: PairsPolicyID, ID: first})
 		}
+		return descriptor
+	}
+	// Typed markers are read first; a closer typed over its own steps
+	// over it, an edit of one mate takes the other, a quote closes by its
+	// context, and only then does an opener bring its closer.
+	overtype := rule("overtype", typing)
+	mate := rule("mate-edit", []kernel.EventOrigin{kernel.EventOriginTyping, kernel.EventOriginSemantic}, "overtype")
+	// Mates are edited together across blocks too: a span that cuts a
+	// pair takes the mate it leaves, before core editing joins it.
+	span := mate
+	span.ID = "mate-span"
+	span.Trigger = kernel.NewExactTrigger(kernel.SpanInputKey)
+	span.After = nil
+	span.Before = []kernel.RuleKey{textRule("span")}
+	rules := []kernel.RuleDescriptor{
+		rule("open", typing, "close-quote"),
+		overtype,
+		mate,
+		span,
+		rule("close-quote", typing, "mate-edit"),
 	}
 	return kernel.PolicyDescriptor{
 		ID:               PairsPolicyID,
@@ -307,7 +324,7 @@ func pairsPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 
 func observerPolicyDescriptor(
 	policy EditorPolicy,
-	order uint32,
+	after []kernel.RuleKey,
 	enabled bool,
 	settings []string,
 	origins []kernel.EventOrigin,
@@ -331,9 +348,9 @@ func observerPolicyDescriptor(
 		Rules: []kernel.RuleDescriptor{{
 			ID:        "refine",
 			Phase:     kernel.AfterRulePhase(kernel.DocumentStateKey()),
-			Trigger:   kernel.NewExactTrigger(TextInputKey),
+			Trigger:   kernel.NewExactTrigger(kernel.TextInputKey),
 			Origins:   append([]kernel.EventOrigin(nil), origins...),
-			Order:     order,
+			After:     after,
 			Effects:   kernel.NewEffectSet(nil, nil).WithDocument(kernel.DocumentAccessWrite),
 			Algorithm: algorithm,
 		}},

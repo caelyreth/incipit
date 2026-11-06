@@ -6,7 +6,6 @@ func scheduleRule(
 	t *testing.T,
 	id RuleID,
 	phase RulePhase,
-	order uint32,
 	effects EffectSet,
 	origins ...EventOrigin,
 ) *LinkedRule {
@@ -21,7 +20,6 @@ func scheduleRule(
 		Phase:     phase,
 		Trigger:   trigger,
 		Origins:   origins,
-		Order:     order,
 		Effects:   effects,
 		Algorithm: program,
 	})
@@ -37,17 +35,15 @@ func TestObserverProgramRejectsBackwardWritingDependencies(t *testing.T) {
 		t,
 		"b",
 		HandleRulePhase(),
-		20,
 		NewEffectSet(nil, []ResourceID{"a"}),
 	)
 	observer := scheduleRule(
 		t,
 		"a",
 		AfterRulePhase(ResourceStateKey("a")),
-		10,
 		NewEffectSet([]ResourceID{"a"}, nil),
 	)
-	_, err := LinkObserverProgram([]*LinkedRule{producer, observer})
+	_, err := scheduleProgram([]*LinkedRule{producer, observer}, map[RuleID][]RuleID{"b": {"a"}})
 	var dispatchErr *DispatchError
 	if err == nil || !asDispatchError(err, &dispatchErr) ||
 		dispatchErr.Kind != DispatchErrorBackwardObservation {
@@ -63,14 +59,13 @@ func TestExactAfterRuleIsNotAStaticObserver(t *testing.T) {
 		Phase:     AfterRulePhase(DocumentStateKey()),
 		Trigger:   NewExactTrigger(TextInputKey),
 		Origins:   []EventOrigin{EventOriginTyping},
-		Order:     300,
 		Effects:   NewEffectSet(nil, nil).WithDocument(DocumentAccessWrite),
 		Algorithm: program,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	schedule, err := LinkObserverProgram([]*LinkedRule{rule})
+	schedule, err := scheduleProgram([]*LinkedRule{rule}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,17 +80,15 @@ func TestObserverProgramAllowsDependenciesOnEarlierProducers(t *testing.T) {
 		t,
 		"producer",
 		HandleRulePhase(),
-		10,
 		NewEffectSet(nil, []ResourceID{"a"}),
 	)
 	observer := scheduleRule(
 		t,
 		"observer",
 		AfterRulePhase(ResourceStateKey("a")),
-		20,
 		NewEffectSet([]ResourceID{"a"}, []ResourceID{"b"}),
 	)
-	program, err := LinkObserverProgram([]*LinkedRule{producer, observer})
+	program, err := scheduleProgram([]*LinkedRule{producer, observer}, map[RuleID][]RuleID{"observer": {"producer"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,17 +103,15 @@ func TestObserverProgramRejectsEqualOrderInterference(t *testing.T) {
 		t,
 		"first",
 		AfterRulePhase(ResourceStateKey("a")),
-		10,
 		NewEffectSet([]ResourceID{"a"}, []ResourceID{"b"}),
 	)
 	second := scheduleRule(
 		t,
 		"second",
 		AfterRulePhase(ResourceStateKey("b")),
-		10,
 		NewEffectSet([]ResourceID{"b"}, []ResourceID{"a"}),
 	)
-	_, err := LinkObserverProgram([]*LinkedRule{first, second})
+	_, err := scheduleProgram([]*LinkedRule{first, second}, nil)
 	var dispatchErr *DispatchError
 	if err == nil || !asDispatchError(err, &dispatchErr) ||
 		dispatchErr.Kind != DispatchErrorBackwardObservation {
@@ -134,17 +125,15 @@ func TestObserverProgramReachabilityIsTransitiveAndDeterministic(t *testing.T) {
 		t,
 		"first",
 		AfterRulePhase(ResourceStateKey("a")),
-		10,
 		NewEffectSet([]ResourceID{"a"}, []ResourceID{"b"}),
 	)
 	second := scheduleRule(
 		t,
 		"second",
 		AfterRulePhase(ResourceStateKey("b")),
-		20,
 		NewEffectSet([]ResourceID{"b"}, []ResourceID{"c"}),
 	)
-	program, err := LinkObserverProgram([]*LinkedRule{second, first})
+	program, err := scheduleProgram([]*LinkedRule{second, first}, map[RuleID][]RuleID{"second": {"first"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,4 +162,21 @@ func asDispatchError(err error, target **DispatchError) bool {
 		*target = value
 	}
 	return ok
+}
+
+// scheduleProgram links rules of one policy as after names each to follow.
+func scheduleProgram(rules []*LinkedRule, after map[RuleID][]RuleID) (*ObserverProgram, error) {
+	declared := make(map[RuleKey]RuleDescriptor, len(rules))
+	for _, rule := range rules {
+		descriptor := RuleDescriptor{ID: rule.Key.ID}
+		for _, first := range after[rule.Key.ID] {
+			descriptor.After = append(descriptor.After, RuleKey{Owner: rule.Key.Owner, ID: first})
+		}
+		declared[rule.Key] = descriptor
+	}
+	order, err := orderRules(rules, declared)
+	if err != nil {
+		return nil, err
+	}
+	return linkObserverProgram(rules, order)
 }

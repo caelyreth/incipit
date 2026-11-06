@@ -9,11 +9,11 @@ type ObserverProgram struct {
 	watchers map[StateKey][]int
 }
 
-// LinkObserverProgram validates after-phase rules against every rule in the
-// linked catalog. A state observer cannot depend on state written by a rule at
-// or after its own order. After rules at equal order cannot interfere when
-// they can run for the same event and origin.
-func LinkObserverProgram(rules []*LinkedRule) (*ObserverProgram, error) {
+// linkObserverProgram validates after-phase rules against every rule in the
+// linked catalog. A state observer cannot depend on state written by a rule
+// that is not declared to go before it. After rules neither declared first
+// cannot interfere when they can run for the same event and origin.
+func linkObserverProgram(rules []*LinkedRule, order ruleOrder) (*ObserverProgram, error) {
 	all := append([]*LinkedRule(nil), rules...)
 	sortRules(all)
 	after := make([]*LinkedRule, 0)
@@ -31,7 +31,7 @@ func LinkObserverProgram(rules []*LinkedRule) (*ObserverProgram, error) {
 			continue
 		}
 		for _, producer := range all {
-			if producer.Key == observer.Key || producer.Order < observer.Order {
+			if producer.Key == observer.Key || order.reach[producer.Key][observer.Key] {
 				continue
 			}
 			for _, key := range observer.Phase.ChangeKeys() {
@@ -45,7 +45,7 @@ func LinkObserverProgram(rules []*LinkedRule) (*ObserverProgram, error) {
 			}
 		}
 	}
-	if err := validateAfterRuleOrder(after); err != nil {
+	if err := validateAfterRuleOrder(after, order); err != nil {
 		return nil, err
 	}
 	watchers := make(map[StateKey][]int)
@@ -67,10 +67,10 @@ func afterTriggersCoSchedule(first, second Trigger) bool {
 	return first.Overlaps(second)
 }
 
-func validateAfterRuleOrder(rules []*LinkedRule) error {
+func validateAfterRuleOrder(rules []*LinkedRule, order ruleOrder) error {
 	for index, first := range rules {
 		for _, second := range rules[index+1:] {
-			if first.Order == second.Order &&
+			if !order.related(first.Key, second.Key) &&
 				afterTriggersCoSchedule(first.Trigger, second.Trigger) &&
 				OriginsOverlap(first.Origins, second.Origins) &&
 				first.Effects.Interferes(second.Effects) {

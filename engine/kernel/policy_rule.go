@@ -70,14 +70,33 @@ func (p RulePhase) clone() RulePhase {
 	return p
 }
 
+// ScopeKind names a kind of place an event happens in, as a host reads
+// it: a pair, a formula's source, a table cell. The empty kind is the page,
+// which holds every event.
+type ScopeKind string
+
+// PageScope is the outermost scope, which every event stands in.
+const PageScope ScopeKind = ""
+
 // RuleDescriptor declares one policy rule and its normalized control program.
+//
+// Rules have no rank of their own. Which of two rules that could both
+// answer one event goes first is either decided by where they answer, the
+// innermost Scope of the event's first, or declared between them: After
+// names rules this one follows, Before rules it precedes. Two rules that
+// could answer one event in one scope with neither declared first do not
+// link (DispatchErrorAmbiguousOrder). A relation naming no policy names a
+// rule of the declaring one; one naming a policy that is not linked, being
+// disabled, holds nothing.
 type RuleDescriptor struct {
 	ID        RuleID
 	Phase     RulePhase
 	Trigger   Trigger
 	Origins   []EventOrigin
 	When      *Condition
-	Order     uint32
+	Scope     ScopeKind
+	After     []RuleKey
+	Before    []RuleKey
 	Effects   EffectSet
 	Algorithm *planning.ControlProgram
 }
@@ -85,6 +104,8 @@ type RuleDescriptor struct {
 func (r RuleDescriptor) clone() RuleDescriptor {
 	r.Phase = r.Phase.clone()
 	r.Origins = cloneSlice(r.Origins)
+	r.After = cloneSlice(r.After)
+	r.Before = cloneSlice(r.Before)
 	if r.When != nil {
 		condition := r.When.Clone()
 		r.When = &condition

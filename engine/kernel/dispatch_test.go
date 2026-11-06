@@ -16,11 +16,11 @@ func TestPrecomputedEventPlansMatchLinearFallback(t *testing.T) {
 		EnabledByDefault: true,
 		Rules: []RuleDescriptor{
 			{
-				ID:        "exact",
-				Phase:     HandleRulePhase(),
-				Trigger:   NewExactTrigger("benchmark:exact"),
-				Origins:   []EventOrigin{EventOriginTyping, EventOriginPaste},
-				Order:     10,
+				ID:      "exact",
+				Phase:   HandleRulePhase(),
+				Trigger: NewExactTrigger("benchmark:exact"),
+				Origins: []EventOrigin{EventOriginTyping, EventOriginPaste},
+
 				Algorithm: dispatchProgram(t, 1),
 			},
 			{
@@ -28,7 +28,7 @@ func TestPrecomputedEventPlansMatchLinearFallback(t *testing.T) {
 				Phase:     HandleRulePhase(),
 				Trigger:   NewPrefixTrigger("benchmark:"),
 				Origins:   []EventOrigin{EventOriginTyping},
-				Order:     20,
+				After:     []RuleKey{{ID: "exact"}},
 				Algorithm: dispatchProgram(t, 2),
 			},
 			{
@@ -36,7 +36,7 @@ func TestPrecomputedEventPlansMatchLinearFallback(t *testing.T) {
 				Phase:     AfterRulePhase(DocumentStateKey()),
 				Trigger:   NewExactTrigger("benchmark:exact"),
 				Origins:   []EventOrigin{EventOriginTyping},
-				Order:     30,
+				After:     []RuleKey{{ID: "exact"}, {ID: "prefix"}},
 				Effects:   NewEffectSet(nil, nil).WithDocument(DocumentAccessWrite),
 				Algorithm: dispatchProgram(t, 3),
 			},
@@ -122,15 +122,15 @@ func TestAfterRulesFollowTheirDeclaredOrder(t *testing.T) {
 				ID:        "later",
 				Phase:     AfterRulePhase(ResourceStateKey("a")),
 				Trigger:   NewExactTrigger("ordered"),
-				Order:     20,
+				After:     []RuleKey{{ID: "earlier"}},
 				Effects:   NewEffectSet(nil, []ResourceID{"b"}),
 				Algorithm: dispatchProgram(t, 2),
 			},
 			{
-				ID:        "earlier",
-				Phase:     AfterRulePhase(ResourceStateKey("a")),
-				Trigger:   NewExactTrigger("ordered"),
-				Order:     10,
+				ID:      "earlier",
+				Phase:   AfterRulePhase(ResourceStateKey("a")),
+				Trigger: NewExactTrigger("ordered"),
+
 				Effects:   NewEffectSet(nil, []ResourceID{"c"}),
 				Algorithm: dispatchProgram(t, 1),
 			},
@@ -162,18 +162,18 @@ func TestExactAfterRulesRejectEqualOrderInterference(t *testing.T) {
 		EnabledByDefault: true,
 		Rules: []RuleDescriptor{
 			{
-				ID:        "first",
-				Phase:     AfterRulePhase(ResourceStateKey("a")),
-				Trigger:   NewExactTrigger("ordered"),
-				Order:     10,
+				ID:      "first",
+				Phase:   AfterRulePhase(ResourceStateKey("a")),
+				Trigger: NewExactTrigger("ordered"),
+
 				Effects:   NewEffectSet(nil, []ResourceID{"b"}),
 				Algorithm: dispatchProgram(t, 1),
 			},
 			{
-				ID:        "second",
-				Phase:     AfterRulePhase(ResourceStateKey("a")),
-				Trigger:   NewExactTrigger("ordered"),
-				Order:     10,
+				ID:      "second",
+				Phase:   AfterRulePhase(ResourceStateKey("a")),
+				Trigger: NewExactTrigger("ordered"),
+
 				Effects:   NewEffectSet(nil, []ResourceID{"b"}),
 				Algorithm: dispatchProgram(t, 2),
 			},
@@ -209,18 +209,18 @@ func TestAfterRulesRejectCoSchedulableWildcardInterference(t *testing.T) {
 				EnabledByDefault: true,
 				Rules: []RuleDescriptor{
 					{
-						ID:        "wildcard",
-						Phase:     AfterRulePhase(ResourceStateKey("a")),
-						Trigger:   NewStateWildcardTrigger(),
-						Order:     10,
+						ID:      "wildcard",
+						Phase:   AfterRulePhase(ResourceStateKey("a")),
+						Trigger: NewStateWildcardTrigger(),
+
 						Effects:   NewEffectSet(nil, []ResourceID{"b"}),
 						Algorithm: dispatchProgram(t, 1),
 					},
 					{
-						ID:        "keyed",
-						Phase:     AfterRulePhase(ResourceStateKey("a")),
-						Trigger:   test.keyed,
-						Order:     10,
+						ID:      "keyed",
+						Phase:   AfterRulePhase(ResourceStateKey("a")),
+						Trigger: test.keyed,
+
 						Effects:   NewEffectSet(nil, []ResourceID{"b"}),
 						Algorithm: dispatchProgram(t, 2),
 					},
@@ -284,20 +284,20 @@ func TestAfterRulesAllowEqualOrderWhenEffectsOrOriginsDoNotConflict(t *testing.T
 				EnabledByDefault: true,
 				Rules: []RuleDescriptor{
 					{
-						ID:        "first",
-						Phase:     AfterRulePhase(ResourceStateKey("a")),
-						Trigger:   test.firstTrigger,
-						Origins:   test.firstOrigins,
-						Order:     10,
+						ID:      "first",
+						Phase:   AfterRulePhase(ResourceStateKey("a")),
+						Trigger: test.firstTrigger,
+						Origins: test.firstOrigins,
+
 						Effects:   NewEffectSet(nil, []ResourceID{test.firstWrite}),
 						Algorithm: dispatchProgram(t, 1),
 					},
 					{
-						ID:        "second",
-						Phase:     AfterRulePhase(ResourceStateKey("a")),
-						Trigger:   test.secondTrigger,
-						Origins:   test.secondOrigins,
-						Order:     10,
+						ID:      "second",
+						Phase:   AfterRulePhase(ResourceStateKey("a")),
+						Trigger: test.secondTrigger,
+						Origins: test.secondOrigins,
+
 						Effects:   NewEffectSet(nil, []ResourceID{test.secondWrite}),
 						Algorithm: dispatchProgram(t, 2),
 					},
@@ -328,15 +328,15 @@ func TestWildcardAndKeyedAfterRulesFollowDeclaredOrder(t *testing.T) {
 				ID:        "wildcard",
 				Phase:     AfterRulePhase(ResourceStateKey("a")),
 				Trigger:   NewStateWildcardTrigger(),
-				Order:     30,
+				After:     []RuleKey{{ID: "keyed"}},
 				Effects:   NewEffectSet(nil, []ResourceID{"c"}),
 				Algorithm: dispatchProgram(t, 3),
 			},
 			{
-				ID:        "keyed",
-				Phase:     AfterRulePhase(ResourceStateKey("a")),
-				Trigger:   NewExactTrigger("ordered"),
-				Order:     20,
+				ID:      "keyed",
+				Phase:   AfterRulePhase(ResourceStateKey("a")),
+				Trigger: NewExactTrigger("ordered"),
+
 				Effects:   NewEffectSet(nil, []ResourceID{"b"}),
 				Algorithm: dispatchProgram(t, 2),
 			},
@@ -435,10 +435,10 @@ func dispatchCatalog(t *testing.T) PolicyCatalog {
 		EnabledByDefault: true,
 		Rules: []RuleDescriptor{
 			{
-				ID:        "first",
-				Phase:     HandleRulePhase(),
-				Trigger:   NewExactTrigger("command"),
-				Order:     10,
+				ID:      "first",
+				Phase:   HandleRulePhase(),
+				Trigger: NewExactTrigger("command"),
+
 				Effects:   NewEffectSet(nil, []ResourceID{"a"}),
 				Algorithm: dispatchProgram(t, 1),
 			},
@@ -446,7 +446,7 @@ func dispatchCatalog(t *testing.T) PolicyCatalog {
 				ID:        "fallback",
 				Phase:     HandleRulePhase(),
 				Trigger:   NewExactTrigger("command"),
-				Order:     20,
+				After:     []RuleKey{{ID: "first"}},
 				Effects:   NewEffectSet(nil, []ResourceID{"a"}),
 				Algorithm: dispatchProgram(t, 2),
 			},
@@ -454,7 +454,7 @@ func dispatchCatalog(t *testing.T) PolicyCatalog {
 				ID:        "after",
 				Phase:     AfterRulePhase(ResourceStateKey("a")),
 				Trigger:   NewStateWildcardTrigger(),
-				Order:     30,
+				After:     []RuleKey{{ID: "first"}, {ID: "fallback"}},
 				Effects:   NewEffectSet(nil, []ResourceID{"b"}),
 				Algorithm: dispatchProgram(t, 3),
 			},
@@ -599,8 +599,8 @@ func TestLinkRejectsAmbiguousRuleOrder(t *testing.T) {
 		ID:               "bad",
 		EnabledByDefault: true,
 		Rules: []RuleDescriptor{
-			{ID: "one", Trigger: NewExactTrigger("event"), Order: 1, Algorithm: dispatchProgram(t, 1)},
-			{ID: "two", Trigger: NewExactTrigger("event"), Order: 1, Algorithm: dispatchProgram(t, 2)},
+			{ID: "one", Trigger: NewExactTrigger("event"), Algorithm: dispatchProgram(t, 1)},
+			{ID: "two", Trigger: NewExactTrigger("event"), Algorithm: dispatchProgram(t, 2)},
 		},
 	}
 	catalog, err := LinkPolicyCatalog([]PolicyDescriptor{descriptor})
@@ -638,15 +638,15 @@ func TestHandlerAmbiguityKeepsTriggerOverlapSemantics(t *testing.T) {
 				EnabledByDefault: true,
 				Rules: []RuleDescriptor{
 					{
-						ID:        "first",
-						Trigger:   test.first,
-						Order:     1,
+						ID:      "first",
+						Trigger: test.first,
+
 						Algorithm: dispatchProgram(t, 1),
 					},
 					{
-						ID:        "second",
-						Trigger:   test.second,
-						Order:     1,
+						ID:      "second",
+						Trigger: test.second,
+
 						Algorithm: dispatchProgram(t, 2),
 					},
 				},
@@ -684,9 +684,9 @@ func TestLinkRejectsRulePlansWithoutExactlyOneLeaf(t *testing.T) {
 			ID:               "bad",
 			EnabledByDefault: true,
 			Rules: []RuleDescriptor{{
-				ID:        "rule",
-				Trigger:   NewExactTrigger("event"),
-				Order:     1,
+				ID:      "rule",
+				Trigger: NewExactTrigger("event"),
+
 				Algorithm: program,
 			}},
 		}})

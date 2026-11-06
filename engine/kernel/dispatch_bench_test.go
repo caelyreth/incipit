@@ -105,17 +105,17 @@ func dispatchBenchMinimalCatalog(b *testing.B) PolicyCatalog {
 		EnabledByDefault: true,
 		Rules: []RuleDescriptor{
 			{
-				ID:        "marker",
-				Phase:     HandleRulePhase(),
-				Trigger:   NewExactTrigger(TextInputKey),
-				Order:     10,
+				ID:      "marker",
+				Phase:   HandleRulePhase(),
+				Trigger: NewExactTrigger(TextInputKey),
+
 				Algorithm: algorithm,
 			},
 			{
 				ID:        "edit",
 				Phase:     HandleRulePhase(),
 				Trigger:   NewExactTrigger(TextInputKey),
-				Order:     100,
+				After:     []RuleKey{{ID: "marker"}},
 				Effects:   NewEffectSet(nil, nil).WithDocument(DocumentAccessWrite),
 				Algorithm: algorithm,
 			},
@@ -136,16 +136,16 @@ func dispatchBenchHeavyCatalog(b *testing.B) PolicyCatalog {
 		ID:               "benchmark.heavy.edit",
 		EnabledByDefault: true,
 		Rules: []RuleDescriptor{{
-			ID:        "edit",
-			Phase:     HandleRulePhase(),
-			Trigger:   NewExactTrigger(TextInputKey),
-			Order:     1,
+			ID:      "edit",
+			Phase:   HandleRulePhase(),
+			Trigger: NewExactTrigger(TextInputKey),
+
 			Effects:   NewEffectSet(nil, nil).WithDocument(DocumentAccessWrite),
 			Algorithm: algorithm,
 		}},
 	})
 
-	order := uint32(1_000)
+	var previous []RuleKey
 	for policyIndex := 0; policyIndex < dispatchBenchHeavyAfterPolicies; policyIndex++ {
 		rules := make([]RuleDescriptor, 0, dispatchBenchHeavyAfterPerPolicy)
 		for ruleIndex := 0; ruleIndex < dispatchBenchHeavyAfterPerPolicy; ruleIndex++ {
@@ -154,11 +154,14 @@ func dispatchBenchHeavyCatalog(b *testing.B) PolicyCatalog {
 				Phase:     AfterRulePhase(DocumentStateKey()),
 				Trigger:   NewExactTrigger(TextInputKey),
 				Origins:   []EventOrigin{EventOriginTyping},
-				Order:     order,
+				After:     previous,
 				Effects:   NewEffectSet(nil, nil).WithDocument(DocumentAccessWrite),
 				Algorithm: algorithm,
 			})
-			order++
+			previous = []RuleKey{{
+				Owner: PolicyID(fmt.Sprintf("benchmark.heavy.after.%02d", policyIndex)),
+				ID:    RuleID(fmt.Sprintf("after-%02d", ruleIndex)),
+			}}
 		}
 		descriptors = append(descriptors, PolicyDescriptor{
 			ID:               PolicyID(fmt.Sprintf("benchmark.heavy.after.%02d", policyIndex)),
@@ -168,7 +171,6 @@ func dispatchBenchHeavyCatalog(b *testing.B) PolicyCatalog {
 		})
 	}
 
-	order = 10_000
 	for policyIndex := 0; policyIndex < dispatchBenchHeavyNoisePolicies; policyIndex++ {
 		rules := make([]RuleDescriptor, 0, dispatchBenchHeavyNoisePerPolicy)
 		for ruleIndex := 0; ruleIndex < dispatchBenchHeavyNoisePerPolicy; ruleIndex++ {
@@ -177,11 +179,9 @@ func dispatchBenchHeavyCatalog(b *testing.B) PolicyCatalog {
 				Phase:     AfterRulePhase(DocumentStateKey()),
 				Trigger:   NewExactTrigger(fmt.Sprintf("benchmark:noise:%02d:%02d", policyIndex, ruleIndex)),
 				Origins:   []EventOrigin{EventOriginTyping},
-				Order:     order,
 				Effects:   NewEffectSet(nil, nil).WithDocument(DocumentAccessWrite),
 				Algorithm: algorithm,
 			})
-			order++
 		}
 		descriptors = append(descriptors, PolicyDescriptor{
 			ID:               PolicyID(fmt.Sprintf("benchmark.heavy.noise.%02d", policyIndex)),

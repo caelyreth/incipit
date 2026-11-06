@@ -22,7 +22,8 @@ type LinkedRule struct {
 	Key       RuleKey
 	Trigger   Trigger
 	Origins   []EventOrigin
-	Order     uint32
+	Scope     ScopeKind
+	rank      int
 	Effects   EffectSet
 	Access    EffectSet
 	Condition *CompiledCondition
@@ -53,12 +54,20 @@ func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 	handlers := make([]*LinkedRule, 0, len(rules))
 	after := make([]*LinkedRule, 0, len(rules))
 	all := make([]*LinkedRule, 0, len(rules))
+	declared := make(map[RuleKey]RuleDescriptor, len(rules))
 	for _, entry := range rules {
 		rule, err := linkRule(entry.Policy, entry.Rule)
 		if err != nil {
 			return nil, err
 		}
 		all = append(all, rule)
+		declared[rule.Key] = entry.Rule
+	}
+	order, err := orderRules(all, declared)
+	if err != nil {
+		return nil, err
+	}
+	for _, rule := range all {
 		if rule.Trigger.Kind() == TriggerStateWildcard {
 			if rule.Phase.Kind != RulePhaseKindAfter ||
 				len(rule.Phase.ChangeKeys()) == 0 ||
@@ -79,7 +88,7 @@ func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 	sortRules(after)
 	for index, first := range handlers {
 		for _, second := range handlers[index+1:] {
-			if first.Order == second.Order &&
+			if first.Scope == second.Scope && !order.related(first.Key, second.Key) &&
 				first.Trigger.Overlaps(second.Trigger) &&
 				OriginsOverlap(first.Origins, second.Origins) {
 				return nil, &DispatchError{
@@ -90,7 +99,7 @@ func LinkEventProgram(catalog PolicyCatalog) (*EventProgram, error) {
 			}
 		}
 	}
-	schedule, err := LinkObserverProgram(all)
+	schedule, err := linkObserverProgram(all, order)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +179,7 @@ func linkRule(owner PolicyID, descriptor RuleDescriptor) (*LinkedRule, error) {
 		Key:       RuleKey{Owner: owner, ID: descriptor.ID},
 		Trigger:   descriptor.Trigger,
 		Origins:   append([]EventOrigin(nil), descriptor.Origins...),
-		Order:     descriptor.Order,
+		Scope:     descriptor.Scope,
 		Effects:   effects,
 		Access:    descriptor.Effects.Clone(),
 		Condition: condition,
@@ -181,13 +190,7 @@ func linkRule(owner PolicyID, descriptor RuleDescriptor) (*LinkedRule, error) {
 
 func sortRules(rules []*LinkedRule) {
 	sort.SliceStable(rules, func(i, j int) bool {
-		if rules[i].Order != rules[j].Order {
-			return rules[i].Order < rules[j].Order
-		}
-		if rules[i].Key.Owner != rules[j].Key.Owner {
-			return rules[i].Key.Owner < rules[j].Key.Owner
-		}
-		return rules[i].Key.ID < rules[j].Key.ID
+		return rules[i].rank < rules[j].rank
 	})
 }
 
@@ -199,6 +202,7 @@ const (
 	DispatchErrorInvalidStateObserver
 	DispatchErrorBackwardObservation
 	DispatchErrorInvalidRulePlan
+	DispatchErrorCyclicOrder
 )
 
 type DispatchError struct {
@@ -220,6 +224,8 @@ func (e *DispatchError) Error() string {
 		return fmt.Sprintf("state observer %s requires an after phase, change dependencies and no origin restriction", e.Rule)
 	case DispatchErrorBackwardObservation:
 		return fmt.Sprintf("backward or cyclic observation: %s -> %s", e.First, e.Second)
+	case DispatchErrorCyclicOrder:
+		return fmt.Sprintf("rule %s is declared both before and after another", e.Rule)
 	case DispatchErrorInvalidRulePlan:
 		return fmt.Sprintf("rule %s must own exactly one leaf, found %d", e.Rule, len(e.Leaves))
 	default:
@@ -259,6 +265,17 @@ func (p *EventProgram) AnalyzeEvent(event Event) PlanAnalysis {
 		}
 	}
 	return PlanAnalysis{Handlers: len(handlers), Observers: len(observers), DynamicGuards: dynamic}
+}
+
+// Handlers are the rules that may answer event, in the order they are
+// asked.
+func (p *EventProgram) Handlers(event Event) []RuleKey {
+	handlers, _ := p.plan(event)
+	keys := make([]RuleKey, 0, len(handlers))
+	for _, rule := range scoped(handlers, event.Scopes()) {
+		keys = append(keys, rule.Key)
+	}
+	return keys
 }
 
 func (p *EventProgram) plan(event Event) ([]*LinkedRule, []*LinkedRule) {
@@ -438,6 +455,7 @@ func (p *EventProgram) executeEngine(
 	invoker EngineInvoker,
 ) (DispatchOutcome, error) {
 	handlers, observers := p.plan(event)
+	handlers = scoped(handlers, event.Scopes())
 	candidates := handlers
 	for _, rule := range handlers {
 		if rule.Condition == nil {
