@@ -40,11 +40,11 @@ func TestCheckboxMarkerStandsOnTextBaseline(t *testing.T) {
 							Style: surface.TextStyle{Scale: test.scale},
 						})
 					}
-					flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, runs)
+					flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, runs, lineBlocks(text))
 					if err != nil {
 						t.Fatal(err)
 					}
-					flow, err = flow.WithCheckboxes([]surface.Checkbox{checkbox})
+					flow, err = ownedBy(flow, asObjects([]surface.Checkbox{checkbox}))
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -94,7 +94,7 @@ func TestCheckboxMarkerStandsOnTextBaseline(t *testing.T) {
 					for i := range spans {
 						spans[i].ObjectHeight = 0
 					}
-					rhythm := paragraphRhythm(flow, paragraph.startByte)
+					rhythm := flow.Blocks()[paragraph.block].Rhythm
 					font := style.paragraphFont(flow, paragraph.startByte, paragraph.endByte, style.font(), leading(rhythm, style.Prose.Leading()))
 					withoutHeight := ui.ShapeRichTextWith(spans, font, ui.TextShape{Width: test.width})
 					otherLines := withoutHeight.Lines()
@@ -124,9 +124,9 @@ func TestCheckboxMarkerStandsOnTextBaseline(t *testing.T) {
 }
 
 func TestCheckboxMarkerReservesOneObjectAndKeepsTextOffsets(t *testing.T) {
-	flow, err := testFlow(t, "  - [x] 你好🦀", 0).WithCheckboxes([]surface.Checkbox{{
+	flow, err := ownedBy(testFlow(t, "  - [x] 你好🦀", 0), asObjects([]surface.Checkbox{{
 		Node: 2, Marker: model.NewUTF16Range(2, 7), Checked: true,
-	}})
+	}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestCheckboxMarkerReservesOneObjectAndKeepsTextOffsets(t *testing.T) {
 	if len(objects) != 1 || objects[0].Index != 2 || objects[0].Rect.W <= 0 {
 		t.Fatalf("objects = %+v", objects)
 	}
-	box, ok := layout.CheckboxMarker(flow.Checkboxes()[0])
+	box, ok := layout.CheckboxMarker(surface.ObjectsOf[surface.Checkbox](flow)[0])
 	if !ok || box.W <= 0 || box.H <= 0 {
 		t.Fatalf("marker box = %+v, %v", box, ok)
 	}
@@ -147,9 +147,9 @@ func TestCheckboxMarkerReservesOneObjectAndKeepsTextOffsets(t *testing.T) {
 }
 
 func TestCheckboxCoordinatesRoundTripAcrossUnicodeAndLines(t *testing.T) {
-	flow, err := testFlow(t, "🦀\n  - [ ] a🦀z\nnext", 0).WithCheckboxes([]surface.Checkbox{{
+	flow, err := ownedBy(testFlow(t, "🦀\n  - [ ] a🦀z\nnext", 0), asObjects([]surface.Checkbox{{
 		Node: 2, Marker: model.NewUTF16Range(5, 10),
-	}})
+	}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestCheckboxCoordinatesRoundTripAcrossUnicodeAndLines(t *testing.T) {
 
 func TestCheckboxAndLiteralTextDoNotShareShapedLayout(t *testing.T) {
 	literal := testFlow(t, "- [ ] task", 0)
-	checkbox, err := literal.WithCheckboxes([]surface.Checkbox{{Node: 2, Marker: model.NewUTF16Range(0, 5)}})
+	checkbox, err := ownedBy(literal, asObjects([]surface.Checkbox{{Node: 2, Marker: model.NewUTF16Range(0, 5)}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,9 +195,9 @@ func TestCheckboxAndLiteralTextDoNotShareShapedLayout(t *testing.T) {
 }
 
 func TestCheckboxMarkerFollowsItsWrappedLine(t *testing.T) {
-	flow, err := testFlow(t, "        - [ ] task", 0).WithCheckboxes([]surface.Checkbox{{
+	flow, err := ownedBy(testFlow(t, "        - [ ] task", 0), asObjects([]surface.Checkbox{{
 		Node: 2, Marker: model.NewUTF16Range(8, 13),
-	}})
+	}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestCheckboxMarkerFollowsItsWrappedLine(t *testing.T) {
 	if len(objects) != 1 {
 		t.Fatalf("objects = %+v", objects)
 	}
-	box, ok := layout.CheckboxMarker(flow.Checkboxes()[0])
+	box, ok := layout.CheckboxMarker(surface.ObjectsOf[surface.Checkbox](flow)[0])
 	if !ok || objects[0].Rect.Y < box.Y || objects[0].Rect.Y > box.Y+box.H {
 		t.Fatalf("wrapped marker box %+v does not contain object baseline %+v", box, objects[0].Rect)
 	}

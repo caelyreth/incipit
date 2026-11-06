@@ -445,10 +445,8 @@ func InlineStyleRuns(
 }
 
 // blockStyle is how a block's text shows: the Writing Profile's use of the
-// surface's styles and rhythms. Headings are set larger by level and open
-// what follows them; items and quote lines are entries of the runs they
-// stand in; code, and a formula's source, are set in the mono face and
-// keep their lines.
+// surface's styles. Headings are set larger by level and strong; quote
+// lines lean; code, and a formula's source, are set in the mono face.
 func blockStyle(node *model.Node) surface.TextStyle {
 	style := surface.TextStyle{Color: surface.ColorText}
 	switch shape := shapeOf(node); shape.kind {
@@ -456,15 +454,10 @@ func blockStyle(node *model.Node) surface.TextStyle {
 		style.Scale = headingScale(shape.level)
 		style.Bold = true
 		style.Color = surface.ColorStrong
-		style.Rhythm = surface.RhythmTitle
-	case BulletNode, OrderedNode, CheckboxNode:
-		style.Rhythm = surface.RhythmEntry
 	case QuoteNode:
 		style.Italic = true
-		style.Rhythm = surface.RhythmEntry
 	case CodeNode, MathNode:
 		codeStyle(&style)
-		style.Rhythm = surface.RhythmVerbatim
 	case RuleNode:
 		style.Color = surface.ColorSubtle
 	case ImageNode:

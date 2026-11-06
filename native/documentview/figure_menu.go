@@ -107,7 +107,7 @@ func (b *Bridge) figureSelection() (surface.Figure, bool) {
 		return surface.Figure{}, false
 	}
 	selection := b.Controller.Selection().Range
-	figure, ok := flow.FigureAt(model.UTF16Offset(selection.Start))
+	figure, ok := surface.ObjectOf[surface.Figure](flow, model.UTF16Offset(selection.Start))
 	if !ok {
 		return surface.Figure{}, false
 	}

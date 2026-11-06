@@ -3,6 +3,8 @@ package window
 import (
 	"testing"
 
+	"github.com/caelyreth/neverland/engine/surface"
+
 	"github.com/egoist/mygo/ui"
 )
 
@@ -27,7 +29,7 @@ func TestCheckboxClickIsSavedAndReopened(t *testing.T) {
 	app = openNotebookApp(t, root)
 	defer app.Close()
 	flow, err := app.Session.Document().Session().SurfaceFlow()
-	if err != nil || len(flow.Checkboxes()) != 1 || !flow.Checkboxes()[0].Checked {
+	if err != nil || len(surface.ObjectsOf[surface.Checkbox](flow)) != 1 || !surface.ObjectsOf[surface.Checkbox](flow)[0].Checked {
 		t.Fatalf("reopened checkbox = %v, %v", flow, err)
 	}
 	if got := app.Session.Document().Text(); got != "- [x] task" {

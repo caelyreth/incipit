@@ -16,23 +16,25 @@ type offsetCheckpoint struct {
 // Flow is an immutable flattened projected text plus contiguous style runs and
 // sparse UTF-16 checkpoints.
 type Flow struct {
-	version    projection.Version
-	text       string
-	runs       []StyleRun
-	offsets    []offsetCheckpoint
-	ascii      bool
-	figures    []Figure
-	checkboxes []Checkbox
-	formulas   []Formula
-	tables     []Table
-	rooms      []Room
+	version projection.Version
+	text    string
+	runs    []StyleRun
+	offsets []offsetCheckpoint
+	ascii   bool
+	blocks  []Block
+	objects []Object
+	tables  []Table
+	rooms   []Room
 }
 
+// EmptyFlow is a flow of no text, one empty block.
 func EmptyFlow(version projection.Version) *Flow {
-	return &Flow{version: version, ascii: true}
+	return &Flow{version: version, ascii: true, blocks: []Block{{}}}
 }
 
-func NewFlow(version projection.Version, text string, runs []StyleRun) (*Flow, error) {
+// NewFlow is text styled by runs that cover it, in the blocks that cover
+// it.
+func NewFlow(version projection.Version, text string, runs []StyleRun, blocks []Block) (*Flow, error) {
 	end := 0
 	for _, run := range runs {
 		if int(run.Bytes.Start) != end || run.Bytes.Empty() {
@@ -65,45 +67,16 @@ func NewFlow(version projection.Version, text string, runs []StyleRun) (*Flow, e
 		}
 		flow.offsets = append(flow.offsets, offsetCheckpoint{byte: len(text), units: units})
 	}
-	return flow, nil
-}
-
-// WithFigures is the flow with the pictures its lines show, in order, each
-// at the start of a line.
-func (f *Flow) WithFigures(figures []Figure) (*Flow, error) {
-	previous := model.UTF16Offset(-1)
-	for _, figure := range figures {
-		if figure.Object.Start <= previous || figure.Object.Empty() || figure.Object.End > f.UTF16Len() ||
-			figure.Object.Start > 0 && !f.lineStart(figure.Object.Start) {
-			return nil, fmt.Errorf("a figure must start a line, in order, on its object")
-		}
-		if figure.Width <= 0 || figure.Height <= 0 || figure.Span < 0 || figure.Span > 1 {
-			return nil, fmt.Errorf("invalid figure size")
-		}
-		previous = figure.Object.Start
+	if err := validateBlocks(flow, blocks); err != nil {
+		return nil, err
 	}
-	next := *f
-	next.figures = append([]Figure(nil), figures...)
-	return &next, nil
+	flow.blocks = slices.Clone(blocks)
+	return flow, nil
 }
 
 func (f *Flow) lineStart(at model.UTF16Offset) bool {
 	before, ok := f.ByteOfUTF16(at)
 	return ok && before > 0 && f.text[before-1] == '\n'
-}
-
-// Figures are the pictures the flow's lines show, in order.
-func (f *Flow) Figures() []Figure { return append([]Figure(nil), f.figures...) }
-
-// FigureAt is the picture the line starting at offset shows.
-func (f *Flow) FigureAt(at model.UTF16Offset) (Figure, bool) {
-	index, found := slices.BinarySearchFunc(f.figures, at, func(figure Figure, at model.UTF16Offset) int {
-		return int(figure.Object.Start - at)
-	})
-	if !found {
-		return Figure{}, false
-	}
-	return f.figures[index], true
 }
 
 func (f *Flow) Version() projection.Version { return f.version }
@@ -116,9 +89,8 @@ func (f *Flow) Equal(other *Flow) bool {
 		return true
 	}
 	if f == nil || other == nil || f.version != other.version || f.text != other.text ||
-		!slices.Equal(f.runs, other.runs) || !slices.Equal(f.figures, other.figures) ||
-		!slices.Equal(f.checkboxes, other.checkboxes) ||
-		!slices.Equal(f.formulas, other.formulas) ||
+		!slices.Equal(f.runs, other.runs) || !slices.Equal(f.blocks, other.blocks) ||
+		!slices.Equal(f.objects, other.objects) ||
 		!slices.Equal(f.rooms, other.rooms) || len(f.tables) != len(other.tables) {
 		return false
 	}

@@ -6,15 +6,19 @@ import (
 	"github.com/caelyreth/neverland/engine/surface"
 )
 
-// pageFlow prepares the projected text, its styles and the page's objects
-// for layout without giving the surface ownership of semantic state.
+// pageFlow prepares the projected text, its styles, its blocks and the
+// page's objects for layout without giving the surface ownership of
+// semantic state.
 func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surface.Flow, error) {
 	runs, err := InlineStyleRuns(p, document)
 	if err != nil {
 		return nil, err
 	}
-	flow, err := surface.NewFlow(p.Version(), p.Text(), runs)
+	flow, err := surface.NewFlow(p.Version(), p.Text(), runs, flowBlocks(p, document))
 	if err != nil {
+		return nil, err
+	}
+	if flow, err = flow.WithObjects(pageObjects(p, document)); err != nil {
 		return nil, err
 	}
 	if tables := tableFlow(p, document); len(tables) > 0 {
@@ -22,11 +26,72 @@ func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surfa
 			return nil, err
 		}
 	}
-	var figures []surface.Figure
-	var checkboxes []surface.Checkbox
-	// The page's objects are where its notation's roles say: a checkbox's
-	// marker, a picture's object, a formula from its opening fence to its
-	// closing one.
+	return flow, nil
+}
+
+// flowBlocks are the page's blocks as the projection shows them, each from
+// the first text or notation of its node to the break before the next.
+func flowBlocks(p *projection.Projection, document model.DocumentSnapshot) []surface.Block {
+	var blocks []surface.Block
+	p.EachSegment(func(_ int, segment projection.Segment) bool {
+		var owner model.NodeID
+		if target, ok := segment.SemanticTarget(); ok {
+			owner = target.Node()
+		} else if target, ok := segment.AttributeTarget(); ok {
+			owner = target.Node()
+		}
+		if owner == 0 || len(blocks) > 0 && blocks[len(blocks)-1].Node == owner {
+			return true
+		}
+		if node, ok := document.Node(owner); ok {
+			block := blockLayout(node)
+			block.Range = model.EmptyUTF16Range(segment.ProjectedRange().Start)
+			blocks = append(blocks, block)
+		}
+		return true
+	})
+	for index := range blocks {
+		end := p.UTF16Len()
+		if index+1 < len(blocks) {
+			end = blocks[index+1].Range.Start - 1
+		}
+		blocks[index].Range.End = end
+	}
+	if len(blocks) == 0 {
+		blocks = append(blocks, surface.Block{})
+	}
+	return blocks
+}
+
+// blockLayout is how the Writing Profile spaces and sets a block's lines:
+// a heading opens what follows it; items and quote lines are entries of
+// the runs they stand in; code and formula blocks keep their lines, a
+// formula block centered, as a centered picture's caption is.
+func blockLayout(node *model.Node) surface.Block {
+	block := surface.Block{Node: node.ID()}
+	switch shape := shapeOf(node); shape.kind {
+	case HeadingNode:
+		block.Rhythm = surface.RhythmTitle
+	case BulletNode, OrderedNode, CheckboxNode, QuoteNode:
+		block.Rhythm = surface.RhythmEntry
+	case CodeNode:
+		block.Rhythm = surface.RhythmVerbatim
+	case MathNode:
+		block.Rhythm, block.Align = surface.RhythmVerbatim, surface.AlignCenter
+	case ImageNode:
+		if image, ok := ImageShapeOf(node); ok && image.Align == surface.FigureCenter {
+			block.Align = surface.AlignCenter
+		}
+	}
+	return block
+}
+
+// pageObjects are what the page's notation stands for, where its roles
+// say: a checkbox's marker, a picture's object, a formula from its opening
+// fence to its closing one.
+func pageObjects(p *projection.Projection, document model.DocumentSnapshot) []surface.Object {
+	var objects []surface.Object
+	var opener projection.RoleSpan
 	p.EachRole(func(span projection.RoleSpan) bool {
 		node, ok := document.Node(span.Node)
 		if !ok {
@@ -34,37 +99,31 @@ func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surfa
 		}
 		switch span.Role {
 		case roleCheckbox:
-			checkboxes = append(checkboxes, surface.Checkbox{
+			objects = append(objects, surface.Checkbox{
 				Node: node.ID(), Marker: span.Range,
 				Checked: shapeOf(node).checked, Label: node.Text().String(),
 			})
 		case roleFigure:
 			shape, _ := ImageShapeOf(node)
 			figure := surface.Figure{
-				Object: span.Range, Node: node.ID(), Media: shape.Media,
+				Range: span.Range, Node: node.ID(), Media: shape.Media,
 				Width: shape.Width, Height: shape.Height, Span: shape.Span, Align: shape.Align, Alt: shape.Alt,
 			}
 			if blockLength(node) > 0 {
 				figure.Caption = 1
 			}
-			figures = append(figures, figure)
+			objects = append(objects, figure)
+		case roleFormulaOpen:
+			opener = span
+		case roleFormulaClose:
+			if opener.Node == span.Node {
+				objects = append(objects, formulaOf(node, opener, span))
+			}
+			opener = projection.RoleSpan{}
 		}
 		return true
 	})
-	if len(checkboxes) > 0 {
-		if flow, err = flow.WithCheckboxes(checkboxes); err != nil {
-			return nil, err
-		}
-	}
-	if formulas := formulaFlow(p, document); len(formulas) > 0 {
-		if flow, err = flow.WithFormulas(formulas); err != nil {
-			return nil, err
-		}
-	}
-	if len(figures) == 0 {
-		return flow, nil
-	}
-	return flow.WithFigures(figures)
+	return objects
 }
 
 // formulaOf is the formula of node from its opening fence to its closing
@@ -93,19 +152,11 @@ func formulaOf(node *model.Node, open, close projection.RoleSpan) surface.Formul
 // formulaFlow are the page's formulas, in order.
 func formulaFlow(p *projection.Projection, document model.DocumentSnapshot) []surface.Formula {
 	var formulas []surface.Formula
-	var opener projection.RoleSpan
-	p.EachRole(func(span projection.RoleSpan) bool {
-		switch span.Role {
-		case roleFormulaOpen:
-			opener = span
-		case roleFormulaClose:
-			if node, ok := document.Node(span.Node); ok && opener.Node == span.Node {
-				formulas = append(formulas, formulaOf(node, opener, span))
-			}
-			opener = projection.RoleSpan{}
+	for _, object := range pageObjects(p, document) {
+		if formula, ok := object.(surface.Formula); ok {
+			formulas = append(formulas, formula)
 		}
-		return true
-	})
+	}
 	return formulas
 }
 

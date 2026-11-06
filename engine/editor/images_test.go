@@ -35,7 +35,7 @@ func figures(t *testing.T, session *Session) []surface.Figure {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return flow.Figures()
+	return surface.ObjectsOf[surface.Figure](flow)
 }
 
 // An image goes after the caret's block, its caption its text, and the
@@ -49,7 +49,7 @@ func TestAnImageGoesOnThePageAboveItsCaption(t *testing.T) {
 		t.Fatalf("figures = %+v", shown)
 	}
 	figure := shown[0]
-	if figure.Object.Start != 7 || figure.Media != sunset.Media || figure.Width != 800 ||
+	if figure.Range.Start != 7 || figure.Media != sunset.Media || figure.Width != 800 ||
 		figure.Height != 600 || figure.Alt != sunset.Alt {
 		t.Fatalf("figure = %+v", figure)
 	}

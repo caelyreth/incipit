@@ -192,105 +192,20 @@ func (s Style) runAt(flow *surface.Flow, offset model.UTF16Offset) surface.Style
 	return found
 }
 
-// replacement is a byte range of a paragraph's text shaping sets as one
-// object, as a checkbox's marker or a formula.
-type replacement struct {
-	from, to int
-	object   ui.Span
-}
-
-// replacementsIn are the objects shaping sets for the paragraph from start
-// to end, in order: its checkbox's marker and the formulas it sets.
-func replacementsIn(flow *surface.Flow, start, end int, style Style, width float32) []replacement {
-	var objects []replacement
-	if _, from, to, ok := checkboxIn(flow, start, end); ok {
-		object := plainSpans(flow, from, from+1, style)[0]
-		object.Text = "￼"
-		object.ObjectWidth = style.Prose.FontSize * 0.95
-		// The checkbox stands on the text baseline, regardless of leading.
-		object.ObjectHeight = style.Prose.FontSize * 0.78
-		objects = append(objects, replacement{from: from, to: to, object: object})
-	}
-	start16, _ := flow.UTF16OfByte(model.ByteOffset(start))
-	end16, _ := flow.UTF16OfByte(model.ByteOffset(end))
-	// A figure's object stands for its picture, which its line sets above
-	// it: it sets nothing, as wide as nothing.
-	if figure, ok := flow.FigureAt(start16); ok {
-		from, fromOK := flow.ByteOfUTF16(figure.Object.Start)
-		to, toOK := flow.ByteOfUTF16(figure.Object.End)
-		if fromOK && toOK && int(to) <= end {
-			object := plainSpans(flow, int(from), int(to), style)[0]
-			object.Text = "\uFFFC"
-			object.ObjectWidth = figureObjectWidth
-			objects = append(objects, replacement{from: int(from), to: int(to), object: object})
-		}
-	}
-	for _, f := range flow.FormulasIn(start16, end16) {
-		from, fromOK := flow.ByteOfUTF16(f.Range.Start)
-		to, toOK := flow.ByteOfUTF16(f.Range.End)
-		if !fromOK || !toOK || int(from) < start || int(to) > end {
-			continue
-		}
-		box, _, ok := style.setFormula(flow, f, width)
-		if !ok {
-			continue
-		}
-		object := plainSpans(flow, int(from), int(from)+1, style)[0]
-		object.Text = "￼"
-		object.ObjectWidth = min(box.Width+max(0, box.Italic), max(width, box.Width))
-		object.ObjectHeight, object.ObjectDescent = style.extentOf(f, box, width)
-		objects = append(objects, replacement{from: int(from), to: int(to), object: object})
-	}
-	return objects
-}
-
-// joinFormulaBlocks makes the lines of each formula block set in its place
-// one paragraph, its fences and source the one object of its line.
-func joinFormulaBlocks(flow *surface.Flow, paragraphs []rawParagraph, style Style, width float32) []rawParagraph {
-	var blocks []surface.Formula
-	for _, f := range flow.Formulas() {
-		if _, _, ok := style.setFormula(flow, f, width); ok && f.Display {
-			blocks = append(blocks, f)
-		}
-	}
-	if len(blocks) == 0 {
-		return paragraphs
-	}
-	joined := make([]rawParagraph, 0, len(paragraphs))
-	for index := 0; index < len(paragraphs); index++ {
-		raw := paragraphs[index]
-		for len(blocks) > 0 && model.UTF16Offset(raw.startUTF16) > blocks[0].Range.Start {
-			blocks = blocks[1:]
-		}
-		if len(blocks) == 0 || model.UTF16Offset(raw.startUTF16) != blocks[0].Range.Start {
-			joined = append(joined, raw)
-			continue
-		}
-		last := index
-		for last+1 < len(paragraphs) && model.UTF16Offset(paragraphs[last].contentUTF16) < blocks[0].Range.End {
-			last++
-		}
-		raw.endByte = paragraphs[last].endByte
-		raw.endUTF16 = paragraphs[last].endUTF16
-		raw.contentUTF16 = paragraphs[last].contentUTF16
-		joined = append(joined, raw)
-		index = last
-		blocks = blocks[1:]
-	}
-	return joined
-}
-
 // placeFormulas finds where the paragraph's line set each formula it
 // holds that is not open.
 func placeFormulas(flow *surface.Flow, paragraph *Paragraph, style Style, width float32) []PlacedFormula {
-	from, to := model.UTF16Offset(paragraph.startUTF16), model.UTF16Offset(paragraph.endUTF16)
-	formulas := flow.FormulasIn(from, to)
-	if len(formulas) == 0 {
+	held := flow.ObjectsIn(model.NewUTF16Range(model.UTF16Offset(paragraph.startUTF16), model.UTF16Offset(paragraph.endUTF16)))
+	if len(held) == 0 {
 		return nil
 	}
 	objects := paragraph.layout.Objects()
 	var placed []PlacedFormula
-	for _, f := range formulas {
+	for _, object := range held {
+		f, isFormula := object.(surface.Formula)
+		if !isFormula {
+			continue
+		}
 		box, inks, ok := style.setFormula(flow, f, width)
 		if !ok {
 			continue
@@ -315,14 +230,6 @@ func placeFormulas(flow *surface.Flow, paragraph *Paragraph, style Style, width 
 	return placed
 }
 
-// formulaBlock reports whether a paragraph is a formula block set in its
-// place, one line joined from its own.
-func formulaBlock(flow *surface.Flow, raw rawParagraph) bool {
-	formulas := flow.FormulasIn(model.UTF16Offset(raw.startUTF16), model.UTF16Offset(raw.contentUTF16))
-	return len(formulas) == 1 && formulas[0].Display &&
-		formulas[0].Range == model.NewUTF16Range(model.UTF16Offset(raw.startUTF16), model.UTF16Offset(raw.contentUTF16))
-}
-
 // FormulaAt is the formula set at a point of content space, if one is.
 func (l *Layout) FormulaAt(point ui.Point) (PlacedFormula, bool) {
 	if l == nil {
@@ -336,12 +243,14 @@ func (l *Layout) FormulaAt(point ui.Point) (PlacedFormula, bool) {
 	return PlacedFormula{}, false
 }
 
-// editing are the formulas of a paragraph whose cards show: the block the
-// paragraph is, or the inline formulas it holds.
-func editing(flow *surface.Flow, raw rawParagraph, display bool) []surface.Formula {
+// editing are the formulas of a paragraph whose cards show: the formula
+// block the paragraph is, or the inline formulas it holds.
+func editing(flow *surface.Flow, raw rawParagraph) []surface.Formula {
 	var cards []surface.Formula
-	for _, f := range flow.FormulasIn(model.UTF16Offset(raw.startUTF16), model.UTF16Offset(raw.contentUTF16)) {
-		if f.Card > 0 && f.Display == display {
+	paragraph := model.NewUTF16Range(model.UTF16Offset(raw.startUTF16), model.UTF16Offset(raw.contentUTF16))
+	for _, object := range flow.ObjectsIn(paragraph) {
+		f, ok := object.(surface.Formula)
+		if ok && f.Card > 0 && (!f.Display || f.Range == paragraph) {
 			cards = append(cards, f)
 		}
 	}

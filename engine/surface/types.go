@@ -1,6 +1,7 @@
 package surface
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/model"
@@ -54,8 +55,6 @@ type TextStyle struct {
 	Face   Face
 	Strike bool
 	Color  ColorRole
-	// Rhythm is the spacing of the block the text stands in.
-	Rhythm Rhythm
 }
 
 // Size is the text's size over the page's text size.
@@ -70,13 +69,13 @@ func (s TextStyle) Size() float32 {
 // above its caption: what it shows, named by its media, its size in
 // pixels, and how the column sets it.
 type Figure struct {
-	// Object is the notation its line opens with, standing for its
-	// picture as an object replacement character stands for an attachment
-	// in text: the caret steps over it, and it shows as nothing, so the
-	// line is the figure's whether or not it has a caption.
-	Object model.UTF16Range
-	Node   model.NodeID
-	Media  string
+	// Range is the notation its line opens with, standing for its picture
+	// as an object replacement character stands for an attachment in
+	// text: the caret steps over it, and it shows as nothing, so the line
+	// is the figure's whether or not it has a caption.
+	Range model.UTF16Range
+	Node  model.NodeID
+	Media string
 	// Width and Height are its size in pixels, so it takes its room before
 	// its pixels are read.
 	Width, Height int
@@ -93,7 +92,29 @@ type Figure struct {
 }
 
 // CaptionStart is where a figure's caption starts, past its object.
-func (f Figure) CaptionStart() model.UTF16Offset { return f.Object.End }
+func (f Figure) CaptionStart() model.UTF16Offset { return f.Range.End }
+
+func (f Figure) Run() model.UTF16Range { return f.Range }
+
+func (f Figure) node() model.NodeID { return f.Node }
+
+func (f Figure) validate(_ *Flow, block Block) error {
+	if f.Range.Start != block.Range.Start {
+		return fmt.Errorf("a figure must start its block")
+	}
+	if f.Width <= 0 || f.Height <= 0 || f.Span < 0 || f.Span > 1 {
+		return fmt.Errorf("invalid figure size")
+	}
+	return nil
+}
+
+// shifted moves a figure whole past an edit beside its object, as typing
+// at its caption's start; one within its object takes it away.
+func (f Figure) shifted(e rangeEdit) (Object, bool) {
+	moved, ok := e.whole(f.Range)
+	f.Range = moved
+	return f, ok
+}
 
 // FigureAlign is where a figure narrower than the column stands.
 type FigureAlign uint8

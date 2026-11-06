@@ -146,7 +146,7 @@ func TestIMEPreviewRetainsFigureDuringCaptionEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	figures := source.Figures()
+	figures := surface.ObjectsOf[surface.Figure](source)
 	if len(figures) != 1 {
 		t.Fatalf("source figures = %#v", figures)
 	}
@@ -161,7 +161,7 @@ func TestIMEPreviewRetainsFigureDuringCaptionEdit(t *testing.T) {
 	if !ok {
 		t.Fatal("caption preview frame missing")
 	}
-	preview := frame.Flow().Figures()
+	preview := surface.ObjectsOf[surface.Figure](frame.Flow())
 	if len(preview) != 1 || preview[0] != before {
 		t.Fatalf("preview figures = %#v, want %#v", preview, before)
 	}
@@ -176,7 +176,7 @@ func TestIMEPreviewRetainsFigureDuringCaptionEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	figures = committed.Figures()
+	figures = surface.ObjectsOf[surface.Figure](committed)
 	if len(figures) != 1 || figures[0].Node != before.Node ||
 		figures[0].Media != before.Media || figures[0].Alt != before.Alt {
 		t.Fatalf("committed figures = %#v", figures)

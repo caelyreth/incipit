@@ -18,6 +18,7 @@ func fixtureFlow(t *testing.T) *Flow {
 			{Bytes: model.NewByteRange(0, 5), Style: TextStyle{}},
 			{Bytes: model.NewByteRange(5, 7), Style: TextStyle{Bold: true}},
 		},
+		lineBlocks("a🦀bc"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -37,6 +38,7 @@ func TestFlowRejectsGapsOverlapsAndSplitUnicode(t *testing.T) {
 			projection.NewVersion(0, 0),
 			"a🦀bc",
 			[]StyleRun{{Bytes: bytes}},
+			lineBlocks("a🦀bc"),
 		); err == nil {
 			t.Fatalf("invalid run accepted: %#v", bytes)
 		}
@@ -71,7 +73,8 @@ func TestFlowEqualIncludesPresentationMetadata(t *testing.T) {
 		{"version", func(f *Flow) { f.version = projection.NewVersion(9, 2) }},
 		{"text", func(f *Flow) { f.text += "x" }},
 		{"style", func(f *Flow) { f.runs = []StyleRun{{Style: TextStyle{Bold: true}}} }},
-		{"figure", func(f *Flow) { f.figures = []Figure{{Node: 99}} }},
+		{"object", func(f *Flow) { f.objects = []Object{Figure{Node: 99}} }},
+		{"block", func(f *Flow) { f.blocks = []Block{{Rhythm: RhythmTitle}} }},
 		{"room", func(f *Flow) { f.rooms = []Room{{At: -1, Height: 2}} }},
 		{"table node", func(f *Flow) {
 			f.tables[0].Rows = [][]TableCell{{{Node: 99, Range: table.Rows[0][0].Range}}}
@@ -135,6 +138,7 @@ func TestEachRunVisitsRunsInOrderAndStopsEarly(t *testing.T) {
 				Style: TextStyle{Italic: true},
 			},
 		},
+		lineBlocks("abc"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -208,14 +212,15 @@ func TestPreviewRemapsFigureMetadata(t *testing.T) {
 			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
 			Style: TextStyle{},
 		}},
+		lineBlocks(text),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	at := model.UTF16Offset(model.StringLenUTF16("intro\n"))
-	flow, err = flow.WithFigures([]Figure{{
-		Object: model.NewUTF16Range(at, at+1), Node: 2, Media: "media/1", Width: 100, Height: 50,
-	}})
+	flow, err = ownedBy(flow, asObjects([]Figure{{
+		Range: model.NewUTF16Range(at, at+1), Node: 2, Media: "media/1", Width: 100, Height: 50,
+	}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,8 +232,8 @@ func TestPreviewRemapsFigureMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	figures := preview.Flow().Figures()
-	if len(figures) != 1 || figures[0].Object.Start != at+1 || figures[0].Media != "media/1" {
+	figures := ObjectsOf[Figure](preview.Flow())
+	if len(figures) != 1 || figures[0].Range.Start != at+1 || figures[0].Media != "media/1" {
 		t.Fatalf("preview figures = %#v", figures)
 	}
 }

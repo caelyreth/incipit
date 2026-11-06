@@ -11,7 +11,7 @@ import (
 
 func formulaFlow(t *testing.T, text string, formulas ...surface.Formula) *surface.Flow {
 	t.Helper()
-	flow, err := testFlow(t, text, 0).WithFormulas(formulas)
+	flow, err := ownedBy(testFlow(t, text, 0), asObjects(formulas))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestInlineFormulaIsSetInItsLine(t *testing.T) {
 func TestFormulaBlockIsOneLine(t *testing.T) {
 	text := "before\n$$\n\\frac12\n$$\nafter"
 	block := surface.Formula{
-		Range: model.NewUTF16Range(7, 19), Text: model.NewUTF16Range(10, 16),
+		Range: model.NewUTF16Range(7, 20), Text: model.NewUTF16Range(10, 17),
 		Source: "\\frac12", Display: true,
 	}
 	layout := NewCache().Update(formulaFlow(t, text, block), 400, testStyle())

@@ -64,14 +64,3 @@ func gap(previous, next surface.Rhythm, body float32) float32 {
 func isGroup(rhythm surface.Rhythm) bool {
 	return rhythm == surface.RhythmEntry || rhythm == surface.RhythmVerbatim
 }
-
-// paragraphRhythm is the rhythm of the block a paragraph stands in: that
-// of the text at its start, or of the break before it when it is empty.
-func paragraphRhythm(flow *surface.Flow, start int) surface.Rhythm {
-	rhythm := surface.RhythmProse
-	flow.EachRun(func(run surface.StyleRun) bool {
-		rhythm = run.Style.Rhythm
-		return int(run.Bytes.End) <= start
-	})
-	return rhythm
-}

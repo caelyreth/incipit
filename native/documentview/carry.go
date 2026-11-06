@@ -537,7 +537,7 @@ func drawCarry(p *ui.Painter, rect ui.Rect, state *State) {
 		drawFormulas(p, state, ui.Point{X: offset.X + d.X, Y: offset.Y + d.Y}, func(r model.UTF16Range) bool {
 			return carriedHolds(thing.ranges, r.Start)
 		})
-		for _, checkbox := range state.Flow.Checkboxes() {
+		for _, checkbox := range surface.ObjectsOf[surface.Checkbox](state.Flow) {
 			if !carriedHolds(thing.ranges, checkbox.Marker.Start) {
 				continue
 			}

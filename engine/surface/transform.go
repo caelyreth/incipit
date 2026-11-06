@@ -2,14 +2,13 @@ package surface
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/caelyreth/neverland/engine/model"
 )
 
 // replacement is one checked UTF-16 range edit over a flow. All metadata
-// positions are mapped in UTF-16 units from the same edit, so runs, figures,
-// checkboxes, tables, and rooms cannot drift relative to the replacement text.
+// positions are mapped in UTF-16 units from the same edit, so runs, blocks,
+// objects, tables, and rooms cannot drift relative to the replacement text.
 type replacement struct {
 	original model.UTF16Range
 	text     string
@@ -21,9 +20,10 @@ type replacement struct {
 //
 // A positional anchor strictly inside a replaced range has no surviving
 // position and is omitted. A collapsed insertion at an anchor belongs after
-// the inserted text. Range endpoints are clamped to the replacement, while
-// table/figure shape is kept only when the resulting flow still satisfies the
-// existing WithTables/WithFigures contracts.
+// the inserted text. Range endpoints are clamped to the replacement. Blocks
+// an edit joins are one block after it; each object says how an edit moves
+// it, and table shape is kept only when the resulting flow still satisfies
+// the WithTables contract.
 //
 // Tables are remapped when the edit is outside the table or wholly within one
 // cell. A cross-cell edit is not projected as a table: semantic composition
@@ -44,48 +44,26 @@ func (f *Flow) replaceRange(next replacement) (*Flow, error) {
 
 	text := f.text[:int(bytes.Start)] + next.text + f.text[int(bytes.End):]
 	runs := replacementRuns(f.runs, bytes, next.text, next.style)
-	flow, err := NewFlow(f.version, text, runs)
-	if err != nil {
-		return nil, err
-	}
-
 	edit := rangeEdit{
 		original: next.original,
 		replaced: model.UTF16Offset(model.StringLenUTF16(next.text)),
 	}
-	flow.figures = edit.figures(flow, f.figures)
-	flow.checkboxes = edit.checkboxes(flow, f.checkboxes)
+	flow, err := NewFlow(f.version, text, runs, edit.blocks(f.blocks))
+	if err != nil {
+		return nil, err
+	}
+	// An object the edit moves stays as long as it still stands where it
+	// may, as a marker joined into the block before it does not.
+	previous := model.UTF16Offset(-1)
+	for _, object := range f.objects {
+		if shifted, ok := object.shifted(edit); ok && flow.admits(shifted, previous) == nil {
+			flow.objects = append(flow.objects, shifted)
+			previous = shifted.Run().End
+		}
+	}
 	flow.tables = edit.tables(flow, f.tables)
 	flow.rooms = edit.rooms(flow, f.rooms)
 	return flow, nil
-}
-
-func (e rangeEdit) checkboxes(flow *Flow, checkboxes []Checkbox) []Checkbox {
-	next := make([]Checkbox, 0, len(checkboxes))
-	previousEnd := model.ByteOffset(0)
-	for _, checkbox := range checkboxes {
-		r := checkbox.Marker
-		if e.original.Empty() {
-			if r.Start < e.original.Start && e.original.Start < r.End {
-				continue
-			}
-		} else if e.original.Start < r.End && r.Start < e.original.End {
-			continue
-		}
-		start, startOK := e.point(r.Start)
-		end, endOK := e.point(r.End)
-		if !startOK || !endOK {
-			continue
-		}
-		checkbox.Marker = model.NewUTF16Range(start, end)
-		bytes, err := flow.byteRange(checkbox.Marker)
-		if err != nil || len(next) > 0 && !strings.Contains(flow.text[previousEnd:bytes.Start], "\n") {
-			continue
-		}
-		next = append(next, checkbox)
-		previousEnd = bytes.End
-	}
-	return next
 }
 
 func replacementRuns(
@@ -158,6 +136,41 @@ func (e rangeEdit) point(at model.UTF16Offset) (model.UTF16Offset, bool) {
 	}
 }
 
+// whole is r moved whole past an edit beside it, or false for an edit
+// within it.
+func (e rangeEdit) whole(r model.UTF16Range) (model.UTF16Range, bool) {
+	if e.original.Start < r.End && r.Start < e.original.End ||
+		e.original.Empty() && r.Start < e.original.Start && e.original.Start < r.End {
+		return r, false
+	}
+	from, ok := e.point(r.Start)
+	if !ok {
+		return r, false
+	}
+	return model.NewUTF16Range(from, from+model.UTF16Offset(r.Len())), true
+}
+
+// blocks are the blocks after the edit: each stretched over what is typed
+// within or at its ends, and those an edit joins one, the first's.
+func (e rangeEdit) blocks(blocks []Block) []Block {
+	next := make([]Block, 0, len(blocks))
+	for index, block := range blocks {
+		start, end := e.rangeStart(block.Range.Start), e.rangeEnd(block.Range.End)
+		// An edit taking the break before a block joins it to the one
+		// before.
+		if index > 0 {
+			at := blocks[index-1].Range.End
+			if e.original.Start <= at && at < e.original.End {
+				next[len(next)-1].Range.End = end
+				continue
+			}
+		}
+		block.Range = model.NewUTF16Range(start, max(start, end))
+		next = append(next, block)
+	}
+	return next
+}
+
 func (e rangeEdit) rangeStart(at model.UTF16Offset) model.UTF16Offset {
 	switch {
 	case at <= e.original.Start:
@@ -180,26 +193,6 @@ func (e rangeEdit) rangeEnd(at model.UTF16Offset) model.UTF16Offset {
 	default:
 		return e.newEnd()
 	}
-}
-
-func (e rangeEdit) figures(flow *Flow, figures []Figure) []Figure {
-	next := make([]Figure, 0, len(figures))
-	for _, figure := range figures {
-		// An edit within its object takes the figure away; one beside it,
-		// as typing at its caption's start, moves it whole.
-		r := figure.Object
-		if e.original.Start < r.End && r.Start < e.original.End ||
-			e.original.Empty() && r.Start < e.original.Start && e.original.Start < r.End {
-			continue
-		}
-		from, ok := e.point(r.Start)
-		if !ok || from != 0 && !flow.lineStart(from) {
-			continue
-		}
-		figure.Object = model.NewUTF16Range(from, from+model.UTF16Offset(r.Len()))
-		next = append(next, figure)
-	}
-	return next
 }
 
 func (e rangeEdit) tables(flow *Flow, tables []Table) []Table {

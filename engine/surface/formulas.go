@@ -2,8 +2,6 @@ package surface
 
 import (
 	"fmt"
-	"slices"
-	"sort"
 
 	"github.com/caelyreth/neverland/engine/model"
 )
@@ -33,35 +31,34 @@ type Formula struct {
 	Stale bool
 }
 
-// WithFormulas is the flow with the formulas its text sets, in order, none
-// within another.
-func (f *Flow) WithFormulas(formulas []Formula) (*Flow, error) {
-	previous := model.UTF16Offset(-1)
-	for _, formula := range formulas {
-		if formula.Range.Empty() || formula.Range.Start < previous || formula.Range.End > f.UTF16Len() {
-			return nil, fmt.Errorf("formulas must be in order, apart")
-		}
-		if formula.Display && (formula.Range.Start > 0 && !f.lineStart(formula.Range.Start)) {
-			return nil, fmt.Errorf("a formula block must start a line")
-		}
-		previous = formula.Range.End
+func (f Formula) Run() model.UTF16Range { return f.Range }
+
+func (f Formula) node() model.NodeID { return f.Node }
+
+func (f Formula) validate(_ *Flow, block Block) error {
+	if f.Text.Start < f.Range.Start || f.Text.End > f.Range.End || f.Text.Start > f.Text.End {
+		return fmt.Errorf("a formula's source must stand within it")
 	}
-	next := *f
-	next.formulas = slices.Clone(formulas)
-	return &next, nil
+	if f.Display && f.Range != block.Range {
+		return fmt.Errorf("a formula block must be its block")
+	}
+	return nil
 }
 
-// Formulas are the formulas the flow's text sets, in order.
-func (f *Flow) Formulas() []Formula { return slices.Clone(f.formulas) }
-
-// FormulasIn are the formulas within from to to, in order.
-func (f *Flow) FormulasIn(from, to model.UTF16Offset) []Formula {
-	index := sort.Search(len(f.formulas), func(index int) bool {
-		return f.formulas[index].Range.End > from
-	})
-	var within []Formula
-	for ; index < len(f.formulas) && f.formulas[index].Range.Start < to; index++ {
-		within = append(within, f.formulas[index])
+// shifted moves a formula whole past an edit beside it, and stretches it
+// with an edit within its source, as typing it does; any other takes it
+// away.
+func (f Formula) shifted(e rangeEdit) (Object, bool) {
+	if e.original.Start >= f.Text.Start && e.original.End <= f.Text.End {
+		f.Range.End += e.delta()
+		f.Text.End += e.delta()
+		return f, true
 	}
-	return within
+	moved, ok := e.whole(f.Range)
+	if !ok {
+		return f, false
+	}
+	f.Text = model.NewUTF16Range(f.Text.Start+moved.Start-f.Range.Start, f.Text.End+moved.Start-f.Range.Start)
+	f.Range = moved
+	return f, true
 }

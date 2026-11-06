@@ -33,9 +33,17 @@ func TestAFigureIsSetAtItsSizeWithinTheColumn(t *testing.T) {
 // follows move down by it, and a click in it finds it.
 func TestAFigureTakesItsRoomAboveItsLine(t *testing.T) {
 	plain := NewCache().Update(testFlow(t, "one\ntwo\nthree", 0), 400, testStyle())
-	flow, err := testFlow(t, "one\n\uFFFC\nthree", 0).WithFigures([]surface.Figure{
-		{Object: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: 1},
-	})
+	// The profile centers a centered figure's line.
+	lines := testFlow(t, "one\n\uFFFC\nthree", 0)
+	blocks := lines.Blocks()
+	blocks[1].Align = surface.AlignCenter
+	centered, err := surface.NewFlow(lines.Version(), lines.Text(), lines.Runs(), blocks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flow, err := ownedBy(centered, asObjects([]surface.Figure{
+		{Range: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: 1},
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,9 +87,9 @@ func TestAFigureTakesItsRoomAboveItsLine(t *testing.T) {
 // takes its line's room as far as it has opened.
 func TestAClosedCaptionTakesNoRoom(t *testing.T) {
 	place := func(caption float32) (PlacedFigure, Paragraph) {
-		flow, err := testFlow(t, "one\n\uFFFC\nthree", 0).WithFigures([]surface.Figure{
-			{Object: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
-		})
+		flow, err := ownedBy(testFlow(t, "one\n\uFFFC\nthree", 0), asObjects([]surface.Figure{
+			{Range: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,11 +110,11 @@ func TestAClosedCaptionTakesNoRoom(t *testing.T) {
 func TestFiguresStartLinesInOrder(t *testing.T) {
 	flow := testFlow(t, "one\ntwo", 0)
 	for _, figures := range [][]surface.Figure{
-		{{Object: model.NewUTF16Range(2, 2+1), Width: 1, Height: 1}},
-		{{Object: model.NewUTF16Range(4, 4+1), Width: 1, Height: 1}, {Object: model.NewUTF16Range(0, 0+1), Width: 1, Height: 1}},
-		{{Object: model.NewUTF16Range(4, 4+1), Width: 0, Height: 1}},
+		{{Range: model.NewUTF16Range(2, 2+1), Width: 1, Height: 1}},
+		{{Range: model.NewUTF16Range(4, 4+1), Width: 1, Height: 1}, {Range: model.NewUTF16Range(0, 0+1), Width: 1, Height: 1}},
+		{{Range: model.NewUTF16Range(4, 4+1), Width: 0, Height: 1}},
 	} {
-		if _, err := flow.WithFigures(figures); err == nil {
+		if _, err := ownedBy(flow, asObjects(figures)); err == nil {
 			t.Fatalf("figures %+v were taken", figures)
 		}
 	}
@@ -116,9 +124,9 @@ func TestFiguresStartLinesInOrder(t *testing.T) {
 // takes, its caption open or closed; a closed caption shows no selection.
 func TestRowsStepAcrossAFigure(t *testing.T) {
 	for _, caption := range []float32{0, 1} {
-		flow, err := testFlow(t, "one\n￼\nthree", 0).WithFigures([]surface.Figure{
-			{Object: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
-		})
+		flow, err := ownedBy(testFlow(t, "one\n￼\nthree", 0), asObjects([]surface.Figure{
+			{Range: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -160,10 +168,10 @@ func TestUpAndDownStepOneRowFromEveryRow(t *testing.T) {
 	figureAt := func(line int) model.UTF16Offset {
 		return model.UTF16Offset(len([]rune(strings.Join(strings.Split(text, "\n")[:line], "\n"))) + 1)
 	}
-	flow, err := testFlow(t, text, 0).WithFigures([]surface.Figure{
-		{Object: model.NewUTF16Range(figureAt(2), figureAt(2)+1), Node: 1, Media: "m", Width: 200, Height: 100, Caption: 0},
-		{Object: model.NewUTF16Range(figureAt(3), figureAt(3)+1), Node: 2, Media: "m", Width: 200, Height: 100, Caption: 1},
-	})
+	flow, err := ownedBy(testFlow(t, text, 0), asObjects([]surface.Figure{
+		{Range: model.NewUTF16Range(figureAt(2), figureAt(2)+1), Node: 1, Media: "m", Width: 200, Height: 100, Caption: 0},
+		{Range: model.NewUTF16Range(figureAt(3), figureAt(3)+1), Node: 2, Media: "m", Width: 200, Height: 100, Caption: 1},
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

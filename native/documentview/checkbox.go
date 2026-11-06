@@ -37,7 +37,7 @@ func (e *Element) checkboxControls(c *ui.Context, bridge *Bridge) {
 	if e.current == nil || bridge.Controller == nil || bridge.detached || e.carry != nil {
 		return
 	}
-	for _, checkbox := range e.current.Flow().Checkboxes() {
+	for _, checkbox := range surface.ObjectsOf[surface.Checkbox](e.current.Flow()) {
 		line, ok := e.current.CaretLine(checkbox.Marker.Start)
 		if !ok || line.Y+line.H+e.TopInset-e.visibleScroll() < 0 || line.Y+e.TopInset-e.visibleScroll() > e.lastHeight {
 			continue
@@ -112,7 +112,7 @@ func drawCheckboxes(p *ui.Painter, rect ui.Rect, state *State, options PaintOpti
 	moving := false
 	seen := make(map[model.NodeID]bool)
 	visible := p.Visible()
-	for _, checkbox := range state.Flow.Checkboxes() {
+	for _, checkbox := range surface.ObjectsOf[surface.Checkbox](state.Flow) {
 		seen[checkbox.Node] = true
 		line, ok := state.Layout.CaretLine(checkbox.Marker.Start)
 		top := rect.Y + state.TopInset - state.ScrollY + line.Y
@@ -159,4 +159,9 @@ func paintCheckbox(p *ui.Painter, box ui.Rect, semantic theme.Theme, amount floa
 		points = append(points, [2]float32{x1 + (x2-x1)*b, y1 + (y2-y1)*b})
 	}
 	p.StrokePolyline(points, max(1, box.W*0.11), ink)
+}
+
+// hasCheckboxes reports whether flow holds a checkbox.
+func hasCheckboxes(flow *surface.Flow) bool {
+	return len(surface.ObjectsOf[surface.Checkbox](flow)) > 0
 }

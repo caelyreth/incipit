@@ -21,17 +21,21 @@ import (
 // opened, opening while it or its picture is selected. It reports whether one is
 // still opening or closing.
 func (e *Element) captionedFlow(flow *surface.Flow, selection model.UTF16Range, now time.Time, animate bool) (*surface.Flow, bool) {
-	figures := flow.Figures()
-	if len(figures) == 0 {
+	objects := flow.Objects()
+	if len(surface.ObjectsOf[surface.Figure](flow)) == 0 {
 		e.captions = nil
 		return flow, false
 	}
-	captions := make(map[model.NodeID]motion.Spring, len(figures))
+	captions := make(map[model.NodeID]motion.Spring, len(objects))
 	moving := false
-	for index := range figures {
-		figure := &figures[index]
+	for index := range objects {
+		shown, isFigure := objects[index].(surface.Figure)
+		if !isFigure {
+			continue
+		}
+		figure := &shown
 		open := figure.Caption
-		if captionCaret(*figure, selection) || selection == figure.Object {
+		if captionCaret(*figure, selection) || selection == figure.Range {
 			open = 1
 		}
 		spring, known := e.captions[figure.Node]
@@ -42,9 +46,10 @@ func (e *Element) captionedFlow(flow *surface.Flow, selection model.UTF16Range, 
 		captions[figure.Node] = spring
 		figure.Caption = spring.Value()
 		moving = moving || spring.Moving()
+		objects[index] = shown
 	}
 	e.captions = captions
-	captioned, err := flow.WithFigures(figures)
+	captioned, err := flow.WithObjects(objects)
 	if err != nil {
 		return flow, false
 	}

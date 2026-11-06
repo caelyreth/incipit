@@ -614,26 +614,22 @@ func TestBlocksTakeTheirRhythm(t *testing.T) {
 	run(t, session, TextBackspace)
 	typeKeys(t, session, "```\ncode")
 	flow := session.Presentation().Flow
-	lines := strings.Split(flow.Text(), "\n")
 	want := []surface.Rhythm{
 		surface.RhythmTitle, surface.RhythmProse, surface.RhythmEntry,
-		surface.RhythmEntry, surface.RhythmVerbatim, surface.RhythmVerbatim,
+		surface.RhythmEntry, surface.RhythmVerbatim,
 	}
-	if len(lines) < len(want) {
-		t.Fatalf("page shows %q", flow.Text())
+	blocks := flow.Blocks()
+	if len(blocks) < len(want) {
+		t.Fatalf("page shows %q in %+v", flow.Text(), blocks)
 	}
-	start := 0
-	for index, line := range lines[:len(want)] {
-		end := start + len(line) + 1
-		flow.EachRun(func(run surface.StyleRun) bool {
-			if int(run.Bytes.Start) < end && int(run.Bytes.End) > start &&
-				run.Style.Rhythm != want[index] {
-				t.Fatalf("line %q has a %v run, want rhythm %v: %q",
-					line, run.Style.Rhythm, want[index], flow.Text())
-			}
-			return true
-		})
-		start = end
+	text := []rune(flow.Text())
+	for index, block := range blocks[:len(want)] {
+		if block.Rhythm != want[index] {
+			t.Fatalf("block %q has rhythm %v, want %v", string(text[block.Range.Start:block.Range.End]), block.Rhythm, want[index])
+		}
+	}
+	if code := blocks[4]; string(text[code.Range.Start:code.Range.End]) != "```\ncode\n```" {
+		t.Fatalf("the code block is %q, not its fences and lines", string(text[code.Range.Start:code.Range.End]))
 	}
 }
 
@@ -674,7 +670,7 @@ func TestFormulasInTheFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := flow.Text()
-	got := flow.Formulas()
+	got := surface.ObjectsOf[surface.Formula](flow)
 	if len(got) != 2 {
 		t.Fatalf("formulas = %+v in %q", got, text)
 	}

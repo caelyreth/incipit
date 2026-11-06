@@ -24,6 +24,7 @@ func TestLayoutGeometryAppliesTitleOffsetAndScroll(t *testing.T) {
 			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
 			Style: surface.TextStyle{},
 		}},
+		lineBlocks(text),
 	)
 	if err != nil {
 		t.Fatal(err)

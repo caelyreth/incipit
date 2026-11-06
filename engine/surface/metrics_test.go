@@ -15,6 +15,7 @@ func TestSparseMetricsMatchCanonicalUnicodeConversions(t *testing.T) {
 		projection.NewVersion(0, 0),
 		text,
 		[]StyleRun{{Bytes: model.NewByteRange(0, model.ByteOffset(len(text))), Style: TextStyle{}}},
+		lineBlocks(text),
 	)
 	if err != nil {
 		t.Fatal(err)

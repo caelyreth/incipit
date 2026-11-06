@@ -7,7 +7,9 @@ import (
 )
 
 type Paragraph struct {
-	layout       *ui.TextLayout
+	layout *ui.TextLayout
+	// block is the index of the flow's block the paragraph is a line of.
+	block        int
 	startByte    int
 	endByte      int
 	startUTF16   int
@@ -161,7 +163,8 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		return c.layout
 	}
 	c.flow, c.width, c.style = flow, width, style
-	paragraphs := splitParagraphs(flow)
+	paragraphs := style.paragraphsOf(flow, width)
+	blocks := flow.Blocks()
 	next := make(map[uint64][]*ui.TextLayout, len(paragraphs))
 	shaped := make([]Paragraph, 0, len(paragraphs))
 	top := float32(0)
@@ -224,11 +227,12 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			top += room
 		}
 	}
-	paragraphs = joinFormulaBlocks(flow, paragraphs, style, width)
 	for index := 0; index < len(paragraphs); index++ {
 		raw := paragraphs[index]
-		rhythm := paragraphRhythm(flow, raw.startByte)
-		figure, hasFigure := flow.FigureAt(model.UTF16Offset(raw.startUTF16))
+		block := blocks[raw.block]
+		rhythm := block.Rhythm
+		figure, hasFigure := surface.ObjectOf[surface.Figure](flow, model.UTF16Offset(raw.startUTF16))
+		hasFigure = hasFigure && figure.Range.Start == model.UTF16Offset(raw.startUTF16)
 		table, hasTable := flow.TableAt(model.UTF16Offset(raw.startUTF16))
 		// A figure or a table stands apart from the blocks on both
 		// sides, the wider room of the two blocks between them.
@@ -260,16 +264,13 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		}
 		var box ui.Rect
 		align := ui.Start
-		if formulaBlock(flow, raw) {
+		if block.Align == surface.AlignCenter {
 			align = ui.Center
 		}
 		if hasFigure {
 			box = figureBox(figure, width)
 			box.Y = top + above
 			above += box.H + figureBond(body)*captionRoom(figure)
-			if figure.Align == surface.FigureCenter {
-				align = ui.Center
-			}
 		}
 		top += above
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
@@ -280,6 +281,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		}
 		paragraph := Paragraph{
 			layout:       layout,
+			block:        raw.block,
 			startByte:    raw.startByte,
 			endByte:      raw.endByte,
 			startUTF16:   raw.startUTF16,
@@ -296,7 +298,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		shaped = append(shaped, paragraph)
 		// A formula being edited opens its source below its paragraph: a
 		// block's across the column, an inline one's under where it stands.
-		for _, f := range editing(flow, raw, align == ui.Center && !hasFigure) {
+		for _, f := range editing(flow, raw) {
 			lines, ok := source(f)
 			if !ok {
 				continue
@@ -346,46 +348,15 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	return c.layout
 }
 
+// rawParagraph is a paragraph before it is shaped: a line of the flow's
+// block at block, or the lines an object runs across.
 type rawParagraph struct {
+	block        int
 	startByte    int
 	endByte      int
 	startUTF16   int
 	endUTF16     int
 	contentUTF16 int
-}
-
-func splitParagraphs(flow *surface.Flow) []rawParagraph {
-	text := flow.Text()
-	paragraphs := make([]rawParagraph, 0, 8)
-	startByte, startUnits, units := 0, 0, 0
-	for index, r := range text {
-		if r != '\n' {
-			if r > 0xffff {
-				units += 2
-			} else {
-				units++
-			}
-			continue
-		}
-		paragraphs = append(paragraphs, rawParagraph{
-			startByte:    startByte,
-			endByte:      index,
-			startUTF16:   startUnits,
-			endUTF16:     units + 1,
-			contentUTF16: units,
-		})
-		startByte = index + 1
-		units++
-		startUnits = units
-	}
-	paragraphs = append(paragraphs, rawParagraph{
-		startByte:    startByte,
-		endByte:      len(text),
-		startUTF16:   startUnits,
-		endUTF16:     units,
-		contentUTF16: units,
-	})
-	return paragraphs
 }
 
 // paragraphFont is base set for a paragraph: its rows are as tall as its
@@ -419,20 +390,6 @@ func spansFor(flow *surface.Flow, start, end int, style Style, width float32) []
 		spans = append(spans, style.span("", surface.StyleRun{}))
 	}
 	return spans
-}
-
-// checkboxIn finds the complete marker within a paragraph's byte range.
-func checkboxIn(flow *surface.Flow, start, end int) (surface.Checkbox, int, int, bool) {
-	start16, _ := flow.UTF16OfByte(model.ByteOffset(start))
-	marker, ok := flow.CheckboxAfter(start16)
-	if ok {
-		from, fromOK := flow.ByteOfUTF16(marker.Marker.Start)
-		to, toOK := flow.ByteOfUTF16(marker.Marker.End)
-		if fromOK && toOK && int(from) >= start && int(to) <= end {
-			return marker, int(from), int(to), true
-		}
-	}
-	return surface.Checkbox{}, 0, 0, false
 }
 
 func plainSpans(flow *surface.Flow, start, end int, style Style) []ui.Span {
@@ -486,21 +443,13 @@ func paragraphKey(
 	writeFloat(font.Size)
 	writeFloat(font.LineHeight)
 	writeString(font.Family)
-	// A figure's object, which sets nothing.
-	start16, _ := flow.UTF16OfByte(model.ByteOffset(start))
-	_, hasFigure := flow.FigureAt(start16)
-	writeBytes([]byte{boolByte(hasFigure)})
-	_, from, to, hasCheckbox := checkboxIn(flow, start, end)
-	writeBytes([]byte{boolByte(hasCheckbox)})
-	if hasCheckbox {
-		writeFloat(float32(from - start))
-		writeFloat(float32(to - start))
-	}
-	// What a formula sets follows from its source, the text's size and
-	// the width.
-	end16, _ := flow.UTF16OfByte(model.ByteOffset(end))
-	for _, f := range flow.FormulasIn(start16, end16) {
-		writeFloat(float32(f.Range.Start - start16))
+	// The objects the text sets, where they stand and the room each takes.
+	for _, object := range replacementsIn(flow, start, end, style, width) {
+		writeFloat(float32(object.from - start))
+		writeFloat(float32(object.to - start))
+		writeFloat(object.object.ObjectWidth)
+		writeFloat(object.object.ObjectHeight)
+		writeFloat(object.object.ObjectDescent)
 	}
 	text := flow.Text()
 	wroteSpan := false

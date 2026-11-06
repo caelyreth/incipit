@@ -15,6 +15,7 @@ func textFlow(t *testing.T, text string) *Flow {
 		projection.NewVersion(1, 1),
 		text,
 		[]StyleRun{{Bytes: model.NewByteRange(0, model.ByteOffset(len(text))), Style: TextStyle{}}},
+		lineBlocks(text),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -188,19 +189,19 @@ func TestPreviewRemapsFiguresAroundCaptionEdits(t *testing.T) {
 	flow := textFlow(t, text)
 	at := model.UTF16Offset(model.StringLenUTF16("intro\n"))
 	figure := Figure{
-		Object: model.NewUTF16Range(at, at+1), Node: 2, Media: "media/1", Width: 100, Height: 50,
+		Range: model.NewUTF16Range(at, at+1), Node: 2, Media: "media/1", Width: 100, Height: 50,
 		Span: 0.5, Align: FigureStart, Alt: "A crab", Caption: 1,
 	}
-	flow, err := flow.WithFigures([]Figure{figure})
+	flow, err := ownedBy(flow, asObjects([]Figure{figure}))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("before figure with astral preedit", func(t *testing.T) {
 		preview := previewFrame(t, flow, model.EmptyUTF16Range(2), "🦀")
-		figures := preview.Flow().Figures()
+		figures := ObjectsOf[Figure](preview.Flow())
 		want := figure
-		want.Object.Start, want.Object.End = want.Object.Start+2, want.Object.End+2
+		want.Range.Start, want.Range.End = want.Range.Start+2, want.Range.End+2
 		if !reflect.DeepEqual(figures, []Figure{want}) {
 			t.Fatalf("preview figures = %#v, want %#v", figures, want)
 		}
@@ -209,7 +210,7 @@ func TestPreviewRemapsFiguresAroundCaptionEdits(t *testing.T) {
 	t.Run("inside caption", func(t *testing.T) {
 		caption := figure.CaptionStart()
 		preview := previewFrame(t, flow, model.NewUTF16Range(caption, caption+3), "界")
-		if figures := preview.Flow().Figures(); !reflect.DeepEqual(figures, []Figure{figure}) {
+		if figures := ObjectsOf[Figure](preview.Flow()); !reflect.DeepEqual(figures, []Figure{figure}) {
 			t.Fatalf("preview figures = %#v, want %#v", figures, figure)
 		}
 	})
@@ -217,14 +218,14 @@ func TestPreviewRemapsFiguresAroundCaptionEdits(t *testing.T) {
 	t.Run("after figure", func(t *testing.T) {
 		after := model.UTF16Offset(model.StringLenUTF16(flow.Text()))
 		preview := previewFrame(t, flow, model.EmptyUTF16Range(after), "🦀")
-		if figures := preview.Flow().Figures(); !reflect.DeepEqual(figures, []Figure{figure}) {
+		if figures := ObjectsOf[Figure](preview.Flow()); !reflect.DeepEqual(figures, []Figure{figure}) {
 			t.Fatalf("preview figures = %#v, want %#v", figures, figure)
 		}
 	})
 
 	t.Run("replacing the object drops it", func(t *testing.T) {
-		preview := previewFrame(t, flow, figure.Object, "x")
-		if figures := preview.Flow().Figures(); len(figures) != 0 {
+		preview := previewFrame(t, flow, figure.Range, "x")
+		if figures := ObjectsOf[Figure](preview.Flow()); len(figures) != 0 {
 			t.Fatalf("preview figures = %#v", figures)
 		}
 	})

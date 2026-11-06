@@ -711,7 +711,7 @@ func (e *Element) layOut(bridge *Bridge, now time.Time, animate bool) (*surface.
 	previous := e.current
 	e.current = e.Layout.Update(flow, e.lastWidth, style)
 	if previous != e.current && e.wake != nil &&
-		(flow.HasCheckboxes() || previous != nil && previous.Flow().HasCheckboxes()) {
+		(hasCheckboxes(flow) || previous != nil && hasCheckboxes(previous.Flow())) {
 		// Controls are built from the last painted layout; rebuild after it moves.
 		e.wake()
 	}

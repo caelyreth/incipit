@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -41,7 +42,7 @@ func checkboxes(t *testing.T, document *controller.DocumentController) []model.N
 		t.Fatal(err)
 	}
 	var nodes []model.NodeID
-	for _, check := range flow.Checkboxes() {
+	for _, check := range surface.ObjectsOf[surface.Checkbox](flow) {
 		nodes = append(nodes, check.Node)
 	}
 	return nodes
@@ -50,10 +51,10 @@ func checkboxes(t *testing.T, document *controller.DocumentController) []model.N
 func checkboxChecked(t *testing.T, document *controller.DocumentController) bool {
 	t.Helper()
 	flow, err := document.Session().SurfaceFlow()
-	if err != nil || len(flow.Checkboxes()) != 1 {
+	if err != nil || len(surface.ObjectsOf[surface.Checkbox](flow)) != 1 {
 		t.Fatalf("checkbox flow = %v, %v", flow, err)
 	}
-	return flow.Checkboxes()[0].Checked
+	return surface.ObjectsOf[surface.Checkbox](flow)[0].Checked
 }
 
 func TestCheckboxClickKeyboardAndUndo(t *testing.T) {
@@ -112,7 +113,7 @@ func TestCheckboxPaintAndControlFollowTextBaseline(t *testing.T) {
 					element.Animate = false
 					tester.Frame()
 
-					checkbox := element.current.Flow().Checkboxes()[0]
+					checkbox := surface.ObjectsOf[surface.Checkbox](element.current.Flow())[0]
 					painted, ok := checkboxBox(element.current, checkbox)
 					if !ok {
 						t.Fatal("checkbox box missing")
@@ -273,7 +274,7 @@ func TestCheckboxRemainsInPlaceDuringIMEPreview(t *testing.T) {
 	client := element.Input.Client()
 	client.SetMarkedText(nil, "日", ui.TextInputRange{Start: 1, End: 1})
 	tester.Frame()
-	checks := element.current.Flow().Checkboxes()
+	checks := surface.ObjectsOf[surface.Checkbox](element.current.Flow())
 	if len(checks) != 1 || checks[0].Marker != model.NewUTF16Range(0, 5) {
 		t.Fatalf("composition lost checkbox: %+v", checks)
 	}

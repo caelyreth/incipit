@@ -164,13 +164,14 @@ func (e *Element) resizedFlow(flow *surface.Flow) *surface.Flow {
 	if e.resizing == nil || flow == nil {
 		return flow
 	}
-	figures := flow.Figures()
-	for index := range figures {
-		if figures[index].Node == e.resizing.node {
-			figures[index].Span = e.resizing.span
+	objects := flow.Objects()
+	for index, object := range objects {
+		if figure, ok := object.(surface.Figure); ok && figure.Node == e.resizing.node {
+			figure.Span = e.resizing.span
+			objects[index] = figure
 		}
 	}
-	resized, err := flow.WithFigures(figures)
+	resized, err := flow.WithObjects(objects)
 	if err != nil {
 		return flow
 	}

@@ -19,11 +19,11 @@ func TestCaretOpensTheFormulaItIsIn(t *testing.T) {
 	text := "a $x$ b"
 	flow, err := surface.NewFlow(projection.NewVersion(0, 0), text, []surface.StyleRun{{
 		Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
-	}})
+	}}, lineBlocks(text))
 	if err == nil {
-		flow, err = flow.WithFormulas([]surface.Formula{{
+		flow, err = ownedBy(flow, asObjects([]surface.Formula{{
 			Range: model.NewUTF16Range(2, 5), Text: model.NewUTF16Range(3, 4), Source: "x",
-		}})
+		}}))
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -31,7 +31,7 @@ func TestCaretOpensTheFormulaItIsIn(t *testing.T) {
 	element := &Element{}
 	open := func(selection model.UTF16Range) bool {
 		opened, _ := element.openedFlow(flow, selection, time.Unix(0, 0), false)
-		return opened.Formulas()[0].Open
+		return surface.ObjectsOf[surface.Formula](opened)[0].Open
 	}
 	if open(model.NewUTF16Range(2, 2)) || open(model.NewUTF16Range(5, 5)) || open(model.NewUTF16Range(0, 7)) {
 		t.Fatal("a caret beside a formula, or a selection over all of it, opened it")
@@ -148,19 +148,19 @@ func TestAFormulaBeingTypedKeepsWhatItLastSet(t *testing.T) {
 		text := "a $" + source + "$"
 		flow, err := surface.NewFlow(projection.NewVersion(0, 0), text, []surface.StyleRun{{
 			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
-		}})
+		}}, lineBlocks(text))
 		if err == nil {
 			end := model.UTF16Offset(len(text))
-			flow, err = flow.WithFormulas([]surface.Formula{{
+			flow, err = ownedBy(flow, asObjects([]surface.Formula{{
 				Node: 1, Range: model.NewUTF16Range(2, end), Text: model.NewUTF16Range(3, end-1), Source: source,
-			}})
+			}}))
 		}
 		if err != nil {
 			t.Fatal(err)
 		}
 		caret := model.UTF16Offset(len(text) - 1)
 		opened, _ := element.openedFlow(flow, model.NewUTF16Range(caret, caret), time.Unix(0, 0), false)
-		set := opened.Formulas()[0]
+		set := surface.ObjectsOf[surface.Formula](opened)[0]
 		return set.Source, set.Stale
 	}
 	for _, step := range []struct {

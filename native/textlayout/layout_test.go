@@ -33,7 +33,7 @@ func testFlow(t *testing.T, text string, boldFrom int) *surface.Flow {
 			)
 		}
 	}
-	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, runs)
+	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, runs, lineBlocks(text))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +242,7 @@ func TestCaretGrowsWithItsRow(t *testing.T) {
 	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{
 		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Scale: 1.6}},
 		{Bytes: model.NewByteRange(8, model.ByteOffset(len(text))), Style: surface.TextStyle{}},
-	})
+	}, lineBlocks(text))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestSelectionBreakTakesItsRowHeight(t *testing.T) {
 	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{
 		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Scale: 1.6}},
 		{Bytes: model.NewByteRange(8, model.ByteOffset(len(text))), Style: surface.TextStyle{}},
-	})
+	}, lineBlocks(text))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,11 +279,18 @@ func TestSelectionBreakTakesItsRowHeight(t *testing.T) {
 	}
 }
 
-// rhythmFlow is a flow of lines, each set in its own style.
-func rhythmFlow(t *testing.T, lines ...surface.TextStyle) *surface.Flow {
+// rhythmLine is a line of its own block, in a style and a rhythm.
+type rhythmLine struct {
+	style  surface.TextStyle
+	rhythm surface.Rhythm
+}
+
+// rhythmFlow is a flow of lines, each a block of its own style and rhythm.
+func rhythmFlow(t *testing.T, lines ...rhythmLine) *surface.Flow {
 	t.Helper()
 	text, runs := "", make([]surface.StyleRun, 0, len(lines))
-	for index, style := range lines {
+	for index, entry := range lines {
+		style := entry.style
 		line := "line"
 		if index < len(lines)-1 {
 			line += "\n"
@@ -294,7 +301,11 @@ func rhythmFlow(t *testing.T, lines ...surface.TextStyle) *surface.Flow {
 		})
 		text += line
 	}
-	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, runs)
+	blocks := lineBlocks(text)
+	for index := range blocks {
+		blocks[index].Rhythm = lines[index].rhythm
+	}
+	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, runs, blocks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,11 +321,15 @@ func near(a, b float32) bool { return a-b < 0.5 && b-a < 0.5 }
 // prose too, but the lines of a run of entries or code do not; a heading
 // stands two steps from what is before it, and one from what it opens.
 func TestRhythmDerivesFromSpacing(t *testing.T) {
-	title := surface.TextStyle{Scale: 1.6, Rhythm: surface.RhythmTitle}
+	title := surface.TextStyle{Scale: 1.6}
 	prose := surface.TextStyle{}
-	entry := surface.TextStyle{Rhythm: surface.RhythmEntry}
-	code := surface.TextStyle{Face: surface.FaceMono, Scale: 0.88, Rhythm: surface.RhythmVerbatim}
-	flow := rhythmFlow(t, prose, title, prose, prose, entry, entry, code, code, prose)
+	code := surface.TextStyle{Face: surface.FaceMono, Scale: 0.88}
+	flow := rhythmFlow(t,
+		rhythmLine{prose, surface.RhythmProse}, rhythmLine{title, surface.RhythmTitle},
+		rhythmLine{prose, surface.RhythmProse}, rhythmLine{prose, surface.RhythmProse},
+		rhythmLine{prose, surface.RhythmEntry}, rhythmLine{prose, surface.RhythmEntry},
+		rhythmLine{code, surface.RhythmVerbatim}, rhythmLine{code, surface.RhythmVerbatim},
+		rhythmLine{prose, surface.RhythmProse})
 	for _, spacing := range []float32{theme.MinLineSpacing, 1.8, theme.MaxLineSpacing} {
 		p := theme.NewProseStyle(19).WithSpacing(spacing)
 		style := NewStyle(p, theme.DefaultSettings().Semantic())
@@ -359,7 +374,7 @@ func TestRhythmDerivesFromSpacing(t *testing.T) {
 // A selection across blocks takes the gaps between them, so it is one
 // unbroken area; one that starts at a block's text leaves the gap above.
 func TestSelectionSpansBlockGaps(t *testing.T) {
-	flow := rhythmFlow(t, surface.TextStyle{}, surface.TextStyle{Rhythm: surface.RhythmEntry}, surface.TextStyle{})
+	flow := rhythmFlow(t, rhythmLine{}, rhythmLine{rhythm: surface.RhythmEntry}, rhythmLine{})
 	layout := NewCache().Update(flow, 600, testStyle())
 	rows := layout.Paragraphs()
 	if rows[1].gap <= 0 {
@@ -383,7 +398,7 @@ func TestSelectionSpansBlockGaps(t *testing.T) {
 // centered in its row.
 func TestCaretInACloseRow(t *testing.T) {
 	style := testStyle()
-	flow := rhythmFlow(t, surface.TextStyle{}, surface.TextStyle{Rhythm: surface.RhythmEntry})
+	flow := rhythmFlow(t, rhythmLine{}, rhythmLine{rhythm: surface.RhythmEntry})
 	layout := NewCache().Update(flow, 600, style)
 	row := layout.Paragraphs()[1]
 	caret := layout.Caret(model.UTF16Offset(row.StartUTF16() + 1))

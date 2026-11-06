@@ -33,8 +33,8 @@ type cardKey struct {
 // source of open, and each one's card as far as it has opened. It reports
 // whether one is still opening or closing.
 func (e *Element) openedFlow(flow *surface.Flow, selection model.UTF16Range, now time.Time, animate bool) (*surface.Flow, bool) {
-	formulas := flow.Formulas()
-	if len(formulas) == 0 {
+	objects := flow.Objects()
+	if len(surface.ObjectsOf[surface.Formula](flow)) == 0 {
 		e.opened, e.cards, e.sound = nil, nil, nil
 		return flow, false
 	}
@@ -43,8 +43,12 @@ func (e *Element) openedFlow(flow *surface.Flow, selection model.UTF16Range, now
 	cards := make(map[cardKey]motion.Spring, len(e.cards))
 	sound := make(map[cardKey]string, len(e.sound))
 	moving := false
-	for index := range formulas {
-		f := &formulas[index]
+	for index := range objects {
+		set, isFormula := objects[index].(surface.Formula)
+		if !isFormula {
+			continue
+		}
+		f := &set
 		if held {
 			f.Open = e.opened[f.Range]
 		} else {
@@ -64,6 +68,7 @@ func (e *Element) openedFlow(flow *surface.Flow, selection model.UTF16Range, now
 		spring, known := e.cards[key]
 		if !known {
 			if target == 0 {
+				objects[index] = set
 				continue
 			}
 			spring = motion.NewUnitSpring(0, now)
@@ -88,9 +93,10 @@ func (e *Element) openedFlow(flow *surface.Flow, selection model.UTF16Range, now
 		if target > 0 || spring.Moving() {
 			cards[key] = spring
 		}
+		objects[index] = set
 	}
 	e.opened, e.cards, e.sound = opened, cards, sound
-	next, err := flow.WithFormulas(formulas)
+	next, err := flow.WithObjects(objects)
 	if err != nil {
 		return flow, false
 	}

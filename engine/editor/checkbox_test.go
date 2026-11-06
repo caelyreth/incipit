@@ -5,6 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/engine/surface"
 )
 
 func checkboxShape(t *testing.T, session *Session, index int) blockShape {
@@ -138,7 +139,7 @@ func TestCheckboxFlowAndReadableText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	checks := flow.Checkboxes()
+	checks := surface.ObjectsOf[surface.Checkbox](flow)
 	if len(checks) != 2 || !checks[0].Checked || checks[1].Checked ||
 		checks[0].Marker != model.NewUTF16Range(0, 5) || checks[1].Marker != model.NewUTF16Range(14, 19) ||
 		checks[0].Label != "first" || checks[1].Label != "second" {

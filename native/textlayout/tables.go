@@ -332,6 +332,7 @@ func placeTable(
 				_, height := layout.Size()
 				shaped = append(shaped, Paragraph{
 					layout:       layout,
+					block:        raw.block,
 					startByte:    raw.startByte,
 					endByte:      raw.endByte,
 					startUTF16:   raw.startUTF16,

@@ -34,7 +34,7 @@ func benchmarkFlowText(tb testing.TB, text string) *surface.Flow {
 			Style: surface.TextStyle{},
 		})
 	}
-	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, runs)
+	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, runs, lineBlocks(text))
 	if err != nil {
 		tb.Fatal(err)
 	}

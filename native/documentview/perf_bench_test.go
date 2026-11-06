@@ -58,6 +58,7 @@ func documentBenchmarkFlow(tb testing.TB, text string) *surface.Flow {
 			Bytes: model.NewByteRange(0, model.ByteOffset(len(text))),
 			Style: surface.TextStyle{},
 		}},
+		lineBlocks(text),
 	)
 	if err != nil {
 		tb.Fatal(err)
