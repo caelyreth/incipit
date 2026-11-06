@@ -9,45 +9,14 @@ import (
 
 func TestEveryEditorCommandResolvesToTypedAction(t *testing.T) {
 	t.Parallel()
-	for _, command := range editor.AllTextCommands {
-		action, ok := ResolveCommand(command.ID())
-		if !ok || action.Kind != ActionText || action.Text != command {
-			t.Fatalf("text %v => %#v,%v", command.ID(), action, ok)
+	for _, command := range editor.Commands() {
+		if !command.Edits() {
+			continue
 		}
-	}
-	for _, command := range editor.AllHistoryCommands {
-		action, ok := ResolveCommand(command.ID())
-		if !ok || action.Kind != ActionHistory || action.History != command {
-			t.Fatalf("history %v => %#v,%v", command.ID(), action, ok)
+		action, ok := ResolveCommand(command.ID)
+		if !ok || action.Kind != ActionEdit || action.Intent != command.Intent {
+			t.Fatalf("edit %v => %#v,%v", command.ID, action, ok)
 		}
-	}
-	for _, command := range []editor.MarkupCommand{editor.MarkupEmphasis, editor.MarkupStrong} {
-		action, ok := ResolveCommand(command.ID())
-		if !ok || action.Kind != ActionMarkup || action.Markup != command {
-			t.Fatalf("markup %v => %#v,%v", command.ID(), action, ok)
-		}
-	}
-	for _, command := range editor.AllWordCommands {
-		action, ok := ResolveCommand(command.ID())
-		if !ok || action.Kind != ActionWord || action.Word != command {
-			t.Fatalf("word %v => %#v,%v", command.ID(), action, ok)
-		}
-	}
-	for _, command := range editor.AllNestingCommands {
-		action, ok := ResolveCommand(command.ID())
-		if !ok || action.Kind != ActionNesting || action.Nesting != command {
-			t.Fatalf("nesting %v => %#v,%v", command.ID(), action, ok)
-		}
-	}
-	for _, command := range editor.AllTableCommands {
-		action, ok := ResolveCommand(command.ID())
-		if !ok || action.Kind != ActionTable || action.Table != command {
-			t.Fatalf("table %v => %#v,%v", command.ID(), action, ok)
-		}
-	}
-	action, ok := ResolveCommand(editor.TabCommand().ID)
-	if !ok || action.Kind != ActionNavigation || action.Navigation != NavigationTab {
-		t.Fatalf("tab => %#v,%v", action, ok)
 	}
 	for _, command := range []ClipboardCommand{ClipboardCopy, ClipboardCut, ClipboardPaste} {
 		action, ok := ResolveCommand(command.ID())
@@ -84,22 +53,20 @@ func TestMenuActionsPreserveEditCommandDistinctions(t *testing.T) {
 		kind       ActionKind
 		command    kernel.CommandID
 		clipboard  ClipboardCommand
-		text       editor.TextCommand
-		history    editor.HistoryCommand
-		markup     editor.MarkupCommand
+		intent     editor.Intent
 		shouldFind bool
 	}{
-		{"copy", ActionClipboard, CopyCommandID, ClipboardCopy, 0, 0, 0, true},
-		{"cut", ActionClipboard, CutCommandID, ClipboardCut, 0, 0, 0, true},
-		{"paste", ActionClipboard, PasteCommandID, ClipboardPaste, 0, 0, 0, true},
-		{"pasteAndMatchStyle", ActionClipboard, PasteCommandID, ClipboardPaste, 0, 0, 0, true},
-		{"undo", ActionHistory, editor.HistoryUndo.ID(), 0, 0, editor.HistoryUndo, 0, true},
-		{"redo", ActionHistory, editor.HistoryRedo.ID(), 0, 0, editor.HistoryRedo, 0, true},
-		{"selectAll", ActionText, editor.TextSelectAll.ID(), 0, editor.TextSelectAll, 0, 0, true},
-		{"delete", ActionText, editor.TextBackspace.ID(), 0, editor.TextBackspace, 0, 0, true},
-		{"bold", ActionMarkup, editor.MarkupStrong.ID(), 0, 0, 0, editor.MarkupStrong, true},
-		{"italic", ActionMarkup, editor.MarkupEmphasis.ID(), 0, 0, 0, editor.MarkupEmphasis, true},
-		{"underline", ActionNone, "", 0, 0, 0, 0, false},
+		{"copy", ActionClipboard, CopyCommandID, ClipboardCopy, editor.Intent{}, true},
+		{"cut", ActionClipboard, CutCommandID, ClipboardCut, editor.Intent{}, true},
+		{"paste", ActionClipboard, PasteCommandID, ClipboardPaste, editor.Intent{}, true},
+		{"pasteAndMatchStyle", ActionClipboard, PasteCommandID, ClipboardPaste, editor.Intent{}, true},
+		{"undo", ActionEdit, editor.UndoCommandID, 0, editor.Undo, true},
+		{"redo", ActionEdit, editor.RedoCommandID, 0, editor.Redo, true},
+		{"selectAll", ActionEdit, editor.SelectAllCommandID, 0, editor.SelectUnit(editor.ByScope), true},
+		{"delete", ActionEdit, editor.DeleteBackwardCommandID, 0, editor.Delete(editor.ByGrapheme, editor.Backward), true},
+		{"bold", ActionEdit, editor.StrongCommandID, 0, editor.Format(2), true},
+		{"italic", ActionEdit, editor.EmphasisCommandID, 0, editor.Format(1), true},
+		{"underline", ActionNone, "", 0, editor.Intent{}, false},
 	}
 	for _, test := range tests {
 		action, ok := MenuAction(test.name)
@@ -110,8 +77,7 @@ func TestMenuActionsPreserveEditCommandDistinctions(t *testing.T) {
 			continue
 		}
 		if action.Kind != test.kind || action.ID != test.command ||
-			action.Clipboard != test.clipboard || action.Text != test.text ||
-			action.History != test.history || action.Markup != test.markup {
+			action.Clipboard != test.clipboard || action.Intent != test.intent {
 			t.Fatalf("%s action = %#v", test.name, action)
 		}
 	}
@@ -120,17 +86,18 @@ func TestMenuActionsPreserveEditCommandDistinctions(t *testing.T) {
 func TestRepeatPolicyMatchesSemanticCommandFamilies(t *testing.T) {
 	t.Parallel()
 	for _, action := range []Action{
-		{Kind: ActionText, Text: editor.TextRight},
-		{Kind: ActionHistory, History: editor.HistoryUndo},
-		{Kind: ActionWord, Word: editor.WordNext},
+		{Kind: ActionEdit, Intent: editor.Move(editor.ByGrapheme, editor.Forward, false)},
+		{Kind: ActionEdit, Intent: editor.Undo},
+		{Kind: ActionEdit, Intent: editor.Move(editor.ByWord, editor.Forward, false)},
+		{Kind: ActionEdit, Intent: editor.Move(editor.ByRow, editor.Forward, true)},
 	} {
 		if !AllowsRepeat(action) {
 			t.Fatalf("%v did not allow repeat", action)
 		}
 	}
 	for _, action := range []Action{
-		{Kind: ActionMarkup, Markup: editor.MarkupStrong},
-		{Kind: ActionNavigation, Navigation: NavigationTab},
+		{Kind: ActionEdit, Intent: editor.Format(2)},
+		{Kind: ActionEdit, Intent: editor.Leave},
 		{Kind: ActionClipboard, Clipboard: ClipboardPaste},
 		{Kind: ActionExternal, ID: "host.external"},
 		{Kind: ActionSurface, Surface: editor.SurfaceCommand{
@@ -143,8 +110,7 @@ func TestRepeatPolicyMatchesSemanticCommandFamilies(t *testing.T) {
 	}
 	for _, command := range editor.SurfaceCommands() {
 		action, _ := ResolveCommand(command.ID)
-		want := command.Kind == editor.SurfaceVisual ||
-			command.ID == editor.SurfaceNextPageCommandID ||
+		want := command.ID == editor.SurfaceNextPageCommandID ||
 			command.ID == editor.SurfacePreviousPageCommandID
 		if AllowsRepeat(action) != want {
 			t.Fatalf("%s repeat = %v, want %v", command.ID, !want, want)

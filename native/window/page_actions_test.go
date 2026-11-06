@@ -3,6 +3,7 @@ package window
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/engine/editor"
@@ -23,12 +24,12 @@ func TestPagesAreNamedAfterTheirFirstHeading(t *testing.T) {
 	session := app.Session.Document().Session()
 	for _, r := range "prose\n### Chapter one" {
 		if r == '\n' {
-			if _, err := session.ExecuteText(editor.TextNewline); err != nil {
+			if _, err := session.Do(editor.Break, time.Now()); err != nil {
 				t.Fatal(err)
 			}
 			continue
 		}
-		if _, err := session.ReplaceSelection(string(r), kernel.EventOriginTyping); err != nil {
+		if _, err := session.Do(editor.Insert(string(r), kernel.EventOriginTyping), time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}

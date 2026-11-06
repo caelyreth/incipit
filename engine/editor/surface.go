@@ -10,8 +10,7 @@ const SurfacePolicyID kernel.PolicyID = "editor.surface"
 type SurfaceCommandKind uint8
 
 const (
-	SurfaceVisual SurfaceCommandKind = iota + 1
-	SurfaceClipboard
+	SurfaceClipboard SurfaceCommandKind = iota + 1
 	SurfacePage
 	SurfacePresentation
 	SurfacePolicy
@@ -23,10 +22,6 @@ const (
 
 // Surface command identities are stable routing names.
 const (
-	SurfaceUpCommandID           kernel.CommandID = "surface.up"
-	SurfaceDownCommandID         kernel.CommandID = "surface.down"
-	SurfaceSelectUpCommandID     kernel.CommandID = "surface.select-up"
-	SurfaceSelectDownCommandID   kernel.CommandID = "surface.select-down"
 	SurfaceCopyCommandID         kernel.CommandID = "surface.copy"
 	SurfaceCutCommandID          kernel.CommandID = "surface.cut"
 	SurfacePasteCommandID        kernel.CommandID = "surface.paste"
@@ -75,14 +70,6 @@ func (c SurfaceCommand) Description() Command {
 }
 
 var surfaceCommands = [...]SurfaceCommand{
-	{ID: SurfaceUpCommandID, Label: "Move up", Kind: SurfaceVisual, Scope: ScopeDocument,
-		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
-	{ID: SurfaceDownCommandID, Label: "Move down", Kind: SurfaceVisual, Scope: ScopeDocument,
-		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
-	{ID: SurfaceSelectUpCommandID, Label: "Extend up", Kind: SurfaceVisual, Scope: ScopeDocument,
-		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
-	{ID: SurfaceSelectDownCommandID, Label: "Extend down", Kind: SurfaceVisual, Scope: ScopeDocument,
-		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
 	{ID: SurfaceCopyCommandID, Label: "Copy", Kind: SurfaceClipboard, Scope: ScopeDocument,
 		Owner: CommandOwnerEditor, Requirements: RequiresDocument},
 	{ID: SurfaceCutCommandID, Label: "Cut", Kind: SurfaceClipboard, Scope: ScopeDocument,

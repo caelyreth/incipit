@@ -99,7 +99,7 @@ func TestUndoRewindsACorrectionPulseFromWhereItIs(t *testing.T) {
 	midway := advance(session, FeedbackPulseDuration/3)
 	before := feedbackFills(t, session, midway)[0].Sample(midway, true)
 
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != "Wait.." {
@@ -120,7 +120,7 @@ func TestUndoRewindsACorrectionPulseFromWhereItIs(t *testing.T) {
 	backAt := midway.Add(deadline.Sub(midway) / 2)
 	session.feedback.clock.(*sessionClock).now = backAt
 	reached := rewind[0].Sample(backAt, true)
-	if _, err := session.ExecuteHistory(HistoryRedo); err != nil {
+	if _, err := session.doHistory(historyRedo); err != nil {
 		t.Fatal(err)
 	}
 	replay := feedbackFills(t, session, backAt)
@@ -141,7 +141,7 @@ func TestUndoAfterThePulsePlaysItBackWhole(t *testing.T) {
 	if len(feedbackFills(t, session, later)) != 0 {
 		t.Fatal("pulse still playing")
 	}
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	rewind := feedbackFills(t, session, later)
@@ -157,7 +157,7 @@ func TestUndoAfterThePulsePlaysItBackWhole(t *testing.T) {
 	// Undoing a step that made no correction plays nothing.
 	session2, _ := newSessionFixture(t, "", false)
 	typeEach(t, session2, "plain")
-	if _, err := session2.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session2.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	if len(feedbackFills(t, session2, session2.feedback.clock.Now())) != 0 {

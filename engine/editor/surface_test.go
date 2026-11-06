@@ -22,10 +22,6 @@ func TestSurfacePolicyMatchesCommandCatalog(t *testing.T) {
 		t.Fatalf("surface policy = %#v", policy)
 	}
 	want := []kernel.CommandID{
-		SurfaceUpCommandID,
-		SurfaceDownCommandID,
-		SurfaceSelectUpCommandID,
-		SurfaceSelectDownCommandID,
 		SurfaceCopyCommandID,
 		SurfaceCutCommandID,
 		SurfacePasteCommandID,
@@ -76,10 +72,6 @@ func TestSurfaceBindingsPreserveModifiersAndKeys(t *testing.T) {
 		key       string
 		modifiers kernel.Modifiers
 	}{
-		{SurfaceUpCommandID, "up", 0},
-		{SurfaceDownCommandID, "down", 0},
-		{SurfaceSelectUpCommandID, "up", kernel.ModifiersShift},
-		{SurfaceSelectDownCommandID, "down", kernel.ModifiersShift},
 		{SurfaceCopyCommandID, "c", kernel.ModifiersPrimary},
 		{SurfaceCutCommandID, "x", kernel.ModifiersPrimary},
 		{SurfacePasteCommandID, "v", kernel.ModifiersPrimary},
@@ -181,13 +173,13 @@ func TestActionRegistryMatchesThePolicyCatalog(t *testing.T) {
 	if !slices.Equal(declared, registered) {
 		t.Fatalf("registry %v, catalog %v", registered, declared)
 	}
-	for _, command := range AllTableCommands {
-		meta := command.Description()
-		if command != TableInsert && !meta.Requirements.Has(RequiresTable) {
-			t.Fatalf("%s does not require a table: %#v", meta.ID, meta)
+	for _, command := range Commands() {
+		if command.Intent.Kind != IntentTable {
+			continue
 		}
-		if command == TableInsert && meta.Requirements.Has(RequiresTable) {
-			t.Fatalf("insert table requires an existing table: %#v", meta)
+		inTable := command.Requirements.Has(RequiresTable)
+		if inTable == (command.Intent.Table == TableInsert) {
+			t.Fatalf("%s table requirement is %v: %#v", command.ID, inTable, command)
 		}
 	}
 	for _, binding := range DefaultKeymap() {

@@ -27,7 +27,7 @@ func TestTabGoesIntoTheFormulaBeforeTheCaret(t *testing.T) {
 	if len(guides) != 1 || guides[0].Primitive.At != end-1 {
 		t.Fatalf("guides after %q = %#v", text, guides)
 	}
-	if outcome, err := session.Tab(now); err != nil || outcome != kernel.OutcomeHandled {
+	if outcome, err := session.leave(now); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("tab outcome=%v err=%v", outcome, err)
 	}
 	if got := session.Caret().RangeUTF16().Start; got != end-1 {
@@ -60,7 +60,7 @@ func TestTabLeavesAFormulaBlock(t *testing.T) {
 	if len(guides) != 1 || guides[0].Primitive.At != want {
 		t.Fatalf("guides = %#v, want at %d", guides, want)
 	}
-	if _, err := session.Tab(now); err != nil {
+	if _, err := session.leave(now); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Caret().RangeUTF16().Start; got != want {
@@ -73,7 +73,7 @@ func TestTabLeavesAFormulaBlock(t *testing.T) {
 func TestEscapeLeavesAFormula(t *testing.T) {
 	escape := func(t *testing.T, session *Session) model.UTF16Offset {
 		t.Helper()
-		if _, err := session.ExecuteCommand(TextDismissSelection.ID(), time.Unix(1_700_000_000, 0)); err != nil {
+		if _, err := session.DoCommand(DismissCommandID, time.Unix(1_700_000_000, 0)); err != nil {
 			t.Fatal(err)
 		}
 		return session.Caret().RangeUTF16().Start

@@ -154,7 +154,7 @@ func TestVerticalSelectionAndPreferredColumnReset(t *testing.T) {
 	if geometry.lastPoint.X != 20 {
 		t.Fatalf("captured vertical column = %v", geometry.lastPoint.X)
 	}
-	if _, err := controller.Execute(Command{ID: string(editor.TextDocumentStart.ID())}); err != nil {
+	if _, err := controller.Execute(Command{ID: string(editor.DocumentStartCommandID)}); err != nil {
 		t.Fatal(err)
 	}
 	if err := controller.MoveVertical(VerticalDown, false); err != nil {

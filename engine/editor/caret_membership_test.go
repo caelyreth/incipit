@@ -82,7 +82,7 @@ func checkTypingFollowsCaret(t *testing.T, session *Session, context string) {
 	}
 	text := []rune(session.Projection().Text())
 	want := string(text[:at]) + "x|" + string(text[at:])
-	if _, err := session.ReplaceSelection("x", kernel.EventOriginTyping); err != nil {
+	if _, err := session.replaceSelection("x", kernel.EventOriginTyping); err != nil {
 		t.Fatalf("%s: typing at %s: %v", context, before, err)
 	}
 	if got := shown(session); got != want {
@@ -95,39 +95,39 @@ type caretStep struct {
 	run  func(*Session) error
 }
 
-func textStep(command TextCommand) caretStep {
+func textStep(command textOp) caretStep {
 	return caretStep{
-		name: string(command.ID()),
+		name: fmt.Sprint(command),
 		run: func(session *Session) error {
-			_, err := session.ExecuteText(command)
+			_, err := session.doText(command)
 			return err
 		},
 	}
 }
 
 var (
-	stepLeft      = textStep(TextLeft)
-	stepRight     = textStep(TextRight)
-	stepBackspace = textStep(TextBackspace)
-	stepDelete    = textStep(TextDelete)
+	stepLeft      = textStep(textLeft)
+	stepRight     = textStep(textRight)
+	stepBackspace = textStep(textBackspace)
+	stepDelete    = textStep(textDelete)
 	stepUndo      = caretStep{name: "undo", run: func(session *Session) error {
-		_, err := session.ExecuteHistory(HistoryUndo)
+		_, err := session.doHistory(historyUndo)
 		return err
 	}}
 	stepRedo = caretStep{name: "redo", run: func(session *Session) error {
-		_, err := session.ExecuteHistory(HistoryRedo)
+		_, err := session.doHistory(historyRedo)
 		return err
 	}}
 	stepWordPrevious = caretStep{name: "word-previous", run: func(session *Session) error {
-		_, err := session.ExecuteWord(WordPrevious)
+		_, err := session.doWord(wordPrevious)
 		return err
 	}}
 	stepWordNext = caretStep{name: "word-next", run: func(session *Session) error {
-		_, err := session.ExecuteWord(WordNext)
+		_, err := session.doWord(wordNext)
 		return err
 	}}
 	stepType = caretStep{name: "type", run: func(session *Session) error {
-		_, err := session.ReplaceSelection("y", kernel.EventOriginTyping)
+		_, err := session.replaceSelection("y", kernel.EventOriginTyping)
 		return err
 	}}
 )
@@ -150,7 +150,7 @@ func TestTypingFollowsTheDrawnCaretAfterEveryStep(t *testing.T) {
 					}
 					start := shown(session)
 					// A first edit gives undo something to restore.
-					if _, err := session.ReplaceSelection("z", kernel.EventOriginTyping); err != nil {
+					if _, err := session.replaceSelection("z", kernel.EventOriginTyping); err != nil {
 						continue
 					}
 					failed := false
@@ -198,7 +198,7 @@ func TestArrowsStepThroughEveryDrawnPosition(t *testing.T) {
 		length := model.UTF16Offset(len([]rune(session.Projection().Text())))
 		for want := model.UTF16Offset(1); want <= length; want++ {
 			before := shown(session)
-			if _, err := session.ExecuteText(TextRight); err != nil {
+			if _, err := session.doText(textRight); err != nil {
 				t.Fatal(err)
 			}
 			if got := session.Caret().RangeUTF16().Start; got != want {
@@ -207,7 +207,7 @@ func TestArrowsStepThroughEveryDrawnPosition(t *testing.T) {
 		}
 		for want := length - 1; want >= 0; want-- {
 			before := shown(session)
-			if _, err := session.ExecuteText(TextLeft); err != nil {
+			if _, err := session.doText(textLeft); err != nil {
 				t.Fatal(err)
 			}
 			if got := session.Caret().RangeUTF16().Start; got != want {
@@ -226,7 +226,7 @@ func TestSelectionArrowsStepThroughEveryDrawnPosition(t *testing.T) {
 		length := model.UTF16Offset(len([]rune(session.Projection().Text())))
 		for want := model.UTF16Offset(1); want <= length; want++ {
 			before := shown(session)
-			if _, err := session.ExecuteText(TextSelectRight); err != nil {
+			if _, err := session.doText(textSelectRight); err != nil {
 				t.Fatal(err)
 			}
 			selected, err := session.VisualSelection()
@@ -240,7 +240,7 @@ func TestSelectionArrowsStepThroughEveryDrawnPosition(t *testing.T) {
 		}
 		for want := length - 1; want >= 0; want-- {
 			before := shown(session)
-			if _, err := session.ExecuteText(TextSelectLeft); err != nil {
+			if _, err := session.doText(textSelectLeft); err != nil {
 				t.Fatal(err)
 			}
 			selected, err := session.VisualSelection()
@@ -274,7 +274,7 @@ func TestUndoRestoresTheDrawnCaret(t *testing.T) {
 				if err := edit.run(session); err != nil || session.Runtime().Revision() == revision {
 					continue
 				}
-				if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+				if _, err := session.doHistory(historyUndo); err != nil {
 					t.Fatal(err)
 				}
 				if got := shown(session); got != before {
@@ -309,11 +309,11 @@ func TestDeletionRemovesTheCharacterBesideTheCaret(t *testing.T) {
 				text := []rune(session.Projection().Text())
 				want := string(text[:victim]) + "|" + string(text[victim+1:])
 				before := shown(session)
-				command := TextDelete
+				command := textDelete
 				if backward {
-					command = TextBackspace
+					command = textBackspace
 				}
-				if _, err := session.ExecuteText(command); err != nil {
+				if _, err := session.doText(command); err != nil {
 					t.Fatal(err)
 				}
 				node, _ := session.Runtime().Snapshot().Document().Node(session.Selection().Node())
@@ -355,7 +355,7 @@ func TestReplacingASelectionKeepsItsPlace(t *testing.T) {
 			}
 			text := []rune(session.Projection().Text())
 			want := string(text[:start]) + "y|" + string(text[start+1:])
-			if _, err := session.ReplaceSelection("y", kernel.EventOriginTyping); err != nil {
+			if _, err := session.replaceSelection("y", kernel.EventOriginTyping); err != nil {
 				t.Fatal(err)
 			}
 			if got := shown(session); got != want {
@@ -368,8 +368,8 @@ func TestReplacingASelectionKeepsItsPlace(t *testing.T) {
 
 func TestZeroWidthMarkCaretRoundTripsThroughProjectedState(t *testing.T) {
 	session, _ := newSessionFixture(t, "abc", false)
-	run(t, session, TextLineEnd)
-	if _, err := session.ExecuteMarkup(MarkupStrong); err != nil {
+	run(t, session, textLineEnd)
+	if _, err := session.doFormat(markupStrong); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != "abc****" {
@@ -395,18 +395,18 @@ func TestZeroWidthMarkCaretRoundTripsThroughProjectedState(t *testing.T) {
 		t.Fatalf("visual=%v state=%#v resolved=%v/%v",
 			visual, state, anchor.RangeUTF16(), head.RangeUTF16())
 	}
-	if _, err := session.ReplaceSelection("a", kernel.EventOriginTyping); err != nil {
+	if _, err := session.replaceSelection("a", kernel.EventOriginTyping); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestDeletingPartOfAnEmptyMarkerRemovesItsNotation(t *testing.T) {
 	session, _ := newSessionFixture(t, "abc", false)
-	if _, err := session.ExecuteMarkup(MarkupEmphasis); err != nil {
+	if _, err := session.doFormat(markupEmphasis); err != nil {
 		t.Fatal(err)
 	}
-	run(t, session, TextSelectRight)
-	if _, err := session.ExecuteText(TextDelete); err != nil {
+	run(t, session, textSelectRight)
+	if _, err := session.doText(textDelete); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != "abc" {
@@ -438,7 +438,7 @@ func TestReplacingASelectionWithLongerTextLandsAfterIt(t *testing.T) {
 			if err := session.SelectProjected(test.from, test.to); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := session.ReplaceSelection(test.replacement, kernel.EventOriginTyping); err != nil {
+			if _, err := session.replaceSelection(test.replacement, kernel.EventOriginTyping); err != nil {
 				t.Fatal(err)
 			}
 			if got := session.Projection().Text(); got != test.want {

@@ -132,7 +132,7 @@ func TestDeletionStaysWithinItsBlocks(t *testing.T) {
 			if err := session.SelectProjected(start, end); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := session.ReplaceSelection("", kernel.EventOriginSemantic); err != nil {
+			if _, err := session.replaceSelection("", kernel.EventOriginSemantic); err != nil {
 				t.Fatalf("delete %d..%d of %q: %v", start, end, page, err)
 			}
 			after := pageBlocks(session)
@@ -142,7 +142,7 @@ func TestDeletionStaysWithinItsBlocks(t *testing.T) {
 				t.Fatalf("delete %d..%d (%q) touched blocks beyond it:\n%q\n%q",
 					start, end, string([]rune(page)[start:end]), before, after)
 			}
-			if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+			if _, err := session.doHistory(historyUndo); err != nil {
 				t.Fatal(err)
 			}
 			if got := session.Projection().Text(); got != page {
@@ -160,11 +160,11 @@ func TestCaretsStandAtTheTextBlockNotationOpens(t *testing.T) {
 	typeKeys(t, session, "intro\n1. one")
 	at(t, session, 6)
 	expectPage(t, session, "intro\n1. |one", "intro", "one")
-	run(t, session, TextLeft)
+	run(t, session, textLeft)
 	expectPage(t, session, "intro|\n1. one", "intro", "one")
 
 	session, _ = newSessionFixture(t, "", false)
 	typeKeys(t, session, "a *b*")
-	run(t, session, TextLeft)
+	run(t, session, textLeft)
 	expectPage(t, session, "a *b|*", "a b")
 }

@@ -7,10 +7,10 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-// ExecuteMarkup toggles emphasis for the current semantic selection. Selected
+// doFormat toggles emphasis for the current semantic selection. Selected
 // generated notation is handled by replacing the marker; ordinary ranges use
 // the semantic formatting event.
-func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
+func (s *Session) doFormat(command markupOp) (kernel.Outcome, error) {
 	if !s.runtime.Configuration().IsEnabled(WritingPolicyID) {
 		return kernel.OutcomePass, nil
 	}
@@ -31,7 +31,7 @@ func (s *Session) ExecuteMarkup(command MarkupCommand) (kernel.Outcome, error) {
 		for _, mark := range node.Marks() {
 			if MarkerKeyIdentifies(target.Key(), mark.ID()) && mark.Kind() == EmphasisMark {
 				notation := inlineNotation(model.NewInlineMark(0, model.UTF16Range{}, EmphasisMark, command.Level()))
-				result, err := s.ReplaceSelection(notation, kernel.EventOriginSemantic)
+				result, err := s.replaceSelection(notation, kernel.EventOriginSemantic)
 				return result.Outcome, err
 			}
 		}
@@ -149,7 +149,7 @@ func (s *Session) dispatchSelectionCommandWithVisual(
 
 type markupFormatInvoker struct {
 	session  *Session
-	command  MarkupCommand
+	command  markupOp
 	ranges   []blockRange
 	coverage formattingCoverage
 }

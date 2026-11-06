@@ -145,14 +145,14 @@ func TestBlockGripDragPreservesSelection(t *testing.T) {
 				t.Fatalf("block did not move: %q", doc.Text())
 			}
 			check("drop")
-			if _, err := doc.Execute(controller.Command{ID: string(editor.HistoryUndo.ID())}); err != nil {
+			if _, err := doc.Execute(controller.Command{ID: string(editor.UndoCommandID)}); err != nil {
 				t.Fatal(err)
 			}
 			if doc.Text() != "one\ntwo\nthree" {
 				t.Fatalf("undo did not restore blocks: %q", doc.Text())
 			}
 			check("undo")
-			if _, err := doc.Execute(controller.Command{ID: string(editor.HistoryRedo.ID())}); err != nil {
+			if _, err := doc.Execute(controller.Command{ID: string(editor.RedoCommandID)}); err != nil {
 				t.Fatal(err)
 			}
 			check("redo")

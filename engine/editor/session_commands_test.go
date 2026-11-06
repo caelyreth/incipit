@@ -18,19 +18,19 @@ func TestSessionTextMovementUsesGraphemesAndSelectionEdges(t *testing.T) {
 	if err := session.Select(begin); err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := session.ExecuteText(TextRight); err != nil || outcome != kernel.OutcomeHandled {
+	if outcome, err := session.doText(textRight); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("right outcome=%v err=%v", outcome, err)
 	}
 	if head := session.Selection().Head().OffsetUTF16(); head != 2 {
 		t.Fatalf("grapheme head = %d", head)
 	}
-	if _, err := session.ExecuteText(TextRight); err != nil {
+	if _, err := session.doText(textRight); err != nil {
 		t.Fatal(err)
 	}
 	if head := session.Selection().Head().OffsetUTF16(); head != 4 {
 		t.Fatalf("supplementary head = %d", head)
 	}
-	if _, err := session.ExecuteText(TextNewline); err != nil {
+	if _, err := session.doText(textNewline); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -44,17 +44,17 @@ func TestSessionHistoryRestoresSemanticAndVisualState(t *testing.T) {
 	)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := session.ReplaceSelection("d", kernel.EventOriginTyping); err != nil {
+	if _, err := session.replaceSelection("d", kernel.EventOriginTyping); err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := session.ExecuteHistory(HistoryUndo); err != nil || outcome != kernel.OutcomeHandled {
+	if outcome, err := session.doHistory(historyUndo); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("undo outcome=%v err=%v", outcome, err)
 	}
 	nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
 	if nodeValue.Text().String() != "abc" {
 		t.Fatalf("undo text = %q", nodeValue.Text().String())
 	}
-	if outcome, err := session.ExecuteHistory(HistoryRedo); err != nil || outcome != kernel.OutcomeHandled {
+	if outcome, err := session.doHistory(historyRedo); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("redo outcome=%v err=%v", outcome, err)
 	}
 	nodeValue, _ = session.Runtime().Snapshot().Document().Node(node)
@@ -71,7 +71,7 @@ func TestSessionHistoryRestoresMarkerOnlyVisualSelection(t *testing.T) {
 	if err := session.SelectProjected(0, 1); err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := session.ExecuteMarkup(MarkupStrong); err != nil ||
+	if outcome, err := session.doFormat(markupStrong); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("strong outcome=%v err=%v", outcome, err)
 	}
@@ -84,7 +84,7 @@ func TestSessionHistoryRestoresMarkerOnlyVisualSelection(t *testing.T) {
 	if err := session.SelectProjected(0, 1); err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := session.ExecuteHistory(HistoryUndo); err != nil ||
+	if outcome, err := session.doHistory(historyUndo); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("undo outcome=%v err=%v", outcome, err)
 	}
@@ -96,7 +96,7 @@ func TestSessionHistoryRestoresMarkerOnlyVisualSelection(t *testing.T) {
 		t.Fatalf("undo visual selection=%#v err=%v", visual, err)
 	}
 
-	if outcome, err := session.ExecuteHistory(HistoryRedo); err != nil ||
+	if outcome, err := session.doHistory(historyRedo); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("redo outcome=%v err=%v", outcome, err)
 	}
@@ -115,10 +115,10 @@ func TestSessionCommandsRejectActiveComposition(t *testing.T) {
 	if err := session.BeginComposition(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := session.ExecuteText(TextRight); !errors.Is(err, ErrCompositionActive) {
+	if _, err := session.doText(textRight); !errors.Is(err, ErrCompositionActive) {
 		t.Fatalf("text command during composition = %v", err)
 	}
-	if _, err := session.ExecuteHistory(HistoryUndo); !errors.Is(err, ErrCompositionActive) {
+	if _, err := session.doHistory(historyUndo); !errors.Is(err, ErrCompositionActive) {
 		t.Fatalf("history command during composition = %v", err)
 	}
 }

@@ -36,11 +36,11 @@ func TestSelectAllGroupStartsAtItsFirstBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	session := sessionFor(t, document, blocks[1])
-	run(t, session, TextSelectAll)
+	run(t, session, textSelectAll)
 	if got := selectedText(t, session); got != "one" {
 		t.Fatalf("first scope = %q", got)
 	}
-	run(t, session, TextSelectAll)
+	run(t, session, textSelectAll)
 	if got := selectedText(t, session); got != "- one\n- two" {
 		t.Fatalf("group scope = %q", got)
 	}
@@ -65,7 +65,7 @@ func TestSelectAllDoesNotTakePrecedingClosingNotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	session := sessionFor(t, document, blocks[1])
-	run(t, session, TextSelectAll, TextSelectAll)
+	run(t, session, textSelectAll, textSelectAll)
 	if got := selectedText(t, session); got != "- one\n- two" {
 		t.Fatalf("group scope = %q", got)
 	}
@@ -73,17 +73,17 @@ func TestSelectAllDoesNotTakePrecedingClosingNotation(t *testing.T) {
 
 func TestSelectAllBlockScopeIncludesInlineMarkNotation(t *testing.T) {
 	session, _ := newSessionFixture(t, "abc", false)
-	if _, err := session.ReplaceSelection("*", kernel.EventOriginTyping); err != nil {
+	if _, err := session.replaceSelection("*", kernel.EventOriginTyping); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != "**abc" {
 		t.Fatalf("projection = %q", got)
 	}
-	run(t, session, TextSelectAll)
+	run(t, session, textSelectAll)
 	if got := selectedText(t, session); got != "**abc" {
 		t.Fatalf("block scope = %q", got)
 	}
-	if _, err := session.ReplaceSelection("", kernel.EventOriginSemantic); err != nil {
+	if _, err := session.replaceSelection("", kernel.EventOriginSemantic); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != "" {
@@ -107,11 +107,11 @@ func TestSelectAllBlockScopeIncludesInlineNotationAroundText(t *testing.T) {
 				end:   model.UTF16Offset(test.to),
 				level: 1,
 			})
-			run(t, session, TextSelectAll)
+			run(t, session, textSelectAll)
 			if got := selectedText(t, session); got != test.want {
 				t.Fatalf("block scope = %q, want %q", got, test.want)
 			}
-			if _, err := session.ReplaceSelection("", kernel.EventOriginSemantic); err != nil {
+			if _, err := session.replaceSelection("", kernel.EventOriginSemantic); err != nil {
 				t.Fatal(err)
 			}
 			if got := session.Projection().Text(); got != "" {
@@ -146,24 +146,24 @@ func TestDismissingSelectAllGoesBackToWhereItBegan(t *testing.T) {
 	for _, presses := range []int{1, 2} {
 		at(t, session, cell.Start)
 		for range presses {
-			run(t, session, TextSelectAll)
+			run(t, session, textSelectAll)
 		}
-		run(t, session, TextDismissSelection)
+		run(t, session, textDismissSelection)
 		caret(cell.Start)
 	}
 	if err := session.SelectProjected(1, 3); err != nil {
 		t.Fatal(err)
 	}
-	run(t, session, TextDismissSelection)
+	run(t, session, textDismissSelection)
 	caret(3)
 	// Selecting otherwise ends the run, though it selects what the run did.
 	at(t, session, cell.Start)
-	run(t, session, TextSelectAll)
+	run(t, session, textSelectAll)
 	at(t, session, 1)
 	if err := session.SelectTable(table.First()); err != nil {
 		t.Fatal(err)
 	}
 	selected, _ := session.VisualSelection()
-	run(t, session, TextDismissSelection)
+	run(t, session, textDismissSelection)
 	caret(selected.End)
 }

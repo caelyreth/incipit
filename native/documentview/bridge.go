@@ -141,9 +141,7 @@ func (b *Bridge) Execute(action keymap.Action) error {
 		return errors.New("documentview: bridge requires a controller")
 	}
 	switch action.Kind {
-	case keymap.ActionText, keymap.ActionHistory, keymap.ActionMarkup,
-		keymap.ActionWord, keymap.ActionNesting, keymap.ActionTable,
-		keymap.ActionNavigation:
+	case keymap.ActionEdit:
 		outcome, err := b.Controller.ExecuteAction(action)
 		return editorOutcome(outcome, err)
 	case keymap.ActionClipboard:
@@ -161,22 +159,10 @@ func (b *Bridge) Execute(action keymap.Action) error {
 }
 
 func (b *Bridge) surface(command editor.SurfaceCommand) error {
-	switch command.Kind {
-	case editor.SurfaceVisual:
-		direction := controller.VerticalUp
-		extend := command.ID == editor.SurfaceSelectUpCommandID ||
-			command.ID == editor.SurfaceSelectDownCommandID
-		if command.ID == editor.SurfaceDownCommandID ||
-			command.ID == editor.SurfaceSelectDownCommandID {
-			direction = controller.VerticalDown
-		}
-		return b.Controller.MoveVertical(direction, extend)
-	default:
-		if b.External == nil {
-			return keymap.ErrUnsupportedCommand
-		}
-		return b.External(command.ID)
+	if b.External == nil {
+		return keymap.ErrUnsupportedCommand
 	}
+	return b.External(command.ID)
 }
 
 // ExecuteExternal routes an app-owned command that is outside the editor's

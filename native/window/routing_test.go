@@ -105,9 +105,9 @@ func TestTableCommandRoutesFromThePalette(t *testing.T) {
 	tester.Frame()
 	typeText(t, app, "| Name | Date |\n")
 	tester.Frame()
-	paletteCommand(t, app.commandCatalog(), editor.TableHeader.ID())
+	paletteCommand(t, app.commandCatalog(), editor.TableHeaderCommandID)
 
-	submitPaletteCommand(t, app, editor.TableHeader.ID())
+	submitPaletteCommand(t, app, editor.TableHeaderCommandID)
 	tester.Frame()
 	flow, err := app.Session.Document().Session().SurfaceFlow()
 	if err != nil {
@@ -147,7 +147,7 @@ func TestRoutingDistinguishesNoOpUnavailableAndUnsupported(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	action, ok := keymap.ResolveCommand(editor.TableHeader.ID())
+	action, ok := keymap.ResolveCommand(editor.TableHeaderCommandID)
 	if !ok {
 		t.Fatal("table header did not resolve")
 	}

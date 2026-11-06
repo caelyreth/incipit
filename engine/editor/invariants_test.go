@@ -88,33 +88,33 @@ type invariantCommand struct {
 	run      func(*Session) error
 }
 
-func textInvariant(name string, command TextCommand, backward, deletes bool) invariantCommand {
+func textInvariant(name string, command textOp, backward, deletes bool) invariantCommand {
 	return invariantCommand{name, backward, deletes, func(s *Session) error {
-		_, err := s.ExecuteText(command)
+		_, err := s.doText(command)
 		return err
 	}}
 }
 
-func wordInvariant(name string, command WordCommand, backward, deletes bool) invariantCommand {
+func wordInvariant(name string, command wordOp, backward, deletes bool) invariantCommand {
 	return invariantCommand{name, backward, deletes, func(s *Session) error {
-		_, err := s.ExecuteWord(command)
+		_, err := s.doWord(command)
 		return err
 	}}
 }
 
 var invariantCommands = []invariantCommand{
-	textInvariant("Left", TextLeft, true, false),
-	textInvariant("Right", TextRight, false, false),
-	textInvariant("Shift-Left", TextSelectLeft, true, false),
-	textInvariant("Shift-Right", TextSelectRight, false, false),
-	textInvariant("Line Start", TextLineStart, true, false),
-	textInvariant("Line End", TextLineEnd, false, false),
-	textInvariant("Backspace", TextBackspace, true, true),
-	textInvariant("Delete", TextDelete, false, true),
-	wordInvariant("Word Left", WordPrevious, true, false),
-	wordInvariant("Word Right", WordNext, false, false),
-	wordInvariant("Delete Word Left", WordDeletePrevious, true, true),
-	wordInvariant("Delete Word Right", WordDeleteNext, false, true),
+	textInvariant("Left", textLeft, true, false),
+	textInvariant("Right", textRight, false, false),
+	textInvariant("Shift-Left", textSelectLeft, true, false),
+	textInvariant("Shift-Right", textSelectRight, false, false),
+	textInvariant("Line Start", textLineStart, true, false),
+	textInvariant("Line End", textLineEnd, false, false),
+	textInvariant("Backspace", textBackspace, true, true),
+	textInvariant("Delete", textDelete, false, true),
+	wordInvariant("Word Left", wordPrevious, true, false),
+	wordInvariant("Word Right", wordNext, false, false),
+	wordInvariant("Delete Word Left", wordDeletePrevious, true, true),
+	wordInvariant("Delete Word Right", wordDeleteNext, false, true),
 }
 
 // selected is the session's projected selection.
@@ -208,7 +208,7 @@ func TestSelectAllOnlyWidens(t *testing.T) {
 			start(session)
 			previous := selected(t, session)
 			for range 4 {
-				run(t, session, TextSelectAll)
+				run(t, session, textSelectAll)
 				next := selected(t, session)
 				if next.Start > previous.Start || next.End < previous.End {
 					t.Fatalf("%s, start %d: Select All went from %v to %v", fixture.name, index, previous, next)

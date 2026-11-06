@@ -121,15 +121,15 @@ func TestMenuKeysFollowTheKeymap(t *testing.T) {
 	menu := app.MainMenu()
 	app.refreshSettingsData()
 	bold := menu.ItemByID("bold")
-	if want, _ := keymap.Accelerator(chordFor(t, app, editor.MarkupStrong.ID()), keymap.PlatformCurrent); bold.Accelerator != want || want == "" {
+	if want, _ := keymap.Accelerator(chordFor(t, app, editor.StrongCommandID), keymap.PlatformCurrent); bold.Accelerator != want || want == "" {
 		t.Fatalf("bold key %q, want %q", bold.Accelerator, want)
 	}
 	moved := kernel.NewBindingTarget(kernel.EditorBindingContext, "k", kernel.ModifiersPrimary|kernel.ModifiersShift)
-	app.Settings.Apply(appsettings.Remap(editor.MarkupStrong.ID(), moved))
+	app.Settings.Apply(appsettings.Remap(editor.StrongCommandID, moved))
 	if want, _ := keymap.Accelerator(moved, keymap.PlatformCurrent); bold.Accelerator != want {
 		t.Fatalf("remapped bold key %q, want %q", bold.Accelerator, want)
 	}
-	app.Settings.Apply(appsettings.Unbind(editor.MarkupStrong.ID()))
+	app.Settings.Apply(appsettings.Unbind(editor.StrongCommandID))
 	if bold.Accelerator != "" {
 		t.Fatalf("unbound bold kept %q", bold.Accelerator)
 	}
@@ -195,7 +195,7 @@ func TestMenuStandsDownWhileRecording(t *testing.T) {
 	if label, reserved := app.Settings.Reserved(quitKey); !reserved || label != quit.Label {
 		t.Fatalf("quit key reserved = %v %q", reserved, label)
 	}
-	if _, reserved := app.Settings.Reserved(chordFor(t, app, editor.MarkupStrong.ID())); reserved {
+	if _, reserved := app.Settings.Reserved(chordFor(t, app, editor.StrongCommandID)); reserved {
 		t.Fatal("an action's own key reported as reserved")
 	}
 

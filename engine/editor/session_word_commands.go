@@ -6,8 +6,8 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-// ExecuteWord applies word movement, deletion, or enclosing-unit selection.
-func (s *Session) ExecuteWord(command WordCommand) (kernel.Outcome, error) {
+// doWord applies word movement, deletion, or enclosing-unit selection.
+func (s *Session) doWord(command wordOp) (kernel.Outcome, error) {
 	if !s.runtime.Configuration().IsEnabled(WordsPolicyID) {
 		return kernel.OutcomePass, nil
 	}
@@ -25,8 +25,8 @@ func (s *Session) ExecuteWord(command WordCommand) (kernel.Outcome, error) {
 		text = node.Text().String()
 	}
 	spans := selection.Spans()
-	if spans && (command == WordDeletePrevious || command == WordDeleteNext) {
-		outcome, err := s.ReplaceSelection("", kernel.EventOriginSemantic)
+	if spans && (command == wordDeletePrevious || command == wordDeleteNext) {
+		outcome, err := s.replaceSelection("", kernel.EventOriginSemantic)
 		return outcome.Outcome, err
 	}
 	// Words live within a block: a selection reaching into another plans
@@ -47,7 +47,7 @@ func (s *Session) ExecuteWord(command WordCommand) (kernel.Outcome, error) {
 	// into the next block as a character step would.
 	if beyond, ok := wordStepBeyond(command); ok && !plan.Delete && plan.Head == selection.Head().OffsetUTF16() ||
 		ok && plan.Delete && plan.DeleteAt.Empty() {
-		return s.ExecuteText(beyond)
+		return s.doText(beyond)
 	}
 	if plan.Delete {
 		if plan.DeleteAt.Empty() {
@@ -81,7 +81,7 @@ func (s *Session) ExecuteWord(command WordCommand) (kernel.Outcome, error) {
 		return result.Outcome, err
 	}
 	anchor := model.NewTextAnchor(selection.Node(), plan.Anchor, model.AffinityRight, snapshot.Revision())
-	if spans && (command == WordExtendPrevious || command == WordExtendNext) {
+	if spans && (command == wordExtendPrevious || command == wordExtendNext) {
 		anchor = selection.Anchor()
 	}
 	return kernel.OutcomeHandled, s.Select(model.NewTextSelection(
@@ -97,20 +97,20 @@ func (s *Session) ExecuteWord(command WordCommand) (kernel.Outcome, error) {
 
 // wordStepBeyond is the character command that continues a word command past
 // a block's edge.
-func wordStepBeyond(command WordCommand) (TextCommand, bool) {
+func wordStepBeyond(command wordOp) (textOp, bool) {
 	switch command {
-	case WordPrevious:
-		return TextLeft, true
-	case WordNext:
-		return TextRight, true
-	case WordExtendPrevious:
-		return TextSelectLeft, true
-	case WordExtendNext:
-		return TextSelectRight, true
-	case WordDeletePrevious:
-		return TextBackspace, true
-	case WordDeleteNext:
-		return TextDelete, true
+	case wordPrevious:
+		return textLeft, true
+	case wordNext:
+		return textRight, true
+	case wordExtendPrevious:
+		return textSelectLeft, true
+	case wordExtendNext:
+		return textSelectRight, true
+	case wordDeletePrevious:
+		return textBackspace, true
+	case wordDeleteNext:
+		return textDelete, true
 	default:
 		return 0, false
 	}

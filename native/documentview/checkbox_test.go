@@ -87,7 +87,7 @@ func TestCheckboxClickKeyboardAndUndo(t *testing.T) {
 	if checkboxChecked(t, document) {
 		t.Fatal("Space did not uncheck focused item")
 	}
-	if _, err := document.Execute(controller.Command{ID: string(editor.HistoryUndo.ID())}); err != nil {
+	if _, err := document.Execute(controller.Command{ID: string(editor.UndoCommandID)}); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
@@ -222,7 +222,7 @@ func TestCheckboxControlTracksMovedAndRemovedItems(t *testing.T) {
 	if err := document.SelectProjected(0, int(document.Session().Projection().UTF16Len())); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := document.Execute(controller.Command{ID: string(editor.TextBackspace.ID())}); err != nil {
+	if _, err := document.Execute(controller.Command{ID: string(editor.DeleteBackwardCommandID)}); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()

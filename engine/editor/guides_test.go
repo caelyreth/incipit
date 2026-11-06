@@ -40,7 +40,7 @@ func TestGuideMarksWhereTabLandsPastGeneratedCloser(t *testing.T) {
 		t.Fatalf("guides = %#v", guides)
 	}
 	guide := guides[0]
-	binding := session.Runtime().Configuration().BindingsFor(TabCommand().ID)[0]
+	binding := session.Runtime().Configuration().BindingsFor(LeaveCommandID)[0]
 	if !slices.Equal(guide.Primitive.Keys, []string{binding.String()}) {
 		t.Fatalf("keys = %q, want the configured %q", guide.Primitive.Keys, binding.String())
 	}
@@ -50,7 +50,7 @@ func TestGuideMarksWhereTabLandsPastGeneratedCloser(t *testing.T) {
 	if guide.ID.Producer != surface.ProducerID(NavigationPolicyID) || guide.ExpiresAt != nil {
 		t.Fatalf("guide = %#v", guide)
 	}
-	if outcome, err := session.Tab(now); err != nil || outcome != kernel.OutcomeHandled {
+	if outcome, err := session.leave(now); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("tab outcome=%v err=%v", outcome, err)
 	}
 	if got := session.Caret().RangeUTF16().Start; got != guide.Primitive.At {
@@ -85,10 +85,10 @@ func TestGuideFollowsTheCommandBinding(t *testing.T) {
 	if err := session.SelectProjected(3, 3); err != nil {
 		t.Fatal(err)
 	}
-	original := session.Runtime().Configuration().BindingsFor(TabCommand().ID)[0]
+	original := session.Runtime().Configuration().BindingsFor(LeaveCommandID)[0]
 	remapped := kernel.NewBindingTarget(original.Context(), "j", kernel.ModifiersControl)
 	if _, err := session.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
-		configuration.Remap(TabCommand().ID, remapped)
+		configuration.Remap(LeaveCommandID, remapped)
 		return nil
 	}); err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func TestGuideFollowsTheCommandBinding(t *testing.T) {
 		t.Fatalf("remapped guides = %#v", guides)
 	}
 	if _, err := session.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
-		configuration.Unbind(TabCommand().ID)
+		configuration.Unbind(LeaveCommandID)
 		return nil
 	}); err != nil {
 		t.Fatal(err)

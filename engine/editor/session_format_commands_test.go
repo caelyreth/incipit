@@ -58,25 +58,25 @@ func newBlockMarkSession(
 func assertToolbarCommandFlip(
 	t *testing.T,
 	session *Session,
-	command MarkupCommand,
+	command markupOp,
 ) {
 	t.Helper()
 	state := session.ToolbarState()
 	before := state.Emphasis
-	if command == MarkupStrong {
+	if command == markupStrong {
 		before = state.Strong
 	}
-	if outcome, err := session.ExecuteMarkup(command); err != nil ||
+	if outcome, err := session.doFormat(command); err != nil ||
 		outcome != kernel.OutcomeHandled {
-		t.Fatalf("%s outcome=%v err=%v", command.ID(), outcome, err)
+		t.Fatalf("%v outcome=%v err=%v", command, outcome, err)
 	}
 	state = session.ToolbarState()
 	after := state.Emphasis
-	if command == MarkupStrong {
+	if command == markupStrong {
 		after = state.Strong
 	}
 	if before == after {
-		t.Fatalf("%s selection stayed %v; toolbar and command disagree", command.ID(), before)
+		t.Fatalf("%v selection stayed %v; toolbar and command disagree", command, before)
 	}
 }
 
@@ -103,7 +103,7 @@ func TestFormattingCoverageMatchesNonEmptyLines(t *testing.T) {
 			if !session.ToolbarState().Strong {
 				t.Fatal("marks on each nonempty line did not cover the selection")
 			}
-			assertToolbarCommandFlip(t, session, MarkupStrong)
+			assertToolbarCommandFlip(t, session, markupStrong)
 			if node, ok := session.Runtime().Snapshot().Document().Node(node); !ok || len(node.Marks()) != 0 {
 				t.Fatalf("toggle left marks: %+v", node)
 			}
@@ -120,7 +120,7 @@ func TestExactOuterMarkToggleKeepsToolbarAndCommandInAgreement(t *testing.T) {
 	if !session.ToolbarState().Emphasis {
 		t.Fatal("outer emphasis is not selected")
 	}
-	assertToolbarCommandFlip(t, session, MarkupEmphasis)
+	assertToolbarCommandFlip(t, session, markupEmphasis)
 	current, _ := session.Runtime().Snapshot().Document().Node(node)
 	if current.MarkCount() != 1 || current.Marks()[0].Level() != 2 {
 		t.Fatalf("toggle did not retain stronger nested formatting: %+v", current.Marks())
@@ -140,13 +140,13 @@ func TestNotationEditUsesTheResolvedCaretAfterTheNewCloser(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := session.ReplaceSelection("*", kernel.EventOriginSemantic); err != nil {
+	if _, err := session.replaceSelection("*", kernel.EventOriginSemantic); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != "*abc*" {
 		t.Fatalf("after marker edit = %q", got)
 	}
-	if _, err := session.ReplaceSelection("d", kernel.EventOriginTyping); err != nil {
+	if _, err := session.replaceSelection("d", kernel.EventOriginTyping); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != "*abc*d" {
@@ -163,7 +163,7 @@ func TestSessionExecutesMarkupCommandsAndTogglesMarks(t *testing.T) {
 	)); err != nil {
 		t.Fatal(err)
 	}
-	outcome, err := session.ExecuteMarkup(MarkupEmphasis)
+	outcome, err := session.doFormat(markupEmphasis)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestSessionExecutesMarkupCommandsAndTogglesMarks(t *testing.T) {
 	if len(nodeValue.Marks()) != 1 || nodeValue.Marks()[0].Level() != 1 {
 		t.Fatalf("marks = %#v", nodeValue.Marks())
 	}
-	if _, err := session.ExecuteMarkup(MarkupEmphasis); err != nil {
+	if _, err := session.doFormat(markupEmphasis); err != nil {
 		t.Fatal(err)
 	}
 	nodeValue, _ = session.Runtime().Snapshot().Document().Node(node)
@@ -195,7 +195,7 @@ func TestToolbarAndMarkupAgreeForAdjacentMarksWithoutMergingThem(t *testing.T) {
 	if !state.Emphasis || state.Strong {
 		t.Fatalf("adjacent toolbar = %#v", state)
 	}
-	assertToolbarCommandFlip(t, session, MarkupEmphasis)
+	assertToolbarCommandFlip(t, session, markupEmphasis)
 	nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
 	if nodeValue.MarkCount() != 0 || session.Projection().Text() != "abcd" {
 		t.Fatalf("after toggle marks=%#v projection=%q", nodeValue.Marks(), session.Projection().Text())
@@ -215,7 +215,7 @@ func TestToolbarAndMarkupAgreeForNestedAndCollapsedMarks(t *testing.T) {
 		if state.Emphasis || !state.Strong {
 			t.Fatalf("nested toolbar = %#v", state)
 		}
-		assertToolbarCommandFlip(t, session, MarkupStrong)
+		assertToolbarCommandFlip(t, session, markupStrong)
 		nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
 		if nodeValue.MarkCount() != 1 || nodeValue.Marks()[0].Level() != 1 {
 			t.Fatalf("after removing inner strong marks = %#v", nodeValue.Marks())
@@ -232,7 +232,7 @@ func TestToolbarAndMarkupAgreeForNestedAndCollapsedMarks(t *testing.T) {
 		if session.ToolbarState().Emphasis {
 			t.Fatal("stronger nested mark reported emphasis selected")
 		}
-		assertToolbarCommandFlip(t, session, MarkupEmphasis)
+		assertToolbarCommandFlip(t, session, markupEmphasis)
 		nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
 		marks := nodeValue.Marks()
 		if len(marks) != 3 ||
@@ -255,7 +255,7 @@ func TestToolbarAndMarkupAgreeForNestedAndCollapsedMarks(t *testing.T) {
 		if !session.ToolbarState().Emphasis {
 			t.Fatal("active mark not selected in toolbar")
 		}
-		assertToolbarCommandFlip(t, session, MarkupEmphasis)
+		assertToolbarCommandFlip(t, session, markupEmphasis)
 		nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
 		if nodeValue.MarkCount() != 0 {
 			t.Fatalf("collapsed toggle marks = %#v", nodeValue.Marks())
@@ -279,7 +279,7 @@ func TestToolbarAndMarkupAgreeAcrossBlocksAndMixedLevels(t *testing.T) {
 			if !session.ToolbarState().Emphasis {
 				t.Fatalf("reverse=%v: cross-block emphasis not selected", reverse)
 			}
-			assertToolbarCommandFlip(t, session, MarkupEmphasis)
+			assertToolbarCommandFlip(t, session, markupEmphasis)
 			for _, id := range ids {
 				node, _ := session.Runtime().Snapshot().Document().Node(id)
 				if node.MarkCount() != 0 {
@@ -299,12 +299,12 @@ func TestToolbarAndMarkupAgreeAcrossBlocksAndMixedLevels(t *testing.T) {
 		if state.Emphasis || state.Strong {
 			t.Fatalf("mixed toolbar = %#v", state)
 		}
-		assertToolbarCommandFlip(t, session, MarkupEmphasis)
+		assertToolbarCommandFlip(t, session, markupEmphasis)
 		for _, id := range ids {
 			node, _ := session.Runtime().Snapshot().Document().Node(id)
 			for _, mark := range node.Marks() {
 				if mark.Kind() != EmphasisMark || mark.Level() != 1 {
-					t.Fatalf("%s mixed command left %#v", id, node.Marks())
+					t.Fatalf("%v mixed command left %#v", id, node.Marks())
 				}
 			}
 		}
@@ -316,14 +316,14 @@ func TestToolbarAndMarkupAgreeAcrossBlocksAndMixedLevels(t *testing.T) {
 		if session.ToolbarState().Emphasis {
 			t.Fatal("empty boundary selection reported formatting")
 		}
-		if outcome, err := session.ExecuteMarkup(MarkupEmphasis); err != nil ||
+		if outcome, err := session.doFormat(markupEmphasis); err != nil ||
 			outcome != kernel.OutcomeHandled {
 			t.Fatalf("boundary outcome=%v err=%v", outcome, err)
 		}
 		for _, id := range ids {
 			node, _ := session.Runtime().Snapshot().Document().Node(id)
 			if node.MarkCount() != 0 {
-				t.Fatalf("%s boundary marks = %#v", id, node.Marks())
+				t.Fatalf("%v boundary marks = %#v", id, node.Marks())
 			}
 		}
 	})
@@ -334,7 +334,7 @@ func TestStructuralSplitJoinKeepsAdjacentIdentitiesAndUndo(t *testing.T) {
 	session := newMarkedSession(t, "abcd", markSpec{start: 0, end: 4, level: 1})
 	original := DocumentBlocks(session.Runtime().Snapshot().Document())[0].ID()
 	selectSemantic(t, session, original, original, 2, 2)
-	if _, err := session.ExecuteText(TextNewline); err != nil {
+	if _, err := session.doText(textNewline); err != nil {
 		t.Fatal(err)
 	}
 
@@ -349,7 +349,7 @@ func TestStructuralSplitJoinKeepsAdjacentIdentitiesAndUndo(t *testing.T) {
 	}
 
 	selectSemantic(t, session, blocks[1].ID(), blocks[1].ID(), 0, 0)
-	if _, err := session.ExecuteText(TextBackspace); err != nil {
+	if _, err := session.doText(textBackspace); err != nil {
 		t.Fatal(err)
 	}
 	joined := DocumentBlocks(session.Runtime().Snapshot().Document())
@@ -373,7 +373,7 @@ func TestStructuralSplitJoinKeepsAdjacentIdentitiesAndUndo(t *testing.T) {
 		t.Fatalf("joined active mark %v is not caret membership %v", active, membership)
 	}
 
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	afterUndo := DocumentBlocks(session.Runtime().Snapshot().Document())
@@ -381,7 +381,7 @@ func TestStructuralSplitJoinKeepsAdjacentIdentitiesAndUndo(t *testing.T) {
 		!slices.Equal([]model.MarkID{afterUndo[0].Marks()[0].ID(), afterUndo[1].Marks()[0].ID()}, splitIDs) {
 		t.Fatalf("undo join blocks = %#v, split ids = %v", afterUndo, splitIDs)
 	}
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	afterSplitUndo := DocumentBlocks(session.Runtime().Snapshot().Document())
@@ -394,7 +394,7 @@ func TestStructuralSplitJoinKeepsAdjacentIdentitiesAndUndo(t *testing.T) {
 func TestSessionExecutesWordMovementSelectionAndDeletion(t *testing.T) {
 	t.Parallel()
 	session, node := newSessionFixture(t, "one two three", false)
-	if outcome, err := session.ExecuteWord(WordNext); err != nil ||
+	if outcome, err := session.doWord(wordNext); err != nil ||
 		outcome != kernel.OutcomeHandled ||
 		session.Selection().Head().OffsetUTF16() != 3 {
 		t.Fatalf("next outcome=%v head=%d err=%v", outcome, session.Selection().Head().OffsetUTF16(), err)
@@ -405,7 +405,7 @@ func TestSessionExecutesWordMovementSelectionAndDeletion(t *testing.T) {
 	)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := session.ExecuteWord(SelectWord); err != nil {
+	if _, err := session.doWord(selectWord); err != nil {
 		t.Fatal(err)
 	}
 	range16, err := session.Selection().Range()
@@ -415,7 +415,7 @@ func TestSessionExecutesWordMovementSelectionAndDeletion(t *testing.T) {
 	if range16 != model.NewUTF16Range(4, 7) {
 		t.Fatalf("selected word = %#v", range16)
 	}
-	if _, err := session.ExecuteWord(WordDeletePrevious); err != nil {
+	if _, err := session.doWord(wordDeletePrevious); err != nil {
 		t.Fatal(err)
 	}
 	nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
@@ -432,14 +432,14 @@ func TestSessionDeletesSelectionSpanningGeneratedMarkers(t *testing.T) {
 	cases := []struct {
 		name     string
 		from, to model.UTF16Offset
-		markup   MarkupCommand
+		markup   markupOp
 		before   string
 	}{
-		{"trailing strong", 6, 11, MarkupStrong, "hello **world**"},
-		{"leading emphasis", 0, 5, MarkupEmphasis, "*hello* world"},
+		{"trailing strong", 6, 11, markupStrong, "hello **world**"},
+		{"leading emphasis", 0, 5, markupEmphasis, "*hello* world"},
 	}
 	for _, tc := range cases {
-		for _, command := range []TextCommand{TextBackspace, TextDelete} {
+		for _, command := range []textOp{textBackspace, textDelete} {
 			session, node := newSessionFixture(t, "hello world", false)
 			revision := session.Runtime().Revision()
 			if err := session.Select(model.NewTextSelection(
@@ -448,30 +448,30 @@ func TestSessionDeletesSelectionSpanningGeneratedMarkers(t *testing.T) {
 			)); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := session.ExecuteMarkup(tc.markup); err != nil {
+			if _, err := session.doFormat(tc.markup); err != nil {
 				t.Fatal(err)
 			}
 			if got := session.Projection().Text(); got != tc.before {
 				t.Fatalf("%s: formatted projection = %q", tc.name, got)
 			}
-			if outcome, err := session.ExecuteText(TextSelectAll); err != nil ||
+			if outcome, err := session.doText(textSelectAll); err != nil ||
 				outcome != kernel.OutcomeHandled {
 				t.Fatalf("%s: select all outcome=%v err=%v", tc.name, outcome, err)
 			}
-			outcome, err := session.ExecuteText(command)
+			outcome, err := session.doText(command)
 			if err != nil || outcome != kernel.OutcomeHandled {
-				t.Fatalf("%s %s: outcome=%v err=%v", tc.name, command.ID(), outcome, err)
+				t.Fatalf("%v %v: outcome=%v err=%v", tc.name, command, outcome, err)
 			}
 			nodeValue, _ := session.Runtime().Snapshot().Document().Node(node)
 			if got := session.Projection().Text(); got != "" || nodeValue.Text().String() != "" {
-				t.Fatalf("%s %s: projection=%q semantic=%q",
-					tc.name, command.ID(), got, nodeValue.Text().String())
+				t.Fatalf("%v %v: projection=%q semantic=%q",
+					tc.name, command, got, nodeValue.Text().String())
 			}
-			if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+			if _, err := session.doHistory(historyUndo); err != nil {
 				t.Fatal(err)
 			}
 			if got := session.Projection().Text(); got != tc.before {
-				t.Fatalf("%s %s: undo projection = %q", tc.name, command.ID(), got)
+				t.Fatalf("%v %v: undo projection = %q", tc.name, command, got)
 			}
 		}
 	}

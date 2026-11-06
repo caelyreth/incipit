@@ -1,6 +1,9 @@
 package editor
 
-import "github.com/caelyreth/neverland/engine/model"
+import (
+	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/engine/model"
+)
 
 // ToolbarState is the editor-owned state of the floating writing toolbar.
 type ToolbarState struct {
@@ -27,14 +30,14 @@ func (s *Session) ToolbarState() ToolbarState {
 	active := activeMark(s.inline)
 	ranges := selectionBlockRanges(document, s.presentation.Selection)
 	coverage := formattingCoverageFor(document, ranges, EmphasisMark, active)
-	settings := func(command MarkupCommand) MarkupSettings {
+	settings := func(command markupOp) MarkupSettings {
 		return MarkupSettings{
 			PolicyEnabled:  configuration.IsEnabled(WritingPolicyID),
-			CommandEnabled: configuration.IsCommandEnabled(command.ID()),
+			CommandEnabled: configuration.IsCommandEnabled(map[markupOp]kernel.CommandID{markupEmphasis: EmphasisCommandID, markupStrong: StrongCommandID}[command]),
 		}
 	}
-	emphasis := markupStateFor(MarkupEmphasis, settings(MarkupEmphasis), coverage.strongest())
-	strong := markupStateFor(MarkupStrong, settings(MarkupStrong), coverage.strongest())
+	emphasis := markupStateFor(markupEmphasis, settings(markupEmphasis), coverage.strongest())
+	strong := markupStateFor(markupStrong, settings(markupStrong), coverage.strongest())
 	state.EmphasisEnabled = emphasis.Enabled
 	state.Emphasis = emphasis.Selected
 	state.StrongEnabled = strong.Enabled

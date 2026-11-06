@@ -200,16 +200,16 @@ func (a *AppState) BindShell() {
 		a.findPage()
 	}
 	a.Shell.FormatItalic = func(bool) {
-		a.executeEditorCommand(editor.MarkupEmphasis.ID())
+		a.executeEditorCommand(editor.EmphasisCommandID)
 	}
 	a.Shell.FormatBold = func(bool) {
-		a.executeEditorCommand(editor.MarkupStrong.ID())
+		a.executeEditorCommand(editor.StrongCommandID)
 	}
 	a.Shell.Undo = func() {
-		a.executeEditorCommand(editor.HistoryUndo.ID())
+		a.executeEditorCommand(editor.UndoCommandID)
 	}
 	a.Shell.Redo = func() {
-		a.executeEditorCommand(editor.HistoryRedo.ID())
+		a.executeEditorCommand(editor.RedoCommandID)
 	}
 	a.Shell.Typewriter = func(on bool) {
 		a.setPresentation(appsettings.PresentationTypewriter, on)
@@ -269,10 +269,10 @@ func (a *AppState) refreshToolbarState() {
 		CJKEnabled:        enabled(editor.SurfaceCJKCommandID),
 	}
 	toolbar.Bindings = shell.ToolbarBindings{
-		Bold:       bindingLabel(prepared, editor.MarkupStrong.ID()),
-		Italic:     bindingLabel(prepared, editor.MarkupEmphasis.ID()),
-		Undo:       bindingLabel(prepared, editor.HistoryUndo.ID()),
-		Redo:       bindingLabel(prepared, editor.HistoryRedo.ID()),
+		Bold:       bindingLabel(prepared, editor.StrongCommandID),
+		Italic:     bindingLabel(prepared, editor.EmphasisCommandID),
+		Undo:       bindingLabel(prepared, editor.UndoCommandID),
+		Redo:       bindingLabel(prepared, editor.RedoCommandID),
 		Typewriter: bindingLabel(prepared, editor.SurfaceTypewriterCommandID),
 		Zen:        bindingLabel(prepared, editor.SurfaceZenCommandID),
 		CJK:        bindingLabel(prepared, editor.SurfaceCJKCommandID),

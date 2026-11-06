@@ -55,7 +55,7 @@ func BenchmarkSessionTypingLongProse(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for b.Loop() {
-				if _, err := session.ReplaceSelection("x", kernel.EventOriginTyping); err != nil {
+				if _, err := session.replaceSelection("x", kernel.EventOriginTyping); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -70,7 +70,7 @@ func BenchmarkSessionTypingHeavyPolicies(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for b.Loop() {
-				if _, err := session.ReplaceSelection("x", kernel.EventOriginTyping); err != nil {
+				if _, err := session.replaceSelection("x", kernel.EventOriginTyping); err != nil {
 					b.Fatal(err)
 				}
 			}

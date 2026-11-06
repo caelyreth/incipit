@@ -9,7 +9,7 @@ import (
 
 func typeSession(t *testing.T, session *Session, text string) {
 	t.Helper()
-	if _, err := session.ReplaceSelection(text, kernel.EventOriginTyping); err != nil {
+	if _, err := session.replaceSelection(text, kernel.EventOriginTyping); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -80,7 +80,7 @@ func TestSessionTypingSmartClosesQuotes(t *testing.T) {
 func TestSessionTypingKeepsCollapsedGeneratedStrongPairOpen(t *testing.T) {
 	t.Parallel()
 	session, _ := newSessionFixture(t, "", false)
-	if outcome, err := session.ExecuteMarkup(MarkupStrong); err != nil ||
+	if outcome, err := session.doFormat(markupStrong); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("strong outcome=%v err=%v", outcome, err)
 	}
@@ -100,7 +100,7 @@ func TestSessionTypingKeepsCollapsedGeneratedStrongPairOpen(t *testing.T) {
 func TestSessionCompositionCommitReplacesPreeditInsideGeneratedStrongPair(t *testing.T) {
 	t.Parallel()
 	session, node := newSessionFixture(t, "", false)
-	if outcome, err := session.ExecuteMarkup(MarkupStrong); err != nil ||
+	if outcome, err := session.doFormat(markupStrong); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("strong outcome=%v err=%v", outcome, err)
 	}
@@ -140,12 +140,12 @@ func TestSessionCompositionCommitReplacesPreeditInsideGeneratedStrongPair(t *tes
 
 func TestTypingInsideEmptyMarkerNotationInsertsText(t *testing.T) {
 	session, _ := newSessionFixture(t, "abc", false)
-	if outcome, err := session.ExecuteMarkup(MarkupStrong); err != nil ||
+	if outcome, err := session.doFormat(markupStrong); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("strong outcome=%v err=%v", outcome, err)
 	}
-	run(t, session, TextRight)
-	if _, err := session.ReplaceSelection("a", kernel.EventOriginTyping); err != nil {
+	run(t, session, textRight)
+	if _, err := session.replaceSelection("a", kernel.EventOriginTyping); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != "****aabc" {
@@ -158,7 +158,7 @@ func TestTypingInsideEmptyMarkerNotationInsertsText(t *testing.T) {
 
 func TestSessionRejectsNULText(t *testing.T) {
 	session, _ := newSessionFixture(t, "abc", false)
-	if _, err := session.ReplaceSelection("\x00", kernel.EventOriginTyping); err == nil {
+	if _, err := session.replaceSelection("\x00", kernel.EventOriginTyping); err == nil {
 		t.Fatal("NUL text accepted")
 	}
 	if got := session.Projection().Text(); got != "abc" {
@@ -169,7 +169,7 @@ func TestSessionRejectsNULText(t *testing.T) {
 func TestMultipleEmptyMarksShareOneAddressableOffset(t *testing.T) {
 	session, node := newSessionFixture(t, "", false)
 	for _, marker := range []string{"*", "~"} {
-		if _, err := session.ReplaceSelection(marker, kernel.EventOriginTyping); err != nil {
+		if _, err := session.replaceSelection(marker, kernel.EventOriginTyping); err != nil {
 			t.Fatal(err)
 		}
 	}

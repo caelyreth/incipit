@@ -23,14 +23,14 @@ type MenuCommand struct {
 
 // MenuCommands are the edit and format commands the editor answers.
 var MenuCommands = [...]MenuCommand{
-	{"undo", editor.HistoryUndo.ID()},
-	{"redo", editor.HistoryRedo.ID()},
+	{"undo", editor.UndoCommandID},
+	{"redo", editor.RedoCommandID},
 	{"cut", CutCommandID},
 	{"copy", CopyCommandID},
 	{"paste", PasteCommandID},
-	{"selectAll", editor.TextSelectAll.ID()},
-	{"bold", editor.MarkupStrong.ID()},
-	{"italic", editor.MarkupEmphasis.ID()},
+	{"selectAll", editor.SelectAllCommandID},
+	{"bold", editor.StrongCommandID},
+	{"italic", editor.EmphasisCommandID},
 }
 
 // MenuCommandFor returns the action a menu command performs.

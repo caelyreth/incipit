@@ -5,11 +5,11 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-// ExecuteNesting moves every block the selection covers that nests, items
+// doNest moves every block the selection covers that nests, items
 // and quote lines, a level deeper or shallower. A block goes no deeper
 // than one level past the block before it in its group, so a group never
 // skips a level; nothing shallower than the outermost level exists.
-func (s *Session) ExecuteNesting(command NestingCommand) (kernel.Outcome, error) {
+func (s *Session) doNest(command nestingOp) (kernel.Outcome, error) {
 	if !s.runtime.Configuration().IsEnabled(WritingPolicyID) {
 		return kernel.OutcomePass, nil
 	}
@@ -30,7 +30,7 @@ func (s *Session) ExecuteNesting(command NestingCommand) (kernel.Outcome, error)
 
 type nestingInvoker struct {
 	session *Session
-	command NestingCommand
+	command nestingOp
 	nodes   []model.NodeID
 }
 
@@ -57,7 +57,7 @@ func (i *nestingInvoker) Invoke(
 			continue
 		}
 		depth := shape.depth - 1
-		if i.command == NestDeeper {
+		if i.command == nestDeeper {
 			depth = min(shape.depth+1, maxDepth, nestingCeiling(document, node))
 		}
 		if depth < 0 || depth == shape.depth {
@@ -98,3 +98,11 @@ func nestingCeiling(document *model.DocumentDraft, node *model.Node) int {
 	}
 	return other.depth + 1
 }
+
+// nestingOp moves blocks a level deeper or shallower.
+type nestingOp uint8
+
+const (
+	nestDeeper nestingOp = iota + 1
+	nestShallower
+)

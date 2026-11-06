@@ -95,13 +95,13 @@ func TestCheckboxToggleHistoryAndWritingPolicy(t *testing.T) {
 	if got := session.Selection(); got.Head().Node() != before.Head().Node() || got.Head().Offset() != before.Head().Offset() {
 		t.Fatalf("toggle moved selection from %v to %v", before, got)
 	}
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	if checkboxShape(t, session, 0).checked {
 		t.Fatal("undo did not uncheck item")
 	}
-	if _, err := session.ExecuteHistory(HistoryRedo); err != nil {
+	if _, err := session.doHistory(historyRedo); err != nil {
 		t.Fatal(err)
 	}
 	if !checkboxShape(t, session, 0).checked {
@@ -119,7 +119,7 @@ func TestCheckboxSplitAndNesting(t *testing.T) {
 	if !checkboxShape(t, session, 0).checked || checkboxShape(t, session, 1).checked {
 		t.Fatal("a split should leave the original checked and the new item unchecked")
 	}
-	if _, err := session.ExecuteNesting(NestDeeper); err != nil {
+	if _, err := session.doNest(nestDeeper); err != nil {
 		t.Fatal(err)
 	}
 	shape := checkboxShape(t, session, 1)
@@ -132,7 +132,7 @@ func TestCheckboxSplitAndNesting(t *testing.T) {
 func TestCheckboxFlowAndReadableText(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "- [xfirst\nsecond")
-	if _, err := session.ExecuteNesting(NestDeeper); err != nil {
+	if _, err := session.doNest(nestDeeper); err != nil {
 		t.Fatal(err)
 	}
 	flow, err := session.SurfaceFlow()
@@ -156,12 +156,12 @@ func TestCheckboxConversionUndo(t *testing.T) {
 	typeKeys(t, session, "- [")
 	typeKeys(t, session, "x")
 	expectKinds(t, session, CheckboxNode)
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	expectKinds(t, session, BulletNode)
 	expectPage(t, session, "- [|]", "[]")
-	if _, err := session.ExecuteHistory(HistoryRedo); err != nil {
+	if _, err := session.doHistory(historyRedo); err != nil {
 		t.Fatal(err)
 	}
 	expectPage(t, session, "- [x] |", "")

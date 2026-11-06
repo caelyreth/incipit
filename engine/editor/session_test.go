@@ -170,7 +170,7 @@ func TestSessionReplacementPublishesProjectionHistoryAndMetrics(t *testing.T) {
 	)); err != nil {
 		t.Fatal(err)
 	}
-	result, err := session.ReplaceSelection("X", kernel.EventOriginTyping)
+	result, err := session.replaceSelection("X", kernel.EventOriginTyping)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestSessionMarkerReplacementUsesGeneratedNotation(t *testing.T) {
 	if session.Projection().Text() != "a*bc*d" {
 		t.Fatalf("initial projection = %q", session.Projection().Text())
 	}
-	result, err := session.ReplaceSelection("Z", kernel.EventOriginSemantic)
+	result, err := session.replaceSelection("Z", kernel.EventOriginSemantic)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestSessionCompositionRetainsPreviewUntilHandled(t *testing.T) {
 	if err := session.UpdateComposition("中文"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := session.ReplaceSelection("x", kernel.EventOriginTyping); !errors.Is(err, ErrCompositionActive) {
+	if _, err := session.replaceSelection("x", kernel.EventOriginTyping); !errors.Is(err, ErrCompositionActive) {
 		t.Fatalf("replacement during composition = %v", err)
 	}
 	outcome, err := session.CommitComposition()

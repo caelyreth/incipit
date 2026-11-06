@@ -330,7 +330,7 @@ func (s *Session) formulaTabOffer(node *model.Node) (TabOffer, bool) {
 
 // Tab lands at the selected navigation offer. Emphasis offers land after the
 // generated closer rather than at the semantic text edge.
-func (s *Session) Tab(now time.Time) (kernel.Outcome, error) {
+func (s *Session) leave(now time.Time) (kernel.Outcome, error) {
 	// In a table, Tab goes to the next cell before anything else.
 	if outcome, inTable, err := s.stepCell(1); inTable || err != nil {
 		return outcome, err
@@ -400,9 +400,9 @@ func (s *Session) SelectionTarget() (projection.Target, error) {
 	return s.presentation.Target(range16)
 }
 
-// ReplaceSelection applies one projected edit using the current visual
+// replaceSelection applies one projected edit using the current visual
 // selection. It rejects edits while a composition is active.
-func (s *Session) ReplaceSelection(replacement string, origin kernel.EventOrigin) (EditingOutcome, error) {
+func (s *Session) replaceSelection(replacement string, origin kernel.EventOrigin) (EditingOutcome, error) {
 	if _, active := s.composition.Preview(); active {
 		return EditingOutcome{}, ErrCompositionActive
 	}
@@ -424,13 +424,13 @@ func (s *Session) ReplaceSelection(replacement string, origin kernel.EventOrigin
 	if err != nil {
 		return EditingOutcome{}, err
 	}
-	return s.ApplyProjectedEdit(edit)
+	return s.applyProjectedEditChecked(edit)
 }
 
-// ApplyProjectedEdit resolves and dispatches one versioned projected edit.
+// applyProjectedEditChecked resolves and dispatches one versioned projected edit.
 // Candidate presentation is prepared before publication and installed only
 // after the shared document/resources/revision transaction succeeds.
-func (s *Session) ApplyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error) {
+func (s *Session) applyProjectedEditChecked(edit ProjectedEdit) (EditingOutcome, error) {
 	if _, active := s.composition.Preview(); active {
 		return EditingOutcome{}, ErrCompositionActive
 	}

@@ -36,10 +36,8 @@ func (a *AppState) commandCatalog() []overlay.Command {
 			if !ok || !a.commandEnabledWith(prepared, action) {
 				continue
 			}
-			if surface, ok := editor.SurfaceCommandForID(id); ok {
-				if surface.Kind == editor.SurfaceVisual {
-					continue
-				}
+			if command.Intent.Kind == editor.IntentMove && command.Intent.By == editor.ByRow {
+				continue
 			}
 			seen[id] = true
 			commands = append(commands, overlay.Command{
@@ -64,7 +62,7 @@ func commandGroup(policy kernel.PolicyID, command kernel.CommandID) string {
 		return "Words"
 	case editor.WritingPolicyID:
 		switch {
-		case command == editor.TableInsert.ID():
+		case command == editor.InsertTableCommandID:
 			return "Insert"
 		case strings.HasPrefix(string(command), "table."):
 			return "Table"

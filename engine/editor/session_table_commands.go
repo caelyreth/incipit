@@ -9,11 +9,11 @@ import (
 	"github.com/caelyreth/neverland/engine/surface"
 )
 
-// TableCommand is one of the commands a table answers at the caret.
-type TableCommand uint8
+// TableOp is one of the operations a table answers at the caret.
+type TableOp uint8
 
 const (
-	TableInsert TableCommand = iota + 1
+	TableInsert TableOp = iota + 1
 	TableRowAbove
 	TableRowBelow
 	TableColumnLeft
@@ -22,68 +22,11 @@ const (
 	TableDeleteColumn
 	TableDelete
 	TableHeader
-	TablePreviousCell
-	TableLineBreak
 )
 
-// AllTableCommands is the declaration order.
-var AllTableCommands = [...]TableCommand{
-	TableInsert, TableRowAbove, TableRowBelow, TableColumnLeft, TableColumnRight,
-	TableDeleteRow, TableDeleteColumn, TableDelete, TableHeader,
-	TablePreviousCell, TableLineBreak,
-}
-
-const (
-	tablePreviousCellCommandID kernel.CommandID = "table.previous-cell"
-	tableLineBreakCommandID    kernel.CommandID = "table.line-break"
-)
-
-// Description returns stable command metadata.
-func (c TableCommand) Description() Command {
-	command := func(id kernel.CommandID, label string) Command {
-		return Command{
-			ID: id, Label: label,
-			Scope: ScopeDocument, Policy: WritingPolicyID,
-			Owner:        CommandOwnerEditor,
-			Requirements: RequiresDocument,
-		}
-	}
-	inTable := func(id kernel.CommandID, label string) Command {
-		meta := command(id, label)
-		meta.Requirements |= RequiresTable
-		return meta
-	}
-	switch c {
-	case TableRowAbove:
-		return inTable("table.row-above", "Insert row above")
-	case TableRowBelow:
-		return inTable("table.row-below", "Insert row below")
-	case TableColumnLeft:
-		return inTable("table.column-left", "Insert column left")
-	case TableColumnRight:
-		return inTable("table.column-right", "Insert column right")
-	case TableDeleteRow:
-		return inTable("table.delete-row", "Delete row")
-	case TableDeleteColumn:
-		return inTable("table.delete-column", "Delete column")
-	case TableDelete:
-		return inTable("table.delete", "Delete table")
-	case TableHeader:
-		return inTable("table.header", "Toggle header row")
-	case TablePreviousCell:
-		return inTable(tablePreviousCellCommandID, "Previous cell")
-	case TableLineBreak:
-		return inTable(tableLineBreakCommandID, "Line break in cell")
-	}
-	return command("table.insert", "Insert table")
-}
-
-// ID returns the stable command identity.
-func (c TableCommand) ID() kernel.CommandID { return c.Description().ID }
-
-// ExecuteTable runs a table command on the table the caret is in; Insert
+// doTable runs a table operation on the table the caret is in; Insert
 // Table makes one where the caret is.
-func (s *Session) ExecuteTable(command TableCommand) (kernel.Outcome, error) {
+func (s *Session) doTable(command TableOp) (kernel.Outcome, error) {
 	if command == TableInsert {
 		return s.InsertTable(emptyRows(newTableRows, newTableColumns))
 	}
@@ -110,12 +53,6 @@ func (s *Session) ExecuteTable(command TableCommand) (kernel.Outcome, error) {
 		return s.DeleteTable(cell)
 	case TableHeader:
 		return s.ShapeTable(cell, func(table *Table) { table.Header = !table.Header })
-	case TablePreviousCell:
-		outcome, _, err := s.stepCell(-1)
-		return outcome, err
-	case TableLineBreak:
-		outcome, err := s.ReplaceSelection("\n", kernel.EventOriginPaste)
-		return outcome.Outcome, err
 	}
 	return kernel.OutcomePass, nil
 }

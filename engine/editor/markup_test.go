@@ -308,7 +308,7 @@ func TestEditorPolicyCatalogMatchesDeclarations(t *testing.T) {
 	}
 
 	text := catalogPolicy(t, catalog, TextPolicyID)
-	if got := len(text.Commands); got != len(AllTextCommands) {
+	if got := len(text.Commands); got != len(policyCommands(TextPolicyID)) {
 		t.Fatalf("text commands=%d", got)
 	}
 	markup := catalogPolicy(t, catalog, WritingPolicyID)
@@ -316,7 +316,6 @@ func TestEditorPolicyCatalogMatchesDeclarations(t *testing.T) {
 		"markup.emphasis", "markup.strong", "writing.nest-deeper", "writing.nest-shallower",
 		"table.insert", "table.row-above", "table.row-below", "table.column-left", "table.column-right",
 		"table.delete-row", "table.delete-column", "table.delete", "table.header",
-		"table.previous-cell", "table.line-break",
 	}) ||
 		!slices.Equal(settingIDs(markup.Settings), []kernel.SettingID{
 			"asterisks", "underscores", "headings", "lists",
@@ -353,7 +352,7 @@ func TestEditorPolicyCatalogMatchesDeclarations(t *testing.T) {
 		t.Fatalf("navigation settings=%#v", got)
 	}
 	words := catalogPolicy(t, catalog, WordsPolicyID)
-	if got := len(words.Commands); got != len(AllWordCommands) {
+	if got := len(words.Commands); got != len(policyCommands(WordsPolicyID)) {
 		t.Fatalf("word commands=%d", got)
 	}
 }

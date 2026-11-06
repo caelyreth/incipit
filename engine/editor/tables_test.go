@@ -51,13 +51,13 @@ func tablePage(t *testing.T) *Session {
 	t.Helper()
 	session, _ := newSessionFixture(t, "", false)
 	typeSession(t, session, "| Name | Date |")
-	run(t, session, TextNewline)
+	run(t, session, textNewline)
 	return session
 }
 
 func tab(t *testing.T, session *Session) {
 	t.Helper()
-	if _, err := session.Tab(time.Now()); err != nil {
+	if _, err := session.leave(time.Now()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -89,19 +89,19 @@ func TestTabAndReturnGoThroughTheTable(t *testing.T) {
 		t.Fatalf("Tab on the last cell went to %d,%d", row, column)
 	}
 	typeSession(t, session, "Grace")
-	if _, err := session.ExecuteTable(TablePreviousCell); err != nil {
+	if _, err := session.Do(Return, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if row, column := caretCell(t, session); row != 1 || column != 1 {
 		t.Fatalf("Shift-Tab went to %d,%d", row, column)
 	}
-	run(t, session, TextNewline)
+	run(t, session, textNewline)
 	if row, column := caretCell(t, session); row != 2 || column != 1 {
 		t.Fatalf("Return went to %d,%d", row, column)
 	}
-	run(t, session, TextNewline)
+	run(t, session, textNewline)
 	expectTable(t, session, []string{"Name", "Date"}, []string{"Ada", "1815"}, []string{"Grace", ""}, []string{"", ""})
-	run(t, session, TextNewline)
+	run(t, session, textNewline)
 	expectTable(t, session, []string{"Name", "Date"}, []string{"Ada", "1815"}, []string{"Grace", ""})
 	if node, _ := session.Runtime().Snapshot().Document().Node(session.Selection().Head().Node()); node.Kind() != ParagraphNode {
 		t.Fatal("Return on an empty last row did not leave the table")
@@ -113,7 +113,7 @@ func TestTabAndReturnGoThroughTheTable(t *testing.T) {
 func TestReturnInTheLastRowGrowsTheTable(t *testing.T) {
 	session := tablePage(t)
 	typeSession(t, session, "Ada")
-	run(t, session, TextNewline)
+	run(t, session, textNewline)
 	if row, column := caretCell(t, session); row != 2 || column != 0 {
 		t.Fatalf("Return went to %d,%d", row, column)
 	}
@@ -161,7 +161,7 @@ func TestRowsAndColumnsComeAndGo(t *testing.T) {
 	if node, _ := session.Runtime().Snapshot().Document().Node(session.Selection().Head().Node()); node.Text().String() != "Ada" {
 		t.Fatalf("the caret did not move with its cell: it is in %q", node.Text().String())
 	}
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	expectTable(t, session, []string{"Ada", ""}, []string{"Name", "Date"})
@@ -171,25 +171,25 @@ func TestRowsAndColumnsComeAndGo(t *testing.T) {
 // joining them; in an empty table Backspace selects it, and again takes it.
 func TestCellsNeverJoin(t *testing.T) {
 	session := tablePage(t)
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	if row, column := caretCell(t, session); row != 0 || column != 1 {
 		t.Fatalf("Backspace at a cell's start went to %d,%d", row, column)
 	}
-	run(t, session, TextDelete)
+	run(t, session, textDelete)
 	if row, column := caretCell(t, session); row != 1 || column != 0 {
 		t.Fatalf("Delete at a cell's end went to %d,%d", row, column)
 	}
 	expectTable(t, session, []string{"Name", "Date"}, []string{"", ""})
 
 	session, _ = newSessionFixture(t, "", false)
-	if _, err := session.ExecuteTable(TableInsert); err != nil {
+	if _, err := session.doTable(TableInsert); err != nil {
 		t.Fatal(err)
 	}
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	if selected, _ := session.VisualSelection(); selected.Empty() {
 		t.Fatal("Backspace in an empty table did not select it")
 	}
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	expectKinds(t, session, ParagraphNode, ParagraphNode)
 }
 
@@ -206,14 +206,14 @@ func TestDeletingAcrossCells(t *testing.T) {
 	if err := session.SelectProjected(model.UTF16Offset(len("before\n")), model.UTF16Offset(len(text)-2)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := session.ReplaceSelection("", kernel.EventOriginSemantic); err != nil {
+	if _, err := session.replaceSelection("", kernel.EventOriginSemantic); err != nil {
 		t.Fatal(err)
 	}
 	expectTable(t, session, []string{"", ""}, []string{"", "d"})
 	if err := session.SelectProjected(3, model.UTF16Offset(session.Projection().UTF16Len())); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := session.ReplaceSelection("", kernel.EventOriginSemantic); err != nil {
+	if _, err := session.replaceSelection("", kernel.EventOriginSemantic); err != nil {
 		t.Fatal(err)
 	}
 	if len(readTables(session.Runtime().Snapshot().Document())) != 0 || pageTexts(session)[0] != "bef" {
@@ -315,7 +315,7 @@ func TestBlocksMoveWhole(t *testing.T) {
 	if outcome, _ := session.MoveBlock(one, cell); outcome == kernel.OutcomeHandled {
 		t.Fatal("a block moved between a table's cells")
 	}
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	if units = session.Units(); units[0].Node != table {

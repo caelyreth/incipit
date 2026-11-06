@@ -66,7 +66,7 @@ func TestKeymapSettingsShowsDismissSelection(t *testing.T) {
 	state := New()
 	state.Category = appsettings.Keymap
 	state.Data.Shortcuts = []appsettings.Shortcut{{
-		Command: editor.TextDismissSelection.ID(),
+		Command: editor.DismissCommandID,
 		Label:   "Dismiss selection",
 		Group:   "Writing",
 		Bindings: []kernel.BindingTarget{

@@ -120,7 +120,7 @@ func TestCollapsedReplacementAtCaretPreservesVisualCaretIdentity(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "abc")
 	mustSelect(t, controller, 0, 3)
-	if outcome, err := controller.Session().ExecuteMarkup(editor.MarkupEmphasis); err != nil ||
+	if outcome, err := controller.Do(editor.Format(1)); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("markup outcome=%v err=%v", outcome, err)
 	}
@@ -161,7 +161,7 @@ func TestExplicitCollapsedRangeDoesNotReplaceTheSelection(t *testing.T) {
 func TestCollapsedTypingInsideGeneratedStrongPair(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "")
-	if outcome, err := controller.Session().ExecuteMarkup(editor.MarkupStrong); err != nil ||
+	if outcome, err := controller.Do(editor.Format(2)); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("strong outcome=%v err=%v", outcome, err)
 	}
@@ -179,7 +179,7 @@ func TestCollapsedTypingInsideGeneratedStrongPair(t *testing.T) {
 func TestIMECommitInsideGeneratedStrongPair(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "")
-	if outcome, err := controller.Session().ExecuteMarkup(editor.MarkupStrong); err != nil ||
+	if outcome, err := controller.Do(editor.Format(2)); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("strong outcome=%v err=%v", outcome, err)
 	}
@@ -255,7 +255,7 @@ func TestExecuteRoutesTextHistoryWordMarkupAndApplicationCommands(t *testing.T) 
 	controller := newController(t, "one two")
 
 	if outcome, err := controller.Execute(Command{
-		ID:     string(editor.TextSelectAll.ID()),
+		ID:     string(editor.SelectAllCommandID),
 		Origin: kernel.EventOriginSemantic,
 	}); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("select all outcome=%v err=%v", outcome, err)
@@ -264,7 +264,7 @@ func TestExecuteRoutesTextHistoryWordMarkupAndApplicationCommands(t *testing.T) 
 		t.Fatalf("select all selection = %#v", controller.Selection())
 	}
 	if outcome, err := controller.Execute(Command{
-		ID:     string(editor.MarkupEmphasis.ID()),
+		ID:     string(editor.EmphasisCommandID),
 		Origin: kernel.EventOriginSemantic,
 	}); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("markup outcome=%v err=%v", outcome, err)
@@ -273,7 +273,7 @@ func TestExecuteRoutesTextHistoryWordMarkupAndApplicationCommands(t *testing.T) 
 		t.Fatalf("markup text = %q", controller.Text())
 	}
 	if outcome, err := controller.Execute(Command{
-		ID:     string(editor.WordPrevious.ID()),
+		ID:     string(editor.PreviousWordCommandID),
 		Origin: kernel.EventOriginSemantic,
 	}); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("word outcome=%v err=%v", outcome, err)
@@ -308,7 +308,7 @@ func TestExecuteRoutesTextHistoryWordMarkupAndApplicationCommands(t *testing.T) 
 		t.Fatalf("explicit command text = %q", controller.Text())
 	}
 	if outcome, err := controller.Execute(Command{
-		ID:     string(editor.HistoryUndo.ID()),
+		ID:     string(editor.UndoCommandID),
 		Origin: kernel.EventOriginSemantic,
 	}); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("undo outcome=%v err=%v", outcome, err)
@@ -320,9 +320,8 @@ func TestExecuteRoutesTextHistoryWordMarkupAndApplicationCommands(t *testing.T) 
 
 func TestCommandStatusDistinguishesHandlingFromDocumentChanges(t *testing.T) {
 	controller := newController(t, "hello")
-	for _, command := range []editor.Command{
-		editor.HistoryUndo.Description(), editor.TextSelectAll.Description(),
-	} {
+	for _, id := range []kernel.CommandID{editor.UndoCommandID, editor.SelectAllCommandID} {
+		command, _ := editor.CommandFor(id)
 		if outcome, err := controller.Execute(Command{ID: string(command.ID)}); err != nil || outcome != kernel.OutcomeHandled {
 			t.Fatalf("%s outcome = %v, error = %v", command.ID, outcome, err)
 		}
@@ -330,13 +329,13 @@ func TestCommandStatusDistinguishesHandlingFromDocumentChanges(t *testing.T) {
 			t.Fatalf("%s reported a document change: %+v", command.ID, status)
 		}
 	}
-	if _, err := controller.Execute(Command{ID: string(editor.MarkupStrong.ID())}); err != nil {
+	if _, err := controller.Execute(Command{ID: string(editor.StrongCommandID)}); err != nil {
 		t.Fatal(err)
 	}
 	if !controller.Status().Changed {
 		t.Fatal("formatting did not report a document change")
 	}
-	if _, err := controller.Execute(Command{ID: string(editor.HistoryUndo.ID())}); err != nil {
+	if _, err := controller.Execute(Command{ID: string(editor.UndoCommandID)}); err != nil {
 		t.Fatal(err)
 	}
 	if !controller.Status().Changed {
@@ -651,7 +650,7 @@ func TestEditableSpanAndVisibleLengthFollowGeneratedNotationAndPreview(t *testin
 		t.Fatalf("plain editable span = %#v", span)
 	}
 	mustSelect(t, controller, 0, 3)
-	if outcome, err := controller.Session().ExecuteMarkup(editor.MarkupEmphasis); err != nil ||
+	if outcome, err := controller.Do(editor.Format(1)); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("markup outcome=%v err=%v", outcome, err)
 	}
@@ -710,7 +709,7 @@ func TestReconfigureReprojectsAndRefreshesCaches(t *testing.T) {
 	t.Parallel()
 	controller := newController(t, "abc")
 	mustSelect(t, controller, 0, 3)
-	if outcome, err := controller.Session().ExecuteMarkup(editor.MarkupEmphasis); err != nil ||
+	if outcome, err := controller.Do(editor.Format(1)); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("markup outcome=%v err=%v", outcome, err)
 	}

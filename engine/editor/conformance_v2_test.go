@@ -198,7 +198,7 @@ func TestConformanceV2WordEvidence(t *testing.T) {
 				plan, err := PlanWordCommand(
 					test.Text,
 					WordSelection{Anchor: head, Head: head},
-					WordNext,
+					wordNext,
 				)
 				if err != nil {
 					t.Fatalf("word movement at %d: %v", head, err)
@@ -240,11 +240,11 @@ func TestConformanceV2OtherAlphabeticObservableFacts(t *testing.T) {
 
 	t.Run("pair", func(t *testing.T) {
 		session, _ := newSessionFixture(t, fixture.Pair.Prefix, false)
-		outcome, err := session.ExecuteText(TextDocumentEnd)
+		outcome, err := session.doText(textDocumentEnd)
 		if err != nil || outcome != kernel.OutcomeHandled {
 			t.Fatalf("document end outcome=%v err=%v", outcome, err)
 		}
-		result, err := session.ReplaceSelection(fixture.Pair.Typed, kernel.EventOriginTyping)
+		result, err := session.replaceSelection(fixture.Pair.Typed, kernel.EventOriginTyping)
 		if err != nil || result.Outcome != kernel.OutcomeHandled {
 			t.Fatalf("pair typing outcome=%v err=%v", result.Outcome, err)
 		}
@@ -265,11 +265,11 @@ func TestConformanceV2OtherAlphabeticObservableFacts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		outcome, err := session.ExecuteText(TextDocumentEnd)
+		outcome, err := session.doText(textDocumentEnd)
 		if err != nil || outcome != kernel.OutcomeHandled {
 			t.Fatalf("document end outcome=%v err=%v", outcome, err)
 		}
-		result, err := session.ReplaceSelection(fixture.Typography.Typed, kernel.EventOriginTyping)
+		result, err := session.replaceSelection(fixture.Typography.Typed, kernel.EventOriginTyping)
 		if err != nil || result.Outcome != kernel.OutcomeHandled {
 			t.Fatalf("typography typing outcome=%v err=%v", result.Outcome, err)
 		}
@@ -290,11 +290,11 @@ func TestConformanceV2BlockingMutations(t *testing.T) {
 			t.Fatal(err)
 		}
 		session, node := newSessionFixture(t, "", false)
-		outcome, err := session.ExecuteMarkup(MarkupStrong)
+		outcome, err := session.doFormat(markupStrong)
 		if err != nil || outcome != kernel.OutcomeHandled {
 			t.Fatalf("strong outcome=%v err=%v", outcome, err)
 		}
-		result, err := session.ReplaceSelection("a", kernel.EventOriginTyping)
+		result, err := session.replaceSelection("a", kernel.EventOriginTyping)
 		if err != nil || result.Outcome != kernel.OutcomeHandled {
 			t.Fatalf("typing outcome=%v err=%v", result.Outcome, err)
 		}
@@ -343,7 +343,7 @@ func TestConformanceV2BlockingMutations(t *testing.T) {
 		}
 		session, node := newSessionFixture(t, "", false)
 		for _, text := range fixture.Typing {
-			result, err := session.ReplaceSelection(text, kernel.EventOriginTyping)
+			result, err := session.replaceSelection(text, kernel.EventOriginTyping)
 			if err != nil || result.Outcome != kernel.OutcomeHandled {
 				t.Fatalf("typing %q outcome=%v err=%v", text, result.Outcome, err)
 			}
@@ -354,7 +354,7 @@ func TestConformanceV2BlockingMutations(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		outcome, err := session.ExecuteMarkup(MarkupStrong)
+		outcome, err := session.doFormat(markupStrong)
 		if err != nil || outcome != kernel.OutcomeHandled {
 			t.Fatalf("strong outcome=%v err=%v", outcome, err)
 		}
@@ -366,7 +366,7 @@ func TestConformanceV2BlockingMutations(t *testing.T) {
 			t.Fatalf("format state projection=%q visual=%#v err=%v",
 				session.Projection().Text(), visual, err)
 		}
-		outcome, err = session.ExecuteHistory(HistoryUndo)
+		outcome, err = session.doHistory(historyUndo)
 		if err != nil || outcome != kernel.OutcomeHandled {
 			t.Fatalf("undo outcome=%v err=%v", outcome, err)
 		}

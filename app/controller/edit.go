@@ -32,24 +32,22 @@ func (c *DocumentController) Replace(
 	// Only nil names the live selection. An explicit range, collapsed or
 	// not, is the caller's exact intent.
 	if range16 == nil {
-		result, err = c.session.ReplaceSelection(text, origin)
+		result, err = c.session.Do(editor.Insert(text, origin), c.now())
 	} else {
 		normalized := range16.Normalized()
 		if *range16 != normalized {
 			return kernel.OutcomePass, c.fail(ErrInvalidUTF16Range)
 		}
-		target, targetErr := c.session.Projection().Target(model.NewUTF16Range(
+		if _, targetErr := c.session.Projection().Target(model.NewUTF16Range(
 			model.UTF16Offset(range16.Start),
 			model.UTF16Offset(range16.End),
-		))
-		if targetErr != nil {
+		)); targetErr != nil {
 			return kernel.OutcomePass, c.fail(fmt.Errorf("%w: %v", ErrInvalidUTF16Range, targetErr))
 		}
-		edit, editErr := editor.FromProjectionTarget(c.session.Projection(), target, text, origin)
-		if editErr != nil {
-			return kernel.OutcomePass, c.fail(editErr)
-		}
-		result, err = c.session.ApplyProjectedEdit(edit)
+		result, err = c.session.Do(editor.InsertAt(model.NewUTF16Range(
+			model.UTF16Offset(range16.Start),
+			model.UTF16Offset(range16.End),
+		), text, origin), c.now())
 	}
 	if err != nil {
 		return kernel.OutcomePass, c.fail(err)

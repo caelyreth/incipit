@@ -393,7 +393,7 @@ func TestElementGuidesShowTheBoundKeys(t *testing.T) {
 	document, element, tester := newAnimatedElement(t, "")
 	remapped := kernel.NewBindingTarget(kernel.EditorBindingContext, "j", kernel.ModifiersControl)
 	if err := document.Reconfigure(func(configuration *kernel.PolicyConfiguration) error {
-		configuration.Remap(editor.TabCommand().ID, remapped)
+		configuration.Remap(editor.LeaveCommandID, remapped)
 		return nil
 	}); err != nil {
 		t.Fatal(err)

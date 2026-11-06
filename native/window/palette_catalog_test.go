@@ -69,7 +69,7 @@ func TestPaletteOmitsDisabledCommandsAndRequiresAPage(t *testing.T) {
 	}
 	app.refreshSettingsData()
 	for _, command := range app.commandCatalog() {
-		if command.ID == editor.MarkupStrong.ID() {
+		if command.ID == editor.StrongCommandID {
 			t.Fatal("disabled markup command remained in palette")
 		}
 	}
@@ -82,7 +82,7 @@ func TestPaletteOmitsDisabledCommandsAndRequiresAPage(t *testing.T) {
 		t.Fatal("page-less palette lost application commands")
 	}
 	for _, command := range commands {
-		if command.ID == editor.TextBackspace.ID() {
+		if command.ID == editor.DeleteBackwardCommandID {
 			t.Fatal("document command remained without an open page")
 		}
 	}

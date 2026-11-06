@@ -71,7 +71,7 @@ func infoForPolicy(id kernel.PolicyID) policyInfo {
 	case policyEditorNavigation:
 		return policyInfo{
 			"Scope navigation",
-			"Press {navigation.tab} to leave a pair or emphasis, or to return to your last edit.",
+			"Press {navigation.tab} to leave the scope you are in, one at a time, or to return to your last edit; {navigation.return} goes back into the scope you left.",
 			3,
 			true,
 		}

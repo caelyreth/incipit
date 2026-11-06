@@ -92,14 +92,14 @@ func TestAnImageInACellGoesAfterTheTable(t *testing.T) {
 // pasted line break.
 func TestACaptionBreaksIntoParagraphs(t *testing.T) {
 	session := imagePage(t)
-	run(t, session, TextNewline)
+	run(t, session, textNewline)
 	expectKinds(t, session, ParagraphNode, ImageNode, ParagraphNode, ParagraphNode)
 	if len(figures(t, session)) != 1 {
 		t.Fatal("a break in the caption made another picture")
 	}
 
 	session = imagePage(t)
-	if _, err := session.ReplaceSelection("one\ntwo", kernel.EventOriginPaste); err != nil {
+	if _, err := session.replaceSelection("one\ntwo", kernel.EventOriginPaste); err != nil {
 		t.Fatal(err)
 	}
 	expectKinds(t, session, ParagraphNode, ImageNode, ParagraphNode, ParagraphNode)
@@ -124,24 +124,24 @@ func TestDeletingTowardAPictureSelectsItFirst(t *testing.T) {
 		return got
 	}
 	at(t, session, line.Start+1)
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	if got := selected(); got != line {
 		t.Fatalf("Backspace selected %v, not the figure's line %v", got, line)
 	}
 	expectKinds(t, session, ParagraphNode, ImageNode, ParagraphNode)
 	at(t, session, 6)
-	run(t, session, TextDelete)
+	run(t, session, textDelete)
 	if got := selected(); got != line {
 		t.Fatalf("Delete selected %v, not the figure's line %v", got, line)
 	}
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	expectKinds(t, session, ParagraphNode, ParagraphNode, ParagraphNode)
 	expectPage(t, session, "before\n|\nafter", "before", "", "after")
 	node, _ := session.Runtime().Snapshot().Document().Node(session.Selection().Node())
 	if _, has := node.Attribute(MediaAttribute); has {
 		t.Fatal("the paragraph still names the picture")
 	}
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	if len(figures(t, session)) != 1 {
@@ -182,7 +182,7 @@ func TestShapingAnImageIsOneStep(t *testing.T) {
 	if outcome, _ := session.ShapeImage(image, func(*ImageShape) {}); outcome != kernel.OutcomePass {
 		t.Fatalf("an unchanged shape was %v", outcome)
 	}
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	if figure := figures(t, session)[0]; figure.Span != 0 || figure.Align != surface.FigureCenter {
@@ -226,18 +226,18 @@ func TestAPictureEdgesAlikeWithOrWithoutACaption(t *testing.T) {
 			return got
 		}
 		at(t, session, line.End+1)
-		run(t, session, TextBackspace)
+		run(t, session, textBackspace)
 		if got := selected(); got != line {
 			t.Fatalf("%q: Backspace below selected %v, not the picture's line %v", caption, got, line)
 		}
-		run(t, session, TextSelectAll)
+		run(t, session, textSelectAll)
 		if got, page := selected(), model.UTF16Offset(session.Projection().UTF16Len()); got != model.NewUTF16Range(0, page) {
 			t.Fatalf("%q: Select All on the picture selected %v of %v", caption, got, page)
 		}
 
 		at(t, session, line.End)
-		run(t, session, TextNewline)
-		run(t, session, TextBackspace)
+		run(t, session, textNewline)
+		run(t, session, textBackspace)
 		if got := selected(); got != model.EmptyUTF16Range(line.End) {
 			t.Fatalf("%q: Backspace in an empty block below left %v", caption, got)
 		}

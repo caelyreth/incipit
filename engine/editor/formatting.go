@@ -253,7 +253,7 @@ func compareOffset(left, right model.UTF16Offset) int {
 // MarkupStateFor resolves enabled/selected state for one product control in a
 // single node. Session.ToolbarState uses the same coverage across blocks.
 func MarkupStateFor(
-	command MarkupCommand,
+	command markupOp,
 	settings MarkupSettings,
 	node *model.Node,
 	selection model.TextSelection,
@@ -266,7 +266,7 @@ func MarkupStateFor(
 	)
 }
 
-func markupStateFor(command MarkupCommand, settings MarkupSettings, level uint8) MarkupState {
+func markupStateFor(command markupOp, settings MarkupSettings, level uint8) MarkupState {
 	enabled := settings.PolicyEnabled && settings.CommandEnabled
 	return MarkupState{
 		Enabled:  enabled,
@@ -293,3 +293,14 @@ func (e *MarkupError) Error() string {
 	}
 	return "unknown markup error"
 }
+
+// markupOp is one emphasis toggle, by the level it sets.
+type markupOp uint8
+
+const (
+	markupEmphasis markupOp = 1
+	markupStrong   markupOp = 2
+)
+
+// Level returns the emphasis strength.
+func (c markupOp) Level() uint8 { return uint8(c) }

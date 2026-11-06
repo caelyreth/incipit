@@ -62,7 +62,7 @@ func TestFormattingLevelTreatsAdjacentMarksAsCoverageWithoutMergingThem(t *testi
 		t.Fatalf("adjacent coverage level = %d", got)
 	}
 	settings := MarkupSettings{PolicyEnabled: true, CommandEnabled: true}
-	if state := MarkupStateFor(MarkupEmphasis, settings, node, fixture.selection(t, 0, 4), nil); !state.Selected {
+	if state := MarkupStateFor(markupEmphasis, settings, node, fixture.selection(t, 0, 4), nil); !state.Selected {
 		t.Fatalf("adjacent emphasis state = %#v", state)
 	}
 	if node.MarkCount() != 2 {
@@ -115,14 +115,14 @@ func TestMarkupStateStrongAndEmphasis(t *testing.T) {
 	node := fixture.nodeValue(t)
 	mark := node.Marks()[0].ID()
 	settings := MarkupSettings{PolicyEnabled: true, CommandEnabled: true}
-	if state := MarkupStateFor(MarkupStrong, settings, node, fixture.selection(t, 0, 3), &mark); !state.Enabled || state.Selected {
+	if state := MarkupStateFor(markupStrong, settings, node, fixture.selection(t, 0, 3), &mark); !state.Enabled || state.Selected {
 		t.Fatalf("strong state=%#v", state)
 	}
-	if state := MarkupStateFor(MarkupEmphasis, settings, node, fixture.selection(t, 0, 3), &mark); !state.Enabled || !state.Selected {
+	if state := MarkupStateFor(markupEmphasis, settings, node, fixture.selection(t, 0, 3), &mark); !state.Enabled || !state.Selected {
 		t.Fatalf("emphasis state=%#v", state)
 	}
 	settings.PolicyEnabled = false
-	if state := MarkupStateFor(MarkupEmphasis, settings, node, fixture.selection(t, 0, 3), &mark); state.Enabled {
+	if state := MarkupStateFor(markupEmphasis, settings, node, fixture.selection(t, 0, 3), &mark); state.Enabled {
 		t.Fatalf("disabled state=%#v", state)
 	}
 }

@@ -6,13 +6,6 @@ import (
 	"github.com/caelyreth/neverland/engine/kernel"
 )
 
-// ExecuteTab lands on the current scope/navigation offer through the session.
-func (c *DocumentController) ExecuteTab() (kernel.Outcome, error) {
-	c.resetPreferredColumn()
-	outcome, err := c.session.Tab(c.now())
-	return c.finishCommand(outcome, err)
-}
-
 // Execute routes one stable command ID through the editor session. Commands
 // unknown to the editor remain queued for the application workspace.
 func (c *DocumentController) Execute(command Command) (kernel.Outcome, error) {
@@ -31,44 +24,36 @@ func (c *DocumentController) Execute(command Command) (kernel.Outcome, error) {
 	return kernel.OutcomePass, ErrUnknownCommand
 }
 
-// ExecuteAction runs one already-resolved editor action. Routing by typed
-// payload keeps menus, keys, and palette choices on the same command path.
+// ExecuteAction runs one already-resolved editor action: the intent it
+// carries, through the session. Moving by a drawn row needs the page's
+// geometry, which the controller holds.
 func (c *DocumentController) ExecuteAction(action keymap.Action) (kernel.Outcome, error) {
 	if c == nil || c.session == nil {
 		return kernel.OutcomePass, keymap.ErrCommandUnavailable
 	}
-	if action.Owner != editor.CommandOwnerEditor {
+	if action.Owner != editor.CommandOwnerEditor || action.Kind != keymap.ActionEdit {
 		return kernel.OutcomePass, keymap.ErrUnsupportedCommand
 	}
-	var outcome kernel.Outcome
-	var err error
-	switch action.Kind {
-	case keymap.ActionText:
-		c.resetPreferredColumn()
-		outcome, err = c.session.ExecuteText(action.Text)
-	case keymap.ActionHistory:
-		c.resetPreferredColumn()
-		outcome, err = c.session.ExecuteHistory(action.History)
-	case keymap.ActionMarkup:
-		outcome, err = c.session.ExecuteMarkup(action.Markup)
-	case keymap.ActionWord:
-		c.resetPreferredColumn()
-		outcome, err = c.session.ExecuteWord(action.Word)
-	case keymap.ActionNesting:
-		outcome, err = c.session.ExecuteNesting(action.Nesting)
-	case keymap.ActionTable:
-		c.resetPreferredColumn()
-		outcome, err = c.session.ExecuteTable(action.Table)
-	case keymap.ActionNavigation:
-		if action.Navigation != keymap.NavigationTab {
-			return kernel.OutcomePass, keymap.ErrUnsupportedCommand
+	return c.Do(action.Intent)
+}
+
+// Do resolves one intent through the session.
+func (c *DocumentController) Do(intent editor.Intent) (kernel.Outcome, error) {
+	if intent.Kind == editor.IntentMove && intent.By == editor.ByRow {
+		direction := VerticalDown
+		if intent.Dir == editor.Backward {
+			direction = VerticalUp
 		}
-		c.resetPreferredColumn()
-		outcome, err = c.session.Tab(c.now())
-	default:
-		return kernel.OutcomePass, keymap.ErrUnsupportedCommand
+		if err := c.MoveVertical(direction, intent.Extend); err != nil {
+			return kernel.OutcomePass, err
+		}
+		return kernel.OutcomeHandled, nil
 	}
-	return c.finishCommand(outcome, err)
+	if intent.Kind != editor.IntentFormat && intent.Kind != editor.IntentNest {
+		c.resetPreferredColumn()
+	}
+	result, err := c.session.Do(intent, c.now())
+	return c.finishCommand(result.Outcome, err)
 }
 
 // DrainCommands returns queued commands outside the editor's command set.

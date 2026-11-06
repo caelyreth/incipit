@@ -218,7 +218,7 @@ func TestDraggingASideResizesAFigure(t *testing.T) {
 	if got := figureBox(t, element); got.Span != 0.5 || got.Box.W != column/2 {
 		t.Fatalf("the kept figure is %+v", got)
 	}
-	if _, err := document.Execute(controller.Command{ID: string(editor.HistoryUndo.ID())}); err != nil {
+	if _, err := document.Execute(controller.Command{ID: string(editor.UndoCommandID)}); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()

@@ -3,6 +3,7 @@ package window
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/storage"
@@ -31,12 +32,12 @@ func typeText(t *testing.T, app *AppState, text string) {
 	session := app.Session.Document().Session()
 	for _, r := range text {
 		if r == '\n' {
-			if _, err := session.ExecuteText(editor.TextNewline); err != nil {
+			if _, err := session.Do(editor.Break, time.Now()); err != nil {
 				t.Fatal(err)
 			}
 			continue
 		}
-		if _, err := session.ReplaceSelection(string(r), kernel.EventOriginTyping); err != nil {
+		if _, err := session.Do(editor.Insert(string(r), kernel.EventOriginTyping), time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}

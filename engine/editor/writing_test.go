@@ -16,10 +16,10 @@ func typeKeys(t *testing.T, session *Session, text string) {
 	t.Helper()
 	for _, r := range text {
 		if r == '\n' {
-			run(t, session, TextNewline)
+			run(t, session, textNewline)
 			continue
 		}
-		if _, err := session.ReplaceSelection(string(r), kernel.EventOriginTyping); err != nil {
+		if _, err := session.replaceSelection(string(r), kernel.EventOriginTyping); err != nil {
 			t.Fatalf("type %q: %v", r, err)
 		}
 	}
@@ -98,7 +98,7 @@ func TestReturnFollowsBlockKind(t *testing.T) {
 func TestReturnAtHeadingStartKeepsHeading(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "## Top")
-	run(t, session, TextLineStart, TextNewline)
+	run(t, session, textLineStart, textNewline)
 	expectKinds(t, session, ParagraphNode, HeadingNode)
 	expectPage(t, session, "\n## |Top", "", "Top")
 }
@@ -109,18 +109,18 @@ func TestReturnAtHeadingStartKeepsHeading(t *testing.T) {
 func TestBackspacePeelsBlockStructure(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "## Top")
-	run(t, session, TextLineStart, TextBackspace)
+	run(t, session, textLineStart, textBackspace)
 	expectKinds(t, session, ParagraphNode)
 	expectPage(t, session, "|Top", "Top")
 
 	session = nestedList(t)
 	text := session.Projection().Text()
 	at(t, session, model.UTF16Offset(strings.Index(text, "deeper")))
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	if got := session.Projection().Text(); got != "intro\n1. one\n  1. inner\n2. deeper\n3. two\nouter" {
 		t.Fatalf("stepping out shows %q", got)
 	}
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	if got := session.Projection().Text(); got != "intro\n1. one\n  1. inner\ndeeper\n1. two\nouter" {
 		t.Fatalf("leaving the list shows %q", got)
 	}
@@ -138,7 +138,7 @@ func TestBlockNotationIsOneUnit(t *testing.T) {
 	if err := session.SelectProjected(6, 7); err != nil {
 		t.Fatal(err)
 	}
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	expectKinds(t, session, ParagraphNode, ParagraphNode)
 	expectPage(t, session, "intro\n|one", "intro", "one")
 
@@ -147,7 +147,7 @@ func TestBlockNotationIsOneUnit(t *testing.T) {
 	if err := session.SelectProjected(1, 2); err != nil {
 		t.Fatal(err)
 	}
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	expectKinds(t, session, ParagraphNode)
 	expectPage(t, session, "|Top", "Top")
 }
@@ -157,9 +157,9 @@ func TestBlockNotationIsOneUnit(t *testing.T) {
 func TestBackspaceAtCodeStartLeavesItsLines(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "```\na\nb")
-	run(t, session, TextDocumentStart)
+	run(t, session, textDocumentStart)
 	at(t, session, 4)
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	expectKinds(t, session, ParagraphNode, ParagraphNode)
 	expectPage(t, session, "|a\nb", "a", "b")
 }
@@ -171,7 +171,7 @@ func TestRules(t *testing.T) {
 	typeKeys(t, session, "---")
 	expectKinds(t, session, RuleNode, ParagraphNode)
 	expectPage(t, session, "---\n|", "", "")
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	expectKinds(t, session, ParagraphNode)
 	expectPage(t, session, "|", "")
 }
@@ -226,9 +226,9 @@ func TestMathMarksAndBlocks(t *testing.T) {
 	// Backspace in an empty pair, or an empty formula, takes both sides.
 	session, _ = newSessionFixture(t, "", false)
 	typeKeys(t, session, "a $x{")
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	expectPage(t, session, "a $x|$", "a x")
-	run(t, session, TextBackspace, TextBackspace)
+	run(t, session, textBackspace, textBackspace)
 	expectPage(t, session, "a |", "a ")
 
 	// $$ alone in a paragraph opens a formula block.
@@ -281,7 +281,7 @@ func TestKindsOutliveTheWritingPolicy(t *testing.T) {
 func TestSpanDeletionTakesCoveredNotation(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "# Title\nsome *emph* text")
-	run(t, session, TextSelectAll, TextSelectAll, TextBackspace)
+	run(t, session, textSelectAll, textSelectAll, textBackspace)
 	expectKinds(t, session, ParagraphNode)
 	expectPage(t, session, "|", "")
 	if marks := DocumentBlocks(session.Runtime().Snapshot().Document())[0].Marks(); len(marks) != 0 {
@@ -293,7 +293,7 @@ func TestSpanDeletionTakesCoveredNotation(t *testing.T) {
 // undoTo undoes once and expects the page to show text again.
 func undoTo(t *testing.T, session *Session, text string) {
 	t.Helper()
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != text {
@@ -324,7 +324,7 @@ func TestSpanDeletionBetweenBlocks(t *testing.T) {
 			if err := session.SelectProjected(test.from, test.to); err != nil {
 				t.Fatal(err)
 			}
-			run(t, session, TextBackspace)
+			run(t, session, textBackspace)
 			expectKinds(t, session, test.kinds...)
 			expectPage(t, session, test.view, test.texts...)
 			undoTo(t, session, "# Title\nsome *emph* text")
@@ -357,7 +357,7 @@ func TestSelectAllStepsOutByScope(t *testing.T) {
 		t.Fatal("a caret framed a scope")
 	}
 	for _, want := range []model.UTF16Range{model.NewUTF16Range(8, 17), model.NewUTF16Range(0, 17)} {
-		run(t, session, TextSelectAll)
+		run(t, session, textSelectAll)
 		if got, _ := session.VisualSelection(); got != want {
 			t.Fatalf("selected %v, want %v", got, want)
 		}
@@ -365,12 +365,12 @@ func TestSelectAllStepsOutByScope(t *testing.T) {
 	if area := frames(); len(area) != 0 {
 		t.Fatalf("the page framed %v", area)
 	}
-	run(t, session, TextSelectAll)
+	run(t, session, textSelectAll)
 	if got, _ := session.VisualSelection(); got != model.NewUTF16Range(0, 17) {
 		t.Fatalf("selected %v past the page", got)
 	}
 	at(t, session, 3)
-	run(t, session, TextSelectAll)
+	run(t, session, textSelectAll)
 	if got, _ := session.VisualSelection(); got != model.NewUTF16Range(2, 7) {
 		t.Fatalf("heading scope %v, want its text", got)
 	}
@@ -390,7 +390,7 @@ func TestSelectAllFromGeneratedNotationKeepsSemanticScope(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, scope := range want {
-			run(t, session, TextSelectAll)
+			run(t, session, textSelectAll)
 			selected, err := session.VisualSelection()
 			if err != nil {
 				t.Fatal(err)
@@ -507,7 +507,7 @@ func TestSelectAllStepsOutThroughNestedGroups(t *testing.T) {
 		text,
 	}
 	for _, scope := range want {
-		run(t, session, TextSelectAll)
+		run(t, session, textSelectAll)
 		selected, _ := session.VisualSelection()
 		if got := string([]rune(text)[selected.Start:selected.End]); got != scope {
 			t.Fatalf("selected %q, want %q", got, scope)
@@ -520,22 +520,22 @@ func TestSelectAllStepsOutThroughNestedGroups(t *testing.T) {
 func TestNestingCommands(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "- one\ntwo")
-	nest := func(command NestingCommand, view string) {
+	nest := func(command nestingOp, view string) {
 		t.Helper()
-		if _, err := session.ExecuteNesting(command); err != nil {
+		if _, err := session.doNest(command); err != nil {
 			t.Fatal(err)
 		}
 		if got := session.Projection().Text(); got != view {
 			t.Fatalf("page shows %q, want %q", got, view)
 		}
 	}
-	nest(NestDeeper, "- one\n  - two")
-	nest(NestDeeper, "- one\n  - two")
-	nest(NestShallower, "- one\n- two")
-	nest(NestShallower, "- one\n- two")
-	run(t, session, TextSelectAll, TextSelectAll, TextSelectAll)
-	nest(NestDeeper, "- one\n  - two")
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	nest(nestDeeper, "- one\n  - two")
+	nest(nestDeeper, "- one\n  - two")
+	nest(nestShallower, "- one\n- two")
+	nest(nestShallower, "- one\n- two")
+	run(t, session, textSelectAll, textSelectAll, textSelectAll)
+	nest(nestDeeper, "- one\n  - two")
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != "- one\n- two" {
@@ -550,7 +550,7 @@ func TestSelectAllFromAnEmptyItem(t *testing.T) {
 	typeKeys(t, session, "# Hello world\nhello world\n- hello?\nfoo\n")
 	text := session.Projection().Text()
 	for _, scope := range []string{"- hello?\n- foo\n- ", text} {
-		run(t, session, TextSelectAll)
+		run(t, session, textSelectAll)
 		selected, _ := session.VisualSelection()
 		if got := string([]rune(text)[selected.Start:selected.End]); got != scope {
 			t.Fatalf("selected %q, want %q", got, scope)
@@ -592,7 +592,7 @@ func TestListKindsAreSeparateScopes(t *testing.T) {
 			t.Fatal(err)
 		}
 		for step, scope := range want {
-			run(t, session, TextSelectAll)
+			run(t, session, textSelectAll)
 			selected, _ := session.VisualSelection()
 			if got := string([]rune(text)[selected.Start:selected.End]); got != scope {
 				t.Fatalf("step %d selected %q, want %q", step+1, got, scope)
@@ -609,9 +609,9 @@ func TestListKindsAreSeparateScopes(t *testing.T) {
 func TestBlocksTakeTheirRhythm(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "# Top\nbody\n- one\n")
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	typeKeys(t, session, "> said\n")
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	typeKeys(t, session, "```\ncode")
 	flow := session.Presentation().Flow
 	want := []surface.Rhythm{

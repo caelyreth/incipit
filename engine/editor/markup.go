@@ -74,129 +74,37 @@ func EditorPolicyFromID(id kernel.PolicyID) (EditorPolicy, bool) {
 	return "", false
 }
 
-// TextCommand is one semantic text-editing or navigation command.
-type TextCommand uint8
+// textOp is one character, line or page step, or deletion, of the text
+// responders (session_text_commands.go).
+type textOp uint8
 
 const (
-	TextLeft TextCommand = iota + 1
-	TextRight
-	TextSelectLeft
-	TextSelectRight
-	TextLineStart
-	TextLineEnd
-	TextSelectLineStart
-	TextSelectLineEnd
-	TextDocumentStart
-	TextDocumentEnd
-	TextSelectDocumentStart
-	TextSelectDocumentEnd
-	TextSelectAll
-	TextBackspace
-	TextDelete
-	TextNewline
-	TextDismissSelection
+	textLeft textOp = iota + 1
+	textRight
+	textSelectLeft
+	textSelectRight
+	textLineStart
+	textLineEnd
+	textSelectLineStart
+	textSelectLineEnd
+	textDocumentStart
+	textDocumentEnd
+	textSelectDocumentStart
+	textSelectDocumentEnd
+	textSelectAll
+	textBackspace
+	textDelete
+	textNewline
+	textDismissSelection
 )
 
-// AllTextCommands is the text commands' stable declaration order.
-var AllTextCommands = [...]TextCommand{
-	TextLeft,
-	TextRight,
-	TextSelectLeft,
-	TextSelectRight,
-	TextLineStart,
-	TextLineEnd,
-	TextSelectLineStart,
-	TextSelectLineEnd,
-	TextDocumentStart,
-	TextDocumentEnd,
-	TextSelectDocumentStart,
-	TextSelectDocumentEnd,
-	TextSelectAll,
-	TextDismissSelection,
-	TextBackspace,
-	TextDelete,
-	TextNewline,
-}
-
-// Description returns stable command metadata.
-func (c TextCommand) Description() Command {
-	meta := Command{
-		Scope:        ScopeDocument,
-		Policy:       TextPolicyID,
-		Owner:        CommandOwnerEditor,
-		Requirements: RequiresDocument,
-	}
-	switch c {
-	case TextLeft:
-		meta.ID, meta.Label = "text.left", "Move left"
-	case TextRight:
-		meta.ID, meta.Label = "text.right", "Move right"
-	case TextSelectLeft:
-		meta.ID, meta.Label = "text.select-left", "Extend left"
-	case TextSelectRight:
-		meta.ID, meta.Label = "text.select-right", "Extend right"
-	case TextLineStart:
-		meta.ID, meta.Label = "text.line-start", "Start of line"
-	case TextLineEnd:
-		meta.ID, meta.Label = "text.line-end", "End of line"
-	case TextSelectLineStart:
-		meta.ID, meta.Label = "text.select-line-start", "Extend to line start"
-	case TextSelectLineEnd:
-		meta.ID, meta.Label = "text.select-line-end", "Extend to line end"
-	case TextDocumentStart:
-		meta.ID, meta.Label = "text.document-start", "Start of document"
-	case TextDocumentEnd:
-		meta.ID, meta.Label = "text.document-end", "End of document"
-	case TextSelectDocumentStart:
-		meta.ID, meta.Label = "text.select-document-start", "Extend to document start"
-	case TextSelectDocumentEnd:
-		meta.ID, meta.Label = "text.select-document-end", "Extend to document end"
-	case TextSelectAll:
-		meta.ID, meta.Label = "text.select-all", "Select all"
-	case TextDismissSelection:
-		meta.ID, meta.Label = "text.dismiss-selection", "Dismiss selection"
-	case TextBackspace:
-		meta.ID, meta.Label = "text.backspace", "Delete backward"
-	case TextDelete:
-		meta.ID, meta.Label = "text.delete", "Delete forward"
-	case TextNewline:
-		meta.ID, meta.Label = "text.newline", "Insert newline"
-	}
-	return meta
-}
-
-// ID returns the stable command identity.
-func (c TextCommand) ID() kernel.CommandID { return c.Description().ID }
-
-// HistoryCommand is one semantic undo-stack command.
-type HistoryCommand uint8
+// historyOp is one step of the page's history.
+type historyOp uint8
 
 const (
-	HistoryUndo HistoryCommand = iota + 1
-	HistoryRedo
+	historyUndo historyOp = iota + 1
+	historyRedo
 )
-
-// AllHistoryCommands is the history commands' stable declaration order.
-var AllHistoryCommands = [...]HistoryCommand{HistoryUndo, HistoryRedo}
-
-// Description returns stable command metadata.
-func (c HistoryCommand) Description() Command {
-	if c == HistoryRedo {
-		return Command{
-			ID: "history.redo", Label: "Redo",
-			Scope: ScopeDocument, Policy: HistoryPolicyID,
-			Owner: CommandOwnerEditor, Requirements: RequiresDocument,
-		}
-	}
-	return Command{
-		ID: "history.undo", Label: "Undo",
-		Scope: ScopeDocument, Policy: HistoryPolicyID,
-		Owner: CommandOwnerEditor, Requirements: RequiresDocument,
-	}
-}
-
-// ID returns the stable command identity.
-func (c HistoryCommand) ID() kernel.CommandID { return c.Description().ID }
 
 // EditorPolicyDescriptors returns the complete policy assembly in stable
 // declaration order.
@@ -265,10 +173,7 @@ func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	if err != nil {
 		return kernel.PolicyDescriptor{}, err
 	}
-	commands := make([]kernel.CommandID, 0, len(AllTextCommands))
-	for _, command := range AllTextCommands {
-		commands = append(commands, command.ID())
-	}
+	commands := policyCommands(TextPolicyID)
 	edit := kernel.RuleDescriptor{
 		ID:        "edit",
 		Phase:     kernel.HandleRulePhase(),
@@ -310,10 +215,7 @@ func writingPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	if err != nil {
 		return kernel.PolicyDescriptor{}, err
 	}
-	commands := []kernel.CommandID{MarkupEmphasis.ID(), MarkupStrong.ID(), NestDeeper.ID(), NestShallower.ID()}
-	for _, command := range AllTableCommands {
-		commands = append(commands, command.ID())
-	}
+	commands := policyCommands(WritingPolicyID)
 	marker := kernel.RuleDescriptor{
 		ID:        "type-marker",
 		Phase:     kernel.HandleRulePhase(),
@@ -439,10 +341,7 @@ func observerPolicyDescriptor(
 }
 
 func historyPolicyDescriptor() kernel.PolicyDescriptor {
-	commands := make([]kernel.CommandID, 0, len(AllHistoryCommands))
-	for _, command := range AllHistoryCommands {
-		commands = append(commands, command.ID())
-	}
+	commands := policyCommands(HistoryPolicyID)
 	return kernel.PolicyDescriptor{
 		ID:               HistoryPolicyID,
 		Requires:         []kernel.PolicyID{TextPolicyID},
@@ -461,15 +360,12 @@ func navigationPolicyDescriptor() kernel.PolicyDescriptor {
 			{ID: "emphasis", Default: kernel.BoolSetting(true)},
 			{ID: "return-to-edit", Default: kernel.BoolSetting(true)},
 		},
-		Commands: []kernel.CommandID{navigationTabCommandID},
+		Commands: policyCommands(NavigationPolicyID),
 	}
 }
 
 func wordsPolicyDescriptor() kernel.PolicyDescriptor {
-	commands := make([]kernel.CommandID, 0, len(AllWordCommands))
-	for _, command := range AllWordCommands {
-		commands = append(commands, command.ID())
-	}
+	commands := policyCommands(WordsPolicyID)
 	return kernel.PolicyDescriptor{
 		ID:               WordsPolicyID,
 		Requires:         []kernel.PolicyID{TextPolicyID},

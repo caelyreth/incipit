@@ -218,7 +218,7 @@ func (s *Session) scopeGuides(time.Time) []Guide {
 		}
 		return []Guide{{
 			Producer: surface.ProducerID(TextPolicyID),
-			Command:  TextSelectAll.ID(),
+			Command:  SelectAllCommandID,
 			Area:     []model.UTF16Range{next},
 		}}
 	}

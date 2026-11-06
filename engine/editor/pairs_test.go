@@ -341,9 +341,9 @@ func TestSpanDeletionTakesCutMates(t *testing.T) {
 			if err := session.SelectProjected(test.from, test.to); err != nil {
 				t.Fatal(err)
 			}
-			run(t, session, TextBackspace)
+			run(t, session, textBackspace)
 			expectPage(t, session, test.view, test.texts...)
-			if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+			if _, err := session.doHistory(historyUndo); err != nil {
 				t.Fatal(err)
 			}
 		})

@@ -19,14 +19,14 @@ func TestSessionTextSpanAndUnifiedCommandDispatch(t *testing.T) {
 	if span != model.NewUTF16Range(0, 6) {
 		t.Fatalf("text span = %#v", span)
 	}
-	if outcome, err := session.ExecuteCommand(TextDocumentEnd.ID(), time.Now()); err != nil ||
-		outcome != kernel.OutcomeHandled {
+	if outcome, err := session.DoCommand(DocumentEndCommandID, time.Now()); err != nil ||
+		outcome.Outcome != kernel.OutcomeHandled {
 		t.Fatalf("command outcome=%v err=%v", outcome, err)
 	}
 	if session.Selection().Head().OffsetUTF16() != 4 {
 		t.Fatalf("command head = %d", session.Selection().Head().OffsetUTF16())
 	}
-	if len(session.Runtime().Configuration().BindingsFor(TabCommand().ID)) == 0 {
+	if len(session.Runtime().Configuration().BindingsFor(LeaveCommandID)) == 0 {
 		t.Fatal("Tab binding missing")
 	}
 	if err := session.Select(model.NewTextSelection(
@@ -54,7 +54,7 @@ func TestSessionTabLandsAfterGeneratedMarkup(t *testing.T) {
 	if offer.Kind != TabEmphasis || !offer.HasMark {
 		t.Fatalf("offer = %#v", offer)
 	}
-	outcome, err := session.Tab(time.Unix(1_700_000_000, 0))
+	outcome, err := session.leave(time.Unix(1_700_000_000, 0))
 	if err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("tab outcome=%v err=%v", outcome, err)
 	}
@@ -88,11 +88,11 @@ func TestDismissSelectionCollapsesToItsVisualHead(t *testing.T) {
 	if err := session.SelectProjected(4, 1); err != nil {
 		t.Fatal(err)
 	}
-	outcome, err := session.ExecuteCommand(
-		TextDismissSelection.ID(),
+	outcome, err := session.DoCommand(
+		DismissCommandID,
 		time.Unix(1_700_000_000, 0),
 	)
-	if err != nil || outcome != kernel.OutcomeHandled {
+	if err != nil || outcome.Outcome != kernel.OutcomeHandled {
 		t.Fatalf("dismiss outcome=%v err=%v", outcome, err)
 	}
 	if visual, err := session.VisualSelection(); err != nil ||
@@ -107,8 +107,8 @@ func TestDismissSelectionCollapsesToItsVisualHead(t *testing.T) {
 func TestSessionCommandDispatchRejectsUnknownCommands(t *testing.T) {
 	t.Parallel()
 	session, _ := newSessionFixture(t, "abc", false)
-	outcome, err := session.ExecuteCommand("missing.command", time.Unix(1_700_000_000, 0))
-	if !errors.Is(err, ErrUnknownCommand) || outcome != kernel.OutcomePass {
+	outcome, err := session.DoCommand("missing.command", time.Unix(1_700_000_000, 0))
+	if !errors.Is(err, ErrUnknownCommand) || outcome.Outcome != kernel.OutcomePass {
 		t.Fatalf("unknown command outcome=%v err=%v", outcome, err)
 	}
 }
@@ -116,7 +116,7 @@ func TestSessionCommandDispatchRejectsUnknownCommands(t *testing.T) {
 func TestSessionOffersNoTabWhileMarkerNotationIsSelected(t *testing.T) {
 	t.Parallel()
 	session, _ := newSessionFixture(t, "abc", false)
-	if _, err := session.ExecuteMarkup(MarkupEmphasis); err != nil {
+	if _, err := session.doFormat(markupEmphasis); err != nil {
 		t.Fatal(err)
 	}
 	if err := session.SelectProjected(0, 1); err != nil {
@@ -154,8 +154,8 @@ func TestUnifiedDispatchIncludesNestingCommands(t *testing.T) {
 	)); err != nil {
 		t.Fatal(err)
 	}
-	outcome, err := session.ExecuteCommand(NestDeeper.ID(), time.Unix(1_700_000_000, 0))
-	if err != nil || outcome != kernel.OutcomeHandled {
+	outcome, err := session.DoCommand(NestDeeperCommandID, time.Unix(1_700_000_000, 0))
+	if err != nil || outcome.Outcome != kernel.OutcomeHandled {
 		t.Fatalf("nest outcome=%v err=%v", outcome, err)
 	}
 	if got := session.Projection().Text(); got != "- one\n  - two" {
@@ -172,7 +172,7 @@ func TestWordCommandsTreatAbsentTextAsEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 	session := sessionFor(t, document, node)
-	if outcome, err := session.ExecuteWord(WordNext); err != nil ||
+	if outcome, err := session.doWord(wordNext); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("word outcome=%v err=%v", outcome, err)
 	}

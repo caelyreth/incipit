@@ -19,7 +19,7 @@ func TestToolbarStateTracksFormattingAndHistory(t *testing.T) {
 	)); err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := session.ExecuteMarkup(MarkupEmphasis); err != nil ||
+	if outcome, err := session.doFormat(markupEmphasis); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("markup = %v,%v", outcome, err)
 	}
@@ -27,7 +27,7 @@ func TestToolbarStateTracksFormattingAndHistory(t *testing.T) {
 	if !state.Emphasis || !state.CanUndo || state.Strong {
 		t.Fatalf("selected toolbar = %#v", state)
 	}
-	if outcome, err := session.ExecuteHistory(HistoryUndo); err != nil ||
+	if outcome, err := session.doHistory(historyUndo); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("undo = %v,%v", outcome, err)
 	}

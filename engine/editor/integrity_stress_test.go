@@ -33,31 +33,31 @@ func runEditorStress(t *testing.T, seed int64) {
 			label = "type"
 			replacement := string(rune('a' + rng.Intn(4)))
 			label = "type " + replacement
-			_, err = session.ReplaceSelection(replacement, kernel.EventOriginTyping)
+			_, err = session.replaceSelection(replacement, kernel.EventOriginTyping)
 		case 1:
 			label = "left"
-			_, err = session.ExecuteText(TextLeft)
+			_, err = session.doText(textLeft)
 		case 2:
 			label = "right"
-			_, err = session.ExecuteText(TextRight)
+			_, err = session.doText(textRight)
 		case 3:
 			label = "select-all"
-			_, err = session.ExecuteText(TextSelectAll)
+			_, err = session.doText(textSelectAll)
 		case 4:
 			label = "delete"
-			_, err = session.ExecuteText(TextBackspace)
+			_, err = session.doText(textBackspace)
 		case 5:
 			label = "emphasis"
-			_, err = session.ExecuteMarkup(MarkupEmphasis)
+			_, err = session.doFormat(markupEmphasis)
 		case 6:
 			label = "nest"
-			_, err = session.ExecuteNesting(NestDeeper)
+			_, err = session.doNest(nestDeeper)
 		case 7:
 			label = "undo"
-			_, err = session.ExecuteHistory(HistoryUndo)
+			_, err = session.doHistory(historyUndo)
 		case 8:
 			label = "redo"
-			_, err = session.ExecuteHistory(HistoryRedo)
+			_, err = session.doHistory(historyRedo)
 		}
 		trace = append(trace, label)
 		if len(trace) > 32 {
@@ -130,7 +130,7 @@ func TestRandomProjectedSelectionDoesNotCorruptState(t *testing.T) {
 					t.Fatalf("step %d visual after select %d..%d: %v", step, anchor, head, err)
 				}
 				if step%7 == 0 {
-					if _, err := session.ReplaceSelection("", kernel.EventOriginSemantic); err != nil {
+					if _, err := session.replaceSelection("", kernel.EventOriginSemantic); err != nil {
 						t.Fatalf("step %d delete after select %d..%d: %v", step, anchor, head, err)
 					}
 				}
@@ -145,7 +145,7 @@ func TestReplacingASelectionWithTheSameTextIsANoOp(t *testing.T) {
 	if err := session.SelectProjected(0, 1); err != nil {
 		t.Fatal(err)
 	}
-	outcome, err := session.ReplaceSelection("c", kernel.EventOriginTyping)
+	outcome, err := session.replaceSelection("c", kernel.EventOriginTyping)
 	if err != nil {
 		t.Fatal(err)
 	}

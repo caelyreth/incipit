@@ -94,10 +94,10 @@ func TestToolbarBindingsFollowPreparedKeymap(t *testing.T) {
 		command kernel.CommandID
 		got     string
 	}{
-		{"bold", editor.MarkupStrong.ID(), app.Shell.Toolbar.Bindings.Bold},
-		{"italic", editor.MarkupEmphasis.ID(), app.Shell.Toolbar.Bindings.Italic},
-		{"undo", editor.HistoryUndo.ID(), app.Shell.Toolbar.Bindings.Undo},
-		{"redo", editor.HistoryRedo.ID(), app.Shell.Toolbar.Bindings.Redo},
+		{"bold", editor.StrongCommandID, app.Shell.Toolbar.Bindings.Bold},
+		{"italic", editor.EmphasisCommandID, app.Shell.Toolbar.Bindings.Italic},
+		{"undo", editor.UndoCommandID, app.Shell.Toolbar.Bindings.Undo},
+		{"redo", editor.RedoCommandID, app.Shell.Toolbar.Bindings.Redo},
 		{"typewriter", editor.SurfaceTypewriterCommandID, app.Shell.Toolbar.Bindings.Typewriter},
 		{"zen", editor.SurfaceZenCommandID, app.Shell.Toolbar.Bindings.Zen},
 		{"cjk", editor.SurfaceCJKCommandID, app.Shell.Toolbar.Bindings.CJK},

@@ -195,7 +195,7 @@ func TestCompositionAcrossBlocksCommitsAsTyping(t *testing.T) {
 	if err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("commit = %v, %v", outcome, err)
 	}
-	if _, err := typing.ReplaceSelection("你", kernel.EventOriginTyping); err != nil {
+	if _, err := typing.replaceSelection("你", kernel.EventOriginTyping); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := composing.Projection().Text(), typing.Projection().Text(); got != want || got != "a你f" {

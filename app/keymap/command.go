@@ -12,13 +12,8 @@ type ActionKind uint8
 
 const (
 	ActionNone ActionKind = iota
-	ActionText
-	ActionHistory
-	ActionMarkup
-	ActionWord
-	ActionNesting
-	ActionTable
-	ActionNavigation
+	// ActionEdit carries an editor intent.
+	ActionEdit
 	ActionClipboard
 	ActionSurface
 	ActionExternal
@@ -26,20 +21,8 @@ const (
 
 func (k ActionKind) String() string {
 	switch k {
-	case ActionText:
-		return "text"
-	case ActionHistory:
-		return "history"
-	case ActionMarkup:
-		return "markup"
-	case ActionWord:
-		return "word"
-	case ActionNesting:
-		return "nesting"
-	case ActionTable:
-		return "table"
-	case ActionNavigation:
-		return "navigation"
+	case ActionEdit:
+		return "edit"
 	case ActionClipboard:
 		return "clipboard"
 	case ActionSurface:
@@ -48,24 +31,6 @@ func (k ActionKind) String() string {
 		return "external"
 	default:
 		return "none"
-	}
-}
-
-// NavigationCommand is an editor navigation action with no document mutation
-// type declared by engine/editor yet.
-type NavigationCommand uint8
-
-const (
-	NavigationTab NavigationCommand = iota + 1
-)
-
-// ID returns the configured command identity for this navigation action.
-func (c NavigationCommand) ID() kernel.CommandID {
-	switch c {
-	case NavigationTab:
-		return editor.TabCommand().ID
-	default:
-		return ""
 	}
 }
 
@@ -109,13 +74,7 @@ type Action struct {
 	Owner        editor.CommandOwner
 	Requirements editor.CommandRequirements
 	Resolved     bool
-	Text         editor.TextCommand
-	History      editor.HistoryCommand
-	Markup       editor.MarkupCommand
-	Word         editor.WordCommand
-	Nesting      editor.NestingCommand
-	Table        editor.TableCommand
-	Navigation   NavigationCommand
+	Intent       editor.Intent
 	Clipboard    ClipboardCommand
 	Surface      editor.SurfaceCommand
 }
@@ -135,49 +94,14 @@ var catalogActions = buildCatalogActions()
 
 func buildCatalogActions() map[kernel.CommandID]Action {
 	actions := make(map[kernel.CommandID]Action)
-	for _, command := range editor.AllTextCommands {
-		meta := command.Description()
-		action := resolvedAction(meta, ActionText)
-		action.Text = command
-		actions[meta.ID] = action
+	for _, command := range editor.Commands() {
+		if !command.Edits() {
+			continue
+		}
+		action := resolvedAction(command, ActionEdit)
+		action.Intent = command.Intent
+		actions[command.ID] = action
 	}
-	for _, command := range editor.AllHistoryCommands {
-		meta := command.Description()
-		action := resolvedAction(meta, ActionHistory)
-		action.History = command
-		actions[meta.ID] = action
-	}
-	for _, command := range []editor.MarkupCommand{
-		editor.MarkupEmphasis,
-		editor.MarkupStrong,
-	} {
-		meta := command.Description()
-		action := resolvedAction(meta, ActionMarkup)
-		action.Markup = command
-		actions[meta.ID] = action
-	}
-	for _, command := range editor.AllWordCommands {
-		meta := command.Description()
-		action := resolvedAction(meta, ActionWord)
-		action.Word = command
-		actions[meta.ID] = action
-	}
-	for _, command := range editor.AllNestingCommands {
-		meta := command.Description()
-		action := resolvedAction(meta, ActionNesting)
-		action.Nesting = command
-		actions[meta.ID] = action
-	}
-	for _, command := range editor.AllTableCommands {
-		meta := command.Description()
-		action := resolvedAction(meta, ActionTable)
-		action.Table = command
-		actions[meta.ID] = action
-	}
-	tab := editor.TabCommand()
-	action := resolvedAction(tab, ActionNavigation)
-	action.Navigation = NavigationTab
-	actions[tab.ID] = action
 	for _, command := range editor.SurfaceCommands() {
 		meta := command.Description()
 		if command.Kind == editor.SurfaceClipboard {
@@ -228,12 +152,9 @@ func clipboardAction(command ClipboardCommand) Action {
 // clipboard, and other host commands.
 func AllowsRepeat(action Action) bool {
 	switch action.Kind {
-	case ActionText, ActionHistory, ActionWord:
-		return true
+	case ActionEdit:
+		return action.Intent.Repeats()
 	case ActionSurface:
-		if action.Surface.Kind == editor.SurfaceVisual {
-			return true
-		}
 		return action.Surface.Kind == editor.SurfacePage &&
 			(action.ID == editor.SurfaceNextPageCommandID ||
 				action.ID == editor.SurfacePreviousPageCommandID)
@@ -249,7 +170,7 @@ func MenuAction(name string) (Action, bool) {
 	if name == "delete" {
 		// MyGo's edit-menu Delete role is backward deletion, including a
 		// selected range, rather than the physical forward-delete key.
-		return ResolveCommand(editor.TextBackspace.ID())
+		return ResolveCommand(editor.DeleteBackwardCommandID)
 	}
 	command, ok := MenuCommandFor(name)
 	if !ok {

@@ -33,7 +33,7 @@ func (s WordSelection) Collapsed() bool { return s.Anchor == s.Head }
 // provide DeleteRange for projectable semantic input; non-deleting commands
 // provide Anchor and Head for the next semantic selection.
 type WordCommandPlan struct {
-	Command    WordCommand
+	Command    wordOp
 	Anchor     model.UTF16Offset
 	Head       model.UTF16Offset
 	Delete     bool
@@ -146,7 +146,7 @@ func EnclosingUTF16Range(text string, at model.UTF16Offset, unit SelectionUnit) 
 
 // PlanWordCommand reproduces Neverland's previous/next word movement,
 // extension, deletion, and unit-selection rules as data.
-func PlanWordCommand(text string, selection WordSelection, command WordCommand) (WordCommandPlan, error) {
+func PlanWordCommand(text string, selection WordSelection, command wordOp) (WordCommandPlan, error) {
 	if !model.ValidDocumentText(text) {
 		return WordCommandPlan{}, &WordError{Kind: WordErrorInvalidText}
 	}
@@ -154,7 +154,7 @@ func PlanWordCommand(text string, selection WordSelection, command WordCommand) 
 		!model.UTF16OffsetIsBoundary(text, selection.Head) {
 		return WordCommandPlan{}, &WordError{Kind: WordErrorInvalidOffset}
 	}
-	if !command.Valid() {
+	if !command.valid() {
 		return WordCommandPlan{}, &WordError{Kind: WordErrorInvalidCommand}
 	}
 	if unit, ok := command.Unit(); ok {
@@ -182,7 +182,7 @@ func PlanWordCommand(text string, selection WordSelection, command WordCommand) 
 	}
 	head := selection.Head
 	offset := model.UTF16Offset(0)
-	previous := command == WordPrevious || command == WordExtendPrevious || command == WordDeletePrevious
+	previous := command == wordPrevious || command == wordExtendPrevious || command == wordDeletePrevious
 	if previous {
 		offset = 0
 		for index := len(ranges) - 1; index >= 0; index-- {
@@ -200,7 +200,7 @@ func PlanWordCommand(text string, selection WordSelection, command WordCommand) 
 			}
 		}
 	}
-	if command == WordDeletePrevious || command == WordDeleteNext {
+	if command == wordDeletePrevious || command == wordDeleteNext {
 		deleteRange := selection.Normalized()
 		if selection.Collapsed() {
 			deleteRange = model.NewUTF16Range(min(offset, head), max(offset, head))
@@ -214,7 +214,7 @@ func PlanWordCommand(text string, selection WordSelection, command WordCommand) 
 		}, nil
 	}
 	anchor := offset
-	if command == WordExtendPrevious || command == WordExtendNext {
+	if command == wordExtendPrevious || command == wordExtendNext {
 		anchor = selection.Anchor
 	}
 	return WordCommandPlan{
@@ -236,13 +236,13 @@ func PlanSelectionUnit(
 }
 
 // Unit returns the selection unit represented by a selection command.
-func (c WordCommand) Unit() (SelectionUnit, bool) {
+func (c wordOp) Unit() (SelectionUnit, bool) {
 	switch c {
-	case SelectWord:
+	case selectWord:
 		return SelectionWord, true
-	case SelectSentence:
+	case selectSentence:
 		return SelectionSentence, true
-	case SelectParagraph:
+	case selectParagraph:
 		return SelectionParagraph, true
 	default:
 		return 0, false
@@ -295,12 +295,22 @@ func utf8Boundary(text string, at int) bool {
 	return at == len(text) || at >= 0 && at < len(text) && text[at]&0xc0 != 0x80
 }
 
-// Valid reports whether c is one of the declared word commands.
-func (c WordCommand) Valid() bool {
-	for _, command := range AllWordCommands {
-		if c == command {
-			return true
-		}
-	}
-	return false
+// valid reports whether c is one of the word operations.
+func (c wordOp) valid() bool {
+	return wordPrevious <= c && c <= selectParagraph
 }
+
+// wordOp is one word, sentence or paragraph step, deletion or selection.
+type wordOp uint8
+
+const (
+	wordPrevious wordOp = iota + 1
+	wordNext
+	wordExtendPrevious
+	wordExtendNext
+	wordDeletePrevious
+	wordDeleteNext
+	selectWord
+	selectSentence
+	selectParagraph
+)

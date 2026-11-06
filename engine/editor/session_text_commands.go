@@ -6,10 +6,10 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-// ExecuteText applies one text/navigation command through the current
+// doText applies one text/navigation command through the current
 // projection. It preserves marker-aware movement and deletion by routing
 // projected edits through the same publication path as native input.
-func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
+func (s *Session) doText(command textOp) (kernel.Outcome, error) {
 	if !s.runtime.Configuration().IsEnabled(TextPolicyID) {
 		return kernel.OutcomePass, nil
 	}
@@ -23,7 +23,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 	if !ok {
 		return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
-	if command == TextDismissSelection {
+	if command == textDismissSelection {
 		if s.presentation.VisualCollapsed() {
 			// Escape in a formula's source leaves it: after an inline
 			// one, for the line after a block, or before it at the end.
@@ -52,10 +52,10 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 	if err != nil {
 		return 0, err
 	}
-	if command == TextLeft || command == TextRight ||
-		command == TextSelectLeft || command == TextSelectRight {
-		backward := command == TextLeft || command == TextSelectLeft
-		extend := command == TextSelectLeft || command == TextSelectRight
+	if command == textLeft || command == textRight ||
+		command == textSelectLeft || command == textSelectRight {
+		backward := command == textLeft || command == textSelectLeft
+		extend := command == textSelectLeft || command == textSelectRight
 		caret := s.presentation.Caret.RangeUTF16().Start
 		if !extend && !projected.Empty() {
 			edge := projected.End
@@ -96,25 +96,25 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		}
 	}
 
-	if !projected.Empty() && (command == TextBackspace || command == TextDelete) {
-		outcome, err := s.ReplaceSelection("", kernel.EventOriginSemantic)
+	if !projected.Empty() && (command == textBackspace || command == textDelete) {
+		outcome, err := s.replaceSelection("", kernel.EventOriginSemantic)
 		return outcome.Outcome, err
 	}
-	if command == TextBackspace || command == TextDelete {
-		if outcome, guarded, err := s.guardAtom(command == TextBackspace); guarded || err != nil {
+	if command == textBackspace || command == textDelete {
+		if outcome, guarded, err := s.guardAtom(command == textBackspace); guarded || err != nil {
 			return outcome, err
 		}
-		if outcome, guarded, err := s.guardTable(command == TextBackspace); guarded || err != nil {
+		if outcome, guarded, err := s.guardTable(command == textBackspace); guarded || err != nil {
 			return outcome, err
 		}
 	}
-	if command == TextBackspace {
+	if command == textBackspace {
 		if outcome, peeled, err := s.peelBlock(); peeled || err != nil {
 			return outcome, err
 		}
 	}
-	if command == TextBackspace || command == TextDelete {
-		backward := command == TextBackspace
+	if command == textBackspace || command == textDelete {
+		backward := command == textBackspace
 		caret := s.presentation.Caret.RangeUTF16().Start
 		if marker, ok := markerDeletionRange(s.presentation.Projection, caret, backward); ok {
 			edit, err := FromProjectedRange(
@@ -130,7 +130,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 			return outcome.Outcome, err
 		}
 	}
-	if command == TextNewline {
+	if command == textNewline {
 		// Return in a cell goes down from it, whatever of it is selected.
 		if head := s.presentation.Selection.Head(); s.inCell(head.Node()) && head.Node() == s.presentation.Selection.Anchor().Node() {
 			if err := s.Select(model.NewTextSelection(head, head)); err != nil {
@@ -140,7 +140,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		if outcome, ok, err := s.growDown(); ok {
 			return outcome, err
 		}
-		outcome, err := s.ReplaceSelection("\n", kernel.EventOriginTyping)
+		outcome, err := s.replaceSelection("\n", kernel.EventOriginTyping)
 		return outcome.Outcome, err
 	}
 	// Select All steps out scope by scope (scopes.go). Selecting the whole
@@ -148,7 +148,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 	// them, the notation there included: deleting it then takes a
 	// heading's "# " along with its text.
 	switch command {
-	case TextSelectAll:
+	case textSelectAll:
 		scope, ok := s.nextScope()
 		if !ok {
 			return kernel.OutcomeHandled, nil
@@ -162,13 +162,13 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		}
 		s.widening = &widening{from: from, revision: s.runtime.Revision()}
 		return kernel.OutcomeHandled, nil
-	case TextSelectDocumentStart, TextSelectDocumentEnd:
+	case textSelectDocumentStart, textSelectDocumentEnd:
 		viewAnchor, err := s.currentViewAnchor()
 		if err != nil {
 			return 0, err
 		}
 		end := model.UTF16Offset(0)
-		if command == TextSelectDocumentEnd {
+		if command == textSelectDocumentEnd {
 			end = model.UTF16Offset(s.presentation.Projection.UTF16Len())
 		}
 		return kernel.OutcomeHandled, s.SelectProjected(viewAnchor, end)
@@ -219,7 +219,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 	var projectedHead *model.UTF16Offset
 	lineStart, lineEnd := lineOffsets(text, head.offset)
 	switch command {
-	case TextLeft:
+	case textLeft:
 		target := previous()
 		if !collapsed {
 			target = edge(false)
@@ -232,7 +232,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 			}
 		}
 		anchor, head = target, target
-	case TextRight:
+	case textRight:
 		target := next()
 		if !collapsed {
 			target = edge(true)
@@ -245,7 +245,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 			}
 		}
 		anchor, head = target, target
-	case TextSelectLeft:
+	case textSelectLeft:
 		target := previous()
 		if target.node == node.ID() {
 			if at, ok := s.visualStepTarget(
@@ -257,7 +257,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 			}
 		}
 		head = target
-	case TextSelectRight:
+	case textSelectRight:
 		target := next()
 		if target.node == node.ID() {
 			if at, ok := s.visualStepTarget(
@@ -269,31 +269,31 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 			}
 		}
 		head = target
-	case TextLineStart:
+	case textLineStart:
 		head = at(node, lineStart)
 		anchor = head
-	case TextLineEnd:
+	case textLineEnd:
 		head = at(node, lineEnd)
 		anchor = head
-	case TextSelectLineStart:
+	case textSelectLineStart:
 		head = at(node, lineStart)
-	case TextSelectLineEnd:
+	case textSelectLineEnd:
 		head = at(node, lineEnd)
-	case TextDocumentStart:
+	case textDocumentStart:
 		head = at(first, 0)
 		anchor = head
-	case TextDocumentEnd:
+	case textDocumentEnd:
 		head = at(last, blockLength(last))
 		anchor = head
-	case TextSelectDocumentStart:
+	case textSelectDocumentStart:
 		head = at(first, 0)
-	case TextSelectDocumentEnd:
+	case textSelectDocumentEnd:
 		head = at(last, blockLength(last))
-	case TextSelectAll:
+	case textSelectAll:
 		anchor, head = at(first, 0), at(last, blockLength(last))
-	case TextBackspace, TextDelete:
+	case textBackspace, textDelete:
 		from, to := previous(), head
-		if command == TextDelete {
+		if command == textDelete {
 			from, to = head, next()
 		}
 		if !collapsed {
@@ -340,7 +340,7 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 	}
 	headAffinity := model.AffinityRight
 	switch command {
-	case TextLeft, TextRight, TextSelectLeft, TextSelectRight:
+	case textLeft, textRight, textSelectLeft, textSelectRight:
 		if head.node == selection.Head().Node() {
 			headAffinity = motionAffinity(selection.Head().OffsetUTF16(), head.offset)
 		}

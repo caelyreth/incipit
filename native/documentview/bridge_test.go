@@ -99,8 +99,8 @@ func TestBridgeRoutesTypedEditorActions(t *testing.T) {
 func TestBridgeRoutesVisualSurfaceActionsThroughController(t *testing.T) {
 	bridge, _ := bridgeFixture(t, "ab")
 	bridge.Controller.SetGeometry(bridgeVerticalGeometry{})
-	action, ok := keymap.ResolveCommand(editor.SurfaceDownCommandID)
-	if !ok || action.Kind != keymap.ActionSurface {
+	action, ok := keymap.ResolveCommand(editor.MoveDownCommandID)
+	if !ok || action.Kind != keymap.ActionEdit {
 		t.Fatalf("surface action = %#v, %v", action, ok)
 	}
 	if err := bridge.Execute(action); err != nil {

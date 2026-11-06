@@ -106,8 +106,8 @@ func TestEscapeResolvesToDismissSelection(t *testing.T) {
 		Kind: ui.InputKeyDown,
 		Key:  ui.KeyEscape,
 	}, PlatformDarwin)
-	if !ok || command != editor.TextDismissSelection.ID() {
-		t.Fatalf("escape = %q,%v, want %q", command, ok, editor.TextDismissSelection.ID())
+	if !ok || command != editor.DismissCommandID {
+		t.Fatalf("escape = %q,%v, want %q", command, ok, editor.DismissCommandID)
 	}
 }
 
@@ -115,11 +115,11 @@ func TestResolveKeyPrefersLogicalAndFallsBackToPhysical(t *testing.T) {
 	t.Parallel()
 	configuration := preparedKeymap(t,
 		kernel.BindingSpec{
-			Command: editor.TextLeft.ID(),
+			Command: editor.MoveLeftCommandID,
 			Target:  target(kernel.EditorBindingContext, "a", kernel.ModifiersPrimary),
 		},
 		kernel.BindingSpec{
-			Command: editor.TextRight.ID(),
+			Command: editor.MoveRightCommandID,
 			Target:  target(kernel.EditorBindingContext, "s", kernel.ModifiersPrimary),
 		},
 	)
@@ -130,7 +130,7 @@ func TestResolveKeyPrefersLogicalAndFallsBackToPhysical(t *testing.T) {
 		Mods:        ui.Super,
 	}
 	if got, ok := ResolveKey(configuration, logical, PlatformDarwin); !ok ||
-		got != editor.TextLeft.ID() {
+		got != editor.MoveLeftCommandID {
 		t.Fatalf("logical lookup = %q,%v", got, ok)
 	}
 	physical := ui.InputEvent{
@@ -140,7 +140,7 @@ func TestResolveKeyPrefersLogicalAndFallsBackToPhysical(t *testing.T) {
 		Mods:        ui.Super,
 	}
 	if got, ok := ResolveKey(configuration, physical, PlatformDarwin); !ok ||
-		got != editor.TextRight.ID() {
+		got != editor.MoveRightCommandID {
 		t.Fatalf("physical lookup = %q,%v", got, ok)
 	}
 	unmodified := physical
@@ -168,7 +168,7 @@ func TestDefaultShortcutLookupHonorsPlatformPrimary(t *testing.T) {
 		Mods: ui.Super,
 	}
 	if got, ok := ResolveKey(configuration, selectAll, PlatformDarwin); !ok ||
-		got != editor.TextSelectAll.ID() {
+		got != editor.SelectAllCommandID {
 		t.Fatalf("darwin select all = %q,%v", got, ok)
 	}
 	if _, ok := ResolveKey(configuration, selectAll, PlatformOther); ok {
@@ -177,7 +177,7 @@ func TestDefaultShortcutLookupHonorsPlatformPrimary(t *testing.T) {
 	other := selectAll
 	other.Mods = ui.Ctrl
 	if got, ok := ResolveKey(configuration, other, PlatformOther); !ok ||
-		got != editor.TextSelectAll.ID() {
+		got != editor.SelectAllCommandID {
 		t.Fatalf("other select all = %q,%v", got, ok)
 	}
 }
@@ -194,68 +194,68 @@ func TestDefaultShortcutMatrixRoutesEveryEditorCommandFamily(t *testing.T) {
 		{
 			name:    "text movement",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyRight},
-			kind:    ActionText,
-			command: editor.TextRight.ID(),
+			kind:    ActionEdit,
+			command: editor.MoveRightCommandID,
 		},
 		{
 			name:    "visual movement",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyDown},
-			kind:    ActionSurface,
-			command: editor.SurfaceDownCommandID,
+			kind:    ActionEdit,
+			command: editor.MoveDownCommandID,
 		},
 		{
 			name:    "visual selection",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyDown, Mods: ui.Shift},
-			kind:    ActionSurface,
-			command: editor.SurfaceSelectDownCommandID,
+			kind:    ActionEdit,
+			command: editor.ExtendDownCommandID,
 		},
 		{
 			name:    "text selection",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyRight, Mods: ui.Shift},
-			kind:    ActionText,
-			command: editor.TextSelectRight.ID(),
+			kind:    ActionEdit,
+			command: editor.ExtendRightCommandID,
 		},
 		{
 			name:    "word movement",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyRight, Mods: ui.Alt},
-			kind:    ActionWord,
-			command: editor.WordNext.ID(),
+			kind:    ActionEdit,
+			command: editor.NextWordCommandID,
 		},
 		{
 			name:    "word deletion",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyBackspace, Mods: ui.Alt},
-			kind:    ActionWord,
-			command: editor.WordDeletePrevious.ID(),
+			kind:    ActionEdit,
+			command: editor.DeletePreviousWordCommandID,
 		},
 		{
 			name:    "history undo",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyZ, Mods: ui.Super},
-			kind:    ActionHistory,
-			command: editor.HistoryUndo.ID(),
+			kind:    ActionEdit,
+			command: editor.UndoCommandID,
 		},
 		{
 			name:    "history redo",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyZ, Mods: ui.Super | ui.Shift},
-			kind:    ActionHistory,
-			command: editor.HistoryRedo.ID(),
+			kind:    ActionEdit,
+			command: editor.RedoCommandID,
 		},
 		{
 			name:    "strong markup",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyB, Mods: ui.Super},
-			kind:    ActionMarkup,
-			command: editor.MarkupStrong.ID(),
+			kind:    ActionEdit,
+			command: editor.StrongCommandID,
 		},
 		{
 			name:    "emphasis markup",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyI, Mods: ui.Super},
-			kind:    ActionMarkup,
-			command: editor.MarkupEmphasis.ID(),
+			kind:    ActionEdit,
+			command: editor.EmphasisCommandID,
 		},
 		{
 			name:    "tab navigation",
 			event:   ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyTab},
-			kind:    ActionNavigation,
-			command: editor.TabCommand().ID,
+			kind:    ActionEdit,
+			command: editor.LeaveCommandID,
 		},
 		{
 			name:    "search commands",

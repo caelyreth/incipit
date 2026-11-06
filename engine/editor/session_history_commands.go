@@ -9,8 +9,8 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-// ExecuteHistory restores a history frame through the runtime transaction.
-func (s *Session) ExecuteHistory(command HistoryCommand) (kernel.Outcome, error) {
+// doHistory restores a history frame through the runtime transaction.
+func (s *Session) doHistory(command historyOp) (kernel.Outcome, error) {
 	if !s.runtime.Configuration().IsEnabled(HistoryPolicyID) {
 		return kernel.OutcomePass, nil
 	}
@@ -23,11 +23,11 @@ func (s *Session) ExecuteHistory(command HistoryCommand) (kernel.Outcome, error)
 	}
 	var err error
 	switch command {
-	case HistoryUndo:
+	case historyUndo:
 		_, err = s.history.Undo(current, func(frame Frame) error {
 			return s.restoreHistoryFrame(frame, true)
 		})
-	case HistoryRedo:
+	case historyRedo:
 		_, err = s.history.Redo(current, func(frame Frame) error {
 			return s.restoreHistoryFrame(frame, false)
 		})

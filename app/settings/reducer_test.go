@@ -55,7 +55,7 @@ func TestShortcutRemapUnbindAndResetAreAtomic(t *testing.T) {
 	store := editorHost(t, catalog)
 	state := DefaultState()
 	session := activeSession()
-	command := editor.TextSelectAll.ID()
+	command := editor.SelectAllCommandID
 	target := kernel.NewBindingTarget(
 		kernel.EditorBindingContext,
 		"e",
@@ -72,7 +72,7 @@ func TestShortcutRemapUnbindAndResetAreAtomic(t *testing.T) {
 	}
 
 	source := store.Configuration()
-	conflict := store.PreparedConfiguration().BindingsFor(editor.TextDocumentStart.ID())[0]
+	conflict := store.PreparedConfiguration().BindingsFor(editor.DocumentStartCommandID)[0]
 	if _, err := state.Apply(Remap(command, conflict), store, session); err == nil {
 		t.Fatal("conflicting remap was accepted")
 	}
@@ -243,10 +243,10 @@ func TestBuildDataSnapshotsSectionsShortcutsAndAppearance(t *testing.T) {
 	foundText := false
 	foundSurface := false
 	for _, shortcut := range data.Shortcuts {
-		if shortcut.Command == editor.TextSelectAll.ID() {
+		if shortcut.Command == editor.SelectAllCommandID {
 			foundText = shortcut.Label == "Select all" && shortcut.Enabled
 		}
-		if shortcut.Command == editor.SurfaceDownCommandID {
+		if shortcut.Command == editor.MoveDownCommandID {
 			foundSurface = shortcut.Label == "Move down" &&
 				shortcut.Group == "Writing" && shortcut.Scope == editor.ScopeDocument &&
 				shortcut.Origin == "" && shortcut.Enabled
@@ -292,8 +292,8 @@ func TestRemapReplacingMovesTakenShortcutAtomically(t *testing.T) {
 	store := editorHost(t, catalog)
 	state := DefaultState()
 	session := activeSession()
-	command := editor.TextSelectAll.ID()
-	holder := editor.TextDocumentStart.ID()
+	command := editor.SelectAllCommandID
+	holder := editor.DocumentStartCommandID
 	taken := store.PreparedConfiguration().BindingsFor(holder)[0]
 
 	data := BuildData(store, session, state.Presentation, state.Appearance)
@@ -346,10 +346,10 @@ func TestShortcutsSitUnderThePolicyTheyAreAbout(t *testing.T) {
 	}
 	navigation := sections[editor.NavigationPolicyID]
 	if len(navigation.Shortcuts) != 0 ||
-		!slices.Contains(References(navigation.Description), editor.TabCommand().ID) {
+		!slices.Contains(References(navigation.Description), editor.LeaveCommandID) {
 		t.Fatalf("navigation card = %#v", navigation)
 	}
-	if words := sections[editor.WordsPolicyID]; len(words.Shortcuts) != len(editor.AllWordCommands) {
+	if words := sections[editor.WordsPolicyID]; len(words.Shortcuts) != countPolicyCommands(editor.WordsPolicyID) {
 		t.Fatalf("word card rows = %d", len(words.Shortcuts))
 	}
 	// Every action a card names exists, and is the Keymap's own entry.
@@ -371,7 +371,7 @@ func TestShortcutsSitUnderThePolicyTheyAreAbout(t *testing.T) {
 			t.Fatalf("%s before %s", previous.Command, current.Command)
 		}
 	}
-	strong, _ := data.Shortcut(editor.MarkupStrong.ID())
+	strong, _ := data.Shortcut(editor.StrongCommandID)
 	if strong.Origin != editor.WritingPolicyID || strong.OriginLabel != "Writing Profile" {
 		t.Fatalf("strong origin = %#v", strong)
 	}
@@ -394,7 +394,7 @@ func TestRemappingToTheDefaultClearsTheOverride(t *testing.T) {
 	store := editorHost(t, catalog)
 	state := DefaultState()
 	session := activeSession()
-	command := editor.MarkupStrong.ID()
+	command := editor.StrongCommandID
 	other := kernel.NewBindingTarget(kernel.EditorBindingContext, "e", kernel.ModifiersPrimary|kernel.ModifiersAlt)
 	if _, err := state.Apply(Remap(command, other), store, session); err != nil {
 		t.Fatal(err)
@@ -428,4 +428,14 @@ func TestLineSpacingStepsWithinBounds(t *testing.T) {
 			t.Fatalf("spacing %v gave %v, want %v", test.request, settings.LineSpacing, test.want)
 		}
 	}
+}
+
+func countPolicyCommands(policy kernel.PolicyID) int {
+	count := 0
+	for _, command := range editor.Commands() {
+		if command.Policy == policy {
+			count++
+		}
+	}
+	return count
 }

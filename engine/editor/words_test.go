@@ -67,39 +67,39 @@ func TestPlanWordCommandMovementExtensionAndDeletion(t *testing.T) {
 	tests := []struct {
 		name      string
 		selection WordSelection
-		command   WordCommand
+		command   wordOp
 		expected  WordCommandPlan
 	}{
 		{
 			"previous",
 			WordSelection{Anchor: 7, Head: 7},
-			WordPrevious,
-			WordCommandPlan{Command: WordPrevious, Anchor: 6, Head: 6},
+			wordPrevious,
+			WordCommandPlan{Command: wordPrevious, Anchor: 6, Head: 6},
 		},
 		{
 			"next",
 			WordSelection{Anchor: 6, Head: 6},
-			WordNext,
-			WordCommandPlan{Command: WordNext, Anchor: 11, Head: 11},
+			wordNext,
+			WordCommandPlan{Command: wordNext, Anchor: 11, Head: 11},
 		},
 		{
 			"next skips punctuation to CJK",
 			WordSelection{Anchor: 11, Head: 11},
-			WordNext,
-			WordCommandPlan{Command: WordNext, Anchor: 15, Head: 15},
+			wordNext,
+			WordCommandPlan{Command: wordNext, Anchor: 15, Head: 15},
 		},
 		{
 			"extend previous preserves anchor",
 			WordSelection{Anchor: 10, Head: 10},
-			WordExtendPrevious,
-			WordCommandPlan{Command: WordExtendPrevious, Anchor: 10, Head: 6},
+			wordExtendPrevious,
+			WordCommandPlan{Command: wordExtendPrevious, Anchor: 10, Head: 6},
 		},
 		{
 			"delete previous",
 			WordSelection{Anchor: 11, Head: 11},
-			WordDeletePrevious,
+			wordDeletePrevious,
 			WordCommandPlan{
-				Command:  WordDeletePrevious,
+				Command:  wordDeletePrevious,
 				Anchor:   11,
 				Head:     11,
 				Delete:   true,
@@ -109,9 +109,9 @@ func TestPlanWordCommandMovementExtensionAndDeletion(t *testing.T) {
 		{
 			"delete next",
 			WordSelection{Anchor: 6, Head: 6},
-			WordDeleteNext,
+			wordDeleteNext,
 			WordCommandPlan{
-				Command:  WordDeleteNext,
+				Command:  wordDeleteNext,
 				Anchor:   6,
 				Head:     6,
 				Delete:   true,
@@ -121,9 +121,9 @@ func TestPlanWordCommandMovementExtensionAndDeletion(t *testing.T) {
 		{
 			"delete selection",
 			WordSelection{Anchor: 12, Head: 15},
-			WordDeletePrevious,
+			wordDeletePrevious,
 			WordCommandPlan{
-				Command:  WordDeletePrevious,
+				Command:  wordDeletePrevious,
 				Anchor:   12,
 				Head:     15,
 				Delete:   true,
@@ -133,9 +133,9 @@ func TestPlanWordCommandMovementExtensionAndDeletion(t *testing.T) {
 		{
 			"select word",
 			WordSelection{Anchor: 7, Head: 7},
-			SelectWord,
+			selectWord,
 			WordCommandPlan{
-				Command:    SelectWord,
+				Command:    selectWord,
 				Anchor:     6,
 				Head:       11,
 				SelectUnit: true,
@@ -145,9 +145,9 @@ func TestPlanWordCommandMovementExtensionAndDeletion(t *testing.T) {
 		{
 			"select sentence trailing whitespace",
 			WordSelection{Anchor: 13, Head: 13},
-			SelectSentence,
+			selectSentence,
 			WordCommandPlan{
-				Command:    SelectSentence,
+				Command:    selectSentence,
 				Anchor:     13,
 				Head:       19,
 				SelectUnit: true,
@@ -168,21 +168,21 @@ func TestPlanWordCommandFallbackBoundsAndUnicodeEmoji(t *testing.T) {
 	for _, test := range []struct {
 		text     string
 		head     model.UTF16Offset
-		command  WordCommand
+		command  wordOp
 		expected model.UTF16Offset
 	}{
-		{"one", 3, WordNext, 3},
-		{"one", 0, WordPrevious, 0},
-		{"🦀 word", 2, WordNext, 7},
-		{"word 🦀", 5, WordPrevious, 0},
-		{"e\u0301x", 2, WordNext, 3},
+		{"one", 3, wordNext, 3},
+		{"one", 0, wordPrevious, 0},
+		{"🦀 word", 2, wordNext, 7},
+		{"word 🦀", 5, wordPrevious, 0},
+		{"e\u0301x", 2, wordNext, 3},
 	} {
 		plan, err := PlanWordCommand(test.text, WordSelection{Anchor: test.head, Head: test.head}, test.command)
 		if err != nil || plan.Head != test.expected {
 			t.Errorf("%q head=%d command=%d => %#v, want %d, err=%v", test.text, test.head, test.command, plan, test.expected, err)
 		}
 	}
-	if _, err := PlanWordCommand("x", WordSelection{Anchor: 0, Head: 0}, WordCommand(99)); err == nil {
+	if _, err := PlanWordCommand("x", WordSelection{Anchor: 0, Head: 0}, wordOp(99)); err == nil {
 		t.Fatal("unknown command accepted")
 	}
 }
@@ -191,12 +191,12 @@ func TestPlanWordCommandUsesUnicodeFallbackForThai(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
 		head     model.UTF16Offset
-		command  WordCommand
+		command  wordOp
 		expected model.UTF16Offset
 	}{
-		{0, WordNext, 1},
-		{4, WordNext, 5},
-		{7, WordPrevious, 6},
+		{0, wordNext, 1},
+		{4, wordNext, 5},
+		{7, wordPrevious, 6},
 	} {
 		plan, err := PlanWordCommand(
 			"ภาษาไทย",

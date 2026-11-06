@@ -38,7 +38,7 @@ func TestDismissSelectionAppearsInSettingsWithEscape(t *testing.T) {
 		DefaultPresentation(),
 		DefaultAppearance(),
 	)
-	shortcut, ok := data.Shortcut(editor.TextDismissSelection.ID())
+	shortcut, ok := data.Shortcut(editor.DismissCommandID)
 	if !ok {
 		t.Fatal("dismiss selection is missing from settings")
 	}

@@ -59,11 +59,11 @@ func TestDispatcherRoutesKeyDownShortcut(t *testing.T) {
 		Mods: ui.Super,
 	})
 	if !result.Consumed || !result.Dispatched || result.Reason != ResultDispatched ||
-		result.Command != editor.TextSelectAll.ID() || result.Action.Kind != ActionText ||
-		result.Action.Text != editor.TextSelectAll {
+		result.Command != editor.SelectAllCommandID || result.Action.Kind != ActionEdit ||
+		result.Action.Intent != editor.SelectUnit(editor.ByScope) {
 		t.Fatalf("result = %#v", result)
 	}
-	if len(executor.executed) != 1 || executor.executed[0].CommandID() != editor.TextSelectAll.ID() {
+	if len(executor.executed) != 1 || executor.executed[0].CommandID() != editor.SelectAllCommandID {
 		t.Fatalf("executed = %#v", executor.executed)
 	}
 	if !dispatcher.HandleInput(ui.InputEvent{
@@ -164,7 +164,7 @@ func TestDispatcherCommitsCompositionBeforeMenuAction(t *testing.T) {
 	result := dispatcher.HandleEvent(ui.InputEvent{Kind: ui.InputCommand, Text: "undo"})
 	if !result.Consumed || !result.Dispatched || result.Reason != ResultDispatched ||
 		executor.commits != 1 || len(executor.executed) != 1 ||
-		executor.executed[0].History != editor.HistoryUndo {
+		executor.executed[0].Intent != editor.Undo {
 		t.Fatalf("undo menu = %#v executor=%#v", result, executor)
 	}
 }

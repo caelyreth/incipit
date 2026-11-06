@@ -24,10 +24,10 @@ func at(t *testing.T, session *Session, offset model.UTF16Offset) {
 	}
 }
 
-func run(t *testing.T, session *Session, commands ...TextCommand) {
+func run(t *testing.T, session *Session, commands ...textOp) {
 	t.Helper()
 	for _, command := range commands {
-		if _, err := session.ExecuteText(command); err != nil {
+		if _, err := session.doText(command); err != nil {
 			t.Fatalf("%v: %v", command, err)
 		}
 	}
@@ -48,13 +48,13 @@ func expectPage(t *testing.T, session *Session, view string, blocks ...string) {
 func TestReturnSplitsAndDeletionJoinsBlocks(t *testing.T) {
 	session, _ := newSessionFixture(t, "abcd", false)
 	at(t, session, 2)
-	run(t, session, TextNewline)
+	run(t, session, textNewline)
 	expectPage(t, session, "ab\n|cd", "ab", "cd")
 
-	run(t, session, TextBackspace)
+	run(t, session, textBackspace)
 	expectPage(t, session, "ab|cd", "abcd")
 
-	run(t, session, TextNewline, TextLeft, TextDelete)
+	run(t, session, textNewline, textLeft, textDelete)
 	expectPage(t, session, "ab|cd", "abcd")
 }
 
@@ -62,17 +62,17 @@ func TestReturnSplitsAndDeletionJoinsBlocks(t *testing.T) {
 func TestArrowsCrossBlockEdges(t *testing.T) {
 	session, _ := newSessionFixture(t, "ab\ncd", false)
 	at(t, session, 3)
-	run(t, session, TextLeft)
+	run(t, session, textLeft)
 	expectPage(t, session, "ab|\ncd", "ab", "cd")
-	run(t, session, TextRight)
+	run(t, session, textRight)
 	expectPage(t, session, "ab\n|cd", "ab", "cd")
-	run(t, session, TextSelectLeft, TextSelectLeft)
+	run(t, session, textSelectLeft, textSelectLeft)
 	if range16, _ := session.VisualSelection(); range16 != model.NewUTF16Range(1, 3) {
 		t.Fatalf("extended selection %v", range16)
 	}
-	run(t, session, TextDocumentEnd)
+	run(t, session, textDocumentEnd)
 	expectPage(t, session, "ab\ncd|", "ab", "cd")
-	run(t, session, TextDocumentStart)
+	run(t, session, textDocumentStart)
 	expectPage(t, session, "|ab\ncd", "ab", "cd")
 }
 
@@ -86,19 +86,19 @@ func TestTypingOverASpanJoinsAndPastingLinesSplits(t *testing.T) {
 	typeSession(t, session, "X")
 	expectPage(t, session, "abX|ef", "abXef")
 
-	if _, err := session.ReplaceSelection("1\n2\n3", kernel.EventOriginPaste); err != nil {
+	if _, err := session.replaceSelection("1\n2\n3", kernel.EventOriginPaste); err != nil {
 		t.Fatal(err)
 	}
 	expectPage(t, session, "abX1\n2\n3|ef", "abX1", "2", "3ef")
 
-	run(t, session, TextSelectAll, TextSelectAll, TextBackspace)
+	run(t, session, textSelectAll, textSelectAll, textBackspace)
 	expectPage(t, session, "|", "")
 }
 
 func TestPastedLineEndingsUseTheCanonicalSeparator(t *testing.T) {
 	for _, input := range []string{"a\r\nb", "a\rb"} {
 		session, _ := newSessionFixture(t, "", false)
-		if _, err := session.ReplaceSelection(input, kernel.EventOriginPaste); err != nil {
+		if _, err := session.replaceSelection(input, kernel.EventOriginPaste); err != nil {
 			t.Fatal(err)
 		}
 		if got := session.Projection().Text(); got != "a\nb" {
@@ -130,12 +130,12 @@ func TestPageRejectsNestedBlockShapes(t *testing.T) {
 func TestUndoAndRedoRestoreBlocks(t *testing.T) {
 	session, _ := newSessionFixture(t, "abcd", false)
 	at(t, session, 2)
-	run(t, session, TextNewline)
-	if _, err := session.ExecuteHistory(HistoryUndo); err != nil {
+	run(t, session, textNewline)
+	if _, err := session.doHistory(historyUndo); err != nil {
 		t.Fatal(err)
 	}
 	expectPage(t, session, "ab|cd", "abcd")
-	if _, err := session.ExecuteHistory(HistoryRedo); err != nil {
+	if _, err := session.doHistory(historyRedo); err != nil {
 		t.Fatal(err)
 	}
 	if got := pageTexts(session); !slices.Equal(got, []string{"ab", "cd"}) {
@@ -147,11 +147,11 @@ func TestUndoAndRedoRestoreBlocks(t *testing.T) {
 func TestWordStepsCrossBlockEdges(t *testing.T) {
 	session, _ := newSessionFixture(t, "one two\nthree", false)
 	at(t, session, 7)
-	if _, err := session.ExecuteWord(WordNext); err != nil {
+	if _, err := session.doWord(wordNext); err != nil {
 		t.Fatal(err)
 	}
 	expectPage(t, session, "one two\n|three", "one two", "three")
-	if _, err := session.ExecuteWord(WordDeletePrevious); err != nil {
+	if _, err := session.doWord(wordDeletePrevious); err != nil {
 		t.Fatal(err)
 	}
 	expectPage(t, session, "one two|three", "one twothree")

@@ -98,7 +98,7 @@ func (s *Session) navigationGuides(now time.Time) []Guide {
 	}
 	guide := Guide{
 		Producer: surface.ProducerID(NavigationPolicyID),
-		Command:  TabCommand().ID,
+		Command:  LeaveCommandID,
 		At:       target.RangeUTF16().Start,
 	}
 	if offer.HasExpiry {
