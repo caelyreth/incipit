@@ -152,16 +152,23 @@ func TestDeletionStaysWithinItsBlocks(t *testing.T) {
 	}
 }
 
-// A caret never rests in a block's notation: placed at a line's start it
-// stands at the text the notation opens, and Left from there steps to the
-// line before, while it still steps through a mark's notation.
-func TestCaretsStandAtTheTextBlockNotationOpens(t *testing.T) {
+// A caret rests in a block's notation only before its marker's glyphs:
+// Left from the text steps into the token, never into the gap after it,
+// then to the line before; it still steps through a mark's notation.
+func TestCaretsStopInTokensAndSkipGaps(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "intro\n1. one")
-	at(t, session, 6)
+	run(t, session, textLeft, textLeft, textLeft)
 	expectPage(t, session, "intro\n1. |one", "intro", "one")
 	run(t, session, textLeft)
+	expectPage(t, session, "intro\n1|. one", "intro", "one")
+	run(t, session, textLeft)
+	expectPage(t, session, "intro\n|1. one", "intro", "one")
+	run(t, session, textLeft)
 	expectPage(t, session, "intro|\n1. one", "intro", "one")
+	// Right from the line before lands at the text, not in the token.
+	run(t, session, textRight)
+	expectPage(t, session, "intro\n1. |one", "intro", "one")
 
 	session, _ = newSessionFixture(t, "", false)
 	typeKeys(t, session, "a *b*")

@@ -55,6 +55,17 @@ func (s *Session) doText(command textOp) (kernel.Outcome, error) {
 			}
 			return kernel.OutcomeHandled, s.SelectProjected(edge, edge)
 		}
+		// In a block's opening notation the caret steps among its token
+		// stops, skipping the gap after them.
+		if to, ok := tokenStep(s.presentation.Projection, caret, backward); ok {
+			viewAnchor := to
+			if extend {
+				if viewAnchor, err = s.currentViewAnchor(); err != nil {
+					return 0, err
+				}
+			}
+			return kernel.OutcomeHandled, s.SelectProjected(viewAnchor, to)
+		}
 		// A formula is passed as one character from outside it; its
 		// source is edited where a click, Tab or typing puts the caret.
 		flow, err := s.SurfaceFlow()

@@ -290,7 +290,8 @@ func (s *Session) nextScope() (model.UTF16Range, bool) {
 	// to its caption.
 	for _, scope := range scopes {
 		inside := !selected.Empty() && selected.Start <= scope.Range.Start && scope.Range.End <= selected.End
-		if scope.ownsSelection && scope.Range != selected && !inside {
+		holds := scope.Range.Start <= selected.Start && selected.End <= scope.Range.End
+		if scope.ownsSelection && scope.Range != selected && !inside && holds {
 			return scope.Range, true
 		}
 	}

@@ -91,7 +91,7 @@ func (p *Presentation) Select(
 	}
 	caret := projected
 	if selection.IsCollapsed() {
-		at := blockNotationRest(p.Projection, projected.RangeUTF16().Start)
+		at := blockNotationRest(p.Projection, projected.RangeUTF16().Start, false)
 		caret, err = caretTarget(p.Projection, at, projected.Affinity())
 		if err != nil {
 			return err
@@ -119,7 +119,7 @@ func (p *Presentation) SelectProjected(
 		return &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
 	}
 	if anchor == head {
-		anchor = blockNotationRest(p.Projection, anchor)
+		anchor = blockNotationRest(p.Projection, anchor, true)
 		head = anchor
 	}
 	anchorResult, err := p.Projection.Target(model.EmptyUTF16Range(anchor))

@@ -19,7 +19,7 @@ func typeKeys(t *testing.T, session *Session, text string) {
 			run(t, session, textNewline)
 			continue
 		}
-		if _, err := session.replaceSelection(string(r), kernel.EventOriginTyping); err != nil {
+		if _, err := session.Do(Insert(string(r), kernel.EventOriginTyping), time.Time{}); err != nil {
 			t.Fatalf("type %q: %v", r, err)
 		}
 	}

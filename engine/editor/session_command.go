@@ -37,6 +37,11 @@ func (s *Session) Do(intent Intent, now time.Time) (EditingOutcome, error) {
 	if intent.Kind != IntentDelete || intent.By != ByGrapheme {
 		s.disarm()
 	}
+	if intent.Kind == IntentInsert && intent.Range == nil && s.absorbs(intent.Text) {
+		s.absorb = nil
+		return EditingOutcome{Outcome: kernel.OutcomeHandled, Revision: before}, nil
+	}
+	s.absorb = nil
 	outcome, err := s.resolve(intent, now)
 	if err != nil {
 		return EditingOutcome{}, err
@@ -66,6 +71,9 @@ func (s *Session) resolve(intent Intent, now time.Time) (EditingOutcome, error) 
 				return EditingOutcome{}, err
 			}
 			return s.applyProjectedEditChecked(edit)
+		}
+		if outcome, typed, err := s.typeAtToken(intent.Text); typed || err != nil {
+			return outcome, err
 		}
 		return s.replaceSelection(intent.Text, intent.Origin)
 	case IntentDelete:

@@ -116,11 +116,11 @@ func blockInterior(p *projection.Projection, node model.NodeID) (low, high model
 	return low, high
 }
 
-// blockNotationRest is where a collapsed caret at a stands: a block's
-// notation is no place to rest, so a caret within the notation that opens
-// a block stands at the text it opens, and one within a closing fence at
-// the text it closes.
-func blockNotationRest(p *projection.Projection, at model.UTF16Offset) model.UTF16Offset {
+// blockNotationRest is where a collapsed caret at a stands: in a block's
+// opening notation at the text it opens, unless tokens lets it rest at a
+// token stop (tokens.go) placed there, and within a closing fence at the
+// text it closes. A caret named semantically always stands at the text.
+func blockNotationRest(p *projection.Projection, at model.UTF16Offset, tokens bool) model.UTF16Offset {
 	for _, segment := range p.Segments() {
 		target, ok := segment.AttributeTarget()
 		if !ok {
@@ -130,6 +130,9 @@ func blockNotationRest(p *projection.Projection, at model.UTF16Offset) model.UTF
 		switch target.Key() {
 		case blockNotationKey:
 			if span.Start <= at && at < span.End {
+				if tokens && tokenStop(p, at) {
+					return at
+				}
 				return span.End
 			}
 		case fenceNotationKey:

@@ -44,7 +44,9 @@ type Session struct {
 	// memory is the place the caret last left, for Return.
 	memory *placeMemory
 	// armed is a deletion waiting for its second press.
-	armed         *armed
+	armed *armed
+	// absorb is text the last reshape already typed.
+	absorb        *absorbing
 	pairs         []PairSpan
 	pairsValid    bool
 	pairsRelevant bool
