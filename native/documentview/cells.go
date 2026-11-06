@@ -1,8 +1,6 @@
 package documentview
 
 import (
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/engine/editor"
@@ -21,218 +19,33 @@ import (
 // copying gives its texts. Each cell picked fades in, tinted, and what is
 // picked together wears one ring about it, which parts as cells leave.
 
-// cellsKind is what a selection of whole cells picks: cells, or rows or
-// columns whole.
-type cellsKind uint8
-
-const (
-	pickedCells cellsKind = iota
-	pickedRows
-	pickedColumns
-)
-
-// CellSelection is cells of one table, named by its first cell, selected
-// whole: the rows or the columns Lines names for those kinds, or else
-// Cells, each a row and a column. Anchor is where a Shift-click's run
-// starts: the cell, or for lines the line, first.
-type CellSelection struct {
-	Table  model.NodeID
-	Kind   cellsKind
-	Lines  []int
-	Cells  [][2]int
-	Anchor [2]int
+// pickedCells are the cells the engine has picked whole, if any are, for
+// the frame to show.
+func (b *Bridge) pickedCells() *editor.CellSelection {
+	if b == nil || b.Controller == nil {
+		return nil
+	}
+	cells, ok := b.Controller.Cells()
+	if !ok {
+		return nil
+	}
+	return &cells
 }
 
-// Has reports whether the cell at row and column is picked.
-func (s *CellSelection) Has(row, column int) bool {
-	switch s.Kind {
-	case pickedRows:
-		return slices.Contains(s.Lines, row)
-	case pickedColumns:
-		return slices.Contains(s.Lines, column)
-	}
-	return slices.Contains(s.Cells, [2]int{row, column})
+// hasCells reports whether cells are picked whole.
+func (b *Bridge) hasCells() bool { return b.pickedCells() != nil }
+
+// pickLines picks a grip's line as its click with mods does: alone, the
+// run from the first with Shift, added or taken back with Command.
+func (b *Bridge) pickLines(table model.NodeID, kind editor.CellsKind, index int, mods ui.Modifiers) {
+	_ = b.Controller.PickLines(table, kind, index, mods&ui.Shift != 0, mods&ui.Cmd != 0)
 }
 
-// Picked are the cells picked in table, row by row, rows with none left
-// out.
-func (s *CellSelection) Picked(table editor.Table) [][]model.NodeID {
-	var rows [][]model.NodeID
-	for r, row := range table.Rows {
-		var cells []model.NodeID
-		for c, id := range row {
-			if s.Has(r, c) {
-				cells = append(cells, id)
-			}
-		}
-		if len(cells) > 0 {
-			rows = append(rows, cells)
-		}
-	}
-	return rows
-}
-
-// spans are the rows and the columns the picked cells stand in, in order.
-func (s *CellSelection) spans(table editor.Table) (rows, columns []int) {
-	for r, row := range table.Rows {
-		for c := range row {
-			if s.Has(r, c) {
-				if !slices.Contains(rows, r) {
-					rows = append(rows, r)
-				}
-				if !slices.Contains(columns, c) {
-					columns = append(columns, c)
-				}
-			}
-		}
-	}
-	slices.Sort(columns)
-	return rows, columns
-}
-
-// cellRect picks the cells of table's rectangle between two corners.
-func cellRect(table model.NodeID, anchor, head [2]int) CellSelection {
-	selection := CellSelection{Table: table, Anchor: anchor}
-	for r := min(anchor[0], head[0]); r <= max(anchor[0], head[0]); r++ {
-		for c := min(anchor[1], head[1]); c <= max(anchor[1], head[1]); c++ {
-			selection.Cells = append(selection.Cells, [2]int{r, c})
-		}
-	}
-	return selection
-}
-
-// toggled is list with item in it if it was not, and out if it was.
-func toggled[T comparable](list []T, item T) []T {
-	if index := slices.Index(list, item); index >= 0 {
-		return slices.Delete(slices.Clone(list), index, index+1)
-	}
-	return append(slices.Clone(list), item)
-}
-
-// selectCells selects cells whole: the text selection goes to the anchor
-// cell's text, which typing writes over. Picking none lets them go.
-func (b *Bridge) selectCells(cells CellSelection) {
-	table, ok := b.tableShape(cells.Table)
-	if !ok || len(cells.Picked(table)) == 0 {
-		b.Cells = nil
-		return
-	}
-	row, column := cells.Anchor[0], cells.Anchor[1]
-	switch cells.Kind {
-	case pickedRows:
-		column = 0
-	case pickedColumns:
-		row, column = 0, cells.Anchor[0]
-	}
-	if row >= len(table.Rows) || column >= len(table.Rows[row]) {
-		row, column = 0, 0
-	}
-	_ = b.Controller.SelectCell(table.Rows[row][column])
-	b.Cells = &cells
-}
-
-// pickLines picks the line of kind at index in table, as a grip's click
-// with mods does: alone, as the run from the first picked with Shift, or
-// added or taken back with Command.
-func (b *Bridge) pickLines(table model.NodeID, kind cellsKind, index int, mods ui.Modifiers) {
-	current := b.Cells
-	same := current != nil && current.Table == table && current.Kind == kind
-	next := CellSelection{Table: table, Kind: kind, Lines: []int{index}, Anchor: [2]int{index}}
-	switch {
-	case same && mods&ui.Shift != 0:
-		from := current.Anchor[0]
-		next.Lines, next.Anchor = nil, current.Anchor
-		for line := min(from, index); line <= max(from, index); line++ {
-			next.Lines = append(next.Lines, line)
-		}
-	case same && mods&ui.Cmd != 0:
-		next.Lines, next.Anchor = toggled(current.Lines, index), current.Anchor
-		slices.Sort(next.Lines)
-	}
-	b.selectCells(next)
-}
-
-// pickCell picks the cell at row and column of table as a click with
-// Shift or Command does in it, from the cells picked or the caret's: the
-// rectangle from the first with Shift, or the cell added or taken back
-// with Command. It reports whether the click was one of those.
+// pickCell picks a cell as a Shift- or Command-click in it does, reporting
+// whether the click picked.
 func (b *Bridge) pickCell(table model.NodeID, row, column int, mods ui.Modifiers) bool {
-	if mods&(ui.Shift|ui.Cmd) == 0 {
-		return false
-	}
-	shape, ok := b.tableShape(table)
-	if !ok {
-		return false
-	}
-	current := b.Cells
-	if current == nil || current.Table != table || current.Kind != pickedCells {
-		// From the caret's cell, when it is in this table.
-		at, from, ok := shape.Find(b.Controller.Session().Selection().Head().Node())
-		if !ok {
-			return false
-		}
-		if at == row && from == column {
-			// In the caret's own cell, Shift extends its text; Command
-			// picks it.
-			if mods&ui.Shift != 0 {
-				return false
-			}
-			b.selectCells(CellSelection{Table: table, Cells: [][2]int{{row, column}}, Anchor: [2]int{row, column}})
-			return true
-		}
-		current = &CellSelection{Table: table, Cells: [][2]int{{at, from}}, Anchor: [2]int{at, from}}
-	}
-	if mods&ui.Shift != 0 {
-		b.selectCells(cellRect(table, current.Anchor, [2]int{row, column}))
-		return true
-	}
-	next := CellSelection{Table: table, Cells: toggled(current.Cells, [2]int{row, column}), Anchor: current.Anchor}
-	if !slices.Contains(next.Cells, next.Anchor) && len(next.Cells) > 0 {
-		next.Anchor = next.Cells[0]
-	}
-	b.selectCells(next)
-	return true
-}
-
-// selectedCells are the cells selected whole, row by row.
-func (b *Bridge) selectedCells() ([][]model.NodeID, bool) {
-	if b == nil || b.Cells == nil {
-		return nil, false
-	}
-	table, ok := b.tableShape(b.Cells.Table)
-	if !ok {
-		b.Cells = nil
-		return nil, false
-	}
-	return b.Cells.Picked(table), true
-}
-
-// cellsText is the selected cells' texts as a spreadsheet copies them.
-func (b *Bridge) cellsText() (string, bool) {
-	rows, ok := b.selectedCells()
-	if !ok {
-		return "", false
-	}
-	var text strings.Builder
-	for _, row := range b.Controller.CellTexts(rows) {
-		text.WriteString(strings.Join(row, "\t"))
-		text.WriteByte('\n')
-	}
-	return text.String(), true
-}
-
-// clearCells empties the selected cells.
-func (b *Bridge) clearCells() bool {
-	rows, ok := b.selectedCells()
-	if !ok {
-		return false
-	}
-	var cells []model.NodeID
-	for _, row := range rows {
-		cells = append(cells, row...)
-	}
-	_, _ = b.Controller.ClearTableCells(cells)
-	return true
+	picked, _ := b.Controller.PickCell(table, row, column, mods&ui.Shift != 0, mods&ui.Cmd != 0)
+	return picked
 }
 
 // cellsFade is how quickly a picked cell's tint and ring come and go,

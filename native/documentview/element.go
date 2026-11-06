@@ -426,11 +426,8 @@ func (e *Element) handleInput(event ui.InputEvent) bool {
 				}
 				return true
 			}
-			if handled, ok := e.figureKey(event); handled {
-				return ok
-			}
-			if handled, ok := e.cellsKey(event); handled {
-				return ok
+			if e.figureGesture(event) {
+				return true
 			}
 		}
 		return e.Input.Keymap(event)
@@ -659,7 +656,7 @@ func (e *Element) paint(p *ui.Painter, rect ui.Rect, focused, animate bool) {
 		Drop:              &e.drop,
 		HoverFigure:       e.hover,
 		Resizing:          e.resizing,
-		TableCells:        bridge.Cells,
+		TableCells:        bridge.pickedCells(),
 		TableDrag:         e.tables.drag,
 		TableMade:         e.tables.made,
 	}

@@ -46,7 +46,9 @@ type Session struct {
 	// armed is a deletion waiting for its second press.
 	armed *armed
 	// absorb is text the last reshape already typed.
-	absorb        *absorbing
+	absorb *absorbing
+	// cells are the cells of a table picked whole, if any are.
+	cells         *CellSelection
 	pairs         []PairSpan
 	pairsValid    bool
 	pairsRelevant bool

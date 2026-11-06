@@ -107,3 +107,31 @@ func (c *DocumentController) selectWith(selectIt func() error) error {
 	c.setStatus(kernel.OutcomeHandled, false, nil)
 	return nil
 }
+
+// Cells returns the cells of a table picked whole, if any are.
+func (c *DocumentController) Cells() (editor.CellSelection, bool) { return c.session.Cells() }
+
+// SelectCells picks cells whole.
+func (c *DocumentController) SelectCells(cells editor.CellSelection) error {
+	return c.selectWith(func() error { return c.session.SelectCells(cells) })
+}
+
+// DropCells lets the cells picked whole go.
+func (c *DocumentController) DropCells() { c.session.DropCells() }
+
+// PickLines picks a table's row or column as a grip's click does.
+func (c *DocumentController) PickLines(table model.NodeID, kind editor.CellsKind, index int, extend, toggle bool) error {
+	return c.selectWith(func() error { return c.session.PickLines(table, kind, index, extend, toggle) })
+}
+
+// PickCell picks a cell as an extending or toggling click in it does,
+// reporting whether it did.
+func (c *DocumentController) PickCell(table model.NodeID, row, column int, extend, toggle bool) (bool, error) {
+	picked := false
+	err := c.selectWith(func() error {
+		var err error
+		picked, err = c.session.PickCell(table, row, column, extend, toggle)
+		return err
+	})
+	return picked, err
+}

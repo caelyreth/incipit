@@ -3,6 +3,7 @@
 package documentview
 
 import (
+	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 	"github.com/caelyreth/neverland/native/motion"
@@ -57,7 +58,7 @@ type State struct {
 	Resizing     *figureResize
 	// TableCells are the cells selected whole, and TableDrag a drag of a
 	// table's grip or corner under way.
-	TableCells *CellSelection
+	TableCells *editor.CellSelection
 	TableDrag  *tableDrag
 	// TableMade is the row or column a create area just made.
 	TableMade *tableMade

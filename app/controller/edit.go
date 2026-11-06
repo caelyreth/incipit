@@ -70,6 +70,9 @@ func (c *DocumentController) ReplaceSelection(
 
 // SelectedText returns the visible text covered by the primary selection.
 func (c *DocumentController) SelectedText() (string, error) {
+	if _, ok := c.session.Cells(); ok && c.preedit == nil {
+		return c.session.SelectedText()
+	}
 	selection := c.Selection().Range
 	if selection.Empty() {
 		return "", nil
@@ -97,6 +100,18 @@ func (c *DocumentController) SelectedText() (string, error) {
 	// The page's text as a reader takes it: an atomic block's object is
 	// no text.
 	return c.session.ReadableText(aligned)
+}
+
+// Cut copies the selection's text, as SelectedText reads it, and takes it
+// away: picked cells are emptied, any other selection deleted.
+func (c *DocumentController) Cut() (string, error) {
+	if c.preedit != nil {
+		return "", c.fail(editor.ErrCompositionActive)
+	}
+	c.resetPreferredColumn()
+	text, outcome, err := c.session.Cut()
+	_, err = c.finishCommand(outcome.Outcome, err)
+	return text, err
 }
 
 // SelectSemantic installs a version-valid semantic selection.

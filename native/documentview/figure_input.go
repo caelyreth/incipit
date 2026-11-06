@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/engine/editor"
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
@@ -183,40 +182,24 @@ func (e *Element) selectedFigure() (textlayout.PlacedFigure, bool) {
 	return textlayout.PlacedFigure{}, false
 }
 
-// figureKey handles the keys a selected figure takes before the keymap:
-// Return goes on below it, Escape leaves it with the caret at its
-// caption's end.
-func (e *Element) figureKey(event ui.InputEvent) (bool, bool) {
+// figureGesture takes the keys a figure's own gestures hold before the
+// keymap: a resize takes every key, Escape setting it down, and Space on a
+// selected figure looks at its picture, as the system's file views do.
+// Leaving it, or breaking below it, is the engine's (SelectionObject).
+func (e *Element) figureGesture(event ui.InputEvent) bool {
 	if e.resizing != nil {
 		if event.Key == ui.KeyEscape {
 			e.resizing = nil
 		}
-		return true, true
+		return true
 	}
-	figure, ok := e.selectedFigure()
-	if !ok || event.Mods != 0 {
-		return false, false
+	if event.Key != ui.KeySpace || event.Mods != 0 {
+		return false
 	}
-	bridge := e.Input.(*Bridge)
-	switch event.Key {
-	case ui.KeySpace:
-		// Space looks at the picture, as in the system's file views.
-		if bridge.viewSelectedFigure() {
-			return true, true
-		}
-		return false, false
-	case ui.KeyEnter, ui.KeyEscape:
-	default:
-		return false, false
+	if _, ok := e.selectedFigure(); !ok {
+		return false
 	}
-	end := int(figure.Line.End)
-	if err := bridge.Controller.SetSelection(controller.UTF16Range{Start: end, End: end}); err != nil {
-		return true, false
-	}
-	if event.Key == ui.KeyEscape {
-		return true, true
-	}
-	return true, e.Input.Keymap(event)
+	return e.Input.(*Bridge).viewSelectedFigure()
 }
 
 // figureAnnouncement is what a screen reader reads as a figure becomes

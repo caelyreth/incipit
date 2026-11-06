@@ -42,9 +42,7 @@ type Bridge struct {
 	// their work began.
 	Mounted func() bool
 	// Figures does what a figure's menu asks that the page cannot.
-	Figures FigureHost
-	// Cells are the cells of a table selected whole, if any are.
-	Cells    *CellSelection
+	Figures  FigureHost
 	Now      func() time.Time
 	native   *NativeTextClient
 	detached bool
@@ -186,10 +184,6 @@ func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 		if b.copyFigure() {
 			return nil
 		}
-		if text, ok := b.cellsText(); ok {
-			b.Services.WriteClipboard(text)
-			return nil
-		}
 		text, err := b.Controller.SelectedText()
 		if err != nil {
 			return err
@@ -201,23 +195,9 @@ func (b *Bridge) clipboard(command keymap.ClipboardCommand) error {
 			_, err := b.Controller.ReplaceSelection("", kernel.EventOriginSemantic)
 			return err
 		}
-		if text, ok := b.cellsText(); ok {
-			b.Services.WriteClipboard(text)
-			b.clearCells()
-			return nil
-		}
-		text, err := b.Controller.SelectedText()
-		if err != nil {
+		text, err := b.Controller.Cut()
+		if err != nil || text == "" {
 			return err
-		}
-		if text != "" {
-			outcome, err := b.Controller.ReplaceSelection("", kernel.EventOriginSemantic)
-			if err != nil {
-				return err
-			}
-			if outcome != kernel.OutcomeHandled {
-				return nil
-			}
 		}
 		b.Services.WriteClipboard(text)
 		return nil

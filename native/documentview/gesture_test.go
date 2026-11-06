@@ -225,7 +225,7 @@ func TestTableGripClicksDoNotStartDrag(t *testing.T) {
 			}
 			if label != "Resize table" {
 				bridge := e.Input.(*Bridge)
-				if bridge.Cells == nil {
+				if !bridge.hasCells() {
 					t.Fatal("click did not select cells")
 				}
 			}

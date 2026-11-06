@@ -810,9 +810,9 @@ func (e *Element) followGrip(handle ui.Element, bridge *Bridge, placed textlayou
 	e.focusPending = true
 	switch kind {
 	case dragRow:
-		bridge.pickLines(first, pickedRows, from, handle.ClickModifiers())
+		bridge.pickLines(first, editor.PickedRows, from, handle.ClickModifiers())
 	case dragColumn:
-		bridge.pickLines(first, pickedColumns, from, handle.ClickModifiers())
+		bridge.pickLines(first, editor.PickedColumns, from, handle.ClickModifiers())
 	case dragCorner:
 		_ = bridge.Controller.SelectTable(first)
 	}
@@ -852,15 +852,15 @@ func (b *Bridge) pasteTable(text string) bool {
 		return false
 	}
 	head := b.Controller.Session().Selection().Head().Node()
-	if b.Cells != nil {
-		if table, ok := b.tableShape(b.Cells.Table); ok {
-			if picked := b.Cells.Picked(table); len(picked) > 0 {
+	if cells, ok := b.Controller.Cells(); ok {
+		if table, ok := b.tableShape(cells.Table); ok {
+			if picked := cells.Picked(table); len(picked) > 0 {
 				head = picked[0][0]
 			}
 		}
 	}
 	if _, inTable := b.Controller.Table(head); inTable {
-		b.Cells = nil
+		b.Controller.DropCells()
 		_, _ = b.Controller.FillTable(head, rows)
 		return true
 	}
@@ -897,7 +897,7 @@ func (e *Element) dragCells(bridge *Bridge, x, y float32) bool {
 	}
 	table, row, column, ok := e.cellAt(x, y)
 	if !ok || table != e.tables.pressTable {
-		return bridge.Cells != nil
+		return bridge.hasCells()
 	}
 	shape, ok := bridge.tableShape(table)
 	if !ok {
@@ -905,37 +905,15 @@ func (e *Element) dragCells(bridge *Bridge, x, y float32) bool {
 	}
 	pressRow, pressColumn, _ := shape.Find(e.tables.press)
 	if pressRow == row && pressColumn == column {
-		if bridge.Cells == nil {
+		if !bridge.hasCells() {
 			return false
 		}
-		bridge.Cells = nil
+		bridge.Controller.DropCells()
 		return false
 	}
-	bridge.selectCells(cellRect(table, [2]int{pressRow, pressColumn}, [2]int{row, column}))
+	_ = bridge.Controller.SelectCells(editor.CellRect(table, [2]int{pressRow, pressColumn}, [2]int{row, column}))
 	e.pointer = pointerSelecting
 	return true
-}
-
-// cellsKey handles the keys a selection of whole cells takes before the
-// keymap: Delete and Backspace empty them, Escape lets them go; any other
-// key lets them go and goes on as it would.
-func (e *Element) cellsKey(event ui.InputEvent) (bool, bool) {
-	bridge, ok := e.Input.(*Bridge)
-	if !ok || bridge == nil || bridge.Cells == nil {
-		return false, false
-	}
-	switch {
-	case event.Key == ui.KeyBackspace || event.Key == ui.KeyDelete:
-		return true, bridge.clearCells()
-	case event.Key == ui.KeyEscape:
-		bridge.Cells = nil
-		return true, true
-	case event.Mods&(ui.Cmd|ui.Ctrl) != 0:
-		// Copying and the like read the cells.
-		return false, false
-	}
-	bridge.Cells = nil
-	return false, false
 }
 
 // tableMenu fills a table's menu for the cell at the caret, or the cells
@@ -951,8 +929,8 @@ func (e *Element) tableMenu(m *ui.Menu, bridge *Bridge) bool {
 	}
 	row, column, _ := table.Find(head)
 	rowsAt, columnsAt := []int{row}, []int{column}
-	if bridge.Cells != nil && bridge.Cells.Table == table.First() {
-		rowsAt, columnsAt = bridge.Cells.spans(table)
+	if cells, ok := bridge.Controller.Cells(); ok && cells.Table == table.First() {
+		rowsAt, columnsAt = cells.Spans(table)
 	}
 	m.EditItems()
 	m.Separator()
@@ -966,7 +944,7 @@ func (e *Element) tableMenu(m *ui.Menu, bridge *Bridge) bool {
 	rows.deleteRows(m)
 	columns.deleteColumns(m)
 	if m.Item("Delete Table").Chosen() {
-		bridge.Cells = nil
+		bridge.Controller.DropCells()
 		_, _ = bridge.Controller.DeleteTable(table.First())
 	}
 	return true
@@ -975,12 +953,12 @@ func (e *Element) tableMenu(m *ui.Menu, bridge *Bridge) bool {
 // gripLines are the rows, or the columns, a grip's menu acts on: those
 // picked, when its own is among them, or else its own, which it picks as
 // the menu opens.
-func gripLines(bridge *Bridge, table editor.Table, kind cellsKind, line int) tableLines {
+func gripLines(bridge *Bridge, table editor.Table, kind editor.CellsKind, line int) tableLines {
 	first := table.First()
-	if cells := bridge.Cells; cells != nil && cells.Table == first && cells.Kind == kind && slices.Contains(cells.Lines, line) {
+	if cells, ok := bridge.Controller.Cells(); ok && cells.Table == first && cells.Kind == kind && slices.Contains(cells.Lines, line) {
 		return tableLines{bridge, table, slices.Clone(cells.Lines)}
 	}
-	bridge.selectCells(CellSelection{Table: first, Kind: kind, Lines: []int{line}, Anchor: [2]int{line}})
+	_ = bridge.Controller.SelectCells(editor.CellSelection{Table: first, Kind: kind, Lines: []int{line}, Anchor: [2]int{line}})
 	return tableLines{bridge, table, []int{line}}
 }
 
@@ -990,7 +968,7 @@ func (e *Element) rowMenu(m *ui.Menu, bridge *Bridge, first model.NodeID, row in
 	if !ok || row >= len(table.Rows) {
 		return
 	}
-	rows := gripLines(bridge, table, pickedRows, row)
+	rows := gripLines(bridge, table, editor.PickedRows, row)
 	rows.insertRows(m)
 	if slices.Equal(rows.lines, []int{0}) {
 		m.Separator()
@@ -1005,7 +983,7 @@ func (e *Element) columnMenu(m *ui.Menu, bridge *Bridge, first model.NodeID, col
 	if !ok || column >= table.Columns() {
 		return
 	}
-	columns := gripLines(bridge, table, pickedColumns, column)
+	columns := gripLines(bridge, table, editor.PickedColumns, column)
 	columns.insertColumns(m)
 	m.Separator()
 	columns.columnShape(m)
@@ -1098,7 +1076,7 @@ func (l tableLines) deleteRows(m *ui.Menu) {
 		label = "Delete Rows"
 	}
 	if m.Item(label).Chosen() {
-		l.bridge.Cells = nil
+		l.bridge.Controller.DropCells()
 		for _, run := range l.runs() {
 			_, _ = l.bridge.Controller.DeleteTableRows(l.table.First(), run[0], run[1])
 		}
@@ -1111,7 +1089,7 @@ func (l tableLines) deleteColumns(m *ui.Menu) {
 		label = "Delete Columns"
 	}
 	if m.Item(label).Chosen() {
-		l.bridge.Cells = nil
+		l.bridge.Controller.DropCells()
 		for _, run := range l.runs() {
 			_, _ = l.bridge.Controller.DeleteTableColumns(l.table.First(), run[0], run[1])
 		}
@@ -1338,13 +1316,13 @@ func (e *Element) pressTable(event ui.InputEvent) bool {
 		return false
 	}
 	table, row, column, inTable := e.cellAt(event.X, event.Y)
-	if event.Button != 0 && bridge.Cells != nil && inTable && bridge.Cells.Table == table && bridge.Cells.Has(row, column) {
+	if cells, ok := bridge.Controller.Cells(); event.Button != 0 && ok && inTable && cells.Table == table && cells.Has(row, column) {
 		return false
 	}
 	if inTable && event.Button == 0 && event.Clicks < 2 && bridge.pickCell(table, row, column, event.Mods) {
 		return true
 	}
-	bridge.Cells = nil
+	bridge.Controller.DropCells()
 	if !inTable || event.Button != 0 {
 		return false
 	}

@@ -136,7 +136,7 @@ func (e *Element) stepViewport(now time.Time, animate bool) bool {
 // comes into view.
 func (e *Element) followDragEdge(c *ui.Context) {
 	bridge, _ := e.Input.(*Bridge)
-	selecting := e.pointer == pointerSelecting && (bridge == nil || bridge.Cells == nil)
+	selecting := e.pointer == pointerSelecting && !bridge.hasCells()
 	if !selecting && e.carry == nil || e.current == nil || e.Motion == nil {
 		e.edgeAt = time.Time{}
 		return

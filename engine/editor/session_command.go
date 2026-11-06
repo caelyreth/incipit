@@ -41,7 +41,10 @@ func (s *Session) Do(intent Intent, now time.Time) (EditingOutcome, error) {
 		return EditingOutcome{Outcome: kernel.OutcomeHandled, Revision: before}, nil
 	}
 	s.absorb = nil
-	outcome, err := s.resolve(intent, now)
+	outcome, took, err := s.resolveKind(intent)
+	if !took && err == nil {
+		outcome, err = s.resolve(intent, now)
+	}
 	if err != nil {
 		return EditingOutcome{}, err
 	}
