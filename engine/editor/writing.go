@@ -498,7 +498,7 @@ func (i *EditorInvoker) invokeBlockTrigger(context *kernel.RuleContext) (kernel.
 	if err != nil {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
-	i.placeHead(node.ID(), 0, document)
+	i.land(node.ID(), 0, document)
 	if opened.kind == RuleNode {
 		return i.paragraphAfter(document, node.ID())
 	}
@@ -529,7 +529,7 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 		if err := document.ReplaceTextMarked(node.ID(), 0, 0, text, i.active); err != nil {
 			return fail(err)
 		}
-		i.placeHead(node.ID(), model.UTF16Offset(model.StringLenUTF16(text)), document)
+		i.land(node.ID(), model.UTF16Offset(model.StringLenUTF16(text)), document)
 		return kernel.OutcomeHandled, nil
 	case text != "\n":
 		return kernel.OutcomePass, nil
@@ -550,7 +550,7 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 		if err := shapeBlock(document, plain, blockShape{kind: ParagraphNode}); err != nil {
 			return fail(err)
 		}
-		i.placeHead(carried, 0, document)
+		i.land(carried, 0, document)
 		return kernel.OutcomeHandled, nil
 	case literalBlock(node):
 		content := node.Text().String()
@@ -558,7 +558,7 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 			if err := document.ReplaceTextMarked(node.ID(), at, at, "\n", nil); err != nil {
 				return fail(err)
 			}
-			i.placeHead(node.ID(), at+1, document)
+			i.land(node.ID(), at+1, document)
 			return kernel.OutcomeHandled, nil
 		}
 		// A break on an empty last line leaves the code.
@@ -589,17 +589,14 @@ func (i *EditorInvoker) paragraphAfter(document *model.DocumentDraft, node model
 	if err != nil {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
-	i.placeHead(created, 0, document)
+	i.land(created, 0, document)
 	return kernel.OutcomeHandled, nil
 }
 
-// placeHead puts the caret at offset in node once the edit is written,
+// land proposes the caret at offset in node once the edit is written,
 // carried only through what is written after this.
-func (i *EditorInvoker) placeHead(node model.NodeID, offset model.UTF16Offset, document *model.DocumentDraft) {
-	i.correctionEffectNode = node
-	i.correctionEffectHead = offset
-	i.hasCorrectionEffect = true
-	i.correctionEffectThrough = document.TextEditCount()
+func (i *EditorInvoker) land(node model.NodeID, offset model.UTF16Offset, document *model.DocumentDraft) {
+	i.proposal.land(Landing{Node: node, Head: offset, Through: document.TextEditCount()})
 }
 
 // invokeBlockNotation reads an edit of a block's projected notation back

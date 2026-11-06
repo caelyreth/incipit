@@ -487,8 +487,7 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 	}
 	beforeRevision := s.runtime.Revision()
 	s.invoker.ActivateMark(resolved.ActiveMarkID)
-	s.invoker.hasCorrectionEffect = false
-	s.invoker.correctionEffectThrough = 0
+	s.invoker.proposal.reset()
 	s.invoker.corrections.Clear()
 	var candidate Presentation
 	transaction, err := s.runtime.DispatchPreparedBatchWithInvoker(
@@ -512,27 +511,21 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 			// marker or a refinement left it, carried through everything
 			// written after the input itself, as a block split.
 			target := inputValue.Input().Target()
-			insertedHead := target.RangeUTF16().Start +
-				model.UTF16Offset(model.StringLenUTF16(inputValue.Input().Text()))
-			through := len(changes.TextEdits())
-			headNode := target.Node()
-			if edit.UTF16Range.Empty() || resolved.VisualSelection == nil || !inputValue.ApplyText() {
-				if action, ok := s.invoker.LastMarker(); ok && action.Handled && !action.Exited {
-					insertedHead = action.Head
-				} else if s.invoker.hasCorrectionEffect {
-					insertedHead = s.invoker.correctionEffectHead
-					if s.invoker.correctionEffectNode != 0 {
-						headNode = s.invoker.correctionEffectNode
-					}
-				}
-				through = min(s.invoker.correctionEffectThrough, len(changes.TextEdits()))
-			} else {
+			edits := len(changes.TextEdits())
+			landing, lands := s.invoker.proposal.Landing()
+			if !lands {
+				landing = Landing{Head: target.RangeUTF16().Start +
+					model.UTF16Offset(model.StringLenUTF16(inputValue.Input().Text()))}
+			}
+			head, through := landing.anchor(target.Node(), beforeRevision, edits)
+			if !edit.UTF16Range.Empty() && resolved.VisualSelection != nil && inputValue.ApplyText() {
+				head = model.NewTextAnchor(target.Node(), target.RangeUTF16().Start+
+					model.UTF16Offset(model.StringLenUTF16(inputValue.Input().Text())), model.AffinityRight, beforeRevision)
 				through, err = textEditThrough(changes.TextEdits(), target)
 				if err != nil {
 					return struct{}{}, err
 				}
 			}
-			head := model.NewTextAnchor(headNode, insertedHead, model.AffinityRight, beforeRevision)
 			next, err := s.editedPresentation(
 				view,
 				configuration,
@@ -671,8 +664,7 @@ func (s *Session) applySpanEdit(
 	}
 	events = append(append(events, kernel.NewSpanEvent(span, origin)), after...)
 	s.invoker.ActivateMark(nil)
-	s.invoker.hasCorrectionEffect = false
-	s.invoker.correctionEffectThrough = 0
+	s.invoker.proposal.reset()
 	s.invoker.corrections.Clear()
 	var candidate Presentation
 	transaction, err := s.runtime.DispatchPreparedBatchWithInvoker(
@@ -693,12 +685,8 @@ func (s *Session) applySpanEdit(
 				}
 			}
 			edits := changes.TextEdits()
-			headNode := from.Node()
-			if s.invoker.correctionEffectNode != 0 {
-				headNode = s.invoker.correctionEffectNode
-			}
-			head := model.NewTextAnchor(headNode, s.invoker.correctionEffectHead, model.AffinityRight, beforeRevision)
-			through := min(s.invoker.correctionEffectThrough, len(edits))
+			landing, _ := s.invoker.proposal.Landing()
+			head, through := landing.anchor(from.Node(), beforeRevision, len(edits))
 			// The head stands in the first block once the span has joined;
 			// only what was written after the replacement moves it.
 			next, err := s.editedPresentation(view, configuration, head, edits[through:], nil, nil)

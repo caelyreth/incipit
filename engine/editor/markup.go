@@ -658,15 +658,10 @@ func wrapProjectionError(err error) error {
 // EditorInvoker executes text replace and markup rules against one engine
 // draft. Active and last-marker fields are session-owned facts.
 type EditorInvoker struct {
-	active    *model.MarkID
-	lastMark  MarkerAction
-	hasMarker bool
-	// correctionEffectNode, when set, is the block the caret goes to,
-	// rather than the one the input targeted.
-	correctionEffectNode    model.NodeID
-	correctionEffectHead    model.UTF16Offset
-	hasCorrectionEffect     bool
-	correctionEffectThrough int
+	active *model.MarkID
+	// proposal is what the rules of the current dispatch propose besides
+	// their edits.
+	proposal Proposal
 	// corrections are the document edits refinement observers made in
 	// the current dispatch, published as feedback once it succeeds.
 	corrections CorrectionLog
@@ -683,11 +678,6 @@ func (i *EditorInvoker) ActivateMark(id *model.MarkID) {
 	i.active = cloneMarkPointer(id)
 }
 
-// LastMarker returns the last handled marker action.
-func (i *EditorInvoker) LastMarker() (MarkerAction, bool) {
-	return i.lastMark, i.hasMarker
-}
-
 // Invoke implements kernel.EngineInvoker for the implemented editor rules.
 func (i *EditorInvoker) Invoke(
 	rule *kernel.LinkedRule,
@@ -698,10 +688,7 @@ func (i *EditorInvoker) Invoke(
 		return kernel.OutcomePass, nil
 	}
 	if rule.Phase.Kind == kernel.RulePhaseKindHandle {
-		i.lastMark = MarkerAction{}
-		i.hasMarker = false
-		i.hasCorrectionEffect = false
-		i.correctionEffectNode = 0
+		i.proposal.reset()
 	}
 	switch rule.Key.Owner {
 	case TextPolicyID:
@@ -754,9 +741,10 @@ func (i *EditorInvoker) invokeText(context *kernel.RuleContext) (kernel.Outcome,
 	if !handled {
 		return kernel.OutcomePass, nil
 	}
-	i.correctionEffectHead = start + model.UTF16Offset(model.StringLenUTF16(input.Text()))
-	i.hasCorrectionEffect = true
-	i.correctionEffectThrough = min(beforeEdits+1, document.TextEditCount())
+	i.proposal.land(Landing{
+		Head:    start + model.UTF16Offset(model.StringLenUTF16(input.Text())),
+		Through: min(beforeEdits+1, document.TextEditCount()),
+	})
 	if node, _ := document.Node(input.Target().Node()); blockKeepsLines(node) {
 		return kernel.OutcomeHandled, nil
 	}
@@ -805,8 +793,10 @@ func (i *EditorInvoker) invokeMarker(context *kernel.RuleContext) (kernel.Outcom
 			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 		}
 	}
-	i.lastMark = action
-	i.hasMarker = true
+	if !action.Exited {
+		// The marker's head reads the block as it was before it wrote.
+		i.proposal.land(Landing{Head: action.Head})
+	}
 	switch {
 	case action.Exited, action.Kind == MarkerEnclose, action.Kind == MarkerFormulaBlock:
 		i.active = nil
@@ -966,9 +956,7 @@ func (i *EditorInvoker) invokePair(
 			return 0, err
 		}
 	}
-	i.correctionEffectHead = plan.Head
-	i.hasCorrectionEffect = true
-	i.correctionEffectThrough = document.TextEditCount()
+	i.proposal.land(Landing{Head: plan.Head, Through: document.TextEditCount()})
 	return kernel.OutcomeHandled, nil
 }
 
@@ -989,7 +977,7 @@ func (i *EditorInvoker) invokeCorrection(
 	nodeID := input.Target().Node()
 	node, ok := document.Node(nodeID)
 	if !ok || !node.TextPresent() || literalAt(node, i.active) ||
-		i.correctionEffectNode != 0 && i.correctionEffectNode != nodeID {
+		i.landsElsewhere(nodeID) {
 		return kernel.OutcomePass, nil
 	}
 	var batches []CorrectionBatch
@@ -1003,7 +991,7 @@ func (i *EditorInvoker) invokeCorrection(
 			return kernel.OutcomePass, nil
 		}
 		text := node.Text().String()
-		plan, ok := PlanTypography(text, i.lastCorrectionHead(text, nodeID, input), settings)
+		plan, ok := PlanTypography(text, i.correctionHead(input, document.TextEditCount()), settings)
 		if !ok {
 			return kernel.OutcomePass, nil
 		}
@@ -1048,13 +1036,18 @@ func (i *EditorInvoker) invokeCorrection(
 	return kernel.OutcomeHandled, nil
 }
 
-func (i *EditorInvoker) lastCorrectionHead(
-	_ string,
-	node model.NodeID,
-	input kernel.TextInput,
-) model.UTF16Offset {
-	if i.hasCorrectionEffect {
-		return i.correctionEffectHead
+// landsElsewhere reports whether the caret was proposed to land in a block
+// other than node, which refining node would not follow.
+func (i *EditorInvoker) landsElsewhere(node model.NodeID) bool {
+	landing, ok := i.proposal.Landing()
+	return ok && landing.Node != 0 && landing.Node != node
+}
+
+// correctionHead is where the caret stands in the text a refinement reads:
+// the proposed landing when it reads that text, else after the input.
+func (i *EditorInvoker) correctionHead(input kernel.TextInput, edits int) model.UTF16Offset {
+	if landing, ok := i.proposal.Landing(); ok && landing.current(edits) {
+		return landing.Head
 	}
 	return input.Target().RangeUTF16().Start +
 		model.UTF16Offset(model.StringLenUTF16(input.Text()))

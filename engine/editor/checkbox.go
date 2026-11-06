@@ -31,7 +31,7 @@ func (i *EditorInvoker) openCheckbox(document *model.DocumentDraft, node *model.
 	if err := document.ReplaceTextMarked(node.ID(), 0, length, "", nil); err != nil {
 		return 0, true, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
-	i.placeHead(node.ID(), 0, document)
+	i.land(node.ID(), 0, document)
 	return kernel.OutcomeHandled, true, nil
 }
 

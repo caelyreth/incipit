@@ -552,7 +552,7 @@ func (i *EditorInvoker) cellBreak(document *model.DocumentDraft, node model.Node
 	if row+1 < len(table.Rows) {
 		below := table.Rows[row+1][column]
 		current, _ := document.Node(below)
-		i.placeHead(below, blockLength(current), document)
+		i.land(below, blockLength(current), document)
 		return kernel.OutcomeHandled, nil
 	}
 	if len(table.Rows) > 1 && emptyRow(document, table.Rows[row]) {
@@ -563,7 +563,7 @@ func (i *EditorInvoker) cellBreak(document *model.DocumentDraft, node model.Node
 		next := blockIndex(document, left.Last()) + 1
 		if blocks := draftBlocks(document); next < len(blocks) {
 			if after, _ := document.Node(blocks[next]); after.Kind() == ParagraphNode && blockLength(after) == 0 {
-				i.placeHead(after.ID(), 0, document)
+				i.land(after.ID(), 0, document)
 				return kernel.OutcomeHandled, nil
 			}
 		}
@@ -573,7 +573,7 @@ func (i *EditorInvoker) cellBreak(document *model.DocumentDraft, node model.Node
 	if err != nil {
 		return fail(err)
 	}
-	i.placeHead(grown.Rows[len(grown.Rows)-1][column], 0, document)
+	i.land(grown.Rows[len(grown.Rows)-1][column], 0, document)
 	return kernel.OutcomeHandled, nil
 }
 
@@ -596,7 +596,7 @@ func (i *EditorInvoker) openTable(document *model.DocumentDraft, node *model.Nod
 	if err := i.writingRoom(document, table); err != nil {
 		return fail(err)
 	}
-	i.placeHead(table.Rows[1][0], 0, document)
+	i.land(table.Rows[1][0], 0, document)
 	return kernel.OutcomeHandled, true, nil
 }
 
@@ -648,18 +648,18 @@ func (i *EditorInvoker) tableSpan(
 			if err := document.RemoveNode(first); err != nil {
 				return fail(err)
 			}
-			i.placeHead(last, 0, document)
+			i.land(last, 0, document)
 		case tail.Kind() != CellNode && blockLength(tail) == 0:
 			if err := document.RemoveNode(last); err != nil {
 				return fail(err)
 			}
-			i.placeHead(first, start, document)
+			i.land(first, start, document)
 		default:
 			// Backspace and Delete alike step across the break; which way
 			// is the caret's, and the session's guard (guardTable) handles
 			// the delete that would merge, so here the caret goes to the
 			// start of the cell or block after.
-			i.placeHead(last, 0, document)
+			i.land(last, 0, document)
 		}
 		return kernel.OutcomeHandled, nil
 	}
@@ -700,7 +700,7 @@ func (i *EditorInvoker) tableSpan(
 			if err := document.ReplaceTextMarked(first, 0, 0, text, nil); err != nil {
 				return fail(err)
 			}
-			i.placeHead(first, model.UTF16Offset(model.StringLenUTF16(text)), document)
+			i.land(first, model.UTF16Offset(model.StringLenUTF16(text)), document)
 			return kernel.OutcomeHandled, nil
 		}
 	}
@@ -729,7 +729,7 @@ func (i *EditorInvoker) tableSpan(
 	if err := document.ReplaceTextMarked(target, at, at, text, nil); err != nil {
 		return fail(err)
 	}
-	i.placeHead(target, at+model.UTF16Offset(model.StringLenUTF16(text)), document)
+	i.land(target, at+model.UTF16Offset(model.StringLenUTF16(text)), document)
 	return kernel.OutcomeHandled, nil
 }
 

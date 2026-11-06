@@ -106,9 +106,10 @@ func (i *EditorInvoker) joinSpan(
 	if err := document.ReplaceTextMarked(first, start, start, text, nil); err != nil {
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
-	i.correctionEffectHead = start + model.UTF16Offset(model.StringLenUTF16(text))
-	i.hasCorrectionEffect = true
-	i.correctionEffectThrough = document.TextEditCount()
+	i.proposal.land(Landing{
+		Head:    start + model.UTF16Offset(model.StringLenUTF16(text)),
+		Through: document.TextEditCount(),
+	})
 	// The joined block breaks at every line break it now holds, the ones
 	// code it took in brought too, unless it keeps lines itself.
 	if joined, _ := document.Node(first); !blockKeepsLines(joined) {
