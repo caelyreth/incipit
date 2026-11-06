@@ -123,7 +123,7 @@ func TestSessionOffersNoTabWhileMarkerNotationIsSelected(t *testing.T) {
 	if session.Presentation().VisualCollapsed() {
 		t.Fatal("marker-only selection reported visually collapsed")
 	}
-	if next, ok := session.leaveStep(time.Unix(1_700_000_000, 0)); ok {
+	if next, ok := session.stepFor(Leave, time.Unix(1_700_000_000, 0)); ok {
 		t.Fatalf("Leave step while marker selected: %#v", next)
 	}
 }

@@ -3,6 +3,7 @@ package editor
 import (
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
@@ -248,38 +249,6 @@ func (s *Session) selectedObject() (model.UTF16Range, bool) {
 	return model.UTF16Range{}, false
 }
 
-// resolveKind resolves an intent on the selection's kind before anything
-// else does, reporting whether that took it.
-func (s *Session) resolveKind(intent Intent) (EditingOutcome, bool, error) {
-	if rows, ok := s.pickedCells(); ok {
-		switch intent.Kind {
-		case IntentDelete:
-			var cells []model.NodeID
-			for _, row := range rows {
-				cells = append(cells, row...)
-			}
-			outcome, err := s.ClearTableCells(cells)
-			return EditingOutcome{Outcome: outcome}, true, err
-		case IntentDismiss:
-			s.cells = nil
-			return EditingOutcome{Outcome: kernel.OutcomeHandled}, true, nil
-		}
-		s.cells = nil
-		return EditingOutcome{}, false, nil
-	}
-	if line, ok := s.selectedObject(); ok && (intent.Kind == IntentDismiss || intent.Kind == IntentBreak && !intent.Soft) {
-		// An object is left at its caption's end; a break there goes on
-		// below it.
-		if err := s.SelectProjected(line.End, line.End); err != nil {
-			return EditingOutcome{}, true, err
-		}
-		if intent.Kind == IntentDismiss {
-			return EditingOutcome{Outcome: kernel.OutcomeHandled}, true, nil
-		}
-	}
-	return EditingOutcome{}, false, nil
-}
-
 // SelectedText is the selection's text as copying takes it: picked cells
 // as a spreadsheet copies them, else the page's text across it as a reader
 // takes it.
@@ -314,10 +283,7 @@ func (s *Session) Cut() (string, EditingOutcome, error) {
 	if err != nil || text == "" {
 		return text, EditingOutcome{Outcome: kernel.OutcomePass}, err
 	}
-	if _, ok := s.pickedCells(); ok {
-		outcome, _, err := s.resolveKind(Delete(ByGrapheme, Backward))
-		return text, outcome, err
-	}
-	outcome, err := s.replaceSelection("", kernel.EventOriginSemantic)
+	// Deleting takes the selection as its kind does.
+	outcome, err := s.Do(Delete(ByGrapheme, Backward), time.Time{})
 	return text, outcome, err
 }

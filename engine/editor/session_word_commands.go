@@ -4,6 +4,7 @@ import (
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/kernel/projection"
 	"github.com/caelyreth/neverland/engine/model"
+	"time"
 )
 
 // doWord applies word movement, deletion, or enclosing-unit selection.
@@ -47,7 +48,8 @@ func (s *Session) doWord(command wordOp) (kernel.Outcome, error) {
 	// into the next block as a character step would.
 	if beyond, ok := wordStepBeyond(command); ok && !plan.Delete && plan.Head == selection.Head().OffsetUTF16() ||
 		ok && plan.Delete && plan.DeleteAt.Empty() {
-		return s.doText(beyond)
+		outcome, err := s.answer(beyond, time.Time{})
+		return outcome.Outcome, err
 	}
 	if plan.Delete {
 		if plan.DeleteAt.Empty() {
@@ -97,24 +99,24 @@ func (s *Session) doWord(command wordOp) (kernel.Outcome, error) {
 	))
 }
 
-// wordStepBeyond is the character command that continues a word command past
-// a block's edge.
-func wordStepBeyond(command wordOp) (textOp, bool) {
+// wordStepBeyond is the character intent that continues a word command
+// past a block's edge, answered as that intent is anywhere.
+func wordStepBeyond(command wordOp) (Intent, bool) {
 	switch command {
 	case wordPrevious:
-		return textLeft, true
+		return Move(ByGrapheme, Backward, false), true
 	case wordNext:
-		return textRight, true
+		return Move(ByGrapheme, Forward, false), true
 	case wordExtendPrevious:
-		return textSelectLeft, true
+		return Move(ByGrapheme, Backward, true), true
 	case wordExtendNext:
-		return textSelectRight, true
+		return Move(ByGrapheme, Forward, true), true
 	case wordDeletePrevious:
-		return textBackspace, true
+		return Delete(ByGrapheme, Backward), true
 	case wordDeleteNext:
-		return textDelete, true
+		return Delete(ByGrapheme, Forward), true
 	default:
-		return 0, false
+		return Intent{}, false
 	}
 }
 

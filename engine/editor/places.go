@@ -1,7 +1,6 @@
 package editor
 
 import (
-	"github.com/caelyreth/neverland/engine/kernel"
 	"slices"
 	"time"
 
@@ -29,14 +28,24 @@ func (s *Session) widenedFrom() (model.TextSelection, bool) {
 type PlaceKind uint8
 
 const (
+	// PlaceFollowUp is what the last intent left for this one to go on
+	// with (followups.go): innermost of all, for the next intent only.
+	PlaceFollowUp PlaceKind = iota + 1
+	// PlaceCells is cells of a table picked whole.
+	PlaceCells
+	// PlaceObject is an object selected whole, at its line.
+	PlaceObject
 	// PlacePair is inside a typed pair, between its opener and closer.
-	PlacePair PlaceKind = iota + 1
+	PlacePair
 	// PlaceEmphasis is inside a mark's text.
 	PlaceEmphasis
 	// PlaceFormula is in a formula's source, inline or a block's.
 	PlaceFormula
 	// PlaceBlock is the block the selection's head is in.
 	PlaceBlock
+	// PlaceCell is the block the selection's head is in when that is a
+	// table's cell.
+	PlaceCell
 	// PlaceGroup is a run of blocks the block nests in: a list, a quote.
 	PlaceGroup
 	// PlaceTable is the table the block is a cell of.
@@ -190,7 +199,11 @@ func (s *Session) blockPlaces() []Place {
 		place.ownsSelection = place.owns(firstSelected, lastSelected)
 		places = append(places, place)
 	}
-	add(PlaceBlock, index, index, blockExtentInline)
+	block := PlaceBlock
+	if kindOf(blocks[index]).Cell {
+		block = PlaceCell
+	}
+	add(block, index, index, blockExtentInline)
 	for _, run := range groupRuns(blocks, index) {
 		add(PlaceGroup, run[0], run[1], blockExtentAll)
 	}
@@ -323,47 +336,6 @@ type step struct {
 	remember  bool
 }
 
-// leaveStep is where Leave goes: out of the innermost place inside the
-// caret's block, else back to the last edit while that is offered. A guide
-// shows this same step.
-func (s *Session) leaveStep(now time.Time) (step, bool) {
-	if places := s.innerPlaces(); len(places) > 0 {
-		return step{to: places[0].Exit, anchor: places[0].exitAt, remember: true}, true
-	}
-	settings := s.navigationSettings()
-	target, live := s.navigation.Returning()
-	if !settings.Enabled || !settings.ReturnToEdit || !live || !now.Before(target.ExpiresAt) ||
-		!s.presentation.VisualCollapsed() {
-		return step{}, false
-	}
-	projected, err := s.presentation.Projection.ProjectAnchor(target.Anchor)
-	if err != nil {
-		return step{}, false
-	}
-	expires := target.ExpiresAt
-	return step{to: projected.RangeUTF16().Start, anchor: &target.Anchor, returning: true, expires: &expires}, true
-}
-
-// returnStep is where Return goes: back into the place just left, else into
-// the source of the inline formula just before the caret, at its end.
-func (s *Session) returnStep() (step, bool) {
-	caret := s.presentation.Caret.RangeUTF16()
-	if inside := s.prior.inside; inside != nil {
-		return step{to: *inside}, true
-	}
-	if !s.navigationSettings().Enabled || !caret.Empty() {
-		return step{}, false
-	}
-	flow, err := s.SurfaceFlow()
-	if err != nil {
-		return step{}, false
-	}
-	if f, ok := formulaEndingAt(flow, caret.Start); ok && !f.Display {
-		return step{to: f.Text.End}, true
-	}
-	return step{}, false
-}
-
 // take moves the caret by a step, remembering the place it left when the
 // step leaves one.
 func (s *Session) take(next step) error {
@@ -390,37 +362,4 @@ func (s *Session) take(next step) error {
 		s.follow(followUp{inside: &inside})
 	}
 	return nil
-}
-
-// leave is Leave: in a table, the next cell; else one place out.
-func (s *Session) leave(now time.Time) (kernel.Outcome, error) {
-	if outcome, inTable, err := s.stepCell(1); inTable || err != nil {
-		return outcome, err
-	}
-	next, ok := s.leaveStep(now)
-	if !ok {
-		return kernel.OutcomePass, nil
-	}
-	return kernel.OutcomeHandled, s.take(next)
-}
-
-// enter is Return: in a table, the previous cell; else back into a place.
-func (s *Session) enter() (kernel.Outcome, error) {
-	if outcome, inTable, err := s.stepCell(-1); inTable || err != nil {
-		return outcome, err
-	}
-	next, ok := s.returnStep()
-	if !ok {
-		return kernel.OutcomePass, nil
-	}
-	return kernel.OutcomeHandled, s.take(next)
-}
-
-// dismiss is Dismiss at a caret: one place out, as Leave goes, but never
-// back to the last edit, which only Leave offers.
-func (s *Session) dismissPlace() (kernel.Outcome, error) {
-	if places := s.innerPlaces(); len(places) > 0 {
-		return kernel.OutcomeHandled, s.take(step{to: places[0].Exit, anchor: places[0].exitAt, remember: true})
-	}
-	return kernel.OutcomeHandled, nil
 }

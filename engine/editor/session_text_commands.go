@@ -24,13 +24,9 @@ func (s *Session) doText(command textOp) (kernel.Outcome, error) {
 		return 0, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
 	}
 	if command == textDismissSelection {
+		// A selection is let go of at its head.
 		if s.presentation.VisualCollapsed() {
-			return s.dismissPlace()
-		}
-		// What Select All widened to goes back to what it grew from;
-		// any other selection leaves its caret at its head.
-		if from, ok := s.widenedFrom(); ok {
-			return kernel.OutcomeHandled, s.Select(from)
+			return kernel.OutcomeHandled, nil
 		}
 		at := s.presentation.Caret.RangeUTF16().Start
 		return kernel.OutcomeHandled, s.SelectProjected(at, at)
@@ -43,102 +39,15 @@ func (s *Session) doText(command textOp) (kernel.Outcome, error) {
 	if err != nil {
 		return 0, err
 	}
-	if command == textLeft || command == textRight ||
-		command == textSelectLeft || command == textSelectRight {
-		backward := command == textLeft || command == textSelectLeft
-		extend := command == textSelectLeft || command == textSelectRight
-		caret := s.presentation.Caret.RangeUTF16().Start
-		if !extend && !projected.Empty() {
-			edge := projected.End
-			if backward {
-				edge = projected.Start
-			}
-			return kernel.OutcomeHandled, s.SelectProjected(edge, edge)
-		}
-		// In a block's opening notation the caret steps among its token
-		// stops, skipping the gap after them.
-		if to, ok := tokenStep(s.presentation.Projection, caret, backward); ok {
-			viewAnchor := to
-			if extend {
-				if viewAnchor, err = s.currentViewAnchor(); err != nil {
-					return 0, err
-				}
-			}
-			return kernel.OutcomeHandled, s.SelectProjected(viewAnchor, to)
-		}
-		// A formula is passed as one character from outside it; its
-		// source is edited where a click, Tab or typing puts the caret.
-		flow, err := s.SurfaceFlow()
-		if err != nil {
-			return 0, err
-		}
-		if to, ok := pastFormula(flow, caret, backward); ok {
-			viewAnchor := to
-			if extend {
-				viewAnchor, err = s.currentViewAnchor()
-				if err != nil {
-					return 0, err
-				}
-			}
-			return kernel.OutcomeHandled, s.SelectProjected(viewAnchor, to)
-		}
-		if markerAdjacent(s.presentation.Projection, caret, backward) {
-			next := caret + 1
-			if backward {
-				next = caret - 1
-			}
-			viewAnchor := next
-			if extend {
-				viewAnchor, err = s.currentViewAnchor()
-				if err != nil {
-					return 0, err
-				}
-			}
-			return kernel.OutcomeHandled, s.SelectProjected(viewAnchor, next)
-		}
-	}
-
 	if !projected.Empty() && (command == textBackspace || command == textDelete) {
 		outcome, err := s.replaceSelection("", kernel.EventOriginSemantic)
 		return outcome.Outcome, err
 	}
-	if command == textBackspace || command == textDelete {
-		if outcome, planned, err := s.deleteAtCaret(command == textBackspace); planned || err != nil {
-			return outcome, err
-		}
-	}
 	if command == textNewline {
-		// Return in a cell goes down from it, whatever of it is selected.
-		if head := s.presentation.Selection.Head(); s.inCell(head.Node()) && head.Node() == s.presentation.Selection.Anchor().Node() {
-			if err := s.Select(model.NewTextSelection(head, head)); err != nil {
-				return 0, err
-			}
-		}
-		if outcome, ok, err := s.growDown(); ok {
-			return outcome, err
-		}
 		outcome, err := s.replaceSelection("\n", kernel.EventOriginTyping)
 		return outcome.Outcome, err
 	}
-	// Select All steps out scope by scope (scopes.go). Selecting the whole
-	// page, or to either end of it, reaches the page's ends as it shows
-	// them, the notation there included: deleting it then takes a
-	// heading's "# " along with its text.
 	switch command {
-	case textSelectAll:
-		scope, ok := s.nextScope()
-		if !ok {
-			return kernel.OutcomeHandled, nil
-		}
-		from, ok := s.widenedFrom()
-		if !ok {
-			from = s.presentation.Selection
-		}
-		if err := s.SelectProjected(scope.Start, scope.End); err != nil {
-			return 0, err
-		}
-		s.follow(followUp{widen: &from})
-		return kernel.OutcomeHandled, nil
 	case textSelectDocumentStart, textSelectDocumentEnd:
 		viewAnchor, err := s.currentViewAnchor()
 		if err != nil {

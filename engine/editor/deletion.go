@@ -9,8 +9,8 @@ import (
 	"github.com/caelyreth/neverland/engine/surface"
 )
 
-// Backspace and Delete at a caret are planned as one value (planDeletion)
-// and done by one interpreter (deleteAtCaret). A deletion that would take
+// Backspace and Delete at a caret are planned as one value, each planner a
+// responder (responders.go), and done by one interpreter (carryOut). A deletion that would take
 // more than a character, or join what reads differently, never does so
 // unseen: it arms first, marking what a second press takes, and any other
 // intent disarms it. Structure steps back one level a press.
@@ -41,77 +41,54 @@ type deletion struct {
 	join bool
 }
 
-// deleteAtCaret does Backspace (backward) or Delete at a collapsed caret as
-// planned, reporting whether a plan took it.
-func (s *Session) deleteAtCaret(backward bool) (kernel.Outcome, bool, error) {
-	if a := s.prior.arm; a != nil && a.backward == backward {
-		if a.join {
-			return 0, false, nil
-		}
-		if err := s.SelectProjected(a.span.Start, a.span.End); err != nil {
-			return 0, true, err
-		}
-		outcome, err := s.replaceSelection("", kernel.EventOriginSemantic)
-		return outcome.Outcome, true, err
-	}
-	plan, ok := s.planDeletion(backward)
-	if !ok {
-		return 0, false, nil
-	}
-	switch plan.kind {
-	case plannedMove:
-		return kernel.OutcomeHandled, true, s.Select(plan.to)
-	case plannedArm:
-		s.follow(followUp{arm: &armedDeletion{span: plan.span, join: plan.join, backward: backward}})
-		return kernel.OutcomeHandled, true, nil
-	case plannedEdit:
-		edit, err := FromProjectedRange(s.presentation.Projection, plan.span, plan.text, kernel.EventOriginSemantic)
-		if err != nil {
-			return 0, true, err
-		}
-		outcome, err := s.applyProjectedEdit(edit)
-		return outcome.Outcome, true, err
-	}
-	return kernel.OutcomeHandled, true, nil
+// deletionSite is where a Backspace (backward) or Delete at a collapsed
+// caret happens: its block, the block beside it the press goes toward, and
+// whether the caret is at the edge it goes toward.
+type deletionSite struct {
+	node, beside     *model.Node
+	besideOK         bool
+	backward, atEdge bool
 }
 
-// planDeletion is what Backspace or Delete at the caret does, if anything
-// other than taking a character: the first plan that holds.
-func (s *Session) planDeletion(backward bool) (deletion, bool) {
+func (s *Session) deletionSite(backward bool) (deletionSite, bool) {
 	if !s.presentation.VisualCollapsed() {
-		return deletion{}, false
+		return deletionSite{}, false
 	}
 	document := s.runtime.Snapshot().Document()
 	head := s.presentation.Selection.Head()
 	node, ok := document.Node(head.Node())
 	if !ok {
-		return deletion{}, false
+		return deletionSite{}, false
 	}
-	step := 1
-	if backward {
-		step = -1
-	}
+	beside, besideOK := neighborBlock(document, node.ID(), pick(boolDirection(backward), -1, 1))
 	atEdge := backward && head.Offset() == 0 || !backward && head.Offset() == blockLength(node)
-	beside, besideOK := neighborBlock(document, node.ID(), step)
-	for _, plan := range []func() (deletion, bool){
-		func() (deletion, bool) { return s.atomDeletion(node, beside, besideOK, backward, atEdge) },
-		func() (deletion, bool) { return s.cellDeletion(node, beside, besideOK, backward, atEdge) },
-		func() (deletion, bool) { return s.joinDeletion(node, beside, besideOK, atEdge) },
-		func() (deletion, bool) { return s.levelDeletion(backward) },
-		func() (deletion, bool) { return s.notationDeletion(backward) },
-	} {
-		if d, ok := plan(); ok {
-			return d, true
+	return deletionSite{node: node, beside: beside, besideOK: besideOK, backward: backward, atEdge: atEdge}, true
+}
+
+// carryOut does a planned deletion: an arm is left for the next press.
+func (s *Session) carryOut(plan deletion, backward bool) (EditingOutcome, bool, error) {
+	switch plan.kind {
+	case plannedMove:
+		return answered(kernel.OutcomeHandled, s.Select(plan.to))
+	case plannedArm:
+		s.follow(followUp{arm: &armedDeletion{span: plan.span, join: plan.join, backward: backward}})
+	case plannedEdit:
+		edit, err := FromProjectedRange(s.presentation.Projection, plan.span, plan.text, kernel.EventOriginSemantic)
+		if err != nil {
+			return EditingOutcome{}, true, err
 		}
+		outcome, err := s.applyProjectedEdit(edit)
+		return outcome, true, err
 	}
-	return deletion{}, false
+	return handled()
 }
 
 // atomDeletion arms an atomic block whole: Backspace at its text's start
 // or at the start of a block with text below it, Delete at the end of the
 // block above it. An empty block below one goes as any empty block does.
-func (s *Session) atomDeletion(node, beside *model.Node, besideOK, backward, atEdge bool) (deletion, bool) {
-	if !atEdge {
+func (s *Session) atomDeletion(at deletionSite) (deletion, bool) {
+	node, beside, besideOK, backward := at.node, at.beside, at.besideOK, at.backward
+	if !at.atEdge {
 		return deletion{}, false
 	}
 	atom := node
@@ -128,54 +105,57 @@ func (s *Session) atomDeletion(node, beside *model.Node, besideOK, backward, atE
 	return deletion{kind: plannedArm, span: line}, ok
 }
 
-// cellDeletion keeps Backspace and Delete at a cell's edge from joining it
-// to what is beside it: they step to the cell before or after, or from a
-// block beside a table into it. A table holding nothing is armed whole.
-func (s *Session) cellDeletion(node, beside *model.Node, besideOK, backward, atEdge bool) (deletion, bool) {
-	if !atEdge {
+// stepTo is a deletion stepping the caret into to, at the edge it comes in
+// by.
+func (s *Session) stepTo(to *model.Node, backward bool) (deletion, bool) {
+	offset := model.UTF16Offset(0)
+	if backward {
+		offset = blockLength(to)
+	}
+	at := model.NewTextAnchor(to.ID(), offset, model.AffinityRight, s.runtime.Revision())
+	return deletion{kind: plannedMove, to: model.NewTextSelection(at, at)}, true
+}
+
+// cellEdgeDeletion keeps Backspace and Delete at a cell's edge from joining
+// it to what is beside it: they step to the cell before or after. A table
+// holding nothing is armed whole.
+func (s *Session) cellEdgeDeletion(at deletionSite) (deletion, bool) {
+	if !at.atEdge {
 		return deletion{}, false
 	}
 	document := s.runtime.Snapshot().Document()
-	move := func(to *model.Node) (deletion, bool) {
-		offset := model.UTF16Offset(0)
-		if backward {
-			offset = blockLength(to)
-		}
-		at := model.NewTextAnchor(to.ID(), offset, model.AffinityRight, s.runtime.Revision())
-		return deletion{kind: plannedMove, to: model.NewTextSelection(at, at)}, true
+	table, _ := TableOf(document, at.node.ID())
+	cells := table.Cells()
+	if next := slices.Index(cells, at.node.ID()) + pick(boolDirection(at.backward), -1, 1); next >= 0 && next < len(cells) {
+		to, _ := document.Node(cells[next])
+		return s.stepTo(to, at.backward)
 	}
-	if kindOf(node).Cell {
-		table, _ := TableOf(document, node.ID())
-		cells := table.Cells()
-		step := 1
-		if backward {
-			step = -1
-		}
-		if next := slices.Index(cells, node.ID()) + step; next >= 0 && next < len(cells) {
-			to, _ := document.Node(cells[next])
-			return move(to)
-		}
-		if backward && emptyTable(document, table) {
-			first, okFirst := s.BlockRange(table.First())
-			last, okLast := s.BlockRange(table.Last())
-			return deletion{kind: plannedArm, span: model.NewUTF16Range(first.Start, last.End)}, okFirst && okLast
-		}
-		if !besideOK || blockLength(beside) == 0 && kindOf(beside).Plain {
-			return deletion{kind: plannedNothing}, true
-		}
-		return move(beside)
+	if at.backward && emptyTable(document, table) {
+		first, okFirst := s.BlockRange(table.First())
+		last, okLast := s.BlockRange(table.Last())
+		return deletion{kind: plannedArm, span: model.NewUTF16Range(first.Start, last.End)}, okFirst && okLast
 	}
-	if !besideOK || !kindOf(beside).Cell || blockLength(node) == 0 {
+	if !at.besideOK || blockLength(at.beside) == 0 && kindOf(at.beside).Plain {
+		return deletion{kind: plannedNothing}, true
+	}
+	return s.stepTo(at.beside, at.backward)
+}
+
+// intoTableDeletion steps from a block with text beside a table into it,
+// rather than joining it to a cell.
+func (s *Session) intoTableDeletion(at deletionSite) (deletion, bool) {
+	if !at.atEdge || !at.besideOK || !kindOf(at.beside).Cell || blockLength(at.node) == 0 {
 		return deletion{}, false
 	}
-	return move(beside)
+	return s.stepTo(at.beside, at.backward)
 }
 
 // joinDeletion arms a join of prose with literal text, either way: what is
 // taken as written and what is read as notation would run together. An
 // empty block goes as any empty block does.
-func (s *Session) joinDeletion(node, beside *model.Node, besideOK, atEdge bool) (deletion, bool) {
-	if !atEdge || !besideOK || blockLength(node) == 0 || blockLength(beside) == 0 ||
+func (s *Session) joinDeletion(at deletionSite) (deletion, bool) {
+	node, beside, besideOK := at.node, at.beside, at.besideOK
+	if !at.atEdge || !besideOK || blockLength(node) == 0 || blockLength(beside) == 0 ||
 		kindOf(node).Literal == kindOf(beside).Literal || kindOf(node).Cell || kindOf(beside).Cell {
 		return deletion{}, false
 	}
@@ -190,8 +170,8 @@ func (s *Session) joinDeletion(node, beside *model.Node, besideOK, atEdge bool) 
 // levelDeletion is Backspace at the start of a block's text, after the
 // notation that opens it: the block's structure steps back one level, as
 // its shape's peel says, rather than a character of its notation going.
-func (s *Session) levelDeletion(backward bool) (deletion, bool) {
-	if !backward || s.presentation.Selection.Head().Offset() != 0 {
+func (s *Session) levelDeletion(at deletionSite) (deletion, bool) {
+	if !at.backward || s.presentation.Selection.Head().Offset() != 0 {
 		return deletion{}, false
 	}
 	caret := s.presentation.Caret.RangeUTF16().Start
@@ -212,7 +192,8 @@ func (s *Session) levelDeletion(backward bool) (deletion, bool) {
 
 // notationDeletion takes the character of notation beside the caret, which
 // reads back as the structure or mark it leaves.
-func (s *Session) notationDeletion(backward bool) (deletion, bool) {
+func (s *Session) notationDeletion(at deletionSite) (deletion, bool) {
+	backward := at.backward
 	p := s.presentation.Projection
 	caret := s.presentation.Caret.RangeUTF16().Start
 	for _, segment := range p.Segments() {

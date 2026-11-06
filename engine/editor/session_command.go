@@ -36,13 +36,7 @@ func (s *Session) Do(intent Intent, now time.Time) (EditingOutcome, error) {
 	before := s.runtime.Revision()
 	s.begin()
 	defer s.end()
-	if intent.Kind == IntentInsert && intent.Range == nil && s.absorbs(intent.Text) {
-		return EditingOutcome{Outcome: kernel.OutcomeHandled, Revision: before}, nil
-	}
-	outcome, took, err := s.resolveKind(intent)
-	if !took && err == nil {
-		outcome, err = s.resolve(intent, now)
-	}
+	outcome, err := s.answer(intent, now)
 	if err != nil {
 		return EditingOutcome{}, err
 	}
@@ -53,6 +47,14 @@ func (s *Session) Do(intent Intent, now time.Time) (EditingOutcome, error) {
 		outcome.Changes = kernel.EngineChanges{}
 	}
 	return outcome, nil
+}
+
+// answer is what answers intent: its responders, else the base operation.
+func (s *Session) answer(intent Intent, now time.Time) (EditingOutcome, error) {
+	if outcome, took, err := s.respond(intent, now); took || err != nil {
+		return outcome, err
+	}
+	return s.resolve(intent, now)
 }
 
 func (s *Session) resolve(intent Intent, now time.Time) (EditingOutcome, error) {
@@ -71,9 +73,6 @@ func (s *Session) resolve(intent Intent, now time.Time) (EditingOutcome, error) 
 				return EditingOutcome{}, err
 			}
 			return s.applyProjectedEditChecked(edit)
-		}
-		if outcome, typed, err := s.typeAtToken(intent.Text); typed || err != nil {
-			return outcome, err
 		}
 		return s.replaceSelection(intent.Text, intent.Origin)
 	case IntentDelete:
@@ -106,8 +105,6 @@ func (s *Session) resolve(intent Intent, now time.Time) (EditingOutcome, error) 
 		}
 	case IntentSelect:
 		switch intent.By {
-		case ByScope:
-			return command(s.doText(textSelectAll))
 		case ByWord:
 			return command(s.doWord(selectWord))
 		case BySentence:
@@ -122,10 +119,6 @@ func (s *Session) resolve(intent Intent, now time.Time) (EditingOutcome, error) 
 			return s.replaceSelection("\n", kernel.EventOriginPaste)
 		}
 		return command(s.doText(textNewline))
-	case IntentLeave:
-		return command(s.leave(now))
-	case IntentReturn:
-		return command(s.enter())
 	case IntentHistory:
 		return command(s.doHistory(pick(intent.Dir, historyUndo, historyRedo)))
 	case IntentFormat:

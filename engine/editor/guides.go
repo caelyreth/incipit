@@ -86,7 +86,7 @@ func (s *Session) guideDecorations(now time.Time, keys GuideKeys) []surface.Deco
 // take, so the guide and the key never disagree. One identity across steps
 // lets the guide glide between destinations instead of blinking.
 func (s *Session) navigationGuides(now time.Time) []Guide {
-	next, ok := s.leaveStep(now)
+	next, ok := s.stepFor(Leave, now)
 	if !ok {
 		return nil
 	}
