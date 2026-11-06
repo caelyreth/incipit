@@ -32,8 +32,6 @@ const (
 	imageAltAttribute   = "alt"
 
 	imageAlignStart = "start"
-	// captionScale sets a caption a step smaller than the text around it.
-	captionScale = 0.88
 
 	figureTrigger = "writing:figure"
 )

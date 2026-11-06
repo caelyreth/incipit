@@ -34,9 +34,6 @@ const (
 	cardGap  = 0.2
 	// emptyHint stands in for the source of a formula with none yet.
 	emptyHint = "TeX"
-	// codeScale is the size the Writing Profile sets code at, which a
-	// formula's source is: its lines, and the hint, are as tall as it asks.
-	codeScale = 0.88
 	// staleInk is how faint a formula is drawn while it shows what it
 	// last set rather than what it reads.
 	staleInk = 0.4
@@ -126,7 +123,7 @@ func (s Style) problemsOf(flow *surface.Flow, f surface.Formula) ([]model.UTF16R
 	// Its color is the page's to give, as the card fades in.
 	span.Color = ui.Color{}
 	font := s.font()
-	font.Size = s.Prose.FontSize * codeScale
+	font.Size = s.codeSize()
 	return problems, ui.ShapeRichTextWith([]ui.Span{span}, font, ui.TextShape{})
 }
 
@@ -270,6 +267,11 @@ func sourceOf(flow *surface.Flow, f surface.Formula) (rawParagraph, bool) {
 	}, true
 }
 
+// codeSize is the size code is set at in the page's text, which a
+// formula's source on its card is: its lines, hint and note are as tall as
+// it asks.
+func (s Style) codeSize() float32 { return s.textSize(surface.TextStyle{Face: surface.FaceMono}) }
+
 // cardPad is the room a formula's tint leaves around its source.
 func (s Style) cardPad() (x, y float32) {
 	return cardPadX * s.Prose.FontSize, cardPadY * s.Prose.FontSize
@@ -357,14 +359,11 @@ func (s Style) hint(flow *surface.Flow, f surface.Formula) *ui.TextLayout {
 	// An empty source has no text of its own to take its face from: the
 	// hint is in the face source is, mono, at the size code is set at.
 	run := s.runAt(flow, f.Text.Start)
-	if run.Style.Face != surface.FaceMono {
-		run.Style.Face = surface.FaceMono
-		run.Style.Scale = run.Style.Size() * codeScale
-	}
+	run.Style.Face = surface.FaceMono
 	span := s.span(emptyHint, run)
 	span.Color = s.Theme.Text.Muted.Alpha(0.65)
 	font := s.font()
-	font.Size = s.Prose.FontSize * codeScale
+	font.Size = s.codeSize()
 	return ui.ShapeRichTextWith([]ui.Span{span}, font, ui.TextShape{})
 }
 

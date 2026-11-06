@@ -634,8 +634,8 @@ func TestBlocksTakeTheirRhythm(t *testing.T) {
 }
 
 // The Writing Profile sets what its blocks look like in the surface's own
-// terms: a heading larger by its level and strong, code in the mono face a
-// little smaller, inline code within a heading smaller than the heading.
+// terms: a heading a title by its level and strong, code in the mono face,
+// inline code within a heading the heading's title still.
 func TestBlocksTakeTheirLook(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "# Top `x`\n```\ncode")
@@ -649,13 +649,13 @@ func TestBlocksTakeTheirLook(t *testing.T) {
 		})
 		return found
 	}
-	if got := style("Top"); got.Size() != 1.6 || got.Color != surface.ColorStrong || !got.Bold {
+	if got := style("Top"); got.Size != surface.SizeTitle1 || got.Color != surface.ColorStrong || !got.Bold {
 		t.Fatalf("heading text style %#v in %q", got, flow.Text())
 	}
-	if got := style("x"); got.Face != surface.FaceMono || got.Size() != 1.6*codeScale {
+	if got := style("x"); got.Face != surface.FaceMono || got.Size != surface.SizeTitle1 {
 		t.Fatalf("inline code in a heading %#v", got)
 	}
-	if got := style("code"); got.Face != surface.FaceMono || got.Size() != codeScale {
+	if got := style("code"); got.Face != surface.FaceMono || got.Size != surface.SizeText {
 		t.Fatalf("code block text %#v", got)
 	}
 }

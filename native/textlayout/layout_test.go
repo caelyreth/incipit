@@ -240,7 +240,7 @@ func TestCaretGrowsWithItsRow(t *testing.T) {
 	style := NewStyle(theme.NewProseStyle(19), theme.DefaultSettings().Semantic())
 	text := "Heading\nbody"
 	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{
-		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Scale: 1.6}},
+		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Size: surface.SizeTitle1}},
 		{Bytes: model.NewByteRange(8, model.ByteOffset(len(text))), Style: surface.TextStyle{}},
 	}, lineBlocks(text))
 	if err != nil {
@@ -263,7 +263,7 @@ func TestSelectionBreakTakesItsRowHeight(t *testing.T) {
 	style := NewStyle(theme.NewProseStyle(19), theme.DefaultSettings().Semantic())
 	text := "Heading\nbody"
 	flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, []surface.StyleRun{
-		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Scale: 1.6}},
+		{Bytes: model.NewByteRange(0, 8), Style: surface.TextStyle{Size: surface.SizeTitle1}},
 		{Bytes: model.NewByteRange(8, model.ByteOffset(len(text))), Style: surface.TextStyle{}},
 	}, lineBlocks(text))
 	if err != nil {
@@ -321,9 +321,9 @@ func near(a, b float32) bool { return a-b < 0.5 && b-a < 0.5 }
 // prose too, but the lines of a run of entries or code do not; a heading
 // stands two steps from what is before it, and one from what it opens.
 func TestRhythmDerivesFromSpacing(t *testing.T) {
-	title := surface.TextStyle{Scale: 1.6}
+	title := surface.TextStyle{Size: surface.SizeTitle1}
 	prose := surface.TextStyle{}
-	code := surface.TextStyle{Face: surface.FaceMono, Scale: 0.88}
+	code := surface.TextStyle{Face: surface.FaceMono}
 	flow := rhythmFlow(t,
 		rhythmLine{prose, surface.RhythmProse}, rhythmLine{title, surface.RhythmTitle},
 		rhythmLine{prose, surface.RhythmProse}, rhythmLine{prose, surface.RhythmProse},

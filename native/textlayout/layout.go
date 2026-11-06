@@ -220,7 +220,7 @@ func (c *Cache) Update(flow *surface.Flow, overlay *Overlay, width float32, styl
 		// Its lines are as tall as its code face asks, not the page's,
 		// so the source stands in the middle of its tint.
 		code := font
-		code.Size = style.Prose.FontSize * codeScale
+		code.Size = style.codeSize()
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, code, leading(surface.RhythmVerbatim, body))
 		layout := shape(raw, font, max(1, width-2*padX), ui.Start, false)
 		_, height := layout.Size()

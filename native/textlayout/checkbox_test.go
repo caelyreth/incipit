@@ -18,13 +18,14 @@ func TestCheckboxMarkerStandsOnTextBaseline(t *testing.T) {
 	}
 	for _, test := range []struct {
 		name, prefix, label string
-		width, scale        float32
+		width               float32
+		size                surface.SizeRole
 	}{
 		{name: "empty", width: 300},
 		{name: "Latin", label: " Task abc", width: 300},
 		{name: "CJK", label: " 中文文字", width: 300},
 		{name: "nested and wrapped", prefix: "before🦀\n        ", label: " mixed 文字", width: 40},
-		{name: "larger text", label: " Larger 文字", width: 300, scale: 1.6},
+		{name: "larger text", label: " Larger 文字", width: 300, size: surface.SizeTitle1},
 	} {
 		for _, size := range []float32{15, 17, 26} {
 			for _, spacing := range []float32{1.5, 1.8, 2.2} {
@@ -37,7 +38,7 @@ func TestCheckboxMarkerStandsOnTextBaseline(t *testing.T) {
 					if test.label != "" {
 						runs = append(runs, surface.StyleRun{
 							Bytes: model.NewByteRange(model.ByteOffset(markerByte+5), model.ByteOffset(len(text))),
-							Style: surface.TextStyle{Scale: test.scale},
+							Style: surface.TextStyle{Size: test.size},
 						})
 					}
 					flow, err := surface.NewFlow(projection.NewVersion(1, 1), text, runs, lineBlocks(text))

@@ -24,8 +24,25 @@ type Face uint8
 const (
 	// FaceText is the page's reading face.
 	FaceText Face = iota
-	// FaceMono sets every character the same width.
+	// FaceMono sets every character the same width, as code is.
 	FaceMono
+)
+
+// SizeRole is what text's size says it is: the page's text, a title of a
+// level, or a caption. How large each is, and how a face sets it, are the
+// view's to say.
+type SizeRole uint8
+
+const (
+	// SizeText is the page's running text.
+	SizeText SizeRole = iota
+	// SizeTitle1 to SizeTitle4 are titles, the first the largest.
+	SizeTitle1
+	SizeTitle2
+	SizeTitle3
+	SizeTitle4
+	// SizeCaption is what reads as another thing's, as a picture's caption.
+	SizeCaption
 )
 
 // Rhythm is how a block's lines are spaced, apart from what made the
@@ -50,19 +67,10 @@ const (
 type TextStyle struct {
 	Bold   bool
 	Italic bool
-	// Scale is the text's size over the page's text size; 0 is 1.
-	Scale  float32
+	Size   SizeRole
 	Face   Face
 	Strike bool
 	Color  ColorRole
-}
-
-// Size is the text's size over the page's text size.
-func (s TextStyle) Size() float32 {
-	if s.Scale <= 0 {
-		return 1
-	}
-	return s.Scale
 }
 
 // Figure is a picture a block shows above its line, as an image block

@@ -45,6 +45,36 @@ func RoleColor(semantic theme.Theme, role surface.ColorRole) ui.Color {
 	}
 }
 
+// The page sets each size its text's role says: titles a step down per
+// level, a caption a step below the text, and code a little smaller than
+// the text it stands in, so the mono face's larger x-height reads at the
+// same size.
+const (
+	// codeScale is mono text's size over the size its role says.
+	codeScale = 0.88
+	// captionScale is a caption's size over the page's text.
+	captionScale = 0.88
+)
+
+// titleScales are each title's size over the page's text, the first's
+// first.
+var titleScales = [...]float32{1.6, 1.36, 1.18, 1.06}
+
+// textSize is the size the page sets text of style at.
+func (s Style) textSize(style surface.TextStyle) float32 {
+	size := s.Prose.FontSize
+	switch role := style.Size; {
+	case role >= surface.SizeTitle1 && role <= surface.SizeTitle4:
+		size *= titleScales[role-surface.SizeTitle1]
+	case role == surface.SizeCaption:
+		size *= captionScale
+	}
+	if style.Face == surface.FaceMono {
+		size *= codeScale
+	}
+	return size
+}
+
 func (s Style) span(text string, run surface.StyleRun) ui.Span {
 	weight := 400
 	if run.Style.Bold {
@@ -57,7 +87,7 @@ func (s Style) span(text string, run surface.StyleRun) ui.Span {
 	return ui.Span{
 		Text:          text,
 		Font:          family,
-		Size:          s.Prose.FontSize * run.Style.Size(),
+		Size:          s.textSize(run.Style),
 		Weight:        weight,
 		Italic:        run.Style.Italic,
 		Strikethrough: run.Style.Strike,

@@ -452,13 +452,14 @@ func notationStyle(style surface.TextStyle) surface.TextStyle {
 }
 
 // blockStyle is how a block's text shows: the Writing Profile's use of the
-// surface's styles. Headings are set larger by level and strong; quote
-// lines lean; code, and a formula's source, are set in the mono face.
+// surface's styles. Headings are titles by level and strong; quote lines
+// lean; code, and a formula's source, are set in the mono face; a caption
+// reads as its picture's.
 func blockStyle(node *model.Node) surface.TextStyle {
 	style := surface.TextStyle{Color: surface.ColorText}
 	switch shape := shapeOf(node); shape.kind {
 	case HeadingNode:
-		style.Scale = headingScale(shape.level)
+		style.Size = titleSize(shape.level)
 		style.Bold = true
 		style.Color = surface.ColorStrong
 	case QuoteNode:
@@ -468,8 +469,7 @@ func blockStyle(node *model.Node) surface.TextStyle {
 	case RuleNode:
 		style.Color = surface.ColorSubtle
 	case ImageNode:
-		// A caption reads as the picture's, a step below the text.
-		style.Scale = captionScale
+		style.Size = surface.SizeCaption
 		style.Color = surface.ColorMuted
 	}
 	return style
@@ -492,33 +492,26 @@ func markStyle(style *surface.TextStyle, mark model.InlineMark) {
 	}
 }
 
-// codeStyle sets code in the mono face, a little smaller than the text
-// around it, so the mono face's larger x-height reads at the same size.
-// Code within code stays as it is.
+// codeStyle sets code in the mono face, at the size of the text around
+// it, as a title's code is the title's.
 func codeStyle(style *surface.TextStyle) {
-	if style.Face == surface.FaceMono {
-		return
-	}
 	style.Face = surface.FaceMono
-	style.Scale = style.Size() * codeScale
 }
 
-const codeScale = 0.88
-
-// headingScale is how much larger than body text a heading of a level is
-// set: a step down per level, the last two at body size.
-func headingScale(level int) float32 {
+// titleSize is the title a heading of a level is: one per level, the last
+// two as the page's text.
+func titleSize(level int) surface.SizeRole {
 	switch level {
 	case 1:
-		return 1.6
+		return surface.SizeTitle1
 	case 2:
-		return 1.36
+		return surface.SizeTitle2
 	case 3:
-		return 1.18
+		return surface.SizeTitle3
 	case 4:
-		return 1.06
+		return surface.SizeTitle4
 	}
-	return 1
+	return surface.SizeText
 }
 
 func pushSurfaceRun(runs *[]surface.StyleRun, next surface.StyleRun) {
