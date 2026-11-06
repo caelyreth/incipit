@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/kernel/projection"
+	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
 )
 

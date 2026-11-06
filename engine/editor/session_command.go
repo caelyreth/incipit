@@ -114,8 +114,7 @@ func (s *Session) resolve(intent Intent, now time.Time) (EditingOutcome, error) 
 	case IntentLeave:
 		return command(s.leave(now))
 	case IntentReturn:
-		outcome, _, err := s.stepCell(-1)
-		return command(outcome, err)
+		return command(s.enter())
 	case IntentHistory:
 		return command(s.doHistory(pick(intent.Dir, historyUndo, historyRedo)))
 	case IntentFormat:

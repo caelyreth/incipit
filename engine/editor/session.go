@@ -33,14 +33,16 @@ type EditingOutcome struct {
 // input handlers, history, composition, feedback, navigation, pairs, and
 // metrics. It has no UI dependency.
 type Session struct {
-	runtime       *kernel.PolicyRuntime
-	invoker       *EditorInvoker
-	presentation  Presentation
-	inline        *InlineState
-	history       *History
-	composition   *CompositionState
-	feedback      *Feedback
-	navigation    Navigation
+	runtime      *kernel.PolicyRuntime
+	invoker      *EditorInvoker
+	presentation Presentation
+	inline       *InlineState
+	history      *History
+	composition  *CompositionState
+	feedback     *Feedback
+	navigation   Navigation
+	// memory is the place the caret last left, for Return.
+	memory        *placeMemory
 	pairs         []PairSpan
 	pairsValid    bool
 	pairsRelevant bool
@@ -267,125 +269,6 @@ func (s *Session) TextSpan() (model.UTF16Range, error) {
 		return model.UTF16Range{}, &projection.ProjectionError{Kind: projection.ErrorNoCorrespondence}
 	}
 	return span, nil
-}
-
-// TabOffer returns the current scope/return navigation offer.
-func (s *Session) TabOffer(now time.Time) (TabOffer, bool, error) {
-	if !s.runtime.Configuration().IsEnabled(NavigationPolicyID) {
-		return TabOffer{}, false, nil
-	}
-	if !s.presentation.VisualCollapsed() {
-		return TabOffer{}, false, nil
-	}
-	node, ok := s.runtime.Snapshot().Document().Node(s.presentation.Selection.Node())
-	if !ok {
-		return TabOffer{}, false, &projection.ProjectionError{Kind: projection.ErrorInvalidMapping}
-	}
-	offer, ok, err := s.navigation.TabOffer(
-		now,
-		node,
-		s.presentation.Selection,
-		s.Pairs(),
-		activeMark(s.inline),
-		s.navigationSettings(),
-	)
-	if err != nil || !s.navigationSettings().Enabled {
-		return offer, ok, err
-	}
-	// A formula is a scope as a pair is: the narrowest one the caret is
-	// at wins.
-	if formula, found := s.formulaTabOffer(node); found && (!ok || betterTabOffer(formula, offer)) {
-		return formula, true, nil
-	}
-	return offer, ok, nil
-}
-
-// formulaTabOffer is Tab at a formula: just after an inline one, into its
-// source at its end; in a formula block's source, out of it for the line
-// after it. A pair in the source, narrower, goes first.
-func (s *Session) formulaTabOffer(node *model.Node) (TabOffer, bool) {
-	flow, err := s.SurfaceFlow()
-	if err != nil {
-		return TabOffer{}, false
-	}
-	caret := s.presentation.Caret.RangeUTF16().Start
-	offer := func(f surface.Formula, landing model.UTF16Offset) (TabOffer, bool) {
-		return TabOffer{
-			Kind:       TabFormula,
-			Target:     model.NewTextAnchor(node.ID(), s.presentation.Selection.Head().OffsetUTF16(), model.AffinityRight, s.presentation.Selection.Revision()),
-			Scope:      f.Range,
-			HasScope:   true,
-			Landing:    landing,
-			HasLanding: true,
-		}, true
-	}
-	if f, ok := formulaEndingAt(flow, caret); ok && !f.Display {
-		return offer(f, f.Text.End)
-	}
-	if f, ok := sourceAt(flow, caret); ok && f.Display && f.Range.End < flow.UTF16Len() {
-		return offer(f, f.Range.End+1)
-	}
-	return TabOffer{}, false
-}
-
-// Tab lands at the selected navigation offer. Emphasis offers land after the
-// generated closer rather than at the semantic text edge.
-func (s *Session) leave(now time.Time) (kernel.Outcome, error) {
-	// In a table, Tab goes to the next cell before anything else.
-	if outcome, inTable, err := s.stepCell(1); inTable || err != nil {
-		return outcome, err
-	}
-	offer, ok, err := s.TabOffer(now)
-	if err != nil {
-		return 0, err
-	}
-	if !ok {
-		return kernel.OutcomePass, nil
-	}
-	if offer.HasLanding {
-		return kernel.OutcomeHandled, s.SelectProjected(offer.Landing, offer.Landing)
-	}
-	if err := s.Select(model.NewTextSelection(
-		offer.Target,
-		offer.Target,
-	)); err != nil {
-		return 0, err
-	}
-	target, err := s.tabDestination(offer)
-	if err != nil {
-		return 0, err
-	}
-	s.presentation.Caret = target
-	s.refreshInline()
-	if offer.Kind == TabReturnToEdit {
-		s.navigation.ConsumeReturn()
-	}
-	return kernel.OutcomeHandled, nil
-}
-
-// tabDestination is the exact visible landing point of offer, shared by Tab
-// and its guide. Emphasis lands after its generated closer rather than at
-// the semantic text edge.
-func (s *Session) tabDestination(offer TabOffer) (projection.Target, error) {
-	if offer.HasLanding {
-		return s.presentation.Projection.Target(model.EmptyUTF16Range(offer.Landing))
-	}
-	target, err := s.presentation.Projection.ProjectAnchor(offer.Target)
-	if err != nil || !offer.HasMark {
-		return target, err
-	}
-	key := MarkerKeyForMark(offer.Mark)
-	segments := s.presentation.Projection.Segments()
-	for index := len(segments) - 1; index >= 0; index-- {
-		attribute, found := segments[index].AttributeTarget()
-		if !found || attribute.Key() != key {
-			continue
-		}
-		return s.presentation.Projection.Target(
-			model.EmptyUTF16Range(segments[index].ProjectedRange().End),
-		)
-	}
-	return target, nil
 }
 
 // SelectionTarget returns the current projected replacement target.

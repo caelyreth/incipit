@@ -222,21 +222,3 @@ func pastFormula(flow *surface.Flow, caret model.UTF16Offset, backward bool) (mo
 	f, ok := surface.ObjectOf[surface.Formula](flow, caret)
 	return f.Range.End, ok && f.Range.Start == caret
 }
-
-// leaveFormula is where Escape at caret in a formula's source goes: after
-// an inline formula; the line after a block, or the one before it at the
-// page's end, a block having no place beside it of its own.
-func leaveFormula(flow *surface.Flow, caret model.UTF16Offset) (model.UTF16Offset, bool) {
-	f, ok := sourceAt(flow, caret)
-	switch {
-	case !ok:
-		return 0, false
-	case !f.Display:
-		return f.Range.End, true
-	case f.Range.End < flow.UTF16Len():
-		return f.Range.End + 1, true
-	case f.Range.Start > 0:
-		return f.Range.Start - 1, true
-	}
-	return 0, false
-}

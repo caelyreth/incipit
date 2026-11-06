@@ -47,13 +47,11 @@ func TestSessionTabLandsAfterGeneratedMarkup(t *testing.T) {
 	)); err != nil {
 		t.Fatal(err)
 	}
-	offer, ok, err := session.TabOffer(time.Unix(1_700_000_000, 0))
-	if err != nil || !ok {
-		t.Fatalf("offer=%#v ok=%v err=%v", offer, ok, err)
+	if places := session.innerPlaces(); len(places) != 1 || places[0].Kind != PlaceEmphasis {
+		t.Fatalf("places = %#v", places)
 	}
-	if offer.Kind != TabEmphasis || !offer.HasMark {
-		t.Fatalf("offer = %#v", offer)
-	}
+	block, _ := session.Runtime().Snapshot().Document().Node(node)
+	mark := block.Marks()[0].ID()
 	outcome, err := session.leave(time.Unix(1_700_000_000, 0))
 	if err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("tab outcome=%v err=%v", outcome, err)
@@ -61,7 +59,7 @@ func TestSessionTabLandsAfterGeneratedMarkup(t *testing.T) {
 	want := model.UTF16Offset(0)
 	for _, segment := range session.Projection().Segments() {
 		if target, ok := segment.AttributeTarget(); ok &&
-			MarkerKeyIdentifies(target.Key(), offer.Mark) {
+			MarkerKeyIdentifies(target.Key(), mark) {
 			want = segment.ProjectedRange().End
 		}
 	}
@@ -125,8 +123,8 @@ func TestSessionOffersNoTabWhileMarkerNotationIsSelected(t *testing.T) {
 	if session.Presentation().VisualCollapsed() {
 		t.Fatal("marker-only selection reported visually collapsed")
 	}
-	if _, ok, err := session.TabOffer(time.Unix(1_700_000_000, 0)); err != nil || ok {
-		t.Fatalf("Tab offer while marker selected: ok=%v err=%v", ok, err)
+	if next, ok := session.leaveStep(time.Unix(1_700_000_000, 0)); ok {
+		t.Fatalf("Leave step while marker selected: %#v", next)
 	}
 }
 
@@ -175,5 +173,46 @@ func TestWordCommandsTreatAbsentTextAsEmpty(t *testing.T) {
 	if outcome, err := session.doWord(wordNext); err != nil ||
 		outcome != kernel.OutcomeHandled {
 		t.Fatalf("word outcome=%v err=%v", outcome, err)
+	}
+}
+
+// Leave pops exactly one place at a time, innermost first, and Return goes
+// back into the one just left.
+func TestLeaveIsLastInFirstOutAndReturnReenters(t *testing.T) {
+	t.Parallel()
+	session, _ := newSessionFixture(t, "", false)
+	now := time.Unix(1_700_000_000, 0)
+	typeKeys(t, session, "(a[b")
+	text := session.Presentation().Flow.Text()
+	inner := session.Caret().RangeUTF16().Start
+	if places := session.innerPlaces(); len(places) != 2 || places[0].Kind != PlacePair || places[1].Kind != PlacePair {
+		t.Fatalf("places in %q = %#v", text, places)
+	}
+	if _, err := session.leave(now); err != nil {
+		t.Fatal(err)
+	}
+	once := session.Caret().RangeUTF16().Start
+	if once != inner+1 {
+		t.Fatalf("first Leave in %q landed at %d, want %d", text, once, inner+1)
+	}
+	if places := session.innerPlaces(); len(places) != 1 {
+		t.Fatalf("after one Leave, places = %#v", places)
+	}
+	if _, err := session.enter(); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.Caret().RangeUTF16().Start; got != inner {
+		t.Fatalf("Return landed at %d, want back at %d", got, inner)
+	}
+	for range 2 {
+		if _, err := session.leave(now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := session.Caret().RangeUTF16().Start; got != inner+2 {
+		t.Fatalf("two Leaves landed at %d in %q, want %d", got, text, inner+2)
+	}
+	if outcome, err := session.leave(now); err != nil || outcome != kernel.OutcomePass {
+		t.Fatalf("Leave with nothing to leave = %v, %v", outcome, err)
 	}
 }

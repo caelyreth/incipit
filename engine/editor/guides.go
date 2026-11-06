@@ -81,29 +81,18 @@ func (s *Session) guideDecorations(now time.Time, keys GuideKeys) []surface.Deco
 	return decorations
 }
 
-// navigationGuides offers Tab where it would land: past the enclosing pair
-// or emphasis, or back at the last edit. One identity across offer kinds
+// navigationGuides offer Leave where it would land: the step Leave would
+// take, so the guide and the key never disagree. One identity across steps
 // lets the guide glide between destinations instead of blinking.
 func (s *Session) navigationGuides(now time.Time) []Guide {
-	if !s.presentation.VisualCollapsed() {
+	next, ok := s.leaveStep(now)
+	if !ok {
 		return nil
 	}
-	offer, ok, err := s.TabOffer(now)
-	if err != nil || !ok {
-		return nil
-	}
-	target, err := s.tabDestination(offer)
-	if err != nil {
-		return nil
-	}
-	guide := Guide{
-		Producer: surface.ProducerID(NavigationPolicyID),
-		Command:  LeaveCommandID,
-		At:       target.RangeUTF16().Start,
-	}
-	if offer.HasExpiry {
-		expires := offer.ExpiresAt
-		guide.ExpiresAt = &expires
-	}
-	return []Guide{guide}
+	return []Guide{{
+		Producer:  surface.ProducerID(NavigationPolicyID),
+		Command:   LeaveCommandID,
+		At:        next.to,
+		ExpiresAt: next.expires,
+	}}
 }

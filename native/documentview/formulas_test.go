@@ -106,8 +106,15 @@ func TestTypingAFormulaEditsItOnItsCard(t *testing.T) {
 		t.Fatalf("the card stayed after Escape: %+v", cards)
 	}
 	key(ui.KeyTab)
+	if got := document.Selection().Caret(); got != 7 {
+		t.Fatalf("Tab after the formula entered it: caret at %d", got)
+	}
+	if !element.handleInput(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyTab, Mods: ui.Shift}) {
+		t.Fatal("Shift+Tab was not taken")
+	}
+	settle(tester)
 	if got := document.Selection().Caret(); got != 6 || len(element.current.FormulaCards()) != 1 {
-		t.Fatalf("Tab after the formula left the caret at %d, cards %+v", got, element.current.FormulaCards())
+		t.Fatalf("Shift+Tab after the formula left the caret at %d, cards %+v", got, element.current.FormulaCards())
 	}
 	key(ui.KeyRight)
 	if got := document.Selection().Caret(); got != 7 {

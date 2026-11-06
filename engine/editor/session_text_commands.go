@@ -25,16 +25,7 @@ func (s *Session) doText(command textOp) (kernel.Outcome, error) {
 	}
 	if command == textDismissSelection {
 		if s.presentation.VisualCollapsed() {
-			// Escape in a formula's source leaves it: after an inline
-			// one, for the line after a block, or before it at the end.
-			flow, err := s.SurfaceFlow()
-			if err != nil {
-				return 0, err
-			}
-			if to, ok := leaveFormula(flow, s.presentation.Caret.RangeUTF16().Start); ok {
-				return kernel.OutcomeHandled, s.SelectProjected(to, to)
-			}
-			return kernel.OutcomeHandled, nil
+			return s.dismissPlace()
 		}
 		// What Select All widened to goes back to what it grew from;
 		// any other selection leaves its caret at its head.

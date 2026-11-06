@@ -12,9 +12,10 @@ import (
 	"github.com/caelyreth/neverland/engine/surface"
 )
 
-// Tab just after an inline formula goes into its source at its end, where
-// its guide says it lands; in its source a pair, narrower, goes first.
-func TestTabGoesIntoTheFormulaBeforeTheCaret(t *testing.T) {
+// Tab never goes into a formula; Return just after an inline one goes into
+// its source at its end, and in its source a pair, narrower, is the place
+// Leave leaves first.
+func TestReturnGoesIntoTheFormulaBeforeTheCaret(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	now := time.Unix(1_700_000_000, 0)
 	typeKeys(t, session, "a $x^2")
@@ -23,20 +24,18 @@ func TestTabGoesIntoTheFormulaBeforeTheCaret(t *testing.T) {
 	if err := session.SelectProjected(end, end); err != nil {
 		t.Fatal(err)
 	}
-	guides := frameGuides(t, session, now, keyNames)
-	if len(guides) != 1 || guides[0].Primitive.At != end-1 {
-		t.Fatalf("guides after %q = %#v", text, guides)
+	if outcome, err := session.leave(now); err != nil || outcome != kernel.OutcomePass {
+		t.Fatalf("Tab after a formula outcome=%v err=%v, want it to enter nothing", outcome, err)
 	}
-	if outcome, err := session.leave(now); err != nil || outcome != kernel.OutcomeHandled {
-		t.Fatalf("tab outcome=%v err=%v", outcome, err)
+	if outcome, err := session.enter(); err != nil || outcome != kernel.OutcomeHandled {
+		t.Fatalf("Return outcome=%v err=%v", outcome, err)
 	}
 	if got := session.Caret().RangeUTF16().Start; got != end-1 {
-		t.Fatalf("Tab landed at %d, its guide at %d", got, end-1)
+		t.Fatalf("Return landed at %d, want %d", got, end-1)
 	}
 	typeKeys(t, session, "+(")
-	offer, ok, err := session.TabOffer(now)
-	if err != nil || !ok || offer.Kind != TabPair {
-		t.Fatalf("in a pair in the source, the offer is %#v, %v, %v", offer, ok, err)
+	if places := session.innerPlaces(); len(places) < 2 || places[0].Kind != PlacePair || places[1].Kind != PlaceFormula {
+		t.Fatalf("in a pair in the source, the places are %#v", places)
 	}
 }
 
@@ -51,9 +50,8 @@ func TestTabLeavesAFormulaBlock(t *testing.T) {
 	if err := session.SelectProjected(inside, inside); err != nil {
 		t.Fatal(err)
 	}
-	offer, ok, err := session.TabOffer(now)
-	if err != nil || !ok || offer.Kind != TabFormula {
-		t.Fatalf("offer in %q = %#v, %v, %v", text, offer, ok, err)
+	if places := session.innerPlaces(); len(places) != 1 || places[0].Kind != PlaceFormula {
+		t.Fatalf("places in %q = %#v", text, places)
 	}
 	want := model.UTF16Offset(strings.Index(text, "after"))
 	guides := frameGuides(t, session, now, keyNames)
