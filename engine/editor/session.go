@@ -42,7 +42,9 @@ type Session struct {
 	feedback     *Feedback
 	navigation   Navigation
 	// memory is the place the caret last left, for Return.
-	memory        *placeMemory
+	memory *placeMemory
+	// armed is a deletion waiting for its second press.
+	armed         *armed
 	pairs         []PairSpan
 	pairsValid    bool
 	pairsRelevant bool

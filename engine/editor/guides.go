@@ -37,6 +37,7 @@ type guideProducer func(*Session, time.Time) []Guide
 var guideProducers = []guideProducer{
 	(*Session).navigationGuides,
 	(*Session).scopeGuides,
+	(*Session).armGuides,
 }
 
 // Guides returns every guide offered now, before key resolution.

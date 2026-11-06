@@ -186,8 +186,8 @@ func TestCellsNeverJoin(t *testing.T) {
 		t.Fatal(err)
 	}
 	run(t, session, textBackspace)
-	if selected, _ := session.VisualSelection(); selected.Empty() {
-		t.Fatal("Backspace in an empty table did not select it")
+	if span := armedSpan(t, session); span.Empty() {
+		t.Fatal("Backspace in an empty table did not arm it")
 	}
 	run(t, session, textBackspace)
 	expectKinds(t, session, ParagraphNode, ParagraphNode)

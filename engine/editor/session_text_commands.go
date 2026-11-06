@@ -92,33 +92,8 @@ func (s *Session) doText(command textOp) (kernel.Outcome, error) {
 		return outcome.Outcome, err
 	}
 	if command == textBackspace || command == textDelete {
-		if outcome, guarded, err := s.guardAtom(command == textBackspace); guarded || err != nil {
+		if outcome, planned, err := s.deleteAtCaret(command == textBackspace); planned || err != nil {
 			return outcome, err
-		}
-		if outcome, guarded, err := s.guardTable(command == textBackspace); guarded || err != nil {
-			return outcome, err
-		}
-	}
-	if command == textBackspace {
-		if outcome, peeled, err := s.peelBlock(); peeled || err != nil {
-			return outcome, err
-		}
-	}
-	if command == textBackspace || command == textDelete {
-		backward := command == textBackspace
-		caret := s.presentation.Caret.RangeUTF16().Start
-		if marker, ok := markerDeletionRange(s.presentation.Projection, caret, backward); ok {
-			edit, err := FromProjectedRange(
-				s.presentation.Projection,
-				marker,
-				"",
-				kernel.EventOriginSemantic,
-			)
-			if err != nil {
-				return 0, err
-			}
-			outcome, err := s.applyProjectedEdit(edit)
-			return outcome.Outcome, err
 		}
 	}
 	if command == textNewline {

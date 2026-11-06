@@ -103,13 +103,17 @@ func TestReturnAtHeadingStartKeepsHeading(t *testing.T) {
 	expectPage(t, session, "\n## |Top", "", "Top")
 }
 
-// Backspace at a block's text start peels its structure a level: a nested
-// item steps out, anything else becomes a paragraph of its own text. The
-// notation, a number included, never becomes text.
+// Backspace at a block's text start peels its structure one level: a
+// heading to the level above, a nested item out, anything else to a
+// paragraph of its own text. The notation, a number included, never
+// becomes text.
 func TestBackspacePeelsBlockStructure(t *testing.T) {
 	session, _ := newSessionFixture(t, "", false)
 	typeKeys(t, session, "## Top")
 	run(t, session, textLineStart, textBackspace)
+	expectKinds(t, session, HeadingNode)
+	expectPage(t, session, "# |Top", "Top")
+	run(t, session, textBackspace)
 	expectKinds(t, session, ParagraphNode)
 	expectPage(t, session, "|Top", "Top")
 

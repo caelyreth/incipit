@@ -315,9 +315,14 @@ func flatten(document *model.DocumentDraft, node model.NodeID) error {
 }
 
 // peel is the shape a block steps back to as its notation is taken from
-// the outside in: a nested item or quote line steps out a level, anything
+// the outside in, one level at a time: a heading to the level above it, a
+// nested item or quote line out a level, anything
 // else becomes a paragraph.
 func (s blockShape) peel() blockShape {
+	if s.desc().Leveled && s.level > 1 {
+		s.level--
+		return s
+	}
 	if s.nests() && s.depth > 0 {
 		s.depth--
 		return s

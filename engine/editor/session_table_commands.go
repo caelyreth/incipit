@@ -451,62 +451,6 @@ func (s *Session) growDown() (kernel.Outcome, bool, error) {
 	return outcome, true, err
 }
 
-// guardTable keeps Backspace and Delete at a cell's edge from joining it to
-// what is beside it: at a cell's start, Backspace goes to the end of the
-// cell before, and at its end Delete to the start of the next; at the
-// start of a block after a table, Backspace goes into the table, and at
-// the end of one before it, Delete. Backspace in a table holding nothing
-// selects it, for a second press to take it away. An empty block beside a
-// table goes as any empty block does. It reports whether it moved.
-func (s *Session) guardTable(backward bool) (kernel.Outcome, bool, error) {
-	if !s.presentation.VisualCollapsed() {
-		return 0, false, nil
-	}
-	document := s.runtime.Snapshot().Document()
-	head := s.presentation.Selection.Head()
-	node, ok := document.Node(head.Node())
-	if !ok {
-		return 0, false, nil
-	}
-	revision := s.runtime.Revision()
-	move := func(to *model.Node, atEnd bool) (kernel.Outcome, bool, error) {
-		offset := model.UTF16Offset(0)
-		if atEnd {
-			offset = blockLength(to)
-		}
-		at := model.NewTextAnchor(to.ID(), offset, model.AffinityRight, revision)
-		return kernel.OutcomeHandled, true, s.Select(model.NewTextSelection(at, at))
-	}
-	if backward && head.Offset() != 0 || !backward && head.Offset() != blockLength(node) {
-		return 0, false, nil
-	}
-	step := 1
-	if backward {
-		step = -1
-	}
-	beside, besideOK := neighborBlock(document, node.ID(), step)
-	if kindOf(node).Cell {
-		table, _ := TableOf(document, node.ID())
-		cells := table.Cells()
-		next := slices.Index(cells, node.ID()) + step
-		if next >= 0 && next < len(cells) {
-			to, _ := document.Node(cells[next])
-			return move(to, backward)
-		}
-		if backward && emptyTable(document, table) {
-			return kernel.OutcomeHandled, true, s.SelectTable(node.ID())
-		}
-		if !besideOK || blockLength(beside) == 0 && kindOf(beside).Plain {
-			return kernel.OutcomeHandled, true, nil
-		}
-		return move(beside, backward)
-	}
-	if !besideOK || !kindOf(beside).Cell || blockLength(node) == 0 {
-		return 0, false, nil
-	}
-	return move(beside, backward)
-}
-
 func emptyTable(document blockReader, table Table) bool {
 	for _, row := range table.Rows {
 		if !emptyRow(document, row) {

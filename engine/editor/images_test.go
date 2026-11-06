@@ -3,6 +3,7 @@ package editor
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
@@ -107,9 +108,10 @@ func TestACaptionBreaksIntoParagraphs(t *testing.T) {
 }
 
 // Backspace at a caption's start, or Delete at the end of the block
-// above, selects the picture rather than taking it away; deleting it then
-// leaves an empty line, and undo brings it back.
-func TestDeletingTowardAPictureSelectsItFirst(t *testing.T) {
+// above, arms the picture rather than taking it away; the same key again
+// takes it, leaving an empty line, any other disarms it, and undo brings it
+// back.
+func TestDeletingTowardAPictureArmsItFirst(t *testing.T) {
 	session := imagePage(t)
 	text := session.Projection().Text()
 	start := model.UTF16Offset(strings.Index(text, pic))
@@ -125,16 +127,19 @@ func TestDeletingTowardAPictureSelectsItFirst(t *testing.T) {
 	}
 	at(t, session, line.Start+1)
 	run(t, session, textBackspace)
-	if got := selected(); got != line {
-		t.Fatalf("Backspace selected %v, not the figure's line %v", got, line)
+	if got := armedSpan(t, session); got != line || selected() != model.EmptyUTF16Range(line.Start+1) {
+		t.Fatalf("Backspace armed %v with %v selected, not the figure's line %v", got, selected(), line)
 	}
 	expectKinds(t, session, ParagraphNode, ImageNode, ParagraphNode)
 	at(t, session, 6)
-	run(t, session, textDelete)
-	if got := selected(); got != line {
-		t.Fatalf("Delete selected %v, not the figure's line %v", got, line)
+	if len(session.armGuides(time.Time{})) != 0 {
+		t.Fatal("moving the caret kept the arm")
 	}
-	run(t, session, textBackspace)
+	run(t, session, textDelete)
+	if got := armedSpan(t, session); got != line {
+		t.Fatalf("Delete armed %v, not the figure's line %v", got, line)
+	}
+	run(t, session, textDelete)
 	expectKinds(t, session, ParagraphNode, ParagraphNode, ParagraphNode)
 	expectPage(t, session, "before\n|\nafter", "before", "", "after")
 	node, _ := session.Runtime().Snapshot().Document().Node(session.Selection().Node())
@@ -210,7 +215,7 @@ func pictureBetween(t *testing.T, caption string) (*Session, model.UTF16Range) {
 }
 
 // The edges around a picture behave alike whether or not it has a
-// caption: Backspace from the block below selects it rather than joining
+// caption: Backspace from the block below arms it rather than joining
 // text to it, Backspace in an empty block below takes the block away, the
 // caret going to the caption's end, and Select All on the picture widens
 // to the page.
@@ -227,8 +232,11 @@ func TestAPictureEdgesAlikeWithOrWithoutACaption(t *testing.T) {
 		}
 		at(t, session, line.End+1)
 		run(t, session, textBackspace)
-		if got := selected(); got != line {
-			t.Fatalf("%q: Backspace below selected %v, not the picture's line %v", caption, got, line)
+		if got := armedSpan(t, session); got != line {
+			t.Fatalf("%q: Backspace below armed %v, not the picture's line %v", caption, got, line)
+		}
+		if err := session.SelectProjected(line.Start, line.End); err != nil {
+			t.Fatal(err)
 		}
 		run(t, session, textSelectAll)
 		if got, page := selected(), model.UTF16Offset(session.Projection().UTF16Len()); got != model.NewUTF16Range(0, page) {
