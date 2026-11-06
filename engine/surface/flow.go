@@ -168,7 +168,7 @@ func (f *Flow) ByteOfUTF16(offset model.UTF16Offset) (model.ByteOffset, bool) {
 		return 0, false
 	}
 	checkpoint := f.offsets[index]
-	local, ok := model.UTF16OffsetToByte(f.text[checkpoint.byte:], model.UTF16Offset(target-checkpoint.units))
+	local, ok := model.UTF16OffsetToByte(f.between(index), model.UTF16Offset(target-checkpoint.units))
 	if !ok {
 		return 0, false
 	}
@@ -190,7 +190,7 @@ func (f *Flow) UTF16OfByte(offset model.ByteOffset) (model.UTF16Offset, bool) {
 		return 0, false
 	}
 	checkpoint := f.offsets[index]
-	local, ok := model.ByteOffsetToUTF16(f.text[checkpoint.byte:], model.ByteOffset(byteOffset-checkpoint.byte))
+	local, ok := model.ByteOffsetToUTF16(f.between(index), model.ByteOffset(byteOffset-checkpoint.byte))
 	if !ok {
 		return 0, false
 	}
@@ -210,6 +210,17 @@ func (f *Flow) byteRange(r model.UTF16Range) (model.ByteRange, error) {
 		return model.ByteRange{}, fmt.Errorf("invalid projected boundary")
 	}
 	return model.NewByteRange(start, end), nil
+}
+
+// between is the text from checkpoint index to the next, the stretch an
+// offset at or past it and short of the next is found in: its own, not
+// the rest of the flow, so finding one is as cheap wherever it is.
+func (f *Flow) between(index int) string {
+	end := len(f.text)
+	if index+1 < len(f.offsets) {
+		end = f.offsets[index+1].byte
+	}
+	return f.text[f.offsets[index].byte:end]
 }
 
 func checkpointFloor[T any](items []T, target int, field func(T) int) int {
