@@ -27,7 +27,11 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		if s.presentation.VisualCollapsed() {
 			// Escape in a formula's source leaves it: after an inline
 			// one, for the line after a block, or before it at the end.
-			if to, ok := leaveFormula(s.presentation.Projection, document, s.presentation.Caret.RangeUTF16().Start); ok {
+			flow, err := s.SurfaceFlow()
+			if err != nil {
+				return 0, err
+			}
+			if to, ok := leaveFormula(flow, s.presentation.Caret.RangeUTF16().Start); ok {
 				return kernel.OutcomeHandled, s.SelectProjected(to, to)
 			}
 			return kernel.OutcomeHandled, nil
@@ -62,7 +66,11 @@ func (s *Session) ExecuteText(command TextCommand) (kernel.Outcome, error) {
 		}
 		// A formula is passed as one character from outside it; its
 		// source is edited where a click, Tab or typing puts the caret.
-		if to, ok := pastFormula(s.presentation.Projection, document, caret, backward); ok {
+		flow, err := s.SurfaceFlow()
+		if err != nil {
+			return 0, err
+		}
+		if to, ok := pastFormula(flow, caret, backward); ok {
 			viewAnchor := to
 			if extend {
 				viewAnchor, err = s.currentViewAnchor()

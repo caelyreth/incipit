@@ -299,23 +299,26 @@ func (s *Session) TabOffer(now time.Time) (TabOffer, bool, error) {
 // source at its end; in a formula block's source, out of it for the line
 // after it. A pair in the source, narrower, goes first.
 func (s *Session) formulaTabOffer(node *model.Node) (TabOffer, bool) {
+	flow, err := s.SurfaceFlow()
+	if err != nil {
+		return TabOffer{}, false
+	}
 	caret := s.presentation.Caret.RangeUTF16().Start
-	length := s.presentation.Projection.UTF16Len()
-	for _, f := range formulaFlow(s.presentation.Projection, s.runtime.Snapshot().Document()) {
-		offer := TabOffer{
-			Kind:     TabFormula,
-			Target:   model.NewTextAnchor(node.ID(), s.presentation.Selection.Head().OffsetUTF16(), model.AffinityRight, s.presentation.Selection.Revision()),
-			Scope:    f.Range,
-			HasScope: true,
-		}
-		switch {
-		case !f.Display && caret == f.Range.End:
-			offer.Landing, offer.HasLanding = f.Text.End, true
-			return offer, true
-		case f.Display && f.Text.Start <= caret && caret <= f.Text.End && f.Range.End < length:
-			offer.Landing, offer.HasLanding = f.Range.End+1, true
-			return offer, true
-		}
+	offer := func(f surface.Formula, landing model.UTF16Offset) (TabOffer, bool) {
+		return TabOffer{
+			Kind:       TabFormula,
+			Target:     model.NewTextAnchor(node.ID(), s.presentation.Selection.Head().OffsetUTF16(), model.AffinityRight, s.presentation.Selection.Revision()),
+			Scope:      f.Range,
+			HasScope:   true,
+			Landing:    landing,
+			HasLanding: true,
+		}, true
+	}
+	if f, ok := formulaEndingAt(flow, caret); ok && !f.Display {
+		return offer(f, f.Text.End)
+	}
+	if f, ok := sourceAt(flow, caret); ok && f.Display && f.Range.End < flow.UTF16Len() {
+		return offer(f, f.Range.End+1)
 	}
 	return TabOffer{}, false
 }

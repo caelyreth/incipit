@@ -147,15 +147,24 @@ func formulaOf(node *model.Node, open, close projection.RoleSpan) surface.Formul
 	return formula
 }
 
-// formulaFlow are the page's formulas, in order.
-func formulaFlow(p *projection.Projection, document model.DocumentSnapshot) []surface.Formula {
-	var formulas []surface.Formula
-	for _, object := range pageObjects(p, document) {
-		if formula, ok := object.(surface.Formula); ok {
-			formulas = append(formulas, formula)
+// sourceAt is the formula of flow whose source holds offset, either end
+// included.
+func sourceAt(flow *surface.Flow, offset model.UTF16Offset) (surface.Formula, bool) {
+	for _, object := range flow.ObjectsIn(model.EmptyUTF16Range(offset)) {
+		if f, ok := object.(surface.Formula); ok && inSource(f, offset) {
+			return f, true
 		}
 	}
-	return formulas
+	return surface.Formula{}, false
+}
+
+// formulaEndingAt is the formula of flow that ends at offset.
+func formulaEndingAt(flow *surface.Flow, offset model.UTF16Offset) (surface.Formula, bool) {
+	if offset == 0 {
+		return surface.Formula{}, false
+	}
+	f, ok := surface.ObjectOf[surface.Formula](flow, offset-1)
+	return f, ok && f.Range.End == offset
 }
 
 // inSource reports whether offset is in a formula's source, either end
@@ -171,11 +180,8 @@ func inSource(f surface.Formula, offset model.UTF16Offset) bool {
 func editedFormulas(flow *surface.Flow, selected model.UTF16Range) []model.UTF16Range {
 	var runs []model.UTF16Range
 	for _, end := range []model.UTF16Offset{selected.Start, selected.End} {
-		for _, object := range flow.ObjectsIn(model.EmptyUTF16Range(end)) {
-			f, ok := object.(surface.Formula)
-			if ok && inSource(f, end) && (len(runs) == 0 || runs[len(runs)-1] != f.Range) {
-				runs = append(runs, f.Range)
-			}
+		if f, ok := sourceAt(flow, end); ok && (len(runs) == 0 || runs[len(runs)-1] != f.Range) {
+			runs = append(runs, f.Range)
 		}
 	}
 	return runs
@@ -183,34 +189,29 @@ func editedFormulas(flow *surface.Flow, selected model.UTF16Range) []model.UTF16
 
 // pastFormula is where a step from caret goes past the formula beside it,
 // backward from its end to its start or forward from its start to its end.
-func pastFormula(p *projection.Projection, document model.DocumentSnapshot, caret model.UTF16Offset, backward bool) (model.UTF16Offset, bool) {
-	for _, f := range formulaFlow(p, document) {
-		switch {
-		case backward && caret == f.Range.End:
-			return f.Range.Start, true
-		case !backward && caret == f.Range.Start:
-			return f.Range.End, true
-		}
+func pastFormula(flow *surface.Flow, caret model.UTF16Offset, backward bool) (model.UTF16Offset, bool) {
+	if backward {
+		f, ok := formulaEndingAt(flow, caret)
+		return f.Range.Start, ok
 	}
-	return 0, false
+	f, ok := surface.ObjectOf[surface.Formula](flow, caret)
+	return f.Range.End, ok && f.Range.Start == caret
 }
 
 // leaveFormula is where Escape at caret in a formula's source goes: after
 // an inline formula; the line after a block, or the one before it at the
 // page's end, a block having no place beside it of its own.
-func leaveFormula(p *projection.Projection, document model.DocumentSnapshot, caret model.UTF16Offset) (model.UTF16Offset, bool) {
-	for _, f := range formulaFlow(p, document) {
-		if !inSource(f, caret) {
-			continue
-		}
-		switch {
-		case !f.Display:
-			return f.Range.End, true
-		case f.Range.End < p.UTF16Len():
-			return f.Range.End + 1, true
-		case f.Range.Start > 0:
-			return f.Range.Start - 1, true
-		}
+func leaveFormula(flow *surface.Flow, caret model.UTF16Offset) (model.UTF16Offset, bool) {
+	f, ok := sourceAt(flow, caret)
+	switch {
+	case !ok:
+		return 0, false
+	case !f.Display:
+		return f.Range.End, true
+	case f.Range.End < flow.UTF16Len():
+		return f.Range.End + 1, true
+	case f.Range.Start > 0:
+		return f.Range.Start - 1, true
 	}
 	return 0, false
 }

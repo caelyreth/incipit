@@ -435,11 +435,5 @@ func (l *Layout) paragraphAtY(y float32) *Paragraph {
 // blockMark is the tint of the formula block a paragraph is, which holds
 // what it sets, if it is one.
 func (l *Layout) blockMark(paragraph *Paragraph) (ui.Rect, bool) {
-	for _, placed := range l.formulas {
-		f := placed.Formula
-		if f.Display && int(f.Range.Start) == paragraph.startUTF16 && int(f.Range.End) == paragraph.contentUTF16 {
-			return placed.Mark, true
-		}
-	}
-	return ui.Rect{}, false
+	return paragraph.mark, paragraph.formulaBlock
 }

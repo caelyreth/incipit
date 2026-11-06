@@ -42,6 +42,10 @@ type Paragraph struct {
 	editor  bool
 	formula Formula
 	host    int
+	// formulaBlock says the paragraph is a formula block, whose tint,
+	// mark, holds what it sets.
+	formulaBlock bool
+	mark         ui.Rect
 }
 
 // inlineObject is a paragraph-local UTF-16 range represented by one shaped
@@ -333,7 +337,14 @@ func (c *Cache) Update(flow *surface.Flow, overlay *Overlay, width float32, styl
 				end:   int(to) - paragraph.startUTF16,
 			})
 		}
-		formulas = append(formulas, placeFormulas(flow, overlay, paragraph, style, width)...)
+		set := placeFormulas(flow, overlay, paragraph, style, width)
+		for _, placed := range set {
+			f := placed.Formula
+			if f.Display && int(f.Range.Start) == paragraph.startUTF16 && int(f.Range.End) == paragraph.contentUTF16 {
+				paragraph.formulaBlock, paragraph.mark = true, placed.Mark
+			}
+		}
+		formulas = append(formulas, set...)
 	}
 	for index := range cards {
 		if card := &cards[index]; !card.Formula.Display {
