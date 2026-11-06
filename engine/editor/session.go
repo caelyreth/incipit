@@ -434,6 +434,7 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 	if transaction.Value.Outcome.Status == kernel.OutcomeHandled {
 		group := ShouldGroupTyping(edit.Origin, inputValue.ApplyText(), edit.Replacement)
 		s.afterEdit(candidate, beforeFrame, visualState, edit.Replacement, transaction.Changes, transaction.Revision, group)
+		s.expect(s.invoker.proposal.Absorbs())
 	}
 	return EditingOutcome{
 		Outcome:  transaction.Value.Outcome.Status,

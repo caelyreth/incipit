@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"strings"
 	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/engine/kernel"
@@ -119,12 +120,27 @@ type absorbing struct {
 	revision uint64
 }
 
-// absorbs reports whether typing text now is the one an earlier step
-// already wrote, while the caret and page stay as it left them.
+// absorbs takes text from what an earlier step already wrote, reporting
+// whether it did: typing what was written is typing nothing, one glyph for
+// one, while the caret and page stay as that step left them.
 func (s *Session) absorbs(text string) bool {
 	a := s.absorb
-	return a != nil && a.text == text && a.revision == s.runtime.Revision() &&
-		s.presentation.VisualCollapsed() && s.presentation.Caret.RangeUTF16().Start == a.caret
+	if a == nil || text == "" || !strings.HasPrefix(a.text, text) || a.revision != s.runtime.Revision() ||
+		!s.presentation.VisualCollapsed() || s.presentation.Caret.RangeUTF16().Start != a.caret {
+		return false
+	}
+	if a.text = a.text[len(text):]; a.text == "" {
+		s.absorb = nil
+	}
+	return true
+}
+
+// expect records text the next keys absorb, from the caret as it stands.
+func (s *Session) expect(text string) {
+	s.absorb = nil
+	if text != "" {
+		s.absorb = &absorbing{text: text, caret: s.presentation.Caret.RangeUTF16().Start, revision: s.runtime.Revision()}
+	}
 }
 
 // typeAtToken types text with the caret at a token stop: a block's own
@@ -177,7 +193,7 @@ func (s *Session) typeAtToken(text string) (EditingOutcome, bool, error) {
 			next.depth = shape.depth
 		}
 		if describe(opened).Numbered {
-			absorb = "."
+			absorb = ". "
 		}
 	default:
 		return EditingOutcome{}, false, nil
@@ -196,9 +212,7 @@ func (s *Session) typeAtToken(text string) (EditingOutcome, bool, error) {
 	} else if _, after, ok := openingNotation(s.presentation.Projection, span.Start); ok {
 		err = s.SelectProjected(after.End, after.End)
 	}
-	if absorb != "" {
-		s.absorb = &absorbing{text: absorb, caret: s.presentation.Caret.RangeUTF16().Start, revision: s.runtime.Revision()}
-	}
+	s.expect(absorb)
 	return outcome, true, err
 }
 

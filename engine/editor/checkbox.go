@@ -14,10 +14,12 @@ const checkboxTrigger = "text:checkbox"
 // complete notation also works when automatic pairing is disabled.
 func (i *EditorInvoker) openCheckbox(document *model.DocumentDraft, node *model.Node, at model.UTF16Offset, text string) (kernel.Outcome, bool, error) {
 	content := node.Text().String()
-	length, checked := model.UTF16Offset(0), false
+	length, checked, absorb := model.UTF16Offset(0), false, ""
 	switch {
 	case at == 1 && strings.HasPrefix(content, "[]") && (text == " " || text == "x" || text == "X"):
-		length, checked = 2, text != " "
+		// The paired closer and the space after it are the box's: the
+		// writer's own are typed into it.
+		length, checked, absorb = 2, text != " ", "] "
 	case at == 3 && text == " " && (strings.HasPrefix(content, "[ ]") || strings.HasPrefix(content, "[x]") || strings.HasPrefix(content, "[X]")):
 		length, checked = 3, content[1] != ' '
 	default:
@@ -32,6 +34,7 @@ func (i *EditorInvoker) openCheckbox(document *model.DocumentDraft, node *model.
 		return 0, true, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
 	i.land(node.ID(), 0, document)
+	i.proposal.absorbs(absorb)
 	return kernel.OutcomeHandled, true, nil
 }
 

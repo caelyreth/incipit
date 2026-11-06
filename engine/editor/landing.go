@@ -31,7 +31,15 @@ func (l Landing) anchor(node model.NodeID, revision uint64, edits int) (model.Te
 type Proposal struct {
 	landing Landing
 	lands   bool
+	// absorb is text the writer will type next that the dispatch already
+	// wrote: closers a conversion took, the rest of a closer overtyped.
+	absorb string
 }
+
+// Absorbs returns the text the dispatch proposes the next keys absorb.
+func (p *Proposal) Absorbs() string { return p.absorb }
+
+func (p *Proposal) absorbs(text string) { p.absorb = text }
 
 // Landing returns where the caret was proposed to go, if anywhere.
 func (p *Proposal) Landing() (Landing, bool) { return p.landing, p.lands }

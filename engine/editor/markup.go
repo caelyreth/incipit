@@ -793,9 +793,12 @@ func (i *EditorInvoker) invokeMarker(context *kernel.RuleContext) (kernel.Outcom
 			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 		}
 	}
-	if !action.Exited {
-		// The marker's head reads the block as it was before it wrote.
-		i.proposal.land(Landing{Head: action.Head})
+	// The marker's head reads the block as it was before it wrote; one
+	// that exits a mark lands past its closer, the mark no longer active,
+	// and the rest of the closer the writer types is the one overtyped.
+	i.proposal.land(Landing{Head: action.Head})
+	if action.Kind == MarkerExit && action.Level > 1 {
+		i.proposal.absorbs(strings.Repeat(input.Text(), int(action.Level)-1))
 	}
 	switch {
 	case action.Exited, action.Kind == MarkerEnclose, action.Kind == MarkerFormulaBlock:

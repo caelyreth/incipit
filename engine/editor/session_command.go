@@ -38,7 +38,6 @@ func (s *Session) Do(intent Intent, now time.Time) (EditingOutcome, error) {
 		s.disarm()
 	}
 	if intent.Kind == IntentInsert && intent.Range == nil && s.absorbs(intent.Text) {
-		s.absorb = nil
 		return EditingOutcome{Outcome: kernel.OutcomeHandled, Revision: before}, nil
 	}
 	s.absorb = nil
