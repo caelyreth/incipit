@@ -12,13 +12,6 @@ import (
 // its own text and marks. Text policies work inside one block; moving,
 // selecting and deleting across a block boundary goes through the projection,
 // which lays the blocks out one after another.
-const (
-	// DocumentNode is the kind of a page's root.
-	DocumentNode model.NodeTypeID = "document"
-	// ParagraphNode is the plain block every page starts with.
-	ParagraphNode model.NodeTypeID = "paragraph"
-)
-
 // NewBlockDocument builds a page holding text, one paragraph per line.
 func NewBlockDocument(text string) (*model.Document, []model.NodeID, error) {
 	document, err := model.NewDocument(DocumentNode)
@@ -68,7 +61,7 @@ func ValidatePage(document model.DocumentSnapshot) error {
 	if !ok {
 		return &model.DocumentError{Kind: model.DocumentErrorMissingNode, Node: document.Root()}
 	}
-	if root.Kind() != DocumentNode {
+	if !kindOf(root).Root {
 		return fmt.Errorf("editor: page root is %s, want %s", root.Kind(), DocumentNode)
 	}
 	for _, child := range root.Children() {

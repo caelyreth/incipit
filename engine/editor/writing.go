@@ -20,26 +20,6 @@ import (
 // the notation replaces all of it, read back as a shape, or else leaves a
 // paragraph of the block's own text (flatten).
 const (
-	// HeadingNode is a heading block; its "level" attribute is 1 to 6.
-	HeadingNode model.NodeTypeID = "heading"
-	// QuoteNode is a block quote.
-	QuoteNode model.NodeTypeID = "quote"
-	// BulletNode is an item of a bullet list.
-	BulletNode model.NodeTypeID = "bullet"
-	// CheckboxNode is a list item whose checked state belongs to the page.
-	CheckboxNode model.NodeTypeID = "checkbox"
-	// OrderedNode is an item of an ordered list, numbered by its place in
-	// the run of items it stands in.
-	OrderedNode model.NodeTypeID = "ordered"
-	// CodeNode is a fenced code block; its text keeps its line breaks and
-	// its "info" attribute names the language.
-	CodeNode model.NodeTypeID = "code"
-	// MathNode is a display formula; its text is the formula's TeX source,
-	// kept line for line as code's is.
-	MathNode model.NodeTypeID = "math"
-	// RuleNode is a thematic break.
-	RuleNode model.NodeTypeID = "rule"
-
 	// CodeMark is inline code.
 	CodeMark model.MarkKind = "code"
 	// StrikeMark is struck-through text.
@@ -144,21 +124,8 @@ func (t writingTriggers) markerKind(text string) (model.MarkKind, uint8, bool) {
 
 // opens reports whether typing may open a block of kind.
 func (t writingTriggers) opens(kind model.NodeTypeID) bool {
-	switch kind {
-	case HeadingNode:
-		return t.headings
-	case QuoteNode:
-		return t.quotes
-	case BulletNode, OrderedNode, CheckboxNode:
-		return t.lists
-	case CodeNode:
-		return t.code
-	case MathNode:
-		return t.math
-	case RuleNode:
-		return t.rules
-	}
-	return false
+	desc := describe(kind)
+	return desc.opens != nil && desc.opens(t)
 }
 
 // inlineNotation is how a mark shows on either side of its text.
@@ -208,22 +175,8 @@ type blockShape struct {
 // shapeOf reads a block's shape from the page.
 func shapeOf(node *model.Node) blockShape {
 	shape := blockShape{kind: node.Kind()}
-	switch shape.kind {
-	case HeadingNode:
-		shape.level = 1
-		if value, ok := node.Attribute(headingLevelAttribute); ok {
-			if level, ok := value.Integer(); ok {
-				shape.level = int(max(1, min(6, level)))
-			}
-		}
-	case CodeNode:
-		if value, ok := node.Attribute(codeInfoAttribute); ok {
-			shape.info, _ = value.Text()
-		}
-	case CheckboxNode:
-		if value, ok := node.Attribute(checkedAttribute); ok {
-			shape.checked, _ = value.Bool()
-		}
+	if read := shape.desc().read; read != nil {
+		read(node, &shape)
 	}
 	if shape.nests() {
 		if value, ok := node.Attribute(depthAttribute); ok {
@@ -237,37 +190,22 @@ func shapeOf(node *model.Node) blockShape {
 
 // nests reports whether a shape stands in a group with its neighbours,
 // nested by depth: items in a list, lines in a quote.
-func (s blockShape) nests() bool {
-	switch s.kind {
-	case BulletNode, OrderedNode, CheckboxNode, QuoteNode:
-		return true
-	}
-	return false
-}
+func (s blockShape) nests() bool { return s.desc().Group != "" }
 
 // groupOf is the group a block stands in: the Writing Profile's use of the
 // page's block groups (blocks.go). Bullet and numbered items are two kinds
 // of list, which nest in one another; quote lines are a quote.
 func groupOf(node *model.Node) (blockGroup, bool) {
 	shape := shapeOf(node)
-	switch shape.kind {
-	case BulletNode, OrderedNode, CheckboxNode:
-		return blockGroup{family: "list", kind: string(shape.kind), depth: shape.depth}, true
-	case QuoteNode:
-		return blockGroup{family: "quote", kind: string(shape.kind), depth: shape.depth}, true
+	if family := shape.desc().Group; family != "" {
+		return blockGroup{family: family, kind: string(shape.kind), depth: shape.depth}, true
 	}
 	return blockGroup{}, false
 }
 
 // opensLine reports whether a shape's notation is a prefix its text follows
 // on the same line, rather than a line of its own.
-func (s blockShape) opensLine() bool {
-	switch s.kind {
-	case HeadingNode, QuoteNode, BulletNode, OrderedNode, CheckboxNode:
-		return true
-	}
-	return false
-}
+func (s blockShape) opensLine() bool { return s.desc().Prefix }
 
 // parseOpener reads notation at a block's start as the shape it opens: the
 // inverse of blockNotation.
@@ -277,7 +215,7 @@ func parseOpener(text string) (blockShape, bool) {
 	// quoted again.
 	if indent := len(text) - len(strings.TrimLeft(text, " ")); indent > 0 {
 		shape, ok := parseOpener(text[indent:])
-		if !ok || indent/2 > maxDepth || shape.kind != BulletNode && shape.kind != OrderedNode && shape.kind != CheckboxNode {
+		if !ok || indent/2 > maxDepth || shape.desc().Group != "list" {
 			return blockShape{}, false
 		}
 		shape.depth = indent / 2
@@ -334,28 +272,28 @@ func shapeBlock(document *model.DocumentDraft, node model.NodeID, shape blockSha
 		}
 		return nil
 	}
-	if err := set(headingLevelAttribute, shape.kind == HeadingNode, model.IntegerValue(int64(shape.level))); err != nil {
+	if err := set(headingLevelAttribute, shape.desc().Leveled, model.IntegerValue(int64(shape.level))); err != nil {
 		return err
 	}
 	if err := set(depthAttribute, shape.nests() && shape.depth > 0, model.IntegerValue(int64(shape.depth))); err != nil {
 		return err
 	}
-	if err := set(codeInfoAttribute, shape.kind == CodeNode && shape.info != "", model.TextValue(shape.info)); err != nil {
+	if err := set(codeInfoAttribute, shape.desc().Info && shape.info != "", model.TextValue(shape.info)); err != nil {
 		return err
 	}
-	if err := set(checkedAttribute, shape.kind == CheckboxNode && shape.checked, model.BoolValue(true)); err != nil {
+	if err := set(checkedAttribute, shape.desc().Checks && shape.checked, model.BoolValue(true)); err != nil {
 		return err
 	}
 	// A block that is no longer an image no longer names its picture; an
 	// image's own are written as it is placed (writeImageShape).
-	if shape.kind != ImageNode {
+	if !shape.desc().Atomic {
 		for _, key := range imageAttributes {
 			if err := set(key, false, model.AttributeValue{}); err != nil {
 				return err
 			}
 		}
 	}
-	if shape.kind != CellNode {
+	if !shape.desc().Cell {
 		for _, key := range cellAttributes {
 			if err := set(key, false, model.AttributeValue{}); err != nil {
 				return err
@@ -390,13 +328,13 @@ func (s blockShape) peel() blockShape {
 // blockKeepsLines reports whether a block's text holds line breaks of its
 // own, as code does, rather than breaking into blocks at them.
 func blockKeepsLines(node *model.Node) bool {
-	return node != nil && (literalBlock(node) || node.Kind() == CellNode)
+	return kindOf(node).KeepsLines
 }
 
 // literalBlock reports whether a block's text is all taken as written:
 // code's and a formula's source.
 func literalBlock(node *model.Node) bool {
-	return node != nil && (node.Kind() == CodeNode || node.Kind() == MathNode)
+	return kindOf(node).Literal
 }
 
 // literalAt reports whether text typed at a block, inside the active mark,
@@ -438,7 +376,7 @@ func ordinals(blocks []*model.Node) []int {
 			continue
 		}
 		clear(counts[group.depth+1:])
-		if block.Kind() != OrderedNode {
+		if !kindOf(block).Numbered {
 			counts[group.depth] = 0
 			continue
 		}
@@ -471,12 +409,12 @@ func (i *EditorInvoker) invokeBlockTrigger(context *kernel.RuleContext) (kernel.
 	if err != nil || !ok {
 		return kernel.OutcomePass, err
 	}
-	if node.Kind() == BulletNode && contextTriggers(context).lists {
+	if kindOf(node).Checkable && contextTriggers(context).lists {
 		if outcome, handled, err := i.openCheckbox(document, node, at, text); handled || err != nil {
 			return outcome, err
 		}
 	}
-	if node.Kind() != ParagraphNode ||
+	if !kindOf(node).Plain ||
 		text != " " && text != "\n" && text != "-" {
 		return kernel.OutcomePass, err
 	}
@@ -499,7 +437,7 @@ func (i *EditorInvoker) invokeBlockTrigger(context *kernel.RuleContext) (kernel.
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
 	i.land(node.ID(), 0, document)
-	if opened.kind == RuleNode {
+	if opened.desc().Divider {
 		return i.paragraphAfter(document, node.ID())
 	}
 	return kernel.OutcomeHandled, nil
@@ -518,7 +456,7 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 	}
 	switch {
-	case shape.kind == RuleNode:
+	case shape.desc().Divider:
 		if text == "\n" {
 			return i.paragraphAfter(document, node.ID())
 		}
@@ -533,9 +471,9 @@ func (i *EditorInvoker) invokeBlockKind(context *kernel.RuleContext) (kernel.Out
 		return kernel.OutcomeHandled, nil
 	case text != "\n":
 		return kernel.OutcomePass, nil
-	case shape.kind == CellNode:
+	case shape.desc().Cell:
 		return i.cellBreak(document, node.ID())
-	case shape.kind == HeadingNode || shape.kind == ImageNode:
+	case shape.desc().BreakLeaves:
 		// A heading or a caption ends at a break: what follows is a
 		// paragraph, and a break before its text leaves a paragraph above
 		// it.
@@ -626,7 +564,7 @@ func (i *EditorInvoker) invokeBlockNotation(
 		open = edited
 	}
 	reshaped, ok := parseOpener(open)
-	if _, fence := blockNotation(reshaped, 1); ok && reshaped.kind != ParagraphNode && fence == close {
+	if _, fence := blockNotation(reshaped, 1); ok && !reshaped.desc().Plain && fence == close {
 		if err := shapeBlock(document, node.ID(), reshaped); err != nil {
 			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 		}
@@ -675,7 +613,7 @@ func MarkerKeyIdentifies(key string, id model.MarkID) bool {
 // one line; a page without a heading has none.
 func PageTitle(document model.DocumentSnapshot) string {
 	for _, id := range blockOrder(document) {
-		if block, ok := document.Node(id); ok && block.Kind() == HeadingNode {
+		if block, ok := document.Node(id); ok && kindOf(block).Leveled {
 			return strings.Join(strings.Fields(block.Text().String()), " ")
 		}
 	}

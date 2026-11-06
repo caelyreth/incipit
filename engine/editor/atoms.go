@@ -24,7 +24,7 @@ import (
 
 // atomic reports whether a block shape stands on an object.
 func (s blockShape) atomic() bool {
-	return s.kind == ImageNode
+	return s.desc().Atomic
 }
 
 // guardAtom is Backspace at the start of an atomic block's text or of a

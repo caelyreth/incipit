@@ -33,11 +33,11 @@ func splitAtNewlines(
 		}
 		// Lines broken from a caption are paragraphs: the picture stays
 		// with the first.
-		if current, _ := document.Node(node); current.Kind() == ImageNode {
+		if current, _ := document.Node(node); kindOf(current).Atomic {
 			if err := shapeBlock(document, created, blockShape{kind: ParagraphNode}); err != nil {
 				return err
 			}
-		} else if current.Kind() == CheckboxNode {
+		} else if kindOf(current).Checks {
 			// A new item starts unchecked even when the split item is checked.
 			shape := shapeOf(current)
 			shape.checked = false
@@ -69,7 +69,7 @@ func (i *EditorInvoker) joinSpan(
 	if spansTable(document, first, last) {
 		return i.tableSpan(document, first, start, last, end, text)
 	}
-	if head, ok := document.Node(first); ok && head.Kind() == RuleNode {
+	if head, ok := document.Node(first); ok && kindOf(head).Divider {
 		if err := shapeBlock(document, first, blockShape{kind: ParagraphNode}); err != nil {
 			return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
 		}

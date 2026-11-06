@@ -79,7 +79,7 @@ func (s *Session) InsertTable(rows [][]string) (kernel.Outcome, error) {
 			return false, nil
 		}
 		index, reuse := blockIndex(document, at), at
-		if current.Kind() != ParagraphNode || blockLength(current) > 0 {
+		if !kindOf(current).Plain || blockLength(current) > 0 {
 			index, reuse = index+1, 0
 		}
 		table, err := makeTable(document, index, rows, true, reuse)
@@ -485,7 +485,7 @@ func (s *Session) guardTable(backward bool) (kernel.Outcome, bool, error) {
 		step = -1
 	}
 	beside, besideOK := neighborBlock(document, node.ID(), step)
-	if node.Kind() == CellNode {
+	if kindOf(node).Cell {
 		table, _ := TableOf(document, node.ID())
 		cells := table.Cells()
 		next := slices.Index(cells, node.ID()) + step
@@ -496,12 +496,12 @@ func (s *Session) guardTable(backward bool) (kernel.Outcome, bool, error) {
 		if backward && emptyTable(document, table) {
 			return kernel.OutcomeHandled, true, s.SelectTable(node.ID())
 		}
-		if !besideOK || blockLength(beside) == 0 && beside.Kind() == ParagraphNode {
+		if !besideOK || blockLength(beside) == 0 && kindOf(beside).Plain {
 			return kernel.OutcomeHandled, true, nil
 		}
 		return move(beside, backward)
 	}
-	if !besideOK || beside.Kind() != CellNode || blockLength(node) == 0 {
+	if !besideOK || !kindOf(beside).Cell || blockLength(node) == 0 {
 		return 0, false, nil
 	}
 	return move(beside, backward)
@@ -553,5 +553,5 @@ func tableFlow(flow *surface.Flow, document model.DocumentSnapshot) []surface.Ta
 // inCell reports whether node is a table's cell.
 func (s *Session) inCell(node model.NodeID) bool {
 	current, ok := s.runtime.Snapshot().Document().Node(node)
-	return ok && current.Kind() == CellNode
+	return ok && kindOf(current).Cell
 }

@@ -18,7 +18,7 @@ func formulaScope(node *model.Node, active *model.MarkID) (model.UTF16Range, boo
 	if node == nil {
 		return model.UTF16Range{}, false
 	}
-	if node.Kind() == MathNode {
+	if kindOf(node).Formula {
 		return model.NewUTF16Range(0, blockLength(node)), true
 	}
 	if kind, ok := literalMark(node, active); !ok || kind != MathMark {

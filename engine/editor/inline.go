@@ -160,7 +160,7 @@ func PlanMarkerTypes(
 	}
 	if current != nil && input.Empty() && current.Range().End == input.Start {
 		// $$ alone in a paragraph opens a formula block.
-		if kind == MathMark && current.Range().Empty() && node.Kind() == ParagraphNode && blockLength(node) == 0 {
+		if kind == MathMark && current.Range().Empty() && kindOf(node).Plain && blockLength(node) == 0 {
 			return MarkerAction{
 				Handled:  true,
 				Kind:     MarkerFormulaBlock,
@@ -261,7 +261,7 @@ func openers(text, marker string) int {
 // text in case it opened a fence, while no mark is in it to say otherwise;
 // in an empty paragraph, typed is about to be one.
 func heldOpener(node *model.Node, active *model.MarkID, typed string) (string, bool) {
-	if node == nil || node.Kind() != ParagraphNode || active != nil || node.MarkCount() > 0 {
+	if node == nil || !kindOf(node).Plain || active != nil || node.MarkCount() > 0 {
 		return "", false
 	}
 	content := node.Text().String()
@@ -457,20 +457,8 @@ func notationStyle(style surface.TextStyle) surface.TextStyle {
 // reads as its picture's.
 func blockStyle(node *model.Node) surface.TextStyle {
 	style := surface.TextStyle{Color: surface.ColorText}
-	switch shape := shapeOf(node); shape.kind {
-	case HeadingNode:
-		style.Size = titleSize(shape.level)
-		style.Bold = true
-		style.Color = surface.ColorStrong
-	case QuoteNode:
-		style.Italic = true
-	case CodeNode, MathNode:
-		codeStyle(&style)
-	case RuleNode:
-		style.Color = surface.ColorSubtle
-	case ImageNode:
-		style.Size = surface.SizeCaption
-		style.Color = surface.ColorMuted
+	if shape := shapeOf(node); shape.desc().style != nil {
+		shape.desc().style(shape, &style)
 	}
 	return style
 }

@@ -61,7 +61,7 @@ func (i *checkboxInvoker) Invoke(rule *kernel.LinkedRule, leaf kernel.LeafID, co
 		return 0, err
 	}
 	node, ok := document.Node(i.node)
-	if !ok || node.Kind() != CheckboxNode {
+	if !ok || !kindOf(node).Checks {
 		return kernel.OutcomePass, nil
 	}
 	shape := shapeOf(node)

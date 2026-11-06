@@ -16,9 +16,6 @@ import (
 // picture itself is named by its media, kept by the notebook, never by
 // the page.
 const (
-	// ImageNode is an image block; its text is its caption.
-	ImageNode model.NodeTypeID = "image"
-
 	// MediaAttribute names the picture an image block shows by its
 	// media's hash, as the notebook keeps it.
 	MediaAttribute = "media"
@@ -59,7 +56,7 @@ var ErrNoImage = errors.New("editor: the block is not an image")
 
 // ImageShapeOf reads an image block's shape.
 func ImageShapeOf(node *model.Node) (ImageShape, bool) {
-	if node == nil || node.Kind() != ImageNode {
+	if node == nil || !kindOf(node).Atomic {
 		return ImageShape{}, false
 	}
 	text := func(key string) string {
@@ -140,7 +137,7 @@ func (s *Session) InsertImage(shape ImageShape) (kernel.Outcome, error) {
 			}
 		}
 		image := at
-		if current.Kind() != ParagraphNode || blockLength(current) > 0 {
+		if !kindOf(current).Plain || blockLength(current) > 0 {
 			index++
 			created, err := document.CreateNode(parent, index, ImageNode)
 			if err == nil {

@@ -1,7 +1,6 @@
 package editor
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/caelyreth/neverland/engine/kernel/projection"
@@ -49,32 +48,8 @@ func (n notation) String() string {
 // blockNotationParts is the notation a block of shape opens and closes
 // with, ordinal numbering an ordered item.
 func blockNotationParts(shape blockShape, ordinal int) (open, close notation) {
-	if shape.atomic() {
-		return notation{{Text: figureNotation, Role: roleFigure}}, nil
-	}
-	indent := projection.Part{Text: strings.Repeat("  ", shape.depth), Role: roleIndent}
-	space := projection.Part{Text: " ", Role: roleSpace}
-	switch shape.kind {
-	case HeadingNode:
-		return notation{{Text: strings.Repeat("#", shape.level), Role: roleHeading}, space}, nil
-	case QuoteNode:
-		return notation{{Text: strings.Repeat("> ", shape.depth+1), Role: roleQuote}}, nil
-	case BulletNode:
-		return notation{indent, {Text: "-", Role: roleBullet}, space}, nil
-	case CheckboxNode:
-		mark := " "
-		if shape.checked {
-			mark = "x"
-		}
-		return notation{indent, {Text: "- [" + mark + "]", Role: roleCheckbox}, space}, nil
-	case OrderedNode:
-		return notation{indent, {Text: strconv.Itoa(ordinal) + ".", Role: roleOrdinal}, space}, nil
-	case CodeNode:
-		return notation{{Text: "```" + shape.info + "\n", Role: roleCodeOpen}}, notation{{Text: "\n```", Role: roleCodeClose}}
-	case MathNode:
-		return notation{{Text: "$$\n", Role: roleFormulaOpen}}, notation{{Text: "\n$$", Role: roleFormulaClose}}
-	case RuleNode:
-		return notation{{Text: "---", Role: roleRule}}, nil
+	if desc := shape.desc(); desc.notation != nil {
+		return desc.notation(shape, ordinal)
 	}
 	return nil, nil
 }

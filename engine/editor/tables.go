@@ -22,9 +22,6 @@ import (
 // copied out of a table is its cells between tabs and its rows between
 // lines, as a spreadsheet reads it.
 const (
-	// CellNode is one cell of a table; its text is what the cell holds.
-	CellNode model.NodeTypeID = "cell"
-
 	cellStartsAttribute = "starts"
 	cellStartsTable     = "table"
 	cellStartsRow       = "row"
@@ -128,7 +125,7 @@ func readTables(document blockReader) []Table {
 	open := false
 	for _, id := range root.Children() {
 		node, ok := document.Node(id)
-		if !ok || node.Kind() != CellNode {
+		if !ok || !kindOf(node).Cell {
 			open = false
 			continue
 		}
@@ -562,7 +559,7 @@ func (i *EditorInvoker) cellBreak(document *model.DocumentDraft, node model.Node
 		}
 		next := blockIndex(document, left.Last()) + 1
 		if blocks := draftBlocks(document); next < len(blocks) {
-			if after, _ := document.Node(blocks[next]); after.Kind() == ParagraphNode && blockLength(after) == 0 {
+			if after, _ := document.Node(blocks[next]); kindOf(after).Plain && blockLength(after) == 0 {
 				i.land(after.ID(), 0, document)
 				return kernel.OutcomeHandled, nil
 			}
@@ -644,12 +641,12 @@ func (i *EditorInvoker) tableSpan(
 	// The span is only the break between two blocks.
 	if to == from+1 && start == blockLength(head) && end == 0 && text == "" {
 		switch {
-		case head.Kind() != CellNode && blockLength(head) == 0:
+		case !kindOf(head).Cell && blockLength(head) == 0:
 			if err := document.RemoveNode(first); err != nil {
 				return fail(err)
 			}
 			i.land(last, 0, document)
-		case tail.Kind() != CellNode && blockLength(tail) == 0:
+		case !kindOf(tail).Cell && blockLength(tail) == 0:
 			if err := document.RemoveNode(last); err != nil {
 				return fail(err)
 			}
@@ -677,7 +674,7 @@ func (i *EditorInvoker) tableSpan(
 	}
 	// With only whole tables in it between two other blocks, the span
 	// joins them as any span does, once the tables are gone.
-	if head.Kind() != CellNode && tail.Kind() != CellNode {
+	if !kindOf(head).Cell && !kindOf(tail).Cell {
 		for _, id := range order[from+1 : to] {
 			if whole[id] {
 				if err := document.RemoveNode(id); err != nil {
@@ -715,7 +712,7 @@ func (i *EditorInvoker) tableSpan(
 			hi = end
 		}
 		switch {
-		case whole[id] || index != from && index != to && node.Kind() != CellNode:
+		case whole[id] || index != from && index != to && !kindOf(node).Cell:
 			err := document.RemoveNode(id)
 			if err != nil {
 				return fail(err)
@@ -741,7 +738,7 @@ func spansTable(document *model.DocumentDraft, first, last model.NodeID) bool {
 		return false
 	}
 	for _, id := range order[from : to+1] {
-		if node, ok := document.Node(id); ok && node.Kind() == CellNode {
+		if node, ok := document.Node(id); ok && kindOf(node).Cell {
 			return true
 		}
 	}

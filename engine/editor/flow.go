@@ -101,16 +101,9 @@ func blockFlow(node *model.Node, ordinal int, document model.DocumentSnapshot) (
 // formula block centered, as a centered picture's caption is.
 func blockLayout(node *model.Node) surface.Block {
 	block := surface.Block{Node: node.ID()}
-	switch shape := shapeOf(node); shape.kind {
-	case HeadingNode:
-		block.Rhythm = surface.RhythmTitle
-	case BulletNode, OrderedNode, CheckboxNode, QuoteNode:
-		block.Rhythm = surface.RhythmEntry
-	case CodeNode:
-		block.Rhythm = surface.RhythmVerbatim
-	case MathNode:
-		block.Rhythm, block.Align = surface.RhythmVerbatim, surface.AlignCenter
-	case ImageNode:
+	desc := kindOf(node)
+	block.Rhythm, block.Align = desc.rhythm, desc.align
+	if desc.Atomic {
 		if image, ok := ImageShapeOf(node); ok && image.Align == surface.FigureCenter {
 			block.Align = surface.AlignCenter
 		}
