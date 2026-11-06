@@ -2,7 +2,6 @@ package textlayout
 
 import (
 	"math"
-	"strings"
 
 	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/engine/surface"
@@ -32,24 +31,6 @@ const (
 // to none while it has no caption.
 func captionRoom(figure surface.Figure) float32 {
 	return max(0, min(1, figure.Caption))
-}
-
-// figureObject sets the character a figure's line opens with, its
-// picture's, as an inline object that draws nothing and takes no room, so
-// the caption stands as if alone on its line.
-func figureObject(spans []ui.Span) []ui.Span {
-	if len(spans) == 0 || !strings.HasPrefix(spans[0].Text, surface.FigureObject) {
-		return spans
-	}
-	object, rest := spans[0], spans[0]
-	object.Text = surface.FigureObject
-	object.ObjectWidth = figureObjectWidth
-	rest.Text = rest.Text[len(surface.FigureObject):]
-	objects := []ui.Span{object}
-	if rest.Text != "" {
-		objects = append(objects, rest)
-	}
-	return append(objects, spans[1:]...)
 }
 
 func figureGap(body float32) float32 {

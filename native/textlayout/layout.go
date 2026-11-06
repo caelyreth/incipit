@@ -172,17 +172,14 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 	// apart is the room the block before asks below it, as a figure or a
 	// table does.
 	apart := float32(0)
-	shape := func(raw rawParagraph, font ui.Font, width float32, align ui.Align, figure, header bool) *ui.TextLayout {
-		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width, align, figure, header)
+	shape := func(raw rawParagraph, font ui.Font, width float32, align ui.Align, header bool) *ui.TextLayout {
+		key := paragraphKey(flow, raw.startByte, raw.endByte, style, font, width, align, header)
 		var layout *ui.TextLayout
 		if available := c.layouts[key]; len(available) > 0 {
 			layout = available[len(available)-1]
 			c.layouts[key] = available[:len(available)-1]
 		} else {
 			spans := spansFor(flow, raw.startByte, raw.endByte, style, width)
-			if figure {
-				spans = figureObject(spans)
-			}
 			if header {
 				spans = headerSpans(spans)
 			}
@@ -211,7 +208,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		code := font
 		code.Size = style.Prose.FontSize * codeScale
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, code, leading(surface.RhythmVerbatim, body))
-		layout := shape(raw, font, max(1, width-2*padX), ui.Start, false, false)
+		layout := shape(raw, font, max(1, width-2*padX), ui.Start, false)
 		_, height := layout.Size()
 		return Paragraph{
 			layout: layout, startByte: raw.startByte, endByte: raw.endByte,
@@ -252,7 +249,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 			top += above
 			placed, cells, height := placeTable(table, paragraphs[index:], top, width, style, func(raw rawParagraph, width float32, align ui.Align, header bool) *ui.TextLayout {
 				font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
-				return shape(raw, font, width, align, false, header)
+				return shape(raw, font, width, align, header)
 			})
 			cells[0].gap = above
 			shaped = append(shaped, cells...)
@@ -276,7 +273,7 @@ func (c *Cache) Update(flow *surface.Flow, width float32, style Style) *Layout {
 		}
 		top += above
 		font := style.paragraphFont(flow, raw.startByte, raw.endByte, font, leading(rhythm, body))
-		layout := shape(raw, font, width, align, hasFigure, false)
+		layout := shape(raw, font, width, align, false)
 		_, height := layout.Size()
 		if hasFigure {
 			height *= captionRoom(figure)
@@ -459,7 +456,7 @@ func paragraphKey(
 	font ui.Font,
 	width float32,
 	align ui.Align,
-	figure, header bool,
+	header bool,
 ) uint64 {
 	const (
 		fnvOffset64 = uint64(14695981039346656037)
@@ -485,10 +482,14 @@ func paragraphKey(
 		})
 	}
 	writeFloat(width)
-	writeBytes([]byte{byte(align), boolByte(figure), boolByte(header)})
+	writeBytes([]byte{byte(align), boolByte(header)})
 	writeFloat(font.Size)
 	writeFloat(font.LineHeight)
 	writeString(font.Family)
+	// A figure's object, which sets nothing.
+	start16, _ := flow.UTF16OfByte(model.ByteOffset(start))
+	_, hasFigure := flow.FigureAt(start16)
+	writeBytes([]byte{boolByte(hasFigure)})
 	_, from, to, hasCheckbox := checkboxIn(flow, start, end)
 	writeBytes([]byte{boolByte(hasCheckbox)})
 	if hasCheckbox {
@@ -497,7 +498,6 @@ func paragraphKey(
 	}
 	// What a formula sets follows from its source, the text's size and
 	// the width.
-	start16, _ := flow.UTF16OfByte(model.ByteOffset(start))
 	end16, _ := flow.UTF16OfByte(model.ByteOffset(end))
 	for _, f := range flow.FormulasIn(start16, end16) {
 		writeFloat(float32(f.Range.Start - start16))

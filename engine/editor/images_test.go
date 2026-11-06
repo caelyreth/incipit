@@ -12,7 +12,7 @@ import (
 var sunset = ImageShape{Media: "ab12", Width: 800, Height: 600, Alt: "A sunset"}
 
 // pic is the character a picture stands on, as a page's text shows it.
-const pic = surface.FigureObject
+const pic = figureNotation
 
 // imagePage is a page of a paragraph, a captioned image and a paragraph.
 func imagePage(t *testing.T) *Session {
@@ -49,7 +49,7 @@ func TestAnImageGoesOnThePageAboveItsCaption(t *testing.T) {
 		t.Fatalf("figures = %+v", shown)
 	}
 	figure := shown[0]
-	if figure.At != 7 || figure.Media != sunset.Media || figure.Width != 800 ||
+	if figure.Object.Start != 7 || figure.Media != sunset.Media || figure.Width != 800 ||
 		figure.Height != 600 || figure.Alt != sunset.Alt {
 		t.Fatalf("figure = %+v", figure)
 	}

@@ -44,13 +44,13 @@ func newProjectedFixture(
 	length := model.UTF16Offset(model.StringLenUTF16(text))
 	builder := projection.NewBuilder("markup/1", projection.NewVersion(revision, 1))
 	for _, mark := range root.Marks() {
-		if err := builder.Attribute(node, MarkerKeyForMark(mark.ID()), "*"); err != nil {
+		if err := builder.Attribute(node, MarkerKeyForMark(mark.ID()), projection.Part{Text: "*"}); err != nil {
 			t.Fatal(err)
 		}
 		if err := builder.Editable(root, mark.Range()); err != nil {
 			t.Fatal(err)
 		}
-		if err := builder.Attribute(node, MarkerKeyForMark(mark.ID()), "*"); err != nil {
+		if err := builder.Attribute(node, MarkerKeyForMark(mark.ID()), projection.Part{Text: "*"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -478,7 +478,7 @@ func TestNestedMarksDecomposeClosersBeforeOpenersByProjectionOrder(t *testing.T)
 			}
 			continue
 		}
-		if err := builder.Attribute(nodeID, MarkerKeyForMark(step.mark), step.text); err != nil {
+		if err := builder.Attribute(nodeID, MarkerKeyForMark(step.mark), projection.Part{Text: step.text}); err != nil {
 			t.Fatal(err)
 		}
 	}

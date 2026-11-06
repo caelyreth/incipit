@@ -47,6 +47,7 @@ type Projection struct {
 	segmentBytes  []model.ByteRange
 	witnesses     []textWitness
 	dependencies  []Dependency
+	roles         []RoleSpan
 }
 
 func New(
@@ -63,6 +64,7 @@ func New(
 		segments,
 		make([]textWitness, len(segments)),
 		dependencies,
+		nil,
 	)
 }
 
@@ -73,11 +75,15 @@ func fromText(
 	segments []Segment,
 	witnesses []textWitness,
 	dependencies []Dependency,
+	roles []RoleSpan,
 ) (*Projection, error) {
 	if id == "" {
 		return nil, &ProjectionError{Kind: ErrorEmptyID}
 	}
 	length := text.UTF16Len()
+	if err := validateRoles(roles, length); err != nil {
+		return nil, err
+	}
 	graphemeBytes := make(map[int]struct{})
 	for iterator := graphemes.FromString(text.Flat()); iterator.Next(); {
 		graphemeBytes[iterator.End()] = struct{}{}
@@ -192,6 +198,7 @@ func fromText(
 		segmentBytes:  segmentBytes,
 		witnesses:     append([]textWitness(nil), witnesses...),
 		dependencies:  deps,
+		roles:         slices.Clone(roles),
 	}, nil
 }
 
@@ -743,6 +750,7 @@ type Builder struct {
 	parts     []textPart
 	segments  []Segment
 	witnesses []textWitness
+	roles     []RoleSpan
 }
 
 func NewBuilder(id ProjectionID, version Version) *Builder {
@@ -781,11 +789,25 @@ func (b *Builder) Generated(text string) error {
 	return nil
 }
 
-func (b *Builder) Attribute(node model.NodeID, key, text string) error {
+// Attribute appends the notation of a node's attribute key, its parts in
+// order, each with the role it plays.
+func (b *Builder) Attribute(node model.NodeID, key string, parts ...Part) error {
+	text := ""
+	for _, part := range parts {
+		text += part.Text
+	}
 	part := wholeTextPart(rope.New(text))
 	range16, err := b.nextRange(part.range16.Len(), part.bytes.Len())
 	if err != nil {
 		return err
+	}
+	at := range16.Start
+	for _, notation := range parts {
+		length := model.UTF16Offset(model.StringLenUTF16(notation.Text))
+		if notation.Role != 0 && length > 0 {
+			b.roles = append(b.roles, RoleSpan{Range: model.NewUTF16Range(at, at+length), Role: notation.Role, Node: node, Key: key})
+		}
+		at += length
 	}
 	b.push(part, AttributeSegment(
 		range16,
@@ -803,7 +825,7 @@ func (b *Builder) Semantic(node *model.Node, range16 model.UTF16Range) error {
 }
 
 func (b *Builder) Build(dependencies []Dependency) (*Projection, error) {
-	return fromText(b.id, b.version, textFromParts(b.parts), b.segments, b.witnesses, dependencies)
+	return fromText(b.id, b.version, textFromParts(b.parts), b.segments, b.witnesses, dependencies, b.roles)
 }
 
 func (b *Builder) source(node *model.Node, range16 model.UTF16Range, editable bool) error {

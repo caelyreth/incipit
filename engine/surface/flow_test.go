@@ -200,7 +200,7 @@ func TestPreviewPreservesSurroundingRuns(t *testing.T) {
 
 func TestPreviewRemapsFigureMetadata(t *testing.T) {
 	t.Parallel()
-	text := "intro\n" + FigureObject + "\ncaption"
+	text := "intro\n\uFFFC\ncaption"
 	flow, err := NewFlow(
 		projection.NewVersion(1, 1),
 		text,
@@ -214,7 +214,7 @@ func TestPreviewRemapsFigureMetadata(t *testing.T) {
 	}
 	at := model.UTF16Offset(model.StringLenUTF16("intro\n"))
 	flow, err = flow.WithFigures([]Figure{{
-		At: at, Node: 2, Media: "media/1", Width: 100, Height: 50,
+		Object: model.NewUTF16Range(at, at+1), Node: 2, Media: "media/1", Width: 100, Height: 50,
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -228,7 +228,7 @@ func TestPreviewRemapsFigureMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	figures := preview.Flow().Figures()
-	if len(figures) != 1 || figures[0].At != at+1 || figures[0].Media != "media/1" {
+	if len(figures) != 1 || figures[0].Object.Start != at+1 || figures[0].Media != "media/1" {
 		t.Fatalf("preview figures = %#v", figures)
 	}
 }

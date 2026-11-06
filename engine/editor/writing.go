@@ -2,12 +2,10 @@ package editor
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
-	"github.com/caelyreth/neverland/engine/surface"
 )
 
 // The Writing Profile is the CommonMark-shaped syntax the writing policy
@@ -269,37 +267,6 @@ func (s blockShape) opensLine() bool {
 		return true
 	}
 	return false
-}
-
-// blockNotation is the notation a block opens with, and the fence it closes
-// with. ordinal is an ordered item's number.
-func blockNotation(shape blockShape, ordinal int) (open, close string) {
-	if shape.atomic() {
-		return surface.FigureObject, ""
-	}
-	switch shape.kind {
-	case HeadingNode:
-		return strings.Repeat("#", shape.level) + " ", ""
-	case QuoteNode:
-		return strings.Repeat("> ", shape.depth+1), ""
-	case BulletNode:
-		return strings.Repeat("  ", shape.depth) + "- ", ""
-	case CheckboxNode:
-		mark := " "
-		if shape.checked {
-			mark = "x"
-		}
-		return strings.Repeat("  ", shape.depth) + "- [" + mark + "] ", ""
-	case OrderedNode:
-		return strings.Repeat("  ", shape.depth) + strconv.Itoa(ordinal) + ". ", ""
-	case CodeNode:
-		return "```" + shape.info + "\n", "\n```"
-	case MathNode:
-		return "$$\n", "\n$$"
-	case RuleNode:
-		return "---", ""
-	}
-	return "", ""
 }
 
 // parseOpener reads notation at a block's start as the shape it opens: the

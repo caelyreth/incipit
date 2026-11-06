@@ -33,8 +33,8 @@ func TestAFigureIsSetAtItsSizeWithinTheColumn(t *testing.T) {
 // follows move down by it, and a click in it finds it.
 func TestAFigureTakesItsRoomAboveItsLine(t *testing.T) {
 	plain := NewCache().Update(testFlow(t, "one\ntwo\nthree", 0), 400, testStyle())
-	flow, err := testFlow(t, "one\ntwo\nthree", 0).WithFigures([]surface.Figure{
-		{At: 4, Node: 9, Media: "m", Width: 200, Height: 100, Caption: 1},
+	flow, err := testFlow(t, "one\n\uFFFC\nthree", 0).WithFigures([]surface.Figure{
+		{Object: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: 1},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -45,7 +45,7 @@ func TestAFigureTakesItsRoomAboveItsLine(t *testing.T) {
 		t.Fatalf("figures = %+v", figures)
 	}
 	figure := figures[0]
-	if figure.Line != model.NewUTF16Range(4, 7) || figure.Box.W != 200 || figure.Box.H != 100 || figure.Box.X != 100 {
+	if figure.Line != model.NewUTF16Range(4, 5) || figure.Box.W != 200 || figure.Box.H != 100 || figure.Box.X != 100 {
 		t.Fatalf("figure = %+v", figure)
 	}
 	before, after := plain.Paragraphs(), layout.Paragraphs()
@@ -80,7 +80,7 @@ func TestAFigureTakesItsRoomAboveItsLine(t *testing.T) {
 func TestAClosedCaptionTakesNoRoom(t *testing.T) {
 	place := func(caption float32) (PlacedFigure, Paragraph) {
 		flow, err := testFlow(t, "one\n\uFFFC\nthree", 0).WithFigures([]surface.Figure{
-			{At: 4, Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
+			{Object: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -102,9 +102,9 @@ func TestAClosedCaptionTakesNoRoom(t *testing.T) {
 func TestFiguresStartLinesInOrder(t *testing.T) {
 	flow := testFlow(t, "one\ntwo", 0)
 	for _, figures := range [][]surface.Figure{
-		{{At: 2, Width: 1, Height: 1}},
-		{{At: 4, Width: 1, Height: 1}, {At: 0, Width: 1, Height: 1}},
-		{{At: 4, Width: 0, Height: 1}},
+		{{Object: model.NewUTF16Range(2, 2+1), Width: 1, Height: 1}},
+		{{Object: model.NewUTF16Range(4, 4+1), Width: 1, Height: 1}, {Object: model.NewUTF16Range(0, 0+1), Width: 1, Height: 1}},
+		{{Object: model.NewUTF16Range(4, 4+1), Width: 0, Height: 1}},
 	} {
 		if _, err := flow.WithFigures(figures); err == nil {
 			t.Fatalf("figures %+v were taken", figures)
@@ -117,7 +117,7 @@ func TestFiguresStartLinesInOrder(t *testing.T) {
 func TestRowsStepAcrossAFigure(t *testing.T) {
 	for _, caption := range []float32{0, 1} {
 		flow, err := testFlow(t, "one\n￼\nthree", 0).WithFigures([]surface.Figure{
-			{At: 4, Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
+			{Object: model.NewUTF16Range(4, 4+1), Node: 9, Media: "m", Width: 200, Height: 100, Caption: caption},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -161,8 +161,8 @@ func TestUpAndDownStepOneRowFromEveryRow(t *testing.T) {
 		return model.UTF16Offset(len([]rune(strings.Join(strings.Split(text, "\n")[:line], "\n"))) + 1)
 	}
 	flow, err := testFlow(t, text, 0).WithFigures([]surface.Figure{
-		{At: figureAt(2), Node: 1, Media: "m", Width: 200, Height: 100, Caption: 0},
-		{At: figureAt(3), Node: 2, Media: "m", Width: 200, Height: 100, Caption: 1},
+		{Object: model.NewUTF16Range(figureAt(2), figureAt(2)+1), Node: 1, Media: "m", Width: 200, Height: 100, Caption: 0},
+		{Object: model.NewUTF16Range(figureAt(3), figureAt(3)+1), Node: 2, Media: "m", Width: 200, Height: 100, Caption: 1},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -165,7 +165,7 @@ func TestIMEPreviewRetainsFigureDuringCaptionEdit(t *testing.T) {
 	if len(preview) != 1 || preview[0] != before {
 		t.Fatalf("preview figures = %#v, want %#v", preview, before)
 	}
-	if !strings.Contains(controller.Text(), surface.FigureObject+"图") {
+	if !strings.Contains(controller.Text(), "\uFFFC图") {
 		t.Fatalf("preview text = %q", controller.Text())
 	}
 	controller.UnmarkText()

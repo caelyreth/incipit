@@ -31,7 +31,7 @@ func (e *Element) captionedFlow(flow *surface.Flow, selection model.UTF16Range, 
 	for index := range figures {
 		figure := &figures[index]
 		open := figure.Caption
-		if captionCaret(*figure, selection) || selection == figure.Object() {
+		if captionCaret(*figure, selection) || selection == figure.Object {
 			open = 1
 		}
 		spring, known := e.captions[figure.Node]

@@ -582,12 +582,12 @@ func projectBlock(
 	node *model.Node,
 	ordinal int,
 ) error {
-	open, close := blockNotation(shapeOf(node), ordinal)
-	edge := func(key, notation string) error {
-		if notation == "" {
+	open, close := blockNotationParts(shapeOf(node), ordinal)
+	edge := func(key string, parts notation) error {
+		if len(parts) == 0 {
 			return wrapProjectionError(builder.Generated(""))
 		}
-		return wrapProjectionError(builder.Attribute(node.ID(), key, notation))
+		return wrapProjectionError(builder.Attribute(node.ID(), key, parts...))
 	}
 	if err := edge(blockNotationKey, open); err != nil {
 		return err
@@ -669,14 +669,16 @@ func projectInlineBody(
 			}
 		}
 		cursor = event.position
-		if err := appendInlineMarker(builder, node, event.mark); err != nil {
+		// An end sorts before a start at one place, kind 0; an empty mark,
+		// kind 2, opens and closes there.
+		if err := appendInlineMarker(builder, node, event.mark, event.kind != 0); err != nil {
 			return err
 		}
 		if event.kind == 2 {
 			if err := builder.Editable(node, model.NewUTF16Range(cursor, cursor)); err != nil {
 				return err
 			}
-			if err := appendInlineMarker(builder, node, event.mark); err != nil {
+			if err := appendInlineMarker(builder, node, event.mark, false); err != nil {
 				return err
 			}
 		}
@@ -687,12 +689,23 @@ func projectInlineBody(
 	return nil
 }
 
+// appendInlineMarker appends the notation opening a mark, or closing it.
 func appendInlineMarker(
 	builder *projection.Builder,
 	node *model.Node,
 	mark model.InlineMark,
+	opening bool,
 ) error {
-	return builder.Attribute(node.ID(), MarkerKeyForMark(mark.ID()), inlineNotation(mark))
+	role := roleMarkClose
+	switch {
+	case mark.Kind() == MathMark && opening:
+		role = roleFormulaOpen
+	case mark.Kind() == MathMark:
+		role = roleFormulaClose
+	case opening:
+		role = roleMarkOpen
+	}
+	return builder.Attribute(node.ID(), MarkerKeyForMark(mark.ID()), projection.Part{Text: inlineNotation(mark), Role: role})
 }
 
 func markupSettingBool(

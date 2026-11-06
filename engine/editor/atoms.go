@@ -9,7 +9,7 @@ import (
 )
 
 // An atomic block stands on an object: one character of its own,
-// surface.FigureObject, its notation, that is what the block shows apart
+// figureNotation, its notation, that is what the block shows apart
 // from its text, as an image's picture. Every command meets it alike,
 // whatever its text, because each reads the trait rather than a kind:
 //
@@ -108,10 +108,8 @@ func (s *Session) ReadableText(range16 model.UTF16Range) (string, error) {
 		if from >= to {
 			return true
 		}
-		if target, ok := segment.AttributeTarget(); ok && target.Key() == blockNotationKey {
-			if node, ok := document.Node(target.Node()); ok && shapeOf(node).atomic() {
-				return true
-			}
+		if role, ok := p.RoleAt(span.Start); ok && role.Role == roleFigure {
+			return true
 		}
 		part, err := p.TextRange(model.NewUTF16Range(from, to))
 		if err != nil {

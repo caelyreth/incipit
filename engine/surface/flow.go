@@ -73,14 +73,14 @@ func NewFlow(version projection.Version, text string, runs []StyleRun) (*Flow, e
 func (f *Flow) WithFigures(figures []Figure) (*Flow, error) {
 	previous := model.UTF16Offset(-1)
 	for _, figure := range figures {
-		if figure.At <= previous || figure.At > f.UTF16Len() ||
-			figure.At > 0 && !f.lineStart(figure.At) {
-			return nil, fmt.Errorf("a figure must start a line, in order")
+		if figure.Object.Start <= previous || figure.Object.Empty() || figure.Object.End > f.UTF16Len() ||
+			figure.Object.Start > 0 && !f.lineStart(figure.Object.Start) {
+			return nil, fmt.Errorf("a figure must start a line, in order, on its object")
 		}
 		if figure.Width <= 0 || figure.Height <= 0 || figure.Span < 0 || figure.Span > 1 {
 			return nil, fmt.Errorf("invalid figure size")
 		}
-		previous = figure.At
+		previous = figure.Object.Start
 	}
 	next := *f
 	next.figures = append([]Figure(nil), figures...)
@@ -98,7 +98,7 @@ func (f *Flow) Figures() []Figure { return append([]Figure(nil), f.figures...) }
 // FigureAt is the picture the line starting at offset shows.
 func (f *Flow) FigureAt(at model.UTF16Offset) (Figure, bool) {
 	index, found := slices.BinarySearchFunc(f.figures, at, func(figure Figure, at model.UTF16Offset) int {
-		return int(figure.At - at)
+		return int(figure.Object.Start - at)
 	})
 	if !found {
 		return Figure{}, false

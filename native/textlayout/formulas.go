@@ -213,6 +213,18 @@ func replacementsIn(flow *surface.Flow, start, end int, style Style, width float
 	}
 	start16, _ := flow.UTF16OfByte(model.ByteOffset(start))
 	end16, _ := flow.UTF16OfByte(model.ByteOffset(end))
+	// A figure's object stands for its picture, which its line sets above
+	// it: it sets nothing, as wide as nothing.
+	if figure, ok := flow.FigureAt(start16); ok {
+		from, fromOK := flow.ByteOfUTF16(figure.Object.Start)
+		to, toOK := flow.ByteOfUTF16(figure.Object.End)
+		if fromOK && toOK && int(to) <= end {
+			object := plainSpans(flow, int(from), int(to), style)[0]
+			object.Text = "\uFFFC"
+			object.ObjectWidth = figureObjectWidth
+			objects = append(objects, replacement{from: int(from), to: int(to), object: object})
+		}
+	}
 	for _, f := range flow.FormulasIn(start16, end16) {
 		from, fromOK := flow.ByteOfUTF16(f.Range.Start)
 		to, toOK := flow.ByteOfUTF16(f.Range.End)

@@ -39,13 +39,13 @@ func markerProjection(t *testing.T, f fixture, revision, generation uint64, mark
 		t.Fatal("missing node")
 	}
 	builder := NewBuilder("markup/1", NewVersion(revision, generation))
-	if err := builder.Attribute(f.node, "emphasis", marker); err != nil {
+	if err := builder.Attribute(f.node, "emphasis", Part{Text: marker}); err != nil {
 		t.Fatal(err)
 	}
 	if err := builder.Editable(node, model.NewUTF16Range(0, model.UTF16Offset(node.Text().UTF16Len()))); err != nil {
 		t.Fatal(err)
 	}
-	if err := builder.Attribute(f.node, "emphasis", marker); err != nil {
+	if err := builder.Attribute(f.node, "emphasis", Part{Text: marker}); err != nil {
 		t.Fatal(err)
 	}
 	projection, err := builder.Build(nil)
@@ -216,7 +216,7 @@ func TestAttributeCaretAddressesAndResolves(t *testing.T) {
 func TestSingleNotationRunKeepsItsOpeningAddress(t *testing.T) {
 	f := newFixture(t, "abc")
 	builder := NewBuilder("single", NewVersion(f.document.Revision(), 1))
-	if err := builder.Attribute(f.node, "heading", "##"); err != nil {
+	if err := builder.Attribute(f.node, "heading", Part{Text: "##"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := builder.Editable(f.root, model.NewUTF16Range(0, 3)); err != nil {
@@ -294,5 +294,38 @@ func TestValidateSourceUsesWitnessesAndDetectsChangedText(t *testing.T) {
 	var projectionErr *ProjectionError
 	if !errors.As(err, &projectionErr) || projectionErr.Kind != ErrorSourceRevision {
 		t.Fatalf("validation error = %v", err)
+	}
+}
+
+// Notation carries the roles its builder gives its parts, found by where
+// they stand, with the node and key whose notation they are.
+func TestNotationCarriesItsRoles(t *testing.T) {
+	builder := NewBuilder("roles", NewVersion(1, 1))
+	const marker, space Role = 1, 2
+	if err := builder.Attribute(7, "open", Part{Text: "  "}, Part{Text: "- [x]", Role: marker}, Part{Text: " ", Role: space}); err != nil {
+		t.Fatal(err)
+	}
+	if err := builder.Generated("\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := builder.Attribute(8, "open", Part{Text: "#", Role: marker}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := builder.Build(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Text() != "  - [x] \n#" {
+		t.Fatalf("text %q", p.Text())
+	}
+	want := RoleSpan{Range: model.NewUTF16Range(2, 7), Role: marker, Node: 7, Key: "open"}
+	if got, ok := p.RoleAt(4); !ok || got != want {
+		t.Fatalf("role at 4 = %+v, %v", got, ok)
+	}
+	if _, ok := p.RoleAt(1); ok {
+		t.Fatal("the indent has no role")
+	}
+	if got := p.Roles(model.NewUTF16Range(6, 10)); len(got) != 3 || got[1].Role != space || got[2].Node != 8 {
+		t.Fatalf("roles over 6..10 = %+v", got)
 	}
 }

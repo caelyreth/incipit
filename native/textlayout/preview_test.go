@@ -55,10 +55,10 @@ func TestIMEPreviewKeepsTableLayoutAndCandidateGeometry(t *testing.T) {
 }
 
 func TestIMEPreviewKeepsFigureLayout(t *testing.T) {
-	text := "one\n" + surface.FigureObject + "\ncaption"
+	text := "one\n\uFFFC\ncaption"
 	flow := testFlow(t, text, 0)
 	flow, err := flow.WithFigures([]surface.Figure{{
-		At: 4, Node: 9, Media: "m", Width: 200, Height: 100, Caption: 1,
+		Object: model.NewUTF16Range(4, 5), Node: 9, Media: "m", Width: 200, Height: 100, Caption: 1,
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +69,7 @@ func TestIMEPreviewKeepsFigureLayout(t *testing.T) {
 	if len(figures) != 1 {
 		t.Fatalf("preview figures = %#v", figures)
 	}
-	if figures[0].At != 6 || figures[0].Media != "m" || figures[0].Caption != 1 {
+	if figures[0].Object.Start != 6 || figures[0].Media != "m" || figures[0].Caption != 1 {
 		t.Fatalf("preview figure = %#v", figures[0])
 	}
 	if caption := figures[0].CaptionText(); caption.Start != figures[0].CaptionStart() {

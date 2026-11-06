@@ -24,37 +24,30 @@ func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surfa
 	}
 	var figures []surface.Figure
 	var checkboxes []surface.Checkbox
-	p.EachSegment(func(_ int, segment projection.Segment) bool {
-		target, ok := segment.AttributeTarget()
-		if !ok || target.Key() != blockNotationKey {
+	// The page's objects are where its notation's roles say: a checkbox's
+	// marker, a picture's object, a formula from its opening fence to its
+	// closing one.
+	p.EachRole(func(span projection.RoleSpan) bool {
+		node, ok := document.Node(span.Node)
+		if !ok {
 			return true
 		}
-		node, ok := document.Node(target.Node())
-		if ok && node.Kind() == CheckboxNode {
-			shape := shapeOf(node)
-			start := segment.ProjectedRange().Start + model.UTF16Offset(2*shape.depth)
+		switch span.Role {
+		case roleCheckbox:
 			checkboxes = append(checkboxes, surface.Checkbox{
-				Node: node.ID(), Marker: model.NewUTF16Range(start, start+5),
-				Checked: shape.checked, Label: node.Text().String(),
+				Node: node.ID(), Marker: span.Range,
+				Checked: shapeOf(node).checked, Label: node.Text().String(),
 			})
-			return true
-		}
-		shape, image := ImageShapeOf(node)
-		if !ok || !image {
-			return true
-		}
-		figures = append(figures, surface.Figure{
-			At:     segment.ProjectedRange().Start,
-			Node:   node.ID(),
-			Media:  shape.Media,
-			Width:  shape.Width,
-			Height: shape.Height,
-			Span:   shape.Span,
-			Align:  shape.Align,
-			Alt:    shape.Alt,
-		})
-		if blockLength(node) > 0 {
-			figures[len(figures)-1].Caption = 1
+		case roleFigure:
+			shape, _ := ImageShapeOf(node)
+			figure := surface.Figure{
+				Object: span.Range, Node: node.ID(), Media: shape.Media,
+				Width: shape.Width, Height: shape.Height, Span: shape.Span, Align: shape.Align, Alt: shape.Alt,
+			}
+			if blockLength(node) > 0 {
+				figure.Caption = 1
+			}
+			figures = append(figures, figure)
 		}
 		return true
 	})
@@ -74,64 +67,42 @@ func pageFlow(p *projection.Projection, document model.DocumentSnapshot) (*surfa
 	return flow.WithFigures(figures)
 }
 
-// formulaFlow finds the page's formulas in the projected text: each inline
-// formula from its opening dollar to its closing one, and each formula block
-// from its opening fence to its closing one.
-func formulaFlow(p *projection.Projection, document model.DocumentSnapshot) []surface.Formula {
-	var formulas []surface.Formula
-	// open is where the formula a node's notation opens started, by the
-	// node and the notation's key.
-	type opening struct {
-		node model.NodeID
-		key  string
+// formulaOf is the formula of node from its opening fence to its closing
+// one: a formula block's whole text, or the text of the formula mark the
+// fences are the notation of.
+func formulaOf(node *model.Node, open, close projection.RoleSpan) surface.Formula {
+	formula := surface.Formula{
+		Node: node.ID(), Range: model.NewUTF16Range(open.Range.Start, close.Range.End),
+		Text: model.NewUTF16Range(open.Range.End, close.Range.Start),
 	}
-	open := make(map[opening]model.UTF16Range)
-	p.EachSegment(func(_ int, segment projection.Segment) bool {
-		target, ok := segment.AttributeTarget()
-		if !ok {
-			return true
-		}
-		node, ok := document.Node(target.Node())
-		if !ok {
-			return true
-		}
-		span := segment.ProjectedRange()
-		switch target.Key() {
-		case blockNotationKey:
-			if node.Kind() == MathNode {
-				open[opening{node.ID(), blockNotationKey}] = span
-			}
-			return true
-		case fenceNotationKey:
-			if opener, ok := open[opening{node.ID(), blockNotationKey}]; ok && node.Kind() == MathNode {
-				formulas = append(formulas, surface.Formula{
-					Node: node.ID(), Range: model.NewUTF16Range(opener.Start, span.End),
-					Text:   model.NewUTF16Range(opener.End, span.Start),
-					Source: node.Text().String(), Display: true,
-				})
-			}
-			return true
-		}
-		for _, mark := range node.Marks() {
-			if mark.Kind() != MathMark || target.Key() != MarkerKeyForMark(mark.ID()) {
-				continue
-			}
-			key := opening{node.ID(), target.Key()}
-			opener, opened := open[key]
-			if !opened {
-				open[key] = span
-				break
-			}
-			delete(open, key)
-			text := node.Text().String()
+	text := node.Text().String()
+	if open.Key == blockNotationKey {
+		formula.Source, formula.Display = text, true
+		return formula
+	}
+	for _, mark := range node.Marks() {
+		if MarkerKeyForMark(mark.ID()) == open.Key {
 			from := model.UTF16OffsetToByteClamped(text, mark.Range().Start)
 			to := model.UTF16OffsetToByteClamped(text, mark.Range().End)
-			formulas = append(formulas, surface.Formula{
-				Node: node.ID(), Range: model.NewUTF16Range(opener.Start, span.End),
-				Text:   model.NewUTF16Range(opener.End, span.Start),
-				Source: text[from:to],
-			})
-			break
+			formula.Source = text[from:to]
+		}
+	}
+	return formula
+}
+
+// formulaFlow are the page's formulas, in order.
+func formulaFlow(p *projection.Projection, document model.DocumentSnapshot) []surface.Formula {
+	var formulas []surface.Formula
+	var opener projection.RoleSpan
+	p.EachRole(func(span projection.RoleSpan) bool {
+		switch span.Role {
+		case roleFormulaOpen:
+			opener = span
+		case roleFormulaClose:
+			if node, ok := document.Node(span.Node); ok && opener.Node == span.Node {
+				formulas = append(formulas, formulaOf(node, opener, span))
+			}
+			opener = projection.RoleSpan{}
 		}
 		return true
 	})

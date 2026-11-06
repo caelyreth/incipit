@@ -70,10 +70,13 @@ func (s TextStyle) Size() float32 {
 // above its caption: what it shows, named by its media, its size in
 // pixels, and how the column sets it.
 type Figure struct {
-	// At is where the line it stands above starts, at its FigureObject.
-	At    model.UTF16Offset
-	Node  model.NodeID
-	Media string
+	// Object is the notation its line opens with, standing for its
+	// picture as an object replacement character stands for an attachment
+	// in text: the caret steps over it, and it shows as nothing, so the
+	// line is the figure's whether or not it has a caption.
+	Object model.UTF16Range
+	Node   model.NodeID
+	Media  string
 	// Width and Height are its size in pixels, so it takes its room before
 	// its pixels are read.
 	Width, Height int
@@ -89,22 +92,8 @@ type Figure struct {
 	Caption float32
 }
 
-// FigureObject is the character a figure's line opens with, standing for
-// its picture as an object replacement character stands for an attachment
-// in text: the caret steps over it, and it shows as nothing, so the line
-// is the figure's whether or not it has a caption.
-const FigureObject = "\uFFFC"
-
-// Object is the range of the character a figure stands on, the start of
-// its line.
-func (f Figure) Object() model.UTF16Range {
-	return model.NewUTF16Range(f.At, f.CaptionStart())
-}
-
 // CaptionStart is where a figure's caption starts, past its object.
-func (f Figure) CaptionStart() model.UTF16Offset {
-	return f.At + model.UTF16Offset(model.StringLenUTF16(FigureObject))
-}
+func (f Figure) CaptionStart() model.UTF16Offset { return f.Object.End }
 
 // FigureAlign is where a figure narrower than the column stands.
 type FigureAlign uint8

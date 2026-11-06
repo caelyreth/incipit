@@ -184,11 +184,11 @@ func TestPreviewDropsTableMetadataForCrossCellComposition(t *testing.T) {
 
 func TestPreviewRemapsFiguresAroundCaptionEdits(t *testing.T) {
 	t.Parallel()
-	text := "intro\n" + FigureObject + "\ncaption\nout"
+	text := "intro\n\uFFFC\ncaption\nout"
 	flow := textFlow(t, text)
 	at := model.UTF16Offset(model.StringLenUTF16("intro\n"))
 	figure := Figure{
-		At: at, Node: 2, Media: "media/1", Width: 100, Height: 50,
+		Object: model.NewUTF16Range(at, at+1), Node: 2, Media: "media/1", Width: 100, Height: 50,
 		Span: 0.5, Align: FigureStart, Alt: "A crab", Caption: 1,
 	}
 	flow, err := flow.WithFigures([]Figure{figure})
@@ -200,7 +200,7 @@ func TestPreviewRemapsFiguresAroundCaptionEdits(t *testing.T) {
 		preview := previewFrame(t, flow, model.EmptyUTF16Range(2), "🦀")
 		figures := preview.Flow().Figures()
 		want := figure
-		want.At += 2
+		want.Object.Start, want.Object.End = want.Object.Start+2, want.Object.End+2
 		if !reflect.DeepEqual(figures, []Figure{want}) {
 			t.Fatalf("preview figures = %#v, want %#v", figures, want)
 		}
@@ -223,7 +223,7 @@ func TestPreviewRemapsFiguresAroundCaptionEdits(t *testing.T) {
 	})
 
 	t.Run("replacing the object drops it", func(t *testing.T) {
-		preview := previewFrame(t, flow, figure.Object(), "x")
+		preview := previewFrame(t, flow, figure.Object, "x")
 		if figures := preview.Flow().Figures(); len(figures) != 0 {
 			t.Fatalf("preview figures = %#v", figures)
 		}

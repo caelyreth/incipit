@@ -185,11 +185,18 @@ func (e rangeEdit) rangeEnd(at model.UTF16Offset) model.UTF16Offset {
 func (e rangeEdit) figures(flow *Flow, figures []Figure) []Figure {
 	next := make([]Figure, 0, len(figures))
 	for _, figure := range figures {
-		at, ok := e.point(figure.At)
-		if !ok || at != 0 && !flow.lineStart(at) {
+		// An edit within its object takes the figure away; one beside it,
+		// as typing at its caption's start, moves it whole.
+		r := figure.Object
+		if e.original.Start < r.End && r.Start < e.original.End ||
+			e.original.Empty() && r.Start < e.original.Start && e.original.Start < r.End {
 			continue
 		}
-		figure.At = at
+		from, ok := e.point(r.Start)
+		if !ok || from != 0 && !flow.lineStart(from) {
+			continue
+		}
+		figure.Object = model.NewUTF16Range(from, from+model.UTF16Offset(r.Len()))
 		next = append(next, figure)
 	}
 	return next

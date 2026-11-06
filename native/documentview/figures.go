@@ -114,7 +114,7 @@ func drawFigures(p *ui.Painter, rect ui.Rect, state *State, options PaintOptions
 		}
 		// A picture is in a selection that takes the character it stands
 		// on, whether or not its caption is taken too.
-		if covers(selection, figure.Object()) {
+		if covers(selection, figure.Object) {
 			ring = 1
 		}
 		if options.Focused && captionHinted(figure, selection) {
@@ -222,7 +222,7 @@ func captionHinted(figure textlayout.PlacedFigure, selection model.UTF16Range) b
 // where it starts: at the caret, or around it under a centered figure.
 func captionHint(p *ui.Painter, state *State, figure textlayout.PlacedFigure) (ui.Span, ui.Rect) {
 	caret := state.Layout.Caret(figure.Line.End)
-	span := state.Layout.SpanAt(figure.At, figureCaptionHint)
+	span := state.Layout.SpanAt(figure.Object.Start, figureCaptionHint)
 	width, height := p.MeasureText(0, span)
 	if figure.Align == surface.FigureCenter {
 		caret.X -= width / 2
