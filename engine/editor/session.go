@@ -41,12 +41,11 @@ type Session struct {
 	composition  *CompositionState
 	feedback     *Feedback
 	navigation   Navigation
-	// memory is the place the caret last left, for Return.
-	memory *placeMemory
-	// armed is a deletion waiting for its second press.
-	armed *armed
-	// absorb is text the last reshape already typed.
-	absorb *absorbing
+	// pending is what the last intent left for the next (followups.go);
+	// prior is it while an intent runs, and proposed what that one leaves.
+	pending, proposed *followUp
+	prior             followUp
+	doing             bool
 	// cells are the cells of a table picked whole, if any are.
 	cells         *CellSelection
 	pairs         []PairSpan
@@ -56,7 +55,6 @@ type Session struct {
 	metricsValid  bool
 	title         pageTitle
 	generation    uint64
-	widening      *widening
 	// pieces are the flows of the page's blocks, kept from one edit to
 	// the next.
 	pieces *flowPieces
@@ -215,7 +213,7 @@ func (s *Session) Select(selection model.TextSelection) error {
 	if err := s.presentation.Select(s.runtime.Snapshot(), selection); err != nil {
 		return err
 	}
-	s.widening = nil
+	s.pending = nil
 	s.history.SelectionChanged()
 	s.pairsValid = false
 	s.refreshInline()
@@ -230,7 +228,7 @@ func (s *Session) SelectProjected(anchor, head model.UTF16Offset) error {
 	if err := s.presentation.SelectProjected(s.runtime.Snapshot(), anchor, head); err != nil {
 		return err
 	}
-	s.widening = nil
+	s.pending = nil
 	s.history.SelectionChanged()
 	s.pairsValid = false
 	s.refreshInline()
@@ -436,7 +434,9 @@ func (s *Session) applyProjectedEdit(edit ProjectedEdit) (EditingOutcome, error)
 	if transaction.Value.Outcome.Status == kernel.OutcomeHandled {
 		group := ShouldGroupTyping(edit.Origin, inputValue.ApplyText(), edit.Replacement)
 		s.afterEdit(candidate, beforeFrame, visualState, edit.Replacement, transaction.Changes, transaction.Revision, group)
-		s.expect(s.invoker.proposal.Absorbs())
+		if absorb := s.invoker.proposal.Absorbs(); absorb != "" {
+			s.follow(followUp{absorb: absorb})
+		}
 	}
 	return EditingOutcome{
 		Outcome:  transaction.Value.Outcome.Status,

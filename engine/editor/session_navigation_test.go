@@ -52,7 +52,7 @@ func TestSessionTabLandsAfterGeneratedMarkup(t *testing.T) {
 	}
 	block, _ := session.Runtime().Snapshot().Document().Node(node)
 	mark := block.Marks()[0].ID()
-	outcome, err := session.leave(time.Unix(1_700_000_000, 0))
+	outcome, err := session.pressLeave(time.Unix(1_700_000_000, 0))
 	if err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("tab outcome=%v err=%v", outcome, err)
 	}
@@ -188,7 +188,7 @@ func TestLeaveIsLastInFirstOutAndReturnReenters(t *testing.T) {
 	if places := session.innerPlaces(); len(places) != 2 || places[0].Kind != PlacePair || places[1].Kind != PlacePair {
 		t.Fatalf("places in %q = %#v", text, places)
 	}
-	if _, err := session.leave(now); err != nil {
+	if _, err := session.pressLeave(now); err != nil {
 		t.Fatal(err)
 	}
 	once := session.Caret().RangeUTF16().Start
@@ -198,21 +198,21 @@ func TestLeaveIsLastInFirstOutAndReturnReenters(t *testing.T) {
 	if places := session.innerPlaces(); len(places) != 1 {
 		t.Fatalf("after one Leave, places = %#v", places)
 	}
-	if _, err := session.enter(); err != nil {
+	if _, err := session.pressReturn(); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Caret().RangeUTF16().Start; got != inner {
 		t.Fatalf("Return landed at %d, want back at %d", got, inner)
 	}
 	for range 2 {
-		if _, err := session.leave(now); err != nil {
+		if _, err := session.pressLeave(now); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if got := session.Caret().RangeUTF16().Start; got != inner+2 {
 		t.Fatalf("two Leaves landed at %d in %q, want %d", got, text, inner+2)
 	}
-	if outcome, err := session.leave(now); err != nil || outcome != kernel.OutcomePass {
+	if outcome, err := session.pressLeave(now); err != nil || outcome != kernel.OutcomePass {
 		t.Fatalf("Leave with nothing to leave = %v, %v", outcome, err)
 	}
 }

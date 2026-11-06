@@ -334,7 +334,7 @@ func TestStructuralSplitJoinKeepsAdjacentIdentitiesAndUndo(t *testing.T) {
 	session := newMarkedSession(t, "abcd", markSpec{start: 0, end: 4, level: 1})
 	original := DocumentBlocks(session.Runtime().Snapshot().Document())[0].ID()
 	selectSemantic(t, session, original, original, 2, 2)
-	if _, err := session.doText(textNewline); err != nil {
+	if _, err := session.press(textNewline); err != nil {
 		t.Fatal(err)
 	}
 
@@ -349,7 +349,7 @@ func TestStructuralSplitJoinKeepsAdjacentIdentitiesAndUndo(t *testing.T) {
 	}
 
 	selectSemantic(t, session, blocks[1].ID(), blocks[1].ID(), 0, 0)
-	if _, err := session.doText(textBackspace); err != nil {
+	if _, err := session.press(textBackspace); err != nil {
 		t.Fatal(err)
 	}
 	joined := DocumentBlocks(session.Runtime().Snapshot().Document())
@@ -454,11 +454,11 @@ func TestSessionDeletesSelectionSpanningGeneratedMarkers(t *testing.T) {
 			if got := session.Projection().Text(); got != tc.before {
 				t.Fatalf("%s: formatted projection = %q", tc.name, got)
 			}
-			if outcome, err := session.doText(textSelectAll); err != nil ||
+			if outcome, err := session.press(textSelectAll); err != nil ||
 				outcome != kernel.OutcomeHandled {
 				t.Fatalf("%s: select all outcome=%v err=%v", tc.name, outcome, err)
 			}
-			outcome, err := session.doText(command)
+			outcome, err := session.press(command)
 			if err != nil || outcome != kernel.OutcomeHandled {
 				t.Fatalf("%v %v: outcome=%v err=%v", tc.name, command, outcome, err)
 			}

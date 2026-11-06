@@ -18,19 +18,19 @@ func TestSessionTextMovementUsesGraphemesAndSelectionEdges(t *testing.T) {
 	if err := session.Select(begin); err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := session.doText(textRight); err != nil || outcome != kernel.OutcomeHandled {
+	if outcome, err := session.press(textRight); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("right outcome=%v err=%v", outcome, err)
 	}
 	if head := session.Selection().Head().OffsetUTF16(); head != 2 {
 		t.Fatalf("grapheme head = %d", head)
 	}
-	if _, err := session.doText(textRight); err != nil {
+	if _, err := session.press(textRight); err != nil {
 		t.Fatal(err)
 	}
 	if head := session.Selection().Head().OffsetUTF16(); head != 4 {
 		t.Fatalf("supplementary head = %d", head)
 	}
-	if _, err := session.doText(textNewline); err != nil {
+	if _, err := session.press(textNewline); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -115,7 +115,7 @@ func TestSessionCommandsRejectActiveComposition(t *testing.T) {
 	if err := session.BeginComposition(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := session.doText(textRight); !errors.Is(err, ErrCompositionActive) {
+	if _, err := session.press(textRight); !errors.Is(err, ErrCompositionActive) {
 		t.Fatalf("text command during composition = %v", err)
 	}
 	if _, err := session.doHistory(historyUndo); !errors.Is(err, ErrCompositionActive) {

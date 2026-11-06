@@ -36,16 +36,16 @@ func runEditorStress(t *testing.T, seed int64) {
 			_, err = session.replaceSelection(replacement, kernel.EventOriginTyping)
 		case 1:
 			label = "left"
-			_, err = session.doText(textLeft)
+			_, err = session.press(textLeft)
 		case 2:
 			label = "right"
-			_, err = session.doText(textRight)
+			_, err = session.press(textRight)
 		case 3:
 			label = "select-all"
-			_, err = session.doText(textSelectAll)
+			_, err = session.press(textSelectAll)
 		case 4:
 			label = "delete"
-			_, err = session.doText(textBackspace)
+			_, err = session.press(textBackspace)
 		case 5:
 			label = "emphasis"
 			_, err = session.doFormat(markupEmphasis)

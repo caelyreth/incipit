@@ -50,7 +50,7 @@ func TestGuideMarksWhereTabLandsPastGeneratedCloser(t *testing.T) {
 	if guide.ID.Producer != surface.ProducerID(NavigationPolicyID) || guide.ExpiresAt != nil {
 		t.Fatalf("guide = %#v", guide)
 	}
-	if outcome, err := session.leave(now); err != nil || outcome != kernel.OutcomeHandled {
+	if outcome, err := session.pressLeave(now); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("tab outcome=%v err=%v", outcome, err)
 	}
 	if got := session.Caret().RangeUTF16().Start; got != guide.Primitive.At {

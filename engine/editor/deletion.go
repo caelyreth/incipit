@@ -41,34 +41,10 @@ type deletion struct {
 	join bool
 }
 
-// armed is a deletion waiting for its second press, while the caret and the
-// page stay as they were.
-type armed struct {
-	span     model.UTF16Range
-	join     bool
-	backward bool
-	caret    model.UTF16Offset
-	revision uint64
-}
-
-// armedFor returns the armed deletion a press in direction completes.
-func (s *Session) armedFor(backward bool) (*armed, bool) {
-	a := s.armed
-	if a == nil || a.backward != backward || a.revision != s.runtime.Revision() ||
-		!s.presentation.VisualCollapsed() || s.presentation.Caret.RangeUTF16().Start != a.caret {
-		return nil, false
-	}
-	return a, true
-}
-
-// disarm drops an armed deletion: any intent but its second press does.
-func (s *Session) disarm() { s.armed = nil }
-
 // deleteAtCaret does Backspace (backward) or Delete at a collapsed caret as
 // planned, reporting whether a plan took it.
 func (s *Session) deleteAtCaret(backward bool) (kernel.Outcome, bool, error) {
-	if a, ok := s.armedFor(backward); ok {
-		s.disarm()
+	if a := s.prior.arm; a != nil && a.backward == backward {
 		if a.join {
 			return 0, false, nil
 		}
@@ -78,7 +54,6 @@ func (s *Session) deleteAtCaret(backward bool) (kernel.Outcome, bool, error) {
 		outcome, err := s.replaceSelection("", kernel.EventOriginSemantic)
 		return outcome.Outcome, true, err
 	}
-	s.disarm()
 	plan, ok := s.planDeletion(backward)
 	if !ok {
 		return 0, false, nil
@@ -87,10 +62,7 @@ func (s *Session) deleteAtCaret(backward bool) (kernel.Outcome, bool, error) {
 	case plannedMove:
 		return kernel.OutcomeHandled, true, s.Select(plan.to)
 	case plannedArm:
-		s.armed = &armed{
-			span: plan.span, join: plan.join, backward: backward,
-			caret: s.presentation.Caret.RangeUTF16().Start, revision: s.runtime.Revision(),
-		}
+		s.follow(followUp{arm: &armedDeletion{span: plan.span, join: plan.join, backward: backward}})
 		return kernel.OutcomeHandled, true, nil
 	case plannedEdit:
 		edit, err := FromProjectedRange(s.presentation.Projection, plan.span, plan.text, kernel.EventOriginSemantic)
@@ -261,17 +233,16 @@ func (s *Session) notationDeletion(backward bool) (deletion, bool) {
 
 // armGuides mark what an armed deletion takes, with the key that takes it.
 func (s *Session) armGuides(time.Time) []Guide {
-	for _, backward := range []bool{true, false} {
-		if a, ok := s.armedFor(backward); ok {
-			return []Guide{{
-				Producer: surface.ProducerID(TextPolicyID),
-				Local:    1,
-				Command:  pick(boolDirection(backward), DeleteBackwardCommandID, DeleteForwardCommandID),
-				Area:     []model.UTF16Range{a.span},
-			}}
-		}
+	f, ok := s.live()
+	if !ok || f.arm == nil {
+		return nil
 	}
-	return nil
+	return []Guide{{
+		Producer: surface.ProducerID(TextPolicyID),
+		Local:    1,
+		Command:  pick(boolDirection(f.arm.backward), DeleteBackwardCommandID, DeleteForwardCommandID),
+		Area:     []model.UTF16Range{f.arm.span},
+	}}
 }
 
 // boolDirection is Backward when backward is set.

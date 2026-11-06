@@ -16,22 +16,13 @@ import (
 // Select All selects the next place of blocks out, each press the next one
 // that holds more than the selection does.
 
-// widening is a run of Select All: the selection it grew from, which
-// dismissing what it selected goes back to, and the page's revision then.
-// Selecting anything else ends the run (Select), as does an edit.
-type widening struct {
-	from     model.TextSelection
-	revision uint64
-}
-
 // widenedFrom is what the run of Select All that made the selection grew
 // from, while it stands.
 func (s *Session) widenedFrom() (model.TextSelection, bool) {
-	w := s.widening
-	if w == nil || w.revision != s.runtime.Revision() {
+	if s.prior.widen == nil {
 		return model.TextSelection{}, false
 	}
-	return w.from, true
+	return *s.prior.widen, true
 }
 
 // PlaceKind is what kind of place the caret stands in.
@@ -322,14 +313,6 @@ func (s *Session) scopeGuides(time.Time) []Guide {
 	return nil
 }
 
-// placeMemory is the place the caret last left: where it stood in it, and
-// where leaving put it, while the page stays as it was then. Return goes
-// back to where it stood; moving anywhere else forgets it.
-type placeMemory struct {
-	inside, left model.UTF16Offset
-	revision     uint64
-}
-
 // step is where a responder takes the caret: to a projected offset, read
 // semantically at anchor when that is set.
 type step struct {
@@ -365,8 +348,8 @@ func (s *Session) leaveStep(now time.Time) (step, bool) {
 // the source of the inline formula just before the caret, at its end.
 func (s *Session) returnStep() (step, bool) {
 	caret := s.presentation.Caret.RangeUTF16()
-	if m := s.memory; m != nil && m.revision == s.runtime.Revision() && caret.Empty() && caret.Start == m.left {
-		return step{to: m.inside}, true
+	if inside := s.prior.inside; inside != nil {
+		return step{to: *inside}, true
 	}
 	if !s.navigationSettings().Enabled || !caret.Empty() {
 		return step{}, false
@@ -404,7 +387,7 @@ func (s *Session) take(next step) error {
 		s.navigation.ConsumeReturn()
 	}
 	if next.remember {
-		s.memory = &placeMemory{inside: inside, left: next.to, revision: s.runtime.Revision()}
+		s.follow(followUp{inside: &inside})
 	}
 	return nil
 }

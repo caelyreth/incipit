@@ -112,35 +112,17 @@ func tokenStep(p *projection.Projection, caret model.UTF16Offset, backward bool)
 	return 0, false
 }
 
-// absorbing is text the next keystroke would type that the last reshape
-// already wrote: the "." of a "1." typed digit by digit.
-type absorbing struct {
-	text     string
-	caret    model.UTF16Offset
-	revision uint64
-}
-
-// absorbs takes text from what an earlier step already wrote, reporting
+// absorbs takes text from what the last intent already wrote, reporting
 // whether it did: typing what was written is typing nothing, one glyph for
 // one, while the caret and page stay as that step left them.
 func (s *Session) absorbs(text string) bool {
-	a := s.absorb
-	if a == nil || text == "" || !strings.HasPrefix(a.text, text) || a.revision != s.runtime.Revision() ||
-		!s.presentation.VisualCollapsed() || s.presentation.Caret.RangeUTF16().Start != a.caret {
+	if text == "" || !strings.HasPrefix(s.prior.absorb, text) {
 		return false
 	}
-	if a.text = a.text[len(text):]; a.text == "" {
-		s.absorb = nil
+	if rest := s.prior.absorb[len(text):]; rest != "" {
+		s.follow(followUp{absorb: rest})
 	}
 	return true
-}
-
-// expect records text the next keys absorb, from the caret as it stands.
-func (s *Session) expect(text string) {
-	s.absorb = nil
-	if text != "" {
-		s.absorb = &absorbing{text: text, caret: s.presentation.Caret.RangeUTF16().Start, revision: s.runtime.Revision()}
-	}
 }
 
 // typeAtToken types text with the caret at a token stop: a block's own
@@ -212,7 +194,9 @@ func (s *Session) typeAtToken(text string) (EditingOutcome, bool, error) {
 	} else if _, after, ok := openingNotation(s.presentation.Projection, span.Start); ok {
 		err = s.SelectProjected(after.End, after.End)
 	}
-	s.expect(absorb)
+	if absorb != "" {
+		s.follow(followUp{absorb: absorb})
+	}
 	return outcome, true, err
 }
 

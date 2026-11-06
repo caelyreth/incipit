@@ -240,7 +240,7 @@ func TestConformanceV2OtherAlphabeticObservableFacts(t *testing.T) {
 
 	t.Run("pair", func(t *testing.T) {
 		session, _ := newSessionFixture(t, fixture.Pair.Prefix, false)
-		outcome, err := session.doText(textDocumentEnd)
+		outcome, err := session.press(textDocumentEnd)
 		if err != nil || outcome != kernel.OutcomeHandled {
 			t.Fatalf("document end outcome=%v err=%v", outcome, err)
 		}
@@ -265,7 +265,7 @@ func TestConformanceV2OtherAlphabeticObservableFacts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		outcome, err := session.doText(textDocumentEnd)
+		outcome, err := session.press(textDocumentEnd)
 		if err != nil || outcome != kernel.OutcomeHandled {
 			t.Fatalf("document end outcome=%v err=%v", outcome, err)
 		}

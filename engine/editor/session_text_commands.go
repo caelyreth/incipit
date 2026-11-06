@@ -137,7 +137,7 @@ func (s *Session) doText(command textOp) (kernel.Outcome, error) {
 		if err := s.SelectProjected(scope.Start, scope.End); err != nil {
 			return 0, err
 		}
-		s.widening = &widening{from: from, revision: s.runtime.Revision()}
+		s.follow(followUp{widen: &from})
 		return kernel.OutcomeHandled, nil
 	case textSelectDocumentStart, textSelectDocumentEnd:
 		viewAnchor, err := s.currentViewAnchor()

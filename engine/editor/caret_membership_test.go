@@ -99,7 +99,7 @@ func textStep(command textOp) caretStep {
 	return caretStep{
 		name: fmt.Sprint(command),
 		run: func(session *Session) error {
-			_, err := session.doText(command)
+			_, err := session.press(command)
 			return err
 		},
 	}
@@ -198,7 +198,7 @@ func TestArrowsStepThroughEveryDrawnPosition(t *testing.T) {
 		length := model.UTF16Offset(len([]rune(session.Projection().Text())))
 		for want := model.UTF16Offset(1); want <= length; want++ {
 			before := shown(session)
-			if _, err := session.doText(textRight); err != nil {
+			if _, err := session.press(textRight); err != nil {
 				t.Fatal(err)
 			}
 			if got := session.Caret().RangeUTF16().Start; got != want {
@@ -207,7 +207,7 @@ func TestArrowsStepThroughEveryDrawnPosition(t *testing.T) {
 		}
 		for want := length - 1; want >= 0; want-- {
 			before := shown(session)
-			if _, err := session.doText(textLeft); err != nil {
+			if _, err := session.press(textLeft); err != nil {
 				t.Fatal(err)
 			}
 			if got := session.Caret().RangeUTF16().Start; got != want {
@@ -226,7 +226,7 @@ func TestSelectionArrowsStepThroughEveryDrawnPosition(t *testing.T) {
 		length := model.UTF16Offset(len([]rune(session.Projection().Text())))
 		for want := model.UTF16Offset(1); want <= length; want++ {
 			before := shown(session)
-			if _, err := session.doText(textSelectRight); err != nil {
+			if _, err := session.press(textSelectRight); err != nil {
 				t.Fatal(err)
 			}
 			selected, err := session.VisualSelection()
@@ -240,7 +240,7 @@ func TestSelectionArrowsStepThroughEveryDrawnPosition(t *testing.T) {
 		}
 		for want := length - 1; want >= 0; want-- {
 			before := shown(session)
-			if _, err := session.doText(textSelectLeft); err != nil {
+			if _, err := session.press(textSelectLeft); err != nil {
 				t.Fatal(err)
 			}
 			selected, err := session.VisualSelection()
@@ -313,7 +313,7 @@ func TestDeletionRemovesTheCharacterBesideTheCaret(t *testing.T) {
 				if backward {
 					command = textBackspace
 				}
-				if _, err := session.doText(command); err != nil {
+				if _, err := session.press(command); err != nil {
 					t.Fatal(err)
 				}
 				node, _ := session.Runtime().Snapshot().Document().Node(session.Selection().Node())
@@ -406,7 +406,7 @@ func TestDeletingPartOfAnEmptyMarkerRemovesItsNotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	run(t, session, textSelectRight)
-	if _, err := session.doText(textDelete); err != nil {
+	if _, err := session.press(textDelete); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Projection().Text(); got != "abc" {

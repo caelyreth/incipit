@@ -90,7 +90,7 @@ type invariantCommand struct {
 
 func textInvariant(name string, command textOp, backward, deletes bool) invariantCommand {
 	return invariantCommand{name, backward, deletes, func(s *Session) error {
-		_, err := s.doText(command)
+		_, err := s.press(command)
 		return err
 	}}
 }

@@ -34,13 +34,11 @@ func (s *Session) DoCommand(command kernel.CommandID, now time.Time) (EditingOut
 // here.
 func (s *Session) Do(intent Intent, now time.Time) (EditingOutcome, error) {
 	before := s.runtime.Revision()
-	if intent.Kind != IntentDelete || intent.By != ByGrapheme {
-		s.disarm()
-	}
+	s.begin()
+	defer s.end()
 	if intent.Kind == IntentInsert && intent.Range == nil && s.absorbs(intent.Text) {
 		return EditingOutcome{Outcome: kernel.OutcomeHandled, Revision: before}, nil
 	}
-	s.absorb = nil
 	outcome, took, err := s.resolveKind(intent)
 	if !took && err == nil {
 		outcome, err = s.resolve(intent, now)

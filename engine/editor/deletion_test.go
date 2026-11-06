@@ -11,10 +11,11 @@ import (
 // armedSpan is what an armed deletion takes, failing when none is armed.
 func armedSpan(t *testing.T, session *Session) model.UTF16Range {
 	t.Helper()
-	if session.armed == nil {
+	f, ok := session.live()
+	if !ok || f.arm == nil {
 		t.Fatal("nothing armed")
 	}
-	return session.armed.span
+	return f.arm.span
 }
 
 // Backspace joining a paragraph to the code above it arms the join, marking

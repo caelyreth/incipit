@@ -24,10 +24,10 @@ func TestReturnGoesIntoTheFormulaBeforeTheCaret(t *testing.T) {
 	if err := session.SelectProjected(end, end); err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := session.leave(now); err != nil || outcome != kernel.OutcomePass {
+	if outcome, err := session.pressLeave(now); err != nil || outcome != kernel.OutcomePass {
 		t.Fatalf("Tab after a formula outcome=%v err=%v, want it to enter nothing", outcome, err)
 	}
-	if outcome, err := session.enter(); err != nil || outcome != kernel.OutcomeHandled {
+	if outcome, err := session.pressReturn(); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("Return outcome=%v err=%v", outcome, err)
 	}
 	if got := session.Caret().RangeUTF16().Start; got != end-1 {
@@ -58,7 +58,7 @@ func TestTabLeavesAFormulaBlock(t *testing.T) {
 	if len(guides) != 1 || guides[0].Primitive.At != want {
 		t.Fatalf("guides = %#v, want at %d", guides, want)
 	}
-	if _, err := session.leave(now); err != nil {
+	if _, err := session.pressLeave(now); err != nil {
 		t.Fatal(err)
 	}
 	if got := session.Caret().RangeUTF16().Start; got != want {

@@ -57,7 +57,7 @@ func tablePage(t *testing.T) *Session {
 
 func tab(t *testing.T, session *Session) {
 	t.Helper()
-	if _, err := session.leave(time.Now()); err != nil {
+	if _, err := session.pressLeave(time.Now()); err != nil {
 		t.Fatal(err)
 	}
 }

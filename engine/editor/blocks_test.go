@@ -3,6 +3,7 @@ package editor
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
@@ -24,10 +25,23 @@ func at(t *testing.T, session *Session, offset model.UTF16Offset) {
 	}
 }
 
+// textIntents are the intents a text operation answers, so tests press
+// keys as the page does: through Do.
+var textIntents = map[textOp]Intent{
+	textLeft: Move(ByGrapheme, Backward, false), textRight: Move(ByGrapheme, Forward, false),
+	textSelectLeft: Move(ByGrapheme, Backward, true), textSelectRight: Move(ByGrapheme, Forward, true),
+	textLineStart: Move(ByLine, Backward, false), textLineEnd: Move(ByLine, Forward, false),
+	textSelectLineStart: Move(ByLine, Backward, true), textSelectLineEnd: Move(ByLine, Forward, true),
+	textDocumentStart: Move(ByPage, Backward, false), textDocumentEnd: Move(ByPage, Forward, false),
+	textSelectDocumentStart: Move(ByPage, Backward, true), textSelectDocumentEnd: Move(ByPage, Forward, true),
+	textSelectAll: SelectUnit(ByScope), textBackspace: Delete(ByGrapheme, Backward),
+	textDelete: Delete(ByGrapheme, Forward), textNewline: Break, textDismissSelection: Dismiss,
+}
+
 func run(t *testing.T, session *Session, commands ...textOp) {
 	t.Helper()
 	for _, command := range commands {
-		if _, err := session.doText(command); err != nil {
+		if _, err := session.Do(textIntents[command], time.Time{}); err != nil {
 			t.Fatalf("%v: %v", command, err)
 		}
 	}
@@ -155,4 +169,21 @@ func TestWordStepsCrossBlockEdges(t *testing.T) {
 		t.Fatal(err)
 	}
 	expectPage(t, session, "one two|three", "one twothree")
+}
+
+// press does a text operation as its key does, through Do.
+func (s *Session) press(command textOp) (kernel.Outcome, error) {
+	outcome, err := s.Do(textIntents[command], time.Time{})
+	return outcome.Outcome, err
+}
+
+// pressLeave and pressReturn are Tab and Shift-Tab, through Do.
+func (s *Session) pressLeave(now time.Time) (kernel.Outcome, error) {
+	outcome, err := s.Do(Leave, now)
+	return outcome.Outcome, err
+}
+
+func (s *Session) pressReturn() (kernel.Outcome, error) {
+	outcome, err := s.Do(Return, time.Time{})
+	return outcome.Outcome, err
 }
