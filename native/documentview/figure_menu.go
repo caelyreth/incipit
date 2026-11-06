@@ -37,6 +37,11 @@ func (e *Element) contextMenu(m *ui.Menu) {
 	if !ok || figure.Node != e.menuFigure {
 		if !e.tableMenu(m, bridge) {
 			m.EditItems()
+			head := bridge.Controller.Session().Selection().Head().Node()
+			if len(bridge.Controller.ShapeOptions(head)) > 0 {
+				m.Separator()
+				m.Submenu("Turn Into", func(m *ui.Menu) { shapeItems(m, bridge, head) })
+			}
 		}
 		return
 	}

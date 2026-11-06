@@ -81,6 +81,8 @@ type KindDesc struct {
 	Cell bool
 	// BreakLeaves blocks end at a break: what follows is a paragraph.
 	BreakLeaves bool
+	// Label names the kind where a block's modifier control offers it.
+	Label string
 	// Glyphs typed at a block's token make it this kind, or step its level
 	// when it is this kind already.
 	Glyphs string
@@ -95,9 +97,9 @@ type KindDesc struct {
 
 var kindTable = []KindDesc{
 	{Kind: DocumentNode, Root: true},
-	{Kind: ParagraphNode, Plain: true},
+	{Kind: ParagraphNode, Plain: true, Label: "Text"},
 	{
-		Kind: HeadingNode, Leveled: true, Prefix: true, BreakLeaves: true, Glyphs: "#",
+		Kind: HeadingNode, Label: "Heading", Leveled: true, Prefix: true, BreakLeaves: true, Glyphs: "#",
 		rhythm: surface.RhythmTitle,
 		style: func(shape blockShape, style *surface.TextStyle) {
 			style.Size, style.Bold, style.Color = titleSize(shape.level), true, surface.ColorStrong
@@ -116,7 +118,7 @@ var kindTable = []KindDesc{
 		},
 	},
 	{
-		Kind: QuoteNode, Group: "quote", Prefix: true, Glyphs: ">",
+		Kind: QuoteNode, Label: "Quote", Group: "quote", Prefix: true, Glyphs: ">",
 		rhythm: surface.RhythmEntry,
 		style:  func(_ blockShape, style *surface.TextStyle) { style.Italic = true },
 		notation: func(shape blockShape, _ int) (notation, notation) {
@@ -125,7 +127,7 @@ var kindTable = []KindDesc{
 		opens: func(t writingTriggers) bool { return t.quotes },
 	},
 	{
-		Kind: BulletNode, Group: "list", Prefix: true, Checkable: true, Glyphs: "-*+",
+		Kind: BulletNode, Label: "Bulleted List", Group: "list", Prefix: true, Checkable: true, Glyphs: "-*+",
 		rhythm: surface.RhythmEntry,
 		notation: func(shape blockShape, _ int) (notation, notation) {
 			return notation{indentPart(shape), {Text: "-", Role: roleBullet}, spacePart}, nil
@@ -133,7 +135,7 @@ var kindTable = []KindDesc{
 		opens: func(t writingTriggers) bool { return t.lists },
 	},
 	{
-		Kind: CheckboxNode, Group: "list", Prefix: true, Checks: true,
+		Kind: CheckboxNode, Label: "Checklist", Group: "list", Prefix: true, Checks: true,
 		rhythm: surface.RhythmEntry,
 		notation: func(shape blockShape, _ int) (notation, notation) {
 			mark := " "
@@ -150,7 +152,7 @@ var kindTable = []KindDesc{
 		},
 	},
 	{
-		Kind: OrderedNode, Group: "list", Prefix: true, Numbered: true, Glyphs: "0123456789",
+		Kind: OrderedNode, Label: "Numbered List", Group: "list", Prefix: true, Numbered: true, Glyphs: "0123456789",
 		rhythm: surface.RhythmEntry,
 		notation: func(shape blockShape, ordinal int) (notation, notation) {
 			return notation{indentPart(shape), {Text: strconv.Itoa(ordinal) + ".", Role: roleOrdinal}, spacePart}, nil

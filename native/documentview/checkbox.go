@@ -66,7 +66,10 @@ func (e *Element) checkboxControls(c *ui.Context, bridge *Bridge) {
 			})
 		}
 		if control.Changed() {
-			_, _ = bridge.Controller.SetCheckbox(checkbox.Node, value)
+			if shape, ok := bridge.Controller.ShapeOf(checkbox.Node); ok {
+				shape.Checked = value
+				_, _ = bridge.Controller.Shape(checkbox.Node, shape)
+			}
 		}
 	}
 }

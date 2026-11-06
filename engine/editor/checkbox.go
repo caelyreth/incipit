@@ -7,8 +7,6 @@ import (
 	"github.com/caelyreth/neverland/engine/model"
 )
 
-const checkboxTrigger = "text:checkbox"
-
 // openCheckbox reads the start of a bullet as a checkbox. The paired form
 // completes as soon as a space or x is typed between the brackets; the
 // complete notation also works when automatic pairing is disabled.
@@ -36,44 +34,4 @@ func (i *EditorInvoker) openCheckbox(document *model.DocumentDraft, node *model.
 	i.land(node.ID(), 0, document)
 	i.proposal.absorbs(absorb)
 	return kernel.OutcomeHandled, true, nil
-}
-
-// SetCheckbox changes an existing item's state through the core text policy,
-// independently of whether the writing policy's typing triggers are enabled.
-func (s *Session) SetCheckbox(node model.NodeID, checked bool) (kernel.Outcome, error) {
-	if _, active := s.composition.Preview(); active {
-		return 0, ErrCompositionActive
-	}
-	return s.dispatchSelectionCommandWithVisual(checkboxTrigger,
-		&checkboxInvoker{session: s, node: node, checked: checked},
-		func(*model.Node) *model.MarkID { return activeMark(s.inline) }, true)
-}
-
-type checkboxInvoker struct {
-	session *Session
-	node    model.NodeID
-	checked bool
-}
-
-func (i *checkboxInvoker) Invoke(rule *kernel.LinkedRule, leaf kernel.LeafID, context *kernel.RuleContext) (kernel.Outcome, error) {
-	if rule == nil || rule.Key.Owner != TextPolicyID || rule.Key.ID != "checkbox" {
-		return i.session.invoker.Invoke(rule, leaf, context)
-	}
-	document, err := context.DocumentMut()
-	if err != nil {
-		return 0, err
-	}
-	node, ok := document.Node(i.node)
-	if !ok || !kindOf(node).Checks {
-		return kernel.OutcomePass, nil
-	}
-	shape := shapeOf(node)
-	if shape.checked == i.checked {
-		return kernel.OutcomePass, nil
-	}
-	shape.checked = i.checked
-	if err := shapeBlock(document, node.ID(), shape); err != nil {
-		return 0, &kernel.EngineError{Kind: kernel.EngineErrorDocument, Err: err}
-	}
-	return kernel.OutcomeHandled, nil
 }

@@ -206,14 +206,14 @@ func textPolicyDescriptor() (kernel.PolicyDescriptor, error) {
 	block.Origins = []kernel.EventOrigin{kernel.EventOriginTyping}
 	// Typing as a block's kind has it comes before writing it literally.
 	block.Before = []kernel.RuleKey{textRule("edit")}
-	checkbox := edit
-	checkbox.ID = "checkbox"
-	checkbox.Trigger = kernel.NewExactTrigger(checkboxTrigger)
+	shape := edit
+	shape.ID = "shape"
+	shape.Trigger = kernel.NewExactTrigger(shapeTrigger)
 	return kernel.PolicyDescriptor{
 		ID:               TextPolicyID,
 		EnabledByDefault: true,
 		Commands:         commands,
-		Rules:            []kernel.RuleDescriptor{edit, projected, span, notation, block, checkbox},
+		Rules:            []kernel.RuleDescriptor{edit, projected, span, notation, block, shape},
 	}, nil
 }
 

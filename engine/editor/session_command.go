@@ -136,6 +136,8 @@ func (s *Session) resolve(intent Intent, now time.Time) (EditingOutcome, error) 
 		return command(s.doNest(pick(intent.Dir, nestShallower, nestDeeper)))
 	case IntentTable:
 		return command(s.doTable(intent.Table))
+	case IntentShape:
+		return command(s.reshape(intent.Node, intent.Shape))
 	}
 	return EditingOutcome{Outcome: kernel.OutcomePass}, nil
 }

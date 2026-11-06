@@ -41,6 +41,9 @@ const (
 	IntentNest
 	// IntentTable runs Table on the table at the caret.
 	IntentTable
+	// IntentShape makes Node the block Shape describes, keeping its text:
+	// what a block's modifier control asks.
+	IntentShape
 )
 
 // Reach is how much of the page an intent moves over, deletes or selects.
@@ -80,6 +83,9 @@ type Intent struct {
 	// Range, when set, is the projected range an Insert replaces instead
 	// of the selection.
 	Range *model.UTF16Range
+	// Node and Shape are the block a Shape intent reshapes, and how.
+	Node  model.NodeID
+	Shape BlockShape
 }
 
 // Insert is text written at the selection.
@@ -125,6 +131,11 @@ func Nest(dir Direction) Intent { return Intent{Kind: IntentNest, Dir: dir} }
 // TableIntent is running an operation on the table at the caret.
 func TableIntent(op TableOp) Intent { return Intent{Kind: IntentTable, Table: op} }
 
+// Shape makes node the block shape describes, keeping its text.
+func Shape(node model.NodeID, shape BlockShape) Intent {
+	return Intent{Kind: IntentShape, Node: node, Shape: shape}
+}
+
 // Key is the trigger key responders to this intent declare.
 func (i Intent) Key() string { return intentKey(i.Kind) }
 
@@ -157,6 +168,8 @@ func (k IntentKind) String() string {
 		return "nest"
 	case IntentTable:
 		return "table"
+	case IntentShape:
+		return "shape"
 	default:
 		return "none"
 	}

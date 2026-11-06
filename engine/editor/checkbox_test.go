@@ -2,6 +2,7 @@ package editor
 
 import (
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/engine/model"
@@ -86,7 +87,7 @@ func TestCheckboxToggleHistoryAndWritingPolicy(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if outcome, err := session.SetCheckbox(block.ID(), true); err != nil || outcome != kernel.OutcomeHandled {
+	if outcome, err := setCheckbox(session, block.ID(), true); err != nil || outcome != kernel.OutcomeHandled {
 		t.Fatalf("toggle = %v, %v", outcome, err)
 	}
 	if got := checkboxShape(t, session, 0); !got.checked {
@@ -107,7 +108,7 @@ func TestCheckboxToggleHistoryAndWritingPolicy(t *testing.T) {
 	if !checkboxShape(t, session, 0).checked {
 		t.Fatal("redo did not check item")
 	}
-	if outcome, err := session.SetCheckbox(model.NodeID(9999), true); err != nil || outcome != kernel.OutcomePass {
+	if outcome, err := setCheckbox(session, model.NodeID(9999), true); err != nil || outcome != kernel.OutcomePass {
 		t.Fatalf("missing checkbox = %v, %v", outcome, err)
 	}
 }
@@ -183,7 +184,7 @@ func TestCheckboxTogglePreservesProjectedSelection(t *testing.T) {
 			t.Fatal(err)
 		}
 		block := DocumentBlocks(session.Runtime().Snapshot().Document())[0]
-		if _, err := session.SetCheckbox(block.ID(), true); err != nil {
+		if _, err := setCheckbox(session, block.ID(), true); err != nil {
 			t.Fatal(err)
 		}
 		after, err := session.ProjectedState()
@@ -195,4 +196,15 @@ func TestCheckboxTogglePreservesProjectedSelection(t *testing.T) {
 			t.Fatalf("%v: projected selection changed from %+v to %+v, error %v", selection, before, after, err)
 		}
 	}
+}
+
+// setCheckbox checks or unchecks node by a Shape intent, as a click does.
+func setCheckbox(session *Session, node model.NodeID, checked bool) (kernel.Outcome, error) {
+	shape := BlockShape{Kind: CheckboxNode}
+	if block, ok := session.Runtime().Snapshot().Document().Node(node); ok {
+		shape = ShapeOf(block)
+	}
+	shape.Checked = checked
+	outcome, err := session.Do(Shape(node, shape), time.Time{})
+	return outcome.Outcome, err
 }

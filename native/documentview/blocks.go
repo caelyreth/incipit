@@ -124,6 +124,16 @@ func (e *Element) blockControls(c *ui.Context, bridge *Bridge, animate bool) {
 		label = "Move table"
 	}
 	handle := e.grip(c, "block-grip", label, r, e.blocks.shown, components.IconGrip, animate)
+	if !unit.unit.Table {
+		// The grip is the block's modifier control: its menu offers the
+		// shapes typing cannot reach well.
+		node := unit.unit.Node
+		handle.ContextMenu(func(m *ui.Menu) {
+			if !shapeItems(m, bridge, node) {
+				m.EditItems()
+			}
+		})
+	}
 	// A grip stays held until its press, and what it carries, lets go.
 	e.blocks.held = e.blocks.hovered
 	_, _, pressed := handle.Dragged()
@@ -151,4 +161,25 @@ func (e *Element) followBlockGrip(handle ui.Element, bridge *Bridge, units []pla
 			_ = bridge.Controller.SelectProjected(int(unit.Range.Start), int(unit.Range.End))
 		}
 	}
+}
+
+// shapeItems fills a block's modifier control with the shapes the engine
+// offers it, each a Shape intent, the block's own marked; a checkbox's check
+// follows them. It reports whether the block has any.
+func shapeItems(m *ui.Menu, bridge *Bridge, node model.NodeID) bool {
+	options := bridge.Controller.ShapeOptions(node)
+	for _, option := range options {
+		check := option.Label == "Checked"
+		var item *ui.MenuItem
+		if check {
+			m.Separator()
+			item = m.Item(option.Label).Checked(option.Current)
+		} else {
+			item = m.Item(option.Label).Radio(option.Current)
+		}
+		if item.Chosen() && (check || !option.Current) {
+			_, _ = bridge.Controller.Shape(node, option.Shape)
+		}
+	}
+	return len(options) > 0
 }
