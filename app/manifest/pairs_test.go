@@ -29,13 +29,26 @@ func TestQuotesPairButCloseAfterAWord(t *testing.T) {
 	p.want(`page(paragraph(say "hi" ok))`)
 }
 
-// Deleting into a pair from either side selects it whole; the next press
-// deletes it, both sides at once.
-func TestDeletingIntoAPairSelectsItFirst(t *testing.T) {
+func (p *page) armed() int {
+	n := 0
+	for _, h := range p.e.Decorations(1).Highlights {
+		if h.Group == vocab.GroupArmed {
+			n++
+		}
+	}
+	return n
+}
+
+// Deleting into a pair from either side arms both sides; the next press
+// deletes both and keeps what they held. Anything else disarms.
+func TestDeletingIntoAPairArmsBothSides(t *testing.T) {
 	p := open(t)
 	p.typeText("a [")
 	p.do(backspace)
 	p.want("page(paragraph(a []))")
+	if p.armed() != 2 {
+		t.Fatalf("%d sides armed, want 2", p.armed())
+	}
 	p.do(backspace)
 	p.want("page(paragraph(a ))")
 
@@ -45,16 +58,47 @@ func TestDeletingIntoAPairSelectsItFirst(t *testing.T) {
 	p.do(backspace)
 	p.want("page(paragraph(a (bc)))")
 	p.do(backspace)
-	p.want("page(paragraph(a ))")
+	p.want("page(paragraph(a bc))")
 
 	p = open(t)
 	p.typeText("(bc")
 	p.do(left)
 	p.do(left)
 	p.do(backspace)
-	p.want("page(paragraph((bc)))")
 	p.typeText("x")
-	p.want("page(paragraph(x))")
+	if p.armed() != 0 {
+		t.Fatal("typing kept the pair armed")
+	}
+	p.want("page(paragraph((xbc)))")
+}
+
+// A mark between its signs is a pair too: Backspace after its opening
+// sign arms both signs, and the next press unmarks the run.
+func TestDeletingIntoAMarkArmsItsSigns(t *testing.T) {
+	p := open(t)
+	p.typeText("a *bc*")
+	p.want("page(paragraph(a <bc>))")
+	for range 3 {
+		p.do(left)
+	}
+	p.wantShown("a [*]|bc[*]")
+	p.do(backspace)
+	if p.armed() != 2 {
+		t.Fatalf("%d signs armed, want 2", p.armed())
+	}
+	p.do(backspace)
+	p.want("page(paragraph(a bc))")
+}
+
+// Leave exits a mark past its closing sign, where typing is unmarked.
+func TestLeaveExitsAMark(t *testing.T) {
+	p := open(t)
+	p.typeText("a *bc*")
+	p.do(left)
+	p.wantShown("a [*]bc|[*]")
+	p.do(vocab.Leave{})
+	p.typeText("d")
+	p.want("page(paragraph(a <bc>d))")
 }
 
 func TestTypingAnOpenerWrapsTheSelection(t *testing.T) {

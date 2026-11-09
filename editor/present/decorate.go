@@ -9,8 +9,10 @@ import (
 // Highlight is a styled range: a matching pair, a scope, an armed
 // structure, a pulse.
 type Highlight struct {
-	Group    vocab.Group
-	From, To doc.Pos
+	Group vocab.Group
+	// From and To are carets, so a ghost sign, which spans stops but no
+	// bytes, can be highlighted.
+	From, To doc.Caret
 	// Node is set for a highlight over a whole node.
 	Node doc.ID
 }
@@ -56,7 +58,13 @@ func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *pol
 	d := Decorations{Selection: view.Selection, Composition: view.Composition}
 	for _, dec := range prog.Decorations() {
 		for _, a := range view.Annotations.Of(dec.Kind) {
-			d.Highlights = append(d.Highlights, Highlight{Group: dec.Group, From: a.Anchor.From, To: a.Anchor.To})
+			h := Highlight{Group: dec.Group, From: doc.CaretAt(a.Anchor.From), To: doc.CaretAt(a.Anchor.To)}
+			if e, ok := a.Data.(vocab.Edge); ok {
+				// An annotation over a stretch of stops, as an armed sign,
+				// highlights exactly that.
+				h.From, h.To = e.From, e.To
+			}
+			d.Highlights = append(d.Highlights, h)
 		}
 	}
 	if view.Selection.Kind != doc.SelectText {
@@ -69,14 +77,14 @@ func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *pol
 		}
 		var inner *policy.Fact
 		for _, f := range prog.FactsIn(store, r, view, head.Ref(), pc.Fact) {
-			if f.Inside(head.Offset) {
+			if f.Holds(view.Selection.Head) {
 				f := f
 				inner = &f
 			}
 		}
 		if inner != nil {
 			ref := head.Ref()
-			d.Highlights = append(d.Highlights, Highlight{Group: pc.Group, From: doc.At(ref, inner.From), To: doc.At(ref, inner.To)})
+			d.Highlights = append(d.Highlights, Highlight{Group: pc.Group, From: doc.CaretAt(doc.At(ref, inner.From)), To: doc.CaretAt(doc.At(ref, inner.To))})
 		}
 	}
 	return d

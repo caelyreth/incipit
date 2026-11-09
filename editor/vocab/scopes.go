@@ -294,6 +294,8 @@ var (
 	GroupCell          = NewGroup("cell", GroupText)
 	GroupCellHeader    = NewGroup("cell.header", GroupCell)
 	GroupComposition   = NewGroup("composition", 0)
+	// GroupArmed styles what the next delete takes, armed by the first.
+	GroupArmed = NewGroup("armed", 0)
 )
 
 // MarkGroup is the group of a mark kind.

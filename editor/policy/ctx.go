@@ -169,7 +169,7 @@ func (c *Ctx) FactsAt(k vocab.FactKind) []Fact {
 	head := c.Head()
 	var out []Fact
 	for _, f := range c.Facts(head.Pos.Ref(), k) {
-		if f.Inside(head.Pos.Offset) {
+		if f.Holds(head) {
 			out = append(out, f)
 		}
 	}

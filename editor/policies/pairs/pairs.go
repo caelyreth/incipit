@@ -1,6 +1,7 @@
 // Package pairs is the pairs policy: brackets and quotes typed in text
-// close themselves, a closer it typed ahead is stepped over, deleting into
-// a pair selects it whole first, and every balanced pair is a scope Leave
+// close themselves, a closer it typed ahead is stepped over, and deleting
+// into a pair, a text pair or a mark between its signs, arms both sides
+// before deleting them together. Every balanced text pair is a scope Leave
 // exits and Return re-enters.
 package pairs
 
@@ -86,14 +87,37 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		}
 	}
 	if mates {
-		// Deleting into a pair from either side selects it whole, both
-		// sides and what they hold; the next press deletes the selection,
-		// so a pair never loses one side alone.
+		// Deleting into a pair, its text or its signs, arms both sides
+		// first, showing what the next press takes; the next press deletes
+		// both and keeps what they held, so a pair never loses one side.
+		pairScope := vocab.RoleScope(vocab.RolePair)
 		back, fwd := vocab.Deleting(vocab.ByGrapheme, vocab.Backward), vocab.Deleting(vocab.ByGrapheme, vocab.Forward)
-		p.Handle("select-from-inside").On(back).In(span.Scope()).When(vocab.Collapsed, vocab.AtInnerStart).Do(selectPair)
-		p.Handle("select-from-inside-end").On(fwd).In(span.Scope()).When(vocab.Collapsed, vocab.AtInnerEnd).Do(selectPair)
-		p.Handle("select-after").On(back).In(vocab.Slot).When(vocab.Collapsed, vocab.After(span.Scope())).Do(selectAdjacent(span, false))
-		p.Handle("select-before").On(fwd).In(vocab.Slot).When(vocab.Collapsed, vocab.Before(span.Scope())).Do(selectAdjacent(span, true))
+		armed := vocab.Has(vocab.Armed)
+		for _, d := range []struct {
+			name string
+			on   vocab.Pattern
+			edge vocab.Relation
+		}{{"inside-start", back, vocab.AtInnerStart}, {"inside-end", fwd, vocab.AtInnerEnd}} {
+			p.Handle("arm-"+d.name).On(d.on).In(pairScope).When(vocab.Collapsed, d.edge).Unless(armed).Do(armRole)
+			p.Handle("delete-"+d.name).On(d.on).In(pairScope).When(vocab.Collapsed, d.edge, armed).
+				Produces(sideEdits...).Do(deleteRole)
+		}
+		// From outside a text pair, next to its closer or its opener.
+		for _, d := range []struct {
+			name  string
+			on    vocab.Pattern
+			ahead bool
+		}{{"after", back, false}, {"before", fwd, true}} {
+			near := vocab.After(span.Scope())
+			if d.ahead {
+				near = vocab.Before(span.Scope())
+			}
+			p.Handle("arm-"+d.name).On(d.on).In(vocab.Slot).When(vocab.Collapsed, near).Unless(armed).Do(arm(adjacent(span, d.ahead)))
+			p.Handle("delete-"+d.name).On(d.on).In(vocab.Slot).When(vocab.Collapsed, near, armed).
+				Produces(sideEdits...).Do(deleteSides(adjacent(span, d.ahead)))
+		}
+		p.Annotation(vocab.Armed, nil)
+		p.Decorate(vocab.Armed, vocab.GroupArmed)
 	}
 })
 
@@ -203,8 +227,9 @@ func (p pair) Placed(slot doc.SlotRef, f policy.Fact) any {
 	return p
 }
 
-func (p pair) Sides() (open, close vocab.Span) {
-	return vocab.Span{Slot: p.slot, From: p.from, To: p.innerFrom}, vocab.Span{Slot: p.slot, From: p.innerTo, To: p.to}
+func (p pair) Sides() (open, close vocab.Edge) {
+	at := func(off int) doc.Caret { return doc.CaretAt(doc.At(p.slot, off)) }
+	return vocab.Edge{From: at(p.from), To: at(p.innerFrom)}, vocab.Edge{From: at(p.innerTo), To: at(p.to)}
 }
 
 // EditSide respells one side as text.
@@ -282,32 +307,66 @@ func overtype(c *policy.Ctx, m policy.Match) policy.Result {
 	return res
 }
 
-// selectPair selects the pair the caret is in, whole.
-func selectPair(_ *policy.Ctx, m policy.Match) policy.Result {
-	f, _ := m.Fact()
-	return selectSpan(m.Level.Slot, f)
+// sideEdits are what deleting a pair's sides records: text for a text
+// pair, marks for a mark's signs.
+var sideEdits = []doc.RecordKind{doc.RecordTextDeleted, doc.RecordMarks}
+
+// pairOf finds the pair a rule acts on.
+type pairOf func(c *policy.Ctx, m policy.Match) (vocab.Pair, bool)
+
+func rolePair(_ *policy.Ctx, m policy.Match) (vocab.Pair, bool) {
+	pr, ok := m.Role.(vocab.Pair)
+	return pr, ok
 }
 
-// selectAdjacent selects the pair right after the caret (ahead) or right
-// before it.
-func selectAdjacent(span *policy.FactKind[pair], ahead bool) policy.Handler {
-	return func(c *policy.Ctx, _ policy.Match) policy.Result {
-		head := c.Head().Pos
-		var found *policy.Fact
-		for _, f := range c.Facts(head.Ref(), span.Kind()) {
-			if ahead && f.From == head.Offset || !ahead && f.To == head.Offset {
-				// The outermost pair edged there: the last one found.
-				f := f
-				found = &f
+// adjacent is the text pair right after the caret (ahead) or right before
+// it; of pairs edged there, the outermost.
+func adjacent(span *policy.FactKind[pair], ahead bool) pairOf {
+	return func(c *policy.Ctx, _ policy.Match) (vocab.Pair, bool) {
+		head := c.Head()
+		var found vocab.Pair
+		for _, f := range c.Facts(head.Pos.Ref(), span.Kind()) {
+			if ahead && f.Starts(head) || !ahead && f.Ends(head) {
+				found, _ = policy.Placed(head.Pos.Ref(), f).(vocab.Pair)
 			}
 		}
-		if found == nil {
-			return policy.Swallow
-		}
-		return selectSpan(head.Ref(), *found)
+		return found, found != nil
 	}
 }
 
-func selectSpan(ref doc.SlotRef, f policy.Fact) policy.Result {
-	return policy.Select(doc.TextRange(doc.CaretAt(doc.At(ref, f.From)), doc.CaretAt(doc.At(ref, f.To))))
+var (
+	armRole    = arm(rolePair)
+	deleteRole = deleteSides(rolePair)
+)
+
+// arm marks both sides of the pair for the next press, which is the only
+// intent that sees them.
+func arm(of pairOf) policy.Handler {
+	return func(c *policy.Ctx, m policy.Match) policy.Result {
+		pr, ok := of(c, m)
+		if !ok {
+			return policy.Swallow
+		}
+		res := policy.Result{}
+		open, close := pr.Sides()
+		for _, side := range []vocab.Edge{open, close} {
+			res.Annotate = append(res.Annotate, policy.Annotate{Kind: vocab.Armed, Data: side,
+				Anchor: policy.Anchor{From: side.From.Pos, To: side.To.Pos}, Lifetime: policy.UntilNextIntent})
+		}
+		return res
+	}
+}
+
+// deleteSides deletes both sides of the pair, the closer first, so the
+// opener's place stands, and keeps what they held.
+func deleteSides(of pairOf) policy.Handler {
+	return func(c *policy.Ctx, m policy.Match) policy.Result {
+		pr, ok := of(c, m)
+		if !ok {
+			return policy.Swallow
+		}
+		res := policy.Do(pr.EditSide(vocab.Close, ""), pr.EditSide(vocab.Open, ""))
+		res.DropKinds = []vocab.AnnotationKind{vocab.Armed}
+		return res
+	}
 }

@@ -19,10 +19,14 @@ var testCore = Define(CoreID, func(p *P) {
 
 type paren struct{ open, close vocab.Span }
 
-func (p paren) Sides() (vocab.Span, vocab.Span)                { return p.open, p.close }
+func (p paren) Sides() (vocab.Edge, vocab.Edge)                { return edge(p.open), edge(p.close) }
 func (p paren) EditSide(vocab.Side, vocab.Spelling) vocab.Edit { return nil }
 func (p paren) Exit() doc.Caret                                { return doc.CaretAt(doc.At(p.close.Slot, p.close.To)) }
 func (p paren) Entry() doc.Caret                               { return doc.CaretAt(doc.At(p.close.Slot, p.close.From)) }
+
+func edge(s vocab.Span) vocab.Edge {
+	return vocab.Edge{From: doc.CaretAt(doc.At(s.Slot, s.From)), To: doc.CaretAt(doc.At(s.Slot, s.To))}
+}
 
 // parenScanner finds balanced parentheses; its state is the stack of
 // opener offsets, packed in a string so it stays comparable.

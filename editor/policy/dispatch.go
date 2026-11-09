@@ -170,7 +170,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 	for i := range facts {
 		f := facts[i]
 		inGhost := f.Point && f.From == pos.Offset && f.StopFrom < caret.Stop && caret.Stop < f.StopTo
-		if !f.Inside(pos.Offset) && !inGhost {
+		if !f.Holds(caret) && !inGhost {
 			continue
 		}
 		s.Levels = append(s.Levels, &Level{
@@ -562,7 +562,7 @@ func (e *evaluator) adjacent(caret doc.Caret, target vocab.Scope, before bool) b
 				}
 				continue
 			}
-			if (before && f.From == pos.Offset) || (!before && f.To == pos.Offset) {
+			if (before && f.Starts(caret)) || (!before && f.Ends(caret)) {
 				return true
 			}
 		}

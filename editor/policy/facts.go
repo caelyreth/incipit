@@ -22,11 +22,41 @@ type Fact struct {
 	// StopFrom and StopTo order facts at one offset by stop.
 	StopFrom, StopTo int
 	Point            bool
-	Data             any
+	// Signs, for a span whose sides are ghost signs, are their stops.
+	Signs *Signs
+	Data  any
 }
+
+// Signs are the stops of a span's two ghost signs, which span no bytes:
+// its opener stands at From between stops OpenFrom and OpenTo, its closer
+// at To between CloseFrom and CloseTo. The span holds a caret only between
+// them.
+type Signs struct{ OpenFrom, OpenTo, CloseFrom, CloseTo int }
 
 // Inside reports whether off is inside the fact's inner extent.
 func (f Fact) Inside(off int) bool { return !f.Point && off >= f.InnerFrom && off <= f.InnerTo }
+
+// Holds reports whether a caret is inside the span: inside its inner
+// extent and, at a signed edge, past the sign.
+func (f Fact) Holds(c doc.Caret) bool {
+	if !f.Inside(c.Pos.Offset) {
+		return false
+	}
+	if f.Signs == nil {
+		return true
+	}
+	return (c.Pos.Offset != f.InnerFrom || c.Stop >= f.Signs.OpenTo) && (c.Pos.Offset != f.InnerTo || c.Stop <= f.Signs.CloseFrom)
+}
+
+// Starts reports whether the span starts right after the caret, its
+// opener ahead; Ends whether it ends right before it, its closer behind.
+func (f Fact) Starts(c doc.Caret) bool {
+	return f.From == c.Pos.Offset && (f.Signs == nil || c.Stop <= f.Signs.OpenFrom)
+}
+
+func (f Fact) Ends(c doc.Caret) bool {
+	return f.To == c.Pos.Offset && (f.Signs == nil || c.Stop >= f.Signs.CloseTo)
+}
 
 // FactKind is a typed fact kind a policy declared.
 type FactKind[T any] struct {
@@ -101,6 +131,11 @@ func (k *FactKind[T]) Span(from, to int, data T) Fact {
 // Delimited is a fact with delimiters: [from, innerFrom) and [innerTo, to).
 func (k *FactKind[T]) Delimited(from, innerFrom, innerTo, to int, data T) Fact {
 	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: innerFrom, InnerTo: innerTo, Data: data}
+}
+
+// Signed is a span whose sides are ghost signs, holding [from, to].
+func (k *FactKind[T]) Signed(from, to int, signs Signs, data T) Fact {
+	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: from, InnerTo: to, Signs: &signs, Data: data}
 }
 
 // Point is a fact at an offset whose ghost notation stands between stop

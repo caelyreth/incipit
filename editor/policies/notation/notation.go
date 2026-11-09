@@ -81,10 +81,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	sp := spelling{Underscores: policy.Get(p, Underscores)}
 
 	k := kinds{
-		marks:   policy.Facts[markGhost](p, "mark", policy.Provides(vocab.RolePair, vocab.RoleLeveled)),
+		marks:   policy.Facts[markGhost](p, "mark", policy.Provides(vocab.RoleLeveled)),
+		spans:   policy.Facts[markSpan](p, "markSpan", policy.Provides(vocab.RolePair, vocab.RoleLeavable)),
 		markers: policy.Facts[markerGhost](p, "marker", policy.Provides(vocab.RoleLeveled, vocab.RoleReshapeable)),
 	}
-	p.Analyze(policy.Lines, analyze(sp, k), []vocab.FactKind{k.marks.Kind(), k.markers.Kind()}, policy.Config(sp),
+	p.Analyze(policy.Lines, analyze(sp, k), []vocab.FactKind{k.marks.Kind(), k.markers.Kind(), k.spans.Kind()}, policy.Config(sp),
 		policy.Where(func(u *policy.Unit) bool { return !u.Spec.Literal && u.Spec.Marks != nil }))
 
 	p.Ghosts(func(u *policy.Unit, emit func(policy.Ghost)) {
@@ -125,6 +126,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 type kinds struct {
 	marks   *policy.FactKind[markGhost]
 	markers *policy.FactKind[markerGhost]
+	// spans are mark runs between their signs: pairs, and scopes Leave
+	// exits past the closing sign.
+	spans *policy.FactKind[markSpan]
 }
 
 // --- recognising ---------------------------------------------------------
@@ -195,6 +199,14 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 		if u.From != 0 {
 			marker = nil
 		}
+		// opens are the opening signs put so far, by mark kind and the
+		// offset where their run ends, for the span its closer completes.
+		type signKey struct {
+			kind doc.MarkKind
+			end  int
+		}
+		type openSign struct{ at, from, to int }
+		opens := map[signKey]openSign{}
 		boundaries := len(runs) + 1
 		if len(runs) == 0 {
 			boundaries = 0
@@ -266,6 +278,15 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 			put := func(g markGhost) {
 				n := vocab.GraphemeCount(string(g.Spelling))
 				emit(k.marks.Point(at, stop, stop+n, g))
+				switch g.Side {
+				case vocab.Open:
+					opens[signKey{g.Mark.Kind, at + g.Ahead}] = openSign{at: at, from: stop, to: stop + n}
+				case vocab.Close:
+					if o, ok := opens[signKey{g.Mark.Kind, at}]; ok {
+						emit(k.spans.Signed(o.at, at, policy.Signs{OpenFrom: o.from, OpenTo: o.to, CloseFrom: stop, CloseTo: stop + n},
+							markSpan{Mark: g.Mark, Spelling: g.Spelling}))
+					}
+				}
 				stop += n
 			}
 			for _, c := range closing {
@@ -309,26 +330,6 @@ func (g markGhost) run() []vocab.Span {
 	return []vocab.Span{{Slot: g.slot, From: g.at - g.Back, To: g.at + g.Ahead}}
 }
 
-// Sides are the run's edges, where its two ghosts stand.
-func (g markGhost) Sides() (open, close vocab.Span) {
-	r := g.run()[0]
-	return vocab.Span{Slot: r.Slot, From: r.From, To: r.From}, vocab.Span{Slot: r.Slot, From: r.To, To: r.To}
-}
-
-// EditSide reinterprets a side's new spelling through the notation set:
-// the run takes the mark the spelling spells, or none for no spelling.
-// Ghosts spell both sides alike, so either side edits the whole run.
-func (g markGhost) EditSide(_ vocab.Side, s vocab.Spelling) vocab.Edit {
-	if s == "" {
-		return vocab.ClearMark(g.run(), g.Mark.Kind)
-	}
-	k, ok := vocab.MarkOfSpelling(s)
-	if !ok || k == g.Mark.Kind {
-		return vocab.Sequence()
-	}
-	return vocab.Sequence(vocab.ClearMark(g.run(), g.Mark.Kind), vocab.ApplyMark(g.run(), doc.Mark{Kind: k}))
-}
-
 // Step steps the mark's spelling one level: strong is one more delimiter
 // than emphasis, and below one delimiter the mark is gone.
 func (g markGhost) Step(dir vocab.Direction) vocab.Edit {
@@ -342,6 +343,56 @@ func (g markGhost) Step(dir vocab.Direction) vocab.Edit {
 	}
 	return vocab.Sequence()
 }
+
+// markSpan is a mark's run between its signs. Placed binds it to where it
+// stands.
+type markSpan struct {
+	Mark     doc.Mark
+	Spelling vocab.Spelling
+
+	slot     doc.SlotRef
+	from, to int
+	signs    policy.Signs
+}
+
+func (s markSpan) Placed(slot doc.SlotRef, f policy.Fact) any {
+	s.slot, s.from, s.to = slot, f.From, f.To
+	if f.Signs != nil {
+		s.signs = *f.Signs
+	}
+	return s
+}
+
+func (s markSpan) run() []vocab.Span { return []vocab.Span{{Slot: s.slot, From: s.from, To: s.to}} }
+
+func (s markSpan) caret(at, stop int) doc.Caret {
+	return doc.Caret{Pos: doc.At(s.slot, at), Stop: stop}
+}
+
+// Sides are the two signs, by their stops.
+func (s markSpan) Sides() (open, close vocab.Edge) {
+	return vocab.Edge{From: s.caret(s.from, s.signs.OpenFrom), To: s.caret(s.from, s.signs.OpenTo)},
+		vocab.Edge{From: s.caret(s.to, s.signs.CloseFrom), To: s.caret(s.to, s.signs.CloseTo)}
+}
+
+// EditSide reinterprets a side's new spelling through the notation set:
+// the run takes the mark the spelling spells, or none for no spelling.
+// Signs spell both sides alike, so either side edits the whole run.
+func (s markSpan) EditSide(_ vocab.Side, sp vocab.Spelling) vocab.Edit {
+	if sp == "" {
+		return vocab.ClearMark(s.run(), s.Mark.Kind)
+	}
+	k, ok := vocab.MarkOfSpelling(sp)
+	if !ok || k == s.Mark.Kind {
+		return vocab.Sequence()
+	}
+	return vocab.Sequence(vocab.ClearMark(s.run(), s.Mark.Kind), vocab.ApplyMark(s.run(), doc.Mark{Kind: k}))
+}
+
+// Exit is past the closing sign, where typing is unmarked; Entry is
+// before it, inside the run.
+func (s markSpan) Exit() doc.Caret  { return s.caret(s.to, s.signs.CloseTo) }
+func (s markSpan) Entry() doc.Caret { return s.caret(s.to, s.signs.CloseFrom) }
 
 // markerGhost is a block's marker at its text's start.
 type markerGhost struct {

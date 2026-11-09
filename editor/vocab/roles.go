@@ -49,11 +49,15 @@ func (s Span) Contains(p doc.Pos) bool {
 // Role interfaces. A stack entry providing a role implements its
 // interface; rules reach it through the match.
 
+// Edge is a stretch between two carets of one slot: a side of a pair, its
+// text or its ghost sign, which spans stops but no bytes.
+type Edge struct{ From, To doc.Caret }
+
 // Pair has two sides with spellings. For ghost notation EditSide
 // reinterprets the spelling through the notation set; for a text pair it
 // is a text edit. The policy editing it never knows which.
 type Pair interface {
-	Sides() (open, close Span)
+	Sides() (open, close Edge)
 	EditSide(side Side, spelling Spelling) Edit
 }
 

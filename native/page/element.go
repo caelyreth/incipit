@@ -2,6 +2,7 @@ package page
 
 import (
 	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/editor/vocab"
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -413,6 +414,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
+	el.paintHighlights(p, pl, ox, oy)
 	for _, u := range pl.units {
 		uy := oy + u.y
 		if uy > bottom || uy+u.h < top {
@@ -537,5 +539,22 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 		lay := ui.ShapeRichTextWith([]ui.Span{sg.face}, ui.Font{Family: sg.face.Font, Size: sg.face.Size}, ui.TextShape{})
 		_, h := lay.Size()
 		p.TextLayout(lay, sx+o.X+boxPad, sy+o.Y+(o.H-h)/2, sg.face.Color)
+	}
+}
+
+// paintHighlights fills, behind the text, each highlight the engine
+// publishes from caret to caret: an armed pair's two sides, its signs too,
+// which span stops but no bytes. A highlight lies on one line.
+func (el *Element) paintHighlights(p *ui.Painter, pl *pageLayout, ox, oy float32) {
+	for _, h := range el.Editor.deco.Highlights {
+		if h.Group != vocab.GroupArmed {
+			continue
+		}
+		from, ok1 := pl.caretBox(h.From, el.Editor.metrics)
+		to, ok2 := pl.caretBox(h.To, el.Editor.metrics)
+		if !ok1 || !ok2 || to.X <= from.X {
+			continue
+		}
+		p.Fill(ui.Rect{X: ox + from.X, Y: oy + from.Y, W: to.X - from.X, H: max(from.H, to.H)}, el.Theme.Prose.Selection, 2)
 	}
 }

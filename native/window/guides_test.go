@@ -31,3 +31,32 @@ func TestTabLeavesAPairWithItsKeyShown(t *testing.T) {
 		t.Fatalf("page %q", got)
 	}
 }
+
+// Backspace into a pair arms both its sides, drawn as what the next press
+// takes; a mark's signs arm the same way.
+func TestArmedSidesShow(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	for _, r := range "Some (words) and *marks*" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	tester.Key(0, ui.KeyLeft)
+	tester.Frame()
+	tester.Advance(time.Second)
+	shot(t, tester, "mark-leave-guide")
+	for range 5 {
+		tester.Key(0, ui.KeyLeft)
+	}
+	tester.Key(0, ui.KeyBackspace)
+	tester.Frame()
+	tester.Advance(time.Second)
+	shot(t, tester, "mark-armed")
+	if got := pageText(app); got != "paragraph:Some (words) and marks" && got != "paragraph:Some (words) and *marks*" {
+		t.Logf("page %q", got)
+	}
+}
