@@ -153,3 +153,21 @@ func TestTheReturnGuideShowsWhereItLands(t *testing.T) {
 		t.Fatalf("guides %+v, want return at %v", g, inside)
 	}
 }
+
+// The way back stays while nothing is edited: moving away and back to
+// the exit offers it again.
+func TestTheWayBackOutlastsMovingAround(t *testing.T) {
+	p := open(t)
+	p.typeText("a (b")
+	p.do(vocab.Leave{})
+	p.do(left)
+	p.do(left)
+	if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.leave" {
+		t.Fatalf("inside, guides %+v", g)
+	}
+	p.do(right)
+	p.do(right)
+	if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.return" {
+		t.Fatalf("back at the exit, guides %+v", g)
+	}
+}

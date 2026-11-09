@@ -42,11 +42,6 @@ var Policy = policy.Define("navigation", func(p *policy.P) {
 	p.Annotation(vocab.LeftScope, exists)
 	p.Handle("leave").On(vocab.On(vocab.IntentLeave)).In(vocab.RoleScope(vocab.RoleLeavable)).Do(leave)
 	p.Handle("return").On(vocab.On(vocab.IntentReturn)).Do(back)
-	// Writing on after leaving moves on: the scope left is no longer the
-	// way back. (Its anchor is a point text typed there carries along.)
-	p.Observe("forget-left", policy.Trigger{Kinds: textEdits}, func(*policy.Ctx, []doc.Record) policy.Result {
-		return policy.Result{DropKinds: []vocab.AnnotationKind{vocab.LeftScope}}
-	})
 
 	if !policy.Get(p, ReturnToEdit) {
 		return
@@ -61,7 +56,8 @@ var Policy = policy.Define("navigation", func(p *policy.P) {
 })
 
 // leave exits the innermost leavable scope, remembering where the caret
-// was for Return.
+// was for Return until the next edit or the next Leave: moving away and
+// back to the exit finds the way back again; writing on moves on.
 func leave(c *policy.Ctx, m policy.Match) policy.Result {
 	l, ok := m.Role.(vocab.Leavable)
 	if !ok {
@@ -71,7 +67,7 @@ func leave(c *policy.Ctx, m policy.Match) policy.Result {
 	res := policy.Select(doc.Collapsed(exit))
 	res.DropKinds = []vocab.AnnotationKind{vocab.LeftScope, offer}
 	res.Annotate = []policy.Annotate{{Kind: vocab.LeftScope, Anchor: policy.PointAnchor(exit.Pos),
-		Data: c.Head(), Lifetime: policy.UntilCaretLeaves(nil)}}
+		Data: c.Head(), Lifetime: policy.UntilEdited}}
 	res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 	return res
 }
