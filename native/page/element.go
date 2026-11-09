@@ -42,13 +42,12 @@ type Element struct {
 	typewriter bool
 	viewH      float32
 
-	// The caret glides between the places it is drawn at.
-	caret      [3]motion.Spring // x, y, height, in page coordinates
-	caretShown bool
+	// caret glides between the places the caret is drawn at, in page
+	// coordinates; now and animate are the frame's.
+	caret   motion.Rect
+	now     time.Time
+	animate bool
 }
-
-// caretFrequency keeps the caret up with typing.
-const caretFrequency = 38
 
 // NewElement is an element over ed.
 func NewElement(ed *Editor) *Element {
@@ -94,6 +93,7 @@ func (el *Element) View(c *ui.Context) {
 	ed.Due(c.Now())
 	pl := el.relayout()
 	animate := !c.Preferences().ReduceMotion
+	el.now, el.animate = c.Now(), animate
 	el.follow(pl, c.Now())
 	if el.stepViewport(c.Now(), animate) {
 		c.AnimationFrame()
@@ -251,23 +251,28 @@ func (el *Element) scrollBy(ev ui.InputEvent, now time.Time) {
 func (el *Element) stepCaret(pl *pageLayout, now time.Time, animate bool) bool {
 	r, ok := pl.caretBox(el.Editor.Selection().Head, el.Editor.metrics)
 	if !ok {
-		el.caretShown = false
+		el.caret.Hide()
 		return false
 	}
-	target := [3]float32{r.X, r.Y, r.H}
-	if !el.caretShown || !animate {
-		for i := range el.caret {
-			el.caret[i] = motion.NewSpring(target[i], now)
-		}
-		el.caretShown = true
-		return false
+	el.caret.Step(el.caretShape(r), now, motion.CaretFrequency, animate)
+	return el.caret.Moving()
+}
+
+// caretShape is the caret drawn in a text row: two DIPs wide, as tall as
+// the prose's caret, growing with a row of larger text and centered in it
+// with the prose's small optical drop. A gap's bar keeps its shape.
+func (el *Element) caretShape(row ui.Rect) ui.Rect {
+	if row.W > 2 {
+		return row
 	}
-	moving := false
-	for i := range el.caret {
-		el.caret[i].Step(target[i], now, caretFrequency)
-		moving = moving || el.caret[i].Moving()
+	line := el.Prose.LineHeight()
+	h := row.H
+	if h <= 0 {
+		h = line
 	}
-	return moving
+	scale := max(1, h/line)
+	height := el.Prose.CaretHeight() * scale
+	return ui.Rect{X: row.X, Y: row.Y + (h-height)/2 + el.Prose.CaretOffsetY()*scale, W: 2, H: height}
 }
 
 // --- input ----------------------------------------------------------------
@@ -398,10 +403,35 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			el.paintBoxes(p, s, sx, sy)
 		}
 	}
-	if focused && sel.Kind == doc.SelectText && el.caretShown {
-		cr := ui.Rect{X: el.caret[0].Value() + ox, Y: el.caret[1].Value() + oy, W: 2, H: el.caret[2].Value()}
-		p.Fill(cr, t.Accent.Foreground, 1)
+	if focused && sel.Kind == doc.SelectText && el.caret.Shown() {
+		cr := el.caret.Value()
+		cr.X += ox
+		cr.Y += oy
+		el.paintCaret(p, r, cr, sel.IsCollapsed())
 	}
+}
+
+// paintCaret draws the caret in the accent. A lone caret at rest breathes:
+// solid a moment after the last input, then fading through transparent
+// and back; while the pointer is held, a composition is under way or a
+// range is selected, it stays solid.
+func (el *Element) paintCaret(p *ui.Painter, view, caret ui.Rect, collapsed bool) {
+	breathes := el.animate && collapsed && !el.pressed && el.Editor.deco.Composition == nil
+	alpha := float32(1)
+	if breathes {
+		alpha = motion.CaretOpacity(el.Editor.active, el.now)
+	}
+	if alpha > 0 {
+		p.Fill(caret, el.Theme.Accent.Foreground.Alpha(alpha), 1)
+	}
+	if !breathes || caret.Y+caret.H <= view.Y || caret.Y >= view.Y+view.H {
+		return
+	}
+	if wake, ok := motion.CaretWake(el.Editor.active, el.now); ok {
+		p.After(wake.Sub(el.now))
+		return
+	}
+	p.AnimationFrame()
 }
 
 // paintGhosts draws a surface's ghosts in the room the line keeps for

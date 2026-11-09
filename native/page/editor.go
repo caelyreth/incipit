@@ -35,6 +35,9 @@ type Editor struct {
 	// format so they survive between pages and apps.
 	clip     vocab.Slice
 	clipText string
+	// active is when the last input came: the caret stays solid a moment
+	// after it before it breathes.
+	active time.Time
 	// reveal asks the next frame to scroll the caret into view.
 	reveal bool
 
@@ -103,6 +106,7 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 	if in.At.IsZero() {
 		in.At = time.Now()
 	}
+	ed.active = in.At
 	pub, err := ed.Engine.Do(ed.View, in)
 	if err != nil {
 		return false

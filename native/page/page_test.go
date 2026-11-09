@@ -137,14 +137,17 @@ func TestTheCaretGlides(t *testing.T) {
 	if !el.stepCaret(pl, t0.Add(16*time.Millisecond), true) {
 		t.Fatal("the caret jumped")
 	}
-	mid := el.caret[0].Value()
+	mid := el.caret.Value().X
 	later := t0.Add(2 * time.Second)
 	if el.stepCaret(pl, later, true) {
 		t.Fatal("the caret still moves")
 	}
 	r, _ := pl.caretBox(el.Editor.Selection().Head, el.Editor.metrics)
-	if el.caret[0].Value() != r.X || mid >= r.X {
-		t.Fatalf("caret at %v (midway %v), want %v", el.caret[0].Value(), mid, r.X)
+	if el.caret.Value().X != r.X || mid >= r.X {
+		t.Fatalf("caret at %v (midway %v), want %v", el.caret.Value().X, mid, r.X)
+	}
+	if got := el.caret.Value(); got.W != 2 || got.H != el.Prose.CaretHeight() {
+		t.Fatalf("caret %v; it is 2 wide and the prose's caret tall", got)
 	}
 	typeText(el, "c")
 	pl = el.Editor.layout
