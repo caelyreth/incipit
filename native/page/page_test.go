@@ -252,3 +252,34 @@ func pageText(el *Element) string {
 	walk(el.Editor.Engine.Snapshot().Root())
 	return out
 }
+
+// Typewriter mode glides the caret's line to the viewport's center, with
+// room above a short page, and leaving it eases back into the page.
+func TestTypewriterGlidesTheCaretsLineToTheCenter(t *testing.T) {
+	el := newElement(t)
+	typeText(el, "a line")
+	t0 := time.Unix(5000, 0)
+	pl := el.relayout()
+	el.follow(pl, t0)
+	el.stepViewport(t0, true)
+	off := func() float32 { r := el.caretInElement(); return r.Y + r.H/2 - el.viewport.H/2 }
+	before := off()
+	el.Typewriter = true
+	el.follow(pl, t0)
+	el.stepViewport(t0.Add(80*time.Millisecond), true)
+	mid := off()
+	el.stepViewport(t0.Add(2*time.Second), true)
+	if d := off(); d < -1 || d > 1 {
+		t.Fatalf("the caret's line is %v off center", d)
+	}
+	if el.scroll >= 0 || mid <= before || mid >= -1 {
+		t.Fatalf("no glide into the room above: %v off, %v midway, scroll %v", before, mid, el.scroll)
+	}
+	el.Typewriter = false
+	t1 := t0.Add(3 * time.Second)
+	el.follow(pl, t1)
+	el.stepViewport(t1.Add(3*time.Second), true)
+	if el.scroll != 0 {
+		t.Fatalf("a short page leaves typewriter mode at %v, want its top", el.scroll)
+	}
+}

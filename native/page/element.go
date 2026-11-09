@@ -1,12 +1,13 @@
 package page
 
 import (
-	"math"
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -24,17 +25,22 @@ type Element struct {
 	// Typewriter keeps the caret's line at the viewport's center.
 	Typewriter bool
 
-	client       *client
+	client *client
+	// scroll is the page's offset, which glide moves and a scroll by hand
+	// sets; overscroll is its elastic pull past an edge.
 	scroll       float32
-	scrollTarget float32
+	glide        motion.Glide
+	overscroll   scrollfx.Elastic
 	viewport     ui.Rect
 	column       float32 // the column's left, in the element
 	pressed      bool
 	focusPending bool
 	lastClicks   int
-	// manual is a scroll by hand, which typewriter mode leaves alone
-	// until the next edit or motion; typewriter is the mode last laid out.
-	manual, typewriter bool
+	// held is until when a scroll by hand holds the page; typewriter and
+	// viewH are the mode and the height last followed.
+	held       time.Time
+	typewriter bool
+	viewH      float32
 
 	// The caret glides between the places it is drawn at.
 	caret      [3]motion.Spring // x, y, height, in page coordinates
@@ -88,16 +94,8 @@ func (el *Element) View(c *ui.Context) {
 	ed.Due(c.Now())
 	pl := el.relayout()
 	animate := !c.Preferences().ReduceMotion
-	if el.typewriter != el.Typewriter {
-		// Entering or leaving the mode glides to where it keeps the caret.
-		el.typewriter, el.manual, ed.reveal = el.Typewriter, false, true
-	}
-	if ed.reveal {
-		el.manual = false
-		el.revealCaret(pl)
-		ed.reveal = false
-	}
-	if el.stepScroll(animate) {
+	el.follow(pl, c.Now())
+	if el.stepViewport(c.Now(), animate) {
 		c.AnimationFrame()
 	}
 	if el.stepCaret(pl, c.Now(), animate) {
@@ -118,7 +116,7 @@ func (el *Element) View(c *ui.Context) {
 			if r.W != el.viewport.W || r.H != el.viewport.H {
 				el.viewport = r
 				el.relayout()
-				el.clampScroll()
+				c.Services().Invalidate()
 			}
 			el.viewport = r
 			el.paint(p, r, box.Focused())
@@ -127,13 +125,13 @@ func (el *Element) View(c *ui.Context) {
 
 // toPage is an element point in page coordinates.
 func (el *Element) toPage(x, y float32) (float32, float32) {
-	return x - el.column, y - el.Top + el.scroll
+	return x - el.column, y - el.Top + el.offset()
 }
 
 // fromPage is a page rectangle in element coordinates.
 func (el *Element) fromPage(r ui.Rect) ui.Rect {
 	r.X += el.column
-	r.Y += el.Top - el.scroll
+	r.Y += el.Top - el.offset()
 	return r
 }
 
@@ -151,26 +149,57 @@ func (el *Element) caretInElement() ui.Rect {
 
 // --- scrolling ------------------------------------------------------------
 
-func (el *Element) maxScroll() float32 {
-	pl := el.Editor.layout
-	if pl == nil {
-		return 0
+// manualHold is how long a scroll by hand holds the page against the
+// caret's line.
+const manualHold = 650 * time.Millisecond
+
+// offset is where the page is drawn from: its scroll, less its pull past
+// an edge.
+func (el *Element) offset() float32 { return el.scroll - el.overscroll.Offset() }
+
+// scrollRange is how far the page scrolls. In typewriter mode room above
+// and below lets the first and last lines sit at the center like every
+// other line, so offsets may be negative; otherwise the page scrolls over
+// what overflows.
+func (el *Element) scrollRange(pl *pageLayout) (float32, float32) {
+	if pl == nil || el.viewport.H <= 0 {
+		return 0, 0
 	}
-	end := pl.height + el.Top + el.Bottom - el.viewport.H
 	if el.Typewriter {
-		// The last line can come to the center.
-		end = max(end, pl.height+el.Top-el.viewport.H/2)
+		line := el.Prose.LineHeight()
+		half := (el.viewport.H - line) / 2
+		first := el.Top - half
+		return first, max(first, el.Top+pl.height-line-half)
 	}
-	return max(end, 0)
+	return 0, max(0, el.Top+pl.height+el.Bottom-el.viewport.H)
 }
 
-func (el *Element) clampScroll() {
-	el.scrollTarget = min(max(el.scrollTarget, 0), el.maxScroll())
-	el.scroll = min(max(el.scroll, 0), el.maxScroll()+el.viewport.H)
+// follow keeps the caret's line in view by one rule: the page moves for
+// what the writer does, never on its own. It reveals the line after an
+// intent, a resize or a change of mode; typewriter mode centers it.
+// Leaving the mode coasts whatever glide is under way into the plain
+// range, at its speed, rather than finishing it and snapping.
+func (el *Element) follow(pl *pageLayout, now time.Time) {
+	ed := el.Editor
+	modeChanged := el.typewriter != el.Typewriter
+	resized := el.viewH != el.viewport.H
+	el.typewriter, el.viewH = el.Typewriter, el.viewport.H
+	if modeChanged && !el.Typewriter {
+		low, high := el.scrollRange(pl)
+		el.glide.Settle(el.scroll, low, high, now)
+		ed.reveal = false
+		return
+	}
+	if !ed.reveal && !resized && !modeChanged {
+		return
+	}
+	ed.reveal = false
+	el.revealCaret(pl, now)
 }
 
-// revealCaret scrolls so the caret's line shows with room about it.
-func (el *Element) revealCaret(pl *pageLayout) {
+// revealCaret glides the caret's whole line into view, from where the
+// page is and at the speed it moves.
+func (el *Element) revealCaret(pl *pageLayout, now time.Time) {
 	if el.viewport.H <= 0 {
 		return
 	}
@@ -178,33 +207,41 @@ func (el *Element) revealCaret(pl *pageLayout) {
 	if !ok {
 		return
 	}
-	if el.Typewriter && !el.manual {
-		el.scrollTarget = r.Y + r.H/2 + el.Top - el.viewport.H/2
-		el.clampScroll()
+	line, y := max(r.H, el.Prose.LineHeight()), el.Top+r.Y
+	if !el.Typewriter && y < el.Top+line {
+		// The room above the first line is that line's: revealing it
+		// reveals the page's top.
+		line, y = line+y, 0
+	}
+	target, changed := motion.Reveal(el.scroll, el.viewport.H, y, line, el.Typewriter, now.Before(el.held))
+	if !changed {
 		return
 	}
-	room := min(el.Prose.LineHeight()*3, el.viewport.H/4)
-	top := r.Y + el.Top - room
-	bottom := r.Y + r.H + el.Top + room - el.viewport.H
-	switch {
-	case top < el.scrollTarget:
-		el.scrollTarget = top
-	case bottom > el.scrollTarget:
-		el.scrollTarget = bottom
+	low, high := el.scrollRange(pl)
+	target = max(low, min(target, high))
+	if target == el.scroll && !el.glide.Moving() {
+		return
 	}
-	el.clampScroll()
+	el.glide.To(el.scroll, target, now)
 }
 
-// stepScroll eases the scroll toward its target; it reports whether it
-// still moves.
-func (el *Element) stepScroll(animate bool) bool {
-	d := el.scrollTarget - el.scroll
-	if !animate || math.Abs(float64(d)) < 0.5 {
-		el.scroll = el.scrollTarget
-		return false
-	}
-	el.scroll += d * 0.3
-	return true
+// stepViewport brings the glide and the pull past an edge to now, and
+// reports whether either still moves.
+func (el *Element) stepViewport(now time.Time, animate bool) bool {
+	_, pulling := el.overscroll.Step(now, animate)
+	var gliding bool
+	el.scroll, gliding = el.glide.Step(el.scroll, now, animate)
+	return pulling || gliding
+}
+
+// scrollBy scrolls by hand: it stops a glide, holds the page against the
+// caret a moment, and pulls elastic past an edge.
+func (el *Element) scrollBy(ev ui.InputEvent, now time.Time) {
+	el.glide.Cancel()
+	el.held = now.Add(manualHold)
+	low, high := el.scrollRange(el.Editor.layout)
+	el.scroll = components.OverscrollEditor.Scroll(&el.overscroll, el.scroll, ev.DY, low, high, el.viewport.H, 0,
+		scrollfx.Phase(ev.Precise, ev.Momentum))
 }
 
 // --- animation ------------------------------------------------------------
@@ -266,10 +303,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		el.pressed = false
 		return el.pressed
 	case ui.InputScroll:
-		el.manual = true
-		el.scrollTarget += ev.DY
-		el.clampScroll()
-		el.scroll = el.scrollTarget
+		el.scrollBy(ev, at)
 		services.Invalidate()
 		return true
 	case ui.InputKeyDown:
@@ -318,7 +352,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	for _, c := range ed.deco.Covers {
 		covers[c.Unit] = c
 	}
-	ox, oy := r.X+el.column, r.Y+el.Top-el.scroll
+	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
 	for _, u := range pl.units {
