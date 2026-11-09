@@ -6,6 +6,17 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// FocusWithin reports whether the keyboard focus is anywhere in the shell:
+// a press on what takes no focus, as a pane's background, leaves it
+// nowhere.
+func (s *State) FocusWithin(c *ui.Context) bool { return s.root.FocusWithin(c) }
+
+// Typing reports whether a field of the shell is open for typing, or about
+// to take the focus as it opens: the search, or a name being edited.
+func (s *State) Typing() bool {
+	return s.FindPageRequested || s.nav.searching || s.nav.renaming != ""
+}
+
 func (s *State) View(c *ui.Context) {
 	semantic, changing := s.Colors.At(s.Settings, c.Now())
 	c.SetTheme(s.Settings.MyGoThemeFor(semantic))
@@ -38,7 +49,7 @@ func (s *State) View(c *ui.Context) {
 		listTarget = 1
 	}
 
-	root := ui.Column(c).Fill().Background(semantic.Surface.Background)
+	root := ui.Column(c).Fill().Background(semantic.Surface.Background).Bind(&s.root)
 	animate := s.animate(c)
 	chrome := chromeTarget
 	reveal := openTarget

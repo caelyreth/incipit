@@ -158,6 +158,12 @@ func (a *AppState) pageView(c *ui.Context) {
 		el.Prose = a.Shell.Settings.Prose()
 		el.Top, el.Bottom = top/2, top*2
 		el.Typewriter = a.Product.Presentation.Typewriter
+		// A press on what takes no focus, as a pane's background, leaves
+		// the focus nowhere: typing belongs to the page then, its caret
+		// shown, unless a field of the shell or the palette is taking it.
+		if !a.Shell.FocusWithin(c) && !a.Shell.Typing() && (a.Palette == nil || !a.Palette.Open) {
+			el.Focus()
+		}
 		ui.Box(c).Key(fmt.Sprintf("editor-%d", el.Editor.View)).WidthPercent(100).Grow(1).Clip().Children(func() {
 			el.View(c)
 		})

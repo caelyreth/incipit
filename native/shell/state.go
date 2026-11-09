@@ -31,6 +31,9 @@ type ToolbarBindings struct {
 }
 
 type State struct {
+	// root is the shell's outermost element, for where the focus is.
+	root ui.Handle
+
 	Appearance settings.PresentationState
 	Settings   theme.Settings
 	// Colors carries theme changes; nil shows Settings as they are.

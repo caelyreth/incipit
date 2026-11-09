@@ -36,7 +36,8 @@ func TestTypewriterTogglesInTheWindow(t *testing.T) {
 }
 
 // The caret breathes with nothing else happening: frames that paint
-// again without building the view move it on.
+// again without building the view move it on, and a press on what takes
+// no focus, as a pane's background, leaves typing to the page.
 func TestTheCaretBreathesWithoutInput(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
@@ -46,21 +47,44 @@ func TestTheCaretBreathesWithoutInput(t *testing.T) {
 	tester.Frame()
 	tester.Type("x")
 	tester.Frame()
-	tester.Advance(240*time.Millisecond + 525*time.Millisecond)
-	low := tester.Image()
-	tester.Advance(525 * time.Millisecond)
-	high := tester.Image()
-	differ := false
-	b := low.Bounds()
-	for y := b.Min.Y; y < b.Max.Y && !differ; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			if low.At(x, y) != high.At(x, y) {
-				differ = true
-				break
+	breathes := func() bool {
+		tester.Advance(240*time.Millisecond + 525*time.Millisecond)
+		low := tester.Image()
+		tester.Advance(525 * time.Millisecond)
+		high := tester.Image()
+		b := low.Bounds()
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				if low.At(x, y) != high.At(x, y) {
+					return true
+				}
 			}
 		}
+		return false
 	}
-	if !differ {
+	if !breathes() {
 		t.Fatal("the caret did not breathe between frames with no input")
+	}
+	for _, at := range [][2]float32{{120, 500}, {380, 500}, {900, 820}} {
+		tester.ClickAt(at[0], at[1])
+		tester.Frame()
+		if !breathes() {
+			t.Fatalf("a press at %v took the caret from the page", at)
+		}
+	}
+	tester.Type("y")
+	tester.Frame()
+	if got := pageText(app); got != "paragraph:xy" {
+		t.Fatalf("typing after the presses went elsewhere: %q", got)
+	}
+	// What takes the focus keeps it: typing goes to the search.
+	if err := tester.Click("Search sheets"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Type("z")
+	tester.Frame()
+	if got := pageText(app); got != "paragraph:xy" {
+		t.Fatalf("typing into the search reached the page: %q", got)
 	}
 }
