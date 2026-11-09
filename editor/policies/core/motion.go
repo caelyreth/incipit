@@ -36,7 +36,7 @@ func slotTarget(r doc.Reader, pos doc.Pos, unit vocab.Unit, dir vocab.Direction)
 		if dir > 0 {
 			end := in.Len()
 			if lineEdge {
-				if i := indexByte(in.Text(), '\n', pos.Offset); i >= 0 {
+				if i := indexByte(in.Flat(), '\n', pos.Offset); i >= 0 {
 					end = i
 				}
 			}
@@ -47,7 +47,7 @@ func slotTarget(r doc.Reader, pos doc.Pos, unit vocab.Unit, dir vocab.Direction)
 		}
 		start := 0
 		if lineEdge {
-			if i := lastIndexByte(in.Text()[:pos.Offset], '\n'); i >= 0 {
+			if i := lastIndexByte(in.Flat()[:pos.Offset], '\n'); i >= 0 {
 				start = i + 1
 			}
 		}
@@ -101,7 +101,7 @@ func lastIndexByte(s string, b byte) int {
 // TODO(words): the words policy answers ByWord with UAX #29 boundaries
 // and CJK dictionaries; this is core's fallback.
 func wordTarget(in *doc.Inline, pos doc.Pos, dir vocab.Direction) (doc.Pos, bool) {
-	text := in.Text()
+	text := in.Flat()
 	off := pos.Offset
 	if (dir > 0 && off == len(text)) || (dir < 0 && off == 0) {
 		return pos, false

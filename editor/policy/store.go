@@ -159,7 +159,7 @@ func lineIdentity(in *doc.Inline, from, to int) string {
 func lineRanges(in *doc.Inline) [][2]int {
 	var out [][2]int
 	start := 0
-	text := in.Text()
+	text := in.Flat()
 	for i := 0; i < len(text); i++ {
 		if text[i] == '\n' {
 			out = append(out, [2]int{start, i + 1})
@@ -281,7 +281,7 @@ func (s *Store) scan(a *analyzer, u *Unit) []Fact {
 	incremental := prev != nil && prev.context == ctx && prev.points != nil
 	d, oldEnd, delta := 0, 0, 0
 	if incremental {
-		oldText, newText := prev.content.Text(), u.Content.Text()
+		oldText, newText := prev.content.Flat(), u.Content.Flat()
 		d = commonPrefix(prev.content, u.Content)
 		oldEnd = len(oldText) - commonSuffix(oldText, newText, d)
 		delta = len(newText) - len(oldText)
@@ -360,7 +360,7 @@ func shiftAfter(f Fact, oldEnd, delta int) Fact {
 // commonPrefix is the length of the identical prefix of two slots, text
 // and marks.
 func commonPrefix(a, b *doc.Inline) int {
-	at, bt := a.Text(), b.Text()
+	at, bt := a.Flat(), b.Flat()
 	n := 0
 	for n < len(at) && n < len(bt) && at[n] == bt[n] {
 		n++

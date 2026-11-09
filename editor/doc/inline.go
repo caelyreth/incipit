@@ -91,6 +91,45 @@ func (in *Inline) Text() string {
 	return in.text
 }
 
+// NodeByte stands for an inline node in Flat text: one byte, as the node
+// is one position. It is a control character no text holds.
+const NodeByte = '\x1a'
+
+// Flat is the slot's text aligned with its offsets: each inline node is
+// NodeByte. Analyzers and motion index it by slot offset.
+func (in *Inline) Flat() string {
+	if in == nil {
+		return ""
+	}
+	if in.size == len(in.text) {
+		return in.text
+	}
+	var b strings.Builder
+	b.Grow(in.size)
+	in.Each(func(_ int, it Item) bool {
+		if it.Node != nil {
+			b.WriteByte(NodeByte)
+		} else {
+			b.WriteString(it.Text)
+		}
+		return true
+	})
+	return b.String()
+}
+
+// FlatRange is Flat text in [from, to).
+func (in *Inline) FlatRange(from, to int) string {
+	var b strings.Builder
+	for _, it := range in.Slice(from, to) {
+		if it.Node != nil {
+			b.WriteByte(NodeByte)
+		} else {
+			b.WriteString(it.Text)
+		}
+	}
+	return b.String()
+}
+
 // Each calls fn with every item and the offset it starts at. Text items
 // are substrings of the slot's text.
 func (in *Inline) Each(fn func(at int, it Item) bool) {

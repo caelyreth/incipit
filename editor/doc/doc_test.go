@@ -454,3 +454,18 @@ func TestTypingGroups(t *testing.T) {
 		t.Fatal("typing elsewhere grouped")
 	}
 }
+
+func TestFlatTextIsAlignedWithSlotOffsets(t *testing.T) {
+	obj := NewNode(Kind(9), Attrs{})
+	in := NewInline(TextItem("ab", nil), NodeItem(obj), TextItem("cd", nil))
+	flat := in.Flat()
+	if len(flat) != in.Len() || flat != "ab"+string(rune(NodeByte))+"cd" {
+		t.Fatalf("flat %q for %d positions", flat, in.Len())
+	}
+	if got := in.FlatRange(1, 4); got != "b"+string(rune(NodeByte))+"c" {
+		t.Fatalf("range %q", got)
+	}
+	if plain := NewInline(TextItem("xy", nil)); plain.Flat() != "xy" {
+		t.Fatal(plain.Flat())
+	}
+}

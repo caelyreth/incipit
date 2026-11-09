@@ -94,20 +94,47 @@ func ApplyMark(spans []Span, m doc.Mark) Edit {
 			if !ok || spec.Literal || spec.Marks == nil || !spec.Marks(m.Kind) || s.From == s.To {
 				continue
 			}
-			op := doc.MarkText{At: s.Slot, From: s.From, To: s.To, Add: []doc.Mark{m}}
-			if mspec, ok := Schema().Mark(m.Kind); ok && mspec.Excludes != nil {
-				for _, other := range []doc.MarkKind{Emphasis, Strong, CodeMark, Strike} {
-					if other != m.Kind && mspec.Excludes(other) {
-						op.Remove = append(op.Remove, other)
-					}
-				}
-			}
+			op := doc.MarkText{At: s.Slot, From: s.From, To: s.To, Add: []doc.Mark{m}, Remove: excludedBy(m.Kind)}
 			if err := tx.Apply(op); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
+}
+
+// Excludes reports whether marks a and b may not share a set: either one
+// excludes the other.
+func Excludes(a, b doc.MarkKind) bool {
+	if a == b {
+		return false
+	}
+	for _, p := range [][2]doc.MarkKind{{a, b}, {b, a}} {
+		if spec, ok := Schema().Mark(p[0]); ok && spec.Excludes != nil && spec.Excludes(p[1]) {
+			return true
+		}
+	}
+	return false
+}
+
+// excludedBy are the marks adding k removes.
+func excludedBy(k doc.MarkKind) []doc.MarkKind {
+	var out []doc.MarkKind
+	for _, other := range MarkKinds {
+		if Excludes(k, other) {
+			out = append(out, other)
+		}
+	}
+	return out
+}
+
+// WithMark is set with m added and the marks m excludes removed: the
+// newest mark wins.
+func WithMark(set *doc.MarkSet, m doc.Mark) *doc.MarkSet {
+	for _, other := range excludedBy(m.Kind) {
+		set = set.Without(other)
+	}
+	return set.With(m)
 }
 
 // ClearMark removes marks of kind k over spans.
@@ -729,4 +756,168 @@ func InsertSlice(at doc.Pos, s Slice) Edit {
 		}
 		return nil
 	}
+}
+
+// Retype changes a text block's kind and attributes and fits its text to
+// the new kind's slot: between a rich and a literal slot the text becomes
+// plain, marks and inline nodes dropping to their text, and where the new
+// slot keeps no lines, line breaks become spaces. Attributes are stored
+// canonically.
+func Retype(id doc.ID, kind doc.Kind, attrs doc.Attrs) Edit {
+	return func(tx *doc.Tx) error {
+		n, ok := tx.Node(id)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		from, fok := Schema().Kind(n.Kind())
+		to, tok := Schema().Kind(kind)
+		if !fok || !tok || len(from.Slots) == 0 || len(to.Slots) == 0 {
+			return fmt.Errorf("%w: %s cannot become %s", ErrHelper, Schema().KindName(n.Kind()), Schema().KindName(kind))
+		}
+		if from.Slots[0].Literal != to.Slots[0].Literal {
+			if err := plainText(tx, n); err != nil {
+				return err
+			}
+		}
+		if !to.Slots[0].Lines {
+			if err := unbreak(tx, doc.SlotRef{Node: id, Slot: 0}); err != nil {
+				return err
+			}
+		}
+		return tx.Apply(doc.SetNode{ID: id, Kind: kind, Attrs: attrs})
+	}
+}
+
+// plainText replaces a block's first slot with its text, unmarked.
+func plainText(tx *doc.Tx, n *doc.Node) error {
+	content := n.Slot(0).Content()
+	if content.Len() == 0 {
+		return nil
+	}
+	var items []doc.Item
+	if text := content.Text(); text != "" {
+		items = []doc.Item{doc.TextItem(text, nil)}
+	}
+	return tx.Apply(doc.EditText{At: doc.SlotRef{Node: n.ID(), Slot: 0}, From: 0, To: content.Len(), Items: items})
+}
+
+// unbreak turns the line breaks of an inline slot into spaces, keeping
+// their marks.
+func unbreak(tx *doc.Tx, ref doc.SlotRef) error {
+	n, ok := tx.Node(ref.Node)
+	if !ok {
+		return doc.ErrNoNode
+	}
+	content := n.Slot(ref.Slot).Content()
+	flat := content.Flat()
+	for off := strings.IndexByte(flat, '\n'); off >= 0; {
+		it, _, _ := content.ItemAt(off)
+		if err := tx.Apply(doc.EditText{At: ref, From: off, To: off + 1, Items: []doc.Item{doc.TextItem(" ", it.Marks)}}); err != nil {
+			return err
+		}
+		next := strings.IndexByte(flat[off+1:], '\n')
+		if next < 0 {
+			break
+		}
+		off += 1 + next
+	}
+	return nil
+}
+
+// WrapRun is the run of siblings that wrapping ids in a container of kind
+// takes: each id lifts to its nearest ancestor-or-self the container
+// holds and whose slot holds the container, as a list for one of its
+// items, then to a common slot, and the run spans every sibling between
+// them. It is false when no such run exists.
+func WrapRun(r doc.Reader, ids []doc.ID, kind doc.Kind) ([]doc.ID, bool) {
+	spec, ok := Schema().Kind(kind)
+	if !ok || len(ids) == 0 {
+		return nil, false
+	}
+	body := spec.Slots[bodySlot(kind)]
+	fits := func(id doc.ID) bool {
+		n, ok := r.Node(id)
+		if !ok || body.Accepts == nil || !body.Accepts(n.Kind()) {
+			return false
+		}
+		parent, slot, ok := r.Parent(id)
+		if !ok {
+			return false
+		}
+		ps, ok := SlotSpec(r, doc.SlotRef{Node: parent, Slot: slot})
+		return ok && ps.Blocks && ps.Accepts != nil && ps.Accepts(kind)
+	}
+	lift := func(id doc.ID) (doc.ID, bool) {
+		for !fits(id) {
+			parent, _, ok := r.Parent(id)
+			if !ok {
+				return 0, false
+			}
+			id = parent
+		}
+		return id, true
+	}
+	depth := func(id doc.ID) int {
+		d := 0
+		for {
+			parent, _, ok := r.Parent(id)
+			if !ok {
+				return d
+			}
+			id, d = parent, d+1
+		}
+	}
+	targets := make([]doc.ID, len(ids))
+	for i, id := range ids {
+		t, ok := lift(id)
+		if !ok {
+			return nil, false
+		}
+		targets[i] = t
+	}
+	for {
+		p0, s0, _ := r.Parent(targets[0])
+		deepest, same := 0, true
+		for i, t := range targets {
+			p, s, _ := r.Parent(t)
+			if p != p0 || s != s0 {
+				same = false
+			}
+			if depth(t) > depth(targets[deepest]) {
+				deepest = i
+			}
+		}
+		if same {
+			break
+		}
+		parent, _, ok := r.Parent(targets[deepest])
+		if !ok {
+			return nil, false
+		}
+		t, ok := lift(parent)
+		if !ok {
+			return nil, false
+		}
+		targets[deepest] = t
+	}
+	parent, slot, _ := r.Parent(targets[0])
+	lo, hi := -1, -1
+	for _, t := range targets {
+		_, _, i, ok := Index(r, t)
+		if !ok {
+			return nil, false
+		}
+		if lo < 0 || i < lo {
+			lo = i
+		}
+		if i > hi {
+			hi = i
+		}
+	}
+	pn, _ := r.Node(parent)
+	run := make([]doc.ID, 0, hi-lo+1)
+	for i := lo; i <= hi; i++ {
+		run = append(run, pn.Slot(slot).Child(i).ID())
+	}
+	return run, true
 }

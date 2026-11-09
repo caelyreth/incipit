@@ -571,7 +571,7 @@ func format(c *policy.Ctx, m policy.Match) policy.Result {
 		if marks.Has(in.Mark) {
 			marks = marks.Without(in.Mark)
 		} else {
-			marks = marks.With(doc.Mark{Kind: in.Mark})
+			marks = vocab.WithMark(marks, doc.Mark{Kind: in.Mark})
 		}
 		anchor := policy.PointAnchor(head)
 		res.Annotate = []policy.Annotate{{Kind: vocab.PendingMarks, Anchor: anchor, Data: marks, Lifetime: policy.UntilCaretLeaves(nil)}}
@@ -604,6 +604,7 @@ func selectedBlocks(c *policy.Ctx) []*doc.Node {
 // builds items; core leaves it.
 func reshape(c *policy.Ctx, m policy.Match) policy.Result {
 	in := m.Intent.(vocab.Reshape)
+	r := c.Doc()
 	blocks := selectedBlocks(c)
 	if len(blocks) == 0 {
 		return policy.Swallow
@@ -614,7 +615,11 @@ func reshape(c *policy.Ctx, m policy.Match) policy.Result {
 		for i, b := range blocks {
 			ids[i] = b.ID()
 		}
-		return policy.Do(vocab.Wrap(ids, vocab.Quote, in.Attrs))
+		run, ok := vocab.WrapRun(c.Doc(), ids, vocab.Quote)
+		if !ok {
+			return policy.Swallow
+		}
+		return policy.Do(vocab.Wrap(run, vocab.Quote, in.Attrs))
 	case vocab.Paragraph, vocab.Heading, vocab.Code:
 	default:
 		return policy.Swallow
@@ -624,41 +629,13 @@ func reshape(c *policy.Ctx, m policy.Match) policy.Result {
 		if b.Kind() == vocab.Item || !vocab.IsTextBlock(b.Kind()) {
 			continue
 		}
-		kind, attrs := in.Shape, in.Attrs
-		if b.Kind() == in.Shape && b.Attrs().Equal(in.Attrs) {
+		kind, attrs := in.Shape, r.Schema().Canonical(in.Shape, in.Attrs)
+		if b.Kind() == kind && b.Attrs().Equal(attrs) {
 			kind, attrs = vocab.Paragraph, doc.Attrs{}
 		}
-		if (kind == vocab.Code) != (b.Kind() == vocab.Code) {
-			edits = append(edits, convertLiteral(b, kind, attrs))
-			continue
-		}
-		edits = append(edits, vocab.SetKind(b.ID(), kind, attrs))
+		edits = append(edits, vocab.Retype(b.ID(), kind, attrs))
 	}
 	return policy.Do(edits...)
-}
-
-// convertLiteral changes a block between a rich and a literal kind: the
-// text is kept, marks and inline nodes become plain text.
-func convertLiteral(b *doc.Node, kind doc.Kind, attrs doc.Attrs) vocab.Edit {
-	return func(tx *doc.Tx) error {
-		n, ok := tx.Node(b.ID())
-		if !ok {
-			return doc.ErrNoNode
-		}
-		text := n.Slot(0).Content().Text()
-		fresh := doc.NewNode(kind, attrs, doc.InlineSlot(doc.TextItem(text, nil)))
-		if text == "" {
-			fresh = doc.NewNode(kind, attrs, doc.InlineSlot())
-		}
-		parent, slot, index, ok := vocab.Index(tx, b.ID())
-		if !ok {
-			return doc.ErrNoNode
-		}
-		if err := tx.Apply(doc.Remove{IDs: []doc.ID{b.ID()}}); err != nil {
-			return err
-		}
-		return tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{fresh}})
-	}
 }
 
 func moveNode(c *policy.Ctx, m policy.Match) policy.Result {

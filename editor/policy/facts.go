@@ -171,8 +171,9 @@ type Unit struct {
 	facts func(vocab.FactKind) []Fact
 }
 
-// Text is the unit's text, inline nodes as U+FFFC.
-func (u *Unit) Text() string { return u.Content.TextRange(u.From, u.To) }
+// Text is the unit's text aligned with slot offsets: an inline node is
+// doc.NodeByte, one byte as it is one position.
+func (u *Unit) Text() string { return u.Content.FlatRange(u.From, u.To) }
 
 // Facts returns facts of another kind in the unit's slot, for
 // presentation contributions that read facts.

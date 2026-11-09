@@ -135,3 +135,76 @@ func TestEmptyPageIsDeterministic(t *testing.T) {
 		t.Fatal("the same seed gave different ids")
 	}
 }
+
+func TestRetypeFitsTextToTheNewSlot(t *testing.T) {
+	s := page(t, NewBlock(Code, doc.Attrs{}))
+	id := nth(s, 0)
+	s = edit(t, s, Ops(doc.EditText{At: doc.SlotRef{Node: id}, Items: []doc.Item{doc.TextItem("one\ntwo", nil)}}))
+	// A heading keeps no lines, and its level is stored only off its
+	// default.
+	h := edit(t, s, Retype(id, Heading, doc.Attrs{}.With(FieldLevel, doc.Int(1))))
+	n, _ := h.Node(id)
+	if got := outline(h.Root()); got != "page(heading(one two))" {
+		t.Fatal(got)
+	}
+	if n.Attrs().Len() != 0 {
+		t.Fatalf("the default level is stored: %v", n.Attrs())
+	}
+	if err := h.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	// Into code the marks drop.
+	strong := s.Marks().Empty().With(doc.Mark{Kind: Strong})
+	m := page(t, NewParagraph(doc.TextItem("a", strong), doc.TextItem(" b", nil)))
+	c := edit(t, m, Retype(nth(m, 0), Code, doc.Attrs{}))
+	cn, _ := c.Node(nth(m, 0))
+	if got := outline(c.Root()); got != "page(code(a b))" {
+		t.Fatal(got)
+	}
+	if ms := cn.Slot(0).Content().MarksAt(1); ms != nil && ms.Has(Strong) {
+		t.Fatal("code keeps a mark")
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWrapRunLiftsToWhatTheContainerHolds(t *testing.T) {
+	list := NewBlock(List, doc.Attrs{})
+	s := page(t, para("a"), list, para("z"))
+	items := []*doc.Node{NewBlock(Item, doc.Attrs{}), NewBlock(Item, doc.Attrs{})}
+	s = edit(t, s, Ops(doc.Insert{Parent: nth(s, 1), Nodes: items}))
+	ln, _ := s.Node(nth(s, 1))
+	item := ln.Slot(0).Child(1).ID()
+	// An item lifts to its list.
+	run, ok := WrapRun(s, []doc.ID{item}, Quote)
+	if !ok || len(run) != 1 || run[0] != nth(s, 1) {
+		t.Fatalf("run %v %v", run, ok)
+	}
+	// From the paragraph before to the item, the run spans both siblings.
+	run, ok = WrapRun(s, []doc.ID{nth(s, 0), item}, Quote)
+	if !ok || len(run) != 2 || run[0] != nth(s, 0) || run[1] != nth(s, 1) {
+		t.Fatalf("run %v %v", run, ok)
+	}
+	out := edit(t, s, Wrap(run, Quote, doc.Attrs{}))
+	if got := outline(out.Root()); got != "page(quote(paragraph(a) list(item(|) item(|))) paragraph(z))" {
+		t.Fatal(got)
+	}
+}
+
+func TestMarksThatExcludeEachOtherNeverShareASet(t *testing.T) {
+	s := page(t, para("x"))
+	set := s.Marks().Empty().With(doc.Mark{Kind: Strong}).With(doc.Mark{Kind: Emphasis})
+	code := WithMark(set, doc.Mark{Kind: CodeMark})
+	if code.Has(Strong) || code.Has(Emphasis) || !code.Has(CodeMark) {
+		t.Fatal("code keeps the marks it excludes")
+	}
+	// The exclusion holds both ways: the newest mark wins.
+	strong := WithMark(code, doc.Mark{Kind: Strong})
+	if strong.Has(CodeMark) || !strong.Has(Strong) {
+		t.Fatal("strong joins code")
+	}
+	if !Excludes(Strong, CodeMark) || Excludes(Strong, Emphasis) {
+		t.Fatal("exclusion is not symmetric")
+	}
+}

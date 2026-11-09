@@ -39,6 +39,9 @@ const (
 	Strike
 )
 
+// MarkKinds are every mark kind, in kind order.
+var MarkKinds = []doc.MarkKind{Emphasis, Strong, CodeMark, Strike}
+
 // Field numbers. They are persisted, so they never change meaning.
 const (
 	FieldLevel = 1 // heading

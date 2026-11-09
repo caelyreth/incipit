@@ -146,6 +146,16 @@ func (s *Schema) KindName(k Kind) string {
 	return fmt.Sprintf("kind(%d)", k)
 }
 
+// Canonical is a's stored form on a node of kind k: fields equal to their
+// default are dropped.
+func (s *Schema) Canonical(k Kind, a Attrs) Attrs {
+	spec, ok := s.Kind(k)
+	if !ok {
+		return a
+	}
+	return canonicalAttrs(spec.Fields, a)
+}
+
 // canonicalAttrs drops fields equal to their default.
 func canonicalAttrs(fields []FieldSpec, a Attrs) Attrs {
 	for _, f := range fields {

@@ -100,3 +100,33 @@ func validInline(schema *Schema, marks *Interner, slot SlotSpec, in *Inline) err
 	}
 	return nil
 }
+
+// Validate checks every node of the snapshot, as debug builds and tests
+// do after each transaction; Commit checks only the nodes it touched.
+func (s *Snapshot) Validate() error {
+	var walk func(n *Node) error
+	walk = func(n *Node) error {
+		if err := validateNode(s.schema, s.marks, n); err != nil {
+			return err
+		}
+		for _, sl := range n.slots {
+			if sl.inline {
+				for _, r := range sl.Content().runs {
+					if r.node != nil {
+						if err := walk(r.node); err != nil {
+							return err
+						}
+					}
+				}
+				continue
+			}
+			for _, c := range sl.children {
+				if err := walk(c); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	return walk(s.root)
+}

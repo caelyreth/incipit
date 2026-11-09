@@ -143,7 +143,7 @@ func blockMarker(mk *policy.FactKind[marker]) policy.Handler {
 		switch mark.Kind {
 		case markHeading:
 			attrs := doc.MakeAttrs(doc.Field{Num: vocab.FieldLevel, Value: doc.Int(int64(mark.Level))})
-			return policy.Do(strip, vocab.SetKind(block.ID(), vocab.Heading, attrs))
+			return policy.Do(strip, vocab.Retype(block.ID(), vocab.Heading, attrs))
 		case markQuote:
 			return policy.Do(strip, vocab.Wrap([]doc.ID{block.ID()}, vocab.Quote, doc.Attrs{}))
 		case markBullet, markOrdered:
