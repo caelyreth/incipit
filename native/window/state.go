@@ -384,7 +384,7 @@ func (a *AppState) View(c *ui.Context) {
 	}
 	a.Shell.View(c)
 	// What this frame changed names its page and goes to the notebook.
-	a.retitle()
+	a.summarize()
 	a.save()
 	// The toasts stand above the foot, and over all else.
 	scale := a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize

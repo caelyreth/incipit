@@ -19,7 +19,9 @@ var migrations = []string{
 		id      INTEGER PRIMARY KEY,
 		created INTEGER NOT NULL,
 		updated INTEGER NOT NULL,
-		title   TEXT    NOT NULL DEFAULT ''
+		title   TEXT    NOT NULL DEFAULT '',
+		excerpt TEXT    NOT NULL DEFAULT '',
+		words   INTEGER NOT NULL DEFAULT 0
 	) STRICT;
 	CREATE TABLE groups (
 		id       INTEGER PRIMARY KEY,

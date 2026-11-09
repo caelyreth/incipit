@@ -1,7 +1,6 @@
 package window
 
 import (
-	"github.com/caelyreth/neverland/editor/vocab"
 	"time"
 
 	"github.com/caelyreth/neverland/app/library"
@@ -38,7 +37,7 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 	sessions := make([]workspace.Session, 0, len(contents.Pages))
 	for _, page := range contents.Pages {
 		id := workspace.PageID(len(sessions))
-		session := &sheetSession{page: id, key: page.Key, title: page.Title, saved: true}
+		session := &sheetSession{page: id, key: page.Key, summary: page.Summary, saved: true}
 		if _, ok := a.library.Sheet(library.SheetID(page.Key)); !ok {
 			_ = a.library.AddSheet(library.SheetID(page.Key), library.Inbox, page.Created)
 		}
@@ -85,20 +84,20 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 
 // firstPage is a notebook's one empty page, open in front.
 func (a *AppState) firstPage() ([]workspace.Session, workspace.Layout, error) {
-	session := a.newSession(0, "")
+	session := a.newSession(0, storage.Summary{})
 	_ = a.library.AddSheet(library.SheetID(session.key), library.Inbox, time.Now())
 	return []workspace.Session{session}, workspace.Layout{Tabs: []workspace.PageID{0}, HasActive: true}, nil
 }
 
 // createPage is the workspace's factory: an empty page.
 func (a *AppState) createPage(id workspace.PageID) (workspace.Session, error) {
-	return a.newSession(id, ""), nil
+	return a.newSession(id, storage.Summary{}), nil
 }
 
 // newSession is a new page with a key no page has had, which the notebook
 // saves at once so that its tab has a page to name.
-func (a *AppState) newSession(id workspace.PageID, title string) *sheetSession {
-	session := &sheetSession{page: id, key: a.nextKey, title: title}
+func (a *AppState) newSession(id workspace.PageID, summary storage.Summary) *sheetSession {
+	session := &sheetSession{page: id, key: a.nextKey, summary: summary}
 	a.nextKey++
 	a.sessions[id] = session
 	return session
@@ -122,7 +121,7 @@ func (a *AppState) savePage(session *sheetSession) {
 	// content with its record.
 	if session.element != nil {
 		if snap := session.element.Editor.Engine.Snapshot(); snap != session.handed {
-			a.notebook.saver.Content(session.key, session.title, snap)
+			a.notebook.saver.Content(session.key, session.summary, snap)
 			session.handed = snap
 			if session.saved {
 				a.library.Touch(library.SheetID(session.key), time.Now())
@@ -133,26 +132,27 @@ func (a *AppState) savePage(session *sheetSession) {
 	if session.saved {
 		return
 	}
-	a.notebook.saver.Page(session.key, session.title)
+	a.notebook.saver.Page(session.key, session.summary)
 	session.saved = true
 	a.library.Touch(library.SheetID(session.key), time.Now())
 }
 
-// retitle names each open page after its first heading, so its tab and its
-// row follow what is written.
-func (a *AppState) retitle() {
+// summarize names and describes each open page as it is written: its
+// first heading titles its tab and its row, which show its excerpt and
+// words too.
+func (a *AppState) summarize() {
 	changed := false
 	for _, session := range a.sessions {
 		if session.element == nil {
 			continue
 		}
 		snap := session.element.Editor.Engine.Snapshot()
-		if snap == session.titled {
+		if snap == session.summarized {
 			continue
 		}
-		session.titled = snap
-		if title := vocab.PageTitle(snap.Root()); title != session.title {
-			session.title, changed = title, true
+		session.summarized = snap
+		if summary := storage.Summarize(snap.Root()); summary != session.summary {
+			session.summary, changed = summary, true
 		}
 	}
 	if changed {

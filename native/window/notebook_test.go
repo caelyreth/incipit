@@ -38,7 +38,7 @@ func activeSession(t *testing.T, app *AppState) *sheetSession {
 func nameActivePage(t *testing.T, app *AppState, title string) {
 	t.Helper()
 	session := activeSession(t, app)
-	session.title, session.saved = title, false
+	session.summary.Title, session.saved = title, false
 	app.refreshShell()
 }
 

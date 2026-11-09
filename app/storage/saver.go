@@ -31,7 +31,7 @@ type Saver struct {
 	store *Store
 
 	mu      sync.Mutex
-	pending map[PageKey]string
+	pending map[PageKey]Summary
 	// content is each page's newest snapshot to save; saved is the last
 	// one on disk, which the next save diffs against.
 	content map[PageKey]*doc.Snapshot
@@ -62,7 +62,7 @@ type Saver struct {
 func (s *Store) Autosave() *Saver {
 	saver := &Saver{
 		store:      s,
-		pending:    map[PageKey]string{},
+		pending:    map[PageKey]Summary{},
 		content:    map[PageKey]*doc.Snapshot{},
 		saved:      map[PageKey]*doc.Snapshot{},
 		deleted:    map[PageKey]bool{},
@@ -75,20 +75,20 @@ func (s *Store) Autosave() *Saver {
 	return saver
 }
 
-// Page asks for a page's record to be saved with title. A later call before
-// the write replaces it.
-func (v *Saver) Page(key PageKey, title string) {
+// Page asks for a page's record to be saved with its summary. A later call
+// before the write replaces it.
+func (v *Saver) Page(key PageKey, summary Summary) {
 	v.mu.Lock()
-	v.pending[key] = title
+	v.pending[key] = summary
 	v.touch()
 	v.mu.Unlock()
 }
 
-// Content asks for a page's content to be saved with its title. The
+// Content asks for a page's content to be saved with its summary. The
 // snapshot is immutable; encoding it runs on the saver's goroutine.
-func (v *Saver) Content(key PageKey, title string, snap *doc.Snapshot) {
+func (v *Saver) Content(key PageKey, summary Summary, snap *doc.Snapshot) {
 	v.mu.Lock()
-	v.pending[key] = title
+	v.pending[key] = summary
 	v.content[key] = snap
 	v.touch()
 	v.mu.Unlock()
@@ -267,7 +267,7 @@ func (v *Saver) writePending() error {
 	pending, deleted, records, layout := v.pending, v.deleted, v.library, v.layout
 	content := v.content
 	saved := maps.Clone(v.saved)
-	v.pending, v.deleted, v.library, v.layout = map[PageKey]string{}, map[PageKey]bool{}, nil, nil
+	v.pending, v.deleted, v.library, v.layout = map[PageKey]Summary{}, map[PageKey]bool{}, nil, nil
 	v.content = map[PageKey]*doc.Snapshot{}
 	v.first = time.Time{}
 	v.mu.Unlock()
@@ -275,8 +275,8 @@ func (v *Saver) writePending() error {
 		return nil
 	}
 	work := change{library: records, layout: layout}
-	for key, title := range pending {
-		w := pageWrite{key: key, title: title}
+	for key, summary := range pending {
+		w := pageWrite{key: key, summary: summary}
 		if snap, ok := content[key]; ok {
 			w.content = &contentWrite{root: snap.Root().ID(), seed: snap.Seed(), diff: store.Changes(saved[key], snap)}
 		}
@@ -289,9 +289,9 @@ func (v *Saver) writePending() error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if err != nil {
-		for key, title := range pending {
+		for key, summary := range pending {
 			if _, newer := v.pending[key]; !newer && !v.deleted[key] {
-				v.pending[key] = title
+				v.pending[key] = summary
 			}
 			if _, newer := v.content[key]; !newer && !v.deleted[key] {
 				if snap, ok := content[key]; ok {

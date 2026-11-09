@@ -135,6 +135,8 @@ func sheetItemsWithSessions(sheets []library.Sheet, sessions map[library.SheetID
 		items = append(items, shell.SheetItem{
 			ID:      sheetName(session.page),
 			Title:   title,
+			Excerpt: session.summary.Excerpt,
+			Words:   session.summary.Words,
 			Updated: sheet.Updated,
 		})
 	}
@@ -372,7 +374,7 @@ func (a *AppState) DuplicateSheet(name string) {
 		return
 	}
 	id, err := a.Workspace.CreatePageFrom(func(id workspace.PageID) (workspace.Session, error) {
-		return a.newSession(id, source.title), nil
+		return a.newSession(id, source.summary), nil
 	})
 	if err != nil {
 		a.fail("Couldn't duplicate the sheet", err)

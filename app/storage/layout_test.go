@@ -33,7 +33,7 @@ func TestLayoutEqualComparesByValue(t *testing.T) {
 func TestSaverOwnsQueuedLayoutAndLibrary(t *testing.T) {
 	store := openStore(t, t.TempDir())
 	saver := store.Autosave()
-	saver.Page(1, "one")
+	saver.Page(1, Summary{Title: "one"})
 
 	layout := Layout{
 		Tabs:      []PageKey{1},

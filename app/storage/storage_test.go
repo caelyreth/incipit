@@ -26,8 +26,8 @@ func TestANotebookReopensAsItWasLeft(t *testing.T) {
 	root := t.TempDir()
 	store := openStore(t, root)
 	saver := store.Autosave()
-	saver.Page(1, "Title")
-	saver.Page(2, "")
+	saver.Page(1, Summary{Title: "Title"})
+	saver.Page(2, Summary{Title: ""})
 	saver.Layout(Layout{
 		Tabs: []PageKey{2, 1}, Active: 1, HasActive: true,
 		Scroll: map[PageKey]float32{1: 120},
@@ -67,7 +67,7 @@ func TestARewrittenPageKeepsItsCreation(t *testing.T) {
 	defer store.Close()
 	saver := store.Autosave()
 	defer saver.Close()
-	saver.Page(1, "First")
+	saver.Page(1, Summary{Title: "First"})
 	if err := saver.Flush(); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestARewrittenPageKeepsItsCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(5 * time.Millisecond)
-	saver.Page(1, "Second")
+	saver.Page(1, Summary{Title: "Second"})
 	if err := saver.Flush(); err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func crashWhileWriting(root string) {
 		os.Exit(2)
 	}
 	saver := store.Autosave()
-	saver.Page(7, "written before the crash")
+	saver.Page(7, Summary{Title: "written before the crash"})
 	if err := saver.Flush(); err != nil {
 		os.Exit(3)
 	}
@@ -152,7 +152,7 @@ func TestADamagedNotebookIsReplacedByItsBackup(t *testing.T) {
 	root := t.TempDir()
 	store := openStore(t, root)
 	saver := store.Autosave()
-	saver.Page(1, "kept in the backup")
+	saver.Page(1, Summary{Title: "kept in the backup"})
 	if err := saver.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestChangesAreWrittenWithoutBeingAsked(t *testing.T) {
 	deadline := time.Now().Add(longestDelay + time.Second)
 	// Typing on at a steady pace still writes within the longest delay.
 	for time.Now().Before(deadline) {
-		saver.Page(1, "typed")
+		saver.Page(1, Summary{Title: "typed"})
 		var rows int
 		if err := store.db.QueryRow(`SELECT count(*) FROM pages`).Scan(&rows); err != nil {
 			t.Fatal(err)
@@ -289,9 +289,9 @@ func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
 		t.Fatal(err)
 	}
 	saver := store.Autosave()
-	saver.Page(1, "one")
-	saver.Page(2, "two")
-	saver.Page(3, "three")
+	saver.Page(1, Summary{Title: "one"})
+	saver.Page(2, Summary{Title: "two"})
+	saver.Page(3, Summary{Title: "three"})
 	saver.Library(shelf.Records())
 	if err := saver.Flush(); err != nil {
 		t.Fatal(err)
@@ -341,7 +341,7 @@ func TestTheWatcherIsToldAfterEachWrite(t *testing.T) {
 	defer saver.Close()
 	told := make(chan error, 4)
 	saver.Watch(func() { told <- saver.Err() })
-	saver.Page(1, "typed")
+	saver.Page(1, Summary{Title: "typed"})
 	if err := saver.Flush(); err != nil {
 		t.Fatal(err)
 	}

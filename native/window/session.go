@@ -12,16 +12,18 @@ import (
 type sheetSession struct {
 	page workspace.PageID
 	// key is the page's identity in the notebook.
-	key   storage.PageKey
-	title string
+	key storage.PageKey
+	// summary names and describes the page: its first heading, an
+	// excerpt and its words.
+	summary storage.Summary
 	// saved marks a page whose record the notebook holds as it is now.
 	saved bool
 	// element is the page's editor, opened when the page first shows;
 	// handed is the snapshot last handed to the notebook to save.
 	element *page.Element
 	handed  *doc.Snapshot
-	// titled is the snapshot the title was last read from.
-	titled *doc.Snapshot
+	// summarized is the snapshot the summary was last read from.
+	summarized *doc.Snapshot
 }
 
 // close lets go of the page's editor.
@@ -33,4 +35,4 @@ func (s *sheetSession) close() {
 }
 
 // Title is what the page calls itself.
-func (s *sheetSession) Title() string { return s.title }
+func (s *sheetSession) Title() string { return s.summary.Title }

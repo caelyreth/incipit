@@ -21,7 +21,7 @@ func TestPageContentSavesAsRowsAndLoads(t *testing.T) {
 	}
 	snap, _ = tx.Commit()
 	saver := s.Autosave()
-	saver.Content(1, "One", snap)
+	saver.Content(1, Summary{Title: "One"}, snap)
 	if err := saver.Close(); err != nil {
 		t.Fatal(err)
 	}

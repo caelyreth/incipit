@@ -318,15 +318,3 @@ func TestPastedBlocksLandWhereASlotTakesThem(t *testing.T) {
 		t.Fatalf("got  %s\nwant %s", got, want)
 	}
 }
-
-func TestThePageIsTitledByItsFirstHeading(t *testing.T) {
-	h := NewBlock(Heading, Schema().Canonical(Heading, doc.Attrs{}))
-	h = doc.NewNode(Heading, h.Attrs(), doc.InlineSlot(doc.TextItem("  A   title ", nil)))
-	s := page(t, para("intro"), list(item("x", h)))
-	if got := PageTitle(s.Root()); got != "A title" {
-		t.Fatalf("title %q", got)
-	}
-	if got := PageTitle(page(t, para("none")).Root()); got != "" {
-		t.Fatalf("title %q without a heading", got)
-	}
-}

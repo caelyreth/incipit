@@ -14,10 +14,17 @@ import (
 // PageKey is a page's identity on disk, kept for the page's life.
 type PageKey int64
 
+// Summary is what a page's record shows of it in the library: its title,
+// an excerpt and how many words it holds.
+type Summary struct {
+	Title, Excerpt string
+	Words          int
+}
+
 // Page is one stored page's record.
 type Page struct {
-	Key     PageKey
-	Title   string
+	Key PageKey
+	Summary
 	Created time.Time
 	Updated time.Time
 }
@@ -64,14 +71,14 @@ const layoutKey = "workspace"
 func (s *Store) Load() (Notebook, error) {
 	ctx := context.Background()
 	notebook := Notebook{NextKey: 1}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, created, updated, title FROM pages ORDER BY id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, created, updated, title, excerpt, words FROM pages ORDER BY id`)
 	if err != nil {
 		return Notebook{}, err
 	}
 	for rows.Next() {
 		var page Page
 		var created, updated int64
-		if err := rows.Scan(&page.Key, &created, &updated, &page.Title); err != nil {
+		if err := rows.Scan(&page.Key, &created, &updated, &page.Title, &page.Excerpt, &page.Words); err != nil {
 			rows.Close()
 			return Notebook{}, err
 		}
@@ -178,7 +185,7 @@ func millisecondsOf(at time.Time) sql.NullInt64 {
 // changed, the rows to write.
 type pageWrite struct {
 	key     PageKey
-	title   string
+	summary Summary
 	content *contentWrite
 }
 
@@ -202,9 +209,10 @@ func (s *Store) write(ctx context.Context, change change, now time.Time) error {
 	defer func() { _ = tx.Rollback() }()
 	for _, page := range pages {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO pages (id, created, updated, title) VALUES (?, ?, ?, ?)
-			ON CONFLICT (id) DO UPDATE SET updated = excluded.updated, title = excluded.title`,
-			page.key, now.UnixMilli(), now.UnixMilli(), page.title,
+			INSERT INTO pages (id, created, updated, title, excerpt, words) VALUES (?, ?, ?, ?, ?, ?)
+			ON CONFLICT (id) DO UPDATE SET updated = excluded.updated, title = excluded.title,
+				excerpt = excluded.excerpt, words = excluded.words`,
+			page.key, now.UnixMilli(), now.UnixMilli(), page.summary.Title, page.summary.Excerpt, page.summary.Words,
 		); err != nil {
 			return err
 		}
