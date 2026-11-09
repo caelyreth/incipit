@@ -38,7 +38,7 @@ func (s *State) keymapPage(
 		if len(filtered) > 0 {
 			s.section(c, semantic, first.Group, first.Scope.Description(), func() {
 				for index, shortcut := range filtered {
-					s.shortcutRow(c, semantic, shortcut, index == len(filtered)-1)
+					s.shortcutRow(c, semantic, shortcut, index == len(filtered)-1, 0)
 				}
 			})
 		}
@@ -165,10 +165,12 @@ func (s *State) shortcutRow(
 	semantic theme.Theme,
 	shortcut appsettings.Shortcut,
 	last bool,
+	indent float32,
 ) {
 	scale := s.Theme.UIFontSize
 	animate := s.motion(c)
 	inset := theme.Space16.DIPs(scale)
+	start := inset + indent
 	host := "row-" + string(shortcut.Command)
 	block := ui.Column(c).Key("shortcut-" + string(shortcut.Command)).
 		Shrink(0).WidthPercent(100).MinWidth(0)
@@ -177,7 +179,7 @@ func (s *State) shortcutRow(
 		ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).
 			MinHeight(theme.DefaultControls.Scaled(scale).Row+theme.Space08.DIPs(scale)).
 			Gap(theme.Space12.DIPs(scale)).
-			Padding(theme.Space08.DIPs(scale), inset, theme.Space08.DIPs(scale), inset).
+			Padding(theme.Space08.DIPs(scale), inset, theme.Space08.DIPs(scale), start).
 			Children(func() {
 				ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center).
 					Gap(theme.Space08.DIPs(scale)).Children(func() {
@@ -190,9 +192,9 @@ func (s *State) shortcutRow(
 				s.shortcutActions(c, semantic, shortcut, hover)
 				s.shortcutKeys(c, semantic, shortcut, host)
 			})
-		s.recorder(c, semantic, host, inset)
+		s.recorder(c, semantic, host, start)
 		if !last {
-			ui.Row(c).WidthPercent(100).PaddingStart(inset).Children(func() {
+			ui.Row(c).WidthPercent(100).PaddingStart(start).Children(func() {
 				components.HorizontalDivider(c, semantic, components.VariantDivider)
 			})
 		}

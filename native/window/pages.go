@@ -1,7 +1,6 @@
 package window
 
 import (
-	"fmt"
 	"math/rand/v2"
 
 	"github.com/caelyreth/neverland/app/manifest"
@@ -39,15 +38,6 @@ func (a *AppState) pageElement() *page.Element {
 
 // openEditor builds a page's engine and its editor.
 func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
-	if a.program == nil {
-		// TODO(settings): compile with the user's policy values and
-		// recompile (engine.SetProgram) as they change.
-		prog, err := manifest.Compile(nil, false)
-		if err != nil {
-			return nil, fmt.Errorf("compile the editing policies: %w", err)
-		}
-		a.program = prog
-	}
 	marks := doc.NewInterner()
 	var snap *doc.Snapshot
 	if a.notebook != nil {
@@ -69,10 +59,25 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 		snap = empty
 	}
 	a.nextView++
-	ed := page.NewEditor(engine.New(snap, a.program, engine.Options{}), a.nextView)
-	// TODO(settings): the user's notation values, as the program's.
-	ed.Engine.SetPresentOptions(ed.View, manifest.PresentOptions(nil))
+	ed := page.NewEditor(engine.New(snap, a.Product.Program, engine.Options{}), a.nextView)
+	ed.Engine.SetPresentOptions(ed.View, manifest.PresentOptions(a.Product.Policy))
 	el := page.NewElement(ed)
 	el.Label = "Page"
 	return el, nil
+}
+
+// applyPolicy gives every open page the program the policy values compile
+// to, and the view options they choose.
+func (a *AppState) applyPolicy() {
+	for _, session := range a.sessions {
+		if session.element == nil {
+			continue
+		}
+		ed := session.element.Editor
+		ed.Engine.SetProgram(a.Product.Program)
+		ed.Engine.SetPresentOptions(ed.View, manifest.PresentOptions(a.Product.Policy))
+	}
+	if a.mainWindow != nil && !a.mainWindow.IsDestroyed() {
+		a.mainWindow.Invalidate()
+	}
 }

@@ -9,7 +9,6 @@ import (
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
-	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/notices"
 	"github.com/caelyreth/neverland/native/overlay"
@@ -50,9 +49,6 @@ type AppState struct {
 	library *library.Library
 	// nextKey is the notebook key the next new page takes.
 	nextKey storage.PageKey
-	// program is the compiled editing policies every page runs, compiled
-	// when the first page opens.
-	program *policy.Program
 	// nextView numbers the editors' views.
 	nextView uint64
 }
@@ -268,6 +264,9 @@ func (a *AppState) refreshSettingsData() {
 		if err != nil {
 			a.fail("Couldn't change the setting", err)
 			return
+		}
+		if outcome.PolicyChanged {
+			a.applyPolicy()
 		}
 		if outcome.KeymapChanged {
 			a.syncMenu()

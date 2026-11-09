@@ -190,6 +190,12 @@ func (s *State) categoryChildren(category appsettings.Category, query string) []
 				labels = append(labels, shortcut.Group)
 			}
 		}
+	case appsettings.Editor:
+		for _, card := range s.Data.Policies {
+			if query == "" || s.policyMatches(card, query) {
+				labels = append(labels, card.Title)
+			}
+		}
 	case appsettings.Appearance:
 		for _, label := range []string{"Theme", "Writing Environment"} {
 			if query == "" || strings.Contains(strings.ToLower(label), query) {
@@ -236,6 +242,8 @@ func (s *State) page(
 				content.Children(func() {
 					s.pageHeader(c, semantic)
 					switch s.Category {
+					case appsettings.Editor:
+						s.editorPage(c, semantic)
 					case appsettings.Keymap:
 						s.keymapPage(c, semantic, metrics)
 					case appsettings.Appearance:

@@ -161,7 +161,9 @@ type optionInfo struct {
 	Kind    OptionKind
 	Default any
 	Choices []any
-	Min     int
+	// ChoiceLabels are the choices' label keys.
+	ChoiceLabels []string
+	Min          int
 	Max     int
 	meta    optionMeta
 }
@@ -179,6 +181,7 @@ func Get[T comparable](p *P, o *Opt[T]) T {
 	info := optionInfo{Key: key, Kind: o.kind, Default: o.def, Min: o.lo, Max: o.hi, meta: o.meta}
 	for _, c := range o.choices {
 		info.Choices = append(info.Choices, c.Value)
+		info.ChoiceLabels = append(info.ChoiceLabels, c.Label)
 	}
 	p.note(info)
 	if v, ok := p.values[key].(T); ok {
@@ -193,6 +196,7 @@ func GetList[T comparable](p *P, o *ListOpt[T]) []T {
 	info := optionInfo{Key: key, Kind: OptionList, Default: o.def, meta: o.meta}
 	for _, c := range o.domain {
 		info.Choices = append(info.Choices, c.Value)
+		info.ChoiceLabels = append(info.ChoiceLabels, c.Label)
 	}
 	p.note(info)
 	if v, ok := p.values[key].([]T); ok {

@@ -50,7 +50,9 @@ type OptionInfo struct {
 	Kind        OptionKind
 	Default     any
 	Choices     []any
-	Min, Max    int
+	// ChoiceLabels are the choices' label keys, in Choices' order.
+	ChoiceLabels []string
+	Min, Max     int
 	Label       string
 	Description string
 	Group       string
@@ -254,7 +256,7 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		info := PolicyInfo{ID: pol.id, Enabled: enabled}
 		info.Options = append(info.Options, OptionInfo{Key: EnabledKey(pol.id), Kind: OptionBool, Default: true, Label: "settings." + pol.id + ".enabled"})
 		for _, o := range p.options {
-			info.Options = append(info.Options, OptionInfo{Key: o.Key, Kind: o.Kind, Default: o.Default, Choices: o.Choices,
+			info.Options = append(info.Options, OptionInfo{Key: o.Key, Kind: o.Kind, Default: o.Default, Choices: o.Choices, ChoiceLabels: o.ChoiceLabels,
 				Min: o.Min, Max: o.Max, Label: o.meta.label, Description: o.meta.description, Group: o.meta.group, Requires: o.meta.requires})
 		}
 		prog.catalog.Policies = append(prog.catalog.Policies, info)

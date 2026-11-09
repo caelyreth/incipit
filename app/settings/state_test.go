@@ -9,7 +9,7 @@ import (
 
 func TestCategoryOrderAndMetadata(t *testing.T) {
 	t.Parallel()
-	if AllCategories != [...]Category{Appearance, Keymap} {
+	if AllCategories != [...]Category{Appearance, Editor, Keymap} {
 		t.Fatalf("categories = %v", AllCategories)
 	}
 	for _, category := range AllCategories {
@@ -50,7 +50,7 @@ func TestPresentationAndAppearanceChangesAreBounded(t *testing.T) {
 		if _, err := state.Apply(change); !errors.Is(err, ErrInvalidAppearance) {
 			t.Fatalf("invalid appearance error = %v", err)
 		}
-		if state != snapshot {
+		if state.Appearance != snapshot.Appearance || state.Presentation != snapshot.Presentation {
 			t.Fatal("invalid appearance changed state")
 		}
 	}
@@ -133,5 +133,28 @@ func TestLineSpacingStepsWithinBounds(t *testing.T) {
 		if settings.LineSpacing != test.want {
 			t.Fatalf("spacing %v gave %v, want %v", test.request, settings.LineSpacing, test.want)
 		}
+	}
+}
+
+// A policy option is a value of the program: setting it recompiles, and a
+// value outside its domain changes nothing.
+func TestPolicyOptionsRecompileTheProgram(t *testing.T) {
+	t.Parallel()
+	state := DefaultState()
+	before := state.Program
+	outcome, err := state.Apply(SetOption("markdown.enabled", false))
+	if err != nil || !outcome.PolicyChanged || state.Program == before {
+		t.Fatalf("outcome %+v, %v", outcome, err)
+	}
+	for _, card := range state.Data().Policies {
+		if card.ID == "markdown" && card.Enabled {
+			t.Fatal("markdown still enabled")
+		}
+	}
+	if _, err := state.Apply(SetOption("history.typingWindow", 99999)); err == nil {
+		t.Fatal("an out-of-range value was taken")
+	}
+	if _, err := state.Apply(SetOption("markdown.enabled", true)); err != nil || len(state.Policy) != 0 {
+		t.Fatalf("a default value is kept as a choice: %v %v", state.Policy, err)
 	}
 }

@@ -7,14 +7,17 @@ type Category uint8
 
 const (
 	Appearance Category = iota + 1
+	Editor
 	Keymap
 )
 
 // AllCategories is display order.
-var AllCategories = [...]Category{Appearance, Keymap}
+var AllCategories = [...]Category{Appearance, Editor, Keymap}
 
 func (c Category) Title() string {
 	switch c {
+	case Editor:
+		return "Editor"
 	case Keymap:
 		return "Keymap"
 	default:
@@ -24,6 +27,8 @@ func (c Category) Title() string {
 
 func (c Category) Description() string {
 	switch c {
+	case Editor:
+		return "How the page answers what you write."
 	case Keymap:
 		return "Keys by what they act on."
 	default:
@@ -52,10 +57,12 @@ type ToggleSetting struct {
 // Shortcut is one command's key and whether the key is the person's choice.
 // Group titles the command's scope, which is how the Keymap groups it.
 type Shortcut struct {
-	Command    keymap.CommandID
-	Label      string
-	Scope      keymap.Scope
-	Group      string
+	Command keymap.CommandID
+	Label   string
+	Scope   keymap.Scope
+	Group   string
+	// Policy is the editor policy declaring an editing command.
+	Policy     string
 	Bindings   []keymap.Chord
 	Overridden bool
 }
@@ -63,6 +70,7 @@ type Shortcut struct {
 // Data is the complete declarative snapshot consumed by any settings view.
 type Data struct {
 	Shortcuts        []Shortcut
+	Policies         []Policy
 	Appearance       []ToggleSetting
 	AppearanceValues AppearanceSettings
 }
@@ -98,6 +106,7 @@ const (
 	ChangeUnbind
 	ChangeResetBinding
 	ChangeAppearance
+	ChangePolicy
 )
 
 // Change is a complete settings mutation. Only fields selected by Kind are read.
@@ -111,6 +120,9 @@ type Change struct {
 	// change, so reassigning a taken shortcut is one atomic edit.
 	Displaced  keymap.CommandID
 	Appearance AppearanceChange
+	// Option and OptionValue are a policy option and its new value.
+	Option      string
+	OptionValue any
 }
 
 // SetPresentation turns one writing mode on or off.

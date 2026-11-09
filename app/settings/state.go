@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/editor/policy"
 )
 
 var (
@@ -18,6 +19,10 @@ type State struct {
 	Presentation PresentationState
 	Appearance   AppearanceSettings
 	Keymap       *keymap.Keymap
+	// Policy are the person's policy values, and Program the program they
+	// compile to.
+	Policy  policy.Values
+	Program *policy.Program
 }
 
 // DefaultState matches Neverland's initial settings.
@@ -26,6 +31,7 @@ func DefaultState() State {
 		Presentation: DefaultPresentation(),
 		Appearance:   DefaultAppearance(),
 		Keymap:       keymap.Default(),
+		Program:      mustCompile(nil),
 	}
 }
 
@@ -34,6 +40,7 @@ func DefaultState() State {
 type Outcome struct {
 	Applied       bool
 	KeymapChanged bool
+	PolicyChanged bool
 }
 
 // Apply validates and commits one change atomically.
@@ -58,6 +65,8 @@ func (s *State) Apply(change Change) (Outcome, error) {
 		return Outcome{Applied: true}, nil
 	case ChangeBinding, ChangeUnbind, ChangeResetBinding:
 		return s.applyKeymap(change)
+	case ChangePolicy:
+		return s.applyPolicy(change)
 	default:
 		return Outcome{}, ErrInvalidChange
 	}
@@ -112,6 +121,7 @@ func (s State) Data() Data {
 				Label:      command.Label,
 				Scope:      scope,
 				Group:      scope.Title(),
+				Policy:     s.commandPolicy(command.ID),
 				Overridden: keys.Overridden(command.ID),
 			}
 			if chord, ok := keys.ChordFor(command.ID); ok {
@@ -120,6 +130,7 @@ func (s State) Data() Data {
 			data.Shortcuts = append(data.Shortcuts, shortcut)
 		}
 	}
+	data.Policies = s.policies(data.Shortcuts)
 	return data
 }
 
