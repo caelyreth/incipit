@@ -260,3 +260,32 @@ func hasMark(p *page, k doc.MarkKind) bool {
 	})
 	return found
 }
+
+// A mark pairs as it is typed: content after its opener opens it with the
+// closing sign ahead, its character typed at the closing sign steps over
+// it, and typed after the opening sign spells it up, both signs at once.
+func TestMarksPairAsTyped(t *testing.T) {
+	p := open(t)
+	p.typeText("a *s")
+	p.wantShown("a [*]s|[*]")
+	p.typeText("*")
+	p.wantShown("a [*]s[*]|")
+
+	p = open(t)
+	p.typeText("a **s*")
+	p.wantShown("a [**]s[*|*]")
+	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	p.wantShown("a [*]s[*]|")
+
+	p = open(t)
+	p.typeText("a *s")
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	p.typeText("*")
+	p.wantShown("a [**]|s[**]")
+
+	p = open(t)
+	p.typeText("5 * 3, 5*3 and `x")
+	p.wantShown("5 * 3, 5*3 and [`]x|[`]")
+	p.typeText("yz`")
+	p.wantShown("5 * 3, 5*3 and [`]xyz[`]|")
+}

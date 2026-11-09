@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -97,6 +98,12 @@ func analyzeRuns(cfg inlineConfig, k *runKinds) func(u *policy.Unit, emit func(p
 		for i := 0; i < len(t); {
 			c := t[i]
 			if c == '`' && cfg.Code {
+				// Only a lone backtick delimits code; longer strings are
+				// fences or literal.
+				if n := len(t[i:]) - len(strings.TrimLeft(t[i:], "`")); n > 1 {
+					i += n
+					continue
+				}
 				if code >= 0 {
 					code = -1
 				} else {
@@ -133,8 +140,14 @@ func analyzeRuns(cfg inlineConfig, k *runKinds) func(u *policy.Unit, emit func(p
 					break
 				}
 			}
-			intraword := c == '_' && i > 0 && vocab.ClassOf(rune(t[i-1]))&vocab.ClassWord != 0
-			if !closed && !nextSpace && !intraword && n <= 2 && !(c == '~' && n != 1) {
+			prev, _ := utf8.DecodeLastRuneInString(t[:i])
+			prevWord := i > 0 && vocab.ClassOf(prev)&vocab.ClassWord != 0
+			intraword := c == '_' && prevWord
+			// An opener at the line's end, after no word, waits for what
+			// is typed next: content opens the mark (§12), a space keeps
+			// the delimiter literal.
+			waits := i+n >= len(t) && !prevWord
+			if !closed && (!nextSpace || waits) && !intraword && n <= 2 && !(c == '~' && n != 1) {
 				stack = append(stack, openRun{char: c, n: n, start: i, half: -1})
 			}
 			i += n

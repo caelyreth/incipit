@@ -76,6 +76,27 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 			Do(closeRun(vocab.Strike, false))
 	}
 
+	// Opening delimiters: content typed right after an opener at a line's
+	// end opens its mark at once, the closing sign shown ahead, as a
+	// bracket closes as it opens. Notation edits the signs from there.
+	content := vocab.TypedClass(vocab.ClassWord | vocab.ClassDigit | vocab.ClassCJK)
+	open := func(name string, scope vocab.Scope, mark doc.MarkKind) {
+		p.Handle("open-"+name).On(content).In(scope).When(vocab.Collapsed, vocab.AtInnerStart, vocab.AtInnerEnd).
+			Produces(edits...).Do(openMark(mark))
+	}
+	for _, c := range []byte{'*', '_'} {
+		if c == '*' && inline.Asterisks || c == '_' && inline.Underscores {
+			open("emphasis-"+string(c), k.em[c].Scope(), vocab.Emphasis)
+			open("strong-"+string(c), k.strong[c].Scope(), vocab.Strong)
+		}
+	}
+	if inline.Code {
+		open("code", k.code.Scope(), vocab.CodeMark)
+	}
+	if inline.Strike {
+		open("strike", k.strike.Scope(), vocab.Strike)
+	}
+
 	// Block prefixes and fences.
 	para := vocab.NodeScope(vocab.Paragraph)
 	p.Handle("block-marker").On(vocab.Typed(" ")).In(para).When(vocab.After(mk.Scope()), vocab.Collapsed).
@@ -124,6 +145,34 @@ func closeRun(mark doc.MarkKind, withHalf bool) policy.Handler {
 			Kind: vocab.PendingMarks, Anchor: policy.PointAnchor(doc.At(ref, after)),
 			Data: outside, Lifetime: policy.UntilCaretLeaves(nil),
 		}}}
+	}
+}
+
+// openMark replaces an empty run's opener with the typed text under the
+// run's mark, the caret after it inside the mark.
+func openMark(mark doc.MarkKind) policy.Handler {
+	return func(c *policy.Ctx, m policy.Match) policy.Result {
+		f, _ := m.Fact()
+		in := m.Intent.(vocab.Type)
+		ref := c.Head().Pos.Ref()
+		line, _ := c.Inline(ref)
+		marks := line.MarksAt(f.From)
+		if marks == nil {
+			marks = c.Doc().Marks().Empty()
+		}
+		for _, o := range marks.Marks() {
+			if vocab.Excludes(mark, o.Kind) {
+				marks = marks.Without(o.Kind)
+			}
+		}
+		marks = marks.With(doc.Mark{Kind: mark})
+		end := doc.At(ref, f.From+len(in.Text))
+		after := doc.Collapsed(doc.Caret{Pos: end})
+		return policy.Result{Selection: &after,
+			Edits: []vocab.Edit{vocab.Ops(doc.EditText{At: ref, From: f.From, To: f.InnerFrom,
+				Items: []doc.Item{doc.TextItem(in.Text, marks)}})},
+			Annotate: []policy.Annotate{{Kind: vocab.PendingMarks, Anchor: policy.PointAnchor(end),
+				Data: marks, Lifetime: policy.UntilCaretLeaves(nil)}}}
 	}
 }
 
