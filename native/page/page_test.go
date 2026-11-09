@@ -126,6 +126,46 @@ func TestGhostStopsHaveTheirOwnPlaces(t *testing.T) {
 	}
 }
 
+// Ghosts fade in from when their unit reveals them, and the caret glides
+// to its place; with reduced motion both are there at once.
+func TestRevealsFadeInAndTheCaretGlides(t *testing.T) {
+	el := newElement(t)
+	t0 := time.Unix(1000, 0)
+	pl := el.relayout()
+	el.stepCaret(pl, t0, true)
+	typeText(el, "a **b**")
+	pl = el.Editor.layout
+	unit := pl.units[0].pres.Unit
+	if !el.stepReveals(pl, t0, true) || el.reveal(unit) != 0 {
+		t.Fatalf("ghosts shown at %v at once", el.reveal(unit))
+	}
+	if !el.stepCaret(pl, t0.Add(16*time.Millisecond), true) {
+		t.Fatal("the caret jumped")
+	}
+	mid := el.caret[0].Value()
+	if el.stepReveals(pl, t0.Add(16*time.Millisecond), true); el.reveal(unit) <= 0 || el.reveal(unit) >= 1 {
+		t.Fatalf("reveal %v midway", el.reveal(unit))
+	}
+	later := t0.Add(2 * time.Second)
+	if el.stepReveals(pl, later, true) || el.reveal(unit) != 1 {
+		t.Fatalf("reveal %v after it settled", el.reveal(unit))
+	}
+	if el.stepCaret(pl, later, true) {
+		t.Fatal("the caret still moves")
+	}
+	r, _ := pl.caretBox(el.Editor.Selection().Head, el.Editor.metrics)
+	if el.caret[0].Value() != r.X || mid >= r.X {
+		t.Fatalf("caret at %v (midway %v), want %v", el.caret[0].Value(), mid, r.X)
+	}
+	// Reduced motion: a new reveal shows whole.
+	el.Editor.Do(vocab.Break{}, time.Unix(900, 0))
+	typeText(el, "*c*")
+	pl = el.Editor.layout
+	if el.stepReveals(pl, later, false) || el.reveal(pl.units[1].pres.Unit) != 1 {
+		t.Fatal("a reveal fades under reduced motion")
+	}
+}
+
 func TestBreakStacksUnits(t *testing.T) {
 	el := newElement(t)
 	typeText(el, "one")

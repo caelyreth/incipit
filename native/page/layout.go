@@ -51,9 +51,15 @@ type seg struct {
 	// node is a box's inline node, and card the surface of its open card.
 	node *doc.Node
 	card int
-	// face is how a box's text is drawn in it, as it was measured.
-	face ui.Span
+	// face is how a box's or a ghost's text is drawn, as it was measured;
+	// a ghost's is shaped, and drawn in ink.
+	face   ui.Span
+	shaped *ui.TextLayout
+	ink    ui.Color
 }
+
+// invisible paints nothing; a zero color would take the layout's default.
+var invisible = ui.Color{R: 1}
 
 // stopAt is a stop and the UTF-16 index it stands at in its surface.
 type stopAt struct {
@@ -358,8 +364,16 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 			// TODO(ghosts): overlay ghosts draw over the text without taking
 			// room; until they do, they take room like room ghosts, so their
 			// stops stay where the caret can be seen.
-			add(seg{kind: segGhost, from: it.From, to: it.From, text: string(it.Spelling), stopFrom: it.StopFrom, stops: it.StopTo - it.StopFrom},
-				span(string(it.Spelling), style, m.Body))
+			// A ghost takes its room in the line but is drawn on its own,
+			// so its reveal can fade in without shaping the line again.
+			sp := span(string(it.Spelling), style, m.Body)
+			face := sp
+			face.Color = ui.Color{}
+			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Weight: face.Weight, Italic: face.Italic}, ui.TextShape{})
+			ink := sp.Color
+			sp.Color = invisible
+			add(seg{kind: segGhost, from: it.From, to: it.From, text: string(it.Spelling), stopFrom: it.StopFrom, stops: it.StopTo - it.StopFrom,
+				face: face, ink: ink, shaped: lay}, sp)
 		case present.BoxItem:
 			if compAt == it.From {
 				addComp(it.Groups)
@@ -491,6 +505,18 @@ func (sl *surfaceLayout) lineOf(u int) (ui.TextLine, int, int) {
 		}
 	}
 	return ui.TextLine{}, 0, 0
+}
+
+// hasGhosts reports whether the unit shows ghost notation.
+func (u *unitLayout) hasGhosts() bool {
+	for _, s := range u.surfaces {
+		for _, sg := range s.segs {
+			if sg.kind == segGhost {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // --- page geometry --------------------------------------------------------

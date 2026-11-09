@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -29,7 +30,20 @@ type Element struct {
 	pressed      bool
 	focusPending bool
 	lastClicks   int
+
+	// The caret glides between the places it is drawn at, and a unit's
+	// ghosts fade in as they are revealed.
+	caret      [3]motion.Spring // x, y, height, in page coordinates
+	caretShown bool
+	reveals    map[doc.ID]*motion.Spring
 }
+
+// Animation frequencies: the caret keeps up with typing; a reveal is
+// slower, so notation appearing is seen and not a flicker.
+const (
+	caretFrequency  = 38
+	revealFrequency = 16
+)
 
 // NewElement is an element over ed.
 func NewElement(ed *Editor) *Element {
@@ -80,6 +94,12 @@ func (el *Element) View(c *ui.Context) {
 		ed.reveal = false
 	}
 	if el.stepScroll(animate) {
+		c.AnimationFrame()
+	}
+	if el.stepCaret(pl, c.Now(), animate) {
+		c.AnimationFrame()
+	}
+	if el.stepReveals(pl, c.Now(), animate) {
 		c.AnimationFrame()
 	}
 	box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
@@ -174,6 +194,78 @@ func (el *Element) stepScroll(animate bool) bool {
 	}
 	el.scroll += d * 0.3
 	return true
+}
+
+// --- animation ------------------------------------------------------------
+
+// stepCaret moves the drawn caret toward the selection head's place; it
+// reports whether it still moves.
+func (el *Element) stepCaret(pl *pageLayout, now time.Time, animate bool) bool {
+	r, ok := pl.caretBox(el.Editor.Selection().Head, el.Editor.metrics)
+	if !ok {
+		el.caretShown = false
+		return false
+	}
+	target := [3]float32{r.X, r.Y, r.H}
+	if !el.caretShown || !animate {
+		for i := range el.caret {
+			el.caret[i] = motion.NewSpring(target[i], now)
+		}
+		el.caretShown = true
+		return false
+	}
+	moving := false
+	for i := range el.caret {
+		el.caret[i].Step(target[i], now, caretFrequency)
+		moving = moving || el.caret[i].Moving()
+	}
+	return moving
+}
+
+// stepReveals fades each unit's ghosts in from when they appear; it
+// reports whether any still fades.
+func (el *Element) stepReveals(pl *pageLayout, now time.Time, animate bool) bool {
+	if el.reveals == nil {
+		el.reveals = map[doc.ID]*motion.Spring{}
+	}
+	shown := map[doc.ID]bool{}
+	moving := false
+	for _, u := range pl.units {
+		if !u.hasGhosts() {
+			continue
+		}
+		id := u.pres.Unit
+		shown[id] = true
+		sp, ok := el.reveals[id]
+		if !ok {
+			start := float32(0)
+			if !animate {
+				start = 1
+			}
+			s := motion.NewUnitSpring(start, now)
+			sp = &s
+			el.reveals[id] = sp
+		}
+		sp.Step(1, now, revealFrequency)
+		if !animate {
+			*sp = motion.NewUnitSpring(1, now)
+		}
+		moving = moving || sp.Moving()
+	}
+	for id := range el.reveals {
+		if !shown[id] {
+			delete(el.reveals, id)
+		}
+	}
+	return moving
+}
+
+// reveal is how far a unit's ghosts have faded in.
+func (el *Element) reveal(id doc.ID) float32 {
+	if sp, ok := el.reveals[id]; ok {
+		return min(max(sp.Value(), 0), 1)
+	}
+	return 1
 }
 
 // --- input ----------------------------------------------------------------
@@ -418,16 +510,13 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 				}
 			}
 			p.TextLayout(s.layout, sx, sy, t.Prose.Text)
+			el.paintGhosts(p, s, sx, sy, el.reveal(u.pres.Unit))
 			el.paintBoxes(p, s, sx, sy)
 		}
 	}
-	if focused && sel.Kind == doc.SelectText {
-		if cr, ok := pl.caretBox(sel.Head, m); ok {
-			cr.X += ox
-			cr.Y += oy
-			cr.W = max(cr.W, 2)
-			p.Fill(cr, t.Accent.Foreground, 1)
-		}
+	if focused && sel.Kind == doc.SelectText && el.caretShown {
+		cr := ui.Rect{X: el.caret[0].Value() + ox, Y: el.caret[1].Value() + oy, W: 2, H: el.caret[2].Value()}
+		p.Fill(cr, t.Accent.Foreground, 1)
 	}
 }
 
@@ -449,6 +538,27 @@ func (el *Element) paintMarker(p *ui.Painter, u *unitLayout, ux, uy float32) {
 		mb = ml[0].Baseline
 	}
 	p.TextLayout(lay, ux-w-m.Body*0.45, uy+baseline-mb, el.Theme.Prose.Notation)
+}
+
+// paintGhosts draws a surface's ghosts in the room the line keeps for
+// them, faded in by alpha.
+func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy, alpha float32) {
+	for _, sg := range s.segs {
+		if sg.kind != segGhost || sg.shaped == nil {
+			continue
+		}
+		line, _, _ := s.lineOf(sg.u0)
+		r := s.caretRect(sg.u0)
+		gb := float32(0)
+		if gl := sg.shaped.Lines(); len(gl) > 0 {
+			gb = gl[0].Baseline
+		}
+		ink := sg.ink
+		if ink == (ui.Color{}) {
+			ink = el.Theme.Prose.Text
+		}
+		p.TextLayout(sg.shaped, sx+r.X, sy+line.Baseline-gb, ink.Alpha(alpha))
+	}
 }
 
 // paintBoxes draws closed inline nodes' text in their object boxes.

@@ -3,6 +3,7 @@ package window
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -79,7 +80,8 @@ func TestNotationIsRevealedNearTheCaret(t *testing.T) {
 		tester.Type(string(r))
 		tester.Frame()
 	}
-	tester.Frame()
+	// Let the reveal fade in and the caret settle.
+	tester.Advance(time.Second)
 	shot(t, tester, "notation-end")
 	el := app.pageElement()
 	head := func() doc.Caret { return el.Editor.Selection().Head }
@@ -95,6 +97,7 @@ func TestNotationIsRevealedNearTheCaret(t *testing.T) {
 	}
 	tester.Key(0, ui.KeyUp)
 	tester.Frame()
+	tester.Advance(time.Second)
 	shot(t, tester, "notation-heading")
 }
 
