@@ -43,10 +43,9 @@ type Element struct {
 	viewH      float32
 
 	// caret glides between the places the caret is drawn at, in page
-	// coordinates; now and animate are the frame's.
-	caret   motion.Rect
-	now     time.Time
-	animate bool
+	// coordinates. It, the scroll's glide and the caret's breathing move
+	// in paint, on frames that paint again without building the view.
+	caret motion.Rect
 }
 
 // NewElement is an element over ed.
@@ -92,15 +91,7 @@ func (el *Element) View(c *ui.Context) {
 	ed.Wake = c.Services().Invalidate
 	ed.Due(c.Now())
 	pl := el.relayout()
-	animate := !c.Preferences().ReduceMotion
-	el.now, el.animate = c.Now(), animate
 	el.follow(pl, c.Now())
-	if el.stepViewport(c.Now(), animate) {
-		c.AnimationFrame()
-	}
-	if el.stepCaret(pl, c.Now(), animate) {
-		c.AnimationFrame()
-	}
 	box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
 		Role(ui.RoleTextField).Label(el.Label).Focusable()
 	box.HandleTextInput(el.client)
@@ -351,6 +342,15 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	if pl == nil {
 		return
 	}
+	// What moves with time steps at the paint's own time: a frame that
+	// paints again without building the view moves it on.
+	now, animate := p.Now(), !p.Preferences().ReduceMotion
+	if el.stepViewport(now, animate) {
+		p.AnimationFrame()
+	}
+	if el.stepCaret(pl, now, animate) {
+		p.AnimationFrame()
+	}
 	t := el.Theme
 	sel := ed.Selection()
 	covers := map[doc.ID]present.Cover{}
@@ -407,7 +407,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		cr := el.caret.Value()
 		cr.X += ox
 		cr.Y += oy
-		el.paintCaret(p, r, cr, sel.IsCollapsed())
+		el.paintCaret(p, r, cr, sel.IsCollapsed(), now, animate)
 	}
 }
 
@@ -415,11 +415,11 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 // solid a moment after the last input, then fading through transparent
 // and back; while the pointer is held, a composition is under way or a
 // range is selected, it stays solid.
-func (el *Element) paintCaret(p *ui.Painter, view, caret ui.Rect, collapsed bool) {
-	breathes := el.animate && collapsed && !el.pressed && el.Editor.deco.Composition == nil
+func (el *Element) paintCaret(p *ui.Painter, view, caret ui.Rect, collapsed bool, now time.Time, animate bool) {
+	breathes := animate && collapsed && !el.pressed && el.Editor.deco.Composition == nil
 	alpha := float32(1)
 	if breathes {
-		alpha = motion.CaretOpacity(el.Editor.active, el.now)
+		alpha = motion.CaretOpacity(el.Editor.active, now)
 	}
 	if alpha > 0 {
 		p.Fill(caret, el.Theme.Accent.Foreground.Alpha(alpha), 1)
@@ -427,8 +427,8 @@ func (el *Element) paintCaret(p *ui.Painter, view, caret ui.Rect, collapsed bool
 	if !breathes || caret.Y+caret.H <= view.Y || caret.Y >= view.Y+view.H {
 		return
 	}
-	if wake, ok := motion.CaretWake(el.Editor.active, el.now); ok {
-		p.After(wake.Sub(el.now))
+	if wake, ok := motion.CaretWake(el.Editor.active, now); ok {
+		p.After(wake.Sub(now))
 		return
 	}
 	p.AnimationFrame()
