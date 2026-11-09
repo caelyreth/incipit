@@ -1,0 +1,271 @@
+// Package policy is the policy framework: declarations, options and the
+// catalog, analyzers and the fact store, annotations, rules, the compiler
+// and dispatch.
+//
+// A policy is the unit of behaviour, ownership and configuration. It is
+// built by a function of its option values: the values read while
+// building decide what exists. Policies never import each other; roles in
+// the vocabulary connect them, and only the manifest orders them.
+package policy
+
+import (
+	"fmt"
+	"slices"
+
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/vocab"
+)
+
+// Policy is a declared policy.
+type Policy struct {
+	id    string
+	build func(*P)
+}
+
+// Define declares a policy. Its id is persisted: it is the prefix of its
+// option keys.
+func Define(id string, build func(p *P)) *Policy {
+	return &Policy{id: id, build: build}
+}
+
+// ID is the policy's stable id.
+func (p *Policy) ID() string { return p.id }
+
+// P is a policy being built. Each declaration it receives exists in the
+// compiled program only because the build made it.
+type P struct {
+	policy      *Policy
+	values      Values
+	options     []optionInfo
+	facts       []*factDecl
+	analyzers   []*analyzer
+	annotations []annotationDecl
+	decorations []Decoration
+	rules       []*rule
+	rewrites    []*rewrite
+	observers   []*observer
+	commands    []Command
+	paints      []Paint
+	ghosts      []GhostFunc
+	grouping    func(prev, next *doc.Entry) bool
+	errs        []error
+}
+
+// ID is the id of the policy being built.
+func (p *P) ID() string { return p.policy.id }
+
+func (p *P) fail(format string, args ...any) {
+	p.errs = append(p.errs, fmt.Errorf("policy %s: %s", p.policy.id, fmt.Sprintf(format, args...)))
+}
+
+// --- options ----------------------------------------------------------
+
+// Values are option values by key, "policy.option". The settings layer
+// validates domains, so a policy never receives a value out of its domain.
+type Values map[string]any
+
+// OptionKind is the type of an option.
+type OptionKind uint8
+
+const (
+	OptionBool OptionKind = iota + 1
+	OptionEnum
+	OptionInt
+	OptionList
+)
+
+// Choice is one value of an enum or list domain.
+type Choice[T comparable] struct {
+	Value T
+	Label string
+}
+
+// Setting refines an option's declaration.
+type Setting func(*optionMeta)
+
+type optionMeta struct {
+	label, description, group string
+	requires                  []Requirement
+}
+
+// Requirement makes an option apply only while another has a value.
+type Requirement struct {
+	Option string
+	Value  any
+}
+
+// Label is the option's label key.
+func Label(key string) Setting { return func(m *optionMeta) { m.label = key } }
+
+// Description is the option's description key.
+func Description(key string) Setting { return func(m *optionMeta) { m.description = key } }
+
+// Group places the option in a settings group.
+func Group(key string) Setting { return func(m *optionMeta) { m.group = key } }
+
+// Requires makes the option apply only while option (a key within the
+// same policy) has value.
+func Requires(option string, value any) Setting {
+	return func(m *optionMeta) { m.requires = append(m.requires, Requirement{Option: option, Value: value}) }
+}
+
+// Opt is a typed option.
+type Opt[T comparable] struct {
+	id      string
+	def     T
+	kind    OptionKind
+	choices []Choice[T]
+	lo, hi  int
+	meta    optionMeta
+}
+
+// ListOpt is an option holding a subset of a closed domain.
+type ListOpt[T comparable] struct {
+	id     string
+	def    []T
+	domain []Choice[T]
+	meta   optionMeta
+}
+
+func apply(settings []Setting) optionMeta {
+	var m optionMeta
+	for _, s := range settings {
+		s(&m)
+	}
+	return m
+}
+
+// Bool declares a bool option.
+func Bool(id string, def bool, settings ...Setting) *Opt[bool] {
+	return &Opt[bool]{id: id, def: def, kind: OptionBool, meta: apply(settings)}
+}
+
+// Enum declares an option with one of choices.
+func Enum[T comparable](id string, def T, choices []Choice[T], settings ...Setting) *Opt[T] {
+	return &Opt[T]{id: id, def: def, kind: OptionEnum, choices: choices, meta: apply(settings)}
+}
+
+// Int declares an option in [lo, hi].
+func Int(id string, def, lo, hi int, settings ...Setting) *Opt[int] {
+	return &Opt[int]{id: id, def: def, kind: OptionInt, lo: lo, hi: hi, meta: apply(settings)}
+}
+
+// List declares an option holding a subset of domain.
+func List[T comparable](id string, def []T, domain []Choice[T], settings ...Setting) *ListOpt[T] {
+	return &ListOpt[T]{id: id, def: def, domain: domain, meta: apply(settings)}
+}
+
+// optionInfo is an option as the catalog shows it.
+type optionInfo struct {
+	Key     string
+	Kind    OptionKind
+	Default any
+	Choices []any
+	Min     int
+	Max     int
+	meta    optionMeta
+}
+
+func (p *P) note(info optionInfo) {
+	if !slices.ContainsFunc(p.options, func(o optionInfo) bool { return o.Key == info.Key }) {
+		p.options = append(p.options, info)
+	}
+}
+
+// Get reads an option while building; reading it makes it part of the
+// policy's catalog.
+func Get[T comparable](p *P, o *Opt[T]) T {
+	key := p.policy.id + "." + o.id
+	info := optionInfo{Key: key, Kind: o.kind, Default: o.def, Min: o.lo, Max: o.hi, meta: o.meta}
+	for _, c := range o.choices {
+		info.Choices = append(info.Choices, c.Value)
+	}
+	p.note(info)
+	if v, ok := p.values[key].(T); ok {
+		return v
+	}
+	return o.def
+}
+
+// GetList reads a list option while building.
+func GetList[T comparable](p *P, o *ListOpt[T]) []T {
+	key := p.policy.id + "." + o.id
+	info := optionInfo{Key: key, Kind: OptionList, Default: o.def, meta: o.meta}
+	for _, c := range o.domain {
+		info.Choices = append(info.Choices, c.Value)
+	}
+	p.note(info)
+	if v, ok := p.values[key].([]T); ok {
+		return v
+	}
+	return o.def
+}
+
+// EnabledKey is the key of a policy's built-in enabled option.
+func EnabledKey(policy string) string { return policy + ".enabled" }
+
+// --- commands, presentation and history --------------------------------
+
+// Command is a command a policy declares: a stable id, a label key, and
+// the intent it resolves to.
+type Command struct {
+	ID     vocab.CommandID
+	Label  string
+	Intent vocab.Intent
+	Policy string
+}
+
+// Command declares a command.
+func (p *P) Command(id vocab.CommandID, label string, intent vocab.Intent) {
+	p.commands = append(p.commands, Command{ID: id, Label: label, Intent: intent, Policy: p.policy.id})
+}
+
+// PaintWhen says when a paint contribution shows.
+type PaintWhen uint8
+
+const (
+	PaintAlways PaintWhen = iota
+	// WhenCaretInside shows only while the caret is inside the span.
+	WhenCaretInside
+)
+
+// Paint styles the spans of a fact kind with a highlight group.
+type Paint struct {
+	Group vocab.Group
+	Fact  vocab.FactKind
+	When  PaintWhen
+}
+
+// Paint declares a paint contribution over a fact kind's spans.
+func (p *P) Paint(group vocab.Group, fact vocab.FactKind, when PaintWhen) {
+	p.paints = append(p.paints, Paint{Group: group, Fact: fact, When: when})
+}
+
+// Ghost is revealed notation at a point: spellings that span no document
+// bytes but may hold stops.
+type Ghost struct {
+	At       int
+	Spelling vocab.Spelling
+	Group    vocab.Group
+	// Stops is how many caret stops the ghost holds, before and between
+	// its glyphs.
+	Stops int
+	// Side is which side of the point the ghost stands, for ordering
+	// several ghosts at one offset.
+	Side vocab.Side
+}
+
+// GhostFunc emits the ghost notation of one unit.
+type GhostFunc func(u *Unit, emit func(Ghost))
+
+// Ghosts declares a ghost notation contribution.
+func (p *P) Ghosts(fn GhostFunc) { p.ghosts = append(p.ghosts, fn) }
+
+// Grouping declares how history groups consecutive entries. At most one
+// enabled policy may declare it.
+func (p *P) Grouping(fn func(prev, next *doc.Entry) bool) {
+	if p.grouping != nil {
+		p.fail("grouping declared twice")
+	}
+	p.grouping = fn
+}

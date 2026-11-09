@@ -1,0 +1,395 @@
+package policy
+
+import (
+	"fmt"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
+
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/vocab"
+)
+
+// Fact is a recognised span or point in one inline slot. Offsets are
+// slot-relative bytes. A span has an outer extent and an inner one (a pair
+// without its delimiters); a point has From == To. A fact at a ghost point
+// holds a stop range, since ghost notation spans no bytes but has stops.
+type Fact struct {
+	Kind               vocab.FactKind
+	From, To           int
+	InnerFrom, InnerTo int
+	// StopFrom and StopTo order facts at one offset by stop.
+	StopFrom, StopTo int
+	Point            bool
+	Data             any
+}
+
+// Inside reports whether off is inside the fact's inner extent.
+func (f Fact) Inside(off int) bool { return !f.Point && off >= f.InnerFrom && off <= f.InnerTo }
+
+// FactKind is a typed fact kind a policy declared.
+type FactKind[T any] struct {
+	kind   vocab.FactKind
+	name   string
+	policy string
+	roles  []vocab.Role
+}
+
+// FactOption refines a fact kind's declaration.
+type FactOption func(*factDecl)
+
+type factDecl struct {
+	kind   vocab.FactKind
+	name   string
+	policy string
+	roles  []vocab.Role
+	data   reflect.Type
+}
+
+// Provides declares the roles the fact kind's data provides. The data type
+// must implement each role's interface.
+func Provides(roles ...vocab.Role) FactOption {
+	return func(d *factDecl) { d.roles = append(d.roles, roles...) }
+}
+
+var factKinds = struct {
+	sync.Mutex
+	of map[string]vocab.FactKind
+}{of: map[string]vocab.FactKind{}}
+
+// stableFactKind returns one handle per policy and name, so a program
+// rebuilt after a settings change keeps its fact kinds and their caches.
+func stableFactKind(policy, name string) vocab.FactKind {
+	factKinds.Lock()
+	defer factKinds.Unlock()
+	key := policy + "." + name
+	if k, ok := factKinds.of[key]; ok {
+		return k
+	}
+	k := vocab.NewFactKind(key)
+	factKinds.of[key] = k
+	return k
+}
+
+// Facts declares a fact kind whose data is T.
+func Facts[T any](p *P, name string, opts ...FactOption) *FactKind[T] {
+	d := &factDecl{kind: stableFactKind(p.policy.id, name), name: name, policy: p.policy.id, data: reflect.TypeFor[T]()}
+	for _, o := range opts {
+		o(d)
+	}
+	for _, r := range d.roles {
+		if iface := roleInterface(r); iface != nil && !d.data.Implements(iface) {
+			p.fail("fact %s provides %s, but %s does not implement it", name, r, d.data)
+		}
+	}
+	p.facts = append(p.facts, d)
+	return &FactKind[T]{kind: d.kind, name: name, policy: p.policy.id, roles: d.roles}
+}
+
+// Kind is the untyped handle.
+func (k *FactKind[T]) Kind() vocab.FactKind { return k.kind }
+
+// Scope is the fact kind as a scope key.
+func (k *FactKind[T]) Scope() vocab.Scope { return vocab.FactScope(k.kind) }
+
+// Span is a fact whose inner extent is its outer one.
+func (k *FactKind[T]) Span(from, to int, data T) Fact {
+	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: from, InnerTo: to, Data: data}
+}
+
+// Delimited is a fact with delimiters: [from, innerFrom) and [innerTo, to).
+func (k *FactKind[T]) Delimited(from, innerFrom, innerTo, to int, data T) Fact {
+	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: innerFrom, InnerTo: innerTo, Data: data}
+}
+
+// Point is a fact at an offset, holding stops [stopFrom, stopTo).
+func (k *FactKind[T]) Point(at, stopFrom, stopTo int, data T) Fact {
+	return Fact{Kind: k.kind, From: at, To: at, InnerFrom: at, InnerTo: at, StopFrom: stopFrom, StopTo: stopTo, Point: true, Data: data}
+}
+
+// Data returns a fact's typed data.
+func (k *FactKind[T]) Data(f Fact) (T, bool) {
+	if f.Kind != k.kind {
+		var zero T
+		return zero, false
+	}
+	v, ok := f.Data.(T)
+	return v, ok
+}
+
+func roleInterface(r vocab.Role) reflect.Type {
+	switch r {
+	case vocab.RolePair:
+		return reflect.TypeFor[vocab.Pair]()
+	case vocab.RoleLeveled:
+		return reflect.TypeFor[vocab.Leveled]()
+	case vocab.RoleReshapeable:
+		return reflect.TypeFor[vocab.Reshapeable]()
+	case vocab.RoleBox:
+		return reflect.TypeFor[vocab.Box]()
+	case vocab.RoleLeavable:
+		return reflect.TypeFor[vocab.Leavable]()
+	case vocab.RoleStructure:
+		return reflect.TypeFor[vocab.Structure]()
+	case vocab.RoleItem:
+		return reflect.TypeFor[vocab.ItemEntry]()
+	}
+	return nil
+}
+
+// --- units --------------------------------------------------------------
+
+// Granularity is the unit a per-unit analyzer reads.
+type Granularity uint8
+
+const (
+	// Lines reads each line of an inline slot.
+	Lines Granularity = iota + 1
+	// Slots reads a whole inline slot.
+	Slots
+)
+
+// Unit is what an analyzer reads: a line or a whole inline slot, with the
+// slot's kind and enclosing kinds and the annotations the analyzer's own
+// policy owns there.
+type Unit struct {
+	Slot doc.SlotRef
+	// Owner is the node holding the slot.
+	Owner *doc.Node
+	Spec  doc.SlotSpec
+	// Enclosing are the kinds of the owner's ancestors, outermost first.
+	Enclosing []doc.Kind
+	Content   *doc.Inline
+	// From and To are the unit's range in the slot; Line is the line's
+	// index, or -1 for a whole slot.
+	From, To int
+	Line     int
+	// Annotations are the analyzing policy's annotations anchored here.
+	Annotations []Annotation
+
+	facts func(vocab.FactKind) []Fact
+}
+
+// Text is the unit's text, inline nodes as U+FFFC.
+func (u *Unit) Text() string { return u.Content.TextRange(u.From, u.To) }
+
+// Facts returns facts of another kind in the unit's slot, for
+// presentation contributions that read facts.
+func (u *Unit) Facts(k vocab.FactKind) []Fact {
+	if u.facts == nil {
+		return nil
+	}
+	return u.facts(k)
+}
+
+// TokenKind is the kind of a unit token.
+type TokenKind uint8
+
+const (
+	TokenText TokenKind = iota + 1
+	TokenNode
+	TokenMarkOpen
+	TokenMarkClose
+	// TokenEnd ends the stream, so a scanner can emit what is still open.
+	TokenEnd
+)
+
+// Token is one item of a unit's token stream: text, an inline node, or a
+// mark boundary. Mark tokens have zero width.
+type Token struct {
+	Kind TokenKind
+	At   int
+	Text string
+	Node *doc.Node
+	Mark doc.Mark
+}
+
+// End is the offset after the token.
+func (t Token) End() int {
+	switch t.Kind {
+	case TokenText:
+		return t.At + len(t.Text)
+	case TokenNode:
+		return t.At + 1
+	}
+	return t.At
+}
+
+// Tokens streams the unit's tokens in order. Mark closes come before
+// opens at one offset.
+func (u *Unit) Tokens(fn func(Token) bool) {
+	var open []doc.Mark
+	stop := false
+	u.Content.Each(func(at int, it doc.Item) bool {
+		end := at + it.Len()
+		if end <= u.From || at >= u.To {
+			return at < u.To
+		}
+		var marks []doc.Mark
+		if it.Marks != nil {
+			marks = it.Marks.Marks()
+		}
+		for i := len(open) - 1; i >= 0; i-- {
+			if !slices.ContainsFunc(marks, func(m doc.Mark) bool { return m.Kind == open[i].Kind && m.Attrs.Equal(open[i].Attrs) }) {
+				if !fn(Token{Kind: TokenMarkClose, At: max(at, u.From), Mark: open[i]}) {
+					stop = true
+					return false
+				}
+				open = slices.Delete(open, i, i+1)
+			}
+		}
+		for _, m := range marks {
+			if !slices.ContainsFunc(open, func(o doc.Mark) bool { return o.Kind == m.Kind && o.Attrs.Equal(m.Attrs) }) {
+				if !fn(Token{Kind: TokenMarkOpen, At: max(at, u.From), Mark: m}) {
+					stop = true
+					return false
+				}
+				open = append(open, m)
+			}
+		}
+		if it.Node != nil {
+			stop = !fn(Token{Kind: TokenNode, At: at, Node: it.Node})
+			return !stop
+		}
+		from, to := max(at, u.From), min(end, u.To)
+		text := it.Text[from-at : to-at]
+		// Lines are tokens of their own, so a line break is a boundary.
+		for text != "" {
+			i := strings.IndexByte(text, '\n')
+			piece := text
+			if i >= 0 {
+				piece = text[:i+1]
+			}
+			if !fn(Token{Kind: TokenText, At: from, Text: piece}) {
+				stop = true
+				return false
+			}
+			from += len(piece)
+			text = text[len(piece):]
+		}
+		return true
+	})
+	if stop {
+		return
+	}
+	for i := len(open) - 1; i >= 0; i-- {
+		if !fn(Token{Kind: TokenMarkClose, At: u.To, Mark: open[i]}) {
+			return
+		}
+	}
+}
+
+// --- analyzers ------------------------------------------------------------
+
+type analyzerForm uint8
+
+const (
+	formUnit analyzerForm = iota + 1
+	formScanner
+	formSummary
+)
+
+type analyzer struct {
+	policy string
+	form   analyzerForm
+	kinds  []vocab.FactKind
+	// config identifies the analyzer's configuration: caches are keyed by
+	// it, so only analyzers whose configuration changed lose them.
+	config string
+	where  func(*Unit) bool
+
+	granularity Granularity
+	unit        func(u *Unit, emit func(Fact))
+
+	start func(u *Unit) any
+	step  func(s any, t Token, emit func(Fact)) any
+
+	summary *summaryDecl
+}
+
+// AnalyzerOption refines an analyzer.
+type AnalyzerOption func(*analyzer)
+
+// Where restricts an analyzer to units it accepts, such as slots of a
+// kind. An analyzer configured per slot kind branches on Unit.Owner.
+func Where(fn func(u *Unit) bool) AnalyzerOption { return func(a *analyzer) { a.where = fn } }
+
+// Config names the analyzer's configuration for its cache key, for
+// analyzers that are closures over option values.
+func Config(v any) AnalyzerOption {
+	return func(a *analyzer) { a.config = fmt.Sprintf("%T:%#v", v, v) }
+}
+
+func (p *P) addAnalyzer(a *analyzer, kinds []vocab.FactKind, opts []AnalyzerOption) {
+	a.policy = p.policy.id
+	a.kinds = kinds
+	for _, o := range opts {
+		o(a)
+	}
+	for _, k := range kinds {
+		if !slices.ContainsFunc(p.facts, func(d *factDecl) bool { return d.kind == k }) {
+			p.fail("analyzer emits %s, which the policy does not declare", k)
+		}
+	}
+	p.analyzers = append(p.analyzers, a)
+}
+
+// Analyze declares a per-unit analyzer, memoised per unit and
+// configuration. It emits facts of kinds, at slot offsets.
+func (p *P) Analyze(g Granularity, fn func(u *Unit, emit func(Fact)), kinds []vocab.FactKind, opts ...AnalyzerOption) {
+	a := &analyzer{form: formUnit, granularity: g, unit: fn}
+	a.config = fmt.Sprintf("unit:%s:%v", p.policy.id, kinds)
+	p.addAnalyzer(a, kinds, opts)
+}
+
+// Scanner is a scanning analyzer. Its state is checkpointed at chunk
+// boundaries: after an edit, scanning restarts at the nearest checkpoint
+// and stops once the state equals the cached one.
+type Scanner[S comparable] interface {
+	Start(u *Unit) S
+	Step(s S, t Token, emit func(Fact)) S
+}
+
+// Scan declares a scanner over whole slots. The scanner value is its
+// configuration.
+func Scan[S comparable](p *P, sc Scanner[S], kinds []vocab.FactKind, opts ...AnalyzerOption) {
+	a := &analyzer{
+		form:  formScanner,
+		start: func(u *Unit) any { return sc.Start(u) },
+		step:  func(s any, t Token, emit func(Fact)) any { return sc.Step(s.(S), t, emit) },
+	}
+	a.config = fmt.Sprintf("scan:%s:%T:%#v", p.policy.id, sc, sc)
+	p.addAnalyzer(a, kinds, opts)
+}
+
+// Summary is an analyzer over nodes: Leaf summarises one node's own
+// content, Combine joins summaries. Results are memoised per node pointer,
+// so recomputing costs the changed path.
+type Summary[M any] struct {
+	Leaf     func(n *doc.Node) M
+	Combine  func(a, b M) M
+	Identity M
+}
+
+type summaryDecl struct {
+	name     string
+	leaf     func(n *doc.Node) any
+	combine  func(a, b any) any
+	identity any
+}
+
+// SummaryKind is a declared summary.
+type SummaryKind[M any] struct{ decl *summaryDecl }
+
+// Summarize declares a summary.
+func Summarize[M any](p *P, name string, s Summary[M]) *SummaryKind[M] {
+	d := &summaryDecl{
+		name:     p.policy.id + "." + name,
+		leaf:     func(n *doc.Node) any { return s.Leaf(n) },
+		combine:  func(a, b any) any { return s.Combine(a.(M), b.(M)) },
+		identity: s.Identity,
+	}
+	p.analyzers = append(p.analyzers, &analyzer{policy: p.policy.id, form: formSummary, summary: d, config: "summary:" + d.name})
+	return &SummaryKind[M]{decl: d}
+}
