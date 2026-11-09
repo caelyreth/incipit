@@ -31,8 +31,8 @@ type CoverSpan struct {
 }
 
 // Decorations are a view's per-view decorations, separate from every unit:
-// moving the caret changes them, and changes units only where reveal
-// changes.
+// moving the caret changes them and never changes a unit, except to open
+// or close a card.
 type Decorations struct {
 	Selection   doc.Selection
 	Composition *policy.Composition

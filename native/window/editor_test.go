@@ -62,9 +62,8 @@ func TestTypingEditsThePage(t *testing.T) {
 	shot(t, tester, "typing")
 }
 
-// Notation near the caret is revealed as ghosts, and the caret steps
-// through them.
-func TestNotationIsRevealedNearTheCaret(t *testing.T) {
+// Notation is shown as ghosts, and the caret steps through them.
+func TestNotationIsShownAsGhosts(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +79,7 @@ func TestNotationIsRevealedNearTheCaret(t *testing.T) {
 		tester.Type(string(r))
 		tester.Frame()
 	}
-	// Let the reveal fade in and the caret settle.
+	// Let the caret settle.
 	tester.Advance(time.Second)
 	shot(t, tester, "notation-end")
 	el := app.pageElement()

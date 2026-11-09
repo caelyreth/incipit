@@ -1,6 +1,6 @@
 // Package notation is the notation policy: ghost notation for marks and
 // block markers. Markup is never stored (§2): the policy recognises where
-// a mark's delimiters or a block's marker would be spelled and reveals
+// a mark's delimiters or a block's marker would be spelled and shows
 // them as ghosts, with caret stops before and between their glyphs
 // (§13.5, §13.6).
 //
@@ -452,7 +452,7 @@ func reshapeIn(c *policy.Ctx, m policy.Match) policy.Result {
 // --- stops and marks ---------------------------------------------------------
 
 // layout is what a caret's offset holds: its ghosts, whether they are
-// revealed, and the marks before them.
+// shown, and the marks before them.
 type layout struct {
 	ghosts []policy.Fact
 	before *doc.MarkSet
@@ -460,7 +460,7 @@ type layout struct {
 }
 
 // layoutAt reads the ghosts at a caret's offset; false when none are
-// revealed there.
+// shown there.
 func layoutAt(c *policy.Ctx, k kinds, pos doc.Pos) (layout, bool) {
 	ghosts := ghostsAt(c, k, pos)
 	if len(ghosts) == 0 {
@@ -470,7 +470,7 @@ func layoutAt(c *policy.Ctx, k kinds, pos doc.Pos) (layout, bool) {
 	if stops == nil {
 		return layout{}, false
 	}
-	// The ghosts are revealed when one of their stops other than the
+	// The ghosts are shown when one of their stops other than the
 	// position's own is a stop of the view.
 	probe := doc.Caret{Pos: pos, Stop: ghosts[len(ghosts)-1].StopTo}
 	if probe.Stop == 0 {
@@ -528,7 +528,7 @@ func orEmpty(r doc.Reader, ms *doc.MarkSet) *doc.MarkSet {
 }
 
 // stopMarks keeps a pending-marks annotation at a collapsed caret among
-// revealed ghosts, holding the marks its stop decides. Marks another
+// shown ghosts, holding the marks its stop decides. Marks another
 // policy asked for in this transaction, such as a format toggle at the
 // caret, stand.
 func stopMarks(k kinds) policy.ObserverFunc {
@@ -571,7 +571,7 @@ func stopMarks(k kinds) policy.ObserverFunc {
 	}
 }
 
-// settleCaret moves a caret an edit left at stop 0, before the revealed
+// settleCaret moves a caret an edit left at stop 0, before the shown
 // ghosts at its offset, to the last stop that types as the edit left it:
 // the pending marks there, or the marks text would inherit. A closed
 // delimiter run leaves the caret after its closing ghost, a typed heading

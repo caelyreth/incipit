@@ -105,7 +105,7 @@ func TestClickingAFormulaEntersItsSource(t *testing.T) {
 	}
 }
 
-// Revealed ghosts take room, and each of their stops has a caret place of
+// Ghosts take room, and each of their stops has a caret place of
 // its own, in stop order.
 func TestGhostStopsHaveTheirOwnPlaces(t *testing.T) {
 	el := newElement(t)

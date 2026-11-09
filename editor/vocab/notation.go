@@ -11,7 +11,7 @@ import (
 type Spelling string
 
 // Notation sets: the spellings of marks and block markers, which ghost
-// notation reveals and the Markdown policy reads. The first spelling of
+// notation shows and the Markdown policy reads. The first spelling of
 // each is the one notation shows by default.
 var (
 	EmphasisSpellings = []Spelling{"*", "_"}
@@ -72,8 +72,8 @@ func ParseOrdered(s string) (int, bool) {
 }
 
 // Marker is what a block's structure spells before its text: a heading's
-// level, or an item's list style, number and task. Notation reveals it as
-// a ghost; the presentation draws it as the item's marker otherwise.
+// level, or an item's list style, number and task. Notation always spells
+// it as a ghost; it is the one marker a block has (§13.6).
 type Marker struct {
 	Kind    doc.Kind
 	Level   int

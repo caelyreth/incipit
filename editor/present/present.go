@@ -28,7 +28,7 @@ const (
 	RevealHidden
 )
 
-// GhostLayout is how revealed ghosts are laid out.
+// GhostLayout is how ghosts are laid out.
 type GhostLayout uint8
 
 const (

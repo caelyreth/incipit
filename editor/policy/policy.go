@@ -241,7 +241,7 @@ func (p *P) Paint(group vocab.Group, fact vocab.FactKind, when PaintWhen) {
 	p.paints = append(p.paints, Paint{Group: group, Fact: fact, When: when})
 }
 
-// Ghost is revealed notation at a point: spellings that span no document
+// Ghost is notation at a point: spellings that span no document
 // bytes but may hold stops.
 type Ghost struct {
 	At       int
