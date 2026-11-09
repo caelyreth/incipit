@@ -150,8 +150,6 @@ func (a *AppState) pageView(c *ui.Context) {
 	top := theme.DefaultLayout.ReadingTop * scale / theme.DefaultUIFontSize
 	ui.Column(c).Key("page").Role(ui.RoleGroup).Label("Page").
 		FillHeight().WidthPercent(100).Padding(top, 0, 0, 0).Children(func() {
-		components.Headline(c, a.Workspace.Title(), theme.HeadlineXLarge, semantic.Text.Heading).
-			SingleLine()
 		el := a.pageElement()
 		if el == nil {
 			return
@@ -384,7 +382,8 @@ func (a *AppState) View(c *ui.Context) {
 		}
 	}
 	a.Shell.View(c)
-	// What this frame changed goes to the notebook.
+	// What this frame changed names its page and goes to the notebook.
+	a.retitle()
 	a.save()
 	// The toasts stand above the foot, and over all else.
 	scale := a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize

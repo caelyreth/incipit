@@ -33,19 +33,25 @@ func TestPageActionsCloseTabsByID(t *testing.T) {
 	}
 }
 
-// The page shows its title over an empty page; with no page open the
-// shell says how to open one.
-func TestPageViewShowsTheOpenPagesTitle(t *testing.T) {
+// A page is titled by its first heading, on its tab, as it is written;
+// with no page open the shell says how to open one.
+func TestAPageIsTitledByItsFirstHeading(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
 	tester := ui.NewTester(app.View, 1260, 850)
 	tester.Frame()
-	texts := tester.Texts()
-	page := slices.Index(texts, "Page")
-	if page < 0 || page+1 >= len(texts) || texts[page+1] != workspace.DefaultTitle {
-		t.Fatalf("no page heading in %#v", texts)
+	if !tester.HasText("Close " + workspace.DefaultTitle) {
+		t.Fatalf("no untitled tab in %#v", tester.Texts())
+	}
+	for _, r := range "# Morning notes" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	tester.Frame()
+	if !tester.HasText("Close Morning notes") {
+		t.Fatalf("the tab is not titled by the heading: %#v", tester.Texts())
 	}
 	app.Shell.ClosePage()
 	tester.Frame()

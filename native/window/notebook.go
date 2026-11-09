@@ -1,6 +1,7 @@
 package window
 
 import (
+	"github.com/caelyreth/neverland/editor/vocab"
 	"time"
 
 	"github.com/caelyreth/neverland/app/library"
@@ -135,6 +136,28 @@ func (a *AppState) savePage(session *sheetSession) {
 	a.notebook.saver.Page(session.key, session.title)
 	session.saved = true
 	a.library.Touch(library.SheetID(session.key), time.Now())
+}
+
+// retitle names each open page after its first heading, so its tab and its
+// row follow what is written.
+func (a *AppState) retitle() {
+	changed := false
+	for _, session := range a.sessions {
+		if session.element == nil {
+			continue
+		}
+		snap := session.element.Editor.Engine.Snapshot()
+		if snap == session.titled {
+			continue
+		}
+		session.titled = snap
+		if title := vocab.PageTitle(snap.Root()); title != session.title {
+			session.title, changed = title, true
+		}
+	}
+	if changed {
+		a.refreshShell()
+	}
 }
 
 func (a *AppState) saveLayout() {

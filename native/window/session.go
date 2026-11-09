@@ -20,6 +20,8 @@ type sheetSession struct {
 	// handed is the snapshot last handed to the notebook to save.
 	element *page.Element
 	handed  *doc.Snapshot
+	// titled is the snapshot the title was last read from.
+	titled *doc.Snapshot
 }
 
 // close lets go of the page's editor.

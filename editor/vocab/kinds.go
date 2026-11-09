@@ -7,6 +7,7 @@ package vocab
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -218,6 +219,32 @@ var schema = sync.OnceValue(func() *doc.Schema {
 
 // Schema is the document schema of every page.
 func Schema() *doc.Schema { return schema() }
+
+// PageTitle is the text of a page's first heading, whatever its level, on
+// one line; a page without a heading has none.
+func PageTitle(root *doc.Node) string {
+	var title string
+	var walk func(n *doc.Node) bool
+	walk = func(n *doc.Node) bool {
+		if n.Kind() == Heading {
+			title = strings.Join(strings.Fields(n.Text()), " ")
+			return true
+		}
+		for _, s := range n.Slots() {
+			if s.IsInline() {
+				continue
+			}
+			for _, c := range s.Children() {
+				if walk(c) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	walk(root)
+	return title
+}
 
 // HeadingLevel is a heading's level.
 func HeadingLevel(n *doc.Node) int { return int(Schema().Attr(n, FieldLevel).Int()) }
