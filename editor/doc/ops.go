@@ -104,8 +104,8 @@ func (o EditText) apply(tx *Tx) (*Step, error) {
 				return nil, err
 			}
 			it.Node = n
-		} else if it.Marks == nil {
-			it.Marks = tx.marks.Empty()
+		} else {
+			it.Marks = tx.own(it.Marks)
 		}
 		items[i] = it
 	}

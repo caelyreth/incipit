@@ -275,6 +275,8 @@ func (tx *Tx) prepare(n *Node) (*Node, error) {
 		})
 		return n, err
 	}
+	// The caller's node stays as it was: a slice can be pasted twice.
+	n = n.clone()
 	n.id = tx.NewID()
 	tx.fresh[n] = true
 	for i := range n.slots {
@@ -285,6 +287,8 @@ func (tx *Tx) prepare(n *Node) (*Node, error) {
 			s.Content().Each(func(_ int, it Item) bool {
 				if it.Node != nil {
 					it.Node, err = tx.prepare(it.Node)
+				} else {
+					it.Marks = tx.own(it.Marks)
 				}
 				items = append(items, it)
 				return err == nil
@@ -315,6 +319,18 @@ func (tx *Tx) prepare(n *Node) (*Node, error) {
 		}
 	}
 	return n, nil
+}
+
+// own returns the page's own interned set for marks, which may come from
+// another page, as pasted content does.
+func (tx *Tx) own(marks *MarkSet) *MarkSet {
+	if marks == nil {
+		return tx.marks.Empty()
+	}
+	if tx.marks.Owns(marks) {
+		return marks
+	}
+	return tx.marks.Intern(marks.Marks())
 }
 
 // withOrd returns child carrying key, copied when the transaction does not
