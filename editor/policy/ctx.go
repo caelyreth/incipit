@@ -155,3 +155,15 @@ func (c *Ctx) Stack() *Stack {
 func (c *Ctx) Preview(in vocab.Input) (Outcome, error) {
 	return c.prog.Dispatch(NewCtx(c.prog, c.store, c.r, c.view, in))
 }
+
+// FactsIn returns the facts of a kind in a slot, for presentation.
+func (p *Program) FactsIn(store *Store, r doc.Reader, view *View, ref doc.SlotRef, k vocab.FactKind) []Fact {
+	return p.facts(store, r, view, ref, k)
+}
+
+// UnitOf returns the whole-slot unit of an inline slot, for presentation
+// contributions.
+func (p *Program) UnitOf(store *Store, r doc.Reader, view *View, ref doc.SlotRef) *Unit {
+	u, _ := buildUnit(p, store, r, view, ref, "")
+	return u
+}

@@ -1,0 +1,105 @@
+package present
+
+import "github.com/caelyreth/neverland/editor/vocab"
+
+// FontRole is a theme font role.
+type FontRole uint8
+
+const (
+	FontBody FontRole = iota
+	FontHeading
+	FontMono
+	FontMath
+)
+
+// Field bits say which attributes a style sets.
+const (
+	SetFont uint32 = 1 << iota
+	SetSize
+	SetWeight
+	SetItalic
+	SetColor
+	SetBackground
+	SetUnderline
+	SetStrike
+	SetOpacity
+)
+
+// Style is a closed set of style attributes. Layout attributes (font role,
+// size, weight, italic) and paint attributes (colour, background,
+// underline, strike, opacity) are cached apart by the renderer: a change
+// to paint attributes never invalidates layout.
+type Style struct {
+	Set        uint32
+	Font       FontRole
+	Size       float32 // a scale of the body size
+	Weight     int
+	Italic     bool
+	Color      uint32 // 0xRRGGBBAA
+	Background uint32
+	Underline  bool
+	Strike     bool
+	Opacity    float32
+}
+
+// Theme maps highlight groups to styles.
+type Theme map[vocab.Group]Style
+
+func (s *Style) over(o Style) {
+	if o.Set&SetFont != 0 {
+		s.Font = o.Font
+	}
+	if o.Set&SetSize != 0 {
+		s.Size = o.Size
+	}
+	if o.Set&SetWeight != 0 {
+		s.Weight = o.Weight
+	}
+	if o.Set&SetItalic != 0 {
+		s.Italic = o.Italic
+	}
+	if o.Set&SetColor != 0 {
+		s.Color = o.Color
+	}
+	if o.Set&SetBackground != 0 {
+		s.Background = o.Background
+	}
+	if o.Set&SetUnderline != 0 {
+		s.Underline = o.Underline
+	}
+	if o.Set&SetStrike != 0 {
+		s.Strike = o.Strike
+	}
+	if o.Set&SetOpacity != 0 {
+		s.Opacity = o.Opacity
+	}
+	s.Set |= o.Set
+}
+
+// Resolve styles groups, outermost first; each group applies its fallback
+// chain from the root down, so a policy group inherits its vocabulary
+// group.
+func (t Theme) Resolve(groups []vocab.Group) Style {
+	s := Style{Size: 1, Weight: 400, Opacity: 1}
+	for _, g := range groups {
+		var chain []vocab.Group
+		for c := g; c != 0; c = c.Fallback() {
+			chain = append(chain, c)
+		}
+		for i := len(chain) - 1; i >= 0; i-- {
+			if st, ok := t[chain[i]]; ok {
+				s.over(st)
+			}
+		}
+	}
+	return s
+}
+
+// LayoutKey is the part of a style that affects layout.
+func (s Style) LayoutKey() [4]float32 {
+	italic := float32(0)
+	if s.Italic {
+		italic = 1
+	}
+	return [4]float32{float32(s.Font), s.Size, float32(s.Weight), italic}
+}
