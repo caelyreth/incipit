@@ -245,6 +245,11 @@ func (el *Element) stepCaret(pl *pageLayout, now time.Time, animate bool) bool {
 		el.caret.Hide()
 		return false
 	}
+	if !el.caret.Shown() {
+		// A caret appearing is activity: solid a moment, then breathing,
+		// as on a page just opened before any input.
+		el.Editor.active = now
+	}
 	el.caret.Step(el.caretShape(r), now, motion.CaretFrequency, animate)
 	return el.caret.Moving()
 }
