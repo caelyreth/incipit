@@ -157,6 +157,7 @@ func (a *AppState) pageView(c *ui.Context) {
 		el.Theme = semantic
 		el.Prose = a.Shell.Settings.Prose()
 		el.Top, el.Bottom = top/2, top*2
+		el.Typewriter = a.Product.Presentation.Typewriter
 		ui.Box(c).Key(fmt.Sprintf("editor-%d", el.Editor.View)).WidthPercent(100).Grow(1).Clip().Children(func() {
 			el.View(c)
 		})

@@ -21,6 +21,8 @@ type Element struct {
 	// Top and Bottom are the room above and below the text.
 	Top, Bottom float32
 	Label       string
+	// Typewriter keeps the caret's line at the viewport's center.
+	Typewriter bool
 
 	client       *client
 	scroll       float32
@@ -30,6 +32,9 @@ type Element struct {
 	pressed      bool
 	focusPending bool
 	lastClicks   int
+	// manual is a scroll by hand, which typewriter mode leaves alone
+	// until the next edit or motion; typewriter is the mode last laid out.
+	manual, typewriter bool
 
 	// The caret glides between the places it is drawn at.
 	caret      [3]motion.Spring // x, y, height, in page coordinates
@@ -83,7 +88,12 @@ func (el *Element) View(c *ui.Context) {
 	ed.Due(c.Now())
 	pl := el.relayout()
 	animate := !c.Preferences().ReduceMotion
+	if el.typewriter != el.Typewriter {
+		// Entering or leaving the mode glides to where it keeps the caret.
+		el.typewriter, el.manual, ed.reveal = el.Typewriter, false, true
+	}
 	if ed.reveal {
+		el.manual = false
 		el.revealCaret(pl)
 		ed.reveal = false
 	}
@@ -146,7 +156,12 @@ func (el *Element) maxScroll() float32 {
 	if pl == nil {
 		return 0
 	}
-	return max(pl.height+el.Top+el.Bottom-el.viewport.H, 0)
+	end := pl.height + el.Top + el.Bottom - el.viewport.H
+	if el.Typewriter {
+		// The last line can come to the center.
+		end = max(end, pl.height+el.Top-el.viewport.H/2)
+	}
+	return max(end, 0)
 }
 
 func (el *Element) clampScroll() {
@@ -161,6 +176,11 @@ func (el *Element) revealCaret(pl *pageLayout) {
 	}
 	r, ok := pl.caretBox(el.Editor.Selection().Head, el.Editor.metrics)
 	if !ok {
+		return
+	}
+	if el.Typewriter && !el.manual {
+		el.scrollTarget = r.Y + r.H/2 + el.Top - el.viewport.H/2
+		el.clampScroll()
 		return
 	}
 	room := min(el.Prose.LineHeight()*3, el.viewport.H/4)
@@ -246,6 +266,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		el.pressed = false
 		return el.pressed
 	case ui.InputScroll:
+		el.manual = true
 		el.scrollTarget += ev.DY
 		el.clampScroll()
 		el.scroll = el.scrollTarget
