@@ -6,7 +6,6 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
-	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -312,7 +311,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 			// The input method has the keys while it composes.
 			return false
 		}
-		if el.key(ev, at) {
+		if in, ok := keyIntent(ev); ok && el.run(in, services, at) {
 			services.Invalidate()
 			return true
 		}
@@ -327,137 +326,16 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 	return false
 }
 
-// key translates a key press into an intent.
-func (el *Element) key(ev ui.InputEvent, at time.Time) bool {
-	ed := el.Editor
-	shift := ev.Mods&ui.Shift != 0
-	alt := ev.Mods&ui.Alt != 0
-	super := ev.Mods&ui.Super != 0 || ev.Mods&ui.Ctrl != 0
-	unit := vocab.ByGrapheme
-	switch {
-	case super:
-		unit = vocab.ToSlotEdge
-	case alt:
-		unit = vocab.ByWord
-	}
-	switch ev.Key {
-	case ui.KeyLeft, ui.KeyRight:
-		dir := vocab.Forward
-		if ev.Key == ui.KeyLeft {
-			dir = vocab.Backward
-		}
-		if super {
-			edge := vocab.LineEnd
-			if dir == vocab.Backward {
-				edge = vocab.LineStart
-			}
-			return ed.lineEdge(edge, shift, at)
-		}
-		return ed.Do(vocab.Move{Unit: unit, Dir: dir, Extend: shift}, at)
-	case ui.KeyUp, ui.KeyDown:
-		if super {
-			dir := vocab.Forward
-			if ev.Key == ui.KeyUp {
-				dir = vocab.Backward
-			}
-			return ed.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: dir, Extend: shift}, at)
-		}
-		if alt {
-			dir := vocab.Forward
-			if ev.Key == ui.KeyUp {
-				dir = vocab.Backward
-			}
-			return ed.Do(vocab.Move{Unit: vocab.ByParagraph, Dir: dir, Extend: shift}, at)
-		}
-		dir := vocab.Down
-		if ev.Key == ui.KeyUp {
-			dir = vocab.Up
-		}
-		return ed.vertical(dir, shift, el.viewport.H, at)
-	case ui.KeyHome:
-		return ed.lineEdge(vocab.LineStart, shift, at)
-	case ui.KeyEnd:
-		return ed.lineEdge(vocab.LineEnd, shift, at)
-	case ui.KeyPageUp:
-		return ed.vertical(vocab.PageUp, shift, el.viewport.H*0.85, at)
-	case ui.KeyPageDown:
-		return ed.vertical(vocab.PageDown, shift, el.viewport.H*0.85, at)
-	case ui.KeyBackspace:
-		return ed.Do(vocab.Delete{Unit: unit, Dir: vocab.Backward}, at)
-	case ui.KeyDelete:
-		return ed.Do(vocab.Delete{Unit: unit, Dir: vocab.Forward}, at)
-	case ui.KeyEnter:
-		if shift {
-			return ed.Do(vocab.SoftBreak{}, at)
-		}
-		return ed.Do(vocab.Break{}, at)
-	case ui.KeyTab:
-		dir := vocab.Forward
-		if shift {
-			dir = vocab.Backward
-		}
-		return ed.Do(vocab.Nest{Dir: dir}, at)
-	case ui.KeyEscape:
-		// Escape leaves the scope the caret is in where a policy answers
-		// it, and otherwise dismisses.
-		if out, err := ed.Engine.Preview(ed.View, vocab.Input{Intent: vocab.Leave{}, At: at}); err == nil && out.Available && out.Rule != "" && out.Rule != "core.leave" {
-			return ed.Do(vocab.Leave{}, at)
-		}
-		return ed.Do(vocab.Dismiss{}, at)
-	}
-	// TODO(keymap): route editing keys through app/keymap so they can be
-	// rebound; these are the defaults.
-	if super && !alt {
-		switch ev.Text {
-		case "z", "Z":
-			if shift {
-				return ed.Do(vocab.Redo{}, at)
-			}
-			return ed.Do(vocab.Undo{}, at)
-		case "b":
-			return ed.Do(vocab.Format{Mark: vocab.Strong}, at)
-		case "i":
-			return ed.Do(vocab.Format{Mark: vocab.Emphasis}, at)
-		case "e":
-			return ed.Do(vocab.Format{Mark: vocab.CodeMark}, at)
-		}
-	}
-	return false
-}
-
 // command answers an edit-menu command.
 func (el *Element) command(name string, services ui.Services, at time.Time) bool {
-	ed := el.Editor
-	switch name {
-	case "copy":
-		if text := ed.copy(); text != "" {
+	if name == "copy" {
+		if text := el.Editor.copy(); text != "" {
 			services.WriteClipboard(text)
 		}
 		return true
-	case "cut":
-		if text := ed.copy(); text != "" {
-			services.WriteClipboard(text)
-			return ed.Do(vocab.Cut{}, at)
-		}
-		return true
-	case "paste":
-		return ed.paste(services.ReadClipboard(), at)
-	case "selectAll":
-		return ed.Do(vocab.SelectScope{}, at)
-	case "undo":
-		return ed.Do(vocab.Undo{}, at)
-	case "redo":
-		return ed.Do(vocab.Redo{}, at)
-	case "delete":
-		return ed.Do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}, at)
-	case "bold":
-		return ed.Do(vocab.Format{Mark: vocab.Strong}, at)
-	case "italic":
-		return ed.Do(vocab.Format{Mark: vocab.Emphasis}, at)
-	case "strikethrough":
-		return ed.Do(vocab.Format{Mark: vocab.Strike}, at)
 	}
-	return false
+	in, ok := menuIntents[name]
+	return ok && el.run(in, services, at)
 }
 
 // --- painting -------------------------------------------------------------

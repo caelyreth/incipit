@@ -37,7 +37,7 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 	p.Handle("visual-move").On(vocab.On(vocab.IntentVisualMove)).Do(visualMove)
 	p.Handle("place").On(vocab.On(vocab.IntentPlace)).Do(placeCaret)
 
-	p.Handle("leave").On(vocab.On(vocab.IntentLeave)).Do(swallow)
+	p.Handle("leave").On(vocab.On(vocab.IntentLeave)).Do(dismiss)
 	p.Handle("return").On(vocab.On(vocab.IntentReturn)).Do(swallow)
 	p.Handle("select-scope").On(vocab.On(vocab.IntentSelectScope)).Do(selectAll)
 	p.Handle("dismiss").On(vocab.On(vocab.IntentDismiss)).Do(dismiss)
@@ -165,14 +165,16 @@ func typeText(c *policy.Ctx, m policy.Match) policy.Result {
 	if c.Composition() != nil {
 		res.EndComposition = true
 	}
+	// Typed text replaces the selection; empty text deletes it.
 	text := in.Text
-	if text == "" {
-		return res
-	}
 	var edits []vocab.Edit
 	clear, pos, ok := clearSelection(c)
 	if ok {
 		edits = append(edits, clear)
+	}
+	if text == "" {
+		res.Edits = edits
+		return res
 	}
 	var pending *doc.MarkSet
 	for _, a := range c.Annotations().At(vocab.PendingMarks, pos) {
@@ -590,6 +592,8 @@ func selectAll(c *policy.Ctx, m policy.Match) policy.Result {
 }
 
 // dismiss collapses the selection to its head and ends a composition.
+// It is also Leave where no scope answers it: Escape outside every scope
+// dismisses.
 func dismiss(c *policy.Ctx, m policy.Match) policy.Result {
 	res := policy.Result{}
 	if c.Composition() != nil {

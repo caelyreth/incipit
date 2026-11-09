@@ -100,11 +100,8 @@ func (c *client) ReplaceText(r *ui.TextInputRange, text string) {
 		ed.DoInput(vocab.Input{Intent: vocab.Type{Text: text}, At: ed.now(), Class: doc.OriginIME})
 	case text == "\n":
 		ed.Do(vocab.Break{}, ed.now())
-	case text == "":
-		if !ed.Selection().IsCollapsed() {
-			ed.Do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}, ed.now())
-		}
 	default:
+		// Text replaces the selection; empty text deletes it.
 		ed.Do(vocab.Type{Text: text}, ed.now())
 	}
 	ed.Relayout()

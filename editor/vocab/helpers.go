@@ -1125,3 +1125,41 @@ func WrapRun(r doc.Reader, ids []doc.ID, kind doc.Kind) ([]doc.ID, bool) {
 	}
 	return run, true
 }
+
+// PlainText is a slice's text: blocks on lines of their own.
+func PlainText(s Slice) string {
+	var b strings.Builder
+	inline := func(items []doc.Item) {
+		for _, it := range items {
+			if it.Node != nil {
+				b.WriteString(it.Node.Text())
+			} else {
+				b.WriteString(it.Text)
+			}
+		}
+	}
+	inline(s.Inline)
+	var walk func(n *doc.Node)
+	walk = func(n *doc.Node) {
+		if IsTextBlock(n.Kind()) || n.Kind() == Item {
+			if b.Len() > 0 {
+				b.WriteByte('\n')
+			}
+		}
+		for _, sl := range n.Slots() {
+			if sl.IsInline() {
+				var items []doc.Item
+				sl.Content().Each(func(_ int, it doc.Item) bool { items = append(items, it); return true })
+				inline(items)
+				continue
+			}
+			for _, c := range sl.Children() {
+				walk(c)
+			}
+		}
+	}
+	for _, n := range s.Nodes {
+		walk(n)
+	}
+	return b.String()
+}

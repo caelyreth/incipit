@@ -141,3 +141,18 @@ func (e *Engine) holdsStart(p *present.Presentation, from, to doc.Pos) bool {
 	gap := doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: index})
 	return doc.Compare(e.snap, doc.CaretAt(from), gap) <= 0 && doc.Compare(e.snap, doc.CaretAt(to), gap) > 0
 }
+
+// Copy is the slice and plain text of what a view's selection covers: the
+// range every edit of the selection reads, so a copy from before a marker
+// holds its block.
+func (e *Engine) Copy(viewID uint64) (vocab.Slice, string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	v, ok := e.views[viewID]
+	if !ok || (v.Selection.Kind == doc.SelectText && v.Selection.IsCollapsed()) {
+		return vocab.Slice{}, ""
+	}
+	from, to := policy.SelectionRange(e.snap, e.stopsFor(viewID)(e.snap, v), v.Selection)
+	s := vocab.Copy(e.snap, from, to)
+	return s, vocab.PlainText(s)
+}

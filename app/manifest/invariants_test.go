@@ -61,9 +61,9 @@ func randomIntent(rng *rand.Rand, e *engine.Engine) vocab.Intent {
 	case n < 85:
 		return vocab.Nest{Dir: dir}
 	case n < 87:
-		v, _ := e.View(1)
-		from, to := v.Selection.Ordered(e.Snapshot())
-		return vocab.Paste{Slice: vocab.Copy(e.Snapshot(), from.Pos, to.Pos), Text: "pasted"}
+		// A paste of what the selection copies, as the page pastes its own.
+		slice, text := e.Copy(1)
+		return vocab.Paste{Slice: slice, Text: text + "pasted"}
 	case n < 88:
 		return vocab.Cut{}
 	case n < 90:

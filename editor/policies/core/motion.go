@@ -200,7 +200,21 @@ func visualMove(c *policy.Ctx, m policy.Match) policy.Result {
 	in := m.Intent.(vocab.VisualMove)
 	target := in.Target
 	if _, ok := c.Doc().Node(target.Pos.Node); !ok {
-		return policy.Swallow
+		// No line beyond the caret's: a vertical move goes to the page's
+		// edge that way.
+		dir := vocab.Forward
+		switch in.Dir {
+		case vocab.Up, vocab.PageUp:
+			dir = vocab.Backward
+		case vocab.Down, vocab.PageDown:
+		default:
+			return policy.Swallow
+		}
+		edge, ok := c.Stops().Edge(dir)
+		if !ok {
+			return policy.Swallow
+		}
+		target = edge
 	}
 	res := revealed(doc.Collapsed(target))
 	if sel := c.Selection(); in.Extend && sel.Kind == doc.SelectText {

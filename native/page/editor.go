@@ -156,70 +156,66 @@ func (ed *Editor) Due(now time.Time) {
 
 // --- geometry answers -----------------------------------------------------
 
-// vertical resolves a vertical motion from the layout: the stop a line
-// above or below the caret, at the goal x.
-func (ed *Editor) vertical(dir vocab.VisualDirection, extend bool, viewport float32, at time.Time) bool {
+// resolve answers a visual move's geometry: the stop on the line above
+// or below the caret at the goal x, a page away, or at its line's edge.
+// Past the page's first or last line the target is left unset, and the
+// engine moves to the page's edge.
+func (ed *Editor) resolve(in vocab.VisualMove, viewport float32) (vocab.VisualMove, bool) {
 	pl := ed.layout
 	if pl == nil || pl.first == nil {
-		return false
+		return in, false
 	}
 	v := ed.view()
 	head := v.Selection.Head
 	if v.Selection.Kind == doc.SelectNode {
 		head = v.Selection.Anchor
 	}
+	if in.Dir == vocab.LineStart || in.Dir == vocab.LineEnd {
+		return ed.lineEdge(in, head)
+	}
 	r, ok := pl.caretBox(head, ed.metrics)
 	if !ok {
-		return false
+		return in, false
 	}
-	goal := r.X
+	in.GoalX = r.X
 	if v.GoalX >= 0 {
-		goal = float32(v.GoalX)
+		in.GoalX = float32(v.GoalX)
 	}
 	var y float32
-	switch dir {
+	switch in.Dir {
 	case vocab.Up, vocab.Down:
-		y = pl.adjacentLine(head, r, dir == vocab.Up)
+		y = pl.adjacentLine(head, r, in.Dir == vocab.Up)
 	case vocab.PageUp:
-		y = r.Y - viewport
+		y = r.Y - viewport*pageStep
 	case vocab.PageDown:
-		y = r.Y + viewport
+		y = r.Y + viewport*pageStep
 	}
-	var target doc.Caret
-	switch {
-	case y < 0:
-		target = pl.first.caret
-	case y > pl.height:
-		target = pl.last.caret
-	default:
-		c, _, ok := pl.hit(goal, y)
+	if y >= 0 && y <= pl.height {
+		c, _, ok := pl.hit(in.GoalX, y)
 		if !ok {
-			return false
+			return in, false
 		}
-		target = c
+		in.Target = c
 	}
-	edge := false
 	if pc, ok := pl.lookup(head); ok && pc.surface != nil {
 		_, oy := pc.unit.origin(pc.surface)
-		edge = y < oy || y >= oy+pc.surface.h
+		in.AtSurfaceEdge = y < oy || y >= oy+pc.surface.h
 	}
-	return ed.Do(vocab.VisualMove{Dir: dir, Target: target, GoalX: goal, AtSurfaceEdge: edge, Extend: extend}, at)
+	return in, true
 }
 
-// lineEdge resolves a motion to the start or end of the caret's line.
-func (ed *Editor) lineEdge(dir vocab.VisualDirection, extend bool, at time.Time) bool {
-	pl := ed.layout
-	if pl == nil {
-		return false
-	}
-	v := ed.view()
-	pc, ok := pl.lookup(v.Selection.Head)
+// pageStep is how much of the viewport a page motion moves.
+const pageStep = 0.85
+
+// lineEdge answers a motion to the start or end of the caret's line.
+func (ed *Editor) lineEdge(in vocab.VisualMove, head doc.Caret) (vocab.VisualMove, bool) {
+	pc, ok := ed.layout.lookup(head)
 	if !ok || pc.surface == nil {
-		return false
+		return in, false
 	}
 	line, _, _ := pc.surface.lineOf(pc.stop.u)
 	u := line.Start
-	if dir == vocab.LineEnd {
+	if in.Dir == vocab.LineEnd {
 		u = line.End
 		// A line a newline ends stops before it; a wrapped line's end is
 		// the next line's start, which the caret takes at this line's end.
@@ -229,9 +225,10 @@ func (ed *Editor) lineEdge(dir vocab.VisualDirection, extend bool, at time.Time)
 	}
 	st := pc.surface.nearest(u)
 	if st == nil {
-		return false
+		return in, false
 	}
-	return ed.Do(vocab.VisualMove{Dir: dir, Target: st.caret, GoalX: -1, Extend: extend}, at)
+	in.Target, in.GoalX = st.caret, -1
+	return in, true
 }
 
 // place puts the caret at a page point.
@@ -248,75 +245,10 @@ func (ed *Editor) place(x, y float32, clicks int, extend bool, at time.Time) boo
 
 // --- clipboard ------------------------------------------------------------
 
-// Copied is the selection's slice and plain text.
-func (ed *Editor) Copied() (vocab.Slice, string) {
-	snap := ed.Engine.Snapshot()
-	sel := ed.Selection()
-	var from, to doc.Pos
-	switch sel.Kind {
-	case doc.SelectNode:
-		parent, slot, ok := snap.Parent(sel.Node)
-		if !ok {
-			return vocab.Slice{}, ""
-		}
-		pn, _ := snap.Node(parent)
-		for i, c := range pn.Slot(slot).Children() {
-			if c.ID() == sel.Node {
-				from, to = doc.Pos{Node: parent, Slot: slot, Offset: i}, doc.Pos{Node: parent, Slot: slot, Offset: i + 1}
-			}
-		}
-	default:
-		if sel.IsCollapsed() {
-			return vocab.Slice{}, ""
-		}
-		a, b := sel.Ordered(snap)
-		from, to = a.Pos, b.Pos
-	}
-	s := vocab.Copy(snap, from, to)
-	return s, plainText(s)
-}
-
-// plainText is a slice's text: blocks on lines of their own.
-func plainText(s vocab.Slice) string {
-	var b strings.Builder
-	inline := func(items []doc.Item) {
-		for _, it := range items {
-			if it.Node != nil {
-				b.WriteString(it.Node.Text())
-			} else {
-				b.WriteString(it.Text)
-			}
-		}
-	}
-	inline(s.Inline)
-	var walk func(n *doc.Node)
-	walk = func(n *doc.Node) {
-		if vocab.IsTextBlock(n.Kind()) || n.Kind() == vocab.Item {
-			if b.Len() > 0 {
-				b.WriteByte('\n')
-			}
-		}
-		for _, sl := range n.Slots() {
-			if sl.IsInline() {
-				var items []doc.Item
-				sl.Content().Each(func(_ int, it doc.Item) bool { items = append(items, it); return true })
-				inline(items)
-				continue
-			}
-			for _, c := range sl.Children() {
-				walk(c)
-			}
-		}
-	}
-	for _, n := range s.Nodes {
-		walk(n)
-	}
-	return b.String()
-}
-
-// copy remembers the selection as the page's clip and returns its text.
+// copy remembers the engine's copy of the selection as the page's clip
+// and returns its text.
 func (ed *Editor) copy() string {
-	s, text := ed.Copied()
+	s, text := ed.Engine.Copy(ed.View)
 	if text == "" && s.Empty() {
 		return ""
 	}
@@ -324,17 +256,14 @@ func (ed *Editor) copy() string {
 	return text
 }
 
-// paste pastes clipboard text, as the slice it was copied as when it is
-// the page's own.
-func (ed *Editor) paste(text string, at time.Time) bool {
+// pasted is a paste of clipboard text: the slice it was copied as when it
+// is the page's own.
+func (ed *Editor) pasted(text string) vocab.Paste {
 	in := vocab.Paste{Text: text}
 	if text != "" && text == ed.clipText {
 		in.Slice = ed.clip
 	}
-	if in.Slice.Empty() && in.Text == "" {
-		return false
-	}
-	return ed.Do(in, at)
+	return in
 }
 
 // now is the time of input the system delivers without one, as the input
