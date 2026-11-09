@@ -1,0 +1,480 @@
+package page
+
+import (
+	"math"
+	"time"
+
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/ui"
+)
+
+// Element draws an editor and takes its input. It keeps what one page's
+// view needs between frames: the scroll and a press in progress.
+type Element struct {
+	Editor *Editor
+	// Theme and Prose are the colors and text measures the page shows in.
+	Theme theme.Theme
+	Prose theme.ProseStyle
+	// Top and Bottom are the room above and below the text.
+	Top, Bottom float32
+	Label       string
+
+	client       *client
+	scroll       float32
+	scrollTarget float32
+	viewport     ui.Rect
+	column       float32 // the column's left, in the element
+	pressed      bool
+	focusPending bool
+	lastClicks   int
+}
+
+// NewElement is an element over ed.
+func NewElement(ed *Editor) *Element {
+	el := &Element{Editor: ed, Label: "Page", focusPending: true}
+	el.client = &client{el: el}
+	return el
+}
+
+// Focus gives the page the keyboard focus in the next frame.
+func (el *Element) Focus() { el.focusPending = true }
+
+func (el *Element) metrics(width float32) Metrics {
+	col := min(el.Prose.Column(), max(width-2*el.Prose.FontSize, el.Prose.FontSize*8))
+	return Metrics{
+		Body:    el.Prose.FontSize,
+		Spacing: el.Prose.Spacing,
+		Width:   col,
+		Indent:  el.Prose.FontSize * 1.6,
+		Gap:     el.Prose.Leading() * 0.9,
+	}
+}
+
+// relayout lays the page out at the element's width.
+func (el *Element) relayout() *pageLayout {
+	ed := el.Editor
+	w := el.viewport.W
+	if w <= 0 {
+		w = el.Prose.Column() + 2*el.Prose.FontSize
+	}
+	m := el.metrics(w)
+	ed.SetStyle(el.Theme.Surface, Theme(el.Theme), m)
+	el.column = max((w-m.Width)/2, 0)
+	return ed.Relayout()
+}
+
+// View builds the element.
+func (el *Element) View(c *ui.Context) {
+	ed := el.Editor
+	if ed == nil {
+		return
+	}
+	ed.Wake = c.Services().Invalidate
+	ed.Due(c.Now())
+	pl := el.relayout()
+	animate := !c.Preferences().ReduceMotion
+	if ed.reveal {
+		el.revealCaret(pl)
+		ed.reveal = false
+	}
+	if el.stepScroll(animate) {
+		c.AnimationFrame()
+	}
+	box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
+		Role(ui.RoleTextField).Label(el.Label).Focusable()
+	box.HandleTextInput(el.client)
+	if el.focusPending {
+		box.AutoFocus()
+		box.Focus()
+		el.focusPending = false
+	}
+	services := c.Services()
+	box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
+		TextCaret(el.caretInElement()).
+		Draw(func(p *ui.Painter, r ui.Rect) {
+			if r.W != el.viewport.W || r.H != el.viewport.H {
+				el.viewport = r
+				el.relayout()
+				el.clampScroll()
+			}
+			el.viewport = r
+			el.paint(p, r, box.Focused())
+		})
+}
+
+// toPage is an element point in page coordinates.
+func (el *Element) toPage(x, y float32) (float32, float32) {
+	return x - el.column, y - el.Top + el.scroll
+}
+
+// fromPage is a page rectangle in element coordinates.
+func (el *Element) fromPage(r ui.Rect) ui.Rect {
+	r.X += el.column
+	r.Y += el.Top - el.scroll
+	return r
+}
+
+func (el *Element) caretInElement() ui.Rect {
+	pl := el.Editor.layout
+	if pl == nil {
+		return ui.Rect{}
+	}
+	r, ok := pl.caretBox(el.Editor.Selection().Head, el.Editor.metrics)
+	if !ok {
+		return ui.Rect{}
+	}
+	return el.fromPage(r)
+}
+
+// --- scrolling ------------------------------------------------------------
+
+func (el *Element) maxScroll() float32 {
+	pl := el.Editor.layout
+	if pl == nil {
+		return 0
+	}
+	return max(pl.height+el.Top+el.Bottom-el.viewport.H, 0)
+}
+
+func (el *Element) clampScroll() {
+	el.scrollTarget = min(max(el.scrollTarget, 0), el.maxScroll())
+	el.scroll = min(max(el.scroll, 0), el.maxScroll()+el.viewport.H)
+}
+
+// revealCaret scrolls so the caret's line shows with room about it.
+func (el *Element) revealCaret(pl *pageLayout) {
+	if el.viewport.H <= 0 {
+		return
+	}
+	r, ok := pl.caretBox(el.Editor.Selection().Head, el.Editor.metrics)
+	if !ok {
+		return
+	}
+	room := min(el.Prose.LineHeight()*3, el.viewport.H/4)
+	top := r.Y + el.Top - room
+	bottom := r.Y + r.H + el.Top + room - el.viewport.H
+	switch {
+	case top < el.scrollTarget:
+		el.scrollTarget = top
+	case bottom > el.scrollTarget:
+		el.scrollTarget = bottom
+	}
+	el.clampScroll()
+}
+
+// stepScroll eases the scroll toward its target; it reports whether it
+// still moves.
+func (el *Element) stepScroll(animate bool) bool {
+	d := el.scrollTarget - el.scroll
+	if !animate || math.Abs(float64(d)) < 0.5 {
+		el.scroll = el.scrollTarget
+		return false
+	}
+	el.scroll += d * 0.3
+	return true
+}
+
+// --- input ----------------------------------------------------------------
+
+func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
+	ed := el.Editor
+	at := ev.Time
+	if at.IsZero() {
+		at = time.Now()
+	}
+	switch ev.Kind {
+	case ui.InputPointerDown:
+		if ev.Button != 0 {
+			return false
+		}
+		x, y := el.toPage(ev.X, ev.Y)
+		el.pressed = true
+		el.lastClicks = max(ev.Clicks, 1)
+		ed.place(x, y, el.lastClicks, ev.Mods&ui.Shift != 0, at)
+		el.Focus()
+		services.Invalidate()
+		return true
+	case ui.InputPointerMove:
+		if !el.pressed {
+			return false
+		}
+		x, y := el.toPage(ev.X, ev.Y)
+		// A drag extends by the unit the press selected by.
+		ed.place(x, y, el.lastClicks, true, at)
+		services.Invalidate()
+		return true
+	case ui.InputPointerUp:
+		el.pressed = false
+		return el.pressed
+	case ui.InputScroll:
+		el.scrollTarget += ev.DY
+		el.clampScroll()
+		el.scroll = el.scrollTarget
+		services.Invalidate()
+		return true
+	case ui.InputKeyDown:
+		if ed.deco.Composition != nil {
+			// The input method has the keys while it composes.
+			return false
+		}
+		if el.key(ev, at) {
+			services.Invalidate()
+			return true
+		}
+		return false
+	case ui.InputCommand:
+		if el.command(ev.Text, services, at) {
+			services.Invalidate()
+			return true
+		}
+		return false
+	}
+	return false
+}
+
+// key translates a key press into an intent.
+func (el *Element) key(ev ui.InputEvent, at time.Time) bool {
+	ed := el.Editor
+	shift := ev.Mods&ui.Shift != 0
+	alt := ev.Mods&ui.Alt != 0
+	super := ev.Mods&ui.Super != 0 || ev.Mods&ui.Ctrl != 0
+	unit := vocab.ByGrapheme
+	switch {
+	case super:
+		unit = vocab.ToSlotEdge
+	case alt:
+		unit = vocab.ByWord
+	}
+	switch ev.Key {
+	case ui.KeyLeft, ui.KeyRight:
+		dir := vocab.Forward
+		if ev.Key == ui.KeyLeft {
+			dir = vocab.Backward
+		}
+		if super {
+			edge := vocab.LineEnd
+			if dir == vocab.Backward {
+				edge = vocab.LineStart
+			}
+			return ed.lineEdge(edge, shift, at)
+		}
+		return ed.Do(vocab.Move{Unit: unit, Dir: dir, Extend: shift}, at)
+	case ui.KeyUp, ui.KeyDown:
+		if super {
+			dir := vocab.Forward
+			if ev.Key == ui.KeyUp {
+				dir = vocab.Backward
+			}
+			return ed.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: dir, Extend: shift}, at)
+		}
+		if alt {
+			dir := vocab.Forward
+			if ev.Key == ui.KeyUp {
+				dir = vocab.Backward
+			}
+			return ed.Do(vocab.Move{Unit: vocab.ByParagraph, Dir: dir, Extend: shift}, at)
+		}
+		dir := vocab.Down
+		if ev.Key == ui.KeyUp {
+			dir = vocab.Up
+		}
+		return ed.vertical(dir, shift, el.viewport.H, at)
+	case ui.KeyHome:
+		return ed.lineEdge(vocab.LineStart, shift, at)
+	case ui.KeyEnd:
+		return ed.lineEdge(vocab.LineEnd, shift, at)
+	case ui.KeyPageUp:
+		return ed.vertical(vocab.PageUp, shift, el.viewport.H*0.85, at)
+	case ui.KeyPageDown:
+		return ed.vertical(vocab.PageDown, shift, el.viewport.H*0.85, at)
+	case ui.KeyBackspace:
+		return ed.Do(vocab.Delete{Unit: unit, Dir: vocab.Backward}, at)
+	case ui.KeyDelete:
+		return ed.Do(vocab.Delete{Unit: unit, Dir: vocab.Forward}, at)
+	case ui.KeyEnter:
+		if shift {
+			return ed.Do(vocab.SoftBreak{}, at)
+		}
+		return ed.Do(vocab.Break{}, at)
+	case ui.KeyTab:
+		dir := vocab.Forward
+		if shift {
+			dir = vocab.Backward
+		}
+		return ed.Do(vocab.Nest{Dir: dir}, at)
+	case ui.KeyEscape:
+		// Escape leaves the scope the caret is in where a policy answers
+		// it, and otherwise dismisses.
+		if out, err := ed.Engine.Preview(ed.View, vocab.Input{Intent: vocab.Leave{}, At: at}); err == nil && out.Available && out.Rule != "" && out.Rule != "core.leave" {
+			return ed.Do(vocab.Leave{}, at)
+		}
+		return ed.Do(vocab.Dismiss{}, at)
+	}
+	// TODO(keymap): route editing keys through app/keymap so they can be
+	// rebound; these are the defaults.
+	if super && !alt {
+		switch ev.Text {
+		case "z", "Z":
+			if shift {
+				return ed.Do(vocab.Redo{}, at)
+			}
+			return ed.Do(vocab.Undo{}, at)
+		case "b":
+			return ed.Do(vocab.Format{Mark: vocab.Strong}, at)
+		case "i":
+			return ed.Do(vocab.Format{Mark: vocab.Emphasis}, at)
+		case "e":
+			return ed.Do(vocab.Format{Mark: vocab.CodeMark}, at)
+		}
+	}
+	return false
+}
+
+// command answers an edit-menu command.
+func (el *Element) command(name string, services ui.Services, at time.Time) bool {
+	ed := el.Editor
+	switch name {
+	case "copy":
+		if text := ed.copy(); text != "" {
+			services.WriteClipboard(text)
+		}
+		return true
+	case "cut":
+		if text := ed.copy(); text != "" {
+			services.WriteClipboard(text)
+			return ed.Do(vocab.Cut{}, at)
+		}
+		return true
+	case "paste":
+		return ed.paste(services.ReadClipboard(), at)
+	case "selectAll":
+		return ed.Do(vocab.SelectScope{}, at)
+	case "undo":
+		return ed.Do(vocab.Undo{}, at)
+	case "redo":
+		return ed.Do(vocab.Redo{}, at)
+	case "delete":
+		return ed.Do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}, at)
+	case "bold":
+		return ed.Do(vocab.Format{Mark: vocab.Strong}, at)
+	case "italic":
+		return ed.Do(vocab.Format{Mark: vocab.Emphasis}, at)
+	case "strikethrough":
+		return ed.Do(vocab.Format{Mark: vocab.Strike}, at)
+	}
+	return false
+}
+
+// --- painting -------------------------------------------------------------
+
+func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
+	ed := el.Editor
+	pl := ed.layout
+	if pl == nil {
+		return
+	}
+	t := el.Theme
+	sel := ed.Selection()
+	ranges, objects := pl.selectionRanges(sel)
+	ox, oy := r.X+el.column, r.Y+el.Top-el.scroll
+	top, bottom := r.Y, r.Y+r.H
+	m := ed.metrics
+	for _, u := range pl.units {
+		uy := oy + u.y
+		if uy > bottom || uy+u.h < top {
+			continue
+		}
+		ux := ox + u.x
+		// Quote bars, one per quote level.
+		for q := 0; q < u.pres.Context.Quotes; q++ {
+			bx := ox + float32(u.pres.Context.Indent+q)*m.Indent + m.Indent*0.3
+			p.Fill(ui.Rect{X: bx, Y: uy - m.Gap/2, W: 2, H: u.h + m.Gap}, t.Prose.Subtle, 1)
+		}
+		if u.object {
+			// TODO(figures), TODO(tables): figures and tables draw their
+			// own boxes; every object is a divider until then.
+			if objects[u] {
+				p.Fill(ui.Rect{X: ux, Y: uy, W: m.Width - u.x, H: u.h}, t.Prose.Selection, 4)
+			}
+			mid := uy + u.h/2
+			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
+			continue
+		}
+		if u.marker != "" && len(u.surfaces) > 0 {
+			el.paintMarker(p, u, ux, uy)
+		}
+		for _, s := range u.surfaces {
+			sx, sy := ux+s.x, uy+s.y
+			if s.card {
+				p.Fill(ui.Rect{X: sx - cardPad(m)/2, Y: sy - cardPad(m)/2, W: s.w + cardPad(m), H: s.h + cardPad(m)}, t.Surface.Inset, 6)
+			}
+			if rg, ok := ranges[s]; ok {
+				for _, sr := range s.layout.SelectionRects(rg) {
+					sr.X += sx
+					sr.Y += sy
+					p.Fill(sr, t.Prose.Selection, 2)
+				}
+			}
+			p.TextLayout(s.layout, sx, sy, t.Prose.Text)
+			el.paintBoxes(p, s, sx, sy)
+		}
+	}
+	if focused && sel.Kind == doc.SelectText {
+		if cr, ok := pl.caretBox(sel.Head, m); ok {
+			cr.X += ox
+			cr.Y += oy
+			cr.W = max(cr.W, 2)
+			p.Fill(cr, t.Accent.Foreground, 1)
+		}
+	}
+}
+
+// paintMarker draws a list item's marker in the room before its text.
+func (el *Element) paintMarker(p *ui.Painter, u *unitLayout, ux, uy float32) {
+	m := el.Editor.metrics
+	s := u.surfaces[0]
+	lines := s.layout.Lines()
+	baseline := m.Body
+	if len(lines) > 0 {
+		baseline = lines[0].Baseline
+	}
+	lay := ui.ShapeRichTextWith([]ui.Span{{Text: u.marker, Font: theme.ProseFontFamily, Size: m.Body, Color: el.Theme.Prose.Notation}},
+		ui.Font{Family: theme.ProseFontFamily, Size: m.Body}, ui.TextShape{})
+	w, _ := lay.Size()
+	ml := lay.Lines()
+	mb := float32(0)
+	if len(ml) > 0 {
+		mb = ml[0].Baseline
+	}
+	p.TextLayout(lay, ux-w-m.Body*0.45, uy+baseline-mb, el.Theme.Prose.Notation)
+}
+
+// paintBoxes draws closed inline nodes' text in their object boxes.
+func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
+	objs := s.layout.Objects()
+	if len(objs) == 0 {
+		return
+	}
+	i := 0
+	for _, sg := range s.segs {
+		if sg.kind != segBox {
+			continue
+		}
+		if i >= len(objs) {
+			break
+		}
+		o := objs[i].Rect
+		i++
+		bg := el.Theme.Accent.Muted
+		if sg.card >= 0 {
+			bg = el.Theme.Prose.Selection
+		}
+		p.Fill(ui.Rect{X: sx + o.X, Y: sy + o.Y, W: o.W, H: o.H}, bg, 4)
+		// TODO(perf): keep boxes' shaped text with the surface's layout.
+		lay := ui.ShapeRichTextWith([]ui.Span{sg.face}, ui.Font{Family: sg.face.Font, Size: sg.face.Size}, ui.TextShape{})
+		_, h := lay.Size()
+		p.TextLayout(lay, sx+o.X+boxPad, sy+o.Y+(o.H-h)/2, sg.face.Color)
+	}
+}
