@@ -134,6 +134,9 @@ func unitContext(u *Unit) string {
 	for _, f := range u.Owner.Attrs().Fields() {
 		fmt.Fprintf(&b, "%d=%v,", f.Num, f.Value)
 	}
+	if u.Marker != nil {
+		fmt.Fprintf(&b, "%+v", *u.Marker)
+	}
 	b.WriteByte(':')
 	for _, k := range u.Enclosing {
 		fmt.Fprintf(&b, "%d,", k)

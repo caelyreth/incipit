@@ -208,3 +208,76 @@ func TestMarksThatExcludeEachOtherNeverShareASet(t *testing.T) {
 		t.Fatal("exclusion is not symmetric")
 	}
 }
+
+func item(text string, body ...*doc.Node) *doc.Node {
+	return doc.NewNode(Item, doc.Attrs{}, doc.InlineSlot(doc.TextItem(text, nil)), doc.BlockSlot(body...))
+}
+
+func list(items ...*doc.Node) *doc.Node {
+	return doc.NewNode(List, doc.Attrs{}, doc.BlockSlot(items...))
+}
+
+// inOrder is the n-th node in tree order, counting the page as 0.
+func inOrder(s *doc.Snapshot, n int) *doc.Node {
+	var out *doc.Node
+	i := 0
+	var walk func(x *doc.Node)
+	walk = func(x *doc.Node) {
+		if i == n {
+			out = x
+		}
+		i++
+		for _, sl := range x.Slots() {
+			if !sl.IsInline() {
+				for _, c := range sl.Children() {
+					walk(c)
+				}
+			}
+		}
+	}
+	walk(s.Root())
+	return out
+}
+
+func TestUnlistSplitsTheListAroundTheItem(t *testing.T) {
+	s := page(t, list(item("a"), item("b", para("in")), item("c")))
+	s = edit(t, s, Unlist(inOrder(s, 3).ID()))
+	if got, want := outline(s.Root()), "page(list(item(a|)) paragraph(b) paragraph(in) list(item(c|)))"; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}
+
+func TestOutdentFollowsTheHoldingItem(t *testing.T) {
+	s := page(t, list(item("a", list(item("b"), item("c")))))
+	s = edit(t, s, Outdent(inOrder(s, 4).ID()))
+	if got, want := outline(s.Root()), "page(list(item(a|) item(b|list(item(c|)))))"; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}
+
+func TestARangeFromAGapUnmarksTheItemItEndsIn(t *testing.T) {
+	s := page(t, list(item("a"), item("bc"), item("d", list(item("e")))))
+	l := inOrder(s, 1)
+	b := inOrder(s, 3)
+	s = edit(t, s, DeleteRange(doc.Pos{Node: l.ID(), Slot: 0, Offset: 0}, doc.At(doc.SlotRef{Node: b.ID()}, 1)))
+	if got, want := outline(s.Root()), "page(paragraph(c) list(item(d|list(item(e|)))))"; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}
+
+func TestARangeIntoANestedItemTakesTheItemsItOpens(t *testing.T) {
+	s := page(t, para("xy"), list(item("a"), item("d", list(item("ef"), item("g")))))
+	x := inOrder(s, 1)
+	e := inOrder(s, 6)
+	s = edit(t, s, DeleteRange(doc.At(doc.SlotRef{Node: x.ID()}, 1), doc.At(doc.SlotRef{Node: e.ID()}, 1)))
+	if got, want := outline(s.Root()), "page(paragraph(xf) list(item(g|)))"; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+	s = page(t, list(item("a"), item("d", list(item("ef")))))
+	l := inOrder(s, 1)
+	e = inOrder(s, 5)
+	s = edit(t, s, DeleteRange(doc.Pos{Node: l.ID()}, doc.At(doc.SlotRef{Node: e.ID()}, 1)))
+	if got, want := outline(s.Root()), "page(paragraph(f))"; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}

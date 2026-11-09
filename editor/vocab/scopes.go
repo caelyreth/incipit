@@ -171,6 +171,7 @@ const (
 	RelSlotEnd
 	RelSlotEmpty
 	RelComposing
+	RelOwnText
 )
 
 // Relation is one atom with its parameters, evaluated relative to the
@@ -199,6 +200,9 @@ var (
 	SlotEmpty    = Relation{Kind: RelSlotEmpty}
 	Composing    = Relation{Kind: RelComposing}
 	Equals       = Relation{Kind: RelEquals}
+	// OwnText holds when the caret is in the scope node's own text slot,
+	// as in an item's head, and not in a block the node holds.
+	OwnText = Relation{Kind: RelOwnText}
 )
 
 // Before holds when a fact, node or ghost of s is right after the caret,
@@ -225,7 +229,7 @@ func NextChar(c CharClass) Relation { return Relation{Kind: RelNextChar, Class: 
 func (r Relation) String() string {
 	names := [...]string{"", "AtInnerStart", "AtInnerEnd", "Before", "After", "Has", "Collapsed", "TextRange",
 		"NodeSelected", "CellRange", "Covers", "Intersects", "Cuts", "Equals", "PrevChar", "NextChar",
-		"SlotStart", "SlotEnd", "SlotEmpty", "Composing"}
+		"SlotStart", "SlotEnd", "SlotEmpty", "Composing", "OwnText"}
 	s := names[r.Kind]
 	switch r.Kind {
 	case RelBefore, RelAfter, RelCovers, RelIntersects, RelCuts:

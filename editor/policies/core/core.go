@@ -17,8 +17,6 @@ var (
 	textEdits = []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks,
 		doc.RecordTransferred, doc.RecordNodesInserted, doc.RecordNodesRemoved, doc.RecordNodeMoved, doc.RecordNodeChanged}
 	markEdits = []doc.RecordKind{doc.RecordMarks}
-	nodeEdits = []doc.RecordKind{doc.RecordNodeChanged, doc.RecordNodesInserted, doc.RecordNodesRemoved,
-		doc.RecordNodeMoved, doc.RecordTransferred, doc.RecordTextInserted, doc.RecordTextDeleted}
 )
 
 // Policy is the core policy.
@@ -46,8 +44,8 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 
 	p.Handle("format").On(vocab.On(vocab.IntentFormat)).Produces(markEdits...).Do(format)
 	p.Handle("nest").On(vocab.On(vocab.IntentNest)).Do(swallow)
-	p.Handle("reshape").On(vocab.On(vocab.IntentReshape)).Produces(nodeEdits...).Do(reshape)
-	p.Handle("move-node").On(vocab.On(vocab.IntentMoveNode)).Produces(nodeEdits...).Do(moveNode)
+	p.Handle("reshape").On(vocab.On(vocab.IntentReshape)).Produces(vocab.RoleEdits...).Do(reshape)
+	p.Handle("move-node").On(vocab.On(vocab.IntentMoveNode)).Produces(vocab.RoleEdits...).Do(moveNode)
 	p.Handle("toggle-task").On(vocab.On(vocab.IntentToggleTask)).Produces(doc.RecordNodeChanged).Do(toggleTask)
 	// TODO(tables), TODO(figures): the tables and figures policies answer
 	// these inside their objects; core has nothing to do elsewhere.

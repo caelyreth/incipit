@@ -186,6 +186,9 @@ type Unit struct {
 	Line     int
 	// Annotations are the analyzing policy's annotations anchored here.
 	Annotations []Annotation
+	// Marker is what the owner's structure spells before the slot's text,
+	// for the owner's first slot (vocab.MarkerOf).
+	Marker *vocab.Marker
 
 	facts func(vocab.FactKind) []Fact
 }

@@ -1,6 +1,6 @@
 // Package notation is the notation policy: ghost notation for marks and
 // block markers. Markup is never stored (§2): the policy recognises where
-// a mark's delimiters or a heading's marker would be spelled and reveals
+// a mark's delimiters or a block's marker would be spelled and reveals
 // them as ghosts, with caret stops before and between their glyphs
 // (§13.5, §13.6).
 //
@@ -16,7 +16,7 @@
 // A stop decides the marks text typed there takes: the marks before the
 // offset, with every ghost the stop is past applied. Backspace inside or
 // just after a ghost steps its mark down (strong to emphasis to none) or
-// the heading down one level, and a typed "#" inside a heading's marker
+// the block down one level, and a typed "#" inside a heading's marker
 // steps it up.
 package notation
 
@@ -110,9 +110,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Handle("step-down-in-mark").On(back).In(k.marks.Scope()).When(vocab.Collapsed).
 		Produces(edits...).Do(stepIn)
 	p.Handle("step-down-in-marker").On(back).In(k.markers.Scope()).When(vocab.Collapsed).
-		Produces(edits...).Do(stepIn)
+		Produces(vocab.RoleEdits...).Do(stepIn)
 	p.Handle("step-up-marker").On(vocab.Typed("#")).In(k.markers.Scope()).When(vocab.Collapsed).
-		Produces(edits...).Do(reshapeIn)
+		Produces(vocab.RoleEdits...).Do(reshapeIn)
 
 	// A stop decides the marks typed text takes; after an edit, a caret
 	// left before the ghosts at its offset moves to the stop that types
@@ -193,11 +193,14 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 		has := func(i int, m doc.Mark) bool {
 			return i >= 0 && i < len(runs) && slices.ContainsFunc(runs[i].marks, func(x doc.Mark) bool { return sameMark(x, m) })
 		}
-		heading := u.From == 0 && u.Slot.Slot == 0 && u.Owner.Kind() == vocab.Heading
+		marker := u.Marker
+		if u.From != 0 {
+			marker = nil
+		}
 		boundaries := len(runs) + 1
 		if len(runs) == 0 {
 			boundaries = 0
-			if heading {
+			if marker != nil {
 				boundaries = 1
 			}
 		}
@@ -270,10 +273,9 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 			for _, c := range closing {
 				put(c.g)
 			}
-			if heading && at == 0 {
+			if marker != nil && at == 0 {
 				// The text's own stop is after the marker.
-				level := vocab.HeadingLevel(u.Owner)
-				emit(k.markers.Point(0, -level, 0, markerGhost{Level: level}))
+				emit(k.markers.Point(0, -marker.Glyphs(), 0, markerGhost{Marker: *marker}))
 			}
 			for _, o := range opening {
 				put(o.g)
@@ -343,9 +345,9 @@ func (g markGhost) Step(dir vocab.Direction) vocab.Edit {
 	return vocab.Sequence()
 }
 
-// markerGhost is a heading's marker at its text's start.
+// markerGhost is a block's marker at its text's start.
 type markerGhost struct {
-	Level int
+	Marker vocab.Marker
 
 	node doc.ID
 }
@@ -356,9 +358,7 @@ func (g markerGhost) Placed(slot doc.SlotRef, _ policy.Fact) any {
 }
 
 // spelling is the marker with its separator, which is a gap, not a stop.
-func (g markerGhost) spelling() vocab.Spelling {
-	return vocab.HeadingSpelling(g.Level) + " "
-}
+func (g markerGhost) spelling() vocab.Spelling { return g.Marker.Spelling() }
 
 // Step steps the block the marker spells, as the block's own level does:
 // the marker is its notation, not a second owner of its level.
@@ -377,11 +377,11 @@ func (g markerGhost) Step(dir vocab.Direction) vocab.Edit {
 }
 
 // Reshape takes a glyph typed into the marker: another "#" is one level
-// deeper.
-// TODO(markers): list, quote and task markers reshape through their own
-// glyphs once their ghosts exist.
+// deeper. Other glyphs leave a marker as it is.
+// TODO(markers): an item's marker takes its style and task box through
+// typed glyphs.
 func (g markerGhost) Reshape(glyph string) vocab.Edit {
-	if glyph == "#" {
+	if glyph == "#" && g.Marker.Kind == vocab.Heading {
 		return g.Step(vocab.Forward)
 	}
 	return vocab.Sequence()

@@ -57,6 +57,12 @@ type Pair interface {
 	EditSide(side Side, spelling Spelling) Edit
 }
 
+// RoleEdits are the records an edit made through a node role may
+// produce: a role's edit reshapes, nests, lifts and joins blocks, so a
+// rule that delegates to a role declares these, whatever node it holds.
+var RoleEdits = []doc.RecordKind{doc.RecordNodeChanged, doc.RecordNodesInserted, doc.RecordNodesRemoved,
+	doc.RecordNodeMoved, doc.RecordTransferred, doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks}
+
 // Leveled steps up or down one level: heading levels, emphasis spelling,
 // nesting depth.
 type Leveled interface {
@@ -97,7 +103,7 @@ func NodeRoles(k doc.Kind) []Role {
 	case List, Quote:
 		return []Role{RoleLeveled, RoleStructure}
 	case Item:
-		return []Role{RoleItem}
+		return []Role{RoleItem, RoleLeveled}
 	case Formula:
 		return []Role{RoleLeavable, RoleStructure}
 	case Cell:
@@ -115,6 +121,8 @@ func NodeRole(r doc.Reader, n *doc.Node, role Role) (any, bool) {
 		switch n.Kind() {
 		case Heading:
 			return headingLevel{id: n.ID(), level: HeadingLevel(n)}, true
+		case Item:
+			return itemLevel(n.ID()), true
 		}
 	case RoleItem:
 		if n.Kind() == Item {
@@ -170,6 +178,25 @@ func (h headingLevel) Step(dir Direction) Edit {
 		next = 6
 	}
 	return Ops(doc.SetNode{ID: h.id, Kind: Heading, Attrs: doc.MakeAttrs(doc.Field{Num: FieldLevel, Value: doc.Int(int64(next))})})
+}
+
+// itemLevel is an item's nesting depth.
+type itemLevel doc.ID
+
+// Step nests the item one level deeper, into the item before it
+// (Forward), or one level out (Backward): out of a nested list to follow
+// the item holding it, and out of a top-level list as a paragraph.
+func (i itemLevel) Step(dir Direction) Edit {
+	id := doc.ID(i)
+	if dir > 0 {
+		return func(tx *doc.Tx) error {
+			if _, _, index, ok := Index(tx, id); !ok || index == 0 {
+				return nil
+			}
+			return Sink(id)(tx)
+		}
+	}
+	return Outdent(id)
 }
 
 type itemEntry doc.ID

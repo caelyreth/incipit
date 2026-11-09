@@ -3,6 +3,7 @@ package vocab
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -393,16 +394,17 @@ func Unwrap(id doc.ID) Edit {
 		if !ok {
 			return doc.ErrNoNode
 		}
-		at := index
+		var moving []doc.ID
 		for _, s := range n.Slots() {
-			if s.IsInline() {
-				continue
-			}
-			for _, c := range s.Children() {
-				if err := tx.Apply(doc.Move{ID: c.ID(), Parent: parent, Slot: slot, Index: at}); err != nil {
-					return err
+			if !s.IsInline() {
+				for _, c := range s.Children() {
+					moving = append(moving, c.ID())
 				}
-				at++
+			}
+		}
+		for i, c := range moving {
+			if err := tx.Apply(doc.Move{ID: c, Parent: parent, Slot: slot, Index: index + i}); err != nil {
+				return err
 			}
 		}
 		return tx.Apply(doc.Remove{IDs: []doc.ID{id}})
@@ -426,7 +428,9 @@ func Lift(id doc.ID) Edit {
 		// they move into a copy of the container after the lifted node.
 		parent, slot, index, _ := Index(tx, id)
 		pn, _ := tx.Node(parent)
-		rest := pn.Slot(slot).Children()[index+1:]
+		// Moves edit a slot the transaction owns in place: what moves is
+		// read before.
+		rest := slices.Clone(pn.Slot(slot).Children()[index+1:])
 		if err := tx.Apply(doc.Move{ID: id, Parent: grand, Slot: cslot, Index: cindex + 1}); err != nil {
 			return err
 		}
@@ -470,6 +474,47 @@ func Sink(item doc.ID) Edit {
 		}
 		tn, _ := tx.Node(target)
 		return tx.Apply(doc.Move{ID: item, Parent: target, Slot: 0, Index: tn.Slot(0).Len()})
+	}
+}
+
+// Outdent moves an item one level out: from a nested list to just after
+// the item holding that list, the items after it in its list moving into
+// its body to keep their order; an item of a top-level list leaves it as a
+// paragraph (Unlist).
+func Outdent(item doc.ID) Edit {
+	return func(tx *doc.Tx) error {
+		list, slot, index, ok := Index(tx, item)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		owner, _, _, ok := Index(tx, list)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		if on, _ := tx.Node(owner); on.Kind() != Item {
+			return Unlist(item)(tx)
+		}
+		ln, _ := tx.Node(list)
+		rest := slices.Clone(ln.Slot(slot).Children()[index+1:])
+		outer, oslot, oindex, _ := Index(tx, owner)
+		if err := tx.Apply(doc.Move{ID: item, Parent: outer, Slot: oslot, Index: oindex + 1}); err != nil {
+			return err
+		}
+		if len(rest) > 0 {
+			n, _ := tx.Node(item)
+			at := n.Slot(1).Len()
+			if err := tx.Apply(doc.Insert{Parent: item, Slot: 1, Index: at, Nodes: []*doc.Node{NewBlock(List, ln.Attrs())}}); err != nil {
+				return err
+			}
+			n, _ = tx.Node(item)
+			tail := n.Slot(1).Child(at).ID()
+			for i, r := range rest {
+				if err := tx.Apply(doc.Move{ID: r.ID(), Parent: tail, Slot: 0, Index: i}); err != nil {
+					return err
+				}
+			}
+		}
+		return RemoveIfEmpty(list)(tx)
 	}
 }
 
@@ -540,8 +585,10 @@ func liftOut(r doc.Reader, p doc.Pos, end bool) doc.Pos {
 
 // DeleteRange deletes from from to to: the text of the end slots, every
 // node wholly between, and then joins the end blocks when their slots are
-// compatible. A range from a gap holds the start of the block it ends in,
-// whose rest is left unmarked (Unmark). Containers left empty are removed.
+// compatible. A block whose start the range holds loses its marker with
+// it: from a gap, the rest of the block the range ends in is left
+// unmarked (Unmark), and an item holding that block, whose head the range
+// holds, leaves its list. Containers left empty are removed.
 func DeleteRange(from, to doc.Pos) Edit {
 	return func(tx *doc.Tx) error {
 		if doc.Compare(tx, doc.CaretAt(to), doc.CaretAt(from)) < 0 {
@@ -568,6 +615,25 @@ func DeleteRange(from, to doc.Pos) Edit {
 		between := Between(tx, from, to)
 		fromText := isInline(tx, from.Ref())
 		toText := isInline(tx, to.Ref())
+		// The blocks holding the end whose start the range holds: the
+		// end's block, and the items around it that hold none of the
+		// start, innermost first. Their markers are in the range.
+		var second *doc.Node
+		var opened []doc.ID
+		if toText {
+			second, _ = Block(tx, to)
+			if second != nil && (second.ID() == from.Node || doc.Contains(tx, second.ID(), from.Node)) {
+				second = nil
+			}
+		}
+		if second != nil {
+			for _, a := range doc.Ancestors(tx, second.ID()) {
+				if a == from.Node || doc.Contains(tx, a, from.Node) {
+					break
+				}
+				opened = append(opened, a)
+			}
+		}
 		if fromText {
 			fn, _ := tx.Node(from.Node)
 			if end := fn.Slot(from.Slot).Len(); end > from.Offset {
@@ -581,35 +647,53 @@ func DeleteRange(from, to doc.Pos) Edit {
 				return err
 			}
 		}
+		// An opened item's own text, its head, comes before the end.
+		for _, a := range opened {
+			n, _ := tx.Node(a)
+			for i, sl := range n.Slots() {
+				if sl.IsInline() && sl.Len() > 0 {
+					if err := tx.Apply(doc.EditText{At: doc.SlotRef{Node: a, Slot: i}, From: 0, To: sl.Len()}); err != nil {
+						return err
+					}
+				}
+			}
+		}
 		if len(between) > 0 {
 			if err := tx.Apply(doc.Remove{IDs: between}); err != nil {
 				return err
 			}
 		}
-		if !fromText && toText {
-			// From a gap, the range holds the start of the block its end
-			// is in, marker and all: what is left of it is plain text.
-			if second, ok := Block(tx, to); ok {
-				return Unmark(second.ID())(tx)
+		switch {
+		case second == nil:
+		case fromText:
+			// The rest of the end's block joins the start's.
+			if CanJoin(tx, from.Ref(), to.Ref()) {
+				if err := Join(from.Ref(), second.ID())(tx); err != nil {
+					return err
+				}
 			}
-		}
-		if !fromText || !toText {
-			return nil
-		}
-		second, ok := Block(tx, to)
-		if !ok || second.ID() == from.Node || doc.Contains(tx, second.ID(), from.Node) {
-			return nil
-		}
-		ancestors := doc.Ancestors(tx, second.ID())
-		if CanJoin(tx, from.Ref(), to.Ref()) {
-			if err := Join(from.Ref(), second.ID())(tx); err != nil {
+		default:
+			// From a gap, what is left of the end's block is plain text.
+			if err := Unmark(second.ID())(tx); err != nil {
 				return err
 			}
 		}
-		for _, a := range ancestors {
-			if doc.Contains(tx, a, from.Node) {
-				break
+		// Opened items lose their markers, and with them their emptied
+		// heads; containers left empty go.
+		for _, a := range opened {
+			if n, ok := tx.Node(a); ok && n.Kind() == Item {
+				para, err := unlist(tx, a)
+				if err != nil {
+					return err
+				}
+				if pn, ok := tx.Node(para); ok && pn.Slot(0).Len() == 0 {
+					if err := tx.Apply(doc.Remove{IDs: []doc.ID{para}}); err != nil {
+						return err
+					}
+				}
 			}
+		}
+		for _, a := range opened {
 			if err := RemoveIfEmpty(a)(tx); err != nil {
 				return err
 			}
@@ -912,30 +996,36 @@ func Unmark(id doc.ID) Edit {
 // removed when it is left empty.
 func Unlist(item doc.ID) Edit {
 	return func(tx *doc.Tx) error {
-		if err := Lift(item)(tx); err != nil {
-			return err
-		}
-		parent, slot, index, ok := Index(tx, item)
-		if !ok {
-			return doc.ErrNoNode
-		}
-		if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{NewParagraph()}}); err != nil {
-			return err
-		}
-		pn, _ := tx.Node(parent)
-		para := pn.Slot(slot).Child(index).ID()
-		n, _ := tx.Node(item)
-		if l := n.Slot(0).Len(); l > 0 {
-			if err := tx.Apply(doc.Transfer{From: doc.SlotRef{Node: item}, Start: 0, End: l, To: doc.SlotRef{Node: para}, At: 0}); err != nil {
-				return err
-			}
-		}
-		n, _ = tx.Node(item)
-		if err := moveChildrenAfter(tx, n, para); err != nil {
-			return err
-		}
-		return tx.Apply(doc.Remove{IDs: []doc.ID{item}})
+		_, err := unlist(tx, item)
+		return err
 	}
+}
+
+// unlist is Unlist, returning the paragraph the item became.
+func unlist(tx *doc.Tx, item doc.ID) (doc.ID, error) {
+	if err := Lift(item)(tx); err != nil {
+		return 0, err
+	}
+	parent, slot, index, ok := Index(tx, item)
+	if !ok {
+		return 0, doc.ErrNoNode
+	}
+	if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{NewParagraph()}}); err != nil {
+		return 0, err
+	}
+	pn, _ := tx.Node(parent)
+	para := pn.Slot(slot).Child(index).ID()
+	n, _ := tx.Node(item)
+	if l := n.Slot(0).Len(); l > 0 {
+		if err := tx.Apply(doc.Transfer{From: doc.SlotRef{Node: item}, Start: 0, End: l, To: doc.SlotRef{Node: para}, At: 0}); err != nil {
+			return 0, err
+		}
+	}
+	n, _ = tx.Node(item)
+	if err := moveChildrenAfter(tx, n, para); err != nil {
+		return 0, err
+	}
+	return para, tx.Apply(doc.Remove{IDs: []doc.ID{item}})
 }
 
 // WrapRun is the run of siblings that wrapping ids in a container of kind

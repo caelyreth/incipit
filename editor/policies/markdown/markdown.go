@@ -175,7 +175,7 @@ func intoList(id doc.ID, attrs doc.Attrs) vocab.Edit {
 		}
 		items := vocab.Fresh(n).Slot(0).Content().Slice(0, n.Slot(0).Len())
 		item := doc.NewNode(vocab.Item, doc.Attrs{}, doc.InlineSlot(items...), doc.BlockSlot())
-		list := doc.NewNode(vocab.List, attrs, doc.BlockSlot(item))
+		list := doc.NewNode(vocab.List, tx.Schema().Canonical(vocab.List, attrs), doc.BlockSlot(item))
 		return replace(tx, id, list)
 	}
 }

@@ -108,6 +108,20 @@ func randomStop(rng *rand.Rand, e *engine.Engine) doc.Caret {
 
 func rows(s *doc.Snapshot) []store.Row { return store.Rows(s) }
 
+// doCaught previews and runs an input, failing the test with the step on
+// a panic rather than losing which input caused it.
+func doCaught(t *testing.T, e *engine.Engine, in vocab.Input, step string) (preview engine.Outcome, perr error, pub *engine.Published, err error) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("%s: panic: %v", step, r)
+		}
+	}()
+	preview, perr = e.Preview(1, in)
+	pub, err = e.Do(1, in)
+	return
+}
+
 // checkPublished checks one published state.
 func checkPublished(t *testing.T, e *engine.Engine, step string) {
 	t.Helper()
@@ -173,8 +187,9 @@ func runTrace(t *testing.T, seed uint64, length int) {
 		}
 		trail = append(trail, fmt.Sprintf("%T%+v", in, in))
 		step := fmt.Sprintf("seed %d step %d (%s)\ntrail: %s", seed, i, trail[len(trail)-1], strings.Join(trail[max(0, len(trail)-8):], " · "))
-		preview, perr := e.Preview(1, input)
-		pub, err := e.Do(1, input)
+		before := outline(e.Snapshot().Root())
+		v, _ := e.View(1)
+		preview, perr, pub, err := doCaught(t, e, input, step+"\nbefore: "+before+fmt.Sprintf("\nselection %+v", v.Selection))
 		if err != nil {
 			t.Fatalf("%s: rejected: %v\n%s", step, err, outline(e.Snapshot().Root()))
 		}

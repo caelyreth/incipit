@@ -127,6 +127,11 @@ func buildUnit(prog *Program, store *Store, r doc.Reader, view *View, ref doc.Sl
 	if view != nil {
 		u.Annotations = view.Annotations.Owned(policy, ref)
 	}
+	if ref.Slot == 0 {
+		if m, ok := vocab.MarkerOf(r, n); ok {
+			u.Marker = &m
+		}
+	}
 	u.facts = func(k vocab.FactKind) []Fact { return prog.facts(store, r, view, ref, k) }
 	return u, true
 }

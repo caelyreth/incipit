@@ -395,6 +395,8 @@ func (e *evaluator) eval(level int, rel vocab.Relation) bool {
 		return e.charClass(pos, rel.Kind == vocab.RelPrevChar)&rel.Class != 0
 	case vocab.RelSlotStart, vocab.RelSlotEnd, vocab.RelSlotEmpty:
 		return e.slotAtom(l, pos, rel.Kind)
+	case vocab.RelOwnText:
+		return pos.Ref() == l.Slot && l.Node != nil && l.Node.ID() == l.Slot.Node && isInlineSlot(c.r, l.Slot)
 	case vocab.RelBefore, vocab.RelAfter:
 		return e.adjacent(caret, rel.Target, rel.Kind == vocab.RelBefore)
 	case vocab.RelEquals:
@@ -447,6 +449,11 @@ func (e *evaluator) charClass(pos doc.Pos, before bool) vocab.CharClass {
 		return vocab.ClassLineEnd
 	}
 	return vocab.ClassOf(r)
+}
+
+func isInlineSlot(r doc.Reader, ref doc.SlotRef) bool {
+	n, ok := r.Node(ref.Node)
+	return ok && ref.Slot < n.NumSlots() && n.Slot(ref.Slot).IsInline()
 }
 
 // slotAtom evaluates SlotStart, SlotEnd and SlotEmpty for a level's slot.
@@ -733,7 +740,9 @@ func (p *Program) Dispatch(c *Ctx) (Outcome, error) {
 						}
 					}
 					intent = next
-					c = &Ctx{prog: c.prog, store: c.store, r: c.r, view: c.view, input: vocab.Input{Intent: next, At: c.input.At, Class: c.input.Class}, stack: stack}
+					nc := *c
+					nc.input = vocab.Input{Intent: next, At: c.input.At, Class: c.input.Class}
+					c = &nc
 					ev.c = c
 					goto again
 				}

@@ -5,6 +5,7 @@ package manifest
 import (
 	"github.com/caelyreth/neverland/editor/policies/core"
 	"github.com/caelyreth/neverland/editor/policies/history"
+	"github.com/caelyreth/neverland/editor/policies/lists"
 	"github.com/caelyreth/neverland/editor/policies/markdown"
 	"github.com/caelyreth/neverland/editor/policies/navigation"
 	"github.com/caelyreth/neverland/editor/policies/notation"
@@ -15,11 +16,11 @@ import (
 // Manifest lists the product's policies.
 //
 // TODO(policies): wave one adds pairs, typography, cjk, scopes,
-// deletion, lists, words, feedback, guides and statistics, with their
+// deletion, words, feedback, guides and statistics, with their
 // precedence (pairs over notation for Pair; markdown over pairs for a
 // typed '*'); wave two tables and figures.
 var Manifest = policy.Manifest{
-	Enabled: []*policy.Policy{core.Policy, notation.Policy, markdown.Policy, navigation.Policy, history.Policy},
+	Enabled: []*policy.Policy{core.Policy, notation.Policy, markdown.Policy, lists.Policy, navigation.Policy, history.Policy},
 }
 
 // PresentOptions are a view's presentation inputs as settings values

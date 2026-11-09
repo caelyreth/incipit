@@ -70,3 +70,60 @@ func ParseOrdered(s string) (int, bool) {
 	n, err := strconv.Atoi(s[:len(s)-1])
 	return n, err == nil && n >= 0
 }
+
+// Marker is what a block's structure spells before its text: a heading's
+// level, or an item's list style, number and task. Notation reveals it as
+// a ghost; the presentation draws it as the item's marker otherwise.
+type Marker struct {
+	Kind    doc.Kind
+	Level   int
+	Style   ListStyle
+	Ordinal int
+	Task    Task
+}
+
+// MarkerOf is the marker of block n, where its structure spells one.
+func MarkerOf(r doc.Reader, n *doc.Node) (Marker, bool) {
+	switch n.Kind() {
+	case Heading:
+		return Marker{Kind: Heading, Level: HeadingLevel(n)}, true
+	case Item:
+		m := Marker{Kind: Item, Task: TaskOf(n)}
+		list, slot, index, ok := Index(r, n.ID())
+		if !ok {
+			return Marker{}, false
+		}
+		ln, _ := r.Node(list)
+		if ln.Slot(slot).IsInline() {
+			return Marker{}, false
+		}
+		m.Style, m.Ordinal = ListStyleOf(ln), ListStart(ln)+index
+		return m, true
+	}
+	return Marker{}, false
+}
+
+// Spelling is the marker as notation spells it, with the separator after
+// it: "## ", "- ", "3. ", "- [ ] ".
+func (m Marker) Spelling() Spelling {
+	if m.Kind == Heading {
+		return HeadingSpelling(m.Level) + " "
+	}
+	s := BulletSpellings[0]
+	if m.Style == Ordered {
+		s = OrderedSpelling(m.Ordinal)
+	}
+	switch m.Task {
+	case TaskOpen:
+		s += " " + TaskOpenSpelling
+	case TaskDone:
+		s += " " + TaskDoneSpelling
+	}
+	return s + " "
+}
+
+// Glyphs is how many caret stops the marker holds: one after each of its
+// glyphs, its final separator being a gap.
+func (m Marker) Glyphs() int {
+	return GraphemeCount(strings.TrimSuffix(string(m.Spelling()), " "))
+}

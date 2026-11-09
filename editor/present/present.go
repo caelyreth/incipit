@@ -56,12 +56,11 @@ type Context struct {
 	Indent int
 }
 
-// Marker is a list item's marker.
+// Marker is a list item's marker, as its structure spells it (§10), and
+// the item.
 type Marker struct {
-	Style   vocab.ListStyle
-	Ordinal int
-	Task    vocab.Task
-	Item    doc.ID
+	vocab.Marker
+	Item doc.ID
 }
 
 // ItemKind is a flow item's kind.
@@ -152,6 +151,9 @@ type Presentation struct {
 	// Gap is set for an object unit: the block slot and index it stands
 	// at, for gap stops before and after it.
 	Gap *doc.Pos
+	// Spelled reports that notation spells the unit's marker in its flow,
+	// so the container's marker is not drawn beside it.
+	Spelled bool
 
 	Role, Label string
 
@@ -242,10 +244,10 @@ func (pr *Presenter) Units(r doc.Reader) []UnitRef {
 					inner.Depth++
 					inner.Indent++
 					inner.Marker = nil
-					start := vocab.ListStart(c)
-					for j, item := range c.Slot(0).Children() {
+					for _, item := range c.Slot(0).Children() {
 						ic := inner
-						ic.Marker = &Marker{Style: vocab.ListStyleOf(c), Ordinal: start + j, Task: vocab.TaskOf(item), Item: item.ID()}
+						mk, _ := vocab.MarkerOf(r, item)
+						ic.Marker = &Marker{Marker: mk, Item: item.ID()}
 						out = append(out, UnitRef{ID: item.ID(), Node: item, Context: ic})
 						body := inner
 						walk(item, body)
@@ -570,6 +572,9 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 				Groups: []vocab.Group{base, g.Group}, Layout: opts.Ghosts, StopFrom: g.StopFrom, StopTo: g.StopFrom + g.Stops})
 			ghostStop := func(s int) Stop {
 				return Stop{Caret: doc.Caret{Pos: doc.At(ref, g.At), Stop: s}, Surface: index, Class: StopGhost, Offset: g.At}
+			}
+			if g.Block && !card {
+				p.Spelled = true
 			}
 			if g.StopFrom < 0 {
 				// Below the position's own stop, the stop before the ghost
