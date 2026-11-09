@@ -29,12 +29,32 @@ func TestQuotesPairButCloseAfterAWord(t *testing.T) {
 	p.want(`page(paragraph(say "hi" ok))`)
 }
 
-func TestBackspaceInAnEmptyPairDeletesBoth(t *testing.T) {
+// Deleting into a pair from either side selects it whole; the next press
+// deletes it, both sides at once.
+func TestDeletingIntoAPairSelectsItFirst(t *testing.T) {
 	p := open(t)
 	p.typeText("a [")
+	p.do(backspace)
 	p.want("page(paragraph(a []))")
 	p.do(backspace)
 	p.want("page(paragraph(a ))")
+
+	p = open(t)
+	p.typeText("a (bc")
+	p.do(right)
+	p.do(backspace)
+	p.want("page(paragraph(a (bc)))")
+	p.do(backspace)
+	p.want("page(paragraph(a ))")
+
+	p = open(t)
+	p.typeText("(bc")
+	p.do(left)
+	p.do(left)
+	p.do(backspace)
+	p.want("page(paragraph((bc)))")
+	p.typeText("x")
+	p.want("page(paragraph(x))")
 }
 
 func TestTypingAnOpenerWrapsTheSelection(t *testing.T) {

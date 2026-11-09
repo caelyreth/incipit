@@ -25,8 +25,9 @@ var Manifest = policy.Manifest{
 	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, lists.Policy,
 		navigation.Policy, history.Policy, guides.Policy},
 	Resolve: []policy.Order{
-		// Pair behaviour refines ghost notation where both are pairs.
-		policy.Over(pairs.Policy, notation.Policy, vocab.RoleScope(vocab.RolePair)),
+		// Where a mark's sign and a pair's closer meet at the caret, the
+		// sign stands nearer it: Backspace steps the mark first.
+		policy.Over(notation.Policy, pairs.Policy, vocab.Slot),
 	},
 }
 

@@ -1,7 +1,7 @@
 // Package pairs is the pairs policy: brackets and quotes typed in text
-// close themselves, a closer it typed ahead is stepped over, an empty
-// pair deletes as one, and every balanced pair is a scope Leave exits and
-// Return re-enters.
+// close themselves, a closer it typed ahead is stepped over, deleting into
+// a pair selects it whole first, and every balanced pair is a scope Leave
+// exits and Return re-enters.
 package pairs
 
 import (
@@ -86,8 +86,14 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		}
 	}
 	if mates {
-		p.Handle("delete-mates").On(vocab.Deleting(vocab.ByGrapheme, vocab.Backward)).In(span.Scope()).
-			When(vocab.Collapsed, vocab.AtInnerStart, vocab.AtInnerEnd).Produces(inserts...).Do(deleteMates)
+		// Deleting into a pair from either side selects it whole, both
+		// sides and what they hold; the next press deletes the selection,
+		// so a pair never loses one side alone.
+		back, fwd := vocab.Deleting(vocab.ByGrapheme, vocab.Backward), vocab.Deleting(vocab.ByGrapheme, vocab.Forward)
+		p.Handle("select-from-inside").On(back).In(span.Scope()).When(vocab.Collapsed, vocab.AtInnerStart).Do(selectPair)
+		p.Handle("select-from-inside-end").On(fwd).In(span.Scope()).When(vocab.Collapsed, vocab.AtInnerEnd).Do(selectPair)
+		p.Handle("select-after").On(back).In(vocab.Slot).When(vocab.Collapsed, vocab.After(span.Scope())).Do(selectAdjacent(span, false))
+		p.Handle("select-before").On(fwd).In(vocab.Slot).When(vocab.Collapsed, vocab.Before(span.Scope())).Do(selectAdjacent(span, true))
 	}
 })
 
@@ -276,9 +282,32 @@ func overtype(c *policy.Ctx, m policy.Match) policy.Result {
 	return res
 }
 
-// deleteMates deletes an empty pair, both sides.
-func deleteMates(c *policy.Ctx, m policy.Match) policy.Result {
+// selectPair selects the pair the caret is in, whole.
+func selectPair(_ *policy.Ctx, m policy.Match) policy.Result {
 	f, _ := m.Fact()
-	ref := m.Level.Slot
-	return policy.Do(vocab.DeleteRange(doc.At(ref, f.From), doc.At(ref, f.To)))
+	return selectSpan(m.Level.Slot, f)
+}
+
+// selectAdjacent selects the pair right after the caret (ahead) or right
+// before it.
+func selectAdjacent(span *policy.FactKind[pair], ahead bool) policy.Handler {
+	return func(c *policy.Ctx, _ policy.Match) policy.Result {
+		head := c.Head().Pos
+		var found *policy.Fact
+		for _, f := range c.Facts(head.Ref(), span.Kind()) {
+			if ahead && f.From == head.Offset || !ahead && f.To == head.Offset {
+				// The outermost pair edged there: the last one found.
+				f := f
+				found = &f
+			}
+		}
+		if found == nil {
+			return policy.Swallow
+		}
+		return selectSpan(head.Ref(), *found)
+	}
+}
+
+func selectSpan(ref doc.SlotRef, f policy.Fact) policy.Result {
+	return policy.Select(doc.TextRange(doc.CaretAt(doc.At(ref, f.From)), doc.CaretAt(doc.At(ref, f.To))))
 }
