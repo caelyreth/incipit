@@ -30,7 +30,7 @@ native/window        the app: windows, menus, routing, notebook
 
 ## Development
 
-The repository uses Go 1.27.3 and MyGo v0.7.4.
+The repository uses Go 1.27.3 and MyGo v0.8.3.
 
 ```sh
 direnv allow
@@ -41,7 +41,7 @@ go tool mygo build    # app bundle and installer under dist/<os>-<arch>
 ```
 
 The MyGo CLI is pinned as a Go tool in `go.mod`, so `go tool mygo` runs the
-same v0.7.4 release as the framework. `mygo.json` holds the app configuration.
+same v0.8.3 release as the framework. `mygo.json` holds the app configuration.
 
 The reference prose font and the math font are fetched into ignored local
 paths and verified against pinned SHA-256 checksums. `go generate ./native/theme` performs the
