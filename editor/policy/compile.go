@@ -46,17 +46,17 @@ type Manifest struct {
 
 // OptionInfo is an option in the catalog.
 type OptionInfo struct {
-	Key         string
-	Kind        OptionKind
-	Default     any
-	Choices     []any
+	Key     string
+	Kind    OptionKind
+	Default any
+	Choices []any
 	// ChoiceLabels are the choices' label keys, in Choices' order.
 	ChoiceLabels []string
 	Min, Max     int
-	Label       string
-	Description string
-	Group       string
-	Requires    []Requirement
+	Label        string
+	Description  string
+	Group        string
+	Requires     []Requirement
 }
 
 // PolicyInfo is a policy in the catalog.

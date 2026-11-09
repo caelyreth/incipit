@@ -1,6 +1,9 @@
 package settings
 
-import "github.com/caelyreth/neverland/app/keymap"
+import (
+	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/editor/policy"
+)
 
 // Category is one top-level settings page.
 type Category uint8
@@ -69,8 +72,11 @@ type Shortcut struct {
 
 // Data is the complete declarative snapshot consumed by any settings view.
 type Data struct {
-	Shortcuts        []Shortcut
-	Policies         []Policy
+	Shortcuts []Shortcut
+	Policies  []Policy
+	// PolicyValues are the person's policy values, which the showcases
+	// play under.
+	PolicyValues     policy.Values
 	Appearance       []ToggleSetting
 	AppearanceValues AppearanceSettings
 }

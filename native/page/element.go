@@ -46,6 +46,9 @@ type Element struct {
 	typewriter bool
 	viewH      float32
 
+	// still is a page drawn by PaintStill.
+	still bool
+
 	// caret glides between the places the caret is drawn at, in page
 	// coordinates. It, the scroll's glide and the caret's breathing move
 	// in paint, on frames that paint again without building the view.
@@ -81,9 +84,46 @@ func (el *Element) relayout() *pageLayout {
 		w = el.Prose.Column() + 2*el.Prose.FontSize
 	}
 	m := el.metrics(w)
+	if el.still {
+		m.Width = w
+	}
 	ed.SetStyle(el.Theme.Surface, Theme(el.Theme), m)
 	el.column = max((w-m.Width)/2, 0)
 	return ed.Relayout()
+}
+
+// Still lays the page out at width as a showcase stage draws a story,
+// without taking input: the text at the whole width from its top. It
+// returns the text's extent: its widest line and its height.
+func (el *Element) Still(width float32) (float32, float32) {
+	el.still = true
+	el.viewport.W = width
+	el.Top, el.Bottom = 0, 0
+	el.relayout()
+	return el.textSize()
+}
+
+// PaintStill draws the page Still laid out into r, the caret shown and
+// moving as on a page being written.
+func (el *Element) PaintStill(p *ui.Painter, r ui.Rect) {
+	el.viewport = r
+	el.paint(p, r, true)
+}
+
+func (el *Element) textSize() (float32, float32) {
+	pl := el.Editor.layout
+	if pl == nil {
+		return 0, 0
+	}
+	var w float32
+	for _, u := range pl.units {
+		for _, s := range u.surfaces {
+			for _, line := range s.layout.Lines() {
+				w = max(w, u.x+s.x+line.Rect.X+line.Rect.W)
+			}
+		}
+	}
+	return w, pl.height
 }
 
 // View builds the element.

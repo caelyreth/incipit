@@ -26,6 +26,7 @@ func TestEditorPageTurnsAPolicyOff(t *testing.T) {
 	}
 	tester := ui.NewTester(state.View, 980, 1400)
 	tester.Frame()
+	tester.Advance(2600 * time.Millisecond)
 	for _, text := range []string{"Markdown", "Notation", "Asterisks for emphasis", "Mark notation"} {
 		if !tester.HasText(text) {
 			t.Fatalf("no %q in %#v", text, tester.Texts())

@@ -2,6 +2,7 @@ package settings
 
 import (
 	"errors"
+	"maps"
 
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -131,6 +132,7 @@ func (s State) Data() Data {
 		}
 	}
 	data.Policies = s.policies(data.Shortcuts)
+	data.PolicyValues = maps.Clone(s.Policy)
 	return data
 }
 

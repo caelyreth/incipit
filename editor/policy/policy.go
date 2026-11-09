@@ -164,8 +164,8 @@ type optionInfo struct {
 	// ChoiceLabels are the choices' label keys.
 	ChoiceLabels []string
 	Min          int
-	Max     int
-	meta    optionMeta
+	Max          int
+	meta         optionMeta
 }
 
 func (p *P) note(info optionInfo) {

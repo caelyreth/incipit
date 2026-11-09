@@ -5,8 +5,10 @@ import (
 	"strings"
 
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	appshowcase "github.com/caelyreth/neverland/app/showcase"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/showcase"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -124,9 +126,33 @@ func (s *State) policyHeader(c *ui.Context, semantic theme.Theme, card appsettin
 		})
 }
 
-// policyShowcase opens the card with the policy's story on a small page.
-// TODO(showcase): the engine typing the story under the person's options.
-func (s *State) policyShowcase(c *ui.Context, semantic theme.Theme, card appsettings.Policy) {}
+// policyShowcase opens the card with the policy's story on a small page:
+// the engine typing under the person's own options, centered as it grows.
+// A policy that is off still shows its story, dimmed, as what turning it
+// on would do.
+func (s *State) policyShowcase(c *ui.Context, semantic theme.Theme, card appsettings.Policy) {
+	script, ok := appshowcase.For(card.ID)
+	if !ok {
+		return
+	}
+	scale := s.Theme.UIFontSize
+	inset := theme.Space16.DIPs(scale)
+	ui.Row(c).WidthPercent(100).Padding(0, inset, inset, inset).Children(func() {
+		showcase.Stage{
+			Key:     "showcase-" + card.ID,
+			Script:  script,
+			Policy:  card.ID,
+			Values:  s.Data.PolicyValues,
+			Theme:   semantic,
+			Prose:   theme.NewProseStyle(s.Theme.ProseFontSize * 0.9).WithSpacing(s.Theme.LineSpacing),
+			Height:  132 * scale / theme.DefaultUIFontSize,
+			Padding: theme.Space24.DIPs(scale),
+			Radius:  10 * scale / theme.DefaultUIFontSize,
+			Off:     !card.Enabled,
+			Animate: s.motion(c),
+		}.View(c)
+	})
+}
 
 // policyOptions nests the tweaks under the header, then the actions the
 // policy answers to, each the Keymap's own row, so a shortcut recorded here
