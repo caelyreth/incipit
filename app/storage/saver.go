@@ -2,11 +2,14 @@ package storage
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/caelyreth/neverland/app/library"
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/store"
 )
 
 const (
@@ -29,6 +32,10 @@ type Saver struct {
 
 	mu      sync.Mutex
 	pending map[PageKey]string
+	// content is each page's newest snapshot to save; saved is the last
+	// one on disk, which the next save diffs against.
+	content map[PageKey]*doc.Snapshot
+	saved   map[PageKey]*doc.Snapshot
 	deleted map[PageKey]bool
 	library *library.Records
 	layout  *Layout
@@ -56,6 +63,8 @@ func (s *Store) Autosave() *Saver {
 	saver := &Saver{
 		store:      s,
 		pending:    map[PageKey]string{},
+		content:    map[PageKey]*doc.Snapshot{},
+		saved:      map[PageKey]*doc.Snapshot{},
 		deleted:    map[PageKey]bool{},
 		wake:       make(chan struct{}, 1),
 		done:       make(chan struct{}),
@@ -75,11 +84,30 @@ func (v *Saver) Page(key PageKey, title string) {
 	v.mu.Unlock()
 }
 
+// Content asks for a page's content to be saved with its title. The
+// snapshot is immutable; encoding it runs on the saver's goroutine.
+func (v *Saver) Content(key PageKey, title string, snap *doc.Snapshot) {
+	v.mu.Lock()
+	v.pending[key] = title
+	v.content[key] = snap
+	v.touch()
+	v.mu.Unlock()
+}
+
+// Loaded tells the saver what is on disk for a page, so its next save is a
+// diff against it.
+func (v *Saver) Loaded(key PageKey, snap *doc.Snapshot) {
+	v.mu.Lock()
+	v.saved[key] = snap
+	v.mu.Unlock()
+}
+
 // Delete asks for a page to be removed from disk for good. A change of it
 // still pending goes with it.
 func (v *Saver) Delete(key PageKey) {
 	v.mu.Lock()
 	delete(v.pending, key)
+	delete(v.content, key)
 	v.deleted[key] = true
 	v.touch()
 	v.mu.Unlock()
@@ -237,7 +265,10 @@ func (v *Saver) run() {
 func (v *Saver) writePending() error {
 	v.mu.Lock()
 	pending, deleted, records, layout := v.pending, v.deleted, v.library, v.layout
+	content := v.content
+	saved := maps.Clone(v.saved)
 	v.pending, v.deleted, v.library, v.layout = map[PageKey]string{}, map[PageKey]bool{}, nil, nil
+	v.content = map[PageKey]*doc.Snapshot{}
 	v.first = time.Time{}
 	v.mu.Unlock()
 	if len(pending) == 0 && len(deleted) == 0 && records == nil && layout == nil {
@@ -245,7 +276,11 @@ func (v *Saver) writePending() error {
 	}
 	work := change{library: records, layout: layout}
 	for key, title := range pending {
-		work.pages = append(work.pages, pageWrite{key: key, title: title})
+		w := pageWrite{key: key, title: title}
+		if snap, ok := content[key]; ok {
+			w.content = &contentWrite{root: snap.Root().ID(), seed: snap.Seed(), diff: store.Changes(saved[key], snap)}
+		}
+		work.pages = append(work.pages, w)
 	}
 	for key := range deleted {
 		work.deleted = append(work.deleted, key)
@@ -257,6 +292,11 @@ func (v *Saver) writePending() error {
 		for key, title := range pending {
 			if _, newer := v.pending[key]; !newer && !v.deleted[key] {
 				v.pending[key] = title
+			}
+			if _, newer := v.content[key]; !newer && !v.deleted[key] {
+				if snap, ok := content[key]; ok {
+					v.content[key] = snap
+				}
 			}
 		}
 		for key := range deleted {
@@ -274,6 +314,12 @@ func (v *Saver) writePending() error {
 		v.last = v.now()
 		v.err = err
 		return err
+	}
+	for key, snap := range content {
+		v.saved[key] = snap
+	}
+	for key := range deleted {
+		delete(v.saved, key)
 	}
 	v.err = nil
 	v.wrote = true

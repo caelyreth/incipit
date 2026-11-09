@@ -174,10 +174,12 @@ func millisecondsOf(at time.Time) sql.NullInt64 {
 	return sql.NullInt64{Int64: at.UnixMilli(), Valid: true}
 }
 
-// pageWrite is one page's record as it is now.
+// pageWrite is one page's record as it is now, and, when its content
+// changed, the rows to write.
 type pageWrite struct {
-	key   PageKey
-	title string
+	key     PageKey
+	title   string
+	content *contentWrite
 }
 
 // change is one transaction's worth of writes: page changes, pages
@@ -207,8 +209,18 @@ func (s *Store) write(ctx context.Context, change change, now time.Time) error {
 			return err
 		}
 	}
+	for _, page := range pages {
+		if page.content != nil {
+			if err := writeContent(ctx, tx, page.key, page.content); err != nil {
+				return err
+			}
+		}
+	}
 	for _, key := range change.deleted {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM pages WHERE id = ?`, key); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM nodes WHERE page = ?`, key); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM sheets WHERE page = ?`, key); err != nil {

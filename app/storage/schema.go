@@ -56,6 +56,38 @@ var migrations = []string{
 		added  INTEGER NOT NULL
 	) STRICT, WITHOUT ROWID;
 	`,
+	// Page content as node rows (editor/store): one row per node held in
+	// a block slot, plus the root; text stored once and indexed.
+	`
+	ALTER TABLE pages ADD COLUMN format INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE pages ADD COLUMN root   INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE pages ADD COLUMN seed   INTEGER NOT NULL DEFAULT 0;
+	CREATE TABLE nodes (
+		page   INTEGER NOT NULL,
+		id     INTEGER NOT NULL,
+		parent INTEGER NOT NULL,
+		slot   INTEGER NOT NULL,
+		ord    TEXT    NOT NULL,
+		kind   INTEGER NOT NULL,
+		attrs  BLOB    NOT NULL,
+		text   TEXT    NOT NULL,
+		runs   BLOB    NOT NULL,
+		rev    INTEGER NOT NULL DEFAULT 1,
+		PRIMARY KEY (page, id)
+	) STRICT;
+	CREATE INDEX nodes_children ON nodes (page, parent, slot, ord);
+	CREATE VIRTUAL TABLE nodes_fts USING fts5 (text, content = 'nodes', content_rowid = 'rowid');
+	CREATE TRIGGER nodes_ai AFTER INSERT ON nodes BEGIN
+		INSERT INTO nodes_fts (rowid, text) VALUES (new.rowid, new.text);
+	END;
+	CREATE TRIGGER nodes_ad AFTER DELETE ON nodes BEGIN
+		INSERT INTO nodes_fts (nodes_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+	END;
+	CREATE TRIGGER nodes_au AFTER UPDATE OF text ON nodes BEGIN
+		INSERT INTO nodes_fts (nodes_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+		INSERT INTO nodes_fts (rowid, text) VALUES (new.rowid, new.text);
+	END;
+	`,
 }
 
 // migrate brings the notebook to the current schema, claiming a new file

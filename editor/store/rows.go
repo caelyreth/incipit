@@ -25,8 +25,10 @@ func Encode(n *doc.Node, parent doc.ID, slot int) Row {
 	w := &writer{}
 	var text []byte
 	encodeSlots(w, &text, n)
+	// Empty encodings are empty, never nil, so they store as blobs.
+	attrs := append([]byte{}, EncodeAttrs(n.Attrs())...)
 	return Row{ID: n.ID(), Parent: parent, Slot: slot, Ord: n.Ord(), Kind: n.Kind(),
-		Attrs: EncodeAttrs(n.Attrs()), Text: string(text), Runs: w.b}
+		Attrs: attrs, Text: string(text), Runs: append([]byte{}, w.b...)}
 }
 
 // Rows encodes every stored node of a snapshot, the root first.
