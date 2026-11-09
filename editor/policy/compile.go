@@ -514,6 +514,13 @@ func (p *Program) qualifies(q any, a, b *rule) bool {
 // precedes orders candidates: the manifest's order first, then more
 // specific patterns, then manifest position, then declaration order.
 func (p *Program) precedes(a, b *rule) int {
+	if ac, bc := a.policy == CoreID, b.policy == CoreID; ac != bc {
+		// Core is below everything.
+		if ac {
+			return 1
+		}
+		return -1
+	}
 	switch {
 	case p.ordered(a, b):
 		return -1
@@ -676,7 +683,7 @@ func (p *Program) check(rep *Report) {
 	for _, rs := range p.table {
 		for i, a := range rs {
 			for _, b := range rs[i+1:] {
-				if a.in == b.in && covers(a.on, b.on) && a.required.subset(b.required) && a.forbidden.subset(b.forbidden) && a.typ == ruleHandle {
+				if (a.policy == CoreID) == (b.policy == CoreID) && a.in == b.in && covers(a.on, b.on) && a.required.subset(b.required) && a.forbidden.subset(b.forbidden) && a.typ == ruleHandle {
 					rep.Shadowed = append(rep.Shadowed, fmt.Sprintf("%s by %s", b.id(), a.id()))
 				}
 			}
