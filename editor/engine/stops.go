@@ -27,7 +27,13 @@ func (e *Engine) stopsFor(viewID uint64) policy.StopsFunc {
 	opts := e.presentOptions(viewID)
 	prog, store := e.prog, e.store
 	return func(r doc.Reader, view *policy.View) policy.Stops {
-		return &stopModel{pr: pr, prog: prog, store: store, r: r, view: view, opts: opts}
+		p := pr
+		if _, ok := r.(*doc.Snapshot); !ok {
+			// A transaction changes its nodes in place, so the view's
+			// presentations, memoised by node pointer, must not see it.
+			p = present.NewPresenter()
+		}
+		return &stopModel{pr: p, prog: prog, store: store, r: r, view: view, opts: opts}
 	}
 }
 
@@ -176,14 +182,18 @@ func (m *stopModel) Edge(dir vocab.Direction) (doc.Caret, bool) {
 	return doc.Caret{}, false
 }
 
+// Normalize is total: a caret that is a stop stays; one at a position
+// whose stop it is not takes the position's last stop below it; any other
+// takes the last stop before it in its unit, or the nearest stop of the
+// page when no unit holds it, such as a gap between two text blocks.
 func (m *stopModel) Normalize(c doc.Caret) doc.Caret {
 	i, ok := m.pr.UnitAt(m.r, c.Pos)
 	if !ok {
-		return c
+		return m.nearest(c)
 	}
 	p := m.unit(i)
-	if p == nil {
-		return c
+	if p == nil || len(p.Stops) == 0 {
+		return m.nearest(c)
 	}
 	best := -1
 	for k, s := range p.Stops {
@@ -198,8 +208,34 @@ func (m *stopModel) Normalize(c doc.Caret) doc.Caret {
 	if best >= 0 {
 		return p.Stops[best].Caret
 	}
-	if c.Stop != 0 {
-		return doc.CaretAt(c.Pos)
+	if j, _ := locate(m.r, p.Stops, doc.CaretAt(c.Pos)); j >= 0 {
+		return p.Stops[j].Caret
+	}
+	return p.Stops[0].Caret
+}
+
+// nearest is the first flow stop at or after c in page order, or the
+// page's last stop when none is.
+func (m *stopModel) nearest(c doc.Caret) doc.Caret {
+	units := m.pr.Units(m.r)
+	var last *doc.Caret
+	for i := range units {
+		fs := flowStops(m.unit(i))
+		if len(fs) == 0 {
+			continue
+		}
+		if doc.Compare(m.r, fs[len(fs)-1].Caret, c) >= 0 {
+			for _, s := range fs {
+				if doc.Compare(m.r, s.Caret, c) >= 0 {
+					return s.Caret
+				}
+			}
+		}
+		end := fs[len(fs)-1].Caret
+		last = &end
+	}
+	if last != nil {
+		return *last
 	}
 	return c
 }

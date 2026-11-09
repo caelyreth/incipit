@@ -52,7 +52,7 @@ func (l *Level) Role(r doc.Reader, role vocab.Role) (any, bool) {
 		if !l.Provides(role) {
 			return nil, false
 		}
-		return l.Fact.Data, l.Fact.Data != nil
+		return Placed(l.Slot, *l.Fact), l.Fact.Data != nil
 	}
 	return nil, false
 }
@@ -107,6 +107,9 @@ type stackKey struct {
 	gap     int
 	ann     AnnotationID
 	nann    int
+	// stop places the caret among ghost points, which are levels while
+	// the caret is inside them.
+	stop int
 }
 
 // stackAt builds the scope stack, memoised per caret segment, so motion
@@ -120,7 +123,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 		pos = doc.Pos{Node: owner.ID()}
 		ref = pos.Ref()
 	}
-	key := stackKey{root: r.Root(), slot: ref, gap: -1}
+	key := stackKey{root: r.Root(), slot: ref, gap: -1, stop: caret.Stop}
 	if view != nil {
 		key.ann, key.nann = view.Annotations.next, view.Annotations.Len()
 	}
@@ -166,7 +169,8 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 	s.Levels = append(s.Levels, slotLevel)
 	for i := range facts {
 		f := facts[i]
-		if !f.Inside(pos.Offset) {
+		inGhost := f.Point && f.From == pos.Offset && f.StopFrom < caret.Stop && caret.Stop < f.StopTo
+		if !f.Inside(pos.Offset) && !inGhost {
 			continue
 		}
 		s.Levels = append(s.Levels, &Level{

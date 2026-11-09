@@ -82,3 +82,12 @@ func PrevGrapheme(s string, off int) int {
 	}
 	return prev
 }
+
+// GraphemeCount is the number of graphemes in s.
+func GraphemeCount(s string) int {
+	n := 0
+	for off := 0; off < len(s); off = NextGrapheme(s, off) {
+		n++
+	}
+	return n
+}

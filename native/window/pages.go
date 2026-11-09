@@ -70,6 +70,8 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 	}
 	a.nextView++
 	ed := page.NewEditor(engine.New(snap, a.program, engine.Options{}), a.nextView)
+	// TODO(settings): the user's notation values, as the program's.
+	ed.Engine.SetPresentOptions(ed.View, manifest.PresentOptions(nil))
 	el := page.NewElement(ed)
 	el.Label = "Page"
 	return el, nil

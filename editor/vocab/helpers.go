@@ -103,6 +103,24 @@ func ApplyMark(spans []Span, m doc.Mark) Edit {
 	}
 }
 
+// InheritedMarks are the marks text typed at off takes where no ghost
+// notation or pending marks decide: those of the text before it. Code
+// marks are not extended past their end, so typing after inline code
+// leaves it.
+func InheritedMarks(in *doc.Inline, off int) *doc.MarkSet {
+	ms := in.MarksAt(off)
+	if ms == nil {
+		return nil
+	}
+	if ms.Has(CodeMark) && off > 0 {
+		after := in.MarksAt(min(off+1, in.Len()))
+		if off == in.Len() || after == nil || !after.Has(CodeMark) {
+			ms = ms.Without(CodeMark)
+		}
+	}
+	return ms
+}
+
 // Excludes reports whether marks a and b may not share a set: either one
 // excludes the other.
 func Excludes(a, b doc.MarkKind) bool {

@@ -103,7 +103,9 @@ func (k *FactKind[T]) Delimited(from, innerFrom, innerTo, to int, data T) Fact {
 	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: innerFrom, InnerTo: innerTo, Data: data}
 }
 
-// Point is a fact at an offset, holding stops [stopFrom, stopTo).
+// Point is a fact at an offset whose ghost notation stands between stop
+// stopFrom, just before it, and stop stopTo, just after it; the stops
+// between are inside it.
 func (k *FactKind[T]) Point(at, stopFrom, stopTo int, data T) Fact {
 	return Fact{Kind: k.kind, From: at, To: at, InnerFrom: at, InnerTo: at, StopFrom: stopFrom, StopTo: stopTo, Point: true, Data: data}
 }
@@ -116,6 +118,23 @@ func (k *FactKind[T]) Data(f Fact) (T, bool) {
 	}
 	v, ok := f.Data.(T)
 	return v, ok
+}
+
+// Placer is fact data whose role implementations depend on where the fact
+// stands. Facts are cached by content, at unit-relative offsets and with
+// no slot, so the scope stack and handlers place the data before using
+// it: Placed returns the data bound to the fact's slot and offsets.
+type Placer interface {
+	Placed(slot doc.SlotRef, f Fact) any
+}
+
+// Placed returns f's data bound to its slot, for data that implements
+// Placer, or the data as it is.
+func Placed(slot doc.SlotRef, f Fact) any {
+	if p, ok := f.Data.(Placer); ok {
+		return p.Placed(slot, f)
+	}
+	return f.Data
 }
 
 func roleInterface(r vocab.Role) reflect.Type {

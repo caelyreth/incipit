@@ -21,6 +21,8 @@ type Ctx struct {
 
 	stopsFn StopsFunc
 	stops   Stops
+	// seq is the sequence number of the transaction being processed.
+	seq uint64
 }
 
 // NewCtx returns a context over a document and view state.
@@ -31,8 +33,19 @@ func NewCtx(prog *Program, store *Store, r doc.Reader, view *View, input vocab.I
 // Over returns a context reading r instead, as a rewrite reads the
 // transaction so far.
 func (c *Ctx) Over(r doc.Reader, view *View) *Ctx {
-	return &Ctx{prog: c.prog, store: c.store, r: r, view: view, input: c.input, stopsFn: c.stopsFn}
+	return &Ctx{prog: c.prog, store: c.store, r: r, view: view, input: c.input, stopsFn: c.stopsFn, seq: c.seq}
 }
+
+// InTx returns a context processing transaction seq.
+func (c *Ctx) InTx(seq uint64) *Ctx {
+	out := *c
+	out.seq = seq
+	return &out
+}
+
+// Seq is the sequence number of the transaction being processed, which
+// annotations it creates carry as their origin; 0 outside the engine.
+func (c *Ctx) Seq() uint64 { return c.seq }
 
 // Doc is the document.
 func (c *Ctx) Doc() doc.Reader { return c.r }

@@ -250,7 +250,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 		in.Intent = cmd.Intent
 	}
 
-	ctx := policy.NewCtx(prog, e.store, e.snap, &view, in).WithStops(e.stopsFor(viewID))
+	ctx := policy.NewCtx(prog, e.store, e.snap, &view, in).WithStops(e.stopsFor(viewID)).InTx(seq)
 	out, err := prog.Dispatch(ctx)
 	if err != nil {
 		return processed{}, fmt.Errorf("engine: %w\n%s", err, out.Trace)
@@ -374,7 +374,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	records := slices.Clone(tx.Journal().Records)
 
 	// Observers.
-	octx := policy.NewCtx(prog, e.store, next, &view, in).WithStops(e.stopsFor(viewID))
+	octx := policy.NewCtx(prog, e.store, next, &view, in).WithStops(e.stopsFor(viewID)).InTx(seq)
 	for _, o := range prog.Observers() {
 		matched := slices.ContainsFunc(records, o.Trigger().Matches)
 		if !matched {
@@ -520,6 +520,16 @@ func headPos(r doc.Reader, s doc.Selection) doc.Pos {
 // normalises each end to the nearest valid stop of the stop model (§4.4).
 func (e *Engine) settleSelection(viewID uint64, r doc.Reader, v *policy.View) doc.Selection {
 	s := clampSelection(r, v.Selection)
+	if s.Kind == doc.SelectNode {
+		// Only an object is selected whole; a text block selected as a
+		// node holds the caret at its start instead.
+		n, _ := r.Node(s.Node)
+		ref, ok := vocab.FirstTextSlot(n)
+		if vocab.IsObject(n.Kind()) || !ok {
+			return s
+		}
+		s = doc.Collapsed(doc.CaretAt(doc.At(ref, 0)))
+	}
 	if s.Kind != doc.SelectText {
 		return s
 	}

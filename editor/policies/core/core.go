@@ -216,32 +216,13 @@ func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool) voca
 		n, _ := tx.Node(pos.Node)
 		content := n.Slot(pos.Slot).Content()
 		if !explicit && !spec.Literal {
-			marks = inheritedMarks(content, pos.Offset)
+			marks = vocab.InheritedMarks(content, pos.Offset)
 		}
 		if spec.Literal {
 			marks = nil
 		}
 		return tx.Apply(doc.EditText{At: pos.Ref(), From: pos.Offset, To: pos.Offset, Items: []doc.Item{doc.TextItem(text, marks)}})
 	}
-}
-
-// inheritedMarks are the marks text typed at off takes: those of the text
-// before it. Code marks are not extended past their end, so typing after
-// inline code leaves it.
-// TODO(notation): the notation policy decides which side a ghost stop
-// stands on, which picks the marks at a boundary; this is the default.
-func inheritedMarks(in *doc.Inline, off int) *doc.MarkSet {
-	ms := in.MarksAt(off)
-	if ms == nil {
-		return nil
-	}
-	if ms.Has(vocab.CodeMark) && off > 0 {
-		after := in.MarksAt(min(off+1, in.Len()))
-		if off == in.Len() || after == nil || !after.Has(vocab.CodeMark) {
-			ms = ms.Without(vocab.CodeMark)
-		}
-	}
-	return ms
 }
 
 // deleteText deletes the selection, or one unit from a collapsed caret;
@@ -284,7 +265,7 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 		if dir == vocab.Backward {
 			i--
 		}
-		if i >= 0 && i < n.Slot(head.Slot).Len() {
+		if i >= 0 && i < n.Slot(head.Slot).Len() && vocab.IsObject(n.Slot(head.Slot).Child(i).Kind()) {
 			return policy.Select(doc.NodeSelection(n.Slot(head.Slot).Child(i).ID()))
 		}
 		return policy.Swallow
@@ -310,7 +291,7 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 	if dir == vocab.Backward {
 		// Unwrap an emptied heading or code block's kind first.
 		if block.Kind() != vocab.Paragraph && vocab.IsTextBlock(block.Kind()) && block.Kind() != vocab.Item {
-			return policy.Do(vocab.SetKind(block.ID(), vocab.Paragraph, doc.Attrs{}))
+			return policy.Do(vocab.Retype(block.ID(), vocab.Paragraph, doc.Attrs{}))
 		}
 		if index == 0 {
 			if parent != r.Root().ID() && pn.Kind() != vocab.Item {
@@ -558,7 +539,7 @@ func format(c *policy.Ctx, m policy.Match) policy.Result {
 			return policy.Swallow
 		}
 		res := policy.Result{}
-		marks := inheritedMarks(in2, head.Offset)
+		marks := vocab.InheritedMarks(in2, head.Offset)
 		for _, a := range c.Annotations().At(vocab.PendingMarks, head) {
 			if ms, ok := a.Data.(*doc.MarkSet); ok {
 				marks = ms

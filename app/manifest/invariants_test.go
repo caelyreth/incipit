@@ -114,6 +114,12 @@ func checkPublished(t *testing.T, e *engine.Engine, step string) {
 		t.Fatalf("%s: invalid document: %v\n%s", step, err, outline(snap.Root()))
 	}
 	v, _ := e.View(1)
+	if v.Selection.Kind == doc.SelectNode {
+		n, ok := snap.Node(v.Selection.Node)
+		if !ok || !vocab.IsObject(n.Kind()) {
+			t.Fatalf("%s: a node selection of %v, which is not an object\n%s", step, v.Selection.Node, outline(snap.Root()))
+		}
+	}
 	if v.Selection.Kind == doc.SelectText {
 		stops, _ := e.Stops(1)
 		for _, end := range []doc.Caret{v.Selection.Anchor, v.Selection.Head} {

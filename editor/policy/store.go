@@ -126,10 +126,15 @@ func (s *Store) Sweep(keep uint64) {
 }
 
 // unitContext is the part of a unit's input besides its content: the
-// slot's kind, the enclosing kinds and the analyzing policy's annotations.
+// slot's kind and its owner's attributes, the enclosing kinds and the
+// analyzing policy's annotations.
 func unitContext(u *Unit) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d:%d:", u.Owner.Kind(), u.Slot.Slot)
+	for _, f := range u.Owner.Attrs().Fields() {
+		fmt.Fprintf(&b, "%d=%v,", f.Num, f.Value)
+	}
+	b.WriteByte(':')
 	for _, k := range u.Enclosing {
 		fmt.Fprintf(&b, "%d,", k)
 	}
