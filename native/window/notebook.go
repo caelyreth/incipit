@@ -117,6 +117,18 @@ func (a *AppState) save() {
 }
 
 func (a *AppState) savePage(session *sheetSession) {
+	// A page whose editor holds a snapshot not yet handed over saves its
+	// content with its record.
+	if session.element != nil {
+		if snap := session.element.Editor.Engine.Snapshot(); snap != session.handed {
+			a.notebook.saver.Content(session.key, session.title, snap)
+			session.handed = snap
+			if session.saved {
+				a.library.Touch(library.SheetID(session.key), time.Now())
+			}
+			session.saved = true
+		}
+	}
 	if session.saved {
 		return
 	}

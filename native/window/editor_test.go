@@ -1,0 +1,143 @@
+package window
+
+import (
+	"image/png"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/egoist/mygo/ui"
+)
+
+// pageText is the text of the active page's blocks, one per line.
+func pageText(app *AppState) string {
+	el := app.pageElement()
+	if el == nil {
+		return ""
+	}
+	var lines []string
+	var walk func(n *doc.Node)
+	walk = func(n *doc.Node) {
+		if vocab.IsTextBlock(n.Kind()) {
+			lines = append(lines, vocab.Schema().KindName(n.Kind())+":"+n.Text())
+		}
+		for _, s := range n.Slots() {
+			if !s.IsInline() {
+				for _, c := range s.Children() {
+					walk(c)
+				}
+			}
+		}
+	}
+	walk(el.Editor.Engine.Snapshot().Root())
+	return strings.Join(lines, "\n")
+}
+
+// Typing into the page edits it through the policies: a heading marker
+// becomes a heading, and Enter starts a paragraph after it.
+func TestTypingEditsThePage(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	for _, r := range "# Title" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	tester.Key(0, ui.KeyEnter)
+	tester.Frame()
+	for _, r := range "Some *words*" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	tester.Frame()
+	got := pageText(app)
+	want := "heading:Title\nparagraph:Some words"
+	if got != want {
+		t.Fatalf("page:\n%s\nwant:\n%s", got, want)
+	}
+	if dir := os.Getenv("NEVERLAND_SHOTS"); dir != "" {
+		f, err := os.Create(dir + "/typing.png")
+		if err == nil {
+			_ = png.Encode(f, tester.Image())
+			f.Close()
+		}
+	}
+}
+
+// What is typed into a page is in the notebook when it opens again.
+func TestTypedPageIsSaved(t *testing.T) {
+	root := t.TempDir()
+	app := openNotebookApp(t, root)
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	for _, r := range "kept" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	tester.Key(0, ui.KeyEnter)
+	tester.Frame()
+	tester.Type("x")
+	tester.Frame()
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+	again := openNotebookApp(t, root)
+	defer again.Close()
+	again.selectMounted()
+	if got := pageText(again); got != "paragraph:kept\nparagraph:x" {
+		t.Fatalf("reopened page:\n%s", got)
+	}
+}
+
+// A click puts the caret where it lands, and the arrow keys move it.
+func TestClickAndArrowsMoveTheCaret(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	for _, r := range "first" {
+		tester.Type(string(r))
+	}
+	tester.Key(0, ui.KeyEnter)
+	for _, r := range "second" {
+		tester.Type(string(r))
+	}
+	tester.Frame()
+	el := app.pageElement()
+	head := func() doc.Caret { return el.Editor.Selection().Head }
+	first := el.Editor.Engine.Snapshot().Root().Slot(0).Child(0).ID()
+	tester.Key(0, ui.KeyUp)
+	tester.Frame()
+	if head().Pos.Node != first {
+		t.Fatalf("up left the caret at %v", head())
+	}
+	// Up keeps the column: past the end of "first", it ends there.
+	if head().Pos.Offset != len("first") {
+		t.Fatalf("up kept no column: %v", head())
+	}
+	tester.Key(0, ui.KeyLeft)
+	tester.Frame()
+	at := head().Pos.Offset
+	tester.Key(ui.Super, ui.KeyLeft)
+	tester.Frame()
+	if head().Pos.Offset != 0 || at == 0 {
+		t.Fatalf("line start: %v (was %d)", head(), at)
+	}
+	// Clicking far right of the second line puts the caret at its end.
+	r, ok := tester.TextCaret()
+	if !ok {
+		t.Fatal("no text caret")
+	}
+	tester.ClickAt(r.X+600, r.Y+r.H+el.Prose.LineHeight())
+	tester.Frame()
+	if h := head(); h.Pos.Node == first || h.Pos.Offset != len("second") {
+		t.Fatalf("click put the caret at %v", h)
+	}
+}

@@ -400,6 +400,9 @@ func (a *AppState) discardUnfiledPage(id workspace.PageID, cause error) error {
 	if err := a.Workspace.Discard(id); err != nil {
 		return errors.Join(cause, fmt.Errorf("discard unfiled page: %w", err))
 	}
+	if session, ok := a.sessions[id]; ok {
+		session.close()
+	}
 	delete(a.sessions, id)
 	return cause
 }
@@ -591,6 +594,7 @@ func (a *AppState) discard(sheets []library.SheetID) {
 			a.fail("Couldn't delete the sheet", err)
 			continue
 		}
+		session.close()
 		delete(a.sessions, session.page)
 		if a.notebook != nil && !a.notebook.closed {
 			a.notebook.saver.Delete(storage.PageKey(sheet))

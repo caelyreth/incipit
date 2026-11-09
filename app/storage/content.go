@@ -45,11 +45,16 @@ func writeContent(ctx context.Context, tx *sql.Tx, key PageKey, c *contentWrite)
 }
 
 // LoadPage reads a page's content and validates every node. A page never
-// given content returns nil: the caller starts it empty.
+// given content, or not yet written at all, returns nil: the caller starts
+// it empty.
 func (s *Store) LoadPage(key PageKey, schema *doc.Schema, marks *doc.Interner) (*doc.Snapshot, error) {
 	ctx := context.Background()
 	var format, root, seed int64
-	if err := s.db.QueryRowContext(ctx, `SELECT format, root, seed FROM pages WHERE id = ?`, key).Scan(&format, &root, &seed); err != nil {
+	err := s.db.QueryRowContext(ctx, `SELECT format, root, seed FROM pages WHERE id = ?`, key).Scan(&format, &root, &seed)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
 		return nil, err
 	}
 	if format == 0 {

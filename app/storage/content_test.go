@@ -41,3 +41,13 @@ func TestPageContentSavesAsRowsAndLoads(t *testing.T) {
 		t.Fatalf("search: %v %v", hits, err)
 	}
 }
+
+// A page the notebook has not written yet has no content to load.
+func TestUnwrittenPageLoadsEmpty(t *testing.T) {
+	s := openStore(t, t.TempDir())
+	defer s.Close()
+	snap, err := s.LoadPage(42, vocab.Schema(), doc.NewInterner())
+	if err != nil || snap != nil {
+		t.Fatalf("unwritten page: %v, %v", snap, err)
+	}
+}

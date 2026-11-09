@@ -9,6 +9,7 @@ import (
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
+	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/notices"
 	"github.com/caelyreth/neverland/native/overlay"
@@ -49,6 +50,11 @@ type AppState struct {
 	library *library.Library
 	// nextKey is the notebook key the next new page takes.
 	nextKey storage.PageKey
+	// program is the compiled editing policies every page runs, compiled
+	// when the first page opens.
+	program *policy.Program
+	// nextView numbers the editors' views.
+	nextView uint64
 }
 
 // NewAppState is a notebook held in memory alone, as tests use.
@@ -137,7 +143,7 @@ func (a *AppState) BindShell() {
 }
 
 // pageView is what the open page shows: its title, set as the page's
-// heading, over an empty page.
+// heading, over the page's editor.
 func (a *AppState) pageView(c *ui.Context) {
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	scale := a.Shell.Settings.UIFontSize
@@ -146,6 +152,16 @@ func (a *AppState) pageView(c *ui.Context) {
 		FillHeight().WidthPercent(100).Padding(top, 0, 0, 0).Children(func() {
 		components.Headline(c, a.Workspace.Title(), theme.HeadlineXLarge, semantic.Text.Heading).
 			SingleLine()
+		el := a.pageElement()
+		if el == nil {
+			return
+		}
+		el.Theme = semantic
+		el.Prose = a.Shell.Settings.Prose()
+		el.Top, el.Bottom = top/2, top*2
+		ui.Box(c).Key(fmt.Sprintf("editor-%d", el.Editor.View)).WidthPercent(100).Grow(1).Clip().Children(func() {
+			el.View(c)
+		})
 	})
 }
 
