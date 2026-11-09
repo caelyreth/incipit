@@ -2,14 +2,11 @@ package storage
 
 import (
 	"context"
-	"errors"
-	"maps"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/caelyreth/neverland/app/library"
-	"github.com/caelyreth/neverland/engine/model"
 )
 
 const (
@@ -25,13 +22,13 @@ const (
 )
 
 // Saver writes the notebook as it changes, off the caller's thread. Callers
-// hand it immutable snapshots, which it can read at its leisure; memory
-// remains the truth, and what is pending stays pending until it is on disk.
+// hand it values it owns from then on; memory remains the truth, and what is
+// pending stays pending until it is on disk.
 type Saver struct {
 	store *Store
 
 	mu      sync.Mutex
-	pending map[PageKey]pendingPage
+	pending map[PageKey]string
 	deleted map[PageKey]bool
 	library *library.Records
 	layout  *Layout
@@ -48,44 +45,32 @@ type Saver struct {
 	wake    chan struct{}
 	done    chan struct{}
 
-	// stored is what is on disk for each page, read by the loop alone.
-	stored map[PageKey]model.DocumentSnapshot
 	// wrote is whether anything was written since the last backup.
 	wrote      bool
 	lastBackup time.Time
 	now        func() time.Time
 }
 
-type pendingPage struct {
-	title    string
-	snapshot model.DocumentSnapshot
-}
-
-// Autosave starts saving the notebook. stored holds the snapshot each page
-// was loaded as, so the first write of a page is only what changed.
-func (s *Store) Autosave(stored map[PageKey]model.DocumentSnapshot) *Saver {
+// Autosave starts saving the notebook.
+func (s *Store) Autosave() *Saver {
 	saver := &Saver{
 		store:      s,
-		pending:    map[PageKey]pendingPage{},
+		pending:    map[PageKey]string{},
 		deleted:    map[PageKey]bool{},
 		wake:       make(chan struct{}, 1),
 		done:       make(chan struct{}),
-		stored:     maps.Clone(stored),
 		lastBackup: time.Now(),
 		now:        time.Now,
-	}
-	if saver.stored == nil {
-		saver.stored = map[PageKey]model.DocumentSnapshot{}
 	}
 	go saver.run()
 	return saver
 }
 
-// Page asks for a page to be saved as the snapshot shows it. A later call
-// before the write replaces it.
-func (v *Saver) Page(key PageKey, title string, snapshot model.DocumentSnapshot) {
+// Page asks for a page's record to be saved with title. A later call before
+// the write replaces it.
+func (v *Saver) Page(key PageKey, title string) {
 	v.mu.Lock()
-	v.pending[key] = pendingPage{title: title, snapshot: snapshot}
+	v.pending[key] = title
 	v.touch()
 	v.mu.Unlock()
 }
@@ -112,8 +97,8 @@ func (v *Saver) Library(records library.Records) {
 	v.mu.Unlock()
 }
 
-// Layout asks for the notebook's layout to be saved. The saver copies maps
-// and the optional visual selections before returning.
+// Layout asks for the notebook's layout to be saved. The saver copies it
+// before returning.
 func (v *Saver) Layout(layout Layout) {
 	layout = layout.clone()
 	v.mu.Lock()
@@ -224,13 +209,6 @@ func (v *Saver) run() {
 				watch()
 			}
 			if closing {
-				if err != nil {
-					if rescueErr := v.rescue(); rescueErr != nil {
-						v.mu.Lock()
-						v.err = errors.Join(v.err, rescueErr)
-						v.mu.Unlock()
-					}
-				}
 				return
 			}
 			if err != nil {
@@ -259,22 +237,15 @@ func (v *Saver) run() {
 func (v *Saver) writePending() error {
 	v.mu.Lock()
 	pending, deleted, records, layout := v.pending, v.deleted, v.library, v.layout
-	v.pending, v.deleted, v.library, v.layout = map[PageKey]pendingPage{}, map[PageKey]bool{}, nil, nil
+	v.pending, v.deleted, v.library, v.layout = map[PageKey]string{}, map[PageKey]bool{}, nil, nil
 	v.first = time.Time{}
 	v.mu.Unlock()
 	if len(pending) == 0 && len(deleted) == 0 && records == nil && layout == nil {
 		return nil
 	}
 	work := change{library: records, layout: layout}
-	for key, page := range pending {
-		stored, known := v.stored[key]
-		work.pages = append(work.pages, pageWrite{
-			key:      key,
-			title:    page.title,
-			snapshot: page.snapshot,
-			stored:   stored,
-			known:    known,
-		})
+	for key, title := range pending {
+		work.pages = append(work.pages, pageWrite{key: key, title: title})
 	}
 	for key := range deleted {
 		work.deleted = append(work.deleted, key)
@@ -283,9 +254,9 @@ func (v *Saver) writePending() error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if err != nil {
-		for key, page := range pending {
+		for key, title := range pending {
 			if _, newer := v.pending[key]; !newer && !v.deleted[key] {
-				v.pending[key] = page
+				v.pending[key] = title
 			}
 		}
 		for key := range deleted {
@@ -303,12 +274,6 @@ func (v *Saver) writePending() error {
 		v.last = v.now()
 		v.err = err
 		return err
-	}
-	for key, page := range pending {
-		v.stored[key] = page.snapshot
-	}
-	for key := range deleted {
-		delete(v.stored, key)
 	}
 	v.err = nil
 	v.wrote = true

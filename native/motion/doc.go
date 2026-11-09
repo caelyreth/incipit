@@ -1,3 +1,3 @@
-// Package motion ports Neverland's cursor, selection, viewport, and feedback
-// animation math onto MyGo's frame clock.
+// Package motion is the spring every animated value in Neverland follows on
+// MyGo's frame clock.
 package motion

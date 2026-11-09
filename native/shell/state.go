@@ -1,5 +1,3 @@
-// Package shell composes Neverland's native window chrome around a custom
-// document surface.
 package shell
 
 import (
@@ -16,31 +14,20 @@ type Page struct {
 	Title string
 }
 
-// ToolbarState combines editor formatting, product modes and current bindings
-// for the floating writing toolbar.
+// ToolbarState is the writing modes the floating toolbar switches, and
+// their current shortcuts.
 type ToolbarState struct {
-	Bold              bool
-	Italic            bool
 	Typewriter        bool
 	Zen               bool
-	CJK               bool
-	BoldEnabled       bool
-	ItalicEnabled     bool
 	TypewriterEnabled bool
 	ZenEnabled        bool
-	CJKEnabled        bool
 	Bindings          ToolbarBindings
 }
 
 // ToolbarBindings carries the current shortcut text for action tooltips.
 type ToolbarBindings struct {
-	Bold       string
-	Italic     string
-	Undo       string
-	Redo       string
 	Typewriter string
 	Zen        string
-	CJK        string
 }
 
 type State struct {
@@ -57,8 +44,6 @@ type State struct {
 	PageQuery         string
 	FindPageRequested bool
 	Toolbar           ToolbarState
-	CanUndo           bool
-	CanRedo           bool
 	TabsScroll        ui.ScrollState
 	libraryScroll     ui.ScrollState
 	sheetScroll       ui.ScrollState
@@ -81,11 +66,6 @@ type State struct {
 	// it.
 	CloseOtherTabs func(id string)
 	CloseTabsAfter func(id string)
-	FormatItalic   func(bool)
-	FormatBold     func(bool)
-	Undo           func()
-	Redo           func()
-	ToggleCJK      func(bool)
 	Typewriter     func(bool)
 	Zen            func(bool)
 
@@ -121,7 +101,6 @@ func New() *State {
 		Toolbar: ToolbarState{
 			TypewriterEnabled: true,
 			ZenEnabled:        true,
-			CJKEnabled:        true,
 		},
 	}
 }
@@ -141,7 +120,7 @@ func (s *State) ToggleSidebar() {
 	s.SidebarOverride = &next
 }
 
-// ColumnMargin is the room beside the document column: the gutter and half
+// ColumnMargin is the room beside the page column: the gutter and half
 // of what the page's width leaves over the column.
 func (s *State) ColumnMargin() float32 {
 	scale := s.Settings.UIFontSize

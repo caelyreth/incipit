@@ -1,7 +1,6 @@
 package window
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -10,10 +9,7 @@ import (
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/documentview"
 	"github.com/caelyreth/neverland/native/notices"
 	"github.com/caelyreth/neverland/native/overlay"
 	"github.com/caelyreth/neverland/native/settings"
@@ -23,28 +19,13 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-type clock struct{}
-
-func (clock) Now() time.Time { return time.Now() }
-
 // AppState owns one main-window notebook and its app-wide settings.
 type AppState struct {
 	Workspace *workspace.Workspace
-	Store     *appsettings.HostStore
 	Settings  settings.State
 	Product   appsettings.State
 	Shell     *shell.State
 	Palette   *overlay.CommandPalette
-	// AltText asks for a picture's words, and Viewer shows a picture over
-	// the window.
-	AltText *overlay.AltText
-	Viewer  *overlay.Viewer
-	Element *documentview.Element
-	Bridge  *documentview.Bridge
-	Session *sheetSession
-	// altTextTarget binds the open description dialog to the image and page
-	// that opened it.
-	altTextTarget *altTextTarget
 	// Notices tells the user what happened apart from what they did, as
 	// toasts at the window's foot.
 	Notices        *notices.Center
@@ -87,6 +68,7 @@ func newAppState(store *storage.Store) (*AppState, error) {
 		sessions:    map[workspace.PageID]*sheetSession{},
 		nextKey:     1,
 		closeWindow: func(window *mygo.Window) { window.Close() },
+		Product:     appsettings.DefaultState(),
 	}
 	sessions, layout, err := app.openNotebook(store)
 	if err != nil {
@@ -96,38 +78,10 @@ func newAppState(store *storage.Store) (*AppState, error) {
 	if err != nil {
 		return nil, err
 	}
-	var session *sheetSession
-	if mounted, ok := pages.Mounted(); ok {
-		session = mounted.(*sheetSession)
-	}
-	catalog, err := editor.EditorPolicyCatalog()
-	if err != nil {
-		return nil, err
-	}
-	policy, err := appsettings.NewHostStoreWithPublisher(catalog, pages.PublishPolicy)
-	if err != nil {
-		return nil, err
-	}
 	app.Workspace = pages
-	app.Store = policy
 	app.Settings = *settings.New()
-	app.Product = appsettings.DefaultState()
 	app.Shell = shell.New()
-	app.Session = session
 	app.Palette = &overlay.CommandPalette{}
-	app.AltText = &overlay.AltText{}
-	app.Viewer = &overlay.Viewer{}
-	app.Element = documentview.NewElement(
-		nil,
-		theme.DefaultSettings().Semantic(),
-		theme.DefaultSettings().Prose(),
-		time.Now(),
-	)
-	app.Element.Label = "Writing document"
-	app.Element.Pictures = &documentview.Pictures{Read: app.readPicture}
-	if scroll, ok := pages.ActiveScroll(); ok {
-		app.Element.SwitchPage(scroll.Y)
-	}
 	app.Shell.Colors = &app.colors
 	app.Settings.Colors = &app.colors
 	app.BindShell()
@@ -135,34 +89,12 @@ func newAppState(store *storage.Store) (*AppState, error) {
 }
 
 func (a *AppState) BindShell() {
-	a.Shell.Content = func(c *ui.Context) {
-		if a.Session == nil || a.Session.Document() == nil {
-			ui.Text(c, "No page open")
+	a.Shell.Content = a.pageView
+	a.Shell.SelectPage = func(id string) {
+		page, ok := parsePageID(id)
+		if !ok {
 			return
 		}
-		if a.Bridge == nil || a.Element.Input != a.Bridge {
-			a.mountBridge(c)
-		}
-		a.Element.Theme, _ = a.colors.At(a.Shell.Settings, c.Now())
-		a.Element.Prose = a.Shell.Settings.Prose()
-		a.Element.Animate = components.MotionEnabled(c, a.Shell.Appearance.Motion, a.Shell.WindowActive)
-		a.Element.Typewriter = a.Shell.Appearance.Typewriter
-		// The reading space above the first line scrolls with the page.
-		// The last line only needs to clear the floating dock; typewriter
-		// mode's centering space is the element's own.
-		a.Element.Margin = a.Shell.ColumnMargin()
-		a.Element.UIFontSize = a.Shell.Settings.UIFontSize
-		a.Element.TopInset = theme.DefaultLayout.ReadingTop *
-			a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
-		a.Element.BottomInset = theme.DefaultLayout.DockClearance() *
-			a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
-		a.refreshToolbarState()
-		a.Element.View(c)
-	}
-	a.Shell.SelectPage = func(id string) {
-		a.parkScroll()
-		var page workspace.PageID
-		_, _ = fmt.Sscanf(id, "%d", &page)
 		if err := a.Workspace.Open(page); err != nil {
 			a.fail("Couldn't open the page", err)
 			return
@@ -191,191 +123,50 @@ func (a *AppState) BindShell() {
 	a.Shell.ClosePageID = a.closePageID
 	a.Shell.OpenCommands = func() {
 		a.Palette.Open = true
-		a.Palette.Reset(a.commands())
+		a.Palette.Reset(a.commandCatalog())
 	}
-	a.Shell.OpenSettings = func() {
-		a.OpenSettingsWindow()
-	}
-	a.Shell.FindPage = func() {
-		a.findPage()
-	}
-	a.Shell.FormatItalic = func(bool) {
-		a.executeEditorCommand(editor.EmphasisCommandID)
-	}
-	a.Shell.FormatBold = func(bool) {
-		a.executeEditorCommand(editor.StrongCommandID)
-	}
-	a.Shell.Undo = func() {
-		a.executeEditorCommand(editor.UndoCommandID)
-	}
-	a.Shell.Redo = func() {
-		a.executeEditorCommand(editor.RedoCommandID)
-	}
+	a.Shell.OpenSettings = a.OpenSettingsWindow
+	a.Shell.FindPage = a.findPage
 	a.Shell.Typewriter = func(on bool) {
 		a.setPresentation(appsettings.PresentationTypewriter, on)
 	}
 	a.Shell.Zen = func(on bool) {
 		a.setPresentation(appsettings.PresentationZen, on)
 	}
-	a.Shell.ToggleCJK = func(on bool) {
-		a.setPolicy(editor.CJKPolicyID, on)
-	}
 	a.refreshShell()
 }
 
-func (a *AppState) refreshShellReadouts() {
-	if a == nil || a.Shell == nil || a.Session == nil || a.Session.Document() == nil {
-		return
-	}
-	// The page is named after its first heading, so its title follows
-	// what is written.
-	if id, ok := a.Workspace.Active(); ok {
-		title := a.Workspace.Title()
-		for index := range a.Shell.Tabs {
-			if a.Shell.Tabs[index].ID == fmt.Sprintf("%d", id) && a.Shell.Tabs[index].Title != title {
-				a.refreshShell()
-				break
-			}
-		}
-	}
-	controller := a.Session.Document()
-	metrics, ok := controller.MetricsForCurrentText()
-	if !ok {
-		metrics = controller.Metrics()
-	}
-	a.Shell.Statistics = fmt.Sprintf(
-		"%d words  ·  %d paragraphs  ·  %d characters",
-		metrics.Words,
-		metrics.Paragraphs,
-		metrics.Characters,
-	)
-	a.refreshToolbarState()
+// pageView is what the open page shows: its title, set as the page's
+// heading, over an empty page.
+func (a *AppState) pageView(c *ui.Context) {
+	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
+	scale := a.Shell.Settings.UIFontSize
+	top := theme.DefaultLayout.ReadingTop * scale / theme.DefaultUIFontSize
+	ui.Column(c).Key("page").Role(ui.RoleGroup).Label("Page").
+		FillHeight().WidthPercent(100).Padding(top, 0, 0, 0).Children(func() {
+		components.Headline(c, a.Workspace.Title(), theme.HeadlineXLarge, semantic.Text.Heading).
+			SingleLine()
+	})
 }
 
 func (a *AppState) refreshToolbarState() {
-	if a == nil || a.Shell == nil || a.Store == nil {
+	if a == nil || a.Shell == nil {
 		return
 	}
-	prepared := a.Store.PreparedConfiguration()
-	enabled := func(command kernel.CommandID) bool {
-		action, ok := keymap.ResolveCommand(command)
-		return ok && a.commandEnabledWith(prepared, action)
-	}
-	toolbar := shell.ToolbarState{
+	keys := a.Product.Keymap
+	a.Shell.Toolbar = shell.ToolbarState{
 		Typewriter:        a.Product.Presentation.Typewriter,
 		Zen:               a.Product.Presentation.Zen,
-		TypewriterEnabled: enabled(editor.SurfaceTypewriterCommandID),
-		ZenEnabled:        enabled(editor.SurfaceZenCommandID),
-		CJKEnabled:        enabled(editor.SurfaceCJKCommandID),
-	}
-	toolbar.Bindings = shell.ToolbarBindings{
-		Bold:       bindingLabel(prepared, editor.StrongCommandID),
-		Italic:     bindingLabel(prepared, editor.EmphasisCommandID),
-		Undo:       bindingLabel(prepared, editor.UndoCommandID),
-		Redo:       bindingLabel(prepared, editor.RedoCommandID),
-		Typewriter: bindingLabel(prepared, editor.SurfaceTypewriterCommandID),
-		Zen:        bindingLabel(prepared, editor.SurfaceZenCommandID),
-		CJK:        bindingLabel(prepared, editor.SurfaceCJKCommandID),
-	}
-	a.Shell.CanUndo, a.Shell.CanRedo = false, false
-	if a.Session == nil || a.Session.Document() == nil {
-		a.Shell.Toolbar = toolbar
-		return
-	}
-	controller := a.Session.Document()
-	if controller.Session() != nil {
-		state := controller.Session().ToolbarState()
-		toolbar.Italic, toolbar.Bold = state.Emphasis, state.Strong
-		toolbar.ItalicEnabled, toolbar.BoldEnabled = state.EmphasisEnabled, state.StrongEnabled
-		a.Shell.CanUndo, a.Shell.CanRedo = state.CanUndo, state.CanRedo
-	}
-	configuration := controller.Runtime().PolicyConfiguration()
-	toolbar.CJK = configuration.IsEnabled(editor.CJKPolicyID)
-	a.Shell.Toolbar = toolbar
-}
-
-func bindingLabel(configuration *kernel.PreparedPolicyConfiguration, command kernel.CommandID) string {
-	return bindingLabelFor(configuration, command, keymap.PlatformCurrent)
-}
-
-func bindingLabelFor(
-	configuration *kernel.PreparedPolicyConfiguration,
-	command kernel.CommandID,
-	platform keymap.Platform,
-) string {
-	if configuration == nil {
-		return ""
-	}
-	bindings := configuration.BindingsFor(command)
-	if len(bindings) == 0 {
-		return ""
-	}
-	return keymap.Chord(bindings[0], platform)
-}
-
-// bindingKeys is the caps of the command's first binding.
-func bindingKeys(configuration *kernel.PreparedPolicyConfiguration, command kernel.CommandID) []string {
-	if configuration == nil {
-		return nil
-	}
-	bindings := configuration.BindingsFor(command)
-	if len(bindings) == 0 {
-		return nil
-	}
-	return keymap.Keycaps(bindings[0], keymap.PlatformCurrent)
-}
-
-func (a *AppState) executeEditorCommand(command kernel.CommandID) {
-	if a == nil {
-		return
-	}
-	if err := a.routeWindowCommand(a.mainWindow, command); err != nil {
-		a.fail("Couldn't run the command", err)
+		TypewriterEnabled: true,
+		ZenEnabled:        true,
+		Bindings: shell.ToolbarBindings{
+			Typewriter: bindingLabel(keys, keymap.Typewriter),
+			Zen:        bindingLabel(keys, keymap.Zen),
+		},
 	}
 }
 
-func (a *AppState) ProductState() appsettings.State { return a.Product }
-
-func (a *AppState) SettingsStore() appsettings.Store { return a.Store }
-
-func (a *AppState) ActiveSession() appsettings.Session {
-	if a.Session == nil {
-		return nil
-	}
-	return a.Session
-}
-
-func (a *AppState) mountBridge(c *ui.Context) {
-	services := mygoServices{services: c.Services()}
-	session := a.Session
-	a.Bridge = documentview.NewBridge(a.Session.Document(), services, time.Now)
-	a.Bridge.Mounted = func() bool { return a.sessionMounted(session) }
-	a.Bridge.External = a.executeExternalCommand
-	a.Bridge.Images = pictureIntake{app: a}
-	a.Bridge.ImageError = func(err error) { a.fail("Couldn't add the picture", err) }
-	a.Bridge.Figures = figureHost{app: a}
-	a.Element.Input = a.Bridge
-}
-
-func (a *AppState) sessionMounted(session *sheetSession) bool {
-	if a == nil || a.Workspace == nil || session == nil ||
-		a.Session != session || a.sessions[session.page] != session {
-		return false
-	}
-	mounted, ok := a.Workspace.Mounted()
-	return ok && mounted == session
-}
-
-// executeExternalCommand runs the host-owned commands documentview's surface
-// boundary delegates back to the window.
-func (a *AppState) executeExternalCommand(command kernel.CommandID) error {
-	return a.executeHostCommand(command)
-}
-
-func (a *AppState) togglePresentation(
-	mode appsettings.Presentation,
-	callback func(bool),
-) {
+func (a *AppState) togglePresentation(mode appsettings.Presentation, callback func(bool)) {
 	on := !a.Product.Presentation.Get(mode)
 	if callback != nil {
 		callback(on)
@@ -385,7 +176,6 @@ func (a *AppState) togglePresentation(
 }
 
 func (a *AppState) navigatePage(forward bool) {
-	a.parkScroll()
 	if _, ok, err := a.Workspace.Navigate(forward); err != nil {
 		a.fail("Couldn't go to the page", err)
 		return
@@ -406,21 +196,6 @@ func (a *AppState) findPage() {
 }
 
 func (a *AppState) selectMounted() {
-	var session *sheetSession
-	if mounted, ok := a.Workspace.Mounted(); ok {
-		session, _ = mounted.(*sheetSession)
-	}
-	if a.Session != session {
-		a.Session = session
-		a.Bridge = nil
-		if a.Element != nil {
-			var offset float32
-			if scroll, ok := a.Workspace.ActiveScroll(); ok {
-				offset = scroll.Y
-			}
-			a.Element.SwitchPage(offset)
-		}
-	}
 	a.refreshShell()
 	a.syncMenu()
 }
@@ -430,7 +205,6 @@ func (a *AppState) closePageID(id string) {
 	if !ok {
 		return
 	}
-	a.parkScroll()
 	if err := a.Workspace.Close(page); err != nil {
 		a.fail("Couldn't close the page", err)
 		return
@@ -446,15 +220,6 @@ func parsePageID(id string) (workspace.PageID, bool) {
 	return page, true
 }
 
-func (a *AppState) parkScroll() {
-	if a == nil || a.Workspace == nil || a.Element == nil {
-		return
-	}
-	scroll, _ := a.Workspace.ActiveScroll()
-	scroll.Y = a.Element.ScrollY()
-	a.Workspace.SetActiveScroll(scroll)
-}
-
 func (a *AppState) refreshShell() {
 	a.Shell.Tabs = nil
 	for _, page := range a.Workspace.TabPages() {
@@ -463,46 +228,33 @@ func (a *AppState) refreshShell() {
 			Title: page.Title,
 		})
 	}
+	a.Shell.ActivePage = ""
 	if id, ok := a.Workspace.Active(); ok {
 		a.Shell.ActivePage = fmt.Sprintf("%d", id)
-	} else {
-		a.Shell.ActivePage = ""
 	}
-	if a.Session != nil && a.Session.Document() != nil {
-		controller := a.Session.Document()
-		a.refreshShellReadouts()
-		a.Shell.CanUndo = controller.Session().History().UndoDepth() > 0
-		a.Shell.CanRedo = controller.Session().History().RedoDepth() > 0
-	} else {
-		a.Shell.Statistics = "No open document"
-		a.refreshToolbarState()
-	}
+	a.refreshToolbarState()
 }
 
 func (a *AppState) refreshSettingsData() {
-	if a.Session == nil || a.Session.Document() == nil {
-		a.Settings.Data = appsettings.Data{}
-		return
-	}
-	a.Settings.Data = a.Product.Data(a.Store, a.Session)
+	a.Settings.Data = a.Product.Data()
 	a.Settings.Theme = a.Shell.Settings
 	a.Settings.Animate = a.Product.Presentation.Motion
 	a.Settings.Recording = a.setRecording
 	a.Settings.Reserved = a.reservedKey
 	a.Settings.Apply = func(change appsettings.Change) {
-		outcome, err := a.Product.Apply(change, a.Store, a.Session)
+		outcome, err := a.Product.Apply(change)
 		if err != nil {
 			a.fail("Couldn't change the setting", err)
 			return
 		}
-		if outcome.PolicyChanged {
-			a.Bridge = nil
+		if outcome.KeymapChanged {
 			a.syncMenu()
+			a.refreshToolbarState()
 		}
-		if change.Kind == appsettings.ChangeAppearance {
+		switch change.Kind {
+		case appsettings.ChangeAppearance:
 			a.applyAppearance()
-		}
-		if change.Boolean.Kind == appsettings.BooleanPresentation {
+		case appsettings.ChangePresentation:
 			a.refreshAppearance()
 		}
 		a.refreshSettingsData()
@@ -543,43 +295,11 @@ func (a *AppState) setPresentation(mode appsettings.Presentation, on bool) {
 	if a == nil {
 		return
 	}
-	change := appsettings.ToggleBoolean(appsettings.PresentationBoolean(mode), on)
-	outcome, err := a.Product.Apply(change, a.Store, a.Session)
-	if err != nil {
+	if _, err := a.Product.Apply(appsettings.SetPresentation(mode, on)); err != nil {
 		a.fail("Couldn't change the setting", err)
-		a.refreshAppearance()
-		return
-	}
-	if !outcome.Applied {
-		return
 	}
 	a.refreshAppearance()
 	a.refreshSettingsData()
-}
-
-func (a *AppState) setPolicy(policy kernel.PolicyID, on bool) {
-	if a == nil {
-		return
-	}
-	change := appsettings.ToggleBoolean(appsettings.PolicyBoolean(policy), on)
-	outcome, err := a.Product.Apply(change, a.Store, a.Session)
-	if err != nil {
-		a.fail("Couldn't change the setting", err)
-		a.refreshShell()
-		return
-	}
-	if outcome.PolicyChanged {
-		a.Bridge = nil
-	}
-	a.refreshShell()
-	a.refreshSettingsData()
-}
-
-func (a *AppState) toggleZen() {
-	if a == nil {
-		return
-	}
-	a.setPresentation(appsettings.PresentationZen, !a.Product.Presentation.Zen)
 }
 
 // themeSource is the native appearance matching settings, so traffic
@@ -630,7 +350,7 @@ func (a *AppState) followAccent(now time.Time) {
 	}
 }
 
-// View composes the live shell, command overlay, and settings diagnostics.
+// View composes the shell, the command palette and the notices.
 func (a *AppState) View(c *ui.Context) {
 	if a == nil || a.Shell == nil {
 		return
@@ -638,41 +358,19 @@ func (a *AppState) View(c *ui.Context) {
 	a.followAccent(c.Now())
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion, a.Shell.WindowActive)
+	a.pressedCommands(c)
 	if a.Palette != nil {
 		a.Palette.View(c, semantic, animate)
 		if command, ok := a.Palette.ConsumeChoice(); ok {
-			if err := a.routeWindowCommand(a.mainWindow, command); err != nil &&
-				!errors.Is(err, keymap.ErrCommandUnavailable) {
+			if err := a.routeWindowCommand(a.mainWindow, command); err != nil {
 				a.fail("Couldn't run the command", err)
 			}
 		}
 	}
-	a.AltText.View(c, semantic, animate)
-	if node, alt, ok := a.AltText.ConsumeChoice(); ok {
-		target := a.altTextTarget
-		a.altTextTarget = nil
-		if target == nil || target.node != node {
-			a.fail("Couldn't change the image", documentview.ErrStaleImageOperation)
-		} else if err := target.operation.DescribeImage(alt); err != nil {
-			a.fail("Couldn't change the image", err)
-		}
-	} else if !a.AltText.Open {
-		a.altTextTarget = nil
-	}
-	a.Viewer.View(c, semantic, animate)
-	// What the shell reads off the page, its title and counts, is read
-	// before the shell is built, so header, sidebar and counter show this
-	// frame's page.
-	a.refreshShellReadouts()
 	a.Shell.View(c)
-	// What this frame's input changed goes to the notebook.
+	// What this frame changed goes to the notebook.
 	a.save()
-	// The toasts stand above the foot's counter, and over all else.
-	a.reportEditing()
+	// The toasts stand above the foot, and over all else.
 	scale := a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
 	a.Notices.View(c, semantic, animate, theme.DefaultLayout.Status*scale)
-}
-
-func (a *AppState) commands() []overlay.Command {
-	return a.commandCatalog()
 }

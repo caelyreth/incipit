@@ -4,14 +4,13 @@ import (
 	"fmt"
 
 	"github.com/caelyreth/neverland/app/keymap"
-	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
 // captureLine is the one control that takes a shortcut, wherever one is
-// pressed: under a Keymap row, under a sentence, in the Keymap's search. It
+// pressed: under a Keymap row or in the Keymap's search. It
 // asks for keys, and when the keys are taken it says so in place, in the
 // same line, turning from the accent to a warning while its words cross
 // over, so a conflict reads as the recording's answer, not as a new row. It
@@ -29,7 +28,7 @@ type captureLine struct {
 	Live bool
 	// Conflict, when set, is the answer to the last chord pressed.
 	Conflict *keyConflict
-	Chosen   func(kernel.BindingTarget)
+	Chosen   func(keymap.Chord)
 	Cancel   func()
 	// Clear, Reset and Replace are offered when set: Backspace clears,
 	// Use default resets, and Replace takes a key another action holds.
@@ -57,7 +56,7 @@ func (s *State) captureLine(c *ui.Context, semantic theme.Theme, line captureLin
 	animate := s.motion(c)
 	state, message, edge := captureRecording, line.Prompt, semantic.Border.Focused
 	if conflict := line.Conflict; conflict != nil {
-		chord := keymap.Chord(conflict.Target, keymap.PlatformCurrent)
+		chord := keymap.Spell(conflict.Target, keymap.PlatformCurrent)
 		state, edge = captureTaken, semantic.Status.Warning.Foreground
 		message = fmt.Sprintf("%s is assigned to “%s”.", chord, conflict.Owner.Label)
 		if conflict.Reserved {
@@ -155,9 +154,9 @@ func (s *State) captureTrailing(c *ui.Context, semantic theme.Theme, state strin
 // chords to whatever holds it. Focus that the person moves away, by clicking
 // elsewhere, ends the recording.
 //
-// The host stands its menu down meanwhile, so chords such as ⌘B reach the
-// line as keys. Should a menu still take one, its command arrives instead
-// and is read back as the chord the menu shows for it.
+// The host stands its menu down meanwhile, so chords such as ⌘N reach the
+// line as keys. A menu role's command arriving meanwhile is taken and
+// dropped, so it never acts while a key is being recorded.
 func (s *State) holdKeyboard(capture ui.Element, fresh bool, line captureLine) {
 	held := ui.Local(capture, "held", func() bool { return false })
 	if fresh {
@@ -173,9 +172,6 @@ func (s *State) holdKeyboard(capture ui.Element, fresh bool, line captureLine) {
 	capture.HandleInput(func(event ui.InputEvent) bool {
 		switch event.Kind {
 		case ui.InputCommand:
-			if target, ok := s.menuChord(event.Text); ok {
-				line.Chosen(target)
-			}
 			return true
 		case ui.InputKeyDown:
 		default:
@@ -192,24 +188,10 @@ func (s *State) holdKeyboard(capture ui.Element, fresh bool, line captureLine) {
 			line.Clear()
 		default:
 			// A bare modifier waits for the key it modifies.
-			if targets := keymap.BindingTargets(event, keymap.PlatformCurrent); len(targets) > 0 {
-				line.Chosen(targets[0])
+			if chords := keymap.EventChords(event, keymap.PlatformCurrent); len(chords) > 0 {
+				line.Chosen(chords[0])
 			}
 		}
 		return true
 	})
-}
-
-// menuChord is the chord a menu command came from: the key the menu shows
-// for it, which is its action's first key.
-func (s *State) menuChord(name string) (kernel.BindingTarget, bool) {
-	command, ok := keymap.MenuCommandFor(name)
-	if !ok {
-		return kernel.BindingTarget{}, false
-	}
-	shortcut, ok := s.Data.Shortcut(command)
-	if !ok || len(shortcut.Bindings) == 0 {
-		return kernel.BindingTarget{}, false
-	}
-	return shortcut.Bindings[0], true
 }

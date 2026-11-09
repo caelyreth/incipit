@@ -3,13 +3,10 @@ package window
 import (
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/shell"
 )
 
@@ -27,39 +24,40 @@ func openNotebookApp(t *testing.T, root string) *AppState {
 	return app
 }
 
-func typeText(t *testing.T, app *AppState, text string) {
+// activeSession is the session of the page in front.
+func activeSession(t *testing.T, app *AppState) *sheetSession {
 	t.Helper()
-	session := app.Session.Document().Session()
-	for _, r := range text {
-		if r == '\n' {
-			if _, err := session.Do(editor.Break, time.Now()); err != nil {
-				t.Fatal(err)
-			}
-			continue
-		}
-		if _, err := session.Do(editor.Insert(string(r), kernel.EventOriginTyping), time.Now()); err != nil {
-			t.Fatal(err)
-		}
+	id, ok := app.Workspace.Active()
+	if !ok {
+		t.Fatal("no page in front")
 	}
-	app.Session.Document().Refresh()
+	return app.sessions[id]
 }
 
-// What is written, the pages it is written in and the tabs they stand in
-// are there again after a quit.
+// nameActivePage names the page in front, as its first heading will.
+func nameActivePage(t *testing.T, app *AppState, title string) {
+	t.Helper()
+	session := activeSession(t, app)
+	session.title, session.saved = title, false
+	app.refreshShell()
+}
+
+// The pages, their titles and the tabs they stand in are there again
+// after a quit.
 func TestTheNotebookReopensAsItWasLeft(t *testing.T) {
 	root := t.TempDir()
 	app := openNotebookApp(t, root)
-	typeText(t, app, "# Chapter one\nprose")
+	nameActivePage(t, app, "Chapter one")
 	app.save()
 	app.Shell.NewPage()
-	typeText(t, app, "second")
+	nameActivePage(t, app, "second")
+	app.Workspace.SetActiveScroll(workspace.ScrollPosition{Y: 36})
 	app.save()
 	app.Shell.NewPage()
 	app.save()
 	app.Shell.ClosePageID("2")
 	app.Shell.SelectPage("0")
 	app.save()
-	text := app.Session.Document().Text()
 	if err := app.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +65,7 @@ func TestTheNotebookReopensAsItWasLeft(t *testing.T) {
 	app = openNotebookApp(t, root)
 	defer app.Close()
 	pages := app.Workspace.Pages()
-	if len(pages) != 3 || pages[0].Title != "Chapter one" {
+	if len(pages) != 3 || pages[0].Title != "Chapter one" || pages[1].Title != "second" {
 		t.Fatalf("pages %+v", pages)
 	}
 	if tabs := app.Workspace.Tabs(); !slices.Equal(tabs, []workspace.PageID{0, 1}) {
@@ -76,12 +74,12 @@ func TestTheNotebookReopensAsItWasLeft(t *testing.T) {
 	if active, _ := app.Workspace.Active(); active != 0 {
 		t.Fatalf("active %d", active)
 	}
-	if got := app.Session.Document().Text(); got != text {
-		t.Fatalf("page text %q, want %q", got, text)
+	if app.Shell.Tabs[0].Title != "Chapter one" {
+		t.Fatalf("tab title %q", app.Shell.Tabs[0].Title)
 	}
 	app.Shell.SelectPage("1")
-	if got := app.Session.Document().Text(); got != "second" {
-		t.Fatalf("second page text %q", got)
+	if scroll, _ := app.Workspace.ActiveScroll(); scroll.Y != 36 {
+		t.Fatalf("second page scroll %v", scroll)
 	}
 	// A new page takes a key no stored page has.
 	app.Shell.NewPage()
@@ -97,7 +95,7 @@ func TestTheNotebookReopensAsItWasLeft(t *testing.T) {
 func TestANewNotebookOpensOnOneSavedPage(t *testing.T) {
 	root := t.TempDir()
 	app := openNotebookApp(t, root)
-	if len(app.Workspace.Pages()) != 1 || app.Session == nil {
+	if _, ok := app.Workspace.Active(); len(app.Workspace.Pages()) != 1 || !ok {
 		t.Fatal("a new notebook has no page in front")
 	}
 	if err := app.Close(); err != nil {
@@ -110,41 +108,6 @@ func TestANewNotebookOpensOnOneSavedPage(t *testing.T) {
 	}
 }
 
-// Each page's caret, or the text selected on it, is where it was left.
-func TestSelectionsAreWhereTheyWereLeft(t *testing.T) {
-	root := t.TempDir()
-	app := openNotebookApp(t, root)
-	typeText(t, app, "# Title\nfirst line\nsecond line")
-	if err := app.Session.Document().SelectProjected(10, 14); err != nil {
-		t.Fatal(err)
-	}
-	first := app.Session.Document().Selection()
-	app.save()
-	app.Shell.NewPage()
-	typeText(t, app, "other page")
-	if err := app.Session.Document().SelectProjected(3, 3); err != nil {
-		t.Fatal(err)
-	}
-	second := app.Session.Document().Selection()
-	app.save()
-	if err := app.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	app = openNotebookApp(t, root)
-	defer app.Close()
-	if got := app.Session.Document().Selection(); got != second {
-		t.Fatalf("front page selection %+v, want %+v", got, second)
-	}
-	app.Shell.SelectPage("0")
-	if got := app.Session.Document().Selection(); got != first {
-		t.Fatalf("first page selection %+v, want %+v", got, first)
-	}
-	if err := app.Session.Document().LastError(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // Groups, the sheets filed in them and the trash come back with the
 // notebook; deleting for good takes a sheet off the disk.
 func TestTheLibraryIsKeptAndItsTrashEmptied(t *testing.T) {
@@ -153,7 +116,7 @@ func TestTheLibraryIsKeptAndItsTrashEmptied(t *testing.T) {
 	novel := app.NewGroup("", shell.Last)
 	app.RenameGroup(novel, "Novel")
 	app.NewSheet(novel, shell.Last)
-	typeText(t, app, "# Chapter one")
+	nameActivePage(t, app, "Chapter one")
 	chapter := app.Shell.ActivePage
 	app.DuplicateSheet(chapter)
 	if sheets := app.Sheets(shell.Place{Kind: shell.PlaceGroup, Group: novel}); len(sheets) != 2 ||
@@ -233,51 +196,19 @@ func TestChaptersAreKeptAndFileTheSheetsBelowThem(t *testing.T) {
 	}
 }
 
-func TestMarkerOnlySelectionIsKeptAcrossRestart(t *testing.T) {
-	root := t.TempDir()
-	app := openNotebookApp(t, root)
-	typeText(t, app, "*abc*")
-	if err := app.Session.Document().SelectProjected(0, 1); err != nil {
-		t.Fatal(err)
-	}
-	before, err := app.Session.Document().Session().VisualSelection()
-	if err != nil {
-		t.Fatal(err)
-	}
-	app.save()
-	if err := app.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	app = openNotebookApp(t, root)
-	defer app.Close()
-	after, err := app.Session.Document().Session().VisualSelection()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if after != before {
-		t.Fatalf("restored visual selection = %v, want %v", after, before)
-	}
-}
-
 func TestUnchangedFramesDoNotEnqueueAnotherLayout(t *testing.T) {
 	app := openNotebookApp(t, t.TempDir())
 	defer app.Close()
-	typeText(t, app, "unchanged")
-	if err := app.Session.Document().SelectProjected(0, 3); err != nil {
-		t.Fatal(err)
-	}
-
+	app.Workspace.SetActiveScroll(workspace.ScrollPosition{Y: 12})
 	app.saveLayout()
-	key := app.Session.key
-	saved := app.notebook.layout.Selections[key].Visual
-	if saved == nil {
-		t.Fatal("the frame has no visual selection")
+	saved := app.notebook.layout
+	if len(saved.Scroll) != 1 {
+		t.Fatalf("saved layout %+v", saved)
 	}
 	for range 5 {
 		app.saveLayout()
 	}
-	if got := app.notebook.layout.Selections[key].Visual; got != saved {
-		t.Fatal("an unchanged frame handed the layout to the saver again")
+	if !app.notebook.layout.Equal(saved) {
+		t.Fatal("an unchanged frame changed the saved layout")
 	}
 }

@@ -1,180 +1,104 @@
 package keymap
 
-import (
-	"fmt"
+// CommandID is a command's stable identity: how menus, the palette, the
+// keymap and the person's remaps name it.
+type CommandID string
 
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/kernel"
-)
-
-// ActionKind identifies the typed payload of an Action.
-type ActionKind uint8
+// Scope is what a command acts on, which is how the Keymap groups it.
+type Scope uint8
 
 const (
-	ActionNone ActionKind = iota
-	// ActionEdit carries an editor intent.
-	ActionEdit
-	ActionClipboard
-	ActionSurface
-	ActionExternal
+	ScopePages Scope = iota + 1
+	ScopeWindow
+	ScopeApp
 )
 
-func (k ActionKind) String() string {
-	switch k {
-	case ActionEdit:
-		return "edit"
-	case ActionClipboard:
-		return "clipboard"
-	case ActionSurface:
-		return "surface"
-	case ActionExternal:
-		return "external"
+// Title names a group of the Keymap.
+func (s Scope) Title() string {
+	switch s {
+	case ScopePages:
+		return "Pages"
+	case ScopeWindow:
+		return "Window"
 	default:
-		return "none"
+		return "App"
 	}
 }
 
-// ClipboardCommand distinguishes plain-text edit menu actions. Cut performs
-// its document edit and clipboard write through the injected executor, so the
-// clipboard changes only after a handled semantic replacement.
-type ClipboardCommand uint8
-
-const (
-	ClipboardCopy ClipboardCommand = iota + 1
-	ClipboardCut
-	ClipboardPaste
-)
-
-const (
-	CopyCommandID  = editor.SurfaceCopyCommandID
-	CutCommandID   = editor.SurfaceCutCommandID
-	PasteCommandID = editor.SurfacePasteCommandID
-)
-
-// ID returns Neverland's stable surface command identity.
-func (c ClipboardCommand) ID() kernel.CommandID {
-	switch c {
-	case ClipboardCopy:
-		return CopyCommandID
-	case ClipboardCut:
-		return CutCommandID
-	case ClipboardPaste:
-		return PasteCommandID
+// Description says what a group's keys act on.
+func (s Scope) Description() string {
+	switch s {
+	case ScopePages:
+		return "Open, find, switch and close pages."
+	case ScopeWindow:
+		return "Change what the window shows around your page."
 	default:
-		return ""
+		return "Open Neverland's own tools."
 	}
 }
 
-// Action is a resolved command with exactly one relevant typed payload selected
-// by Kind. It contains no document, selection, clipboard, window, or widget
-// state.
-type Action struct {
-	Kind         ActionKind
-	ID           kernel.CommandID
-	Owner        editor.CommandOwner
-	Requirements editor.CommandRequirements
-	Resolved     bool
-	Intent       editor.Intent
-	Clipboard    ClipboardCommand
-	Surface      editor.SurfaceCommand
+// Command identities.
+const (
+	NewPage      CommandID = "page.new"
+	NextPage     CommandID = "page.next"
+	PreviousPage CommandID = "page.previous"
+	ClosePage    CommandID = "page.close"
+	FindPage     CommandID = "page.find"
+	Zen          CommandID = "window.zen"
+	Typewriter   CommandID = "window.typewriter"
+	Motion       CommandID = "window.motion"
+	Sidebar      CommandID = "window.sidebar"
+	SheetList    CommandID = "window.sheet-list"
+	LibraryView  CommandID = "window.view-library"
+	SheetsView   CommandID = "window.view-sheets"
+	PageView     CommandID = "window.view-page"
+	Commands     CommandID = "app.commands"
+	Settings     CommandID = "app.settings"
+)
+
+// Command is one declared command.
+type Command struct {
+	ID    CommandID
+	Label string
+	Scope Scope
+	// Default is the key the command starts with; a zero chord is none.
+	Default Chord
 }
 
-// CommandID returns the stable identity of this action.
-func (a Action) CommandID() kernel.CommandID { return a.ID }
-
-// String returns a diagnostic label without dereferencing any UI state.
-func (a Action) String() string {
-	if a.ID == "" {
-		return a.Kind.String()
-	}
-	return fmt.Sprintf("%s:%s", a.Kind, a.ID)
+var commands = [...]Command{
+	{ID: NewPage, Label: "New page", Scope: ScopePages, Default: NewChord("n", ModifiersPrimary)},
+	{ID: NextPage, Label: "Next tab", Scope: ScopePages,
+		Default: NewChord("]", ModifiersPrimary|ModifiersShift)},
+	{ID: PreviousPage, Label: "Previous tab", Scope: ScopePages,
+		Default: NewChord("[", ModifiersPrimary|ModifiersShift)},
+	{ID: ClosePage, Label: "Close tab", Scope: ScopePages, Default: NewChord("w", ModifiersPrimary)},
+	{ID: FindPage, Label: "Find a page", Scope: ScopePages, Default: NewChord("p", ModifiersPrimary)},
+	{ID: Zen, Label: "Toggle Zen mode", Scope: ScopeWindow, Default: NewChord("f", ModifiersPrimary|ModifiersShift)},
+	{ID: Typewriter, Label: "Toggle typewriter mode", Scope: ScopeWindow,
+		Default: NewChord("t", ModifiersPrimary|ModifiersAlt)},
+	{ID: Motion, Label: "Toggle motion", Scope: ScopeWindow, Default: NewChord("m", ModifiersPrimary|ModifiersAlt)},
+	{ID: Sidebar, Label: "Toggle library", Scope: ScopeWindow, Default: NewChord("b", ModifiersPrimary|ModifiersAlt)},
+	{ID: SheetList, Label: "Toggle sheet list", Scope: ScopeWindow,
+		Default: NewChord("l", ModifiersPrimary|ModifiersAlt)},
+	{ID: LibraryView, Label: "Show library and sheets", Scope: ScopeWindow, Default: NewChord("1", ModifiersPrimary)},
+	{ID: SheetsView, Label: "Show sheet list only", Scope: ScopeWindow, Default: NewChord("2", ModifiersPrimary)},
+	{ID: PageView, Label: "Show page only", Scope: ScopeWindow, Default: NewChord("3", ModifiersPrimary)},
+	{ID: Commands, Label: "Search commands", Scope: ScopeApp, Default: NewChord("k", ModifiersPrimary)},
+	{ID: Settings, Label: "Open settings", Scope: ScopeApp, Default: NewChord(",", ModifiersPrimary)},
 }
 
-var catalogActions = buildCatalogActions()
+// AllCommands returns every command in declaration order, which is display
+// order within a scope.
+func AllCommands() []Command {
+	return append([]Command(nil), commands[:]...)
+}
 
-func buildCatalogActions() map[kernel.CommandID]Action {
-	actions := make(map[kernel.CommandID]Action)
-	for _, command := range editor.Commands() {
-		if !command.Edits() {
-			continue
+// CommandFor returns one command's declaration.
+func CommandFor(id CommandID) (Command, bool) {
+	for _, command := range commands {
+		if command.ID == id {
+			return command, true
 		}
-		action := resolvedAction(command, ActionEdit)
-		action.Intent = command.Intent
-		actions[command.ID] = action
 	}
-	for _, command := range editor.SurfaceCommands() {
-		meta := command.Description()
-		if command.Kind == editor.SurfaceClipboard {
-			switch command.ID {
-			case CopyCommandID:
-				actions[command.ID] = clipboardAction(ClipboardCopy)
-			case CutCommandID:
-				actions[command.ID] = clipboardAction(ClipboardCut)
-			case PasteCommandID:
-				actions[command.ID] = clipboardAction(ClipboardPaste)
-			}
-			continue
-		}
-		action := resolvedAction(meta, ActionSurface)
-		action.Surface = command
-		actions[command.ID] = action
-	}
-	return actions
-}
-
-func resolvedAction(command editor.Command, kind ActionKind) Action {
-	return Action{
-		Kind:         kind,
-		ID:           command.ID,
-		Owner:        command.Owner,
-		Requirements: command.Requirements,
-		Resolved:     true,
-	}
-}
-
-// ResolveCommand maps a catalog command identity to one typed action. A false
-// result means the identity is not in the editor's command inventory.
-func ResolveCommand(command kernel.CommandID) (Action, bool) {
-	action, ok := catalogActions[command]
-	return action, ok
-}
-
-func clipboardAction(command ClipboardCommand) Action {
-	meta, _ := editor.CommandFor(command.ID())
-	action := resolvedAction(meta, ActionClipboard)
-	action.Clipboard = command
-	return action
-}
-
-// AllowsRepeat reports whether a held key may repeat the resolved action.
-// Neverland permits continuous semantic navigation, visual-row movement,
-// history traversal, and page cycling. It suppresses markup, Tab navigation,
-// clipboard, and other host commands.
-func AllowsRepeat(action Action) bool {
-	switch action.Kind {
-	case ActionEdit:
-		return action.Intent.Repeats()
-	case ActionSurface:
-		return action.Surface.Kind == editor.SurfacePage &&
-			(action.ID == editor.SurfaceNextPageCommandID ||
-				action.ID == editor.SurfacePreviousPageCommandID)
-	default:
-		return false
-	}
-}
-
-// MenuAction maps an edit or format menu role delivered by MyGo as
-// InputCommand to the action MenuCommands pairs it with. Paste-and-match-style
-// degrades to plain Paste, matching Neverland's plain-text clipboard scope.
-func MenuAction(name string) (Action, bool) {
-	if name == "delete" {
-		// MyGo's edit-menu Delete role is backward deletion, including a
-		// selected range, rather than the physical forward-delete key.
-		return ResolveCommand(editor.DeleteBackwardCommandID)
-	}
-	command, ok := MenuCommandFor(name)
-	if !ok {
-		return Action{}, false
-	}
-	return ResolveCommand(command)
+	return Command{}, false
 }

@@ -10,7 +10,7 @@ import (
 
 // The library answers at the speed of a click: the sidebar is something
 // the hand drives over and over, so its motion only says where things went
-// and gets out of the way. Settings, dialogs and the editor keep their own
+// and gets out of the way. Settings, dialogs and the page keep their own
 // pace.
 //
 // Motion moves, scales, fades and tints; it never animates a font size or

@@ -74,7 +74,7 @@ func (s *State) appearancePage(
 							Key: setting.Selector, Label: setting.Label,
 							Selected: setting.Value, Animate: s.motion(c),
 							Action: func(value bool) {
-								s.apply(appsettings.ToggleBoolean(setting.Key, value))
+								s.apply(appsettings.SetPresentation(setting.Mode, value))
 							},
 						}.View(c, semantic)
 					},

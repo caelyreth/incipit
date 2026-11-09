@@ -4,13 +4,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/egoist/mygo/ui"
 )
 
 type Command struct {
-	ID    kernel.CommandID
+	ID    keymap.CommandID
 	Label string
 	Group string
 	// Binding is the command's shortcut as one chord, and Keys its caps.
@@ -23,7 +23,7 @@ type CommandPalette struct {
 	Query    string
 	Commands []Command
 	Selected int
-	Chosen   *kernel.CommandID
+	Chosen   *keymap.CommandID
 	scroll   ui.ScrollState
 	over     scrollfx.Overscroll
 }
@@ -74,7 +74,7 @@ func (p *CommandPalette) Move(delta int) {
 	p.Selected = (p.Selected + delta + len(filtered)) % len(filtered)
 }
 
-func (p *CommandPalette) Submit() (kernel.CommandID, bool) {
+func (p *CommandPalette) Submit() (keymap.CommandID, bool) {
 	filtered := p.Filtered()
 	if p.Selected < 0 || p.Selected >= len(filtered) {
 		return "", false
@@ -85,7 +85,7 @@ func (p *CommandPalette) Submit() (kernel.CommandID, bool) {
 	return id, true
 }
 
-func (p *CommandPalette) ConsumeChoice() (kernel.CommandID, bool) {
+func (p *CommandPalette) ConsumeChoice() (keymap.CommandID, bool) {
 	if p.Chosen == nil {
 		return "", false
 	}

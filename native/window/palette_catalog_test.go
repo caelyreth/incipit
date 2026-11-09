@@ -6,12 +6,10 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/overlay"
 )
 
-func paletteCommand(t *testing.T, commands []overlay.Command, id kernel.CommandID) overlay.Command {
+func paletteCommand(t *testing.T, commands []overlay.Command, id keymap.CommandID) overlay.Command {
 	t.Helper()
 	for _, command := range commands {
 		if command.ID == id {
@@ -22,68 +20,41 @@ func paletteCommand(t *testing.T, commands []overlay.Command, id kernel.CommandI
 	return overlay.Command{}
 }
 
-func TestPaletteUsesLiveConfiguredBindings(t *testing.T) {
+func TestPaletteUsesLiveBindings(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
 	app.refreshSettingsData()
-	target := kernel.NewBindingTarget(
-		kernel.EditorBindingContext,
-		"g",
-		kernel.ModifiersPrimary|kernel.ModifiersAlt|kernel.ModifiersShift,
-	)
-	if _, err := app.Product.Apply(
-		appsettings.Remap(editor.SurfaceSettingsCommandID, target),
-		app.Store,
-		app.Session,
-	); err != nil {
-		t.Fatal(err)
-	}
-	app.refreshSettingsData()
+	moved := keymap.NewChord("g", keymap.ModifiersPrimary|keymap.ModifiersAlt|keymap.ModifiersShift)
+	app.Settings.Apply(appsettings.Remap(keymap.Settings, moved))
 
-	command := paletteCommand(t, app.commandCatalog(), editor.SurfaceSettingsCommandID)
-	if want := keymap.Chord(target, keymap.PlatformCurrent); command.Binding != want {
+	command := paletteCommand(t, app.commandCatalog(), keymap.Settings)
+	if want := keymap.Spell(moved, keymap.PlatformCurrent); command.Binding != want {
 		t.Fatalf("binding = %q, want %q", command.Binding, want)
 	}
-	if want := keymap.Keycaps(target, keymap.PlatformCurrent); !slices.Equal(command.Keys, want) {
+	if want := keymap.Keycaps(moved, keymap.PlatformCurrent); !slices.Equal(command.Keys, want) {
 		t.Fatalf("keys = %q, want %q", command.Keys, want)
+	}
+
+	app.Settings.Apply(appsettings.Unbind(keymap.Settings))
+	command = paletteCommand(t, app.commandCatalog(), keymap.Settings)
+	if command.Binding != "" || len(command.Keys) != 0 {
+		t.Fatalf("unbound command still shows %q %q", command.Binding, command.Keys)
 	}
 }
 
-func TestPaletteOmitsDisabledCommandsAndRequiresAPage(t *testing.T) {
+func TestPaletteKeepsItsCommandsWithoutAPage(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	app.refreshSettingsData()
-	if _, err := app.Product.Apply(
-		appsettings.ToggleBoolean(
-			appsettings.PolicyBoolean(editor.WritingPolicyID),
-			false,
-		),
-		app.Store,
-		app.Session,
-	); err != nil {
-		t.Fatal(err)
-	}
-	app.refreshSettingsData()
-	for _, command := range app.commandCatalog() {
-		if command.ID == editor.StrongCommandID {
-			t.Fatal("disabled markup command remained in palette")
-		}
-	}
-
-	app.closePage()
+	before := len(app.commandCatalog())
+	app.Shell.ClosePage()
 	commands := app.commandCatalog()
-	paletteCommand(t, commands, editor.SurfaceNewPageCommandID)
-	paletteCommand(t, commands, editor.SurfaceSettingsCommandID)
-	if commands := app.commandCatalog(); len(commands) == 0 {
-		t.Fatal("page-less palette lost application commands")
-	}
-	for _, command := range commands {
-		if command.ID == editor.DeleteBackwardCommandID {
-			t.Fatal("document command remained without an open page")
-		}
+	paletteCommand(t, commands, keymap.NewPage)
+	paletteCommand(t, commands, keymap.Settings)
+	if len(commands) != before {
+		t.Fatalf("page-less palette has %d commands, want %d", len(commands), before)
 	}
 }

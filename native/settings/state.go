@@ -1,10 +1,10 @@
-// Package settings composes MyGo settings windows from declarative product
-// data. Validation and policy publication remain in the application layer.
+// Package settings composes the settings window from declarative settings
+// data. Validation stays in the application layer.
 package settings
 
 import (
+	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
-	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
@@ -24,7 +24,7 @@ type State struct {
 	// keeps a key for itself, as a menu item of the system's, which no
 	// action can be given.
 	Recording    func(bool)
-	Reserved     func(kernel.BindingTarget) (string, bool)
+	Reserved     func(keymap.Chord) (string, bool)
 	Animate      bool
 	WindowActive bool
 
@@ -50,9 +50,9 @@ type State struct {
 	// sentence it was started from, and a recorded shortcut another command
 	// already holds, awaiting a decision there.
 	keyQuery    string
-	keyFilter   *kernel.BindingTarget
+	keyFilter   *keymap.Chord
 	keySearch   bool
-	keyEditing  kernel.CommandID
+	keyEditing  keymap.CommandID
 	keyHost     string
 	keyReturn   string
 	keyQuiet    string
@@ -64,8 +64,8 @@ type State struct {
 }
 
 type keyConflict struct {
-	Command kernel.CommandID
-	Target  kernel.BindingTarget
+	Command keymap.CommandID
+	Target  keymap.Chord
 	Owner   appsettings.Shortcut
 	// Reserved marks a key the system keeps, which no action can take.
 	Reserved bool
@@ -79,10 +79,10 @@ type anchor struct {
 func New() *State {
 	expanded := make(map[appsettings.Category]bool, len(appsettings.AllCategories))
 	for _, category := range appsettings.AllCategories {
-		expanded[category] = category == appsettings.Editor
+		expanded[category] = category == appsettings.Appearance
 	}
 	return &State{
-		Category:     appsettings.Editor,
+		Category:     appsettings.Appearance,
 		Theme:        theme.DefaultSettings(),
 		expanded:     expanded,
 		Animate:      true,

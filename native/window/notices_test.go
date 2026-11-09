@@ -8,9 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/app/controller"
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -134,7 +131,7 @@ func TestABackupFailingWarnsOnce(t *testing.T) {
 func TestARepairedNotebookSaysSo(t *testing.T) {
 	root := t.TempDir()
 	app := openNotebookApp(t, root)
-	typeText(t, app, "kept in the backup")
+	nameActivePage(t, app, "kept in the backup")
 	app.save()
 	if err := app.Close(); err != nil {
 		t.Fatal(err)
@@ -153,38 +150,5 @@ func TestARepairedNotebookSaysSo(t *testing.T) {
 	tester.Advance(time.Minute)
 	if !tester.HasText("The notebook was restored from its latest backup") || !tester.HasText("Show in Finder") {
 		t.Fatalf("the repair was not told: %v", tester.Texts())
-	}
-}
-
-// An edit that fails is told once; one the page declines is no fault.
-func TestAFailedEditIsToldAndADeclinedOneIsNot(t *testing.T) {
-	if !controller.Declined(editor.ErrCompositionActive) || !controller.Declined(controller.ErrPolicyDeclined) {
-		t.Fatal("a declined edit counts as a fault")
-	}
-	if controller.Declined(errors.New("the document is damaged")) {
-		t.Fatal("a fault counts as declined")
-	}
-	app, err := NewAppState()
-	if err != nil {
-		t.Fatal(err)
-	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
-	document := app.Session.Document()
-	if err := document.MoveVertical(0, false); err == nil {
-		t.Fatal("a move without a direction was made")
-	}
-	tester.Frame()
-	if !tester.HasText("Couldn't make that change") || document.LastError() != nil {
-		t.Fatalf("the failed edit was not told once: %v", tester.Texts())
-	}
-	tester.Advance(10 * time.Second)
-	reversed := controller.UTF16Range{Start: 5, End: 1}
-	if _, err := document.Replace(&reversed, "x", kernel.EventOriginTyping); err == nil {
-		t.Fatal("a reversed range was taken")
-	}
-	tester.Frame()
-	if tester.HasText("Couldn't make that change") {
-		t.Fatal("a declined edit was told")
 	}
 }

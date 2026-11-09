@@ -15,10 +15,10 @@ func TestLibraryProjectionsFollowCurrentSessions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	typeText(t, app, "# First\nneedle one")
-	first := app.Session
+	nameActivePage(t, app, "First needle")
+	first := activeSession(t, app)
 	app.NewSheet("1", shell.Last)
-	typeText(t, app, "# Second\nneedle two")
+	nameActivePage(t, app, "Second needle")
 	places := []shell.Place{
 		{Kind: shell.PlaceGroup, Group: "1"}, {Kind: shell.PlaceAll},
 		{Kind: shell.PlaceRecent}, {Kind: shell.PlaceTrash},
@@ -37,13 +37,13 @@ func TestLibraryProjectionsFollowCurrentSessions(t *testing.T) {
 	}
 	delete(app.sessions, first.page)
 	checkCounts()
-	if got := app.Sheets(shell.Place{Kind: shell.PlaceAll}); len(got) != 1 || got[0].Title != "Second" {
+	if got := app.Sheets(shell.Place{Kind: shell.PlaceAll}); len(got) != 1 || got[0].Title != "Second needle" {
 		t.Fatalf("all sheets after removal = %+v", got)
 	}
-	if got := app.Search("needle"); len(got) != 1 || got[0].Title != "Second" {
+	if got := app.Search("needle"); len(got) != 1 || got[0].Title != "Second needle" {
 		t.Fatalf("search after removal = %+v", got)
 	}
-	if got := app.Entries("1"); len(got) != 1 || got[0].Sheet.Title != "Second" {
+	if got := app.Entries("1"); len(got) != 1 || got[0].Sheet.Title != "Second needle" {
 		t.Fatalf("entries after removal = %+v", got)
 	}
 	app.sessions[first.page] = first
@@ -84,7 +84,7 @@ func TestFailedSheetFilingRollsBackNewAndDuplicatePages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first := app.Session
+	first := activeSession(t, app)
 	active, _ := app.Workspace.Active()
 	for _, create := range []func(){
 		func() { app.NewSheet("1", shell.Last) },
@@ -92,7 +92,7 @@ func TestFailedSheetFilingRollsBackNewAndDuplicatePages(t *testing.T) {
 	} {
 		app.nextKey = first.key
 		create()
-		if current, ok := app.Workspace.Active(); !ok || current != active || app.Session != first {
+		if current, ok := app.Workspace.Active(); !ok || current != active || activeSession(t, app) != first {
 			t.Fatalf("failed filing changed the mounted page: %v, %v", current, ok)
 		}
 		if len(app.Workspace.Pages()) != 1 || len(app.sessions) != 1 || len(app.library.Records().Sheets) != 1 {
@@ -107,7 +107,7 @@ func TestDuplicateSheetFollowsSourceAmongChapterEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := sheetName(app.Session.page)
+	original := sheetName(activeSession(t, app).page)
 	chapter := app.NewChapter("1", 0)
 	app.DuplicateSheet(original)
 	entries := app.Entries("1")

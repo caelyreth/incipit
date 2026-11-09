@@ -1,31 +1,25 @@
 package keymap
 
-import (
-	"strings"
+import "strings"
 
-	"github.com/caelyreth/neverland/engine/kernel"
-)
-
-// Keycaps returns the keys a person presses for target, one cap each, in the
+// Keycaps returns the keys a person presses for chord, one cap each, in the
 // platform's conventional order and notation: symbols on macOS (⌃⌥⇧⌘),
 // words elsewhere (Ctrl, Alt, Shift, Super).
-func Keycaps(target kernel.BindingTarget, platform Platform) []string {
-	if platform == PlatformCurrent {
-		platform = CurrentPlatform()
-	}
-	modifiers := target.Modifiers()
+func Keycaps(chord Chord, platform Platform) []string {
+	platform = platform.resolved()
+	modifiers := chord.Modifiers
 	caps := make([]string, 0, 5)
 	order := []struct {
-		modifier kernel.Modifier
+		modifier Modifier
 		mac      string
 		other    string
 	}{
-		{kernel.ModifierFunction, "fn", "Fn"},
-		{kernel.ModifierControl, "⌃", "Ctrl"},
-		{kernel.ModifierAlt, "⌥", "Alt"},
-		{kernel.ModifierShift, "⇧", "Shift"},
-		{kernel.ModifierPrimary, "⌘", "Ctrl"},
-		{kernel.ModifierSuper, "⌘", "Super"},
+		{ModifierFunction, "fn", "Fn"},
+		{ModifierControl, "⌃", "Ctrl"},
+		{ModifierAlt, "⌥", "Alt"},
+		{ModifierShift, "⇧", "Shift"},
+		{ModifierPrimary, "⌘", "Ctrl"},
+		{ModifierSuper, "⌘", "Super"},
 	}
 	for _, entry := range order {
 		if !modifiers.Has(entry.modifier) {
@@ -40,42 +34,38 @@ func Keycaps(target kernel.BindingTarget, platform Platform) []string {
 		}
 		caps = append(caps, label)
 	}
-	return append(caps, keyLabel(target.Key(), platform))
+	return append(caps, keyLabel(chord.Key, platform))
 }
 
-// Chord is target as one compact string: "⌘⇧Z" on macOS, "Ctrl+Shift+Z"
+// Spell is chord as one compact string: "⌘⇧Z" on macOS, "Ctrl+Shift+Z"
 // elsewhere.
-func Chord(target kernel.BindingTarget, platform Platform) string {
-	if platform == PlatformCurrent {
-		platform = CurrentPlatform()
-	}
-	caps := Keycaps(target, platform)
+func Spell(chord Chord, platform Platform) string {
+	platform = platform.resolved()
+	caps := Keycaps(chord, platform)
 	if platform == PlatformDarwin {
 		return strings.Join(caps, "")
 	}
 	return strings.Join(caps, "+")
 }
 
-// ChordWords spells target in words for searching: "cmd shift z" on macOS,
+// Words spells chord in words for searching: "cmd shift z" on macOS,
 // "ctrl shift z" elsewhere, so a query typed as words finds symbol chords.
-func ChordWords(target kernel.BindingTarget, platform Platform) string {
-	if platform == PlatformCurrent {
-		platform = CurrentPlatform()
-	}
+func Words(chord Chord, platform Platform) string {
+	platform = platform.resolved()
 	words := make([]string, 0, 5)
-	for _, modifier := range target.Modifiers().All() {
+	for _, modifier := range chord.Modifiers.All() {
 		switch {
-		case modifier == kernel.ModifierPrimary && platform == PlatformDarwin:
+		case modifier == ModifierPrimary && platform == PlatformDarwin:
 			words = append(words, "cmd", "command")
-		case modifier == kernel.ModifierPrimary:
+		case modifier == ModifierPrimary:
 			words = append(words, "ctrl", "control")
-		case modifier == kernel.ModifierAlt && platform == PlatformDarwin:
+		case modifier == ModifierAlt && platform == PlatformDarwin:
 			words = append(words, "opt", "option", "alt")
 		default:
 			words = append(words, modifier.String())
 		}
 	}
-	return strings.Join(append(words, target.Key()), " ")
+	return strings.Join(append(words, chord.Key), " ")
 }
 
 func keyLabel(key string, platform Platform) string {

@@ -33,42 +33,6 @@ func (s *State) formatBar(
 		Key: "writing-actions", Label: "Writing actions",
 		Groups: []components.ActionGroup{
 			{
-				Label: "Formatting",
-				Actions: []func(){
-					Icon("format-emphasis", "Italic", s.Toolbar.Bindings.Italic, components.IconItalic,
-						s.Toolbar.Italic, s.Toolbar.ItalicEnabled,
-						func() {
-							if s.FormatItalic != nil {
-								s.FormatItalic(!s.Toolbar.Italic)
-							}
-						}),
-					Icon("format-strong", "Bold", s.Toolbar.Bindings.Bold, components.IconBold,
-						s.Toolbar.Bold, s.Toolbar.BoldEnabled,
-						func() {
-							if s.FormatBold != nil {
-								s.FormatBold(!s.Toolbar.Bold)
-							}
-						}),
-				},
-			},
-			{
-				Label: "History",
-				Actions: []func(){
-					Icon("undo", "Undo", s.Toolbar.Bindings.Undo, components.IconUndo, false, s.CanUndo,
-						func() {
-							if s.Undo != nil {
-								s.Undo()
-							}
-						}),
-					Icon("redo", "Redo", s.Toolbar.Bindings.Redo, components.IconRedo, false, s.CanRedo,
-						func() {
-							if s.Redo != nil {
-								s.Redo()
-							}
-						}),
-				},
-			},
-			{
 				Label: "Presentation",
 				Actions: []func(){
 					Icon("typewriter", "Typewriter", s.Toolbar.Bindings.Typewriter, components.IconTypewriter,
@@ -83,13 +47,6 @@ func (s *State) formatBar(
 						func() {
 							if s.Zen != nil {
 								s.Zen(!s.Toolbar.Zen)
-							}
-						}),
-					Icon("cjk", "CJK", s.Toolbar.Bindings.CJK, components.IconLanguages,
-						s.Toolbar.CJK, s.Toolbar.CJKEnabled,
-						func() {
-							if s.ToggleCJK != nil {
-								s.ToggleCJK(!s.Toolbar.CJK)
 							}
 						}),
 				},

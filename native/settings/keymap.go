@@ -5,18 +5,15 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
-	"github.com/caelyreth/neverland/engine/kernel"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
-// keymapPage lists every action by what it acts on: the page being written,
-// the pages, the window, the app. A row names the feature that adds its
-// action, when a feature does, and that name leads to the feature's Editor
-// card, where the same key is shown and edited. A toolbar searches by name
-// or by pressing a shortcut; each row records a new shortcut, warns before
-// taking one another action holds, and resets or clears its own.
+// keymapPage lists every action by what it acts on: the pages, the window,
+// the app. A toolbar searches by name or by pressing a shortcut; each row
+// records a new shortcut, warns before taking one another action holds, and
+// resets or clears its own.
 func (s *State) keymapPage(
 	c *ui.Context,
 	semantic theme.Theme,
@@ -39,9 +36,9 @@ func (s *State) keymapPage(
 			}
 		}
 		if len(filtered) > 0 {
-			s.section(c, semantic, first.Group, appsettings.ScopeDescription(first.Scope), func() {
+			s.section(c, semantic, first.Group, first.Scope.Description(), func() {
 				for index, shortcut := range filtered {
-					s.shortcutRow(c, semantic, shortcut, index == len(filtered)-1, 0)
+					s.shortcutRow(c, semantic, shortcut, index == len(filtered)-1)
 				}
 			})
 		}
@@ -68,16 +65,15 @@ func (s *State) shortcutMatches(shortcut appsettings.Shortcut, railQuery, keyQue
 	}
 	haystack := shortcutWords(shortcut)
 	for _, binding := range shortcut.Bindings {
-		haystack += " " + keymap.Chord(binding, keymap.PlatformCurrent) +
-			" " + keymap.ChordWords(binding, keymap.PlatformCurrent)
+		haystack += " " + keymap.Spell(binding, keymap.PlatformCurrent) +
+			" " + keymap.Words(binding, keymap.PlatformCurrent)
 	}
 	return strings.Contains(strings.ToLower(haystack), keyQuery)
 }
 
-// shortcutWords is what a search by name matches: the action, its scope and
-// the feature that adds it.
+// shortcutWords is what a search by name matches: the action and its scope.
 func shortcutWords(shortcut appsettings.Shortcut) string {
-	return shortcut.Label + " " + shortcut.Group + " " + shortcut.OriginLabel
+	return shortcut.Label + " " + shortcut.Group
 }
 
 // keymapToolbar searches the list by name, or by a recorded keystroke.
@@ -92,8 +88,8 @@ func (s *State) keymapToolbar(c *ui.Context, semantic theme.Theme) {
 				s.captureLine(c, semantic, captureLine{
 					Key: "keymap-search-capture", Prompt: "Press a shortcut to find it",
 					Live: true, Compact: true,
-					Chosen: func(target kernel.BindingTarget) {
-						s.keyFilter, s.keySearch = &target, false
+					Chosen: func(chord keymap.Chord) {
+						s.keyFilter, s.keySearch = &chord, false
 					},
 					Cancel: func() { s.keySearch = false },
 				})
@@ -117,7 +113,7 @@ func (s *State) keymapToolbar(c *ui.Context, semantic theme.Theme) {
 				s.keyQuery = ""
 			},
 		}.View(c, semantic)
-		customized := make([]kernel.CommandID, 0)
+		customized := make([]keymap.CommandID, 0)
 		for _, shortcut := range s.Data.Shortcuts {
 			if shortcut.Overridden {
 				customized = append(customized, shortcut.Command)
@@ -161,84 +157,46 @@ func (s *State) keyFilterChip(c *ui.Context, semantic theme.Theme) {
 	})
 }
 
-// shortcutRow is one action: its name, the feature that adds it, and its
-// shortcut as keycaps that record a new one when clicked, with reset and
-// clear actions. The recorder opens under the row, as it does under a
-// sentence on the Editor page. Indent nests the row under a policy card's
-// header, level with the card's options, where the feature is the card's own
-// and goes unnamed.
+// shortcutRow is one action: its name, and its shortcut as keycaps that
+// record a new one when clicked, with reset and clear actions. The recorder
+// opens under the row.
 func (s *State) shortcutRow(
 	c *ui.Context,
 	semantic theme.Theme,
 	shortcut appsettings.Shortcut,
 	last bool,
-	indent float32,
 ) {
 	scale := s.Theme.UIFontSize
 	animate := s.motion(c)
 	inset := theme.Space16.DIPs(scale)
-	start := inset + indent
 	host := "row-" + string(shortcut.Command)
 	block := ui.Column(c).Key("shortcut-" + string(shortcut.Command)).
 		Shrink(0).WidthPercent(100).MinWidth(0)
-	if !shortcut.Enabled {
-		block.Opacity(0.55)
-	}
-	hover := components.HoverAmount(block, block.Hovered() && shortcut.Enabled, animate)
+	hover := components.HoverAmount(block, block.Hovered(), animate)
 	block.Children(func() {
 		ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).
 			MinHeight(theme.DefaultControls.Scaled(scale).Row+theme.Space08.DIPs(scale)).
 			Gap(theme.Space12.DIPs(scale)).
-			Padding(theme.Space08.DIPs(scale), inset, theme.Space08.DIPs(scale), start).
+			Padding(theme.Space08.DIPs(scale), inset, theme.Space08.DIPs(scale), inset).
 			Children(func() {
 				ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center).
 					Gap(theme.Space08.DIPs(scale)).Children(func() {
 					components.Label(c, shortcut.Label, theme.TextDefault, semantic.Text.Default).
 						MinWidth(0).SingleLine()
-					if shortcut.Origin != "" && indent == 0 {
-						s.originTag(c, semantic, shortcut)
-					}
-					switch {
-					case !shortcut.Enabled:
-						s.tag(c, semantic, "Off")
-					case shortcut.Overridden:
+					if shortcut.Overridden {
 						s.tag(c, semantic, "Custom")
 					}
 				})
 				s.shortcutActions(c, semantic, shortcut, hover)
 				s.shortcutKeys(c, semantic, shortcut, host)
 			})
-		s.recorder(c, semantic, host, start)
+		s.recorder(c, semantic, host, inset)
 		if !last {
-			ui.Row(c).WidthPercent(100).PaddingStart(start).Children(func() {
+			ui.Row(c).WidthPercent(100).PaddingStart(inset).Children(func() {
 				components.HorizontalDivider(c, semantic, components.VariantDivider)
 			})
 		}
 	})
-}
-
-// originTag names the feature that adds an action and leads to its card on
-// the Editor page. It stays legible while the feature is off, as that is
-// where it is turned back on.
-func (s *State) originTag(c *ui.Context, semantic theme.Theme, shortcut appsettings.Shortcut) {
-	scale := s.Theme.UIFontSize
-	animate := s.motion(c)
-	origin := shortcut.OriginLabel
-	tag := ui.ButtonBase(c.Key("origin-" + string(shortcut.Command))).
-		Label("From " + origin + ": show in Editor settings").Tooltip("Added by " + origin)
-	settingsTagFrame(tag, scale).
-		Gap(theme.Space02.DIPs(scale)).
-		Border(1, semantic.Border.Variant)
-	hover := components.HoverAmount(tag, tag.Hovered(), animate)
-	tag.Background(semantic.GhostElement.Hover.Alpha(hover))
-	tag.Children(func() {
-		components.Label(c, origin, theme.TextXSmall, semantic.Text.Muted).SingleLine()
-		ui.Icon(c, components.IconChevronRight.SVG()).
-			FontSize(11 * scale / theme.DefaultUIFontSize).TextColor(semantic.Icon.Muted)
-	})
-	if tag.Clicked() {
-		s.chooseSection(appsettings.Editor, origin)
-	}
 }
 
 // shortcutActions resets a customized shortcut, always shown while it
@@ -249,9 +207,6 @@ func (s *State) shortcutActions(
 	shortcut appsettings.Shortcut,
 	hover float32,
 ) {
-	if !shortcut.Enabled {
-		return
-	}
 	animate := s.motion(c)
 	command := shortcut.Command
 	ui.Row(c).AlignItems(ui.Center).Gap(theme.Space02.DIPs(s.Theme.UIFontSize)).Children(func() {
@@ -284,7 +239,7 @@ func (s *State) shortcutKeys(c *ui.Context, semantic theme.Theme, shortcut appse
 	recording := s.keyEditing == shortcut.Command && s.keyHost == host
 	button := ui.ButtonBase(c.Key("keys-" + string(shortcut.Command))).
 		Label(shortcutLabel(shortcut, shortcut.Command)).
-		Disabled(!shortcut.Enabled).FocusRing(false).
+		FocusRing(false).
 		Height(metrics.InlineHeight + theme.Space04.DIPs(scale)).
 		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
 		PaddingX(theme.Space04.DIPs(scale)).Radius(metrics.Radius)
@@ -292,7 +247,7 @@ func (s *State) shortcutKeys(c *ui.Context, semantic theme.Theme, shortcut appse
 	// it eases away when recording ends rather than lingering as focus.
 	ring := s.keyRing(button, triggerKey(host, shortcut.Command), recording, s.motion(c))
 	button.Border(1, semantic.Border.Focused.Alpha(ring))
-	hover := components.HoverAmount(button, button.Hovered() && shortcut.Enabled, s.motion(c))
+	hover := components.HoverAmount(button, button.Hovered(), s.motion(c))
 	button.Background(semantic.GhostElement.Hover.Alpha(hover))
 	animate := s.motion(c)
 	if animate {
@@ -318,18 +273,18 @@ func (s *State) shortcutKeys(c *ui.Context, semantic theme.Theme, shortcut appse
 			swap(binding.String(), func() { s.keycaps(c, semantic, binding, false) })
 		}
 	})
-	if button.Clicked() && shortcut.Enabled {
+	if button.Clicked() {
 		s.startRecording(shortcut.Command, host)
 	}
 	s.returnFocus(button, triggerKey(host, shortcut.Command))
 }
 
 // keycaps draws one binding as a run of keys.
-func (s *State) keycaps(c *ui.Context, semantic theme.Theme, target kernel.BindingTarget, compact bool) {
+func (s *State) keycaps(c *ui.Context, semantic theme.Theme, chord keymap.Chord, compact bool) {
 	components.Keycaps(c,
 		components.KeycapStyle(semantic, s.Theme.UIFontSize, compact),
-		keymap.Keycaps(target, keymap.PlatformCurrent),
-		keymap.Chord(target, keymap.PlatformCurrent))
+		keymap.Keycaps(chord, keymap.PlatformCurrent),
+		keymap.Spell(chord, keymap.PlatformCurrent))
 }
 
 var (
@@ -364,33 +319,32 @@ func (s *State) tag(c *ui.Context, semantic theme.Theme, text string) {
 	})
 }
 
-// settingsTagFrame gives filled state tags and outlined origin actions the
-// same compact geometry without sharing their interaction or paint.
+// settingsTagFrame is a state tag's compact geometry.
 func settingsTagFrame(tag ui.Element, scale float32) ui.Element {
 	return tag.Shrink(0).Height(18 * scale / theme.DefaultUIFontSize).AlignItems(ui.Center).
 		PaddingX(theme.Space06.DIPs(scale)).Radius(9 * scale / theme.DefaultUIFontSize)
 }
 
-// recordShortcut assigns target to command, unless another action holds it
+// recordShortcut assigns chord to command, unless another action holds it
 // or the system keeps it: then the recording stays open and its line says
 // so, for the person to replace, try another chord or give up.
-func (s *State) recordShortcut(command kernel.CommandID, target kernel.BindingTarget) {
+func (s *State) recordShortcut(command keymap.CommandID, chord keymap.Chord) {
 	if s.Reserved != nil {
-		if label, reserved := s.Reserved(target); reserved {
+		if label, reserved := s.Reserved(chord); reserved {
 			s.keyConflict = &keyConflict{
-				Command: command, Target: target, Reserved: true,
+				Command: command, Target: chord, Reserved: true,
 				Owner: appsettings.Shortcut{Label: label},
 			}
 			return
 		}
 	}
-	owner, taken := s.Data.Owner(target)
+	owner, taken := s.Data.Owner(chord)
 	if taken && owner.Command != command {
-		s.keyConflict = &keyConflict{Command: command, Target: target, Owner: owner}
+		s.keyConflict = &keyConflict{Command: command, Target: chord, Owner: owner}
 		return
 	}
 	s.stopRecording()
 	if !taken {
-		s.apply(appsettings.Remap(command, target))
+		s.apply(appsettings.Remap(command, chord))
 	}
 }

@@ -16,31 +16,25 @@ const applicationID = 0x4e56524c
 var migrations = []string{
 	`
 	CREATE TABLE pages (
-		id        INTEGER PRIMARY KEY,
-		created   INTEGER NOT NULL,
-		updated   INTEGER NOT NULL,
-		root      INTEGER NOT NULL,
-		next_node INTEGER NOT NULL,
-		title     TEXT    NOT NULL DEFAULT ''
+		id      INTEGER PRIMARY KEY,
+		created INTEGER NOT NULL,
+		updated INTEGER NOT NULL,
+		title   TEXT    NOT NULL DEFAULT ''
 	) STRICT;
-	CREATE TABLE nodes (
-		page       INTEGER NOT NULL REFERENCES pages (id) ON DELETE CASCADE,
-		id         INTEGER NOT NULL,
-		kind       TEXT    NOT NULL,
-		parent     INTEGER,
-		children   TEXT    NOT NULL,
-		attributes TEXT    NOT NULL,
-		marks      TEXT    NOT NULL,
-		next_mark  INTEGER NOT NULL,
-		text       TEXT,
-		PRIMARY KEY (page, id)
-	) STRICT, WITHOUT ROWID;
 	CREATE TABLE groups (
 		id       INTEGER PRIMARY KEY,
 		parent   INTEGER NOT NULL,
 		name     TEXT    NOT NULL,
+		icon     TEXT    NOT NULL DEFAULT '',
+		color    INTEGER NOT NULL DEFAULT 0,
 		position INTEGER NOT NULL,
 		trashed  INTEGER
+	) STRICT;
+	CREATE TABLE chapters (
+		id       INTEGER PRIMARY KEY,
+		grp      INTEGER NOT NULL,
+		name     TEXT    NOT NULL,
+		position INTEGER NOT NULL
 	) STRICT;
 	CREATE TABLE sheets (
 		page     INTEGER PRIMARY KEY,
@@ -52,20 +46,6 @@ var migrations = []string{
 		key   TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	) STRICT;
-	`,
-	`
-	ALTER TABLE groups ADD COLUMN icon  TEXT    NOT NULL DEFAULT '';
-	ALTER TABLE groups ADD COLUMN color INTEGER NOT NULL DEFAULT 0;
-	`,
-	`
-	CREATE TABLE chapters (
-		id       INTEGER PRIMARY KEY,
-		grp      INTEGER NOT NULL,
-		name     TEXT    NOT NULL,
-		position INTEGER NOT NULL
-	) STRICT;
-	`,
-	`
 	CREATE TABLE media (
 		hash   TEXT    PRIMARY KEY,
 		type   TEXT    NOT NULL,

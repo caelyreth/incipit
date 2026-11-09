@@ -5,16 +5,12 @@ import (
 	"time"
 )
 
+// A spring stops once it is this close to its target, in DIPs, and moving
+// slower than this, in DIPs per second.
 const (
-	caretFrequency     = float32(38)
-	selectionFrequency = float32(34)
-	positionEpsilon    = float32(0.25)
-	velocityEpsilon    = float32(8)
+	positionEpsilon = float32(0.25)
+	velocityEpsilon = float32(8)
 )
-
-// TextFrequency is how fast what moves with the text glides: as the caret
-// does, so text gliding under the caret keeps with it.
-const TextFrequency = caretFrequency
 
 // Spring is a critically configured exponential spring that preserves velocity
 // across retargeting. Time is always supplied by the caller.

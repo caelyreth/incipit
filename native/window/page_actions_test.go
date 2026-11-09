@@ -3,44 +3,10 @@ package window
 import (
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/caelyreth/neverland/app/workspace"
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/kernel"
-	"github.com/caelyreth/neverland/native/documentview"
+	"github.com/egoist/mygo/ui"
 )
-
-// A page is named after its first heading, whatever its level, and its
-// tab follows as the heading is written.
-func TestPagesAreNamedAfterTheirFirstHeading(t *testing.T) {
-	app, err := NewAppState()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if page, _ := app.Workspace.Page(0); page.Title != workspace.DefaultTitle {
-		t.Fatalf("headless page = %q", page.Title)
-	}
-	session := app.Session.Document().Session()
-	for _, r := range "prose\n### Chapter one" {
-		if r == '\n' {
-			if _, err := session.Do(editor.Break, time.Now()); err != nil {
-				t.Fatal(err)
-			}
-			continue
-		}
-		if _, err := session.Do(editor.Insert(string(r), kernel.EventOriginTyping), time.Now()); err != nil {
-			t.Fatal(err)
-		}
-	}
-	app.refreshShellReadouts()
-	if page, _ := app.Workspace.Page(0); page.Title != "Chapter one" {
-		t.Fatalf("headed page = %q", page.Title)
-	}
-	if app.Shell.Tabs[0].Title != "Chapter one" {
-		t.Fatalf("tab title = %q", app.Shell.Tabs[0].Title)
-	}
-}
 
 func TestPageActionsCloseTabsByID(t *testing.T) {
 	app, err := NewAppState()
@@ -67,36 +33,23 @@ func TestPageActionsCloseTabsByID(t *testing.T) {
 	}
 }
 
-func TestMountedPageChangeDetachesInputSynchronously(t *testing.T) {
+// The page shows its title over an empty page; with no page open the
+// shell says how to open one.
+func TestPageViewShowsTheOpenPagesTitle(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	first := app.Session
-	app.Bridge = documentview.NewBridge(first.Document(), nil, nil)
-	app.Element.Input = app.Bridge
-	second, err := app.Workspace.NewPage()
-	if err != nil {
-		t.Fatal(err)
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	texts := tester.Texts()
+	page := slices.Index(texts, "Page")
+	if page < 0 || page+1 >= len(texts) || texts[page+1] != workspace.DefaultTitle {
+		t.Fatalf("no page heading in %#v", texts)
 	}
-	app.selectMounted()
-	if app.Session == first || app.Bridge != nil || app.Element.Input != nil {
-		t.Fatal("selecting a new page retained the old page's input")
-	}
-	bridge := documentview.NewBridge(app.Session.Document(), nil, nil)
-	app.Bridge, app.Element.Input = bridge, bridge
-	if err := app.Workspace.Close(0); err != nil {
-		t.Fatal(err)
-	}
-	app.selectMounted()
-	if app.Bridge != bridge || app.Element.Input != bridge {
-		t.Fatal("closing an inactive page detached the current input")
-	}
-	if err := app.Workspace.Close(second); err != nil {
-		t.Fatal(err)
-	}
-	app.selectMounted()
-	if app.Session != nil || app.Bridge != nil || app.Element.Input != nil {
-		t.Fatal("closing the last page retained a mounted input")
+	app.Shell.ClosePage()
+	tester.Frame()
+	if !tester.HasText("Open a sheet from the library, or press ⌘N for a new one") {
+		t.Fatalf("page-less texts = %#v", tester.Texts())
 	}
 }

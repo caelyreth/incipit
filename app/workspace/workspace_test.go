@@ -3,97 +3,48 @@ package workspace
 import (
 	"errors"
 	"testing"
-
-	"github.com/caelyreth/neverland/engine/kernel"
 )
 
 type testSession struct {
-	id            PageID
-	text          string
-	configuration kernel.PolicyConfiguration
-	adoptions     int
-	adoptError    bool
-	title         string
+	id    PageID
+	text  string
+	title string
 }
 
 func (s *testSession) Title() string { return s.title }
 
-func newTestSession(id PageID, text string, configuration kernel.PolicyConfiguration) *testSession {
-	return &testSession{id: id, text: text, configuration: configuration.Clone()}
-}
-
-func (s *testSession) Configuration() kernel.PolicyConfiguration {
-	return s.configuration.Clone()
-}
-
-func (s *testSession) AdoptConfiguration(configuration kernel.PolicyConfiguration) error {
-	if s.adoptError {
-		return errors.New("adoption failed")
-	}
-	s.configuration = configuration.Clone()
-	s.adoptions++
-	return nil
-}
-
-func configurationFixture(t *testing.T) (kernel.PolicyConfiguration, kernel.PolicyConfiguration) {
-	t.Helper()
-	catalog, err := kernel.LinkPolicyCatalog([]kernel.PolicyDescriptor{{
-		ID:               "test.feature",
-		EnabledByDefault: true,
-		Settings: []kernel.SettingDescriptor{{
-			ID:      "enabled",
-			Default: kernel.BoolSetting(true),
-		}},
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	first := catalog.DefaultConfiguration()
-	second := first.Clone()
-	second.SetEnabled("test.feature", false)
-	second.SetSetting(
-		kernel.NewSettingKey("test.feature", "enabled"),
-		kernel.BoolSetting(false),
-	)
-	return first, second
+func newTestSession(id PageID, text string) *testSession {
+	return &testSession{id: id, text: text}
 }
 
 type sessionLog struct {
 	created []*testSession
 }
 
-func (l *sessionLog) new(
-	id PageID,
-	text string,
-	configuration kernel.PolicyConfiguration,
-) *testSession {
-	session := newTestSession(id, text, configuration)
+func (l *sessionLog) new(id PageID, text string) *testSession {
+	session := newTestSession(id, text)
 	l.created = append(l.created, session)
 	return session
 }
 
-func newWorkspace(
-	t *testing.T,
-	initial *testSession,
-) (*Workspace, kernel.PolicyConfiguration, *sessionLog) {
+func newWorkspace(t *testing.T, initial *testSession) (*Workspace, *sessionLog) {
 	t.Helper()
-	first, _ := configurationFixture(t)
 	if initial == nil {
-		initial = newTestSession(0, "first", first)
+		initial = newTestSession(0, "first")
 	}
 	log := &sessionLog{}
-	workspace, err := New(initial, func(id PageID, configuration kernel.PolicyConfiguration) (Session, error) {
-		return log.new(id, "", configuration), nil
+	workspace, err := New(initial, func(id PageID) (Session, error) {
+		return log.new(id, ""), nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return workspace, first, log
+	return workspace, log
 }
 
 func TestPagesParkSessionsAndRestoreIndependentState(t *testing.T) {
 	t.Parallel()
-	workspace, _, log := newWorkspace(t, nil)
+	workspace, log := newWorkspace(t, nil)
 	second, err := workspace.NewPage()
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +82,7 @@ func TestPagesParkSessionsAndRestoreIndependentState(t *testing.T) {
 
 func TestCloseActivatesAdjacentTabAndReactivationRetainsPage(t *testing.T) {
 	t.Parallel()
-	workspace, _, _ := newWorkspace(t, nil)
+	workspace, _ := newWorkspace(t, nil)
 	second, err := workspace.NewPage()
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +106,7 @@ func TestCloseActivatesAdjacentTabAndReactivationRetainsPage(t *testing.T) {
 
 func TestClosingLastTabLeavesAllPagesRetainedAndNewPageCanMount(t *testing.T) {
 	t.Parallel()
-	workspace, _, _ := newWorkspace(t, nil)
+	workspace, _ := newWorkspace(t, nil)
 	if err := workspace.Close(0); err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +132,7 @@ func TestClosingLastTabLeavesAllPagesRetainedAndNewPageCanMount(t *testing.T) {
 // names nothing.
 func TestPagesTakeTheirSessionsTitles(t *testing.T) {
 	t.Parallel()
-	workspace, _, log := newWorkspace(t, nil)
+	workspace, log := newWorkspace(t, nil)
 	second, err := workspace.NewPage()
 	if err != nil {
 		t.Fatal(err)
@@ -201,7 +152,7 @@ func TestPagesTakeTheirSessionsTitles(t *testing.T) {
 
 func TestAdjacentNavigationCyclesActiveTabs(t *testing.T) {
 	t.Parallel()
-	workspace, _, _ := newWorkspace(t, nil)
+	workspace, _ := newWorkspace(t, nil)
 	second, _ := workspace.NewPage()
 	previous, ok := workspace.Adjacent(false)
 	if !ok || previous != 0 {
@@ -219,99 +170,16 @@ func TestAdjacentNavigationCyclesActiveTabs(t *testing.T) {
 	}
 }
 
-func TestPublishedConfigurationAppliesNowAndWhenParkedPagesMount(t *testing.T) {
-	t.Parallel()
-	workspace, _, log := newWorkspace(t, nil)
-	second, err := workspace.NewPage()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := workspace.Open(0); err != nil {
-		t.Fatal(err)
-	}
-	_, changed := configurationFixture(t)
-	if err := workspace.PublishPolicy(changed); err != nil {
-		t.Fatal(err)
-	}
-	first, _ := workspace.Mounted()
-	if !first.Configuration().Equal(changed) {
-		t.Fatal("mounted page did not adopt published configuration")
-	}
-	parked := log.created[0]
-	if parked.configuration.Equal(changed) {
-		t.Fatal("parked page adopted before mounting")
-	}
-	if err := workspace.Open(second); err != nil {
-		t.Fatal(err)
-	}
-	if !parked.configuration.Equal(changed) {
-		t.Fatal("parked page did not adopt on mount")
-	}
-	third, err := workspace.NewPage()
-	if err != nil {
-		t.Fatal(err)
-	}
-	createdThird := log.created[len(log.created)-1]
-	if len(log.created) != 2 || !createdThird.configuration.Equal(changed) {
-		t.Fatalf("new page config = %#v", createdThird.configuration)
-	}
-	if active, _ := workspace.Active(); active != third {
-		t.Fatalf("new active = %d", active)
-	}
-}
-
-func TestFailedAdoptionDoesNotSwitchPagesOrPublishConfiguration(t *testing.T) {
-	t.Parallel()
-	workspace, original, log := newWorkspace(t, nil)
-	second, err := workspace.NewPage()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := workspace.Open(0); err != nil {
-		t.Fatal(err)
-	}
-	mounted, _ := workspace.Mounted()
-	mounted.(*testSession).adoptError = true
-	_, changed := configurationFixture(t)
-	if err := workspace.PublishPolicy(changed); err == nil {
-		t.Fatal("publish accepted failed adoption")
-	}
-	if active, _ := workspace.Active(); active != 0 {
-		t.Fatalf("active changed to %d", active)
-	}
-	if !workspace.Configuration().Equal(original) {
-		t.Fatal("failed adoption changed workspace configuration")
-	}
-	mounted.(*testSession).adoptError = false
-	if err := workspace.PublishPolicy(changed); err != nil {
-		t.Fatal(err)
-	}
-	log.created[0].adoptError = true
-	if err := workspace.Open(second); err == nil {
-		t.Fatal("mount accepted failed adoption")
-	}
-	if active, _ := workspace.Active(); active != 0 {
-		t.Fatalf("failed mount changed active to %d", active)
-	}
-}
-
 func TestFailedCreationLeavesWorkspaceUnchanged(t *testing.T) {
 	t.Parallel()
-	first, changed := configurationFixture(t)
-	initial := newTestSession(0, "first", first)
-	workspace, err := New(initial, func(id PageID, configuration kernel.PolicyConfiguration) (Session, error) {
-		session := newTestSession(id, "", first)
-		session.adoptError = true
-		return session, nil
+	workspace, err := New(newTestSession(0, "first"), func(PageID) (Session, error) {
+		return nil, errors.New("creation failed")
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := workspace.PublishPolicy(changed); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := workspace.CreatePage(); err == nil {
-		t.Fatal("creation accepted failed adoption")
+		t.Fatal("creation accepted a failed factory")
 	}
 	if pages := workspace.Pages(); len(pages) != 1 || pages[0].ID != 0 {
 		t.Fatalf("pages after failed creation = %#v", pages)
@@ -320,48 +188,15 @@ func TestFailedCreationLeavesWorkspaceUnchanged(t *testing.T) {
 		t.Fatalf("active after failed creation = %d, %v", active, ok)
 	}
 }
-
-func TestFailedCloseAdoptionPreservesTabsAndMountedSession(t *testing.T) {
-	t.Parallel()
-	workspace, _, _ := newWorkspace(t, nil)
-	second, err := workspace.NewPage()
-	if err != nil {
-		t.Fatal(err)
-	}
-	firstMounted, _ := workspace.Mounted()
-	_, changed := configurationFixture(t)
-	if err := workspace.PublishPolicy(changed); err != nil {
-		t.Fatal(err)
-	}
-	initial := workspace.pages[0].session.(*testSession)
-	initial.adoptError = true
-	if err := workspace.Close(second); err == nil {
-		t.Fatal("close accepted failed adjacent adoption")
-	}
-	if active, _ := workspace.Active(); active != second {
-		t.Fatalf("active after failed close = %d", active)
-	}
-	if mounted, _ := workspace.Mounted(); mounted != firstMounted {
-		t.Fatal("failed close changed mounted session")
-	}
-	if tabs := workspace.Tabs(); len(tabs) != 2 || tabs[0] != 0 || tabs[1] != second {
-		t.Fatalf("tabs after failed close = %#v", tabs)
-	}
-	if page, _ := workspace.Page(second); page.Parked {
-		t.Fatal("failed close parked the active page")
-	}
-}
-
 func TestRestoreReturnsTheLayoutItWasGiven(t *testing.T) {
 	t.Parallel()
-	first, _ := configurationFixture(t)
 	sessions := []Session{
-		newTestSession(0, "a", first),
-		newTestSession(1, "b", first),
-		newTestSession(2, "c", first),
+		newTestSession(0, "a"),
+		newTestSession(1, "b"),
+		newTestSession(2, "c"),
 	}
-	create := func(id PageID, configuration kernel.PolicyConfiguration) (Session, error) {
-		return newTestSession(id, "", configuration), nil
+	create := func(id PageID) (Session, error) {
+		return newTestSession(id, ""), nil
 	}
 	layout := Layout{
 		Tabs:      []PageID{2, 0},
@@ -395,10 +230,9 @@ func TestRestoreReturnsTheLayoutItWasGiven(t *testing.T) {
 
 func TestRestoreReadsAStaleLayoutForWhatItStillSays(t *testing.T) {
 	t.Parallel()
-	first, _ := configurationFixture(t)
-	sessions := []Session{newTestSession(0, "a", first), newTestSession(1, "b", first)}
-	create := func(id PageID, configuration kernel.PolicyConfiguration) (Session, error) {
-		return newTestSession(id, "", configuration), nil
+	sessions := []Session{newTestSession(0, "a"), newTestSession(1, "b")}
+	create := func(id PageID) (Session, error) {
+		return newTestSession(id, ""), nil
 	}
 	workspace, err := Restore(sessions, Layout{Tabs: []PageID{5, 1, 1}, Active: 5, HasActive: true}, create)
 	if err != nil {
@@ -421,7 +255,7 @@ func TestRestoreReadsAStaleLayoutForWhatItStillSays(t *testing.T) {
 
 func TestOpeningInPlaceReplacesTheActiveTab(t *testing.T) {
 	t.Parallel()
-	workspace, _, _ := newWorkspace(t, nil)
+	workspace, _ := newWorkspace(t, nil)
 	second, _ := workspace.NewPage()
 	third, _ := workspace.CreatePage()
 	if err := workspace.Open(0); err != nil {
@@ -446,7 +280,7 @@ func TestOpeningInPlaceReplacesTheActiveTab(t *testing.T) {
 
 func TestTabsMoveAndDiscardedPagesGo(t *testing.T) {
 	t.Parallel()
-	workspace, _, _ := newWorkspace(t, nil)
+	workspace, _ := newWorkspace(t, nil)
 	second, _ := workspace.NewPage()
 	third, _ := workspace.NewPage()
 	workspace.MoveTab(third, 0)

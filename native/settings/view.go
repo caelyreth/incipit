@@ -1,4 +1,3 @@
-// Package settings composes the source-faithful settings window.
 package settings
 
 import (
@@ -180,12 +179,6 @@ func (s *State) tree(
 func (s *State) categoryChildren(category appsettings.Category, query string) []string {
 	labels := make([]string, 0)
 	switch category {
-	case appsettings.Editor:
-		for _, section := range s.Data.Sections {
-			if query == "" || s.sectionMatches(section, query) {
-				labels = append(labels, section.Title)
-			}
-		}
 	case appsettings.Keymap:
 		seen := map[string]bool{}
 		for _, shortcut := range s.Data.Shortcuts {
@@ -243,8 +236,6 @@ func (s *State) page(
 				content.Children(func() {
 					s.pageHeader(c, semantic)
 					switch s.Category {
-					case appsettings.Editor:
-						s.editorPage(c, semantic, metrics)
 					case appsettings.Keymap:
 						s.keymapPage(c, semantic, metrics)
 					case appsettings.Appearance:
@@ -393,26 +384,5 @@ func (s *State) categoryOpen(category appsettings.Category) bool {
 }
 
 func (s *State) statusText() string {
-	page := strings.TrimSpace(s.Data.Page)
-	if page == "" {
-		return "No open page"
-	}
-	return page + " · changes stay in memory"
-}
-
-func (s *State) sectionMatches(section appsettings.Section, query string) bool {
-	if strings.Contains(strings.ToLower(section.Title+" "+s.spellWords(section.Description)), query) {
-		return true
-	}
-	for _, setting := range section.Settings {
-		if strings.Contains(strings.ToLower(s.spellWords(setting.Label+" "+setting.Description)), query) {
-			return true
-		}
-	}
-	for _, shortcut := range section.Shortcuts {
-		if strings.Contains(strings.ToLower(shortcut.Label), query) {
-			return true
-		}
-	}
-	return false
+	return "Changes stay in memory"
 }

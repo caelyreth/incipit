@@ -87,8 +87,8 @@ func (s *State) View(c *ui.Context) {
 		ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
 			s.sheetColumn(c, semantic, listWidth, listReveal)
-			ui.Column(c).Key("editor").Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
-				s.document(c, semantic, metrics, layout)
+			ui.Column(c).Key("page-area").Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
+				s.page(c, semantic, metrics, layout)
 				if chrome > 0.001 {
 					s.footer(c, semantic, layout, chrome)
 				}
@@ -100,7 +100,7 @@ func (s *State) View(c *ui.Context) {
 	})
 }
 
-func (s *State) document(
+func (s *State) page(
 	c *ui.Context,
 	semantic theme.Theme,
 	metrics theme.ControlMetrics,
@@ -123,7 +123,7 @@ func (s *State) document(
 	}
 	ui.Column(c).Grow(1).FillHeight().MinHeight(0).Clip().Children(func() {
 		// The page reaches the header: its reading space above the first
-		// line is the document's own, scrolled with it, so text scrolls
+		// line is the content's own, scrolled with it, so text scrolls
 		// out at the header rather than at a clip below it.
 		ui.Row(c).Grow(1).MinHeight(0).WidthPercent(100).Justify(ui.Center).PaddingX(
 			layout.ContentGutter * scale / theme.DefaultUIFontSize,
@@ -149,8 +149,8 @@ func (s *State) activeTitle() string {
 
 // zenHeader keeps the window draggable where the header was, as Zen
 // takes the header away: one band as tall as the title bar across the
-// editor, unseen, over the page. Text scrolled under it shows through,
-// and a press on it moves the window rather than the caret.
+// page, unseen, over it. Text scrolled under it shows through, and a
+// press on it moves the window rather than reaching the page.
 func (s *State) zenHeader(c *ui.Context, layout theme.Layout, chrome float32) {
 	height := layout.Titlebar * s.Settings.UIFontSize / theme.DefaultUIFontSize * (1 - chrome)
 	if height < 1 {

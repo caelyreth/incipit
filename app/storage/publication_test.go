@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 )
 
@@ -201,61 +200,5 @@ func TestExternallyPreparedFileKeepsOldDestinationUntilVerified(t *testing.T) {
 	}
 	if _, statErr := os.Stat(temp); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("failed staged database remains: %v", statErr)
-	}
-}
-
-func TestRescueReplacementDoesNotTruncateExistingFileOnFailure(t *testing.T) {
-	root := t.TempDir()
-	target := filepath.Join(root, "page-1.txt")
-	if err := os.WriteFile(target, []byte("old rescue text"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	sentinel := errors.New("rename failed")
-	ops := defaultPublicationOps()
-	ops.rename = func(string, string) error { return sentinel }
-	if err := writeDurablyWith(target, "new rescue text", ops); !errors.Is(err, sentinel) {
-		t.Fatalf("error = %v", err)
-	}
-	contents, err := os.ReadFile(target)
-	if err != nil || string(contents) != "old rescue text" {
-		t.Fatalf("destination = %q, %v", contents, err)
-	}
-}
-
-func TestCloseReportsBothSaveAndRescueFailure(t *testing.T) {
-	root := t.TempDir()
-	store := openStore(t, root)
-	saver := store.Autosave(nil)
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, recoveryDir), []byte("not a directory"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	saver.Page(1, "", page(t, "unsaved").Snapshot())
-	err := saver.Close()
-	if err == nil || !strings.Contains(err.Error(), "database is closed") || !strings.Contains(err.Error(), "rescue") {
-		t.Fatalf("close error = %v; want both save and rescue failure", err)
-	}
-}
-
-func TestCloseKeepsUnsavedPageInRescueFile(t *testing.T) {
-	root := t.TempDir()
-	store := openStore(t, root)
-	saver := store.Autosave(nil)
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	saver.Page(1, "", page(t, "unsaved words").Snapshot())
-	if err := saver.Close(); err == nil || !strings.Contains(err.Error(), "database is closed") || strings.Contains(err.Error(), "rescue") {
-		t.Fatalf("close error = %v, want save failure", err)
-	}
-	files, err := filepath.Glob(filepath.Join(root, recoveryDir, "unsaved-*", "page-1.txt"))
-	if err != nil || len(files) != 1 {
-		t.Fatalf("rescue files = %v, error = %v", files, err)
-	}
-	contents, err := os.ReadFile(files[0])
-	if err != nil || !strings.Contains(string(contents), "unsaved words") {
-		t.Fatalf("rescue contents = %q, error = %v", contents, err)
 	}
 }

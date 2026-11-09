@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -30,23 +28,18 @@ import (
 
 // The notebook's pictures are files in its Media folder, each named by the
 // SHA-256 of its bytes and never changed once written, while the notebook
-// keeps what each is (the media table) and its pages name them by that
+// keeps what each is (the media table) and pages refer to them by that
 // hash. So a picture is written once however often it is used; a backup
 // of the notebook stays whole without copying a picture, as every file it
 // names stays as it was; and a page moving or renamed moves no file.
 //
 // A file takes its name only once it is complete and synced, and its row
 // is written only after that, so the notebook never names a file that is
-// not whole. A picture no page names any more is swept when the notebook
-// next opens, but only once no backup names it either: undoing, or
-// restoring a backup, always finds its pictures.
+// not whole. A file left without a row, by a crash between the two, is
+// removed when the notebook next opens.
 
 const (
 	mediaDir = "Media"
-	// MediaAttribute is the attribute through which a page's node names a
-	// picture by its hash. Sweeping reads it from every page, the
-	// backups' too, whatever the node's kind.
-	MediaAttribute = "media"
 	// maxMediaBytes and maxMediaPixels bound what a picture may be: one
 	// past them would take more memory to show than a page should.
 	maxMediaBytes  = 64 << 20
@@ -206,47 +199,9 @@ func (s *Store) loadMedia(ctx context.Context) error {
 	return rows.Err()
 }
 
-// sweepMedia lets go of the pictures nothing names: no page of the
-// notebook, nor of any backup. A backup that cannot be read stops the
-// sweep, as what it names is not known; files half written by a crash go
-// whatever names them.
-func (s *Store) sweepMedia(ctx context.Context) error {
-	named, err := mediaNamed(ctx, s.db)
-	if err != nil {
-		return err
-	}
-	backups, err := s.backups()
-	if err != nil {
-		return err
-	}
-	for _, backup := range backups {
-		db, err := sql.Open("sqlite", backup.path+"?_pragma=query_only(1)")
-		if err != nil {
-			return err
-		}
-		more, err := mediaNamed(ctx, db)
-		_ = db.Close()
-		if err != nil {
-			return err
-		}
-		for hash := range more {
-			named[hash] = true
-		}
-	}
-	for hash := range s.media {
-		if named[hash] {
-			continue
-		}
-		if _, err := s.db.ExecContext(ctx, `DELETE FROM media WHERE hash = ?`, hash); err != nil {
-			return err
-		}
-		if err := os.Remove(s.MediaFile(s.media[hash])); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		delete(s.media, hash)
-	}
-	// Files the notebook has no row for: a crash between a file and its
-	// row, or a partial file.
+// sweepMedia removes the files the notebook has no row for: a crash
+// between a file and its row, or a partial file.
+func (s *Store) sweepMedia() error {
 	folders, err := os.ReadDir(filepath.Join(s.root, mediaDir))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -274,29 +229,4 @@ func (s *Store) sweepMedia(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-// mediaNamed is every hash a node of a notebook's pages names.
-func mediaNamed(ctx context.Context, db *sql.DB) (map[string]bool, error) {
-	rows, err := db.QueryContext(ctx,
-		`SELECT attributes FROM nodes WHERE attributes LIKE ?`, `%"`+MediaAttribute+`"%`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	named := map[string]bool{}
-	for rows.Next() {
-		var encoded string
-		if err := rows.Scan(&encoded); err != nil {
-			return nil, err
-		}
-		var attributes map[string]storedValue
-		if err := json.Unmarshal([]byte(encoded), &attributes); err != nil {
-			return nil, err
-		}
-		if value, ok := attributes[MediaAttribute]; ok && value.Text != nil {
-			named[*value.Text] = true
-		}
-	}
-	return named, rows.Err()
 }
