@@ -277,26 +277,16 @@ type GhostFunc func(u *Unit, emit func(Ghost))
 // Ghosts declares a ghost notation contribution.
 func (p *P) Ghosts(fn GhostFunc) { p.ghosts = append(p.ghosts, fn) }
 
-// GuideAt is where a guide shows its key: where the command would put
-// the caret, or at the caret itself, for a way back that may be far.
-type GuideAt uint8
-
-const (
-	GuideAtLanding GuideAt = iota + 1
-	GuideAtCaret
-)
-
 // Guide is a key hint: wherever a preview of the command finds it
-// available at a collapsed caret, the view shows the command's key (§12.1:
-// guides are previews).
+// available at a collapsed caret, the view shows the command's key where
+// the command would put the caret (§12.1: guides are previews).
 type Guide struct {
 	Command vocab.CommandID
-	At      GuideAt
 }
 
 // Guide declares a key hint for a command another policy declares.
-func (p *P) Guide(command vocab.CommandID, at GuideAt) {
-	p.guides = append(p.guides, Guide{Command: command, At: at})
+func (p *P) Guide(command vocab.CommandID) {
+	p.guides = append(p.guides, Guide{Command: command})
 }
 
 // Grouping declares how history groups consecutive entries. At most one

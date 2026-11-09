@@ -76,11 +76,7 @@ func (e *Engine) guides(viewID uint64, v *policy.View) []present.Guide {
 		if err != nil || !res.preview.Available {
 			continue
 		}
-		at := res.preview.Selection.Head
-		if g.At == policy.GuideAtCaret {
-			at = v.Selection.Head
-		}
-		out = append(out, present.Guide{Command: g.Command, At: at})
+		out = append(out, present.Guide{Command: g.Command, At: res.preview.Selection.Head})
 	}
 	return out
 }

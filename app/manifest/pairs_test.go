@@ -121,3 +121,15 @@ func TestWritingOnForgetsTheScopeLeft(t *testing.T) {
 	p.typeText("!")
 	p.want("page(paragraph(a (b) c!))")
 }
+
+// The way back shows where it lands: inside the pair left.
+func TestTheReturnGuideShowsWhereItLands(t *testing.T) {
+	p := open(t)
+	p.typeText("a (b")
+	inside := p.head()
+	p.do(vocab.Leave{})
+	g := p.e.Decorations(1).Guides
+	if len(g) != 1 || g[0].Command != "core.return" || g[0].At != inside {
+		t.Fatalf("guides %+v, want return at %v", g, inside)
+	}
+}
