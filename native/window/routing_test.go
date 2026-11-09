@@ -28,7 +28,8 @@ func submitPaletteCommand(t *testing.T, app *AppState, id keymap.CommandID) {
 
 func TestEveryCommandHasAHandler(t *testing.T) {
 	for _, command := range keymap.AllCommands() {
-		if hostHandlers[command.ID] == nil {
+		// The page answers the editing commands.
+		if command.Scope != keymap.ScopeEditing && hostHandlers[command.ID] == nil {
 			t.Errorf("%s has no handler", command.ID)
 		}
 	}

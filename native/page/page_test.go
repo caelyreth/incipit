@@ -169,7 +169,7 @@ func TestBreakStacksUnits(t *testing.T) {
 		t.Fatalf("second unit overlaps the first: %v %v", pl.units[0].y, pl.units[1].y)
 	}
 	// Up from the second line goes to the first.
-	up, _ := keyIntent(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyUp})
+	up, _ := el.keyIntent(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyUp})
 	el.run(up, ui.Services{}, time.Unix(200, 0))
 	el.relayout()
 	head := el.Editor.Selection().Head
@@ -221,13 +221,13 @@ func TestEscapeDismissesAndUpReachesThePageStart(t *testing.T) {
 	el := newElement(t)
 	typeText(el, "one two")
 	el.Editor.Do(vocab.SelectScope{}, time.Unix(500, 0))
-	esc, _ := keyIntent(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEscape})
+	esc, _ := el.keyIntent(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEscape})
 	el.run(esc, ui.Services{}, time.Unix(501, 0))
 	if !el.Editor.Selection().IsCollapsed() {
 		t.Fatal("Escape kept the selection")
 	}
 	el.relayout()
-	up, _ := keyIntent(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyUp, Mods: ui.Shift})
+	up, _ := el.keyIntent(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyUp, Mods: ui.Shift})
 	el.run(up, ui.Services{}, time.Unix(502, 0))
 	if sel := el.Editor.Selection(); sel.Head.Pos.Offset != 0 || sel.IsCollapsed() {
 		t.Fatalf("shift-up from the first line selected to %v", sel.Head)

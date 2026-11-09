@@ -8,7 +8,8 @@ type CommandID string
 type Scope uint8
 
 const (
-	ScopePages Scope = iota + 1
+	ScopeEditing Scope = iota + 1
+	ScopePages
 	ScopeWindow
 	ScopeApp
 )
@@ -16,6 +17,8 @@ const (
 // Title names a group of the Keymap.
 func (s Scope) Title() string {
 	switch s {
+	case ScopeEditing:
+		return "Editing"
 	case ScopePages:
 		return "Pages"
 	case ScopeWindow:
@@ -28,6 +31,8 @@ func (s Scope) Title() string {
 // Description says what a group's keys act on.
 func (s Scope) Description() string {
 	switch s {
+	case ScopeEditing:
+		return "Write, move and select on the page."
 	case ScopePages:
 		return "Open, find, switch and close pages."
 	case ScopeWindow:
@@ -56,6 +61,41 @@ const (
 	Settings     CommandID = "app.settings"
 )
 
+// Editing commands are the editor's: their identities are the commands
+// its policies declare, which the page resolves to intents through the
+// program (§9.1). Undo, redo and select all are the Edit menu's roles,
+// which keep their system keys.
+const (
+	MoveLeft           CommandID = "core.left"
+	MoveRight          CommandID = "core.right"
+	WordLeft           CommandID = "core.wordLeft"
+	WordRight          CommandID = "core.wordRight"
+	LineStart          CommandID = "core.lineStart"
+	LineEnd            CommandID = "core.lineEnd"
+	MoveUp             CommandID = "core.up"
+	MoveDown           CommandID = "core.down"
+	ParagraphUp        CommandID = "core.paragraphUp"
+	ParagraphDown      CommandID = "core.paragraphDown"
+	PageStart          CommandID = "core.pageStart"
+	PageEnd            CommandID = "core.pageEnd"
+	ScreenUp           CommandID = "core.pageUp"
+	ScreenDown         CommandID = "core.pageDown"
+	DeleteBackward     CommandID = "core.deleteBackward"
+	DeleteForward      CommandID = "core.deleteForward"
+	DeleteWordBackward CommandID = "core.deleteWordBackward"
+	DeleteWordForward  CommandID = "core.deleteWordForward"
+	DeleteToStart      CommandID = "core.deleteToStart"
+	DeleteToEnd        CommandID = "core.deleteToEnd"
+	Break              CommandID = "core.break"
+	SoftBreak          CommandID = "core.softBreak"
+	Nest               CommandID = "core.nest"
+	Outdent            CommandID = "core.outdent"
+	Leave              CommandID = "core.leave"
+	Strong             CommandID = "core.strong"
+	Emphasis           CommandID = "core.emphasis"
+	Code               CommandID = "core.code"
+)
+
 // Command is one declared command.
 type Command struct {
 	ID    CommandID
@@ -66,6 +106,38 @@ type Command struct {
 }
 
 var commands = [...]Command{
+	{ID: MoveLeft, Label: "Move left", Scope: ScopeEditing, Default: NewChord("left", ModifiersNone)},
+	{ID: MoveRight, Label: "Move right", Scope: ScopeEditing, Default: NewChord("right", ModifiersNone)},
+	{ID: WordLeft, Label: "Previous word", Scope: ScopeEditing, Default: NewChord("left", ModifiersAlt)},
+	{ID: WordRight, Label: "Next word", Scope: ScopeEditing, Default: NewChord("right", ModifiersAlt)},
+	{ID: LineStart, Label: "Line start", Scope: ScopeEditing, Default: NewChord("left", ModifiersPrimary)},
+	{ID: LineEnd, Label: "Line end", Scope: ScopeEditing, Default: NewChord("right", ModifiersPrimary)},
+	{ID: MoveUp, Label: "Line up", Scope: ScopeEditing, Default: NewChord("up", ModifiersNone)},
+	{ID: MoveDown, Label: "Line down", Scope: ScopeEditing, Default: NewChord("down", ModifiersNone)},
+	{ID: ParagraphUp, Label: "Previous paragraph", Scope: ScopeEditing, Default: NewChord("up", ModifiersAlt)},
+	{ID: ParagraphDown, Label: "Next paragraph", Scope: ScopeEditing, Default: NewChord("down", ModifiersAlt)},
+	{ID: PageStart, Label: "Start of page", Scope: ScopeEditing, Default: NewChord("up", ModifiersPrimary)},
+	{ID: PageEnd, Label: "End of page", Scope: ScopeEditing, Default: NewChord("down", ModifiersPrimary)},
+	{ID: ScreenUp, Label: "Screen up", Scope: ScopeEditing, Default: NewChord("pageup", ModifiersNone)},
+	{ID: ScreenDown, Label: "Screen down", Scope: ScopeEditing, Default: NewChord("pagedown", ModifiersNone)},
+	{ID: DeleteBackward, Label: "Delete backward", Scope: ScopeEditing, Default: NewChord("backspace", ModifiersNone)},
+	{ID: DeleteForward, Label: "Delete forward", Scope: ScopeEditing, Default: NewChord("delete", ModifiersNone)},
+	{ID: DeleteWordBackward, Label: "Delete word backward", Scope: ScopeEditing,
+		Default: NewChord("backspace", ModifiersAlt)},
+	{ID: DeleteWordForward, Label: "Delete word forward", Scope: ScopeEditing,
+		Default: NewChord("delete", ModifiersAlt)},
+	{ID: DeleteToStart, Label: "Delete to line start", Scope: ScopeEditing,
+		Default: NewChord("backspace", ModifiersPrimary)},
+	{ID: DeleteToEnd, Label: "Delete to line end", Scope: ScopeEditing,
+		Default: NewChord("delete", ModifiersPrimary)},
+	{ID: Break, Label: "New block", Scope: ScopeEditing, Default: NewChord("enter", ModifiersNone)},
+	{ID: SoftBreak, Label: "Line break", Scope: ScopeEditing, Default: NewChord("enter", ModifiersShift)},
+	{ID: Nest, Label: "Nest", Scope: ScopeEditing, Default: NewChord("tab", ModifiersNone)},
+	{ID: Outdent, Label: "Outdent", Scope: ScopeEditing, Default: NewChord("tab", ModifiersShift)},
+	{ID: Leave, Label: "Leave", Scope: ScopeEditing, Default: NewChord("escape", ModifiersNone)},
+	{ID: Strong, Label: "Strong", Scope: ScopeEditing, Default: NewChord("b", ModifiersPrimary)},
+	{ID: Emphasis, Label: "Emphasis", Scope: ScopeEditing, Default: NewChord("i", ModifiersPrimary)},
+	{ID: Code, Label: "Code", Scope: ScopeEditing, Default: NewChord("e", ModifiersPrimary)},
 	{ID: NewPage, Label: "New page", Scope: ScopePages, Default: NewChord("n", ModifiersPrimary)},
 	{ID: NextPage, Label: "Next tab", Scope: ScopePages,
 		Default: NewChord("]", ModifiersPrimary|ModifiersShift)},

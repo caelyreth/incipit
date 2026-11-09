@@ -87,11 +87,12 @@ func (a *AppState) routeWindowCommand(window *mygo.Window, command keymap.Comman
 
 // pressedCommands runs the commands whose keys were pressed in the main
 // window. A command a menu item carries takes its key through the menu, so
-// it is not heard twice.
+// it is not heard twice; an editing command is the page's, which hears
+// its key itself.
 func (a *AppState) pressedCommands(c *ui.Context) {
 	for _, chord := range a.Product.Keymap.Chords() {
 		command, _ := a.Product.Keymap.CommandFor(chord)
-		if menuCommands[command] {
+		if declared, _ := keymap.CommandFor(command); menuCommands[command] || declared.Scope == keymap.ScopeEditing {
 			continue
 		}
 		modifiers, key, ok := keymap.Native(chord, keymap.PlatformCurrent)

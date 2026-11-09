@@ -1,6 +1,7 @@
 package page
 
 import (
+	"github.com/caelyreth/neverland/app/keymap"
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -24,6 +25,9 @@ type Element struct {
 	Label       string
 	// Typewriter keeps the caret's line at the viewport's center.
 	Typewriter bool
+	// Keys are the keymap the page's keys resolve through; nil is the
+	// defaults.
+	Keys *keymap.Keymap
 
 	client *client
 	// scroll is the page's offset, which glide moves and a scroll by hand
@@ -312,7 +316,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 			// The input method has the keys while it composes.
 			return false
 		}
-		if in, ok := keyIntent(ev); ok && el.run(in, services, at) {
+		if in, ok := el.keyIntent(ev); ok && el.run(in, services, at) {
 			services.Invalidate()
 			return true
 		}

@@ -55,9 +55,9 @@ func TestPaletteListsEveryCommandButItself(t *testing.T) {
 	}
 	for _, command := range keymap.AllCommands() {
 		group, ok := listed[command.ID]
-		if command.ID == keymap.Commands {
+		if command.ID == keymap.Commands || command.Scope == keymap.ScopeEditing {
 			if ok {
-				t.Fatal("the palette lists itself")
+				t.Fatalf("the palette lists %s", command.ID)
 			}
 			continue
 		}
