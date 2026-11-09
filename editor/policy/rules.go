@@ -332,3 +332,26 @@ func (o *observer) id() string { return o.policy + "." + o.name }
 func (p *P) Observe(name string, t Trigger, fn ObserverFunc) {
 	p.observers = append(p.observers, &observer{policy: p.policy.id, name: name, trigger: t, fn: fn})
 }
+
+// Rewriter is a compiled rewrite, as the engine runs it.
+type Rewriter struct{ r *rewrite }
+
+func (w Rewriter) ID() string                 { return w.r.id() }
+func (w Rewriter) Policy() string             { return w.r.policy }
+func (w Rewriter) Phase() doc.Phase           { return w.r.phase }
+func (w Rewriter) Trigger() Trigger           { return w.r.trigger }
+func (w Rewriter) Extent() Extent             { return w.r.extent }
+func (w Rewriter) Produces() []doc.RecordKind { return w.r.produces }
+
+// Run rewrites one site.
+func (w Rewriter) Run(c *Ctx, s Site) Result { return w.r.fn(c, s) }
+
+// Observer is a compiled observer, as the engine runs it.
+type Observer struct{ o *observer }
+
+func (o Observer) ID() string       { return o.o.id() }
+func (o Observer) Policy() string   { return o.o.policy }
+func (o Observer) Trigger() Trigger { return o.o.trigger }
+
+// Run observes a transaction's records.
+func (o Observer) Run(c *Ctx, records []doc.Record) Result { return o.o.fn(c, records) }

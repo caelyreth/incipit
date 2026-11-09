@@ -166,11 +166,20 @@ func (p *Program) Command(id vocab.CommandID) (Command, bool) {
 	return c, ok
 }
 
-// Phase returns the rewrites of a phase, in order.
-func (p *Program) Phase(ph doc.Phase) []*RewriteRule {
-	out := make([]*RewriteRule, len(p.phases[ph]))
+// Rewrites returns the rewrites of a phase, in order.
+func (p *Program) Rewrites(ph doc.Phase) []Rewriter {
+	out := make([]Rewriter, len(p.phases[ph]))
 	for i, r := range p.phases[ph] {
-		out[i] = &RewriteRule{r: r}
+		out[i] = Rewriter{r: r}
+	}
+	return out
+}
+
+// Observers returns the observers, in order.
+func (p *Program) Observers() []Observer {
+	out := make([]Observer, len(p.observers))
+	for i, o := range p.observers {
+		out[i] = Observer{o: o}
 	}
 	return out
 }
@@ -179,12 +188,10 @@ func (p *Program) Phase(ph doc.Phase) []*RewriteRule {
 func (p *Program) Grouping() func(prev, next *doc.Entry) bool { return p.grouping }
 
 // Paints, Ghosts and Decorations are the presentation contributions.
-func (p *Program) Paints() []Paint                  { return p.paints }
-func (p *Program) Ghosts() []GhostFunc              { return p.ghosts }
-func (p *Program) Decorations() []Decoration        { return p.decorations }
-func (p *Program) Strict() bool                     { return p.strict }
-func (p *Program) Observers() []*observer           { return p.observers }
-func (p *Program) Rewrites(ph doc.Phase) []*rewrite { return p.phases[ph] }
+func (p *Program) Paints() []Paint           { return p.paints }
+func (p *Program) Ghosts() []GhostFunc       { return p.ghosts }
+func (p *Program) Decorations() []Decoration { return p.decorations }
+func (p *Program) Strict() bool              { return p.strict }
 
 // HasAnnotationKind reports whether annotations of k survive in this
 // program: core kinds always do, others while their owner is enabled.

@@ -114,11 +114,21 @@ func (h *History) clone() *History {
 	return &c
 }
 
-// CanUndo reports whether class has an entry to undo.
+// Actor is who an origin class acts for: undo reverts the requesting
+// actor's newest entry, so the user's typing, pastes and commands undo
+// together while an agent's edits stay its own.
+func (c OriginClass) Actor() OriginClass {
+	if c == OriginAgent {
+		return OriginAgent
+	}
+	return OriginCommand
+}
+
+// CanUndo reports whether class's actor has an entry to undo.
 func (h *History) CanUndo(class OriginClass) bool { return h.newest(class) >= 0 }
 
-// CanRedo reports whether class has an undone entry to redo.
-func (h *History) CanRedo(class OriginClass) bool { return len(h.redo[class]) > 0 }
+// CanRedo reports whether class's actor has an undone entry to redo.
+func (h *History) CanRedo(class OriginClass) bool { return len(h.redo[class.Actor()]) > 0 }
 
 // Last returns the newest entry of any origin.
 func (h *History) Last() *Entry {
@@ -130,7 +140,7 @@ func (h *History) Last() *Entry {
 
 func (h *History) newest(class OriginClass) int {
 	for i := len(h.done) - 1; i >= 0; i-- {
-		if h.done[i].Class == class {
+		if h.done[i].Class.Actor() == class.Actor() {
 			return i
 		}
 	}
@@ -144,7 +154,7 @@ func (h *History) Push(e *Entry, merge bool) *History {
 		return h
 	}
 	c := h.clone()
-	delete(c.redo, e.Class)
+	delete(c.redo, e.Class.Actor())
 	if n := len(c.done); merge && n > 0 && c.done[n-1].Class == e.Class {
 		last := *c.done[n-1]
 		last.Layers = append(slices.Clip(last.Layers), e.Layers...)
@@ -206,7 +216,7 @@ func (h *History) Undo(class OriginClass, topLayer bool) (*Plan, error) {
 
 // Redo plans reapplying the newest undone entry of class.
 func (h *History) Redo(class OriginClass) (*Plan, error) {
-	stack := h.redo[class]
+	stack := h.redo[class.Actor()]
 	if len(stack) == 0 {
 		return nil, ErrNothing
 	}
@@ -283,11 +293,11 @@ func invert(layers []Layer, later []*Entry) ([]Op, error) {
 // at with the selection after, and returns the history after it.
 func (h *History) Applied(p *Plan, steps []*Step, at time.Time, current Selection) *History {
 	c := h.clone()
-	undoEntry := NewEntry(steps, p.class, p.View, current, p.Selection, at)
+	undoEntry := NewEntry(steps, p.entry.Class, p.View, current, p.Selection, at)
 	if p.redo {
-		stack := c.redo[p.class]
-		c.redo[p.class] = stack[: len(stack)-1 : len(stack)-1]
-		redone := NewEntry(steps, p.class, p.View, current, p.Selection, at)
+		stack := c.redo[p.class.Actor()]
+		c.redo[p.class.Actor()] = stack[: len(stack)-1 : len(stack)-1]
+		redone := NewEntry(steps, p.entry.Class, p.View, current, p.Selection, at)
 		c.done = append(c.done, redone)
 		c.bytes += redone.bytes
 		return c
@@ -301,6 +311,6 @@ func (h *History) Applied(p *Plan, steps []*Step, at time.Time, current Selectio
 		c.done = slices.Delete(slices.Clone(c.done), p.index, p.index+1)
 		c.bytes -= p.entry.bytes
 	}
-	c.redo[p.class] = append(c.redo[p.class], undoEntry)
+	c.redo[p.class.Actor()] = append(c.redo[p.class.Actor()], undoEntry)
 	return c
 }
