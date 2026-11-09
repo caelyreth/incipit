@@ -214,6 +214,21 @@ func (m *stopModel) Normalize(c doc.Caret) doc.Caret {
 	return p.Stops[0].Caret
 }
 
+func (m *stopModel) Bound(c doc.Caret) doc.Pos {
+	i, ok := m.pr.UnitAt(m.r, c.Pos)
+	if !ok {
+		return c.Pos
+	}
+	if p := m.unit(i); p != nil {
+		for _, s := range p.Stops {
+			if s.Caret == c {
+				return s.Bound()
+			}
+		}
+	}
+	return c.Pos
+}
+
 // nearest is the first flow stop at or after c in page order, or the
 // page's last stop when none is.
 func (m *stopModel) nearest(c doc.Caret) doc.Caret {

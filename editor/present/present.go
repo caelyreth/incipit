@@ -127,6 +127,17 @@ type Stop struct {
 	Class   StopClass
 	// Offset is the slot offset; for gaps, the gap index.
 	Offset int
+	// Outside is set on the stop before a block's marker: the gap before
+	// the block, which a range from this stop starts at (§4.2).
+	Outside *doc.Pos
+}
+
+// Bound is the document position the stop stands for as a range's end.
+func (s Stop) Bound() doc.Pos {
+	if s.Outside != nil {
+		return *s.Outside
+	}
+	return s.Caret.Pos
 }
 
 // Presentation is one unit as the renderer lays it out.
@@ -538,14 +549,43 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 	}
 	var items []Item
 	var stops []Stop
+	// flush moves the stops gathered so far into the map. At one offset
+	// they stand in stop order: a block marker's below the position's own
+	// stop 0, which is gathered with the text before it.
+	flush := func() {
+		slices.SortStableFunc(stops, func(a, b Stop) int {
+			if a.Offset != b.Offset {
+				return a.Offset - b.Offset
+			}
+			return a.Caret.Stop - b.Caret.Stop
+		})
+		p.Stops = append(p.Stops, stops...)
+		stops = nil
+	}
 	gi := 0
 	emitGhosts := func(at int) {
 		for gi < len(ghosts) && ghosts[gi].At <= at {
 			g := ghosts[gi]
 			items = append(items, Item{Kind: GhostItem, From: g.At, To: g.At, Spelling: g.Spelling,
 				Groups: []vocab.Group{base, g.Group}, Layout: opts.Ghosts, StopFrom: g.StopFrom, StopTo: g.StopFrom + g.Stops})
+			ghostStop := func(s int) Stop {
+				return Stop{Caret: doc.Caret{Pos: doc.At(ref, g.At), Stop: s}, Surface: index, Class: StopGhost, Offset: g.At}
+			}
+			if g.StopFrom < 0 {
+				// Below the position's own stop, the stop before the ghost
+				// is the ghost's to give.
+				st := ghostStop(g.StopFrom)
+				if g.Block {
+					if parent, slot, i, ok := vocab.Index(r, ref.Node); ok {
+						st.Outside = &doc.Pos{Node: parent, Slot: slot, Offset: i}
+					}
+				}
+				stops = append(stops, st)
+			}
 			for s := g.StopFrom + 1; s <= g.StopFrom+g.Stops; s++ {
-				stops = append(stops, Stop{Caret: doc.Caret{Pos: doc.At(ref, g.At), Stop: s}, Surface: index, Class: StopGhost, Offset: g.At})
+				if s != 0 {
+					stops = append(stops, ghostStop(s))
+				}
 			}
 			gi++
 		}
@@ -563,8 +603,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 				items[len(items)-1].Surface = len(p.Surfaces)
 				// Stops are ordered by position: the card's sit inside the
 				// box, between its two flow stops.
-				p.Stops = append(p.Stops, stops...)
-				stops = nil
+				flush()
 				flowOf(prog, store, r, view, opts, p, src, true, vocab.GroupFormulaSource, true, it.Node.ID())
 			}
 			stop(at + 1)
@@ -621,7 +660,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 	})
 	emitGhosts(content.Len())
 	p.Surfaces[index].Flow.Items = items
-	p.Stops = append(p.Stops, stops...)
+	flush()
 }
 
 // isOpen reports whether the key opens the card of inline node id: a

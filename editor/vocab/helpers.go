@@ -32,6 +32,10 @@ const (
 // TextSpans returns the stretches of text slots from from to to, in
 // reading order.
 func TextSpans(r doc.Reader, from, to doc.Pos) []Span {
+	from, to = textBound(r, from, false), textBound(r, to, true)
+	if doc.Compare(r, doc.CaretAt(to), doc.CaretAt(from)) < 0 {
+		return nil
+	}
 	if from.Ref() == to.Ref() {
 		return []Span{{Slot: from.Ref(), From: min(from.Offset, to.Offset), To: max(from.Offset, to.Offset)}}
 	}
@@ -54,6 +58,36 @@ func TextSpans(r doc.Reader, from, to doc.Pos) []Span {
 		}
 		ref, start = next, 0
 	}
+}
+
+// textBound is the text position a range's end at a block gap stands
+// for: the first text after the gap for a start, the last before it for an
+// end. A text position is its own.
+func textBound(r doc.Reader, p doc.Pos, end bool) doc.Pos {
+	n, ok := r.Node(p.Node)
+	if !ok || p.Slot >= n.NumSlots() || n.Slot(p.Slot).IsInline() {
+		return p
+	}
+	s := n.Slot(p.Slot)
+	if !end {
+		for _, c := range s.Children()[min(p.Offset, s.Len()):] {
+			if ref, ok := FirstTextSlot(c); ok {
+				return doc.At(ref, 0)
+			}
+		}
+		if ref, ok := NextTextSlot(r, doc.SlotRef{Node: p.Node, Slot: p.Slot}); ok {
+			return doc.At(ref, 0)
+		}
+		return p
+	}
+	children := s.Children()[:min(max(p.Offset, 0), s.Len())]
+	for i := len(children) - 1; i >= 0; i-- {
+		if ref, ok := LastTextSlot(children[i]); ok {
+			tn, _ := r.Node(ref.Node)
+			return doc.At(ref, tn.Slot(ref.Slot).Len())
+		}
+	}
+	return p
 }
 
 // CoverageOf is how much of spans carries a mark of kind k. Inline nodes
@@ -506,7 +540,8 @@ func liftOut(r doc.Reader, p doc.Pos, end bool) doc.Pos {
 
 // DeleteRange deletes from from to to: the text of the end slots, every
 // node wholly between, and then joins the end blocks when their slots are
-// compatible. Containers left empty are removed.
+// compatible. A range from a gap holds the start of the block it ends in,
+// whose rest is left unmarked (Unmark). Containers left empty are removed.
 func DeleteRange(from, to doc.Pos) Edit {
 	return func(tx *doc.Tx) error {
 		if doc.Compare(tx, doc.CaretAt(to), doc.CaretAt(from)) < 0 {
@@ -551,6 +586,13 @@ func DeleteRange(from, to doc.Pos) Edit {
 				return err
 			}
 		}
+		if !fromText && toText {
+			// From a gap, the range holds the start of the block its end
+			// is in, marker and all: what is left of it is plain text.
+			if second, ok := Block(tx, to); ok {
+				return Unmark(second.ID())(tx)
+			}
+		}
 		if !fromText || !toText {
 			return nil
 		}
@@ -575,6 +617,10 @@ func DeleteRange(from, to doc.Pos) Edit {
 		return nil
 	}
 }
+
+// IsText reports whether p is a position in text, not a gap between
+// blocks.
+func IsText(r doc.Reader, p doc.Pos) bool { return isInline(r, p.Ref()) }
 
 func isInline(r doc.Reader, ref doc.SlotRef) bool {
 	n, ok := r.Node(ref.Node)
@@ -840,6 +886,56 @@ func unbreak(tx *doc.Tx, ref doc.SlotRef) error {
 		off += 1 + next
 	}
 	return nil
+}
+
+// Unmark takes a text block's marker away, leaving its text a paragraph
+// where it stands: a heading, code or math block is retyped, and an item
+// leaves its list. A paragraph has no marker and is left as it is.
+func Unmark(id doc.ID) Edit {
+	return func(tx *doc.Tx) error {
+		n, ok := tx.Node(id)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		switch k := n.Kind(); {
+		case k == Item:
+			return Unlist(id)(tx)
+		case k == Paragraph || !IsTextBlock(k) || IsObject(k) || k == Cell:
+			return nil
+		}
+		return Retype(id, Paragraph, doc.Attrs{})(tx)
+	}
+}
+
+// Unlist takes an item out of its list as a paragraph holding its head,
+// followed by its body's blocks. The list splits around it, and is
+// removed when it is left empty.
+func Unlist(item doc.ID) Edit {
+	return func(tx *doc.Tx) error {
+		if err := Lift(item)(tx); err != nil {
+			return err
+		}
+		parent, slot, index, ok := Index(tx, item)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{NewParagraph()}}); err != nil {
+			return err
+		}
+		pn, _ := tx.Node(parent)
+		para := pn.Slot(slot).Child(index).ID()
+		n, _ := tx.Node(item)
+		if l := n.Slot(0).Len(); l > 0 {
+			if err := tx.Apply(doc.Transfer{From: doc.SlotRef{Node: item}, Start: 0, End: l, To: doc.SlotRef{Node: para}, At: 0}); err != nil {
+				return err
+			}
+		}
+		n, _ = tx.Node(item)
+		if err := moveChildrenAfter(tx, n, para); err != nil {
+			return err
+		}
+		return tx.Apply(doc.Remove{IDs: []doc.ID{item}})
+	}
 }
 
 // WrapRun is the run of siblings that wrapping ids in a container of kind

@@ -34,7 +34,8 @@ type Caret struct {
 	Stop int
 }
 
-// CaretAt is the caret at a position's first stop.
+// CaretAt is the caret at a position's own stop, 0: where it stands as
+// text, the marks it inherits deciding what is typed there (§4.2).
 func CaretAt(p Pos) Caret { return Caret{Pos: p} }
 
 // Bias says which side a position at an edit point keeps: before inserted

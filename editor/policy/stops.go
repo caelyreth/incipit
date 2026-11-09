@@ -18,6 +18,10 @@ type Stops interface {
 	Edge(dir vocab.Direction) (doc.Caret, bool)
 	// Normalize is the valid stop nearest c: c itself when it is a stop.
 	Normalize(c doc.Caret) doc.Caret
+	// Bound is the document position c stands for as the end of a range:
+	// its own position, except that the stop before a block's marker
+	// stands before the block, at the gap in the slot holding it.
+	Bound(c doc.Caret) doc.Pos
 }
 
 // StopsFunc builds the stop model of a document as a view sees it.
@@ -38,4 +42,27 @@ func (c *Ctx) Stops() Stops {
 		c.stops = c.stopsFn(c.r, c.view)
 	}
 	return c.stops
+}
+
+// Bound is the document position a caret stands for as a range's end
+// (Stops.Bound); without a stop model, its own position.
+func (c *Ctx) Bound(caret doc.Caret) doc.Pos {
+	if st := c.Stops(); st != nil {
+		return st.Bound(caret)
+	}
+	return caret.Pos
+}
+
+// Range is what the selection covers, in document order: the bounds of a
+// text selection's ends, or the gaps around a selected node. Every edit of
+// the selection reads it, so what is shown selected is what is edited.
+func (c *Ctx) Range() (from, to doc.Pos) {
+	sel := c.Selection()
+	if sel.Kind == doc.SelectNode {
+		if parent, slot, index, ok := vocab.Index(c.r, sel.Node); ok {
+			return doc.Pos{Node: parent, Slot: slot, Offset: index}, doc.Pos{Node: parent, Slot: slot, Offset: index + 1}
+		}
+	}
+	a, b := sel.Ordered(c.r)
+	return c.Bound(a), c.Bound(b)
 }

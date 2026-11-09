@@ -10,7 +10,10 @@ import (
 )
 
 // shown renders the unit holding the caret as the view presents it:
-// ghosts in brackets, and the caret as "|" at its stop.
+// ghosts in brackets, and the caret as "|" at its stop. At an offset, the
+// place before the first ghost is its StopFrom, each glyph boundary a
+// stop of its own, and the place after each ghost its StopTo; an offset
+// without ghosts has only its own stop, 0.
 func (p *page) shown() string {
 	p.t.Helper()
 	v, _ := p.e.View(1)
@@ -19,19 +22,25 @@ func (p *page) shown() string {
 	if pres == nil || len(pres.Surfaces) == 0 {
 		p.t.Fatalf("no presentation for %v", head)
 	}
+	items := pres.Surfaces[0].Flow.Items
+	first := map[int]int{}
+	for _, it := range items {
+		if _, ok := first[it.From]; !ok && it.Kind == present.GhostItem {
+			first[it.From] = it.StopFrom
+		}
+	}
 	var b strings.Builder
 	at := func(off, stop int) bool { return head.Pos.Offset == off && head.Stop == stop }
-	// The stop before everything at an offset is written once, before
-	// its first ghost or character.
+	// The place before everything at an offset is written once.
 	wrote := map[int]bool{}
 	before := func(off int) {
-		if !wrote[off] && at(off, 0) {
+		if !wrote[off] && at(off, first[off]) {
 			b.WriteByte('|')
 		}
 		wrote[off] = true
 	}
 	end := 0
-	for _, it := range pres.Surfaces[0].Flow.Items {
+	for _, it := range items {
 		switch it.Kind {
 		case present.GhostItem:
 			before(it.From)
@@ -192,8 +201,9 @@ func TestHeadingMarkerSteps(t *testing.T) {
 		t.Fatalf("level %d after typing #", vocab.HeadingLevel(n))
 	}
 	p.want("page(heading(Head))")
+	// The caret keeps its place from the text, after the glyph typed.
+	p.wantShown("[##|# ]Head")
 	// Backspace at the text's start steps it back up, then out.
-	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward})
 	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward})
 	p.wantShown("[### ]|Head")
 	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}

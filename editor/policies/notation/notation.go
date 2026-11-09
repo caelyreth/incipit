@@ -4,11 +4,14 @@
 // them as ghosts, with caret stops before and between their glyphs
 // (§13.5, §13.6).
 //
-// At one offset the ghosts stand in a fixed order, and their stops are
-// numbered from 0, the stop before all of them: the marks that end there,
-// innermost first, then a heading's marker, then the marks that start
-// there, outermost first. Each glyph is one stop; a marker's separator is
-// a gap, so a ghost's last stop is after the whole ghost.
+// At one offset the ghosts stand in a fixed order: the marks that end
+// there, innermost first, then a heading's marker, then the marks that
+// start there, outermost first. Each glyph is one stop; a marker's
+// separator is a gap, so a ghost's last stop is after the whole ghost.
+// Stop 0 is the position's own stop, where text typed takes the marks it
+// inherits: before the mark ghosts, which number up from it, and after a
+// block's marker, which numbers down to it. The stop before a marker
+// stands before its block.
 //
 // A stop decides the marks text typed there takes: the marks before the
 // offset, with every ghost the stop is past applied. Backspace inside or
@@ -93,18 +96,17 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		}
 		for _, f := range u.Facts(k.markers.Kind()) {
 			g, _ := k.markers.Data(f)
-			emit(policy.Ghost{At: f.From, Spelling: g.spelling(), Group: vocab.GroupGhost, StopFrom: f.StopFrom, Stops: f.StopTo - f.StopFrom, Side: vocab.Open})
+			emit(policy.Ghost{At: f.From, Spelling: g.spelling(), Group: vocab.GroupGhost, StopFrom: f.StopFrom, Stops: f.StopTo - f.StopFrom,
+				Side: vocab.Open, Block: true})
 		}
 	})
 
-	// Backspace steps the ghost before the caret, or the one it is in.
+	// Backspace steps the mark ghost before the caret, or the ghost it is
+	// in. After a block's marker the caret is at its text's start, where
+	// Backspace steps the block itself down.
 	back := vocab.Deleting(vocab.ByGrapheme, vocab.Backward)
-	// Either kind of ghost may be the one just before the caret; the
-	// handler steps whichever is nearest.
 	p.Handle("step-down-after-mark").On(back).When(vocab.Collapsed, vocab.After(k.marks.Scope())).
 		Produces(edits...).Do(stepAfter(k))
-	p.Handle("step-down-after-marker").On(back).When(vocab.Collapsed, vocab.After(k.markers.Scope())).
-		Unless(vocab.After(k.marks.Scope())).Produces(edits...).Do(stepAfter(k))
 	p.Handle("step-down-in-mark").On(back).In(k.marks.Scope()).When(vocab.Collapsed).
 		Produces(edits...).Do(stepIn)
 	p.Handle("step-down-in-marker").On(back).In(k.markers.Scope()).When(vocab.Collapsed).
@@ -269,9 +271,9 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 				put(c.g)
 			}
 			if heading && at == 0 {
+				// The text's own stop is after the marker.
 				level := vocab.HeadingLevel(u.Owner)
-				emit(k.markers.Point(0, stop, stop+level, markerGhost{Level: level}))
-				stop += level
+				emit(k.markers.Point(0, -level, 0, markerGhost{Level: level}))
 			}
 			for _, o := range opening {
 				put(o.g)
@@ -358,16 +360,20 @@ func (g markerGhost) spelling() vocab.Spelling {
 	return vocab.HeadingSpelling(g.Level) + " "
 }
 
-// Step moves the heading one level; below level 1 it is a paragraph.
+// Step steps the block the marker spells, as the block's own level does:
+// the marker is its notation, not a second owner of its level.
 func (g markerGhost) Step(dir vocab.Direction) vocab.Edit {
-	next := g.Level + int(dir)
-	switch {
-	case next < 1:
-		return vocab.Retype(g.node, vocab.Paragraph, doc.Attrs{})
-	case next > 6:
-		return vocab.Sequence()
+	return func(tx *doc.Tx) error {
+		n, ok := tx.Node(g.node)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		role, ok := vocab.NodeRole(tx, n, vocab.RoleLeveled)
+		if !ok {
+			return nil
+		}
+		return role.(vocab.Leveled).Step(dir)(tx)
 	}
-	return vocab.Retype(g.node, vocab.Heading, doc.MakeAttrs(doc.Field{Num: vocab.FieldLevel, Value: doc.Int(int64(next))}))
 }
 
 // Reshape takes a glyph typed into the marker: another "#" is one level
@@ -397,13 +403,13 @@ func ghostsAt(c *policy.Ctx, k kinds, pos doc.Pos) []policy.Fact {
 	return out
 }
 
-// stepAfter steps the ghost just before the caret down one level.
+// stepAfter steps the mark ghost just before the caret down one level.
 func stepAfter(k kinds) policy.Handler {
 	return func(c *policy.Ctx, _ policy.Match) policy.Result {
 		head := c.Head()
 		var before *policy.Fact
-		for _, f := range ghostsAt(c, k, head.Pos) {
-			if f.StopTo <= head.Stop {
+		for _, f := range c.Facts(head.Pos.Ref(), k.marks.Kind()) {
+			if f.Point && f.From == head.Pos.Offset && f.StopTo <= head.Stop && (before == nil || f.StopTo > before.StopTo) {
 				before = &f
 			}
 		}
@@ -466,8 +472,13 @@ func layoutAt(c *policy.Ctx, k kinds, pos doc.Pos) (layout, bool) {
 	if stops == nil {
 		return layout{}, false
 	}
-	last := ghosts[len(ghosts)-1].StopTo
-	if n := stops.Normalize(doc.Caret{Pos: pos, Stop: last}); n.Pos != pos || n.Stop == 0 {
+	// The ghosts are revealed when one of their stops other than the
+	// position's own is a stop of the view.
+	probe := doc.Caret{Pos: pos, Stop: ghosts[len(ghosts)-1].StopTo}
+	if probe.Stop == 0 {
+		probe.Stop = ghosts[0].StopFrom
+	}
+	if stops.Normalize(probe) != probe {
 		return layout{}, false
 	}
 	in, ok := c.Inline(pos.Ref())

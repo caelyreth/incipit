@@ -3,7 +3,9 @@ package manifest
 import (
 	"fmt"
 	"math/rand/v2"
+	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -135,6 +137,9 @@ func checkPublished(t *testing.T, e *engine.Engine, step string) {
 
 func TestRandomTracesKeepTheInvariants(t *testing.T) {
 	seeds := 24
+	if s := os.Getenv("NEVERLAND_SEEDS"); s != "" {
+		seeds, _ = strconv.Atoi(s)
+	}
 	length := 160
 	if testing.Short() {
 		seeds, length = 6, 80
@@ -306,6 +311,19 @@ func TestStopMapIsTotalMonotonicAndReversible(t *testing.T) {
 			for i := range fwd {
 				if fwd[i] != back[len(back)-1-i] {
 					t.Fatalf("stop %d: forward %v, backward %v", i, fwd[i], back[len(back)-1-i])
+				}
+			}
+			// Bounds are document positions in the stops' order: a range
+			// between two stops never runs backward in the document.
+			stops, _ := p.e.Stops(1)
+			snap := p.e.Snapshot()
+			for i, c := range fwd {
+				b := stops.Bound(c)
+				if n, ok := snap.Node(b.Node); !ok || b.Slot >= n.NumSlots() {
+					t.Fatalf("stop %v is bound to %v, no position", c, b)
+				}
+				if i > 0 && doc.Compare(snap, doc.CaretAt(stops.Bound(fwd[i-1])), doc.CaretAt(b)) > 0 {
+					t.Fatalf("bound of %v runs before the bound of %v", c, fwd[i-1])
 				}
 			}
 			// Total: every flow stop of every unit is visited.

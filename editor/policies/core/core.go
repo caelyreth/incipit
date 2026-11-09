@@ -98,28 +98,33 @@ func swallow(*policy.Ctx, policy.Match) policy.Result { return policy.Swallow }
 
 // --- text ---------------------------------------------------------------------
 
-// ordered returns the selection's ends in document order.
-func ordered(c *policy.Ctx) (doc.Pos, doc.Pos) {
-	from, to := c.Selection().Ordered(c.Doc())
-	return from.Pos, to.Pos
-}
-
-// clearSelection returns the edit deleting a text range or a selected
-// node, and the position the insertion goes to afterwards. The position is
-// expressed before the edit; the engine maps the caret.
-func clearSelection(c *policy.Ctx) (vocab.Edit, bool) {
+// clearSelection returns the edit deleting what the selection covers
+// (Ctx.Range), and where content replacing it goes: a position before the
+// edit, which edits after it map. A collapsed caret clears nothing and
+// inserts at its own position: its stop chooses marks, not a place.
+func clearSelection(c *policy.Ctx) (vocab.Edit, doc.Pos, bool) {
 	sel := c.Selection()
 	switch sel.Kind {
 	case doc.SelectNode:
-		return removeNode(sel.Node), true
+		at, _ := c.Range()
+		return removeNode(sel.Node), at, true
 	case doc.SelectText:
 		if sel.IsCollapsed() {
-			return nil, false
+			return nil, c.Head().Pos, false
 		}
-		from, to := ordered(c)
-		return vocab.DeleteRange(from, to), true
+		from, to := c.Range()
+		if from == to {
+			// Only notation is selected; the document holds nothing there.
+			return nil, from, false
+		}
+		at := from
+		if !vocab.IsText(c.Doc(), from) && vocab.IsText(c.Doc(), to) {
+			// From a gap, the block the range ends in keeps the place.
+			at = to
+		}
+		return vocab.DeleteRange(from, to), at, true
 	}
-	return nil, false
+	return nil, c.Head().Pos, false
 }
 
 // endOfNewBlock puts the caret at the end of the block created at a gap.
@@ -167,14 +172,9 @@ func typeText(c *policy.Ctx, m policy.Match) policy.Result {
 		return res
 	}
 	var edits []vocab.Edit
-	pos := c.Head().Pos
-	if clear, ok := clearSelection(c); ok {
+	clear, pos, ok := clearSelection(c)
+	if ok {
 		edits = append(edits, clear)
-		from, _ := ordered(c)
-		pos = from
-		if c.Selection().Kind == doc.SelectNode {
-			pos = c.Head().Pos
-		}
 	}
 	var pending *doc.MarkSet
 	for _, a := range c.Annotations().At(vocab.PendingMarks, pos) {
@@ -225,33 +225,58 @@ func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool) voca
 	}
 }
 
-// deleteText deletes the selection, or one unit from a collapsed caret;
-// at a slot's edge it joins blocks, or selects an object instead of
-// deleting it in one press.
+// deleteText deletes what the selection covers, or one unit from a
+// collapsed caret. At a slot's edge it steps a block's marker down, joins
+// blocks, or selects an object instead of deleting it in one press.
 func deleteText(c *policy.Ctx, m policy.Match) policy.Result {
 	in := m.Intent.(vocab.Delete)
-	if clear, ok := clearSelection(c); ok {
-		return policy.Do(clear)
-	}
-	r := c.Doc()
-	head := c.Head().Pos
 	if in.Dir == 0 {
 		in.Dir = vocab.Backward
 	}
+	if clear, _, ok := clearSelection(c); ok {
+		return policy.Do(clear)
+	}
+	r := c.Doc()
+	head := c.Head()
+	if sel := c.Selection(); sel.Kind == doc.SelectText && !sel.IsCollapsed() {
+		// A selection of notation alone deletes as a caret at its end in
+		// the direction of deleting would.
+		from, to := sel.Ordered(r)
+		head = to
+		if in.Dir > 0 {
+			head = from
+		}
+	}
+	if bound := c.Bound(head); bound != head.Pos {
+		// Before a block's marker: backward deletes the boundary before
+		// the block, forward deletes into its marker.
+		block, ok := vocab.Block(r, head.Pos)
+		if !ok {
+			return policy.Swallow
+		}
+		if in.Dir > 0 {
+			if res, ok := stepDown(r, block); ok {
+				return res
+			}
+			return policy.Swallow
+		}
+		return deleteBefore(c, block)
+	}
+	pos := head.Pos
 	unit := in.Unit
 	if unit == vocab.ToPageEdge {
 		// Deleting runs to the slot's edge at most.
 		unit = vocab.ToSlotEdge
 	}
-	target, ok := slotTarget(r, head, unit, in.Dir)
-	if ok && target != head {
-		from, to := head, target
+	target, ok := slotTarget(r, pos, unit, in.Dir)
+	if ok && target != pos {
+		from, to := pos, target
 		if from.Offset > to.Offset {
 			from, to = to, from
 		}
-		return policy.Do(vocab.Ops(doc.EditText{At: head.Ref(), From: from.Offset, To: to.Offset}))
+		return policy.Do(vocab.Ops(doc.EditText{At: pos.Ref(), From: from.Offset, To: to.Offset}))
 	}
-	return deleteAcross(c, head, in.Dir)
+	return deleteAcross(c, pos, in.Dir)
 }
 
 // deleteAcross handles a delete at a slot's edge.
@@ -278,9 +303,14 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 	if !ok {
 		return policy.Swallow
 	}
-	if block.Kind() == vocab.Item {
-		// TODO(lists): the lists policy lifts, steps down and joins items.
-		return policy.Swallow
+	if dir == vocab.Backward {
+		if head.Slot == 0 {
+			// At its text's start, a block with a marker steps it down.
+			if res, ok := stepDown(r, block); ok {
+				return res
+			}
+		}
+		return deleteBefore(c, block)
 	}
 	parent, ps, index, ok := vocab.Index(r, block.ID())
 	if !ok {
@@ -288,27 +318,6 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 	}
 	pn, _ := r.Node(parent)
 	siblings := pn.Slot(ps)
-	if dir == vocab.Backward {
-		// Unwrap an emptied heading or code block's kind first.
-		if block.Kind() != vocab.Paragraph && vocab.IsTextBlock(block.Kind()) && block.Kind() != vocab.Item {
-			return policy.Do(vocab.Retype(block.ID(), vocab.Paragraph, doc.Attrs{}))
-		}
-		if index == 0 {
-			if parent != r.Root().ID() && pn.Kind() != vocab.Item {
-				// The first block of a container leaves it.
-				return policy.Do(vocab.Lift(block.ID()))
-			}
-			return policy.Swallow
-		}
-		prev := siblings.Child(index - 1)
-		if vocab.IsObject(prev.Kind()) {
-			return policy.Select(doc.NodeSelection(prev.ID()))
-		}
-		if ref, ok := vocab.LastTextSlot(prev); ok && vocab.CanJoin(r, ref, head.Ref()) {
-			return policy.Do(vocab.Join(ref, block.ID()))
-		}
-		return policy.Swallow
-	}
 	if index+1 >= siblings.Len() {
 		return policy.Swallow
 	}
@@ -322,6 +331,57 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 	return policy.Swallow
 }
 
+// stepDown takes one level of a block's marker away: a leveled block
+// (a heading, an item) steps down one level, and another kind with a
+// marker becomes a paragraph. False for a block without a marker.
+func stepDown(r doc.Reader, block *doc.Node) (policy.Result, bool) {
+	if role, ok := vocab.NodeRole(r, block, vocab.RoleLeveled); ok {
+		return policy.Do(role.(vocab.Leveled).Step(vocab.Backward)), true
+	}
+	switch k := block.Kind(); {
+	case k == vocab.Paragraph || k == vocab.Cell || !vocab.IsTextBlock(k) || vocab.IsObject(k):
+		return policy.Result{}, false
+	}
+	return policy.Do(vocab.Unmark(block.ID())), true
+}
+
+// deleteBefore deletes the boundary before a block, its marker kept: the
+// block joins the text before it, an object before it is selected, and
+// the first block of a quote leaves it. The first item of a list deletes
+// the boundary before its list.
+func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
+	r := c.Doc()
+	id := block.ID()
+	for {
+		parent, ps, index, ok := vocab.Index(r, id)
+		if !ok {
+			return policy.Swallow
+		}
+		pn, _ := r.Node(parent)
+		if index > 0 {
+			prev := pn.Slot(ps).Child(index - 1)
+			if vocab.IsObject(prev.Kind()) {
+				return policy.Select(doc.NodeSelection(prev.ID()))
+			}
+			ref, ok := vocab.LastTextSlot(prev)
+			first, fok := vocab.FirstTextSlot(block)
+			if ok && fok && first.Node == block.ID() && vocab.CanJoin(r, ref, first) {
+				return policy.Do(vocab.Join(ref, block.ID()))
+			}
+			return policy.Swallow
+		}
+		switch {
+		case parent == r.Root().ID() || pn.Kind() == vocab.Item:
+			return policy.Swallow
+		case pn.Kind() == vocab.List:
+			// The boundary before a list's first item is the list's.
+			id = parent
+		default:
+			return policy.Do(vocab.Lift(id))
+		}
+	}
+}
+
 // inlineParent reports the slot holding an inline node.
 func inlineParent(r doc.Reader, id doc.ID) (doc.ID, int, bool) {
 	parent, slot, ok := r.Parent(id)
@@ -333,14 +393,15 @@ func inlineParent(r doc.Reader, id doc.ID) (doc.ID, int, bool) {
 }
 
 // breakBlock is Enter: a line break in slots that keep lines, a split
-// elsewhere; a heading split at its end continues as a paragraph.
+// elsewhere. At a block's text start, and before its marker, a block opens
+// before it and the caret stays; a heading split at its end continues as
+// a paragraph.
 func breakBlock(c *policy.Ctx, m policy.Match) policy.Result {
 	r := c.Doc()
 	var edits []vocab.Edit
-	pos := c.Head().Pos
-	if clear, ok := clearSelection(c); ok {
+	clear, pos, ok := clearSelection(c)
+	if ok {
 		edits = append(edits, clear)
-		pos, _ = ordered(c)
 	}
 	spec, ok := vocab.SlotSpec(r, pos.Ref())
 	if !ok {
@@ -362,9 +423,20 @@ func breakBlock(c *policy.Ctx, m policy.Match) policy.Result {
 	if !ok {
 		return policy.Swallow
 	}
-	kind, attrs := block.Kind(), block.Attrs()
-	if kind == vocab.Heading && pos.Offset == block.Slot(pos.Slot).Len() {
-		kind, attrs = vocab.Paragraph, doc.Attrs{}
+	kind, attrs := continuation(block)
+	if clear == nil && pos.Offset == 0 && pos.Slot == 0 && block.Slot(0).Len() > 0 {
+		// The block keeps its text and the caret; an empty one opens
+		// before it.
+		parent, slot, index, ok := vocab.Index(r, block.ID())
+		if !ok {
+			return policy.Swallow
+		}
+		res := policy.Do(vocab.Ops(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{vocab.NewBlock(kind, attrs)}}))
+		res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
+		return res
+	}
+	if pos.Offset < block.Slot(pos.Slot).Len() {
+		kind, attrs = block.Kind(), block.Attrs()
 	}
 	res := policy.Do(append(edits, func(tx *doc.Tx) error {
 		at, _ := doc.Steps(tx.Steps()).Map(pos, doc.BiasBefore)
@@ -373,6 +445,19 @@ func breakBlock(c *policy.Ctx, m policy.Match) policy.Result {
 	res.Then = startOfNext(block.ID())
 	res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 	return res
+}
+
+// continuation is the kind a block opened next to block takes: an item
+// continues its list as an open task or a plain item, every other block
+// as a paragraph.
+func continuation(block *doc.Node) (doc.Kind, doc.Attrs) {
+	if block.Kind() == vocab.Item {
+		if vocab.TaskOf(block) != vocab.NoTask {
+			return vocab.Item, doc.MakeAttrs(doc.Field{Num: vocab.FieldTask, Value: doc.Int(int64(vocab.TaskOpen))})
+		}
+		return vocab.Item, doc.Attrs{}
+	}
+	return vocab.Paragraph, doc.Attrs{}
 }
 
 // startOfNext puts the caret at the start of the block after id, as a
@@ -395,12 +480,11 @@ func startOfNext(id doc.ID) func(doc.Reader) doc.Selection {
 // softBreak inserts a line break where the slot keeps lines, and is Enter
 // elsewhere.
 func softBreak(c *policy.Ctx, m policy.Match) policy.Result {
-	pos := c.Head().Pos
+	clear, pos, cleared := clearSelection(c)
 	if spec, ok := vocab.SlotSpec(c.Doc(), pos.Ref()); ok && spec.Lines && !spec.Blocks {
 		var edits []vocab.Edit
-		if clear, ok := clearSelection(c); ok {
+		if cleared {
 			edits = append(edits, clear)
-			pos, _ = ordered(c)
 		}
 		return policy.Do(append(edits, insertText(pos, "\n", nil, true))...)
 	}
@@ -419,10 +503,9 @@ func paste(c *policy.Ctx, m policy.Match) policy.Result {
 		return policy.Swallow
 	}
 	var edits []vocab.Edit
-	pos := c.Head().Pos
-	if clear, ok := clearSelection(c); ok {
+	clear, pos, ok := clearSelection(c)
+	if ok {
 		edits = append(edits, clear)
-		pos, _ = ordered(c)
 	}
 	edits = append(edits, func(tx *doc.Tx) error {
 		at, _ := doc.Steps(tx.Steps()).Map(pos, doc.BiasBefore)
@@ -463,7 +546,7 @@ func TextSlice(text string) vocab.Slice {
 
 // cut deletes the selection; the host copied it before sending Cut.
 func cut(c *policy.Ctx, m policy.Match) policy.Result {
-	if clear, ok := clearSelection(c); ok {
+	if clear, _, ok := clearSelection(c); ok {
 		return policy.Do(clear)
 	}
 	return policy.Swallow
@@ -479,9 +562,8 @@ func compose(c *policy.Ctx, m policy.Match) policy.Result {
 	at := c.Head().Pos
 	if cur := c.Composition(); cur != nil {
 		at = cur.At
-	} else if clear, ok := clearSelection(c); ok {
+	} else if clear, from, ok := clearSelection(c); ok {
 		res.Edits = []vocab.Edit{clear}
-		from, _ := ordered(c)
 		at = from
 		// The composition point is in pre-edit positions; deleting the
 		// selection collapses onto its start, which maps to itself.
@@ -558,7 +640,7 @@ func format(c *policy.Ctx, m policy.Match) policy.Result {
 		res.Annotate = []policy.Annotate{{Kind: vocab.PendingMarks, Anchor: anchor, Data: marks, Lifetime: policy.UntilCaretLeaves(nil)}}
 		return res
 	}
-	from, to := ordered(c)
+	from, to := c.Range()
 	spans := vocab.TextSpans(r, from, to)
 	if vocab.CoverageOf(r, spans, in.Mark) == vocab.CoverFull {
 		return policy.Do(vocab.ClearMark(spans, in.Mark))
@@ -569,7 +651,7 @@ func format(c *policy.Ctx, m policy.Match) policy.Result {
 // selectedBlocks are the text blocks the selection touches.
 func selectedBlocks(c *policy.Ctx) []*doc.Node {
 	r := c.Doc()
-	from, to := ordered(c)
+	from, to := c.Range()
 	var out []*doc.Node
 	for _, s := range vocab.TextSpans(r, from, to) {
 		b, ok := vocab.Block(r, doc.At(s.Slot, s.From))
