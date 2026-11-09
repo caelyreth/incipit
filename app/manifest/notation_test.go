@@ -92,27 +92,28 @@ func TestClosingARunLeavesTheCaretAfterItsGhost(t *testing.T) {
 	p.wantShown("a [**]bold[**]x|")
 }
 
-func TestGhostsAreRevealedOnlyNearTheCaret(t *testing.T) {
+// Notation looks the same wherever the caret is; hiding it hides mark
+// notation only, never a block's marker.
+func TestNotationDoesNotDependOnTheCaret(t *testing.T) {
 	p := open(t)
-	p.typeText("a *em*")
+	p.typeText("# a *em*")
 	p.do(vocab.Break{})
 	p.typeText("next")
-	// The caret is in the second paragraph: the first shows no ghosts.
 	first := p.e.Snapshot().Root().Slot(0).Child(0).ID()
-	for _, it := range p.e.Present(1, []doc.ID{first})[0].Surfaces[0].Flow.Items {
-		if it.Kind == present.GhostItem {
-			t.Fatalf("a ghost far from the caret: %q", it.Spelling)
+	ghosts := func() (spelled string) {
+		for _, it := range p.e.Present(1, []doc.ID{first})[0].Surfaces[0].Flow.Items {
+			if it.Kind == present.GhostItem {
+				spelled += string(it.Spelling)
+			}
 		}
+		return spelled
 	}
-	p.e.SetPresentOptions(1, present.Options{Reveal: present.RevealShown})
-	ghosts := 0
-	for _, it := range p.e.Present(1, []doc.ID{first})[0].Surfaces[0].Flow.Items {
-		if it.Kind == present.GhostItem {
-			ghosts++
-		}
+	if got := ghosts(); got != "# **" {
+		t.Fatalf("the heading the caret left spells %q, want \"# **\"", got)
 	}
-	if ghosts != 2 {
-		t.Fatalf("%d ghosts shown, want 2", ghosts)
+	p.e.SetPresentOptions(1, hidden())
+	if got := ghosts(); got != "# " {
+		t.Fatalf("hidden notation spells %q, want the marker alone", got)
 	}
 }
 

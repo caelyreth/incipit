@@ -131,6 +131,8 @@ type Program struct {
 	phases     map[doc.Phase][]*rewrite
 	observers  []*observer
 	analyzerOf map[vocab.FactKind]*analyzer
+	// analyzing are the policies with analyzers, in compile order.
+	analyzing  []string
 	factDecls  map[vocab.FactKind]*factDecl
 	scopeKinds []vocab.FactKind
 	annotation map[uint32]annotationDecl
@@ -278,6 +280,9 @@ func Compile(m Manifest, values Values) (*Program, error) {
 			prog.factDecls[d.kind] = d
 		}
 		for _, a := range p.analyzers {
+			if !slices.Contains(prog.analyzing, a.policy) {
+				prog.analyzing = append(prog.analyzing, a.policy)
+			}
 			for _, k := range a.kinds {
 				if prev, ok := prog.analyzerOf[k]; ok && prev != a {
 					rep.errorf("fact %s has two analyzers", k)

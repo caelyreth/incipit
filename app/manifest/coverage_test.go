@@ -52,7 +52,7 @@ var basicIntents = map[string]vocab.Intent{
 }
 
 func TestBasicIntentsHaveAnOutcomeInEveryBlock(t *testing.T) {
-	for _, reveal := range []present.Reveal{present.RevealNearCaret, present.RevealHidden} {
+	for _, reveal := range []present.Reveal{present.RevealShown, present.RevealHidden} {
 		for name, build := range blockPages {
 			// Each place the caret stands in the block: the stops from its
 			// end back to its first, before any marker.

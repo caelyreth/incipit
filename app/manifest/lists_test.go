@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -99,16 +100,22 @@ func TestSelectAllDeletesAListWhole(t *testing.T) {
 	p.want("page(paragraph())")
 }
 
-func TestOnlyTheCaretsItemSpellsItsMarker(t *testing.T) {
+// Every item spells its marker, wherever the caret is: notation never
+// restyles as the caret moves.
+func TestEveryItemSpellsItsMarker(t *testing.T) {
 	p := twoItems(t)
 	units := p.e.Units(1)
 	ids := []doc.ID{units[0].ID, units[1].ID}
-	pres := p.e.Present(1, ids)
-	if pres[0].Spelled || !pres[1].Spelled {
-		t.Fatalf("spelled: first %v, second %v; only the caret's item spells its marker", pres[0].Spelled, pres[1].Spelled)
-	}
-	if pres[0].Context.Marker == nil || pres[0].Context.Marker.Spelling() != "- " {
-		t.Fatalf("the first item's marker is %+v", pres[0].Context.Marker)
+	for i, pres := range p.e.Present(1, ids) {
+		spelled := ""
+		for _, it := range pres.Surfaces[0].Flow.Items {
+			if it.Kind == present.GhostItem {
+				spelled += string(it.Spelling)
+			}
+		}
+		if spelled != "- " {
+			t.Fatalf("item %d spells %q, want \"- \"", i, spelled)
+		}
 	}
 }
 

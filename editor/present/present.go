@@ -18,12 +18,13 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
-// Reveal is the notation reveal mode, a view option.
+// Reveal is the notation reveal mode, a view option. Notation looks the
+// same wherever the caret is, so nothing reflows as it moves; block
+// markers are spelled under every mode.
 type Reveal uint8
 
 const (
-	RevealNearCaret Reveal = iota
-	RevealShown
+	RevealShown Reveal = iota
 	RevealHidden
 )
 
@@ -126,15 +127,19 @@ type Stop struct {
 	Class   StopClass
 	// Offset is the slot offset; for gaps, the gap index.
 	Offset int
-	// Outside is set on the stop before a block's marker: the gap before
-	// the block, which a range from this stop starts at (§4.2).
-	Outside *doc.Pos
+	// Outside is set on the stop before a block's marker: it stands for
+	// the gap before the block, which a range from it starts at (§4.2).
+	Outside bool
 }
 
 // Bound is the document position the stop stands for as a range's end.
-func (s Stop) Bound() doc.Pos {
-	if s.Outside != nil {
-		return *s.Outside
+// The gap before a block is read from the document, so a presentation
+// holds no place that moves when blocks before it change.
+func (s Stop) Bound(r doc.Reader) doc.Pos {
+	if s.Outside {
+		if parent, slot, i, ok := vocab.Index(r, s.Caret.Pos.Node); ok {
+			return doc.Pos{Node: parent, Slot: slot, Offset: i}
+		}
 	}
 	return s.Caret.Pos
 }
@@ -151,9 +156,6 @@ type Presentation struct {
 	// Gap is set for an object unit: the block slot and index it stands
 	// at, for gap stops before and after it.
 	Gap *doc.Pos
-	// Spelled reports that notation spells the unit's marker in its flow,
-	// so the container's marker is not drawn beside it.
-	Spelled bool
 
 	Role, Label string
 
@@ -194,18 +196,16 @@ type unitKey struct {
 	program uint64
 	reveal  Reveal
 	ghosts  GhostLayout
-	near    bool
 	open    string
+	// facts is what the facts of the unit's text depend on besides it.
+	facts string
 }
 
 // Presenter memoises presentations. It is per view.
 type Presenter struct {
-	mu   sync.Mutex
-	memo map[doc.ID]*Presentation
-	// entered memoises units as they are presented with a selection end
-	// in them, for stepping into a unit the caret is not in yet.
-	entered map[doc.ID]*Presentation
-	units   struct {
+	mu    sync.Mutex
+	memo  map[doc.ID]*Presentation
+	units struct {
 		root  *doc.Node
 		list  []UnitRef
 		index map[doc.ID]int
@@ -214,7 +214,7 @@ type Presenter struct {
 
 // NewPresenter returns a presenter.
 func NewPresenter() *Presenter {
-	return &Presenter{memo: map[doc.ID]*Presentation{}, entered: map[doc.ID]*Presentation{}}
+	return &Presenter{memo: map[doc.ID]*Presentation{}}
 }
 
 // Units lists the page's units in order, with their container context.
@@ -315,36 +315,6 @@ func (pr *Presenter) UnitAt(r doc.Reader, pos doc.Pos) (int, bool) {
 	return 0, false
 }
 
-// Entered presents unit i as it stands with a selection end in it, but in
-// none of its cards: the presentation logical motion steps into.
-func (pr *Presenter) Entered(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, i int) *Presentation {
-	units := pr.Units(r)
-	if i < 0 || i >= len(units) {
-		return nil
-	}
-	u := units[i]
-	key := pr.keyOf(prog, u, opts)
-	key.near = opts.Reveal == RevealNearCaret
-	pr.mu.Lock()
-	if p, ok := pr.memo[u.ID]; ok && p.key == key {
-		pr.mu.Unlock()
-		return p
-	}
-	if p, ok := pr.entered[u.ID]; ok && p.key == key {
-		pr.mu.Unlock()
-		return p
-	}
-	pr.mu.Unlock()
-	p := build(prog, store, r, view, opts, u, key)
-	pr.mu.Lock()
-	pr.entered[u.ID] = p
-	if len(pr.entered) > 1<<12 {
-		clear(pr.entered)
-	}
-	pr.mu.Unlock()
-	return p
-}
-
 // Unit presents unit i as the view sees it.
 func (pr *Presenter) Unit(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, i int) *Presentation {
 	units := pr.Units(r)
@@ -386,10 +356,16 @@ func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef, opts Options) unitKe
 
 func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, u UnitRef) *Presentation {
 	key := pr.keyOf(prog, u, opts)
+	var cards []doc.ID
 	if view != nil {
-		key.near = opts.Reveal == RevealNearCaret && holdsSelection(r, u.Node, view.Selection)
-		key.open = openCards(r, u.Node, view.Selection)
+		cards = openCards(r, u.Node, view.Selection)
+		ids := make([]string, len(cards))
+		for i, id := range cards {
+			ids[i] = id.String()
+		}
+		key.open = strings.Join(ids, ",")
 	}
+	key.facts = factContext(prog, r, view, append([]doc.ID{u.ID}, cards...))
 	pr.mu.Lock()
 	if p, ok := pr.memo[u.ID]; ok && p.key == key {
 		pr.mu.Unlock()
@@ -408,14 +384,6 @@ func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Re
 
 // Marker is the unit's marker, or nil.
 func (u UnitRef) Marker() *Marker { return u.Context.Marker }
-
-// holdsSelection reports whether either selection end is in the node.
-func holdsSelection(r doc.Reader, n *doc.Node, s doc.Selection) bool {
-	if s.Kind == doc.SelectNode {
-		return doc.Contains(r, n.ID(), s.Node)
-	}
-	return within(r, n, s.Head.Pos.Node) || within(r, n, s.Anchor.Pos.Node)
-}
 
 // within: id is n or an inline node in n's own slots (not in an item's
 // body, which holds units of its own).
@@ -438,15 +406,15 @@ func within(r doc.Reader, n *doc.Node, id doc.ID) bool {
 }
 
 // openCards names the inline nodes of n whose slot holds a selection end.
-func openCards(r doc.Reader, n *doc.Node, s doc.Selection) string {
+func openCards(r doc.Reader, n *doc.Node, s doc.Selection) []doc.ID {
 	if s.Kind != doc.SelectText {
-		return ""
+		return nil
 	}
-	var open []string
+	var open []doc.ID
 	for _, end := range []doc.Pos{s.Anchor.Pos, s.Head.Pos} {
 		// Every inline node between the end and the unit is open.
 		for id := end.Node; id != n.ID() && within(r, n, id); {
-			open = append(open, id.String())
+			open = append(open, id)
 			parent, _, ok := r.Parent(id)
 			if !ok {
 				break
@@ -455,7 +423,23 @@ func openCards(r doc.Reader, n *doc.Node, s doc.Selection) string {
 		}
 	}
 	slices.Sort(open)
-	return strings.Join(slices.Compact(open), ",")
+	return slices.Compact(open)
+}
+
+// factContext is what the facts of the slots a unit presents depend on:
+// its own text's and each open card's.
+func factContext(prog *policy.Program, r doc.Reader, view *policy.View, nodes []doc.ID) string {
+	var b strings.Builder
+	for _, id := range nodes {
+		n, ok := r.Node(id)
+		if !ok {
+			continue
+		}
+		if ref, ok := vocab.FirstTextSlot(n); ok && ref.Node == id {
+			b.WriteString(prog.FactContext(r, view, ref))
+		}
+	}
+	return b.String()
 }
 
 // unitGroup is the group of a unit's kind.
@@ -500,15 +484,14 @@ func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy
 	if !ok || ref.Node != n.ID() {
 		return p
 	}
-	revealed := opts.Reveal == RevealShown || opts.Reveal == RevealNearCaret && key.near
-	flowOf(prog, store, r, view, opts, p, ref, revealed, p.Group, false, 0)
+	flowOf(prog, store, r, view, opts, p, ref, p.Group, false, 0)
 	return p
 }
 
 // flowOf presents an inline slot as a surface, appending its stops; boxes
 // whose slot holds a selection end get cards after it.
 func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, p *Presentation,
-	ref doc.SlotRef, revealed bool, base vocab.Group, card bool, anchor doc.ID) {
+	ref doc.SlotRef, base vocab.Group, card bool, anchor doc.ID) {
 	owner, _ := r.Node(ref.Node)
 	slot := owner.Slot(ref.Slot)
 	content := slot.Content()
@@ -534,12 +517,16 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 			paints = append(paints, paintSpan{f.From, f.To, pc.Group})
 		}
 	}
-	// Ghosts, when revealed.
+	// Ghosts: block markers always, mark notation unless hidden.
 	var ghosts []policy.Ghost
-	if revealed && len(prog.Ghosts()) > 0 {
+	if len(prog.Ghosts()) > 0 {
 		unit := prog.UnitOf(store, r, view, ref)
 		for _, g := range prog.Ghosts() {
-			g(unit, func(gh policy.Ghost) { ghosts = append(ghosts, gh) })
+			g(unit, func(gh policy.Ghost) {
+				if gh.Block || opts.Reveal != RevealHidden {
+					ghosts = append(ghosts, gh)
+				}
+			})
 		}
 		// At one offset, ghosts keep the order their stops number them in.
 		slices.SortStableFunc(ghosts, func(a, b policy.Ghost) int {
@@ -573,18 +560,11 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 			ghostStop := func(s int) Stop {
 				return Stop{Caret: doc.Caret{Pos: doc.At(ref, g.At), Stop: s}, Surface: index, Class: StopGhost, Offset: g.At}
 			}
-			if g.Block && !card {
-				p.Spelled = true
-			}
 			if g.StopFrom < 0 {
 				// Below the position's own stop, the stop before the ghost
 				// is the ghost's to give.
 				st := ghostStop(g.StopFrom)
-				if g.Block {
-					if parent, slot, i, ok := vocab.Index(r, ref.Node); ok {
-						st.Outside = &doc.Pos{Node: parent, Slot: slot, Offset: i}
-					}
-				}
+				st.Outside = g.Block
 				stops = append(stops, st)
 			}
 			for s := g.StopFrom + 1; s <= g.StopFrom+g.Stops; s++ {
@@ -609,7 +589,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 				// Stops are ordered by position: the card's sit inside the
 				// box, between its two flow stops.
 				flush()
-				flowOf(prog, store, r, view, opts, p, src, true, vocab.GroupFormulaSource, true, it.Node.ID())
+				flowOf(prog, store, r, view, opts, p, src, vocab.GroupFormulaSource, true, it.Node.ID())
 			}
 			stop(at + 1)
 			return true

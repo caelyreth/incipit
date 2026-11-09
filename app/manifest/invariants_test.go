@@ -313,7 +313,7 @@ func walk(t *testing.T, e *engine.Engine, dir vocab.Direction) []doc.Caret {
 }
 
 func TestStopMapIsTotalMonotonicAndReversible(t *testing.T) {
-	for _, reveal := range []present.Reveal{present.RevealNearCaret, present.RevealShown, present.RevealHidden} {
+	for _, reveal := range []present.Reveal{present.RevealShown, present.RevealHidden} {
 		t.Run(fmt.Sprint(reveal), func(t *testing.T) {
 			p := richPage(t)
 			p.e.SetPresentOptions(1, present.Options{Reveal: reveal})
@@ -342,21 +342,19 @@ func TestStopMapIsTotalMonotonicAndReversible(t *testing.T) {
 				}
 			}
 			// Total: every flow stop of every unit is visited.
-			if reveal != present.RevealNearCaret {
-				seen := map[doc.Caret]bool{}
-				for _, c := range fwd {
-					seen[c] = true
-				}
-				units := p.e.Units(1)
-				ids := make([]doc.ID, len(units))
-				for i, u := range units {
-					ids[i] = u.ID
-				}
-				for _, pres := range p.e.Present(1, ids) {
-					for _, s := range pres.Stops {
-						if s.Class != present.StopEntry && !seen[s.Caret] {
-							t.Fatalf("stop %v of %s is never visited", s.Caret, outline(pres.Node))
-						}
+			seen := map[doc.Caret]bool{}
+			for _, c := range fwd {
+				seen[c] = true
+			}
+			units := p.e.Units(1)
+			ids := make([]doc.ID, len(units))
+			for i, u := range units {
+				ids[i] = u.ID
+			}
+			for _, pres := range p.e.Present(1, ids) {
+				for _, s := range pres.Stops {
+					if s.Class != present.StopEntry && !seen[s.Caret] {
+						t.Fatalf("stop %v of %s is never visited", s.Caret, outline(pres.Node))
 					}
 				}
 			}
@@ -364,10 +362,9 @@ func TestStopMapIsTotalMonotonicAndReversible(t *testing.T) {
 	}
 }
 
-// Moving the caret itself forward and back retraces its steps, as reveal
-// changes under it.
+// Moving the caret itself forward and back retraces its steps.
 func TestCaretMotionRetracesItsSteps(t *testing.T) {
-	for _, reveal := range []present.Reveal{present.RevealNearCaret, present.RevealShown, present.RevealHidden} {
+	for _, reveal := range []present.Reveal{present.RevealShown, present.RevealHidden} {
 		t.Run(fmt.Sprint(reveal), func(t *testing.T) {
 			p := richPage(t)
 			p.e.SetPresentOptions(1, present.Options{Reveal: reveal})

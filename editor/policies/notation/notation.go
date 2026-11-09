@@ -33,9 +33,8 @@ const ID = "notation"
 
 // Reveal modes and ghost layouts, as option values.
 const (
-	RevealNearCaret = "nearCaret"
-	RevealShown     = "shown"
-	RevealHidden    = "hidden"
+	RevealShown  = "shown"
+	RevealHidden = "hidden"
 
 	LayoutRoom    = "room"
 	LayoutOverlay = "overlay"
@@ -44,8 +43,7 @@ const (
 // Options.
 var (
 	// Reveal is the default reveal mode of a view (§13.6).
-	Reveal = policy.Enum("reveal", RevealNearCaret, []policy.Choice[string]{
-		{Value: RevealNearCaret, Label: "settings.notation.reveal.nearCaret"},
+	Reveal = policy.Enum("reveal", RevealShown, []policy.Choice[string]{
 		{Value: RevealShown, Label: "settings.notation.reveal.shown"},
 		{Value: RevealHidden, Label: "settings.notation.reveal.hidden"},
 	}, policy.Label("settings.notation.reveal"))
@@ -63,7 +61,7 @@ var (
 // View returns the reveal mode and ghost layout option values chose, for
 // the host's view options.
 func View(values policy.Values) (reveal, layout string) {
-	reveal, layout = RevealNearCaret, LayoutRoom
+	reveal, layout = RevealShown, LayoutRoom
 	if v, ok := values[ID+"."+"reveal"].(string); ok {
 		reveal = v
 	}

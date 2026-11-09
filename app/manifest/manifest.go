@@ -28,13 +28,8 @@ var Manifest = policy.Manifest{
 func PresentOptions(values policy.Values) present.Options {
 	reveal, layout := notation.View(values)
 	var o present.Options
-	switch reveal {
-	case notation.RevealShown:
-		o.Reveal = present.RevealShown
-	case notation.RevealHidden:
+	if reveal == notation.RevealHidden {
 		o.Reveal = present.RevealHidden
-	default:
-		o.Reveal = present.RevealNearCaret
 	}
 	if layout == notation.LayoutOverlay {
 		o.Ghosts = present.GhostOverlay

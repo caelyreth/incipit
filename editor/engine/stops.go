@@ -8,10 +8,9 @@ import (
 )
 
 // stopModel is a view's stop model over one document state, read from the
-// presentation (§13.5): each unit's stop map, in page order. The unit
-// holding a selection end is read as the view presents it; others as they
-// are presented once a selection end steps into them, so stepping forward
-// then back returns to the start under every reveal mode.
+// presentation (§13.5): each unit's stop map, in page order. Notation is
+// presented the same wherever the caret is, so every unit's stops are
+// those the view shows.
 type stopModel struct {
 	pr    *present.Presenter
 	prog  *policy.Program
@@ -50,26 +49,9 @@ func (e *Engine) Stops(viewID uint64) (policy.Stops, bool) {
 	return e.stopsFor(viewID)(e.snap, &view), true
 }
 
-// unit presents unit i: as the view shows it when a selection end is in
-// it, and as it shows once entered otherwise.
+// unit presents unit i as the view shows it.
 func (m *stopModel) unit(i int) *present.Presentation {
-	if m.holds(i) {
-		return m.pr.Unit(m.prog, m.store, m.r, m.view, m.opts, i)
-	}
-	return m.pr.Entered(m.prog, m.store, m.r, m.view, m.opts, i)
-}
-
-// holds reports whether a selection end of the view is in unit i.
-func (m *stopModel) holds(i int) bool {
-	if m.view == nil || m.view.Selection.Kind != doc.SelectText {
-		return false
-	}
-	for _, end := range []doc.Caret{m.view.Selection.Head, m.view.Selection.Anchor} {
-		if j, ok := m.pr.UnitAt(m.r, end.Pos); ok && j == i {
-			return true
-		}
-	}
-	return false
+	return m.pr.Unit(m.prog, m.store, m.r, m.view, m.opts, i)
 }
 
 // flowStops are a unit's stops that ordinary motion reaches from outside
@@ -222,7 +204,7 @@ func (m *stopModel) Bound(c doc.Caret) doc.Pos {
 	if p := m.unit(i); p != nil {
 		for _, s := range p.Stops {
 			if s.Caret == c {
-				return s.Bound()
+				return s.Bound(m.r)
 			}
 		}
 	}

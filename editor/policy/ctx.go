@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -134,6 +135,21 @@ func buildUnit(prog *Program, store *Store, r doc.Reader, view *View, ref doc.Sl
 	}
 	u.facts = func(k vocab.FactKind) []Fact { return prog.facts(store, r, view, ref, k) }
 	return u, true
+}
+
+// FactContext is what an inline slot's facts depend on besides its
+// content: the unit context each analyzing policy reads, its annotations
+// among them. A presentation keyed by it is rebuilt whenever a fact of its
+// slot could change (§13.1).
+func (p *Program) FactContext(r doc.Reader, view *View, ref doc.SlotRef) string {
+	var b strings.Builder
+	for _, pol := range p.analyzing {
+		if u, ok := buildUnit(p, nil, r, view, ref, pol); ok {
+			b.WriteString(unitContext(u))
+			b.WriteByte('|')
+		}
+	}
+	return b.String()
 }
 
 // Facts returns the facts of a kind in an inline slot, computing them if

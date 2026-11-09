@@ -97,7 +97,6 @@ type unitLayout struct {
 	// object marks a unit drawn as a box (a divider), with gap stops.
 	object bool
 	gaps   []stopAt
-	marker string
 }
 
 type layoutKey struct {
@@ -241,10 +240,6 @@ func layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme
 	u := &unitLayout{pres: p}
 	u.x = float32(p.Context.Indent+p.Context.Quotes) * m.Indent
 	width := max(m.Width-u.x, m.Body*4)
-	if mk := p.Context.Marker; mk != nil && !p.Spelled {
-		// A marker notation spells is in the flow; otherwise it is drawn.
-		u.marker = markerText(mk)
-	}
 	if vocab.IsObject(p.Kind) {
 		u.object = true
 		u.h = lineHeight(m, m.Body)
@@ -281,19 +276,6 @@ func layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme
 const boxPad = 3
 
 func cardPad(m Metrics) float32 { return m.Body * 0.6 }
-
-func markerText(mk *present.Marker) string {
-	switch mk.Task {
-	case vocab.TaskOpen:
-		return "☐"
-	case vocab.TaskDone:
-		return "☑"
-	}
-	if mk.Style == vocab.Ordered {
-		return fmt.Sprintf("%d.", mk.Ordinal)
-	}
-	return "•"
-}
 
 func utf16Len(s string) int {
 	n := 0
@@ -360,8 +342,8 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 			// TODO(ghosts): overlay ghosts draw over the text without taking
 			// room; until they do, they take room like room ghosts, so their
 			// stops stay where the caret can be seen.
-			// A ghost takes its room in the line but is drawn on its own,
-			// so its reveal can fade in without shaping the line again.
+			// A ghost takes its room in the line and is drawn on its own,
+			// in its group's ink.
 			sp := span(string(it.Spelling), style, m.Body)
 			face := sp
 			face.Color = ui.Color{}
@@ -501,18 +483,6 @@ func (sl *surfaceLayout) lineOf(u int) (ui.TextLine, int, int) {
 		}
 	}
 	return ui.TextLine{}, 0, 0
-}
-
-// hasGhosts reports whether the unit shows ghost notation.
-func (u *unitLayout) hasGhosts() bool {
-	for _, s := range u.surfaces {
-		for _, sg := range s.segs {
-			if sg.kind == segGhost {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // --- page geometry --------------------------------------------------------

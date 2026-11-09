@@ -31,19 +31,13 @@ type Element struct {
 	focusPending bool
 	lastClicks   int
 
-	// The caret glides between the places it is drawn at, and a unit's
-	// ghosts fade in as they are revealed.
+	// The caret glides between the places it is drawn at.
 	caret      [3]motion.Spring // x, y, height, in page coordinates
 	caretShown bool
-	reveals    map[doc.ID]*motion.Spring
 }
 
-// Animation frequencies: the caret keeps up with typing; a reveal is
-// slower, so notation appearing is seen and not a flicker.
-const (
-	caretFrequency  = 38
-	revealFrequency = 16
-)
+// caretFrequency keeps the caret up with typing.
+const caretFrequency = 38
 
 // NewElement is an element over ed.
 func NewElement(ed *Editor) *Element {
@@ -97,9 +91,6 @@ func (el *Element) View(c *ui.Context) {
 		c.AnimationFrame()
 	}
 	if el.stepCaret(pl, c.Now(), animate) {
-		c.AnimationFrame()
-	}
-	if el.stepReveals(pl, c.Now(), animate) {
 		c.AnimationFrame()
 	}
 	box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
@@ -222,52 +213,6 @@ func (el *Element) stepCaret(pl *pageLayout, now time.Time, animate bool) bool {
 	return moving
 }
 
-// stepReveals fades each unit's ghosts in from when they appear; it
-// reports whether any still fades.
-func (el *Element) stepReveals(pl *pageLayout, now time.Time, animate bool) bool {
-	if el.reveals == nil {
-		el.reveals = map[doc.ID]*motion.Spring{}
-	}
-	shown := map[doc.ID]bool{}
-	moving := false
-	for _, u := range pl.units {
-		if !u.hasGhosts() {
-			continue
-		}
-		id := u.pres.Unit
-		shown[id] = true
-		sp, ok := el.reveals[id]
-		if !ok {
-			start := float32(0)
-			if !animate {
-				start = 1
-			}
-			s := motion.NewUnitSpring(start, now)
-			sp = &s
-			el.reveals[id] = sp
-		}
-		sp.Step(1, now, revealFrequency)
-		if !animate {
-			*sp = motion.NewUnitSpring(1, now)
-		}
-		moving = moving || sp.Moving()
-	}
-	for id := range el.reveals {
-		if !shown[id] {
-			delete(el.reveals, id)
-		}
-	}
-	return moving
-}
-
-// reveal is how far a unit's ghosts have faded in.
-func (el *Element) reveal(id doc.ID) float32 {
-	if sp, ok := el.reveals[id]; ok {
-		return min(max(sp.Value(), 0), 1)
-	}
-	return 1
-}
-
 // --- input ----------------------------------------------------------------
 
 func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
@@ -377,9 +322,6 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
 			continue
 		}
-		if u.marker != "" && len(u.surfaces) > 0 {
-			el.paintMarker(p, u, ux, uy, cover.Whole)
-		}
 		var ranges map[*surfaceLayout]ui.TextInputRange
 		if covered {
 			ranges = pl.coverRanges(u, cover)
@@ -397,7 +339,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 				}
 			}
 			p.TextLayout(s.layout, sx, sy, t.Prose.Text)
-			el.paintGhosts(p, s, sx, sy, el.reveal(u.pres.Unit))
+			el.paintGhosts(p, s, sx, sy)
 			el.paintBoxes(p, s, sx, sy)
 		}
 	}
@@ -407,35 +349,9 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	}
 }
 
-// paintMarker draws a list item's marker in the room before its text.
-// A marker a selection holds whole is drawn selected.
-func (el *Element) paintMarker(p *ui.Painter, u *unitLayout, ux, uy float32, selected bool) {
-	m := el.Editor.metrics
-	s := u.surfaces[0]
-	lines := s.layout.Lines()
-	baseline := m.Body
-	if len(lines) > 0 {
-		baseline = lines[0].Baseline
-	}
-	lay := ui.ShapeRichTextWith([]ui.Span{{Text: u.marker, Font: theme.ProseFontFamily, Size: m.Body, Color: el.Theme.Prose.Notation}},
-		ui.Font{Family: theme.ProseFontFamily, Size: m.Body}, ui.TextShape{})
-	w, _ := lay.Size()
-	ml := lay.Lines()
-	mb := float32(0)
-	if len(ml) > 0 {
-		mb = ml[0].Baseline
-	}
-	x, y := ux-w-m.Body*0.45, uy+baseline-mb
-	if selected {
-		_, h := lay.Size()
-		p.Fill(ui.Rect{X: x - 2, Y: y, W: w + 4, H: h}, el.Theme.Prose.Selection, 2)
-	}
-	p.TextLayout(lay, x, y, el.Theme.Prose.Notation)
-}
-
 // paintGhosts draws a surface's ghosts in the room the line keeps for
-// them, faded in by alpha.
-func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy, alpha float32) {
+// them.
+func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 	for _, sg := range s.segs {
 		if sg.kind != segGhost || sg.shaped == nil {
 			continue
@@ -450,7 +366,7 @@ func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy, alpha fl
 		if ink == (ui.Color{}) {
 			ink = el.Theme.Prose.Text
 		}
-		p.TextLayout(sg.shaped, sx+r.X, sy+line.Baseline-gb, ink.Alpha(alpha))
+		p.TextLayout(sg.shaped, sx+r.X, sy+line.Baseline-gb, ink)
 	}
 }
 
