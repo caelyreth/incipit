@@ -39,11 +39,19 @@ type Decorations struct {
 	Highlights  []Highlight
 	// Covers are the units the selection covers, in page order.
 	Covers []Cover
+	// Guides are the key hints previews found available.
+	Guides []Guide
 }
 
-// Decorate computes a view's decorations.
-// TODO(guides): guides from previews of Leave, Return, SelectScope and an
-// armed deletion, once the guides policy contributes them.
+// Guide is a key hint: the command whose key shows, and the caret it
+// shows at.
+type Guide struct {
+	Command vocab.CommandID
+	At      doc.Caret
+}
+
+// Decorate computes a view's decorations; the engine adds the covers and
+// the guides, which need its previews.
 func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View) Decorations {
 	d := Decorations{Selection: view.Selection, Composition: view.Composition}
 	for _, dec := range prog.Decorations() {

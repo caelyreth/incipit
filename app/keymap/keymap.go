@@ -51,7 +51,7 @@ func (o Overrides) Equal(other Overrides) bool {
 // to two commands. It is immutable.
 type Keymap struct {
 	overrides Overrides
-	byChord   map[Chord]CommandID
+	byChord   map[Chord][]CommandID
 	byCommand map[CommandID]Chord
 }
 
@@ -68,7 +68,7 @@ func Default() *Keymap {
 func New(overrides Overrides) (*Keymap, error) {
 	k := &Keymap{
 		overrides: overrides.Clone(),
-		byChord:   make(map[Chord]CommandID, len(commands)),
+		byChord:   make(map[Chord][]CommandID, len(commands)),
 		byCommand: make(map[CommandID]Chord, len(commands)),
 	}
 	for command := range overrides {
@@ -87,10 +87,15 @@ func New(overrides Overrides) (*Keymap, error) {
 		if !chord.Valid() {
 			continue
 		}
-		if existing, taken := k.byChord[chord]; taken {
-			return nil, &ConflictError{Chord: chord, Existing: existing, Incoming: command.ID}
+		// Editing commands may share a key, tried in declaration order:
+		// the page runs the first the engine finds available, as Tab
+		// leaves a scope or, with none to leave, nests.
+		for _, existing := range k.byChord[chord] {
+			if held, _ := CommandFor(existing); held.Scope != ScopeEditing || command.Scope != ScopeEditing {
+				return nil, &ConflictError{Chord: chord, Existing: existing, Incoming: command.ID}
+			}
 		}
-		k.byChord[chord] = command.ID
+		k.byChord[chord] = append(k.byChord[chord], command.ID)
 		k.byCommand[command.ID] = chord
 	}
 	return k, nil
@@ -118,8 +123,20 @@ func (k *Keymap) CommandFor(chord Chord) (CommandID, bool) {
 	if k == nil {
 		return "", false
 	}
-	command, ok := k.byChord[chord]
-	return command, ok
+	commands := k.byChord[chord]
+	if len(commands) == 0 {
+		return "", false
+	}
+	return commands[0], true
+}
+
+// CommandsFor returns the commands chord runs, in the order they are
+// tried.
+func (k *Keymap) CommandsFor(chord Chord) []CommandID {
+	if k == nil {
+		return nil
+	}
+	return slices.Clone(k.byChord[chord])
 }
 
 // ChordFor returns command's chord, when it has one.

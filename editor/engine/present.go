@@ -56,7 +56,33 @@ func (e *Engine) Decorations(view uint64) present.Decorations {
 	}
 	d := present.Decorate(e.prog, e.store, e.snap, v)
 	d.Covers = e.covers(view, v)
+	d.Guides = e.guides(view, v)
 	return d
+}
+
+// guides previews each guide's command at a collapsed caret and shows
+// those that would act. The caller holds mu.
+func (e *Engine) guides(viewID uint64, v *policy.View) []present.Guide {
+	if v.Selection.Kind != doc.SelectText || !v.Selection.IsCollapsed() || v.Composition != nil {
+		return nil
+	}
+	var out []present.Guide
+	for _, g := range e.prog.Guides() {
+		cmd, ok := e.prog.Command(g.Command)
+		if !ok {
+			continue
+		}
+		res, err := e.process(viewID, vocab.Input{Intent: cmd.Intent, At: e.at}, false)
+		if err != nil || !res.preview.Available {
+			continue
+		}
+		at := res.preview.Selection.Head
+		if g.At == policy.GuideAtCaret {
+			at = v.Selection.Head
+		}
+		out = append(out, present.Guide{Command: g.Command, At: at})
+	}
+	return out
 }
 
 // covers is what a view's selection covers in each unit it reaches: the

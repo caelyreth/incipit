@@ -74,6 +74,9 @@ type Engine struct {
 	groupOpen bool
 	log       []Logged
 	last      *Published
+	// at is the time of the last intent processed: previews the engine
+	// makes itself, as guides, run at it, since it reads no clock.
+	at time.Time
 	// presenters and present options per view.
 	presenters map[uint64]*present.Presenter
 	presentOpt map[uint64]present.Options
@@ -236,6 +239,9 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 		return processed{}, ErrNoView
 	}
 	view := *cur
+	if commit {
+		e.at = in.At
+	}
 	class := in.ClassOf()
 	in.Class = class
 	seq := e.seq + 1

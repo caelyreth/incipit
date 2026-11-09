@@ -142,6 +142,7 @@ type Program struct {
 	catalog    Catalog
 	report     *Report
 	grouping   func(prev, next *doc.Entry) bool
+	guides     []Guide
 
 	paints      []Paint
 	ghosts      []GhostFunc
@@ -195,6 +196,7 @@ func (p *Program) Grouping() func(prev, next *doc.Entry) bool { return p.groupin
 func (p *Program) Paints() []Paint           { return p.paints }
 func (p *Program) Ghosts() []GhostFunc       { return p.ghosts }
 func (p *Program) Decorations() []Decoration { return p.decorations }
+func (p *Program) Guides() []Guide           { return p.guides }
 func (p *Program) Strict() bool              { return p.strict }
 
 // HasAnnotationKind reports whether annotations of k survive in this
@@ -317,6 +319,7 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		}
 		prog.paints = append(prog.paints, p.paints...)
 		prog.ghosts = append(prog.ghosts, p.ghosts...)
+		prog.guides = append(prog.guides, p.guides...)
 		prog.decorations = append(prog.decorations, p.decorations...)
 	}
 	produced := func(k vocab.FactKind) bool { _, ok := prog.analyzerOf[k]; return ok }
@@ -416,6 +419,11 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		prog.phases[ph] = prog.orderRewrites(ph, rs, rep)
 	}
 
+	for _, g := range prog.guides {
+		if _, ok := prog.commands[g.Command]; !ok {
+			rep.errorf("a guide shows %s, which no enabled policy declares", g.Command)
+		}
+	}
 	prog.check(rep)
 	if len(rep.Errors) > 0 {
 		return prog, &CompileError{Report: rep}

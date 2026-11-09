@@ -91,6 +91,8 @@ const (
 	Nest               CommandID = "core.nest"
 	Outdent            CommandID = "core.outdent"
 	Leave              CommandID = "core.leave"
+	Return             CommandID = "core.return"
+	Dismiss            CommandID = "core.dismiss"
 	Strong             CommandID = "core.strong"
 	Emphasis           CommandID = "core.emphasis"
 	Code               CommandID = "core.code"
@@ -132,9 +134,11 @@ var commands = [...]Command{
 		Default: NewChord("delete", ModifiersPrimary)},
 	{ID: Break, Label: "New block", Scope: ScopeEditing, Default: NewChord("enter", ModifiersNone)},
 	{ID: SoftBreak, Label: "Line break", Scope: ScopeEditing, Default: NewChord("enter", ModifiersShift)},
+	{ID: Leave, Label: "Leave the scope", Scope: ScopeEditing, Default: NewChord("tab", ModifiersNone)},
+	{ID: Return, Label: "Go back", Scope: ScopeEditing, Default: NewChord("tab", ModifiersShift)},
 	{ID: Nest, Label: "Nest", Scope: ScopeEditing, Default: NewChord("tab", ModifiersNone)},
 	{ID: Outdent, Label: "Outdent", Scope: ScopeEditing, Default: NewChord("tab", ModifiersShift)},
-	{ID: Leave, Label: "Leave", Scope: ScopeEditing, Default: NewChord("escape", ModifiersNone)},
+	{ID: Dismiss, Label: "Dismiss", Scope: ScopeEditing, Default: NewChord("escape", ModifiersNone)},
 	{ID: Strong, Label: "Strong", Scope: ScopeEditing, Default: NewChord("b", ModifiersPrimary)},
 	{ID: Emphasis, Label: "Emphasis", Scope: ScopeEditing, Default: NewChord("i", ModifiersPrimary)},
 	{ID: Code, Label: "Code", Scope: ScopeEditing, Default: NewChord("e", ModifiersPrimary)},

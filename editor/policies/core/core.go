@@ -37,7 +37,10 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 	p.Handle("visual-move").On(vocab.On(vocab.IntentVisualMove)).Do(visualMove)
 	p.Handle("place").On(vocab.On(vocab.IntentPlace)).Do(placeCaret)
 
-	p.Handle("leave").On(vocab.On(vocab.IntentLeave)).Do(dismiss)
+	// Leave and Return move between scopes, which the navigation policy
+	// answers; with no scope to leave or go back to they do nothing, so a
+	// key bound to them falls through to its next command.
+	p.Handle("leave").On(vocab.On(vocab.IntentLeave)).Do(swallow)
 	p.Handle("return").On(vocab.On(vocab.IntentReturn)).Do(swallow)
 	p.Handle("select-scope").On(vocab.On(vocab.IntentSelectScope)).Do(selectAll)
 	p.Handle("dismiss").On(vocab.On(vocab.IntentDismiss)).Do(dismiss)
@@ -112,6 +115,8 @@ var commands = []command{
 	{"core.nest", "commands.nest", vocab.Nest{Dir: vocab.Forward}},
 	{"core.outdent", "commands.outdent", vocab.Nest{Dir: vocab.Backward}},
 	{"core.leave", "commands.leave", vocab.Leave{}},
+	{"core.return", "commands.return", vocab.Return{}},
+	{"core.dismiss", "commands.dismiss", vocab.Dismiss{}},
 }
 
 func headingAttrs(level int) doc.Attrs {

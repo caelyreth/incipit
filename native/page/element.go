@@ -25,9 +25,11 @@ type Element struct {
 	Label       string
 	// Typewriter keeps the caret's line at the viewport's center.
 	Typewriter bool
-	// Keys are the keymap the page's keys resolve through; nil is the
-	// defaults.
+	// Keys are the keymap the page's keys resolve through, and its guides
+	// show; nil is the defaults.
 	Keys *keymap.Keymap
+	// UIFontSize sizes the guides' keycaps as the app's controls.
+	UIFontSize float32
 
 	client *client
 	// scroll is the page's offset, which glide moves and a scroll by hand
@@ -48,6 +50,8 @@ type Element struct {
 
 	// still is a page drawn by PaintStill.
 	still bool
+	// guides are the key hints as last painted.
+	guides guides
 
 	// caret glides between the places the caret is drawn at, in page
 	// coordinates. It, the scroll's glide and the caret's breathing move
@@ -452,6 +456,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			el.paintBoxes(p, s, sx, sy)
 		}
 	}
+	if el.stepGuides(pl, focused, now, animate) {
+		p.AnimationFrame()
+	}
+	el.paintGuides(p, r, ox, oy)
 	if focused && sel.Kind == doc.SelectText && el.caret.Shown() {
 		cr := el.caret.Value()
 		cr.X += ox

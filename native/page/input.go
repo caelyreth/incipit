@@ -32,20 +32,36 @@ var menuIntents = map[string]vocab.Intent{
 	"strikethrough": vocab.Format{Mark: vocab.Strike},
 }
 
-// keyIntent is the intent a key press asks for.
+// keyIntent is the intent a key press asks for. A key holding several
+// commands runs the first the engine finds available, previewing each
+// before the last: Tab leaves a scope or, with none to leave, nests.
 func (el *Element) keyIntent(ev ui.InputEvent) (vocab.Intent, bool) {
 	keys := el.Keys
 	if keys == nil {
 		keys = keymap.Default()
 	}
-	prog := el.Editor.Engine.Program()
+	ed := el.Editor
+	prog := ed.Engine.Program()
+	at := ev.Time
+	if at.IsZero() {
+		at = time.Now()
+	}
 	intent := func(chord keymap.Chord) (vocab.Intent, bool) {
-		id, ok := keys.CommandFor(chord)
-		if !ok {
-			return nil, false
+		var found []vocab.Intent
+		for _, id := range keys.CommandsFor(chord) {
+			if cmd, ok := prog.Command(vocab.CommandID(id)); ok {
+				found = append(found, cmd.Intent)
+			}
 		}
-		cmd, ok := prog.Command(vocab.CommandID(id))
-		return cmd.Intent, ok
+		for i, in := range found {
+			if i == len(found)-1 {
+				return in, true
+			}
+			if out, err := ed.Engine.Preview(ed.View, vocab.Input{Intent: in, At: at}); err == nil && out.Available {
+				return in, true
+			}
+		}
+		return nil, false
 	}
 	for _, chord := range keymap.EventChords(ev, keymap.PlatformCurrent) {
 		if in, ok := intent(chord); ok {

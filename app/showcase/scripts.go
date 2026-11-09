@@ -58,6 +58,39 @@ var scripts = map[string]Script{
 		},
 		Hold: 2400 * time.Millisecond,
 	},
+	"pairs": {
+		Beats: []Beat{
+			Type("The tide turned (slowly"),
+			Wait(700 * time.Millisecond),
+			Type(")"),
+			Wait(500 * time.Millisecond),
+			Type(` and she said "stay`),
+			Wait(600 * time.Millisecond),
+			Type(`".`),
+		},
+		Hold: 2600 * time.Millisecond,
+	},
+	"navigation": {
+		Beats: []Beat{
+			Type("Leave a scope (with Tab"),
+			Wait(1100 * time.Millisecond),
+			Press(vocab.Leave{}),
+			Wait(300 * time.Millisecond),
+			Type(" and keep writing."),
+		},
+		Hold: 2600 * time.Millisecond,
+	},
+	"guides": {
+		Beats: []Beat{
+			Type("Keys show [where they act"),
+			Wait(1400 * time.Millisecond),
+			Press(vocab.Leave{}),
+			Wait(1400 * time.Millisecond),
+			Press(vocab.Return{}),
+			Wait(600 * time.Millisecond),
+		},
+		Hold: 2000 * time.Millisecond,
+	},
 	"history": {
 		Beats: []Beat{
 			Type("A first draft, then a second thought."),

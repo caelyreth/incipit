@@ -4,23 +4,30 @@ package manifest
 
 import (
 	"github.com/caelyreth/neverland/editor/policies/core"
+	"github.com/caelyreth/neverland/editor/policies/guides"
 	"github.com/caelyreth/neverland/editor/policies/history"
 	"github.com/caelyreth/neverland/editor/policies/lists"
 	"github.com/caelyreth/neverland/editor/policies/markdown"
 	"github.com/caelyreth/neverland/editor/policies/navigation"
 	"github.com/caelyreth/neverland/editor/policies/notation"
+	"github.com/caelyreth/neverland/editor/policies/pairs"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/vocab"
 )
 
 // Manifest lists the product's policies.
 //
-// TODO(policies): wave one adds pairs, typography, cjk, scopes,
-// deletion, words, feedback, guides and statistics, with their
-// precedence (pairs over notation for Pair; markdown over pairs for a
-// typed '*'); wave two tables and figures.
+// TODO(policies): wave one adds typography, cjk, scopes, deletion,
+// words, feedback and statistics, with their precedence (markdown over
+// pairs for a typed '*' once pairs spell it); wave two tables and figures.
 var Manifest = policy.Manifest{
-	Enabled: []*policy.Policy{core.Policy, notation.Policy, markdown.Policy, lists.Policy, navigation.Policy, history.Policy},
+	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, lists.Policy,
+		navigation.Policy, history.Policy, guides.Policy},
+	Resolve: []policy.Order{
+		// Pair behaviour refines ghost notation where both are pairs.
+		policy.Over(pairs.Policy, notation.Policy, vocab.RoleScope(vocab.RolePair)),
+	},
 }
 
 // PresentOptions are a view's presentation inputs as settings values

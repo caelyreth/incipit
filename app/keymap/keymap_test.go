@@ -2,6 +2,7 @@ package keymap
 
 import (
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -13,12 +14,21 @@ func TestDefaultsBindEveryCommandOnce(t *testing.T) {
 		if !ok || chord != command.Default {
 			t.Fatalf("%s = %s,%v, want %s", command.ID, chord, ok, command.Default)
 		}
-		if owner, _ := keymap.CommandFor(chord); owner != command.ID {
-			t.Fatalf("%s runs %s, want %s", chord, owner, command.ID)
+		if !slices.Contains(keymap.CommandsFor(chord), command.ID) {
+			t.Fatalf("%s runs %v, not %s", chord, keymap.CommandsFor(chord), command.ID)
 		}
 	}
-	if len(keymap.Chords()) != len(AllCommands()) {
-		t.Fatalf("%d chords for %d commands", len(keymap.Chords()), len(AllCommands()))
+}
+
+// Editing commands may share a key, tried in order; no other command may.
+func TestOnlyEditingCommandsShareAKey(t *testing.T) {
+	t.Parallel()
+	tab := NewChord("tab", ModifiersNone)
+	if got := Default().CommandsFor(tab); !slices.Equal(got, []CommandID{Leave, Nest}) {
+		t.Fatalf("tab runs %v", got)
+	}
+	if _, err := Default().Remap(Zen, tab, ""); err == nil {
+		t.Fatal("a window command shared an editing key")
 	}
 }
 
