@@ -1,7 +1,6 @@
 package core
 
 import (
-	"sync"
 	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -9,128 +8,58 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
-// A place is where carets stand in document order: an inline text slot
-// (stops at its grapheme boundaries), or a gap in a block slot where text
-// can't stand: before and after block objects, and in an empty block slot.
-// Objects are one unit: their own slots are entered only through their own
-// stops, which the policies owning them declare.
-type place struct {
-	slot doc.SlotRef
-	gap  bool
-	at   int // the gap index
-}
+// Logical motion moves through the stop model the engine provides (§13.5):
+// grapheme steps and page edges go stop by stop, so the caret lands where
+// the presentation shows stops, ghost notation and gaps included. Word,
+// line and slot motion find their target in the slot's text and step
+// through the stop model at the slot's edges.
 
-func (p place) start() doc.Pos {
-	if p.gap {
-		return doc.At(p.slot, p.at)
-	}
-	return doc.At(p.slot, 0)
-}
-
-func (p place) end(r doc.Reader) doc.Pos {
-	if p.gap {
-		return doc.At(p.slot, p.at)
-	}
-	n, _ := r.Node(p.slot.Node)
-	return doc.At(p.slot, n.Slot(p.slot.Slot).Len())
-}
-
-var placeCache struct {
-	sync.Mutex
-	root   *doc.Node
-	places []place
-}
-
-// placesOf lists the page's places in order, memoised per root pointer.
-// TODO(perf): derive places per block from the presentation's stop maps
-// once present publishes them, instead of walking the page.
-func placesOf(r doc.Reader) []place {
-	placeCache.Lock()
-	defer placeCache.Unlock()
-	if placeCache.root == r.Root() {
-		return placeCache.places
-	}
-	var out []place
-	var walk func(n *doc.Node)
-	walk = func(n *doc.Node) {
-		for i, s := range n.Slots() {
-			ref := doc.SlotRef{Node: n.ID(), Slot: i}
-			if s.IsInline() {
-				out = append(out, place{slot: ref})
-				continue
-			}
-			if s.Len() == 0 {
-				out = append(out, place{slot: ref, gap: true})
-				continue
-			}
-			for j, c := range s.Children() {
-				if vocab.IsObject(c.Kind()) {
-					if j == 0 || vocab.IsObject(s.Child(j-1).Kind()) {
-						out = append(out, place{slot: ref, gap: true, at: j})
-					}
-					if j == s.Len()-1 {
-						out = append(out, place{slot: ref, gap: true, at: j + 1})
-					}
-					continue
-				}
-				walk(c)
-			}
-		}
-	}
-	walk(r.Root())
-	placeCache.root, placeCache.places = r.Root(), out
-	return out
-}
-
-// placeIndex finds the place holding pos; a gap between two places
-// matches the gap place, or the nearest place after it.
-func placeIndex(places []place, pos doc.Pos) int {
-	for i, p := range places {
-		if p.slot == pos.Ref() && (!p.gap || p.at == pos.Offset) {
-			return i
-		}
-	}
-	return -1
-}
-
-// step moves one grapheme (or one inline node) in a slot, or to the
-// neighbouring place at its edge.
-func step(r doc.Reader, pos doc.Pos, dir vocab.Direction) (doc.Pos, bool) {
+// slotTarget is where one unit of motion from pos lands inside its inline
+// slot; false when pos is at the slot's edge in dir, or not in text.
+func slotTarget(r doc.Reader, pos doc.Pos, unit vocab.Unit, dir vocab.Direction) (doc.Pos, bool) {
 	n, ok := r.Node(pos.Node)
-	if !ok {
+	if !ok || pos.Slot >= n.NumSlots() || !n.Slot(pos.Slot).IsInline() {
 		return pos, false
 	}
-	if pos.Slot < n.NumSlots() && n.Slot(pos.Slot).IsInline() {
-		in := n.Slot(pos.Slot).Content()
-		if dir > 0 && pos.Offset < in.Len() {
-			return doc.At(pos.Ref(), nextBoundary(in, pos.Offset)), true
-		}
-		if dir < 0 && pos.Offset > 0 {
-			return doc.At(pos.Ref(), prevBoundary(in, pos.Offset)), true
-		}
-		// The edge of an inline node's slot leaves it, beside the node.
-		if parent, slot, inl := inlineParent(r, pos.Node); inl {
-			pn, _ := r.Node(parent)
-			off, _ := pn.Slot(slot).Content().NodeOffset(pos.Node)
-			if dir > 0 {
-				off++
+	in := n.Slot(pos.Slot).Content()
+	if (dir > 0 && pos.Offset >= in.Len()) || (dir < 0 && pos.Offset <= 0) {
+		return pos, false
+	}
+	switch unit {
+	case vocab.ByWord:
+		return wordTarget(in, pos, dir)
+	case vocab.ToSlotEdge, vocab.BySentence, vocab.ByParagraph:
+		// TODO(words): the words policy answers sentences and paragraphs
+		// with UAX #29 boundaries; core's are the slot, and ToSlotEdge
+		// stops at the line's edge.
+		lineEdge := unit == vocab.ToSlotEdge
+		if dir > 0 {
+			end := in.Len()
+			if lineEdge {
+				if i := indexByte(in.Text(), '\n', pos.Offset); i >= 0 {
+					end = i
+				}
 			}
-			return doc.Pos{Node: parent, Slot: slot, Offset: off}, true
+			if end == pos.Offset {
+				end = in.Len()
+			}
+			return doc.At(pos.Ref(), end), true
 		}
-	}
-	places := placesOf(r)
-	i := placeIndex(places, pos)
-	if i < 0 {
-		return pos, false
-	}
-	j := i + int(dir)
-	if j < 0 || j >= len(places) {
-		return pos, false
+		start := 0
+		if lineEdge {
+			if i := lastIndexByte(in.Text()[:pos.Offset], '\n'); i >= 0 {
+				start = i + 1
+			}
+		}
+		if start == pos.Offset {
+			start = 0
+		}
+		return doc.At(pos.Ref(), start), true
 	}
 	if dir > 0 {
-		return places[j].start(), true
+		return doc.At(pos.Ref(), nextBoundary(in, pos.Offset)), true
 	}
-	return places[j].end(r), true
+	return doc.At(pos.Ref(), prevBoundary(in, pos.Offset)), true
 }
 
 func nextBoundary(in *doc.Inline, off int) int {
@@ -147,61 +76,6 @@ func prevBoundary(in *doc.Inline, off int) int {
 		return off - 1
 	}
 	return start + vocab.PrevGrapheme(it.Text, off-start)
-}
-
-// unitTarget is where one unit of motion from pos lands in its slot, or
-// beyond it.
-// TODO(words): the words policy answers ByWord, BySentence and
-// ByParagraph with UAX #29 boundaries; core's are a plain fallback: words
-// are runs of one character class, sentences and paragraphs the slot.
-func unitTarget(r doc.Reader, pos doc.Pos, unit vocab.Unit, dir vocab.Direction) (doc.Pos, bool) {
-	n, ok := r.Node(pos.Node)
-	inline := ok && pos.Slot < n.NumSlots() && n.Slot(pos.Slot).IsInline()
-	switch unit {
-	case vocab.ToPageEdge:
-		places := placesOf(r)
-		if len(places) == 0 {
-			return pos, false
-		}
-		if dir > 0 {
-			return places[len(places)-1].end(r), true
-		}
-		return places[0].start(), true
-	case vocab.ToSlotEdge, vocab.BySentence, vocab.ByParagraph:
-		if !inline {
-			return step(r, pos, dir)
-		}
-		in := n.Slot(pos.Slot).Content()
-		lineEdge := unit == vocab.ToSlotEdge
-		if dir > 0 {
-			if pos.Offset == in.Len() {
-				return step(r, pos, dir)
-			}
-			end := in.Len()
-			if lineEdge {
-				if i := indexByte(in.Text(), '\n', pos.Offset); i >= 0 {
-					end = i
-				}
-			}
-			return doc.At(pos.Ref(), end), true
-		}
-		if pos.Offset == 0 {
-			return step(r, pos, dir)
-		}
-		start := 0
-		if lineEdge {
-			if i := lastIndexByte(in.Text()[:pos.Offset], '\n'); i >= 0 {
-				start = i + 1
-			}
-		}
-		return doc.At(pos.Ref(), start), true
-	case vocab.ByWord:
-		if !inline {
-			return step(r, pos, dir)
-		}
-		return wordTarget(n.Slot(pos.Slot).Content(), pos, dir, r)
-	}
-	return step(r, pos, dir)
 }
 
 func indexByte(s string, b byte, from int) int {
@@ -223,12 +97,14 @@ func lastIndexByte(s string, b byte) int {
 }
 
 // wordTarget skips spaces, then one run of word characters (or a single
-// other character).
-func wordTarget(in *doc.Inline, pos doc.Pos, dir vocab.Direction, r doc.Reader) (doc.Pos, bool) {
+// other character); false at the slot's edge in dir.
+// TODO(words): the words policy answers ByWord with UAX #29 boundaries
+// and CJK dictionaries; this is core's fallback.
+func wordTarget(in *doc.Inline, pos doc.Pos, dir vocab.Direction) (doc.Pos, bool) {
 	text := in.Text()
 	off := pos.Offset
 	if (dir > 0 && off == len(text)) || (dir < 0 && off == 0) {
-		return step(r, pos, dir)
+		return pos, false
 	}
 	class := func(i int) vocab.CharClass {
 		var ru rune
@@ -267,6 +143,10 @@ func move(c *policy.Ctx, m policy.Match) policy.Result {
 	in := m.Intent.(vocab.Move)
 	r := c.Doc()
 	sel := c.Selection()
+	stops := c.Stops()
+	if stops == nil {
+		return policy.Swallow
+	}
 	if in.Dir == 0 {
 		in.Dir = vocab.Forward
 	}
@@ -279,52 +159,36 @@ func move(c *policy.Ctx, m policy.Match) policy.Result {
 		return revealed(doc.Collapsed(edge))
 	}
 	if sel.Kind == doc.SelectNode && !in.Extend {
-		// Leaving a selected object: to the gap or text on that side.
-		head := c.Head().Pos
+		// Leaving a selected object: to the gap on that side of it.
+		gap := c.Head().Pos
 		if in.Dir > 0 {
-			head.Offset++
+			gap.Offset++
 		}
-		if target, ok := settle(r, head, in.Dir); ok {
-			return revealed(doc.Collapsed(doc.CaretAt(target)))
-		}
-		return revealed(doc.Collapsed(doc.CaretAt(head)))
+		return revealed(doc.Collapsed(stops.Normalize(doc.CaretAt(gap))))
 	}
 	head := c.Head()
-	target, ok := unitTarget(r, head.Pos, in.Unit, in.Dir)
+	target, ok := motionTarget(r, stops, head, in.Unit, in.Dir)
 	if !ok {
 		return policy.Swallow
 	}
-	caret := doc.CaretAt(target)
 	if in.Extend && sel.Kind == doc.SelectText {
-		return revealed(doc.TextRange(sel.Anchor, caret))
+		return revealed(doc.TextRange(sel.Anchor, target))
 	}
-	return revealed(doc.Collapsed(caret))
+	return revealed(doc.Collapsed(target))
 }
 
-// settle moves a gap position onto the place it belongs to: a gap that is
-// a place stays; otherwise the text next to it in dir.
-func settle(r doc.Reader, pos doc.Pos, dir vocab.Direction) (doc.Pos, bool) {
-	places := placesOf(r)
-	if placeIndex(places, pos) >= 0 {
-		return pos, true
+// motionTarget is where one unit of logical motion from head lands.
+func motionTarget(r doc.Reader, stops policy.Stops, head doc.Caret, unit vocab.Unit, dir vocab.Direction) (doc.Caret, bool) {
+	switch unit {
+	case vocab.ToPageEdge:
+		return stops.Edge(dir)
+	case vocab.ByGrapheme:
+		return stops.Step(head, dir)
 	}
-	n, ok := r.Node(pos.Node)
-	if !ok || pos.Slot >= n.NumSlots() {
-		return pos, false
+	if pos, ok := slotTarget(r, head.Pos, unit, dir); ok {
+		return doc.CaretAt(pos), true
 	}
-	s := n.Slot(pos.Slot)
-	if dir > 0 && pos.Offset < s.Len() {
-		if ref, ok := vocab.FirstTextSlot(s.Child(pos.Offset)); ok {
-			return doc.At(ref, 0), true
-		}
-	}
-	if dir < 0 && pos.Offset > 0 {
-		if ref, ok := vocab.LastTextSlot(s.Child(pos.Offset - 1)); ok {
-			cn, _ := r.Node(ref.Node)
-			return doc.At(ref, cn.Slot(ref.Slot).Len()), true
-		}
-	}
-	return pos, false
+	return stops.Step(head, dir)
 }
 
 func revealed(s doc.Selection) policy.Result {
@@ -373,8 +237,15 @@ func placeCaret(c *policy.Ctx, m policy.Match) policy.Result {
 		n, _ := r.Node(stop.Pos.Node)
 		if stop.Pos.Slot < n.NumSlots() && n.Slot(stop.Pos.Slot).IsInline() {
 			in := n.Slot(stop.Pos.Slot).Content()
-			back, _ := wordTarget(in, doc.At(stop.Pos.Ref(), stop.Pos.Offset), vocab.Backward, r)
-			fwd, _ := wordTarget(in, back, vocab.Forward, r)
+			at := doc.At(stop.Pos.Ref(), stop.Pos.Offset)
+			back, ok := wordTarget(in, at, vocab.Backward)
+			if !ok {
+				back = at
+			}
+			fwd, ok := wordTarget(in, back, vocab.Forward)
+			if !ok {
+				fwd = back
+			}
 			return policy.Select(doc.TextRange(doc.CaretAt(back), doc.CaretAt(fwd)))
 		}
 	case in.Clicks >= 3:

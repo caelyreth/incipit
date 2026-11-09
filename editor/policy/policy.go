@@ -247,11 +247,15 @@ type Ghost struct {
 	At       int
 	Spelling vocab.Spelling
 	Group    vocab.Group
-	// Stops is how many caret stops the ghost holds, before and between
-	// its glyphs.
+	// StopFrom is the stop just before the ghost at its offset; the ghost
+	// holds stops StopFrom+1 through StopFrom+Stops: one between each two
+	// of its glyphs and one after the last. Stops are numbered from the
+	// ghost's fact, so the presentation and the scope stack agree.
+	StopFrom int
+	// Stops is how many caret stops the ghost holds.
 	Stops int
-	// Side is which side of the point the ghost stands, for ordering
-	// several ghosts at one offset.
+	// Side is which side of the point the ghost stands: closing notation
+	// ends what is before it, opening notation starts what is after it.
 	Side vocab.Side
 }
 

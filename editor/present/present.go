@@ -187,16 +187,22 @@ type unitKey struct {
 
 // Presenter memoises presentations. It is per view.
 type Presenter struct {
-	mu    sync.Mutex
-	memo  map[doc.ID]*Presentation
-	units struct {
-		root *doc.Node
-		list []UnitRef
+	mu   sync.Mutex
+	memo map[doc.ID]*Presentation
+	// entered memoises units as they are presented with a selection end
+	// in them, for stepping into a unit the caret is not in yet.
+	entered map[doc.ID]*Presentation
+	units   struct {
+		root  *doc.Node
+		list  []UnitRef
+		index map[doc.ID]int
 	}
 }
 
 // NewPresenter returns a presenter.
-func NewPresenter() *Presenter { return &Presenter{memo: map[doc.ID]*Presentation{}} }
+func NewPresenter() *Presenter {
+	return &Presenter{memo: map[doc.ID]*Presentation{}, entered: map[doc.ID]*Presentation{}}
+}
 
 // Units lists the page's units in order, with their container context.
 func (pr *Presenter) Units(r doc.Reader) []UnitRef {
@@ -245,8 +251,94 @@ func (pr *Presenter) Units(r doc.Reader) []UnitRef {
 		}
 	}
 	walk(r.Root(), Context{})
-	pr.units.root, pr.units.list = r.Root(), out
+	index := make(map[doc.ID]int, len(out))
+	for i, u := range out {
+		index[u.ID] = i
+	}
+	pr.units.root, pr.units.list, pr.units.index = r.Root(), out, index
 	return out
+}
+
+// UnitAt is the index in Units of the unit whose stops hold pos: the unit
+// owning the inline slot pos is in (through inline nodes), or the object a
+// gap stop stands beside.
+func (pr *Presenter) UnitAt(r doc.Reader, pos doc.Pos) (int, bool) {
+	units := pr.Units(r)
+	pr.mu.Lock()
+	index := pr.units.index
+	pr.mu.Unlock()
+	n, ok := r.Node(pos.Node)
+	if !ok || pos.Slot >= n.NumSlots() {
+		return 0, false
+	}
+	if n.Slot(pos.Slot).IsInline() {
+		id := pos.Node
+		for {
+			if i, ok := index[id]; ok && units[i].Gap == nil {
+				return i, true
+			}
+			parent, slot, ok := r.Parent(id)
+			if !ok {
+				return 0, false
+			}
+			pn, _ := r.Node(parent)
+			if !pn.Slot(slot).IsInline() {
+				// An inline slot of a node that is not a unit, as an
+				// item's body is not: no stops present it.
+				return 0, false
+			}
+			id = parent
+		}
+	}
+	slot := n.Slot(pos.Slot)
+	for _, at := range []int{pos.Offset, pos.Offset - 1} {
+		if at < 0 || at >= slot.Len() {
+			continue
+		}
+		if i, ok := index[slot.Child(at).ID()]; ok && units[i].Gap != nil {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// Entered presents unit i as it stands with a selection end in it, but in
+// none of its cards: the presentation logical motion steps into.
+func (pr *Presenter) Entered(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, i int) *Presentation {
+	units := pr.Units(r)
+	if i < 0 || i >= len(units) {
+		return nil
+	}
+	u := units[i]
+	key := pr.keyOf(prog, u, opts)
+	key.near = opts.Reveal == RevealNearCaret
+	pr.mu.Lock()
+	if p, ok := pr.memo[u.ID]; ok && p.key == key {
+		pr.mu.Unlock()
+		return p
+	}
+	if p, ok := pr.entered[u.ID]; ok && p.key == key {
+		pr.mu.Unlock()
+		return p
+	}
+	pr.mu.Unlock()
+	p := build(prog, store, r, view, opts, u, key)
+	pr.mu.Lock()
+	pr.entered[u.ID] = p
+	if len(pr.entered) > 1<<12 {
+		clear(pr.entered)
+	}
+	pr.mu.Unlock()
+	return p
+}
+
+// Unit presents unit i as the view sees it.
+func (pr *Presenter) Unit(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, i int) *Presentation {
+	units := pr.Units(r)
+	if i < 0 || i >= len(units) {
+		return nil
+	}
+	return pr.present(prog, store, r, view, opts, units[i])
 }
 
 // Present returns presentations for units, memoised.
@@ -267,7 +359,8 @@ func (pr *Presenter) Present(prog *policy.Program, store *policy.Store, r doc.Re
 	return out
 }
 
-func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, u UnitRef) *Presentation {
+// keyOf is a unit's key apart from the view's selection.
+func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef, opts Options) unitKey {
 	key := unitKey{node: u.Node, context: fmt.Sprintf("%+v", u.Context), program: prog.Version(), reveal: opts.Reveal, ghosts: opts.Ghosts}
 	if u.Marker() != nil {
 		key.context += fmt.Sprintf("%+v", *u.Context.Marker)
@@ -275,6 +368,11 @@ func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Re
 	if u.Gap != nil {
 		key.context += fmt.Sprintf("@%v", *u.Gap)
 	}
+	return key
+}
+
+func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, u UnitRef) *Presentation {
+	key := pr.keyOf(prog, u, opts)
 	if view != nil {
 		key.near = opts.Reveal == RevealNearCaret && holdsSelection(r, u.Node, view.Selection)
 		key.open = openCards(r, u.Node, view.Selection)
@@ -333,8 +431,14 @@ func openCards(r doc.Reader, n *doc.Node, s doc.Selection) string {
 	}
 	var open []string
 	for _, end := range []doc.Pos{s.Anchor.Pos, s.Head.Pos} {
-		if end.Node != n.ID() && within(r, n, end.Node) {
-			open = append(open, end.Node.String())
+		// Every inline node between the end and the unit is open.
+		for id := end.Node; id != n.ID() && within(r, n, id); {
+			open = append(open, id.String())
+			parent, _, ok := r.Parent(id)
+			if !ok {
+				break
+			}
+			id = parent
 		}
 	}
 	slices.Sort(open)
@@ -424,11 +528,12 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 		for _, g := range prog.Ghosts() {
 			g(unit, func(gh policy.Ghost) { ghosts = append(ghosts, gh) })
 		}
+		// At one offset, ghosts keep the order their stops number them in.
 		slices.SortStableFunc(ghosts, func(a, b policy.Ghost) int {
 			if a.At != b.At {
 				return a.At - b.At
 			}
-			return int(a.Side) - int(b.Side)
+			return a.StopFrom - b.StopFrom
 		})
 	}
 	var items []Item
@@ -438,8 +543,8 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 		for gi < len(ghosts) && ghosts[gi].At <= at {
 			g := ghosts[gi]
 			items = append(items, Item{Kind: GhostItem, From: g.At, To: g.At, Spelling: g.Spelling,
-				Groups: []vocab.Group{base, g.Group}, Layout: opts.Ghosts, StopFrom: 1, StopTo: 1 + g.Stops})
-			for s := 1; s <= g.Stops; s++ {
+				Groups: []vocab.Group{base, g.Group}, Layout: opts.Ghosts, StopFrom: g.StopFrom, StopTo: g.StopFrom + g.Stops})
+			for s := g.StopFrom + 1; s <= g.StopFrom+g.Stops; s++ {
 				stops = append(stops, Stop{Caret: doc.Caret{Pos: doc.At(ref, g.At), Stop: s}, Surface: index, Class: StopGhost, Offset: g.At})
 			}
 			gi++
@@ -454,7 +559,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 			emitGhosts(at)
 			box := Item{Kind: BoxItem, From: at, To: at + 1, Node: it.Node, Groups: []vocab.Group{base}, Surface: -1}
 			items = append(items, box)
-			if src, ok := vocab.FirstTextSlot(it.Node); ok && src.Node == it.Node.ID() && cardOpen(r, view, it.Node) {
+			if src, ok := vocab.FirstTextSlot(it.Node); ok && src.Node == it.Node.ID() && p.key.isOpen(it.Node.ID()) {
 				items[len(items)-1].Surface = len(p.Surfaces)
 				// Stops are ordered by position: the card's sit inside the
 				// box, between its two flow stops.
@@ -519,12 +624,13 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 	p.Stops = append(p.Stops, stops...)
 }
 
-// cardOpen reports whether the selection is in an inline node's slot.
-func cardOpen(r doc.Reader, view *policy.View, n *doc.Node) bool {
-	if view == nil || view.Selection.Kind != doc.SelectText {
+// isOpen reports whether the key opens the card of inline node id: a
+// selection end is in its slot.
+func (k unitKey) isOpen(id doc.ID) bool {
+	if k.open == "" {
 		return false
 	}
-	return within(r, n, view.Selection.Head.Pos.Node) || within(r, n, view.Selection.Anchor.Pos.Node)
+	return slices.Contains(strings.Split(k.open, ","), id.String())
 }
 
 func accessibility(n *doc.Node) (role, label string) {

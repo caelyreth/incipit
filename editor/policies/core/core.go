@@ -257,8 +257,13 @@ func deleteText(c *policy.Ctx, m policy.Match) policy.Result {
 	if in.Dir == 0 {
 		in.Dir = vocab.Backward
 	}
-	target, ok := unitTarget(r, head, in.Unit, in.Dir)
-	if ok && target.Ref() == head.Ref() && target != head {
+	unit := in.Unit
+	if unit == vocab.ToPageEdge {
+		// Deleting runs to the slot's edge at most.
+		unit = vocab.ToSlotEdge
+	}
+	target, ok := slotTarget(r, head, unit, in.Dir)
+	if ok && target != head {
 		from, to := head, target
 		if from.Offset > to.Offset {
 			from, to = to, from
@@ -509,12 +514,18 @@ func compose(c *policy.Ctx, m policy.Match) policy.Result {
 
 // selectAll selects the page's text, from its first stop to its last.
 func selectAll(c *policy.Ctx, m policy.Match) policy.Result {
-	stops := placesOf(c.Doc())
-	if len(stops) == 0 {
+	// TODO(scopes): the scopes policy grows the selection from the
+	// innermost scope outward; core selects the page.
+	stops := c.Stops()
+	if stops == nil {
 		return policy.Swallow
 	}
-	first, last := stops[0].start(), stops[len(stops)-1].end(c.Doc())
-	return policy.Select(doc.TextRange(doc.CaretAt(first), doc.CaretAt(last)))
+	first, ok1 := stops.Edge(vocab.Backward)
+	last, ok2 := stops.Edge(vocab.Forward)
+	if !ok1 || !ok2 {
+		return policy.Swallow
+	}
+	return policy.Select(doc.TextRange(first, last))
 }
 
 // dismiss collapses the selection to its head and ends a composition.

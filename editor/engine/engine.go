@@ -250,7 +250,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 		in.Intent = cmd.Intent
 	}
 
-	ctx := policy.NewCtx(prog, e.store, e.snap, &view, in)
+	ctx := policy.NewCtx(prog, e.store, e.snap, &view, in).WithStops(e.stopsFor(viewID))
 	out, err := prog.Dispatch(ctx)
 	if err != nil {
 		return processed{}, fmt.Errorf("engine: %w\n%s", err, out.Trace)
@@ -360,7 +360,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	}
 	allSteps := tx.Steps()
 	changed := len(allSteps) > 0
-	view.Selection = clampSelection(next, view.Selection)
+	view.Selection = e.settleSelection(viewID, next, &view)
 	if !commit {
 		return processed{preview: Outcome{
 			Available: out.Available() && (changed || view.Selection != before || plan != nil || res.History == nil),
@@ -374,7 +374,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	records := slices.Clone(tx.Journal().Records)
 
 	// Observers.
-	octx := policy.NewCtx(prog, e.store, next, &view, in)
+	octx := policy.NewCtx(prog, e.store, next, &view, in).WithStops(e.stopsFor(viewID))
 	for _, o := range prog.Observers() {
 		matched := slices.ContainsFunc(records, o.Trigger().Matches)
 		if !matched {
@@ -426,7 +426,8 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 		}
 		if changed {
 			v.Annotations = v.Annotations.Map(doc.Steps(allSteps))
-			v.Selection = clampSelection(next, doc.MapSelection(doc.Steps(allSteps), v.Selection))
+			v.Selection = doc.MapSelection(doc.Steps(allSteps), v.Selection)
+			v.Selection = e.settleSelection(id, next, v)
 			if v.Composition != nil {
 				if p, ok := doc.Steps(allSteps).Map(v.Composition.At, doc.BiasBefore); ok {
 					v.Composition.At = p
@@ -513,6 +514,20 @@ func headPos(r doc.Reader, s doc.Selection) doc.Pos {
 		}
 	}
 	return s.Head.Pos
+}
+
+// settleSelection keeps a view's selection on positions that exist, and
+// normalises each end to the nearest valid stop of the stop model (§4.4).
+func (e *Engine) settleSelection(viewID uint64, r doc.Reader, v *policy.View) doc.Selection {
+	s := clampSelection(r, v.Selection)
+	if s.Kind != doc.SelectText {
+		return s
+	}
+	probe := *v
+	probe.Selection = s
+	stops := e.stopsFor(viewID)(r, &probe)
+	s.Anchor, s.Head = stops.Normalize(s.Anchor), stops.Normalize(s.Head)
+	return s
 }
 
 // clampSelection keeps a selection on positions that exist.

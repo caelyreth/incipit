@@ -14,6 +14,9 @@ func (e *Engine) presenter(view uint64) *present.Presenter {
 	return p
 }
 
+// presentOptions are a view's presentation inputs. The caller holds mu.
+func (e *Engine) presentOptions(view uint64) present.Options { return e.presentOpt[view] }
+
 // SetPresentOptions sets a view's presentation inputs: reveal mode and
 // ghost layout.
 func (e *Engine) SetPresentOptions(view uint64, o present.Options) {

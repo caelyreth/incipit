@@ -18,6 +18,9 @@ type Ctx struct {
 	input vocab.Input
 
 	stack *Stack
+
+	stopsFn StopsFunc
+	stops   Stops
 }
 
 // NewCtx returns a context over a document and view state.
@@ -28,7 +31,7 @@ func NewCtx(prog *Program, store *Store, r doc.Reader, view *View, input vocab.I
 // Over returns a context reading r instead, as a rewrite reads the
 // transaction so far.
 func (c *Ctx) Over(r doc.Reader, view *View) *Ctx {
-	return &Ctx{prog: c.prog, store: c.store, r: r, view: view, input: c.input}
+	return &Ctx{prog: c.prog, store: c.store, r: r, view: view, input: c.input, stopsFn: c.stopsFn}
 }
 
 // Doc is the document.
@@ -153,7 +156,7 @@ func (c *Ctx) Stack() *Stack {
 // Preview dispatches an intent against the same state without applying
 // it, so availability shown anywhere is the same code as the edit.
 func (c *Ctx) Preview(in vocab.Input) (Outcome, error) {
-	return c.prog.Dispatch(NewCtx(c.prog, c.store, c.r, c.view, in))
+	return c.prog.Dispatch(NewCtx(c.prog, c.store, c.r, c.view, in).WithStops(c.stopsFn))
 }
 
 // FactsIn returns the facts of a kind in a slot, for presentation.

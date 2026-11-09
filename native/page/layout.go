@@ -45,8 +45,9 @@ type seg struct {
 	from, to int
 	u0, u1   int
 	text     string
-	// stops is a ghost's stop count.
-	stops int
+	// stopFrom is the stop before a ghost at its offset, and stops how
+	// many it holds: one after each of its glyphs.
+	stopFrom, stops int
 	// node is a box's inline node, and card the surface of its open card.
 	node *doc.Node
 	card int
@@ -359,7 +360,7 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 				// taking room; until then they are not shown.
 				continue
 			}
-			add(seg{kind: segGhost, from: it.From, to: it.From, text: string(it.Spelling), stops: it.StopTo - it.StopFrom},
+			add(seg{kind: segGhost, from: it.From, to: it.From, text: string(it.Spelling), stopFrom: it.StopFrom, stops: it.StopTo - it.StopFrom},
 				span(string(it.Spelling), style, m.Body))
 		case present.BoxItem:
 			if compAt == it.From {
@@ -407,31 +408,32 @@ func boxText(n *doc.Node) string {
 }
 
 // u16Of is the UTF-16 index of a slot offset and the stop chosen there:
-// stop zero stands before ghosts at the offset, a ghost's stops after
-// its spelling.
+// stop zero stands before every ghost at the offset; a ghost's stops stand
+// after each of its glyphs, the last after the whole ghost (a marker's
+// separator is a gap, not a stop).
 func (sl *surfaceLayout) u16Of(off, stop int) int {
-	k := 0 // ghost stops passed at off
 	for _, sg := range sl.segs {
 		switch sg.kind {
 		case segGhost:
-			if sg.from != off {
+			if sg.from != off || stop > sg.stopFrom+sg.stops {
 				continue
 			}
-			if stop <= k {
+			if stop <= sg.stopFrom {
 				return sg.u0
 			}
-			if stop <= k+sg.stops {
-				n := sg.u1 - sg.u0
-				return sg.u0 + n*(stop-k)/max(sg.stops, 1)
+			k := stop - sg.stopFrom
+			if k >= sg.stops {
+				return sg.u1
 			}
-			k += sg.stops
+			return sg.u0 + utf16Len(sg.text[:graphemeOffset(sg.text, k)])
 		case segComposition:
 			continue
 		default:
 			if off < sg.from || off > sg.to {
 				continue
 			}
-			if off == sg.to && stop > k {
+			if off == sg.to && stop > 0 {
+				// The ghost stops at the run's end come after it.
 				continue
 			}
 			if sg.kind != segText {
@@ -447,6 +449,18 @@ func (sl *surfaceLayout) u16Of(off, stop int) int {
 		return 0
 	}
 	return sl.segs[len(sl.segs)-1].u1
+}
+
+// graphemeOffset is the byte offset after the first k graphemes of s.
+func graphemeOffset(s string, k int) int {
+	off := 0
+	for range k {
+		if off >= len(s) {
+			break
+		}
+		off = vocab.NextGrapheme(s, off)
+	}
+	return off
 }
 
 // nearest is the surface's stop nearest a UTF-16 index.
