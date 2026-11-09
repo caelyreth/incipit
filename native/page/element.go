@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/theme"
@@ -469,7 +470,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	}
 	t := el.Theme
 	sel := ed.Selection()
-	ranges, objects := pl.selectionRanges(sel)
+	covers := map[doc.ID]present.Cover{}
+	for _, c := range ed.deco.Covers {
+		covers[c.Unit] = c
+	}
 	ox, oy := r.X+el.column, r.Y+el.Top-el.scroll
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
@@ -479,6 +483,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			continue
 		}
 		ux := ox + u.x
+		cover, covered := covers[u.pres.Unit]
 		// Quote bars, one per quote level.
 		for q := 0; q < u.pres.Context.Quotes; q++ {
 			bx := ox + float32(u.pres.Context.Indent+q)*m.Indent + m.Indent*0.3
@@ -487,7 +492,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		if u.object {
 			// TODO(figures), TODO(tables): figures and tables draw their
 			// own boxes; every object is a divider until then.
-			if objects[u] {
+			if cover.Whole {
 				p.Fill(ui.Rect{X: ux, Y: uy, W: m.Width - u.x, H: u.h}, t.Prose.Selection, 4)
 			}
 			mid := uy + u.h/2
@@ -495,7 +500,11 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			continue
 		}
 		if u.marker != "" && len(u.surfaces) > 0 {
-			el.paintMarker(p, u, ux, uy)
+			el.paintMarker(p, u, ux, uy, cover.Whole)
+		}
+		var ranges map[*surfaceLayout]ui.TextInputRange
+		if covered {
+			ranges = pl.coverRanges(u, cover)
 		}
 		for _, s := range u.surfaces {
 			sx, sy := ux+s.x, uy+s.y
@@ -521,7 +530,8 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 }
 
 // paintMarker draws a list item's marker in the room before its text.
-func (el *Element) paintMarker(p *ui.Painter, u *unitLayout, ux, uy float32) {
+// A marker a selection holds whole is drawn selected.
+func (el *Element) paintMarker(p *ui.Painter, u *unitLayout, ux, uy float32, selected bool) {
 	m := el.Editor.metrics
 	s := u.surfaces[0]
 	lines := s.layout.Lines()
@@ -537,7 +547,12 @@ func (el *Element) paintMarker(p *ui.Painter, u *unitLayout, ux, uy float32) {
 	if len(ml) > 0 {
 		mb = ml[0].Baseline
 	}
-	p.TextLayout(lay, ux-w-m.Body*0.45, uy+baseline-mb, el.Theme.Prose.Notation)
+	x, y := ux-w-m.Body*0.45, uy+baseline-mb
+	if selected {
+		_, h := lay.Size()
+		p.Fill(ui.Rect{X: x - 2, Y: y, W: w + 4, H: h}, el.Theme.Prose.Selection, 2)
+	}
+	p.TextLayout(lay, x, y, el.Theme.Prose.Notation)
 }
 
 // paintGhosts draws a surface's ghosts in the room the line keeps for

@@ -57,12 +57,20 @@ func (c *Ctx) Bound(caret doc.Caret) doc.Pos {
 // text selection's ends, or the gaps around a selected node. Every edit of
 // the selection reads it, so what is shown selected is what is edited.
 func (c *Ctx) Range() (from, to doc.Pos) {
-	sel := c.Selection()
+	return SelectionRange(c.r, c.Stops(), c.Selection())
+}
+
+// SelectionRange is a selection's range over a stop model, as Range reads
+// it; the engine publishes the same range as the selection's coverage.
+func SelectionRange(r doc.Reader, stops Stops, sel doc.Selection) (from, to doc.Pos) {
 	if sel.Kind == doc.SelectNode {
-		if parent, slot, index, ok := vocab.Index(c.r, sel.Node); ok {
+		if parent, slot, index, ok := vocab.Index(r, sel.Node); ok {
 			return doc.Pos{Node: parent, Slot: slot, Offset: index}, doc.Pos{Node: parent, Slot: slot, Offset: index + 1}
 		}
 	}
-	a, b := sel.Ordered(c.r)
-	return c.Bound(a), c.Bound(b)
+	a, b := sel.Ordered(r)
+	if stops == nil {
+		return a.Pos, b.Pos
+	}
+	return stops.Bound(a), stops.Bound(b)
 }

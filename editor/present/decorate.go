@@ -15,6 +15,21 @@ type Highlight struct {
 	Node doc.ID
 }
 
+// Cover is what a selection covers in one unit (§13.8): in each surface,
+// the run of the presentation's stops it spans, and whether it holds the
+// block whole, marker and structure, as an edit of the selection takes it.
+type Cover struct {
+	Unit  doc.ID
+	Spans []CoverSpan
+	Whole bool
+}
+
+// CoverSpan is a covered run of one surface: indexes into the
+// presentation's Stops of its first and last covered stop.
+type CoverSpan struct {
+	Surface, From, To int
+}
+
 // Decorations are a view's per-view decorations, separate from every unit:
 // moving the caret changes them, and changes units only where reveal
 // changes.
@@ -22,6 +37,8 @@ type Decorations struct {
 	Selection   doc.Selection
 	Composition *policy.Composition
 	Highlights  []Highlight
+	// Covers are the units the selection covers, in page order.
+	Covers []Cover
 }
 
 // Decorate computes a view's decorations.

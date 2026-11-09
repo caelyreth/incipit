@@ -116,3 +116,30 @@ func TestBackspaceAtAHiddenHeadingsStartStepsItDown(t *testing.T) {
 }
 
 func hidden() present.Options { return present.Options{Reveal: present.RevealHidden} }
+
+// The engine publishes what the selection covers: the renderer paints
+// only that.
+func TestSelectAllCoversTheHeadingWhole(t *testing.T) {
+	p := open(t)
+	p.typeText("## Head")
+	p.do(vocab.SelectScope{})
+	covers := p.e.Decorations(1).Covers
+	if len(covers) != 1 || !covers[0].Whole || len(covers[0].Spans) != 1 {
+		t.Fatalf("covers %+v; select-all holds the heading whole", covers)
+	}
+}
+
+func TestASelectionAfterTheMarkerCoversOnlyText(t *testing.T) {
+	p := open(t)
+	p.typeText("# Head")
+	for range 4 {
+		p.do(extend(left))
+	}
+	covers := p.e.Decorations(1).Covers
+	if len(covers) != 1 || covers[0].Whole || len(covers[0].Spans) != 1 {
+		t.Fatalf("covers %+v; the text alone is covered", covers)
+	}
+	if sp := covers[0].Spans[0]; sp.To-sp.From != 4 {
+		t.Fatalf("span %+v covers %d steps, want 4", sp, sp.To-sp.From)
+	}
+}

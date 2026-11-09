@@ -65,8 +65,6 @@ var invisible = ui.Color{R: 1}
 type stopAt struct {
 	caret doc.Caret
 	u     int
-	// seq is the stop's place in page order.
-	seq int
 }
 
 // surfaceLayout is one laid-out surface of a unit.
@@ -139,7 +137,6 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 	pl := &pageLayout{at: map[doc.Caret]place{}}
 	keep := map[doc.ID]bool{}
 	y := float32(0)
-	seq := 0
 	for i, p := range pres {
 		if p == nil {
 			continue
@@ -160,10 +157,8 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		}
 		u.y = y
 		y += u.h
-		// Number the stops in page order and index them by caret.
-		number := func(s *stopAt, pl2 place) {
-			s.seq = seq
-			seq++
+		// Index the stops by caret, in page order.
+		index := func(s *stopAt, pl2 place) {
 			if _, dup := pl.at[s.caret]; !dup {
 				pl.at[s.caret] = pl2
 			}
@@ -174,11 +169,11 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		}
 		if u.object {
 			for gi := range u.gaps {
-				number(&u.gaps[gi], place{unit: u, stop: &u.gaps[gi]})
+				index(&u.gaps[gi], place{unit: u, stop: &u.gaps[gi]})
 			}
 		} else {
 			for _, s := range orderedStops(u) {
-				number(s.stop, place{unit: u, surface: s.surface, stop: s.stop})
+				index(s.stop, place{unit: u, surface: s.surface, stop: s.stop})
 			}
 		}
 		pl.units = append(pl.units, u)
@@ -246,7 +241,8 @@ func layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme
 	u := &unitLayout{pres: p}
 	u.x = float32(p.Context.Indent+p.Context.Quotes) * m.Indent
 	width := max(m.Width-u.x, m.Body*4)
-	if mk := p.Context.Marker; mk != nil {
+	if mk := p.Context.Marker; mk != nil && !p.Spelled {
+		// A marker notation spells is in the flow; otherwise it is drawn.
 		u.marker = markerText(mk)
 	}
 	if vocab.IsObject(p.Kind) {
@@ -550,13 +546,10 @@ func (pl *pageLayout) caretBox(c doc.Caret, m Metrics) (ui.Rect, bool) {
 	return r, true
 }
 
-// lookup finds a caret's place, falling back to the stop zero of its
-// position.
+// lookup finds a caret's place. The engine settles every caret on a
+// presented stop, so the place is exact.
 func (pl *pageLayout) lookup(c doc.Caret) (place, bool) {
-	if pc, ok := pl.at[c]; ok {
-		return pc, true
-	}
-	pc, ok := pl.at[doc.CaretAt(c.Pos)]
+	pc, ok := pl.at[c]
 	return pc, ok
 }
 
@@ -654,52 +647,22 @@ func (sl *surfaceLayout) boxAt(x, y float32) (doc.Caret, bool) {
 	return doc.Caret{}, false
 }
 
-// selectionRanges are the UTF-16 ranges a text selection covers in each
-// surface, and the objects it covers whole.
-func (pl *pageLayout) selectionRanges(sel doc.Selection) (map[*surfaceLayout]ui.TextInputRange, map[*unitLayout]bool) {
-	a, ok1 := pl.lookup(sel.Anchor)
-	h, ok2 := pl.lookup(sel.Head)
-	ranges := map[*surfaceLayout]ui.TextInputRange{}
-	objects := map[*unitLayout]bool{}
-	if sel.Kind == doc.SelectNode {
-		for _, u := range pl.units {
-			if u.pres.Unit == sel.Node {
-				objects[u] = true
-			}
-		}
-		return ranges, objects
-	}
-	if !ok1 || !ok2 || sel.IsCollapsed() {
-		return ranges, objects
-	}
-	lo, hi := a.stop.seq, h.stop.seq
-	if lo > hi {
-		lo, hi = hi, lo
-	}
-	for _, u := range pl.units {
-		if u.object {
-			if len(u.gaps) == 2 && u.gaps[0].seq >= lo && u.gaps[1].seq <= hi {
-				objects[u] = true
-			}
+// coverRanges are the UTF-16 runs a published cover spans in each of a
+// unit's surfaces.
+func (pl *pageLayout) coverRanges(u *unitLayout, c present.Cover) map[*surfaceLayout]ui.TextInputRange {
+	out := map[*surfaceLayout]ui.TextInputRange{}
+	for _, sp := range c.Spans {
+		if sp.Surface >= len(u.surfaces) || sp.To >= len(u.pres.Stops) {
 			continue
 		}
-		for _, s := range u.surfaces {
-			start, end := -1, -1
-			for _, st := range s.stops {
-				if st.seq < lo || st.seq > hi {
-					continue
-				}
-				if start < 0 || st.u < start {
-					start = st.u
-				}
-				end = max(end, st.u)
-			}
-			if start >= 0 && end > start {
-				ranges[s] = ui.TextInputRange{Start: start, End: end}
-			}
+		from, ok1 := pl.at[u.pres.Stops[sp.From].Caret]
+		to, ok2 := pl.at[u.pres.Stops[sp.To].Caret]
+		if !ok1 || !ok2 || from.stop.u >= to.stop.u {
+			continue
 		}
+		out[u.surfaces[sp.Surface]] = ui.TextInputRange{Start: from.stop.u, End: to.stop.u}
 	}
-	return ranges, objects
+	return out
 }
 
 // byteIndex is the UTF-8 offset in s of UTF-16 index u.
