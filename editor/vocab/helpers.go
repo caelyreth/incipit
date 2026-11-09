@@ -783,7 +783,11 @@ func freshItems(items []doc.Item) []doc.Item {
 	return out
 }
 
-// Copy returns the slice from from to to.
+// Copy returns the slice from from to to. Its nodes are the children of
+// the deepest block slot holding both ends, each cut where an end falls
+// in it, so every container the range passes through comes with what it
+// holds: an item copies with its list. The open depths count the nodes
+// cut at each edge.
 func Copy(r doc.Reader, from, to doc.Pos) Slice {
 	if doc.Compare(r, doc.CaretAt(to), doc.CaretAt(from)) < 0 {
 		from, to = to, from
@@ -792,40 +796,108 @@ func Copy(r doc.Reader, from, to doc.Pos) Slice {
 		n, _ := r.Node(from.Node)
 		return Slice{Inline: freshItems(n.Slot(from.Slot).Content().Slice(from.Offset, to.Offset))}
 	}
-	from, to = liftOut(r, from, false), liftOut(r, to, true)
-	var nodes []*doc.Node
-	if a, ok := Block(r, from); ok && isInline(r, from.Ref()) {
-		nodes = append(nodes, trimmed(a, from.Slot, from.Offset, -1))
+	a, b := pathTo(r, liftOut(r, from, false)), pathTo(r, liftOut(r, to, true))
+	d := 0
+	for d+1 < len(a) && d+1 < len(b) && a[d] == b[d] {
+		d++
 	}
-	for _, id := range Between(r, from, to) {
-		n, _ := r.Node(id)
-		nodes = append(nodes, Fresh(n))
+	if a[d].node != b[d].node || a[d].slot != b[d].slot || isInline(r, doc.SlotRef{Node: a[d].node, Slot: a[d].slot}) {
+		// The ends part inside one child: the slot holding it is the
+		// deepest that holds both.
+		d--
 	}
-	if b, ok := Block(r, to); ok && isInline(r, to.Ref()) {
-		nodes = append(nodes, trimmed(b, to.Slot, 0, to.Offset))
+	if d < 0 {
+		return Slice{}
 	}
-	return Slice{Nodes: nodes, OpenStart: 1, OpenEnd: 1}
+	common, _ := r.Node(a[d].node)
+	cut, openStart, openEnd := cutNode(common, a[d:], b[d:])
+	return Slice{Nodes: cut.Slot(a[d].slot).Children(), OpenStart: openStart - 1, OpenEnd: openEnd - 1}
 }
 
-// trimmed copies a text block keeping [from, to) of one slot; to -1 keeps
-// to the end.
-func trimmed(n *doc.Node, slot, from, to int) *doc.Node {
-	c := Fresh(n)
-	slots := c.Slots()
-	out := make([]doc.Slot, len(slots))
-	for i, s := range slots {
-		out[i] = s
-		if i == slot {
-			end := to
-			if end < 0 {
-				end = s.Len()
+// step is one level of a position's path from the page: a slot of a node
+// and an index in it, a child for each level but the last, which is the
+// position itself: an offset in text, or a gap.
+type step struct {
+	node        doc.ID
+	slot, index int
+}
+
+func pathTo(r doc.Reader, p doc.Pos) []step {
+	out := []step{{p.Node, p.Slot, p.Offset}}
+	for id := p.Node; ; {
+		parent, slot, index, ok := Index(r, id)
+		if !ok {
+			break
+		}
+		out = append(out, step{parent, slot, index})
+		id = parent
+	}
+	slices.Reverse(out)
+	return out
+}
+
+// cutNode copies n between two paths that start at it; a nil path leaves
+// that side whole. It returns the copy and how many nodes each side cuts,
+// n among them.
+func cutNode(n *doc.Node, from, to []step) (*doc.Node, int, int) {
+	openStart, openEnd := 0, 0
+	slots := make([]doc.Slot, n.NumSlots())
+	for si, s := range n.Slots() {
+		empty := from != nil && si < from[0].slot || to != nil && si > to[0].slot
+		lo, hi := 0, s.Len()
+		var inFrom, inTo []step
+		if !empty && from != nil && si == from[0].slot {
+			lo = from[0].index
+			if len(from) > 1 {
+				inFrom = from[1:]
 			}
-			out[i] = doc.InlineSlot(s.Content().Slice(from, end)...)
-		} else if !s.IsInline() && to >= 0 {
-			out[i] = doc.BlockSlot()
+		}
+		if !empty && to != nil && si == to[0].slot {
+			hi = to[0].index
+			if len(to) > 1 {
+				hi, inTo = hi+1, to[1:]
+			}
+		}
+		switch {
+		case s.IsInline() && empty:
+			slots[si] = doc.InlineSlot()
+		case s.IsInline():
+			slots[si] = doc.InlineSlot(freshItems(s.Content().Slice(lo, hi))...)
+		case empty:
+			slots[si] = doc.BlockSlot()
+		default:
+			var kids []*doc.Node
+			for ci := lo; ci < hi; ci++ {
+				var cf, ct []step
+				if ci == lo {
+					cf = inFrom
+				}
+				if ci == hi-1 {
+					ct = inTo
+				}
+				if cf == nil && ct == nil {
+					kids = append(kids, Fresh(s.Child(ci)))
+					continue
+				}
+				k, os, oe := cutNode(s.Child(ci), cf, ct)
+				if cf != nil {
+					openStart = os
+				}
+				if ct != nil {
+					openEnd = oe
+				}
+				kids = append(kids, k)
+			}
+			slots[si] = doc.BlockSlot(kids...)
 		}
 	}
-	return doc.NewNode(c.Kind(), c.Attrs(), out...)
+	if from != nil {
+		openStart++
+	}
+	if to != nil {
+		openEnd++
+	}
+	return doc.NewNode(n.Kind(), n.Attrs(), slots...), openStart, openEnd
 }
 
 // Fit adapts a slice to the slot it lands in. A rich slot without lines
@@ -857,9 +929,13 @@ func Fit(spec doc.SlotSpec, s Slice) Slice {
 	return Slice{Inline: []doc.Item{doc.TextItem(text, nil)}}
 }
 
-// InsertSlice inserts a slice at a text position, fitted to its slot. A
-// block slice splits the block there, places its nodes between the
-// halves, and joins its open edges into them.
+// InsertSlice pastes a slice at a text position. Inline items go in place.
+// Blocks land in the nearest slot around the position's block that takes
+// them all, loose items gathered into lists where none does: the block is
+// split at the position and each container up to that slot after it, and
+// the blocks go between the halves. An open edge joins its text to the
+// half beside it where the two are text blocks that can join, and a half
+// the split left empty goes.
 func InsertSlice(at doc.Pos, s Slice) Edit {
 	return func(tx *doc.Tx) error {
 		spec, ok := SlotSpec(tx, at.Ref())
@@ -877,33 +953,210 @@ func InsertSlice(at doc.Pos, s Slice) Edit {
 			return tx.Apply(doc.EditText{At: at.Ref(), From: at.Offset, To: at.Offset, Items: items})
 		}
 		block, _ := Block(tx, at)
+		nodes := s.Nodes
+		target, ok := landing(tx, block.ID(), nodes)
+		if !ok {
+			nodes = listed(nodes)
+			if target, ok = landing(tx, block.ID(), nodes); !ok {
+				return fmt.Errorf("%w: no slot takes the pasted blocks", ErrHelper)
+			}
+		}
 		if err := Split(at, block.Kind(), block.Attrs())(tx); err != nil {
 			return err
 		}
-		parent, slot, index, _ := Index(tx, block.ID())
-		if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index + 1, Nodes: s.Nodes}); err != nil {
+		right := nextSibling(tx, block.ID())
+		// Split each container up to the landing slot after the left half.
+		left := block.ID()
+		for {
+			parent, slot, index, _ := Index(tx, left)
+			if parent == target.Node && slot == target.Slot {
+				break
+			}
+			if err := splitAfter(tx, parent, slot, index); err != nil {
+				return err
+			}
+			left = parent
+		}
+		_, _, index, _ := Index(tx, left)
+		if err := tx.Apply(doc.Insert{Parent: target.Node, Slot: target.Slot, Index: index + 1, Nodes: nodes}); err != nil {
 			return err
 		}
-		pn, _ := tx.Node(parent)
-		first := pn.Slot(slot).Child(index + 1)
-		last := pn.Slot(slot).Child(index + len(s.Nodes))
-		tail := pn.Slot(slot).Child(index + len(s.Nodes) + 1)
-		if s.OpenEnd > 0 {
-			if ref, ok := LastTextSlot(last); ok && CanJoin(tx, ref, doc.SlotRef{Node: tail.ID()}) {
-				if err := Join(ref, tail.ID())(tx); err != nil {
-					return err
-				}
+		tn, _ := tx.Node(target.Node)
+		first := tn.Slot(target.Slot).Child(index + 1).ID()
+		last := tn.Slot(target.Slot).Child(index + len(nodes)).ID()
+		direct := left == block.ID()
+		if s.OpenEnd > 0 && direct && right != 0 {
+			if err := joinText(tx, last, right, false); err != nil {
+				return err
 			}
 		}
-		if s.OpenStart > 0 {
-			if CanJoin(tx, at.Ref(), doc.SlotRef{Node: first.ID()}) {
-				if err := Join(at.Ref(), first.ID())(tx); err != nil {
-					return err
-				}
+		if s.OpenStart > 0 && direct {
+			if err := joinText(tx, block.ID(), first, true); err != nil {
+				return err
+			}
+		}
+		for _, half := range []doc.ID{block.ID(), right} {
+			if err := dropEmptyText(tx, half); err != nil {
+				return err
 			}
 		}
 		return nil
 	}
+}
+
+// landing is the nearest block slot around a block that takes every node.
+func landing(r doc.Reader, block doc.ID, nodes []*doc.Node) (doc.SlotRef, bool) {
+	for id := block; ; {
+		parent, slot, _, ok := Index(r, id)
+		if !ok {
+			return doc.SlotRef{}, false
+		}
+		ref := doc.SlotRef{Node: parent, Slot: slot}
+		if spec, ok := SlotSpec(r, ref); ok && takesAll(spec, nodes) {
+			return ref, true
+		}
+		id = parent
+	}
+}
+
+func takesAll(spec doc.SlotSpec, nodes []*doc.Node) bool {
+	for _, n := range nodes {
+		if spec.Accepts == nil || !spec.Accepts(n.Kind()) {
+			return false
+		}
+	}
+	return true
+}
+
+// listed gathers each run of loose items into a list.
+func listed(nodes []*doc.Node) []*doc.Node {
+	var out, run []*doc.Node
+	flush := func() {
+		if len(run) > 0 {
+			out = append(out, doc.NewNode(List, Schema().Canonical(List, doc.Attrs{}), doc.BlockSlot(run...)))
+			run = nil
+		}
+	}
+	for _, n := range nodes {
+		if n.Kind() == Item {
+			run = append(run, n)
+			continue
+		}
+		flush()
+		out = append(out, n)
+	}
+	flush()
+	return out
+}
+
+// splitAfter moves the children of a container's slot after index into a
+// new container of its kind just after it; with none after, nothing
+// moves.
+func splitAfter(tx *doc.Tx, container doc.ID, slot, index int) error {
+	n, _ := tx.Node(container)
+	children := n.Slot(slot).Children()
+	if index+1 >= len(children) {
+		return nil
+	}
+	var moving []doc.ID
+	for _, c := range children[index+1:] {
+		moving = append(moving, c.ID())
+	}
+	parent, pslot, pindex, ok := Index(tx, container)
+	if !ok {
+		return fmt.Errorf("%w: split of the page", ErrHelper)
+	}
+	if err := tx.Apply(doc.Insert{Parent: parent, Slot: pslot, Index: pindex + 1, Nodes: []*doc.Node{NewBlock(n.Kind(), n.Attrs())}}); err != nil {
+		return err
+	}
+	pn, _ := tx.Node(parent)
+	created := pn.Slot(pslot).Child(pindex + 1).ID()
+	for i, id := range moving {
+		if err := tx.Apply(doc.Move{ID: id, Parent: created, Slot: slot, Index: i}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// nextSibling is the node after id in its slot, or 0.
+func nextSibling(r doc.Reader, id doc.ID) doc.ID {
+	parent, slot, index, ok := Index(r, id)
+	if !ok {
+		return 0
+	}
+	pn, _ := r.Node(parent)
+	if index+1 >= pn.Slot(slot).Len() {
+		return 0
+	}
+	return pn.Slot(slot).Child(index + 1).ID()
+}
+
+// joinText joins second onto first where both are text blocks that can
+// join: first's last text slot (its own, when own) takes second's text.
+func joinText(tx *doc.Tx, first, second doc.ID, own bool) error {
+	fn, ok1 := tx.Node(first)
+	sn, ok2 := tx.Node(second)
+	if !ok1 || !ok2 {
+		return nil
+	}
+	ref, ok := LastTextSlot(fn)
+	if own {
+		ref, ok = FirstTextSlot(fn)
+	}
+	src, sok := FirstTextSlot(sn)
+	if !ok || !sok || src.Node != second || (own && ref.Node != first) || !CanJoin(tx, ref, src) {
+		return nil
+	}
+	// Second's children move into the body of ref's block, so a block
+	// without a body takes no children.
+	if target, _ := tx.Node(ref.Node); hasBlocks(sn) && !holdsBlocks(target.Kind()) {
+		return nil
+	}
+	return Join(ref, second)(tx)
+}
+
+// holdsBlocks reports whether a kind has a block slot.
+func holdsBlocks(kind doc.Kind) bool {
+	spec, _ := Schema().Kind(kind)
+	for _, s := range spec.Slots {
+		if s.Blocks {
+			return true
+		}
+	}
+	return false
+}
+
+// hasBlocks reports whether a node holds any block children.
+func hasBlocks(n *doc.Node) bool {
+	for _, s := range n.Slots() {
+		if !s.IsInline() && s.Len() > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// dropEmptyText removes a text block left with no text and no children,
+// and then containers left empty.
+func dropEmptyText(tx *doc.Tx, id doc.ID) error {
+	n, ok := tx.Node(id)
+	if !ok {
+		return nil
+	}
+	for _, s := range n.Slots() {
+		if s.Len() > 0 {
+			return nil
+		}
+	}
+	parent, _, ok := tx.Parent(id)
+	if !ok {
+		return nil
+	}
+	if err := tx.Apply(doc.Remove{IDs: []doc.ID{id}}); err != nil {
+		return err
+	}
+	return RemoveIfEmpty(parent)(tx)
 }
 
 // Retype changes a text block's kind and attributes and fits its text to

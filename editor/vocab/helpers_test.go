@@ -281,3 +281,40 @@ func TestARangeIntoANestedItemTakesTheItemsItOpens(t *testing.T) {
 		t.Fatalf("got  %s\nwant %s", got, want)
 	}
 }
+
+// A copy keeps the containers its range passes through, and a paste puts
+// blocks where a slot takes them.
+func TestACopyIntoAnItemKeepsItsList(t *testing.T) {
+	src := page(t, para("xy"), list(item("ab"), item("c")))
+	x, a := inOrder(src, 1), inOrder(src, 3)
+	slice := Copy(src, doc.At(doc.SlotRef{Node: x.ID()}, 1), doc.At(doc.SlotRef{Node: a.ID()}, 1))
+	var got []string
+	for _, n := range slice.Nodes {
+		got = append(got, outline(n))
+	}
+	if strings.Join(got, " ") != "paragraph(y) list(item(a|))" || slice.OpenStart != 1 || slice.OpenEnd != 2 {
+		t.Fatalf("slice %v open %d %d", got, slice.OpenStart, slice.OpenEnd)
+	}
+	dst := page(t, para("[]"))
+	out := edit(t, dst, InsertSlice(doc.At(doc.SlotRef{Node: nth(dst, 0)}, 1), slice))
+	if got, want := outline(out.Root()), "page(paragraph([y) list(item(a]|)))"; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}
+
+func TestPastedBlocksLandWhereASlotTakesThem(t *testing.T) {
+	src := page(t, para("p"), para("q"))
+	slice := Copy(src, doc.Pos{Node: 1, Offset: 0}, doc.Pos{Node: 1, Offset: 2})
+	dst := page(t, list(item("ab")))
+	a := inOrder(dst, 2)
+	out := edit(t, dst, InsertSlice(doc.At(doc.SlotRef{Node: a.ID()}, 1), slice))
+	if got, want := outline(out.Root()), "page(list(item(a|)) paragraph(p) paragraph(q) list(item(b|)))"; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+	items := Slice{Nodes: []*doc.Node{item("i"), item("j")}}
+	dst = page(t, para("xy"))
+	out = edit(t, dst, InsertSlice(doc.At(doc.SlotRef{Node: nth(dst, 0)}, 1), items))
+	if got, want := outline(out.Root()), "page(paragraph(x) list(item(i|) item(j|)) paragraph(y))"; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}
