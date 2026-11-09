@@ -292,6 +292,8 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	switch {
 	case plan != nil:
 		view.Selection = plan.Selection
+	case res.Then != nil:
+		view.Selection = res.Then(tx)
 	case res.Selection != nil:
 		view.Selection = *res.Selection
 	default:

@@ -78,6 +78,9 @@ type Result struct {
 	// Selection, when set, is the selection after the edits, in
 	// post-edit positions. Unset, the selection is mapped through them.
 	Selection *doc.Selection
+	// Then, when set, computes the selection after the edits from the
+	// edited document, for carets in nodes the edits create. It is pure.
+	Then func(r doc.Reader) doc.Selection
 	// Composition sets the composition; EndComposition clears it.
 	Composition    *Composition
 	EndComposition bool
@@ -96,7 +99,7 @@ type Result struct {
 
 // Empty reports whether the result does nothing.
 func (r Result) Empty() bool {
-	return len(r.Edits) == 0 && r.Selection == nil && r.Composition == nil && !r.EndComposition &&
+	return len(r.Edits) == 0 && r.Selection == nil && r.Then == nil && r.Composition == nil && !r.EndComposition &&
 		len(r.Annotate) == 0 && len(r.Drop) == 0 && len(r.DropKinds) == 0 && len(r.Deadlines) == 0 &&
 		len(r.Effects) == 0 && r.History == nil && r.GoalX == nil
 }
