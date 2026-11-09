@@ -1,8 +1,6 @@
 package window
 
 import (
-	"image/png"
-	"os"
 	"strings"
 	"testing"
 
@@ -60,13 +58,44 @@ func TestTypingEditsThePage(t *testing.T) {
 	if got != want {
 		t.Fatalf("page:\n%s\nwant:\n%s", got, want)
 	}
-	if dir := os.Getenv("NEVERLAND_SHOTS"); dir != "" {
-		f, err := os.Create(dir + "/typing.png")
-		if err == nil {
-			_ = png.Encode(f, tester.Image())
-			f.Close()
-		}
+	shot(t, tester, "typing")
+}
+
+// Notation near the caret is revealed as ghosts, and the caret steps
+// through them.
+func TestNotationIsRevealedNearTheCaret(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
 	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	for _, r := range "## Ghosts" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	tester.Key(0, ui.KeyEnter)
+	for _, r := range "Some **strong** and *em* and `code`" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	tester.Frame()
+	shot(t, tester, "notation-end")
+	el := app.pageElement()
+	head := func() doc.Caret { return el.Editor.Selection().Head }
+	end := head()
+	if end.Stop == 0 {
+		t.Fatalf("the caret after a closed code run stands before its ghost: %v", end)
+	}
+	// Left steps into the closing ghost before the text.
+	tester.Key(0, ui.KeyLeft)
+	tester.Frame()
+	if h := head(); h.Pos != end.Pos || h.Stop >= end.Stop {
+		t.Fatalf("left from %v went to %v", end, h)
+	}
+	tester.Key(0, ui.KeyUp)
+	tester.Frame()
+	shot(t, tester, "notation-heading")
 }
 
 // What is typed into a page is in the notebook when it opens again.

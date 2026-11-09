@@ -355,11 +355,9 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 			}
 			add(seg{kind: segBreak, from: it.From, to: it.To, text: "\n"}, span("\n", style, m.Body))
 		case present.GhostItem:
-			if it.Layout == present.GhostOverlay {
-				// TODO(ghosts): overlay ghosts draw over the text without
-				// taking room; until then they are not shown.
-				continue
-			}
+			// TODO(ghosts): overlay ghosts draw over the text without taking
+			// room; until they do, they take room like room ghosts, so their
+			// stops stay where the caret can be seen.
 			add(seg{kind: segGhost, from: it.From, to: it.From, text: string(it.Spelling), stopFrom: it.StopFrom, stops: it.StopTo - it.StopFrom},
 				span(string(it.Spelling), style, m.Body))
 		case present.BoxItem:
@@ -587,12 +585,47 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 	}
 	ox, oy := u.origin(s)
 	ly := min(max(y-oy, 0), s.h-1)
+	if c, ok := s.boxAt(x-ox, ly); ok {
+		return c, 0, true
+	}
 	idx := s.layout.IndexAt(ui.Point{X: x - ox, Y: ly})
 	st := s.nearest(idx)
 	if st == nil {
 		return doc.Caret{}, 0, false
 	}
 	return st.caret, 0, true
+}
+
+// boxAt is the source stop under a surface point inside a closed box:
+// a click on an inline formula enters its source where it lands, an
+// explicit entry into the formula's card (§13.5).
+func (sl *surfaceLayout) boxAt(x, y float32) (doc.Caret, bool) {
+	for _, sg := range sl.segs {
+		if sg.kind != segBox || sg.card >= 0 || sg.node == nil {
+			continue
+		}
+		ref, ok := vocab.FirstTextSlot(sg.node)
+		if !ok || ref.Node != sg.node.ID() {
+			continue
+		}
+		lay := ui.ShapeRichTextWith([]ui.Span{sg.face}, ui.Font{Family: sg.face.Font, Size: sg.face.Size}, ui.TextShape{})
+		w, _ := lay.Size()
+		a := sl.caretRect(sg.u0)
+		right := a.X + w + boxPad*2
+		if b := sl.caretRect(sg.u1); b.Y == a.Y {
+			right = b.X
+		}
+		if x < a.X || x >= right || y < a.Y || y >= a.Y+a.H {
+			continue
+		}
+		src := sg.node.Slot(ref.Slot).Content().Text()
+		off := 0
+		if src != "" {
+			off = byteIndex(src, lay.IndexAt(ui.Point{X: x - a.X - boxPad, Y: 1}))
+		}
+		return doc.CaretAt(doc.At(ref, off)), true
+	}
+	return doc.Caret{}, false
 }
 
 // selectionRanges are the UTF-16 ranges a text selection covers in each

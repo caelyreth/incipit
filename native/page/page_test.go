@@ -1,6 +1,7 @@
 package page
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -63,6 +64,65 @@ func TestHitPlacesCaret(t *testing.T) {
 	c, _, ok := pl.hit(r.X+0.5, r.Y+r.H/2)
 	if !ok || c.Pos.Offset != 5 {
 		t.Fatalf("hit landed at %v, want offset 5", c)
+	}
+}
+
+// A click on a closed formula enters its source where it lands, and the
+// formula's card opens.
+func TestClickingAFormulaEntersItsSource(t *testing.T) {
+	el := newElement(t)
+	typeText(el, "f $x+1$ g")
+	pl := el.Editor.layout
+	s := pl.units[0].surfaces[0]
+	var box *seg
+	for i := range s.segs {
+		if s.segs[i].kind == segBox {
+			box = &s.segs[i]
+		}
+	}
+	if box == nil {
+		t.Fatal("no formula box")
+	}
+	a, b := s.caretRect(box.u0), s.caretRect(box.u1)
+	ox, oy := pl.units[0].origin(s)
+	// Just inside the box's right edge: the source's end.
+	c, _, ok := pl.hit(ox+b.X-boxPad-0.5, oy+a.Y+a.H/2)
+	if !ok || c.Pos.Node != box.node.ID() || c.Pos.Offset != len("x+1") {
+		t.Fatalf("hit %v, want the end of the formula's source", c)
+	}
+	// Just inside its left edge: the source's start.
+	c, _, _ = pl.hit(ox+a.X+boxPad+0.5, oy+a.Y+a.H/2)
+	if c.Pos.Node != box.node.ID() || c.Pos.Offset != 0 {
+		t.Fatalf("hit %v, want the start of the formula's source", c)
+	}
+	el.Editor.place(ox+a.X+boxPad+0.5, oy+a.Y+a.H/2, 1, false, time.Unix(500, 0))
+	el.relayout()
+	if h := el.Editor.Selection().Head; h != c {
+		t.Fatalf("placed at %v, want %v", h, c)
+	}
+	if n := len(el.Editor.layout.units[0].surfaces); n != 2 {
+		t.Fatalf("%d surfaces, want the formula's card open", n)
+	}
+}
+
+// Revealed ghosts take room, and each of their stops has a caret place of
+// its own, in stop order.
+func TestGhostStopsHaveTheirOwnPlaces(t *testing.T) {
+	el := newElement(t)
+	typeText(el, "## a **b** `c`")
+	s := el.Editor.layout.units[0].surfaces[0]
+	if !strings.HasPrefix(s.text, "## a **b** `c`") {
+		t.Fatalf("laid out %q, want the ghosts shown", s.text)
+	}
+	for i := 1; i < len(s.stops); i++ {
+		if s.stops[i].u <= s.stops[i-1].u {
+			t.Fatalf("stop %v at %d does not follow %v at %d", s.stops[i].caret, s.stops[i].u, s.stops[i-1].caret, s.stops[i-1].u)
+		}
+	}
+	// One stop at each glyph boundary, but none between the marker and
+	// its separator.
+	if n, want := len(s.stops), len(s.text); n != want {
+		t.Fatalf("%d stops for %q, want %d", n, s.text, want)
 	}
 }
 
