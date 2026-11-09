@@ -11,7 +11,7 @@ import (
 )
 
 // Window is the typing group window in milliseconds.
-var Window = policy.Int("typingWindow", 750, 0, 5000, policy.Label("settings.history.typingWindow"))
+var Window = policy.Int("typingWindow", 750, 0, 5000, policy.Label("settings.history.typingWindow"), policy.Description("settings.history.typingWindow.description"))
 
 // Policy is the history policy.
 var Policy = policy.Define("history", func(p *policy.P) {

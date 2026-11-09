@@ -19,14 +19,14 @@ const ID = "pairs"
 // Options.
 var (
 	// AutoClose types a pair's closer with its opener.
-	AutoClose = policy.Bool("autoClose", true, policy.Label("settings.pairs.autoClose"))
+	AutoClose = policy.Bool("autoClose", true, policy.Label("settings.pairs.autoClose"), policy.Description("settings.pairs.autoClose.description"))
 	// Overtype steps over a closer typed ahead when it is typed.
-	Overtype = policy.Bool("overtype", true, policy.Label("settings.pairs.overtype"),
+	Overtype = policy.Bool("overtype", true, policy.Label("settings.pairs.overtype"), policy.Description("settings.pairs.overtype.description"),
 		policy.Requires("autoClose", true))
 	// Quotes pairs straight double quotes.
-	Quotes = policy.Bool("quotes", true, policy.Label("settings.pairs.quotes"))
+	Quotes = policy.Bool("quotes", true, policy.Label("settings.pairs.quotes"), policy.Description("settings.pairs.quotes.description"))
 	// Mates deletes an empty pair's two sides together.
-	Mates = policy.Bool("mates", true, policy.Label("settings.pairs.mates"))
+	Mates = policy.Bool("mates", true, policy.Label("settings.pairs.mates"), policy.Description("settings.pairs.mates.description"))
 )
 
 // kind is a pair's two spellings.

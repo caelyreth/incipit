@@ -12,18 +12,18 @@ import (
 
 // Options.
 var (
-	Asterisks   = policy.Bool("asterisks", true, policy.Label("settings.markdown.asterisks"))
-	Underscores = policy.Bool("underscores", true, policy.Label("settings.markdown.underscores"))
-	Headings    = policy.Bool("headings", true, policy.Label("settings.markdown.headings"))
-	Lists       = policy.Bool("lists", true, policy.Label("settings.markdown.lists"))
-	Quotes      = policy.Bool("quotes", true, policy.Label("settings.markdown.quotes"))
-	Code        = policy.Bool("code", true, policy.Label("settings.markdown.code"))
-	Math        = policy.Bool("math", true, policy.Label("settings.markdown.math"))
-	Strike      = policy.Bool("strike", true, policy.Label("settings.markdown.strike"))
-	Rules       = policy.Bool("rules", true, policy.Label("settings.markdown.rules"))
+	Asterisks   = policy.Bool("asterisks", true, policy.Label("settings.markdown.asterisks"), policy.Description("settings.markdown.asterisks.description"))
+	Underscores = policy.Bool("underscores", true, policy.Label("settings.markdown.underscores"), policy.Description("settings.markdown.underscores.description"))
+	Headings    = policy.Bool("headings", true, policy.Label("settings.markdown.headings"), policy.Description("settings.markdown.headings.description"))
+	Lists       = policy.Bool("lists", true, policy.Label("settings.markdown.lists"), policy.Description("settings.markdown.lists.description"))
+	Quotes      = policy.Bool("quotes", true, policy.Label("settings.markdown.quotes"), policy.Description("settings.markdown.quotes.description"))
+	Code        = policy.Bool("code", true, policy.Label("settings.markdown.code"), policy.Description("settings.markdown.code.description"))
+	Math        = policy.Bool("math", true, policy.Label("settings.markdown.math"), policy.Description("settings.markdown.math.description"))
+	Strike      = policy.Bool("strike", true, policy.Label("settings.markdown.strike"), policy.Description("settings.markdown.strike.description"))
+	Rules       = policy.Bool("rules", true, policy.Label("settings.markdown.rules"), policy.Description("settings.markdown.rules.description"))
 	// TODO(tables): typing a pipe row and its delimiter row makes a table,
 	// once the tables policy and its helpers exist.
-	Tables = policy.Bool("tables", true, policy.Label("settings.markdown.tables"))
+	Tables = policy.Bool("tables", true, policy.Label("settings.markdown.tables"), policy.Description("settings.markdown.tables.description"))
 )
 
 var edits = []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks, doc.RecordTransferred,

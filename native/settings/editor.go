@@ -168,7 +168,7 @@ func (s *State) policyOptions(
 	animate bool,
 	scale float32,
 ) {
-	indent := theme.Space16.DIPs(scale)
+	indent := float32(0)
 	components.Fold{Key: "settings-options-" + title, Open: open, Animate: animate}.View(c, func() {
 		ui.Row(c).WidthPercent(100).PaddingStart(theme.Space16.DIPs(scale)).Children(func() {
 			components.HorizontalDivider(c, semantic, components.VariantDivider)

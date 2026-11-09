@@ -201,6 +201,24 @@ var policyTexts = map[string]policyText{
 
 // optionTexts are the catalog's label and description keys in words.
 var optionTexts = map[string]string{
+	"settings.markdown.asterisks.description":      "*soft* and **firm** become emphasis and strong.",
+	"settings.markdown.underscores.description":    "_soft_ and __firm__ do the same.",
+	"settings.markdown.headings.description":       "# at a line's start makes a heading, one level per #.",
+	"settings.markdown.lists.description":          "- or 1. at a line's start starts a list.",
+	"settings.markdown.quotes.description":         "> at a line's start starts a quote.",
+	"settings.markdown.code.description":           "`code` marks code; ``` and Enter opens a code block.",
+	"settings.markdown.math.description":           "$x$ writes a formula; $$ alone opens a math block.",
+	"settings.markdown.strike.description":         "~~text~~ strikes text through.",
+	"settings.markdown.rules.description":          "--- and Enter draws a rule.",
+	"settings.markdown.tables.description":         "A pipe row and its delimiter row make a table.",
+	"settings.notation.reveal.description":         "Whether marks show their signs, as *this*, or only their style.",
+	"settings.notation.layout.description":         "Whether signs take room in the line or sit over the text.",
+	"settings.notation.underscores.description":    "Emphasis and strong show _ and __ instead of * and **.",
+	"settings.pairs.autoClose.description":         "Typing an opener types its closer, unless a word follows.",
+	"settings.pairs.overtype.description":          "Typing a closer the page typed for you moves past it.",
+	"settings.pairs.quotes.description":            "Straight double quotes pair like brackets; after a word one closes.",
+	"settings.pairs.mates.description":             "Backspace into a pair selects it whole first; the next press deletes it.",
+	"settings.history.typingWindow.description":    "Typing within this pause of the last keystroke undoes together.",
 	"settings.markdown.asterisks":                  "Asterisks for emphasis",
 	"settings.markdown.underscores":                "Underscores for emphasis",
 	"settings.markdown.headings":                   "Headings",
@@ -223,6 +241,6 @@ var optionTexts = map[string]string{
 	"settings.pairs.autoClose":                     "Close brackets and quotes",
 	"settings.pairs.overtype":                      "Step over a closer typed ahead",
 	"settings.pairs.quotes":                        "Pair straight quotes",
-	"settings.pairs.mates":                         "Delete an empty pair as one",
+	"settings.pairs.mates":                         "Select a pair before deleting it",
 	"settings.history.typingWindow":                "Typing burst (ms)",
 }

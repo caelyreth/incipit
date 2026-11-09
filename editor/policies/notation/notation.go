@@ -46,16 +46,16 @@ var (
 	Reveal = policy.Enum("reveal", RevealShown, []policy.Choice[string]{
 		{Value: RevealShown, Label: "settings.notation.reveal.shown"},
 		{Value: RevealHidden, Label: "settings.notation.reveal.hidden"},
-	}, policy.Label("settings.notation.reveal"))
+	}, policy.Label("settings.notation.reveal"), policy.Description("settings.notation.reveal.description"))
 	// Layout is the default ghost layout of a view.
 	// TODO(overlay): the renderer lays overlay ghosts out as room ghosts
 	// until it draws them over the text.
 	Layout = policy.Enum("layout", LayoutRoom, []policy.Choice[string]{
 		{Value: LayoutRoom, Label: "settings.notation.layout.room"},
 		{Value: LayoutOverlay, Label: "settings.notation.layout.overlay"},
-	}, policy.Label("settings.notation.layout"))
+	}, policy.Label("settings.notation.layout"), policy.Description("settings.notation.layout.description"))
 	// Underscores spells emphasis and strong with underscores.
-	Underscores = policy.Bool("underscores", false, policy.Label("settings.notation.underscores"))
+	Underscores = policy.Bool("underscores", false, policy.Label("settings.notation.underscores"), policy.Description("settings.notation.underscores.description"))
 )
 
 // View returns the reveal mode and ghost layout option values chose, for
