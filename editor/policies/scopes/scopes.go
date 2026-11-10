@@ -22,7 +22,6 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 
 type candidate struct {
 	selection doc.Selection
-	from, to  doc.Pos
 }
 
 // grow selects the innermost scope containing the current selection, or
@@ -38,19 +37,18 @@ func grow(c *policy.Ctx, _ policy.Match) policy.Result {
 	if len(cands) == 0 {
 		return policy.Swallow
 	}
-	curFrom, curTo := c.Range()
 	if sel.IsCollapsed() {
 		for i := len(cands) - 1; i >= 0; i-- {
-			if contains(c.Doc(), cands[i], curFrom, curTo) {
+			if containsCaret(c.Doc(), cands[i], sel.Head) {
 				return policy.Select(cands[i].selection)
 			}
 		}
 		return policy.Swallow
 	}
 	for i, cand := range cands {
-		if sameRange(cand, curFrom, curTo) {
+		if sameSelection(c.Doc(), cand.selection, sel) {
 			for j := i - 1; j >= 0; j-- {
-				if contains(c.Doc(), cands[j], curFrom, curTo) && !sameRange(cands[j], curFrom, curTo) {
+				if containsSelection(c.Doc(), cands[j], sel) && !sameSelection(c.Doc(), cands[j].selection, sel) {
 					return policy.Select(cands[j].selection)
 				}
 			}
@@ -58,7 +56,7 @@ func grow(c *policy.Ctx, _ policy.Match) policy.Result {
 		}
 	}
 	for i := len(cands) - 1; i >= 0; i-- {
-		if contains(c.Doc(), cands[i], curFrom, curTo) {
+		if containsSelection(c.Doc(), cands[i], sel) {
 			return policy.Select(cands[i].selection)
 		}
 	}
@@ -94,13 +92,14 @@ func candidatesAt(c *policy.Ctx) []candidate {
 			if !ok {
 				continue
 			}
+			s = settled(c, s)
 			from, to := policy.SelectionRange(c.Doc(), c.Stops(), s)
 			if from == to {
 				continue
 			}
-			cand := candidate{selection: s, from: from, to: to}
-			if !slices.ContainsFunc(out, func(c candidate) bool {
-				return c.from == cand.from && c.to == cand.to
+			cand := candidate{selection: s}
+			if !slices.ContainsFunc(out, func(other candidate) bool {
+				return sameSelection(c.Doc(), other.selection, cand.selection)
 			}) {
 				out = append(out, cand)
 			}
@@ -108,19 +107,34 @@ func candidatesAt(c *policy.Ctx) []candidate {
 	}
 	slices.SortStableFunc(out, func(a, b candidate) int {
 		switch {
-		case sameRange(a, b.from, b.to):
+		case sameSelection(c.Doc(), a.selection, b.selection):
 			return 0
-		case contains(c.Doc(), a, b.from, b.to):
+		case containsSelection(c.Doc(), a, b.selection):
 			return -1
-		case contains(c.Doc(), b, a.from, a.to):
+		case containsSelection(c.Doc(), b, a.selection):
 			return 1
 		}
-		if n := doc.Compare(c.Doc(), doc.CaretAt(a.from), doc.CaretAt(b.from)); n != 0 {
+		af, at := extent(c.Doc(), a.selection)
+		bf, bt := extent(c.Doc(), b.selection)
+		if n := doc.Compare(c.Doc(), af, bf); n != 0 {
 			return n
 		}
-		return doc.Compare(c.Doc(), doc.CaretAt(b.to), doc.CaretAt(a.to))
+		return doc.Compare(c.Doc(), bt, at)
 	})
 	return out
+}
+
+// settled puts a candidate's ends on stops, as the engine settles every
+// selection it publishes.
+func settled(c *policy.Ctx, s doc.Selection) doc.Selection {
+	if s.Kind != doc.SelectText {
+		return s
+	}
+	if stops := c.Stops(); stops != nil {
+		s.Anchor = stops.Normalize(s.Anchor)
+		s.Head = stops.Normalize(s.Head)
+	}
+	return s
 }
 
 // stackAt reads the scope stack at a caret without publishing a view.
@@ -162,11 +176,34 @@ func boundarySelection(c *policy.Ctx, start, end doc.Caret) doc.Selection {
 	return doc.TextRange(start, end)
 }
 
-func contains(r doc.Reader, cand candidate, from, to doc.Pos) bool {
-	return doc.Compare(r, doc.CaretAt(cand.from), doc.CaretAt(from)) <= 0 &&
-		doc.Compare(r, doc.CaretAt(cand.to), doc.CaretAt(to)) >= 0
+// extent is a selection's two ends as places, in reading order.
+func extent(r doc.Reader, s doc.Selection) (from, to doc.Caret) {
+	if s.Kind == doc.SelectText {
+		return s.Ordered(r)
+	}
+	fromPos, toPos := policy.SelectionRange(r, nil, s)
+	return doc.CaretAt(fromPos), doc.CaretAt(toPos)
 }
 
-func sameRange(c candidate, from, to doc.Pos) bool {
-	return c.from == from && c.to == to
+func containsCaret(r doc.Reader, cand candidate, c doc.Caret) bool {
+	from, to := extent(r, cand.selection)
+	return doc.Compare(r, from, c) <= 0 && doc.Compare(r, c, to) <= 0
+}
+
+func containsSelection(r doc.Reader, outer candidate, inner doc.Selection) bool {
+	of, ot := extent(r, outer.selection)
+	innerFrom, innerTo := extent(r, inner)
+	return doc.Compare(r, of, innerFrom) <= 0 && doc.Compare(r, innerTo, ot) <= 0
+}
+
+func sameSelection(r doc.Reader, a, b doc.Selection) bool {
+	if a.Kind != b.Kind {
+		return false
+	}
+	if a.Kind == doc.SelectNode {
+		return a.Node == b.Node
+	}
+	af, at := extent(r, a)
+	bf, bt := extent(r, b)
+	return af == bf && at == bt
 }

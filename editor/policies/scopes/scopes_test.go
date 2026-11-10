@@ -93,6 +93,24 @@ func TestSelectScopeGrowsFromTheInnermostScope(t *testing.T) {
 	}
 }
 
+func TestSelectScopeReachesAMarkFillingItsParagraph(t *testing.T) {
+	p := open(t)
+	p.typeText("**bold**")
+	for range 2 {
+		p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	}
+	p.do(vocab.SelectScope{})
+	first := p.selection()
+	p.do(vocab.SelectScope{})
+	second := p.selection()
+	if first.Anchor == second.Anchor && first.Head == second.Head {
+		t.Fatalf("the mark and its paragraph have one selection %+v", first)
+	}
+	if first.Anchor.Offset != 0 || first.Head.Offset != 4 || second.Anchor.Offset != 0 || second.Head.Offset != 4 {
+		t.Fatalf("selections %+v and %+v do not cover the mark and paragraph", first, second)
+	}
+}
+
 func TestSelectScopeGrowsThroughAContainer(t *testing.T) {
 	p := open(t)
 	p.typeText("> a")
