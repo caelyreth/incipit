@@ -415,12 +415,16 @@ func boxText(n *doc.Node) string {
 }
 
 // u16Of is the UTF-16 index of a slot offset and the stop chosen there:
-// a ghost's stops stand before and after each of its glyphs (a marker's
-// separator is a gap, not a stop); a stop no ghost holds is the text's.
+// a ghost's stops stand before each of its glyphs and at its end (a
+// marker's separator is a gap, not a stop, so its end is past it); a stop
+// no ghost holds is the text's.
 func (sl *surfaceLayout) u16Of(off, stop int) int {
 	// A stop a ghost at the offset holds, its edges included, is in it.
 	for _, sg := range sl.segs {
 		if sg.kind == segGhost && sg.from == off && stop >= sg.stopFrom && stop <= sg.stopFrom+sg.stops {
+			if stop == sg.stopFrom+sg.stops {
+				return sg.u1
+			}
 			return sg.u0 + utf16Len(sg.text[:graphemeOffset(sg.text, stop-sg.stopFrom)])
 		}
 	}

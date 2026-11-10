@@ -126,6 +126,22 @@ func TestGhostStopsHaveTheirOwnPlaces(t *testing.T) {
 	}
 }
 
+// A heading's caret at its start stands past its marker's separator,
+// where its text begins, whether or not it has text yet.
+func TestAHeadingsStartIsPastItsMarker(t *testing.T) {
+	el := newElement(t)
+	for _, in := range []string{"## ", "a"} {
+		typeText(el, in)
+		start := el.Editor.Selection().Head
+		start.Offset, start.Stop = 0, 0
+		got, _ := el.Editor.layout.caretBox(start, el.Editor.metrics)
+		s := el.Editor.layout.units[0].surfaces[0]
+		if want := s.caretRect(len("## ")); got.X != want.X {
+			t.Fatalf("in %q the start's caret is at %v, past the marker is %v", s.text, got.X, want.X)
+		}
+	}
+}
+
 // The caret glides to its place; with reduced motion it is there at once.
 func TestTheCaretGlides(t *testing.T) {
 	el := newElement(t)
