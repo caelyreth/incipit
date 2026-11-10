@@ -159,6 +159,10 @@ type (
 		Clicks int
 		Extend bool
 		Toggle bool
+		// Anchor, when set with Extend, is the place the range extends
+		// from. A pointer gesture carries its press place here so the
+		// engine need not own the gesture in progress.
+		Anchor *doc.Caret
 	}
 )
 

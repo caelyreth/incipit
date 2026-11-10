@@ -293,7 +293,11 @@ func place(c *policy.Ctx, m policy.Match) policy.Result {
 	}
 	sel := c.Selection()
 	if in.Extend && sel.Kind == doc.SelectText {
-		return revealed(doc.TextRange(sel.Anchor, stop))
+		anchor := sel.Anchor
+		if in.Anchor != nil {
+			anchor = *in.Anchor
+		}
+		return revealed(doc.TextRange(anchor, stop))
 	}
 	content, inline := c.Inline(stop.Pos.Ref())
 	switch {

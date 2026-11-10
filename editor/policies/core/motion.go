@@ -195,7 +195,11 @@ func placeCaret(c *policy.Ctx, m policy.Match) policy.Result {
 	}
 	sel := c.Selection()
 	if in.Extend && sel.Kind == doc.SelectText {
-		return policy.Select(doc.TextRange(sel.Anchor, stop))
+		anchor := sel.Anchor
+		if in.Anchor != nil {
+			anchor = *in.Anchor
+		}
+		return policy.Select(doc.TextRange(anchor, stop))
 	}
 	switch {
 	case in.Clicks >= 3:

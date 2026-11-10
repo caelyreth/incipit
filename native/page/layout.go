@@ -671,6 +671,61 @@ func (pl *pageLayout) coverRanges(u *unitLayout, c present.Cover) map[*surfaceLa
 	return out
 }
 
+// selectionCovers is a selection's published cover shape, computed from
+// the laid-out stops for a renderer preview. The engine uses the same
+// shape when it publishes the selection.
+func (pl *pageLayout) selectionCovers(sel doc.Selection) []present.Cover {
+	if sel.Kind == doc.SelectNode {
+		for _, u := range pl.units {
+			if u.pres.Unit == sel.Node {
+				return []present.Cover{{Unit: u.pres.Unit, Whole: true}}
+			}
+		}
+		return nil
+	}
+	if sel.Kind != doc.SelectText || sel.IsCollapsed() {
+		return nil
+	}
+	lo, hi, seq := -1, -1, 0
+	for _, u := range pl.units {
+		for _, st := range u.pres.Stops {
+			switch st.Caret {
+			case sel.Anchor:
+				lo = seq
+			case sel.Head:
+				hi = seq
+			}
+			seq++
+		}
+	}
+	if lo < 0 || hi < 0 {
+		return nil
+	}
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	var out []present.Cover
+	seq = 0
+	for _, u := range pl.units {
+		c := present.Cover{Unit: u.pres.Unit}
+		for i, st := range u.pres.Stops {
+			if seq >= lo && seq <= hi {
+				n := len(c.Spans)
+				if n > 0 && c.Spans[n-1].Surface == st.Surface && c.Spans[n-1].To == i-1 {
+					c.Spans[n-1].To = i
+				} else {
+					c.Spans = append(c.Spans, present.CoverSpan{Surface: st.Surface, From: i, To: i})
+				}
+			}
+			seq++
+		}
+		if len(c.Spans) > 0 {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // byteIndex is the UTF-8 offset in s of UTF-16 index u.
 func byteIndex(s string, u int) int {
 	n := 0

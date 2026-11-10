@@ -41,9 +41,8 @@ type Element struct {
 	overscroll   scrollfx.Elastic
 	viewport     ui.Rect
 	column       float32 // the column's left, in the element
-	pressed      bool
+	gesture      *gesture
 	focusPending bool
-	lastClicks   int
 	// held is until when a scroll by hand holds the page; typewriter and
 	// viewH are the mode and the height last followed.
 	held       time.Time
@@ -190,7 +189,7 @@ func (el *Element) caretInElement() ui.Rect {
 	if pl == nil {
 		return ui.Rect{}
 	}
-	r, ok := pl.caretBox(el.Editor.Selection().Head, el.Editor.metrics)
+	r, ok := pl.caretBox(el.shownSelection().Head, el.Editor.metrics)
 	if !ok {
 		return ui.Rect{}
 	}
@@ -299,7 +298,7 @@ func (el *Element) scrollBy(ev ui.InputEvent, now time.Time) {
 // stepCaret moves the drawn caret toward the selection head's place; it
 // reports whether it still moves.
 func (el *Element) stepCaret(pl *pageLayout, now time.Time, animate bool) bool {
-	r, ok := pl.caretBox(el.Editor.Selection().Head, el.Editor.metrics)
+	r, ok := pl.caretBox(el.shownSelection().Head, el.Editor.metrics)
 	if !ok {
 		el.caret.Hide()
 		return false
@@ -343,33 +342,37 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		if ev.Button != 0 {
 			return false
 		}
-		// TODO(pointer): a drag sends a Place intent for every pointer event.
-		// Capture the gesture in the renderer, coalesce moves to one intent
-		// per frame and commit on release; Escape cancels it (§9.3, §14.3).
 		x, y := el.toPage(ev.X, ev.Y)
-		el.pressed = true
-		el.lastClicks = max(ev.Clicks, 1)
-		ed.place(x, y, el.lastClicks, ev.Mods&ui.Shift != 0, at)
+		if !el.beginGesture(x, y, ev.Clicks, ev.Mods&ui.Shift != 0, at) {
+			return false
+		}
 		el.Focus()
 		services.Invalidate()
 		return true
 	case ui.InputPointerMove:
-		if !el.pressed {
+		x, y := el.toPage(ev.X, ev.Y)
+		if !el.moveGesture(x, y, at) {
 			return false
 		}
-		x, y := el.toPage(ev.X, ev.Y)
-		// A drag extends by the unit the press selected by.
-		ed.place(x, y, el.lastClicks, true, at)
 		services.Invalidate()
 		return true
 	case ui.InputPointerUp:
-		el.pressed = false
-		return el.pressed
+		if el.gesture == nil {
+			return false
+		}
+		el.finishGesture(ev.Canceled, at)
+		services.Invalidate()
+		return true
 	case ui.InputScroll:
 		el.scrollBy(ev, at)
 		services.Invalidate()
 		return true
 	case ui.InputKeyDown:
+		if el.gesture != nil && ev.Key == ui.KeyEscape {
+			el.finishGesture(true, at)
+			services.Invalidate()
+			return true
+		}
 		if ed.deco.Composition != nil {
 			// The input method has the keys while it composes.
 			return false
@@ -412,6 +415,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// What moves with time steps at the paint's own time: a frame that
 	// paints again without building the view moves it on.
 	now, animate := p.Now(), !p.Preferences().ReduceMotion
+	el.previewGesture(pl)
 	if el.stepViewport(now, animate) {
 		p.AnimationFrame()
 	}
@@ -419,14 +423,18 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		p.AnimationFrame()
 	}
 	t := el.Theme
-	sel := ed.Selection()
+	sel := el.shownSelection()
 	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
 	el.paintDecos(p, pl, ox, oy, top, bottom, now, animate)
 	// The selection glides beneath the text; a drag places it directly,
 	// so it follows the pointer and glides on from there.
-	rows := el.selection.Step(el.selectionRows(pl), now, animate && !el.pressed)
+	covers := ed.deco.Covers
+	if g := el.gesture; g != nil && g.valid {
+		covers = pl.selectionCovers(g.selection)
+	}
+	rows := el.selection.Step(el.selectionRows(pl, covers), now, animate && el.gesture == nil)
 	if el.selection.Moving() {
 		p.AnimationFrame()
 	}
@@ -682,13 +690,13 @@ const (
 
 // selectionRows are the rows the selection covers, in page coordinates:
 // a whole object's box, and each text row of a covered stretch.
-func (el *Element) selectionRows(pl *pageLayout) []ui.Rect {
+func (el *Element) selectionRows(pl *pageLayout, covers []present.Cover) []ui.Rect {
 	var out []ui.Rect
 	byUnit := map[doc.ID]*unitLayout{}
 	for _, u := range pl.units {
 		byUnit[u.pres.Unit] = u
 	}
-	for _, c := range el.Editor.deco.Covers {
+	for _, c := range covers {
 		u, ok := byUnit[c.Unit]
 		if !ok {
 			continue
@@ -720,7 +728,7 @@ func (el *Element) selectionRows(pl *pageLayout) []ui.Rect {
 // and back; while the pointer is held, a composition is under way or a
 // range is selected, it stays solid.
 func (el *Element) paintCaret(p *ui.Painter, view, caret ui.Rect, collapsed bool, now time.Time, animate bool) {
-	breathes := animate && collapsed && !el.pressed && el.Editor.deco.Composition == nil
+	breathes := animate && collapsed && el.gesture == nil && el.Editor.deco.Composition == nil
 	alpha := float32(1)
 	if breathes {
 		alpha = motion.CaretOpacity(el.Editor.active, now)

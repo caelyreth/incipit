@@ -14,6 +14,10 @@ import (
 )
 
 func newElement(t *testing.T) *Element {
+	return newElementWith(t, engine.Options{})
+}
+
+func newElementWith(t *testing.T, opts engine.Options) *Element {
 	t.Helper()
 	prog, err := manifest.Compile(nil, true)
 	if err != nil {
@@ -23,7 +27,7 @@ func newElement(t *testing.T) *Element {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ed := NewEditor(engine.New(snap, prog, engine.Options{}), 1)
+	ed := NewEditor(engine.New(snap, prog, opts), 1)
 	el := NewElement(ed)
 	el.Theme = theme.DefaultSettings().Semantic()
 	el.Prose = theme.DefaultSettings().Prose()
