@@ -81,6 +81,10 @@ func TestAPointerDragUsesThePressAnchorAndOneCommit(t *testing.T) {
 	h.event(ui.InputPointerDown, 2, 1, 0)
 	h.event(ui.InputPointerMove, 6, 1, 0)
 	h.event(ui.InputPointerMove, 9, 1, 0)
+	h.el.previewGesture(h.el.Editor.layout)
+	if g := h.el.gesture; g == nil || len(h.el.Editor.layout.selectionCovers(g.selection)) == 0 {
+		t.Fatal("drag preview has no selection covers")
+	}
 	if got := len(h.countPlace()); got != 0 {
 		t.Fatalf("drag committed %d Places", got)
 	}

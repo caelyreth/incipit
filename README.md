@@ -7,8 +7,9 @@ settings window, the command palette and the notebook on disk. The rebuilt
 page editor runs behind it with core text editing, Markdown notation, pairs,
 lists, navigation, history, guides, word and sentence boundaries, typography,
 CJK refinement, scopes and deletion, tasks, statistics, formatting state, and
-persisted settings and selections. Tables, figures, formula typesetting and
-accessibility are still being built.
+persisted settings and selections. Copy and paste carry structure through the
+system clipboard. Tables, figures, formula typesetting and accessibility are
+still being built.
 
 ## Layout
 
@@ -22,6 +23,7 @@ editor/present       presentation units, stop maps and decorations
 editor/engine        per-page intent processing and publication
 editor/store         node-row encoding and pointer-diff saves
 app/keymap           shell commands, chords and the keymap
+app/clipboard        versioned structured slice transfer
 app/library          groups, chapters, sheets and the trash
 app/settings         settings state and the changes it takes
 app/storage          the notebook on disk: pages, library, layout, media
