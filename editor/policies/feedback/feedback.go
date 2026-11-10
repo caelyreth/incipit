@@ -14,8 +14,9 @@ import (
 // ID is the policy's id.
 const ID = "feedback"
 
-// PulseFor is how long one pulse stays in the view after it is made.
-const PulseFor = 520 * time.Millisecond
+// PulseFor is how long one pulse plays after it is made. The renderer
+// reaches zero opacity at this deadline.
+const PulseFor = 620 * time.Millisecond
 
 // Pulse marks text a rewrite or history changed.
 var Pulse = vocab.NewAnnotationKind("feedback.pulse", false)
@@ -38,6 +39,9 @@ type pulse struct{ direction vocab.Direction }
 
 // DecorationMotion is the direction a view decoration plays in.
 func (p pulse) DecorationMotion() vocab.Direction { return p.direction }
+
+// DecorationDuration is how long the pulse plays.
+func (p pulse) DecorationDuration() time.Duration { return PulseFor }
 
 func observe(c *policy.Ctx, records []doc.Record) policy.Result {
 	direction := vocab.Forward

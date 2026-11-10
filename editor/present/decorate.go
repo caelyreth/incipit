@@ -1,6 +1,8 @@
 package present
 
 import (
+	"time"
+
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -15,14 +17,25 @@ type Highlight struct {
 	From, To doc.Caret
 	// Node is set for a highlight over a whole node.
 	Node doc.ID
+	// Origin identifies the annotation that made the highlight, so a new
+	// pulse at the same place starts its own entrance.
+	Origin uint64
 	// Direction, when set, plays the highlight's reveal in that direction.
 	Direction vocab.Direction
+	// Duration, when set, is the pulse's playback lifetime.
+	Duration time.Duration
 }
 
 // motion is worn by an annotation whose decoration plays in a direction,
 // as a feedback pulse does.
 type motion interface {
 	DecorationMotion() vocab.Direction
+}
+
+// lifetime is worn by an annotation whose decoration has its own
+// playback duration.
+type lifetime interface {
+	DecorationDuration() time.Duration
 }
 
 // Cover is what a selection covers in one unit (§13.8): in each surface,
@@ -72,6 +85,9 @@ func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *pol
 			h := Highlight{Group: dec.Group, From: drawn(a.Anchor.From), To: drawn(a.Anchor.To)}
 			if m, ok := a.Data.(motion); ok {
 				h.Direction = m.DecorationMotion()
+			}
+			if l, ok := a.Data.(lifetime); ok {
+				h.Origin, h.Duration = a.Origin, l.DecorationDuration()
 			}
 			d.Highlights = append(d.Highlights, h)
 		}

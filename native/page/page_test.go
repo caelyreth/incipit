@@ -145,6 +145,30 @@ func TestFeedbackPulsePlayback(t *testing.T) {
 	}
 }
 
+// A pulse appears immediately, holds briefly, then fades to nothing
+// before its annotation deadline.
+func TestFeedbackPulseEnvelope(t *testing.T) {
+	duration := 620 * time.Millisecond
+	for _, c := range []struct {
+		at  time.Duration
+		min float32
+		max float32
+	}{
+		{0, 0, 0},
+		{45 * time.Millisecond, 0.8, 0.9},
+		{90 * time.Millisecond, 1, 1},
+		{300 * time.Millisecond, 1, 1},
+		{480 * time.Millisecond, 0.4, 0.6},
+		{duration - 20*time.Millisecond, 0, 0.1},
+		{duration, 0, 0},
+	} {
+		opacity := pulseAlpha(c.at, duration, true)
+		if opacity < c.min || opacity > c.max {
+			t.Fatalf("opacity at %v = %v, want %v..%v", c.at, opacity, c.min, c.max)
+		}
+	}
+}
+
 func TestFeedbackPulseHasAVisibleStyle(t *testing.T) {
 	styles := Theme(theme.DefaultSettings().Semantic())
 	pulse := styles.Resolve([]vocab.Group{vocab.GroupPulse})

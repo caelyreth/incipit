@@ -581,7 +581,9 @@ type decoKey struct {
 	unit      doc.ID
 	surface   int
 	highlight bool
+	origin    uint64
 	direction vocab.Direction
+	duration  time.Duration
 	look      deco
 	nth       int
 }
@@ -593,6 +595,7 @@ type shownDeco struct {
 	rows      []decoRow
 	look      deco
 	direction vocab.Direction
+	duration  time.Duration
 	started   time.Time
 	seen      bool
 	alpha     float32
@@ -617,15 +620,16 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		sd.seen = false
 	}
 	counts := map[decoKey]int{}
-	note := func(u *unitLayout, s *surfaceLayout, highlight bool, d deco, direction vocab.Direction, visible bool) {
+	note := func(u *unitLayout, s *surfaceLayout, highlight bool, d deco, origin uint64, direction vocab.Direction, duration time.Duration, visible bool) {
 		look := d
 		look.rg = ui.TextInputRange{}
-		k := decoKey{unit: u.pres.Unit, surface: s.index, highlight: highlight, direction: direction, look: look}
+		k := decoKey{unit: u.pres.Unit, surface: s.index, highlight: highlight, origin: origin,
+			direction: direction, duration: duration, look: look}
 		k.nth = counts[k]
 		counts[k]++
 		sd, ok := el.decos[k]
 		if !ok {
-			sd = &shownDeco{look: look, direction: direction, started: now}
+			sd = &shownDeco{look: look, direction: direction, duration: duration, started: now}
 			el.decos[k] = sd
 		}
 		sd.seen = true
@@ -644,7 +648,7 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 			continue
 		}
 		if d := decoOf(ui.TextInputRange{Start: from.stop.u, End: to.stop.u}, el.Editor.theme.Resolve([]vocab.Group{h.Group})); d.drawn() {
-			note(from.unit, from.surface, true, d, h.Direction, visible(from.unit))
+			note(from.unit, from.surface, true, d, h.Origin, h.Direction, h.Duration, visible(from.unit))
 		}
 	}
 	for _, u := range pl.units {
@@ -654,17 +658,25 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		vis := visible(u)
 		for _, s := range u.surfaces {
 			for _, d := range s.decos {
-				note(u, s, false, d, 0, vis)
+				note(u, s, false, d, 0, 0, 0, vis)
 			}
 		}
 	}
 	for k, sd := range el.decos {
-		sd.alpha = sd.fade.Step(sd.seen, now, animate)
-		if sd.fade.Moving() {
-			p.AnimationFrame()
-		}
-		if sd.fade.Gone() {
-			delete(el.decos, k)
+		if sd.duration > 0 && sd.seen {
+			sd.alpha = pulseAlpha(now.Sub(sd.started), sd.duration, animate)
+			sd.fade.Set(sd.alpha)
+			if animate && now.Before(sd.started.Add(sd.duration)) {
+				p.AnimationFrame()
+			}
+		} else {
+			sd.alpha = sd.fade.Step(sd.seen, now, animate)
+			if sd.fade.Moving() {
+				p.AnimationFrame()
+			}
+			if sd.fade.Gone() {
+				delete(el.decos, k)
+			}
 		}
 	}
 	// In layers, whatever order they were found in: the text's backgrounds,
@@ -684,9 +696,35 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 	}
 }
 
-// pulseSweep is how long a directional decoration takes to uncover its
-// whole range.
-const pulseSweep = 220 * time.Millisecond
+// pulseSweep is how quickly a directional decoration uncovers its range.
+// It matches the pulse's fast entrance.
+const pulseSweep = 90 * time.Millisecond
+
+// pulseAlpha gives a pulse its fast entrance, short hold and long decay.
+// The decay reaches zero at duration, so the annotation's deadline removes
+// something already invisible.
+func pulseAlpha(age, duration time.Duration, animate bool) float32 {
+	if !animate || duration <= 0 {
+		return 1
+	}
+	age = max(age, 0)
+	if age >= duration {
+		return 0
+	}
+	in := min(90*time.Millisecond, duration/4)
+	out := min(280*time.Millisecond, duration/2)
+	hold := duration - in - out
+	if age < in {
+		t := float32(age) / float32(in)
+		rest := 1 - t
+		return 1 - rest*rest*rest
+	}
+	if age < in+hold {
+		return 1
+	}
+	t := min(float32(age-in-hold)/float32(out), 1)
+	return 0.5 + 0.5*float32(math.Cos(math.Pi*float64(t)))
+}
 
 // revealed is the part of a decoration's rows the sweep shows at now. A
 // decoration without a direction is whole; forward reveals from each
