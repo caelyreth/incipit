@@ -317,7 +317,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	deadlines = append(deadlines, res.Deadlines...)
 
 	// Rewrite phases.
-	for _, phase := range doc.Phases[1:] {
+	for _, phase := range doc.Phases {
 		visible := len(tx.Steps())
 		for _, rw := range prog.Rewrites(phase) {
 			computed := len(tx.Steps())

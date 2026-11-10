@@ -48,6 +48,7 @@ func observe(c *policy.Ctx, records []doc.Record) policy.Result {
 		direction = vocab.Forward
 	}
 	var spans []pulseSpan
+	var anchors []policy.Anchor
 	for _, r := range records {
 		if r.Origin.Phase == doc.PhaseHandler && r.Origin.Class != doc.OriginHistory {
 			continue
@@ -55,20 +56,80 @@ func observe(c *policy.Ctx, records []doc.Record) policy.Result {
 		switch r.Kind {
 		case doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks:
 			spans = add(spans, pulseSpan{slot: r.Slot, from: r.From, to: r.To})
+		case doc.RecordNodeChanged:
+			if a, ok := nodeAnchor(c.Doc(), r.Node); ok {
+				anchors = append(anchors, a)
+			}
+		case doc.RecordNodesInserted:
+			for _, id := range r.Nodes {
+				if a, ok := nodeAnchor(c.Doc(), id); ok {
+					anchors = append(anchors, a)
+				}
+			}
+		case doc.RecordTransferred:
+			if len(r.Text) > 0 {
+				anchors = append(anchors, policy.Between(doc.At(r.Target, r.At), doc.At(r.Target, r.At+len(r.Text))))
+			}
+		case doc.RecordNodeMoved:
+			if r.At >= 0 {
+				anchors = append(anchors, policy.PointAnchor(doc.At(r.Target, r.At)))
+			}
 		}
 	}
-	if len(spans) == 0 {
+	for _, s := range spans {
+		anchors = append(anchors, policy.Between(doc.At(s.slot, s.from), doc.At(s.slot, s.to)))
+	}
+	anchors = unique(anchors)
+	if len(anchors) == 0 {
 		return policy.Swallow
 	}
 	res := policy.Result{}
-	for _, s := range spans {
+	for _, a := range anchors {
 		res.Annotate = append(res.Annotate, policy.Annotate{
-			Kind:   Pulse,
-			Anchor: policy.Between(doc.At(s.slot, s.from), doc.At(s.slot, s.to)),
-			Data:   pulse{direction: direction}, Lifetime: policy.Until(c.Now().Add(PulseFor)),
+			Kind: Pulse, Anchor: a,
+			Data: pulse{direction: direction}, Lifetime: policy.Until(c.Now().Add(PulseFor)),
 		})
 	}
 	return res
+}
+
+// nodeAnchor finds the text a structural change made. A node without
+// text pulses at the gap where it stands.
+func nodeAnchor(r doc.Reader, id doc.ID) (policy.Anchor, bool) {
+	n, ok := r.Node(id)
+	if !ok {
+		return policy.Anchor{}, false
+	}
+	if ref, ok := vocab.FirstTextSlot(n); ok {
+		owner, ok := r.Node(ref.Node)
+		if ok && ref.Slot >= 0 && ref.Slot < owner.NumSlots() {
+			end := owner.Slot(ref.Slot).Len()
+			return policy.Between(doc.At(ref, 0), doc.At(ref, end)), true
+		}
+	}
+	if parent, slot, index, ok := vocab.Index(r, id); ok {
+		return policy.PointAnchor(doc.At(doc.SlotRef{Node: parent, Slot: slot}, index)), true
+	}
+	return policy.Anchor{}, false
+}
+
+type anchorKey struct {
+	slot     doc.SlotRef
+	from, to int
+}
+
+func unique(anchors []policy.Anchor) []policy.Anchor {
+	seen := make(map[anchorKey]bool, len(anchors))
+	out := anchors[:0]
+	for _, a := range anchors {
+		key := anchorKey{slot: a.From.Pos.Ref(), from: a.From.Pos.Offset, to: a.To.Pos.Offset}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, a)
+	}
+	return out
 }
 
 // add merges overlapping changes in one slot. A deletion leaves a point,

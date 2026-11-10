@@ -7,7 +7,9 @@ import (
 	"github.com/caelyreth/neverland/app/manifest"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
+	"github.com/caelyreth/neverland/editor/policies/core"
 	"github.com/caelyreth/neverland/editor/policies/feedback"
+	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -23,6 +25,11 @@ func open(t *testing.T) *page {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return openProgram(t, prog)
+}
+
+func openProgram(t *testing.T, prog *policy.Program) *page {
+	t.Helper()
 	snap, err := vocab.EmptyPage(1, 9, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
@@ -34,8 +41,13 @@ func open(t *testing.T) *page {
 
 func (p *page) do(in vocab.Intent) *engine.Published {
 	p.t.Helper()
+	return p.doClass(in, 0)
+}
+
+func (p *page) doClass(in vocab.Intent, class doc.OriginClass) *engine.Published {
+	p.t.Helper()
 	p.now = p.now.Add(time.Second)
-	pub, err := p.e.Do(1, vocab.Input{Intent: in, At: p.now})
+	pub, err := p.e.Do(1, vocab.Input{Intent: in, At: p.now, Class: class})
 	if err != nil {
 		p.t.Fatal(err)
 	}
@@ -116,5 +128,37 @@ func TestHistoryPulsesPlayBothWays(t *testing.T) {
 	p.do(vocab.Redo{})
 	if got := direction(t, p); got != vocab.Forward {
 		t.Fatalf("redo pulse plays %v", got)
+	}
+}
+
+// A structural rewrite from text that arrived at once pulses the block it
+// made, not only character replacements.
+func TestStructuralRewritePulses(t *testing.T) {
+	structure := policy.Define("test-structure", func(p *policy.P) {
+		p.Rewrite("heading", doc.PhaseStructure).
+			Trigger(policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted}}).
+			Extent(policy.ChangedRanges).
+			Produces(doc.RecordNodeChanged).
+			Do(func(c *policy.Ctx, site policy.Site) policy.Result {
+				n, ok := c.Doc().Node(site.Slot.Node)
+				if !ok || n.Kind() != vocab.Paragraph {
+					return policy.Swallow
+				}
+				return policy.Do(func(tx *doc.Tx) error {
+					return tx.Apply(doc.SetNode{ID: n.ID(), Kind: vocab.Heading,
+						Attrs: doc.MakeAttrs(doc.Field{Num: vocab.FieldLevel, Value: doc.Int(1)})})
+				})
+			})
+	})
+	prog, err := policy.Compile(policy.Manifest{
+		Enabled: []*policy.Policy{core.Policy, structure, feedback.Policy}, Strict: true,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := openProgram(t, prog)
+	p.do(vocab.Type{Text: "x"})
+	if got := p.pulses(); len(got) == 0 {
+		t.Fatal("the structural rewrite left no pulse")
 	}
 }
