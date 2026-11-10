@@ -581,6 +581,7 @@ type decoKey struct {
 	unit      doc.ID
 	surface   int
 	highlight bool
+	direction vocab.Direction
 	look      deco
 	nth       int
 }
@@ -588,11 +589,13 @@ type decoKey struct {
 // shownDeco is a decoration as last drawn, fading in while it is there
 // and out where it last stood once it is not.
 type shownDeco struct {
-	fade  motion.Fade
-	rows  []decoRow
-	look  deco
-	seen  bool
-	alpha float32
+	fade      motion.Fade
+	rows      []decoRow
+	look      deco
+	direction vocab.Direction
+	started   time.Time
+	seen      bool
+	alpha     float32
 }
 
 // decoRow is one line's piece of a decoration, in page coordinates: the
@@ -614,15 +617,15 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		sd.seen = false
 	}
 	counts := map[decoKey]int{}
-	note := func(u *unitLayout, s *surfaceLayout, highlight bool, d deco, visible bool) {
+	note := func(u *unitLayout, s *surfaceLayout, highlight bool, d deco, direction vocab.Direction, visible bool) {
 		look := d
 		look.rg = ui.TextInputRange{}
-		k := decoKey{unit: u.pres.Unit, surface: s.index, highlight: highlight, look: look}
+		k := decoKey{unit: u.pres.Unit, surface: s.index, highlight: highlight, direction: direction, look: look}
 		k.nth = counts[k]
 		counts[k]++
 		sd, ok := el.decos[k]
 		if !ok {
-			sd = &shownDeco{look: look}
+			sd = &shownDeco{look: look, direction: direction, started: now}
 			el.decos[k] = sd
 		}
 		sd.seen = true
@@ -641,7 +644,7 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 			continue
 		}
 		if d := decoOf(ui.TextInputRange{Start: from.stop.u, End: to.stop.u}, el.Editor.theme.Resolve([]vocab.Group{h.Group})); d.drawn() {
-			note(from.unit, from.surface, true, d, visible(from.unit))
+			note(from.unit, from.surface, true, d, h.Direction, visible(from.unit))
 		}
 	}
 	for _, u := range pl.units {
@@ -651,7 +654,7 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		vis := visible(u)
 		for _, s := range u.surfaces {
 			for _, d := range s.decos {
-				note(u, s, false, d, vis)
+				note(u, s, false, d, 0, vis)
 			}
 		}
 	}
@@ -672,13 +675,59 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 	} {
 		for k, sd := range el.decos {
 			if layer(k) {
-				el.paintBackground(p, sd, ox, oy)
+				el.paintBackground(p, sd, ox, oy, now, animate)
 			}
 		}
 	}
 	for _, sd := range el.decos {
-		el.paintLine(p, sd, ox, oy)
+		el.paintLine(p, sd, ox, oy, now, animate)
 	}
+}
+
+// pulseSweep is how long a directional decoration takes to uncover its
+// whole range.
+const pulseSweep = 220 * time.Millisecond
+
+// revealed is the part of a decoration's rows the sweep shows at now. A
+// decoration without a direction is whole; forward reveals from each
+// line's left and backward from its right, one line after another.
+func revealed(sd *shownDeco, now time.Time, animate bool) []decoRow {
+	if sd.direction == 0 || !animate || sd.started.IsZero() {
+		return sd.rows
+	}
+	progress := min(max(float32(now.Sub(sd.started)), 0)/float32(pulseSweep), 1)
+	if progress >= 1 {
+		return sd.rows
+	}
+	rest := 1 - progress
+	progress = 1 - rest*rest*rest
+	total := float32(0)
+	for _, row := range sd.rows {
+		total += row.box.W
+	}
+	if total == 0 {
+		return sd.rows
+	}
+	remaining := total * progress
+	out := make([]decoRow, 0, len(sd.rows))
+	for n := range sd.rows {
+		i := n
+		if sd.direction == vocab.Backward {
+			i = len(sd.rows) - 1 - n
+		}
+		row := sd.rows[i]
+		if remaining <= 0 {
+			break
+		}
+		w := min(row.box.W, remaining)
+		if sd.direction == vocab.Backward {
+			row.box.X += row.box.W - w
+		}
+		row.box.W = w
+		out = append(out, row)
+		remaining -= w
+	}
+	return out
 }
 
 // decoRows are a range's pieces, a line each, hugging the line's glyphs;
@@ -708,11 +757,11 @@ func decoRows(s *surfaceLayout, rg ui.TextInputRange, x, y float32) []decoRow {
 	return out
 }
 
-func (el *Element) paintBackground(p *ui.Painter, sd *shownDeco, ox, oy float32) {
+func (el *Element) paintBackground(p *ui.Painter, sd *shownDeco, ox, oy float32, now time.Time, animate bool) {
 	if sd.look.bg == (ui.Color{}) {
 		return
 	}
-	for _, row := range sd.rows {
+	for _, row := range revealed(sd, now, animate) {
 		r := row.box
 		if r.W == 0 {
 			continue
@@ -721,7 +770,7 @@ func (el *Element) paintBackground(p *ui.Painter, sd *shownDeco, ox, oy float32)
 	}
 }
 
-func (el *Element) paintLine(p *ui.Painter, sd *shownDeco, ox, oy float32) {
+func (el *Element) paintLine(p *ui.Painter, sd *shownDeco, ox, oy float32, now time.Time, animate bool) {
 	if sd.look.line == present.LineNone {
 		return
 	}
@@ -730,7 +779,7 @@ func (el *Element) paintLine(p *ui.Painter, sd *shownDeco, ox, oy float32) {
 		ink = el.Theme.Prose.Text
 	}
 	ink = ink.Alpha(sd.alpha)
-	for _, row := range sd.rows {
+	for _, row := range revealed(sd, now, animate) {
 		x, w := ox+row.box.X, row.box.W
 		y := oy + row.base + max(underlineGap, row.descent*0.45)
 		switch sd.look.line {

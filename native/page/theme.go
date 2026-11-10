@@ -36,6 +36,9 @@ func Theme(t theme.Theme) present.Theme {
 			LineColor: pack(t.Families[theme.Halo].Foreground)},
 		vocab.GroupArmed: {Set: present.SetBackground | present.SetLine | present.SetLineColor, Background: pack(t.Prose.Selection),
 			Line: present.LineWavy, LineColor: pack(t.Families[theme.Remnant].Foreground)},
+		vocab.GroupPulse: {Set: present.SetBackground | present.SetLine | present.SetLineColor,
+			Background: pack(t.Families[theme.Life].Surface), Line: present.LineUnder,
+			LineColor: pack(t.Families[theme.Life].Foreground)},
 	}
 	for level := 1; level <= 6; level++ {
 		th[vocab.GroupHeadings[level]] = present.Style{Set: present.SetSize, Size: headingScale[level]}

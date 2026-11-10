@@ -104,6 +104,15 @@ func TestHistoryPulsesPlayBothWays(t *testing.T) {
 	if got := direction(t, p); got != vocab.Backward {
 		t.Fatalf("undo pulse plays %v", got)
 	}
+	var painted vocab.Direction
+	for _, h := range p.e.Decorations(1).Highlights {
+		if h.Group == vocab.GroupPulse {
+			painted = h.Direction
+		}
+	}
+	if painted != vocab.Backward {
+		t.Fatalf("undo decoration plays %v", painted)
+	}
 	p.do(vocab.Redo{})
 	if got := direction(t, p); got != vocab.Forward {
 		t.Fatalf("redo pulse plays %v", got)
