@@ -59,6 +59,7 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 		Active:    ids[contents.Layout.Active],
 		HasActive: contents.Layout.HasActive,
 		Scroll:    map[workspace.PageID]workspace.ScrollPosition{},
+		Views:     map[workspace.PageID]workspace.ViewState{},
 	}
 	if _, ok := ids[contents.Layout.Active]; !ok {
 		// Restore gives the front to the first tab instead.
@@ -72,6 +73,11 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 	for key, y := range contents.Layout.Scroll {
 		if id, ok := ids[key]; ok {
 			layout.Scroll[id] = workspace.ScrollPosition{Y: y}
+		}
+	}
+	for key, view := range contents.Layout.Views {
+		if id, ok := ids[key]; ok {
+			layout.Views[id] = workspaceView(view)
 		}
 	}
 	if !contents.HasLayout {
@@ -113,6 +119,8 @@ func (a *AppState) save() {
 	for _, session := range a.sessions {
 		a.savePage(session)
 	}
+	a.saveSettings()
+	a.captureViews()
 	a.saveLayout()
 }
 
@@ -168,6 +176,7 @@ func (a *AppState) saveLayout() {
 	stored := storage.Layout{
 		HasActive: layout.HasActive,
 		Scroll:    map[storage.PageKey]float32{},
+		Views:     map[storage.PageKey]storage.ViewState{},
 	}
 	for _, id := range layout.Tabs {
 		if session, ok := a.sessions[id]; ok {
@@ -182,11 +191,46 @@ func (a *AppState) saveLayout() {
 			stored.Scroll[session.key] = scroll.Y
 		}
 	}
+	for id, view := range layout.Views {
+		if session, ok := a.sessions[id]; ok {
+			stored.Views[session.key] = storageView(view)
+		}
+	}
 	if stored.Equal(a.notebook.layout) {
 		return
 	}
 	a.notebook.layout = stored
 	a.notebook.saver.Layout(stored)
+}
+
+func workspaceView(view storage.ViewState) workspace.ViewState {
+	return workspace.ViewState{
+		Kind: workspace.SelectionKind(view.Kind),
+		Anchor: workspace.Caret{
+			Node: view.Anchor.Node, Slot: view.Anchor.Slot,
+			Offset: view.Anchor.Offset, Stop: view.Anchor.Stop,
+		},
+		Head: workspace.Caret{
+			Node: view.Head.Node, Slot: view.Head.Slot,
+			Offset: view.Head.Offset, Stop: view.Head.Stop,
+		},
+		Node: view.Node,
+	}
+}
+
+func storageView(view workspace.ViewState) storage.ViewState {
+	return storage.ViewState{
+		Kind: uint8(view.Kind),
+		Anchor: storage.ViewCaret{
+			Node: view.Anchor.Node, Slot: view.Anchor.Slot,
+			Offset: view.Anchor.Offset, Stop: view.Anchor.Stop,
+		},
+		Head: storage.ViewCaret{
+			Node: view.Head.Node, Slot: view.Head.Slot,
+			Offset: view.Head.Offset, Stop: view.Head.Stop,
+		},
+		Node: view.Node,
+	}
 }
 
 // Close saves everything still pending and lets go of the notebook. It is
@@ -198,6 +242,8 @@ func (a *AppState) Close() error {
 	for _, session := range a.sessions {
 		a.savePage(session)
 	}
+	a.saveSettings()
+	a.captureViews()
 	a.saveLayout()
 	a.notebook.closed = true
 	err := a.notebook.saver.Close()

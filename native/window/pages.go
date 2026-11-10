@@ -32,6 +32,7 @@ func (a *AppState) pageElement() *page.Element {
 		return nil
 	}
 	session.element = el
+	a.refreshEditorChrome()
 	return el
 }
 
@@ -61,6 +62,7 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 	ed := page.NewEditor(engine.New(snap, a.Product.Program, engine.Options{}), a.nextView)
 	el := page.NewElement(ed)
 	el.Label = "Page"
+	a.restoreView(session, el)
 	return el, nil
 }
 
@@ -77,4 +79,5 @@ func (a *AppState) applyPolicy() {
 	if a.mainWindow != nil && !a.mainWindow.IsDestroyed() {
 		a.mainWindow.Invalidate()
 	}
+	a.chrome = chromeKey{}
 }

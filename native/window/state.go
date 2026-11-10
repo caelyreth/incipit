@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/app/library"
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/app/storage"
@@ -51,6 +50,11 @@ type AppState struct {
 	nextKey storage.PageKey
 	// nextView numbers the editors' views.
 	nextView uint64
+	// chrome is the editor state the footer and formatting toolbar last
+	// showed.
+	chrome chromeKey
+	// settingsDirty waits for the next write of the settings record.
+	settingsDirty bool
 }
 
 // NewAppState is a notebook held in memory alone, as tests use.
@@ -86,8 +90,40 @@ func newAppState(store *storage.Store) (*AppState, error) {
 	app.Palette = &overlay.CommandPalette{}
 	app.Shell.Colors = &app.colors
 	app.Settings.Colors = &app.colors
+	if err := app.loadSettings(store); err != nil {
+		return nil, err
+	}
+	app.Shell.Settings = appearanceSettings(app.Product.Appearance)
+	app.Shell.Settings.Accent = app.groupAccent()
+	app.Shell.Appearance = app.Product.Presentation
 	app.BindShell()
 	return app, nil
+}
+
+// loadSettings restores the saved appearance, writing modes, keymap and
+// policy values. A record that cannot be read or compiled is replaced by
+// the defaults; the pages are untouched.
+func (a *AppState) loadSettings(store *storage.Store) error {
+	if store == nil {
+		return nil
+	}
+	data, err := store.LoadSettings()
+	if err != nil {
+		return err
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := a.Product.Decode(data); err != nil {
+		a.Product = appsettings.DefaultState()
+		a.settingsDirty = true
+		a.saveSettings()
+		a.Notices.Post(notices.Notice{
+			ID: "settings.load", Kind: notices.Warning, Title: "Settings were reset",
+			Description: "Your notebook is unchanged. The saved preferences could not be read.",
+		})
+	}
+	return nil
 }
 
 func (a *AppState) BindShell() {
@@ -135,6 +171,10 @@ func (a *AppState) BindShell() {
 	a.Shell.Zen = func(on bool) {
 		a.setPresentation(appsettings.PresentationZen, on)
 	}
+	a.Shell.Strong = a.formatStrong
+	a.Shell.Emphasis = a.formatEmphasis
+	a.Shell.Code = a.formatCode
+	a.Shell.Strike = a.formatStrike
 	a.refreshShell()
 }
 
@@ -172,18 +212,18 @@ func (a *AppState) refreshToolbarState() {
 	if a == nil || a.Shell == nil {
 		return
 	}
-	// TODO(toolbar): publish formatting state from engine previews beside
-	// the writing modes; only typewriter and zen are shown now.
 	keys := a.Product.Keymap
+	formatting := shell.FormattingState{}
+	if session, _, ok := a.activeSession(); ok && session.element != nil {
+		formatting = formattingState(session.element.Editor)
+	}
 	a.Shell.Toolbar = shell.ToolbarState{
 		Typewriter:        a.Product.Presentation.Typewriter,
 		Zen:               a.Product.Presentation.Zen,
 		TypewriterEnabled: true,
 		ZenEnabled:        true,
-		Bindings: shell.ToolbarBindings{
-			Typewriter: bindingLabel(keys, keymap.Typewriter),
-			Zen:        bindingLabel(keys, keymap.Zen),
-		},
+		Formatting:        formatting,
+		Bindings:          toolbarBindings(keys),
 	}
 }
 
@@ -217,6 +257,7 @@ func (a *AppState) findPage() {
 }
 
 func (a *AppState) selectMounted() {
+	a.captureViews()
 	a.refreshShell()
 	a.syncMenu()
 }
@@ -226,6 +267,7 @@ func (a *AppState) closePageID(id string) {
 	if !ok {
 		return
 	}
+	a.captureViews()
 	if err := a.Workspace.Close(page); err != nil {
 		a.fail("Couldn't close the page", err)
 		return
@@ -253,8 +295,7 @@ func (a *AppState) refreshShell() {
 	if id, ok := a.Workspace.Active(); ok {
 		a.Shell.ActivePage = fmt.Sprintf("%d", id)
 	}
-	// TODO(statistics): set Shell.Statistics from a statistics policy, or
-	// from the page and selection counts the shell footer already renders.
+	a.refreshEditorChrome()
 	a.refreshToolbarState()
 }
 
@@ -283,8 +324,32 @@ func (a *AppState) refreshSettingsData() {
 		case appsettings.ChangePresentation:
 			a.refreshAppearance()
 		}
+		a.settingsChanged()
 		a.refreshSettingsData()
 	}
+}
+
+// settingsChanged queues the settings record; the saver writes it after
+// its settle delay, beside the workspace layout.
+func (a *AppState) settingsChanged() {
+	if a == nil || a.notebook == nil || a.notebook.closed {
+		return
+	}
+	a.settingsDirty = true
+	a.saveSettings()
+}
+
+func (a *AppState) saveSettings() {
+	if a == nil || !a.settingsDirty || a.notebook == nil || a.notebook.closed {
+		return
+	}
+	data, err := a.Product.Encode()
+	if err != nil {
+		a.fail("Couldn't save settings", err)
+		return
+	}
+	a.notebook.saver.Settings(data)
+	a.settingsDirty = false
 }
 
 // applyAppearance moves every window to the chosen theme together: the
@@ -321,8 +386,13 @@ func (a *AppState) setPresentation(mode appsettings.Presentation, on bool) {
 	if a == nil {
 		return
 	}
-	if _, err := a.Product.Apply(appsettings.SetPresentation(mode, on)); err != nil {
+	outcome, err := a.Product.Apply(appsettings.SetPresentation(mode, on))
+	if err != nil {
 		a.fail("Couldn't change the setting", err)
+		return
+	}
+	if outcome.Applied {
+		a.settingsChanged()
 	}
 	a.refreshAppearance()
 	a.refreshSettingsData()
@@ -382,6 +452,7 @@ func (a *AppState) View(c *ui.Context) {
 		return
 	}
 	a.followAccent(c.Now())
+	a.refreshEditorChrome()
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion, a.Shell.WindowActive)
 	a.pressedCommands(c)

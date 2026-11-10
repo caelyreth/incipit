@@ -29,25 +29,44 @@ type Page struct {
 	Updated time.Time
 }
 
+// ViewCaret is one end of a saved selection.
+type ViewCaret struct {
+	Node   uint64 `json:"node"`
+	Slot   int    `json:"slot"`
+	Offset int    `json:"offset"`
+	Stop   int    `json:"stop"`
+}
+
+// ViewState is a page's selection as the workspace keeps it.
+type ViewState struct {
+	Kind   uint8     `json:"kind"`
+	Anchor ViewCaret `json:"anchor"`
+	Head   ViewCaret `json:"head"`
+	Node   uint64    `json:"node,omitempty"`
+}
+
 // Layout is how the notebook was left: its open tabs in order, the page in
-// front, and where each page was scrolled.
+// front, where each page was scrolled, and each page's selection.
 type Layout struct {
-	Tabs      []PageKey           `json:"tabs"`
-	Active    PageKey             `json:"active"`
-	HasActive bool                `json:"hasActive"`
-	Scroll    map[PageKey]float32 `json:"scroll,omitempty"`
+	Tabs      []PageKey             `json:"tabs"`
+	Active    PageKey               `json:"active"`
+	HasActive bool                  `json:"hasActive"`
+	Scroll    map[PageKey]float32   `json:"scroll,omitempty"`
+	Views     map[PageKey]ViewState `json:"views,omitempty"`
 }
 
 // Equal reports whether two layouts say the same thing.
 func (l Layout) Equal(other Layout) bool {
 	return l.Active == other.Active && l.HasActive == other.HasActive &&
-		slices.Equal(l.Tabs, other.Tabs) && maps.Equal(l.Scroll, other.Scroll)
+		slices.Equal(l.Tabs, other.Tabs) && maps.Equal(l.Scroll, other.Scroll) &&
+		maps.Equal(l.Views, other.Views)
 }
 
 // clone returns a layout that shares no mutable storage with the caller.
 func (l Layout) clone() Layout {
 	l.Tabs = slices.Clone(l.Tabs)
 	l.Scroll = maps.Clone(l.Scroll)
+	l.Views = maps.Clone(l.Views)
 	return l
 }
 
@@ -192,10 +211,11 @@ type pageWrite struct {
 // change is one transaction's worth of writes: page changes, pages
 // deleted for good, the library's filing and the layout.
 type change struct {
-	pages   []pageWrite
-	deleted []PageKey
-	library *library.Records
-	layout  *Layout
+	pages    []pageWrite
+	deleted  []PageKey
+	library  *library.Records
+	layout   *Layout
+	settings []byte
 }
 
 // write commits a change in one transaction: all of it is on disk, or
@@ -249,6 +269,14 @@ func (s *Store) write(ctx context.Context, change change, now time.Time) error {
 			INSERT INTO layout (key, value) VALUES (?, ?)
 			ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
 			layoutKey, string(encoded)); err != nil {
+			return err
+		}
+	}
+	if change.settings != nil {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO layout (key, value) VALUES (?, ?)
+			ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+			settingsKey, string(change.settings)); err != nil {
 			return err
 		}
 	}

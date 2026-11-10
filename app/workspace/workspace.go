@@ -37,12 +37,14 @@ func New(initial Session, create Factory) (*Workspace, error) {
 }
 
 // Layout is what a workspace shows: its tabs in display order, the page
-// mounted among them, and where each page was scrolled.
+// mounted among them, where each page was scrolled, and each page's
+// selection.
 type Layout struct {
 	Tabs      []PageID
 	Active    PageID
 	HasActive bool
 	Scroll    map[PageID]ScrollPosition
+	Views     map[PageID]ViewState
 }
 
 // Restore rebuilds a workspace around existing pages, identified by their
@@ -66,6 +68,7 @@ func Restore(sessions []Session, layout Layout, create Factory) (*Workspace, err
 		id := PageID(index)
 		w.pages[index] = pageState{
 			Page:    Page{ID: id, Parked: true, Scroll: layout.Scroll[id]},
+			view:    layout.Views[id],
 			session: session,
 		}
 	}
@@ -99,13 +102,48 @@ func (w *Workspace) Layout() Layout {
 		Active:    w.active,
 		HasActive: w.hasActive,
 		Scroll:    make(map[PageID]ScrollPosition, len(w.pages)),
+		Views:     make(map[PageID]ViewState),
 	}
 	for _, page := range w.pages {
 		if !page.discarded && page.Scroll != (ScrollPosition{}) {
 			layout.Scroll[page.ID] = page.Scroll
 		}
+		if !page.discarded && page.view.Valid() {
+			layout.Views[page.ID] = page.view
+		}
 	}
 	return layout
+}
+
+// View returns a page's saved selection.
+func (w *Workspace) View(id PageID) (ViewState, bool) {
+	if w == nil || !w.validPage(id) {
+		return ViewState{}, false
+	}
+	view := w.pages[id].view
+	return view, view.Valid()
+}
+
+// SetView records a page's selection.
+func (w *Workspace) SetView(id PageID, view ViewState) {
+	if w != nil && w.validPage(id) {
+		w.pages[id].view = view
+	}
+}
+
+// ActiveView returns the active page's saved selection.
+func (w *Workspace) ActiveView() (ViewState, bool) {
+	if w == nil || !w.hasActive {
+		return ViewState{}, false
+	}
+	return w.View(w.active)
+}
+
+// SetActiveView records the active page's selection.
+func (w *Workspace) SetActiveView(view ViewState) {
+	if w != nil && w.hasActive {
+		w.pages[w.active].view = view
+	}
 }
 
 // Active returns the mounted page identity.

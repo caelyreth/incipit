@@ -14,13 +14,27 @@ type Page struct {
 	Title string
 }
 
-// ToolbarState is the writing modes the floating toolbar switches, and
-// their current shortcuts.
+// FormatState is one formatting action's state: whether it applies at the
+// selection or caret, and whether the engine preview says it can.
+type FormatState struct {
+	On      bool
+	Enabled bool
+}
+
+// FormattingState is the formatting the floating toolbar shows from the
+// open page's previews.
+type FormattingState struct {
+	Strong, Emphasis, Code, Strike FormatState
+}
+
+// ToolbarState is the writing modes and formatting the floating toolbar
+// switches, and their current shortcuts.
 type ToolbarState struct {
 	Typewriter        bool
 	Zen               bool
 	TypewriterEnabled bool
 	ZenEnabled        bool
+	Formatting        FormattingState
 	Bindings          ToolbarBindings
 }
 
@@ -28,6 +42,10 @@ type ToolbarState struct {
 type ToolbarBindings struct {
 	Typewriter string
 	Zen        string
+	Strong     string
+	Emphasis   string
+	Code       string
+	Strike     string
 }
 
 type State struct {
@@ -71,6 +89,10 @@ type State struct {
 	CloseTabsAfter func(id string)
 	Typewriter     func(bool)
 	Zen            func(bool)
+	Strong         func()
+	Emphasis       func()
+	Code           func()
+	Strike         func()
 
 	// SidebarOverride shows or hides the library, SheetListOverride the
 	// sheet list, against what the window's width would choose.
