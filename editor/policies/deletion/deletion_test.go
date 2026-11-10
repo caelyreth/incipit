@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policies/core"
 	"github.com/caelyreth/neverland/editor/policies/guides"
+	"github.com/caelyreth/neverland/editor/policies/history"
 	"github.com/caelyreth/neverland/editor/policies/lists"
 	"github.com/caelyreth/neverland/editor/policies/markdown"
 	"github.com/caelyreth/neverland/editor/policies/navigation"
@@ -28,7 +29,7 @@ func open(t *testing.T) *page {
 	t.Helper()
 	prog, err := policy.Compile(policy.Manifest{
 		Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy,
-			lists.Policy, navigation.Policy, scopes.Policy, Policy, guides.Policy},
+			lists.Policy, navigation.Policy, scopes.Policy, Policy, history.Policy, guides.Policy},
 		Strict: true,
 	}, nil)
 	if err != nil {

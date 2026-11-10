@@ -51,7 +51,9 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 	mk := policy.Facts[marker](p, "marker")
 	fk := policy.Facts[fence](p, "fence")
 	p.Analyze(policy.Slots, analyzeBlocks(blocks, mk, fk), []vocab.FactKind{mk.Kind(), fk.Kind()},
-		policy.Config(blocks), policy.Where(func(u *policy.Unit) bool { return u.Owner.Kind() == vocab.Paragraph }))
+		policy.Config(blocks), policy.Where(func(u *policy.Unit) bool {
+			return u.Owner.Kind() == vocab.Paragraph || u.Owner.Kind() == vocab.Item
+		}))
 
 	// Closing delimiters.
 	for _, c := range []byte{'*', '_'} {
@@ -100,6 +102,9 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 	// Block prefixes and fences.
 	para := vocab.NodeScope(vocab.Paragraph)
 	p.Handle("block-marker").On(vocab.Typed(" ")).In(para).When(vocab.After(mk.Scope()), vocab.Collapsed).
+		Produces(edits...).Do(blockMarker(mk))
+	item := vocab.NodeScope(vocab.Item)
+	p.Handle("task-marker").On(vocab.Typed(" ")).In(item).When(vocab.After(mk.Scope()), vocab.Collapsed).
 		Produces(edits...).Do(blockMarker(mk))
 	p.Handle("fence").On(vocab.On(vocab.IntentBreak)).In(para).When(vocab.After(fk.Scope()), vocab.SlotEnd, vocab.Collapsed).
 		Produces(edits...).Do(fenceBlock(fk))
@@ -203,6 +208,12 @@ func blockMarker(mk *policy.FactKind[marker]) policy.Handler {
 					doc.Field{Num: vocab.FieldListStart, Value: doc.Int(int64(mark.Level))})
 			}
 			return policy.Do(strip, intoList(block.ID(), attrs))
+		case markTaskOpen, markTaskDone:
+			if block.Kind() != vocab.Item {
+				return policy.Swallow
+			}
+			attrs := block.Attrs().With(vocab.FieldTask, doc.Int(int64(mark.Task)))
+			return policy.Do(strip, vocab.SetAttrs(block.ID(), attrs))
 		}
 		return policy.Swallow
 	}

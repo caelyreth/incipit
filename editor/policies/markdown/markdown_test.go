@@ -123,3 +123,37 @@ func TestTypedListKeepsADifferentStyleApart(t *testing.T) {
 	p.typeText("1. two")
 	p.want("page(list(item(one|)) list(item(two|)))")
 }
+
+func TestTypedTaskMarkersBecomeItemState(t *testing.T) {
+	for _, tc := range []struct {
+		typed string
+		want  vocab.Task
+	}{
+		{"- [ ] ", vocab.TaskOpen},
+		{"- [x] ", vocab.TaskDone},
+		{"- [X] ", vocab.TaskDone},
+	} {
+		p := open(t)
+		p.typeText(tc.typed)
+		item := p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Child(0)
+		if item.Kind() != vocab.Item || vocab.TaskOf(item) != tc.want {
+			t.Fatalf("%q made %v with task %v, want %v", tc.typed, item.Kind(), vocab.TaskOf(item), tc.want)
+		}
+		if got := item.Slot(0).Content().Text(); got != "" {
+			t.Fatalf("%q left text %q in the item head", tc.typed, got)
+		}
+	}
+}
+
+func TestATaskContinuesAsAnOpenTask(t *testing.T) {
+	p := open(t)
+	p.typeText("- [x] done")
+	p.do(vocab.Break{})
+	items := p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Children()
+	if len(items) != 2 {
+		t.Fatalf("continuation made %d items, want 2", len(items))
+	}
+	if got := vocab.TaskOf(items[1]); got != vocab.TaskOpen {
+		t.Fatalf("continuation task %v, want open", got)
+	}
+}
