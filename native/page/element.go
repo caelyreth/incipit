@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
-	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/scrollfx"
@@ -58,6 +57,9 @@ type Element struct {
 	// coordinates. It, the scroll's glide and the caret's breathing move
 	// in paint, on frames that paint again without building the view.
 	caret motion.Rect
+	// selection glides the selection's rows with the caret, in page
+	// coordinates.
+	selection motion.Selection
 }
 
 // NewElement is an element over ed.
@@ -407,13 +409,19 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	}
 	t := el.Theme
 	sel := ed.Selection()
-	covers := map[doc.ID]present.Cover{}
-	for _, c := range ed.deco.Covers {
-		covers[c.Unit] = c
-	}
 	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
+	// The selection glides beneath the text; a drag places it directly,
+	// so it follows the pointer and glides on from there.
+	rows := el.selection.Step(el.selectionRows(pl), now, animate && !el.pressed)
+	if el.selection.Moving() {
+		p.AnimationFrame()
+	}
+	wash := t.Prose.Selection.Alpha(el.selection.Opacity())
+	for _, row := range rows {
+		p.Fill(ui.Rect{X: ox + row.X, Y: oy + row.Y, W: row.W, H: row.H}, wash, 2)
+	}
 	el.paintHighlights(p, pl, ox, oy)
 	for _, u := range pl.units {
 		uy := oy + u.y
@@ -421,7 +429,6 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			continue
 		}
 		ux := ox + u.x
-		cover, covered := covers[u.pres.Unit]
 		// Quote bars, one per quote level.
 		for q := 0; q < u.pres.Context.Quotes; q++ {
 			bx := ox + float32(u.pres.Context.Indent+q)*m.Indent + m.Indent*0.3
@@ -430,28 +437,14 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		if u.object {
 			// TODO(figures), TODO(tables): figures and tables draw their
 			// own boxes; every object is a divider until then.
-			if cover.Whole {
-				p.Fill(ui.Rect{X: ux, Y: uy, W: m.Width - u.x, H: u.h}, t.Prose.Selection, 4)
-			}
 			mid := uy + u.h/2
 			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
 			continue
-		}
-		var ranges map[*surfaceLayout]ui.TextInputRange
-		if covered {
-			ranges = pl.coverRanges(u, cover)
 		}
 		for _, s := range u.surfaces {
 			sx, sy := ux+s.x, uy+s.y
 			if s.card {
 				p.Fill(ui.Rect{X: sx - cardPad(m)/2, Y: sy - cardPad(m)/2, W: s.w + cardPad(m), H: s.h + cardPad(m)}, t.Surface.Inset, 6)
-			}
-			if rg, ok := ranges[s]; ok {
-				for _, sr := range s.layout.SelectionRects(rg) {
-					sr.X += sx
-					sr.Y += sy
-					p.Fill(sr, t.Prose.Selection, 2)
-				}
 			}
 			p.TextLayout(s.layout, sx, sy, t.Prose.Text)
 			el.paintGhosts(p, s, sx, sy)
@@ -468,6 +461,41 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		cr.Y += oy
 		el.paintCaret(p, r, cr, sel.IsCollapsed(), now, animate)
 	}
+}
+
+// selectionRows are the rows the selection covers, in page coordinates:
+// a whole object's box, and each text row of a covered stretch.
+func (el *Element) selectionRows(pl *pageLayout) []ui.Rect {
+	var out []ui.Rect
+	byUnit := map[doc.ID]*unitLayout{}
+	for _, u := range pl.units {
+		byUnit[u.pres.Unit] = u
+	}
+	for _, c := range el.Editor.deco.Covers {
+		u, ok := byUnit[c.Unit]
+		if !ok {
+			continue
+		}
+		if u.object {
+			if c.Whole {
+				out = append(out, ui.Rect{X: u.x, Y: u.y, W: el.Editor.metrics.Width - u.x, H: u.h})
+			}
+			continue
+		}
+		ranges := pl.coverRanges(u, c)
+		for _, s := range u.surfaces {
+			rg, ok := ranges[s]
+			if !ok {
+				continue
+			}
+			for _, sr := range s.layout.SelectionRects(rg) {
+				sr.X += u.x + s.x
+				sr.Y += u.y + s.y
+				out = append(out, sr)
+			}
+		}
+	}
+	return out
 }
 
 // paintCaret draws the caret in the accent. A lone caret at rest breathes:
