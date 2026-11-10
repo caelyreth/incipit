@@ -99,7 +99,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Ghosts(func(u *policy.Unit, emit func(policy.Ghost)) {
 		for _, f := range u.Facts(k.marks.Kind()) {
 			g, _ := k.marks.Data(f)
-			emit(policy.Ghost{At: f.From, Spelling: g.Spelling, Groups: []vocab.Group{vocab.MarkGroup(g.Mark.Kind), vocab.GroupGhost}, StopFrom: f.StopFrom, Stops: f.StopTo - f.StopFrom})
+			emit(policy.Ghost{At: f.From, Spelling: g.Spelling, Groups: []vocab.Group{vocab.GroupGhost, vocab.MarkGroup(g.Mark.Kind)}, StopFrom: f.StopFrom, Stops: f.StopTo - f.StopFrom})
 		}
 		for _, f := range u.Facts(k.markers.Kind()) {
 			g, _ := k.markers.Data(f)
