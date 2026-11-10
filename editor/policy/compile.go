@@ -137,7 +137,7 @@ type Program struct {
 	analyzing  []string
 	factDecls  map[vocab.FactKind]*factDecl
 	scopeKinds []vocab.FactKind
-	annotation map[uint32]annotationDecl
+	annotation map[annotationKey]AnnotationCheck
 	commands   map[vocab.CommandID]Command
 	catalog    Catalog
 	report     *Report
@@ -152,6 +152,11 @@ type Program struct {
 	stacks  map[stackKey]*Stack
 	candMu  sync.Mutex
 	cands   map[candidateKey][]*rule
+}
+
+type annotationKey struct {
+	kind  vocab.AnnotationKind
+	owner string
 }
 
 var programVersion atomic.Uint64
@@ -206,17 +211,21 @@ func (p *Program) HasAnnotationKind(k vocab.AnnotationKind) bool {
 	case vocab.Armed, vocab.PendingMarks:
 		return true
 	}
-	_, ok := p.annotation[k.ID()]
-	return ok
+	for key := range p.annotation {
+		if key.kind == k {
+			return true
+		}
+	}
+	return false
 }
 
 // CheckAnnotation runs the owner's re-check of an annotation.
 func (p *Program) CheckAnnotation(r doc.Reader, a Annotation) bool {
-	d, ok := p.annotation[a.Kind.ID()]
-	if !ok || d.check == nil {
+	check, ok := p.annotation[annotationKey{kind: a.Kind, owner: a.Owner}]
+	if !ok || check == nil {
 		return true
 	}
-	return d.check(r, a)
+	return check(r, a)
 }
 
 // Compile builds every enabled policy with its option values, resolves,
@@ -232,7 +241,7 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		phases:     map[doc.Phase][]*rewrite{},
 		analyzerOf: map[vocab.FactKind]*analyzer{},
 		factDecls:  map[vocab.FactKind]*factDecl{},
-		annotation: map[uint32]annotationDecl{},
+		annotation: map[annotationKey]AnnotationCheck{},
 		commands:   map[vocab.CommandID]Command{},
 		stacks:     map[stackKey]*Stack{},
 		cands:      map[candidateKey][]*rule{},
@@ -295,14 +304,12 @@ func Compile(m Manifest, values Values) (*Program, error) {
 			}
 		}
 		for _, d := range p.annotations {
-			if prev, ok := prog.annotation[d.kind.ID()]; ok && prev.check != nil && d.check != nil {
-				// Core kinds may be declared by several policies, but only
-				// one check is kept per kind. FIXME(policy): key checks by
-				// (kind, owner); this branch drops a second check, and the
-				// assignment below can replace a nil one (§11.7).
+			key := annotationKey{kind: d.kind, owner: p.policy.id}
+			if _, ok := prog.annotation[key]; ok {
+				rep.errorf("policy %s declares annotation %s twice", p.policy.id, d.kind)
 				continue
 			}
-			prog.annotation[d.kind.ID()] = d
+			prog.annotation[key] = d.check
 		}
 		for _, c := range p.commands {
 			if _, ok := prog.commands[c.ID]; ok {

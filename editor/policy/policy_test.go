@@ -177,6 +177,46 @@ func TestCompileChecks(t *testing.T) {
 	}
 }
 
+// Every owner keeps its own re-check for a shared core annotation kind.
+func TestAnnotationChecksStayWithTheirOwner(t *testing.T) {
+	always := Define("always", func(p *P) {
+		p.Annotation(vocab.Armed, func(doc.Reader, Annotation) bool { return true })
+	})
+	never := Define("never", func(p *P) {
+		p.Annotation(vocab.Armed, func(doc.Reader, Annotation) bool { return false })
+	})
+	prog, err := Compile(Manifest{Enabled: []*Policy{testCore, always, never}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, _ := testPage(t, "x")
+	for _, tc := range []struct {
+		owner string
+		want  bool
+	}{
+		{"always", true},
+		{"never", false},
+		{"gone", true},
+	} {
+		got := prog.CheckAnnotation(snap, Annotation{Kind: vocab.Armed, Owner: tc.owner})
+		if got != tc.want {
+			t.Errorf("owner %s: check = %v, want %v", tc.owner, got, tc.want)
+		}
+	}
+}
+
+func TestADuplicateAnnotationDeclarationFailsCompile(t *testing.T) {
+	dup := Define("dup", func(p *P) {
+		p.Annotation(vocab.Armed, nil)
+		p.Annotation(vocab.Armed, nil)
+	})
+	_, err := Compile(Manifest{Enabled: []*Policy{testCore, dup}}, nil)
+	var ce *CompileError
+	if !errors.As(err, &ce) || !strings.Contains(ce.Error(), "declares annotation armed twice") {
+		t.Fatalf("duplicate declaration not reported: %v", err)
+	}
+}
+
 // The incremental scan gives the facts a scan from scratch gives.
 func TestScannerResumesAndReuses(t *testing.T) {
 	prog, err := Compile(Manifest{Enabled: []*Policy{testCore, testPairs}}, nil)
