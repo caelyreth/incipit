@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -426,8 +425,6 @@ func (e *evaluator) eval(level int, rel vocab.Relation) bool {
 }
 
 // charClass classifies the grapheme before or after pos.
-// TODO(graphemes): classify the whole grapheme cluster, not its edge rune;
-// the boundary helpers in vocab are the source.
 func (e *evaluator) charClass(pos doc.Pos, before bool) vocab.CharClass {
 	in, ok := e.c.Inline(pos.Ref())
 	if !ok {
@@ -436,33 +433,8 @@ func (e *evaluator) charClass(pos doc.Pos, before bool) vocab.CharClass {
 		}
 		return vocab.ClassLineEnd
 	}
-	if before {
-		if pos.Offset == 0 {
-			return vocab.ClassLineStart
-		}
-		it, start, _ := in.ItemAt(pos.Offset - 1)
-		if it.Node != nil {
-			return 0
-		}
-		s := it.Text[:pos.Offset-start]
-		r, _ := utf8.DecodeLastRuneInString(s)
-		if r == '\n' {
-			return vocab.ClassLineStart
-		}
-		return vocab.ClassOf(r)
-	}
-	if pos.Offset >= in.Len() {
-		return vocab.ClassLineEnd
-	}
-	it, start, _ := in.ItemAt(pos.Offset)
-	if it.Node != nil {
-		return 0
-	}
-	r, _ := utf8.DecodeRuneInString(it.Text[pos.Offset-start:])
-	if r == '\n' {
-		return vocab.ClassLineEnd
-	}
-	return vocab.ClassOf(r)
+	class, _ := vocab.GraphemeClassAt(in.Flat(), pos.Offset, before)
+	return class
 }
 
 func isInlineSlot(r doc.Reader, ref doc.SlotRef) bool {

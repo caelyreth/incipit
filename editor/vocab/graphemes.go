@@ -1,66 +1,36 @@
 package vocab
 
 import (
-	"unicode"
 	"unicode/utf8"
+
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/clipperhouse/uax29/v2/graphemes"
 )
 
-// Grapheme boundaries, approximating UAX #29 extended grapheme clusters:
-// a base followed by extenders (combining marks, variation selectors,
-// emoji modifiers, ZWJ sequences), CR LF, and regional indicator pairs.
-//
-// TODO(graphemes): replace this approximation with the full UAX #29
-// extended grapheme tables, keeping these signatures. Word, sentence and
-// paragraph boundaries belong to the words policy; grapheme boundaries
-// remain core's.
-
-func isExtender(r rune) bool {
-	switch {
-	case r == 0x200D: // ZWJ
-		return true
-	case r >= 0xFE00 && r <= 0xFE0F, r >= 0xE0100 && r <= 0xE01EF: // variation selectors
-		return true
-	case r >= 0x1F3FB && r <= 0x1F3FF: // emoji modifiers
-		return true
-	case r >= 0xE0020 && r <= 0xE007F: // tags
-		return true
-	}
-	return unicode.In(r, unicode.Mn, unicode.Me, unicode.Mc)
-}
-
-func isRegional(r rune) bool { return r >= 0x1F1E6 && r <= 0x1F1FF }
+// Grapheme boundaries are UAX #29 extended grapheme clusters. Word,
+// sentence and paragraph boundaries belong to the words policy; grapheme
+// boundaries remain core's.
 
 // NextGrapheme returns the offset of the grapheme boundary after off in s.
 func NextGrapheme(s string, off int) int {
+	if off <= 0 {
+		if s == "" {
+			return 0
+		}
+		iter := graphemes.FromString(s)
+		iter.Next()
+		return iter.End()
+	}
 	if off >= len(s) {
 		return len(s)
 	}
-	r, n := utf8.DecodeRuneInString(s[off:])
-	i := off + n
-	if r == '\r' && i < len(s) && s[i] == '\n' {
-		return i + 1
-	}
-	if r == '\n' || r == '\r' {
-		return i
-	}
-	if isRegional(r) && i < len(s) {
-		if r2, n2 := utf8.DecodeRuneInString(s[i:]); isRegional(r2) {
-			i += n2
+	iter := graphemes.FromString(s)
+	for iter.Next() {
+		if iter.End() > off {
+			return iter.End()
 		}
 	}
-	for i < len(s) {
-		r2, n2 := utf8.DecodeRuneInString(s[i:])
-		if !isExtender(r2) {
-			break
-		}
-		i += n2
-		// A ZWJ joins the next pictograph into the cluster.
-		if r2 == 0x200D && i < len(s) {
-			_, n3 := utf8.DecodeRuneInString(s[i:])
-			i += n3
-		}
-	}
-	return i
+	return len(s)
 }
 
 // PrevGrapheme returns the offset of the grapheme boundary before off.
@@ -68,19 +38,16 @@ func PrevGrapheme(s string, off int) int {
 	if off <= 0 {
 		return 0
 	}
-	// Walk forward from a safe start: the line start, or a bounded
-	// distance back, since clusters are short.
-	start := max(0, off-64)
-	for start > 0 && !utf8.RuneStart(s[start]) {
-		start--
+	if off >= len(s) {
+		off = len(s)
 	}
-	prev := start
-	for i := start; i < off; {
-		prev = i
-		i = NextGrapheme(s, i)
-		if i > off {
-			return prev
+	iter := graphemes.FromString(s)
+	prev := 0
+	for iter.Next() {
+		if iter.End() >= off {
+			return iter.Start()
 		}
+		prev = iter.Start()
 	}
 	return prev
 }
@@ -88,8 +55,79 @@ func PrevGrapheme(s string, off int) int {
 // GraphemeCount is the number of graphemes in s.
 func GraphemeCount(s string) int {
 	n := 0
-	for off := 0; off < len(s); off = NextGrapheme(s, off) {
+	iter := graphemes.FromString(s)
+	for iter.Next() {
 		n++
 	}
 	return n
+}
+
+// GraphemeAt returns the grapheme containing off and its byte bounds. At a
+// boundary it is the grapheme starting there. It is false outside s.
+func GraphemeAt(s string, off int) (text string, start, end int, ok bool) {
+	if off < 0 || off >= len(s) {
+		return "", 0, 0, false
+	}
+	iter := graphemes.FromString(s)
+	for iter.Next() {
+		if iter.End() > off {
+			return iter.Value(), iter.Start(), iter.End(), true
+		}
+	}
+	return "", 0, 0, false
+}
+
+// ClassOfGrapheme returns the classes of a grapheme cluster by its base
+// rune, so an atom classifies the whole cluster rather than whichever rune
+// happens to touch the caret.
+func ClassOfGrapheme(g string) CharClass {
+	r, _ := utf8.DecodeRuneInString(g)
+	return ClassOf(r)
+}
+
+// IsLineBreakGrapheme reports a grapheme that separates lines.
+func IsLineBreakGrapheme(g string) bool {
+	switch g {
+	case "\n", "\r", "\r\n":
+		return true
+	}
+	return false
+}
+
+// GraphemeClassAt returns the class of the grapheme before or after off.
+// Its report is false for an inline node, which is not text and is classed
+// by no character class.
+func GraphemeClassAt(s string, off int, before bool) (CharClass, bool) {
+	if before {
+		if off <= 0 {
+			return ClassLineStart, true
+		}
+		start := PrevGrapheme(s, off)
+		end := NextGrapheme(s, start)
+		if start < 0 || start >= len(s) || end <= start {
+			return ClassLineStart, true
+		}
+		g := s[start:end]
+		if g[0] == doc.NodeByte {
+			return 0, false
+		}
+		if IsLineBreakGrapheme(g) {
+			return ClassLineStart, true
+		}
+		return ClassOfGrapheme(g), true
+	}
+	if off >= len(s) {
+		return ClassLineEnd, true
+	}
+	text, _, _, ok := GraphemeAt(s, off)
+	if !ok {
+		return ClassLineEnd, true
+	}
+	if text[0] == doc.NodeByte {
+		return 0, false
+	}
+	if IsLineBreakGrapheme(text) {
+		return ClassLineEnd, true
+	}
+	return ClassOfGrapheme(text), true
 }

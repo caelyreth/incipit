@@ -1,8 +1,6 @@
 package core
 
 import (
-	"unicode/utf8"
-
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -10,9 +8,10 @@ import (
 
 // Logical motion moves through the stop model the engine provides (§13.5):
 // grapheme steps and page edges go stop by stop, so the caret lands where
-// the presentation shows stops, ghost notation and gaps included. Word,
-// line-edge and slot-edge motion resolves its target in the slot's text and
-// continues through the stop model when that target is the slot's edge.
+// the presentation shows stops, ghost notation and gaps included.
+// Line-edge and slot-edge motion resolves its target in the slot's text
+// and continues through the stop model when that target is the slot's
+// edge; the words policy resolves words, sentences and paragraphs.
 
 // slotTarget is where one unit of motion from pos lands inside its inline
 // slot; false when pos is at the slot's edge in dir, or not in text.
@@ -26,20 +25,13 @@ func slotTarget(r doc.Reader, pos doc.Pos, unit vocab.Unit, dir vocab.Direction)
 		return pos, false
 	}
 	switch unit {
-	case vocab.ByWord:
-		return wordTarget(in, pos, dir)
-	case vocab.ToSlotEdge, vocab.BySentence, vocab.ByParagraph:
-		// TODO(words): the words policy answers sentences and paragraphs
-		// with UAX #29 boundaries; core's fallback is the slot edge.
+	case vocab.ToSlotEdge:
 		// ToSlotEdge stops at the line's edge, or the slot's edge when it is
 		// already there.
-		lineEdge := unit == vocab.ToSlotEdge
 		if dir > 0 {
 			end := in.Len()
-			if lineEdge {
-				if i := indexByte(in.Flat(), '\n', pos.Offset); i >= 0 {
-					end = i
-				}
+			if i := indexByte(in.Flat(), '\n', pos.Offset); i >= 0 {
+				end = i
 			}
 			if end == pos.Offset {
 				end = in.Len()
@@ -47,16 +39,17 @@ func slotTarget(r doc.Reader, pos doc.Pos, unit vocab.Unit, dir vocab.Direction)
 			return doc.At(pos.Ref(), end), true
 		}
 		start := 0
-		if lineEdge {
-			if i := lastIndexByte(in.Flat()[:pos.Offset], '\n'); i >= 0 {
-				start = i + 1
-			}
+		if i := lastIndexByte(in.Flat()[:pos.Offset], '\n'); i >= 0 {
+			start = i + 1
 		}
 		if start == pos.Offset {
 			start = 0
 		}
 		return doc.At(pos.Ref(), start), true
 	}
+	// The words policy answers word, sentence and paragraph motion. Core's
+	// fallback remains a grapheme step so it answers every intent even
+	// when that policy is absent.
 	if dir > 0 {
 		return doc.At(pos.Ref(), nextBoundary(in, pos.Offset)), true
 	}
@@ -64,19 +57,17 @@ func slotTarget(r doc.Reader, pos doc.Pos, unit vocab.Unit, dir vocab.Direction)
 }
 
 func nextBoundary(in *doc.Inline, off int) int {
-	it, start, ok := in.ItemAt(off)
-	if !ok || it.Node != nil {
-		return off + 1
+	if off >= in.Len() {
+		return off
 	}
-	return start + vocab.NextGrapheme(it.Text, off-start)
+	return vocab.NextGrapheme(in.Flat(), off)
 }
 
 func prevBoundary(in *doc.Inline, off int) int {
-	it, start, ok := in.ItemAt(off - 1)
-	if !ok || it.Node != nil {
-		return off - 1
+	if off <= 0 {
+		return off
 	}
-	return start + vocab.PrevGrapheme(it.Text, off-start)
+	return vocab.PrevGrapheme(in.Flat(), off)
 }
 
 func indexByte(s string, b byte, from int) int {
@@ -95,47 +86,6 @@ func lastIndexByte(s string, b byte) int {
 		}
 	}
 	return -1
-}
-
-// wordTarget skips spaces, then one run of word characters (or a single
-// other character); false at the slot's edge in dir.
-// TODO(words): the words policy answers ByWord with UAX #29 boundaries
-// and CJK dictionaries; this is core's fallback.
-func wordTarget(in *doc.Inline, pos doc.Pos, dir vocab.Direction) (doc.Pos, bool) {
-	text := in.Flat()
-	off := pos.Offset
-	if (dir > 0 && off == len(text)) || (dir < 0 && off == 0) {
-		return pos, false
-	}
-	class := func(i int) vocab.CharClass {
-		var ru rune
-		if dir > 0 {
-			ru, _ = utf8.DecodeRuneInString(text[i:])
-		} else {
-			ru, _ = utf8.DecodeLastRuneInString(text[:i])
-		}
-		return vocab.ClassOf(ru)
-	}
-	adv := func(i int) int {
-		if dir > 0 {
-			_, n := utf8.DecodeRuneInString(text[i:])
-			return i + n
-		}
-		_, n := utf8.DecodeLastRuneInString(text[:i])
-		return i - n
-	}
-	more := func(i int) bool { return (dir > 0 && i < len(text)) || (dir < 0 && i > 0) }
-	for more(off) && class(off)&vocab.ClassSpace != 0 {
-		off = adv(off)
-	}
-	if more(off) && class(off)&vocab.ClassWord != 0 {
-		for more(off) && class(off)&vocab.ClassWord != 0 {
-			off = adv(off)
-		}
-	} else if more(off) {
-		off = adv(off)
-	}
-	return doc.At(pos.Ref(), off), true
 }
 
 // move is logical motion; without Extend, a range collapses to its edge
@@ -248,21 +198,6 @@ func placeCaret(c *policy.Ctx, m policy.Match) policy.Result {
 		return policy.Select(doc.TextRange(sel.Anchor, stop))
 	}
 	switch {
-	case in.Clicks == 2:
-		n, _ := r.Node(stop.Pos.Node)
-		if stop.Pos.Slot < n.NumSlots() && n.Slot(stop.Pos.Slot).IsInline() {
-			in := n.Slot(stop.Pos.Slot).Content()
-			at := doc.At(stop.Pos.Ref(), stop.Pos.Offset)
-			back, ok := wordTarget(in, at, vocab.Backward)
-			if !ok {
-				back = at
-			}
-			fwd, ok := wordTarget(in, back, vocab.Forward)
-			if !ok {
-				fwd = back
-			}
-			return policy.Select(doc.TextRange(doc.CaretAt(back), doc.CaretAt(fwd)))
-		}
 	case in.Clicks >= 3:
 		n, _ := r.Node(stop.Pos.Node)
 		if stop.Pos.Slot < n.NumSlots() && n.Slot(stop.Pos.Slot).IsInline() {
