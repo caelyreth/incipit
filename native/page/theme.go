@@ -33,6 +33,8 @@ func Theme(t theme.Theme) present.Theme {
 		vocab.GroupCaption:       {Set: present.SetColor | present.SetSize, Color: pack(t.Text.Muted), Size: 0.9},
 		vocab.GroupCellHeader:    {Set: present.SetWeight, Weight: 700},
 		vocab.GroupComposition:   {Set: present.SetUnderline, Underline: true},
+		vocab.GroupArmed: {Set: present.SetBackground | present.SetUnderline | present.SetColor,
+			Background: pack(t.Prose.Selection), Underline: true, Color: pack(t.Accent.Foreground)},
 	}
 	for level := 1; level <= 6; level++ {
 		th[vocab.GroupHeadings[level]] = present.Style{Set: present.SetSize, Size: headingScale[level]}

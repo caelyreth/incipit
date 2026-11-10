@@ -3,6 +3,7 @@ package page
 import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"math"
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -412,7 +413,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
-	el.paintWashes(p, pl, ox, oy, top, bottom)
+	el.paintDecos(p, pl, ox, oy, top, bottom)
 	// The selection glides beneath the text; a drag places it directly,
 	// so it follows the pointer and glides on from there.
 	rows := el.selection.Step(el.selectionRows(pl), now, animate && !el.pressed)
@@ -423,7 +424,6 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	for _, row := range rows {
 		p.Fill(ui.Rect{X: ox + row.X, Y: oy + row.Y, W: row.W, H: row.H}, wash, 2)
 	}
-	el.paintHighlights(p, pl, ox, oy)
 	for _, u := range pl.units {
 		uy := oy + u.y
 		if uy > bottom || uy+u.h < top {
@@ -464,37 +464,97 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	}
 }
 
-// paintWashes lays each surface's backgrounds beneath its text: a run per
-// line, hugging the line's glyphs, rounded at its ends.
-func (el *Element) paintWashes(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom float32) {
+// paintDecos draws what the page draws itself beneath the text, from each
+// surface's styles and the decorations' highlights alike: a background a
+// run per line, hugging the line's glyphs and rounded at its ends, and an
+// underline below them, a caret mark under a single glyph.
+func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom float32) {
+	marked := map[*surfaceLayout][]deco{}
+	for _, h := range el.Editor.deco.Highlights {
+		from, ok1 := pl.lookup(h.From)
+		to, ok2 := pl.lookup(h.To)
+		if !ok1 || !ok2 || from.surface == nil || from.surface != to.surface || to.stop.u <= from.stop.u {
+			continue
+		}
+		d := decoOf(ui.TextInputRange{Start: from.stop.u, End: to.stop.u}, el.Editor.theme.Resolve([]vocab.Group{h.Group}))
+		if d.drawn() {
+			marked[from.surface] = append(marked[from.surface], d)
+		}
+	}
 	for _, u := range pl.units {
 		uy := oy + u.y
 		if u.object || uy > bottom || uy+u.h < top {
 			continue
 		}
 		for _, s := range u.surfaces {
-			if len(s.washes) == 0 {
-				continue
-			}
 			sx, sy := ox+u.x+s.x, uy+s.y
-			lines := s.layout.Lines()
-			for _, w := range s.washes {
-				for _, r := range s.layout.SelectionRects(w.rg) {
-					for _, l := range lines {
-						if mid := r.Y + r.H/2; mid >= l.Rect.Y && mid < l.Rect.Y+l.Rect.H {
-							r.Y, r.H = l.Baseline-l.Ascent, l.Ascent+l.Descent
-							break
-						}
-					}
-					p.Fill(ui.Rect{X: sx + r.X - washPad, Y: sy + r.Y - washPad/2, W: r.W + washPad*2, H: r.H + washPad}, w.color, 3)
-				}
+			for _, d := range s.decos {
+				el.paintDeco(p, s, sx, sy, d)
+			}
+			for _, d := range marked[s] {
+				el.paintDeco(p, s, sx, sy, d)
 			}
 		}
 	}
 }
 
-// washPad widens a background past the glyphs it lies under.
-const washPad = 2
+func (el *Element) paintDeco(p *ui.Painter, s *surfaceLayout, sx, sy float32, d deco) {
+	ink := d.ink
+	if ink == (ui.Color{}) || ink == invisible {
+		ink = el.Theme.Prose.Text
+	}
+	lines := s.layout.Lines()
+	single := d.underline && s.graphemes(d.rg) == 1
+	for _, r := range s.layout.SelectionRects(d.rg) {
+		base, descent := r.Y+r.H, float32(0)
+		for _, l := range lines {
+			if mid := r.Y + r.H/2; mid >= l.Rect.Y && mid < l.Rect.Y+l.Rect.H {
+				r.Y, r.H = l.Baseline-l.Ascent, l.Ascent+l.Descent
+				base, descent = l.Baseline, l.Descent
+				break
+			}
+		}
+		x, y := sx+r.X, sy+r.Y
+		if d.bg != (ui.Color{}) {
+			p.Fill(ui.Rect{X: x - decoPad, Y: y - decoPad/2, W: r.W + decoPad*2, H: r.H + decoPad}, d.bg, 3)
+		}
+		if !d.underline {
+			continue
+		}
+		ly := sy + base + max(underlineGap, descent*0.45)
+		if single {
+			// Under one glyph a line reads as a dash; a caret mark
+			// points at it.
+			caretMarkAt(p, x+r.W/2, ly, min(r.W/2, caretMark), ink)
+			continue
+		}
+		p.Line(x, ly, x+r.W, ly, underlineWidth, ink)
+	}
+}
+
+// caretMarkAt draws a "^" whose apex is at (cx, y), reaching a below it
+// on either side: two strokes turned from the apex.
+func caretMarkAt(p *ui.Painter, cx, y, a float32, c ui.Color) {
+	arm := a * math.Sqrt2
+	w := float32(underlineWidth)
+	p.Transform(ui.Rotation(-45), cx, y, func() {
+		p.Fill(ui.Rect{X: cx - arm, Y: y - w/2, W: arm + w/2, H: w}, c, w/2)
+	})
+	p.Transform(ui.Rotation(45), cx, y, func() {
+		p.Fill(ui.Rect{X: cx - w/2, Y: y - w/2, W: arm + w/2, H: w}, c, w/2)
+	})
+}
+
+const (
+	// decoPad widens a background past the glyphs it lies under.
+	decoPad = 2
+	// underlineGap is the least room between the baseline and an
+	// underline; underlineWidth its stroke; caretMark the half width of
+	// the mark under a single glyph.
+	underlineGap   = 2
+	underlineWidth = 1.5
+	caretMark      = 3.5
+)
 
 // selectionRows are the rows the selection covers, in page coordinates:
 // a whole object's box, and each text row of a covered stretch.
@@ -600,22 +660,5 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 		lay := ui.ShapeRichTextWith([]ui.Span{sg.face}, ui.Font{Family: sg.face.Font, Size: sg.face.Size}, ui.TextShape{})
 		_, h := lay.Size()
 		p.TextLayout(lay, sx+o.X+boxPad, sy+o.Y+(o.H-h)/2, sg.face.Color)
-	}
-}
-
-// paintHighlights fills, behind the text, each highlight the engine
-// publishes from caret to caret: an armed pair's two sides, its signs too,
-// which span stops but no bytes. A highlight lies on one line.
-func (el *Element) paintHighlights(p *ui.Painter, pl *pageLayout, ox, oy float32) {
-	for _, h := range el.Editor.deco.Highlights {
-		if h.Group != vocab.GroupArmed {
-			continue
-		}
-		from, ok1 := pl.caretBox(h.From, el.Editor.metrics)
-		to, ok2 := pl.caretBox(h.To, el.Editor.metrics)
-		if !ok1 || !ok2 || to.X <= from.X {
-			continue
-		}
-		p.Fill(ui.Rect{X: ox + from.X, Y: oy + from.Y, W: to.X - from.X, H: max(from.H, to.H)}, el.Theme.Prose.Selection, 2)
 	}
 }

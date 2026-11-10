@@ -58,12 +58,58 @@ type seg struct {
 	ink    ui.Color
 }
 
-// wash is a stretch of a surface laid on one background: consecutive
-// segments wearing it, signs and text alike, are one run, painted beneath
-// the text so nothing seams where the spans meet.
-type wash struct {
-	rg    ui.TextInputRange
-	color ui.Color
+// deco is a stretch of a surface the page draws itself, beneath its
+// text: a background, an underline, or both. Consecutive segments wearing
+// the same are one run, signs and text alike, so nothing seams where
+// spans meet; a highlight's range is one too.
+type deco struct {
+	rg        ui.TextInputRange
+	bg        ui.Color
+	underline bool
+	// ink is the underline's color; zero is the text's.
+	ink ui.Color
+}
+
+// decoOf is what a style asks the page to draw for a range.
+func decoOf(rg ui.TextInputRange, s present.Style) deco {
+	d := deco{rg: rg, underline: s.Underline}
+	if s.Set&present.SetBackground != 0 {
+		d.bg = unpack(s.Background)
+	}
+	if s.Set&present.SetColor != 0 {
+		d.ink = unpack(s.Color)
+	}
+	return d
+}
+
+func (d deco) drawn() bool { return d.bg != (ui.Color{}) || d.underline }
+
+func (d deco) same(o deco) bool {
+	return d.bg == o.bg && d.underline == o.underline && (!d.underline || d.ink == o.ink)
+}
+
+// graphemes is how many graphemes the surface's text holds in a UTF-16
+// range.
+func (sl *surfaceLayout) graphemes(rg ui.TextInputRange) int {
+	from, to, u := -1, len(sl.text), 0
+	for b, r := range sl.text {
+		if u == rg.Start && from < 0 {
+			from = b
+		}
+		if u >= rg.End {
+			to = b
+			break
+		}
+		u += utf16.RuneLen(r)
+	}
+	if from < 0 {
+		return 0
+	}
+	n := 0
+	for at := from; at < to; at = vocab.NextGrapheme(sl.text, at) {
+		n++
+	}
+	return n
 }
 
 // invisible paints nothing; a zero color would take the layout's default.
@@ -82,7 +128,7 @@ type surfaceLayout struct {
 	anchor doc.ID
 	slot   doc.SlotRef
 	layout *ui.TextLayout
-	washes []wash
+	decos  []deco
 	text   string
 	segs   []seg
 	stops  []stopAt
@@ -308,12 +354,19 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 		sg.u0 = u
 		u += utf16Len(sp.Text)
 		sg.u1 = u
-		if bg := sp.Background; bg != (ui.Color{}) {
-			sp.Background = ui.Color{}
-			if n := len(sl.washes); n > 0 && sl.washes[n-1].rg.End == sg.u0 && sl.washes[n-1].color == bg {
-				sl.washes[n-1].rg.End = sg.u1
+		d := deco{rg: ui.TextInputRange{Start: sg.u0, End: sg.u1}, bg: sp.Background, underline: sp.Underline}
+		if d.underline {
+			d.ink = sp.Color
+			if sg.kind == segGhost {
+				d.ink = sg.ink
+			}
+		}
+		sp.Background, sp.Underline = ui.Color{}, false
+		if d.drawn() {
+			if n := len(sl.decos); n > 0 && sl.decos[n-1].rg.End == d.rg.Start && sl.decos[n-1].same(d) {
+				sl.decos[n-1].rg.End = d.rg.End
 			} else {
-				sl.washes = append(sl.washes, wash{rg: ui.TextInputRange{Start: sg.u0, End: sg.u1}, color: bg})
+				sl.decos = append(sl.decos, d)
 			}
 		}
 		sl.segs = append(sl.segs, sg)
