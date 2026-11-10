@@ -171,3 +171,25 @@ func TestFormattingToolbarComesFromPreviews(t *testing.T) {
 		t.Fatalf("strong selection has strong = %+v", strong)
 	}
 }
+
+func TestFormattingToolbarTracksPendingMarksAtTheCaret(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	tester.Type("x")
+	tester.Frame()
+	if app.Shell.Toolbar.Formatting.Strong.On {
+		t.Fatal("unmarked caret shows strong")
+	}
+	app.Shell.Strong()
+	if !app.Shell.Toolbar.Formatting.Strong.On {
+		t.Fatal("the pending strong mark is not shown at the caret")
+	}
+	app.Shell.Strong()
+	if app.Shell.Toolbar.Formatting.Strong.On {
+		t.Fatal("the cleared pending strong mark is still shown")
+	}
+}

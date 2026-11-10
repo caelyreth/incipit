@@ -150,6 +150,7 @@ func (a *AppState) formatPage(mark doc.MarkKind) {
 		return
 	}
 	el.Editor.Do(vocab.Format{Mark: mark}, time.Now())
+	a.chrome = chromeKey{}
 	a.refreshEditorChrome()
 }
 
