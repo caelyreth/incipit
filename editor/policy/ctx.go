@@ -176,16 +176,19 @@ func (c *Ctx) FactsAt(k vocab.FactKind) []Fact {
 	return out
 }
 
-// Edged is the fact of target edged at the caret, outside it: starting
-// right after it (ahead) or ending right before it, as Before and After
-// match, bound to its slot (Placed).
-func (c *Ctx) Edged(target vocab.Scope, ahead bool) (Fact, any, bool) {
+// Beside is what provides role right after the caret (ahead) or right
+// before it, outside it, as Before and After match it: an inline node or a
+// fact, as the role's implementation bound to where it stands.
+func (c *Ctx) Beside(role vocab.Role, ahead bool) (any, bool) {
 	head := c.Head()
-	f, ok := c.prog.edged(c.store, c.r, c.view, head, target, ahead)
-	if !ok {
-		return Fact{}, nil, false
+	n, f, ok := c.prog.beside(c.store, c.r, c.view, head, vocab.RoleScope(role), ahead)
+	switch {
+	case !ok:
+		return nil, false
+	case n != nil:
+		return vocab.NodeRole(c.r, n, role)
 	}
-	return f, Placed(head.Pos.Ref(), f), true
+	return Placed(head.Pos.Ref(), *f), true
 }
 
 // Summary returns a summary of a node.

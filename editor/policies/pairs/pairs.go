@@ -1,8 +1,8 @@
 // Package pairs is the pairs policy: brackets and quotes typed in text
-// close themselves, a closer it typed ahead is stepped over, and deleting
-// into a pair, a text pair or a mark between its signs, arms both sides
-// before deleting them together. Every balanced text pair is a scope Leave
-// exits and Return re-enters.
+// close themselves, a closer typed at a pair's end steps over the one
+// there, and deleting into a pair, a text pair or a mark between its
+// signs, arms both sides before deleting them together. Every balanced
+// text pair is a scope Leave exits and Return enters.
 package pairs
 
 import (
@@ -21,9 +21,9 @@ const ID = "pairs"
 var (
 	// AutoClose types a pair's closer with its opener.
 	AutoClose = policy.Bool("autoClose", true, policy.Label("settings.pairs.autoClose"), policy.Description("settings.pairs.autoClose.description"))
-	// Overtype steps over a closer typed ahead when it is typed.
-	Overtype = policy.Bool("overtype", true, policy.Label("settings.pairs.overtype"), policy.Description("settings.pairs.overtype.description"),
-		policy.Requires("autoClose", true))
+	// Overtype steps over a pair's closer when it is typed right before
+	// it, however the closer came to be there.
+	Overtype = policy.Bool("overtype", true, policy.Label("settings.pairs.overtype"), policy.Description("settings.pairs.overtype.description"))
 	// Quotes pairs straight double quotes.
 	Quotes = policy.Bool("quotes", true, policy.Label("settings.pairs.quotes"), policy.Description("settings.pairs.quotes.description"))
 	// Mates deletes an empty pair's two sides together.
@@ -50,18 +50,6 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	span := policy.Facts[pair](p, "pair", policy.Provides(vocab.RolePair, vocab.RoleLeavable))
 	policy.Scan[string](p, scanner{kind: span, kinds: kinds}, []vocab.FactKind{span.Kind()})
 
-	p.Annotation(vocab.TypedAhead, func(r doc.Reader, a policy.Annotation) bool {
-		closer, ok := a.Data.(string)
-		if !ok {
-			return false
-		}
-		n, ok := r.Node(a.Anchor.From.Node)
-		if !ok || a.Anchor.From.Slot >= n.NumSlots() || !n.Slot(a.Anchor.From.Slot).IsInline() {
-			return false
-		}
-		return n.Slot(a.Anchor.From.Slot).Content().FlatRange(a.Anchor.From.Offset, a.Anchor.To.Offset) == closer
-	})
-
 	inserts := []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted}
 	for _, k := range kinds {
 		k := k
@@ -80,10 +68,14 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		}
 		open.Produces(inserts...).Do(openPair(k))
 	}
-	if auto && over {
+	if over {
+		// A closer typed at a pair's inner end is the closer already there:
+		// the caret steps over it. What the page holds decides, not who
+		// typed the closer, so a hand-typed one steps over as an
+		// auto-closed one does, and as a mark's sign does.
 		for _, k := range kinds {
 			p.Handle("overtype-"+k.close).On(vocab.Typed(k.close)).In(span.Scope()).
-				When(vocab.Collapsed, vocab.AtInnerEnd, vocab.Has(vocab.TypedAhead)).Do(overtype)
+				When(vocab.Collapsed, vocab.AtInnerEnd).Do(overtype)
 		}
 	}
 	if mates {
@@ -266,12 +258,8 @@ func openPair(k kind) policy.Handler {
 	return func(c *policy.Ctx, _ policy.Match) policy.Result {
 		at := c.Head().Pos
 		inner := doc.At(at.Ref(), at.Offset+len(k.open))
-		whole := policy.Between(at, doc.At(at.Ref(), inner.Offset+len(k.close)))
 		res := policy.Do(replace(vocab.Span{Slot: at.Ref(), From: at.Offset, To: at.Offset}, k.open+k.close))
 		res = res.With(doc.Collapsed(doc.CaretAt(inner)))
-		res.Annotate = []policy.Annotate{{Kind: vocab.TypedAhead, Data: k.close,
-			Anchor:   policy.Between(inner, whole.To.Pos),
-			Lifetime: policy.UntilCaretLeaves(&whole)}}
 		res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 		return res
 	}
@@ -297,14 +285,10 @@ func wrap(k kind) policy.Handler {
 	}
 }
 
-// overtype steps over the closer typed ahead.
+// overtype steps over the pair's closer.
 func overtype(c *policy.Ctx, m policy.Match) policy.Result {
 	f, _ := m.Fact()
-	res := policy.Select(doc.Collapsed(doc.CaretAt(doc.At(m.Level.Slot, f.To))))
-	for _, a := range c.Annotations().At(vocab.TypedAhead, c.Head()) {
-		res.Drop = append(res.Drop, a.ID)
-	}
-	return res
+	return policy.Select(doc.Collapsed(doc.CaretAt(doc.At(m.Level.Slot, f.To))))
 }
 
 // sideEdits are what deleting a pair's sides records: text for a text
@@ -323,12 +307,9 @@ func rolePair(_ *policy.Ctx, m policy.Match) (vocab.Pair, bool) {
 // Before and After match it: of any policy, its sides text or signs.
 func edged(ahead bool) pairOf {
 	return func(c *policy.Ctx, _ policy.Match) (vocab.Pair, bool) {
-		_, data, ok := c.Edged(vocab.RoleScope(vocab.RolePair), ahead)
-		if !ok {
-			return nil, false
-		}
-		pr, ok := data.(vocab.Pair)
-		return pr, ok
+		data, ok := c.Beside(vocab.RolePair, ahead)
+		pr, pok := data.(vocab.Pair)
+		return pr, ok && pok
 	}
 }
 

@@ -536,23 +536,8 @@ func (e *evaluator) adjacent(caret doc.Caret, target vocab.Scope, before bool) b
 		}
 		return i >= 0 && i < slot.Len() && e.nodeIs(slot.Child(i), target)
 	}
-	in := slot.Content()
-	// Inline nodes next to the caret.
-	if before && pos.Offset < in.Len() {
-		if it, _, ok := in.ItemAt(pos.Offset); ok && it.Node != nil && e.nodeIs(it.Node, target) {
-			return true
-		}
-	}
-	if !before && pos.Offset > 0 {
-		if it, _, ok := in.ItemAt(pos.Offset - 1); ok && it.Node != nil && e.nodeIs(it.Node, target) {
-			return true
-		}
-	}
-	// Facts starting or ending at the caret, outside it.
-	if target.Class == vocab.ScopeFact || target.Class == vocab.ScopeRole {
-		if _, ok := e.p.edged(e.c.store, r, e.c.view, caret, target, before); ok {
-			return true
-		}
+	if _, _, ok := e.p.beside(e.c.store, r, e.c.view, caret, target, before); ok {
+		return true
 	}
 	// Neighbouring blocks, at the edges of a text block's slot.
 	if target.Class == vocab.ScopeNode || target.Class == vocab.ScopeRole {
@@ -566,7 +551,7 @@ func (e *evaluator) adjacent(caret doc.Caret, target vocab.Scope, before bool) b
 		}
 		pn, _ := r.Node(parent)
 		siblings := pn.Slot(ps)
-		if before && pos.Offset == in.Len() && pos.Slot == owner.NumSlots()-1 && index+1 < siblings.Len() {
+		if before && pos.Offset == slot.Content().Len() && pos.Slot == owner.NumSlots()-1 && index+1 < siblings.Len() {
 			return e.nodeIs(siblings.Child(index+1), target)
 		}
 		if !before && pos.Offset == 0 && pos.Slot == 0 && index > 0 {
@@ -787,22 +772,41 @@ func (p *Program) candidates(l *Level, k vocab.IntentKind, core bool) []*rule {
 	return rs
 }
 
-// edged is the fact of target that starts right after the caret (ahead)
-// or ends right before it, nothing between them: of several, the one
-// whose edge is nearest the caret.
-func (p *Program) edged(store *Store, r doc.Reader, view *View, caret doc.Caret, target vocab.Scope, ahead bool) (Fact, bool) {
-	var found Fact
-	ok := false
-	for _, f := range p.scopeFacts(store, r, view, caret.Pos.Ref()) {
+// beside is what of target stands right after the caret (ahead) or right
+// before it, outside it, nothing between them: an inline node next to it,
+// or else a fact edged there, of several the one whose edge is nearest.
+// Before and After match it, and handlers ask for it, so both find the
+// same thing.
+func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret, target vocab.Scope, ahead bool) (*doc.Node, *Fact, bool) {
+	pos := caret.Pos
+	owner, ok := r.Node(pos.Node)
+	if !ok || pos.Slot >= owner.NumSlots() || !owner.Slot(pos.Slot).IsInline() {
+		return nil, nil, false
+	}
+	in := owner.Slot(pos.Slot).Content()
+	at := pos.Offset
+	if !ahead {
+		at--
+	}
+	if at >= 0 && at < in.Len() {
+		if it, _, ok := in.ItemAt(at); ok && it.Node != nil && slices.Contains(nodeKeys(it.Node.Kind()), target) {
+			return it.Node, nil, true
+		}
+	}
+	if target.Class != vocab.ScopeFact && target.Class != vocab.ScopeRole {
+		return nil, nil, false
+	}
+	var found *Fact
+	for _, f := range p.scopeFacts(store, r, view, pos.Ref()) {
 		if !slices.Contains(p.factKeys(f.Kind), target) {
 			continue
 		}
 		switch {
-		case ahead && f.Starts(caret) && (!ok || f.StopFrom <= found.StopFrom):
-			found, ok = f, true
-		case !ahead && f.Ends(caret) && (!ok || f.StopTo >= found.StopTo):
-			found, ok = f, true
+		case ahead && f.Starts(caret) && (found == nil || f.StopFrom <= found.StopFrom):
+			found = &f
+		case !ahead && f.Ends(caret) && (found == nil || f.StopTo >= found.StopTo):
+			found = &f
 		}
 	}
-	return found, ok
+	return nil, found, found != nil
 }

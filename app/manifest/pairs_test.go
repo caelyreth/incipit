@@ -3,6 +3,7 @@ package manifest
 import (
 	"testing"
 
+	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -105,8 +106,8 @@ func TestDeletingIntoAMarkFromOutsideArmsItsSigns(t *testing.T) {
 	p.want("page(paragraph(a bc))")
 }
 
-// The way back is offered where Leave landed, not inside the scope left,
-// so moving inside and out again finds it still there.
+// The way back is offered right after the scope, not inside it, so moving
+// inside and out again finds it there.
 func TestTheWayBackFromAMarkStandsAtItsExit(t *testing.T) {
 	p := open(t)
 	p.typeText("a *bc")
@@ -193,8 +194,8 @@ func TestGuidesShowWhereLeaveLands(t *testing.T) {
 	}
 }
 
-// Writing on after leaving forgets the way back.
-func TestWritingOnForgetsTheScopeLeft(t *testing.T) {
+// Return is offered only right after a scope: writing on moves away.
+func TestReturnStandsOnlyRightAfterAScope(t *testing.T) {
 	p := open(t)
 	p.typeText("a (b")
 	p.do(vocab.Leave{})
@@ -219,8 +220,7 @@ func TestTheReturnGuideShowsWhereItLands(t *testing.T) {
 	}
 }
 
-// The way back stays while nothing is edited: moving away and back to
-// the exit offers it again.
+// Moving away and back to a scope's end offers the way back again.
 func TestTheWayBackOutlastsMovingAround(t *testing.T) {
 	p := open(t)
 	p.typeText("a (b")
@@ -235,4 +235,46 @@ func TestTheWayBackOutlastsMovingAround(t *testing.T) {
 	if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.return" {
 		t.Fatalf("back at the exit, guides %+v", g)
 	}
+}
+
+// Return reads where the caret is, not how it got there: right after a
+// scope, by whichever route, it enters the scope before its end.
+func TestReturnEntersTheScopeBehindTheCaretByAnyRoute(t *testing.T) {
+	routes := []struct {
+		name   string
+		reach  func(p *page)
+		inside string
+	}{
+		{"leave", func(p *page) { p.typeText("a (bc"); p.do(vocab.Leave{}) }, "a (bc|)"},
+		{"type the closer", func(p *page) { p.typeText("a (bc)") }, "a (bc|)"},
+		{"write on, come back", func(p *page) {
+			p.typeText("a (bc")
+			p.do(vocab.Leave{})
+			p.typeText(" x")
+			p.do(left)
+			p.do(left)
+		}, "a (bc|) x"},
+		{"a mark's closer", func(p *page) { p.typeText("a *bc*") }, "a [*]bc|[*]"},
+		{"a mark left", func(p *page) { p.typeText("a *bc"); p.do(vocab.Leave{}) }, "a [*]bc|[*]"},
+	}
+	for _, r := range routes {
+		p := open(t)
+		r.reach(p)
+		if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.return" {
+			t.Fatalf("%s: guides %+v", r.name, g)
+		}
+		p.do(vocab.Return{})
+		p.wantShown(r.inside)
+	}
+}
+
+// A closer typed at a pair's end steps over the one there, however that
+// one was typed.
+func TestAHandTypedCloserIsSteppedOver(t *testing.T) {
+	p := openWith(t, policy.Values{"pairs.autoClose": false})
+	p.typeText("a (bc)")
+	p.do(left)
+	p.typeText(")")
+	p.want("page(paragraph(a (bc)))")
+	p.wantShown("a (bc)|")
 }

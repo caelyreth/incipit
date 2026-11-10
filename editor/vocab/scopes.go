@@ -66,14 +66,10 @@ func (a AnnotationKind) String() string { return handleName(handleAnnotation, a.
 
 // The core annotation kinds, which any policy may create.
 var (
-	// TypedAhead marks text the editor typed ahead, as a closer.
-	TypedAhead = NewAnnotationKind("typedAhead", false)
 	// Armed marks a structure the first delete armed.
 	Armed = NewAnnotationKind("armed", true)
 	// PendingMarks holds marks the next typed text takes.
 	PendingMarks = NewAnnotationKind("pendingMarks", false)
-	// LeftScope remembers the scope Leave just exited, for Return.
-	LeftScope = NewAnnotationKind("leftScope", false)
 )
 
 // Role is a shared interface that fact kinds and node kinds provide.
