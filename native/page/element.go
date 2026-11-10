@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/scrollfx"
@@ -61,6 +62,9 @@ type Element struct {
 	// selection glides the selection's rows with the caret, in page
 	// coordinates.
 	selection motion.Selection
+	// decos are the decorations the page draws, as last drawn, by
+	// identity, so each fades in and out.
+	decos map[decoKey]*shownDeco
 }
 
 // NewElement is an element over ed.
@@ -413,7 +417,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
-	el.paintDecos(p, pl, ox, oy, top, bottom)
+	el.paintDecos(p, pl, ox, oy, top, bottom, now, animate)
 	// The selection glides beneath the text; a drag places it directly,
 	// so it follows the pointer and glides on from there.
 	rows := el.selection.Step(el.selectionRows(pl), now, animate && !el.pressed)
@@ -464,71 +468,173 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	}
 }
 
+// decoKey is a decoration's identity across frames: where it is, where it
+// comes from, how it looks, and which of its likes there it is. Its range
+// is not part of it, so a run that grows as it is typed keeps its fade.
+type decoKey struct {
+	unit      doc.ID
+	surface   int
+	highlight bool
+	look      deco
+	nth       int
+}
+
+// shownDeco is a decoration as last drawn, fading in while it is there
+// and out where it last stood once it is not.
+type shownDeco struct {
+	fade  motion.Fade
+	rows  []decoRow
+	look  deco
+	seen  bool
+	alpha float32
+}
+
+// decoRow is one line's piece of a decoration, in page coordinates: the
+// box hugging its glyphs and the line's baseline and descent.
+type decoRow struct {
+	box           ui.Rect
+	base, descent float32
+}
+
 // paintDecos draws what the page draws itself beneath the text, from each
 // surface's styles and the decorations' highlights alike: a background a
-// run per line, hugging the line's glyphs and rounded at its ends, and an
-// underline below them, a caret mark under a single glyph.
-func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom float32) {
-	marked := map[*surfaceLayout][]deco{}
+// run per line, hugging the line's glyphs and rounded at its ends, and a
+// line below them. Each fades in as it appears and out as it goes.
+func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom float32, now time.Time, animate bool) {
+	if el.decos == nil {
+		el.decos = map[decoKey]*shownDeco{}
+	}
+	for _, sd := range el.decos {
+		sd.seen = false
+	}
+	counts := map[decoKey]int{}
+	note := func(u *unitLayout, s *surfaceLayout, highlight bool, d deco, visible bool) {
+		look := d
+		look.rg = ui.TextInputRange{}
+		k := decoKey{unit: u.pres.Unit, surface: s.index, highlight: highlight, look: look}
+		k.nth = counts[k]
+		counts[k]++
+		sd, ok := el.decos[k]
+		if !ok {
+			sd = &shownDeco{look: look}
+			el.decos[k] = sd
+		}
+		sd.seen = true
+		if visible || sd.rows == nil {
+			sd.rows = decoRows(s, d.rg, u.x+s.x, u.y+s.y)
+		}
+	}
+	visible := func(u *unitLayout) bool {
+		uy := oy + u.y
+		return !(uy > bottom || uy+u.h < top)
+	}
 	for _, h := range el.Editor.deco.Highlights {
 		from, ok1 := pl.lookup(h.From)
 		to, ok2 := pl.lookup(h.To)
 		if !ok1 || !ok2 || from.surface == nil || from.surface != to.surface || to.stop.u <= from.stop.u {
 			continue
 		}
-		d := decoOf(ui.TextInputRange{Start: from.stop.u, End: to.stop.u}, el.Editor.theme.Resolve([]vocab.Group{h.Group}))
-		if d.drawn() {
-			marked[from.surface] = append(marked[from.surface], d)
+		if d := decoOf(ui.TextInputRange{Start: from.stop.u, End: to.stop.u}, el.Editor.theme.Resolve([]vocab.Group{h.Group})); d.drawn() {
+			note(from.unit, from.surface, true, d, visible(from.unit))
 		}
 	}
 	for _, u := range pl.units {
-		uy := oy + u.y
-		if u.object || uy > bottom || uy+u.h < top {
+		if u.object {
 			continue
 		}
+		vis := visible(u)
 		for _, s := range u.surfaces {
-			sx, sy := ox+u.x+s.x, uy+s.y
 			for _, d := range s.decos {
-				el.paintDeco(p, s, sx, sy, d)
+				note(u, s, false, d, vis)
 			}
-			for _, d := range marked[s] {
-				el.paintDeco(p, s, sx, sy, d)
+		}
+	}
+	for k, sd := range el.decos {
+		sd.alpha = sd.fade.Step(sd.seen, now, animate)
+		if sd.fade.Moving() {
+			p.AnimationFrame()
+		}
+		if sd.fade.Gone() {
+			delete(el.decos, k)
+		}
+	}
+	// In layers, whatever order they were found in: the text's backgrounds,
+	// the highlights' over them, then every line over both.
+	for _, layer := range []func(k decoKey) bool{
+		func(k decoKey) bool { return !k.highlight },
+		func(k decoKey) bool { return k.highlight },
+	} {
+		for k, sd := range el.decos {
+			if layer(k) {
+				el.paintBackground(p, sd, ox, oy)
 			}
+		}
+	}
+	for _, sd := range el.decos {
+		el.paintLine(p, sd, ox, oy)
+	}
+}
+
+// decoRows are a range's pieces, a line each, hugging the line's glyphs.
+func decoRows(s *surfaceLayout, rg ui.TextInputRange, x, y float32) []decoRow {
+	lines := s.layout.Lines()
+	var out []decoRow
+	for _, r := range s.layout.SelectionRects(rg) {
+		row := decoRow{box: r, base: r.H}
+		for _, l := range lines {
+			if mid := r.Y + r.H/2; mid >= l.Rect.Y && mid < l.Rect.Y+l.Rect.H {
+				row.box.Y, row.box.H = l.Baseline-l.Ascent, l.Ascent+l.Descent
+				row.base, row.descent = l.Baseline, l.Descent
+				break
+			}
+		}
+		row.box.X += x
+		row.box.Y += y
+		row.base += y
+		out = append(out, row)
+	}
+	return out
+}
+
+func (el *Element) paintBackground(p *ui.Painter, sd *shownDeco, ox, oy float32) {
+	if sd.look.bg == (ui.Color{}) {
+		return
+	}
+	for _, row := range sd.rows {
+		r := row.box
+		p.Fill(ui.Rect{X: ox + r.X - decoPad, Y: oy + r.Y - decoPad/2, W: r.W + decoPad*2, H: r.H + decoPad}, sd.look.bg.Alpha(sd.alpha), 3)
+	}
+}
+
+func (el *Element) paintLine(p *ui.Painter, sd *shownDeco, ox, oy float32) {
+	if sd.look.line == present.LineNone {
+		return
+	}
+	ink := sd.look.ink
+	if ink == (ui.Color{}) {
+		ink = el.Theme.Prose.Text
+	}
+	ink = ink.Alpha(sd.alpha)
+	for _, row := range sd.rows {
+		x, w := ox+row.box.X, row.box.W
+		y := oy + row.base + max(underlineGap, row.descent*0.45)
+		switch sd.look.line {
+		case present.LineUnder:
+			p.Line(x, y, x+w, y, underlineWidth, ink)
+		case present.LineWavy:
+			wavyLine(p, x, w, y, ink)
 		}
 	}
 }
 
-func (el *Element) paintDeco(p *ui.Painter, s *surfaceLayout, sx, sy float32, d deco) {
-	ink := d.ink
-	if ink == (ui.Color{}) || ink == invisible {
-		ink = el.Theme.Prose.Text
-	}
-	lines := s.layout.Lines()
-	single := d.underline && s.graphemes(d.rg) == 1
-	for _, r := range s.layout.SelectionRects(d.rg) {
-		base, descent := r.Y+r.H, float32(0)
-		for _, l := range lines {
-			if mid := r.Y + r.H/2; mid >= l.Rect.Y && mid < l.Rect.Y+l.Rect.H {
-				r.Y, r.H = l.Baseline-l.Ascent, l.Ascent+l.Descent
-				base, descent = l.Baseline, l.Descent
-				break
-			}
-		}
-		x, y := sx+r.X, sy+r.Y
-		if d.bg != (ui.Color{}) {
-			p.Fill(ui.Rect{X: x - decoPad, Y: y - decoPad/2, W: r.W + decoPad*2, H: r.H + decoPad}, d.bg, 3)
-		}
-		if !d.underline {
-			continue
-		}
-		ly := sy + base + max(underlineGap, descent*0.45)
-		if single {
-			// Under one glyph a line reads as a dash; a caret mark
-			// points at it.
-			caretMarkAt(p, x+r.W/2, ly, min(r.W/2, caretMark), ink)
-			continue
-		}
-		p.Line(x, ly, x+r.W, ly, underlineWidth, ink)
+// wavyLine draws a wavy line under [x, x+w): caret marks side by side, as
+// many as fit a wave each, so under a single glyph it is one caret mark.
+func wavyLine(p *ui.Painter, x, w, y float32, c ui.Color) {
+	n := max(1, int(math.Round(float64(w/(2*caretMark)))))
+	step := w / float32(n)
+	a := min(step/2, caretMark)
+	for i := range n {
+		caretMarkAt(p, x+step*(float32(i)+0.5), y, a, c)
 	}
 }
 
@@ -548,9 +654,8 @@ func caretMarkAt(p *ui.Painter, cx, y, a float32, c ui.Color) {
 const (
 	// decoPad widens a background past the glyphs it lies under.
 	decoPad = 2
-	// underlineGap is the least room between the baseline and an
-	// underline; underlineWidth its stroke; caretMark the half width of
-	// the mark under a single glyph.
+	// underlineGap is the least room between the baseline and a line;
+	// underlineWidth its stroke; caretMark half a wave's width.
 	underlineGap   = 2
 	underlineWidth = 1.5
 	caretMark      = 3.5

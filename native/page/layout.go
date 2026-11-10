@@ -59,58 +59,37 @@ type seg struct {
 }
 
 // deco is a stretch of a surface the page draws itself, beneath its
-// text: a background, an underline, or both. Consecutive segments wearing
-// the same are one run, signs and text alike, so nothing seams where
-// spans meet; a highlight's range is one too.
+// text: a background, a line, or both. Consecutive segments wearing the
+// same are one run, signs and text alike, so nothing seams where spans
+// meet; a highlight's range is one too.
 type deco struct {
-	rg        ui.TextInputRange
-	bg        ui.Color
-	underline bool
-	// ink is the underline's color; zero is the text's.
+	rg   ui.TextInputRange
+	bg   ui.Color
+	line present.LineKind
+	// ink is the line's color; zero is the text's.
 	ink ui.Color
 }
 
-// decoOf is what a style asks the page to draw for a range.
+// decoOf is what a style asks the page to draw for a range: its
+// background and its line, in the line's color, or else the text's.
 func decoOf(rg ui.TextInputRange, s present.Style) deco {
-	d := deco{rg: rg, underline: s.Underline}
+	d := deco{rg: rg, line: s.Line}
 	if s.Set&present.SetBackground != 0 {
 		d.bg = unpack(s.Background)
 	}
-	if s.Set&present.SetColor != 0 {
+	switch {
+	case d.line == present.LineNone:
+	case s.Set&present.SetLineColor != 0:
+		d.ink = unpack(s.LineColor)
+	case s.Set&present.SetColor != 0:
 		d.ink = unpack(s.Color)
 	}
 	return d
 }
 
-func (d deco) drawn() bool { return d.bg != (ui.Color{}) || d.underline }
+func (d deco) drawn() bool { return d.bg != (ui.Color{}) || d.line != present.LineNone }
 
-func (d deco) same(o deco) bool {
-	return d.bg == o.bg && d.underline == o.underline && (!d.underline || d.ink == o.ink)
-}
-
-// graphemes is how many graphemes the surface's text holds in a UTF-16
-// range.
-func (sl *surfaceLayout) graphemes(rg ui.TextInputRange) int {
-	from, to, u := -1, len(sl.text), 0
-	for b, r := range sl.text {
-		if u == rg.Start && from < 0 {
-			from = b
-		}
-		if u >= rg.End {
-			to = b
-			break
-		}
-		u += utf16.RuneLen(r)
-	}
-	if from < 0 {
-		return 0
-	}
-	n := 0
-	for at := from; at < to; at = vocab.NextGrapheme(sl.text, at) {
-		n++
-	}
-	return n
-}
+func (d deco) same(o deco) bool { return d.bg == o.bg && d.line == o.line && d.ink == o.ink }
 
 // invisible paints nothing; a zero color would take the layout's default.
 var invisible = ui.Color{R: 1}
@@ -350,19 +329,11 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 	var spans []ui.Span
 	var text strings.Builder
 	u := 0
-	add := func(sg seg, sp ui.Span) {
+	add := func(sg seg, sp ui.Span, st present.Style) {
 		sg.u0 = u
 		u += utf16Len(sp.Text)
 		sg.u1 = u
-		d := deco{rg: ui.TextInputRange{Start: sg.u0, End: sg.u1}, bg: sp.Background, underline: sp.Underline}
-		if d.underline {
-			d.ink = sp.Color
-			if sg.kind == segGhost {
-				d.ink = sg.ink
-			}
-		}
-		sp.Background, sp.Underline = ui.Color{}, false
-		if d.drawn() {
+		if d := decoOf(ui.TextInputRange{Start: sg.u0, End: sg.u1}, st); d.drawn() {
 			if n := len(sl.decos); n > 0 && sl.decos[n-1].rg.End == d.rg.Start && sl.decos[n-1].same(d) {
 				sl.decos[n-1].rg.End = d.rg.End
 			} else {
@@ -383,7 +354,7 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 		}
 		cs := th.Resolve(append(slices.Clone(groups), vocab.GroupComposition))
 		start := u
-		add(seg{kind: segComposition, from: compAt, to: compAt}, span(comp.Text, cs, m.Body))
+		add(seg{kind: segComposition, from: compAt, to: compAt}, span(comp.Text, cs, m.Body), cs)
 		sl.marked = ui.TextInputRange{Start: start, End: u}
 		sl.hasMarked = true
 		sl.compSel = start + utf16Len(comp.Text[:min(max(comp.Selected[1], 0), len(comp.Text))])
@@ -396,18 +367,18 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 			if compAt >= it.From && compAt < it.To {
 				cut := compAt - it.From
 				if cut > 0 {
-					add(seg{kind: segText, from: it.From, to: compAt, text: it.Text[:cut]}, span(it.Text[:cut], style, m.Body))
+					add(seg{kind: segText, from: it.From, to: compAt, text: it.Text[:cut]}, span(it.Text[:cut], style, m.Body), style)
 				}
 				addComp(it.Groups)
-				add(seg{kind: segText, from: it.From + cut, to: it.To, text: it.Text[cut:]}, span(it.Text[cut:], style, m.Body))
+				add(seg{kind: segText, from: it.From + cut, to: it.To, text: it.Text[cut:]}, span(it.Text[cut:], style, m.Body), style)
 				continue
 			}
-			add(seg{kind: segText, from: it.From, to: it.To, text: it.Text}, span(it.Text, style, m.Body))
+			add(seg{kind: segText, from: it.From, to: it.To, text: it.Text}, span(it.Text, style, m.Body), style)
 		case present.BreakItem:
 			if compAt == it.From {
 				addComp(it.Groups)
 			}
-			add(seg{kind: segBreak, from: it.From, to: it.To, text: "\n"}, span("\n", style, m.Body))
+			add(seg{kind: segBreak, from: it.From, to: it.To, text: "\n"}, span("\n", style, m.Body), style)
 		case present.GhostItem:
 			// TODO(ghosts): overlay ghosts draw over the text without taking
 			// room; until they do, they take room like room ghosts, so their
@@ -416,12 +387,12 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 			// in its group's ink.
 			sp := span(string(it.Spelling), style, m.Body)
 			face := sp
-			face.Color, face.Background = ui.Color{}, ui.Color{}
+			face.Color = ui.Color{}
 			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Weight: face.Weight, Italic: face.Italic}, ui.TextShape{})
 			ink := sp.Color
 			sp.Color = invisible
 			add(seg{kind: segGhost, from: it.From, to: it.From, text: string(it.Spelling), stopFrom: it.StopFrom, stops: it.StopTo - it.StopFrom,
-				face: face, ink: ink, shaped: lay}, sp)
+				face: face, ink: ink, shaped: lay}, sp, style)
 		case present.BoxItem:
 			if compAt == it.From {
 				addComp(it.Groups)
@@ -433,7 +404,7 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 			w, h := lay.Size()
 			sp := span("\uFFFC", style, m.Body)
 			sp.ObjectWidth, sp.ObjectHeight = max(w, m.Body*0.6)+boxPad*2, max(h*0.8, m.Body)
-			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, face: face}, sp)
+			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, face: face}, sp, style)
 		}
 	}
 	if s.Card {

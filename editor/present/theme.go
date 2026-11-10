@@ -20,14 +20,27 @@ const (
 	SetItalic
 	SetColor
 	SetBackground
-	SetUnderline
+	SetLine
 	SetStrike
 	SetOpacity
+	SetLineColor
+)
+
+// LineKind is the line a style draws under its text.
+type LineKind uint8
+
+const (
+	LineNone LineKind = iota
+	// LineUnder is a straight underline, as composing text shows.
+	LineUnder
+	// LineWavy is a wavy line, a caret mark under a single glyph, for
+	// what points at text: what the next delete takes, say.
+	LineWavy
 )
 
 // Style is a closed set of style attributes. Layout attributes (font role,
 // size, weight, italic) and paint attributes (colour, background,
-// underline, strike, opacity) are cached apart by the renderer: a change
+// line and its color, strike, opacity) are cached apart by the renderer: a change
 // to paint attributes never invalidates layout.
 type Style struct {
 	Set        uint32
@@ -37,9 +50,11 @@ type Style struct {
 	Italic     bool
 	Color      uint32 // 0xRRGGBBAA
 	Background uint32
-	Underline  bool
-	Strike     bool
-	Opacity    float32
+	Line       LineKind
+	// LineColor is the line's color, 0xRRGGBBAA; unset, the text's.
+	LineColor uint32
+	Strike    bool
+	Opacity   float32
 }
 
 // Theme maps highlight groups to styles.
@@ -64,8 +79,11 @@ func (s *Style) over(o Style) {
 	if o.Set&SetBackground != 0 {
 		s.Background = o.Background
 	}
-	if o.Set&SetUnderline != 0 {
-		s.Underline = o.Underline
+	if o.Set&SetLine != 0 {
+		s.Line = o.Line
+	}
+	if o.Set&SetLineColor != 0 {
+		s.LineColor = o.LineColor
 	}
 	if o.Set&SetStrike != 0 {
 		s.Strike = o.Strike

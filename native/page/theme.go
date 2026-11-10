@@ -32,9 +32,10 @@ func Theme(t theme.Theme) present.Theme {
 		vocab.GroupListMarker:    {Set: present.SetColor, Color: pack(t.Prose.Notation)},
 		vocab.GroupCaption:       {Set: present.SetColor | present.SetSize, Color: pack(t.Text.Muted), Size: 0.9},
 		vocab.GroupCellHeader:    {Set: present.SetWeight, Weight: 700},
-		vocab.GroupComposition:   {Set: present.SetUnderline, Underline: true},
-		vocab.GroupArmed: {Set: present.SetBackground | present.SetUnderline | present.SetColor,
-			Background: pack(t.Prose.Selection), Underline: true, Color: pack(t.Accent.Foreground)},
+		vocab.GroupComposition: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
+			LineColor: pack(t.Families[theme.Halo].Foreground)},
+		vocab.GroupArmed: {Set: present.SetBackground | present.SetLine | present.SetLineColor, Background: pack(t.Prose.Selection),
+			Line: present.LineWavy, LineColor: pack(t.Families[theme.Remnant].Foreground)},
 	}
 	for level := 1; level <= 6; level++ {
 		th[vocab.GroupHeadings[level]] = present.Style{Set: present.SetSize, Size: headingScale[level]}
@@ -80,7 +81,6 @@ func span(text string, s present.Style, body float32) ui.Span {
 		Size:          body * s.Size,
 		Weight:        s.Weight,
 		Italic:        s.Italic,
-		Underline:     s.Underline,
 		Strikethrough: s.Strike,
 	}
 	if s.Set&present.SetColor != 0 {
@@ -89,9 +89,6 @@ func span(text string, s present.Style, body float32) ui.Span {
 			c = c.Alpha(float32(c.A) / 255 * s.Opacity)
 		}
 		sp.Color = c
-	}
-	if s.Set&present.SetBackground != 0 {
-		sp.Background = unpack(s.Background)
 	}
 	return sp
 }
