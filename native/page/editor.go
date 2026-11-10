@@ -5,11 +5,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/caelyreth/neverland/app/clipboard"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/egoist/mygo/transfer"
+	"github.com/egoist/mygo/ui"
 )
 
 // Editor is one page's view of an engine: it runs intents, keeps the
@@ -20,6 +23,9 @@ type Editor struct {
 	View   uint64
 	// Changed is called after an intent changed the document.
 	Changed func(*doc.Snapshot)
+	// Effect receives the engine's host effects. Reveal stays internal to
+	// this renderer; beeps and media requests belong to the host.
+	Effect func(policy.Effect)
 	// Wake asks for a frame from any goroutine, as a deadline comes due.
 	Wake func()
 
@@ -29,12 +35,6 @@ type Editor struct {
 	cache   *layoutCache
 	layout  *pageLayout
 	deco    present.Decorations
-	// clip is the last slice copied from this page and its plain text: a
-	// paste of that text pastes the slice, keeping its structure.
-	// TODO(clipboard): put slices on the system clipboard in a structured
-	// format so they survive between pages and apps.
-	clip     vocab.Slice
-	clipText string
 	// active is when the last input came: the caret stays solid a moment
 	// after it before it breathes.
 	active time.Time
@@ -119,8 +119,11 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 	for _, fx := range pub.Effects {
 		if fx.Kind == policy.EffectReveal {
 			ed.reveal = true
+			continue
 		}
-		// TODO(effects): beeps and media requests reach the host.
+		if ed.Effect != nil {
+			ed.Effect(fx)
+		}
 	}
 	if pub.Changed && ed.Changed != nil {
 		ed.Changed(pub.Snapshot)
@@ -253,25 +256,45 @@ func (ed *Editor) place(x, y float32, clicks int, extend bool, at time.Time) boo
 
 // --- clipboard ------------------------------------------------------------
 
-// copy remembers the engine's copy of the selection as the page's clip
-// and returns its text.
-func (ed *Editor) copy() string {
-	s, text := ed.Engine.Copy(ed.View)
-	if text == "" && s.Empty() {
-		return ""
-	}
-	ed.clip, ed.clipText = s, text
-	return text
+// copy reads the engine's slice and its plain text. The slice is carried
+// across applications by the clipboard codec; text is the fallback.
+func (ed *Editor) copy() (vocab.Slice, string) {
+	return ed.Engine.Copy(ed.View)
 }
 
-// pasted is a paste of clipboard text: the slice it was copied as when it
-// is the page's own.
-func (ed *Editor) pasted(text string) vocab.Paste {
-	in := vocab.Paste{Text: text}
-	if text != "" && text == ed.clipText {
-		in.Slice = ed.clip
+// writeClipboard puts the engine's copy on the system clipboard as a
+// structured slice and as plain text for other applications.
+func (ed *Editor) writeClipboard(services ui.Services) bool {
+	slice, text := ed.copy()
+	if slice.Empty() && text == "" {
+		return false
 	}
-	return in
+	var reps []transfer.Representation
+	if !slice.Empty() {
+		if encoded, err := clipboard.Encode(slice); err == nil {
+			reps = append(reps, transfer.Bytes(transfer.Format(clipboard.Format), encoded))
+		}
+	}
+	if text != "" {
+		reps = append(reps, transfer.Bytes(transfer.Text, []byte(text)))
+	}
+	if len(reps) == 0 {
+		return false
+	}
+	services.WriteClipboardData(transfer.New(transfer.NewItem(reps...)))
+	return true
+}
+
+// pasted prefers the structured representation and falls back to plain
+// text from another application.
+func (ed *Editor) pasted(data transfer.Data) vocab.Paste {
+	if raw, err := data.Read(transfer.Format(clipboard.Format)); err == nil {
+		if slice, err := clipboard.Decode(raw); err == nil {
+			return vocab.Paste{Slice: slice, Text: vocab.PlainText(slice)}
+		}
+	}
+	text, _ := data.Read(transfer.Text)
+	return vocab.Paste{Text: string(text)}
 }
 
 // now is the time of input the system delivers without one, as the input

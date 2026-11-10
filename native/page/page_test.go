@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -224,12 +225,12 @@ func TestCopyPasteKeepsText(t *testing.T) {
 	el := newElement(t)
 	typeText(el, "copy me")
 	el.Editor.Do(vocab.SelectScope{}, time.Unix(400, 0))
-	text := el.Editor.copy()
+	_, text := el.Editor.copy()
 	if text != "copy me" {
 		t.Fatalf("copied %q", text)
 	}
 	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Forward}, time.Unix(401, 0))
-	el.Editor.Do(el.Editor.pasted(text), time.Unix(402, 0))
+	el.Editor.Do(el.Editor.pasted(transfer.TextData(text)), time.Unix(402, 0))
 	if got := pageText(el); got != "copy mecopy me" {
 		t.Fatalf("pasted %q", got)
 	}

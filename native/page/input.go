@@ -3,8 +3,10 @@ package page
 import (
 	"time"
 
+	"github.com/caelyreth/neverland/app/clipboard"
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -97,11 +99,9 @@ func (el *Element) run(in vocab.Intent, services ui.Services, at time.Time) bool
 		}
 		in = resolved
 	case vocab.Paste:
-		in = ed.pasted(services.ReadClipboard())
+		in = ed.pasted(services.ReadClipboardData(transfer.Format(clipboard.Format), transfer.Text))
 	case vocab.Cut:
-		if text := ed.copy(); text != "" {
-			services.WriteClipboard(text)
-		}
+		ed.writeClipboard(services)
 	}
 	return ed.Do(in, at)
 }
