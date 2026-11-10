@@ -292,6 +292,8 @@ var (
 	GroupComposition   = NewGroup("composition", 0)
 	// GroupArmed styles what the next delete takes, armed by the first.
 	GroupArmed = NewGroup("armed", 0)
+	// GroupPulse styles text a rewrite or history changed.
+	GroupPulse = NewGroup("feedback.pulse", 0)
 )
 
 // MarkGroup is the group of a mark kind.

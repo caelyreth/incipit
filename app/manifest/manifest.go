@@ -6,6 +6,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/cjk"
 	"github.com/caelyreth/neverland/editor/policies/core"
 	"github.com/caelyreth/neverland/editor/policies/deletion"
+	"github.com/caelyreth/neverland/editor/policies/feedback"
 	"github.com/caelyreth/neverland/editor/policies/guides"
 	"github.com/caelyreth/neverland/editor/policies/history"
 	"github.com/caelyreth/neverland/editor/policies/lists"
@@ -22,12 +23,12 @@ import (
 
 // Manifest lists the product's policies.
 //
-// TODO(policies): feedback, tables and figures remain. Once pairs spell a
-// typed '*', markdown must take precedence over pairs for that character.
+// TODO(policies): tables and figures remain. Once pairs spell a typed '*',
+// markdown must take precedence over pairs for that character.
 var Manifest = policy.Manifest{
 	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy,
 		typography.Policy, cjk.Policy, navigation.Policy, scopes.Policy, deletion.Policy,
-		lists.Policy, words.Policy, history.Policy, guides.Policy, statistics.Policy},
+		lists.Policy, words.Policy, history.Policy, feedback.Policy, guides.Policy, statistics.Policy},
 }
 
 // Compile builds the program for settings values.

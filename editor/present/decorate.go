@@ -15,6 +15,14 @@ type Highlight struct {
 	From, To doc.Caret
 	// Node is set for a highlight over a whole node.
 	Node doc.ID
+	// Direction, when set, plays the highlight's reveal in that direction.
+	Direction vocab.Direction
+}
+
+// motion is worn by an annotation whose decoration plays in a direction,
+// as a feedback pulse does.
+type motion interface {
+	DecorationMotion() vocab.Direction
 }
 
 // Cover is what a selection covers in one unit (§13.8): in each surface,
@@ -61,7 +69,11 @@ func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *pol
 			if a.Owner != dec.Owner {
 				continue
 			}
-			d.Highlights = append(d.Highlights, Highlight{Group: dec.Group, From: drawn(a.Anchor.From), To: drawn(a.Anchor.To)})
+			h := Highlight{Group: dec.Group, From: drawn(a.Anchor.From), To: drawn(a.Anchor.To)}
+			if m, ok := a.Data.(motion); ok {
+				h.Direction = m.DecorationMotion()
+			}
+			d.Highlights = append(d.Highlights, h)
 		}
 	}
 	if view.Selection.Kind != doc.SelectText {

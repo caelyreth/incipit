@@ -101,6 +101,12 @@ func (tx *Tx) Apply(op Op) error {
 	if err != nil {
 		return fmt.Errorf("doc: %s: %w", op, err)
 	}
+	// Journal ranges stand in the document at the end of the transaction,
+	// not in the intermediate state where a step made them. Observers and
+	// strict output checks read that one version of the records.
+	for i := range tx.journal.Records {
+		tx.journal.Records[i] = mapRecord(tx.journal.Records[i], step.mapping)
+	}
 	step.origin = tx.origin
 	for i := range step.records {
 		step.records[i].Origin = tx.origin
@@ -109,6 +115,22 @@ func (tx *Tx) Apply(op Op) error {
 	}
 	tx.steps = append(tx.steps, step)
 	return nil
+}
+
+// mapRecord carries a record's text range through a later step.
+func mapRecord(r Record, m Mapper) Record {
+	switch r.Kind {
+	case RecordTextInserted, RecordTextDeleted, RecordMarks:
+	default:
+		return r
+	}
+	from, ok1 := m.Map(At(r.Slot, r.From), BiasAfter)
+	to, ok2 := m.Map(At(r.Slot, r.To), BiasBefore)
+	if !ok1 || !ok2 || to.Ref() != from.Ref() {
+		return r
+	}
+	r.Slot, r.From, r.To = from.Ref(), from.Offset, to.Offset
+	return r
 }
 
 // ApplyAll applies operations in order, stopping at the first failure.
