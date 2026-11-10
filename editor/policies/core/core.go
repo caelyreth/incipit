@@ -42,8 +42,10 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 	// key bound to them falls through to its next command.
 	p.Handle("leave").On(vocab.On(vocab.IntentLeave)).Do(swallow)
 	p.Handle("return").On(vocab.On(vocab.IntentReturn)).Do(swallow)
-	p.Handle("select-scope").On(vocab.On(vocab.IntentSelectScope)).Do(selectAll)
-	p.Handle("dismiss").On(vocab.On(vocab.IntentDismiss)).Do(dismiss)
+	// Selection scopes belong to the scopes policy; without it these are
+	// unavailable rather than falling back to a different selection.
+	p.Handle("select-scope").On(vocab.On(vocab.IntentSelectScope)).Do(swallow)
+	p.Handle("dismiss").On(vocab.On(vocab.IntentDismiss)).Do(swallow)
 
 	p.Handle("format").On(vocab.On(vocab.IntentFormat)).Produces(markEdits...).Do(format)
 	p.Handle("nest").On(vocab.On(vocab.IntentNest)).Do(swallow)
@@ -89,6 +91,7 @@ var commands = []command{
 	{"core.heading3", "commands.heading3", vocab.Reshape{Shape: vocab.Heading, Attrs: headingAttrs(3)}},
 	{"core.quote", "commands.quote", vocab.Reshape{Shape: vocab.Quote}},
 	{"core.codeBlock", "commands.codeBlock", vocab.Reshape{Shape: vocab.Code}},
+	{"core.toggleTask", "commands.toggleTask", vocab.ToggleTask{}},
 
 	{"core.left", "commands.left", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}},
 	{"core.right", "commands.right", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward}},
@@ -622,37 +625,6 @@ func compose(c *policy.Ctx, m policy.Match) policy.Result {
 
 // --- scope and structure --------------------------------------------------------------
 
-// selectAll selects the page's text, from its first stop to its last.
-func selectAll(c *policy.Ctx, m policy.Match) policy.Result {
-	// TODO(scopes): the scopes policy grows the selection from the
-	// innermost scope outward; core selects the page.
-	stops := c.Stops()
-	if stops == nil {
-		return policy.Swallow
-	}
-	first, ok1 := stops.Edge(vocab.Backward)
-	last, ok2 := stops.Edge(vocab.Forward)
-	if !ok1 || !ok2 {
-		return policy.Swallow
-	}
-	return policy.Select(doc.TextRange(first, last))
-}
-
-// dismiss collapses the selection to its head and ends a composition.
-// Escape outside every scope dismisses; Leave answers scopes separately.
-func dismiss(c *policy.Ctx, m policy.Match) policy.Result {
-	res := policy.Result{}
-	if c.Composition() != nil {
-		res.EndComposition = true
-	}
-	sel := c.Selection()
-	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
-		s := doc.Collapsed(c.Head())
-		res.Selection = &s
-	}
-	return res
-}
-
 // format toggles a mark over the selection, or the pending marks at a
 // collapsed caret.
 func format(c *policy.Ctx, m policy.Match) policy.Result {
@@ -887,7 +859,11 @@ func moveNode(c *policy.Ctx, m policy.Match) policy.Result {
 
 func toggleTask(c *policy.Ctx, m policy.Match) policy.Result {
 	in := m.Intent.(vocab.ToggleTask)
-	n, ok := c.Doc().Node(in.ID)
+	id := in.ID
+	if id == 0 {
+		id = itemAt(c.Doc(), c.Head().Pos)
+	}
+	n, ok := c.Doc().Node(id)
 	if !ok || n.Kind() != vocab.Item {
 		return policy.Swallow
 	}
@@ -898,5 +874,24 @@ func toggleTask(c *policy.Ctx, m policy.Match) policy.Result {
 	case vocab.TaskDone:
 		next = vocab.TaskOpen
 	}
-	return policy.Do(vocab.SetAttrs(in.ID, n.Attrs().With(vocab.FieldTask, doc.Int(int64(next)))))
+	return policy.Do(vocab.SetAttrs(id, n.Attrs().With(vocab.FieldTask, doc.Int(int64(next)))))
+}
+
+// itemAt is the item holding p, including an item body several blocks
+// below its head.
+func itemAt(r doc.Reader, p doc.Pos) doc.ID {
+	for id := p.Node; ; {
+		n, ok := r.Node(id)
+		if !ok {
+			return 0
+		}
+		if n.Kind() == vocab.Item {
+			return n.ID()
+		}
+		parent, _, ok := r.Parent(id)
+		if !ok {
+			return 0
+		}
+		id = parent
+	}
 }

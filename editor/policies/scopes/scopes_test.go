@@ -134,3 +134,23 @@ func TestSelectScopeHasAGuide(t *testing.T) {
 		t.Fatalf("guides %+v have no Select All", guides)
 	}
 }
+
+func TestWithoutThePolicySelectScopeIsUnavailable(t *testing.T) {
+	prog, err := policy.Compile(policy.Manifest{Enabled: []*policy.Policy{core.Policy}, Strict: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, err := vocab.EmptyPage(1, 5, doc.NewInterner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := engine.New(snap, prog, engine.Options{})
+	e.OpenView(1)
+	out, err := e.Preview(1, vocab.Input{Intent: vocab.SelectScope{}, At: time.Unix(10, 0)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Available {
+		t.Fatal("core selected the page without the scopes policy")
+	}
+}
