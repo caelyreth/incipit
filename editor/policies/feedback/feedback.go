@@ -77,6 +77,13 @@ func observe(c *policy.Ctx, records []doc.Record) policy.Result {
 		}
 	}
 	for _, s := range spans {
+		if s.from == s.to {
+			from, to, ok := neighbor(c.Doc(), s)
+			if !ok {
+				continue
+			}
+			s.from, s.to = from, to
+		}
 		anchors = append(anchors, policy.Between(doc.At(s.slot, s.from), doc.At(s.slot, s.to)))
 	}
 	anchors = unique(anchors)
@@ -91,6 +98,24 @@ func observe(c *policy.Ctx, records []doc.Record) policy.Result {
 		})
 	}
 	return res
+}
+
+// neighbor gives a deletion-only change the surviving grapheme beside its
+// gap, so it has something visible to pulse.
+func neighbor(r doc.Reader, s pulseSpan) (from, to int, ok bool) {
+	n, ok := r.Node(s.slot.Node)
+	if !ok || s.slot.Slot < 0 || s.slot.Slot >= n.NumSlots() || !n.Slot(s.slot.Slot).IsInline() {
+		return 0, 0, false
+	}
+	text := n.Slot(s.slot.Slot).Content().Text()
+	at := min(max(s.from, 0), len(text))
+	switch {
+	case at > 0:
+		return vocab.PrevGrapheme(text, at), at, true
+	case at < len(text):
+		return at, vocab.NextGrapheme(text, at), true
+	}
+	return 0, 0, false
 }
 
 // nodeAnchor finds the text a structural change made. A node without

@@ -74,6 +74,16 @@ func (p *page) pulses() []doc.Caret {
 	return out
 }
 
+func (p *page) pulseRanges() [][2]int {
+	p.t.Helper()
+	v, _ := p.e.View(1)
+	var out [][2]int
+	for _, a := range v.Annotations.Of(feedback.Pulse) {
+		out = append(out, [2]int{a.Anchor.From.Pos.Offset, a.Anchor.To.Pos.Offset})
+	}
+	return out
+}
+
 func direction(t *testing.T, p *page) vocab.Direction {
 	t.Helper()
 	v, _ := p.e.View(1)
@@ -160,5 +170,32 @@ func TestStructuralRewritePulses(t *testing.T) {
 	p.do(vocab.Type{Text: "x"})
 	if got := p.pulses(); len(got) == 0 {
 		t.Fatal("the structural rewrite left no pulse")
+	}
+}
+
+// Automatic rewrites pulse their actual change, not the replacement
+// operation they used to produce it.
+func TestRewritePulsesCoverOnlyChangedText(t *testing.T) {
+	p := open(t)
+	p.typeText("你好")
+	p.do(vocab.Type{Text: "E"})
+	if got := p.pulseRanges(); len(got) != 1 || got[0] != [2]int{len("你好"), len("你好") + 1} {
+		t.Fatalf("CJK pulse ranges = %v", got)
+	}
+
+	p = open(t)
+	p.typeText("a,")
+	p.do(vocab.Type{Text: "b"})
+	if got := p.pulseRanges(); len(got) != 1 || got[0] != [2]int{2, 3} {
+		t.Fatalf("punctuation pulse ranges = %v", got)
+	}
+}
+
+// A deletion-only rewrite pulses the grapheme beside the removed gap.
+func TestDeletionPulseHasAVisibleNeighbor(t *testing.T) {
+	p := open(t)
+	p.typeText("hello ,")
+	if got := p.pulseRanges(); len(got) != 1 || got[0] != [2]int{4, 5} {
+		t.Fatalf("deletion pulse ranges = %v", got)
 	}
 }

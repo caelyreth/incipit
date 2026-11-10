@@ -4,6 +4,7 @@
 package cjk
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -85,7 +86,11 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 		}
 		out, changed := refine(stretch, lineHasCJK(flat, stretchFrom), opts)
 		if changed {
-			changes = append(changes, change{stretchFrom, stretchTo, itemsOf(out)})
+			si, so := itemsOf(stretch), itemsOf(out)
+			ds := vocab.MinimalTextChanges(si, so)
+			for _, d := range ds {
+				changes = append(changes, change{stretchFrom + d.From, stretchFrom + d.To, d.Items})
+			}
 		}
 		stretch = nil
 	}
@@ -166,6 +171,7 @@ func lineHasCJK(text string, at int) bool {
 }
 
 func refine(cells []styledRune, hasCJK bool, opts options) ([]styledRune, bool) {
+	cells = slices.Clone(cells)
 	before := cellsText(cells)
 	urls := urlRanges(cells)
 	if opts.punctuation && hasCJK {

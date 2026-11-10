@@ -107,6 +107,29 @@ func TestPunctuationSpacing(t *testing.T) {
 	h.want("hello, world")
 }
 
+// Spacing emits only the inserted space.
+func TestPunctuationSpacingEmitsMinimalChanges(t *testing.T) {
+	h := newHarness(t, nil)
+	h.typeText("hello,")
+	pub := h.do(vocab.Input{Intent: vocab.Type{Text: "w"}})
+	h.want("hello, w")
+	inserted := false
+	for _, r := range pub.Records {
+		if r.Origin.Phase != doc.PhaseCharacters {
+			continue
+		}
+		switch r.Kind {
+		case doc.RecordTextInserted:
+			inserted = r.Text == " " && r.From == len("hello,") && r.To == len("hello,")+1
+		case doc.RecordTextDeleted:
+			t.Fatalf("spacing deleted %q at %d", r.Text, r.From)
+		}
+	}
+	if !inserted {
+		t.Fatalf("character records = %+v", pub.Records)
+	}
+}
+
 func TestIMECommitRunsTheRewrite(t *testing.T) {
 	h := newHarness(t, nil)
 	h.do(vocab.Input{Intent: vocab.Type{Text: "..."}, Class: doc.OriginIME})

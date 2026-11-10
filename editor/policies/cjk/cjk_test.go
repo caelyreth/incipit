@@ -87,6 +87,23 @@ func TestCJKAndLatinSpacingWorksBothWays(t *testing.T) {
 	h.want("中文 123")
 }
 
+// Spacing emits the insertion it made, not a replacement of the line.
+func TestSpacingEmitsTheInsertedSpace(t *testing.T) {
+	h := newHarness(t, nil)
+	h.typeText("中文")
+	pub := h.do(vocab.Input{Intent: vocab.Type{Text: "E"}})
+	h.want("中文 E")
+	for _, r := range pub.Records {
+		if r.Origin.Phase == doc.PhaseScript && r.Kind == doc.RecordTextInserted {
+			if r.Text != " " || r.From != len("中文") || r.To != len("中文")+1 {
+				t.Fatalf("script insertion = %+v", r)
+			}
+			return
+		}
+	}
+	t.Fatalf("no Script insertion in %+v", pub.Records)
+}
+
 func TestPunctuationTakesTheLinesScript(t *testing.T) {
 	h := newHarness(t, nil)
 	h.typeText("中文,English")

@@ -6,6 +6,7 @@
 package typography
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -93,7 +94,9 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 		}
 		out, changed := rewriteCells(stretch, opts)
 		if changed {
-			changes = append(changes, change{stretchFrom, stretchTo, itemsOf(out)})
+			for _, d := range vocab.MinimalTextChanges(itemsOf(stretch), itemsOf(out)) {
+				changes = append(changes, change{stretchFrom + d.From, stretchFrom + d.To, d.Items})
+			}
 		}
 		stretch = nil
 	}
@@ -203,6 +206,7 @@ func rewriteText(text string, opts options) string {
 }
 
 func rewriteCells(cells []styledRune, opts options) ([]styledRune, bool) {
+	cells = slices.Clone(cells)
 	before := cellsText(cells)
 	if opts.symbols {
 		cells = symbols(cells)
