@@ -202,32 +202,105 @@ func blockMarker(mk *policy.FactKind[marker]) policy.Handler {
 				attrs = doc.MakeAttrs(doc.Field{Num: vocab.FieldListStyle, Value: doc.Int(int64(vocab.Ordered))},
 					doc.Field{Num: vocab.FieldListStart, Value: doc.Int(int64(mark.Level))})
 			}
-			parent, slot, index, _ := vocab.Index(c.Doc(), block.ID())
-			res := policy.Do(strip, intoList(block.ID(), attrs))
-			res.Then = func(r doc.Reader) doc.Selection {
-				s, _ := firstText(r, parent, slot, index)
-				return s
-			}
-			return res
+			return policy.Do(strip, intoList(block.ID(), attrs))
 		}
 		return policy.Swallow
 	}
 }
 
 // intoList replaces a paragraph by a list holding one item with its text.
-// TODO(lists): join a list of the same style just before it, once the
-// lists policy defines when lists merge.
+// Lists of one style next to it become one list, and moving the text keeps
+// the caret on what was typed.
 func intoList(id doc.ID, attrs doc.Attrs) vocab.Edit {
 	return func(tx *doc.Tx) error {
 		n, ok := tx.Node(id)
 		if !ok {
 			return doc.ErrNoNode
 		}
-		items := vocab.Fresh(n).Slot(0).Content().Slice(0, n.Slot(0).Len())
-		item := doc.NewNode(vocab.Item, doc.Attrs{}, doc.InlineSlot(items...), doc.BlockSlot())
+		parent, slot, index, ok := vocab.Index(tx, id)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		item := doc.NewNode(vocab.Item, doc.Attrs{}, doc.InlineSlot(), doc.BlockSlot())
 		list := doc.NewNode(vocab.List, tx.Schema().Canonical(vocab.List, attrs), doc.BlockSlot(item))
-		return replace(tx, id, list)
+		if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{list}}); err != nil {
+			return err
+		}
+		pn, _ := tx.Node(parent)
+		listID := pn.Slot(slot).Child(index).ID()
+		ln, _ := tx.Node(listID)
+		itemID := ln.Slot(0).Child(0).ID()
+		if length := n.Slot(0).Len(); length > 0 {
+			if err := tx.Apply(doc.Transfer{From: doc.SlotRef{Node: id}, Start: 0, End: length,
+				To: doc.SlotRef{Node: itemID}, At: 0}); err != nil {
+				return err
+			}
+		}
+		if err := tx.Apply(doc.Remove{IDs: []doc.ID{id}}); err != nil {
+			return err
+		}
+		return joinAdjacent(tx, listID)
 	}
+}
+
+// joinAdjacent makes adjacent lists of one style one list, keeping their
+// items in reading order.
+func joinAdjacent(tx *doc.Tx, id doc.ID) error {
+	for {
+		ln, ok := tx.Node(id)
+		if !ok {
+			return nil
+		}
+		parent, slot, index, ok := vocab.Index(tx, id)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		pn, _ := tx.Node(parent)
+		children := pn.Slot(slot).Children()
+		if index > 0 {
+			prev := children[index-1]
+			if prev.Kind() == vocab.List && sameListStyle(prev, ln) {
+				if err := moveItems(tx, id, prev.ID()); err != nil {
+					return err
+				}
+				if err := tx.Apply(doc.Remove{IDs: []doc.ID{id}}); err != nil {
+					return err
+				}
+				id = prev.ID()
+				continue
+			}
+		}
+		if index+1 < len(children) {
+			next := children[index+1]
+			if next.Kind() == vocab.List && sameListStyle(ln, next) {
+				if err := moveItems(tx, next.ID(), id); err != nil {
+					return err
+				}
+				if err := tx.Apply(doc.Remove{IDs: []doc.ID{next.ID()}}); err != nil {
+					return err
+				}
+				continue
+			}
+		}
+		return nil
+	}
+}
+
+func moveItems(tx *doc.Tx, from, to doc.ID) error {
+	fn, _ := tx.Node(from)
+	tn, _ := tx.Node(to)
+	items := fn.Slot(0).Children()
+	at := tn.Slot(0).Len()
+	for i, item := range items {
+		if err := tx.Apply(doc.Move{ID: item.ID(), Parent: to, Slot: 0, Index: at + i}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func sameListStyle(a, b *doc.Node) bool {
+	return a.Kind() == vocab.List && b.Kind() == vocab.List && vocab.ListStyleOf(a) == vocab.ListStyleOf(b)
 }
 
 // replace puts fresh nodes where id was.
