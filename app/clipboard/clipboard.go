@@ -145,7 +145,10 @@ func Decode(data []byte) (vocab.Slice, error) {
 		return vocab.Slice{}, fmt.Errorf("%w: version %d", ErrInvalid, w.Version)
 	}
 	marks := doc.NewInterner()
-	inline, err := decodeItems(w.Inline, marks)
+	inline, err := decodeItems(w.Inline, marks, doc.SlotSpec{
+		Accepts: func(doc.Kind) bool { return true },
+		Marks:   func(doc.MarkKind) bool { return true },
+	})
 	if err != nil {
 		return vocab.Slice{}, err
 	}
@@ -163,23 +166,38 @@ func decodeNode(w wireNode, marks *doc.Interner) (*doc.Node, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w: kind %d", ErrInvalid, w.Kind)
 	}
+	if spec.Placement == doc.PlaceRoot || len(w.Slots) != len(spec.Slots) {
+		return nil, fmt.Errorf("%w: kind %d has the wrong slot shape", ErrInvalid, w.Kind)
+	}
 	attrs, err := store.DecodeAttrs(w.Attrs, knownFields(spec))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
 	slots := make([]doc.Slot, len(w.Slots))
 	for i, ws := range w.Slots {
+		if ws.Blocks != spec.Slots[i].Blocks {
+			return nil, fmt.Errorf("%w: kind %d slot %d has the wrong type", ErrInvalid, w.Kind, i)
+		}
 		if ws.Blocks {
+			if len(ws.Inline) > 0 {
+				return nil, fmt.Errorf("%w: block slot %d holds inline items", ErrInvalid, i)
+			}
 			children := make([]*doc.Node, len(ws.Children))
 			for j, child := range ws.Children {
 				if children[j], err = decodeNode(child, marks); err != nil {
 					return nil, err
 				}
+				if spec.Slots[i].Accepts == nil || !spec.Slots[i].Accepts(children[j].Kind()) {
+					return nil, fmt.Errorf("%w: kind %d slot %d does not accept %d", ErrInvalid, w.Kind, i, child.Kind)
+				}
 			}
 			slots[i] = doc.BlockSlot(children...)
 			continue
 		}
-		items, err := decodeItems(ws.Inline, marks)
+		if len(ws.Children) > 0 {
+			return nil, fmt.Errorf("%w: inline slot %d holds blocks", ErrInvalid, i)
+		}
+		items, err := decodeItems(ws.Inline, marks, spec.Slots[i])
 		if err != nil {
 			return nil, err
 		}
@@ -188,10 +206,13 @@ func decodeNode(w wireNode, marks *doc.Interner) (*doc.Node, error) {
 	return doc.NewNode(w.Kind, attrs, slots...), nil
 }
 
-func decodeItems(items []wireItem, marks *doc.Interner) ([]doc.Item, error) {
+func decodeItems(items []wireItem, marks *doc.Interner, spec doc.SlotSpec) ([]doc.Item, error) {
 	out := make([]doc.Item, len(items))
 	for i, item := range items {
 		if item.Node != nil {
+			if spec.Accepts == nil || spec.Literal || !spec.Accepts(item.Node.Kind) {
+				return nil, fmt.Errorf("%w: slot does not accept inline kind %d", ErrInvalid, item.Node.Kind)
+			}
 			n, err := decodeNode(*item.Node, marks)
 			if err != nil {
 				return nil, err
@@ -201,13 +222,19 @@ func decodeItems(items []wireItem, marks *doc.Interner) ([]doc.Item, error) {
 		}
 		var set *doc.MarkSet
 		if item.Marks != nil {
+			if spec.Literal || spec.Marks == nil {
+				return nil, fmt.Errorf("%w: slot does not accept marks", ErrInvalid)
+			}
 			ms := make([]doc.Mark, len(item.Marks))
 			for j, m := range item.Marks {
-				spec, ok := vocab.Schema().Mark(m.Kind)
+				mspec, ok := vocab.Schema().Mark(m.Kind)
 				if !ok {
 					return nil, fmt.Errorf("%w: mark %d", ErrInvalid, m.Kind)
 				}
-				attrs, err := store.DecodeAttrs(m.Attrs, knownFields(spec))
+				if !spec.Marks(m.Kind) {
+					return nil, fmt.Errorf("%w: slot does not accept mark %d", ErrInvalid, m.Kind)
+				}
+				attrs, err := store.DecodeAttrs(m.Attrs, knownFields(mspec))
 				if err != nil {
 					return nil, fmt.Errorf("%w: %v", ErrInvalid, err)
 				}

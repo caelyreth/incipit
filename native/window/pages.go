@@ -5,8 +5,10 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
+	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/page"
+	"github.com/egoist/mygo"
 )
 
 // pageRoot is the id of every page's root node; ids are per page.
@@ -60,6 +62,15 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 	}
 	a.nextView++
 	ed := page.NewEditor(engine.New(snap, a.Product.Program, engine.Options{}), a.nextView)
+	ed.Effect = func(fx policy.Effect) {
+		switch fx.Kind {
+		case policy.EffectBeep:
+			mygo.Shell.Beep()
+		case policy.EffectMedia:
+			// Media intake is the figures/media workstream; the effect
+			// path is ready for it without coupling the page to media.
+		}
+	}
 	el := page.NewElement(ed)
 	el.Label = "Page"
 	a.restoreView(session, el)

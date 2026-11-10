@@ -395,10 +395,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 // command answers an edit-menu command.
 func (el *Element) command(name string, services ui.Services, at time.Time) bool {
 	if name == "copy" {
-		if text := el.Editor.copy(); text != "" {
-			services.WriteClipboard(text)
-		}
-		return true
+		return el.Editor.writeClipboard(services)
 	}
 	in, ok := menuIntents[name]
 	return ok && el.run(in, services, at)
