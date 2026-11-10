@@ -117,13 +117,27 @@ func (tx *Tx) Apply(op Op) error {
 	return nil
 }
 
-// mapRecord carries a record's text range through a later step.
+// mapRecord carries a record's places through a later step.
 func mapRecord(r Record, m Mapper) Record {
 	switch r.Kind {
-	case RecordTextInserted, RecordTextDeleted, RecordMarks:
+	case RecordTextInserted, RecordTextDeleted, RecordMarks, RecordNodesInserted:
+		return mapRecordRange(r, m)
+	case RecordTransferred:
+		r = mapRecordRange(r, m)
+		if at, ok := m.Map(At(r.Target, r.At), BiasAfter); ok {
+			r.Target, r.At = at.Ref(), at.Offset
+		}
+	case RecordNodeMoved:
+		if at, ok := m.Map(At(r.Target, r.At), BiasAfter); ok {
+			r.Target, r.At = at.Ref(), at.Offset
+		}
 	default:
 		return r
 	}
+	return r
+}
+
+func mapRecordRange(r Record, m Mapper) Record {
 	from, ok1 := m.Map(At(r.Slot, r.From), BiasAfter)
 	to, ok2 := m.Map(At(r.Slot, r.To), BiasBefore)
 	if !ok1 || !ok2 || to.Ref() != from.Ref() {

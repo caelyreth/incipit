@@ -773,12 +773,10 @@ func absInt(n int) int {
 	return n
 }
 
-// boxText is what a closed inline node shows: its source text.
+// boxText is an inline node's semantic text: its source without the
+// renderer's empty-box placeholder.
 func boxText(n *doc.Node) string {
-	if t := n.Text(); t != "" {
-		return t
-	}
-	return "□"
+	return n.Text()
 }
 
 func accessibleName(role, value string) string {

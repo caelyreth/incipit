@@ -136,7 +136,7 @@ func unique(anchors []policy.Anchor) []policy.Anchor {
 // which grows into the replacement beside it.
 func add(spans []pulseSpan, s pulseSpan) []pulseSpan {
 	for i, old := range spans {
-		if old.slot != s.slot || s.from > old.to+1 || old.from > s.to+1 {
+		if old.slot != s.slot || s.from > old.to || old.from > s.to {
 			continue
 		}
 		spans[i].from = min(old.from, s.from)

@@ -111,3 +111,40 @@ func TestAccessibilityTextAndStops(t *testing.T) {
 		}
 	}
 }
+
+// An object's accessibility name comes from its role, not the renderer's
+// empty-box placeholder.
+func TestObjectAccessibilityUsesItsRole(t *testing.T) {
+	prog, err := manifest.Compile(nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, _ := vocab.EmptyPage(1, 6, doc.NewInterner())
+	e := engine.New(snap, prog, engine.Options{})
+	e.OpenView(1)
+	now := time.Unix(1, 0)
+	for _, s := range []string{"-", "-", "-"} {
+		now = now.Add(time.Second)
+		if _, err := e.Do(1, vocab.Input{Intent: vocab.Type{Text: s}, At: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now = now.Add(time.Second)
+	if _, err := e.Do(1, vocab.Input{Intent: vocab.Break{}, At: now}); err != nil {
+		t.Fatal(err)
+	}
+	units := e.Units(1)
+	ids := make([]doc.ID, len(units))
+	for i, u := range units {
+		ids[i] = u.ID
+	}
+	for _, p := range e.Present(1, ids) {
+		if p.Kind == vocab.Divider {
+			if p.Role != "separator" || p.Label != "Separator" || p.Value != "" {
+				t.Fatalf("divider accessibility = %q %q %q", p.Role, p.Label, p.Value)
+			}
+			return
+		}
+	}
+	t.Fatal("the page has no divider")
+}
