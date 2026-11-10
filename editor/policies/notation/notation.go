@@ -76,6 +76,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		name := string(vocab.MarkSpellings(m)[0])
 		k.spans[m] = policy.Facts[markSpan](p, "span"+name, policy.Provides(vocab.RolePair, vocab.RoleLeavable))
 		k.signs[m] = policy.Facts[markGhost](p, "sign"+name)
+		p.Paint(vocab.GroupPairMatch, k.spans[m].Kind(), policy.WhenCaretInside)
 	}
 	p.Analyze(policy.Lines, analyze(sp, k), k.all(), policy.Config(sp),
 		policy.Where(func(u *policy.Unit) bool { return !u.Spec.Literal && u.Spec.Marks != nil }))

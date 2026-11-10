@@ -14,10 +14,16 @@ import (
 // ID is the policy's id.
 const ID = "scopes"
 
+// Active marks the innermost textual scope at a collapsed caret.
+var Active = vocab.NewAnnotationKind("scopes.active", false)
+
 // Policy is the scopes policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Handle("select").On(vocab.On(vocab.IntentSelectScope)).In(vocab.Slot).Do(grow)
 	p.Handle("dismiss").On(vocab.On(vocab.IntentDismiss)).In(vocab.Slot).Do(dismiss)
+	p.Annotation(Active, valid)
+	p.Decorate(Active, vocab.GroupScope)
+	p.Observe("highlight", policy.Trigger{}, highlight)
 })
 
 type candidate struct {
@@ -75,6 +81,46 @@ func dismiss(c *policy.Ctx, _ policy.Match) policy.Result {
 		res.Selection = &s
 	}
 	return res
+}
+
+// highlight keeps one decoration over the innermost fact or scoped
+// annotation holding a collapsed caret. A selection already shows its
+// own extent, and a point scope has no text to underline.
+func highlight(c *policy.Ctx, _ []doc.Record) policy.Result {
+	res := policy.Result{DropKinds: []vocab.AnnotationKind{Active}}
+	sel := c.Selection()
+	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
+		return res
+	}
+	levels := c.Stack().Levels
+	for i := len(levels) - 1; i >= 0; i-- {
+		level := levels[i]
+		if level.Class != policy.LevelFact && level.Class != policy.LevelAnnotation {
+			continue
+		}
+		anchor := policy.Anchor{From: level.Start, To: level.End}
+		if anchor.From.Pos == anchor.To.Pos || anchor.From.Pos.Ref() != anchor.To.Pos.Ref() {
+			continue
+		}
+		res.Annotate = []policy.Annotate{{Kind: Active, Anchor: anchor, Lifetime: policy.WithView}}
+		return res
+	}
+	return res
+}
+
+// valid keeps the highlight while its span exists.
+func valid(r doc.Reader, a policy.Annotation) bool {
+	n, ok := r.Node(a.Anchor.From.Pos.Node)
+	if !ok || a.Anchor.From.Pos.Ref() != a.Anchor.To.Pos.Ref() {
+		return false
+	}
+	slot := a.Anchor.From.Pos.Slot
+	if slot < 0 || slot >= n.NumSlots() {
+		return false
+	}
+	end := n.Slot(slot).Len()
+	return a.Anchor.From.Offset >= 0 && a.Anchor.From.Offset <= end &&
+		a.Anchor.To.Offset >= a.Anchor.From.Offset && a.Anchor.To.Offset <= end
 }
 
 // candidatesAt returns the scopes the two ends of the selection stand in,

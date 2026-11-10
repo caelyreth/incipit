@@ -49,6 +49,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 
 	span := policy.Facts[pair](p, "pair", policy.Provides(vocab.RolePair, vocab.RoleLeavable))
 	policy.Scan[string](p, scanner{kind: span, kinds: kinds}, []vocab.FactKind{span.Kind()})
+	p.Paint(vocab.GroupPairMatch, span.Kind(), policy.WhenCaretInside)
 
 	inserts := []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted}
 	for _, k := range kinds {

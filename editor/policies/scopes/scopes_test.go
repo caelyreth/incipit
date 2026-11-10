@@ -66,6 +66,16 @@ func (p *page) selection() doc.Selection {
 	return v.Selection
 }
 
+func (p *page) painted(group vocab.Group) int {
+	n := 0
+	for _, h := range p.e.Decorations(1).Highlights {
+		if h.Group == group {
+			n++
+		}
+	}
+	return n
+}
+
 func TestSelectScopeGrowsFromTheInnermostScope(t *testing.T) {
 	p := open(t)
 	p.typeText("a (b")
@@ -150,5 +160,19 @@ func TestSelectScopeHasAGuide(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("guides %+v have no Select All", guides)
+	}
+}
+
+// The innermost textual scope is underlined while a collapsed caret is
+// inside it, and the decoration follows the caret out.
+func TestTheActiveScopeIsHighlighted(t *testing.T) {
+	p := open(t)
+	p.typeText("a *b")
+	if p.painted(vocab.GroupScope) != 1 {
+		t.Fatalf("scope highlights = %d", p.painted(vocab.GroupScope))
+	}
+	p.do(vocab.Leave{})
+	if p.painted(vocab.GroupScope) != 0 {
+		t.Fatalf("the scope stayed highlighted outside it: %d", p.painted(vocab.GroupScope))
 	}
 }

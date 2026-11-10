@@ -30,10 +30,39 @@ func TestQuotesPairButCloseAfterAWord(t *testing.T) {
 	p.want(`page(paragraph(say "hi" ok))`)
 }
 
+// A caret inside a pair or a marked run paints the whole scope.
+func TestPairsAndMarksPaintWhileTheCaretIsInside(t *testing.T) {
+	p := open(t)
+	p.typeText("a (b")
+	if p.painted(vocab.GroupPairMatch) != 1 {
+		t.Fatalf("pair highlights = %d", p.painted(vocab.GroupPairMatch))
+	}
+	p.do(vocab.Leave{})
+	if p.painted(vocab.GroupPairMatch) != 0 {
+		t.Fatalf("a pair outside the caret is painted %d times", p.painted(vocab.GroupPairMatch))
+	}
+
+	p = open(t)
+	p.typeText("a *b")
+	if p.painted(vocab.GroupPairMatch) != 1 {
+		t.Fatalf("mark highlights = %d", p.painted(vocab.GroupPairMatch))
+	}
+}
+
 func (p *page) armed() int {
 	n := 0
 	for _, h := range p.e.Decorations(1).Highlights {
 		if h.Group == vocab.GroupArmed {
+			n++
+		}
+	}
+	return n
+}
+
+func (p *page) painted(group vocab.Group) int {
+	n := 0
+	for _, h := range p.e.Decorations(1).Highlights {
+		if h.Group == group {
 			n++
 		}
 	}

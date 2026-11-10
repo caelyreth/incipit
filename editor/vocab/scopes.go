@@ -292,6 +292,10 @@ var (
 	GroupComposition   = NewGroup("composition", 0)
 	// GroupArmed styles what the next delete takes, armed by the first.
 	GroupArmed = NewGroup("armed", 0)
+	// GroupPairMatch styles the pair or mark a caret is inside.
+	GroupPairMatch = NewGroup("pair.match", 0)
+	// GroupScope styles the innermost textual scope at the caret.
+	GroupScope = NewGroup("scope", 0)
 	// GroupPulse styles text a rewrite or history changed.
 	GroupPulse = NewGroup("feedback.pulse", 0)
 )

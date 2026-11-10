@@ -146,9 +146,18 @@ func TestFeedbackPulsePlayback(t *testing.T) {
 }
 
 func TestFeedbackPulseHasAVisibleStyle(t *testing.T) {
-	style := Theme(theme.DefaultSettings().Semantic()).Resolve([]vocab.Group{vocab.GroupPulse})
-	if style.Set&present.SetBackground == 0 || style.Set&present.SetLine == 0 || style.Background == 0 {
-		t.Fatalf("pulse style = %+v", style)
+	styles := Theme(theme.DefaultSettings().Semantic())
+	pulse := styles.Resolve([]vocab.Group{vocab.GroupPulse})
+	if pulse.Set&present.SetBackground == 0 || pulse.Set&present.SetLine == 0 || pulse.Background == 0 {
+		t.Fatalf("pulse style = %+v", pulse)
+	}
+	match := styles.Resolve([]vocab.Group{vocab.GroupPairMatch})
+	if match.Set&present.SetBackground == 0 || match.Background == 0 {
+		t.Fatalf("pair match style = %+v", match)
+	}
+	scope := styles.Resolve([]vocab.Group{vocab.GroupScope})
+	if scope.Set&present.SetLine == 0 || scope.Line != present.LineUnder {
+		t.Fatalf("scope style = %+v", scope)
 	}
 }
 

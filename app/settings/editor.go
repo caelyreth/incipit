@@ -202,6 +202,7 @@ var policyTexts = map[string]policyText{
 	"deletion":   {"Deletion", "A structure is armed by the first delete and removed by the next; text pairs keep their own sides."},
 	"guides":     {"Guides", "Show a key where it would act: leaving a scope, or going back."},
 	"history":    {"History", "Undo and redo step through your edits, a burst of typing at a time."},
+	"feedback":   {"Feedback", "A pulse shows what typography or CJK changed; undo plays it backward and redo forward."},
 	"statistics": {"Statistics", "Word, character and CJK counts for the page and the selection, shown in the footer."},
 }
 
