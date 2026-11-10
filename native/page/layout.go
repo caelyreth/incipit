@@ -58,6 +58,14 @@ type seg struct {
 	ink    ui.Color
 }
 
+// wash is a stretch of a surface laid on one background: consecutive
+// segments wearing it, signs and text alike, are one run, painted beneath
+// the text so nothing seams where the spans meet.
+type wash struct {
+	rg    ui.TextInputRange
+	color ui.Color
+}
+
 // invisible paints nothing; a zero color would take the layout's default.
 var invisible = ui.Color{R: 1}
 
@@ -74,6 +82,7 @@ type surfaceLayout struct {
 	anchor doc.ID
 	slot   doc.SlotRef
 	layout *ui.TextLayout
+	washes []wash
 	text   string
 	segs   []seg
 	stops  []stopAt
@@ -299,6 +308,14 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 		sg.u0 = u
 		u += utf16Len(sp.Text)
 		sg.u1 = u
+		if bg := sp.Background; bg != (ui.Color{}) {
+			sp.Background = ui.Color{}
+			if n := len(sl.washes); n > 0 && sl.washes[n-1].rg.End == sg.u0 && sl.washes[n-1].color == bg {
+				sl.washes[n-1].rg.End = sg.u1
+			} else {
+				sl.washes = append(sl.washes, wash{rg: ui.TextInputRange{Start: sg.u0, End: sg.u1}, color: bg})
+			}
+		}
 		sl.segs = append(sl.segs, sg)
 		spans = append(spans, sp)
 		text.WriteString(sp.Text)
@@ -346,7 +363,7 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 			// in its group's ink.
 			sp := span(string(it.Spelling), style, m.Body)
 			face := sp
-			face.Color = ui.Color{}
+			face.Color, face.Background = ui.Color{}, ui.Color{}
 			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Weight: face.Weight, Italic: face.Italic}, ui.TextShape{})
 			ink := sp.Color
 			sp.Color = invisible

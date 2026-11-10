@@ -412,6 +412,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
+	el.paintWashes(p, pl, ox, oy, top, bottom)
 	// The selection glides beneath the text; a drag places it directly,
 	// so it follows the pointer and glides on from there.
 	rows := el.selection.Step(el.selectionRows(pl), now, animate && !el.pressed)
@@ -462,6 +463,38 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		el.paintCaret(p, r, cr, sel.IsCollapsed(), now, animate)
 	}
 }
+
+// paintWashes lays each surface's backgrounds beneath its text: a run per
+// line, hugging the line's glyphs, rounded at its ends.
+func (el *Element) paintWashes(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom float32) {
+	for _, u := range pl.units {
+		uy := oy + u.y
+		if u.object || uy > bottom || uy+u.h < top {
+			continue
+		}
+		for _, s := range u.surfaces {
+			if len(s.washes) == 0 {
+				continue
+			}
+			sx, sy := ox+u.x+s.x, uy+s.y
+			lines := s.layout.Lines()
+			for _, w := range s.washes {
+				for _, r := range s.layout.SelectionRects(w.rg) {
+					for _, l := range lines {
+						if mid := r.Y + r.H/2; mid >= l.Rect.Y && mid < l.Rect.Y+l.Rect.H {
+							r.Y, r.H = l.Baseline-l.Ascent, l.Ascent+l.Descent
+							break
+						}
+					}
+					p.Fill(ui.Rect{X: sx + r.X - washPad, Y: sy + r.Y - washPad/2, W: r.W + washPad*2, H: r.H + washPad}, w.color, 3)
+				}
+			}
+		}
+	}
+}
+
+// washPad widens a background past the glyphs it lies under.
+const washPad = 2
 
 // selectionRows are the rows the selection covers, in page coordinates:
 // a whole object's box, and each text row of a covered stretch.

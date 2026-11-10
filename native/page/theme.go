@@ -20,8 +20,8 @@ func Theme(t theme.Theme) present.Theme {
 	th := present.Theme{
 		vocab.GroupText:     {Set: present.SetFont | present.SetColor, Font: present.FontBody, Color: pack(t.Prose.Text)},
 		vocab.GroupHeading:  {Set: present.SetFont | present.SetWeight | present.SetColor, Font: present.FontHeading, Weight: 700, Color: pack(t.Prose.Strong)},
-		vocab.GroupEmphasis: {Set: present.SetItalic, Italic: true},
-		vocab.GroupStrong:   {Set: present.SetWeight | present.SetColor, Weight: 700, Color: pack(t.Prose.Strong)},
+		vocab.GroupEmphasis: tinted(t.Families[theme.Unripe]),
+		vocab.GroupStrong:   bold(tinted(t.Families[theme.Remnant])),
 		vocab.GroupCodeMark: {Set: present.SetFont | present.SetBackground | present.SetSize, Font: present.FontMono,
 			Size: 0.9, Background: pack(t.Surface.Inset)},
 		vocab.GroupStrike:        {Set: present.SetStrike | present.SetColor, Strike: true, Color: pack(t.Text.Muted)},
@@ -38,6 +38,17 @@ func Theme(t theme.Theme) present.Theme {
 		th[vocab.GroupHeadings[level]] = present.Style{Set: present.SetSize, Size: headingScale[level]}
 	}
 	return th
+}
+
+// tinted is a mark worn in a hue: its family's foreground on its surface.
+func tinted(f theme.Family) present.Style {
+	return present.Style{Set: present.SetColor | present.SetBackground, Color: pack(f.Foreground), Background: pack(f.Surface)}
+}
+
+func bold(s present.Style) present.Style {
+	s.Set |= present.SetWeight
+	s.Weight = 700
+	return s
 }
 
 // family is a font role's family.
@@ -79,7 +90,6 @@ func span(text string, s present.Style, body float32) ui.Span {
 	}
 	if s.Set&present.SetBackground != 0 {
 		sp.Background = unpack(s.Background)
-		sp.Radius = 3
 	}
 	return sp
 }

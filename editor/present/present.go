@@ -543,7 +543,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 		for gi < len(ghosts) && ghosts[gi].At <= at {
 			g := ghosts[gi]
 			items = append(items, Item{Kind: GhostItem, From: g.At, To: g.At, Spelling: g.Spelling,
-				Groups: []vocab.Group{base, g.Group}, Layout: opts.Ghosts, StopFrom: g.StopFrom, StopTo: g.StopFrom + g.Stops})
+				Groups: append([]vocab.Group{base}, g.Groups...), Layout: opts.Ghosts, StopFrom: g.StopFrom, StopTo: g.StopFrom + g.Stops})
 			ghostStop := func(s int) Stop {
 				return Stop{Caret: doc.Caret{Pos: doc.At(ref, g.At), Stop: s}, Surface: index, Class: StopGhost, Offset: g.At}
 			}

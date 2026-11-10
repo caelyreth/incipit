@@ -251,7 +251,9 @@ func (p *P) Paint(group vocab.Group, fact vocab.FactKind, when PaintWhen) {
 type Ghost struct {
 	At       int
 	Spelling vocab.Spelling
-	Group    vocab.Group
+	// Groups style the ghost, outermost first: a sign wears the mark it
+	// signs, then notation's own group.
+	Groups []vocab.Group
 	// StopFrom is the stop just before the ghost at its offset; the ghost
 	// holds stops StopFrom+1 through StopFrom+Stops: one between each two
 	// of its glyphs and one after the last. Stops are numbered from the
