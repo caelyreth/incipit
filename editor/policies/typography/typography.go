@@ -80,6 +80,9 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 	if from >= to {
 		return policy.Swallow
 	}
+	if dividerLine(flat[from:to]) {
+		return policy.Swallow
+	}
 
 	var changes []change
 	var stretch []styledRune
@@ -156,6 +159,20 @@ func lineEnd(text string, at int) int {
 		at++
 	}
 	return at
+}
+
+// dividerLine reports a line that may become a Markdown divider. Typography
+// leaves its dashes alone so the divider reaches the Structure phase intact.
+func dividerLine(text string) bool {
+	if len(text) < 2 {
+		return false
+	}
+	for _, r := range text {
+		if r != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 func itemsOf(cells []styledRune) []doc.Item {

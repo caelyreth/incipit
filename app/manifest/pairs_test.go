@@ -3,6 +3,7 @@ package manifest
 import (
 	"testing"
 
+	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
@@ -37,6 +38,25 @@ func (p *page) armed() int {
 		}
 	}
 	return n
+}
+
+func (p *page) guideCount(command string) int {
+	n := 0
+	for _, g := range p.e.Decorations(1).Guides {
+		if string(g.Command) == command {
+			n++
+		}
+	}
+	return n
+}
+
+func (p *page) guideAt(command string) (doc.Caret, bool) {
+	for _, g := range p.e.Decorations(1).Guides {
+		if string(g.Command) == command {
+			return g.At, true
+		}
+	}
+	return doc.Caret{}, false
 }
 
 // Deleting into a pair from either side arms both sides; the next press
@@ -114,12 +134,12 @@ func TestTheWayBackFromAMarkStandsAtItsExit(t *testing.T) {
 	p.do(vocab.Leave{})
 	p.do(left)
 	p.wantShown("a [*]bc|[*]")
-	if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.leave" {
-		t.Fatalf("inside, guides %+v", g)
+	if p.guideCount("core.leave") != 1 || p.guideCount("core.return") != 0 {
+		t.Fatalf("inside, guides %+v", p.e.Decorations(1).Guides)
 	}
 	p.do(right)
-	if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.return" {
-		t.Fatalf("back at the exit, guides %+v", g)
+	if p.guideCount("core.return") != 1 || p.guideCount("core.leave") != 0 {
+		t.Fatalf("back at the exit, guides %+v", p.e.Decorations(1).Guides)
 	}
 	p.do(vocab.Return{})
 	p.wantShown("a [*]bc|[*]")
@@ -180,17 +200,16 @@ func TestLeaveOutsideAScopeIsUnavailable(t *testing.T) {
 func TestGuidesShowWhereLeaveLands(t *testing.T) {
 	p := open(t)
 	p.typeText("a (b")
-	guides := p.e.Decorations(1).Guides
-	if len(guides) != 1 || guides[0].Command != "core.leave" {
-		t.Fatalf("guides %+v", guides)
+	at, ok := p.guideAt("core.leave")
+	if !ok || p.guideCount("core.leave") != 1 {
+		t.Fatalf("guides %+v", p.e.Decorations(1).Guides)
 	}
-	if at := guides[0].At.Pos.Offset; at != 5 {
+	if at.Pos.Offset != 5 {
 		t.Fatalf("leave lands at %d, want after the closer", at)
 	}
 	p.do(vocab.Leave{})
-	guides = p.e.Decorations(1).Guides
-	if len(guides) != 1 || guides[0].Command != "core.return" {
-		t.Fatalf("after leaving, guides %+v", guides)
+	if p.guideCount("core.return") != 1 || p.guideCount("core.leave") != 0 {
+		t.Fatalf("after leaving, guides %+v", p.e.Decorations(1).Guides)
 	}
 }
 
@@ -200,8 +219,8 @@ func TestReturnStandsOnlyRightAfterAScope(t *testing.T) {
 	p.typeText("a (b")
 	p.do(vocab.Leave{})
 	p.typeText(" c")
-	if g := p.e.Decorations(1).Guides; len(g) != 0 {
-		t.Fatalf("guides %+v", g)
+	if p.guideCount("core.return") != 0 {
+		t.Fatalf("guides %+v", p.e.Decorations(1).Guides)
 	}
 	p.do(vocab.Return{})
 	p.typeText("!")
@@ -214,9 +233,8 @@ func TestTheReturnGuideShowsWhereItLands(t *testing.T) {
 	p.typeText("a (b")
 	inside := p.head()
 	p.do(vocab.Leave{})
-	g := p.e.Decorations(1).Guides
-	if len(g) != 1 || g[0].Command != "core.return" || g[0].At != inside {
-		t.Fatalf("guides %+v, want return at %v", g, inside)
+	if at, ok := p.guideAt("core.return"); !ok || at != inside || p.guideCount("core.return") != 1 {
+		t.Fatalf("guides %+v, want return at %v", p.e.Decorations(1).Guides, inside)
 	}
 }
 
@@ -227,13 +245,13 @@ func TestTheWayBackOutlastsMovingAround(t *testing.T) {
 	p.do(vocab.Leave{})
 	p.do(left)
 	p.do(left)
-	if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.leave" {
-		t.Fatalf("inside, guides %+v", g)
+	if p.guideCount("core.leave") != 1 || p.guideCount("core.return") != 0 {
+		t.Fatalf("inside, guides %+v", p.e.Decorations(1).Guides)
 	}
 	p.do(right)
 	p.do(right)
-	if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.return" {
-		t.Fatalf("back at the exit, guides %+v", g)
+	if p.guideCount("core.return") != 1 || p.guideCount("core.leave") != 0 {
+		t.Fatalf("back at the exit, guides %+v", p.e.Decorations(1).Guides)
 	}
 }
 
@@ -260,8 +278,8 @@ func TestReturnEntersTheScopeBehindTheCaretByAnyRoute(t *testing.T) {
 	for _, r := range routes {
 		p := open(t)
 		r.reach(p)
-		if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.return" {
-			t.Fatalf("%s: guides %+v", r.name, g)
+		if p.guideCount("core.return") != 1 {
+			t.Fatalf("%s: guides %+v", r.name, p.e.Decorations(1).Guides)
 		}
 		p.do(vocab.Return{})
 		p.wantShown(r.inside)

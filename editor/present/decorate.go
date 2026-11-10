@@ -58,6 +58,9 @@ func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *pol
 	d := Decorations{Selection: view.Selection, Composition: view.Composition}
 	for _, dec := range prog.Decorations() {
 		for _, a := range view.Annotations.Of(dec.Kind) {
+			if a.Owner != dec.Owner {
+				continue
+			}
 			d.Highlights = append(d.Highlights, Highlight{Group: dec.Group, From: drawn(a.Anchor.From), To: drawn(a.Anchor.To)})
 		}
 	}

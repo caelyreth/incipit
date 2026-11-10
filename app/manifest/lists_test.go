@@ -95,7 +95,8 @@ func TestOutdentKeepsTheItemsAfterInOrder(t *testing.T) {
 
 func TestSelectAllDeletesAListWhole(t *testing.T) {
 	p := twoItems(t)
-	p.do(vocab.SelectScope{})
+	p.selectPage()
+	p.do(backspace)
 	p.do(backspace)
 	p.want("page(paragraph())")
 }

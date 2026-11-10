@@ -91,7 +91,16 @@ func remove(id doc.ID) vocab.Edit {
 		}
 		pn, _ := tx.Node(parent)
 		if !pn.Slot(slot).IsInline() {
-			return tx.Apply(doc.Remove{IDs: []doc.ID{id}})
+			if err := tx.Apply(doc.Remove{IDs: []doc.ID{id}}); err != nil {
+				return err
+			}
+			// The page keeps a block to type in when its last structure
+			// goes. Other slots keep their own empty form.
+			pn, _ = tx.Node(parent)
+			if pn.Kind() == vocab.Page && pn.Slot(slot).Len() == 0 {
+				return tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: 0, Nodes: []*doc.Node{vocab.NewParagraph()}})
+			}
+			return nil
 		}
 		off, ok := pn.Slot(slot).Content().NodeOffset(id)
 		if !ok {

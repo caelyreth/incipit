@@ -16,6 +16,14 @@ var (
 
 func extend(m vocab.Move) vocab.Move { m.Extend = true; return m }
 
+// selectPage grows SelectScope to the outermost scope, as the scopes
+// policy intends.
+func (p *page) selectPage() {
+	for range 8 {
+		p.do(vocab.SelectScope{})
+	}
+}
+
 // What is shown selected is what an edit of the selection takes: a
 // selection from before a block's marker holds the block's structure.
 
@@ -33,7 +41,7 @@ func TestTypingOverAllLeavesOneParagraph(t *testing.T) {
 	p.typeText("# Title")
 	p.do(vocab.Break{})
 	p.typeText("body")
-	p.do(vocab.SelectScope{})
+	p.selectPage()
 	p.typeText("x")
 	p.want("page(paragraph(x))")
 }

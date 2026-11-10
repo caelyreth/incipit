@@ -315,11 +315,12 @@ func (p *P) Annotation(kind vocab.AnnotationKind, check AnnotationCheck) {
 // Decorate shows annotations of a kind as a view decoration styled by
 // group, such as the armed highlight.
 func (p *P) Decorate(kind vocab.AnnotationKind, group vocab.Group) {
-	p.decorations = append(p.decorations, Decoration{Kind: kind, Group: group})
+	p.decorations = append(p.decorations, Decoration{Kind: kind, Group: group, Owner: p.policy.id})
 }
 
 // Decoration is a presentation contribution over annotations.
 type Decoration struct {
 	Kind  vocab.AnnotationKind
 	Group vocab.Group
+	Owner string
 }

@@ -85,6 +85,10 @@ func TestTypedSymbolsBecomeTypographic(t *testing.T) {
 	h = newHarness(t, nil)
 	h.typeText("a---b")
 	h.want("a—b")
+
+	h = newHarness(t, nil)
+	h.typeText("---")
+	h.want("---")
 }
 
 func TestTypedApostrophesAndQuotePlacement(t *testing.T) {

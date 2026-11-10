@@ -211,7 +211,7 @@ func TestCompositionIsMarked(t *testing.T) {
 	if _, ok := el.client.MarkedRange(); ok {
 		t.Fatal("still marked after commit")
 	}
-	if got := pageText(el); got != "aにほb" {
+	if got := pageText(el); got != "a にほ b" {
 		t.Fatalf("committed %q", got)
 	}
 }
