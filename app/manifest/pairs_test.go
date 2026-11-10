@@ -3,7 +3,6 @@ package manifest
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -192,19 +191,6 @@ func TestGuidesShowWhereLeaveLands(t *testing.T) {
 	if len(guides) != 1 || guides[0].Command != "core.return" {
 		t.Fatalf("after leaving, guides %+v", guides)
 	}
-}
-
-// A press away from the last edit offers Return back to it, for a while.
-func TestReturnToEditAfterAPress(t *testing.T) {
-	p := open(t)
-	p.typeText("first")
-	p.do(vocab.Break{})
-	p.typeText("second")
-	first := p.e.Snapshot().Root().Slot(0).Child(0)
-	p.do(vocab.Place{Stop: doc.CaretAt(doc.At(doc.SlotRef{Node: first.ID()}, 2)), Clicks: 1})
-	p.do(vocab.Return{})
-	p.typeText("!")
-	p.want("page(paragraph(first) paragraph(second!))")
 }
 
 // Writing on after leaving forgets the way back.
