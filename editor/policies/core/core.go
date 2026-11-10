@@ -42,10 +42,8 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 	// key bound to them falls through to its next command.
 	p.Handle("leave").On(vocab.On(vocab.IntentLeave)).Do(swallow)
 	p.Handle("return").On(vocab.On(vocab.IntentReturn)).Do(swallow)
-	// Selection scopes belong to the scopes policy; without it these are
-	// unavailable rather than falling back to a different selection.
-	p.Handle("select-scope").On(vocab.On(vocab.IntentSelectScope)).Do(swallow)
-	p.Handle("dismiss").On(vocab.On(vocab.IntentDismiss)).Do(swallow)
+	p.Handle("select-scope").On(vocab.On(vocab.IntentSelectScope)).Do(selectAll)
+	p.Handle("dismiss").On(vocab.On(vocab.IntentDismiss)).Do(dismiss)
 
 	p.Handle("format").On(vocab.On(vocab.IntentFormat)).Produces(markEdits...).Do(format)
 	p.Handle("nest").On(vocab.On(vocab.IntentNest)).Do(swallow)
@@ -624,6 +622,37 @@ func compose(c *policy.Ctx, m policy.Match) policy.Result {
 }
 
 // --- scope and structure --------------------------------------------------------------
+
+// selectAll selects the page's text, from its first stop to its last.
+func selectAll(c *policy.Ctx, m policy.Match) policy.Result {
+	// The scopes policy grows the selection from the innermost scope
+	// outward; core's fallback is the page when that policy is not enabled.
+	stops := c.Stops()
+	if stops == nil {
+		return policy.Swallow
+	}
+	first, ok1 := stops.Edge(vocab.Backward)
+	last, ok2 := stops.Edge(vocab.Forward)
+	if !ok1 || !ok2 {
+		return policy.Swallow
+	}
+	return policy.Select(doc.TextRange(first, last))
+}
+
+// dismiss collapses the selection to its head and ends a composition.
+// Escape outside every scope dismisses; Leave answers scopes separately.
+func dismiss(c *policy.Ctx, m policy.Match) policy.Result {
+	res := policy.Result{}
+	if c.Composition() != nil {
+		res.EndComposition = true
+	}
+	sel := c.Selection()
+	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
+		s := doc.Collapsed(c.Head())
+		res.Selection = &s
+	}
+	return res
+}
 
 // format toggles a mark over the selection, or the pending marks at a
 // collapsed caret.
