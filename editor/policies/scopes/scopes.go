@@ -98,6 +98,9 @@ func highlight(c *policy.Ctx, _ []doc.Record) policy.Result {
 		if level.Class != policy.LevelFact && level.Class != policy.LevelAnnotation {
 			continue
 		}
+		if level.Class == policy.LevelFact && !level.Provides(vocab.RoleLeavable) {
+			continue
+		}
 		anchor := policy.Anchor{From: level.Start, To: level.End}
 		if anchor.From.Pos == anchor.To.Pos || anchor.From.Pos.Ref() != anchor.To.Pos.Ref() {
 			continue

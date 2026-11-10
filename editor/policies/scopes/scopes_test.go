@@ -176,3 +176,15 @@ func TestTheActiveScopeIsHighlighted(t *testing.T) {
 		t.Fatalf("the scope stayed highlighted outside it: %d", p.painted(vocab.GroupScope))
 	}
 }
+
+// A delimiter that only names a possible block prefix or an empty open
+// run is not a textual scope yet.
+func TestAnUnopenedDelimiterIsNotAScope(t *testing.T) {
+	for _, input := range []string{"*", "**"} {
+		p := open(t)
+		p.typeText(input)
+		if got := p.painted(vocab.GroupScope); got != 0 {
+			t.Fatalf("%q painted %d scope highlights", input, got)
+		}
+	}
+}
