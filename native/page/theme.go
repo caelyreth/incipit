@@ -21,7 +21,7 @@ func Theme(t theme.Theme) present.Theme {
 		vocab.GroupText:     {Set: present.SetFont | present.SetColor, Font: present.FontBody, Color: pack(t.Prose.Text)},
 		vocab.GroupHeading:  {Set: present.SetFont | present.SetWeight | present.SetColor, Font: present.FontHeading, Weight: 700, Color: pack(t.Prose.Strong)},
 		vocab.GroupEmphasis: tinted(t.Families[theme.Unripe]),
-		vocab.GroupStrong:   bold(tinted(t.Families[theme.Remnant])),
+		vocab.GroupStrong:   bold(tinted(t.Families[theme.Regolith])),
 		vocab.GroupCodeMark: {Set: present.SetFont | present.SetBackground | present.SetSize, Font: present.FontMono,
 			Size: 0.9, Background: pack(t.Surface.Inset)},
 		vocab.GroupStrike:        {Set: present.SetStrike | present.SetColor, Strike: true, Color: pack(t.Text.Muted)},
