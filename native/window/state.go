@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/app/library"
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/app/storage"
@@ -51,6 +50,9 @@ type AppState struct {
 	nextKey storage.PageKey
 	// nextView numbers the editors' views.
 	nextView uint64
+	// chrome is the editor state the footer and formatting toolbar last
+	// showed.
+	chrome chromeKey
 }
 
 // NewAppState is a notebook held in memory alone, as tests use.
@@ -135,6 +137,10 @@ func (a *AppState) BindShell() {
 	a.Shell.Zen = func(on bool) {
 		a.setPresentation(appsettings.PresentationZen, on)
 	}
+	a.Shell.Strong = a.formatStrong
+	a.Shell.Emphasis = a.formatEmphasis
+	a.Shell.Code = a.formatCode
+	a.Shell.Strike = a.formatStrike
 	a.refreshShell()
 }
 
@@ -172,18 +178,18 @@ func (a *AppState) refreshToolbarState() {
 	if a == nil || a.Shell == nil {
 		return
 	}
-	// TODO(toolbar): publish formatting state from engine previews beside
-	// the writing modes; only typewriter and zen are shown now.
 	keys := a.Product.Keymap
+	formatting := shell.FormattingState{}
+	if session, _, ok := a.activeSession(); ok && session.element != nil {
+		formatting = formattingState(session.element.Editor)
+	}
 	a.Shell.Toolbar = shell.ToolbarState{
 		Typewriter:        a.Product.Presentation.Typewriter,
 		Zen:               a.Product.Presentation.Zen,
 		TypewriterEnabled: true,
 		ZenEnabled:        true,
-		Bindings: shell.ToolbarBindings{
-			Typewriter: bindingLabel(keys, keymap.Typewriter),
-			Zen:        bindingLabel(keys, keymap.Zen),
-		},
+		Formatting:        formatting,
+		Bindings:          toolbarBindings(keys),
 	}
 }
 
@@ -253,8 +259,7 @@ func (a *AppState) refreshShell() {
 	if id, ok := a.Workspace.Active(); ok {
 		a.Shell.ActivePage = fmt.Sprintf("%d", id)
 	}
-	// TODO(statistics): set Shell.Statistics from a statistics policy, or
-	// from the page and selection counts the shell footer already renders.
+	a.refreshEditorChrome()
 	a.refreshToolbarState()
 }
 
@@ -382,6 +387,7 @@ func (a *AppState) View(c *ui.Context) {
 		return
 	}
 	a.followAccent(c.Now())
+	a.refreshEditorChrome()
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion, a.Shell.WindowActive)
 	a.pressedCommands(c)

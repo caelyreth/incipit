@@ -33,6 +33,39 @@ func (s *State) formatBar(
 		Key: "writing-actions", Label: "Writing actions",
 		Groups: []components.ActionGroup{
 			{
+				Label: "Formatting",
+				Actions: []func(){
+					Icon("strong", "Strong", s.Toolbar.Bindings.Strong, components.IconBold,
+						s.Toolbar.Formatting.Strong.On, s.Toolbar.Formatting.Strong.Enabled,
+						func() {
+							if s.Strong != nil {
+								s.Strong()
+							}
+						}),
+					Icon("emphasis", "Emphasis", s.Toolbar.Bindings.Emphasis, components.IconItalic,
+						s.Toolbar.Formatting.Emphasis.On, s.Toolbar.Formatting.Emphasis.Enabled,
+						func() {
+							if s.Emphasis != nil {
+								s.Emphasis()
+							}
+						}),
+					Icon("code", "Code", s.Toolbar.Bindings.Code, components.IconCode,
+						s.Toolbar.Formatting.Code.On, s.Toolbar.Formatting.Code.Enabled,
+						func() {
+							if s.Code != nil {
+								s.Code()
+							}
+						}),
+					Icon("strike", "Strike", s.Toolbar.Bindings.Strike, components.IconStrike,
+						s.Toolbar.Formatting.Strike.On, s.Toolbar.Formatting.Strike.Enabled,
+						func() {
+							if s.Strike != nil {
+								s.Strike()
+							}
+						}),
+				},
+			},
+			{
 				Label: "Presentation",
 				Actions: []func(){
 					Icon("typewriter", "Typewriter", s.Toolbar.Bindings.Typewriter, components.IconTypewriter,

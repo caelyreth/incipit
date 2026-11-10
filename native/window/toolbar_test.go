@@ -6,6 +6,8 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -104,5 +106,68 @@ func TestToolbarModeTooltipsShowCommandBindings(t *testing.T) {
 		}
 		tester.Move(0, 0)
 		tester.Advance(700 * time.Millisecond)
+	}
+}
+
+func TestFooterCountsThePageAndTheSelection(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	for _, r := range "one two" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	if got, want := app.Shell.Statistics, "2 words  ·  7 characters"; got != want {
+		t.Fatalf("page statistics = %q, want %q", got, want)
+	}
+	el := app.pageElement()
+	ref, ok := vocab.FirstTextSlot(el.Editor.Engine.Snapshot().Root())
+	if !ok {
+		t.Fatal("the page has no text")
+	}
+	if !el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, 0))}, time.Now()) ||
+		!el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, 3)), Extend: true}, time.Now()) {
+		t.Fatal("could not select the first word")
+	}
+	app.refreshEditorChrome()
+	if got, want := app.Shell.Statistics,
+		"1 word of 2 words  ·  3 characters of 7 characters"; got != want {
+		t.Fatalf("selection statistics = %q, want %q", got, want)
+	}
+}
+
+func TestFormattingToolbarComesFromPreviews(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	for _, r := range "hello" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	el := app.pageElement()
+	ref, ok := vocab.FirstTextSlot(el.Editor.Engine.Snapshot().Root())
+	if !ok {
+		t.Fatal("the page has no text")
+	}
+	if !el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, 0))}, time.Now()) ||
+		!el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, 5)), Extend: true}, time.Now()) {
+		t.Fatal("could not select the word")
+	}
+	app.refreshEditorChrome()
+	strong := app.Shell.Toolbar.Formatting.Strong
+	if !strong.Enabled || strong.On {
+		t.Fatalf("unmarked selection has strong = %+v", strong)
+	}
+	app.Shell.Strong()
+	app.refreshEditorChrome()
+	strong = app.Shell.Toolbar.Formatting.Strong
+	if !strong.Enabled || !strong.On {
+		t.Fatalf("strong selection has strong = %+v", strong)
 	}
 }

@@ -32,6 +32,7 @@ func (a *AppState) pageElement() *page.Element {
 		return nil
 	}
 	session.element = el
+	a.refreshEditorChrome()
 	return el
 }
 
