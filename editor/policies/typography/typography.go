@@ -48,7 +48,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 			Kinds:   []doc.RecordKind{doc.RecordTextInserted},
 			Classes: []doc.OriginClass{doc.OriginTyping, doc.OriginIME},
 		}).
-		Extent(policy.TouchedLines).
+		Extent(policy.ChangedRanges).
 		Produces(textEdits...).
 		Do(func(c *policy.Ctx, site policy.Site) policy.Result {
 			return rewrite(c, site, opts)
@@ -75,11 +75,8 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 		return policy.Swallow
 	}
 	flat := in.Flat()
-	from := max(0, min(site.From, len(flat)))
-	to := from
-	for to < len(flat) && flat[to] != '\n' {
-		to++
-	}
+	from := lineStart(flat, site.From)
+	to := lineEnd(flat, max(site.From, site.To))
 	if from >= to {
 		return policy.Swallow
 	}
@@ -110,19 +107,24 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 		if lo >= hi {
 			return true
 		}
-		if len(stretch) > 0 && lo != stretchTo {
-			flush()
-		}
-		if len(stretch) == 0 {
-			stretchFrom = lo
-		}
 		for off, r := range item.Text {
-			if at+off < lo || at+off >= hi {
+			abs := at + off
+			if abs < lo || abs >= hi {
 				continue
 			}
+			if r == '\n' {
+				flush()
+				continue
+			}
+			if len(stretch) > 0 && abs != stretchTo {
+				flush()
+			}
+			if len(stretch) == 0 {
+				stretchFrom = abs
+			}
 			stretch = append(stretch, styledRune{r: r, marks: item.Marks})
+			stretchTo = abs + utf8.RuneLen(r)
 		}
-		stretchTo = hi
 		return true
 	})
 	flush()
@@ -138,6 +140,22 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 		}))
 	}
 	return policy.Do(edits...)
+}
+
+func lineStart(text string, at int) int {
+	at = max(0, min(at, len(text)))
+	for at > 0 && text[at-1] != '\n' {
+		at--
+	}
+	return at
+}
+
+func lineEnd(text string, at int) int {
+	at = max(0, min(at, len(text)))
+	for at < len(text) && text[at] != '\n' {
+		at++
+	}
+	return at
 }
 
 func itemsOf(cells []styledRune) []doc.Item {

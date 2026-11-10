@@ -149,3 +149,40 @@ func TestCharactersTriggerIsTypingAndIMEOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestRewriteStaysInsideTheLineAroundInlineNodes(t *testing.T) {
+	marks := doc.NewInterner()
+	empty := marks.Empty()
+	formula := func(id doc.ID) *doc.Node {
+		return doc.NewNodeWithID(id, vocab.Formula, doc.Attrs{}, "", doc.InlineSlot(doc.TextItem("x", empty)))
+	}
+	paragraph := doc.NewNodeWithID(2, vocab.Paragraph, doc.Attrs{}, "a", doc.InlineSlot(
+		doc.TextItem("a", empty),
+		doc.NodeItem(formula(10)),
+		doc.NodeItem(formula(11)),
+		doc.NodeItem(formula(12)),
+		doc.TextItem("b", empty),
+	))
+	page := doc.NewNodeWithID(1, vocab.Page, doc.Attrs{}, "", doc.BlockSlot(paragraph))
+	snap, err := doc.NewSnapshot(vocab.Schema(), marks, page, 99)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prog, err := policy.Compile(policy.Manifest{
+		Enabled: []*policy.Policy{core.Policy, Policy},
+		Strict:  true,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := engine.New(snap, prog, engine.Options{Trace: true})
+	e.OpenView(1)
+	h := &harness{t: t, e: e, now: time.Unix(1000, 0)}
+	h.do(vocab.Input{Intent: vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Forward}})
+	h.typeText("...")
+	n, _ := e.Snapshot().Node(2)
+	in := n.Slot(0).Content()
+	if got := in.TextRange(0, in.Len()); got != "ab…" {
+		t.Fatalf("text = %q, want %q", got, "ab…")
+	}
+}
