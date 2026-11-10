@@ -12,7 +12,6 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/notation"
 	"github.com/caelyreth/neverland/editor/policies/pairs"
 	"github.com/caelyreth/neverland/editor/policy"
-	"github.com/caelyreth/neverland/editor/present"
 )
 
 // Manifest lists the product's policies.
@@ -23,16 +22,6 @@ import (
 var Manifest = policy.Manifest{
 	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, lists.Policy,
 		navigation.Policy, history.Policy, guides.Policy},
-}
-
-// PresentOptions are a view's presentation inputs as settings values
-// choose them: the notation policy's ghost layout.
-func PresentOptions(values policy.Values) present.Options {
-	var o present.Options
-	if notation.LayoutOf(values) == notation.LayoutOverlay {
-		o.Ghosts = present.GhostOverlay
-	}
-	return o
 }
 
 // Compile builds the program for settings values.

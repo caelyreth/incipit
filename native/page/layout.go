@@ -380,11 +380,10 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 			}
 			add(seg{kind: segBreak, from: it.From, to: it.To, text: "\n"}, span("\n", style, m.Body), style)
 		case present.GhostItem:
-			// TODO(ghosts): overlay ghosts draw over the text without taking
-			// room; until they do, they take room like room ghosts, so their
-			// stops stay where the caret can be seen.
 			// A ghost takes its room in the line and is drawn on its own,
 			// in its group's ink.
+			// TODO(ghosts): a setting to draw ghosts over the text, without
+			// taking room, once the page can keep their stops visible.
 			sp := span(string(it.Spelling), style, m.Body)
 			face := sp
 			face.Color = ui.Color{}

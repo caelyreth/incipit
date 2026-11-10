@@ -3,7 +3,6 @@ package window
 import (
 	"math/rand/v2"
 
-	"github.com/caelyreth/neverland/app/manifest"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -60,14 +59,13 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 	}
 	a.nextView++
 	ed := page.NewEditor(engine.New(snap, a.Product.Program, engine.Options{}), a.nextView)
-	ed.Engine.SetPresentOptions(ed.View, manifest.PresentOptions(a.Product.Policy))
 	el := page.NewElement(ed)
 	el.Label = "Page"
 	return el, nil
 }
 
 // applyPolicy gives every open page the program the policy values compile
-// to, and the view options they choose.
+// to.
 func (a *AppState) applyPolicy() {
 	for _, session := range a.sessions {
 		if session.element == nil {
@@ -75,7 +73,6 @@ func (a *AppState) applyPolicy() {
 		}
 		ed := session.element.Editor
 		ed.Engine.SetProgram(a.Product.Program)
-		ed.Engine.SetPresentOptions(ed.View, manifest.PresentOptions(a.Product.Policy))
 	}
 	if a.mainWindow != nil && !a.mainWindow.IsDestroyed() {
 		a.mainWindow.Invalidate()

@@ -17,13 +17,11 @@ type stopModel struct {
 	store *policy.Store
 	r     doc.Reader
 	view  *policy.View
-	opts  present.Options
 }
 
 // stopsFor returns the stop model builder of a view.
 func (e *Engine) stopsFor(viewID uint64) policy.StopsFunc {
 	pr := e.presenter(viewID)
-	opts := e.presentOptions(viewID)
 	prog, store := e.prog, e.store
 	return func(r doc.Reader, view *policy.View) policy.Stops {
 		p := pr
@@ -32,7 +30,7 @@ func (e *Engine) stopsFor(viewID uint64) policy.StopsFunc {
 			// presentations, memoised by node pointer, must not see it.
 			p = present.NewPresenter()
 		}
-		return &stopModel{pr: p, prog: prog, store: store, r: r, view: view, opts: opts}
+		return &stopModel{pr: p, prog: prog, store: store, r: r, view: view}
 	}
 }
 
@@ -51,7 +49,7 @@ func (e *Engine) Stops(viewID uint64) (policy.Stops, bool) {
 
 // unit presents unit i as the view shows it.
 func (m *stopModel) unit(i int) *present.Presentation {
-	return m.pr.Unit(m.prog, m.store, m.r, m.view, m.opts, i)
+	return m.pr.Unit(m.prog, m.store, m.r, m.view, i)
 }
 
 // flowStops are a unit's stops that ordinary motion reaches from outside

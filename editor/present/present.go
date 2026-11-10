@@ -18,21 +18,6 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
-// GhostLayout is how ghosts are laid out.
-type GhostLayout uint8
-
-const (
-	// GhostRoom takes space; appearing and disappearing animates.
-	GhostRoom GhostLayout = iota
-	// GhostOverlay is drawn without reflowing the text.
-	GhostOverlay
-)
-
-// Options are the view inputs presentation reads.
-type Options struct {
-	Ghosts GhostLayout
-}
-
 // Context is a unit's container context: what the quotes and lists
 // around it add.
 type Context struct {
@@ -73,7 +58,6 @@ type Item struct {
 	Groups []vocab.Group
 	// Ghost fields.
 	Spelling vocab.Spelling
-	Layout   GhostLayout
 	StopFrom int
 	StopTo   int
 	// Box fields: the inline node, and the surface presenting its slot
@@ -183,7 +167,6 @@ type unitKey struct {
 	node    *doc.Node
 	context string
 	program uint64
-	ghosts  GhostLayout
 	open    string
 	// facts is what the facts of the unit's text depend on besides it.
 	facts string
@@ -304,16 +287,16 @@ func (pr *Presenter) UnitAt(r doc.Reader, pos doc.Pos) (int, bool) {
 }
 
 // Unit presents unit i as the view sees it.
-func (pr *Presenter) Unit(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, i int) *Presentation {
+func (pr *Presenter) Unit(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, i int) *Presentation {
 	units := pr.Units(r)
 	if i < 0 || i >= len(units) {
 		return nil
 	}
-	return pr.present(prog, store, r, view, opts, units[i])
+	return pr.present(prog, store, r, view, units[i])
 }
 
 // Present returns presentations for units, memoised.
-func (pr *Presenter) Present(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, ids []doc.ID) []*Presentation {
+func (pr *Presenter) Present(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, ids []doc.ID) []*Presentation {
 	refs := map[doc.ID]UnitRef{}
 	for _, u := range pr.Units(r) {
 		refs[u.ID] = u
@@ -325,14 +308,14 @@ func (pr *Presenter) Present(prog *policy.Program, store *policy.Store, r doc.Re
 			out = append(out, nil)
 			continue
 		}
-		out = append(out, pr.present(prog, store, r, view, opts, u))
+		out = append(out, pr.present(prog, store, r, view, u))
 	}
 	return out
 }
 
 // keyOf is a unit's key apart from the view's selection.
-func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef, opts Options) unitKey {
-	key := unitKey{node: u.Node, context: fmt.Sprintf("%+v", u.Context), program: prog.Version(), ghosts: opts.Ghosts}
+func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef) unitKey {
+	key := unitKey{node: u.Node, context: fmt.Sprintf("%+v", u.Context), program: prog.Version()}
 	if u.Marker() != nil {
 		key.context += fmt.Sprintf("%+v", *u.Context.Marker)
 	}
@@ -342,8 +325,8 @@ func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef, opts Options) unitKe
 	return key
 }
 
-func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, u UnitRef) *Presentation {
-	key := pr.keyOf(prog, u, opts)
+func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, u UnitRef) *Presentation {
+	key := pr.keyOf(prog, u)
 	var cards []doc.ID
 	if view != nil {
 		cards = openCards(r, u.Node, view.Selection)
@@ -360,7 +343,7 @@ func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Re
 		return p
 	}
 	pr.mu.Unlock()
-	p := build(prog, store, r, view, opts, u, key)
+	p := build(prog, store, r, view, u, key)
 	pr.mu.Lock()
 	pr.memo[u.ID] = p
 	if len(pr.memo) > 1<<16 {
@@ -447,7 +430,7 @@ func unitGroup(n *doc.Node) vocab.Group {
 	return vocab.GroupText
 }
 
-func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, u UnitRef, key unitKey) *Presentation {
+func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, u UnitRef, key unitKey) *Presentation {
 	n := u.Node
 	p := &Presentation{Unit: u.ID, Kind: n.Kind(), Node: n, Context: u.Context, Group: unitGroup(n), Gap: u.Gap, key: key}
 	if u.Context.Quotes > 0 && p.Group == vocab.GroupText {
@@ -472,13 +455,13 @@ func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy
 	if !ok || ref.Node != n.ID() {
 		return p
 	}
-	flowOf(prog, store, r, view, opts, p, ref, p.Group, false, 0)
+	flowOf(prog, store, r, view, p, ref, p.Group, false, 0)
 	return p
 }
 
 // flowOf presents an inline slot as a surface, appending its stops; boxes
 // whose slot holds a selection end get cards after it.
-func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, opts Options, p *Presentation,
+func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, p *Presentation,
 	ref doc.SlotRef, base vocab.Group, card bool, anchor doc.ID) {
 	owner, _ := r.Node(ref.Node)
 	slot := owner.Slot(ref.Slot)
@@ -543,7 +526,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 		for gi < len(ghosts) && ghosts[gi].At <= at {
 			g := ghosts[gi]
 			items = append(items, Item{Kind: GhostItem, From: g.At, To: g.At, Spelling: g.Spelling,
-				Groups: append([]vocab.Group{base}, g.Groups...), Layout: opts.Ghosts, StopFrom: g.StopFrom, StopTo: g.StopFrom + g.Stops})
+				Groups: append([]vocab.Group{base}, g.Groups...), StopFrom: g.StopFrom, StopTo: g.StopFrom + g.Stops})
 			ghostStop := func(s int) Stop {
 				return Stop{Caret: doc.Caret{Pos: doc.At(ref, g.At), Stop: s}, Surface: index, Class: StopGhost, Offset: g.At}
 			}
@@ -576,7 +559,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 				// Stops are ordered by position: the card's sit inside the
 				// box, between its two flow stops.
 				flush()
-				flowOf(prog, store, r, view, opts, p, src, vocab.GroupFormulaSource, true, it.Node.ID())
+				flowOf(prog, store, r, view, p, src, vocab.GroupFormulaSource, true, it.Node.ID())
 			}
 			stop(at + 1)
 			return true

@@ -79,7 +79,6 @@ type Engine struct {
 	at time.Time
 	// presenters and present options per view.
 	presenters map[uint64]*present.Presenter
-	presentOpt map[uint64]present.Options
 }
 
 // New returns an engine over a snapshot, running a program.
@@ -87,7 +86,7 @@ func New(snap *doc.Snapshot, prog *policy.Program, opts Options) *Engine {
 	return &Engine{
 		opts: opts, prog: prog, store: policy.NewStore(), snap: snap,
 		views: map[uint64]*policy.View{}, history: doc.NewHistory(opts.HistoryBudget),
-		presenters: map[uint64]*present.Presenter{}, presentOpt: map[uint64]present.Options{},
+		presenters: map[uint64]*present.Presenter{},
 	}
 }
 
@@ -149,7 +148,6 @@ func (e *Engine) CloseView(id uint64) {
 	defer e.mu.Unlock()
 	delete(e.views, id)
 	delete(e.presenters, id)
-	delete(e.presentOpt, id)
 }
 
 // SetProgram swaps the program between transactions. Annotations whose

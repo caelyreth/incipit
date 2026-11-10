@@ -6,7 +6,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/caelyreth/neverland/app/manifest"
 	appshowcase "github.com/caelyreth/neverland/app/showcase"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -47,7 +46,6 @@ type Stage struct {
 
 type stageState struct {
 	player  *appshowcase.Player
-	values  policy.Values
 	element *page.Element
 	at      motion.Rect
 	placed  bool
@@ -66,7 +64,6 @@ func (s Stage) View(c *ui.Context) {
 		Border(1, s.Theme.Border.Variant).Clip()
 	state := *ui.Local(box, stageKey{}, func() *stageState { return &stageState{} })
 	now := c.Now()
-	state.values = s.Values
 	if state.player == nil {
 		state.player = appshowcase.NewPlayer(s.Script, s.Policy, s.Values, state.open, now)
 	} else {
@@ -81,7 +78,6 @@ func (s Stage) View(c *ui.Context) {
 // and motion from the last one has no meaning for it.
 func (st *stageState) open(e *engine.Engine) appshowcase.Page {
 	ed := page.NewEditor(e, appshowcase.View)
-	e.SetPresentOptions(appshowcase.View, manifest.PresentOptions(st.values))
 	st.element = page.NewElement(ed)
 	st.placed = false
 	return ed

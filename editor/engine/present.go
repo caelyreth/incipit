@@ -16,17 +16,6 @@ func (e *Engine) presenter(view uint64) *present.Presenter {
 	return p
 }
 
-// presentOptions are a view's presentation inputs. The caller holds mu.
-func (e *Engine) presentOptions(view uint64) present.Options { return e.presentOpt[view] }
-
-// SetPresentOptions sets a view's presentation inputs: reveal mode and
-// ghost layout.
-func (e *Engine) SetPresentOptions(view uint64, o present.Options) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.presentOpt[view] = o
-}
-
 // Units lists the page's presentation units in order.
 func (e *Engine) Units(view uint64) []present.UnitRef {
 	e.mu.Lock()
@@ -43,7 +32,7 @@ func (e *Engine) Present(view uint64, ids []doc.ID) []*present.Presentation {
 	if !ok {
 		return make([]*present.Presentation, len(ids))
 	}
-	return e.presenter(view).Present(e.prog, e.store, e.snap, v, e.presentOpt[view], ids)
+	return e.presenter(view).Present(e.prog, e.store, e.snap, v, ids)
 }
 
 // Decorations returns a view's decorations.
@@ -95,7 +84,7 @@ func (e *Engine) covers(viewID uint64, v *policy.View) []present.Cover {
 	for i, u := range units {
 		ids[i] = u.ID
 	}
-	pres := pr.Present(e.prog, e.store, e.snap, v, e.presentOpt[viewID], ids)
+	pres := pr.Present(e.prog, e.store, e.snap, v, ids)
 	if sel.Kind == doc.SelectNode {
 		for _, p := range pres {
 			if p != nil && p.Unit == sel.Node {

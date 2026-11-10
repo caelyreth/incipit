@@ -38,49 +38,29 @@ import (
 // ID is the policy's id.
 const ID = "notation"
 
-// Reveal modes and ghost layouts, as option values.
+// Reveal modes, as option values.
 const (
 	RevealShown  = "shown"
 	RevealHidden = "hidden"
-
-	LayoutRoom    = "room"
-	LayoutOverlay = "overlay"
 )
 
 // Options.
 var (
-	// Reveal is the default reveal mode of a view (§13.6).
+	// Reveal is whether marks' signs are drawn (§13.6); it changes what is
+	// drawn, never how marks edit.
 	Reveal = policy.Enum("reveal", RevealShown, []policy.Choice[string]{
 		{Value: RevealShown, Label: "settings.notation.reveal.shown"},
 		{Value: RevealHidden, Label: "settings.notation.reveal.hidden"},
 	}, policy.Label("settings.notation.reveal"), policy.Description("settings.notation.reveal.description"))
-	// Layout is the default ghost layout of a view.
-	// TODO(overlay): the renderer lays overlay ghosts out as room ghosts
-	// until it draws them over the text.
-	Layout = policy.Enum("layout", LayoutRoom, []policy.Choice[string]{
-		{Value: LayoutRoom, Label: "settings.notation.layout.room"},
-		{Value: LayoutOverlay, Label: "settings.notation.layout.overlay"},
-	}, policy.Label("settings.notation.layout"), policy.Description("settings.notation.layout.description"))
 	// Underscores spells emphasis and strong with underscores.
 	Underscores = policy.Bool("underscores", false, policy.Label("settings.notation.underscores"), policy.Description("settings.notation.underscores.description"))
 )
-
-// LayoutOf returns the ghost layout values chose, for the host's view
-// options; how ghosts are drawn is the host's, what is projected the
-// policy's.
-func LayoutOf(values policy.Values) string {
-	if v, ok := values[ID+"."+"layout"].(string); ok {
-		return v
-	}
-	return LayoutRoom
-}
 
 // The records the policy's edits produce.
 var edits = []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks, doc.RecordNodeChanged}
 
 // Policy is the notation policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	_ = policy.Get(p, Layout)
 	sp := spelling{Underscores: policy.Get(p, Underscores), Hidden: policy.Get(p, Reveal) == RevealHidden}
 
 	k := kinds{
