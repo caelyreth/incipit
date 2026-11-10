@@ -441,6 +441,13 @@ func (w *Workspace) SetActiveScroll(scroll ScrollPosition) {
 	}
 }
 
+// SetScroll records one page's viewport position, including a parked page.
+func (w *Workspace) SetScroll(id PageID, scroll ScrollPosition) {
+	if w != nil && w.validPage(id) {
+		w.pages[id].Scroll = scroll
+	}
+}
+
 func (w *Workspace) closeNeighbor(index int) (PageID, bool) {
 	if index+1 < len(w.tabs) {
 		return w.tabs[index+1], true

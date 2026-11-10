@@ -58,6 +58,38 @@ func TestCaretFollowsTyping(t *testing.T) {
 	}
 }
 
+// A restored offset waits for the viewport it was saved at, then stays
+// put when the page opens instead of revealing the caret.
+func TestRestoredScrollWaitsForTheViewport(t *testing.T) {
+	el := newElement(t)
+	for i := range 40 {
+		typeText(el, "line")
+		el.Editor.Do(vocab.Break{}, time.Unix(int64(1000+i), 0))
+	}
+	el.viewport = ui.Rect{W: 900, H: 200}
+	pl := el.relayout()
+	if _, high := el.scrollRange(pl); high < 80 {
+		t.Fatalf("page scrolls only to %v", high)
+	}
+
+	el.viewport = ui.Rect{}
+	el.RestoreScroll(80)
+	el.relayout()
+	if el.ScrollY() != 80 || el.restoreScroll == nil {
+		t.Fatalf("scroll before layout = %v, pending %v", el.ScrollY(), el.restoreScroll != nil)
+	}
+
+	el.viewport = ui.Rect{W: 900, H: 200}
+	pl = el.relayout()
+	if el.ScrollY() != 80 || el.restoreScroll != nil {
+		t.Fatalf("restored scroll = %v, pending %v", el.ScrollY(), el.restoreScroll != nil)
+	}
+	el.follow(pl, time.Unix(2000, 0))
+	if el.ScrollY() != 80 {
+		t.Fatalf("opening revealed the caret: scroll = %v, want 80", el.ScrollY())
+	}
+}
+
 func TestHitPlacesCaret(t *testing.T) {
 	el := newElement(t)
 	typeText(el, "hello world")

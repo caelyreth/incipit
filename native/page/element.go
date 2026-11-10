@@ -36,13 +36,14 @@ type Element struct {
 	client *client
 	// scroll is the page's offset, which glide moves and a scroll by hand
 	// sets; overscroll is its elastic pull past an edge.
-	scroll       float32
-	glide        motion.Glide
-	overscroll   scrollfx.Elastic
-	viewport     ui.Rect
-	column       float32 // the column's left, in the element
-	gesture      *gesture
-	focusPending bool
+	scroll        float32
+	restoreScroll *float32
+	glide         motion.Glide
+	overscroll    scrollfx.Elastic
+	viewport      ui.Rect
+	column        float32 // the column's left, in the element
+	gesture       *gesture
+	focusPending  bool
 	// held is until when a scroll by hand holds the page; typewriter and
 	// viewH are the mode and the height last followed.
 	held       time.Time
@@ -100,7 +101,37 @@ func (el *Element) relayout() *pageLayout {
 	}
 	ed.SetStyle(el.Theme.Surface, Theme(el.Theme), m)
 	el.column = max((w-m.Width)/2, 0)
-	return ed.Relayout()
+	pl := ed.Relayout()
+	el.applyRestoredScroll(pl)
+	return pl
+}
+
+// ScrollY is the page's parked scroll offset, without the elastic pull
+// of an overscroll in progress.
+func (el *Element) ScrollY() float32 {
+	if el.restoreScroll != nil {
+		return *el.restoreScroll
+	}
+	return el.scroll
+}
+
+// RestoreScroll places the page at a saved offset after its next layout.
+// Applying it after layout clamps it to the page's current extent.
+func (el *Element) RestoreScroll(y float32) { el.restoreScroll = &y }
+
+func (el *Element) applyRestoredScroll(pl *pageLayout) {
+	if el.restoreScroll == nil || el.viewport.W <= 0 || el.viewport.H <= 0 {
+		return
+	}
+	low, high := el.scrollRange(pl)
+	el.scroll = max(low, min(*el.restoreScroll, high))
+	el.restoreScroll = nil
+	el.glide.Cancel()
+	el.overscroll.Reset()
+	// The restored offset was saved at this viewport height. Mark the
+	// height as followed so the next view does not mistake opening the
+	// page for a resize and reveal the caret over the saved position.
+	el.typewriter, el.viewH = el.Typewriter, el.viewport.H
 }
 
 // Still lays the page out at width as a showcase stage draws a story,

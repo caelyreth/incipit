@@ -132,6 +132,11 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 	return true
 }
 
+// CancelReveal clears the reveal requested by a restored selection, so a
+// page can reopen at its saved scroll position instead of jumping to the
+// caret.
+func (ed *Editor) CancelReveal() { ed.reveal = false }
+
 // schedule wakes the editor at the earliest deadline.
 func (ed *Editor) schedule(deadlines []time.Time) {
 	var first time.Time

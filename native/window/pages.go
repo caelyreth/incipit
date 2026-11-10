@@ -73,7 +73,11 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 	}
 	el := page.NewElement(ed)
 	el.Label = "Page"
+	if page, ok := a.Workspace.Page(session.page); ok {
+		el.RestoreScroll(page.Scroll.Y)
+	}
 	a.restoreView(session, el)
+	ed.CancelReveal()
 	return el, nil
 }
 

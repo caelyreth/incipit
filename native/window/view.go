@@ -22,6 +22,7 @@ func (a *AppState) captureViews() {
 		if view, ok := savedView(session.element.Editor.Selection()); ok {
 			a.Workspace.SetView(id, view)
 		}
+		a.Workspace.SetScroll(id, workspace.ScrollPosition{Y: session.element.ScrollY()})
 	}
 }
 
