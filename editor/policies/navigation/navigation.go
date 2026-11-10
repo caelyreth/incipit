@@ -4,8 +4,8 @@
 // there: Return mirrors Leave, so after Leave it goes back in, and after a
 // closer typed by hand it goes in all the same.
 //
-// TODO(navigation): the option of which roles are leavable once roles
-// other than Leavable can be.
+// TODO(navigation): declare the "which roles are leavable" option and match
+// against it instead of hard-coding RoleLeavable.
 package navigation
 
 import (

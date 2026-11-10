@@ -58,8 +58,9 @@ func bold(s present.Style) present.Style {
 func family(r present.FontRole) string {
 	switch r {
 	case present.FontMono, present.FontMath:
-		// TODO(formulas): closed formulas typeset in the math font through
-		// native/formula once the formula policy presents them as math.
+		// TODO(formulas): a closed formula draws its source in mono. The
+		// renderer must typeset it through native/formula; no policy presents
+		// a formula as math.
 		return theme.MonoFontFamily
 	}
 	return theme.ProseFontFamily

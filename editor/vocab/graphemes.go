@@ -9,8 +9,10 @@ import (
 // a base followed by extenders (combining marks, variation selectors,
 // emoji modifiers, ZWJ sequences), CR LF, and regional indicator pairs.
 //
-// TODO(words): replace with the full UAX #29 tables the words policy
-// brings (ICU-tailored), keeping these signatures.
+// TODO(graphemes): replace this approximation with the full UAX #29
+// extended grapheme tables, keeping these signatures. Word, sentence and
+// paragraph boundaries belong to the words policy; grapheme boundaries
+// remain core's.
 
 func isExtender(r rune) bool {
 	switch {

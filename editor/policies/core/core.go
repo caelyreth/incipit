@@ -639,8 +639,7 @@ func selectAll(c *policy.Ctx, m policy.Match) policy.Result {
 }
 
 // dismiss collapses the selection to its head and ends a composition.
-// It is also Leave where no scope answers it: Escape outside every scope
-// dismisses.
+// Escape outside every scope dismisses; Leave answers scopes separately.
 func dismiss(c *policy.Ctx, m policy.Match) policy.Result {
 	res := policy.Result{}
 	if c.Composition() != nil {

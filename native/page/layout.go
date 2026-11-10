@@ -133,6 +133,9 @@ type unitLayout struct {
 	gaps   []stopAt
 }
 
+// TODO(paint): layout and paint are one layer here. Colours are baked into
+// shaped spans and decorations, and the key carries a theme id, so a theme or
+// accent change reshapes every unit. Separate paint from layout (§13.7).
 type layoutKey struct {
 	pres    *present.Presentation
 	metrics Metrics

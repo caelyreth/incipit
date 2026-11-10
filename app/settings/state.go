@@ -16,6 +16,9 @@ var (
 )
 
 // State is every application setting.
+//
+// TODO(persistence): nothing here is saved. Presentation, appearance, keymap
+// and policy values reset when the app restarts.
 type State struct {
 	Presentation PresentationState
 	Appearance   AppearanceSettings

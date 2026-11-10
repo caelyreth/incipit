@@ -40,7 +40,7 @@ func Before(a, b *Policy, phase doc.Phase) Order { return Order{a: a, b: b, phas
 type Manifest struct {
 	Enabled []*Policy
 	Resolve []Order
-	// Strict makes undeclared outputs errors, as in debug and test builds.
+	// Strict makes undeclared outputs errors. Tests set it; a host may.
 	Strict bool
 }
 
@@ -296,10 +296,10 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		}
 		for _, d := range p.annotations {
 			if prev, ok := prog.annotation[d.kind.ID()]; ok && prev.check != nil && d.check != nil {
-				// Core kinds may be created by several policies; each owns
-				// its own, and re-checks its own through its declaration.
-				// FIXME(policy): key checks by (kind, owner) when two
-				// policies both declare checks for one core kind.
+				// Core kinds may be declared by several policies, but only
+				// one check is kept per kind. FIXME(policy): key checks by
+				// (kind, owner); this branch drops a second check, and the
+				// assignment below can replace a nil one (§11.7).
 				continue
 			}
 			prog.annotation[d.kind.ID()] = d

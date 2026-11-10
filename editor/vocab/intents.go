@@ -76,7 +76,8 @@ const (
 	ByWord
 	BySentence
 	ByParagraph
-	// ToSlotEdge goes to the start or end of the caret's slot.
+	// ToSlotEdge goes to the caret's line edge, or the slot's edge where the
+	// slot keeps no lines; already at a line edge, it goes to the slot's edge.
 	ToSlotEdge
 	// ToPageEdge goes to the start or end of the page.
 	ToPageEdge

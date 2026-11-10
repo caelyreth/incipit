@@ -101,8 +101,8 @@ func validInline(schema *Schema, marks *Interner, slot SlotSpec, in *Inline) err
 	return nil
 }
 
-// Validate checks every node of the snapshot, as debug builds and tests
-// do after each transaction; Commit checks only the nodes it touched.
+// Validate checks every node of the snapshot; Commit checks only the nodes
+// it touched. Tests call this after transactions.
 func (s *Snapshot) Validate() error {
 	var walk func(n *Node) error
 	walk = func(n *Node) error {

@@ -144,8 +144,9 @@ type kinds struct {
 	markers *policy.FactKind[markerGhost]
 	// headings are a heading's marker again, which a typed "#" reshapes;
 	// other markers take no glyph yet.
-	// TODO(markers): an item's marker takes its style and task box through
-	// typed glyphs.
+	// TODO(markers, tasks): an item's marker takes no typed glyphs, so its
+	// style and task box cannot be edited there; no fact or node implements
+	// vocab.Box.
 	headings *policy.FactKind[markerGhost]
 	// spans are mark runs between their signs, by mark kind: pairs, and
 	// scopes Leave exits past the closing sign. signs are the signs again

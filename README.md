@@ -3,14 +3,23 @@
 Neverland is a writing workspace built with Go and MyGo.
 
 The application shell stands on its own: windows, tabs, the library, the
-settings window, the command palette and the notebook on disk. The page
-itself is a placeholder while the editor engine is rebuilt; a page has a
-title and nothing else yet.
+settings window, the command palette and the notebook on disk. The rebuilt
+page editor runs behind it with core text editing, Markdown notation, pairs,
+lists, navigation, history and guides. Tables, figures, formula typesetting,
+typography, CJK refinement, word boundaries and accessibility are still being
+built.
 
 ## Layout
 
 ```text
 cmd/neverland        executable composition
+editor/doc           document tree, operations, transactions and history
+editor/vocab         kinds, intents, roles and semantic helpers
+editor/policy        policy framework, facts, annotations and dispatch
+editor/policies      the product's behavior policies
+editor/present       presentation units, stop maps and decorations
+editor/engine        per-page intent processing and publication
+editor/store         node-row encoding and pointer-diff saves
 app/keymap           shell commands, chords and the keymap
 app/library          groups, chapters, sheets and the trash
 app/settings         settings state and the changes it takes
@@ -55,4 +64,5 @@ exact 1.27.3 patch release required by MyGo.
 `internal/wordseg` uses ICU-tailored Unicode word rules. Chinese and Japanese
 runs use an embedded ICU dictionary, while Korean and Latin text use the same
 UAX #29-compatible platform boundaries. Thai, Lao, Khmer and Burmese fall back
-to grapheme boundaries.
+to grapheme boundaries. The editor does not use it for word motion yet: core's
+word fallback is rune-class based.

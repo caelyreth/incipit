@@ -426,8 +426,8 @@ func (e *evaluator) eval(level int, rel vocab.Relation) bool {
 }
 
 // charClass classifies the grapheme before or after pos.
-// TODO(words): use grapheme clusters, not runes, once the words policy
-// provides boundaries through the vocabulary.
+// TODO(graphemes): classify the whole grapheme cluster, not its edge rune;
+// the boundary helpers in vocab are the source.
 func (e *evaluator) charClass(pos doc.Pos, before bool) vocab.CharClass {
 	in, ok := e.c.Inline(pos.Ref())
 	if !ok {

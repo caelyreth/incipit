@@ -8,9 +8,10 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The page translates input into intents and nothing else: every key and
-// menu command is an intent in one table, sent to the engine with the host
-// answers it carries (§9.1). What an intent does is the engine's.
+// The page translates input into intents, sending each to the engine with
+// the host answers it carries (§9.1). What an intent does is the engine's.
+// Copy is the one edit-menu command that changes nothing: the page writes
+// the engine's copy to the clipboard instead.
 
 // Keys come through the keymap: a chord names a command, and the program
 // resolves the command to its intent, so a disabled policy's keys do

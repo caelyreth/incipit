@@ -185,6 +185,8 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 		if t == "" {
 			return
 		}
+		// TODO(tasks): recognise a task marker ("- [ ] ", "- [x] ") and
+		// carry it as the item's task state; no analyzer or rule does yet.
 		switch {
 		case cfg.Headings && t[0] == '#':
 			n := 0

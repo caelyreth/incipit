@@ -148,13 +148,14 @@ func unitContext(u *Unit) string {
 	return b.String()
 }
 
-// lineIdentity is a line's content: its text and its mark runs.
+// lineIdentity is a line's content: its text, mark runs and inline-node
+// identities.
 func lineIdentity(in *doc.Inline, from, to int) string {
 	var b strings.Builder
 	for _, it := range in.Slice(from, to) {
 		if it.Node != nil {
-			// TODO(perf): key an inline node by its content hash rather
-			// than its pointer, so an unchanged formula keeps its line.
+			// TODO(perf): key an inline node by its content, not its
+			// pointer, so equal formulas share a cached line (§11.6).
 			fmt.Fprintf(&b, "\x00n%p", it.Node)
 			continue
 		}

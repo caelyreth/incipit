@@ -39,7 +39,7 @@ type Published struct {
 	Records []doc.Record
 	// Changed reports whether the document changed.
 	Changed bool
-	// Trace says why, in debug builds.
+	// Trace says why, when the host enables it.
 	Trace *policy.Trace
 }
 

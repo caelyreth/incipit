@@ -2,8 +2,8 @@
 // previews (§12.1). Where Leave or Return would move the caret, its key
 // shows where the caret would land.
 //
-// TODO(guides): SelectScope's growth and an armed deletion, once the
-// scopes and deletion policies exist.
+// TODO(guides): SelectScope growth and an armed deletion once the scopes and
+// deletion policies exist. Pairs can arm now, but no guide points at it.
 package guides
 
 import "github.com/caelyreth/neverland/editor/policy"

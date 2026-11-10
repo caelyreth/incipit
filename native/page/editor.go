@@ -72,6 +72,10 @@ func (ed *Editor) SetStyle(key any, th present.Theme, m Metrics) {
 }
 
 // Relayout lays out what the engine presents now.
+//
+// TODO(perf): this presents every unit and indexes every stop on each
+// relayout. Present and lay out the viewport, with a height index, estimates
+// for unmeasured units and scroll anchoring (§14.2).
 func (ed *Editor) Relayout() *pageLayout {
 	units := ed.Engine.Units(ed.View)
 	ids := make([]doc.ID, len(units))

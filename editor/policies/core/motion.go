@@ -11,8 +11,8 @@ import (
 // Logical motion moves through the stop model the engine provides (§13.5):
 // grapheme steps and page edges go stop by stop, so the caret lands where
 // the presentation shows stops, ghost notation and gaps included. Word,
-// line and slot motion find their target in the slot's text and step
-// through the stop model at the slot's edges.
+// line-edge and slot-edge motion resolves its target in the slot's text and
+// continues through the stop model when that target is the slot's edge.
 
 // slotTarget is where one unit of motion from pos lands inside its inline
 // slot; false when pos is at the slot's edge in dir, or not in text.
@@ -30,8 +30,9 @@ func slotTarget(r doc.Reader, pos doc.Pos, unit vocab.Unit, dir vocab.Direction)
 		return wordTarget(in, pos, dir)
 	case vocab.ToSlotEdge, vocab.BySentence, vocab.ByParagraph:
 		// TODO(words): the words policy answers sentences and paragraphs
-		// with UAX #29 boundaries; core's are the slot, and ToSlotEdge
-		// stops at the line's edge.
+		// with UAX #29 boundaries; core's fallback is the slot edge.
+		// ToSlotEdge stops at the line's edge, or the slot's edge when it is
+		// already there.
 		lineEdge := unit == vocab.ToSlotEdge
 		if dir > 0 {
 			end := in.Len()

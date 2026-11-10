@@ -25,6 +25,9 @@ var Manifest = policy.Manifest{
 }
 
 // Compile builds the program for settings values.
+//
+// TODO(strict): the product compiles with strict=false, so declared Produces
+// is checked only by tests. Add a debug-build switch (§11.14).
 func Compile(values policy.Values, strict bool) (*policy.Program, error) {
 	m := Manifest
 	m.Strict = strict

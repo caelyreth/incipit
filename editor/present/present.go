@@ -440,8 +440,9 @@ func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy
 	if vocab.IsObject(n.Kind()) {
 		// An object is a box with gap stops beside it; its own slots (a
 		// figure's caption, a table's cells) are surfaces of their own.
-		// TODO(tables), TODO(figures): cell and caption surfaces with entry
-		// stops, from the tables and figures policies.
+		// TODO(tables), TODO(figures): present cell and caption surfaces
+		// with entry stops; until then every object is one box and the page
+		// draws it as a divider.
 		p.Surfaces = []Surface{{Flow: Flow{Items: []Item{{Kind: BoxItem, Node: n, Surface: -1}}}}}
 		if u.Gap != nil {
 			p.Stops = []Stop{

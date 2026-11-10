@@ -148,6 +148,9 @@ func (el *Element) View(c *ui.Context) {
 	ed.Due(c.Now())
 	pl := el.relayout()
 	el.follow(pl, c.Now())
+	// TODO(accessibility): expose each unit's role, label, value and
+	// stop-range text to assistive technology; the page is one text-field
+	// node now (§13.9).
 	box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
 		Role(ui.RoleTextField).Label(el.Label).Focusable()
 	box.HandleTextInput(el.client)
@@ -340,6 +343,9 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		if ev.Button != 0 {
 			return false
 		}
+		// TODO(pointer): a drag sends a Place intent for every pointer event.
+		// Capture the gesture in the renderer, coalesce moves to one intent
+		// per frame and commit on release; Escape cancels it (§9.3, §14.3).
 		x, y := el.toPage(ev.X, ev.Y)
 		el.pressed = true
 		el.lastClicks = max(ev.Clicks, 1)

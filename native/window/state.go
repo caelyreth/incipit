@@ -172,6 +172,8 @@ func (a *AppState) refreshToolbarState() {
 	if a == nil || a.Shell == nil {
 		return
 	}
+	// TODO(toolbar): publish formatting state from engine previews beside
+	// the writing modes; only typewriter and zen are shown now.
 	keys := a.Product.Keymap
 	a.Shell.Toolbar = shell.ToolbarState{
 		Typewriter:        a.Product.Presentation.Typewriter,
@@ -251,6 +253,8 @@ func (a *AppState) refreshShell() {
 	if id, ok := a.Workspace.Active(); ok {
 		a.Shell.ActivePage = fmt.Sprintf("%d", id)
 	}
+	// TODO(statistics): set Shell.Statistics from a statistics policy, or
+	// from the page and selection counts the shell footer already renders.
 	a.refreshToolbarState()
 }
 
