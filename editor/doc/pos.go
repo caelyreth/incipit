@@ -44,8 +44,8 @@ type Caret struct {
 
 // StopFirst and StopLast stand for a position's first and last stop,
 // whatever is projected there: an edge of content holds every stop at its
-// offset, and a caret text was just inserted before stands against that
-// text, at the first. The stop model resolves them.
+// offset, and a caret placed against the text before it stands at the
+// first. The stop model resolves them.
 const (
 	StopFirst = math.MinInt32
 	StopLast  = math.MaxInt32
@@ -174,31 +174,18 @@ type Mapper interface {
 	Map(p Pos, bias Bias) (Pos, bool)
 }
 
-// MapCaret maps a caret, keeping its place among what is projected at its
-// position: projected items move with the content they attach to, so a
-// stop counted from the boundary between them still names the same place.
-// Content inserted at the caret, kept after it, pushes it to stand against
-// that content, before whatever attaches to it. The stop model normalises
-// the stop to one that exists.
-func MapCaret(m Mapper, c Caret, bias Bias) (Caret, bool) {
-	p, ok := m.Map(c.Pos, bias)
-	if bias == BiasAfter {
-		if before, _ := m.Map(c.Pos, BiasBefore); before != p {
-			c.Stop = StopFirst
-		}
-	}
-	c.Pos = p
-	return c, ok
-}
+// Carry maps a caret through a change. Where its position goes is the
+// document's; which stop it takes there depends on what is projected
+// around it, which only the stop model knows (§4.4).
+type Carry func(c Caret, bias Bias) (Caret, bool)
 
-// MapSelection maps a selection through m. A node selection whose node is
-// gone becomes a caret where it was.
-func MapSelection(m Mapper, s Selection) Selection {
+// MapSelection maps a selection through m, its carets by carry. A node
+// selection whose node is gone becomes a caret where it was.
+func MapSelection(m Mapper, s Selection, carry Carry) Selection {
 	switch s.Kind {
 	case SelectText:
-		bias := BiasAfter
-		s.Anchor, _ = MapCaret(m, s.Anchor, bias)
-		s.Head, _ = MapCaret(m, s.Head, bias)
+		s.Anchor, _ = carry(s.Anchor, BiasAfter)
+		s.Head, _ = carry(s.Head, BiasAfter)
 	case SelectNode:
 		if p, ok := m.Map(Pos{Node: s.Node}, BiasAfter); !ok {
 			return Collapsed(CaretAt(p))

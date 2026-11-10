@@ -204,6 +204,21 @@ func (m *stopModel) Normalize(c doc.Caret) doc.Caret {
 	return p.Stops[0].Caret
 }
 
+func (m *stopModel) Around(pos doc.Pos) (first, last int) {
+	i, ok := m.pr.UnitAt(m.r, pos)
+	if !ok {
+		return 0, 0
+	}
+	if p := m.unit(i); p != nil {
+		for _, s := range p.Stops {
+			if s.Caret.Pos == pos {
+				first, last = min(first, s.Caret.Stop), max(last, s.Caret.Stop)
+			}
+		}
+	}
+	return first, last
+}
+
 func (m *stopModel) Bound(c doc.Caret) doc.Pos {
 	i, ok := m.pr.UnitAt(m.r, c.Pos)
 	if !ok {

@@ -18,6 +18,9 @@ type Stops interface {
 	Edge(dir vocab.Direction) (doc.Caret, bool)
 	// Normalize is the valid stop nearest c: c itself when it is a stop.
 	Normalize(c doc.Caret) doc.Caret
+	// Around is a position's first and last stop: what is projected
+	// there, below and above its own stop 0.
+	Around(p doc.Pos) (first, last int)
 	// Bound is the document position c stands for as the end of a range:
 	// its own position, except that the stop before a block's marker
 	// stands before the block, at the gap in the slot holding it.

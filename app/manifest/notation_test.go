@@ -306,3 +306,33 @@ func TestMarksPairAsTyped(t *testing.T) {
 	p.typeText("yz`")
 	p.wantShown("5 * 3, 5*3 and [`]xyz[`]|")
 }
+
+// An edit beside a sign carries the caret by the content that survives
+// next to it: deleting the character between the caret and a sign keeps
+// the caret on its side of the sign.
+func TestDeletingBesideASignKeepsTheCaretsSide(t *testing.T) {
+	left := vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+	fwd := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Forward}
+	for _, c := range []struct {
+		typed, from string
+		in          vocab.Intent
+		want        string
+	}{
+		{"a *xbc", "a [*]x|bc[*]", back, "a [*]|bc[*]"},
+		{"a *bcx", "a [*]bcx|[*]", back, "a [*]bc|[*]"},
+		{"a *bc*x", "a [*]bc[*]x|", back, "a [*]bc[*]|"},
+		{"a *xbc", "a [*]|xbc[*]", fwd, "a [*]|bc[*]"},
+		{"a *bcx", "a [*]bc|x[*]", fwd, "a [*]bc|[*]"},
+		{"a *bc*x", "a [*]bc[*]|x", fwd, "a [*]bc[*]|"},
+	} {
+		p := open(t)
+		p.typeText(c.typed)
+		for i := 0; i < 20 && p.shown() != c.from; i++ {
+			p.do(left)
+		}
+		p.wantShown(c.from)
+		p.do(c.in)
+		p.wantShown(c.want)
+	}
+}

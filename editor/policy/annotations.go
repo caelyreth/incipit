@@ -180,21 +180,35 @@ func (s Annotations) Drop(reject func(Annotation) bool) Annotations {
 	return s
 }
 
-// Map maps every anchor through a transaction's steps. An annotation whose
-// anchor was deleted is dropped; a span whose ends cross collapses.
-func (s Annotations) Map(m doc.Mapper) Annotations {
+// Places are every anchor's places, so a carry can read what stands
+// around them before an edit.
+func (s Annotations) Places() []doc.Caret {
+	out := make([]doc.Caret, 0, 2*len(s.list))
+	for _, a := range s.list {
+		out = append(out, a.Anchor.From, a.Anchor.To)
+		if a.Lifetime.Span != nil {
+			out = append(out, a.Lifetime.Span.From, a.Lifetime.Span.To)
+		}
+	}
+	return out
+}
+
+// Map maps every anchor through a transaction's steps by carry, as
+// selections map (§4.4). An annotation whose anchor was deleted is
+// dropped; a span whose ends cross collapses.
+func (s Annotations) Map(carry doc.Carry) Annotations {
 	if len(s.list) == 0 {
 		return s
 	}
 	out := make([]Annotation, 0, len(s.list))
 	for _, a := range s.list {
-		anchor, ok := a.Anchor.mapped(m)
+		anchor, ok := a.Anchor.mapped(carry)
 		if !ok {
 			continue
 		}
 		a.Anchor = anchor
 		if a.Lifetime.Span != nil {
-			span, ok := a.Lifetime.Span.mapped(m)
+			span, ok := a.Lifetime.Span.mapped(carry)
 			if !ok {
 				continue
 			}
@@ -206,13 +220,12 @@ func (s Annotations) Map(m doc.Mapper) Annotations {
 	return s
 }
 
-// mapped maps an anchor's places as carets map (doc.MapCaret); a span
-// whose ends cross collapses, and one that was at a single position stays
-// there.
-func (a Anchor) mapped(m doc.Mapper) (Anchor, bool) {
+// mapped maps an anchor's places by carry; a span whose ends cross
+// collapses, and one that was at a single position stays there.
+func (a Anchor) mapped(carry doc.Carry) (Anchor, bool) {
 	point, place := a.IsPoint(), a.From == a.To
-	from, ok1 := doc.MapCaret(m, a.From, doc.BiasAfter)
-	to, ok2 := doc.MapCaret(m, a.To, doc.BiasBefore)
+	from, ok1 := carry(a.From, doc.BiasAfter)
+	to, ok2 := carry(a.To, doc.BiasBefore)
 	switch {
 	case place:
 		to = from

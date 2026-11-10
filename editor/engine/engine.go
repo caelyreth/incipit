@@ -268,6 +268,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	tx := e.snap.Begin(doc.Origin{Class: class, Phase: doc.PhaseHandler})
 	tx.SetPolicy(out.Policy)
 	before := view.Selection
+	held := e.note(viewID, e.snap, &view)
 	var effects []policy.Effect
 	var deadlines []time.Time
 
@@ -301,7 +302,8 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 
 	// The view after the handler.
 	steps := doc.Steps(tx.Steps())
-	view.Annotations = view.Annotations.Map(steps)
+	carry := e.carry(viewID, held, tx, &view, steps)
+	view.Annotations = view.Annotations.Map(carry)
 	switch {
 	case plan != nil:
 		view.Selection = plan.Selection
@@ -310,7 +312,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	case res.Selection != nil:
 		view.Selection = *res.Selection
 	default:
-		view.Selection = doc.MapSelection(steps, before)
+		view.Selection = doc.MapSelection(steps, before, carry)
 	}
 	e.applyView(&view, res, out.Policy, seq)
 	effects = append(effects, res.Effects...)
@@ -332,6 +334,10 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 				stepStart := len(tx.Steps())
 				rctx := ctx.Over(tx, &view)
 				rres := rw.Run(rctx, site)
+				var held noted
+				if len(rres.Edits) > 0 {
+					held = e.note(viewID, tx, &view)
+				}
 				for _, edit := range rres.Edits {
 					if err := edit(tx); err != nil {
 						return processed{}, fmt.Errorf("%w: rewrite %s: %v", ErrRejected, rw.ID(), err)
@@ -347,11 +353,12 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 					trace.Rewrites = append(trace.Rewrites, policy.RewriteTrace{Rule: rw.ID(), Phase: phase, Site: site, Records: len(recs)})
 				}
 				st := doc.Steps(tx.Steps()[stepStart:])
-				view.Annotations = view.Annotations.Map(st)
+				carry := e.carry(viewID, held, tx, &view, st)
+				view.Annotations = view.Annotations.Map(carry)
 				if rres.Selection != nil {
 					view.Selection = *rres.Selection
 				} else {
-					view.Selection = doc.MapSelection(st, view.Selection)
+					view.Selection = doc.MapSelection(st, view.Selection, carry)
 				}
 				e.applyView(&view, rres, rw.Policy(), seq)
 				effects = append(effects, rres.Effects...)
@@ -431,8 +438,9 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 			continue
 		}
 		if changed {
-			v.Annotations = v.Annotations.Map(doc.Steps(allSteps))
-			v.Selection = doc.MapSelection(doc.Steps(allSteps), v.Selection)
+			carry := e.carry(id, e.note(id, e.snap, v), next, v, doc.Steps(allSteps))
+			v.Annotations = v.Annotations.Map(carry)
+			v.Selection = doc.MapSelection(doc.Steps(allSteps), v.Selection, carry)
 			v.Selection = e.settleSelection(id, next, v)
 			if v.Composition != nil {
 				if p, ok := doc.Steps(allSteps).Map(v.Composition.At, doc.BiasBefore); ok {
