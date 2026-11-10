@@ -67,6 +67,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		marks:    policy.Facts[markGhost](p, "mark", policy.Provides(vocab.RoleLeveled)),
 		markers:  policy.Facts[markerGhost](p, "marker", policy.Provides(vocab.RoleLeveled)),
 		headings: policy.Facts[markerGhost](p, "heading-marker", policy.Provides(vocab.RoleReshapeable)),
+		tasks:    policy.Facts[taskGhost](p, "task", policy.Provides(vocab.RoleBox)),
 		spans:    map[doc.MarkKind]*policy.FactKind[markSpan]{},
 		signs:    map[doc.MarkKind]*policy.FactKind[markGhost]{},
 	}
@@ -134,6 +135,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Handle("step-up-before-marker").On(vocab.Typed("#")).In(vocab.Slot).
 		When(vocab.Collapsed, vocab.Before(k.headings.Scope())).Produces(vocab.RoleEdits...).Do(reshapeIn)
 
+	// A task box is a toggle inside an item's marker. A typed x or space
+	// acts on the box without becoming text, as clicking its glyph would.
+	p.Handle("toggle-task-box").On(vocab.Typed("x"), vocab.Typed("X"), vocab.Typed(" ")).
+		In(k.tasks.Scope()).When(vocab.Collapsed).Produces(vocab.RoleEdits...).Do(toggleBox)
+
 	// A stop decides the marks typed text takes.
 	p.Observe("stop-marks", policy.Trigger{}, stopMarks(k))
 })
@@ -143,11 +149,10 @@ type kinds struct {
 	marks   *policy.FactKind[markGhost]
 	markers *policy.FactKind[markerGhost]
 	// headings are a heading's marker again, which a typed "#" reshapes;
-	// other markers take no glyph yet.
-	// TODO(markers, tasks): an item's marker takes no typed glyphs, so its
-	// style and task box cannot be edited there; no fact or node implements
-	// vocab.Box.
+	// other markers take no typed glyph yet.
 	headings *policy.FactKind[markerGhost]
+	// tasks are an item's task box, the marker's toggled state.
+	tasks *policy.FactKind[taskGhost]
 	// spans are mark runs between their signs, by mark kind: pairs, and
 	// scopes Leave exits past the closing sign. signs are the signs again
 	// by mark kind. A typed delimiter acts only on the marks it spells,
@@ -174,7 +179,7 @@ func delimiters(m doc.MarkKind) []string {
 }
 
 func (k kinds) all() []vocab.FactKind {
-	out := []vocab.FactKind{k.marks.Kind(), k.markers.Kind(), k.headings.Kind()}
+	out := []vocab.FactKind{k.marks.Kind(), k.markers.Kind(), k.headings.Kind(), k.tasks.Kind()}
 	for _, m := range markKinds() {
 		out = append(out, k.spans[m].Kind(), k.signs[m].Kind())
 	}
@@ -365,6 +370,9 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 				if marker.Kind == vocab.Heading {
 					emit(k.headings.Point(0, -marker.Glyphs()-1, 0, g))
 				}
+				if marker.Kind == vocab.Item && marker.Task != vocab.NoTask {
+					emit(k.tasks.Point(0, -marker.Glyphs()-1, 0, taskGhost{Task: marker.Task}))
+				}
 			}
 			for _, o := range opening {
 				put(o.g)
@@ -473,6 +481,34 @@ type markerGhost struct {
 	Marker vocab.Marker
 
 	node doc.ID
+}
+
+// taskGhost is an item marker's box. Its task value comes from the
+// marker, so a cache keyed by the item's attributes cannot leave it stale.
+type taskGhost struct {
+	Task vocab.Task
+	node doc.ID
+}
+
+func (g taskGhost) Placed(slot doc.SlotRef, _ policy.Fact) any {
+	g.node = slot.Node
+	return g
+}
+
+// Toggle completes or reopens the item's task.
+func (g taskGhost) Toggle() vocab.Edit {
+	next := vocab.TaskDone
+	if g.Task == vocab.TaskDone {
+		next = vocab.TaskOpen
+	}
+	return func(tx *doc.Tx) error {
+		n, ok := tx.Node(g.node)
+		if !ok || n.Kind() != vocab.Item || vocab.TaskOf(n) == vocab.NoTask {
+			return nil
+		}
+		return tx.Apply(doc.SetNode{ID: g.node, Kind: n.Kind(),
+			Attrs: n.Attrs().With(vocab.FieldTask, doc.Int(int64(next)))})
+	}
 }
 
 func (g markerGhost) Placed(slot doc.SlotRef, _ policy.Fact) any {
@@ -601,6 +637,19 @@ func reshapeIn(c *policy.Ctx, m policy.Match) policy.Result {
 		return policy.Swallow
 	}
 	return policy.Do(r.Reshape(in.Text))
+}
+
+// toggleBox flips the task box the caret is inside.
+func toggleBox(c *policy.Ctx, m policy.Match) policy.Result {
+	f, ok := m.Fact()
+	if !ok {
+		return policy.Swallow
+	}
+	b, ok := policy.Placed(m.Level.Slot, f).(vocab.Box)
+	if !ok {
+		return policy.Swallow
+	}
+	return policy.Do(b.Toggle())
 }
 
 // --- stops and marks ---------------------------------------------------------

@@ -25,6 +25,7 @@ type half struct{ Char byte }
 type marker struct {
 	Kind  markerKind
 	Level int // heading level, or the ordered list's start
+	Task  vocab.Task
 	Char  byte
 }
 
@@ -35,6 +36,8 @@ const (
 	markQuote
 	markBullet
 	markOrdered
+	markTaskOpen
+	markTaskDone
 )
 
 // fence is a whole paragraph that Enter turns into a block: a code fence
@@ -185,8 +188,19 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 		if t == "" {
 			return
 		}
-		// TODO(tasks): recognise a task marker ("- [ ] ", "- [x] ") and
-		// carry it as the item's task state; no analyzer or rule does yet.
+		if u.Owner.Kind() == vocab.Item {
+			if !cfg.Lists {
+				return
+			}
+			switch {
+			case strings.HasPrefix(t, string(vocab.TaskOpenSpelling)):
+				emit(mk.Span(0, len(vocab.TaskOpenSpelling), marker{Kind: markTaskOpen, Task: vocab.TaskOpen}))
+			case strings.HasPrefix(t, string(vocab.TaskDoneSpelling)),
+				strings.HasPrefix(t, "[X]"):
+				emit(mk.Span(0, len(vocab.TaskDoneSpelling), marker{Kind: markTaskDone, Task: vocab.TaskDone}))
+			}
+			return
+		}
 		switch {
 		case cfg.Headings && t[0] == '#':
 			n := 0

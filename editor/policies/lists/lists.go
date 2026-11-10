@@ -6,6 +6,7 @@
 package lists
 
 import (
+	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
@@ -15,6 +16,13 @@ const ID = "lists"
 
 // Policy is the lists policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
+	p.Command("lists.bullet", "commands.bulletList", vocab.Reshape{Shape: vocab.List})
+	p.Command("lists.numbered", "commands.numberedList", vocab.Reshape{
+		Shape: vocab.List,
+		Attrs: doc.MakeAttrs(doc.Field{Num: vocab.FieldListStyle, Value: doc.Int(int64(vocab.Ordered))},
+			doc.Field{Num: vocab.FieldListStart, Value: doc.Int(1)}),
+	})
+
 	item := vocab.RoleScope(vocab.RoleItem)
 	p.Handle("leave-empty").On(vocab.On(vocab.IntentBreak)).In(item).
 		When(vocab.Collapsed, vocab.OwnText, vocab.SlotEmpty).Produces(vocab.RoleEdits...).Do(leave)
