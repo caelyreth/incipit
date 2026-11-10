@@ -16,7 +16,7 @@ const module = "github.com/caelyreth/neverland/"
 // other; the renderer and the app are outside and use the engine API.
 var allowed = map[string][]string{
 	"editor/doc":     {},
-	"editor/vocab":   {"editor/doc"},
+	"editor/vocab":   {"editor/doc", "internal/wordseg"},
 	"editor/policy":  {"editor/doc", "editor/vocab"},
 	"editor/present": {"editor/doc", "editor/vocab", "editor/policy"},
 	"editor/store":   {"editor/doc", "editor/vocab"},
