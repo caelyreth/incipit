@@ -291,16 +291,53 @@ func TestEveryMarkerPlaceEditsTheMarker(t *testing.T) {
 	}
 }
 
-func TestHiddenNotationKeepsOneStopPerPosition(t *testing.T) {
-	p := revealed(t, notation.RevealHidden)
-	p.typeText("a **b**")
-	p.wantShown("a b|")
-	if h := p.head(); h.Stop != 0 {
-		t.Fatalf("a hidden ghost stop %d", h.Stop)
+// How notation draws never changes how it edits: the same keys make the
+// same page, with the caret at the same place, whether signs are shown or
+// hidden and whichever spelling they are drawn in.
+func TestNotationEditsAlikeHoweverDrawn(t *testing.T) {
+	left := vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+	scripts := map[string]func(p *page){
+		"close with *":    func(p *page) { p.typeText("a *em*x") },
+		"close with _":    func(p *page) { p.typeText("a _em_x") },
+		"strong":          func(p *page) { p.typeText("a **b** c") },
+		"leave":           func(p *page) { p.typeText("a *em"); p.do(vocab.Leave{}); p.typeText("x") },
+		"backspace after": func(p *page) { p.typeText("a *em* b"); p.do(left); p.do(left); p.do(back) },
+		"backspace twice": func(p *page) { p.typeText("a *em* b"); p.do(left); p.do(left); p.do(back); p.do(back) },
+		"step up at start": func(p *page) {
+			p.typeText("a *em*")
+			for range 3 {
+				p.do(left)
+			}
+			p.typeText("*")
+		},
+		"type at the end": func(p *page) {
+			p.typeText("a *em* b")
+			for range 3 {
+				p.do(left)
+			}
+			p.typeText("_")
+		},
 	}
-	// Without ghosts, Backspace deletes characters.
-	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	p.want("page(paragraph(a ))")
+	modes := []policy.Values{
+		{notation.ID + ".reveal": notation.RevealHidden},
+		{notation.ID + ".underscores": true},
+		{notation.ID + ".reveal": notation.RevealHidden, notation.ID + ".underscores": true},
+	}
+	for name, script := range scripts {
+		want := open(t)
+		script(want)
+		for _, values := range modes {
+			p := openWith(t, values)
+			script(p)
+			if got, w := outline(p.e.Snapshot().Root()), outline(want.e.Snapshot().Root()); got != w {
+				t.Errorf("%s under %v: %s, shown makes %s", name, values, got, w)
+			}
+			if got, w := p.head(), want.head(); got != w {
+				t.Errorf("%s under %v: caret at %v, shown at %v", name, values, got, w)
+			}
+		}
+	}
 }
 
 func TestFormatAtAGhostStandsUntilTyped(t *testing.T) {

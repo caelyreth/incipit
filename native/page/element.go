@@ -531,7 +531,7 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 	for _, h := range el.Editor.deco.Highlights {
 		from, ok1 := pl.lookup(h.From)
 		to, ok2 := pl.lookup(h.To)
-		if !ok1 || !ok2 || from.surface == nil || from.surface != to.surface || to.stop.u <= from.stop.u {
+		if !ok1 || !ok2 || from.surface == nil || from.surface != to.surface || to.stop.u < from.stop.u {
 			continue
 		}
 		if d := decoOf(ui.TextInputRange{Start: from.stop.u, End: to.stop.u}, el.Editor.theme.Resolve([]vocab.Group{h.Group})); d.drawn() {
@@ -575,11 +575,17 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 	}
 }
 
-// decoRows are a range's pieces, a line each, hugging the line's glyphs.
+// decoRows are a range's pieces, a line each, hugging the line's glyphs;
+// an empty range is a point, a piece with no width where its caret stands.
 func decoRows(s *surfaceLayout, rg ui.TextInputRange, x, y float32) []decoRow {
 	lines := s.layout.Lines()
 	var out []decoRow
-	for _, r := range s.layout.SelectionRects(rg) {
+	rects := s.layout.SelectionRects(rg)
+	if rg.Start == rg.End {
+		c := s.caretRect(rg.Start)
+		rects = []ui.Rect{{X: c.X, Y: c.Y, H: c.H}}
+	}
+	for _, r := range rects {
 		row := decoRow{box: r, base: r.H}
 		for _, l := range lines {
 			if mid := r.Y + r.H/2; mid >= l.Rect.Y && mid < l.Rect.Y+l.Rect.H {
@@ -602,6 +608,9 @@ func (el *Element) paintBackground(p *ui.Painter, sd *shownDeco, ox, oy float32)
 	}
 	for _, row := range sd.rows {
 		r := row.box
+		if r.W == 0 {
+			continue
+		}
 		p.Fill(ui.Rect{X: ox + r.X - decoPad, Y: oy + r.Y - decoPad/2, W: r.W + decoPad*2, H: r.H + decoPad}, sd.look.bg.Alpha(sd.alpha), 3)
 	}
 }
@@ -628,11 +637,15 @@ func (el *Element) paintLine(p *ui.Painter, sd *shownDeco, ox, oy float32) {
 }
 
 // wavyLine draws a wavy line under [x, x+w): caret marks side by side, as
-// many as fit a wave each, so under a single glyph it is one caret mark.
+// many as fit a wave each, so under a single glyph, or at a point, it is
+// one caret mark.
 func wavyLine(p *ui.Painter, x, w, y float32, c ui.Color) {
 	n := max(1, int(math.Round(float64(w/(2*caretMark)))))
 	step := w / float32(n)
 	a := min(step/2, caretMark)
+	if w == 0 {
+		a = caretMark
+	}
 	for i := range n {
 		caretMarkAt(p, x+step*(float32(i)+0.5), y, a, c)
 	}

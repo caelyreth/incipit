@@ -19,8 +19,12 @@
 // offset, with every ghost the stop is past applied. Backspace between a
 // ghost's glyphs steps it down (strong to emphasis, a heading a level),
 // as does deleting a marker's glyph from anywhere beside it, and a "#"
-// typed before or among a heading's marker's glyphs steps it up. Hidden, the
-// policy projects block markers only.
+// typed before or among a heading's marker's glyphs steps it up.
+//
+// How notation draws never changes how it edits (§11.7): a typed
+// delimiter acts on a mark whichever of its kind's spellings is drawn, and
+// hidden, a mark's sign draws nothing but keeps its places, so the same
+// keys do the same thing in every mode.
 package notation
 
 import (
@@ -83,18 +87,14 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		marks:    policy.Facts[markGhost](p, "mark", policy.Provides(vocab.RoleLeveled)),
 		markers:  policy.Facts[markerGhost](p, "marker", policy.Provides(vocab.RoleLeveled)),
 		headings: policy.Facts[markerGhost](p, "heading-marker", policy.Provides(vocab.RoleReshapeable)),
-		spans:    map[vocab.Spelling]*policy.FactKind[markSpan]{},
-		signs:    map[vocab.Spelling]*policy.FactKind[markGhost]{},
+		spans:    map[doc.MarkKind]*policy.FactKind[markSpan]{},
+		signs:    map[doc.MarkKind]*policy.FactKind[markGhost]{},
 	}
-	// A mark is a pair, and a scope to leave, where its signs are
-	// projected: hidden, it has no sides to delete into or leave past.
-	var spanRoles []policy.FactOption
-	if !sp.Hidden {
-		spanRoles = append(spanRoles, policy.Provides(vocab.RolePair, vocab.RoleLeavable))
-	}
-	for _, sp := range signSpellings() {
-		k.spans[sp] = policy.Facts[markSpan](p, "span"+string(sp), spanRoles...)
-		k.signs[sp] = policy.Facts[markGhost](p, "sign"+string(sp))
+	// A mark is a pair, and a scope to leave, however its signs are drawn.
+	for _, m := range markKinds() {
+		name := string(vocab.MarkSpellings(m)[0])
+		k.spans[m] = policy.Facts[markSpan](p, "span"+name, policy.Provides(vocab.RolePair, vocab.RoleLeavable))
+		k.signs[m] = policy.Facts[markGhost](p, "sign"+name)
 	}
 	p.Analyze(policy.Lines, analyze(sp, k), k.all(), policy.Config(sp),
 		policy.Where(func(u *policy.Unit) bool { return !u.Spec.Literal && u.Spec.Marks != nil }))
@@ -102,6 +102,10 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Ghosts(func(u *policy.Unit, emit func(policy.Ghost)) {
 		for _, f := range u.Facts(k.marks.Kind()) {
 			g, _ := k.marks.Data(f)
+			if sp.Hidden {
+				// Hidden, a sign keeps its places and draws nothing.
+				g.Spelling = ""
+			}
 			emit(policy.Ghost{At: f.From, Spelling: g.Spelling, Groups: []vocab.Group{vocab.GroupGhost, vocab.MarkGroup(g.Mark.Kind)}, StopFrom: f.StopFrom, Stops: f.StopTo - f.StopFrom})
 		}
 		for _, f := range u.Facts(k.markers.Kind()) {
@@ -119,19 +123,21 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	back := vocab.Deleting(vocab.ByGrapheme, vocab.Backward)
 	p.Handle("step-down-in-mark").On(back).In(k.marks.Scope()).When(vocab.Collapsed).
 		Produces(edits...).Do(stepIn)
-	// A mark is one run, so typing its sign's character edits both signs:
-	// right after a one-delimiter opening sign it spells the mark one level
-	// up; at the closing sign it steps over the sign a character at a time.
-	for _, sp := range signSpellings() {
-		typed, span := vocab.Typed(string(sp[:1])), k.spans[sp].Scope()
-		p.Handle("overtype-close"+string(sp)).On(typed).In(span).When(vocab.Collapsed, vocab.AtInnerEnd).
-			Unless(vocab.AtInnerStart).Do(stepOver)
-		if m, _ := vocab.MarkOfSpelling(sp); m == vocab.Emphasis {
-			p.Handle("step-up"+string(sp)).On(typed).In(span).When(vocab.Collapsed, vocab.AtInnerStart).
-				Unless(vocab.AtInnerEnd).Produces(edits...).Do(stepUp)
-		}
-		if len(sp) > 1 {
-			p.Handle("overtype-in" + string(sp)).On(typed).In(k.signs[sp].Scope()).When(vocab.Collapsed).Do(stepOver)
+	// A mark is one run, so typing a delimiter of its kind edits both
+	// signs, whichever spelling they are drawn in: right after a
+	// one-delimiter opening sign it spells the mark one level up; at the
+	// closing sign it steps over the sign a delimiter at a time.
+	for _, m := range markKinds() {
+		span, sign := k.spans[m].Scope(), k.signs[m].Scope()
+		for _, c := range delimiters(m) {
+			typed, name := vocab.Typed(c), string(vocab.MarkSpellings(m)[0])+c
+			p.Handle("overtype-close"+name).On(typed).In(span).When(vocab.Collapsed, vocab.AtInnerEnd).
+				Unless(vocab.AtInnerStart).Do(stepOver)
+			if m == vocab.Emphasis {
+				p.Handle("step-up"+name).On(typed).In(span).When(vocab.Collapsed, vocab.AtInnerStart).
+					Unless(vocab.AtInnerEnd).Produces(edits...).Do(stepUp)
+			}
+			p.Handle("overtype-in" + name).On(typed).In(sign).When(vocab.Collapsed).Do(stepOver)
 		}
 	}
 	// Among a marker's glyphs, they are the marker's to edit: deleting one
@@ -161,36 +167,45 @@ type kinds struct {
 	// TODO(markers): an item's marker takes its style and task box through
 	// typed glyphs.
 	headings *policy.FactKind[markerGhost]
-	// spans are mark runs between their signs, by spelling: pairs, and
+	// spans are mark runs between their signs, by mark kind: pairs, and
 	// scopes Leave exits past the closing sign. signs are the signs again
-	// by spelling. A typed sign character acts only on what it spells, so
-	// its rules are per spelling, and so are their scopes (§11.1).
-	spans map[vocab.Spelling]*policy.FactKind[markSpan]
-	signs map[vocab.Spelling]*policy.FactKind[markGhost]
+	// by mark kind. A typed delimiter acts only on the marks it spells,
+	// whichever of their spellings is drawn, so its rules are per kind,
+	// and so are their scopes (§11.1).
+	spans map[doc.MarkKind]*policy.FactKind[markSpan]
+	signs map[doc.MarkKind]*policy.FactKind[markGhost]
 }
 
-// signSpellings are every spelling a mark's sign can take.
-func signSpellings() []vocab.Spelling {
-	var out []vocab.Spelling
-	for _, m := range []doc.MarkKind{vocab.Strong, vocab.Emphasis, vocab.CodeMark, vocab.Strike} {
-		out = append(out, vocab.MarkSpellings(m)...)
+// markKinds are the marks notation signs.
+func markKinds() []doc.MarkKind {
+	return []doc.MarkKind{vocab.Strong, vocab.Emphasis, vocab.CodeMark, vocab.Strike}
+}
+
+// delimiters are the characters a mark kind's spellings are written in.
+func delimiters(m doc.MarkKind) []string {
+	var out []string
+	for _, sp := range vocab.MarkSpellings(m) {
+		if c := string(sp[:1]); !slices.Contains(out, c) {
+			out = append(out, c)
+		}
 	}
 	return out
 }
 
 func (k kinds) all() []vocab.FactKind {
 	out := []vocab.FactKind{k.marks.Kind(), k.markers.Kind(), k.headings.Kind()}
-	for _, sp := range signSpellings() {
-		out = append(out, k.spans[sp].Kind(), k.signs[sp].Kind())
+	for _, m := range markKinds() {
+		out = append(out, k.spans[m].Kind(), k.signs[m].Kind())
 	}
 	return out
 }
 
 // --- recognising ---------------------------------------------------------
 
-// spelling is the notation set's choice of spellings. Hidden projects
-// marks with no signs: a mark's run is still a pair, its sides spanning no
-// stops, and only block markers are spelled.
+// spelling is how notation draws: a mark's spelling, and whether its
+// signs are drawn. Hidden, a sign draws nothing but holds the places it
+// holds drawn, so a mark edits alike however drawn; block markers are
+// drawn either way.
 type spelling struct {
 	Underscores bool
 	Hidden      bool
@@ -337,29 +352,22 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 			})
 			// Closing signs attach to the run before them, so they stand
 			// below the boundary, stop 0; opening signs above it.
-			glyphs := func(g markGhost) int {
-				if sp.Hidden {
-					return 0
-				}
-				return vocab.GraphemeCount(string(g.Spelling))
-			}
+			glyphs := func(g markGhost) int { return vocab.GraphemeCount(string(g.Spelling)) }
 			stop := 0
 			for _, c := range closing {
 				stop -= glyphs(c.g)
 			}
 			put := func(g markGhost) {
 				n := glyphs(g)
-				if n > 0 {
-					emit(k.marks.Point(at, stop, stop+n, g))
-					emit(k.signs[g.Spelling].Point(at, stop, stop+n, g))
-				}
+				emit(k.marks.Point(at, stop, stop+n, g))
+				emit(k.signs[g.Mark.Kind].Point(at, stop, stop+n, g))
 				here := policy.StopRange{From: stop, To: stop + n}
 				switch g.Side {
 				case vocab.Open:
 					opens[signKey{g.Mark.Kind, at + g.Ahead}] = openSign{at: at, stops: here}
 				case vocab.Close:
 					if o, ok := opens[signKey{g.Mark.Kind, at}]; ok {
-						emit(k.spans[g.Spelling].Projected(o.at, at, o.stops, here, markSpan{Mark: g.Mark, Spelling: g.Spelling}))
+						emit(k.spans[g.Mark.Kind].Projected(o.at, at, o.stops, here, markSpan{Mark: g.Mark, Spelling: g.Spelling}))
 					}
 				}
 				stop += n
