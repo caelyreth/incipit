@@ -178,29 +178,93 @@ func (el *Element) View(c *ui.Context) {
 	ed.Due(c.Now())
 	pl := el.relayout()
 	el.follow(pl, c.Now())
-	// TODO(accessibility): expose each unit's role, label, value and
-	// stop-range text to assistive technology; the page is one text-field
-	// node now (§13.9).
-	box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
-		Role(ui.RoleTextField).Label(el.Label).Focusable()
-	box.HandleTextInput(el.client)
-	if el.focusPending {
-		box.AutoFocus()
-		box.Focus()
-		el.focusPending = false
-	}
-	services := c.Services()
-	box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
-		TextCaret(el.caretInElement()).
-		Draw(func(p *ui.Painter, r ui.Rect) {
-			if r.W != el.viewport.W || r.H != el.viewport.H {
+	ui.Column(c).Key("page-surface").Fill().Role(ui.RoleNone).Children(func() {
+		box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
+			Role(ui.RoleTextField).Label(el.Label).Value(el.fieldValue()).Focusable()
+		box.HandleTextInput(el.client)
+		if el.focusPending {
+			box.AutoFocus()
+			box.Focus()
+			el.focusPending = false
+		}
+		services := c.Services()
+		box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
+			TextCaret(el.caretInElement()).
+			Draw(func(p *ui.Painter, r ui.Rect) {
+				if r.W != el.viewport.W || r.H != el.viewport.H {
+					el.viewport = r
+					el.relayout()
+					c.Services().Invalidate()
+				}
 				el.viewport = r
-				el.relayout()
-				c.Services().Invalidate()
-			}
-			el.viewport = r
-			el.paint(p, r, box.Focused())
-		})
+				el.paint(p, r, box.Focused())
+			})
+		el.accessUnits(c)
+	})
+}
+
+// fieldValue is the text the accessibility text field exposes: the
+// surface the caret is in, which is the surface the text client edits.
+func (el *Element) fieldValue() string {
+	if el.Editor == nil || el.Editor.layout == nil {
+		return ""
+	}
+	pc, ok := el.Editor.layout.lookup(el.Editor.Selection().Head)
+	if !ok || pc.surface == nil {
+		return ""
+	}
+	return pc.surface.text
+}
+
+// accessUnits projects each presentation unit as a positioned node in the
+// page's accessibility tree. The boxes draw nothing and take no input;
+// their roles, names, values and bounds let assistive technology move
+// through the document by its units while the page's text client remains
+// its one editing surface.
+func (el *Element) accessUnits(c *ui.Context) {
+	pl := el.Editor.layout
+	if pl == nil {
+		return
+	}
+	top := el.Top - el.offset()
+	for _, u := range pl.units {
+		p := u.pres
+		role, description := accessRole(p)
+		width := max(el.Editor.metrics.Width-u.x, 1)
+		height := max(u.h, 1)
+		node := ui.Box(c).Key("page-unit-" + p.Unit.String()).Absolute().
+			Left(el.column + u.x).Top(top + u.y).Width(width).Height(height).
+			Role(role).Label(p.Label).Value(p.Value).RoleDescription(description).
+			IgnoreInput(true)
+		if p.Level > 0 {
+			node.Level(p.Level)
+		}
+	}
+}
+
+// accessRole is a presentation role's platform role and the app's name
+// for it where the platform's is broader.
+func accessRole(p *present.Presentation) (ui.Role, string) {
+	switch p.Role {
+	case "heading":
+		return ui.RoleHeading, ""
+	case "listitem":
+		return ui.RoleListItem, ""
+	case "code":
+		return ui.RoleText, "code"
+	case "math":
+		return ui.RoleText, "math"
+	case "separator":
+		return ui.RoleSeparator, ""
+	case "figure":
+		return ui.RoleImage, ""
+	case "table":
+		return ui.RoleTable, ""
+	case "cell":
+		return ui.RoleCell, ""
+	default:
+		return ui.RoleText, ""
+	}
 }
 
 // toPage is an element point in page coordinates.

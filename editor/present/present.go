@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode/utf16"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -105,6 +106,13 @@ type Stop struct {
 	Outside bool
 }
 
+// AccessStop maps one caret stop into the unit's accessible value. Offsets
+// are UTF-16 indices, as platform accessibility APIs use.
+type AccessStop struct {
+	Caret doc.Caret
+	UTF16 int
+}
+
 // Bound is the document position the stop stands for as a range's end.
 // The gap before a block is read from the document, so a presentation
 // holds no place that moves when blocks before it change.
@@ -130,28 +138,19 @@ type Presentation struct {
 	// at, for gap stops before and after it.
 	Gap *doc.Pos
 
-	Role, Label string
+	// Role, Label and Value are what assistive technology reads for the
+	// unit. Label is the unit's accessible name; Value its text without
+	// projection. AccessStops maps every presentation stop into Value.
+	Role, Label, Value string
+	Level              int
+	AccessStops        []AccessStop
 
 	key unitKey
 }
 
 // Text is the unit's text for accessibility, in stop order.
 func (p *Presentation) Text() string {
-	if len(p.Surfaces) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	for _, it := range p.Surfaces[0].Flow.Items {
-		switch it.Kind {
-		case TextRun:
-			b.WriteString(it.Text)
-		case BreakItem:
-			b.WriteByte('\n')
-		case BoxItem:
-			b.WriteString(it.Node.Text())
-		}
-	}
-	return b.String()
+	return p.Value
 }
 
 // UnitRef is a unit in page order.
@@ -436,7 +435,7 @@ func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy
 	if u.Context.Quotes > 0 && p.Group == vocab.GroupText {
 		p.Group = vocab.GroupQuote
 	}
-	p.Role, p.Label = accessibility(n)
+	p.Role, p.Level = accessibility(n)
 	if vocab.IsObject(n.Kind()) {
 		// An object is a box with gap stops beside it; its own slots (a
 		// figure's caption, a table's cells) are surfaces of their own.
@@ -450,6 +449,7 @@ func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy
 				{Caret: doc.CaretAt(doc.Pos{Node: u.Gap.Node, Slot: u.Gap.Slot, Offset: u.Gap.Offset + 1}), Class: StopGap, Offset: u.Gap.Offset + 1},
 			}
 		}
+		p.setAccessible()
 		return p
 	}
 	ref, ok := vocab.FirstTextSlot(n)
@@ -457,6 +457,7 @@ func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy
 		return p
 	}
 	flowOf(prog, store, r, view, p, ref, p.Group, false, 0)
+	p.setAccessible()
 	return p
 }
 
@@ -628,22 +629,178 @@ func (k unitKey) isOpen(id doc.ID) bool {
 	return slices.Contains(strings.Split(k.open, ","), id.String())
 }
 
-func accessibility(n *doc.Node) (role, label string) {
+func accessibility(n *doc.Node) (role string, level int) {
 	switch n.Kind() {
 	case vocab.Heading:
-		return "heading", fmt.Sprintf("level %d", vocab.HeadingLevel(n))
+		return "heading", vocab.HeadingLevel(n)
 	case vocab.Item:
-		return "listitem", ""
+		return "listitem", 0
 	case vocab.Code:
-		return "code", ""
+		return "code", 0
 	case vocab.Math:
-		return "math", ""
+		return "math", 0
 	case vocab.Divider:
-		return "separator", ""
+		return "separator", 0
 	case vocab.Figure:
-		return "figure", ""
+		return "figure", 0
 	case vocab.Table:
-		return "table", ""
+		return "table", 0
+	case vocab.Cell:
+		return "cell", 0
 	}
-	return "paragraph", ""
+	return "paragraph", 0
+}
+
+// accessPart maps part of one surface's logical text into the unit's
+// accessible value. Box parts stand for an inline node's source; card
+// surfaces reuse their box part's text.
+type accessPart struct {
+	surface  int
+	from, to int
+	u0, u1   int
+	text     string
+	box      bool
+}
+
+// setAccessible derives the semantic value and every stop's UTF-16 place
+// from the presentation's flow. Projected notation spans no value bytes;
+// an inline node contributes its source once, while its card's stops map
+// into that same source.
+func (p *Presentation) setAccessible() {
+	var b strings.Builder
+	u := 0
+	var parts []accessPart
+	boxes := map[doc.ID]accessPart{}
+	add := func(surface, from, to int, text string, box bool) accessPart {
+		part := accessPart{surface: surface, from: from, to: to, u0: u, u1: u + utf16Len(text), text: text, box: box}
+		u = part.u1
+		parts = append(parts, part)
+		return part
+	}
+	for si, s := range p.Surfaces {
+		if s.Card {
+			box, ok := boxes[s.Anchor]
+			if !ok {
+				continue
+			}
+			card := box.u0
+			for _, it := range s.Flow.Items {
+				switch it.Kind {
+				case TextRun:
+					part := accessPart{surface: si, from: it.From, to: it.To,
+						u0: card, u1: card + utf16Len(it.Text), text: it.Text}
+					parts = append(parts, part)
+					card = part.u1
+				case BreakItem:
+					parts = append(parts, accessPart{surface: si, from: it.From, to: it.To,
+						u0: card, u1: card + 1, text: "\n"})
+					card++
+				}
+			}
+			continue
+		}
+		if si != 0 {
+			continue
+		}
+		for _, it := range s.Flow.Items {
+			switch it.Kind {
+			case TextRun:
+				add(0, it.From, it.To, it.Text, false)
+				b.WriteString(it.Text)
+			case BreakItem:
+				add(0, it.From, it.To, "\n", false)
+				b.WriteByte('\n')
+			case BoxItem:
+				text := boxText(it.Node)
+				part := add(0, it.From, it.To, text, true)
+				boxes[it.Node.ID()] = part
+				b.WriteString(text)
+			}
+		}
+		break
+	}
+	p.Value = b.String()
+	p.Label = accessibleName(p.Role, p.Value)
+	p.AccessStops = make([]AccessStop, 0, len(p.Stops))
+	for _, st := range p.Stops {
+		at := accessibleOffset(parts, st.Surface, st.Offset, u)
+		p.AccessStops = append(p.AccessStops, AccessStop{Caret: st.Caret, UTF16: at})
+	}
+}
+
+// accessibleOffset maps a surface offset to the unit's value. Ghosts and
+// empty surfaces sit at the nearest semantic boundary.
+func accessibleOffset(parts []accessPart, surface, off, end int) int {
+	best, distance := end, int(^uint(0)>>1)
+	for _, part := range parts {
+		if part.surface != surface {
+			continue
+		}
+		var at int
+		switch {
+		case off < part.from:
+			at = part.u0
+		case off > part.to:
+			at = part.u1
+		case part.box:
+			if off == part.from {
+				at = part.u0
+			} else {
+				at = part.u1
+			}
+		default:
+			cut := min(max(off-part.from, 0), len(part.text))
+			at = part.u0 + utf16Len(part.text[:cut])
+		}
+		if off >= part.from && off <= part.to {
+			return at
+		}
+		d := absInt(off - part.from)
+		if to := absInt(off - part.to); to < d {
+			d = to
+		}
+		if d < distance {
+			best, distance = at, d
+		}
+	}
+	return best
+}
+
+func absInt(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
+// boxText is what a closed inline node shows: its source text.
+func boxText(n *doc.Node) string {
+	if t := n.Text(); t != "" {
+		return t
+	}
+	return "□"
+}
+
+func accessibleName(role, value string) string {
+	if value != "" {
+		return value
+	}
+	switch role {
+	case "listitem":
+		return "List item"
+	case "separator":
+		return "Separator"
+	}
+	if role == "" {
+		return "Paragraph"
+	}
+	return strings.ToUpper(role[:1]) + role[1:]
+}
+
+func utf16Len(s string) int {
+	n := 0
+	for _, r := range s {
+		n += utf16.RuneLen(r)
+	}
+	return n
 }
