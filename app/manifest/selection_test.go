@@ -57,7 +57,7 @@ func TestARangeFromBeforeAMarkerUnmarksWhereItEnds(t *testing.T) {
 	p.typeText("## bcd")
 	p.do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward})
 	p.wantShown("|[# ]a")
-	for range 6 {
+	for range 8 {
 		p.do(extend(right))
 	}
 	p.do(backspace)
@@ -81,7 +81,7 @@ func TestBackspaceBeforeAMarkerJoinsTheBlockBefore(t *testing.T) {
 	p.typeText("p")
 	p.do(vocab.Break{})
 	p.typeText("# Head")
-	for range 5 {
+	for range 6 {
 		p.do(left)
 	}
 	p.wantShown("|[# ]Head")
@@ -92,7 +92,7 @@ func TestBackspaceBeforeAMarkerJoinsTheBlockBefore(t *testing.T) {
 func TestDeleteBeforeAMarkerStepsItDown(t *testing.T) {
 	p := open(t)
 	p.typeText("## Head")
-	for range 6 {
+	for range 7 {
 		p.do(left)
 	}
 	p.wantShown("|[## ]Head")

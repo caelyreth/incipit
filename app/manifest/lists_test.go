@@ -44,7 +44,7 @@ func TestBackspaceAtAnItemsStartLeavesTheList(t *testing.T) {
 
 func TestBackspaceBeforeAnItemsMarkerJoinsTheItemBefore(t *testing.T) {
 	p := twoItems(t)
-	for range 4 {
+	for range 5 {
 		p.do(left)
 	}
 	p.wantShown("|[- ]two")
@@ -85,7 +85,7 @@ func TestOutdentKeepsTheItemsAfterInOrder(t *testing.T) {
 	p.typeText("c")
 	p.want("page(list(item(a|list(item(b|) item(c|)))))")
 	// Outdenting b brings c along under it.
-	for range 4 {
+	for range 5 {
 		p.do(left)
 	}
 	p.wantShown("[- ]|b")

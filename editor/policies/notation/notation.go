@@ -6,8 +6,9 @@
 //
 // At one offset the ghosts stand in a fixed order: the marks that end
 // there, innermost first, then a heading's marker, then the marks that
-// start there, outermost first. Each glyph is one stop; a marker's
-// separator is a gap, so a ghost's last stop is after the whole ghost.
+// start there, outermost first. Each glyph is one stop and a ghost's last
+// stop is after the whole ghost; a marker's separator is a gap between the
+// stop after its last glyph and the text's own stop.
 // Stops number from the boundary, stop 0, between what attaches to the
 // content before (closing signs, a block's marker: below 0) and what
 // attaches to the content after (opening signs: above 0), so a caret
@@ -17,7 +18,8 @@
 // A stop decides the marks text typed there takes: the marks before the
 // offset, with every ghost the stop is past applied. Backspace between a
 // ghost's glyphs steps it down (strong to emphasis, a heading a level),
-// and a typed "#" inside a heading's marker steps it up. Hidden, the
+// as does deleting a marker's glyph from anywhere beside it, and a "#"
+// typed before or among a heading's marker's glyphs steps it up. Hidden, the
 // policy projects block markers only.
 package notation
 
@@ -78,10 +80,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	sp := spelling{Underscores: policy.Get(p, Underscores), Hidden: policy.Get(p, Reveal) == RevealHidden}
 
 	k := kinds{
-		marks:   policy.Facts[markGhost](p, "mark", policy.Provides(vocab.RoleLeveled)),
-		markers: policy.Facts[markerGhost](p, "marker", policy.Provides(vocab.RoleLeveled, vocab.RoleReshapeable)),
-		spans:   map[vocab.Spelling]*policy.FactKind[markSpan]{},
-		signs:   map[vocab.Spelling]*policy.FactKind[markGhost]{},
+		marks:    policy.Facts[markGhost](p, "mark", policy.Provides(vocab.RoleLeveled)),
+		markers:  policy.Facts[markerGhost](p, "marker", policy.Provides(vocab.RoleLeveled)),
+		headings: policy.Facts[markerGhost](p, "heading-marker", policy.Provides(vocab.RoleReshapeable)),
+		spans:    map[vocab.Spelling]*policy.FactKind[markSpan]{},
+		signs:    map[vocab.Spelling]*policy.FactKind[markGhost]{},
 	}
 	// A mark is a pair, and a scope to leave, where its signs are
 	// projected: hidden, it has no sides to delete into or leave past.
@@ -131,10 +134,19 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 			p.Handle("overtype-in" + string(sp)).On(typed).In(k.signs[sp].Scope()).When(vocab.Collapsed).Do(stepOver)
 		}
 	}
+	// Among a marker's glyphs, they are the marker's to edit: deleting one
+	// behind or ahead steps it down, and a glyph typed there or before the
+	// first reshapes it. At the block's edges, deleting into the marker is
+	// the block's own level (core).
+	fwd := vocab.Deleting(vocab.ByGrapheme, vocab.Forward)
 	p.Handle("step-down-in-marker").On(back).In(k.markers.Scope()).When(vocab.Collapsed).
 		Produces(vocab.RoleEdits...).Do(stepIn)
-	p.Handle("step-up-marker").On(vocab.Typed("#")).In(k.markers.Scope()).When(vocab.Collapsed).
+	p.Handle("step-down-ahead-in-marker").On(fwd).In(k.markers.Scope()).When(vocab.Collapsed).
+		Unless(vocab.AtInnerEnd).Produces(vocab.RoleEdits...).Do(stepAhead)
+	p.Handle("step-up-marker").On(vocab.Typed("#")).In(k.headings.Scope()).When(vocab.Collapsed).
 		Produces(vocab.RoleEdits...).Do(reshapeIn)
+	p.Handle("step-up-before-marker").On(vocab.Typed("#")).In(vocab.Slot).
+		When(vocab.Collapsed, vocab.Before(k.headings.Scope())).Produces(vocab.RoleEdits...).Do(reshapeIn)
 
 	// A stop decides the marks typed text takes.
 	p.Observe("stop-marks", policy.Trigger{}, stopMarks(k))
@@ -144,6 +156,11 @@ type kinds struct {
 	// marks are every mark's signs, which stops and deleting read alike.
 	marks   *policy.FactKind[markGhost]
 	markers *policy.FactKind[markerGhost]
+	// headings are a heading's marker again, which a typed "#" reshapes;
+	// other markers take no glyph yet.
+	// TODO(markers): an item's marker takes its style and task box through
+	// typed glyphs.
+	headings *policy.FactKind[markerGhost]
 	// spans are mark runs between their signs, by spelling: pairs, and
 	// scopes Leave exits past the closing sign. signs are the signs again
 	// by spelling. A typed sign character acts only on what it spells, so
@@ -162,7 +179,7 @@ func signSpellings() []vocab.Spelling {
 }
 
 func (k kinds) all() []vocab.FactKind {
-	out := []vocab.FactKind{k.marks.Kind(), k.markers.Kind()}
+	out := []vocab.FactKind{k.marks.Kind(), k.markers.Kind(), k.headings.Kind()}
 	for _, sp := range signSpellings() {
 		out = append(out, k.spans[sp].Kind(), k.signs[sp].Kind())
 	}
@@ -352,8 +369,13 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 			}
 			if marker != nil && at == 0 {
 				// A marker attaches to its block's start, before the text:
-				// the text's own stop is after it.
-				emit(k.markers.Point(0, -marker.Glyphs(), 0, markerGhost{Marker: *marker}))
+				// a stop before its first glyph and after each, then its
+				// separator, then the text's own stop.
+				g := markerGhost{Marker: *marker}
+				emit(k.markers.Point(0, -marker.Glyphs()-1, 0, g))
+				if marker.Kind == vocab.Heading {
+					emit(k.headings.Point(0, -marker.Glyphs()-1, 0, g))
+				}
 			}
 			for _, o := range opening {
 				put(o.g)
@@ -488,12 +510,10 @@ func (g markerGhost) Step(dir vocab.Direction) vocab.Edit {
 	}
 }
 
-// Reshape takes a glyph typed into the marker: another "#" is one level
-// deeper. Other glyphs leave a marker as it is.
-// TODO(markers): an item's marker takes its style and task box through
-// typed glyphs.
+// Reshape takes a glyph typed into a heading's marker: another "#" is one
+// level deeper.
 func (g markerGhost) Reshape(glyph string) vocab.Edit {
-	if glyph == "#" && g.Marker.Kind == vocab.Heading {
+	if glyph == "#" {
 		return g.Step(vocab.Forward)
 	}
 	return vocab.Sequence()
@@ -528,6 +548,34 @@ func stepIn(c *policy.Ctx, m policy.Match) policy.Result {
 	return policy.Do(l.Step(vocab.Backward))
 }
 
+// stepAhead steps the marker the caret is among the glyphs of down one
+// level, for the glyph ahead. The caret keeps its place from the marker's start, as the glyph
+// ahead of it goes.
+func stepAhead(c *policy.Ctx, m policy.Match) policy.Result {
+	f, ok := m.Fact()
+	if !ok {
+		return policy.Swallow
+	}
+	l, ok := policy.Placed(m.Level.Slot, f).(vocab.Leveled)
+	if !ok {
+		return policy.Swallow
+	}
+	head := c.Head()
+	head.Stop++
+	at := doc.Collapsed(head)
+	return policy.Result{Edits: []vocab.Edit{l.Step(vocab.Backward)}, Selection: &at}
+}
+
+// ghostRole is a role of the ghost the caret is in, or else of the one
+// right after it.
+func ghostRole(c *policy.Ctx, m policy.Match, role vocab.Role) any {
+	if f, ok := m.Fact(); ok {
+		return policy.Placed(m.Level.Slot, f)
+	}
+	r, _ := c.Beside(role, true)
+	return r
+}
+
 // stepUp spells the mark the caret is in one level up, both its signs.
 func stepUp(c *policy.Ctx, m policy.Match) policy.Result {
 	f, ok := m.Fact()
@@ -553,14 +601,13 @@ func stepOver(c *policy.Ctx, _ policy.Match) policy.Result {
 	return policy.Select(doc.Collapsed(next))
 }
 
-// reshapeIn gives a glyph typed inside a marker to the marker.
+// reshapeIn gives a glyph typed before or inside a marker to the marker.
 func reshapeIn(c *policy.Ctx, m policy.Match) policy.Result {
-	f, ok := m.Fact()
-	in, tok := m.Intent.(vocab.Type)
-	if !ok || !tok {
+	in, ok := m.Intent.(vocab.Type)
+	if !ok {
 		return policy.Swallow
 	}
-	r, ok := policy.Placed(m.Level.Slot, f).(vocab.Reshapeable)
+	r, ok := ghostRole(c, m, vocab.RoleReshapeable).(vocab.Reshapeable)
 	if !ok {
 		return policy.Swallow
 	}

@@ -213,6 +213,8 @@ func TestHeadingMarkerSteps(t *testing.T) {
 	}
 	p.wantShown("[## ]|Head")
 	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	p.wantShown("[##| ]Head")
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
 	p.wantShown("[#|# ]Head")
 	// A "#" typed inside the marker makes the heading one level deeper.
 	p.typeText("#")
@@ -223,7 +225,9 @@ func TestHeadingMarkerSteps(t *testing.T) {
 	// The caret keeps its place from the text, after the glyph typed.
 	p.wantShown("[##|# ]Head")
 	// Backspace at the text's start steps it back up, then out.
-	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward})
+	for range 2 {
+		p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward})
+	}
 	p.wantShown("[### ]|Head")
 	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
 	for _, level := range []int{2, 1} {
@@ -236,6 +240,55 @@ func TestHeadingMarkerSteps(t *testing.T) {
 	p.do(back)
 	p.want("page(paragraph(Head))")
 	p.wantShown("|Head")
+}
+
+// Each place a heading's marker holds edits it: a "#" typed before or
+// among its glyphs is one level deeper, and deleting a glyph from either
+// side one level shallower. Its separator is a gap before the text.
+func TestEveryMarkerPlaceEditsTheMarker(t *testing.T) {
+	typed := vocab.Type{Text: "#"}
+	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+	fwd := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Forward}
+	for _, tc := range []struct {
+		at    string
+		do    vocab.Intent
+		level int
+		shown string
+	}{
+		{"[## ]|Head", typed, 2, "[## ]#|Head"},
+		{"[##| ]Head", typed, 3, "[###| ]Head"},
+		{"[#|# ]Head", typed, 3, "[##|# ]Head"},
+		{"|[## ]Head", typed, 3, "[#|## ]Head"},
+		{"[## ]|Head", back, 1, "[# ]|Head"},
+		{"[##| ]Head", back, 1, "[#| ]Head"},
+		{"[#|# ]Head", back, 1, "|[# ]Head"},
+		{"[##| ]Head", fwd, 2, "[## ]|Head"},
+		{"[#|# ]Head", fwd, 1, "[#| ]Head"},
+		{"|[## ]Head", fwd, 1, "|[# ]Head"},
+	} {
+		p := open(t)
+		p.typeText("## Head")
+		for p.shown() != tc.at {
+			p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+		}
+		p.do(tc.do)
+		if n := p.e.Snapshot().Root().Slot(0).Child(0); vocab.HeadingLevel(n) != tc.level {
+			t.Fatalf("%v at %s: level %d, want %d", tc.do, tc.at, vocab.HeadingLevel(n), tc.level)
+		}
+		if got := p.shown(); got != tc.shown {
+			t.Fatalf("%v at %s: shown %q, want %q", tc.do, tc.at, got, tc.shown)
+		}
+	}
+	// An item's marker takes no glyph: "#" is its text's.
+	for _, at := range []string{"[-| ]a", "|[- ]a"} {
+		p := open(t)
+		p.typeText("- a")
+		for p.shown() != at {
+			p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+		}
+		p.do(typed)
+		p.want("page(list(item(#a|)))")
+	}
 }
 
 func TestHiddenNotationKeepsOneStopPerPosition(t *testing.T) {

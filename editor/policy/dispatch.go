@@ -31,8 +31,11 @@ type Level struct {
 	Slot       doc.SlotRef
 	Fact       *Fact
 	Annotation *Annotation
-	// Start and End are the level's inner edges.
-	Start, End doc.Pos
+	// Start and End are the level's inner edges, as places: a fact's and an
+	// annotation's stand at a stop; a node's and a slot's are content
+	// edges, holding every stop at their offsets (doc.StopFirst,
+	// doc.StopLast).
+	Start, End doc.Caret
 
 	keys []vocab.Scope
 }
@@ -158,13 +161,15 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 		} else {
 			l.Slot = ref
 		}
-		l.Start, l.End = nodeEdges(n)
+		start, end := nodeEdges(n)
+		l.Start, l.End = doc.Caret{Pos: start, Stop: doc.StopFirst}, doc.Caret{Pos: end, Stop: doc.StopLast}
 		s.Levels = append(s.Levels, l)
 	}
 	slotLevel := &Level{Class: LevelSlot, Node: owner, Slot: ref, keys: []vocab.Scope{vocab.Slot}}
-	slotLevel.Start = doc.At(ref, 0)
+	slotLevel.Start = doc.Caret{Pos: doc.At(ref, 0), Stop: doc.StopFirst}
+	slotLevel.End = doc.Caret{Pos: doc.At(ref, 0), Stop: doc.StopLast}
 	if ref.Slot < owner.NumSlots() {
-		slotLevel.End = doc.At(ref, owner.Slot(ref.Slot).Len())
+		slotLevel.End.Offset = owner.Slot(ref.Slot).Len()
 	}
 	s.Levels = append(s.Levels, slotLevel)
 	for i := range facts {
@@ -174,8 +179,9 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 		}
 		s.Levels = append(s.Levels, &Level{
 			Class: LevelFact, Node: owner, Slot: ref, Fact: &f,
-			Start: doc.At(ref, f.InnerFrom), End: doc.At(ref, f.InnerTo),
-			keys: p.factKeys(f.Kind),
+			Start: doc.Caret{Pos: doc.At(ref, f.InnerFrom), Stop: f.InnerStopFrom},
+			End:   doc.Caret{Pos: doc.At(ref, f.InnerTo), Stop: f.InnerStopTo},
+			keys:  p.factKeys(f.Kind),
 		})
 	}
 	if view != nil {
@@ -185,7 +191,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 			}
 			s.Levels = append(s.Levels, &Level{
 				Class: LevelAnnotation, Node: owner, Slot: ref, Annotation: &a,
-				Start: a.Anchor.From.Pos, End: a.Anchor.To.Pos,
+				Start: a.Anchor.From, End: a.Anchor.To,
 				keys: []vocab.Scope{vocab.AnnotationScope(a.Kind)},
 			})
 		}
@@ -219,6 +225,15 @@ func (p *Program) factKeys(k vocab.FactKind) []vocab.Scope {
 
 // nodeEdges are a node's inner edges: the start of its first text slot and
 // the end of its last, or its first and last gaps.
+// atEdge reports whether a caret stands at an edge: at its stop, or at
+// any stop of its offset for a content edge, which holds them all.
+func atEdge(c, edge doc.Caret) bool {
+	if c.Pos != edge.Pos {
+		return false
+	}
+	return edge.Stop == doc.StopFirst || edge.Stop == doc.StopLast || c.Stop == edge.Stop
+}
+
 func nodeEdges(n *doc.Node) (doc.Pos, doc.Pos) {
 	start := doc.Pos{Node: n.ID()}
 	end := start
@@ -371,9 +386,9 @@ func (e *evaluator) eval(level int, rel vocab.Relation) bool {
 	sel := c.view.Selection
 	switch rel.Kind {
 	case vocab.RelAtInnerStart:
-		return pos == l.Start
+		return atEdge(caret, l.Start)
 	case vocab.RelAtInnerEnd:
-		return pos == l.End
+		return atEdge(caret, l.End)
 	case vocab.RelCollapsed:
 		return sel.IsCollapsed()
 	case vocab.RelTextRange:
@@ -403,7 +418,7 @@ func (e *evaluator) eval(level int, rel vocab.Relation) bool {
 		if sel.Kind == doc.SelectNode {
 			return l.Class == LevelNode && l.Node.ID() == sel.Node
 		}
-		return from.Pos == l.Start && to.Pos == l.End
+		return atEdge(from, l.Start) && atEdge(to, l.End)
 	case vocab.RelCovers, vocab.RelIntersects, vocab.RelCuts:
 		return e.selectionRelation(rel.Kind, rel.Target)
 	}

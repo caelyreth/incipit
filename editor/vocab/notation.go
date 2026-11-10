@@ -122,8 +122,7 @@ func (m Marker) Spelling() Spelling {
 	return s + " "
 }
 
-// Glyphs is how many caret stops the marker holds: one after each of its
-// glyphs, its final separator being a gap.
+// Glyphs is how many glyphs the marker spells before its separator.
 func (m Marker) Glyphs() int {
 	return GraphemeCount(strings.TrimSuffix(string(m.Spelling()), " "))
 }

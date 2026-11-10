@@ -119,9 +119,9 @@ func TestGhostStopsHaveTheirOwnPlaces(t *testing.T) {
 			t.Fatalf("stop %v at %d does not follow %v at %d", s.stops[i].caret, s.stops[i].u, s.stops[i-1].caret, s.stops[i-1].u)
 		}
 	}
-	// One stop at each glyph boundary, but none between the marker and
-	// its separator.
-	if n, want := len(s.stops), len(s.text); n != want {
+	// One stop at each glyph boundary, the marker's separator between the
+	// stop after its glyphs and the text's.
+	if n, want := len(s.stops), len(s.text)+1; n != want {
 		t.Fatalf("%d stops for %q, want %d", n, s.text, want)
 	}
 }
