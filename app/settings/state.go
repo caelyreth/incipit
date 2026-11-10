@@ -15,10 +15,8 @@ var (
 	ErrInvalidAppearance = errors.New("settings: invalid appearance change")
 )
 
-// State is every application setting.
-//
-// TODO(persistence): nothing here is saved. Presentation, appearance, keymap
-// and policy values reset when the app restarts.
+// State is every application setting. Encode and Decode keep it beside the
+// notebook; the workspace keeps each page's selection separately.
 type State struct {
 	Presentation PresentationState
 	Appearance   AppearanceSettings

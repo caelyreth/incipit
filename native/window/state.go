@@ -53,6 +53,8 @@ type AppState struct {
 	// chrome is the editor state the footer and formatting toolbar last
 	// showed.
 	chrome chromeKey
+	// settingsDirty waits for the next write of the settings record.
+	settingsDirty bool
 }
 
 // NewAppState is a notebook held in memory alone, as tests use.
@@ -88,8 +90,40 @@ func newAppState(store *storage.Store) (*AppState, error) {
 	app.Palette = &overlay.CommandPalette{}
 	app.Shell.Colors = &app.colors
 	app.Settings.Colors = &app.colors
+	if err := app.loadSettings(store); err != nil {
+		return nil, err
+	}
+	app.Shell.Settings = appearanceSettings(app.Product.Appearance)
+	app.Shell.Settings.Accent = app.groupAccent()
+	app.Shell.Appearance = app.Product.Presentation
 	app.BindShell()
 	return app, nil
+}
+
+// loadSettings restores the saved appearance, writing modes, keymap and
+// policy values. A record that cannot be read or compiled is replaced by
+// the defaults; the pages are untouched.
+func (a *AppState) loadSettings(store *storage.Store) error {
+	if store == nil {
+		return nil
+	}
+	data, err := store.LoadSettings()
+	if err != nil {
+		return err
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := a.Product.Decode(data); err != nil {
+		a.Product = appsettings.DefaultState()
+		a.settingsDirty = true
+		a.saveSettings()
+		a.Notices.Post(notices.Notice{
+			ID: "settings.load", Kind: notices.Warning, Title: "Settings were reset",
+			Description: "Your notebook is unchanged. The saved preferences could not be read.",
+		})
+	}
+	return nil
 }
 
 func (a *AppState) BindShell() {
@@ -223,6 +257,7 @@ func (a *AppState) findPage() {
 }
 
 func (a *AppState) selectMounted() {
+	a.captureViews()
 	a.refreshShell()
 	a.syncMenu()
 }
@@ -232,6 +267,7 @@ func (a *AppState) closePageID(id string) {
 	if !ok {
 		return
 	}
+	a.captureViews()
 	if err := a.Workspace.Close(page); err != nil {
 		a.fail("Couldn't close the page", err)
 		return
@@ -288,8 +324,32 @@ func (a *AppState) refreshSettingsData() {
 		case appsettings.ChangePresentation:
 			a.refreshAppearance()
 		}
+		a.settingsChanged()
 		a.refreshSettingsData()
 	}
+}
+
+// settingsChanged queues the settings record; the saver writes it after
+// its settle delay, beside the workspace layout.
+func (a *AppState) settingsChanged() {
+	if a == nil || a.notebook == nil || a.notebook.closed {
+		return
+	}
+	a.settingsDirty = true
+	a.saveSettings()
+}
+
+func (a *AppState) saveSettings() {
+	if a == nil || !a.settingsDirty || a.notebook == nil || a.notebook.closed {
+		return
+	}
+	data, err := a.Product.Encode()
+	if err != nil {
+		a.fail("Couldn't save settings", err)
+		return
+	}
+	a.notebook.saver.Settings(data)
+	a.settingsDirty = false
 }
 
 // applyAppearance moves every window to the chosen theme together: the
@@ -326,8 +386,13 @@ func (a *AppState) setPresentation(mode appsettings.Presentation, on bool) {
 	if a == nil {
 		return
 	}
-	if _, err := a.Product.Apply(appsettings.SetPresentation(mode, on)); err != nil {
+	outcome, err := a.Product.Apply(appsettings.SetPresentation(mode, on))
+	if err != nil {
 		a.fail("Couldn't change the setting", err)
+		return
+	}
+	if outcome.Applied {
+		a.settingsChanged()
 	}
 	a.refreshAppearance()
 	a.refreshSettingsData()

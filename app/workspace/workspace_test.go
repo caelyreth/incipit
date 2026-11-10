@@ -253,6 +253,34 @@ func TestRestoreReadsAStaleLayoutForWhatItStillSays(t *testing.T) {
 	}
 }
 
+func TestSelectionsTravelWithTheLayout(t *testing.T) {
+	t.Parallel()
+	sessions := []Session{newTestSession(0, "a"), newTestSession(1, "b")}
+	create := func(id PageID) (Session, error) {
+		return newTestSession(id, ""), nil
+	}
+	view := ViewState{
+		Kind:   SelectText,
+		Anchor: Caret{Node: 11, Slot: 0, Offset: 1, Stop: 0},
+		Head:   Caret{Node: 11, Slot: 0, Offset: 4, Stop: 2},
+	}
+	workspace, err := Restore(sessions, Layout{
+		Tabs: []PageID{1}, Active: 1, HasActive: true,
+		Views: map[PageID]ViewState{1: view},
+	}, create)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := workspace.ActiveView(); !ok || got != view {
+		t.Fatalf("active view = %+v, %v", got, ok)
+	}
+	workspace.SetActiveView(ViewState{Kind: SelectNode, Node: 7})
+	layout := workspace.Layout()
+	if got := layout.Views[1]; got.Kind != SelectNode || got.Node != 7 {
+		t.Fatalf("saved view = %+v", got)
+	}
+}
+
 func TestOpeningInPlaceReplacesTheActiveTab(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)

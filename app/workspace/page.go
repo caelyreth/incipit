@@ -33,6 +33,7 @@ type Page struct {
 type pageState struct {
 	Page
 	session Session
+	view    ViewState
 	// discarded marks a page let go for good: its identity stays taken.
 	discarded bool
 }
