@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"cmp"
 	"fmt"
 	"reflect"
 	"slices"
@@ -13,49 +14,49 @@ import (
 
 // Fact is a recognised span or point in one inline slot. Offsets are
 // slot-relative bytes. A span has an outer extent and an inner one (a pair
-// without its delimiters); a point has From == To. A fact at a ghost point
-// holds a stop range, since ghost notation spans no bytes but has stops.
+// without its delimiters); a point has From == To.
+//
+// Each edge is a place: an offset and a stop there (§13.5), so a fact
+// whose delimiters are projected, spanning stops but no bytes, has edges
+// like any other. An edge at content holds every stop at its offset
+// (doc.StopFirst or doc.StopLast); a point's outer edges are the stops
+// just before and after its projection, and its inner extent the stops
+// between.
 type Fact struct {
-	Kind               vocab.FactKind
-	From, To           int
-	InnerFrom, InnerTo int
-	// StopFrom and StopTo order facts at one offset by stop.
-	StopFrom, StopTo int
-	Point            bool
-	// Signs, for a span whose sides are ghost signs, are their stops.
-	Signs *Signs
-	Data  any
+	Kind                       vocab.FactKind
+	From, To                   int
+	InnerFrom, InnerTo         int
+	StopFrom, StopTo           int
+	InnerStopFrom, InnerStopTo int
+	Point                      bool
+	Data                       any
 }
 
-// Signs are the stops of a span's two ghost signs, which span no bytes:
-// its opener stands at From between stops OpenFrom and OpenTo, its closer
-// at To between CloseFrom and CloseTo. The span holds a caret only between
-// them.
-type Signs struct{ OpenFrom, OpenTo, CloseFrom, CloseTo int }
+// StopRange is where a projected delimiter stands among the stops at its
+// offset: from the stop just before it to the stop just after it.
+type StopRange struct{ From, To int }
 
-// Inside reports whether off is inside the fact's inner extent.
-func (f Fact) Inside(off int) bool { return !f.Point && off >= f.InnerFrom && off <= f.InnerTo }
+// place orders a caret against an edge at offset at and stop stop.
+func place(c doc.Caret, at, stop int) int {
+	if c.Pos.Offset != at {
+		return cmp.Compare(c.Pos.Offset, at)
+	}
+	return cmp.Compare(c.Stop, stop)
+}
 
-// Holds reports whether a caret is inside the span: inside its inner
-// extent and, at a signed edge, past the sign.
+// Holds reports whether a caret is inside the fact's inner extent.
 func (f Fact) Holds(c doc.Caret) bool {
-	if !f.Inside(c.Pos.Offset) {
-		return false
-	}
-	if f.Signs == nil {
-		return true
-	}
-	return (c.Pos.Offset != f.InnerFrom || c.Stop >= f.Signs.OpenTo) && (c.Pos.Offset != f.InnerTo || c.Stop <= f.Signs.CloseFrom)
+	return place(c, f.InnerFrom, f.InnerStopFrom) >= 0 && place(c, f.InnerTo, f.InnerStopTo) <= 0
 }
 
-// Starts reports whether the span starts right after the caret, its
-// opener ahead; Ends whether it ends right before it, its closer behind.
+// Starts reports whether the fact starts right after the caret, nothing
+// between them; Ends whether it ends right before it.
 func (f Fact) Starts(c doc.Caret) bool {
-	return f.From == c.Pos.Offset && (f.Signs == nil || c.Stop <= f.Signs.OpenFrom)
+	return c.Pos.Offset == f.From && c.Stop <= f.StopFrom
 }
 
 func (f Fact) Ends(c doc.Caret) bool {
-	return f.To == c.Pos.Offset && (f.Signs == nil || c.Stop >= f.Signs.CloseTo)
+	return c.Pos.Offset == f.To && c.Stop >= f.StopTo
 }
 
 // FactKind is a typed fact kind a policy declared.
@@ -123,26 +124,30 @@ func (k *FactKind[T]) Kind() vocab.FactKind { return k.kind }
 // Scope is the fact kind as a scope key.
 func (k *FactKind[T]) Scope() vocab.Scope { return vocab.FactScope(k.kind) }
 
-// Span is a fact whose inner extent is its outer one.
+// Span is a fact whose inner extent is its outer one, edged by content.
 func (k *FactKind[T]) Span(from, to int, data T) Fact {
-	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: from, InnerTo: to, Data: data}
+	return k.Delimited(from, from, to, to, data)
 }
 
 // Delimited is a fact with delimiters: [from, innerFrom) and [innerTo, to).
 func (k *FactKind[T]) Delimited(from, innerFrom, innerTo, to int, data T) Fact {
-	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: innerFrom, InnerTo: innerTo, Data: data}
+	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: innerFrom, InnerTo: innerTo,
+		StopFrom: doc.StopLast, StopTo: doc.StopFirst, InnerStopFrom: doc.StopFirst, InnerStopTo: doc.StopLast, Data: data}
 }
 
-// Signed is a span whose sides are ghost signs, holding [from, to].
-func (k *FactKind[T]) Signed(from, to int, signs Signs, data T) Fact {
-	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: from, InnerTo: to, Signs: &signs, Data: data}
+// Projected is a span whose delimiters are projected, standing at its
+// offsets by stop: open at from, close at to.
+func (k *FactKind[T]) Projected(from, to int, open, close StopRange, data T) Fact {
+	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: from, InnerTo: to,
+		StopFrom: open.From, StopTo: close.To, InnerStopFrom: open.To, InnerStopTo: close.From, Data: data}
 }
 
-// Point is a fact at an offset whose ghost notation stands between stop
+// Point is a fact at an offset whose projection stands between stop
 // stopFrom, just before it, and stop stopTo, just after it; the stops
 // between are inside it.
 func (k *FactKind[T]) Point(at, stopFrom, stopTo int, data T) Fact {
-	return Fact{Kind: k.kind, From: at, To: at, InnerFrom: at, InnerTo: at, StopFrom: stopFrom, StopTo: stopTo, Point: true, Data: data}
+	return Fact{Kind: k.kind, From: at, To: at, InnerFrom: at, InnerTo: at,
+		StopFrom: stopFrom, StopTo: stopTo, InnerStopFrom: stopFrom + 1, InnerStopTo: stopTo - 1, Point: true, Data: data}
 }
 
 // Data returns a fact's typed data.

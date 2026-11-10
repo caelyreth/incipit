@@ -18,16 +18,6 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
-// Reveal is the notation reveal mode, a view option. Notation looks the
-// same wherever the caret is, so nothing reflows as it moves; block
-// markers are spelled under every mode.
-type Reveal uint8
-
-const (
-	RevealShown Reveal = iota
-	RevealHidden
-)
-
 // GhostLayout is how ghosts are laid out.
 type GhostLayout uint8
 
@@ -40,7 +30,6 @@ const (
 
 // Options are the view inputs presentation reads.
 type Options struct {
-	Reveal Reveal
 	Ghosts GhostLayout
 }
 
@@ -194,7 +183,6 @@ type unitKey struct {
 	node    *doc.Node
 	context string
 	program uint64
-	reveal  Reveal
 	ghosts  GhostLayout
 	open    string
 	// facts is what the facts of the unit's text depend on besides it.
@@ -344,7 +332,7 @@ func (pr *Presenter) Present(prog *policy.Program, store *policy.Store, r doc.Re
 
 // keyOf is a unit's key apart from the view's selection.
 func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef, opts Options) unitKey {
-	key := unitKey{node: u.Node, context: fmt.Sprintf("%+v", u.Context), program: prog.Version(), reveal: opts.Reveal, ghosts: opts.Ghosts}
+	key := unitKey{node: u.Node, context: fmt.Sprintf("%+v", u.Context), program: prog.Version(), ghosts: opts.Ghosts}
 	if u.Marker() != nil {
 		key.context += fmt.Sprintf("%+v", *u.Context.Marker)
 	}
@@ -517,16 +505,12 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 			paints = append(paints, paintSpan{f.From, f.To, pc.Group})
 		}
 	}
-	// Ghosts: block markers always, mark notation unless hidden.
+	// Ghosts: what the policies project, as they project it.
 	var ghosts []policy.Ghost
 	if len(prog.Ghosts()) > 0 {
 		unit := prog.UnitOf(store, r, view, ref)
 		for _, g := range prog.Ghosts() {
-			g(unit, func(gh policy.Ghost) {
-				if gh.Block || opts.Reveal != RevealHidden {
-					ghosts = append(ghosts, gh)
-				}
-			})
+			g(unit, func(gh policy.Ghost) { ghosts = append(ghosts, gh) })
 		}
 		// At one offset, ghosts keep the order their stops number them in.
 		slices.SortStableFunc(ghosts, func(a, b policy.Ghost) int {
@@ -539,8 +523,10 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 	var items []Item
 	var stops []Stop
 	// flush moves the stops gathered so far into the map. At one offset
-	// they stand in stop order: a block marker's below the position's own
-	// stop 0, which is gathered with the text before it.
+	// they stand in stop order: what attaches to the content before, below
+	// the position's own stop 0, gathered with the text before it; what
+	// attaches to the content after, above. Two projected items meeting
+	// share the stop between them.
 	flush := func() {
 		slices.SortStableFunc(stops, func(a, b Stop) int {
 			if a.Offset != b.Offset {
@@ -548,6 +534,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 			}
 			return a.Caret.Stop - b.Caret.Stop
 		})
+		stops = slices.CompactFunc(stops, func(a, b Stop) bool { return a.Caret == b.Caret })
 		p.Stops = append(p.Stops, stops...)
 		stops = nil
 	}

@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -401,7 +402,7 @@ func compareFacts(a, b Fact) int {
 	case a.From != b.From:
 		return a.From - b.From
 	case a.StopFrom != b.StopFrom:
-		return a.StopFrom - b.StopFrom
+		return cmp.Compare(a.StopFrom, b.StopFrom)
 	case a.To != b.To:
 		return b.To - a.To
 	}

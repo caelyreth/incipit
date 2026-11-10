@@ -90,6 +90,41 @@ func TestDeletingIntoAMarkArmsItsSigns(t *testing.T) {
 	p.want("page(paragraph(a bc))")
 }
 
+// From outside a mark, Backspace arms its signs as it arms a bracket's.
+func TestDeletingIntoAMarkFromOutsideArmsItsSigns(t *testing.T) {
+	p := open(t)
+	p.typeText("a **bc** d")
+	p.do(backspace)
+	p.do(backspace)
+	p.wantShown("a [**]bc[**]|")
+	p.do(backspace)
+	if p.armed() != 2 {
+		t.Fatalf("%d signs armed, want 2", p.armed())
+	}
+	p.wantShown("a [**]bc[**]|")
+	p.do(backspace)
+	p.want("page(paragraph(a bc))")
+}
+
+// The way back is offered where Leave landed, not inside the scope left,
+// so moving inside and out again finds it still there.
+func TestTheWayBackFromAMarkStandsAtItsExit(t *testing.T) {
+	p := open(t)
+	p.typeText("a *bc")
+	p.do(vocab.Leave{})
+	p.do(left)
+	p.wantShown("a [*]bc|[*]")
+	if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.leave" {
+		t.Fatalf("inside, guides %+v", g)
+	}
+	p.do(right)
+	if g := p.e.Decorations(1).Guides; len(g) != 1 || g[0].Command != "core.return" {
+		t.Fatalf("back at the exit, guides %+v", g)
+	}
+	p.do(vocab.Return{})
+	p.wantShown("a [*]bc|[*]")
+}
+
 // Leave exits a mark past its closing sign, where typing is unmarked.
 func TestLeaveExitsAMark(t *testing.T) {
 	p := open(t)

@@ -3,7 +3,7 @@ package manifest
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/policies/notation"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -103,8 +103,7 @@ func TestDeleteBeforeAMarkerStepsItDown(t *testing.T) {
 }
 
 func TestBackspaceAtAHiddenHeadingsStartStepsItDown(t *testing.T) {
-	p := open(t)
-	p.e.SetPresentOptions(1, hidden())
+	p := revealed(t, notation.RevealHidden)
 	p.typeText("## Head")
 	for range 4 {
 		p.do(left)
@@ -114,8 +113,6 @@ func TestBackspaceAtAHiddenHeadingsStartStepsItDown(t *testing.T) {
 		t.Fatalf("level %d; hidden notation steps like shown notation", vocab.HeadingLevel(n))
 	}
 }
-
-func hidden() present.Options { return present.Options{Reveal: present.RevealHidden} }
 
 // The engine publishes what the selection covers: the renderer paints
 // only that.

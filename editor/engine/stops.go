@@ -165,9 +165,11 @@ func (m *stopModel) Edge(dir vocab.Direction) (doc.Caret, bool) {
 }
 
 // Normalize is total: a caret that is a stop stays; one at a position
-// whose stop it is not takes the position's last stop below it; any other
-// takes the last stop before it in its unit, or the nearest stop of the
-// page when no unit holds it, such as a gap between two text blocks.
+// whose stop it is not takes the stop there nearest it toward the
+// boundary, stop 0, so a place whose projected items went keeps its side
+// of the content; any other takes the last stop before it in its unit, or
+// the nearest stop of the page when no unit holds it, such as a gap
+// between two text blocks.
 func (m *stopModel) Normalize(c doc.Caret) doc.Caret {
 	i, ok := m.pr.UnitAt(m.r, c.Pos)
 	if !ok {
@@ -182,8 +184,14 @@ func (m *stopModel) Normalize(c doc.Caret) doc.Caret {
 		if s.Caret == c {
 			return c
 		}
-		if s.Caret.Pos == c.Pos && s.Caret.Stop < c.Stop {
-			// The last stop at the position below c's.
+		if s.Caret.Pos != c.Pos {
+			continue
+		}
+		toward := s.Caret.Stop <= c.Stop
+		if c.Stop < 0 {
+			toward = s.Caret.Stop >= c.Stop
+		}
+		if toward && (best < 0 || abs(s.Caret.Stop-c.Stop) < abs(p.Stops[best].Caret.Stop-c.Stop)) {
 			best = k
 		}
 	}
@@ -235,4 +243,11 @@ func (m *stopModel) nearest(c doc.Caret) doc.Caret {
 		return *last
 	}
 	return c
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }

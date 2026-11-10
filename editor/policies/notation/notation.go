@@ -8,16 +8,17 @@
 // there, innermost first, then a heading's marker, then the marks that
 // start there, outermost first. Each glyph is one stop; a marker's
 // separator is a gap, so a ghost's last stop is after the whole ghost.
-// Stop 0 is the position's own stop, where text typed takes the marks it
-// inherits: before the mark ghosts, which number up from it, and after a
-// block's marker, which numbers down to it. The stop before a marker
-// stands before its block.
+// Stops number from the boundary, stop 0, between what attaches to the
+// content before (closing signs, a block's marker: below 0) and what
+// attaches to the content after (opening signs: above 0), so a caret
+// keeps its side of each ghost as the content around it is edited. The
+// stop before a marker stands before its block.
 //
 // A stop decides the marks text typed there takes: the marks before the
-// offset, with every ghost the stop is past applied. Backspace inside or
-// just after a ghost steps its mark down (strong to emphasis to none) or
-// the block down one level, and a typed "#" inside a heading's marker
-// steps it up.
+// offset, with every ghost the stop is past applied. Backspace between a
+// ghost's glyphs steps it down (strong to emphasis, a heading a level),
+// and a typed "#" inside a heading's marker steps it up. Hidden, the
+// policy projects block markers only.
 package notation
 
 import (
@@ -58,17 +59,14 @@ var (
 	Underscores = policy.Bool("underscores", false, policy.Label("settings.notation.underscores"), policy.Description("settings.notation.underscores.description"))
 )
 
-// View returns the reveal mode and ghost layout option values chose, for
-// the host's view options.
-func View(values policy.Values) (reveal, layout string) {
-	reveal, layout = RevealShown, LayoutRoom
-	if v, ok := values[ID+"."+"reveal"].(string); ok {
-		reveal = v
-	}
+// LayoutOf returns the ghost layout values chose, for the host's view
+// options; how ghosts are drawn is the host's, what is projected the
+// policy's.
+func LayoutOf(values policy.Values) string {
 	if v, ok := values[ID+"."+"layout"].(string); ok {
-		layout = v
+		return v
 	}
-	return reveal, layout
+	return LayoutRoom
 }
 
 // The records the policy's edits produce.
@@ -76,9 +74,8 @@ var edits = []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted, doc.
 
 // Policy is the notation policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	_ = policy.Get(p, Reveal)
 	_ = policy.Get(p, Layout)
-	sp := spelling{Underscores: policy.Get(p, Underscores)}
+	sp := spelling{Underscores: policy.Get(p, Underscores), Hidden: policy.Get(p, Reveal) == RevealHidden}
 
 	k := kinds{
 		marks:   policy.Facts[markGhost](p, "mark", policy.Provides(vocab.RoleLeveled)),
@@ -86,8 +83,14 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		spans:   map[vocab.Spelling]*policy.FactKind[markSpan]{},
 		signs:   map[vocab.Spelling]*policy.FactKind[markGhost]{},
 	}
+	// A mark is a pair, and a scope to leave, where its signs are
+	// projected: hidden, it has no sides to delete into or leave past.
+	var spanRoles []policy.FactOption
+	if !sp.Hidden {
+		spanRoles = append(spanRoles, policy.Provides(vocab.RolePair, vocab.RoleLeavable))
+	}
 	for _, sp := range signSpellings() {
-		k.spans[sp] = policy.Facts[markSpan](p, "span"+string(sp), policy.Provides(vocab.RolePair, vocab.RoleLeavable))
+		k.spans[sp] = policy.Facts[markSpan](p, "span"+string(sp), spanRoles...)
 		k.signs[sp] = policy.Facts[markGhost](p, "sign"+string(sp))
 	}
 	p.Analyze(policy.Lines, analyze(sp, k), k.all(), policy.Config(sp),
@@ -96,21 +99,21 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Ghosts(func(u *policy.Unit, emit func(policy.Ghost)) {
 		for _, f := range u.Facts(k.marks.Kind()) {
 			g, _ := k.marks.Data(f)
-			emit(policy.Ghost{At: f.From, Spelling: g.Spelling, Group: vocab.GroupGhost, StopFrom: f.StopFrom, Stops: f.StopTo - f.StopFrom, Side: g.Side})
+			emit(policy.Ghost{At: f.From, Spelling: g.Spelling, Group: vocab.GroupGhost, StopFrom: f.StopFrom, Stops: f.StopTo - f.StopFrom})
 		}
 		for _, f := range u.Facts(k.markers.Kind()) {
 			g, _ := k.markers.Data(f)
 			emit(policy.Ghost{At: f.From, Spelling: g.spelling(), Group: vocab.GroupGhost, StopFrom: f.StopFrom, Stops: f.StopTo - f.StopFrom,
-				Side: vocab.Open, Block: true})
+				Block: true})
 		}
 	})
 
-	// Backspace steps the mark ghost before the caret, or the ghost it is
-	// in. After a block's marker the caret is at its text's start, where
-	// Backspace steps the block itself down.
+	// Backspace inside a sign or a marker, between its glyphs, steps it
+	// down a level: the ghost is notation's to edit. Deleting into a mark's
+	// sign from its edge is deleting into a pair, which is the Pair role's
+	// (§12); core crosses a glyph it does not own rather than delete
+	// through it.
 	back := vocab.Deleting(vocab.ByGrapheme, vocab.Backward)
-	p.Handle("step-down-after-mark").On(back).When(vocab.Collapsed, vocab.After(k.marks.Scope())).
-		Produces(edits...).Do(stepAfter(k))
 	p.Handle("step-down-in-mark").On(back).In(k.marks.Scope()).When(vocab.Collapsed).
 		Produces(edits...).Do(stepIn)
 	// A mark is one run, so typing its sign's character edits both signs:
@@ -119,13 +122,13 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	for _, sp := range signSpellings() {
 		typed, span := vocab.Typed(string(sp[:1])), k.spans[sp].Scope()
 		p.Handle("overtype-close"+string(sp)).On(typed).In(span).When(vocab.Collapsed, vocab.AtInnerEnd).
-			Unless(vocab.AtInnerStart).Do(overtypeClose)
+			Unless(vocab.AtInnerStart).Do(stepOver)
 		if m, _ := vocab.MarkOfSpelling(sp); m == vocab.Emphasis {
 			p.Handle("step-up"+string(sp)).On(typed).In(span).When(vocab.Collapsed, vocab.AtInnerStart).
 				Unless(vocab.AtInnerEnd).Produces(edits...).Do(stepUp)
 		}
 		if len(sp) > 1 {
-			p.Handle("overtype-in" + string(sp)).On(typed).In(k.signs[sp].Scope()).When(vocab.Collapsed).Do(overtypeIn)
+			p.Handle("overtype-in" + string(sp)).On(typed).In(k.signs[sp].Scope()).When(vocab.Collapsed).Do(stepOver)
 		}
 	}
 	p.Handle("step-down-in-marker").On(back).In(k.markers.Scope()).When(vocab.Collapsed).
@@ -133,14 +136,8 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Handle("step-up-marker").On(vocab.Typed("#")).In(k.markers.Scope()).When(vocab.Collapsed).
 		Produces(vocab.RoleEdits...).Do(reshapeIn)
 
-	// A stop decides the marks typed text takes; after an edit, a caret
-	// left before the ghosts at its offset moves to the stop that types
-	// as the edit left it.
+	// A stop decides the marks typed text takes.
 	p.Observe("stop-marks", policy.Trigger{}, stopMarks(k))
-	p.Rewrite("settle-caret", doc.PhaseCleanup).Trigger(policy.Trigger{Kinds: []doc.RecordKind{
-		doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks, doc.RecordTransferred,
-		doc.RecordNodesInserted, doc.RecordNodesRemoved, doc.RecordNodeChanged, doc.RecordNodeMoved,
-	}}).Extent(policy.TouchedSlots).Demands(k.marks.Kind(), k.markers.Kind()).Do(settleCaret(k))
 })
 
 type kinds struct {
@@ -174,9 +171,12 @@ func (k kinds) all() []vocab.FactKind {
 
 // --- recognising ---------------------------------------------------------
 
-// spelling is the notation set's choice of spellings.
+// spelling is the notation set's choice of spellings. Hidden projects
+// marks with no signs: a mark's run is still a pair, its sides spanning no
+// stops, and only block markers are spelled.
 type spelling struct {
 	Underscores bool
+	Hidden      bool
 }
 
 // of is the spelling of a mark kind, or false for marks notation does not
@@ -246,7 +246,10 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 			kind doc.MarkKind
 			end  int
 		}
-		type openSign struct{ at, from, to int }
+		type openSign struct {
+			at    int
+			stops policy.StopRange
+		}
 		opens := map[signKey]openSign{}
 		boundaries := len(runs) + 1
 		if len(runs) == 0 {
@@ -315,18 +318,31 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 				}
 				return depth(b.g.Mark.Kind) - depth(a.g.Mark.Kind)
 			})
+			// Closing signs attach to the run before them, so they stand
+			// below the boundary, stop 0; opening signs above it.
+			glyphs := func(g markGhost) int {
+				if sp.Hidden {
+					return 0
+				}
+				return vocab.GraphemeCount(string(g.Spelling))
+			}
 			stop := 0
+			for _, c := range closing {
+				stop -= glyphs(c.g)
+			}
 			put := func(g markGhost) {
-				n := vocab.GraphemeCount(string(g.Spelling))
-				emit(k.marks.Point(at, stop, stop+n, g))
-				emit(k.signs[g.Spelling].Point(at, stop, stop+n, g))
+				n := glyphs(g)
+				if n > 0 {
+					emit(k.marks.Point(at, stop, stop+n, g))
+					emit(k.signs[g.Spelling].Point(at, stop, stop+n, g))
+				}
+				here := policy.StopRange{From: stop, To: stop + n}
 				switch g.Side {
 				case vocab.Open:
-					opens[signKey{g.Mark.Kind, at + g.Ahead}] = openSign{at: at, from: stop, to: stop + n}
+					opens[signKey{g.Mark.Kind, at + g.Ahead}] = openSign{at: at, stops: here}
 				case vocab.Close:
 					if o, ok := opens[signKey{g.Mark.Kind, at}]; ok {
-						emit(k.spans[g.Spelling].Signed(o.at, at, policy.Signs{OpenFrom: o.from, OpenTo: o.to, CloseFrom: stop, CloseTo: stop + n},
-							markSpan{Mark: g.Mark, Spelling: g.Spelling}))
+						emit(k.spans[g.Spelling].Projected(o.at, at, o.stops, here, markSpan{Mark: g.Mark, Spelling: g.Spelling}))
 					}
 				}
 				stop += n
@@ -335,7 +351,8 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 				put(c.g)
 			}
 			if marker != nil && at == 0 {
-				// The text's own stop is after the marker.
+				// A marker attaches to its block's start, before the text:
+				// the text's own stop is after it.
 				emit(k.markers.Point(0, -marker.Glyphs(), 0, markerGhost{Marker: *marker}))
 			}
 			for _, o := range opening {
@@ -392,16 +409,15 @@ type markSpan struct {
 	Mark     doc.Mark
 	Spelling vocab.Spelling
 
-	slot     doc.SlotRef
-	from, to int
-	signs    policy.Signs
+	slot        doc.SlotRef
+	from, to    int
+	open, close policy.StopRange
 }
 
 func (s markSpan) Placed(slot doc.SlotRef, f policy.Fact) any {
 	s.slot, s.from, s.to = slot, f.From, f.To
-	if f.Signs != nil {
-		s.signs = *f.Signs
-	}
+	s.open = policy.StopRange{From: f.StopFrom, To: f.InnerStopFrom}
+	s.close = policy.StopRange{From: f.InnerStopTo, To: f.StopTo}
 	return s
 }
 
@@ -413,8 +429,8 @@ func (s markSpan) caret(at, stop int) doc.Caret {
 
 // Sides are the two signs, by their stops.
 func (s markSpan) Sides() (open, close vocab.Edge) {
-	return vocab.Edge{From: s.caret(s.from, s.signs.OpenFrom), To: s.caret(s.from, s.signs.OpenTo)},
-		vocab.Edge{From: s.caret(s.to, s.signs.CloseFrom), To: s.caret(s.to, s.signs.CloseTo)}
+	return vocab.Edge{From: s.caret(s.from, s.open.From), To: s.caret(s.from, s.open.To)},
+		vocab.Edge{From: s.caret(s.to, s.close.From), To: s.caret(s.to, s.close.To)}
 }
 
 // EditSide reinterprets a side's new spelling through the notation set:
@@ -438,8 +454,8 @@ func (s markSpan) Step(dir vocab.Direction) vocab.Edit {
 
 // Exit is past the closing sign, where typing is unmarked; Entry is
 // before it, inside the run.
-func (s markSpan) Exit() doc.Caret  { return s.caret(s.to, s.signs.CloseTo) }
-func (s markSpan) Entry() doc.Caret { return s.caret(s.to, s.signs.CloseFrom) }
+func (s markSpan) Exit() doc.Caret  { return s.caret(s.to, s.close.To) }
+func (s markSpan) Entry() doc.Caret { return s.caret(s.to, s.close.From) }
 
 // markerGhost is a block's marker at its text's start.
 type markerGhost struct {
@@ -499,27 +515,6 @@ func ghostsAt(c *policy.Ctx, k kinds, pos doc.Pos) []policy.Fact {
 	return out
 }
 
-// stepAfter steps the mark ghost just before the caret down one level.
-func stepAfter(k kinds) policy.Handler {
-	return func(c *policy.Ctx, _ policy.Match) policy.Result {
-		head := c.Head()
-		var before *policy.Fact
-		for _, f := range c.Facts(head.Pos.Ref(), k.marks.Kind()) {
-			if f.Point && f.From == head.Pos.Offset && f.StopTo <= head.Stop && (before == nil || f.StopTo > before.StopTo) {
-				before = &f
-			}
-		}
-		if before == nil {
-			return policy.Swallow
-		}
-		l, ok := policy.Placed(head.Pos.Ref(), *before).(vocab.Leveled)
-		if !ok {
-			return policy.Swallow
-		}
-		return policy.Do(l.Step(vocab.Backward))
-	}
-}
-
 // stepIn steps the ghost the caret is inside down one level.
 func stepIn(c *policy.Ctx, m policy.Match) policy.Result {
 	f, ok := m.Fact()
@@ -536,29 +531,26 @@ func stepIn(c *policy.Ctx, m policy.Match) policy.Result {
 // stepUp spells the mark the caret is in one level up, both its signs.
 func stepUp(c *policy.Ctx, m policy.Match) policy.Result {
 	f, ok := m.Fact()
-	if !ok || f.Signs == nil {
+	if !ok {
 		return policy.Swallow
 	}
 	// The opening sign grows by the typed character; the caret stays
 	// after it, where the text begins.
-	after := doc.Collapsed(doc.Caret{Pos: doc.At(m.Level.Slot, f.From), Stop: f.Signs.OpenTo + 1})
+	after := doc.Collapsed(doc.Caret{Pos: doc.At(m.Level.Slot, f.From), Stop: f.InnerStopFrom + 1})
 	return policy.Result{Edits: []vocab.Edit{policy.Placed(m.Level.Slot, f).(markSpan).Step(vocab.Forward)}, Selection: &after}
 }
 
-// overtypeClose steps into the closing sign over its first character:
-// past a one-character sign, between the characters of a longer one.
-func overtypeClose(c *policy.Ctx, m policy.Match) policy.Result {
-	f, ok := m.Fact()
-	if !ok || f.Signs == nil {
+// stepOver steps over the sign's glyph ahead, as typing it would write it.
+func stepOver(c *policy.Ctx, _ policy.Match) policy.Result {
+	stops := c.Stops()
+	if stops == nil {
 		return policy.Swallow
 	}
-	return policy.Select(doc.Collapsed(doc.Caret{Pos: doc.At(m.Level.Slot, f.To), Stop: f.Signs.CloseFrom + 1}))
-}
-
-// overtypeIn steps over the sign's next character.
-func overtypeIn(c *policy.Ctx, _ policy.Match) policy.Result {
-	head := c.Head()
-	return policy.Select(doc.Collapsed(doc.Caret{Pos: head.Pos, Stop: head.Stop + 1}))
+	next, ok := stops.Step(c.Head(), vocab.Forward)
+	if !ok {
+		return policy.Swallow
+	}
+	return policy.Select(doc.Collapsed(next))
 }
 
 // reshapeIn gives a glyph typed inside a marker to the marker.
@@ -582,7 +574,6 @@ func reshapeIn(c *policy.Ctx, m policy.Match) policy.Result {
 type layout struct {
 	ghosts []policy.Fact
 	before *doc.MarkSet
-	in     *doc.Inline
 }
 
 // layoutAt reads the ghosts at a caret's offset; false when none are
@@ -615,7 +606,7 @@ func layoutAt(c *policy.Ctx, k kinds, pos doc.Pos) (layout, bool) {
 			before = ms
 		}
 	}
-	return layout{ghosts: ghosts, before: before, in: in}, true
+	return layout{ghosts: ghosts, before: before}, true
 }
 
 // marks is what text typed at stop s takes: the marks before the offset,
@@ -637,22 +628,6 @@ func (l layout) marks(k kinds, s int) *doc.MarkSet {
 	return ms
 }
 
-// ends are the stops after each ghost, with 0 before them all.
-func (l layout) ends() []int {
-	out := []int{0}
-	for _, f := range l.ghosts {
-		out = append(out, f.StopTo)
-	}
-	return out
-}
-
-func orEmpty(r doc.Reader, ms *doc.MarkSet) *doc.MarkSet {
-	if ms == nil {
-		return r.Marks().Empty()
-	}
-	return ms
-}
-
 // stopMarks keeps a pending-marks annotation at a collapsed caret among
 // shown ghosts, holding the marks its stop decides. Marks another
 // policy asked for in this transaction, such as a format toggle at the
@@ -661,7 +636,7 @@ func stopMarks(k kinds) policy.ObserverFunc {
 	return func(c *policy.Ctx, _ []doc.Record) policy.Result {
 		sel := c.Selection()
 		head := c.Head()
-		pending := c.Annotations().At(vocab.PendingMarks, head.Pos)
+		pending := c.Annotations().At(vocab.PendingMarks, head)
 		var res policy.Result
 		own := func() {
 			for _, a := range pending {
@@ -691,46 +666,8 @@ func stopMarks(k kinds) policy.ObserverFunc {
 		for _, a := range pending {
 			res.Drop = append(res.Drop, a.ID)
 		}
-		res.Annotate = []policy.Annotate{{Kind: vocab.PendingMarks, Anchor: policy.PointAnchor(head.Pos), Data: want,
+		res.Annotate = []policy.Annotate{{Kind: vocab.PendingMarks, Anchor: policy.CaretAnchor(head), Data: want,
 			Lifetime: policy.UntilCaretLeaves(nil)}}
 		return res
-	}
-}
-
-// settleCaret moves a caret an edit left at stop 0, before the shown
-// ghosts at its offset, to the last stop that types as the edit left it:
-// the pending marks there, or the marks text would inherit. A closed
-// delimiter run leaves the caret after its closing ghost, a typed heading
-// marker after the heading's.
-func settleCaret(k kinds) policy.RewriteFunc {
-	return func(c *policy.Ctx, s policy.Site) policy.Result {
-		sel := c.Selection()
-		head := c.Head()
-		if sel.Kind != doc.SelectText || !sel.IsCollapsed() || head.Stop != 0 || head.Pos.Ref() != s.Slot {
-			return policy.Swallow
-		}
-		l, ok := layoutAt(c, k, head.Pos)
-		if !ok {
-			return policy.Swallow
-		}
-		// Where ghosts are shown, stop 0 types the marks before it, as the
-		// stops decide; an edit that types otherwise says so with pending
-		// marks.
-		want := l.before
-		for _, a := range c.Annotations().At(vocab.PendingMarks, head.Pos) {
-			if ms, ok := a.Data.(*doc.MarkSet); ok {
-				want = orEmpty(c.Doc(), ms)
-			}
-		}
-		best := 0
-		for _, e := range l.ends() {
-			if l.marks(k, e) == want {
-				best = e
-			}
-		}
-		if best == 0 {
-			return policy.Swallow
-		}
-		return policy.Select(doc.Collapsed(doc.Caret{Pos: head.Pos, Stop: best}))
 	}
 }

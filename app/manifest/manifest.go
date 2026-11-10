@@ -13,7 +13,6 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/pairs"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
-	"github.com/caelyreth/neverland/editor/vocab"
 )
 
 // Manifest lists the product's policies.
@@ -24,22 +23,13 @@ import (
 var Manifest = policy.Manifest{
 	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, lists.Policy,
 		navigation.Policy, history.Policy, guides.Policy},
-	Resolve: []policy.Order{
-		// Where a mark's sign and a pair's closer meet at the caret, the
-		// sign stands nearer it: Backspace steps the mark first.
-		policy.Over(notation.Policy, pairs.Policy, vocab.Slot),
-	},
 }
 
 // PresentOptions are a view's presentation inputs as settings values
-// choose them: the notation policy's reveal mode and ghost layout.
+// choose them: the notation policy's ghost layout.
 func PresentOptions(values policy.Values) present.Options {
-	reveal, layout := notation.View(values)
 	var o present.Options
-	if reveal == notation.RevealHidden {
-		o.Reveal = present.RevealHidden
-	}
-	if layout == notation.LayoutOverlay {
+	if notation.LayoutOf(values) == notation.LayoutOverlay {
 		o.Ghosts = present.GhostOverlay
 	}
 	return o

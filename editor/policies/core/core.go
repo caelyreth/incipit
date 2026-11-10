@@ -207,8 +207,14 @@ func typeText(c *policy.Ctx, m policy.Match) policy.Result {
 		res.Edits = edits
 		return res
 	}
+	// Pending marks belong to the place typed at: the caret's, or where
+	// the cleared selection was.
+	at := c.Head()
+	if ok {
+		at = doc.CaretAt(pos)
+	}
 	var pending *doc.MarkSet
-	for _, a := range c.Annotations().At(vocab.PendingMarks, pos) {
+	for _, a := range c.Annotations().At(vocab.PendingMarks, at) {
 		if ms, ok := a.Data.(*doc.MarkSet); ok {
 			pending = ms
 		}
@@ -300,6 +306,16 @@ func deleteText(c *policy.Ctx, m policy.Match) policy.Result {
 		unit = vocab.ToSlotEdge
 	}
 	target, ok := slotTarget(r, pos, unit, in.Dir)
+	if ok && target != pos && unit == vocab.ByGrapheme {
+		// A projected glyph between the caret and the content is not
+		// content: the grapheme deleted is the glyph, which only its
+		// owner edits, so core crosses it.
+		if stops := c.Stops(); stops != nil {
+			if next, ok := stops.Step(head, in.Dir); ok && next.Pos == head.Pos {
+				return policy.Select(doc.Collapsed(next))
+			}
+		}
+	}
 	if ok && target != pos {
 		from, to := pos, target
 		if from.Offset > to.Offset {
@@ -648,14 +664,15 @@ func format(c *policy.Ctx, m policy.Match) policy.Result {
 	}
 	r := c.Doc()
 	if sel.IsCollapsed() {
-		head := c.Head().Pos
+		caret := c.Head()
+		head := caret.Pos
 		in2, ok := c.Inline(head.Ref())
 		if spec, sok := vocab.SlotSpec(r, head.Ref()); !ok || !sok || spec.Literal {
 			return policy.Swallow
 		}
 		res := policy.Result{}
 		marks := vocab.InheritedMarks(in2, head.Offset)
-		for _, a := range c.Annotations().At(vocab.PendingMarks, head) {
+		for _, a := range c.Annotations().At(vocab.PendingMarks, caret) {
 			if ms, ok := a.Data.(*doc.MarkSet); ok {
 				marks = ms
 			}
@@ -669,7 +686,7 @@ func format(c *policy.Ctx, m policy.Match) policy.Result {
 		} else {
 			marks = vocab.WithMark(marks, doc.Mark{Kind: in.Mark})
 		}
-		anchor := policy.PointAnchor(head)
+		anchor := policy.CaretAnchor(caret)
 		res.Annotate = []policy.Annotate{{Kind: vocab.PendingMarks, Anchor: anchor, Data: marks, Lifetime: policy.UntilCaretLeaves(nil)}}
 		return res
 	}

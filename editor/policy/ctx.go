@@ -176,6 +176,18 @@ func (c *Ctx) FactsAt(k vocab.FactKind) []Fact {
 	return out
 }
 
+// Edged is the fact of target edged at the caret, outside it: starting
+// right after it (ahead) or ending right before it, as Before and After
+// match, bound to its slot (Placed).
+func (c *Ctx) Edged(target vocab.Scope, ahead bool) (Fact, any, bool) {
+	head := c.Head()
+	f, ok := c.prog.edged(c.store, c.r, c.view, head, target, ahead)
+	if !ok {
+		return Fact{}, nil, false
+	}
+	return f, Placed(head.Pos.Ref(), f), true
+}
+
 // Summary returns a summary of a node.
 func Summarized[M any](c *Ctx, k *SummaryKind[M], n *doc.Node) M { return SummaryOf(c.store, k, n) }
 

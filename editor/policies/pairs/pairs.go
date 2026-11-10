@@ -102,19 +102,19 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 			p.Handle("delete-"+d.name).On(d.on).In(pairScope).When(vocab.Collapsed, d.edge, armed).
 				Produces(sideEdits...).Do(deleteRole)
 		}
-		// From outside a text pair, next to its closer or its opener.
+		// From outside a pair, next to its closing side or its opening one.
 		for _, d := range []struct {
 			name  string
 			on    vocab.Pattern
 			ahead bool
 		}{{"after", back, false}, {"before", fwd, true}} {
-			near := vocab.After(span.Scope())
+			near := vocab.After(pairScope)
 			if d.ahead {
-				near = vocab.Before(span.Scope())
+				near = vocab.Before(pairScope)
 			}
-			p.Handle("arm-"+d.name).On(d.on).In(vocab.Slot).When(vocab.Collapsed, near).Unless(armed).Do(arm(adjacent(span, d.ahead)))
+			p.Handle("arm-"+d.name).On(d.on).In(vocab.Slot).When(vocab.Collapsed, near).Unless(armed).Do(arm(edged(d.ahead)))
 			p.Handle("delete-"+d.name).On(d.on).In(vocab.Slot).When(vocab.Collapsed, near, armed).
-				Produces(sideEdits...).Do(deleteSides(adjacent(span, d.ahead)))
+				Produces(sideEdits...).Do(deleteSides(edged(d.ahead)))
 		}
 		p.Annotation(vocab.Armed, nil)
 		p.Decorate(vocab.Armed, vocab.GroupArmed)
@@ -266,11 +266,11 @@ func openPair(k kind) policy.Handler {
 	return func(c *policy.Ctx, _ policy.Match) policy.Result {
 		at := c.Head().Pos
 		inner := doc.At(at.Ref(), at.Offset+len(k.open))
-		whole := policy.Anchor{From: at, To: doc.At(at.Ref(), inner.Offset+len(k.close))}
+		whole := policy.Between(at, doc.At(at.Ref(), inner.Offset+len(k.close)))
 		res := policy.Do(replace(vocab.Span{Slot: at.Ref(), From: at.Offset, To: at.Offset}, k.open+k.close))
 		res = res.With(doc.Collapsed(doc.CaretAt(inner)))
 		res.Annotate = []policy.Annotate{{Kind: vocab.TypedAhead, Data: k.close,
-			Anchor:   policy.Anchor{From: inner, To: whole.To},
+			Anchor:   policy.Between(inner, whole.To.Pos),
 			Lifetime: policy.UntilCaretLeaves(&whole)}}
 		res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 		return res
@@ -301,7 +301,7 @@ func wrap(k kind) policy.Handler {
 func overtype(c *policy.Ctx, m policy.Match) policy.Result {
 	f, _ := m.Fact()
 	res := policy.Select(doc.Collapsed(doc.CaretAt(doc.At(m.Level.Slot, f.To))))
-	for _, a := range c.Annotations().At(vocab.TypedAhead, c.Head().Pos) {
+	for _, a := range c.Annotations().At(vocab.TypedAhead, c.Head()) {
 		res.Drop = append(res.Drop, a.ID)
 	}
 	return res
@@ -319,18 +319,16 @@ func rolePair(_ *policy.Ctx, m policy.Match) (vocab.Pair, bool) {
 	return pr, ok
 }
 
-// adjacent is the text pair right after the caret (ahead) or right before
-// it; of pairs edged there, the outermost.
-func adjacent(span *policy.FactKind[pair], ahead bool) pairOf {
+// edged is the pair right after the caret (ahead) or right before it, as
+// Before and After match it: of any policy, its sides text or signs.
+func edged(ahead bool) pairOf {
 	return func(c *policy.Ctx, _ policy.Match) (vocab.Pair, bool) {
-		head := c.Head()
-		var found vocab.Pair
-		for _, f := range c.Facts(head.Pos.Ref(), span.Kind()) {
-			if ahead && f.Starts(head) || !ahead && f.Ends(head) {
-				found, _ = policy.Placed(head.Pos.Ref(), f).(vocab.Pair)
-			}
+		_, data, ok := c.Edged(vocab.RoleScope(vocab.RolePair), ahead)
+		if !ok {
+			return nil, false
 		}
-		return found, found != nil
+		pr, ok := data.(vocab.Pair)
+		return pr, ok
 	}
 }
 
@@ -350,8 +348,8 @@ func arm(of pairOf) policy.Handler {
 		res := policy.Result{}
 		open, close := pr.Sides()
 		for _, side := range []vocab.Edge{open, close} {
-			res.Annotate = append(res.Annotate, policy.Annotate{Kind: vocab.Armed, Data: side,
-				Anchor: policy.Anchor{From: side.From.Pos, To: side.To.Pos}, Lifetime: policy.UntilNextIntent})
+			res.Annotate = append(res.Annotate, policy.Annotate{Kind: vocab.Armed,
+				Anchor: policy.Anchor{From: side.From, To: side.To}, Lifetime: policy.UntilNextIntent})
 		}
 		return res
 	}

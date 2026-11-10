@@ -85,8 +85,8 @@ func TestNotationIsShownAsGhosts(t *testing.T) {
 	el := app.pageElement()
 	head := func() doc.Caret { return el.Editor.Selection().Head }
 	end := head()
-	if end.Stop == 0 {
-		t.Fatalf("the caret after a closed code run stands before its ghost: %v", end)
+	if end.Stop != 0 {
+		t.Fatalf("the caret after a closed code run stands at %v, not past its ghost", end)
 	}
 	// Left steps into the closing ghost before the text.
 	tester.Key(0, ui.KeyLeft)

@@ -50,7 +50,7 @@ var Policy = policy.Define("navigation", func(p *policy.P) {
 	p.Annotation(offer, exists)
 	p.Observe("last-edit", policy.Trigger{Kinds: textEdits}, func(c *policy.Ctx, _ []doc.Record) policy.Result {
 		return policy.Result{DropKinds: []vocab.AnnotationKind{lastEdit, offer}, Annotate: []policy.Annotate{{
-			Kind: lastEdit, Anchor: policy.PointAnchor(c.Head().Pos), Lifetime: policy.WithView}}}
+			Kind: lastEdit, Anchor: policy.CaretAnchor(c.Head()), Lifetime: policy.WithView}}}
 	})
 	p.Observe("offer", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordSelection}}, offerReturn)
 })
@@ -66,7 +66,7 @@ func leave(c *policy.Ctx, m policy.Match) policy.Result {
 	exit := l.Exit()
 	res := policy.Select(doc.Collapsed(exit))
 	res.DropKinds = []vocab.AnnotationKind{vocab.LeftScope, offer}
-	res.Annotate = []policy.Annotate{{Kind: vocab.LeftScope, Anchor: policy.PointAnchor(exit.Pos),
+	res.Annotate = []policy.Annotate{{Kind: vocab.LeftScope, Anchor: policy.CaretAnchor(exit),
 		Data: c.Head(), Lifetime: policy.UntilEdited}}
 	res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 	return res
@@ -75,7 +75,7 @@ func leave(c *policy.Ctx, m policy.Match) policy.Result {
 // back goes where the caret came from: into the scope just left, or to
 // the last edit the offer stands for. With neither, it does nothing.
 func back(c *policy.Ctx, _ policy.Match) policy.Result {
-	head := c.Head().Pos
+	head := c.Head()
 	for _, kind := range []vocab.AnnotationKind{vocab.LeftScope, offer} {
 		for _, a := range c.Annotations().At(kind, head) {
 			to, ok := a.Data.(doc.Caret)
@@ -97,14 +97,14 @@ func offerReturn(c *policy.Ctx, _ []doc.Record) policy.Result {
 	if c.Intent().Kind() != vocab.IntentPlace {
 		return policy.Result{}
 	}
-	head := c.Head().Pos
+	head := c.Head()
 	for _, a := range c.Annotations().Of(lastEdit) {
 		if a.Anchor.From.Node == head.Node {
 			return policy.Result{DropKinds: []vocab.AnnotationKind{offer}}
 		}
 		until := c.Now().Add(OfferFor)
 		return policy.Result{DropKinds: []vocab.AnnotationKind{offer}, Annotate: []policy.Annotate{{
-			Kind: offer, Anchor: policy.PointAnchor(head), Data: doc.CaretAt(a.Anchor.From),
+			Kind: offer, Anchor: policy.CaretAnchor(head), Data: a.Anchor.From,
 			Lifetime: policy.Until(until)}}, Deadlines: []time.Time{until}}
 	}
 	return policy.Result{}

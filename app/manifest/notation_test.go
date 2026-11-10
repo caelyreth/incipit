@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/policies/notation"
+	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
@@ -95,12 +97,12 @@ func TestClosingARunLeavesTheCaretAfterItsGhost(t *testing.T) {
 // Notation looks the same wherever the caret is; hiding it hides mark
 // notation only, never a block's marker.
 func TestNotationDoesNotDependOnTheCaret(t *testing.T) {
-	p := open(t)
-	p.typeText("# a *em*")
-	p.do(vocab.Break{})
-	p.typeText("next")
-	first := p.e.Snapshot().Root().Slot(0).Child(0).ID()
-	ghosts := func() (spelled string) {
+	ghosts := func(reveal string) (spelled string) {
+		p := revealed(t, reveal)
+		p.typeText("# a *em*")
+		p.do(vocab.Break{})
+		p.typeText("next")
+		first := p.e.Snapshot().Root().Slot(0).Child(0).ID()
 		for _, it := range p.e.Present(1, []doc.ID{first})[0].Surfaces[0].Flow.Items {
 			if it.Kind == present.GhostItem {
 				spelled += string(it.Spelling)
@@ -108,11 +110,10 @@ func TestNotationDoesNotDependOnTheCaret(t *testing.T) {
 		}
 		return spelled
 	}
-	if got := ghosts(); got != "# **" {
+	if got := ghosts(notation.RevealShown); got != "# **" {
 		t.Fatalf("the heading the caret left spells %q, want \"# **\"", got)
 	}
-	p.e.SetPresentOptions(1, hidden())
-	if got := ghosts(); got != "# " {
+	if got := ghosts(notation.RevealHidden); got != "# " {
 		t.Fatalf("hidden notation spells %q, want the marker alone", got)
 	}
 }
@@ -154,20 +155,37 @@ func TestAStopDecidesTheMarksTypedThere(t *testing.T) {
 	p.want("page(paragraph(z<bc>))")
 }
 
-func TestBackspaceStepsAGhostDown(t *testing.T) {
-	p := open(t)
+// Backspace crosses a sign's glyph rather than delete through it; inside
+// the sign it steps the mark down, both signs at once.
+func TestBackspaceCrossesASignAndStepsItInside(t *testing.T) {
+	p := openWith(t, policy.Values{"pairs.mates": false})
 	p.typeText("a **b**")
 	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
 	p.do(back)
-	p.wantShown("a [*]b[*]|")
+	p.wantShown("a [**]b[*|*]")
+	p.want("page(paragraph(a <b>))")
+	p.do(back)
+	p.wantShown("a [*]b|[*]")
 	if !hasMark(p, vocab.Emphasis) || hasMark(p, vocab.Strong) {
 		t.Fatalf("strong did not step down to emphasis: %s", outline(p.e.Snapshot().Root()))
 	}
 	p.do(back)
-	p.want("page(paragraph(a b))")
-	p.wantShown("a b|")
-	p.do(back)
 	p.want("page(paragraph(a ))")
+}
+
+// Deleting next to a sign keeps the caret on its side of it: the text
+// after a mark is after its closing sign, the text inside before it.
+func TestDeletingKeepsTheCaretsSideOfASign(t *testing.T) {
+	p := open(t)
+	p.typeText("a *bc* d")
+	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+	p.do(back)
+	p.do(back)
+	p.wantShown("a [*]bc[*]|")
+	left := vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+	p.do(left)
+	p.do(back)
+	p.wantShown("a [*]b|[*]")
 }
 
 func TestBackspaceInsideAGhostStepsIt(t *testing.T) {
@@ -221,8 +239,7 @@ func TestHeadingMarkerSteps(t *testing.T) {
 }
 
 func TestHiddenNotationKeepsOneStopPerPosition(t *testing.T) {
-	p := open(t)
-	p.e.SetPresentOptions(1, present.Options{Reveal: present.RevealHidden})
+	p := revealed(t, notation.RevealHidden)
 	p.typeText("a **b**")
 	p.wantShown("a b|")
 	if h := p.head(); h.Stop != 0 {
@@ -275,7 +292,7 @@ func TestMarksPairAsTyped(t *testing.T) {
 	p.typeText("a **s*")
 	p.wantShown("a [**]s[*|*]")
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	p.wantShown("a [*]s[*]|")
+	p.wantShown("a [*]s|[*]")
 
 	p = open(t)
 	p.typeText("a *s")

@@ -169,8 +169,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 	s.Levels = append(s.Levels, slotLevel)
 	for i := range facts {
 		f := facts[i]
-		inGhost := f.Point && f.From == pos.Offset && f.StopFrom < caret.Stop && caret.Stop < f.StopTo
-		if !f.Holds(caret) && !inGhost {
+		if !f.Holds(caret) {
 			continue
 		}
 		s.Levels = append(s.Levels, &Level{
@@ -181,12 +180,12 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 	}
 	if view != nil {
 		for _, a := range view.Annotations.All() {
-			if !a.Kind.Scoped() || !a.Anchor.Touches(pos) {
+			if !a.Kind.Scoped() || !a.Anchor.Touches(caret) {
 				continue
 			}
 			s.Levels = append(s.Levels, &Level{
 				Class: LevelAnnotation, Node: owner, Slot: ref, Annotation: &a,
-				Start: a.Anchor.From, End: a.Anchor.To,
+				Start: a.Anchor.From.Pos, End: a.Anchor.To.Pos,
 				keys: []vocab.Scope{vocab.AnnotationScope(a.Kind)},
 			})
 		}
@@ -390,7 +389,7 @@ func (e *evaluator) eval(level int, rel vocab.Relation) bool {
 	case vocab.RelComposing:
 		return c.view.Composition != nil
 	case vocab.RelHas:
-		return len(c.view.Annotations.At(rel.Annotation, pos)) > 0
+		return len(c.view.Annotations.At(rel.Annotation, caret)) > 0
 	case vocab.RelPrevChar, vocab.RelNextChar:
 		return e.charClass(pos, rel.Kind == vocab.RelPrevChar)&rel.Class != 0
 	case vocab.RelSlotStart, vocab.RelSlotEnd, vocab.RelSlotEmpty:
@@ -549,22 +548,10 @@ func (e *evaluator) adjacent(caret doc.Caret, target vocab.Scope, before bool) b
 			return true
 		}
 	}
-	// Facts starting or ending at the caret, outside it; ghost points by
-	// stop.
+	// Facts starting or ending at the caret, outside it.
 	if target.Class == vocab.ScopeFact || target.Class == vocab.ScopeRole {
-		for _, f := range e.p.scopeFacts(e.c.store, r, e.c.view, pos.Ref()) {
-			if !slices.Contains(e.p.factKeys(f.Kind), target) {
-				continue
-			}
-			if f.Point {
-				if f.From == pos.Offset && ((before && f.StopFrom >= caret.Stop) || (!before && f.StopTo <= caret.Stop)) {
-					return true
-				}
-				continue
-			}
-			if (before && f.Starts(caret)) || (!before && f.Ends(caret)) {
-				return true
-			}
+		if _, ok := e.p.edged(e.c.store, r, e.c.view, caret, target, before); ok {
+			return true
 		}
 	}
 	// Neighbouring blocks, at the edges of a text block's slot.
@@ -798,4 +785,24 @@ func (p *Program) candidates(l *Level, k vocab.IntentKind, core bool) []*rule {
 	p.cands[key] = rs
 	p.candMu.Unlock()
 	return rs
+}
+
+// edged is the fact of target that starts right after the caret (ahead)
+// or ends right before it, nothing between them: of several, the one
+// whose edge is nearest the caret.
+func (p *Program) edged(store *Store, r doc.Reader, view *View, caret doc.Caret, target vocab.Scope, ahead bool) (Fact, bool) {
+	var found Fact
+	ok := false
+	for _, f := range p.scopeFacts(store, r, view, caret.Pos.Ref()) {
+		if !slices.Contains(p.factKeys(f.Kind), target) {
+			continue
+		}
+		switch {
+		case ahead && f.Starts(caret) && (!ok || f.StopFrom <= found.StopFrom):
+			found, ok = f, true
+		case !ahead && f.Ends(caret) && (!ok || f.StopTo >= found.StopTo):
+			found, ok = f, true
+		}
+	}
+	return found, ok
 }

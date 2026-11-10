@@ -1,6 +1,10 @@
 package doc
 
-import "fmt"
+import (
+	"cmp"
+	"fmt"
+	"math"
+)
 
 // SlotRef names one slot of one node.
 type SlotRef struct {
@@ -28,14 +32,26 @@ func (p Pos) Ref() SlotRef { return SlotRef{Node: p.Node, Slot: p.Slot} }
 func (p Pos) String() string { return fmt.Sprintf("%s.%d@%d", p.Node, p.Slot, p.Offset) }
 
 // Caret is a position and the stop chosen among those the presentation
-// defines there. Stop is 0 where a position has a single stop.
+// defines there (§13.5). The presentation may project items at a position
+// that span no content but hold stops: those attached to the content
+// before it stand below stop 0, those attached to the content after it
+// above. Stop 0 is the boundary between them, the position's own place,
+// and the only stop where nothing is projected.
 type Caret struct {
 	Pos
 	Stop int
 }
 
-// CaretAt is the caret at a position's own stop, 0: where it stands as
-// text, the marks it inherits deciding what is typed there (§4.2).
+// StopFirst and StopLast stand for a position's first and last stop,
+// whatever is projected there: an edge of content holds every stop at its
+// offset, and a caret text was just inserted before stands against that
+// text, at the first. The stop model resolves them.
+const (
+	StopFirst = math.MinInt32
+	StopLast  = math.MaxInt32
+)
+
+// CaretAt is the caret at a position's own stop, 0.
 func CaretAt(p Pos) Caret { return Caret{Pos: p} }
 
 // Bias says which side a position at an edit point keeps: before inserted
@@ -137,7 +153,7 @@ func Compare(r Reader, a, b Caret) int {
 		if a.Offset != b.Offset {
 			return a.Offset - b.Offset
 		}
-		return a.Stop - b.Stop
+		return cmp.Compare(a.Stop, b.Stop)
 	}
 	ka, kb := orderKey(r, a.Pos), orderKey(r, b.Pos)
 	for i := 0; i < len(ka) && i < len(kb); i++ {
@@ -148,7 +164,7 @@ func Compare(r Reader, a, b Caret) int {
 	if len(ka) != len(kb) {
 		return len(ka) - len(kb)
 	}
-	return a.Stop - b.Stop
+	return cmp.Compare(a.Stop, b.Stop)
 }
 
 // Mapper carries positions through a change.
@@ -158,11 +174,18 @@ type Mapper interface {
 	Map(p Pos, bias Bias) (Pos, bool)
 }
 
-// MapCaret maps a caret, keeping its stop; the stop is normalised later.
+// MapCaret maps a caret, keeping its place among what is projected at its
+// position: projected items move with the content they attach to, so a
+// stop counted from the boundary between them still names the same place.
+// Content inserted at the caret, kept after it, pushes it to stand against
+// that content, before whatever attaches to it. The stop model normalises
+// the stop to one that exists.
 func MapCaret(m Mapper, c Caret, bias Bias) (Caret, bool) {
 	p, ok := m.Map(c.Pos, bias)
-	if p != c.Pos {
-		c.Stop = 0
+	if bias == BiasAfter {
+		if before, _ := m.Map(c.Pos, BiasBefore); before != p {
+			c.Stop = StopFirst
+		}
 	}
 	c.Pos = p
 	return c, ok

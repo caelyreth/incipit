@@ -11,30 +11,39 @@ import (
 // AnnotationID identifies an annotation within its view.
 type AnnotationID uint64
 
-// Anchor is where an annotation sits: a point, or a span in one slot.
+// Anchor is where an annotation sits: between two places of one slot,
+// each an offset and a stop there (§13.5).
 type Anchor struct {
-	From, To doc.Pos
+	From, To doc.Caret
 }
 
-// PointAnchor anchors at a point.
-func PointAnchor(p doc.Pos) Anchor { return Anchor{From: p, To: p} }
+// PointAnchor anchors at a position, holding every stop there.
+func PointAnchor(p doc.Pos) Anchor { return Between(p, p) }
+
+// Between anchors over content between two positions of one slot,
+// holding every stop at its edges.
+func Between(from, to doc.Pos) Anchor {
+	return Anchor{From: doc.Caret{Pos: from, Stop: doc.StopFirst}, To: doc.Caret{Pos: to, Stop: doc.StopLast}}
+}
 
 // SpanAnchor anchors over a span of one slot.
-func SpanAnchor(s vocab.Span) Anchor {
-	return Anchor{From: doc.At(s.Slot, s.From), To: doc.At(s.Slot, s.To)}
-}
+func SpanAnchor(s vocab.Span) Anchor { return Between(doc.At(s.Slot, s.From), doc.At(s.Slot, s.To)) }
+
+// CaretAnchor anchors at one place: a caret, its stop included.
+func CaretAnchor(c doc.Caret) Anchor { return Anchor{From: c, To: c} }
 
 // Span is the anchor as a span.
 func (a Anchor) Span() vocab.Span {
 	return vocab.Span{Slot: a.From.Ref(), From: a.From.Offset, To: a.To.Offset}
 }
 
-// IsPoint reports whether the anchor is a point.
-func (a Anchor) IsPoint() bool { return a.From == a.To }
+// IsPoint reports whether the anchor is at one position.
+func (a Anchor) IsPoint() bool { return a.From.Pos == a.To.Pos }
 
-// Touches reports whether p is inside the anchor or at one of its edges.
-func (a Anchor) Touches(p doc.Pos) bool {
-	return p.Ref() == a.From.Ref() && p.Offset >= a.From.Offset && p.Offset <= a.To.Offset
+// Touches reports whether a caret is inside the anchor or at one of its
+// edges.
+func (a Anchor) Touches(c doc.Caret) bool {
+	return c.Pos.Ref() == a.From.Pos.Ref() && place(c, a.From.Offset, a.From.Stop) >= 0 && place(c, a.To.Offset, a.To.Stop) <= 0
 }
 
 // LifetimeKind is how long an annotation lives.
@@ -116,11 +125,11 @@ func (s Annotations) Of(k vocab.AnnotationKind) []Annotation {
 	return out
 }
 
-// At returns annotations of a kind touching p.
-func (s Annotations) At(k vocab.AnnotationKind, p doc.Pos) []Annotation {
+// At returns annotations of a kind touching c.
+func (s Annotations) At(k vocab.AnnotationKind, c doc.Caret) []Annotation {
 	var out []Annotation
 	for _, a := range s.list {
-		if a.Kind == k && a.Anchor.Touches(p) {
+		if a.Kind == k && a.Anchor.Touches(c) {
 			out = append(out, a)
 		}
 	}
@@ -141,7 +150,7 @@ func (s Annotations) Get(id AnnotationID) (Annotation, bool) {
 func (s Annotations) Owned(policy string, slot doc.SlotRef) []Annotation {
 	var out []Annotation
 	for _, a := range s.list {
-		if a.Owner == policy && a.Anchor.From.Ref() == slot {
+		if a.Owner == policy && a.Anchor.From.Pos.Ref() == slot {
 			out = append(out, a)
 		}
 	}
@@ -179,30 +188,44 @@ func (s Annotations) Map(m doc.Mapper) Annotations {
 	}
 	out := make([]Annotation, 0, len(s.list))
 	for _, a := range s.list {
-		from, ok1 := m.Map(a.Anchor.From, doc.BiasAfter)
-		to, ok2 := m.Map(a.Anchor.To, doc.BiasBefore)
-		if a.Anchor.IsPoint() {
-			to = from
-		}
-		if !ok1 || !ok2 || from.Ref() != to.Ref() {
+		anchor, ok := a.Anchor.mapped(m)
+		if !ok {
 			continue
 		}
-		if to.Offset < from.Offset {
-			to = from
-		}
-		a.Anchor = Anchor{From: from, To: to}
+		a.Anchor = anchor
 		if a.Lifetime.Span != nil {
-			sf, ok1 := m.Map(a.Lifetime.Span.From, doc.BiasAfter)
-			st, ok2 := m.Map(a.Lifetime.Span.To, doc.BiasBefore)
-			if !ok1 || !ok2 {
+			span, ok := a.Lifetime.Span.mapped(m)
+			if !ok {
 				continue
 			}
-			a.Lifetime.Span = &Anchor{From: sf, To: st}
+			a.Lifetime.Span = &span
 		}
 		out = append(out, a)
 	}
 	s.list = out
 	return s
+}
+
+// mapped maps an anchor's places as carets map (doc.MapCaret); a span
+// whose ends cross collapses, and one that was at a single position stays
+// there.
+func (a Anchor) mapped(m doc.Mapper) (Anchor, bool) {
+	point, place := a.IsPoint(), a.From == a.To
+	from, ok1 := doc.MapCaret(m, a.From, doc.BiasAfter)
+	to, ok2 := doc.MapCaret(m, a.To, doc.BiasBefore)
+	switch {
+	case place:
+		to = from
+	case point:
+		to.Pos = from.Pos
+	}
+	if !ok1 || !ok2 || from.Pos.Ref() != to.Pos.Ref() {
+		return Anchor{}, false
+	}
+	if to.Offset < from.Offset {
+		to.Pos = from.Pos
+	}
+	return Anchor{From: from, To: to}, true
 }
 
 // Settlement is what happened in a transaction, for ending lifetimes.
@@ -212,7 +235,7 @@ type Settlement struct {
 	// Edited reports whether it changed the document.
 	Edited bool
 	// Head is the selection head after it.
-	Head doc.Pos
+	Head doc.Caret
 	// Now is the intent's time.
 	Now time.Time
 	// Kinds are the annotation kinds the program still has.

@@ -167,7 +167,8 @@ func openMark(mark doc.MarkKind) policy.Handler {
 		}
 		marks = marks.With(doc.Mark{Kind: mark})
 		end := doc.At(ref, f.From+len(in.Text))
-		after := doc.Collapsed(doc.Caret{Pos: end})
+		// The caret stands against the text it typed, inside the mark.
+		after := doc.Collapsed(doc.Caret{Pos: end, Stop: doc.StopFirst})
 		return policy.Result{Selection: &after,
 			Edits: []vocab.Edit{vocab.Ops(doc.EditText{At: ref, From: f.From, To: f.InnerFrom,
 				Items: []doc.Item{doc.TextItem(in.Text, marks)}})},

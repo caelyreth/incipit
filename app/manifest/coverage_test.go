@@ -6,7 +6,6 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
-	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -53,15 +52,14 @@ var basicIntents = map[string]vocab.Intent{
 }
 
 func TestBasicIntentsHaveAnOutcomeInEveryBlock(t *testing.T) {
-	for _, reveal := range []present.Reveal{present.RevealShown, present.RevealHidden} {
+	for _, reveal := range reveals {
 		for name, build := range blockPages {
 			// Each place the caret stands in the block: the stops from its
 			// end back to its first, before any marker.
 			places := 0
 			var prev doc.Caret
 			for back := 0; ; back++ {
-				p := open(t)
-				p.e.SetPresentOptions(1, present.Options{Reveal: reveal})
+				p := revealed(t, reveal)
 				build(p)
 				block := p.head().Pos.Node
 				for range back {
@@ -74,8 +72,7 @@ func TestBasicIntentsHaveAnOutcomeInEveryBlock(t *testing.T) {
 				places++
 				at := p.shown()
 				for iname, in := range basicIntents {
-					q := open(t)
-					q.e.SetPresentOptions(1, present.Options{Reveal: reveal})
+					q := revealed(t, reveal)
 					build(q)
 					for range back {
 						q.do(left)

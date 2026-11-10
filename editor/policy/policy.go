@@ -257,15 +257,14 @@ type Ghost struct {
 	// of its glyphs and one after the last. Stops are numbered from the
 	// ghost's fact, so the presentation and the scope stack agree.
 	//
-	// Stop 0 is the position's own stop, where it stands as text: a
-	// block's marker is notation the caret stands after by default, so
-	// its stops end at 0 and the stop before it is negative.
+	// Stop 0 is the position's own stop, the boundary between what is
+	// projected there (§13.5): a ghost attached to the content before it,
+	// as notation that closes it or a block's marker at its start, stands
+	// below 0; one attached to the content after it, above. Content edited
+	// on either side carries its ghosts, and the carets among them, along.
 	StopFrom int
 	// Stops is how many caret stops the ghost holds.
 	Stops int
-	// Side is which side of the point the ghost stands: closing notation
-	// ends what is before it, opening notation starts what is after it.
-	Side vocab.Side
 	// Block marks a block's marker: the stop before it stands before the
 	// block's structure, so a range starting there covers the block whole.
 	Block bool

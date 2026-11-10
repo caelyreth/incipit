@@ -58,13 +58,7 @@ func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *pol
 	d := Decorations{Selection: view.Selection, Composition: view.Composition}
 	for _, dec := range prog.Decorations() {
 		for _, a := range view.Annotations.Of(dec.Kind) {
-			h := Highlight{Group: dec.Group, From: doc.CaretAt(a.Anchor.From), To: doc.CaretAt(a.Anchor.To)}
-			if e, ok := a.Data.(vocab.Edge); ok {
-				// An annotation over a stretch of stops, as an armed sign,
-				// highlights exactly that.
-				h.From, h.To = e.From, e.To
-			}
-			d.Highlights = append(d.Highlights, h)
+			d.Highlights = append(d.Highlights, Highlight{Group: dec.Group, From: drawn(a.Anchor.From), To: drawn(a.Anchor.To)})
 		}
 	}
 	if view.Selection.Kind != doc.SelectText {
@@ -88,4 +82,14 @@ func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *pol
 		}
 	}
 	return d
+}
+
+// drawn is where a highlight's edge is drawn: at its place, or, for an
+// edge of content holding every stop at its offset, at the offset's own
+// stop.
+func drawn(c doc.Caret) doc.Caret {
+	if c.Stop == doc.StopFirst || c.Stop == doc.StopLast {
+		return doc.CaretAt(c.Pos)
+	}
+	return c
 }

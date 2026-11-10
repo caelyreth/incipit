@@ -261,8 +261,8 @@ func runTrace(t *testing.T, seed uint64, length int) {
 // --- stops ------------------------------------------------------------------------
 
 // richPage types a page with every kind of notation and object.
-func richPage(t *testing.T) *page {
-	p := open(t)
+func richPage(t *testing.T, reveal string) *page {
+	p := revealed(t, reveal)
 	p.typeText("## Head")
 	p.do(vocab.Break{})
 	p.typeText("plain **bold** and *em* with `code` and ~gone~ end")
@@ -313,10 +313,9 @@ func walk(t *testing.T, e *engine.Engine, dir vocab.Direction) []doc.Caret {
 }
 
 func TestStopMapIsTotalMonotonicAndReversible(t *testing.T) {
-	for _, reveal := range []present.Reveal{present.RevealShown, present.RevealHidden} {
-		t.Run(fmt.Sprint(reveal), func(t *testing.T) {
-			p := richPage(t)
-			p.e.SetPresentOptions(1, present.Options{Reveal: reveal})
+	for _, reveal := range reveals {
+		t.Run(reveal, func(t *testing.T) {
+			p := richPage(t, reveal)
 			p.do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward})
 			fwd := walk(t, p.e, vocab.Forward)
 			back := walk(t, p.e, vocab.Backward)
@@ -364,10 +363,9 @@ func TestStopMapIsTotalMonotonicAndReversible(t *testing.T) {
 
 // Moving the caret itself forward and back retraces its steps.
 func TestCaretMotionRetracesItsSteps(t *testing.T) {
-	for _, reveal := range []present.Reveal{present.RevealShown, present.RevealHidden} {
-		t.Run(fmt.Sprint(reveal), func(t *testing.T) {
-			p := richPage(t)
-			p.e.SetPresentOptions(1, present.Options{Reveal: reveal})
+	for _, reveal := range reveals {
+		t.Run(reveal, func(t *testing.T) {
+			p := richPage(t, reveal)
 			p.do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward})
 			head := func() doc.Caret { v, _ := p.e.View(1); return v.Selection.Head }
 			var path []doc.Caret

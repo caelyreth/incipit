@@ -397,7 +397,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	}
 
 	// Lifetimes and owners' checks.
-	head := headPos(next, view.Selection)
+	head := headCaret(next, view.Selection)
 	settle := policy.Settlement{Tx: seq, Edited: changed, Head: head, Now: in.At, Kinds: prog.HasAnnotationKind}
 	view.Annotations = view.Annotations.Settle(settle)
 	view.Annotations = view.Annotations.Drop(func(a policy.Annotation) bool { return !prog.CheckAnnotation(next, a) })
@@ -442,7 +442,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 				}
 			}
 		}
-		v.Annotations = v.Annotations.Settle(policy.Settlement{Tx: seq, Edited: changed, Head: headPos(next, v.Selection), Now: in.At, Kinds: prog.HasAnnotationKind})
+		v.Annotations = v.Annotations.Settle(policy.Settlement{Tx: seq, Edited: changed, Head: headCaret(next, v.Selection), Now: in.At, Kinds: prog.HasAnnotationKind})
 	}
 
 	e.snap = next
@@ -513,13 +513,15 @@ func checkProduces(rule string, recs []doc.Record, declared []doc.RecordKind) er
 	return nil
 }
 
-func headPos(r doc.Reader, s doc.Selection) doc.Pos {
+// headCaret is the place a selection's head stands, for lifetimes: its
+// caret, or the gap before a selected node.
+func headCaret(r doc.Reader, s doc.Selection) doc.Caret {
 	if s.Kind == doc.SelectNode {
 		if parent, slot, index, ok := vocab.Index(r, s.Node); ok {
-			return doc.Pos{Node: parent, Slot: slot, Offset: index}
+			return doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: index})
 		}
 	}
-	return s.Head.Pos
+	return s.Head
 }
 
 // settleSelection keeps a view's selection on positions that exist, and

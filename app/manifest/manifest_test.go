@@ -7,6 +7,8 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
+	"github.com/caelyreth/neverland/editor/policies/notation"
+	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -16,8 +18,11 @@ type page struct {
 	now time.Time
 }
 
-func open(t *testing.T) *page {
-	prog, err := Compile(nil, true)
+func open(t *testing.T) *page { return openWith(t, nil) }
+
+// openWith opens a page under settings values.
+func openWith(t *testing.T, values policy.Values) *page {
+	prog, err := Compile(values, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,4 +136,12 @@ func TestLeaveAndReturnFromFormula(t *testing.T) {
 	p.do(vocab.Return{})
 	p.typeText("y")
 	p.want("page(paragraph(a formula(xy)))")
+}
+
+// reveals are notation's reveal modes, to run a test under each.
+var reveals = []string{notation.RevealShown, notation.RevealHidden}
+
+// revealed opens a page whose notation reveals as reveal says.
+func revealed(t *testing.T, reveal string) *page {
+	return openWith(t, policy.Values{notation.ID + ".reveal": reveal})
 }
