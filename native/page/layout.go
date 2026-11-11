@@ -660,6 +660,17 @@ func (pl *pageLayout) caretBox(c doc.Caret, m Metrics) (ui.Rect, bool) {
 		}
 		return ui.Rect{X: u.x + u.box.X, Y: y - 1, W: u.box.W, H: 2}, true
 	}
+	if !pc.surface.shown {
+		// A surface not shown stands in for its object (paints.go): a
+		// place in it, as where Return would enter a closed card, is at
+		// the object's edge on its side, as tall as the object.
+		r := standIn(pc.unit, pc.surface)
+		x := r.X
+		if pc.stop.u > 0 {
+			x += r.W
+		}
+		return ui.Rect{X: pc.unit.x + x, Y: pc.unit.y + r.Y, H: r.H}, true
+	}
 	r := pc.surface.caretRect(pc.stop.u)
 	if pc.surface.hasMarked && pc.stop.u == pc.surface.marked.Start {
 		r = pc.surface.caretRect(pc.surface.compSel)
