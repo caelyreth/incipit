@@ -153,7 +153,8 @@ func TestMotionCrossesAFigureThroughItsCaption(t *testing.T) {
 		n, _ := p.e.Snapshot().Node(h.Node)
 		path = append(path, profile.Schema().KindName(n.Kind()))
 	}
-	want := []string{"paragraph", "page", "figure", "figure", "page", "paragraph"}
+	// No gap where text stands beside the figure.
+	want := []string{"paragraph", "figure", "figure", "paragraph", "paragraph", "paragraph"}
 	for i := range want {
 		if path[i] != want[i] {
 			t.Fatalf("path %v, want %v", path, want)
@@ -197,7 +198,7 @@ func TestAnEmptyCaptionOpensOnlyWhileItsFigureIsHeld(t *testing.T) {
 	}
 	// Motion passes through the figure's caption, empty or not, as through
 	// any object's own slot.
-	if want := []string{"paragraph", "page", "figure", "page"}; fmt.Sprint(path) != fmt.Sprint(want) {
+	if want := []string{"paragraph", "figure", "paragraph", "paragraph"}; fmt.Sprint(path) != fmt.Sprint(want) {
 		t.Fatalf("path %v, want %v", path, want)
 	}
 	// Selected, the caption opens, and Escape writes in it.

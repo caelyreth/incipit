@@ -143,9 +143,9 @@ func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32) {
 		u.h = ml.full
 	}
 	// Its box is its display, which a click selects it on; open, it draws
-	// its frame around display and panel, which its ring goes around.
+	// its frame around display and panel, which an outline goes around.
 	u.box = ui.Rect{W: width, H: ml.h}
-	if ml.open && ms.box != nil {
+	if ml.open {
 		u.drawn = ui.Rect{W: width, H: u.h}
 	}
 }

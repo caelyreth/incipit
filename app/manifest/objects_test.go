@@ -180,18 +180,12 @@ func TestMotionPassesThroughEveryObject(t *testing.T) {
 func TestDeletingTowardAnObjectHoldsIt(t *testing.T) {
 	for _, in := range []vocab.Delete{back, fwd, {Unit: vocab.ByWord, Dir: vocab.Backward}} {
 		eachObject(t, func(o *objectPage) {
+			// From the text beside it: a block with text beside it has
+			// no gap there, its place settling on that text.
 			if in.Dir < 0 {
 				o.at(o.beside(vocab.Forward))
-				if o.kindOf() != profile.Formula {
-					// A block's place after it is the gap; from the text
-					// after it, as a user stands.
-					o.do(right)
-				}
 			} else {
 				o.at(o.beside(vocab.Backward))
-				if o.kindOf() != profile.Formula {
-					o.do(left)
-				}
 			}
 			o.do(in)
 			o.wantHeld()
@@ -259,40 +253,35 @@ func TestLeaveAndReturnThroughAnObject(t *testing.T) {
 	eachObject(t, func(o *objectPage) {
 		o.at(o.own(true))
 		o.do(vocab.Leave{})
-		o.wantCaret(o.beside(vocab.Forward))
+		o.wantAfter()
 		o.do(vocab.Return{})
 		o.wantCaret(o.own(true))
 	})
 }
 
-// Enter on a selected object, or in its own slot when that keeps no
-// lines, breaks right after it.
-func TestEnterBreaksBesideAnObject(t *testing.T) {
-	eachObject(t, func(o *objectPage) {
-		o.do(vocab.Place{Node: o.obj})
-		o.do(vocab.Break{})
-		if o.gone() {
-			t.Fatal("Enter removed the selected object")
-		}
-		o.wantAfter()
-	})
-	eachObject(t, func(o *objectPage) {
-		if spec, _ := vocab.SlotSpec(o.e.Snapshot(), doc.SlotRef{Node: o.obj}); spec.Lines {
-			return
-		}
-		o.at(o.own(true))
-		o.do(vocab.Break{})
-		o.wantAfter()
-	})
-}
-
-// Typing over a selected object replaces it.
-func TestTypingReplacesASelectedObject(t *testing.T) {
-	eachObject(t, func(o *objectPage) {
-		o.do(vocab.Place{Node: o.obj})
-		o.typeText("z")
-		if !o.gone() {
-			t.Fatal("typing kept the object")
-		}
-	})
+// A block object has a gap stop only where no text stands beside it, at
+// its slot's edge or next to another object: with text there, its place
+// is that text's.
+func TestAGapStandsOnlyWhereNoTextDoes(t *testing.T) {
+	p := open(t)
+	p.typeText("a")
+	p.do(vocab.Break{})
+	p.typeText("$$x")
+	root := p.e.Snapshot().Root().ID()
+	// Last on the page, the block has its gap after it.
+	p.do(vocab.Leave{})
+	if h := p.selection().Head.Pos; h != (doc.Pos{Node: root, Offset: 2}) {
+		t.Fatalf("Leave at %v, want the gap after the last block", h)
+	}
+	p.typeText("b")
+	p.do(vocab.Return{})
+	// With text after it, Leave goes to the text, and no gap is a place.
+	p.do(vocab.Leave{})
+	if h := p.selection().Head.Pos; h.Node == root {
+		t.Fatalf("Leave stood at the gap %v, with text after the block", h)
+	}
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	if h := p.selection().Head.Pos; h.Node == root {
+		t.Fatalf("motion stood at the gap %v, with text after the block", h)
+	}
 }

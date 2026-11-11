@@ -152,9 +152,10 @@ func (m *stopModel) Edge(dir vocab.Direction) (doc.Caret, bool) {
 // Normalize is total: a caret that is a stop stays; one at a position
 // whose stop it is not takes the stop there nearest it toward the
 // boundary, stop 0, so a place whose projected items went keeps its side
-// of the content; any other takes the last stop before it in its unit, or
-// the nearest stop of the page when no unit holds it, such as a gap
-// between two text blocks.
+// of the content; a place between blocks that is no stop, as an object's
+// gap with text beside it, takes the stop on its side in page order; any
+// other takes the last stop before it in its unit, or the nearest stop of
+// the page when no unit holds it, such as a gap between two text blocks.
 func (m *stopModel) Normalize(c doc.Caret) doc.Caret {
 	i, ok := m.pr.UnitAt(m.r, c.Pos)
 	if !ok {
@@ -183,10 +184,36 @@ func (m *stopModel) Normalize(c doc.Caret) doc.Caret {
 	if best >= 0 {
 		return p.Stops[best].Caret
 	}
+	if !isInline(m.r, c.Pos) {
+		// A place between blocks that is no stop, as an object's gap where
+		// text stands beside it: the text on its side, in page order.
+		if doc.Compare(m.r, c, p.Stops[0].Caret) < 0 {
+			if prev, ok := m.previous(i); ok {
+				return prev
+			}
+			return p.Stops[0].Caret
+		}
+		return m.nearest(c)
+	}
 	if j, _ := locate(m.r, p.Stops, doc.CaretAt(c.Pos)); j >= 0 {
 		return p.Stops[j].Caret
 	}
 	return p.Stops[0].Caret
+}
+
+func isInline(r doc.Reader, pos doc.Pos) bool {
+	n, ok := r.Node(pos.Node)
+	return ok && pos.Slot < n.NumSlots() && n.Slot(pos.Slot).IsInline()
+}
+
+// previous is the last flow stop of the units before unit i.
+func (m *stopModel) previous(i int) (doc.Caret, bool) {
+	for u := i - 1; u >= 0; u-- {
+		if fs := flowStops(m.unit(u)); len(fs) > 0 {
+			return fs[len(fs)-1].Caret, true
+		}
+	}
+	return doc.Caret{}, false
 }
 
 func (m *stopModel) Around(pos doc.Pos) (first, last int) {

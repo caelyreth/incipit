@@ -131,8 +131,10 @@ type Presentation struct {
 	Surfaces []Surface
 	Stops    []Stop
 	// Gap is set for an object unit: the block slot and index it stands
-	// at, for gap stops before and after it, whose Surface is -1.
-	Gap *doc.Pos
+	// at. Gaps says on which sides it has a gap stop, whose Surface is -1
+	// (UnitRef.Gaps).
+	Gap  *doc.Pos
+	Gaps [2]bool
 	// Object is set for a unit the caret selects whole.
 	Object bool
 
@@ -158,6 +160,12 @@ type UnitRef struct {
 	Context Context
 	// Gap is the block slot position before an object unit.
 	Gap *doc.Pos
+	// Gaps says whether the object has a gap stop before it and after it:
+	// only where no block a caret can stand in is beside it on that side,
+	// next to another object or at its slot's edge. Elsewhere the text
+	// beside it is where the caret goes, and a gap would be a place with
+	// nothing to do.
+	Gaps [2]bool
 }
 
 type unitKey struct {
@@ -224,6 +232,8 @@ func (pr *Presenter) Units(r doc.Reader) []UnitRef {
 					ref := UnitRef{ID: c.ID(), Node: c, Context: in.Own}
 					if r.Schema().IsObject(c.Kind()) {
 						ref.Gap = &doc.Pos{Node: n.ID(), Slot: si, Offset: i}
+						bare := func(j int) bool { return j < 0 || j >= s.Len() || r.Schema().IsObject(s.Child(j).Kind()) }
+						ref.Gaps = [2]bool{bare(i - 1), bare(i + 1)}
 					}
 					out = append(out, ref)
 				}
@@ -320,7 +330,7 @@ func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef) unitKey {
 		key.context += fmt.Sprintf("%+v", *u.Context.Marker)
 	}
 	if u.Gap != nil {
-		key.context += fmt.Sprintf("@%v", *u.Gap)
+		key.context += fmt.Sprintf("@%v%v", *u.Gap, u.Gaps)
 	}
 	return key
 }
@@ -464,14 +474,14 @@ func build(e env, u UnitRef, key unitKey) *Presentation {
 	n := u.Node
 	style := e.look.Style(n, u.Context)
 	p := &Presentation{Unit: u.ID, Kind: n.Kind(), Node: n, Context: u.Context, Group: style.Group,
-		Role: style.Role, Level: style.Level, Gap: u.Gap, key: key}
+		Role: style.Role, Level: style.Level, Gap: u.Gap, Gaps: u.Gaps, key: key}
 	if p.Object = e.r.Schema().IsObject(n.Kind()); p.Object {
 		// An object is drawn by its kind's renderer from its node, between
 		// gap stops; its own inline slots (a figure's caption, a math
 		// block's source) are its surfaces, read in order between the
 		// gaps, open while the object is held.
 		// TODO(tables): present cells as nested surfaces with stops.
-		if u.Gap != nil {
+		if u.Gap != nil && u.Gaps[0] {
 			p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(*u.Gap), Surface: -1, Class: StopGap, Offset: u.Gap.Offset})
 		}
 		for i, sl := range n.Slots() {
@@ -479,7 +489,7 @@ func build(e env, u UnitRef, key unitKey) *Presentation {
 				flowOf(e, p, doc.SlotRef{Node: n.ID(), Slot: i}, p.Group, false, 0, key.held)
 			}
 		}
-		if u.Gap != nil {
+		if u.Gap != nil && u.Gaps[1] {
 			after := doc.Pos{Node: u.Gap.Node, Slot: u.Gap.Slot, Offset: u.Gap.Offset + 1}
 			p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(after), Surface: -1, Class: StopGap, Offset: after.Offset})
 		}

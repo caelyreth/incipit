@@ -191,11 +191,8 @@ func (ed *Editor) resolve(in vocab.VisualMove, viewport float32) (vocab.VisualMo
 	if v.Selection.Kind == doc.SelectNode {
 		// A selected object is left through its gap on the side moved to.
 		for _, u := range pl.units {
-			if u.pres.Unit == v.Selection.Node && len(u.gaps) == 2 {
-				head = u.gaps[0].caret
-				if in.Dir == vocab.Down || in.Dir == vocab.PageDown || in.Dir == vocab.LineEnd {
-					head = u.gaps[1].caret
-				}
+			if u.pres.Unit == v.Selection.Node && u.pres.Gap != nil {
+				head = u.beside(in.Dir == vocab.Down || in.Dir == vocab.PageDown || in.Dir == vocab.LineEnd)
 				if in.Dir == vocab.Up || in.Dir == vocab.Down {
 					in.Target, in.GoalX = head, -1
 					return in, true

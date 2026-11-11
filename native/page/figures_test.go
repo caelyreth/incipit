@@ -73,8 +73,8 @@ func TestClicksSelectAFigureOrEnterItsCaption(t *testing.T) {
 	}
 }
 
-// Down passes through a figure row by row: its gap before, its caption
-// when it has one, its gap after, then the text below; Up retraces it.
+// Down passes through a figure row by row: its caption, open as the caret
+// arrives, then the text below; Up retraces it.
 func TestVerticalMotionPassesThroughAFigure(t *testing.T) {
 	for _, caption := range []string{"", "Dawn"} {
 		el, u := figurePage(t)
@@ -101,10 +101,9 @@ func TestVerticalMotionPassesThroughAFigure(t *testing.T) {
 			n, _ := ed.Engine.Snapshot().Node(c.Pos.Node)
 			path = append(path, profile.Schema().KindName(n.Kind()))
 		}
-		want := []string{"page", "page", "paragraph"}
-		if caption != "" {
-			want = []string{"page", "figure", "page", "paragraph"}
-		}
+		// Text stands on both sides, so the figure has no gaps: its
+		// caption, empty or not, is its row.
+		want := []string{"figure", "paragraph"}
 		if fmt.Sprint(path) != fmt.Sprint(want) {
 			t.Fatalf("caption %q: down %v, want %v", caption, path, want)
 		}

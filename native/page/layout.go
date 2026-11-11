@@ -152,11 +152,12 @@ type unitLayout struct {
 	// page as drawn, top its top with every room above settled, and h its
 	// height.
 	x, y, top, h float32
-	// object marks a unit its kind's renderer draws, with gap stops
-	// before and after it; box is what it draws, in the unit, and its own
+	// object marks a unit its kind's renderer draws; gaps are its gap
+	// stops before and after it, nil on a side where text stands beside it
+	// (present.UnitRef.Gaps); box is what it draws, in the unit, and its own
 	// slots (a figure's caption) are its surfaces, under the box.
 	object bool
-	gaps   []stopAt
+	gaps   [2]*stopAt
 	box    ui.Rect
 	// drawn is all an object draws, which its ring goes around held whole:
 	// its box, or more where its renderer draws more around it.
@@ -283,12 +284,12 @@ type surfStop struct {
 func orderedStops(u *unitLayout) []surfStop {
 	var out []surfStop
 	next := make([]int, len(u.surfaces))
-	gap := 0
 	for _, st := range u.pres.Stops {
 		if st.Surface < 0 {
-			if gap < len(u.gaps) {
-				out = append(out, surfStop{nil, &u.gaps[gap]})
-				gap++
+			for _, g := range u.gaps {
+				if g != nil && g.caret == st.Caret {
+					out = append(out, surfStop{nil, g})
+				}
 			}
 			continue
 		}
@@ -341,7 +342,11 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 		u.object = true
 		for _, st := range p.Stops {
 			if st.Surface < 0 {
-				u.gaps = append(u.gaps, stopAt{caret: st.Caret})
+				side := 0
+				if p.Gap != nil && st.Caret.Pos != *p.Gap {
+					side = 1
+				}
+				u.gaps[side] = &stopAt{caret: st.Caret}
 			}
 		}
 		// Each object kind's renderer lays it out; its own slots are its
@@ -645,6 +650,22 @@ func (u *unitLayout) origin(s *surfaceLayout) (float32, float32) {
 	return u.x + s.x, u.y + s.y
 }
 
+// beside is an object's place before it or after it: its gap stop, or,
+// where text stands beside it, the gap's place, which the engine settles
+// on that text.
+func (u *unitLayout) beside(after bool) doc.Caret {
+	side := 0
+	if after {
+		side = 1
+	}
+	if g := u.gaps[side]; g != nil {
+		return g.caret
+	}
+	pos := *u.pres.Gap
+	pos.Offset += side
+	return doc.CaretAt(pos)
+}
+
 // spotKind is what a place on the page is, which says how anything
 // marking it is drawn.
 type spotKind uint8
@@ -671,7 +692,7 @@ func (pl *pageLayout) spot(c doc.Caret) (ui.Rect, spotKind, bool) {
 	}
 	if pc.surface == nil {
 		u := pc.unit
-		if pc.stop == &u.gaps[0] {
+		if pc.stop == u.gaps[0] {
 			return ui.Rect{X: u.x + u.box.X, Y: u.y - gapBarRoom - 1, W: u.box.W, H: 2}, spotGapBefore, true
 		}
 		return ui.Rect{X: u.x + u.box.X, Y: u.bottom() + gapBarRoom - 1, W: u.box.W, H: 2}, spotGapAfter, true
@@ -751,15 +772,12 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 		y = u.y
 	}
 	if u.object && (!anyShown(u) || y < u.y+u.box.Y+u.box.H) {
-		// On what the object draws: the object, and the gap on the half
+		// On what the object draws: the object, and its place on the half
 		// the point is in, which a drag extends to.
-		if len(u.gaps) < 2 {
+		if u.pres.Gap == nil {
 			return doc.Caret{}, 0, false
 		}
-		if y < u.y+u.box.Y+u.box.H/2 {
-			return u.gaps[0].caret, u.pres.Unit, true
-		}
-		return u.gaps[1].caret, u.pres.Unit, true
+		return u.beside(y >= u.y+u.box.Y+u.box.H/2), u.pres.Unit, true
 	}
 	var s *surfaceLayout
 	for _, cand := range u.surfaces {
@@ -937,6 +955,11 @@ func (pl *pageLayout) vertical(c doc.Caret, goalX float32, up bool) (doc.Caret, 
 		step = -1
 	}
 	next := i + step
+	for next >= 0 && next < len(pl.units) && pl.units[next].object && len(pl.objectRows(pl.units[next])) == 0 {
+		// An object with no place of its own to stand, as a divider
+		// between texts, is passed over.
+		next += step
+	}
 	if next < 0 || next >= len(pl.units) {
 		return c, false
 	}
@@ -992,19 +1015,18 @@ func (r row) at(pl *pageLayout, u *unitLayout, goalX float32) doc.Caret {
 
 func (pl *pageLayout) objectRows(u *unitLayout) []row {
 	var rows []row
-	if len(u.gaps) > 0 {
-		rows = append(rows, row{gap: &u.gaps[0]})
+	if u.gaps[0] != nil {
+		rows = append(rows, row{gap: u.gaps[0]})
 	}
 	for _, s := range u.surfaces {
-		if !s.shown {
-			continue
-		}
+		// An own slot not shown is passed through all the same, as
+		// horizontal motion passes it: arriving opens it.
 		for i := range s.layout.Lines() {
 			rows = append(rows, row{s: s, line: i})
 		}
 	}
-	if len(u.gaps) > 1 {
-		rows = append(rows, row{gap: &u.gaps[1]})
+	if u.gaps[1] != nil {
+		rows = append(rows, row{gap: u.gaps[1]})
 	}
 	return rows
 }
