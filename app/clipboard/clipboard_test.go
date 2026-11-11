@@ -6,26 +6,27 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
 func testSlice(t *testing.T) vocab.Slice {
 	t.Helper()
 	marks := doc.NewInterner()
-	strong := marks.Intern([]doc.Mark{{Kind: vocab.Strong}})
-	formula := doc.NewNode(vocab.Formula, doc.Attrs{}, doc.InlineSlot(doc.TextItem("x+1", nil)))
-	paragraph := doc.NewNode(vocab.Paragraph, doc.Attrs{}, doc.InlineSlot(
+	strong := marks.Intern([]doc.Mark{{Kind: profile.Strong}})
+	formula := doc.NewNode(profile.Formula, doc.Attrs{}, doc.InlineSlot(doc.TextItem("x+1", nil)))
+	paragraph := doc.NewNode(profile.Paragraph, doc.Attrs{}, doc.InlineSlot(
 		doc.TextItem("bold", strong),
 		doc.NodeItem(formula),
 		doc.TextItem(" tail", nil),
 	))
-	item := doc.NewNode(vocab.Item,
-		doc.MakeAttrs(doc.Field{Num: vocab.FieldTask, Value: doc.Int(int64(vocab.TaskOpen))}),
+	item := doc.NewNode(profile.Item,
+		doc.MakeAttrs(doc.Field{Num: profile.FieldTask, Value: doc.Int(int64(profile.TaskOpen))}),
 		doc.InlineSlot(doc.TextItem("task", nil)),
 		doc.BlockSlot(),
 	)
-	list := doc.NewNode(vocab.List,
-		doc.MakeAttrs(doc.Field{Num: vocab.FieldListStyle, Value: doc.Int(int64(vocab.Ordered))}),
+	list := doc.NewNode(profile.List,
+		doc.MakeAttrs(doc.Field{Num: profile.FieldListStyle, Value: doc.Int(int64(profile.Ordered))}),
 		doc.BlockSlot(item),
 	)
 	return vocab.Slice{Nodes: []*doc.Node{paragraph, list}, OpenStart: 1, OpenEnd: 1}
@@ -49,14 +50,14 @@ func TestSliceRoundTripPreservesStructure(t *testing.T) {
 	}
 	first := out.Nodes[0].Slot(0).Content()
 	item, _, ok := first.ItemAt(4)
-	if !ok || item.Node == nil || item.Node.Kind() != vocab.Formula || item.Node.Text() != "x+1" {
+	if !ok || item.Node == nil || item.Node.Kind() != profile.Formula || item.Node.Text() != "x+1" {
 		t.Fatalf("formula item = %+v", item)
 	}
 	text, _, _ := first.ItemAt(0)
-	if text.Marks == nil || !text.Marks.Has(vocab.Strong) {
+	if text.Marks == nil || !text.Marks.Has(profile.Strong) {
 		t.Fatal("strong marks were lost")
 	}
-	if got, _ := out.Nodes[1].Attrs().Get(vocab.FieldListStyle); got.Int() != int64(vocab.Ordered) {
+	if got, _ := out.Nodes[1].Attrs().Get(profile.FieldListStyle); got.Int() != int64(profile.Ordered) {
 		t.Fatalf("list style = %v", got)
 	}
 	again, err := Encode(out)

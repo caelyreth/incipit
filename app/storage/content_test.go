@@ -4,13 +4,13 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/doc"
-	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/editor/profile"
 )
 
 func TestPageContentSavesAsRowsAndLoads(t *testing.T) {
 	root := t.TempDir()
 	s := openStore(t, root)
-	snap, err := vocab.EmptyPage(1, 7, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 7, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestPageContentSavesAsRowsAndLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 	s = openStore(t, root)
-	back, err := s.LoadPage(1, vocab.Schema(), doc.NewInterner())
+	back, err := s.LoadPage(1, profile.Schema(), doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestPageContentSavesAsRowsAndLoads(t *testing.T) {
 func TestUnwrittenPageLoadsEmpty(t *testing.T) {
 	s := openStore(t, t.TempDir())
 	defer s.Close()
-	snap, err := s.LoadPage(42, vocab.Schema(), doc.NewInterner())
+	snap, err := s.LoadPage(42, profile.Schema(), doc.NewInterner())
 	if err != nil || snap != nil {
 		t.Fatalf("unwritten page: %v, %v", snap, err)
 	}

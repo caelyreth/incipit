@@ -79,7 +79,8 @@ func ClassOf(r rune) CharClass {
 	return c
 }
 
-func firstRune(s string) (rune, int) {
+// FirstRune is the first rune of s and its length.
+func FirstRune(s string) (rune, int) {
 	if s == "" {
 		return 0, 0
 	}

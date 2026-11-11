@@ -13,6 +13,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/pairs"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -24,14 +25,14 @@ type page struct {
 
 func open(t *testing.T) *page {
 	t.Helper()
-	prog, err := policy.Compile(policy.Manifest{
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, Policy, pairs.Policy, markdown.Policy, lists.Policy, navigation.Policy},
 		Strict:  true,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := vocab.EmptyPage(1, 5, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 5, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestTypedGlyphsToggleATaskBox(t *testing.T) {
 	}
 	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
 	p.typeText("x")
-	if got := vocab.TaskOf(p.item()); got != vocab.TaskDone {
+	if got := profile.TaskOf(p.item()); got != profile.TaskDone {
 		t.Fatalf("typing x made task %v, want done", got)
 	}
 	if text := p.item().Slot(0).Content().Text(); text != "" {
@@ -91,7 +92,7 @@ func TestTypedGlyphsToggleATaskBox(t *testing.T) {
 		t.Fatalf("marker spells %q, want a done task", got)
 	}
 	p.typeText(" ")
-	if got := vocab.TaskOf(p.item()); got != vocab.TaskOpen {
+	if got := profile.TaskOf(p.item()); got != profile.TaskOpen {
 		t.Fatalf("typing space made task %v, want open", got)
 	}
 }
@@ -103,11 +104,11 @@ func TestTaskCommandTogglesTheItemAtTheCaret(t *testing.T) {
 		t.Fatal("the program has no core.toggleTask command")
 	}
 	p.do(vocab.Command{ID: "core.toggleTask"})
-	if got := vocab.TaskOf(p.item()); got != vocab.TaskDone {
+	if got := profile.TaskOf(p.item()); got != profile.TaskDone {
 		t.Fatalf("the command made task %v, want done", got)
 	}
 	p.do(vocab.Command{ID: "core.toggleTask"})
-	if got := vocab.TaskOf(p.item()); got != vocab.TaskOpen {
+	if got := profile.TaskOf(p.item()); got != profile.TaskOpen {
 		t.Fatalf("the second command made task %v, want open", got)
 	}
 }

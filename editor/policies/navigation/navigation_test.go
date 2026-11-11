@@ -12,19 +12,20 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/notation"
 	"github.com/caelyreth/neverland/editor/policies/pairs"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
 func open(t *testing.T, values policy.Values) *engine.Engine {
 	t.Helper()
-	prog, err := policy.Compile(policy.Manifest{
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, lists.Policy, Policy},
 		Strict:  true,
 	}, values)
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := vocab.EmptyPage(1, 5, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 5, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,12 +17,12 @@ var Window = policy.Int("typingWindow", 750, 0, 5000, policy.Label("settings.his
 var Policy = policy.Define("history", func(p *policy.P) {
 	window := time.Duration(policy.Get(p, Window)) * time.Millisecond
 	p.Grouping(func(prev, next *doc.Entry) bool { return doc.CanGroup(prev, next, window) })
-	p.Handle("undo").On(vocab.On(vocab.IntentUndo)).Do(func(c *policy.Ctx, m policy.Match) policy.Result {
+	p.Handle("undo").On(policy.On(vocab.IntentUndo)).Do(func(c *policy.Ctx, m policy.Match) policy.Result {
 		in := m.Intent.(vocab.Undo)
 		return policy.Result{History: &policy.HistoryRequest{Action: policy.HistoryUndo, TopLayer: in.TopLayer},
 			EndComposition: c.Composition() != nil, Effects: []policy.Effect{{Kind: policy.EffectReveal}}}
 	})
-	p.Handle("redo").On(vocab.On(vocab.IntentRedo)).Do(func(c *policy.Ctx, m policy.Match) policy.Result {
+	p.Handle("redo").On(policy.On(vocab.IntentRedo)).Do(func(c *policy.Ctx, m policy.Match) policy.Result {
 		return policy.Result{History: &policy.HistoryRequest{Action: policy.HistoryRedo},
 			EndComposition: c.Composition() != nil, Effects: []policy.Effect{{Kind: policy.EffectReveal}}}
 	})

@@ -16,6 +16,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -213,7 +214,7 @@ func (p *Player) restart(now time.Time) {
 		p.ended = now
 		return
 	}
-	snap, err := vocab.EmptyPage(1, rand.Uint64(), doc.NewInterner())
+	snap, err := profile.EmptyPage(1, rand.Uint64(), doc.NewInterner())
 	if err != nil {
 		p.err, p.ended = err, now
 		return

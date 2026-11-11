@@ -4,23 +4,23 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/doc"
-	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/editor/profile"
 )
 
 func sample(t *testing.T) *doc.Snapshot {
 	t.Helper()
 	marks := doc.NewInterner()
-	snap, err := vocab.EmptyPage(1, 11, marks)
+	snap, err := profile.EmptyPage(1, 11, marks)
 	if err != nil {
 		t.Fatal(err)
 	}
-	strong := marks.Intern([]doc.Mark{{Kind: vocab.Strong}})
-	formula := doc.NewNode(vocab.Formula, doc.Attrs{}, doc.InlineSlot(doc.TextItem("x^2", nil)))
-	heading := doc.NewNode(vocab.Heading, doc.MakeAttrs(doc.Field{Num: vocab.FieldLevel, Value: doc.Int(2)}),
+	strong := marks.Intern([]doc.Mark{{Kind: profile.Strong}})
+	formula := doc.NewNode(profile.Formula, doc.Attrs{}, doc.InlineSlot(doc.TextItem("x^2", nil)))
+	heading := doc.NewNode(profile.Heading, doc.MakeAttrs(doc.Field{Num: profile.FieldLevel, Value: doc.Int(2)}),
 		doc.InlineSlot(doc.TextItem("Title", nil)))
-	item := doc.NewNode(vocab.Item, doc.Attrs{}, doc.InlineSlot(doc.TextItem("one", nil)), doc.BlockSlot())
-	list := doc.NewNode(vocab.List, doc.Attrs{}, doc.BlockSlot(item))
-	para := vocab.NewParagraph(doc.TextItem("a ", nil), doc.TextItem("bold", strong), doc.NodeItem(formula), doc.TextItem(" end", nil))
+	item := doc.NewNode(profile.Item, doc.Attrs{}, doc.InlineSlot(doc.TextItem("one", nil)), doc.BlockSlot())
+	list := doc.NewNode(profile.List, doc.Attrs{}, doc.BlockSlot(item))
+	para := profile.NewParagraph(doc.TextItem("a ", nil), doc.TextItem("bold", strong), doc.NodeItem(formula), doc.TextItem(" end", nil))
 	tx := snap.Begin(doc.Origin{Class: doc.OriginCommand})
 	if err := tx.Apply(doc.Insert{Parent: 1, Index: 1, Nodes: []*doc.Node{heading, para, list}}); err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func TestRowsRoundTrip(t *testing.T) {
 	if len(rows) != 6 { // page, paragraph, heading, paragraph, list, item
 		t.Fatalf("rows: %d", len(rows))
 	}
-	back, err := Load(vocab.Schema(), doc.NewInterner(), s.Root().ID(), s.Seed(), rows)
+	back, err := Load(profile.Schema(), doc.NewInterner(), s.Root().ID(), s.Seed(), rows)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,9 +55,9 @@ func TestRowsRoundTrip(t *testing.T) {
 }
 
 func TestUnknownFieldsArePreserved(t *testing.T) {
-	a := doc.MakeAttrs(doc.Field{Num: vocab.FieldLevel, Value: doc.Int(3)}, doc.Field{Num: 40, Value: doc.Text("future")})
+	a := doc.MakeAttrs(doc.Field{Num: profile.FieldLevel, Value: doc.Int(3)}, doc.Field{Num: 40, Value: doc.Text("future")})
 	enc := EncodeAttrs(a)
-	dec, err := DecodeAttrs(enc, func(n uint16) bool { return n == vocab.FieldLevel })
+	dec, err := DecodeAttrs(enc, func(n uint16) bool { return n == profile.FieldLevel })
 	if err != nil {
 		t.Fatal(err)
 	}

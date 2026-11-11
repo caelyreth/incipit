@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/store"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
@@ -162,7 +163,7 @@ func Decode(data []byte) (vocab.Slice, error) {
 }
 
 func decodeNode(w wireNode, marks *doc.Interner) (*doc.Node, error) {
-	spec, ok := vocab.Schema().Kind(w.Kind)
+	spec, ok := profile.Schema().Kind(w.Kind)
 	if !ok {
 		return nil, fmt.Errorf("%w: kind %d", ErrInvalid, w.Kind)
 	}
@@ -227,7 +228,7 @@ func decodeItems(items []wireItem, marks *doc.Interner, spec doc.SlotSpec) ([]do
 			}
 			ms := make([]doc.Mark, len(item.Marks))
 			for j, m := range item.Marks {
-				mspec, ok := vocab.Schema().Mark(m.Kind)
+				mspec, ok := profile.Schema().Mark(m.Kind)
 				if !ok {
 					return nil, fmt.Errorf("%w: mark %d", ErrInvalid, m.Kind)
 				}

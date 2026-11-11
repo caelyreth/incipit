@@ -31,10 +31,10 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		{"sentence", vocab.BySentence},
 		{"paragraph", vocab.ByParagraph},
 	} {
-		p.Handle("move-" + unit.name).On(vocab.Moving(unit.unit, 0)).Do(move)
-		p.Handle("delete-" + unit.name).On(vocab.Deleting(unit.unit, 0)).Produces(edits...).Do(delete)
+		p.Handle("move-" + unit.name).On(policy.Moving(unit.unit, 0)).Do(move)
+		p.Handle("delete-" + unit.name).On(policy.Deleting(unit.unit, 0)).Produces(edits...).Do(delete)
 	}
-	p.Handle("place").On(vocab.On(vocab.IntentPlace)).Do(place)
+	p.Handle("place").On(policy.On(vocab.IntentPlace)).Do(place)
 })
 
 type span struct{ from, to int }

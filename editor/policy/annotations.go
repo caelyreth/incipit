@@ -94,7 +94,7 @@ func Until(t time.Time) Lifetime { return Lifetime{Kind: Deadline, At: t} }
 // when its lifetime ends or its owner's check rejects it.
 type Annotation struct {
 	ID       AnnotationID
-	Kind     vocab.AnnotationKind
+	Kind     AnnotationKind
 	Owner    string
 	Anchor   Anchor
 	Data     any
@@ -115,7 +115,7 @@ func (s Annotations) All() []Annotation { return s.list }
 func (s Annotations) Len() int { return len(s.list) }
 
 // Of returns annotations of a kind.
-func (s Annotations) Of(k vocab.AnnotationKind) []Annotation {
+func (s Annotations) Of(k AnnotationKind) []Annotation {
 	var out []Annotation
 	for _, a := range s.list {
 		if a.Kind == k {
@@ -126,7 +126,7 @@ func (s Annotations) Of(k vocab.AnnotationKind) []Annotation {
 }
 
 // At returns annotations of a kind touching c.
-func (s Annotations) At(k vocab.AnnotationKind, c doc.Caret) []Annotation {
+func (s Annotations) At(k AnnotationKind, c doc.Caret) []Annotation {
 	var out []Annotation
 	for _, a := range s.list {
 		if a.Kind == k && a.Anchor.Touches(c) {
@@ -252,7 +252,7 @@ type Settlement struct {
 	// Now is the intent's time.
 	Now time.Time
 	// Kinds are the annotation kinds the program still has.
-	Kinds func(vocab.AnnotationKind) bool
+	Kinds func(AnnotationKind) bool
 }
 
 // Settle ends the lifetimes a finished transaction ends. Annotations the
@@ -300,7 +300,7 @@ func (s Annotations) Deadlines() []time.Time {
 type AnnotationCheck func(r doc.Reader, a Annotation) bool
 
 type annotationDecl struct {
-	kind  vocab.AnnotationKind
+	kind  AnnotationKind
 	check AnnotationCheck
 }
 
@@ -308,19 +308,19 @@ type annotationDecl struct {
 // it re-checks them after each transaction. Core kinds from the
 // vocabulary may be declared by any policy; the policy that creates an
 // annotation owns it.
-func (p *P) Annotation(kind vocab.AnnotationKind, check AnnotationCheck) {
+func (p *P) Annotation(kind AnnotationKind, check AnnotationCheck) {
 	p.annotations = append(p.annotations, annotationDecl{kind: kind, check: check})
 }
 
 // Decorate shows annotations of a kind as a view decoration styled by
 // group, such as the armed highlight.
-func (p *P) Decorate(kind vocab.AnnotationKind, group vocab.Group) {
+func (p *P) Decorate(kind AnnotationKind, group vocab.Group) {
 	p.decorations = append(p.decorations, Decoration{Kind: kind, Group: group, Owner: p.policy.id})
 }
 
 // Decoration is a presentation contribution over annotations.
 type Decoration struct {
-	Kind  vocab.AnnotationKind
+	Kind  AnnotationKind
 	Group vocab.Group
 	Owner string
 }

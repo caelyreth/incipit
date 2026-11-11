@@ -36,20 +36,21 @@ type Level struct {
 	// doc.StopLast).
 	Start, End doc.Caret
 
-	keys []vocab.Scope
+	keys []Scope
+	prog *Program
 }
 
 // Keys are the scope keys the level answers to: its kind and its roles.
-func (l *Level) Keys() []vocab.Scope { return l.keys }
+func (l *Level) Keys() []Scope { return l.keys }
 
 // Provides reports whether the level provides a role.
-func (l *Level) Provides(r vocab.Role) bool { return slices.Contains(l.keys, vocab.RoleScope(r)) }
+func (l *Level) Provides(r vocab.Role) bool { return slices.Contains(l.keys, RoleScope(r)) }
 
 // Role returns the level's implementation of a role.
 func (l *Level) Role(r doc.Reader, role vocab.Role) (any, bool) {
 	switch l.Class {
 	case LevelNode:
-		return vocab.NodeRole(r, l.Node, role)
+		return l.prog.nodeRole(r, l.Node, role)
 	case LevelFact:
 		if !l.Provides(role) {
 			return nil, false
@@ -62,7 +63,7 @@ func (l *Level) Role(r doc.Reader, role vocab.Role) (any, bool) {
 func (l *Level) String() string {
 	switch l.Class {
 	case LevelNode:
-		return "node:" + vocab.Schema().KindName(l.Node.Kind())
+		return fmt.Sprintf("node(%d)", l.Node.Kind())
 	case LevelSlot:
 		return fmt.Sprintf("slot:%s", l.Slot)
 	case LevelFact:
@@ -85,7 +86,7 @@ type Stack struct {
 func (s *Stack) Innermost() *Level { return s.Levels[len(s.Levels)-1] }
 
 // Find returns the innermost level answering to a scope key.
-func (s *Stack) Find(key vocab.Scope) (*Level, int, bool) {
+func (s *Stack) Find(key Scope) (*Level, int, bool) {
 	for i := len(s.Levels) - 1; i >= 0; i-- {
 		if slices.Contains(s.Levels[i].keys, key) {
 			return s.Levels[i], i, true
@@ -153,7 +154,10 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 	ids = append(ids, pos.Node)
 	for i, id := range ids {
 		n, _ := r.Node(id)
-		l := &Level{Class: LevelNode, Node: n, keys: nodeKeys(n.Kind())}
+		l := &Level{Class: LevelNode, Node: n, keys: p.nodeKeys(n.Kind()), prog: p}
+		if i == 0 {
+			l.keys = append(l.keys, Root)
+		}
 		if i+1 < len(ids) {
 			_, slot, _ := r.Parent(ids[i+1])
 			l.Slot = doc.SlotRef{Node: id, Slot: slot}
@@ -164,7 +168,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 		l.Start, l.End = doc.Caret{Pos: start, Stop: doc.StopFirst}, doc.Caret{Pos: end, Stop: doc.StopLast}
 		s.Levels = append(s.Levels, l)
 	}
-	slotLevel := &Level{Class: LevelSlot, Node: owner, Slot: ref, keys: []vocab.Scope{vocab.Slot}}
+	slotLevel := &Level{Class: LevelSlot, Node: owner, Slot: ref, keys: []Scope{Slot}}
 	slotLevel.Start = doc.Caret{Pos: doc.At(ref, 0), Stop: doc.StopFirst}
 	slotLevel.End = doc.Caret{Pos: doc.At(ref, 0), Stop: doc.StopLast}
 	if ref.Slot < owner.NumSlots() {
@@ -191,7 +195,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 			s.Levels = append(s.Levels, &Level{
 				Class: LevelAnnotation, Node: owner, Slot: ref, Annotation: &a,
 				Start: a.Anchor.From, End: a.Anchor.To,
-				keys: []vocab.Scope{vocab.AnnotationScope(a.Kind)},
+				keys: []Scope{AnnotationScope(a.Kind)},
 			})
 		}
 	}
@@ -204,19 +208,19 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 	return s
 }
 
-func nodeKeys(k doc.Kind) []vocab.Scope {
-	keys := []vocab.Scope{vocab.NodeScope(k)}
-	for _, r := range vocab.NodeRoles(k) {
-		keys = append(keys, vocab.RoleScope(r))
+func (p *Program) nodeKeys(k doc.Kind) []Scope {
+	keys := []Scope{NodeScope(k)}
+	for _, r := range p.nodeRoles(k) {
+		keys = append(keys, RoleScope(r))
 	}
 	return keys
 }
 
-func (p *Program) factKeys(k vocab.FactKind) []vocab.Scope {
-	keys := []vocab.Scope{vocab.FactScope(k)}
+func (p *Program) factKeys(k FactID) []Scope {
+	keys := []Scope{FactScope(k)}
 	if d, ok := p.factDecls[k]; ok {
 		for _, r := range d.roles {
-			keys = append(keys, vocab.RoleScope(r))
+			keys = append(keys, RoleScope(r))
 		}
 	}
 	return keys
@@ -273,7 +277,7 @@ func (p *Program) scopeFacts(store *Store, r doc.Reader, view *View, ref doc.Slo
 }
 
 // facts runs (or reads the cache of) the analyzer of kind k on a slot.
-func (p *Program) facts(store *Store, r doc.Reader, view *View, ref doc.SlotRef, k vocab.FactKind) []Fact {
+func (p *Program) facts(store *Store, r doc.Reader, view *View, ref doc.SlotRef, k FactID) []Fact {
 	a, ok := p.analyzerOf[k]
 	if !ok {
 		return nil
@@ -358,11 +362,11 @@ func (e *evaluator) matches(level int, r *rule) bool {
 
 // levelOf resolves the level a relation is evaluated at: its own, or the
 // enclosing one Of names.
-func (e *evaluator) levelOf(level int, at vocab.Scope) (int, bool) {
+func (e *evaluator) levelOf(level int, at Scope) (int, bool) {
 	if at.Class == 0 {
 		return level, true
 	}
-	if at.Class == vocab.ScopeParent {
+	if at.Class == ScopeParent {
 		return level - 1, level > 0
 	}
 	for i := level - 1; i >= 0; i-- {
@@ -373,7 +377,7 @@ func (e *evaluator) levelOf(level int, at vocab.Scope) (int, bool) {
 	return 0, false
 }
 
-func (e *evaluator) eval(level int, rel vocab.Relation) bool {
+func (e *evaluator) eval(level int, rel Relation) bool {
 	li, ok := e.levelOf(level, rel.At)
 	if !ok {
 		return false
@@ -384,41 +388,41 @@ func (e *evaluator) eval(level int, rel vocab.Relation) bool {
 	pos := caret.Pos
 	sel := c.view.Selection
 	switch rel.Kind {
-	case vocab.RelAtInnerStart:
+	case RelAtInnerStart:
 		return atEdge(caret, l.Start)
-	case vocab.RelAtInnerEnd:
+	case RelAtInnerEnd:
 		return atEdge(caret, l.End)
-	case vocab.RelCollapsed:
+	case RelCollapsed:
 		return sel.IsCollapsed()
-	case vocab.RelTextRange:
+	case RelTextRange:
 		return sel.Kind == doc.SelectText && !sel.IsCollapsed()
-	case vocab.RelNodeSelected:
+	case RelNodeSelected:
 		if sel.Kind != doc.SelectNode {
 			return false
 		}
 		n, ok := c.r.Node(sel.Node)
 		return ok && (rel.Node == 0 || n.Kind() == rel.Node)
-	case vocab.RelCellRange:
+	case RelCellRange:
 		return sel.Kind == doc.SelectCells
-	case vocab.RelComposing:
+	case RelComposing:
 		return c.view.Composition != nil
-	case vocab.RelHas:
+	case RelHas:
 		return len(c.view.Annotations.At(rel.Annotation, caret)) > 0
-	case vocab.RelPrevChar, vocab.RelNextChar:
-		return e.charClass(pos, rel.Kind == vocab.RelPrevChar)&rel.Class != 0
-	case vocab.RelSlotStart, vocab.RelSlotEnd, vocab.RelSlotEmpty:
+	case RelPrevChar, RelNextChar:
+		return e.charClass(pos, rel.Kind == RelPrevChar)&rel.Class != 0
+	case RelSlotStart, RelSlotEnd, RelSlotEmpty:
 		return e.slotAtom(l, pos, rel.Kind)
-	case vocab.RelOwnText:
+	case RelOwnText:
 		return pos.Ref() == l.Slot && l.Node != nil && l.Node.ID() == l.Slot.Node && isInlineSlot(c.r, l.Slot)
-	case vocab.RelBefore, vocab.RelAfter:
-		return e.adjacent(caret, rel.Target, rel.Kind == vocab.RelBefore)
-	case vocab.RelEquals:
+	case RelBefore, RelAfter:
+		return e.adjacent(caret, rel.Target, rel.Kind == RelBefore)
+	case RelEquals:
 		from, to := sel.Ordered(c.r)
 		if sel.Kind == doc.SelectNode {
 			return l.Class == LevelNode && l.Node.ID() == sel.Node
 		}
 		return atEdge(from, l.Start) && atEdge(to, l.End)
-	case vocab.RelCovers, vocab.RelIntersects, vocab.RelCuts:
+	case RelCovers, RelIntersects, RelCuts:
 		return e.selectionRelation(rel.Kind, rel.Target)
 	}
 	return false
@@ -443,27 +447,27 @@ func isInlineSlot(r doc.Reader, ref doc.SlotRef) bool {
 }
 
 // slotAtom evaluates SlotStart, SlotEnd and SlotEmpty for a level's slot.
-func (e *evaluator) slotAtom(l *Level, pos doc.Pos, kind vocab.RelationKind) bool {
+func (e *evaluator) slotAtom(l *Level, pos doc.Pos, kind RelationKind) bool {
 	r := e.c.r
 	n, ok := r.Node(l.Slot.Node)
 	if !ok || l.Slot.Slot >= n.NumSlots() {
 		return false
 	}
 	slot := n.Slot(l.Slot.Slot)
-	if kind == vocab.RelSlotEmpty {
-		return slotEmpty(slot)
+	if kind == RelSlotEmpty {
+		return slotEmpty(r.Schema(), slot)
 	}
 	if slot.IsInline() {
 		if pos.Ref() != l.Slot {
 			return false
 		}
-		if kind == vocab.RelSlotStart {
+		if kind == RelSlotStart {
 			return pos.Offset == 0
 		}
 		return pos.Offset == slot.Len()
 	}
 	if pos.Ref() == l.Slot {
-		if kind == vocab.RelSlotStart {
+		if kind == RelSlotStart {
 			return pos.Offset == 0
 		}
 		return pos.Offset == slot.Len()
@@ -472,11 +476,11 @@ func (e *evaluator) slotAtom(l *Level, pos doc.Pos, kind vocab.RelationKind) boo
 		return false
 	}
 	edge := slot.Child(0)
-	if kind == vocab.RelSlotEnd {
+	if kind == RelSlotEnd {
 		edge = slot.Child(slot.Len() - 1)
 	}
 	start, end := nodeEdges(edge)
-	if kind == vocab.RelSlotStart {
+	if kind == RelSlotStart {
 		return pos == start
 	}
 	return pos == end
@@ -484,7 +488,7 @@ func (e *evaluator) slotAtom(l *Level, pos doc.Pos, kind vocab.RelationKind) boo
 
 // slotEmpty: an inline slot with no content, or a block slot with no
 // children or only one empty text block.
-func slotEmpty(s doc.Slot) bool {
+func slotEmpty(schema *doc.Schema, s doc.Slot) bool {
 	if s.IsInline() {
 		return s.Len() == 0
 	}
@@ -495,7 +499,7 @@ func slotEmpty(s doc.Slot) bool {
 		return false
 	}
 	child := s.Child(0)
-	if !vocab.IsTextBlock(child.Kind()) {
+	if !schema.IsTextBlock(child.Kind()) {
 		return false
 	}
 	for _, cs := range child.Slots() {
@@ -508,7 +512,7 @@ func slotEmpty(s doc.Slot) bool {
 
 // adjacent evaluates Before(target) (something of target right after the
 // caret) and After(target) (right before it).
-func (e *evaluator) adjacent(caret doc.Caret, target vocab.Scope, before bool) bool {
+func (e *evaluator) adjacent(caret doc.Caret, target Scope, before bool) bool {
 	r := e.c.r
 	pos := caret.Pos
 	owner, ok := r.Node(pos.Node)
@@ -527,7 +531,7 @@ func (e *evaluator) adjacent(caret doc.Caret, target vocab.Scope, before bool) b
 		return true
 	}
 	// Neighbouring blocks, at the edges of a text block's slot.
-	if target.Class == vocab.ScopeNode || target.Class == vocab.ScopeRole {
+	if target.Class == ScopeNode || target.Class == ScopeRole {
 		block, ok := vocab.Block(r, pos)
 		if !ok || block.ID() != owner.ID() {
 			return false
@@ -548,13 +552,13 @@ func (e *evaluator) adjacent(caret doc.Caret, target vocab.Scope, before bool) b
 	return false
 }
 
-func (e *evaluator) nodeIs(n *doc.Node, target vocab.Scope) bool {
-	return slices.Contains(nodeKeys(n.Kind()), target)
+func (e *evaluator) nodeIs(n *doc.Node, target Scope) bool {
+	return slices.Contains(e.p.nodeKeys(n.Kind()), target)
 }
 
 // selectionRelation evaluates Covers, Intersects and Cuts against spans of
 // the target in the slots of the selection's ends.
-func (e *evaluator) selectionRelation(kind vocab.RelationKind, target vocab.Scope) bool {
+func (e *evaluator) selectionRelation(kind RelationKind, target Scope) bool {
 	c := e.c
 	sel := c.view.Selection
 	if sel.Kind != doc.SelectText || sel.IsCollapsed() {
@@ -576,15 +580,15 @@ func (e *evaluator) selectionRelation(kind vocab.RelationKind, target vocab.Scop
 			}
 			a, b := in(doc.At(ref, f.From)), in(doc.At(ref, f.To))
 			switch kind {
-			case vocab.RelCovers:
+			case RelCovers:
 				if a && b {
 					return true
 				}
-			case vocab.RelCuts:
+			case RelCuts:
 				if a != b {
 					return true
 				}
-			case vocab.RelIntersects:
+			case RelIntersects:
 				fs, fe := doc.CaretAt(doc.At(ref, f.From)), doc.CaretAt(doc.At(ref, f.To))
 				if doc.Compare(c.r, fs, to) < 0 && doc.Compare(c.r, from, fe) < 0 {
 					return true
@@ -683,7 +687,7 @@ func (p *Program) Dispatch(c *Ctx) (Outcome, error) {
 					continue
 				}
 				m := Match{Intent: intent, Level: level}
-				if r.in.Class == vocab.ScopeRole {
+				if r.in.Class == ScopeRole {
 					m.Role, _ = level.Role(c.r, vocab.Role(r.in.ID))
 				}
 				if r.typ == ruleTransform {
@@ -764,7 +768,7 @@ func (p *Program) candidates(l *Level, k vocab.IntentKind, core bool) []*rule {
 // or else a fact edged there, of several the one whose edge is nearest.
 // Before and After match it, and handlers ask for it, so both find the
 // same thing.
-func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret, target vocab.Scope, ahead bool) (*doc.Node, *Fact, bool) {
+func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret, target Scope, ahead bool) (*doc.Node, *Fact, bool) {
 	pos := caret.Pos
 	owner, ok := r.Node(pos.Node)
 	if !ok || pos.Slot >= owner.NumSlots() || !owner.Slot(pos.Slot).IsInline() {
@@ -776,11 +780,11 @@ func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret
 		at--
 	}
 	if at >= 0 && at < in.Len() {
-		if it, _, ok := in.ItemAt(at); ok && it.Node != nil && slices.Contains(nodeKeys(it.Node.Kind()), target) {
+		if it, _, ok := in.ItemAt(at); ok && it.Node != nil && slices.Contains(p.nodeKeys(it.Node.Kind()), target) {
 			return it.Node, nil, true
 		}
 	}
-	if target.Class != vocab.ScopeFact && target.Class != vocab.ScopeRole {
+	if target.Class != ScopeFact && target.Class != ScopeRole {
 		return nil, nil, false
 	}
 	var found *Fact

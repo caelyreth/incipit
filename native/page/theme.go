@@ -6,6 +6,7 @@ package page
 
 import (
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -18,20 +19,20 @@ var headingScale = [7]float32{1, 1.75, 1.45, 1.25, 1.12, 1.05, 1}
 // semantic colors. Policy groups fall back to these through their chains.
 func Theme(t theme.Theme) present.Theme {
 	th := present.Theme{
-		vocab.GroupText:     {Set: present.SetFont | present.SetColor, Font: present.FontBody, Color: pack(t.Prose.Text)},
-		vocab.GroupHeading:  {Set: present.SetFont | present.SetWeight | present.SetColor, Font: present.FontHeading, Weight: 700, Color: pack(t.Prose.Strong)},
-		vocab.GroupEmphasis: tinted(t.Families[theme.Unripe]),
-		vocab.GroupStrong:   bold(tinted(t.Families[theme.Regolith])),
-		vocab.GroupCodeMark: {Set: present.SetFont | present.SetBackground | present.SetSize, Font: present.FontMono,
+		vocab.GroupText:       {Set: present.SetFont | present.SetColor, Font: present.FontBody, Color: pack(t.Prose.Text)},
+		profile.GroupHeading:  {Set: present.SetFont | present.SetWeight | present.SetColor, Font: present.FontHeading, Weight: 700, Color: pack(t.Prose.Strong)},
+		profile.GroupEmphasis: tinted(t.Families[theme.Unripe]),
+		profile.GroupStrong:   bold(tinted(t.Families[theme.Regolith])),
+		profile.GroupCodeMark: {Set: present.SetFont | present.SetBackground | present.SetSize, Font: present.FontMono,
 			Size: 0.9, Background: pack(t.Surface.Inset)},
-		vocab.GroupStrike:        {Set: present.SetStrike | present.SetColor, Strike: true, Color: pack(t.Text.Muted)},
-		vocab.GroupGhost:         {Set: present.SetColor, Color: pack(t.Prose.Notation)},
-		vocab.GroupCode:          {Set: present.SetFont | present.SetSize, Font: present.FontMono, Size: 0.9},
-		vocab.GroupFormulaSource: {Set: present.SetFont | present.SetColor, Font: present.FontMono, Color: pack(t.Accent.Foreground)},
-		vocab.GroupQuote:         {Set: present.SetColor, Color: pack(t.Text.Muted)},
-		vocab.GroupListMarker:    {Set: present.SetColor, Color: pack(t.Prose.Notation)},
-		vocab.GroupCaption:       {Set: present.SetColor | present.SetSize, Color: pack(t.Text.Muted), Size: 0.9},
-		vocab.GroupCellHeader:    {Set: present.SetWeight, Weight: 700},
+		profile.GroupStrike:        {Set: present.SetStrike | present.SetColor, Strike: true, Color: pack(t.Text.Muted)},
+		vocab.GroupGhost:           {Set: present.SetColor, Color: pack(t.Prose.Notation)},
+		profile.GroupCode:          {Set: present.SetFont | present.SetSize, Font: present.FontMono, Size: 0.9},
+		profile.GroupFormulaSource: {Set: present.SetFont | present.SetColor, Font: present.FontMono, Color: pack(t.Accent.Foreground)},
+		profile.GroupQuote:         {Set: present.SetColor, Color: pack(t.Text.Muted)},
+		profile.GroupListMarker:    {Set: present.SetColor, Color: pack(t.Prose.Notation)},
+		profile.GroupCaption:       {Set: present.SetColor | present.SetSize, Color: pack(t.Text.Muted), Size: 0.9},
+		profile.GroupCellHeader:    {Set: present.SetWeight, Weight: 700},
 		vocab.GroupComposition: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[theme.Halo].Foreground)},
 		vocab.GroupArmed: {Set: present.SetBackground | present.SetLine | present.SetLineColor, Background: pack(t.Prose.Selection),
@@ -44,7 +45,7 @@ func Theme(t theme.Theme) present.Theme {
 			LineColor: pack(t.Families[theme.Life].Foreground)},
 	}
 	for level := 1; level <= 6; level++ {
-		th[vocab.GroupHeadings[level]] = present.Style{Set: present.SetSize, Size: headingScale[level]}
+		th[profile.GroupHeadings[level]] = present.Style{Set: present.SetSize, Size: headingScale[level]}
 	}
 	return th
 }

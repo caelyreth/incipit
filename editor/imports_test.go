@@ -12,17 +12,24 @@ import (
 const module = "github.com/caelyreth/neverland/"
 
 // allowed is §2.1's dependency table: what each editor module may import
-// from the editor. Policies depend on vocab and policy only, never on each
-// other; the renderer and the app are outside and use the engine API.
+// from the editor. Policies depend on vocab and policy, never on each
+// other; only the kind-aware policies name the profile's kinds. The
+// framework and the engine read kinds through vocab.Profile. The renderer
+// and the app are outside and use the engine API.
 var allowed = map[string][]string{
 	"editor/doc":     {},
 	"editor/vocab":   {"editor/doc", "internal/wordseg"},
+	"editor/profile": {"editor/doc", "editor/vocab"},
 	"editor/policy":  {"editor/doc", "editor/vocab"},
-	"editor/present": {"editor/doc", "editor/vocab", "editor/policy"},
+	"editor/present": {"editor/doc", "editor/vocab", "editor/policy", "editor/profile"},
 	"editor/store":   {"editor/doc", "editor/vocab"},
 	"editor/engine":  {"editor/doc", "editor/vocab", "editor/policy", "editor/present"},
 	"policies":       {"editor/doc", "editor/vocab", "editor/policy"},
+	"profiled":       {"editor/doc", "editor/vocab", "editor/policy", "editor/profile"},
 }
+
+// profiled are the policies whose behaviour is about the profile's kinds.
+var profiled = map[string]bool{"core": true, "lists": true, "markdown": true, "notation": true}
 
 func TestImportsFollowTheModuleTable(t *testing.T) {
 	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
@@ -31,8 +38,11 @@ func TestImportsFollowTheModuleTable(t *testing.T) {
 		}
 		pkg := "editor/" + filepath.ToSlash(filepath.Dir(path))
 		rule := pkg
-		if strings.HasPrefix(pkg, "editor/policies/") {
+		if name, ok := strings.CutPrefix(pkg, "editor/policies/"); ok {
 			rule = "policies"
+			if profiled[name] {
+				rule = "profiled"
+			}
 		}
 		ok, known := allowed[rule]
 		if !known {

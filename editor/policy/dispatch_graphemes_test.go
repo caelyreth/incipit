@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -22,12 +23,12 @@ func TestCharClassClassifiesTheWholeGrapheme(t *testing.T) {
 func TestCharClassAtAnInlineNodeIsEmpty(t *testing.T) {
 	marks := doc.NewInterner()
 	empty := marks.Empty()
-	formula := doc.NewNodeWithID(3, vocab.Formula, doc.Attrs{}, "", doc.InlineSlot(doc.TextItem("x", empty)))
+	formula := doc.NewNodeWithID(3, profile.Formula, doc.Attrs{}, "", doc.InlineSlot(doc.TextItem("x", empty)))
 	para := doc.InlineSlot(doc.TextItem("a", empty), doc.NodeItem(formula), doc.TextItem("b", empty))
-	page := doc.NewNodeWithID(1, vocab.Page, doc.Attrs{}, "", doc.BlockSlot(
-		doc.NewNodeWithID(2, vocab.Paragraph, doc.Attrs{}, "a", para),
+	page := doc.NewNodeWithID(1, profile.Page, doc.Attrs{}, "", doc.BlockSlot(
+		doc.NewNodeWithID(2, profile.Paragraph, doc.Attrs{}, "a", para),
 	))
-	snap, err := doc.NewSnapshot(vocab.Schema(), marks, page, 99)
+	snap, err := doc.NewSnapshot(profile.Schema(), marks, page, 99)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,8 +7,8 @@ import "github.com/caelyreth/neverland/editor/doc"
 // are entered only through their own stops.
 
 // NewBlock builds an empty node of kind with the slots its kind declares.
-func NewBlock(kind doc.Kind, attrs doc.Attrs) *doc.Node {
-	spec, _ := Schema().Kind(kind)
+func NewBlock(s *doc.Schema, kind doc.Kind, attrs doc.Attrs) *doc.Node {
+	spec, _ := s.Kind(kind)
 	slots := make([]doc.Slot, len(spec.Slots))
 	for i, s := range spec.Slots {
 		if s.Blocks {
@@ -189,7 +189,7 @@ func SlotSpec(r doc.Reader, ref doc.SlotRef) (doc.SlotSpec, bool) {
 	if !ok {
 		return doc.SlotSpec{}, false
 	}
-	spec, ok := Schema().Kind(n.Kind())
+	spec, ok := r.Schema().Kind(n.Kind())
 	if !ok || ref.Slot >= len(spec.Slots) {
 		return doc.SlotSpec{}, false
 	}

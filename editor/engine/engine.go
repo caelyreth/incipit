@@ -539,7 +539,7 @@ func (e *Engine) settleSelection(viewID uint64, r doc.Reader, v *policy.View) do
 		// node holds the caret at its start instead.
 		n, _ := r.Node(s.Node)
 		ref, ok := vocab.FirstTextSlot(n)
-		if vocab.IsObject(n.Kind()) || !ok {
+		if r.Schema().IsObject(n.Kind()) || !ok {
 			return s
 		}
 		s = doc.Collapsed(doc.CaretAt(doc.At(ref, 0)))

@@ -13,6 +13,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/notation"
 	"github.com/caelyreth/neverland/editor/policies/pairs"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -24,14 +25,14 @@ type page struct {
 
 func open(t *testing.T) *page {
 	t.Helper()
-	prog, err := policy.Compile(policy.Manifest{
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, Policy, lists.Policy, navigation.Policy},
 		Strict:  true,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := vocab.EmptyPage(1, 5, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 5, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +60,7 @@ func outline(n *doc.Node) string {
 	var b strings.Builder
 	var walk func(*doc.Node)
 	walk = func(n *doc.Node) {
-		b.WriteString(vocab.Schema().KindName(n.Kind()))
+		b.WriteString(profile.Schema().KindName(n.Kind()))
 		b.WriteByte('(')
 		for i, s := range n.Slots() {
 			if i > 0 {
@@ -127,17 +128,17 @@ func TestTypedListKeepsADifferentStyleApart(t *testing.T) {
 func TestTypedTaskMarkersBecomeItemState(t *testing.T) {
 	for _, tc := range []struct {
 		typed string
-		want  vocab.Task
+		want  profile.Task
 	}{
-		{"- [ ] ", vocab.TaskOpen},
-		{"- [x] ", vocab.TaskDone},
-		{"- [X] ", vocab.TaskDone},
+		{"- [ ] ", profile.TaskOpen},
+		{"- [x] ", profile.TaskDone},
+		{"- [X] ", profile.TaskDone},
 	} {
 		p := open(t)
 		p.typeText(tc.typed)
 		item := p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Child(0)
-		if item.Kind() != vocab.Item || vocab.TaskOf(item) != tc.want {
-			t.Fatalf("%q made %v with task %v, want %v", tc.typed, item.Kind(), vocab.TaskOf(item), tc.want)
+		if item.Kind() != profile.Item || profile.TaskOf(item) != tc.want {
+			t.Fatalf("%q made %v with task %v, want %v", tc.typed, item.Kind(), profile.TaskOf(item), tc.want)
 		}
 		if got := item.Slot(0).Content().Text(); got != "" {
 			t.Fatalf("%q left text %q in the item head", tc.typed, got)
@@ -153,7 +154,7 @@ func TestATaskContinuesAsAnOpenTask(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("continuation made %d items, want 2", len(items))
 	}
-	if got := vocab.TaskOf(items[1]); got != vocab.TaskOpen {
+	if got := profile.TaskOf(items[1]); got != profile.TaskOpen {
 		t.Fatalf("continuation task %v, want open", got)
 	}
 }

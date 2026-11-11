@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policies/core"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -19,14 +20,14 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	prog, err := policy.Compile(policy.Manifest{
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, Policy},
 		Strict:  true,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := vocab.EmptyPage(1, 99, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 99, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +184,7 @@ func TestParagraphBoundariesInsideASlot(t *testing.T) {
 }
 
 func TestInlineNodeIsOneWordUnit(t *testing.T) {
-	formula := doc.NewNode(vocab.Formula, doc.Attrs{}, doc.InlineSlot(doc.TextItem("x", nil)))
+	formula := doc.NewNode(profile.Formula, doc.Attrs{}, doc.InlineSlot(doc.TextItem("x", nil)))
 	in := doc.NewInline(doc.TextItem("a", nil), doc.NodeItem(formula), doc.TextItem("b", nil))
 	flat := in.Flat()
 	for _, test := range []struct {

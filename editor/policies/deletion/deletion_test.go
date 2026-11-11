@@ -16,6 +16,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/pairs"
 	"github.com/caelyreth/neverland/editor/policies/scopes"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -27,7 +28,7 @@ type page struct {
 
 func open(t *testing.T) *page {
 	t.Helper()
-	prog, err := policy.Compile(policy.Manifest{
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy,
 			lists.Policy, navigation.Policy, scopes.Policy, Policy, history.Policy, guides.Policy},
 		Strict: true,
@@ -35,7 +36,7 @@ func open(t *testing.T) *page {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := vocab.EmptyPage(1, 5, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 5, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +74,7 @@ func (p *page) count(kind doc.Kind) int {
 func (p *page) armed() int {
 	v, _ := p.e.View(1)
 	n := 0
-	for _, a := range v.Annotations.Of(vocab.Armed) {
+	for _, a := range v.Annotations.Of(policy.Armed) {
 		if a.Owner == ID {
 			n++
 		}
@@ -89,12 +90,12 @@ func TestDeletingASelectedStructureArmsThenRemoves(t *testing.T) {
 	p.do(vocab.Place{Node: divider.ID()})
 
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.count(vocab.Divider) != 1 || p.armed() != 1 {
-		t.Fatalf("first delete left %d dividers and %d arms", p.count(vocab.Divider), p.armed())
+	if p.count(profile.Divider) != 1 || p.armed() != 1 {
+		t.Fatalf("first delete left %d dividers and %d arms", p.count(profile.Divider), p.armed())
 	}
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.count(vocab.Divider) != 0 || p.armed() != 0 {
-		t.Fatalf("second delete left %d dividers and %d arms", p.count(vocab.Divider), p.armed())
+	if p.count(profile.Divider) != 0 || p.armed() != 0 {
+		t.Fatalf("second delete left %d dividers and %d arms", p.count(profile.Divider), p.armed())
 	}
 }
 
@@ -109,8 +110,8 @@ func TestAnyOtherIntentDisarmsAStructure(t *testing.T) {
 		t.Fatal("the structure did not arm")
 	}
 	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.armed() != 0 || p.count(vocab.Divider) != 1 {
-		t.Fatalf("moving left %d arms and %d dividers", p.armed(), p.count(vocab.Divider))
+	if p.armed() != 0 || p.count(profile.Divider) != 1 {
+		t.Fatalf("moving left %d arms and %d dividers", p.armed(), p.count(profile.Divider))
 	}
 }
 
@@ -119,11 +120,11 @@ func TestDeletingASelectedFormulaRemovesTheInlineStructure(t *testing.T) {
 	p.typeText("a $x")
 	p.do(vocab.SelectScope{})
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.count(vocab.Formula) != 1 || p.armed() != 1 {
-		t.Fatalf("first delete left %d formulas and %d arms", p.count(vocab.Formula), p.armed())
+	if p.count(profile.Formula) != 1 || p.armed() != 1 {
+		t.Fatalf("first delete left %d formulas and %d arms", p.count(profile.Formula), p.armed())
 	}
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.count(vocab.Formula) != 0 {
+	if p.count(profile.Formula) != 0 {
 		t.Fatal("the second delete kept the formula")
 	}
 	para := p.e.Snapshot().Root().Slot(0).Child(0)
@@ -140,11 +141,11 @@ func TestDeletingAListScopeUsesTheStructureRole(t *testing.T) {
 	p.do(vocab.SelectScope{})
 	p.do(vocab.SelectScope{})
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.count(vocab.List) != 1 || p.armed() != 1 {
-		t.Fatalf("first delete left %d lists and %d arms", p.count(vocab.List), p.armed())
+	if p.count(profile.List) != 1 || p.armed() != 1 {
+		t.Fatalf("first delete left %d lists and %d arms", p.count(profile.List), p.armed())
 	}
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.count(vocab.List) != 0 {
+	if p.count(profile.List) != 0 {
 		t.Fatal("the second delete kept the list")
 	}
 }

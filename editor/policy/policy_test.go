@@ -7,13 +7,14 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
 // testCore answers every intent at the slot with a swallow, naming itself.
 var testCore = Define(CoreID, func(p *P) {
 	for _, k := range vocab.IntentKinds() {
-		p.Handle("fallback-" + k.String()).On(vocab.On(k)).Do(func(c *Ctx, m Match) Result { return Swallow })
+		p.Handle("fallback-" + k.String()).On(On(k)).Do(func(c *Ctx, m Match) Result { return Swallow })
 	}
 })
 
@@ -61,30 +62,30 @@ func (s parenScanner) Step(st string, t Token, emit func(Fact)) string {
 	return st
 }
 
-var leaveKind = vocab.On(vocab.IntentLeave)
+var leaveKind = On(vocab.IntentLeave)
 
 var testPairs = Define("pairs", func(p *P) {
 	kind := Facts[paren](p, "paren", Provides(vocab.RolePair, vocab.RoleLeavable))
-	Scan[string](p, parenScanner{kind: kind}, []vocab.FactKind{kind.Kind()})
-	p.Handle("leave").On(leaveKind).In(vocab.RoleScope(vocab.RoleLeavable)).Do(func(c *Ctx, m Match) Result {
+	Scan[string](p, parenScanner{kind: kind}, []FactID{kind.Kind()})
+	p.Handle("leave").On(leaveKind).In(RoleScope(vocab.RoleLeavable)).Do(func(c *Ctx, m Match) Result {
 		l := m.Role.(vocab.Leavable)
 		return Select(doc.Collapsed(l.Exit()))
 	})
-	p.Handle("overtype").On(vocab.Typed(")")).In(kind.Scope()).When(vocab.AtInnerEnd).Do(func(c *Ctx, m Match) Result {
+	p.Handle("overtype").On(Typed(")")).In(kind.Scope()).When(AtInnerEnd).Do(func(c *Ctx, m Match) Result {
 		f, _ := m.Fact()
 		return Select(doc.Collapsed(doc.CaretAt(doc.At(m.Level.Slot, f.To))))
 	})
-	p.Transform("soft").On(vocab.On(vocab.IntentSoftBreak)).In(kind.Scope()).Emits(vocab.IntentBreak).To(func(*Ctx, Match) vocab.Intent { return vocab.Break{} })
+	p.Transform("soft").On(On(vocab.IntentSoftBreak)).In(kind.Scope()).Emits(vocab.IntentBreak).To(func(*Ctx, Match) vocab.Intent { return vocab.Break{} })
 })
 
 func testPage(t *testing.T, text string) (*doc.Snapshot, doc.SlotRef) {
 	t.Helper()
-	snap, err := doc.NewSnapshot(vocab.Schema(), doc.NewInterner(), doc.NewNodeWithID(1, vocab.Page, doc.Attrs{}, "", doc.BlockSlot()), 7)
+	snap, err := doc.NewSnapshot(profile.Schema(), doc.NewInterner(), doc.NewNodeWithID(1, profile.Page, doc.Attrs{}, "", doc.BlockSlot()), 7)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tx := snap.Begin(doc.Origin{Class: doc.OriginCommand})
-	if err := tx.Apply(doc.Insert{Parent: 1, Nodes: []*doc.Node{vocab.NewParagraph(doc.TextItem(text, nil))}}); err != nil {
+	if err := tx.Apply(doc.Insert{Parent: 1, Nodes: []*doc.Node{profile.NewParagraph(doc.TextItem(text, nil))}}); err != nil {
 		t.Fatal(err)
 	}
 	snap, err = tx.Commit()
@@ -148,14 +149,14 @@ func TestCompileChecks(t *testing.T) {
 	if !errors.As(err, &ce) || !strings.Contains(ce.Error(), "no fallback") {
 		t.Fatalf("missing fallbacks not reported: %v", err)
 	}
-	a := Define("a", func(p *P) { p.Handle("x").On(vocab.Typed("*")).Do(func(*Ctx, Match) Result { return Swallow }) })
+	a := Define("a", func(p *P) { p.Handle("x").On(Typed("*")).Do(func(*Ctx, Match) Result { return Swallow }) })
 	b := Define("b", func(p *P) {
-		p.Handle("y").On(vocab.On(vocab.IntentType)).Do(func(*Ctx, Match) Result { return Swallow })
+		p.Handle("y").On(On(vocab.IntentType)).Do(func(*Ctx, Match) Result { return Swallow })
 	})
 	if _, err := Compile(Manifest{Enabled: []*Policy{testCore, a, b}}, nil); err == nil || !strings.Contains(err.Error(), "must order") {
 		t.Fatalf("unordered overlap not reported: %v", err)
 	}
-	prog, err := Compile(Manifest{Enabled: []*Policy{testCore, a, b}, Resolve: []Order{Over(a, b, vocab.Typed("*"))}}, nil)
+	prog, err := Compile(Manifest{Enabled: []*Policy{testCore, a, b}, Resolve: []Order{Over(a, b, Typed("*"))}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,10 +181,10 @@ func TestCompileChecks(t *testing.T) {
 // Every owner keeps its own re-check for a shared core annotation kind.
 func TestAnnotationChecksStayWithTheirOwner(t *testing.T) {
 	always := Define("always", func(p *P) {
-		p.Annotation(vocab.Armed, func(doc.Reader, Annotation) bool { return true })
+		p.Annotation(Armed, func(doc.Reader, Annotation) bool { return true })
 	})
 	never := Define("never", func(p *P) {
-		p.Annotation(vocab.Armed, func(doc.Reader, Annotation) bool { return false })
+		p.Annotation(Armed, func(doc.Reader, Annotation) bool { return false })
 	})
 	prog, err := Compile(Manifest{Enabled: []*Policy{testCore, always, never}}, nil)
 	if err != nil {
@@ -198,7 +199,7 @@ func TestAnnotationChecksStayWithTheirOwner(t *testing.T) {
 		{"never", false},
 		{"gone", true},
 	} {
-		got := prog.CheckAnnotation(snap, Annotation{Kind: vocab.Armed, Owner: tc.owner})
+		got := prog.CheckAnnotation(snap, Annotation{Kind: Armed, Owner: tc.owner})
 		if got != tc.want {
 			t.Errorf("owner %s: check = %v, want %v", tc.owner, got, tc.want)
 		}
@@ -207,8 +208,8 @@ func TestAnnotationChecksStayWithTheirOwner(t *testing.T) {
 
 func TestADuplicateAnnotationDeclarationFailsCompile(t *testing.T) {
 	dup := Define("dup", func(p *P) {
-		p.Annotation(vocab.Armed, nil)
-		p.Annotation(vocab.Armed, nil)
+		p.Annotation(Armed, nil)
+		p.Annotation(Armed, nil)
 	})
 	_, err := Compile(Manifest{Enabled: []*Policy{testCore, dup}}, nil)
 	var ce *CompileError

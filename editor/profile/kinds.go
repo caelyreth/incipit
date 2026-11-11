@@ -1,9 +1,9 @@
-// Package vocab is the vocabulary every policy shares: node and mark kinds
-// with their slots, fields and validity; notation sets; roles; intents,
-// relations, phases and origin classes; highlight groups; the core
-// annotation kinds; and the semantic helpers that edit through primitive
-// operations.
-package vocab
+// Package profile is the product's document profile: its node and mark
+// kinds with their slots, fields and validity, their notation, highlight
+// groups and the roles they provide. Generic code never imports it; the
+// composition root hands it to the framework as a vocab.Profile, and
+// kind-aware policies name its kinds.
+package profile
 
 import (
 	"fmt"
@@ -145,7 +145,7 @@ func richSlot(name string, lines bool) doc.SlotSpec {
 var kindSpecs = []doc.KindSpec{
 	{Kind: Page, Name: "page", Placement: doc.PlaceRoot,
 		Slots: []doc.SlotSpec{{Name: "blocks", Blocks: true, Accepts: flowBlocks}}},
-	{Kind: Paragraph, Name: "paragraph", Placement: doc.PlaceBlock,
+	{Kind: Paragraph, Name: "paragraph", Placement: doc.PlaceBlock, Plain: true,
 		Slots: []doc.SlotSpec{richSlot("text", false)}},
 	{Kind: Heading, Name: "heading", Placement: doc.PlaceBlock,
 		Slots:  []doc.SlotSpec{richSlot("text", false)},
@@ -158,7 +158,7 @@ var kindSpecs = []doc.KindSpec{
 			{Num: FieldListStyle, Name: "style", Default: doc.Int(int64(Bullet)), Valid: intIn(0, 1)},
 			{Num: FieldListStart, Name: "start", Default: doc.Int(1), Valid: intIn(0, 1<<31)},
 		}},
-	{Kind: Item, Name: "item", Placement: doc.PlaceBlock,
+	{Kind: Item, Name: "item", Placement: doc.PlaceBlock, Entry: true,
 		Slots:  []doc.SlotSpec{richSlot("head", false), {Name: "body", Blocks: true, Accepts: flowBlocks}},
 		Fields: []doc.FieldSpec{{Num: FieldTask, Name: "task", Default: doc.Int(int64(NoTask)), Valid: intIn(0, 2)}}},
 	{Kind: Code, Name: "code", Placement: doc.PlaceBlock,
@@ -166,8 +166,8 @@ var kindSpecs = []doc.KindSpec{
 		Fields: []doc.FieldSpec{{Num: FieldInfo, Name: "info", Default: doc.Text(""), Valid: isText}}},
 	{Kind: Math, Name: "math", Placement: doc.PlaceBlock,
 		Slots: []doc.SlotSpec{{Name: "source", Literal: true, Lines: true}}},
-	{Kind: Divider, Name: "divider", Placement: doc.PlaceBlock},
-	{Kind: Figure, Name: "figure", Placement: doc.PlaceBlock,
+	{Kind: Divider, Name: "divider", Placement: doc.PlaceBlock, Object: true},
+	{Kind: Figure, Name: "figure", Placement: doc.PlaceBlock, Object: true,
 		Slots: []doc.SlotSpec{richSlot("caption", false)},
 		Fields: []doc.FieldSpec{
 			{Num: FieldMedia, Name: "media", Default: doc.Text(""), Valid: isText},
@@ -175,7 +175,7 @@ var kindSpecs = []doc.KindSpec{
 			{Num: FieldAlign, Name: "align", Default: doc.Int(int64(AlignCenter)), Valid: intIn(0, 2)},
 			{Num: FieldHeight, Name: "height", Default: doc.Int(0), Valid: intIn(0, 1<<16)},
 		}},
-	{Kind: Table, Name: "table", Placement: doc.PlaceBlock,
+	{Kind: Table, Name: "table", Placement: doc.PlaceBlock, Object: true,
 		Slots: []doc.SlotSpec{{Name: "rows", Blocks: true, Accepts: only(Row)}},
 		Fields: []doc.FieldSpec{
 			{Num: FieldColumns, Name: "columns", Default: doc.List(), Valid: columnsValid},
@@ -204,7 +204,7 @@ func checkTable(n *doc.Node) error {
 var markSpecs = []doc.MarkSpec{
 	{Kind: Emphasis, Name: "emphasis"},
 	{Kind: Strong, Name: "strong"},
-	{Kind: CodeMark, Name: "code", Excludes: func(doc.MarkKind) bool { return true }},
+	{Kind: CodeMark, Name: "code", Bounded: true, Excludes: func(doc.MarkKind) bool { return true }},
 	{Kind: Strike, Name: "strike"},
 }
 
@@ -230,19 +230,6 @@ func ListStart(n *doc.Node) int { return int(Schema().Attr(n, FieldListStart).In
 
 // TaskOf is an item's task state.
 func TaskOf(n *doc.Node) Task { return Task(Schema().Attr(n, FieldTask).Int()) }
-
-// IsTextBlock reports a block whose first slot is text the caret stands in.
-func IsTextBlock(k doc.Kind) bool {
-	switch k {
-	case Paragraph, Heading, Code, Math, Item, Cell, Figure:
-		return true
-	}
-	return false
-}
-
-// IsObject reports a block the caret selects whole rather than enters as
-// text.
-func IsObject(k doc.Kind) bool { return k == Divider || k == Figure || k == Table }
 
 // EmptyPage is a page holding one empty paragraph. Its node ids come from
 // seed's stream, so the same seed builds the same page.

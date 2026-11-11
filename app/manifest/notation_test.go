@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/notation"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -166,7 +167,7 @@ func TestBackspaceCrossesASignAndStepsItInside(t *testing.T) {
 	p.want("page(paragraph(a <b>))")
 	p.do(back)
 	p.wantShown("a [*]b|[*]")
-	if !hasMark(p, vocab.Emphasis) || hasMark(p, vocab.Strong) {
+	if !hasMark(p, profile.Emphasis) || hasMark(p, profile.Strong) {
 		t.Fatalf("strong did not step down to emphasis: %s", outline(p.e.Snapshot().Root()))
 	}
 	p.do(back)
@@ -197,7 +198,7 @@ func TestBackspaceInsideAGhostStepsIt(t *testing.T) {
 	}
 	p.wantShown("[**]b[*|*] c")
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if !hasMark(p, vocab.Emphasis) || hasMark(p, vocab.Strong) {
+	if !hasMark(p, profile.Emphasis) || hasMark(p, profile.Strong) {
 		t.Fatalf("strong did not step down: %s", outline(p.e.Snapshot().Root()))
 	}
 }
@@ -218,8 +219,8 @@ func TestHeadingMarkerSteps(t *testing.T) {
 	p.wantShown("[#|# ]Head")
 	// A "#" typed inside the marker makes the heading one level deeper.
 	p.typeText("#")
-	if n := p.e.Snapshot().Root().Slot(0).Child(0); vocab.HeadingLevel(n) != 3 {
-		t.Fatalf("level %d after typing #", vocab.HeadingLevel(n))
+	if n := p.e.Snapshot().Root().Slot(0).Child(0); profile.HeadingLevel(n) != 3 {
+		t.Fatalf("level %d after typing #", profile.HeadingLevel(n))
 	}
 	p.want("page(heading(Head))")
 	// The caret keeps its place from the text, after the glyph typed.
@@ -232,8 +233,8 @@ func TestHeadingMarkerSteps(t *testing.T) {
 	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
 	for _, level := range []int{2, 1} {
 		p.do(back)
-		if n := p.e.Snapshot().Root().Slot(0).Child(0); vocab.HeadingLevel(n) != level {
-			t.Fatalf("level %d, want %d", vocab.HeadingLevel(n), level)
+		if n := p.e.Snapshot().Root().Slot(0).Child(0); profile.HeadingLevel(n) != level {
+			t.Fatalf("level %d, want %d", profile.HeadingLevel(n), level)
 		}
 	}
 	p.wantShown("[# ]|Head")
@@ -272,8 +273,8 @@ func TestEveryMarkerPlaceEditsTheMarker(t *testing.T) {
 			p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
 		}
 		p.do(tc.do)
-		if n := p.e.Snapshot().Root().Slot(0).Child(0); vocab.HeadingLevel(n) != tc.level {
-			t.Fatalf("%v at %s: level %d, want %d", tc.do, tc.at, vocab.HeadingLevel(n), tc.level)
+		if n := p.e.Snapshot().Root().Slot(0).Child(0); profile.HeadingLevel(n) != tc.level {
+			t.Fatalf("%v at %s: level %d, want %d", tc.do, tc.at, profile.HeadingLevel(n), tc.level)
 		}
 		if got := p.shown(); got != tc.shown {
 			t.Fatalf("%v at %s: shown %q, want %q", tc.do, tc.at, got, tc.shown)
@@ -345,7 +346,7 @@ func TestFormatAtAGhostStandsUntilTyped(t *testing.T) {
 	p.typeText("**b**")
 	p.wantShown("[**]b[**]|")
 	// Bold is off after the closing ghost; toggling it on stands.
-	p.do(vocab.Format{Mark: vocab.Strong})
+	p.do(vocab.Format{Mark: profile.Strong})
 	p.typeText("c")
 	p.want("page(paragraph(<bc>))")
 }

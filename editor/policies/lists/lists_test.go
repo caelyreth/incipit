@@ -13,6 +13,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/notation"
 	"github.com/caelyreth/neverland/editor/policies/pairs"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -24,7 +25,7 @@ type page struct {
 
 func open(t *testing.T) *page {
 	t.Helper()
-	prog, err := policy.Compile(policy.Manifest{
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy,
 			Policy, navigation.Policy},
 		Strict: true,
@@ -32,7 +33,7 @@ func open(t *testing.T) *page {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := vocab.EmptyPage(1, 5, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 5, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +61,7 @@ func outline(n *doc.Node) string {
 	var b strings.Builder
 	var walk func(*doc.Node)
 	walk = func(n *doc.Node) {
-		b.WriteString(vocab.Schema().KindName(n.Kind()))
+		b.WriteString(profile.Schema().KindName(n.Kind()))
 		b.WriteByte('(')
 		for i, s := range n.Slots() {
 			if i > 0 {
@@ -125,8 +126,8 @@ func TestReshapeRetypesAnItemsList(t *testing.T) {
 	p.typeText("- one")
 	p.do(vocab.Command{ID: "lists.numbered"})
 	list := p.e.Snapshot().Root().Slot(0).Child(0)
-	if vocab.ListStyleOf(list) != vocab.Ordered {
-		t.Fatalf("list style %v, want ordered", vocab.ListStyleOf(list))
+	if profile.ListStyleOf(list) != profile.Ordered {
+		t.Fatalf("list style %v, want ordered", profile.ListStyleOf(list))
 	}
 }
 

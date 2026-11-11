@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policies/core"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -19,14 +20,14 @@ type harness struct {
 
 func newHarness(t *testing.T, values policy.Values) *harness {
 	t.Helper()
-	prog, err := policy.Compile(policy.Manifest{
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, Policy},
 		Strict:  true,
 	}, values)
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := vocab.EmptyPage(1, 99, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 99, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +154,7 @@ func TestSymbolsOptionCanBeOff(t *testing.T) {
 }
 
 func TestCharactersTriggerIsTypingAndIMEOnly(t *testing.T) {
-	prog, err := policy.Compile(policy.Manifest{
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, Policy},
 		Strict:  true,
 	}, nil)
@@ -181,21 +182,21 @@ func TestRewriteStaysInsideTheLineAroundInlineNodes(t *testing.T) {
 	marks := doc.NewInterner()
 	empty := marks.Empty()
 	formula := func(id doc.ID) *doc.Node {
-		return doc.NewNodeWithID(id, vocab.Formula, doc.Attrs{}, "", doc.InlineSlot(doc.TextItem("x", empty)))
+		return doc.NewNodeWithID(id, profile.Formula, doc.Attrs{}, "", doc.InlineSlot(doc.TextItem("x", empty)))
 	}
-	paragraph := doc.NewNodeWithID(2, vocab.Paragraph, doc.Attrs{}, "a", doc.InlineSlot(
+	paragraph := doc.NewNodeWithID(2, profile.Paragraph, doc.Attrs{}, "a", doc.InlineSlot(
 		doc.TextItem("a", empty),
 		doc.NodeItem(formula(10)),
 		doc.NodeItem(formula(11)),
 		doc.NodeItem(formula(12)),
 		doc.TextItem("b", empty),
 	))
-	page := doc.NewNodeWithID(1, vocab.Page, doc.Attrs{}, "", doc.BlockSlot(paragraph))
-	snap, err := doc.NewSnapshot(vocab.Schema(), marks, page, 99)
+	page := doc.NewNodeWithID(1, profile.Page, doc.Attrs{}, "", doc.BlockSlot(paragraph))
+	snap, err := doc.NewSnapshot(profile.Schema(), marks, page, 99)
 	if err != nil {
 		t.Fatal(err)
 	}
-	prog, err := policy.Compile(policy.Manifest{
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, Policy},
 		Strict:  true,
 	}, nil)

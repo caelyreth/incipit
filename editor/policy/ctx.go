@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -128,12 +129,10 @@ func buildUnit(prog *Program, store *Store, r doc.Reader, view *View, ref doc.Sl
 	if view != nil {
 		u.Annotations = view.Annotations.Owned(policy, ref)
 	}
-	if ref.Slot == 0 {
-		if m, ok := vocab.MarkerOf(r, n); ok {
-			u.Marker = &m
-		}
+	if prog.profile != nil {
+		u.Context = prog.profile.Context(r, ref)
 	}
-	u.facts = func(k vocab.FactKind) []Fact { return prog.facts(store, r, view, ref, k) }
+	u.facts = func(k FactID) []Fact { return prog.facts(store, r, view, ref, k) }
 	return u, true
 }
 
@@ -154,7 +153,7 @@ func (p *Program) FactContext(r doc.Reader, view *View, ref doc.SlotRef) string 
 
 // Facts returns the facts of a kind in an inline slot, computing them if
 // no cache holds them.
-func (c *Ctx) Facts(ref doc.SlotRef, k vocab.FactKind) []Fact {
+func (c *Ctx) Facts(ref doc.SlotRef, k FactID) []Fact {
 	return c.prog.facts(c.store, c.r, c.view, ref, k)
 }
 
@@ -165,7 +164,7 @@ func FactsOf[T any](c *Ctx, k *FactKind[T], ref doc.SlotRef) []Fact {
 
 // FactsAt returns the facts of a kind in the caret's slot containing the
 // caret, innermost last.
-func (c *Ctx) FactsAt(k vocab.FactKind) []Fact {
+func (c *Ctx) FactsAt(k FactID) []Fact {
 	head := c.Head()
 	var out []Fact
 	for _, f := range c.Facts(head.Pos.Ref(), k) {
@@ -178,17 +177,25 @@ func (c *Ctx) FactsAt(k vocab.FactKind) []Fact {
 
 // Beside is what provides role right after the caret (ahead) or right
 // before it, outside it, as Before and After match it: an inline node or a
-// fact, as the role's implementation bound to where it stands.
-func (c *Ctx) Beside(role vocab.Role, ahead bool) (any, bool) {
+// fact of scope s. A fact's data comes bound to where it stands; a node
+// comes as its implementation of s's role, or as itself.
+func (c *Ctx) Beside(s Scope, ahead bool) (any, bool) {
 	head := c.Head()
-	n, f, ok := c.prog.beside(c.store, c.r, c.view, head, vocab.RoleScope(role), ahead)
+	n, f, ok := c.prog.beside(c.store, c.r, c.view, head, s, ahead)
 	switch {
 	case !ok:
 		return nil, false
+	case n != nil && s.Class == ScopeRole:
+		return c.prog.nodeRole(c.r, n, vocab.Role(s.ID))
 	case n != nil:
-		return vocab.NodeRole(c.r, n, role)
+		return n, true
 	}
 	return Placed(head.Pos.Ref(), *f), true
+}
+
+// Provides reports whether node n provides role in the profile.
+func (c *Ctx) Provides(n *doc.Node, role vocab.Role) bool {
+	return slices.Contains(c.prog.nodeRoles(n.Kind()), role)
 }
 
 // Summary returns a summary of a node.
@@ -209,7 +216,7 @@ func (c *Ctx) Preview(in vocab.Input) (Outcome, error) {
 }
 
 // FactsIn returns the facts of a kind in a slot, for presentation.
-func (p *Program) FactsIn(store *Store, r doc.Reader, view *View, ref doc.SlotRef, k vocab.FactKind) []Fact {
+func (p *Program) FactsIn(store *Store, r doc.Reader, view *View, ref doc.SlotRef, k FactID) []Fact {
 	return p.facts(store, r, view, ref, k)
 }
 

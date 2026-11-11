@@ -28,20 +28,20 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	if !slices.Contains(policy.GetList(p, Roles), vocab.RoleStructure) {
 		return
 	}
-	p.Annotation(vocab.Armed, valid)
-	p.Decorate(vocab.Armed, vocab.GroupArmed)
+	p.Annotation(policy.Armed, valid)
+	p.Decorate(policy.Armed, vocab.GroupArmed)
 
 	// A text range exactly over a structure is the structure, deleted as
 	// a whole. A range is not collapsed, so these signatures cannot meet
 	// the node-selected rule in this policy.
-	p.Handle("structure").On(vocab.On(vocab.IntentDelete)).In(vocab.RoleScope(vocab.RoleStructure)).
-		When(vocab.TextRange, vocab.Equals).Unless(vocab.Collapsed).Produces(vocab.RoleEdits...).Do(structure)
+	p.Handle("structure").On(policy.On(vocab.IntentDelete)).In(policy.RoleScope(vocab.RoleStructure)).
+		When(policy.TextRange, policy.Equals).Unless(policy.Collapsed).Produces(vocab.RoleEdits...).Do(structure)
 
 	// An object selected whole has no node level of its own in the scope
 	// stack: its head is the gap before it. The page level sees every
 	// node selection and checks the role by id.
-	p.Handle("selected").On(vocab.On(vocab.IntentDelete)).In(vocab.NodeScope(vocab.Page)).
-		When(vocab.NodeSelected(0)).Produces(vocab.RoleEdits...).Do(selected)
+	p.Handle("selected").On(policy.On(vocab.IntentDelete)).In(policy.Root).
+		When(policy.NodeSelected(0)).Produces(vocab.RoleEdits...).Do(selected)
 })
 
 func structure(c *policy.Ctx, m policy.Match) policy.Result {
@@ -58,11 +58,11 @@ func selected(c *policy.Ctx, _ policy.Match) policy.Result {
 // act arms the structure once and deletes it on the next delete.
 func act(c *policy.Ctx, id doc.ID) policy.Result {
 	n, ok := c.Doc().Node(id)
-	if !ok || !slices.Contains(vocab.NodeRoles(n.Kind()), vocab.RoleStructure) {
+	if !ok || !c.Provides(n, vocab.RoleStructure) {
 		return policy.Swallow
 	}
 	res := policy.Result{}
-	for _, a := range c.Annotations().Of(vocab.Armed) {
+	for _, a := range c.Annotations().Of(policy.Armed) {
 		if a.Owner == ID {
 			res.Drop = append(res.Drop, a.ID)
 			if a.Data == (armed{Node: id}) {
@@ -76,7 +76,7 @@ func act(c *policy.Ctx, id doc.ID) policy.Result {
 		return policy.Swallow
 	}
 	res.Annotate = []policy.Annotate{{
-		Kind: vocab.Armed, Anchor: anchor, Data: armed{Node: id}, Lifetime: policy.UntilNextIntent,
+		Kind: policy.Armed, Anchor: anchor, Data: armed{Node: id}, Lifetime: policy.UntilNextIntent,
 	}}
 	return res
 }
@@ -97,8 +97,8 @@ func remove(id doc.ID) vocab.Edit {
 			// The page keeps a block to type in when its last structure
 			// goes. Other slots keep their own empty form.
 			pn, _ = tx.Node(parent)
-			if pn.Kind() == vocab.Page && pn.Slot(slot).Len() == 0 {
-				return tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: 0, Nodes: []*doc.Node{vocab.NewParagraph()}})
+			if pn.Kind() == tx.Schema().Root() && pn.Slot(slot).Len() == 0 {
+				return tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: 0, Nodes: []*doc.Node{vocab.NewBlock(tx.Schema(), tx.Schema().Plain(), doc.Attrs{})}})
 			}
 			return nil
 		}
@@ -137,14 +137,14 @@ func structureAnchor(r doc.Reader, n *doc.Node) (policy.Anchor, bool) {
 	return policy.Between(at, doc.Pos{Node: parent, Slot: slot, Offset: index + 1}), true
 }
 
-// valid drops an arm once its structure is gone or no longer a
-// structure. An armed annotation is the deletion policy's own; pairs'
-// arms have no armed data and are checked by the pairs policy.
+// valid drops an arm once its structure is gone; act re-checks the role
+// before deleting. An armed annotation is the deletion policy's own;
+// pairs' arms have no armed data and are checked by the pairs policy.
 func valid(r doc.Reader, a policy.Annotation) bool {
 	data, ok := a.Data.(armed)
 	if !ok {
 		return false
 	}
-	n, ok := r.Node(data.Node)
-	return ok && slices.Contains(vocab.NodeRoles(n.Kind()), vocab.RoleStructure)
+	_, ok = r.Node(data.Node)
+	return ok
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/core"
 	"github.com/caelyreth/neverland/editor/policies/feedback"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -30,7 +31,7 @@ func open(t *testing.T) *page {
 
 func openProgram(t *testing.T, prog *policy.Program) *page {
 	t.Helper()
-	snap, err := vocab.EmptyPage(1, 9, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 9, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,16 +152,16 @@ func TestStructuralRewritePulses(t *testing.T) {
 			Produces(doc.RecordNodeChanged).
 			Do(func(c *policy.Ctx, site policy.Site) policy.Result {
 				n, ok := c.Doc().Node(site.Slot.Node)
-				if !ok || n.Kind() != vocab.Paragraph {
+				if !ok || n.Kind() != profile.Paragraph {
 					return policy.Swallow
 				}
 				return policy.Do(func(tx *doc.Tx) error {
-					return tx.Apply(doc.SetNode{ID: n.ID(), Kind: vocab.Heading,
-						Attrs: doc.MakeAttrs(doc.Field{Num: vocab.FieldLevel, Value: doc.Int(1)})})
+					return tx.Apply(doc.SetNode{ID: n.ID(), Kind: profile.Heading,
+						Attrs: doc.MakeAttrs(doc.Field{Num: profile.FieldLevel, Value: doc.Int(1)})})
 				})
 			})
 	})
-	prog, err := policy.Compile(policy.Manifest{
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, structure, feedback.Policy}, Strict: true,
 	}, nil)
 	if err != nil {

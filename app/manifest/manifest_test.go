@@ -9,6 +9,7 @@ import (
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policies/notation"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -29,7 +30,7 @@ func openWith(t *testing.T, values policy.Values) *page {
 	if r := prog.Report(); len(r.Dropped)+len(r.Shadowed) > 0 {
 		t.Logf("report:\n%s", r)
 	}
-	snap, _ := vocab.EmptyPage(1, 5, doc.NewInterner())
+	snap, _ := profile.EmptyPage(1, 5, doc.NewInterner())
 	e := engine.New(snap, prog, engine.Options{Trace: true})
 	e.OpenView(1)
 	return &page{t: t, e: e, now: time.Unix(10, 0)}
@@ -54,7 +55,7 @@ func outline(n *doc.Node) string {
 	var b strings.Builder
 	var walk func(n *doc.Node)
 	walk = func(n *doc.Node) {
-		b.WriteString(vocab.Schema().KindName(n.Kind()))
+		b.WriteString(profile.Schema().KindName(n.Kind()))
 		b.WriteByte('(')
 		for i, s := range n.Slots() {
 			if i > 0 {

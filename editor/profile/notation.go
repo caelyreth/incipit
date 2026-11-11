@@ -1,14 +1,15 @@
-package vocab
+package profile
 
 import (
 	"strconv"
 	"strings"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/vocab"
 )
 
-// Spelling is one way to write a mark or a block marker.
-type Spelling string
+// Spelling is vocab.Spelling, one way to write a mark or a marker.
+type Spelling = vocab.Spelling
 
 // Notation sets: the spellings of marks and block markers, which ghost
 // notation shows and the Markdown policy reads. The first spelling of
@@ -89,7 +90,7 @@ func MarkerOf(r doc.Reader, n *doc.Node) (Marker, bool) {
 		return Marker{Kind: Heading, Level: HeadingLevel(n)}, true
 	case Item:
 		m := Marker{Kind: Item, Task: TaskOf(n)}
-		list, slot, index, ok := Index(r, n.ID())
+		list, slot, index, ok := vocab.Index(r, n.ID())
 		if !ok {
 			return Marker{}, false
 		}
@@ -124,5 +125,5 @@ func (m Marker) Spelling() Spelling {
 
 // Glyphs is how many glyphs the marker spells before its separator.
 func (m Marker) Glyphs() int {
-	return GraphemeCount(strings.TrimSuffix(string(m.Spelling()), " "))
+	return vocab.GraphemeCount(strings.TrimSuffix(string(m.Spelling()), " "))
 }

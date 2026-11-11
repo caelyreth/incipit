@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policies/statistics"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/shell"
@@ -81,10 +82,10 @@ func pageStatistics(ed *page.Editor) string {
 // command runs, so the toolbar cannot disagree with the edit.
 func formattingState(ed *page.Editor) shell.FormattingState {
 	return shell.FormattingState{
-		Strong:   formatting(ed, vocab.Strong),
-		Emphasis: formatting(ed, vocab.Emphasis),
-		Code:     formatting(ed, vocab.CodeMark),
-		Strike:   formatting(ed, vocab.Strike),
+		Strong:   formatting(ed, profile.Strong),
+		Emphasis: formatting(ed, profile.Emphasis),
+		Code:     formatting(ed, profile.CodeMark),
+		Strike:   formatting(ed, profile.Strike),
 	}
 }
 
@@ -125,7 +126,7 @@ func formatting(ed *page.Editor, mark doc.MarkKind) shell.FormatState {
 // pending marks a preview would toggle, or the marks the run inherits.
 func marksAt(ed *page.Editor, view policy.View, mark doc.MarkKind) bool {
 	caret := view.Selection.Head
-	for _, annotation := range view.Annotations.At(vocab.PendingMarks, caret) {
+	for _, annotation := range view.Annotations.At(policy.PendingMarks, caret) {
 		if marks, ok := annotation.Data.(*doc.MarkSet); ok {
 			return marks.Has(mark)
 		}
@@ -135,14 +136,14 @@ func marksAt(ed *page.Editor, view policy.View, mark doc.MarkKind) bool {
 	if !ok || caret.Pos.Slot >= node.NumSlots() || !node.Slot(caret.Pos.Slot).IsInline() {
 		return false
 	}
-	marks := vocab.InheritedMarks(node.Slot(caret.Pos.Slot).Content(), caret.Pos.Offset)
+	marks := vocab.InheritedMarks(snap.Schema(), node.Slot(caret.Pos.Slot).Content(), caret.Pos.Offset)
 	return marks != nil && marks.Has(mark)
 }
 
-func (a *AppState) formatStrong()   { a.formatPage(vocab.Strong) }
-func (a *AppState) formatEmphasis() { a.formatPage(vocab.Emphasis) }
-func (a *AppState) formatCode()     { a.formatPage(vocab.CodeMark) }
-func (a *AppState) formatStrike()   { a.formatPage(vocab.Strike) }
+func (a *AppState) formatStrong()   { a.formatPage(profile.Strong) }
+func (a *AppState) formatEmphasis() { a.formatPage(profile.Emphasis) }
+func (a *AppState) formatCode()     { a.formatPage(profile.CodeMark) }
+func (a *AppState) formatStrike()   { a.formatPage(profile.Strike) }
 
 func (a *AppState) formatPage(mark doc.MarkKind) {
 	el := a.pageElement()

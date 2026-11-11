@@ -63,7 +63,7 @@ type Effect struct {
 // Annotate creates an annotation; its owner is the policy whose rule
 // returned it.
 type Annotate struct {
-	Kind     vocab.AnnotationKind
+	Kind     AnnotationKind
 	Anchor   Anchor
 	Data     any
 	Lifetime Lifetime
@@ -86,7 +86,7 @@ type Result struct {
 	EndComposition bool
 	Annotate       []Annotate
 	Drop           []AnnotationID
-	DropKinds      []vocab.AnnotationKind
+	DropKinds      []AnnotationKind
 	Deadlines      []time.Time
 	Effects        []Effect
 	History        *HistoryRequest
@@ -151,10 +151,10 @@ type rule struct {
 	policy   string
 	name     string
 	typ      ruleType
-	on       []vocab.Pattern
-	in       vocab.Scope
-	when     []vocab.Relation
-	unless   []vocab.Relation
+	on       []Pattern
+	in       Scope
+	when     []Relation
+	unless   []Relation
 	handle   Handler
 	trans    TransformFunc
 	produces []doc.RecordKind
@@ -172,30 +172,30 @@ type Rule struct{ r *rule }
 
 // Handle declares a Handle rule.
 func (p *P) Handle(name string) *Rule {
-	r := &rule{policy: p.policy.id, name: name, typ: ruleHandle, in: vocab.Slot, order: len(p.rules)}
+	r := &rule{policy: p.policy.id, name: name, typ: ruleHandle, in: Slot, order: len(p.rules)}
 	p.rules = append(p.rules, r)
 	return &Rule{r: r}
 }
 
 // Transform declares a Transform rule.
 func (p *P) Transform(name string) *Rule {
-	r := &rule{policy: p.policy.id, name: name, typ: ruleTransform, in: vocab.Slot, order: len(p.rules)}
+	r := &rule{policy: p.policy.id, name: name, typ: ruleTransform, in: Slot, order: len(p.rules)}
 	p.rules = append(p.rules, r)
 	return &Rule{r: r}
 }
 
 // On sets the intent patterns the rule matches.
-func (b *Rule) On(patterns ...vocab.Pattern) *Rule { b.r.on = append(b.r.on, patterns...); return b }
+func (b *Rule) On(patterns ...Pattern) *Rule { b.r.on = append(b.r.on, patterns...); return b }
 
 // In places the rule at a scope kind or role. The default is the caret's
 // slot.
-func (b *Rule) In(s vocab.Scope) *Rule { b.r.in = s; return b }
+func (b *Rule) In(s Scope) *Rule { b.r.in = s; return b }
 
 // When requires relations.
-func (b *Rule) When(rels ...vocab.Relation) *Rule { b.r.when = append(b.r.when, rels...); return b }
+func (b *Rule) When(rels ...Relation) *Rule { b.r.when = append(b.r.when, rels...); return b }
 
 // Unless forbids relations.
-func (b *Rule) Unless(rels ...vocab.Relation) *Rule {
+func (b *Rule) Unless(rels ...Relation) *Rule {
 	b.r.unless = append(b.r.unless, rels...)
 	return b
 }
@@ -279,7 +279,7 @@ type rewrite struct {
 	phase    doc.Phase
 	trigger  Trigger
 	extent   Extent
-	demands  []vocab.FactKind
+	demands  []FactID
 	produces []doc.RecordKind
 	fn       RewriteFunc
 	order    int
@@ -304,7 +304,7 @@ func (b *RewriteRule) Trigger(t Trigger) *RewriteRule { b.r.trigger = t; return 
 func (b *RewriteRule) Extent(e Extent) *RewriteRule { b.r.extent = e; return b }
 
 // Demands declares the facts the rewrite reads.
-func (b *RewriteRule) Demands(kinds ...vocab.FactKind) *RewriteRule {
+func (b *RewriteRule) Demands(kinds ...FactID) *RewriteRule {
 	b.r.demands = append(b.r.demands, kinds...)
 	return b
 }

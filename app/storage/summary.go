@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/editor/doc"
-	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/internal/wordseg"
 )
 
@@ -34,7 +34,7 @@ func Summarize(root *doc.Node) Summary {
 			}
 			switch {
 			case text == "" || i > 0:
-			case !titled && n.Kind() == vocab.Heading:
+			case !titled && n.Kind() == profile.Heading:
 				s.Title, titled = text, true
 			case s.Excerpt == "":
 				if r := []rune(text); len(r) > excerptRunes {

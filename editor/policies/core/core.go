@@ -9,6 +9,7 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -21,47 +22,44 @@ var (
 
 // Policy is the core policy.
 var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
-	p.Annotation(vocab.PendingMarks, nil)
+	p.Annotation(policy.PendingMarks, nil)
 
-	p.Handle("type").On(vocab.On(vocab.IntentType)).Produces(textEdits...).Do(typeText)
-	p.Handle("delete").On(vocab.On(vocab.IntentDelete)).Produces(textEdits...).Do(deleteText)
-	p.Handle("break").On(vocab.On(vocab.IntentBreak)).Produces(textEdits...).Do(breakBlock)
-	p.Handle("soft-break").On(vocab.On(vocab.IntentSoftBreak)).Produces(textEdits...).Do(softBreak)
-	p.Handle("paste").On(vocab.On(vocab.IntentPaste)).Produces(textEdits...).Do(paste)
-	p.Handle("cut").On(vocab.On(vocab.IntentCut)).Produces(textEdits...).Do(cut)
-	p.Handle("compose").On(vocab.On(vocab.IntentCompose)).Produces(textEdits...).Do(compose)
-	p.Handle("cancel-composition").On(vocab.On(vocab.IntentCancelComposition)).Do(
+	p.Handle("type").On(policy.On(vocab.IntentType)).Produces(textEdits...).Do(typeText)
+	p.Handle("delete").On(policy.On(vocab.IntentDelete)).Produces(textEdits...).Do(deleteText)
+	p.Handle("break").On(policy.On(vocab.IntentBreak)).Produces(textEdits...).Do(breakBlock)
+	p.Handle("soft-break").On(policy.On(vocab.IntentSoftBreak)).Produces(textEdits...).Do(softBreak)
+	p.Handle("paste").On(policy.On(vocab.IntentPaste)).Produces(textEdits...).Do(paste)
+	p.Handle("cut").On(policy.On(vocab.IntentCut)).Produces(textEdits...).Do(cut)
+	p.Handle("compose").On(policy.On(vocab.IntentCompose)).Produces(textEdits...).Do(compose)
+	p.Handle("cancel-composition").On(policy.On(vocab.IntentCancelComposition)).Do(
 		func(*policy.Ctx, policy.Match) policy.Result { return policy.Result{EndComposition: true} })
 
-	p.Handle("move").On(vocab.On(vocab.IntentMove)).Do(move)
-	p.Handle("visual-move").On(vocab.On(vocab.IntentVisualMove)).Do(visualMove)
-	p.Handle("place").On(vocab.On(vocab.IntentPlace)).Do(placeCaret)
+	p.Handle("move").On(policy.On(vocab.IntentMove)).Do(move)
+	p.Handle("visual-move").On(policy.On(vocab.IntentVisualMove)).Do(visualMove)
+	p.Handle("place").On(policy.On(vocab.IntentPlace)).Do(placeCaret)
 
 	// Leave and Return move between scopes, which the navigation policy
 	// answers; with no scope to leave or go back to they do nothing, so a
 	// key bound to them falls through to its next command.
-	p.Handle("leave").On(vocab.On(vocab.IntentLeave)).Do(swallow)
-	p.Handle("return").On(vocab.On(vocab.IntentReturn)).Do(swallow)
-	p.Handle("select-scope").On(vocab.On(vocab.IntentSelectScope)).Do(selectAll)
-	p.Handle("dismiss").On(vocab.On(vocab.IntentDismiss)).Do(dismiss)
+	p.Handle("leave").On(policy.On(vocab.IntentLeave)).Do(swallow)
+	p.Handle("return").On(policy.On(vocab.IntentReturn)).Do(swallow)
+	p.Handle("select-scope").On(policy.On(vocab.IntentSelectScope)).Do(selectAll)
+	p.Handle("dismiss").On(policy.On(vocab.IntentDismiss)).Do(dismiss)
 
-	p.Handle("format").On(vocab.On(vocab.IntentFormat)).Produces(markEdits...).Do(format)
-	p.Handle("nest").On(vocab.On(vocab.IntentNest)).Do(swallow)
-	p.Handle("reshape").On(vocab.On(vocab.IntentReshape)).Produces(vocab.RoleEdits...).Do(reshape)
-	p.Handle("move-node").On(vocab.On(vocab.IntentMoveNode)).Produces(vocab.RoleEdits...).Do(moveNode)
-	p.Handle("toggle-task").On(vocab.On(vocab.IntentToggleTask)).Produces(doc.RecordNodeChanged).Do(toggleTask)
+	p.Handle("format").On(policy.On(vocab.IntentFormat)).Produces(markEdits...).Do(format)
+	p.Handle("nest").On(policy.On(vocab.IntentNest)).Do(swallow)
+	p.Handle("reshape").On(policy.On(vocab.IntentReshape)).Produces(vocab.RoleEdits...).Do(reshape)
+	p.Handle("move-node").On(policy.On(vocab.IntentMoveNode)).Produces(vocab.RoleEdits...).Do(moveNode)
+	p.Handle("toggle-task").On(policy.On(vocab.IntentToggleTask)).Produces(doc.RecordNodeChanged).Do(toggleTask)
 	// TODO(tables), TODO(figures): the tables and figures policies answer
 	// these inside their objects; core has nothing to do elsewhere.
-	p.Handle("table").On(vocab.On(vocab.IntentTable)).Do(swallow)
-	p.Handle("figure").On(vocab.On(vocab.IntentFigure)).Do(swallow)
-	p.Handle("media").On(vocab.On(vocab.IntentMedia)).Do(swallow)
 	// Timers end annotation lifetimes in the engine; nothing else to do.
-	p.Handle("timer").On(vocab.On(vocab.IntentTimer)).Do(swallow)
+	p.Handle("timer").On(policy.On(vocab.IntentTimer)).Do(swallow)
 	// The history policy answers undo and redo; without it they do nothing.
-	p.Handle("undo").On(vocab.On(vocab.IntentUndo)).Do(swallow)
-	p.Handle("redo").On(vocab.On(vocab.IntentRedo)).Do(swallow)
+	p.Handle("undo").On(policy.On(vocab.IntentUndo)).Do(swallow)
+	p.Handle("redo").On(policy.On(vocab.IntentRedo)).Do(swallow)
 	// Commands resolve to intents in the engine before dispatch.
-	p.Handle("command").On(vocab.On(vocab.IntentCommand)).Do(swallow)
+	p.Handle("command").On(policy.On(vocab.IntentCommand)).Do(swallow)
 
 	for _, c := range commands {
 		p.Command(c.id, c.label, c.intent)
@@ -79,16 +77,16 @@ var commands = []command{
 	{"core.undo", "commands.undo", vocab.Undo{}},
 	{"core.redo", "commands.redo", vocab.Redo{}},
 	{"core.selectAll", "commands.selectAll", vocab.SelectScope{}},
-	{"core.strong", "commands.strong", vocab.Format{Mark: vocab.Strong}},
-	{"core.emphasis", "commands.emphasis", vocab.Format{Mark: vocab.Emphasis}},
-	{"core.code", "commands.code", vocab.Format{Mark: vocab.CodeMark}},
-	{"core.strike", "commands.strike", vocab.Format{Mark: vocab.Strike}},
-	{"core.paragraph", "commands.paragraph", vocab.Reshape{Shape: vocab.Paragraph}},
-	{"core.heading1", "commands.heading1", vocab.Reshape{Shape: vocab.Heading, Attrs: headingAttrs(1)}},
-	{"core.heading2", "commands.heading2", vocab.Reshape{Shape: vocab.Heading, Attrs: headingAttrs(2)}},
-	{"core.heading3", "commands.heading3", vocab.Reshape{Shape: vocab.Heading, Attrs: headingAttrs(3)}},
-	{"core.quote", "commands.quote", vocab.Reshape{Shape: vocab.Quote}},
-	{"core.codeBlock", "commands.codeBlock", vocab.Reshape{Shape: vocab.Code}},
+	{"core.strong", "commands.strong", vocab.Format{Mark: profile.Strong}},
+	{"core.emphasis", "commands.emphasis", vocab.Format{Mark: profile.Emphasis}},
+	{"core.code", "commands.code", vocab.Format{Mark: profile.CodeMark}},
+	{"core.strike", "commands.strike", vocab.Format{Mark: profile.Strike}},
+	{"core.paragraph", "commands.paragraph", vocab.Reshape{Shape: profile.Paragraph}},
+	{"core.heading1", "commands.heading1", vocab.Reshape{Shape: profile.Heading, Attrs: headingAttrs(1)}},
+	{"core.heading2", "commands.heading2", vocab.Reshape{Shape: profile.Heading, Attrs: headingAttrs(2)}},
+	{"core.heading3", "commands.heading3", vocab.Reshape{Shape: profile.Heading, Attrs: headingAttrs(3)}},
+	{"core.quote", "commands.quote", vocab.Reshape{Shape: profile.Quote}},
+	{"core.codeBlock", "commands.codeBlock", vocab.Reshape{Shape: profile.Code}},
 	{"core.toggleTask", "commands.toggleTask", vocab.ToggleTask{}},
 
 	{"core.left", "commands.left", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}},
@@ -121,7 +119,7 @@ var commands = []command{
 }
 
 func headingAttrs(level int) doc.Attrs {
-	return doc.MakeAttrs(doc.Field{Num: vocab.FieldLevel, Value: doc.Int(int64(level))})
+	return doc.MakeAttrs(doc.Field{Num: profile.FieldLevel, Value: doc.Int(int64(level))})
 }
 
 func swallow(*policy.Ctx, policy.Match) policy.Result { return policy.Swallow }
@@ -183,7 +181,7 @@ func insertAt(r doc.Reader, at doc.Pos) (doc.Pos, vocab.Edit) {
 	if !ok || !spec.Blocks {
 		return at, nil
 	}
-	para := vocab.NewParagraph()
+	para := profile.NewParagraph()
 	return at, func(tx *doc.Tx) error {
 		return tx.Apply(doc.Insert{Parent: at.Node, Slot: at.Slot, Index: at.Offset, Nodes: []*doc.Node{para}})
 	}
@@ -215,7 +213,7 @@ func typeText(c *policy.Ctx, m policy.Match) policy.Result {
 		at = doc.CaretAt(pos)
 	}
 	var pending *doc.MarkSet
-	for _, a := range c.Annotations().At(vocab.PendingMarks, at) {
+	for _, a := range c.Annotations().At(policy.PendingMarks, at) {
 		if ms, ok := a.Data.(*doc.MarkSet); ok {
 			pending = ms
 		}
@@ -237,7 +235,7 @@ func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool) voca
 	return func(tx *doc.Tx) error {
 		pos, _ := doc.Steps(tx.Steps()).Map(at, doc.BiasBefore)
 		if spec, ok := vocab.SlotSpec(tx, pos.Ref()); ok && spec.Blocks {
-			para := vocab.NewParagraph()
+			para := profile.NewParagraph()
 			if err := tx.Apply(doc.Insert{Parent: pos.Node, Slot: pos.Slot, Index: pos.Offset, Nodes: []*doc.Node{para}}); err != nil {
 				return err
 			}
@@ -254,7 +252,7 @@ func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool) voca
 		n, _ := tx.Node(pos.Node)
 		content := n.Slot(pos.Slot).Content()
 		if !explicit && !spec.Literal {
-			marks = vocab.InheritedMarks(content, pos.Offset)
+			marks = vocab.InheritedMarks(tx.Schema(), content, pos.Offset)
 		}
 		if spec.Literal {
 			marks = nil
@@ -338,7 +336,7 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 		if dir == vocab.Backward {
 			i--
 		}
-		if i >= 0 && i < n.Slot(head.Slot).Len() && vocab.IsObject(n.Slot(head.Slot).Child(i).Kind()) {
+		if i >= 0 && i < n.Slot(head.Slot).Len() && r.Schema().IsObject(n.Slot(head.Slot).Child(i).Kind()) {
 			return policy.Select(doc.NodeSelection(n.Slot(head.Slot).Child(i).ID()))
 		}
 		return policy.Swallow
@@ -370,7 +368,7 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 		return policy.Swallow
 	}
 	next := siblings.Child(index + 1)
-	if vocab.IsObject(next.Kind()) {
+	if r.Schema().IsObject(next.Kind()) {
 		return policy.Select(doc.NodeSelection(next.ID()))
 	}
 	if ref, ok := vocab.FirstTextSlot(next); ok && ref.Node == next.ID() && vocab.CanJoin(r, head.Ref(), ref) {
@@ -383,11 +381,11 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 // (a heading, an item) steps down one level, and another kind with a
 // marker becomes a paragraph. False for a block without a marker.
 func stepDown(r doc.Reader, block *doc.Node) (policy.Result, bool) {
-	if role, ok := vocab.NodeRole(r, block, vocab.RoleLeveled); ok {
+	if role, ok := profile.NodeRole(r, block, vocab.RoleLeveled); ok {
 		return policy.Do(role.(vocab.Leveled).Step(vocab.Backward)), true
 	}
 	switch k := block.Kind(); {
-	case k == vocab.Paragraph || k == vocab.Cell || !vocab.IsTextBlock(k) || vocab.IsObject(k):
+	case k == profile.Paragraph || k == profile.Cell || !r.Schema().IsTextBlock(k) || r.Schema().IsObject(k):
 		return policy.Result{}, false
 	}
 	return policy.Do(vocab.Unmark(block.ID())), true
@@ -408,7 +406,7 @@ func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
 		pn, _ := r.Node(parent)
 		if index > 0 {
 			prev := pn.Slot(ps).Child(index - 1)
-			if vocab.IsObject(prev.Kind()) {
+			if r.Schema().IsObject(prev.Kind()) {
 				return policy.Select(doc.NodeSelection(prev.ID()))
 			}
 			ref, ok := vocab.LastTextSlot(prev)
@@ -419,9 +417,9 @@ func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
 			return policy.Swallow
 		}
 		switch {
-		case parent == r.Root().ID() || pn.Kind() == vocab.Item:
+		case parent == r.Root().ID() || pn.Kind() == profile.Item:
 			return policy.Swallow
-		case pn.Kind() == vocab.List:
+		case pn.Kind() == profile.List:
 			// The boundary before a list's first item is the list's.
 			id = parent
 		default:
@@ -479,7 +477,7 @@ func breakBlock(c *policy.Ctx, m policy.Match) policy.Result {
 		if !ok {
 			return policy.Swallow
 		}
-		res := policy.Do(vocab.Ops(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{vocab.NewBlock(kind, attrs)}}))
+		res := policy.Do(vocab.Ops(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{vocab.NewBlock(r.Schema(), kind, attrs)}}))
 		res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 		return res
 	}
@@ -499,13 +497,13 @@ func breakBlock(c *policy.Ctx, m policy.Match) policy.Result {
 // continues its list as an open task or a plain item, every other block
 // as a paragraph.
 func continuation(block *doc.Node) (doc.Kind, doc.Attrs) {
-	if block.Kind() == vocab.Item {
-		if vocab.TaskOf(block) != vocab.NoTask {
-			return vocab.Item, doc.MakeAttrs(doc.Field{Num: vocab.FieldTask, Value: doc.Int(int64(vocab.TaskOpen))})
+	if block.Kind() == profile.Item {
+		if profile.TaskOf(block) != profile.NoTask {
+			return profile.Item, doc.MakeAttrs(doc.Field{Num: profile.FieldTask, Value: doc.Int(int64(profile.TaskOpen))})
 		}
-		return vocab.Item, doc.Attrs{}
+		return profile.Item, doc.Attrs{}
 	}
-	return vocab.Paragraph, doc.Attrs{}
+	return profile.Paragraph, doc.Attrs{}
 }
 
 // startOfNext puts the caret at the start of the block after id, as a
@@ -558,7 +556,7 @@ func paste(c *policy.Ctx, m policy.Match) policy.Result {
 	edits = append(edits, func(tx *doc.Tx) error {
 		at, _ := doc.Steps(tx.Steps()).Map(pos, doc.BiasBefore)
 		if spec, ok := vocab.SlotSpec(tx, at.Ref()); ok && spec.Blocks {
-			para := vocab.NewParagraph()
+			para := profile.NewParagraph()
 			if err := tx.Apply(doc.Insert{Parent: at.Node, Slot: at.Slot, Index: at.Offset, Nodes: []*doc.Node{para}}); err != nil {
 				return err
 			}
@@ -584,9 +582,9 @@ func TextSlice(text string) vocab.Slice {
 	nodes := make([]*doc.Node, len(lines))
 	for i, l := range lines {
 		if l == "" {
-			nodes[i] = vocab.NewParagraph()
+			nodes[i] = profile.NewParagraph()
 		} else {
-			nodes[i] = vocab.NewParagraph(doc.TextItem(l, nil))
+			nodes[i] = profile.NewParagraph(doc.TextItem(l, nil))
 		}
 	}
 	return vocab.Slice{Nodes: nodes, OpenStart: 1, OpenEnd: 1}
@@ -671,8 +669,8 @@ func format(c *policy.Ctx, m policy.Match) policy.Result {
 			return policy.Swallow
 		}
 		res := policy.Result{}
-		marks := vocab.InheritedMarks(in2, head.Offset)
-		for _, a := range c.Annotations().At(vocab.PendingMarks, caret) {
+		marks := vocab.InheritedMarks(r.Schema(), in2, head.Offset)
+		for _, a := range c.Annotations().At(policy.PendingMarks, caret) {
 			if ms, ok := a.Data.(*doc.MarkSet); ok {
 				marks = ms
 			}
@@ -684,10 +682,10 @@ func format(c *policy.Ctx, m policy.Match) policy.Result {
 		if marks.Has(in.Mark) {
 			marks = marks.Without(in.Mark)
 		} else {
-			marks = vocab.WithMark(marks, doc.Mark{Kind: in.Mark})
+			marks = vocab.WithMark(r.Schema(), marks, doc.Mark{Kind: in.Mark})
 		}
 		anchor := policy.CaretAnchor(caret)
-		res.Annotate = []policy.Annotate{{Kind: vocab.PendingMarks, Anchor: anchor, Data: marks, Lifetime: policy.UntilCaretLeaves(nil)}}
+		res.Annotate = []policy.Annotate{{Kind: policy.PendingMarks, Anchor: anchor, Data: marks, Lifetime: policy.UntilCaretLeaves(nil)}}
 		return res
 	}
 	from, to := c.Range()
@@ -722,30 +720,30 @@ func reshape(c *policy.Ctx, m policy.Match) policy.Result {
 		return policy.Swallow
 	}
 	switch in.Shape {
-	case vocab.List:
+	case profile.List:
 		return reshapeList(blocks, in.Attrs)
-	case vocab.Quote:
+	case profile.Quote:
 		ids := make([]doc.ID, len(blocks))
 		for i, b := range blocks {
 			ids[i] = b.ID()
 		}
-		run, ok := vocab.WrapRun(c.Doc(), ids, vocab.Quote)
+		run, ok := vocab.WrapRun(c.Doc(), ids, profile.Quote)
 		if !ok {
 			return policy.Swallow
 		}
-		return policy.Do(vocab.Wrap(run, vocab.Quote, in.Attrs))
-	case vocab.Paragraph, vocab.Heading, vocab.Code:
+		return policy.Do(vocab.Wrap(run, profile.Quote, in.Attrs))
+	case profile.Paragraph, profile.Heading, profile.Code:
 	default:
 		return policy.Swallow
 	}
 	var edits []vocab.Edit
 	for _, b := range blocks {
-		if b.Kind() == vocab.Item || !vocab.IsTextBlock(b.Kind()) {
+		if b.Kind() == profile.Item || !r.Schema().IsTextBlock(b.Kind()) {
 			continue
 		}
 		kind, attrs := in.Shape, r.Schema().Canonical(in.Shape, in.Attrs)
 		if b.Kind() == kind && b.Attrs().Equal(attrs) {
-			kind, attrs = vocab.Paragraph, doc.Attrs{}
+			kind, attrs = profile.Paragraph, doc.Attrs{}
 		}
 		edits = append(edits, vocab.Retype(b.ID(), kind, attrs))
 	}
@@ -770,18 +768,18 @@ func intoList(id doc.ID, attrs doc.Attrs) vocab.Edit {
 		if !ok {
 			return doc.ErrNoNode
 		}
-		attrs = tx.Schema().Canonical(vocab.List, attrs)
-		if n.Kind() == vocab.Item {
+		attrs = tx.Schema().Canonical(profile.List, attrs)
+		if n.Kind() == profile.Item {
 			list, _, _, ok := vocab.Index(tx, id)
 			if !ok {
 				return doc.ErrNoNode
 			}
-			if err := tx.Apply(doc.SetNode{ID: list, Kind: vocab.List, Attrs: attrs}); err != nil {
+			if err := tx.Apply(doc.SetNode{ID: list, Kind: profile.List, Attrs: attrs}); err != nil {
 				return err
 			}
 			return joinLists(tx, list)
 		}
-		if !vocab.IsTextBlock(n.Kind()) {
+		if !tx.Schema().IsTextBlock(n.Kind()) {
 			return nil
 		}
 		spec, ok := vocab.SlotSpec(tx, doc.SlotRef{Node: id})
@@ -793,12 +791,12 @@ func intoList(id doc.ID, attrs doc.Attrs) vocab.Edit {
 			return doc.ErrNoNode
 		}
 		ps, ok := vocab.SlotSpec(tx, doc.SlotRef{Node: parent, Slot: slot})
-		if !ok || !ps.Blocks || ps.Accepts == nil || !ps.Accepts(vocab.List) {
+		if !ok || !ps.Blocks || ps.Accepts == nil || !ps.Accepts(profile.List) {
 			return nil
 		}
 
-		item := doc.NewNode(vocab.Item, doc.Attrs{}, doc.InlineSlot(), doc.BlockSlot())
-		list := doc.NewNode(vocab.List, attrs, doc.BlockSlot(item))
+		item := doc.NewNode(profile.Item, doc.Attrs{}, doc.InlineSlot(), doc.BlockSlot())
+		list := doc.NewNode(profile.List, attrs, doc.BlockSlot(item))
 		if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{list}}); err != nil {
 			return err
 		}
@@ -836,7 +834,7 @@ func joinLists(tx *doc.Tx, id doc.ID) error {
 		children := pn.Slot(slot).Children()
 		if index > 0 {
 			prev := children[index-1]
-			if prev.Kind() == vocab.List && sameListStyle(prev, ln) {
+			if prev.Kind() == profile.List && sameListStyle(prev, ln) {
 				if err := moveItems(tx, id, prev.ID()); err != nil {
 					return err
 				}
@@ -849,7 +847,7 @@ func joinLists(tx *doc.Tx, id doc.ID) error {
 		}
 		if index+1 < len(children) {
 			next := children[index+1]
-			if next.Kind() == vocab.List && sameListStyle(ln, next) {
+			if next.Kind() == profile.List && sameListStyle(ln, next) {
 				if err := moveItems(tx, next.ID(), id); err != nil {
 					return err
 				}
@@ -878,7 +876,7 @@ func moveItems(tx *doc.Tx, from, to doc.ID) error {
 }
 
 func sameListStyle(a, b *doc.Node) bool {
-	return a.Kind() == vocab.List && b.Kind() == vocab.List && vocab.ListStyleOf(a) == vocab.ListStyleOf(b)
+	return a.Kind() == profile.List && b.Kind() == profile.List && profile.ListStyleOf(a) == profile.ListStyleOf(b)
 }
 
 func moveNode(c *policy.Ctx, m policy.Match) policy.Result {
@@ -893,17 +891,17 @@ func toggleTask(c *policy.Ctx, m policy.Match) policy.Result {
 		id = itemAt(c.Doc(), c.Head().Pos)
 	}
 	n, ok := c.Doc().Node(id)
-	if !ok || n.Kind() != vocab.Item {
+	if !ok || n.Kind() != profile.Item {
 		return policy.Swallow
 	}
-	next := vocab.TaskDone
-	switch vocab.TaskOf(n) {
-	case vocab.NoTask:
+	next := profile.TaskDone
+	switch profile.TaskOf(n) {
+	case profile.NoTask:
 		return policy.Swallow
-	case vocab.TaskDone:
-		next = vocab.TaskOpen
+	case profile.TaskDone:
+		next = profile.TaskOpen
 	}
-	return policy.Do(vocab.SetAttrs(id, n.Attrs().With(vocab.FieldTask, doc.Int(int64(next)))))
+	return policy.Do(vocab.SetAttrs(id, n.Attrs().With(profile.FieldTask, doc.Int(int64(next)))))
 }
 
 // itemAt is the item holding p, including an item body several blocks
@@ -914,7 +912,7 @@ func itemAt(r doc.Reader, p doc.Pos) doc.ID {
 		if !ok {
 			return 0
 		}
-		if n.Kind() == vocab.Item {
+		if n.Kind() == profile.Item {
 			return n.ID()
 		}
 		parent, _, ok := r.Parent(id)

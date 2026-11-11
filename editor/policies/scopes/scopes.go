@@ -15,12 +15,12 @@ import (
 const ID = "scopes"
 
 // Active marks the innermost textual scope at a collapsed caret.
-var Active = vocab.NewAnnotationKind("scopes.active", false)
+var Active = policy.NewAnnotationKind("scopes.active", false)
 
 // Policy is the scopes policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	p.Handle("select").On(vocab.On(vocab.IntentSelectScope)).In(vocab.Slot).Do(grow)
-	p.Handle("dismiss").On(vocab.On(vocab.IntentDismiss)).In(vocab.Slot).Do(dismiss)
+	p.Handle("select").On(policy.On(vocab.IntentSelectScope)).In(policy.Slot).Do(grow)
+	p.Handle("dismiss").On(policy.On(vocab.IntentDismiss)).In(policy.Slot).Do(dismiss)
 	p.Annotation(Active, valid)
 	p.Decorate(Active, vocab.GroupScope)
 	p.Observe("highlight", policy.Trigger{}, highlight)
@@ -87,7 +87,7 @@ func dismiss(c *policy.Ctx, _ policy.Match) policy.Result {
 // annotation holding a collapsed caret. A selection already shows its
 // own extent, and a point scope has no text to underline.
 func highlight(c *policy.Ctx, _ []doc.Record) policy.Result {
-	res := policy.Result{DropKinds: []vocab.AnnotationKind{Active}}
+	res := policy.Result{DropKinds: []policy.AnnotationKind{Active}}
 	sel := c.Selection()
 	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
 		return res
@@ -202,7 +202,7 @@ func selectionOf(c *policy.Ctx, level *policy.Level) (doc.Selection, bool) {
 		if level.Node == nil {
 			return doc.Selection{}, false
 		}
-		if vocab.IsObject(level.Node.Kind()) {
+		if c.Doc().Schema().IsObject(level.Node.Kind()) {
 			return doc.NodeSelection(level.Node.ID()), true
 		}
 		return boundarySelection(c, level.Start, level.End), true

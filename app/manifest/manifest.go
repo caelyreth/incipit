@@ -19,6 +19,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/typography"
 	"github.com/caelyreth/neverland/editor/policies/words"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 )
 
 // Manifest lists the product's policies.
@@ -29,6 +30,7 @@ var Manifest = policy.Manifest{
 	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy,
 		typography.Policy, cjk.Policy, navigation.Policy, scopes.Policy, deletion.Policy,
 		lists.Policy, words.Policy, history.Policy, feedback.Policy, guides.Policy, statistics.Policy},
+	Profile: profile.Profile,
 }
 
 // Compile builds the program for settings values.

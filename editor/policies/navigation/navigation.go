@@ -23,8 +23,8 @@ var Roles = policy.List("roles", []vocab.Role{vocab.RoleLeavable}, []policy.Choi
 // Policy is the navigation policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	roles := policy.GetList(p, Roles)
-	p.Handle("leave").On(vocab.On(vocab.IntentLeave)).In(vocab.Slot).Do(leave(roles))
-	p.Handle("return").On(vocab.On(vocab.IntentReturn)).In(vocab.Slot).Do(enter(roles))
+	p.Handle("leave").On(policy.On(vocab.IntentLeave)).In(policy.Slot).Do(leave(roles))
+	p.Handle("return").On(policy.On(vocab.IntentReturn)).In(policy.Slot).Do(enter(roles))
 })
 
 // leave exits the innermost leavable scope, past its end.
@@ -53,7 +53,7 @@ func enter(roles []vocab.Role) policy.Handler {
 	return func(c *policy.Ctx, _ policy.Match) policy.Result {
 		var found vocab.Leavable
 		for _, role := range roles {
-			data, ok := c.Beside(role, false)
+			data, ok := c.Beside(policy.RoleScope(role), false)
 			l, lok := data.(vocab.Leavable)
 			if !ok || !lok {
 				continue

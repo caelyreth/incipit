@@ -5,6 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/clipboard"
 	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
@@ -30,9 +31,9 @@ var menuIntents = map[string]vocab.Intent{
 	"undo":          vocab.Undo{},
 	"redo":          vocab.Redo{},
 	"delete":        vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward},
-	"bold":          vocab.Format{Mark: vocab.Strong},
-	"italic":        vocab.Format{Mark: vocab.Emphasis},
-	"strikethrough": vocab.Format{Mark: vocab.Strike},
+	"bold":          vocab.Format{Mark: profile.Strong},
+	"italic":        vocab.Format{Mark: profile.Emphasis},
+	"strikethrough": vocab.Format{Mark: profile.Strike},
 }
 
 // keyIntent is the intent a key press asks for. A key holding several

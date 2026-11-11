@@ -16,6 +16,7 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -35,7 +36,7 @@ type Context struct {
 // Marker is a list item's marker, as its structure spells it (§10), and
 // the item.
 type Marker struct {
-	vocab.Marker
+	profile.Marker
 	Item doc.ID
 }
 
@@ -137,6 +138,8 @@ type Presentation struct {
 	// Gap is set for an object unit: the block slot and index it stands
 	// at, for gap stops before and after it.
 	Gap *doc.Pos
+	// Object is set for a unit the caret selects whole.
+	Object bool
 
 	// Role, Label and Value are what assistive technology reads for the
 	// unit. Label is the unit's accessible name; Value its text without
@@ -204,19 +207,19 @@ func (pr *Presenter) Units(r doc.Reader) []UnitRef {
 			ordinal := 0
 			for i, c := range s.Children() {
 				switch c.Kind() {
-				case vocab.Quote:
+				case profile.Quote:
 					inner := ctx
 					inner.Quotes++
 					inner.Marker = nil
 					walk(c, inner)
-				case vocab.List:
+				case profile.List:
 					inner := ctx
 					inner.Depth++
 					inner.Indent++
 					inner.Marker = nil
 					for _, item := range c.Slot(0).Children() {
 						ic := inner
-						mk, _ := vocab.MarkerOf(r, item)
+						mk, _ := profile.MarkerOf(r, item)
 						ic.Marker = &Marker{Marker: mk, Item: item.ID()}
 						out = append(out, UnitRef{ID: item.ID(), Node: item, Context: ic})
 						body := inner
@@ -224,7 +227,7 @@ func (pr *Presenter) Units(r doc.Reader) []UnitRef {
 					}
 				default:
 					ref := UnitRef{ID: c.ID(), Node: c, Context: ctx}
-					if vocab.IsObject(c.Kind()) {
+					if r.Schema().IsObject(c.Kind()) {
 						ref.Gap = &doc.Pos{Node: n.ID(), Slot: si, Offset: i}
 					}
 					out = append(out, ref)
@@ -415,16 +418,16 @@ func factContext(prog *policy.Program, r doc.Reader, view *policy.View, nodes []
 // unitGroup is the group of a unit's kind.
 func unitGroup(n *doc.Node) vocab.Group {
 	switch n.Kind() {
-	case vocab.Heading:
-		return vocab.GroupHeadings[vocab.HeadingLevel(n)]
-	case vocab.Code:
-		return vocab.GroupCode
-	case vocab.Math:
-		return vocab.GroupFormulaSource
-	case vocab.Figure:
-		return vocab.GroupCaption
-	case vocab.Cell:
-		return vocab.GroupCell
+	case profile.Heading:
+		return profile.GroupHeadings[profile.HeadingLevel(n)]
+	case profile.Code:
+		return profile.GroupCode
+	case profile.Math:
+		return profile.GroupFormulaSource
+	case profile.Figure:
+		return profile.GroupCaption
+	case profile.Cell:
+		return profile.GroupCell
 	}
 	return vocab.GroupText
 }
@@ -433,10 +436,10 @@ func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy
 	n := u.Node
 	p := &Presentation{Unit: u.ID, Kind: n.Kind(), Node: n, Context: u.Context, Group: unitGroup(n), Gap: u.Gap, key: key}
 	if u.Context.Quotes > 0 && p.Group == vocab.GroupText {
-		p.Group = vocab.GroupQuote
+		p.Group = profile.GroupQuote
 	}
 	p.Role, p.Level = accessibility(n)
-	if vocab.IsObject(n.Kind()) {
+	if p.Object = profile.Schema().IsObject(n.Kind()); p.Object {
 		// An object is a box with gap stops beside it; its own slots (a
 		// figure's caption, a table's cells) are surfaces of their own.
 		// TODO(tables), TODO(figures): present cell and caption surfaces
@@ -561,7 +564,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 				// Stops are ordered by position: the card's sit inside the
 				// box, between its two flow stops.
 				flush()
-				flowOf(prog, store, r, view, p, src, vocab.GroupFormulaSource, true, it.Node.ID())
+				flowOf(prog, store, r, view, p, src, profile.GroupFormulaSource, true, it.Node.ID())
 			}
 			stop(at + 1)
 			return true
@@ -569,7 +572,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 		groups := []vocab.Group{base}
 		if it.Marks != nil {
 			for _, m := range it.Marks.Marks() {
-				if g := vocab.MarkGroup(m.Kind); g != 0 {
+				if g := profile.MarkGroup(m.Kind); g != 0 {
 					groups = append(groups, g)
 				}
 			}
@@ -631,21 +634,21 @@ func (k unitKey) isOpen(id doc.ID) bool {
 
 func accessibility(n *doc.Node) (role string, level int) {
 	switch n.Kind() {
-	case vocab.Heading:
-		return "heading", vocab.HeadingLevel(n)
-	case vocab.Item:
+	case profile.Heading:
+		return "heading", profile.HeadingLevel(n)
+	case profile.Item:
 		return "listitem", 0
-	case vocab.Code:
+	case profile.Code:
 		return "code", 0
-	case vocab.Math:
+	case profile.Math:
 		return "math", 0
-	case vocab.Divider:
+	case profile.Divider:
 		return "separator", 0
-	case vocab.Figure:
+	case profile.Figure:
 		return "figure", 0
-	case vocab.Table:
+	case profile.Table:
 		return "table", 0
-	case vocab.Cell:
+	case profile.Cell:
 		return "cell", 0
 	}
 	return "paragraph", 0

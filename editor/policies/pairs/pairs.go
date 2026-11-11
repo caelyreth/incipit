@@ -48,7 +48,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	}
 
 	span := policy.Facts[pair](p, "pair", policy.Provides(vocab.RolePair, vocab.RoleLeavable))
-	policy.Scan[string](p, scanner{kind: span, kinds: kinds}, []vocab.FactKind{span.Kind()})
+	policy.Scan[string](p, scanner{kind: span, kinds: kinds}, []policy.FactID{span.Kind()})
 	p.Paint(vocab.GroupPairMatch, span.Kind(), policy.WhenCaretInside)
 
 	inserts := []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted}
@@ -56,16 +56,16 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		k := k
 		// A selection is wrapped in the pair, opener or not auto-closing:
 		// the selection stays on what it held.
-		p.Handle("wrap-" + k.open).On(vocab.Typed(k.open)).In(vocab.Slot).When(vocab.TextRange).Unless(vocab.Collapsed).
+		p.Handle("wrap-" + k.open).On(policy.Typed(k.open)).In(policy.Slot).When(policy.TextRange).Unless(policy.Collapsed).
 			Produces(inserts...).Do(wrap(k))
 		if !auto {
 			continue
 		}
-		open := p.Handle("open-"+k.open).On(vocab.Typed(k.open)).In(vocab.Slot).
-			When(vocab.Collapsed, vocab.OwnText).Unless(vocab.NextChar(vocab.ClassWord))
+		open := p.Handle("open-"+k.open).On(policy.Typed(k.open)).In(policy.Slot).
+			When(policy.Collapsed, policy.OwnText).Unless(policy.NextChar(vocab.ClassWord))
 		if k == quote {
 			// After a word a straight quote closes; it opens nothing.
-			open.Unless(vocab.PrevChar(vocab.ClassWord))
+			open.Unless(policy.PrevChar(vocab.ClassWord))
 		}
 		open.Produces(inserts...).Do(openPair(k))
 	}
@@ -75,42 +75,42 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		// typed the closer, so a hand-typed one steps over as an
 		// auto-closed one does, and as a mark's sign does.
 		for _, k := range kinds {
-			p.Handle("overtype-"+k.close).On(vocab.Typed(k.close)).In(span.Scope()).
-				When(vocab.Collapsed, vocab.AtInnerEnd).Do(overtype)
+			p.Handle("overtype-"+k.close).On(policy.Typed(k.close)).In(span.Scope()).
+				When(policy.Collapsed, policy.AtInnerEnd).Do(overtype)
 		}
 	}
 	if mates {
 		// Deleting into a pair, its text or its signs, arms both sides
 		// first, showing what the next press takes; the next press deletes
 		// both and keeps what they held, so a pair never loses one side.
-		pairScope := vocab.RoleScope(vocab.RolePair)
-		back, fwd := vocab.Deleting(vocab.ByGrapheme, vocab.Backward), vocab.Deleting(vocab.ByGrapheme, vocab.Forward)
-		armed := vocab.Has(vocab.Armed)
+		pairScope := policy.RoleScope(vocab.RolePair)
+		back, fwd := policy.Deleting(vocab.ByGrapheme, vocab.Backward), policy.Deleting(vocab.ByGrapheme, vocab.Forward)
+		armed := policy.Has(policy.Armed)
 		for _, d := range []struct {
 			name string
-			on   vocab.Pattern
-			edge vocab.Relation
-		}{{"inside-start", back, vocab.AtInnerStart}, {"inside-end", fwd, vocab.AtInnerEnd}} {
-			p.Handle("arm-"+d.name).On(d.on).In(pairScope).When(vocab.Collapsed, d.edge).Unless(armed).Do(armRole)
-			p.Handle("delete-"+d.name).On(d.on).In(pairScope).When(vocab.Collapsed, d.edge, armed).
+			on   policy.Pattern
+			edge policy.Relation
+		}{{"inside-start", back, policy.AtInnerStart}, {"inside-end", fwd, policy.AtInnerEnd}} {
+			p.Handle("arm-"+d.name).On(d.on).In(pairScope).When(policy.Collapsed, d.edge).Unless(armed).Do(armRole)
+			p.Handle("delete-"+d.name).On(d.on).In(pairScope).When(policy.Collapsed, d.edge, armed).
 				Produces(sideEdits...).Do(deleteRole)
 		}
 		// From outside a pair, next to its closing side or its opening one.
 		for _, d := range []struct {
 			name  string
-			on    vocab.Pattern
+			on    policy.Pattern
 			ahead bool
 		}{{"after", back, false}, {"before", fwd, true}} {
-			near := vocab.After(pairScope)
+			near := policy.After(pairScope)
 			if d.ahead {
-				near = vocab.Before(pairScope)
+				near = policy.Before(pairScope)
 			}
-			p.Handle("arm-"+d.name).On(d.on).In(vocab.Slot).When(vocab.Collapsed, near).Unless(armed).Do(arm(edged(d.ahead)))
-			p.Handle("delete-"+d.name).On(d.on).In(vocab.Slot).When(vocab.Collapsed, near, armed).
+			p.Handle("arm-"+d.name).On(d.on).In(policy.Slot).When(policy.Collapsed, near).Unless(armed).Do(arm(edged(d.ahead)))
+			p.Handle("delete-"+d.name).On(d.on).In(policy.Slot).When(policy.Collapsed, near, armed).
 				Produces(sideEdits...).Do(deleteSides(edged(d.ahead)))
 		}
-		p.Annotation(vocab.Armed, nil)
-		p.Decorate(vocab.Armed, vocab.GroupArmed)
+		p.Annotation(policy.Armed, nil)
+		p.Decorate(policy.Armed, vocab.GroupArmed)
 	}
 })
 
@@ -249,7 +249,7 @@ func replace(s vocab.Span, text string) vocab.Edit {
 		}
 		var items []doc.Item
 		if text != "" {
-			items = []doc.Item{doc.TextItem(text, vocab.InheritedMarks(n.Slot(s.Slot.Slot).Content(), s.From))}
+			items = []doc.Item{doc.TextItem(text, vocab.InheritedMarks(tx.Schema(), n.Slot(s.Slot.Slot).Content(), s.From))}
 		}
 		return tx.Apply(doc.EditText{At: s.Slot, From: s.From, To: s.To, Items: items})
 	}
@@ -308,7 +308,7 @@ func rolePair(_ *policy.Ctx, m policy.Match) (vocab.Pair, bool) {
 // Before and After match it: of any policy, its sides text or signs.
 func edged(ahead bool) pairOf {
 	return func(c *policy.Ctx, _ policy.Match) (vocab.Pair, bool) {
-		data, ok := c.Beside(vocab.RolePair, ahead)
+		data, ok := c.Beside(policy.RoleScope(vocab.RolePair), ahead)
 		pr, pok := data.(vocab.Pair)
 		return pr, ok && pok
 	}
@@ -330,7 +330,7 @@ func arm(of pairOf) policy.Handler {
 		res := policy.Result{}
 		open, close := pr.Sides()
 		for _, side := range []vocab.Edge{open, close} {
-			res.Annotate = append(res.Annotate, policy.Annotate{Kind: vocab.Armed,
+			res.Annotate = append(res.Annotate, policy.Annotate{Kind: policy.Armed,
 				Anchor: policy.Anchor{From: side.From, To: side.To}, Lifetime: policy.UntilNextIntent})
 		}
 		return res
@@ -346,7 +346,7 @@ func deleteSides(of pairOf) policy.Handler {
 			return policy.Swallow
 		}
 		res := policy.Do(pr.EditSide(vocab.Close, ""), pr.EditSide(vocab.Open, ""))
-		res.DropKinds = []vocab.AnnotationKind{vocab.Armed}
+		res.DropKinds = []policy.AnnotationKind{policy.Armed}
 		return res
 	}
 }

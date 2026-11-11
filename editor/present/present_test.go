@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/app/manifest"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -17,7 +18,7 @@ func TestStopsAreOrderedAndUnitsMemoised(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, _ := vocab.EmptyPage(1, 3, doc.NewInterner())
+	snap, _ := profile.EmptyPage(1, 3, doc.NewInterner())
 	e := engine.New(snap, prog, engine.Options{})
 	e.OpenView(1)
 	now := time.Unix(1, 0)
@@ -57,7 +58,7 @@ func TestAccessibilityTextAndStops(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, _ := vocab.EmptyPage(1, 4, doc.NewInterner())
+	snap, _ := profile.EmptyPage(1, 4, doc.NewInterner())
 	e := engine.New(snap, prog, engine.Options{})
 	e.OpenView(1)
 	now := time.Unix(1, 0)
@@ -119,7 +120,7 @@ func TestObjectAccessibilityUsesItsRole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, _ := vocab.EmptyPage(1, 6, doc.NewInterner())
+	snap, _ := profile.EmptyPage(1, 6, doc.NewInterner())
 	e := engine.New(snap, prog, engine.Options{})
 	e.OpenView(1)
 	now := time.Unix(1, 0)
@@ -139,7 +140,7 @@ func TestObjectAccessibilityUsesItsRole(t *testing.T) {
 		ids[i] = u.ID
 	}
 	for _, p := range e.Present(1, ids) {
-		if p.Kind == vocab.Divider {
+		if p.Kind == profile.Divider {
 			if p.Role != "separator" || p.Label != "Separator" || p.Value != "" {
 				t.Fatalf("divider accessibility = %q %q %q", p.Role, p.Label, p.Value)
 			}

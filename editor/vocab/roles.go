@@ -53,6 +53,9 @@ func (s Span) Contains(p doc.Pos) bool {
 // text or its ghost sign, which spans stops but no bytes.
 type Edge struct{ From, To doc.Caret }
 
+// Spelling is one way to write a mark or a block marker.
+type Spelling string
+
 // Pair has two sides with spellings. For ghost notation EditSide
 // reinterprets the spelling through the notation set; for a text pair it
 // is a text edit. The policy editing it never knows which.
@@ -73,16 +76,6 @@ type Leveled interface {
 	Step(dir Direction) Edit
 }
 
-// Reshapeable changes kind through a typed glyph.
-type Reshapeable interface {
-	Reshape(glyph string) Edit
-}
-
-// Box is a toggled state in a marker.
-type Box interface {
-	Toggle() Edit
-}
-
 // Leavable has an exit for Leave and an entry for Return.
 type Leavable interface {
 	Exit() doc.Caret
@@ -94,124 +87,33 @@ type Structure interface {
 	Node() doc.ID
 }
 
-// ItemEntry is a container entry Enter, Backspace and nesting act on.
-type ItemEntry interface {
-	Item() doc.ID
+// Role is a shared interface that fact kinds and node kinds provide.
+// Rules match on roles, never on providers.
+type Role uint8
+
+const (
+	RolePair Role = iota + 1
+	RoleLeveled
+	RoleLeavable
+	RoleStructure
+)
+
+var roleNames = [...]string{"", "Pair", "Leveled", "Leavable", "Structure"}
+
+func (r Role) String() string { return roleNames[r] }
+
+// Profile is the document profile a program edits: its schema, the roles
+// its node kinds provide, and what a slot's place in the structure adds to
+// its content. The composition root supplies it; generic code reads kinds
+// only through it.
+type Profile interface {
+	Schema() *doc.Schema
+	// Roles are the roles nodes of kind k provide.
+	Roles(k doc.Kind) []Role
+	// Role is n's implementation of role.
+	Role(r doc.Reader, n *doc.Node, role Role) (any, bool)
+	// Context is what ref's place in the structure adds to its content,
+	// such as the number an item's position gives it, or nil. Analyzers
+	// read it, so it keys their caches.
+	Context(r doc.Reader, ref doc.SlotRef) any
 }
-
-// NodeRoles lists the roles a node kind provides.
-func NodeRoles(k doc.Kind) []Role {
-	switch k {
-	case Heading:
-		return []Role{RoleLeveled}
-	case List, Quote:
-		return []Role{RoleLeveled, RoleStructure}
-	case Item:
-		return []Role{RoleItem, RoleLeveled}
-	case Formula:
-		return []Role{RoleLeavable, RoleStructure}
-	case Cell:
-		return []Role{RoleLeavable}
-	case Table, Figure, Divider, Math, Code:
-		return []Role{RoleStructure}
-	}
-	return nil
-}
-
-// NodeRole returns n's implementation of role.
-func NodeRole(r doc.Reader, n *doc.Node, role Role) (any, bool) {
-	switch role {
-	case RoleLeveled:
-		switch n.Kind() {
-		case Heading:
-			return headingLevel{id: n.ID(), level: HeadingLevel(n)}, true
-		case Item:
-			return itemLevel(n.ID()), true
-		}
-	case RoleItem:
-		if n.Kind() == Item {
-			return itemEntry(n.ID()), true
-		}
-	case RoleLeavable:
-		switch n.Kind() {
-		case Formula:
-			parent, slot, _ := r.Parent(n.ID())
-			pn, _ := r.Node(parent)
-			at, _ := pn.Slot(slot).Content().NodeOffset(n.ID())
-			return leavable{
-				exit:  doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: at + 1}),
-				entry: doc.CaretAt(doc.Pos{Node: n.ID(), Offset: n.Slot(0).Len()}),
-			}, true
-		case Cell:
-			table := doc.Ancestors(r, n.ID())
-			if len(table) >= 2 {
-				t := table[1]
-				parent, slot, _ := r.Parent(t)
-				pn, _ := r.Node(parent)
-				tn, _ := r.Node(t)
-				i, _ := pn.Slot(slot).IndexOf(tn)
-				return leavable{
-					exit:  doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: i + 1}),
-					entry: doc.CaretAt(doc.Pos{Node: n.ID(), Offset: n.Slot(0).Len()}),
-				}, true
-			}
-		}
-	case RoleStructure:
-		for _, provided := range NodeRoles(n.Kind()) {
-			if provided == RoleStructure {
-				return structure(n.ID()), true
-			}
-		}
-	}
-	return nil, false
-}
-
-type headingLevel struct {
-	id    doc.ID
-	level int
-}
-
-// Step moves a heading one level, as one more "#" (Forward) or one fewer
-// (Backward); below level 1 it becomes a paragraph, and 6 is the deepest.
-func (h headingLevel) Step(dir Direction) Edit {
-	next := h.level + int(dir)
-	switch {
-	case next < 1:
-		return Ops(doc.SetNode{ID: h.id, Kind: Paragraph})
-	case next > 6:
-		next = 6
-	}
-	return Ops(doc.SetNode{ID: h.id, Kind: Heading, Attrs: doc.MakeAttrs(doc.Field{Num: FieldLevel, Value: doc.Int(int64(next))})})
-}
-
-// itemLevel is an item's nesting depth.
-type itemLevel doc.ID
-
-// Step nests the item one level deeper, into the item before it
-// (Forward), or one level out (Backward): out of a nested list to follow
-// the item holding it, and out of a top-level list as a paragraph.
-func (i itemLevel) Step(dir Direction) Edit {
-	id := doc.ID(i)
-	if dir > 0 {
-		return func(tx *doc.Tx) error {
-			if _, _, index, ok := Index(tx, id); !ok || index == 0 {
-				return nil
-			}
-			return Sink(id)(tx)
-		}
-	}
-	return Outdent(id)
-}
-
-type itemEntry doc.ID
-
-func (i itemEntry) Item() doc.ID { return doc.ID(i) }
-
-type leavable struct{ exit, entry doc.Caret }
-
-func (l leavable) Exit() doc.Caret  { return l.exit }
-func (l leavable) Entry() doc.Caret { return l.entry }
-
-type structure doc.ID
-
-func (s structure) Node() doc.ID { return doc.ID(s) }

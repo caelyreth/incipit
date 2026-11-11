@@ -19,7 +19,7 @@ const ID = "feedback"
 const PulseFor = 620 * time.Millisecond
 
 // Pulse marks text a rewrite or history changed.
-var Pulse = vocab.NewAnnotationKind("feedback.pulse", false)
+var Pulse = policy.NewAnnotationKind("feedback.pulse", false)
 
 // Policy is the feedback policy.
 var Policy = policy.Define(ID, func(p *policy.P) {

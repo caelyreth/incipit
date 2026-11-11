@@ -59,6 +59,16 @@ type KindSpec struct {
 	// Check holds validity a kind adds beyond its slots and fields, such
 	// as a table's rows matching its columns. It sees the node's children.
 	Check func(n *Node) error
+	// Object makes a block one unit the caret selects whole rather than
+	// enters as text.
+	Object bool
+	// Plain is the text block a block becomes when its structure is taken
+	// away. Exactly one kind declares it.
+	Plain bool
+	// Entry makes a kind an entry of the container whose slot holds it:
+	// its first slot is its head and the rest its body, and taken out of
+	// its container it becomes its head as a plain block, its body after.
+	Entry bool
 }
 
 // MarkSpec declares a mark kind.
@@ -68,13 +78,18 @@ type MarkSpec struct {
 	Fields []FieldSpec
 	// Excludes reports the marks that may not share a set with this one.
 	Excludes func(MarkKind) bool
+	// Bounded marks do not extend to text typed at their end.
+	Bounded bool
 }
 
 // Schema is the kinds and marks a document may hold.
 type Schema struct {
-	root  Kind
-	kinds map[Kind]*KindSpec
-	marks map[MarkKind]*MarkSpec
+	root      Kind
+	plain     Kind
+	kinds     map[Kind]*KindSpec
+	marks     map[MarkKind]*MarkSpec
+	kindOrder []Kind
+	markOrder []MarkKind
 }
 
 // NewSchema checks and assembles kind and mark declarations.
@@ -93,7 +108,14 @@ func NewSchema(root Kind, kinds []KindSpec, marks []MarkSpec) (*Schema, error) {
 		if err := checkFields(k.Name, k.Fields); err != nil {
 			return nil, err
 		}
+		if k.Plain {
+			if s.plain != 0 {
+				return nil, errors.New("doc: two kinds are declared plain")
+			}
+			s.plain = k.Kind
+		}
 		s.kinds[k.Kind] = &k
+		s.kindOrder = append(s.kindOrder, k.Kind)
 	}
 	for i := range marks {
 		m := marks[i]
@@ -104,10 +126,14 @@ func NewSchema(root Kind, kinds []KindSpec, marks []MarkSpec) (*Schema, error) {
 			return nil, err
 		}
 		s.marks[m.Kind] = &m
+		s.markOrder = append(s.markOrder, m.Kind)
 	}
 	spec, ok := s.kinds[root]
 	if !ok || spec.Placement != PlaceRoot {
 		return nil, errors.New("doc: the root kind is not declared as a root")
+	}
+	if s.plain == 0 {
+		return nil, errors.New("doc: no kind is declared plain")
 	}
 	return s, nil
 }
@@ -130,6 +156,34 @@ func (s *Schema) Root() Kind { return s.root }
 func (s *Schema) Kind(k Kind) (*KindSpec, bool) {
 	spec, ok := s.kinds[k]
 	return spec, ok
+}
+
+// Kinds are the declared kinds, in declaration order.
+func (s *Schema) Kinds() []Kind { return s.kindOrder }
+
+// MarkKinds are the declared mark kinds, in declaration order.
+func (s *Schema) MarkKinds() []MarkKind { return s.markOrder }
+
+// Plain is the plain text block kind.
+func (s *Schema) Plain() Kind { return s.plain }
+
+// IsObject reports a block the caret selects whole.
+func (s *Schema) IsObject(k Kind) bool {
+	spec, ok := s.kinds[k]
+	return ok && spec.Object
+}
+
+// IsEntry reports an entry of a container (KindSpec.Entry).
+func (s *Schema) IsEntry(k Kind) bool {
+	spec, ok := s.kinds[k]
+	return ok && spec.Entry
+}
+
+// IsTextBlock reports a block whose first slot is inline text the caret
+// stands in.
+func (s *Schema) IsTextBlock(k Kind) bool {
+	spec, ok := s.kinds[k]
+	return ok && spec.Placement == PlaceBlock && len(spec.Slots) > 0 && !spec.Slots[0].Blocks
 }
 
 // Mark returns a mark kind's declaration.

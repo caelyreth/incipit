@@ -129,7 +129,7 @@ func ApplyMark(spans []Span, m doc.Mark) Edit {
 			if !ok || spec.Literal || spec.Marks == nil || !spec.Marks(m.Kind) || s.From == s.To {
 				continue
 			}
-			op := doc.MarkText{At: s.Slot, From: s.From, To: s.To, Add: []doc.Mark{m}, Remove: excludedBy(m.Kind)}
+			op := doc.MarkText{At: s.Slot, From: s.From, To: s.To, Add: []doc.Mark{m}, Remove: excludedBy(tx.Schema(), m.Kind)}
 			if err := tx.Apply(op); err != nil {
 				return err
 			}
@@ -139,18 +139,18 @@ func ApplyMark(spans []Span, m doc.Mark) Edit {
 }
 
 // InheritedMarks are the marks text typed at off takes where no ghost
-// notation or pending marks decide: those of the text before it. Code
+// notation or pending marks decide: those of the text before it. Bounded
 // marks are not extended past their end, so typing after inline code
 // leaves it.
-func InheritedMarks(in *doc.Inline, off int) *doc.MarkSet {
+func InheritedMarks(s *doc.Schema, in *doc.Inline, off int) *doc.MarkSet {
 	ms := in.MarksAt(off)
-	if ms == nil {
-		return nil
+	if ms == nil || off == 0 {
+		return ms
 	}
-	if ms.Has(CodeMark) && off > 0 {
-		after := in.MarksAt(min(off+1, in.Len()))
-		if off == in.Len() || after == nil || !after.Has(CodeMark) {
-			ms = ms.Without(CodeMark)
+	after := in.MarksAt(min(off+1, in.Len()))
+	for _, m := range ms.Marks() {
+		if spec, ok := s.Mark(m.Kind); ok && spec.Bounded && (off == in.Len() || after == nil || !after.Has(m.Kind)) {
+			ms = ms.Without(m.Kind)
 		}
 	}
 	return ms
@@ -158,12 +158,12 @@ func InheritedMarks(in *doc.Inline, off int) *doc.MarkSet {
 
 // Excludes reports whether marks a and b may not share a set: either one
 // excludes the other.
-func Excludes(a, b doc.MarkKind) bool {
+func Excludes(s *doc.Schema, a, b doc.MarkKind) bool {
 	if a == b {
 		return false
 	}
 	for _, p := range [][2]doc.MarkKind{{a, b}, {b, a}} {
-		if spec, ok := Schema().Mark(p[0]); ok && spec.Excludes != nil && spec.Excludes(p[1]) {
+		if spec, ok := s.Mark(p[0]); ok && spec.Excludes != nil && spec.Excludes(p[1]) {
 			return true
 		}
 	}
@@ -171,10 +171,10 @@ func Excludes(a, b doc.MarkKind) bool {
 }
 
 // excludedBy are the marks adding k removes.
-func excludedBy(k doc.MarkKind) []doc.MarkKind {
+func excludedBy(s *doc.Schema, k doc.MarkKind) []doc.MarkKind {
 	var out []doc.MarkKind
-	for _, other := range MarkKinds {
-		if Excludes(k, other) {
+	for _, other := range s.MarkKinds() {
+		if Excludes(s, k, other) {
 			out = append(out, other)
 		}
 	}
@@ -183,8 +183,8 @@ func excludedBy(k doc.MarkKind) []doc.MarkKind {
 
 // WithMark is set with m added and the marks m excludes removed: the
 // newest mark wins.
-func WithMark(set *doc.MarkSet, m doc.Mark) *doc.MarkSet {
-	for _, other := range excludedBy(m.Kind) {
+func WithMark(s *doc.Schema, set *doc.MarkSet, m doc.Mark) *doc.MarkSet {
+	for _, other := range excludedBy(s, m.Kind) {
 		set = set.Without(other)
 	}
 	return set.With(m)
@@ -240,7 +240,7 @@ func Split(at doc.Pos, kind doc.Kind, attrs doc.Attrs) Edit {
 		if pn.Slot(slot).IsInline() {
 			return fmt.Errorf("%w: split of an inline node", ErrHelper)
 		}
-		if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index + 1, Nodes: []*doc.Node{NewBlock(kind, attrs)}}); err != nil {
+		if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index + 1, Nodes: []*doc.Node{NewBlock(tx.Schema(), kind, attrs)}}); err != nil {
 			return err
 		}
 		pn, _ = tx.Node(parent)
@@ -357,12 +357,12 @@ func Wrap(ids []doc.ID, kind doc.Kind, attrs doc.Attrs) Edit {
 		if !ok {
 			return doc.ErrNoNode
 		}
-		if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{NewBlock(kind, attrs)}}); err != nil {
+		if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{NewBlock(tx.Schema(), kind, attrs)}}); err != nil {
 			return err
 		}
 		pn, _ := tx.Node(parent)
 		container := pn.Slot(slot).Child(index).ID()
-		body := bodySlot(kind)
+		body := bodySlot(tx.Schema(), kind)
 		for i, id := range ids {
 			if err := tx.Apply(doc.Move{ID: id, Parent: container, Slot: body, Index: i}); err != nil {
 				return err
@@ -373,8 +373,8 @@ func Wrap(ids []doc.ID, kind doc.Kind, attrs doc.Attrs) Edit {
 }
 
 // bodySlot is the block slot of a container kind.
-func bodySlot(kind doc.Kind) int {
-	spec, _ := Schema().Kind(kind)
+func bodySlot(s *doc.Schema, kind doc.Kind) int {
+	spec, _ := s.Kind(kind)
 	for i, s := range spec.Slots {
 		if s.Blocks {
 			return i
@@ -435,7 +435,7 @@ func Lift(id doc.ID) Edit {
 			return err
 		}
 		if len(rest) > 0 {
-			tail := NewBlock(cn.Kind(), cn.Attrs())
+			tail := NewBlock(tx.Schema(), cn.Kind(), cn.Attrs())
 			if err := tx.Apply(doc.Insert{Parent: grand, Slot: cslot, Index: cindex + 2, Nodes: []*doc.Node{tail}}); err != nil {
 				return err
 			}
@@ -463,10 +463,10 @@ func Sink(item doc.ID) Edit {
 		prev := ln.Slot(slot).Child(index - 1)
 		body := prev.Slot(1)
 		target := doc.ID(0)
-		if n := body.Len(); n > 0 && body.Child(n-1).Kind() == List {
+		if n := body.Len(); n > 0 && body.Child(n-1).Kind() == ln.Kind() {
 			target = body.Child(n - 1).ID()
 		} else {
-			if err := tx.Apply(doc.Insert{Parent: prev.ID(), Slot: 1, Index: n, Nodes: []*doc.Node{NewBlock(List, ln.Attrs())}}); err != nil {
+			if err := tx.Apply(doc.Insert{Parent: prev.ID(), Slot: 1, Index: n, Nodes: []*doc.Node{NewBlock(tx.Schema(), ln.Kind(), ln.Attrs())}}); err != nil {
 				return err
 			}
 			pn, _ := tx.Node(prev.ID())
@@ -491,7 +491,7 @@ func Outdent(item doc.ID) Edit {
 		if !ok {
 			return doc.ErrNoNode
 		}
-		if on, _ := tx.Node(owner); on.Kind() != Item {
+		if on, _ := tx.Node(owner); !tx.Schema().IsEntry(on.Kind()) {
 			return Unlist(item)(tx)
 		}
 		ln, _ := tx.Node(list)
@@ -503,7 +503,7 @@ func Outdent(item doc.ID) Edit {
 		if len(rest) > 0 {
 			n, _ := tx.Node(item)
 			at := n.Slot(1).Len()
-			if err := tx.Apply(doc.Insert{Parent: item, Slot: 1, Index: at, Nodes: []*doc.Node{NewBlock(List, ln.Attrs())}}); err != nil {
+			if err := tx.Apply(doc.Insert{Parent: item, Slot: 1, Index: at, Nodes: []*doc.Node{NewBlock(tx.Schema(), ln.Kind(), ln.Attrs())}}); err != nil {
 				return err
 			}
 			n, _ = tx.Node(item)
@@ -681,7 +681,7 @@ func DeleteRange(from, to doc.Pos) Edit {
 		// Opened items lose their markers, and with them their emptied
 		// heads; containers left empty go.
 		for _, a := range opened {
-			if n, ok := tx.Node(a); ok && n.Kind() == Item {
+			if n, ok := tx.Node(a); ok && tx.Schema().IsEntry(n.Kind()) {
 				para, err := unlist(tx, a)
 				if err != nil {
 					return err
@@ -956,7 +956,7 @@ func InsertSlice(at doc.Pos, s Slice) Edit {
 		nodes := s.Nodes
 		target, ok := landing(tx, block.ID(), nodes)
 		if !ok {
-			nodes = listed(nodes)
+			nodes = listed(tx.Schema(), nodes)
 			if target, ok = landing(tx, block.ID(), nodes); !ok {
 				return fmt.Errorf("%w: no slot takes the pasted blocks", ErrHelper)
 			}
@@ -1028,17 +1028,25 @@ func takesAll(spec doc.SlotSpec, nodes []*doc.Node) bool {
 	return true
 }
 
-// listed gathers each run of loose items into a list.
-func listed(nodes []*doc.Node) []*doc.Node {
+// listed gathers each run of loose entries into a new container of the
+// kind that holds them.
+func listed(s *doc.Schema, nodes []*doc.Node) []*doc.Node {
 	var out, run []*doc.Node
 	flush := func() {
 		if len(run) > 0 {
-			out = append(out, doc.NewNode(List, Schema().Canonical(List, doc.Attrs{}), doc.BlockSlot(run...)))
+			if k, ok := containerOf(s, run[0].Kind()); ok {
+				out = append(out, doc.NewNode(k, doc.Attrs{}, doc.BlockSlot(run...)))
+			} else {
+				out = append(out, run...)
+			}
 			run = nil
 		}
 	}
 	for _, n := range nodes {
-		if n.Kind() == Item {
+		if s.IsEntry(n.Kind()) {
+			if len(run) > 0 && run[0].Kind() != n.Kind() {
+				flush()
+			}
 			run = append(run, n)
 			continue
 		}
@@ -1066,7 +1074,7 @@ func splitAfter(tx *doc.Tx, container doc.ID, slot, index int) error {
 	if !ok {
 		return fmt.Errorf("%w: split of the page", ErrHelper)
 	}
-	if err := tx.Apply(doc.Insert{Parent: parent, Slot: pslot, Index: pindex + 1, Nodes: []*doc.Node{NewBlock(n.Kind(), n.Attrs())}}); err != nil {
+	if err := tx.Apply(doc.Insert{Parent: parent, Slot: pslot, Index: pindex + 1, Nodes: []*doc.Node{NewBlock(tx.Schema(), n.Kind(), n.Attrs())}}); err != nil {
 		return err
 	}
 	pn, _ := tx.Node(parent)
@@ -1110,15 +1118,15 @@ func joinText(tx *doc.Tx, first, second doc.ID, own bool) error {
 	}
 	// Second's children move into the body of ref's block, so a block
 	// without a body takes no children.
-	if target, _ := tx.Node(ref.Node); hasBlocks(sn) && !holdsBlocks(target.Kind()) {
+	if target, _ := tx.Node(ref.Node); hasBlocks(sn) && !holdsBlocks(tx.Schema(), target.Kind()) {
 		return nil
 	}
 	return Join(ref, second)(tx)
 }
 
 // holdsBlocks reports whether a kind has a block slot.
-func holdsBlocks(kind doc.Kind) bool {
-	spec, _ := Schema().Kind(kind)
+func holdsBlocks(s *doc.Schema, kind doc.Kind) bool {
+	spec, _ := s.Kind(kind)
 	for _, s := range spec.Slots {
 		if s.Blocks {
 			return true
@@ -1170,10 +1178,11 @@ func Retype(id doc.ID, kind doc.Kind, attrs doc.Attrs) Edit {
 		if !ok {
 			return doc.ErrNoNode
 		}
-		from, fok := Schema().Kind(n.Kind())
-		to, tok := Schema().Kind(kind)
+		s := tx.Schema()
+		from, fok := s.Kind(n.Kind())
+		to, tok := s.Kind(kind)
 		if !fok || !tok || len(from.Slots) == 0 || len(to.Slots) == 0 {
-			return fmt.Errorf("%w: %s cannot become %s", ErrHelper, Schema().KindName(n.Kind()), Schema().KindName(kind))
+			return fmt.Errorf("%w: %s cannot become %s", ErrHelper, s.KindName(n.Kind()), s.KindName(kind))
 		}
 		if from.Slots[0].Literal != to.Slots[0].Literal {
 			if err := plainText(tx, n); err != nil {
@@ -1225,28 +1234,54 @@ func unbreak(tx *doc.Tx, ref doc.SlotRef) error {
 	return nil
 }
 
-// Unmark takes a text block's marker away, leaving its text a paragraph
-// where it stands: a heading, code or math block is retyped, and an item
-// leaves its list. A paragraph has no marker and is left as it is.
+// Unmark takes a text block's marker away, leaving its text a plain block
+// where it stands: a heading, code or math block is retyped, and an entry
+// leaves its container. A plain block has no marker and is left as it is,
+// as is a block whose slot takes no plain block, such as a cell.
 func Unmark(id doc.ID) Edit {
 	return func(tx *doc.Tx) error {
 		n, ok := tx.Node(id)
 		if !ok {
 			return doc.ErrNoNode
 		}
+		s := tx.Schema()
 		switch k := n.Kind(); {
-		case k == Item:
+		case s.IsEntry(k):
 			return Unlist(id)(tx)
-		case k == Paragraph || !IsTextBlock(k) || IsObject(k) || k == Cell:
+		case k == s.Plain() || !s.IsTextBlock(k) || s.IsObject(k) || !accepted(tx, id, s.Plain()):
 			return nil
 		}
-		return Retype(id, Paragraph, doc.Attrs{})(tx)
+		return Retype(id, s.Plain(), doc.Attrs{})(tx)
 	}
 }
 
-// Unlist takes an item out of its list as a paragraph holding its head,
-// followed by its body's blocks. The list splits around it, and is
-// removed when it is left empty.
+// accepted reports whether the slot holding id takes kind.
+func accepted(r doc.Reader, id doc.ID, kind doc.Kind) bool {
+	parent, slot, ok := r.Parent(id)
+	if !ok {
+		return false
+	}
+	spec, ok := SlotSpec(r, doc.SlotRef{Node: parent, Slot: slot})
+	return ok && spec.Accepts != nil && spec.Accepts(kind)
+}
+
+// containerOf is the kind whose block slot takes entries of kind, first in
+// declaration order.
+func containerOf(s *doc.Schema, entry doc.Kind) (doc.Kind, bool) {
+	for _, k := range s.Kinds() {
+		spec, _ := s.Kind(k)
+		for _, sl := range spec.Slots {
+			if sl.Blocks && sl.Accepts != nil && sl.Accepts(entry) {
+				return k, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// Unlist takes an entry out of its container as a plain block holding its
+// head, followed by its body's blocks. The container splits around it, and
+// is removed when it is left empty.
 func Unlist(item doc.ID) Edit {
 	return func(tx *doc.Tx) error {
 		_, err := unlist(tx, item)
@@ -1263,7 +1298,7 @@ func unlist(tx *doc.Tx, item doc.ID) (doc.ID, error) {
 	if !ok {
 		return 0, doc.ErrNoNode
 	}
-	if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{NewParagraph()}}); err != nil {
+	if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{NewBlock(tx.Schema(), tx.Schema().Plain(), doc.Attrs{})}}); err != nil {
 		return 0, err
 	}
 	pn, _ := tx.Node(parent)
@@ -1287,11 +1322,11 @@ func unlist(tx *doc.Tx, item doc.ID) (doc.ID, error) {
 // items, then to a common slot, and the run spans every sibling between
 // them. It is false when no such run exists.
 func WrapRun(r doc.Reader, ids []doc.ID, kind doc.Kind) ([]doc.ID, bool) {
-	spec, ok := Schema().Kind(kind)
+	spec, ok := r.Schema().Kind(kind)
 	if !ok || len(ids) == 0 {
 		return nil, false
 	}
-	body := spec.Slots[bodySlot(kind)]
+	body := spec.Slots[bodySlot(r.Schema(), kind)]
 	fits := func(id doc.ID) bool {
 		n, ok := r.Node(id)
 		if !ok || body.Accepts == nil || !body.Accepts(n.Kind()) {
@@ -1394,7 +1429,7 @@ func PlainText(s Slice) string {
 	inline(s.Inline)
 	var walk func(n *doc.Node)
 	walk = func(n *doc.Node) {
-		if IsTextBlock(n.Kind()) || n.Kind() == Item {
+		if n.NumSlots() > 0 && n.Slot(0).IsInline() {
 			if b.Len() > 0 {
 				b.WriteByte('\n')
 			}

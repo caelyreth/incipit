@@ -23,7 +23,7 @@ import (
 // just before and after its projection, and its inner extent the stops
 // between.
 type Fact struct {
-	Kind                       vocab.FactKind
+	Kind                       FactID
 	From, To                   int
 	InnerFrom, InnerTo         int
 	StopFrom, StopTo           int
@@ -61,7 +61,7 @@ func (f Fact) Ends(c doc.Caret) bool {
 
 // FactKind is a typed fact kind a policy declared.
 type FactKind[T any] struct {
-	kind   vocab.FactKind
+	kind   FactID
 	name   string
 	policy string
 	roles  []vocab.Role
@@ -71,7 +71,7 @@ type FactKind[T any] struct {
 type FactOption func(*factDecl)
 
 type factDecl struct {
-	kind   vocab.FactKind
+	kind   FactID
 	name   string
 	policy string
 	roles  []vocab.Role
@@ -86,19 +86,19 @@ func Provides(roles ...vocab.Role) FactOption {
 
 var factKinds = struct {
 	sync.Mutex
-	of map[string]vocab.FactKind
-}{of: map[string]vocab.FactKind{}}
+	of map[string]FactID
+}{of: map[string]FactID{}}
 
 // stableFactKind returns one handle per policy and name, so a program
 // rebuilt after a settings change keeps its fact kinds and their caches.
-func stableFactKind(policy, name string) vocab.FactKind {
+func stableFactKind(policy, name string) FactID {
 	factKinds.Lock()
 	defer factKinds.Unlock()
 	key := policy + "." + name
 	if k, ok := factKinds.of[key]; ok {
 		return k
 	}
-	k := vocab.NewFactKind(key)
+	k := newFactID(key)
 	factKinds.of[key] = k
 	return k
 }
@@ -119,10 +119,10 @@ func Facts[T any](p *P, name string, opts ...FactOption) *FactKind[T] {
 }
 
 // Kind is the untyped handle.
-func (k *FactKind[T]) Kind() vocab.FactKind { return k.kind }
+func (k *FactKind[T]) Kind() FactID { return k.kind }
 
 // Scope is the fact kind as a scope key.
-func (k *FactKind[T]) Scope() vocab.Scope { return vocab.FactScope(k.kind) }
+func (k *FactKind[T]) Scope() Scope { return FactScope(k.kind) }
 
 // Span is a fact whose inner extent is its outer one, edged by content.
 func (k *FactKind[T]) Span(from, to int, data T) Fact {
@@ -183,16 +183,10 @@ func roleInterface(r vocab.Role) reflect.Type {
 		return reflect.TypeFor[vocab.Pair]()
 	case vocab.RoleLeveled:
 		return reflect.TypeFor[vocab.Leveled]()
-	case vocab.RoleReshapeable:
-		return reflect.TypeFor[vocab.Reshapeable]()
-	case vocab.RoleBox:
-		return reflect.TypeFor[vocab.Box]()
 	case vocab.RoleLeavable:
 		return reflect.TypeFor[vocab.Leavable]()
 	case vocab.RoleStructure:
 		return reflect.TypeFor[vocab.Structure]()
-	case vocab.RoleItem:
-		return reflect.TypeFor[vocab.ItemEntry]()
 	}
 	return nil
 }
@@ -226,11 +220,11 @@ type Unit struct {
 	Line     int
 	// Annotations are the analyzing policy's annotations anchored here.
 	Annotations []Annotation
-	// Marker is what the owner's structure spells before the slot's text,
-	// for the owner's first slot (vocab.MarkerOf).
-	Marker *vocab.Marker
+	// Context is what the slot's place in the structure adds to its
+	// content, as the profile reports it (vocab.Profile.Context).
+	Context any
 
-	facts func(vocab.FactKind) []Fact
+	facts func(FactID) []Fact
 }
 
 // Text is the unit's text aligned with slot offsets: an inline node is
@@ -239,7 +233,7 @@ func (u *Unit) Text() string { return u.Content.FlatRange(u.From, u.To) }
 
 // Facts returns facts of another kind in the unit's slot, for
 // presentation contributions that read facts.
-func (u *Unit) Facts(k vocab.FactKind) []Fact {
+func (u *Unit) Facts(k FactID) []Fact {
 	if u.facts == nil {
 		return nil
 	}
@@ -356,7 +350,7 @@ const (
 type analyzer struct {
 	policy string
 	form   analyzerForm
-	kinds  []vocab.FactKind
+	kinds  []FactID
 	// config identifies the analyzer's configuration: caches are keyed by
 	// it, so only analyzers whose configuration changed lose them.
 	config string
@@ -384,7 +378,7 @@ func Config(v any) AnalyzerOption {
 	return func(a *analyzer) { a.config = fmt.Sprintf("%T:%#v", v, v) }
 }
 
-func (p *P) addAnalyzer(a *analyzer, kinds []vocab.FactKind, opts []AnalyzerOption) {
+func (p *P) addAnalyzer(a *analyzer, kinds []FactID, opts []AnalyzerOption) {
 	a.policy = p.policy.id
 	a.kinds = kinds
 	for _, o := range opts {
@@ -400,7 +394,7 @@ func (p *P) addAnalyzer(a *analyzer, kinds []vocab.FactKind, opts []AnalyzerOpti
 
 // Analyze declares a per-unit analyzer, memoised per unit and
 // configuration. It emits facts of kinds, at slot offsets.
-func (p *P) Analyze(g Granularity, fn func(u *Unit, emit func(Fact)), kinds []vocab.FactKind, opts ...AnalyzerOption) {
+func (p *P) Analyze(g Granularity, fn func(u *Unit, emit func(Fact)), kinds []FactID, opts ...AnalyzerOption) {
 	a := &analyzer{form: formUnit, granularity: g, unit: fn}
 	a.config = fmt.Sprintf("unit:%s:%v", p.policy.id, kinds)
 	p.addAnalyzer(a, kinds, opts)
@@ -416,7 +410,7 @@ type Scanner[S comparable] interface {
 
 // Scan declares a scanner over whole slots. The scanner value is its
 // configuration.
-func Scan[S comparable](p *P, sc Scanner[S], kinds []vocab.FactKind, opts ...AnalyzerOption) {
+func Scan[S comparable](p *P, sc Scanner[S], kinds []FactID, opts ...AnalyzerOption) {
 	a := &analyzer{
 		form:  formScanner,
 		start: func(u *Unit) any { return sc.Start(u) },

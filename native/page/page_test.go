@@ -9,6 +9,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/transfer"
@@ -25,7 +26,7 @@ func newElementWith(t *testing.T, opts engine.Options) *Element {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := vocab.EmptyPage(1, 7, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 7, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +397,7 @@ func pageText(el *Element) string {
 				}
 			}
 		}
-		if vocab.IsTextBlock(n.Kind()) {
+		if profile.Schema().IsTextBlock(n.Kind()) {
 			out += n.Text()
 		}
 	}

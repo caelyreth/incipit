@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/core"
 	"github.com/caelyreth/neverland/editor/policies/history"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -21,11 +22,11 @@ type harness struct {
 
 func newHarness(t *testing.T, policies ...*policy.Policy) *harness {
 	t.Helper()
-	prog, err := policy.Compile(policy.Manifest{Enabled: append([]*policy.Policy{core.Policy, history.Policy}, policies...), Strict: true}, nil)
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile, Enabled: append([]*policy.Policy{core.Policy, history.Policy}, policies...), Strict: true}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := vocab.EmptyPage(1, 99, doc.NewInterner())
+	snap, err := profile.EmptyPage(1, 99, doc.NewInterner())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +106,7 @@ func TestReplayIsDeterministic(t *testing.T) {
 	h.do(vocab.Break{})
 	h.typeText("two")
 	h.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward, Extend: true})
-	h.do(vocab.Format{Mark: vocab.Strong})
+	h.do(vocab.Format{Mark: profile.Strong})
 	h.do(vocab.Undo{})
 	h.do(vocab.Redo{})
 	r := newHarness(t)
@@ -126,16 +127,16 @@ func TestReplayIsDeterministic(t *testing.T) {
 
 func TestPendingMarksAndFormat(t *testing.T) {
 	h := newHarness(t)
-	h.do(vocab.Format{Mark: vocab.Strong})
+	h.do(vocab.Format{Mark: profile.Strong})
 	h.typeText("bo")
 	n := h.e.Snapshot().Root().Slot(0).Child(0)
-	if ms := n.Slot(0).Content().MarksAt(1); ms == nil || !ms.Has(vocab.Strong) {
+	if ms := n.Slot(0).Content().MarksAt(1); ms == nil || !ms.Has(profile.Strong) {
 		t.Fatal("pending strong mark not applied")
 	}
 	h.do(vocab.SelectScope{})
-	h.do(vocab.Format{Mark: vocab.Strong})
+	h.do(vocab.Format{Mark: profile.Strong})
 	n = h.e.Snapshot().Root().Slot(0).Child(0)
-	if ms := n.Slot(0).Content().MarksAt(1); ms != nil && ms.Has(vocab.Strong) {
+	if ms := n.Slot(0).Content().MarksAt(1); ms != nil && ms.Has(profile.Strong) {
 		t.Fatal("format did not toggle strong off")
 	}
 }

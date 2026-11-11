@@ -8,6 +8,7 @@ package lists
 import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -16,17 +17,17 @@ const ID = "lists"
 
 // Policy is the lists policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	p.Command("lists.bullet", "commands.bulletList", vocab.Reshape{Shape: vocab.List})
+	p.Command("lists.bullet", "commands.bulletList", vocab.Reshape{Shape: profile.List})
 	p.Command("lists.numbered", "commands.numberedList", vocab.Reshape{
-		Shape: vocab.List,
-		Attrs: doc.MakeAttrs(doc.Field{Num: vocab.FieldListStyle, Value: doc.Int(int64(vocab.Ordered))},
-			doc.Field{Num: vocab.FieldListStart, Value: doc.Int(1)}),
+		Shape: profile.List,
+		Attrs: doc.MakeAttrs(doc.Field{Num: profile.FieldListStyle, Value: doc.Int(int64(profile.Ordered))},
+			doc.Field{Num: profile.FieldListStart, Value: doc.Int(1)}),
 	})
 
-	item := vocab.RoleScope(vocab.RoleItem)
-	p.Handle("leave-empty").On(vocab.On(vocab.IntentBreak)).In(item).
-		When(vocab.Collapsed, vocab.OwnText, vocab.SlotEmpty).Produces(vocab.RoleEdits...).Do(leave)
-	p.Handle("nest").On(vocab.On(vocab.IntentNest)).In(item).When(vocab.OwnText).Produces(vocab.RoleEdits...).Do(nest)
+	item := policy.NodeScope(profile.Item)
+	p.Handle("leave-empty").On(policy.On(vocab.IntentBreak)).In(item).
+		When(policy.Collapsed, policy.OwnText, policy.SlotEmpty).Produces(vocab.RoleEdits...).Do(leave)
+	p.Handle("nest").On(policy.On(vocab.IntentNest)).In(item).When(policy.OwnText).Produces(vocab.RoleEdits...).Do(nest)
 })
 
 // level is the matched item's level.
@@ -34,7 +35,7 @@ func level(c *policy.Ctx, m policy.Match) (vocab.Leveled, bool) {
 	if m.Level == nil || m.Level.Node == nil {
 		return nil, false
 	}
-	role, ok := vocab.NodeRole(c.Doc(), m.Level.Node, vocab.RoleLeveled)
+	role, ok := profile.NodeRole(c.Doc(), m.Level.Node, vocab.RoleLeveled)
 	if !ok {
 		return nil, false
 	}

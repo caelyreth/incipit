@@ -6,15 +6,15 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policies/core"
 	"github.com/caelyreth/neverland/editor/policy"
-	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/editor/profile"
 )
 
 func paragraph(text string) *doc.Node {
-	return vocab.NewParagraph(doc.TextItem(text, nil))
+	return profile.NewParagraph(doc.TextItem(text, nil))
 }
 
 func testPage() *doc.Node {
-	return doc.NewNode(vocab.Page, doc.Attrs{},
+	return doc.NewNode(profile.Page, doc.Attrs{},
 		doc.BlockSlot(paragraph("Hello, world"), paragraph("世界")))
 }
 
@@ -29,7 +29,7 @@ func TestCountsCountWordsCharactersAndCJK(t *testing.T) {
 }
 
 func TestThePolicySummaryMatchesADirectCount(t *testing.T) {
-	prog, err := policy.Compile(policy.Manifest{Enabled: []*policy.Policy{core.Policy, Policy}, Strict: true}, nil)
+	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile, Enabled: []*policy.Policy{core.Policy, Policy}, Strict: true}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

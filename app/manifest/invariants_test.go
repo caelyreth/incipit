@@ -13,6 +13,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/store"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
@@ -56,7 +57,7 @@ func randomIntent(rng *rand.Rand, e *engine.Engine) vocab.Intent {
 	case n < 80:
 		return vocab.Redo{}
 	case n < 83:
-		marks := []doc.MarkKind{vocab.Strong, vocab.Emphasis, vocab.CodeMark, vocab.Strike}
+		marks := []doc.MarkKind{profile.Strong, profile.Emphasis, profile.CodeMark, profile.Strike}
 		return vocab.Format{Mark: marks[rng.IntN(len(marks))]}
 	case n < 85:
 		return vocab.Nest{Dir: dir}
@@ -132,7 +133,7 @@ func checkPublished(t *testing.T, e *engine.Engine, step string) {
 	v, _ := e.View(1)
 	if v.Selection.Kind == doc.SelectNode {
 		n, ok := snap.Node(v.Selection.Node)
-		if !ok || !vocab.IsObject(n.Kind()) {
+		if !ok || !profile.Schema().IsObject(n.Kind()) {
 			t.Fatalf("%s: a node selection of %v, which is not an object\n%s", step, v.Selection.Node, outline(snap.Root()))
 		}
 	}
@@ -171,7 +172,7 @@ func runTrace(t *testing.T, seed uint64, length int) {
 		t.Fatal(err)
 	}
 	rng := rand.New(rand.NewPCG(seed, 99))
-	start, _ := vocab.EmptyPage(1, seed, doc.NewInterner())
+	start, _ := profile.EmptyPage(1, seed, doc.NewInterner())
 	e := engine.New(start, prog, engine.Options{Log: true})
 	e.OpenView(1)
 	now := time.Unix(1000, 0)
@@ -206,7 +207,7 @@ func runTrace(t *testing.T, seed uint64, length int) {
 	finalView, _ := e.View(1)
 
 	// Storage: loading the saved rows gives the same document.
-	back, err := store.Load(vocab.Schema(), doc.NewInterner(), final.Root().ID(), final.Seed(), rows(final))
+	back, err := store.Load(profile.Schema(), doc.NewInterner(), final.Root().ID(), final.Seed(), rows(final))
 	if err != nil {
 		t.Fatalf("seed %d: load: %v", seed, err)
 	}

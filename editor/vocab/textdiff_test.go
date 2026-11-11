@@ -37,7 +37,7 @@ func TestMinimalTextChangesFindsSeparateHunks(t *testing.T) {
 
 func TestMinimalTextChangesRepresentsMarkChanges(t *testing.T) {
 	in := doc.NewInterner()
-	bold := in.Intern([]doc.Mark{{Kind: Strong}})
+	bold := in.Intern([]doc.Mark{{Kind: 2}})
 	changes := MinimalTextChanges(
 		[]doc.Item{doc.TextItem("ab", in.Empty())},
 		[]doc.Item{doc.TextItem("a", in.Empty()), doc.TextItem("b", bold)},

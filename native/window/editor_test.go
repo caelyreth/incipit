@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
-	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -19,8 +19,8 @@ func pageText(app *AppState) string {
 	var lines []string
 	var walk func(n *doc.Node)
 	walk = func(n *doc.Node) {
-		if vocab.IsTextBlock(n.Kind()) {
-			lines = append(lines, vocab.Schema().KindName(n.Kind())+":"+n.Text())
+		if profile.Schema().IsTextBlock(n.Kind()) {
+			lines = append(lines, profile.Schema().KindName(n.Kind())+":"+n.Text())
 		}
 		for _, s := range n.Slots() {
 			if !s.IsInline() {

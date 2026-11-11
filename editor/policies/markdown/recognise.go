@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -25,7 +26,7 @@ type half struct{ Char byte }
 type marker struct {
 	Kind  markerKind
 	Level int // heading level, or the ordered list's start
-	Task  vocab.Task
+	Task  profile.Task
 	Char  byte
 }
 
@@ -68,8 +69,8 @@ type runKinds struct {
 	code, strike       *policy.FactKind[run]
 }
 
-func (k *runKinds) all() []vocab.FactKind {
-	var out []vocab.FactKind
+func (k *runKinds) all() []policy.FactID {
+	var out []policy.FactID
 	for _, c := range []byte{'*', '_'} {
 		out = append(out, k.em[c].Kind(), k.strong[c].Kind(), k.halfKinds[c].Kind())
 	}
@@ -188,16 +189,16 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 		if t == "" {
 			return
 		}
-		if u.Owner.Kind() == vocab.Item {
+		if u.Owner.Kind() == profile.Item {
 			if !cfg.Lists {
 				return
 			}
 			switch {
-			case strings.HasPrefix(t, string(vocab.TaskOpenSpelling)):
-				emit(mk.Span(0, len(vocab.TaskOpenSpelling), marker{Kind: markTaskOpen, Task: vocab.TaskOpen}))
-			case strings.HasPrefix(t, string(vocab.TaskDoneSpelling)),
+			case strings.HasPrefix(t, string(profile.TaskOpenSpelling)):
+				emit(mk.Span(0, len(profile.TaskOpenSpelling), marker{Kind: markTaskOpen, Task: profile.TaskOpen}))
+			case strings.HasPrefix(t, string(profile.TaskDoneSpelling)),
 				strings.HasPrefix(t, "[X]"):
-				emit(mk.Span(0, len(vocab.TaskDoneSpelling), marker{Kind: markTaskDone, Task: vocab.TaskDone}))
+				emit(mk.Span(0, len(profile.TaskDoneSpelling), marker{Kind: markTaskDone, Task: profile.TaskDone}))
 			}
 			return
 		}
@@ -220,14 +221,14 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 				n++
 			}
 			if n < len(t) && (t[n] == '.' || t[n] == ')') {
-				start, _ := vocab.ParseOrdered(t[:n] + ".")
+				start, _ := profile.ParseOrdered(t[:n] + ".")
 				emit(mk.Span(0, n+1, marker{Kind: markOrdered, Level: start, Char: t[n]}))
 			}
 		}
 		switch {
-		case cfg.Code && strings.HasPrefix(t, string(vocab.FenceSpelling)) && !strings.Contains(t[3:], "`"):
+		case cfg.Code && strings.HasPrefix(t, string(profile.FenceSpelling)) && !strings.Contains(t[3:], "`"):
 			emit(fk.Span(0, len(t), fence{Kind: fenceCode, Info: strings.TrimSpace(t[3:])}))
-		case cfg.Math && t == string(vocab.MathSpelling):
+		case cfg.Math && t == string(profile.MathSpelling):
 			emit(fk.Span(0, len(t), fence{Kind: fenceMath}))
 		case cfg.Rules && len(t) >= 3 && strings.Count(t, t[:1]) == len(t) && (t[0] == '-' || t[0] == '*' || t[0] == '_'):
 			emit(fk.Span(0, len(t), fence{Kind: fenceDivider}))

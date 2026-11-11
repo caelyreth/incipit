@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/policies/notation"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -105,8 +106,8 @@ func TestDeleteBeforeAMarkerStepsItDown(t *testing.T) {
 	}
 	p.wantShown("|[## ]Head")
 	p.do(forward)
-	if n := p.e.Snapshot().Root().Slot(0).Child(0); vocab.HeadingLevel(n) != 1 {
-		t.Fatalf("level %d after deleting into the marker", vocab.HeadingLevel(n))
+	if n := p.e.Snapshot().Root().Slot(0).Child(0); profile.HeadingLevel(n) != 1 {
+		t.Fatalf("level %d after deleting into the marker", profile.HeadingLevel(n))
 	}
 }
 
@@ -117,8 +118,8 @@ func TestBackspaceAtAHiddenHeadingsStartStepsItDown(t *testing.T) {
 		p.do(left)
 	}
 	p.do(backspace)
-	if n := p.e.Snapshot().Root().Slot(0).Child(0); vocab.HeadingLevel(n) != 1 {
-		t.Fatalf("level %d; hidden notation steps like shown notation", vocab.HeadingLevel(n))
+	if n := p.e.Snapshot().Root().Slot(0).Child(0); profile.HeadingLevel(n) != 1 {
+		t.Fatalf("level %d; hidden notation steps like shown notation", profile.HeadingLevel(n))
 	}
 }
 

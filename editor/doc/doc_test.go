@@ -26,7 +26,7 @@ func testSchema(t testing.TB) *Schema {
 	blocks := func(k Kind) bool { return k == kPara || k == kQuote || k == kCode }
 	s, err := NewSchema(kPage, []KindSpec{
 		{Kind: kPage, Name: "page", Placement: PlaceRoot, Slots: []SlotSpec{{Name: "blocks", Blocks: true, Accepts: blocks}}},
-		{Kind: kPara, Name: "paragraph", Placement: PlaceBlock, Slots: []SlotSpec{{
+		{Kind: kPara, Name: "paragraph", Placement: PlaceBlock, Plain: true, Slots: []SlotSpec{{
 			Name: "text", Marks: func(MarkKind) bool { return true }, Accepts: func(k Kind) bool { return k == kFormula }}},
 			Fields: []FieldSpec{{Num: 1, Name: "level", Default: Int(0), Valid: func(v Value) bool { return v.Int() >= 0 && v.Int() <= 6 }}}},
 		{Kind: kQuote, Name: "quote", Placement: PlaceBlock, Slots: []SlotSpec{{Name: "body", Blocks: true, Accepts: blocks}}},

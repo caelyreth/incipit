@@ -237,12 +237,12 @@ const (
 // Paint styles the spans of a fact kind with a highlight group.
 type Paint struct {
 	Group vocab.Group
-	Fact  vocab.FactKind
+	Fact  FactID
 	When  PaintWhen
 }
 
 // Paint declares a paint contribution over a fact kind's spans.
-func (p *P) Paint(group vocab.Group, fact vocab.FactKind, when PaintWhen) {
+func (p *P) Paint(group vocab.Group, fact FactID, when PaintWhen) {
 	p.paints = append(p.paints, Paint{Group: group, Fact: fact, When: when})
 }
 

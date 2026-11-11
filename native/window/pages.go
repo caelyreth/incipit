@@ -6,7 +6,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policy"
-	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/egoist/mygo"
 )
@@ -43,7 +43,7 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 	marks := doc.NewInterner()
 	var snap *doc.Snapshot
 	if a.notebook != nil {
-		loaded, err := a.notebook.store.LoadPage(session.key, vocab.Schema(), marks)
+		loaded, err := a.notebook.store.LoadPage(session.key, profile.Schema(), marks)
 		if err != nil {
 			return nil, err
 		}
@@ -54,7 +54,7 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 		}
 	}
 	if snap == nil {
-		empty, err := vocab.EmptyPage(pageRoot, rand.Uint64(), marks)
+		empty, err := profile.EmptyPage(pageRoot, rand.Uint64(), marks)
 		if err != nil {
 			return nil, err
 		}

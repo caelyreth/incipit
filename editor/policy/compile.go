@@ -25,14 +25,14 @@ type Order struct {
 }
 
 // Over gives a's rules precedence over b's where both match. The
-// qualifier narrows where: a vocab.Role, a vocab.Scope, a vocab.Pattern,
+// qualifier narrows where: a vocab.Role, a Scope, a Pattern,
 // a vocab.IntentKind, or nil for everywhere.
 func Over(a, b *Policy, qualifier any) Order {
 	return Order{over: true, a: a, b: b, qualifier: qualifier}
 }
 
-// Before runs a's rewrites before b's in a phase.
-func Before(a, b *Policy, phase doc.Phase) Order { return Order{a: a, b: b, phase: phase} }
+// RunsBefore runs a's rewrites before b's in a phase.
+func RunsBefore(a, b *Policy, phase doc.Phase) Order { return Order{a: a, b: b, phase: phase} }
 
 // Manifest is the composition root's declaration: the policies, in order,
 // and their precedence. It is the only code that names more than one
@@ -42,6 +42,8 @@ type Manifest struct {
 	Resolve []Order
 	// Strict makes undeclared outputs errors. Tests set it; a host may.
 	Strict bool
+	// Profile is the document profile the program edits.
+	Profile vocab.Profile
 }
 
 // OptionInfo is an option in the catalog.
@@ -114,7 +116,7 @@ func (e *CompileError) Error() string {
 
 type tableKey struct {
 	intent vocab.IntentKind
-	scope  vocab.Scope
+	scope  Scope
 }
 
 // Program is a compiled, immutable policy program. Its caches (stacks and
@@ -122,21 +124,22 @@ type tableKey struct {
 type Program struct {
 	version  uint64
 	strict   bool
+	profile  vocab.Profile
 	policies []*P
 	rank     map[string]int
 	orders   []Order
 
 	table      map[tableKey][]*rule
 	rules      []*rule
-	atoms      []vocab.Relation
-	atomIndex  map[vocab.Relation]int
+	atoms      []Relation
+	atomIndex  map[Relation]int
 	phases     map[doc.Phase][]*rewrite
 	observers  []*observer
-	analyzerOf map[vocab.FactKind]*analyzer
+	analyzerOf map[FactID]*analyzer
 	// analyzing are the policies with analyzers, in compile order.
 	analyzing  []string
-	factDecls  map[vocab.FactKind]*factDecl
-	scopeKinds []vocab.FactKind
+	factDecls  map[FactID]*factDecl
+	scopeKinds []FactID
 	annotation map[annotationKey]AnnotationCheck
 	commands   map[vocab.CommandID]Command
 	catalog    Catalog
@@ -155,7 +158,7 @@ type Program struct {
 }
 
 type annotationKey struct {
-	kind  vocab.AnnotationKind
+	kind  AnnotationKind
 	owner string
 }
 
@@ -206,9 +209,9 @@ func (p *Program) Strict() bool              { return p.strict }
 
 // HasAnnotationKind reports whether annotations of k survive in this
 // program: core kinds always do, others while their owner is enabled.
-func (p *Program) HasAnnotationKind(k vocab.AnnotationKind) bool {
+func (p *Program) HasAnnotationKind(k AnnotationKind) bool {
 	switch k {
-	case vocab.Armed, vocab.PendingMarks:
+	case Armed, PendingMarks:
 		return true
 	}
 	for key := range p.annotation {
@@ -234,13 +237,14 @@ func Compile(m Manifest, values Values) (*Program, error) {
 	prog := &Program{
 		version:    programVersion.Add(1),
 		strict:     m.Strict,
+		profile:    m.Profile,
 		rank:       map[string]int{},
 		orders:     m.Resolve,
 		table:      map[tableKey][]*rule{},
-		atomIndex:  map[vocab.Relation]int{},
+		atomIndex:  map[Relation]int{},
 		phases:     map[doc.Phase][]*rewrite{},
-		analyzerOf: map[vocab.FactKind]*analyzer{},
-		factDecls:  map[vocab.FactKind]*factDecl{},
+		analyzerOf: map[FactID]*analyzer{},
+		factDecls:  map[FactID]*factDecl{},
 		annotation: map[annotationKey]AnnotationCheck{},
 		commands:   map[vocab.CommandID]Command{},
 		stacks:     map[stackKey]*Stack{},
@@ -329,9 +333,9 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		prog.guides = append(prog.guides, p.guides...)
 		prog.decorations = append(prog.decorations, p.decorations...)
 	}
-	produced := func(k vocab.FactKind) bool { _, ok := prog.analyzerOf[k]; return ok }
+	produced := func(k FactID) bool { _, ok := prog.analyzerOf[k]; return ok }
 	roleProvided := func(r vocab.Role) bool {
-		if len(kindsProviding(r)) > 0 {
+		if len(prog.kindsProviding(r)) > 0 {
 			return true
 		}
 		for k, d := range prog.factDecls {
@@ -341,13 +345,13 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		}
 		return false
 	}
-	needs := func(s vocab.Scope) (string, bool) {
+	needs := func(s Scope) (string, bool) {
 		switch s.Class {
-		case vocab.ScopeFact:
-			if !produced(vocab.FactKind(s.ID)) {
+		case ScopeFact:
+			if !produced(FactID(s.ID)) {
 				return s.String(), false
 			}
-		case vocab.ScopeRole:
+		case ScopeRole:
 			if !roleProvided(vocab.Role(s.ID)) {
 				return s.String(), false
 			}
@@ -356,7 +360,7 @@ func Compile(m Manifest, values Values) (*Program, error) {
 	}
 
 	// Lower rules.
-	scopeKinds := map[vocab.FactKind]bool{}
+	scopeKinds := map[FactID]bool{}
 	for _, p := range prog.policies {
 	rules:
 		for _, r := range p.rules {
@@ -372,7 +376,7 @@ func Compile(m Manifest, values Values) (*Program, error) {
 				rep.errorf("transform %s declares no outputs", r.id())
 				continue
 			}
-			for _, s := range append([]vocab.Scope{r.in}, relationTargets(r.when)...) {
+			for _, s := range append([]Scope{r.in}, relationTargets(r.when)...) {
 				if what, ok := needs(s); !ok {
 					rep.Dropped = append(rep.Dropped, fmt.Sprintf("%s: nothing produces %s", r.id(), what))
 					continue rules
@@ -387,7 +391,7 @@ func Compile(m Manifest, values Values) (*Program, error) {
 				rep.errorf("rule %s: %v", r.id(), err)
 				continue
 			}
-			for _, s := range append([]vocab.Scope{r.in}, relationTargets(append(slices.Clone(r.when), r.unless...))...) {
+			for _, s := range append([]Scope{r.in}, relationTargets(append(slices.Clone(r.when), r.unless...))...) {
 				prog.noteScopeKinds(s, scopeKinds)
 			}
 			prog.rules = append(prog.rules, r)
@@ -438,34 +442,58 @@ func Compile(m Manifest, values Values) (*Program, error) {
 	return prog, nil
 }
 
-func kindsProviding(r vocab.Role) []doc.Kind {
+// nodeRoles are the roles a node kind provides in the profile.
+func (p *Program) nodeRoles(k doc.Kind) []vocab.Role {
+	if p.profile == nil {
+		return nil
+	}
+	return p.profile.Roles(k)
+}
+
+// nodeRole is n's implementation of role in the profile.
+func (p *Program) nodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
+	if p.profile == nil {
+		return nil, false
+	}
+	return p.profile.Role(r, n, role)
+}
+
+// rootScopes are where core's fallbacks stand: the slot and the root.
+func (p *Program) rootScopes() []Scope {
+	return []Scope{Slot, Root}
+}
+
+func (p *Program) kindsProviding(r vocab.Role) []doc.Kind {
 	var out []doc.Kind
-	for k := vocab.Page; k <= vocab.Formula; k++ {
-		if slices.Contains(vocab.NodeRoles(k), r) {
+	if p.profile == nil {
+		return nil
+	}
+	for _, k := range p.profile.Schema().Kinds() {
+		if slices.Contains(p.nodeRoles(k), r) {
 			out = append(out, k)
 		}
 	}
 	return out
 }
 
-func relationTargets(rels []vocab.Relation) []vocab.Scope {
-	var out []vocab.Scope
+func relationTargets(rels []Relation) []Scope {
+	var out []Scope
 	for _, r := range rels {
 		if r.Target.Class != 0 {
 			out = append(out, r.Target)
 		}
-		if r.At.Class != 0 && r.At.Class != vocab.ScopeParent {
+		if r.At.Class != 0 && r.At.Class != ScopeParent {
 			out = append(out, r.At)
 		}
 	}
 	return out
 }
 
-func (p *Program) noteScopeKinds(s vocab.Scope, into map[vocab.FactKind]bool) {
+func (p *Program) noteScopeKinds(s Scope, into map[FactID]bool) {
 	switch s.Class {
-	case vocab.ScopeFact:
-		into[vocab.FactKind(s.ID)] = true
-	case vocab.ScopeRole:
+	case ScopeFact:
+		into[FactID(s.ID)] = true
+	case ScopeRole:
 		for k, d := range p.factDecls {
 			if slices.Contains(d.roles, vocab.Role(s.ID)) {
 				if _, ok := p.analyzerOf[k]; ok {
@@ -476,7 +504,7 @@ func (p *Program) noteScopeKinds(s vocab.Scope, into map[vocab.FactKind]bool) {
 	}
 }
 
-func (p *Program) lower(rels []vocab.Relation) (atomSet, error) {
+func (p *Program) lower(rels []Relation) (atomSet, error) {
 	var s atomSet
 	for _, r := range rels {
 		i, ok := p.atomIndex[r]
@@ -493,7 +521,7 @@ func (p *Program) lower(rels []vocab.Relation) (atomSet, error) {
 	return s, nil
 }
 
-func patternKinds(ps []vocab.Pattern) []vocab.IntentKind {
+func patternKinds(ps []Pattern) []vocab.IntentKind {
 	var out []vocab.IntentKind
 	for _, p := range ps {
 		if !slices.Contains(out, p.Kind) {
@@ -521,12 +549,12 @@ func (p *Program) qualifies(q any, a, b *rule) bool {
 	case nil:
 		return true
 	case vocab.Role:
-		s := vocab.RoleScope(q)
+		s := RoleScope(q)
 		return p.coincide(a.in, s) || p.coincide(b.in, s)
-	case vocab.Scope:
+	case Scope:
 		return p.coincide(a.in, q) && p.coincide(b.in, q)
-	case vocab.Pattern:
-		return patternsOverlap(a.on, []vocab.Pattern{q}) && patternsOverlap(b.on, []vocab.Pattern{q})
+	case Pattern:
+		return patternsOverlap(a.on, []Pattern{q}) && patternsOverlap(b.on, []Pattern{q})
 	case vocab.IntentKind:
 		return slices.Contains(patternKinds(a.on), q) && slices.Contains(patternKinds(b.on), q)
 	}
@@ -572,7 +600,7 @@ func specificity(r *rule) int {
 	return n*1000 + c
 }
 
-func patternsOverlap(a, b []vocab.Pattern) bool {
+func patternsOverlap(a, b []Pattern) bool {
 	for _, x := range a {
 		for _, y := range b {
 			if x.Overlaps(y) {
@@ -584,27 +612,27 @@ func patternsOverlap(a, b []vocab.Pattern) bool {
 }
 
 // coincide reports whether two scope keys can name the same stack level.
-func (p *Program) coincide(a, b vocab.Scope) bool {
+func (p *Program) coincide(a, b Scope) bool {
 	if a == b {
 		return true
 	}
-	if a.Class == vocab.ScopeRole {
+	if a.Class == ScopeRole {
 		a, b = b, a
 	}
-	if b.Class != vocab.ScopeRole {
+	if b.Class != ScopeRole {
 		return false
 	}
 	role := vocab.Role(b.ID)
 	switch a.Class {
-	case vocab.ScopeNode:
-		return slices.Contains(vocab.NodeRoles(doc.Kind(a.ID)), role)
-	case vocab.ScopeFact:
-		d, ok := p.factDecls[vocab.FactKind(a.ID)]
+	case ScopeNode:
+		return slices.Contains(p.nodeRoles(doc.Kind(a.ID)), role)
+	case ScopeFact:
+		d, ok := p.factDecls[FactID(a.ID)]
 		return ok && slices.Contains(d.roles, role)
-	case vocab.ScopeRole:
+	case ScopeRole:
 		other := vocab.Role(a.ID)
-		for _, k := range kindsProviding(role) {
-			if slices.Contains(vocab.NodeRoles(k), other) {
+		for _, k := range p.kindsProviding(role) {
+			if slices.Contains(p.nodeRoles(k), other) {
 				return true
 			}
 		}
@@ -782,9 +810,9 @@ func (p *Program) check(rep *Report) {
 	// or the page, for the bare intent kind, with no required atoms.
 	for _, k := range vocab.IntentKinds() {
 		ok := false
-		for _, s := range []vocab.Scope{vocab.Slot, vocab.NodeScope(vocab.Page)} {
+		for _, s := range p.rootScopes() {
 			for _, r := range p.table[tableKey{intent: k, scope: s}] {
-				if r.policy == CoreID && r.typ == ruleHandle && r.required.empty() && r.forbidden.empty() && slices.ContainsFunc(r.on, func(pt vocab.Pattern) bool { return pt.Kind == k && !pt.Specific() }) {
+				if r.policy == CoreID && r.typ == ruleHandle && r.required.empty() && r.forbidden.empty() && slices.ContainsFunc(r.on, func(pt Pattern) bool { return pt.Kind == k && !pt.Specific() }) {
 					ok = true
 				}
 			}
@@ -796,7 +824,7 @@ func (p *Program) check(rep *Report) {
 }
 
 // covers reports whether patterns a match everything patterns b match.
-func covers(a, b []vocab.Pattern) bool {
+func covers(a, b []Pattern) bool {
 	for _, y := range b {
 		ok := false
 		for _, x := range a {

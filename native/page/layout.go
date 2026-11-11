@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/ui"
 )
@@ -249,7 +250,7 @@ func orderedStops(u *unitLayout) []surfStop {
 
 // gapBefore is the room before a unit, in gaps.
 func gapBefore(p *present.Presentation) float32 {
-	if p.Kind == vocab.Heading {
+	if p.Kind == profile.Heading {
 		return 1.6
 	}
 	if p.Context.Marker != nil {
@@ -277,7 +278,7 @@ func layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme
 	u := &unitLayout{pres: p}
 	u.x = float32(p.Context.Indent+p.Context.Quotes) * m.Indent
 	width := max(m.Width-u.x, m.Body*4)
-	if vocab.IsObject(p.Kind) {
+	if p.Object {
 		u.object = true
 		u.h = lineHeight(m, m.Body)
 		for _, st := range p.Stops {
@@ -327,7 +328,7 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 	sl := &surfaceLayout{index: index, card: s.Card, anchor: s.Anchor, slot: s.Flow.Slot, w: width}
 	base := th.Resolve([]vocab.Group{p.Group})
 	if s.Card {
-		base = th.Resolve([]vocab.Group{vocab.GroupFormulaSource})
+		base = th.Resolve([]vocab.Group{profile.GroupFormulaSource})
 	}
 	var spans []ui.Span
 	var text strings.Builder
@@ -400,7 +401,7 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 				addComp(it.Groups)
 			}
 			src := boxText(it.Node)
-			bs := th.Resolve(append(slices.Clone(it.Groups), vocab.GroupFormulaSource))
+			bs := th.Resolve(append(slices.Clone(it.Groups), profile.GroupFormulaSource))
 			face := span(src, bs, m.Body)
 			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size}, ui.TextShape{})
 			w, h := lay.Size()
@@ -410,7 +411,7 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 		}
 	}
 	if s.Card {
-		addComp([]vocab.Group{vocab.GroupFormulaSource})
+		addComp([]vocab.Group{profile.GroupFormulaSource})
 	} else {
 		addComp([]vocab.Group{p.Group})
 	}
