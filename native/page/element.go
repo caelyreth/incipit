@@ -578,18 +578,15 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
 	paints := el.shownPaints(pl)
-	el.paintDecos(p, pl, paints, ox, oy, top, bottom, now, animate)
-	// The selection's text glides beneath the text; a drag places it
-	// directly, so it follows the pointer and glides on from there. What
-	// else it covers is painted as every paint is.
-	rows := el.selection.Step(selectionRows(pl, paints), now, animate && el.gesture == nil)
-	if el.selection.Moving() {
-		p.AnimationFrame()
+	// In layers, the same for every surface: what units draw and the
+	// panels their surfaces stand on, then every decoration and the
+	// selection over them, then the surfaces' text over those.
+	type shownUnit struct {
+		u        *unitLayout
+		ux, uy   float32
+		surfaces []shownSurface
 	}
-	wash := t.Prose.Selection.Alpha(el.selection.Opacity())
-	for _, row := range rows {
-		p.Fill(ui.Rect{X: ox + row.X, Y: oy + row.Y, W: row.W, H: row.H}, wash, 2)
-	}
+	var shown []shownUnit
 	for _, u := range pl.units {
 		uy := oy + u.y
 		if uy > bottom || uy+u.h < top {
@@ -614,31 +611,32 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
 			continue
 		}
-		clip := ui.Rect{X: ox - cardPad(m), Y: uy, W: m.Width + 2*cardPad(m), H: u.shown}
-		p.Clip(clip, 0, func() {
-			open := el.opened(u)
-			for i, s := range u.surfaces {
-				switch {
-				case u.math != nil && i == 0:
-					// The source panel shows as far as the block has
-					// opened past its display.
-					if a := panel; a > 0.001 {
-						el.paintSurface(p, s, ux, uy, true, a)
-					}
-				case !s.shown:
-				case s.card:
-					el.paintSurface(p, s, ux, uy, true, open)
-				default:
-					el.paintSurface(p, s, ux, uy, false, 1)
+		su := shownUnit{u: u, ux: ux, uy: uy, surfaces: el.shownSurfaces(u, panel)}
+		el.clipUnit(p, u, ox, uy, func() {
+			for _, ss := range su.surfaces {
+				if ss.panel {
+					el.paintPanel(p, ss.s, ux, uy)
 				}
 			}
-			if prev, a := el.closing(u); prev != nil && a > 0.001 {
-				// A card closed fades out where it stood.
-				for i, s := range prev.surfaces {
-					if s.card && s.shown && (i >= len(u.surfaces) || !u.surfaces[i].shown) {
-						el.paintSurface(p, s, ux, uy, true, a)
-					}
-				}
+		})
+		shown = append(shown, su)
+	}
+	el.paintDecos(p, pl, paints, ox, oy, top, bottom, now, animate)
+	// The selection's text glides beneath the text; a drag places it
+	// directly, so it follows the pointer and glides on from there. What
+	// else it covers is painted as every paint is.
+	rows := el.selection.Step(selectionRows(pl, paints), now, animate && el.gesture == nil)
+	if el.selection.Moving() {
+		p.AnimationFrame()
+	}
+	wash := t.Prose.Selection.Alpha(el.selection.Opacity())
+	for _, row := range rows {
+		p.Fill(ui.Rect{X: ox + row.X, Y: oy + row.Y, W: row.W, H: row.H}, wash, 2)
+	}
+	for _, su := range shown {
+		el.clipUnit(p, su.u, ox, su.uy, func() {
+			for _, ss := range su.surfaces {
+				el.paintSurface(p, ss.s, su.ux, su.uy, ss.panel, ss.a)
 			}
 		})
 	}
@@ -663,17 +661,71 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 // paintSurface draws one of a unit's surfaces at a strength: a panel, as
 // a card or a math block's source, on its inset fill.
 func (el *Element) paintSurface(p *ui.Painter, s *surfaceLayout, ux, uy float32, panel bool, a float32) {
-	m := el.Editor.metrics
 	sx, sy := ux+s.x, uy+s.y
 	area := ui.Rect{X: sx, Y: sy, W: s.w, H: s.h}
 	if panel {
-		area = ui.Rect{X: sx - cardPad(m)/2, Y: sy - cardPad(m)/2, W: s.w + cardPad(m), H: s.h + cardPad(m)}
-		p.Fill(area, el.Theme.Surface.Inset, 6)
+		area = el.panelArea(s, ux, uy)
 	}
 	p.TextLayout(s.layout, sx, sy, el.Theme.Prose.Text)
 	el.paintGhosts(p, s, sx, sy)
 	el.paintBoxes(p, s, sx, sy)
 	el.veil(p, area, a)
+}
+
+// shownSurface is a surface as the page shows it: on a panel or not, at
+// a strength.
+type shownSurface struct {
+	s     *surfaceLayout
+	panel bool
+	a     float32
+}
+
+// shownSurfaces are the surfaces of u the page shows: its text; a card
+// as far as it has opened, and one closed fading out where it stood; a
+// math block's source as far as the block has opened past its display
+// (panel).
+func (el *Element) shownSurfaces(u *unitLayout, panel float32) []shownSurface {
+	var out []shownSurface
+	open := el.opened(u)
+	for i, s := range u.surfaces {
+		switch {
+		case u.math != nil && i == 0:
+			if panel > 0.001 {
+				out = append(out, shownSurface{s, true, panel})
+			}
+		case !s.shown:
+		case s.card:
+			out = append(out, shownSurface{s, true, open})
+		default:
+			out = append(out, shownSurface{s, false, 1})
+		}
+	}
+	if prev, a := el.closing(u); prev != nil && a > 0.001 {
+		for i, s := range prev.surfaces {
+			if s.card && s.shown && (i >= len(u.surfaces) || !u.surfaces[i].shown) {
+				out = append(out, shownSurface{s, true, a})
+			}
+		}
+	}
+	return out
+}
+
+// clipUnit paints within the room u stands in while it springs.
+func (el *Element) clipUnit(p *ui.Painter, u *unitLayout, ox, uy float32, paint func()) {
+	m := el.Editor.metrics
+	p.Clip(ui.Rect{X: ox - cardPad(m), Y: uy, W: m.Width + 2*cardPad(m), H: u.shown}, 0, paint)
+}
+
+// panelArea is the inset a panel surface stands on.
+func (el *Element) panelArea(s *surfaceLayout, ux, uy float32) ui.Rect {
+	m := el.Editor.metrics
+	return ui.Rect{X: ux + s.x - cardPad(m)/2, Y: uy + s.y - cardPad(m)/2, W: s.w + cardPad(m), H: s.h + cardPad(m)}
+}
+
+// paintPanel lays the inset a panel surface stands on, beneath the
+// decorations over its text.
+func (el *Element) paintPanel(p *ui.Painter, s *surfaceLayout, ux, uy float32) {
+	p.Fill(el.panelArea(s, ux, uy), el.Theme.Surface.Inset, 6)
 }
 
 // decoKey is a decoration's identity across frames: where it is, where it
