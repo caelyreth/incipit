@@ -2,38 +2,47 @@
 
 Neverland is a writing workspace built with Go and MyGo.
 
-Its design:
-
-- the headless semantic and policy engine remains authoritative;
-- generated markup remains a projection rather than stored text;
-- MyGo supplies native windows, text input, shaping, paint, focus, motion,
-  accessibility, and application chrome;
-- Neverland supplies the custom editor buffer, selection affinity, projected
-  edits, IME policy, history, and text interaction.
+The application shell stands on its own: windows, tabs, the library, the
+settings window, the command palette and the notebook on disk. The rebuilt
+page editor runs behind it with core text editing, Markdown notation, pairs,
+lists, navigation, history, guides, word and sentence boundaries, typography,
+CJK refinement, scopes and deletion, tasks, statistics, formatting state, and
+persisted settings and selections. Copy and paste carry structure through the
+system clipboard. Tables, figures, formula typesetting and accessibility are
+still being built.
 
 ## Layout
 
 ```text
 cmd/neverland        executable composition
-engine/model         semantic document, text roots, anchors, marks
-engine/kernel        policy catalog, planning, dispatch, projection, publication
-engine/editor        editor policies, session, composition, history
-engine/surface       UI-neutral frame and style values
-app/controller       engine-backed document controller and TextInputClient
-app/workspace        pages, tabs, mounted/parked sessions
-app/settings         declarative settings snapshots and changes
-native/theme         Neverland palette and prose/UI metrics
-native/textlayout    MyGo shaping and retained paragraph geometry
-native/motion        cursor, selection, viewport, and feedback animation
-native/documentview  custom writing surface
+editor/doc           document tree, operations, transactions and history
+editor/vocab         kinds, intents, roles and semantic helpers
+editor/policy        policy framework, facts, annotations and dispatch
+editor/policies      the product's behavior policies
+editor/present       presentation units, stop maps and decorations
+editor/engine        per-page intent processing and publication
+editor/store         node-row encoding and pointer-diff saves
+app/keymap           shell commands, chords and the keymap
+app/clipboard        versioned structured slice transfer
+app/library          groups, chapters, sheets and the trash
+app/settings         settings state and the changes it takes
+app/storage          the notebook on disk: pages, library, layout, media
+app/workspace        pages and tabs
+internal/wordseg     ICU-tailored word boundaries
+native/theme         palette and prose/UI metrics
+native/components    shared controls
+native/motion        animation curves
 native/shell         window composition and chrome
 native/overlay       command palette
-fixtures             conformance data the engine tests check against
+native/settings      settings window
+native/notices       toasts
+native/formula       TeX formula setting
+native/window        the app: windows, menus, routing, notebook
 ```
 
 ## Development
 
-The repository uses Go 1.27.3 and MyGo v0.7.4.
+The repository uses Go 1.27.3 and MyGo v0.8.3.
 
 ```sh
 direnv allow
@@ -44,7 +53,7 @@ go tool mygo build    # app bundle and installer under dist/<os>-<arch>
 ```
 
 The MyGo CLI is pinned as a Go tool in `go.mod`, so `go tool mygo` runs the
-same v0.7.4 release as the framework. `mygo.json` holds the app configuration.
+same v0.8.3 release as the framework. `mygo.json` holds the app configuration.
 
 The reference prose font and the math font are fetched into ignored local
 paths and verified against pinned SHA-256 checksums. `go generate ./native/theme` performs the
@@ -55,23 +64,8 @@ exact 1.27.3 patch release required by MyGo.
 
 ## Text segmentation
 
-Word selection, movement, and statistics use ICU-tailored Unicode word rules.
-Chinese and Japanese runs use an embedded ICU dictionary, while Korean and
-Latin text use the same UAX #29-compatible platform boundaries.
-
-Thai, Lao, Khmer, and Burmese remain valid editable text and use Unicode
-grapheme fallback boundaries. Their language-specific dictionary segmentation
-is deferred and is not part of the initial support contract.
-
-## Status
-
-The engine, application boundary, custom writing surface, window shell,
-settings window, command palette, pointer selection, and contractual motion
-are implemented and covered by headless tests. The complete merged suite passes
-with the race detector and `go vet`. The conformance fixtures under
-`fixtures/` are mandatory and have no skipped cases.
-
-Still required before release: broader randomized editor traces, native
-IME/accessibility acceptance on every target OS, performance acceptance, and
-cross-platform runtime packaging.
-
+`internal/wordseg` uses ICU-tailored Unicode word rules. Chinese and Japanese
+runs use an embedded ICU dictionary, while Korean and Latin text use the same
+UAX #29-compatible platform boundaries. Thai, Lao, Khmer and Burmese fall back
+to grapheme boundaries. The editor reaches it through `vocab.WordSegments` for
+word-wise motion, selection and deletion.

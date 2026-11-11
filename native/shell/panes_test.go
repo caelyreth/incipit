@@ -16,10 +16,10 @@ var paneMoves = []struct {
 }{
 	{"library closes", true, true, false, true},
 	{"library opens", false, true, true, true},
-	{"editor only", true, true, false, false},
-	{"sheets from editor", false, false, false, true},
-	{"editor from sheets", false, true, false, false},
-	{"all from editor", false, false, true, true},
+	{"page only", true, true, false, false},
+	{"sheets from page", false, false, false, true},
+	{"page from sheets", false, true, false, false},
+	{"all from page", false, false, true, true},
 }
 
 func TestPlaceTitleKeepsItsSharedFlightAtDifferentScales(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/native/testlock"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -39,7 +39,7 @@ func TestPaletteFiltersNavigatesAndConsumesChoice(t *testing.T) {
 	palette.Query = "it"
 	palette.Move(1)
 	choice, ok := palette.Submit()
-	if !ok || choice != kernel.CommandID("italic") || palette.Open {
+	if !ok || choice != keymap.CommandID("italic") || palette.Open {
 		t.Fatalf("choice = %q,%v open=%v", choice, ok, palette.Open)
 	}
 	consumed, ok := palette.ConsumeChoice()
@@ -68,7 +68,7 @@ func TestPaletteResultsPullPastTheEnd(t *testing.T) {
 	commands := make([]Command, 0, 80)
 	for index := range 80 {
 		commands = append(commands, Command{
-			ID: kernel.CommandID(fmt.Sprintf("command-%d", index)), Label: "Command",
+			ID: keymap.CommandID(fmt.Sprintf("command-%d", index)), Label: "Command",
 			Group: "Test",
 		})
 	}

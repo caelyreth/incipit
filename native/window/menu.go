@@ -3,24 +3,22 @@ package window
 import (
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/kernel"
-	"github.com/caelyreth/neverland/native/shell"
 	"github.com/egoist/mygo"
 )
 
-// MainMenu builds the application menu around the editor's stable command
-// boundary. Edit and format items keep MyGo's roles, so text fields anywhere
-// still cut, copy and paste; app items run the same host commands as their
-// shortcuts. Every item that performs a keymap action takes its key from the
-// keymap (syncMenu), so the menu shows, and a key press reaches, the action
-// the keymap gives that key.
+// MainMenu builds the application menu. Edit items keep MyGo's roles, so
+// text fields anywhere still cut, copy and paste; app items run the same
+// commands as their shortcuts. Every item that runs a keymap command takes
+// its key from the keymap (syncMenu), so the menu shows, and a key press
+// reaches, the command the keymap gives that key.
 func (a *AppState) MainMenu() *mygo.Menu {
-	command := func(id kernel.CommandID) func(*mygo.MenuItem, *mygo.Window) {
+	command := func(id keymap.CommandID) func(*mygo.MenuItem, *mygo.Window) {
 		// MyGo runs a click without a frame after it, so the window is
 		// redrawn here, or the change would wait for the next event.
 		return func(_ *mygo.MenuItem, window *mygo.Window) {
-			_ = a.executeWindowCommand(window, id)
+			if err := a.routeWindowCommand(window, id); err != nil {
+				a.fail("Couldn't run the command", err)
+			}
 			for _, w := range []*mygo.Window{window, a.mainWindow, a.settingsWindow} {
 				if w != nil && !w.IsDestroyed() {
 					w.Invalidate()
@@ -34,7 +32,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			Submenu: []*mygo.MenuItem{
 				{Role: mygo.RoleAbout},
 				mygo.Separator(),
-				{ID: "settings", Label: "Settings...", Click: command(editor.SurfaceSettingsCommandID)},
+				{ID: "settings", Label: "Settings...", Click: command(keymap.Settings)},
 				mygo.Separator(),
 				{Role: mygo.RoleServices},
 				mygo.Separator(),
@@ -48,44 +46,35 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		{
 			Label: "File",
 			Submenu: []*mygo.MenuItem{
-				{ID: "new-page", Label: "New Page", Click: command(editor.SurfaceNewPageCommandID)},
-				{ID: "close-page", Label: "Close Page", Click: command(editor.SurfaceClosePageCommandID)},
+				{ID: "new-page", Label: "New Page", Click: command(keymap.NewPage)},
+				{ID: "close-page", Label: "Close Page", Click: command(keymap.ClosePage)},
 			},
 		},
 		{
 			Label: "Edit",
 			Submenu: []*mygo.MenuItem{
-				{ID: "undo", Role: mygo.RoleUndo},
-				{ID: "redo", Role: mygo.RoleRedo},
+				{Role: mygo.RoleUndo},
+				{Role: mygo.RoleRedo},
 				mygo.Separator(),
-				{ID: "cut", Role: mygo.RoleCut},
-				{ID: "copy", Role: mygo.RoleCopy},
-				{ID: "paste", Role: mygo.RolePaste},
+				{Role: mygo.RoleCut},
+				{Role: mygo.RoleCopy},
+				{Role: mygo.RolePaste},
 				{Role: mygo.RolePasteAndMatchStyle},
 				{Role: mygo.RoleDelete},
-				{ID: "select-all", Role: mygo.RoleSelectAll},
-			},
-		},
-		{
-			Label: "Format",
-			Submenu: []*mygo.MenuItem{
-				{ID: "bold", Role: mygo.RoleBold},
-				{ID: "italic", Role: mygo.RoleItalic},
-				mygo.Separator(),
-				{ID: "insert-table", Label: "Insert Table", Click: command(editor.InsertTableCommandID)},
+				{Role: mygo.RoleSelectAll},
 			},
 		},
 		{
 			Label: "View",
 			Submenu: []*mygo.MenuItem{
-				{ID: "view-library", Label: "Library", Click: command(editor.SurfaceLibraryViewCommandID)},
-				{ID: "view-sheets", Label: "Sheet List", Click: command(editor.SurfaceSheetsViewCommandID)},
-				{ID: "view-editor", Label: "Editor Only", Click: command(editor.SurfaceEditorViewCommandID)},
+				{ID: "view-library", Label: "Library", Click: command(keymap.LibraryView)},
+				{ID: "view-sheets", Label: "Sheet List", Click: command(keymap.SheetsView)},
+				{ID: "view-page", Label: "Page Only", Click: command(keymap.PageView)},
 				mygo.Separator(),
-				{ID: "toggle-sidebar", Label: "Toggle Library", Click: command(editor.SurfaceSidebarCommandID)},
-				{ID: "toggle-sheet-list", Label: "Toggle Sheet List", Click: command(editor.SurfaceSheetListCommandID)},
+				{ID: "toggle-sidebar", Label: "Toggle Library", Click: command(keymap.Sidebar)},
+				{ID: "toggle-sheet-list", Label: "Toggle Sheet List", Click: command(keymap.SheetList)},
 				mygo.Separator(),
-				{ID: "commands", Label: "Command Palette", Click: command(editor.SurfaceCommandsCommandID)},
+				{ID: "commands", Label: "Command Palette", Click: command(keymap.Commands)},
 				mygo.Separator(),
 				{Role: mygo.RoleToggleFullScreen},
 			},
@@ -109,64 +98,51 @@ func (a *AppState) MainMenu() *mygo.Menu {
 	return menu
 }
 
-// executeWindowCommand applies a menu command in the window that received
-// it. Editor and workspace commands belong to the main window; an auxiliary
-// window closes itself instead of reaching back into the editor.
-func (a *AppState) executeWindowCommand(window *mygo.Window, command kernel.CommandID) error {
-	return a.routeWindowCommand(window, command)
-}
-
-// keymapMenu pairs each menu item that performs a keymap action with it.
+// keymapMenu pairs each menu item that runs a keymap command with it.
 var keymapMenu = [...]struct {
 	id      string
-	command kernel.CommandID
+	command keymap.CommandID
 }{
-	{"settings", editor.SurfaceSettingsCommandID},
-	{"new-page", editor.SurfaceNewPageCommandID},
-	{"close-page", editor.SurfaceClosePageCommandID},
-	{"undo", editor.UndoCommandID},
-	{"redo", editor.RedoCommandID},
-	{"cut", editor.SurfaceCutCommandID},
-	{"copy", editor.SurfaceCopyCommandID},
-	{"paste", editor.SurfacePasteCommandID},
-	{"select-all", editor.SelectAllCommandID},
-	{"bold", editor.StrongCommandID},
-	{"italic", editor.EmphasisCommandID},
-	{"insert-table", editor.InsertTableCommandID},
-	{"view-library", editor.SurfaceLibraryViewCommandID},
-	{"view-sheets", editor.SurfaceSheetsViewCommandID},
-	{"view-editor", editor.SurfaceEditorViewCommandID},
-	{"toggle-sidebar", editor.SurfaceSidebarCommandID},
-	{"toggle-sheet-list", editor.SurfaceSheetListCommandID},
-	{"commands", editor.SurfaceCommandsCommandID},
+	{"settings", keymap.Settings},
+	{"new-page", keymap.NewPage},
+	{"close-page", keymap.ClosePage},
+	{"view-library", keymap.LibraryView},
+	{"view-sheets", keymap.SheetsView},
+	{"view-page", keymap.PageView},
+	{"toggle-sidebar", keymap.Sidebar},
+	{"toggle-sheet-list", keymap.SheetList},
+	{"commands", keymap.Commands},
 }
 
-// syncMenu gives each keymap item its action's first key, or none, and the
-// action's availability. While a shortcut is being recorded every item lets
+// menuCommands are the commands a menu item carries, whose keys the menu
+// takes.
+var menuCommands = func() map[keymap.CommandID]bool {
+	commands := make(map[keymap.CommandID]bool, len(keymapMenu))
+	for _, entry := range keymapMenu {
+		commands[entry.command] = true
+	}
+	return commands
+}()
+
+// syncMenu gives each keymap item its command's key, or none. While a
+// shortcut is being recorded every item lets
 // go of its key, the system's too, so the recorder hears each chord as keys:
 // a disabled item would not do, as macOS validates the edit items enabled
 // and still lets them take their keys.
 func (a *AppState) syncMenu() {
-	if a == nil || a.menu == nil || a.Store == nil {
+	if a == nil || a.menu == nil {
 		return
 	}
-	prepared := a.Store.PreparedConfiguration()
 	for _, entry := range keymapMenu {
 		item := a.menu.ItemByID(entry.id)
 		if item == nil {
 			continue
 		}
-		action, known := keymap.ResolveCommand(entry.command)
-		accelerator, enabled := "", known && a.commandEnabledWith(prepared, action)
-		if prepared != nil {
-			if bindings := prepared.BindingsFor(entry.command); len(bindings) > 0 && !a.recording {
-				accelerator, _ = keymap.Accelerator(bindings[0], keymap.PlatformCurrent)
-			}
+		accelerator := ""
+		if chord, ok := a.Product.Keymap.ChordFor(entry.command); ok && !a.recording {
+			accelerator, _ = keymap.Accelerator(chord, keymap.PlatformCurrent)
 		}
 		setAccelerator(item, accelerator)
-		if item.IsEnabled() != enabled {
-			item.SetEnabled(enabled)
-		}
 	}
 	for item, accelerator := range a.systemKeys {
 		if a.recording {
@@ -190,15 +166,15 @@ func (a *AppState) setRecording(recording bool) {
 	}
 }
 
-// reservedKey names the menu item that keeps target for itself: a key of the
-// system's items, as Quit's, which no keymap action can be given, as the menu
-// would always take it first.
-func (a *AppState) reservedKey(target kernel.BindingTarget) (string, bool) {
+// reservedKey names the menu item that keeps chord for itself: a key of the
+// system's items, as Quit's, which no keymap command can be given, as the
+// menu would always take it first.
+func (a *AppState) reservedKey(chord keymap.Chord) (string, bool) {
 	if a == nil {
 		return "", false
 	}
 	for item, accelerator := range a.systemKeys {
-		if held, ok := keymap.ParseAccelerator(accelerator, keymap.PlatformCurrent); ok && held == target {
+		if held, ok := keymap.ParseAccelerator(accelerator, keymap.PlatformCurrent); ok && held == chord {
 			return item.Label, true
 		}
 	}
@@ -214,29 +190,6 @@ func eachItem(items []*mygo.MenuItem, visit func(*mygo.MenuItem)) {
 		visit(item)
 		eachItem(item.Submenu, visit)
 	}
-}
-
-func (a *AppState) newPage() {
-	if a == nil || a.Workspace == nil {
-		return
-	}
-	a.NewSheet(a.Shell.CurrentGroup(), shell.Last)
-}
-
-func (a *AppState) closePage() {
-	if a == nil || a.Workspace == nil {
-		return
-	}
-	a.parkScroll()
-	id, ok := a.Workspace.Active()
-	if !ok {
-		return
-	}
-	if err := a.Workspace.Close(id); err != nil {
-		a.fail("Couldn't close the page", err)
-		return
-	}
-	a.selectMounted()
 }
 
 func (a *AppState) toggleSidebar() {
@@ -263,12 +216,4 @@ func (a *AppState) showPanes(library, sheets bool) {
 		a.setPresentation(appsettings.PresentationZen, false)
 	}
 	a.Shell.ShowPanes(library, sheets)
-}
-
-func (a *AppState) openCommands() {
-	if a == nil || a.Palette == nil {
-		return
-	}
-	a.Palette.Open = true
-	a.Palette.Reset(a.commands())
 }

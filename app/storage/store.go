@@ -129,9 +129,9 @@ func (s *Store) open() error {
 	if err := s.loadMedia(ctx); err != nil {
 		return err
 	}
-	// A sweep that cannot finish keeps every picture it did not reach,
-	// to try again at the next launch: it never stops the notebook opening.
-	_ = s.sweepMedia(ctx)
+	// A sweep that cannot finish tries again at the next launch: it never
+	// stops the notebook opening.
+	_ = s.sweepMedia()
 	return nil
 }
 

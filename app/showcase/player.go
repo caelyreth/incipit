@@ -1,61 +1,24 @@
-// Package showcase replays scripted writing against a real editor session,
-// so a feature is shown by the engine itself rather than by a recording.
-// A script is a list of beats: typing with a human cadence, commands,
-// pointer selections and pauses. The player owns the document and the
-// timeline; a native stage draws the document. Nothing here depends on MyGo.
+// Package showcase replays a policy's showcase (policy.Showcase, declared
+// with the policy) against a real engine, so a policy is shown by the
+// engine itself rather than by a recording: typing with a human cadence,
+// intents and pauses. The player owns the page and the timeline; a host types through
+// a page of its own over the player's engine, which it draws. Nothing here
+// depends on MyGo.
 package showcase
 
 import (
-	"strings"
+	"maps"
+	"math/rand/v2"
 	"time"
 	"unicode/utf8"
 
-	"github.com/caelyreth/neverland/app/controller"
-	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/app/manifest"
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/engine"
+	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/editor/vocab"
 )
-
-// BeatKind is what one beat does.
-type BeatKind uint8
-
-const (
-	BeatType BeatKind = iota + 1
-	BeatPress
-	BeatSelect
-	BeatPlace
-	BeatWait
-)
-
-// Beat is one step of a script.
-type Beat struct {
-	Kind    BeatKind
-	Text    string
-	Command kernel.CommandID
-	Wait    time.Duration
-}
-
-// Type types text one character at a time, as a person would.
-func Type(text string) Beat { return Beat{Kind: BeatType, Text: text} }
-
-// Press invokes a command through the editor, as its shortcut would.
-func Press(command kernel.CommandID) Beat { return Beat{Kind: BeatPress, Command: command} }
-
-// Select selects the first occurrence of text in the drawn document, as a
-// pointer drag would.
-func Select(text string) Beat { return Beat{Kind: BeatSelect, Text: text} }
-
-// Place clicks just after the first occurrence of text.
-func Place(text string) Beat { return Beat{Kind: BeatPlace, Text: text} }
-
-// Wait holds the frame, letting the reader see what just happened.
-func Wait(duration time.Duration) Beat { return Beat{Kind: BeatWait, Wait: duration} }
-
-// Script is a showcase: beats set up instantly, then beats played in time.
-// Hold is how long the finished page stays before the loop restarts.
-type Script struct {
-	Setup []Beat
-	Beats []Beat
-	Hold  time.Duration
-}
 
 const (
 	// FadeOut and FadeIn frame each loop, so a restart reads as a cut
@@ -68,56 +31,82 @@ const (
 	gap = time.Second
 )
 
-// Player replays one script, looping, against its own document.
+// Page is what the player types through: the host's page over the
+// player's engine, so the host sees every input as its own.
+type Page interface {
+	Do(in vocab.Intent, at time.Time) bool
+}
+
+// View is the view of the player's engine the host's page opens.
+const View uint64 = 1
+
+// Player replays one script, looping, against a page of its own.
 type Player struct {
-	script        Script
-	configuration kernel.PolicyConfiguration
-	clock         *playerClock
+	script policy.Showcase
+	policy string
+	values policy.Values
+	open   func(*engine.Engine) Page
 
-	document *controller.DocumentController
-	loop     int
-	index    int
-	typed    int
-	due      time.Time
-	started  time.Time
-	ended    time.Time
-	wake     time.Time
-	err      error
+	prog    *policy.Program
+	engine  *engine.Engine
+	page    Page
+	loop    int
+	index   int
+	typed   int
+	due     time.Time
+	started time.Time
+	ended   time.Time
+	wake    time.Time
+	err     error
 }
 
-type playerClock struct{ now time.Time }
-
-func (c *playerClock) Now() time.Time { return c.now }
-
-// NewPlayer prepares script under configuration, starting at now.
-func NewPlayer(script Script, configuration kernel.PolicyConfiguration, now time.Time) *Player {
-	player := &Player{
-		script:        script,
-		configuration: configuration.Clone(),
-		clock:         &playerClock{now: now},
-	}
-	player.restart(now)
-	return player
+// NewPlayer prepares the showcase of policyID under the person's values,
+// starting at now. open gives the host's page over each loop's engine.
+func NewPlayer(script policy.Showcase, policyID string, values policy.Values, open func(*engine.Engine) Page, now time.Time) *Player {
+	p := &Player{script: script, policy: policyID, open: open}
+	p.configure(values)
+	p.restart(now)
+	return p
 }
 
-// Document is the live document the stage draws.
-func (p *Player) Document() *controller.DocumentController { return p.document }
+// Engine is the current loop's engine.
+func (p *Player) Engine() *engine.Engine { return p.engine }
 
-// Loop counts restarts, so a stage can drop motion that belongs to the
-// previous loop's document.
+// Program is the program the story plays under.
+func (p *Player) Program() *policy.Program { return p.prog }
+
+// Loop counts restarts, so a host can drop motion that belongs to the
+// previous loop's page.
 func (p *Player) Loop() int { return p.loop }
 
-// Err is the first failure of the current loop, if a beat was rejected.
+// Err is the first failure of the current loop.
 func (p *Player) Err() error { return p.err }
 
-// Configure replays the script under configuration when it differs, so
-// toggling a setting shows its effect from the start of the story.
-func (p *Player) Configure(configuration kernel.PolicyConfiguration, now time.Time) {
-	if p.configuration.Equal(configuration) {
+// Configure replays the script under values when they differ, so changing
+// an option shows its effect from the start of the story.
+func (p *Player) Configure(values policy.Values, now time.Time) {
+	if maps.Equal(values, p.values) {
 		return
 	}
-	p.configuration = configuration.Clone()
+	p.configure(values)
 	p.restart(now)
+}
+
+// configure compiles values with the showcased policy on: a showcase
+// always shows its feature working, under the options the person chose.
+func (p *Player) configure(values policy.Values) {
+	p.values = maps.Clone(values)
+	on := maps.Clone(values)
+	if on == nil {
+		on = policy.Values{}
+	}
+	on[policy.EnabledKey(p.policy)] = true
+	prog, err := manifest.Compile(on, false)
+	if err != nil {
+		p.err = err
+		return
+	}
+	p.prog = prog
 }
 
 // Opacity is the page's fade at now: rising after a restart, falling
@@ -170,7 +159,6 @@ func (p *Player) next(now time.Time) time.Time {
 		if now.Before(p.due) {
 			return p.due
 		}
-		p.clock.now = p.due
 		p.step()
 	}
 }
@@ -178,53 +166,27 @@ func (p *Player) next(now time.Time) time.Time {
 // Finish plays the rest of the current loop at once and holds its last
 // page, for a stage that must not move.
 func (p *Player) Finish() {
-	if !p.ended.IsZero() {
-		return
+	for p.ended.IsZero() {
+		p.step()
 	}
-	for p.index < len(p.script.Beats) {
-		beat := p.script.Beats[p.index]
-		if beat.Kind == BeatType {
-			for _, r := range beat.Text[p.typed:] {
-				p.document.ReplaceText(nil, string(r))
-			}
-		} else {
-			p.play(beat)
-		}
-		p.index, p.typed = p.index+1, 0
-	}
-	// A finished story stands still: nothing in it is being corrected, so
-	// no correction pulses over it.
-	if session := p.document.Session(); session != nil {
-		session.Feedback().Clear()
-	}
-	p.ended = p.due
 }
 
 func (p *Player) restart(now time.Time) {
-	p.clock.now = now
 	p.loop++
 	p.index, p.typed = 0, 0
 	p.started, p.due, p.ended = now, now.Add(FadeIn), time.Time{}
-	p.err = nil
-	document, err := controller.NewTextDocument("", p.clock)
-	if err == nil {
-		err = document.Adopt(p.configuration)
-	}
-	if err != nil {
-		p.err = err
+	if p.prog == nil {
 		p.ended = now
 		return
 	}
-	p.document = document
-	for _, beat := range p.script.Setup {
-		if beat.Kind == BeatType {
-			for _, r := range beat.Text {
-				p.document.ReplaceText(nil, string(r))
-			}
-			continue
-		}
-		p.play(beat)
+	snap, err := profile.EmptyPage(1, rand.Uint64(), doc.NewInterner())
+	if err != nil {
+		p.err, p.ended = err, now
+		return
 	}
+	p.err = nil
+	p.engine = engine.New(snap, p.prog, engine.Options{})
+	p.page = p.open(p.engine)
 }
 
 // step plays the current beat, or the next character of a typing beat,
@@ -235,56 +197,50 @@ func (p *Player) step() {
 		return
 	}
 	beat := p.script.Beats[p.index]
-	if beat.Kind == BeatType {
+	if beat.Kind == policy.BeatType {
 		rest := beat.Text[p.typed:]
 		if rest == "" {
 			p.index, p.typed = p.index+1, 0
 			return
 		}
 		r, size := utf8.DecodeRuneInString(rest)
-		p.document.ReplaceText(nil, string(r))
-		p.record()
+		p.do(typed(r), p.due)
 		p.typed += size
 		p.due = p.due.Add(keystroke(r, p.loop*7919+p.index*131+p.typed))
 		return
 	}
-	p.play(beat)
+	if beat.Kind == policy.BeatPress {
+		p.do(beat.Intent, p.due)
+	}
 	p.index++
 	p.due = p.due.Add(beatPause(beat))
 }
 
-func (p *Player) play(beat Beat) {
-	switch beat.Kind {
-	case BeatPress:
-		_, err := p.document.Execute(controller.Command{ID: string(beat.Command)})
-		if err != nil && p.err == nil {
-			p.err = err
-		}
-	case BeatSelect, BeatPlace:
-		text := p.document.Text()
-		start := strings.Index(text, beat.Text)
-		if start < 0 {
-			if p.err == nil {
-				p.err = &MissingTextError{Text: beat.Text}
-			}
-			return
-		}
-		from := utf16Len(text[:start])
-		to := from + utf16Len(beat.Text)
-		if beat.Kind == BeatPlace {
-			from = to
-		}
-		if err := p.document.SelectPointer(from, to, p.clock.now); err != nil && p.err == nil {
-			p.err = err
-		}
+func (p *Player) do(in vocab.Intent, at time.Time) {
+	if !p.page.Do(in, at) && p.err == nil {
+		p.err = &RejectedError{Intent: in}
 	}
-	p.record()
 }
 
-func (p *Player) record() {
-	if err := p.document.LastError(); err != nil && p.err == nil {
-		p.err = err
+func intents(beat policy.Beat) []vocab.Intent {
+	switch beat.Kind {
+	case policy.BeatType:
+		var out []vocab.Intent
+		for _, r := range beat.Text {
+			out = append(out, typed(r))
+		}
+		return out
+	case policy.BeatPress:
+		return []vocab.Intent{beat.Intent}
 	}
+	return nil
+}
+
+func typed(r rune) vocab.Intent {
+	if r == '\n' {
+		return vocab.Break{}
+	}
+	return vocab.Type{Text: string(r)}
 }
 
 // keystroke is the pause after typing r: a steady hand with a little
@@ -298,37 +254,25 @@ func keystroke(r rune, seed int) time.Duration {
 		pause += 34 * time.Millisecond
 	case ',', ';', ':':
 		pause += 160 * time.Millisecond
-	case '.', '!', '?', '。', '，', '…':
+	case '.', '!', '?', '。', '，', '…', '\n':
 		pause += 260 * time.Millisecond
 	}
 	return pause
 }
 
-func beatPause(beat Beat) time.Duration {
+func beatPause(beat policy.Beat) time.Duration {
 	switch beat.Kind {
-	case BeatWait:
+	case policy.BeatWait:
 		return beat.Wait
-	case BeatPress:
+	case policy.BeatPress:
 		return 260 * time.Millisecond
 	default:
 		return 380 * time.Millisecond
 	}
 }
 
-func utf16Len(text string) int {
-	length := 0
-	for _, r := range text {
-		if r >= 0x10000 {
-			length += 2
-		} else {
-			length++
-		}
-	}
-	return length
-}
+// RejectedError reports an intent of a script the engine did not answer:
+// the script and the policies disagree.
+type RejectedError struct{ Intent vocab.Intent }
 
-// MissingTextError reports a Select or Place beat naming text the page
-// does not show: the script and the policies disagree.
-type MissingTextError struct{ Text string }
-
-func (e *MissingTextError) Error() string { return "showcase: page does not show " + e.Text }
+func (e *RejectedError) Error() string { return "showcase: the engine rejected a beat" }

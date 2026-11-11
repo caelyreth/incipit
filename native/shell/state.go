@@ -1,5 +1,3 @@
-// Package shell composes Neverland's native window chrome around a custom
-// document surface.
 package shell
 
 import (
@@ -16,34 +14,44 @@ type Page struct {
 	Title string
 }
 
-// ToolbarState combines editor formatting, product modes and current bindings
-// for the floating writing toolbar.
+// FormatState is one formatting action's state: whether it applies at the
+// selection or caret, and whether the engine preview says it can.
+type FormatState struct {
+	On      bool
+	Enabled bool
+}
+
+// FormattingState is the formatting the floating toolbar shows from the
+// open page's previews.
+type FormattingState struct {
+	Strong, Emphasis, Code, Strike FormatState
+}
+
+// ToolbarState is the writing modes and formatting the floating toolbar
+// switches, and their current shortcuts.
 type ToolbarState struct {
-	Bold              bool
-	Italic            bool
 	Typewriter        bool
 	Zen               bool
-	CJK               bool
-	BoldEnabled       bool
-	ItalicEnabled     bool
 	TypewriterEnabled bool
 	ZenEnabled        bool
-	CJKEnabled        bool
+	Formatting        FormattingState
 	Bindings          ToolbarBindings
 }
 
 // ToolbarBindings carries the current shortcut text for action tooltips.
 type ToolbarBindings struct {
-	Bold       string
-	Italic     string
-	Undo       string
-	Redo       string
 	Typewriter string
 	Zen        string
-	CJK        string
+	Strong     string
+	Emphasis   string
+	Code       string
+	Strike     string
 }
 
 type State struct {
+	// root is the shell's outermost element, for where the focus is.
+	root ui.Handle
+
 	Appearance settings.PresentationState
 	Settings   theme.Settings
 	// Colors carries theme changes; nil shows Settings as they are.
@@ -57,8 +65,6 @@ type State struct {
 	PageQuery         string
 	FindPageRequested bool
 	Toolbar           ToolbarState
-	CanUndo           bool
-	CanRedo           bool
 	TabsScroll        ui.ScrollState
 	libraryScroll     ui.ScrollState
 	sheetScroll       ui.ScrollState
@@ -81,13 +87,12 @@ type State struct {
 	// it.
 	CloseOtherTabs func(id string)
 	CloseTabsAfter func(id string)
-	FormatItalic   func(bool)
-	FormatBold     func(bool)
-	Undo           func()
-	Redo           func()
-	ToggleCJK      func(bool)
 	Typewriter     func(bool)
 	Zen            func(bool)
+	Strong         func()
+	Emphasis       func()
+	Code           func()
+	Strike         func()
 
 	// SidebarOverride shows or hides the library, SheetListOverride the
 	// sheet list, against what the window's width would choose.
@@ -121,7 +126,6 @@ func New() *State {
 		Toolbar: ToolbarState{
 			TypewriterEnabled: true,
 			ZenEnabled:        true,
-			CJKEnabled:        true,
 		},
 	}
 }
@@ -141,7 +145,7 @@ func (s *State) ToggleSidebar() {
 	s.SidebarOverride = &next
 }
 
-// ColumnMargin is the room beside the document column: the gutter and half
+// ColumnMargin is the room beside the page column: the gutter and half
 // of what the page's width leaves over the column.
 func (s *State) ColumnMargin() float32 {
 	scale := s.Settings.UIFontSize

@@ -1,14 +1,16 @@
-// Package showcase draws a scripted showcase: a real document, typed by an
-// app/showcase player, kept centered on a small page as it grows.
+// Package showcase draws a scripted showcase: a real page, typed by an
+// app/showcase player, kept centered on a small stage as it grows.
 package showcase
 
 import (
 	"math"
+	"time"
 
 	appshowcase "github.com/caelyreth/neverland/app/showcase"
-	"github.com/caelyreth/neverland/engine/kernel"
-	"github.com/caelyreth/neverland/native/documentview"
+	"github.com/caelyreth/neverland/editor/engine"
+	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/native/motion"
+	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -25,12 +27,14 @@ const (
 
 // Stage is one showcase, as wide as its container and Height tall.
 type Stage struct {
-	Key           string
-	Script        appshowcase.Script
-	Configuration kernel.PolicyConfiguration
-	Theme         theme.Theme
-	Prose         theme.ProseStyle
-	Height        float32
+	Key    string
+	Script policy.Showcase
+	// Policy is the policy shown, and Values the person's policy values.
+	Policy string
+	Values policy.Values
+	Theme  theme.Theme
+	Prose  theme.ProseStyle
+	Height float32
 	// Padding is the least margin around the text.
 	Padding float32
 	Radius  float32
@@ -42,18 +46,17 @@ type Stage struct {
 
 type stageState struct {
 	player  *appshowcase.Player
-	element *documentview.Element
-	loop    int
-	x, y    motion.Spring
+	element *page.Element
+	at      motion.Rect
 	placed  bool
 }
 
 type stageKey struct{}
 
 // View builds one leaf box. Everything that moves happens in its drawing:
-// the player advances, the document paints and the page recenters at the
-// display's rate without rebuilding the view, and a stage scrolled out of
-// sight paints nothing and so plays nothing.
+// the player advances, the page paints and recenters at the display's
+// rate without rebuilding the view, and a stage scrolled out of sight
+// paints nothing and so plays nothing.
 func (s Stage) View(c *ui.Context) {
 	animate := s.Animate && !c.Preferences().ReduceMotion
 	box := ui.Box(c).Key(s.Key).WidthPercent(100).Height(s.Height).
@@ -62,13 +65,22 @@ func (s Stage) View(c *ui.Context) {
 	state := *ui.Local(box, stageKey{}, func() *stageState { return &stageState{} })
 	now := c.Now()
 	if state.player == nil {
-		state.player = appshowcase.NewPlayer(s.Script, s.Configuration, now)
+		state.player = appshowcase.NewPlayer(s.Script, s.Policy, s.Values, state.open, now)
 	} else {
-		state.player.Configure(s.Configuration, now)
+		state.player.Configure(s.Values, now)
 	}
 	box.Draw(func(p *ui.Painter, rect ui.Rect) {
 		state.paint(p, rect, s, animate)
 	})
+}
+
+// open is the stage's page over a loop's engine: each loop is a new page,
+// and motion from the last one has no meaning for it.
+func (st *stageState) open(e *engine.Engine) appshowcase.Page {
+	ed := page.NewEditor(e, appshowcase.View)
+	st.element = page.NewElement(ed)
+	st.placed = false
+	return ed
 }
 
 func (st *stageState) paint(p *ui.Painter, rect ui.Rect, s Stage, animate bool) {
@@ -79,37 +91,31 @@ func (st *stageState) paint(p *ui.Painter, rect ui.Rect, s Stage, animate bool) 
 	} else {
 		st.player.Finish()
 	}
-	if st.element == nil || st.loop != st.player.Loop() {
-		// Each loop is a new document; motion from the last one has no
-		// meaning for it.
-		st.element = documentview.NewElement(
-			documentview.NewBridge(st.player.Document(), nil, p.Now),
-			s.Theme, s.Prose, now,
-		)
-		st.element.AutoFocus = false
-		st.element.Placeholder = ""
-		st.loop = st.player.Loop()
-		st.placed = false
+	if st.element == nil {
+		return
 	}
-	st.element.Theme, st.element.Prose, st.element.Animate = s.Theme, s.Prose, animate
+	el := st.element
+	el.Theme, el.Prose = s.Theme, s.Prose
 
 	// The page centers the text it has: a line grows from the middle, and
 	// a second line lifts the first. The offset lands on whole device
 	// pixels so glyphs stay as crisp as anywhere else in the app.
 	wrap := max(1, rect.W-2*s.Padding)
-	contentW, contentH := st.element.ContentSize()
-	targetX := (rect.W - min(contentW, wrap)) / 2
-	targetY := (rect.H - max(contentH, s.Prose.LineHeight())) / 2
+	contentW, contentH := el.Still(wrap)
+	target := ui.Rect{
+		X: (rect.W - min(contentW, wrap)) / 2,
+		Y: (rect.H - max(contentH, s.Prose.LineHeight())) / 2,
+	}
 	if !st.placed || !animate {
-		st.x = motion.NewSpring(targetX, now)
-		st.y = motion.NewSpring(targetY, now)
+		st.at.Hide()
 		st.placed = contentH > 0
 	}
-	x := snap(st.x.Step(targetX, now, centerFrequency), p.Scale())
-	y := snap(st.y.Step(targetY, now, centerFrequency), p.Scale())
-	page := ui.Rect{X: rect.X + x, Y: rect.Y + y, W: wrap, H: rect.H - y}
+	st.at.Step(target, now, centerFrequency, animate)
+	at := st.at.Value()
+	x, y := snap(at.X, p.Scale()), snap(at.Y, p.Scale())
+	area := ui.Rect{X: rect.X + x, Y: rect.Y + y, W: wrap, H: rect.H - y}
 	p.Clip(rect, s.Radius, func() {
-		st.element.Paint(p, page, true, animate)
+		el.PaintStill(p, area)
 		// A curtain of the page's own color fades the story in and out at
 		// each loop, and dims it while the feature is off.
 		strength := float32(1)
@@ -126,10 +132,10 @@ func (st *stageState) paint(p *ui.Painter, rect ui.Rect, s Stage, animate bool) 
 	if !animate {
 		return
 	}
-	if st.x.Moving() || st.y.Moving() || st.player.Opacity(now) < 1 {
+	if st.at.Moving() || st.player.Opacity(now) < 1 {
 		p.AnimationFrame()
 	} else if wait := next.Sub(now); wait > 0 {
-		p.After(wait)
+		p.After(min(wait, time.Second))
 	} else {
 		p.AnimationFrame()
 	}

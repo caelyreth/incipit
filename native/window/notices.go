@@ -2,9 +2,7 @@ package window
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/native/notices"
 	"github.com/egoist/mygo"
@@ -82,8 +80,8 @@ func saveFailure(writer saver, err error, center *notices.Center) notices.Notice
 	}
 }
 
-// recovered tells what opening the notebook repaired or could not read.
-func recovered(store *storage.Store, contents storage.Notebook) (notices.Notice, bool) {
+// recovered tells what opening the notebook repaired.
+func recovered(store *storage.Store) (notices.Notice, bool) {
 	notice := notices.Notice{ID: recoveryNotice, Kind: notices.Warning, Sticky: true}
 	recovery := store.Recovery
 	switch {
@@ -93,33 +91,12 @@ func recovered(store *storage.Store, contents storage.Notebook) (notices.Notice,
 	case recovery.Repaired():
 		notice.Title = "The notebook was damaged"
 		notice.Description = "No backup could be read, so it starts empty; the damaged copy is kept."
-	case len(contents.Damaged) == 1:
-		notice.Title = "One sheet couldn't be read"
-		notice.Description = "It is kept as it was."
-	case len(contents.Damaged) > 1:
-		notice.Title = fmt.Sprintf("%d sheets couldn't be read", len(contents.Damaged))
-		notice.Description = "They are kept as they were."
 	default:
 		return notices.Notice{}, false
 	}
-	if recovery.Repaired() {
-		notice.Action = "Show in Finder"
-		notice.OnAction = func() { mygo.Shell.ShowItemInFolder(recovery.Damaged) }
-	}
+	notice.Action = "Show in Finder"
+	notice.OnAction = func() { mygo.Shell.ShowItemInFolder(recovery.Damaged) }
 	return notice, true
-}
-
-// reportEditing tells of an edit of the page that failed, once; one the
-// page declined is no fault, and goes untold.
-func (a *AppState) reportEditing() {
-	if a.Session == nil || a.Session.Document() == nil {
-		return
-	}
-	document := a.Session.Document()
-	if err := document.LastError(); err != nil && !controller.Declined(err) {
-		a.fail("Couldn't make that change", err)
-		document.ClearError()
-	}
 }
 
 func message(err error) string {

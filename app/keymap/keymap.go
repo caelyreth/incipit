@@ -1,0 +1,232 @@
+package keymap
+
+import (
+	"errors"
+	"fmt"
+	"maps"
+	"slices"
+)
+
+// ErrUnknownCommand rejects a remap of a command that is not declared.
+var ErrUnknownCommand = errors.New("keymap: unknown command")
+
+// ConflictError reports two commands given the same chord.
+type ConflictError struct {
+	Chord    Chord
+	Existing CommandID
+	Incoming CommandID
+}
+
+func (e *ConflictError) Error() string {
+	return fmt.Sprintf("keymap: %s is given to both %s and %s", e.Chord, e.Existing, e.Incoming)
+}
+
+// Overrides are the person's changes to the default keys: a command maps to
+// the one chord it takes instead, or to no chord when it is unbound. A
+// command absent from the map keeps its default.
+type Overrides map[CommandID]*Chord
+
+// Clone returns overrides that share nothing with o.
+func (o Overrides) Clone() Overrides {
+	cloned := make(Overrides, len(o))
+	for command, chord := range o {
+		if chord != nil {
+			chord := *chord
+			cloned[command] = &chord
+			continue
+		}
+		cloned[command] = nil
+	}
+	return cloned
+}
+
+// Equal reports whether two overrides say the same thing.
+func (o Overrides) Equal(other Overrides) bool {
+	return maps.EqualFunc(o, other, func(a, b *Chord) bool {
+		return (a == nil) == (b == nil) && (a == nil || *a == *b)
+	})
+}
+
+// Keymap is the defaults with overrides applied, checked to give no chord
+// to two commands. It is immutable.
+type Keymap struct {
+	commands  []Command
+	index     map[CommandID]int
+	overrides Overrides
+	byChord   map[Chord][]CommandID
+	byCommand map[CommandID]Chord
+}
+
+// Default is the keymap of commands (Declared) with no overrides.
+func Default(commands []Command) *Keymap {
+	keymap, err := New(commands, nil)
+	if err != nil {
+		panic(err)
+	}
+	return keymap
+}
+
+// New prepares the commands' defaults with overrides applied.
+func New(commands []Command, overrides Overrides) (*Keymap, error) {
+	k := &Keymap{
+		commands:  commands,
+		index:     make(map[CommandID]int, len(commands)),
+		overrides: overrides.Clone(),
+		byChord:   make(map[Chord][]CommandID, len(commands)),
+		byCommand: make(map[CommandID]Chord, len(commands)),
+	}
+	for i, c := range commands {
+		if _, dup := k.index[c.ID]; dup {
+			return nil, fmt.Errorf("keymap: command %s declared twice", c.ID)
+		}
+		k.index[c.ID] = i
+	}
+	for command := range overrides {
+		if _, ok := k.Command(command); !ok {
+			return nil, fmt.Errorf("%w: %s", ErrUnknownCommand, command)
+		}
+	}
+	for _, command := range commands {
+		chord := command.Default
+		if override, ok := overrides[command.ID]; ok {
+			chord = Chord{}
+			if override != nil {
+				chord = *override
+			}
+		}
+		if !chord.Valid() {
+			continue
+		}
+		// Editing commands may share a key, tried in declaration order:
+		// the page runs the first the engine finds available, as Tab
+		// leaves a scope or, with none to leave, nests.
+		for _, existing := range k.byChord[chord] {
+			if held, _ := k.Command(existing); held.Scope != ScopeEditing || command.Scope != ScopeEditing {
+				return nil, &ConflictError{Chord: chord, Existing: existing, Incoming: command.ID}
+			}
+		}
+		k.byChord[chord] = append(k.byChord[chord], command.ID)
+		k.byCommand[command.ID] = chord
+	}
+	return k, nil
+}
+
+// Commands are the keymap's commands, in order: display order within a
+// scope.
+func (k *Keymap) Commands() []Command {
+	if k == nil {
+		return nil
+	}
+	return slices.Clone(k.commands)
+}
+
+// Command returns one command's declaration.
+func (k *Keymap) Command(id CommandID) (Command, bool) {
+	if k == nil {
+		return Command{}, false
+	}
+	i, ok := k.index[id]
+	if !ok {
+		return Command{}, false
+	}
+	return k.commands[i], true
+}
+
+// Overrides returns the overrides the keymap was prepared with.
+func (k *Keymap) Overrides() Overrides {
+	if k == nil {
+		return Overrides{}
+	}
+	return k.overrides.Clone()
+}
+
+// Overridden reports whether command's key is the person's choice.
+func (k *Keymap) Overridden(command CommandID) bool {
+	if k == nil {
+		return false
+	}
+	_, ok := k.overrides[command]
+	return ok
+}
+
+// CommandFor returns the command chord runs.
+func (k *Keymap) CommandFor(chord Chord) (CommandID, bool) {
+	if k == nil {
+		return "", false
+	}
+	commands := k.byChord[chord]
+	if len(commands) == 0 {
+		return "", false
+	}
+	return commands[0], true
+}
+
+// CommandsFor returns the commands chord runs, in the order they are
+// tried.
+func (k *Keymap) CommandsFor(chord Chord) []CommandID {
+	if k == nil {
+		return nil
+	}
+	return slices.Clone(k.byChord[chord])
+}
+
+// ChordFor returns command's chord, when it has one.
+func (k *Keymap) ChordFor(command CommandID) (Chord, bool) {
+	if k == nil {
+		return Chord{}, false
+	}
+	chord, ok := k.byCommand[command]
+	return chord, ok
+}
+
+// Chords lists every bound chord in a stable order.
+func (k *Keymap) Chords() []Chord {
+	if k == nil {
+		return nil
+	}
+	chords := slices.Collect(maps.Keys(k.byChord))
+	slices.SortFunc(chords, func(a, b Chord) int {
+		if a.Key != b.Key {
+			if a.Key < b.Key {
+				return -1
+			}
+			return 1
+		}
+		return int(a.Modifiers) - int(b.Modifiers)
+	})
+	return chords
+}
+
+// Remap gives command chord, unbinding displaced (when set) so a chord
+// another command holds moves in one change. Choosing the command's own
+// default again drops the override.
+func (k *Keymap) Remap(command CommandID, chord Chord, displaced CommandID) (*Keymap, error) {
+	declared, ok := k.Command(command)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrUnknownCommand, command)
+	}
+	overrides := k.Overrides()
+	if displaced != "" && displaced != command {
+		overrides[displaced] = nil
+	}
+	if chord == declared.Default {
+		delete(overrides, command)
+	} else {
+		overrides[command] = &chord
+	}
+	return New(k.commands, overrides)
+}
+
+// Unbind takes command's key away.
+func (k *Keymap) Unbind(command CommandID) (*Keymap, error) {
+	overrides := k.Overrides()
+	overrides[command] = nil
+	return New(k.commands, overrides)
+}
+
+// Reset gives command its default key again.
+func (k *Keymap) Reset(command CommandID) (*Keymap, error) {
+	overrides := k.Overrides()
+	delete(overrides, command)
+	return New(k.commands, overrides)
+}

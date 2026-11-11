@@ -16,31 +16,27 @@ const applicationID = 0x4e56524c
 var migrations = []string{
 	`
 	CREATE TABLE pages (
-		id        INTEGER PRIMARY KEY,
-		created   INTEGER NOT NULL,
-		updated   INTEGER NOT NULL,
-		root      INTEGER NOT NULL,
-		next_node INTEGER NOT NULL,
-		title     TEXT    NOT NULL DEFAULT ''
+		id      INTEGER PRIMARY KEY,
+		created INTEGER NOT NULL,
+		updated INTEGER NOT NULL,
+		title   TEXT    NOT NULL DEFAULT '',
+		excerpt TEXT    NOT NULL DEFAULT '',
+		words   INTEGER NOT NULL DEFAULT 0
 	) STRICT;
-	CREATE TABLE nodes (
-		page       INTEGER NOT NULL REFERENCES pages (id) ON DELETE CASCADE,
-		id         INTEGER NOT NULL,
-		kind       TEXT    NOT NULL,
-		parent     INTEGER,
-		children   TEXT    NOT NULL,
-		attributes TEXT    NOT NULL,
-		marks      TEXT    NOT NULL,
-		next_mark  INTEGER NOT NULL,
-		text       TEXT,
-		PRIMARY KEY (page, id)
-	) STRICT, WITHOUT ROWID;
 	CREATE TABLE groups (
 		id       INTEGER PRIMARY KEY,
 		parent   INTEGER NOT NULL,
 		name     TEXT    NOT NULL,
+		icon     TEXT    NOT NULL DEFAULT '',
+		color    INTEGER NOT NULL DEFAULT 0,
 		position INTEGER NOT NULL,
 		trashed  INTEGER
+	) STRICT;
+	CREATE TABLE chapters (
+		id       INTEGER PRIMARY KEY,
+		grp      INTEGER NOT NULL,
+		name     TEXT    NOT NULL,
+		position INTEGER NOT NULL
 	) STRICT;
 	CREATE TABLE sheets (
 		page     INTEGER PRIMARY KEY,
@@ -52,20 +48,6 @@ var migrations = []string{
 		key   TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	) STRICT;
-	`,
-	`
-	ALTER TABLE groups ADD COLUMN icon  TEXT    NOT NULL DEFAULT '';
-	ALTER TABLE groups ADD COLUMN color INTEGER NOT NULL DEFAULT 0;
-	`,
-	`
-	CREATE TABLE chapters (
-		id       INTEGER PRIMARY KEY,
-		grp      INTEGER NOT NULL,
-		name     TEXT    NOT NULL,
-		position INTEGER NOT NULL
-	) STRICT;
-	`,
-	`
 	CREATE TABLE media (
 		hash   TEXT    PRIMARY KEY,
 		type   TEXT    NOT NULL,
@@ -75,6 +57,38 @@ var migrations = []string{
 		name   TEXT    NOT NULL DEFAULT '',
 		added  INTEGER NOT NULL
 	) STRICT, WITHOUT ROWID;
+	`,
+	// Page content as node rows (editor/store): one row per node held in
+	// a block slot, plus the root; text stored once and indexed.
+	`
+	ALTER TABLE pages ADD COLUMN format INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE pages ADD COLUMN root   INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE pages ADD COLUMN seed   INTEGER NOT NULL DEFAULT 0;
+	CREATE TABLE nodes (
+		page   INTEGER NOT NULL,
+		id     INTEGER NOT NULL,
+		parent INTEGER NOT NULL,
+		slot   INTEGER NOT NULL,
+		ord    TEXT    NOT NULL,
+		kind   INTEGER NOT NULL,
+		attrs  BLOB    NOT NULL,
+		text   TEXT    NOT NULL,
+		runs   BLOB    NOT NULL,
+		rev    INTEGER NOT NULL DEFAULT 1,
+		PRIMARY KEY (page, id)
+	) STRICT;
+	CREATE INDEX nodes_children ON nodes (page, parent, slot, ord);
+	CREATE VIRTUAL TABLE nodes_fts USING fts5 (text, content = 'nodes', content_rowid = 'rowid');
+	CREATE TRIGGER nodes_ai AFTER INSERT ON nodes BEGIN
+		INSERT INTO nodes_fts (rowid, text) VALUES (new.rowid, new.text);
+	END;
+	CREATE TRIGGER nodes_ad AFTER DELETE ON nodes BEGIN
+		INSERT INTO nodes_fts (nodes_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+	END;
+	CREATE TRIGGER nodes_au AFTER UPDATE OF text ON nodes BEGIN
+		INSERT INTO nodes_fts (nodes_fts, rowid, text) VALUES ('delete', old.rowid, old.text);
+		INSERT INTO nodes_fts (rowid, text) VALUES (new.rowid, new.text);
+	END;
 	`,
 }
 

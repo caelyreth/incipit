@@ -35,35 +35,32 @@ func (s *State) formatBar(
 			{
 				Label: "Formatting",
 				Actions: []func(){
-					Icon("format-emphasis", "Italic", s.Toolbar.Bindings.Italic, components.IconItalic,
-						s.Toolbar.Italic, s.Toolbar.ItalicEnabled,
+					Icon("strong", "Strong", s.Toolbar.Bindings.Strong, components.IconBold,
+						s.Toolbar.Formatting.Strong.On, s.Toolbar.Formatting.Strong.Enabled,
 						func() {
-							if s.FormatItalic != nil {
-								s.FormatItalic(!s.Toolbar.Italic)
+							if s.Strong != nil {
+								s.Strong()
 							}
 						}),
-					Icon("format-strong", "Bold", s.Toolbar.Bindings.Bold, components.IconBold,
-						s.Toolbar.Bold, s.Toolbar.BoldEnabled,
+					Icon("emphasis", "Emphasis", s.Toolbar.Bindings.Emphasis, components.IconItalic,
+						s.Toolbar.Formatting.Emphasis.On, s.Toolbar.Formatting.Emphasis.Enabled,
 						func() {
-							if s.FormatBold != nil {
-								s.FormatBold(!s.Toolbar.Bold)
+							if s.Emphasis != nil {
+								s.Emphasis()
 							}
 						}),
-				},
-			},
-			{
-				Label: "History",
-				Actions: []func(){
-					Icon("undo", "Undo", s.Toolbar.Bindings.Undo, components.IconUndo, false, s.CanUndo,
+					Icon("code", "Code", s.Toolbar.Bindings.Code, components.IconCode,
+						s.Toolbar.Formatting.Code.On, s.Toolbar.Formatting.Code.Enabled,
 						func() {
-							if s.Undo != nil {
-								s.Undo()
+							if s.Code != nil {
+								s.Code()
 							}
 						}),
-					Icon("redo", "Redo", s.Toolbar.Bindings.Redo, components.IconRedo, false, s.CanRedo,
+					Icon("strike", "Strike", s.Toolbar.Bindings.Strike, components.IconStrike,
+						s.Toolbar.Formatting.Strike.On, s.Toolbar.Formatting.Strike.Enabled,
 						func() {
-							if s.Redo != nil {
-								s.Redo()
+							if s.Strike != nil {
+								s.Strike()
 							}
 						}),
 				},
@@ -83,13 +80,6 @@ func (s *State) formatBar(
 						func() {
 							if s.Zen != nil {
 								s.Zen(!s.Toolbar.Zen)
-							}
-						}),
-					Icon("cjk", "CJK", s.Toolbar.Bindings.CJK, components.IconLanguages,
-						s.Toolbar.CJK, s.Toolbar.CJKEnabled,
-						func() {
-							if s.ToggleCJK != nil {
-								s.ToggleCJK(!s.Toolbar.CJK)
 							}
 						}),
 				},

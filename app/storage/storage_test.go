@@ -10,10 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/library"
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/model"
 )
 
 func openStore(t *testing.T, root string) *Store {
@@ -25,90 +22,15 @@ func openStore(t *testing.T, root string) *Store {
 	return store
 }
 
-func page(t *testing.T, text string) *model.Document {
-	t.Helper()
-	document, _, err := editor.NewBlockDocument(text)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return document
-}
-
-// edit changes a document as an editor transaction would.
-func edit(t *testing.T, document *model.Document, operation func(*model.DocumentDraft) error) {
-	t.Helper()
-	if _, err := document.Transact(operation); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func block(document *model.Document, index int) model.NodeID {
-	snapshot := document.Snapshot()
-	root, _ := snapshot.Node(snapshot.Root())
-	return root.Children()[index]
-}
-
-func sameDocument(t *testing.T, want, got model.DocumentSnapshot) {
-	t.Helper()
-	if want.Root() != got.Root() || want.NextID() != got.NextID() {
-		t.Fatalf("root %v next %d, want root %v next %d", got.Root(), got.NextID(), want.Root(), want.NextID())
-	}
-	wantNodes, gotNodes := want.Nodes(), got.Nodes()
-	if len(wantNodes) != len(gotNodes) {
-		t.Fatalf("%d nodes, want %d", len(gotNodes), len(wantNodes))
-	}
-	for index, node := range wantNodes {
-		a, b := node.Record(), gotNodes[index].Record()
-		if a.ID != b.ID || a.Kind != b.Kind || a.Parent != b.Parent || a.HasParent != b.HasParent ||
-			a.NextMarkID != b.NextMarkID || len(a.Children) != len(b.Children) ||
-			len(a.Attributes) != len(b.Attributes) || len(a.Marks) != len(b.Marks) ||
-			(a.Text == nil) != (b.Text == nil) || a.Text != nil && *a.Text != *b.Text {
-			t.Fatalf("node %v: %+v, want %+v", a.ID, b, a)
-		}
-		for key, value := range a.Attributes {
-			if b.Attributes[key] != value {
-				t.Fatalf("node %v attribute %s: %v, want %v", a.ID, key, b.Attributes[key], value)
-			}
-		}
-		for index := range a.Marks {
-			if a.Marks[index] != b.Marks[index] {
-				t.Fatalf("node %v mark %d: %+v, want %+v", a.ID, index, b.Marks[index], a.Marks[index])
-			}
-		}
-		for index := range a.Children {
-			if a.Children[index] != b.Children[index] {
-				t.Fatalf("node %v children %v, want %v", a.ID, b.Children, a.Children)
-			}
-		}
-	}
-}
-
 func TestANotebookReopensAsItWasLeft(t *testing.T) {
 	root := t.TempDir()
 	store := openStore(t, root)
-	first, second := page(t, "# Title\nhello world"), page(t, "")
-	edit(t, first, func(draft *model.DocumentDraft) error {
-		node := block(first, 1)
-		if err := draft.SetAttribute(node, "kind", model.TextValue("quote")); err != nil {
-			return err
-		}
-		if err := draft.SetAttribute(node, "depth", model.IntegerValue(2)); err != nil {
-			return err
-		}
-		if err := draft.SetAttribute(node, "open", model.BoolValue(true)); err != nil {
-			return err
-		}
-		_, err := draft.AddMark(node, model.NewUTF16Range(0, 5), "strong", 2)
-		return err
-	})
-	saver := store.Autosave(nil)
-	saver.Page(1, "Title", first.Snapshot())
-	saver.Page(2, "", second.Snapshot())
-	selection := Selection{Anchor: Position{Node: 3, Offset: 2, Affinity: 1}, Head: Position{Node: 3, Offset: 5}}
+	saver := store.Autosave()
+	saver.Page(1, Summary{Title: "Title"})
+	saver.Page(2, Summary{Title: ""})
 	saver.Layout(Layout{
 		Tabs: []PageKey{2, 1}, Active: 1, HasActive: true,
-		Scroll:     map[PageKey]float32{1: 120},
-		Selections: map[PageKey]Selection{1: selection},
+		Scroll: map[PageKey]float32{1: 120},
 	})
 	if err := saver.Close(); err != nil {
 		t.Fatal(err)
@@ -126,109 +48,46 @@ func TestANotebookReopensAsItWasLeft(t *testing.T) {
 	if len(notebook.Pages) != 2 || notebook.Pages[0].Key != 1 || notebook.Pages[1].Key != 2 || notebook.NextKey != 3 {
 		t.Fatalf("pages %+v next %d", notebook.Pages, notebook.NextKey)
 	}
-	sameDocument(t, first.Snapshot(), notebook.Pages[0].Document.Snapshot())
-	sameDocument(t, second.Snapshot(), notebook.Pages[1].Document.Snapshot())
+	if notebook.Pages[0].Title != "Title" || notebook.Pages[1].Title != "" {
+		t.Fatalf("titles %+v", notebook.Pages)
+	}
+	if notebook.Pages[0].Created.IsZero() || notebook.Pages[0].Updated.Before(notebook.Pages[0].Created) {
+		t.Fatalf("times %+v", notebook.Pages[0])
+	}
 	layout := notebook.Layout
-	if len(layout.Tabs) != 2 || layout.Tabs[0] != 2 || layout.Active != 1 || !layout.HasActive ||
-		layout.Scroll[1] != 120 || layout.Selections[1] != selection {
+	if !notebook.HasLayout || len(layout.Tabs) != 2 || layout.Tabs[0] != 2 || layout.Active != 1 ||
+		!layout.HasActive || layout.Scroll[1] != 120 {
 		t.Fatalf("layout %+v", layout)
 	}
 }
 
-func TestLegacyLineEndingsRemainAvailableWithFilingAndSelection(t *testing.T) {
-	root := t.TempDir()
-	store := openStore(t, root)
-	document := page(t, "hello\nworld")
-	first := block(document, 0)
-	selection := Selection{
-		Anchor: Position{Node: first.Value(), Offset: 3},
-		Head:   Position{Node: first.Value(), Offset: 5},
-		Visual: &ProjectedSelection{Anchor: 3, Head: 5},
-	}
-	shelf := library.New()
-	group, err := shelf.AddGroup(0, "Research")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := shelf.AddSheet(1, group, time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	saver := store.Autosave(nil)
-	saver.Page(1, "", document.Snapshot())
-	saver.Library(shelf.Records())
-	saver.Layout(Layout{Tabs: []PageKey{1}, Active: 1, HasActive: true, Selections: map[PageKey]Selection{1: selection}})
-	if err := saver.Close(); err != nil {
-		t.Fatal(err)
-	}
-	legacy := "hello\r\nworld"
-	if _, err := store.db.Exec(`UPDATE nodes SET text = ? WHERE page = ? AND id = ?`, legacy, 1, first); err != nil {
-		t.Fatal(err)
-	}
-	loaded, err := store.Load()
-	if err != nil || len(loaded.Damaged) != 0 || len(loaded.Pages) != 1 {
-		t.Fatalf("load = %+v, error = %v", loaded, err)
-	}
-	node, _ := loaded.Pages[0].Document.Snapshot().Node(first)
-	if node.Text().String() != legacy || !loaded.Layout.Selections[1].Equal(selection) ||
-		len(loaded.Library.Sheets) != 1 || loaded.Library.Sheets[0].Group != group {
-		t.Fatalf("legacy content or metadata changed: %q, %+v, %+v", node.Text().String(), loaded.Layout, loaded.Library)
-	}
-	if _, err := controller.OpenDocument(loaded.Pages[0].Document, nil); err != nil {
-		t.Fatalf("legacy page cannot open in editor: %v", err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	store = openStore(t, root)
+// A later write of a page keeps when it was made and moves when it changed.
+func TestARewrittenPageKeepsItsCreation(t *testing.T) {
+	store := openStore(t, t.TempDir())
 	defer store.Close()
-	loaded, err = store.Load()
-	if err != nil || len(loaded.Damaged) != 0 || len(loaded.Pages) != 1 ||
-		!loaded.Layout.Selections[1].Equal(selection) || len(loaded.Library.Sheets) != 1 || loaded.Library.Sheets[0].Group != group {
-		t.Fatalf("reopened legacy page = %+v, error = %v", loaded, err)
-	}
-}
-
-func TestEditsAreWrittenAsTheyChangeTheTree(t *testing.T) {
-	root := t.TempDir()
-	store := openStore(t, root)
-	document := page(t, "one\ntwo\nthree")
-	saver := store.Autosave(nil)
-	saver.Page(1, "", document.Snapshot())
+	saver := store.Autosave()
+	defer saver.Close()
+	saver.Page(1, Summary{Title: "First"})
 	if err := saver.Flush(); err != nil {
 		t.Fatal(err)
 	}
-	// Remove a block, change one, add one: each write is only the
-	// difference from the last.
-	edit(t, document, func(draft *model.DocumentDraft) error {
-		if err := draft.RemoveNode(block(document, 1)); err != nil {
-			return err
-		}
-		return draft.SetTextValue(block(document, 0), "first")
-	})
-	saver.Page(1, "", document.Snapshot())
-	if err := saver.Flush(); err != nil {
-		t.Fatal(err)
-	}
-	edit(t, document, func(draft *model.DocumentDraft) error {
-		id, err := draft.CreateNode(draft.Root(), 0, editor.ParagraphNode)
-		if err != nil {
-			return err
-		}
-		return draft.SetTextValue(id, "zero")
-	})
-	saver.Page(1, "", document.Snapshot())
-	if err := saver.Close(); err != nil {
-		t.Fatal(err)
-	}
-	store.Close()
-
-	store = openStore(t, root)
-	defer store.Close()
-	notebook, err := store.Load()
+	before, err := store.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	sameDocument(t, document.Snapshot(), notebook.Pages[0].Document.Snapshot())
+	time.Sleep(5 * time.Millisecond)
+	saver.Page(1, Summary{Title: "Second"})
+	if err := saver.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, second := before.Pages[0], after.Pages[0]
+	if second.Title != "Second" || !second.Created.Equal(first.Created) || !second.Updated.After(first.Updated) {
+		t.Fatalf("before %+v after %+v", first, second)
+	}
 }
 
 func TestOneProcessHoldsTheNotebook(t *testing.T) {
@@ -257,9 +116,8 @@ func crashWhileWriting(root string) {
 	if err != nil {
 		os.Exit(2)
 	}
-	document, _, _ := editor.NewBlockDocument("written before the crash")
-	saver := store.Autosave(nil)
-	saver.Page(7, "", document.Snapshot())
+	saver := store.Autosave()
+	saver.Page(7, Summary{Title: "written before the crash"})
 	if err := saver.Flush(); err != nil {
 		os.Exit(3)
 	}
@@ -285,7 +143,7 @@ func TestACrashKeepsWhatWasWritten(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(notebook.Pages) != 1 || notebook.Pages[0].Key != 7 ||
-		plainText(notebook.Pages[0].Document.Snapshot()) != "written before the crash\n" {
+		notebook.Pages[0].Title != "written before the crash" {
 		t.Fatalf("after the crash: %+v", notebook.Pages)
 	}
 }
@@ -293,8 +151,8 @@ func TestACrashKeepsWhatWasWritten(t *testing.T) {
 func TestADamagedNotebookIsReplacedByItsBackup(t *testing.T) {
 	root := t.TempDir()
 	store := openStore(t, root)
-	saver := store.Autosave(nil)
-	saver.Page(1, "", page(t, "kept in the backup").Snapshot())
+	saver := store.Autosave()
+	saver.Page(1, Summary{Title: "kept in the backup"})
 	if err := saver.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -323,38 +181,8 @@ func TestADamagedNotebookIsReplacedByItsBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(notebook.Pages) != 1 || plainText(notebook.Pages[0].Document.Snapshot()) != "kept in the backup\n" {
+	if len(notebook.Pages) != 1 || notebook.Pages[0].Title != "kept in the backup" {
 		t.Fatalf("restored %+v", notebook.Pages)
-	}
-}
-
-func TestADamagedPageIsLeftAndReported(t *testing.T) {
-	root := t.TempDir()
-	store := openStore(t, root)
-	saver := store.Autosave(nil)
-	saver.Page(1, "", page(t, "sound").Snapshot())
-	saver.Page(2, "", page(t, "broken").Snapshot())
-	if err := saver.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.db.Exec(`UPDATE nodes SET children = '[99]' WHERE page = 2 AND parent IS NULL`); err != nil {
-		t.Fatal(err)
-	}
-	store.Close()
-
-	store = openStore(t, root)
-	defer store.Close()
-	notebook, err := store.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(notebook.Pages) != 1 || notebook.Pages[0].Key != 1 ||
-		len(notebook.Damaged) != 1 || notebook.Damaged[0].Key != 2 || notebook.NextKey != 3 {
-		t.Fatalf("pages %+v damaged %+v next %d", notebook.Pages, notebook.Damaged, notebook.NextKey)
-	}
-	var rows int
-	if err := store.db.QueryRow(`SELECT count(*) FROM nodes WHERE page = 2`).Scan(&rows); err != nil || rows == 0 {
-		t.Fatalf("the damaged page's rows are gone: %v", err)
 	}
 }
 
@@ -406,13 +234,12 @@ func TestBackupsKeepTheRecentThenOneADay(t *testing.T) {
 func TestChangesAreWrittenWithoutBeingAsked(t *testing.T) {
 	store := openStore(t, t.TempDir())
 	defer store.Close()
-	saver := store.Autosave(nil)
+	saver := store.Autosave()
 	defer saver.Close()
-	document := page(t, "typed")
 	deadline := time.Now().Add(longestDelay + time.Second)
 	// Typing on at a steady pace still writes within the longest delay.
 	for time.Now().Before(deadline) {
-		saver.Page(1, "", document.Snapshot())
+		saver.Page(1, Summary{Title: "typed"})
 		var rows int
 		if err := store.db.QueryRow(`SELECT count(*) FROM pages`).Scan(&rows); err != nil {
 			t.Fatal(err)
@@ -461,10 +288,10 @@ func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
 	if err := shelf.TrashSheet(2, at); err != nil {
 		t.Fatal(err)
 	}
-	saver := store.Autosave(nil)
-	saver.Page(1, "", page(t, "one").Snapshot())
-	saver.Page(2, "", page(t, "two").Snapshot())
-	saver.Page(3, "", page(t, "three").Snapshot())
+	saver := store.Autosave()
+	saver.Page(1, Summary{Title: "one"})
+	saver.Page(2, Summary{Title: "two"})
+	saver.Page(3, Summary{Title: "three"})
 	saver.Library(shelf.Records())
 	if err := saver.Flush(); err != nil {
 		t.Fatal(err)
@@ -510,11 +337,11 @@ func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
 func TestTheWatcherIsToldAfterEachWrite(t *testing.T) {
 	store := openStore(t, t.TempDir())
 	defer store.Close()
-	saver := store.Autosave(nil)
+	saver := store.Autosave()
 	defer saver.Close()
 	told := make(chan error, 4)
 	saver.Watch(func() { told <- saver.Err() })
-	saver.Page(1, "", page(t, "typed").Snapshot())
+	saver.Page(1, Summary{Title: "typed"})
 	if err := saver.Flush(); err != nil {
 		t.Fatal(err)
 	}

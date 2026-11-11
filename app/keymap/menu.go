@@ -1,79 +1,32 @@
 package keymap
 
-import (
-	"strings"
+import "strings"
 
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/kernel"
-)
-
-// A native menu takes the keys of its items before any view sees them: on
-// macOS a menu's key equivalent turns the key into the item's command, so a
-// view hears "bold" rather than the keys pressed. Neverland keeps the two in
-// step. The items that perform keymap actions take their keys from the
-// keymap, so a remap moves the menu's key too; and while a shortcut is being
-// recorded the menu stands its keys down, so the recorder hears every chord.
-
-// MenuCommand pairs a menu's edit or format command, as MyGo names it, with
-// the action it performs.
-type MenuCommand struct {
-	Name    string
-	Command kernel.CommandID
-}
-
-// MenuCommands are the edit and format commands the editor answers.
-var MenuCommands = [...]MenuCommand{
-	{"undo", editor.UndoCommandID},
-	{"redo", editor.RedoCommandID},
-	{"cut", CutCommandID},
-	{"copy", CopyCommandID},
-	{"paste", PasteCommandID},
-	{"selectAll", editor.SelectAllCommandID},
-	{"bold", editor.StrongCommandID},
-	{"italic", editor.EmphasisCommandID},
-}
-
-// MenuCommandFor returns the action a menu command performs.
-func MenuCommandFor(name string) (kernel.CommandID, bool) {
-	if name == "pasteAndMatchStyle" {
-		name = "paste"
-	}
-	for _, entry := range MenuCommands {
-		if entry.Name == name {
-			return entry.Command, true
-		}
-	}
-	return "", false
-}
-
-// Accelerator spells target as a MyGo menu accelerator. A chord no menu can
-// show, as one in another binding context or with Fn, has none.
-func Accelerator(target kernel.BindingTarget, platform Platform) (string, bool) {
-	if target.Context() != kernel.EditorBindingContext || target.Key() == "" ||
-		target.Modifiers().Has(kernel.ModifierFunction) {
+// Accelerator spells chord as a MyGo menu accelerator. A chord no menu can
+// show, as one with Fn, has none.
+func Accelerator(chord Chord, platform Platform) (string, bool) {
+	if !chord.Valid() || chord.Modifiers.Has(ModifierFunction) {
 		return "", false
 	}
-	if platform == PlatformCurrent {
-		platform = CurrentPlatform()
-	}
+	platform = platform.resolved()
 	parts := make([]string, 0, 5)
-	modifiers := target.Modifiers()
-	if modifiers.Has(kernel.ModifierPrimary) {
+	modifiers := chord.Modifiers
+	if modifiers.Has(ModifierPrimary) {
 		parts = append(parts, "CmdOrCtrl")
 	}
-	if modifiers.Has(kernel.ModifierControl) {
+	if modifiers.Has(ModifierControl) {
 		parts = append(parts, "Ctrl")
 	}
-	if modifiers.Has(kernel.ModifierSuper) {
+	if modifiers.Has(ModifierSuper) {
 		parts = append(parts, "Super")
 	}
-	if modifiers.Has(kernel.ModifierAlt) {
+	if modifiers.Has(ModifierAlt) {
 		parts = append(parts, "Alt")
 	}
-	if modifiers.Has(kernel.ModifierShift) {
+	if modifiers.Has(ModifierShift) {
 		parts = append(parts, "Shift")
 	}
-	key := target.Key()
+	key := chord.Key
 	if key == "+" {
 		key = "Plus"
 	}
@@ -81,45 +34,43 @@ func Accelerator(target kernel.BindingTarget, platform Platform) (string, bool) 
 }
 
 // ParseAccelerator reads a MyGo menu accelerator as the chord it takes.
-func ParseAccelerator(accelerator string, platform Platform) (kernel.BindingTarget, bool) {
-	if platform == PlatformCurrent {
-		platform = CurrentPlatform()
-	}
+func ParseAccelerator(accelerator string, platform Platform) (Chord, bool) {
+	platform = platform.resolved()
 	parts := strings.Split(accelerator, "+")
 	if strings.HasSuffix(accelerator, "++") {
 		parts = append(parts[:len(parts)-2], "+")
 	}
 	if len(parts) == 0 || parts[len(parts)-1] == "" {
-		return kernel.BindingTarget{}, false
+		return Chord{}, false
 	}
-	var modifiers kernel.Modifiers
+	var modifiers Modifiers
 	for _, part := range parts[:len(parts)-1] {
 		switch strings.ToLower(strings.TrimSpace(part)) {
 		case "cmdorctrl", "commandorcontrol":
-			modifiers = modifiers.With(kernel.ModifierPrimary)
+			modifiers = modifiers.With(ModifierPrimary)
 		case "cmd", "command", "super", "meta":
 			if platform == PlatformDarwin {
-				modifiers = modifiers.With(kernel.ModifierPrimary)
+				modifiers = modifiers.With(ModifierPrimary)
 			} else {
-				modifiers = modifiers.With(kernel.ModifierSuper)
+				modifiers = modifiers.With(ModifierSuper)
 			}
 		case "ctrl", "control":
 			if platform == PlatformDarwin {
-				modifiers = modifiers.With(kernel.ModifierControl)
+				modifiers = modifiers.With(ModifierControl)
 			} else {
-				modifiers = modifiers.With(kernel.ModifierPrimary)
+				modifiers = modifiers.With(ModifierPrimary)
 			}
 		case "alt", "option":
-			modifiers = modifiers.With(kernel.ModifierAlt)
+			modifiers = modifiers.With(ModifierAlt)
 		case "shift":
-			modifiers = modifiers.With(kernel.ModifierShift)
+			modifiers = modifiers.With(ModifierShift)
 		default:
-			return kernel.BindingTarget{}, false
+			return Chord{}, false
 		}
 	}
 	key := strings.ToLower(strings.TrimSpace(parts[len(parts)-1]))
 	if key == "plus" {
 		key = "+"
 	}
-	return kernel.NewBindingTarget(kernel.EditorBindingContext, key, modifiers), true
+	return NewChord(key, modifiers), true
 }

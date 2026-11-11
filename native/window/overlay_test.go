@@ -14,36 +14,31 @@ func TestAppViewMountsTransientOverlays(t *testing.T) {
 	tester := ui.NewTester(app.View, 1260, 850)
 	tester.Frame()
 
-	app.openCommands()
+	app.Shell.OpenCommands()
 	tester.Frame()
 	if active, _ := tester.TextInputActive(); !active {
 		t.Fatal("command palette did not focus its text input")
 	}
-	tester.Type("bold")
+	tester.Type("zen")
 	tester.Frame()
-	if app.Palette.Query != "bold" {
+	if app.Palette.Query != "zen" {
 		t.Fatalf("palette query = %q", app.Palette.Query)
 	}
 }
 
-func TestAppViewRestoresDocumentFocusAfterNewPage(t *testing.T) {
+func TestNewPageButtonOpensAPage(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
 	tester := ui.NewTester(app.View, 1260, 850)
 	tester.Frame()
+	before := len(app.Workspace.Tabs())
 	if err := tester.Click("New page"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	tester.Type("fresh")
-	tester.Frame()
-
-	if app.Session == nil || app.Session.Document() == nil {
-		t.Fatal("new page did not mount a document")
-	}
-	if got := app.Session.Document().Text(); got != "fresh" {
-		t.Fatalf("new page text = %q; input focus was not restored", got)
+	if got := len(app.Workspace.Tabs()); got != before+1 {
+		t.Fatalf("tabs after New page = %d, want %d", got, before+1)
 	}
 }

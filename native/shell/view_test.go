@@ -36,17 +36,18 @@ func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
 func TestShellSidebarCanCollapse(t *testing.T) {
 	state := openState()
 	state.Appearance.Zen = true
+	state.Statistics = "3 words"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
 	if _, ok := tester.Find("Search sheets"); ok {
 		t.Fatal("zen shell built sidebar")
 	}
-	if tester.HasText("Neverland") || tester.HasText("No open document") {
+	if tester.HasText("Neverland") || tester.HasText("3 words") {
 		t.Fatalf("zen shell kept collapsed chrome in the accessibility tree: %#v", tester.Texts())
 	}
 }
 
-func TestWithNoTabTheEditorIsQuiet(t *testing.T) {
+func TestWithNoTabThePageIsQuiet(t *testing.T) {
 	state := New()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
@@ -276,121 +277,70 @@ func TestTheCounterStandsAtTheFootsEnd(t *testing.T) {
 	}
 }
 
-func TestFormattingControlsKeepStateAndRunEveryCallback(t *testing.T) {
+func TestWritingModeControlsRunTheirCallbacks(t *testing.T) {
 	state := openState()
-	state.CanUndo = true
-	state.CanRedo = true
-	state.Toolbar.ItalicEnabled = true
-	state.Toolbar.BoldEnabled = true
-	var bold, italic, typewriter, zen, cjk, undo, redo bool
-	state.FormatBold = func(on bool) { bold = on }
-	state.FormatItalic = func(on bool) { italic = on }
+	var typewriter, zen bool
 	state.Typewriter = func(on bool) { typewriter = on }
 	state.Zen = func(on bool) { zen = on }
-	state.ToggleCJK = func(on bool) { cjk = on }
-	state.Undo = func() { undo = true }
-	state.Redo = func() { redo = true }
 	tester := ui.NewTester(state.View, 1260, 850)
-
-	for _, label := range []string{
-		"Formatting", "Italic", "Bold", "Undo", "Redo",
-		"Typewriter", "Zen", "CJK",
-	} {
-		if _, ok := tester.Find(label); !ok {
-			t.Fatalf("missing accessible formatting control %q", label)
-		}
+	tester.Frame()
+	typewriterAt, ok := tester.Find("Typewriter")
+	if !ok {
+		t.Fatal("missing toolbar action Typewriter")
 	}
-	for _, label := range []string{
-		"Bold", "Italic", "Undo", "Redo",
-		"Typewriter", "Zen", "CJK",
-	} {
+	zenAt, ok := tester.Find("Zen")
+	if !ok || zenAt.X <= typewriterAt.X {
+		t.Fatalf("Zen at %v, Typewriter at %v", zenAt, typewriterAt)
+	}
+	for _, label := range []string{"Typewriter", "Zen"} {
 		if err := tester.Click(label); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if !bold {
-		t.Fatal("bold callback did not receive the toggle")
-	}
-	if !italic {
-		t.Fatal("italic callback did not receive the toggle")
-	}
-	if !typewriter {
-		t.Fatal("typewriter callback did not receive the toggle")
-	}
-	if !zen {
-		t.Fatal("zen callback did not receive the toggle")
-	}
-	if !cjk {
-		t.Fatal("CJK callback did not receive the toggle")
-	}
-	if !undo || !redo {
-		t.Fatalf("history callbacks = undo:%v redo:%v", undo, redo)
+	if !typewriter || !zen {
+		t.Fatalf("callbacks = typewriter:%v zen:%v", typewriter, zen)
 	}
 }
 
-func TestFloatingToolbarUsesReferenceActionOrder(t *testing.T) {
+func TestFormattingControlsRunTheirCallbacks(t *testing.T) {
 	state := openState()
+	state.Toolbar.Formatting = FormattingState{
+		Strong:   FormatState{On: true, Enabled: true},
+		Emphasis: FormatState{Enabled: true},
+	}
+	var strong, emphasis bool
+	state.Strong = func() { strong = true }
+	state.Emphasis = func() { emphasis = true }
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-
-	labels := []string{"Italic", "Bold", "Undo", "Redo", "Typewriter", "Zen", "CJK"}
-	var previous ui.Rect
-	for index, label := range labels {
-		element, ok := tester.Find(label)
-		if !ok {
-			t.Fatalf("missing toolbar action %q", label)
-		}
-		if index > 0 && element.X <= previous.X {
-			t.Fatalf("toolbar action %q has x=%v after %q at x=%v",
-				label,
-				element.X,
-				labels[index-1],
-				previous.X,
-			)
-		}
-		previous = element
-	}
-	for _, removed := range []string{"Background", "Focus document", "Clear formatting"} {
-		if _, ok := tester.Find(removed); ok {
-			t.Fatalf("obsolete toolbar action %q is still present", removed)
+	for _, label := range []string{"Strong", "Emphasis"} {
+		if _, ok := tester.Find(label); !ok {
+			t.Fatalf("missing formatting action %q", label)
 		}
 	}
-}
-
-func TestFloatingToolbarHonorsHistoryState(t *testing.T) {
-	state := openState()
-	state.CanUndo = true
-	var clicked string
-	state.Undo = func() { clicked = "undo" }
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	if err := tester.Click("Undo"); err != nil {
+	if err := tester.Click("Strong"); err != nil {
 		t.Fatal(err)
 	}
-	if clicked != "undo" {
-		t.Fatalf("undo click = %q", clicked)
-	}
-	if err := tester.Click("Redo"); err != nil {
+	if err := tester.Click("Emphasis"); err != nil {
 		t.Fatal(err)
 	}
-	if clicked != "undo" {
-		t.Fatalf("disabled redo fired: %q", clicked)
+	if !strong || !emphasis {
+		t.Fatalf("formatting callbacks = strong:%v emphasis:%v", strong, emphasis)
 	}
 }
 
 func TestFloatingToolbarShowsLiveCommandBindingInTooltip(t *testing.T) {
 	state := openState()
-	state.Toolbar.BoldEnabled = true
-	state.Toolbar.Bindings.Bold = "⌘B"
+	state.Toolbar.Bindings.Zen = "⇧⌘F"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	bounds, ok := tester.Find("Bold")
+	bounds, ok := tester.Find("Zen")
 	if !ok {
-		t.Fatal("bold toolbar action missing")
+		t.Fatal("zen toolbar action missing")
 	}
 	tester.Move(bounds.X+bounds.W/2, bounds.Y+bounds.H/2)
 	tester.Advance(700 * time.Millisecond)
-	if !tester.HasText("Bold  ⌘B") {
+	if !tester.HasText("Zen  ⇧⌘F") {
 		t.Fatalf("toolbar tooltip texts = %#v", tester.Texts())
 	}
 }

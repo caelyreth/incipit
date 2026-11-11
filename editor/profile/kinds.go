@@ -1,0 +1,251 @@
+// Package profile is the product's document profile: its node and mark
+// kinds with their slots, fields and validity, their notation, highlight
+// groups and the roles they provide. Generic code never imports it; the
+// composition root hands it to the framework as a vocab.Profile, and
+// kind-aware policies name its kinds.
+package profile
+
+import (
+	"fmt"
+	"sync"
+
+	"github.com/caelyreth/neverland/editor/doc"
+)
+
+// Node kinds.
+const (
+	Page doc.Kind = iota + 1
+	Paragraph
+	Heading
+	Quote
+	List
+	Item
+	Code
+	Math
+	Divider
+	Figure
+	Table
+	Row
+	Cell
+	Formula
+)
+
+// Mark kinds. Emphasis and strong are independent: bold italic is the set
+// {strong, emphasis}.
+const (
+	Emphasis doc.MarkKind = iota + 1
+	Strong
+	CodeMark
+	Strike
+)
+
+// MarkKinds are every mark kind, in kind order.
+var MarkKinds = []doc.MarkKind{Emphasis, Strong, CodeMark, Strike}
+
+// Field numbers. They are persisted, so they never change meaning.
+const (
+	FieldLevel = 1 // heading
+
+	FieldListStyle = 1 // list
+	FieldListStart = 2
+
+	FieldTask = 1 // item
+
+	FieldInfo = 1 // code
+
+	FieldMedia  = 1 // figure
+	FieldWidth  = 2
+	FieldAlign  = 3
+	FieldHeight = 4
+
+	FieldColumns = 1 // table
+	FieldHeader  = 2
+
+	FieldColumnAlign = 1 // a table column record
+	FieldColumnWidth = 2
+)
+
+// ListStyle is a list's style.
+type ListStyle int64
+
+const (
+	Bullet ListStyle = iota
+	Ordered
+)
+
+// Task is an item's task state.
+type Task int64
+
+const (
+	NoTask Task = iota
+	TaskOpen
+	TaskDone
+)
+
+// Align is a figure's or a column's alignment.
+type Align int64
+
+const (
+	AlignStart Align = iota
+	AlignCenter
+	AlignEnd
+)
+
+func intIn(lo, hi int64) func(doc.Value) bool {
+	return func(v doc.Value) bool { return v.Kind() == doc.ValueInt && v.Int() >= lo && v.Int() <= hi }
+}
+
+func isText(v doc.Value) bool { return v.Kind() == doc.ValueText }
+func isBool(v doc.Value) bool { return v.Kind() == doc.ValueBool }
+
+func columnsValid(v doc.Value) bool {
+	if v.Kind() != doc.ValueList || v.Len() == 0 {
+		return false
+	}
+	for _, column := range v.Records() {
+		for _, f := range column.Fields() {
+			switch f.Num {
+			case FieldColumnAlign:
+				if !intIn(0, 2)(f.Value) {
+					return false
+				}
+			case FieldColumnWidth:
+				if !intIn(0, 1<<16)(f.Value) {
+					return false
+				}
+			default:
+				if f.Value.Kind() != doc.ValueRaw {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// flowBlocks is what a page, a quote and an item's body hold.
+func flowBlocks(k doc.Kind) bool {
+	switch k {
+	case Paragraph, Heading, Quote, List, Code, Math, Divider, Figure, Table:
+		return true
+	}
+	return false
+}
+
+func richMarks(doc.MarkKind) bool { return true }
+
+func inlineObjects(k doc.Kind) bool { return k == Formula }
+
+func only(kind doc.Kind) func(doc.Kind) bool { return func(k doc.Kind) bool { return k == kind } }
+
+func richSlot(name string, lines bool) doc.SlotSpec {
+	return doc.SlotSpec{Name: name, Marks: richMarks, Accepts: inlineObjects, Lines: lines}
+}
+
+var kindSpecs = []doc.KindSpec{
+	{Kind: Page, Name: "page", Placement: doc.PlaceRoot,
+		Slots: []doc.SlotSpec{{Name: "blocks", Blocks: true, Accepts: flowBlocks}}},
+	{Kind: Paragraph, Name: "paragraph", Placement: doc.PlaceBlock, Plain: true,
+		Slots: []doc.SlotSpec{richSlot("text", false)}},
+	{Kind: Heading, Name: "heading", Placement: doc.PlaceBlock,
+		Slots:  []doc.SlotSpec{richSlot("text", false)},
+		Fields: []doc.FieldSpec{{Num: FieldLevel, Name: "level", Default: doc.Int(1), Valid: intIn(1, 6)}}},
+	{Kind: Quote, Name: "quote", Placement: doc.PlaceBlock,
+		Slots: []doc.SlotSpec{{Name: "body", Blocks: true, Accepts: flowBlocks}}},
+	{Kind: List, Name: "list", Placement: doc.PlaceBlock,
+		Slots: []doc.SlotSpec{{Name: "items", Blocks: true, Accepts: only(Item)}},
+		Fields: []doc.FieldSpec{
+			{Num: FieldListStyle, Name: "style", Default: doc.Int(int64(Bullet)), Valid: intIn(0, 1)},
+			{Num: FieldListStart, Name: "start", Default: doc.Int(1), Valid: intIn(0, 1<<31)},
+		}},
+	{Kind: Item, Name: "item", Placement: doc.PlaceBlock, Entry: true,
+		Slots:  []doc.SlotSpec{richSlot("head", false), {Name: "body", Blocks: true, Accepts: flowBlocks}},
+		Fields: []doc.FieldSpec{{Num: FieldTask, Name: "task", Default: doc.Int(int64(NoTask)), Valid: intIn(0, 2)}}},
+	{Kind: Code, Name: "code", Placement: doc.PlaceBlock,
+		Slots:  []doc.SlotSpec{{Name: "text", Literal: true, Lines: true}},
+		Fields: []doc.FieldSpec{{Num: FieldInfo, Name: "info", Default: doc.Text(""), Valid: isText}}},
+	{Kind: Math, Name: "math", Placement: doc.PlaceBlock,
+		Slots: []doc.SlotSpec{{Name: "source", Literal: true, Lines: true}}},
+	{Kind: Divider, Name: "divider", Placement: doc.PlaceBlock, Object: true},
+	{Kind: Figure, Name: "figure", Placement: doc.PlaceBlock, Object: true,
+		Slots: []doc.SlotSpec{richSlot("caption", false)},
+		Fields: []doc.FieldSpec{
+			{Num: FieldMedia, Name: "media", Default: doc.Text(""), Valid: isText},
+			{Num: FieldWidth, Name: "width", Default: doc.Int(0), Valid: intIn(0, 1<<16)},
+			{Num: FieldAlign, Name: "align", Default: doc.Int(int64(AlignCenter)), Valid: intIn(0, 2)},
+			{Num: FieldHeight, Name: "height", Default: doc.Int(0), Valid: intIn(0, 1<<16)},
+		}},
+	{Kind: Table, Name: "table", Placement: doc.PlaceBlock, Object: true,
+		Slots: []doc.SlotSpec{{Name: "rows", Blocks: true, Accepts: only(Row)}},
+		Fields: []doc.FieldSpec{
+			{Num: FieldColumns, Name: "columns", Default: doc.List(), Valid: columnsValid},
+			{Num: FieldHeader, Name: "header", Default: doc.Bool(true), Valid: isBool},
+		},
+		Check: checkTable},
+	{Kind: Row, Name: "row", Placement: doc.PlaceBlock,
+		Slots: []doc.SlotSpec{{Name: "cells", Blocks: true, Accepts: only(Cell)}}},
+	{Kind: Cell, Name: "cell", Placement: doc.PlaceBlock,
+		Slots: []doc.SlotSpec{richSlot("text", true)}},
+	{Kind: Formula, Name: "formula", Placement: doc.PlaceInline,
+		Slots: []doc.SlotSpec{{Name: "source", Literal: true}}},
+}
+
+// checkTable holds every row to as many cells as the table has columns.
+func checkTable(n *doc.Node) error {
+	columns, _ := n.Attrs().Get(FieldColumns)
+	for _, row := range n.Slot(0).Children() {
+		if got := row.Slot(0).Len(); got != columns.Len() {
+			return fmt.Errorf("a row has %d cells for %d columns", got, columns.Len())
+		}
+	}
+	return nil
+}
+
+var markSpecs = []doc.MarkSpec{
+	{Kind: Emphasis, Name: "emphasis"},
+	{Kind: Strong, Name: "strong"},
+	{Kind: CodeMark, Name: "code", Bounded: true, Excludes: func(doc.MarkKind) bool { return true }},
+	{Kind: Strike, Name: "strike"},
+}
+
+var schema = sync.OnceValue(func() *doc.Schema {
+	s, err := doc.NewSchema(Page, kindSpecs, markSpecs)
+	if err != nil {
+		panic(err)
+	}
+	return s
+})
+
+// Schema is the document schema of every page.
+func Schema() *doc.Schema { return schema() }
+
+// HeadingLevel is a heading's level.
+func HeadingLevel(n *doc.Node) int { return int(Schema().Attr(n, FieldLevel).Int()) }
+
+// ListStyleOf is a list's style.
+func ListStyleOf(n *doc.Node) ListStyle { return ListStyle(Schema().Attr(n, FieldListStyle).Int()) }
+
+// ListStart is an ordered list's first number.
+func ListStart(n *doc.Node) int { return int(Schema().Attr(n, FieldListStart).Int()) }
+
+// TaskOf is an item's task state.
+func TaskOf(n *doc.Node) Task { return Task(Schema().Attr(n, FieldTask).Int()) }
+
+// EmptyPage is a page holding one empty paragraph. Its node ids come from
+// seed's stream, so the same seed builds the same page.
+func EmptyPage(root doc.ID, seed uint64, marks *doc.Interner) (*doc.Snapshot, error) {
+	bare, err := doc.NewSnapshot(Schema(), marks, doc.NewNodeWithID(root, Page, doc.Attrs{}, "", doc.BlockSlot()), seed)
+	if err != nil {
+		return nil, err
+	}
+	tx := bare.Begin(doc.Origin{Class: doc.OriginCommand})
+	if err := tx.Apply(doc.Insert{Parent: root, Nodes: []*doc.Node{NewParagraph()}}); err != nil {
+		return nil, err
+	}
+	return tx.Commit()
+}
+
+// NewParagraph is an empty paragraph to insert.
+func NewParagraph(items ...doc.Item) *doc.Node {
+	return doc.NewNode(Paragraph, doc.Attrs{}, doc.InlineSlot(items...))
+}

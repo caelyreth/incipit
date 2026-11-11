@@ -1,41 +1,22 @@
 package window
 
 import (
-	"fmt"
-	"os"
 	"time"
 
-	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/kernel"
-	"github.com/caelyreth/neverland/engine/model"
 )
 
 // notebook ties the workspace's pages to their store. Memory stays the
-// truth: each frame hands the mounted page's newest snapshot to the saver
-// when its revision moved, and the saver writes it off the UI thread.
+// truth: each frame hands the saver the pages and layout that changed, and
+// the saver writes them off the UI thread.
 type notebook struct {
 	store *storage.Store
 	saver *storage.Saver
 	// layout is the last layout handed to the saver.
 	layout storage.Layout
 	closed bool
-}
-
-// readPicture gives the bytes of a picture the notebook keeps, for the
-// page to show; a notebook held in memory keeps none.
-func (a *AppState) readPicture(hash string) ([]byte, error) {
-	if a.notebook == nil {
-		return nil, os.ErrNotExist
-	}
-	media, ok := a.notebook.store.Media(hash)
-	if !ok {
-		return nil, os.ErrNotExist
-	}
-	return os.ReadFile(a.notebook.store.MediaFile(media))
 }
 
 // openNotebook builds the pages' sessions and their layout: those the store
@@ -52,31 +33,21 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 	a.notebook = &notebook{store: store}
 	a.nextKey = contents.NextKey
 	a.library = library.Restore(contents.Library)
-	stored := make(map[storage.PageKey]model.DocumentSnapshot, len(contents.Pages))
 	ids := make(map[storage.PageKey]workspace.PageID, len(contents.Pages))
 	sessions := make([]workspace.Session, 0, len(contents.Pages))
 	for _, page := range contents.Pages {
-		document, err := controller.OpenDocument(page.Document, clock{})
-		if err != nil {
-			return nil, workspace.Layout{}, fmt.Errorf("page %d: %w", page.Key, err)
-		}
-		if selection, ok := contents.Layout.Selections[page.Key]; ok {
-			restoreSelection(document, selection)
-		}
 		id := workspace.PageID(len(sessions))
-		session := &sheetSession{page: id, controller: document, key: page.Key}
-		session.noteSaved()
+		session := &sheetSession{page: id, key: page.Key, summary: page.Summary, saved: true}
 		if _, ok := a.library.Sheet(library.SheetID(page.Key)); !ok {
 			_ = a.library.AddSheet(library.SheetID(page.Key), library.Inbox, page.Created)
 		}
 		a.sessions[id] = session
 		sessions = append(sessions, session)
 		ids[page.Key] = id
-		stored[page.Key] = page.Document.Snapshot()
 	}
-	a.notebook.saver = store.Autosave(stored)
+	a.notebook.saver = store.Autosave()
 	a.watchSaving(a.notebook.saver)
-	if notice, ok := recovered(store, contents); ok {
+	if notice, ok := recovered(store); ok {
 		a.Notices.Post(notice)
 	}
 	// Pages filed just now, as those the library did not know, are kept so.
@@ -88,6 +59,7 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 		Active:    ids[contents.Layout.Active],
 		HasActive: contents.Layout.HasActive,
 		Scroll:    map[workspace.PageID]workspace.ScrollPosition{},
+		Views:     map[workspace.PageID]workspace.ViewState{},
 	}
 	if _, ok := ids[contents.Layout.Active]; !ok {
 		// Restore gives the front to the first tab instead.
@@ -103,6 +75,11 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 			layout.Scroll[id] = workspace.ScrollPosition{Y: y}
 		}
 	}
+	for key, view := range contents.Layout.Views {
+		if id, ok := ids[key]; ok {
+			layout.Views[id] = workspaceView(view)
+		}
+	}
 	if !contents.HasLayout {
 		// No layout was saved: show the newest page.
 		layout = workspace.Layout{Tabs: []workspace.PageID{workspace.PageID(len(sessions) - 1)}}
@@ -113,77 +90,82 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 
 // firstPage is a notebook's one empty page, open in front.
 func (a *AppState) firstPage() ([]workspace.Session, workspace.Layout, error) {
-	session, err := a.newSession(0)
-	if err != nil {
-		return nil, workspace.Layout{}, err
-	}
+	session := a.newSession(0, storage.Summary{})
 	_ = a.library.AddSheet(library.SheetID(session.key), library.Inbox, time.Now())
 	return []workspace.Session{session}, workspace.Layout{Tabs: []workspace.PageID{0}, HasActive: true}, nil
 }
 
-// createPage is the workspace's factory: an empty page under the
-// workspace's configuration.
-func (a *AppState) createPage(
-	id workspace.PageID,
-	configuration kernel.PolicyConfiguration,
-) (workspace.Session, error) {
-	session, err := a.newSession(id)
-	if err != nil {
-		return nil, err
-	}
-	if err := session.controller.Adopt(configuration); err != nil {
-		return nil, err
-	}
-	return session, nil
+// createPage is the workspace's factory: an empty page.
+func (a *AppState) createPage(id workspace.PageID) (workspace.Session, error) {
+	return a.newSession(id, storage.Summary{}), nil
 }
 
-// newSession is an empty page, which the notebook saves at once so that
-// its tab has a page to name.
-func (a *AppState) newSession(id workspace.PageID) (*sheetSession, error) {
-	document, err := controller.NewTextDocument("", clock{})
-	if err != nil {
-		return nil, err
-	}
-	return a.adoptSession(id, document), nil
-}
-
-// adoptSession makes a new page's session, with a key no page has had,
-// which the notebook saves at once.
-func (a *AppState) adoptSession(id workspace.PageID, document *controller.DocumentController) *sheetSession {
-	session := &sheetSession{page: id, controller: document, key: a.nextKey}
+// newSession is a new page with a key no page has had, which the notebook
+// saves at once so that its tab has a page to name.
+func (a *AppState) newSession(id workspace.PageID, summary storage.Summary) *sheetSession {
+	session := &sheetSession{page: id, key: a.nextKey, summary: summary}
 	a.nextKey++
-	session.unsaved = a.notebook != nil
 	a.sessions[id] = session
 	return session
 }
 
-// save hands the saver whatever changed since the last frame: the mounted
-// page, when an edit moved its revision, and the layout.
+// save hands the saver whatever changed since the last frame: pages not
+// yet on disk, and the layout.
 func (a *AppState) save() {
 	if a == nil || a.notebook == nil || a.notebook.closed {
 		return
 	}
 	a.fileUnfiled()
-	if a.Session != nil {
-		a.savePage(a.Session)
-	}
 	for _, session := range a.sessions {
-		// A new page is saved before anything is written in it.
-		if session.unsaved {
-			a.savePage(session)
-		}
+		a.savePage(session)
 	}
+	a.saveSettings()
+	a.captureViews()
 	a.saveLayout()
 }
 
 func (a *AppState) savePage(session *sheetSession) {
-	runtime := session.controller.Runtime()
-	if !session.unsaved && session.saved == runtime.Revision() {
+	// A page whose editor holds a snapshot not yet handed over saves its
+	// content with its record.
+	if session.element != nil {
+		if snap := session.element.Editor.Engine.Snapshot(); snap != session.handed {
+			a.notebook.saver.Content(session.key, session.summary, snap)
+			session.handed = snap
+			if session.saved {
+				a.library.Touch(library.SheetID(session.key), time.Now())
+			}
+			session.saved = true
+		}
+	}
+	if session.saved {
 		return
 	}
-	a.notebook.saver.Page(session.key, session.Title(), runtime.Snapshot().Document())
-	session.noteSaved()
+	a.notebook.saver.Page(session.key, session.summary)
+	session.saved = true
 	a.library.Touch(library.SheetID(session.key), time.Now())
+}
+
+// summarize names and describes each open page as it is written: its
+// first heading titles its tab and its row, which show its excerpt and
+// words too.
+func (a *AppState) summarize() {
+	changed := false
+	for _, session := range a.sessions {
+		if session.element == nil {
+			continue
+		}
+		snap := session.element.Editor.Engine.Snapshot()
+		if snap == session.summarized {
+			continue
+		}
+		session.summarized = snap
+		if summary := storage.Summarize(snap.Root()); summary != session.summary {
+			session.summary, changed = summary, true
+		}
+	}
+	if changed {
+		a.refreshShell()
+	}
 }
 
 func (a *AppState) saveLayout() {
@@ -192,12 +174,9 @@ func (a *AppState) saveLayout() {
 	}
 	layout := a.Workspace.Layout()
 	stored := storage.Layout{
-		HasActive:  layout.HasActive,
-		Scroll:     map[storage.PageKey]float32{},
-		Selections: make(map[storage.PageKey]storage.Selection, len(a.sessions)),
-	}
-	for _, session := range a.sessions {
-		stored.Selections[session.key] = storedSelection(session.controller.Session())
+		HasActive: layout.HasActive,
+		Scroll:    map[storage.PageKey]float32{},
+		Views:     map[storage.PageKey]storage.ViewState{},
 	}
 	for _, id := range layout.Tabs {
 		if session, ok := a.sessions[id]; ok {
@@ -212,6 +191,11 @@ func (a *AppState) saveLayout() {
 			stored.Scroll[session.key] = scroll.Y
 		}
 	}
+	for id, view := range layout.Views {
+		if session, ok := a.sessions[id]; ok {
+			stored.Views[session.key] = storageView(view)
+		}
+	}
 	if stored.Equal(a.notebook.layout) {
 		return
 	}
@@ -219,61 +203,33 @@ func (a *AppState) saveLayout() {
 	a.notebook.saver.Layout(stored)
 }
 
-func storedSelection(session *editor.Session) storage.Selection {
-	selection := session.Selection()
-	position := func(anchor model.TextAnchor) storage.Position {
-		return storage.Position{
-			Node:     anchor.Node().Value(),
-			Offset:   int(anchor.Offset()),
-			Affinity: uint8(anchor.Affinity()),
-		}
+func workspaceView(view storage.ViewState) workspace.ViewState {
+	return workspace.ViewState{
+		Kind: workspace.SelectionKind(view.Kind),
+		Anchor: workspace.Caret{
+			Node: view.Anchor.Node, Slot: view.Anchor.Slot,
+			Offset: view.Anchor.Offset, Stop: view.Anchor.Stop,
+		},
+		Head: workspace.Caret{
+			Node: view.Head.Node, Slot: view.Head.Slot,
+			Offset: view.Head.Offset, Stop: view.Head.Stop,
+		},
+		Node: view.Node,
 	}
-	stored := storage.Selection{
-		Anchor: position(selection.Anchor()),
-		Head:   position(selection.Head()),
-	}
-	if visual, err := session.VisualSelection(); err == nil {
-		caret := session.Caret().RangeUTF16().Start
-		anchor, head := visual.Start, visual.End
-		if !visual.Empty() && caret == visual.Start {
-			anchor, head = visual.End, visual.Start
-		}
-		stored.Visual = &storage.ProjectedSelection{
-			Anchor: int(anchor),
-			Head:   int(head),
-		}
-	}
-	return stored
 }
 
-// restoreSelection puts a page's selection back where it was left. One that
-// no longer fits the page is let go, leaving the caret at the start.
-func restoreSelection(document *controller.DocumentController, stored storage.Selection) {
-	runtime := document.Runtime()
-	snapshot := runtime.Snapshot().Document()
-	if stored.Visual != nil {
-		anchor, head := stored.Visual.Anchor, stored.Visual.Head
-		length := int(document.Session().Projection().UTF16Len())
-		if anchor >= 0 && head >= 0 && anchor <= length && head <= length &&
-			document.SelectProjected(anchor, head) == nil {
-			return
-		}
-		document.ClearError()
-	}
-	anchor := func(position storage.Position) model.TextAnchor {
-		return model.NewTextAnchor(
-			model.NodeID(position.Node),
-			model.UTF16Offset(position.Offset),
-			model.Affinity(position.Affinity),
-			runtime.Revision(),
-		)
-	}
-	from, to := anchor(stored.Anchor), anchor(stored.Head)
-	if from.ValidateDocument(snapshot) != nil || to.ValidateDocument(snapshot) != nil {
-		return
-	}
-	if document.SelectSemantic(model.NewTextSelection(from, to)) != nil {
-		document.ClearError()
+func storageView(view workspace.ViewState) storage.ViewState {
+	return storage.ViewState{
+		Kind: uint8(view.Kind),
+		Anchor: storage.ViewCaret{
+			Node: view.Anchor.Node, Slot: view.Anchor.Slot,
+			Offset: view.Anchor.Offset, Stop: view.Anchor.Stop,
+		},
+		Head: storage.ViewCaret{
+			Node: view.Head.Node, Slot: view.Head.Slot,
+			Offset: view.Head.Offset, Stop: view.Head.Stop,
+		},
+		Node: view.Node,
 	}
 }
 
@@ -283,10 +239,11 @@ func (a *AppState) Close() error {
 	if a == nil || a.notebook == nil || a.notebook.closed {
 		return nil
 	}
-	a.parkScroll()
 	for _, session := range a.sessions {
 		a.savePage(session)
 	}
+	a.saveSettings()
+	a.captureViews()
 	a.saveLayout()
 	a.notebook.closed = true
 	err := a.notebook.saver.Close()

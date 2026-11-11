@@ -22,6 +22,7 @@ const (
 	IconChevronRight IconName = "chevron-right"
 	IconClock        IconName = "clock"
 	IconClose        IconName = "x"
+	IconCode         IconName = "code"
 	IconCommand      IconName = "command"
 	IconDocument     IconName = "file-text"
 	IconError        IconName = "circle-alert"
@@ -45,6 +46,7 @@ const (
 	IconSheets       IconName = "files"
 	IconSidebar      IconName = "panel-left"
 	IconSidebarClose IconName = "panel-left-close"
+	IconStrike       IconName = "strikethrough"
 	IconTrash        IconName = "trash-2"
 	IconTypewriter   IconName = "align-vertical-justify-center"
 	IconUndo         IconName = "undo-2"
@@ -61,6 +63,7 @@ var AllIcons = [...]IconName{
 	IconChevronRight,
 	IconClock,
 	IconClose,
+	IconCode,
 	IconCommand,
 	IconDocument,
 	IconError,
@@ -84,6 +87,7 @@ var AllIcons = [...]IconName{
 	IconSheets,
 	IconSidebar,
 	IconSidebarClose,
+	IconStrike,
 	IconTrash,
 	IconTypewriter,
 	IconUndo,

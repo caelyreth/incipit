@@ -6,14 +6,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
-	"github.com/caelyreth/neverland/app/controller"
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
-	"github.com/caelyreth/neverland/engine/kernel"
-	"github.com/caelyreth/neverland/engine/model"
 	"github.com/caelyreth/neverland/native/shell"
 )
 
@@ -139,40 +135,12 @@ func sheetItemsWithSessions(sheets []library.Sheet, sessions map[library.SheetID
 		items = append(items, shell.SheetItem{
 			ID:      sheetName(session.page),
 			Title:   title,
-			Excerpt: excerpt(session.controller.Text()),
+			Excerpt: session.summary.Excerpt,
+			Words:   session.summary.Words,
 			Updated: sheet.Updated,
-			Words:   session.words(),
 		})
 	}
 	return items
-}
-
-// excerpt is the start of a sheet's text after its title, as one line
-// without its markup.
-func excerpt(text string) string {
-	titled := false
-	for line := range strings.SplitSeq(text, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		if !titled && strings.HasPrefix(trimmed, "#") {
-			titled = true
-			continue
-		}
-		trimmed = strings.TrimLeftFunc(trimmed, func(r rune) bool {
-			return r == '#' || r == '>' || r == '-' || r == '*' || r == '+' || r == '.' ||
-				unicode.IsDigit(r) || unicode.IsSpace(r)
-		})
-		if trimmed == "" {
-			continue
-		}
-		if runes := []rune(trimmed); len(runes) > 120 {
-			trimmed = string(runes[:120])
-		}
-		return trimmed
-	}
-	return ""
 }
 
 // Groups is part of shell.Library.
@@ -275,8 +243,7 @@ func (a *AppState) Search(query string) []shell.SheetItem {
 	sessions := a.sessionsBySheet()
 	for _, sheet := range a.library.Live() {
 		session, ok := sessions[sheet.ID]
-		if ok && (strings.Contains(strings.ToLower(session.Title()), query) ||
-			strings.Contains(strings.ToLower(session.controller.Text()), query)) {
+		if ok && strings.Contains(strings.ToLower(session.Title()), query) {
 			found = append(found, sheet)
 		}
 	}
@@ -341,7 +308,6 @@ func (a *AppState) NewSheet(group string, index int) {
 	if target == 0 || a.library.GroupInTrash(target) {
 		target = library.Inbox
 	}
-	a.parkScroll()
 	id, err := a.Workspace.NewPage()
 	if err != nil {
 		a.fail("Couldn't create the sheet", err)
@@ -385,7 +351,6 @@ func (a *AppState) OpenSheet(name string, newTab bool) {
 	if !ok {
 		return
 	}
-	a.parkScroll()
 	open := a.Workspace.OpenInPlace
 	if newTab {
 		open = a.Workspace.Open
@@ -408,28 +373,8 @@ func (a *AppState) DuplicateSheet(name string) {
 	if !ok {
 		return
 	}
-	snapshot := source.controller.Runtime().Snapshot().Document()
-	var records []model.NodeRecord
-	for _, node := range snapshot.Nodes() {
-		records = append(records, node.Record())
-	}
-	document, err := model.RestoreDocument(snapshot.Root(), snapshot.NextID(), records)
-	if err != nil {
-		a.fail("Couldn't duplicate the sheet", err)
-		return
-	}
-	id, err := a.Workspace.CreatePageFrom(func(
-		id workspace.PageID,
-		configuration kernel.PolicyConfiguration,
-	) (workspace.Session, error) {
-		opened, err := controller.OpenDocument(document, clock{})
-		if err != nil {
-			return nil, err
-		}
-		if err := opened.Adopt(configuration); err != nil {
-			return nil, err
-		}
-		return a.adoptSession(id, opened), nil
+	id, err := a.Workspace.CreatePageFrom(func(id workspace.PageID) (workspace.Session, error) {
+		return a.newSession(id, source.summary), nil
 	})
 	if err != nil {
 		a.fail("Couldn't duplicate the sheet", err)
@@ -456,6 +401,9 @@ func (a *AppState) DuplicateSheet(name string) {
 func (a *AppState) discardUnfiledPage(id workspace.PageID, cause error) error {
 	if err := a.Workspace.Discard(id); err != nil {
 		return errors.Join(cause, fmt.Errorf("discard unfiled page: %w", err))
+	}
+	if session, ok := a.sessions[id]; ok {
+		session.close()
 	}
 	delete(a.sessions, id)
 	return cause
@@ -648,6 +596,7 @@ func (a *AppState) discard(sheets []library.SheetID) {
 			a.fail("Couldn't delete the sheet", err)
 			continue
 		}
+		session.close()
 		delete(a.sessions, session.page)
 		if a.notebook != nil && !a.notebook.closed {
 			a.notebook.saver.Delete(storage.PageKey(sheet))
@@ -659,7 +608,6 @@ func (a *AppState) discard(sheets []library.SheetID) {
 
 // closeTabs closes the tabs of sessions that have one.
 func (a *AppState) closeTabs(sessions []*sheetSession) {
-	a.parkScroll()
 	for _, session := range sessions {
 		if err := a.Workspace.Close(session.page); err != nil {
 			a.fail("Couldn't close the tab", err)
@@ -685,7 +633,6 @@ func (a *AppState) closeTabsWhere(kept string, close func(at, kept int) bool) {
 	if index < 0 {
 		return
 	}
-	a.parkScroll()
 	if err := a.Workspace.Open(session.page); err != nil {
 		a.fail("Couldn't close the tabs", err)
 		return

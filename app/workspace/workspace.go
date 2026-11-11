@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/caelyreth/neverland/engine/kernel"
 )
 
 var (
@@ -25,33 +23,32 @@ var (
 // Workspace retains every page for the process lifetime. Exactly one page is
 // mounted when Active reports true; every other page owns one parked session.
 type Workspace struct {
-	pages         []pageState
-	tabs          []PageID
-	active        PageID
-	hasActive     bool
-	mounted       Session
-	configuration kernel.PolicyConfiguration
-	create        Factory
+	pages     []pageState
+	tabs      []PageID
+	active    PageID
+	hasActive bool
+	mounted   Session
+	create    Factory
 }
 
-// New constructs the initial mounted page and records its policy source as the
-// workspace's app-wide configuration baseline.
+// New constructs a workspace around one mounted page.
 func New(initial Session, create Factory) (*Workspace, error) {
 	return Restore([]Session{initial}, Layout{Tabs: []PageID{0}, Active: 0, HasActive: true}, create)
 }
 
 // Layout is what a workspace shows: its tabs in display order, the page
-// mounted among them, and where each page was scrolled.
+// mounted among them, where each page was scrolled, and each page's
+// selection.
 type Layout struct {
 	Tabs      []PageID
 	Active    PageID
 	HasActive bool
 	Scroll    map[PageID]ScrollPosition
+	Views     map[PageID]ViewState
 }
 
 // Restore rebuilds a workspace around existing pages, identified by their
-// order, as a layout left them. The first page's policy source becomes the
-// app-wide baseline. A layout naming pages that are not there is read for
+// order, as a layout left them. A layout naming pages that are not there is read for
 // what it still says: unknown and repeated tabs are dropped, and an active
 // page that is no tab gives way to the first tab.
 func Restore(sessions []Session, layout Layout, create Factory) (*Workspace, error) {
@@ -63,16 +60,15 @@ func Restore(sessions []Session, layout Layout, create Factory) (*Workspace, err
 			return nil, ErrSessionRequired
 		}
 	}
-	configuration := sessions[0].Configuration()
 	w := &Workspace{
-		pages:         make([]pageState, len(sessions)),
-		configuration: configuration.Clone(),
-		create:        create,
+		pages:  make([]pageState, len(sessions)),
+		create: create,
 	}
 	for index, session := range sessions {
 		id := PageID(index)
 		w.pages[index] = pageState{
 			Page:    Page{ID: id, Parked: true, Scroll: layout.Scroll[id]},
+			view:    layout.Views[id],
 			session: session,
 		}
 	}
@@ -89,9 +85,6 @@ func Restore(sessions []Session, layout Layout, create Factory) (*Workspace, err
 		}
 	}
 	if hasActive {
-		if err := w.adopt(w.pages[active].session); err != nil {
-			return nil, err
-		}
 		w.active, w.hasActive = active, true
 		w.mounted = w.pages[active].session
 		w.pages[active].Parked = false
@@ -109,13 +102,48 @@ func (w *Workspace) Layout() Layout {
 		Active:    w.active,
 		HasActive: w.hasActive,
 		Scroll:    make(map[PageID]ScrollPosition, len(w.pages)),
+		Views:     make(map[PageID]ViewState),
 	}
 	for _, page := range w.pages {
 		if !page.discarded && page.Scroll != (ScrollPosition{}) {
 			layout.Scroll[page.ID] = page.Scroll
 		}
+		if !page.discarded && page.view.Valid() {
+			layout.Views[page.ID] = page.view
+		}
 	}
 	return layout
+}
+
+// View returns a page's saved selection.
+func (w *Workspace) View(id PageID) (ViewState, bool) {
+	if w == nil || !w.validPage(id) {
+		return ViewState{}, false
+	}
+	view := w.pages[id].view
+	return view, view.Valid()
+}
+
+// SetView records a page's selection.
+func (w *Workspace) SetView(id PageID, view ViewState) {
+	if w != nil && w.validPage(id) {
+		w.pages[id].view = view
+	}
+}
+
+// ActiveView returns the active page's saved selection.
+func (w *Workspace) ActiveView() (ViewState, bool) {
+	if w == nil || !w.hasActive {
+		return ViewState{}, false
+	}
+	return w.View(w.active)
+}
+
+// SetActiveView records the active page's selection.
+func (w *Workspace) SetActiveView(view ViewState) {
+	if w != nil && w.hasActive {
+		w.pages[w.active].view = view
+	}
 }
 
 // Active returns the mounted page identity.
@@ -256,15 +284,12 @@ func (w *Workspace) createCandidate() (pageState, error) {
 
 func (w *Workspace) candidate(create Factory) (pageState, error) {
 	id := PageID(len(w.pages))
-	session, err := create(id, w.configuration.Clone())
+	session, err := create(id)
 	if err != nil {
 		return pageState{}, err
 	}
 	if session == nil {
 		return pageState{}, fmt.Errorf("workspace: factory returned a nil session")
-	}
-	if err := w.adopt(session); err != nil {
-		return pageState{}, err
 	}
 	return pageState{
 		Page: Page{
@@ -287,8 +312,7 @@ func (w *Workspace) NewPage() (PageID, error) {
 	return id, nil
 }
 
-// Open parks the mounted session and mounts the target page. Configuration
-// adoption is completed before either page changes ownership.
+// Open parks the mounted session and mounts the target page.
 func (w *Workspace) Open(id PageID) error {
 	if w == nil || !w.validPage(id) {
 		return ErrPageNotFound
@@ -299,9 +323,6 @@ func (w *Workspace) Open(id PageID) error {
 	target := &w.pages[id]
 	if !target.Parked {
 		return ErrPageMounted
-	}
-	if err := w.adopt(target.session); err != nil {
-		return err
 	}
 	if w.hasActive {
 		current := &w.pages[w.active]
@@ -338,11 +359,6 @@ func (w *Workspace) Close(id PageID) error {
 		return ErrNoMountedSession
 	}
 	next, hasNext := w.closeNeighbor(index)
-	if hasNext {
-		if err := w.adopt(w.pages[next].session); err != nil {
-			return err
-		}
-	}
 	w.pages[id].Parked = true
 	w.mounted = nil
 	w.hasActive = false
@@ -425,45 +441,11 @@ func (w *Workspace) SetActiveScroll(scroll ScrollPosition) {
 	}
 }
 
-// PublishPolicy installs one already-validated app-wide source configuration.
-// The mounted session adopts it first; on failure neither the workspace source
-// nor any page changes. Parked pages adopt it only when mounted.
-func (w *Workspace) PublishPolicy(configuration kernel.PolicyConfiguration) error {
-	if w == nil {
-		return errors.New("workspace: nil receiver")
+// SetScroll records one page's viewport position, including a parked page.
+func (w *Workspace) SetScroll(id PageID, scroll ScrollPosition) {
+	if w != nil && w.validPage(id) {
+		w.pages[id].Scroll = scroll
 	}
-	candidate := configuration.Clone()
-	if w.mounted != nil {
-		if err := w.mounted.AdoptConfiguration(candidate.Clone()); err != nil {
-			return err
-		}
-	}
-	w.configuration = candidate
-	return nil
-}
-
-// AdoptPolicy is the settings-owned publication spelling for a validated
-// configuration. Validation and host publication belong to PolicySource.
-func (w *Workspace) AdoptPolicy(configuration kernel.PolicyConfiguration) error {
-	return w.PublishPolicy(configuration)
-}
-
-// Configuration returns an independent snapshot of the app-wide policy source.
-func (w *Workspace) Configuration() kernel.PolicyConfiguration {
-	if w == nil {
-		return kernel.PolicyConfiguration{}
-	}
-	return w.configuration.Clone()
-}
-
-func (w *Workspace) adopt(session Session) error {
-	if session == nil {
-		return ErrSessionRequired
-	}
-	if session.Configuration().Equal(w.configuration) {
-		return nil
-	}
-	return session.AdoptConfiguration(w.configuration.Clone())
 }
 
 func (w *Workspace) closeNeighbor(index int) (PageID, bool) {

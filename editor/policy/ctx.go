@@ -1,0 +1,191 @@
+package policy
+
+import (
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/vocab"
+)
+
+// Ctx is what a handler, rewrite or observer reads: the document, the
+// view, the intent, facts, annotations and the scope stack. It is
+// read-only; handlers return Results.
+type Ctx struct {
+	prog  *Program
+	store *Store
+	r     doc.Reader
+	view  *View
+	input vocab.Input
+
+	stack *Stack
+
+	stopsFn StopsFunc
+	stops   Stops
+	// seq is the sequence number of the transaction being processed.
+	seq uint64
+}
+
+// NewCtx returns a context over a document and view state.
+func NewCtx(prog *Program, store *Store, r doc.Reader, view *View, input vocab.Input) *Ctx {
+	return &Ctx{prog: prog, store: store, r: r, view: view, input: input}
+}
+
+// Over returns a context reading r instead, as a rewrite reads the
+// transaction so far.
+func (c *Ctx) Over(r doc.Reader, view *View) *Ctx {
+	return &Ctx{prog: c.prog, store: c.store, r: r, view: view, input: c.input, stopsFn: c.stopsFn, seq: c.seq}
+}
+
+// InTx returns a context processing transaction seq.
+func (c *Ctx) InTx(seq uint64) *Ctx {
+	out := *c
+	out.seq = seq
+	return &out
+}
+
+// Seq is the sequence number of the transaction being processed, which
+// annotations it creates carry as their origin; 0 outside the engine.
+func (c *Ctx) Seq() uint64 { return c.seq }
+
+// Doc is the document.
+func (c *Ctx) Doc() doc.Reader { return c.r }
+
+// Role is n's implementation of a role, as the profile provides it.
+func (c *Ctx) Role(n *doc.Node, role vocab.Role) (any, bool) { return c.prog.nodeRole(c.r, n, role) }
+
+// Program is the compiled program.
+func (c *Ctx) Program() *Program { return c.prog }
+
+// Store is the fact store.
+func (c *Ctx) Store() *Store { return c.store }
+
+// View is the view state.
+func (c *Ctx) View() *View { return c.view }
+
+// Selection is the view's selection.
+func (c *Ctx) Selection() doc.Selection { return c.view.Selection }
+
+// Head is the caret at the selection's head; for a node selection, the
+// gap before the node.
+func (c *Ctx) Head() doc.Caret { return headOf(c.r, c.view.Selection) }
+
+func headOf(r doc.Reader, s doc.Selection) doc.Caret {
+	switch s.Kind {
+	case doc.SelectNode:
+		if parent, slot, index, ok := vocab.Index(r, s.Node); ok {
+			return doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: index})
+		}
+	case doc.SelectCells:
+		// TODO(tables): the head of a cell range is its head cell's
+		// content start, once the tables policy defines cell carets.
+		return doc.CaretAt(doc.Pos{Node: s.Cells.Table})
+	}
+	return s.Head
+}
+
+// Input is the intent being processed with its time and class.
+func (c *Ctx) Input() vocab.Input { return c.input }
+
+// Intent is the intent being processed.
+func (c *Ctx) Intent() vocab.Intent { return c.input.Intent }
+
+// Now is the intent's time; the engine never reads a clock.
+func (c *Ctx) Now() time.Time { return c.input.At }
+
+// Pending is the pending marks at the head, or nil.
+func (c *Ctx) Pending() *Pending {
+	if p := c.view.Pending; p != nil && p.At == c.Head() {
+		return p
+	}
+	return nil
+}
+
+// Composition is the active composition, or nil.
+func (c *Ctx) Composition() *Composition { return c.view.Composition }
+
+// Annotations is the view's annotation set.
+func (c *Ctx) Annotations() Annotations { return c.view.Annotations }
+
+// Inline returns an inline slot's content.
+func (c *Ctx) Inline(ref doc.SlotRef) (*doc.Inline, bool) {
+	n, ok := c.r.Node(ref.Node)
+	if !ok || ref.Slot >= n.NumSlots() || !n.Slot(ref.Slot).IsInline() {
+		return nil, false
+	}
+	return n.Slot(ref.Slot).Content(), true
+}
+
+func buildUnit(prog *Program, r doc.Reader, view *View, ref doc.SlotRef, policy string) (*Unit, bool) {
+	n, ok := r.Node(ref.Node)
+	if !ok || ref.Slot >= n.NumSlots() || !n.Slot(ref.Slot).IsInline() {
+		return nil, false
+	}
+	spec, _ := vocab.SlotSpec(r, ref)
+	content := n.Slot(ref.Slot).Content()
+	u := &Unit{Slot: ref, Owner: n, Spec: spec, Content: content, From: 0, To: content.Len(), Line: -1}
+	ids := doc.Ancestors(r, ref.Node)
+	for i := len(ids) - 1; i >= 0; i-- {
+		if a, ok := r.Node(ids[i]); ok {
+			u.Enclosing = append(u.Enclosing, a.Kind())
+		}
+	}
+	if view != nil {
+		u.Annotations = view.Annotations.Owned(policy, ref)
+	}
+	if prog.profile != nil {
+		u.Context = prog.profile.Context(r, ref)
+	}
+	return u, true
+}
+
+// FactContext is what an inline slot's facts depend on besides its
+// content: the unit context each analyzing policy reads, its annotations
+// among them. A presentation keyed by it is rebuilt whenever a fact of its
+// slot could change (§13.1).
+func (p *Program) FactContext(r doc.Reader, view *View, ref doc.SlotRef) string {
+	var b strings.Builder
+	for _, pol := range p.analyzing {
+		if u, ok := buildUnit(p, r, view, ref, pol); ok {
+			b.WriteString(unitContext(u))
+			b.WriteByte('|')
+		}
+	}
+	return b.String()
+}
+
+// Facts returns the facts of a kind in an inline slot, computing them if
+// no cache holds them.
+func (c *Ctx) Facts(ref doc.SlotRef, k FactID) []Fact {
+	return c.prog.facts(c.store, c.r, c.view, ref, k)
+}
+
+// Summary returns a summary of a node.
+func Summarized[M any](c *Ctx, k *SummaryKind[M], n *doc.Node) M { return SummaryOf(c.store, k, n) }
+
+// Stack is the scope stack at the head. A node selection's node is its
+// innermost level.
+func (c *Ctx) Stack() *Stack {
+	if c.stack == nil {
+		s := c.prog.stackAt(c.store, c.r, c.view, c.Head())
+		if sel := c.view.Selection; sel.Kind == doc.SelectNode {
+			if n, ok := c.r.Node(sel.Node); ok {
+				s = &Stack{Levels: append(slices.Clip(s.Levels), c.prog.nodeLevel(n)), Caret: s.Caret}
+			}
+		}
+		c.stack = s
+	}
+	return c.stack
+}
+
+// Preview dispatches an intent against the same state without applying
+// it, so availability shown anywhere is the same code as the edit.
+func (c *Ctx) Preview(in vocab.Input) (Outcome, error) {
+	return c.prog.Dispatch(NewCtx(c.prog, c.store, c.r, c.view, in).WithStops(c.stopsFn))
+}
+
+// FactsIn returns the facts of a kind in a slot, for presentation.
+func (p *Program) FactsIn(store *Store, r doc.Reader, view *View, ref doc.SlotRef, k FactID) []Fact {
+	return p.facts(store, r, view, ref, k)
+}

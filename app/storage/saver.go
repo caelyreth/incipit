@@ -2,14 +2,14 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"maps"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/caelyreth/neverland/app/library"
-	"github.com/caelyreth/neverland/engine/model"
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/store"
 )
 
 const (
@@ -25,20 +25,25 @@ const (
 )
 
 // Saver writes the notebook as it changes, off the caller's thread. Callers
-// hand it immutable snapshots, which it can read at its leisure; memory
-// remains the truth, and what is pending stays pending until it is on disk.
+// hand it values it owns from then on; memory remains the truth, and what is
+// pending stays pending until it is on disk.
 type Saver struct {
 	store *Store
 
 	mu      sync.Mutex
-	pending map[PageKey]pendingPage
-	deleted map[PageKey]bool
-	library *library.Records
-	layout  *Layout
-	first   time.Time
-	last    time.Time
-	flushes []chan error
-	err     error
+	pending map[PageKey]Summary
+	// content is each page's newest snapshot to save; saved is the last
+	// one on disk, which the next save diffs against.
+	content  map[PageKey]*doc.Snapshot
+	saved    map[PageKey]*doc.Snapshot
+	deleted  map[PageKey]bool
+	library  *library.Records
+	layout   *Layout
+	settings []byte
+	first    time.Time
+	last     time.Time
+	flushes  []chan error
+	err      error
 	// backupErr is the last backup's failure: the notebook itself is
 	// saved, only its copy is behind.
 	backupErr error
@@ -48,45 +53,53 @@ type Saver struct {
 	wake    chan struct{}
 	done    chan struct{}
 
-	// stored is what is on disk for each page, read by the loop alone.
-	stored map[PageKey]model.DocumentSnapshot
 	// wrote is whether anything was written since the last backup.
 	wrote      bool
 	lastBackup time.Time
 	now        func() time.Time
 }
 
-type pendingPage struct {
-	title    string
-	snapshot model.DocumentSnapshot
-}
-
-// Autosave starts saving the notebook. stored holds the snapshot each page
-// was loaded as, so the first write of a page is only what changed.
-func (s *Store) Autosave(stored map[PageKey]model.DocumentSnapshot) *Saver {
+// Autosave starts saving the notebook.
+func (s *Store) Autosave() *Saver {
 	saver := &Saver{
 		store:      s,
-		pending:    map[PageKey]pendingPage{},
+		pending:    map[PageKey]Summary{},
+		content:    map[PageKey]*doc.Snapshot{},
+		saved:      map[PageKey]*doc.Snapshot{},
 		deleted:    map[PageKey]bool{},
 		wake:       make(chan struct{}, 1),
 		done:       make(chan struct{}),
-		stored:     maps.Clone(stored),
 		lastBackup: time.Now(),
 		now:        time.Now,
-	}
-	if saver.stored == nil {
-		saver.stored = map[PageKey]model.DocumentSnapshot{}
 	}
 	go saver.run()
 	return saver
 }
 
-// Page asks for a page to be saved as the snapshot shows it. A later call
+// Page asks for a page's record to be saved with its summary. A later call
 // before the write replaces it.
-func (v *Saver) Page(key PageKey, title string, snapshot model.DocumentSnapshot) {
+func (v *Saver) Page(key PageKey, summary Summary) {
 	v.mu.Lock()
-	v.pending[key] = pendingPage{title: title, snapshot: snapshot}
+	v.pending[key] = summary
 	v.touch()
+	v.mu.Unlock()
+}
+
+// Content asks for a page's content to be saved with its summary. The
+// snapshot is immutable; encoding it runs on the saver's goroutine.
+func (v *Saver) Content(key PageKey, summary Summary, snap *doc.Snapshot) {
+	v.mu.Lock()
+	v.pending[key] = summary
+	v.content[key] = snap
+	v.touch()
+	v.mu.Unlock()
+}
+
+// Loaded tells the saver what is on disk for a page, so its next save is a
+// diff against it.
+func (v *Saver) Loaded(key PageKey, snap *doc.Snapshot) {
+	v.mu.Lock()
+	v.saved[key] = snap
 	v.mu.Unlock()
 }
 
@@ -95,6 +108,7 @@ func (v *Saver) Page(key PageKey, title string, snapshot model.DocumentSnapshot)
 func (v *Saver) Delete(key PageKey) {
 	v.mu.Lock()
 	delete(v.pending, key)
+	delete(v.content, key)
 	v.deleted[key] = true
 	v.touch()
 	v.mu.Unlock()
@@ -112,12 +126,22 @@ func (v *Saver) Library(records library.Records) {
 	v.mu.Unlock()
 }
 
-// Layout asks for the notebook's layout to be saved. The saver copies maps
-// and the optional visual selections before returning.
+// Layout asks for the notebook's layout to be saved. The saver copies it
+// before returning.
 func (v *Saver) Layout(layout Layout) {
 	layout = layout.clone()
 	v.mu.Lock()
 	v.layout = &layout
+	v.touch()
+	v.mu.Unlock()
+}
+
+// Settings asks for the app's settings record to be saved. The saver
+// copies it before returning.
+func (v *Saver) Settings(data []byte) {
+	data = slices.Clone(data)
+	v.mu.Lock()
+	v.settings = data
 	v.touch()
 	v.mu.Unlock()
 }
@@ -198,7 +222,7 @@ func (v *Saver) run() {
 	for {
 		v.mu.Lock()
 		urgent := v.closing || len(v.flushes) > 0
-		dirty := len(v.pending) > 0 || len(v.deleted) > 0 || v.library != nil || v.layout != nil
+		dirty := len(v.pending) > 0 || len(v.deleted) > 0 || v.library != nil || v.layout != nil || v.settings != nil
 		var wait time.Duration
 		if dirty && !urgent {
 			now := v.now()
@@ -224,13 +248,6 @@ func (v *Saver) run() {
 				watch()
 			}
 			if closing {
-				if err != nil {
-					if rescueErr := v.rescue(); rescueErr != nil {
-						v.mu.Lock()
-						v.err = errors.Join(v.err, rescueErr)
-						v.mu.Unlock()
-					}
-				}
 				return
 			}
 			if err != nil {
@@ -258,23 +275,23 @@ func (v *Saver) run() {
 // failure it goes back, unless something newer of the same kind arrived.
 func (v *Saver) writePending() error {
 	v.mu.Lock()
-	pending, deleted, records, layout := v.pending, v.deleted, v.library, v.layout
-	v.pending, v.deleted, v.library, v.layout = map[PageKey]pendingPage{}, map[PageKey]bool{}, nil, nil
+	pending, deleted, records, layout, settings := v.pending, v.deleted, v.library, v.layout, v.settings
+	content := v.content
+	saved := maps.Clone(v.saved)
+	v.pending, v.deleted, v.library, v.layout, v.settings = map[PageKey]Summary{}, map[PageKey]bool{}, nil, nil, nil
+	v.content = map[PageKey]*doc.Snapshot{}
 	v.first = time.Time{}
 	v.mu.Unlock()
-	if len(pending) == 0 && len(deleted) == 0 && records == nil && layout == nil {
+	if len(pending) == 0 && len(deleted) == 0 && records == nil && layout == nil && settings == nil {
 		return nil
 	}
-	work := change{library: records, layout: layout}
-	for key, page := range pending {
-		stored, known := v.stored[key]
-		work.pages = append(work.pages, pageWrite{
-			key:      key,
-			title:    page.title,
-			snapshot: page.snapshot,
-			stored:   stored,
-			known:    known,
-		})
+	work := change{library: records, layout: layout, settings: settings}
+	for key, summary := range pending {
+		w := pageWrite{key: key, summary: summary}
+		if snap, ok := content[key]; ok {
+			w.content = &contentWrite{root: snap.Root().ID(), seed: snap.Seed(), diff: store.Changes(saved[key], snap)}
+		}
+		work.pages = append(work.pages, w)
 	}
 	for key := range deleted {
 		work.deleted = append(work.deleted, key)
@@ -283,9 +300,14 @@ func (v *Saver) writePending() error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if err != nil {
-		for key, page := range pending {
+		for key, summary := range pending {
 			if _, newer := v.pending[key]; !newer && !v.deleted[key] {
-				v.pending[key] = page
+				v.pending[key] = summary
+			}
+			if _, newer := v.content[key]; !newer && !v.deleted[key] {
+				if snap, ok := content[key]; ok {
+					v.content[key] = snap
+				}
 			}
 		}
 		for key := range deleted {
@@ -297,6 +319,9 @@ func (v *Saver) writePending() error {
 		if v.layout == nil {
 			v.layout = layout
 		}
+		if v.settings == nil {
+			v.settings = settings
+		}
 		if v.first.IsZero() {
 			v.first = v.now()
 		}
@@ -304,11 +329,11 @@ func (v *Saver) writePending() error {
 		v.err = err
 		return err
 	}
-	for key, page := range pending {
-		v.stored[key] = page.snapshot
+	for key, snap := range content {
+		v.saved[key] = snap
 	}
 	for key := range deleted {
-		delete(v.stored, key)
+		delete(v.saved, key)
 	}
 	v.err = nil
 	v.wrote = true

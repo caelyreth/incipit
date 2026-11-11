@@ -5,8 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/engine/editor"
-	"github.com/caelyreth/neverland/engine/kernel"
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -23,14 +22,10 @@ func TestSwitchingPanesQuicklyKeepsRunning(t *testing.T) {
 	app.Shell.Appearance.Motion = true
 	tester := ui.NewTester(app.View, 1260, 600)
 	tester.Frame()
-	views := []kernel.CommandID{
-		editor.SurfaceLibraryViewCommandID,
-		editor.SurfaceSheetsViewCommandID,
-		editor.SurfaceEditorViewCommandID,
-	}
+	views := []keymap.CommandID{keymap.LibraryView, keymap.SheetsView, keymap.PageView}
 	r := rand.New(rand.NewSource(1))
 	for range 600 {
-		if err := app.executeExternalCommand(views[r.Intn(len(views))]); err != nil {
+		if err := app.routeWindowCommand(nil, views[r.Intn(len(views))]); err != nil {
 			t.Fatal(err)
 		}
 		tester.Advance(time.Duration(r.Intn(25)) * time.Millisecond)
