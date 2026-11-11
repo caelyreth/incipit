@@ -122,18 +122,34 @@ func TestBackspaceHoldsAFigureThenDeletesIt(t *testing.T) {
 	p.want("page(paragraph())")
 }
 
-func TestBackspaceAfterAFigureHoldsIt(t *testing.T) {
+// Backspace at the start of a line after a figure deletes the boundary
+// between them: an empty line, holding nothing, joins and goes; a line
+// with text cannot join a figure, so the figure stands beside the caret
+// and is held.
+func TestBackspaceAfterAFigure(t *testing.T) {
 	p := open(t)
 	p.placeFigure()
 	p.do(vocab.Dismiss{})
 	p.do(vocab.Break{})
 	p.do(backspace)
-	p.want("page(figure() paragraph())")
+	p.want("page(figure())")
+	if p.armed() != 0 {
+		t.Fatal("the empty line held the figure instead of going")
+	}
+
+	p = open(t)
+	p.placeFigure()
+	p.do(vocab.Dismiss{})
+	p.do(vocab.Break{})
+	p.typeText("x")
+	p.do(left)
+	p.do(backspace)
+	p.want("page(figure() paragraph(x))")
 	if p.armed() == 0 {
 		t.Fatal("the figure is not held")
 	}
 	p.do(backspace)
-	p.want("page(paragraph())")
+	p.want("page(paragraph(x))")
 }
 
 func TestMotionCrossesAFigureThroughItsCaption(t *testing.T) {

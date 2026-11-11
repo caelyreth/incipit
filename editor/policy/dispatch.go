@@ -584,9 +584,11 @@ func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret
 	return nil, found, found != nil
 }
 
-// across is the object beside a text block, at its text's edge: nothing
-// stands between the caret and it, as the caret cannot stand in it there.
-// A block whose level steps down from its start has that level between.
+// across is the object beside a text block, at its text's edge, when
+// nothing stands between the caret and it. Between two blocks stands their
+// boundary, which is content when deleting it joins them (vocab.CanJoin):
+// then the boundary, not the object, is beside the caret. A block whose
+// level steps down from its start has that level between.
 func (p *Program) across(r doc.Reader, owner *doc.Node, pos doc.Pos, ahead bool) (*doc.Node, bool) {
 	s := r.Schema()
 	if s.IsObject(owner.Kind()) {
@@ -617,7 +619,22 @@ func (p *Program) across(r doc.Reader, owner *doc.Node, pos doc.Pos, ahead bool)
 	if i < 0 || i >= sl.Len() || !s.IsObject(sl.Child(i).Kind()) {
 		return nil, false
 	}
+	first, second := sl.Child(i), owner
+	if ahead {
+		first, second = owner, sl.Child(i)
+	}
+	if joins(r, first, second) {
+		return nil, false
+	}
 	return sl.Child(i), true
+}
+
+// joins reports whether the boundary between two blocks in order deletes,
+// second's text joining first's.
+func joins(r doc.Reader, first, second *doc.Node) bool {
+	to, ok1 := vocab.LastTextSlot(first)
+	from, ok2 := vocab.FirstTextSlot(second)
+	return ok1 && ok2 && from.Node == second.ID() && vocab.CanJoin(r, to, from)
 }
 
 // besideLevel is the level of what of target stands beside the caret.

@@ -260,22 +260,38 @@ func Split(at doc.Pos, kind doc.Kind, attrs doc.Attrs) Edit {
 
 // CanJoin reports whether second's text can move onto the end of first's:
 // both are text slots of the same literalness, and line breaks are kept
-// where second has them.
+// where second has them. An object is never dissolved into what is before
+// it, and its own slot takes nothing from beside it; but a second node
+// holding nothing moves nothing, so it joins any text slot, going.
 func CanJoin(r doc.Reader, first, second doc.SlotRef) bool {
 	a, ok1 := SlotSpec(r, first)
 	b, ok2 := SlotSpec(r, second)
-	if !ok1 || !ok2 || a.Blocks || b.Blocks || a.Literal != b.Literal {
+	if !ok1 || !ok2 || a.Blocks || b.Blocks {
 		return false
 	}
-	for _, ref := range []doc.SlotRef{first, second} {
-		// An object's own slot is its own: never joined to what is beside.
-		if n, ok := r.Node(ref.Node); !ok || r.Schema().IsObject(n.Kind()) {
-			return false
-		}
+	sn, ok := r.Node(second.Node)
+	if !ok || r.Schema().IsObject(sn.Kind()) {
+		return false
+	}
+	if holdsNothing(sn) {
+		return true
+	}
+	if fn, ok := r.Node(first.Node); !ok || r.Schema().IsObject(fn.Kind()) || a.Literal != b.Literal {
+		return false
 	}
 	if !a.Lines {
 		n, _ := r.Node(second.Node)
 		if strings.ContainsRune(n.Slot(second.Slot).Content().Text(), '\n') {
+			return false
+		}
+	}
+	return true
+}
+
+// holdsNothing reports whether every slot of n is empty.
+func holdsNothing(n *doc.Node) bool {
+	for _, s := range n.Slots() {
+		if s.Len() > 0 {
 			return false
 		}
 	}
