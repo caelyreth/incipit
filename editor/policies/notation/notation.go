@@ -508,7 +508,7 @@ func toggleBox(_ *policy.Ctx, _ vocab.Type, at policy.At[markerGhost]) policy.Re
 	if at.Data.Marker.Task == profile.NoTask {
 		return policy.Pass
 	}
-	return policy.Do(profile.ToggleTask(at.Node.ID()))
+	return policy.Do(profile.FlipTask(at.Node.ID()))
 }
 
 // --- stops and marks ---------------------------------------------------------
@@ -572,46 +572,34 @@ func (l layout) marks(k kinds, s int) *doc.MarkSet {
 	return ms
 }
 
-// stopMarks keeps a pending-marks annotation at a collapsed caret among
-// shown ghosts, holding the marks its stop decides. Marks another
-// policy asked for in this transaction, such as a format toggle at the
-// caret, stand.
+// stopMarks keeps the pending marks at a collapsed caret among shown
+// ghosts to the marks its stop decides. Marks another policy asked for in
+// this transaction, such as a format toggle at the caret, stand.
 func stopMarks(k kinds) policy.ObserverFunc {
 	return func(c *policy.Ctx, _ []doc.Record) policy.Result {
-		sel := c.Selection()
-		head := c.Head()
-		pending := c.Annotations().At(policy.PendingMarks, head)
-		var res policy.Result
-		own := func() {
-			for _, a := range pending {
-				if a.Owner == ID {
-					res.Drop = append(res.Drop, a.ID)
-				}
+		// own drops the marks this observer set, once its place is gone.
+		own := func() policy.Result {
+			if p := c.View().Pending; p != nil && p.Owner == ID {
+				return policy.Result{DropPending: true}
 			}
+			return policy.Swallow
 		}
+		sel, head := c.Selection(), c.Head()
 		if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
-			own()
-			return res
+			return own()
 		}
-		for _, a := range pending {
-			if a.Owner != ID && a.Origin == c.Seq() {
-				return policy.Swallow
-			}
+		p := c.Pending()
+		if p != nil && p.Owner != ID && p.Origin == c.Seq() {
+			return policy.Swallow
 		}
 		l, ok := layoutAt(c, k, head.Pos)
 		if !ok {
-			own()
-			return res
+			return own()
 		}
 		want := l.marks(k, head.Stop)
-		if len(pending) == 1 && pending[0].Owner == ID && pending[0].Data == want {
+		if p != nil && p.Owner == ID && p.Marks == want {
 			return policy.Swallow
 		}
-		for _, a := range pending {
-			res.Drop = append(res.Drop, a.ID)
-		}
-		res.Annotate = []policy.Annotate{{Kind: policy.PendingMarks, Anchor: policy.CaretAnchor(head), Data: want,
-			Lifetime: policy.UntilCaretLeaves(nil)}}
-		return res
+		return policy.Result{Pending: want}
 	}
 }

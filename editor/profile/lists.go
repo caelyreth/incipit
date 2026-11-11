@@ -124,9 +124,9 @@ func sameListStyle(a, b *doc.Node) bool {
 	return a.Kind() == List && b.Kind() == List && ListStyleOf(a) == ListStyleOf(b)
 }
 
-// ToggleTask completes an open task item or reopens a done one; an item
+// FlipTask completes an open task item or reopens a done one; an item
 // that is no task is left alone.
-func ToggleTask(id doc.ID) vocab.Edit {
+func FlipTask(id doc.ID) vocab.Edit {
 	return func(tx *doc.Tx) error {
 		n, ok := tx.Node(id)
 		if !ok || n.Kind() != Item || TaskOf(n) == NoTask {

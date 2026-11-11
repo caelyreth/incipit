@@ -7,29 +7,34 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 )
 
-var groups struct {
+var groups = struct {
 	sync.Mutex
-	names []string
-}
+	names    []string
+	of       map[string]Group
+	fallback map[Group]Group
+}{of: map[string]Group{}, fallback: map[Group]Group{}}
 
 // Group is a highlight group: how text, notation, objects and decorations
-// are styled. A group may link to a fallback.
+// are styled. A group may link to a fallback. Its name is its identity;
+// the number only interns it in this process.
 type Group uint32
 
-var groupFallback = struct {
-	sync.Mutex
-	of map[Group]Group
-}{of: map[Group]Group{}}
-
-// NewGroup declares a group linked to fallback (zero for none).
+// NewGroup declares a group linked to fallback (zero for none). Declaring
+// a name again returns the same group; with another fallback it panics,
+// as two meanings for one name are a programming error.
 func NewGroup(name string, fallback Group) Group {
 	groups.Lock()
+	defer groups.Unlock()
+	if g, ok := groups.of[name]; ok {
+		if groups.fallback[g] != fallback {
+			panic(fmt.Sprintf("vocab: group %s declared with two fallbacks", name))
+		}
+		return g
+	}
 	groups.names = append(groups.names, name)
 	g := Group(len(groups.names))
-	groups.Unlock()
-	groupFallback.Lock()
-	groupFallback.of[g] = fallback
-	groupFallback.Unlock()
+	groups.of[name] = g
+	groups.fallback[g] = fallback
 	return g
 }
 
@@ -44,9 +49,9 @@ func (g Group) String() string {
 
 // Fallback is the group g links to, or zero.
 func (g Group) Fallback() Group {
-	groupFallback.Lock()
-	defer groupFallback.Unlock()
-	return groupFallback.of[g]
+	groups.Lock()
+	defer groups.Unlock()
+	return groups.fallback[g]
 }
 
 // The groups of generic editor states.

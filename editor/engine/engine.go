@@ -297,6 +297,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	steps := doc.Steps(tx.Steps())
 	carry := e.carry(viewID, held, tx, &view, steps)
 	view.Annotations = view.Annotations.Map(carry)
+	view.Pending = view.Pending.Map(carry)
 	switch {
 	case plan != nil:
 		view.Selection = plan.Selection
@@ -312,7 +313,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	deadlines = append(deadlines, res.Deadlines...)
 
 	// Rewrite phases.
-	for _, phase := range doc.Phases {
+	for _, phase := range policy.Phases {
 		visible := len(tx.Steps())
 		for _, rw := range prog.Rewrites(phase) {
 			computed := len(tx.Steps())
@@ -348,6 +349,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 				st := doc.Steps(tx.Steps()[stepStart:])
 				carry := e.carry(viewID, held, tx, &view, st)
 				view.Annotations = view.Annotations.Map(carry)
+				view.Pending = view.Pending.Map(carry)
 				if rres.Selection != nil {
 					view.Selection = *rres.Selection
 				} else {
@@ -367,6 +369,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	allSteps := tx.Steps()
 	changed := len(allSteps) > 0
 	view.Selection = e.settleSelection(viewID, next, &view)
+	view.Pending = view.Pending.Settle(seq, headCaret(next, view.Selection))
 	if !commit {
 		return processed{preview: Outcome{
 			Available: out.Available() && (changed || view.Selection != before || plan != nil || res.History == nil),
@@ -400,6 +403,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	head := headCaret(next, view.Selection)
 	settle := policy.Settlement{Tx: seq, Edited: changed, Head: head, Now: in.At, Kinds: prog.HasAnnotationKind}
 	view.Annotations = view.Annotations.Settle(settle)
+	view.Pending = view.Pending.Settle(seq, head)
 	view.Annotations = view.Annotations.Drop(func(a policy.Annotation) bool { return !prog.CheckAnnotation(next, a) })
 	if !isVertical(in.Intent) && !res.KeepGoal && res.GoalX == nil {
 		view.GoalX = -1
@@ -433,6 +437,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 		if changed {
 			carry := e.carry(id, e.note(id, e.snap, v), next, v, doc.Steps(allSteps))
 			v.Annotations = v.Annotations.Map(carry)
+			v.Pending = v.Pending.Map(carry)
 			v.Selection = doc.MapSelection(doc.Steps(allSteps), v.Selection, carry)
 			v.Selection = e.settleSelection(id, next, v)
 			if v.Composition != nil {
@@ -444,6 +449,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 			}
 		}
 		v.Annotations = v.Annotations.Settle(policy.Settlement{Tx: seq, Edited: changed, Head: headCaret(next, v.Selection), Now: in.At, Kinds: prog.HasAnnotationKind})
+		v.Pending = v.Pending.Settle(seq, headCaret(next, v.Selection))
 	}
 
 	e.snap = next
@@ -474,8 +480,15 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	return processed{published: pub}, nil
 }
 
-// applyView applies a result's view changes: composition, annotations.
+// applyView applies a result's view changes: composition, pending marks,
+// annotations.
 func (e *Engine) applyView(v *policy.View, res policy.Result, owner string, seq uint64) {
+	if res.DropPending {
+		v.Pending = nil
+	}
+	if res.Pending != nil && v.Selection.Kind == doc.SelectText {
+		v.Pending = &policy.Pending{At: v.Selection.Head, Marks: res.Pending, Owner: owner, Origin: seq}
+	}
 	if res.EndComposition {
 		v.Composition = nil
 	}

@@ -91,7 +91,7 @@ func formattingState(ed *page.Editor) shell.FormattingState {
 
 func formatting(ed *page.Editor, mark doc.MarkKind) shell.FormatState {
 	out, err := ed.Engine.Preview(ed.View, vocab.Input{
-		Intent: vocab.Format{Mark: mark},
+		Intent: profile.Format{Mark: mark},
 		At:     time.Now(),
 	})
 	if err != nil || !out.Available {
@@ -126,10 +126,8 @@ func formatting(ed *page.Editor, mark doc.MarkKind) shell.FormatState {
 // pending marks a preview would toggle, or the marks the run inherits.
 func marksAt(ed *page.Editor, view policy.View, mark doc.MarkKind) bool {
 	caret := view.Selection.Head
-	for _, annotation := range view.Annotations.At(policy.PendingMarks, caret) {
-		if marks, ok := annotation.Data.(*doc.MarkSet); ok {
-			return marks.Has(mark)
-		}
+	if p := view.Pending; p != nil && p.At == caret {
+		return p.Marks.Has(mark)
 	}
 	snap := ed.Engine.Snapshot()
 	node, ok := snap.Node(caret.Pos.Node)
@@ -150,7 +148,7 @@ func (a *AppState) formatPage(mark doc.MarkKind) {
 	if el == nil {
 		return
 	}
-	el.Editor.Do(vocab.Format{Mark: mark}, time.Now())
+	el.Editor.Do(profile.Format{Mark: mark}, time.Now())
 	a.chrome = chromeKey{}
 	a.refreshEditorChrome()
 }

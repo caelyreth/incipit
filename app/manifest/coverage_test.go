@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -34,7 +35,7 @@ var blockPages = map[string]func(p *page){
 		p.typeText("- x")
 		p.do(vocab.Break{})
 		p.typeText("abc")
-		p.do(vocab.Nest{Dir: vocab.Forward})
+		p.do(profile.Nest{Dir: vocab.Forward})
 	},
 	"heading after a list": func(p *page) {
 		p.typeText("- x")

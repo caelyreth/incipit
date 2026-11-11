@@ -58,9 +58,9 @@ func randomIntent(rng *rand.Rand, e *engine.Engine) vocab.Intent {
 		return vocab.Redo{}
 	case n < 83:
 		marks := []doc.MarkKind{profile.Strong, profile.Emphasis, profile.CodeMark, profile.Strike}
-		return vocab.Format{Mark: marks[rng.IntN(len(marks))]}
+		return profile.Format{Mark: marks[rng.IntN(len(marks))]}
 	case n < 85:
-		return vocab.Nest{Dir: dir}
+		return profile.Nest{Dir: dir}
 	case n < 87:
 		// A paste of what the selection copies, as the page pastes its own.
 		slice, text := e.Copy(1)

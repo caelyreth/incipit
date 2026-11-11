@@ -371,7 +371,7 @@ func TestHistoryUndoRedoAndTopLayer(t *testing.T) {
 
 	tx := s.Begin(Origin{Class: OriginTyping})
 	_ = tx.Apply(EditText{At: ref, From: 2, To: 2, Items: []Item{TextItem("--", nil)}})
-	tx.SetOrigin(Origin{Class: OriginTyping, Phase: PhaseCharacters})
+	tx.SetOrigin(Origin{Class: OriginTyping, Phase: PhaseHandler + 1})
 	_ = tx.Apply(EditText{At: ref, From: 2, To: 4, Items: []Item{TextItem("—", nil)}})
 	typed, _ := tx.Commit()
 	h = h.Push(NewEntry(tx.Steps(), OriginTyping, 0, sel(2), sel(5), now), false)
@@ -435,23 +435,6 @@ func TestUndoRebasesOverOtherOrigins(t *testing.T) {
 	s3, _ := tx.Commit()
 	if text(s3, 0) != "new" || text(s3, 1) != "mine" || text(s3, 2) != ">theirs" {
 		t.Fatalf("after undo: %q %q %q", text(s3, 0), text(s3, 1), text(s3, 2))
-	}
-}
-
-func TestTypingGroups(t *testing.T) {
-	ref := SlotRef{Node: 5}
-	entry := func(from, to int, at time.Duration) *Entry {
-		return &Entry{Class: OriginTyping, Time: time.Unix(0, 0).Add(at), Layers: []Layer{{Steps: Steps{{
-			records: []Record{{Kind: RecordTextInserted, Slot: ref, From: from, To: to}}}}}}}
-	}
-	if !CanGroup(entry(0, 1, 0), entry(1, 2, 300*time.Millisecond), 750*time.Millisecond) {
-		t.Fatal("contiguous typing did not group")
-	}
-	if CanGroup(entry(0, 1, 0), entry(1, 2, time.Second), 750*time.Millisecond) {
-		t.Fatal("typing past the window grouped")
-	}
-	if CanGroup(entry(0, 1, 0), entry(5, 6, 0), 750*time.Millisecond) {
-		t.Fatal("typing elsewhere grouped")
 	}
 }
 

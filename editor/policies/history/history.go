@@ -16,7 +16,7 @@ var Window = policy.Int("typingWindow", 750, 0, 5000, policy.Label("settings.his
 // Policy is the history policy.
 var Policy = policy.Define("history", func(p *policy.P) {
 	window := time.Duration(policy.Get(p, Window)) * time.Millisecond
-	p.Grouping(func(prev, next *doc.Entry) bool { return doc.CanGroup(prev, next, window) })
+	p.Grouping(func(prev, next *doc.Entry) bool { return typingGroup(prev, next, window) })
 	policy.On(p, "undo", policy.Intent[vocab.Undo](), policy.Slot.Inside(), func(c *policy.Ctx, in vocab.Undo, _ policy.At[doc.SlotRef]) policy.Result {
 		return policy.Result{History: &policy.HistoryRequest{Action: policy.HistoryUndo, TopLayer: in.TopLayer},
 			EndComposition: c.Composition() != nil, Effects: []policy.Effect{{Kind: policy.EffectReveal}}}
@@ -27,3 +27,32 @@ var Policy = policy.Define("history", func(p *policy.P) {
 	}).Any()
 	p.Command("history.undoCorrection", "commands.undoCorrection", vocab.Undo{TopLayer: true})
 })
+
+// typingGroup reports whether next continues prev's typing: both are
+// typing in one view and slot, within window of each other, typing on at
+// the end or deleting back from it.
+func typingGroup(prev, next *doc.Entry, window time.Duration) bool {
+	if prev == nil || next == nil || prev.Class != doc.OriginTyping || next.Class != doc.OriginTyping ||
+		prev.View != next.View || next.Time.Sub(prev.Time) > window || next.Time.Before(prev.Time) {
+		return false
+	}
+	ps, _, pto, ok1 := typed(prev)
+	ns, nfrom, nto, ok2 := typed(next)
+	if !ok1 || !ok2 || ps != ns {
+		return false
+	}
+	return nfrom == pto || nto == pto || nfrom == pto-1
+}
+
+// typed is the slot and extent of an entry's last text change.
+func typed(e *doc.Entry) (doc.SlotRef, int, int, bool) {
+	steps := e.Steps()
+	for i := len(steps) - 1; i >= 0; i-- {
+		for _, r := range steps[i].Records() {
+			if r.Kind == doc.RecordTextInserted || r.Kind == doc.RecordTextDeleted {
+				return r.Slot, r.From, r.To, true
+			}
+		}
+	}
+	return doc.SlotRef{}, 0, 0, false
+}

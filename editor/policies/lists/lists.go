@@ -17,16 +17,17 @@ const ID = "lists"
 
 // Policy is the lists policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	p.Command("lists.bullet", "commands.bulletList", vocab.Reshape{Shape: profile.List})
-	p.Command("lists.numbered", "commands.numberedList", vocab.Reshape{
-		Shape: profile.List,
+	p.Command("lists.bullet", "commands.bulletList", profile.MakeList{})
+	p.Command("lists.numbered", "commands.numberedList", profile.MakeList{
 		Attrs: doc.MakeAttrs(doc.Field{Num: profile.FieldListStyle, Value: doc.Int(int64(profile.Ordered))},
 			doc.Field{Num: profile.FieldListStart, Value: doc.Int(1)}),
 	})
 
 	items := policy.Node(profile.Item)
 	policy.On(p, "leave-empty", policy.Intent[vocab.Break](), items.Empty().Own(), leave)
-	policy.On(p, "nest", policy.Intent[vocab.Nest](), items.Own(), nest).Any()
+	policy.On(p, "nest", policy.Intent[profile.Nest](), items.Own(), nest).Any()
+	policy.On(p, "make-list", policy.Intent[profile.MakeList](), policy.Slot.Inside(), makeList).Caret().Range()
+	policy.On(p, "toggle-task", policy.Intent[profile.ToggleTask](), policy.Slot.Inside(), toggleTask).Any()
 })
 
 // level is the item's own level.
@@ -50,7 +51,7 @@ func leave(c *policy.Ctx, _ vocab.Break, at policy.At[*doc.Node]) policy.Result 
 }
 
 // nest moves the item in (Forward) or out.
-func nest(c *policy.Ctx, in vocab.Nest, at policy.At[*doc.Node]) policy.Result {
+func nest(c *policy.Ctx, in profile.Nest, at policy.At[*doc.Node]) policy.Result {
 	l, ok := level(c, at.Data)
 	if !ok {
 		return policy.Swallow
@@ -60,4 +61,51 @@ func nest(c *policy.Ctx, in vocab.Nest, at policy.At[*doc.Node]) policy.Result {
 		dir = vocab.Forward
 	}
 	return policy.Do(l.Step(dir))
+}
+
+// makeList makes each block the selection touches an item; lists of one
+// style meet as one list.
+func makeList(c *policy.Ctx, in profile.MakeList, _ policy.At[doc.SlotRef]) policy.Result {
+	from, to := c.Range()
+	blocks := vocab.SelectedBlocks(c.Doc(), from, to)
+	if len(blocks) == 0 {
+		return policy.Swallow
+	}
+	edits := make([]vocab.Edit, len(blocks))
+	for i, b := range blocks {
+		edits[i] = profile.IntoList(b.ID(), in.Attrs)
+	}
+	return policy.Do(edits...)
+}
+
+// toggleTask completes or reopens the task the intent names, or the one
+// holding the caret, its body included.
+func toggleTask(c *policy.Ctx, in profile.ToggleTask, _ policy.At[doc.SlotRef]) policy.Result {
+	id := in.ID
+	if id == 0 {
+		id = itemAt(c.Doc(), c.Head().Pos)
+	}
+	n, ok := c.Doc().Node(id)
+	if !ok || n.Kind() != profile.Item || profile.TaskOf(n) == profile.NoTask {
+		return policy.Swallow
+	}
+	return policy.Do(profile.FlipTask(id))
+}
+
+// itemAt is the item holding p, or zero.
+func itemAt(r doc.Reader, p doc.Pos) doc.ID {
+	for id := p.Node; ; {
+		n, ok := r.Node(id)
+		if !ok {
+			return 0
+		}
+		if n.Kind() == profile.Item {
+			return n.ID()
+		}
+		parent, _, ok := r.Parent(id)
+		if !ok {
+			return 0
+		}
+		id = parent
+	}
 }

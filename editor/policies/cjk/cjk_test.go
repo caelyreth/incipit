@@ -95,7 +95,7 @@ func TestSpacingEmitsTheInsertedSpace(t *testing.T) {
 	pub := h.do(vocab.Input{Intent: vocab.Type{Text: "E"}})
 	h.want("中文 E")
 	for _, r := range pub.Records {
-		if r.Origin.Phase == doc.PhaseScript && r.Kind == doc.RecordTextInserted {
+		if r.Origin.Phase == policy.PhaseScript && r.Kind == doc.RecordTextInserted {
 			if r.Text != " " || r.From != len("中文") || r.To != len("中文")+1 {
 				t.Fatalf("script insertion = %+v", r)
 			}
@@ -159,7 +159,7 @@ func TestScriptTriggerIsTypingAndIMEOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rewrites := prog.Rewrites(doc.PhaseScript)
+	rewrites := prog.Rewrites(policy.PhaseScript)
 	if len(rewrites) != 1 {
 		t.Fatalf("Script rewrites = %d, want 1", len(rewrites))
 	}

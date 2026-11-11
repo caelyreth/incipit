@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -9,11 +10,52 @@ import (
 
 // Composition is an active IME composition: the preedit text shown at a
 // point, which is view state, not document content. A commit arrives as a
-// Type intent with origin IME.
+// Type intent, as typing does.
 type Composition struct {
 	At       doc.Pos
 	Text     string
 	Selected [2]int
+}
+
+// Pending is the marks text typed at a caret takes instead of the marks
+// around it: a format toggled there, a run just closed, the marks a stop
+// among signs decides. It lives while the selection head stays at At.
+type Pending struct {
+	At    doc.Caret
+	Marks *doc.MarkSet
+	// Owner is the policy that set it; Origin the transaction.
+	Owner  string
+	Origin uint64
+}
+
+// Map carries the pending marks' caret through edits.
+func (p *Pending) Map(carry doc.Carry) *Pending {
+	if p == nil {
+		return nil
+	}
+	at, ok := carry(p.At, doc.BiasAfter)
+	if !ok {
+		return nil
+	}
+	out := *p
+	out.At = at
+	return &out
+}
+
+// Settle ends the pending marks once the head has left them. Marks set in
+// transaction tx stand at its head, wherever it settled.
+func (p *Pending) Settle(tx uint64, head doc.Caret) *Pending {
+	switch {
+	case p == nil:
+		return nil
+	case p.Origin == tx:
+		out := *p
+		out.At = head
+		return &out
+	case p.At != head:
+		return nil
+	}
+	return p
 }
 
 // View is one view's state, as the engine keeps it and rules read it.
@@ -21,6 +63,8 @@ type View struct {
 	ID          uint64
 	Selection   doc.Selection
 	Composition *Composition
+	// Pending is the marks typing at the caret takes, or nil.
+	Pending     *Pending
 	Annotations Annotations
 	// GoalX is the remembered horizontal position for vertical motion.
 	GoalX float64
@@ -84,12 +128,16 @@ type Result struct {
 	// Composition sets the composition; EndComposition clears it.
 	Composition    *Composition
 	EndComposition bool
-	Annotate       []Annotate
-	Drop           []AnnotationID
-	DropKinds      []AnnotationKind
-	Deadlines      []time.Time
-	Effects        []Effect
-	History        *HistoryRequest
+	// Pending sets the marks text typed at the resulting caret takes;
+	// DropPending clears them.
+	Pending     *doc.MarkSet
+	DropPending bool
+	Annotate    []Annotate
+	Drop        []AnnotationID
+	DropKinds   []AnnotationKind
+	Deadlines   []time.Time
+	Effects     []Effect
+	History     *HistoryRequest
 	// GoalX, when set, is the new remembered horizontal position; motion
 	// that is not vertical clears it.
 	GoalX *float64
@@ -102,6 +150,7 @@ type Result struct {
 // Empty reports whether the result does nothing.
 func (r Result) Empty() bool {
 	return len(r.Edits) == 0 && r.Selection == nil && r.Then == nil && r.Composition == nil && !r.EndComposition &&
+		r.Pending == nil && !r.DropPending &&
 		len(r.Annotate) == 0 && len(r.Drop) == 0 && len(r.DropKinds) == 0 && len(r.Deadlines) == 0 &&
 		len(r.Effects) == 0 && r.History == nil && r.GoalX == nil
 }
@@ -160,6 +209,8 @@ type rule struct {
 	match  matcher
 	alts   []alt
 	shapes shape
+	// shaped is set once a refinement chose the shapes.
+	shaped bool
 	conds  []Cond
 	run    func(c *Ctx, in vocab.Intent, l *Level) (Result, bool)
 	order  int
@@ -172,7 +223,8 @@ type Rule struct{ r *rule }
 
 // On declares a rule: intents matching pat, at place, run fn. A rule
 // answers a collapsed caret unless refined; at a Selected place, a range
-// or a node selection.
+// or a node selection. Refinements choose the shapes instead, each adding
+// its own: Range().Node() answers both.
 func On[I vocab.Intent, T any](p *P, name string, pat Pattern[I], place Place[T], fn func(c *Ctx, in I, at At[T]) Result) *Rule {
 	r := &rule{policy: p.policy.id, name: name, match: pat.m, alts: place.alts, shapes: shapeCaret, order: len(p.rules)}
 	if place.alts[0].how == placeSelected {
@@ -192,13 +244,56 @@ func On[I vocab.Intent, T any](p *P, name string, pat Pattern[I], place Place[T]
 // When adds conditions at the caret.
 func (b *Rule) When(conds ...Cond) *Rule { b.r.conds = append(b.r.conds, conds...); return b }
 
-// Range answers a text range instead of a caret.
-func (b *Rule) Range() *Rule { b.r.shapes = shapeRange; return b }
+func (b *Rule) shape(s shape) *Rule {
+	if !b.r.shaped {
+		b.r.shapes, b.r.shaped = 0, true
+	}
+	b.r.shapes |= s
+	return b
+}
 
-// Any answers every selection.
-func (b *Rule) Any() *Rule { b.r.shapes = shapeAny; return b }
+// Caret answers a collapsed caret, Range a text range, Node a node
+// selection; Any answers every selection.
+func (b *Rule) Caret() *Rule { return b.shape(shapeCaret) }
+func (b *Rule) Range() *Rule { return b.shape(shapeRange) }
+func (b *Rule) Node() *Rule  { return b.shape(shapeNode) }
+func (b *Rule) Any() *Rule   { return b.shape(shapeAny) }
 
 // --- rewrites and observers ----------------------------------------------
+
+// The rewrite phases, in order (§11.13). Each that edits becomes a history
+// layer of its own, after the handler's.
+const (
+	// PhaseStructure recognises structure from text that arrived without
+	// the keystroke rules seeing it.
+	PhaseStructure doc.Phase = doc.PhaseHandler + 1 + iota
+	// PhaseCharacters replaces symbols and punctuation.
+	PhaseCharacters
+	// PhaseScript refines by script.
+	PhaseScript
+	// PhaseCleanup normalises last.
+	PhaseCleanup
+)
+
+// Phases lists the rewrite phases in order.
+var Phases = [...]doc.Phase{PhaseStructure, PhaseCharacters, PhaseScript, PhaseCleanup}
+
+// PhaseName names a phase for traces.
+func PhaseName(p doc.Phase) string {
+	switch p {
+	case doc.PhaseHandler:
+		return "Handler"
+	case PhaseStructure:
+		return "Structure"
+	case PhaseCharacters:
+		return "Characters"
+	case PhaseScript:
+		return "Script"
+	case PhaseCleanup:
+		return "Cleanup"
+	}
+	return fmt.Sprintf("phase(%d)", p)
+}
 
 // Extent is what a rewrite visits.
 type Extent uint8

@@ -91,6 +91,14 @@ func (c *Ctx) Intent() vocab.Intent { return c.input.Intent }
 // Now is the intent's time; the engine never reads a clock.
 func (c *Ctx) Now() time.Time { return c.input.At }
 
+// Pending is the pending marks at the head, or nil.
+func (c *Ctx) Pending() *Pending {
+	if p := c.view.Pending; p != nil && p.At == c.Head() {
+		return p
+	}
+	return nil
+}
+
 // Composition is the active composition, or nil.
 func (c *Ctx) Composition() *Composition { return c.view.Composition }
 

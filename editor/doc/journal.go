@@ -17,20 +17,13 @@ const (
 	OriginTimer
 )
 
-// Phase is the stage of a transaction that produced a change: the handler,
-// or one of the rewrite phases, in their order.
+// Phase is the stage of a transaction that produced a change: the
+// handler's, or a later one the editing layer numbers after it. Each
+// phase's steps are a history layer of their own.
 type Phase uint8
 
-const (
-	PhaseHandler Phase = iota
-	PhaseStructure
-	PhaseCharacters
-	PhaseScript
-	PhaseCleanup
-)
-
-// Phases lists the rewrite phases in order.
-var Phases = [...]Phase{PhaseStructure, PhaseCharacters, PhaseScript, PhaseCleanup}
+// PhaseHandler is the stage of the intent's own handler.
+const PhaseHandler Phase = 0
 
 // Origin says what produced a record: an intent class and a phase. It
 // never names a policy.

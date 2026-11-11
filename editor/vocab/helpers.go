@@ -1451,3 +1451,16 @@ func PlainText(s Slice) string {
 	}
 	return b.String()
 }
+
+// SelectedBlocks are the text blocks a range's text touches, in order; a
+// collapsed range touches the block it is in.
+func SelectedBlocks(r doc.Reader, from, to doc.Pos) []*doc.Node {
+	var out []*doc.Node
+	for _, s := range TextSpans(r, from, to) {
+		b, ok := Block(r, doc.At(s.Slot, s.From))
+		if ok && (len(out) == 0 || out[len(out)-1] != b) {
+			out = append(out, b)
+		}
+	}
+	return out
+}

@@ -129,11 +129,8 @@ func closeRun(mark doc.MarkKind, withHalf bool) func(*policy.Ctx, vocab.Type, po
 		if outside == nil {
 			outside = c.Doc().Marks().Empty()
 		}
-		after := end - (f.Inner.From.At - f.Outer.From.At)
-		return policy.Result{Edits: ops, Annotate: []policy.Annotate{{
-			Kind: policy.PendingMarks, Anchor: policy.PointAnchor(doc.At(ref, after)),
-			Data: outside, Lifetime: policy.UntilCaretLeaves(nil),
-		}}}
+		// Text typed on after the closed run is outside it.
+		return policy.Result{Edits: ops, Pending: outside}
 	}
 }
 
@@ -157,11 +154,9 @@ func openMark(mark doc.MarkKind) func(*policy.Ctx, vocab.Type, policy.At[run]) p
 		end := doc.At(ref, f.Outer.From.At+len(in.Text))
 		// The caret stands against the text it typed, inside the mark.
 		after := doc.Collapsed(doc.Caret{Pos: end, Stop: doc.StopFirst})
-		return policy.Result{Selection: &after,
+		return policy.Result{Selection: &after, Pending: marks,
 			Edits: []vocab.Edit{vocab.Ops(doc.EditText{At: ref, From: f.Outer.From.At, To: f.Inner.From.At,
-				Items: []doc.Item{doc.TextItem(in.Text, marks)}})},
-			Annotate: []policy.Annotate{{Kind: policy.PendingMarks, Anchor: policy.PointAnchor(end),
-				Data: marks, Lifetime: policy.UntilCaretLeaves(nil)}}}
+				Items: []doc.Item{doc.TextItem(in.Text, marks)}})}}
 	}
 }
 

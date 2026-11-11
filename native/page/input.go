@@ -31,9 +31,9 @@ var menuIntents = map[string]vocab.Intent{
 	"undo":          vocab.Undo{},
 	"redo":          vocab.Redo{},
 	"delete":        vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward},
-	"bold":          vocab.Format{Mark: profile.Strong},
-	"italic":        vocab.Format{Mark: profile.Emphasis},
-	"strikethrough": vocab.Format{Mark: profile.Strike},
+	"bold":          profile.Format{Mark: profile.Strong},
+	"italic":        profile.Format{Mark: profile.Emphasis},
+	"strikethrough": profile.Format{Mark: profile.Strike},
 }
 
 // keyIntent is the intent a key press asks for. A key holding several

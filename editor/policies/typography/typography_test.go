@@ -116,7 +116,7 @@ func TestPunctuationSpacingEmitsMinimalChanges(t *testing.T) {
 	h.want("hello, w")
 	inserted := false
 	for _, r := range pub.Records {
-		if r.Origin.Phase != doc.PhaseCharacters {
+		if r.Origin.Phase != policy.PhaseCharacters {
 			continue
 		}
 		switch r.Kind {
@@ -161,7 +161,7 @@ func TestCharactersTriggerIsTypingAndIMEOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rewrites := prog.Rewrites(doc.PhaseCharacters)
+	rewrites := prog.Rewrites(policy.PhaseCharacters)
 	if len(rewrites) != 1 {
 		t.Fatalf("Characters rewrites = %d, want 1", len(rewrites))
 	}

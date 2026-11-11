@@ -44,7 +44,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		punctuation: policy.Get(p, Punctuation),
 		quotes:      policy.Get(p, QuotePlacement),
 	}
-	p.Rewrite("characters", doc.PhaseCharacters).
+	p.Rewrite("characters", policy.PhaseCharacters).
 		Trigger(policy.Trigger{
 			Kinds:   []doc.RecordKind{doc.RecordTextInserted},
 			Classes: []doc.OriginClass{doc.OriginTyping},

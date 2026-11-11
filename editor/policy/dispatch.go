@@ -432,7 +432,7 @@ func (t *Trace) String() string {
 		b.WriteString(" (swallowed)")
 	}
 	for _, r := range t.Rewrites {
-		fmt.Fprintf(&b, "\n  rewrite %s in %v at %s [%d,%d]: %d records", r.Rule, r.Phase, r.Site.Slot, r.Site.From, r.Site.To, r.Records)
+		fmt.Fprintf(&b, "\n  rewrite %s in %s at %s [%d,%d]: %d records", r.Rule, PhaseName(r.Phase), r.Site.Slot, r.Site.From, r.Site.To, r.Records)
 	}
 	for _, o := range t.Observers {
 		fmt.Fprintf(&b, "\n  observer %s", o)
@@ -451,7 +451,8 @@ var ErrUnhandled = errors.New("policy: no rule handled the intent")
 // walks the scope stack from the innermost scope outward; at each scope
 // the first candidate whose intent, selection shape, place and conditions
 // match runs, unless it passes. Core's rules come after every scope found
-// nothing, innermost first.
+// nothing, innermost first. A feature's intent no rule answers does
+// nothing: its policy is disabled, or it has nothing to do here.
 func (p *Program) Dispatch(c *Ctx) (Outcome, error) {
 	stack := c.Stack()
 	intent := c.input.Intent
@@ -486,6 +487,11 @@ func (p *Program) Dispatch(c *Ctx) (Outcome, error) {
 				return Outcome{Rule: r.id(), Policy: r.policy, Result: res, Trace: trace}, nil
 			}
 		}
+	}
+	if !intent.Kind().Primitive() {
+		trace.Notes = append(trace.Notes, "no enabled policy answers "+intent.Kind().String())
+		trace.Swallowed = true
+		return Outcome{Trace: trace}, nil
 	}
 	return Outcome{Trace: trace}, ErrUnhandled
 }

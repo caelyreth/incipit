@@ -146,7 +146,7 @@ func TestHistoryPulsesPlayBothWays(t *testing.T) {
 // made, not only character replacements.
 func TestStructuralRewritePulses(t *testing.T) {
 	structure := policy.Define("test-structure", func(p *policy.P) {
-		p.Rewrite("heading", doc.PhaseStructure).
+		p.Rewrite("heading", policy.PhaseStructure).
 			Trigger(policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted}}).
 			Extent(policy.ChangedRanges).
 			Produces(doc.RecordNodeChanged).

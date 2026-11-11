@@ -1,13 +1,15 @@
 package vocab
 
 import (
+	"sync"
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 )
 
-// IntentKind is the kind of an intent: the closed vocabulary all input
-// reaches the engine as.
+// IntentKind is the kind of an intent. The primitives below are the
+// editing vocabulary every program answers; a profile or policy adds the
+// kinds of its features with NewIntentKind.
 type IntentKind uint8
 
 const (
@@ -26,11 +28,7 @@ const (
 	IntentReturn
 	IntentSelectScope
 	IntentDismiss
-	IntentFormat
-	IntentNest
-	IntentReshape
 	IntentMoveNode
-	IntentToggleTask
 	IntentTimer
 	IntentUndo
 	IntentRedo
@@ -38,7 +36,7 @@ const (
 	numIntents
 )
 
-// IntentKinds lists every intent kind.
+// IntentKinds lists the primitive intent kinds.
 func IntentKinds() []IntentKind {
 	out := make([]IntentKind, 0, numIntents-1)
 	for k := IntentType; k < numIntents; k++ {
@@ -47,14 +45,39 @@ func IntentKinds() []IntentKind {
 	return out
 }
 
-var intentNames = [...]string{"", "Type", "Delete", "Break", "SoftBreak", "Paste", "Cut", "Compose",
+// Primitive reports whether k is an editing primitive, which every
+// program answers, rather than a feature's.
+func (k IntentKind) Primitive() bool { return k > 0 && k < numIntents }
+
+var intentNames = struct {
+	sync.Mutex
+	names []string
+}{names: []string{"", "Type", "Delete", "Break", "SoftBreak", "Paste", "Cut", "Compose",
 	"CancelComposition", "Move", "VisualMove", "Place", "Leave", "Return", "SelectScope", "Dismiss",
-	"Format", "Nest", "Reshape", "MoveNode", "ToggleTask", "Timer",
-	"Undo", "Redo", "Command"}
+	"MoveNode", "Timer", "Undo", "Redo", "Command"}}
+
+// NewIntentKind declares a feature's intent kind. The name is its
+// identity: declaring a name again returns the same kind.
+func NewIntentKind(name string) IntentKind {
+	intentNames.Lock()
+	defer intentNames.Unlock()
+	for i, n := range intentNames.names {
+		if i > 0 && n == name {
+			return IntentKind(i)
+		}
+	}
+	if len(intentNames.names) > 255 {
+		panic("vocab: too many intent kinds")
+	}
+	intentNames.names = append(intentNames.names, name)
+	return IntentKind(len(intentNames.names) - 1)
+}
 
 func (k IntentKind) String() string {
-	if int(k) < len(intentNames) {
-		return intentNames[k]
+	intentNames.Lock()
+	defer intentNames.Unlock()
+	if int(k) < len(intentNames.names) {
+		return intentNames.names[k]
 	}
 	return "intent?"
 }
@@ -172,24 +195,11 @@ type (
 	Dismiss     struct{}
 )
 
-// Structure intents.
-type (
-	// Format toggles a mark over the selection.
-	Format struct{ Mark doc.MarkKind }
-	// Nest moves the caret's container entry in (Forward) or out.
-	Nest struct{ Dir Direction }
-	// Reshape gives the caret's block another shape: a kind and its
-	// attributes.
-	Reshape struct {
-		Shape doc.Kind
-		Attrs doc.Attrs
-	}
-	MoveNode struct {
-		ID     doc.ID
-		Target doc.Pos
-	}
-	ToggleTask struct{ ID doc.ID }
-)
+// MoveNode moves a node to a position, as a drag does.
+type MoveNode struct {
+	ID     doc.ID
+	Target doc.Pos
+}
 
 // Timer answers a deadline the engine published.
 type Timer struct{ Deadline time.Time }
@@ -222,11 +232,7 @@ func (Leave) Kind() IntentKind             { return IntentLeave }
 func (Return) Kind() IntentKind            { return IntentReturn }
 func (SelectScope) Kind() IntentKind       { return IntentSelectScope }
 func (Dismiss) Kind() IntentKind           { return IntentDismiss }
-func (Format) Kind() IntentKind            { return IntentFormat }
-func (Nest) Kind() IntentKind              { return IntentNest }
-func (Reshape) Kind() IntentKind           { return IntentReshape }
 func (MoveNode) Kind() IntentKind          { return IntentMoveNode }
-func (ToggleTask) Kind() IntentKind        { return IntentToggleTask }
 func (Timer) Kind() IntentKind             { return IntentTimer }
 func (Undo) Kind() IntentKind              { return IntentUndo }
 func (Redo) Kind() IntentKind              { return IntentRedo }

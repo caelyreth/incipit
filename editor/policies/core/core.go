@@ -1,7 +1,9 @@
 // Package core is the core policy: inserting and deleting text, Enter and
 // soft breaks per slot kind, grapheme, line and page motion, Place,
-// VisualMove accepting the host's target, and paste through Fit. Its rules
-// are the lowest precedence at every scope, and it answers every intent.
+// VisualMove accepting the host's target, and paste through Fit; and the
+// product's text features: formats, block kinds and quotes. Its rules are
+// the lowest precedence at every scope, and it answers every primitive
+// intent.
 package core
 
 import (
@@ -15,11 +17,11 @@ import (
 
 // Policy is the core policy.
 var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
-	p.Annotation(policy.PendingMarks, nil)
-
-	// Core answers every intent at every selection, inside any slot.
+	// Core answers every primitive intent at every selection, inside any
+	// slot.
 	in := policy.Slot.Inside()
 	policy.On(p, "type", policy.Intent[vocab.Type](), in, typeText).Any()
+	policy.On(p, "delete-selection", policy.Intent[vocab.Delete](), in, deleteSelection).Range().Node()
 	policy.On(p, "delete", policy.Intent[vocab.Delete](), in, deleteText).Any()
 	policy.On(p, "break", policy.Intent[vocab.Break](), in, breakBlock).Any()
 	policy.On(p, "soft-break", policy.Intent[vocab.SoftBreak](), in, softBreak).Any()
@@ -43,11 +45,15 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 	policy.On(p, "select-scope", policy.Intent[vocab.SelectScope](), in, selectAll).Any()
 	policy.On(p, "dismiss", policy.Intent[vocab.Dismiss](), in, dismiss).Any()
 
-	policy.On(p, "format", policy.Intent[vocab.Format](), in, format).Any()
-	policy.On(p, "nest", policy.Intent[vocab.Nest](), in, swallow).Any()
-	policy.On(p, "reshape", policy.Intent[vocab.Reshape](), in, reshape).Any()
 	policy.On(p, "move-node", policy.Intent[vocab.MoveNode](), in, moveNode).Any()
-	policy.On(p, "toggle-task", policy.Intent[vocab.ToggleTask](), in, toggleTask).Any()
+
+	// The product's text features: a format toggles the marks typing takes
+	// at a caret and the marks of a range; blocks the selection touches
+	// take another kind or a quote.
+	policy.On(p, "format-at-caret", policy.Intent[profile.Format](), policy.Slot.Own(), formatAtCaret)
+	policy.On(p, "format", policy.Intent[profile.Format](), in, format).Range()
+	policy.On(p, "retype", policy.Intent[profile.Retype](), in, retype).Caret().Range()
+	policy.On(p, "wrap-quote", policy.Intent[profile.WrapQuote](), in, wrapQuote).Caret().Range()
 	// Timers end annotation lifetimes in the engine; nothing else to do.
 	policy.On(p, "timer", policy.Intent[vocab.Timer](), in, swallow).Any()
 	// The history policy answers undo and redo; without it they do nothing.
@@ -72,17 +78,17 @@ var commands = []command{
 	{"core.undo", "commands.undo", vocab.Undo{}},
 	{"core.redo", "commands.redo", vocab.Redo{}},
 	{"core.selectAll", "commands.selectAll", vocab.SelectScope{}},
-	{"core.strong", "commands.strong", vocab.Format{Mark: profile.Strong}},
-	{"core.emphasis", "commands.emphasis", vocab.Format{Mark: profile.Emphasis}},
-	{"core.code", "commands.code", vocab.Format{Mark: profile.CodeMark}},
-	{"core.strike", "commands.strike", vocab.Format{Mark: profile.Strike}},
-	{"core.paragraph", "commands.paragraph", vocab.Reshape{Shape: profile.Paragraph}},
-	{"core.heading1", "commands.heading1", vocab.Reshape{Shape: profile.Heading, Attrs: headingAttrs(1)}},
-	{"core.heading2", "commands.heading2", vocab.Reshape{Shape: profile.Heading, Attrs: headingAttrs(2)}},
-	{"core.heading3", "commands.heading3", vocab.Reshape{Shape: profile.Heading, Attrs: headingAttrs(3)}},
-	{"core.quote", "commands.quote", vocab.Reshape{Shape: profile.Quote}},
-	{"core.codeBlock", "commands.codeBlock", vocab.Reshape{Shape: profile.Code}},
-	{"core.toggleTask", "commands.toggleTask", vocab.ToggleTask{}},
+	{"core.strong", "commands.strong", profile.Format{Mark: profile.Strong}},
+	{"core.emphasis", "commands.emphasis", profile.Format{Mark: profile.Emphasis}},
+	{"core.code", "commands.code", profile.Format{Mark: profile.CodeMark}},
+	{"core.strike", "commands.strike", profile.Format{Mark: profile.Strike}},
+	{"core.paragraph", "commands.paragraph", profile.Retype{To: profile.Paragraph}},
+	{"core.heading1", "commands.heading1", profile.Retype{To: profile.Heading, Attrs: headingAttrs(1)}},
+	{"core.heading2", "commands.heading2", profile.Retype{To: profile.Heading, Attrs: headingAttrs(2)}},
+	{"core.heading3", "commands.heading3", profile.Retype{To: profile.Heading, Attrs: headingAttrs(3)}},
+	{"core.quote", "commands.quote", profile.WrapQuote{}},
+	{"core.codeBlock", "commands.codeBlock", profile.Retype{To: profile.Code}},
+	{"core.toggleTask", "commands.toggleTask", profile.ToggleTask{}},
 
 	{"core.left", "commands.left", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}},
 	{"core.right", "commands.right", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward}},
@@ -106,8 +112,8 @@ var commands = []command{
 	{"core.deleteToEnd", "commands.deleteToEnd", vocab.Delete{Unit: vocab.ToSlotEdge, Dir: vocab.Forward}},
 	{"core.break", "commands.break", vocab.Break{}},
 	{"core.softBreak", "commands.softBreak", vocab.SoftBreak{}},
-	{"core.nest", "commands.nest", vocab.Nest{Dir: vocab.Forward}},
-	{"core.outdent", "commands.outdent", vocab.Nest{Dir: vocab.Backward}},
+	{"core.nest", "commands.nest", profile.Nest{Dir: vocab.Forward}},
+	{"core.outdent", "commands.outdent", profile.Nest{Dir: vocab.Backward}},
 	{"core.leave", "commands.leave", vocab.Leave{}},
 	{"core.return", "commands.return", vocab.Return{}},
 	{"core.dismiss", "commands.dismiss", vocab.Dismiss{}},
@@ -202,18 +208,10 @@ func typeText(c *policy.Ctx, in vocab.Type, _ policy.At[doc.SlotRef]) policy.Res
 		res.Edits = edits
 		return res
 	}
-	// Pending marks belong to the place typed at: the caret's, or where
-	// the cleared selection was.
-	at := c.Head()
-	if ok {
-		at = doc.CaretAt(pos)
-	}
+	// Pending marks belong to the caret typed at; text takes them once.
 	var pending *doc.MarkSet
-	for _, a := range c.Annotations().At(policy.PendingMarks, at) {
-		if ms, ok := a.Data.(*doc.MarkSet); ok {
-			pending = ms
-		}
-		res.Drop = append(res.Drop, a.ID)
+	if p := c.Pending(); p != nil {
+		pending, res.DropPending = p.Marks, true
 	}
 	edits = append(edits, insertText(pos, text, pending, pending != nil))
 	res.Edits = edits
@@ -257,27 +255,33 @@ func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool) voca
 	}
 }
 
-// deleteText deletes what the selection covers, or one unit from a
-// collapsed caret. At a slot's edge it steps a block's marker down, joins
-// blocks, or selects an object instead of deleting it in one press.
-func deleteText(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Result {
-	if in.Dir == 0 {
-		in.Dir = vocab.Backward
-	}
+// deleteSelection deletes what a range or a selected node covers. A range
+// of notation alone deletes as a caret at its end in the direction of
+// deleting would.
+func deleteSelection(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Result {
 	if clear, _, ok := clearSelection(c); ok {
 		return policy.Do(clear)
 	}
-	r := c.Doc()
-	head := c.Head()
-	if sel := c.Selection(); sel.Kind == doc.SelectText && !sel.IsCollapsed() {
-		// A selection of notation alone deletes as a caret at its end in
-		// the direction of deleting would.
-		from, to := sel.Ordered(r)
-		head = to
-		if in.Dir > 0 {
-			head = from
-		}
+	from, to := c.Selection().Ordered(c.Doc())
+	if in.Dir > 0 {
+		return deleteAt(c, in, from)
 	}
+	return deleteAt(c, in, to)
+}
+
+// deleteText deletes one unit from the caret.
+func deleteText(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Result {
+	return deleteAt(c, in, c.Head())
+}
+
+// deleteAt deletes one unit from head. At a slot's edge it steps a
+// block's marker down, joins blocks, or selects an object instead of
+// deleting it in one press.
+func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
+	if in.Dir == 0 {
+		in.Dir = vocab.Backward
+	}
+	r := c.Doc()
 	if bound := c.Bound(head); bound != head.Pos {
 		// Before a block's marker: backward deletes the boundary before
 		// the block, forward deletes into its marker.
@@ -645,41 +649,34 @@ func dismiss(c *policy.Ctx, _ vocab.Dismiss, _ policy.At[doc.SlotRef]) policy.Re
 	return res
 }
 
-// format toggles a mark over the selection, or the pending marks at a
-// collapsed caret.
-func format(c *policy.Ctx, in vocab.Format, _ policy.At[doc.SlotRef]) policy.Result {
-	sel := c.Selection()
-	if sel.Kind != doc.SelectText {
+// formatAtCaret toggles a mark in the marks text typed at the caret
+// takes: the pending ones, or the marks around it.
+func formatAtCaret(c *policy.Ctx, in profile.Format, at policy.At[doc.SlotRef]) policy.Result {
+	r := c.Doc()
+	head := c.Head().Pos
+	if spec, ok := vocab.SlotSpec(r, at.Data); !ok || spec.Literal {
 		return policy.Swallow
 	}
-	r := c.Doc()
-	if sel.IsCollapsed() {
-		caret := c.Head()
-		head := caret.Pos
-		in2, ok := c.Inline(head.Ref())
-		if spec, sok := vocab.SlotSpec(r, head.Ref()); !ok || !sok || spec.Literal {
-			return policy.Swallow
-		}
-		res := policy.Result{}
-		marks := vocab.InheritedMarks(r.Schema(), in2, head.Offset)
-		for _, a := range c.Annotations().At(policy.PendingMarks, caret) {
-			if ms, ok := a.Data.(*doc.MarkSet); ok {
-				marks = ms
-			}
-			res.Drop = append(res.Drop, a.ID)
-		}
-		if marks == nil {
-			marks = r.Marks().Empty()
-		}
-		if marks.Has(in.Mark) {
-			marks = marks.Without(in.Mark)
-		} else {
-			marks = vocab.WithMark(r.Schema(), marks, doc.Mark{Kind: in.Mark})
-		}
-		anchor := policy.CaretAnchor(caret)
-		res.Annotate = []policy.Annotate{{Kind: policy.PendingMarks, Anchor: anchor, Data: marks, Lifetime: policy.UntilCaretLeaves(nil)}}
-		return res
+	in2, _ := c.Inline(at.Data)
+	marks := vocab.InheritedMarks(r.Schema(), in2, head.Offset)
+	if p := c.Pending(); p != nil {
+		marks = p.Marks
 	}
+	if marks == nil {
+		marks = r.Marks().Empty()
+	}
+	if marks.Has(in.Mark) {
+		marks = marks.Without(in.Mark)
+	} else {
+		marks = vocab.WithMark(r.Schema(), marks, doc.Mark{Kind: in.Mark})
+	}
+	return policy.Result{Pending: marks}
+}
+
+// format toggles a mark over a range: cleared where it covers all of it,
+// applied otherwise.
+func format(c *policy.Ctx, in profile.Format, _ policy.At[doc.SlotRef]) policy.Result {
+	r := c.Doc()
 	from, to := c.Range()
 	spans := vocab.TextSpans(r, from, to)
 	if vocab.CoverageOf(r, spans, in.Mark) == vocab.CoverFull {
@@ -688,100 +685,46 @@ func format(c *policy.Ctx, in vocab.Format, _ policy.At[doc.SlotRef]) policy.Res
 	return policy.Do(vocab.ApplyMark(spans, doc.Mark{Kind: in.Mark}))
 }
 
-// selectedBlocks are the text blocks the selection touches.
-func selectedBlocks(c *policy.Ctx) []*doc.Node {
+// retype gives the text blocks the selection touches a kind; blocks that
+// already have it, with its attributes, become paragraphs again. Items
+// keep their kind.
+func retype(c *policy.Ctx, in profile.Retype, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
 	from, to := c.Range()
-	var out []*doc.Node
-	for _, s := range vocab.TextSpans(r, from, to) {
-		b, ok := vocab.Block(r, doc.At(s.Slot, s.From))
-		if ok && (len(out) == 0 || out[len(out)-1] != b) {
-			out = append(out, b)
-		}
-	}
-	return out
-}
-
-// reshape changes the selected text blocks' kind; Quote wraps them, and
-// List shapes each into an item and joins lists of the same style.
-func reshape(c *policy.Ctx, in vocab.Reshape, _ policy.At[doc.SlotRef]) policy.Result {
-	r := c.Doc()
-	blocks := selectedBlocks(c)
-	if len(blocks) == 0 {
-		return policy.Swallow
-	}
-	switch in.Shape {
-	case profile.List:
-		return reshapeList(blocks, in.Attrs)
-	case profile.Quote:
-		ids := make([]doc.ID, len(blocks))
-		for i, b := range blocks {
-			ids[i] = b.ID()
-		}
-		run, ok := vocab.WrapRun(c.Doc(), ids, profile.Quote)
-		if !ok {
-			return policy.Swallow
-		}
-		return policy.Do(vocab.Wrap(run, profile.Quote, in.Attrs))
-	case profile.Paragraph, profile.Heading, profile.Code:
-	default:
-		return policy.Swallow
-	}
+	attrs := r.Schema().Canonical(in.To, in.Attrs)
 	var edits []vocab.Edit
-	for _, b := range blocks {
+	for _, b := range vocab.SelectedBlocks(r, from, to) {
 		if b.Kind() == profile.Item || !r.Schema().IsTextBlock(b.Kind()) {
 			continue
 		}
-		kind, attrs := in.Shape, r.Schema().Canonical(in.Shape, in.Attrs)
-		if b.Kind() == kind && b.Attrs().Equal(attrs) {
-			kind, attrs = profile.Paragraph, doc.Attrs{}
+		kind, as := in.To, attrs
+		if b.Kind() == kind && b.Attrs().Equal(as) {
+			kind, as = profile.Paragraph, doc.Attrs{}
 		}
-		edits = append(edits, vocab.Retype(b.ID(), kind, attrs))
+		edits = append(edits, vocab.Retype(b.ID(), kind, as))
+	}
+	if len(edits) == 0 {
+		return policy.Swallow
 	}
 	return policy.Do(edits...)
 }
 
-// reshapeList makes each selected block an item, or retypes the list that
-// already holds a selected item. Lists of one style meet as one list.
-func reshapeList(blocks []*doc.Node, attrs doc.Attrs) policy.Result {
-	edits := make([]vocab.Edit, 0, len(blocks))
-	for _, b := range blocks {
-		edits = append(edits, profile.IntoList(b.ID(), attrs))
+// wrapQuote wraps the blocks the selection touches in a quote, lifted to
+// what the container holds.
+func wrapQuote(c *policy.Ctx, _ profile.WrapQuote, _ policy.At[doc.SlotRef]) policy.Result {
+	from, to := c.Range()
+	blocks := vocab.SelectedBlocks(c.Doc(), from, to)
+	ids := make([]doc.ID, len(blocks))
+	for i, b := range blocks {
+		ids[i] = b.ID()
 	}
-	return policy.Do(edits...)
+	run, ok := vocab.WrapRun(c.Doc(), ids, profile.Quote)
+	if len(ids) == 0 || !ok {
+		return policy.Swallow
+	}
+	return policy.Do(vocab.Wrap(run, profile.Quote, doc.Attrs{}))
 }
 
 func moveNode(c *policy.Ctx, in vocab.MoveNode, _ policy.At[doc.SlotRef]) policy.Result {
 	return policy.Do(vocab.MoveTo(in.ID, in.Target))
-}
-
-func toggleTask(c *policy.Ctx, in vocab.ToggleTask, _ policy.At[doc.SlotRef]) policy.Result {
-	id := in.ID
-	if id == 0 {
-		id = itemAt(c.Doc(), c.Head().Pos)
-	}
-	n, ok := c.Doc().Node(id)
-	if !ok || n.Kind() != profile.Item || profile.TaskOf(n) == profile.NoTask {
-		return policy.Swallow
-	}
-	return policy.Do(profile.ToggleTask(id))
-}
-
-// itemAt is the item holding p, including an item body several blocks
-// below its head.
-func itemAt(r doc.Reader, p doc.Pos) doc.ID {
-	for id := p.Node; ; {
-		n, ok := r.Node(id)
-		if !ok {
-			return 0
-		}
-		if n.Kind() == profile.Item {
-			return n.ID()
-		}
-		parent, _, ok := r.Parent(id)
-		if !ok {
-			return 0
-		}
-		id = parent
-	}
 }

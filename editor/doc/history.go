@@ -54,36 +54,6 @@ func (e *Entry) Steps() Steps {
 // Empty reports an entry with no document change.
 func (e *Entry) Empty() bool { return len(e.Layers) == 0 }
 
-// typingSpan returns the slot and end of the entry's last insertion, for
-// typing groups.
-func (e *Entry) typingSpan() (SlotRef, int, int, bool) {
-	steps := e.Steps()
-	for i := len(steps) - 1; i >= 0; i-- {
-		for _, r := range steps[i].records {
-			if r.Kind == RecordTextInserted || r.Kind == RecordTextDeleted {
-				return r.Slot, r.From, r.To, true
-			}
-		}
-	}
-	return SlotRef{}, 0, 0, false
-}
-
-// CanGroup reports whether next continues prev's typing group: both are
-// typing, in the same slot, contiguous, and within window of each other.
-func CanGroup(prev, next *Entry, window time.Duration) bool {
-	if prev == nil || next == nil || prev.Class != OriginTyping || next.Class != OriginTyping ||
-		prev.View != next.View || next.Time.Sub(prev.Time) > window || next.Time.Before(prev.Time) {
-		return false
-	}
-	ps, _, pto, ok1 := prev.typingSpan()
-	ns, nfrom, nto, ok2 := next.typingSpan()
-	if !ok1 || !ok2 || ps != ns {
-		return false
-	}
-	// Typing on at the end, or deleting back from it.
-	return nfrom == pto || nto == pto || nfrom == pto-1
-}
-
 // History is a page's undo and redo state. It is immutable: every change
 // returns a new History.
 type History struct {

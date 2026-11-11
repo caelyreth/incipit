@@ -66,13 +66,9 @@ func (a AnnotationKind) ID() uint32     { return a.id }
 func (a AnnotationKind) Scoped() bool   { return a.scoped }
 func (a AnnotationKind) String() string { return handleName(handleAnnotation, a.id) }
 
-// The core annotation kinds, which any policy may create.
-var (
-	// Armed marks a structure the first delete armed.
-	Armed = NewAnnotationKind("armed", true)
-	// PendingMarks holds marks the next typed text takes.
-	PendingMarks = NewAnnotationKind("pendingMarks", false)
-)
+// Armed is the core annotation kind any policy may create: a structure
+// the first delete armed.
+var Armed = NewAnnotationKind("armed", true)
 
 // ScopeClass is the class of a scope key.
 type ScopeClass uint8

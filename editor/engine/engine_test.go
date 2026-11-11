@@ -106,7 +106,7 @@ func TestReplayIsDeterministic(t *testing.T) {
 	h.do(vocab.Break{})
 	h.typeText("two")
 	h.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward, Extend: true})
-	h.do(vocab.Format{Mark: profile.Strong})
+	h.do(profile.Format{Mark: profile.Strong})
 	h.do(vocab.Undo{})
 	h.do(vocab.Redo{})
 	r := newHarness(t)
@@ -127,14 +127,14 @@ func TestReplayIsDeterministic(t *testing.T) {
 
 func TestPendingMarksAndFormat(t *testing.T) {
 	h := newHarness(t)
-	h.do(vocab.Format{Mark: profile.Strong})
+	h.do(profile.Format{Mark: profile.Strong})
 	h.typeText("bo")
 	n := h.e.Snapshot().Root().Slot(0).Child(0)
 	if ms := n.Slot(0).Content().MarksAt(1); ms == nil || !ms.Has(profile.Strong) {
 		t.Fatal("pending strong mark not applied")
 	}
 	h.do(vocab.SelectScope{})
-	h.do(vocab.Format{Mark: profile.Strong})
+	h.do(profile.Format{Mark: profile.Strong})
 	n = h.e.Snapshot().Root().Slot(0).Child(0)
 	if ms := n.Slot(0).Content().MarksAt(1); ms != nil && ms.Has(profile.Strong) {
 		t.Fatal("format did not toggle strong off")

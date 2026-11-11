@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -50,11 +51,11 @@ var scripts = map[string]Script{
 		Beats: []Beat{
 			Type("- tides\nebb"),
 			Wait(500 * time.Millisecond),
-			Press(vocab.Nest{Dir: vocab.Forward}),
+			Press(profile.Nest{Dir: vocab.Forward}),
 			Wait(300 * time.Millisecond),
 			Type("\nflow"),
 			Wait(500 * time.Millisecond),
-			Press(vocab.Nest{Dir: vocab.Backward}),
+			Press(profile.Nest{Dir: vocab.Backward}),
 		},
 		Hold: 2400 * time.Millisecond,
 	},

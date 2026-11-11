@@ -346,7 +346,7 @@ func TestFormatAtAGhostStandsUntilTyped(t *testing.T) {
 	p.typeText("**b**")
 	p.wantShown("[**]b[**]|")
 	// Bold is off after the closing ghost; toggling it on stands.
-	p.do(vocab.Format{Mark: profile.Strong})
+	p.do(profile.Format{Mark: profile.Strong})
 	p.typeText("c")
 	p.want("page(paragraph(<bc>))")
 }

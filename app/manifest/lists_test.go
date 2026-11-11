@@ -5,6 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -54,7 +55,7 @@ func TestBackspaceBeforeAnItemsMarkerJoinsTheItemBefore(t *testing.T) {
 
 func TestNestingStepsAnItemsLevel(t *testing.T) {
 	p := twoItems(t)
-	p.do(vocab.Nest{Dir: vocab.Forward})
+	p.do(profile.Nest{Dir: vocab.Forward})
 	p.want("page(list(item(one|list(item(two|)))))")
 	// Backspace at a nested item's start steps it out one level only.
 	for range 3 {
@@ -62,8 +63,8 @@ func TestNestingStepsAnItemsLevel(t *testing.T) {
 	}
 	p.do(backspace)
 	p.want("page(list(item(one|) item(two|)))")
-	p.do(vocab.Nest{Dir: vocab.Forward})
-	p.do(vocab.Nest{Dir: vocab.Backward})
+	p.do(profile.Nest{Dir: vocab.Forward})
+	p.do(profile.Nest{Dir: vocab.Backward})
 	p.want("page(list(item(one|) item(two|)))")
 }
 
@@ -73,14 +74,14 @@ func TestOutdentKeepsTheItemsAfterInOrder(t *testing.T) {
 	for _, s := range []string{"b", "c"} {
 		p.do(vocab.Break{})
 		p.typeText(s)
-		p.do(vocab.Nest{Dir: vocab.Forward})
+		p.do(profile.Nest{Dir: vocab.Forward})
 	}
 	p.want("page(list(item(a|list(item(b|list(item(c|)))))))")
 	p = open(t)
 	p.typeText("- a")
 	p.do(vocab.Break{})
 	p.typeText("b")
-	p.do(vocab.Nest{Dir: vocab.Forward})
+	p.do(profile.Nest{Dir: vocab.Forward})
 	p.do(vocab.Break{})
 	p.typeText("c")
 	p.want("page(list(item(a|list(item(b|) item(c|)))))")
@@ -89,7 +90,7 @@ func TestOutdentKeepsTheItemsAfterInOrder(t *testing.T) {
 		p.do(left)
 	}
 	p.wantShown("[- ]|b")
-	p.do(vocab.Nest{Dir: vocab.Backward})
+	p.do(profile.Nest{Dir: vocab.Backward})
 	p.want("page(list(item(a|) item(b|list(item(c|)))))")
 }
 

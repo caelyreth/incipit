@@ -207,7 +207,7 @@ func (p *Program) Strict() bool              { return p.strict }
 // program: core kinds always do, others while their owner is enabled.
 func (p *Program) HasAnnotationKind(k AnnotationKind) bool {
 	switch k {
-	case Armed, PendingMarks:
+	case Armed:
 		return true
 	}
 	for key := range p.annotation {
