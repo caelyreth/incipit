@@ -61,7 +61,7 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 			continue
 		}
 		if !s.shown {
-			out = append(out, piece{surface: -1, rows: []decoRow{objectRow(standIn(u, s))}})
+			out = append(out, piece{surface: -1, rows: []decoRow{objectRow(standIn(u, s), 0)}})
 			continue
 		}
 		var text, objects []decoRow
@@ -74,7 +74,7 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 				if from < sg.u0 {
 					text = append(text, decoRows(s, ui.TextInputRange{Start: from, End: sg.u0}, u.x+s.x, u.y+s.y)...)
 				}
-				objects = append(objects, objectRow(r))
+				objects = append(objects, objectRow(r, 0))
 				from = sg.u1
 			}
 		}
@@ -92,11 +92,22 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 }
 
 // blockOutline is the outline around a block object drawing r (in its
-// unit), in the page.
-func blockOutline(u *unitLayout, r ui.Rect) ui.Rect {
+// unit), in the page, and its corner radius (0: outlineRadius's): on the
+// frame the object draws, where it draws one, or standing off it.
+func blockOutline(u *unitLayout, r ui.Rect) (ui.Rect, float32) {
+	if u.frame > 0 && r == u.drawn {
+		return frameOf(u, u.x, u.y), u.frame
+	}
 	r.X += u.x
 	r.Y += u.y
-	return outset(r, objectOutset, objectOutset)
+	return outset(r, objectOutset, objectOutset), 0
+}
+
+// frameOf is the frame an object draws around its unit, with the unit at
+// x, y: as wide as its box, as tall as the unit stands while its room
+// springs.
+func frameOf(u *unitLayout, x, y float32) ui.Rect {
+	return ui.Rect{X: x, Y: y, W: u.box.W, H: u.shown}
 }
 
 // inlineOutline is the outline around the inline object of s's segment i,
@@ -129,9 +140,11 @@ func outset(r ui.Rect, dx, dy float32) ui.Rect {
 // too short to hold it.
 func outlineRadius(m Metrics, r ui.Rect) float32 { return min(objectRadius(m), r.H*0.3) }
 
-// objectRow is an object's piece: its outline's box, drawn around, never
-// over.
-func objectRow(r ui.Rect) decoRow { return decoRow{box: r, base: r.Y + r.H, object: true} }
+// objectRow is an object's piece: its outline's box and corner radius
+// (0: outlineRadius's), drawn around, never over.
+func objectRow(r ui.Rect, radius float32) decoRow {
+	return decoRow{box: r, base: r.Y + r.H, object: true, radius: radius}
+}
 
 // standIn is the outline, in the page, of what a surface not shown stands
 // in for: the inline object its card hangs from, or its block object.
@@ -147,7 +160,8 @@ func standIn(u *unitLayout, s *surfaceLayout) ui.Rect {
 			}
 		}
 	}
-	return blockOutline(u, u.box)
+	r, _ := blockOutline(u, u.box)
+	return r
 }
 
 // unitOf is the laid-out unit of a presented one.

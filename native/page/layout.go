@@ -159,9 +159,13 @@ type unitLayout struct {
 	object bool
 	gaps   [2]*stopAt
 	box    ui.Rect
-	// drawn is all an object draws, which its ring goes around held whole:
-	// its box, or more where its renderer draws more around it.
+	// drawn is all an object draws, which an outline goes around held
+	// whole: its box, or more where its renderer draws more around it.
+	// frame, when set, is the corner radius of a frame the object draws on
+	// drawn's edge, as an open math block's: an outline then lies on that
+	// frame, the frame taking the paint's look (paints.go).
 	drawn ui.Rect
+	frame float32
 	// math is a math block's display over its source panel.
 	math *mathLayout
 	// figure is a figure's shape, as it is laid out, and crop the share of

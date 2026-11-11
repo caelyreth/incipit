@@ -642,6 +642,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			}
 		})
 	}
+	el.paintOutlines(p, ox, oy, now, animate)
 	el.sweepMaths()
 	el.sweepFigures()
 	if el.paintDrop(p, ox, oy, m, now, animate) {
@@ -707,8 +708,10 @@ type shownDeco struct {
 type decoRow struct {
 	box           ui.Rect
 	base, descent float32
-	// object marks an object's piece, drawn around its box.
+	// object marks an object's piece, drawn around its box, rounded by
+	// radius (0: outlineRadius's).
 	object bool
+	radius float32
 }
 
 // paintDecos draws what the page draws itself beneath the text, from each
@@ -905,16 +908,31 @@ func decoRows(s *surfaceLayout, rg ui.TextInputRange, x, y float32) []decoRow {
 func (el *Element) paintBackground(p *ui.Painter, sd *shownDeco, ox, oy float32, now time.Time, animate bool) {
 	for _, row := range revealed(sd, now, animate) {
 		r := row.box
-		if row.object {
-			r.X += ox
-			r.Y += oy
-			components.PaintRing(p, r, outlineRadius(el.Editor.metrics, r), 0, sd.look.outline.Alpha(sd.alpha))
-			continue
-		}
-		if r.W == 0 || sd.look.bg == (ui.Color{}) {
+		if row.object || r.W == 0 || sd.look.bg == (ui.Color{}) {
 			continue
 		}
 		p.Fill(ui.Rect{X: ox + r.X - decoPad, Y: oy + r.Y - decoPad/2, W: r.W + decoPad*2, H: r.H + decoPad}, sd.look.bg.Alpha(sd.alpha), 3)
+	}
+}
+
+// paintOutlines draws every paint's outlines around the objects it holds,
+// over what the objects draw, so an outline on an object's own frame takes
+// the frame's place.
+func (el *Element) paintOutlines(p *ui.Painter, ox, oy float32, now time.Time, animate bool) {
+	for _, sd := range el.decos {
+		for _, row := range revealed(sd, now, animate) {
+			if !row.object {
+				continue
+			}
+			r := row.box
+			r.X += ox
+			r.Y += oy
+			radius := row.radius
+			if radius == 0 {
+				radius = outlineRadius(el.Editor.metrics, r)
+			}
+			components.PaintRing(p, r, radius, 0, sd.look.outline.Alpha(sd.alpha))
+		}
 	}
 }
 

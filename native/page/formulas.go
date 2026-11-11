@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/formula"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/untie"
@@ -146,7 +147,7 @@ func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32) {
 	// its frame around display and panel, which an outline goes around.
 	u.box = ui.Rect{W: width, H: ml.h}
 	if ml.open {
-		u.drawn = ui.Rect{W: width, H: u.h}
+		u.drawn, u.frame = ui.Rect{W: width, H: u.h}, cardPad(m)
 	}
 }
 
@@ -260,7 +261,7 @@ func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32) float
 	lk := el.mathLookOf(u.pres.Unit, ml.mathSet, ml.open, p)
 	a := min(panelOpened(u), lk.open)
 	if a > 0.001 {
-		p.Stroke(ui.Rect{X: ux + 0.5, Y: uy + 0.5, W: m.Width - u.x - 1, H: u.shown - 1}, t.Border.Default.Alpha(a), cardPad(m), 1)
+		components.PaintRing(p, frameOf(u, ux, uy), cardPad(m), 0, t.Border.Default.Alpha(a))
 	}
 	if lk.hint > 0.001 {
 		sp := span(mathHint, el.Editor.theme.Resolve(nil), m.Body*displayScale)
