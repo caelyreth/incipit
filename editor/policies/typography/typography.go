@@ -47,7 +47,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Rewrite("characters", doc.PhaseCharacters).
 		Trigger(policy.Trigger{
 			Kinds:   []doc.RecordKind{doc.RecordTextInserted},
-			Classes: []doc.OriginClass{doc.OriginTyping, doc.OriginIME},
+			Classes: []doc.OriginClass{doc.OriginTyping},
 		}).
 		Extent(policy.ChangedRanges).
 		Produces(textEdits...).

@@ -1,7 +1,6 @@
 package page
 
 import (
-	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/ui"
 )
@@ -97,7 +96,7 @@ func (c *client) ReplaceText(r *ui.TextInputRange, text string) {
 	}
 	switch {
 	case composing:
-		ed.DoInput(vocab.Input{Intent: vocab.Type{Text: text}, At: ed.now(), Class: doc.OriginIME})
+		ed.Do(vocab.Type{Text: text}, ed.now())
 	case text == "\n":
 		ed.Do(vocab.Break{}, ed.now())
 	default:
@@ -127,7 +126,7 @@ func (c *client) SetMarkedText(r *ui.TextInputRange, text string, sel ui.TextInp
 func (c *client) UnmarkText() {
 	ed := c.el.Editor
 	if comp := ed.deco.Composition; comp != nil {
-		ed.DoInput(vocab.Input{Intent: vocab.Type{Text: comp.Text}, At: ed.now(), Class: doc.OriginIME})
+		ed.Do(vocab.Type{Text: comp.Text}, ed.now())
 		ed.Relayout()
 	}
 }

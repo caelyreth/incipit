@@ -424,7 +424,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 			merge = false
 		}
 		e.history = e.history.Push(entry, merge)
-		e.groupOpen = class == doc.OriginTyping || class == doc.OriginIME
+		e.groupOpen = class == doc.OriginTyping
 	case view.Selection != before && class != doc.OriginTyping:
 		// A selection change not caused by typing ends the group.
 		e.groupOpen = false

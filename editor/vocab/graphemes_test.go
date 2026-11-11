@@ -52,17 +52,17 @@ func TestGraphemesFollowExtendedUAX29(t *testing.T) {
 
 func TestGraphemeClassUsesTheWholeCluster(t *testing.T) {
 	t.Parallel()
-	if got := ClassOfGrapheme("1️⃣"); got&ClassDigit == 0 || got&ClassPunct != 0 {
+	if got := ClassOfGrapheme("1️⃣"); got&ClassDigit == 0 || got&ClassSpace != 0 {
 		t.Fatalf("keycap class = %b", got)
 	}
-	if got := ClassOfGrapheme("e\u0301"); got&ClassWord == 0 || got&ClassLatin == 0 {
+	if got := ClassOfGrapheme("e\u0301"); got&ClassWord == 0 || got&ClassCJK != 0 {
 		t.Fatalf("combining letter class = %b", got)
 	}
 	text := "a\r\nb"
-	if got, _ := GraphemeClassAt(text, 2, true); got != ClassLineStart {
+	if got, _ := GraphemeClassAt(text, 2, true); got != 0 {
 		t.Fatalf("before CR LF = %b", got)
 	}
-	if got, _ := GraphemeClassAt(text, 1, false); got != ClassLineEnd {
+	if got, _ := GraphemeClassAt(text, 1, false); got != 0 {
 		t.Fatalf("after CR LF = %b", got)
 	}
 	nodes := "a" + string(doc.NodeByte) + "b"

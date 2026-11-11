@@ -6,8 +6,9 @@ import "time"
 type OriginClass uint8
 
 const (
+	// OriginTyping is text the writer entered, by key, input method or
+	// dictation alike, and the keys that edit it.
 	OriginTyping OriginClass = iota + 1
-	OriginIME
 	OriginPaste
 	OriginCommand
 	OriginPointer

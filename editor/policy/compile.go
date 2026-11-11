@@ -482,9 +482,6 @@ func relationTargets(rels []Relation) []Scope {
 		if r.Target.Class != 0 {
 			out = append(out, r.Target)
 		}
-		if r.At.Class != 0 && r.At.Class != ScopeParent {
-			out = append(out, r.At)
-		}
 	}
 	return out
 }

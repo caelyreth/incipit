@@ -133,7 +133,7 @@ func TestPunctuationSpacingEmitsMinimalChanges(t *testing.T) {
 
 func TestIMECommitRunsTheRewrite(t *testing.T) {
 	h := newHarness(t, nil)
-	h.do(vocab.Input{Intent: vocab.Type{Text: "..."}, Class: doc.OriginIME})
+	h.do(vocab.Input{Intent: vocab.Type{Text: "..."}})
 	h.want("…")
 }
 
@@ -167,11 +167,11 @@ func TestCharactersTriggerIsTypingAndIMEOnly(t *testing.T) {
 	}
 	trigger := rewrites[0].Trigger()
 	for _, class := range []doc.OriginClass{
-		doc.OriginTyping, doc.OriginIME, doc.OriginPaste, doc.OriginCommand,
+		doc.OriginTyping, doc.OriginPaste, doc.OriginCommand,
 		doc.OriginPointer, doc.OriginAgent, doc.OriginHistory, doc.OriginTimer,
 	} {
 		record := doc.Record{Kind: doc.RecordTextInserted, Origin: doc.Origin{Class: class}}
-		want := class == doc.OriginTyping || class == doc.OriginIME
+		want := class == doc.OriginTyping
 		if got := trigger.Matches(record); got != want {
 			t.Errorf("trigger for %v = %v, want %v", class, got, want)
 		}

@@ -88,8 +88,6 @@ const (
 	ScopeRole
 	// ScopeAnnotation is a scoped annotation containing the caret.
 	ScopeAnnotation
-	// ScopeParent, for Of, is the scope enclosing the rule's own.
-	ScopeParent
 	// ScopeRoot is the root node, whatever its kind.
 	ScopeRoot
 )
@@ -102,9 +100,8 @@ type Scope struct {
 
 // Scope keys.
 var (
-	Slot   = Scope{Class: ScopeSlot}
-	Parent = Scope{Class: ScopeParent}
-	Root   = Scope{Class: ScopeRoot}
+	Slot = Scope{Class: ScopeSlot}
+	Root = Scope{Class: ScopeRoot}
 )
 
 func NodeScope(k doc.Kind) Scope             { return Scope{Class: ScopeNode, ID: uint32(k)} }
@@ -124,8 +121,6 @@ func (s Scope) String() string {
 		return "role:" + vocab.Role(s.ID).String()
 	case ScopeAnnotation:
 		return "annotation:" + handleName(handleAnnotation, s.ID)
-	case ScopeParent:
-		return "parent"
 	case ScopeRoot:
 		return "root"
 	}
@@ -144,33 +139,24 @@ const (
 	RelCollapsed
 	RelTextRange
 	RelNodeSelected
-	RelCellRange
-	RelCovers
-	RelIntersects
-	RelCuts
 	RelEquals
 	RelPrevChar
 	RelNextChar
 	RelSlotStart
 	RelSlotEnd
 	RelSlotEmpty
-	RelComposing
 	RelOwnText
 )
 
 // Relation is one atom with its parameters, evaluated relative to the
-// rule's scope, or to the scope Of names.
+// rule's scope.
 type Relation struct {
 	Kind       RelationKind
 	Target     Scope
 	Class      vocab.CharClass
 	Annotation AnnotationKind
 	Node       doc.Kind
-	At         Scope
 }
-
-// Of evaluates a structural atom at an enclosing scope.
-func (r Relation) Of(s Scope) Relation { r.At = s; return r }
 
 // The parameterless atoms.
 var (
@@ -178,11 +164,9 @@ var (
 	AtInnerEnd   = Relation{Kind: RelAtInnerEnd}
 	Collapsed    = Relation{Kind: RelCollapsed}
 	TextRange    = Relation{Kind: RelTextRange}
-	CellRange    = Relation{Kind: RelCellRange}
 	SlotStart    = Relation{Kind: RelSlotStart}
 	SlotEnd      = Relation{Kind: RelSlotEnd}
 	SlotEmpty    = Relation{Kind: RelSlotEmpty}
-	Composing    = Relation{Kind: RelComposing}
 	Equals       = Relation{Kind: RelEquals}
 	// OwnText holds when the caret is in the scope node's own text slot,
 	// as in an item's head, and not in a block the node holds.
@@ -200,23 +184,16 @@ func Has(a AnnotationKind) Relation { return Relation{Kind: RelHas, Annotation: 
 // NodeSelected holds when a node of kind k is selected whole.
 func NodeSelected(k doc.Kind) Relation { return Relation{Kind: RelNodeSelected, Node: k} }
 
-// Covers, Intersects and Cuts relate the selection to a span of s: it
-// contains it, overlaps it, or contains exactly one of its sides.
-func Covers(s Scope) Relation     { return Relation{Kind: RelCovers, Target: s} }
-func Intersects(s Scope) Relation { return Relation{Kind: RelIntersects, Target: s} }
-func Cuts(s Scope) Relation       { return Relation{Kind: RelCuts, Target: s} }
-
 // PrevChar and NextChar test the class of the neighbouring grapheme.
 func PrevChar(c vocab.CharClass) Relation { return Relation{Kind: RelPrevChar, Class: c} }
 func NextChar(c vocab.CharClass) Relation { return Relation{Kind: RelNextChar, Class: c} }
 
 func (r Relation) String() string {
 	names := [...]string{"", "AtInnerStart", "AtInnerEnd", "Before", "After", "Has", "Collapsed", "TextRange",
-		"NodeSelected", "CellRange", "Covers", "Intersects", "Cuts", "Equals", "PrevChar", "NextChar",
-		"SlotStart", "SlotEnd", "SlotEmpty", "Composing", "OwnText"}
+		"NodeSelected", "Equals", "PrevChar", "NextChar", "SlotStart", "SlotEnd", "SlotEmpty", "OwnText"}
 	s := names[r.Kind]
 	switch r.Kind {
-	case RelBefore, RelAfter, RelCovers, RelIntersects, RelCuts:
+	case RelBefore, RelAfter:
 		s += "(" + r.Target.String() + ")"
 	case RelHas:
 		s += "(" + r.Annotation.String() + ")"
@@ -224,9 +201,6 @@ func (r Relation) String() string {
 		s += fmt.Sprintf("(%#x)", r.Class)
 	case RelNodeSelected:
 		s += fmt.Sprintf("(%d)", r.Node)
-	}
-	if r.At.Class != 0 {
-		s += ".Of(" + r.At.String() + ")"
 	}
 	return s
 }
@@ -248,7 +222,8 @@ func On(k vocab.IntentKind) Pattern { return Pattern{Kind: k} }
 // Typed matches typing exactly text.
 func Typed(text string) Pattern { return Pattern{Kind: vocab.IntentType, Text: text} }
 
-// TypedClass matches typing one character of class c.
+// TypedClass matches typed text whose first character is of class c,
+// however much text arrives at once.
 func TypedClass(c vocab.CharClass) Pattern { return Pattern{Kind: vocab.IntentType, Class: c} }
 
 // Deleting matches deleting by unit in dir; a zero unit or direction
@@ -276,11 +251,8 @@ func (p Pattern) Match(in vocab.Intent) bool {
 		if p.Text != "" && v.Text != p.Text {
 			return false
 		}
-		if p.Class != 0 {
-			r, n := vocab.FirstRune(v.Text)
-			if n != len(v.Text) || vocab.ClassOf(r)&p.Class == 0 {
-				return false
-			}
+		if p.Class != 0 && vocab.FirstClass(v.Text)&p.Class == 0 {
+			return false
 		}
 	case vocab.Delete:
 		return (p.Unit == 0 || p.Unit == v.Unit) && (p.Dir == 0 || p.Dir == v.Dir)
@@ -299,8 +271,7 @@ func (p Pattern) Overlaps(o Pattern) bool {
 		return false
 	}
 	if p.Text != "" && o.Class != 0 {
-		r, n := vocab.FirstRune(p.Text)
-		return n == len(p.Text) && vocab.ClassOf(r)&o.Class != 0
+		return vocab.FirstClass(p.Text)&o.Class != 0
 	}
 	if o.Text != "" && p.Class != 0 {
 		return o.Overlaps(p)

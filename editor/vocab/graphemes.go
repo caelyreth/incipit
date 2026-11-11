@@ -100,34 +100,34 @@ func IsLineBreakGrapheme(g string) bool {
 func GraphemeClassAt(s string, off int, before bool) (CharClass, bool) {
 	if before {
 		if off <= 0 {
-			return ClassLineStart, true
+			return 0, true
 		}
 		start := PrevGrapheme(s, off)
 		end := NextGrapheme(s, start)
 		if start < 0 || start >= len(s) || end <= start {
-			return ClassLineStart, true
+			return 0, true
 		}
 		g := s[start:end]
 		if g[0] == doc.NodeByte {
 			return 0, false
 		}
 		if IsLineBreakGrapheme(g) {
-			return ClassLineStart, true
+			return 0, true
 		}
 		return ClassOfGrapheme(g), true
 	}
 	if off >= len(s) {
-		return ClassLineEnd, true
+		return 0, true
 	}
 	text, _, _, ok := GraphemeAt(s, off)
 	if !ok {
-		return ClassLineEnd, true
+		return 0, true
 	}
 	if text[0] == doc.NodeByte {
 		return 0, false
 	}
 	if IsLineBreakGrapheme(text) {
-		return ClassLineEnd, true
+		return 0, true
 	}
 	return ClassOfGrapheme(text), true
 }

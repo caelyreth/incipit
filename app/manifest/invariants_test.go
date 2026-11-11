@@ -182,10 +182,6 @@ func runTrace(t *testing.T, seed uint64, length int) {
 		in := randomIntent(rng, e)
 		now = now.Add(time.Duration(rng.IntN(1500)) * time.Millisecond)
 		input := vocab.Input{Intent: in, At: now}
-		if c, ok := in.(vocab.Type); ok && rng.IntN(6) == 0 {
-			// A commit from an input method.
-			input.Intent, input.Class = c, doc.OriginIME
-		}
 		trail = append(trail, fmt.Sprintf("%T%+v", in, in))
 		step := fmt.Sprintf("seed %d step %d (%s)\ntrail: %s", seed, i, trail[len(trail)-1], strings.Join(trail[max(0, len(trail)-8):], " · "))
 		before := outline(e.Snapshot().Root())

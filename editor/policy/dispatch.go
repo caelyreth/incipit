@@ -360,29 +360,8 @@ func (e *evaluator) matches(level int, r *rule) bool {
 	return ok
 }
 
-// levelOf resolves the level a relation is evaluated at: its own, or the
-// enclosing one Of names.
-func (e *evaluator) levelOf(level int, at Scope) (int, bool) {
-	if at.Class == 0 {
-		return level, true
-	}
-	if at.Class == ScopeParent {
-		return level - 1, level > 0
-	}
-	for i := level - 1; i >= 0; i-- {
-		if slices.Contains(e.stack.Levels[i].keys, at) {
-			return i, true
-		}
-	}
-	return 0, false
-}
-
 func (e *evaluator) eval(level int, rel Relation) bool {
-	li, ok := e.levelOf(level, rel.At)
-	if !ok {
-		return false
-	}
-	l := e.stack.Levels[li]
+	l := e.stack.Levels[level]
 	c := e.c
 	caret := e.stack.Caret
 	pos := caret.Pos
@@ -402,10 +381,6 @@ func (e *evaluator) eval(level int, rel Relation) bool {
 		}
 		n, ok := c.r.Node(sel.Node)
 		return ok && (rel.Node == 0 || n.Kind() == rel.Node)
-	case RelCellRange:
-		return sel.Kind == doc.SelectCells
-	case RelComposing:
-		return c.view.Composition != nil
 	case RelHas:
 		return len(c.view.Annotations.At(rel.Annotation, caret)) > 0
 	case RelPrevChar, RelNextChar:
@@ -422,8 +397,6 @@ func (e *evaluator) eval(level int, rel Relation) bool {
 			return l.Class == LevelNode && l.Node.ID() == sel.Node
 		}
 		return atEdge(from, l.Start) && atEdge(to, l.End)
-	case RelCovers, RelIntersects, RelCuts:
-		return e.selectionRelation(rel.Kind, rel.Target)
 	}
 	return false
 }
@@ -432,10 +405,7 @@ func (e *evaluator) eval(level int, rel Relation) bool {
 func (e *evaluator) charClass(pos doc.Pos, before bool) vocab.CharClass {
 	in, ok := e.c.Inline(pos.Ref())
 	if !ok {
-		if before {
-			return vocab.ClassLineStart
-		}
-		return vocab.ClassLineEnd
+		return 0
 	}
 	class, _ := vocab.GraphemeClassAt(in.Flat(), pos.Offset, before)
 	return class
@@ -554,49 +524,6 @@ func (e *evaluator) adjacent(caret doc.Caret, target Scope, before bool) bool {
 
 func (e *evaluator) nodeIs(n *doc.Node, target Scope) bool {
 	return slices.Contains(e.p.nodeKeys(n.Kind()), target)
-}
-
-// selectionRelation evaluates Covers, Intersects and Cuts against spans of
-// the target in the slots of the selection's ends.
-func (e *evaluator) selectionRelation(kind RelationKind, target Scope) bool {
-	c := e.c
-	sel := c.view.Selection
-	if sel.Kind != doc.SelectText || sel.IsCollapsed() {
-		return false
-	}
-	from, to := sel.Ordered(c.r)
-	in := func(p doc.Pos) bool {
-		cp := doc.CaretAt(p)
-		return doc.Compare(c.r, from, cp) <= 0 && doc.Compare(c.r, cp, to) <= 0
-	}
-	slots := []doc.SlotRef{from.Pos.Ref()}
-	if to.Pos.Ref() != from.Pos.Ref() {
-		slots = append(slots, to.Pos.Ref())
-	}
-	for _, ref := range slots {
-		for _, f := range c.prog.scopeFacts(c.store, c.r, c.view, ref) {
-			if f.Point || !slices.Contains(c.prog.factKeys(f.Kind), target) {
-				continue
-			}
-			a, b := in(doc.At(ref, f.From)), in(doc.At(ref, f.To))
-			switch kind {
-			case RelCovers:
-				if a && b {
-					return true
-				}
-			case RelCuts:
-				if a != b {
-					return true
-				}
-			case RelIntersects:
-				fs, fe := doc.CaretAt(doc.At(ref, f.From)), doc.CaretAt(doc.At(ref, f.To))
-				if doc.Compare(c.r, fs, to) < 0 && doc.Compare(c.r, from, fe) < 0 {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 // --- dispatch ----------------------------------------------------------------

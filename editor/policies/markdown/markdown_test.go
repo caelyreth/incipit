@@ -158,3 +158,17 @@ func TestATaskContinuesAsAnOpenTask(t *testing.T) {
 		t.Fatalf("continuation task %v, want open", got)
 	}
 }
+
+func TestAnInputMethodCommitOpensAMark(t *testing.T) {
+	p := open(t)
+	p.typeText("*")
+	// A commit from an input method arrives as one Type of its whole text.
+	p.do(vocab.Type{Text: "你好"})
+	content := p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Content()
+	if got := content.Text(); got != "你好" {
+		t.Fatalf("text = %q, want the commit without its delimiter", got)
+	}
+	if ms := content.MarksAt(1); ms == nil || !ms.Has(profile.Emphasis) {
+		t.Fatal("the commit is not emphasised")
+	}
+}

@@ -120,7 +120,8 @@ type (
 	Cut struct{}
 )
 
-// Composition intents. A commit arrives as Type with origin IME.
+// Composition intents. A commit arrives as Type: composing is view
+// state, not a way of entering text of its own.
 type (
 	// Compose sets the preedit; Selected is a byte range within it.
 	Compose struct {
@@ -246,10 +247,8 @@ func (in Input) ClassOf() doc.OriginClass {
 		return in.Class
 	}
 	switch in.Intent.Kind() {
-	case IntentType, IntentDelete, IntentBreak, IntentSoftBreak:
+	case IntentType, IntentDelete, IntentBreak, IntentSoftBreak, IntentCompose, IntentCancelComposition:
 		return doc.OriginTyping
-	case IntentCompose, IntentCancelComposition:
-		return doc.OriginIME
 	case IntentPaste:
 		return doc.OriginPaste
 	case IntentPlace:

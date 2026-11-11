@@ -12,10 +12,10 @@ func TestCharClassClassifiesTheWholeGrapheme(t *testing.T) {
 	snap, ref := testPage(t, "e\u0301x")
 	e := evaluator{c: &Ctx{r: snap}}
 	at := doc.At(ref, len("e\u0301"))
-	if got := e.charClass(at, true); got&vocab.ClassLatin == 0 || got&vocab.ClassWord == 0 {
+	if got := e.charClass(at, true); got&vocab.ClassWord == 0 || got&vocab.ClassCJK != 0 {
 		t.Fatalf("before combining letter = %b, want its base letter's class", got)
 	}
-	if got := e.charClass(doc.At(ref, 0), false); got&vocab.ClassLatin == 0 || got&vocab.ClassWord == 0 {
+	if got := e.charClass(doc.At(ref, 0), false); got&vocab.ClassWord == 0 || got&vocab.ClassCJK != 0 {
 		t.Fatalf("after combining letter = %b, want its base letter's class", got)
 	}
 }
