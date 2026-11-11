@@ -75,6 +75,8 @@ func randomIntent(rng *rand.Rand, e *engine.Engine) vocab.Intent {
 		return vocab.Return{}
 	case n < 95:
 		return vocab.Dismiss{}
+	case n < 96:
+		return profile.PlaceFigures{Pictures: []profile.Picture{{Media: "m", Width: 4, Height: 3}}}
 	case n < 97:
 		return vocab.Compose{Preedit: "にほ", Selected: [2]int{6, 6}}
 	case n < 98:

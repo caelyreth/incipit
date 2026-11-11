@@ -125,7 +125,7 @@ type Presentation struct {
 	Surfaces []Surface
 	Stops    []Stop
 	// Gap is set for an object unit: the block slot and index it stands
-	// at, for gap stops before and after it.
+	// at, for gap stops before and after it, whose Surface is -1.
 	Gap *doc.Pos
 	// Object is set for a unit the caret selects whole.
 	Object bool
@@ -248,7 +248,8 @@ func (pr *Presenter) UnitAt(r doc.Reader, pos doc.Pos) (int, bool) {
 	if n.Slot(pos.Slot).IsInline() {
 		id := pos.Node
 		for {
-			if i, ok := index[id]; ok && units[i].Gap == nil {
+			if i, ok := index[id]; ok {
+				// A text unit, or an object whose own slot it is.
 				return i, true
 			}
 			parent, slot, ok := r.Parent(id)
@@ -418,17 +419,21 @@ func build(e env, u UnitRef, key unitKey) *Presentation {
 	p := &Presentation{Unit: u.ID, Kind: n.Kind(), Node: n, Context: u.Context, Group: style.Group,
 		Role: style.Role, Level: style.Level, Gap: u.Gap, key: key}
 	if p.Object = e.r.Schema().IsObject(n.Kind()); p.Object {
-		// An object is a box with gap stops beside it; its own slots (a
-		// figure's caption, a table's cells) are surfaces of their own.
-		// TODO(tables), TODO(figures): present cell and caption surfaces
-		// with entry stops; until then every object is one box and the page
-		// draws it as a divider.
-		p.Surfaces = []Surface{{Flow: Flow{Items: []Item{{Kind: BoxItem, Node: n, Surface: -1}}}}}
+		// An object is drawn by its kind's renderer from its node, between
+		// gap stops; its own inline slots (a figure's caption) are its
+		// surfaces, read in order between the gaps.
+		// TODO(tables): present cells as nested surfaces with stops.
 		if u.Gap != nil {
-			p.Stops = []Stop{
-				{Caret: doc.CaretAt(*u.Gap), Class: StopGap, Offset: u.Gap.Offset},
-				{Caret: doc.CaretAt(doc.Pos{Node: u.Gap.Node, Slot: u.Gap.Slot, Offset: u.Gap.Offset + 1}), Class: StopGap, Offset: u.Gap.Offset + 1},
+			p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(*u.Gap), Surface: -1, Class: StopGap, Offset: u.Gap.Offset})
+		}
+		for i, sl := range n.Slots() {
+			if sl.IsInline() {
+				flowOf(e, p, doc.SlotRef{Node: n.ID(), Slot: i}, p.Group, false, 0)
 			}
+		}
+		if u.Gap != nil {
+			after := doc.Pos{Node: u.Gap.Node, Slot: u.Gap.Slot, Offset: u.Gap.Offset + 1}
+			p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(after), Surface: -1, Class: StopGap, Offset: after.Offset})
 		}
 		p.setAccessible()
 		return p
@@ -688,8 +693,12 @@ func (p *Presentation) setAccessible() {
 	p.Value = b.String()
 	p.Label = accessibleName(p.Role, p.Value)
 	p.AccessStops = make([]AccessStop, 0, len(p.Stops))
-	for _, st := range p.Stops {
+	for i, st := range p.Stops {
 		at := accessibleOffset(parts, st.Surface, st.Offset, u)
+		if st.Surface < 0 && i == 0 {
+			// The gap before an object stands before its value.
+			at = 0
+		}
 		p.AccessStops = append(p.AccessStops, AccessStop{Caret: st.Caret, UTF16: at})
 	}
 }

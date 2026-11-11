@@ -119,6 +119,17 @@ func swallow[I vocab.Intent](*policy.Ctx, I, policy.At[doc.SlotRef]) policy.Resu
 
 // --- text ---------------------------------------------------------------------
 
+// replaceSelection is clearSelection for content that takes the
+// selection's place: a selected object goes without leaving the block an
+// emptied page keeps, as what replaces it lands where it stood.
+func replaceSelection(c *policy.Ctx) (vocab.Edit, doc.Pos, bool) {
+	if sel := c.Selection(); sel.Kind == doc.SelectNode {
+		at, _ := c.Range()
+		return vocab.Ops(doc.Remove{IDs: []doc.ID{sel.Node}}), at, true
+	}
+	return clearSelection(c)
+}
+
 // clearSelection returns the edit deleting what the selection covers
 // (Ctx.Range), and where content replacing it goes: a position before the
 // edit, which edits after it map. A collapsed caret clears nothing and
@@ -183,7 +194,7 @@ func typeText(c *policy.Ctx, in vocab.Type, _ policy.At[doc.SlotRef]) policy.Res
 	// Typed text replaces the selection; empty text deletes it.
 	text := in.Text
 	var edits []vocab.Edit
-	clear, pos, ok := clearSelection(c)
+	clear, pos, ok := replaceSelection(c)
 	if ok {
 		edits = append(edits, clear)
 	}
@@ -384,6 +395,12 @@ func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
 		if index > 0 {
 			prev := pn.Slot(ps).Child(index - 1)
 			if r.Schema().IsObject(prev.Kind()) {
+				if empty(r.Schema(), block) {
+					// An empty block after an object goes, the object
+					// selected, as though the break that made it were undone.
+					res := policy.Do(vocab.Ops(doc.Remove{IDs: []doc.ID{block.ID()}}))
+					return res.With(doc.NodeSelection(prev.ID()))
+				}
 				return policy.Select(doc.NodeSelection(prev.ID()))
 			}
 			ref, ok := vocab.LastTextSlot(prev)
@@ -409,6 +426,11 @@ func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
 	}
 }
 
+// empty reports whether n is a plain block with no text.
+func empty(s *doc.Schema, n *doc.Node) bool {
+	return n.Kind() == s.Plain() && n.NumSlots() == 1 && n.Slot(0).IsInline() && n.Slot(0).Len() == 0
+}
+
 // inlineParent reports the slot holding an inline node.
 func inlineParent(r doc.Reader, id doc.ID) (doc.ID, int, bool) {
 	parent, slot, ok := r.Parent(id)
@@ -426,7 +448,7 @@ func inlineParent(r doc.Reader, id doc.ID) (doc.ID, int, bool) {
 func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
 	var edits []vocab.Edit
-	clear, pos, ok := clearSelection(c)
+	clear, pos, ok := replaceSelection(c)
 	if ok {
 		edits = append(edits, clear)
 	}
@@ -521,7 +543,7 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 		return policy.Swallow
 	}
 	var edits []vocab.Edit
-	clear, pos, ok := clearSelection(c)
+	clear, pos, ok := replaceSelection(c)
 	if ok {
 		edits = append(edits, clear)
 	}

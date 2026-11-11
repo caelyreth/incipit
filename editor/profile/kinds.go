@@ -53,10 +53,11 @@ const (
 
 	FieldInfo = 1 // code
 
-	FieldMedia  = 1 // figure
-	FieldWidth  = 2
+	FieldMedia  = 1 // figure: its picture's media id
+	FieldWidth  = 2 // the picture's size in pixels
 	FieldAlign  = 3
 	FieldHeight = 4
+	FieldSpan   = 5 // the share of the column it takes, in thousandths
 
 	FieldColumns = 1 // table
 	FieldHeader  = 2
@@ -174,6 +175,7 @@ var kindSpecs = []doc.KindSpec{
 			{Num: FieldWidth, Name: "width", Default: doc.Int(0), Valid: intIn(0, 1<<16)},
 			{Num: FieldAlign, Name: "align", Default: doc.Int(int64(AlignCenter)), Valid: intIn(0, 2)},
 			{Num: FieldHeight, Name: "height", Default: doc.Int(0), Valid: intIn(0, 1<<16)},
+			{Num: FieldSpan, Name: "span", Default: doc.Int(0), Valid: intIn(0, SpanFull)},
 		}},
 	{Kind: Table, Name: "table", Placement: doc.PlaceBlock, Object: true,
 		Slots: []doc.SlotSpec{{Name: "rows", Blocks: true, Accepts: only(Row)}},

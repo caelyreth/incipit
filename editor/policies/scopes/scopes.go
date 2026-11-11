@@ -45,14 +45,14 @@ type candidate struct {
 // or pair can leave its head outside the scope its anchor still holds.
 func grow(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) policy.Result {
 	sel := c.Selection()
-	if sel.Kind != doc.SelectText {
+	if sel.Kind == doc.SelectCells {
 		return policy.Swallow
 	}
 	cands := candidatesAt(c)
 	if len(cands) == 0 {
 		return policy.Swallow
 	}
-	if sel.IsCollapsed() {
+	if sel.Kind == doc.SelectText && sel.IsCollapsed() {
 		for i := len(cands) - 1; i >= 0; i-- {
 			if containsCaret(c.Doc(), cands[i], sel.Head) {
 				return policy.Select(cands[i].selection)
@@ -126,7 +126,10 @@ func valid(r doc.Reader, a policy.Annotation) bool {
 func candidatesAt(c *policy.Ctx) []candidate {
 	sel := c.Selection()
 	ends := []doc.Caret{sel.Anchor}
-	if sel.Head != sel.Anchor {
+	if sel.Kind == doc.SelectNode {
+		// An object selected stands in the scopes around its place.
+		ends = []doc.Caret{c.Head()}
+	} else if sel.Head != sel.Anchor {
 		ends = append(ends, sel.Head)
 	}
 	var out []candidate

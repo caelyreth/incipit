@@ -31,12 +31,16 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Annotation(policy.Armed, valid)
 	p.Decorate(policy.Armed, vocab.GroupArmed)
 
-	// A structure selected whole, as a node or as a text range over it
-	// exactly, is deleted as a whole.
+	// A structure selected whole as a text range over it exactly arms,
+	// then is deleted whole. An object selected as a node already shows
+	// itself whole, as an armed structure does: core deletes it at once.
 	policy.On(p, "structure", policy.Intent[vocab.Delete](), policy.Role[vocab.Structure](vocab.RoleStructure).Selected(), structure)
 }, policy.Label("policies.deletion"), policy.Description("policies.deletion.description"))
 
 func structure(c *policy.Ctx, _ vocab.Delete, at policy.At[vocab.Structure]) policy.Result {
+	if c.Selection().Kind == doc.SelectNode {
+		return policy.Pass
+	}
 	return act(c, at.Node.ID())
 }
 

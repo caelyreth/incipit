@@ -15,6 +15,10 @@ var (
 	intentMakeList   = vocab.NewIntentKind("MakeList")
 	intentNest       = vocab.NewIntentKind("Nest")
 	intentToggleTask = vocab.NewIntentKind("ToggleTask")
+	intentPick       = vocab.NewIntentKind("PickPictures")
+	intentPlace      = vocab.NewIntentKind("PlaceFigures")
+	intentResize     = vocab.NewIntentKind("ResizeFigure")
+	intentAlign      = vocab.NewIntentKind("AlignFigure")
 )
 
 type (
@@ -35,11 +39,31 @@ type (
 	Nest struct{ Dir vocab.Direction }
 	// ToggleTask completes or reopens a task: item ID, or the caret's.
 	ToggleTask struct{ ID doc.ID }
+	// PickPictures asks the host for pictures to place where the selection
+	// is; the host answers with PlaceFigures once it keeps them.
+	PickPictures struct{}
+	// PlaceFigures places kept pictures as figures, in order: at At, a
+	// caret where they were dropped, or else where the selection is.
+	PlaceFigures struct {
+		Pictures []Picture
+		At       *doc.Caret
+	}
+	// ResizeFigure sets a figure's span, as a resize gesture ends.
+	ResizeFigure struct {
+		ID   doc.ID
+		Span int
+	}
+	// AlignFigure aligns the selected figure.
+	AlignFigure struct{ To Align }
 )
 
-func (Format) Kind() vocab.IntentKind     { return intentFormat }
-func (Retype) Kind() vocab.IntentKind     { return intentRetype }
-func (WrapQuote) Kind() vocab.IntentKind  { return intentWrapQuote }
-func (MakeList) Kind() vocab.IntentKind   { return intentMakeList }
-func (Nest) Kind() vocab.IntentKind       { return intentNest }
-func (ToggleTask) Kind() vocab.IntentKind { return intentToggleTask }
+func (Format) Kind() vocab.IntentKind       { return intentFormat }
+func (Retype) Kind() vocab.IntentKind       { return intentRetype }
+func (WrapQuote) Kind() vocab.IntentKind    { return intentWrapQuote }
+func (MakeList) Kind() vocab.IntentKind     { return intentMakeList }
+func (Nest) Kind() vocab.IntentKind         { return intentNest }
+func (ToggleTask) Kind() vocab.IntentKind   { return intentToggleTask }
+func (PickPictures) Kind() vocab.IntentKind { return intentPick }
+func (PlaceFigures) Kind() vocab.IntentKind { return intentPlace }
+func (ResizeFigure) Kind() vocab.IntentKind { return intentResize }
+func (AlignFigure) Kind() vocab.IntentKind  { return intentAlign }

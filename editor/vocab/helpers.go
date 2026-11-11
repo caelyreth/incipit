@@ -14,7 +14,8 @@ import (
 //
 // TODO(tables): insert, remove and move rows and columns; resize the grid;
 // set the header; set a column's attributes; clear and fill cells (§5.2).
-// TODO(figures): insert a figure; change its shape; replace its media.
+// A figure's helpers name its kind, so they are the profile's (NewFigure,
+// SetShape).
 
 // ErrHelper reports a helper asked for something the document cannot do.
 var ErrHelper = errors.New("vocab: the edit does not fit the document")

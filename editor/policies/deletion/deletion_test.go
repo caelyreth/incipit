@@ -84,36 +84,18 @@ func (p *page) armed() int {
 	return n
 }
 
-func TestDeletingASelectedStructureArmsThenRemoves(t *testing.T) {
+func TestDeletingASelectedObjectRemovesItAtOnce(t *testing.T) {
 	p := open(t)
 	p.typeText("---")
 	p.do(vocab.Break{})
 	divider := p.e.Snapshot().Root().Slot(0).Child(0)
 	p.do(vocab.Place{Node: divider.ID()})
 
-	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.count(profile.Divider) != 1 || p.armed() != 1 {
-		t.Fatalf("first delete left %d dividers and %d arms", p.count(profile.Divider), p.armed())
-	}
+	// Selected whole, it already shows itself whole, as an armed
+	// structure does: the delete removes it.
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
 	if p.count(profile.Divider) != 0 || p.armed() != 0 {
-		t.Fatalf("second delete left %d dividers and %d arms", p.count(profile.Divider), p.armed())
-	}
-}
-
-func TestAnyOtherIntentDisarmsAStructure(t *testing.T) {
-	p := open(t)
-	p.typeText("---")
-	p.do(vocab.Break{})
-	divider := p.e.Snapshot().Root().Slot(0).Child(0)
-	p.do(vocab.Place{Node: divider.ID()})
-	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.armed() != 1 {
-		t.Fatal("the structure did not arm")
-	}
-	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.armed() != 0 || p.count(profile.Divider) != 1 {
-		t.Fatalf("moving left %d arms and %d dividers", p.armed(), p.count(profile.Divider))
+		t.Fatalf("the delete left %d dividers and %d arms", p.count(profile.Divider), p.armed())
 	}
 }
 
