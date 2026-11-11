@@ -21,7 +21,7 @@ var allowed = map[string][]string{
 	"editor/vocab":   {"editor/doc", "internal/wordseg"},
 	"editor/profile": {"editor/doc", "editor/vocab"},
 	"editor/policy":  {"editor/doc", "editor/vocab"},
-	"editor/present": {"editor/doc", "editor/vocab", "editor/policy", "editor/profile"},
+	"editor/present": {"editor/doc", "editor/vocab", "editor/policy"},
 	"editor/store":   {"editor/doc", "editor/vocab"},
 	"editor/engine":  {"editor/doc", "editor/vocab", "editor/policy", "editor/present"},
 	"policies":       {"editor/doc", "editor/vocab", "editor/policy"},

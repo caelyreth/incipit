@@ -162,6 +162,9 @@ var programVersion atomic.Uint64
 // Version identifies the program; presentation keys include it.
 func (p *Program) Version() uint64 { return p.version }
 
+// Profile is the document profile the program edits; nil when none.
+func (p *Program) Profile() vocab.Profile { return p.profile }
+
 // Report is the compile report.
 func (p *Program) Report() *Report { return p.report }
 

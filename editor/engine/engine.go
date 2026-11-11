@@ -157,6 +157,8 @@ func (e *Engine) SetProgram(p *policy.Program) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.prog = p
+	// Presenters read the program's profile.
+	clear(e.presenters)
 	for _, v := range e.views {
 		v.Annotations = v.Annotations.Drop(func(a policy.Annotation) bool { return !p.HasAnnotationKind(a.Kind) })
 	}

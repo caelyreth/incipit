@@ -10,7 +10,7 @@ import (
 func (e *Engine) presenter(view uint64) *present.Presenter {
 	p, ok := e.presenters[view]
 	if !ok {
-		p = present.NewPresenter()
+		p = present.NewPresenter(e.prog.Profile())
 		e.presenters[view] = p
 	}
 	return p

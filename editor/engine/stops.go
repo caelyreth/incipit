@@ -28,7 +28,7 @@ func (e *Engine) stopsFor(viewID uint64) policy.StopsFunc {
 		if _, ok := r.(*doc.Snapshot); !ok {
 			// A transaction changes its nodes in place, so the view's
 			// presentations, memoised by node pointer, must not see it.
-			p = present.NewPresenter()
+			p = present.NewPresenter(prog.Profile())
 		}
 		return &stopModel{pr: p, prog: prog, store: store, r: r, view: view}
 	}

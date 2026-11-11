@@ -16,29 +16,15 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
-	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
-// Context is a unit's container context: what the quotes and lists
-// around it add.
-type Context struct {
-	// Quotes is how many quotes enclose the unit.
-	Quotes int
-	// Depth is the list nesting depth; zero outside lists.
-	Depth int
-	// Marker is a list item's marker: its style, ordinal and task state.
-	Marker *Marker
-	// Indent is the unit's body indentation, in levels.
-	Indent int
-}
+// Context is a unit's container context, as the profile tells it.
+type Context = vocab.Container
 
-// Marker is a list item's marker, as its structure spells it (§10), and
-// the item.
-type Marker struct {
-	profile.Marker
-	Item doc.ID
-}
+// Marker is a list item's marker, as the profile spells it (§10), and the
+// item.
+type Marker = vocab.ItemMarker
 
 // ItemKind is a flow item's kind.
 type ItemKind uint8
@@ -176,6 +162,7 @@ type unitKey struct {
 
 // Presenter memoises presentations. It is per view.
 type Presenter struct {
+	look  vocab.Presentation
 	mu    sync.Mutex
 	memo  map[doc.ID]*Presentation
 	units struct {
@@ -185,10 +172,25 @@ type Presenter struct {
 	}
 }
 
-// NewPresenter returns a presenter.
-func NewPresenter() *Presenter {
-	return &Presenter{memo: map[doc.ID]*Presentation{}}
+// NewPresenter returns a presenter of a profile's documents.
+func NewPresenter(prof vocab.Profile) *Presenter {
+	look, ok := prof.(vocab.Presentation)
+	if !ok {
+		look = plain{}
+	}
+	return &Presenter{look: look, memo: map[doc.ID]*Presentation{}}
 }
+
+// plain presents a profile that tells nothing: every block is a text unit.
+type plain struct{}
+
+func (plain) Contain(_ doc.Reader, _ *doc.Node, outer Context) vocab.Contained {
+	return vocab.Contained{Unit: true, Own: outer}
+}
+func (plain) Style(*doc.Node, Context) vocab.Style {
+	return vocab.Style{Group: vocab.GroupText, Role: "paragraph"}
+}
+func (plain) MarkGroup(doc.MarkKind) vocab.Group { return 0 }
 
 // Units lists the page's units in order, with their container context.
 func (pr *Presenter) Units(r doc.Reader) []UnitRef {
@@ -204,35 +206,18 @@ func (pr *Presenter) Units(r doc.Reader) []UnitRef {
 			if s.IsInline() {
 				continue
 			}
-			ordinal := 0
 			for i, c := range s.Children() {
-				switch c.Kind() {
-				case profile.Quote:
-					inner := ctx
-					inner.Quotes++
-					inner.Marker = nil
-					walk(c, inner)
-				case profile.List:
-					inner := ctx
-					inner.Depth++
-					inner.Indent++
-					inner.Marker = nil
-					for _, item := range c.Slot(0).Children() {
-						ic := inner
-						mk, _ := profile.MarkerOf(r, item)
-						ic.Marker = &Marker{Marker: mk, Item: item.ID()}
-						out = append(out, UnitRef{ID: item.ID(), Node: item, Context: ic})
-						body := inner
-						walk(item, body)
-					}
-				default:
-					ref := UnitRef{ID: c.ID(), Node: c, Context: ctx}
+				in := pr.look.Contain(r, c, ctx)
+				if in.Unit {
+					ref := UnitRef{ID: c.ID(), Node: c, Context: in.Own}
 					if r.Schema().IsObject(c.Kind()) {
 						ref.Gap = &doc.Pos{Node: n.ID(), Slot: si, Offset: i}
 					}
 					out = append(out, ref)
 				}
-				ordinal++
+				if in.Open {
+					walk(c, in.Inner)
+				}
 			}
 		}
 	}
@@ -345,7 +330,7 @@ func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Re
 		return p
 	}
 	pr.mu.Unlock()
-	p := build(prog, store, r, view, u, key)
+	p := build(env{prog, store, r, view, pr.look}, u, key)
 	pr.mu.Lock()
 	pr.memo[u.ID] = p
 	if len(pr.memo) > 1<<16 {
@@ -415,31 +400,21 @@ func factContext(prog *policy.Program, r doc.Reader, view *policy.View, nodes []
 	return b.String()
 }
 
-// unitGroup is the group of a unit's kind.
-func unitGroup(n *doc.Node) vocab.Group {
-	switch n.Kind() {
-	case profile.Heading:
-		return profile.GroupHeadings[profile.HeadingLevel(n)]
-	case profile.Code:
-		return profile.GroupCode
-	case profile.Math:
-		return profile.GroupFormulaSource
-	case profile.Figure:
-		return profile.GroupCaption
-	case profile.Cell:
-		return profile.GroupCell
-	}
-	return vocab.GroupText
+// env is what a presentation is built from.
+type env struct {
+	prog  *policy.Program
+	store *policy.Store
+	r     doc.Reader
+	view  *policy.View
+	look  vocab.Presentation
 }
 
-func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, u UnitRef, key unitKey) *Presentation {
+func build(e env, u UnitRef, key unitKey) *Presentation {
 	n := u.Node
-	p := &Presentation{Unit: u.ID, Kind: n.Kind(), Node: n, Context: u.Context, Group: unitGroup(n), Gap: u.Gap, key: key}
-	if u.Context.Quotes > 0 && p.Group == vocab.GroupText {
-		p.Group = profile.GroupQuote
-	}
-	p.Role, p.Level = accessibility(n)
-	if p.Object = profile.Schema().IsObject(n.Kind()); p.Object {
+	style := e.look.Style(n, u.Context)
+	p := &Presentation{Unit: u.ID, Kind: n.Kind(), Node: n, Context: u.Context, Group: style.Group,
+		Role: style.Role, Level: style.Level, Gap: u.Gap, key: key}
+	if p.Object = e.r.Schema().IsObject(n.Kind()); p.Object {
 		// An object is a box with gap stops beside it; its own slots (a
 		// figure's caption, a table's cells) are surfaces of their own.
 		// TODO(tables), TODO(figures): present cell and caption surfaces
@@ -459,15 +434,15 @@ func build(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy
 	if !ok || ref.Node != n.ID() {
 		return p
 	}
-	flowOf(prog, store, r, view, p, ref, p.Group, false, 0)
+	flowOf(e, p, ref, p.Group, false, 0)
 	p.setAccessible()
 	return p
 }
 
 // flowOf presents an inline slot as a surface, appending its stops; boxes
 // whose slot holds a selection end get cards after it.
-func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, p *Presentation,
-	ref doc.SlotRef, base vocab.Group, card bool, anchor doc.ID) {
+func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool, anchor doc.ID) {
+	prog, store, r, view := e.prog, e.store, e.r, e.view
 	owner, _ := r.Node(ref.Node)
 	slot := owner.Slot(ref.Slot)
 	content := slot.Content()
@@ -570,7 +545,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 				// Stops are ordered by position: the card's sit inside the
 				// box, between its two flow stops.
 				flush()
-				flowOf(prog, store, r, view, p, src, profile.GroupFormulaSource, true, it.Node.ID())
+				flowOf(e, p, src, e.look.Style(it.Node, p.Context).Group, true, it.Node.ID())
 			}
 			stop(at + 1)
 			return true
@@ -578,7 +553,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 		groups := []vocab.Group{base}
 		if it.Marks != nil {
 			for _, m := range it.Marks.Marks() {
-				if g := profile.MarkGroup(m.Kind); g != 0 {
+				if g := e.look.MarkGroup(m.Kind); g != 0 {
 					groups = append(groups, g)
 				}
 			}
@@ -636,28 +611,6 @@ func (k unitKey) isOpen(id doc.ID) bool {
 		return false
 	}
 	return slices.Contains(strings.Split(k.open, ","), id.String())
-}
-
-func accessibility(n *doc.Node) (role string, level int) {
-	switch n.Kind() {
-	case profile.Heading:
-		return "heading", profile.HeadingLevel(n)
-	case profile.Item:
-		return "listitem", 0
-	case profile.Code:
-		return "code", 0
-	case profile.Math:
-		return "math", 0
-	case profile.Divider:
-		return "separator", 0
-	case profile.Figure:
-		return "figure", 0
-	case profile.Table:
-		return "table", 0
-	case profile.Cell:
-		return "cell", 0
-	}
-	return "paragraph", 0
 }
 
 // accessPart maps part of one surface's logical text into the unit's
