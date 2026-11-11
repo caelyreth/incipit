@@ -1,8 +1,11 @@
 package window
 
 import (
+	"time"
+
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo"
 )
 
@@ -62,6 +65,12 @@ func (a *AppState) MainMenu() *mygo.Menu {
 				{Role: mygo.RolePasteAndMatchStyle},
 				{Role: mygo.RoleDelete},
 				{Role: mygo.RoleSelectAll},
+				mygo.Separator(),
+				{ID: "insert-picture", Label: "Insert Picture…", Click: func(*mygo.MenuItem, *mygo.Window) {
+					if el := a.pageElement(); el != nil {
+						el.Editor.Do(vocab.Command{ID: "figures.insert"}, time.Now())
+					}
+				}},
 			},
 		},
 		{

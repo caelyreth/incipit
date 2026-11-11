@@ -11,6 +11,7 @@ import (
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/notices"
 	"github.com/caelyreth/neverland/native/overlay"
+	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/settings"
 	"github.com/caelyreth/neverland/native/shell"
 	"github.com/caelyreth/neverland/native/theme"
@@ -55,6 +56,8 @@ type AppState struct {
 	chrome chromeKey
 	// settingsDirty waits for the next write of the settings record.
 	settingsDirty bool
+	// shownPictures decodes the notebook's pictures for every page.
+	shownPictures *page.Pictures
 }
 
 // NewAppState is a notebook held in memory alone, as tests use.

@@ -67,11 +67,12 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 		case policy.EffectBeep:
 			mygo.Shell.Beep()
 		case policy.EffectMedia:
-			// Media intake is the figures/media workstream; the effect
-			// path is ready for it without coupling the page to media.
+			a.pickPictures(ed)
 		}
 	}
+	ed.Intake = a.intake(ed)
 	el := page.NewElement(ed)
+	el.Pictures = a.pictures()
 	el.Label = "Page"
 	if page, ok := a.Workspace.Page(session.page); ok {
 		el.RestoreScroll(page.Scroll.Y)
