@@ -24,6 +24,7 @@ const (
 	SetStrike
 	SetOpacity
 	SetLineColor
+	SetSpace
 )
 
 // LineKind is the line a style draws under its text.
@@ -39,9 +40,10 @@ const (
 )
 
 // Style is a closed set of style attributes. Layout attributes (font role,
-// size, weight, italic) and paint attributes (colour, background,
-// line and its color, strike, opacity) are cached apart by the renderer: a change
-// to paint attributes never invalidates layout.
+// size, weight, italic, the room before a unit) and paint attributes
+// (colour, background, line and its color, strike, opacity) are cached
+// apart by the renderer: a change to paint attributes never invalidates
+// layout.
 type Style struct {
 	Set        uint32
 	Font       FontRole
@@ -55,6 +57,9 @@ type Style struct {
 	LineColor uint32
 	Strike    bool
 	Opacity   float32
+	// Space is the room before a unit of the group, in gaps; unset, the
+	// page's own.
+	Space float32
 }
 
 // Theme maps highlight groups to styles.
@@ -90,6 +95,9 @@ func (s *Style) over(o Style) {
 	}
 	if o.Set&SetOpacity != 0 {
 		s.Opacity = o.Opacity
+	}
+	if o.Set&SetSpace != 0 {
+		s.Space = o.Space
 	}
 	s.Set |= o.Set
 }

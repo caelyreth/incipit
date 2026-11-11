@@ -48,9 +48,10 @@ type Item struct {
 	Spelling vocab.Spelling
 	StopFrom int
 	StopTo   int
-	// Box fields: the inline node, and the surface presenting its slot
-	// while it is open (-1 when closed).
+	// Box fields: the inline node, the group its source is drawn in, and
+	// the surface presenting its slot while it is open (-1 when closed).
 	Node    *doc.Node
+	Face    vocab.Group
 	Surface int
 }
 
@@ -66,6 +67,8 @@ type Flow struct {
 // card anchored to a Box.
 type Surface struct {
 	Flow Flow
+	// Group is the flow's base group: the unit's, or the box's face.
+	Group vocab.Group
 	// Anchor is the box node a card hangs from; zero for the main flow.
 	Anchor doc.ID
 	Card   bool
@@ -448,7 +451,7 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 	content := slot.Content()
 	spec, _ := vocab.SlotSpec(r, ref)
 	index := len(p.Surfaces)
-	p.Surfaces = append(p.Surfaces, Surface{Flow: Flow{Slot: ref, Literal: spec.Literal}, Anchor: anchor, Card: card})
+	p.Surfaces = append(p.Surfaces, Surface{Flow: Flow{Slot: ref, Literal: spec.Literal}, Group: base, Anchor: anchor, Card: card})
 	cls := StopFlow
 	if card {
 		cls = StopEntry
@@ -538,14 +541,15 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 	content.Each(func(at int, it doc.Item) bool {
 		if it.Node != nil {
 			emitGhosts(at)
-			box := Item{Kind: BoxItem, From: at, To: at + 1, Node: it.Node, Groups: []vocab.Group{base}, Surface: -1}
+			face := e.look.Style(it.Node, p.Context).Group
+			box := Item{Kind: BoxItem, From: at, To: at + 1, Node: it.Node, Groups: []vocab.Group{base}, Face: face, Surface: -1}
 			items = append(items, box)
 			if src, ok := vocab.FirstTextSlot(it.Node); ok && src.Node == it.Node.ID() && p.key.isOpen(it.Node.ID()) {
 				items[len(items)-1].Surface = len(p.Surfaces)
 				// Stops are ordered by position: the card's sit inside the
 				// box, between its two flow stops.
 				flush()
-				flowOf(e, p, src, e.look.Style(it.Node, p.Context).Group, true, it.Node.ID())
+				flowOf(e, p, src, face, true, it.Node.ID())
 			}
 			stop(at + 1)
 			return true

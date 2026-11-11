@@ -19,8 +19,9 @@ var headingScale = [7]float32{1, 1.75, 1.45, 1.25, 1.12, 1.05, 1}
 // semantic colors. Policy groups fall back to these through their chains.
 func Theme(t theme.Theme) present.Theme {
 	th := present.Theme{
-		vocab.GroupText:       {Set: present.SetFont | present.SetColor, Font: present.FontBody, Color: pack(t.Prose.Text)},
-		profile.GroupHeading:  {Set: present.SetFont | present.SetWeight | present.SetColor, Font: present.FontHeading, Weight: 700, Color: pack(t.Prose.Strong)},
+		vocab.GroupText: {Set: present.SetFont | present.SetColor, Font: present.FontBody, Color: pack(t.Prose.Text)},
+		profile.GroupHeading: {Set: present.SetFont | present.SetWeight | present.SetColor | present.SetSpace, Font: present.FontHeading,
+			Weight: 700, Color: pack(t.Prose.Strong), Space: 1.6},
 		profile.GroupEmphasis: tinted(t.Families[theme.Unripe]),
 		profile.GroupStrong:   bold(tinted(t.Families[theme.Regolith])),
 		profile.GroupCodeMark: {Set: present.SetFont | present.SetBackground | present.SetSize, Font: present.FontMono,

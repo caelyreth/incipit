@@ -10,7 +10,6 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
-	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/ui"
 )
@@ -190,7 +189,7 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		}
 		keep[p.Unit] = true
 		if i > 0 {
-			y += m.Gap * gapBefore(p)
+			y += m.Gap * gapBefore(p, th)
 		}
 		u.y = y
 		y += u.h
@@ -248,10 +247,11 @@ func orderedStops(u *unitLayout) []surfStop {
 	return out
 }
 
-// gapBefore is the room before a unit, in gaps.
-func gapBefore(p *present.Presentation) float32 {
-	if p.Kind == profile.Heading {
-		return 1.6
+// gapBefore is the room before a unit, in gaps: its group's, or tight
+// under the one before for a unit carrying an item's marker.
+func gapBefore(p *present.Presentation, th present.Theme) float32 {
+	if st := th.Resolve([]vocab.Group{p.Group}); st.Set&present.SetSpace != 0 {
+		return st.Space
 	}
 	if p.Context.Marker != nil {
 		return 0.35
@@ -326,10 +326,7 @@ func utf16Len(s string) int {
 // laySurface shapes one surface's flow and maps its stops.
 func laySurface(index int, s present.Surface, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32) *surfaceLayout {
 	sl := &surfaceLayout{index: index, card: s.Card, anchor: s.Anchor, slot: s.Flow.Slot, w: width}
-	base := th.Resolve([]vocab.Group{p.Group})
-	if s.Card {
-		base = th.Resolve([]vocab.Group{profile.GroupFormulaSource})
-	}
+	base := th.Resolve([]vocab.Group{s.Group})
 	var spans []ui.Span
 	var text strings.Builder
 	u := 0
@@ -401,7 +398,7 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 				addComp(it.Groups)
 			}
 			src := boxText(it.Node)
-			bs := th.Resolve(append(slices.Clone(it.Groups), profile.GroupFormulaSource))
+			bs := th.Resolve(append(slices.Clone(it.Groups), it.Face))
 			face := span(src, bs, m.Body)
 			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size}, ui.TextShape{})
 			w, h := lay.Size()
@@ -410,11 +407,7 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, face: face}, sp, style)
 		}
 	}
-	if s.Card {
-		addComp([]vocab.Group{profile.GroupFormulaSource})
-	} else {
-		addComp([]vocab.Group{p.Group})
-	}
+	addComp([]vocab.Group{s.Group})
 	sl.text = text.String()
 	font := ui.Font{Family: family(base.Font), Size: m.Body * base.Size, Weight: base.Weight, Italic: base.Italic, LineHeight: m.Spacing}
 	if len(spans) == 0 {
