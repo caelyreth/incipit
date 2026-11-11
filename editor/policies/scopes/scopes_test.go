@@ -69,7 +69,7 @@ func (p *page) selection() doc.Selection {
 
 func (p *page) painted(group vocab.Group) int {
 	n := 0
-	for _, h := range p.e.Decorations(1).Highlights {
+	for _, h := range p.e.Decorations(1).Paints {
 		if h.Group == group {
 			n++
 		}

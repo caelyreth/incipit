@@ -129,7 +129,7 @@ func TestSelectAllCoversTheHeadingWhole(t *testing.T) {
 	p := open(t)
 	p.typeText("## Head")
 	p.do(vocab.SelectScope{})
-	covers := p.e.Decorations(1).Covers
+	covers := p.e.Decorations(1).Paints[0].Covers
 	if len(covers) != 1 || !covers[0].Whole || len(covers[0].Spans) != 1 {
 		t.Fatalf("covers %+v; select-all holds the heading whole", covers)
 	}
@@ -141,7 +141,7 @@ func TestASelectionAfterTheMarkerCoversOnlyText(t *testing.T) {
 	for range 4 {
 		p.do(extend(left))
 	}
-	covers := p.e.Decorations(1).Covers
+	covers := p.e.Decorations(1).Paints[0].Covers
 	if len(covers) != 1 || covers[0].Whole || len(covers[0].Spans) != 1 {
 		t.Fatalf("covers %+v; the text alone is covered", covers)
 	}

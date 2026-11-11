@@ -51,7 +51,7 @@ func TestPairsAndMarksPaintWhileTheCaretIsInside(t *testing.T) {
 
 func (p *page) armed() int {
 	n := 0
-	for _, h := range p.e.Decorations(1).Highlights {
+	for _, h := range p.e.Decorations(1).Paints {
 		if h.Group == vocab.GroupArmed {
 			n++
 		}
@@ -61,7 +61,7 @@ func (p *page) armed() int {
 
 func (p *page) painted(group vocab.Group) int {
 	n := 0
-	for _, h := range p.e.Decorations(1).Highlights {
+	for _, h := range p.e.Decorations(1).Paints {
 		if h.Group == group {
 			n++
 		}

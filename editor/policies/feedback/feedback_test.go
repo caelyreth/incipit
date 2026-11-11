@@ -128,7 +128,7 @@ func TestHistoryPulsesPlayBothWays(t *testing.T) {
 		t.Fatalf("undo pulse plays %v", got)
 	}
 	var painted vocab.Direction
-	for _, h := range p.e.Decorations(1).Highlights {
+	for _, h := range p.e.Decorations(1).Paints {
 		if h.Group == vocab.GroupPulse {
 			painted = h.Direction
 		}

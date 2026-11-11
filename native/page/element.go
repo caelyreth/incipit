@@ -76,7 +76,6 @@ type Element struct {
 	// for the next paint. maths are the formulas' fades. animate is
 	// whether motion is wanted, as the last paint found.
 	rooms       map[doc.ID]*room
-	objects     map[doc.ID]*objectMotion
 	maths       map[doc.ID]*mathMotion
 	paintNow    time.Time
 	animate     bool
@@ -578,24 +577,18 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
-	el.paintDecos(p, pl, ox, oy, top, bottom, now, animate)
-	// The selection glides beneath the text; a drag places it directly,
-	// so it follows the pointer and glides on from there.
-	covers := ed.deco.Covers
-	if g := el.gesture; g != nil && g.valid {
-		covers = pl.selectionCovers(g.selection)
-	}
-	rows := el.selection.Step(el.selectionRows(pl, covers), now, animate && el.gesture == nil)
+	paints := el.shownPaints(pl)
+	el.paintDecos(p, pl, paints, ox, oy, top, bottom, now, animate)
+	// The selection's text glides beneath the text; a drag places it
+	// directly, so it follows the pointer and glides on from there. What
+	// else it covers is painted as every paint is.
+	rows := el.selection.Step(selectionRows(pl, paints), now, animate && el.gesture == nil)
 	if el.selection.Moving() {
 		p.AnimationFrame()
 	}
 	wash := t.Prose.Selection.Alpha(el.selection.Opacity())
 	for _, row := range rows {
 		p.Fill(ui.Rect{X: ox + row.X, Y: oy + row.Y, W: row.W, H: row.H}, wash, 2)
-	}
-	held := whole{}
-	for _, c := range covers {
-		held[c.Unit] = c.Whole
 	}
 	for _, u := range pl.units {
 		uy := oy + u.y
@@ -649,7 +642,6 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			}
 		})
 	}
-	el.paintRings(p, heldBoxes(pl, sel, held), ox, oy, now, animate)
 	el.sweepMaths()
 	el.sweepFigures()
 	if el.paintDrop(p, ox, oy, m, now, animate) {
@@ -715,13 +707,15 @@ type shownDeco struct {
 type decoRow struct {
 	box           ui.Rect
 	base, descent float32
+	// object marks an object's piece, drawn around its box.
+	object bool
 }
 
 // paintDecos draws what the page draws itself beneath the text, from each
 // surface's styles and the decorations' highlights alike: a background a
 // run per line, hugging the line's glyphs and rounded at its ends, and a
 // line below them. Each fades in as it appears and out as it goes.
-func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom float32, now time.Time, animate bool) {
+func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Paint, ox, oy, top, bottom float32, now time.Time, animate bool) {
 	if el.decos == nil {
 		el.decos = map[decoKey]*shownDeco{}
 	}
@@ -729,10 +723,10 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		sd.seen = false
 	}
 	counts := map[decoKey]int{}
-	note := func(u *unitLayout, s *surfaceLayout, highlight bool, d deco, origin uint64, direction vocab.Direction, duration time.Duration, visible bool) {
+	note := func(u *unitLayout, surface int, highlight bool, d deco, origin uint64, direction vocab.Direction, duration time.Duration, visible bool, rows func() []decoRow) {
 		look := d
 		look.rg = ui.TextInputRange{}
-		k := decoKey{unit: u.pres.Unit, surface: s.index, highlight: highlight, origin: origin,
+		k := decoKey{unit: u.pres.Unit, surface: surface, highlight: highlight, origin: origin,
 			direction: direction, duration: duration, look: look}
 		k.nth = counts[k]
 		counts[k]++
@@ -743,28 +737,40 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		}
 		sd.seen = true
 		if visible || sd.rows == nil {
-			sd.rows = rangeRows(u, s, d.rg)
+			sd.rows = rows()
 		}
 	}
 	visible := func(u *unitLayout) bool {
 		uy := oy + u.y
 		return !(uy > bottom || uy+u.h < top)
 	}
-	for _, h := range el.Editor.deco.Highlights {
-		from, ok1 := pl.lookup(h.From)
-		to, ok2 := pl.lookup(h.To)
-		if !ok1 || !ok2 || from.surface == nil || from.surface != to.surface || to.stop.u < from.stop.u {
+	for _, pt := range paints {
+		d := decoOf(ui.TextInputRange{}, el.Editor.theme.Resolve([]vocab.Group{pt.Group}))
+		if !d.drawn() {
 			continue
 		}
-		if d := decoOf(ui.TextInputRange{Start: from.stop.u, End: to.stop.u}, el.Editor.theme.Resolve([]vocab.Group{h.Group})); d.drawn() {
-			note(from.unit, from.surface, true, d, h.Origin, h.Direction, h.Duration, visible(from.unit))
+		for _, c := range pt.Covers {
+			u := pl.unitOf(c.Unit)
+			if u == nil {
+				continue
+			}
+			for _, pc := range pl.pieces(u, c) {
+				if pt.Group == vocab.GroupSelection && pc.surface >= 0 {
+					// The selection's text glides with the caret.
+					continue
+				}
+				note(u, pc.surface, true, d, pt.Origin, pt.Direction, pt.Duration, visible(u), func() []decoRow { return pc.rows })
+			}
 		}
 	}
 	for _, u := range pl.units {
 		vis := visible(u)
 		for _, s := range u.surfaces {
+			if !s.shown {
+				continue
+			}
 			for _, d := range s.decos {
-				note(u, s, false, d, 0, 0, 0, vis)
+				note(u, s.index, false, d, 0, 0, 0, vis, func() []decoRow { return decoRows(s, d.rg, u.x+s.x, u.y+s.y) })
 			}
 		}
 	}
@@ -902,12 +908,15 @@ func decoRows(s *surfaceLayout, rg ui.TextInputRange, x, y float32) []decoRow {
 }
 
 func (el *Element) paintBackground(p *ui.Painter, sd *shownDeco, ox, oy float32, now time.Time, animate bool) {
-	if sd.look.bg == (ui.Color{}) {
-		return
-	}
 	for _, row := range revealed(sd, now, animate) {
 		r := row.box
-		if r.W == 0 {
+		if row.object {
+			r.X += ox
+			r.Y += oy
+			components.PaintRing(p, r, objectRadius(el.Editor.metrics), objectOutset, sd.look.outline.Alpha(sd.alpha))
+			continue
+		}
+		if r.W == 0 || sd.look.bg == (ui.Color{}) {
 			continue
 		}
 		p.Fill(ui.Rect{X: ox + r.X - decoPad, Y: oy + r.Y - decoPad/2, W: r.W + decoPad*2, H: r.H + decoPad}, sd.look.bg.Alpha(sd.alpha), 3)
@@ -924,6 +933,9 @@ func (el *Element) paintLine(p *ui.Painter, sd *shownDeco, ox, oy float32, now t
 	}
 	ink = ink.Alpha(sd.alpha)
 	for _, row := range revealed(sd, now, animate) {
+		if row.object {
+			continue
+		}
 		x, w := ox+row.box.X, row.box.W
 		y := oy + row.base + max(underlineGap, row.descent*0.45)
 		switch sd.look.line {
@@ -973,36 +985,51 @@ const (
 	caretMark      = 3.5
 )
 
-// selectionRows are the rows the selection covers, in page coordinates:
-// a whole object's box, and each text row of a covered stretch.
-func (el *Element) selectionRows(pl *pageLayout, covers []present.Cover) []ui.Rect {
+// selectionRows are the selection's rows of text, in the page.
+func selectionRows(pl *pageLayout, paints []present.Paint) []ui.Rect {
 	var out []ui.Rect
-	byUnit := map[doc.ID]*unitLayout{}
-	for _, u := range pl.units {
-		byUnit[u.pres.Unit] = u
-	}
-	for _, c := range covers {
-		u, ok := byUnit[c.Unit]
-		if !ok || c.Whole && u.object {
-			// An object held whole wears its ring instead.
+	for _, pt := range paints {
+		if pt.Group != vocab.GroupSelection {
 			continue
 		}
-		ranges := pl.coverRanges(u, c)
-		for _, s := range u.surfaces {
-			rg, ok := ranges[s]
-			if !ok {
+		for _, c := range pt.Covers {
+			u := pl.unitOf(c.Unit)
+			if u == nil {
 				continue
 			}
-			if !s.shown {
-				r := standIn(u, s)
-				out = append(out, ui.Rect{X: u.x + r.X, Y: u.y + r.Y, W: r.W, H: r.H})
-				continue
+			for _, pc := range pl.pieces(u, c) {
+				if pc.surface < 0 {
+					continue
+				}
+				for _, r := range pc.rows {
+					out = append(out, r.box)
+				}
 			}
-			for _, sr := range s.layout.SelectionRects(rg) {
-				sr.X += u.x + s.x
-				sr.Y += u.y + s.y
-				out = append(out, sr)
-			}
+		}
+	}
+	return out
+}
+
+// shownPaints are the paints the page draws: the engine's, the selection
+// a drag holds standing in for the published one.
+func (el *Element) shownPaints(pl *pageLayout) []present.Paint {
+	paints := el.Editor.deco.Paints
+	g := el.gesture
+	if g == nil || !g.valid {
+		return paints
+	}
+	out := []present.Paint{}
+	r := el.Editor.Engine.Snapshot()
+	if from, to, ok := present.SelectionExtent(r, g.selection); ok {
+		pres := make([]*present.Presentation, len(pl.units))
+		for i, u := range pl.units {
+			pres[i] = u.pres
+		}
+		out = append(out, present.Paint{Group: vocab.GroupSelection, Covers: present.Covers(r, pres, from, to)})
+	}
+	for _, pt := range paints {
+		if pt.Group != vocab.GroupSelection {
+			out = append(out, pt)
 		}
 	}
 	return out

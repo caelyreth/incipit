@@ -59,7 +59,9 @@ var (
 	GroupText        = NewGroup("text", 0)
 	GroupGhost       = NewGroup("notation.ghost", 0)
 	GroupComposition = NewGroup("composition", 0)
-	// GroupArmed styles what the next delete takes, armed by the first.
+	// GroupSelection styles what the selection covers.
+	GroupSelection = NewGroup("selection", 0)
+	// GroupArmed styles what the next delete takes, held by the first.
 	GroupArmed = NewGroup("armed", 0)
 	// GroupPairMatch styles the pair or mark a caret is inside.
 	GroupPairMatch = NewGroup("pair.match", 0)

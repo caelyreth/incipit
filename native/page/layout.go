@@ -75,6 +75,8 @@ type deco struct {
 	line present.LineKind
 	// ink is the line's color; zero is the text's.
 	ink ui.Color
+	// outline is drawn around an object the decoration holds whole.
+	outline ui.Color
 }
 
 // decoOf is what a style asks the page to draw for a range: its
@@ -83,6 +85,10 @@ func decoOf(rg ui.TextInputRange, s present.Style) deco {
 	d := deco{rg: rg, line: s.Line}
 	if s.Set&present.SetBackground != 0 {
 		d.bg = unpack(s.Background)
+	}
+	d.outline = d.bg
+	if s.Set&present.SetOutline != 0 {
+		d.outline = unpack(s.Outline)
 	}
 	switch {
 	case d.line == present.LineNone:
@@ -94,9 +100,13 @@ func decoOf(rg ui.TextInputRange, s present.Style) deco {
 	return d
 }
 
-func (d deco) drawn() bool { return d.bg != (ui.Color{}) || d.line != present.LineNone }
+func (d deco) drawn() bool {
+	return d.bg != (ui.Color{}) || d.line != present.LineNone || d.outline != (ui.Color{})
+}
 
-func (d deco) same(o deco) bool { return d.bg == o.bg && d.line == o.line && d.ink == o.ink }
+func (d deco) same(o deco) bool {
+	return d.bg == o.bg && d.line == o.line && d.ink == o.ink && d.outline == o.outline
+}
 
 // invisible paints nothing; a zero color would take the layout's default.
 var invisible = ui.Color{R: 1}
@@ -800,79 +810,27 @@ func (sl *surfaceLayout) objectRect(i int) (ui.Rect, bool) {
 }
 
 // coverRanges are the UTF-16 runs a published cover spans in each of a
-// unit's surfaces.
+// unit's surfaces, one per surface.
 func (pl *pageLayout) coverRanges(u *unitLayout, c present.Cover) map[*surfaceLayout]ui.TextInputRange {
-	out := map[*surfaceLayout]ui.TextInputRange{}
+	// A run of one surface broken by another's stops, as a line's by its
+	// formula's card, is one run.
+	runs := map[int][2]int{}
 	for _, sp := range c.Spans {
 		if sp.Surface < 0 || sp.Surface >= len(u.surfaces) || sp.To >= len(u.pres.Stops) {
 			continue
 		}
-		from, ok1 := pl.at[u.pres.Stops[sp.From].Caret]
-		to, ok2 := pl.at[u.pres.Stops[sp.To].Caret]
-		if !ok1 || !ok2 || from.stop.u >= to.stop.u {
-			continue
+		r, ok := runs[sp.Surface]
+		if !ok {
+			r = [2]int{sp.From, sp.To}
 		}
-		out[u.surfaces[sp.Surface]] = ui.TextInputRange{Start: from.stop.u, End: to.stop.u}
+		runs[sp.Surface] = [2]int{min(r[0], sp.From), max(r[1], sp.To)}
 	}
-	return out
-}
-
-// selectionCovers is a selection's published cover shape, computed from
-// the laid-out stops for a renderer preview. The engine uses the same
-// shape when it publishes the selection.
-func (pl *pageLayout) selectionCovers(sel doc.Selection) []present.Cover {
-	if sel.Kind == doc.SelectNode {
-		for _, u := range pl.units {
-			if u.pres.Unit == sel.Node {
-				return []present.Cover{{Unit: u.pres.Unit, Whole: true}}
-			}
-		}
-		return nil
-	}
-	if sel.Kind != doc.SelectText || sel.IsCollapsed() {
-		return nil
-	}
-	lo, hi, seq := -1, -1, 0
-	for _, u := range pl.units {
-		for _, st := range u.pres.Stops {
-			switch st.Caret {
-			case sel.Anchor:
-				lo = seq
-			case sel.Head:
-				hi = seq
-			}
-			seq++
-		}
-	}
-	if lo < 0 || hi < 0 {
-		return nil
-	}
-	if lo > hi {
-		lo, hi = hi, lo
-	}
-	var out []present.Cover
-	seq = 0
-	for _, u := range pl.units {
-		c := present.Cover{Unit: u.pres.Unit}
-		gaps := 0
-		for i, st := range u.pres.Stops {
-			if st.Surface < 0 && seq >= lo && seq <= hi {
-				gaps++
-			}
-			if seq >= lo && seq <= hi {
-				n := len(c.Spans)
-				if n > 0 && c.Spans[n-1].Surface == st.Surface && c.Spans[n-1].To == i-1 {
-					c.Spans[n-1].To = i
-				} else {
-					c.Spans = append(c.Spans, present.CoverSpan{Surface: st.Surface, From: i, To: i})
-				}
-			}
-			seq++
-		}
-		// An object both of whose gaps the range holds is held whole.
-		c.Whole = u.object && gaps == 2
-		if len(c.Spans) > 0 || c.Whole {
-			out = append(out, c)
+	out := map[*surfaceLayout]ui.TextInputRange{}
+	for i, r := range runs {
+		from, ok1 := pl.at[u.pres.Stops[r[0]].Caret]
+		to, ok2 := pl.at[u.pres.Stops[r[1]].Caret]
+		if ok1 && ok2 && from.stop.u < to.stop.u {
+			out[u.surfaces[i]] = ui.TextInputRange{Start: from.stop.u, End: to.stop.u}
 		}
 	}
 	return out

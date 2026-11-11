@@ -25,6 +25,7 @@ const (
 	SetOpacity
 	SetLineColor
 	SetSpace
+	SetOutline
 )
 
 // LineKind is the line a style draws under its text.
@@ -60,6 +61,9 @@ type Style struct {
 	// Space is the room before a unit of the group, in gaps; unset, the
 	// page's own.
 	Space float32
+	// Outline is how a decoration marks an object it holds whole, which
+	// it draws around rather than over, 0xRRGGBBAA; unset, its background.
+	Outline uint32
 }
 
 // Theme maps highlight groups to styles.
@@ -98,6 +102,9 @@ func (s *Style) over(o Style) {
 	}
 	if o.Set&SetSpace != 0 {
 		s.Space = o.Space
+	}
+	if o.Set&SetOutline != 0 {
+		s.Outline = o.Outline
 	}
 	s.Set |= o.Set
 }

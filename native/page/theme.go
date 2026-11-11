@@ -36,14 +36,19 @@ func Theme(t theme.Theme) present.Theme {
 		profile.GroupCellHeader:    {Set: present.SetWeight, Weight: 700},
 		vocab.GroupComposition: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[theme.Halo].Foreground)},
-		vocab.GroupArmed: {Set: present.SetBackground | present.SetLine | present.SetLineColor, Background: pack(t.Prose.Selection),
-			Line: present.LineWavy, LineColor: pack(t.Families[theme.Remnant].Foreground)},
+		// Every paint has a look on text and around an object it holds
+		// whole: the selection washes text and outlines an object in the
+		// accent; what the next delete takes is marked in the danger hue.
+		vocab.GroupSelection: {Set: present.SetBackground | present.SetOutline, Background: pack(t.Prose.Selection),
+			Outline: pack(t.Accent.Foreground.Alpha(0.85))},
+		vocab.GroupArmed: {Set: present.SetBackground | present.SetLine | present.SetLineColor | present.SetOutline, Background: pack(t.Prose.Selection),
+			Line: present.LineWavy, LineColor: pack(t.Families[theme.Remnant].Foreground), Outline: pack(t.Families[theme.Remnant].Foreground)},
 		vocab.GroupPairMatch: {Set: present.SetBackground, Background: pack(t.Families[t.AccentFamily].Surface)},
 		vocab.GroupScope: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[t.AccentFamily].Muted)},
-		vocab.GroupPulse: {Set: present.SetBackground | present.SetLine | present.SetLineColor,
+		vocab.GroupPulse: {Set: present.SetBackground | present.SetLine | present.SetLineColor | present.SetOutline,
 			Background: pack(t.Families[theme.Life].Surface), Line: present.LineUnder,
-			LineColor: pack(t.Families[theme.Life].Foreground)},
+			LineColor: pack(t.Families[theme.Life].Foreground), Outline: pack(t.Families[theme.Life].Foreground)},
 	}
 	for level := 1; level <= 6; level++ {
 		th[profile.GroupHeadings[level]] = present.Style{Set: present.SetSize, Size: headingScale[level]}
