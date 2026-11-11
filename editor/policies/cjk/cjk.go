@@ -6,6 +6,7 @@ package cjk
 import (
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -47,6 +48,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		Do(func(c *policy.Ctx, site policy.Site) policy.Result {
 			return rewrite(c, site, opts)
 		})
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2400*time.Millisecond,
+		policy.Types("今天用Go写代码,很开心."),
+	)
 }, policy.Label("policies.cjk"), policy.Description("policies.cjk.description"))
 
 type span struct{ from, to int }

@@ -7,6 +7,7 @@ package words
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -32,6 +33,16 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		policy.On(p, "delete-"+unit.name, policy.Deleting(unit.unit, 0), policy.Slot.Inside(), delete)
 	}
 	policy.On(p, "select-word", policy.Clicking(2), policy.Slot.Inside(), selectWord).Any()
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2400*time.Millisecond,
+		policy.Types("Move by whole words"),
+		policy.Waits(400*time.Millisecond),
+		policy.Presses(vocab.Move{Unit: vocab.ByWord, Dir: vocab.Backward}),
+		policy.Presses(vocab.Move{Unit: vocab.ByWord, Dir: vocab.Backward}),
+		policy.Waits(300*time.Millisecond),
+		policy.Presses(vocab.Move{Unit: vocab.ByWord, Dir: vocab.Forward, Extend: true}),
+	)
 }, policy.Label("policies.words"), policy.Description("policies.words.description"))
 
 type span struct{ from, to int }

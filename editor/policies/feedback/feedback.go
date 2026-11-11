@@ -26,6 +26,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Annotation(Pulse, valid)
 	p.Decorate(Pulse, vocab.GroupPulse)
 	p.Observe("pulse", policy.Trigger{}, observe)
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2400*time.Millisecond,
+		policy.Types("And then... a pulse -- see?"),
+	)
 }, policy.Label("policies.feedback"), policy.Description("policies.feedback.description"))
 
 // pulseSpan is what one transaction asks the renderer to show.

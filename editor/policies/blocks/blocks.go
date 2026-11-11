@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"time"
 )
 
 // ID is the policy's id.
@@ -25,6 +26,17 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	}
 	p.Command("blocks.quote", "commands.quote", profile.WrapQuote{})
 	p.Command("blocks.codeBlock", "commands.codeBlock", profile.Retype{To: profile.Code})
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2400*time.Millisecond,
+		policy.Types("Tides"),
+		policy.Waits(500*time.Millisecond),
+		policy.Presses(profile.Retype{To: profile.Heading, Attrs: headingAttrs(1)}),
+		policy.Waits(600*time.Millisecond),
+		policy.Presses(profile.Retype{To: profile.Heading, Attrs: headingAttrs(2)}),
+		policy.Waits(600*time.Millisecond),
+		policy.Presses(profile.WrapQuote{}),
+	)
 }, policy.Label("policies.blocks"), policy.Description("policies.blocks.description"))
 
 func headingAttrs(level int) doc.Attrs {

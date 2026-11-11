@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"time"
 )
 
 // ID is the policy's id.
@@ -20,6 +21,13 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	dollar := policy.Typed(string(profile.FormulaSpelling))
 	policy.On(p, "open", dollar, policy.Slot.Own(), open).When(policy.Takes(profile.Formula))
 	policy.On(p, "math", dollar, policy.Node(profile.Formula).Empty(), toMath)
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2600*time.Millisecond,
+		policy.Types("Energy is $E = mc^2"),
+		policy.Waits(500*time.Millisecond),
+		policy.Types("$, give or take."),
+	)
 }, policy.Label("policies.formulas"), policy.Description("policies.formulas.description"))
 
 // open inserts an empty formula and puts the caret in its source.

@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"time"
 )
 
 // ID is the policy's id.
@@ -22,6 +23,15 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Command("formats.emphasis", "commands.emphasis", profile.Format{Mark: profile.Emphasis}, policy.Key("primary+i"))
 	p.Command("formats.code", "commands.code", profile.Format{Mark: profile.CodeMark}, policy.Key("primary+e"))
 	p.Command("formats.strike", "commands.strike", profile.Format{Mark: profile.Strike})
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2400*time.Millisecond,
+		policy.Types("Say it "),
+		policy.Presses(profile.Format{Mark: profile.Strong}),
+		policy.Types("firmly"),
+		policy.Presses(profile.Format{Mark: profile.Strong}),
+		policy.Types(", then softly."),
+	)
 }, policy.Label("policies.formats"), policy.Description("policies.formats.description"))
 
 // formatAtCaret toggles a mark in the marks text typed at the caret

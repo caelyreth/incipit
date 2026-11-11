@@ -5,6 +5,7 @@ package scopes
 
 import (
 	"slices"
+	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -23,6 +24,15 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Annotation(Active, valid)
 	p.Decorate(Active, vocab.GroupScope)
 	p.Observe("highlight", policy.Trigger{}, highlight)
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2400*time.Millisecond,
+		policy.Types("Grow (from the inside"),
+		policy.Waits(500*time.Millisecond),
+		policy.Presses(vocab.SelectScope{}),
+		policy.Waits(600*time.Millisecond),
+		policy.Presses(vocab.SelectScope{}),
+	)
 }, policy.Label("policies.scopes"), policy.Description("policies.scopes.description"))
 
 type candidate struct {

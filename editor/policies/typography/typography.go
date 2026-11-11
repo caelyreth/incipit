@@ -8,6 +8,7 @@ package typography
 import (
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -57,6 +58,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		Do(func(c *policy.Ctx, site policy.Site) policy.Result {
 			return rewrite(c, site, opts)
 		})
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2400*time.Millisecond,
+		policy.Types("Wait... it's done -- almost."),
+	)
 }, policy.Label("policies.typography"), policy.Description("policies.typography.description"))
 
 func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
