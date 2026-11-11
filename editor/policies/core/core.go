@@ -441,8 +441,8 @@ func inlineParent(r doc.Reader, id doc.ID) (doc.ID, int, bool) {
 	return parent, slot, pn.Slot(slot).IsInline()
 }
 
-// breakBlock is Enter: a line break in slots that keep lines, a split
-// elsewhere. At a block's text start, and before its marker, a block opens
+// breakBlock is Enter: a line break in slots that keep lines, but on a
+// block's empty last line it leaves the block; a split elsewhere. At a block's text start, and before its marker, a block opens
 // before it and the caret stays; a heading split at its end continues as
 // a paragraph.
 func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.Result {
@@ -463,6 +463,11 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 		return res
 	}
 	if spec.Lines {
+		if clear == nil {
+			if res, ok := leaveLines(r, pos); ok {
+				return res
+			}
+		}
 		return policy.Do(append(edits, insertText(pos, "\n", nil, true))...)
 	}
 	if _, _, inl := inlineParent(r, pos.Node); inl {
@@ -516,6 +521,33 @@ func startOfNext(id doc.ID) func(doc.Reader) doc.Selection {
 		}
 		return doc.Collapsed(doc.CaretAt(doc.Pos{Node: r.Root().ID()}))
 	}
+}
+
+// leaveLines is Enter on the empty last line of a block whose text keeps
+// lines, as a code or math block: the block is left, the empty line going
+// and a plain block opening after it. Shift+Enter still adds the line.
+func leaveLines(r doc.Reader, pos doc.Pos) (policy.Result, bool) {
+	n, ok := r.Node(pos.Node)
+	if !ok {
+		return policy.Result{}, false
+	}
+	parent, slot, index, ok := vocab.Index(r, pos.Node)
+	if !ok {
+		return policy.Result{}, false
+	}
+	if ps, ok := vocab.SlotSpec(r, doc.SlotRef{Node: parent, Slot: slot}); !ok || !ps.Blocks {
+		return policy.Result{}, false
+	}
+	s := n.Slot(pos.Slot)
+	if pos.Offset != s.Len() || !strings.HasSuffix(s.Content().Text(), "\n") {
+		return policy.Result{}, false
+	}
+	res := policy.Do(vocab.Ops(
+		doc.EditText{At: pos.Ref(), From: pos.Offset - 1, To: pos.Offset},
+		doc.Insert{Parent: parent, Slot: slot, Index: index + 1, Nodes: []*doc.Node{plain(r.Schema())}},
+	))
+	res.Then = startOfNext(pos.Node)
+	return res, true
 }
 
 // softBreak inserts a line break where the slot keeps lines, and is Enter

@@ -125,6 +125,36 @@ func TestFencesOnEnter(t *testing.T) {
 	p.want("page(divider() paragraph(y))")
 }
 
+// Enter on the empty last line of a code or math block leaves it; Shift+
+// Enter still adds the line, and Enter elsewhere breaks the line.
+func TestEnterOnAnEmptyLastLineLeavesTheBlock(t *testing.T) {
+	for _, c := range []struct{ open, want string }{
+		{"```go", "page(code(x\ny) paragraph(z))"},
+		{"$$", "page(math(x\ny) paragraph(z))"},
+	} {
+		p := open(t)
+		p.typeText(c.open)
+		if c.open == "```go" {
+			p.do(vocab.Break{})
+		}
+		p.typeText("x")
+		p.do(vocab.Break{})
+		p.typeText("y")
+		p.do(vocab.Break{})
+		p.do(vocab.Break{})
+		p.typeText("z")
+		p.want(c.want)
+	}
+	p := open(t)
+	p.typeText("```go")
+	p.do(vocab.Break{})
+	p.typeText("x")
+	p.do(vocab.SoftBreak{})
+	p.do(vocab.SoftBreak{})
+	p.typeText("y")
+	p.want("page(code(x\n\ny))")
+}
+
 func TestLeaveAndReturnFromFormula(t *testing.T) {
 	p := open(t)
 	p.typeText("a $x")
