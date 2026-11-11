@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policies/core"
+	"github.com/caelyreth/neverland/editor/policies/formulas"
 	"github.com/caelyreth/neverland/editor/policies/lists"
 	"github.com/caelyreth/neverland/editor/policies/markdown"
 	"github.com/caelyreth/neverland/editor/policies/notation"
@@ -19,7 +20,8 @@ import (
 func open(t *testing.T, values policy.Values) *engine.Engine {
 	t.Helper()
 	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
-		Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, lists.Policy, Policy},
+		Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, formulas.Policy, lists.Policy, Policy},
+		Resolve: []policy.Order{policy.Over(formulas.Policy, Policy, vocab.RoleCloser)},
 		Strict:  true,
 	}, values)
 	if err != nil {

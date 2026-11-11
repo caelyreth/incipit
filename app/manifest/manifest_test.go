@@ -158,3 +158,20 @@ func TestNoRuleIsShadowed(t *testing.T) {
 		t.Fatalf("shadowed rules: %v", s)
 	}
 }
+
+// A formula's spelling opens and closes it, as a pair's closer closes the
+// pair: navigation steps over every Closer alike. In an empty formula the
+// "$" is the formulas policy's, not a close.
+func TestFormulaSpellingOpensAndCloses(t *testing.T) {
+	p := open(t)
+	p.typeText("a$x$b")
+	p.want("page(paragraph(aformula(x)b))")
+
+	p = open(t)
+	p.typeText("$$")
+	p.want("page(math())")
+
+	p = open(t)
+	p.typeText("(x)")
+	p.want("page(paragraph((x)))")
+}

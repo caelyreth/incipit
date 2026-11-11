@@ -18,6 +18,9 @@ const ID = "lists"
 // Policy is the lists policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Command("lists.bullet", "commands.bulletList", profile.MakeList{})
+	p.Command("lists.nest", "commands.nest", profile.Nest{Dir: vocab.Forward})
+	p.Command("lists.outdent", "commands.outdent", profile.Nest{Dir: vocab.Backward})
+	p.Command("lists.toggleTask", "commands.toggleTask", profile.ToggleTask{})
 	p.Command("lists.numbered", "commands.numberedList", profile.MakeList{
 		Attrs: doc.MakeAttrs(doc.Field{Num: profile.FieldListStyle, Value: doc.Int(int64(profile.Ordered))},
 			doc.Field{Num: profile.FieldListStart, Value: doc.Int(1)}),

@@ -3,10 +3,13 @@
 package manifest
 
 import (
+	"github.com/caelyreth/neverland/editor/policies/blocks"
 	"github.com/caelyreth/neverland/editor/policies/cjk"
 	"github.com/caelyreth/neverland/editor/policies/core"
 	"github.com/caelyreth/neverland/editor/policies/deletion"
 	"github.com/caelyreth/neverland/editor/policies/feedback"
+	"github.com/caelyreth/neverland/editor/policies/formats"
+	"github.com/caelyreth/neverland/editor/policies/formulas"
 	"github.com/caelyreth/neverland/editor/policies/guides"
 	"github.com/caelyreth/neverland/editor/policies/history"
 	"github.com/caelyreth/neverland/editor/policies/lists"
@@ -20,6 +23,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/words"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/editor/vocab"
 )
 
 // Manifest lists the product's policies.
@@ -27,10 +31,16 @@ import (
 // TODO(policies): tables and figures remain. Once pairs spell a typed '*',
 // markdown must take precedence over pairs for that character.
 var Manifest = policy.Manifest{
-	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy,
-		typography.Policy, cjk.Policy, navigation.Policy, scopes.Policy, deletion.Policy,
-		lists.Policy, words.Policy, history.Policy, feedback.Policy, guides.Policy, statistics.Policy},
+	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, formulas.Policy,
+		typography.Policy, cjk.Policy, navigation.Policy, scopes.Policy, deletion.Policy, formats.Policy,
+		blocks.Policy, lists.Policy, words.Policy, history.Policy, feedback.Policy, guides.Policy,
+		statistics.Policy},
 	Profile: profile.Profile,
+	Resolve: []policy.Order{
+		// "$" in an empty formula is its source or a math block, not its
+		// close.
+		policy.Over(formulas.Policy, navigation.Policy, vocab.RoleCloser),
+	},
 }
 
 // Compile builds the program for settings values.

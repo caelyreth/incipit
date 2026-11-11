@@ -100,14 +100,14 @@ func TestTypedGlyphsToggleATaskBox(t *testing.T) {
 func TestTaskCommandTogglesTheItemAtTheCaret(t *testing.T) {
 	p := open(t)
 	p.typeText("- [ ] ")
-	if _, ok := p.e.Program().Command("core.toggleTask"); !ok {
+	if _, ok := p.e.Program().Command("lists.toggleTask"); !ok {
 		t.Fatal("the program has no core.toggleTask command")
 	}
-	p.do(vocab.Command{ID: "core.toggleTask"})
+	p.do(vocab.Command{ID: "lists.toggleTask"})
 	if got := profile.TaskOf(p.item()); got != profile.TaskDone {
 		t.Fatalf("the command made task %v, want done", got)
 	}
-	p.do(vocab.Command{ID: "core.toggleTask"})
+	p.do(vocab.Command{ID: "lists.toggleTask"})
 	if got := profile.TaskOf(p.item()); got != profile.TaskOpen {
 		t.Fatalf("the second command made task %v, want open", got)
 	}

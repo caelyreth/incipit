@@ -29,7 +29,7 @@ var allowed = map[string][]string{
 }
 
 // profiled are the policies whose behaviour is about the profile's kinds.
-var profiled = map[string]bool{"core": true, "lists": true, "markdown": true, "notation": true}
+var profiled = map[string]bool{"blocks": true, "formats": true, "formulas": true, "lists": true, "markdown": true, "notation": true}
 
 func TestImportsFollowTheModuleTable(t *testing.T) {
 	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {

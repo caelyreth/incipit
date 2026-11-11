@@ -47,7 +47,13 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		kinds = append(kinds, quote)
 	}
 
-	span := policy.Facts[pair](p, "pair", policy.Provides(bound, vocab.RolePair, vocab.RoleLeavable))
+	// A pair is a Closer when overtyping: its closer typed at its inner
+	// end is the closer already there, whoever typed it (navigation).
+	roles := []vocab.Role{vocab.RolePair, vocab.RoleLeavable}
+	if over {
+		roles = append(roles, vocab.RoleCloser)
+	}
+	span := policy.Facts[pair](p, "pair", policy.Provides(bound, roles...))
 	policy.Scan[string](p, scanner{kind: span, kinds: kinds}, []policy.FactID{span.Kind()})
 	p.Paint(vocab.GroupPairMatch, span.Kind(), policy.WhenCaretInside)
 
@@ -63,15 +69,6 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		if k == quote {
 			// After a word a straight quote closes; it opens nothing.
 			open.When(policy.Not(policy.PrevChar(vocab.ClassWord)))
-		}
-	}
-	if over {
-		// A closer typed at a pair's inner end is the closer already there:
-		// the caret steps over it. What the page holds decides, not who
-		// typed the closer, so a hand-typed one steps over as an
-		// auto-closed one does, and as a mark's sign does.
-		for _, k := range kinds {
-			policy.On(p, "overtype-"+k.close, policy.Typed(k.close), policy.Or(span.AtEnd(), span.Empty()), overtype)
 		}
 	}
 	if mates {
@@ -224,6 +221,9 @@ func (p pair) EditSide(side vocab.Side, spelling vocab.Spelling) vocab.Edit {
 }
 
 // Exit is after the closer; Entry is before it, where the caret was.
+// Closes: the pair's closer closes it.
+func (p pair) Closes(text string) bool { return text == p.Close }
+
 func (p pair) Exit() doc.Caret  { return doc.CaretAt(doc.At(p.slot, p.to)) }
 func (p pair) Entry() doc.Caret { return doc.CaretAt(doc.At(p.slot, p.innerTo)) }
 
@@ -273,11 +273,6 @@ func wrap(k kind) func(*policy.Ctx, vocab.Type, policy.At[doc.SlotRef]) policy.R
 		end := doc.CaretAt(doc.At(ref, to.Offset+len(k.open)))
 		return res.With(doc.Selection{Kind: doc.SelectText, Anchor: start, Head: end})
 	}
-}
-
-// overtype steps over the pair's closer.
-func overtype(_ *policy.Ctx, _ vocab.Type, at policy.At[pair]) policy.Result {
-	return policy.Select(doc.Collapsed(doc.CaretAt(doc.At(at.Slot, at.Fact.Outer.To.At))))
 }
 
 // arm marks both sides of the pair for the next press, which is the only

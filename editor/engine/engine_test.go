@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policies/core"
+	"github.com/caelyreth/neverland/editor/policies/formats"
 	"github.com/caelyreth/neverland/editor/policies/history"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
@@ -126,7 +127,7 @@ func TestReplayIsDeterministic(t *testing.T) {
 }
 
 func TestPendingMarksAndFormat(t *testing.T) {
-	h := newHarness(t)
+	h := newHarness(t, formats.Policy)
 	h.do(profile.Format{Mark: profile.Strong})
 	h.typeText("bo")
 	n := h.e.Snapshot().Root().Slot(0).Child(0)

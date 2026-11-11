@@ -339,6 +339,20 @@ type Cond struct {
 	scopes []Scope
 }
 
+// Rich holds where the caret's slot is rich text: inline, taking marks.
+var Rich = Cond{test: func(c *Ctx) bool {
+	spec, ok := vocab.SlotSpec(c.r, c.Head().Pos.Ref())
+	return ok && !spec.Blocks && !spec.Literal && spec.Marks != nil
+}}
+
+// Takes holds where the caret's inline slot takes inline nodes of kind k.
+func Takes(k doc.Kind) Cond {
+	return Cond{test: func(c *Ctx) bool {
+		spec, ok := vocab.SlotSpec(c.r, c.Head().Pos.Ref())
+		return ok && !spec.Blocks && !spec.Literal && spec.Accepts != nil && spec.Accepts(k)
+	}}
+}
+
 // PrevChar and NextChar test the class of the neighbouring grapheme.
 func PrevChar(cl vocab.CharClass) Cond { return charCond(cl, true) }
 func NextChar(cl vocab.CharClass) Cond { return charCond(cl, false) }

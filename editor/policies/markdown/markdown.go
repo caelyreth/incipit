@@ -1,7 +1,7 @@
 // Package markdown is the markdown policy: typed syntax becomes structure
 // as it is typed. Delimiter runs close into marks, block prefixes at a
-// paragraph's start become headings, quotes and lists, fences become code,
-// math and dividers, and "$" makes a formula with the caret in its source.
+// paragraph's start become headings, quotes and lists, and fences become
+// code, math and dividers. Inline formulas are the formulas policy's.
 package markdown
 
 import (
@@ -95,16 +95,6 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 	policy.On(p, "block-marker", policy.Typed(" "), mk.Behind(), blockMarker)
 	policy.On(p, "fence", policy.Intent[vocab.Break](), fk.Behind(), fenceBlock)
 
-	// Formulas.
-	if blocks.Math {
-		for _, kind := range []doc.Kind{profile.Paragraph, profile.Heading, profile.Item} {
-			policy.On(p, "formula-"+profile.Schema().KindName(kind), policy.Typed(string(profile.FormulaSpelling)),
-				policy.Node(kind).Inside(), openFormula)
-		}
-		formula := policy.Node(profile.Formula)
-		policy.On(p, "formula-close", policy.Typed("$"), formula.AtEnd(), closeFormula)
-		policy.On(p, "formula-math", policy.Typed("$"), formula.Empty(), mathFromFormula)
-	}
 })
 
 // closeRun applies a mark over the run's content up to the caret and
@@ -233,60 +223,6 @@ func fenceBlock(c *policy.Ctx, _ vocab.Break, at policy.At[fence]) policy.Result
 			return s
 		}
 		return doc.Collapsed(doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: caretAt}))
-	}
-	return res
-}
-
-// openFormula inserts an empty formula and puts the caret in its source.
-func openFormula(c *policy.Ctx, _ vocab.Type, _ policy.At[*doc.Node]) policy.Result {
-	head := c.Head().Pos
-	if spec, ok := vocab.SlotSpec(c.Doc(), head.Ref()); !ok || spec.Literal || spec.Blocks {
-		// The caret is not in rich text: a gap or a literal slot.
-		return policy.Do(vocab.Ops(doc.EditText{At: head.Ref(), From: head.Offset, To: head.Offset,
-			Items: []doc.Item{doc.TextItem("$", nil)}}))
-	}
-	formula := doc.NewNode(profile.Formula, doc.Attrs{}, doc.InlineSlot())
-	res := policy.Do(vocab.Ops(doc.EditText{At: head.Ref(), From: head.Offset, To: head.Offset, Items: []doc.Item{doc.NodeItem(formula)}}))
-	res.Then = func(r doc.Reader) doc.Selection {
-		n, _ := r.Node(head.Node)
-		if it, _, ok := n.Slot(head.Slot).Content().ItemAt(head.Offset); ok && it.Node != nil {
-			return doc.Collapsed(doc.CaretAt(doc.Pos{Node: it.Node.ID()}))
-		}
-		return doc.Collapsed(doc.CaretAt(head))
-	}
-	return res
-}
-
-// closeFormula leaves the formula: a typed "$" at its source's end steps
-// past it.
-func closeFormula(c *policy.Ctx, _ vocab.Type, at policy.At[*doc.Node]) policy.Result {
-	r := c.Doc()
-	parent, slot, ok := r.Parent(at.Data.ID())
-	if !ok {
-		return policy.Swallow
-	}
-	pn, _ := r.Node(parent)
-	off, _ := pn.Slot(slot).Content().NodeOffset(at.Data.ID())
-	return policy.Select(doc.Collapsed(doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: off + 1})))
-}
-
-// mathFromFormula: "$" in an empty formula alone in its paragraph opens a
-// math block; elsewhere the "$" is source text.
-func mathFromFormula(c *policy.Ctx, _ vocab.Type, at policy.At[*doc.Node]) policy.Result {
-	r := c.Doc()
-	id := at.Data.ID()
-	parent, slot, ok := r.Parent(id)
-	pn, _ := r.Node(parent)
-	if !ok || pn.Kind() != profile.Paragraph || pn.Slot(slot).Len() != 1 {
-		return policy.Do(vocab.Ops(doc.EditText{At: doc.SlotRef{Node: id}, Items: []doc.Item{doc.TextItem("$", nil)}}))
-	}
-	gp, gslot, index, _ := vocab.Index(r, parent)
-	res := policy.Do(func(tx *doc.Tx) error {
-		return replace(tx, parent, doc.NewNode(profile.Math, doc.Attrs{}, doc.InlineSlot()))
-	})
-	res.Then = func(r doc.Reader) doc.Selection {
-		s, _ := firstText(r, gp, gslot, index)
-		return s
 	}
 	return res
 }

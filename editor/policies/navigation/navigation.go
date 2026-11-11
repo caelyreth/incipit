@@ -2,7 +2,9 @@
 // configured Leavable scope past its end, and Return enters the scope
 // that ends right before the caret. Both read where the caret is, never
 // how it got there: Return mirrors Leave, so after Leave it goes back in,
-// and after a closer typed by hand it goes in all the same.
+// and after a closer typed by hand it goes in all the same. A character
+// typed at a Closer's inner end that closes it steps over its closing
+// side, whoever wrote that side.
 package navigation
 
 import (
@@ -29,7 +31,26 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		policy.On(p, "leave-"+role.String(), policy.Intent[vocab.Leave](), scope.Inside(), leave).Any()
 		policy.On(p, "return-"+role.String(), policy.Intent[vocab.Return](), scope.Behind(), enter).Any()
 	}
+	closers := policy.Role[vocab.Closer](vocab.RoleCloser)
+	policy.On(p, "close", policy.Intent[vocab.Type](), policy.Or(closers.AtEnd(), closers.Empty()), close)
 })
+
+// close steps over the closing side one glyph, for text that closes the
+// scope; other text is typed.
+func close(c *policy.Ctx, in vocab.Type, at policy.At[vocab.Closer]) policy.Result {
+	if !at.Data.Closes(in.Text) {
+		return policy.Pass
+	}
+	stops := c.Stops()
+	if stops == nil {
+		return policy.Pass
+	}
+	next, ok := stops.Step(c.Head(), vocab.Forward)
+	if !ok {
+		return policy.Pass
+	}
+	return policy.Select(doc.Collapsed(next))
+}
 
 // leave exits the scope, past its end.
 func leave(_ *policy.Ctx, _ vocab.Leave, at policy.At[vocab.Leavable]) policy.Result {

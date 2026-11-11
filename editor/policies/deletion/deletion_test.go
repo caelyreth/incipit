@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policies/core"
+	"github.com/caelyreth/neverland/editor/policies/formulas"
 	"github.com/caelyreth/neverland/editor/policies/guides"
 	"github.com/caelyreth/neverland/editor/policies/history"
 	"github.com/caelyreth/neverland/editor/policies/lists"
@@ -29,9 +30,10 @@ type page struct {
 func open(t *testing.T) *page {
 	t.Helper()
 	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
-		Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy,
+		Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, formulas.Policy,
 			lists.Policy, navigation.Policy, scopes.Policy, Policy, history.Policy, guides.Policy},
-		Strict: true,
+		Resolve: []policy.Order{policy.Over(formulas.Policy, navigation.Policy, vocab.RoleCloser)},
+		Strict:  true,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -88,14 +88,14 @@ const (
 	DeleteToEnd        CommandID = "core.deleteToEnd"
 	Break              CommandID = "core.break"
 	SoftBreak          CommandID = "core.softBreak"
-	Nest               CommandID = "core.nest"
-	Outdent            CommandID = "core.outdent"
+	Nest               CommandID = "lists.nest"
+	Outdent            CommandID = "lists.outdent"
 	Leave              CommandID = "core.leave"
 	Return             CommandID = "core.return"
 	Dismiss            CommandID = "core.dismiss"
-	Strong             CommandID = "core.strong"
-	Emphasis           CommandID = "core.emphasis"
-	Code               CommandID = "core.code"
+	Strong             CommandID = "formats.strong"
+	Emphasis           CommandID = "formats.emphasis"
+	Code               CommandID = "formats.code"
 )
 
 // Command is one declared command.

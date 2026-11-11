@@ -66,7 +66,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		// A mark is a pair, and a scope to leave, however its signs are
 		// drawn.
 		spans: policy.KeyedFacts(p, "span", func(s markSpan) doc.MarkKind { return s.Mark.Kind },
-			policy.Provides(boundSpan, vocab.RolePair, vocab.RoleLeavable)),
+			policy.Provides(boundSpan, vocab.RolePair, vocab.RoleLeavable, vocab.RoleCloser)),
 		markers: policy.KeyedFacts(p, "marker", func(g markerGhost) doc.Kind { return g.Marker.Kind }, policy.Projects()),
 	}
 	p.Paint(vocab.GroupPairMatch, k.spans.Kind(), policy.WhenCaretInside)
@@ -82,13 +82,13 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "step-down-in-mark", back, k.signs.Inside(), stepSign)
 	// A mark is one run, so typing a delimiter of its kind edits both
 	// signs, whichever spelling they are drawn in: right after a
-	// one-delimiter opening sign it spells the mark one level up; at the
-	// closing sign it steps over the sign a delimiter at a time.
+	// one-delimiter opening sign it spells the mark one level up; among a
+	// sign's glyphs it steps over them a delimiter at a time. At the run's
+	// end the span is a Closer, which navigation steps over.
 	for _, m := range markKinds() {
 		span, sign := k.spans.Key(m), k.signs.Key(m)
 		for _, c := range delimiters(m) {
 			typed, name := policy.Typed(c), string(profile.MarkSpellings(m)[0])+c
-			policy.On(p, "overtype-close"+name, typed, span.AtEnd(), stepOver)
 			if m == profile.Emphasis {
 				policy.On(p, "step-up"+name, typed, span.AtStart(), stepUp)
 			}
@@ -405,6 +405,10 @@ func (s markSpan) EditSide(_ vocab.Side, sp vocab.Spelling) vocab.Edit {
 	}
 	return vocab.Sequence(vocab.ClearMark(s.run(), s.Mark.Kind), vocab.ApplyMark(s.run(), doc.Mark{Kind: k}))
 }
+
+// Closes: any delimiter of the mark's kind closes it, whichever spelling
+// is drawn.
+func (s markSpan) Closes(text string) bool { return slices.Contains(delimiters(s.Mark.Kind), text) }
 
 // Exit is past the closing sign, where typing is unmarked; Entry is
 // before it, inside the run.

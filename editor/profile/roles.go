@@ -42,7 +42,7 @@ func NodeRoles(k doc.Kind) []vocab.Role {
 	case Item:
 		return []vocab.Role{vocab.RoleLeveled, vocab.RoleContinued}
 	case Formula:
-		return []vocab.Role{vocab.RoleLeavable, vocab.RoleStructure}
+		return []vocab.Role{vocab.RoleLeavable, vocab.RoleCloser, vocab.RoleStructure}
 	case Cell:
 		return []vocab.Role{vocab.RoleLeavable}
 	case Math, Code:
@@ -64,6 +64,10 @@ func NodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
 			return itemLevel(n.ID()), true
 		case Code, Math:
 			return plainLevel(n.ID()), true
+		}
+	case vocab.RoleCloser:
+		if n.Kind() == Formula {
+			return spelled(FormulaSpelling), true
 		}
 	case vocab.RoleContinued:
 		if n.Kind() == Item {
@@ -139,6 +143,11 @@ func (i itemLevel) Step(dir vocab.Direction) vocab.Edit {
 	}
 	return vocab.Outdent(id)
 }
+
+// spelled is a scope its spelling closes, as "$" closes a formula.
+type spelled Spelling
+
+func (s spelled) Closes(text string) bool { return text == string(s) }
 
 // plainLevel is a block one level above a paragraph: stepping it down
 // makes it one, keeping its text; nothing is above it.

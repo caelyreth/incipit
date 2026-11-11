@@ -83,6 +83,14 @@ type Continued interface {
 	Next() (doc.Kind, doc.Attrs)
 }
 
+// Closer is a scope a typed character closes: typed at its inner end, the
+// character is the closing side already there, and the caret steps over
+// it. Which characters close it is the provider's: a pair's closer, any
+// delimiter of a mark's kind.
+type Closer interface {
+	Closes(text string) bool
+}
+
 // Structure is a whole deleted as a unit.
 type Structure interface {
 	Node() doc.ID
@@ -98,9 +106,10 @@ const (
 	RoleLeavable
 	RoleStructure
 	RoleContinued
+	RoleCloser
 )
 
-var roleNames = [...]string{"", "Pair", "Leveled", "Leavable", "Structure", "Continued"}
+var roleNames = [...]string{"", "Pair", "Leveled", "Leavable", "Structure", "Continued", "Closer"}
 
 func (r Role) String() string { return roleNames[r] }
 

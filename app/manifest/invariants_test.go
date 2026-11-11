@@ -80,7 +80,7 @@ func randomIntent(rng *rand.Rand, e *engine.Engine) vocab.Intent {
 	case n < 98:
 		return vocab.CancelComposition{}
 	default:
-		cmds := []vocab.CommandID{"core.heading1", "core.heading2", "core.quote", "core.codeBlock", "core.paragraph"}
+		cmds := []vocab.CommandID{"blocks.heading1", "blocks.heading2", "blocks.quote", "blocks.codeBlock", "blocks.paragraph"}
 		return vocab.Command{ID: cmds[rng.IntN(len(cmds))]}
 	}
 }
