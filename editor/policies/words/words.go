@@ -75,20 +75,14 @@ func targetAt(c *policy.Ctx, head doc.Caret, unit vocab.Unit, dir vocab.Directio
 		if target, found := targetIn(in, flat, head.Pos.Offset, unit, dir); found {
 			if target != head.Pos.Offset {
 				caret := doc.CaretAt(doc.At(head.Pos.Ref(), target))
-				if stops := c.Stops(); stops != nil {
-					caret = stops.Normalize(caret)
-				}
-				return caret, true
+				return c.Stops().Normalize(caret), true
 			}
 			if head.Stop == 0 {
 				return head, false
 			}
 		}
 	}
-	if stops := c.Stops(); stops != nil {
-		return stops.Step(head, dir)
-	}
-	return head, false
+	return c.Stops().Step(head, dir)
 }
 
 func targetIn(in *doc.Inline, flat string, off int, unit vocab.Unit, dir vocab.Direction) (int, bool) {

@@ -70,7 +70,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 			policy.Provides(boundSpan, vocab.RolePair, vocab.RoleLeavable, vocab.RoleCloser, vocab.RoleStructure)),
 		markers: policy.KeyedFacts(p, "marker", func(g markerGhost) doc.Kind { return g.Marker.Kind }, policy.Projects()),
 	}
-	p.Paint(vocab.GroupPairMatch, k.spans.Kind(), policy.WhenCaretInside)
+	p.Paint(vocab.GroupPairMatch, k.spans.Inside())
 	p.Analyze(policy.Lines, analyze(sp, k), k.all(), policy.Config(sp),
 		policy.Where(func(u *policy.Unit) bool { return !u.Spec.Literal && u.Spec.Marks != nil }))
 
@@ -429,11 +429,11 @@ type markerGhost struct {
 // stepBlock steps the block a marker spells, as the block's own level
 // does: the marker is its notation, not a second owner of its level.
 func stepBlock(c *policy.Ctx, block *doc.Node, dir vocab.Direction) vocab.Edit {
-	role, ok := c.Role(block, vocab.RoleLeveled)
+	level, ok := policy.As(c, block, vocab.RoleLeveled)
 	if !ok {
 		return vocab.Sequence()
 	}
-	return role.(vocab.Leveled).Step(dir)
+	return level.Step(dir)
 }
 
 // --- rules ---------------------------------------------------------------------
@@ -484,11 +484,7 @@ func stepUp(_ *policy.Ctx, _ vocab.Type, at policy.At[markSpan]) policy.Result {
 
 // stepOver steps over the sign's glyph ahead, as typing it would write it.
 func stepOver[T any](c *policy.Ctx, _ vocab.Type, _ policy.At[T]) policy.Result {
-	stops := c.Stops()
-	if stops == nil {
-		return policy.Swallow
-	}
-	next, ok := stops.Step(c.Head(), vocab.Forward)
+	next, ok := c.Stops().Step(c.Head(), vocab.Forward)
 	if !ok {
 		return policy.Swallow
 	}
@@ -530,9 +526,6 @@ func layoutAt(c *policy.Ctx, k kinds, pos doc.Pos) (layout, bool) {
 		return layout{}, false
 	}
 	stops := c.Stops()
-	if stops == nil {
-		return layout{}, false
-	}
 	// The ghosts are shown when one of their stops other than the
 	// position's own is a stop of the view.
 	probe := doc.Caret{Pos: pos, Stop: ghosts[len(ghosts)-1].Outer.To.Stop}

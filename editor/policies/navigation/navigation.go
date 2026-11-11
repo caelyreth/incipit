@@ -17,22 +17,14 @@ import (
 // ID is the policy's id.
 const ID = "navigation"
 
-// Roles chooses which role providers navigation treats as leavable.
-var Roles = policy.List("roles", []vocab.Role{vocab.RoleLeavable}, []policy.Choice[vocab.Role]{
-	{Value: vocab.RoleLeavable, Label: "settings.navigation.roles.leavable"},
-	{Value: vocab.RolePair, Label: "settings.navigation.roles.pair"},
-}, policy.Label("settings.navigation.roles"), policy.Description("settings.navigation.roles.description"))
-
 // Policy is the navigation policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	// Leave exits the innermost scope of any configured role; Return enters
-	// one ending right before the caret, the roles in their order.
-	for _, role := range policy.GetList(p, Roles) {
-		scope := policy.Role[vocab.Leavable](role)
-		policy.On(p, "leave-"+role.String(), policy.Intent[vocab.Leave](), scope.Inside(), leave).Any()
-		policy.On(p, "return-"+role.String(), policy.Intent[vocab.Return](), scope.Behind(), enter).Any()
-	}
-	closers := policy.Role[vocab.Closer](vocab.RoleCloser)
+	// Leave exits the innermost scope; Return enters the nearest one a
+	// caret crosses into going back.
+	scopes := policy.Role(vocab.RoleLeavable)
+	policy.On(p, "leave", policy.Intent[vocab.Leave](), scopes.Inside(), leave).Any()
+	policy.On(p, "return", policy.Intent[vocab.Return](), scopes.Behind(), enter).Any()
+	closers := policy.Role(vocab.RoleCloser)
 	policy.On(p, "close", policy.Intent[vocab.Type](), policy.Or(closers.AtEnd(), closers.Empty()), close)
 
 	// The card's demonstration, played by the engine itself.
@@ -51,11 +43,7 @@ func close(c *policy.Ctx, in vocab.Type, at policy.At[vocab.Closer]) policy.Resu
 	if !at.Data.Closes(in.Text) {
 		return policy.Pass
 	}
-	stops := c.Stops()
-	if stops == nil {
-		return policy.Pass
-	}
-	next, ok := stops.Step(c.Head(), vocab.Forward)
+	next, ok := c.Stops().Step(c.Head(), vocab.Forward)
 	if !ok {
 		return policy.Pass
 	}

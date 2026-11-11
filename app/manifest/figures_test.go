@@ -222,3 +222,20 @@ func TestAnEmptyCaptionOpensOnlyWhileItsFigureIsHeld(t *testing.T) {
 	p.do(vocab.Dismiss{})
 	p.wantInCaption()
 }
+
+// Return from the start of any line after a figure enters it: the line's
+// edge and the boundary crossed going back are no scope to enter.
+func TestReturnAfterAFigureEntersIt(t *testing.T) {
+	for _, text := range []string{"", "x", "# x"} {
+		p := open(t)
+		p.placeFigure()
+		p.do(vocab.Dismiss{})
+		p.do(vocab.Break{})
+		p.typeText(text)
+		if text != "" {
+			p.do(vocab.Move{Unit: vocab.ToSlotEdge, Dir: vocab.Backward})
+		}
+		p.do(vocab.Return{})
+		p.wantInCaption()
+	}
+}

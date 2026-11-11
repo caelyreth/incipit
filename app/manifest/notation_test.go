@@ -160,7 +160,7 @@ func TestAStopDecidesTheMarksTypedThere(t *testing.T) {
 // the sign it steps the mark down, both signs at once. With nothing held
 // whole, the mark is not shown first.
 func TestBackspaceCrossesASignAndStepsItInside(t *testing.T) {
-	p := openWith(t, policy.Values{"deletion.roles": []vocab.Role{}})
+	p := openWith(t, policy.Values{policy.EnabledKey("deletion"): false})
 	p.typeText("a **b**")
 	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
 	p.do(back)

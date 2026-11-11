@@ -2,6 +2,7 @@ package policy
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -25,8 +26,9 @@ type Order struct {
 }
 
 // Over gives a's rules precedence over b's where both match. The
-// qualifier narrows where: a vocab.Role, a Subject, a vocab.IntentKind, or
-// nil for everywhere.
+// qualifier narrows where: a role, where either rule stands at it; a
+// Subject, where both do; a vocab.IntentKind, for both; or nil for
+// everywhere.
 func Over(a, b *Policy, qualifier any) Order {
 	return Order{over: true, a: a, b: b, qualifier: qualifier}
 }
@@ -204,7 +206,6 @@ func (p *Program) Grouping() func(prev, next *doc.Entry) bool { return p.groupin
 
 // Paints and Decorations are presentation contributions; Projecting are
 // the fact kinds whose facts may be glyphs.
-func (p *Program) Paints() []Paint           { return p.paints }
 func (p *Program) Projecting() []FactID      { return p.projecting }
 func (p *Program) Decorations() []Decoration { return p.decorations }
 func (p *Program) Guides() []Guide           { return p.guides }
@@ -338,7 +339,7 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		prog.decorations = append(prog.decorations, p.decorations...)
 	}
 	produced := func(k FactID) bool { _, ok := prog.analyzerOf[k]; return ok }
-	roleProvided := func(r vocab.Role) bool {
+	roleProvided := func(r vocab.RoleID) bool {
 		if len(prog.kindsProviding(r)) > 0 {
 			return true
 		}
@@ -356,7 +357,7 @@ func Compile(m Manifest, values Values) (*Program, error) {
 				return s.String(), false
 			}
 		case ScopeRole:
-			if !roleProvided(vocab.Role(s.ID)) {
+			if !roleProvided(vocab.RoleID(s.ID)) {
 				return s.String(), false
 			}
 		}
@@ -393,6 +394,11 @@ func Compile(m Manifest, values Values) (*Program, error) {
 					prog.table[key] = append(prog.table[key], r)
 				}
 			}
+		}
+	}
+	for _, pt := range prog.paints {
+		for _, a := range pt.alts {
+			prog.noteScopeKinds(a.scope, scopeKinds)
 		}
 	}
 	for k := range scopeKinds {
@@ -437,23 +443,29 @@ func Compile(m Manifest, values Values) (*Program, error) {
 }
 
 // nodeRoles are the roles a node kind provides in the profile.
-func (p *Program) nodeRoles(k doc.Kind) []vocab.Role {
+func (p *Program) nodeRoles(k doc.Kind) []vocab.RoleID {
 	if p.profile == nil {
 		return nil
 	}
 	return p.profile.Roles(k)
 }
 
-// nodeRole is n's implementation of role in the profile.
-func (p *Program) nodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
+// nodeRole is n's implementation of role in the profile. A profile
+// providing a role with what does not implement it is a programming
+// error, as two meanings for one group are.
+func (p *Program) nodeRole(r doc.Reader, n *doc.Node, role vocab.RoleID) (any, bool) {
 	if p.profile == nil {
 		return nil, false
 	}
-	return p.profile.Role(r, n, role)
+	v, ok := p.profile.Role(r, n, role)
+	if ok && !reflect.TypeOf(v).Implements(role.Type()) {
+		panic(fmt.Sprintf("policy: the profile provides %s for kind %d with %T", role, n.Kind(), v))
+	}
+	return v, ok
 }
 
 // factKindsProviding are the fact kinds that provide a role.
-func (p *Program) factKindsProviding(r vocab.Role) []FactID {
+func (p *Program) factKindsProviding(r vocab.RoleID) []FactID {
 	var out []FactID
 	for k, d := range p.factDecls {
 		if slices.Contains(d.roles, r) {
@@ -464,7 +476,7 @@ func (p *Program) factKindsProviding(r vocab.Role) []FactID {
 	return out
 }
 
-func (p *Program) kindsProviding(r vocab.Role) []doc.Kind {
+func (p *Program) kindsProviding(r vocab.RoleID) []doc.Kind {
 	var out []doc.Kind
 	if p.profile == nil {
 		return nil
@@ -483,7 +495,7 @@ func (p *Program) noteScopeKinds(s Scope, into map[FactID]bool) {
 		into[FactID(s.ID)] = true
 	case ScopeRole:
 		for k, d := range p.factDecls {
-			if slices.Contains(d.roles, vocab.Role(s.ID)) {
+			if slices.Contains(d.roles, vocab.RoleID(s.ID)) {
 				if _, ok := p.analyzerOf[k]; ok {
 					into[k] = true
 				}
@@ -509,8 +521,8 @@ func (p *Program) qualifies(q any, a, b *rule) bool {
 	switch q := q.(type) {
 	case nil:
 		return true
-	case vocab.Role:
-		s := roleScope(q)
+	case vocab.AnyRole:
+		s := roleScope(q.RoleID())
 		return p.standsAt(a, s) || p.standsAt(b, s)
 	case subject:
 		return p.standsAt(a, q.key()) && p.standsAt(b, q.key())
@@ -523,7 +535,7 @@ func (p *Program) qualifies(q any, a, b *rule) bool {
 // standsAt reports whether a rule's place can be found at a level
 // answering to s.
 func (p *Program) standsAt(r *rule, s Scope) bool {
-	return slices.ContainsFunc(r.alts, func(a alt) bool { return p.coincide(a.index(), s) })
+	return slices.ContainsFunc(r.alts, func(a alt) bool { return p.coincide(a.scope, s) })
 }
 
 // precedes orders candidates: the manifest's order first, then manifest
@@ -597,7 +609,14 @@ func (p *Program) meets(a, b *rule) bool {
 	}
 	for _, x := range a.alts {
 		for _, y := range b.alts {
-			if !p.coincide(x.index(), y.index()) {
+			if (x.how == placeCross) != (y.how == placeCross) || !p.coincide(x.index(), y.index()) {
+				// A crossing is never a level: the two stand apart.
+				continue
+			}
+			if x.how == placeCross {
+				if x.dir == y.dir && x.cross&y.cross != 0 && p.coincide(x.scope, y.scope) {
+					return true
+				}
 				continue
 			}
 			if x.how != placeIn || y.how != placeIn || x.own != y.own || x.zones&y.zones != 0 {
@@ -636,21 +655,21 @@ func (p *Program) altCovers(x, y alt) bool {
 		return false
 	case x.how == placeIn:
 		return x.own == y.own && x.zones&y.zones == y.zones
-	case x.how == placeAhead, x.how == placeBehind:
-		return p.scopeCovers(x.scope, y.scope)
+	case x.how == placeCross:
+		return x.dir == y.dir && y.cross&^x.cross == 0 && p.scopeCovers(x.scope, y.scope)
 	}
 	return true
 }
 
 // scopeCovers reports whether every level answering to y answers to x.
 func (p *Program) scopeCovers(x, y Scope) bool {
-	if x == y || x.Class == y.Class && x.ID == y.ID && x.Key == nil {
+	if x == y || x == crossScope || x.Class == y.Class && x.ID == y.ID && x.Key == nil {
 		return true
 	}
 	if x.Class != ScopeRole {
 		return false
 	}
-	role := vocab.Role(x.ID)
+	role := vocab.RoleID(x.ID)
 	switch y.Class {
 	case ScopeNode:
 		return slices.Contains(p.nodeRoles(doc.Kind(y.ID)), role)
@@ -663,6 +682,9 @@ func (p *Program) scopeCovers(x, y Scope) bool {
 
 // coincide reports whether two scope keys can name the same stack level.
 func (p *Program) coincide(a, b Scope) bool {
+	if a == crossScope || b == crossScope {
+		return true
+	}
 	if a.Class == b.Class && a.ID == b.ID && (a.Key == nil || b.Key == nil || a.Key == b.Key) {
 		return true
 	}
@@ -672,7 +694,7 @@ func (p *Program) coincide(a, b Scope) bool {
 	if b.Class != ScopeRole {
 		return false
 	}
-	role := vocab.Role(b.ID)
+	role := vocab.RoleID(b.ID)
 	switch a.Class {
 	case ScopeNode:
 		return slices.Contains(p.nodeRoles(doc.Kind(a.ID)), role)
@@ -680,7 +702,7 @@ func (p *Program) coincide(a, b Scope) bool {
 		d, ok := p.factDecls[FactID(a.ID)]
 		return ok && slices.Contains(d.roles, role)
 	case ScopeRole:
-		other := vocab.Role(a.ID)
+		other := vocab.RoleID(a.ID)
 		for _, k := range p.kindsProviding(role) {
 			if slices.Contains(p.nodeRoles(k), other) {
 				return true

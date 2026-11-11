@@ -46,39 +46,3 @@ func typeText(t *testing.T, e *engine.Engine, s string) {
 		}
 	}
 }
-
-func TestRolesOptionLimitsWhatLeaveSees(t *testing.T) {
-	e := open(t, policy.Values{ID + ".roles": []vocab.Role{vocab.RolePair}})
-	typeText(t, e, "a $x")
-	out, err := e.Preview(1, vocab.Input{Intent: vocab.Leave{}, At: time.Unix(20, 0)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out.Available {
-		t.Fatal("Leave left a formula while only Pair was leavable")
-	}
-	e = open(t, policy.Values{ID + ".roles": []vocab.Role{vocab.RoleLeavable}})
-	typeText(t, e, "a $x")
-	out, err = e.Preview(1, vocab.Input{Intent: vocab.Leave{}, At: time.Unix(20, 0)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !out.Available {
-		t.Fatal("Leave did not leave the formula under the default roles")
-	}
-}
-
-func TestTheRolesOptionIsInTheCatalog(t *testing.T) {
-	e := open(t, nil)
-	for _, p := range e.Catalog().Policies {
-		if p.ID != ID {
-			continue
-		}
-		for _, o := range p.Options {
-			if o.Key == ID+".roles" {
-				return
-			}
-		}
-	}
-	t.Fatal("navigation.roles is not in the catalog")
-}

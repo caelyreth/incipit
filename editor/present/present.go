@@ -42,7 +42,7 @@ type Item struct {
 	// From and To are the item's slot offsets; a ghost spans none.
 	From, To int
 	Text     string
-	// Groups style the item, outermost first: the unit's, marks', paints'.
+	// Groups style the item, outermost first: the unit's, then marks'.
 	Groups []vocab.Group
 	// Ghost fields.
 	Spelling vocab.Spelling
@@ -518,20 +518,6 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 	p.Surfaces = append(p.Surfaces, Surface{Flow: Flow{Slot: ref, Literal: spec.Literal}, Group: base, Anchor: anchor, Card: card, Open: open})
 	cls := StopFlow
 
-	// Paints that always show split runs by their fact spans.
-	type paintSpan struct {
-		from, to int
-		group    vocab.Group
-	}
-	var paints []paintSpan
-	for _, pc := range prog.Paints() {
-		if pc.When != policy.PaintAlways {
-			continue
-		}
-		for _, f := range prog.FactsIn(store, r, view, ref, pc.Fact) {
-			paints = append(paints, paintSpan{f.Outer.From.At, f.Outer.To.At, pc.Group})
-		}
-	}
 	// Ghosts: the glyphs the policies' facts project, as they project them.
 	var ghosts []policy.Fact
 	for _, k := range prog.Projecting() {
@@ -634,9 +620,6 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 		for _, g := range ghosts {
 			cuts = append(cuts, g.Outer.From.At)
 		}
-		for _, ps := range paints {
-			cuts = append(cuts, ps.from, ps.to)
-		}
 		slices.Sort(cuts)
 		cuts = slices.Compact(cuts)
 		for i := 0; i+1 < len(cuts); i++ {
@@ -649,13 +632,7 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 			if text == "\n" {
 				items = append(items, Item{Kind: BreakItem, From: from, To: to, Groups: groups})
 			} else {
-				gs := slices.Clone(groups)
-				for _, ps := range paints {
-					if ps.from <= from && to <= ps.to {
-						gs = append(gs, ps.group)
-					}
-				}
-				items = append(items, Item{Kind: TextRun, From: from, To: to, Text: text, Groups: gs})
+				items = append(items, Item{Kind: TextRun, From: from, To: to, Text: text, Groups: slices.Clone(groups)})
 			}
 			for off := from; off < to; {
 				off = from + vocab.NextGrapheme(text, off-from)

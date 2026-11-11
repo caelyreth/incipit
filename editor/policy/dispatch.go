@@ -18,6 +18,8 @@ const (
 	LevelSlot
 	LevelFact
 	LevelAnnotation
+	// LevelBoundary is the boundary between two blocks a caret crosses.
+	LevelBoundary
 )
 
 // Level is one entry of the scope stack.
@@ -35,16 +37,17 @@ type Level struct {
 	// edges, holding every stop at their offsets (doc.StopFirst,
 	// doc.StopLast).
 	Start, End doc.Caret
+	// Crossing is set on the level of what a caret crosses toward its
+	// next stop, for a rule standing at that crossing.
+	Crossing *Crossing
 
 	keys []Scope
 	prog *Program
 }
 
-// Provides reports whether the level provides a role.
-func (l *Level) Provides(r vocab.Role) bool { return slices.Contains(l.keys, roleScope(r)) }
-
 // Role returns the level's implementation of a role.
-func (l *Level) Role(r doc.Reader, role vocab.Role) (any, bool) {
+func (l *Level) Role(r doc.Reader, ar vocab.AnyRole) (any, bool) {
+	role := ar.RoleID()
 	switch l.Class {
 	case LevelNode:
 		return l.prog.nodeRole(r, l.Node, role)
@@ -72,6 +75,8 @@ func (l *Level) String() string {
 		return fmt.Sprintf("fact:%s[%d,%d]", l.Fact.Kind, l.Fact.Outer.From.At, l.Fact.Outer.To.At)
 	case LevelAnnotation:
 		return "annotation:" + l.Annotation.Kind.String()
+	case LevelBoundary:
+		return "boundary"
 	}
 	return "level?"
 }
@@ -303,23 +308,16 @@ func (p *Program) facts(store *Store, r doc.Reader, view *View, ref doc.SlotRef,
 
 // --- places -----------------------------------------------------------------
 
-// placed finds where a rule's place stands at level li: the level itself,
-// or for a place beside the caret the level of what stands there.
-func (p *Program) placed(c *Ctx, stack *Stack, li int, r *rule) (*Level, bool) {
+// placed finds whether a place stands at level li: in it, or with it
+// selected. Crossing places stand at crossings instead (crossings.go).
+func (p *Program) placed(c *Ctx, stack *Stack, li int, alts []alt) (*Level, bool) {
 	l := stack.Levels[li]
 	caret := stack.Caret
-	for _, a := range r.alts {
-		if !slices.Contains(l.keys, a.index()) {
+	for _, a := range alts {
+		if !slices.Contains(l.keys, a.index()) || a.class != 0 && a.class != l.Class {
 			continue
 		}
 		switch a.how {
-		case placeAhead, placeBehind:
-			if l.Class != LevelSlot {
-				continue
-			}
-			if found, ok := p.besideLevel(c, caret, a.scope, a.how == placeAhead); ok {
-				return found, true
-			}
 		case placeSelected:
 			sel := c.view.Selection
 			switch sel.Kind {
@@ -450,7 +448,8 @@ var ErrUnhandled = errors.New("policy: no rule handled the intent")
 // Dispatch finds the rule answering the context's intent and runs it. It
 // walks the scope stack from the innermost scope outward; at each scope
 // the first candidate whose intent, selection shape, place and conditions
-// match runs, unless it passes. Core's rules come after every scope found
+// match runs, unless it passes. At the caret's slot it first walks the
+// crossings toward the next stop (crossPhase). Core's rules come after every scope found
 // nothing, innermost first. A feature's intent no rule answers does
 // nothing: its policy is disabled, or it has nothing to do here.
 func (p *Program) Dispatch(c *Ctx) (Outcome, error) {
@@ -460,12 +459,17 @@ func (p *Program) Dispatch(c *Ctx) (Outcome, error) {
 	trace := &Trace{Stack: stack.String(), Intent: fmt.Sprintf("%T%+v", intent, intent)}
 	for _, core := range []bool{false, true} {
 		for li := len(stack.Levels) - 1; li >= 0; li-- {
+			if !core && stack.Levels[li].Class == LevelSlot {
+				if out, ok := p.crossPhase(c, sel, trace); ok {
+					return out, nil
+				}
+			}
 		rules:
 			for _, r := range p.candidates(stack.Levels[li], intent.Kind(), core) {
 				if r.shapes&sel == 0 || !r.match.match(intent) {
 					continue
 				}
-				at, ok := p.placed(c, stack, li, r)
+				at, ok := p.placed(c, stack, li, r.alts)
 				if !ok {
 					continue
 				}
@@ -529,123 +533,4 @@ func (p *Program) candidates(l *Level, k vocab.IntentKind, core bool) []*rule {
 	p.cands[key] = rs
 	p.candMu.Unlock()
 	return rs
-}
-
-// beside is what of target stands right after the caret (ahead) or right
-// before it, outside it, nothing between them: an inline node next to it
-// in its line, a block next to it at a gap, or else a fact edged there,
-// of several the one whose edge is nearest.
-// Places and conditions beside the caret read it, so both find the same
-// thing.
-func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret, target Scope, ahead bool) (*doc.Node, *Fact, bool) {
-	pos := caret.Pos
-	owner, ok := r.Node(pos.Node)
-	if !ok || pos.Slot >= owner.NumSlots() {
-		return nil, nil, false
-	}
-	at := pos.Offset
-	if !ahead {
-		at--
-	}
-	if sl := owner.Slot(pos.Slot); !sl.IsInline() {
-		// At a gap between blocks, the block on that side is beside the
-		// caret, as an inline node is in its line.
-		if at >= 0 && at < sl.Len() {
-			if n := sl.Child(at); slices.Contains(p.nodeKeys(n.Kind()), target) {
-				return n, nil, true
-			}
-		}
-		return nil, nil, false
-	}
-	in := owner.Slot(pos.Slot).Content()
-	if at >= 0 && at < in.Len() {
-		if it, _, ok := in.ItemAt(at); ok && it.Node != nil && slices.Contains(p.nodeKeys(it.Node.Kind()), target) {
-			return it.Node, nil, true
-		}
-	}
-	if n, ok := p.across(r, owner, pos, ahead); ok && slices.Contains(p.nodeKeys(n.Kind()), target) {
-		return n, nil, true
-	}
-	if target.Class != ScopeFact && target.Class != ScopeRole {
-		return nil, nil, false
-	}
-	var found *Fact
-	for _, f := range p.scopeFacts(store, r, view, pos.Ref()) {
-		if !slices.Contains(p.factKeys(f), target) {
-			continue
-		}
-		switch {
-		case ahead && f.Starts(caret) && (found == nil || f.Outer.From.Stop <= found.Outer.From.Stop):
-			found = &f
-		case !ahead && f.Ends(caret) && (found == nil || f.Outer.To.Stop >= found.Outer.To.Stop):
-			found = &f
-		}
-	}
-	return nil, found, found != nil
-}
-
-// across is the object beside a text block, at its text's edge, when
-// nothing stands between the caret and it. Between two blocks stands their
-// boundary, which is content when deleting it joins them (vocab.CanJoin):
-// then the boundary, not the object, is beside the caret. A block whose
-// level steps down from its start has that level between.
-func (p *Program) across(r doc.Reader, owner *doc.Node, pos doc.Pos, ahead bool) (*doc.Node, bool) {
-	s := r.Schema()
-	if s.IsObject(owner.Kind()) {
-		return nil, false
-	}
-	if ahead {
-		if pos.Slot != owner.NumSlots()-1 || pos.Offset != owner.Slot(pos.Slot).Len() {
-			return nil, false
-		}
-	} else if pos.Slot != 0 || pos.Offset != 0 || slices.Contains(p.nodeKeys(owner.Kind()), roleScope(vocab.RoleLeveled)) {
-		return nil, false
-	}
-	parent, slot, ok := r.Parent(owner.ID())
-	if !ok {
-		return nil, false
-	}
-	pn, _ := r.Node(parent)
-	sl := pn.Slot(slot)
-	i, ok := sl.IndexOf(owner)
-	if !ok {
-		return nil, false
-	}
-	if ahead {
-		i++
-	} else {
-		i--
-	}
-	if i < 0 || i >= sl.Len() || !s.IsObject(sl.Child(i).Kind()) {
-		return nil, false
-	}
-	first, second := sl.Child(i), owner
-	if ahead {
-		first, second = owner, sl.Child(i)
-	}
-	if joins(r, first, second) {
-		return nil, false
-	}
-	return sl.Child(i), true
-}
-
-// joins reports whether the boundary between two blocks in order deletes,
-// second's text joining first's.
-func joins(r doc.Reader, first, second *doc.Node) bool {
-	to, ok1 := vocab.LastTextSlot(first)
-	from, ok2 := vocab.FirstTextSlot(second)
-	return ok1 && ok2 && from.Node == second.ID() && vocab.CanJoin(r, to, from)
-}
-
-// besideLevel is the level of what of target stands beside the caret.
-func (p *Program) besideLevel(c *Ctx, caret doc.Caret, target Scope, ahead bool) (*Level, bool) {
-	n, f, ok := p.beside(c.store, c.r, c.view, caret, target, ahead)
-	switch {
-	case !ok:
-		return nil, false
-	case n != nil:
-		return p.nodeLevel(n), true
-	}
-	owner, _ := c.r.Node(caret.Pos.Node)
-	return p.factLevel(owner, caret.Pos.Ref(), *f), true
 }

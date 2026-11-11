@@ -266,3 +266,21 @@ func (in Input) ClassOf() doc.OriginClass {
 	}
 	return doc.OriginCommand
 }
+
+// Directed is an intent that acts toward the caret's next stop in a
+// direction: what it crosses there answers it first (§11.7).
+type Directed interface {
+	Intent
+	Toward() Direction
+}
+
+// Toward is the delete's direction, backward unless set.
+func (d Delete) Toward() Direction {
+	if d.Dir == 0 {
+		return Backward
+	}
+	return d.Dir
+}
+
+// Toward is backward: Return enters what ends before the caret.
+func (Return) Toward() Direction { return Backward }

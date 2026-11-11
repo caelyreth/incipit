@@ -52,7 +52,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	// end is the closer already there, whoever typed it (navigation).
 	// With mates a pair is a whole: deleting into it shows both sides, and
 	// the next delete takes both (deletion).
-	roles := []vocab.Role{vocab.RolePair, vocab.RoleLeavable}
+	roles := []vocab.AnyRole{vocab.RolePair, vocab.RoleLeavable}
 	if mates {
 		roles = append(roles, vocab.RoleStructure)
 	}
@@ -61,7 +61,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	}
 	span := policy.Facts[pair](p, "pair", policy.Provides(bound, roles...))
 	policy.Scan[string](p, scanner{kind: span, kinds: kinds}, []policy.FactID{span.Kind()})
-	p.Paint(vocab.GroupPairMatch, span.Kind(), policy.WhenCaretInside)
+	p.Paint(vocab.GroupPairMatch, span.Inside())
 
 	for _, k := range kinds {
 		// A selection is wrapped in the pair, opener or not auto-closing:

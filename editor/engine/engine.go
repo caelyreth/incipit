@@ -256,7 +256,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 		in.Intent = cmd.Intent
 	}
 
-	ctx := policy.NewCtx(prog, e.store, e.snap, &view, in).WithStops(e.stopsFor(viewID)).InTx(seq)
+	ctx := policy.NewCtx(prog, e.store, e.snap, &view, in, e.stopsFor(viewID)).InTx(seq)
 	out, err := prog.Dispatch(ctx)
 	if err != nil {
 		return processed{}, fmt.Errorf("engine: %w\n%s", err, out.Trace)
@@ -385,7 +385,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	records := slices.Clone(tx.Journal().Records)
 
 	// Observers.
-	octx := policy.NewCtx(prog, e.store, next, &view, in).WithStops(e.stopsFor(viewID)).InTx(seq)
+	octx := policy.NewCtx(prog, e.store, next, &view, in, e.stopsFor(viewID)).InTx(seq)
 	for _, o := range prog.Observers() {
 		matched := slices.ContainsFunc(records, o.Trigger().Matches)
 		if !matched {

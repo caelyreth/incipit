@@ -49,7 +49,7 @@ func (e *Engine) Decorations(view uint64) present.Decorations {
 	for i, u := range units {
 		ids[i] = u.ID
 	}
-	d := present.Decorate(e.prog, e.store, e.snap, v, pr.Present(e.prog, e.store, e.snap, v, ids))
+	d := present.Decorate(e.prog, e.store, e.snap, v, e.stopsFor(view), pr.Present(e.prog, e.store, e.snap, v, ids))
 	d.Guides = e.guides(view, v)
 	return d
 }

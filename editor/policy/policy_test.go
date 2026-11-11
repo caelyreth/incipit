@@ -104,7 +104,7 @@ func testPage(t *testing.T, text string) (*doc.Snapshot, doc.SlotRef) {
 func run(t *testing.T, prog *Program, store *Store, snap doc.Reader, at doc.Pos, in vocab.Intent) Outcome {
 	t.Helper()
 	view := &View{Selection: doc.Collapsed(doc.CaretAt(at))}
-	out, err := prog.Dispatch(NewCtx(prog, store, snap, view, vocab.Input{Intent: in}))
+	out, err := prog.Dispatch(NewCtx(prog, store, snap, view, vocab.Input{Intent: in}, positions))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,3 +274,15 @@ func TestScannerResumesAndReuses(t *testing.T) {
 		t.Fatalf("expected one more pair: %d -> %d", len(before), len(fresh))
 	}
 }
+
+// positions is a stop model of one stop per position, for programs that
+// present nothing.
+func positions(doc.Reader, *View) Stops { return positionStops{} }
+
+type positionStops struct{}
+
+func (positionStops) Step(c doc.Caret, _ vocab.Direction) (doc.Caret, bool) { return c, false }
+func (positionStops) Edge(vocab.Direction) (doc.Caret, bool)                { return doc.Caret{}, false }
+func (positionStops) Normalize(c doc.Caret) doc.Caret                       { return c }
+func (positionStops) Around(doc.Pos) (int, int)                             { return 0, 0 }
+func (positionStops) Bound(c doc.Caret) doc.Pos                             { return c.Pos }

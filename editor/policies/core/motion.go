@@ -90,9 +90,6 @@ func collapseRange(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) polic
 // leaveObject moves from a selected object to the gap on that side of it.
 func leaveObject(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.Result {
 	stops := c.Stops()
-	if stops == nil {
-		return policy.Swallow
-	}
 	gap := c.Head().Pos
 	if in.Dir > 0 {
 		gap.Offset++
@@ -104,9 +101,6 @@ func leaveObject(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.
 // range it extends.
 func move(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.Result {
 	stops := c.Stops()
-	if stops == nil {
-		return policy.Swallow
-	}
 	if in.Dir == 0 {
 		in.Dir = vocab.Forward
 	}

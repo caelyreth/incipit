@@ -289,25 +289,16 @@ func (p *P) Showcase(hold time.Duration, beats ...Beat) {
 	p.showcase = &Showcase{Beats: beats, Hold: hold}
 }
 
-// PaintWhen says when a paint contribution shows.
-type PaintWhen uint8
-
-const (
-	PaintAlways PaintWhen = iota
-	// WhenCaretInside shows only while the caret is inside the span.
-	WhenCaretInside
-)
-
-// Paint styles the spans of a fact kind with a highlight group.
+// Paint styles where a place stands while the caret is collapsed in it:
+// the innermost level there, a fact whole with its delimiters.
 type Paint struct {
 	Group vocab.Group
-	Fact  FactID
-	When  PaintWhen
+	alts  []alt
 }
 
-// Paint declares a paint contribution over a fact kind's spans.
-func (p *P) Paint(group vocab.Group, fact FactID, when PaintWhen) {
-	p.paints = append(p.paints, Paint{Group: group, Fact: fact, When: when})
+// Paint declares a paint over where a place stands.
+func (p *P) Paint(group vocab.Group, where Somewhere) {
+	p.paints = append(p.paints, Paint{Group: group, alts: where.alternatives()})
 }
 
 // Guide is a key hint: wherever a preview of the command finds it

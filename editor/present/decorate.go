@@ -71,8 +71,9 @@ type Guide struct {
 }
 
 // Decorate computes a view's decorations over its units' presentations,
-// in page order; the engine adds the guides, which need its previews.
-func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, pres []*Presentation) Decorations {
+// in page order, with the view's stop model; the engine adds the guides,
+// which need its previews.
+func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, stops policy.StopsFunc, pres []*Presentation) Decorations {
 	d := Decorations{Selection: view.Selection, Composition: view.Composition}
 	if from, to, ok := SelectionExtent(r, view.Selection); ok {
 		d.Paints = append(d.Paints, Paint{Group: vocab.GroupSelection, Covers: Covers(r, pres, from, to)})
@@ -92,26 +93,9 @@ func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *pol
 			d.Paints = append(d.Paints, pt)
 		}
 	}
-	if view.Selection.Kind != doc.SelectText {
-		return d
-	}
-	head := view.Selection.Head.Pos
-	for _, pc := range prog.Paints() {
-		if pc.When != policy.WhenCaretInside {
-			continue
-		}
-		var inner *policy.Fact
-		for _, f := range prog.FactsIn(store, r, view, head.Ref(), pc.Fact) {
-			if f.Holds(view.Selection.Head) {
-				f := f
-				inner = &f
-			}
-		}
-		if inner != nil {
-			ref := head.Ref()
-			d.Paints = append(d.Paints, Paint{Group: pc.Group, Covers: Covers(r, pres,
-				doc.CaretAt(doc.At(ref, inner.Outer.From.At)), doc.CaretAt(doc.At(ref, inner.Outer.To.At)))})
-		}
+	ctx := policy.NewCtx(prog, store, r, view, vocab.Input{}, stops)
+	for _, pt := range ctx.Painted() {
+		d.Paints = append(d.Paints, Paint{Group: pt.Group, Covers: Covers(r, pres, pt.From, pt.To)})
 	}
 	return d
 }

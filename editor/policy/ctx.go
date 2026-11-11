@@ -27,9 +27,10 @@ type Ctx struct {
 	seq uint64
 }
 
-// NewCtx returns a context over a document and view state.
-func NewCtx(prog *Program, store *Store, r doc.Reader, view *View, input vocab.Input) *Ctx {
-	return &Ctx{prog: prog, store: store, r: r, view: view, input: input}
+// NewCtx returns a context over a document and view state, whose stop
+// model stops builds: every caret a rule reads stands at one.
+func NewCtx(prog *Program, store *Store, r doc.Reader, view *View, input vocab.Input, stops StopsFunc) *Ctx {
+	return &Ctx{prog: prog, store: store, r: r, view: view, input: input, stopsFn: stops}
 }
 
 // Over returns a context reading r instead, as a rewrite reads the
@@ -53,7 +54,23 @@ func (c *Ctx) Seq() uint64 { return c.seq }
 func (c *Ctx) Doc() doc.Reader { return c.r }
 
 // Role is n's implementation of a role, as the profile provides it.
-func (c *Ctx) Role(n *doc.Node, role vocab.Role) (any, bool) { return c.prog.nodeRole(c.r, n, role) }
+func (c *Ctx) Role(n *doc.Node, role vocab.AnyRole) (any, bool) {
+	return c.prog.nodeRole(c.r, n, role.RoleID())
+}
+
+// As is n's implementation of role, typed.
+func As[R any](c *Ctx, n *doc.Node, role vocab.Role[R]) (R, bool) {
+	v, ok := c.Role(n, role)
+	impl, iok := v.(R)
+	return impl, ok && iok
+}
+
+// LevelAs is a level's implementation of role, typed.
+func LevelAs[R any](c *Ctx, l *Level, role vocab.Role[R]) (R, bool) {
+	v, ok := l.Role(c.r, role)
+	impl, iok := v.(R)
+	return impl, ok && iok
+}
 
 // Program is the compiled program.
 func (c *Ctx) Program() *Program { return c.prog }
@@ -182,10 +199,41 @@ func (c *Ctx) Stack() *Stack {
 // Preview dispatches an intent against the same state without applying
 // it, so availability shown anywhere is the same code as the edit.
 func (c *Ctx) Preview(in vocab.Input) (Outcome, error) {
-	return c.prog.Dispatch(NewCtx(c.prog, c.store, c.r, c.view, in).WithStops(c.stopsFn))
+	return c.prog.Dispatch(NewCtx(c.prog, c.store, c.r, c.view, in, c.stopsFn))
 }
 
 // FactsIn returns the facts of a kind in a slot, for presentation.
 func (p *Program) FactsIn(store *Store, r doc.Reader, view *View, ref doc.SlotRef, k FactID) []Fact {
 	return p.facts(store, r, view, ref, k)
+}
+
+// Painted is a paint where its place stands.
+type Painted struct {
+	Group    vocab.Group
+	From, To doc.Caret
+}
+
+// Painted are the paints at a collapsed caret: each over the innermost
+// level its place stands at, a fact whole with its delimiters.
+func (c *Ctx) Painted() []Painted {
+	if sel := c.view.Selection; sel.Kind != doc.SelectText || !sel.IsCollapsed() {
+		return nil
+	}
+	stack := c.Stack()
+	var out []Painted
+	for _, pt := range c.prog.paints {
+		for li := len(stack.Levels) - 1; li >= 0; li-- {
+			l, ok := c.prog.placed(c, stack, li, pt.alts)
+			if !ok {
+				continue
+			}
+			from, to := l.Start, l.End
+			if l.Fact != nil {
+				from, to = l.Fact.Outer.From.Caret(l.Slot), l.Fact.Outer.To.Caret(l.Slot)
+			}
+			out = append(out, Painted{Group: pt.Group, From: from, To: to})
+			break
+		}
+	}
+	return out
 }

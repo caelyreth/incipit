@@ -84,6 +84,8 @@ const (
 	ScopeRole
 	// ScopeAnnotation is a scoped annotation containing the caret.
 	ScopeAnnotation
+	// ScopeCrossing is whatever a caret crosses toward its next stop.
+	ScopeCrossing
 )
 
 // Scope is a scope key: what a stack level answers to. Key is set for a
@@ -96,10 +98,13 @@ type Scope struct {
 
 func nodeScope(k doc.Kind) Scope             { return Scope{Class: ScopeNode, ID: uint32(k)} }
 func factScope(k FactID) Scope               { return Scope{Class: ScopeFact, ID: uint32(k)} }
-func roleScope(r vocab.Role) Scope           { return Scope{Class: ScopeRole, ID: uint32(r)} }
+func roleScope(r vocab.RoleID) Scope         { return Scope{Class: ScopeRole, ID: uint32(r)} }
 func annotationScope(a AnnotationKind) Scope { return Scope{Class: ScopeAnnotation, ID: a.id} }
 
-var slotScope = Scope{Class: ScopeSlot}
+var (
+	slotScope  = Scope{Class: ScopeSlot}
+	crossScope = Scope{Class: ScopeCrossing}
+)
 
 func (s Scope) String() string {
 	switch s.Class {
@@ -113,9 +118,11 @@ func (s Scope) String() string {
 		}
 		return "fact:" + FactID(s.ID).String()
 	case ScopeRole:
-		return "role:" + vocab.Role(s.ID).String()
+		return "role:" + vocab.RoleID(s.ID).String()
 	case ScopeAnnotation:
 		return "annotation:" + handleName(handleAnnotation, s.ID)
+	case ScopeCrossing:
+		return "crossing"
 	}
 	return "scope?"
 }
@@ -218,8 +225,14 @@ func (m matcher) match(in vocab.Intent) bool {
 // the node, the role's implementation, the fact's data.
 type Subject[T any] struct {
 	scope Scope
+	// class narrows the subject to node or fact levels; zero for either.
+	class LevelClass
 	bind  func(c *Ctx, l *Level) (T, bool)
 }
+
+// Nodes narrows the subject to nodes providing it; Facts to facts.
+func (s Subject[T]) Nodes() Subject[T] { s.class = LevelNode; return s }
+func (s Subject[T]) Facts() Subject[T] { s.class = LevelFact; return s }
 
 // Slot is the caret's slot.
 var Slot = Subject[doc.SlotRef]{scope: slotScope, bind: func(_ *Ctx, l *Level) (doc.SlotRef, bool) { return l.Slot, true }}
@@ -230,8 +243,8 @@ func Node(k doc.Kind) Subject[*doc.Node] {
 }
 
 // Role is whatever provides role r, bound as its implementation R.
-func Role[R any](r vocab.Role) Subject[R] {
-	return Subject[R]{scope: roleScope(r), bind: func(c *Ctx, l *Level) (R, bool) {
+func Role[R any](r vocab.Role[R]) Subject[R] {
+	return Subject[R]{scope: roleScope(r.ID), bind: func(c *Ctx, l *Level) (R, bool) {
 		v, ok := l.Role(c.r, r)
 		impl, iok := v.(R)
 		return impl, ok && iok
@@ -253,13 +266,19 @@ type placeHow uint8
 
 const (
 	placeIn placeHow = iota + 1
-	placeAhead
-	placeBehind
+	placeCross
 	placeSelected
 )
 
+// crossKinds is a set of crossing kinds.
+type crossKinds uint8
+
+func crossing(k CrossKind) crossKinds { return 1 << k }
+
+const anyCrossing = crossKinds(1<<CrossExit | 1<<CrossBoundary | 1<<CrossEnter)
+
 // alt is one place a rule stands: in a subject's level at some of its
-// zones, beside it, or with it selected.
+// zones, at a crossing of it toward the next stop, or with it selected.
 type alt struct {
 	scope Scope
 	how   placeHow
@@ -267,12 +286,18 @@ type alt struct {
 	// own narrows a node's or slot's edges to its own text slot, which the
 	// caret must be in: an item's head, not a block it holds.
 	own bool
+	// class narrows the subject to node or fact levels; zero for either.
+	class LevelClass
+	// cross are the crossings a crossing place stands at, walking in dir.
+	cross crossKinds
+	dir   vocab.Direction
 }
 
-// index is the scope the place is found at: beside a subject, the slot.
+// index is the scope the place is found at: a crossing, among the
+// crossings.
 func (a alt) index() Scope {
-	if a.how == placeAhead || a.how == placeBehind {
-		return slotScope
+	if a.how == placeCross {
+		return crossScope
 	}
 	return a.scope
 }
@@ -284,7 +309,7 @@ type Place[T any] struct {
 }
 
 func (s Subject[T]) place(a alt) Place[T] {
-	a.scope = s.scope
+	a.scope, a.class = s.scope, s.class
 	return Place[T]{alts: []alt{a}, bind: s.bind}
 }
 
@@ -303,14 +328,44 @@ func (s Subject[T]) Within() Place[T]  { return s.place(alt{how: placeIn, zones:
 // holds; an inline slot, not a gap between blocks.
 func (s Subject[T]) Own() Place[T] { return s.Inside().Own() }
 
-// Ahead is with the subject right after the caret, outside it, nothing
-// between them; Behind with it right before.
-func (s Subject[T]) Ahead() Place[T]  { return s.place(alt{how: placeAhead}) }
-func (s Subject[T]) Behind() Place[T] { return s.place(alt{how: placeBehind}) }
+// Behind is the subject entered at its end crossing back toward the
+// caret's previous stop, Ahead entered at its start crossing forward:
+// the nearest such crossing that a rule answers (§11.7). StartEdge is the
+// subject left through its inner start crossing back, EndEdge through its
+// inner end crossing forward.
+func (s Subject[T]) Behind() Place[T] { return s.cross(CrossEnter, vocab.Backward) }
+func (s Subject[T]) Ahead() Place[T]  { return s.cross(CrossEnter, vocab.Forward) }
+func (s Subject[T]) StartEdge() Place[T] {
+	return s.cross(CrossExit, vocab.Backward)
+}
+func (s Subject[T]) EndEdge() Place[T] { return s.cross(CrossExit, vocab.Forward) }
+
+func (s Subject[T]) cross(k CrossKind, dir vocab.Direction) Place[T] {
+	return s.place(alt{how: placeCross, cross: crossing(k), dir: dir})
+}
+
+// Across is every crossing toward the caret's next stop in dir, bound as
+// the crossing.
+func Across(dir vocab.Direction) Place[Crossing] {
+	return Place[Crossing]{
+		alts: []alt{{scope: crossScope, how: placeCross, cross: anyCrossing, dir: dir}},
+		bind: func(_ *Ctx, l *Level) (Crossing, bool) {
+			if l.Crossing == nil {
+				return Crossing{}, false
+			}
+			return *l.Crossing, true
+		},
+	}
+}
 
 // Selected is with the subject selected whole: a node selection of it, or
 // a text range from its inner start to its inner end.
 func (s Subject[T]) Selected() Place[T] { return s.place(alt{how: placeSelected}) }
+
+// Somewhere is a place of any binding, as paints stand at one.
+type Somewhere interface{ alternatives() []alt }
+
+func (p Place[T]) alternatives() []alt { return p.alts }
 
 // Own narrows the place's edges to the subject's own text slot.
 func (p Place[T]) Own() Place[T] {
@@ -379,14 +434,19 @@ type subject interface{ key() Scope }
 
 func (s Subject[T]) key() Scope { return s.scope }
 
-// Ahead holds when s stands right after the caret; Behind right before.
-func Ahead(s subject) Cond  { return besideCond(s.key(), true) }
-func Behind(s subject) Cond { return besideCond(s.key(), false) }
+// Ahead holds when s stands right after the caret, entered before any
+// node is left; Behind right before.
+func Ahead(s subject) Cond  { return besideCond(s.key(), vocab.Forward) }
+func Behind(s subject) Cond { return besideCond(s.key(), vocab.Backward) }
 
-func besideCond(s Scope, ahead bool) Cond {
+func besideCond(s Scope, dir vocab.Direction) Cond {
 	return Cond{scopes: []Scope{s}, test: func(c *Ctx) bool {
-		_, ok := c.prog.besideLevel(c, c.Head(), s, ahead)
-		return ok
+		for _, x := range adjacent(c.Crossings(dir)) {
+			if x.Kind == CrossEnter && slices.Contains(c.prog.crossKeys(c.r, x), s) {
+				return true
+			}
+		}
+		return false
 	}}
 }
 

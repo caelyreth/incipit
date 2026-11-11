@@ -23,6 +23,10 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 	policy.On(p, "type", policy.Intent[vocab.Type](), in, typeText).Any()
 	policy.On(p, "delete-selection", policy.Intent[vocab.Delete](), in, deleteSelection).Range().Node()
 	policy.On(p, "delete", policy.Intent[vocab.Delete](), in, deleteText).Any()
+	// What a delete crosses toward the next stop, a nearer crossing first:
+	// a block's level, the boundary before it, a container it leaves.
+	policy.On(p, "delete-across", policy.Intent[vocab.Delete](),
+		policy.Or(policy.Across(vocab.Backward), policy.Across(vocab.Forward)), deleteAcross)
 	policy.On(p, "break", policy.Intent[vocab.Break](), in, breakBlock).Any()
 	policy.On(p, "soft-break", policy.Intent[vocab.SoftBreak](), in, softBreak).Any()
 	policy.On(p, "paste", policy.Intent[vocab.Paste](), in, paste).Any()
@@ -271,28 +275,15 @@ func deleteText(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy
 	return deleteAt(c, in, c.Head())
 }
 
-// deleteAt deletes one unit from head. At a slot's edge it steps a
-// block's marker down or joins blocks; what stands whole beside it is the
-// deletion policy's.
+// deleteAt deletes one unit of content from head. At a slot's edge there
+// is none: what a delete crosses there is answered at the crossings
+// (deleteAcross), and the deletion policy's.
 func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
-	if in.Dir == 0 {
-		in.Dir = vocab.Backward
-	}
+	in.Dir = in.Toward()
 	r := c.Doc()
-	if bound := c.Bound(head); bound != head.Pos {
-		// Before a block's marker: backward deletes the boundary before
-		// the block, forward deletes into its marker.
-		block, ok := vocab.Block(r, head.Pos)
-		if !ok {
-			return policy.Swallow
-		}
-		if in.Dir > 0 {
-			if res, ok := stepDown(c, block); ok {
-				return res
-			}
-			return policy.Swallow
-		}
-		return deleteBefore(c, block)
+	if c.Bound(head) != head.Pos {
+		// Before a block's marker: what is crossed there is the block's.
+		return policy.Swallow
 	}
 	pos := head.Pos
 	unit := in.Unit
@@ -301,112 +292,52 @@ func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
 		unit = vocab.ToSlotEdge
 	}
 	target, ok := slotTarget(r, pos, unit, in.Dir)
-	if ok && target != pos && unit == vocab.ByGrapheme {
+	if !ok || target == pos {
+		return policy.Swallow
+	}
+	if unit == vocab.ByGrapheme {
 		// A projected glyph between the caret and the content is not
 		// content: the grapheme deleted is the glyph, which only its
 		// owner edits, so core crosses it.
-		if stops := c.Stops(); stops != nil {
-			if next, ok := stops.Step(head, in.Dir); ok && next.Pos == head.Pos {
-				return policy.Select(doc.Collapsed(next))
-			}
+		if next, ok := c.Stops().Step(head, in.Dir); ok && next.Pos == head.Pos {
+			return policy.Select(doc.Collapsed(next))
 		}
 	}
-	if ok && target != pos {
-		from, to := pos, target
-		if from.Offset > to.Offset {
-			from, to = to, from
-		}
-		return policy.Do(vocab.Ops(doc.EditText{At: pos.Ref(), From: from.Offset, To: to.Offset}))
+	from, to := pos, target
+	if from.Offset > to.Offset {
+		from, to = to, from
 	}
-	return deleteAcross(c, pos, in.Dir)
+	return policy.Do(vocab.Ops(doc.EditText{At: pos.Ref(), From: from.Offset, To: to.Offset}))
 }
 
-// deleteAcross handles a delete at a slot's edge.
-func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Result {
+// deleteAcross answers a delete at what it crosses: a block left from its
+// start steps its level down; a container left from its first block lifts
+// that block out, unless the block is an entry, whose boundary is the
+// container's; a boundary joins the blocks where they can join; a block
+// entered forward at its marker steps its level down. Anything else is
+// not core's to delete: a nearer crossing passed, a farther one answers.
+func deleteAcross(c *policy.Ctx, _ vocab.Delete, at policy.At[policy.Crossing]) policy.Result {
 	r := c.Doc()
-	if n, ok := r.Node(head.Node); !ok || r.Schema().IsObject(n.Kind()) {
-		// An object's own slot has no boundary of its own to delete.
-		return policy.Swallow
-	}
-	if spec, ok := vocab.SlotSpec(r, head.Ref()); !ok || spec.Blocks {
-		// A gap holds nothing to delete.
-		return policy.Swallow
-	}
-	block, ok := vocab.Block(r, head)
-	if !ok {
-		return policy.Swallow
-	}
-	if dir == vocab.Backward {
-		if head.Slot == 0 {
-			// At its text's start, a block with a marker steps it down.
-			if res, ok := stepDown(c, block); ok {
-				return res
-			}
+	x := at.Data
+	switch {
+	case x.Node == nil && x.Kind != policy.CrossBoundary:
+		// A fact's edge is its owner's.
+		return policy.Pass
+	case x.Kind == policy.CrossBoundary:
+		to, ok1 := vocab.LastTextSlot(x.Before)
+		from, ok2 := vocab.FirstTextSlot(x.After)
+		if ok1 && ok2 && from.Node == x.After.ID() && vocab.CanJoin(r, to, from) {
+			return policy.Do(vocab.Join(to, x.After.ID()))
 		}
-		return deleteBefore(c, block)
-	}
-	parent, ps, index, ok := vocab.Index(r, block.ID())
-	if !ok {
-		return policy.Swallow
-	}
-	pn, _ := r.Node(parent)
-	siblings := pn.Slot(ps)
-	if index+1 >= siblings.Len() {
-		return policy.Swallow
-	}
-	next := siblings.Child(index + 1)
-	if ref, ok := vocab.FirstTextSlot(next); ok && ref.Node == next.ID() && vocab.CanJoin(r, head.Ref(), ref) {
-		return policy.Do(vocab.Join(head.Ref(), next.ID()))
-	}
-	return policy.Swallow
-}
-
-// stepDown takes one level of a block's marker away through the block's
-// own level: a heading or an item steps down, a code block becomes a
-// paragraph. False for a block without a level.
-func stepDown(c *policy.Ctx, block *doc.Node) (policy.Result, bool) {
-	if role, ok := c.Role(block, vocab.RoleLeveled); ok {
-		return policy.Do(role.(vocab.Leveled).Step(vocab.Backward)), true
-	}
-	return policy.Result{}, false
-}
-
-// deleteBefore deletes the boundary before a block, its marker kept: the
-// block joins the text before it, and the first block of a container
-// leaves it. A container's first entry
-// deletes the boundary before its container.
-func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
-	r := c.Doc()
-	id := block.ID()
-	for {
-		parent, ps, index, ok := vocab.Index(r, id)
-		if !ok {
-			return policy.Swallow
+	case x.Kind == policy.CrossExit && x.Dir == vocab.Backward && x.From == nil,
+		x.Kind == policy.CrossEnter && x.Dir == vocab.Forward:
+		if level, ok := policy.As(c, x.Node, vocab.RoleLeveled); ok {
+			return policy.Do(level.Step(vocab.Backward))
 		}
-		pn, _ := r.Node(parent)
-		if index > 0 {
-			prev := pn.Slot(ps).Child(index - 1)
-			ref, ok := vocab.LastTextSlot(prev)
-			first, fok := vocab.FirstTextSlot(block)
-			if ok && fok && first.Node == block.ID() && vocab.CanJoin(r, ref, first) {
-				return policy.Do(vocab.Join(ref, block.ID()))
-			}
-			return policy.Swallow
-		}
-		n, _ := r.Node(id)
-		switch s := r.Schema(); {
-		case parent == r.Root().ID() || s.IsEntry(pn.Kind()):
-			// The page's first block, or the first of an entry's body:
-			// nothing before it to join.
-			return policy.Swallow
-		case s.IsEntry(n.Kind()):
-			// The boundary before a container's first entry is the
-			// container's.
-			id = parent
-		default:
-			return policy.Do(vocab.Lift(id))
-		}
+	case x.Kind == policy.CrossExit && x.Dir == vocab.Backward && !r.Schema().IsEntry(x.From.Kind()):
+		return policy.Do(vocab.Lift(x.From.ID()))
 	}
+	return policy.Pass
 }
 
 // inlineParent reports the slot holding an inline node.
@@ -503,8 +434,8 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 // continuation is the kind a block opened next to block takes: what it
 // continues as, or a plain block.
 func continuation(c *policy.Ctx, block *doc.Node) (doc.Kind, doc.Attrs) {
-	if role, ok := c.Role(block, vocab.RoleContinued); ok {
-		return role.(vocab.Continued).Next()
+	if next, ok := policy.As(c, block, vocab.RoleContinued); ok {
+		return next.Next()
 	}
 	return c.Doc().Schema().Plain(), doc.Attrs{}
 }
@@ -658,9 +589,6 @@ func selectAll(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) pol
 	// The scopes policy grows the selection from the innermost scope
 	// outward; core's fallback is the page when that policy is not enabled.
 	stops := c.Stops()
-	if stops == nil {
-		return policy.Swallow
-	}
 	first, ok1 := stops.Edge(vocab.Backward)
 	last, ok2 := stops.Edge(vocab.Forward)
 	if !ok1 || !ok2 {

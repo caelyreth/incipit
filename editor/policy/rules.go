@@ -360,7 +360,7 @@ type rewrite struct {
 	trigger  Trigger
 	extent   Extent
 	demands  []FactID
-	spares   []vocab.Role
+	spares   []vocab.RoleID
 	produces []doc.RecordKind
 	fn       RewriteFunc
 	order    int
@@ -393,8 +393,10 @@ func (b *RewriteRule) Demands(kinds ...FactID) *RewriteRule {
 // Spares leaves sites alone where a fact providing one of roles stands:
 // another policy's text, such as syntax still being typed, that the
 // rewrite must not change.
-func (b *RewriteRule) Spares(roles ...vocab.Role) *RewriteRule {
-	b.r.spares = append(b.r.spares, roles...)
+func (b *RewriteRule) Spares(roles ...vocab.AnyRole) *RewriteRule {
+	for _, r := range roles {
+		b.r.spares = append(b.r.spares, r.RoleID())
+	}
 	return b
 }
 

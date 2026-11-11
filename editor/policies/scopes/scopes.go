@@ -16,18 +16,14 @@ import (
 // ID is the policy's id.
 const ID = "scopes"
 
-// Active marks the innermost textual scope at a collapsed caret.
-var Active = policy.NewAnnotationKind("scopes.active", false)
-
 // Policy is the scopes policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "select", policy.Intent[vocab.SelectScope](), policy.Slot.Inside(), grow).Any()
-	leavable := policy.Role[vocab.Leavable](vocab.RoleLeavable)
-	policy.On(p, "leave-selecting", policy.Intent[vocab.Dismiss](), leavable.Own(), selectScope).Caret()
+	leavable := policy.Role(vocab.RoleLeavable)
+	policy.On(p, "leave-selecting", policy.Intent[vocab.Dismiss](), leavable.Nodes().Own(), selectScope).Caret()
 	policy.On(p, "enter-selected", policy.Intent[vocab.Dismiss](), leavable.Selected(), enterScope).Node()
-	p.Annotation(Active, valid)
-	p.Decorate(Active, vocab.GroupScope)
-	p.Observe("highlight", policy.Trigger{}, highlight)
+	// The innermost textual scope at a collapsed caret.
+	p.Paint(vocab.GroupScope, leavable.Facts().Inside())
 
 	// The card's demonstration, played by the engine itself.
 	p.Showcase(2400*time.Millisecond,
@@ -84,7 +80,7 @@ func grow(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) policy.R
 
 // selectScope selects a node scope whole from inside it.
 func selectScope(c *policy.Ctx, _ vocab.Dismiss, at policy.At[vocab.Leavable]) policy.Result {
-	if c.Composition() != nil || at.Class != policy.LevelNode {
+	if c.Composition() != nil {
 		return policy.Pass
 	}
 	s, ok := selectionOf(c, at.Level)
@@ -97,49 +93,6 @@ func selectScope(c *policy.Ctx, _ vocab.Dismiss, at policy.At[vocab.Leavable]) p
 // enterScope goes back into a scope selected whole, at its entry.
 func enterScope(c *policy.Ctx, _ vocab.Dismiss, at policy.At[vocab.Leavable]) policy.Result {
 	return policy.Select(doc.Collapsed(at.Data.Entry()))
-}
-
-// highlight keeps one decoration over the innermost fact or scoped
-// annotation holding a collapsed caret. A selection already shows its
-// own extent, and a point scope has no text to underline.
-func highlight(c *policy.Ctx, _ []doc.Record) policy.Result {
-	res := policy.Result{DropKinds: []policy.AnnotationKind{Active}}
-	sel := c.Selection()
-	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
-		return res
-	}
-	levels := c.Stack().Levels
-	for i := len(levels) - 1; i >= 0; i-- {
-		level := levels[i]
-		if level.Class != policy.LevelFact && level.Class != policy.LevelAnnotation {
-			continue
-		}
-		if level.Class == policy.LevelFact && !level.Provides(vocab.RoleLeavable) {
-			continue
-		}
-		anchor := policy.Anchor{From: level.Start, To: level.End}
-		if anchor.From.Pos == anchor.To.Pos || anchor.From.Pos.Ref() != anchor.To.Pos.Ref() {
-			continue
-		}
-		res.Annotate = []policy.Annotate{{Kind: Active, Anchor: anchor, Lifetime: policy.WithView}}
-		return res
-	}
-	return res
-}
-
-// valid keeps the highlight while its span exists.
-func valid(r doc.Reader, a policy.Annotation) bool {
-	n, ok := r.Node(a.Anchor.From.Pos.Node)
-	if !ok || a.Anchor.From.Pos.Ref() != a.Anchor.To.Pos.Ref() {
-		return false
-	}
-	slot := a.Anchor.From.Pos.Slot
-	if slot < 0 || slot >= n.NumSlots() {
-		return false
-	}
-	end := n.Slot(slot).Len()
-	return a.Anchor.From.Offset >= 0 && a.Anchor.From.Offset <= end &&
-		a.Anchor.To.Offset >= a.Anchor.From.Offset && a.Anchor.To.Offset <= end
 }
 
 // candidatesAt returns the scopes the two ends of the selection stand in,
@@ -198,10 +151,9 @@ func settled(c *policy.Ctx, s doc.Selection) doc.Selection {
 	if s.Kind != doc.SelectText {
 		return s
 	}
-	if stops := c.Stops(); stops != nil {
-		s.Anchor = stops.Normalize(s.Anchor)
-		s.Head = stops.Normalize(s.Head)
-	}
+	stops := c.Stops()
+	s.Anchor = stops.Normalize(s.Anchor)
+	s.Head = stops.Normalize(s.Head)
 	return s
 }
 
@@ -209,7 +161,7 @@ func settled(c *policy.Ctx, s doc.Selection) doc.Selection {
 func stackAt(c *policy.Ctx, at doc.Caret) *policy.Stack {
 	v := *c.View()
 	v.Selection = doc.Collapsed(at)
-	return policy.NewCtx(c.Program(), c.Store(), c.Doc(), &v, c.Input()).Stack()
+	return c.Over(c.Doc(), &v).Stack()
 }
 
 // selectionOf is the selection a stack level denotes. A node and a slot
@@ -236,11 +188,9 @@ func selectionOf(c *policy.Ctx, level *policy.Level) (doc.Selection, bool) {
 // boundarySelection takes every stop around a level's structural edges,
 // so a block's marker is held with the block.
 func boundarySelection(c *policy.Ctx, start, end doc.Caret) doc.Selection {
-	if stops := c.Stops(); stops != nil {
-		first, _ := stops.Around(start.Pos)
-		_, last := stops.Around(end.Pos)
-		start.Stop, end.Stop = first, last
-	}
+	first, _ := c.Stops().Around(start.Pos)
+	_, last := c.Stops().Around(end.Pos)
+	start.Stop, end.Stop = first, last
 	return doc.TextRange(start, end)
 }
 

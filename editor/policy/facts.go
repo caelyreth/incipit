@@ -162,8 +162,8 @@ type factDecl struct {
 	name     string
 	policy   string
 	data     reflect.Type
-	roles    []vocab.Role
-	binders  map[vocab.Role]func(*Level) any
+	roles    []vocab.RoleID
+	binders  map[vocab.RoleID]func(*Level) any
 	key      func(any) any
 	projects bool
 	errs     []string
@@ -171,14 +171,15 @@ type factDecl struct {
 
 // Provides declares roles the kind's facts provide, as bind makes them
 // from a fact where it stands. R must implement each role.
-func Provides[T, R any](bind func(At[T]) R, roles ...vocab.Role) FactOption {
+func Provides[T, R any](bind func(At[T]) R, roles ...vocab.AnyRole) FactOption {
 	return func(d *factDecl) {
 		if d.data != reflect.TypeFor[T]() {
 			d.errs = append(d.errs, fmt.Sprintf("provides binds %s, not the kind's data", reflect.TypeFor[T]()))
 			return
 		}
-		for _, r := range roles {
-			if iface := roleInterface(r); iface != nil && !reflect.TypeFor[R]().Implements(iface) {
+		for _, ar := range roles {
+			r := ar.RoleID()
+			if iface := r.Type(); iface != nil && !reflect.TypeFor[R]().Implements(iface) {
 				d.errs = append(d.errs, fmt.Sprintf("provides %s, but %s does not implement it", r, reflect.TypeFor[R]()))
 				continue
 			}
@@ -213,7 +214,7 @@ func stableFactKind(policy, name string) FactID {
 // Facts declares a fact kind whose data is T.
 func Facts[T any](p *P, name string, opts ...FactOption) *FactKind[T] {
 	d := &factDecl{kind: stableFactKind(p.policy.id, name), name: name, policy: p.policy.id, data: reflect.TypeFor[T](),
-		binders: map[vocab.Role]func(*Level) any{}}
+		binders: map[vocab.RoleID]func(*Level) any{}}
 	for _, o := range opts {
 		o(d)
 	}
@@ -306,26 +307,6 @@ func (k *FactKind[T]) Data(f Fact) (T, bool) {
 	}
 	v, ok := f.Data.(T)
 	return v, ok
-}
-
-func roleInterface(r vocab.Role) reflect.Type {
-	switch r {
-	case vocab.RolePair:
-		return reflect.TypeFor[vocab.Pair]()
-	case vocab.RoleLeveled:
-		return reflect.TypeFor[vocab.Leveled]()
-	case vocab.RoleLeavable:
-		return reflect.TypeFor[vocab.Leavable]()
-	case vocab.RoleStructure:
-		return reflect.TypeFor[vocab.Structure]()
-	case vocab.RoleContinued:
-		return reflect.TypeFor[vocab.Continued]()
-	case vocab.RoleCloser:
-		return reflect.TypeFor[vocab.Closer]()
-	case vocab.RoleSyntax:
-		return reflect.TypeFor[vocab.Syntax]()
-	}
-	return nil
 }
 
 // --- units --------------------------------------------------------------

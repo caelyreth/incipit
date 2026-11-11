@@ -30,31 +30,17 @@ type Stops interface {
 // StopsFunc builds the stop model of a document as a view sees it.
 type StopsFunc func(r doc.Reader, view *View) Stops
 
-// WithStops returns a context whose Stops come from fn.
-func (c *Ctx) WithStops(fn StopsFunc) *Ctx {
-	out := *c
-	out.stopsFn = fn
-	out.stops = nil
-	return &out
-}
-
-// Stops is the stop model of the context's document and view. It is nil
-// for a context the engine did not build, such as a bare dispatch test.
+// Stops is the stop model of the context's document and view.
 func (c *Ctx) Stops() Stops {
-	if c.stops == nil && c.stopsFn != nil {
+	if c.stops == nil {
 		c.stops = c.stopsFn(c.r, c.view)
 	}
 	return c.stops
 }
 
 // Bound is the document position a caret stands for as a range's end
-// (Stops.Bound); without a stop model, its own position.
-func (c *Ctx) Bound(caret doc.Caret) doc.Pos {
-	if st := c.Stops(); st != nil {
-		return st.Bound(caret)
-	}
-	return caret.Pos
-}
+// (Stops.Bound).
+func (c *Ctx) Bound(caret doc.Caret) doc.Pos { return c.Stops().Bound(caret) }
 
 // Range is what the selection covers, in document order: the bounds of a
 // text selection's ends, or the gaps around a selected node. Every edit of
@@ -72,8 +58,5 @@ func SelectionRange(r doc.Reader, stops Stops, sel doc.Selection) (from, to doc.
 		}
 	}
 	a, b := sel.Ordered(r)
-	if stops == nil {
-		return a.Pos, b.Pos
-	}
 	return stops.Bound(a), stops.Bound(b)
 }

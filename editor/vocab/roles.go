@@ -1,6 +1,10 @@
 package vocab
 
-import "github.com/caelyreth/neverland/editor/doc"
+import (
+	"reflect"
+
+	"github.com/caelyreth/neverland/editor/doc"
+)
 
 // Edit is a semantic helper's result: primitive operations applied to a
 // transaction, reading its state as they go. Handlers return edits; they
@@ -109,23 +113,46 @@ type Structure interface {
 	Remove() Edit
 }
 
-// Role is a shared interface that fact kinds and node kinds provide.
-// Rules match on roles, never on providers.
-type Role uint8
+// RoleID identifies a role, as declarations list it.
+type RoleID uint8
 
-const (
-	RolePair Role = iota + 1
-	RoleLeveled
-	RoleLeavable
-	RoleStructure
-	RoleContinued
-	RoleCloser
-	RoleSyntax
+// Role is a shared interface, T, that fact kinds and node kinds provide.
+// Rules match on roles, never on providers, and bind a role's provider as
+// its interface, so a rule cannot bind the wrong one.
+type Role[T any] struct{ ID RoleID }
+
+// AnyRole is a role of any interface, as declarations list them.
+type AnyRole interface{ RoleID() RoleID }
+
+func (r Role[T]) RoleID() RoleID { return r.ID }
+func (r Role[T]) String() string { return r.ID.String() }
+func (r RoleID) RoleID() RoleID  { return r }
+
+var roles [8]struct {
+	name string
+	typ  reflect.Type
+}
+
+func newRole[T any](id RoleID, name string) Role[T] {
+	roles[id].name, roles[id].typ = name, reflect.TypeFor[T]()
+	return Role[T]{ID: id}
+}
+
+func (r RoleID) String() string { return roles[r].name }
+
+// Type is the interface the role's providers implement.
+func (r RoleID) Type() reflect.Type { return roles[r].typ }
+
+// The roles.
+var (
+	RolePair      = newRole[Pair](1, "Pair")
+	RoleLeveled   = newRole[Leveled](2, "Leveled")
+	RoleLeavable  = newRole[Leavable](3, "Leavable")
+	RoleStructure = newRole[Structure](4, "Structure")
+	RoleContinued = newRole[Continued](5, "Continued")
+	RoleCloser    = newRole[Closer](6, "Closer")
+	RoleSyntax    = newRole[Syntax](7, "Syntax")
 )
-
-var roleNames = [...]string{"", "Pair", "Leveled", "Leavable", "Structure", "Continued", "Closer", "Syntax"}
-
-func (r Role) String() string { return roleNames[r] }
 
 // Profile is the document profile a program edits: its schema, the roles
 // its node kinds provide, and what a slot's place in the structure adds to
@@ -134,9 +161,9 @@ func (r Role) String() string { return roleNames[r] }
 type Profile interface {
 	Schema() *doc.Schema
 	// Roles are the roles nodes of kind k provide.
-	Roles(k doc.Kind) []Role
+	Roles(k doc.Kind) []RoleID
 	// Role is n's implementation of role.
-	Role(r doc.Reader, n *doc.Node, role Role) (any, bool)
+	Role(r doc.Reader, n *doc.Node, role RoleID) (any, bool)
 	// Context is what ref's place in the structure adds to its content,
 	// such as the number an item's position gives it, or nil. Analyzers
 	// read it, so it keys their caches.

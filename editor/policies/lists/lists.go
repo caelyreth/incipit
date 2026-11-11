@@ -47,12 +47,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 
 // level is the item's own level.
 func level(c *policy.Ctx, item *doc.Node) (vocab.Leveled, bool) {
-	role, ok := c.Role(item, vocab.RoleLeveled)
-	if !ok {
-		return nil, false
-	}
-	l, ok := role.(vocab.Leveled)
-	return l, ok
+	return policy.As(c, item, vocab.RoleLeveled)
 }
 
 // leave steps an empty item one level out: a nested item follows the item

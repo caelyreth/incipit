@@ -10,9 +10,9 @@ var Profile vocab.Profile = product{}
 
 type product struct{}
 
-func (product) Schema() *doc.Schema           { return Schema() }
-func (product) Roles(k doc.Kind) []vocab.Role { return NodeRoles(k) }
-func (product) Role(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
+func (product) Schema() *doc.Schema             { return Schema() }
+func (product) Roles(k doc.Kind) []vocab.RoleID { return NodeRoles(k) }
+func (product) Role(r doc.Reader, n *doc.Node, role vocab.RoleID) (any, bool) {
 	return NodeRole(r, n, role)
 }
 
@@ -35,38 +35,38 @@ func (product) Context(r doc.Reader, ref doc.SlotRef) any {
 // NodeRoles lists the roles a node kind provides. Every object with a
 // slot of its own is Leavable: its own slots are left beside it and
 // returned to at their end, whatever the object.
-func NodeRoles(k doc.Kind) []vocab.Role {
+func NodeRoles(k doc.Kind) []vocab.RoleID {
 	roles := kindRoles(k)
 	if spec, ok := Schema().Kind(k); ok && spec.Object && len(spec.Slots) > 0 && !spec.Slots[0].Blocks {
-		roles = append([]vocab.Role{vocab.RoleLeavable}, roles...)
+		roles = append([]vocab.RoleID{vocab.RoleLeavable.ID}, roles...)
 	}
 	return roles
 }
 
-func kindRoles(k doc.Kind) []vocab.Role {
+func kindRoles(k doc.Kind) []vocab.RoleID {
 	switch k {
 	case Heading:
-		return []vocab.Role{vocab.RoleLeveled}
+		return []vocab.RoleID{vocab.RoleLeveled.ID}
 	case List, Quote:
-		return []vocab.Role{vocab.RoleStructure}
+		return []vocab.RoleID{vocab.RoleStructure.ID}
 	case Item:
-		return []vocab.Role{vocab.RoleLeveled, vocab.RoleContinued}
+		return []vocab.RoleID{vocab.RoleLeveled.ID, vocab.RoleContinued.ID}
 	case Formula:
-		return []vocab.Role{vocab.RoleCloser, vocab.RoleStructure}
+		return []vocab.RoleID{vocab.RoleCloser.ID, vocab.RoleStructure.ID}
 	case Cell:
-		return []vocab.Role{vocab.RoleLeavable}
+		return []vocab.RoleID{vocab.RoleLeavable.ID}
 	case Code:
-		return []vocab.Role{vocab.RoleLeveled, vocab.RoleStructure}
+		return []vocab.RoleID{vocab.RoleLeveled.ID, vocab.RoleStructure.ID}
 	case Math, Table, Figure, Divider:
-		return []vocab.Role{vocab.RoleStructure}
+		return []vocab.RoleID{vocab.RoleStructure.ID}
 	}
 	return nil
 }
 
 // NodeRole returns n's implementation of role.
-func NodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
+func NodeRole(r doc.Reader, n *doc.Node, role vocab.RoleID) (any, bool) {
 	switch role {
-	case vocab.RoleLeveled:
+	case vocab.RoleLeveled.ID:
 		switch n.Kind() {
 		case Heading:
 			return headingLevel{id: n.ID(), level: HeadingLevel(n)}, true
@@ -75,15 +75,15 @@ func NodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
 		case Code:
 			return plainLevel(n.ID()), true
 		}
-	case vocab.RoleCloser:
+	case vocab.RoleCloser.ID:
 		if n.Kind() == Formula {
 			return spelled(FormulaSpelling), true
 		}
-	case vocab.RoleContinued:
+	case vocab.RoleContinued.ID:
 		if n.Kind() == Item {
 			return itemNext{task: TaskOf(n)}, true
 		}
-	case vocab.RoleLeavable:
+	case vocab.RoleLeavable.ID:
 		if r.Schema().IsObject(n.Kind()) {
 			after, ok := vocab.Beside(r, n.ID(), vocab.Forward)
 			if !ok {
@@ -109,9 +109,9 @@ func NodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
 				}, true
 			}
 		}
-	case vocab.RoleStructure:
+	case vocab.RoleStructure.ID:
 		for _, provided := range NodeRoles(n.Kind()) {
-			if provided == vocab.RoleStructure {
+			if provided == vocab.RoleStructure.ID {
 				edge, ok := vocab.NodeEdge(r, n.ID())
 				return structure{id: n.ID(), edge: edge}, ok
 			}
