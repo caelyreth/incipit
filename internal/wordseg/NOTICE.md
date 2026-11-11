@@ -25,3 +25,6 @@ embedded cjk_dictionary.bin sha256:
 
 PiG is MIT licensed. The translated ICU engine and embedded CJK dictionary
 retain the notices under `LICENSES/`.
+
+The embedded dictionary is not stored in Git: `scripts/fetch-assets.sh`
+fetches it from the upstream commit above and verifies the checksum.

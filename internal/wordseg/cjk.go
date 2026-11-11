@@ -16,6 +16,10 @@ import (
 
 // The immutable index is generated from ICU release-78.3 cjdict.txt. Lookup borrows its embedded bytes; it does not build a dictionary map on the input loop.
 //
+// The dictionary is not stored in Git: ../../scripts/fetch-assets.sh
+// installs it, verified.
+//
+//go:generate ../../scripts/fetch-assets.sh
 //go:embed cjk_dictionary.bin
 var cjkDictionary string
 

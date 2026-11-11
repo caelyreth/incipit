@@ -3,7 +3,7 @@
 Neither font is stored in Git. Fetch both with:
 
 ```sh
-./scripts/fetch-fonts.sh
+./scripts/fetch-assets.sh
 ```
 
 The same command is wired as `go generate ./native/theme`. It downloads each

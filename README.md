@@ -46,7 +46,7 @@ The repository uses Go 1.27.3 and MyGo v0.8.3.
 
 ```sh
 direnv allow
-./scripts/fetch-fonts.sh
+./scripts/fetch-assets.sh
 go test ./...
 go tool mygo dev      # live-reloading development app
 go tool mygo build    # app bundle and installer under dist/<os>-<arch>
@@ -55,9 +55,10 @@ go tool mygo build    # app bundle and installer under dist/<os>-<arch>
 The MyGo CLI is pinned as a Go tool in `go.mod`, so `go tool mygo` runs the
 same v0.8.3 release as the framework. `mygo.json` holds the app configuration.
 
-The reference prose font and the math font are fetched into ignored local
-paths and verified against pinned SHA-256 checksums. `go generate ./native/theme` performs the
-same step.
+Binary assets are not stored in Git. The reference prose font, the math font
+and the word segmenter's CJK dictionary are fetched into ignored local paths
+and verified against pinned SHA-256 checksums; `go generate ./native/theme`
+or `go generate ./internal/wordseg` performs the same step.
 
 The Nix shell provides Go 1.27.1 and enables the Go toolchain download for the
 exact 1.27.3 patch release required by MyGo.
