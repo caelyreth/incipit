@@ -623,8 +623,8 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
 			continue
 		}
-		if u.math != nil && u.math.box != nil {
-			el.paintMath(p, u, ux, uy, covered[u.pres.Unit] && !u.math.open, now, animate)
+		if u.math != nil {
+			el.paintMath(p, u, ux, uy, covered[u.pres.Unit] && !u.math.open, panelOpened(u), now, animate)
 		}
 		clip := ui.Rect{X: ox - cardPad(m), Y: uy, W: m.Width + 2*cardPad(m), H: u.shown}
 		p.Clip(clip, 0, func() {
@@ -634,12 +634,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 				case u.math != nil && i == 0:
 					// The source panel shows as far as the block has
 					// opened past its display.
-					ml := u.math
-					a := float32(1)
-					if ml.full > ml.fold {
-						a = min(max((u.shown-ml.fold)/(ml.full-ml.fold), 0), 1)
-					}
-					if a > 0.001 {
+					if a := panelOpened(u); a > 0.001 {
 						el.paintSurface(p, s, ux, uy, true, a)
 					}
 				case s.card:

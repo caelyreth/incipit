@@ -92,3 +92,14 @@ func TestInlineMathIsAnObjectInItsLine(t *testing.T) {
 	}
 	t.Fatal("no formula")
 }
+
+// A math block keeps its display's room as its first math sets, so a
+// simple formula appearing shifts nothing below it.
+func TestAMathBlockKeepsItsRoomAsMathSets(t *testing.T) {
+	el, block := mathPage(t, "")
+	h := block().h
+	typeText(el, `\frac{a}{b}`)
+	if u := block(); u.math.box == nil || u.h != h {
+		t.Fatalf("height %v after setting, %v before", u.h, h)
+	}
+}

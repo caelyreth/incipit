@@ -16,18 +16,20 @@ import (
 //   - an inline formula is an object in its line, sitting on the text's
 //     baseline; while its source card is open it wears a soft fill, and the
 //     math above follows the source live as it is typed;
-//   - a math block shows its formula set for display, centered; its source
-//     is shown under it, in an inset panel, while the caret or a selection
-//     end is in the block, the panel opening and closing as the page below
-//     glides with it.
+//   - a math block shows its formula set for display, centered, in a
+//     display area of at least two display lines; its source is shown
+//     under it, in an inset panel, while the caret or a selection end is in
+//     the block, the panel opening and closing as the page below glides
+//     with it. While its panel is open the block is framed: display and
+//     panel read as one block.
 //
 // Math shows only a source that sets soundly: no placeholder boxes, no
 // error glyphs. While a source half typed does not set, the math shown is
 // the last source of that formula that did, dimmed, so its room holds
 // still as it is typed. A formula that has never set shows no math: an
-// inline one shows its source, and a math block is its source panel alone,
-// open whether held or not, so the block reads as math from the keystroke
-// that makes it. Math fades in as it first shows, and dims and brightens
+// inline one shows its source, and a math block's display area shows its
+// hint, its frame and panel open whether held or not, so the block reads
+// as math from the keystroke that makes it. Math fades in as it first shows, and dims and brightens
 // as it goes stale and sound.
 
 const (
@@ -37,6 +39,11 @@ const (
 	displayScale = 1.15
 	// staleInk is how strongly math shows while its source does not set.
 	staleInk = 0.45
+	// displayLines is the least a math block's display area holds, in
+	// display lines, so a block keeps its room as its first math sets.
+	displayLines = 2.7
+	// mathHint is what a math block's display shows while it has no math.
+	mathHint = "Formula"
 	// mathFrequency springs math's fades.
 	mathFrequency = float32(16)
 )
@@ -108,8 +115,9 @@ func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32, held bool
 	}
 	ms := lc.typeset(u.pres.Unit, u.pres.Node.Text(), true, m.Body*displayScale, width)
 	ml := &mathLayout{mathSet: ms, open: held || ms.box == nil}
+	ml.h = m.Body * displayScale * displayLines
 	if ms.box != nil {
-		ml.h = ms.ascent + ms.descent + 2*m.Body*0.45
+		ml.h = max(ml.h, ms.ascent+ms.descent+2*m.Body*0.45)
 	}
 	s := u.surfaces[0]
 	s.x, s.y = cardPad(m), ml.h+cardPad(m)
@@ -180,18 +188,42 @@ func (el *Element) inks(a float32) formula.Inks {
 	return formula.Inks{Text: t.Prose.Text.Alpha(a), Error: t.Status.Danger.Foreground.Alpha(a), Placeholder: t.Text.Muted.Alpha(a)}
 }
 
-// paintMath draws a math block's display, centered in its column.
-func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32, covered bool, now time.Time, animate bool) {
-	ml := u.math
+// paintMath draws a math block's frame, while its panel shows, and its
+// display, centered in its column: its math, or its hint while it has
+// none. a is how far its panel has opened.
+func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32, covered bool, a float32, now time.Time, animate bool) {
+	t, m, ml := el.Theme, el.Editor.metrics, u.math
+	if a > 0.001 {
+		p.Stroke(ui.Rect{X: ux + 0.5, Y: uy + 0.5, W: m.Width - u.x - 1, H: u.shown - 1}, t.Border.Default.Alpha(a), cardPad(m), 1)
+	}
+	if ml.box == nil {
+		sp := span(mathHint, el.Editor.theme.Resolve(nil), m.Body*displayScale)
+		sp.Italic = true
+		sp.Color = t.Text.Muted.Alpha(0.65)
+		lay := ui.ShapeRichTextWith([]ui.Span{sp}, ui.Font{Family: sp.Font, Size: sp.Size, Italic: true}, ui.TextShape{})
+		w, h := lay.Size()
+		p.TextLayout(lay, ux+(m.Width-u.x-w)/2, uy+(ml.h-h)/2, sp.Color)
+		return
+	}
 	ink, _ := el.mathAlpha(u.pres.Unit, ml.stale, false, now, animate, p)
 	pad := (ml.h - ml.ascent - ml.descent) / 2
 	if covered {
 		// Held by a selection with its source closed, the display is
 		// washed as the text it stands for would be.
 		x := ux + ml.from - mathPad*2
-		p.Fill(ui.Rect{X: x, Y: uy + pad/2, W: ml.to - ml.from + mathPad*4, H: ml.h - pad}, el.Theme.Prose.Selection.Alpha(el.selection.Opacity()), 4)
+		p.Fill(ui.Rect{X: x, Y: uy + pad - mathPad*2, W: ml.to - ml.from + mathPad*4, H: ml.ascent + ml.descent + mathPad*4}, t.Prose.Selection.Alpha(el.selection.Opacity()), 4)
 	}
 	formula.Draw(p, ml.box, ui.Point{X: ux, Y: uy + pad + ml.ascent}, el.inks(ink))
+}
+
+// panelOpened is how far a math block's source panel has opened past its
+// display.
+func panelOpened(u *unitLayout) float32 {
+	ml := u.math
+	if ml.full <= ml.fold {
+		return 1
+	}
+	return min(max((u.shown-ml.fold)/(ml.full-ml.fold), 0), 1)
 }
 
 // sweepMaths forgets the motion of formulas no longer drawn.
