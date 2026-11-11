@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -45,9 +46,36 @@ func MarkSpellings(k doc.MarkKind) []Spelling {
 	return nil
 }
 
+// SpelledMarks are the marks notation spells, innermost first: where two
+// marks' signs stand at one offset with equal runs, the inner one's sign
+// stands nearer its text.
+var SpelledMarks = []doc.MarkKind{CodeMark, Strike, Emphasis, Strong}
+
+// MarkLevels are marks that are levels of one another, lowest first: one
+// more delimiter spells the next level.
+var MarkLevels = [][]doc.MarkKind{{Emphasis, Strong}}
+
+// MarkStep is the mark one level from k in dir: below the lowest level, or
+// for a mark with no levels, none (zero); false where nothing is above.
+func MarkStep(k doc.MarkKind, dir vocab.Direction) (doc.MarkKind, bool) {
+	for _, levels := range MarkLevels {
+		if i := slices.Index(levels, k); i >= 0 {
+			switch j := i + int(dir); {
+			case j < 0:
+				return 0, true
+			case j >= len(levels):
+				return 0, false
+			default:
+				return levels[j], true
+			}
+		}
+	}
+	return 0, dir < 0
+}
+
 // MarkOfSpelling returns the mark a delimiter spells.
 func MarkOfSpelling(s Spelling) (doc.MarkKind, bool) {
-	for _, k := range []doc.MarkKind{Strong, Emphasis, CodeMark, Strike} {
+	for _, k := range SpelledMarks {
 		for _, sp := range MarkSpellings(k) {
 			if sp == s {
 				return k, true

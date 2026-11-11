@@ -91,6 +91,12 @@ type Closer interface {
 	Closes(text string) bool
 }
 
+// Syntax is text still spelling structure to come, such as a rule
+// waiting for Enter. Rewrites that spare it leave it as typed.
+type Syntax interface {
+	Syntax() Span
+}
+
 // Structure is a whole deleted as a unit.
 type Structure interface {
 	Node() doc.ID
@@ -107,9 +113,10 @@ const (
 	RoleStructure
 	RoleContinued
 	RoleCloser
+	RoleSyntax
 )
 
-var roleNames = [...]string{"", "Pair", "Leveled", "Leavable", "Structure", "Continued", "Closer"}
+var roleNames = [...]string{"", "Pair", "Leveled", "Leavable", "Structure", "Continued", "Closer", "Syntax"}
 
 func (r Role) String() string { return roleNames[r] }
 

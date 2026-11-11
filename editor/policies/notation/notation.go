@@ -85,11 +85,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	// one-delimiter opening sign it spells the mark one level up; among a
 	// sign's glyphs it steps over them a delimiter at a time. At the run's
 	// end the span is a Closer, which navigation steps over.
-	for _, m := range markKinds() {
+	for _, m := range profile.SpelledMarks {
 		span, sign := k.spans.Key(m), k.signs.Key(m)
 		for _, c := range delimiters(m) {
 			typed, name := policy.Typed(c), string(profile.MarkSpellings(m)[0])+c
-			if m == profile.Emphasis {
+			if _, ok := profile.MarkStep(m, vocab.Forward); ok {
 				policy.On(p, "step-up"+name, typed, span.AtStart(), stepUp)
 			}
 			policy.On(p, "overtype-in"+name, typed, sign.Inside(), stepOver)
@@ -127,11 +127,6 @@ type kinds struct {
 	markers policy.KeyedKind[markerGhost, doc.Kind]
 }
 
-// markKinds are the marks notation signs.
-func markKinds() []doc.MarkKind {
-	return []doc.MarkKind{profile.Strong, profile.Emphasis, profile.CodeMark, profile.Strike}
-}
-
 // delimiters are the characters a mark kind's spellings are written in.
 func delimiters(m doc.MarkKind) []string {
 	var out []string
@@ -165,7 +160,7 @@ func (s spelling) of(k doc.MarkKind) (vocab.Spelling, bool) {
 	if len(sps) == 0 {
 		return "", false
 	}
-	if s.Underscores && (k == profile.Emphasis || k == profile.Strong) && len(sps) > 1 {
+	if s.Underscores && len(sps) > 1 {
 		return sps[1], true
 	}
 	return sps[0], true
@@ -174,17 +169,10 @@ func (s spelling) of(k doc.MarkKind) (vocab.Spelling, bool) {
 // depth orders marks that start or end at one offset with equal runs:
 // lower is inner.
 func depth(k doc.MarkKind) int {
-	switch k {
-	case profile.CodeMark:
-		return 0
-	case profile.Strike:
-		return 1
-	case profile.Emphasis:
-		return 2
-	case profile.Strong:
-		return 3
+	if i := slices.Index(profile.SpelledMarks, k); i >= 0 {
+		return i
 	}
-	return 4
+	return len(profile.SpelledMarks)
 }
 
 // analyze emits each line's signs and markers, and the spans between
@@ -350,18 +338,18 @@ func (g markGhost) run(at policy.At[markGhost]) []vocab.Span {
 	return []vocab.Span{{Slot: at.Slot, From: off - g.Back, To: off + g.Ahead}}
 }
 
-// stepRun steps a run's mark one level: strong is one more delimiter than
-// emphasis, and below one delimiter the mark is gone.
+// stepRun steps a run's mark one level (profile.MarkLevels): strong is
+// one more delimiter than emphasis, and below one delimiter the mark is
+// gone.
 func stepRun(m doc.Mark, run []vocab.Span, dir vocab.Direction) vocab.Edit {
+	next, ok := profile.MarkStep(m.Kind, dir)
 	switch {
-	case dir < 0 && m.Kind == profile.Strong:
-		return vocab.Sequence(vocab.ClearMark(run, profile.Strong), vocab.ApplyMark(run, doc.Mark{Kind: profile.Emphasis}))
-	case dir < 0:
+	case !ok:
+		return vocab.Sequence()
+	case next == 0:
 		return vocab.ClearMark(run, m.Kind)
-	case dir > 0 && m.Kind == profile.Emphasis:
-		return vocab.Sequence(vocab.ClearMark(run, profile.Emphasis), vocab.ApplyMark(run, doc.Mark{Kind: profile.Strong}))
 	}
-	return vocab.Sequence()
+	return vocab.Sequence(vocab.ClearMark(run, m.Kind), vocab.ApplyMark(run, doc.Mark{Kind: next}))
 }
 
 // markSpan is a mark's run between its signs; bound, it knows where it

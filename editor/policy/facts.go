@@ -322,6 +322,8 @@ func roleInterface(r vocab.Role) reflect.Type {
 		return reflect.TypeFor[vocab.Continued]()
 	case vocab.RoleCloser:
 		return reflect.TypeFor[vocab.Closer]()
+	case vocab.RoleSyntax:
+		return reflect.TypeFor[vocab.Syntax]()
 	}
 	return nil
 }

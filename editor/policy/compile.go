@@ -448,6 +448,18 @@ func (p *Program) nodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, boo
 	return p.profile.Role(r, n, role)
 }
 
+// factKindsProviding are the fact kinds that provide a role.
+func (p *Program) factKindsProviding(r vocab.Role) []FactID {
+	var out []FactID
+	for k, d := range p.factDecls {
+		if slices.Contains(d.roles, r) {
+			out = append(out, k)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 func (p *Program) kindsProviding(r vocab.Role) []doc.Kind {
 	var out []doc.Kind
 	if p.profile == nil {

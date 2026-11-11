@@ -47,7 +47,9 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 
 	mk := policy.Facts[marker](p, "marker")
 	fk := policy.Facts[fence](p, "fence")
-	p.Analyze(policy.Slots, analyzeBlocks(blocks, mk, fk), []policy.FactID{mk.Kind(), fk.Kind()},
+	// A rule's line is markdown's while it is typed: rewrites spare it.
+	sk := policy.Facts[rule](p, "rule", policy.Provides(bindRule, vocab.RoleSyntax))
+	p.Analyze(policy.Slots, analyzeBlocks(blocks, mk, fk, sk), []policy.FactID{mk.Kind(), fk.Kind(), sk.Kind()},
 		policy.Config(blocks), policy.Where(func(u *policy.Unit) bool {
 			return u.Owner.Kind() == profile.Paragraph || u.Owner.Kind() == profile.Item
 		}))

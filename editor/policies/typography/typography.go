@@ -50,6 +50,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 			Classes: []doc.OriginClass{doc.OriginTyping},
 		}).
 		Extent(policy.ChangedRanges).
+		// What spells structure still to come, as a rule's dashes do, is
+		// its policy's text.
+		Spares(vocab.RoleSyntax).
 		Produces(textEdits...).
 		Do(func(c *policy.Ctx, site policy.Site) policy.Result {
 			return rewrite(c, site, opts)
@@ -66,26 +69,12 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 		return policy.Swallow
 	}
 	flat := in.Flat()
-	if from, to := vocab.LineAround(flat, site.From, site.To); from >= to || dividerLine(flat[from:to]) {
+	if from, to := vocab.LineAround(flat, site.From, site.To); from >= to {
 		return policy.Swallow
 	}
 	return policy.Do(vocab.RefineLines(site.Slot, in, site.From, site.To, func(stretch vocab.Runes, at int) (vocab.Runes, bool) {
 		return rewriteCells(stretch, opts)
 	})...)
-}
-
-// dividerLine reports a line that may become a Markdown divider. Typography
-// leaves its dashes alone so the divider reaches the Structure phase intact.
-func dividerLine(text string) bool {
-	if len(text) < 2 {
-		return false
-	}
-	for _, r := range text {
-		if r != '-' {
-			return false
-		}
-	}
-	return true
 }
 
 func rewriteText(text string, opts options) string {
@@ -222,10 +211,10 @@ func spacePunctuation(cells vocab.Runes) vocab.Runes {
 	return out
 }
 
-func isWordRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r)
-}
+// isWordRune is a letter or digit.
+func isWordRune(r rune) bool { return vocab.ClassOf(r)&vocab.ClassWord != 0 }
 
+// isLatinLetter is a letter outside CJK.
 func isLatinLetter(r rune) bool {
-	return unicode.IsLetter(r) && !vocab.IsCJK(r)
+	return vocab.ClassOf(r)&(vocab.ClassWord|vocab.ClassDigit|vocab.ClassCJK) == vocab.ClassWord
 }

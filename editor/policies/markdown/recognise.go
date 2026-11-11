@@ -173,13 +173,26 @@ func analyzeRuns(cfg inlineConfig, k *runKinds) func(u *policy.Unit, e *policy.E
 	}
 }
 
+// rule is a line of one rule character, typed so far: Enter makes a
+// divider of three or more.
+type rule struct{}
+
+// bindRule is the rule's line, as Syntax.
+func bindRule(at policy.At[rule]) vocab.Syntax {
+	return ruleLine{vocab.Span{Slot: at.Slot, From: at.Fact.Outer.From.At, To: at.Fact.Outer.To.At}}
+}
+
+type ruleLine struct{ span vocab.Span }
+
+func (l ruleLine) Syntax() vocab.Span { return l.span }
+
 // blockConfig is which block prefixes the analyzer recognises.
 type blockConfig struct {
 	Headings, Lists, Quotes, Code, Math, Rules bool
 }
 
 // analyzeBlocks finds a paragraph's block marker and fence.
-func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.FactKind[fence]) func(u *policy.Unit, e *policy.Emit) {
+func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.FactKind[fence], sk *policy.FactKind[rule]) func(u *policy.Unit, e *policy.Emit) {
 	return func(u *policy.Unit, e *policy.Emit) {
 		t := u.Text()
 		if t == "" {
@@ -226,8 +239,16 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 			e.Fact(fk.Span(0, len(t), fence{Kind: fenceCode, Info: strings.TrimSpace(t[3:])}))
 		case cfg.Math && t == string(profile.MathSpelling):
 			e.Fact(fk.Span(0, len(t), fence{Kind: fenceMath}))
-		case cfg.Rules && len(t) >= 3 && strings.Count(t, t[:1]) == len(t) && (t[0] == '-' || t[0] == '*' || t[0] == '_'):
+		case cfg.Rules && len(t) >= 3 && ruleLineOf(t):
 			e.Fact(fk.Span(0, len(t), fence{Kind: fenceDivider}))
 		}
+		if cfg.Rules && len(t) >= 2 && ruleLineOf(t) {
+			e.Fact(sk.Span(0, len(t), rule{}))
+		}
 	}
+}
+
+// ruleLineOf reports a line of one rule character.
+func ruleLineOf(t string) bool {
+	return strings.Count(t, t[:1]) == len(t) && (t[0] == '-' || t[0] == '*' || t[0] == '_')
 }

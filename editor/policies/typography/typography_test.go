@@ -87,9 +87,11 @@ func TestTypedSymbolsBecomeTypographic(t *testing.T) {
 	h.typeText("a---b")
 	h.want("a—b")
 
+	// Alone, typography knows no rule: markdown's rule lines are Syntax it
+	// spares (the product manifest's divider test).
 	h = newHarness(t, nil)
 	h.typeText("---")
-	h.want("---")
+	h.want("—")
 }
 
 func TestTypedApostrophesAndQuotePlacement(t *testing.T) {

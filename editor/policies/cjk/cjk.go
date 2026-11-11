@@ -178,12 +178,13 @@ func cjkLatinSpacing(cells vocab.Runes, urls []span) vocab.Runes {
 	return out
 }
 
+// cjkLetter is a CJK letter; latinLike a letter or digit outside CJK.
 func cjkLetter(r rune) bool {
-	return vocab.IsCJK(r) && unicode.IsLetter(r)
+	return vocab.ClassOf(r)&(vocab.ClassWord|vocab.ClassDigit|vocab.ClassCJK) == vocab.ClassWord|vocab.ClassCJK
 }
 
 func latinLike(r rune) bool {
-	return (unicode.IsLetter(r) || unicode.IsDigit(r)) && !vocab.IsCJK(r)
+	return vocab.ClassOf(r)&(vocab.ClassWord|vocab.ClassCJK) == vocab.ClassWord
 }
 
 func inSpans(spans []span, at int) bool {

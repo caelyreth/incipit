@@ -360,6 +360,7 @@ type rewrite struct {
 	trigger  Trigger
 	extent   Extent
 	demands  []FactID
+	spares   []vocab.Role
 	produces []doc.RecordKind
 	fn       RewriteFunc
 	order    int
@@ -386,6 +387,14 @@ func (b *RewriteRule) Extent(e Extent) *RewriteRule { b.r.extent = e; return b }
 // Demands declares the facts the rewrite reads.
 func (b *RewriteRule) Demands(kinds ...FactID) *RewriteRule {
 	b.r.demands = append(b.r.demands, kinds...)
+	return b
+}
+
+// Spares leaves sites alone where a fact providing one of roles stands:
+// another policy's text, such as syntax still being typed, that the
+// rewrite must not change.
+func (b *RewriteRule) Spares(roles ...vocab.Role) *RewriteRule {
+	b.r.spares = append(b.r.spares, roles...)
 	return b
 }
 
@@ -426,8 +435,19 @@ func (w Rewriter) Trigger() Trigger           { return w.r.trigger }
 func (w Rewriter) Extent() Extent             { return w.r.extent }
 func (w Rewriter) Produces() []doc.RecordKind { return w.r.produces }
 
-// Run rewrites one site.
-func (w Rewriter) Run(c *Ctx, s Site) Result { return w.r.fn(c, s) }
+// Run rewrites one site, unless what it spares stands there.
+func (w Rewriter) Run(c *Ctx, s Site) Result {
+	for _, role := range w.r.spares {
+		for _, k := range c.prog.factKindsProviding(role) {
+			for _, f := range c.Facts(s.Slot, k) {
+				if f.Outer.From.At <= s.To && s.From <= f.Outer.To.At {
+					return Swallow
+				}
+			}
+		}
+	}
+	return w.r.fn(c, s)
+}
 
 // Observer is a compiled observer, as the engine runs it.
 type Observer struct{ o *observer }
