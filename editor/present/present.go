@@ -159,6 +159,9 @@ type unitKey struct {
 	context string
 	program uint64
 	open    string
+	// held is set while an object is selected or holds a selection end,
+	// which opens its empty slots.
+	held bool
 	// facts is what the facts of the unit's text depend on besides it.
 	facts string
 }
@@ -326,6 +329,7 @@ func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Re
 			ids[i] = id.String()
 		}
 		key.open = strings.Join(ids, ",")
+		key.held = u.Gap != nil && held(r, u.Node, view.Selection)
 	}
 	key.facts = factContext(prog, r, view, append([]doc.ID{u.ID}, cards...))
 	pr.mu.Lock()
@@ -363,6 +367,18 @@ func within(r doc.Reader, n *doc.Node, id doc.ID) bool {
 			return false
 		}
 		id = parent
+	}
+	return false
+}
+
+// held reports whether an object is selected, or holds a selection end in
+// its own slots.
+func held(r doc.Reader, n *doc.Node, s doc.Selection) bool {
+	switch s.Kind {
+	case doc.SelectNode:
+		return s.Node == n.ID()
+	case doc.SelectText:
+		return within(r, n, s.Anchor.Pos.Node) || within(r, n, s.Head.Pos.Node)
 	}
 	return false
 }
@@ -421,13 +437,16 @@ func build(e env, u UnitRef, key unitKey) *Presentation {
 	if p.Object = e.r.Schema().IsObject(n.Kind()); p.Object {
 		// An object is drawn by its kind's renderer from its node, between
 		// gap stops; its own inline slots (a figure's caption) are its
-		// surfaces, read in order between the gaps.
+		// surfaces, read in order between the gaps. An empty one is
+		// presented, as a card is, only while the object is selected or a
+		// selection end is in it: it takes no room otherwise, and opens
+		// for the caret to write in.
 		// TODO(tables): present cells as nested surfaces with stops.
 		if u.Gap != nil {
 			p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(*u.Gap), Surface: -1, Class: StopGap, Offset: u.Gap.Offset})
 		}
 		for i, sl := range n.Slots() {
-			if sl.IsInline() {
+			if sl.IsInline() && (sl.Len() > 0 || key.held) {
 				flowOf(e, p, doc.SlotRef{Node: n.ID(), Slot: i}, p.Group, false, 0)
 			}
 		}

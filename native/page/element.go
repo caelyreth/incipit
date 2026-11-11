@@ -71,9 +71,16 @@ type Element struct {
 	// under the pointer, and focused whether the page had the keys when
 	// last painted.
 	figures map[doc.ID]*figureMotion
-	hover   doc.ID
-	pointer ui.Point
-	focused bool
+	// rooms spring each figure's height as its caption line opens and
+	// closes, stepped as the view is built at now; roomsMoving asks for
+	// the next build.
+	rooms       map[doc.ID]*motion.Spring
+	now         time.Time
+	animate     bool
+	roomsMoving bool
+	hover       doc.ID
+	pointer     ui.Point
+	focused     bool
 	// drop is the line showing where pictures dragged over the page go,
 	// and dropAt the place they would.
 	drop   dropLine
@@ -115,6 +122,7 @@ func (el *Element) relayout() *pageLayout {
 	ed.SetStyle(el.Theme.Surface, Theme(el.Theme), m)
 	el.column = max((w-m.Width)/2, 0)
 	pl := ed.Relayout()
+	el.settleRooms(pl)
 	el.applyRestoredScroll(pl)
 	return pl
 }
@@ -189,7 +197,11 @@ func (el *Element) View(c *ui.Context) {
 	}
 	ed.Wake = c.Services().Invalidate
 	ed.Due(c.Now())
+	el.now, el.animate = c.Now(), !c.Preferences().ReduceMotion
 	pl := el.relayout()
+	if el.roomsMoving {
+		c.AnimationFrame()
+	}
 	el.follow(pl, c.Now())
 	ui.Column(c).Key("page-surface").Fill().Role(ui.RoleNone).Children(func() {
 		box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
@@ -603,14 +615,22 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
 			continue
 		}
-		for _, s := range u.surfaces {
-			sx, sy := ux+s.x, uy+s.y
-			if s.card {
-				p.Fill(ui.Rect{X: sx - cardPad(m)/2, Y: sy - cardPad(m)/2, W: s.w + cardPad(m), H: s.h + cardPad(m)}, t.Surface.Inset, 6)
+		surfaces := func() {
+			for _, s := range u.surfaces {
+				sx, sy := ux+s.x, uy+s.y
+				if s.card {
+					p.Fill(ui.Rect{X: sx - cardPad(m)/2, Y: sy - cardPad(m)/2, W: s.w + cardPad(m), H: s.h + cardPad(m)}, t.Surface.Inset, 6)
+				}
+				p.TextLayout(s.layout, sx, sy, t.Prose.Text)
+				el.paintGhosts(p, s, sx, sy)
+				el.paintBoxes(p, s, sx, sy)
 			}
-			p.TextLayout(s.layout, sx, sy, t.Prose.Text)
-			el.paintGhosts(p, s, sx, sy)
-			el.paintBoxes(p, s, sx, sy)
+		}
+		if u.shown < u.h {
+			// A caption line still opening shows as far as it has opened.
+			p.Clip(ui.Rect{X: ox, Y: uy, W: m.Width, H: u.shown}, 0, surfaces)
+		} else {
+			surfaces()
 		}
 	}
 	el.sweepFigures()

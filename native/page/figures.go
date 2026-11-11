@@ -23,9 +23,11 @@ import (
 // over it once decoded, with a hairline keeping a picture as light as the
 // page from bleeding into it.
 //
-// The caption is the figure's text, under the picture. An empty one keeps
-// its line, as an empty paragraph does, so the caret placed there, and
-// the hint shown while it is, reflow nothing.
+// The caption is the figure's text, under the picture. An empty one is
+// presented only while the figure is selected or the caret is in it, so a
+// figure without one takes no room for it; its line opens as the figure is
+// selected, the page below gliding down, Escape or a click there writes
+// one, and it closes again once neither holds and it is still empty.
 //
 // Held whole by the selection, a figure wears the ring the app gives what
 // is picked whole, never a wash over its picture; selected alone, or under
@@ -488,4 +490,44 @@ func (el *Element) paintDrop(p *ui.Painter, ox, oy float32, m Metrics, now time.
 		p.Fill(ui.Rect{X: ox, Y: y, W: m.Width, H: dropWeight}, el.Theme.Accent.Foreground.Alpha(a), dropWeight/2)
 	}
 	return animate && (d.y.Moving() || d.shown.Moving())
+}
+
+// settleRooms draws each figure at its height on the way there: a caption
+// line opening or closing springs between its room and none, and the units
+// after it move with it. Without a frame's time, as when a page is first
+// laid out, every figure stands at its height.
+func (el *Element) settleRooms(pl *pageLayout) {
+	if el.rooms == nil {
+		el.rooms = map[doc.ID]*motion.Spring{}
+	}
+	animate := el.animate && !el.now.IsZero()
+	seen := make(map[doc.ID]bool, len(el.rooms))
+	shift := float32(0)
+	moving := false
+	for _, u := range pl.units {
+		u.y += shift
+		if u.figure == nil {
+			continue
+		}
+		id := u.pres.Unit
+		seen[id] = true
+		sp, ok := el.rooms[id]
+		if !ok || !animate {
+			s := motion.NewSpring(u.h, el.now)
+			sp = &s
+			el.rooms[id] = sp
+		} else {
+			sp.Step(u.h, el.now, figureFade)
+		}
+		u.shown = max(sp.Value(), 0)
+		shift += u.shown - u.h
+		moving = moving || sp.Moving()
+	}
+	pl.height += shift
+	for id := range el.rooms {
+		if !seen[id] {
+			delete(el.rooms, id)
+		}
+	}
+	el.roomsMoving = moving
 }

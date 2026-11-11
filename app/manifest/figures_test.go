@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -169,4 +170,28 @@ func TestTypingOverASelectedFigureReplacesIt(t *testing.T) {
 	p.do(vocab.Dismiss{})
 	p.typeText("x")
 	p.want("page(paragraph(x))")
+}
+
+func TestAnEmptyCaptionOpensOnlyWhileItsFigureIsHeld(t *testing.T) {
+	p := open(t)
+	p.typeText("a")
+	p.placeFigure()
+	p.do(vocab.Dismiss{})
+	p.do(vocab.Break{})
+	p.typeText("b")
+	p.do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward})
+	var path []string
+	for range 4 {
+		p.do(right)
+		n, _ := p.e.Snapshot().Node(p.selection().Head.Pos.Node)
+		path = append(path, profile.Schema().KindName(n.Kind()))
+	}
+	// Past the figure, its empty caption is no stop.
+	if want := []string{"paragraph", "page", "page", "paragraph"}; fmt.Sprint(path) != fmt.Sprint(want) {
+		t.Fatalf("path %v, want %v", path, want)
+	}
+	// Selected, the caption opens, and Escape writes in it.
+	p.do(vocab.Place{Node: p.figure()})
+	p.do(vocab.Dismiss{})
+	p.wantInCaption()
 }

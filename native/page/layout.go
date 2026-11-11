@@ -137,10 +137,13 @@ type unitLayout struct {
 	box    ui.Rect
 	// figure is a figure's shape, as it is laid out.
 	figure *profile.Shape
+	// shown is the height the unit is drawn at: its height, or on its way
+	// there as a figure's caption line opens or closes.
+	shown float32
 }
 
-// bottom is the unit's lowest extent.
-func (u *unitLayout) bottom() float32 { return u.y + u.h }
+// bottom is the unit's lowest extent as drawn.
+func (u *unitLayout) bottom() float32 { return u.y + u.shown }
 
 // TODO(paint): layout and paint are one layer here. Colours are baked into
 // shaped spans and decorations, and the key carries a theme id, so a theme or
@@ -205,7 +208,7 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		if i > 0 {
 			y += m.Gap * gapBefore(p, th)
 		}
-		u.y = y
+		u.y, u.shown = y, u.h
 		y += u.h
 		// Index the stops by caret, in page order.
 		index := func(s *stopAt, pl2 place) {

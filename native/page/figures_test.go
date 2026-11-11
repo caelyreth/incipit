@@ -1,6 +1,7 @@
 package page
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -25,8 +26,9 @@ func figurePage(t *testing.T) (*Element, *unitLayout) {
 	return el, pl.units[1]
 }
 
-// A figure keeps its picture's room from its recorded size, centered, and
-// its caption's line, empty or not.
+// A figure keeps its picture's room from its recorded size, centered. An
+// empty caption takes no room until the figure is selected; one with text
+// keeps its line.
 func TestAFigureLaysOutFromItsShape(t *testing.T) {
 	el, u := figurePage(t)
 	if u.box.W != 400 || u.box.H != 300 {
@@ -36,23 +38,31 @@ func TestAFigureLaysOutFromItsShape(t *testing.T) {
 	if d := u.box.X - (width-400)/2; d > 0.5 || d < -0.5 {
 		t.Fatalf("box at %v, want centered in %v", u.box.X, width)
 	}
-	empty := u.h
-	if empty <= u.box.H {
-		t.Fatalf("empty caption: height %v", u.h)
+	if u.h != u.box.H {
+		t.Fatalf("closed caption: height %v, picture %v", u.h, u.box.H)
 	}
 	el.Editor.Do(vocab.Place{Node: u.pres.Unit}, time.Unix(300, 0))
+	el.relayout()
+	open := el.Editor.layout.units[1].h
+	if open <= u.box.H {
+		t.Fatalf("selected: height %v", open)
+	}
 	el.Editor.Do(vocab.Dismiss{}, time.Unix(301, 0))
 	typeText(el, "Dawn")
-	if u = el.Editor.layout.units[1]; u.h != empty {
-		t.Fatalf("captioned: height %v, empty %v", u.h, empty)
+	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(302, 0))
+	el.relayout()
+	if u = el.Editor.layout.units[1]; u.h != open {
+		t.Fatalf("captioned: height %v, open %v", u.h, open)
 	}
 }
 
-// A click on the picture selects the figure; one under it is in its
-// caption.
+// A click on the picture selects the figure, which opens its caption's
+// line; a click there is in the caption.
 func TestClicksSelectAFigureOrEnterItsCaption(t *testing.T) {
 	el, u := figurePage(t)
-	pl := el.Editor.layout
+	el.Editor.Do(vocab.Place{Node: u.pres.Unit}, time.Unix(300, 0))
+	pl := el.relayout()
+	u = pl.units[1]
 	_, node, ok := pl.hit(u.x+u.box.X+u.box.W/2, u.y+u.box.H/2)
 	if !ok || node != u.pres.Unit {
 		t.Fatalf("hit on the picture: node %v", node)
@@ -63,45 +73,48 @@ func TestClicksSelectAFigureOrEnterItsCaption(t *testing.T) {
 	}
 }
 
-// Down passes through a figure row by row: its gap before, its caption,
-// its gap after, then the text below; Up retraces it.
+// Down passes through a figure row by row: its gap before, its caption
+// when it has one, its gap after, then the text below; Up retraces it.
 func TestVerticalMotionPassesThroughAFigure(t *testing.T) {
-	el, u := figurePage(t)
-	ed := el.Editor
-	ed.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(400, 0))
-	var down []doc.Caret
-	for i := range 4 {
-		in, ok := ed.resolve(vocab.VisualMove{Dir: vocab.Down}, 600)
-		if !ok {
-			t.Fatalf("step %d unresolved", i)
+	for _, caption := range []string{"", "Dawn"} {
+		el, u := figurePage(t)
+		ed := el.Editor
+		if caption != "" {
+			ed.Do(vocab.Place{Node: u.pres.Unit}, time.Unix(300, 0))
+			ed.Do(vocab.Dismiss{}, time.Unix(301, 0))
+			typeText(el, caption)
 		}
-		ed.Do(in, time.Unix(int64(401+i), 0))
+		ed.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(400, 0))
 		el.relayout()
-		down = append(down, ed.Selection().Head)
-	}
-	want := []doc.Caret{u.gaps[0].caret, {}, u.gaps[1].caret, {}}
-	for i, c := range down {
-		switch i {
-		case 1:
-			if c.Pos.Node != u.pres.Unit {
-				t.Fatalf("step 2 at %v, want the caption", c)
+		var down []doc.Caret
+		for i := range 5 {
+			in, ok := ed.resolve(vocab.VisualMove{Dir: vocab.Down}, 600)
+			if !ok || in.Target == (doc.Caret{}) {
+				break
 			}
-		case 3:
-			if n, _ := ed.Engine.Snapshot().Node(c.Pos.Node); n.Kind() != profile.Paragraph {
-				t.Fatalf("step 4 at %v, want the text below", c)
-			}
-		default:
-			if c != want[i] {
-				t.Fatalf("step %d at %v, want %v", i+1, c, want[i])
-			}
+			ed.Do(in, time.Unix(int64(401+i), 0))
+			el.relayout()
+			down = append(down, ed.Selection().Head)
 		}
-	}
-	for i := 2; i >= 0; i-- {
-		in, _ := ed.resolve(vocab.VisualMove{Dir: vocab.Up}, 600)
-		ed.Do(in, time.Unix(int64(500+i), 0))
-		el.relayout()
-		if got := ed.Selection().Head; got.Pos.Node != down[i].Pos.Node || got.Pos.Slot != down[i].Pos.Slot {
-			t.Fatalf("up to %v, want %v", got, down[i])
+		var path []string
+		for _, c := range down {
+			n, _ := ed.Engine.Snapshot().Node(c.Pos.Node)
+			path = append(path, profile.Schema().KindName(n.Kind()))
+		}
+		want := []string{"page", "page", "paragraph"}
+		if caption != "" {
+			want = []string{"page", "figure", "page", "paragraph"}
+		}
+		if fmt.Sprint(path) != fmt.Sprint(want) {
+			t.Fatalf("caption %q: down %v, want %v", caption, path, want)
+		}
+		for i := len(down) - 2; i >= 0; i-- {
+			in, _ := ed.resolve(vocab.VisualMove{Dir: vocab.Up}, 600)
+			ed.Do(in, time.Unix(int64(500+i), 0))
+			el.relayout()
+			if got := ed.Selection().Head; got.Pos.Node != down[i].Pos.Node || got.Pos.Slot != down[i].Pos.Slot {
+				t.Fatalf("caption %q: up to %v, want %v", caption, got, down[i])
+			}
 		}
 	}
 }
