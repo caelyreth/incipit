@@ -623,8 +623,8 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
 			continue
 		}
-		if u.math != nil {
-			el.paintMath(p, u, ux, uy, covered[u.pres.Unit] && !u.math.held, now, animate)
+		if u.math != nil && u.math.box != nil {
+			el.paintMath(p, u, ux, uy, covered[u.pres.Unit] && !u.math.open, now, animate)
 		}
 		clip := ui.Rect{X: ox - cardPad(m), Y: uy, W: m.Width + 2*cardPad(m), H: u.shown}
 		p.Clip(clip, 0, func() {
@@ -635,7 +635,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 					// The source panel shows as far as the block has
 					// opened past its display.
 					ml := u.math
-					a := min(max((u.shown-ml.fold)/(ml.full-ml.fold), 0), 1)
+					a := float32(1)
+					if ml.full > ml.fold {
+						a = min(max((u.shown-ml.fold)/(ml.full-ml.fold), 0), 1)
+					}
 					if a > 0.001 {
 						el.paintSurface(p, s, ux, uy, true, a)
 					}
@@ -766,7 +769,7 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		}
 	}
 	for _, u := range pl.units {
-		if u.math != nil && !u.math.held {
+		if u.math != nil && !u.math.open {
 			continue
 		}
 		vis := visible(u)
@@ -1000,7 +1003,7 @@ func (el *Element) selectionRows(pl *pageLayout, covers []present.Cover) []ui.Re
 			}
 			continue
 		}
-		if u.math != nil && !u.math.held {
+		if u.math != nil && !u.math.open {
 			// A math block folded is washed over its display instead.
 			continue
 		}
@@ -1084,7 +1087,7 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 		o := objs[i].Rect
 		i++
 		if ms := sg.math; ms.box != nil {
-			ink, fill := el.mathAlpha(sg.node.ID(), sg.card >= 0, el.paintNow, el.animate, p)
+			ink, fill := el.mathAlpha(sg.node.ID(), ms.stale, sg.card >= 0, el.paintNow, el.animate, p)
 			if fill > 0.001 {
 				p.Fill(ui.Rect{X: sx + o.X - 1, Y: sy + o.Y - 1, W: o.W + 2, H: o.H + 2}, el.Theme.Prose.Selection.Alpha(fill), 4)
 			}

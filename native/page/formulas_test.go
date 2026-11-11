@@ -37,23 +37,38 @@ func TestAMathBlockFoldsItsSourceAway(t *testing.T) {
 	if u.math == nil || u.math.box == nil {
 		t.Fatal("the block's formula is not set")
 	}
-	if !u.math.held || u.h != u.math.full || u.math.full <= u.math.fold {
+	if !u.math.open || u.h != u.math.full || u.math.full <= u.math.fold {
 		t.Fatalf("held: height %v, fold %v, full %v", u.h, u.math.fold, u.math.full)
 	}
 	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(300, 0))
-	if u = block(); u.math.held || u.h != u.math.fold {
-		t.Fatalf("left: held %v, height %v, fold %v", u.math.held, u.h, u.math.fold)
+	if u = block(); u.math.open || u.h != u.math.fold {
+		t.Fatalf("left: open %v, height %v, fold %v", u.math.open, u.h, u.math.fold)
 	}
 }
 
-// A math block is math from its first keystroke: empty, or with a source
-// half typed, it is set as it stands, its panel open while it is held.
-func TestAMathBlockIsMathFromItsFirstKeystroke(t *testing.T) {
+// A math block that has never set is its source panel alone, open
+// whether held or not; once it has, a source half typed shows the last
+// that set, dimmed, its room unchanged.
+func TestAMathBlockShowsOnlyMathThatSets(t *testing.T) {
 	for _, src := range []string{"", `\`, `\frac{`} {
-		_, block := mathPage(t, src)
-		if u := block(); u.math == nil || u.math.box == nil || !u.math.held || u.h != u.math.full {
-			t.Fatalf("%q: not set as math with its panel open", src)
+		el, block := mathPage(t, src)
+		if u := block(); u.math.box != nil || u.h != u.math.full {
+			t.Fatalf("%q: has a display, or its panel is closed", src)
 		}
+		el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(300, 0))
+		if u := block(); u.math.box != nil || u.h != u.math.full {
+			t.Fatalf("%q left: has a display, or its panel is closed", src)
+		}
+	}
+	el, block := mathPage(t, `x^2`)
+	sound := block()
+	if sound.math.box == nil || sound.math.stale {
+		t.Fatal("x^2 is not set")
+	}
+	h := sound.math.h
+	typeText(el, `+\frac{`)
+	if u := block(); u.math.box == nil || !u.math.stale || u.math.h != h {
+		t.Fatal("a half-typed source does not hold the last that set")
 	}
 }
 

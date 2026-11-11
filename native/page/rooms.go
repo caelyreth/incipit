@@ -7,7 +7,8 @@ import (
 )
 
 // A unit changes shape when a surface opens or closes in it: a formula's
-// source card, a math block's source panel, a figure's caption line. Its
+// source card, a math block's source panel or display, a figure's caption
+// line. Its
 // height then springs from where it was drawn to where it is going, the
 // units after it gliding with it; what opened fades in as it does and
 // what closed fades out where it stood. Any other change of height, as a
@@ -29,11 +30,14 @@ type room struct {
 }
 
 // shapeOf is what a unit holds open: its surfaces, and a math block's
-// panel.
+// panel and display.
 func shapeOf(u *unitLayout) int {
-	n := len(u.surfaces) * 2
-	if u.math != nil && u.math.held {
+	n := len(u.surfaces) * 4
+	if u.math != nil && u.math.open {
 		n++
+	}
+	if u.math != nil && u.math.box != nil {
+		n += 2
 	}
 	return n
 }

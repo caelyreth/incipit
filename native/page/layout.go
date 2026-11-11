@@ -184,12 +184,14 @@ type place struct {
 
 // layoutCache keeps units' layouts between frames, by unit.
 type layoutCache struct {
-	units   map[doc.ID]*unitLayout
+	units map[doc.ID]*unitLayout
+	// good is each formula's last source that set soundly.
+	good    map[lastGood]string
 	themeID uintptr
 }
 
 func newLayoutCache() *layoutCache {
-	return &layoutCache{units: map[doc.ID]*unitLayout{}}
+	return &layoutCache{units: map[doc.ID]*unitLayout{}, good: map[lastGood]string{}}
 }
 
 // build lays the presentations out. Units whose presentation, metrics and
@@ -350,7 +352,7 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 	}
 	u.h = y
 	if p.Kind == profile.Math {
-		layMath(u, m, width, held)
+		layMath(u, lc, m, width, held)
 	}
 	return u
 }
@@ -444,7 +446,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			}
 			if it.Node.Kind() == profile.Formula {
 				// A formula stands in its line as its math, on the baseline.
-				if ms := setMath(it.Node.Text(), false, m.Body*style.Size, 0); ms.box != nil {
+				if ms := lc.typeset(it.Node.ID(), it.Node.Text(), false, m.Body*style.Size, 0); ms.box != nil {
 					sp := span("\uFFFC", style, m.Body)
 					sp.ObjectWidth = ms.to - ms.from + mathPad*2
 					sp.ObjectHeight, sp.ObjectDescent = ms.ascent, ms.descent
@@ -646,7 +648,7 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 		}
 		return u.gaps[1].caret, u.pres.Unit, true
 	}
-	if u.math != nil && (!u.math.held || y < u.y+u.math.h) && len(u.surfaces) > 0 {
+	if u.math != nil && (!u.math.open || y < u.y+u.math.h) && len(u.surfaces) > 0 {
 		// On a math block's display: its source, at its end.
 		if st := u.surfaces[0].stops; len(st) > 0 {
 			return st[len(st)-1].caret, 0, true

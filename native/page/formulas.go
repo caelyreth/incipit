@@ -17,36 +17,67 @@ import (
 //     baseline; while its source card is open it wears a soft fill, and the
 //     math above follows the source live as it is typed;
 //   - a math block shows its formula set for display, centered; its source
-//     is shown under it, in an inset panel, only while the caret or a
-//     selection end is in the block, the panel opening and closing as the
-//     page below glides with it.
+//     is shown under it, in an inset panel, while the caret or a selection
+//     end is in the block, the panel opening and closing as the page below
+//     glides with it.
 //
-// Math is always set from its source as it stands: a source half typed
-// sets with placeholders where an argument or group is still missing and
-// its unknown commands in the error ink, so an empty math block shows a
-// placeholder and a lone "\" is visible from its first keystroke. The
-// renderer remembers no earlier source (§11.7). Math fades in as it first
-// shows.
+// Math shows only a source that sets soundly: no placeholder boxes, no
+// error glyphs. While a source half typed does not set, the math shown is
+// the last source of that formula that did, dimmed, so its room holds
+// still as it is typed. A formula that has never set shows no math: an
+// inline one shows its source, and a math block is its source panel alone,
+// open whether held or not, so the block reads as math from the keystroke
+// that makes it. Math fades in as it first shows, and dims and brightens
+// as it goes stale and sound.
 
 const (
 	// mathPad is the room either side of inline math.
 	mathPad = 2
 	// displayScale sets display math over the body text.
 	displayScale = 1.15
+	// staleInk is how strongly math shows while its source does not set.
+	staleInk = 0.45
 	// mathFrequency springs math's fades.
 	mathFrequency = float32(16)
 )
 
-// mathSet is a formula as set for drawing: its box and its geometry.
+// mathSet is a formula as set for drawing: its box, whether it is the last
+// sound source standing in for one that is not, and its geometry.
 type mathSet struct {
 	box             *untie.Box
+	stale           bool
 	ascent, descent float32
 	// from and to are how far across the box its ink reaches.
 	from, to float32
 }
 
-// setMath sets a formula's source; a zero mathSet when the math font is
-// missing.
+// lastGood keys a formula's last sound source by its node and mode.
+type lastGood struct {
+	node    doc.ID
+	display bool
+}
+
+// typeset sets a formula's source: as written when it sets soundly, else
+// the last source of that formula that did, marked stale; a zero mathSet
+// when none has.
+func (lc *layoutCache) typeset(id doc.ID, src string, display bool, size, width float32) mathSet {
+	k := lastGood{id, display}
+	if !formula.Sound(src, display) {
+		last, ok := lc.good[k]
+		if !ok {
+			return mathSet{}
+		}
+		ms := setMath(last, display, size, width)
+		ms.stale = true
+		return ms
+	}
+	if len(lc.good) > 4096 {
+		clear(lc.good)
+	}
+	lc.good[k] = src
+	return setMath(src, display, size, width)
+}
+
 func setMath(src string, display bool, size, width float32) mathSet {
 	box := formula.Set(src, display, size, width)
 	if box == nil {
@@ -64,30 +95,32 @@ type mathLayout struct {
 	mathSet
 	h float32
 	// fold and full are the block's height with its source panel closed
-	// and open; held is whether a selection end is in it.
+	// and open; open is whether the panel shows: while the block is held,
+	// or always while it has no display.
 	fold, full float32
-	held       bool
+	open       bool
 }
 
-// layMath lays out a math block's display over its source: the source
-// panel opens only while the block is held.
-func layMath(u *unitLayout, m Metrics, width float32, held bool) {
+// layMath lays out a math block's display over its source panel.
+func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32, held bool) {
 	if len(u.surfaces) == 0 {
 		return
 	}
-	ms := setMath(u.pres.Node.Text(), true, m.Body*displayScale, width)
-	if ms.box == nil {
-		return
+	ms := lc.typeset(u.pres.Unit, u.pres.Node.Text(), true, m.Body*displayScale, width)
+	ml := &mathLayout{mathSet: ms, open: held || ms.box == nil}
+	if ms.box != nil {
+		ml.h = ms.ascent + ms.descent + 2*m.Body*0.45
 	}
-	pad := m.Body * 0.45
-	ml := &mathLayout{mathSet: ms, held: held}
-	ml.h = ms.ascent + ms.descent + 2*pad
 	s := u.surfaces[0]
 	s.x, s.y = cardPad(m), ml.h+cardPad(m)
-	ml.fold, ml.full = ml.h, s.y+s.h+cardPad(m)*0.75
+	ml.full = s.y + s.h + cardPad(m)*0.75
+	ml.fold = ml.h
+	if ms.box == nil {
+		ml.fold = ml.full
+	}
 	u.math = ml
 	u.h = ml.fold
-	if held {
+	if ml.open {
 		u.h = ml.full
 	}
 }
@@ -105,8 +138,8 @@ func heldBy(p *present.Presentation, sel doc.Selection) bool {
 	return false
 }
 
-// mathMotion is a formula's springs across frames: its ink, as it first
-// shows, and the fill its open card gives it.
+// mathMotion is a formula's springs across frames: its ink, as it shows
+// and goes stale, and the fill its open card gives it.
 type mathMotion struct {
 	ink, fill motion.Spring
 	seen      bool
@@ -114,8 +147,11 @@ type mathMotion struct {
 
 // mathAlpha steps a formula's springs toward where they are going and
 // returns its ink's and its fill's strength.
-func (el *Element) mathAlpha(id doc.ID, open bool, now time.Time, animate bool, p *ui.Painter) (float32, float32) {
+func (el *Element) mathAlpha(id doc.ID, stale, open bool, now time.Time, animate bool, p *ui.Painter) (float32, float32) {
 	ink, fill := float32(1), float32(0)
+	if stale {
+		ink = staleInk
+	}
 	if open {
 		fill = 1
 	}
@@ -147,7 +183,7 @@ func (el *Element) inks(a float32) formula.Inks {
 // paintMath draws a math block's display, centered in its column.
 func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32, covered bool, now time.Time, animate bool) {
 	ml := u.math
-	ink, _ := el.mathAlpha(u.pres.Unit, false, now, animate, p)
+	ink, _ := el.mathAlpha(u.pres.Unit, ml.stale, false, now, animate, p)
 	pad := (ml.h - ml.ascent - ml.descent) / 2
 	if covered {
 		// Held by a selection with its source closed, the display is
