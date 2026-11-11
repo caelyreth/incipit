@@ -32,8 +32,18 @@ func (product) Context(r doc.Reader, ref doc.SlotRef) any {
 	return nil
 }
 
-// NodeRoles lists the roles a node kind provides.
+// NodeRoles lists the roles a node kind provides. Every object with a
+// slot of its own is Leavable: its own slots are left beside it and
+// returned to at their end, whatever the object.
 func NodeRoles(k doc.Kind) []vocab.Role {
+	roles := kindRoles(k)
+	if spec, ok := Schema().Kind(k); ok && spec.Object && len(spec.Slots) > 0 && !spec.Slots[0].Blocks {
+		roles = append([]vocab.Role{vocab.RoleLeavable}, roles...)
+	}
+	return roles
+}
+
+func kindRoles(k doc.Kind) []vocab.Role {
 	switch k {
 	case Heading:
 		return []vocab.Role{vocab.RoleLeveled}
@@ -42,12 +52,12 @@ func NodeRoles(k doc.Kind) []vocab.Role {
 	case Item:
 		return []vocab.Role{vocab.RoleLeveled, vocab.RoleContinued}
 	case Formula:
-		return []vocab.Role{vocab.RoleLeavable, vocab.RoleCloser, vocab.RoleStructure}
+		return []vocab.Role{vocab.RoleCloser, vocab.RoleStructure}
 	case Cell:
 		return []vocab.Role{vocab.RoleLeavable}
-	case Math, Code:
+	case Code:
 		return []vocab.Role{vocab.RoleLeveled, vocab.RoleStructure}
-	case Table, Figure, Divider:
+	case Math, Table, Figure, Divider:
 		return []vocab.Role{vocab.RoleStructure}
 	}
 	return nil
@@ -62,7 +72,7 @@ func NodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
 			return headingLevel{id: n.ID(), level: HeadingLevel(n)}, true
 		case Item:
 			return itemLevel(n.ID()), true
-		case Code, Math:
+		case Code:
 			return plainLevel(n.ID()), true
 		}
 	case vocab.RoleCloser:
@@ -74,15 +84,17 @@ func NodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
 			return itemNext{task: TaskOf(n)}, true
 		}
 	case vocab.RoleLeavable:
-		switch n.Kind() {
-		case Formula:
-			parent, slot, _ := r.Parent(n.ID())
-			pn, _ := r.Node(parent)
-			at, _ := pn.Slot(slot).Content().NodeOffset(n.ID())
+		if r.Schema().IsObject(n.Kind()) {
+			after, ok := vocab.Beside(r, n.ID(), vocab.Forward)
+			if !ok {
+				return nil, false
+			}
 			return leavable{
-				exit:  doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: at + 1}),
+				exit:  doc.CaretAt(after),
 				entry: doc.CaretAt(doc.Pos{Node: n.ID(), Offset: n.Slot(0).Len()}),
 			}, true
+		}
+		switch n.Kind() {
 		case Cell:
 			table := doc.Ancestors(r, n.ID())
 			if len(table) >= 2 {

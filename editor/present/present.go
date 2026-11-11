@@ -63,8 +63,9 @@ type Flow struct {
 	Literal bool
 }
 
-// Surface is a flow the renderer lays out: the unit's main flow, or a
-// card anchored to a Box.
+// Surface is a flow the renderer lays out: the unit's main flow, an
+// object's own slot, or a card anchored to a Box (an inline object's own
+// slot).
 type Surface struct {
 	Flow Flow
 	// Group is the flow's base group: the unit's, or the box's face.
@@ -72,6 +73,12 @@ type Surface struct {
 	// Anchor is the box node a card hangs from; zero for the main flow.
 	Anchor doc.ID
 	Card   bool
+	// Open is set on a main flow, and on an object's own slot while the
+	// object is held: selected, or holding a selection end. An object's
+	// own slots are presented always, their stops with them, so motion
+	// enters them as it enters any text; the renderer draws one only open,
+	// and gives a closed one no room (§13.4).
+	Open bool
 }
 
 // StopClass is a caret stop's class.
@@ -81,7 +88,6 @@ const (
 	StopFlow StopClass = iota + 1
 	StopGhost
 	StopGap
-	StopEntry
 )
 
 // Stop maps a caret to a surface and an offset in its flow.
@@ -331,7 +337,7 @@ func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Re
 		key.open = strings.Join(ids, ",")
 		key.held = u.Gap != nil && held(r, u.Node, view.Selection)
 	}
-	key.facts = factContext(prog, r, view, append([]doc.ID{u.ID}, cards...))
+	key.facts = factContext(prog, r, view, append([]doc.ID{u.ID}, inlineObjects(u.Node)...))
 	pr.mu.Lock()
 	if p, ok := pr.memo[u.ID]; ok && p.key == key {
 		pr.mu.Unlock()
@@ -383,8 +389,15 @@ func held(r doc.Reader, n *doc.Node, s doc.Selection) bool {
 	return false
 }
 
-// openCards names the inline nodes of n whose slot holds a selection end.
+// openCards names the inline objects of n that are held: selected, or
+// holding a selection end in their slot.
 func openCards(r doc.Reader, n *doc.Node, s doc.Selection) []doc.ID {
+	if s.Kind == doc.SelectNode {
+		if s.Node != n.ID() && within(r, n, s.Node) {
+			return []doc.ID{s.Node}
+		}
+		return nil
+	}
 	if s.Kind != doc.SelectText {
 		return nil
 	}
@@ -404,8 +417,26 @@ func openCards(r doc.Reader, n *doc.Node, s doc.Selection) []doc.ID {
 	return slices.Compact(open)
 }
 
+// inlineObjects are the inline nodes in n's own slots, whose slots n
+// presents as its cards.
+func inlineObjects(n *doc.Node) []doc.ID {
+	var out []doc.ID
+	for _, sl := range n.Slots() {
+		if !sl.IsInline() {
+			continue
+		}
+		sl.Content().Each(func(_ int, it doc.Item) bool {
+			if it.Node != nil {
+				out = append(out, it.Node.ID())
+			}
+			return true
+		})
+	}
+	return out
+}
+
 // factContext is what the facts of the slots a unit presents depend on:
-// its own text's and each open card's.
+// its own text's and each card's.
 func factContext(prog *policy.Program, r doc.Reader, view *policy.View, nodes []doc.ID) string {
 	var b strings.Builder
 	for _, id := range nodes {
@@ -436,18 +467,16 @@ func build(e env, u UnitRef, key unitKey) *Presentation {
 		Role: style.Role, Level: style.Level, Gap: u.Gap, key: key}
 	if p.Object = e.r.Schema().IsObject(n.Kind()); p.Object {
 		// An object is drawn by its kind's renderer from its node, between
-		// gap stops; its own inline slots (a figure's caption) are its
-		// surfaces, read in order between the gaps. An empty one is
-		// presented, as a card is, only while the object is selected or a
-		// selection end is in it: it takes no room otherwise, and opens
-		// for the caret to write in.
+		// gap stops; its own inline slots (a figure's caption, a math
+		// block's source) are its surfaces, read in order between the
+		// gaps, open while the object is held.
 		// TODO(tables): present cells as nested surfaces with stops.
 		if u.Gap != nil {
 			p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(*u.Gap), Surface: -1, Class: StopGap, Offset: u.Gap.Offset})
 		}
 		for i, sl := range n.Slots() {
-			if sl.IsInline() && (sl.Len() > 0 || key.held) {
-				flowOf(e, p, doc.SlotRef{Node: n.ID(), Slot: i}, p.Group, false, 0)
+			if sl.IsInline() {
+				flowOf(e, p, doc.SlotRef{Node: n.ID(), Slot: i}, p.Group, false, 0, key.held)
 			}
 		}
 		if u.Gap != nil {
@@ -461,25 +490,23 @@ func build(e env, u UnitRef, key unitKey) *Presentation {
 	if !ok || ref.Node != n.ID() {
 		return p
 	}
-	flowOf(e, p, ref, p.Group, false, 0)
+	flowOf(e, p, ref, p.Group, false, 0, true)
 	p.setAccessible()
 	return p
 }
 
-// flowOf presents an inline slot as a surface, appending its stops; boxes
-// whose slot holds a selection end get cards after it.
-func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool, anchor doc.ID) {
+// flowOf presents an inline slot as a surface, appending its stops; each
+// inline object's own slot follows it as a card, its stops inside the box,
+// open while the object is held.
+func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool, anchor doc.ID, open bool) {
 	prog, store, r, view := e.prog, e.store, e.r, e.view
 	owner, _ := r.Node(ref.Node)
 	slot := owner.Slot(ref.Slot)
 	content := slot.Content()
 	spec, _ := vocab.SlotSpec(r, ref)
 	index := len(p.Surfaces)
-	p.Surfaces = append(p.Surfaces, Surface{Flow: Flow{Slot: ref, Literal: spec.Literal}, Group: base, Anchor: anchor, Card: card})
+	p.Surfaces = append(p.Surfaces, Surface{Flow: Flow{Slot: ref, Literal: spec.Literal}, Group: base, Anchor: anchor, Card: card, Open: open})
 	cls := StopFlow
-	if card {
-		cls = StopEntry
-	}
 
 	// Paints that always show split runs by their fact spans.
 	type paintSpan struct {
@@ -568,12 +595,12 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 			face := e.look.Style(it.Node, p.Context).Group
 			box := Item{Kind: BoxItem, From: at, To: at + 1, Node: it.Node, Groups: []vocab.Group{base}, Face: face, Surface: -1}
 			items = append(items, box)
-			if src, ok := vocab.FirstTextSlot(it.Node); ok && src.Node == it.Node.ID() && p.key.isOpen(it.Node.ID()) {
+			if src, ok := vocab.FirstTextSlot(it.Node); ok && src.Node == it.Node.ID() {
 				items[len(items)-1].Surface = len(p.Surfaces)
 				// Stops are ordered by position: the card's sit inside the
 				// box, between its two flow stops.
 				flush()
-				flowOf(e, p, src, face, true, it.Node.ID())
+				flowOf(e, p, src, face, true, it.Node.ID(), p.key.isOpen(it.Node.ID()))
 			}
 			stop(at + 1)
 			return true
@@ -632,8 +659,8 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 	flush()
 }
 
-// isOpen reports whether the key opens the card of inline node id: a
-// selection end is in its slot.
+// isOpen reports whether the key opens the card of inline object id: it is
+// held.
 func (k unitKey) isOpen(id doc.ID) bool {
 	if k.open == "" {
 		return false

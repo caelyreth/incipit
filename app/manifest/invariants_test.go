@@ -12,7 +12,6 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
-	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/store"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -339,7 +338,7 @@ func TestStopMapIsTotalMonotonicAndReversible(t *testing.T) {
 					t.Fatalf("bound of %v runs before the bound of %v", c, fwd[i-1])
 				}
 			}
-			// Total: every flow stop of every unit is visited.
+			// Total: every stop of every unit is visited, an object's own slots included.
 			seen := map[doc.Caret]bool{}
 			for _, c := range fwd {
 				seen[c] = true
@@ -351,7 +350,7 @@ func TestStopMapIsTotalMonotonicAndReversible(t *testing.T) {
 			}
 			for _, pres := range p.e.Present(1, ids) {
 				for _, s := range pres.Stops {
-					if s.Class != present.StopEntry && !seen[s.Caret] {
+					if !seen[s.Caret] {
 						t.Fatalf("stop %v of %s is never visited", s.Caret, outline(pres.Node))
 					}
 				}
@@ -385,7 +384,8 @@ func TestCaretMotionRetracesItsSteps(t *testing.T) {
 	}
 }
 
-// Inside a card, motion stays in the card and leaves through its edges.
+// Motion passes through an inline object's own slot as through any text:
+// in from before it, out after it.
 func TestMotionInsideACard(t *testing.T) {
 	p := open(t)
 	p.typeText("a $xy")
@@ -400,8 +400,14 @@ func TestMotionInsideACard(t *testing.T) {
 	if h := head(); h.Pos.Node == formula || h.Pos.Offset != 2 {
 		t.Fatalf("leaving the card's start: %v, want before the formula", h)
 	}
-	// From outside, motion passes the formula as one unit.
+	// From before it, motion enters its source, and leaves it after.
 	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward})
+	if h := head(); h.Pos.Node != formula || h.Pos.Offset != 0 {
+		t.Fatalf("entering the formula: %v, want its source's start", h)
+	}
+	for range 3 {
+		p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward})
+	}
 	if h := head(); h.Pos.Node == formula || h.Pos.Offset != 3 {
 		t.Fatalf("passing the formula: %v, want after it", h)
 	}

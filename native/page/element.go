@@ -76,6 +76,7 @@ type Element struct {
 	// for the next paint. maths are the formulas' fades. animate is
 	// whether motion is wanted, as the last paint found.
 	rooms       map[doc.ID]*room
+	objects     map[doc.ID]*objectMotion
 	maths       map[doc.ID]*mathMotion
 	paintNow    time.Time
 	animate     bool
@@ -592,10 +593,9 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	for _, row := range rows {
 		p.Fill(ui.Rect{X: ox + row.X, Y: oy + row.Y, W: row.W, H: row.H}, wash, 2)
 	}
-	whole, covered := map[doc.ID]bool{}, map[doc.ID]bool{}
+	held := whole{}
 	for _, c := range covers {
-		whole[c.Unit] = c.Whole
-		covered[c.Unit] = c.Whole || len(c.Spans) > 0
+		held[c.Unit] = c.Whole
 	}
 	for _, u := range pl.units {
 		uy := oy + u.y
@@ -608,19 +608,18 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			bx := ox + float32(u.pres.Context.Indent+q)*m.Indent + m.Indent*0.3
 			p.Fill(ui.Rect{X: bx, Y: uy - m.Gap/2, W: 2, H: u.h + m.Gap}, t.Prose.Subtle, 1)
 		}
+		panel := float32(0)
 		switch {
 		case u.figure != nil:
-			el.paintFigure(p, u, ux, uy, whole[u.pres.Unit], now, animate)
+			el.paintFigure(p, u, ux, uy, now, animate)
+		case u.math != nil:
+			panel = el.paintMath(p, u, ux, uy)
 		case u.object:
 			// TODO(tables): tables draw their own grid; every other
 			// object is a divider until then.
 			mid := uy + u.h/2
 			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
 			continue
-		}
-		panel := float32(0)
-		if u.math != nil {
-			panel = el.paintMath(p, u, ux, uy, covered[u.pres.Unit] && !u.math.open)
 		}
 		clip := ui.Rect{X: ox - cardPad(m), Y: uy, W: m.Width + 2*cardPad(m), H: u.shown}
 		p.Clip(clip, 0, func() {
@@ -633,22 +632,24 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 					if a := panel; a > 0.001 {
 						el.paintSurface(p, s, ux, uy, true, a)
 					}
+				case !s.shown:
 				case s.card:
 					el.paintSurface(p, s, ux, uy, true, open)
 				default:
 					el.paintSurface(p, s, ux, uy, false, 1)
 				}
 			}
-			if prev, a := el.closing(u); prev != nil {
+			if prev, a := el.closing(u); prev != nil && a > 0.001 {
 				// A card closed fades out where it stood.
-				for _, s := range prev.surfaces {
-					if s.card && a > 0.001 {
+				for i, s := range prev.surfaces {
+					if s.card && s.shown && (i >= len(u.surfaces) || !u.surfaces[i].shown) {
 						el.paintSurface(p, s, ux, uy, true, a)
 					}
 				}
 			}
 		})
 	}
+	el.paintRings(p, heldBoxes(pl, sel, held), ox, oy, now, animate)
 	el.sweepMaths()
 	el.sweepFigures()
 	if el.paintDrop(p, ox, oy, m, now, animate) {
@@ -742,7 +743,7 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		}
 		sd.seen = true
 		if visible || sd.rows == nil {
-			sd.rows = decoRows(s, d.rg, u.x+s.x, u.y+s.y)
+			sd.rows = rangeRows(u, s, d.rg)
 		}
 	}
 	visible := func(u *unitLayout) bool {
@@ -760,9 +761,6 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		}
 	}
 	for _, u := range pl.units {
-		if u.math != nil && !u.math.open {
-			continue
-		}
 		vis := visible(u)
 		for _, s := range u.surfaces {
 			for _, d := range s.decos {
@@ -985,25 +983,19 @@ func (el *Element) selectionRows(pl *pageLayout, covers []present.Cover) []ui.Re
 	}
 	for _, c := range covers {
 		u, ok := byUnit[c.Unit]
-		if !ok {
+		if !ok || c.Whole && u.object {
+			// An object held whole wears its ring instead.
 			continue
 		}
-		if u.object && u.figure == nil {
-			if c.Whole {
-				out = append(out, ui.Rect{X: u.x, Y: u.y, W: el.Editor.metrics.Width - u.x, H: u.h})
-			}
-			continue
-		}
-		if u.math != nil && !u.math.open {
-			// A math block folded is washed over its display instead.
-			continue
-		}
-		// A figure held whole wears its ring; its caption is washed as
-		// text.
 		ranges := pl.coverRanges(u, c)
 		for _, s := range u.surfaces {
 			rg, ok := ranges[s]
 			if !ok {
+				continue
+			}
+			if !s.shown {
+				r := standIn(u, s)
+				out = append(out, ui.Rect{X: u.x + r.X, Y: u.y + r.Y, W: r.W, H: r.H})
 				continue
 			}
 			for _, sr := range s.layout.SelectionRects(rg) {
@@ -1082,7 +1074,7 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 			continue
 		}
 		bg := el.Theme.Accent.Muted
-		if sg.card >= 0 {
+		if sg.open {
 			bg = el.Theme.Prose.Selection
 		}
 		p.Fill(ui.Rect{X: sx + o.X, Y: sy + o.Y, W: o.W, H: o.H}, bg, 4)

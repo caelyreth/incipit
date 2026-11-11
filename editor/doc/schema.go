@@ -59,8 +59,10 @@ type KindSpec struct {
 	// Check holds validity a kind adds beyond its slots and fields, such
 	// as a table's rows matching its columns. It sees the node's children.
 	Check func(n *Node) error
-	// Object makes a block one unit the caret selects whole rather than
-	// enters as text.
+	// Object makes a node one unit in the slot that holds it, which the
+	// caret selects whole rather than enters as text: a block between its
+	// gaps, or an inline node in its line. Its own inline slots, such as a
+	// figure's caption or a formula's source, are entered as its surfaces.
 	Object bool
 	// Plain is the text block a block becomes when its structure is taken
 	// away. Exactly one kind declares it.
@@ -167,7 +169,7 @@ func (s *Schema) MarkKinds() []MarkKind { return s.markOrder }
 // Plain is the plain text block kind.
 func (s *Schema) Plain() Kind { return s.plain }
 
-// IsObject reports a block the caret selects whole.
+// IsObject reports a node the caret selects whole (KindSpec.Object).
 func (s *Schema) IsObject(k Kind) bool {
 	spec, ok := s.kinds[k]
 	return ok && spec.Object

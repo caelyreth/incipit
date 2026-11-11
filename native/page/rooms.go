@@ -34,7 +34,12 @@ type room struct {
 // shapeOf is what a unit holds open: its surfaces, and a math block's
 // panel and display.
 func shapeOf(u *unitLayout) int {
-	n := len(u.surfaces) * 4
+	n := 0
+	for _, s := range u.surfaces {
+		if s.shown {
+			n += 4
+		}
+	}
 	if u.math != nil && u.math.open {
 		n++
 	}

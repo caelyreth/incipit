@@ -200,12 +200,13 @@ func TestHitPlacesCaret(t *testing.T) {
 	}
 }
 
-// A click on a closed formula enters its source at the nearer end, and the
-// formula's card opens.
-func TestClickingAFormulaEntersItsSource(t *testing.T) {
+// A click on a formula selects it, as a click on any object's drawing
+// does, and its card opens; a drag extends from the half it is on.
+func TestClickingAFormulaSelectsIt(t *testing.T) {
 	el := newElement(t)
 	typeText(el, "f $x+1$ g")
-	pl := el.Editor.layout
+	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Forward}, time.Unix(400, 0))
+	pl := el.relayout()
 	s := pl.units[0].surfaces[0]
 	var box *seg
 	var r ui.Rect
@@ -219,23 +220,20 @@ func TestClickingAFormulaEntersItsSource(t *testing.T) {
 		t.Fatal("no formula set as math")
 	}
 	ox, oy := pl.units[0].origin(s)
-	// Its right half: the source's end.
-	c, _, ok := pl.hit(ox+r.X+r.W-1, oy+r.Y+r.H/2)
-	if !ok || c.Pos.Node != box.node.ID() || c.Pos.Offset != len("x+1") {
-		t.Fatalf("hit %v, want the end of the formula's source", c)
+	c, id, ok := pl.hit(ox+r.X+r.W-1, oy+r.Y+r.H/2)
+	if !ok || id != box.node.ID() || c.Pos.Offset != 3 {
+		t.Fatalf("hit %v %v, want the formula, after it", c, id)
 	}
-	// Its left half: the source's start.
-	c, _, _ = pl.hit(ox+r.X+1, oy+r.Y+r.H/2)
-	if c.Pos.Node != box.node.ID() || c.Pos.Offset != 0 {
-		t.Fatalf("hit %v, want the start of the formula's source", c)
+	if c, _, _ = pl.hit(ox+r.X+1, oy+r.Y+r.H/2); c.Pos.Offset != 2 {
+		t.Fatalf("hit %v, want before the formula", c)
 	}
 	el.Editor.place(ox+r.X+1, oy+r.Y+r.H/2, 1, false, time.Unix(500, 0))
 	el.relayout()
-	if h := el.Editor.Selection().Head; h != c {
-		t.Fatalf("placed at %v, want %v", h, c)
+	if sel := el.Editor.Selection(); sel.Kind != doc.SelectNode || sel.Node != box.node.ID() {
+		t.Fatalf("selection %+v, want the formula", sel)
 	}
-	if n := len(el.Editor.layout.units[0].surfaces); n != 2 {
-		t.Fatalf("%d surfaces, want the formula's card open", n)
+	if card := el.Editor.layout.units[0].surfaces[1]; !card.shown {
+		t.Fatal("the formula's card is closed")
 	}
 }
 

@@ -52,19 +52,13 @@ func (m *stopModel) unit(i int) *present.Presentation {
 	return m.pr.Unit(m.prog, m.store, m.r, m.view, i)
 }
 
-// flowStops are a unit's stops that ordinary motion reaches from outside
-// its cards.
+// flowStops are a unit's stops: ordinary motion reaches every one, an
+// object's own slots' among them (§13.5).
 func flowStops(p *present.Presentation) []present.Stop {
 	if p == nil {
 		return nil
 	}
-	out := make([]present.Stop, 0, len(p.Stops))
-	for _, s := range p.Stops {
-		if s.Class != present.StopEntry {
-			out = append(out, s)
-		}
-	}
-	return out
+	return p.Stops
 }
 
 // locate finds c among stops: exactly, or else the place it would stand,
@@ -94,18 +88,11 @@ func (m *stopModel) Step(c doc.Caret, dir vocab.Direction) (doc.Caret, bool) {
 	if p == nil {
 		return c, false
 	}
-	// Within a card, motion stays among the card's stops; its edges lead
-	// out beside its box, which is the stop next to the card's in order.
+	// A card's stops stand inside its box, between the box's two flow
+	// stops, so motion passes through an inline object's own slot as it
+	// passes through a block object's.
 	stops := p.Stops
 	j, exact := locate(m.r, stops, c)
-	inCard := exact && stops[j].Class == present.StopEntry
-	surface := -1
-	if inCard {
-		surface = stops[j].Surface
-	}
-	reach := func(s present.Stop) bool {
-		return s.Class != present.StopEntry || s.Surface == surface
-	}
 	k := j
 	if !exact && dir < 0 {
 		// Not a stop itself: the stop before it is the first backward.
@@ -116,7 +103,7 @@ func (m *stopModel) Step(c doc.Caret, dir vocab.Direction) (doc.Caret, bool) {
 		if k < 0 || k >= len(stops) {
 			break
 		}
-		if reach(stops[k]) && stops[k].Caret != c {
+		if stops[k].Caret != c {
 			return stops[k].Caret, true
 		}
 	}

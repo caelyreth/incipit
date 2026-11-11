@@ -198,6 +198,47 @@ func SlotSpec(r doc.Reader, ref doc.SlotRef) (doc.SlotSpec, bool) {
 	return spec.Slots[ref.Slot], true
 }
 
+// Beside is the place right before a node (Backward) or right after it
+// (Forward) in the slot that holds it: a gap for a block, an offset in
+// its line for an inline node.
+func Beside(r doc.Reader, id doc.ID, dir Direction) (doc.Pos, bool) {
+	parent, slot, index, ok := Index(r, id)
+	if !ok {
+		return doc.Pos{}, false
+	}
+	if dir > 0 {
+		index++
+	}
+	return doc.Pos{Node: parent, Slot: slot, Offset: index}, true
+}
+
+// OwnObject is the object whose own slot holds p, if p is in one.
+func OwnObject(r doc.Reader, p doc.Pos) (*doc.Node, bool) {
+	n, ok := r.Node(p.Node)
+	if !ok || !r.Schema().IsObject(n.Kind()) || p.Slot >= n.NumSlots() || !n.Slot(p.Slot).IsInline() {
+		return nil, false
+	}
+	return n, true
+}
+
+// ObjectToward is the inline object right beside p in direction dir, in
+// p's line: what deleting one unit that way would delete.
+func ObjectToward(r doc.Reader, p doc.Pos, dir Direction) (*doc.Node, bool) {
+	n, ok := r.Node(p.Node)
+	if !ok || p.Slot >= n.NumSlots() || !n.Slot(p.Slot).IsInline() {
+		return nil, false
+	}
+	at := p.Offset
+	if dir < 0 {
+		at--
+	}
+	it, _, ok := n.Slot(p.Slot).Content().ItemAt(at)
+	if !ok || it.Node == nil || !r.Schema().IsObject(it.Node.Kind()) {
+		return nil, false
+	}
+	return it.Node, true
+}
+
 // Index returns where id stands among its siblings.
 func Index(r doc.Reader, id doc.ID) (parent doc.ID, slot, index int, ok bool) {
 	parent, slot, ok = r.Parent(id)

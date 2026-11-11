@@ -165,7 +165,7 @@ var kindSpecs = []doc.KindSpec{
 	{Kind: Code, Name: "code", Placement: doc.PlaceBlock,
 		Slots:  []doc.SlotSpec{{Name: "text", Literal: true, Lines: true}},
 		Fields: []doc.FieldSpec{{Num: FieldInfo, Name: "info", Default: doc.Text(""), Valid: isText}}},
-	{Kind: Math, Name: "math", Placement: doc.PlaceBlock,
+	{Kind: Math, Name: "math", Placement: doc.PlaceBlock, Object: true,
 		Slots: []doc.SlotSpec{{Name: "source", Literal: true, Lines: true}}},
 	{Kind: Divider, Name: "divider", Placement: doc.PlaceBlock, Object: true},
 	{Kind: Figure, Name: "figure", Placement: doc.PlaceBlock, Object: true,
@@ -188,7 +188,7 @@ var kindSpecs = []doc.KindSpec{
 		Slots: []doc.SlotSpec{{Name: "cells", Blocks: true, Accepts: only(Cell)}}},
 	{Kind: Cell, Name: "cell", Placement: doc.PlaceBlock,
 		Slots: []doc.SlotSpec{richSlot("text", true)}},
-	{Kind: Formula, Name: "formula", Placement: doc.PlaceInline,
+	{Kind: Formula, Name: "formula", Placement: doc.PlaceInline, Object: true,
 		Slots: []doc.SlotSpec{{Name: "source", Literal: true}}},
 }
 

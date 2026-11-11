@@ -71,6 +71,8 @@ func TestAPictureSplitsTheTextItLandsIn(t *testing.T) {
 	p.want("page(paragraph(ab))")
 }
 
+// Return in a caption breaks beside the figure, as in any object's own
+// slot that keeps no lines: a paragraph opens after it, the caption whole.
 func TestReturnInACaptionContinuesBelow(t *testing.T) {
 	p := open(t)
 	p.placeFigure()
@@ -79,7 +81,8 @@ func TestReturnInACaptionContinuesBelow(t *testing.T) {
 		p.do(left)
 	}
 	p.do(vocab.Break{})
-	p.want("page(figure(Dawn) paragraph( light))")
+	p.typeText("x")
+	p.want("page(figure(Dawn light) paragraph(x))")
 }
 
 func TestEscapeMovesBetweenAFigureAndItsCaption(t *testing.T) {
@@ -186,8 +189,9 @@ func TestAnEmptyCaptionOpensOnlyWhileItsFigureIsHeld(t *testing.T) {
 		n, _ := p.e.Snapshot().Node(p.selection().Head.Pos.Node)
 		path = append(path, profile.Schema().KindName(n.Kind()))
 	}
-	// Past the figure, its empty caption is no stop.
-	if want := []string{"paragraph", "page", "page", "paragraph"}; fmt.Sprint(path) != fmt.Sprint(want) {
+	// Motion passes through the figure's caption, empty or not, as through
+	// any object's own slot.
+	if want := []string{"paragraph", "page", "figure", "page"}; fmt.Sprint(path) != fmt.Sprint(want) {
 		t.Fatalf("path %v, want %v", path, want)
 	}
 	// Selected, the caption opens, and Escape writes in it.

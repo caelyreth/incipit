@@ -1,10 +1,7 @@
-// Package figures is the figures policy: pictures placed as figures, and
-// the keys over a figure. A figure is one object in the slot that holds
-// it, selected whole, with its caption as its text. Selected, Return
-// continues below it, Escape goes to its caption, and typing or deleting
-// replaces it as any selection is (core); in its caption, Return continues
-// below it as in any block, Escape selects it, and Backspace at the
-// caption's start selects it as deleting toward any object does.
+// Package figures is the figures policy: pictures placed as figures,
+// resized and aligned. A figure is an object, its caption its own slot:
+// how the keys act on it and in its caption is core's, as for every
+// object.
 package figures
 
 import (
@@ -32,12 +29,6 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 
 	figure := policy.Node(profile.Figure)
 	policy.On(p, "align", policy.Intent[profile.AlignFigure](), policy.Or(figure.Selected(), figure.Own()), align).Any()
-	policy.On(p, "continue", policy.Intent[vocab.Break](), figure.Selected(), below).Node()
-	policy.On(p, "caption", policy.Intent[vocab.Dismiss](), figure.Selected(), caption).Node()
-	policy.On(p, "split", policy.Intent[vocab.Break](), figure.Own(), split).Caret().Range()
-	policy.On(p, "soft-split", policy.Intent[vocab.SoftBreak](), figure.Own(), split).Caret().Range()
-	policy.On(p, "select", policy.Intent[vocab.Dismiss](), figure.Own(), selectFigure)
-	policy.On(p, "select-before", policy.Deleting(0, vocab.Backward), policy.Or(figure.AtStart().Own(), figure.Empty().Own()), selectFigure)
 
 	// The card's demonstration, played by the engine itself: a picture
 	// still on its way shows its place.
@@ -185,67 +176,4 @@ func align(c *policy.Ctx, in profile.AlignFigure, at policy.At[*doc.Node]) polic
 	}
 	shape.Align = in.To
 	return policy.Do(profile.SetShape(at.Data.ID(), shape))
-}
-
-// below opens a paragraph after the selected figure, the caret in it.
-func below(c *policy.Ctx, _ vocab.Break, at policy.At[*doc.Node]) policy.Result {
-	parent, slot, index, ok := vocab.Index(c.Doc(), at.Data.ID())
-	if !ok {
-		return policy.Swallow
-	}
-	gap := doc.Pos{Node: parent, Slot: slot, Offset: index + 1}
-	s := c.Doc().Schema()
-	res := policy.Do(vocab.Ops(doc.Insert{Parent: parent, Slot: slot, Index: gap.Offset, Nodes: []*doc.Node{vocab.NewBlock(s, s.Plain(), doc.Attrs{})}}))
-	res.Then = func(r doc.Reader) doc.Selection {
-		c, _ := vocab.BlockCaret(r, gap, vocab.Backward)
-		return doc.Collapsed(c)
-	}
-	res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
-	return res
-}
-
-// caption puts the caret at the end of the selected figure's caption.
-func caption(_ *policy.Ctx, _ vocab.Dismiss, at policy.At[*doc.Node]) policy.Result {
-	n := at.Data
-	return policy.Reveal(doc.Collapsed(doc.CaretAt(doc.Pos{Node: n.ID(), Offset: n.Slot(0).Len()})))
-}
-
-// split continues below a figure from its caption: the caption's text
-// after the caret goes on in a paragraph after it.
-func split[I vocab.Intent](c *policy.Ctx, _ I, at policy.At[*doc.Node]) policy.Result {
-	head := c.Head().Pos
-	if head.Node != at.Data.ID() {
-		// In an inline node's source within the caption: not a caption
-		// break.
-		return policy.Swallow
-	}
-	var edits []vocab.Edit
-	if sel := c.Selection(); !sel.IsCollapsed() {
-		from, to := c.Range()
-		if from.Ref() != head.Ref() || to.Ref() != head.Ref() {
-			// A range reaching out of the caption breaks as any does.
-			return policy.Pass
-		}
-		edits = append(edits, vocab.DeleteRange(from, to))
-		head = from
-	}
-	s := c.Doc().Schema()
-	edits = append(edits, func(tx *doc.Tx) error {
-		pos, _ := doc.Steps(tx.Steps()).Map(head, doc.BiasBefore)
-		return vocab.Split(pos, s.Plain(), doc.Attrs{})(tx)
-	})
-	res := policy.Do(edits...)
-	id := at.Data.ID()
-	res.Then = func(r doc.Reader) doc.Selection {
-		parent, slot, index, _ := vocab.Index(r, id)
-		c, _ := vocab.BlockCaret(r, doc.Pos{Node: parent, Slot: slot, Offset: index + 1}, vocab.Backward)
-		return doc.Collapsed(c)
-	}
-	res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
-	return res
-}
-
-// selectFigure selects the figure whose caption holds the caret.
-func selectFigure[I vocab.Intent](_ *policy.Ctx, _ I, at policy.At[*doc.Node]) policy.Result {
-	return policy.Reveal(doc.NodeSelection(at.Data.ID()))
 }

@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/editor/doc"
-	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/native/formula"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/untie"
@@ -109,24 +108,25 @@ type mathLayout struct {
 	mathSet
 	h float32
 	// fold and full are the block's height with its source panel closed
-	// and open; open is whether the panel shows: while the block is held,
-	// or always while it has no display.
+	// and open; open is whether the panel shows: while the block is held
+	// (its source surface open), or always while it has no math.
 	fold, full float32
 	open       bool
 }
 
 // layMath lays out a math block's display over its source panel.
-func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32, held bool) {
+func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32) {
 	if len(u.surfaces) == 0 {
 		return
 	}
+	s := u.surfaces[0]
 	ms := lc.typeset(u.pres.Unit, u.pres.Node.Text(), true, m.Body*displayScale, width)
-	ml := &mathLayout{mathSet: ms, open: held || ms.box == nil}
+	ml := &mathLayout{mathSet: ms, open: s.open || ms.box == nil}
+	s.shown = ml.open
 	ml.h = m.Body * displayScale * displayLines
 	if ms.box != nil {
 		ml.h = max(ml.h, ms.ascent+ms.descent+2*m.Body*0.45)
 	}
-	s := u.surfaces[0]
 	s.x, s.y = cardPad(m), ml.h+cardPad(m)
 	// The panel's fill reaches half a card pad past its text, leaving
 	// half a pad to the frame on every side.
@@ -140,19 +140,12 @@ func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32, held bool
 	if ml.open {
 		u.h = ml.full
 	}
-}
-
-// heldBy reports whether a selection has an end in a unit's own text.
-func heldBy(p *present.Presentation, sel doc.Selection) bool {
-	if sel.Kind != doc.SelectText {
-		return false
+	// Its box is its display, which a click selects it on; open, it draws
+	// its frame around display and panel, which its ring goes around.
+	u.box = ui.Rect{W: width, H: ml.h}
+	if ml.open && ms.box != nil {
+		u.drawn = ui.Rect{W: width, H: u.h}
 	}
-	for _, s := range p.Surfaces {
-		if s.Flow.Slot.Node == sel.Anchor.Pos.Node || s.Flow.Slot.Node == sel.Head.Pos.Node {
-			return true
-		}
-	}
-	return false
 }
 
 // mathMotion is a formula's springs across frames, and the math it last
@@ -235,7 +228,7 @@ func (el *Element) hintInk(src string, editing bool, a float32) ui.Color {
 // hint, centered, and, while its card is open, an accent underline that
 // grows out from its middle.
 func (el *Element) paintInline(p *ui.Painter, sg seg, o ui.Rect) {
-	lk := el.mathLookOf(sg.node.ID(), sg.math, sg.card >= 0, p)
+	lk := el.mathLookOf(sg.node.ID(), sg.math, sg.open, p)
 	cx := o.X + o.W/2
 	base := o.Y + o.H - sg.face.Size*0.25
 	if ms := sg.math; ms.box != nil {
@@ -249,7 +242,7 @@ func (el *Element) paintInline(p *ui.Painter, sg seg, o ui.Rect) {
 		face := sg.face
 		lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Italic: true}, ui.TextShape{})
 		w, h := lay.Size()
-		p.TextLayout(lay, cx-w/2, base-h*0.78, el.hintInk(sg.text, sg.card >= 0, lk.hint))
+		p.TextLayout(lay, cx-w/2, base-h*0.78, el.hintInk(sg.text, sg.open, lk.hint))
 	}
 	if d := lk.drawn; lk.ink > 0.001 && d.box != nil {
 		formula.Draw(p, d.box, ui.Point{X: cx - (d.to-d.from)/2 - d.from, Y: base}, el.inks(lk.ink))
@@ -260,7 +253,7 @@ func (el *Element) paintInline(p *ui.Painter, sg seg, o ui.Rect) {
 // while it has none, centered in its column, crossfading as one comes and
 // the other goes. It returns how strongly its frame, and with it its
 // panel, shows.
-func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32, covered bool) float32 {
+func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32) float32 {
 	t, m, ml := el.Theme, el.Editor.metrics, u.math
 	lk := el.mathLookOf(u.pres.Unit, ml.mathSet, ml.open, p)
 	a := min(panelOpened(u), lk.open)
@@ -279,18 +272,12 @@ func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32, cover
 		return a
 	}
 	pad := (ml.h - d.ascent - d.descent) / 2
-	if covered {
-		// Held by a selection with its source closed, the display is
-		// washed as the text it stands for would be.
-		x := ux + d.from - mathPad*2
-		p.Fill(ui.Rect{X: x, Y: uy + pad - mathPad*2, W: d.to - d.from + mathPad*4, H: d.ascent + d.descent + mathPad*4}, t.Prose.Selection.Alpha(el.selection.Opacity()), 4)
-	}
 	formula.Draw(p, d.box, ui.Point{X: ux, Y: uy + pad + d.ascent}, el.inks(lk.ink))
 	return a
 }
 
-// heldMath reports whether a math block holds a selection end.
-func heldMath(u *unitLayout) bool { return u.key.held }
+// heldMath reports whether a math block is held: its source open.
+func heldMath(u *unitLayout) bool { return len(u.surfaces) > 0 && u.surfaces[0].open }
 
 // panelOpened is how far a math block's source panel has opened past its
 // display.

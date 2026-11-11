@@ -532,21 +532,32 @@ func (p *Program) candidates(l *Level, k vocab.IntentKind, core bool) []*rule {
 }
 
 // beside is what of target stands right after the caret (ahead) or right
-// before it, outside it, nothing between them: an inline node next to it,
-// or else a fact edged there, of several the one whose edge is nearest.
+// before it, outside it, nothing between them: an inline node next to it
+// in its line, a block next to it at a gap, or else a fact edged there,
+// of several the one whose edge is nearest.
 // Places and conditions beside the caret read it, so both find the same
 // thing.
 func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret, target Scope, ahead bool) (*doc.Node, *Fact, bool) {
 	pos := caret.Pos
 	owner, ok := r.Node(pos.Node)
-	if !ok || pos.Slot >= owner.NumSlots() || !owner.Slot(pos.Slot).IsInline() {
+	if !ok || pos.Slot >= owner.NumSlots() {
 		return nil, nil, false
 	}
-	in := owner.Slot(pos.Slot).Content()
 	at := pos.Offset
 	if !ahead {
 		at--
 	}
+	if sl := owner.Slot(pos.Slot); !sl.IsInline() {
+		// At a gap between blocks, the block on that side is beside the
+		// caret, as an inline node is in its line.
+		if at >= 0 && at < sl.Len() {
+			if n := sl.Child(at); slices.Contains(p.nodeKeys(n.Kind()), target) {
+				return n, nil, true
+			}
+		}
+		return nil, nil, false
+	}
+	in := owner.Slot(pos.Slot).Content()
 	if at >= 0 && at < in.Len() {
 		if it, _, ok := in.ItemAt(at); ok && it.Node != nil && slices.Contains(p.nodeKeys(it.Node.Kind()), target) {
 			return it.Node, nil, true

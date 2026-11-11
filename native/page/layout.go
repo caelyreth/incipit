@@ -49,9 +49,11 @@ type seg struct {
 	// stopFrom is the stop before a ghost at its offset, and stops how
 	// many it holds: one after each of its glyphs.
 	stopFrom, stops int
-	// node is a box's inline node, and card the surface of its open card.
+	// node is a box's inline node, card the surface of its card, and open
+	// whether the card is open: the object held.
 	node *doc.Node
 	card int
+	open bool
 	// face is how a box's or a ghost's text is drawn, as it was measured;
 	// a ghost's is shaped, and drawn in ink.
 	face   ui.Span
@@ -118,6 +120,12 @@ type surfaceLayout struct {
 	stops  []stopAt
 	// x and y place the surface in its unit; w and h are its extent.
 	x, y, w, h float32
+	// open is the presentation's: a main flow, or an object's own slot
+	// while the object is held. shown is whether the surface is drawn and
+	// takes room, which its object's renderer decides from open: a closed
+	// card is not, a caption with text is. A range over a surface not
+	// shown is painted on what stands for it (standIn).
+	open, shown bool
 	// marked is the composition's UTF-16 range, when it is in this
 	// surface.
 	marked    ui.TextInputRange
@@ -140,6 +148,9 @@ type unitLayout struct {
 	object bool
 	gaps   []stopAt
 	box    ui.Rect
+	// drawn is all an object draws, which its ring goes around held whole:
+	// its box, or more where its renderer draws more around it.
+	drawn ui.Rect
 	// math is a math block's display over its source panel.
 	math *mathLayout
 	// figure is a figure's shape, as it is laid out, and crop the share of
@@ -164,9 +175,6 @@ type layoutKey struct {
 	comp    string
 	// span is a figure's span while a resize previews it, or -1.
 	span int
-	// held is whether a math block holds a selection end, which opens
-	// its source panel.
-	held bool
 }
 
 // pageLayout is the page's units laid out from top to bottom.
@@ -201,7 +209,7 @@ func newLayoutCache() *layoutCache {
 
 // build lays the presentations out. Units whose presentation, metrics and
 // composition are unchanged keep their shaped text.
-func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorations, th present.Theme, m Metrics, resize *figureResize, sel doc.Selection) *pageLayout {
+func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorations, th present.Theme, m Metrics, resize *figureResize) *pageLayout {
 	pl := &pageLayout{at: map[doc.Caret]place{}}
 	keep := map[doc.ID]bool{}
 	y := float32(0)
@@ -213,15 +221,15 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		if resize != nil && resize.node == p.Unit {
 			key.span = resize.span
 		}
-		if p.Kind == profile.Math {
-			key.held = heldBy(p, sel)
-		}
 		if c := deco.Composition; c != nil && holdsSlot(p, c.At.Ref()) {
 			key.comp = fmt.Sprintf("%v|%s|%v", c.At, c.Text, c.Selected)
 		}
 		u, ok := lc.units[p.Unit]
 		if !ok || u.key != key {
-			u = lc.layUnit(p, deco.Composition, th, m, key.span, key.held)
+			u = lc.layUnit(p, deco.Composition, th, m, key.span)
+			if u.drawn == (ui.Rect{}) {
+				u.drawn = u.box
+			}
 			u.key = key
 			lc.units[p.Unit] = u
 		}
@@ -315,7 +323,7 @@ func lineHeight(m Metrics, size float32) float32 {
 
 // layUnit shapes a unit's surfaces. span, when not -1, is a figure's
 // span as a resize previews it.
-func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, span int, held bool) *unitLayout {
+func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, span int) *unitLayout {
 	u := &unitLayout{pres: p}
 	u.x = float32(p.Context.Indent+p.Context.Quotes) * m.Indent
 	width := max(m.Width-u.x, m.Body*4)
@@ -326,13 +334,18 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 				u.gaps = append(u.gaps, stopAt{caret: st.Caret})
 			}
 		}
-		if p.Kind == profile.Figure {
+		// Each object kind's renderer lays it out; its own slots are its
+		// surfaces.
+		switch p.Kind {
+		case profile.Figure:
 			lc.layFigure(u, p, comp, th, m, width, span)
 			return u
+		case profile.Math:
+		default:
+			u.h = lineHeight(m, m.Body)
+			u.box = ui.Rect{W: width, H: u.h}
+			return u
 		}
-		u.h = lineHeight(m, m.Body)
-		u.box = ui.Rect{W: width, H: u.h}
-		return u
 	}
 	for i, s := range p.Surfaces {
 		w := width
@@ -344,10 +357,13 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 		u.surfaces = append(u.surfaces, sl)
 	}
 	// The main surface first, then each open card under it, fitted to
-	// its text under its formula.
+	// its text under its formula; a closed card takes no room.
 	y := float32(0)
 	for _, s := range u.surfaces {
 		if s.card {
+			if !s.shown {
+				continue
+			}
 			fitCard(s, u.surfaces[0], m, width)
 			y += cardPad(m) / 2
 			s.y = y + cardPad(m)/2
@@ -359,7 +375,7 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 	}
 	u.h = y
 	if p.Kind == profile.Math {
-		layMath(u, lc, m, width, held)
+		layMath(u, lc, m, width)
 	}
 	return u
 }
@@ -402,7 +418,7 @@ func utf16Len(s string) int {
 
 // laySurface shapes one surface's flow and maps its stops.
 func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, align ui.Align) *surfaceLayout {
-	sl := &surfaceLayout{index: index, card: s.Card, anchor: s.Anchor, slot: s.Flow.Slot, w: width}
+	sl := &surfaceLayout{index: index, card: s.Card, anchor: s.Anchor, slot: s.Flow.Slot, w: width, open: s.Open, shown: s.Open}
 	base := th.Resolve([]vocab.Group{s.Group})
 	var spans []ui.Span
 	var text strings.Builder
@@ -478,7 +494,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 				// A formula stands in its line as its math, on the baseline.
 				ms := lc.typeset(it.Node.ID(), it.Node.Text(), false, m.Body*style.Size, 0)
 				sp := span("\uFFFC", style, m.Body)
-				sg := seg{kind: segBox, from: it.From, to: it.To, text: it.Node.Text(), node: it.Node, card: it.Surface, formula: true, math: ms}
+				sg := seg{kind: segBox, from: it.From, to: it.To, text: it.Node.Text(), node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), formula: true, math: ms}
 				sg.face = span(formulaHint, style, m.Body)
 				sg.face.Italic = true
 				if ms.box != nil {
@@ -501,7 +517,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			w, h := lay.Size()
 			sp := span("\uFFFC", style, m.Body)
 			sp.ObjectWidth, sp.ObjectHeight = max(w, m.Body*0.6)+boxPad*2, max(h*0.8, m.Body)
-			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, face: face}, sp, style)
+			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), face: face}, sp, style)
 		}
 	}
 	addComp([]vocab.Group{s.Group})
@@ -677,7 +693,7 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 	if y < u.y {
 		y = u.y
 	}
-	if u.object && (len(u.surfaces) == 0 || y < u.y+u.box.Y+u.box.H) {
+	if u.object && (!anyShown(u) || y < u.y+u.box.Y+u.box.H) {
 		// On what the object draws: the object, and the gap on the half
 		// the point is in, which a drag extends to.
 		if len(u.gaps) < 2 {
@@ -688,16 +704,10 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 		}
 		return u.gaps[1].caret, u.pres.Unit, true
 	}
-	if u.math != nil && (!u.math.open || y < u.y+u.math.h) && len(u.surfaces) > 0 {
-		// On a math block's display: its source, at its end.
-		if st := u.surfaces[0].stops; len(st) > 0 {
-			return st[len(st)-1].caret, 0, true
-		}
-	}
 	var s *surfaceLayout
 	for _, cand := range u.surfaces {
 		ox, oy := u.origin(cand)
-		if cand.card && x >= ox-cardPad(Metrics{}) && y >= oy && y < oy+cand.h {
+		if cand.card && cand.shown && x >= ox-cardPad(Metrics{}) && y >= oy && y < oy+cand.h {
 			s = cand
 			break
 		}
@@ -710,8 +720,8 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 	}
 	ox, oy := u.origin(s)
 	ly := min(max(y-oy, 0), s.h-1)
-	if c, ok := s.boxAt(x-ox, ly); ok {
-		return c, 0, true
+	if c, id, ok := s.boxAt(x-ox, ly); ok {
+		return c, id, true
 	}
 	idx := s.layout.IndexAt(ui.Point{X: x - ox, Y: ly})
 	st := s.nearest(idx)
@@ -721,49 +731,52 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 	return st.caret, 0, true
 }
 
-// boxAt is the source stop under a surface point inside a closed box:
-// a click on an inline formula enters its source, an explicit entry into
-// the formula's card (§13.5): where it lands in a source drawn as text, at
-// the nearer end of math.
-func (sl *surfaceLayout) boxAt(x, y float32) (doc.Caret, bool) {
+// boxAt is what a click on an inline box hits: an object, selected
+// whole, with the place on the half of it the point is in, which a drag
+// extends from, as a block object's gaps are; another inline node's
+// source, entered where it lands.
+func (sl *surfaceLayout) boxAt(x, y float32) (doc.Caret, doc.ID, bool) {
 	for i, sg := range sl.segs {
-		if sg.kind != segBox || sg.card >= 0 || sg.node == nil {
+		if sg.kind != segBox || sg.node == nil {
 			continue
 		}
-		ref, ok := vocab.FirstTextSlot(sg.node)
-		if !ok || ref.Node != sg.node.ID() {
+		r, ok := sl.objectRect(i)
+		if !ok || x < r.X || x >= r.X+r.W || y < r.Y || y >= r.Y+r.H {
 			continue
 		}
-		if sg.formula {
-			// Math's glyphs hold no place in its source: a click enters
-			// the source at the nearer end.
-			if r, ok := sl.objectRect(i); ok && x >= r.X && x < r.X+r.W && y >= r.Y && y < r.Y+r.H {
-				off := 0
-				if x >= r.X+r.W/2 {
-					off = sg.node.Slot(ref.Slot).Len()
-				}
-				return doc.CaretAt(doc.At(ref, off)), true
-			}
-			continue
+		if !sg.formula {
+			return doc.Caret{}, 0, false
 		}
-		lay := ui.ShapeRichTextWith([]ui.Span{sg.face}, ui.Font{Family: sg.face.Font, Size: sg.face.Size}, ui.TextShape{})
-		w, _ := lay.Size()
-		a := sl.caretRect(sg.u0)
-		right := a.X + w + boxPad*2
-		if b := sl.caretRect(sg.u1); b.Y == a.Y {
-			right = b.X
+		at := sl.stopBefore(sg.u0)
+		if x >= r.X+r.W/2 {
+			at = sl.stopBefore(sg.u1)
 		}
-		if x < a.X || x >= right || y < a.Y || y >= a.Y+a.H {
-			continue
-		}
-		src := sg.node.Slot(ref.Slot).Content().Text()
-		off := 0
-		if src != "" {
-			off = byteIndex(src, lay.IndexAt(ui.Point{X: x - a.X - boxPad, Y: 1}))
-		}
-		return doc.CaretAt(doc.At(ref, off)), true
+		return at, sg.node.ID(), true
 	}
-	return doc.Caret{}, false
+	return doc.Caret{}, 0, false
+}
+
+// stopBefore is the surface's stop at UTF-16 index u.
+func (sl *surfaceLayout) stopBefore(u int) doc.Caret {
+	if st := sl.nearest(u); st != nil {
+		return st.caret
+	}
+	return doc.Caret{}
+}
+
+// cardOpen reports whether a box's card, surface i, is open.
+func cardOpen(p *present.Presentation, i int) bool {
+	return i >= 0 && i < len(p.Surfaces) && p.Surfaces[i].Open
+}
+
+// anyShown reports whether any of a unit's surfaces is drawn.
+func anyShown(u *unitLayout) bool {
+	for _, s := range u.surfaces {
+		if s.shown {
+			return true
+		}
+	}
+	return false
 }
 
 // objectRect is the laid-out rectangle of the inline object segs[i]
@@ -978,6 +991,9 @@ func (pl *pageLayout) objectRows(u *unitLayout) []row {
 		rows = append(rows, row{gap: &u.gaps[0]})
 	}
 	for _, s := range u.surfaces {
+		if !s.shown {
+			continue
+		}
 		for i := range s.layout.Lines() {
 			rows = append(rows, row{s: s, line: i})
 		}
@@ -992,7 +1008,7 @@ func (pl *pageLayout) objectRows(u *unitLayout) []row {
 func (pl *pageLayout) hitSurface(u *unitLayout, s *surfaceLayout, x, y float32) doc.Caret {
 	ox, oy := u.origin(s)
 	ly := min(max(y-oy, 0), s.h-1)
-	if c, ok := s.boxAt(x-ox, ly); ok {
+	if c, _, ok := s.boxAt(x-ox, ly); ok {
 		return c
 	}
 	if st := s.nearest(s.layout.IndexAt(ui.Point{X: x - ox, Y: ly})); st != nil {

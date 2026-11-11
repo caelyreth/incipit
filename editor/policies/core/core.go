@@ -125,6 +125,10 @@ func swallow[I vocab.Intent](*policy.Ctx, I, policy.At[doc.SlotRef]) policy.Resu
 func replaceSelection(c *policy.Ctx) (vocab.Edit, doc.Pos, bool) {
 	if sel := c.Selection(); sel.Kind == doc.SelectNode {
 		at, _ := c.Range()
+		if _, _, inline := inlineParent(c.Doc(), sel.Node); inline {
+			// An inline object goes from its line.
+			return vocab.RemoveNode(sel.Node), at, true
+		}
 		return vocab.Ops(doc.Remove{IDs: []doc.ID{sel.Node}}), at, true
 	}
 	return clearSelection(c)
@@ -291,6 +295,11 @@ func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
 		return deleteBefore(c, block)
 	}
 	pos := head.Pos
+	if obj, ok := vocab.ObjectToward(r, pos, in.Dir); ok {
+		// Deleting toward an object selects it, whatever the unit: shown
+		// whole, it goes on the next delete (§12.1).
+		return policy.Select(doc.NodeSelection(obj.ID()))
+	}
 	unit := in.Unit
 	if unit == vocab.ToPageEdge {
 		// Deleting runs to the slot's edge at most.
@@ -320,6 +329,15 @@ func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
 // deleteAcross handles a delete at a slot's edge.
 func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Result {
 	r := c.Doc()
+	if obj, ok := vocab.OwnObject(r, head); ok {
+		// At the start of an object's own slot, deleting backward is
+		// deleting toward the object: it is selected. An object's slots
+		// are never joined to what is beside it.
+		if dir == vocab.Backward {
+			return policy.Select(doc.NodeSelection(obj.ID()))
+		}
+		return policy.Swallow
+	}
 	spec, ok := vocab.SlotSpec(r, head.Ref())
 	if ok && spec.Blocks {
 		// At a gap: the object on that side is selected.
@@ -331,10 +349,6 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 		if i >= 0 && i < n.Slot(head.Slot).Len() && r.Schema().IsObject(n.Slot(head.Slot).Child(i).Kind()) {
 			return policy.Select(doc.NodeSelection(n.Slot(head.Slot).Child(i).ID()))
 		}
-		return policy.Swallow
-	}
-	if _, _, inlineOwner := inlineParent(r, head.Node); inlineOwner {
-		// An inline node's source: its edges are not joined.
 		return policy.Swallow
 	}
 	block, ok := vocab.Block(r, head)
@@ -442,15 +456,36 @@ func inlineParent(r doc.Reader, id doc.ID) (doc.ID, int, bool) {
 }
 
 // breakBlock is Enter: a line break in slots that keep lines, but on a
-// block's empty last line it leaves the block; a split elsewhere. At a block's text start, and before its marker, a block opens
-// before it and the caret stays; a heading split at its end continues as
-// a paragraph.
+// block's empty last line it leaves the block; a split elsewhere. At a
+// block's text start, and before its marker, a block opens before it and
+// the caret stays; a heading split at its end continues as a paragraph.
+// An object breaks beside it: selected, or from an own slot that keeps
+// no lines, the break is made right after it, as though the caret stood
+// there.
 func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
 	var edits []vocab.Edit
-	clear, pos, ok := replaceSelection(c)
-	if ok {
-		edits = append(edits, clear)
+	var clear vocab.Edit
+	var pos doc.Pos
+	if obj, ok := selectedObject(c); ok {
+		pos, ok = vocab.Beside(r, obj.ID(), vocab.Forward)
+		if !ok {
+			return policy.Swallow
+		}
+	} else {
+		var cleared bool
+		clear, pos, cleared = replaceSelection(c)
+		if cleared {
+			edits = append(edits, clear)
+		}
+		if obj, ok := vocab.OwnObject(r, pos); ok {
+			if spec, _ := vocab.SlotSpec(r, pos.Ref()); !spec.Lines {
+				if pos, ok = vocab.Beside(r, obj.ID(), vocab.Forward); !ok {
+					return policy.Swallow
+				}
+				clear = nil
+			}
+		}
 	}
 	spec, ok := vocab.SlotSpec(r, pos.Ref())
 	if !ok {
@@ -548,6 +583,16 @@ func leaveLines(r doc.Reader, pos doc.Pos) (policy.Result, bool) {
 	))
 	res.Then = startOfNext(pos.Node)
 	return res, true
+}
+
+// selectedObject is the object selected whole, if one is.
+func selectedObject(c *policy.Ctx) (*doc.Node, bool) {
+	sel := c.Selection()
+	if sel.Kind != doc.SelectNode {
+		return nil, false
+	}
+	n, ok := c.Doc().Node(sel.Node)
+	return n, ok && c.Doc().Schema().IsObject(n.Kind())
 }
 
 // softBreak inserts a line break where the slot keeps lines, and is Enter
@@ -662,12 +707,27 @@ func selectAll(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) pol
 
 // dismiss collapses the selection to its head and ends a composition.
 // Escape outside every scope dismisses; Leave answers scopes separately.
+// dismiss leaves the innermost thing the selection is in: a composition
+// ends, a range collapses to its head, a caret in an object's own slot
+// selects the object; a selected object is entered at its own slot's end,
+// or left at its gap when it has none.
 func dismiss(c *policy.Ctx, _ vocab.Dismiss, _ policy.At[doc.SlotRef]) policy.Result {
 	res := policy.Result{}
 	if c.Composition() != nil {
 		res.EndComposition = true
 	}
 	sel := c.Selection()
+	if obj, ok := selectedObject(c); ok {
+		if obj.NumSlots() > 0 && obj.Slot(0).IsInline() {
+			s := doc.Collapsed(doc.CaretAt(doc.Pos{Node: obj.ID(), Offset: obj.Slot(0).Len()}))
+			res.Selection = &s
+			return res
+		}
+	} else if obj, ok := vocab.OwnObject(c.Doc(), c.Head().Pos); ok && sel.Kind == doc.SelectText && sel.IsCollapsed() && !res.EndComposition {
+		s := doc.NodeSelection(obj.ID())
+		res.Selection = &s
+		return res
+	}
 	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
 		s := doc.Collapsed(c.Head())
 		res.Selection = &s

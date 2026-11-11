@@ -29,17 +29,15 @@ import (
 // selected, the page below gliding down, Escape or a click there writes
 // one, and it closes again once neither holds and it is still empty.
 //
-// Held whole by the selection, a figure wears the ring the app gives what
-// is picked whole, never a wash over its picture; selected alone, or under
+// Held whole by the selection, a figure wears the ring every object does
+// (objects.go), never a wash over its picture; selected alone, or under
 // the pointer, it shows the grips it resizes from. A resize is the
 // renderer's until release, when it commits as one ResizeFigure.
 
 const (
-	// figureFade is how quickly a figure's picture, ring, grips and hint
-	// spring to where they are going.
+	// figureFade is how quickly a figure's picture, grips and hint spring
+	// to where they are going.
 	figureFade = float32(14)
-	// figureRingOutset sets the ring off the picture.
-	figureRingOutset = 3
 	// gapBarRoom sets an object's gap carets off what it draws.
 	gapBarRoom = 3
 	// figureMin is the narrowest a figure is drawn.
@@ -137,7 +135,12 @@ func (lc *layoutCache) layFigure(u *unitLayout, p *present.Presentation, comp *p
 		sl := lc.laySurface(i, s, p, comp, th, m, width, align)
 		sl.y = u.h + captionGap(m)
 		u.surfaces = append(u.surfaces, sl)
-		u.h = sl.y + sl.h
+		// A caption with text shows; an empty one only while the figure
+		// is held, to write in, and takes no room otherwise.
+		sl.shown = sl.open || sl.text != ""
+		if sl.shown {
+			u.h = sl.y + sl.h
+		}
 	}
 }
 
@@ -172,8 +175,8 @@ func (r *figureResize) label() string {
 
 // figureMotion is a figure's springs across frames.
 type figureMotion struct {
-	shown, ring, grips, hint motion.Spring
-	seen                     bool
+	shown, grips, hint motion.Spring
+	seen               bool
 }
 
 // grips are the sides a figure resizes from: both of a centered one, the
@@ -267,8 +270,8 @@ func (el *Element) finishResize(canceled bool, at time.Time) {
 }
 
 // paintFigure draws a figure's picture, its place while the picture is on
-// its way, its ring and grips; the caption is drawn as text with the rest.
-func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, whole bool, now time.Time, animate bool) {
+// its way, and its grips; the caption is drawn as text with the rest.
+func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, now time.Time, animate bool) {
 	t := el.Theme
 	m := el.Editor.metrics
 	box := u.box
@@ -277,12 +280,9 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, who
 	radius := figureRadius(m)
 	bitmap, state := el.Pictures.Picture(u.figure.Media, now)
 
-	shown, ring, grip, hint := float32(0), float32(0), float32(0), float32(0)
+	shown, grip, hint := float32(0), float32(0), float32(0)
 	if state == PictureReady {
 		shown = 1
-	}
-	if whole {
-		ring = 1
 	}
 	if el.gripsShown(u) && state != PictureMissing {
 		grip = 1
@@ -294,7 +294,7 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, who
 	if !known {
 		// A picture already decoded shows at once, as when a page opens
 		// again; one that has to wait fades in.
-		fm = &figureMotion{shown: motion.NewUnitSpring(shown, now), ring: motion.NewUnitSpring(ring, now),
+		fm = &figureMotion{shown: motion.NewUnitSpring(shown, now),
 			grips: motion.NewUnitSpring(grip, now), hint: motion.NewUnitSpring(hint, now)}
 		el.figures[u.pres.Unit] = fm
 	}
@@ -302,7 +302,7 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, who
 	for _, s := range []struct {
 		spring *motion.Spring
 		to     float32
-	}{{&fm.shown, shown}, {&fm.ring, ring}, {&fm.grips, grip}, {&fm.hint, hint}} {
+	}{{&fm.shown, shown}, {&fm.grips, grip}, {&fm.hint, hint}} {
 		if animate {
 			s.spring.Step(s.to, now, figureFade)
 		} else {
@@ -339,9 +339,6 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, who
 			page := t.Surface.Page
 			p.FillGradient(band, ui.LinearGradient{From: page.Alpha(0), To: page.Alpha(alpha), Angle: 180}, 0)
 		}
-	}
-	if a := fm.ring.Value(); a > 0.001 {
-		components.PaintRing(p, box, radius, figureRingOutset, t.Accent.Foreground.Alpha(0.85*a))
 	}
 	if a := fm.grips.Value(); a > 0.001 {
 		for _, side := range grips(u) {
