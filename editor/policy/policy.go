@@ -11,6 +11,7 @@ package policy
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -20,12 +21,18 @@ import (
 type Policy struct {
 	id    string
 	build func(*P)
+	meta  optionMeta
 }
 
 // Define declares a policy. Its id is persisted: it is the prefix of its
-// option keys.
-func Define(id string, build func(p *P)) *Policy {
-	return &Policy{id: id, build: build}
+// option keys. Label and Description give its card's title and text keys,
+// as they do an option's.
+func Define(id string, build func(p *P), settings ...Setting) *Policy {
+	pol := &Policy{id: id, build: build}
+	for _, s := range settings {
+		s(&pol.meta)
+	}
+	return pol
 }
 
 // ID is the policy's stable id.
@@ -45,6 +52,7 @@ type P struct {
 	rewrites    []*rewrite
 	observers   []*observer
 	commands    []Command
+	showcase    *Showcase
 	paints      []Paint
 	guides      []Guide
 	grouping    func(prev, next *doc.Entry) bool
@@ -210,18 +218,75 @@ func EnabledKey(policy string) string { return policy + ".enabled" }
 
 // --- commands, presentation and history --------------------------------
 
-// Command is a command a policy declares: a stable id, a label key, and
-// the intent it resolves to.
+// Command is a command a policy declares: a stable id, a label key, the
+// intent it resolves to, and its default key.
 type Command struct {
 	ID     vocab.CommandID
 	Label  string
 	Intent vocab.Intent
 	Policy string
+	// Key is the default key, as modifiers and a key joined by "+":
+	// "primary+b", "alt+left", "shift+tab". Empty is none.
+	Key string
+	// System is set on a command the platform's own key runs, as an Edit
+	// menu role does: the keymap neither binds nor lists it.
+	System bool
 }
 
+// CommandSetting refines a command declaration.
+type CommandSetting func(*Command)
+
+// Key is a command's default key (Command.Key).
+func Key(spec string) CommandSetting { return func(c *Command) { c.Key = spec } }
+
+// SystemKey marks a command the platform's key runs (Command.System).
+func SystemKey() CommandSetting { return func(c *Command) { c.System = true } }
+
 // Command declares a command.
-func (p *P) Command(id vocab.CommandID, label string, intent vocab.Intent) {
-	p.commands = append(p.commands, Command{ID: id, Label: label, Intent: intent, Policy: p.policy.id})
+func (p *P) Command(id vocab.CommandID, label string, intent vocab.Intent, settings ...CommandSetting) {
+	c := Command{ID: id, Label: label, Intent: intent, Policy: p.policy.id}
+	for _, s := range settings {
+		s(&c)
+	}
+	p.commands = append(p.commands, c)
+}
+
+// Showcase is a policy's demonstration: beats played on an empty page,
+// in a loop, after which the page holds for Hold.
+type Showcase struct {
+	Beats []Beat
+	Hold  time.Duration
+}
+
+// BeatKind is what a beat does.
+type BeatKind uint8
+
+const (
+	BeatType BeatKind = iota + 1
+	BeatPress
+	BeatWait
+)
+
+// Beat is one step of a showcase.
+type Beat struct {
+	Kind   BeatKind
+	Text   string
+	Intent vocab.Intent
+	Wait   time.Duration
+}
+
+// Types types text a keystroke at a time.
+func Types(text string) Beat { return Beat{Kind: BeatType, Text: text} }
+
+// Presses sends one intent, as a key bound to it would.
+func Presses(in vocab.Intent) Beat { return Beat{Kind: BeatPress, Intent: in} }
+
+// Waits pauses.
+func Waits(d time.Duration) Beat { return Beat{Kind: BeatWait, Wait: d} }
+
+// Showcase declares the policy's demonstration.
+func (p *P) Showcase(hold time.Duration, beats ...Beat) {
+	p.showcase = &Showcase{Beats: beats, Hold: hold}
 }
 
 // PaintWhen says when a paint contribution shows.

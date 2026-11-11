@@ -8,6 +8,7 @@ package pairs
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -96,7 +97,18 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		p.Annotation(policy.Armed, nil)
 		p.Decorate(policy.Armed, vocab.GroupArmed)
 	}
-})
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2600*time.Millisecond,
+		policy.Types("The tide turned (slowly"),
+		policy.Waits(700*time.Millisecond),
+		policy.Types(")"),
+		policy.Waits(500*time.Millisecond),
+		policy.Types(` and she said "stay`),
+		policy.Waits(600*time.Millisecond),
+		policy.Types(`".`),
+	)
+}, policy.Label("policies.pairs"), policy.Description("policies.pairs.description"))
 
 // --- recognising ---------------------------------------------------------------
 

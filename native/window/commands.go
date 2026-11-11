@@ -9,9 +9,10 @@ import (
 // it acts on. The palette's own command is left out.
 func (a *AppState) commandCatalog() []overlay.Command {
 	keys := a.Product.Keymap
-	commands := make([]overlay.Command, 0, len(keymap.AllCommands()))
+	declared := keys.Commands()
+	commands := make([]overlay.Command, 0, len(declared))
 	for _, scope := range []keymap.Scope{keymap.ScopePages, keymap.ScopeWindow, keymap.ScopeApp} {
-		for _, command := range keymap.AllCommands() {
+		for _, command := range declared {
 			if command.Scope != scope || command.ID == keymap.Commands {
 				continue
 			}

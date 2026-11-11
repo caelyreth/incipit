@@ -29,6 +29,7 @@ package notation
 
 import (
 	"slices"
+	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -113,7 +114,14 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 
 	// A stop decides the marks typed text takes.
 	p.Observe("stop-marks", policy.Trigger{}, stopMarks(k))
-})
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2600*time.Millisecond,
+		policy.Types("Marks keep their *signs"),
+		policy.Waits(500*time.Millisecond),
+		policy.Types("*, as **written**."),
+	)
+}, policy.Label("policies.notation"), policy.Description("policies.notation.description"))
 
 type kinds struct {
 	// signs are every mark's signs, keyed by mark kind: a typed delimiter

@@ -2,6 +2,7 @@ package window
 
 import (
 	"errors"
+	appsettings "github.com/caelyreth/neverland/app/settings"
 	"testing"
 
 	"github.com/caelyreth/neverland/app/keymap"
@@ -27,7 +28,7 @@ func submitPaletteCommand(t *testing.T, app *AppState, id keymap.CommandID) {
 }
 
 func TestEveryCommandHasAHandler(t *testing.T) {
-	for _, command := range keymap.AllCommands() {
+	for _, command := range appsettings.DefaultState().Keymap.Commands() {
 		// The page answers the editing commands.
 		if command.Scope != keymap.ScopeEditing && hostHandlers[command.ID] == nil {
 			t.Errorf("%s has no handler", command.ID)

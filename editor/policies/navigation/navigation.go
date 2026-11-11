@@ -11,6 +11,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"time"
 )
 
 // ID is the policy's id.
@@ -33,7 +34,16 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	}
 	closers := policy.Role[vocab.Closer](vocab.RoleCloser)
 	policy.On(p, "close", policy.Intent[vocab.Type](), policy.Or(closers.AtEnd(), closers.Empty()), close)
-})
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2600*time.Millisecond,
+		policy.Types("Leave a scope (with Tab"),
+		policy.Waits(1100*time.Millisecond),
+		policy.Presses(vocab.Leave{}),
+		policy.Waits(300*time.Millisecond),
+		policy.Types(" and keep writing."),
+	)
+}, policy.Label("policies.navigation"), policy.Description("policies.navigation.description"))
 
 // close steps over the closing side one glyph, for text that closes the
 // scope; other text is typed.

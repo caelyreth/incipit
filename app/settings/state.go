@@ -29,12 +29,21 @@ type State struct {
 
 // DefaultState matches Neverland's initial settings.
 func DefaultState() State {
+	prog := mustCompile(nil)
 	return State{
 		Presentation: DefaultPresentation(),
 		Appearance:   DefaultAppearance(),
-		Keymap:       keymap.Default(),
-		Program:      mustCompile(nil),
+		Keymap:       keymap.Default(keymap.Declared(prog.Catalog())),
+		Program:      prog,
 	}
+}
+
+// keys is the state's keymap, or its program's defaults.
+func (s State) keys() *keymap.Keymap {
+	if s.Keymap != nil {
+		return s.Keymap
+	}
+	return keymap.Default(keymap.Declared(s.Program.Catalog()))
 }
 
 // Outcome reports what a change did. A false Applied value always means
@@ -78,10 +87,7 @@ func (s *State) applyKeymap(change Change) (Outcome, error) {
 	if change.Command == "" {
 		return Outcome{}, ErrInvalidChange
 	}
-	current := s.Keymap
-	if current == nil {
-		current = keymap.Default()
-	}
+	current := s.keys()
 	var (
 		next *keymap.Keymap
 		err  error
@@ -103,15 +109,12 @@ func (s *State) applyKeymap(change Change) (Outcome, error) {
 
 // Data builds the declarative snapshot of this state.
 func (s State) Data() Data {
-	keys := s.Keymap
-	if keys == nil {
-		keys = keymap.Default()
-	}
+	keys := s.keys()
 	data := Data{
 		AppearanceValues: s.Appearance.Normalized(),
 		Appearance:       appearanceToggles(s.Presentation),
 	}
-	commands := keymap.AllCommands()
+	commands := keys.Commands()
 	data.Shortcuts = make([]Shortcut, 0, len(commands))
 	for _, scope := range []keymap.Scope{keymap.ScopeEditing, keymap.ScopePages, keymap.ScopeWindow, keymap.ScopeApp} {
 		for _, command := range commands {
@@ -123,7 +126,7 @@ func (s State) Data() Data {
 				Label:      command.Label,
 				Scope:      scope,
 				Group:      scope.Title(),
-				Policy:     s.commandPolicy(command.ID),
+				Policy:     command.Policy,
 				Overridden: keys.Overridden(command.ID),
 			}
 			if chord, ok := keys.ChordFor(command.ID); ok {

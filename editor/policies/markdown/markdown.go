@@ -9,6 +9,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"time"
 )
 
 // Options.
@@ -97,7 +98,15 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 	policy.On(p, "block-marker", policy.Typed(" "), mk.Behind(), blockMarker)
 	policy.On(p, "fence", policy.Intent[vocab.Break](), fk.Behind(), fenceBlock)
 
-})
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2600*time.Millisecond,
+		policy.Types("## Tides"),
+		policy.Waits(500*time.Millisecond),
+		policy.Types("\nWrite *softly"),
+		policy.Waits(500*time.Millisecond),
+		policy.Types("*, or **firmly**."),
+	)
+}, policy.Label("policies.markdown"), policy.Description("policies.markdown.description"))
 
 // closeRun applies a mark over the run's content up to the caret and
 // removes its delimiters; the typed closer is not inserted. Text typed

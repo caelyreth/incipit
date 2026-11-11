@@ -7,7 +7,7 @@ import "testing"
 func TestAcceleratorsRoundTripTheDefaultKeymap(t *testing.T) {
 	t.Parallel()
 	for _, platform := range []Platform{PlatformDarwin, PlatformOther} {
-		for _, command := range AllCommands() {
+		for _, command := range defaulted() {
 			accelerator, ok := Accelerator(command.Default, platform)
 			if !ok {
 				t.Fatalf("%s has no accelerator", command.Default)

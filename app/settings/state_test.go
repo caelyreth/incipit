@@ -72,7 +72,7 @@ func TestShortcutChangesAreAtomic(t *testing.T) {
 		t.Fatalf("shortcut = %#v", shortcut)
 	}
 
-	settings, _ := keymap.CommandFor(keymap.Settings)
+	settings, _ := DefaultState().Keymap.Command(keymap.Settings)
 	before := state.Keymap
 	if _, err := state.Apply(Remap(keymap.Motion, settings.Default)); err == nil {
 		t.Fatal("a taken chord was accepted")
@@ -104,7 +104,7 @@ func TestShortcutChangesAreAtomic(t *testing.T) {
 func TestDataListsShortcutsByScope(t *testing.T) {
 	t.Parallel()
 	data := DefaultState().Data()
-	if len(data.Shortcuts) != len(keymap.AllCommands()) {
+	if len(data.Shortcuts) != len(DefaultState().Keymap.Commands()) {
 		t.Fatalf("%d shortcuts", len(data.Shortcuts))
 	}
 	for index := 1; index < len(data.Shortcuts); index++ {

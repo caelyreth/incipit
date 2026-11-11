@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	appsettings "github.com/caelyreth/neverland/app/settings"
-	appshowcase "github.com/caelyreth/neverland/app/showcase"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/showcase"
@@ -131,8 +130,7 @@ func (s *State) policyHeader(c *ui.Context, semantic theme.Theme, card appsettin
 // A policy that is off still shows its story, dimmed, as what turning it
 // on would do.
 func (s *State) policyShowcase(c *ui.Context, semantic theme.Theme, card appsettings.Policy) {
-	script, ok := appshowcase.For(card.ID)
-	if !ok {
+	if card.Showcase == nil {
 		return
 	}
 	scale := s.Theme.UIFontSize
@@ -140,7 +138,7 @@ func (s *State) policyShowcase(c *ui.Context, semantic theme.Theme, card appsett
 	ui.Row(c).WidthPercent(100).Padding(0, inset, inset, inset).Children(func() {
 		showcase.Stage{
 			Key:     "showcase-" + card.ID,
-			Script:  script,
+			Script:  *card.Showcase,
 			Policy:  card.ID,
 			Values:  s.Data.PolicyValues,
 			Theme:   semantic,

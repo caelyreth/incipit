@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -113,23 +112,6 @@ func TestBasicIntentsLeaveTheCaretOnABound(t *testing.T) {
 					t.Fatalf("caret %v bound to %v", p.head(), b)
 				}
 			})
-		}
-	}
-}
-
-// Every editing key the keymap declares runs a command the program
-// declares, so no default key falls through to nothing.
-func TestEditingKeysRunDeclaredCommands(t *testing.T) {
-	prog, err := Compile(nil, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, command := range keymap.AllCommands() {
-		if command.Scope != keymap.ScopeEditing {
-			continue
-		}
-		if _, ok := prog.Command(vocab.CommandID(command.ID)); !ok {
-			t.Errorf("%s is no command of the program", command.ID)
 		}
 	}
 }

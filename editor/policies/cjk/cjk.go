@@ -47,7 +47,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		Do(func(c *policy.Ctx, site policy.Site) policy.Result {
 			return rewrite(c, site, opts)
 		})
-})
+}, policy.Label("policies.cjk"), policy.Description("policies.cjk.description"))
 
 type span struct{ from, to int }
 

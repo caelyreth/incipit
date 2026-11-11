@@ -25,7 +25,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	}
 	p.Command("blocks.quote", "commands.quote", profile.WrapQuote{})
 	p.Command("blocks.codeBlock", "commands.codeBlock", profile.Retype{To: profile.Code})
-})
+}, policy.Label("policies.blocks"), policy.Description("policies.blocks.description"))
 
 func headingAttrs(level int) doc.Attrs {
 	return doc.MakeAttrs(doc.Field{Num: profile.FieldLevel, Value: doc.Int(int64(level))})

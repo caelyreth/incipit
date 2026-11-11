@@ -57,7 +57,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		Do(func(c *policy.Ctx, site policy.Site) policy.Result {
 			return rewrite(c, site, opts)
 		})
-})
+}, policy.Label("policies.typography"), policy.Description("policies.typography.description"))
 
 func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 	spec, ok := vocab.SlotSpec(c.Doc(), site.Slot)

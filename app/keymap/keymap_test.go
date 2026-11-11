@@ -8,8 +8,8 @@ import (
 
 func TestDefaultsBindEveryCommandOnce(t *testing.T) {
 	t.Parallel()
-	keymap := Default()
-	for _, command := range AllCommands() {
+	keymap := Default(declared())
+	for _, command := range defaulted() {
 		chord, ok := keymap.ChordFor(command.ID)
 		if !ok || chord != command.Default {
 			t.Fatalf("%s = %s,%v, want %s", command.ID, chord, ok, command.Default)
@@ -24,10 +24,10 @@ func TestDefaultsBindEveryCommandOnce(t *testing.T) {
 func TestOnlyEditingCommandsShareAKey(t *testing.T) {
 	t.Parallel()
 	tab := NewChord("tab", ModifiersNone)
-	if got := Default().CommandsFor(tab); !slices.Equal(got, []CommandID{Leave, Nest}) {
+	if got := Default(declared()).CommandsFor(tab); !slices.Equal(got, []CommandID{"core.leave", "lists.nest"}) {
 		t.Fatalf("tab runs %v", got)
 	}
-	if _, err := Default().Remap(Zen, tab, ""); err == nil {
+	if _, err := Default(declared()).Remap(Zen, tab, ""); err == nil {
 		t.Fatal("a window command shared an editing key")
 	}
 }
@@ -35,14 +35,14 @@ func TestOnlyEditingCommandsShareAKey(t *testing.T) {
 func TestRemapUnbindAndReset(t *testing.T) {
 	t.Parallel()
 	chord := NewChord("y", ModifiersPrimary)
-	remapped, err := Default().Remap(Zen, chord, "")
+	remapped, err := Default(declared()).Remap(Zen, chord, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := remapped.CommandFor(chord); got != Zen || !remapped.Overridden(Zen) {
 		t.Fatalf("remap: %s runs %q", chord, got)
 	}
-	zen, _ := CommandFor(Zen)
+	zen, _ := Default(declared()).Command(Zen)
 	if _, ok := remapped.CommandFor(zen.Default); ok {
 		t.Fatal("the old default still runs Zen")
 	}
@@ -67,8 +67,8 @@ func TestRemapUnbindAndReset(t *testing.T) {
 
 func TestChoosingTheDefaultAgainIsNoOverride(t *testing.T) {
 	t.Parallel()
-	zen, _ := CommandFor(Zen)
-	keymap, err := Default().Remap(Zen, zen.Default, "")
+	zen, _ := Default(declared()).Command(Zen)
+	keymap, err := Default(declared()).Remap(Zen, zen.Default, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,12 +79,12 @@ func TestChoosingTheDefaultAgainIsNoOverride(t *testing.T) {
 
 func TestTakenChordConflictsUnlessDisplaced(t *testing.T) {
 	t.Parallel()
-	settings, _ := CommandFor(Settings)
+	settings, _ := Default(declared()).Command(Settings)
 	var conflict *ConflictError
-	if _, err := Default().Remap(Zen, settings.Default, ""); !errors.As(err, &conflict) {
+	if _, err := Default(declared()).Remap(Zen, settings.Default, ""); !errors.As(err, &conflict) {
 		t.Fatalf("taken chord: %v", err)
 	}
-	moved, err := Default().Remap(Zen, settings.Default, Settings)
+	moved, err := Default(declared()).Remap(Zen, settings.Default, Settings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestTakenChordConflictsUnlessDisplaced(t *testing.T) {
 func TestUnknownCommandsAreRejected(t *testing.T) {
 	t.Parallel()
 	chord := NewChord("y", ModifiersPrimary)
-	if _, err := New(Overrides{"nothing": &chord}); !errors.Is(err, ErrUnknownCommand) {
+	if _, err := New(declared(), Overrides{"nothing": &chord}); !errors.Is(err, ErrUnknownCommand) {
 		t.Fatalf("unknown override: %v", err)
 	}
 }

@@ -30,7 +30,7 @@ func TestNormalizeModifiersUsesPlatformPrimary(t *testing.T) {
 func TestDefaultChordsRoundTripThroughNativeKeys(t *testing.T) {
 	t.Parallel()
 	for _, platform := range []Platform{PlatformDarwin, PlatformOther} {
-		for _, command := range AllCommands() {
+		for _, command := range defaulted() {
 			modifiers, key, ok := Native(command.Default, platform)
 			if !ok {
 				t.Fatalf("%s: %s has no native spelling", command.ID, command.Default)
@@ -67,7 +67,7 @@ func TestKeyNamesAreUniqueAndInvertible(t *testing.T) {
 func TestResolveEventPrefersLogicalAndFallsBackToPhysical(t *testing.T) {
 	t.Parallel()
 	a, s := NewChord("a", ModifiersPrimary), NewChord("s", ModifiersPrimary)
-	keymap, err := New(Overrides{NewPage: &a, ClosePage: &s})
+	keymap, err := New(declared(), Overrides{NewPage: &a, ClosePage: &s})
 	if err != nil {
 		t.Fatal(err)
 	}

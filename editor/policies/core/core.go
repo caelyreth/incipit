@@ -8,6 +8,7 @@ package core
 
 import (
 	"strings"
+	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -59,47 +60,57 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 	policy.On(p, "command", policy.Intent[vocab.Command](), in, swallow).Any()
 
 	for _, c := range commands {
-		p.Command(c.id, c.label, c.intent)
+		p.Command(c.id, c.label, c.intent, c.key)
 	}
-})
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2400*time.Millisecond,
+		policy.Types("Every keystroke is an edit"),
+		policy.Waits(500*time.Millisecond),
+		policy.Presses(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward, Extend: true}), policy.Presses(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward, Extend: true}), policy.Presses(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward, Extend: true}), policy.Presses(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward, Extend: true}),
+		policy.Waits(400*time.Millisecond),
+		policy.Types("intent."),
+	)
+}, policy.Label("policies.core"), policy.Description("policies.core.description"))
 
 type command struct {
 	id     vocab.CommandID
 	label  string
 	intent vocab.Intent
+	key    policy.CommandSetting
 }
 
 // The core commands: keymaps store these ids.
 var commands = []command{
-	{"core.undo", "commands.undo", vocab.Undo{}},
-	{"core.redo", "commands.redo", vocab.Redo{}},
-	{"core.selectAll", "commands.selectAll", vocab.SelectScope{}},
+	{"core.undo", "commands.undo", vocab.Undo{}, policy.SystemKey()},
+	{"core.redo", "commands.redo", vocab.Redo{}, policy.SystemKey()},
+	{"core.selectAll", "commands.selectAll", vocab.SelectScope{}, policy.SystemKey()},
 
-	{"core.left", "commands.left", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}},
-	{"core.right", "commands.right", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward}},
-	{"core.wordLeft", "commands.wordLeft", vocab.Move{Unit: vocab.ByWord, Dir: vocab.Backward}},
-	{"core.wordRight", "commands.wordRight", vocab.Move{Unit: vocab.ByWord, Dir: vocab.Forward}},
-	{"core.lineStart", "commands.lineStart", vocab.VisualMove{Dir: vocab.LineStart}},
-	{"core.lineEnd", "commands.lineEnd", vocab.VisualMove{Dir: vocab.LineEnd}},
-	{"core.up", "commands.up", vocab.VisualMove{Dir: vocab.Up}},
-	{"core.down", "commands.down", vocab.VisualMove{Dir: vocab.Down}},
-	{"core.paragraphUp", "commands.paragraphUp", vocab.Move{Unit: vocab.ByParagraph, Dir: vocab.Backward}},
-	{"core.paragraphDown", "commands.paragraphDown", vocab.Move{Unit: vocab.ByParagraph, Dir: vocab.Forward}},
-	{"core.pageStart", "commands.pageStart", vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}},
-	{"core.pageEnd", "commands.pageEnd", vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Forward}},
-	{"core.pageUp", "commands.pageUp", vocab.VisualMove{Dir: vocab.PageUp}},
-	{"core.pageDown", "commands.pageDown", vocab.VisualMove{Dir: vocab.PageDown}},
-	{"core.deleteBackward", "commands.deleteBackward", vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}},
-	{"core.deleteForward", "commands.deleteForward", vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Forward}},
-	{"core.deleteWordBackward", "commands.deleteWordBackward", vocab.Delete{Unit: vocab.ByWord, Dir: vocab.Backward}},
-	{"core.deleteWordForward", "commands.deleteWordForward", vocab.Delete{Unit: vocab.ByWord, Dir: vocab.Forward}},
-	{"core.deleteToStart", "commands.deleteToStart", vocab.Delete{Unit: vocab.ToSlotEdge, Dir: vocab.Backward}},
-	{"core.deleteToEnd", "commands.deleteToEnd", vocab.Delete{Unit: vocab.ToSlotEdge, Dir: vocab.Forward}},
-	{"core.break", "commands.break", vocab.Break{}},
-	{"core.softBreak", "commands.softBreak", vocab.SoftBreak{}},
-	{"core.leave", "commands.leave", vocab.Leave{}},
-	{"core.return", "commands.return", vocab.Return{}},
-	{"core.dismiss", "commands.dismiss", vocab.Dismiss{}},
+	{"core.left", "commands.left", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}, policy.Key("left")},
+	{"core.right", "commands.right", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward}, policy.Key("right")},
+	{"core.wordLeft", "commands.wordLeft", vocab.Move{Unit: vocab.ByWord, Dir: vocab.Backward}, policy.Key("alt+left")},
+	{"core.wordRight", "commands.wordRight", vocab.Move{Unit: vocab.ByWord, Dir: vocab.Forward}, policy.Key("alt+right")},
+	{"core.lineStart", "commands.lineStart", vocab.VisualMove{Dir: vocab.LineStart}, policy.Key("primary+left")},
+	{"core.lineEnd", "commands.lineEnd", vocab.VisualMove{Dir: vocab.LineEnd}, policy.Key("primary+right")},
+	{"core.up", "commands.up", vocab.VisualMove{Dir: vocab.Up}, policy.Key("up")},
+	{"core.down", "commands.down", vocab.VisualMove{Dir: vocab.Down}, policy.Key("down")},
+	{"core.paragraphUp", "commands.paragraphUp", vocab.Move{Unit: vocab.ByParagraph, Dir: vocab.Backward}, policy.Key("alt+up")},
+	{"core.paragraphDown", "commands.paragraphDown", vocab.Move{Unit: vocab.ByParagraph, Dir: vocab.Forward}, policy.Key("alt+down")},
+	{"core.pageStart", "commands.pageStart", vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, policy.Key("primary+up")},
+	{"core.pageEnd", "commands.pageEnd", vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Forward}, policy.Key("primary+down")},
+	{"core.pageUp", "commands.pageUp", vocab.VisualMove{Dir: vocab.PageUp}, policy.Key("pageup")},
+	{"core.pageDown", "commands.pageDown", vocab.VisualMove{Dir: vocab.PageDown}, policy.Key("pagedown")},
+	{"core.deleteBackward", "commands.deleteBackward", vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}, policy.Key("backspace")},
+	{"core.deleteForward", "commands.deleteForward", vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Forward}, policy.Key("delete")},
+	{"core.deleteWordBackward", "commands.deleteWordBackward", vocab.Delete{Unit: vocab.ByWord, Dir: vocab.Backward}, policy.Key("alt+backspace")},
+	{"core.deleteWordForward", "commands.deleteWordForward", vocab.Delete{Unit: vocab.ByWord, Dir: vocab.Forward}, policy.Key("alt+delete")},
+	{"core.deleteToStart", "commands.deleteToStart", vocab.Delete{Unit: vocab.ToSlotEdge, Dir: vocab.Backward}, policy.Key("primary+backspace")},
+	{"core.deleteToEnd", "commands.deleteToEnd", vocab.Delete{Unit: vocab.ToSlotEdge, Dir: vocab.Forward}, policy.Key("primary+delete")},
+	{"core.break", "commands.break", vocab.Break{}, policy.Key("enter")},
+	{"core.softBreak", "commands.softBreak", vocab.SoftBreak{}, policy.Key("shift+enter")},
+	{"core.leave", "commands.leave", vocab.Leave{}, policy.Key("tab")},
+	{"core.return", "commands.return", vocab.Return{}, policy.Key("shift+tab")},
+	{"core.dismiss", "commands.dismiss", vocab.Dismiss{}, policy.Key("escape")},
 }
 
 func swallow[I vocab.Intent](*policy.Ctx, I, policy.At[doc.SlotRef]) policy.Result {

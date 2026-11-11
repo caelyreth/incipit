@@ -1,6 +1,7 @@
 package window
 
 import (
+	"reflect"
 	"time"
 
 	"github.com/caelyreth/neverland/app/keymap"
@@ -153,12 +154,26 @@ func (a *AppState) formatPage(mark doc.MarkKind) {
 	a.refreshEditorChrome()
 }
 
-func toolbarBindings(keys *keymap.Keymap) shell.ToolbarBindings {
+func toolbarBindings(keys *keymap.Keymap, catalog policy.Catalog) shell.ToolbarBindings {
+	format := func(mark doc.MarkKind) string {
+		return bindingLabel(keys, commandOf(catalog, profile.Format{Mark: mark}))
+	}
 	return shell.ToolbarBindings{
 		Typewriter: bindingLabel(keys, keymap.Typewriter),
 		Zen:        bindingLabel(keys, keymap.Zen),
-		Strong:     bindingLabel(keys, keymap.Strong),
-		Emphasis:   bindingLabel(keys, keymap.Emphasis),
-		Code:       bindingLabel(keys, keymap.Code),
+		Strong:     format(profile.Strong),
+		Emphasis:   format(profile.Emphasis),
+		Code:       format(profile.CodeMark),
 	}
+}
+
+// commandOf is the command a policy declares for an intent: a control
+// that acts as a command shows that command's key, whoever declares it.
+func commandOf(catalog policy.Catalog, in vocab.Intent) keymap.CommandID {
+	for _, c := range catalog.Commands {
+		if reflect.DeepEqual(c.Intent, in) {
+			return keymap.CommandID(c.ID)
+		}
+	}
+	return ""
 }

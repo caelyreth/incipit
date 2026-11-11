@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"time"
 )
 
 // ID is the policy's id.
@@ -18,8 +19,8 @@ const ID = "lists"
 // Policy is the lists policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Command("lists.bullet", "commands.bulletList", profile.MakeList{})
-	p.Command("lists.nest", "commands.nest", profile.Nest{Dir: vocab.Forward})
-	p.Command("lists.outdent", "commands.outdent", profile.Nest{Dir: vocab.Backward})
+	p.Command("lists.nest", "commands.nest", profile.Nest{Dir: vocab.Forward}, policy.Key("tab"))
+	p.Command("lists.outdent", "commands.outdent", profile.Nest{Dir: vocab.Backward}, policy.Key("shift+tab"))
 	p.Command("lists.toggleTask", "commands.toggleTask", profile.ToggleTask{})
 	p.Command("lists.numbered", "commands.numberedList", profile.MakeList{
 		Attrs: doc.MakeAttrs(doc.Field{Num: profile.FieldListStyle, Value: doc.Int(int64(profile.Ordered))},
@@ -31,7 +32,18 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "nest", policy.Intent[profile.Nest](), items.Own(), nest).Any()
 	policy.On(p, "make-list", policy.Intent[profile.MakeList](), policy.Slot.Inside(), makeList).Caret().Range()
 	policy.On(p, "toggle-task", policy.Intent[profile.ToggleTask](), policy.Slot.Inside(), toggleTask).Any()
-})
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2400*time.Millisecond,
+		policy.Types("- tides\nebb"),
+		policy.Waits(500*time.Millisecond),
+		policy.Presses(profile.Nest{Dir: vocab.Forward}),
+		policy.Waits(300*time.Millisecond),
+		policy.Types("\nflow"),
+		policy.Waits(500*time.Millisecond),
+		policy.Presses(profile.Nest{Dir: vocab.Backward}),
+	)
+}, policy.Label("policies.lists"), policy.Description("policies.lists.description"))
 
 // level is the item's own level.
 func level(c *policy.Ctx, item *doc.Node) (vocab.Leveled, bool) {

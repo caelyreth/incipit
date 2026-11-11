@@ -66,11 +66,15 @@ type OptionInfo struct {
 type PolicyInfo struct {
 	ID      string
 	Enabled bool
-	Options []OptionInfo
+	// Label and Description are the card's text keys.
+	Label, Description string
+	Options            []OptionInfo
+	Showcase           *Showcase
 }
 
 // Catalog lists policies, their options and the commands, for the
-// settings UI and the keymap.
+// settings UI and the keymap. It holds every listed policy's, enabled or
+// not, so a person's keys and values outlive turning a policy off.
 type Catalog struct {
 	Policies []PolicyInfo
 	Commands []Command
@@ -266,13 +270,14 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		}
 		p := &P{policy: pol, values: values}
 		pol.build(p)
-		info := PolicyInfo{ID: pol.id, Enabled: enabled}
+		info := PolicyInfo{ID: pol.id, Enabled: enabled, Label: pol.meta.label, Description: pol.meta.description, Showcase: p.showcase}
 		info.Options = append(info.Options, OptionInfo{Key: EnabledKey(pol.id), Kind: OptionBool, Default: true, Label: "settings." + pol.id + ".enabled"})
 		for _, o := range p.options {
 			info.Options = append(info.Options, OptionInfo{Key: o.Key, Kind: o.Kind, Default: o.Default, Choices: o.Choices, ChoiceLabels: o.ChoiceLabels,
 				Min: o.Min, Max: o.Max, Label: o.meta.label, Description: o.meta.description, Group: o.meta.group, Requires: o.meta.requires})
 		}
 		prog.catalog.Policies = append(prog.catalog.Policies, info)
+		prog.catalog.Commands = append(prog.catalog.Commands, p.commands...)
 		if !enabled {
 			continue
 		}
@@ -321,7 +326,6 @@ func Compile(m Manifest, values Values) (*Program, error) {
 				rep.errorf("command %s declared twice", c.ID)
 			}
 			prog.commands[c.ID] = c
-			prog.catalog.Commands = append(prog.catalog.Commands, c)
 		}
 		if p.grouping != nil {
 			if prog.grouping != nil {

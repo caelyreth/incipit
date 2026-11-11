@@ -92,7 +92,7 @@ func (a *AppState) routeWindowCommand(window *mygo.Window, command keymap.Comman
 func (a *AppState) pressedCommands(c *ui.Context) {
 	for _, chord := range a.Product.Keymap.Chords() {
 		command, _ := a.Product.Keymap.CommandFor(chord)
-		if declared, _ := keymap.CommandFor(command); menuCommands[command] || declared.Scope == keymap.ScopeEditing {
+		if declared, _ := a.Product.Keymap.Command(command); menuCommands[command] || declared.Scope == keymap.ScopeEditing {
 			continue
 		}
 		modifiers, key, ok := keymap.Native(chord, keymap.PlatformCurrent)

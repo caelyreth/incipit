@@ -1,5 +1,13 @@
 package keymap
 
+import (
+	"slices"
+	"strings"
+
+	"github.com/caelyreth/neverland/app/phrases"
+	"github.com/caelyreth/neverland/editor/policy"
+)
+
 // CommandID is a command's stable identity: how menus, the palette, the
 // keymap and the person's remaps name it.
 type CommandID string
@@ -61,43 +69,6 @@ const (
 	Settings     CommandID = "app.settings"
 )
 
-// Editing commands are the editor's: their identities are the commands
-// its policies declare, which the page resolves to intents through the
-// program (§9.1). Undo, redo and select all are the Edit menu's roles,
-// which keep their system keys.
-const (
-	MoveLeft           CommandID = "core.left"
-	MoveRight          CommandID = "core.right"
-	WordLeft           CommandID = "core.wordLeft"
-	WordRight          CommandID = "core.wordRight"
-	LineStart          CommandID = "core.lineStart"
-	LineEnd            CommandID = "core.lineEnd"
-	MoveUp             CommandID = "core.up"
-	MoveDown           CommandID = "core.down"
-	ParagraphUp        CommandID = "core.paragraphUp"
-	ParagraphDown      CommandID = "core.paragraphDown"
-	PageStart          CommandID = "core.pageStart"
-	PageEnd            CommandID = "core.pageEnd"
-	ScreenUp           CommandID = "core.pageUp"
-	ScreenDown         CommandID = "core.pageDown"
-	DeleteBackward     CommandID = "core.deleteBackward"
-	DeleteForward      CommandID = "core.deleteForward"
-	DeleteWordBackward CommandID = "core.deleteWordBackward"
-	DeleteWordForward  CommandID = "core.deleteWordForward"
-	DeleteToStart      CommandID = "core.deleteToStart"
-	DeleteToEnd        CommandID = "core.deleteToEnd"
-	Break              CommandID = "core.break"
-	SoftBreak          CommandID = "core.softBreak"
-	Nest               CommandID = "lists.nest"
-	Outdent            CommandID = "lists.outdent"
-	Leave              CommandID = "core.leave"
-	Return             CommandID = "core.return"
-	Dismiss            CommandID = "core.dismiss"
-	Strong             CommandID = "formats.strong"
-	Emphasis           CommandID = "formats.emphasis"
-	Code               CommandID = "formats.code"
-)
-
 // Command is one declared command.
 type Command struct {
 	ID    CommandID
@@ -105,43 +76,49 @@ type Command struct {
 	Scope Scope
 	// Default is the key the command starts with; a zero chord is none.
 	Default Chord
+	// Policy is the editor policy declaring an editing command.
+	Policy string
 }
 
-var commands = [...]Command{
-	{ID: MoveLeft, Label: "Move left", Scope: ScopeEditing, Default: NewChord("left", ModifiersNone)},
-	{ID: MoveRight, Label: "Move right", Scope: ScopeEditing, Default: NewChord("right", ModifiersNone)},
-	{ID: WordLeft, Label: "Previous word", Scope: ScopeEditing, Default: NewChord("left", ModifiersAlt)},
-	{ID: WordRight, Label: "Next word", Scope: ScopeEditing, Default: NewChord("right", ModifiersAlt)},
-	{ID: LineStart, Label: "Line start", Scope: ScopeEditing, Default: NewChord("left", ModifiersPrimary)},
-	{ID: LineEnd, Label: "Line end", Scope: ScopeEditing, Default: NewChord("right", ModifiersPrimary)},
-	{ID: MoveUp, Label: "Line up", Scope: ScopeEditing, Default: NewChord("up", ModifiersNone)},
-	{ID: MoveDown, Label: "Line down", Scope: ScopeEditing, Default: NewChord("down", ModifiersNone)},
-	{ID: ParagraphUp, Label: "Previous paragraph", Scope: ScopeEditing, Default: NewChord("up", ModifiersAlt)},
-	{ID: ParagraphDown, Label: "Next paragraph", Scope: ScopeEditing, Default: NewChord("down", ModifiersAlt)},
-	{ID: PageStart, Label: "Start of page", Scope: ScopeEditing, Default: NewChord("up", ModifiersPrimary)},
-	{ID: PageEnd, Label: "End of page", Scope: ScopeEditing, Default: NewChord("down", ModifiersPrimary)},
-	{ID: ScreenUp, Label: "Screen up", Scope: ScopeEditing, Default: NewChord("pageup", ModifiersNone)},
-	{ID: ScreenDown, Label: "Screen down", Scope: ScopeEditing, Default: NewChord("pagedown", ModifiersNone)},
-	{ID: DeleteBackward, Label: "Delete backward", Scope: ScopeEditing, Default: NewChord("backspace", ModifiersNone)},
-	{ID: DeleteForward, Label: "Delete forward", Scope: ScopeEditing, Default: NewChord("delete", ModifiersNone)},
-	{ID: DeleteWordBackward, Label: "Delete word backward", Scope: ScopeEditing,
-		Default: NewChord("backspace", ModifiersAlt)},
-	{ID: DeleteWordForward, Label: "Delete word forward", Scope: ScopeEditing,
-		Default: NewChord("delete", ModifiersAlt)},
-	{ID: DeleteToStart, Label: "Delete to line start", Scope: ScopeEditing,
-		Default: NewChord("backspace", ModifiersPrimary)},
-	{ID: DeleteToEnd, Label: "Delete to line end", Scope: ScopeEditing,
-		Default: NewChord("delete", ModifiersPrimary)},
-	{ID: Break, Label: "New block", Scope: ScopeEditing, Default: NewChord("enter", ModifiersNone)},
-	{ID: SoftBreak, Label: "Line break", Scope: ScopeEditing, Default: NewChord("enter", ModifiersShift)},
-	{ID: Leave, Label: "Leave the scope", Scope: ScopeEditing, Default: NewChord("tab", ModifiersNone)},
-	{ID: Return, Label: "Go back", Scope: ScopeEditing, Default: NewChord("tab", ModifiersShift)},
-	{ID: Nest, Label: "Nest", Scope: ScopeEditing, Default: NewChord("tab", ModifiersNone)},
-	{ID: Outdent, Label: "Outdent", Scope: ScopeEditing, Default: NewChord("tab", ModifiersShift)},
-	{ID: Dismiss, Label: "Dismiss", Scope: ScopeEditing, Default: NewChord("escape", ModifiersNone)},
-	{ID: Strong, Label: "Strong", Scope: ScopeEditing, Default: NewChord("b", ModifiersPrimary)},
-	{ID: Emphasis, Label: "Emphasis", Scope: ScopeEditing, Default: NewChord("i", ModifiersPrimary)},
-	{ID: Code, Label: "Code", Scope: ScopeEditing, Default: NewChord("e", ModifiersPrimary)},
+// Declared is every command: the editing commands the program's policies
+// declare (§9.1), in manifest order, each with its label's words and
+// default key, then the app's own. Editing commands sharing a key are
+// tried in this order, as Tab leaves a scope or, with none to leave,
+// nests. A command the platform's key runs, such as undo, is not listed.
+func Declared(catalog policy.Catalog) []Command {
+	out := make([]Command, 0, len(catalog.Commands)+len(appCommands))
+	for _, c := range catalog.Commands {
+		if c.System {
+			continue
+		}
+		chord, _ := ParseChord(c.Key)
+		out = append(out, Command{ID: CommandID(c.ID), Label: phrases.Text(c.Label), Scope: ScopeEditing,
+			Default: chord, Policy: c.Policy})
+	}
+	return append(out, appCommands[:]...)
+}
+
+// ParseChord reads a key as policies declare it: modifiers by name, then
+// the key, joined by "+", as "primary+b" or "shift+tab". Empty is no key.
+func ParseChord(spec string) (Chord, bool) {
+	if spec == "" {
+		return Chord{}, false
+	}
+	parts := strings.Split(spec, "+")
+	var modifiers Modifiers
+	for _, part := range parts[:len(parts)-1] {
+		i := slices.IndexFunc(AllModifiers[:], func(m Modifier) bool { return m.String() == part })
+		if i < 0 {
+			return Chord{}, false
+		}
+		modifiers = modifiers.With(AllModifiers[i])
+	}
+	chord := NewChord(parts[len(parts)-1], modifiers)
+	return chord, chord.Valid()
+}
+
+// appCommands are the app's own: pages, the window and its tools.
+var appCommands = [...]Command{
 	{ID: NewPage, Label: "New page", Scope: ScopePages, Default: NewChord("n", ModifiersPrimary)},
 	{ID: NextPage, Label: "Next tab", Scope: ScopePages,
 		Default: NewChord("]", ModifiersPrimary|ModifiersShift)},
@@ -161,20 +138,4 @@ var commands = [...]Command{
 	{ID: PageView, Label: "Show page only", Scope: ScopeWindow, Default: NewChord("3", ModifiersPrimary)},
 	{ID: Commands, Label: "Search commands", Scope: ScopeApp, Default: NewChord("k", ModifiersPrimary)},
 	{ID: Settings, Label: "Open settings", Scope: ScopeApp, Default: NewChord(",", ModifiersPrimary)},
-}
-
-// AllCommands returns every command in declaration order, which is display
-// order within a scope.
-func AllCommands() []Command {
-	return append([]Command(nil), commands[:]...)
-}
-
-// CommandFor returns one command's declaration.
-func CommandFor(id CommandID) (Command, bool) {
-	for _, command := range commands {
-		if command.ID == id {
-			return command, true
-		}
-	}
-	return Command{}, false
 }

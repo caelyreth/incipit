@@ -26,7 +26,20 @@ var Policy = policy.Define("history", func(p *policy.P) {
 			EndComposition: c.Composition() != nil, Effects: []policy.Effect{{Kind: policy.EffectReveal}}}
 	}).Any()
 	p.Command("history.undoCorrection", "commands.undoCorrection", vocab.Undo{TopLayer: true})
-})
+
+	// The card's demonstration, played by the engine itself.
+	p.Showcase(2400*time.Millisecond,
+		policy.Types("A first draft, then a second thought."),
+		policy.Waits(500*time.Millisecond),
+		policy.Presses(vocab.Undo{}),
+		policy.Waits(450*time.Millisecond),
+		policy.Presses(vocab.Undo{}),
+		policy.Waits(700*time.Millisecond),
+		policy.Presses(vocab.Redo{}),
+		policy.Waits(450*time.Millisecond),
+		policy.Presses(vocab.Redo{}),
+	)
+}, policy.Label("policies.history"), policy.Description("policies.history.description"))
 
 // typingGroup reports whether next continues prev's typing: both are
 // typing in one view and slot, within window of each other, typing on at

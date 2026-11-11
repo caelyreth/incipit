@@ -20,7 +20,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	dollar := policy.Typed(string(profile.FormulaSpelling))
 	policy.On(p, "open", dollar, policy.Slot.Own(), open).When(policy.Takes(profile.Formula))
 	policy.On(p, "math", dollar, policy.Node(profile.Formula).Empty(), toMath)
-})
+}, policy.Label("policies.formulas"), policy.Description("policies.formulas.description"))
 
 // open inserts an empty formula and puts the caret in its source.
 func open(c *policy.Ctx, _ vocab.Type, _ policy.At[doc.SlotRef]) policy.Result {

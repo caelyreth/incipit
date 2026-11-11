@@ -18,11 +18,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "at-caret", format, policy.Slot.Own(), formatAtCaret).When(policy.Rich)
 	policy.On(p, "range", format, policy.Slot.Inside(), formatRange).Range()
 
-	p.Command("formats.strong", "commands.strong", profile.Format{Mark: profile.Strong})
-	p.Command("formats.emphasis", "commands.emphasis", profile.Format{Mark: profile.Emphasis})
-	p.Command("formats.code", "commands.code", profile.Format{Mark: profile.CodeMark})
+	p.Command("formats.strong", "commands.strong", profile.Format{Mark: profile.Strong}, policy.Key("primary+b"))
+	p.Command("formats.emphasis", "commands.emphasis", profile.Format{Mark: profile.Emphasis}, policy.Key("primary+i"))
+	p.Command("formats.code", "commands.code", profile.Format{Mark: profile.CodeMark}, policy.Key("primary+e"))
 	p.Command("formats.strike", "commands.strike", profile.Format{Mark: profile.Strike})
-})
+}, policy.Label("policies.formats"), policy.Description("policies.formats.description"))
 
 // formatAtCaret toggles a mark in the marks text typed at the caret
 // takes: the pending ones, or the marks around it.

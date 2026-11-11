@@ -223,7 +223,7 @@ func (a *AppState) refreshToolbarState() {
 		TypewriterEnabled: true,
 		ZenEnabled:        true,
 		Formatting:        formatting,
-		Bindings:          toolbarBindings(keys),
+		Bindings:          toolbarBindings(keys, a.Product.Program.Catalog()),
 	}
 }
 

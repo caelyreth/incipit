@@ -53,7 +53,7 @@ func TestPaletteListsEveryCommandButItself(t *testing.T) {
 		}
 		listed[command.ID] = command.Group
 	}
-	for _, command := range keymap.AllCommands() {
+	for _, command := range appsettings.DefaultState().Keymap.Commands() {
 		group, ok := listed[command.ID]
 		if command.ID == keymap.Commands || command.Scope == keymap.ScopeEditing {
 			if ok {

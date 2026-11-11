@@ -34,7 +34,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	// A structure selected whole, as a node or as a text range over it
 	// exactly, is deleted as a whole.
 	policy.On(p, "structure", policy.Intent[vocab.Delete](), policy.Role[vocab.Structure](vocab.RoleStructure).Selected(), structure)
-})
+}, policy.Label("policies.deletion"), policy.Description("policies.deletion.description"))
 
 func structure(c *policy.Ctx, _ vocab.Delete, at policy.At[vocab.Structure]) policy.Result {
 	return act(c, at.Node.ID())

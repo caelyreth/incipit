@@ -42,7 +42,7 @@ var menuIntents = map[string]vocab.Intent{
 func (el *Element) keyIntent(ev ui.InputEvent) (vocab.Intent, bool) {
 	keys := el.Keys
 	if keys == nil {
-		keys = keymap.Default()
+		keys = keymap.Default(keymap.Declared(el.Editor.Engine.Program().Catalog()))
 	}
 	ed := el.Editor
 	prog := ed.Engine.Program()

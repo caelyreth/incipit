@@ -23,7 +23,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Annotation(Active, valid)
 	p.Decorate(Active, vocab.GroupScope)
 	p.Observe("highlight", policy.Trigger{}, highlight)
-})
+}, policy.Label("policies.scopes"), policy.Description("policies.scopes.description"))
 
 type candidate struct {
 	selection doc.Selection

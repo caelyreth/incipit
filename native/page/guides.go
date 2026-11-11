@@ -66,7 +66,7 @@ func (el *Element) stepGuides(pl *pageLayout, show bool, now time.Time, animate 
 	}
 	keys := el.Keys
 	if keys == nil {
-		keys = keymap.Default()
+		keys = keymap.Default(keymap.Declared(el.Editor.Engine.Program().Catalog()))
 	}
 	if show {
 		for _, g := range el.Editor.deco.Guides {

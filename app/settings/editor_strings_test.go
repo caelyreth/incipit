@@ -1,33 +1,53 @@
 package settings
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/app/phrases"
 )
 
-// Every catalog entry is rendered from a display string; a missing key
-// falls back to its internal settings key.
+// Everything a policy declares for people to read has words, every key a
+// text names is a declared command's, and every declared key parses: a
+// renamed command or a new option cannot leave a card, a shortcut or a
+// live key behind.
 func TestEveryCatalogEntryHasDisplayText(t *testing.T) {
 	t.Parallel()
-	for _, card := range DefaultState().Data().Policies {
-		if card.Title == "" || card.Title == card.ID || strings.HasPrefix(card.Title, "settings.") {
-			t.Errorf("policy %s has no title", card.ID)
+	state := DefaultState()
+	catalog := state.Program.Catalog()
+	commands := map[keymap.CommandID]bool{}
+	for _, c := range catalog.Commands {
+		commands[keymap.CommandID(c.ID)] = true
+	}
+	for _, c := range state.Keymap.Commands() {
+		commands[c.ID] = true
+	}
+	want := func(what, key string) {
+		if !phrases.Has(key) {
+			t.Errorf("%s: no words for %q", what, key)
+			return
 		}
-		if strings.TrimSpace(card.Description) == "" {
-			t.Errorf("policy %s has no description", card.ID)
+		for _, id := range References(phrases.Text(key)) {
+			if !commands[id] {
+				t.Errorf("%s: %q names no command %s", what, key, id)
+			}
 		}
-		for _, option := range card.Options {
-			if option.Label == "" || strings.HasPrefix(option.Label, "settings.") {
-				t.Errorf("policy %s option %s has no label", card.ID, option.Key)
+	}
+	for _, p := range catalog.Policies {
+		want("policy "+p.ID, p.Label)
+		want("policy "+p.ID, p.Description)
+		for _, o := range p.Options[1:] { // [0] is the policy's switch
+			want("option "+o.Key, o.Label)
+			want("option "+o.Key, o.Description)
+			for i, label := range o.ChoiceLabels {
+				want("option "+o.Key+" choice "+string(rune('0'+i)), label)
 			}
-			if option.Description == "" || strings.HasPrefix(option.Description, "settings.") {
-				t.Errorf("policy %s option %s has no description", card.ID, option.Key)
-			}
-			for _, choice := range option.Choices {
-				if choice.Label == "" || strings.HasPrefix(choice.Label, "settings.") {
-					t.Errorf("policy %s option %s choice %v has no label", card.ID, option.Key, choice.Value)
-				}
-			}
+		}
+	}
+	for _, c := range catalog.Commands {
+		want("command "+string(c.ID), c.Label)
+		if _, ok := keymap.ParseChord(c.Key); c.Key != "" && !ok {
+			t.Errorf("command %s: key %q does not parse", c.ID, c.Key)
 		}
 	}
 }

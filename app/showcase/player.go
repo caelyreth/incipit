@@ -1,7 +1,7 @@
-// Package showcase replays scripted writing against a real engine, so a
-// policy is shown by the engine itself rather than by a recording. A
-// script is a list of beats: typing with a human cadence, intents and
-// pauses. The player owns the page and the timeline; a host types through
+// Package showcase replays a policy's showcase (policy.Showcase, declared
+// with the policy) against a real engine, so a policy is shown by the
+// engine itself rather than by a recording: typing with a human cadence,
+// intents and pauses. The player owns the page and the timeline; a host types through
 // a page of its own over the player's engine, which it draws. Nothing here
 // depends on MyGo.
 package showcase
@@ -19,41 +19,6 @@ import (
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
-
-// BeatKind is what one beat does.
-type BeatKind uint8
-
-const (
-	BeatType BeatKind = iota + 1
-	BeatPress
-	BeatWait
-)
-
-// Beat is one step of a script.
-type Beat struct {
-	Kind   BeatKind
-	Text   string
-	Intent vocab.Intent
-	Wait   time.Duration
-}
-
-// Type types text one character at a time, as a person would; a newline
-// is Enter.
-func Type(text string) Beat { return Beat{Kind: BeatType, Text: text} }
-
-// Press sends an intent, as its key would.
-func Press(in vocab.Intent) Beat { return Beat{Kind: BeatPress, Intent: in} }
-
-// Wait holds the frame, letting the reader see what just happened.
-func Wait(d time.Duration) Beat { return Beat{Kind: BeatWait, Wait: d} }
-
-// Script is a showcase: beats set up instantly, then beats played in time.
-// Hold is how long the finished page stays before the loop restarts.
-type Script struct {
-	Setup []Beat
-	Beats []Beat
-	Hold  time.Duration
-}
 
 const (
 	// FadeOut and FadeIn frame each loop, so a restart reads as a cut
@@ -77,7 +42,7 @@ const View uint64 = 1
 
 // Player replays one script, looping, against a page of its own.
 type Player struct {
-	script Script
+	script policy.Showcase
 	policy string
 	values policy.Values
 	open   func(*engine.Engine) Page
@@ -97,7 +62,7 @@ type Player struct {
 
 // NewPlayer prepares the showcase of policyID under the person's values,
 // starting at now. open gives the host's page over each loop's engine.
-func NewPlayer(script Script, policyID string, values policy.Values, open func(*engine.Engine) Page, now time.Time) *Player {
+func NewPlayer(script policy.Showcase, policyID string, values policy.Values, open func(*engine.Engine) Page, now time.Time) *Player {
 	p := &Player{script: script, policy: policyID, open: open}
 	p.configure(values)
 	p.restart(now)
@@ -222,11 +187,6 @@ func (p *Player) restart(now time.Time) {
 	p.err = nil
 	p.engine = engine.New(snap, p.prog, engine.Options{})
 	p.page = p.open(p.engine)
-	for _, beat := range p.script.Setup {
-		for _, in := range intents(beat) {
-			p.do(in, now)
-		}
-	}
 }
 
 // step plays the current beat, or the next character of a typing beat,
@@ -237,7 +197,7 @@ func (p *Player) step() {
 		return
 	}
 	beat := p.script.Beats[p.index]
-	if beat.Kind == BeatType {
+	if beat.Kind == policy.BeatType {
 		rest := beat.Text[p.typed:]
 		if rest == "" {
 			p.index, p.typed = p.index+1, 0
@@ -249,7 +209,7 @@ func (p *Player) step() {
 		p.due = p.due.Add(keystroke(r, p.loop*7919+p.index*131+p.typed))
 		return
 	}
-	if beat.Kind == BeatPress {
+	if beat.Kind == policy.BeatPress {
 		p.do(beat.Intent, p.due)
 	}
 	p.index++
@@ -262,15 +222,15 @@ func (p *Player) do(in vocab.Intent, at time.Time) {
 	}
 }
 
-func intents(beat Beat) []vocab.Intent {
+func intents(beat policy.Beat) []vocab.Intent {
 	switch beat.Kind {
-	case BeatType:
+	case policy.BeatType:
 		var out []vocab.Intent
 		for _, r := range beat.Text {
 			out = append(out, typed(r))
 		}
 		return out
-	case BeatPress:
+	case policy.BeatPress:
 		return []vocab.Intent{beat.Intent}
 	}
 	return nil
@@ -300,11 +260,11 @@ func keystroke(r rune, seed int) time.Duration {
 	return pause
 }
 
-func beatPause(beat Beat) time.Duration {
+func beatPause(beat policy.Beat) time.Duration {
 	switch beat.Kind {
-	case BeatWait:
+	case policy.BeatWait:
 		return beat.Wait
-	case BeatPress:
+	case policy.BeatPress:
 		return 260 * time.Millisecond
 	default:
 		return 380 * time.Millisecond

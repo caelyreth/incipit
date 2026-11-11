@@ -31,7 +31,7 @@ var Policy = policy.Define("statistics", func(p *policy.P) {
 		Combine:  combine,
 		Identity: Counts{},
 	})
-})
+}, policy.Label("policies.statistics"), policy.Description("policies.statistics.description"))
 
 func combine(a, b Counts) Counts {
 	return Counts{Words: a.Words + b.Words, Characters: a.Characters + b.Characters, CJK: a.CJK + b.CJK}

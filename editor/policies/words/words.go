@@ -32,7 +32,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		policy.On(p, "delete-"+unit.name, policy.Deleting(unit.unit, 0), policy.Slot.Inside(), delete)
 	}
 	policy.On(p, "select-word", policy.Clicking(2), policy.Slot.Inside(), selectWord).Any()
-})
+}, policy.Label("policies.words"), policy.Description("policies.words.description"))
 
 type span struct{ from, to int }
 

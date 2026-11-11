@@ -28,7 +28,7 @@ const (
 // Stage is one showcase, as wide as its container and Height tall.
 type Stage struct {
 	Key    string
-	Script appshowcase.Script
+	Script policy.Showcase
 	// Policy is the policy shown, and Values the person's policy values.
 	Policy string
 	Values policy.Values

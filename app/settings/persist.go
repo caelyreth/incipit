@@ -79,10 +79,6 @@ func (s *State) Decode(data []byte) error {
 	if !ok {
 		return ErrInvalidAppearance
 	}
-	keys, err := parseOverrides(record.Keymap)
-	if err != nil {
-		return err
-	}
 	values, err := parsePolicyValues(record.PolicyValues)
 	if err != nil {
 		return err
@@ -90,6 +86,10 @@ func (s *State) Decode(data []byte) error {
 	prog, err := manifest.Compile(values, false)
 	if err != nil {
 		return fmt.Errorf("settings: compile saved policy values: %w", err)
+	}
+	keys, err := parseOverrides(keymap.Declared(prog.Catalog()), record.Keymap)
+	if err != nil {
+		return err
 	}
 	candidate := State{
 		Presentation: PresentationState{
@@ -150,11 +150,12 @@ func persistedOverrides(keys *keymap.Keymap) map[string]*persistedChord {
 	return out
 }
 
-func parseOverrides(saved map[string]*persistedChord) (*keymap.Keymap, error) {
+func parseOverrides(commands []keymap.Command, saved map[string]*persistedChord) (*keymap.Keymap, error) {
+	declared := keymap.Default(commands)
 	overrides := keymap.Overrides{}
 	for name, saved := range saved {
 		command := keymap.CommandID(name)
-		if _, ok := keymap.CommandFor(command); !ok {
+		if _, ok := declared.Command(command); !ok {
 			continue
 		}
 		if saved == nil {
@@ -164,7 +165,7 @@ func parseOverrides(saved map[string]*persistedChord) (*keymap.Keymap, error) {
 		chord := keymap.Chord{Key: saved.Key, Modifiers: keymap.Modifiers(saved.Modifiers)}
 		overrides[command] = &chord
 	}
-	keys, err := keymap.New(overrides)
+	keys, err := keymap.New(commands, overrides)
 	if err != nil {
 		return nil, fmt.Errorf("settings: saved keymap: %w", err)
 	}

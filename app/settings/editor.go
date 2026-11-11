@@ -5,8 +5,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/app/manifest"
+	"github.com/caelyreth/neverland/app/phrases"
 	"github.com/caelyreth/neverland/editor/policy"
 )
 
@@ -26,6 +26,8 @@ type Policy struct {
 	Enabled   bool
 	Options   []Option
 	Shortcuts []Shortcut
+	// Showcase is the policy's demonstration, when it declares one.
+	Showcase *policy.Showcase
 }
 
 // Option is one option of a policy.
@@ -118,11 +120,8 @@ func valid(info policy.OptionInfo, value any) bool {
 func (s State) policies(shortcuts []Shortcut) []Policy {
 	cards := []Policy{}
 	for _, info := range s.Program.Catalog().Policies {
-		text := policyTexts[info.ID]
-		card := Policy{ID: info.ID, Title: text.title, Description: text.description, Enabled: info.Enabled}
-		if card.Title == "" {
-			card.Title = info.ID
-		}
+		card := Policy{ID: info.ID, Title: phrases.Text(info.Label), Description: phrases.Text(info.Description), Enabled: info.Enabled,
+			Showcase: info.Showcase}
 		for _, o := range info.Options {
 			if o.Key == policy.EnabledKey(info.ID) {
 				if info.ID != policy.CoreID {
@@ -143,12 +142,12 @@ func (s State) policies(shortcuts []Shortcut) []Policy {
 }
 
 func (s State) optionOf(policyID string, o policy.OptionInfo) Option {
-	opt := Option{Key: o.Key, Kind: o.Kind, Label: phraseText(o.Label), Description: phraseText(o.Description),
+	opt := Option{Key: o.Key, Kind: o.Kind, Label: phrases.Text(o.Label), Description: phrases.Text(o.Description),
 		Value: s.value(o), Min: o.Min, Max: o.Max, Applies: true}
 	for i, v := range o.Choices {
 		label := fmt.Sprint(v)
 		if i < len(o.ChoiceLabels) {
-			label = phraseText(o.ChoiceLabels[i])
+			label = phrases.Text(o.ChoiceLabels[i])
 		}
 		opt.Choices = append(opt.Choices, Choice{Value: v, Label: label})
 	}
@@ -164,104 +163,4 @@ func (s State) value(o policy.OptionInfo) any {
 		return v
 	}
 	return o.Default
-}
-
-// commandPolicy is the policy declaring an editing command.
-func (s State) commandPolicy(id keymap.CommandID) string {
-	for _, c := range s.Program.Catalog().Commands {
-		if string(c.ID) == string(id) {
-			return c.Policy
-		}
-	}
-	return ""
-}
-
-func phraseText(key string) string {
-	if text, ok := optionTexts[key]; ok {
-		return text
-	}
-	return key
-}
-
-type policyText struct{ title, description string }
-
-// policyTexts title and describe each policy's card. A key named in braces
-// is the command's live key.
-var policyTexts = map[string]policyText{
-	policy.CoreID: {"Text", "Every keystroke is an edit of the page: {core.break} starts a new block, " +
-		"{core.softBreak} breaks the line inside one."},
-	"formats":    {"Formats", "{formats.strong}, {formats.emphasis} and {formats.code} format the selection, or what you type next at the caret."},
-	"blocks":     {"Blocks", "Turn the blocks you are in into headings, code or a quote, and back into paragraphs."},
-	"formulas":   {"Formulas", "$ writes a formula in the text; $ again at its end steps out, and $$ alone opens a math block."},
-	"notation":   {"Notation", "How the page spells its marks and markers as you write them."},
-	"markdown":   {"Markdown", "Type markdown and the page takes the shape it spells, including task markers."},
-	"words":      {"Words", "Move, select and delete by word, sentence or paragraph; {core.wordLeft} and {core.wordRight} move by word."},
-	"typography": {"Typography", "Typographic symbols, apostrophes, punctuation spacing and quote placement as you write."},
-	"cjk":        {"CJK", "Punctuation width and spacing between Chinese, Japanese or Korean and Latin text."},
-	"lists":      {"Lists", "{lists.nest} nests an item, {lists.outdent} steps it out; {core.break} in an empty item leaves the list. Reshape blocks into bulleted or numbered lists."},
-	"pairs":      {"Pairs", "Brackets and quotes close themselves as you open them; deleting into a pair selects it first."},
-	"navigation": {"Navigation", "Leave and Return move through the roles selected below; {core.leave} leaves, {core.return} goes back."},
-	"scopes":     {"Scopes", "{core.selectAll} grows the selection through the scopes around the caret; {core.dismiss} returns to the caret."},
-	"deletion":   {"Deletion", "A structure is armed by the first delete and removed by the next; text pairs keep their own sides."},
-	"guides":     {"Guides", "Show a key where it would act: leaving a scope, or going back."},
-	"history":    {"History", "Undo and redo step through your edits, a burst of typing at a time."},
-	"feedback":   {"Feedback", "A pulse shows what typography or CJK changed; undo plays it backward and redo forward."},
-	"statistics": {"Statistics", "Word, character and CJK counts for the page and the selection, shown in the footer."},
-}
-
-// optionTexts are the catalog's label and description keys in words.
-var optionTexts = map[string]string{
-	"settings.markdown.asterisks.description":        "*soft* and **firm** become emphasis and strong.",
-	"settings.markdown.underscores.description":      "_soft_ and __firm__ do the same.",
-	"settings.markdown.headings.description":         "# at a line's start makes a heading, one level per #.",
-	"settings.markdown.lists.description":            "- or 1. at a line's start starts a list.",
-	"settings.markdown.quotes.description":           "> at a line's start starts a quote.",
-	"settings.markdown.code.description":             "`code` marks code; ``` and Enter opens a code block.",
-	"settings.markdown.math.description":             "$$ and Enter opens a math block.",
-	"settings.markdown.strike.description":           "~~text~~ strikes text through.",
-	"settings.markdown.rules.description":            "--- and Enter draws a rule.",
-	"settings.markdown.tables.description":           "A pipe row and its delimiter row make a table.",
-	"settings.notation.reveal.description":           "Whether marks show their signs, as *this*, or only their style.",
-	"settings.notation.underscores.description":      "Emphasis and strong show _ and __ instead of * and **.",
-	"settings.typography.symbols.description":        "Write ... and -- as … and — while typing.",
-	"settings.typography.punctuation.description":    "Put a space after commas, semicolons and colons as they are typed.",
-	"settings.typography.quotePlacement.description": "Curl apostrophes and move terminal punctuation inside closing quotes.",
-	"settings.cjk.punctuation.description":           "Use full-width punctuation on lines written in Chinese, Japanese or Korean.",
-	"settings.cjk.spacing.description":               "Put one space between adjacent CJK and Latin text.",
-	"settings.deletion.roles.description":            "Which structures require a first delete to arm them, then a second to remove them.",
-	"settings.navigation.roles.description":          "Which scope kinds Leave and Return move through.",
-	"settings.pairs.autoClose.description":           "Typing an opener types its closer, unless a word follows.",
-	"settings.pairs.overtype.description":            "Typing a closer right before a pair's closer moves past it, however it was typed.",
-	"settings.pairs.quotes.description":              "Straight double quotes pair like brackets; after a word one closes.",
-	"settings.pairs.mates.description":               "Backspace or Delete into a pair selects it whole; the next press deletes both sides together.",
-	"settings.history.typingWindow.description":      "Typing within this pause of the last keystroke undoes together.",
-	"settings.markdown.asterisks":                    "Asterisks for emphasis",
-	"settings.markdown.underscores":                  "Underscores for emphasis",
-	"settings.markdown.headings":                     "Headings",
-	"settings.markdown.lists":                        "Lists",
-	"settings.markdown.quotes":                       "Quotes",
-	"settings.markdown.code":                         "Code",
-	"settings.markdown.math":                         "Math",
-	"settings.markdown.strike":                       "Strikethrough",
-	"settings.markdown.rules":                        "Rules",
-	"settings.markdown.tables":                       "Tables",
-	"settings.notation.reveal":                       "Mark notation",
-	"settings.notation.reveal.shown":                 "Shown",
-	"settings.notation.reveal.hidden":                "Hidden",
-	"settings.notation.underscores":                  "Spell emphasis with underscores",
-	"settings.pairs.autoClose":                       "Close brackets and quotes",
-	"settings.pairs.overtype":                        "Step over a pair's closer",
-	"settings.pairs.quotes":                          "Pair straight quotes",
-	"settings.pairs.mates":                           "Select a pair before deleting it",
-	"settings.history.typingWindow":                  "Typing burst (ms)",
-	"settings.typography.symbols":                    "Typographic symbols",
-	"settings.typography.punctuation":                "Space punctuation",
-	"settings.typography.quotePlacement":             "Quote punctuation",
-	"settings.cjk.punctuation":                       "Full-width punctuation",
-	"settings.cjk.spacing":                           "CJK and Latin spacing",
-	"settings.deletion.roles":                        "Roles that arm",
-	"settings.deletion.roles.structure":              "Structures",
-	"settings.navigation.roles":                      "Leavable roles",
-	"settings.navigation.roles.leavable":             "Leavable scopes",
-	"settings.navigation.roles.pair":                 "Pairs",
 }
