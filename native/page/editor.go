@@ -28,6 +28,9 @@ type Editor struct {
 	Effect func(policy.Effect)
 	// Wake asks for a frame from any goroutine, as a deadline comes due.
 	Wake func()
+	// Intake keeps the pictures pasted or dropped on the page and places
+	// them; nil takes none.
+	Intake Intake
 
 	theme   present.Theme
 	themeOf any
@@ -40,6 +43,8 @@ type Editor struct {
 	active time.Time
 	// reveal asks the next frame to scroll the caret into view.
 	reveal bool
+	// resize is a figure resize the renderer holds until release.
+	resize *figureResize
 
 	mu     sync.Mutex
 	timer  *time.Timer
@@ -84,7 +89,7 @@ func (ed *Editor) Relayout() *pageLayout {
 	}
 	pres := ed.Engine.Present(ed.View, ids)
 	ed.deco = ed.Engine.Decorations(ed.View)
-	ed.layout = ed.cache.build(pres, ed.deco, ed.theme, ed.metrics)
+	ed.layout = ed.cache.build(pres, ed.deco, ed.theme, ed.metrics, ed.resize)
 	return ed.layout
 }
 
@@ -184,7 +189,19 @@ func (ed *Editor) resolve(in vocab.VisualMove, viewport float32) (vocab.VisualMo
 	v := ed.view()
 	head := v.Selection.Head
 	if v.Selection.Kind == doc.SelectNode {
-		head = v.Selection.Anchor
+		// A selected object is left through its gap on the side moved to.
+		for _, u := range pl.units {
+			if u.pres.Unit == v.Selection.Node && len(u.gaps) == 2 {
+				head = u.gaps[0].caret
+				if in.Dir == vocab.Down || in.Dir == vocab.PageDown || in.Dir == vocab.LineEnd {
+					head = u.gaps[1].caret
+				}
+				if in.Dir == vocab.Up || in.Dir == vocab.Down {
+					in.Target, in.GoalX = head, -1
+					return in, true
+				}
+			}
+		}
 	}
 	if in.Dir == vocab.LineStart || in.Dir == vocab.LineEnd {
 		return ed.lineEdge(in, head)
@@ -197,25 +214,27 @@ func (ed *Editor) resolve(in vocab.VisualMove, viewport float32) (vocab.VisualMo
 	if v.GoalX >= 0 {
 		in.GoalX = float32(v.GoalX)
 	}
-	var y float32
 	switch in.Dir {
 	case vocab.Up, vocab.Down:
-		y = pl.adjacentLine(head, r, in.Dir == vocab.Up)
-	case vocab.PageUp:
-		y = r.Y - viewport*pageStep
-	case vocab.PageDown:
-		y = r.Y + viewport*pageStep
-	}
-	if y >= 0 && y <= pl.height {
-		c, _, ok := pl.hit(in.GoalX, y)
-		if !ok {
-			return in, false
+		if c, ok := pl.vertical(head, in.GoalX, in.Dir == vocab.Up); ok {
+			in.Target = c
 		}
-		in.Target = c
+	case vocab.PageUp, vocab.PageDown:
+		y := r.Y + viewport*pageStep
+		if in.Dir == vocab.PageUp {
+			y = r.Y - viewport*pageStep
+		}
+		if y >= 0 && y <= pl.height {
+			c, _, ok := pl.hit(in.GoalX, y)
+			if !ok {
+				return in, false
+			}
+			in.Target = c
+		}
 	}
-	if pc, ok := pl.lookup(head); ok && pc.surface != nil {
-		_, oy := pc.unit.origin(pc.surface)
-		in.AtSurfaceEdge = y < oy || y >= oy+pc.surface.h
+	if from, ok := pl.lookup(head); ok {
+		to, ok := pl.lookup(in.Target)
+		in.AtSurfaceEdge = !ok || to.surface != from.surface
 	}
 	return in, true
 }

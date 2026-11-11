@@ -1,0 +1,491 @@
+package page
+
+import (
+	"fmt"
+	"math"
+	"time"
+
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/motion"
+	"github.com/egoist/mygo/transfer"
+	"github.com/egoist/mygo/ui"
+)
+
+// A figure is drawn as its picture, at its span of the column or its own
+// size, over its caption. The layout keeps the picture's room from its
+// recorded size, so a figure takes its place before its picture is read:
+// its place shows first, as quiet as an inset, and the picture fades in
+// over it once decoded, with a hairline keeping a picture as light as the
+// page from bleeding into it.
+//
+// The caption is the figure's text, under the picture. An empty one keeps
+// its line, as an empty paragraph does, so the caret placed there, and
+// the hint shown while it is, reflow nothing.
+//
+// Held whole by the selection, a figure wears the ring the app gives what
+// is picked whole, never a wash over its picture; selected alone, or under
+// the pointer, it shows the grips it resizes from. A resize is the
+// renderer's until release, when it commits as one ResizeFigure.
+
+const (
+	// figureFade is how quickly a figure's picture, ring, grips and hint
+	// spring to where they are going.
+	figureFade = float32(14)
+	// figureRingOutset sets the ring off the picture.
+	figureRingOutset = 3
+	// gapBarRoom sets an object's gap carets off what it draws.
+	gapBarRoom = 3
+	// figureMin is the narrowest a figure is drawn.
+	figureMin = 48
+	// gripWidth and gripInset shape and place a resize grip.
+	gripWidth, gripInset = 6, 8
+)
+
+// captionHint is what an empty caption shows while the caret is in it.
+const captionHint = "Caption"
+
+// captionGap is the room between a picture and its caption.
+func captionGap(m Metrics) float32 { return m.Body * 0.5 }
+
+// figureRadius rounds a picture's corners.
+func figureRadius(m Metrics) float32 { return m.Body * 0.35 }
+
+// figureSize is how large a figure's picture is drawn in a column width
+// wide: its span of the column, or else its own size at most the column,
+// keeping its proportions. A picture of unknown size takes the column at
+// sixteen by nine.
+func figureSize(shape profile.Shape, width float32) (float32, float32) {
+	pw, ph := float32(shape.Width), float32(shape.Height)
+	if pw <= 0 || ph <= 0 {
+		pw, ph = width, width*9/16
+	}
+	w := min(pw, width)
+	if shape.Span > 0 {
+		w = width * float32(shape.Span) / profile.SpanFull
+	}
+	w = min(max(w, figureMin), width)
+	return w, w * ph / pw
+}
+
+// layFigure lays a figure out: its picture's box, and its caption under it
+// in the picture's alignment.
+func layFigure(u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, span int) {
+	shape := profile.ShapeOf(p.Node)
+	if span >= 0 {
+		shape.Span = span
+	}
+	u.figure = &shape
+	w, h := figureSize(shape, width)
+	x := float32(0)
+	align := ui.Start
+	switch shape.Align {
+	case profile.AlignCenter:
+		x, align = (width-w)/2, ui.Center
+	case profile.AlignEnd:
+		x, align = width-w, ui.End
+	}
+	u.box = ui.Rect{X: x, W: w, H: h}
+	u.h = h
+	for i, s := range p.Surfaces {
+		sl := laySurface(i, s, p, comp, th, m, width, align)
+		sl.y = u.h + captionGap(m)
+		u.surfaces = append(u.surfaces, sl)
+		u.h = sl.y + sl.h
+	}
+}
+
+// figureResize is a resize gesture in progress: the figure, the grip's
+// side, where the press started and the span it previews.
+type figureResize struct {
+	node   doc.ID
+	side   float32 // -1 for the start side's grip, 1 for the end's
+	x0, w0 float32
+	both   bool // a centered figure grows from both sides
+	width  float32
+	span   int
+}
+
+// spanAt is the span a resize previews with the pointer at x.
+func (r *figureResize) spanAt(x float32) int {
+	d := (x - r.x0) * r.side
+	if r.both {
+		d *= 2
+	}
+	w := min(max(r.w0+d, figureMin), r.width)
+	return int(math.Round(float64(w / r.width * profile.SpanFull)))
+}
+
+// label names the span a resize previews.
+func (r *figureResize) label() string {
+	if r.span >= profile.SpanFull {
+		return "Full width"
+	}
+	return fmt.Sprintf("%d%%", (r.span+5)/10)
+}
+
+// figureMotion is a figure's springs across frames.
+type figureMotion struct {
+	shown, ring, grips, hint motion.Spring
+	seen                     bool
+}
+
+// grips are the sides a figure resizes from: both of a centered one, the
+// end of one at the start, the start of one at the end.
+func grips(u *unitLayout) []float32 {
+	switch u.figure.Align {
+	case profile.AlignCenter:
+		return []float32{-1, 1}
+	case profile.AlignEnd:
+		return []float32{-1}
+	}
+	return []float32{1}
+}
+
+// gripRect is a grip's rectangle in page coordinates.
+func gripRect(u *unitLayout, side float32) (ui.Rect, bool) {
+	box := u.box
+	h := min(36, box.H*0.4)
+	if h < 12 || box.W < 3*gripInset {
+		return ui.Rect{}, false
+	}
+	x := u.x + box.X + gripInset
+	if side > 0 {
+		x = u.x + box.X + box.W - gripInset - gripWidth
+	}
+	return ui.Rect{X: x, Y: u.y + box.Y + (box.H-h)/2, W: gripWidth, H: h}, true
+}
+
+// figureAt is the figure whose picture holds a page point, and the side
+// of the grip there, if any (0 when none).
+func (pl *pageLayout) figureAt(x, y float32) (*unitLayout, float32) {
+	for _, u := range pl.units {
+		if u.figure == nil {
+			continue
+		}
+		box := u.box
+		box.X += u.x
+		box.Y += u.y
+		pad := float32(gripWidth)
+		if x < box.X-pad || x >= box.X+box.W+pad || y < box.Y || y >= box.Y+box.H {
+			continue
+		}
+		for _, side := range grips(u) {
+			if r, ok := gripRect(u, side); ok && x >= r.X-4 && x < r.X+r.W+4 && y >= r.Y-4 && y < r.Y+r.H+4 {
+				return u, side
+			}
+		}
+		if x >= box.X && x < box.X+box.W {
+			return u, 0
+		}
+	}
+	return nil, 0
+}
+
+// beginResize starts a resize from a grip under the pointer, when the
+// figure shows its grips.
+func (el *Element) beginResize(x, y float32) bool {
+	pl := el.Editor.layout
+	if pl == nil {
+		return false
+	}
+	u, side := pl.figureAt(x, y)
+	if u == nil || side == 0 || !el.gripsShown(u) {
+		return false
+	}
+	width := max(el.Editor.metrics.Width-u.x, 1)
+	el.Editor.resize = &figureResize{node: u.pres.Unit, side: side, x0: x, w0: u.box.W,
+		both: u.figure.Align == profile.AlignCenter, width: width}
+	el.Editor.resize.span = el.Editor.resize.spanAt(x)
+	return true
+}
+
+// gripsShown reports whether a figure shows its grips: selected alone
+// while the page has the keys, under the pointer, or being resized.
+func (el *Element) gripsShown(u *unitLayout) bool {
+	if r := el.Editor.resize; r != nil {
+		return r.node == u.pres.Unit
+	}
+	sel := el.shownSelection()
+	return sel.Kind == doc.SelectNode && sel.Node == u.pres.Unit && el.focused || el.hover == u.pres.Unit
+}
+
+// finishResize commits a resize as one intent, or drops it.
+func (el *Element) finishResize(canceled bool, at time.Time) {
+	r := el.Editor.resize
+	el.Editor.resize = nil
+	if r == nil || canceled {
+		return
+	}
+	el.Editor.Do(profile.ResizeFigure{ID: r.node, Span: r.span}, at)
+}
+
+// paintFigure draws a figure's picture, its place while the picture is on
+// its way, its ring and grips; the caption is drawn as text with the rest.
+func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, whole bool, now time.Time, animate bool) {
+	t := el.Theme
+	m := el.Editor.metrics
+	box := u.box
+	box.X += ux
+	box.Y += uy
+	radius := figureRadius(m)
+	bitmap, state := el.Pictures.Picture(u.figure.Media, now)
+
+	shown, ring, grip, hint := float32(0), float32(0), float32(0), float32(0)
+	if state == PictureReady {
+		shown = 1
+	}
+	if whole {
+		ring = 1
+	}
+	if el.gripsShown(u) && state != PictureMissing {
+		grip = 1
+	}
+	if el.hinted(u) {
+		hint = 1
+	}
+	fm, known := el.figures[u.pres.Unit]
+	if !known {
+		// A picture already decoded shows at once, as when a page opens
+		// again; one that has to wait fades in.
+		fm = &figureMotion{shown: motion.NewUnitSpring(shown, now), ring: motion.NewUnitSpring(ring, now),
+			grips: motion.NewUnitSpring(grip, now), hint: motion.NewUnitSpring(hint, now)}
+		el.figures[u.pres.Unit] = fm
+	}
+	fm.seen = true
+	for _, s := range []struct {
+		spring *motion.Spring
+		to     float32
+	}{{&fm.shown, shown}, {&fm.ring, ring}, {&fm.grips, grip}, {&fm.hint, hint}} {
+		if animate {
+			s.spring.Step(s.to, now, figureFade)
+		} else {
+			*s.spring = motion.NewUnitSpring(s.to, now)
+		}
+		if s.spring.Moving() {
+			p.AnimationFrame()
+		}
+	}
+
+	alpha := fm.shown.Value()
+	if alpha < 1 {
+		p.Fill(box, t.Surface.Inset.Alpha(1-alpha), radius)
+	}
+	if state == PictureMissing {
+		size := min(box.W, box.H, m.Body*1.4)
+		icon := ui.Rect{X: box.X + (box.W-size)/2, Y: box.Y + (box.H-size)/2, W: size, H: size}
+		p.Icon(components.IconImageOff.SVG(), icon, t.Text.Muted)
+	} else if bitmap != nil && alpha > 0 {
+		p.Clip(box, radius, func() {
+			p.ImageRegion(bitmap, ui.Rect{}, box, ui.ImageOptions{Tint: ui.Color{R: 255, G: 255, B: 255, A: 255}.Alpha(alpha)})
+		})
+		p.Stroke(box, t.Prose.Subtle.Alpha(alpha), radius, 1)
+	}
+	if a := fm.ring.Value(); a > 0.001 {
+		components.PaintRing(p, box, radius, figureRingOutset, t.Accent.Foreground.Alpha(0.85*a))
+	}
+	if a := fm.grips.Value(); a > 0.001 {
+		for _, side := range grips(u) {
+			r, ok := gripRect(u, side)
+			if !ok {
+				continue
+			}
+			r.X += ux - u.x
+			r.Y += uy - u.y
+			p.Shadow(r, gripWidth/2, 0, 1, 4, 0, ui.Color{A: 255}.Alpha(0.3*a))
+			p.Fill(r, t.Surface.Elevated.Alpha(a), gripWidth/2)
+			p.Stroke(r, t.Border.Default.Alpha(a), gripWidth/2, 1)
+		}
+	}
+	if r := el.Editor.resize; r != nil && r.node == u.pres.Unit {
+		el.paintResizeLabel(p, box, r.label())
+	}
+	if a := fm.hint.Value(); a > 0.001 && len(u.surfaces) > 0 {
+		s := u.surfaces[0]
+		span, x, _ := hintOf(u, el.Editor.theme, m)
+		span.Color = t.Text.Muted.Alpha(0.65 * a)
+		c := s.caretRect(0)
+		h := span.Size * 1.2
+		p.RichText(ux+s.x+x, uy+s.y+c.Y+(c.H-h)/2, 0, span)
+	}
+}
+
+// hintOf is an empty caption's hint and where it starts in its surface:
+// in the caption's alignment, the caret standing at its start as an empty
+// field's stands at its placeholder's.
+func hintOf(u *unitLayout, th present.Theme, m Metrics) (ui.Span, float32, float32) {
+	span := span(captionHint, th.Resolve([]vocab.Group{u.pres.Group}), m.Body)
+	lay := ui.ShapeRichTextWith([]ui.Span{span}, ui.Font{Family: span.Font, Size: span.Size, Weight: span.Weight, Italic: span.Italic}, ui.TextShape{})
+	w, _ := lay.Size()
+	x := u.surfaces[0].caretRect(0).X
+	switch u.figure.Align {
+	case profile.AlignCenter:
+		x -= w / 2
+	case profile.AlignEnd:
+		x -= w
+	}
+	return span, x, w
+}
+
+// hinted reports whether a figure's caption shows its hint: it is empty,
+// and the caret is in it while the page has the keys.
+func (el *Element) hinted(u *unitLayout) bool {
+	if len(u.surfaces) == 0 || u.surfaces[0].text != "" || !el.focused {
+		return false
+	}
+	sel := el.shownSelection()
+	return sel.Kind == doc.SelectText && sel.IsCollapsed() && sel.Head.Pos.Ref() == u.surfaces[0].slot
+}
+
+// paintResizeLabel names the span a resize previews, on a chip at the top
+// of the picture.
+func (el *Element) paintResizeLabel(p *ui.Painter, box ui.Rect, label string) {
+	size := el.Editor.metrics.Body * 0.8
+	span := ui.Span{Text: label, Size: size, Color: el.Theme.Text.Default}
+	w, h := p.MeasureText(0, span)
+	padX, padY := size*0.75, size*0.3
+	chip := ui.Rect{W: w + 2*padX, H: h + 2*padY}
+	chip.X, chip.Y = box.X+(box.W-chip.W)/2, box.Y+padX
+	if chip.W > box.W || chip.H*2 > box.H {
+		return
+	}
+	p.Fill(chip, el.Theme.Surface.Elevated.Alpha(0.94), chip.H/2)
+	p.RichText(chip.X+padX, chip.Y+padY, 0, span)
+}
+
+// sweepFigures forgets the motion of figures no longer drawn.
+func (el *Element) sweepFigures() {
+	for id, fm := range el.figures {
+		if !fm.seen {
+			delete(el.figures, id)
+		}
+		fm.seen = false
+	}
+}
+
+// hoverAt follows the figure under the pointer, for its grips.
+func (el *Element) hoverAt(x, y float32, services ui.Services) {
+	var id doc.ID
+	if pl := el.Editor.layout; pl != nil {
+		if u, _ := pl.figureAt(x, y); u != nil {
+			id = u.pres.Unit
+		}
+	}
+	if id != el.hover {
+		el.hover = id
+		services.Invalidate()
+	}
+	el.pointer = ui.Point{X: x, Y: y}
+}
+
+// hoverGrip reports whether the pointer is over a shown grip.
+func (el *Element) hoverGrip() bool {
+	pl := el.Editor.layout
+	if pl == nil || el.hover == 0 {
+		return false
+	}
+	u, side := pl.figureAt(el.pointer.X, el.pointer.Y)
+	return u != nil && side != 0 && el.gripsShown(u)
+}
+
+// While pictures are dragged over the page, a line between its blocks
+// shows where they would go: before the block under the pointer, or after
+// it from its lower half. It fades in where it first shows, glides as the
+// pointer moves from block to block, and fades out as the drag leaves or
+// lands.
+
+const (
+	dropGlide  = float32(26)
+	dropWeight = 2
+)
+
+type dropLine struct {
+	y       motion.Spring
+	shown   motion.Fade
+	known   bool
+	target  float32
+	showing bool
+}
+
+// takeDrops makes the page take pictures dragged onto it.
+func (el *Element) takeDrops(box ui.Element) {
+	if el.Editor.Intake == nil {
+		return
+	}
+	options := transfer.DropOptions{Formats: pictureFormats}
+	_, over := ui.DataDragOver(box, options)
+	el.drop.showing = false
+	if over {
+		if x, y, inside := box.PointerPosition(); inside {
+			px, py := el.toPage(x, y)
+			if at, line, ok := el.dropPlace(px, py); ok {
+				el.dropAt, el.drop.target, el.drop.showing = &at, line, true
+			}
+		}
+	}
+	if drop, ok := ui.DropData(box, options); ok {
+		el.drop.showing = false
+		if pictures := picturesOf(drop.Data, drop.Data.Formats()); len(pictures) > 0 {
+			el.Editor.Intake(pictures, el.dropAt)
+		}
+	}
+}
+
+// dropPlace is where pictures dropped at a page point go, and the page y
+// of the line showing it.
+func (el *Element) dropPlace(x, y float32) (doc.Caret, float32, bool) {
+	pl := el.Editor.layout
+	if pl == nil || len(pl.units) == 0 {
+		return doc.Caret{}, 0, false
+	}
+	u := pl.units[len(pl.units)-1]
+	for _, cand := range pl.units {
+		if y < cand.bottom() {
+			u = cand
+			break
+		}
+	}
+	after := y >= u.y+u.h/2
+	gap := el.Editor.metrics.Gap / 2
+	line := u.y - gap
+	if after {
+		line = u.bottom() + gap
+	}
+	switch {
+	case u.object && len(u.gaps) == 2:
+		if after {
+			return u.gaps[1].caret, line, true
+		}
+		return u.gaps[0].caret, line, true
+	case len(u.surfaces) > 0 && len(u.surfaces[0].stops) > 0:
+		stops := u.surfaces[0].stops
+		at := stops[0].caret
+		if after {
+			at = stops[len(stops)-1].caret
+		}
+		return doc.CaretAt(at.Pos), line, true
+	}
+	return doc.Caret{}, 0, false
+}
+
+// paintDrop draws the drop line, and reports whether it still moves.
+func (el *Element) paintDrop(p *ui.Painter, ox, oy float32, m Metrics, now time.Time, animate bool) bool {
+	d := &el.drop
+	if !d.known || !animate || d.shown.Gone() && d.showing {
+		d.y = motion.NewSpring(d.target, now)
+		d.known = true
+	}
+	if d.showing {
+		d.y.Step(d.target, now, dropGlide)
+	}
+	a := d.shown.Step(d.showing, now, animate)
+	if a > 0.001 {
+		y := oy + d.y.Value() - dropWeight/2
+		p.Fill(ui.Rect{X: ox, Y: y, W: m.Width, H: dropWeight}, el.Theme.Accent.Foreground.Alpha(a), dropWeight/2)
+	}
+	return animate && (d.y.Moving() || d.shown.Moving())
+}

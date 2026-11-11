@@ -1,0 +1,132 @@
+package page
+
+import (
+	"testing"
+	"time"
+
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/editor/vocab"
+)
+
+// figurePage is "above", a figure of a 400×300 picture, and "below".
+func figurePage(t *testing.T) (*Element, *unitLayout) {
+	t.Helper()
+	el := newElement(t)
+	typeText(el, "above")
+	el.Editor.Do(profile.PlaceFigures{Pictures: []profile.Picture{{Media: "m", Width: 400, Height: 300}}}, time.Unix(200, 0))
+	el.Editor.Do(vocab.Dismiss{}, time.Unix(201, 0))
+	el.Editor.Do(vocab.Break{}, time.Unix(202, 0))
+	typeText(el, "below")
+	pl := el.relayout()
+	if len(pl.units) != 3 || pl.units[1].figure == nil {
+		t.Fatalf("units %d, want a figure between two paragraphs", len(pl.units))
+	}
+	return el, pl.units[1]
+}
+
+// A figure keeps its picture's room from its recorded size, centered, and
+// its caption's line, empty or not.
+func TestAFigureLaysOutFromItsShape(t *testing.T) {
+	el, u := figurePage(t)
+	if u.box.W != 400 || u.box.H != 300 {
+		t.Fatalf("box %v, want 400×300", u.box)
+	}
+	width := el.Editor.metrics.Width - u.x
+	if d := u.box.X - (width-400)/2; d > 0.5 || d < -0.5 {
+		t.Fatalf("box at %v, want centered in %v", u.box.X, width)
+	}
+	empty := u.h
+	if empty <= u.box.H {
+		t.Fatalf("empty caption: height %v", u.h)
+	}
+	el.Editor.Do(vocab.Place{Node: u.pres.Unit}, time.Unix(300, 0))
+	el.Editor.Do(vocab.Dismiss{}, time.Unix(301, 0))
+	typeText(el, "Dawn")
+	if u = el.Editor.layout.units[1]; u.h != empty {
+		t.Fatalf("captioned: height %v, empty %v", u.h, empty)
+	}
+}
+
+// A click on the picture selects the figure; one under it is in its
+// caption.
+func TestClicksSelectAFigureOrEnterItsCaption(t *testing.T) {
+	el, u := figurePage(t)
+	pl := el.Editor.layout
+	_, node, ok := pl.hit(u.x+u.box.X+u.box.W/2, u.y+u.box.H/2)
+	if !ok || node != u.pres.Unit {
+		t.Fatalf("hit on the picture: node %v", node)
+	}
+	c, node, ok := pl.hit(u.x+u.box.X+u.box.W/2, u.y+u.box.H+captionGap(el.Editor.metrics)+2)
+	if !ok || node != 0 || c.Pos.Node != u.pres.Unit {
+		t.Fatalf("hit under the picture: %v node %v", c, node)
+	}
+}
+
+// Down passes through a figure row by row: its gap before, its caption,
+// its gap after, then the text below; Up retraces it.
+func TestVerticalMotionPassesThroughAFigure(t *testing.T) {
+	el, u := figurePage(t)
+	ed := el.Editor
+	ed.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(400, 0))
+	var down []doc.Caret
+	for i := range 4 {
+		in, ok := ed.resolve(vocab.VisualMove{Dir: vocab.Down}, 600)
+		if !ok {
+			t.Fatalf("step %d unresolved", i)
+		}
+		ed.Do(in, time.Unix(int64(401+i), 0))
+		el.relayout()
+		down = append(down, ed.Selection().Head)
+	}
+	want := []doc.Caret{u.gaps[0].caret, {}, u.gaps[1].caret, {}}
+	for i, c := range down {
+		switch i {
+		case 1:
+			if c.Pos.Node != u.pres.Unit {
+				t.Fatalf("step 2 at %v, want the caption", c)
+			}
+		case 3:
+			if n, _ := ed.Engine.Snapshot().Node(c.Pos.Node); n.Kind() != profile.Paragraph {
+				t.Fatalf("step 4 at %v, want the text below", c)
+			}
+		default:
+			if c != want[i] {
+				t.Fatalf("step %d at %v, want %v", i+1, c, want[i])
+			}
+		}
+	}
+	for i := 2; i >= 0; i-- {
+		in, _ := ed.resolve(vocab.VisualMove{Dir: vocab.Up}, 600)
+		ed.Do(in, time.Unix(int64(500+i), 0))
+		el.relayout()
+		if got := ed.Selection().Head; got.Pos.Node != down[i].Pos.Node || got.Pos.Slot != down[i].Pos.Slot {
+			t.Fatalf("up to %v, want %v", got, down[i])
+		}
+	}
+}
+
+// A resize grows a centered figure from both sides and commits one span.
+func TestAResizeCommitsOneSpan(t *testing.T) {
+	el, u := figurePage(t)
+	el.Editor.Do(vocab.Place{Node: u.pres.Unit}, time.Unix(300, 0))
+	el.focused = true
+	el.relayout()
+	u = el.Editor.layout.units[1]
+	grip, ok := gripRect(u, 1)
+	if !ok {
+		t.Fatal("no grip")
+	}
+	if !el.beginResize(grip.X+grip.W/2, grip.Y+grip.H/2) {
+		t.Fatal("the grip did not start a resize")
+	}
+	r := el.Editor.resize
+	r.span = r.spanAt(grip.X + grip.W/2 + 50)
+	el.finishResize(false, time.Unix(301, 0))
+	n, _ := el.Editor.Engine.Snapshot().Node(u.pres.Unit)
+	width := el.Editor.metrics.Width - u.x
+	want := int((400 + 100) / width * profile.SpanFull)
+	if got := profile.ShapeOf(n).Span; got < want-2 || got > want+2 {
+		t.Fatalf("span %d, want about %d", got, want)
+	}
+}

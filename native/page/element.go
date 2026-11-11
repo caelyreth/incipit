@@ -32,6 +32,8 @@ type Element struct {
 	Keys *keymap.Keymap
 	// UIFontSize sizes the guides' keycaps as the app's controls.
 	UIFontSize float32
+	// Pictures gives figures their pictures; nil shows each one's place.
+	Pictures *Pictures
 
 	client *client
 	// scroll is the page's offset, which glide moves and a scroll by hand
@@ -65,11 +67,22 @@ type Element struct {
 	// decos are the decorations the page draws, as last drawn, by
 	// identity, so each fades in and out.
 	decos map[decoKey]*shownDeco
+	// figures are the figures' springs, by figure; hover is the figure
+	// under the pointer, and focused whether the page had the keys when
+	// last painted.
+	figures map[doc.ID]*figureMotion
+	hover   doc.ID
+	pointer ui.Point
+	focused bool
+	// drop is the line showing where pictures dragged over the page go,
+	// and dropAt the place they would.
+	drop   dropLine
+	dropAt *doc.Caret
 }
 
 // NewElement is an element over ed.
 func NewElement(ed *Editor) *Element {
-	el := &Element{Editor: ed, Label: "Page", focusPending: true}
+	el := &Element{Editor: ed, Label: "Page", focusPending: true, figures: map[doc.ID]*figureMotion{}}
 	el.client = &client{el: el}
 	return el
 }
@@ -188,6 +201,13 @@ func (el *Element) View(c *ui.Context) {
 			el.focusPending = false
 		}
 		services := c.Services()
+		if el.Pictures != nil {
+			el.Pictures.Wake = services.Invalidate
+		}
+		el.takeDrops(box)
+		if el.Editor.resize != nil || el.hoverGrip() {
+			box.Cursor(ui.CursorResizeEW)
+		}
 		box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
 			TextCaret(el.caretInElement()).
 			Draw(func(p *ui.Painter, r ui.Rect) {
@@ -403,6 +423,10 @@ func (el *Element) stepCaret(pl *pageLayout, now time.Time, animate bool) bool {
 		// as on a page just opened before any input.
 		el.Editor.active = now
 	}
+	if pc, ok := pl.lookup(el.shownSelection().Head); ok && pc.unit.figure != nil && el.hinted(pc.unit) {
+		_, x, _ := hintOf(pc.unit, el.Editor.theme, el.Editor.metrics)
+		r.X = pc.unit.x + pc.surface.x + x
+	}
 	el.caret.Step(el.caretShape(r), now, motion.CaretFrequency, animate)
 	return el.caret.Moving()
 }
@@ -438,6 +462,11 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 			return false
 		}
 		x, y := el.toPage(ev.X, ev.Y)
+		if el.beginResize(x, y) {
+			el.Focus()
+			services.Invalidate()
+			return true
+		}
 		if !el.beginGesture(x, y, ev.Clicks, ev.Mods&ui.Shift != 0, at) {
 			return false
 		}
@@ -446,12 +475,25 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		return true
 	case ui.InputPointerMove:
 		x, y := el.toPage(ev.X, ev.Y)
+		if r := ed.resize; r != nil {
+			if span := r.spanAt(x); span != r.span {
+				r.span = span
+				services.Invalidate()
+			}
+			return true
+		}
+		el.hoverAt(x, y, services)
 		if !el.moveGesture(x, y, at) {
 			return false
 		}
 		services.Invalidate()
 		return true
 	case ui.InputPointerUp:
+		if ed.resize != nil {
+			el.finishResize(ev.Canceled, at)
+			services.Invalidate()
+			return true
+		}
 		if el.gesture == nil {
 			return false
 		}
@@ -463,8 +505,9 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		services.Invalidate()
 		return true
 	case ui.InputKeyDown:
-		if el.gesture != nil && ev.Key == ui.KeyEscape {
+		if (el.gesture != nil || ed.resize != nil) && ev.Key == ui.KeyEscape {
 			el.finishGesture(true, at)
+			el.finishResize(true, at)
 			services.Invalidate()
 			return true
 		}
@@ -507,6 +550,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// What moves with time steps at the paint's own time: a frame that
 	// paints again without building the view moves it on.
 	now, animate := p.Now(), !p.Preferences().ReduceMotion
+	el.focused = focused
 	el.previewGesture(pl)
 	if el.stepViewport(now, animate) {
 		p.AnimationFrame()
@@ -534,6 +578,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	for _, row := range rows {
 		p.Fill(ui.Rect{X: ox + row.X, Y: oy + row.Y, W: row.W, H: row.H}, wash, 2)
 	}
+	whole := map[doc.ID]bool{}
+	for _, c := range covers {
+		whole[c.Unit] = c.Whole
+	}
 	for _, u := range pl.units {
 		uy := oy + u.y
 		if uy > bottom || uy+u.h < top {
@@ -545,9 +593,12 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			bx := ox + float32(u.pres.Context.Indent+q)*m.Indent + m.Indent*0.3
 			p.Fill(ui.Rect{X: bx, Y: uy - m.Gap/2, W: 2, H: u.h + m.Gap}, t.Prose.Subtle, 1)
 		}
-		if u.object {
-			// TODO(figures), TODO(tables): figures and tables draw their
-			// own boxes; every object is a divider until then.
+		switch {
+		case u.figure != nil:
+			el.paintFigure(p, u, ux, uy, whole[u.pres.Unit], now, animate)
+		case u.object:
+			// TODO(tables): tables draw their own grid; every other
+			// object is a divider until then.
 			mid := uy + u.h/2
 			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
 			continue
@@ -561,6 +612,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			el.paintGhosts(p, s, sx, sy)
 			el.paintBoxes(p, s, sx, sy)
 		}
+	}
+	el.sweepFigures()
+	if el.paintDrop(p, ox, oy, m, now, animate) {
+		p.AnimationFrame()
 	}
 	if el.stepGuides(pl, focused, now, animate) {
 		p.AnimationFrame()
@@ -652,9 +707,6 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		}
 	}
 	for _, u := range pl.units {
-		if u.object {
-			continue
-		}
 		vis := visible(u)
 		for _, s := range u.surfaces {
 			for _, d := range s.decos {
@@ -880,12 +932,14 @@ func (el *Element) selectionRows(pl *pageLayout, covers []present.Cover) []ui.Re
 		if !ok {
 			continue
 		}
-		if u.object {
+		if u.object && u.figure == nil {
 			if c.Whole {
 				out = append(out, ui.Rect{X: u.x, Y: u.y, W: el.Editor.metrics.Width - u.x, H: u.h})
 			}
 			continue
 		}
+		// A figure held whole wears its ring; its caption is washed as
+		// text.
 		ranges := pl.coverRanges(u, c)
 		for _, s := range u.surfaces {
 			rg, ok := ranges[s]

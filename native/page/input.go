@@ -100,9 +100,26 @@ func (el *Element) run(in vocab.Intent, services ui.Services, at time.Time) bool
 		}
 		in = resolved
 	case vocab.Paste:
+		if ed.Intake != nil {
+			formats := services.ClipboardFormats()
+			if pictures := picturesOf(services.ReadClipboardData(pictureFormats...), formats); len(pictures) > 0 && !holds(formats, transfer.Format(clipboard.Format)) {
+				ed.Intake(pictures, nil)
+				return true
+			}
+		}
 		in = ed.pasted(services.ReadClipboardData(transfer.Format(clipboard.Format), transfer.Text))
 	case vocab.Cut:
 		ed.writeClipboard(services)
 	}
 	return ed.Do(in, at)
+}
+
+// holds reports whether formats include f.
+func holds(formats []transfer.Format, f transfer.Format) bool {
+	for _, o := range formats {
+		if o == f {
+			return true
+		}
+	}
+	return false
 }
