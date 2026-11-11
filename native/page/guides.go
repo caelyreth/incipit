@@ -116,7 +116,8 @@ func (el *Element) stepGuides(pl *pageLayout, show bool, now time.Time, animate 
 // compact caps the Keymap draws, clear of what it marks: at a caret, a
 // hairline with the keys riding just above it; at a place inside what an
 // object draws, the outline every paint draws around an object, in the
-// hint's ink, with the keys just outside its top-right corner. The shape
+// hint's ink, with the keys centered above it, or below it where the view
+// leaves no room above. The shape
 // is the place's, so a guide moving between the two glides from one to
 // the other.
 func (el *Element) paintGuides(p *ui.Painter, view ui.Rect, ox, oy float32) {
@@ -145,16 +146,20 @@ func (el *Element) paintGuides(p *ui.Painter, view ui.Rect, ox, oy float32) {
 		if r.Y+r.H < view.Y || r.Y > view.Y+view.H {
 			continue
 		}
-		left := r.X + style.Height*0.3
+		_, width := style.Widths(t.keys)
+		left, top := r.X+style.Height*0.3, max(r.Y-style.Height+2, view.Y)
 		if r.W > 1 {
 			components.PaintRing(p, r, outlineRadius(el.Editor.metrics, r), 0, ink.Alpha(0.6*alpha))
-			left = r.X + r.W + 2
+			// Centered on the outline, above it, or below where the view
+			// leaves no room above.
+			left, top = r.X+r.W/2-width/2, r.Y-style.Height-2
+			if top < view.Y {
+				top = r.Y + r.H + 2
+			}
 		} else {
 			p.Fill(ui.Rect{X: r.X, Y: r.Y, W: 1, H: r.H}, ink.Alpha(0.6*alpha), 0)
 		}
-		_, width := style.Widths(t.keys)
 		left = max(min(left, view.X+view.W-width-2), view.X)
-		top := max(r.Y-style.Height+2, view.Y)
 		style.Paint(p, t.keys, left, top, alpha)
 	}
 }
