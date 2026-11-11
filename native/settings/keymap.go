@@ -188,6 +188,7 @@ func (s *State) shortcutRow(
 					if shortcut.Overridden {
 						s.tag(c, semantic, "Custom")
 					}
+					s.policyBadge(c, semantic, shortcut)
 				})
 				s.shortcutActions(c, semantic, shortcut, hover)
 				s.shortcutKeys(c, semantic, shortcut, host)
@@ -319,6 +320,32 @@ func (s *State) tag(c *ui.Context, semantic theme.Theme, text string) {
 		Background(semantic.Surface.Inset).Children(func() {
 		components.Label(c, text, theme.TextXSmall, semantic.Text.Muted).SingleLine()
 	})
+}
+
+// policyBadge names the policy declaring an editing command, and opens
+// its card on the Editor page.
+func (s *State) policyBadge(c *ui.Context, semantic theme.Theme, shortcut appsettings.Shortcut) {
+	title := ""
+	for _, card := range s.Data.Policies {
+		if card.ID == shortcut.Policy {
+			title = card.Title
+		}
+	}
+	if title == "" {
+		return
+	}
+	scale := s.Theme.UIFontSize
+	badge := ui.Row(c).Key("policy-" + string(shortcut.Command)).
+		Role(ui.RoleButton).Label("Open the " + title + " policy").
+		Focusable().FocusRing(false).Cursor(ui.CursorPointer)
+	hover := components.HoverAmount(badge, badge.Hovered(), s.motion(c))
+	settingsTagFrame(badge, scale).
+		Background(semantic.Surface.Inset.Mix(semantic.Accent.Muted, hover*0.35)).Children(func() {
+		components.Label(c, title, theme.TextXSmall, semantic.Text.Muted.Mix(semantic.Accent.Foreground, hover)).SingleLine()
+	})
+	if badge.Clicked() {
+		s.chooseSection(appsettings.Editor, title)
+	}
 }
 
 // settingsTagFrame is a state tag's compact geometry.
