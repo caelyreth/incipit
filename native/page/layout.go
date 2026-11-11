@@ -135,8 +135,10 @@ type unitLayout struct {
 	object bool
 	gaps   []stopAt
 	box    ui.Rect
-	// figure is a figure's shape, as it is laid out.
+	// figure is a figure's shape, as it is laid out, and crop the share of
+	// its picture's height its box shows.
 	figure *profile.Shape
+	crop   float32
 	// shown is the height the unit is drawn at: its height, or on its way
 	// there as a figure's caption line opens or closes.
 	shown float32

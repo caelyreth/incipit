@@ -57,21 +57,59 @@ func captionGap(m Metrics) float32 { return m.Body * 0.5 }
 // figureRadius rounds a picture's corners.
 func figureRadius(m Metrics) float32 { return m.Body * 0.35 }
 
-// figureSize is how large a figure's picture is drawn in a column width
-// wide: its span of the column, or else its own size at most the column,
-// keeping its proportions. A picture of unknown size takes the column at
-// sixteen by nine.
-func figureSize(shape profile.Shape, width float32) (float32, float32) {
+// A picture is drawn as large as reads well, never more:
+//
+//   - at its own size, a pixel to a DIP, at most the column: a small or
+//     low-resolution picture is never scaled up past its pixels, so it
+//     stays sharp, and keeps a least width only if it has that many;
+//   - no taller than figureTall of the column (at least figureTallLines
+//     lines of body text), so one picture never fills the window: a tall
+//     one narrows to fit, down to figureNarrow of the column;
+//   - a picture still taller at that width, a long screenshot or a scroll
+//     of a page, shows its top at that height, fading out below to say
+//     there is more;
+//   - a span the writer set by resizing is kept as set, a long picture
+//     cropped as above, so a resize only ever changes the width;
+//   - a picture whose size is unknown takes the column at sixteen by nine.
+
+const (
+	figureTall      = 0.75
+	figureTallLines = 14
+	figureNarrow    = 0.35
+	// figureFadeRoom is how much of a cropped picture's height fades out.
+	figureFadeRoom = 0.18
+)
+
+// figureFit is how a picture is drawn: its box, and the share of its
+// height the box shows from its top (1 for all of it).
+type figureFit struct {
+	w, h, shown float32
+}
+
+// figureSize fits a figure's picture to a column width wide.
+func figureSize(shape profile.Shape, width float32, m Metrics) figureFit {
 	pw, ph := float32(shape.Width), float32(shape.Height)
 	if pw <= 0 || ph <= 0 {
 		pw, ph = width, width*9/16
 	}
-	w := min(pw, width)
+	tall := max(width*figureTall, m.Body*m.Spacing*figureTallLines)
+	least := min(float32(figureMin), pw)
+	var w float32
 	if shape.Span > 0 {
 		w = width * float32(shape.Span) / profile.SpanFull
+	} else {
+		w = min(pw, width)
+		if h := w * ph / pw; h > tall {
+			// Narrow a tall picture to fit, but not to a sliver.
+			w = max(tall*pw/ph, min(width*figureNarrow, w))
+		}
 	}
-	w = min(max(w, figureMin), width)
-	return w, w * ph / pw
+	w = min(max(w, least), width)
+	fit := figureFit{w: w, h: w * ph / pw, shown: 1}
+	if fit.h > tall {
+		fit.shown, fit.h = tall/fit.h, tall
+	}
+	return fit
 }
 
 // layFigure lays a figure out: its picture's box, and its caption under it
@@ -82,7 +120,9 @@ func layFigure(u *unitLayout, p *present.Presentation, comp *policy.Composition,
 		shape.Span = span
 	}
 	u.figure = &shape
-	w, h := figureSize(shape, width)
+	fit := figureSize(shape, width, m)
+	w, h := fit.w, fit.h
+	u.crop = fit.shown
 	x := float32(0)
 	align := ui.Start
 	switch shape.Align {
@@ -282,10 +322,23 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, who
 		icon := ui.Rect{X: box.X + (box.W-size)/2, Y: box.Y + (box.H-size)/2, W: size, H: size}
 		p.Icon(components.IconImageOff.SVG(), icon, t.Text.Muted)
 	} else if bitmap != nil && alpha > 0 {
+		var src ui.Rect
+		if u.crop < 1 {
+			// A long picture shows its top, its region kept in proportion.
+			bw, bh := bitmap.Size()
+			src = ui.Rect{W: float32(bw), H: float32(bh) * u.crop}
+		}
 		p.Clip(box, radius, func() {
-			p.ImageRegion(bitmap, ui.Rect{}, box, ui.ImageOptions{Tint: ui.Color{R: 255, G: 255, B: 255, A: 255}.Alpha(alpha)})
+			p.ImageRegion(bitmap, src, box, ui.ImageOptions{Tint: ui.Color{R: 255, G: 255, B: 255, A: 255}.Alpha(alpha)})
 		})
 		p.Stroke(box, t.Prose.Subtle.Alpha(alpha), radius, 1)
+		if u.crop < 1 {
+			// It fades into the page below, saying there is more.
+			fade := box.H * figureFadeRoom
+			band := ui.Rect{X: box.X - 1, Y: box.Y + box.H - fade, W: box.W + 2, H: fade + 1}
+			page := t.Surface.Page
+			p.FillGradient(band, ui.LinearGradient{From: page.Alpha(0), To: page.Alpha(alpha), Angle: 180}, 0)
+		}
 	}
 	if a := fm.ring.Value(); a > 0.001 {
 		components.PaintRing(p, box, radius, figureRingOutset, t.Accent.Foreground.Alpha(0.85*a))

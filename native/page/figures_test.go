@@ -143,3 +143,38 @@ func TestAResizeCommitsOneSpan(t *testing.T) {
 		t.Fatalf("span %d, want about %d", got, want)
 	}
 }
+
+// Pictures are sized to read well: small ones at their own pixels, wide
+// ones to the column, tall ones narrowed to a bound, long ones cropped
+// under it, and a writer's span kept.
+func TestFigureSizesReadWell(t *testing.T) {
+	m := Metrics{Body: 18, Spacing: 1.6}
+	const col = 640
+	tall := float32(col * figureTall) // 480, over 14 lines of 28.8
+	pic := func(w, h, span int) profile.Shape {
+		return profile.Shape{Picture: profile.Picture{Width: w, Height: h}, Span: span}
+	}
+	near := func(a, b float32) bool { return a-b < 0.5 && b-a < 0.5 }
+	cases := []struct {
+		name        string
+		shape       profile.Shape
+		w, h, shown float32
+	}{
+		{"an icon stays its size", pic(16, 16, 0), 16, 16, 1},
+		{"a small picture is not scaled up", pic(200, 150, 0), 200, 150, 1},
+		{"a wide photo fits the column", pic(4000, 3000, 0), col, 480, 1},
+		{"a panorama fits the column", pic(6000, 1000, 0), col, col / 6.0, 1},
+		{"a tall photo narrows to the bound", pic(3000, 4000, 0), 360, tall, 1},
+		{"a phone screenshot narrows, then crops", pic(1170, 2532, 0), col * figureNarrow, tall, tall / (col * figureNarrow * 2532 / 1170)},
+		{"a long page is cropped at its top", pic(800, 8000, 0), col * figureNarrow, tall, tall / (col * figureNarrow * 10)},
+		{"a span is kept", pic(400, 300, 500), 320, 240, 1},
+		{"a span on a tall picture crops", pic(1000, 2000, 1000), col, tall, tall / (col * 2)},
+		{"an unknown size takes the column", pic(0, 0, 0), col, col * 9 / 16.0, 1},
+	}
+	for _, c := range cases {
+		got := figureSize(c.shape, col, m)
+		if !near(got.w, c.w) || !near(got.h, c.h) || got.shown-c.shown > 0.01 || c.shown-got.shown > 0.01 {
+			t.Errorf("%s: got %.1f×%.1f showing %.2f, want %.1f×%.1f showing %.2f", c.name, got.w, got.h, got.shown, c.w, c.h, c.shown)
+		}
+	}
+}
