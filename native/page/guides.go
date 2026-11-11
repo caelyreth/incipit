@@ -29,9 +29,10 @@ const (
 type guides map[vocab.CommandID]*guideTrack
 
 type guideTrack struct {
-	// x, y, w and h are where the command acts: a caret's bar (w 0), or
-	// an object's box, for a place inside what it draws.
+	// x, y, w and h are where the command acts, and kind what that place
+	// is (layout.go's spot), which says how the guide is drawn.
 	x, y, w, h, opacity motion.Spring
+	kind                spotKind
 	keys                []string
 	seen                bool
 }
@@ -77,19 +78,15 @@ func (el *Element) stepGuides(pl *pageLayout, show bool, now time.Time, animate 
 			if !ok {
 				continue
 			}
-			r, ok := pl.caretBox(g.At, el.Editor.metrics)
+			r, kind, ok := pl.spot(g.At)
 			if !ok {
 				continue
 			}
-			if r.W <= 2 {
-				// A caret's bar: its width is the caret's, not a place's.
-				r.W = 0
-			}
 			t, ok := el.guides[g.Command]
-			if !ok || t.opacity.Target() < 1 && t.opacity.Value() <= 0.01 {
-				// Nothing shows: appear at the new place rather than
-				// slide in from where the last guide faded out.
-				t = &guideTrack{}
+			if !ok || t.kind != kind || t.opacity.Target() < 1 && t.opacity.Value() <= 0.01 {
+				// Nothing shows, or it marks another kind of place: appear
+				// at the new place rather than slide in from the last.
+				t = &guideTrack{kind: kind}
 				t.place(r, 0, now)
 				el.guides[g.Command] = t
 			}
@@ -112,14 +109,18 @@ func (el *Element) stepGuides(pl *pageLayout, show bool, now time.Time, animate 
 	return animate && moving
 }
 
-// paintGuides draws each guide where its command acts, its keys on the
-// compact caps the Keymap draws, clear of what it marks: at a caret, a
-// hairline with the keys riding just above it; at a place inside what an
-// object draws, the outline every paint draws around an object, in the
-// hint's ink, with the keys centered above it, or below it where the view
-// leaves no room above. The shape
-// is the place's, so a guide moving between the two glides from one to
-// the other.
+// paintGuides draws each guide where its command acts, as that place is
+// drawn, its keys on the compact caps the Keymap draws, clear of it:
+//
+//   - at a caret in text, a hairline as tall as the caret, the keys riding
+//     just above it, clear of the glyphs that follow;
+//   - at a gap, a hairline across the object's edge as its caret is, the
+//     keys at its start on the side away from the object;
+//   - inside what an object draws, the outline every paint draws around
+//     an object, the keys centered above it, or below where the view
+//     leaves no room.
+//
+// Every mark is in the hint's ink.
 func (el *Element) paintGuides(p *ui.Painter, view ui.Rect, ox, oy float32) {
 	if len(el.guides) == 0 {
 		return
@@ -146,20 +147,28 @@ func (el *Element) paintGuides(p *ui.Painter, view ui.Rect, ox, oy float32) {
 		if r.Y+r.H < view.Y || r.Y > view.Y+view.H {
 			continue
 		}
+		mark := ink.Alpha(0.6 * alpha)
 		_, width := style.Widths(t.keys)
-		left, top := r.X+style.Height*0.3, max(r.Y-style.Height+2, view.Y)
-		if r.W > 1 {
-			components.PaintRing(p, r, outlineRadius(el.Editor.metrics, r), 0, ink.Alpha(0.6*alpha))
-			// Centered on the outline, above it, or below where the view
-			// leaves no room above.
+		var left, top float32
+		switch t.kind {
+		case spotObject:
+			components.PaintRing(p, r, outlineRadius(el.Editor.metrics, r), 0, mark)
 			left, top = r.X+r.W/2-width/2, r.Y-style.Height-2
 			if top < view.Y {
 				top = r.Y + r.H + 2
 			}
-		} else {
-			p.Fill(ui.Rect{X: r.X, Y: r.Y, W: 1, H: r.H}, ink.Alpha(0.6*alpha), 0)
+		case spotGapBefore, spotGapAfter:
+			p.Fill(ui.Rect{X: r.X, Y: r.Y + r.H/2, W: r.W, H: 1}, mark, 0)
+			left, top = r.X, r.Y-style.Height-2
+			if t.kind == spotGapAfter {
+				top = r.Y + r.H + 2
+			}
+		default:
+			p.Fill(ui.Rect{X: r.X, Y: r.Y, W: 1, H: r.H}, mark, 0)
+			left, top = r.X+style.Height*0.3, r.Y-style.Height+2
 		}
 		left = max(min(left, view.X+view.W-width-2), view.X)
+		top = max(top, view.Y)
 		style.Paint(p, t.keys, left, top, alpha)
 	}
 }

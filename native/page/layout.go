@@ -645,37 +645,76 @@ func (u *unitLayout) origin(s *surfaceLayout) (float32, float32) {
 	return u.x + s.x, u.y + s.y
 }
 
-// caretBox is where a caret stands, in page coordinates: a bar as wide as
-// the caret, or, for a place inside what an object draws rather than in
-// text shown, the object's outline.
-func (pl *pageLayout) caretBox(c doc.Caret, m Metrics) (ui.Rect, bool) {
+// spotKind is what a place on the page is, which says how anything
+// marking it is drawn.
+type spotKind uint8
+
+const (
+	// spotText is a caret in text shown: a bar as tall as its line's
+	// glyphs.
+	spotText spotKind = iota
+	// spotGapBefore and spotGapAfter are carets between blocks, at an
+	// object's gap: a bar across its top, or under all of it.
+	spotGapBefore
+	spotGapAfter
+	// spotObject is a place inside what an object draws rather than in
+	// text shown, as in a closed card: it has no caret of its own there,
+	// and is the object, outlined.
+	spotObject
+)
+
+// spot is where a place stands, in page coordinates, and what it is.
+func (pl *pageLayout) spot(c doc.Caret) (ui.Rect, spotKind, bool) {
 	pc, ok := pl.lookup(c)
 	if !ok {
-		return ui.Rect{}, false
+		return ui.Rect{}, 0, false
 	}
 	if pc.surface == nil {
-		// A gap stop: a bar across the object's top, or under all of it.
 		u := pc.unit
-		y := u.y - gapBarRoom
-		if pc.stop != &u.gaps[0] {
-			y = u.bottom() + gapBarRoom
+		if pc.stop == &u.gaps[0] {
+			return ui.Rect{X: u.x + u.box.X, Y: u.y - gapBarRoom - 1, W: u.box.W, H: 2}, spotGapBefore, true
 		}
-		return ui.Rect{X: u.x + u.box.X, Y: y - 1, W: u.box.W, H: 2}, true
+		return ui.Rect{X: u.x + u.box.X, Y: u.bottom() + gapBarRoom - 1, W: u.box.W, H: 2}, spotGapAfter, true
 	}
 	if !pc.surface.shown {
-		// A surface not shown stands in for its object (paints.go): a
-		// place in it, as where Return would enter a closed card, has no
-		// caret of its own there; it is the object, outlined.
-		return standIn(pc.unit, pc.surface), true
+		// A surface not shown stands in for its object (paints.go).
+		return standIn(pc.unit, pc.surface), spotObject, true
 	}
-	r := pc.surface.caretRect(pc.stop.u)
-	if pc.surface.hasMarked && pc.stop.u == pc.surface.marked.Start {
-		r = pc.surface.caretRect(pc.surface.compSel)
+	at := pc.stop.u
+	if pc.surface.hasMarked && at == pc.surface.marked.Start {
+		at = pc.surface.compSel
 	}
+	r := glyphBox(pc.surface, pc.surface.caretRect(at))
 	x, y := pc.unit.origin(pc.surface)
 	r.X += x
 	r.Y += y
-	return r, true
+	return r, spotText, true
+}
+
+// caretBox is where a caret stands, in page coordinates.
+func (pl *pageLayout) caretBox(c doc.Caret, m Metrics) (ui.Rect, bool) {
+	r, _, ok := pl.spot(c)
+	return r, ok
+}
+
+// glyphBox is r on its line of sl, from the line's ascent to its descent:
+// the box its glyphs fill, without the leading between lines. A caret, a
+// text paint and an inline object's outline all stand on it.
+func glyphBox(sl *surfaceLayout, r ui.Rect) ui.Rect {
+	if l, ok := lineAt(sl, r); ok {
+		r.Y, r.H = l.Baseline-l.Ascent, l.Ascent+l.Descent
+	}
+	return r
+}
+
+// lineAt is the line of sl r's middle falls in.
+func lineAt(sl *surfaceLayout, r ui.Rect) (ui.TextLine, bool) {
+	for _, l := range sl.layout.Lines() {
+		if mid := r.Y + r.H/2; mid >= l.Rect.Y && mid < l.Rect.Y+l.Rect.H {
+			return l, true
+		}
+	}
+	return ui.TextLine{}, false
 }
 
 // lookup finds a caret's place. The engine settles every caret on a

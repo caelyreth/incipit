@@ -883,7 +883,6 @@ func revealed(sd *shownDeco, now time.Time, animate bool) []decoRow {
 // decoRows are a range's pieces, a line each, hugging the line's glyphs;
 // an empty range is a point, a piece with no width where its caret stands.
 func decoRows(s *surfaceLayout, rg ui.TextInputRange, x, y float32) []decoRow {
-	lines := s.layout.Lines()
 	var out []decoRow
 	rects := s.layout.SelectionRects(rg)
 	if rg.Start == rg.End {
@@ -891,13 +890,9 @@ func decoRows(s *surfaceLayout, rg ui.TextInputRange, x, y float32) []decoRow {
 		rects = []ui.Rect{{X: c.X, Y: c.Y, H: c.H}}
 	}
 	for _, r := range rects {
-		row := decoRow{box: r, base: r.H}
-		for _, l := range lines {
-			if mid := r.Y + r.H/2; mid >= l.Rect.Y && mid < l.Rect.Y+l.Rect.H {
-				row.box.Y, row.box.H = l.Baseline-l.Ascent, l.Ascent+l.Descent
-				row.base, row.descent = l.Baseline, l.Descent
-				break
-			}
+		row := decoRow{box: glyphBox(s, r), base: r.H}
+		if l, ok := lineAt(s, r); ok {
+			row.base, row.descent = l.Baseline, l.Descent
 		}
 		row.box.X += x
 		row.box.Y += y

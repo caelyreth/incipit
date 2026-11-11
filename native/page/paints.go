@@ -115,13 +115,9 @@ func inlineOutline(u *unitLayout, s *surfaceLayout, i int) (ui.Rect, bool) {
 // lineBox is an inline object's box in its line: as wide as it draws and
 // as tall as the line's text, or taller where it reaches past it.
 func lineBox(s *surfaceLayout, r ui.Rect) ui.Rect {
-	for _, l := range s.layout.Lines() {
-		if mid := r.Y + r.H/2; mid >= l.Rect.Y && mid < l.Rect.Y+l.Rect.H {
-			top, bottom := min(r.Y, l.Baseline-l.Ascent), max(r.Y+r.H, l.Baseline+l.Descent)
-			return ui.Rect{X: r.X, Y: top, W: r.W, H: bottom - top}
-		}
-	}
-	return r
+	g := glyphBox(s, r)
+	top, bottom := min(r.Y, g.Y), max(r.Y+r.H, g.Y+g.H)
+	return ui.Rect{X: r.X, Y: top, W: r.W, H: bottom - top}
 }
 
 // outset widens r by dx and dy on each side.
