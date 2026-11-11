@@ -1,6 +1,8 @@
 package page
 
 import (
+	"time"
+
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/egoist/mygo/ui"
@@ -43,38 +45,41 @@ func shapeOf(u *unitLayout) int {
 }
 
 // settleRooms draws each unit at its height on the way there, moving the
-// units after it. Only a frame steps the rooms: a layout between frames,
+// units after it; it may run on a layout any number of times. Only a paint
+// steps the rooms, at its own time: a view is built anew only when
+// invalidated, and an animation frame only paints. A layout between paints,
 // as an input is handled, draws each where it stands, so a change starts
-// with the first frame that draws it rather than at the last frame's
-// time. Without a frame's time, as when a page is first laid out, every
-// unit stands at its height.
-func (el *Element) settleRooms(pl *pageLayout, frame bool) {
+// with the first paint that draws it. Before any paint, as when a page is
+// first laid out, every unit stands at its height.
+func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate bool) {
 	if el.rooms == nil {
 		el.rooms = map[doc.ID]*room{}
 	}
-	animate := el.animate && !el.now.IsZero()
+	animate = animate && !now.IsZero()
 	seen := make(map[doc.ID]bool, len(pl.units))
 	shift := float32(0)
 	moving := false
 	for _, u := range pl.units {
-		u.y += shift
+		u.y = u.top + shift
 		id := u.pres.Unit
 		seen[id] = true
 		shape := shapeOf(u)
 		r, ok := el.rooms[id]
 		switch {
 		case ok && !frame && animate:
-			// Between frames: where it stands.
+			// Between frames: where it stands, a change it has yet to
+			// start asking for the frame that starts it.
+			moving = moving || r.shape != shape
 		case !ok || !animate:
-			r = &room{spring: motion.NewSpring(u.h, el.now), shape: shape}
+			r = &room{spring: motion.NewSpring(u.h, now), shape: shape}
 			el.rooms[id] = r
 		case r.shape != shape:
 			r.from, r.prev, r.shape = r.spring.Value(), r.last, shape
-			r.spring.Step(u.h, el.now, roomFrequency)
+			r.spring.Step(u.h, now, roomFrequency)
 		case r.spring.Moving():
-			r.spring.Step(u.h, el.now, roomFrequency)
+			r.spring.Step(u.h, now, roomFrequency)
 		default:
-			r.spring = motion.NewSpring(u.h, el.now)
+			r.spring = motion.NewSpring(u.h, now)
 		}
 		if frame && !r.spring.Moving() {
 			r.prev, r.from = nil, u.h
@@ -84,7 +89,7 @@ func (el *Element) settleRooms(pl *pageLayout, frame bool) {
 		shift += u.shown - u.h
 		moving = moving || r.spring.Moving()
 	}
-	pl.height += shift
+	pl.height = pl.rest + shift
 	for id := range el.rooms {
 		if !seen[id] {
 			delete(el.rooms, id)

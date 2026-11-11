@@ -9,7 +9,6 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/formula"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
@@ -73,16 +72,14 @@ type Element struct {
 	// last painted.
 	figures map[doc.ID]*figureMotion
 	// rooms spring each unit's height as a surface in it opens and
-	// closes, stepped only while a frame is built (framing) at now;
-	// roomsMoving asks for the next frame. maths are the formulas' fades,
-	// stepped at paintNow.
+	// closes, stepped as the page is painted at paintNow; roomsMoving asks
+	// for the next paint. maths are the formulas' fades. animate is
+	// whether motion is wanted, as the last paint found.
 	rooms       map[doc.ID]*room
 	maths       map[doc.ID]*mathMotion
 	paintNow    time.Time
-	now         time.Time
 	animate     bool
 	roomsMoving bool
-	framing     bool
 	hover       doc.ID
 	pointer     ui.Point
 	focused     bool
@@ -127,7 +124,7 @@ func (el *Element) relayout() *pageLayout {
 	ed.SetStyle(el.Theme.Surface, Theme(el.Theme), m)
 	el.column = max((w-m.Width)/2, 0)
 	pl := ed.Relayout()
-	el.settleRooms(pl, el.framing)
+	el.settleRooms(pl, el.paintNow, false, el.animate)
 	el.applyRestoredScroll(pl)
 	return pl
 }
@@ -202,13 +199,7 @@ func (el *Element) View(c *ui.Context) {
 	}
 	ed.Wake = c.Services().Invalidate
 	ed.Due(c.Now())
-	el.now, el.animate = c.Now(), !c.Preferences().ReduceMotion
-	el.framing = true
 	pl := el.relayout()
-	el.framing = false
-	if el.roomsMoving {
-		c.AnimationFrame()
-	}
 	el.follow(pl, c.Now())
 	ui.Column(c).Key("page-surface").Fill().Role(ui.RoleNone).Children(func() {
 		box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
@@ -569,7 +560,11 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// What moves with time steps at the paint's own time: a frame that
 	// paints again without building the view moves it on.
 	now, animate := p.Now(), !p.Preferences().ReduceMotion
-	el.focused, el.paintNow = focused, now
+	el.focused, el.paintNow, el.animate = focused, now, animate
+	el.settleRooms(pl, now, true, animate)
+	if el.roomsMoving {
+		p.AnimationFrame()
+	}
 	el.previewGesture(pl)
 	if el.stepViewport(now, animate) {
 		p.AnimationFrame()
@@ -623,8 +618,9 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
 			continue
 		}
+		panel := float32(0)
 		if u.math != nil {
-			el.paintMath(p, u, ux, uy, covered[u.pres.Unit] && !u.math.open, panelOpened(u), now, animate)
+			panel = el.paintMath(p, u, ux, uy, covered[u.pres.Unit] && !u.math.open)
 		}
 		clip := ui.Rect{X: ox - cardPad(m), Y: uy, W: m.Width + 2*cardPad(m), H: u.shown}
 		p.Clip(clip, 0, func() {
@@ -634,7 +630,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 				case u.math != nil && i == 0:
 					// The source panel shows as far as the block has
 					// opened past its display.
-					if a := panelOpened(u); a > 0.001 {
+					if a := panel; a > 0.001 {
 						el.paintSurface(p, s, ux, uy, true, a)
 					}
 				case s.card:
@@ -1081,12 +1077,8 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 		}
 		o := objs[i].Rect
 		i++
-		if ms := sg.math; ms.box != nil {
-			ink, fill := el.mathAlpha(sg.node.ID(), ms.stale, sg.card >= 0, el.paintNow, el.animate, p)
-			if fill > 0.001 {
-				p.Fill(ui.Rect{X: sx + o.X - 1, Y: sy + o.Y - 1, W: o.W + 2, H: o.H + 2}, el.Theme.Prose.Selection.Alpha(fill), 4)
-			}
-			formula.Draw(p, ms.box, ui.Point{X: sx + o.X + mathPad - ms.from, Y: sy + o.Y + ms.ascent}, el.inks(ink))
+		if sg.formula {
+			el.paintInline(p, sg, ui.Rect{X: sx + o.X, Y: sy + o.Y, W: o.W, H: o.H})
 			continue
 		}
 		bg := el.Theme.Accent.Muted

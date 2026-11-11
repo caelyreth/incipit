@@ -103,3 +103,26 @@ func TestAMathBlockKeepsItsRoomAsMathSets(t *testing.T) {
 		t.Fatalf("height %v after setting, %v before", u.h, h)
 	}
 }
+
+// An empty inline formula stands as its hint, and its card fits its text
+// under it rather than spanning the column.
+func TestAFormulasCardSitsUnderIt(t *testing.T) {
+	el := newElement(t)
+	typeText(el, "Let us say $")
+	u := el.Editor.layout.units[0]
+	main, card := u.surfaces[0], u.surfaces[1]
+	for i, sg := range main.segs {
+		if !sg.formula {
+			continue
+		}
+		r, _ := main.objectRect(i)
+		if sg.math.box != nil || r.W <= mathPad*2 {
+			t.Fatalf("empty formula: math %v, object %v", sg.math.box != nil, r)
+		}
+		if card.x != r.X || card.w >= el.Editor.metrics.Width/2 {
+			t.Fatalf("card at %v, %v wide; formula at %v", card.x, card.w, r.X)
+		}
+		return
+	}
+	t.Fatal("no formula")
+}

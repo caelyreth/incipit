@@ -1,7 +1,7 @@
 package page
 
 import (
-	"time"
+	"strings"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
@@ -42,8 +42,10 @@ const (
 	// displayLines is the least a math block's display area holds, in
 	// display lines, so a block keeps its room as its first math sets.
 	displayLines = 2.7
-	// mathHint is what a math block's display shows while it has no math.
-	mathHint = "Formula"
+	// mathHint is what a math block's display shows while it has no math,
+	// and formulaHint an inline formula.
+	mathHint    = "Formula"
+	formulaHint = "formula"
 	// mathFrequency springs math's fades.
 	mathFrequency = float32(16)
 )
@@ -69,6 +71,11 @@ type lastGood struct {
 // when none has.
 func (lc *layoutCache) typeset(id doc.ID, src string, display bool, size, width float32) mathSet {
 	k := lastGood{id, display}
+	if strings.TrimSpace(src) == "" {
+		// Emptied, a formula has no math: it shows its hint.
+		delete(lc.good, k)
+		return mathSet{}
+	}
 	if !formula.Sound(src, display) {
 		last, ok := lc.good[k]
 		if !ok {
@@ -121,7 +128,9 @@ func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32, held bool
 	}
 	s := u.surfaces[0]
 	s.x, s.y = cardPad(m), ml.h+cardPad(m)
-	ml.full = s.y + s.h + cardPad(m)*0.75
+	// The panel's fill reaches half a card pad past its text, leaving
+	// half a pad to the frame on every side.
+	ml.full = s.y + s.h + cardPad(m)
 	ml.fold = ml.h
 	if ms.box == nil {
 		ml.fold = ml.full
@@ -146,40 +155,65 @@ func heldBy(p *present.Presentation, sel doc.Selection) bool {
 	return false
 }
 
-// mathMotion is a formula's springs across frames: its ink, as it shows
-// and goes stale, and the fill its open card gives it.
+// mathMotion is a formula's springs across frames, and the math it last
+// drew, which fades out where its math has gone.
 type mathMotion struct {
-	ink, fill motion.Spring
-	seen      bool
+	ink, open, hint motion.Spring
+	drawn           mathSet
+	seen            bool
 }
 
-// mathAlpha steps a formula's springs toward where they are going and
-// returns its ink's and its fill's strength.
-func (el *Element) mathAlpha(id doc.ID, stale, open bool, now time.Time, animate bool, p *ui.Painter) (float32, float32) {
-	ink, fill := float32(1), float32(0)
-	if stale {
+// mathLook is how strongly a formula's parts show this frame: its math's
+// ink, its hint, and what its being edited opens (an inline formula's
+// underline, a math block's frame and panel).
+type mathLook struct {
+	ink, open, hint float32
+	// drawn is the math to draw at ink: the formula's, or the last it had.
+	drawn mathSet
+}
+
+// mathLookOf steps a formula's springs toward where they are going. All
+// start from nothing, so a formula fades in as it first shows: its math
+// or hint, its underline or frame. Its hint leaves at once as math
+// arrives; math leaving fades out as its hint fades in. Math dims and
+// brightens as it goes stale and sound.
+func (el *Element) mathLookOf(id doc.ID, ms mathSet, open bool, p *ui.Painter) mathLook {
+	ink, hint, opened := float32(1), float32(0), float32(0)
+	switch {
+	case ms.box == nil:
+		ink, hint = 0, 1
+	case ms.stale:
 		ink = staleInk
 	}
 	if open {
-		fill = 1
+		opened = 1
 	}
+	now := el.paintNow
 	mm, ok := el.maths[id]
 	if !ok {
-		// Math fades in as it first shows; a fill starts where it is.
-		mm = &mathMotion{ink: motion.NewUnitSpring(0, now), fill: motion.NewUnitSpring(fill, now)}
+		mm = &mathMotion{ink: motion.NewUnitSpring(0, now), open: motion.NewUnitSpring(0, now), hint: motion.NewUnitSpring(0, now)}
 		el.maths[id] = mm
 	}
 	mm.seen = true
-	if animate {
+	if ms.box != nil {
+		mm.drawn = ms
+	}
+	if hint == 0 {
+		// A hint leaves as math arrives, as a field's placeholder does;
+		// it would only crowd what arrives.
+		mm.hint = motion.NewUnitSpring(0, now)
+	}
+	if el.animate {
 		mm.ink.Step(ink, now, mathFrequency)
-		mm.fill.Step(fill, now, mathFrequency)
-		if mm.ink.Moving() || mm.fill.Moving() {
+		mm.open.Step(opened, now, mathFrequency)
+		mm.hint.Step(hint, now, mathFrequency)
+		if mm.ink.Moving() || mm.open.Moving() || mm.hint.Moving() {
 			p.AnimationFrame()
 		}
 	} else {
-		mm.ink, mm.fill = motion.NewUnitSpring(ink, now), motion.NewUnitSpring(fill, now)
+		mm.ink, mm.open, mm.hint = motion.NewUnitSpring(ink, now), motion.NewUnitSpring(opened, now), motion.NewUnitSpring(hint, now)
 	}
-	return mm.ink.Value(), mm.fill.Value()
+	return mathLook{ink: mm.ink.Value(), open: mm.open.Value(), hint: mm.hint.Value(), drawn: mm.drawn}
 }
 
 // inks are the colors math is drawn in, at a strength.
@@ -188,33 +222,75 @@ func (el *Element) inks(a float32) formula.Inks {
 	return formula.Inks{Text: t.Prose.Text.Alpha(a), Error: t.Status.Danger.Foreground.Alpha(a), Placeholder: t.Text.Muted.Alpha(a)}
 }
 
-// paintMath draws a math block's frame, while its panel shows, and its
-// display, centered in its column: its math, or its hint while it has
-// none. a is how far its panel has opened.
-func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32, covered bool, a float32, now time.Time, animate bool) {
+// hintInk is a hint's color at a strength: muted, or, once the formula is
+// no longer edited, the danger color if its source has never set.
+func (el *Element) hintInk(src string, editing bool, a float32) ui.Color {
+	if !editing && strings.TrimSpace(src) != "" {
+		return el.Theme.Status.Danger.Foreground.Alpha(0.8 * a)
+	}
+	return el.Theme.Text.Muted.Alpha(0.7 * a)
+}
+
+// paintInline draws an inline formula in its object box o: its math or
+// hint, centered, and, while its card is open, an accent underline that
+// grows out from its middle.
+func (el *Element) paintInline(p *ui.Painter, sg seg, o ui.Rect) {
+	lk := el.mathLookOf(sg.node.ID(), sg.math, sg.card >= 0, p)
+	cx := o.X + o.W/2
+	base := o.Y + o.H - sg.face.Size*0.25
+	if ms := sg.math; ms.box != nil {
+		base = o.Y + ms.ascent
+	}
+	if lk.open > 0.001 {
+		w := o.W * (0.3 + 0.7*lk.open)
+		p.Fill(ui.Rect{X: cx - w/2, Y: o.Y + o.H + 1.5, W: w, H: 1.5}, el.Theme.Accent.Foreground.Alpha(lk.open), 1)
+	}
+	if lk.hint > 0.001 {
+		face := sg.face
+		lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Italic: true}, ui.TextShape{})
+		w, h := lay.Size()
+		p.TextLayout(lay, cx-w/2, base-h*0.78, el.hintInk(sg.text, sg.card >= 0, lk.hint))
+	}
+	if d := lk.drawn; lk.ink > 0.001 && d.box != nil {
+		formula.Draw(p, d.box, ui.Point{X: cx - (d.to-d.from)/2 - d.from, Y: base}, el.inks(lk.ink))
+	}
+}
+
+// paintMath draws a math block's frame and display: its math, or its hint
+// while it has none, centered in its column, crossfading as one comes and
+// the other goes. It returns how strongly its frame, and with it its
+// panel, shows.
+func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32, covered bool) float32 {
 	t, m, ml := el.Theme, el.Editor.metrics, u.math
+	lk := el.mathLookOf(u.pres.Unit, ml.mathSet, ml.open, p)
+	a := min(panelOpened(u), lk.open)
 	if a > 0.001 {
 		p.Stroke(ui.Rect{X: ux + 0.5, Y: uy + 0.5, W: m.Width - u.x - 1, H: u.shown - 1}, t.Border.Default.Alpha(a), cardPad(m), 1)
 	}
-	if ml.box == nil {
+	if lk.hint > 0.001 {
 		sp := span(mathHint, el.Editor.theme.Resolve(nil), m.Body*displayScale)
 		sp.Italic = true
-		sp.Color = t.Text.Muted.Alpha(0.65)
 		lay := ui.ShapeRichTextWith([]ui.Span{sp}, ui.Font{Family: sp.Font, Size: sp.Size, Italic: true}, ui.TextShape{})
 		w, h := lay.Size()
-		p.TextLayout(lay, ux+(m.Width-u.x-w)/2, uy+(ml.h-h)/2, sp.Color)
-		return
+		p.TextLayout(lay, ux+(m.Width-u.x-w)/2, uy+(ml.h-h)/2, el.hintInk(u.pres.Node.Text(), heldMath(u), lk.hint))
 	}
-	ink, _ := el.mathAlpha(u.pres.Unit, ml.stale, false, now, animate, p)
-	pad := (ml.h - ml.ascent - ml.descent) / 2
+	d := lk.drawn
+	if lk.ink <= 0.001 || d.box == nil {
+		return a
+	}
+	pad := (ml.h - d.ascent - d.descent) / 2
 	if covered {
 		// Held by a selection with its source closed, the display is
 		// washed as the text it stands for would be.
-		x := ux + ml.from - mathPad*2
-		p.Fill(ui.Rect{X: x, Y: uy + pad - mathPad*2, W: ml.to - ml.from + mathPad*4, H: ml.ascent + ml.descent + mathPad*4}, t.Prose.Selection.Alpha(el.selection.Opacity()), 4)
+		x := ux + d.from - mathPad*2
+		p.Fill(ui.Rect{X: x, Y: uy + pad - mathPad*2, W: d.to - d.from + mathPad*4, H: d.ascent + d.descent + mathPad*4}, t.Prose.Selection.Alpha(el.selection.Opacity()), 4)
 	}
-	formula.Draw(p, ml.box, ui.Point{X: ux, Y: uy + pad + ml.ascent}, el.inks(ink))
+	formula.Draw(p, d.box, ui.Point{X: ux, Y: uy + pad + d.ascent}, el.inks(lk.ink))
+	return a
 }
+
+// heldMath reports whether a math block holds a selection end.
+func heldMath(u *unitLayout) bool { return u.key.held }
 
 // panelOpened is how far a math block's source panel has opened past its
 // display.

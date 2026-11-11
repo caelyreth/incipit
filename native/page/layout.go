@@ -57,8 +57,10 @@ type seg struct {
 	face   ui.Span
 	shaped *ui.TextLayout
 	ink    ui.Color
-	// math is a box's formula, set: drawn in place of its source.
-	math mathSet
+	// formula marks an inline formula's box: its math, set, drawn in
+	// place of its source, or its hint (face) while it has none.
+	formula bool
+	math    mathSet
 }
 
 // deco is a stretch of a surface the page draws itself, beneath its
@@ -129,8 +131,9 @@ type unitLayout struct {
 	pres     *present.Presentation
 	surfaces []*surfaceLayout
 	// x is the unit's indent from the column's start; y its top in the
-	// page and h its height.
-	x, y, h float32
+	// page as drawn, top its top with every room above settled, and h its
+	// height.
+	x, y, top, h float32
 	// object marks a unit its kind's renderer draws, with gap stops
 	// before and after it; box is what it draws, in the unit, and its own
 	// slots (a figure's caption) are its surfaces, under the box.
@@ -144,7 +147,7 @@ type unitLayout struct {
 	figure *profile.Shape
 	crop   float32
 	// shown is the height the unit is drawn at: its height, or on its way
-	// there as a figure's caption line opens or closes.
+	// there as a surface in it opens or closes.
 	shown float32
 }
 
@@ -168,8 +171,10 @@ type layoutKey struct {
 
 // pageLayout is the page's units laid out from top to bottom.
 type pageLayout struct {
-	units  []*unitLayout
-	height float32
+	units []*unitLayout
+	// height is the page's height as drawn, rooms on their way; rest is
+	// its height with every room settled.
+	height, rest float32
 	// at finds each caret's place: its unit, surface and stop.
 	at map[doc.Caret]place
 	// first and last are the page's first and last stops.
@@ -224,7 +229,7 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		if i > 0 {
 			y += m.Gap * gapBefore(p, th)
 		}
-		u.y, u.shown = y, u.h
+		u.y, u.top, u.shown = y, y, u.h
 		y += u.h
 		// Index the stops by caret, in page order.
 		index := func(s *stopAt, pl2 place) {
@@ -241,7 +246,7 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		}
 		pl.units = append(pl.units, u)
 	}
-	pl.height = y
+	pl.height, pl.rest = y, y
 	for id := range lc.units {
 		if !keep[id] {
 			delete(lc.units, id)
@@ -338,12 +343,14 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 		sl := lc.laySurface(i, s, p, comp, th, m, w, ui.Start)
 		u.surfaces = append(u.surfaces, sl)
 	}
-	// The main surface first, then each open card under it.
+	// The main surface first, then each open card under it, fitted to
+	// its text under its formula.
 	y := float32(0)
 	for _, s := range u.surfaces {
 		if s.card {
+			fitCard(s, u.surfaces[0], m, width)
 			y += cardPad(m) / 2
-			s.x, s.y = cardPad(m), y+cardPad(m)/2
+			s.y = y + cardPad(m)/2
 			y += s.h + cardPad(m)*1.5
 			continue
 		}
@@ -355,6 +362,29 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 		layMath(u, lc, m, width, held)
 	}
 	return u
+}
+
+// cardMin is the least a card's text is given, in body sizes.
+const cardMin = 8
+
+// fitCard sizes an open card to its text, with room to type on, and puts
+// it under its box, kept inside the column (§14.1's card host).
+func fitCard(s, main *surfaceLayout, m Metrics, width float32) {
+	natural := float32(0)
+	for _, l := range s.layout.Lines() {
+		natural = max(natural, l.Rect.W)
+	}
+	s.w = min(max(natural+m.Body, m.Body*cardMin), width-2*cardPad(m))
+	x := cardPad(m)
+	for i, sg := range main.segs {
+		if sg.kind == segBox && sg.node != nil && sg.node.ID() == s.anchor {
+			if r, ok := main.objectRect(i); ok {
+				x = main.x + r.X
+			}
+			break
+		}
+	}
+	s.x = max(min(x, width-s.w-cardPad(m)), cardPad(m))
 }
 
 // boxPad is the room either side of a box's text.
@@ -446,13 +476,23 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			}
 			if it.Node.Kind() == profile.Formula {
 				// A formula stands in its line as its math, on the baseline.
-				if ms := lc.typeset(it.Node.ID(), it.Node.Text(), false, m.Body*style.Size, 0); ms.box != nil {
-					sp := span("\uFFFC", style, m.Body)
+				ms := lc.typeset(it.Node.ID(), it.Node.Text(), false, m.Body*style.Size, 0)
+				sp := span("\uFFFC", style, m.Body)
+				sg := seg{kind: segBox, from: it.From, to: it.To, text: it.Node.Text(), node: it.Node, card: it.Surface, formula: true, math: ms}
+				sg.face = span(formulaHint, style, m.Body)
+				sg.face.Italic = true
+				if ms.box != nil {
 					sp.ObjectWidth = ms.to - ms.from + mathPad*2
 					sp.ObjectHeight, sp.ObjectDescent = ms.ascent, ms.descent
-					add(seg{kind: segBox, from: it.From, to: it.To, text: it.Node.Text(), node: it.Node, card: it.Surface, math: ms}, sp, style)
-					continue
+				} else {
+					// No math yet: the formula stands as its hint.
+					lay := ui.ShapeRichTextWith([]ui.Span{sg.face}, ui.Font{Family: sg.face.Font, Size: sg.face.Size, Italic: true}, ui.TextShape{})
+					w, _ := lay.Size()
+					sp.ObjectWidth = w + mathPad*2
+					sp.ObjectHeight, sp.ObjectDescent = sg.face.Size*0.75, sg.face.Size*0.25
 				}
+				add(sg, sp, style)
+				continue
 			}
 			src := boxText(it.Node)
 			bs := th.Resolve(append(slices.Clone(it.Groups), it.Face))
@@ -694,7 +734,7 @@ func (sl *surfaceLayout) boxAt(x, y float32) (doc.Caret, bool) {
 		if !ok || ref.Node != sg.node.ID() {
 			continue
 		}
-		if sg.math.box != nil {
+		if sg.formula {
 			// Math's glyphs hold no place in its source: a click enters
 			// the source at the nearer end.
 			if r, ok := sl.objectRect(i); ok && x >= r.X && x < r.X+r.W && y >= r.Y && y < r.Y+r.H {
