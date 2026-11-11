@@ -9,6 +9,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/formula"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
@@ -71,13 +72,17 @@ type Element struct {
 	// under the pointer, and focused whether the page had the keys when
 	// last painted.
 	figures map[doc.ID]*figureMotion
-	// rooms spring each figure's height as its caption line opens and
-	// closes, stepped as the view is built at now; roomsMoving asks for
-	// the next build.
-	rooms       map[doc.ID]*motion.Spring
+	// rooms spring each unit's height as a surface in it opens and
+	// closes, stepped only while a frame is built (framing) at now;
+	// roomsMoving asks for the next frame. maths are the formulas' fades,
+	// stepped at paintNow.
+	rooms       map[doc.ID]*room
+	maths       map[doc.ID]*mathMotion
+	paintNow    time.Time
 	now         time.Time
 	animate     bool
 	roomsMoving bool
+	framing     bool
 	hover       doc.ID
 	pointer     ui.Point
 	focused     bool
@@ -89,7 +94,7 @@ type Element struct {
 
 // NewElement is an element over ed.
 func NewElement(ed *Editor) *Element {
-	el := &Element{Editor: ed, Label: "Page", focusPending: true, figures: map[doc.ID]*figureMotion{}}
+	el := &Element{Editor: ed, Label: "Page", focusPending: true, figures: map[doc.ID]*figureMotion{}, maths: map[doc.ID]*mathMotion{}}
 	el.client = &client{el: el}
 	return el
 }
@@ -122,7 +127,7 @@ func (el *Element) relayout() *pageLayout {
 	ed.SetStyle(el.Theme.Surface, Theme(el.Theme), m)
 	el.column = max((w-m.Width)/2, 0)
 	pl := ed.Relayout()
-	el.settleRooms(pl)
+	el.settleRooms(pl, el.framing)
 	el.applyRestoredScroll(pl)
 	return pl
 }
@@ -198,7 +203,9 @@ func (el *Element) View(c *ui.Context) {
 	ed.Wake = c.Services().Invalidate
 	ed.Due(c.Now())
 	el.now, el.animate = c.Now(), !c.Preferences().ReduceMotion
+	el.framing = true
 	pl := el.relayout()
+	el.framing = false
 	if el.roomsMoving {
 		c.AnimationFrame()
 	}
@@ -562,7 +569,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// What moves with time steps at the paint's own time: a frame that
 	// paints again without building the view moves it on.
 	now, animate := p.Now(), !p.Preferences().ReduceMotion
-	el.focused = focused
+	el.focused, el.paintNow = focused, now
 	el.previewGesture(pl)
 	if el.stepViewport(now, animate) {
 		p.AnimationFrame()
@@ -590,9 +597,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	for _, row := range rows {
 		p.Fill(ui.Rect{X: ox + row.X, Y: oy + row.Y, W: row.W, H: row.H}, wash, 2)
 	}
-	whole := map[doc.ID]bool{}
+	whole, covered := map[doc.ID]bool{}, map[doc.ID]bool{}
 	for _, c := range covers {
 		whole[c.Unit] = c.Whole
+		covered[c.Unit] = c.Whole || len(c.Spans) > 0
 	}
 	for _, u := range pl.units {
 		uy := oy + u.y
@@ -615,24 +623,39 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
 			continue
 		}
-		surfaces := func() {
-			for _, s := range u.surfaces {
-				sx, sy := ux+s.x, uy+s.y
-				if s.card {
-					p.Fill(ui.Rect{X: sx - cardPad(m)/2, Y: sy - cardPad(m)/2, W: s.w + cardPad(m), H: s.h + cardPad(m)}, t.Surface.Inset, 6)
+		if u.math != nil {
+			el.paintMath(p, u, ux, uy, covered[u.pres.Unit] && !u.math.held, now, animate)
+		}
+		clip := ui.Rect{X: ox - cardPad(m), Y: uy, W: m.Width + 2*cardPad(m), H: u.shown}
+		p.Clip(clip, 0, func() {
+			open := el.opened(u)
+			for i, s := range u.surfaces {
+				switch {
+				case u.math != nil && i == 0:
+					// The source panel shows as far as the block has
+					// opened past its display.
+					ml := u.math
+					a := min(max((u.shown-ml.fold)/(ml.full-ml.fold), 0), 1)
+					if a > 0.001 {
+						el.paintSurface(p, s, ux, uy, true, a)
+					}
+				case s.card:
+					el.paintSurface(p, s, ux, uy, true, open)
+				default:
+					el.paintSurface(p, s, ux, uy, false, 1)
 				}
-				p.TextLayout(s.layout, sx, sy, t.Prose.Text)
-				el.paintGhosts(p, s, sx, sy)
-				el.paintBoxes(p, s, sx, sy)
 			}
-		}
-		if u.shown < u.h {
-			// A caption line still opening shows as far as it has opened.
-			p.Clip(ui.Rect{X: ox, Y: uy, W: m.Width, H: u.shown}, 0, surfaces)
-		} else {
-			surfaces()
-		}
+			if prev, a := el.closing(u); prev != nil {
+				// A card closed fades out where it stood.
+				for _, s := range prev.surfaces {
+					if s.card && a > 0.001 {
+						el.paintSurface(p, s, ux, uy, true, a)
+					}
+				}
+			}
+		})
 	}
+	el.sweepMaths()
 	el.sweepFigures()
 	if el.paintDrop(p, ox, oy, m, now, animate) {
 		p.AnimationFrame()
@@ -647,6 +670,22 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		cr.Y += oy
 		el.paintCaret(p, r, cr, sel.IsCollapsed(), now, animate)
 	}
+}
+
+// paintSurface draws one of a unit's surfaces at a strength: a panel, as
+// a card or a math block's source, on its inset fill.
+func (el *Element) paintSurface(p *ui.Painter, s *surfaceLayout, ux, uy float32, panel bool, a float32) {
+	m := el.Editor.metrics
+	sx, sy := ux+s.x, uy+s.y
+	area := ui.Rect{X: sx, Y: sy, W: s.w, H: s.h}
+	if panel {
+		area = ui.Rect{X: sx - cardPad(m)/2, Y: sy - cardPad(m)/2, W: s.w + cardPad(m), H: s.h + cardPad(m)}
+		p.Fill(area, el.Theme.Surface.Inset, 6)
+	}
+	p.TextLayout(s.layout, sx, sy, el.Theme.Prose.Text)
+	el.paintGhosts(p, s, sx, sy)
+	el.paintBoxes(p, s, sx, sy)
+	el.veil(p, area, a)
 }
 
 // decoKey is a decoration's identity across frames: where it is, where it
@@ -727,6 +766,9 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, ox, oy, top, bottom
 		}
 	}
 	for _, u := range pl.units {
+		if u.math != nil && !u.math.held {
+			continue
+		}
 		vis := visible(u)
 		for _, s := range u.surfaces {
 			for _, d := range s.decos {
@@ -958,6 +1000,10 @@ func (el *Element) selectionRows(pl *pageLayout, covers []present.Cover) []ui.Re
 			}
 			continue
 		}
+		if u.math != nil && !u.math.held {
+			// A math block folded is washed over its display instead.
+			continue
+		}
 		// A figure held whole wears its ring; its caption is washed as
 		// text.
 		ranges := pl.coverRanges(u, c)
@@ -1020,7 +1066,8 @@ func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy float32) 
 	}
 }
 
-// paintBoxes draws closed inline nodes' text in their object boxes.
+// paintBoxes draws closed inline nodes in their object boxes: a formula
+// as its math, others as their source.
 func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 	objs := s.layout.Objects()
 	if len(objs) == 0 {
@@ -1036,6 +1083,14 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 		}
 		o := objs[i].Rect
 		i++
+		if ms := sg.math; ms.box != nil {
+			ink, fill := el.mathAlpha(sg.node.ID(), ms.stale, sg.card >= 0, el.paintNow, el.animate, p)
+			if fill > 0.001 {
+				p.Fill(ui.Rect{X: sx + o.X - 1, Y: sy + o.Y - 1, W: o.W + 2, H: o.H + 2}, el.Theme.Prose.Selection.Alpha(fill), 4)
+			}
+			formula.Draw(p, ms.box, ui.Point{X: sx + o.X + mathPad - ms.from, Y: sy + o.Y + ms.ascent}, el.inks(ink))
+			continue
+		}
 		bg := el.Theme.Accent.Muted
 		if sg.card >= 0 {
 			bg = el.Theme.Prose.Selection

@@ -114,7 +114,7 @@ func figureSize(shape profile.Shape, width float32, m Metrics) figureFit {
 
 // layFigure lays a figure out: its picture's box, and its caption under it
 // in the picture's alignment.
-func layFigure(u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, span int) {
+func (lc *layoutCache) layFigure(u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, span int) {
 	shape := profile.ShapeOf(p.Node)
 	if span >= 0 {
 		shape.Span = span
@@ -134,7 +134,7 @@ func layFigure(u *unitLayout, p *present.Presentation, comp *policy.Composition,
 	u.box = ui.Rect{X: x, W: w, H: h}
 	u.h = h
 	for i, s := range p.Surfaces {
-		sl := laySurface(i, s, p, comp, th, m, width, align)
+		sl := lc.laySurface(i, s, p, comp, th, m, width, align)
 		sl.y = u.h + captionGap(m)
 		u.surfaces = append(u.surfaces, sl)
 		u.h = sl.y + sl.h
@@ -543,44 +543,4 @@ func (el *Element) paintDrop(p *ui.Painter, ox, oy float32, m Metrics, now time.
 		p.Fill(ui.Rect{X: ox, Y: y, W: m.Width, H: dropWeight}, el.Theme.Accent.Foreground.Alpha(a), dropWeight/2)
 	}
 	return animate && (d.y.Moving() || d.shown.Moving())
-}
-
-// settleRooms draws each figure at its height on the way there: a caption
-// line opening or closing springs between its room and none, and the units
-// after it move with it. Without a frame's time, as when a page is first
-// laid out, every figure stands at its height.
-func (el *Element) settleRooms(pl *pageLayout) {
-	if el.rooms == nil {
-		el.rooms = map[doc.ID]*motion.Spring{}
-	}
-	animate := el.animate && !el.now.IsZero()
-	seen := make(map[doc.ID]bool, len(el.rooms))
-	shift := float32(0)
-	moving := false
-	for _, u := range pl.units {
-		u.y += shift
-		if u.figure == nil {
-			continue
-		}
-		id := u.pres.Unit
-		seen[id] = true
-		sp, ok := el.rooms[id]
-		if !ok || !animate {
-			s := motion.NewSpring(u.h, el.now)
-			sp = &s
-			el.rooms[id] = sp
-		} else {
-			sp.Step(u.h, el.now, figureFade)
-		}
-		u.shown = max(sp.Value(), 0)
-		shift += u.shown - u.h
-		moving = moving || sp.Moving()
-	}
-	pl.height += shift
-	for id := range el.rooms {
-		if !seen[id] {
-			delete(el.rooms, id)
-		}
-	}
-	el.roomsMoving = moving
 }

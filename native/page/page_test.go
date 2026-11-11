@@ -200,7 +200,7 @@ func TestHitPlacesCaret(t *testing.T) {
 	}
 }
 
-// A click on a closed formula enters its source where it lands, and the
+// A click on a closed formula enters its source at the nearer end, and the
 // formula's card opens.
 func TestClickingAFormulaEntersItsSource(t *testing.T) {
 	el := newElement(t)
@@ -208,27 +208,28 @@ func TestClickingAFormulaEntersItsSource(t *testing.T) {
 	pl := el.Editor.layout
 	s := pl.units[0].surfaces[0]
 	var box *seg
+	var r ui.Rect
 	for i := range s.segs {
 		if s.segs[i].kind == segBox {
 			box = &s.segs[i]
+			r, _ = s.objectRect(i)
 		}
 	}
-	if box == nil {
-		t.Fatal("no formula box")
+	if box == nil || box.math.box == nil {
+		t.Fatal("no formula set as math")
 	}
-	a, b := s.caretRect(box.u0), s.caretRect(box.u1)
 	ox, oy := pl.units[0].origin(s)
-	// Just inside the box's right edge: the source's end.
-	c, _, ok := pl.hit(ox+b.X-boxPad-0.5, oy+a.Y+a.H/2)
+	// Its right half: the source's end.
+	c, _, ok := pl.hit(ox+r.X+r.W-1, oy+r.Y+r.H/2)
 	if !ok || c.Pos.Node != box.node.ID() || c.Pos.Offset != len("x+1") {
 		t.Fatalf("hit %v, want the end of the formula's source", c)
 	}
-	// Just inside its left edge: the source's start.
-	c, _, _ = pl.hit(ox+a.X+boxPad+0.5, oy+a.Y+a.H/2)
+	// Its left half: the source's start.
+	c, _, _ = pl.hit(ox+r.X+1, oy+r.Y+r.H/2)
 	if c.Pos.Node != box.node.ID() || c.Pos.Offset != 0 {
 		t.Fatalf("hit %v, want the start of the formula's source", c)
 	}
-	el.Editor.place(ox+a.X+boxPad+0.5, oy+a.Y+a.H/2, 1, false, time.Unix(500, 0))
+	el.Editor.place(ox+r.X+1, oy+r.Y+r.H/2, 1, false, time.Unix(500, 0))
 	el.relayout()
 	if h := el.Editor.Selection().Head; h != c {
 		t.Fatalf("placed at %v, want %v", h, c)

@@ -89,7 +89,7 @@ func (ed *Editor) Relayout() *pageLayout {
 	}
 	pres := ed.Engine.Present(ed.View, ids)
 	ed.deco = ed.Engine.Decorations(ed.View)
-	ed.layout = ed.cache.build(pres, ed.deco, ed.theme, ed.metrics, ed.resize)
+	ed.layout = ed.cache.build(pres, ed.deco, ed.theme, ed.metrics, ed.resize, ed.Selection())
 	return ed.layout
 }
 

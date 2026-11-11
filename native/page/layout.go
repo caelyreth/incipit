@@ -57,6 +57,8 @@ type seg struct {
 	face   ui.Span
 	shaped *ui.TextLayout
 	ink    ui.Color
+	// math is a box's formula, set: drawn in place of its source.
+	math mathSet
 }
 
 // deco is a stretch of a surface the page draws itself, beneath its
@@ -135,6 +137,8 @@ type unitLayout struct {
 	object bool
 	gaps   []stopAt
 	box    ui.Rect
+	// math is a math block's display over its source panel.
+	math *mathLayout
 	// figure is a figure's shape, as it is laid out, and crop the share of
 	// its picture's height its box shows.
 	figure *profile.Shape
@@ -157,6 +161,9 @@ type layoutKey struct {
 	comp    string
 	// span is a figure's span while a resize previews it, or -1.
 	span int
+	// held is whether a math block holds a selection end, which opens
+	// its source panel.
+	held bool
 }
 
 // pageLayout is the page's units laid out from top to bottom.
@@ -179,13 +186,17 @@ type place struct {
 type layoutCache struct {
 	units   map[doc.ID]*unitLayout
 	themeID uintptr
+	// good is each formula's last source that set soundly.
+	good map[lastGood]string
 }
 
-func newLayoutCache() *layoutCache { return &layoutCache{units: map[doc.ID]*unitLayout{}} }
+func newLayoutCache() *layoutCache {
+	return &layoutCache{units: map[doc.ID]*unitLayout{}, good: map[lastGood]string{}}
+}
 
 // build lays the presentations out. Units whose presentation, metrics and
 // composition are unchanged keep their shaped text.
-func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorations, th present.Theme, m Metrics, resize *figureResize) *pageLayout {
+func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorations, th present.Theme, m Metrics, resize *figureResize, sel doc.Selection) *pageLayout {
 	pl := &pageLayout{at: map[doc.Caret]place{}}
 	keep := map[doc.ID]bool{}
 	y := float32(0)
@@ -197,12 +208,15 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		if resize != nil && resize.node == p.Unit {
 			key.span = resize.span
 		}
+		if p.Kind == profile.Math {
+			key.held = heldBy(p, sel)
+		}
 		if c := deco.Composition; c != nil && holdsSlot(p, c.At.Ref()) {
 			key.comp = fmt.Sprintf("%v|%s|%v", c.At, c.Text, c.Selected)
 		}
 		u, ok := lc.units[p.Unit]
 		if !ok || u.key != key {
-			u = layUnit(p, deco.Composition, th, m, key.span)
+			u = lc.layUnit(p, deco.Composition, th, m, key.span, key.held)
 			u.key = key
 			lc.units[p.Unit] = u
 		}
@@ -296,7 +310,7 @@ func lineHeight(m Metrics, size float32) float32 {
 
 // layUnit shapes a unit's surfaces. span, when not -1, is a figure's
 // span as a resize previews it.
-func layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, span int) *unitLayout {
+func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, span int, held bool) *unitLayout {
 	u := &unitLayout{pres: p}
 	u.x = float32(p.Context.Indent+p.Context.Quotes) * m.Indent
 	width := max(m.Width-u.x, m.Body*4)
@@ -308,7 +322,7 @@ func layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme
 			}
 		}
 		if p.Kind == profile.Figure {
-			layFigure(u, p, comp, th, m, width, span)
+			lc.layFigure(u, p, comp, th, m, width, span)
 			return u
 		}
 		u.h = lineHeight(m, m.Body)
@@ -317,10 +331,11 @@ func layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme
 	}
 	for i, s := range p.Surfaces {
 		w := width
-		if s.Card {
+		if s.Card || p.Kind == profile.Math {
+			// A card, or a math block's source panel, sits inset.
 			w = width - 2*cardPad(m)
 		}
-		sl := laySurface(i, s, p, comp, th, m, w, ui.Start)
+		sl := lc.laySurface(i, s, p, comp, th, m, w, ui.Start)
 		u.surfaces = append(u.surfaces, sl)
 	}
 	// The main surface first, then each open card under it.
@@ -336,6 +351,9 @@ func layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme
 		y += s.h
 	}
 	u.h = y
+	if p.Kind == profile.Math {
+		layMath(u, lc, m, width, held)
+	}
 	return u
 }
 
@@ -353,7 +371,7 @@ func utf16Len(s string) int {
 }
 
 // laySurface shapes one surface's flow and maps its stops.
-func laySurface(index int, s present.Surface, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, align ui.Align) *surfaceLayout {
+func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, align ui.Align) *surfaceLayout {
 	sl := &surfaceLayout{index: index, card: s.Card, anchor: s.Anchor, slot: s.Flow.Slot, w: width}
 	base := th.Resolve([]vocab.Group{s.Group})
 	var spans []ui.Span
@@ -425,6 +443,16 @@ func laySurface(index int, s present.Surface, p *present.Presentation, comp *pol
 		case present.BoxItem:
 			if compAt == it.From {
 				addComp(it.Groups)
+			}
+			if it.Node.Kind() == profile.Formula {
+				// A formula stands in its line as its math, on the baseline.
+				if ms := lc.typeset(it.Node.ID(), it.Node.Text(), false, m.Body*style.Size, 0); ms.box != nil {
+					sp := span("\uFFFC", style, m.Body)
+					sp.ObjectWidth = ms.to - ms.from + mathPad*2
+					sp.ObjectHeight, sp.ObjectDescent = ms.ascent, ms.descent
+					add(seg{kind: segBox, from: it.From, to: it.To, text: it.Node.Text(), node: it.Node, card: it.Surface, math: ms}, sp, style)
+					continue
+				}
 			}
 			src := boxText(it.Node)
 			bs := th.Resolve(append(slices.Clone(it.Groups), it.Face))
@@ -620,6 +648,12 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 		}
 		return u.gaps[1].caret, u.pres.Unit, true
 	}
+	if u.math != nil && (!u.math.held || y < u.y+u.math.h) && len(u.surfaces) > 0 {
+		// On a math block's display: its source, at its end.
+		if st := u.surfaces[0].stops; len(st) > 0 {
+			return st[len(st)-1].caret, 0, true
+		}
+	}
 	var s *surfaceLayout
 	for _, cand := range u.surfaces {
 		ox, oy := u.origin(cand)
@@ -648,15 +682,28 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 }
 
 // boxAt is the source stop under a surface point inside a closed box:
-// a click on an inline formula enters its source where it lands, an
-// explicit entry into the formula's card (§13.5).
+// a click on an inline formula enters its source, an explicit entry into
+// the formula's card (§13.5): where it lands in a source drawn as text, at
+// the nearer end of math.
 func (sl *surfaceLayout) boxAt(x, y float32) (doc.Caret, bool) {
-	for _, sg := range sl.segs {
+	for i, sg := range sl.segs {
 		if sg.kind != segBox || sg.card >= 0 || sg.node == nil {
 			continue
 		}
 		ref, ok := vocab.FirstTextSlot(sg.node)
 		if !ok || ref.Node != sg.node.ID() {
+			continue
+		}
+		if sg.math.box != nil {
+			// Math's glyphs hold no place in its source: a click enters
+			// the source at the nearer end.
+			if r, ok := sl.objectRect(i); ok && x >= r.X && x < r.X+r.W && y >= r.Y && y < r.Y+r.H {
+				off := 0
+				if x >= r.X+r.W/2 {
+					off = sg.node.Slot(ref.Slot).Len()
+				}
+				return doc.CaretAt(doc.At(ref, off)), true
+			}
 			continue
 		}
 		lay := ui.ShapeRichTextWith([]ui.Span{sg.face}, ui.Font{Family: sg.face.Font, Size: sg.face.Size}, ui.TextShape{})
@@ -677,6 +724,26 @@ func (sl *surfaceLayout) boxAt(x, y float32) (doc.Caret, bool) {
 		return doc.CaretAt(doc.At(ref, off)), true
 	}
 	return doc.Caret{}, false
+}
+
+// objectRect is the laid-out rectangle of the inline object segs[i]
+// stands for: the objects are laid out in the order their segments run.
+func (sl *surfaceLayout) objectRect(i int) (ui.Rect, bool) {
+	objs := sl.layout.Objects()
+	n := 0
+	for j, sg := range sl.segs {
+		if sg.kind != segBox {
+			continue
+		}
+		if j == i {
+			if n < len(objs) {
+				return objs[n].Rect, true
+			}
+			return ui.Rect{}, false
+		}
+		n++
+	}
+	return ui.Rect{}, false
 }
 
 // coverRanges are the UTF-16 runs a published cover spans in each of a
