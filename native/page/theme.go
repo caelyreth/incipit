@@ -38,11 +38,12 @@ func Theme(t theme.Theme) present.Theme {
 			LineColor: pack(t.Families[theme.Halo].Foreground)},
 		// Every paint has a look on text and around an object it holds
 		// whole: the selection washes text and outlines an object in the
-		// accent; what the next delete takes is marked in the danger hue.
+		// accent; what the next delete takes is outlined in the danger hue
+		// wherever it is, text or object, so one look means "goes next".
 		vocab.GroupSelection: {Set: present.SetBackground | present.SetOutline, Background: pack(t.Prose.Selection),
 			Outline: pack(t.Accent.Foreground.Alpha(0.85))},
-		vocab.GroupArmed: {Set: present.SetBackground | present.SetLine | present.SetLineColor | present.SetOutline, Background: pack(t.Prose.Selection),
-			Line: present.LineWavy, LineColor: pack(t.Families[theme.Remnant].Foreground), Outline: pack(t.Families[theme.Remnant].Foreground)},
+		vocab.GroupArmed: {Set: present.SetLine | present.SetLineColor | present.SetOutline,
+			Line: present.LineBox, LineColor: pack(t.Families[theme.Remnant].Foreground), Outline: pack(t.Families[theme.Remnant].Foreground)},
 		vocab.GroupPairMatch: {Set: present.SetBackground, Background: pack(t.Families[t.AccentFamily].Surface)},
 		vocab.GroupScope: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[t.AccentFamily].Muted)},

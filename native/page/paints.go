@@ -21,8 +21,14 @@ import (
 // So a held figure, a held formula and a held pair differ only by what
 // they are, and the selection only by its group.
 
-// objectOutset sets an outline off what its object draws.
-const objectOutset = 3
+// An outline stands off what it marks: a block object by objectOutset;
+// an inline object by the room its line gives it, widened by lineOutline,
+// so it reads as a box on the line, not a trace of its glyphs; text by a
+// background's own room (decoPad).
+const (
+	objectOutset = 3
+	lineOutline  = 4
+)
 
 // piece is what a cover paints in one surface of its unit, or around an
 // object it holds (surface -1).
@@ -37,7 +43,7 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 		r := u.drawn
 		r.X += u.x
 		r.Y += u.y
-		return []piece{{surface: -1, rows: []decoRow{objectRow(r)}}}
+		return []piece{{surface: -1, rows: []decoRow{objectRow(outset(r, objectOutset, objectOutset))}}}
 	}
 	ranges := pl.coverRanges(u, c)
 	// An inline object held whole is drawn around; its card is its own.
@@ -59,7 +65,7 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 			r := standIn(u, s)
 			r.X += u.x
 			r.Y += u.y
-			out = append(out, piece{surface: -1, rows: []decoRow{objectRow(r)}})
+			out = append(out, piece{surface: -1, rows: []decoRow{objectRow(outset(r, objectOutset, objectOutset))}})
 			continue
 		}
 		var text, objects []decoRow
@@ -72,9 +78,10 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 				if from < sg.u0 {
 					text = append(text, decoRows(s, ui.TextInputRange{Start: from, End: sg.u0}, u.x+s.x, u.y+s.y)...)
 				}
+				r = lineBox(s, r)
 				r.X += u.x + s.x
 				r.Y += u.y + s.y
-				objects = append(objects, objectRow(r))
+				objects = append(objects, objectRow(outset(r, lineOutline, 1)))
 				from = sg.u1
 			}
 		}
@@ -91,7 +98,29 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 	return out
 }
 
-// objectRow is an object's piece: drawn around, never over.
+// lineBox is an inline object's box in its line: as wide as it draws and
+// as tall as the line's text, or taller where it reaches past it.
+func lineBox(s *surfaceLayout, r ui.Rect) ui.Rect {
+	for _, l := range s.layout.Lines() {
+		if mid := r.Y + r.H/2; mid >= l.Rect.Y && mid < l.Rect.Y+l.Rect.H {
+			top, bottom := min(r.Y, l.Baseline-l.Ascent), max(r.Y+r.H, l.Baseline+l.Descent)
+			return ui.Rect{X: r.X, Y: top, W: r.W, H: bottom - top}
+		}
+	}
+	return r
+}
+
+// outset widens r by dx and dy on each side.
+func outset(r ui.Rect, dx, dy float32) ui.Rect {
+	return ui.Rect{X: r.X - dx, Y: r.Y - dy, W: r.W + 2*dx, H: r.H + 2*dy}
+}
+
+// outlineRadius rounds an outline: an object's radius, or less on a box
+// too short to hold it.
+func outlineRadius(m Metrics, r ui.Rect) float32 { return min(objectRadius(m), r.H*0.3) }
+
+// objectRow is an object's piece: its outline's box, drawn around, never
+// over.
 func objectRow(r ui.Rect) decoRow { return decoRow{box: r, base: r.Y + r.H, object: true} }
 
 // standIn is what a surface not shown stands in for, in its unit: the

@@ -35,9 +35,9 @@ const (
 	LineNone LineKind = iota
 	// LineUnder is a straight underline, as composing text shows.
 	LineUnder
-	// LineWavy is a wavy line, a caret mark under a single glyph, for
-	// what points at text: what the next delete takes, say.
-	LineWavy
+	// LineBox is a box around the text, drawn as an object it holds is
+	// outlined: what the next delete takes, wherever it is.
+	LineBox
 )
 
 // Style is a closed set of style attributes. Layout attributes (font role,

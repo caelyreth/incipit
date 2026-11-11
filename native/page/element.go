@@ -913,7 +913,7 @@ func (el *Element) paintBackground(p *ui.Painter, sd *shownDeco, ox, oy float32,
 		if row.object {
 			r.X += ox
 			r.Y += oy
-			components.PaintRing(p, r, objectRadius(el.Editor.metrics), objectOutset, sd.look.outline.Alpha(sd.alpha))
+			components.PaintRing(p, r, outlineRadius(el.Editor.metrics, r), 0, sd.look.outline.Alpha(sd.alpha))
 			continue
 		}
 		if r.W == 0 || sd.look.bg == (ui.Color{}) {
@@ -941,48 +941,22 @@ func (el *Element) paintLine(p *ui.Painter, sd *shownDeco, ox, oy float32, now t
 		switch sd.look.line {
 		case present.LineUnder:
 			p.Line(x, y, x+w, y, underlineWidth, ink)
-		case present.LineWavy:
-			wavyLine(p, x, w, y, ink)
+		case present.LineBox:
+			// A box around the text, as an object it marks is outlined,
+			// standing off it as a background does.
+			r := outset(ui.Rect{X: x, Y: oy + row.box.Y, W: w, H: row.box.H}, decoPad, 1)
+			components.PaintRing(p, r, outlineRadius(el.Editor.metrics, r), 0, ink)
 		}
 	}
-}
-
-// wavyLine draws a wavy line under [x, x+w): caret marks side by side, as
-// many as fit a wave each, so under a single glyph, or at a point, it is
-// one caret mark.
-func wavyLine(p *ui.Painter, x, w, y float32, c ui.Color) {
-	n := max(1, int(math.Round(float64(w/(2*caretMark)))))
-	step := w / float32(n)
-	a := min(step/2, caretMark)
-	if w == 0 {
-		a = caretMark
-	}
-	for i := range n {
-		caretMarkAt(p, x+step*(float32(i)+0.5), y, a, c)
-	}
-}
-
-// caretMarkAt draws a "^" whose apex is at (cx, y), reaching a below it
-// on either side: two strokes turned from the apex.
-func caretMarkAt(p *ui.Painter, cx, y, a float32, c ui.Color) {
-	arm := a * math.Sqrt2
-	w := float32(underlineWidth)
-	p.Transform(ui.Rotation(-45), cx, y, func() {
-		p.Fill(ui.Rect{X: cx - arm, Y: y - w/2, W: arm + w/2, H: w}, c, w/2)
-	})
-	p.Transform(ui.Rotation(45), cx, y, func() {
-		p.Fill(ui.Rect{X: cx - w/2, Y: y - w/2, W: arm + w/2, H: w}, c, w/2)
-	})
 }
 
 const (
 	// decoPad widens a background past the glyphs it lies under.
 	decoPad = 2
 	// underlineGap is the least room between the baseline and a line;
-	// underlineWidth its stroke; caretMark half a wave's width.
+	// underlineWidth its stroke.
 	underlineGap   = 2
 	underlineWidth = 1.5
-	caretMark      = 3.5
 )
 
 // selectionRows are the selection's rows of text, in the page.
