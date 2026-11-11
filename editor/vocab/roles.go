@@ -76,6 +76,13 @@ type Leavable interface {
 	Entry() doc.Caret
 }
 
+// Continued is a block a break at its end continues: the kind and
+// attributes of the block opened after it. A block without it is
+// continued by a plain block.
+type Continued interface {
+	Next() (doc.Kind, doc.Attrs)
+}
+
 // Structure is a whole deleted as a unit.
 type Structure interface {
 	Node() doc.ID
@@ -90,9 +97,10 @@ const (
 	RoleLeveled
 	RoleLeavable
 	RoleStructure
+	RoleContinued
 )
 
-var roleNames = [...]string{"", "Pair", "Leveled", "Leavable", "Structure"}
+var roleNames = [...]string{"", "Pair", "Leveled", "Leavable", "Structure", "Continued"}
 
 func (r Role) String() string { return roleNames[r] }
 

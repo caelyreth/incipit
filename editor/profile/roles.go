@@ -38,14 +38,16 @@ func NodeRoles(k doc.Kind) []vocab.Role {
 	case Heading:
 		return []vocab.Role{vocab.RoleLeveled}
 	case List, Quote:
-		return []vocab.Role{vocab.RoleLeveled, vocab.RoleStructure}
+		return []vocab.Role{vocab.RoleStructure}
 	case Item:
-		return []vocab.Role{vocab.RoleLeveled}
+		return []vocab.Role{vocab.RoleLeveled, vocab.RoleContinued}
 	case Formula:
 		return []vocab.Role{vocab.RoleLeavable, vocab.RoleStructure}
 	case Cell:
 		return []vocab.Role{vocab.RoleLeavable}
-	case Table, Figure, Divider, Math, Code:
+	case Math, Code:
+		return []vocab.Role{vocab.RoleLeveled, vocab.RoleStructure}
+	case Table, Figure, Divider:
 		return []vocab.Role{vocab.RoleStructure}
 	}
 	return nil
@@ -60,6 +62,12 @@ func NodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
 			return headingLevel{id: n.ID(), level: HeadingLevel(n)}, true
 		case Item:
 			return itemLevel(n.ID()), true
+		case Code, Math:
+			return plainLevel(n.ID()), true
+		}
+	case vocab.RoleContinued:
+		if n.Kind() == Item {
+			return itemNext{task: TaskOf(n)}, true
 		}
 	case vocab.RoleLeavable:
 		switch n.Kind() {
@@ -130,6 +138,28 @@ func (i itemLevel) Step(dir vocab.Direction) vocab.Edit {
 		}
 	}
 	return vocab.Outdent(id)
+}
+
+// plainLevel is a block one level above a paragraph: stepping it down
+// makes it one, keeping its text; nothing is above it.
+type plainLevel doc.ID
+
+func (p plainLevel) Step(dir vocab.Direction) vocab.Edit {
+	if dir > 0 {
+		return vocab.Sequence()
+	}
+	return vocab.Unmark(doc.ID(p))
+}
+
+// itemNext continues a list: an item after an item, an open task after a
+// task.
+type itemNext struct{ task Task }
+
+func (i itemNext) Next() (doc.Kind, doc.Attrs) {
+	if i.task != NoTask {
+		return Item, doc.MakeAttrs(doc.Field{Num: FieldTask, Value: doc.Int(int64(TaskOpen))})
+	}
+	return Item, doc.Attrs{}
 }
 
 type leavable struct{ exit, entry doc.Caret }

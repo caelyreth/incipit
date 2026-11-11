@@ -172,6 +172,9 @@ func endOfNewBlock(gap doc.Pos) func(doc.Reader) doc.Selection {
 	}
 }
 
+// plain is an empty plain block.
+func plain(s *doc.Schema) *doc.Node { return vocab.NewBlock(s, s.Plain(), doc.Attrs{}) }
+
 // insertAt is where typed content lands for a caret: a text position, or,
 // at a gap between blocks, the start of a new paragraph made there.
 func insertAt(r doc.Reader, at doc.Pos) (doc.Pos, vocab.Edit) {
@@ -179,9 +182,8 @@ func insertAt(r doc.Reader, at doc.Pos) (doc.Pos, vocab.Edit) {
 	if !ok || !spec.Blocks {
 		return at, nil
 	}
-	para := profile.NewParagraph()
 	return at, func(tx *doc.Tx) error {
-		return tx.Apply(doc.Insert{Parent: at.Node, Slot: at.Slot, Index: at.Offset, Nodes: []*doc.Node{para}})
+		return tx.Apply(doc.Insert{Parent: at.Node, Slot: at.Slot, Index: at.Offset, Nodes: []*doc.Node{plain(tx.Schema())}})
 	}
 }
 
@@ -224,8 +226,7 @@ func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool) voca
 	return func(tx *doc.Tx) error {
 		pos, _ := doc.Steps(tx.Steps()).Map(at, doc.BiasBefore)
 		if spec, ok := vocab.SlotSpec(tx, pos.Ref()); ok && spec.Blocks {
-			para := profile.NewParagraph()
-			if err := tx.Apply(doc.Insert{Parent: pos.Node, Slot: pos.Slot, Index: pos.Offset, Nodes: []*doc.Node{para}}); err != nil {
+			if err := tx.Apply(doc.Insert{Parent: pos.Node, Slot: pos.Slot, Index: pos.Offset, Nodes: []*doc.Node{plain(tx.Schema())}}); err != nil {
 				return err
 			}
 			n, _ := tx.Node(pos.Node)
@@ -285,7 +286,7 @@ func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
 			return policy.Swallow
 		}
 		if in.Dir > 0 {
-			if res, ok := stepDown(r, block); ok {
+			if res, ok := stepDown(c, block); ok {
 				return res
 			}
 			return policy.Swallow
@@ -346,7 +347,7 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 	if dir == vocab.Backward {
 		if head.Slot == 0 {
 			// At its text's start, a block with a marker steps it down.
-			if res, ok := stepDown(r, block); ok {
+			if res, ok := stepDown(c, block); ok {
 				return res
 			}
 		}
@@ -371,24 +372,20 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 	return policy.Swallow
 }
 
-// stepDown takes one level of a block's marker away: a leveled block
-// (a heading, an item) steps down one level, and another kind with a
-// marker becomes a paragraph. False for a block without a marker.
-func stepDown(r doc.Reader, block *doc.Node) (policy.Result, bool) {
-	if role, ok := profile.NodeRole(r, block, vocab.RoleLeveled); ok {
+// stepDown takes one level of a block's marker away through the block's
+// own level: a heading or an item steps down, a code block becomes a
+// paragraph. False for a block without a level.
+func stepDown(c *policy.Ctx, block *doc.Node) (policy.Result, bool) {
+	if role, ok := c.Role(block, vocab.RoleLeveled); ok {
 		return policy.Do(role.(vocab.Leveled).Step(vocab.Backward)), true
 	}
-	switch k := block.Kind(); {
-	case k == profile.Paragraph || k == profile.Cell || !r.Schema().IsTextBlock(k) || r.Schema().IsObject(k):
-		return policy.Result{}, false
-	}
-	return policy.Do(vocab.Unmark(block.ID())), true
+	return policy.Result{}, false
 }
 
 // deleteBefore deletes the boundary before a block, its marker kept: the
 // block joins the text before it, an object before it is selected, and
-// the first block of a quote leaves it. The first item of a list deletes
-// the boundary before its list.
+// the first block of a container leaves it. A container's first entry
+// deletes the boundary before its container.
 func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
 	r := c.Doc()
 	id := block.ID()
@@ -410,11 +407,15 @@ func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
 			}
 			return policy.Swallow
 		}
-		switch {
-		case parent == r.Root().ID() || pn.Kind() == profile.Item:
+		n, _ := r.Node(id)
+		switch s := r.Schema(); {
+		case parent == r.Root().ID() || s.IsEntry(pn.Kind()):
+			// The page's first block, or the first of an entry's body:
+			// nothing before it to join.
 			return policy.Swallow
-		case pn.Kind() == profile.List:
-			// The boundary before a list's first item is the list's.
+		case s.IsEntry(n.Kind()):
+			// The boundary before a container's first entry is the
+			// container's.
 			id = parent
 		default:
 			return policy.Do(vocab.Lift(id))
@@ -463,7 +464,7 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 	if !ok {
 		return policy.Swallow
 	}
-	kind, attrs := continuation(block)
+	kind, attrs := continuation(c, block)
 	if clear == nil && pos.Offset == 0 && pos.Slot == 0 && block.Slot(0).Len() > 0 {
 		// The block keeps its text and the caret; an empty one opens
 		// before it.
@@ -487,17 +488,13 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 	return res
 }
 
-// continuation is the kind a block opened next to block takes: an item
-// continues its list as an open task or a plain item, every other block
-// as a paragraph.
-func continuation(block *doc.Node) (doc.Kind, doc.Attrs) {
-	if block.Kind() == profile.Item {
-		if profile.TaskOf(block) != profile.NoTask {
-			return profile.Item, doc.MakeAttrs(doc.Field{Num: profile.FieldTask, Value: doc.Int(int64(profile.TaskOpen))})
-		}
-		return profile.Item, doc.Attrs{}
+// continuation is the kind a block opened next to block takes: what it
+// continues as, or a plain block.
+func continuation(c *policy.Ctx, block *doc.Node) (doc.Kind, doc.Attrs) {
+	if role, ok := c.Role(block, vocab.RoleContinued); ok {
+		return role.(vocab.Continued).Next()
 	}
-	return profile.Paragraph, doc.Attrs{}
+	return c.Doc().Schema().Plain(), doc.Attrs{}
 }
 
 // startOfNext puts the caret at the start of the block after id, as a
@@ -532,7 +529,7 @@ func softBreak(c *policy.Ctx, _ vocab.SoftBreak, at policy.At[doc.SlotRef]) poli
 func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Result {
 	slice := in.Slice
 	if slice.Empty() {
-		slice = TextSlice(in.Text)
+		slice = TextSlice(c.Doc().Schema(), in.Text)
 	}
 	if slice.Empty() {
 		return policy.Swallow
@@ -545,8 +542,7 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 	edits = append(edits, func(tx *doc.Tx) error {
 		at, _ := doc.Steps(tx.Steps()).Map(pos, doc.BiasBefore)
 		if spec, ok := vocab.SlotSpec(tx, at.Ref()); ok && spec.Blocks {
-			para := profile.NewParagraph()
-			if err := tx.Apply(doc.Insert{Parent: at.Node, Slot: at.Slot, Index: at.Offset, Nodes: []*doc.Node{para}}); err != nil {
+			if err := tx.Apply(doc.Insert{Parent: at.Node, Slot: at.Slot, Index: at.Offset, Nodes: []*doc.Node{plain(tx.Schema())}}); err != nil {
 				return err
 			}
 			n, _ := tx.Node(at.Node)
@@ -559,7 +555,7 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 
 // TextSlice is plain text as a slice: one line inline, several lines as
 // paragraphs with open edges.
-func TextSlice(text string) vocab.Slice {
+func TextSlice(s *doc.Schema, text string) vocab.Slice {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	if text == "" {
 		return vocab.Slice{}
@@ -570,10 +566,9 @@ func TextSlice(text string) vocab.Slice {
 	}
 	nodes := make([]*doc.Node, len(lines))
 	for i, l := range lines {
-		if l == "" {
-			nodes[i] = profile.NewParagraph()
-		} else {
-			nodes[i] = profile.NewParagraph(doc.TextItem(l, nil))
+		nodes[i] = plain(s)
+		if l != "" {
+			nodes[i] = vocab.NewBlock(s, s.Plain(), doc.Attrs{}, doc.TextItem(l, nil))
 		}
 	}
 	return vocab.Slice{Nodes: nodes, OpenStart: 1, OpenEnd: 1}
@@ -676,21 +671,21 @@ func format(c *policy.Ctx, in profile.Format, _ policy.At[doc.SlotRef]) policy.R
 	return policy.Do(vocab.ApplyMark(spans, doc.Mark{Kind: in.Mark}))
 }
 
-// retype gives the text blocks the selection touches a kind; blocks that
-// already have it, with its attributes, become paragraphs again. Items
-// keep their kind.
+// retype gives the text blocks the selection touches a kind where their
+// slot takes it; blocks that already have it, with its attributes, become
+// plain again.
 func retype(c *policy.Ctx, in profile.Retype, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
 	from, to := c.Range()
 	attrs := r.Schema().Canonical(in.To, in.Attrs)
 	var edits []vocab.Edit
 	for _, b := range vocab.SelectedBlocks(r, from, to) {
-		if b.Kind() == profile.Item || !r.Schema().IsTextBlock(b.Kind()) {
+		if !r.Schema().IsTextBlock(b.Kind()) || !vocab.Accepts(r, b.ID(), in.To) {
 			continue
 		}
 		kind, as := in.To, attrs
 		if b.Kind() == kind && b.Attrs().Equal(as) {
-			kind, as = profile.Paragraph, doc.Attrs{}
+			kind, as = r.Schema().Plain(), doc.Attrs{}
 		}
 		edits = append(edits, vocab.Retype(b.ID(), kind, as))
 	}

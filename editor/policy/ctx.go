@@ -52,6 +52,9 @@ func (c *Ctx) Seq() uint64 { return c.seq }
 // Doc is the document.
 func (c *Ctx) Doc() doc.Reader { return c.r }
 
+// Role is n's implementation of a role, as the profile provides it.
+func (c *Ctx) Role(n *doc.Node, role vocab.Role) (any, bool) { return c.prog.nodeRole(c.r, n, role) }
+
 // Program is the compiled program.
 func (c *Ctx) Program() *Program { return c.prog }
 

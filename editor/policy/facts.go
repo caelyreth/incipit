@@ -318,6 +318,8 @@ func roleInterface(r vocab.Role) reflect.Type {
 		return reflect.TypeFor[vocab.Leavable]()
 	case vocab.RoleStructure:
 		return reflect.TypeFor[vocab.Structure]()
+	case vocab.RoleContinued:
+		return reflect.TypeFor[vocab.Continued]()
 	}
 	return nil
 }

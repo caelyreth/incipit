@@ -1248,15 +1248,15 @@ func Unmark(id doc.ID) Edit {
 		switch k := n.Kind(); {
 		case s.IsEntry(k):
 			return Unlist(id)(tx)
-		case k == s.Plain() || !s.IsTextBlock(k) || s.IsObject(k) || !accepted(tx, id, s.Plain()):
+		case k == s.Plain() || !s.IsTextBlock(k) || s.IsObject(k) || !Accepts(tx, id, s.Plain()):
 			return nil
 		}
 		return Retype(id, s.Plain(), doc.Attrs{})(tx)
 	}
 }
 
-// accepted reports whether the slot holding id takes kind.
-func accepted(r doc.Reader, id doc.ID, kind doc.Kind) bool {
+// Accepts reports whether the slot holding id takes kind.
+func Accepts(r doc.Reader, id doc.ID, kind doc.Kind) bool {
 	parent, slot, ok := r.Parent(id)
 	if !ok {
 		return false

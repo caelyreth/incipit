@@ -6,15 +6,17 @@ import "github.com/caelyreth/neverland/editor/doc"
 // reading order. The slots of inline nodes, such as a formula's source,
 // are entered only through their own stops.
 
-// NewBlock builds an empty node of kind with the slots its kind declares.
-func NewBlock(s *doc.Schema, kind doc.Kind, attrs doc.Attrs) *doc.Node {
+// NewBlock builds a node of kind with the slots its kind declares, empty
+// but for text, which fills its first inline slot.
+func NewBlock(s *doc.Schema, kind doc.Kind, attrs doc.Attrs, text ...doc.Item) *doc.Node {
 	spec, _ := s.Kind(kind)
 	slots := make([]doc.Slot, len(spec.Slots))
 	for i, s := range spec.Slots {
 		if s.Blocks {
 			slots[i] = doc.BlockSlot()
 		} else {
-			slots[i] = doc.InlineSlot()
+			slots[i] = doc.InlineSlot(text...)
+			text = nil
 		}
 	}
 	return doc.NewNode(kind, attrs, slots...)

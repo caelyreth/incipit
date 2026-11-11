@@ -420,18 +420,12 @@ type markerGhost struct {
 
 // stepBlock steps the block a marker spells, as the block's own level
 // does: the marker is its notation, not a second owner of its level.
-func stepBlock(block doc.ID, dir vocab.Direction) vocab.Edit {
-	return func(tx *doc.Tx) error {
-		n, ok := tx.Node(block)
-		if !ok {
-			return doc.ErrNoNode
-		}
-		role, ok := profile.NodeRole(tx, n, vocab.RoleLeveled)
-		if !ok {
-			return nil
-		}
-		return role.(vocab.Leveled).Step(dir)(tx)
+func stepBlock(c *policy.Ctx, block *doc.Node, dir vocab.Direction) vocab.Edit {
+	role, ok := c.Role(block, vocab.RoleLeveled)
+	if !ok {
+		return vocab.Sequence()
 	}
+	return role.(vocab.Leveled).Step(dir)
 }
 
 // --- rules ---------------------------------------------------------------------
@@ -457,8 +451,8 @@ func stepSign(_ *policy.Ctx, _ vocab.Delete, at policy.At[markGhost]) policy.Res
 
 // stepMarker steps the block whose marker the caret is inside down one
 // level.
-func stepMarker(_ *policy.Ctx, _ vocab.Delete, at policy.At[markerGhost]) policy.Result {
-	return policy.Do(stepBlock(at.Node.ID(), vocab.Backward))
+func stepMarker(c *policy.Ctx, _ vocab.Delete, at policy.At[markerGhost]) policy.Result {
+	return policy.Do(stepBlock(c, at.Node, vocab.Backward))
 }
 
 // stepAhead steps the block down one level for the marker's glyph ahead.
@@ -468,7 +462,7 @@ func stepAhead(c *policy.Ctx, _ vocab.Delete, at policy.At[markerGhost]) policy.
 	head := c.Head()
 	head.Stop++
 	sel := doc.Collapsed(head)
-	return policy.Result{Edits: []vocab.Edit{stepBlock(at.Node.ID(), vocab.Backward)}, Selection: &sel}
+	return policy.Result{Edits: []vocab.Edit{stepBlock(c, at.Node, vocab.Backward)}, Selection: &sel}
 }
 
 // stepUp spells the mark the caret is in one level up, both its signs.
@@ -495,11 +489,11 @@ func stepOver[T any](c *policy.Ctx, _ vocab.Type, _ policy.At[T]) policy.Result 
 
 // reshape gives a glyph typed before or inside a heading's marker to the
 // marker: another "#" is one level deeper.
-func reshape(_ *policy.Ctx, in vocab.Type, at policy.At[markerGhost]) policy.Result {
+func reshape(c *policy.Ctx, in vocab.Type, at policy.At[markerGhost]) policy.Result {
 	if in.Text != "#" {
 		return policy.Swallow
 	}
-	return policy.Do(stepBlock(at.Node.ID(), vocab.Forward))
+	return policy.Do(stepBlock(c, at.Node, vocab.Forward))
 }
 
 // toggleBox flips the task box the caret is inside; an item with no box

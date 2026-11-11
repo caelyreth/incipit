@@ -32,7 +32,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 
 // level is the item's own level.
 func level(c *policy.Ctx, item *doc.Node) (vocab.Leveled, bool) {
-	role, ok := profile.NodeRole(c.Doc(), item, vocab.RoleLeveled)
+	role, ok := c.Role(item, vocab.RoleLeveled)
 	if !ok {
 		return nil, false
 	}
