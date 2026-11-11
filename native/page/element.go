@@ -1084,7 +1084,7 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 		o := objs[i].Rect
 		i++
 		if ms := sg.math; ms.box != nil {
-			ink, fill := el.mathAlpha(sg.node.ID(), ms.stale, sg.card >= 0, el.paintNow, el.animate, p)
+			ink, fill := el.mathAlpha(sg.node.ID(), sg.card >= 0, el.paintNow, el.animate, p)
 			if fill > 0.001 {
 				p.Fill(ui.Rect{X: sx + o.X - 1, Y: sy + o.Y - 1, W: o.W + 2, H: o.H + 2}, el.Theme.Prose.Selection.Alpha(fill), 4)
 			}

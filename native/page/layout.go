@@ -186,12 +186,10 @@ type place struct {
 type layoutCache struct {
 	units   map[doc.ID]*unitLayout
 	themeID uintptr
-	// good is each formula's last source that set soundly.
-	good map[lastGood]string
 }
 
 func newLayoutCache() *layoutCache {
-	return &layoutCache{units: map[doc.ID]*unitLayout{}, good: map[lastGood]string{}}
+	return &layoutCache{units: map[doc.ID]*unitLayout{}}
 }
 
 // build lays the presentations out. Units whose presentation, metrics and
@@ -352,7 +350,7 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 	}
 	u.h = y
 	if p.Kind == profile.Math {
-		layMath(u, lc, m, width, held)
+		layMath(u, m, width, held)
 	}
 	return u
 }
@@ -446,7 +444,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			}
 			if it.Node.Kind() == profile.Formula {
 				// A formula stands in its line as its math, on the baseline.
-				if ms := lc.typeset(it.Node.ID(), it.Node.Text(), false, m.Body*style.Size, 0); ms.box != nil {
+				if ms := setMath(it.Node.Text(), false, m.Body*style.Size, 0); ms.box != nil {
 					sp := span("\uFFFC", style, m.Body)
 					sp.ObjectWidth = ms.to - ms.from + mathPad*2
 					sp.ObjectHeight, sp.ObjectDescent = ms.ascent, ms.descent

@@ -21,58 +21,32 @@ import (
 //     selection end is in the block, the panel opening and closing as the
 //     page below glides with it.
 //
-// A source half typed does not set soundly: the math shown is the last
-// source that did, dimmed, until it sets again. A formula that never has
-// shows its source. Math fades in as it first shows, and dims and brightens
-// as it goes stale and sound again.
+// Math is always set from its source as it stands: a source half typed
+// sets with placeholders where an argument or group is still missing and
+// its unknown commands in the error ink, so an empty math block shows a
+// placeholder and a lone "\" is visible from its first keystroke. The
+// renderer remembers no earlier source (§11.7). Math fades in as it first
+// shows.
 
 const (
 	// mathPad is the room either side of inline math.
 	mathPad = 2
 	// displayScale sets display math over the body text.
 	displayScale = 1.15
-	// staleInk is how strongly math shows while its source does not set.
-	staleInk = 0.45
 	// mathFrequency springs math's fades.
 	mathFrequency = float32(16)
 )
 
-// mathSet is a formula as set for drawing: its box, whether it is the last
-// sound source standing in for one that is not, and its geometry.
+// mathSet is a formula as set for drawing: its box and its geometry.
 type mathSet struct {
 	box             *untie.Box
-	stale           bool
 	ascent, descent float32
 	// from and to are how far across the box its ink reaches.
 	from, to float32
 }
 
-// lastGood keys a formula's last sound source by its node and mode.
-type lastGood struct {
-	node    doc.ID
-	display bool
-}
-
-// typeset sets a formula's source: as written when it sets soundly,
-// else the last source of that formula that did, marked stale; a zero
-// mathSet when none has.
-func (lc *layoutCache) typeset(id doc.ID, src string, display bool, size, width float32) mathSet {
-	k := lastGood{id, display}
-	if formula.Sound(src, display) {
-		if len(lc.good) > 4096 {
-			clear(lc.good)
-		}
-		lc.good[k] = src
-	} else if last, ok := lc.good[k]; ok {
-		ms := setMath(last, display, size, width)
-		ms.stale = true
-		return ms
-	} else {
-		return mathSet{}
-	}
-	return setMath(src, display, size, width)
-}
-
+// setMath sets a formula's source; a zero mathSet when the math font is
+// missing.
 func setMath(src string, display bool, size, width float32) mathSet {
 	box := formula.Set(src, display, size, width)
 	if box == nil {
@@ -97,13 +71,12 @@ type mathLayout struct {
 
 // layMath lays out a math block's display over its source: the source
 // panel opens only while the block is held.
-func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32, held bool) {
+func layMath(u *unitLayout, m Metrics, width float32, held bool) {
 	if len(u.surfaces) == 0 {
 		return
 	}
-	ms := lc.typeset(u.pres.Unit, u.pres.Node.Text(), true, m.Body*displayScale, width)
+	ms := setMath(u.pres.Node.Text(), true, m.Body*displayScale, width)
 	if ms.box == nil {
-		// Nothing has set yet: the block shows its source.
 		return
 	}
 	pad := m.Body * 0.45
@@ -132,8 +105,8 @@ func heldBy(p *present.Presentation, sel doc.Selection) bool {
 	return false
 }
 
-// mathMotion is a formula's springs across frames: its ink, as it shows
-// and goes stale, and the fill its open card gives it.
+// mathMotion is a formula's springs across frames: its ink, as it first
+// shows, and the fill its open card gives it.
 type mathMotion struct {
 	ink, fill motion.Spring
 	seen      bool
@@ -141,11 +114,8 @@ type mathMotion struct {
 
 // mathAlpha steps a formula's springs toward where they are going and
 // returns its ink's and its fill's strength.
-func (el *Element) mathAlpha(id doc.ID, stale, open bool, now time.Time, animate bool, p *ui.Painter) (float32, float32) {
+func (el *Element) mathAlpha(id doc.ID, open bool, now time.Time, animate bool, p *ui.Painter) (float32, float32) {
 	ink, fill := float32(1), float32(0)
-	if stale {
-		ink = staleInk
-	}
 	if open {
 		fill = 1
 	}
@@ -177,7 +147,7 @@ func (el *Element) inks(a float32) formula.Inks {
 // paintMath draws a math block's display, centered in its column.
 func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32, covered bool, now time.Time, animate bool) {
 	ml := u.math
-	ink, _ := el.mathAlpha(u.pres.Unit, ml.stale, false, now, animate, p)
+	ink, _ := el.mathAlpha(u.pres.Unit, false, now, animate, p)
 	pad := (ml.h - ml.ascent - ml.descent) / 2
 	if covered {
 		// Held by a selection with its source closed, the display is
