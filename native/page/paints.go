@@ -21,9 +21,11 @@ import (
 // So a held figure, a held formula and a held pair differ only by what
 // they are, and the selection only by its group.
 
-// An outline stands off what it marks: a block object by objectOutset;
-// an inline object by the room its line gives it, widened by lineOutline,
-// so it reads as a box on the line, not a trace of its glyphs; text by a
+// An outline stands off what it marks, within the room its object has,
+// so a caret beside the object stands outside it: a block object's by
+// objectOutset, short of its gap carets (gapBarRoom); an inline object's
+// on its line's box and inside its advance, whose side room (mathPad)
+// holds lineOutline of clearance and the outline itself; text's by a
 // background's own room (decoPad).
 const (
 	objectOutset = 3
@@ -98,7 +100,7 @@ func blockOutline(u *unitLayout, r ui.Rect) ui.Rect {
 }
 
 // inlineOutline is the outline around the inline object of s's segment i,
-// in the page: on its line's box, standing off its sides.
+// in the page: on its line's box, a point inside its advance.
 func inlineOutline(u *unitLayout, s *surfaceLayout, i int) (ui.Rect, bool) {
 	r, ok := s.objectRect(i)
 	if !ok {
@@ -107,7 +109,7 @@ func inlineOutline(u *unitLayout, s *surfaceLayout, i int) (ui.Rect, bool) {
 	r = lineBox(s, r)
 	r.X += u.x + s.x
 	r.Y += u.y + s.y
-	return outset(r, lineOutline, 1), true
+	return outset(r, -1, 1), true
 }
 
 // lineBox is an inline object's box in its line: as wide as it draws and

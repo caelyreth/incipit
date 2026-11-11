@@ -32,8 +32,10 @@ import (
 // as it goes stale and sound.
 
 const (
-	// mathPad is the room either side of inline math.
-	mathPad = 2
+	// mathPad is the room either side of inline math: room for the
+	// outline drawn around it (paints.go), inside its own advance, so the
+	// carets beside it stand outside that outline.
+	mathPad = lineOutline + 1
 	// displayScale sets display math over the body text.
 	displayScale = 1.15
 	// staleInk is how strongly math shows while its source does not set.

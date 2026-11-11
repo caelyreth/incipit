@@ -38,8 +38,9 @@ const (
 	// figureFade is how quickly a figure's picture, grips and hint spring
 	// to where they are going.
 	figureFade = float32(14)
-	// gapBarRoom sets an object's gap carets off what it draws.
-	gapBarRoom = 3
+	// gapBarRoom sets an object's gap carets off what it draws, beyond
+	// the outline drawn around it (paints.go).
+	gapBarRoom = objectOutset + 3
 	// figureMin is the narrowest a figure is drawn.
 	figureMin = 48
 	// gripWidth and gripInset shape and place a resize grip.
