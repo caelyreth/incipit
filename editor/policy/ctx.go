@@ -106,13 +106,7 @@ func (c *Ctx) Inline(ref doc.SlotRef) (*doc.Inline, bool) {
 	return n.Slot(ref.Slot).Content(), true
 }
 
-// Unit returns the whole-slot unit of an inline slot, for the analyzer of
-// policy.
-func (c *Ctx) unit(ref doc.SlotRef, policy string) (*Unit, bool) {
-	return buildUnit(c.prog, c.store, c.r, c.view, ref, policy)
-}
-
-func buildUnit(prog *Program, store *Store, r doc.Reader, view *View, ref doc.SlotRef, policy string) (*Unit, bool) {
+func buildUnit(prog *Program, r doc.Reader, view *View, ref doc.SlotRef, policy string) (*Unit, bool) {
 	n, ok := r.Node(ref.Node)
 	if !ok || ref.Slot >= n.NumSlots() || !n.Slot(ref.Slot).IsInline() {
 		return nil, false
@@ -132,7 +126,6 @@ func buildUnit(prog *Program, store *Store, r doc.Reader, view *View, ref doc.Sl
 	if prog.profile != nil {
 		u.Context = prog.profile.Context(r, ref)
 	}
-	u.facts = func(k FactID) []Fact { return prog.facts(store, r, view, ref, k) }
 	return u, true
 }
 
@@ -143,7 +136,7 @@ func buildUnit(prog *Program, store *Store, r doc.Reader, view *View, ref doc.Sl
 func (p *Program) FactContext(r doc.Reader, view *View, ref doc.SlotRef) string {
 	var b strings.Builder
 	for _, pol := range p.analyzing {
-		if u, ok := buildUnit(p, nil, r, view, ref, pol); ok {
+		if u, ok := buildUnit(p, r, view, ref, pol); ok {
 			b.WriteString(unitContext(u))
 			b.WriteByte('|')
 		}
@@ -157,54 +150,20 @@ func (c *Ctx) Facts(ref doc.SlotRef, k FactID) []Fact {
 	return c.prog.facts(c.store, c.r, c.view, ref, k)
 }
 
-// FactsOf returns typed facts of a kind in a slot.
-func FactsOf[T any](c *Ctx, k *FactKind[T], ref doc.SlotRef) []Fact {
-	return c.Facts(ref, k.kind)
-}
-
-// FactsAt returns the facts of a kind in the caret's slot containing the
-// caret, innermost last.
-func (c *Ctx) FactsAt(k FactID) []Fact {
-	head := c.Head()
-	var out []Fact
-	for _, f := range c.Facts(head.Pos.Ref(), k) {
-		if f.Holds(head) {
-			out = append(out, f)
-		}
-	}
-	return out
-}
-
-// Beside is what provides role right after the caret (ahead) or right
-// before it, outside it, as Before and After match it: an inline node or a
-// fact of scope s. A fact's data comes bound to where it stands; a node
-// comes as its implementation of s's role, or as itself.
-func (c *Ctx) Beside(s Scope, ahead bool) (any, bool) {
-	head := c.Head()
-	n, f, ok := c.prog.beside(c.store, c.r, c.view, head, s, ahead)
-	switch {
-	case !ok:
-		return nil, false
-	case n != nil && s.Class == ScopeRole:
-		return c.prog.nodeRole(c.r, n, vocab.Role(s.ID))
-	case n != nil:
-		return n, true
-	}
-	return Placed(head.Pos.Ref(), *f), true
-}
-
-// Provides reports whether node n provides role in the profile.
-func (c *Ctx) Provides(n *doc.Node, role vocab.Role) bool {
-	return slices.Contains(c.prog.nodeRoles(n.Kind()), role)
-}
-
 // Summary returns a summary of a node.
 func Summarized[M any](c *Ctx, k *SummaryKind[M], n *doc.Node) M { return SummaryOf(c.store, k, n) }
 
-// Stack is the scope stack at the head.
+// Stack is the scope stack at the head. A node selection's node is its
+// innermost level.
 func (c *Ctx) Stack() *Stack {
 	if c.stack == nil {
-		c.stack = c.prog.stackAt(c.store, c.r, c.view, c.Head())
+		s := c.prog.stackAt(c.store, c.r, c.view, c.Head())
+		if sel := c.view.Selection; sel.Kind == doc.SelectNode {
+			if n, ok := c.r.Node(sel.Node); ok {
+				s = &Stack{Levels: append(slices.Clip(s.Levels), c.prog.nodeLevel(n)), Caret: s.Caret}
+			}
+		}
+		c.stack = s
 	}
 	return c.stack
 }
@@ -218,11 +177,4 @@ func (c *Ctx) Preview(in vocab.Input) (Outcome, error) {
 // FactsIn returns the facts of a kind in a slot, for presentation.
 func (p *Program) FactsIn(store *Store, r doc.Reader, view *View, ref doc.SlotRef, k FactID) []Fact {
 	return p.facts(store, r, view, ref, k)
-}
-
-// UnitOf returns the whole-slot unit of an inline slot, for presentation
-// contributions.
-func (p *Program) UnitOf(store *Store, r doc.Reader, view *View, ref doc.SlotRef) *Unit {
-	u, _ := buildUnit(p, store, r, view, ref, "")
-	return u
 }

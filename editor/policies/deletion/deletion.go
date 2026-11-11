@@ -31,34 +31,19 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Annotation(policy.Armed, valid)
 	p.Decorate(policy.Armed, vocab.GroupArmed)
 
-	// A text range exactly over a structure is the structure, deleted as
-	// a whole. A range is not collapsed, so these signatures cannot meet
-	// the node-selected rule in this policy.
-	p.Handle("structure").On(policy.On(vocab.IntentDelete)).In(policy.RoleScope(vocab.RoleStructure)).
-		When(policy.TextRange, policy.Equals).Unless(policy.Collapsed).Produces(vocab.RoleEdits...).Do(structure)
-
-	// An object selected whole has no node level of its own in the scope
-	// stack: its head is the gap before it. The page level sees every
-	// node selection and checks the role by id.
-	p.Handle("selected").On(policy.On(vocab.IntentDelete)).In(policy.Root).
-		When(policy.NodeSelected(0)).Produces(vocab.RoleEdits...).Do(selected)
+	// A structure selected whole, as a node or as a text range over it
+	// exactly, is deleted as a whole.
+	policy.On(p, "structure", policy.Intent[vocab.Delete](), policy.Role[vocab.Structure](vocab.RoleStructure).Selected(), structure)
 })
 
-func structure(c *policy.Ctx, m policy.Match) policy.Result {
-	if m.Level == nil || m.Level.Node == nil {
-		return policy.Swallow
-	}
-	return act(c, m.Level.Node.ID())
-}
-
-func selected(c *policy.Ctx, _ policy.Match) policy.Result {
-	return act(c, c.Selection().Node)
+func structure(c *policy.Ctx, _ vocab.Delete, at policy.At[vocab.Structure]) policy.Result {
+	return act(c, at.Node.ID())
 }
 
 // act arms the structure once and deletes it on the next delete.
 func act(c *policy.Ctx, id doc.ID) policy.Result {
 	n, ok := c.Doc().Node(id)
-	if !ok || !c.Provides(n, vocab.RoleStructure) {
+	if !ok {
 		return policy.Swallow
 	}
 	res := policy.Result{}

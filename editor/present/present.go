@@ -490,24 +490,25 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 			continue
 		}
 		for _, f := range prog.FactsIn(store, r, view, ref, pc.Fact) {
-			paints = append(paints, paintSpan{f.From, f.To, pc.Group})
+			paints = append(paints, paintSpan{f.Outer.From.At, f.Outer.To.At, pc.Group})
 		}
 	}
-	// Ghosts: what the policies project, as they project it.
-	var ghosts []policy.Ghost
-	if len(prog.Ghosts()) > 0 {
-		unit := prog.UnitOf(store, r, view, ref)
-		for _, g := range prog.Ghosts() {
-			g(unit, func(gh policy.Ghost) { ghosts = append(ghosts, gh) })
-		}
-		// At one offset, ghosts keep the order their stops number them in.
-		slices.SortStableFunc(ghosts, func(a, b policy.Ghost) int {
-			if a.At != b.At {
-				return a.At - b.At
+	// Ghosts: the glyphs the policies' facts project, as they project them.
+	var ghosts []policy.Fact
+	for _, k := range prog.Projecting() {
+		for _, f := range prog.FactsIn(store, r, view, ref, k) {
+			if f.Glyph != nil {
+				ghosts = append(ghosts, f)
 			}
-			return a.StopFrom - b.StopFrom
-		})
+		}
 	}
+	// At one offset, ghosts keep the order their stops number them in.
+	slices.SortStableFunc(ghosts, func(a, b policy.Fact) int {
+		if a.Outer.From.At != b.Outer.From.At {
+			return a.Outer.From.At - b.Outer.From.At
+		}
+		return a.Outer.From.Stop - b.Outer.From.Stop
+	})
 	var items []Item
 	var stops []Stop
 	// flush moves the stops gathered so far into the map. At one offset
@@ -528,21 +529,26 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 	}
 	gi := 0
 	emitGhosts := func(at int) {
-		for gi < len(ghosts) && ghosts[gi].At <= at {
-			g := ghosts[gi]
-			items = append(items, Item{Kind: GhostItem, From: g.At, To: g.At, Spelling: g.Spelling,
-				Groups: append([]vocab.Group{base}, g.Groups...), StopFrom: g.StopFrom, StopTo: g.StopFrom + g.Stops})
-			ghostStop := func(s int) Stop {
-				return Stop{Caret: doc.Caret{Pos: doc.At(ref, g.At), Stop: s}, Surface: index, Class: StopGhost, Offset: g.At}
+		for gi < len(ghosts) && ghosts[gi].Outer.From.At <= at {
+			f, g := ghosts[gi], ghosts[gi].Glyph
+			off, from, to := f.Outer.From.At, f.Outer.From.Stop, f.Outer.To.Stop
+			spelling := g.Spelling
+			if g.Hidden {
+				spelling = ""
 			}
-			if g.StopFrom < 0 {
+			items = append(items, Item{Kind: GhostItem, From: off, To: off, Spelling: spelling,
+				Groups: append([]vocab.Group{base}, g.Groups...), StopFrom: from, StopTo: to})
+			ghostStop := func(s int) Stop {
+				return Stop{Caret: doc.Caret{Pos: doc.At(ref, off), Stop: s}, Surface: index, Class: StopGhost, Offset: off}
+			}
+			if from < 0 {
 				// Below the position's own stop, the stop before the ghost
 				// is the ghost's to give.
-				st := ghostStop(g.StopFrom)
+				st := ghostStop(from)
 				st.Outside = g.Block
 				stops = append(stops, st)
 			}
-			for s := g.StopFrom + 1; s <= g.StopFrom+g.Stops; s++ {
+			for s := from + 1; s <= to; s++ {
 				if s != 0 {
 					stops = append(stops, ghostStop(s))
 				}
@@ -586,7 +592,7 @@ func flowOf(prog *policy.Program, store *policy.Store, r doc.Reader, view *polic
 			}
 		}
 		for _, g := range ghosts {
-			cuts = append(cuts, g.At)
+			cuts = append(cuts, g.Outer.From.At)
 		}
 		for _, ps := range paints {
 			cuts = append(cuts, ps.from, ps.to)

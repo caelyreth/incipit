@@ -90,8 +90,7 @@ func lastIndexByte(s string, b byte) int {
 
 // move is logical motion; without Extend, a range collapses to its edge
 // in the direction of motion first.
-func move(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Move)
+func move(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
 	sel := c.Selection()
 	stops := c.Stops()
@@ -147,8 +146,7 @@ func revealed(s doc.Selection) policy.Result {
 }
 
 // visualMove accepts the stop the renderer resolved from geometry.
-func visualMove(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.VisualMove)
+func visualMove(c *policy.Ctx, in vocab.VisualMove, _ policy.At[doc.SlotRef]) policy.Result {
 	target := in.Target
 	if _, ok := c.Doc().Node(target.Pos.Node); !ok {
 		// No line beyond the caret's: a vertical move goes to the page's
@@ -181,8 +179,7 @@ func visualMove(c *policy.Ctx, m policy.Match) policy.Result {
 
 // placeCaret puts the caret where the pointer hit: a stop, an object, a word
 // on a double click, the slot on a triple click.
-func placeCaret(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Place)
+func placeCaret(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
 	if in.Node != 0 {
 		if _, ok := r.Node(in.Node); ok {

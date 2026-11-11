@@ -16,11 +16,6 @@ import (
 // ID is the policy's id.
 const ID = "words"
 
-var edits = []doc.RecordKind{
-	doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks, doc.RecordNodeChanged,
-	doc.RecordNodesInserted, doc.RecordNodesRemoved, doc.RecordNodeMoved, doc.RecordTransferred,
-}
-
 // Policy is the words policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	for _, unit := range []struct {
@@ -31,18 +26,17 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		{"sentence", vocab.BySentence},
 		{"paragraph", vocab.ByParagraph},
 	} {
-		p.Handle("move-" + unit.name).On(policy.Moving(unit.unit, 0)).Do(move)
-		p.Handle("delete-" + unit.name).On(policy.Deleting(unit.unit, 0)).Produces(edits...).Do(delete)
+		policy.On(p, "move-"+unit.name, policy.Moving(unit.unit, 0), policy.Slot.Inside(), move).Any()
+		policy.On(p, "delete-"+unit.name, policy.Deleting(unit.unit, 0), policy.Slot.Inside(), delete).Any()
 	}
-	p.Handle("place").On(policy.On(vocab.IntentPlace)).Do(place)
+	policy.On(p, "place", policy.Intent[vocab.Place](), policy.Slot.Inside(), place).Any()
 })
 
 type span struct{ from, to int }
 
 // move moves or extends by the requested unit. A range collapses to its
 // edge in the direction of motion first.
-func move(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Move)
+func move(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.Result {
 	dir := in.Dir
 	if dir == 0 {
 		dir = vocab.Forward
@@ -253,8 +247,7 @@ func maskNodes(flat string) string {
 
 // delete deletes what a selection covers, or one unit from a collapsed
 // caret, through the same range operation every other deletion reads.
-func delete(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Delete)
+func delete(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Result {
 	dir := in.Dir
 	if dir == 0 {
 		dir = vocab.Backward
@@ -279,8 +272,7 @@ func delete(c *policy.Ctx, m policy.Match) policy.Result {
 
 // place puts the caret where a pointer hit. A double click selects the
 // segment under it; a triple click selects the slot's text.
-func place(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Place)
+func place(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
 	if in.Node != 0 {
 		if _, ok := r.Node(in.Node); ok {

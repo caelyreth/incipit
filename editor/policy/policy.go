@@ -46,7 +46,6 @@ type P struct {
 	observers   []*observer
 	commands    []Command
 	paints      []Paint
-	ghosts      []GhostFunc
 	guides      []Guide
 	grouping    func(prev, next *doc.Entry) bool
 	errs        []error
@@ -245,38 +244,6 @@ type Paint struct {
 func (p *P) Paint(group vocab.Group, fact FactID, when PaintWhen) {
 	p.paints = append(p.paints, Paint{Group: group, Fact: fact, When: when})
 }
-
-// Ghost is notation at a point: spellings that span no document
-// bytes but may hold stops.
-type Ghost struct {
-	At       int
-	Spelling vocab.Spelling
-	// Groups style the ghost, outermost first: notation's own group, then
-	// for a sign the mark it signs, whose style it wears as its text does.
-	Groups []vocab.Group
-	// StopFrom is the stop just before the ghost at its offset; the ghost
-	// holds stops StopFrom+1 through StopFrom+Stops: one between each two
-	// of its glyphs and one after the last. Stops are numbered from the
-	// ghost's fact, so the presentation and the scope stack agree.
-	//
-	// Stop 0 is the position's own stop, the boundary between what is
-	// projected there (§13.5): a ghost attached to the content before it,
-	// as notation that closes it or a block's marker at its start, stands
-	// below 0; one attached to the content after it, above. Content edited
-	// on either side carries its ghosts, and the carets among them, along.
-	StopFrom int
-	// Stops is how many caret stops the ghost holds.
-	Stops int
-	// Block marks a block's marker: the stop before it stands before the
-	// block's structure, so a range starting there covers the block whole.
-	Block bool
-}
-
-// GhostFunc emits the ghost notation of one unit.
-type GhostFunc func(u *Unit, emit func(Ghost))
-
-// Ghosts declares a ghost notation contribution.
-func (p *P) Ghosts(fn GhostFunc) { p.ghosts = append(p.ghosts, fn) }
 
 // Guide is a key hint: wherever a preview of the command finds it
 // available at a collapsed caret, the view shows the command's key where

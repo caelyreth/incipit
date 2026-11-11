@@ -179,11 +179,15 @@ func lineRanges(in *doc.Inline) [][2]int {
 	return append(out, [2]int{start, len(text)})
 }
 
+// edges are a fact's four edges.
+func (f *Fact) edges() []*Edge {
+	return []*Edge{&f.Outer.From, &f.Outer.To, &f.Inner.From, &f.Inner.To}
+}
+
 func shift(f Fact, d int) Fact {
-	f.From += d
-	f.To += d
-	f.InnerFrom += d
-	f.InnerTo += d
+	for _, e := range f.edges() {
+		e.At += d
+	}
 	return f
 }
 
@@ -218,8 +222,9 @@ func (s *Store) analyzeSlot(a *analyzer, u *Unit) []Fact {
 		return e.facts
 	}
 	s.mu.Unlock()
-	var facts []Fact
-	a.unit(u, func(f Fact) { facts = append(facts, f) })
+	e := &Emit{}
+	a.unit(u, e)
+	facts := e.done()
 	sortFacts(facts)
 	s.mu.Lock()
 	s.slots[key] = &slotFacts{content: u.Content, context: ctx, facts: facts, gen: s.gen}
@@ -241,8 +246,12 @@ func (s *Store) analyzeLines(a *analyzer, u *Unit) []Fact {
 		}
 		s.mu.Unlock()
 		if !ok {
-			var facts []Fact
-			a.unit(&line, func(f Fact) { facts = append(facts, shift(f, -r[0])) })
+			em := &Emit{}
+			a.unit(&line, em)
+			facts := em.done()
+			for i := range facts {
+				facts[i] = shift(facts[i], -r[0])
+			}
 			e = &lineFacts{facts: facts, gen: s.gen}
 			s.mu.Lock()
 			s.lines[key] = e
@@ -357,13 +366,11 @@ func findCheckpoint(points []checkpoint, at int) (checkpoint, bool) {
 
 // shiftAfter shifts the offsets of f at or after oldEnd by delta.
 func shiftAfter(f Fact, oldEnd, delta int) Fact {
-	sh := func(v int) int {
-		if v >= oldEnd {
-			return v + delta
+	for _, e := range f.edges() {
+		if e.At >= oldEnd {
+			e.At += delta
 		}
-		return v
 	}
-	f.From, f.To, f.InnerFrom, f.InnerTo = sh(f.From), sh(f.To), sh(f.InnerFrom), sh(f.InnerTo)
 	return f
 }
 
@@ -400,12 +407,12 @@ func commonSuffix(a, b string, prefix int) int {
 
 func compareFacts(a, b Fact) int {
 	switch {
-	case a.From != b.From:
-		return a.From - b.From
-	case a.StopFrom != b.StopFrom:
-		return cmp.Compare(a.StopFrom, b.StopFrom)
-	case a.To != b.To:
-		return b.To - a.To
+	case a.Outer.From.At != b.Outer.From.At:
+		return a.Outer.From.At - b.Outer.From.At
+	case a.Outer.From.Stop != b.Outer.From.Stop:
+		return cmp.Compare(a.Outer.From.Stop, b.Outer.From.Stop)
+	case a.Outer.To.At != b.Outer.To.At:
+		return b.Outer.To.At - a.Outer.To.At
 	}
 	return int(a.Kind) - int(b.Kind)
 }
@@ -461,7 +468,9 @@ func (s *Store) segmentsOf(program uint64, slot doc.SlotRef, content *doc.Inline
 	s.mu.Unlock()
 	bounds := []int{0, content.Len()}
 	for _, f := range facts() {
-		bounds = append(bounds, f.From, f.InnerFrom, f.InnerTo, f.To)
+		for _, e := range f.edges() {
+			bounds = append(bounds, e.At)
+		}
 	}
 	slices.Sort(bounds)
 	bounds = slices.Compact(bounds)

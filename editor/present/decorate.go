@@ -109,7 +109,7 @@ func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *pol
 		}
 		if inner != nil {
 			ref := head.Ref()
-			d.Highlights = append(d.Highlights, Highlight{Group: pc.Group, From: doc.CaretAt(doc.At(ref, inner.From)), To: doc.CaretAt(doc.At(ref, inner.To))})
+			d.Highlights = append(d.Highlights, Highlight{Group: pc.Group, From: doc.CaretAt(doc.At(ref, inner.Outer.From.At)), To: doc.CaretAt(doc.At(ref, inner.Outer.To.At))})
 		}
 	}
 	return d

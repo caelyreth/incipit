@@ -19,7 +19,7 @@ var Active = policy.NewAnnotationKind("scopes.active", false)
 
 // Policy is the scopes policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	p.Handle("select").On(policy.On(vocab.IntentSelectScope)).In(policy.Slot).Do(grow)
+	policy.On(p, "select", policy.Intent[vocab.SelectScope](), policy.Slot.Inside(), grow).Any()
 	p.Annotation(Active, valid)
 	p.Decorate(Active, vocab.GroupScope)
 	p.Observe("highlight", policy.Trigger{}, highlight)
@@ -33,7 +33,7 @@ type candidate struct {
 // the next enclosing scope when the selection already is a scope. The
 // scope stack is read at both stands of the selection: selecting a mark
 // or pair can leave its head outside the scope its anchor still holds.
-func grow(c *policy.Ctx, _ policy.Match) policy.Result {
+func grow(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) policy.Result {
 	sel := c.Selection()
 	if sel.Kind != doc.SelectText {
 		return policy.Swallow

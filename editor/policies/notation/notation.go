@@ -57,46 +57,23 @@ var (
 	Underscores = policy.Bool("underscores", false, policy.Label("settings.notation.underscores"), policy.Description("settings.notation.underscores.description"))
 )
 
-// The records the policy's edits produce.
-var edits = []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks, doc.RecordNodeChanged}
-
 // Policy is the notation policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	sp := spelling{Underscores: policy.Get(p, Underscores), Hidden: policy.Get(p, Reveal) == RevealHidden}
 
+	byMark := func(g markGhost) doc.MarkKind { return g.Mark.Kind }
 	k := kinds{
-		marks:    policy.Facts[markGhost](p, "mark", policy.Provides(vocab.RoleLeveled)),
-		markers:  policy.Facts[markerGhost](p, "marker", policy.Provides(vocab.RoleLeveled)),
-		headings: policy.Facts[markerGhost](p, "heading-marker"),
-		tasks:    policy.Facts[taskGhost](p, "task"),
-		spans:    map[doc.MarkKind]*policy.FactKind[markSpan]{},
-		signs:    map[doc.MarkKind]*policy.FactKind[markGhost]{},
+		signs: policy.Facts[markGhost](p, "sign", policy.Projects(), policy.Keyed(byMark)),
+		// A mark is a pair, and a scope to leave, however its signs are
+		// drawn.
+		spans: policy.Facts[markSpan](p, "span", policy.Keyed(func(s markSpan) doc.MarkKind { return s.Mark.Kind }),
+			policy.Provides(boundSpan, vocab.RolePair, vocab.RoleLeavable)),
+		markers: policy.Facts[markerGhost](p, "marker", policy.Projects(),
+			policy.Keyed(func(g markerGhost) doc.Kind { return g.Marker.Kind })),
 	}
-	// A mark is a pair, and a scope to leave, however its signs are drawn.
-	for _, m := range markKinds() {
-		name := string(profile.MarkSpellings(m)[0])
-		k.spans[m] = policy.Facts[markSpan](p, "span"+name, policy.Provides(vocab.RolePair, vocab.RoleLeavable))
-		k.signs[m] = policy.Facts[markGhost](p, "sign"+name)
-		p.Paint(vocab.GroupPairMatch, k.spans[m].Kind(), policy.WhenCaretInside)
-	}
+	p.Paint(vocab.GroupPairMatch, k.spans.Kind(), policy.WhenCaretInside)
 	p.Analyze(policy.Lines, analyze(sp, k), k.all(), policy.Config(sp),
 		policy.Where(func(u *policy.Unit) bool { return !u.Spec.Literal && u.Spec.Marks != nil }))
-
-	p.Ghosts(func(u *policy.Unit, emit func(policy.Ghost)) {
-		for _, f := range u.Facts(k.marks.Kind()) {
-			g, _ := k.marks.Data(f)
-			if sp.Hidden {
-				// Hidden, a sign keeps its places and draws nothing.
-				g.Spelling = ""
-			}
-			emit(policy.Ghost{At: f.From, Spelling: g.Spelling, Groups: []vocab.Group{vocab.GroupGhost, profile.MarkGroup(g.Mark.Kind)}, StopFrom: f.StopFrom, Stops: f.StopTo - f.StopFrom})
-		}
-		for _, f := range u.Facts(k.markers.Kind()) {
-			g, _ := k.markers.Data(f)
-			emit(policy.Ghost{At: f.From, Spelling: g.spelling(), Groups: []vocab.Group{vocab.GroupGhost}, StopFrom: f.StopFrom, Stops: f.StopTo - f.StopFrom,
-				Block: true})
-		}
-	})
 
 	// Backspace inside a sign or a marker, between its glyphs, steps it
 	// down a level: the ghost is notation's to edit. Deleting into a mark's
@@ -104,23 +81,20 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	// (§12); core crosses a glyph it does not own rather than delete
 	// through it.
 	back := policy.Deleting(vocab.ByGrapheme, vocab.Backward)
-	p.Handle("step-down-in-mark").On(back).In(k.marks.Scope()).When(policy.Collapsed).
-		Produces(edits...).Do(stepIn)
+	policy.On(p, "step-down-in-mark", back, k.signs.Inside(), stepSign)
 	// A mark is one run, so typing a delimiter of its kind edits both
 	// signs, whichever spelling they are drawn in: right after a
 	// one-delimiter opening sign it spells the mark one level up; at the
 	// closing sign it steps over the sign a delimiter at a time.
 	for _, m := range markKinds() {
-		span, sign := k.spans[m].Scope(), k.signs[m].Scope()
+		span, sign := k.spans.Key(m), k.signs.Key(m)
 		for _, c := range delimiters(m) {
 			typed, name := policy.Typed(c), string(profile.MarkSpellings(m)[0])+c
-			p.Handle("overtype-close"+name).On(typed).In(span).When(policy.Collapsed, policy.AtInnerEnd).
-				Unless(policy.AtInnerStart).Do(stepOver)
+			policy.On(p, "overtype-close"+name, typed, span.AtEnd(), stepOver)
 			if m == profile.Emphasis {
-				p.Handle("step-up"+name).On(typed).In(span).When(policy.Collapsed, policy.AtInnerStart).
-					Unless(policy.AtInnerEnd).Produces(edits...).Do(stepUp)
+				policy.On(p, "step-up"+name, typed, span.AtStart(), stepUp)
 			}
-			p.Handle("overtype-in" + name).On(typed).In(sign).When(policy.Collapsed).Do(stepOver)
+			policy.On(p, "overtype-in"+name, typed, sign.Inside(), stepOver)
 		}
 	}
 	// Among a marker's glyphs, they are the marker's to edit: deleting one
@@ -128,40 +102,31 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	// first reshapes it. At the block's edges, deleting into the marker is
 	// the block's own level (core).
 	fwd := policy.Deleting(vocab.ByGrapheme, vocab.Forward)
-	p.Handle("step-down-in-marker").On(back).In(k.markers.Scope()).When(policy.Collapsed).
-		Produces(vocab.RoleEdits...).Do(stepIn)
-	p.Handle("step-down-ahead-in-marker").On(fwd).In(k.markers.Scope()).When(policy.Collapsed).
-		Unless(policy.AtInnerEnd).Produces(vocab.RoleEdits...).Do(stepAhead)
-	p.Handle("step-up-marker").On(policy.Typed("#")).In(k.headings.Scope()).When(policy.Collapsed).
-		Produces(vocab.RoleEdits...).Do(reshapeIn(k.headings.Scope()))
-	p.Handle("step-up-before-marker").On(policy.Typed("#")).In(policy.Slot).
-		When(policy.Collapsed, policy.Before(k.headings.Scope())).Produces(vocab.RoleEdits...).Do(reshapeIn(k.headings.Scope()))
+	policy.On(p, "step-down-in-marker", back, k.markers.Inside(), stepMarker)
+	policy.On(p, "step-down-ahead-in-marker", fwd, policy.Or(k.markers.AtStart(), k.markers.Within()), stepAhead)
+	// Only a heading's marker takes a typed glyph yet.
+	heading := k.markers.Key(profile.Heading)
+	policy.On(p, "step-up-marker", policy.Typed("#"), heading.Inside(), reshape)
+	policy.On(p, "step-up-before-marker", policy.Typed("#"), heading.Ahead(), reshape)
 
 	// A task box is a toggle inside an item's marker. A typed x or space
 	// acts on the box without becoming text, as clicking its glyph would.
-	p.Handle("toggle-task-box").On(policy.Typed("x"), policy.Typed("X"), policy.Typed(" ")).
-		In(k.tasks.Scope()).When(policy.Collapsed).Produces(vocab.RoleEdits...).Do(toggleBox)
+	policy.On(p, "toggle-task-box", policy.Typed("x", "X", " "), k.markers.Key(profile.Item).Inside(), toggleBox)
 
 	// A stop decides the marks typed text takes.
 	p.Observe("stop-marks", policy.Trigger{}, stopMarks(k))
 })
 
 type kinds struct {
-	// marks are every mark's signs, which stops and deleting read alike.
-	marks   *policy.FactKind[markGhost]
-	markers *policy.FactKind[markerGhost]
-	// headings are a heading's marker again, which a typed "#" reshapes;
-	// other markers take no typed glyph yet.
-	headings *policy.FactKind[markerGhost]
-	// tasks are an item's task box, the marker's toggled state.
-	tasks *policy.FactKind[taskGhost]
+	// signs are every mark's signs, keyed by mark kind: a typed delimiter
+	// acts only on the marks it spells, whichever of their spellings is
+	// drawn (§11.1).
+	signs *policy.FactKind[markGhost]
 	// spans are mark runs between their signs, by mark kind: pairs, and
-	// scopes Leave exits past the closing sign. signs are the signs again
-	// by mark kind. A typed delimiter acts only on the marks it spells,
-	// whichever of their spellings is drawn, so its rules are per kind,
-	// and so are their scopes (§11.1).
-	spans map[doc.MarkKind]*policy.FactKind[markSpan]
-	signs map[doc.MarkKind]*policy.FactKind[markGhost]
+	// scopes Leave exits past the closing sign.
+	spans *policy.FactKind[markSpan]
+	// markers are block markers, keyed by block kind.
+	markers *policy.FactKind[markerGhost]
 }
 
 // markKinds are the marks notation signs.
@@ -181,11 +146,7 @@ func delimiters(m doc.MarkKind) []string {
 }
 
 func (k kinds) all() []policy.FactID {
-	out := []policy.FactID{k.marks.Kind(), k.markers.Kind(), k.headings.Kind(), k.tasks.Kind()}
-	for _, m := range markKinds() {
-		out = append(out, k.spans[m].Kind(), k.signs[m].Kind())
-	}
-	return out
+	return []policy.FactID{k.signs.Kind(), k.spans.Kind(), k.markers.Kind()}
 }
 
 // --- recognising ---------------------------------------------------------
@@ -228,10 +189,11 @@ func depth(k doc.MarkKind) int {
 	return 4
 }
 
-// analyze emits each line's ghost points. A line break is unmarked, so
-// marks spanning lines are spelled on each line they cover.
-func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) {
-	return func(u *policy.Unit, emit func(policy.Fact)) {
+// analyze emits each line's signs and markers, and the spans between
+// signs. A line break is unmarked, so marks spanning lines are spelled on
+// each line they cover.
+func analyze(sp spelling, k kinds) func(u *policy.Unit, e *policy.Emit) {
+	return func(u *policy.Unit, e *policy.Emit) {
 		end := u.To
 		if end > u.From && u.Content.FlatRange(end-1, end) == "\n" {
 			end--
@@ -266,11 +228,7 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 			kind doc.MarkKind
 			end  int
 		}
-		type openSign struct {
-			at    int
-			stops policy.StopRange
-		}
-		opens := map[signKey]openSign{}
+		opens := map[signKey]policy.GlyphRef{}
 		boundaries := len(runs) + 1
 		if len(runs) == 0 {
 			boundaries = 0
@@ -340,25 +298,21 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 			})
 			// Closing signs attach to the run before them, so they stand
 			// below the boundary, stop 0; opening signs above it.
-			glyphs := func(g markGhost) int { return vocab.GraphemeCount(string(g.Spelling)) }
-			stop := 0
-			for _, c := range closing {
-				stop -= glyphs(c.g)
-			}
 			put := func(g markGhost) {
-				n := glyphs(g)
-				emit(k.marks.Point(at, stop, stop+n, g))
-				emit(k.signs[g.Mark.Kind].Point(at, stop, stop+n, g))
-				here := policy.StopRange{From: stop, To: stop + n}
+				attach := policy.AttachAfter
+				if g.Side == vocab.Close {
+					attach = policy.AttachBefore
+				}
+				ref := k.signs.Glyph(e, at, policy.Glyph{Spelling: g.Spelling, Attach: attach, Hidden: sp.Hidden,
+					Groups: []vocab.Group{vocab.GroupGhost, profile.MarkGroup(g.Mark.Kind)}}, g)
 				switch g.Side {
 				case vocab.Open:
-					opens[signKey{g.Mark.Kind, at + g.Ahead}] = openSign{at: at, stops: here}
+					opens[signKey{g.Mark.Kind, at + g.Ahead}] = ref
 				case vocab.Close:
 					if o, ok := opens[signKey{g.Mark.Kind, at}]; ok {
-						emit(k.spans[g.Mark.Kind].Projected(o.at, at, o.stops, here, markSpan{Mark: g.Mark, Spelling: g.Spelling}))
+						k.spans.Between(e, o, ref, markSpan{Mark: g.Mark, Spelling: g.Spelling})
 					}
 				}
-				stop += n
 			}
 			for _, c := range closing {
 				put(c.g)
@@ -367,14 +321,8 @@ func analyze(sp spelling, k kinds) func(u *policy.Unit, emit func(policy.Fact)) 
 				// A marker attaches to its block's start, before the text:
 				// a stop before its first glyph and after each, then its
 				// separator, then the text's own stop.
-				g := markerGhost{Marker: *marker}
-				emit(k.markers.Point(0, -marker.Glyphs()-1, 0, g))
-				if marker.Kind == profile.Heading {
-					emit(k.headings.Point(0, -marker.Glyphs()-1, 0, g))
-				}
-				if marker.Kind == profile.Item && marker.Task != profile.NoTask {
-					emit(k.tasks.Point(0, -marker.Glyphs()-1, 0, taskGhost{Task: marker.Task}))
-				}
+				k.markers.Glyph(e, 0, policy.Glyph{Spelling: marker.Spelling(), Attach: policy.AttachBefore,
+					Groups: []vocab.Group{vocab.GroupGhost}, Block: true}, markerGhost{Marker: *marker})
 			}
 			for _, o := range opening {
 				put(o.g)
@@ -387,71 +335,63 @@ func sameMark(a, b doc.Mark) bool { return a.Kind == b.Kind && a.Attrs.Equal(b.A
 
 // --- ghost data --------------------------------------------------------------
 
-// markGhost is a mark's notation at one edge of its run. Facts are cached
-// by line, so offsets are relative to the ghost: Back and Ahead reach from
-// it to the run's edges. Placed binds it to its slot.
+// markGhost is a mark's sign at one edge of its run. Facts are cached by
+// line, so its reach is relative: Back and Ahead reach from the sign to
+// the run's edges.
 type markGhost struct {
 	Side     vocab.Side
 	Mark     doc.Mark
 	Spelling vocab.Spelling
 	Back     int
 	Ahead    int
-
-	slot doc.SlotRef
-	at   int
 }
 
-func (g markGhost) Placed(slot doc.SlotRef, f policy.Fact) any {
-	g.slot, g.at = slot, f.From
-	return g
+// run is the sign's run where it stands.
+func (g markGhost) run(at policy.At[markGhost]) []vocab.Span {
+	off := at.Fact.Outer.From.At
+	return []vocab.Span{{Slot: at.Slot, From: off - g.Back, To: off + g.Ahead}}
 }
 
-func (g markGhost) run() []vocab.Span {
-	return []vocab.Span{{Slot: g.slot, From: g.at - g.Back, To: g.at + g.Ahead}}
-}
-
-// Step steps the mark's spelling one level: strong is one more delimiter
-// than emphasis, and below one delimiter the mark is gone.
-func (g markGhost) Step(dir vocab.Direction) vocab.Edit {
+// stepRun steps a run's mark one level: strong is one more delimiter than
+// emphasis, and below one delimiter the mark is gone.
+func stepRun(m doc.Mark, run []vocab.Span, dir vocab.Direction) vocab.Edit {
 	switch {
-	case dir < 0 && g.Mark.Kind == profile.Strong:
-		return vocab.Sequence(vocab.ClearMark(g.run(), profile.Strong), vocab.ApplyMark(g.run(), doc.Mark{Kind: profile.Emphasis}))
+	case dir < 0 && m.Kind == profile.Strong:
+		return vocab.Sequence(vocab.ClearMark(run, profile.Strong), vocab.ApplyMark(run, doc.Mark{Kind: profile.Emphasis}))
 	case dir < 0:
-		return vocab.ClearMark(g.run(), g.Mark.Kind)
-	case dir > 0 && g.Mark.Kind == profile.Emphasis:
-		return vocab.Sequence(vocab.ClearMark(g.run(), profile.Emphasis), vocab.ApplyMark(g.run(), doc.Mark{Kind: profile.Strong}))
+		return vocab.ClearMark(run, m.Kind)
+	case dir > 0 && m.Kind == profile.Emphasis:
+		return vocab.Sequence(vocab.ClearMark(run, profile.Emphasis), vocab.ApplyMark(run, doc.Mark{Kind: profile.Strong}))
 	}
 	return vocab.Sequence()
 }
 
-// markSpan is a mark's run between its signs. Placed binds it to where it
+// markSpan is a mark's run between its signs; bound, it knows where it
 // stands.
 type markSpan struct {
 	Mark     doc.Mark
 	Spelling vocab.Spelling
 
 	slot        doc.SlotRef
-	from, to    int
-	open, close policy.StopRange
+	open, close policy.Range
 }
 
-func (s markSpan) Placed(slot doc.SlotRef, f policy.Fact) any {
-	s.slot, s.from, s.to = slot, f.From, f.To
-	s.open = policy.StopRange{From: f.StopFrom, To: f.InnerStopFrom}
-	s.close = policy.StopRange{From: f.InnerStopTo, To: f.StopTo}
+// boundSpan is the span where its fact stands.
+func boundSpan(at policy.At[markSpan]) markSpan {
+	s, f := at.Data, at.Fact
+	s.slot = at.Slot
+	s.open, s.close = policy.Range{From: f.Outer.From, To: f.Inner.From}, policy.Range{From: f.Inner.To, To: f.Outer.To}
 	return s
 }
 
-func (s markSpan) run() []vocab.Span { return []vocab.Span{{Slot: s.slot, From: s.from, To: s.to}} }
-
-func (s markSpan) caret(at, stop int) doc.Caret {
-	return doc.Caret{Pos: doc.At(s.slot, at), Stop: stop}
+func (s markSpan) run() []vocab.Span {
+	return []vocab.Span{{Slot: s.slot, From: s.open.From.At, To: s.close.To.At}}
 }
 
 // Sides are the two signs, by their stops.
 func (s markSpan) Sides() (open, close vocab.Edge) {
-	return vocab.Edge{From: s.caret(s.from, s.open.From), To: s.caret(s.from, s.open.To)},
-		vocab.Edge{From: s.caret(s.to, s.close.From), To: s.caret(s.to, s.close.To)}
+	return vocab.Edge{From: s.open.From.Caret(s.slot), To: s.open.To.Caret(s.slot)},
+		vocab.Edge{From: s.close.From.Caret(s.slot), To: s.close.To.Caret(s.slot)}
 }
 
 // EditSide reinterprets a side's new spelling through the notation set:
@@ -468,51 +408,23 @@ func (s markSpan) EditSide(_ vocab.Side, sp vocab.Spelling) vocab.Edit {
 	return vocab.Sequence(vocab.ClearMark(s.run(), s.Mark.Kind), vocab.ApplyMark(s.run(), doc.Mark{Kind: k}))
 }
 
-// Step steps the run's spelling one level, as either sign does.
-func (s markSpan) Step(dir vocab.Direction) vocab.Edit {
-	return markGhost{Mark: s.Mark, slot: s.slot, at: s.from, Ahead: s.to - s.from}.Step(dir)
-}
-
 // Exit is past the closing sign, where typing is unmarked; Entry is
 // before it, inside the run.
-func (s markSpan) Exit() doc.Caret  { return s.caret(s.to, s.close.To) }
-func (s markSpan) Entry() doc.Caret { return s.caret(s.to, s.close.From) }
+func (s markSpan) Exit() doc.Caret  { return s.close.To.Caret(s.slot) }
+func (s markSpan) Entry() doc.Caret { return s.close.From.Caret(s.slot) }
 
-// markerGhost is a block's marker at its text's start.
+// markerGhost is a block's marker at its text's start. Its task comes from
+// the marker, so a cache keyed by the item's attributes cannot leave it
+// stale.
 type markerGhost struct {
 	Marker profile.Marker
-
-	node doc.ID
 }
 
-// taskGhost is an item marker's box. Its task value comes from the
-// marker, so a cache keyed by the item's attributes cannot leave it stale.
-type taskGhost struct {
-	Task profile.Task
-	node doc.ID
-}
-
-func (g taskGhost) Placed(slot doc.SlotRef, _ policy.Fact) any {
-	g.node = slot.Node
-	return g
-}
-
-// Toggle completes or reopens the item's task.
-func (g taskGhost) Toggle() vocab.Edit { return profile.ToggleTask(g.node) }
-
-func (g markerGhost) Placed(slot doc.SlotRef, _ policy.Fact) any {
-	g.node = slot.Node
-	return g
-}
-
-// spelling is the marker with its separator, which is a gap, not a stop.
-func (g markerGhost) spelling() vocab.Spelling { return g.Marker.Spelling() }
-
-// Step steps the block the marker spells, as the block's own level does:
-// the marker is its notation, not a second owner of its level.
-func (g markerGhost) Step(dir vocab.Direction) vocab.Edit {
+// stepBlock steps the block a marker spells, as the block's own level
+// does: the marker is its notation, not a second owner of its level.
+func stepBlock(block doc.ID, dir vocab.Direction) vocab.Edit {
 	return func(tx *doc.Tx) error {
-		n, ok := tx.Node(g.node)
+		n, ok := tx.Node(block)
 		if !ok {
 			return doc.ErrNoNode
 		}
@@ -524,86 +436,54 @@ func (g markerGhost) Step(dir vocab.Direction) vocab.Edit {
 	}
 }
 
-// Reshape takes a glyph typed into a heading's marker: another "#" is one
-// level deeper.
-func (g markerGhost) Reshape(glyph string) vocab.Edit {
-	if glyph == "#" {
-		return g.Step(vocab.Forward)
-	}
-	return vocab.Sequence()
-}
-
 // --- rules ---------------------------------------------------------------------
 
-// ghostsAt are the ghost points at the caret's offset, in stop order.
+// ghostsAt are the glyphs at the caret's offset, in stop order.
 func ghostsAt(c *policy.Ctx, k kinds, pos doc.Pos) []policy.Fact {
 	var out []policy.Fact
-	for _, kind := range []policy.FactID{k.marks.Kind(), k.markers.Kind()} {
+	for _, kind := range []policy.FactID{k.signs.Kind(), k.markers.Kind()} {
 		for _, f := range c.Facts(pos.Ref(), kind) {
-			if f.Point && f.From == pos.Offset {
+			if f.Glyph != nil && f.Outer.From.At == pos.Offset {
 				out = append(out, f)
 			}
 		}
 	}
-	slices.SortFunc(out, func(a, b policy.Fact) int { return a.StopFrom - b.StopFrom })
+	slices.SortFunc(out, func(a, b policy.Fact) int { return a.Outer.From.Stop - b.Outer.From.Stop })
 	return out
 }
 
-// stepIn steps the ghost the caret is inside down one level.
-func stepIn(c *policy.Ctx, m policy.Match) policy.Result {
-	f, ok := m.Fact()
-	if !ok {
-		return policy.Swallow
-	}
-	l, ok := policy.Placed(m.Level.Slot, f).(vocab.Leveled)
-	if !ok {
-		return policy.Swallow
-	}
-	return policy.Do(l.Step(vocab.Backward))
+// stepSign steps the mark whose sign the caret is inside down one level.
+func stepSign(_ *policy.Ctx, _ vocab.Delete, at policy.At[markGhost]) policy.Result {
+	return policy.Do(stepRun(at.Data.Mark, at.Data.run(at), vocab.Backward))
 }
 
-// stepAhead steps the marker the caret is among the glyphs of down one
-// level, for the glyph ahead. The caret keeps its place from the marker's start, as the glyph
-// ahead of it goes.
-func stepAhead(c *policy.Ctx, m policy.Match) policy.Result {
-	f, ok := m.Fact()
-	if !ok {
-		return policy.Swallow
-	}
-	l, ok := policy.Placed(m.Level.Slot, f).(vocab.Leveled)
-	if !ok {
-		return policy.Swallow
-	}
+// stepMarker steps the block whose marker the caret is inside down one
+// level.
+func stepMarker(_ *policy.Ctx, _ vocab.Delete, at policy.At[markerGhost]) policy.Result {
+	return policy.Do(stepBlock(at.Node.ID(), vocab.Backward))
+}
+
+// stepAhead steps the block down one level for the marker's glyph ahead.
+// The caret keeps its place from the marker's start, as the glyph ahead
+// of it goes.
+func stepAhead(c *policy.Ctx, _ vocab.Delete, at policy.At[markerGhost]) policy.Result {
 	head := c.Head()
 	head.Stop++
-	at := doc.Collapsed(head)
-	return policy.Result{Edits: []vocab.Edit{l.Step(vocab.Backward)}, Selection: &at}
-}
-
-// ghostAt is the data of the ghost the caret is in, or else of the one of
-// scope s right after it.
-func ghostAt(c *policy.Ctx, m policy.Match, s policy.Scope) any {
-	if f, ok := m.Fact(); ok {
-		return policy.Placed(m.Level.Slot, f)
-	}
-	r, _ := c.Beside(s, true)
-	return r
+	sel := doc.Collapsed(head)
+	return policy.Result{Edits: []vocab.Edit{stepBlock(at.Node.ID(), vocab.Backward)}, Selection: &sel}
 }
 
 // stepUp spells the mark the caret is in one level up, both its signs.
-func stepUp(c *policy.Ctx, m policy.Match) policy.Result {
-	f, ok := m.Fact()
-	if !ok {
-		return policy.Swallow
-	}
+func stepUp(_ *policy.Ctx, _ vocab.Type, at policy.At[markSpan]) policy.Result {
 	// The opening sign grows by the typed character; the caret stays
 	// after it, where the text begins.
-	after := doc.Collapsed(doc.Caret{Pos: doc.At(m.Level.Slot, f.From), Stop: f.InnerStopFrom + 1})
-	return policy.Result{Edits: []vocab.Edit{policy.Placed(m.Level.Slot, f).(markSpan).Step(vocab.Forward)}, Selection: &after}
+	f := at.Fact
+	after := doc.Collapsed(doc.Caret{Pos: doc.At(at.Slot, f.Outer.From.At), Stop: f.Inner.From.Stop + 1})
+	return policy.Result{Edits: []vocab.Edit{stepRun(at.Data.Mark, boundSpan(at).run(), vocab.Forward)}, Selection: &after}
 }
 
 // stepOver steps over the sign's glyph ahead, as typing it would write it.
-func stepOver(c *policy.Ctx, _ policy.Match) policy.Result {
+func stepOver[T any](c *policy.Ctx, _ vocab.Type, _ policy.At[T]) policy.Result {
 	stops := c.Stops()
 	if stops == nil {
 		return policy.Swallow
@@ -615,33 +495,22 @@ func stepOver(c *policy.Ctx, _ policy.Match) policy.Result {
 	return policy.Select(doc.Collapsed(next))
 }
 
-// reshapeIn gives a glyph typed before or inside a heading's marker to
-// the marker.
-func reshapeIn(headings policy.Scope) policy.Handler {
-	return func(c *policy.Ctx, m policy.Match) policy.Result {
-		in, ok := m.Intent.(vocab.Type)
-		if !ok {
-			return policy.Swallow
-		}
-		g, ok := ghostAt(c, m, headings).(markerGhost)
-		if !ok {
-			return policy.Swallow
-		}
-		return policy.Do(g.Reshape(in.Text))
+// reshape gives a glyph typed before or inside a heading's marker to the
+// marker: another "#" is one level deeper.
+func reshape(_ *policy.Ctx, in vocab.Type, at policy.At[markerGhost]) policy.Result {
+	if in.Text != "#" {
+		return policy.Swallow
 	}
+	return policy.Do(stepBlock(at.Node.ID(), vocab.Forward))
 }
 
-// toggleBox flips the task box the caret is inside.
-func toggleBox(c *policy.Ctx, m policy.Match) policy.Result {
-	f, ok := m.Fact()
-	if !ok {
-		return policy.Swallow
+// toggleBox flips the task box the caret is inside; an item with no box
+// leaves the glyph to others.
+func toggleBox(_ *policy.Ctx, _ vocab.Type, at policy.At[markerGhost]) policy.Result {
+	if at.Data.Marker.Task == profile.NoTask {
+		return policy.Pass
 	}
-	b, ok := policy.Placed(m.Level.Slot, f).(taskGhost)
-	if !ok {
-		return policy.Swallow
-	}
-	return policy.Do(b.Toggle())
+	return policy.Do(profile.ToggleTask(at.Node.ID()))
 }
 
 // --- stops and marks ---------------------------------------------------------
@@ -666,9 +535,9 @@ func layoutAt(c *policy.Ctx, k kinds, pos doc.Pos) (layout, bool) {
 	}
 	// The ghosts are shown when one of their stops other than the
 	// position's own is a stop of the view.
-	probe := doc.Caret{Pos: pos, Stop: ghosts[len(ghosts)-1].StopTo}
+	probe := doc.Caret{Pos: pos, Stop: ghosts[len(ghosts)-1].Outer.To.Stop}
 	if probe.Stop == 0 {
-		probe.Stop = ghosts[0].StopFrom
+		probe.Stop = ghosts[0].Outer.From.Stop
 	}
 	if stops.Normalize(probe) != probe {
 		return layout{}, false
@@ -692,8 +561,8 @@ func layoutAt(c *policy.Ctx, k kinds, pos doc.Pos) (layout, bool) {
 func (l layout) marks(k kinds, s int) *doc.MarkSet {
 	ms := l.before
 	for _, f := range l.ghosts {
-		g, ok := k.marks.Data(f)
-		if !ok || f.StopTo > s {
+		g, ok := k.signs.Data(f)
+		if !ok || f.Outer.To.Stop > s {
 			continue
 		}
 		if g.Side == vocab.Close {

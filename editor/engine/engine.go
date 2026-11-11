@@ -292,11 +292,6 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 			return processed{}, fmt.Errorf("%w: %s: %v\n%s", ErrRejected, out.Rule, err, trace)
 		}
 	}
-	if prog.Strict() && plan == nil {
-		if err := checkProduces(out.Rule, tx.Journal().Records, out.Produces); err != nil {
-			return processed{}, err
-		}
-	}
 
 	// The view after the handler.
 	steps := doc.Steps(tx.Steps())

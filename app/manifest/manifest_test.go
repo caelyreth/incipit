@@ -27,7 +27,7 @@ func openWith(t *testing.T, values policy.Values) *page {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r := prog.Report(); len(r.Dropped)+len(r.Shadowed) > 0 {
+	if r := prog.Report(); len(r.Dropped) > 0 {
 		t.Logf("report:\n%s", r)
 	}
 	snap, _ := profile.EmptyPage(1, 5, doc.NewInterner())

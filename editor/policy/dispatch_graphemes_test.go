@@ -8,15 +8,19 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
+// holds evaluates a condition with the caret at a position.
+func holds(r doc.Reader, cond Cond, at doc.Pos) bool {
+	return cond.test(&Ctx{r: r, view: &View{Selection: doc.Collapsed(doc.CaretAt(at))}})
+}
+
 func TestCharClassClassifiesTheWholeGrapheme(t *testing.T) {
-	snap, ref := testPage(t, "e\u0301x")
-	e := evaluator{c: &Ctx{r: snap}}
-	at := doc.At(ref, len("e\u0301"))
-	if got := e.charClass(at, true); got&vocab.ClassWord == 0 || got&vocab.ClassCJK != 0 {
-		t.Fatalf("before combining letter = %b, want its base letter's class", got)
+	snap, ref := testPage(t, "éx")
+	at := doc.At(ref, len("é"))
+	if !holds(snap, PrevChar(vocab.ClassWord), at) || holds(snap, PrevChar(vocab.ClassCJK), at) {
+		t.Fatal("before combining letter: want its base letter's class")
 	}
-	if got := e.charClass(doc.At(ref, 0), false); got&vocab.ClassWord == 0 || got&vocab.ClassCJK != 0 {
-		t.Fatalf("after combining letter = %b, want its base letter's class", got)
+	if !holds(snap, NextChar(vocab.ClassWord), doc.At(ref, 0)) || holds(snap, NextChar(vocab.ClassCJK), doc.At(ref, 0)) {
+		t.Fatal("after combining letter: want its base letter's class")
 	}
 }
 
@@ -32,9 +36,8 @@ func TestCharClassAtAnInlineNodeIsEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref := doc.SlotRef{Node: 2}
-	e := evaluator{c: &Ctx{r: snap}}
-	if got := e.charClass(doc.At(ref, 1), false); got != 0 {
-		t.Fatalf("class at an inline node = %b, want 0", got)
+	all := vocab.ClassWord | vocab.ClassSpace | vocab.ClassCJK | vocab.ClassDigit
+	if holds(snap, NextChar(all), doc.At(doc.SlotRef{Node: 2}, 1)) {
+		t.Fatal("an inline node has a class")
 	}
 }

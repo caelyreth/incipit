@@ -61,20 +61,16 @@ type inlineConfig struct {
 	Asterisks, Underscores, Code, Strike bool
 }
 
-// runKinds are the fact kinds of runs, one per spelling, so rules are
-// expanded per spelling when the policy is built.
+// runKinds are the fact kinds of runs. Emphasis, strong and their half
+// closers are keyed by delimiter, so a rule stands in one spelling's runs.
 type runKinds struct {
-	em, strong, halves map[byte]*policy.FactKind[run]
-	halfKinds          map[byte]*policy.FactKind[half]
-	code, strike       *policy.FactKind[run]
+	em, strong   *policy.FactKind[run]
+	half         *policy.FactKind[half]
+	code, strike *policy.FactKind[run]
 }
 
 func (k *runKinds) all() []policy.FactID {
-	var out []policy.FactID
-	for _, c := range []byte{'*', '_'} {
-		out = append(out, k.em[c].Kind(), k.strong[c].Kind(), k.halfKinds[c].Kind())
-	}
-	return append(out, k.code.Kind(), k.strike.Kind())
+	return []policy.FactID{k.em.Kind(), k.strong.Kind(), k.half.Kind(), k.code.Kind(), k.strike.Kind()}
 }
 
 type openRun struct {
@@ -89,8 +85,8 @@ func isSpace(b byte) bool { return b == ' ' || b == '\t' || b == '\n' }
 // analyzeRuns finds the unclosed delimiter runs of one line. Code spans
 // hide other delimiters; closed pairs are not facts (they were text the
 // user kept, such as pasted Markdown, which the importer handles).
-func analyzeRuns(cfg inlineConfig, k *runKinds) func(u *policy.Unit, emit func(policy.Fact)) {
-	return func(u *policy.Unit, emit func(policy.Fact)) {
+func analyzeRuns(cfg inlineConfig, k *runKinds) func(u *policy.Unit, e *policy.Emit) {
+	return func(u *policy.Unit, e *policy.Emit) {
 		if u.Spec.Literal {
 			return
 		}
@@ -157,20 +153,20 @@ func analyzeRuns(cfg inlineConfig, k *runKinds) func(u *policy.Unit, emit func(p
 			i += n
 		}
 		if code >= 0 {
-			emit(k.code.Delimited(base+code, base+code+1, end, end, run{Char: '`', N: 1}))
+			e.Fact(k.code.Delimited(base+code, base+code+1, end, end, run{Char: '`', N: 1}))
 		}
 		for _, o := range stack {
 			data := run{Char: o.char, N: o.n}
 			from, inner := base+o.start, base+o.start+o.n
 			switch {
 			case o.char == '~':
-				emit(k.strike.Delimited(from, inner, end, end, data))
+				e.Fact(k.strike.Delimited(from, inner, end, end, data))
 			case o.n == 1:
-				emit(k.em[o.char].Delimited(from, inner, end, end, data))
+				e.Fact(k.em.Delimited(from, inner, end, end, data))
 			default:
-				emit(k.strong[o.char].Delimited(from, inner, end, end, data))
+				e.Fact(k.strong.Delimited(from, inner, end, end, data))
 				if o.half >= 0 {
-					emit(k.halfKinds[o.char].Span(base+o.half, base+o.half+1, half{Char: o.char}))
+					e.Fact(k.half.Span(base+o.half, base+o.half+1, half{Char: o.char}))
 				}
 			}
 		}
@@ -183,8 +179,8 @@ type blockConfig struct {
 }
 
 // analyzeBlocks finds a paragraph's block marker and fence.
-func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.FactKind[fence]) func(u *policy.Unit, emit func(policy.Fact)) {
-	return func(u *policy.Unit, emit func(policy.Fact)) {
+func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.FactKind[fence]) func(u *policy.Unit, e *policy.Emit) {
+	return func(u *policy.Unit, e *policy.Emit) {
 		t := u.Text()
 		if t == "" {
 			return
@@ -195,10 +191,10 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 			}
 			switch {
 			case strings.HasPrefix(t, string(profile.TaskOpenSpelling)):
-				emit(mk.Span(0, len(profile.TaskOpenSpelling), marker{Kind: markTaskOpen, Task: profile.TaskOpen}))
+				e.Fact(mk.Span(0, len(profile.TaskOpenSpelling), marker{Kind: markTaskOpen, Task: profile.TaskOpen}))
 			case strings.HasPrefix(t, string(profile.TaskDoneSpelling)),
 				strings.HasPrefix(t, "[X]"):
-				emit(mk.Span(0, len(profile.TaskDoneSpelling), marker{Kind: markTaskDone, Task: profile.TaskDone}))
+				e.Fact(mk.Span(0, len(profile.TaskDoneSpelling), marker{Kind: markTaskDone, Task: profile.TaskDone}))
 			}
 			return
 		}
@@ -209,12 +205,12 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 				n++
 			}
 			if n <= 6 {
-				emit(mk.Span(0, n, marker{Kind: markHeading, Level: n}))
+				e.Fact(mk.Span(0, n, marker{Kind: markHeading, Level: n}))
 			}
 		case cfg.Quotes && t[0] == '>':
-			emit(mk.Span(0, 1, marker{Kind: markQuote}))
+			e.Fact(mk.Span(0, 1, marker{Kind: markQuote}))
 		case cfg.Lists && (t[0] == '-' || t[0] == '*' || t[0] == '+'):
-			emit(mk.Span(0, 1, marker{Kind: markBullet, Char: t[0]}))
+			e.Fact(mk.Span(0, 1, marker{Kind: markBullet, Char: t[0]}))
 		case cfg.Lists && t[0] >= '0' && t[0] <= '9':
 			n := 0
 			for n < len(t) && n < 9 && t[n] >= '0' && t[n] <= '9' {
@@ -222,16 +218,16 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 			}
 			if n < len(t) && (t[n] == '.' || t[n] == ')') {
 				start, _ := profile.ParseOrdered(t[:n] + ".")
-				emit(mk.Span(0, n+1, marker{Kind: markOrdered, Level: start, Char: t[n]}))
+				e.Fact(mk.Span(0, n+1, marker{Kind: markOrdered, Level: start, Char: t[n]}))
 			}
 		}
 		switch {
 		case cfg.Code && strings.HasPrefix(t, string(profile.FenceSpelling)) && !strings.Contains(t[3:], "`"):
-			emit(fk.Span(0, len(t), fence{Kind: fenceCode, Info: strings.TrimSpace(t[3:])}))
+			e.Fact(fk.Span(0, len(t), fence{Kind: fenceCode, Info: strings.TrimSpace(t[3:])}))
 		case cfg.Math && t == string(profile.MathSpelling):
-			emit(fk.Span(0, len(t), fence{Kind: fenceMath}))
+			e.Fact(fk.Span(0, len(t), fence{Kind: fenceMath}))
 		case cfg.Rules && len(t) >= 3 && strings.Count(t, t[:1]) == len(t) && (t[0] == '-' || t[0] == '*' || t[0] == '_'):
-			emit(fk.Span(0, len(t), fence{Kind: fenceDivider}))
+			e.Fact(fk.Span(0, len(t), fence{Kind: fenceDivider}))
 		}
 	}
 }

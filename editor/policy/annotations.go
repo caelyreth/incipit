@@ -43,7 +43,7 @@ func (a Anchor) IsPoint() bool { return a.From.Pos == a.To.Pos }
 // Touches reports whether a caret is inside the anchor or at one of its
 // edges.
 func (a Anchor) Touches(c doc.Caret) bool {
-	return c.Pos.Ref() == a.From.Pos.Ref() && place(c, a.From.Offset, a.From.Stop) >= 0 && place(c, a.To.Offset, a.To.Stop) <= 0
+	return c.Pos.Ref() == a.From.Pos.Ref() && (Range{Edge{a.From.Offset, a.From.Stop}, Edge{a.To.Offset, a.To.Stop}}).Holds(c)
 }
 
 // LifetimeKind is how long an annotation lives.

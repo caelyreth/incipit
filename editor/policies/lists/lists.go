@@ -24,18 +24,14 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 			doc.Field{Num: profile.FieldListStart, Value: doc.Int(1)}),
 	})
 
-	item := policy.NodeScope(profile.Item)
-	p.Handle("leave-empty").On(policy.On(vocab.IntentBreak)).In(item).
-		When(policy.Collapsed, policy.OwnText, policy.SlotEmpty).Produces(vocab.RoleEdits...).Do(leave)
-	p.Handle("nest").On(policy.On(vocab.IntentNest)).In(item).When(policy.OwnText).Produces(vocab.RoleEdits...).Do(nest)
+	items := policy.Node(profile.Item)
+	policy.On(p, "leave-empty", policy.Intent[vocab.Break](), items.Empty().Own(), leave)
+	policy.On(p, "nest", policy.Intent[vocab.Nest](), items.Own(), nest).Any()
 })
 
-// level is the matched item's level.
-func level(c *policy.Ctx, m policy.Match) (vocab.Leveled, bool) {
-	if m.Level == nil || m.Level.Node == nil {
-		return nil, false
-	}
-	role, ok := profile.NodeRole(c.Doc(), m.Level.Node, vocab.RoleLeveled)
+// level is the item's own level.
+func level(c *policy.Ctx, item *doc.Node) (vocab.Leveled, bool) {
+	role, ok := profile.NodeRole(c.Doc(), item, vocab.RoleLeveled)
 	if !ok {
 		return nil, false
 	}
@@ -45,8 +41,8 @@ func level(c *policy.Ctx, m policy.Match) (vocab.Leveled, bool) {
 
 // leave steps an empty item one level out: a nested item follows the item
 // holding it, a top-level one becomes a paragraph after its list.
-func leave(c *policy.Ctx, m policy.Match) policy.Result {
-	l, ok := level(c, m)
+func leave(c *policy.Ctx, _ vocab.Break, at policy.At[*doc.Node]) policy.Result {
+	l, ok := level(c, at.Data)
 	if !ok {
 		return policy.Swallow
 	}
@@ -54,9 +50,8 @@ func leave(c *policy.Ctx, m policy.Match) policy.Result {
 }
 
 // nest moves the item in (Forward) or out.
-func nest(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Nest)
-	l, ok := level(c, m)
+func nest(c *policy.Ctx, in vocab.Nest, at policy.At[*doc.Node]) policy.Result {
+	l, ok := level(c, at.Data)
 	if !ok {
 		return policy.Swallow
 	}

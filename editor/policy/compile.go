@@ -25,8 +25,8 @@ type Order struct {
 }
 
 // Over gives a's rules precedence over b's where both match. The
-// qualifier narrows where: a vocab.Role, a Scope, a Pattern,
-// a vocab.IntentKind, or nil for everywhere.
+// qualifier narrows where: a vocab.Role, a Subject, a vocab.IntentKind, or
+// nil for everywhere.
 func Over(a, b *Policy, qualifier any) Order {
 	return Order{over: true, a: a, b: b, qualifier: qualifier}
 }
@@ -40,7 +40,8 @@ func RunsBefore(a, b *Policy, phase doc.Phase) Order { return Order{a: a, b: b, 
 type Manifest struct {
 	Enabled []*Policy
 	Resolve []Order
-	// Strict makes undeclared outputs errors. Tests set it; a host may.
+	// Strict makes a rewrite's undeclared records errors. Tests set it; a
+	// host may.
 	Strict bool
 	// Profile is the document profile the program edits.
 	Profile vocab.Profile
@@ -80,10 +81,6 @@ type Report struct {
 	Errors []string
 	// Dropped rules need facts no enabled analyzer produces.
 	Dropped []string
-	// Shadowed rules can never win.
-	Shadowed []string
-	// Dead triggers no rule can produce.
-	Dead []string
 }
 
 func (r *Report) errorf(format string, args ...any) {
@@ -97,12 +94,6 @@ func (r *Report) String() string {
 	}
 	for _, s := range r.Dropped {
 		fmt.Fprintf(&b, "dropped: %s\n", s)
-	}
-	for _, s := range r.Shadowed {
-		fmt.Fprintf(&b, "shadowed: %s\n", s)
-	}
-	for _, s := range r.Dead {
-		fmt.Fprintf(&b, "dead trigger: %s\n", s)
 	}
 	return b.String()
 }
@@ -131,8 +122,6 @@ type Program struct {
 
 	table      map[tableKey][]*rule
 	rules      []*rule
-	atoms      []Relation
-	atomIndex  map[Relation]int
 	phases     map[doc.Phase][]*rewrite
 	observers  []*observer
 	analyzerOf map[FactID]*analyzer
@@ -148,7 +137,7 @@ type Program struct {
 	guides     []Guide
 
 	paints      []Paint
-	ghosts      []GhostFunc
+	projecting  []FactID
 	decorations []Decoration
 
 	stackMu sync.Mutex
@@ -200,9 +189,10 @@ func (p *Program) Observers() []Observer {
 // Grouping is the history grouping function, or nil.
 func (p *Program) Grouping() func(prev, next *doc.Entry) bool { return p.grouping }
 
-// Paints, Ghosts and Decorations are the presentation contributions.
+// Paints and Decorations are presentation contributions; Projecting are
+// the fact kinds whose facts may be glyphs.
 func (p *Program) Paints() []Paint           { return p.paints }
-func (p *Program) Ghosts() []GhostFunc       { return p.ghosts }
+func (p *Program) Projecting() []FactID      { return p.projecting }
 func (p *Program) Decorations() []Decoration { return p.decorations }
 func (p *Program) Guides() []Guide           { return p.guides }
 func (p *Program) Strict() bool              { return p.strict }
@@ -241,7 +231,6 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		rank:       map[string]int{},
 		orders:     m.Resolve,
 		table:      map[tableKey][]*rule{},
-		atomIndex:  map[Relation]int{},
 		phases:     map[doc.Phase][]*rewrite{},
 		analyzerOf: map[FactID]*analyzer{},
 		factDecls:  map[FactID]*factDecl{},
@@ -295,6 +284,9 @@ func Compile(m Manifest, values Values) (*Program, error) {
 	for _, p := range prog.policies {
 		for _, d := range p.facts {
 			prog.factDecls[d.kind] = d
+			if d.projects {
+				prog.projecting = append(prog.projecting, d.kind)
+			}
 		}
 		for _, a := range p.analyzers {
 			if !slices.Contains(prog.analyzing, a.policy) {
@@ -329,7 +321,6 @@ func Compile(m Manifest, values Values) (*Program, error) {
 			prog.grouping = p.grouping
 		}
 		prog.paints = append(prog.paints, p.paints...)
-		prog.ghosts = append(prog.ghosts, p.ghosts...)
 		prog.guides = append(prog.guides, p.guides...)
 		prog.decorations = append(prog.decorations, p.decorations...)
 	}
@@ -359,45 +350,35 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		return "", true
 	}
 
-	// Lower rules.
+	// Index rules by the scopes their places are found at.
 	scopeKinds := map[FactID]bool{}
 	for _, p := range prog.policies {
 	rules:
 		for _, r := range p.rules {
-			if len(r.on) == 0 {
-				rep.errorf("rule %s matches no intent", r.id())
-				continue
+			var scopes []Scope
+			for _, a := range r.alts {
+				scopes = append(scopes, a.scope)
 			}
-			if r.typ == ruleHandle && r.handle == nil || r.typ == ruleTransform && r.trans == nil {
-				rep.errorf("rule %s has no handler", r.id())
-				continue
+			for _, c := range r.conds {
+				scopes = append(scopes, c.scopes...)
 			}
-			if r.typ == ruleTransform && len(r.emits) == 0 {
-				rep.errorf("transform %s declares no outputs", r.id())
-				continue
-			}
-			for _, s := range append([]Scope{r.in}, relationTargets(r.when)...) {
+			for _, s := range scopes {
 				if what, ok := needs(s); !ok {
 					rep.Dropped = append(rep.Dropped, fmt.Sprintf("%s: nothing produces %s", r.id(), what))
 					continue rules
 				}
 			}
-			var err error
-			if r.required, err = prog.lower(r.when); err != nil {
-				rep.errorf("rule %s: %v", r.id(), err)
-				continue
-			}
-			if r.forbidden, err = prog.lower(r.unless); err != nil {
-				rep.errorf("rule %s: %v", r.id(), err)
-				continue
-			}
-			for _, s := range append([]Scope{r.in}, relationTargets(append(slices.Clone(r.when), r.unless...))...) {
+			for _, s := range scopes {
 				prog.noteScopeKinds(s, scopeKinds)
 			}
 			prog.rules = append(prog.rules, r)
-			for _, k := range patternKinds(r.on) {
-				key := tableKey{intent: k, scope: r.in}
-				prog.table[key] = append(prog.table[key], r)
+			var indexed []Scope
+			for _, a := range r.alts {
+				if s := a.index(); !slices.Contains(indexed, s) {
+					indexed = append(indexed, s)
+					key := tableKey{intent: r.match.kind, scope: s}
+					prog.table[key] = append(prog.table[key], r)
+				}
 			}
 		}
 	}
@@ -458,11 +439,6 @@ func (p *Program) nodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, boo
 	return p.profile.Role(r, n, role)
 }
 
-// rootScopes are where core's fallbacks stand: the slot and the root.
-func (p *Program) rootScopes() []Scope {
-	return []Scope{Slot, Root}
-}
-
 func (p *Program) kindsProviding(r vocab.Role) []doc.Kind {
 	var out []doc.Kind
 	if p.profile == nil {
@@ -471,16 +447,6 @@ func (p *Program) kindsProviding(r vocab.Role) []doc.Kind {
 	for _, k := range p.profile.Schema().Kinds() {
 		if slices.Contains(p.nodeRoles(k), r) {
 			out = append(out, k)
-		}
-	}
-	return out
-}
-
-func relationTargets(rels []Relation) []Scope {
-	var out []Scope
-	for _, r := range rels {
-		if r.Target.Class != 0 {
-			out = append(out, r.Target)
 		}
 	}
 	return out
@@ -501,33 +467,6 @@ func (p *Program) noteScopeKinds(s Scope, into map[FactID]bool) {
 	}
 }
 
-func (p *Program) lower(rels []Relation) (atomSet, error) {
-	var s atomSet
-	for _, r := range rels {
-		i, ok := p.atomIndex[r]
-		if !ok {
-			if len(p.atoms) == maxAtoms {
-				return s, fmt.Errorf("more than %d distinct atoms", maxAtoms)
-			}
-			i = len(p.atoms)
-			p.atoms = append(p.atoms, r)
-			p.atomIndex[r] = i
-		}
-		s.set(i)
-	}
-	return s, nil
-}
-
-func patternKinds(ps []Pattern) []vocab.IntentKind {
-	var out []vocab.IntentKind
-	for _, p := range ps {
-		if !slices.Contains(out, p.Kind) {
-			out = append(out, p.Kind)
-		}
-	}
-	return out
-}
-
 // --- precedence ---------------------------------------------------------------
 
 // ordered reports whether the manifest gives a precedence over b for two
@@ -546,20 +485,24 @@ func (p *Program) qualifies(q any, a, b *rule) bool {
 	case nil:
 		return true
 	case vocab.Role:
-		s := RoleScope(q)
-		return p.coincide(a.in, s) || p.coincide(b.in, s)
-	case Scope:
-		return p.coincide(a.in, q) && p.coincide(b.in, q)
-	case Pattern:
-		return patternsOverlap(a.on, []Pattern{q}) && patternsOverlap(b.on, []Pattern{q})
+		s := roleScope(q)
+		return p.standsAt(a, s) || p.standsAt(b, s)
+	case subject:
+		return p.standsAt(a, q.key()) && p.standsAt(b, q.key())
 	case vocab.IntentKind:
-		return slices.Contains(patternKinds(a.on), q) && slices.Contains(patternKinds(b.on), q)
+		return a.match.kind == q && b.match.kind == q
 	}
 	return false
 }
 
-// precedes orders candidates: the manifest's order first, then more
-// specific patterns, then manifest position, then declaration order.
+// standsAt reports whether a rule's place can be found at a level
+// answering to s.
+func (p *Program) standsAt(r *rule, s Scope) bool {
+	return slices.ContainsFunc(r.alts, func(a alt) bool { return p.coincide(a.index(), s) })
+}
+
+// precedes orders candidates: the manifest's order first, then manifest
+// position, then declaration order.
 func (p *Program) precedes(a, b *rule) int {
 	if ac, bc := a.policy == CoreID, b.policy == CoreID; ac != bc {
 		// Core is below everything.
@@ -574,43 +517,32 @@ func (p *Program) precedes(a, b *rule) int {
 	case p.ordered(b, a):
 		return 1
 	}
-	sa, sb := specificity(a), specificity(b)
-	if sa != sb {
-		return sb - sa
-	}
 	if ra, rb := p.rank[a.policy], p.rank[b.policy]; ra != rb {
 		return ra - rb
 	}
 	return a.order - b.order
 }
 
-func specificity(r *rule) int {
-	n := 0
-	for _, pat := range r.on {
-		if pat.Specific() {
-			n = 1
-		}
+// overlaps reports whether some intent matches both matchers.
+func overlaps(a, b matcher) bool {
+	if a.kind != b.kind {
+		return false
 	}
-	c := 0
-	r.required.each(func(int) { c++ })
-	r.forbidden.each(func(int) { c++ })
-	return n*1000 + c
-}
-
-func patternsOverlap(a, b []Pattern) bool {
-	for _, x := range a {
-		for _, y := range b {
-			if x.Overlaps(y) {
-				return true
-			}
-		}
+	if a.texts != nil && b.texts != nil && !slices.ContainsFunc(a.texts, func(t string) bool { return slices.Contains(b.texts, t) }) {
+		return false
 	}
-	return false
+	classed := func(texts []string, c vocab.CharClass) bool {
+		return texts == nil || c == 0 || slices.ContainsFunc(texts, func(t string) bool { return vocab.FirstClass(t)&c != 0 })
+	}
+	if !classed(a.texts, b.class) || !classed(b.texts, a.class) || a.class != 0 && b.class != 0 && a.class&b.class == 0 {
+		return false
+	}
+	return (a.unit == 0 || b.unit == 0 || a.unit == b.unit) && (a.dir == 0 || b.dir == 0 || a.dir == b.dir)
 }
 
 // coincide reports whether two scope keys can name the same stack level.
 func (p *Program) coincide(a, b Scope) bool {
-	if a == b {
+	if a.Class == b.Class && a.ID == b.ID && (a.Key == nil || b.Key == nil || a.Key == b.Key) {
 		return true
 	}
 	if a.Class == ScopeRole {
@@ -640,11 +572,6 @@ func (p *Program) coincide(a, b Scope) bool {
 		}
 	}
 	return false
-}
-
-// compatible reports whether two signatures can hold at once.
-func compatible(a, b *rule) bool {
-	return a.required.and(b.forbidden).empty() && b.required.and(a.forbidden).empty()
 }
 
 func (p *Program) orderRewrites(ph doc.Phase, rs []*rewrite, rep *Report) []*rewrite {
@@ -707,55 +634,21 @@ func interfere(a, b *rewrite) bool {
 // --- checks -------------------------------------------------------------------
 
 func (p *Program) check(rep *Report) {
-	// Overlaps.
+	// Rules of two policies that can answer one intent at one level need
+	// the manifest's order; within a policy, declaration order decides.
 	for i, a := range p.rules {
 		for _, b := range p.rules[i+1:] {
-			if (a.policy == CoreID) != (b.policy == CoreID) {
+			if a.policy == b.policy || (a.policy == CoreID) != (b.policy == CoreID) || !overlaps(a.match, b.match) {
 				continue
 			}
-			if !p.coincide(a.in, b.in) || !patternsOverlap(a.on, b.on) || !compatible(a, b) {
-				continue
-			}
-			if a.policy == b.policy {
-				rep.errorf("rules %s and %s overlap at %s", a.id(), b.id(), a.in)
-				continue
-			}
-			if !p.ordered(a, b) && !p.ordered(b, a) {
-				rep.errorf("rules %s and %s overlap at %s; the manifest must order them", a.id(), b.id(), a.in)
-			}
-		}
-	}
-	// Shadowing: b can never win against an earlier a at the same scope
-	// with a pattern covering b's and a weaker signature.
-	for _, rs := range p.table {
-		for i, a := range rs {
-			for _, b := range rs[i+1:] {
-				if (a.policy == CoreID) == (b.policy == CoreID) && a.in == b.in && covers(a.on, b.on) && a.required.subset(b.required) && a.forbidden.subset(b.forbidden) && a.typ == ruleHandle {
-					rep.Shadowed = append(rep.Shadowed, fmt.Sprintf("%s by %s", b.id(), a.id()))
+			for _, x := range a.alts {
+				if p.standsAt(b, x.index()) && !p.ordered(a, b) && !p.ordered(b, a) {
+					rep.errorf("rules %s and %s overlap at %s; the manifest must order them", a.id(), b.id(), x.index())
+					break
 				}
 			}
 		}
 	}
-	// Transform chains acyclic over intent kinds.
-	graph := map[vocab.IntentKind][]vocab.IntentKind{}
-	for _, r := range p.rules {
-		if r.typ != ruleTransform {
-			continue
-		}
-		for _, from := range patternKinds(r.on) {
-			for _, to := range r.emits {
-				if from != to {
-					graph[from] = append(graph[from], to)
-				}
-			}
-		}
-	}
-	if cyc := findCycle(graph); cyc != "" {
-		rep.errorf("transform chains form a cycle: %s", cyc)
-	}
-	// Precedence acyclic.
-	// TODO(policy): qualified orders could form a cycle only under
-	// disjoint qualifiers, which is legal; the check is conservative.
 	pg := map[string][]string{}
 	for _, o := range p.orders {
 		if o.over {
@@ -770,70 +663,20 @@ func (p *Program) check(rep *Report) {
 			rep.errorf("core cannot be ordered over %s", o.b.id)
 		}
 	}
-	// Dead triggers.
-	producible := map[doc.RecordKind]bool{doc.RecordSelection: true, doc.RecordView: true}
-	for _, r := range p.rules {
-		for _, k := range r.produces {
-			producible[k] = true
-		}
+	// Core answers every intent everywhere: a core rule inside the slot,
+	// for the bare intent kind, at every selection, with no conditions.
+	if !slices.ContainsFunc(p.policies, func(x *P) bool { return x.policy.id == CoreID }) {
+		return
 	}
-	for _, rs := range p.phases {
-		for _, r := range rs {
-			for _, k := range r.produces {
-				producible[k] = true
-			}
-		}
-	}
-	dead := func(id string, t Trigger) {
-		if len(t.Kinds) == 0 {
-			return
-		}
-		for _, k := range t.Kinds {
-			if producible[k] {
-				return
-			}
-		}
-		rep.Dead = append(rep.Dead, id)
-	}
-	for _, rs := range p.phases {
-		for _, r := range rs {
-			dead(r.id(), r.trigger)
-		}
-	}
-	for _, o := range p.observers {
-		dead(o.id(), o.trigger)
-	}
-	// Core answers every intent at every scope: a core Handle at the slot
-	// or the page, for the bare intent kind, with no required atoms.
 	for _, k := range vocab.IntentKinds() {
-		ok := false
-		for _, s := range p.rootScopes() {
-			for _, r := range p.table[tableKey{intent: k, scope: s}] {
-				if r.policy == CoreID && r.typ == ruleHandle && r.required.empty() && r.forbidden.empty() && slices.ContainsFunc(r.on, func(pt Pattern) bool { return pt.Kind == k && !pt.Specific() }) {
-					ok = true
-				}
-			}
-		}
-		if !ok && p.rank[CoreID] >= 0 && slices.ContainsFunc(p.policies, func(x *P) bool { return x.policy.id == CoreID }) {
+		ok := slices.ContainsFunc(p.table[tableKey{intent: k, scope: slotScope}], func(r *rule) bool {
+			return r.policy == CoreID && r.match.bare() && r.shapes == shapeAny && len(r.conds) == 0 &&
+				slices.ContainsFunc(r.alts, func(a alt) bool { return a.how == placeIn && a.zones == zoneAll && !a.own })
+		})
+		if !ok {
 			rep.errorf("core has no fallback for %s", k)
 		}
 	}
-}
-
-// covers reports whether patterns a match everything patterns b match.
-func covers(a, b []Pattern) bool {
-	for _, y := range b {
-		ok := false
-		for _, x := range a {
-			if x.Kind == y.Kind && (!x.Specific() || x == y) {
-				ok = true
-			}
-		}
-		if !ok {
-			return false
-		}
-	}
-	return true
 }
 
 func findCycle[K comparable](g map[K][]K) string {

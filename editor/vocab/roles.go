@@ -64,12 +64,6 @@ type Pair interface {
 	EditSide(side Side, spelling Spelling) Edit
 }
 
-// RoleEdits are the records an edit made through a node role may
-// produce: a role's edit reshapes, nests, lifts and joins blocks, so a
-// rule that delegates to a role declares these, whatever node it holds.
-var RoleEdits = []doc.RecordKind{doc.RecordNodeChanged, doc.RecordNodesInserted, doc.RecordNodesRemoved,
-	doc.RecordNodeMoved, doc.RecordTransferred, doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks}
-
 // Leveled steps up or down one level: heading levels, emphasis spelling,
 // nesting depth.
 type Leveled interface {

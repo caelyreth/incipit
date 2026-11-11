@@ -22,51 +22,26 @@ var Roles = policy.List("roles", []vocab.Role{vocab.RoleLeavable}, []policy.Choi
 
 // Policy is the navigation policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	roles := policy.GetList(p, Roles)
-	p.Handle("leave").On(policy.On(vocab.IntentLeave)).In(policy.Slot).Do(leave(roles))
-	p.Handle("return").On(policy.On(vocab.IntentReturn)).In(policy.Slot).Do(enter(roles))
+	// Leave exits the innermost scope of any configured role; Return enters
+	// one ending right before the caret, the roles in their order.
+	for _, role := range policy.GetList(p, Roles) {
+		scope := policy.Role[vocab.Leavable](role)
+		policy.On(p, "leave-"+role.String(), policy.Intent[vocab.Leave](), scope.Inside(), leave).Any()
+		policy.On(p, "return-"+role.String(), policy.Intent[vocab.Return](), scope.Behind(), enter).Any()
+	}
 })
 
-// leave exits the innermost leavable scope, past its end.
-func leave(roles []vocab.Role) policy.Handler {
-	return func(c *policy.Ctx, _ policy.Match) policy.Result {
-		levels := c.Stack().Levels
-		for i := len(levels) - 1; i >= 0; i-- {
-			for _, role := range roles {
-				data, ok := levels[i].Role(c.Doc(), role)
-				l, lok := data.(vocab.Leavable)
-				if !ok || !lok {
-					continue
-				}
-				res := policy.Select(doc.Collapsed(l.Exit()))
-				res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
-				return res
-			}
-		}
-		return policy.Swallow
-	}
+// leave exits the scope, past its end.
+func leave(_ *policy.Ctx, _ vocab.Leave, at policy.At[vocab.Leavable]) policy.Result {
+	res := policy.Select(doc.Collapsed(at.Data.Exit()))
+	res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
+	return res
 }
 
-// enter goes into the leavable scope that ends right before the caret,
-// where Leave would have left it from: its entry.
-func enter(roles []vocab.Role) policy.Handler {
-	return func(c *policy.Ctx, _ policy.Match) policy.Result {
-		var found vocab.Leavable
-		for _, role := range roles {
-			data, ok := c.Beside(policy.RoleScope(role), false)
-			l, lok := data.(vocab.Leavable)
-			if !ok || !lok {
-				continue
-			}
-			if found == nil || doc.Compare(c.Doc(), l.Exit(), found.Exit()) > 0 {
-				found = l
-			}
-		}
-		if found == nil {
-			return policy.Swallow
-		}
-		res := policy.Select(doc.Collapsed(found.Entry()))
-		res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
-		return res
-	}
+// enter goes into the scope ending right before the caret, where Leave
+// would have left it from: its entry.
+func enter(_ *policy.Ctx, _ vocab.Return, at policy.At[vocab.Leavable]) policy.Result {
+	res := policy.Select(doc.Collapsed(at.Data.Entry()))
+	res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
+	return res
 }

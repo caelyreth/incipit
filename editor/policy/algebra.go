@@ -2,15 +2,16 @@ package policy
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
-// The rule algebra: fact and annotation handles, scope keys, relations
-// and intent patterns. Handles' names exist only for traces and compile
-// messages.
+// The rule surface's vocabulary: fact and annotation handles, scope keys,
+// intent patterns, subjects and the places in them, and conditions.
+// Handles' names exist only for traces and compile messages.
 
 type handleClass uint8
 
@@ -77,38 +78,33 @@ var (
 type ScopeClass uint8
 
 const (
-	// ScopeNode is a node of a kind: the page, a container, the caret's
-	// node.
+	// ScopeNode is a node of a kind.
 	ScopeNode ScopeClass = iota + 1
 	// ScopeSlot is the caret's slot, whatever node holds it.
 	ScopeSlot
-	// ScopeFact is a fact span of a kind containing the caret.
+	// ScopeFact is a fact of a kind, or of one key of it.
 	ScopeFact
 	// ScopeRole is any stack entry providing a role.
 	ScopeRole
 	// ScopeAnnotation is a scoped annotation containing the caret.
 	ScopeAnnotation
-	// ScopeRoot is the root node, whatever its kind.
-	ScopeRoot
 )
 
-// Scope is a scope key: a kind or a role a rule is placed In.
+// Scope is a scope key: what a stack level answers to. Key is set for a
+// keyed fact kind's facts of one key.
 type Scope struct {
 	Class ScopeClass
 	ID    uint32
+	Key   any
 }
 
-// Scope keys.
-var (
-	Slot = Scope{Class: ScopeSlot}
-	Root = Scope{Class: ScopeRoot}
-)
+func nodeScope(k doc.Kind) Scope             { return Scope{Class: ScopeNode, ID: uint32(k)} }
+func factScope(k FactID) Scope               { return Scope{Class: ScopeFact, ID: uint32(k)} }
+func roleScope(r vocab.Role) Scope           { return Scope{Class: ScopeRole, ID: uint32(r)} }
+func annotationScope(a AnnotationKind) Scope { return Scope{Class: ScopeAnnotation, ID: a.id} }
 
-func NodeScope(k doc.Kind) Scope             { return Scope{Class: ScopeNode, ID: uint32(k)} }
-func FactScope(k FactID) Scope               { return Scope{Class: ScopeFact, ID: uint32(k)} }
-func RoleScope(r vocab.Role) Scope           { return Scope{Class: ScopeRole, ID: uint32(r)} }
-func AnnotationScope(a AnnotationKind) Scope { return Scope{Class: ScopeAnnotation, ID: a.id} }
-func (s Scope) Is(class ScopeClass) bool     { return s.Class == class }
+var slotScope = Scope{Class: ScopeSlot}
+
 func (s Scope) String() string {
 	switch s.Class {
 	case ScopeNode:
@@ -116,174 +112,248 @@ func (s Scope) String() string {
 	case ScopeSlot:
 		return "slot"
 	case ScopeFact:
+		if s.Key != nil {
+			return fmt.Sprintf("fact:%s[%v]", FactID(s.ID), s.Key)
+		}
 		return "fact:" + FactID(s.ID).String()
 	case ScopeRole:
 		return "role:" + vocab.Role(s.ID).String()
 	case ScopeAnnotation:
 		return "annotation:" + handleName(handleAnnotation, s.ID)
-	case ScopeRoot:
-		return "root"
 	}
 	return "scope?"
 }
 
-// RelationKind is an atom of the closed relation vocabulary.
-type RelationKind uint8
+// --- patterns -------------------------------------------------------------
 
-const (
-	RelAtInnerStart RelationKind = iota + 1
-	RelAtInnerEnd
-	RelBefore
-	RelAfter
-	RelHas
-	RelCollapsed
-	RelTextRange
-	RelNodeSelected
-	RelEquals
-	RelPrevChar
-	RelNextChar
-	RelSlotStart
-	RelSlotEnd
-	RelSlotEmpty
-	RelOwnText
-)
+// Pattern matches intents of type I and, optionally, their parameters.
+type Pattern[I vocab.Intent] struct{ m matcher }
 
-// Relation is one atom with its parameters, evaluated relative to the
-// rule's scope.
-type Relation struct {
-	Kind       RelationKind
-	Target     Scope
-	Class      vocab.CharClass
-	Annotation AnnotationKind
-	Node       doc.Kind
+type matcher struct {
+	kind  vocab.IntentKind
+	texts []string
+	class vocab.CharClass
+	unit  vocab.Unit
+	dir   vocab.Direction
 }
 
-// The parameterless atoms.
-var (
-	AtInnerStart = Relation{Kind: RelAtInnerStart}
-	AtInnerEnd   = Relation{Kind: RelAtInnerEnd}
-	Collapsed    = Relation{Kind: RelCollapsed}
-	TextRange    = Relation{Kind: RelTextRange}
-	SlotStart    = Relation{Kind: RelSlotStart}
-	SlotEnd      = Relation{Kind: RelSlotEnd}
-	SlotEmpty    = Relation{Kind: RelSlotEmpty}
-	Equals       = Relation{Kind: RelEquals}
-	// OwnText holds when the caret is in the scope node's own text slot,
-	// as in an item's head, and not in a block the node holds.
-	OwnText = Relation{Kind: RelOwnText}
-)
-
-// Before holds when a fact, node or ghost of s is right after the caret,
-// outside it; After when one is right before it.
-func Before(s Scope) Relation { return Relation{Kind: RelBefore, Target: s} }
-func After(s Scope) Relation  { return Relation{Kind: RelAfter, Target: s} }
-
-// Has holds when an annotation of kind a covers or touches the caret.
-func Has(a AnnotationKind) Relation { return Relation{Kind: RelHas, Annotation: a} }
-
-// NodeSelected holds when a node of kind k is selected whole.
-func NodeSelected(k doc.Kind) Relation { return Relation{Kind: RelNodeSelected, Node: k} }
-
-// PrevChar and NextChar test the class of the neighbouring grapheme.
-func PrevChar(c vocab.CharClass) Relation { return Relation{Kind: RelPrevChar, Class: c} }
-func NextChar(c vocab.CharClass) Relation { return Relation{Kind: RelNextChar, Class: c} }
-
-func (r Relation) String() string {
-	names := [...]string{"", "AtInnerStart", "AtInnerEnd", "Before", "After", "Has", "Collapsed", "TextRange",
-		"NodeSelected", "Equals", "PrevChar", "NextChar", "SlotStart", "SlotEnd", "SlotEmpty", "OwnText"}
-	s := names[r.Kind]
-	switch r.Kind {
-	case RelBefore, RelAfter:
-		s += "(" + r.Target.String() + ")"
-	case RelHas:
-		s += "(" + r.Annotation.String() + ")"
-	case RelPrevChar, RelNextChar:
-		s += fmt.Sprintf("(%#x)", r.Class)
-	case RelNodeSelected:
-		s += fmt.Sprintf("(%d)", r.Node)
-	}
-	return s
+// Intent matches every intent of type I.
+func Intent[I vocab.Intent]() Pattern[I] {
+	var zero I
+	return Pattern[I]{matcher{kind: zero.Kind()}}
 }
 
-// Pattern matches an intent kind and, optionally, its parameters: an
-// exact text or a character class for Type, a unit and direction for
-// Delete and Move.
-type Pattern struct {
-	Kind  vocab.IntentKind
-	Text  string
-	Class vocab.CharClass
-	Unit  vocab.Unit
-	Dir   vocab.Direction
+// Kind matches every intent of kind k, bound as an intent.
+func Kind(k vocab.IntentKind) Pattern[vocab.Intent] { return Pattern[vocab.Intent]{matcher{kind: k}} }
+
+// Typed matches typing exactly one of texts.
+func Typed(texts ...string) Pattern[vocab.Type] {
+	return Pattern[vocab.Type]{matcher{kind: vocab.IntentType, texts: texts}}
 }
-
-// On matches every intent of kind k.
-func On(k vocab.IntentKind) Pattern { return Pattern{Kind: k} }
-
-// Typed matches typing exactly text.
-func Typed(text string) Pattern { return Pattern{Kind: vocab.IntentType, Text: text} }
 
 // TypedClass matches typed text whose first character is of class c,
 // however much text arrives at once.
-func TypedClass(c vocab.CharClass) Pattern { return Pattern{Kind: vocab.IntentType, Class: c} }
+func TypedClass(c vocab.CharClass) Pattern[vocab.Type] {
+	return Pattern[vocab.Type]{matcher{kind: vocab.IntentType, class: c}}
+}
 
 // Deleting matches deleting by unit in dir; a zero unit or direction
 // matches any.
-func Deleting(u vocab.Unit, d vocab.Direction) Pattern {
-	return Pattern{Kind: vocab.IntentDelete, Unit: u, Dir: d}
+func Deleting(u vocab.Unit, d vocab.Direction) Pattern[vocab.Delete] {
+	return Pattern[vocab.Delete]{matcher{kind: vocab.IntentDelete, unit: u, dir: d}}
 }
 
 // Moving matches a logical motion by unit in dir.
-func Moving(u vocab.Unit, d vocab.Direction) Pattern {
-	return Pattern{Kind: vocab.IntentMove, Unit: u, Dir: d}
+func Moving(u vocab.Unit, d vocab.Direction) Pattern[vocab.Move] {
+	return Pattern[vocab.Move]{matcher{kind: vocab.IntentMove, unit: u, dir: d}}
 }
 
-// Specific reports whether the pattern names parameters, which ranks it
-// above a pattern of the same kind that names none.
-func (p Pattern) Specific() bool { return p.Text != "" || p.Class != 0 || p.Unit != 0 || p.Dir != 0 }
+func (m matcher) bare() bool { return m.texts == nil && m.class == 0 && m.unit == 0 && m.dir == 0 }
 
-// Match reports whether in matches the pattern.
-func (p Pattern) Match(in vocab.Intent) bool {
-	if in.Kind() != p.Kind {
+func (m matcher) match(in vocab.Intent) bool {
+	if in.Kind() != m.kind {
 		return false
 	}
 	switch v := in.(type) {
 	case vocab.Type:
-		if p.Text != "" && v.Text != p.Text {
+		if m.texts != nil && !slices.Contains(m.texts, v.Text) {
 			return false
 		}
-		if p.Class != 0 && vocab.FirstClass(v.Text)&p.Class == 0 {
-			return false
-		}
+		return m.class == 0 || vocab.FirstClass(v.Text)&m.class != 0
 	case vocab.Delete:
-		return (p.Unit == 0 || p.Unit == v.Unit) && (p.Dir == 0 || p.Dir == v.Dir)
+		return (m.unit == 0 || m.unit == v.Unit) && (m.dir == 0 || m.dir == v.Dir)
 	case vocab.Move:
-		return (p.Unit == 0 || p.Unit == v.Unit) && (p.Dir == 0 || p.Dir == v.Dir)
+		return (m.unit == 0 || m.unit == v.Unit) && (m.dir == 0 || m.dir == v.Dir)
 	}
 	return true
 }
 
-// Overlaps reports whether some intent matches both patterns.
-func (p Pattern) Overlaps(o Pattern) bool {
-	if p.Kind != o.Kind {
-		return false
+// --- subjects and places ----------------------------------------------------
+
+// Subject is something a rule stands in or beside: the caret's slot, a
+// node kind, a role, or a fact kind. T is what a match binds: the slot,
+// the node, the role's implementation, the fact's data.
+type Subject[T any] struct {
+	scope Scope
+	bind  func(c *Ctx, l *Level) (T, bool)
+}
+
+// Slot is the caret's slot.
+var Slot = Subject[doc.SlotRef]{scope: slotScope, bind: func(_ *Ctx, l *Level) (doc.SlotRef, bool) { return l.Slot, true }}
+
+// Node is a node of kind k.
+func Node(k doc.Kind) Subject[*doc.Node] {
+	return Subject[*doc.Node]{scope: nodeScope(k), bind: func(_ *Ctx, l *Level) (*doc.Node, bool) { return l.Node, l.Node != nil }}
+}
+
+// Role is whatever provides role r, bound as its implementation R.
+func Role[R any](r vocab.Role) Subject[R] {
+	return Subject[R]{scope: roleScope(r), bind: func(c *Ctx, l *Level) (R, bool) {
+		v, ok := l.Role(c.r, r)
+		impl, iok := v.(R)
+		return impl, ok && iok
+	}}
+}
+
+// zone is where the caret stands in a level, between its inner edges.
+type zone uint8
+
+const (
+	zoneStart  zone = 1 << iota // at the start, not the end
+	zoneEnd                     // at the end, not the start
+	zoneEmpty                   // at both: nothing between them
+	zoneWithin                  // at neither
+	zoneAll    = zoneStart | zoneEnd | zoneEmpty | zoneWithin
+)
+
+type placeHow uint8
+
+const (
+	placeIn placeHow = iota + 1
+	placeAhead
+	placeBehind
+	placeSelected
+)
+
+// alt is one place a rule stands: in a subject's level at some of its
+// zones, beside it, or with it selected.
+type alt struct {
+	scope Scope
+	how   placeHow
+	zones zone
+	// own narrows a node's or slot's edges to its own text slot, which the
+	// caret must be in: an item's head, not a block it holds.
+	own bool
+}
+
+// index is the scope the place is found at: beside a subject, the slot.
+func (a alt) index() Scope {
+	if a.how == placeAhead || a.how == placeBehind {
+		return slotScope
 	}
-	if p.Text != "" && o.Text != "" && p.Text != o.Text {
-		return false
+	return a.scope
+}
+
+// Place is where a rule stands, and binds a T there.
+type Place[T any] struct {
+	alts []alt
+	bind func(c *Ctx, l *Level) (T, bool)
+}
+
+func (s Subject[T]) place(a alt) Place[T] {
+	a.scope = s.scope
+	return Place[T]{alts: []alt{a}, bind: s.bind}
+}
+
+// Inside is anywhere inside the subject, its inner edges included.
+func (s Subject[T]) Inside() Place[T] { return s.place(alt{how: placeIn, zones: zoneAll}) }
+
+// AtStart is at the subject's inner start, with something before its end;
+// AtEnd at its inner end, with something after its start; Empty at both,
+// nothing inside; Within at neither.
+func (s Subject[T]) AtStart() Place[T] { return s.place(alt{how: placeIn, zones: zoneStart}) }
+func (s Subject[T]) AtEnd() Place[T]   { return s.place(alt{how: placeIn, zones: zoneEnd}) }
+func (s Subject[T]) Empty() Place[T]   { return s.place(alt{how: placeIn, zones: zoneEmpty}) }
+func (s Subject[T]) Within() Place[T]  { return s.place(alt{how: placeIn, zones: zoneWithin}) }
+
+// Own is inside the subject's own text: a node's text slot, not a block it
+// holds; an inline slot, not a gap between blocks.
+func (s Subject[T]) Own() Place[T] { return s.Inside().Own() }
+
+// Ahead is with the subject right after the caret, outside it, nothing
+// between them; Behind with it right before.
+func (s Subject[T]) Ahead() Place[T]  { return s.place(alt{how: placeAhead}) }
+func (s Subject[T]) Behind() Place[T] { return s.place(alt{how: placeBehind}) }
+
+// Selected is with the subject selected whole: a node selection of it, or
+// a text range from its inner start to its inner end.
+func (s Subject[T]) Selected() Place[T] { return s.place(alt{how: placeSelected}) }
+
+// Own narrows the place's edges to the subject's own text slot.
+func (p Place[T]) Own() Place[T] {
+	alts := slices.Clone(p.alts)
+	for i := range alts {
+		alts[i].own = true
 	}
-	if p.Text != "" && o.Class != 0 {
-		return vocab.FirstClass(p.Text)&o.Class != 0
+	return Place[T]{alts: alts, bind: p.bind}
+}
+
+// Or is wherever any of places is.
+func Or[T any](places ...Place[T]) Place[T] {
+	out := Place[T]{bind: places[0].bind}
+	for _, p := range places {
+		out.alts = append(out.alts, p.alts...)
 	}
-	if o.Text != "" && p.Class != 0 {
-		return o.Overlaps(p)
-	}
-	if p.Class != 0 && o.Class != 0 && p.Class&o.Class == 0 {
-		return false
-	}
-	if p.Unit != 0 && o.Unit != 0 && p.Unit != o.Unit {
-		return false
-	}
-	if p.Dir != 0 && o.Dir != 0 && p.Dir != o.Dir {
-		return false
-	}
-	return true
+	return out
+}
+
+// --- conditions ---------------------------------------------------------------
+
+// Cond is a condition at the caret a rule may add to its place.
+type Cond struct {
+	test func(c *Ctx) bool
+	// scopes are the subjects the condition reads beside the caret.
+	scopes []Scope
+}
+
+// PrevChar and NextChar test the class of the neighbouring grapheme.
+func PrevChar(cl vocab.CharClass) Cond { return charCond(cl, true) }
+func NextChar(cl vocab.CharClass) Cond { return charCond(cl, false) }
+
+func charCond(cl vocab.CharClass, before bool) Cond {
+	return Cond{test: func(c *Ctx) bool {
+		pos := c.Head().Pos
+		in, ok := c.Inline(pos.Ref())
+		if !ok {
+			return false
+		}
+		class, _ := vocab.GraphemeClassAt(in.Flat(), pos.Offset, before)
+		return class&cl != 0
+	}}
+}
+
+// Has holds when an annotation of kind a covers or touches the caret.
+func Has(a AnnotationKind) Cond {
+	return Cond{test: func(c *Ctx) bool { return len(c.view.Annotations.At(a, c.Head())) > 0 }}
+}
+
+// subject is any Subject, for conditions on what stands beside the caret.
+type subject interface{ key() Scope }
+
+func (s Subject[T]) key() Scope { return s.scope }
+
+// Ahead holds when s stands right after the caret; Behind right before.
+func Ahead(s subject) Cond  { return besideCond(s.key(), true) }
+func Behind(s subject) Cond { return besideCond(s.key(), false) }
+
+func besideCond(s Scope, ahead bool) Cond {
+	return Cond{scopes: []Scope{s}, test: func(c *Ctx) bool {
+		_, ok := c.prog.besideLevel(c, c.Head(), s, ahead)
+		return ok
+	}}
+}
+
+// Not negates a condition.
+func Not(cond Cond) Cond {
+	return Cond{scopes: cond.scopes, test: func(c *Ctx) bool { return !cond.test(c) }}
 }

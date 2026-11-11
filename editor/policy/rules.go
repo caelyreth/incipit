@@ -95,6 +95,8 @@ type Result struct {
 	GoalX *float64
 	// KeepGoal keeps the remembered horizontal position.
 	KeepGoal bool
+
+	pass bool
 }
 
 // Empty reports whether the result does nothing.
@@ -113,110 +115,88 @@ func Select(s doc.Selection) Result { return Result{Selection: &s} }
 // With returns r with the selection set.
 func (r Result) With(s doc.Selection) Result { r.Selection = &s; return r }
 
-// Swallow is the explicit empty result.
+// Swallow is the explicit empty result: the intent is answered and does
+// nothing.
 var Swallow = Result{}
 
-// Match is what a signature bound: the scope level it matched at and the
-// typed instance there.
-type Match struct {
-	Intent vocab.Intent
-	Level  *Level
-	// Role is the level's implementation of the rule's role, when the rule
-	// is placed In a role.
-	Role any
+// Pass declines the intent: dispatch goes on to the next rule, as if this
+// one had not matched.
+var Pass = Result{pass: true}
+
+// At is what a rule's place bound: the stack level it matched at (for a
+// place beside the caret, the level of what stands there) and the typed
+// value there.
+type At[T any] struct {
+	*Level
+	Data T
 }
 
-// Fact is the matched fact, when the level is a fact span.
-func (m Match) Fact() (Fact, bool) {
-	if m.Level == nil || m.Level.Fact == nil {
-		return Fact{}, false
-	}
-	return *m.Level.Fact, true
-}
-
-// Handler consumes an intent.
-type Handler func(c *Ctx, m Match) Result
-
-// TransformFunc rewrites an intent into another.
-type TransformFunc func(c *Ctx, m Match) vocab.Intent
-
-type ruleType uint8
+// shape is a set of selection shapes a rule answers.
+type shape uint8
 
 const (
-	ruleHandle ruleType = iota + 1
-	ruleTransform
+	shapeCaret shape = 1 << iota
+	shapeRange
+	shapeNode
+	shapeCells
+	shapeAny = shapeCaret | shapeRange | shapeNode | shapeCells
 )
 
-type rule struct {
-	policy   string
-	name     string
-	typ      ruleType
-	on       []Pattern
-	in       Scope
-	when     []Relation
-	unless   []Relation
-	handle   Handler
-	trans    TransformFunc
-	produces []doc.RecordKind
-	emits    []vocab.IntentKind
-	order    int
+func shapeOf(s doc.Selection) shape {
+	switch {
+	case s.Kind == doc.SelectNode:
+		return shapeNode
+	case s.Kind == doc.SelectCells:
+		return shapeCells
+	case s.IsCollapsed():
+		return shapeCaret
+	}
+	return shapeRange
+}
 
-	// lowered by compilation
-	required, forbidden atomSet
+type rule struct {
+	policy string
+	name   string
+	match  matcher
+	alts   []alt
+	shapes shape
+	conds  []Cond
+	run    func(c *Ctx, in vocab.Intent, l *Level) (Result, bool)
+	order  int
 }
 
 func (r *rule) id() string { return r.policy + "." + r.name }
 
-// Rule builds a Handle or Transform rule.
+// Rule refines a declared rule.
 type Rule struct{ r *rule }
 
-// Handle declares a Handle rule.
-func (p *P) Handle(name string) *Rule {
-	r := &rule{policy: p.policy.id, name: name, typ: ruleHandle, in: Slot, order: len(p.rules)}
+// On declares a rule: intents matching pat, at place, run fn. A rule
+// answers a collapsed caret unless refined; at a Selected place, a range
+// or a node selection.
+func On[I vocab.Intent, T any](p *P, name string, pat Pattern[I], place Place[T], fn func(c *Ctx, in I, at At[T]) Result) *Rule {
+	r := &rule{policy: p.policy.id, name: name, match: pat.m, alts: place.alts, shapes: shapeCaret, order: len(p.rules)}
+	if place.alts[0].how == placeSelected {
+		r.shapes = shapeRange | shapeNode
+	}
+	r.run = func(c *Ctx, in vocab.Intent, l *Level) (Result, bool) {
+		v, ok := place.bind(c, l)
+		if !ok {
+			return Result{}, false
+		}
+		return fn(c, in.(I), At[T]{Level: l, Data: v}), true
+	}
 	p.rules = append(p.rules, r)
 	return &Rule{r: r}
 }
 
-// Transform declares a Transform rule.
-func (p *P) Transform(name string) *Rule {
-	r := &rule{policy: p.policy.id, name: name, typ: ruleTransform, in: Slot, order: len(p.rules)}
-	p.rules = append(p.rules, r)
-	return &Rule{r: r}
-}
+// When adds conditions at the caret.
+func (b *Rule) When(conds ...Cond) *Rule { b.r.conds = append(b.r.conds, conds...); return b }
 
-// On sets the intent patterns the rule matches.
-func (b *Rule) On(patterns ...Pattern) *Rule { b.r.on = append(b.r.on, patterns...); return b }
+// Range answers a text range instead of a caret.
+func (b *Rule) Range() *Rule { b.r.shapes = shapeRange; return b }
 
-// In places the rule at a scope kind or role. The default is the caret's
-// slot.
-func (b *Rule) In(s Scope) *Rule { b.r.in = s; return b }
-
-// When requires relations.
-func (b *Rule) When(rels ...Relation) *Rule { b.r.when = append(b.r.when, rels...); return b }
-
-// Unless forbids relations.
-func (b *Rule) Unless(rels ...Relation) *Rule {
-	b.r.unless = append(b.r.unless, rels...)
-	return b
-}
-
-// Do sets a Handle rule's handler.
-func (b *Rule) Do(h Handler) *Rule { b.r.handle = h; return b }
-
-// To sets a Transform rule's function.
-func (b *Rule) To(fn TransformFunc) *Rule { b.r.trans = fn; return b }
-
-// Produces declares the record kinds the rule's edits produce.
-func (b *Rule) Produces(kinds ...doc.RecordKind) *Rule {
-	b.r.produces = append(b.r.produces, kinds...)
-	return b
-}
-
-// Emits declares the intent kinds a Transform can emit.
-func (b *Rule) Emits(kinds ...vocab.IntentKind) *Rule {
-	b.r.emits = append(b.r.emits, kinds...)
-	return b
-}
+// Any answers every selection.
+func (b *Rule) Any() *Rule { b.r.shapes = shapeAny; return b }
 
 // --- rewrites and observers ----------------------------------------------
 

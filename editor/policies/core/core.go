@@ -13,53 +13,48 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
-// Record kinds text and structure edits produce.
-var (
-	textEdits = []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks,
-		doc.RecordTransferred, doc.RecordNodesInserted, doc.RecordNodesRemoved, doc.RecordNodeMoved, doc.RecordNodeChanged}
-	markEdits = []doc.RecordKind{doc.RecordMarks}
-)
-
 // Policy is the core policy.
 var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 	p.Annotation(policy.PendingMarks, nil)
 
-	p.Handle("type").On(policy.On(vocab.IntentType)).Produces(textEdits...).Do(typeText)
-	p.Handle("delete").On(policy.On(vocab.IntentDelete)).Produces(textEdits...).Do(deleteText)
-	p.Handle("break").On(policy.On(vocab.IntentBreak)).Produces(textEdits...).Do(breakBlock)
-	p.Handle("soft-break").On(policy.On(vocab.IntentSoftBreak)).Produces(textEdits...).Do(softBreak)
-	p.Handle("paste").On(policy.On(vocab.IntentPaste)).Produces(textEdits...).Do(paste)
-	p.Handle("cut").On(policy.On(vocab.IntentCut)).Produces(textEdits...).Do(cut)
-	p.Handle("compose").On(policy.On(vocab.IntentCompose)).Produces(textEdits...).Do(compose)
-	p.Handle("cancel-composition").On(policy.On(vocab.IntentCancelComposition)).Do(
-		func(*policy.Ctx, policy.Match) policy.Result { return policy.Result{EndComposition: true} })
+	// Core answers every intent at every selection, inside any slot.
+	in := policy.Slot.Inside()
+	policy.On(p, "type", policy.Intent[vocab.Type](), in, typeText).Any()
+	policy.On(p, "delete", policy.Intent[vocab.Delete](), in, deleteText).Any()
+	policy.On(p, "break", policy.Intent[vocab.Break](), in, breakBlock).Any()
+	policy.On(p, "soft-break", policy.Intent[vocab.SoftBreak](), in, softBreak).Any()
+	policy.On(p, "paste", policy.Intent[vocab.Paste](), in, paste).Any()
+	policy.On(p, "cut", policy.Intent[vocab.Cut](), in, cut).Any()
+	policy.On(p, "compose", policy.Intent[vocab.Compose](), in, compose).Any()
+	policy.On(p, "cancel-composition", policy.Intent[vocab.CancelComposition](), in,
+		func(*policy.Ctx, vocab.CancelComposition, policy.At[doc.SlotRef]) policy.Result {
+			return policy.Result{EndComposition: true}
+		}).Any()
 
-	p.Handle("move").On(policy.On(vocab.IntentMove)).Do(move)
-	p.Handle("visual-move").On(policy.On(vocab.IntentVisualMove)).Do(visualMove)
-	p.Handle("place").On(policy.On(vocab.IntentPlace)).Do(placeCaret)
+	policy.On(p, "move", policy.Intent[vocab.Move](), in, move).Any()
+	policy.On(p, "visual-move", policy.Intent[vocab.VisualMove](), in, visualMove).Any()
+	policy.On(p, "place", policy.Intent[vocab.Place](), in, placeCaret).Any()
 
 	// Leave and Return move between scopes, which the navigation policy
 	// answers; with no scope to leave or go back to they do nothing, so a
 	// key bound to them falls through to its next command.
-	p.Handle("leave").On(policy.On(vocab.IntentLeave)).Do(swallow)
-	p.Handle("return").On(policy.On(vocab.IntentReturn)).Do(swallow)
-	p.Handle("select-scope").On(policy.On(vocab.IntentSelectScope)).Do(selectAll)
-	p.Handle("dismiss").On(policy.On(vocab.IntentDismiss)).Do(dismiss)
+	policy.On(p, "leave", policy.Intent[vocab.Leave](), in, swallow).Any()
+	policy.On(p, "return", policy.Intent[vocab.Return](), in, swallow).Any()
+	policy.On(p, "select-scope", policy.Intent[vocab.SelectScope](), in, selectAll).Any()
+	policy.On(p, "dismiss", policy.Intent[vocab.Dismiss](), in, dismiss).Any()
 
-	p.Handle("format").On(policy.On(vocab.IntentFormat)).Produces(markEdits...).Do(format)
-	p.Handle("nest").On(policy.On(vocab.IntentNest)).Do(swallow)
-	p.Handle("reshape").On(policy.On(vocab.IntentReshape)).Produces(vocab.RoleEdits...).Do(reshape)
-	p.Handle("move-node").On(policy.On(vocab.IntentMoveNode)).Produces(vocab.RoleEdits...).Do(moveNode)
-	p.Handle("toggle-task").On(policy.On(vocab.IntentToggleTask)).Produces(doc.RecordNodeChanged).Do(toggleTask)
-	// TODO(tables), TODO(figures): the tables and figures policies answer
-	// these inside their objects; core has nothing to do elsewhere.
+	policy.On(p, "format", policy.Intent[vocab.Format](), in, format).Any()
+	policy.On(p, "nest", policy.Intent[vocab.Nest](), in, swallow).Any()
+	policy.On(p, "reshape", policy.Intent[vocab.Reshape](), in, reshape).Any()
+	policy.On(p, "move-node", policy.Intent[vocab.MoveNode](), in, moveNode).Any()
+	policy.On(p, "toggle-task", policy.Intent[vocab.ToggleTask](), in, toggleTask).Any()
 	// Timers end annotation lifetimes in the engine; nothing else to do.
-	p.Handle("timer").On(policy.On(vocab.IntentTimer)).Do(swallow)
+	policy.On(p, "timer", policy.Intent[vocab.Timer](), in, swallow).Any()
 	// The history policy answers undo and redo; without it they do nothing.
-	p.Handle("undo").On(policy.On(vocab.IntentUndo)).Do(swallow)
-	p.Handle("redo").On(policy.On(vocab.IntentRedo)).Do(swallow)
+	policy.On(p, "undo", policy.Intent[vocab.Undo](), in, swallow).Any()
+	policy.On(p, "redo", policy.Intent[vocab.Redo](), in, swallow).Any()
 	// Commands resolve to intents in the engine before dispatch.
-	p.Handle("command").On(policy.On(vocab.IntentCommand)).Do(swallow)
+	policy.On(p, "command", policy.Intent[vocab.Command](), in, swallow).Any()
 
 	for _, c := range commands {
 		p.Command(c.id, c.label, c.intent)
@@ -122,7 +117,9 @@ func headingAttrs(level int) doc.Attrs {
 	return doc.MakeAttrs(doc.Field{Num: profile.FieldLevel, Value: doc.Int(int64(level))})
 }
 
-func swallow(*policy.Ctx, policy.Match) policy.Result { return policy.Swallow }
+func swallow[I vocab.Intent](*policy.Ctx, I, policy.At[doc.SlotRef]) policy.Result {
+	return policy.Swallow
+}
 
 // --- text ---------------------------------------------------------------------
 
@@ -189,8 +186,7 @@ func insertAt(r doc.Reader, at doc.Pos) (doc.Pos, vocab.Edit) {
 
 // typeText inserts text at the caret, replacing a selection. Text takes
 // pending marks, or the marks of the text before it.
-func typeText(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Type)
+func typeText(c *policy.Ctx, in vocab.Type, _ policy.At[doc.SlotRef]) policy.Result {
 	res := policy.Result{}
 	if c.Composition() != nil {
 		res.EndComposition = true
@@ -264,8 +260,7 @@ func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool) voca
 // deleteText deletes what the selection covers, or one unit from a
 // collapsed caret. At a slot's edge it steps a block's marker down, joins
 // blocks, or selects an object instead of deleting it in one press.
-func deleteText(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Delete)
+func deleteText(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Result {
 	if in.Dir == 0 {
 		in.Dir = vocab.Backward
 	}
@@ -442,7 +437,7 @@ func inlineParent(r doc.Reader, id doc.ID) (doc.ID, int, bool) {
 // elsewhere. At a block's text start, and before its marker, a block opens
 // before it and the caret stays; a heading split at its end continues as
 // a paragraph.
-func breakBlock(c *policy.Ctx, m policy.Match) policy.Result {
+func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
 	var edits []vocab.Edit
 	clear, pos, ok := clearSelection(c)
@@ -525,7 +520,7 @@ func startOfNext(id doc.ID) func(doc.Reader) doc.Selection {
 
 // softBreak inserts a line break where the slot keeps lines, and is Enter
 // elsewhere.
-func softBreak(c *policy.Ctx, m policy.Match) policy.Result {
+func softBreak(c *policy.Ctx, _ vocab.SoftBreak, at policy.At[doc.SlotRef]) policy.Result {
 	clear, pos, cleared := clearSelection(c)
 	if spec, ok := vocab.SlotSpec(c.Doc(), pos.Ref()); ok && spec.Lines && !spec.Blocks {
 		var edits []vocab.Edit
@@ -534,13 +529,12 @@ func softBreak(c *policy.Ctx, m policy.Match) policy.Result {
 		}
 		return policy.Do(append(edits, insertText(pos, "\n", nil, true))...)
 	}
-	return breakBlock(c, m)
+	return breakBlock(c, vocab.Break{}, at)
 }
 
 // paste inserts the clipboard's slice, or its text as paragraphs, fitted
 // to the slot.
-func paste(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Paste)
+func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Result {
 	slice := in.Slice
 	if slice.Empty() {
 		slice = TextSlice(in.Text)
@@ -591,7 +585,7 @@ func TextSlice(text string) vocab.Slice {
 }
 
 // cut deletes the selection; the host copied it before sending Cut.
-func cut(c *policy.Ctx, m policy.Match) policy.Result {
+func cut(c *policy.Ctx, _ vocab.Cut, _ policy.At[doc.SlotRef]) policy.Result {
 	if clear, _, ok := clearSelection(c); ok {
 		return policy.Do(clear)
 	}
@@ -599,8 +593,7 @@ func cut(c *policy.Ctx, m policy.Match) policy.Result {
 }
 
 // compose sets the preedit at the caret, replacing a selection first.
-func compose(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Compose)
+func compose(c *policy.Ctx, in vocab.Compose, _ policy.At[doc.SlotRef]) policy.Result {
 	if in.Preedit == "" {
 		return policy.Result{EndComposition: true}
 	}
@@ -622,7 +615,7 @@ func compose(c *policy.Ctx, m policy.Match) policy.Result {
 // --- scope and structure --------------------------------------------------------------
 
 // selectAll selects the page's text, from its first stop to its last.
-func selectAll(c *policy.Ctx, m policy.Match) policy.Result {
+func selectAll(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) policy.Result {
 	// The scopes policy grows the selection from the innermost scope
 	// outward; core's fallback is the page when that policy is not enabled.
 	stops := c.Stops()
@@ -639,7 +632,7 @@ func selectAll(c *policy.Ctx, m policy.Match) policy.Result {
 
 // dismiss collapses the selection to its head and ends a composition.
 // Escape outside every scope dismisses; Leave answers scopes separately.
-func dismiss(c *policy.Ctx, m policy.Match) policy.Result {
+func dismiss(c *policy.Ctx, _ vocab.Dismiss, _ policy.At[doc.SlotRef]) policy.Result {
 	res := policy.Result{}
 	if c.Composition() != nil {
 		res.EndComposition = true
@@ -654,8 +647,7 @@ func dismiss(c *policy.Ctx, m policy.Match) policy.Result {
 
 // format toggles a mark over the selection, or the pending marks at a
 // collapsed caret.
-func format(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Format)
+func format(c *policy.Ctx, in vocab.Format, _ policy.At[doc.SlotRef]) policy.Result {
 	sel := c.Selection()
 	if sel.Kind != doc.SelectText {
 		return policy.Swallow
@@ -712,8 +704,7 @@ func selectedBlocks(c *policy.Ctx) []*doc.Node {
 
 // reshape changes the selected text blocks' kind; Quote wraps them, and
 // List shapes each into an item and joins lists of the same style.
-func reshape(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.Reshape)
+func reshape(c *policy.Ctx, in vocab.Reshape, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
 	blocks := selectedBlocks(c)
 	if len(blocks) == 0 {
@@ -760,13 +751,11 @@ func reshapeList(blocks []*doc.Node, attrs doc.Attrs) policy.Result {
 	return policy.Do(edits...)
 }
 
-func moveNode(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.MoveNode)
+func moveNode(c *policy.Ctx, in vocab.MoveNode, _ policy.At[doc.SlotRef]) policy.Result {
 	return policy.Do(vocab.MoveTo(in.ID, in.Target))
 }
 
-func toggleTask(c *policy.Ctx, m policy.Match) policy.Result {
-	in := m.Intent.(vocab.ToggleTask)
+func toggleTask(c *policy.Ctx, in vocab.ToggleTask, _ policy.At[doc.SlotRef]) policy.Result {
 	id := in.ID
 	if id == 0 {
 		id = itemAt(c.Doc(), c.Head().Pos)

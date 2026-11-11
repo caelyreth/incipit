@@ -12,77 +12,198 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
-// Fact is a recognised span or point in one inline slot. Offsets are
-// slot-relative bytes. A span has an outer extent and an inner one (a pair
-// without its delimiters); a point has From == To.
-//
-// Each edge is a place: an offset and a stop there (§13.5), so a fact
-// whose delimiters are projected, spanning stops but no bytes, has edges
-// like any other. An edge at content holds every stop at its offset
-// (doc.StopFirst or doc.StopLast); a point's outer edges are the stops
-// just before and after its projection, and its inner extent the stops
-// between.
-type Fact struct {
-	Kind                       FactID
-	From, To                   int
-	InnerFrom, InnerTo         int
-	StopFrom, StopTo           int
-	InnerStopFrom, InnerStopTo int
-	Point                      bool
-	Data                       any
+// Edge is a place a fact's extent starts or ends at: a slot offset and a
+// stop there (§13.5). An edge at content holds every stop at its offset
+// (doc.StopFirst or doc.StopLast); a glyph's edges stand at the stops just
+// before and after it.
+type Edge struct{ At, Stop int }
+
+// Caret is the edge as a caret in a slot.
+func (e Edge) Caret(slot doc.SlotRef) doc.Caret {
+	return doc.Caret{Pos: doc.At(slot, e.At), Stop: e.Stop}
 }
 
-// StopRange is where a projected delimiter stands among the stops at its
-// offset: from the stop just before it to the stop just after it.
-type StopRange struct{ From, To int }
-
-// place orders a caret against an edge at offset at and stop stop.
-func place(c doc.Caret, at, stop int) int {
-	if c.Pos.Offset != at {
-		return cmp.Compare(c.Pos.Offset, at)
+// order orders a caret against the edge.
+func (e Edge) order(c doc.Caret) int {
+	if c.Pos.Offset != e.At {
+		return cmp.Compare(c.Pos.Offset, e.At)
 	}
-	return cmp.Compare(c.Stop, stop)
+	return cmp.Compare(c.Stop, e.Stop)
+}
+
+// Range is the stretch between two edges.
+type Range struct{ From, To Edge }
+
+// Holds reports whether a caret is in the range, its edges included.
+func (r Range) Holds(c doc.Caret) bool { return r.From.order(c) >= 0 && r.To.order(c) <= 0 }
+
+// Fact is a recognised extent in one inline slot, at slot offsets. Outer
+// is all of it, Inner what it holds: a pair without its delimiters. A
+// keyed kind's facts carry their key, so a rule can stand in the facts of
+// one key. A glyph fact is projected notation: Glyph is drawn at its
+// offset, holding the stops between its edges.
+type Fact struct {
+	Kind         FactID
+	Key          any
+	Outer, Inner Range
+	Data         any
+	Glyph        *Glyph
 }
 
 // Holds reports whether a caret is inside the fact's inner extent.
-func (f Fact) Holds(c doc.Caret) bool {
-	return place(c, f.InnerFrom, f.InnerStopFrom) >= 0 && place(c, f.InnerTo, f.InnerStopTo) <= 0
-}
+func (f Fact) Holds(c doc.Caret) bool { return f.Inner.Holds(c) }
 
 // Starts reports whether the fact starts right after the caret, nothing
 // between them; Ends whether it ends right before it.
 func (f Fact) Starts(c doc.Caret) bool {
-	return c.Pos.Offset == f.From && c.Stop <= f.StopFrom
+	return c.Pos.Offset == f.Outer.From.At && c.Stop <= f.Outer.From.Stop
 }
-
 func (f Fact) Ends(c doc.Caret) bool {
-	return c.Pos.Offset == f.To && c.Stop >= f.StopTo
+	return c.Pos.Offset == f.Outer.To.At && c.Stop >= f.Outer.To.Stop
 }
 
-// FactKind is a typed fact kind a policy declared.
+// Attach is the side of stop 0, a position's own stop, a glyph stands on.
+// Content edited on either side carries its glyphs, and the carets among
+// them, along.
+type Attach uint8
+
+const (
+	// AttachBefore glyphs belong to the content before them, as notation
+	// closing it or a block's marker at its start: they stand below stop
+	// 0, the last ending there.
+	AttachBefore Attach = iota + 1
+	// AttachAfter glyphs belong to the content after them, as notation
+	// opening it: they stand above stop 0, the first starting there.
+	AttachAfter
+)
+
+// Glyph is notation a fact projects at a point: a spelling that spans no
+// document bytes but holds a stop between each two of its glyphs and one
+// after the last. The framework numbers the stops: at one offset glyphs
+// stand in emission order on their side of stop 0.
+type Glyph struct {
+	Spelling vocab.Spelling
+	// Groups style the glyph, outermost first.
+	Groups []vocab.Group
+	Attach Attach
+	// Hidden draws nothing where the spelling would be; its stops stand.
+	Hidden bool
+	// Block marks a block's marker: the stop before it stands before the
+	// block's structure, so a range starting there covers the block whole.
+	Block bool
+}
+
+// Stops is how many stops the glyph holds.
+func (g Glyph) Stops() int { return vocab.GraphemeCount(string(g.Spelling)) }
+
+// GlyphRef names a glyph emitted in the unit being analyzed, for a span
+// between two glyphs.
+type GlyphRef struct{ i int }
+
+// Emit collects what a per-unit analyzer recognises: facts, and glyphs
+// whose stops the framework numbers once the unit is read.
+type Emit struct {
+	facts  []Fact
+	glyphs []Fact
+	spans  []pendingSpan
+}
+
+type pendingSpan struct {
+	f           Fact
+	open, close int
+}
+
+// Fact emits a fact edged by content.
+func (e *Emit) Fact(f Fact) { e.facts = append(e.facts, f) }
+
+// done numbers the glyphs' stops and returns every fact.
+func (e *Emit) done() []Fact {
+	below := map[int]int{}
+	for _, g := range e.glyphs {
+		if g.Glyph.Attach == AttachBefore {
+			below[g.Outer.From.At] -= g.Glyph.Stops()
+		}
+	}
+	above := map[int]int{}
+	for i := range e.glyphs {
+		g := &e.glyphs[i]
+		at, n := g.Outer.From.At, g.Glyph.Stops()
+		from := &above
+		if g.Glyph.Attach == AttachBefore {
+			from = &below
+		}
+		s := (*from)[at]
+		(*from)[at] = s + n
+		g.Outer = Range{Edge{at, s}, Edge{at, s + n}}
+		g.Inner = Range{Edge{at, s + 1}, Edge{at, s + n - 1}}
+	}
+	out := append(e.facts, e.glyphs...)
+	for _, sp := range e.spans {
+		o, c := e.glyphs[sp.open].Outer, e.glyphs[sp.close].Outer
+		sp.f.Outer = Range{o.From, c.To}
+		sp.f.Inner = Range{o.To, c.From}
+		out = append(out, sp.f)
+	}
+	return out
+}
+
+// FactKind is a typed fact kind a policy declared. It is a subject rules
+// stand in: every fact of the kind, or with Key those of one key.
 type FactKind[T any] struct {
-	kind   FactID
-	name   string
-	policy string
-	roles  []vocab.Role
+	Subject[T]
+	decl *factDecl
 }
 
 // FactOption refines a fact kind's declaration.
 type FactOption func(*factDecl)
 
 type factDecl struct {
-	kind   FactID
-	name   string
-	policy string
-	roles  []vocab.Role
-	data   reflect.Type
+	kind     FactID
+	name     string
+	policy   string
+	data     reflect.Type
+	roles    []vocab.Role
+	binders  map[vocab.Role]func(*Level) any
+	key      func(any) any
+	keyType  reflect.Type
+	projects bool
+	errs     []string
 }
 
-// Provides declares the roles the fact kind's data provides. The data type
-// must implement each role's interface.
-func Provides(roles ...vocab.Role) FactOption {
-	return func(d *factDecl) { d.roles = append(d.roles, roles...) }
+// Provides declares roles the kind's facts provide, as bind makes them
+// from a fact where it stands. R must implement each role.
+func Provides[T, R any](bind func(At[T]) R, roles ...vocab.Role) FactOption {
+	return func(d *factDecl) {
+		if d.data != reflect.TypeFor[T]() {
+			d.errs = append(d.errs, fmt.Sprintf("provides binds %s, not the kind's data", reflect.TypeFor[T]()))
+			return
+		}
+		for _, r := range roles {
+			if iface := roleInterface(r); iface != nil && !reflect.TypeFor[R]().Implements(iface) {
+				d.errs = append(d.errs, fmt.Sprintf("provides %s, but %s does not implement it", r, reflect.TypeFor[R]()))
+				continue
+			}
+			d.roles = append(d.roles, r)
+			d.binders[r] = func(l *Level) any { return bind(At[T]{Level: l, Data: l.Fact.Data.(T)}) }
+		}
+	}
 }
+
+// Keyed keys the kind's facts by their data, so a rule can stand in the
+// facts of one key.
+func Keyed[T any, K comparable](key func(T) K) FactOption {
+	return func(d *factDecl) {
+		if d.data != reflect.TypeFor[T]() {
+			d.errs = append(d.errs, fmt.Sprintf("keyed by %s, not the kind's data", reflect.TypeFor[T]()))
+			return
+		}
+		d.key = func(v any) any { return key(v.(T)) }
+		d.keyType = reflect.TypeFor[K]()
+	}
+}
+
+// Projects lets the kind's facts be glyphs.
+func Projects() FactOption { return func(d *factDecl) { d.projects = true } }
 
 var factKinds = struct {
 	sync.Mutex
@@ -105,24 +226,51 @@ func stableFactKind(policy, name string) FactID {
 
 // Facts declares a fact kind whose data is T.
 func Facts[T any](p *P, name string, opts ...FactOption) *FactKind[T] {
-	d := &factDecl{kind: stableFactKind(p.policy.id, name), name: name, policy: p.policy.id, data: reflect.TypeFor[T]()}
+	d := &factDecl{kind: stableFactKind(p.policy.id, name), name: name, policy: p.policy.id, data: reflect.TypeFor[T](),
+		binders: map[vocab.Role]func(*Level) any{}}
 	for _, o := range opts {
 		o(d)
 	}
-	for _, r := range d.roles {
-		if iface := roleInterface(r); iface != nil && !d.data.Implements(iface) {
-			p.fail("fact %s provides %s, but %s does not implement it", name, r, d.data)
-		}
+	for _, e := range d.errs {
+		p.fail("fact %s: %s", name, e)
 	}
 	p.facts = append(p.facts, d)
-	return &FactKind[T]{kind: d.kind, name: name, policy: p.policy.id, roles: d.roles}
+	k := &FactKind[T]{decl: d}
+	k.Subject = factSubject[T](factScope(d.kind))
+	return k
+}
+
+func factSubject[T any](s Scope) Subject[T] {
+	return Subject[T]{scope: s, bind: func(_ *Ctx, l *Level) (T, bool) {
+		if l.Fact == nil {
+			var zero T
+			return zero, false
+		}
+		v, ok := l.Fact.Data.(T)
+		return v, ok
+	}}
 }
 
 // Kind is the untyped handle.
-func (k *FactKind[T]) Kind() FactID { return k.kind }
+func (k *FactKind[T]) Kind() FactID { return k.decl.kind }
 
-// Scope is the fact kind as a scope key.
-func (k *FactKind[T]) Scope() Scope { return FactScope(k.kind) }
+// Key is the subject of the kind's facts of one key.
+func (k *FactKind[T]) Key(key any) Subject[T] {
+	if k.decl.key == nil || reflect.TypeOf(key) != k.decl.keyType {
+		panic(fmt.Sprintf("policy: fact %s is not keyed by %T", k.decl.name, key))
+	}
+	s := factScope(k.decl.kind)
+	s.Key = key
+	return factSubject[T](s)
+}
+
+func (k *FactKind[T]) fact(data T) Fact {
+	f := Fact{Kind: k.decl.kind, Data: data}
+	if k.decl.key != nil {
+		f.Key = k.decl.key(data)
+	}
+	return f
+}
 
 // Span is a fact whose inner extent is its outer one, edged by content.
 func (k *FactKind[T]) Span(from, to int, data T) Fact {
@@ -131,50 +279,39 @@ func (k *FactKind[T]) Span(from, to int, data T) Fact {
 
 // Delimited is a fact with delimiters: [from, innerFrom) and [innerTo, to).
 func (k *FactKind[T]) Delimited(from, innerFrom, innerTo, to int, data T) Fact {
-	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: innerFrom, InnerTo: innerTo,
-		StopFrom: doc.StopLast, StopTo: doc.StopFirst, InnerStopFrom: doc.StopFirst, InnerStopTo: doc.StopLast, Data: data}
+	f := k.fact(data)
+	f.Outer = Range{Edge{from, doc.StopLast}, Edge{to, doc.StopFirst}}
+	f.Inner = Range{Edge{innerFrom, doc.StopFirst}, Edge{innerTo, doc.StopLast}}
+	return f
 }
 
-// Projected is a span whose delimiters are projected, standing at its
-// offsets by stop: open at from, close at to.
-func (k *FactKind[T]) Projected(from, to int, open, close StopRange, data T) Fact {
-	return Fact{Kind: k.kind, From: from, To: to, InnerFrom: from, InnerTo: to,
-		StopFrom: open.From, StopTo: close.To, InnerStopFrom: open.To, InnerStopTo: close.From, Data: data}
+// Glyph emits a glyph fact at an offset; the caret is inside it between
+// its glyphs.
+func (k *FactKind[T]) Glyph(e *Emit, at int, g Glyph, data T) GlyphRef {
+	if !k.decl.projects {
+		panic(fmt.Sprintf("policy: fact %s does not project", k.decl.name))
+	}
+	f := k.fact(data)
+	f.Outer.From.At = at
+	f.Glyph = &g
+	e.glyphs = append(e.glyphs, f)
+	return GlyphRef{i: len(e.glyphs) - 1}
 }
 
-// Point is a fact at an offset whose projection stands between stop
-// stopFrom, just before it, and stop stopTo, just after it; the stops
-// between are inside it.
-func (k *FactKind[T]) Point(at, stopFrom, stopTo int, data T) Fact {
-	return Fact{Kind: k.kind, From: at, To: at, InnerFrom: at, InnerTo: at,
-		StopFrom: stopFrom, StopTo: stopTo, InnerStopFrom: stopFrom + 1, InnerStopTo: stopTo - 1, Point: true, Data: data}
+// Between emits a fact spanning from one glyph to another: its inner
+// extent is between them.
+func (k *FactKind[T]) Between(e *Emit, open, close GlyphRef, data T) {
+	e.spans = append(e.spans, pendingSpan{f: k.fact(data), open: open.i, close: close.i})
 }
 
 // Data returns a fact's typed data.
 func (k *FactKind[T]) Data(f Fact) (T, bool) {
-	if f.Kind != k.kind {
+	if f.Kind != k.decl.kind {
 		var zero T
 		return zero, false
 	}
 	v, ok := f.Data.(T)
 	return v, ok
-}
-
-// Placer is fact data whose role implementations depend on where the fact
-// stands. Facts are cached by content, at unit-relative offsets and with
-// no slot, so the scope stack and handlers place the data before using
-// it: Placed returns the data bound to the fact's slot and offsets.
-type Placer interface {
-	Placed(slot doc.SlotRef, f Fact) any
-}
-
-// Placed returns f's data bound to its slot, for data that implements
-// Placer, or the data as it is.
-func Placed(slot doc.SlotRef, f Fact) any {
-	if p, ok := f.Data.(Placer); ok {
-		return p.Placed(slot, f)
-	}
-	return f.Data
 }
 
 func roleInterface(r vocab.Role) reflect.Type {
@@ -223,22 +360,11 @@ type Unit struct {
 	// Context is what the slot's place in the structure adds to its
 	// content, as the profile reports it (vocab.Profile.Context).
 	Context any
-
-	facts func(FactID) []Fact
 }
 
 // Text is the unit's text aligned with slot offsets: an inline node is
 // doc.NodeByte, one byte as it is one position.
 func (u *Unit) Text() string { return u.Content.FlatRange(u.From, u.To) }
-
-// Facts returns facts of another kind in the unit's slot, for
-// presentation contributions that read facts.
-func (u *Unit) Facts(k FactID) []Fact {
-	if u.facts == nil {
-		return nil
-	}
-	return u.facts(k)
-}
 
 // TokenKind is the kind of a unit token.
 type TokenKind uint8
@@ -357,7 +483,7 @@ type analyzer struct {
 	where  func(*Unit) bool
 
 	granularity Granularity
-	unit        func(u *Unit, emit func(Fact))
+	unit        func(u *Unit, e *Emit)
 
 	start func(u *Unit) any
 	step  func(s any, t Token, emit func(Fact)) any
@@ -394,7 +520,7 @@ func (p *P) addAnalyzer(a *analyzer, kinds []FactID, opts []AnalyzerOption) {
 
 // Analyze declares a per-unit analyzer, memoised per unit and
 // configuration. It emits facts of kinds, at slot offsets.
-func (p *P) Analyze(g Granularity, fn func(u *Unit, emit func(Fact)), kinds []FactID, opts ...AnalyzerOption) {
+func (p *P) Analyze(g Granularity, fn func(u *Unit, e *Emit), kinds []FactID, opts ...AnalyzerOption) {
 	a := &analyzer{form: formUnit, granularity: g, unit: fn}
 	a.config = fmt.Sprintf("unit:%s:%v", p.policy.id, kinds)
 	p.addAnalyzer(a, kinds, opts)

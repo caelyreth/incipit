@@ -27,9 +27,6 @@ var (
 	Tables = policy.Bool("tables", true, policy.Label("settings.markdown.tables"), policy.Description("settings.markdown.tables.description"))
 )
 
-var edits = []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted, doc.RecordMarks, doc.RecordTransferred,
-	doc.RecordNodesInserted, doc.RecordNodesRemoved, doc.RecordNodeChanged, doc.RecordNodeMoved}
-
 // Policy is the markdown policy.
 var Policy = policy.Define("markdown", func(p *policy.P) {
 	inline := inlineConfig{Asterisks: policy.Get(p, Asterisks), Underscores: policy.Get(p, Underscores),
@@ -38,15 +35,14 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 		Code: policy.Get(p, Code), Math: policy.Get(p, Math), Rules: policy.Get(p, Rules)}
 	_ = policy.Get(p, Tables)
 
-	k := &runKinds{em: map[byte]*policy.FactKind[run]{}, strong: map[byte]*policy.FactKind[run]{},
-		halfKinds: map[byte]*policy.FactKind[half]{}}
-	for _, c := range []byte{'*', '_'} {
-		k.em[c] = policy.Facts[run](p, "em"+string(c))
-		k.strong[c] = policy.Facts[run](p, "strong"+string(c))
-		k.halfKinds[c] = policy.Facts[half](p, "half"+string(c))
+	char := func(r run) byte { return r.Char }
+	k := &runKinds{
+		em:     policy.Facts[run](p, "em", policy.Keyed(char)),
+		strong: policy.Facts[run](p, "strong", policy.Keyed(char)),
+		half:   policy.Facts[half](p, "half", policy.Keyed(func(h half) byte { return h.Char })),
+		code:   policy.Facts[run](p, "code"),
+		strike: policy.Facts[run](p, "strike"),
 	}
-	k.code = policy.Facts[run](p, "code")
-	k.strike = policy.Facts[run](p, "strike")
 	p.Analyze(policy.Lines, analyzeRuns(inline, k), k.all(), policy.Config(inline))
 
 	mk := policy.Facts[marker](p, "marker")
@@ -56,80 +52,67 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 			return u.Owner.Kind() == profile.Paragraph || u.Owner.Kind() == profile.Item
 		}))
 
-	// Closing delimiters.
+	// Closing delimiters, typed past a run's opener.
+	past := func(s policy.Subject[run]) policy.Place[run] { return policy.Or(s.Within(), s.AtEnd()) }
+	noSpace := policy.Not(policy.PrevChar(vocab.ClassSpace))
 	for _, c := range []byte{'*', '_'} {
 		if c == '*' && !inline.Asterisks || c == '_' && !inline.Underscores {
 			continue
 		}
 		s := string(c)
-		p.Handle("close-emphasis-"+s).On(policy.Typed(s)).In(k.em[c].Scope()).
-			Unless(policy.AtInnerStart, policy.PrevChar(vocab.ClassSpace)).Produces(edits...).
-			Do(closeRun(profile.Emphasis, false))
-		p.Handle("close-strong-" + s).On(policy.Typed(s)).In(k.strong[c].Scope()).
-			When(policy.After(k.halfKinds[c].Scope())).Produces(edits...).
-			Do(closeRun(profile.Strong, true))
+		policy.On(p, "close-emphasis-"+s, policy.Typed(s), past(k.em.Key(c)), closeRun(profile.Emphasis, false)).When(noSpace)
+		policy.On(p, "close-strong-"+s, policy.Typed(s), k.strong.Key(c).Inside(), closeRun(profile.Strong, true)).
+			When(policy.Behind(k.half.Key(c)))
 	}
 	if inline.Code {
-		p.Handle("close-code").On(policy.Typed("`")).In(k.code.Scope()).Unless(policy.AtInnerStart).
-			Produces(edits...).Do(closeRun(profile.CodeMark, false))
+		policy.On(p, "close-code", policy.Typed("`"), past(k.code.Subject), closeRun(profile.CodeMark, false))
 	}
 	if inline.Strike {
-		p.Handle("close-strike").On(policy.Typed("~")).In(k.strike.Scope()).
-			Unless(policy.AtInnerStart, policy.PrevChar(vocab.ClassSpace)).Produces(edits...).
-			Do(closeRun(profile.Strike, false))
+		policy.On(p, "close-strike", policy.Typed("~"), past(k.strike.Subject), closeRun(profile.Strike, false)).When(noSpace)
 	}
 
 	// Opening delimiters: content typed right after an opener at a line's
 	// end opens its mark at once, the closing sign shown ahead, as a
 	// bracket closes as it opens. Notation edits the signs from there.
 	content := policy.TypedClass(vocab.ClassWord | vocab.ClassDigit | vocab.ClassCJK)
-	open := func(name string, scope policy.Scope, mark doc.MarkKind) {
-		p.Handle("open-"+name).On(content).In(scope).When(policy.Collapsed, policy.AtInnerStart, policy.AtInnerEnd).
-			Produces(edits...).Do(openMark(mark))
+	open := func(name string, s policy.Subject[run], mark doc.MarkKind) {
+		policy.On(p, "open-"+name, content, s.Empty(), openMark(mark))
 	}
 	for _, c := range []byte{'*', '_'} {
 		if c == '*' && inline.Asterisks || c == '_' && inline.Underscores {
-			open("emphasis-"+string(c), k.em[c].Scope(), profile.Emphasis)
-			open("strong-"+string(c), k.strong[c].Scope(), profile.Strong)
+			open("emphasis-"+string(c), k.em.Key(c), profile.Emphasis)
+			open("strong-"+string(c), k.strong.Key(c), profile.Strong)
 		}
 	}
 	if inline.Code {
-		open("code", k.code.Scope(), profile.CodeMark)
+		open("code", k.code.Subject, profile.CodeMark)
 	}
 	if inline.Strike {
-		open("strike", k.strike.Scope(), profile.Strike)
+		open("strike", k.strike.Subject, profile.Strike)
 	}
 
-	// Block prefixes and fences.
-	para := policy.NodeScope(profile.Paragraph)
-	p.Handle("block-marker").On(policy.Typed(" ")).In(para).When(policy.After(mk.Scope()), policy.Collapsed).
-		Produces(edits...).Do(blockMarker(mk))
-	item := policy.NodeScope(profile.Item)
-	p.Handle("task-marker").On(policy.Typed(" ")).In(item).When(policy.After(mk.Scope()), policy.Collapsed).
-		Produces(edits...).Do(blockMarker(mk))
-	p.Handle("fence").On(policy.On(vocab.IntentBreak)).In(para).When(policy.After(fk.Scope()), policy.SlotEnd, policy.Collapsed).
-		Produces(edits...).Do(fenceBlock(fk))
+	// Block prefixes and fences, right behind the caret.
+	policy.On(p, "block-marker", policy.Typed(" "), mk.Behind(), blockMarker)
+	policy.On(p, "fence", policy.Intent[vocab.Break](), fk.Behind(), fenceBlock)
 
 	// Formulas.
 	if blocks.Math {
 		for _, kind := range []doc.Kind{profile.Paragraph, profile.Heading, profile.Item} {
-			p.Handle("formula-" + profile.Schema().KindName(kind)).On(policy.Typed(string(profile.FormulaSpelling))).
-				In(policy.NodeScope(kind)).When(policy.Collapsed).Produces(edits...).Do(openFormula)
+			policy.On(p, "formula-"+profile.Schema().KindName(kind), policy.Typed(string(profile.FormulaSpelling)),
+				policy.Node(kind).Inside(), openFormula)
 		}
-		formula := policy.NodeScope(profile.Formula)
-		p.Handle("formula-close").On(policy.Typed("$")).In(formula).When(policy.AtInnerEnd).Unless(policy.SlotEmpty).
-			Do(closeFormula)
-		p.Handle("formula-math").On(policy.Typed("$")).In(formula).When(policy.SlotEmpty).
-			Produces(edits...).Do(mathFromFormula)
+		formula := policy.Node(profile.Formula)
+		policy.On(p, "formula-close", policy.Typed("$"), formula.AtEnd(), closeFormula)
+		policy.On(p, "formula-math", policy.Typed("$"), formula.Empty(), mathFromFormula)
 	}
 })
 
 // closeRun applies a mark over the run's content up to the caret and
 // removes its delimiters; the typed closer is not inserted. Text typed
 // next does not continue the mark.
-func closeRun(mark doc.MarkKind, withHalf bool) policy.Handler {
-	return func(c *policy.Ctx, m policy.Match) policy.Result {
-		f, _ := m.Fact()
+func closeRun(mark doc.MarkKind, withHalf bool) func(*policy.Ctx, vocab.Type, policy.At[run]) policy.Result {
+	return func(c *policy.Ctx, _ vocab.Type, at policy.At[run]) policy.Result {
+		f := *at.Fact
 		head := c.Head().Pos
 		ref := head.Ref()
 		end := head.Offset
@@ -139,14 +122,14 @@ func closeRun(mark doc.MarkKind, withHalf bool) policy.Handler {
 			ops = append(ops, vocab.Ops(doc.EditText{At: ref, From: end, To: end + 1}))
 		}
 		in, _ := c.Inline(ref)
-		outside := in.MarksAt(f.From)
-		span := []vocab.Span{{Slot: ref, From: f.InnerFrom, To: end}}
+		outside := in.MarksAt(f.Outer.From.At)
+		span := []vocab.Span{{Slot: ref, From: f.Inner.From.At, To: end}}
 		ops = append([]vocab.Edit{vocab.ApplyMark(span, doc.Mark{Kind: mark})}, ops...)
-		ops = append(ops, vocab.Ops(doc.EditText{At: ref, From: f.From, To: f.InnerFrom}))
+		ops = append(ops, vocab.Ops(doc.EditText{At: ref, From: f.Outer.From.At, To: f.Inner.From.At}))
 		if outside == nil {
 			outside = c.Doc().Marks().Empty()
 		}
-		after := end - (f.InnerFrom - f.From)
+		after := end - (f.Inner.From.At - f.Outer.From.At)
 		return policy.Result{Edits: ops, Annotate: []policy.Annotate{{
 			Kind: policy.PendingMarks, Anchor: policy.PointAnchor(doc.At(ref, after)),
 			Data: outside, Lifetime: policy.UntilCaretLeaves(nil),
@@ -156,13 +139,12 @@ func closeRun(mark doc.MarkKind, withHalf bool) policy.Handler {
 
 // openMark replaces an empty run's opener with the typed text under the
 // run's mark, the caret after it inside the mark.
-func openMark(mark doc.MarkKind) policy.Handler {
-	return func(c *policy.Ctx, m policy.Match) policy.Result {
-		f, _ := m.Fact()
-		in := m.Intent.(vocab.Type)
+func openMark(mark doc.MarkKind) func(*policy.Ctx, vocab.Type, policy.At[run]) policy.Result {
+	return func(c *policy.Ctx, in vocab.Type, at policy.At[run]) policy.Result {
+		f := *at.Fact
 		ref := c.Head().Pos.Ref()
 		line, _ := c.Inline(ref)
-		marks := line.MarksAt(f.From)
+		marks := line.MarksAt(f.Outer.From.At)
 		if marks == nil {
 			marks = c.Doc().Marks().Empty()
 		}
@@ -172,11 +154,11 @@ func openMark(mark doc.MarkKind) policy.Handler {
 			}
 		}
 		marks = marks.With(doc.Mark{Kind: mark})
-		end := doc.At(ref, f.From+len(in.Text))
+		end := doc.At(ref, f.Outer.From.At+len(in.Text))
 		// The caret stands against the text it typed, inside the mark.
 		after := doc.Collapsed(doc.Caret{Pos: end, Stop: doc.StopFirst})
 		return policy.Result{Selection: &after,
-			Edits: []vocab.Edit{vocab.Ops(doc.EditText{At: ref, From: f.From, To: f.InnerFrom,
+			Edits: []vocab.Edit{vocab.Ops(doc.EditText{At: ref, From: f.Outer.From.At, To: f.Inner.From.At,
 				Items: []doc.Item{doc.TextItem(in.Text, marks)}})},
 			Annotate: []policy.Annotate{{Kind: policy.PendingMarks, Anchor: policy.PointAnchor(end),
 				Data: marks, Lifetime: policy.UntilCaretLeaves(nil)}}}
@@ -184,40 +166,30 @@ func openMark(mark doc.MarkKind) policy.Handler {
 }
 
 // blockMarker turns a typed space after a block prefix into structure.
-func blockMarker(mk *policy.FactKind[marker]) policy.Handler {
-	return func(c *policy.Ctx, m policy.Match) policy.Result {
-		head := c.Head().Pos
-		var mark marker
-		var f policy.Fact
-		for _, x := range c.Facts(head.Ref(), mk.Kind()) {
-			if x.To == head.Offset {
-				f, mark = x, x.Data.(marker)
-			}
+func blockMarker(_ *policy.Ctx, _ vocab.Type, at policy.At[marker]) policy.Result {
+	mark, block := at.Data, at.Node
+	strip := vocab.Ops(doc.EditText{At: at.Slot, From: at.Fact.Outer.From.At, To: at.Fact.Outer.To.At})
+	switch mark.Kind {
+	case markHeading:
+		attrs := doc.MakeAttrs(doc.Field{Num: profile.FieldLevel, Value: doc.Int(int64(mark.Level))})
+		return policy.Do(strip, vocab.Retype(block.ID(), profile.Heading, attrs))
+	case markQuote:
+		return policy.Do(strip, vocab.Wrap([]doc.ID{block.ID()}, profile.Quote, doc.Attrs{}))
+	case markBullet, markOrdered:
+		var attrs doc.Attrs
+		if mark.Kind == markOrdered {
+			attrs = doc.MakeAttrs(doc.Field{Num: profile.FieldListStyle, Value: doc.Int(int64(profile.Ordered))},
+				doc.Field{Num: profile.FieldListStart, Value: doc.Int(int64(mark.Level))})
 		}
-		block := m.Level.Node
-		strip := vocab.Ops(doc.EditText{At: head.Ref(), From: f.From, To: f.To})
-		switch mark.Kind {
-		case markHeading:
-			attrs := doc.MakeAttrs(doc.Field{Num: profile.FieldLevel, Value: doc.Int(int64(mark.Level))})
-			return policy.Do(strip, vocab.Retype(block.ID(), profile.Heading, attrs))
-		case markQuote:
-			return policy.Do(strip, vocab.Wrap([]doc.ID{block.ID()}, profile.Quote, doc.Attrs{}))
-		case markBullet, markOrdered:
-			var attrs doc.Attrs
-			if mark.Kind == markOrdered {
-				attrs = doc.MakeAttrs(doc.Field{Num: profile.FieldListStyle, Value: doc.Int(int64(profile.Ordered))},
-					doc.Field{Num: profile.FieldListStart, Value: doc.Int(int64(mark.Level))})
-			}
-			return policy.Do(strip, profile.IntoList(block.ID(), attrs))
-		case markTaskOpen, markTaskDone:
-			if block.Kind() != profile.Item {
-				return policy.Swallow
-			}
-			attrs := block.Attrs().With(profile.FieldTask, doc.Int(int64(mark.Task)))
-			return policy.Do(strip, vocab.SetAttrs(block.ID(), attrs))
+		return policy.Do(strip, profile.IntoList(block.ID(), attrs))
+	case markTaskOpen, markTaskDone:
+		if block.Kind() != profile.Item {
+			return policy.Swallow
 		}
-		return policy.Swallow
+		attrs := block.Attrs().With(profile.FieldTask, doc.Int(int64(mark.Task)))
+		return policy.Do(strip, vocab.SetAttrs(block.ID(), attrs))
 	}
+	return policy.Swallow
 }
 
 // replace puts fresh nodes where id was.
@@ -246,45 +218,38 @@ func firstText(r doc.Reader, parent doc.ID, slot, index int) (doc.Selection, boo
 
 // fenceBlock turns a fence paragraph into a code block, math block or a
 // divider followed by a paragraph.
-func fenceBlock(fk *policy.FactKind[fence]) policy.Handler {
-	return func(c *policy.Ctx, m policy.Match) policy.Result {
-		head := c.Head().Pos
-		var fe fence
-		for _, x := range c.Facts(head.Ref(), fk.Kind()) {
-			fe = x.Data.(fence)
+func fenceBlock(c *policy.Ctx, _ vocab.Break, at policy.At[fence]) policy.Result {
+	fe, block := at.Data, at.Node
+	parent, slot, index, _ := vocab.Index(c.Doc(), block.ID())
+	var nodes []*doc.Node
+	caretAt := index
+	switch fe.Kind {
+	case fenceCode:
+		var attrs doc.Attrs
+		if fe.Info != "" {
+			attrs = doc.MakeAttrs(doc.Field{Num: profile.FieldInfo, Value: doc.Text(fe.Info)})
 		}
-		block := m.Level.Node
-		parent, slot, index, _ := vocab.Index(c.Doc(), block.ID())
-		var nodes []*doc.Node
-		caretAt := index
-		switch fe.Kind {
-		case fenceCode:
-			var attrs doc.Attrs
-			if fe.Info != "" {
-				attrs = doc.MakeAttrs(doc.Field{Num: profile.FieldInfo, Value: doc.Text(fe.Info)})
-			}
-			nodes = []*doc.Node{doc.NewNode(profile.Code, attrs, doc.InlineSlot())}
-		case fenceMath:
-			nodes = []*doc.Node{doc.NewNode(profile.Math, doc.Attrs{}, doc.InlineSlot())}
-		case fenceDivider:
-			nodes = []*doc.Node{doc.NewNode(profile.Divider, doc.Attrs{}), profile.NewParagraph()}
-			caretAt = index + 1
-		default:
-			return policy.Swallow
-		}
-		res := policy.Do(func(tx *doc.Tx) error { return replace(tx, block.ID(), nodes...) })
-		res.Then = func(r doc.Reader) doc.Selection {
-			if s, ok := firstText(r, parent, slot, caretAt); ok {
-				return s
-			}
-			return doc.Collapsed(doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: caretAt}))
-		}
-		return res
+		nodes = []*doc.Node{doc.NewNode(profile.Code, attrs, doc.InlineSlot())}
+	case fenceMath:
+		nodes = []*doc.Node{doc.NewNode(profile.Math, doc.Attrs{}, doc.InlineSlot())}
+	case fenceDivider:
+		nodes = []*doc.Node{doc.NewNode(profile.Divider, doc.Attrs{}), profile.NewParagraph()}
+		caretAt = index + 1
+	default:
+		return policy.Swallow
 	}
+	res := policy.Do(func(tx *doc.Tx) error { return replace(tx, block.ID(), nodes...) })
+	res.Then = func(r doc.Reader) doc.Selection {
+		if s, ok := firstText(r, parent, slot, caretAt); ok {
+			return s
+		}
+		return doc.Collapsed(doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: caretAt}))
+	}
+	return res
 }
 
 // openFormula inserts an empty formula and puts the caret in its source.
-func openFormula(c *policy.Ctx, m policy.Match) policy.Result {
+func openFormula(c *policy.Ctx, _ vocab.Type, _ policy.At[*doc.Node]) policy.Result {
 	head := c.Head().Pos
 	if spec, ok := vocab.SlotSpec(c.Doc(), head.Ref()); !ok || spec.Literal || spec.Blocks {
 		// The caret is not in rich text: a gap or a literal slot.
@@ -305,22 +270,22 @@ func openFormula(c *policy.Ctx, m policy.Match) policy.Result {
 
 // closeFormula leaves the formula: a typed "$" at its source's end steps
 // past it.
-func closeFormula(c *policy.Ctx, m policy.Match) policy.Result {
+func closeFormula(c *policy.Ctx, _ vocab.Type, at policy.At[*doc.Node]) policy.Result {
 	r := c.Doc()
-	parent, slot, ok := r.Parent(m.Level.Node.ID())
+	parent, slot, ok := r.Parent(at.Data.ID())
 	if !ok {
 		return policy.Swallow
 	}
 	pn, _ := r.Node(parent)
-	off, _ := pn.Slot(slot).Content().NodeOffset(m.Level.Node.ID())
+	off, _ := pn.Slot(slot).Content().NodeOffset(at.Data.ID())
 	return policy.Select(doc.Collapsed(doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: off + 1})))
 }
 
 // mathFromFormula: "$" in an empty formula alone in its paragraph opens a
 // math block; elsewhere the "$" is source text.
-func mathFromFormula(c *policy.Ctx, m policy.Match) policy.Result {
+func mathFromFormula(c *policy.Ctx, _ vocab.Type, at policy.At[*doc.Node]) policy.Result {
 	r := c.Doc()
-	id := m.Level.Node.ID()
+	id := at.Data.ID()
 	parent, slot, ok := r.Parent(id)
 	pn, _ := r.Node(parent)
 	if !ok || pn.Kind() != profile.Paragraph || pn.Slot(slot).Len() != 1 {

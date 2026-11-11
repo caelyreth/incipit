@@ -11,10 +11,12 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
+func swallowAll[I vocab.Intent, T any](*Ctx, I, At[T]) Result { return Swallow }
+
 // testCore answers every intent at the slot with a swallow, naming itself.
 var testCore = Define(CoreID, func(p *P) {
 	for _, k := range vocab.IntentKinds() {
-		p.Handle("fallback-" + k.String()).On(On(k)).Do(func(c *Ctx, m Match) Result { return Swallow })
+		On(p, "fallback-"+k.String(), Kind(k), Slot.Inside(), swallowAll).Any()
 	}
 })
 
@@ -62,20 +64,16 @@ func (s parenScanner) Step(st string, t Token, emit func(Fact)) string {
 	return st
 }
 
-var leaveKind = On(vocab.IntentLeave)
-
 var testPairs = Define("pairs", func(p *P) {
-	kind := Facts[paren](p, "paren", Provides(vocab.RolePair, vocab.RoleLeavable))
+	kind := Facts[paren](p, "paren", Provides(func(at At[paren]) paren { return at.Data }, vocab.RolePair, vocab.RoleLeavable))
 	Scan[string](p, parenScanner{kind: kind}, []FactID{kind.Kind()})
-	p.Handle("leave").On(leaveKind).In(RoleScope(vocab.RoleLeavable)).Do(func(c *Ctx, m Match) Result {
-		l := m.Role.(vocab.Leavable)
-		return Select(doc.Collapsed(l.Exit()))
+	On(p, "leave", Intent[vocab.Leave](), Role[vocab.Leavable](vocab.RoleLeavable).Inside(), func(_ *Ctx, _ vocab.Leave, at At[vocab.Leavable]) Result {
+		return Select(doc.Collapsed(at.Data.Exit()))
 	})
-	p.Handle("overtype").On(Typed(")")).In(kind.Scope()).When(AtInnerEnd).Do(func(c *Ctx, m Match) Result {
-		f, _ := m.Fact()
-		return Select(doc.Collapsed(doc.CaretAt(doc.At(m.Level.Slot, f.To))))
+	On(p, "overtype", Typed(")"), Or(kind.AtEnd(), kind.Empty()), func(_ *Ctx, _ vocab.Type, at At[paren]) Result {
+		return Select(doc.Collapsed(doc.CaretAt(doc.At(at.Slot, at.Fact.Outer.To.At))))
 	})
-	p.Transform("soft").On(On(vocab.IntentSoftBreak)).In(kind.Scope()).Emits(vocab.IntentBreak).To(func(*Ctx, Match) vocab.Intent { return vocab.Break{} })
+	On(p, "soft", Intent[vocab.SoftBreak](), kind.Inside(), func(*Ctx, vocab.SoftBreak, At[paren]) Result { return Pass })
 })
 
 func testPage(t *testing.T, text string) (*doc.Snapshot, doc.SlotRef) {
@@ -135,10 +133,11 @@ func TestDispatchInnermostOutward(t *testing.T) {
 	if out := run(t, prog, store, snap, doc.At(ref, 4), vocab.Type{Text: ")"}); out.Policy != CoreID {
 		t.Fatalf("got %s", out.Rule)
 	}
-	// A transform continues at the same scope, then bubbles to core.
+	// A rule that passes leaves the intent to the next one: here the same
+	// rule in the outer pair, then core.
 	out = run(t, prog, store, snap, doc.At(ref, 5), vocab.SoftBreak{})
-	if len(out.Trace.Chain) != 1 || out.Rule != "core.fallback-Break" {
-		t.Fatalf("got %s %v", out.Rule, out.Trace.Chain)
+	if len(out.Trace.Passed) != 2 || out.Rule != "core.fallback-SoftBreak" {
+		t.Fatalf("got %s %v", out.Rule, out.Trace.Passed)
 	}
 }
 
@@ -149,14 +148,12 @@ func TestCompileChecks(t *testing.T) {
 	if !errors.As(err, &ce) || !strings.Contains(ce.Error(), "no fallback") {
 		t.Fatalf("missing fallbacks not reported: %v", err)
 	}
-	a := Define("a", func(p *P) { p.Handle("x").On(Typed("*")).Do(func(*Ctx, Match) Result { return Swallow }) })
-	b := Define("b", func(p *P) {
-		p.Handle("y").On(On(vocab.IntentType)).Do(func(*Ctx, Match) Result { return Swallow })
-	})
+	a := Define("a", func(p *P) { On(p, "x", Typed("*"), Slot.Inside(), swallowAll) })
+	b := Define("b", func(p *P) { On(p, "y", Intent[vocab.Type](), Slot.Inside(), swallowAll) })
 	if _, err := Compile(Manifest{Enabled: []*Policy{testCore, a, b}}, nil); err == nil || !strings.Contains(err.Error(), "must order") {
 		t.Fatalf("unordered overlap not reported: %v", err)
 	}
-	prog, err := Compile(Manifest{Enabled: []*Policy{testCore, a, b}, Resolve: []Order{Over(a, b, Typed("*"))}}, nil)
+	prog, err := Compile(Manifest{Enabled: []*Policy{testCore, a, b}, Resolve: []Order{Over(a, b, vocab.IntentType)}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +237,7 @@ func TestScannerResumesAndReuses(t *testing.T) {
 	}
 	inc := prog.facts(store, next, view, ref, kind)
 	fresh := prog.facts(NewStore(), next, view, ref, kind)
-	if !slices.EqualFunc(inc, fresh, func(a, b Fact) bool { return a.From == b.From && a.To == b.To && a.InnerFrom == b.InnerFrom }) {
+	if !slices.EqualFunc(inc, fresh, func(a, b Fact) bool { return a.Outer == b.Outer && a.Inner == b.Inner }) {
 		t.Fatalf("incremental %d facts, fresh %d", len(inc), len(fresh))
 	}
 	if len(fresh) != len(before)+1 {

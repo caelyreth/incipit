@@ -40,11 +40,8 @@ type Level struct {
 	prog *Program
 }
 
-// Keys are the scope keys the level answers to: its kind and its roles.
-func (l *Level) Keys() []Scope { return l.keys }
-
 // Provides reports whether the level provides a role.
-func (l *Level) Provides(r vocab.Role) bool { return slices.Contains(l.keys, RoleScope(r)) }
+func (l *Level) Provides(r vocab.Role) bool { return slices.Contains(l.keys, roleScope(r)) }
 
 // Role returns the level's implementation of a role.
 func (l *Level) Role(r doc.Reader, role vocab.Role) (any, bool) {
@@ -52,10 +49,15 @@ func (l *Level) Role(r doc.Reader, role vocab.Role) (any, bool) {
 	case LevelNode:
 		return l.prog.nodeRole(r, l.Node, role)
 	case LevelFact:
-		if !l.Provides(role) {
+		d, ok := l.prog.factDecls[l.Fact.Kind]
+		if !ok {
 			return nil, false
 		}
-		return Placed(l.Slot, *l.Fact), l.Fact.Data != nil
+		bind, ok := d.binders[role]
+		if !ok {
+			return nil, false
+		}
+		return bind(l), true
 	}
 	return nil, false
 }
@@ -67,7 +69,7 @@ func (l *Level) String() string {
 	case LevelSlot:
 		return fmt.Sprintf("slot:%s", l.Slot)
 	case LevelFact:
-		return fmt.Sprintf("fact:%s[%d,%d]", l.Fact.Kind, l.Fact.From, l.Fact.To)
+		return fmt.Sprintf("fact:%s[%d,%d]", l.Fact.Kind, l.Fact.Outer.From.At, l.Fact.Outer.To.At)
 	case LevelAnnotation:
 		return "annotation:" + l.Annotation.Kind.String()
 	}
@@ -85,16 +87,6 @@ type Stack struct {
 // Innermost is the innermost level.
 func (s *Stack) Innermost() *Level { return s.Levels[len(s.Levels)-1] }
 
-// Find returns the innermost level answering to a scope key.
-func (s *Stack) Find(key Scope) (*Level, int, bool) {
-	for i := len(s.Levels) - 1; i >= 0; i-- {
-		if slices.Contains(s.Levels[i].keys, key) {
-			return s.Levels[i], i, true
-		}
-	}
-	return nil, -1, false
-}
-
 func (s *Stack) String() string {
 	parts := make([]string, len(s.Levels))
 	for i, l := range s.Levels {
@@ -110,7 +102,7 @@ type stackKey struct {
 	gap     int
 	ann     AnnotationID
 	nann    int
-	// stop places the caret among ghost points, which are levels while
+	// stop places the caret among glyphs, which are levels while
 	// the caret is inside them.
 	stop int
 }
@@ -155,9 +147,6 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 	for i, id := range ids {
 		n, _ := r.Node(id)
 		l := &Level{Class: LevelNode, Node: n, keys: p.nodeKeys(n.Kind()), prog: p}
-		if i == 0 {
-			l.keys = append(l.keys, Root)
-		}
 		if i+1 < len(ids) {
 			_, slot, _ := r.Parent(ids[i+1])
 			l.Slot = doc.SlotRef{Node: id, Slot: slot}
@@ -168,7 +157,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 		l.Start, l.End = doc.Caret{Pos: start, Stop: doc.StopFirst}, doc.Caret{Pos: end, Stop: doc.StopLast}
 		s.Levels = append(s.Levels, l)
 	}
-	slotLevel := &Level{Class: LevelSlot, Node: owner, Slot: ref, keys: []Scope{Slot}}
+	slotLevel := &Level{Class: LevelSlot, Node: owner, Slot: ref, keys: []Scope{slotScope}, prog: p}
 	slotLevel.Start = doc.Caret{Pos: doc.At(ref, 0), Stop: doc.StopFirst}
 	slotLevel.End = doc.Caret{Pos: doc.At(ref, 0), Stop: doc.StopLast}
 	if ref.Slot < owner.NumSlots() {
@@ -180,12 +169,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 		if !f.Holds(caret) {
 			continue
 		}
-		s.Levels = append(s.Levels, &Level{
-			Class: LevelFact, Node: owner, Slot: ref, Fact: &f,
-			Start: doc.Caret{Pos: doc.At(ref, f.InnerFrom), Stop: f.InnerStopFrom},
-			End:   doc.Caret{Pos: doc.At(ref, f.InnerTo), Stop: f.InnerStopTo},
-			keys:  p.factKeys(f.Kind),
-		})
+		s.Levels = append(s.Levels, p.factLevel(owner, ref, f))
 	}
 	if view != nil {
 		for _, a := range view.Annotations.All() {
@@ -195,7 +179,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 			s.Levels = append(s.Levels, &Level{
 				Class: LevelAnnotation, Node: owner, Slot: ref, Annotation: &a,
 				Start: a.Anchor.From, End: a.Anchor.To,
-				keys: []Scope{AnnotationScope(a.Kind)},
+				keys: []Scope{annotationScope(a.Kind)}, prog: p,
 			})
 		}
 	}
@@ -209,25 +193,41 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 }
 
 func (p *Program) nodeKeys(k doc.Kind) []Scope {
-	keys := []Scope{NodeScope(k)}
+	keys := []Scope{nodeScope(k)}
 	for _, r := range p.nodeRoles(k) {
-		keys = append(keys, RoleScope(r))
+		keys = append(keys, roleScope(r))
 	}
 	return keys
 }
 
-func (p *Program) factKeys(k FactID) []Scope {
-	keys := []Scope{FactScope(k)}
-	if d, ok := p.factDecls[k]; ok {
+// factKeys are what a fact answers to: its kind, its kind and key, and
+// the roles its kind provides.
+func (p *Program) factKeys(f Fact) []Scope {
+	keys := []Scope{factScope(f.Kind)}
+	if f.Key != nil {
+		keys = append(keys, Scope{Class: ScopeFact, ID: uint32(f.Kind), Key: f.Key})
+	}
+	if d, ok := p.factDecls[f.Kind]; ok {
 		for _, r := range d.roles {
-			keys = append(keys, RoleScope(r))
+			keys = append(keys, roleScope(r))
 		}
 	}
 	return keys
 }
 
-// nodeEdges are a node's inner edges: the start of its first text slot and
-// the end of its last, or its first and last gaps.
+// factLevel is a fact's level in a slot of owner.
+func (p *Program) factLevel(owner *doc.Node, ref doc.SlotRef, f Fact) *Level {
+	return &Level{Class: LevelFact, Node: owner, Slot: ref, Fact: &f,
+		Start: f.Inner.From.Caret(ref), End: f.Inner.To.Caret(ref), keys: p.factKeys(f), prog: p}
+}
+
+// nodeLevel is a node's level, edged by its text.
+func (p *Program) nodeLevel(n *doc.Node) *Level {
+	start, end := nodeEdges(n)
+	return &Level{Class: LevelNode, Node: n, Slot: start.Ref(), keys: p.nodeKeys(n.Kind()), prog: p,
+		Start: doc.Caret{Pos: start, Stop: doc.StopFirst}, End: doc.Caret{Pos: end, Stop: doc.StopLast}}
+}
+
 // atEdge reports whether a caret stands at an edge: at its stop, or at
 // any stop of its offset for a content edge, which holds them all.
 func atEdge(c, edge doc.Caret) bool {
@@ -237,6 +237,8 @@ func atEdge(c, edge doc.Caret) bool {
 	return edge.Stop == doc.StopFirst || edge.Stop == doc.StopLast || c.Stop == edge.Stop
 }
 
+// nodeEdges are a node's inner edges: the start of its first text slot and
+// the end of its last, or its first and last gaps.
 func nodeEdges(n *doc.Node) (doc.Pos, doc.Pos) {
 	start := doc.Pos{Node: n.ID()}
 	end := start
@@ -266,7 +268,7 @@ func findNode(n *doc.Node, id doc.ID) *doc.Node {
 }
 
 // scopeFacts are the facts of every kind that can form a scope or that a
-// rule's atoms read, in the caret's slot.
+// rule's place or conditions read, in the caret's slot.
 func (p *Program) scopeFacts(store *Store, r doc.Reader, view *View, ref doc.SlotRef) []Fact {
 	var all []Fact
 	for _, k := range p.scopeKinds {
@@ -282,7 +284,7 @@ func (p *Program) facts(store *Store, r doc.Reader, view *View, ref doc.SlotRef,
 	if !ok {
 		return nil
 	}
-	u, ok := buildUnit(p, store, r, view, ref, a.policy)
+	u, ok := buildUnit(p, r, view, ref, a.policy)
 	if !ok {
 		return nil
 	}
@@ -299,116 +301,86 @@ func (p *Program) facts(store *Store, r doc.Reader, view *View, ref doc.SlotRef,
 	return out
 }
 
-// --- atoms -----------------------------------------------------------------
+// --- places -----------------------------------------------------------------
 
-type atomSet [4]uint64
-
-const maxAtoms = 256
-
-func (s *atomSet) set(i int)     { s[i/64] |= 1 << (i % 64) }
-func (s atomSet) has(i int) bool { return s[i/64]&(1<<(i%64)) != 0 }
-func (s atomSet) and(o atomSet) atomSet {
-	return atomSet{s[0] & o[0], s[1] & o[1], s[2] & o[2], s[3] & o[3]}
-}
-func (s atomSet) empty() bool { return s == atomSet{} }
-func (s atomSet) subset(o atomSet) bool {
-	return s.and(o) == s
-}
-func (s atomSet) each(fn func(int)) {
-	for i := 0; i < maxAtoms; i++ {
-		if s.has(i) {
-			fn(i)
+// placed finds where a rule's place stands at level li: the level itself,
+// or for a place beside the caret the level of what stands there.
+func (p *Program) placed(c *Ctx, stack *Stack, li int, r *rule) (*Level, bool) {
+	l := stack.Levels[li]
+	caret := stack.Caret
+	for _, a := range r.alts {
+		if !slices.Contains(l.keys, a.index()) {
+			continue
+		}
+		switch a.how {
+		case placeAhead, placeBehind:
+			if l.Class != LevelSlot {
+				continue
+			}
+			if found, ok := p.besideLevel(c, caret, a.scope, a.how == placeAhead); ok {
+				return found, true
+			}
+		case placeSelected:
+			sel := c.view.Selection
+			switch sel.Kind {
+			case doc.SelectNode:
+				if l.Class == LevelNode && l.Node.ID() == sel.Node {
+					return l, true
+				}
+			case doc.SelectText:
+				from, to := sel.Ordered(c.r)
+				if atEdge(from, l.Start) && atEdge(to, l.End) {
+					return l, true
+				}
+			}
+		case placeIn:
+			start, end := l.Start, l.End
+			if a.own {
+				own, ok := ownSlot(c.r, l, caret.Pos)
+				if !ok {
+					continue
+				}
+				start, end = slotEdges(c.r, own)
+			}
+			s, e := atEdge(caret, start), atEdge(caret, end)
+			z := zoneWithin
+			switch {
+			case s && e:
+				z = zoneEmpty
+			case s:
+				z = zoneStart
+			case e:
+				z = zoneEnd
+			}
+			if a.zones&z != 0 {
+				return l, true
+			}
 		}
 	}
+	return nil, false
 }
 
-type atomKey struct {
-	level int
-	atom  int
-}
-
-// evaluator evaluates atoms at stack levels, memoised per level.
-type evaluator struct {
-	p     *Program
-	c     *Ctx
-	stack *Stack
-	memo  map[atomKey]bool
-}
-
-func (e *evaluator) holds(level, atom int) bool {
-	k := atomKey{level, atom}
-	if v, ok := e.memo[k]; ok {
-		return v
+// ownSlot is the level's own text slot, when the caret is in it: a node's
+// own inline slot, or the slot of a slot level when it is inline.
+func ownSlot(r doc.Reader, l *Level, pos doc.Pos) (doc.SlotRef, bool) {
+	switch l.Class {
+	case LevelNode:
+		if l.Node == nil || pos.Node != l.Node.ID() {
+			return doc.SlotRef{}, false
+		}
+	case LevelSlot:
+	default:
+		return pos.Ref(), true
 	}
-	v := e.eval(level, e.p.atoms[atom])
-	e.memo[k] = v
-	return v
+	return pos.Ref(), isInlineSlot(r, pos.Ref())
 }
 
-func (e *evaluator) matches(level int, r *rule) bool {
-	ok := true
-	r.required.each(func(i int) {
-		if ok && !e.holds(level, i) {
-			ok = false
-		}
-	})
-	r.forbidden.each(func(i int) {
-		if ok && e.holds(level, i) {
-			ok = false
-		}
-	})
-	return ok
-}
-
-func (e *evaluator) eval(level int, rel Relation) bool {
-	l := e.stack.Levels[level]
-	c := e.c
-	caret := e.stack.Caret
-	pos := caret.Pos
-	sel := c.view.Selection
-	switch rel.Kind {
-	case RelAtInnerStart:
-		return atEdge(caret, l.Start)
-	case RelAtInnerEnd:
-		return atEdge(caret, l.End)
-	case RelCollapsed:
-		return sel.IsCollapsed()
-	case RelTextRange:
-		return sel.Kind == doc.SelectText && !sel.IsCollapsed()
-	case RelNodeSelected:
-		if sel.Kind != doc.SelectNode {
-			return false
-		}
-		n, ok := c.r.Node(sel.Node)
-		return ok && (rel.Node == 0 || n.Kind() == rel.Node)
-	case RelHas:
-		return len(c.view.Annotations.At(rel.Annotation, caret)) > 0
-	case RelPrevChar, RelNextChar:
-		return e.charClass(pos, rel.Kind == RelPrevChar)&rel.Class != 0
-	case RelSlotStart, RelSlotEnd, RelSlotEmpty:
-		return e.slotAtom(l, pos, rel.Kind)
-	case RelOwnText:
-		return pos.Ref() == l.Slot && l.Node != nil && l.Node.ID() == l.Slot.Node && isInlineSlot(c.r, l.Slot)
-	case RelBefore, RelAfter:
-		return e.adjacent(caret, rel.Target, rel.Kind == RelBefore)
-	case RelEquals:
-		from, to := sel.Ordered(c.r)
-		if sel.Kind == doc.SelectNode {
-			return l.Class == LevelNode && l.Node.ID() == sel.Node
-		}
-		return atEdge(from, l.Start) && atEdge(to, l.End)
+func slotEdges(r doc.Reader, ref doc.SlotRef) (doc.Caret, doc.Caret) {
+	end := 0
+	if n, ok := r.Node(ref.Node); ok && ref.Slot < n.NumSlots() {
+		end = n.Slot(ref.Slot).Len()
 	}
-	return false
-}
-
-// charClass classifies the grapheme before or after pos.
-func (e *evaluator) charClass(pos doc.Pos, before bool) vocab.CharClass {
-	in, ok := e.c.Inline(pos.Ref())
-	if !ok {
-		return 0
-	}
-	class, _ := vocab.GraphemeClassAt(in.Flat(), pos.Offset, before)
-	return class
+	return doc.Caret{Pos: doc.At(ref, 0), Stop: doc.StopFirst}, doc.Caret{Pos: doc.At(ref, end), Stop: doc.StopLast}
 }
 
 func isInlineSlot(r doc.Reader, ref doc.SlotRef) bool {
@@ -416,129 +388,14 @@ func isInlineSlot(r doc.Reader, ref doc.SlotRef) bool {
 	return ok && ref.Slot < n.NumSlots() && n.Slot(ref.Slot).IsInline()
 }
 
-// slotAtom evaluates SlotStart, SlotEnd and SlotEmpty for a level's slot.
-func (e *evaluator) slotAtom(l *Level, pos doc.Pos, kind RelationKind) bool {
-	r := e.c.r
-	n, ok := r.Node(l.Slot.Node)
-	if !ok || l.Slot.Slot >= n.NumSlots() {
-		return false
-	}
-	slot := n.Slot(l.Slot.Slot)
-	if kind == RelSlotEmpty {
-		return slotEmpty(r.Schema(), slot)
-	}
-	if slot.IsInline() {
-		if pos.Ref() != l.Slot {
-			return false
-		}
-		if kind == RelSlotStart {
-			return pos.Offset == 0
-		}
-		return pos.Offset == slot.Len()
-	}
-	if pos.Ref() == l.Slot {
-		if kind == RelSlotStart {
-			return pos.Offset == 0
-		}
-		return pos.Offset == slot.Len()
-	}
-	if slot.Len() == 0 {
-		return false
-	}
-	edge := slot.Child(0)
-	if kind == RelSlotEnd {
-		edge = slot.Child(slot.Len() - 1)
-	}
-	start, end := nodeEdges(edge)
-	if kind == RelSlotStart {
-		return pos == start
-	}
-	return pos == end
-}
-
-// slotEmpty: an inline slot with no content, or a block slot with no
-// children or only one empty text block.
-func slotEmpty(schema *doc.Schema, s doc.Slot) bool {
-	if s.IsInline() {
-		return s.Len() == 0
-	}
-	if s.Len() == 0 {
-		return true
-	}
-	if s.Len() > 1 {
-		return false
-	}
-	child := s.Child(0)
-	if !schema.IsTextBlock(child.Kind()) {
-		return false
-	}
-	for _, cs := range child.Slots() {
-		if cs.Len() > 0 {
-			return false
-		}
-	}
-	return true
-}
-
-// adjacent evaluates Before(target) (something of target right after the
-// caret) and After(target) (right before it).
-func (e *evaluator) adjacent(caret doc.Caret, target Scope, before bool) bool {
-	r := e.c.r
-	pos := caret.Pos
-	owner, ok := r.Node(pos.Node)
-	if !ok || pos.Slot >= owner.NumSlots() {
-		return false
-	}
-	slot := owner.Slot(pos.Slot)
-	if !slot.IsInline() {
-		i := pos.Offset
-		if !before {
-			i--
-		}
-		return i >= 0 && i < slot.Len() && e.nodeIs(slot.Child(i), target)
-	}
-	if _, _, ok := e.p.beside(e.c.store, r, e.c.view, caret, target, before); ok {
-		return true
-	}
-	// Neighbouring blocks, at the edges of a text block's slot.
-	if target.Class == ScopeNode || target.Class == ScopeRole {
-		block, ok := vocab.Block(r, pos)
-		if !ok || block.ID() != owner.ID() {
-			return false
-		}
-		parent, ps, index, ok := vocab.Index(r, block.ID())
-		if !ok {
-			return false
-		}
-		pn, _ := r.Node(parent)
-		siblings := pn.Slot(ps)
-		if before && pos.Offset == slot.Content().Len() && pos.Slot == owner.NumSlots()-1 && index+1 < siblings.Len() {
-			return e.nodeIs(siblings.Child(index+1), target)
-		}
-		if !before && pos.Offset == 0 && pos.Slot == 0 && index > 0 {
-			return e.nodeIs(siblings.Child(index-1), target)
-		}
-	}
-	return false
-}
-
-func (e *evaluator) nodeIs(n *doc.Node, target Scope) bool {
-	return slices.Contains(e.p.nodeKeys(n.Kind()), target)
-}
-
 // --- dispatch ----------------------------------------------------------------
 
 // Outcome is what dispatch decided for an intent.
 type Outcome struct {
-	// Intent is the intent the handler consumed, after transforms.
-	Intent vocab.Intent
 	Rule   string
 	Policy string
-	Match  Match
 	Result Result
-	// Produces are the record kinds the rule declared.
-	Produces []doc.RecordKind
-	Trace    *Trace
+	Trace  *Trace
 }
 
 // Available reports whether the intent would do anything.
@@ -548,7 +405,7 @@ func (o Outcome) Available() bool { return !o.Result.Empty() }
 type Trace struct {
 	Intent    string
 	Stack     string
-	Chain     []string
+	Passed    []string
 	Rule      string
 	Swallowed bool
 	Rewrites  []RewriteTrace
@@ -567,8 +424,8 @@ type RewriteTrace struct {
 func (t *Trace) String() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s at %s", t.Intent, t.Stack)
-	for _, c := range t.Chain {
-		fmt.Fprintf(&b, "\n  transform %s", c)
+	for _, p := range t.Passed {
+		fmt.Fprintf(&b, "\n  passed by %s", p)
 	}
 	fmt.Fprintf(&b, "\n  handled by %s", t.Rule)
 	if t.Swallowed {
@@ -590,69 +447,47 @@ func (t *Trace) String() string {
 // rules it out, so it signals a broken program.
 var ErrUnhandled = errors.New("policy: no rule handled the intent")
 
-// ErrTransformLoop means a transform chain did not end.
-var ErrTransformLoop = errors.New("policy: transform chain too long")
-
-const maxChain = 16
-
 // Dispatch finds the rule answering the context's intent and runs it. It
 // walks the scope stack from the innermost scope outward; at each scope
-// the first matching candidate wins: a Handle runs and dispatch ends, a
-// Transform replaces the intent and dispatch continues at the same scope.
-// Core's rules come after every scope found nothing, innermost first.
+// the first candidate whose intent, selection shape, place and conditions
+// match runs, unless it passes. Core's rules come after every scope found
+// nothing, innermost first.
 func (p *Program) Dispatch(c *Ctx) (Outcome, error) {
 	stack := c.Stack()
-	ev := &evaluator{p: p, c: c, stack: stack, memo: map[atomKey]bool{}}
 	intent := c.input.Intent
+	sel := shapeOf(c.view.Selection)
 	trace := &Trace{Stack: stack.String(), Intent: fmt.Sprintf("%T%+v", intent, intent)}
 	for _, core := range []bool{false, true} {
 		for li := len(stack.Levels) - 1; li >= 0; li-- {
-			level := stack.Levels[li]
-		again:
-			for _, r := range p.candidates(level, intent.Kind(), core) {
-				if !r.matchesIntent(intent) || !ev.matches(li, r) {
+		rules:
+			for _, r := range p.candidates(stack.Levels[li], intent.Kind(), core) {
+				if r.shapes&sel == 0 || !r.match.match(intent) {
 					continue
 				}
-				m := Match{Intent: intent, Level: level}
-				if r.in.Class == ScopeRole {
-					m.Role, _ = level.Role(c.r, vocab.Role(r.in.ID))
+				at, ok := p.placed(c, stack, li, r)
+				if !ok {
+					continue
 				}
-				if r.typ == ruleTransform {
-					next := r.trans(c, m)
-					trace.Chain = append(trace.Chain, fmt.Sprintf("%s: %T%+v", r.id(), next, next))
-					if len(trace.Chain) > maxChain {
-						return Outcome{Trace: trace}, ErrTransformLoop
+				for _, cond := range r.conds {
+					if !cond.test(c) {
+						continue rules
 					}
-					if !slices.Contains(r.emits, next.Kind()) {
-						trace.Notes = append(trace.Notes, fmt.Sprintf("%s emitted an undeclared %s", r.id(), next.Kind()))
-						if p.strict {
-							return Outcome{Trace: trace}, fmt.Errorf("policy: %s emitted undeclared %s", r.id(), next.Kind())
-						}
-					}
-					intent = next
-					nc := *c
-					nc.input = vocab.Input{Intent: next, At: c.input.At, Class: c.input.Class}
-					c = &nc
-					ev.c = c
-					goto again
 				}
-				res := r.handle(c, m)
+				res, ok := r.run(c, intent, at)
+				if !ok {
+					continue
+				}
+				if res.pass {
+					trace.Passed = append(trace.Passed, r.id())
+					continue
+				}
 				trace.Rule = r.id()
 				trace.Swallowed = res.Empty()
-				return Outcome{Intent: intent, Rule: r.id(), Policy: r.policy, Match: m, Result: res, Produces: r.produces, Trace: trace}, nil
+				return Outcome{Rule: r.id(), Policy: r.policy, Result: res, Trace: trace}, nil
 			}
 		}
 	}
 	return Outcome{Trace: trace}, ErrUnhandled
-}
-
-func (r *rule) matchesIntent(in vocab.Intent) bool {
-	for _, pat := range r.on {
-		if pat.Match(in) {
-			return true
-		}
-	}
-	return false
 }
 
 type candidateKey struct {
@@ -666,7 +501,7 @@ type candidateKey struct {
 func (p *Program) candidates(l *Level, k vocab.IntentKind, core bool) []*rule {
 	var kb strings.Builder
 	for _, s := range l.keys {
-		fmt.Fprintf(&kb, "%d.%d;", s.Class, s.ID)
+		fmt.Fprintf(&kb, "%d.%d.%v;", s.Class, s.ID, s.Key)
 	}
 	key := candidateKey{keys: kb.String(), intent: k, core: core}
 	p.candMu.Lock()
@@ -693,8 +528,8 @@ func (p *Program) candidates(l *Level, k vocab.IntentKind, core bool) []*rule {
 // beside is what of target stands right after the caret (ahead) or right
 // before it, outside it, nothing between them: an inline node next to it,
 // or else a fact edged there, of several the one whose edge is nearest.
-// Before and After match it, and handlers ask for it, so both find the
-// same thing.
+// Places and conditions beside the caret read it, so both find the same
+// thing.
 func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret, target Scope, ahead bool) (*doc.Node, *Fact, bool) {
 	pos := caret.Pos
 	owner, ok := r.Node(pos.Node)
@@ -716,15 +551,28 @@ func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret
 	}
 	var found *Fact
 	for _, f := range p.scopeFacts(store, r, view, pos.Ref()) {
-		if !slices.Contains(p.factKeys(f.Kind), target) {
+		if !slices.Contains(p.factKeys(f), target) {
 			continue
 		}
 		switch {
-		case ahead && f.Starts(caret) && (found == nil || f.StopFrom <= found.StopFrom):
+		case ahead && f.Starts(caret) && (found == nil || f.Outer.From.Stop <= found.Outer.From.Stop):
 			found = &f
-		case !ahead && f.Ends(caret) && (found == nil || f.StopTo >= found.StopTo):
+		case !ahead && f.Ends(caret) && (found == nil || f.Outer.To.Stop >= found.Outer.To.Stop):
 			found = &f
 		}
 	}
 	return nil, found, found != nil
+}
+
+// besideLevel is the level of what of target stands beside the caret.
+func (p *Program) besideLevel(c *Ctx, caret doc.Caret, target Scope, ahead bool) (*Level, bool) {
+	n, f, ok := p.beside(c.store, c.r, c.view, caret, target, ahead)
+	switch {
+	case !ok:
+		return nil, false
+	case n != nil:
+		return p.nodeLevel(n), true
+	}
+	owner, _ := c.r.Node(caret.Pos.Node)
+	return p.factLevel(owner, caret.Pos.Ref(), *f), true
 }
