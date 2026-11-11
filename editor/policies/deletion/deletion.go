@@ -51,7 +51,7 @@ func act(c *policy.Ctx, id doc.ID) policy.Result {
 		if a.Owner == ID {
 			res.Drop = append(res.Drop, a.ID)
 			if a.Data == (armed{Node: id}) {
-				res.Edits = []vocab.Edit{remove(id)}
+				res.Edits = []vocab.Edit{vocab.RemoveNode(id)}
 				return res
 			}
 		}
@@ -64,37 +64,6 @@ func act(c *policy.Ctx, id doc.ID) policy.Result {
 		Kind: policy.Armed, Anchor: anchor, Data: armed{Node: id}, Lifetime: policy.UntilNextIntent,
 	}}
 	return res
-}
-
-// remove takes a block out of its slot, or an inline structure out of
-// its slot's items.
-func remove(id doc.ID) vocab.Edit {
-	return func(tx *doc.Tx) error {
-		parent, slot, ok := tx.Parent(id)
-		if !ok {
-			return doc.ErrNoNode
-		}
-		pn, _ := tx.Node(parent)
-		if !pn.Slot(slot).IsInline() {
-			if err := tx.Apply(doc.Remove{IDs: []doc.ID{id}}); err != nil {
-				return err
-			}
-			// The page keeps a block to type in when its last structure
-			// goes. Other slots keep their own empty form.
-			pn, _ = tx.Node(parent)
-			if pn.Kind() == tx.Schema().Root() && pn.Slot(slot).Len() == 0 {
-				return tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: 0, Nodes: []*doc.Node{vocab.NewBlock(tx.Schema(), tx.Schema().Plain(), doc.Attrs{})}})
-			}
-			return nil
-		}
-		off, ok := pn.Slot(slot).Content().NodeOffset(id)
-		if !ok {
-			return doc.ErrNoNode
-		}
-		return tx.Apply(doc.EditText{
-			At: doc.SlotRef{Node: parent, Slot: slot}, From: off, To: off + 1,
-		})
-	}
 }
 
 // structureAnchor covers the structure whole. An inline node or a text

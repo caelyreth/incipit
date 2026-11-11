@@ -1464,3 +1464,53 @@ func SelectedBlocks(r doc.Reader, from, to doc.Pos) []*doc.Node {
 	}
 	return out
 }
+
+// RemoveNode takes a block out of its slot, or an inline structure out of
+// its slot's items.
+func RemoveNode(id doc.ID) Edit {
+	return func(tx *doc.Tx) error {
+		parent, slot, ok := tx.Parent(id)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		pn, _ := tx.Node(parent)
+		if !pn.Slot(slot).IsInline() {
+			if err := tx.Apply(doc.Remove{IDs: []doc.ID{id}}); err != nil {
+				return err
+			}
+			// The page keeps a block to type in when its last structure
+			// goes. Other slots keep their own empty form.
+			pn, _ = tx.Node(parent)
+			if pn.Kind() == tx.Schema().Root() && pn.Slot(slot).Len() == 0 {
+				return tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: 0, Nodes: []*doc.Node{NewBlock(tx.Schema(), tx.Schema().Plain(), doc.Attrs{})}})
+			}
+			return nil
+		}
+		off, ok := pn.Slot(slot).Content().NodeOffset(id)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		return tx.Apply(doc.EditText{
+			At: doc.SlotRef{Node: parent, Slot: slot}, From: off, To: off + 1,
+		})
+	}
+}
+
+// BlockCaret is the caret at the start (Backward) or end (Forward) of the
+// first text of the block at gap; false when no block or text is there.
+func BlockCaret(r doc.Reader, gap doc.Pos, edge Direction) (doc.Caret, bool) {
+	n, ok := r.Node(gap.Node)
+	if !ok || gap.Slot >= n.NumSlots() || gap.Offset < 0 || gap.Offset >= n.Slot(gap.Slot).Len() {
+		return doc.Caret{}, false
+	}
+	ref, ok := FirstTextSlot(n.Slot(gap.Slot).Child(gap.Offset))
+	if !ok {
+		return doc.Caret{}, false
+	}
+	off := 0
+	if edge > 0 {
+		owner, _ := r.Node(ref.Node)
+		off = owner.Slot(ref.Slot).Len()
+	}
+	return doc.CaretAt(doc.At(ref, off)), true
+}

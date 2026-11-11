@@ -216,3 +216,22 @@ func TestDoubleClickSelectsAWord(t *testing.T) {
 		t.Fatalf("selected %d..%d, want 0..3", from.Pos.Offset, to.Pos.Offset)
 	}
 }
+
+// A range does the same first thing whatever unit acts on it: a move
+// collapses it, a delete deletes it.
+func TestARangeActsAloneWhateverTheUnit(t *testing.T) {
+	for _, unit := range []vocab.Unit{vocab.ByGrapheme, vocab.ByWord, vocab.BySentence} {
+		h := newHarness(t)
+		h.typeText("one two three")
+		h.do(vocab.Place{Stop: h.caret(4)})
+		h.do(vocab.Place{Stop: h.caret(7), Extend: true})
+		h.do(vocab.Move{Unit: unit, Dir: vocab.Backward})
+		h.wantHead(4)
+
+		h.do(vocab.Place{Stop: h.caret(7), Extend: true})
+		h.do(vocab.Delete{Unit: unit, Dir: vocab.Backward})
+		if got := h.text(); got != "one  three" {
+			t.Fatalf("%v: delete of a range left %q", unit, got)
+		}
+	}
+}

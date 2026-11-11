@@ -50,24 +50,8 @@ func slotTarget(r doc.Reader, pos doc.Pos, unit vocab.Unit, dir vocab.Direction)
 	// The words policy answers word, sentence and paragraph motion. Core's
 	// fallback remains a grapheme step so it answers every intent even
 	// when that policy is absent.
-	if dir > 0 {
-		return doc.At(pos.Ref(), nextBoundary(in, pos.Offset)), true
-	}
-	return doc.At(pos.Ref(), prevBoundary(in, pos.Offset)), true
-}
-
-func nextBoundary(in *doc.Inline, off int) int {
-	if off >= in.Len() {
-		return off
-	}
-	return vocab.NextGrapheme(in.Flat(), off)
-}
-
-func prevBoundary(in *doc.Inline, off int) int {
-	if off <= 0 {
-		return off
-	}
-	return vocab.PrevGrapheme(in.Flat(), off)
+	off, _ := vocab.GraphemeStep(in.Flat(), pos.Offset, dir)
+	return doc.At(pos.Ref(), off), true
 }
 
 func indexByte(s string, b byte, from int) int {
@@ -88,11 +72,37 @@ func lastIndexByte(s string, b byte) int {
 	return -1
 }
 
-// move is logical motion; without Extend, a range collapses to its edge
-// in the direction of motion first.
+// collapseRange collapses a range to its edge in the direction of
+// motion, whatever the unit: a range is where a move starts from, and the
+// unit counts from there on the next press. A page edge is no place
+// relative to the selection, so motion to it moves on.
+func collapseRange(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.Result {
+	if in.Unit == vocab.ToPageEdge {
+		return policy.Pass
+	}
+	from, to := c.Selection().Ordered(c.Doc())
+	if in.Dir > 0 {
+		return policy.Reveal(doc.Collapsed(to))
+	}
+	return policy.Reveal(doc.Collapsed(from))
+}
+
+// leaveObject moves from a selected object to the gap on that side of it.
+func leaveObject(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.Result {
+	stops := c.Stops()
+	if stops == nil {
+		return policy.Swallow
+	}
+	gap := c.Head().Pos
+	if in.Dir > 0 {
+		gap.Offset++
+	}
+	return policy.Reveal(doc.Collapsed(stops.Normalize(doc.CaretAt(gap))))
+}
+
+// move is logical motion of the head: the caret, or the head of the
+// range it extends.
 func move(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.Result {
-	r := c.Doc()
-	sel := c.Selection()
 	stops := c.Stops()
 	if stops == nil {
 		return policy.Swallow
@@ -100,31 +110,14 @@ func move(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.Result 
 	if in.Dir == 0 {
 		in.Dir = vocab.Forward
 	}
-	if !in.Extend && sel.Kind == doc.SelectText && !sel.IsCollapsed() && in.Unit == vocab.ByGrapheme {
-		from, to := sel.Ordered(r)
-		edge := from
-		if in.Dir > 0 {
-			edge = to
-		}
-		return revealed(doc.Collapsed(edge))
-	}
-	if sel.Kind == doc.SelectNode && !in.Extend {
-		// Leaving a selected object: to the gap on that side of it.
-		gap := c.Head().Pos
-		if in.Dir > 0 {
-			gap.Offset++
-		}
-		return revealed(doc.Collapsed(stops.Normalize(doc.CaretAt(gap))))
-	}
-	head := c.Head()
-	target, ok := motionTarget(r, stops, head, in.Unit, in.Dir)
+	target, ok := motionTarget(c.Doc(), stops, c.Head(), in.Unit, in.Dir)
 	if !ok {
 		return policy.Swallow
 	}
-	if in.Extend && sel.Kind == doc.SelectText {
-		return revealed(doc.TextRange(sel.Anchor, target))
+	if sel := c.Selection(); in.Extend && sel.Kind == doc.SelectText {
+		return policy.Reveal(doc.TextRange(sel.Anchor, target))
 	}
-	return revealed(doc.Collapsed(target))
+	return policy.Reveal(doc.Collapsed(target))
 }
 
 // motionTarget is where one unit of logical motion from head lands.
@@ -139,10 +132,6 @@ func motionTarget(r doc.Reader, stops policy.Stops, head doc.Caret, unit vocab.U
 		return doc.CaretAt(pos), true
 	}
 	return stops.Step(head, dir)
-}
-
-func revealed(s doc.Selection) policy.Result {
-	return policy.Result{Selection: &s, Effects: []policy.Effect{{Kind: policy.EffectReveal}}}
 }
 
 // visualMove accepts the stop the renderer resolved from geometry.
@@ -165,7 +154,7 @@ func visualMove(c *policy.Ctx, in vocab.VisualMove, _ policy.At[doc.SlotRef]) po
 		}
 		target = edge
 	}
-	res := revealed(doc.Collapsed(target))
+	res := policy.Reveal(doc.Collapsed(target))
 	if sel := c.Selection(); in.Extend && sel.Kind == doc.SelectText {
 		s := doc.TextRange(sel.Anchor, target)
 		res.Selection = &s

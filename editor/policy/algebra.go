@@ -131,6 +131,11 @@ type matcher struct {
 	class vocab.CharClass
 	unit  vocab.Unit
 	dir   vocab.Direction
+	// extend is whether the intent extends the selection: +1 it does, -1
+	// it does not, 0 either.
+	extend int8
+	// clicks is a Place's click count; zero for any.
+	clicks int
 }
 
 // Intent matches every intent of type I.
@@ -159,12 +164,32 @@ func Deleting(u vocab.Unit, d vocab.Direction) Pattern[vocab.Delete] {
 	return Pattern[vocab.Delete]{matcher{kind: vocab.IntentDelete, unit: u, dir: d}}
 }
 
-// Moving matches a logical motion by unit in dir.
+// Moving matches a logical motion by unit in dir that moves the caret,
+// not extending the selection; a zero unit or direction matches any.
 func Moving(u vocab.Unit, d vocab.Direction) Pattern[vocab.Move] {
-	return Pattern[vocab.Move]{matcher{kind: vocab.IntentMove, unit: u, dir: d}}
+	return Pattern[vocab.Move]{matcher{kind: vocab.IntentMove, unit: u, dir: d, extend: -1}}
 }
 
-func (m matcher) bare() bool { return m.texts == nil && m.class == 0 && m.unit == 0 && m.dir == 0 }
+// Extending matches a logical motion by unit in dir that extends the
+// selection.
+func Extending(u vocab.Unit, d vocab.Direction) Pattern[vocab.Move] {
+	return Pattern[vocab.Move]{matcher{kind: vocab.IntentMove, unit: u, dir: d, extend: 1}}
+}
+
+// Clicking matches placing the caret with n clicks, not extending: a click
+// that extends extends, whatever its count.
+func Clicking(n int) Pattern[vocab.Place] {
+	return Pattern[vocab.Place]{matcher{kind: vocab.IntentPlace, clicks: n, extend: -1}}
+}
+
+func (m matcher) bare() bool {
+	return m.texts == nil && m.class == 0 && m.unit == 0 && m.dir == 0 && m.extend == 0 && m.clicks == 0
+}
+
+// extends reports whether the matcher takes an intent's extend flag.
+func (m matcher) extends(extend bool) bool {
+	return m.extend == 0 || (m.extend > 0) == extend
+}
 
 func (m matcher) match(in vocab.Intent) bool {
 	if in.Kind() != m.kind {
@@ -179,7 +204,9 @@ func (m matcher) match(in vocab.Intent) bool {
 	case vocab.Delete:
 		return (m.unit == 0 || m.unit == v.Unit) && (m.dir == 0 || m.dir == v.Dir)
 	case vocab.Move:
-		return (m.unit == 0 || m.unit == v.Unit) && (m.dir == 0 || m.dir == v.Dir)
+		return (m.unit == 0 || m.unit == v.Unit) && (m.dir == 0 || m.dir == v.Dir) && m.extends(v.Extend)
+	case vocab.Place:
+		return (m.clicks == 0 || m.clicks == v.Clicks) && m.extends(v.Extend)
 	}
 	return true
 }

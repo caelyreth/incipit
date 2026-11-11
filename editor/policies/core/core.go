@@ -33,6 +33,10 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 			return policy.Result{EndComposition: true}
 		}).Any()
 
+	// What a range or a selected object does first is core's, for every
+	// unit; unit policies answer the caret.
+	policy.On(p, "collapse-range", policy.Moving(0, 0), in, collapseRange).Range()
+	policy.On(p, "leave-object", policy.Moving(0, 0), in, leaveObject).Node()
 	policy.On(p, "move", policy.Intent[vocab.Move](), in, move).Any()
 	policy.On(p, "visual-move", policy.Intent[vocab.VisualMove](), in, visualMove).Any()
 	policy.On(p, "place", policy.Intent[vocab.Place](), in, placeCaret).Any()
@@ -138,7 +142,7 @@ func clearSelection(c *policy.Ctx) (vocab.Edit, doc.Pos, bool) {
 	switch sel.Kind {
 	case doc.SelectNode:
 		at, _ := c.Range()
-		return removeNode(sel.Node), at, true
+		return vocab.RemoveNode(sel.Node), at, true
 	case doc.SelectText:
 		if sel.IsCollapsed() {
 			return nil, c.Head().Pos, false
@@ -161,20 +165,11 @@ func clearSelection(c *policy.Ctx) (vocab.Edit, doc.Pos, bool) {
 // endOfNewBlock puts the caret at the end of the block created at a gap.
 func endOfNewBlock(gap doc.Pos) func(doc.Reader) doc.Selection {
 	return func(r doc.Reader) doc.Selection {
-		n, ok := r.Node(gap.Node)
-		if ok && gap.Slot < n.NumSlots() && gap.Offset < n.Slot(gap.Slot).Len() {
-			child := n.Slot(gap.Slot).Child(gap.Offset)
-			if ref, ok := vocab.FirstTextSlot(child); ok {
-				cn, _ := r.Node(ref.Node)
-				return doc.Collapsed(doc.CaretAt(doc.At(ref, cn.Slot(ref.Slot).Len())))
-			}
+		if c, ok := vocab.BlockCaret(r, gap, vocab.Forward); ok {
+			return doc.Collapsed(c)
 		}
 		return doc.Collapsed(doc.CaretAt(gap))
 	}
-}
-
-func removeNode(id doc.ID) vocab.Edit {
-	return func(tx *doc.Tx) error { return tx.Apply(doc.Remove{IDs: []doc.ID{id}}) }
 }
 
 // insertAt is where typed content lands for a caret: a text position, or,
@@ -509,13 +504,9 @@ func continuation(block *doc.Node) (doc.Kind, doc.Attrs) {
 // split leaves it.
 func startOfNext(id doc.ID) func(doc.Reader) doc.Selection {
 	return func(r doc.Reader) doc.Selection {
-		parent, slot, index, ok := vocab.Index(r, id)
-		if ok {
-			pn, _ := r.Node(parent)
-			if index+1 < pn.Slot(slot).Len() {
-				if ref, ok := vocab.FirstTextSlot(pn.Slot(slot).Child(index + 1)); ok {
-					return doc.Collapsed(doc.CaretAt(doc.At(ref, 0)))
-				}
+		if parent, slot, index, ok := vocab.Index(r, id); ok {
+			if c, ok := vocab.BlockCaret(r, doc.Pos{Node: parent, Slot: slot, Offset: index + 1}, vocab.Backward); ok {
+				return doc.Collapsed(c)
 			}
 		}
 		return doc.Collapsed(doc.CaretAt(doc.Pos{Node: r.Root().ID()}))

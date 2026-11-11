@@ -16,7 +16,8 @@ import (
 // ID is the policy's id.
 const ID = "words"
 
-// Policy is the words policy.
+// Policy is the words policy. It answers a caret's units; core owns what
+// a range or a selected object does first, for every unit.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	for _, unit := range []struct {
 		name string
@@ -26,55 +27,31 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		{"sentence", vocab.BySentence},
 		{"paragraph", vocab.ByParagraph},
 	} {
-		policy.On(p, "move-"+unit.name, policy.Moving(unit.unit, 0), policy.Slot.Inside(), move).Any()
-		policy.On(p, "delete-"+unit.name, policy.Deleting(unit.unit, 0), policy.Slot.Inside(), delete).Any()
+		policy.On(p, "move-"+unit.name, policy.Moving(unit.unit, 0), policy.Slot.Inside(), move)
+		policy.On(p, "extend-"+unit.name, policy.Extending(unit.unit, 0), policy.Slot.Inside(), move).Caret().Range()
+		policy.On(p, "delete-"+unit.name, policy.Deleting(unit.unit, 0), policy.Slot.Inside(), delete)
 	}
-	policy.On(p, "place", policy.Intent[vocab.Place](), policy.Slot.Inside(), place).Any()
+	policy.On(p, "select-word", policy.Clicking(2), policy.Slot.Inside(), selectWord).Any()
 })
 
 type span struct{ from, to int }
 
-// move moves or extends by the requested unit. A range collapses to its
-// edge in the direction of motion first.
+// move moves the head by the unit: the caret, or a range's head when it
+// extends.
 func move(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.Result {
 	dir := in.Dir
 	if dir == 0 {
 		dir = vocab.Forward
 	}
 	sel := c.Selection()
-	if sel.Kind == doc.SelectNode {
-		if in.Extend {
-			return policy.Swallow
-		}
-		stops := c.Stops()
-		if stops == nil {
-			return policy.Swallow
-		}
-		gap := c.Head().Pos
-		if dir > 0 {
-			gap.Offset++
-		}
-		return revealed(doc.Collapsed(stops.Normalize(doc.CaretAt(gap))))
-	}
-	if sel.Kind != doc.SelectText {
-		return policy.Swallow
-	}
-	if !in.Extend && !sel.IsCollapsed() {
-		from, to := sel.Ordered(c.Doc())
-		edge := from
-		if dir > 0 {
-			edge = to
-		}
-		return revealed(doc.Collapsed(edge))
-	}
 	target, ok := targetAt(c, sel.Head, in.Unit, dir)
 	if !ok {
 		return policy.Swallow
 	}
 	if in.Extend {
-		return revealed(doc.TextRange(sel.Anchor, target))
+		return policy.Reveal(doc.TextRange(sel.Anchor, target))
 	}
-	return revealed(doc.Collapsed(target))
+	return policy.Reveal(doc.Collapsed(target))
 }
 
 // targetAt resolves one unit of motion from a caret. Inside text its
@@ -126,14 +103,14 @@ func wordTarget(in *doc.Inline, flat string, off int, dir vocab.Direction) (int,
 				return u.to, true
 			}
 		}
-		return graphemeTarget(flat, off, dir)
+		return vocab.GraphemeStep(flat, off, dir)
 	}
 	for i := len(units) - 1; i >= 0; i-- {
 		if units[i].from < off {
 			return units[i].from, true
 		}
 	}
-	return graphemeTarget(flat, off, dir)
+	return vocab.GraphemeStep(flat, off, dir)
 }
 
 func wordUnits(in *doc.Inline, flat string) []span {
@@ -176,7 +153,7 @@ func sentenceTarget(flat string, off int, dir vocab.Direction) (int, bool) {
 			}
 		}
 	}
-	return graphemeTarget(flat, off, dir)
+	return vocab.GraphemeStep(flat, off, dir)
 }
 
 // paragraphTarget moves to the next paragraph's start, or to the current
@@ -214,20 +191,7 @@ func paragraphTarget(flat string, off int, dir vocab.Direction) (int, bool) {
 			}
 		}
 	}
-	return graphemeTarget(flat, off, dir)
-}
-
-func graphemeTarget(flat string, off int, dir vocab.Direction) (int, bool) {
-	if dir > 0 {
-		if off >= len(flat) {
-			return 0, false
-		}
-		return vocab.NextGrapheme(flat, off), true
-	}
-	if off <= 0 {
-		return 0, false
-	}
-	return vocab.PrevGrapheme(flat, off), true
+	return vocab.GraphemeStep(flat, off, dir)
 }
 
 // maskNodes keeps offsets aligned with the slot while making an inline
@@ -245,67 +209,30 @@ func maskNodes(flat string) string {
 	return string(b)
 }
 
-// delete deletes what a selection covers, or one unit from a collapsed
-// caret, through the same range operation every other deletion reads.
+// delete deletes one unit from the caret, through the same range
+// operation every other deletion reads.
 func delete(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Result {
 	dir := in.Dir
 	if dir == 0 {
 		dir = vocab.Backward
 	}
-	sel := c.Selection()
-	if sel.Kind == doc.SelectNode || sel.Kind == doc.SelectText && !sel.IsCollapsed() {
-		from, to := c.Range()
-		if from == to {
-			return policy.Swallow
-		}
-		return policy.Do(vocab.DeleteRange(from, to))
-	}
-	if sel.Kind != doc.SelectText {
+	head := c.Head()
+	target, ok := targetAt(c, head, in.Unit, dir)
+	if !ok || target.Pos == head.Pos {
 		return policy.Swallow
 	}
-	target, ok := targetAt(c, sel.Head, in.Unit, dir)
-	if !ok || target.Pos == sel.Head.Pos {
-		return policy.Swallow
-	}
-	return policy.Do(vocab.DeleteRange(sel.Head.Pos, target.Pos))
+	return policy.Do(vocab.DeleteRange(head.Pos, target.Pos))
 }
 
-// place puts the caret where a pointer hit. A double click selects the
-// segment under it; a triple click selects the slot's text.
-func place(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.Result {
-	r := c.Doc()
-	if in.Node != 0 {
-		if _, ok := r.Node(in.Node); ok {
-			return policy.Select(doc.NodeSelection(in.Node))
-		}
-	}
+// selectWord selects the word segment a double click hits.
+func selectWord(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.Result {
 	stop := in.Stop
-	if _, ok := r.Node(stop.Pos.Node); !ok {
-		return policy.Swallow
+	content, ok := c.Inline(stop.Pos.Ref())
+	if in.Node != 0 || !ok {
+		return policy.Pass
 	}
-	sel := c.Selection()
-	if in.Extend && sel.Kind == doc.SelectText {
-		anchor := sel.Anchor
-		if in.Anchor != nil {
-			anchor = *in.Anchor
-		}
-		return revealed(doc.TextRange(anchor, stop))
-	}
-	content, inline := c.Inline(stop.Pos.Ref())
-	switch {
-	case inline && in.Clicks >= 3:
-		return revealed(doc.TextRange(
-			doc.CaretAt(doc.At(stop.Pos.Ref(), 0)),
-			doc.CaretAt(doc.At(stop.Pos.Ref(), content.Len())),
-		))
-	case inline && in.Clicks == 2:
-		from, to := segmentAt(content, stop.Pos.Offset)
-		return revealed(doc.TextRange(
-			doc.CaretAt(doc.At(stop.Pos.Ref(), from)),
-			doc.CaretAt(doc.At(stop.Pos.Ref(), to)),
-		))
-	}
-	return policy.Select(doc.Collapsed(stop))
+	from, to := segmentAt(content, stop.Pos.Offset)
+	return policy.Reveal(doc.TextRange(doc.CaretAt(doc.At(stop.Pos.Ref(), from)), doc.CaretAt(doc.At(stop.Pos.Ref(), to))))
 }
 
 // segmentAt is the word segment a double click selects. At a boundary it
@@ -348,8 +275,4 @@ func segmentAt(in *doc.Inline, off int) (int, int) {
 		return last.from, last.to
 	}
 	return off, off
-}
-
-func revealed(s doc.Selection) policy.Result {
-	return policy.Result{Selection: &s, Effects: []policy.Effect{{Kind: policy.EffectReveal}}}
 }

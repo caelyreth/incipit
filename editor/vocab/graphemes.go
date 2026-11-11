@@ -131,3 +131,18 @@ func GraphemeClassAt(s string, off int, before bool) (CharClass, bool) {
 	}
 	return ClassOfGrapheme(text), true
 }
+
+// GraphemeStep is the grapheme boundary one step from off in dir; false at
+// the text's edge that way.
+func GraphemeStep(s string, off int, dir Direction) (int, bool) {
+	if dir > 0 {
+		if off >= len(s) {
+			return off, false
+		}
+		return NextGrapheme(s, off), true
+	}
+	if off <= 0 {
+		return off, false
+	}
+	return PrevGrapheme(s, off), true
+}

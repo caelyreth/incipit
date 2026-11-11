@@ -201,14 +201,8 @@ func replace(tx *doc.Tx, id doc.ID, nodes ...*doc.Node) error {
 
 // firstText is the first text position of the block at a gap.
 func firstText(r doc.Reader, parent doc.ID, slot, index int) (doc.Selection, bool) {
-	pn, ok := r.Node(parent)
-	if !ok || index >= pn.Slot(slot).Len() {
-		return doc.Selection{}, false
-	}
-	if ref, ok := vocab.FirstTextSlot(pn.Slot(slot).Child(index)); ok {
-		return doc.Collapsed(doc.CaretAt(doc.At(ref, 0))), true
-	}
-	return doc.Selection{}, false
+	c, ok := vocab.BlockCaret(r, doc.Pos{Node: parent, Slot: slot, Offset: index}, vocab.Backward)
+	return doc.Collapsed(c), ok
 }
 
 // fenceBlock turns a fence paragraph into a code block, math block or a

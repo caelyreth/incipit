@@ -161,6 +161,11 @@ func Do(edits ...vocab.Edit) Result { return Result{Edits: edits} }
 // Select returns a result setting the selection.
 func Select(s doc.Selection) Result { return Result{Selection: &s} }
 
+// Reveal sets the selection and scrolls it into view.
+func Reveal(s doc.Selection) Result {
+	return Result{Selection: &s, Effects: []Effect{{Kind: EffectReveal}}}
+}
+
 // With returns r with the selection set.
 func (r Result) With(s doc.Selection) Result { r.Selection = &s; return r }
 
