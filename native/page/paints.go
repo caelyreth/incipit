@@ -40,10 +40,7 @@ type piece struct {
 // pieces are what a cover paints, in the page.
 func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 	if c.Whole && u.object {
-		r := u.drawn
-		r.X += u.x
-		r.Y += u.y
-		return []piece{{surface: -1, rows: []decoRow{objectRow(outset(r, objectOutset, objectOutset))}}}
+		return []piece{{surface: -1, rows: []decoRow{objectRow(blockOutline(u, u.drawn))}}}
 	}
 	ranges := pl.coverRanges(u, c)
 	// An inline object held whole is drawn around; its card is its own.
@@ -62,10 +59,7 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 			continue
 		}
 		if !s.shown {
-			r := standIn(u, s)
-			r.X += u.x
-			r.Y += u.y
-			out = append(out, piece{surface: -1, rows: []decoRow{objectRow(outset(r, objectOutset, objectOutset))}})
+			out = append(out, piece{surface: -1, rows: []decoRow{objectRow(standIn(u, s))}})
 			continue
 		}
 		var text, objects []decoRow
@@ -74,14 +68,11 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 			if sg.kind != segBox || sg.node == nil || !whole[sg.node.ID()] || sg.u0 < from {
 				continue
 			}
-			if r, ok := s.objectRect(i); ok {
+			if r, ok := inlineOutline(u, s, i); ok {
 				if from < sg.u0 {
 					text = append(text, decoRows(s, ui.TextInputRange{Start: from, End: sg.u0}, u.x+s.x, u.y+s.y)...)
 				}
-				r = lineBox(s, r)
-				r.X += u.x + s.x
-				r.Y += u.y + s.y
-				objects = append(objects, objectRow(outset(r, lineOutline, 1)))
+				objects = append(objects, objectRow(r))
 				from = sg.u1
 			}
 		}
@@ -96,6 +87,27 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 		}
 	}
 	return out
+}
+
+// blockOutline is the outline around a block object drawing r (in its
+// unit), in the page.
+func blockOutline(u *unitLayout, r ui.Rect) ui.Rect {
+	r.X += u.x
+	r.Y += u.y
+	return outset(r, objectOutset, objectOutset)
+}
+
+// inlineOutline is the outline around the inline object of s's segment i,
+// in the page: on its line's box, standing off its sides.
+func inlineOutline(u *unitLayout, s *surfaceLayout, i int) (ui.Rect, bool) {
+	r, ok := s.objectRect(i)
+	if !ok {
+		return r, false
+	}
+	r = lineBox(s, r)
+	r.X += u.x + s.x
+	r.Y += u.y + s.y
+	return outset(r, lineOutline, 1), true
 }
 
 // lineBox is an inline object's box in its line: as wide as it draws and
@@ -123,22 +135,21 @@ func outlineRadius(m Metrics, r ui.Rect) float32 { return min(objectRadius(m), r
 // over.
 func objectRow(r ui.Rect) decoRow { return decoRow{box: r, base: r.Y + r.H, object: true} }
 
-// standIn is what a surface not shown stands in for, in its unit: the
-// box its card hangs from, or its object's box.
+// standIn is the outline, in the page, of what a surface not shown stands
+// in for: the inline object its card hangs from, or its block object.
+// Whatever paints or points at a place in that surface goes there.
 func standIn(u *unitLayout, s *surfaceLayout) ui.Rect {
 	if s.card && len(u.surfaces) > 0 {
 		main := u.surfaces[0]
 		for i, sg := range main.segs {
 			if sg.kind == segBox && sg.node != nil && sg.node.ID() == s.anchor {
-				if r, ok := main.objectRect(i); ok {
-					r.X += main.x
-					r.Y += main.y
+				if r, ok := inlineOutline(u, main, i); ok {
 					return r
 				}
 			}
 		}
 	}
-	return u.box
+	return blockOutline(u, u.box)
 }
 
 // unitOf is the laid-out unit of a presented one.

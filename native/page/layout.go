@@ -645,7 +645,9 @@ func (u *unitLayout) origin(s *surfaceLayout) (float32, float32) {
 	return u.x + s.x, u.y + s.y
 }
 
-// caretBox is a caret's rectangle in page coordinates.
+// caretBox is where a caret stands, in page coordinates: a bar as wide as
+// the caret, or, for a place inside what an object draws rather than in
+// text shown, the object's outline.
 func (pl *pageLayout) caretBox(c doc.Caret, m Metrics) (ui.Rect, bool) {
 	pc, ok := pl.lookup(c)
 	if !ok {
@@ -662,14 +664,9 @@ func (pl *pageLayout) caretBox(c doc.Caret, m Metrics) (ui.Rect, bool) {
 	}
 	if !pc.surface.shown {
 		// A surface not shown stands in for its object (paints.go): a
-		// place in it, as where Return would enter a closed card, is at
-		// the object's edge on its side, as tall as the object.
-		r := standIn(pc.unit, pc.surface)
-		x := r.X
-		if pc.stop.u > 0 {
-			x += r.W
-		}
-		return ui.Rect{X: pc.unit.x + x, Y: pc.unit.y + r.Y, H: r.H}, true
+		// place in it, as where Return would enter a closed card, has no
+		// caret of its own there; it is the object, outlined.
+		return standIn(pc.unit, pc.surface), true
 	}
 	r := pc.surface.caretRect(pc.stop.u)
 	if pc.surface.hasMarked && pc.stop.u == pc.surface.marked.Start {

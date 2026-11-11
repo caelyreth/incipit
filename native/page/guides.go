@@ -29,13 +29,15 @@ const (
 type guides map[vocab.CommandID]*guideTrack
 
 type guideTrack struct {
-	x, y, h, opacity motion.Spring
-	keys             []string
-	seen             bool
+	// x, y, w and h are where the command acts: a caret's bar (w 0), or
+	// an object's box, for a place inside what it draws.
+	x, y, w, h, opacity motion.Spring
+	keys                []string
+	seen                bool
 }
 
 func (t *guideTrack) place(r ui.Rect, opacity float32, now time.Time) {
-	t.x, t.y, t.h = motion.NewSpring(r.X, now), motion.NewSpring(r.Y, now), motion.NewSpring(r.H, now)
+	t.x, t.y, t.w, t.h = motion.NewSpring(r.X, now), motion.NewSpring(r.Y, now), motion.NewSpring(r.W, now), motion.NewSpring(r.H, now)
 	t.opacity = motion.NewUnitSpring(opacity, now)
 }
 
@@ -46,12 +48,13 @@ func (t *guideTrack) advance(r ui.Rect, opacity float32, now time.Time, animate 
 	}
 	t.x.Step(r.X, now, guideGlide)
 	t.y.Step(r.Y, now, guideGlide)
+	t.w.Step(r.W, now, guideGlide)
 	t.h.Step(r.H, now, guideGlide)
 	t.opacity.Step(opacity, now, guideFade)
 }
 
 func (t *guideTrack) moving() bool {
-	return t.x.Moving() || t.y.Moving() || t.h.Moving() || t.opacity.Moving()
+	return t.x.Moving() || t.y.Moving() || t.w.Moving() || t.h.Moving() || t.opacity.Moving()
 }
 
 // stepGuides retargets the tracks from the engine's guides, each shown
@@ -78,6 +81,10 @@ func (el *Element) stepGuides(pl *pageLayout, show bool, now time.Time, animate 
 			if !ok {
 				continue
 			}
+			if r.W <= 2 {
+				// A caret's bar: its width is the caret's, not a place's.
+				r.W = 0
+			}
 			t, ok := el.guides[g.Command]
 			if !ok || t.opacity.Target() < 1 && t.opacity.Value() <= 0.01 {
 				// Nothing shows: appear at the new place rather than
@@ -94,7 +101,7 @@ func (el *Element) stepGuides(pl *pageLayout, show bool, now time.Time, animate 
 	moving := false
 	for id, t := range el.guides {
 		if !t.seen {
-			t.advance(ui.Rect{X: t.x.Target(), Y: t.y.Target(), H: t.h.Target()}, 0, now, animate)
+			t.advance(ui.Rect{X: t.x.Target(), Y: t.y.Target(), W: t.w.Target(), H: t.h.Target()}, 0, now, animate)
 			if !t.opacity.Moving() && t.opacity.Value() <= 0.001 {
 				delete(el.guides, id)
 				continue
@@ -105,9 +112,13 @@ func (el *Element) stepGuides(pl *pageLayout, show bool, now time.Time, animate 
 	return animate && moving
 }
 
-// paintGuides draws each guide as a hairline where its command would put
-// the caret, and its keys on the compact caps the Keymap draws, riding
-// just above the line, clear of the glyphs that follow.
+// paintGuides draws each guide where its command acts, its keys on the
+// compact caps the Keymap draws, clear of what it marks: at a caret, a
+// hairline with the keys riding just above it; at a place inside what an
+// object draws, the outline every paint draws around an object, in the
+// hint's ink, with the keys just outside its top-right corner. The shape
+// is the place's, so a guide moving between the two glides from one to
+// the other.
 func (el *Element) paintGuides(p *ui.Painter, view ui.Rect, ox, oy float32) {
 	if len(el.guides) == 0 {
 		return
@@ -130,14 +141,20 @@ func (el *Element) paintGuides(p *ui.Painter, view ui.Rect, ox, oy float32) {
 		if alpha <= 0.001 {
 			continue
 		}
-		x, y, h := ox+t.x.Value(), oy+t.y.Value(), t.h.Value()
-		if y+h < view.Y || y > view.Y+view.H {
+		r := ui.Rect{X: ox + t.x.Value(), Y: oy + t.y.Value(), W: max(t.w.Value(), 0), H: t.h.Value()}
+		if r.Y+r.H < view.Y || r.Y > view.Y+view.H {
 			continue
 		}
-		p.Fill(ui.Rect{X: x, Y: y, W: 1, H: h}, ink.Alpha(0.6*alpha), 0)
+		left := r.X + style.Height*0.3
+		if r.W > 1 {
+			components.PaintRing(p, r, outlineRadius(el.Editor.metrics, r), 0, ink.Alpha(0.6*alpha))
+			left = r.X + r.W + 2
+		} else {
+			p.Fill(ui.Rect{X: r.X, Y: r.Y, W: 1, H: r.H}, ink.Alpha(0.6*alpha), 0)
+		}
 		_, width := style.Widths(t.keys)
-		left := max(min(x+style.Height*0.3, view.X+view.W-width-2), view.X)
-		top := max(y-style.Height+2, view.Y)
+		left = max(min(left, view.X+view.W-width-2), view.X)
+		top := max(r.Y-style.Height+2, view.Y)
 		style.Paint(p, t.keys, left, top, alpha)
 	}
 }
