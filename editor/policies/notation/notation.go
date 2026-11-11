@@ -498,20 +498,7 @@ func (g taskGhost) Placed(slot doc.SlotRef, _ policy.Fact) any {
 }
 
 // Toggle completes or reopens the item's task.
-func (g taskGhost) Toggle() vocab.Edit {
-	next := profile.TaskDone
-	if g.Task == profile.TaskDone {
-		next = profile.TaskOpen
-	}
-	return func(tx *doc.Tx) error {
-		n, ok := tx.Node(g.node)
-		if !ok || n.Kind() != profile.Item || profile.TaskOf(n) == profile.NoTask {
-			return nil
-		}
-		return tx.Apply(doc.SetNode{ID: g.node, Kind: n.Kind(),
-			Attrs: n.Attrs().With(profile.FieldTask, doc.Int(int64(next)))})
-	}
-}
+func (g taskGhost) Toggle() vocab.Edit { return profile.ToggleTask(g.node) }
 
 func (g markerGhost) Placed(slot doc.SlotRef, _ policy.Fact) any {
 	g.node = slot.Node

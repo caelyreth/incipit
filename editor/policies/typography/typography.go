@@ -56,16 +56,6 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		})
 })
 
-type styledRune struct {
-	r     rune
-	marks *doc.MarkSet
-}
-
-type change struct {
-	from, to int
-	items    []doc.Item
-}
-
 func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 	spec, ok := vocab.SlotSpec(c.Doc(), site.Slot)
 	if !ok || spec.Literal {
@@ -76,92 +66,12 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 		return policy.Swallow
 	}
 	flat := in.Flat()
-	from := lineStart(flat, site.From)
-	to := lineEnd(flat, max(site.From, site.To))
-	if from >= to {
+	if from, to := vocab.LineAround(flat, site.From, site.To); from >= to || dividerLine(flat[from:to]) {
 		return policy.Swallow
 	}
-	if dividerLine(flat[from:to]) {
-		return policy.Swallow
-	}
-
-	var changes []change
-	var stretch []styledRune
-	stretchFrom, stretchTo := 0, 0
-	flush := func() {
-		if len(stretch) == 0 {
-			return
-		}
-		out, changed := rewriteCells(stretch, opts)
-		if changed {
-			for _, d := range vocab.MinimalTextChanges(itemsOf(stretch), itemsOf(out)) {
-				changes = append(changes, change{stretchFrom + d.From, stretchFrom + d.To, d.Items})
-			}
-		}
-		stretch = nil
-	}
-
-	in.Each(func(at int, item doc.Item) bool {
-		if at >= to {
-			return false
-		}
-		if item.Node != nil {
-			flush()
-			return true
-		}
-		lo, hi := max(at, from), min(at+len(item.Text), to)
-		if lo >= hi {
-			return true
-		}
-		for off, r := range item.Text {
-			abs := at + off
-			if abs < lo || abs >= hi {
-				continue
-			}
-			if r == '\n' {
-				flush()
-				continue
-			}
-			if len(stretch) > 0 && abs != stretchTo {
-				flush()
-			}
-			if len(stretch) == 0 {
-				stretchFrom = abs
-			}
-			stretch = append(stretch, styledRune{r: r, marks: item.Marks})
-			stretchTo = abs + utf8.RuneLen(r)
-		}
-		return true
-	})
-	flush()
-
-	if len(changes) == 0 {
-		return policy.Swallow
-	}
-	edits := make([]vocab.Edit, 0, len(changes))
-	for i := len(changes) - 1; i >= 0; i-- {
-		change := changes[i]
-		edits = append(edits, vocab.Ops(doc.EditText{
-			At: site.Slot, From: change.from, To: change.to, Items: change.items,
-		}))
-	}
-	return policy.Do(edits...)
-}
-
-func lineStart(text string, at int) int {
-	at = max(0, min(at, len(text)))
-	for at > 0 && text[at-1] != '\n' {
-		at--
-	}
-	return at
-}
-
-func lineEnd(text string, at int) int {
-	at = max(0, min(at, len(text)))
-	for at < len(text) && text[at] != '\n' {
-		at++
-	}
-	return at
+	return policy.Do(vocab.RefineLines(site.Slot, in, site.From, site.To, func(stretch vocab.Runes, at int) (vocab.Runes, bool) {
+		return rewriteCells(stretch, opts)
+	})...)
 }
 
 // dividerLine reports a line that may become a Markdown divider. Typography
@@ -178,36 +88,22 @@ func dividerLine(text string) bool {
 	return true
 }
 
-func itemsOf(cells []styledRune) []doc.Item {
-	var out []doc.Item
-	for i := 0; i < len(cells); {
-		marks := cells[i].marks
-		var b strings.Builder
-		for i < len(cells) && cells[i].marks == marks {
-			b.WriteRune(cells[i].r)
-			i++
-		}
-		out = append(out, doc.TextItem(b.String(), marks))
-	}
-	return out
-}
-
 func rewriteText(text string, opts options) string {
-	cells := make([]styledRune, 0, utf8.RuneCountInString(text))
+	cells := make(vocab.Runes, 0, utf8.RuneCountInString(text))
 	for _, r := range text {
-		cells = append(cells, styledRune{r: r})
+		cells = append(cells, vocab.StyledRune{R: r})
 	}
 	out, _ := rewriteCells(cells, opts)
 	var b strings.Builder
 	for _, cell := range out {
-		b.WriteRune(cell.r)
+		b.WriteRune(cell.R)
 	}
 	return b.String()
 }
 
-func rewriteCells(cells []styledRune, opts options) ([]styledRune, bool) {
+func rewriteCells(cells vocab.Runes, opts options) (vocab.Runes, bool) {
 	cells = slices.Clone(cells)
-	before := cellsText(cells)
+	before := cells.Text()
 	if opts.symbols {
 		cells = symbols(cells)
 	}
@@ -218,32 +114,24 @@ func rewriteCells(cells []styledRune, opts options) ([]styledRune, bool) {
 		apostrophes(cells)
 		punctuationInsideQuotes(cells)
 	}
-	return cells, cellsText(cells) != before
-}
-
-func cellsText(cells []styledRune) string {
-	var b strings.Builder
-	for _, cell := range cells {
-		b.WriteRune(cell.r)
-	}
-	return b.String()
+	return cells, cells.Text() != before
 }
 
 // symbols replaces each three periods with an ellipsis and two hyphens
 // with an em dash. The trailing "—-" rule makes a third hyphen typed
 // after the rewrite's second land at the same em dash.
-func symbols(cells []styledRune) []styledRune {
-	out := make([]styledRune, 0, len(cells))
+func symbols(cells vocab.Runes) vocab.Runes {
+	out := make(vocab.Runes, 0, len(cells))
 	for i := 0; i < len(cells); {
 		n, replacement := 0, rune(0)
 		switch {
-		case prefix(cells, i, "..."):
+		case cells.HasPrefix(i, "..."):
 			n, replacement = 3, '…'
-		case prefix(cells, i, "---"):
+		case cells.HasPrefix(i, "---"):
 			n, replacement = 3, '—'
-		case prefix(cells, i, "--"):
+		case cells.HasPrefix(i, "--"):
 			n, replacement = 2, '—'
-		case prefix(cells, i, "—-"):
+		case cells.HasPrefix(i, "—-"):
 			n, replacement = 2, '—'
 		}
 		if n == 0 {
@@ -251,48 +139,38 @@ func symbols(cells []styledRune) []styledRune {
 			i++
 			continue
 		}
-		out = append(out, styledRune{r: replacement, marks: cells[i].marks})
+		out = append(out, vocab.StyledRune{R: replacement, Marks: cells[i].Marks})
 		i += n
 	}
 	return out
 }
 
-func prefix(cells []styledRune, at int, text string) bool {
-	for _, want := range text {
-		if at >= len(cells) || cells[at].r != want {
-			return false
-		}
-		at++
-	}
-	return true
-}
-
 // apostrophes curls a straight apostrophe between letters or digits.
-func apostrophes(cells []styledRune) {
+func apostrophes(cells vocab.Runes) {
 	for i, cell := range cells {
-		if cell.r != '\'' || i == 0 || i+1 >= len(cells) {
+		if cell.R != '\'' || i == 0 || i+1 >= len(cells) {
 			continue
 		}
-		if isWordRune(cells[i-1].r) && isWordRune(cells[i+1].r) {
-			cells[i].r = '’'
+		if isWordRune(cells[i-1].R) && isWordRune(cells[i+1].R) {
+			cells[i].R = '’'
 		}
 	}
 }
 
 // punctuationInsideQuotes moves a terminal period or comma typed right
 // after a closing quote to before it.
-func punctuationInsideQuotes(cells []styledRune) {
+func punctuationInsideQuotes(cells vocab.Runes) {
 	for i := 0; i+1 < len(cells); i++ {
-		if cells[i].r != '"' && cells[i].r != '”' {
+		if cells[i].R != '"' && cells[i].R != '”' {
 			continue
 		}
-		if cells[i+1].r != '.' && cells[i+1].r != ',' {
+		if cells[i+1].R != '.' && cells[i+1].R != ',' {
 			continue
 		}
-		if i == 0 || unicode.IsSpace(cells[i-1].r) || isOpener(cells[i-1].r) {
+		if i == 0 || unicode.IsSpace(cells[i-1].R) || isOpener(cells[i-1].R) {
 			continue
 		}
-		if i+2 < len(cells) && !unicode.IsSpace(cells[i+2].r) {
+		if i+2 < len(cells) && !unicode.IsSpace(cells[i+2].R) {
 			continue
 		}
 		cells[i], cells[i+1] = cells[i+1], cells[i]
@@ -308,19 +186,19 @@ func isOpener(r rune) bool {
 // and supplies one after a comma, semicolon or colon when a Latin letter
 // follows immediately. Decimals, times and URL syntax therefore keep their
 // own spacing.
-func spacePunctuation(cells []styledRune) []styledRune {
-	trimmed := make([]styledRune, 0, len(cells))
+func spacePunctuation(cells vocab.Runes) vocab.Runes {
+	trimmed := make(vocab.Runes, 0, len(cells))
 	for i := 0; i < len(cells); {
-		if cells[i].r != ' ' && cells[i].r != '\t' {
+		if cells[i].R != ' ' && cells[i].R != '\t' {
 			trimmed = append(trimmed, cells[i])
 			i++
 			continue
 		}
 		j := i + 1
-		for j < len(cells) && (cells[j].r == ' ' || cells[j].r == '\t') {
+		for j < len(cells) && (cells[j].R == ' ' || cells[j].R == '\t') {
 			j++
 		}
-		if j < len(cells) && strings.ContainsRune(",.;:!?", cells[j].r) {
+		if j < len(cells) && strings.ContainsRune(",.;:!?", cells[j].R) {
 			i = j
 			continue
 		}
@@ -328,17 +206,17 @@ func spacePunctuation(cells []styledRune) []styledRune {
 		i = j
 	}
 
-	out := make([]styledRune, 0, len(trimmed)+4)
+	out := make(vocab.Runes, 0, len(trimmed)+4)
 	for i, cell := range trimmed {
 		out = append(out, cell)
-		if cell.r != ',' && cell.r != ';' && cell.r != ':' {
+		if cell.R != ',' && cell.R != ';' && cell.R != ':' {
 			continue
 		}
-		if i+1 == len(trimmed) || unicode.IsSpace(trimmed[i+1].r) {
+		if i+1 == len(trimmed) || unicode.IsSpace(trimmed[i+1].R) {
 			continue
 		}
-		if isLatinLetter(trimmed[i+1].r) {
-			out = append(out, styledRune{r: ' ', marks: cell.marks})
+		if isLatinLetter(trimmed[i+1].R) {
+			out = append(out, vocab.StyledRune{R: ' ', Marks: cell.Marks})
 		}
 	}
 	return out

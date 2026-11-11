@@ -1,6 +1,6 @@
 // Package scopes is the scopes policy: SelectScope grows from the
-// innermost scope at the caret through each enclosing scope, and Dismiss
-// leaves the current selection for its head.
+// innermost scope at the caret through each enclosing scope. Dismiss is
+// core's.
 package scopes
 
 import (
@@ -20,7 +20,6 @@ var Active = policy.NewAnnotationKind("scopes.active", false)
 // Policy is the scopes policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Handle("select").On(policy.On(vocab.IntentSelectScope)).In(policy.Slot).Do(grow)
-	p.Handle("dismiss").On(policy.On(vocab.IntentDismiss)).In(policy.Slot).Do(dismiss)
 	p.Annotation(Active, valid)
 	p.Decorate(Active, vocab.GroupScope)
 	p.Observe("highlight", policy.Trigger{}, highlight)
@@ -67,20 +66,6 @@ func grow(c *policy.Ctx, _ policy.Match) policy.Result {
 		}
 	}
 	return policy.Swallow
-}
-
-// dismiss collapses a text range at its head and ends a composition.
-func dismiss(c *policy.Ctx, _ policy.Match) policy.Result {
-	res := policy.Result{}
-	if c.Composition() != nil {
-		res.EndComposition = true
-	}
-	sel := c.Selection()
-	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
-		s := doc.Collapsed(c.Head())
-		res.Selection = &s
-	}
-	return res
 }
 
 // highlight keeps one decoration over the innermost fact or scoped

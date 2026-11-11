@@ -1,6 +1,11 @@
 package vocab
 
-import "github.com/caelyreth/neverland/editor/doc"
+import (
+	"strings"
+	"unicode/utf8"
+
+	"github.com/caelyreth/neverland/editor/doc"
+)
 
 // TextChange replaces [From, To) with Items, in the byte positions of the
 // text the change was computed from. An insertion has From == To.
@@ -203,4 +208,118 @@ func itemsOfCells(cells []diffCell) []doc.Item {
 		out = append(out, doc.TextItem(string(text), marks))
 	}
 	return out
+}
+
+// StyledRune is one rune of text with its marks.
+type StyledRune struct {
+	R     rune
+	Marks *doc.MarkSet
+}
+
+// Runes is a stretch of styled text.
+type Runes []StyledRune
+
+// Text is the stretch's text.
+func (rs Runes) Text() string {
+	var b strings.Builder
+	for _, r := range rs {
+		b.WriteRune(r.R)
+	}
+	return b.String()
+}
+
+// HasPrefix reports whether text stands in the stretch at index at.
+func (rs Runes) HasPrefix(at int, text string) bool {
+	for _, want := range text {
+		if at >= len(rs) || rs[at].R != want {
+			return false
+		}
+		at++
+	}
+	return true
+}
+
+// Items is the stretch as text items, one per run of equal marks.
+func (rs Runes) Items() []doc.Item {
+	var out []doc.Item
+	for i := 0; i < len(rs); {
+		marks := rs[i].Marks
+		var b strings.Builder
+		for i < len(rs) && rs[i].Marks == marks {
+			b.WriteRune(rs[i].R)
+			i++
+		}
+		out = append(out, doc.TextItem(b.String(), marks))
+	}
+	return out
+}
+
+// LineAround is the line of text holding [from, to): from the line break
+// before from to the one at or after to.
+func LineAround(text string, from, to int) (int, int) {
+	from, to = max(0, min(from, len(text))), max(0, min(max(from, to), len(text)))
+	for from > 0 && text[from-1] != '\n' {
+		from--
+	}
+	for to < len(text) && text[to] != '\n' {
+		to++
+	}
+	return from, to
+}
+
+// RefineLines rewrites the text of in's lines holding [from, to) through
+// fn, one stretch at a time: a stretch is text between line breaks and
+// inline nodes, at slot offset at. It returns the minimal edits of slot
+// that turn each stretch into fn's result, last first, so each applies to
+// offsets the ones before it left alone.
+func RefineLines(slot doc.SlotRef, in *doc.Inline, from, to int, fn func(stretch Runes, at int) (Runes, bool)) []Edit {
+	from, to = LineAround(in.Flat(), from, to)
+	var changes []TextChange
+	var stretch Runes
+	stretchFrom, stretchTo := 0, 0
+	flush := func() {
+		if len(stretch) == 0 {
+			return
+		}
+		if out, changed := fn(stretch, stretchFrom); changed {
+			for _, d := range MinimalTextChanges(stretch.Items(), out.Items()) {
+				changes = append(changes, TextChange{From: stretchFrom + d.From, To: stretchFrom + d.To, Items: d.Items})
+			}
+		}
+		stretch = nil
+	}
+	in.Each(func(at int, item doc.Item) bool {
+		if at >= to {
+			return false
+		}
+		if item.Node != nil {
+			flush()
+			return true
+		}
+		for off, r := range item.Text {
+			abs := at + off
+			if abs < from || abs >= to {
+				continue
+			}
+			if r == '\n' || len(stretch) > 0 && abs != stretchTo {
+				flush()
+			}
+			if r == '\n' {
+				continue
+			}
+			if len(stretch) == 0 {
+				stretchFrom = abs
+			}
+			stretch = append(stretch, StyledRune{R: r, Marks: item.Marks})
+			stretchTo = abs + utf8.RuneLen(r)
+		}
+		return true
+	})
+	flush()
+	edits := make([]Edit, 0, len(changes))
+	for i := len(changes) - 1; i >= 0; i-- {
+		c := changes[i]
+		edits = append(edits, Ops(doc.EditText{At: slot, From: c.From, To: c.To, Items: c.Items}))
+	}
+	return edits
 }

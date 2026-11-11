@@ -49,16 +49,6 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		})
 })
 
-type styledRune struct {
-	r     rune
-	marks *doc.MarkSet
-}
-
-type change struct {
-	from, to int
-	items    []doc.Item
-}
-
 type span struct{ from, to int }
 
 func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
@@ -71,96 +61,14 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 		return policy.Swallow
 	}
 	flat := in.Flat()
-	from := lineStart(flat, site.From)
-	to := lineEnd(flat, max(site.From, site.To))
-	if from >= to {
-		return policy.Swallow
-	}
-
-	var changes []change
-	var stretch []styledRune
-	stretchFrom, stretchTo := 0, 0
-	flush := func() {
-		if len(stretch) == 0 {
-			return
-		}
-		out, changed := refine(stretch, lineHasCJK(flat, stretchFrom), opts)
-		if changed {
-			si, so := itemsOf(stretch), itemsOf(out)
-			ds := vocab.MinimalTextChanges(si, so)
-			for _, d := range ds {
-				changes = append(changes, change{stretchFrom + d.From, stretchFrom + d.To, d.Items})
-			}
-		}
-		stretch = nil
-	}
-
-	in.Each(func(at int, item doc.Item) bool {
-		if at >= to {
-			return false
-		}
-		if item.Node != nil {
-			flush()
-			return true
-		}
-		lo, hi := max(at, from), min(at+len(item.Text), to)
-		if lo >= hi {
-			return true
-		}
-		for off, r := range item.Text {
-			abs := at + off
-			if abs < lo || abs >= hi {
-				continue
-			}
-			if r == '\n' {
-				flush()
-				continue
-			}
-			if len(stretch) > 0 && abs != stretchTo {
-				flush()
-			}
-			if len(stretch) == 0 {
-				stretchFrom = abs
-			}
-			stretch = append(stretch, styledRune{r: r, marks: item.Marks})
-			stretchTo = abs + utf8.RuneLen(r)
-		}
-		return true
-	})
-	flush()
-
-	if len(changes) == 0 {
-		return policy.Swallow
-	}
-	edits := make([]vocab.Edit, 0, len(changes))
-	for i := len(changes) - 1; i >= 0; i-- {
-		change := changes[i]
-		edits = append(edits, vocab.Ops(doc.EditText{
-			At: site.Slot, From: change.from, To: change.to, Items: change.items,
-		}))
-	}
-	return policy.Do(edits...)
-}
-
-func lineStart(text string, at int) int {
-	at = max(0, min(at, len(text)))
-	for at > 0 && text[at-1] != '\n' {
-		at--
-	}
-	return at
-}
-
-func lineEnd(text string, at int) int {
-	at = max(0, min(at, len(text)))
-	for at < len(text) && text[at] != '\n' {
-		at++
-	}
-	return at
+	return policy.Do(vocab.RefineLines(site.Slot, in, site.From, site.To, func(stretch vocab.Runes, at int) (vocab.Runes, bool) {
+		return refine(stretch, lineHasCJK(flat, at), opts)
+	})...)
 }
 
 func lineHasCJK(text string, at int) bool {
-	at = lineStart(text, at)
-	for at < len(text) && text[at] != '\n' {
+	at, end := vocab.LineAround(text, at, at)
+	for at < end {
 		r, size := utf8.DecodeRuneInString(text[at:])
 		if r != doc.NodeByte && vocab.IsCJK(r) {
 			return true
@@ -170,9 +78,9 @@ func lineHasCJK(text string, at int) bool {
 	return false
 }
 
-func refine(cells []styledRune, hasCJK bool, opts options) ([]styledRune, bool) {
+func refine(cells vocab.Runes, hasCJK bool, opts options) (vocab.Runes, bool) {
 	cells = slices.Clone(cells)
-	before := cellsText(cells)
+	before := cells.Text()
 	urls := urlRanges(cells)
 	if opts.punctuation && hasCJK {
 		cells = punctuationWidth(cells, urls)
@@ -181,42 +89,20 @@ func refine(cells []styledRune, hasCJK bool, opts options) ([]styledRune, bool) 
 	if opts.spacing {
 		cells = cjkLatinSpacing(cells, urls)
 	}
-	return cells, cellsText(cells) != before
-}
-
-func itemsOf(cells []styledRune) []doc.Item {
-	var out []doc.Item
-	for i := 0; i < len(cells); {
-		marks := cells[i].marks
-		var b strings.Builder
-		for i < len(cells) && cells[i].marks == marks {
-			b.WriteRune(cells[i].r)
-			i++
-		}
-		out = append(out, doc.TextItem(b.String(), marks))
-	}
-	return out
-}
-
-func cellsText(cells []styledRune) string {
-	var b strings.Builder
-	for _, cell := range cells {
-		b.WriteRune(cell.r)
-	}
-	return b.String()
+	return cells, cells.Text() != before
 }
 
 func refineText(text string, opts options) string {
-	cells := make([]styledRune, 0, utf8.RuneCountInString(text))
+	cells := make(vocab.Runes, 0, utf8.RuneCountInString(text))
 	hasCJK := false
 	for _, r := range text {
-		cells = append(cells, styledRune{r: r})
+		cells = append(cells, vocab.StyledRune{R: r})
 		hasCJK = hasCJK || vocab.IsCJK(r)
 	}
 	out, _ := refine(cells, hasCJK, opts)
 	var b strings.Builder
 	for _, cell := range out {
-		b.WriteRune(cell.r)
+		b.WriteRune(cell.R)
 	}
 	return b.String()
 }
@@ -235,58 +121,58 @@ var fullwidth = map[rune]rune{
 // punctuationWidth changes ASCII punctuation only outside URLs. A numeric
 // separator, and a possible decimal or clock punctuation at a line's end,
 // is left for the next character to settle.
-func punctuationWidth(cells []styledRune, urls []span) []styledRune {
+func punctuationWidth(cells vocab.Runes, urls []span) vocab.Runes {
 	for i, cell := range cells {
-		want, ok := fullwidth[cell.r]
+		want, ok := fullwidth[cell.R]
 		if !ok || inSpans(urls, i) || numericException(cells, i) || deferredException(cells, i) {
 			continue
 		}
-		cells[i].r = want
+		cells[i].R = want
 	}
 	return cells
 }
 
-func numericException(cells []styledRune, i int) bool {
+func numericException(cells vocab.Runes, i int) bool {
 	if i == 0 || i+1 >= len(cells) {
 		return false
 	}
-	return unicode.IsDigit(cells[i-1].r) && unicode.IsDigit(cells[i+1].r)
+	return unicode.IsDigit(cells[i-1].R) && unicode.IsDigit(cells[i+1].R)
 }
 
 // deferredException keeps punctuation that might start a decimal, time or
 // URL intact until the character after it proves which it is.
-func deferredException(cells []styledRune, i int) bool {
+func deferredException(cells vocab.Runes, i int) bool {
 	if i == 0 {
 		return false
 	}
-	if unicode.IsDigit(cells[i-1].r) && i+1 == len(cells) {
+	if unicode.IsDigit(cells[i-1].R) && i+1 == len(cells) {
 		return true
 	}
-	if cells[i].r != ':' {
+	if cells[i].R != ':' {
 		return false
 	}
 	j := i - 1
-	for j >= 0 && schemeRune(cells[j].r) {
+	for j >= 0 && schemeRune(cells[j].R) {
 		j--
 	}
-	if j == i-1 || j+1 >= i || !unicode.IsLetter(cells[j+1].r) {
+	if j == i-1 || j+1 >= i || !unicode.IsLetter(cells[j+1].R) {
 		return false
 	}
-	return i+1 == len(cells) || cells[i+1].r == '/'
+	return i+1 == len(cells) || cells[i+1].R == '/'
 }
 
 // cjkLatinSpacing inserts one space at either direction of CJK/Latin
 // adjacency. Punctuation and URL interiors are not boundaries.
-func cjkLatinSpacing(cells []styledRune, urls []span) []styledRune {
-	out := make([]styledRune, 0, len(cells)+8)
+func cjkLatinSpacing(cells vocab.Runes, urls []span) vocab.Runes {
+	out := make(vocab.Runes, 0, len(cells)+8)
 	for i, cell := range cells {
 		out = append(out, cell)
 		if i+1 >= len(cells) || inSpans(urls, i) && inSpans(urls, i+1) {
 			continue
 		}
-		next := cells[i+1].r
-		if cjkLetter(cell.r) && latinLike(next) || latinLike(cell.r) && cjkLetter(next) {
-			out = append(out, styledRune{r: ' ', marks: cell.marks})
+		next := cells[i+1].R
+		if cjkLetter(cell.R) && latinLike(next) || latinLike(cell.R) && cjkLetter(next) {
+			out = append(out, vocab.StyledRune{R: ' ', Marks: cell.Marks})
 		}
 	}
 	return out
@@ -311,18 +197,18 @@ func inSpans(spans []span, at int) bool {
 
 // urlRanges finds scheme URLs and www addresses. Trailing sentence
 // punctuation is left outside the protected range.
-func urlRanges(cells []styledRune) []span {
+func urlRanges(cells vocab.Runes) []span {
 	var out []span
 	for i := 0; i < len(cells); i++ {
-		if i > 0 && schemeRune(cells[i-1].r) {
+		if i > 0 && schemeRune(cells[i-1].R) {
 			continue
 		}
 		start := i
-		if prefix(cells, i, "www.") {
+		if cells.HasPrefix(i, "www.") {
 			i += len("www.")
 		} else {
 			j := i
-			for j < len(cells) && schemeRune(cells[j].r) {
+			for j < len(cells) && schemeRune(cells[j].R) {
 				j++
 			}
 			if j == i {
@@ -330,19 +216,19 @@ func urlRanges(cells []styledRune) []span {
 			}
 			letters := false
 			for _, c := range cells[i:j] {
-				letters = letters || unicode.IsLetter(c.r)
+				letters = letters || unicode.IsLetter(c.R)
 			}
-			if !letters || !prefix(cells, j, "://") {
+			if !letters || !cells.HasPrefix(j, "://") {
 				continue
 			}
 			i = j + len("://")
 		}
 		end := i
-		for end < len(cells) && !unicode.IsSpace(cells[end].r) && !vocab.IsCJK(cells[end].r) {
+		for end < len(cells) && !unicode.IsSpace(cells[end].R) && !vocab.IsCJK(cells[end].R) {
 			end++
 		}
 		if end < len(cells) {
-			for end > i && strings.ContainsRune(".,;:!?", cells[end-1].r) {
+			for end > i && strings.ContainsRune(".,;:!?", cells[end-1].R) {
 				end--
 			}
 		}
@@ -357,14 +243,4 @@ func urlRanges(cells []styledRune) []span {
 func schemeRune(r rune) bool {
 	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' ||
 		r >= '0' && r <= '9' || r == '+' || r == '-' || r == '.'
-}
-
-func prefix(cells []styledRune, at int, text string) bool {
-	for _, want := range text {
-		if at >= len(cells) || cells[at].r != want {
-			return false
-		}
-		at++
-	}
-	return true
 }
