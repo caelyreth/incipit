@@ -64,8 +64,8 @@ type inlineConfig struct {
 // runKinds are the fact kinds of runs. Emphasis, strong and their half
 // closers are keyed by delimiter, so a rule stands in one spelling's runs.
 type runKinds struct {
-	em, strong   *policy.FactKind[run]
-	half         *policy.FactKind[half]
+	em, strong   policy.KeyedKind[run, byte]
+	half         policy.KeyedKind[half, byte]
 	code, strike *policy.FactKind[run]
 }
 

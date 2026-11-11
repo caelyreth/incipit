@@ -37,9 +37,9 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 
 	char := func(r run) byte { return r.Char }
 	k := &runKinds{
-		em:     policy.Facts[run](p, "em", policy.Keyed(char)),
-		strong: policy.Facts[run](p, "strong", policy.Keyed(char)),
-		half:   policy.Facts[half](p, "half", policy.Keyed(func(h half) byte { return h.Char })),
+		em:     policy.KeyedFacts(p, "em", char),
+		strong: policy.KeyedFacts(p, "strong", char),
+		half:   policy.KeyedFacts(p, "half", func(h half) byte { return h.Char }),
 		code:   policy.Facts[run](p, "code"),
 		strike: policy.Facts[run](p, "strike"),
 	}

@@ -76,6 +76,13 @@ var testPairs = Define("pairs", func(p *P) {
 	On(p, "soft", Intent[vocab.SoftBreak](), kind.Inside(), func(*Ctx, vocab.SoftBreak, At[paren]) Result { return Pass })
 })
 
+// testParen declares the paren fact kind in a policy of its own.
+func testParen(p *P) *FactKind[paren] {
+	kind := Facts[paren](p, "paren", Provides(func(at At[paren]) paren { return at.Data }, vocab.RolePair))
+	Scan[string](p, parenScanner{kind: kind}, []FactID{kind.Kind()})
+	return kind
+}
+
 func testPage(t *testing.T, text string) (*doc.Snapshot, doc.SlotRef) {
 	t.Helper()
 	snap, err := doc.NewSnapshot(profile.Schema(), doc.NewInterner(), doc.NewNodeWithID(1, profile.Page, doc.Attrs{}, "", doc.BlockSlot()), 7)
@@ -160,6 +167,29 @@ func TestCompileChecks(t *testing.T) {
 	snap, ref := testPage(t, "x")
 	if out := run(t, prog, NewStore(), snap, doc.At(ref, 0), vocab.Type{Text: "*"}); out.Rule != "a.x" {
 		t.Fatalf("got %s", out.Rule)
+	}
+	// Places that cannot hold at once need no order: a pair's start and
+	// its end are different zones.
+	starts := Define("starts", func(p *P) {
+		On(p, "x", Typed(")"), testParen(p).AtStart(), swallowAll)
+	})
+	ends := Define("ends", func(p *P) {
+		On(p, "y", Typed(")"), Role[vocab.Pair](vocab.RolePair).AtEnd(), swallowAll)
+	})
+	if _, err := Compile(Manifest{Enabled: []*Policy{testCore, starts, ends}}, nil); err != nil {
+		t.Fatalf("disjoint places reported: %v", err)
+	}
+	// A rule after one that answers wherever it would is reported.
+	shadowed := Define("shadowed", func(p *P) {
+		On(p, "all", Intent[vocab.Type](), Slot.Inside(), swallowAll)
+		On(p, "star", Typed("*"), Slot.Own(), swallowAll)
+	})
+	prog, err = Compile(Manifest{Enabled: []*Policy{testCore, shadowed}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := prog.Report().Shadowed; !slices.Equal(got, []string{"shadowed.star by shadowed.all"}) {
+		t.Fatalf("shadowed = %v", got)
 	}
 	cyc := []Order{Over(a, b, nil), Over(b, a, nil)}
 	if _, err := Compile(Manifest{Enabled: []*Policy{testCore, a, b}, Resolve: cyc}, nil); err == nil || !strings.Contains(err.Error(), "cycle") {

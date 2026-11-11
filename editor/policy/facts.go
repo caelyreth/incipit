@@ -148,7 +148,7 @@ func (e *Emit) done() []Fact {
 }
 
 // FactKind is a typed fact kind a policy declared. It is a subject rules
-// stand in: every fact of the kind, or with Key those of one key.
+// stand in: every fact of the kind.
 type FactKind[T any] struct {
 	Subject[T]
 	decl *factDecl
@@ -165,7 +165,6 @@ type factDecl struct {
 	roles    []vocab.Role
 	binders  map[vocab.Role]func(*Level) any
 	key      func(any) any
-	keyType  reflect.Type
 	projects bool
 	errs     []string
 }
@@ -186,19 +185,6 @@ func Provides[T, R any](bind func(At[T]) R, roles ...vocab.Role) FactOption {
 			d.roles = append(d.roles, r)
 			d.binders[r] = func(l *Level) any { return bind(At[T]{Level: l, Data: l.Fact.Data.(T)}) }
 		}
-	}
-}
-
-// Keyed keys the kind's facts by their data, so a rule can stand in the
-// facts of one key.
-func Keyed[T any, K comparable](key func(T) K) FactOption {
-	return func(d *factDecl) {
-		if d.data != reflect.TypeFor[T]() {
-			d.errs = append(d.errs, fmt.Sprintf("keyed by %s, not the kind's data", reflect.TypeFor[T]()))
-			return
-		}
-		d.key = func(v any) any { return key(v.(T)) }
-		d.keyType = reflect.TypeFor[K]()
 	}
 }
 
@@ -254,11 +240,19 @@ func factSubject[T any](s Scope) Subject[T] {
 // Kind is the untyped handle.
 func (k *FactKind[T]) Kind() FactID { return k.decl.kind }
 
+// KeyedKind is a fact kind whose facts carry a key of type K from their
+// data, so a rule can stand in the facts of one key.
+type KeyedKind[T any, K comparable] struct{ *FactKind[T] }
+
+// KeyedFacts declares a fact kind whose data is T, keyed by key.
+func KeyedFacts[T any, K comparable](p *P, name string, key func(T) K, opts ...FactOption) KeyedKind[T, K] {
+	k := Facts[T](p, name, opts...)
+	k.decl.key = func(v any) any { return key(v.(T)) }
+	return KeyedKind[T, K]{k}
+}
+
 // Key is the subject of the kind's facts of one key.
-func (k *FactKind[T]) Key(key any) Subject[T] {
-	if k.decl.key == nil || reflect.TypeOf(key) != k.decl.keyType {
-		panic(fmt.Sprintf("policy: fact %s is not keyed by %T", k.decl.name, key))
-	}
+func (k KeyedKind[T, K]) Key(key K) Subject[T] {
 	s := factScope(k.decl.kind)
 	s.Key = key
 	return factSubject[T](s)

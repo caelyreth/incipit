@@ -27,7 +27,7 @@ func openWith(t *testing.T, values policy.Values) *page {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r := prog.Report(); len(r.Dropped) > 0 {
+	if r := prog.Report(); len(r.Dropped)+len(r.Shadowed) > 0 {
 		t.Logf("report:\n%s", r)
 	}
 	snap, _ := profile.EmptyPage(1, 5, doc.NewInterner())
@@ -145,4 +145,16 @@ var reveals = []string{notation.RevealShown, notation.RevealHidden}
 // revealed opens a page whose notation reveals as reveal says.
 func revealed(t *testing.T, reveal string) *page {
 	return openWith(t, policy.Values{notation.ID + ".reveal": reveal})
+}
+
+// Every product rule can run: none answers only where an earlier one
+// already does.
+func TestNoRuleIsShadowed(t *testing.T) {
+	prog, err := Compile(nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := prog.Report().Shadowed; len(s) > 0 {
+		t.Fatalf("shadowed rules: %v", s)
+	}
 }

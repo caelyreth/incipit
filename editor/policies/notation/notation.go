@@ -61,15 +61,13 @@ var (
 var Policy = policy.Define(ID, func(p *policy.P) {
 	sp := spelling{Underscores: policy.Get(p, Underscores), Hidden: policy.Get(p, Reveal) == RevealHidden}
 
-	byMark := func(g markGhost) doc.MarkKind { return g.Mark.Kind }
 	k := kinds{
-		signs: policy.Facts[markGhost](p, "sign", policy.Projects(), policy.Keyed(byMark)),
+		signs: policy.KeyedFacts(p, "sign", func(g markGhost) doc.MarkKind { return g.Mark.Kind }, policy.Projects()),
 		// A mark is a pair, and a scope to leave, however its signs are
 		// drawn.
-		spans: policy.Facts[markSpan](p, "span", policy.Keyed(func(s markSpan) doc.MarkKind { return s.Mark.Kind }),
+		spans: policy.KeyedFacts(p, "span", func(s markSpan) doc.MarkKind { return s.Mark.Kind },
 			policy.Provides(boundSpan, vocab.RolePair, vocab.RoleLeavable)),
-		markers: policy.Facts[markerGhost](p, "marker", policy.Projects(),
-			policy.Keyed(func(g markerGhost) doc.Kind { return g.Marker.Kind })),
+		markers: policy.KeyedFacts(p, "marker", func(g markerGhost) doc.Kind { return g.Marker.Kind }, policy.Projects()),
 	}
 	p.Paint(vocab.GroupPairMatch, k.spans.Kind(), policy.WhenCaretInside)
 	p.Analyze(policy.Lines, analyze(sp, k), k.all(), policy.Config(sp),
@@ -121,12 +119,12 @@ type kinds struct {
 	// signs are every mark's signs, keyed by mark kind: a typed delimiter
 	// acts only on the marks it spells, whichever of their spellings is
 	// drawn (§11.1).
-	signs *policy.FactKind[markGhost]
+	signs policy.KeyedKind[markGhost, doc.MarkKind]
 	// spans are mark runs between their signs, by mark kind: pairs, and
 	// scopes Leave exits past the closing sign.
-	spans *policy.FactKind[markSpan]
+	spans policy.KeyedKind[markSpan, doc.MarkKind]
 	// markers are block markers, keyed by block kind.
-	markers *policy.FactKind[markerGhost]
+	markers policy.KeyedKind[markerGhost, doc.Kind]
 }
 
 // markKinds are the marks notation signs.

@@ -81,6 +81,9 @@ type Report struct {
 	Errors []string
 	// Dropped rules need facts no enabled analyzer produces.
 	Dropped []string
+	// Shadowed rules can never run: a rule before them answers wherever
+	// they would, unless it passes.
+	Shadowed []string
 }
 
 func (r *Report) errorf(format string, args ...any) {
@@ -94,6 +97,9 @@ func (r *Report) String() string {
 	}
 	for _, s := range r.Dropped {
 		fmt.Fprintf(&b, "dropped: %s\n", s)
+	}
+	for _, s := range r.Shadowed {
+		fmt.Fprintf(&b, "shadowed: %s\n", s)
 	}
 	return b.String()
 }
@@ -531,13 +537,107 @@ func overlaps(a, b matcher) bool {
 	if a.texts != nil && b.texts != nil && !slices.ContainsFunc(a.texts, func(t string) bool { return slices.Contains(b.texts, t) }) {
 		return false
 	}
-	classed := func(texts []string, c vocab.CharClass) bool {
-		return texts == nil || c == 0 || slices.ContainsFunc(texts, func(t string) bool { return vocab.FirstClass(t)&c != 0 })
-	}
 	if !classed(a.texts, b.class) || !classed(b.texts, a.class) || a.class != 0 && b.class != 0 && a.class&b.class == 0 {
 		return false
 	}
 	return (a.unit == 0 || b.unit == 0 || a.unit == b.unit) && (a.dir == 0 || b.dir == 0 || a.dir == b.dir)
+}
+
+// classed reports whether some of texts (any text, for none) starts in
+// class c (any class, for none).
+func classed(texts []string, c vocab.CharClass) bool {
+	return texts == nil || c == 0 || slices.ContainsFunc(texts, func(t string) bool { return vocab.FirstClass(t)&c != 0 })
+}
+
+// subsumes reports whether every intent b matches, a matches.
+func subsumes(a, b matcher) bool {
+	if a.kind != b.kind || a.unit != 0 && a.unit != b.unit || a.dir != 0 && a.dir != b.dir {
+		return false
+	}
+	if a.texts != nil && (b.texts == nil || slices.ContainsFunc(b.texts, func(t string) bool { return !slices.Contains(a.texts, t) })) {
+		return false
+	}
+	switch {
+	case a.class == 0:
+		return true
+	case b.texts != nil:
+		return !slices.ContainsFunc(b.texts, func(t string) bool { return vocab.FirstClass(t)&a.class == 0 })
+	}
+	return b.class != 0 && b.class&^a.class == 0
+}
+
+// meets reports whether two rules can both answer one intent at one level
+// and selection: their patterns overlap, their shapes meet, and two of
+// their places can hold at one level at once. Places in a level hold at
+// once only where their zones meet.
+func (p *Program) meets(a, b *rule) bool {
+	if !overlaps(a.match, b.match) || a.shapes&b.shapes == 0 {
+		return false
+	}
+	for _, x := range a.alts {
+		for _, y := range b.alts {
+			if !p.coincide(x.index(), y.index()) {
+				continue
+			}
+			if x.how != placeIn || y.how != placeIn || x.own != y.own || x.zones&y.zones != 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// shadows reports whether a, with no conditions, answers wherever b
+// would: its pattern, shapes and places cover b's.
+func (p *Program) shadows(a, b *rule) bool {
+	if len(a.conds) > 0 || a.shapes&b.shapes != b.shapes || !subsumes(a.match, b.match) {
+		return false
+	}
+	for _, y := range b.alts {
+		if !slices.ContainsFunc(a.alts, func(x alt) bool { return p.altCovers(x, y) }) {
+			return false
+		}
+	}
+	return true
+}
+
+// altCovers reports whether place x holds wherever place y does.
+func (p *Program) altCovers(x, y alt) bool {
+	if !p.scopeCovers(x.index(), y.index()) {
+		return false
+	}
+	if x.how == placeIn && x.zones == zoneAll && !x.own {
+		// Anywhere inside: wherever the level is.
+		return true
+	}
+	switch {
+	case x.how != y.how:
+		return false
+	case x.how == placeIn:
+		return x.own == y.own && x.zones&y.zones == y.zones
+	case x.how == placeAhead, x.how == placeBehind:
+		return p.scopeCovers(x.scope, y.scope)
+	}
+	return true
+}
+
+// scopeCovers reports whether every level answering to y answers to x.
+func (p *Program) scopeCovers(x, y Scope) bool {
+	if x == y || x.Class == y.Class && x.ID == y.ID && x.Key == nil {
+		return true
+	}
+	if x.Class != ScopeRole {
+		return false
+	}
+	role := vocab.Role(x.ID)
+	switch y.Class {
+	case ScopeNode:
+		return slices.Contains(p.nodeRoles(doc.Kind(y.ID)), role)
+	case ScopeFact:
+		d, ok := p.factDecls[FactID(y.ID)]
+		return ok && slices.Contains(d.roles, role)
+	}
+	return false
 }
 
 // coincide reports whether two scope keys can name the same stack level.
@@ -638,17 +738,27 @@ func (p *Program) check(rep *Report) {
 	// the manifest's order; within a policy, declaration order decides.
 	for i, a := range p.rules {
 		for _, b := range p.rules[i+1:] {
-			if a.policy == b.policy || (a.policy == CoreID) != (b.policy == CoreID) || !overlaps(a.match, b.match) {
+			if a.policy == b.policy || (a.policy == CoreID) != (b.policy == CoreID) || !p.meets(a, b) {
 				continue
 			}
-			for _, x := range a.alts {
-				if p.standsAt(b, x.index()) && !p.ordered(a, b) && !p.ordered(b, a) {
-					rep.errorf("rules %s and %s overlap at %s; the manifest must order them", a.id(), b.id(), x.index())
-					break
+			if !p.ordered(a, b) && !p.ordered(b, a) {
+				rep.errorf("rules %s and %s overlap; the manifest must order them", a.id(), b.id())
+			}
+		}
+	}
+	// A rule after one that answers wherever it would never runs.
+	for _, rs := range p.table {
+		for i, a := range rs {
+			for _, b := range rs[i+1:] {
+				if (a.policy == CoreID) == (b.policy == CoreID) && p.shadows(a, b) {
+					if s := fmt.Sprintf("%s by %s", b.id(), a.id()); !slices.Contains(rep.Shadowed, s) {
+						rep.Shadowed = append(rep.Shadowed, s)
+					}
 				}
 			}
 		}
 	}
+	slices.Sort(rep.Shadowed)
 	pg := map[string][]string{}
 	for _, o := range p.orders {
 		if o.over {
