@@ -115,6 +115,14 @@ func (o *objectPage) wantSelected() {
 	}
 }
 
+// wantHeld wants the object shown whole for the next delete, still there.
+func (o *objectPage) wantHeld() {
+	o.t.Helper()
+	if o.gone() || o.armed() == 0 {
+		o.t.Fatalf("the object is not held for the next delete")
+	}
+}
+
 func (o *objectPage) wantCaret(pos doc.Pos) {
 	o.t.Helper()
 	if s := o.selection(); s.Kind != doc.SelectText || !s.IsCollapsed() || s.Head.Pos != pos {
@@ -167,9 +175,9 @@ func TestMotionPassesThroughEveryObject(t *testing.T) {
 	})
 }
 
-// Deleting toward an object, by any unit, either way, selects it; the
+// Deleting toward an object, by any unit, either way, holds it whole; the
 // next delete removes it.
-func TestDeletingTowardAnObjectSelectsIt(t *testing.T) {
+func TestDeletingTowardAnObjectHoldsIt(t *testing.T) {
 	for _, in := range []vocab.Delete{back, fwd, {Unit: vocab.ByWord, Dir: vocab.Backward}} {
 		eachObject(t, func(o *objectPage) {
 			if in.Dir < 0 {
@@ -186,7 +194,7 @@ func TestDeletingTowardAnObjectSelectsIt(t *testing.T) {
 				}
 			}
 			o.do(in)
-			o.wantSelected()
+			o.wantHeld()
 			o.do(in)
 			if !o.gone() {
 				t.Fatal("the second delete kept the object")
@@ -201,14 +209,18 @@ func (o *objectPage) kindOf() doc.Kind {
 }
 
 // Backspace at the start of an object's own slot, or in an empty one,
-// selects the object.
-func TestBackspaceAtAnObjectsStartSelectsIt(t *testing.T) {
+// holds the object, as a pair is held from inside.
+func TestBackspaceAtAnObjectsStartHoldsIt(t *testing.T) {
 	eachObject(t, func(o *objectPage) {
 		o.at(o.own(true))
 		o.do(back)
 		o.wantCaret(o.own(false))
 		o.do(back)
-		o.wantSelected()
+		o.wantHeld()
+		o.do(back)
+		if !o.gone() {
+			t.Fatal("the second delete kept the object")
+		}
 	})
 }
 

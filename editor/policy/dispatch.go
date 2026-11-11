@@ -563,6 +563,9 @@ func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret
 			return it.Node, nil, true
 		}
 	}
+	if n, ok := p.across(r, owner, pos, ahead); ok && slices.Contains(p.nodeKeys(n.Kind()), target) {
+		return n, nil, true
+	}
 	if target.Class != ScopeFact && target.Class != ScopeRole {
 		return nil, nil, false
 	}
@@ -579,6 +582,42 @@ func (p *Program) beside(store *Store, r doc.Reader, view *View, caret doc.Caret
 		}
 	}
 	return nil, found, found != nil
+}
+
+// across is the object beside a text block, at its text's edge: nothing
+// stands between the caret and it, as the caret cannot stand in it there.
+// A block whose level steps down from its start has that level between.
+func (p *Program) across(r doc.Reader, owner *doc.Node, pos doc.Pos, ahead bool) (*doc.Node, bool) {
+	s := r.Schema()
+	if s.IsObject(owner.Kind()) {
+		return nil, false
+	}
+	if ahead {
+		if pos.Slot != owner.NumSlots()-1 || pos.Offset != owner.Slot(pos.Slot).Len() {
+			return nil, false
+		}
+	} else if pos.Slot != 0 || pos.Offset != 0 || slices.Contains(p.nodeKeys(owner.Kind()), roleScope(vocab.RoleLeveled)) {
+		return nil, false
+	}
+	parent, slot, ok := r.Parent(owner.ID())
+	if !ok {
+		return nil, false
+	}
+	pn, _ := r.Node(parent)
+	sl := pn.Slot(slot)
+	i, ok := sl.IndexOf(owner)
+	if !ok {
+		return nil, false
+	}
+	if ahead {
+		i++
+	} else {
+		i--
+	}
+	if i < 0 || i >= sl.Len() || !s.IsObject(sl.Child(i).Kind()) {
+		return nil, false
+	}
+	return sl.Child(i), true
 }
 
 // besideLevel is the level of what of target stands beside the caret.

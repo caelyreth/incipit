@@ -267,6 +267,12 @@ func CanJoin(r doc.Reader, first, second doc.SlotRef) bool {
 	if !ok1 || !ok2 || a.Blocks || b.Blocks || a.Literal != b.Literal {
 		return false
 	}
+	for _, ref := range []doc.SlotRef{first, second} {
+		// An object's own slot is its own: never joined to what is beside.
+		if n, ok := r.Node(ref.Node); !ok || r.Schema().IsObject(n.Kind()) {
+			return false
+		}
+	}
 	if !a.Lines {
 		n, _ := r.Node(second.Node)
 		if strings.ContainsRune(n.Slot(second.Slot).Content().Text(), '\n') {

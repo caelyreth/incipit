@@ -1,6 +1,7 @@
 // Package scopes is the scopes policy: SelectScope grows from the
-// innermost scope at the caret through each enclosing scope. Dismiss is
-// core's.
+// innermost scope at the caret through each enclosing scope. Escape in a
+// scope one leaves, with nothing selected, selects it whole when it is a
+// node; on it selected whole, it enters it again where Return would.
 package scopes
 
 import (
@@ -21,6 +22,9 @@ var Active = policy.NewAnnotationKind("scopes.active", false)
 // Policy is the scopes policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "select", policy.Intent[vocab.SelectScope](), policy.Slot.Inside(), grow).Any()
+	leavable := policy.Role[vocab.Leavable](vocab.RoleLeavable)
+	policy.On(p, "leave-selecting", policy.Intent[vocab.Dismiss](), leavable.Own(), selectScope).Caret()
+	policy.On(p, "enter-selected", policy.Intent[vocab.Dismiss](), leavable.Selected(), enterScope).Node()
 	p.Annotation(Active, valid)
 	p.Decorate(Active, vocab.GroupScope)
 	p.Observe("highlight", policy.Trigger{}, highlight)
@@ -76,6 +80,23 @@ func grow(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) policy.R
 		}
 	}
 	return policy.Swallow
+}
+
+// selectScope selects a node scope whole from inside it.
+func selectScope(c *policy.Ctx, _ vocab.Dismiss, at policy.At[vocab.Leavable]) policy.Result {
+	if c.Composition() != nil || at.Class != policy.LevelNode {
+		return policy.Pass
+	}
+	s, ok := selectionOf(c, at.Level)
+	if !ok {
+		return policy.Pass
+	}
+	return policy.Select(settled(c, s))
+}
+
+// enterScope goes back into a scope selected whole, at its entry.
+func enterScope(c *policy.Ctx, _ vocab.Dismiss, at policy.At[vocab.Leavable]) policy.Result {
+	return policy.Select(doc.Collapsed(at.Data.Entry()))
 }
 
 // highlight keeps one decoration over the innermost fact or scoped

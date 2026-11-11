@@ -109,25 +109,31 @@ func TestReturnOnASelectedFigureOpensAParagraphBelow(t *testing.T) {
 	p.want("page(figure() paragraph(x))")
 }
 
-func TestBackspaceSelectsAFigureThenDeletesIt(t *testing.T) {
+func TestBackspaceHoldsAFigureThenDeletesIt(t *testing.T) {
 	p := open(t)
 	p.placeFigure()
 	p.typeText("D")
 	p.do(left)
 	p.do(backspace)
-	p.wantSelected(p.figure())
+	if p.armed() == 0 {
+		t.Fatal("the figure is not held")
+	}
 	p.do(backspace)
 	p.want("page(paragraph())")
 }
 
-func TestBackspaceAfterAFigureSelectsIt(t *testing.T) {
+func TestBackspaceAfterAFigureHoldsIt(t *testing.T) {
 	p := open(t)
 	p.placeFigure()
 	p.do(vocab.Dismiss{})
 	p.do(vocab.Break{})
 	p.do(backspace)
-	p.want("page(figure())")
-	p.wantSelected(p.figure())
+	p.want("page(figure() paragraph())")
+	if p.armed() == 0 {
+		t.Fatal("the figure is not held")
+	}
+	p.do(backspace)
+	p.want("page(paragraph())")
 }
 
 func TestMotionCrossesAFigureThroughItsCaption(t *testing.T) {

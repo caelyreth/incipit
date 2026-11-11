@@ -41,6 +41,8 @@ var Manifest = policy.Manifest{
 		// "$" in an empty formula is its source or a math block, not its
 		// close.
 		policy.Over(formulas.Policy, navigation.Policy, vocab.RoleCloser),
+		// Deleting toward a whole, by any unit, shows it first.
+		policy.Over(deletion.Policy, words.Policy, vocab.IntentDelete),
 	},
 }
 

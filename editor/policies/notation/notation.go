@@ -67,7 +67,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		// A mark is a pair, and a scope to leave, however its signs are
 		// drawn.
 		spans: policy.KeyedFacts(p, "span", func(s markSpan) doc.MarkKind { return s.Mark.Kind },
-			policy.Provides(boundSpan, vocab.RolePair, vocab.RoleLeavable, vocab.RoleCloser)),
+			policy.Provides(boundSpan, vocab.RolePair, vocab.RoleLeavable, vocab.RoleCloser, vocab.RoleStructure)),
 		markers: policy.KeyedFacts(p, "marker", func(g markerGhost) doc.Kind { return g.Marker.Kind }, policy.Projects()),
 	}
 	p.Paint(vocab.GroupPairMatch, k.spans.Kind(), policy.WhenCaretInside)
@@ -387,6 +387,14 @@ func (s markSpan) Sides() (open, close vocab.Edge) {
 	return vocab.Edge{From: s.open.From.Caret(s.slot), To: s.open.To.Caret(s.slot)},
 		vocab.Edge{From: s.close.From.Caret(s.slot), To: s.close.To.Caret(s.slot)}
 }
+
+// Extent is the mark's two signs; removing it clears the mark, its text
+// staying.
+func (s markSpan) Extent() []vocab.Edge {
+	open, close := s.Sides()
+	return []vocab.Edge{open, close}
+}
+func (s markSpan) Remove() vocab.Edit { return s.EditSide(vocab.Open, "") }
 
 // EditSide reinterprets a side's new spelling through the notation set:
 // the run takes the mark the spelling spells, or none for no spelling.

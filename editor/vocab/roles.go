@@ -97,9 +97,16 @@ type Syntax interface {
 	Syntax() Span
 }
 
-// Structure is a whole deleted as a unit.
+// Structure is a whole: what is deleted as one is first shown as one.
+// Each provider says what it is: a node, a pair's two sides, a mark's
+// signs.
 type Structure interface {
-	Node() doc.ID
+	// Extent is what the whole covers, as it is shown: its pieces, each
+	// between two carets.
+	Extent() []Edge
+	// Remove is the edit deleting the whole: a node goes, a pair's sides
+	// go and what they held stays.
+	Remove() Edit
 }
 
 // Role is a shared interface that fact kinds and node kinds provide.

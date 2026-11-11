@@ -272,8 +272,8 @@ func deleteText(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy
 }
 
 // deleteAt deletes one unit from head. At a slot's edge it steps a
-// block's marker down, joins blocks, or selects an object instead of
-// deleting it in one press.
+// block's marker down or joins blocks; what stands whole beside it is the
+// deletion policy's.
 func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
 	if in.Dir == 0 {
 		in.Dir = vocab.Backward
@@ -295,11 +295,6 @@ func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
 		return deleteBefore(c, block)
 	}
 	pos := head.Pos
-	if obj, ok := vocab.ObjectToward(r, pos, in.Dir); ok {
-		// Deleting toward an object selects it, whatever the unit: shown
-		// whole, it goes on the next delete (§12.1).
-		return policy.Select(doc.NodeSelection(obj.ID()))
-	}
 	unit := in.Unit
 	if unit == vocab.ToPageEdge {
 		// Deleting runs to the slot's edge at most.
@@ -329,26 +324,12 @@ func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
 // deleteAcross handles a delete at a slot's edge.
 func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Result {
 	r := c.Doc()
-	if obj, ok := vocab.OwnObject(r, head); ok {
-		// At the start of an object's own slot, deleting backward is
-		// deleting toward the object: it is selected. An object's slots
-		// are never joined to what is beside it.
-		if dir == vocab.Backward {
-			return policy.Select(doc.NodeSelection(obj.ID()))
-		}
+	if n, ok := r.Node(head.Node); !ok || r.Schema().IsObject(n.Kind()) {
+		// An object's own slot has no boundary of its own to delete.
 		return policy.Swallow
 	}
-	spec, ok := vocab.SlotSpec(r, head.Ref())
-	if ok && spec.Blocks {
-		// At a gap: the object on that side is selected.
-		n, _ := r.Node(head.Node)
-		i := head.Offset
-		if dir == vocab.Backward {
-			i--
-		}
-		if i >= 0 && i < n.Slot(head.Slot).Len() && r.Schema().IsObject(n.Slot(head.Slot).Child(i).Kind()) {
-			return policy.Select(doc.NodeSelection(n.Slot(head.Slot).Child(i).ID()))
-		}
+	if spec, ok := vocab.SlotSpec(r, head.Ref()); !ok || spec.Blocks {
+		// A gap holds nothing to delete.
 		return policy.Swallow
 	}
 	block, ok := vocab.Block(r, head)
@@ -374,9 +355,6 @@ func deleteAcross(c *policy.Ctx, head doc.Pos, dir vocab.Direction) policy.Resul
 		return policy.Swallow
 	}
 	next := siblings.Child(index + 1)
-	if r.Schema().IsObject(next.Kind()) {
-		return policy.Select(doc.NodeSelection(next.ID()))
-	}
 	if ref, ok := vocab.FirstTextSlot(next); ok && ref.Node == next.ID() && vocab.CanJoin(r, head.Ref(), ref) {
 		return policy.Do(vocab.Join(head.Ref(), next.ID()))
 	}
@@ -394,8 +372,8 @@ func stepDown(c *policy.Ctx, block *doc.Node) (policy.Result, bool) {
 }
 
 // deleteBefore deletes the boundary before a block, its marker kept: the
-// block joins the text before it, an object before it is selected, and
-// the first block of a container leaves it. A container's first entry
+// block joins the text before it, and the first block of a container
+// leaves it. A container's first entry
 // deletes the boundary before its container.
 func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
 	r := c.Doc()
@@ -408,15 +386,6 @@ func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
 		pn, _ := r.Node(parent)
 		if index > 0 {
 			prev := pn.Slot(ps).Child(index - 1)
-			if r.Schema().IsObject(prev.Kind()) {
-				if empty(r.Schema(), block) {
-					// An empty block after an object goes, the object
-					// selected, as though the break that made it were undone.
-					res := policy.Do(vocab.Ops(doc.Remove{IDs: []doc.ID{block.ID()}}))
-					return res.With(doc.NodeSelection(prev.ID()))
-				}
-				return policy.Select(doc.NodeSelection(prev.ID()))
-			}
 			ref, ok := vocab.LastTextSlot(prev)
 			first, fok := vocab.FirstTextSlot(block)
 			if ok && fok && first.Node == block.ID() && vocab.CanJoin(r, ref, first) {
@@ -438,11 +407,6 @@ func deleteBefore(c *policy.Ctx, block *doc.Node) policy.Result {
 			return policy.Do(vocab.Lift(id))
 		}
 	}
-}
-
-// empty reports whether n is a plain block with no text.
-func empty(s *doc.Schema, n *doc.Node) bool {
-	return n.Kind() == s.Plain() && n.NumSlots() == 1 && n.Slot(0).IsInline() && n.Slot(0).Len() == 0
 }
 
 // inlineParent reports the slot holding an inline node.
@@ -478,7 +442,7 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 		if cleared {
 			edits = append(edits, clear)
 		}
-		if obj, ok := vocab.OwnObject(r, pos); ok {
+		if obj, ok := r.Node(pos.Node); ok && r.Schema().IsObject(obj.Kind()) {
 			if spec, _ := vocab.SlotSpec(r, pos.Ref()); !spec.Lines {
 				if pos, ok = vocab.Beside(r, obj.ID(), vocab.Forward); !ok {
 					return policy.Swallow
@@ -706,28 +670,13 @@ func selectAll(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) pol
 }
 
 // dismiss collapses the selection to its head and ends a composition.
-// Escape outside every scope dismisses; Leave answers scopes separately.
-// dismiss leaves the innermost thing the selection is in: a composition
-// ends, a range collapses to its head, a caret in an object's own slot
-// selects the object; a selected object is entered at its own slot's end,
-// or left at its gap when it has none.
+// Leaving a scope by Escape is the scopes policy's.
 func dismiss(c *policy.Ctx, _ vocab.Dismiss, _ policy.At[doc.SlotRef]) policy.Result {
 	res := policy.Result{}
 	if c.Composition() != nil {
 		res.EndComposition = true
 	}
 	sel := c.Selection()
-	if obj, ok := selectedObject(c); ok {
-		if obj.NumSlots() > 0 && obj.Slot(0).IsInline() {
-			s := doc.Collapsed(doc.CaretAt(doc.Pos{Node: obj.ID(), Offset: obj.Slot(0).Len()}))
-			res.Selection = &s
-			return res
-		}
-	} else if obj, ok := vocab.OwnObject(c.Doc(), c.Head().Pos); ok && sel.Kind == doc.SelectText && sel.IsCollapsed() && !res.EndComposition {
-		s := doc.NodeSelection(obj.ID())
-		res.Selection = &s
-		return res
-	}
 	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
 		s := doc.Collapsed(c.Head())
 		res.Selection = &s

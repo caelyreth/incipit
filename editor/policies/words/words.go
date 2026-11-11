@@ -221,17 +221,13 @@ func maskNodes(flat string) string {
 }
 
 // delete deletes one unit from the caret, through the same range
-// operation every other deletion reads. Deleting toward an object is
-// core's, whatever the unit: it selects the object.
+// operation every other deletion reads.
 func delete(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Result {
 	dir := in.Dir
 	if dir == 0 {
 		dir = vocab.Backward
 	}
 	head := c.Head()
-	if _, ok := vocab.ObjectToward(c.Doc(), head.Pos, dir); ok {
-		return policy.Pass
-	}
 	target, ok := targetAt(c, head, in.Unit, dir)
 	if !ok || target.Pos == head.Pos || target.Pos.Ref() != head.Pos.Ref() {
 		// At its slot's edge: what lies across it is core's to delete, as

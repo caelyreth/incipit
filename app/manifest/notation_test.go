@@ -157,9 +157,10 @@ func TestAStopDecidesTheMarksTypedThere(t *testing.T) {
 }
 
 // Backspace crosses a sign's glyph rather than delete through it; inside
-// the sign it steps the mark down, both signs at once.
+// the sign it steps the mark down, both signs at once. With nothing held
+// whole, the mark is not shown first.
 func TestBackspaceCrossesASignAndStepsItInside(t *testing.T) {
-	p := openWith(t, policy.Values{"pairs.mates": false})
+	p := openWith(t, policy.Values{"deletion.roles": []vocab.Role{}})
 	p.typeText("a **b**")
 	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
 	p.do(back)

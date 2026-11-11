@@ -112,7 +112,8 @@ func NodeRole(r doc.Reader, n *doc.Node, role vocab.Role) (any, bool) {
 	case vocab.RoleStructure:
 		for _, provided := range NodeRoles(n.Kind()) {
 			if provided == vocab.RoleStructure {
-				return structure(n.ID()), true
+				edge, ok := vocab.NodeEdge(r, n.ID())
+				return structure{id: n.ID(), edge: edge}, ok
 			}
 		}
 	}
@@ -188,6 +189,11 @@ type leavable struct{ exit, entry doc.Caret }
 func (l leavable) Exit() doc.Caret  { return l.exit }
 func (l leavable) Entry() doc.Caret { return l.entry }
 
-type structure doc.ID
+// structure is a node as a whole: its place, removed with all it holds.
+type structure struct {
+	id   doc.ID
+	edge vocab.Edge
+}
 
-func (s structure) Node() doc.ID { return doc.ID(s) }
+func (s structure) Extent() []vocab.Edge { return []vocab.Edge{s.edge} }
+func (s structure) Remove() vocab.Edit   { return vocab.RemoveNode(s.id) }
