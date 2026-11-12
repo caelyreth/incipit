@@ -145,3 +145,35 @@ func TestOrderedMarkersSpellTheirNumbers(t *testing.T) {
 	p.typeText("b")
 	p.wantShown("[4. ]b|")
 }
+
+// Outdent is one container less for every container: a quote's block
+// leaves it, splitting it where the block stood, one level at a time, as
+// an item leaves its list.
+func TestOutdentLeavesAQuote(t *testing.T) {
+	outdent := vocab.Command{ID: "lists.outdent"}
+	p := open(t)
+	p.typeText("> a")
+	p.do(vocab.Break{})
+	p.typeText("b")
+	p.do(vocab.Break{})
+	p.typeText("c")
+	b := p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Child(1).ID()
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.At(doc.SlotRef{Node: b}, 1))})
+	p.do(outdent)
+	p.want("page(quote(paragraph(a)) paragraph(b) quote(paragraph(c)))")
+
+	p = open(t)
+	p.typeText("a")
+	p.do(profile.WrapQuote{})
+	p.do(profile.WrapQuote{})
+	p.want("page(quote(quote(paragraph(a))))")
+	p.do(outdent)
+	p.want("page(quote(paragraph(a)))")
+	p.do(outdent)
+	p.want("page(paragraph(a))")
+
+	p = open(t)
+	p.typeText("> - a")
+	p.do(outdent)
+	p.want("page(quote(paragraph(a)))")
+}

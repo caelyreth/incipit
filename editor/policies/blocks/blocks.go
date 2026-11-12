@@ -1,5 +1,6 @@
 // Package blocks is the blocks policy: the text blocks a selection
-// touches take another kind, or a quote around them.
+// touches take another kind, or a quote around them; outdented, they leave
+// the container holding them.
 package blocks
 
 import (
@@ -18,6 +19,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	in := policy.Slot.Inside()
 	policy.On(p, "retype", policy.Intent[profile.Retype](), in, retype).Caret().Range()
 	policy.On(p, "wrap-quote", policy.Intent[profile.WrapQuote](), in, wrapQuote).Caret().Range()
+	policy.On(p, "outdent", policy.Intent[profile.Nest](), in, outdent).Caret().Range()
 
 	p.Command("blocks.paragraph", "commands.paragraph", profile.Retype{To: profile.Paragraph})
 	for level := 1; level <= 3; level++ {
@@ -81,4 +83,34 @@ func wrapQuote(c *policy.Ctx, _ profile.WrapQuote, _ policy.At[doc.SlotRef]) pol
 		return policy.Swallow
 	}
 	return policy.Do(vocab.Wrap(run, profile.Quote, doc.Attrs{}))
+}
+
+// outdent lifts the text blocks the selection touches out of the
+// container holding them, one level, as Backspace lifts a container's
+// first block and Enter an empty one: outdent is one container less. An
+// entry leaves through its own level (lists), and a block the slot around
+// its container does not take stays.
+func outdent(c *policy.Ctx, in profile.Nest, _ policy.At[doc.SlotRef]) policy.Result {
+	if in.Dir != vocab.Backward {
+		return policy.Pass
+	}
+	r := c.Doc()
+	from, to := c.Range()
+	var ids []doc.ID
+	for _, b := range vocab.SelectedBlocks(r, from, to) {
+		if !r.Schema().IsEntry(b.Kind()) && vocab.CanLift(r, b.ID()) {
+			ids = append(ids, b.ID())
+		}
+	}
+	if len(ids) == 0 {
+		return policy.Pass
+	}
+	return policy.Do(func(tx *doc.Tx) error {
+		for _, id := range ids {
+			if err := vocab.Lift(id)(tx); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
