@@ -25,6 +25,9 @@ type Metrics struct {
 	Indent float32
 	// Gap is the room between units.
 	Gap float32
+	// Reach is how far past the column on each side what is wider than it
+	// may show, within the page's margins.
+	Reach float32
 }
 
 // segKind is what a segment of a surface's laid-out text stands for.
@@ -177,6 +180,13 @@ type unitLayout struct {
 	// its picture's height its box shows.
 	figure *profile.Shape
 	crop   float32
+	// table is a table's grid.
+	table *tableLayout
+	// view, when set, is what the unit shows of what it lays out, in the
+	// unit, as a table scrolled across: whatever is past it, its surfaces'
+	// text and what covers them, is clipped, and a point past it is read
+	// at its edge.
+	view ui.Rect
 	// shown is the height the unit is drawn at: its height, or on its way
 	// there as a surface in it opens or closes.
 	shown float32
@@ -233,7 +243,8 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 	pl := &pageLayout{at: map[doc.Caret]place{}}
 	keep := map[doc.ID]bool{}
 	y := float32(0)
-	for i, p := range pres {
+	var prev *present.Presentation
+	for _, p := range pres {
 		if p == nil {
 			continue
 		}
@@ -254,9 +265,10 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 			lc.units[p.Unit] = u
 		}
 		keep[p.Unit] = true
-		if i > 0 {
-			y += m.Gap * gapBefore(p, th)
+		if prev != nil {
+			y += m.Gap * gapBetween(prev, p, th)
 		}
+		prev = p
 		u.y, u.top, u.shown = y, y, u.h
 		y += u.h
 		// Index the stops by caret, in page order.
@@ -315,16 +327,20 @@ func orderedStops(u *unitLayout) []surfStop {
 	return out
 }
 
-// gapBefore is the room before a unit, in gaps: its group's, or tight
+// gapBetween is the room between two units, in gaps: the larger of what
+// the upper keeps after it and the lower before it, its group's, or tight
 // under the one before for a unit carrying an item's marker.
-func gapBefore(p *present.Presentation, th present.Theme) float32 {
+func gapBetween(above, p *present.Presentation, th present.Theme) float32 {
+	before := float32(1)
 	if st := th.Resolve([]vocab.Group{p.Group}); st.Set&present.SetSpace != 0 {
-		return st.Space
+		before = st.Space
+	} else if p.Context.Marker != nil {
+		before = 0.35
 	}
-	if p.Context.Marker != nil {
-		return 0.35
+	if st := th.Resolve([]vocab.Group{above.Group}); st.Set&present.SetAfter != 0 {
+		return max(before, st.After)
 	}
-	return 1
+	return before
 }
 
 // holdsSlot reports whether a presentation shows a slot.
@@ -377,7 +393,7 @@ func (lc *layoutCache) layStack(u *unitLayout, p *present.Presentation, comp *po
 		if s.Card || panel {
 			w = width - 2*cardPad(m)
 		}
-		sl := lc.laySurface(i, s, p, comp, th, m, w, ui.Start)
+		sl := lc.laySurface(i, s, p, comp, th, m, ui.TextShape{Width: w})
 		sl.panel = panel && !s.Card
 		u.surfaces = append(u.surfaces, sl)
 	}
@@ -435,9 +451,10 @@ func utf16Len(s string) int {
 	return n
 }
 
-// laySurface shapes one surface's flow and maps its stops.
-func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, align ui.Align) *surfaceLayout {
-	sl := &surfaceLayout{index: index, card: s.Card, anchor: s.Anchor, slot: s.Flow.Slot, w: width, open: s.Open, shown: s.Open}
+// laySurface shapes one surface's flow as shape sets it, and maps its
+// stops.
+func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, shape ui.TextShape) *surfaceLayout {
+	sl := &surfaceLayout{index: index, card: s.Card, anchor: s.Anchor, slot: s.Flow.Slot, w: shape.Width, open: s.Open, shown: s.Open}
 	base := th.Resolve([]vocab.Group{s.Group})
 	var spans []ui.Span
 	var text strings.Builder
@@ -531,7 +548,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 		// An empty surface lays out a line of nothing, for the caret.
 		spans = []ui.Span{span("", base, m.Body)}
 	}
-	sl.layout = ui.ShapeRichTextWith(spans, font, ui.TextShape{Width: width, Align: align})
+	sl.layout = ui.ShapeRichTextWith(spans, font, shape)
 	_, sl.h = sl.layout.Size()
 	sl.h = max(sl.h, lineHeight(m, m.Body*base.Size))
 	for _, st := range p.Stops {
@@ -698,6 +715,11 @@ func (pl *pageLayout) spot(c doc.Caret) (ui.Rect, spotKind, bool) {
 	x, y := pc.unit.origin(pc.surface)
 	r.X += x
 	r.Y += y
+	if v := pc.unit.view; v.W > 0 {
+		// Past what its unit shows, a place stands at the edge it lies
+		// past.
+		r.X = min(max(r.X, pc.unit.x+v.X), pc.unit.x+v.X+v.W-r.W)
+	}
 	return r, spotText, true
 }
 
@@ -760,7 +782,15 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 	if y < u.y {
 		y = u.y
 	}
-	if u.kind != nil && (!anyShown(u) || y < u.y+u.box.Y+u.box.H) {
+	var s *surfaceLayout
+	if u.kind != nil {
+		if v := u.view; v.W > 0 {
+			// Past what the object shows, a point is read at its edge.
+			x = min(max(x, u.x+v.X), u.x+v.X+v.W-1)
+		}
+		s = u.surfaceAt(x, y)
+	}
+	if s == nil && u.kind != nil && (!anyShown(u) || y < u.y+u.box.Y+u.box.H) {
 		// On what the object draws: the object, and its place on the half
 		// the point is in, which a drag extends to.
 		if u.pres.Gap == nil {
@@ -768,16 +798,17 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 		}
 		return u.beside(y >= u.y+u.box.Y+u.box.H/2), u.pres.Unit, true
 	}
-	var s *surfaceLayout
 	for _, cand := range u.surfaces {
+		if s != nil {
+			break
+		}
 		ox, oy := u.origin(cand)
 		if cand.card && cand.shown && x >= ox-cardPad(Metrics{}) && y >= oy && y < oy+cand.h {
 			s = cand
-			break
 		}
 	}
-	if s == nil && len(u.surfaces) > 0 {
-		s = u.surfaces[0]
+	if s == nil {
+		s = u.nearestSurface(x, y)
 	}
 	if s == nil {
 		return doc.Caret{}, 0, false
@@ -883,7 +914,7 @@ func (pl *pageLayout) coverRanges(u *unitLayout, c present.Cover) map[*surfaceLa
 	for i, r := range runs {
 		from, ok1 := pl.at[u.pres.Stops[r[0]].Caret]
 		to, ok2 := pl.at[u.pres.Stops[r[1]].Caret]
-		if ok1 && ok2 && from.stop.u < to.stop.u {
+		if ok1 && ok2 && from.stop.u <= to.stop.u {
 			out[u.surfaces[i]] = ui.TextInputRange{Start: from.stop.u, End: to.stop.u}
 		}
 	}
@@ -934,7 +965,7 @@ func (pl *pageLayout) vertical(c doc.Caret, goalX float32, up bool) (doc.Caret, 
 				k++
 			}
 			if k >= 0 && k < len(rows) {
-				return rows[k].at(pl, u, goalX), true
+				return rows[k].at(pl, u, goalX, up), true
 			}
 		}
 	}
@@ -959,10 +990,10 @@ func (pl *pageLayout) vertical(c doc.Caret, goalX float32, up bool) (doc.Caret, 
 		if up {
 			k = len(rows) - 1
 		}
-		t := rows[k].at(pl, n, goalX)
+		t := rows[k].at(pl, n, goalX, up)
 		if t == c && len(rows) > 1 {
 			// Objects side by side share the gap between them.
-			t = rows[k-step].at(pl, n, goalX)
+			t = rows[k-step].at(pl, n, goalX, up)
 		}
 		return t, true
 	}
@@ -974,34 +1005,46 @@ func (pl *pageLayout) vertical(c doc.Caret, goalX float32, up bool) (doc.Caret, 
 	return t, ok
 }
 
-// row is one row an object's vertical motion passes: a gap, or a line of
-// one of its surfaces.
+// row is one row an object's vertical motion passes: a gap, or a band of
+// its surfaces side by side, as a table's row of cells, or one alone.
 type row struct {
 	gap  *stopAt
-	s    *surfaceLayout
-	line int
+	band []*surfaceLayout
 }
 
 func (r row) has(pc place) bool {
 	if r.gap != nil {
 		return pc.stop == r.gap
 	}
-	if pc.surface != r.s {
-		return false
-	}
-	_, i, _ := r.s.lineOf(pc.stop.u)
-	return i == r.line
+	return slices.Contains(r.band, pc.surface)
 }
 
-func (r row) at(pl *pageLayout, u *unitLayout, goalX float32) doc.Caret {
+// at is where motion arriving in the row lands at goal x: in the band's
+// surface nearest across, on its first line going down, its last going up.
+func (r row) at(pl *pageLayout, u *unitLayout, goalX float32, up bool) doc.Caret {
 	if r.gap != nil {
 		return r.gap.caret
 	}
-	_, oy := u.origin(r.s)
-	l := r.s.layout.Lines()[r.line].Rect
-	return pl.hitSurface(u, r.s, goalX, oy+l.Y+l.H/2)
+	s, bd := r.band[0], float32(math.Inf(1))
+	for _, cand := range r.band {
+		a := u.area(cand)
+		if d := max(a.X-goalX, 0, goalX-(a.X+a.W)); d < bd {
+			s, bd = cand, d
+		}
+	}
+	_, oy := u.origin(s)
+	lines := s.layout.Lines()
+	l := lines[0].Rect
+	if up {
+		l = lines[len(lines)-1].Rect
+	}
+	return pl.hitSurface(u, s, goalX, oy+l.Y+l.H/2)
 }
 
+// objectRows are the rows an object's vertical motion passes, in order:
+// its gaps around its surfaces, those it shows side by side, their extents
+// overlapping, in one band. A surface's own lines are passed in it, before
+// motion leaves its band.
 func (pl *pageLayout) objectRows(u *unitLayout) []row {
 	var rows []row
 	if u.gaps[0] != nil {
@@ -1010,14 +1053,74 @@ func (pl *pageLayout) objectRows(u *unitLayout) []row {
 	for _, s := range u.surfaces {
 		// An own slot not shown is passed through all the same, as
 		// horizontal motion passes it: arriving opens it.
-		for i := range s.layout.Lines() {
-			rows = append(rows, row{s: s, line: i})
+		if n := len(rows); n > 0 && rows[n-1].gap == nil && besides(rows[n-1].band, s) {
+			rows[n-1].band = append(rows[n-1].band, s)
+			continue
 		}
+		rows = append(rows, row{band: []*surfaceLayout{s}})
 	}
 	if u.gaps[1] != nil {
 		rows = append(rows, row{gap: u.gaps[1]})
 	}
 	return rows
+}
+
+// besides reports whether s stands beside every surface of a band: each
+// shown in its object's own room, not a card, and over the same height.
+func besides(band []*surfaceLayout, s *surfaceLayout) bool {
+	for _, b := range band {
+		if !b.shown || b.card || !s.shown || s.card || s.y >= b.y+b.h || b.y >= s.y+s.h {
+			return false
+		}
+	}
+	return true
+}
+
+// area is the room a surface of u takes, in the page: the box its object
+// sets it in, or its own extent.
+func (u *unitLayout) area(s *surfaceLayout) ui.Rect {
+	if u.kind != nil {
+		if r, ok := u.kind.cover(u, s); ok {
+			r.X += u.x
+			r.Y += u.y
+			return r
+		}
+	}
+	x, y := u.origin(s)
+	return ui.Rect{X: x, Y: y, W: s.w, H: s.h}
+}
+
+// surfaceAt is the surface of u shown at a page point, but a card, which
+// stands over its line.
+func (u *unitLayout) surfaceAt(x, y float32) *surfaceLayout {
+	for _, s := range u.surfaces {
+		if r := u.area(s); s.shown && !s.card && x >= r.X && x < r.X+r.W && y >= r.Y && y < r.Y+r.H {
+			return s
+		}
+	}
+	return nil
+}
+
+// nearestSurface is the surface of u shown nearest a page point, but a
+// card; its first when it shows none.
+func (u *unitLayout) nearestSurface(x, y float32) *surfaceLayout {
+	var best *surfaceLayout
+	bd := float32(math.Inf(1))
+	for _, s := range u.surfaces {
+		if !s.shown || s.card {
+			continue
+		}
+		r := u.area(s)
+		dx := max(r.X-x, 0, x-(r.X+r.W))
+		dy := max(r.Y-y, 0, y-(r.Y+r.H))
+		if d := dx*dx + dy*dy; d < bd {
+			best, bd = s, d
+		}
+	}
+	if best == nil && len(u.surfaces) > 0 {
+		best = u.surfaces[0]
+	}
+	return best
 }
 
 // hitSurface is the stop of a surface nearest a page point.

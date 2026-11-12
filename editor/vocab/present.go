@@ -8,8 +8,9 @@ import "github.com/caelyreth/neverland/editor/doc"
 type Presentation interface {
 	// Contain is what block n adds in a block slot whose context is outer.
 	Contain(r doc.Reader, n *doc.Node, outer Container) Contained
-	// Style is the look of a unit, or of an inline node's card, in ctx.
-	Style(n *doc.Node, ctx Container) Style
+	// Style is the look of a unit, of a text an object holds, or of an
+	// inline node's card, in ctx.
+	Style(r doc.Reader, n *doc.Node, ctx Container) Style
 	// MarkGroup is the group of a mark kind; zero for none.
 	MarkGroup(k doc.MarkKind) Group
 }

@@ -60,6 +60,14 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 		if !ok || s.card && whole[s.anchor] {
 			continue
 		}
+		if r, ok := boxed(u, s, rg); ok {
+			// All of a surface its object sets in a box fills the box.
+			out = append(out, piece{surface: s.index, rows: []decoRow{r}})
+			continue
+		}
+		if rg.Start == rg.End {
+			continue
+		}
 		if !s.shown {
 			out = append(out, piece{surface: -1, rows: []decoRow{objectRow(standIn(u, s), 0)}})
 			continue
@@ -88,6 +96,49 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 			out = append(out, piece{surface: -1, rows: objects})
 		}
 	}
+	shown := out[:0]
+	for _, pc := range out {
+		if pc.rows = clipped(u, pc.rows); len(pc.rows) > 0 {
+			shown = append(shown, pc)
+		}
+	}
+	return shown
+}
+
+// boxed is the row filling the box surface s stands in (objectKind.cover)
+// when rg covers all of it, from its first stop to its last, empty or not:
+// inside the box's edge by a background's own room, so the background
+// meets it.
+func boxed(u *unitLayout, s *surfaceLayout, rg ui.TextInputRange) (decoRow, bool) {
+	if u.kind == nil || len(s.stops) == 0 || rg.Start > s.stops[0].u || rg.End < s.stops[len(s.stops)-1].u {
+		return decoRow{}, false
+	}
+	r, ok := u.kind.cover(u, s)
+	if !ok {
+		return decoRow{}, false
+	}
+	r = outset(r, -decoPad, -decoPad/2)
+	r.X += u.x
+	r.Y += u.y
+	return decoRow{box: r, base: r.Y + r.H}, true
+}
+
+// clipped are rows as u shows them: within its view, where it has one.
+func clipped(u *unitLayout, rows []decoRow) []decoRow {
+	v := u.view
+	if v.W <= 0 {
+		return rows
+	}
+	from, to := u.x+v.X, u.x+v.X+v.W
+	out := rows[:0:0]
+	for _, r := range rows {
+		x0, x1 := max(r.box.X, from), min(r.box.X+r.box.W, to)
+		if x1 < x0 || x1 == x0 && r.box.W > 0 {
+			continue
+		}
+		r.box.X, r.box.W = x0, x1-x0
+		out = append(out, r)
+	}
 	return out
 }
 
@@ -104,10 +155,9 @@ func blockOutline(u *unitLayout, r ui.Rect) (ui.Rect, float32) {
 }
 
 // frameOf is the frame an object draws around its unit, with the unit at
-// x, y: as wide as its box, as tall as the unit stands while its room
-// springs.
+// x, y: across its box, as tall as the unit stands while its room springs.
 func frameOf(u *unitLayout, x, y float32) ui.Rect {
-	return ui.Rect{X: x, Y: y, W: u.box.W, H: u.shown}
+	return ui.Rect{X: x + u.box.X, Y: y, W: u.box.W, H: u.shown}
 }
 
 // inlineOutline is the outline around the inline object of s's segment i,

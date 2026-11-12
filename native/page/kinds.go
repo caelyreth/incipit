@@ -27,6 +27,12 @@ type objectKind interface {
 	// caretX is where a caret in surface s stands across, in the page,
 	// when the object places it itself.
 	caretX(el *Element, u *unitLayout, s *surfaceLayout) (float32, bool)
+	// over draws what the object shows over its surfaces' text.
+	over(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32)
+	// cover is the box surface s stands in, in its unit, when the object
+	// sets its surfaces in boxes, as a table its cells: a point in it is
+	// in the surface, and what covers all of the surface fills it.
+	cover(u *unitLayout, s *surfaceLayout) (ui.Rect, bool)
 }
 
 // inlineKind lays out and draws one kind of inline object in its line.
@@ -39,7 +45,7 @@ type inlineKind interface {
 }
 
 var (
-	objectKinds = map[doc.Kind]objectKind{profile.Figure: figureKind{}, profile.Math: mathKind{}}
+	objectKinds = map[doc.Kind]objectKind{profile.Figure: figureKind{}, profile.Math: mathKind{}, profile.Table: tableKind{}}
 	inlineKinds = map[doc.Kind]inlineKind{profile.Formula: formulaKind{}}
 )
 
@@ -64,6 +70,8 @@ func (stackKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 func (stackKind) paint(*Element, *ui.Painter, *unitLayout, float32, float32) float32 { return 0 }
 func (stackKind) holds(*unitLayout) int                                              { return 0 }
 func (stackKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool)       { return 0, false }
+func (stackKind) over(*Element, *ui.Painter, *unitLayout, float32, float32)          {}
+func (stackKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)                  { return ui.Rect{}, false }
 
 // ruleKind draws an object with no text as a rule across its column.
 type ruleKind struct{}
@@ -79,6 +87,8 @@ func (ruleKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32)
 }
 func (ruleKind) holds(*unitLayout) int                                        { return 0 }
 func (ruleKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool) { return 0, false }
+func (ruleKind) over(*Element, *ui.Painter, *unitLayout, float32, float32)    {}
+func (ruleKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)            { return ui.Rect{}, false }
 
 // figureKind draws a figure: its picture over its caption.
 type figureKind struct{}
@@ -100,6 +110,8 @@ func (figureKind) caretX(el *Element, u *unitLayout, s *surfaceLayout) (float32,
 	_, x, _ := hintOf(u, el.Editor.theme, el.Editor.metrics)
 	return u.x + s.x + x, true
 }
+func (figureKind) over(*Element, *ui.Painter, *unitLayout, float32, float32) {}
+func (figureKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)         { return ui.Rect{}, false }
 
 // mathKind draws a math block: its display over its source, a panel.
 type mathKind struct{}
@@ -124,6 +136,8 @@ func (mathKind) holds(u *unitLayout) int {
 	return n
 }
 func (mathKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool) { return 0, false }
+func (mathKind) over(*Element, *ui.Painter, *unitLayout, float32, float32)    {}
+func (mathKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)            { return ui.Rect{}, false }
 
 // formulaKind draws an inline formula as its math, on the baseline.
 type formulaKind struct{}

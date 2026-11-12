@@ -42,10 +42,12 @@ type Element struct {
 	restoreScroll *float32
 	glide         motion.Glide
 	overscroll    scrollfx.Elastic
-	viewport      ui.Rect
-	column        float32 // the column's left, in the element
-	gesture       *gesture
-	focusPending  bool
+	// tables are the tables scrolled across, by table.
+	tables       map[doc.ID]*tableScroll
+	viewport     ui.Rect
+	column       float32 // the column's left, in the element
+	gesture      *gesture
+	focusPending bool
 	// held is until when a scroll by hand holds the page; typewriter and
 	// viewH are the mode and the height last followed.
 	held       time.Time
@@ -68,8 +70,9 @@ type Element struct {
 	// identity, so each fades in and out.
 	decos map[decoKey]*shownDeco
 	// figures are the figures' springs, by figure; hover is the figure
-	// under the pointer, and focused whether the page had the keys when
-	// last painted.
+	// under the pointer, pointer where the pointer last was, in the
+	// element, and focused whether the page had the keys when last
+	// painted.
 	figures map[doc.ID]*figureMotion
 	// rooms spring each unit's height as a surface in it opens and
 	// closes, stepped as the page is painted at paintNow; roomsMoving asks
@@ -107,6 +110,8 @@ func (el *Element) metrics(width float32) Metrics {
 		Width:   col,
 		Indent:  el.Prose.FontSize * 1.6,
 		Gap:     el.Prose.Leading() * 0.9,
+		// The margins less a body size's room from the page's edge.
+		Reach: max((width-col)/2-el.Prose.FontSize, 0),
 	}
 }
 
@@ -119,12 +124,13 @@ func (el *Element) relayout() *pageLayout {
 	}
 	m := el.metrics(w)
 	if el.still {
-		m.Width = w
+		m.Width, m.Reach = w, 0
 	}
 	ed.SetStyle(el.Theme.Surface, Theme(el.Theme), m)
 	el.column = max((w-m.Width)/2, 0)
 	pl := ed.Relayout()
 	el.settleRooms(pl, el.paintNow, false, el.animate)
+	el.scrollTables(pl, el.paintNow, false, el.animate)
 	el.applyRestoredScroll(pl)
 	return pl
 }
@@ -368,6 +374,7 @@ func (el *Element) follow(pl *pageLayout, now time.Time) {
 		return
 	}
 	ed.reveal = false
+	el.revealAcross(pl, now)
 	el.revealCaret(pl, now)
 }
 
@@ -485,6 +492,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		services.Invalidate()
 		return true
 	case ui.InputPointerMove:
+		el.pointer = ui.Point{X: ev.X, Y: ev.Y}
 		x, y := el.toPage(ev.X, ev.Y)
 		if r := ed.resize; r != nil {
 			if span := r.spanAt(x); span != r.span {
@@ -512,6 +520,18 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		services.Invalidate()
 		return true
 	case ui.InputScroll:
+		// Sideways, the wheel scrolls the table under the pointer across;
+		// Shift turns it sideways.
+		dx := ev.DX
+		if ev.Mods&ui.Shift != 0 && dx == 0 {
+			dx = ev.DY
+		}
+		if x, y := el.toPage(el.pointer.X, el.pointer.Y); dx != ev.DX || math.Abs(float64(dx)) > math.Abs(float64(ev.DY)) {
+			if el.scrollTable(x, y, ev, dx) {
+				services.Invalidate()
+				return true
+			}
+		}
 		el.scrollBy(ev, at)
 		services.Invalidate()
 		return true
@@ -564,6 +584,9 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	el.focused, el.paintNow, el.animate = focused, now, animate
 	el.settleRooms(pl, now, true, animate)
 	if el.roomsMoving {
+		p.AnimationFrame()
+	}
+	if el.scrollTables(pl, now, true, animate) {
 		p.AnimationFrame()
 	}
 	el.previewGesture(pl)
@@ -629,6 +652,9 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		el.clipUnit(p, su.u, ox, su.uy, func() {
 			for _, ss := range su.surfaces {
 				el.paintSurface(p, ss.s, su.ux, su.uy, ss.panel, ss.a)
+			}
+			if su.u.kind != nil {
+				su.u.kind.over(el, p, su.u, su.ux, su.uy)
 			}
 		})
 	}
@@ -702,10 +728,15 @@ func (el *Element) shownSurfaces(u *unitLayout, panel float32) []shownSurface {
 	return out
 }
 
-// clipUnit paints within the room u stands in while it springs.
+// clipUnit paints within the room u stands in while it springs, and
+// across within what it shows (unitLayout.view).
 func (el *Element) clipUnit(p *ui.Painter, u *unitLayout, ox, uy float32, paint func()) {
 	m := el.Editor.metrics
-	p.Clip(ui.Rect{X: ox - cardPad(m), Y: uy, W: m.Width + 2*cardPad(m), H: u.shown}, 0, paint)
+	r := ui.Rect{X: ox - cardPad(m), Y: uy, W: m.Width + 2*cardPad(m), H: u.shown}
+	if v := u.view; v.W > 0 {
+		r.X, r.W = ox+u.x+v.X, v.W
+	}
+	p.Clip(r, 0, paint)
 }
 
 // panelArea is the inset a panel surface stands on.
@@ -817,7 +848,7 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 				continue
 			}
 			for _, d := range s.decos {
-				note(u, s.index, false, d, 0, 0, 0, vis, func() []decoRow { return decoRows(s, d.rg, u.x+s.x, u.y+s.y) })
+				note(u, s.index, false, d, 0, 0, 0, vis, func() []decoRow { return clipped(u, decoRows(s, d.rg, u.x+s.x, u.y+s.y)) })
 			}
 		}
 	}

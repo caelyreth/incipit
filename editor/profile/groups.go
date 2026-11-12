@@ -20,6 +20,7 @@ var (
 	GroupQuote         = vocab.NewGroup("quote", vocab.GroupText)
 	GroupListMarker    = vocab.NewGroup("list.marker", vocab.GroupGhost)
 	GroupCaption       = vocab.NewGroup("caption", vocab.GroupText)
+	GroupTable         = vocab.NewGroup("table", vocab.GroupText)
 	GroupCell          = vocab.NewGroup("cell", vocab.GroupText)
 	GroupCellHeader    = vocab.NewGroup("cell.header", GroupCell)
 )

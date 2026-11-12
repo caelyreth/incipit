@@ -33,7 +33,11 @@ func Theme(t theme.Theme) present.Theme {
 		profile.GroupQuote:         {Set: present.SetColor, Color: pack(t.Text.Muted)},
 		profile.GroupListMarker:    {Set: present.SetColor, Color: pack(t.Prose.Notation)},
 		profile.GroupCaption:       {Set: present.SetColor | present.SetSize, Color: pack(t.Text.Muted), Size: 0.9},
-		profile.GroupCellHeader:    {Set: present.SetWeight, Weight: 700},
+		// A table stands apart from the text around it: further than a
+		// figure, short of a line, so an empty line by it still reads as
+		// one. Its header is set as the app's own headings are.
+		profile.GroupTable:      {Set: present.SetSpace | present.SetAfter, Space: 1.75, After: 1.75},
+		profile.GroupCellHeader: {Set: present.SetWeight, Weight: 600},
 		vocab.GroupComposition: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[theme.Halo].Foreground)},
 		// Every paint has a look on text and around an object it holds

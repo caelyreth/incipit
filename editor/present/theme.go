@@ -26,6 +26,7 @@ const (
 	SetLineColor
 	SetSpace
 	SetOutline
+	SetAfter
 )
 
 // LineKind is the line a style draws under its text.
@@ -41,7 +42,7 @@ const (
 )
 
 // Style is a closed set of style attributes. Layout attributes (font role,
-// size, weight, italic, the room before a unit) and paint attributes
+// size, weight, italic, the room around a unit) and paint attributes
 // (colour, background, line and its color, strike, opacity) are cached
 // apart by the renderer: a change to paint attributes never invalidates
 // layout.
@@ -59,8 +60,10 @@ type Style struct {
 	Strike    bool
 	Opacity   float32
 	// Space is the room before a unit of the group, in gaps; unset, the
-	// page's own.
-	Space float32
+	// page's own. After is the room it keeps after it: two units stand
+	// as far apart as the larger of the upper's After and the lower's
+	// Space asks.
+	Space, After float32
 	// Outline is how a decoration marks an object it holds whole, which
 	// it draws around rather than over, 0xRRGGBBAA; unset, its background.
 	Outline uint32
@@ -105,6 +108,9 @@ func (s *Style) over(o Style) {
 	}
 	if o.Set&SetOutline != 0 {
 		s.Outline = o.Outline
+	}
+	if o.Set&SetAfter != 0 {
+		s.After = o.After
 	}
 	s.Set |= o.Set
 }

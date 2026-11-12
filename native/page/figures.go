@@ -133,7 +133,7 @@ func (lc *layoutCache) layFigure(u *unitLayout, p *present.Presentation, comp *p
 	u.box = ui.Rect{X: x, W: w, H: h}
 	u.h = h
 	for i, s := range p.Surfaces {
-		sl := lc.laySurface(i, s, p, comp, th, m, width, align)
+		sl := lc.laySurface(i, s, p, comp, th, m, ui.TextShape{Width: width, Align: align})
 		sl.y = u.h + captionGap(m)
 		u.surfaces = append(u.surfaces, sl)
 		// A caption with text shows; an empty one only while the figure
@@ -432,7 +432,6 @@ func (el *Element) hoverAt(x, y float32, services ui.Services) {
 		el.hover = id
 		services.Invalidate()
 	}
-	el.pointer = ui.Point{X: x, Y: y}
 }
 
 // hoverGrip reports whether the pointer is over a shown grip.
@@ -441,7 +440,7 @@ func (el *Element) hoverGrip() bool {
 	if pl == nil || el.hover == 0 {
 		return false
 	}
-	u, side := pl.figureAt(el.pointer.X, el.pointer.Y)
+	u, side := pl.figureAt(el.toPage(el.pointer.X, el.pointer.Y))
 	return u != nil && side != 0 && el.gripsShown(u)
 }
 

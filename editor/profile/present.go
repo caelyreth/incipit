@@ -31,7 +31,7 @@ func (product) Contain(r doc.Reader, n *doc.Node, outer vocab.Container) vocab.C
 
 // Style is a kind's group and accessible role; text in a quote reads as
 // quoted.
-func (product) Style(n *doc.Node, ctx vocab.Container) vocab.Style {
+func (product) Style(r doc.Reader, n *doc.Node, ctx vocab.Container) vocab.Style {
 	s := vocab.Style{Group: vocab.GroupText, Role: "paragraph"}
 	switch n.Kind() {
 	case Heading:
@@ -50,9 +50,13 @@ func (product) Style(n *doc.Node, ctx vocab.Container) vocab.Style {
 	case Figure:
 		s.Group, s.Role = GroupCaption, "figure"
 	case Table:
-		s.Role = "table"
+		s.Group, s.Role = GroupTable, "table"
 	case Cell:
 		s.Group, s.Role = GroupCell, "cell"
+		// A header row's cells head their columns.
+		if g, at, ok := vocab.Locate(r, n.ID()); ok && at.Row == 0 && TableShapeOf(g.Table).Header {
+			s.Group, s.Role = GroupCellHeader, "columnheader"
+		}
 	}
 	if ctx.Quotes > 0 && s.Group == vocab.GroupText {
 		s.Group = GroupQuote

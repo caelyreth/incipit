@@ -207,7 +207,7 @@ type plain struct{}
 func (plain) Contain(_ doc.Reader, _ *doc.Node, outer Context) vocab.Contained {
 	return vocab.Contained{Unit: true, Own: outer}
 }
-func (plain) Style(*doc.Node, Context) vocab.Style {
+func (plain) Style(doc.Reader, *doc.Node, Context) vocab.Style {
 	return vocab.Style{Group: vocab.GroupText, Role: "paragraph"}
 }
 func (plain) MarkGroup(doc.MarkKind) vocab.Group { return 0 }
@@ -475,7 +475,7 @@ type env struct {
 
 func build(e env, u UnitRef, key unitKey) *Presentation {
 	n := u.Node
-	style := e.look.Style(n, u.Context)
+	style := e.look.Style(e.r, n, u.Context)
 	p := &Presentation{Unit: u.ID, Kind: n.Kind(), Node: n, Context: u.Context, Group: style.Group,
 		Role: style.Role, Level: style.Level, Gap: u.Gap, Gaps: u.Gaps, key: key}
 	if p.Object = e.r.Schema().IsObject(n.Kind()); p.Object {
@@ -483,7 +483,7 @@ func build(e env, u UnitRef, key unitKey) *Presentation {
 		// gap stops; every text slot it holds, however deep (a figure's
 		// caption, a math block's source, a table's cells), is one of its
 		// surfaces, read in document order between the gaps, open while the
-		// object is held.
+		// object is held, in the look of the node holding it.
 		if u.Gap != nil && u.Gaps[0] {
 			p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(*u.Gap), Surface: -1, Class: StopGap, Offset: u.Gap.Offset})
 		}
@@ -491,7 +491,11 @@ func build(e env, u UnitRef, key unitKey) *Presentation {
 		held = func(n *doc.Node) {
 			for i, sl := range n.Slots() {
 				if sl.IsInline() {
-					flowOf(e, p, doc.SlotRef{Node: n.ID(), Slot: i}, p.Group, false, 0, key.held)
+					group := p.Group
+					if n != u.Node {
+						group = e.look.Style(e.r, n, u.Context).Group
+					}
+					flowOf(e, p, doc.SlotRef{Node: n.ID(), Slot: i}, group, false, 0, key.held)
 					continue
 				}
 				for _, c := range sl.Children() {
@@ -599,7 +603,7 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 	content.Each(func(at int, it doc.Item) bool {
 		if it.Node != nil {
 			emitGhosts(at)
-			face := e.look.Style(it.Node, p.Context).Group
+			face := e.look.Style(e.r, it.Node, p.Context).Group
 			box := Item{Kind: BoxItem, From: at, To: at + 1, Node: it.Node, Groups: []vocab.Group{base}, Face: face, Surface: -1}
 			items = append(items, box)
 			if src, ok := vocab.FirstTextSlot(it.Node); ok && src.Node == it.Node.ID() {
