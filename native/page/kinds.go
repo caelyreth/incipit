@@ -16,8 +16,8 @@ import (
 // objectKind lays out and draws one kind of block object.
 type objectKind interface {
 	// lay lays u out at width: its surfaces placed, its height, box,
-	// drawn and frame. span is a figure's span as a resize previews it.
-	lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, span int)
+	// drawn and frame, as in asks.
+	lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, in objectIn)
 	// paint draws the object beneath its surfaces' panels, and gives how
 	// strongly its panel surfaces show.
 	paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32) float32
@@ -63,7 +63,7 @@ func kindOf(p *present.Presentation) objectKind {
 // stackKind stacks an object's surfaces, as text units stand.
 type stackKind struct{}
 
-func (stackKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, _ int) {
+func (stackKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, _ objectIn) {
 	lc.layStack(u, p, comp, th, m, width, false)
 	u.box = ui.Rect{W: width, H: u.h}
 }
@@ -76,7 +76,7 @@ func (stackKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)             
 // ruleKind draws an object with no text as a rule across its column.
 type ruleKind struct{}
 
-func (ruleKind) lay(_ *layoutCache, u *unitLayout, _ *present.Presentation, _ *policy.Composition, _ present.Theme, m Metrics, width float32, _ int) {
+func (ruleKind) lay(_ *layoutCache, u *unitLayout, _ *present.Presentation, _ *policy.Composition, _ present.Theme, m Metrics, width float32, _ objectIn) {
 	u.h = lineHeight(m, m.Body)
 	u.box = ui.Rect{W: width, H: u.h}
 }
@@ -93,8 +93,8 @@ func (ruleKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)            { 
 // figureKind draws a figure: its picture over its caption.
 type figureKind struct{}
 
-func (figureKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, span int) {
-	lc.layFigure(u, p, comp, th, m, width, span)
+func (figureKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, in objectIn) {
+	lc.layFigure(u, p, comp, th, m, width, in.span)
 }
 func (figureKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32) float32 {
 	el.paintFigure(p, u, ux, uy, el.paintNow, el.animate)
@@ -116,7 +116,7 @@ func (figureKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)         { r
 // mathKind draws a math block: its display over its source, a panel.
 type mathKind struct{}
 
-func (mathKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, _ int) {
+func (mathKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, _ objectIn) {
 	lc.layStack(u, p, comp, th, m, width, true)
 	layMath(u, lc, m, width)
 }

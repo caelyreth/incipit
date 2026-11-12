@@ -169,6 +169,12 @@ func placeCaret(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.
 			return policy.Select(doc.NodeSelection(in.Node))
 		}
 	}
+	if in.Cells != nil {
+		if _, ok := vocab.GridOf(r, in.Cells.Table); ok {
+			return policy.Select(doc.CellSelection(*in.Cells))
+		}
+		return policy.Swallow
+	}
 	stop := in.Stop
 	if _, ok := r.Node(stop.Pos.Node); !ok {
 		return policy.Swallow

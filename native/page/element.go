@@ -3,6 +3,7 @@ package page
 import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"maps"
 	"math"
 	"time"
 
@@ -42,8 +43,10 @@ type Element struct {
 	restoreScroll *float32
 	glide         motion.Glide
 	overscroll    scrollfx.Elastic
-	// tables are the tables scrolled across, by table.
+	// tables are the tables scrolled across, by table, and chrome their
+	// controls.
 	tables       map[doc.ID]*tableScroll
+	chrome       tableChrome
 	viewport     ui.Rect
 	column       float32 // the column's left, in the element
 	gesture      *gesture
@@ -221,9 +224,19 @@ func (el *Element) View(c *ui.Context) {
 			el.Pictures.Wake = services.Invalidate
 		}
 		el.takeDrops(box)
+		// The tables' controls follow the pointer, and what they ask of
+		// the layout lays it out again.
+		asked := ed.tables
+		el.followTables(c, box.Hovered())
+		if !maps.Equal(asked, ed.tables) {
+			el.relayout()
+		}
 		if el.Editor.resize != nil || el.hoverGrip() {
 			box.Cursor(ui.CursorResizeEW)
+		} else if cursor, ok := el.chromeCursor(el.toPage(el.pointer.X, el.pointer.Y)); ok {
+			box.Cursor(cursor)
 		}
+		box.ContextMenu(func(m *ui.Menu) { el.contextMenu(m, services) })
 		box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
 			TextCaret(el.caretInElement()).
 			Draw(func(p *ui.Painter, r ui.Rect) {
@@ -476,10 +489,21 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 	}
 	switch ev.Kind {
 	case ui.InputPointerDown:
+		x, y := el.toPage(ev.X, ev.Y)
+		if ev.Button == 1 {
+			// A secondary click puts the caret in the cell its menu is for.
+			el.placeForMenu(x, y, at)
+			services.Invalidate()
+			return false
+		}
 		if ev.Button != 0 {
 			return false
 		}
-		x, y := el.toPage(ev.X, ev.Y)
+		if el.beginTableDrag(x, y, ev.Clicks, ev.Mods&ui.Shift != 0) {
+			el.Focus()
+			services.Invalidate()
+			return true
+		}
 		if el.beginResize(x, y) {
 			el.Focus()
 			services.Invalidate()
@@ -502,12 +526,23 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 			return true
 		}
 		el.hoverAt(x, y, services)
+		if el.moveTableDrag(x, y) || el.byTable(x, y) {
+			// The tables' controls follow the pointer.
+			services.Invalidate()
+		}
+		if el.chrome.drag != nil {
+			return true
+		}
 		if !el.moveGesture(x, y, at) {
 			return false
 		}
 		services.Invalidate()
 		return true
 	case ui.InputPointerUp:
+		if el.finishTableDrag(ev.Canceled, at) {
+			services.Invalidate()
+			return true
+		}
 		if ed.resize != nil {
 			el.finishResize(ev.Canceled, at)
 			services.Invalidate()
@@ -536,9 +571,10 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		services.Invalidate()
 		return true
 	case ui.InputKeyDown:
-		if (el.gesture != nil || ed.resize != nil) && ev.Key == ui.KeyEscape {
+		if (el.gesture != nil || ed.resize != nil || el.chrome.drag != nil) && ev.Key == ui.KeyEscape {
 			el.finishGesture(true, at)
 			el.finishResize(true, at)
+			el.finishTableDrag(true, at)
 			services.Invalidate()
 			return true
 		}
@@ -659,6 +695,9 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		})
 	}
 	el.paintOutlines(p, ox, oy, now, animate)
+	if el.paintTableChrome(p, pl, ox, oy, now, animate) {
+		p.AnimationFrame()
+	}
 	el.sweepMaths()
 	el.sweepFigures()
 	if el.paintDrop(p, ox, oy, m, now, animate) {

@@ -203,8 +203,19 @@ type layoutKey struct {
 	metrics Metrics
 	theme   uintptr
 	comp    string
-	// span is a figure's span while a resize previews it, or -1.
-	span int
+	// in is what the page asks of an object's layout besides its
+	// presentation.
+	in objectIn
+}
+
+// objectIn is what the page asks of an object's layout besides its
+// presentation, as a gesture previews it: a figure's span as a resize sets
+// it, a table's room an area opens and a column's width its border's drag
+// sets.
+type objectIn struct {
+	// span is a figure's span, or -1.
+	span  int
+	table tableIn
 }
 
 // pageLayout is the page's units laid out from top to bottom.
@@ -239,7 +250,7 @@ func newLayoutCache() *layoutCache {
 
 // build lays the presentations out. Units whose presentation, metrics and
 // composition are unchanged keep their shaped text.
-func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorations, th present.Theme, m Metrics, resize *figureResize) *pageLayout {
+func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorations, th present.Theme, m Metrics, ins map[doc.ID]objectIn) *pageLayout {
 	pl := &pageLayout{at: map[doc.Caret]place{}}
 	keep := map[doc.ID]bool{}
 	y := float32(0)
@@ -248,16 +259,16 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		if p == nil {
 			continue
 		}
-		key := layoutKey{pres: p, metrics: m, theme: lc.themeID, span: -1}
-		if resize != nil && resize.node == p.Unit {
-			key.span = resize.span
+		key := layoutKey{pres: p, metrics: m, theme: lc.themeID, in: objectIn{span: -1}}
+		if in, ok := ins[p.Unit]; ok {
+			key.in = in
 		}
 		if c := deco.Composition; c != nil && holdsSlot(p, c.At.Ref()) {
 			key.comp = fmt.Sprintf("%v|%s|%v", c.At, c.Text, c.Selected)
 		}
 		u, ok := lc.units[p.Unit]
 		if !ok || u.key != key {
-			u = lc.layUnit(p, deco.Composition, th, m, key.span)
+			u = lc.layUnit(p, deco.Composition, th, m, key.in)
 			if u.drawn == (ui.Rect{}) {
 				u.drawn = u.box
 			}
@@ -357,9 +368,8 @@ func lineHeight(m Metrics, size float32) float32 {
 	return float32(math.Round(float64(size * m.Spacing)))
 }
 
-// layUnit shapes a unit's surfaces. span, when not -1, is a figure's
-// span as a resize previews it.
-func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, span int) *unitLayout {
+// layUnit shapes a unit's surfaces, an object's as in asks.
+func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, in objectIn) *unitLayout {
 	u := &unitLayout{pres: p}
 	u.x = float32(p.Context.Indent+p.Context.Quotes) * m.Indent
 	width := max(m.Width-u.x, m.Body*4)
@@ -376,7 +386,7 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 		// Its kind's renderer lays it out; the text it holds is its
 		// surfaces.
 		u.kind = kindOf(p)
-		u.kind.lay(lc, u, p, comp, th, m, width, span)
+		u.kind.lay(lc, u, p, comp, th, m, width, in)
 		return u
 	}
 	lc.layStack(u, p, comp, th, m, width, false)

@@ -397,13 +397,21 @@ func (el *Element) hinted(u *unitLayout) bool {
 // paintResizeLabel names the span a resize previews, on a chip at the top
 // of the picture.
 func (el *Element) paintResizeLabel(p *ui.Painter, box ui.Rect, label string) {
+	el.paintChip(p, label, func(chip ui.Rect) (ui.Rect, bool) {
+		chip.X, chip.Y = box.X+(box.W-chip.W)/2, box.Y+chip.H*0.75
+		return chip, chip.W <= box.W && chip.H*2 <= box.H
+	})
+}
+
+// paintChip names what a drag sets on a chip, which place puts where it
+// goes, or nowhere.
+func (el *Element) paintChip(p *ui.Painter, label string, place func(chip ui.Rect) (ui.Rect, bool)) {
 	size := el.Editor.metrics.Body * 0.8
 	span := ui.Span{Text: label, Size: size, Color: el.Theme.Text.Default}
 	w, h := p.MeasureText(0, span)
 	padX, padY := size*0.75, size*0.3
-	chip := ui.Rect{W: w + 2*padX, H: h + 2*padY}
-	chip.X, chip.Y = box.X+(box.W-chip.W)/2, box.Y+padX
-	if chip.W > box.W || chip.H*2 > box.H {
+	chip, ok := place(ui.Rect{W: w + 2*padX, H: h + 2*padY})
+	if !ok {
 		return
 	}
 	p.Fill(chip, el.Theme.Surface.Elevated.Alpha(0.94), chip.H/2)

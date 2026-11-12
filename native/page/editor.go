@@ -45,6 +45,10 @@ type Editor struct {
 	reveal bool
 	// resize is a figure resize the renderer holds until release.
 	resize *figureResize
+	// tables are what the page asks of its tables' layouts while it shows
+	// their controls: room an area opens, a column's width as its border's
+	// drag sets it.
+	tables map[doc.ID]tableIn
 
 	mu     sync.Mutex
 	timer  *time.Timer
@@ -89,7 +93,19 @@ func (ed *Editor) Relayout() *pageLayout {
 	}
 	pres := ed.Engine.Present(ed.View, ids)
 	ed.deco = ed.Engine.Decorations(ed.View)
-	ed.layout = ed.cache.build(pres, ed.deco, ed.theme, ed.metrics, ed.resize)
+	ins := map[doc.ID]objectIn{}
+	if r := ed.resize; r != nil {
+		ins[r.node] = objectIn{span: r.span}
+	}
+	for id, t := range ed.tables {
+		in, ok := ins[id]
+		if !ok {
+			in.span = -1
+		}
+		in.table = t
+		ins[id] = in
+	}
+	ed.layout = ed.cache.build(pres, ed.deco, ed.theme, ed.metrics, ins)
 	return ed.layout
 }
 

@@ -184,6 +184,9 @@ type (
 		// from. A pointer gesture carries its press place here so the
 		// engine need not own the gesture in progress.
 		Anchor *doc.Caret
+		// Cells, when set, is a cell range the pointer picks whole, as a
+		// row's or a column's grip does.
+		Cells *doc.CellRange
 	}
 )
 
