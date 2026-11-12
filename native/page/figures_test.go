@@ -63,13 +63,13 @@ func TestClicksSelectAFigureOrEnterItsCaption(t *testing.T) {
 	el.Editor.Do(vocab.Place{Node: u.pres.Unit}, time.Unix(300, 0))
 	pl := el.relayout()
 	u = pl.units[1]
-	_, node, ok := pl.hit(u.x+u.box.X+u.box.W/2, u.y+u.box.H/2)
-	if !ok || node != u.pres.Unit {
-		t.Fatalf("hit on the picture: node %v", node)
+	h, ok := pl.hit(u.x+u.box.X+u.box.W/2, u.y+u.box.H/2)
+	if !ok || h.Node != u.pres.Unit {
+		t.Fatalf("hit on the picture: node %v", h.Node)
 	}
-	c, node, ok := pl.hit(u.x+u.box.X+u.box.W/2, u.y+u.box.H+captionGap(el.Editor.metrics)+2)
-	if !ok || node != 0 || c.Pos.Node != u.pres.Unit {
-		t.Fatalf("hit under the picture: %v node %v", c, node)
+	h, ok = pl.hit(u.x+u.box.X+u.box.W/2, u.y+u.box.H+captionGap(el.Editor.metrics)+2)
+	if !ok || h.Node != 0 || h.Stop.Pos.Node != u.pres.Unit {
+		t.Fatalf("hit under the picture: %+v", h)
 	}
 }
 

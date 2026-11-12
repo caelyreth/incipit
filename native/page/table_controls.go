@@ -376,10 +376,11 @@ func (el *Element) placeForMenu(x, y float32, at time.Time) {
 	if pl == nil {
 		return
 	}
-	c, _, ok := pl.hit(x, y)
+	h, ok := pl.hit(x, y)
 	if !ok {
 		return
 	}
+	c := h.Stop
 	r := el.Editor.Engine.Snapshot()
 	if _, _, ok := vocab.Locate(r, c.Pos.Node); !ok {
 		return

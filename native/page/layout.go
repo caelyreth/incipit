@@ -797,10 +797,12 @@ func (pl *pageLayout) lookup(c doc.Caret) (place, bool) {
 	return pc, ok
 }
 
-// hit is the stop nearest a page point, and the object there, if any.
-func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
+// hit is what a page point is on, as the place a click there sends: the
+// stop nearest it, the object there, if any, and the side of the stop the
+// grapheme under it lies on.
+func (pl *pageLayout) hit(x, y float32) (vocab.Place, bool) {
 	if len(pl.units) == 0 {
-		return doc.Caret{}, 0, false
+		return vocab.Place{}, false
 	}
 	// The unit under y, or the nearest across the gap y falls in.
 	var u *unitLayout
@@ -835,9 +837,9 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 		// On what the object draws: the object, and its place on the half
 		// the point is in, which a drag extends to.
 		if u.pres.Gap == nil {
-			return doc.Caret{}, 0, false
+			return vocab.Place{}, false
 		}
-		return u.beside(y >= u.y+u.box.Y+u.box.H/2), u.pres.Unit, true
+		return vocab.Place{Stop: u.beside(y >= u.y+u.box.Y+u.box.H/2), Node: u.pres.Unit}, true
 	}
 	for _, cand := range u.surfaces {
 		if s != nil {
@@ -852,19 +854,43 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 		s = u.nearestSurface(x, y)
 	}
 	if s == nil {
-		return doc.Caret{}, 0, false
+		return vocab.Place{}, false
 	}
 	ox, oy := u.origin(s)
 	ly := min(max(y-oy, 0), s.h-1)
 	if c, id, ok := s.boxAt(x-ox, ly); ok {
-		return c, id, true
+		return vocab.Place{Stop: c, Node: id}, true
 	}
-	idx := s.layout.IndexAt(ui.Point{X: x - ox, Y: ly})
-	st := s.nearest(idx)
+	at := s.layout.PositionAt(ui.Point{X: x - ox, Y: ly})
+	st := s.nearest(at.Index)
 	if st == nil {
-		return doc.Caret{}, 0, false
+		return vocab.Place{}, false
 	}
-	return st.caret, 0, true
+	return vocab.Place{Stop: st.caret, Over: over(s.layout, at, x-ox)}, true
+}
+
+// over is the side of boundary at the grapheme under x lies on, in
+// logical order: the one between at and its neighbour on x's side on the
+// line, or, past the line's edge, the one on the other side; zero on an
+// empty line. Read from the layout's own carets, it holds in either
+// direction of text.
+func over(l *ui.TextLayout, at ui.TextCaretPosition, x float32) vocab.Direction {
+	edge := l.CaretAt(at)
+	side := 1
+	if x < edge.X {
+		side = -1
+	}
+	for _, d := range []int{side, -side} {
+		next := l.MoveCaret(at, d)
+		if next.Index == at.Index || l.CaretAt(next).Y != edge.Y {
+			continue
+		}
+		if next.Index > at.Index {
+			return vocab.Forward
+		}
+		return vocab.Backward
+	}
+	return 0
 }
 
 // boxAt is what a click on an inline box hits: an object, selected
@@ -1042,8 +1068,8 @@ func (pl *pageLayout) vertical(c doc.Caret, goalX float32, up bool) (doc.Caret, 
 	if up {
 		y = n.y + n.h - 2
 	}
-	t, _, ok := pl.hit(goalX, y)
-	return t, ok
+	h, ok := pl.hit(goalX, y)
+	return h.Stop, ok
 }
 
 // row is one row an object's vertical motion passes: a gap, or a band of

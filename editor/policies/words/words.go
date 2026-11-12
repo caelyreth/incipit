@@ -238,13 +238,15 @@ func selectWord(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.
 	if in.Node != 0 || !ok {
 		return policy.Pass
 	}
-	from, to := segmentAt(content, stop.Pos.Offset)
+	from, to := segmentAt(content, stop.Pos.Offset, in.Over)
 	return policy.Reveal(doc.TextRange(doc.CaretAt(doc.At(stop.Pos.Ref(), from)), doc.CaretAt(doc.At(stop.Pos.Ref(), to))))
 }
 
-// segmentAt is the word segment a double click selects. At a boundary it
-// prefers the segment ending there; at the slot's end, the last one.
-func segmentAt(in *doc.Inline, off int) (int, int) {
+// segmentAt is the word segment a double click selects: the one holding
+// the grapheme the pointer is over, on the over side of off (before it
+// when the side is not known); with none there, as at a slot's edge, the
+// one on the other side.
+func segmentAt(in *doc.Inline, off int, over vocab.Direction) (int, int) {
 	var units []span
 	for segment := range vocab.WordSegments(maskNodes(in.Flat())) {
 		units = append(units, span{segment.Start, segment.Start + len(segment.Text)})
@@ -259,27 +261,15 @@ func segmentAt(in *doc.Inline, off int) (int, int) {
 		}
 		return units[i].to < units[j].to
 	})
-	if len(units) == 0 {
-		return off, off
+	if over == 0 {
+		over = vocab.Backward
 	}
-	for _, u := range units {
-		if u.from < off && off < u.to {
-			return u.from, u.to
+	for _, dir := range []vocab.Direction{over, -over} {
+		for _, u := range units {
+			if dir == vocab.Forward && u.from <= off && off < u.to || dir == vocab.Backward && u.from < off && off <= u.to {
+				return u.from, u.to
+			}
 		}
-	}
-	for _, u := range units {
-		if u.to == off {
-			return u.from, u.to
-		}
-	}
-	for _, u := range units {
-		if u.from == off {
-			return u.from, u.to
-		}
-	}
-	if off >= in.Len() {
-		last := units[len(units)-1]
-		return last.from, last.to
 	}
 	return off, off
 }

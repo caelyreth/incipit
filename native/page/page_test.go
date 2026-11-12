@@ -194,9 +194,9 @@ func TestHitPlacesCaret(t *testing.T) {
 	// The caret after "hello" is where a click there lands.
 	u := s.u16Of(5, 0)
 	r := s.caretRect(u)
-	c, _, ok := pl.hit(r.X+0.5, r.Y+r.H/2)
-	if !ok || c.Pos.Offset != 5 {
-		t.Fatalf("hit landed at %v, want offset 5", c)
+	h, ok := pl.hit(r.X+0.5, r.Y+r.H/2)
+	if !ok || h.Stop.Pos.Offset != 5 {
+		t.Fatalf("hit landed at %v, want offset 5", h.Stop)
 	}
 }
 
@@ -220,12 +220,12 @@ func TestClickingAFormulaSelectsIt(t *testing.T) {
 		t.Fatal("no formula set as math")
 	}
 	ox, oy := pl.units[0].origin(s)
-	c, id, ok := pl.hit(ox+r.X+r.W-1, oy+r.Y+r.H/2)
-	if !ok || id != box.node.ID() || c.Pos.Offset != 3 {
-		t.Fatalf("hit %v %v, want the formula, after it", c, id)
+	h, ok := pl.hit(ox+r.X+r.W-1, oy+r.Y+r.H/2)
+	if !ok || h.Node != box.node.ID() || h.Stop.Pos.Offset != 3 {
+		t.Fatalf("hit %+v, want the formula, after it", h)
 	}
-	if c, _, _ = pl.hit(ox+r.X+1, oy+r.Y+r.H/2); c.Pos.Offset != 2 {
-		t.Fatalf("hit %v, want before the formula", c)
+	if h, _ = pl.hit(ox+r.X+1, oy+r.Y+r.H/2); h.Stop.Pos.Offset != 2 {
+		t.Fatalf("hit %+v, want before the formula", h.Stop)
 	}
 	el.Editor.place(ox+r.X+1, oy+r.Y+r.H/2, 1, false, time.Unix(500, 0))
 	el.relayout()
@@ -432,5 +432,37 @@ func TestTypewriterGlidesTheCaretsLineToTheCenter(t *testing.T) {
 	el.stepViewport(t1.Add(3*time.Second), true)
 	if el.scroll != 0 {
 		t.Fatalf("a short page leaves typewriter mode at %v, want its top", el.scroll)
+	}
+}
+
+// A double click selects the word holding the glyph under the pointer:
+// on a word's first glyph, that word, not what ends where it starts; on
+// the space before it, the space.
+func TestDoubleClickSelectsTheWordUnderThePointer(t *testing.T) {
+	for _, tc := range []struct {
+		typed string
+		left  bool
+		from  int
+		to    int
+	}{
+		{"x bold", false, 2, 6},
+		{"x bold", true, 1, 2},
+		{"a **bold**", false, 2, 6},
+	} {
+		el := newElement(t)
+		typeText(el, tc.typed)
+		pl := el.Editor.layout
+		s := pl.units[0].surfaces[0]
+		ox, oy := pl.units[0].origin(s)
+		r := s.caretRect(s.u16Of(2, doc.StopLast))
+		x := ox + r.X + 1
+		if tc.left {
+			x = ox + r.X - 1
+		}
+		el.Editor.place(x, oy+r.Y+r.H/2, 2, false, time.Unix(600, 0))
+		sel := el.Editor.Selection()
+		if from, to := sel.Ordered(el.Editor.Engine.Snapshot()); from.Pos.Offset != tc.from || to.Pos.Offset != tc.to {
+			t.Fatalf("%q, left %v: a double click selects %d..%d, want %d..%d", tc.typed, tc.left, from.Pos.Offset, to.Pos.Offset, tc.from, tc.to)
+		}
 	}
 }

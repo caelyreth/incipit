@@ -110,12 +110,14 @@ func TestClicksInACellsRoomLandInIt(t *testing.T) {
 	t1 := u.table
 	cell := t1.cell(doc.CellCoord{Row: 1, Column: 1})
 	// The cell's corner, in its padding.
-	c, _, ok := el.Editor.layout.hit(u.x+cell.X+2, u.y+cell.Y+2)
+	h, ok := el.Editor.layout.hit(u.x+cell.X+2, u.y+cell.Y+2)
+	c := h.Stop
 	if !ok || cellOf(t, el, c) != (doc.CellCoord{Row: 1, Column: 1}) {
 		t.Fatalf("a click in a cell's padding hit %v", c)
 	}
 	// Past the table's end, level with its last row.
-	c, _, ok = el.Editor.layout.hit(u.x+u.box.X+u.box.W+200, u.y+cell.Y+cell.H/2)
+	h, ok = el.Editor.layout.hit(u.x+u.box.X+u.box.W+200, u.y+cell.Y+cell.H/2)
+	c = h.Stop
 	if !ok || cellOf(t, el, c) != (doc.CellCoord{Row: 1, Column: 1}) {
 		t.Fatalf("a click past the table hit %v", c)
 	}

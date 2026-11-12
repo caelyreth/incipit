@@ -223,11 +223,11 @@ func (ed *Editor) resolve(in vocab.VisualMove, viewport float32) (vocab.VisualMo
 			y = r.Y - viewport*pageStep
 		}
 		if y >= 0 && y <= pl.height {
-			c, _, ok := pl.hit(in.GoalX, y)
+			h, ok := pl.hit(in.GoalX, y)
 			if !ok {
 				return in, false
 			}
-			in.Target = c
+			in.Target = h.Stop
 		}
 	}
 	if from, ok := pl.lookup(head); ok {
@@ -269,11 +269,12 @@ func (ed *Editor) place(x, y float32, clicks int, extend bool, at time.Time) boo
 	if ed.layout == nil {
 		return false
 	}
-	c, node, ok := ed.layout.hit(x, y)
+	in, ok := ed.layout.hit(x, y)
 	if !ok {
 		return false
 	}
-	return ed.DoInput(vocab.Input{Intent: vocab.Place{Stop: c, Node: node, Clicks: clicks, Extend: extend}, At: at})
+	in.Clicks, in.Extend = clicks, extend
+	return ed.DoInput(vocab.Input{Intent: in, At: at})
 }
 
 // --- clipboard ------------------------------------------------------------

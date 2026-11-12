@@ -173,10 +173,13 @@ type (
 	}
 	// Place puts the caret at a stop the renderer hit, as a click does;
 	// Clicks counts a double or triple click, Toggle adds to a selection.
-	// Node, when set, is an object the pointer hit.
+	// Node, when set, is an object the pointer hit. Over is the side of
+	// Stop the grapheme under the pointer lies on, zero off text: what a
+	// click is on, which the nearest stop alone does not say.
 	Place struct {
 		Stop   doc.Caret
 		Node   doc.ID
+		Over   Direction
 		Clicks int
 		Extend bool
 		Toggle bool
