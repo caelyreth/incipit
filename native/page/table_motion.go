@@ -113,7 +113,7 @@ func (tableKind) step(el *Element, u *unitLayout, in *objectIn) {
 	}
 	columnRoom := follow("column-room", roomValue, open(columnsOpen && columnsAt/gapStride == i, between))
 	mine := held != nil && held.table == id
-	follow("grips", shareValue, open(ch.near == id && (ch.inside || mine) && (el.drag == nil || mine), 1))
+	follow("grips", shareValue, open(el.near == id && (el.drag == nil || mine), 1))
 	// A border lights under the pointer and as its drag holds it.
 	if hot.unit == id && hot.part == partBorder {
 		ts.borderAt = hot.at

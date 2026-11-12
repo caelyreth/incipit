@@ -68,12 +68,6 @@ const (
 // tableChrome is what the page remembers of all its tables' controls at
 // once (memo).
 type tableChrome struct {
-	// near is the table the pointer is by, and row and column the lines
-	// it is over, -1 for none; inside is whether the pointer is on the
-	// page at all.
-	near        doc.ID
-	row, column int
-	inside      bool
 	// below are the areas at a table's foot, numbered twice its place, and
 	// at its end, once more; rows and columns those between two lines,
 	// numbered by gapStride.
@@ -240,11 +234,11 @@ func (tableKind) controls(el *Element, u *unitLayout) []control {
 				return &areaPress{tablePress: el.tablePress(key(a.part, 0), x, y, clicks, extend)}
 			}})
 	}
-	ch := el.tableUI()
-	if ch.near != id {
+	if el.near != id {
 		return out
 	}
-	rr, cr, corner := el.gripRects(u, ch.row, ch.column)
+	row, column := el.gripLines(u)
+	rr, cr, corner := el.gripRects(u, row, column)
 	out = append(out, control{key: key(partCorner, 0), rect: grown(corner, 3*scale, 3*scale), cursor: ui.CursorResizeNWSE,
 		press: func(x, y float32, clicks int, extend bool, at time.Time) drag {
 			return &cornerDrag{tablePress: el.tablePress(key(partCorner, 0), x, y, clicks, extend), rows: len(t.rows), columns: len(t.columns)}
@@ -254,7 +248,7 @@ func (tableKind) controls(el *Element, u *unitLayout) []control {
 		part part
 		at   int
 		rows bool
-	}{{cr, partColumnGrip, ch.column, false}, {rr, partRowGrip, ch.row, true}} {
+	}{{cr, partColumnGrip, column, false}, {rr, partRowGrip, row, true}} {
 		if g.rect.W <= 0 {
 			continue
 		}
@@ -269,13 +263,50 @@ func (tableKind) controls(el *Element, u *unitLayout) []control {
 	return out
 }
 
-// followTables follows the pointer by the page's tables, as the last
-// layout set them out: the table whose grips show and the lines it is
-// over, and the areas it calls up, each opening once the pointer has
-// rested by it.
-func (el *Element) followTables(c *ui.Context, inside bool) {
+// reach is where the pointer is by a table: the table and the gutters its
+// grips and areas stand in, wider while an area of its edges is open.
+func (tableKind) reach(el *Element, u *unitLayout) ui.Rect {
+	t := u.table
+	if t == nil {
+		return ui.Rect{}
+	}
 	ch := el.tableUI()
-	ch.inside = inside
+	scale := el.chromeScale()
+	reach := tableReach * scale
+	if at, open := ch.below.Open(); open && at/2 == ch.place(u.pres.Unit) {
+		reach = tableHold * scale
+	}
+	r := grown(tableBox(u), reach, reach)
+	r.W += theme.Space06.DIPs(el.chromeSize()) + el.controlMetrics().Height
+	r.H += t.below.H
+	return r
+}
+
+// gripLines are the row and column whose grips a table shows, -1 for none:
+// those the pointer is over while it is by the table, a grip's drag holding
+// its own line.
+func (el *Element) gripLines(u *unitLayout) (row, column int) {
+	if el.near != u.pres.Unit {
+		return -1, -1
+	}
+	x, y := el.toPage(el.pointer.X, el.pointer.Y)
+	row, column = el.linesAt(u, x, y)
+	if held := el.heldTable(); held != nil && held.table == u.pres.Unit {
+		switch held.part {
+		case partRowGrip:
+			row = held.at
+		case partColumnGrip:
+			column = held.at
+		}
+	}
+	return row, column
+}
+
+// followTables follows the pointer by the table it is by, as the last
+// layout set it out: the areas it calls up, each opening once the pointer
+// has rested by it.
+func (el *Element) followTables(c *ui.Context) {
+	ch := el.tableUI()
 	pl := el.Editor.layout
 	if pl == nil {
 		return
@@ -284,63 +315,29 @@ func (el *Element) followTables(c *ui.Context, inside bool) {
 	scale := el.chromeScale()
 	gap := theme.Space06.DIPs(el.chromeSize())
 	beside := gap + el.controlMetrics().Height
-	free := inside && el.drag == nil
 	nearAt, nearOpen := ch.below.Open()
 	ch.order = ch.order[:0]
+	var by *unitLayout
 	for _, u := range pl.units {
 		if u.table != nil {
 			ch.order = append(ch.order, u.pres.Unit)
+			if u.pres.Unit == el.near && el.drag == nil {
+				by = u
+			}
 		}
 	}
 	edgeAt, rowAt, columnAt := -1, -1, -1
 	rowNear, columnNear := float32(0), float32(0)
-	ch.near, ch.row, ch.column = 0, -1, -1
-	held := el.heldTable()
-	if held != nil {
-		ch.near = held.table
-	}
 	if d, ok := el.drag.(*lineDrag); ok && d.moved {
 		// A carry chooses where to land: nothing is made meanwhile.
 		ch.below.Close()
 		ch.rows.Close()
 		ch.columns.Close()
 	}
-	for _, u := range pl.units {
+	if u := by; u != nil {
 		t := u.table
-		if t == nil {
-			continue
-		}
-		i := ch.place(u.pres.Unit)
-		if held != nil {
-			if held.table == u.pres.Unit {
-				ch.row, ch.column = el.linesAt(u, x, y)
-				switch held.part {
-				case partRowGrip:
-					ch.row = held.at
-				case partColumnGrip:
-					ch.column = held.at
-				}
-			}
-			continue
-		}
 		b := tableBox(u)
-		reach := tableReach * scale
-		if nearOpen && nearAt/2 == i {
-			reach = tableHold * scale
-		}
-		// The table, its grips before it and above it, the area beside
-		// it and the one under it.
-		near := grown(b, reach, reach)
-		near.W += beside
-		near.H += t.below.H
-		if !inside || !contains(near, x, y) {
-			continue
-		}
-		ch.near = u.pres.Unit
-		ch.row, ch.column = el.linesAt(u, x, y)
-		if !free {
-			continue
-		}
+		i := ch.place(u.pres.Unit)
 		// The areas making a row and a column are called up by the
 		// table's foot and its end, not from over its cells: the pointer
 		// just within the edge, or past it. Where the two meet, the one
@@ -412,7 +409,7 @@ func (el *Element) followTables(c *ui.Context, inside bool) {
 	ch.rows.Follow(c, rowAt)
 	ch.columns.Follow(c, columnAt)
 	// An open area holds while the pointer is on it.
-	if !inside {
+	if !el.pointerIn {
 		return
 	}
 	for _, u := range pl.units {
@@ -433,28 +430,6 @@ func (el *Element) followTables(c *ui.Context, inside bool) {
 			}
 		}
 	}
-}
-
-// byTable reports whether a page point is by a table, where its controls
-// follow the pointer.
-func (el *Element) byTable(x, y float32) bool {
-	pl := el.Editor.layout
-	if pl == nil {
-		return false
-	}
-	reach := tableHold * el.chromeScale()
-	for _, u := range pl.units {
-		if u.table == nil {
-			continue
-		}
-		r := grown(tableBox(u), reach, reach)
-		r.W += el.controlMetrics().Height
-		r.H += u.table.below.H
-		if contains(r, x, y) || u.pres.Unit == el.tableUI().near {
-			return true
-		}
-	}
-	return false
 }
 
 // placeForMenu puts the caret in the cell a secondary click is on, unless

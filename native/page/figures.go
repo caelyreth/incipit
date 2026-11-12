@@ -253,32 +253,6 @@ func gripRect(u *unitLayout, side float32) (ui.Rect, bool) {
 	return ui.Rect{X: x, Y: u.y + box.Y + (box.H-h)/2, W: gripWidth, H: h}, true
 }
 
-// figureAt is the figure whose picture holds a page point, and the side
-// of the grip there, if any (0 when none).
-func (pl *pageLayout) figureAt(x, y float32) (*unitLayout, float32) {
-	for _, u := range pl.units {
-		if u.figure == nil {
-			continue
-		}
-		box := u.box
-		box.X += u.x
-		box.Y += u.y
-		pad := float32(gripWidth)
-		if x < box.X-pad || x >= box.X+box.W+pad || y < box.Y || y >= box.Y+box.H {
-			continue
-		}
-		for _, side := range grips(u) {
-			if r, ok := gripRect(u, side); ok && x >= r.X-4 && x < r.X+r.W+4 && y >= r.Y-4 && y < r.Y+r.H+4 {
-				return u, side
-			}
-		}
-		if x >= box.X && x < box.X+box.W {
-			return u, 0
-		}
-	}
-	return nil, 0
-}
-
 // gripsShown reports whether a figure shows its grips: selected alone
 // while the page has the keys, under the pointer, or being resized.
 func (el *Element) gripsShown(u *unitLayout) bool {
@@ -286,7 +260,15 @@ func (el *Element) gripsShown(u *unitLayout) bool {
 		return r.node == u.pres.Unit
 	}
 	sel := el.shownSelection()
-	return sel.Kind == doc.SelectNode && sel.Node == u.pres.Unit && el.focused || el.hover == u.pres.Unit
+	return sel.Kind == doc.SelectNode && sel.Node == u.pres.Unit && el.focused || el.near == u.pres.Unit
+}
+
+// reach is a figure's picture and its grips either side.
+func (figureKind) reach(_ *Element, u *unitLayout) ui.Rect {
+	box := u.box
+	box.X += u.x
+	box.Y += u.y
+	return grown(box, gripWidth, 0)
 }
 
 // figureSpring is the key of one of a figure's shares.
@@ -432,20 +414,6 @@ func (el *Element) paintChip(p *ui.Painter, label string, place func(chip ui.Rec
 	}
 	p.Fill(chip, el.Theme.Surface.Elevated.Alpha(0.94), chip.H/2)
 	p.RichText(chip.X+padX, chip.Y+padY, 0, span)
-}
-
-// hoverAt follows the figure under the pointer, for its grips.
-func (el *Element) hoverAt(x, y float32, services ui.Services) {
-	var id doc.ID
-	if pl := el.Editor.layout; pl != nil {
-		if u, _ := pl.figureAt(x, y); u != nil {
-			id = u.pres.Unit
-		}
-	}
-	if id != el.hover {
-		el.hover = id
-		services.Invalidate()
-	}
 }
 
 // While pictures are dragged over the page, a line between its blocks

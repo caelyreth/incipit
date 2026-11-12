@@ -78,9 +78,6 @@ type Element struct {
 	// decos are the decorations the page draws, as last drawn, by
 	// identity, so each fades in and out.
 	decos map[decoKey]*shownDeco
-	// hover is the figure under the pointer, pointer where the pointer
-	// last was, in the element, and focused whether the page had the keys
-	// when last painted.
 	// rooms spring each unit's height as a surface in it opens and
 	// closes, stepped as the page is painted at paintNow; roomsMoving asks
 	// for the next paint. animate is whether motion is wanted, as the
@@ -89,9 +86,13 @@ type Element struct {
 	paintNow    time.Time
 	animate     bool
 	roomsMoving bool
-	hover       doc.ID
-	pointer     ui.Point
-	focused     bool
+	// pointer is where the pointer last was, in the element, pointerIn
+	// whether it is over the page, and near the unit it is by (controls.go);
+	// focused is whether the page had the keys when last painted.
+	pointer   ui.Point
+	pointerIn bool
+	near      doc.ID
+	focused   bool
 	// drop is the line showing where pictures dragged over the page go,
 	// and dropAt the place they would.
 	drop   dropLine
@@ -229,7 +230,9 @@ func (el *Element) View(c *ui.Context) {
 		el.takeDrops(box)
 		// The tables' controls follow the pointer; what they open moves
 		// at the paint's time (step).
-		el.followTables(c, box.Hovered())
+		el.pointerIn = box.Hovered()
+		el.near = el.nearAt(el.toPage(el.pointer.X, el.pointer.Y))
+		el.followTables(c)
 		if cursor, ok := el.cursorAt(el.toPage(el.pointer.X, el.pointer.Y)); ok {
 			box.Cursor(cursor)
 		}
@@ -514,9 +517,10 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 			services.Invalidate()
 			return true
 		}
-		el.hoverAt(x, y, services)
-		if el.byTable(x, y) {
-			// The tables' controls follow the pointer.
+		// The controls of what the pointer is by follow it.
+		was := el.near
+		el.near = el.nearAt(x, y)
+		if was != 0 || el.near != 0 {
 			services.Invalidate()
 		}
 		return false
@@ -590,6 +594,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// Every unit's motion steps at the paint's time, and what the page
 	// asks of its layouts lays it out again.
 	el.springs.begin(now, animate)
+	el.near = el.nearAt(el.toPage(el.pointer.X, el.pointer.Y))
 	el.hotKey = el.hot()
 	el.step()
 	pl = ed.layout

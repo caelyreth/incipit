@@ -16,6 +16,10 @@ import (
 // the drag a press on it starts and the commands a secondary click on it
 // offers. The page reads them one way for every kind:
 //
+//   - The pointer is by one unit at a time (near): the one whose control
+//     the drag holds, else the topmost whose kind's reach holds it. Its
+//     controls follow the pointer, and the page paints again as it moves
+//     by it.
 //   - The topmost control under the pointer that takes a press takes it;
 //     a press no control takes is the text's (gesture.go).
 //   - What a press starts is the page's one drag, held until release or
@@ -136,6 +140,25 @@ func (el *Element) holding() controlKey {
 		return controlKey{}
 	}
 	return el.drag.key()
+}
+
+// nearAt is the unit the pointer is by at a page point: the one whose
+// control the drag holds, else, while the pointer is on the page, the
+// topmost whose kind's reach holds the point; 0 for none.
+func (el *Element) nearAt(x, y float32) doc.ID {
+	if el.drag != nil {
+		return el.drag.key().unit
+	}
+	pl := el.Editor.layout
+	if pl == nil || !el.pointerIn {
+		return 0
+	}
+	for i := len(pl.units) - 1; i >= 0; i-- {
+		if u := pl.units[i]; u.kind != nil && contains(u.kind.reach(el, u), x, y) {
+			return u.pres.Unit
+		}
+	}
+	return 0
 }
 
 // hot is the control the pointer works: the one the drag holds, else the

@@ -230,7 +230,6 @@ func (el *Element) paintBorder(p *ui.Painter, u *unitLayout, ox, oy float32) {
 // paintGrips draws the grips of the row and the column under the pointer
 // and the table's corner, as far as they have come in.
 func (el *Element) paintGrips(p *ui.Painter, u *unitLayout, ox, oy float32) {
-	ch := el.tableUI()
 	id := u.pres.Unit
 	shown := el.springs.value(tableSpring(id, "grips", shareValue))
 	if shown < 0.01 {
@@ -238,10 +237,7 @@ func (el *Element) paintGrips(p *ui.Painter, u *unitLayout, ox, oy float32) {
 	}
 	th := el.Theme
 	metrics := el.controlMetrics()
-	row, column := -1, -1
-	if ch.near == id {
-		row, column = ch.row, ch.column
-	}
+	row, column := el.gripLines(u)
 	rr, cr, corner := el.gripRects(u, row, column)
 	carrying := false
 	if d, ok := el.drag.(*lineDrag); ok {

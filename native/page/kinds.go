@@ -33,6 +33,9 @@ type objectKind interface {
 	// sets its surfaces in boxes, as a table its cells: a point in it is
 	// in the surface, and what covers all of the surface fills it.
 	cover(u *unitLayout, s *surfaceLayout) (ui.Rect, bool)
+	// reach is where in the page the pointer is by it, as its controls
+	// follow the pointer; empty where it calls up nothing (controls.go).
+	reach(el *Element, u *unitLayout) ui.Rect
 	// controls are what it offers the pointer over it, bottom to top
 	// (controls.go).
 	controls(el *Element, u *unitLayout) []control
@@ -47,14 +50,15 @@ type objectKind interface {
 
 // baseKind is what a kind does where it does nothing of its own: it holds
 // nothing open, places no caret, draws nothing over its text, sets its
-// surfaces in no boxes, offers no controls, moves nothing and holds no
-// place.
+// surfaces in no boxes, has no reach and offers no controls, moves nothing
+// and holds no place.
 type baseKind struct{}
 
 func (baseKind) holds(*unitLayout) int                                        { return 0 }
 func (baseKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool) { return 0, false }
 func (baseKind) over(*Element, *ui.Painter, *unitLayout, float32, float32)    {}
 func (baseKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)            { return ui.Rect{}, false }
+func (baseKind) reach(*Element, *unitLayout) ui.Rect                          { return ui.Rect{} }
 func (baseKind) controls(*Element, *unitLayout) []control                     { return nil }
 func (baseKind) step(*Element, *unitLayout, *objectIn)                        {}
 func (baseKind) anchor(*Element, *unitLayout, float32, *unitLayout) (float32, bool) {

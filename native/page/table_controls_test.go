@@ -96,8 +96,8 @@ func (c *chromePage) texts() [][]string {
 func TestARowsGripPicksItsCells(t *testing.T) {
 	c := newChromePage(t, 3, 2, "a", "b", "c", "d", "e", "f")
 	c.move(c.cellPoint(doc.CellCoord{Row: 1}))
-	if c.el.tableUI().near != c.table().pres.Unit || c.el.tableUI().row != 1 {
-		t.Fatalf("the pointer over row 1 is by %v row %d", c.el.tableUI().near, c.el.tableUI().row)
+	if row, _ := c.el.gripLines(c.table()); c.el.near != c.table().pres.Unit || row != 1 {
+		t.Fatalf("the pointer over row 1 is by %v row %d", c.el.near, row)
 	}
 	rr, _, _ := c.el.gripRects(c.table(), 1, -1)
 	c.move(center(rr))
