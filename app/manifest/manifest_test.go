@@ -234,3 +234,20 @@ func TestFormulaSpellingOpensAndCloses(t *testing.T) {
 	p.typeText("(x)")
 	p.want("page(paragraph((x)))")
 }
+
+// A rewrite makes only the changes typing caused: a "---" already on the
+// line stays as it stands when a letter is typed before it, while dashes
+// typed next to a word still become one.
+func TestTypingRewritesOnlyWhatItCauses(t *testing.T) {
+	p := open(t)
+	p.typeText("---")
+	p.want("page(paragraph(---))")
+	para := p.e.Snapshot().Root().Slot(0).Child(0).ID()
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.At(doc.SlotRef{Node: para}, 0))})
+	p.typeText("x")
+	p.want("page(paragraph(x---))")
+
+	p = open(t)
+	p.typeText("a--b")
+	p.want("page(paragraph(a—b))")
+}

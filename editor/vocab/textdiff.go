@@ -1,6 +1,7 @@
 package vocab
 
 import (
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -267,26 +268,57 @@ func LineAround(text string, from, to int) (int, int) {
 	return from, to
 }
 
-// RefineLines rewrites the text of in's lines holding [from, to) through
-// fn, one stretch at a time: a stretch is text between line breaks and
-// inline nodes, at slot offset at. It returns the minimal edits of slot
-// that turn each stretch into fn's result, last first, so each applies to
-// offsets the ones before it left alone.
+// RefineLines rewrites the text of in's lines holding [from, to), the
+// text an edit wrote, through fn, one stretch at a time: a stretch is text
+// between line breaks and inline nodes, at slot offset at. It returns the
+// minimal edits of slot that turn each stretch into fn's result, but only
+// those the written text caused: a change fn would have made of the
+// stretch without it, as of a "---" standing on the line already, was
+// there before the edit and stays as it stands. The edits run last first,
+// so each applies to offsets the ones before it left alone.
 func RefineLines(slot doc.SlotRef, in *doc.Inline, from, to int, fn func(stretch Runes, at int) (Runes, bool)) []Edit {
+	written, writtenTo := from, to
 	from, to = LineAround(in.Flat(), from, to)
 	var changes []TextChange
 	var stretch Runes
+	var offsets []int
 	stretchFrom, stretchTo := 0, 0
 	flush := func() {
-		if len(stretch) == 0 {
+		defer func() { stretch, offsets = nil, nil }()
+		if len(stretch) == 0 || stretchTo < written || stretchFrom > writtenTo {
 			return
 		}
-		if out, changed := fn(stretch, stretchFrom); changed {
-			for _, d := range MinimalTextChanges(stretch.Items(), out.Items()) {
-				changes = append(changes, TextChange{From: stretchFrom + d.From, To: stretchFrom + d.To, Items: d.Items})
+		out, changed := fn(stretch, stretchFrom)
+		if !changed {
+			return
+		}
+		// The stretch as it stood before the text was written, and what fn
+		// made of it, in the stretch's offsets now.
+		var before Runes
+		for i, r := range stretch {
+			if offsets[i] < written || offsets[i] >= writtenTo {
+				before = append(before, r)
 			}
 		}
-		stretch = nil
+		had := map[string]bool{}
+		if prior, ok := fn(before, stretchFrom); ok {
+			for _, d := range MinimalTextChanges(before.Items(), prior.Items()) {
+				c := TextChange{From: stretchFrom + d.From, To: stretchFrom + d.To, Items: d.Items}
+				n := writtenTo - written
+				switch {
+				case c.From >= written:
+					c.From, c.To = c.From+n, c.To+n
+				case c.To > written:
+					c.To += n
+				}
+				had[changeKey(c)] = true
+			}
+		}
+		for _, d := range MinimalTextChanges(stretch.Items(), out.Items()) {
+			if c := (TextChange{From: stretchFrom + d.From, To: stretchFrom + d.To, Items: d.Items}); !had[changeKey(c)] {
+				changes = append(changes, c)
+			}
+		}
 	}
 	in.Each(func(at int, item doc.Item) bool {
 		if at >= to {
@@ -311,6 +343,7 @@ func RefineLines(slot doc.SlotRef, in *doc.Inline, from, to int, fn func(stretch
 				stretchFrom = abs
 			}
 			stretch = append(stretch, StyledRune{R: r, Marks: item.Marks})
+			offsets = append(offsets, abs)
 			stretchTo = abs + utf8.RuneLen(r)
 		}
 		return true
@@ -322,4 +355,15 @@ func RefineLines(slot doc.SlotRef, in *doc.Inline, from, to int, fn func(stretch
 		edits = append(edits, Ops(doc.EditText{At: slot, From: c.From, To: c.To, Items: c.Items}))
 	}
 	return edits
+}
+
+// changeKey tells one change from another: where it stands and what it
+// writes.
+func changeKey(c TextChange) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d:%d:", c.From, c.To)
+	for _, it := range c.Items {
+		b.WriteString(it.Text)
+	}
+	return b.String()
 }
