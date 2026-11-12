@@ -33,11 +33,11 @@ func (product) Context(r doc.Reader, ref doc.SlotRef) any {
 }
 
 // NodeRoles lists the roles a node kind provides. Every object with a
-// slot of its own is Leavable: its own slots are left beside it and
-// returned to at their end, whatever the object.
+// slot of its own is Leavable: its text, however deep, is left beside it
+// and returned to at its end, whatever the object.
 func NodeRoles(k doc.Kind) []vocab.RoleID {
 	roles := kindRoles(k)
-	if spec, ok := Schema().Kind(k); ok && spec.Object && len(spec.Slots) > 0 && !spec.Slots[0].Blocks {
+	if spec, ok := Schema().Kind(k); ok && spec.Object && len(spec.Slots) > 0 {
 		roles = append([]vocab.RoleID{vocab.RoleLeavable.ID}, roles...)
 	}
 	return roles
@@ -53,8 +53,6 @@ func kindRoles(k doc.Kind) []vocab.RoleID {
 		return []vocab.RoleID{vocab.RoleLeveled.ID, vocab.RoleContinued.ID}
 	case Formula:
 		return []vocab.RoleID{vocab.RoleCloser.ID, vocab.RoleStructure.ID}
-	case Cell:
-		return []vocab.RoleID{vocab.RoleLeavable.ID}
 	case Code:
 		return []vocab.RoleID{vocab.RoleLeveled.ID, vocab.RoleStructure.ID}
 	case Math, Table, Figure, Divider:
@@ -85,29 +83,16 @@ func NodeRole(r doc.Reader, n *doc.Node, role vocab.RoleID) (any, bool) {
 		}
 	case vocab.RoleLeavable.ID:
 		if r.Schema().IsObject(n.Kind()) {
-			after, ok := vocab.Beside(r, n.ID(), vocab.Forward)
-			if !ok {
+			after, ok1 := vocab.Beside(r, n.ID(), vocab.Forward)
+			last, ok2 := vocab.LastTextSlot(n)
+			if !ok1 || !ok2 {
 				return nil, false
 			}
+			ln, _ := r.Node(last.Node)
 			return leavable{
 				exit:  doc.CaretAt(after),
-				entry: doc.CaretAt(doc.Pos{Node: n.ID(), Offset: n.Slot(0).Len()}),
+				entry: doc.CaretAt(doc.At(last, ln.Slot(last.Slot).Len())),
 			}, true
-		}
-		switch n.Kind() {
-		case Cell:
-			table := doc.Ancestors(r, n.ID())
-			if len(table) >= 2 {
-				t := table[1]
-				parent, slot, _ := r.Parent(t)
-				pn, _ := r.Node(parent)
-				tn, _ := r.Node(t)
-				i, _ := pn.Slot(slot).IndexOf(tn)
-				return leavable{
-					exit:  doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: i + 1}),
-					entry: doc.CaretAt(doc.Pos{Node: n.ID(), Offset: n.Slot(0).Len()}),
-				}, true
-			}
 		}
 	case vocab.RoleStructure.ID:
 		for _, provided := range NodeRoles(n.Kind()) {

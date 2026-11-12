@@ -164,6 +164,17 @@ func PrevTextSlot(r doc.Reader, ref doc.SlotRef) (doc.SlotRef, bool) {
 	}
 }
 
+// Inline reports whether id stands in an inline slot: an inline node in
+// its line.
+func Inline(r doc.Reader, id doc.ID) bool {
+	parent, slot, ok := r.Parent(id)
+	if !ok {
+		return false
+	}
+	pn, _ := r.Node(parent)
+	return pn.Slot(slot).IsInline()
+}
+
 // Block returns the block node holding p: p's node, or for a position in
 // an inline node's slot, the block that holds the inline node.
 func Block(r doc.Reader, p doc.Pos) (*doc.Node, bool) {

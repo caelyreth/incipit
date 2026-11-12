@@ -110,3 +110,17 @@ func TestCellsAreLocatedAndCleared(t *testing.T) {
 		t.Errorf("got %s, want %s", got, want)
 	}
 }
+
+// A table checks its rows' cells, so taking a cell from one row alone is
+// refused, though the table itself is not touched.
+func TestARowShortOfItsColumnsIsRefused(t *testing.T) {
+	s := page(t, grid([]string{"a", "b"}, []string{"c", "d"}))
+	g, _ := vocab.GridOf(s, s.Root().Slot(0).Child(0).ID())
+	tx := s.Begin(doc.Origin{Class: doc.OriginCommand})
+	if err := tx.Apply(doc.Remove{IDs: []doc.ID{g.Cell(doc.CellCoord{Row: 1, Column: 1}).ID()}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Commit(); !errors.Is(err, doc.ErrInvalid) {
+		t.Fatalf("commit: %v, want the table refused", err)
+	}
+}

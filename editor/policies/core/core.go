@@ -123,50 +123,6 @@ func swallow[I vocab.Intent](*policy.Ctx, I, policy.At[doc.SlotRef]) policy.Resu
 
 // --- text ---------------------------------------------------------------------
 
-// replaceSelection is clearSelection for content that takes the
-// selection's place: a selected object goes without leaving the block an
-// emptied page keeps, as what replaces it lands where it stood.
-func replaceSelection(c *policy.Ctx) (vocab.Edit, doc.Pos, bool) {
-	if sel := c.Selection(); sel.Kind == doc.SelectNode {
-		at, _ := c.Range()
-		if _, _, inline := inlineParent(c.Doc(), sel.Node); inline {
-			// An inline object goes from its line.
-			return vocab.RemoveNode(sel.Node), at, true
-		}
-		return vocab.Ops(doc.Remove{IDs: []doc.ID{sel.Node}}), at, true
-	}
-	return clearSelection(c)
-}
-
-// clearSelection returns the edit deleting what the selection covers
-// (Ctx.Range), and where content replacing it goes: a position before the
-// edit, which edits after it map. A collapsed caret clears nothing and
-// inserts at its own position: its stop chooses marks, not a place.
-func clearSelection(c *policy.Ctx) (vocab.Edit, doc.Pos, bool) {
-	sel := c.Selection()
-	switch sel.Kind {
-	case doc.SelectNode:
-		at, _ := c.Range()
-		return vocab.RemoveNode(sel.Node), at, true
-	case doc.SelectText:
-		if sel.IsCollapsed() {
-			return nil, c.Head().Pos, false
-		}
-		from, to := c.Range()
-		if from == to {
-			// Only notation is selected; the document holds nothing there.
-			return nil, from, false
-		}
-		at := from
-		if !vocab.IsText(c.Doc(), from) && vocab.IsText(c.Doc(), to) {
-			// From a gap, the block the range ends in keeps the place.
-			at = to
-		}
-		return vocab.DeleteRange(from, to), at, true
-	}
-	return nil, c.Head().Pos, false
-}
-
 // endOfNewBlock puts the caret at the end of the block created at a gap.
 func endOfNewBlock(gap doc.Pos) func(doc.Reader) doc.Selection {
 	return func(r doc.Reader) doc.Selection {
@@ -202,7 +158,7 @@ func typeText(c *policy.Ctx, in vocab.Type, _ policy.At[doc.SlotRef]) policy.Res
 	// Typed text replaces the selection; empty text deletes it.
 	text := in.Text
 	var edits []vocab.Edit
-	clear, pos, ok := replaceSelection(c)
+	clear, pos, ok := c.Replacing()
 	if ok {
 		edits = append(edits, clear)
 	}
@@ -260,7 +216,7 @@ func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool) voca
 // of notation alone deletes as a caret at its end in the direction of
 // deleting would.
 func deleteSelection(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Result {
-	if clear, _, ok := clearSelection(c); ok {
+	if clear, _, ok := c.Clearing(); ok {
 		return policy.Do(clear)
 	}
 	from, to := c.Selection().Ordered(c.Doc())
@@ -277,7 +233,8 @@ func deleteText(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy
 
 // deleteAt deletes one unit of content from head. At a slot's edge there
 // is none: what a delete crosses there is answered at the crossings
-// (deleteAcross), and the deletion policy's.
+// (deleteAcross), and the deletion policy's; crossing nothing it can
+// take, as between two cells, it steps on to the next stop.
 func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
 	in.Dir = in.Toward()
 	r := c.Doc()
@@ -293,6 +250,9 @@ func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
 	}
 	target, ok := slotTarget(r, pos, unit, in.Dir)
 	if !ok || target == pos {
+		if next, ok := c.Stops().Step(head, in.Dir); ok && vocab.IsText(r, pos) {
+			return policy.Select(doc.Collapsed(next))
+		}
 		return policy.Swallow
 	}
 	if unit == vocab.ByGrapheme {
@@ -330,6 +290,7 @@ func deleteAcross(c *policy.Ctx, _ vocab.Delete, at policy.At[policy.Crossing]) 
 		if ok1 && ok2 && from.Node == x.After.ID() && vocab.CanJoin(r, to, from) {
 			return policy.Do(vocab.Join(to, x.After.ID()))
 		}
+
 	case x.Kind == policy.CrossExit && x.Dir == vocab.Backward && x.From == nil,
 		x.Kind == policy.CrossEnter && x.Dir == vocab.Forward:
 		if level, ok := policy.As(c, x.Node, vocab.RoleLeveled); ok {
@@ -339,16 +300,6 @@ func deleteAcross(c *policy.Ctx, _ vocab.Delete, at policy.At[policy.Crossing]) 
 		return policy.Do(vocab.Lift(x.From.ID()))
 	}
 	return policy.Pass
-}
-
-// inlineParent reports the slot holding an inline node.
-func inlineParent(r doc.Reader, id doc.ID) (doc.ID, int, bool) {
-	parent, slot, ok := r.Parent(id)
-	if !ok {
-		return 0, 0, false
-	}
-	pn, _ := r.Node(parent)
-	return parent, slot, pn.Slot(slot).IsInline()
 }
 
 // breakBlock is Enter: a line break in slots that keep lines, but on a
@@ -370,7 +321,7 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 		}
 	} else {
 		var cleared bool
-		clear, pos, cleared = replaceSelection(c)
+		clear, pos, cleared = c.Replacing()
 		if cleared {
 			edits = append(edits, clear)
 		}
@@ -401,7 +352,7 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 		}
 		return policy.Do(append(edits, insertText(pos, "\n", nil, true))...)
 	}
-	if _, _, inl := inlineParent(r, pos.Node); inl {
+	if vocab.Inline(r, pos.Node) {
 		return policy.Swallow
 	}
 	block, ok := vocab.Block(r, pos)
@@ -494,7 +445,7 @@ func selectedObject(c *policy.Ctx) (*doc.Node, bool) {
 // softBreak inserts a line break where the slot keeps lines, and is Enter
 // elsewhere.
 func softBreak(c *policy.Ctx, _ vocab.SoftBreak, at policy.At[doc.SlotRef]) policy.Result {
-	clear, pos, cleared := clearSelection(c)
+	clear, pos, cleared := c.Clearing()
 	if spec, ok := vocab.SlotSpec(c.Doc(), pos.Ref()); ok && spec.Lines && !spec.Blocks {
 		var edits []vocab.Edit
 		if cleared {
@@ -516,7 +467,7 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 		return policy.Swallow
 	}
 	var edits []vocab.Edit
-	clear, pos, ok := replaceSelection(c)
+	clear, pos, ok := c.Replacing()
 	if ok {
 		edits = append(edits, clear)
 	}
@@ -557,7 +508,7 @@ func TextSlice(s *doc.Schema, text string) vocab.Slice {
 
 // cut deletes the selection; the host copied it before sending Cut.
 func cut(c *policy.Ctx, _ vocab.Cut, _ policy.At[doc.SlotRef]) policy.Result {
-	if clear, _, ok := clearSelection(c); ok {
+	if clear, _, ok := c.Clearing(); ok {
 		return policy.Do(clear)
 	}
 	return policy.Swallow
@@ -572,7 +523,7 @@ func compose(c *policy.Ctx, in vocab.Compose, _ policy.At[doc.SlotRef]) policy.R
 	at := c.Head().Pos
 	if cur := c.Composition(); cur != nil {
 		at = cur.At
-	} else if clear, from, ok := clearSelection(c); ok {
+	} else if clear, from, ok := c.Clearing(); ok {
 		res.Edits = []vocab.Edit{clear}
 		at = from
 		// The composition point is in pre-edit positions; deleting the

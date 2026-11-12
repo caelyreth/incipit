@@ -59,14 +59,8 @@ func place(c *policy.Ctx, in profile.PlaceFigures, _ policy.At[doc.SlotRef]) pol
 			return policy.Swallow
 		}
 		at = in.At.Pos
-	} else if sel := c.Selection(); sel.Kind == doc.SelectNode || !sel.IsCollapsed() {
-		from, to := c.Range()
-		at = from
-		if sel.Kind == doc.SelectNode {
-			clear = vocab.RemoveNode(sel.Node)
-		} else {
-			clear = vocab.DeleteRange(from, to)
-		}
+	} else {
+		clear, at, _ = c.Replacing()
 	}
 	// The last figure's id, which the edit learns as it places them.
 	var last doc.ID
@@ -77,7 +71,7 @@ func place(c *policy.Ctx, in profile.PlaceFigures, _ policy.At[doc.SlotRef]) pol
 			}
 			at, _ = doc.Steps(tx.Steps()).Map(at, doc.BiasBefore)
 		}
-		gap, err := gapFor(tx, at)
+		gap, err := vocab.PlaceGap(tx, at, profile.Figure)
 		if err != nil {
 			return err
 		}
@@ -97,61 +91,6 @@ func place(c *policy.Ctx, in profile.PlaceFigures, _ policy.At[doc.SlotRef]) pol
 	}
 	res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 	return res
-}
-
-// gapFor is where figures placed at a position go: a gap as it is; in a
-// caption, after its figure; in an empty plain block, in its place; at a
-// text's start or end, before or after its block, and inside it, between
-// its halves. A block whose slot takes no figure, as an item's head is,
-// takes them at the start of its own body; failing that, its container
-// does, after it.
-func gapFor(tx *doc.Tx, at doc.Pos) (doc.Pos, error) {
-	s := tx.Schema()
-	if spec, ok := vocab.SlotSpec(tx, at.Ref()); ok && spec.Blocks {
-		if spec.Accepts != nil && spec.Accepts(profile.Figure) {
-			return at, nil
-		}
-	}
-	block, ok := vocab.Block(tx, at)
-	if !ok {
-		return doc.Pos{}, vocab.ErrHelper
-	}
-	parent, slot, index, _ := vocab.Index(tx, block.ID())
-	if !vocab.Accepts(tx, block.ID(), profile.Figure) {
-		for i, sl := range block.Slots() {
-			if spec, ok := vocab.SlotSpec(tx, doc.SlotRef{Node: block.ID(), Slot: i}); ok && !sl.IsInline() && spec.Accepts != nil && spec.Accepts(profile.Figure) {
-				return doc.Pos{Node: block.ID(), Slot: i}, nil
-			}
-		}
-		for _, a := range doc.Ancestors(tx, block.ID())[1:] {
-			if vocab.Accepts(tx, a, profile.Figure) {
-				p, sl, i, _ := vocab.Index(tx, a)
-				return doc.Pos{Node: p, Slot: sl, Offset: i + 1}, nil
-			}
-		}
-		return doc.Pos{}, vocab.ErrHelper
-	}
-	after := doc.Pos{Node: parent, Slot: slot, Offset: index + 1}
-	if block.Kind() == profile.Figure || at.Node != block.ID() {
-		// A caption, or an inline node's source: after its block.
-		return after, nil
-	}
-	text := block.Slot(at.Slot).Len()
-	switch {
-	case block.Kind() == s.Plain() && text == 0 && block.NumSlots() == 1:
-		if err := tx.Apply(doc.Remove{IDs: []doc.ID{block.ID()}}); err != nil {
-			return doc.Pos{}, err
-		}
-		return doc.Pos{Node: parent, Slot: slot, Offset: index}, nil
-	case at.Offset == 0 && at.Slot == 0 && text > 0:
-		return doc.Pos{Node: parent, Slot: slot, Offset: index}, nil
-	case at.Offset >= text:
-		return after, nil
-	}
-	if err := vocab.Split(at, block.Kind(), block.Attrs())(tx); err != nil {
-		return doc.Pos{}, err
-	}
-	return after, nil
 }
 
 // resize sets a figure's span.

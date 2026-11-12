@@ -19,6 +19,13 @@ var (
 	intentPlace      = vocab.NewIntentKind("PlaceFigures")
 	intentResize     = vocab.NewIntentKind("ResizeFigure")
 	intentAlign      = vocab.NewIntentKind("AlignFigure")
+	intentTable      = vocab.NewIntentKind("InsertTable")
+	intentGrid       = vocab.NewIntentKind("EditGrid")
+	intentResizeT    = vocab.NewIntentKind("ResizeTable")
+	intentColumn     = vocab.NewIntentKind("ShapeColumn")
+	intentAlignCol   = vocab.NewIntentKind("AlignColumns")
+	intentHeader     = vocab.NewIntentKind("ToggleHeader")
+	intentDropTable  = vocab.NewIntentKind("DeleteTable")
 )
 
 type (
@@ -55,6 +62,61 @@ type (
 	}
 	// AlignFigure aligns the selected figure.
 	AlignFigure struct{ To Align }
+
+	// InsertTable puts an empty table of Rows by Columns where the
+	// selection is, as a figure is placed; the caret goes to its first
+	// cell.
+	InsertTable struct{ Rows, Columns int }
+	// EditGrid inserts, removes or moves rows or columns of a table. With
+	// Table set, it edits Count lines from At, a move putting them at To,
+	// as a gesture ends; with none, the lines the selection's cells stand
+	// in, an insert of as many going before them (Before) or after.
+	EditGrid struct {
+		Op     GridOp
+		Axis   Axis
+		Table  doc.ID
+		At     int
+		Count  int
+		To     int
+		Before bool
+	}
+	// ResizeTable makes a table Rows by Columns, as its corner's drag ends:
+	// it grows by empty lines at its end, and shrinks only by empty ones.
+	ResizeTable struct {
+		Table         doc.ID
+		Rows, Columns int
+	}
+	// ShapeColumn gives a table's column a shape, as its border's drag or
+	// its menu does.
+	ShapeColumn struct {
+		Table  doc.ID
+		Column int
+		Shape  Column
+	}
+	// AlignColumns aligns the columns the selection's cells stand in.
+	AlignColumns struct{ To Align }
+	// ToggleHeader makes the first row of the selection's table head it,
+	// or a row like the others.
+	ToggleHeader struct{}
+	// DeleteTable takes the selection's table away.
+	DeleteTable struct{}
+)
+
+// GridOp is what EditGrid does to a table's lines.
+type GridOp uint8
+
+const (
+	GridInsert GridOp = iota + 1
+	GridRemove
+	GridMove
+)
+
+// Axis is a table's rows or its columns.
+type Axis uint8
+
+const (
+	Rows Axis = iota + 1
+	Columns
 )
 
 func (Format) Kind() vocab.IntentKind       { return intentFormat }
@@ -67,3 +129,10 @@ func (PickPictures) Kind() vocab.IntentKind { return intentPick }
 func (PlaceFigures) Kind() vocab.IntentKind { return intentPlace }
 func (ResizeFigure) Kind() vocab.IntentKind { return intentResize }
 func (AlignFigure) Kind() vocab.IntentKind  { return intentAlign }
+func (InsertTable) Kind() vocab.IntentKind  { return intentTable }
+func (EditGrid) Kind() vocab.IntentKind     { return intentGrid }
+func (ResizeTable) Kind() vocab.IntentKind  { return intentResizeT }
+func (ShapeColumn) Kind() vocab.IntentKind  { return intentColumn }
+func (AlignColumns) Kind() vocab.IntentKind { return intentAlignCol }
+func (ToggleHeader) Kind() vocab.IntentKind { return intentHeader }
+func (DeleteTable) Kind() vocab.IntentKind  { return intentDropTable }

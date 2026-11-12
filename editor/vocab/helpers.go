@@ -1511,6 +1511,61 @@ func SelectedBlocks(r doc.Reader, from, to doc.Pos) []*doc.Node {
 	return out
 }
 
+// PlaceGap is where blocks of kind placed at a position go: a gap as it
+// is; in an object's text, after the object; in an empty plain block, in
+// its place; at a text's start or end, before or after its block, and
+// inside it, between its halves. A block whose slot takes no such block,
+// as an item's head or a cell is, takes them at the start of its own
+// body; failing that, its nearest container that does, after it.
+func PlaceGap(tx *doc.Tx, at doc.Pos, kind doc.Kind) (doc.Pos, error) {
+	s := tx.Schema()
+	if spec, ok := SlotSpec(tx, at.Ref()); ok && spec.Blocks {
+		if spec.Accepts != nil && spec.Accepts(kind) {
+			return at, nil
+		}
+	}
+	block, ok := Block(tx, at)
+	if !ok {
+		return doc.Pos{}, ErrHelper
+	}
+	parent, slot, index, _ := Index(tx, block.ID())
+	if !Accepts(tx, block.ID(), kind) {
+		for i, sl := range block.Slots() {
+			if spec, ok := SlotSpec(tx, doc.SlotRef{Node: block.ID(), Slot: i}); ok && !sl.IsInline() && spec.Accepts != nil && spec.Accepts(kind) {
+				return doc.Pos{Node: block.ID(), Slot: i}, nil
+			}
+		}
+		for _, a := range doc.Ancestors(tx, block.ID())[1:] {
+			if Accepts(tx, a, kind) {
+				p, sl, i, _ := Index(tx, a)
+				return doc.Pos{Node: p, Slot: sl, Offset: i + 1}, nil
+			}
+		}
+		return doc.Pos{}, ErrHelper
+	}
+	after := doc.Pos{Node: parent, Slot: slot, Offset: index + 1}
+	if s.IsObject(block.Kind()) || at.Node != block.ID() {
+		// An object's text, or an inline node's source: after its block.
+		return after, nil
+	}
+	text := block.Slot(at.Slot).Len()
+	switch {
+	case block.Kind() == s.Plain() && text == 0 && block.NumSlots() == 1:
+		if err := tx.Apply(doc.Remove{IDs: []doc.ID{block.ID()}}); err != nil {
+			return doc.Pos{}, err
+		}
+		return doc.Pos{Node: parent, Slot: slot, Offset: index}, nil
+	case at.Offset == 0 && at.Slot == 0 && text > 0:
+		return doc.Pos{Node: parent, Slot: slot, Offset: index}, nil
+	case at.Offset >= text:
+		return after, nil
+	}
+	if err := Split(at, block.Kind(), block.Attrs())(tx); err != nil {
+		return doc.Pos{}, err
+	}
+	return after, nil
+}
+
 // RemoveNode takes a block out of its slot, or an inline structure out of
 // its slot's items.
 func RemoveNode(id doc.ID) Edit {

@@ -23,9 +23,7 @@ var (
 	Math        = policy.Bool("math", true, policy.Label("settings.markdown.math"), policy.Description("settings.markdown.math.description"))
 	Strike      = policy.Bool("strike", true, policy.Label("settings.markdown.strike"), policy.Description("settings.markdown.strike.description"))
 	Rules       = policy.Bool("rules", true, policy.Label("settings.markdown.rules"), policy.Description("settings.markdown.rules.description"))
-	// TODO(tables): typing a pipe row and its delimiter row makes a table,
-	// once the tables policy and its helpers exist.
-	Tables = policy.Bool("tables", true, policy.Label("settings.markdown.tables"), policy.Description("settings.markdown.tables.description"))
+	Tables      = policy.Bool("tables", true, policy.Label("settings.markdown.tables"), policy.Description("settings.markdown.tables.description"))
 )
 
 // Policy is the markdown policy.
@@ -33,8 +31,7 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 	inline := inlineConfig{Asterisks: policy.Get(p, Asterisks), Underscores: policy.Get(p, Underscores),
 		Code: policy.Get(p, Code), Strike: policy.Get(p, Strike)}
 	blocks := blockConfig{Headings: policy.Get(p, Headings), Lists: policy.Get(p, Lists), Quotes: policy.Get(p, Quotes),
-		Code: policy.Get(p, Code), Math: policy.Get(p, Math), Rules: policy.Get(p, Rules)}
-	_ = policy.Get(p, Tables)
+		Code: policy.Get(p, Code), Math: policy.Get(p, Math), Rules: policy.Get(p, Rules), Tables: policy.Get(p, Tables)}
 
 	char := func(r run) byte { return r.Char }
 	k := &runKinds{
@@ -225,6 +222,18 @@ func fenceBlock(c *policy.Ctx, _ vocab.Break, at policy.At[fence]) policy.Result
 	case fenceDivider:
 		nodes = []*doc.Node{doc.NewNode(profile.Divider, doc.Attrs{}), profile.NewParagraph()}
 		caretAt = index + 1
+	case fenceTable:
+		// The row heads the table, and writing goes on in the row below.
+		header := tableRowOf(fe.Info)
+		nodes = []*doc.Node{profile.TableOf([][]string{header, make([]string, len(header))})}
+		res := policy.Do(func(tx *doc.Tx) error { return replace(tx, block.ID(), nodes...) })
+		res.Then = func(r doc.Reader) doc.Selection {
+			pn, _ := r.Node(parent)
+			g, _ := vocab.GridOf(r, pn.Slot(slot).Child(index).ID())
+			e, _ := vocab.TextEdge(g.Cell(doc.CellCoord{Row: 1}))
+			return doc.Collapsed(e.To)
+		}
+		return res
 	default:
 		return policy.Swallow
 	}

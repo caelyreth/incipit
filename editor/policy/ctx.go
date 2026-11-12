@@ -243,3 +243,47 @@ func (c *Ctx) Painted() []Painted {
 	}
 	return out
 }
+
+// Replacing is Clearing for content that takes the
+// selection's place: a selected object goes without leaving the block an
+// emptied page keeps, as what replaces it lands where it stood.
+func (c *Ctx) Replacing() (vocab.Edit, doc.Pos, bool) {
+	if sel := c.Selection(); sel.Kind == doc.SelectNode {
+		at, _ := c.Range()
+		if vocab.Inline(c.Doc(), sel.Node) {
+			// An inline object goes from its line.
+			return vocab.RemoveNode(sel.Node), at, true
+		}
+		return vocab.Ops(doc.Remove{IDs: []doc.ID{sel.Node}}), at, true
+	}
+	return c.Clearing()
+}
+
+// Clearing returns the edit deleting what the selection covers
+// (Ctx.Range), and where content replacing it goes: a position before the
+// edit, which edits after it map. A collapsed caret clears nothing and
+// inserts at its own position: its stop chooses marks, not a place.
+func (c *Ctx) Clearing() (vocab.Edit, doc.Pos, bool) {
+	sel := c.Selection()
+	switch sel.Kind {
+	case doc.SelectNode:
+		at, _ := c.Range()
+		return vocab.RemoveNode(sel.Node), at, true
+	case doc.SelectText:
+		if sel.IsCollapsed() {
+			return nil, c.Head().Pos, false
+		}
+		from, to := c.Range()
+		if from == to {
+			// Only notation is selected; the document holds nothing there.
+			return nil, from, false
+		}
+		at := from
+		if !vocab.IsText(c.Doc(), from) && vocab.IsText(c.Doc(), to) {
+			// From a gap, the block the range ends in keeps the place.
+			at = to
+		}
+		return vocab.DeleteRange(from, to), at, true
+	}
+	return nil, c.Head().Pos, false
+}

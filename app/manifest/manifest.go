@@ -20,6 +20,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/pairs"
 	"github.com/caelyreth/neverland/editor/policies/scopes"
 	"github.com/caelyreth/neverland/editor/policies/statistics"
+	"github.com/caelyreth/neverland/editor/policies/tables"
 	"github.com/caelyreth/neverland/editor/policies/typography"
 	"github.com/caelyreth/neverland/editor/policies/words"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -29,12 +30,12 @@ import (
 
 // Manifest lists the product's policies.
 //
-// TODO(policies): tables remain. Once pairs spell a typed '*',
-// markdown must take precedence over pairs for that character.
+// TODO(policies): once pairs spell a typed '*', markdown must take
+// precedence over pairs for that character.
 var Manifest = policy.Manifest{
 	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, formulas.Policy,
 		typography.Policy, cjk.Policy, navigation.Policy, scopes.Policy, deletion.Policy, formats.Policy,
-		blocks.Policy, lists.Policy, figures.Policy, words.Policy, history.Policy, feedback.Policy, guides.Policy,
+		blocks.Policy, lists.Policy, figures.Policy, tables.Policy, words.Policy, history.Policy, feedback.Policy, guides.Policy,
 		statistics.Policy},
 	Profile: profile.Profile,
 	Resolve: []policy.Order{

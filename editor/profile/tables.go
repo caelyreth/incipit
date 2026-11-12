@@ -72,13 +72,31 @@ func (t TableShape) Attrs() doc.Attrs {
 
 // NewTable is an empty table of rows by columns, its first row heading it.
 func NewTable(rows, columns int) *doc.Node {
+	texts := make([][]string, max(rows, 1))
+	for i := range texts {
+		texts[i] = make([]string, max(columns, 1))
+	}
+	return TableOf(texts)
+}
+
+// TableOf is a table of rows of its cells' texts, each row as long as the
+// longest, its first row heading it.
+func TableOf(rows [][]string) *doc.Node {
 	s := Schema()
+	columns := 1
+	for _, row := range rows {
+		columns = max(columns, len(row))
+	}
 	shape := TableShape{Columns: make([]Column, columns), Header: true}
-	rs := make([]*doc.Node, rows)
-	for i := range rs {
+	rs := make([]*doc.Node, len(rows))
+	for i, row := range rows {
 		cells := make([]*doc.Node, columns)
 		for j := range cells {
-			cells[j] = vocab.NewBlock(s, Cell, doc.Attrs{})
+			var text []doc.Item
+			if j < len(row) && row[j] != "" {
+				text = []doc.Item{doc.TextItem(row[j], nil)}
+			}
+			cells[j] = vocab.NewBlock(s, Cell, doc.Attrs{}, text...)
 		}
 		rs[i] = doc.NewNode(Row, doc.Attrs{}, doc.BlockSlot(cells...))
 	}
