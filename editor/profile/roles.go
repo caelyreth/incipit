@@ -47,8 +47,6 @@ func kindRoles(k doc.Kind) []vocab.RoleID {
 	switch k {
 	case Heading:
 		return []vocab.RoleID{vocab.RoleLeveled.ID}
-	case List, Quote:
-		return []vocab.RoleID{vocab.RoleStructure.ID}
 	case Item:
 		return []vocab.RoleID{vocab.RoleLeveled.ID, vocab.RoleContinued.ID}
 	case Formula:

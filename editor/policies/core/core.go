@@ -279,7 +279,9 @@ func deleteAt(c *policy.Ctx, in vocab.Delete, head doc.Caret) policy.Result {
 // start steps its level down; a container left from its first block lifts
 // that block out, unless the block is an entry, whose boundary is the
 // container's, or where the slot around the container does not take it;
-// a boundary joins the blocks where they can join; a block
+// a boundary joins the text blocks beside it where they can join, the
+// last before it and the first after it however deep, as a list's first
+// item is pulled up into the paragraph before the list; a block
 // entered forward at its marker steps its level down. Anything else is
 // not core's to delete: a nearer crossing passed, a farther one answers.
 func deleteAcross(c *policy.Ctx, _ vocab.Delete, at policy.At[policy.Crossing]) policy.Result {
@@ -292,8 +294,8 @@ func deleteAcross(c *policy.Ctx, _ vocab.Delete, at policy.At[policy.Crossing]) 
 	case x.Kind == policy.CrossBoundary:
 		to, ok1 := vocab.LastTextSlot(x.Before)
 		from, ok2 := vocab.FirstTextSlot(x.After)
-		if ok1 && ok2 && from.Node == x.After.ID() && vocab.CanJoin(r, to, from) {
-			return policy.Do(vocab.Join(to, x.After.ID()))
+		if ok1 && ok2 && vocab.CanJoin(r, to, from) {
+			return policy.Do(vocab.Join(to, from.Node))
 		}
 
 	case x.Kind == policy.CrossExit && x.Dir == vocab.Backward && x.From == nil,

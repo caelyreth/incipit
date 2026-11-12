@@ -337,13 +337,15 @@ func holdsNothing(n *doc.Node) bool {
 
 // Join moves second's text onto the end of first's text slot, moves
 // second's block children after first (into first's body when it has
-// one), and removes second.
+// one), and removes second, and then containers it leaves empty, as a
+// list whose only item joins the block before it.
 func Join(first doc.SlotRef, second doc.ID) Edit {
 	return func(tx *doc.Tx) error {
 		sn, ok := tx.Node(second)
 		if !ok {
 			return doc.ErrNoNode
 		}
+		container, _, _ := tx.Parent(second)
 		fn, ok := tx.Node(first.Node)
 		if !ok {
 			return doc.ErrNoNode
@@ -363,7 +365,10 @@ func Join(first doc.SlotRef, second doc.ID) Edit {
 		if err := moveChildrenAfter(tx, sn, first.Node); err != nil {
 			return err
 		}
-		return tx.Apply(doc.Remove{IDs: []doc.ID{second}})
+		if err := tx.Apply(doc.Remove{IDs: []doc.ID{second}}); err != nil {
+			return err
+		}
+		return RemoveIfEmpty(container)(tx)
 	}
 }
 

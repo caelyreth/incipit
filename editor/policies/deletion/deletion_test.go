@@ -117,19 +117,74 @@ func TestDeletingASelectedFormulaRemovesTheInlineStructure(t *testing.T) {
 	}
 }
 
-func TestDeletingAListScopeUsesTheStructureRole(t *testing.T) {
+// first is the text of the page's first block.
+func (p *page) first() string {
+	return p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Content().Text()
+}
+
+// endOfFirst puts the caret at the end of the page's first block.
+func (p *page) endOfFirst() {
+	p.t.Helper()
+	b := p.e.Snapshot().Root().Slot(0).Child(0)
+	ref := doc.SlotRef{Node: b.ID(), Slot: 0}
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, b.Slot(0).Len()))})
+}
+
+// A container is no whole: what stands beside the caret at its edge is its
+// first block, whose text a delete forward joins up, as a delete back from
+// below joins into its last block's.
+func TestDeletingForwardIntoAContainerJoinsItsFirstBlock(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		kind    doc.Kind
+		lines   []string
+		left    int
+		wantTop string
+	}{
+		{"list", profile.List, []string{"- a", "b"}, 1, "abovea"},
+		{"one item", profile.List, []string{"- a"}, 0, "abovea"},
+		{"quote", profile.Quote, []string{"> q", "r"}, 1, "aboveq"},
+	} {
+		p := open(t)
+		p.typeText("above")
+		p.do(vocab.Break{})
+		for i, line := range tc.lines {
+			if i > 0 {
+				p.do(vocab.Break{})
+			}
+			p.typeText(line)
+		}
+		p.endOfFirst()
+		p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Forward})
+		if p.armed() != 0 {
+			t.Fatalf("%s: a delete forward armed the container", tc.name)
+		}
+		if got := p.first(); got != tc.wantTop {
+			t.Fatalf("%s: the first block reads %q, want %q", tc.name, got, tc.wantTop)
+		}
+		if got := p.count(tc.kind); got != tc.left {
+			t.Fatalf("%s: %d containers left, want %d", tc.name, got, tc.left)
+		}
+	}
+}
+
+// Before the first item's marker, Backspace crosses the boundary above
+// the list, which joins the item into the block before it, as before a
+// heading's.
+func TestDeletingBackBeforeTheFirstMarkerJoinsTheBlockAbove(t *testing.T) {
 	p := open(t)
-	p.typeText("- a")
+	p.typeText("above")
 	p.do(vocab.Break{})
-	p.typeText("b")
-	p.do(vocab.SelectScope{})
-	p.do(vocab.SelectScope{})
-	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.count(profile.List) != 1 || p.armed() != 1 {
-		t.Fatalf("first delete left %d lists and %d arms", p.count(profile.List), p.armed())
+	p.typeText("- a")
+	// Past the "a" and the marker's two glyphs: the stop before the marker.
+	for range 3 {
+		p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	}
+	if v, _ := p.e.View(1); v.Selection.Head.Pos.Offset != 0 || v.Selection.Head.Stop >= 0 {
+		t.Fatalf("the caret is at %+v, want the stop before the marker", v.Selection.Head)
 	}
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.count(profile.List) != 0 {
-		t.Fatal("the second delete kept the list")
+	if got := p.first(); got != "abovea" || p.count(profile.List) != 0 {
+		t.Fatalf("the first block reads %q with %d lists, want %q and none", got, p.count(profile.List), "abovea")
 	}
 }
