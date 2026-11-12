@@ -63,7 +63,8 @@ const (
 	FieldHeader  = 2
 
 	FieldColumnAlign = 1 // a table column record
-	FieldColumnWidth = 2
+	FieldColumnWidth = 2 // in DIPs; 0 sets it from its text
+	FieldColumnFit   = 3 // its text kept on one line
 )
 
 // ListStyle is a list's style.
@@ -112,6 +113,10 @@ func columnsValid(v doc.Value) bool {
 				}
 			case FieldColumnWidth:
 				if !intIn(0, 1<<16)(f.Value) {
+					return false
+				}
+			case FieldColumnFit:
+				if !isBool(f.Value) {
 					return false
 				}
 			default:

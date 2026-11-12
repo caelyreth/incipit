@@ -12,10 +12,9 @@ import (
 // The semantic helpers. Each returns an Edit made of primitive
 // operations; policies edit only through helpers and primitives.
 //
-// TODO(tables): insert, remove and move rows and columns; resize the grid;
-// set the header; set a column's attributes; clear and fill cells (§5.2).
-// A figure's helpers name its kind, so they are the profile's (NewFigure,
-// SetShape).
+// A grid's edits are in grid.go. TODO(tables): fill cells from a grid
+// slice (§5.2). A figure's and a table's shape name their kind, so they
+// are the profile's (NewFigure, SetShape, TableShape, InsertColumns).
 
 // ErrHelper reports a helper asked for something the document cannot do.
 var ErrHelper = errors.New("vocab: the edit does not fit the document")

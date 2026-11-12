@@ -47,7 +47,7 @@ func TestATablesCellsAreTextThatKeepsItsGrid(t *testing.T) {
 	}
 }
 
-// A cell range spans its cells, each in its place, in reading order.
+// A cell range spans its cells' text, whole, in reading order.
 func TestACellRangeSpansItsCells(t *testing.T) {
 	p := open(t)
 	table := p.placeTable()
@@ -65,9 +65,9 @@ func TestACellRangeSpansItsCells(t *testing.T) {
 			t.Fatalf("%+v spans %d pieces, want %d", tc.cr, len(pieces), len(tc.want))
 		}
 		for i, e := range pieces {
-			n, _ := r.Node(e.From.Pos.Node)
-			if c := n.Slot(e.From.Pos.Slot).Child(e.From.Pos.Offset); c.Text() != tc.want[i] {
-				t.Errorf("%+v piece %d is %q, want %q", tc.cr, i, c.Text(), tc.want[i])
+			c, _ := r.Node(e.From.Pos.Node)
+			if c.Kind() != profile.Cell || e.To.Pos.Node != c.ID() || e.From.Offset != 0 || e.To.Offset != len(c.Text()) || c.Text() != tc.want[i] {
+				t.Errorf("%+v piece %d is %v..%v, want the text of cell %q", tc.cr, i, e.From, e.To, tc.want[i])
 			}
 		}
 	}

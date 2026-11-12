@@ -223,10 +223,24 @@ func NodeEdge(r doc.Reader, id doc.ID) (Edge, bool) {
 	return Edge{From: doc.CaretAt(before), To: doc.CaretAt(after)}, true
 }
 
+// TextEdge is a block's text, from the first stop at its start to the last
+// at its end: the block's first text slot whole.
+func TextEdge(n *doc.Node) (Edge, bool) {
+	ref, ok := FirstTextSlot(n)
+	if !ok {
+		return Edge{}, false
+	}
+	return Edge{
+		From: doc.Caret{Pos: doc.At(ref, 0), Stop: doc.StopFirst},
+		To:   doc.Caret{Pos: doc.At(ref, n.Slot(ref.Slot).Len()), Stop: doc.StopLast},
+	}, true
+}
+
 // SelectionExtent is what a selection spans, as pieces in reading order,
 // as a whole's Structure extent is: a range between its ends, a selected
-// node's place, or each cell of a cell range in its place. A caret spans
-// nothing.
+// node's place, or the text of each cell of a cell range, so what is
+// shown selected is what an edit of it takes, and a cell emptied stays.
+// A caret spans nothing.
 func SelectionExtent(r doc.Reader, sel doc.Selection) []Edge {
 	switch sel.Kind {
 	case doc.SelectText:
@@ -241,44 +255,13 @@ func SelectionExtent(r doc.Reader, sel doc.Selection) []Edge {
 	case doc.SelectCells:
 		var out []Edge
 		for _, c := range Cells(r, sel.Cells) {
-			if e, ok := NodeEdge(r, c.ID()); ok {
+			if e, ok := TextEdge(c); ok {
 				out = append(out, e)
 			}
 		}
 		return out
 	}
 	return nil
-}
-
-// Cells are the cells a cell range covers, in reading order. A grid
-// object's first slot holds its rows, and each row's first slot its cells.
-func Cells(r doc.Reader, cr doc.CellRange) []*doc.Node {
-	t, ok := r.Node(cr.Table)
-	if !ok || t.NumSlots() == 0 {
-		return nil
-	}
-	rows := t.Slot(0)
-	r0, r1 := min(cr.Anchor.Row, cr.Head.Row), max(cr.Anchor.Row, cr.Head.Row)
-	c0, c1 := min(cr.Anchor.Column, cr.Head.Column), max(cr.Anchor.Column, cr.Head.Column)
-	if cr.WholeColumns {
-		r0, r1 = 0, rows.Len()-1
-	}
-	var out []*doc.Node
-	for i := max(r0, 0); i <= r1 && i < rows.Len(); i++ {
-		row := rows.Child(i)
-		if row.NumSlots() == 0 {
-			continue
-		}
-		cells := row.Slot(0)
-		a, b := c0, c1
-		if cr.WholeRows {
-			a, b = 0, cells.Len()-1
-		}
-		for j := max(a, 0); j <= b && j < cells.Len(); j++ {
-			out = append(out, cells.Child(j))
-		}
-	}
-	return out
 }
 
 // Index returns where id stands among its siblings.
