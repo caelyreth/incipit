@@ -174,8 +174,10 @@ func placeCaret(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.
 		return policy.Swallow
 	}
 	sel := c.Selection()
-	if in.Extend && sel.Kind == doc.SelectText {
-		anchor := sel.Anchor
+	if in.Extend && sel.Kind != doc.SelectNode {
+		// A cell range extends from its anchor cell; the engine shapes the
+		// range again.
+		anchor := c.Anchor()
 		if in.Anchor != nil {
 			anchor = *in.Anchor
 		}

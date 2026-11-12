@@ -311,10 +311,13 @@ func (ed *Editor) writeClipboard(services ui.Services) bool {
 func (ed *Editor) pasted(data transfer.Data) vocab.Paste {
 	if raw, err := data.Read(transfer.Format(clipboard.Format)); err == nil {
 		if slice, err := clipboard.Decode(raw); err == nil {
-			return vocab.Paste{Slice: slice, Text: vocab.PlainText(slice)}
+			return vocab.Paste{Slice: slice, Text: vocab.PlainText(ed.Engine.Program().Profile().Schema(), slice)}
 		}
 	}
 	text, _ := data.Read(transfer.Text)
+	if slice, ok := clipboard.TableText(string(text)); ok {
+		return vocab.Paste{Slice: slice, Text: string(text)}
+	}
 	return vocab.Paste{Text: string(text)}
 }
 

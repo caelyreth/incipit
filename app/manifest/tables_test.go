@@ -278,3 +278,186 @@ func TestAPipeRowBecomesATable(t *testing.T) {
 	p.do(vocab.Break{})
 	p.want("page(paragraph(| a |) paragraph())")
 }
+
+// cells is the selection's cell range, failing when it is none.
+func (p *page) cells() doc.CellRange {
+	p.t.Helper()
+	s := p.selection()
+	if s.Kind != doc.SelectCells {
+		p.t.Fatalf("selection %+v, want a cell range", s)
+	}
+	return s.Cells
+}
+
+func at(row, col int) doc.CellCoord { return doc.CellCoord{Row: row, Column: col} }
+
+// placeCaret puts the caret in the cell at row, col of the page's table
+// at offset.
+func (p *page) placeCaret(table doc.ID, row, col, offset int) {
+	p.t.Helper()
+	g, _ := vocab.GridOf(p.e.Snapshot(), table)
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.Pos{Node: g.Cell(at(row, col)).ID(), Offset: offset})})
+}
+
+// A range from one cell into another is the cell range between them,
+// however it is made; one from outside a table into it takes the table
+// whole; and an object's text is its own for every object.
+func TestARangeAcrossCellsIsACellRange(t *testing.T) {
+	p := open(t)
+	p.typeText("x")
+	p.placeTable()
+	table := p.e.Snapshot().Root().Slot(0).Child(1).ID()
+	p.placeCaret(table, 0, 0, 1)
+	p.do(extend(right))
+	if cr := p.cells(); cr.Anchor != at(0, 0) || cr.Head != at(0, 1) {
+		t.Fatalf("Shift+Right selects %+v", cr)
+	}
+	g, _ := vocab.GridOf(p.e.Snapshot(), table)
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.Pos{Node: g.Cell(at(1, 1)).ID()}), Extend: true})
+	if cr := p.cells(); cr.Anchor != at(0, 0) || cr.Head != at(1, 1) {
+		t.Fatalf("Shift+click selects %+v", cr)
+	}
+
+	// From the paragraph before into a cell: the range runs past the table.
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.Pos{Node: p.e.Snapshot().Root().Slot(0).Child(0).ID()})})
+	p.placeCaretExtend(table, 0, 0, 1)
+	if s := p.selection(); s.Kind != doc.SelectText || s.Head.Pos != (doc.Pos{Node: p.e.Snapshot().Root().ID(), Offset: 2}) {
+		t.Fatalf("selection %+v, want it past the table", s)
+	}
+	p.do(backspace)
+	p.want("page(paragraph())")
+
+	// A range into a formula's source takes the formula.
+	p = open(t)
+	p.typeText("a $xy$")
+	formula := p.nodeOf(profile.Formula)
+	para := p.e.Snapshot().Root().Slot(0).Child(0).ID()
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.Pos{Node: para})})
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.Pos{Node: formula, Offset: 1}), Extend: true})
+	if s := p.selection(); s.Head.Pos != (doc.Pos{Node: para, Offset: 3}) {
+		t.Fatalf("selection %+v, want it past the formula", s)
+	}
+}
+
+func (p *page) placeCaretExtend(table doc.ID, row, col, offset int) {
+	p.t.Helper()
+	g, _ := vocab.GridOf(p.e.Snapshot(), table)
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.Pos{Node: g.Cell(at(row, col)).ID(), Offset: offset}), Extend: true})
+}
+
+// Shift and the arrows stretch a cell range by cells; an arrow alone
+// collapses it into its head cell.
+func TestKeysStretchACellRange(t *testing.T) {
+	p := open(t)
+	p.do(profile.InsertTable{Rows: 3, Columns: 3})
+	table := p.e.Snapshot().Root().Slot(0).Child(0).ID()
+	p.placeCaret(table, 1, 1, 0)
+	p.placeCaretExtend(table, 1, 2, 0)
+	for _, s := range []struct {
+		in   vocab.Intent
+		head doc.CellCoord
+	}{
+		{vocab.VisualMove{Dir: vocab.Down, Extend: true}, at(2, 2)},
+		{extend(left), at(2, 1)},
+		{vocab.VisualMove{Dir: vocab.LineStart, Extend: true}, at(2, 0)},
+		{vocab.Move{Unit: vocab.ByParagraph, Dir: vocab.Backward, Extend: true}, at(1, 0)},
+		{vocab.VisualMove{Dir: vocab.Up, Extend: true}, at(0, 0)},
+	} {
+		p.do(s.in)
+		if cr := p.cells(); cr.Anchor != at(1, 1) || cr.Head != s.head {
+			t.Fatalf("after %T%+v: %+v, want head %v", s.in, s.in, cr, s.head)
+		}
+	}
+	p.do(right)
+	p.wantCell(0, 0, 0)
+}
+
+// Select Scope grows from a cell's text to its row, every cell, then the
+// table.
+func TestSelectScopeGrowsThroughTheGrid(t *testing.T) {
+	p := open(t)
+	p.placeTable()
+	table := p.e.Snapshot().Root().Slot(0).Child(0).ID()
+	p.placeCaret(table, 1, 0, 1)
+	p.do(vocab.SelectScope{})
+	if s := p.selection(); s.Kind != doc.SelectText || s.IsCollapsed() {
+		t.Fatalf("first grow %+v, want the cell's text", s)
+	}
+	p.do(vocab.SelectScope{})
+	if cr := p.cells(); cr.Anchor != at(1, 0) || cr.Head != at(1, 1) {
+		t.Fatalf("second grow %+v, want the row", cr)
+	}
+	p.do(vocab.SelectScope{})
+	if cr := p.cells(); cr.Anchor != at(0, 0) || cr.Head != at(1, 1) {
+		t.Fatalf("third grow %+v, want every cell", cr)
+	}
+	p.do(vocab.SelectScope{})
+	if s := p.selection(); s.Kind != doc.SelectNode || s.Node != table {
+		t.Fatalf("fourth grow %+v, want the table", s)
+	}
+}
+
+// Every edit of a cell range goes over its cells: Delete empties them,
+// typing writes over the first, a mark covers each, and undo restores.
+func TestEditsOfACellRangeGoOverItsCells(t *testing.T) {
+	selectAll := func(p *page) doc.ID {
+		p.placeTable()
+		table := p.e.Snapshot().Root().Slot(0).Child(0).ID()
+		p.placeCaret(table, 0, 0, 0)
+		p.placeCaretExtend(table, 1, 1, 1)
+		return table
+	}
+	p := open(t)
+	selectAll(p)
+	p.do(backspace)
+	p.want("page(table(row(cell() cell()) row(cell() cell())))")
+	p.cells()
+	p.do(backspace)
+	p.want("page(table(row(cell() cell()) row(cell() cell())))")
+	p.do(vocab.Undo{})
+	p.want("page(table(row(cell(a) cell(b)) row(cell(c) cell(d))))")
+
+	p = open(t)
+	selectAll(p)
+	p.typeText("zy")
+	p.want("page(table(row(cell(zy) cell()) row(cell() cell())))")
+	p.wantCell(0, 0, 2)
+
+	p = open(t)
+	table := selectAll(p)
+	p.do(profile.Format{Mark: profile.Strong})
+	r := p.e.Snapshot()
+	for _, c := range vocab.Cells(r, doc.CellRange{Table: table, Head: at(1, 1)}) {
+		e, _ := vocab.TextEdge(c)
+		if vocab.CoverageOf(r, vocab.TextSpans(r, e.From.Pos, e.To.Pos), profile.Strong) != vocab.CoverFull {
+			t.Fatalf("cell %q is not strong", c.Text())
+		}
+	}
+	p.cells()
+}
+
+// A cell range copies as a table of its cells, its text between tabs;
+// pasted in a cell it fills the grid from there, growing it, and pasted
+// between blocks it is a table.
+func TestACellRangeCopiesAndPastesAsAGrid(t *testing.T) {
+	p := open(t)
+	p.placeTable()
+	table := p.e.Snapshot().Root().Slot(0).Child(0).ID()
+	p.placeCaret(table, 0, 0, 0)
+	p.placeCaretExtend(table, 1, 1, 1)
+	slice, text := p.e.Copy(1)
+	if text != "a\tb\nc\td" || len(slice.Nodes) != 1 || outline(slice.Nodes[0]) != "table(row(cell(a) cell(b)) row(cell(c) cell(d)))" {
+		t.Fatalf("copied %q, %d nodes", text, len(slice.Nodes))
+	}
+	p.placeCaret(table, 1, 1, 0)
+	p.do(vocab.Paste{Slice: slice, Text: text})
+	p.want("page(table(row(cell(a) cell(b) cell()) row(cell(c) cell(a) cell(b)) row(cell() cell(c) cell(d))))")
+	p.wantCell(2, 2, 1)
+	p.do(vocab.Undo{})
+	p.want("page(table(row(cell(a) cell(b)) row(cell(c) cell(d))))")
+
+	q := open(t)
+	q.typeText("x")
+	q.do(vocab.Paste{Slice: slice, Text: text})
+	q.want("page(paragraph(x) table(row(cell(a) cell(b)) row(cell(c) cell(d))))")
+}

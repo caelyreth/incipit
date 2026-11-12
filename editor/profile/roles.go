@@ -55,7 +55,9 @@ func kindRoles(k doc.Kind) []vocab.RoleID {
 		return []vocab.RoleID{vocab.RoleCloser.ID, vocab.RoleStructure.ID}
 	case Code:
 		return []vocab.RoleID{vocab.RoleLeveled.ID, vocab.RoleStructure.ID}
-	case Math, Table, Figure, Divider:
+	case Table:
+		return []vocab.RoleID{vocab.RoleStructure.ID, vocab.RoleSpanned.ID}
+	case Math, Figure, Divider:
 		return []vocab.RoleID{vocab.RoleStructure.ID}
 	}
 	return nil
@@ -93,6 +95,10 @@ func NodeRole(r doc.Reader, n *doc.Node, role vocab.RoleID) (any, bool) {
 				exit:  doc.CaretAt(after),
 				entry: doc.CaretAt(doc.At(last, ln.Slot(last.Slot).Len())),
 			}, true
+		}
+	case vocab.RoleSpanned.ID:
+		if n.Kind() == Table {
+			return tableGrid{r: r, table: n.ID()}, true
 		}
 	case vocab.RoleStructure.ID:
 		for _, provided := range NodeRoles(n.Kind()) {
@@ -167,6 +173,58 @@ func (i itemNext) Next() (doc.Kind, doc.Attrs) {
 		return Item, doc.MakeAttrs(doc.Field{Num: FieldTask, Value: doc.Int(int64(TaskOpen))})
 	}
 	return Item, doc.Attrs{}
+}
+
+// tableGrid is a table's shape: a range between two of its cells selects the
+// rectangle of cells between them.
+type tableGrid struct {
+	r     doc.Reader
+	table doc.ID
+}
+
+func (g tableGrid) Span(anchor, head doc.Caret) (doc.Selection, bool) {
+	a, ok1 := g.cellOf(anchor.Pos)
+	h, ok2 := g.cellOf(head.Pos)
+	if !ok1 || !ok2 {
+		return doc.Selection{}, false
+	}
+	return doc.CellSelection(doc.CellRange{Table: g.table, Anchor: a, Head: h}), true
+}
+
+// Copy is a cell range's cells as a table of their own: the rows and
+// columns it covers, their columns' shape, and the header when it holds
+// the first row.
+func (g tableGrid) Copy(sel doc.Selection) (vocab.Slice, bool) {
+	cells := vocab.Cells(g.r, sel.Cells)
+	t, ok := g.r.Node(g.table)
+	if sel.Kind != doc.SelectCells || len(cells) == 0 || !ok {
+		return vocab.Slice{}, false
+	}
+	_, first, _ := vocab.Locate(g.r, cells[0].ID())
+	_, last, _ := vocab.Locate(g.r, cells[len(cells)-1].ID())
+	shape := TableShapeOf(t)
+	shape.Columns = shape.Columns[first.Column : last.Column+1]
+	shape.Header = shape.Header && first.Row == 0
+	width := last.Column - first.Column + 1
+	var rows []*doc.Node
+	for i := 0; i < len(cells); i += width {
+		row := make([]*doc.Node, width)
+		for j := range row {
+			row[j] = vocab.Fresh(cells[i+j])
+		}
+		rows = append(rows, doc.NewNode(Row, doc.Attrs{}, doc.BlockSlot(row...)))
+	}
+	return vocab.Slice{Nodes: []*doc.Node{doc.NewNode(Table, shape.Attrs(), doc.BlockSlot(rows...))}}, true
+}
+
+// cellOf is where in the table the cell holding p stands.
+func (g tableGrid) cellOf(p doc.Pos) (doc.CellCoord, bool) {
+	for _, id := range append([]doc.ID{p.Node}, doc.Ancestors(g.r, p.Node)...) {
+		if t, at, ok := vocab.Locate(g.r, id); ok && t.Table.ID() == g.table {
+			return at, true
+		}
+	}
+	return doc.CellCoord{}, false
 }
 
 type leavable struct{ exit, entry doc.Caret }

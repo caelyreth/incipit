@@ -17,7 +17,7 @@ const ID = "formats"
 var Policy = policy.Define(ID, func(p *policy.P) {
 	format := policy.Intent[profile.Format]()
 	policy.On(p, "at-caret", format, policy.Slot.Own(), formatAtCaret).When(policy.Rich)
-	policy.On(p, "range", format, policy.Slot.Inside(), formatRange).Range()
+	policy.On(p, "range", format, policy.Slot.Inside(), formatRange).Range().Cells()
 
 	p.Command("formats.strong", "commands.strong", profile.Format{Mark: profile.Strong}, policy.Key("primary+b"))
 	p.Command("formats.emphasis", "commands.emphasis", profile.Format{Mark: profile.Emphasis}, policy.Key("primary+i"))
@@ -55,12 +55,14 @@ func formatAtCaret(c *policy.Ctx, in profile.Format, at policy.At[doc.SlotRef]) 
 	return policy.Result{Pending: marks}
 }
 
-// formatRange toggles a mark over a range: cleared where it covers all of it,
-// applied otherwise.
+// formatRange toggles a mark over what the selection covers: cleared where
+// it covers all of it, applied otherwise.
 func formatRange(c *policy.Ctx, in profile.Format, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
-	from, to := c.Range()
-	spans := vocab.TextSpans(r, from, to)
+	var spans []vocab.Span
+	for _, p := range c.Pieces() {
+		spans = append(spans, vocab.TextSpans(r, p.From, p.To)...)
+	}
 	if vocab.CoverageOf(r, spans, in.Mark) == vocab.CoverFull {
 		return policy.Do(vocab.ClearMark(spans, in.Mark))
 	}

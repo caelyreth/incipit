@@ -40,11 +40,44 @@ func (c *Ctx) Stops() Stops {
 // (Stops.Bound).
 func (c *Ctx) Bound(caret doc.Caret) doc.Pos { return c.Stops().Bound(caret) }
 
-// Range is what the selection covers, in document order: the bounds of a
-// text selection's ends, or the gaps around a selected node. Every edit of
-// the selection reads it, so what is shown selected is what is edited.
+// Range is what the selection spans, in document order: the bounds of a
+// text selection's ends, the gaps around a selected node, or a cell
+// range's first cell's start and last cell's end.
 func (c *Ctx) Range() (from, to doc.Pos) {
 	return SelectionRange(c.r, c.Stops(), c.Selection())
+}
+
+// Piece is one piece of what a selection covers, between two positions.
+type Piece struct{ From, To doc.Pos }
+
+// Pieces are what the selection covers, in reading order: its extent
+// (vocab.SelectionExtent) bound to positions, one piece for a range or a
+// selected node, one per cell for a cell range. Every edit of the
+// selection reads them, so what is shown selected is what is edited.
+func (c *Ctx) Pieces() []Piece { return SelectionPieces(c.r, c.Stops(), c.Selection()) }
+
+// SelectionPieces are a selection's pieces over a stop model, as Pieces
+// reads them.
+func SelectionPieces(r doc.Reader, stops Stops, sel doc.Selection) []Piece {
+	if sel.Kind != doc.SelectCells {
+		if sel.Kind == doc.SelectText && sel.IsCollapsed() {
+			return nil
+		}
+		from, to := SelectionRange(r, stops, sel)
+		return []Piece{{from, to}}
+	}
+	var out []Piece
+	for _, e := range vocab.SelectionExtent(r, sel) {
+		out = append(out, Piece{bound(stops, e.From), bound(stops, e.To)})
+	}
+	return out
+}
+
+func bound(stops Stops, c doc.Caret) doc.Pos {
+	if stops == nil {
+		return c.Pos
+	}
+	return stops.Bound(c)
 }
 
 // SelectionRange is a selection's range over a stop model, as Range reads
@@ -56,9 +89,8 @@ func SelectionRange(r doc.Reader, stops Stops, sel doc.Selection) (from, to doc.
 		}
 	}
 	if sel.Kind == doc.SelectCells {
-		// A cell range spans its cells in reading order.
-		if pieces := vocab.SelectionExtent(r, sel); len(pieces) > 0 {
-			return stops.Bound(pieces[0].From), stops.Bound(pieces[len(pieces)-1].To)
+		if pieces := SelectionPieces(r, stops, sel); len(pieces) > 0 {
+			return pieces[0].From, pieces[len(pieces)-1].To
 		}
 	}
 	a, b := sel.Ordered(r)

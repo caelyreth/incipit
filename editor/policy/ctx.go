@@ -88,6 +88,20 @@ func (c *Ctx) Selection() doc.Selection { return c.view.Selection }
 // gap before the node.
 func (c *Ctx) Head() doc.Caret { return headOf(c.r, c.view.Selection) }
 
+// Anchor is the caret at the selection's anchor, as Head is at its head:
+// a cell range's is its anchor cell's text start.
+func (c *Ctx) Anchor() doc.Caret {
+	s := c.view.Selection
+	switch s.Kind {
+	case doc.SelectNode:
+		return headOf(c.r, s)
+	case doc.SelectCells:
+		s.Cells.Head = s.Cells.Anchor
+		return headOf(c.r, s)
+	}
+	return s.Anchor
+}
+
 func headOf(r doc.Reader, s doc.Selection) doc.Caret {
 	switch s.Kind {
 	case doc.SelectNode:
@@ -260,9 +274,10 @@ func (c *Ctx) Replacing() (vocab.Edit, doc.Pos, bool) {
 }
 
 // Clearing returns the edit deleting what the selection covers
-// (Ctx.Range), and where content replacing it goes: a position before the
-// edit, which edits after it map. A collapsed caret clears nothing and
-// inserts at its own position: its stop chooses marks, not a place.
+// (Ctx.Pieces), and where content replacing it goes: a position before the
+// edit, which edits after it map, the first piece's start for a cell
+// range. A collapsed caret clears nothing and inserts at its own position:
+// its stop chooses marks, not a place.
 func (c *Ctx) Clearing() (vocab.Edit, doc.Pos, bool) {
 	sel := c.Selection()
 	switch sel.Kind {
@@ -284,6 +299,18 @@ func (c *Ctx) Clearing() (vocab.Edit, doc.Pos, bool) {
 			at = to
 		}
 		return vocab.DeleteRange(from, to), at, true
+	case doc.SelectCells:
+		pieces := c.Pieces()
+		if len(pieces) == 0 {
+			break
+		}
+		var edits []vocab.Edit
+		for _, p := range pieces {
+			if p.From != p.To {
+				edits = append(edits, vocab.DeleteRange(p.From, p.To))
+			}
+		}
+		return vocab.Sequence(edits...), pieces[0].From, len(edits) > 0
 	}
 	return nil, c.Head().Pos, false
 }

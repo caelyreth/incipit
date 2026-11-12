@@ -125,6 +125,10 @@ type Result struct {
 	// Then, when set, computes the selection after the edits from the
 	// edited document, for carets in nodes the edits create. It is pure.
 	Then func(r doc.Reader) doc.Selection
+	// Replaced, when set, is where content replacing the selection goes
+	// in, before the edits (Ctx.Replacing): the selection is a caret there
+	// that the edits carry, as a range's two ends both come there.
+	Replaced *doc.Pos
 	// Composition sets the composition; EndComposition clears it.
 	Composition    *Composition
 	EndComposition bool
@@ -258,10 +262,11 @@ func (b *Rule) shape(s shape) *Rule {
 }
 
 // Caret answers a collapsed caret, Range a text range, Node a node
-// selection; Any answers every selection.
+// selection, Cells a cell range; Any answers every selection.
 func (b *Rule) Caret() *Rule { return b.shape(shapeCaret) }
 func (b *Rule) Range() *Rule { return b.shape(shapeRange) }
 func (b *Rule) Node() *Rule  { return b.shape(shapeNode) }
+func (b *Rule) Cells() *Rule { return b.shape(shapeCells) }
 func (b *Rule) Any() *Rule   { return b.shape(shapeAny) }
 
 // --- rewrites and observers ----------------------------------------------

@@ -45,8 +45,8 @@ func TestSliceRoundTripPreservesStructure(t *testing.T) {
 	if out.OpenStart != in.OpenStart || out.OpenEnd != in.OpenEnd || len(out.Nodes) != len(in.Nodes) {
 		t.Fatalf("slice shape %+v, want %+v", out, in)
 	}
-	if got := vocab.PlainText(out); got != vocab.PlainText(in) {
-		t.Fatalf("text %q, want %q", got, vocab.PlainText(in))
+	if got := vocab.PlainText(profile.Schema(), out); got != vocab.PlainText(profile.Schema(), in) {
+		t.Fatalf("text %q, want %q", got, vocab.PlainText(profile.Schema(), in))
 	}
 	first := out.Nodes[0].Slot(0).Content()
 	item, _, ok := first.ItemAt(4)

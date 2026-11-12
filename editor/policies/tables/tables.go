@@ -45,6 +45,13 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "align", policy.Intent[profile.AlignColumns](), in, align).Any()
 	policy.On(p, "header", policy.Intent[profile.ToggleHeader](), in, header).Any()
 	policy.On(p, "delete", policy.Intent[profile.DeleteTable](), in, remove).Any()
+	// A table pasted in a table fills its cells, as a spreadsheet's do.
+	policy.On(p, "fill", policy.Intent[vocab.Paste](), in, fill).Any()
+
+	// A cell range moves by cells: extended, its head goes a cell or a
+	// line of cells; not, it collapses into its head cell.
+	policy.On(p, "move-cells", policy.Intent[vocab.Move](), in, moveCells).Cells()
+	policy.On(p, "visual-cells", policy.Intent[vocab.VisualMove](), in, visualCells).Cells()
 
 	// The keys that walk the grid, in a cell's own text: an inner scope,
 	// a formula's source or a pair, is left first.
@@ -244,6 +251,99 @@ func grid(c *policy.Ctx, in profile.EditGrid, _ policy.At[doc.SlotRef]) policy.R
 		return policy.Do(edits...)
 	}
 	return policy.Swallow
+}
+
+// fill writes a pasted table's cells into the selection's table from its
+// first cell on, making the rows and columns they need at its end; the
+// caret goes to the last cell written. Anything else pasted is core's.
+func fill(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Result {
+	s, ok := spanAt(c)
+	if !ok || len(in.Slice.Nodes) != 1 {
+		return policy.Pass
+	}
+	src, ok := vocab.GridNode(c.Doc().Schema(), in.Slice.Nodes[0])
+	if !ok || src.Table.Kind() != profile.Table {
+		return policy.Pass
+	}
+	id := s.grid.Table.ID()
+	rows, cols := s.grid.Size()
+	srows, scols := src.Size()
+	at := doc.CellCoord{Row: s.rows[0], Column: s.cols[0]}
+	var edits []vocab.Edit
+	if more := at.Row + srows - rows; more > 0 {
+		edits = append(edits, vocab.InsertRows(id, rows, more))
+	}
+	if more := at.Column + scols - cols; more > 0 {
+		edits = append(edits, profile.InsertColumns(id, cols, more))
+	}
+	edits = append(edits, vocab.FillCells(id, at, src))
+	return land(id, doc.CellCoord{Row: at.Row + srows - 1, Column: at.Column + scols - 1}, edits...)
+}
+
+// moveCells moves a cell range's head a cell across, a row for a
+// paragraph, or to its row's end for a slot's edge; not extending, the
+// range collapses to its head cell's start or end.
+func moveCells(c *policy.Ctx, in vocab.Move, _ policy.At[doc.SlotRef]) policy.Result {
+	cr := c.Selection().Cells
+	if !in.Extend {
+		cells := vocab.Cells(c.Doc(), doc.CellRange{Table: cr.Table, Anchor: cr.Head, Head: cr.Head})
+		if len(cells) == 0 {
+			return policy.Swallow
+		}
+		e, _ := vocab.TextEdge(cells[0])
+		if in.Dir == vocab.Backward {
+			return policy.Select(doc.Collapsed(e.From))
+		}
+		return policy.Select(doc.Collapsed(e.To))
+	}
+	switch in.Unit {
+	case vocab.ByGrapheme, vocab.ByWord:
+		return stretch(c, 0, int(in.Dir), false)
+	case vocab.ByParagraph:
+		return stretch(c, int(in.Dir), 0, false)
+	case vocab.ToSlotEdge:
+		return stretch(c, 0, int(in.Dir), true)
+	}
+	return policy.Pass
+}
+
+// visualCells moves an extended cell range's head a row up or down, or
+// to its row's start or end.
+func visualCells(c *policy.Ctx, in vocab.VisualMove, _ policy.At[doc.SlotRef]) policy.Result {
+	if !in.Extend {
+		return policy.Pass
+	}
+	switch in.Dir {
+	case vocab.Up:
+		return stretch(c, -1, 0, false)
+	case vocab.Down:
+		return stretch(c, 1, 0, false)
+	case vocab.LineStart:
+		return stretch(c, 0, -1, true)
+	case vocab.LineEnd:
+		return stretch(c, 0, 1, true)
+	}
+	return policy.Pass
+}
+
+// stretch moves a cell range's head by rows and columns, or to the edge
+// of its line that way, kept in the table.
+func stretch(c *policy.Ctx, rows, cols int, edge bool) policy.Result {
+	cr := c.Selection().Cells
+	g, ok := vocab.GridOf(c.Doc(), cr.Table)
+	if !ok {
+		return policy.Swallow
+	}
+	n, m := g.Size()
+	if edge {
+		rows, cols = rows*n, cols*m
+	}
+	head := doc.CellCoord{Row: min(max(cr.Head.Row+rows, 0), n-1), Column: min(max(cr.Head.Column+cols, 0), m-1)}
+	if head == cr.Head {
+		return policy.Swallow
+	}
+	cr.Head = head
+	return policy.Select(doc.CellSelection(cr))
 }
 
 // resize makes a table Rows by Columns: empty lines go at its end to grow

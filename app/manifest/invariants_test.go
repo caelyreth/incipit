@@ -75,13 +75,18 @@ func randomIntent(rng *rand.Rand, e *engine.Engine) vocab.Intent {
 	case n < 95:
 		return vocab.Dismiss{}
 	case n < 96:
+		if rng.IntN(2) == 0 {
+			return profile.InsertTable{Rows: 1 + rng.IntN(2), Columns: 1 + rng.IntN(3)}
+		}
 		return profile.PlaceFigures{Pictures: []profile.Picture{{Media: "m", Width: 4, Height: 3}}}
 	case n < 97:
 		return vocab.Compose{Preedit: "にほ", Selected: [2]int{6, 6}}
 	case n < 98:
 		return vocab.CancelComposition{}
 	default:
-		cmds := []vocab.CommandID{"blocks.heading1", "blocks.heading2", "blocks.quote", "blocks.codeBlock", "blocks.paragraph"}
+		cmds := []vocab.CommandID{"blocks.heading1", "blocks.heading2", "blocks.quote", "blocks.codeBlock", "blocks.paragraph",
+			"table.row-above", "table.row-below", "table.column-left", "table.column-right", "table.delete-row",
+			"table.delete-column", "table.delete", "table.header", "table.align-center"}
 		return vocab.Command{ID: cmds[rng.IntN(len(cmds))]}
 	}
 }

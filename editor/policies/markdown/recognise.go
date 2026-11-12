@@ -243,7 +243,7 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 			e.Fact(fk.Span(0, len(t), fence{Kind: fenceMath}))
 		case cfg.Rules && len(t) >= 3 && ruleLineOf(t):
 			e.Fact(fk.Span(0, len(t), fence{Kind: fenceDivider}))
-		case cfg.Tables && tableRowOf(t) != nil:
+		case cfg.Tables && profile.TableRow(t) != nil:
 			e.Fact(fk.Span(0, len(t), fence{Kind: fenceTable, Info: t}))
 		}
 		if cfg.Rules && len(t) >= 2 && ruleLineOf(t) {
@@ -255,28 +255,4 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 // ruleLineOf reports a line of one rule character.
 func ruleLineOf(t string) bool {
 	return strings.Count(t, t[:1]) == len(t) && (t[0] == '-' || t[0] == '*' || t[0] == '_')
-}
-
-// tableRowOf reads a line written as a table's row, "| a | b |", as its
-// cells' texts; nil when it is none. A pipe escaped as "\|" is text.
-func tableRowOf(t string) []string {
-	t = strings.TrimSpace(t)
-	if len(t) < 2 || t[0] != '|' || t[len(t)-1] != '|' || strings.HasSuffix(t, `\|`) {
-		return nil
-	}
-	var cells []string
-	var b strings.Builder
-	for i := 1; i < len(t); i++ {
-		switch {
-		case t[i] == '\\' && i+1 < len(t) && t[i+1] == '|':
-			b.WriteByte('|')
-			i++
-		case t[i] == '|':
-			cells = append(cells, strings.TrimSpace(b.String()))
-			b.Reset()
-		default:
-			b.WriteByte(t[i])
-		}
-	}
-	return cells
 }

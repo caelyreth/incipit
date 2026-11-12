@@ -85,7 +85,29 @@ func (e *Engine) Copy(viewID uint64) (vocab.Slice, string) {
 	if !ok || (v.Selection.Kind == doc.SelectText && v.Selection.IsCollapsed()) {
 		return vocab.Slice{}, ""
 	}
-	from, to := policy.SelectionRange(e.snap, e.stopsFor(viewID)(e.snap, v), v.Selection)
-	s := vocab.Copy(e.snap, from, to)
-	return s, vocab.PlainText(s)
+	var s vocab.Slice
+	if sp, ok := e.spanned(v.Selection); ok {
+		s, _ = sp.Copy(v.Selection)
+	} else {
+		from, to := policy.SelectionRange(e.snap, e.stopsFor(viewID)(e.snap, v), v.Selection)
+		s = vocab.Copy(e.snap, from, to)
+	}
+	return s, vocab.PlainText(e.snap.Schema(), s)
+}
+
+// spanned is the object a selection of its own shape selects in, as a
+// cell range is its table's.
+func (e *Engine) spanned(sel doc.Selection) (vocab.Spanned, bool) {
+	if sel.Kind != doc.SelectCells {
+		return nil, false
+	}
+	n, ok := e.snap.Node(sel.Cells.Table)
+	if !ok {
+		return nil, false
+	}
+	sp, ok := e.prog.Profile().Role(e.snap, n, vocab.RoleSpanned.ID)
+	if !ok {
+		return nil, false
+	}
+	return sp.(vocab.Spanned), true
 }

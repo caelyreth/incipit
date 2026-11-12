@@ -45,9 +45,6 @@ type candidate struct {
 // or pair can leave its head outside the scope its anchor still holds.
 func grow(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) policy.Result {
 	sel := c.Selection()
-	if sel.Kind == doc.SelectCells {
-		return policy.Swallow
-	}
 	cands := candidatesAt(c)
 	if len(cands) == 0 {
 		return policy.Swallow
@@ -100,8 +97,9 @@ func enterScope(c *policy.Ctx, _ vocab.Dismiss, at policy.At[vocab.Leavable]) po
 func candidatesAt(c *policy.Ctx) []candidate {
 	sel := c.Selection()
 	ends := []doc.Caret{sel.Anchor}
-	if sel.Kind == doc.SelectNode {
-		// An object selected stands in the scopes around its place.
+	if sel.Kind != doc.SelectText {
+		// An object selected stands in the scopes around its place, a cell
+		// range in those of its head cell.
 		ends = []doc.Caret{c.Head()}
 	} else if sel.Head != sel.Anchor {
 		ends = append(ends, sel.Head)
@@ -145,8 +143,9 @@ func candidatesAt(c *policy.Ctx) []candidate {
 	return out
 }
 
-// settled puts a candidate's ends on stops, as the engine settles every
-// selection it publishes.
+// settled puts a candidate's ends on stops and shapes its range, as the
+// engine settles every selection it publishes: a row's text is the cell
+// range of its cells.
 func settled(c *policy.Ctx, s doc.Selection) doc.Selection {
 	if s.Kind != doc.SelectText {
 		return s
@@ -154,7 +153,7 @@ func settled(c *policy.Ctx, s doc.Selection) doc.Selection {
 	stops := c.Stops()
 	s.Anchor = stops.Normalize(s.Anchor)
 	s.Head = stops.Normalize(s.Head)
-	return s
+	return vocab.ShapeSelection(c.Doc(), c.Program().Profile(), s)
 }
 
 // stackAt reads the scope stack at a caret without publishing a view.

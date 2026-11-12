@@ -113,6 +113,14 @@ type Structure interface {
 	Remove() Edit
 }
 
+// Spanned is an object whose text is laid out in a shape of its own, such
+// as a table's grid: a range between two of its text slots selects in that
+// shape, as a cell range does, and what such a selection copies keeps it.
+type Spanned interface {
+	Span(anchor, head doc.Caret) (doc.Selection, bool)
+	Copy(sel doc.Selection) (Slice, bool)
+}
+
 // RoleID identifies a role, as declarations list it.
 type RoleID uint8
 
@@ -128,7 +136,7 @@ func (r Role[T]) RoleID() RoleID { return r.ID }
 func (r Role[T]) String() string { return r.ID.String() }
 func (r RoleID) RoleID() RoleID  { return r }
 
-var roles [8]struct {
+var roles [9]struct {
 	name string
 	typ  reflect.Type
 }
@@ -152,6 +160,7 @@ var (
 	RoleContinued = newRole[Continued](5, "Continued")
 	RoleCloser    = newRole[Closer](6, "Closer")
 	RoleSyntax    = newRole[Syntax](7, "Syntax")
+	RoleSpanned   = newRole[Spanned](8, "Spanned")
 )
 
 // Profile is the document profile a program edits: its schema, the roles

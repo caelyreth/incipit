@@ -21,7 +21,7 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 	// slot.
 	in := policy.Slot.Inside()
 	policy.On(p, "type", policy.Intent[vocab.Type](), in, typeText).Any()
-	policy.On(p, "delete-selection", policy.Intent[vocab.Delete](), in, deleteSelection).Range().Node()
+	policy.On(p, "delete-selection", policy.Intent[vocab.Delete](), in, deleteSelection).Range().Node().Cells()
 	policy.On(p, "delete", policy.Intent[vocab.Delete](), in, deleteText).Any()
 	// What a delete crosses toward the next stop, a nearer crossing first:
 	// a block's level, the boundary before it, a container it leaves.
@@ -161,6 +161,7 @@ func typeText(c *policy.Ctx, in vocab.Type, _ policy.At[doc.SlotRef]) policy.Res
 	clear, pos, ok := c.Replacing()
 	if ok {
 		edits = append(edits, clear)
+		res.Replaced = &pos
 	}
 	if text == "" {
 		res.Edits = edits
@@ -218,6 +219,10 @@ func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool) voca
 func deleteSelection(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Result {
 	if clear, _, ok := c.Clearing(); ok {
 		return policy.Do(clear)
+	}
+	if c.Selection().Kind != doc.SelectText {
+		// Whole pieces holding nothing, as empty cells: nothing goes.
+		return policy.Swallow
 	}
 	from, to := c.Selection().Ordered(c.Doc())
 	if in.Dir > 0 {
@@ -407,7 +412,8 @@ func startOfNext(id doc.ID) func(doc.Reader) doc.Selection {
 
 // leaveLines is Enter on the empty last line of a block whose text keeps
 // lines, as a code or math block: the block is left, the empty line going
-// and a plain block opening after it. Shift+Enter still adds the line.
+// and a plain block opening after it, where the slot around it takes one.
+// Shift+Enter still adds the line.
 func leaveLines(r doc.Reader, pos doc.Pos) (policy.Result, bool) {
 	n, ok := r.Node(pos.Node)
 	if !ok {
@@ -417,11 +423,14 @@ func leaveLines(r doc.Reader, pos doc.Pos) (policy.Result, bool) {
 	if !ok {
 		return policy.Result{}, false
 	}
-	if ps, ok := vocab.SlotSpec(r, doc.SlotRef{Node: parent, Slot: slot}); !ok || !ps.Blocks {
+	// The slot around the block must take the plain block that opens, as a
+	// row takes only cells.
+	if ps, ok := vocab.SlotSpec(r, doc.SlotRef{Node: parent, Slot: slot}); !ok || !ps.Blocks || ps.Accepts == nil || !ps.Accepts(r.Schema().Plain()) {
 		return policy.Result{}, false
 	}
+	// The last line holds nothing, not even an inline object.
 	s := n.Slot(pos.Slot)
-	if pos.Offset != s.Len() || !strings.HasSuffix(s.Content().Text(), "\n") {
+	if pos.Offset != s.Len() || !strings.HasSuffix(s.Content().Flat(), "\n") {
 		return policy.Result{}, false
 	}
 	res := policy.Do(vocab.Ops(
@@ -482,7 +491,11 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 		}
 		return vocab.InsertSlice(at, slice)(tx)
 	})
-	return policy.Result{Edits: edits, Effects: []policy.Effect{{Kind: policy.EffectReveal}}}
+	res := policy.Result{Edits: edits, Effects: []policy.Effect{{Kind: policy.EffectReveal}}}
+	if ok {
+		res.Replaced = &pos
+	}
+	return res
 }
 
 // TextSlice is plain text as a slice: one line inline, several lines as

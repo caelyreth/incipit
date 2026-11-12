@@ -1,6 +1,10 @@
 package vocab
 
-import "github.com/caelyreth/neverland/editor/doc"
+import (
+	"slices"
+
+	"github.com/caelyreth/neverland/editor/doc"
+)
 
 // Text slots are the inline slots of block nodes, which the caret walks in
 // reading order. The slots of inline nodes, such as a formula's source,
@@ -232,6 +236,63 @@ func NodeEdge(r doc.Reader, id doc.ID) (Edge, bool) {
 	}
 	after, _ := Beside(r, id, Forward)
 	return Edge{From: doc.CaretAt(before), To: doc.CaretAt(after)}, true
+}
+
+// ShapeSelection keeps a range's ends in one object's text or outside every
+// object, as an object's text is its own: an end inside an object the
+// other end is not in goes out to that object's edge, so the range takes
+// it whole; and a range between two text slots of one object that is
+// Spanned, as a table's cells are, becomes the selection of its shape.
+// Every other selection is as it is.
+func ShapeSelection(r doc.Reader, p Profile, s doc.Selection) doc.Selection {
+	if s.Kind != doc.SelectText || s.IsCollapsed() {
+		return s
+	}
+	first := doc.Compare(r, s.Anchor, s.Head) <= 0
+	a, h := objectsAround(r, s.Anchor.Pos), objectsAround(r, s.Head.Pos)
+	s.Anchor = outOf(r, s.Anchor, a, h, first)
+	s.Head = outOf(r, s.Head, h, a, !first)
+	common := objectsAround(r, s.Anchor.Pos)
+	if len(common) == 0 || s.Anchor.Pos.Ref() == s.Head.Pos.Ref() {
+		return s
+	}
+	n, _ := r.Node(common[0])
+	if sp, ok := p.Role(r, n, RoleSpanned.ID); ok {
+		if out, ok := sp.(Spanned).Span(s.Anchor, s.Head); ok {
+			return out
+		}
+	}
+	return s
+}
+
+// objectsAround are the objects holding p, the innermost first.
+func objectsAround(r doc.Reader, p doc.Pos) []doc.ID {
+	var out []doc.ID
+	for _, id := range append([]doc.ID{p.Node}, doc.Ancestors(r, p.Node)...) {
+		if n, ok := r.Node(id); ok && r.Schema().IsObject(n.Kind()) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// outOf moves an end out of the outermost object holding it that does not
+// hold the other end: before it when it is the range's first end, after
+// it when its last.
+func outOf(r doc.Reader, end doc.Caret, mine, theirs []doc.ID, first bool) doc.Caret {
+	for i := len(mine) - 1; i >= 0; i-- {
+		if slices.Contains(theirs, mine[i]) {
+			continue
+		}
+		dir := Forward
+		if first {
+			dir = Backward
+		}
+		if at, ok := Beside(r, mine[i], dir); ok {
+			return doc.CaretAt(at)
+		}
+	}
+	return end
 }
 
 // TextEdge is a block's text, from the first stop at its start to the last

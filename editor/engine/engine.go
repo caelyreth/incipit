@@ -307,6 +307,8 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 		view.Selection = res.Then(tx)
 	case res.Selection != nil:
 		view.Selection = *res.Selection
+	case res.Replaced != nil:
+		view.Selection = doc.MapSelection(steps, doc.Collapsed(doc.CaretAt(*res.Replaced)), carry)
 	default:
 		view.Selection = doc.MapSelection(steps, before, carry)
 	}
@@ -561,6 +563,14 @@ func (e *Engine) settleSelection(viewID uint64, r doc.Reader, v *policy.View) do
 	probe.Selection = s
 	stops := e.stopsFor(viewID)(r, &probe)
 	s.Anchor, s.Head = stops.Normalize(s.Anchor), stops.Normalize(s.Head)
+	// A range's ends stay in one object's text or out of every object.
+	if shaped := vocab.ShapeSelection(r, e.prog.Profile(), s); shaped != s {
+		if s = shaped; s.Kind == doc.SelectText {
+			probe.Selection = s
+			stops = e.stopsFor(viewID)(r, &probe)
+			s.Anchor, s.Head = stops.Normalize(s.Anchor), stops.Normalize(s.Head)
+		}
+	}
 	return s
 }
 

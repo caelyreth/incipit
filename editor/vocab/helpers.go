@@ -1460,8 +1460,9 @@ func WrapRun(r doc.Reader, ids []doc.ID, kind doc.Kind) ([]doc.ID, bool) {
 	return run, true
 }
 
-// PlainText is a slice's text: blocks on lines of their own.
-func PlainText(s Slice) string {
+// PlainText is a slice's text: blocks on lines of their own, a grid's
+// rows on lines and its cells between tabs.
+func PlainText(schema *doc.Schema, s Slice) string {
 	var b strings.Builder
 	inline := func(items []doc.Item) {
 		for _, it := range items {
@@ -1475,6 +1476,22 @@ func PlainText(s Slice) string {
 	inline(s.Inline)
 	var walk func(n *doc.Node)
 	walk = func(n *doc.Node) {
+		if g, ok := GridNode(schema, n); ok {
+			// A grid reads as a spreadsheet copies one: its rows on lines,
+			// its cells between tabs, each cell on one line.
+			for _, row := range g.Rows {
+				if b.Len() > 0 {
+					b.WriteByte('\n')
+				}
+				for j, cell := range row.Slot(0).Children() {
+					if j > 0 {
+						b.WriteByte('\t')
+					}
+					b.WriteString(strings.Join(strings.Fields(PlainText(schema, Slice{Nodes: []*doc.Node{cell}})), " "))
+				}
+			}
+			return
+		}
 		if n.NumSlots() > 0 && n.Slot(0).IsInline() {
 			if b.Len() > 0 {
 				b.WriteByte('\n')

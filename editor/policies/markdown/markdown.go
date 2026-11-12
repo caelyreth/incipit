@@ -224,7 +224,7 @@ func fenceBlock(c *policy.Ctx, _ vocab.Break, at policy.At[fence]) policy.Result
 		caretAt = index + 1
 	case fenceTable:
 		// The row heads the table, and writing goes on in the row below.
-		header := tableRowOf(fe.Info)
+		header := profile.TableRow(fe.Info)
 		nodes = []*doc.Node{profile.TableOf([][]string{header, make([]string, len(header))})}
 		res := policy.Do(func(tx *doc.Tx) error { return replace(tx, block.ID(), nodes...) })
 		res.Then = func(r doc.Reader) doc.Selection {

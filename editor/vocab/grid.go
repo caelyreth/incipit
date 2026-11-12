@@ -17,16 +17,25 @@ type Grid struct {
 // GridOf reads the grid object id, false when id is no grid.
 func GridOf(r doc.Reader, id doc.ID) (Grid, bool) {
 	t, ok := r.Node(id)
-	if !ok || !r.Schema().IsObject(t.Kind()) || t.NumSlots() == 0 || t.Slot(0).IsInline() || t.Slot(0).Len() == 0 {
+	if !ok {
 		return Grid{}, false
 	}
-	rows := t.Slot(0).Children()
+	return GridNode(r.Schema(), t)
+}
+
+// GridNode reads n as a grid, attached to a page or not, as a slice holds
+// it.
+func GridNode(s *doc.Schema, n *doc.Node) (Grid, bool) {
+	if !s.IsObject(n.Kind()) || n.NumSlots() == 0 || n.Slot(0).IsInline() || n.Slot(0).Len() == 0 {
+		return Grid{}, false
+	}
+	rows := n.Slot(0).Children()
 	for _, row := range rows {
 		if row.NumSlots() == 0 || row.Slot(0).IsInline() || row.Slot(0).Len() != rows[0].Slot(0).Len() {
 			return Grid{}, false
 		}
 	}
-	return Grid{Table: t, Rows: rows}, true
+	return Grid{Table: n, Rows: rows}, true
 }
 
 // Size is how many rows and columns the grid has.
@@ -242,4 +251,34 @@ func ClearCells(cells []doc.ID) Edit {
 		}
 		return nil
 	}
+}
+
+// FillCells writes the text of src's cells into table's cells from at on,
+// row by row, each cell's text replacing what the cell held. The table
+// must already reach as far as src does.
+func FillCells(table doc.ID, at doc.CellCoord, src Grid) Edit {
+	return gridEdit(table, func(tx *doc.Tx, g Grid) error {
+		rows, cols := g.Size()
+		srows, scols := src.Size()
+		if at.Row < 0 || at.Column < 0 || at.Row+srows > rows || at.Column+scols > cols {
+			return doc.ErrRange
+		}
+		for i := range srows {
+			for j := range scols {
+				from := src.Cell(doc.CellCoord{Row: i, Column: j})
+				to := g.Cell(doc.CellCoord{Row: at.Row + i, Column: at.Column + j})
+				fref, ok1 := FirstTextSlot(from)
+				tref, ok2 := FirstTextSlot(to)
+				if !ok1 || !ok2 {
+					continue
+				}
+				in := from.Slot(fref.Slot)
+				items := freshItems(in.Content().Slice(0, in.Len()))
+				if err := tx.Apply(doc.EditText{At: tref, From: 0, To: to.Slot(tref.Slot).Len(), Items: items}); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
 }

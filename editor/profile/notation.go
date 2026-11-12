@@ -155,3 +155,50 @@ func (m Marker) Spelling() Spelling {
 func (m Marker) Glyphs() int {
 	return vocab.GraphemeCount(strings.TrimSuffix(string(m.Spelling()), " "))
 }
+
+// TableRow reads a line written as a table's row, "| a | b |", as its
+// cells' texts; nil when it is none. A pipe escaped as "\|" is text.
+func TableRow(line string) []string {
+	t := strings.TrimSpace(line)
+	if len(t) < 2 || t[0] != '|' || t[len(t)-1] != '|' || strings.HasSuffix(t, `\|`) {
+		return nil
+	}
+	var cells []string
+	var b strings.Builder
+	for i := 1; i < len(t); i++ {
+		switch {
+		case t[i] == '\\' && i+1 < len(t) && t[i+1] == '|':
+			b.WriteByte('|')
+			i++
+		case t[i] == '|':
+			cells = append(cells, strings.TrimSpace(b.String()))
+			b.Reset()
+		default:
+			b.WriteByte(t[i])
+		}
+	}
+	return cells
+}
+
+// TableAligns reads a table's delimiter row, "| --- | :-: | --: |", as its
+// columns' alignments; false when the line is none.
+func TableAligns(line string) ([]Align, bool) {
+	cells := TableRow(line)
+	if cells == nil {
+		return nil, false
+	}
+	aligns := make([]Align, len(cells))
+	for i, c := range cells {
+		dashes := strings.Trim(c, ":")
+		if dashes == "" || strings.Trim(dashes, "-") != "" {
+			return nil, false
+		}
+		switch left, right := strings.HasPrefix(c, ":"), strings.HasSuffix(c, ":"); {
+		case left && right:
+			aligns[i] = AlignCenter
+		case right:
+			aligns[i] = AlignEnd
+		}
+	}
+	return aligns, true
+}
