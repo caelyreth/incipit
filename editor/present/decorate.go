@@ -75,8 +75,8 @@ type Guide struct {
 // which need its previews.
 func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, stops policy.StopsFunc, pres []*Presentation) Decorations {
 	d := Decorations{Selection: view.Selection, Composition: view.Composition}
-	if from, to, ok := SelectionExtent(r, view.Selection); ok {
-		d.Paints = append(d.Paints, Paint{Group: vocab.GroupSelection, Covers: Covers(r, pres, from, to)})
+	if pt, ok := SelectionPaint(r, pres, view.Selection); ok {
+		d.Paints = append(d.Paints, pt)
 	}
 	for _, dec := range prog.Decorations() {
 		for _, a := range view.Annotations.Of(dec.Kind) {
@@ -100,21 +100,15 @@ func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *pol
 	return d
 }
 
-// SelectionExtent is what a selection spans, its ends in reading order: a
-// range's ends, or a selected node's place. A caret spans nothing.
-func SelectionExtent(r doc.Reader, sel doc.Selection) (from, to doc.Caret, ok bool) {
-	switch sel.Kind {
-	case doc.SelectText:
-		if sel.IsCollapsed() {
-			return from, to, false
-		}
-		from, to = sel.Ordered(r)
-		return from, to, true
-	case doc.SelectNode:
-		e, ok := vocab.NodeEdge(r, sel.Node)
-		return e.From, e.To, ok
+// SelectionPaint is the selection's paint: what each piece of its extent
+// covers (vocab.SelectionExtent). A caret paints nothing.
+func SelectionPaint(r doc.Reader, pres []*Presentation, sel doc.Selection) (Paint, bool) {
+	pieces := vocab.SelectionExtent(r, sel)
+	pt := Paint{Group: vocab.GroupSelection}
+	for _, e := range pieces {
+		pt.Covers = append(pt.Covers, Covers(r, pres, e.From, e.To)...)
 	}
-	return from, to, false
+	return pt, len(pieces) > 0
 }
 
 // Covers is what the extent from from to to covers in each unit, in page

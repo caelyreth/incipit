@@ -60,7 +60,6 @@ func (m *stopModel) stops(i int) []present.Stop {
 	return nil
 }
 
-
 // locate finds c among stops: exactly, or else the place it would stand,
 // as the index of the last stop before it (-1 when none is).
 func locate(r doc.Reader, stops []present.Stop, c doc.Caret) (int, bool) {

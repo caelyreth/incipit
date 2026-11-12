@@ -1051,12 +1051,12 @@ func (el *Element) shownPaints(pl *pageLayout) []present.Paint {
 	}
 	out := []present.Paint{}
 	r := el.Editor.Engine.Snapshot()
-	if from, to, ok := present.SelectionExtent(r, g.selection); ok {
-		pres := make([]*present.Presentation, len(pl.units))
-		for i, u := range pl.units {
-			pres[i] = u.pres
-		}
-		out = append(out, present.Paint{Group: vocab.GroupSelection, Covers: present.Covers(r, pres, from, to)})
+	pres := make([]*present.Presentation, len(pl.units))
+	for i, u := range pl.units {
+		pres[i] = u.pres
+	}
+	if pt, ok := present.SelectionPaint(r, pres, g.selection); ok {
+		out = append(out, pt)
 	}
 	for _, pt := range paints {
 		if pt.Group != vocab.GroupSelection {

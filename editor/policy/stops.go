@@ -55,6 +55,12 @@ func SelectionRange(r doc.Reader, stops Stops, sel doc.Selection) (from, to doc.
 			return doc.Pos{Node: parent, Slot: slot, Offset: index}, doc.Pos{Node: parent, Slot: slot, Offset: index + 1}
 		}
 	}
+	if sel.Kind == doc.SelectCells {
+		// A cell range spans its cells in reading order.
+		if pieces := vocab.SelectionExtent(r, sel); len(pieces) > 0 {
+			return stops.Bound(pieces[0].From), stops.Bound(pieces[len(pieces)-1].To)
+		}
+	}
 	a, b := sel.Ordered(r)
 	return stops.Bound(a), stops.Bound(b)
 }

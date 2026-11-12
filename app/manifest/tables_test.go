@@ -46,3 +46,29 @@ func TestATablesCellsAreTextThatKeepsItsGrid(t *testing.T) {
 		p.want("page(table(row(cell(a) cell(b)) row(cell(c) cell(d))))")
 	}
 }
+
+// A cell range spans its cells, each in its place, in reading order.
+func TestACellRangeSpansItsCells(t *testing.T) {
+	p := open(t)
+	table := p.placeTable()
+	r := p.e.Snapshot()
+	for _, tc := range []struct {
+		cr   doc.CellRange
+		want []string
+	}{
+		{doc.CellRange{Table: table.ID(), Anchor: doc.CellCoord{Row: 1, Column: 1}, Head: doc.CellCoord{}}, []string{"a", "b", "c", "d"}},
+		{doc.CellRange{Table: table.ID(), Anchor: doc.CellCoord{Column: 1}, Head: doc.CellCoord{Column: 1}, WholeColumns: true}, []string{"b", "d"}},
+		{doc.CellRange{Table: table.ID(), Anchor: doc.CellCoord{Row: 1}, Head: doc.CellCoord{Row: 1}, WholeRows: true}, []string{"c", "d"}},
+	} {
+		pieces := vocab.SelectionExtent(r, doc.CellSelection(tc.cr))
+		if len(pieces) != len(tc.want) {
+			t.Fatalf("%+v spans %d pieces, want %d", tc.cr, len(pieces), len(tc.want))
+		}
+		for i, e := range pieces {
+			n, _ := r.Node(e.From.Pos.Node)
+			if c := n.Slot(e.From.Pos.Slot).Child(e.From.Pos.Offset); c.Text() != tc.want[i] {
+				t.Errorf("%+v piece %d is %q, want %q", tc.cr, i, c.Text(), tc.want[i])
+			}
+		}
+	}
+}

@@ -95,8 +95,14 @@ func headOf(r doc.Reader, s doc.Selection) doc.Caret {
 			return doc.CaretAt(doc.Pos{Node: parent, Slot: slot, Offset: index})
 		}
 	case doc.SelectCells:
-		// TODO(tables): the head of a cell range is its head cell's
-		// content start, once the tables policy defines cell carets.
+		// The head of a cell range is its head cell's text start.
+		head := s.Cells
+		head.Anchor, head.WholeRows, head.WholeColumns = head.Head, false, false
+		if cells := vocab.Cells(r, head); len(cells) > 0 {
+			if ref, ok := vocab.FirstTextSlot(cells[0]); ok {
+				return doc.CaretAt(doc.At(ref, 0))
+			}
+		}
 		return doc.CaretAt(doc.Pos{Node: s.Cells.Table})
 	}
 	return s.Head

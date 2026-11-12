@@ -223,6 +223,64 @@ func NodeEdge(r doc.Reader, id doc.ID) (Edge, bool) {
 	return Edge{From: doc.CaretAt(before), To: doc.CaretAt(after)}, true
 }
 
+// SelectionExtent is what a selection spans, as pieces in reading order,
+// as a whole's Structure extent is: a range between its ends, a selected
+// node's place, or each cell of a cell range in its place. A caret spans
+// nothing.
+func SelectionExtent(r doc.Reader, sel doc.Selection) []Edge {
+	switch sel.Kind {
+	case doc.SelectText:
+		if !sel.IsCollapsed() {
+			from, to := sel.Ordered(r)
+			return []Edge{{From: from, To: to}}
+		}
+	case doc.SelectNode:
+		if e, ok := NodeEdge(r, sel.Node); ok {
+			return []Edge{e}
+		}
+	case doc.SelectCells:
+		var out []Edge
+		for _, c := range Cells(r, sel.Cells) {
+			if e, ok := NodeEdge(r, c.ID()); ok {
+				out = append(out, e)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+// Cells are the cells a cell range covers, in reading order. A grid
+// object's first slot holds its rows, and each row's first slot its cells.
+func Cells(r doc.Reader, cr doc.CellRange) []*doc.Node {
+	t, ok := r.Node(cr.Table)
+	if !ok || t.NumSlots() == 0 {
+		return nil
+	}
+	rows := t.Slot(0)
+	r0, r1 := min(cr.Anchor.Row, cr.Head.Row), max(cr.Anchor.Row, cr.Head.Row)
+	c0, c1 := min(cr.Anchor.Column, cr.Head.Column), max(cr.Anchor.Column, cr.Head.Column)
+	if cr.WholeColumns {
+		r0, r1 = 0, rows.Len()-1
+	}
+	var out []*doc.Node
+	for i := max(r0, 0); i <= r1 && i < rows.Len(); i++ {
+		row := rows.Child(i)
+		if row.NumSlots() == 0 {
+			continue
+		}
+		cells := row.Slot(0)
+		a, b := c0, c1
+		if cr.WholeRows {
+			a, b = 0, cells.Len()-1
+		}
+		for j := max(a, 0); j <= b && j < cells.Len(); j++ {
+			out = append(out, cells.Child(j))
+		}
+	}
+	return out
+}
+
 // Index returns where id stands among its siblings.
 func Index(r doc.Reader, id doc.ID) (parent doc.ID, slot, index int, ok bool) {
 	parent, slot, ok = r.Parent(id)
