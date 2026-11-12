@@ -107,6 +107,9 @@ func candidatesAt(c *policy.Ctx) []candidate {
 	var out []candidate
 	for _, end := range ends {
 		for _, level := range stackAt(c, end).Levels {
+			if !presented(c.Doc(), level) {
+				continue
+			}
 			s, ok := selectionOf(c, level)
 			if !ok {
 				continue
@@ -144,6 +147,39 @@ func candidatesAt(c *policy.Ctx) []candidate {
 		return doc.Compare(c.Doc(), bt, at)
 	})
 	return out
+}
+
+// presented reports whether a level is a place the page presents, which
+// a scope can be: anything outside an object; inside one, its text slots,
+// what stands in their text, and the object itself. An object is one unit
+// whose text, however deep, is its surfaces; the nodes and block slots
+// between it and its text only arrange them, as a table's rows its cells,
+// so they are no scopes.
+func presented(r doc.Reader, l *policy.Level) bool {
+	switch l.Class {
+	case policy.LevelNode:
+		return l.Node != nil && (r.Schema().IsObject(l.Node.Kind()) || !inObject(r, l.Node.ID()))
+	case policy.LevelSlot:
+		n := l.Node
+		if n == nil || l.Slot.Slot >= len(n.Slots()) {
+			return false
+		}
+		if n.Slots()[l.Slot.Slot].IsInline() {
+			return true
+		}
+		return !r.Schema().IsObject(n.Kind()) && !inObject(r, n.ID())
+	}
+	return true
+}
+
+// inObject reports whether an object holds id.
+func inObject(r doc.Reader, id doc.ID) bool {
+	for _, a := range doc.Ancestors(r, id) {
+		if n, ok := r.Node(a); ok && r.Schema().IsObject(n.Kind()) {
+			return true
+		}
+	}
+	return false
 }
 
 // settled puts a candidate's ends on stops and shapes its range, as the

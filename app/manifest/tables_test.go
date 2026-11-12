@@ -372,9 +372,10 @@ func TestKeysStretchACellRange(t *testing.T) {
 	p.wantCell(0, 0, 0)
 }
 
-// Select Scope grows from a cell's text to its row, then the table, then
-// the page, whatever stands beside the table: the page's edges are never
-// inside an object on it.
+// Select Scope grows from a cell's text to the table, then the page,
+// whatever stands beside the table: the rows a table holds its cells in
+// only arrange them and are no scope, and the page's edges are never inside
+// an object on it.
 func TestSelectScopeGrowsThroughTheGrid(t *testing.T) {
 	for _, before := range []bool{false, true} {
 		p := open(t)
@@ -395,16 +396,12 @@ func TestSelectScopeGrowsThroughTheGrid(t *testing.T) {
 			t.Fatalf("first grow %+v, want the cell's text", s)
 		}
 		p.do(vocab.SelectScope{})
-		if cr := p.cells(); cr.Anchor != at(1, 0) || cr.Head != at(1, 1) {
-			t.Fatalf("second grow %+v, want the row", cr)
-		}
-		p.do(vocab.SelectScope{})
 		if s := p.selection(); s.Kind != doc.SelectNode || s.Node != table {
-			t.Fatalf("third grow %+v, want the table", s)
+			t.Fatalf("second grow %+v, want the table", s)
 		}
 		p.do(vocab.SelectScope{})
 		if s := p.selection(); s.Kind != doc.SelectText {
-			t.Fatalf("fourth grow %+v, want the page", s)
+			t.Fatalf("third grow %+v, want the page", s)
 		}
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/navigation"
 	"github.com/caelyreth/neverland/editor/policies/notation"
 	"github.com/caelyreth/neverland/editor/policies/pairs"
+	"github.com/caelyreth/neverland/editor/policies/tables"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -29,7 +30,7 @@ func open(t *testing.T) *page {
 	t.Helper()
 	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy,
-			lists.Policy, navigation.Policy, Policy, guides.Policy},
+			lists.Policy, navigation.Policy, Policy, guides.Policy, tables.Policy},
 		Strict: true,
 	}, nil)
 	if err != nil {
@@ -198,6 +199,36 @@ func TestAnUnopenedDelimiterIsNotAScope(t *testing.T) {
 		p.typeText(input)
 		if got := p.painted(vocab.GroupScope); got != 0 {
 			t.Fatalf("%q painted %d scope highlights", input, got)
+		}
+	}
+}
+
+// Select All in a cell selects its text, then the table whole: the rows a
+// table holds its cells in only arrange them, as its columns do, and are
+// no scope, so a row is no step, however many the table has, and an empty
+// cell steps to the table at once.
+func TestSelectScopeInACellSelectsTheTableNext(t *testing.T) {
+	for _, rows := range []int{1, 3} {
+		for _, typed := range []string{"cell", ""} {
+			p := open(t)
+			p.typeText("above")
+			p.do(vocab.Break{})
+			p.do(profile.InsertTable{Rows: rows, Columns: 3})
+			p.typeText(typed)
+			if typed != "" {
+				p.do(vocab.SelectScope{})
+				if sel := p.selection(); sel.Kind != doc.SelectText || sel.IsCollapsed() {
+					t.Fatalf("%d rows: the first Select All selects %+v, want the cell's text", rows, sel)
+				}
+			}
+			p.do(vocab.SelectScope{})
+			sel := p.selection()
+			if sel.Kind != doc.SelectNode {
+				t.Fatalf("%d rows, %q typed: Select All from the cell selects %+v, want the table", rows, typed, sel)
+			}
+			if n, ok := p.e.Snapshot().Node(sel.Node); !ok || n.Kind() != profile.Table {
+				t.Fatalf("%d rows: Select All selects %+v, want the table", rows, sel)
+			}
 		}
 	}
 }
