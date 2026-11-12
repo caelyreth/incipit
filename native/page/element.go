@@ -482,11 +482,15 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 	if at.IsZero() {
 		at = time.Now()
 	}
+	if ev.Kind == ui.InputPointerDown || ev.Kind == ui.InputKeyDown {
+		// The menu a secondary click chose lasts until the next press.
+		el.chrome.menu = nil
+	}
 	switch ev.Kind {
 	case ui.InputPointerDown:
 		x, y := el.toPage(ev.X, ev.Y)
 		if ev.Button == 1 {
-			// A secondary click puts the caret in the cell its menu is for.
+			// A secondary click readies the menu for where it is.
 			el.placeForMenu(x, y, at)
 			services.Invalidate()
 			return false

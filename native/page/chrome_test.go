@@ -391,3 +391,47 @@ func TestACellsMenuHasTheTablesCommands(t *testing.T) {
 		t.Fatalf("the menu's insert made %v", got)
 	}
 }
+
+// A secondary click on a column's grip picks the column and offers what
+// acts on a column alone; on a row's, a row's.
+func TestALinesGripMenuIsItsLines(t *testing.T) {
+	c := newChromePage(t, 2, 3, "a", "b", "c", "d", "e", "f")
+	c.move(c.cellPoint(doc.CellCoord{Row: 1, Column: 1}))
+	_, cr, _ := c.el.gripRects(c.table(), -1, 1)
+	c.move(center(cr))
+	wx, wy := c.at(center(cr))
+	c.tt.RightClickAt(wx, wy)
+	c.tt.Advance(100 * time.Millisecond)
+	if s := c.el.Editor.Selection(); s.Kind != doc.SelectCells || !s.Cells.WholeColumns || s.Cells.Head.Column != 1 {
+		t.Fatalf("a secondary click on a column's grip picked %+v", s)
+	}
+	items := c.tt.Menu()
+	has := func(want string) bool {
+		for _, it := range items {
+			if it == want {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("Delete column") || !has("Insert column left") || has("Insert row above") || has("Delete row") || has("Delete table") {
+		t.Fatalf("a column's grip offers %q", items)
+	}
+	if err := c.tt.ChooseMenuItem("Delete column"); err != nil {
+		t.Fatal(err)
+	}
+	c.tt.Advance(100 * time.Millisecond)
+	if got := c.texts(); len(got[0]) != 2 || got[0][1] != "c" {
+		t.Fatalf("the column's delete left %v", got)
+	}
+	c.move(c.cellPoint(doc.CellCoord{Row: 1, Column: 0}))
+	rr, _, _ := c.el.gripRects(c.table(), 1, -1)
+	c.move(center(rr))
+	wx, wy = c.at(center(rr))
+	c.tt.RightClickAt(wx, wy)
+	c.tt.Advance(100 * time.Millisecond)
+	items = c.tt.Menu()
+	if !has("Delete row") || has("Delete column") || has("Insert column left") {
+		t.Fatalf("a row's grip offers %q", items)
+	}
+}

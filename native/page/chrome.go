@@ -161,6 +161,9 @@ type tableChrome struct {
 	// lift is how far the page is scrolled to open room between two rows
 	// about the pointer.
 	lift float32
+	// menu is the commands the page's menu offers, as its secondary click
+	// chose them by where it was.
+	menu [][]vocab.CommandID
 }
 
 // tableMotion is a table's springs: the rooms its areas open, each where
@@ -1209,7 +1212,7 @@ func (el *Element) paintArea(p *ui.Painter, a tableArea, tm *tableMotion, ox, oy
 		components.DashedOutline(p, box, controls.Radius, 1, components.Blend(th.Border.Default, th.Accent.Foreground, hover).Alpha(alpha))
 		ink := components.Blend(th.Text.Muted, th.Accent.Foreground, hover)
 		icon := 16 * scale
-		label := ui.Span{Text: "Row", Size: theme.TextSmall.Size(size), Color: ink.Alpha(alpha * a.label)}
+		label := ui.Span{Text: "Row", Font: theme.UIFontFamily, Size: theme.TextSmall.Size(size), Color: ink.Alpha(alpha * a.label)}
 		if a.kind == controlColumnArea || a.kind == controlBeside {
 			label.Text = "Column"
 		}
@@ -1458,11 +1461,32 @@ func (el *Element) paintResize(p *ui.Painter, u *unitLayout, ox, oy float32) {
 	})
 }
 
-// placeForMenu puts the caret in the cell a secondary click is on, unless
-// the selection holds it already, so the table's commands act there.
+// placeForMenu readies the page's menu for where a secondary click is: on
+// a row's grip or a column's, that line picked whole and its own commands;
+// on a cell, the caret there, unless the selection holds it already, and
+// the table's.
 func (el *Element) placeForMenu(x, y float32, at time.Time) {
+	ch := &el.chrome
+	ch.menu = nil
 	pl := el.Editor.layout
 	if pl == nil {
+		return
+	}
+	if h := el.chromeAt(x, y); h.kind == controlRow || h.kind == controlColumn {
+		rows := h.kind == controlRow
+		ch.menu = columnMenu
+		if rows {
+			ch.menu = rowMenu
+		}
+		id := h.u.pres.Unit
+		cr := doc.CellRange{Table: id, WholeRows: rows, WholeColumns: !rows,
+			Anchor: doc.CellCoord{Row: h.at, Column: h.at}, Head: doc.CellCoord{Row: h.at, Column: h.at}}
+		// A pick of lines that holds this one stays.
+		if sel := el.Editor.Selection(); sel.Kind == doc.SelectCells && sel.Cells.Table == id && sel.Cells.WholeRows == rows &&
+			sel.Cells.WholeColumns == !rows && between(h.at, sel.Cells.Anchor, sel.Cells.Head, rows) {
+			return
+		}
+		el.Editor.Do(vocab.Place{Cells: &cr}, at)
 		return
 	}
 	c, _, ok := pl.hit(x, y)
@@ -1473,6 +1497,7 @@ func (el *Element) placeForMenu(x, y float32, at time.Time) {
 	if _, _, ok := vocab.Locate(r, c.Pos.Node); !ok {
 		return
 	}
+	ch.menu = tableMenu
 	sel := el.Editor.Selection()
 	for _, piece := range vocab.SelectionExtent(r, sel) {
 		if doc.Compare(r, piece.From, c) <= 0 && doc.Compare(r, c, piece.To) <= 0 {
@@ -1482,16 +1507,39 @@ func (el *Element) placeForMenu(x, y float32, at time.Time) {
 	el.Editor.Do(vocab.Place{Stop: c}, at)
 }
 
-// tableMenu are the table commands a cell's menu offers, in its groups.
-var tableMenu = [][]vocab.CommandID{
-	{"table.row-above", "table.row-below", "table.column-left", "table.column-right"},
-	{"table.align-start", "table.align-center", "table.align-end", "table.header"},
-	{"table.delete-row", "table.delete-column", "table.delete"},
+// between reports whether line at lies between two cells' lines.
+func between(at int, a, b doc.CellCoord, rows bool) bool {
+	from, to := a.Column, b.Column
+	if rows {
+		from, to = a.Row, b.Row
+	}
+	return at >= min(from, to) && at <= max(from, to)
 }
 
-// contextMenu is the page's menu: a table's commands where the selection
-// is in one, each through the command table and offered as it would act,
-// then the text's editing items.
+// tableMenu are the commands a cell's menu offers, in its groups, and
+// rowMenu and columnMenu those of a row's grip and a column's: what acts
+// on that line alone.
+var (
+	tableMenu = [][]vocab.CommandID{
+		{"table.row-above", "table.row-below", "table.column-left", "table.column-right"},
+		{"table.align-start", "table.align-center", "table.align-end", "table.header"},
+		{"table.delete-row", "table.delete-column", "table.delete"},
+	}
+	rowMenu = [][]vocab.CommandID{
+		{"table.row-above", "table.row-below"},
+		{"table.header"},
+		{"table.delete-row"},
+	}
+	columnMenu = [][]vocab.CommandID{
+		{"table.column-left", "table.column-right"},
+		{"table.align-start", "table.align-center", "table.align-end"},
+		{"table.delete-column"},
+	}
+)
+
+// contextMenu is the page's menu: the table commands its secondary click
+// chose, else all of them, each through the command table and offered as it would act, then
+// the text's editing items.
 func (el *Element) contextMenu(m *ui.Menu, services ui.Services) {
 	ed := el.Editor
 	labels := map[vocab.CommandID]string{}
@@ -1499,7 +1547,12 @@ func (el *Element) contextMenu(m *ui.Menu, services ui.Services) {
 		labels[vocab.CommandID(c.ID)] = c.Label
 	}
 	shown := false
-	for _, group := range tableMenu {
+	menu := el.chrome.menu
+	if menu == nil {
+		// Opened from the keyboard: the table's, as the selection has it.
+		menu = tableMenu
+	}
+	for _, group := range menu {
 		var items []vocab.CommandID
 		for _, id := range group {
 			out, err := ed.Engine.Preview(ed.View, vocab.Input{Intent: vocab.Command{ID: id}, At: ed.active})
