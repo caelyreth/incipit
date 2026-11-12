@@ -166,7 +166,7 @@ func (tableKind) controls(el *Element, u *unitLayout) []control {
 	b := tableBox(u)
 	out := []control{{key: key(partCells, 0), rect: b, menu: func(x, y float32, at time.Time) [][]vocab.CommandID {
 		el.placeForMenu(x, y, at)
-		return tableMenu
+		return tableKind{}.menu(el, u)
 	}}}
 	for c := range t.columns {
 		cell := t.cell(doc.CellCoord{Column: c})
@@ -220,6 +220,9 @@ func (tableKind) controls(el *Element, u *unitLayout) []control {
 
 // reach is where the pointer is by a table: the table and the gutters its
 // grips and areas stand in, wider while an area of its edges is open.
+// menu is a table's commands, as a cell's menu offers them.
+func (tableKind) menu(*Element, *unitLayout) [][]vocab.CommandID { return tableMenu }
+
 func (tableKind) reach(el *Element, u *unitLayout) ui.Rect {
 	t := u.table
 	if t == nil {

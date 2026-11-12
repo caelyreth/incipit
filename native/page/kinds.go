@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -59,6 +60,10 @@ type objectKind interface {
 	wheel(el *Element, u *unitLayout, x, y float32, ev ui.InputEvent, dx float32) bool
 	// reveal brings the caret, at pc in it, into view within it.
 	reveal(el *Element, pc place, now time.Time)
+	// menu is the commands it offers for itself, in their groups: what a
+	// secondary click on it offers, and a menu opened from the keyboard
+	// with the selection in it (controls.go).
+	menu(el *Element, u *unitLayout) [][]vocab.CommandID
 	// anchor is how far the place it holds under the pointer moved from
 	// was, drawn at wasY, to u, as the page is laid out again: the page
 	// scrolls by it, so the place stays put.
@@ -68,8 +73,8 @@ type objectKind interface {
 // baseKind is what a kind does where it does nothing of its own: it holds
 // nothing open, places no caret, draws nothing over its text, sets its
 // surfaces in no boxes, has no reach and offers no controls, moves nothing,
-// follows and draws nothing over the page, scrolls nothing within it and
-// holds no place.
+// follows and draws nothing over the page, scrolls nothing within it,
+// offers no commands and holds no place.
 type baseKind struct{}
 
 func (baseKind) holds(*unitLayout) int                                        { return 0 }
@@ -87,7 +92,8 @@ func (baseKind) chrome(*Element, *ui.Painter, *unitLayout, float32, float32) boo
 func (baseKind) wheel(*Element, *unitLayout, float32, float32, ui.InputEvent, float32) bool {
 	return false
 }
-func (baseKind) reveal(*Element, place, time.Time) {}
+func (baseKind) reveal(*Element, place, time.Time)              {}
+func (baseKind) menu(*Element, *unitLayout) [][]vocab.CommandID { return nil }
 func (baseKind) anchor(*Element, *unitLayout, float32, *unitLayout) (float32, bool) {
 	return 0, false
 }

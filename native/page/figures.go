@@ -194,16 +194,32 @@ func (r *figureResize) ask(asks map[doc.ID]objectIn) {
 	asks[r.node] = a
 }
 
-// partFigureGrip is a figure's grip, at its side.
-const partFigureGrip part = "figure-grip"
+// partFigure is a figure's picture, partFigureGrip its grip, at its side.
+const (
+	partFigure     part = "figure"
+	partFigureGrip part = "figure-grip"
+)
 
 // controls are a figure's grips while it shows them, each resizing it
 // from its side.
+// figureMenu are the commands a figure offers for itself.
+var figureMenu = [][]vocab.CommandID{{"figures.alignStart", "figures.alignCenter"}}
+
+// menu is a figure's commands.
+func (figureKind) menu(*Element, *unitLayout) [][]vocab.CommandID { return figureMenu }
+
 func (figureKind) controls(el *Element, u *unitLayout) []control {
+	// The picture offers the figure's commands, selecting it as a click on
+	// it does.
+	id := u.pres.Unit
+	out := []control{{key: controlKey{unit: id, part: partFigure}, rect: ui.Rect{X: u.x + u.box.X, Y: u.y + u.box.Y, W: u.box.W, H: u.box.H},
+		menu: func(_, _ float32, at time.Time) [][]vocab.CommandID {
+			el.Editor.Do(vocab.Place{Node: id}, at)
+			return figureKind{}.menu(el, u)
+		}}}
 	if !el.gripsShown(u) {
-		return nil
+		return out
 	}
-	var out []control
 	for _, side := range grips(u) {
 		r, ok := gripRect(u, side)
 		if !ok {
@@ -344,9 +360,11 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, now
 			}
 			r.X += ux - u.x
 			r.Y += uy - u.y
+			// It lights under the pointer as every control does.
+			hover := el.lit(controlKey{unit: id, part: partFigureGrip, at: int(side)})
 			p.Shadow(r, gripWidth/2, 0, 1, 4, 0, ui.Color{A: 255}.Alpha(0.3*a))
-			p.Fill(r, t.Surface.Elevated.Alpha(a), gripWidth/2)
-			p.Stroke(r, t.Border.Default.Alpha(a), gripWidth/2, 1)
+			p.Fill(r, components.Blend(t.Surface.Elevated, t.Accent.Foreground, hover).Alpha(a), gripWidth/2)
+			p.Stroke(r, components.Blend(t.Border.Default, t.Accent.Foreground, hover).Alpha(a), gripWidth/2, 1)
 		}
 	}
 	if r, ok := el.drag.(*figureResize); ok && r.node == u.pres.Unit {

@@ -197,14 +197,42 @@ func (el *Element) readyMenu(x, y float32, at time.Time) {
 	}
 }
 
+// selectionMenu is what the object the selection is in offers for
+// itself, found through its kind: the object selected, or holding the
+// head's text.
+func (el *Element) selectionMenu() [][]vocab.CommandID {
+	pl := el.Editor.layout
+	if pl == nil {
+		return nil
+	}
+	sel := el.Editor.Selection()
+	at := sel.Head.Pos.Node
+	if sel.Kind == doc.SelectNode {
+		at = sel.Node
+	} else if sel.Kind == doc.SelectCells {
+		at = sel.Cells.Table
+	}
+	obj, ok := vocab.ObjectOf(el.Editor.Engine.Snapshot(), at)
+	if !ok {
+		return nil
+	}
+	for _, u := range pl.units {
+		if u.kind != nil && u.pres.Unit == obj {
+			return u.kind.menu(el, u)
+		}
+	}
+	return nil
+}
+
 // contextMenu is the page's menu: the commands its secondary click chose,
-// or, opened from the keyboard, a table's, each through the command table
-// and offered as it would act; then the text's editing items.
+// or, opened from the keyboard, those of the object the selection is in,
+// each through the command table and offered as it would act; then the
+// text's editing items.
 func (el *Element) contextMenu(m *ui.Menu, services ui.Services) {
 	ed := el.Editor
 	menu := el.menu
 	if !el.menuChosen {
-		menu = tableMenu
+		menu = el.selectionMenu()
 	}
 	labels := map[vocab.CommandID]string{}
 	for _, c := range keymap.Declared(ed.Engine.Program().Catalog()) {
