@@ -276,3 +276,27 @@ func TestTabIndentsCode(t *testing.T) {
 	p.do(outdent)
 	p.want("page(code(x\nyz))")
 }
+
+// Shift+Enter is a new line in the same block wherever text keeps lines,
+// rich text as source text; Enter splits rich text. A heading, which
+// Markdown cannot write over two lines, keeps none: there Shift+Enter
+// splits as Enter does.
+func TestShiftEnterAddsALineInTheBlock(t *testing.T) {
+	for _, tc := range []struct{ typed, want string }{
+		{"x", "page(paragraph(x\ny))"},
+		{"- x", "page(list(item(x\ny|)))"},
+		{"# x", "page(heading(x) paragraph(y))"},
+	} {
+		p := open(t)
+		p.typeText(tc.typed)
+		p.do(vocab.SoftBreak{})
+		p.typeText("y")
+		p.want(tc.want)
+	}
+	p := open(t)
+	p.typeText("x")
+	p.do(vocab.SoftBreak{})
+	p.do(vocab.Break{})
+	p.typeText("y")
+	p.want("page(paragraph(x\n) paragraph(y))")
+}

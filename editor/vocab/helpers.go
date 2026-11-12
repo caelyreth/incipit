@@ -964,12 +964,14 @@ func cutNode(n *doc.Node, from, to []step) (*doc.Node, int, int) {
 	return doc.NewNode(n.Kind(), n.Attrs(), slots...), openStart, openEnd
 }
 
-// Fit adapts a slice to the slot it lands in. A rich slot without lines
-// takes it as it is: inline items in place, blocks split around. Into a
-// literal slot, or a cell, which keeps lines but holds no blocks, it is
-// plain text, with line breaks only where the slot keeps them.
-func Fit(spec doc.SlotSpec, s Slice) Slice {
-	if !spec.Literal && (!spec.Lines || len(s.Nodes) == 0) {
+// Fit adapts a slice to the slot at ref it lands in. Rich text takes it as
+// it is: inline items in place, blocks split around. Into a literal slot,
+// or an object's text, around which no blocks land as its text never
+// leaves it (a cell's), it is plain text, with line breaks only where the
+// slot keeps them.
+func Fit(r doc.Reader, ref doc.SlotRef, s Slice) Slice {
+	spec, _ := SlotSpec(r, ref)
+	if !spec.Literal && (!inObject(r, ref.Node) || len(s.Nodes) == 0) {
 		return s
 	}
 	var b strings.Builder
@@ -1006,7 +1008,7 @@ func InsertSlice(at doc.Pos, s Slice) Edit {
 		if !ok || spec.Blocks {
 			return fmt.Errorf("%w: paste outside a text slot", ErrHelper)
 		}
-		s = Fit(spec, s)
+		s = Fit(tx, at.Ref(), s)
 		if len(s.Nodes) == 0 {
 			items := s.Inline
 			if spec.Literal {

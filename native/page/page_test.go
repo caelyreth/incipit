@@ -466,3 +466,24 @@ func TestDoubleClickSelectsTheWordUnderThePointer(t *testing.T) {
 		}
 	}
 }
+
+// A soft line break in a paragraph is drawn as a new line of the same
+// block, and the caret after it stands on that line.
+func TestASoftBreakInAParagraphIsANewLine(t *testing.T) {
+	el := newElement(t)
+	typeText(el, "x")
+	el.Editor.Do(vocab.SoftBreak{}, time.Unix(700, 0))
+	typeText(el, "y")
+	pl := el.Editor.layout
+	if len(pl.units) != 1 {
+		t.Fatalf("%d units, want one paragraph", len(pl.units))
+	}
+	s := pl.units[0].surfaces[0]
+	if n := len(s.layout.Lines()); n != 2 {
+		t.Fatalf("the paragraph lays out %d lines, want 2", n)
+	}
+	first, last := s.caretRect(s.u16Of(0, 0)), s.caretRect(s.u16Of(3, 0))
+	if last.Y <= first.Y {
+		t.Fatalf("the caret after the break stands at y %v, the first line at %v", last.Y, first.Y)
+	}
+}

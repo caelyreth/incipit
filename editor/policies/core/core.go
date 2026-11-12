@@ -309,8 +309,12 @@ func deleteAcross(c *policy.Ctx, _ vocab.Delete, at policy.At[policy.Crossing]) 
 	return policy.Pass
 }
 
-// breakBlock is Enter: a line break in slots that keep lines, but on a
-// block's empty last line it leaves the block; an empty block leaves the
+// breakBlock is Enter: a line break in source text that keeps lines, as
+// a code or math block's, but on a block's empty last line it leaves the
+// block; so does an object's text that keeps lines, as a cell's, which
+// never leaves the object by splitting. Other rich text splits where it
+// keeps lines too, its line breaks being Shift+Enter's (softBreak). An
+// empty block leaves the
 // container holding it, lifted out as Backspace lifts a container's first
 // block, where the slot around the container takes it (an entry leaves
 // through its own level); a split elsewhere. At a
@@ -335,9 +339,9 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 		if cleared {
 			edits = append(edits, clear)
 		}
-		if obj, ok := r.Node(pos.Node); ok && r.Schema().IsObject(obj.Kind()) {
+		if obj, ok := vocab.ObjectOf(r, pos.Node); ok {
 			if spec, _ := vocab.SlotSpec(r, pos.Ref()); !spec.Lines {
-				if pos, ok = vocab.Beside(r, obj.ID(), vocab.Forward); !ok {
+				if pos, ok = vocab.Beside(r, obj, vocab.Forward); !ok {
 					return policy.Swallow
 				}
 				clear = nil
@@ -354,7 +358,7 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 		res.Then = endOfNewBlock(pos)
 		return res
 	}
-	if spec.Lines {
+	if _, whole := vocab.ObjectOf(r, pos.Node); spec.Lines && (spec.Literal || whole) {
 		if clear == nil {
 			if res, ok := leaveLines(r, pos); ok {
 				return res
