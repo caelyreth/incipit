@@ -117,9 +117,36 @@ func (el *Element) metrics(width float32) Metrics {
 		Width:   col,
 		Indent:  el.Prose.FontSize * 1.6,
 		Gap:     el.Prose.Leading() * 0.9,
-		// The margins less the gutters a table's controls stand in.
-		Reach: max((width-col)/2-el.tableGutter(), 0),
+		// The margins less the gutters objects' controls stand in.
+		Reach: max((width-col)/2-el.controlGutter(), 0),
 	}
+}
+
+// settle sets each unit's layout as its kind remembers it, stepping it on
+// to the paint's time on a frame; it reports whether any still moves.
+func (el *Element) settle(pl *pageLayout, frame bool) bool {
+	moving := false
+	for _, u := range pl.units {
+		if u.kind != nil && u.kind.settle(el, u, frame) {
+			moving = true
+		}
+	}
+	return moving
+}
+
+// wheelAcross gives the wheel's sideways scroll at a page point to the
+// topmost unit whose kind takes it.
+func (el *Element) wheelAcross(x, y float32, ev ui.InputEvent, dx float32) bool {
+	pl := el.Editor.layout
+	if pl == nil {
+		return false
+	}
+	for i := len(pl.units) - 1; i >= 0; i-- {
+		if u := pl.units[i]; u.kind != nil && u.kind.wheel(el, u, x, y, ev, dx) {
+			return true
+		}
+	}
+	return false
 }
 
 // relayout lays the page out at the element's width.
@@ -137,7 +164,7 @@ func (el *Element) relayout() *pageLayout {
 	el.column = max((w-m.Width)/2, 0)
 	pl := ed.Relayout()
 	el.settleRooms(pl, el.paintNow, false, el.animate)
-	el.scrollTables(pl, el.paintNow, false, el.animate)
+	el.settle(pl, false)
 	el.applyRestoredScroll(pl)
 	return pl
 }
@@ -228,11 +255,15 @@ func (el *Element) View(c *ui.Context) {
 			el.Pictures.Wake = services.Invalidate
 		}
 		el.takeDrops(box)
-		// The tables' controls follow the pointer; what they open moves
+		// The objects' controls follow the pointer; what they open moves
 		// at the paint's time (step).
 		el.pointerIn = box.Hovered()
 		el.near = el.nearAt(el.toPage(el.pointer.X, el.pointer.Y))
-		el.followTables(c)
+		for _, u := range ed.layout.units {
+			if u.kind != nil {
+				u.kind.follow(el, c, u)
+			}
+		}
 		if cursor, ok := el.cursorAt(el.toPage(el.pointer.X, el.pointer.Y)); ok {
 			box.Cursor(cursor)
 		}
@@ -387,7 +418,9 @@ func (el *Element) follow(pl *pageLayout, now time.Time) {
 		return
 	}
 	ed.reveal = false
-	el.revealAcross(pl, now)
+	if pc, ok := pl.lookup(ed.Selection().Head); ok && pc.unit.kind != nil {
+		pc.unit.kind.reveal(el, pc, now)
+	}
 	el.revealCaret(pl, now)
 }
 
@@ -531,14 +564,14 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		services.Invalidate()
 		return true
 	case ui.InputScroll:
-		// Sideways, the wheel scrolls the table under the pointer across;
-		// Shift turns it sideways.
+		// Sideways, the wheel scrolls what the pointer is over across, as
+		// its kind takes it; Shift turns it sideways.
 		dx := ev.DX
 		if ev.Mods&ui.Shift != 0 && dx == 0 {
 			dx = ev.DY
 		}
 		if x, y := el.toPage(el.pointer.X, el.pointer.Y); dx != ev.DX || math.Abs(float64(dx)) > math.Abs(float64(ev.DY)) {
-			if el.scrollTable(x, y, ev, dx) {
+			if el.wheelAcross(x, y, ev, dx) {
 				services.Invalidate()
 				return true
 			}
@@ -602,7 +635,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	if el.roomsMoving {
 		p.AnimationFrame()
 	}
-	if el.scrollTables(pl, now, true, animate) {
+	if el.settle(pl, true) {
 		p.AnimationFrame()
 	}
 	el.previewGesture(pl)
@@ -675,8 +708,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		})
 	}
 	el.paintOutlines(p, ox, oy, now, animate)
-	if el.paintTableChrome(p, pl, ox, oy, now, animate) {
-		p.AnimationFrame()
+	for _, u := range pl.units {
+		if u.kind != nil && u.kind.chrome(el, p, u, ox, oy) {
+			p.AnimationFrame()
+		}
 	}
 	if el.springs.end() {
 		p.AnimationFrame()

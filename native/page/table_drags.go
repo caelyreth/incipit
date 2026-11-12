@@ -199,20 +199,17 @@ func (d *lineDrag) finish(canceled bool, at time.Time) {
 // stands there, and the room it left closes behind it.
 func (d *lineDrag) drop(canceled bool, at time.Time) {
 	el := d.el
-	ch := el.tableUI()
 	from := d.tablePress.at
 	d.to = d.over
-	landing := &tableLanding{table: d.table, rows: d.rows, index: from, from: d.corner(), at: at}
-	ch.landing = landing
-	ts := recalled[tableState](el, d.table, "table")
-	if ts != nil {
-		for _, a := range ts.apart {
-			if a.frame && a.target > 0 {
-				a.target = 0
-				el.springs.jump(a.key(d.table), 0)
-			}
-			a.frame = false
+	ts := el.tableState(d.table)
+	landing := &tableLanding{rows: d.rows, index: from, from: d.corner(), at: at}
+	ts.landing = landing
+	for _, a := range ts.apart {
+		if a.frame && a.target > 0 {
+			a.target = 0
+			el.springs.jump(a.key(d.table), 0)
 		}
+		a.frame = false
 	}
 	if canceled || !d.moves(d.to) {
 		return
@@ -224,9 +221,6 @@ func (d *lineDrag) drop(canceled bool, at time.Time) {
 	to := carryIndex(from, d.to)
 	el.Editor.Do(profile.EditGrid{Op: profile.GridMove, Axis: axis, Table: d.table, At: from, Count: 1, To: to}, at)
 	landing.index = to
-	if ts == nil {
-		return
-	}
 	left := from
 	if d.to < from {
 		left = from + 1
@@ -247,7 +241,6 @@ func carryIndex(from, slot int) int {
 // tableLanding is a carried line's copy on its way from where it was let
 // go, its corner in the unit, into its place.
 type tableLanding struct {
-	table doc.ID
 	rows  bool
 	index int
 	from  ui.Point
@@ -348,7 +341,6 @@ func (d *areaPress) finish(canceled bool, at time.Time) {
 // tableMade is a line an area made: it comes in from the area's size, as
 // a share of its own, the area's outline fading into it.
 type tableMade struct {
-	table  doc.ID
 	column bool
 	index  int
 	from   float32
@@ -359,7 +351,6 @@ type tableMade struct {
 // goes at once, the line coming in from its size, and the page keeps where
 // the room lifted it.
 func (el *Element) useArea(u *unitLayout, p part, at time.Time) {
-	ch := el.tableUI()
 	t, id := u.table, u.pres.Unit
 	ts := el.tableState(id)
 	rows, columns := len(t.rows), len(t.columns)
@@ -368,19 +359,19 @@ func (el *Element) useArea(u *unitLayout, p part, at time.Time) {
 	axis, index, share := profile.Rows, rows, float32(0)
 	switch p {
 	case partBelow:
-		ch.below.Use()
+		ts.below.Use()
 		index, share = rows, rowShare(t.below.H)
 		el.springs.jump(room("below"), 0)
 	case partBeside:
-		ch.below.Use()
+		ts.below.Use()
 		axis, index = profile.Columns, columns
 		el.springs.jump(tableSpring(id, "beside", shareValue), 0)
 	case partRowArea:
-		ch.rows.Use()
+		ts.rows.Use()
 		index, share = ts.row, rowShare(t.rowGap.H)
 		el.springs.jump(room("row-room"), 0)
 	case partColumnArea:
-		ch.columns.Use()
+		ts.columns.Use()
 		axis, index = profile.Columns, ts.column
 		share = min(1, t.columnGap.W*float32(columns+1)/max(1, u.box.W))
 		el.springs.jump(room("column-room"), 0)
@@ -389,7 +380,7 @@ func (el *Element) useArea(u *unitLayout, p part, at time.Time) {
 	if axis == profile.Columns {
 		n = columns
 	}
-	ch.made = &tableMade{table: id, column: axis == profile.Columns, index: index, from: share, at: at}
+	ts.made = &tableMade{column: axis == profile.Columns, index: index, from: share, at: at}
 	in := profile.EditGrid{Op: profile.GridInsert, Axis: axis, Table: id, At: index, Count: 1, Before: true}
 	if index >= n {
 		in = profile.EditGrid{Op: profile.GridInsert, Axis: axis, Table: id, At: n - 1, Count: 1}

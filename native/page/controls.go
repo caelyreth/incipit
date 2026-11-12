@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -300,6 +301,32 @@ func (el *Element) lit(key controlKey) float32 {
 		target, frequency = 1, hoverIn
 	}
 	return el.springs.follow(springKey{unit: key.unit, name: "hover:" + string(key.part), at: key.at, of: shareValue}, target, frequency)
+}
+
+// chromeSize is the UI size the controls are set at, and chromeScale its
+// share of the default.
+func (el *Element) chromeSize() float32 {
+	if el.UIFontSize > 0 {
+		return el.UIFontSize
+	}
+	return theme.DefaultUIFontSize
+}
+
+func (el *Element) chromeScale() float32 { return el.chromeSize() / theme.DefaultUIFontSize }
+
+func (el *Element) controlMetrics() theme.ControlMetrics {
+	return theme.DefaultControls.Scaled(el.chromeSize())
+}
+
+// controlReach is how near an object the pointer calls up its controls,
+// in DIPs at the default UI size.
+const controlReach = 28
+
+// controlGutter is the room objects' controls keep in each margin, as far
+// as they reach and a control tall, which an object wider than the column
+// leaves them.
+func (el *Element) controlGutter() float32 {
+	return controlReach*el.chromeScale() + el.controlMetrics().Height
 }
 
 func contains(r ui.Rect, x, y float32) bool {

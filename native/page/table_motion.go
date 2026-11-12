@@ -2,6 +2,7 @@ package page
 
 import (
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/native/components"
 )
 
 // How a table's controls move: each value a spring in the page's store
@@ -23,6 +24,13 @@ import (
 // row and column rooms stand, the border lit, the cells it had, the lines
 // coming in, and the rooms a carry opens.
 type tableState struct {
+	// below are the areas at its foot, 0, and at its end, 1; rows and
+	// columns those between two lines, by the line after them.
+	below, rows, columns components.CreateGap
+	// landing is a carried line landing, and made a line an area made.
+	landing *tableLanding
+	made    *tableMade
+
 	row, column, borderAt int
 	cells                 map[doc.ID]bool
 	grow                  [2]lineRun
@@ -80,18 +88,15 @@ func (tableKind) step(el *Element, u *unitLayout, in *objectIn) {
 	if t == nil {
 		return
 	}
-	ch := el.tableUI()
 	id := u.pres.Unit
 	ts := el.tableState(id)
-	now := el.springs.now
-	if m := ch.made; m != nil && m.table == id && now.Sub(m.at) > madeFade {
-		ch.made = nil
+	if m := ts.made; m != nil && el.springs.now.Sub(m.at) > madeFade {
+		ts.made = nil
 	}
 	_, _, step, between := el.areaRooms()
-	i := ch.place(id)
-	belowAt, belowOpen := ch.below.Open()
-	rowsAt, rowsOpen := ch.rows.Open()
-	columnsAt, columnsOpen := ch.columns.Open()
+	belowAt, belowOpen := ts.below.Open()
+	rowsAt, rowsOpen := ts.rows.Open()
+	columnsAt, columnsOpen := ts.columns.Open()
 	hot, held := el.hotKey, el.heldTable()
 	open := func(is bool, v float32) float32 {
 		if is {
@@ -102,16 +107,16 @@ func (tableKind) step(el *Element, u *unitLayout, in *objectIn) {
 	follow := func(name string, of valueKind, target float32) float32 {
 		return el.springs.follow(tableSpring(id, name, of), target, chromeFollow)
 	}
-	below := follow("below", roomValue, open(belowOpen && belowAt == 2*i, step))
-	follow("beside", shareValue, open(belowOpen && belowAt == 2*i+1, 1))
-	if rowsOpen && rowsAt/gapStride == i {
-		ts.row = rowsAt % gapStride
+	below := follow("below", roomValue, open(belowOpen && belowAt == 0, step))
+	follow("beside", shareValue, open(belowOpen && belowAt == 1, 1))
+	if rowsOpen {
+		ts.row = rowsAt
 	}
-	rowRoom := follow("row-room", roomValue, open(rowsOpen && rowsAt/gapStride == i, between))
-	if columnsOpen && columnsAt/gapStride == i {
-		ts.column = columnsAt % gapStride
+	rowRoom := follow("row-room", roomValue, open(rowsOpen, between))
+	if columnsOpen {
+		ts.column = columnsAt
 	}
-	columnRoom := follow("column-room", roomValue, open(columnsOpen && columnsAt/gapStride == i, between))
+	columnRoom := follow("column-room", roomValue, open(columnsOpen, between))
 	mine := held != nil && held.table == id
 	follow("grips", shareValue, open(el.near == id && (el.drag == nil || mine), 1))
 	// A border lights under the pointer and as its drag holds it.
@@ -152,11 +157,9 @@ func (tableKind) step(el *Element, u *unitLayout, in *objectIn) {
 // what is about the pointer stays under it. A room an area made a row in
 // holds nothing: the page keeps where it lifted it.
 func (tableKind) anchor(el *Element, was *unitLayout, wasY float32, u *unitLayout) (float32, bool) {
-	ch := el.tableUI()
 	id := u.pres.Unit
 	ts := el.tableState(id)
-	rowsAt, rowsOpen := ch.rows.Open()
-	opening := rowsOpen && rowsAt/gapStride == ch.place(id)
+	_, opening := ts.rows.Open()
 	if was.table == nil || u.table == nil || !opening && el.springs.value(tableSpring(id, "row-room", roomValue)) <= 0 {
 		return 0, false
 	}
@@ -226,7 +229,7 @@ func (el *Element) growLines(u *unitLayout, ts *tableState) {
 				continue
 			}
 			start := float32(0)
-			if m := el.tableUI().made; m != nil && m.table == id && m.column == (axis == 1) && m.index == run.from {
+			if m := ts.made; m != nil && m.column == (axis == 1) && m.index == run.from {
 				start = m.from
 			}
 			ts.grow[axis] = run

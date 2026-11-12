@@ -1,6 +1,8 @@
 package page
 
 import (
+	"time"
+
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
@@ -42,6 +44,21 @@ type objectKind interface {
 	// step moves what it moves on to the paint's time, before the page is
 	// laid out, and sets what it asks of its own layout (springs.go).
 	step(el *Element, u *unitLayout, in *objectIn)
+	// follow follows the pointer as the page is built, by what the last
+	// layout set out (controls.go).
+	follow(el *Element, c *ui.Context, u *unitLayout)
+	// settle sets its layout as the page remembers it, as it is laid out
+	// and, stepping it on to the paint's time, as it is painted (frame); it
+	// reports whether it still moves.
+	settle(el *Element, u *unitLayout, frame bool) bool
+	// chrome draws its controls over the page, at the paint's time; it
+	// reports whether they still move besides their springs.
+	chrome(el *Element, p *ui.Painter, u *unitLayout, ox, oy float32) bool
+	// wheel scrolls it by dx across at the page point x, y, by hand, and
+	// reports whether it took the wheel.
+	wheel(el *Element, u *unitLayout, x, y float32, ev ui.InputEvent, dx float32) bool
+	// reveal brings the caret, at pc in it, into view within it.
+	reveal(el *Element, pc place, now time.Time)
 	// anchor is how far the place it holds under the pointer moved from
 	// was, drawn at wasY, to u, as the page is laid out again: the page
 	// scrolls by it, so the place stays put.
@@ -50,8 +67,9 @@ type objectKind interface {
 
 // baseKind is what a kind does where it does nothing of its own: it holds
 // nothing open, places no caret, draws nothing over its text, sets its
-// surfaces in no boxes, has no reach and offers no controls, moves nothing
-// and holds no place.
+// surfaces in no boxes, has no reach and offers no controls, moves nothing,
+// follows and draws nothing over the page, scrolls nothing within it and
+// holds no place.
 type baseKind struct{}
 
 func (baseKind) holds(*unitLayout) int                                        { return 0 }
@@ -61,6 +79,15 @@ func (baseKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)            { 
 func (baseKind) reach(*Element, *unitLayout) ui.Rect                          { return ui.Rect{} }
 func (baseKind) controls(*Element, *unitLayout) []control                     { return nil }
 func (baseKind) step(*Element, *unitLayout, *objectIn)                        {}
+func (baseKind) follow(*Element, *ui.Context, *unitLayout)                    {}
+func (baseKind) settle(*Element, *unitLayout, bool) bool                      { return false }
+func (baseKind) chrome(*Element, *ui.Painter, *unitLayout, float32, float32) bool {
+	return false
+}
+func (baseKind) wheel(*Element, *unitLayout, float32, float32, ui.InputEvent, float32) bool {
+	return false
+}
+func (baseKind) reveal(*Element, place, time.Time) {}
 func (baseKind) anchor(*Element, *unitLayout, float32, *unitLayout) (float32, bool) {
 	return 0, false
 }

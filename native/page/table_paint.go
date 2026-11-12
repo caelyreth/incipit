@@ -28,23 +28,21 @@ import (
 //   - A made line shows the area it was, fading into its cells; a corner's
 //     drag outlines and names the size it would set.
 
-// paintTableChrome draws the controls of the page's tables over the page.
-// It reports whether any still moves besides their springs.
-func (el *Element) paintTableChrome(p *ui.Painter, pl *pageLayout, ox, oy float32, now time.Time, animate bool) bool {
-	moving := false
-	for _, u := range pl.units {
-		if u.table == nil {
-			continue
-		}
-		for _, a := range el.tableAreas(u) {
-			el.paintArea(p, u, a, ox, oy)
-		}
-		moving = el.paintMade(p, u, ox, oy, now) || moving
-		moving = el.paintCarry(p, u, ox, oy, now, animate) || moving
-		el.paintBorder(p, u, ox, oy)
-		el.paintGrips(p, u, ox, oy)
-		el.paintResize(p, u, ox, oy)
+// chrome draws a table's controls over the page. It reports whether any
+// still moves besides their springs.
+func (tableKind) chrome(el *Element, p *ui.Painter, u *unitLayout, ox, oy float32) bool {
+	if u.table == nil {
+		return false
 	}
+	now, animate := el.paintNow, el.animate
+	for _, a := range el.tableAreas(u) {
+		el.paintArea(p, u, a, ox, oy)
+	}
+	moving := el.paintMade(p, u, ox, oy, now)
+	moving = el.paintCarry(p, u, ox, oy, now, animate) || moving
+	el.paintBorder(p, u, ox, oy)
+	el.paintGrips(p, u, ox, oy)
+	el.paintResize(p, u, ox, oy)
 	return moving
 }
 
@@ -95,11 +93,11 @@ func (el *Element) paintArea(p *ui.Painter, u *unitLayout, a tableArea, ox, oy f
 // paintMade shows a line an area made as the area it was, its tint and
 // dashed outline fading into the cells.
 func (el *Element) paintMade(p *ui.Painter, u *unitLayout, ox, oy float32, now time.Time) bool {
-	m := el.tableUI().made
-	t := u.table
-	if m == nil || m.table != u.pres.Unit {
+	ts := recalled[tableState](el, u.pres.Unit, "table")
+	if ts == nil || ts.made == nil {
 		return false
 	}
+	m, t := ts.made, u.table
 	n := len(t.rows)
 	if m.column {
 		n = len(t.columns)
@@ -121,18 +119,21 @@ func (el *Element) paintMade(p *ui.Painter, u *unitLayout, ox, oy float32, now t
 // land, the line veiled in its place, and its copy where the pointer
 // carries it.
 func (el *Element) paintCarry(p *ui.Painter, u *unitLayout, ox, oy float32, now time.Time, animate bool) bool {
-	ch := el.tableUI()
+	ts := recalled[tableState](el, u.pres.Unit, "table")
+	if ts == nil {
+		return false
+	}
 	t := u.table
 	id := u.pres.Unit
 	radius := objectRadius(el.Editor.metrics)
-	if l := ch.landing; l != nil && l.table == id {
+	if l := ts.landing; l != nil {
 		f := float32(now.Sub(l.at)) / float32(carryLand)
 		n := len(t.columns)
 		if l.rows {
 			n = len(t.rows)
 		}
 		if !animate || f >= 1 || l.index >= n {
-			ch.landing = nil
+			ts.landing = nil
 			return false
 		}
 		place := t.line(u, l.rows, l.index)
@@ -145,10 +146,9 @@ func (el *Element) paintCarry(p *ui.Painter, u *unitLayout, ox, oy float32, now 
 	if !ok || !d.moved || d.table != id {
 		return false
 	}
-	ts := recalled[tableState](el, id, "table")
 	for k, in := range t.in.apart {
 		frame := t.apart[k]
-		if in.room <= 0 || ts == nil || !ts.framed(in.rows, in.at) {
+		if in.room <= 0 || !ts.framed(in.rows, in.at) {
 			continue
 		}
 		// The frame takes the line's size within its room, and comes in

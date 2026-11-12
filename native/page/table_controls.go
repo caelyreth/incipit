@@ -1,7 +1,6 @@
 package page
 
 import (
-	"slices"
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -36,7 +35,7 @@ const (
 	// area open; tableEdge is how far within the table's foot or end the
 	// pointer calls up the area there, and tableBorder how near a border
 	// between two lines, in the gutter, one between them.
-	tableReach  = 28
+	tableReach  = controlReach
 	tableHold   = 56
 	tableEdge   = 12
 	tableBorder = 8
@@ -48,8 +47,6 @@ const (
 	cornerSize                             = 10
 	borderGrab                             = 4
 	borderRing                             = 2
-	// gapStride numbers an area by its table and its place.
-	gapStride = 1 << 12
 )
 
 // A table's controls.
@@ -64,48 +61,6 @@ const (
 	partRowGrip    part = "row-grip"
 	partColumnGrip part = "column-grip"
 )
-
-// tableChrome is what the page remembers of all its tables' controls at
-// once (memo).
-type tableChrome struct {
-	// below are the areas at a table's foot, numbered twice its place, and
-	// at its end, once more; rows and columns those between two lines,
-	// numbered by gapStride.
-	below, rows, columns components.CreateGap
-	// order are the page's tables in order, which number their areas.
-	order   []doc.ID
-	landing *tableLanding
-	made    *tableMade
-}
-
-// tableUI is what the page remembers of its tables' controls.
-func (el *Element) tableUI() *tableChrome {
-	return memo(el, 0, "tables", func() *tableChrome { return &tableChrome{} })
-}
-
-// place is a table's number among the page's tables, -1 for none.
-func (ch *tableChrome) place(id doc.ID) int { return slices.Index(ch.order, id) }
-
-// chromeSize is the UI size the controls are set at, and chromeScale its
-// share of the default.
-func (el *Element) chromeSize() float32 {
-	if el.UIFontSize > 0 {
-		return el.UIFontSize
-	}
-	return theme.DefaultUIFontSize
-}
-
-func (el *Element) chromeScale() float32 { return el.chromeSize() / theme.DefaultUIFontSize }
-
-func (el *Element) controlMetrics() theme.ControlMetrics {
-	return theme.DefaultControls.Scaled(el.chromeSize())
-}
-
-// tableGutter is the room a table's controls keep in each margin, which a
-// table wider than the column leaves them.
-func (el *Element) tableGutter() float32 {
-	return tableReach*el.chromeScale() + el.controlMetrics().Height
-}
 
 // areaRooms are the gap an area keeps from the table, and from the lines
 // either side of it between two; the room under the foot, an area and its
@@ -270,10 +225,9 @@ func (tableKind) reach(el *Element, u *unitLayout) ui.Rect {
 	if t == nil {
 		return ui.Rect{}
 	}
-	ch := el.tableUI()
 	scale := el.chromeScale()
 	reach := tableReach * scale
-	if at, open := ch.below.Open(); open && at/2 == ch.place(u.pres.Unit) {
+	if _, open := el.tableState(u.pres.Unit).below.Open(); open {
 		reach = tableHold * scale
 	}
 	r := grown(tableBox(u), reach, reach)
@@ -302,48 +256,36 @@ func (el *Element) gripLines(u *unitLayout) (row, column int) {
 	return row, column
 }
 
-// followTables follows the pointer by the table it is by, as the last
-// layout set it out: the areas it calls up, each opening once the pointer
-// has rested by it.
-func (el *Element) followTables(c *ui.Context) {
-	ch := el.tableUI()
-	pl := el.Editor.layout
-	if pl == nil {
+// follow follows the pointer by a table, as the last layout set it out:
+// the areas it calls up while the pointer is by it, each opening once the
+// pointer has rested there.
+func (tableKind) follow(el *Element, c *ui.Context, u *unitLayout) {
+	t := u.table
+	if t == nil {
 		return
 	}
+	ts := el.tableState(u.pres.Unit)
 	x, y := el.toPage(el.pointer.X, el.pointer.Y)
 	scale := el.chromeScale()
 	gap := theme.Space06.DIPs(el.chromeSize())
 	beside := gap + el.controlMetrics().Height
-	nearAt, nearOpen := ch.below.Open()
-	ch.order = ch.order[:0]
-	var by *unitLayout
-	for _, u := range pl.units {
-		if u.table != nil {
-			ch.order = append(ch.order, u.pres.Unit)
-			if u.pres.Unit == el.near && el.drag == nil {
-				by = u
-			}
-		}
-	}
+	nearAt, nearOpen := ts.below.Open()
 	edgeAt, rowAt, columnAt := -1, -1, -1
 	rowNear, columnNear := float32(0), float32(0)
 	if d, ok := el.drag.(*lineDrag); ok && d.moved {
 		// A carry chooses where to land: nothing is made meanwhile.
-		ch.below.Close()
-		ch.rows.Close()
-		ch.columns.Close()
+		ts.below.Close()
+		ts.rows.Close()
+		ts.columns.Close()
 	}
-	if u := by; u != nil {
-		t := u.table
+	if el.near == u.pres.Unit && el.drag == nil {
 		b := tableBox(u)
-		i := ch.place(u.pres.Unit)
 		// The areas making a row and a column are called up by the
 		// table's foot and its end, not from over its cells: the pointer
 		// just within the edge, or past it. Where the two meet, the one
 		// open holds, else the nearer edge's.
 		hold := func(side int) float32 {
-			if nearOpen && nearAt == 2*i+side {
+			if nearOpen && nearAt == side {
 				return tableHold * scale
 			}
 			return tableReach * scale
@@ -354,12 +296,12 @@ func (el *Element) followTables(c *ui.Context) {
 		end := ui.Rect{X: right - edge, Y: b.Y - edge, W: edge + beside + hold(1), H: b.H + 2*edge}
 		inFoot, inEnd := contains(foot, x, y), contains(end, x, y)
 		switch {
-		case inFoot && inEnd && nearOpen && nearAt/2 == i:
+		case inFoot && inEnd && nearOpen:
 			edgeAt = nearAt
 		case inEnd && (!inFoot || abs32(x-right) < abs32(y-bottom)):
-			edgeAt = 2*i + 1
+			edgeAt = 1
 		case inFoot:
-			edgeAt = 2 * i
+			edgeAt = 0
 		}
 		// Room between two lines is called up from the gutter before the
 		// rows, where their grips are, and above the columns, where
@@ -379,22 +321,22 @@ func (el *Element) followTables(c *ui.Context) {
 		for r := 1; r < len(t.rows); r++ {
 			at := u.y + t.rows[r]
 			if inRows && abs32(y-at) <= border || contains(rowGap, x, y) && t.rowGap.Y < t.rows[r] {
-				rowAt, rowNear = i*gapStride+r, abs32(y-at)
+				rowAt, rowNear = r, abs32(y-at)
 				break
 			}
 		}
 		for col := 1; col < len(t.columns); col++ {
 			at := u.x + t.cell(doc.CellCoord{Column: col}).X
 			if inColumns && abs32(x-at) <= border || contains(columnGap, x, y) && t.columnGap.X < t.columns[col] {
-				columnAt, columnNear = i*gapStride+col, abs32(x-at)
+				columnAt, columnNear = col, abs32(x-at)
 				break
 			}
 		}
 	}
 	// One room opens between lines at a time: by a crossing of a row's
 	// border and a column's, the one open already, else the nearer.
-	_, rowsOpen := ch.rows.Open()
-	_, columnsOpen := ch.columns.Open()
+	_, rowsOpen := ts.rows.Open()
+	_, columnsOpen := ts.columns.Open()
 	switch {
 	case rowsOpen:
 		columnAt = -1
@@ -405,29 +347,24 @@ func (el *Element) followTables(c *ui.Context) {
 	case rowAt >= 0 && columnAt >= 0:
 		rowAt = -1
 	}
-	ch.below.Follow(c, edgeAt)
-	ch.rows.Follow(c, rowAt)
-	ch.columns.Follow(c, columnAt)
+	ts.below.Follow(c, edgeAt)
+	ts.rows.Follow(c, rowAt)
+	ts.columns.Follow(c, columnAt)
 	// An open area holds while the pointer is on it.
 	if !el.pointerIn {
 		return
 	}
-	for _, u := range pl.units {
-		if u.table == nil {
+	for _, a := range el.tableAreas(u) {
+		if !contains(grown(a.box, tableBorder*scale, tableBorder*scale), x, y) {
 			continue
 		}
-		for _, a := range el.tableAreas(u) {
-			if !contains(grown(a.box, tableBorder*scale, tableBorder*scale), x, y) {
-				continue
-			}
-			switch a.part {
-			case partBelow, partBeside:
-				ch.below.HoldOver(true)
-			case partRowArea:
-				ch.rows.HoldOver(true)
-			case partColumnArea:
-				ch.columns.HoldOver(true)
-			}
+		switch a.part {
+		case partBelow, partBeside:
+			ts.below.HoldOver(true)
+		case partRowArea:
+			ts.rows.HoldOver(true)
+		case partColumnArea:
+			ts.columns.HoldOver(true)
 		}
 	}
 }

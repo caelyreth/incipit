@@ -587,31 +587,28 @@ type tableScroll struct {
 	glide motion.Glide
 }
 
-// scrollTables draws each table scrolled as far as it is, within what it
-// scrolls; a paint steps the scrolls at its own time. It reports whether
-// any still moves.
-func (el *Element) scrollTables(pl *pageLayout, now time.Time, frame, animate bool) bool {
-	moving := false
-	for _, u := range pl.units {
-		t := u.table
-		if t == nil {
-			continue
-		}
-		ts := recalled[tableScroll](el, u.pres.Unit, "scroll")
-		if ts == nil && t.overflow <= 0 {
-			t.scrollTo(u, 0)
-			continue
-		}
-		ts = el.tableScroll(u.pres.Unit)
-		if frame {
-			_, pulling := ts.over.Step(now, animate)
-			var gliding bool
-			ts.x, gliding = ts.glide.Step(ts.x, now, animate)
-			moving = moving || pulling || gliding
-		}
-		ts.x = max(0, min(ts.x, t.overflow))
-		t.scrollTo(u, ts.x-ts.over.Offset())
+// settle draws a table scrolled as far as it is, within what it scrolls;
+// a paint steps its scroll at its own time.
+func (tableKind) settle(el *Element, u *unitLayout, frame bool) bool {
+	t := u.table
+	if t == nil {
+		return false
 	}
+	ts := recalled[tableScroll](el, u.pres.Unit, "scroll")
+	if ts == nil && t.overflow <= 0 {
+		t.scrollTo(u, 0)
+		return false
+	}
+	ts = el.tableScroll(u.pres.Unit)
+	moving := false
+	if frame {
+		_, pulling := ts.over.Step(el.paintNow, el.animate)
+		var gliding bool
+		ts.x, gliding = ts.glide.Step(ts.x, el.paintNow, el.animate)
+		moving = pulling || gliding
+	}
+	ts.x = max(0, min(ts.x, t.overflow))
+	t.scrollTo(u, ts.x-ts.over.Offset())
 	return moving
 }
 
@@ -621,33 +618,25 @@ func (el *Element) tableScroll(id doc.ID) *tableScroll {
 	return memo(el, id, "scroll", func() *tableScroll { return &tableScroll{} })
 }
 
-// scrollTable scrolls the table under the page point x, y across by dx,
-// by hand, and reports whether there is one that scrolls.
-func (el *Element) scrollTable(x, y float32, ev ui.InputEvent, dx float32) bool {
-	pl := el.Editor.layout
-	if pl == nil {
+// wheel scrolls a table wider than its room across by dx, by hand, with
+// the pointer over it.
+func (tableKind) wheel(el *Element, u *unitLayout, x, y float32, ev ui.InputEvent, dx float32) bool {
+	t := u.table
+	if t == nil || t.overflow <= 0 || y < u.y || y >= u.bottom() || x < u.x+u.box.X || x >= u.x+u.box.X+u.box.W {
 		return false
 	}
-	for _, u := range pl.units {
-		t := u.table
-		if t == nil || t.overflow <= 0 || y < u.y || y >= u.bottom() || x < u.x+u.box.X || x >= u.x+u.box.X+u.box.W {
-			continue
-		}
-		ts := el.tableScroll(u.pres.Unit)
-		ts.glide.Cancel()
-		ts.x = components.OverscrollPanel.Scroll(&ts.over, ts.x, dx, 0, t.overflow, u.box.W, 0, scrollfx.Phase(ev.Precise, ev.Momentum))
-		t.scrollTo(u, ts.x-ts.over.Offset())
-		return true
-	}
-	return false
+	ts := el.tableScroll(u.pres.Unit)
+	ts.glide.Cancel()
+	ts.x = components.OverscrollPanel.Scroll(&ts.over, ts.x, dx, 0, t.overflow, u.box.W, 0, scrollfx.Phase(ev.Precise, ev.Momentum))
+	t.scrollTo(u, ts.x-ts.over.Offset())
+	return true
 }
 
-// revealAcross glides a table the caret is in across, as far as brings
+// reveal glides a table the caret is in across, as far as brings
 // the caret's cell into view clear of the fades at its edges (over), or,
 // in a cell wider than that, the caret.
-func (el *Element) revealAcross(pl *pageLayout, now time.Time) {
-	pc, ok := pl.lookup(el.Editor.Selection().Head)
-	if !ok || pc.surface == nil || pc.unit.table == nil || pc.unit.table.overflow <= 0 {
+func (tableKind) reveal(el *Element, pc place, now time.Time) {
+	if pc.surface == nil || pc.unit.table == nil || pc.unit.table.overflow <= 0 {
 		return
 	}
 	u, t, s := pc.unit, pc.unit.table, pc.surface

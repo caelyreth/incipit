@@ -243,7 +243,7 @@ func TestAnAreaByTheFootMakesARow(t *testing.T) {
 	if r, _ := c.grid().Size(); r != 3 {
 		t.Fatalf("a click on the area made %d rows", r)
 	}
-	if m := c.el.tableUI().made; m == nil || m.index != 2 || m.column || m.from <= 0 {
+	if m := c.el.tableState(c.table().pres.Unit).made; m == nil || m.index != 2 || m.column || m.from <= 0 {
 		t.Fatalf("the made row is %+v", m)
 	}
 	// It comes in from the area's room, the table's height going on from

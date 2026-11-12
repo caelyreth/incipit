@@ -166,14 +166,16 @@ func TestAWideTableScrollsAcross(t *testing.T) {
 	u := table()
 	// Typing in the last cell revealed it.
 	el.follow(el.relayout(), time.Unix(6000, 0))
-	el.scrollTables(el.Editor.layout, time.Unix(7000, 0), true, false)
+	el.paintNow, el.animate = time.Unix(7000, 0), false
+	el.settle(el.Editor.layout, true)
 	if s := table().table.scroll; s <= 0 {
 		t.Fatalf("the last cell is not revealed: scroll %v", s)
 	}
 	moveTo(t, el, u, doc.CellCoord{Column: 0})
 	el.Editor.reveal = true
 	el.follow(el.relayout(), time.Unix(8000, 0))
-	el.scrollTables(el.Editor.layout, time.Unix(9000, 0), true, false)
+	el.paintNow, el.animate = time.Unix(9000, 0), false
+	el.settle(el.Editor.layout, true)
 	if s := table().table.scroll; s != 0 {
 		t.Fatalf("the first cell is not revealed: scroll %v", s)
 	}
