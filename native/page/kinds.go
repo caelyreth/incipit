@@ -33,6 +33,9 @@ type objectKind interface {
 	// sets its surfaces in boxes, as a table its cells: a point in it is
 	// in the surface, and what covers all of the surface fills it.
 	cover(u *unitLayout, s *surfaceLayout) (ui.Rect, bool)
+	// controls are what it offers the pointer over it, bottom to top
+	// (controls.go).
+	controls(el *Element, u *unitLayout) []control
 }
 
 // inlineKind lays out and draws one kind of inline object in its line.
@@ -68,6 +71,7 @@ func (stackKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 	u.box = ui.Rect{W: width, H: u.h}
 }
 func (stackKind) paint(*Element, *ui.Painter, *unitLayout, float32, float32) float32 { return 0 }
+func (stackKind) controls(*Element, *unitLayout) []control                           { return nil }
 func (stackKind) holds(*unitLayout) int                                              { return 0 }
 func (stackKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool)       { return 0, false }
 func (stackKind) over(*Element, *ui.Painter, *unitLayout, float32, float32)          {}
@@ -85,6 +89,7 @@ func (ruleKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32)
 	p.Line(ux, mid, ux+u.box.W, mid, 1, el.Theme.Prose.Subtle)
 	return 0
 }
+func (ruleKind) controls(*Element, *unitLayout) []control                     { return nil }
 func (ruleKind) holds(*unitLayout) int                                        { return 0 }
 func (ruleKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool) { return 0, false }
 func (ruleKind) over(*Element, *ui.Painter, *unitLayout, float32, float32)    {}
@@ -125,6 +130,8 @@ func (mathKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32)
 }
 
 // holds is its panel open and its display set.
+func (mathKind) controls(*Element, *unitLayout) []control { return nil }
+
 func (mathKind) holds(u *unitLayout) int {
 	n := 0
 	if u.math.open {

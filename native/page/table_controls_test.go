@@ -125,8 +125,8 @@ func TestARowsGripCarriesIt(t *testing.T) {
 	c.move(x, below+4)
 	c.tt.Advance(time.Second)
 	u := c.table()
-	if d := c.el.chrome.drag; d == nil || d.to != 3 {
-		t.Fatalf("carried down past the last row's middle, it lands at %+v", c.el.chrome.drag)
+	if d, ok := c.el.drag.(*lineDrag); !ok || d.to != 3 {
+		t.Fatalf("carried down past the last row's middle, it lands at %+v", c.el.drag)
 	}
 	if a := u.table.in.apartAt(true, 3); a < u.table.heights[0]-1 || u.h < h0+a-1 {
 		t.Fatalf("the grid does not part past the last row: room %v, height %v from %v", a, u.h, h0)
@@ -195,7 +195,7 @@ func TestAColumnsBorderSetsItsWidth(t *testing.T) {
 	r := u.table.cell(doc.CellCoord{Column: 0})
 	x, y := u.x+r.X+r.W, u.y+r.Y+r.H/2
 	c.move(x, y)
-	if cursor, ok := c.el.chromeCursor(x, y); !ok || cursor != ui.CursorResizeEW {
+	if cursor, ok := c.el.cursorAt(x, y); !ok || cursor != ui.CursorResizeEW {
 		t.Fatal("a column's border does not show it resizes")
 	}
 	c.drag(x, y, x-60, y)
@@ -231,7 +231,7 @@ func TestAnAreaByTheFootMakesARow(t *testing.T) {
 		t.Fatalf("resting by the foot opened %+v, height %v from %v", u.table.in, u.h, h0)
 	}
 	areas := c.el.tableAreas(u)
-	if len(areas) != 1 || areas[0].kind != controlBelow || areas[0].alpha != 1 {
+	if len(areas) != 1 || areas[0].part != partBelow || areas[0].alpha != 1 {
 		t.Fatalf("the foot shows %+v", areas)
 	}
 	x, y := center(areas[0].box)
@@ -302,13 +302,13 @@ func TestGripsComeAndGo(t *testing.T) {
 	id := c.table().pres.Unit
 	c.move(c.cellPoint(doc.CellCoord{}))
 	c.tt.Advance(time.Second)
-	if tm := c.el.chrome.motions[id]; tm == nil || tm.grips.Value() < 0.99 {
+	if v := c.el.springs.value(springKey{unit: id, name: "grips"}); v < 0.99 {
 		t.Fatal("the grips did not come in")
 	}
 	b := tableBox(c.table())
 	c.move(b.X+b.W/2, b.Y+b.H+300)
 	c.tt.Advance(time.Second)
-	if v := c.el.chrome.motions[id].grips.Value(); v > 0.01 {
+	if v := c.el.springs.value(springKey{unit: id, name: "grips"}); v > 0.01 {
 		t.Fatalf("the grips stay at %v", v)
 	}
 }

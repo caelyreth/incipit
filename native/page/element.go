@@ -44,11 +44,20 @@ type Element struct {
 	overscroll    scrollfx.Elastic
 	// tables are the tables scrolled across, by table, and chrome their
 	// controls.
-	tables       map[doc.ID]*tableScroll
-	chrome       tableChrome
-	viewport     ui.Rect
-	column       float32 // the column's left, in the element
-	gesture      *gesture
+	tables   map[doc.ID]*tableScroll
+	chrome   tableChrome
+	viewport ui.Rect
+	column   float32 // the column's left, in the element
+	// drag is the press the page holds until it lets go: a control's or
+	// the text's (controls.go). menu is what its last secondary click
+	// chose, menuChosen whether one did since the last press or key; hotKey
+	// the control the pointer worked at the last paint, and springs the
+	// values its objects and controls move.
+	drag         drag
+	menu         [][]vocab.CommandID
+	menuChosen   bool
+	hotKey       controlKey
+	springs      springs
 	focusPending bool
 	// held is until when a scroll by hand holds the page; typewriter and
 	// viewH are the mode and the height last followed.
@@ -71,11 +80,9 @@ type Element struct {
 	// decos are the decorations the page draws, as last drawn, by
 	// identity, so each fades in and out.
 	decos map[decoKey]*shownDeco
-	// figures are the figures' springs, by figure; hover is the figure
-	// under the pointer, pointer where the pointer last was, in the
-	// element, and focused whether the page had the keys when last
-	// painted.
-	figures map[doc.ID]*figureMotion
+	// hover is the figure under the pointer, pointer where the pointer
+	// last was, in the element, and focused whether the page had the keys
+	// when last painted.
 	// rooms spring each unit's height as a surface in it opens and
 	// closes, stepped as the page is painted at paintNow; roomsMoving asks
 	// for the next paint. maths are the formulas' fades. animate is
@@ -96,7 +103,7 @@ type Element struct {
 
 // NewElement is an element over ed.
 func NewElement(ed *Editor) *Element {
-	el := &Element{Editor: ed, Label: "Page", focusPending: true, figures: map[doc.ID]*figureMotion{}, maths: map[doc.ID]*mathMotion{}}
+	el := &Element{Editor: ed, Label: "Page", focusPending: true, maths: map[doc.ID]*mathMotion{}}
 	el.client = &client{el: el}
 	return el
 }
@@ -226,9 +233,7 @@ func (el *Element) View(c *ui.Context) {
 		// The tables' controls follow the pointer; what they open moves
 		// at the paint's time (stepTables).
 		el.followTables(c, box.Hovered())
-		if el.Editor.resize != nil || el.hoverGrip() {
-			box.Cursor(ui.CursorResizeEW)
-		} else if cursor, ok := el.chromeCursor(el.toPage(el.pointer.X, el.pointer.Y)); ok {
+		if cursor, ok := el.cursorAt(el.toPage(el.pointer.X, el.pointer.Y)); ok {
 			box.Cursor(cursor)
 		}
 		box.ContextMenu(func(m *ui.Menu) { el.contextMenu(m, services) })
@@ -484,31 +489,21 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 	}
 	if ev.Kind == ui.InputPointerDown || ev.Kind == ui.InputKeyDown {
 		// The menu a secondary click chose lasts until the next press.
-		el.chrome.menu = nil
+		el.menu, el.menuChosen = nil, false
 	}
 	switch ev.Kind {
 	case ui.InputPointerDown:
 		x, y := el.toPage(ev.X, ev.Y)
 		if ev.Button == 1 {
 			// A secondary click readies the menu for where it is.
-			el.placeForMenu(x, y, at)
+			el.readyMenu(x, y, at)
 			services.Invalidate()
 			return false
 		}
 		if ev.Button != 0 {
 			return false
 		}
-		if el.beginTableDrag(x, y, ev.Clicks, ev.Mods&ui.Shift != 0, at) {
-			el.Focus()
-			services.Invalidate()
-			return true
-		}
-		if el.beginResize(x, y) {
-			el.Focus()
-			services.Invalidate()
-			return true
-		}
-		if !el.beginGesture(x, y, ev.Clicks, ev.Mods&ui.Shift != 0, at) {
+		if !el.press(x, y, ev.Clicks, ev.Mods&ui.Shift != 0, at) {
 			return false
 		}
 		el.Focus()
@@ -517,40 +512,21 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 	case ui.InputPointerMove:
 		el.pointer = ui.Point{X: ev.X, Y: ev.Y}
 		x, y := el.toPage(ev.X, ev.Y)
-		if r := ed.resize; r != nil {
-			if span := r.spanAt(x); span != r.span {
-				r.span = span
-				services.Invalidate()
-			}
+		if el.drag != nil {
+			el.drag.move(x, y, at)
+			services.Invalidate()
 			return true
 		}
 		el.hoverAt(x, y, services)
-		if el.moveTableDrag(x, y, at) || el.byTable(x, y) {
+		if el.byTable(x, y) {
 			// The tables' controls follow the pointer.
 			services.Invalidate()
 		}
-		if el.chrome.drag != nil {
-			return true
-		}
-		if !el.moveGesture(x, y, at) {
-			return false
-		}
-		services.Invalidate()
-		return true
+		return false
 	case ui.InputPointerUp:
-		if el.finishTableDrag(ev.Canceled, at) {
-			services.Invalidate()
-			return true
-		}
-		if ed.resize != nil {
-			el.finishResize(ev.Canceled, at)
-			services.Invalidate()
-			return true
-		}
-		if el.gesture == nil {
+		if !el.letGo(ev.Canceled, at) {
 			return false
 		}
-		el.finishGesture(ev.Canceled, at)
 		services.Invalidate()
 		return true
 	case ui.InputScroll:
@@ -570,10 +546,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		services.Invalidate()
 		return true
 	case ui.InputKeyDown:
-		if (el.gesture != nil || ed.resize != nil || el.chrome.drag != nil) && ev.Key == ui.KeyEscape {
-			el.finishGesture(true, at)
-			el.finishResize(true, at)
-			el.finishTableDrag(true, at)
+		if ev.Key == ui.KeyEscape && el.letGo(true, at) {
 			services.Invalidate()
 			return true
 		}
@@ -617,11 +590,12 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// paints again without building the view moves it on.
 	now, animate := p.Now(), !p.Preferences().ReduceMotion
 	el.focused, el.paintNow, el.animate = focused, now, animate
-	// The tables' controls open their rooms first: what they ask lays the
-	// page out again.
-	if el.stepTables(now, animate) {
-		p.AnimationFrame()
-	}
+	// The controls' springs step at the paint's time: the tables' rooms
+	// first, and what the page asks of its layouts lays it out again.
+	el.springs.begin(now, animate)
+	el.hotKey = el.hot()
+	el.stepTables(now, animate)
+	el.askLayout()
 	pl = ed.layout
 	el.settleRooms(pl, now, true, animate)
 	if el.roomsMoving {
@@ -681,7 +655,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// The selection's text glides beneath the text; a drag places it
 	// directly, so it follows the pointer and glides on from there. What
 	// else it covers is painted as every paint is.
-	rows := el.selection.Step(selectionRows(pl, paints), now, animate && el.gesture == nil)
+	rows := el.selection.Step(selectionRows(pl, paints), now, animate && el.textGesture() == nil)
 	if el.selection.Moving() {
 		p.AnimationFrame()
 	}
@@ -704,7 +678,9 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		p.AnimationFrame()
 	}
 	el.sweepMaths()
-	el.sweepFigures()
+	if el.springs.end() {
+		p.AnimationFrame()
+	}
 	if el.paintDrop(p, ox, oy, m, now, animate) {
 		p.AnimationFrame()
 	}
@@ -1120,7 +1096,7 @@ func selectionRows(pl *pageLayout, paints []present.Paint) []ui.Rect {
 // a drag holds standing in for the published one.
 func (el *Element) shownPaints(pl *pageLayout) []present.Paint {
 	paints := el.Editor.deco.Paints
-	g := el.gesture
+	g := el.textGesture()
 	if g == nil || !g.valid {
 		return paints
 	}
@@ -1146,7 +1122,7 @@ func (el *Element) shownPaints(pl *pageLayout) []present.Paint {
 // and back; while the pointer is held, a composition is under way or a
 // range is selected, it stays solid.
 func (el *Element) paintCaret(p *ui.Painter, view, caret ui.Rect, collapsed bool, now time.Time, animate bool) {
-	breathes := animate && collapsed && el.gesture == nil && el.Editor.deco.Composition == nil
+	breathes := animate && collapsed && el.textGesture() == nil && el.Editor.deco.Composition == nil
 	alpha := float32(1)
 	if breathes {
 		alpha = motion.CaretOpacity(el.Editor.active, now)

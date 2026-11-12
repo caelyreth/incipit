@@ -43,12 +43,9 @@ type Editor struct {
 	active time.Time
 	// reveal asks the next frame to scroll the caret into view.
 	reveal bool
-	// resize is a figure resize the renderer holds until release.
-	resize *figureResize
-	// tables are what the page asks of its tables' layouts while it shows
-	// their controls: room an area opens, a column's width as its border's
-	// drag sets it.
-	tables map[doc.ID]tableIn
+	// asks are what the page asks of its objects' layouts besides their
+	// presentations, as its controls and their drags preview (askLayout).
+	asks map[doc.ID]objectIn
 
 	mu     sync.Mutex
 	timer  *time.Timer
@@ -93,19 +90,7 @@ func (ed *Editor) Relayout() *pageLayout {
 	}
 	pres := ed.Engine.Present(ed.View, ids)
 	ed.deco = ed.Engine.Decorations(ed.View)
-	ins := map[doc.ID]objectIn{}
-	if r := ed.resize; r != nil {
-		ins[r.node] = objectIn{span: r.span}
-	}
-	for id, t := range ed.tables {
-		in, ok := ins[id]
-		if !ok {
-			in.span = -1
-		}
-		in.table = t
-		ins[id] = in
-	}
-	ed.layout = ed.cache.build(pres, ed.deco, ed.theme, ed.metrics, ins)
+	ed.layout = ed.cache.build(pres, ed.deco, ed.theme, ed.metrics, ed.asks)
 	return ed.layout
 }
 

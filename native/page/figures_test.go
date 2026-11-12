@@ -129,12 +129,14 @@ func TestAResizeCommitsOneSpan(t *testing.T) {
 	if !ok {
 		t.Fatal("no grip")
 	}
-	if !el.beginResize(grip.X+grip.W/2, grip.Y+grip.H/2) {
-		t.Fatal("the grip did not start a resize")
+	if !el.press(grip.X+grip.W/2, grip.Y+grip.H/2, 1, false, time.Unix(300, 0)) {
+		t.Fatal("the grip took no press")
 	}
-	r := el.Editor.resize
-	r.span = r.spanAt(grip.X + grip.W/2 + 50)
-	el.finishResize(false, time.Unix(301, 0))
+	if _, ok := el.drag.(*figureResize); !ok {
+		t.Fatalf("the grip started %T, not a resize", el.drag)
+	}
+	el.drag.move(grip.X+grip.W/2+50, grip.Y, time.Unix(300, 0))
+	el.letGo(false, time.Unix(301, 0))
 	n, _ := el.Editor.Engine.Snapshot().Node(u.pres.Unit)
 	width := el.Editor.metrics.Width - u.x
 	want := int((400 + 100) / width * profile.SpanFull)

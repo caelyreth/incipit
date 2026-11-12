@@ -145,9 +145,11 @@ func (lc *layoutCache) layFigure(u *unitLayout, p *present.Presentation, comp *p
 	}
 }
 
-// figureResize is a resize gesture in progress: the figure, the grip's
-// side, where the press started and the span it previews.
+// figureResize is a resize from a figure's grip, the page's drag until
+// release: the figure, the grip's side, where the press started and the
+// span it previews.
 type figureResize struct {
+	el     *Element
 	node   doc.ID
 	side   float32 // -1 for the start side's grip, 1 for the end's
 	x0, w0 float32
@@ -174,10 +176,55 @@ func (r *figureResize) label() string {
 	return fmt.Sprintf("%d%%", (r.span+5)/10)
 }
 
-// figureMotion is a figure's springs across frames.
-type figureMotion struct {
-	shown, grips, hint motion.Spring
-	seen               bool
+func (r *figureResize) key() controlKey {
+	return controlKey{unit: r.node, part: partFigureGrip, at: int(r.side)}
+}
+func (r *figureResize) cursor() ui.Cursor { return ui.CursorResizeEW }
+
+func (r *figureResize) move(x, _ float32, _ time.Time) { r.span = r.spanAt(x) }
+
+// finish commits the span as one intent, unless canceled.
+func (r *figureResize) finish(canceled bool, at time.Time) {
+	if !canceled {
+		r.el.Editor.Do(profile.ResizeFigure{ID: r.node, Span: r.span}, at)
+	}
+}
+
+// ask previews the span in the figure's layout.
+func (r *figureResize) ask(asks map[doc.ID]objectIn) {
+	a := askOf(asks, r.node)
+	a.span = r.span
+	asks[r.node] = a
+}
+
+// partFigureGrip is a figure's grip, at its side.
+const partFigureGrip part = "figure-grip"
+
+// controls are a figure's grips while it shows them, each resizing it
+// from its side.
+func (figureKind) controls(el *Element, u *unitLayout) []control {
+	if !el.gripsShown(u) {
+		return nil
+	}
+	var out []control
+	for _, side := range grips(u) {
+		r, ok := gripRect(u, side)
+		if !ok {
+			continue
+		}
+		out = append(out, control{
+			key:    controlKey{unit: u.pres.Unit, part: partFigureGrip, at: int(side)},
+			rect:   grown(r, 4, 4),
+			cursor: ui.CursorResizeEW,
+			press: func(x, _ float32, _ int, _ bool, _ time.Time) drag {
+				d := &figureResize{el: el, node: u.pres.Unit, side: side, x0: x, w0: u.box.W,
+					both: u.figure.Align == profile.AlignCenter, width: max(el.Editor.metrics.Width-u.x, 1)}
+				d.span = d.spanAt(x)
+				return d
+			},
+		})
+	}
+	return out
 }
 
 // grips are the sides a figure resizes from: both of a centered one, the
@@ -232,42 +279,14 @@ func (pl *pageLayout) figureAt(x, y float32) (*unitLayout, float32) {
 	return nil, 0
 }
 
-// beginResize starts a resize from a grip under the pointer, when the
-// figure shows its grips.
-func (el *Element) beginResize(x, y float32) bool {
-	pl := el.Editor.layout
-	if pl == nil {
-		return false
-	}
-	u, side := pl.figureAt(x, y)
-	if u == nil || side == 0 || !el.gripsShown(u) {
-		return false
-	}
-	width := max(el.Editor.metrics.Width-u.x, 1)
-	el.Editor.resize = &figureResize{node: u.pres.Unit, side: side, x0: x, w0: u.box.W,
-		both: u.figure.Align == profile.AlignCenter, width: width}
-	el.Editor.resize.span = el.Editor.resize.spanAt(x)
-	return true
-}
-
 // gripsShown reports whether a figure shows its grips: selected alone
 // while the page has the keys, under the pointer, or being resized.
 func (el *Element) gripsShown(u *unitLayout) bool {
-	if r := el.Editor.resize; r != nil {
+	if r, ok := el.drag.(*figureResize); ok {
 		return r.node == u.pres.Unit
 	}
 	sel := el.shownSelection()
 	return sel.Kind == doc.SelectNode && sel.Node == u.pres.Unit && el.focused || el.hover == u.pres.Unit
-}
-
-// finishResize commits a resize as one intent, or drops it.
-func (el *Element) finishResize(canceled bool, at time.Time) {
-	r := el.Editor.resize
-	el.Editor.resize = nil
-	if r == nil || canceled {
-		return
-	}
-	el.Editor.Do(profile.ResizeFigure{ID: r.node, Span: r.span}, at)
 }
 
 // paintFigure draws a figure's picture, its place while the picture is on
@@ -291,30 +310,13 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, now
 	if el.hinted(u) {
 		hint = 1
 	}
-	fm, known := el.figures[u.pres.Unit]
-	if !known {
-		// A picture already decoded shows at once, as when a page opens
-		// again; one that has to wait fades in.
-		fm = &figureMotion{shown: motion.NewUnitSpring(shown, now),
-			grips: motion.NewUnitSpring(grip, now), hint: motion.NewUnitSpring(hint, now)}
-		el.figures[u.pres.Unit] = fm
-	}
-	fm.seen = true
-	for _, s := range []struct {
-		spring *motion.Spring
-		to     float32
-	}{{&fm.shown, shown}, {&fm.grips, grip}, {&fm.hint, hint}} {
-		if animate {
-			s.spring.Step(s.to, now, figureFade)
-		} else {
-			*s.spring = motion.NewUnitSpring(s.to, now)
-		}
-		if s.spring.Moving() {
-			p.AnimationFrame()
-		}
-	}
+	// A picture already decoded shows at once, as when a page opens
+	// again; one that has to wait fades in.
+	id := u.pres.Unit
+	alpha := el.springs.follow(springKey{unit: id, name: "picture"}, shown, figureFade, true)
+	gripsShown := el.springs.follow(springKey{unit: id, name: "grips"}, grip, figureFade, true)
+	hinted := el.springs.follow(springKey{unit: id, name: "hint"}, hint, figureFade, true)
 
-	alpha := fm.shown.Value()
 	if alpha < 1 {
 		p.Fill(box, t.Surface.Inset.Alpha(1-alpha), radius)
 	}
@@ -341,7 +343,7 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, now
 			p.FillGradient(band, ui.LinearGradient{From: page.Alpha(0), To: page.Alpha(alpha), Angle: 180}, 0)
 		}
 	}
-	if a := fm.grips.Value(); a > 0.001 {
+	if a := gripsShown; a > 0.001 {
 		for _, side := range grips(u) {
 			r, ok := gripRect(u, side)
 			if !ok {
@@ -354,10 +356,10 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, now
 			p.Stroke(r, t.Border.Default.Alpha(a), gripWidth/2, 1)
 		}
 	}
-	if r := el.Editor.resize; r != nil && r.node == u.pres.Unit {
+	if r, ok := el.drag.(*figureResize); ok && r.node == u.pres.Unit {
 		el.paintResizeLabel(p, box, r.label())
 	}
-	if a := fm.hint.Value(); a > 0.001 && len(u.surfaces) > 0 {
+	if a := hinted; a > 0.001 && len(u.surfaces) > 0 {
 		s := u.surfaces[0]
 		span, x, _ := hintOf(u, el.Editor.theme, m)
 		span.Color = t.Text.Muted.Alpha(0.65 * a)
@@ -418,16 +420,6 @@ func (el *Element) paintChip(p *ui.Painter, label string, place func(chip ui.Rec
 	p.RichText(chip.X+padX, chip.Y+padY, 0, span)
 }
 
-// sweepFigures forgets the motion of figures no longer drawn.
-func (el *Element) sweepFigures() {
-	for id, fm := range el.figures {
-		if !fm.seen {
-			delete(el.figures, id)
-		}
-		fm.seen = false
-	}
-}
-
 // hoverAt follows the figure under the pointer, for its grips.
 func (el *Element) hoverAt(x, y float32, services ui.Services) {
 	var id doc.ID
@@ -440,16 +432,6 @@ func (el *Element) hoverAt(x, y float32, services ui.Services) {
 		el.hover = id
 		services.Invalidate()
 	}
-}
-
-// hoverGrip reports whether the pointer is over a shown grip.
-func (el *Element) hoverGrip() bool {
-	pl := el.Editor.layout
-	if pl == nil || el.hover == 0 {
-		return false
-	}
-	u, side := pl.figureAt(el.toPage(el.pointer.X, el.pointer.Y))
-	return u != nil && side != 0 && el.gripsShown(u)
 }
 
 // While pictures are dragged over the page, a line between its blocks
