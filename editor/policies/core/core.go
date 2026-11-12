@@ -310,7 +310,10 @@ func deleteAcross(c *policy.Ctx, _ vocab.Delete, at policy.At[policy.Crossing]) 
 }
 
 // breakBlock is Enter: a line break in slots that keep lines, but on a
-// block's empty last line it leaves the block; a split elsewhere. At a
+// block's empty last line it leaves the block; an empty block leaves the
+// container holding it, lifted out as Backspace lifts a container's first
+// block, where the slot around the container takes it (an entry leaves
+// through its own level); a split elsewhere. At a
 // block's text start, and before its marker, a block opens before it and
 // the caret stays; a heading split at its end continues as a paragraph.
 // An object breaks beside it: selected, or from an own slot that keeps
@@ -365,6 +368,11 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 	block, ok := vocab.Block(r, pos)
 	if !ok {
 		return policy.Swallow
+	}
+	if clear == nil && vocab.HoldsNothing(block) && !r.Schema().IsEntry(block.Kind()) && vocab.CanLift(r, block.ID()) {
+		res := policy.Do(vocab.Lift(block.ID()))
+		res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
+		return res
 	}
 	if clear == nil && pos.Offset == 0 && pos.Slot == 0 && block.Slot(0).Len() > 0 {
 		// The block keeps its text and the caret; an empty one opens

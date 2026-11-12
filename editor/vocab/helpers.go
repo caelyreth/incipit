@@ -272,7 +272,7 @@ func CanJoin(r doc.Reader, first, second doc.SlotRef) bool {
 	if !ok || inObject(r, second.Node) {
 		return false
 	}
-	if holdsNothing(sn) {
+	if HoldsNothing(sn) {
 		return true
 	}
 	if inObject(r, first.Node) || a.Literal != b.Literal {
@@ -325,8 +325,8 @@ func CanLift(r doc.Reader, id doc.ID) bool {
 	return ok && Accepts(r, container, n.Kind())
 }
 
-// holdsNothing reports whether every slot of n is empty.
-func holdsNothing(n *doc.Node) bool {
+// HoldsNothing reports whether every slot of n is empty.
+func HoldsNothing(n *doc.Node) bool {
 	for _, s := range n.Slots() {
 		if s.Len() > 0 {
 			return false

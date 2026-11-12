@@ -155,6 +155,35 @@ func TestEnterOnAnEmptyLastLineLeavesTheBlock(t *testing.T) {
 	p.want("page(code(x\n\ny))")
 }
 
+// An empty block leaves the container holding it, as an empty item
+// leaves its list: at its end, in its middle, splitting it, and one
+// level of nesting at a time.
+func TestEnterInAnEmptyBlockLeavesItsContainer(t *testing.T) {
+	p := open(t)
+	p.typeText("> a")
+	p.do(vocab.Break{})
+	p.do(vocab.Break{})
+	p.typeText("z")
+	p.want("page(quote(paragraph(a)) paragraph(z))")
+
+	p = open(t)
+	p.typeText("> a")
+	p.do(vocab.Break{})
+	p.typeText("b")
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.At(doc.SlotRef{Node: p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Child(0).ID()}, 1))})
+	p.do(vocab.Break{})
+	p.do(vocab.Break{})
+	p.want("page(quote(paragraph(a)) paragraph() quote(paragraph(b)))")
+
+	p = open(t)
+	p.typeText("> > a")
+	p.do(vocab.Break{})
+	p.do(vocab.Break{})
+	p.want("page(quote(quote(paragraph(a)) paragraph()))")
+	p.do(vocab.Break{})
+	p.want("page(quote(quote(paragraph(a))) paragraph())")
+}
+
 func TestLeaveAndReturnFromFormula(t *testing.T) {
 	p := open(t)
 	p.typeText("a $x")
