@@ -8,9 +8,7 @@ import (
 // Stops is a view's stop model: the caret stops the presentation defines,
 // in logical order. The engine owns it and builds it from the presentation,
 // so logical motion in policies lands exactly where the renderer shows
-// carets. Entry stops, inside attached surfaces, are reached only through
-// explicit intents; ordinary motion moves among them only while the caret
-// is already in their surface, and leaves through the surface's edges.
+// carets. Motion reaches every stop, an object's own slots' among them.
 type Stops interface {
 	// Step is the stop next to c in dir, or false at the page's edge.
 	Step(c doc.Caret, dir vocab.Direction) (doc.Caret, bool)

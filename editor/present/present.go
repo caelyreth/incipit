@@ -265,22 +265,25 @@ func (pr *Presenter) UnitAt(r doc.Reader, pos doc.Pos) (int, bool) {
 		return 0, false
 	}
 	if n.Slot(pos.Slot).IsInline() {
-		id := pos.Node
+		id, nested := pos.Node, false
 		for {
 			if i, ok := index[id]; ok {
-				// A text unit, or an object whose own slot it is.
-				return i, true
+				// A text unit, or an object whose text it is, however
+				// deep in it (§13.4).
+				if an, _ := r.Node(id); !nested || r.Schema().IsObject(an.Kind()) {
+					return i, true
+				}
+				return 0, false
 			}
 			parent, slot, ok := r.Parent(id)
 			if !ok {
 				return 0, false
 			}
 			pn, _ := r.Node(parent)
-			if !pn.Slot(slot).IsInline() {
-				// An inline slot of a node that is not a unit, as an
-				// item's body is not: no stops present it.
-				return 0, false
-			}
+			// Past a slot of blocks only an object presents what it holds;
+			// an inline slot of a node that is not a unit otherwise has no
+			// stops, as an item's body has not.
+			nested = nested || !pn.Slot(slot).IsInline()
 			id = parent
 		}
 	}
@@ -477,18 +480,26 @@ func build(e env, u UnitRef, key unitKey) *Presentation {
 		Role: style.Role, Level: style.Level, Gap: u.Gap, Gaps: u.Gaps, key: key}
 	if p.Object = e.r.Schema().IsObject(n.Kind()); p.Object {
 		// An object is drawn by its kind's renderer from its node, between
-		// gap stops; its own inline slots (a figure's caption, a math
-		// block's source) are its surfaces, read in order between the
-		// gaps, open while the object is held.
-		// TODO(tables): present cells as nested surfaces with stops.
+		// gap stops; every text slot it holds, however deep (a figure's
+		// caption, a math block's source, a table's cells), is one of its
+		// surfaces, read in document order between the gaps, open while the
+		// object is held.
 		if u.Gap != nil && u.Gaps[0] {
 			p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(*u.Gap), Surface: -1, Class: StopGap, Offset: u.Gap.Offset})
 		}
-		for i, sl := range n.Slots() {
-			if sl.IsInline() {
-				flowOf(e, p, doc.SlotRef{Node: n.ID(), Slot: i}, p.Group, false, 0, key.held)
+		var held func(n *doc.Node)
+		held = func(n *doc.Node) {
+			for i, sl := range n.Slots() {
+				if sl.IsInline() {
+					flowOf(e, p, doc.SlotRef{Node: n.ID(), Slot: i}, p.Group, false, 0, key.held)
+					continue
+				}
+				for _, c := range sl.Children() {
+					held(c)
+				}
 			}
 		}
+		held(n)
 		if u.Gap != nil && u.Gaps[1] {
 			after := doc.Pos{Node: u.Gap.Node, Slot: u.Gap.Slot, Offset: u.Gap.Offset + 1}
 			p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(after), Surface: -1, Class: StopGap, Offset: after.Offset})

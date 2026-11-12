@@ -270,13 +270,13 @@ func CanJoin(r doc.Reader, first, second doc.SlotRef) bool {
 		return false
 	}
 	sn, ok := r.Node(second.Node)
-	if !ok || r.Schema().IsObject(sn.Kind()) {
+	if !ok || inObject(r, second.Node) {
 		return false
 	}
 	if holdsNothing(sn) {
 		return true
 	}
-	if fn, ok := r.Node(first.Node); !ok || r.Schema().IsObject(fn.Kind()) || a.Literal != b.Literal {
+	if inObject(r, first.Node) || a.Literal != b.Literal {
 		return false
 	}
 	if !a.Lines {
@@ -289,6 +289,30 @@ func CanJoin(r doc.Reader, first, second doc.SlotRef) bool {
 }
 
 // holdsNothing reports whether every slot of n is empty.
+// inObject reports whether node id is an object or lies inside one. An
+// object's text is its own: it never takes another block's text by
+// joining, and what it holds never leaves it so.
+func inObject(r doc.Reader, id doc.ID) bool {
+	for _, a := range append(doc.Ancestors(r, id), id) {
+		if n, ok := r.Node(a); ok && r.Schema().IsObject(n.Kind()) {
+			return true
+		}
+	}
+	return false
+}
+
+// CanLift reports whether a block lifted stays what it is: the slot
+// holding id's container takes id's kind. Lift itself also moves what is
+// converted after, as an item leaving its list.
+func CanLift(r doc.Reader, id doc.ID) bool {
+	n, ok := r.Node(id)
+	if !ok {
+		return false
+	}
+	container, _, ok := r.Parent(id)
+	return ok && Accepts(r, container, n.Kind())
+}
+
 func holdsNothing(n *doc.Node) bool {
 	for _, s := range n.Slots() {
 		if s.Len() > 0 {

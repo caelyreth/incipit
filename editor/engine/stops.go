@@ -52,14 +52,14 @@ func (m *stopModel) unit(i int) *present.Presentation {
 	return m.pr.Unit(m.prog, m.store, m.r, m.view, i)
 }
 
-// flowStops are a unit's stops: ordinary motion reaches every one, an
-// object's own slots' among them (§13.5).
-func flowStops(p *present.Presentation) []present.Stop {
-	if p == nil {
-		return nil
+// stops are unit i's stops, none for no unit.
+func (m *stopModel) stops(i int) []present.Stop {
+	if p := m.unit(i); p != nil {
+		return p.Stops
 	}
-	return p.Stops
+	return nil
 }
+
 
 // locate finds c among stops: exactly, or else the place it would stand,
 // as the index of the last stop before it (-1 when none is).
@@ -113,7 +113,7 @@ func (m *stopModel) Step(c doc.Caret, dir vocab.Direction) (doc.Caret, bool) {
 		if next == nil {
 			break
 		}
-		fs := flowStops(next)
+		fs := next.Stops
 		if dir < 0 {
 			for x := len(fs) - 1; x >= 0; x-- {
 				if fs[x].Caret != c {
@@ -135,14 +135,14 @@ func (m *stopModel) Edge(dir vocab.Direction) (doc.Caret, bool) {
 	units := m.pr.Units(m.r)
 	if dir < 0 {
 		for i := range units {
-			if fs := flowStops(m.unit(i)); len(fs) > 0 {
+			if fs := m.stops(i); len(fs) > 0 {
 				return fs[0].Caret, true
 			}
 		}
 		return doc.Caret{}, false
 	}
 	for i := len(units) - 1; i >= 0; i-- {
-		if fs := flowStops(m.unit(i)); len(fs) > 0 {
+		if fs := m.stops(i); len(fs) > 0 {
 			return fs[len(fs)-1].Caret, true
 		}
 	}
@@ -209,7 +209,7 @@ func isInline(r doc.Reader, pos doc.Pos) bool {
 // previous is the last flow stop of the units before unit i.
 func (m *stopModel) previous(i int) (doc.Caret, bool) {
 	for u := i - 1; u >= 0; u-- {
-		if fs := flowStops(m.unit(u)); len(fs) > 0 {
+		if fs := m.stops(u); len(fs) > 0 {
 			return fs[len(fs)-1].Caret, true
 		}
 	}
@@ -252,7 +252,7 @@ func (m *stopModel) nearest(c doc.Caret) doc.Caret {
 	units := m.pr.Units(m.r)
 	var last *doc.Caret
 	for i := range units {
-		fs := flowStops(m.unit(i))
+		fs := m.stops(i)
 		if len(fs) == 0 {
 			continue
 		}
