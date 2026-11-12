@@ -158,7 +158,11 @@ func candidatesAt(c *policy.Ctx) []candidate {
 func presented(r doc.Reader, l *policy.Level) bool {
 	switch l.Class {
 	case policy.LevelNode:
-		return l.Node != nil && (r.Schema().IsObject(l.Node.Kind()) || !inObject(r, l.Node.ID()))
+		if l.Node == nil {
+			return false
+		}
+		obj, in := vocab.ObjectOf(r, l.Node.ID())
+		return !in || obj == l.Node.ID()
 	case policy.LevelSlot:
 		n := l.Node
 		if n == nil || l.Slot.Slot >= len(n.Slots()) {
@@ -167,19 +171,10 @@ func presented(r doc.Reader, l *policy.Level) bool {
 		if n.Slots()[l.Slot.Slot].IsInline() {
 			return true
 		}
-		return !r.Schema().IsObject(n.Kind()) && !inObject(r, n.ID())
+		_, in := vocab.ObjectOf(r, n.ID())
+		return !in
 	}
 	return true
-}
-
-// inObject reports whether an object holds id.
-func inObject(r doc.Reader, id doc.ID) bool {
-	for _, a := range doc.Ancestors(r, id) {
-		if n, ok := r.Node(a); ok && r.Schema().IsObject(n.Kind()) {
-			return true
-		}
-	}
-	return false
 }
 
 // settled puts a candidate's ends on stops and shapes its range, as the

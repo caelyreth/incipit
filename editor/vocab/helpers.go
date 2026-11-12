@@ -287,17 +287,30 @@ func CanJoin(r doc.Reader, first, second doc.SlotRef) bool {
 	return true
 }
 
-// holdsNothing reports whether every slot of n is empty.
 // inObject reports whether node id is an object or lies inside one. An
 // object's text is its own: it never takes another block's text by
 // joining, and what it holds never leaves it so.
 func inObject(r doc.Reader, id doc.ID) bool {
-	for _, a := range append(doc.Ancestors(r, id), id) {
-		if n, ok := r.Node(a); ok && r.Schema().IsObject(n.Kind()) {
-			return true
+	_, ok := ObjectOf(r, id)
+	return ok
+}
+
+// ObjectOf is the object whose text node id's text is: the nearest object
+// holding id, id itself included. An object is one unit whose text,
+// however deep, is its surfaces, as a table's is in its cells; the nodes
+// between it and its text only arrange them.
+func ObjectOf(r doc.Reader, id doc.ID) (doc.ID, bool) {
+	for n, ok := r.Node(id); ok; {
+		if r.Schema().IsObject(n.Kind()) {
+			return n.ID(), true
 		}
+		parent, _, has := r.Parent(n.ID())
+		if !has {
+			break
+		}
+		n, ok = r.Node(parent)
 	}
-	return false
+	return 0, false
 }
 
 // CanLift reports whether a block lifted stays what it is: the slot
@@ -312,6 +325,7 @@ func CanLift(r doc.Reader, id doc.ID) bool {
 	return ok && Accepts(r, container, n.Kind())
 }
 
+// holdsNothing reports whether every slot of n is empty.
 func holdsNothing(n *doc.Node) bool {
 	for _, s := range n.Slots() {
 		if s.Len() > 0 {

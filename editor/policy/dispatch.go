@@ -385,11 +385,15 @@ func (p *Program) placed(c *Ctx, stack *Stack, li int, alts []alt) (*Level, bool
 }
 
 // ownSlot is the level's own text slot, when the caret is in it: a node's
-// own inline slot, or the slot of a slot level when it is inline.
+// own inline slot, or any an object presents, however deep, as a table's
+// cells (vocab.ObjectOf); or the slot of a slot level when it is inline.
 func ownSlot(r doc.Reader, l *Level, pos doc.Pos) (doc.SlotRef, bool) {
 	switch l.Class {
 	case LevelNode:
-		if l.Node == nil || pos.Node != l.Node.ID() {
+		if l.Node == nil {
+			return doc.SlotRef{}, false
+		}
+		if obj, ok := vocab.ObjectOf(r, pos.Node); pos.Node != l.Node.ID() && (!ok || obj != l.Node.ID()) {
 			return doc.SlotRef{}, false
 		}
 	case LevelSlot:

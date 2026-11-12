@@ -232,3 +232,22 @@ func TestSelectScopeInACellSelectsTheTableNext(t *testing.T) {
 		}
 	}
 }
+
+// A table's text is in its cells: Escape there selects the table, as it
+// selects any object from its text, and again enters it.
+func TestDismissInACellSelectsTheTable(t *testing.T) {
+	p := open(t)
+	p.typeText("above")
+	p.do(vocab.Break{})
+	p.do(profile.InsertTable{Rows: 2, Columns: 2})
+	p.typeText("cell")
+	p.do(vocab.Dismiss{})
+	sel := p.selection()
+	if n, ok := p.e.Snapshot().Node(sel.Node); sel.Kind != doc.SelectNode || !ok || n.Kind() != profile.Table {
+		t.Fatalf("Escape in a cell selects %+v, want the table", sel)
+	}
+	p.do(vocab.Dismiss{})
+	if sel := p.selection(); sel.Kind != doc.SelectText || !sel.IsCollapsed() {
+		t.Fatalf("Escape on the selected table selects %+v, want a caret in it", sel)
+	}
+}
