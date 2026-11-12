@@ -251,3 +251,28 @@ func TestTypingRewritesOnlyWhatItCauses(t *testing.T) {
 	p.typeText("a--b")
 	p.want("page(paragraph(a—b))")
 }
+
+// In source text, nesting is the lines' indentation: Tab indents the
+// lines a selection touches, Shift+Tab takes it back, and with none to
+// take, the container's outdent comes next.
+func TestTabIndentsCode(t *testing.T) {
+	nest, outdent := vocab.Command{ID: "lists.nest"}, vocab.Command{ID: "lists.outdent"}
+	p := open(t)
+	p.typeText("```go")
+	p.do(vocab.Break{})
+	p.typeText("x")
+	p.do(vocab.SoftBreak{})
+	p.typeText("y")
+	p.do(nest)
+	p.want("page(code(x\n    y))")
+	p.typeText("z")
+	p.want("page(code(x\n    yz))")
+	p.do(vocab.SelectScope{})
+	p.do(nest)
+	p.want("page(code(    x\n        yz))")
+	p.do(outdent)
+	p.do(outdent)
+	p.want("page(code(x\nyz))")
+	p.do(outdent)
+	p.want("page(code(x\nyz))")
+}

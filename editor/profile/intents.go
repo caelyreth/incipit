@@ -136,3 +136,8 @@ func (ShapeColumn) Kind() vocab.IntentKind  { return intentColumn }
 func (AlignColumns) Kind() vocab.IntentKind { return intentAlignCol }
 func (ToggleHeader) Kind() vocab.IntentKind { return intentHeader }
 func (DeleteTable) Kind() vocab.IntentKind  { return intentDropTable }
+
+// SourceIndent is one level of source text's indentation: what Nest adds
+// at the start of each line of a slot that keeps literal lines, as a code
+// block's, and takes from it again.
+const SourceIndent = "    "
