@@ -97,6 +97,10 @@ func (g *Glide) Step(current float32, now time.Time, animate bool) (float32, boo
 	return position, moving
 }
 
+// Shift moves the glide's way by d, as the page under it moves, so it
+// lands as far from what it was going to.
+func (g *Glide) Shift(d float32) { g.to += d }
+
 // Moving reports a glide in flight.
 func (g *Glide) Moving() bool { return g.moving }
 

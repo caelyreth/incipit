@@ -3,7 +3,6 @@ package page
 import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/vocab"
-	"maps"
 	"math"
 	"time"
 
@@ -113,8 +112,8 @@ func (el *Element) metrics(width float32) Metrics {
 		Width:   col,
 		Indent:  el.Prose.FontSize * 1.6,
 		Gap:     el.Prose.Leading() * 0.9,
-		// The margins less a body size's room from the page's edge.
-		Reach: max((width-col)/2-el.Prose.FontSize, 0),
+		// The margins less the gutters a table's controls stand in.
+		Reach: max((width-col)/2-el.tableGutter(), 0),
 	}
 }
 
@@ -224,13 +223,9 @@ func (el *Element) View(c *ui.Context) {
 			el.Pictures.Wake = services.Invalidate
 		}
 		el.takeDrops(box)
-		// The tables' controls follow the pointer, and what they ask of
-		// the layout lays it out again.
-		asked := ed.tables
+		// The tables' controls follow the pointer; what they open moves
+		// at the paint's time (stepTables).
 		el.followTables(c, box.Hovered())
-		if !maps.Equal(asked, ed.tables) {
-			el.relayout()
-		}
 		if el.Editor.resize != nil || el.hoverGrip() {
 			box.Cursor(ui.CursorResizeEW)
 		} else if cursor, ok := el.chromeCursor(el.toPage(el.pointer.X, el.pointer.Y)); ok {
@@ -499,7 +494,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		if ev.Button != 0 {
 			return false
 		}
-		if el.beginTableDrag(x, y, ev.Clicks, ev.Mods&ui.Shift != 0) {
+		if el.beginTableDrag(x, y, ev.Clicks, ev.Mods&ui.Shift != 0, at) {
 			el.Focus()
 			services.Invalidate()
 			return true
@@ -526,7 +521,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 			return true
 		}
 		el.hoverAt(x, y, services)
-		if el.moveTableDrag(x, y) || el.byTable(x, y) {
+		if el.moveTableDrag(x, y, at) || el.byTable(x, y) {
 			// The tables' controls follow the pointer.
 			services.Invalidate()
 		}
@@ -618,6 +613,12 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// paints again without building the view moves it on.
 	now, animate := p.Now(), !p.Preferences().ReduceMotion
 	el.focused, el.paintNow, el.animate = focused, now, animate
+	// The tables' controls open their rooms first: what they ask lays the
+	// page out again.
+	if el.stepTables(now, animate) {
+		p.AnimationFrame()
+	}
+	pl = ed.layout
 	el.settleRooms(pl, now, true, animate)
 	if el.roomsMoving {
 		p.AnimationFrame()

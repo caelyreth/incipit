@@ -44,49 +44,79 @@ type tableLayout struct {
 	columns, widths, rows, heights []float32
 	// cells are each surface's cell, a row of -1 for one outside the grid.
 	cells []doc.CellCoord
-	// base and baseY are each surface's place with the grid unscrolled
-	// and at rest.
+	// base and baseY are each surface's place with the grid unscrolled.
 	base, baseY []float32
 	header      bool
 	// left is the grid's left edge in the unit unscrolled; overflow how far
 	// it scrolls across what it shows (the unit's box), and scroll how far
 	// it is scrolled as drawn, past an end while it pulls elastic there.
 	left, overflow, scroll float32
-	// in is what the page asked of the layout; area is the room an area
-	// it asked for takes, in the unit, unscrolled.
-	in   tableIn
-	area ui.Rect
-	// dx and dy are each column's and each row's drawn offset from where
-	// it is laid, as a carried line and those making room for it are
-	// drawn; lifted is the line carried, -1 for none, and lead the row
-	// drawn first, which a header row's inset marks; liftRows says the
-	// carried line is a row.
-	dx, dy       []float32
-	lifted, lead int
-	liftRows     bool
+	// in is what the page asked of the layout, and below, rowGap,
+	// columnGap and apart the rooms it gave, in the unit, those across
+	// unscrolled: under the foot, between two rows, between two columns,
+	// and each that a carry opens, as in.apart has them.
+	in                       tableIn
+	below, rowGap, columnGap ui.Rect
+	apart                    [maxApart]ui.Rect
 }
 
-// tableIn is what the page asks of a table's layout while it shows its
-// controls: the room an area opens for a row or a column before line At,
-// or past the last, and a column's width as its border's drag sets it.
+// tableIn is what the page asks of a table's layout while its controls
+// show, each as far as it has come: the room an area opens under the foot
+// (below), between two rows before row, and between two columns before
+// column; the rooms a carry opens before a line; the lines coming in; and
+// a column's width as its border's drag sets it. Its zero value asks
+// nothing.
 type tableIn struct {
-	area  tableArea
-	at    int
+	below               float32
+	row, column         int
+	rowRoom, columnRoom float32
+	apart               [maxApart]lineRoom
+	// grow are the rows and the columns coming in.
+	grow  [2]lineGrow
 	sized int
 	width float32
 }
 
-// tableArea is what an open area makes.
-type tableArea uint8
+// maxApart is how many rooms a carry has open at once in a table: the one
+// it would land in and those it left, closing.
+const maxApart = 3
 
-const (
-	areaNone tableArea = iota
-	areaRow
-	areaColumn
-)
+// lineRoom is room before line at, among the rows or the columns.
+type lineRoom struct {
+	rows bool
+	at   int
+	room float32
+}
 
-// areaGap is the room between a table and an area beside it or below it.
-func areaGap(m Metrics) float32 { return m.Body * 0.4 }
+// lineGrow is a run of lines from to to, coming in at share of their
+// size.
+type lineGrow struct {
+	from, to int
+	share    float32
+}
+
+// apartAt is the room the carry opens before line at.
+func (in tableIn) apartAt(rows bool, at int) float32 {
+	room := float32(0)
+	for _, a := range in.apart {
+		if a.rows == rows && a.at == at {
+			room += a.room
+		}
+	}
+	return room
+}
+
+// share is how far line i has come in.
+func (in tableIn) share(rows bool, i int) float32 {
+	g := in.grow[1]
+	if rows {
+		g = in.grow[0]
+	}
+	if i >= g.from && i < g.to {
+		return g.share
+	}
+	return 1
+}
 
 // tableKind draws a table: its cells in a grid.
 type tableKind struct{}
@@ -109,22 +139,14 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 	line := lineHeight(m, m.Body)
 	padX := float32(math.Round(float64(line * cellPadX)))
 	padY := float32(math.Round(float64(line * cellPadY)))
+	tin := in.table
 	t := &tableLayout{header: shape.Header, cells: make([]doc.CellCoord, len(p.Surfaces)),
 		base: make([]float32, len(p.Surfaces)), baseY: make([]float32, len(p.Surfaces)),
-		rows: make([]float32, rows), heights: make([]float32, rows), in: in.table,
-		dx: make([]float32, columns), dy: make([]float32, rows), lifted: -1}
-	tin := in.table
+		rows: make([]float32, rows), heights: make([]float32, rows), in: tin}
 	if tin.width > 0 && tin.sized < len(shape.Columns) {
 		// A column's width as its border's drag sets it.
 		shape.Columns = slices.Clone(shape.Columns)
 		shape.Columns[tin.sized].Width, shape.Columns[tin.sized].Fit = int(math.Round(float64(tin.width))), false
-	}
-	// An area between two columns takes a new column's least room from
-	// the others; one between rows, a new row's.
-	rowRoom := line + 2*padY
-	columnRoom := float32(0)
-	if tin.area == areaColumn && tin.at > 0 && tin.at < columns {
-		columnRoom = line * readColumn
 	}
 	// What each column's text asks: its longest line, and its longest word.
 	natural, least := make([]float32, columns), make([]float32, columns)
@@ -145,15 +167,37 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 		natural[cc.Column] = max(natural[cc.Column], min(ceil(longestLine(wide.layout))+2*padX, width+2*m.Reach))
 		least[cc.Column] = max(least[cc.Column], min(ceil(longestLine(narrow.layout))+2*padX, width))
 	}
-	t.widths = columnWidths(shape.Columns, width-columnRoom, 2*m.Reach, natural, least, line*readColumn)
+	// Room between two columns, an area's or a carry's, is taken from the
+	// others; each column as far as it has come in.
+	columnRoom := float32(0)
+	if tin.column > 0 && tin.column < columns {
+		columnRoom = min(tin.columnRoom, width/2)
+	}
+	apart := float32(0)
+	for c := range columns + 1 {
+		apart += tin.apartAt(false, c)
+	}
+	shares := make([]float32, columns)
+	for c := range shares {
+		shares[c] = tin.share(false, c)
+	}
+	t.widths = columnWidths(shape.Columns, width-columnRoom-apart, 2*m.Reach, natural, least, line*readColumn, shares)
 	grid := float32(0)
-	for c, w := range t.widths {
-		if c == tin.at && columnRoom > 0 {
-			t.area = ui.Rect{X: grid, W: columnRoom}
+	for c := range columns + 1 {
+		for k, a := range tin.apart {
+			if !a.rows && a.at == c && a.room > 0 {
+				t.apart[k] = ui.Rect{X: grid, W: a.room}
+				grid += a.room
+			}
+		}
+		if c == tin.column && columnRoom > 0 {
+			t.columnGap = ui.Rect{X: grid, W: columnRoom}
 			grid += columnRoom
 		}
-		t.columns = append(t.columns, grid)
-		grid += w
+		if c < columns {
+			t.columns = append(t.columns, grid)
+			grid += t.widths[c]
+		}
 	}
 	// Past the column, as far each side; past the margins, scrolled.
 	shows := min(grid, width+2*m.Reach)
@@ -182,73 +226,116 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 		t.heights[cc.Row] = max(t.heights[cc.Row], sl.h+2*padY)
 		u.surfaces = append(u.surfaces, sl)
 	}
+	// Down the grid, each row as far as it has come in, and the rooms
+	// between them.
 	y := float32(0)
-	for r := range rows {
-		if r == tin.at && r > 0 && tin.area == areaRow {
-			t.area = ui.Rect{X: t.left, Y: y, W: shows, H: rowRoom}
-			y += rowRoom
+	for r := range rows + 1 {
+		for k, a := range tin.apart {
+			if a.rows && a.at == r && a.room > 0 {
+				t.apart[k] = ui.Rect{X: t.left, Y: y, W: shows, H: a.room}
+				y += a.room
+			}
 		}
-		t.rows[r] = y
-		y += t.heights[r]
+		if r == tin.row && r > 0 && r < rows && tin.rowRoom > 0 {
+			t.rowGap = ui.Rect{X: t.left, Y: y, W: shows, H: tin.rowRoom}
+			y += tin.rowRoom
+		}
+		if r < rows {
+			t.heights[r] *= tin.share(true, r)
+			t.rows[r] = y
+			y += t.heights[r]
+		}
 	}
 	for i, sl := range u.surfaces {
 		if cc := t.cells[i]; cc.Row >= 0 {
 			t.base[i] = t.left + t.columns[cc.Column] + padX
-			t.baseY[i] = t.rows[cc.Row] + padY
+			t.baseY[i] = t.rows[cc.Row] + padY*tin.share(true, cc.Row)
 			sl.x, sl.y = t.base[i], t.baseY[i]
 		}
 	}
-	if columnRoom > 0 {
-		t.area.X += t.left
-		t.area.H = y
+	// Rooms across stand down the whole grid.
+	if t.columnGap.W > 0 {
+		t.columnGap.X += t.left
+		t.columnGap.H = y
+	}
+	for k, a := range tin.apart {
+		if !a.rows && t.apart[k].W > 0 {
+			t.apart[k].X += t.left
+			t.apart[k].H = y
+		}
 	}
 	u.table = t
 	u.h = y
 	u.box = ui.Rect{X: t.left, W: shows, H: y}
-	switch {
-	case tin.area == areaRow && tin.at >= rows:
-		// Under the table, a row's room.
-		t.area = ui.Rect{X: t.left, Y: y + areaGap(m), W: shows, H: rowRoom}
-		u.h = t.area.Y + t.area.H
-	case tin.area == areaColumn && tin.at >= columns:
-		// Beside its end, a line's room, in the margin it may reach.
-		t.area = ui.Rect{X: t.left + shows + areaGap(m), W: line, H: y}
+	if tin.below > 0 {
+		// Under the table, the room of an area that makes a row.
+		t.below = ui.Rect{X: t.left, Y: y, W: shows, H: tin.below}
+		u.h += tin.below
 	}
 	u.view = u.box
 	u.frame = objectRadius(m)
 }
 
-// areaOf is the room an open area takes, in the unit, as the grid is
-// scrolled.
-func (t *tableLayout) areaOf() (ui.Rect, bool) {
-	if t.in.area == areaNone || t.area.W <= 0 {
-		return ui.Rect{}, false
-	}
-	r := t.area
-	if t.in.area == areaColumn && t.in.at < len(t.widths) {
-		r.X -= t.scroll
-	}
-	return r, true
+// across is a room across the grid as it is scrolled.
+func (t *tableLayout) across(r ui.Rect) ui.Rect {
+	r.X -= t.scroll
+	return r
 }
 
-// parts are the frames the grid is drawn in, in the unit: its box, or the
-// two sides of an area open within it.
+// parts are the frames the grid is drawn in, in the unit: its box, parted
+// by each room open enough within it.
 func (t *tableLayout) parts(box ui.Rect) []ui.Rect {
-	a, ok := t.areaOf()
-	switch {
-	case !ok:
-	case t.in.area == areaRow && a.Y > box.Y && a.Y+a.H < box.Y+box.H:
-		return []ui.Rect{
-			{X: box.X, Y: box.Y, W: box.W, H: a.Y - box.Y},
-			{X: box.X, Y: a.Y + a.H, W: box.W, H: box.Y + box.H - a.Y - a.H},
-		}
-	case t.in.area == areaColumn && a.X+a.W <= box.X+box.W && a.X > box.X:
-		return []ui.Rect{
-			{X: box.X, Y: box.Y, W: a.X - box.X, H: box.H},
-			{X: a.X + a.W, Y: box.Y, W: box.X + box.W - a.X - a.W, H: box.H},
+	var downs, acrosses [][2]float32
+	if g := t.rowGap; g.H > 0 {
+		downs = append(downs, [2]float32{g.Y, g.H})
+	}
+	if g := t.across(t.columnGap); g.W > 0 {
+		acrosses = append(acrosses, [2]float32{g.X, g.W})
+	}
+	for k, a := range t.in.apart {
+		switch r := t.apart[k]; {
+		case a.rows && r.H > 0:
+			downs = append(downs, [2]float32{r.Y, r.H})
+		case !a.rows && r.W > 0:
+			r = t.across(r)
+			acrosses = append(acrosses, [2]float32{r.X, r.W})
 		}
 	}
-	return []ui.Rect{box}
+	var parts []ui.Rect
+	for _, ys := range tableSpans(box.Y, box.H, downs) {
+		for _, xs := range tableSpans(box.X, box.W, acrosses) {
+			parts = append(parts, ui.Rect{X: xs[0], Y: ys[0], W: xs[1] - xs[0], H: ys[1] - ys[0]})
+		}
+	}
+	return parts
+}
+
+// tableSpans are the stretches from start over size that gaps leave, each
+// gap where it opens and how far, and each stretch a start and an end:
+// the whole, until a gap is open enough to part it.
+func tableSpans(start, size float32, gaps [][2]float32) [][2]float32 {
+	spans := [][2]float32{{start, start + size}}
+	for _, gap := range gaps {
+		at, open := gap[0], gap[1]
+		if open < 1 {
+			continue
+		}
+		var parted [][2]float32
+		for _, span := range spans {
+			if at+open <= span[0] || at >= span[1] {
+				parted = append(parted, span)
+				continue
+			}
+			if at-span[0] >= 1 {
+				parted = append(parted, [2]float32{span[0], at})
+			}
+			if span[1]-(at+open) >= 1 {
+				parted = append(parted, [2]float32{at + open, span[1]})
+			}
+		}
+		spans = parted
+	}
+	return spans
 }
 
 func ceil(v float32) float32 { return float32(math.Ceil(float64(v))) }
@@ -268,9 +355,16 @@ func longestLine(l *ui.TextLayout) float32 {
 // line. The others share the rest: all on a line if they fit, the room to
 // spare levelled up across them; else each short one on its line and the
 // long ones levelled down to fit, none under read or its longest word; or,
-// past reach, each at that floor.
-func columnWidths(shape []profile.Column, width, reach float32, natural, least []float32, read float32) []float32 {
+// past reach, each at that floor. Each column counts as far as it has
+// come in (share, 1 where nil), and is set at that share of its width.
+func columnWidths(shape []profile.Column, width, reach float32, natural, least []float32, read float32, share []float32) []float32 {
 	widths := make([]float32, len(natural))
+	shareOf := func(i int) float32 {
+		if i < len(share) {
+			return share[i]
+		}
+		return 1
+	}
 	open := make([]bool, len(widths))
 	floor, want := make([]float32, len(widths)), make([]float32, len(widths))
 	left, floors, fits, any := width, float32(0), float32(0), false
@@ -288,11 +382,11 @@ func columnWidths(shape []profile.Column, width, reach float32, natural, least [
 			open[i], any = true, true
 			floor[i] = max(least[i], read)
 			want[i] = max(floor[i], natural[i])
-			floors += floor[i]
-			fits += want[i]
+			floors += floor[i] * shareOf(i)
+			fits += want[i] * shareOf(i)
 			continue
 		}
-		left -= widths[i]
+		left -= widths[i] * shareOf(i)
 	}
 	if any {
 		if floors > left {
@@ -307,9 +401,9 @@ func columnWidths(shape []profile.Column, width, reach float32, natural, least [
 		var level []float32
 		switch {
 		case fits <= left:
-			level = levelled(open, left, want, unbounded)
+			level = levelled(open, shareOf, left, want, unbounded)
 		case floors < left:
-			level = levelled(open, left, floor, want)
+			level = levelled(open, shareOf, left, floor, want)
 		default:
 			level = floor
 		}
@@ -324,23 +418,24 @@ func columnWidths(shape []profile.Column, width, reach float32, natural, least [
 	edge := float32(0)
 	for i := range widths {
 		from := float32(math.Round(float64(edge)))
-		edge += widths[i]
+		edge += widths[i] * shareOf(i)
 		widths[i] = float32(math.Round(float64(edge))) - from
 	}
 	return widths
 }
 
 // levelled sets the open columns between their bounds low and high at one
-// level, as far up as room holds them.
-func levelled(open []bool, room float32, low, high []float32) []float32 {
+// level, as far up as room holds them, each counting as far as it has
+// come in.
+func levelled(open []bool, share func(int) float32, room float32, low, high []float32) []float32 {
 	filled := func(level float32) (sum, slope float32) {
 		for i := range low {
 			if !open[i] {
 				continue
 			}
-			sum += max(low[i], min(high[i], level))
+			sum += max(low[i], min(high[i], level)) * share(i)
 			if level >= low[i] && level < high[i] {
-				slope++
+				slope += share(i)
 			}
 		}
 		return sum, slope
@@ -374,30 +469,35 @@ func levelled(open []bool, room float32, low, high []float32) []float32 {
 	return widths
 }
 
-// scrollTo draws the grid scrolled across by x, each line at its offset:
-// its cells move with it.
+// scrollTo draws the grid scrolled across by x: its cells move with it.
 func (t *tableLayout) scrollTo(u *unitLayout, x float32) {
 	t.scroll = x
 	for i, s := range u.surfaces {
 		if cc := t.cells[i]; cc.Row >= 0 {
-			s.x = t.base[i] - x + t.dx[cc.Column]
-			s.y = t.baseY[i] + t.dy[cc.Row]
+			s.x, s.y = t.base[i]-x, t.baseY[i]
 		}
 	}
 }
 
-// cell is a cell's box in its unit, as the grid is scrolled and its lines
-// drawn.
+// cell is a cell's box in its unit, as the grid is scrolled.
 func (t *tableLayout) cell(cc doc.CellCoord) ui.Rect {
-	return ui.Rect{X: t.left - t.scroll + t.columns[cc.Column] + t.dx[cc.Column], Y: t.rows[cc.Row] + t.dy[cc.Row],
-		W: t.widths[cc.Column], H: t.heights[cc.Row]}
+	return ui.Rect{X: t.left - t.scroll + t.columns[cc.Column], Y: t.rows[cc.Row], W: t.widths[cc.Column], H: t.heights[cc.Row]}
+}
+
+// line is a row's box across what the table shows, or a column's down
+// it, in its unit, as the grid is scrolled.
+func (t *tableLayout) line(u *unitLayout, rows bool, i int) ui.Rect {
+	if rows {
+		return ui.Rect{X: u.box.X, Y: t.rows[i], W: u.box.W, H: t.heights[i]}
+	}
+	return ui.Rect{X: t.left - t.scroll + t.columns[i], Y: u.box.Y, W: t.widths[i], H: u.box.H}
 }
 
 // rowAt and columnAt are the row and the column at a place across the
-// unit, as drawn, -1 past the grid.
+// unit, -1 past the grid.
 func (t *tableLayout) rowAt(y float32) int {
 	for r := range t.rows {
-		if top := t.rows[r] + t.dy[r]; y >= top && y < top+t.heights[r] {
+		if top := t.rows[r]; y >= top && y < top+t.heights[r] {
 			return r
 		}
 	}
@@ -406,66 +506,49 @@ func (t *tableLayout) rowAt(y float32) int {
 
 func (t *tableLayout) columnAt(x float32) int {
 	for c := range t.columns {
-		if left := t.left - t.scroll + t.columns[c] + t.dx[c]; x >= left && x < left+t.widths[c] {
+		if left := t.left - t.scroll + t.columns[c]; x >= left && x < left+t.widths[c] {
 			return c
 		}
 	}
 	return -1
 }
 
-// paint draws the grid beneath its cells' text: the header's inset, the
-// lines between the cells, and its edge.
+// paint draws the grid beneath its cells' text, in each of its parts:
+// the header's inset, the lines between the cells, and its edge.
 func (tableKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32) float32 {
 	t := u.table
 	if t == nil {
 		return 0
 	}
-	line := el.Theme.Border.Default
-	rows := t.liftRows
 	for _, part := range t.parts(u.box) {
 		part.X += ux
 		part.Y += uy
-		p.Clip(part, u.frame, func() {
-			if t.header && len(t.rows) > 0 {
-				p.Fill(ui.Rect{X: part.X, Y: uy + t.rows[t.lead] + t.dy[t.lead], W: part.W, H: t.heights[t.lead]}, el.Theme.Surface.Inset, 0)
-			}
-			// A line between two rows or columns at each one's edge as
-			// drawn, but the carried one's, which draws its own.
-			for r := range t.rows {
-				if at := uy + t.rows[r] + t.dy[r]; (r != t.lifted || !rows) && at > part.Y+0.5 && at < part.Y+part.H-0.5 {
-					p.Fill(ui.Rect{X: part.X, Y: at, W: part.W, H: 1}, line, 0)
-				}
-			}
-			for c := range t.columns {
-				if at := ux + t.left - t.scroll + t.columns[c] + t.dx[c]; (c != t.lifted || rows) && at > part.X+0.5 && at < part.X+part.W-0.5 {
-					p.Fill(ui.Rect{X: at, Y: part.Y, W: 1, H: part.H}, line, 0)
-				}
-			}
-		})
-		p.Stroke(part, line, u.frame, 1)
-	}
-	if r, ok := t.liftedBox(u); ok {
-		// The carried line stands over the others, lifted.
-		r.X += ux
-		r.Y += uy
-		p.Shadow(r, 2, 0, 2, 8, 0, ui.Color{A: 255}.Alpha(0.3))
-		p.Fill(r, el.Theme.Surface.Elevated, 2)
-		p.Stroke(r, el.Theme.Accent.Foreground, 2, 1)
+		t.paintGrid(el, p, part, u.frame, ux, uy, true, true)
 	}
 	return 0
 }
 
-// liftedBox is the carried line's box in the unit, as drawn.
-func (t *tableLayout) liftedBox(u *unitLayout) (ui.Rect, bool) {
-	switch {
-	case t.lifted < 0:
-		return ui.Rect{}, false
-	case t.liftRows && t.lifted < len(t.rows):
-		return ui.Rect{X: u.box.X, Y: t.rows[t.lifted] + t.dy[t.lifted], W: u.box.W, H: t.heights[t.lifted]}, true
-	case !t.liftRows && t.lifted < len(t.columns):
-		return ui.Rect{X: t.left - t.scroll + t.columns[t.lifted] + t.dx[t.lifted], Y: u.box.Y, W: t.widths[t.lifted], H: u.box.H}, true
-	}
-	return ui.Rect{}, false
+// paintGrid draws the grid within frame, its corners rounded by radius and
+// the unit drawn at ux, uy: the header's inset, the lines between its rows
+// and between its columns as asked, and the frame's edge.
+func (t *tableLayout) paintGrid(el *Element, p *ui.Painter, frame ui.Rect, radius, ux, uy float32, rows, columns bool) {
+	line := el.Theme.Border.Default
+	p.Clip(frame, radius, func() {
+		if t.header && len(t.rows) > 0 {
+			p.Fill(ui.Rect{X: frame.X, Y: uy + t.rows[0], W: frame.W, H: t.heights[0]}, el.Theme.Surface.Inset, 0)
+		}
+		for r := range t.rows {
+			if at := uy + t.rows[r]; rows && at > frame.Y+0.5 && at < frame.Y+frame.H-0.5 {
+				p.Fill(ui.Rect{X: frame.X, Y: at, W: frame.W, H: 1}, line, 0)
+			}
+		}
+		for c := range t.columns {
+			if at := ux + t.left - t.scroll + t.columns[c]; columns && at > frame.X+0.5 && at < frame.X+frame.W-0.5 {
+				p.Fill(ui.Rect{X: at, Y: frame.Y, W: 1, H: frame.H}, line, 0)
+			}
+		}
+	})
+	p.Stroke(frame, line, radius, 1)
 }
 
 // over fades the sides of a table wider than its room where more of it
@@ -486,14 +569,10 @@ func (tableKind) over(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32)
 	}
 }
 
-// holds is an area open in it or under it, whose room its unit springs
-// to.
-func (tableKind) holds(u *unitLayout) int {
-	if t := u.table; t != nil && t.in.area != areaNone {
-		return 1
-	}
-	return 0
-}
+// holds nothing open: the rooms its controls open ease as they are
+// asked (tableIn), not by the unit's spring.
+func (tableKind) holds(*unitLayout) int { return 0 }
+
 func (tableKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool) { return 0, false }
 
 // cover is a cell's box.
@@ -530,7 +609,6 @@ func (el *Element) scrollTables(pl *pageLayout, now time.Time, frame, animate bo
 		}
 		ts, ok := el.tables[u.pres.Unit]
 		if !ok && t.overflow <= 0 {
-			moving = el.carryTable(u, now, frame, animate) || moving
 			t.scrollTo(u, 0)
 			continue
 		}
@@ -546,7 +624,6 @@ func (el *Element) scrollTables(pl *pageLayout, now time.Time, frame, animate bo
 			moving = moving || pulling || gliding
 		}
 		ts.x = max(0, min(ts.x, t.overflow))
-		moving = el.carryTable(u, now, frame, animate) || moving
 		t.scrollTo(u, ts.x-ts.over.Offset())
 	}
 	for id := range el.tables {
@@ -615,4 +692,9 @@ func (el *Element) revealAcross(pl *pageLayout, now time.Time) {
 	if target != ts.x || ts.glide.Moving() {
 		ts.glide.To(ts.x, target, now)
 	}
+}
+
+// holdsCell reports whether s is one of the grid's cells.
+func (t *tableLayout) holdsCell(s *surfaceLayout) bool {
+	return s.index < len(t.cells) && t.cells[s.index].Row >= 0
 }

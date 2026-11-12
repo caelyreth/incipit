@@ -36,7 +36,9 @@ type room struct {
 func shapeOf(u *unitLayout) int {
 	n := 0
 	for _, s := range u.surfaces {
-		if s.shown {
+		// A grid's cells are its lines', which come in by themselves
+		// (tableIn).
+		if s.shown && (u.table == nil || !u.table.holdsCell(s)) {
 			n += 4
 		}
 	}

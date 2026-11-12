@@ -109,34 +109,56 @@ func TestARowsGripPicksItsCells(t *testing.T) {
 	}
 }
 
-// Dragging a row's grip carries the row among the others, which make room
-// for it as it goes, and letting go moves it there in one edit.
+// Dragging a row's grip carries a copy of the row with the pointer, the
+// row dimmed in its place; once the pointer has stayed by a place the grid
+// parts there for it, and letting go moves it there in one edit, the copy
+// landing as the room it left closes.
 func TestARowsGripCarriesIt(t *testing.T) {
 	c := newChromePage(t, 3, 2, "a", "b", "c", "d", "e", "f")
 	c.move(c.cellPoint(doc.CellCoord{Row: 0}))
 	rr, _, _ := c.el.gripRects(c.table(), 0, -1)
 	x, y := center(rr)
 	_, below := c.cellPoint(doc.CellCoord{Row: 2})
+	h0 := c.table().h
 	c.press(x, y)
 	c.move(x, y+5)
 	c.move(x, below+4)
+	c.tt.Advance(time.Second)
 	u := c.table()
-	if c.el.chrome.drag == nil || c.el.chrome.drag.to != 2 {
-		t.Fatalf("carried down past the last row, it lands at %+v", c.el.chrome.drag)
+	if d := c.el.chrome.drag; d == nil || d.to != 3 {
+		t.Fatalf("carried down past the last row's middle, it lands at %+v", c.el.chrome.drag)
 	}
-	if u.table.lifted != 0 || u.table.dy[1] >= 0 || u.table.dy[2] >= 0 {
-		t.Fatalf("the rows below do not make room: lifted %d, offsets %v", u.table.lifted, u.table.dy)
+	if a := u.table.in.apartAt(true, 3); a < u.table.heights[0]-1 || u.h < h0+a-1 {
+		t.Fatalf("the grid does not part past the last row: room %v, height %v from %v", a, u.h, h0)
 	}
 	c.release(x, below+4)
 	if got := c.texts(); got[0][0] != "c" || got[1][0] != "e" || got[2][0] != "a" {
 		t.Fatalf("the carried row did not move: %v", got)
 	}
-	if c.table().table.dy[0] != 0 {
-		t.Fatal("a moved row is still drawn carried")
+	if u := c.table(); u.table.in != (tableIn{}) || u.h != h0 {
+		t.Fatalf("a moved row leaves room %+v, height %v from %v", u.table.in, u.h, h0)
 	}
 	c.el.Editor.Do(vocab.Undo{}, time.Unix(9000, 0))
 	if got := c.texts(); got[0][0] != "a" {
 		t.Fatalf("one undo does not put the row back: %v", got)
+	}
+}
+
+// Let go by its own place, a carried row stays, and so does the grid.
+func TestARowLetGoInItsPlaceStays(t *testing.T) {
+	c := newChromePage(t, 3, 2, "a", "b", "c", "d", "e", "f")
+	c.move(c.cellPoint(doc.CellCoord{Row: 1}))
+	rr, _, _ := c.el.gripRects(c.table(), 1, -1)
+	x, y := center(rr)
+	c.press(x, y)
+	c.move(x, y+6)
+	c.tt.Advance(time.Second)
+	if u := c.table(); u.table.in != (tableIn{}) {
+		t.Fatalf("a row carried by its place parts the grid: %+v", u.table.in)
+	}
+	c.release(x, y+6)
+	if got := c.texts(); got[1][0] != "c" {
+		t.Fatalf("a row let go in its place moved: %v", got)
 	}
 }
 
@@ -204,14 +226,15 @@ func TestAnAreaByTheFootMakesARow(t *testing.T) {
 	c.move(b.X+b.W/2, b.Y+b.H+6)
 	c.tt.Advance(time.Second)
 	u = c.table()
-	a, ok := u.table.areaOf()
-	if !ok || u.table.in.area != areaRow || u.table.in.at != 2 {
-		t.Fatalf("resting by the foot opened %+v", u.table.in)
+	_, _, step, _ := c.el.areaRooms()
+	if u.table.in.below != step || u.h != h0+step {
+		t.Fatalf("resting by the foot opened %+v, height %v from %v", u.table.in, u.h, h0)
 	}
-	if u.h <= h0 || u.shown != u.h {
-		t.Fatalf("the area's room is not open: %v from %v, shown %v", u.h, h0, u.shown)
+	areas := c.el.tableAreas(u)
+	if len(areas) != 1 || areas[0].kind != controlBelow || areas[0].alpha != 1 {
+		t.Fatalf("the foot shows %+v", areas)
 	}
-	x, y := u.x+a.X+a.W/2, u.y+a.Y+a.H/2
+	x, y := center(areas[0].box)
 	c.move(x, y)
 	c.press(x, y)
 	wx, wy := c.at(x, y)
@@ -220,8 +243,21 @@ func TestAnAreaByTheFootMakesARow(t *testing.T) {
 	if r, _ := c.grid().Size(); r != 3 {
 		t.Fatalf("a click on the area made %d rows", r)
 	}
-	if m := c.el.chrome.made; m == nil || m.index != 2 || m.column {
+	if m := c.el.chrome.made; m == nil || m.index != 2 || m.column || m.from <= 0 {
 		t.Fatalf("the made row is %+v", m)
+	}
+	// It comes in from the area's room, the table's height going on from
+	// where the area left it.
+	u = c.table()
+	if g := u.table.in.grow[0]; g.from != 2 || g.to != 3 || g.share >= 1 || g.share < 0.5 {
+		t.Fatalf("the made row comes in as %+v", g)
+	}
+	if u.h > h0+step+u.table.heights[2] {
+		t.Fatalf("the made row jumps the table to %v", u.h)
+	}
+	c.tt.Advance(time.Second)
+	if u := c.table(); u.table.in.grow[0] != (lineGrow{}) {
+		t.Fatalf("the made row is still coming in: %+v", u.table.in.grow[0])
 	}
 }
 
@@ -236,8 +272,12 @@ func TestAreasOpenBetweenLines(t *testing.T) {
 	c.move(b.X-10, top)
 	c.tt.Advance(time.Second)
 	u = c.table()
-	if u.table.in.area != areaRow || u.table.in.at != 1 {
+	_, _, _, between := c.el.areaRooms()
+	if u.table.in.row != 1 || u.table.in.rowRoom != between {
 		t.Fatalf("by a border between rows the area is %+v", u.table.in)
+	}
+	if c.el.chrome.lift != between/2 || c.el.scroll != between/2 {
+		t.Fatalf("the page lifts %v (scrolled %v), want half the room, %v", c.el.chrome.lift, c.el.scroll, between/2)
 	}
 	if parts := u.table.parts(u.box); len(parts) != 2 {
 		t.Fatalf("the grid is drawn in %d parts around the area", len(parts))
@@ -250,7 +290,7 @@ func TestAreasOpenBetweenLines(t *testing.T) {
 	c.tt.Advance(time.Second)
 	c.move(left, b.Y-10)
 	c.tt.Advance(time.Second)
-	if u := c.table(); u.table.in.area != areaColumn || u.table.in.at != 1 {
+	if u := c.table(); u.table.in.column != 1 || u.table.in.columnRoom != between || u.table.columnGap.W != between {
 		t.Fatalf("above a border between columns the area is %+v", u.table.in)
 	}
 }
@@ -262,54 +302,64 @@ func TestGripsComeAndGo(t *testing.T) {
 	id := c.table().pres.Unit
 	c.move(c.cellPoint(doc.CellCoord{}))
 	c.tt.Advance(time.Second)
-	if s := c.el.chrome.grips[id]; s == nil || s.Value() < 0.99 {
+	if tm := c.el.chrome.motions[id]; tm == nil || tm.grips.Value() < 0.99 {
 		t.Fatal("the grips did not come in")
 	}
 	b := tableBox(c.table())
 	c.move(b.X+b.W/2, b.Y+b.H+300)
 	c.tt.Advance(time.Second)
-	if s := c.el.chrome.grips[id]; s.Value() > 0.01 {
-		t.Fatalf("the grips stay at %v", s.Value())
+	if v := c.el.chrome.motions[id].grips.Value(); v > 0.01 {
+		t.Fatalf("the grips stay at %v", v)
 	}
 }
 
-// A carried line lands past each line its leading edge has passed the
-// middle of, either way, as far as either end.
-func TestACarriedLineLandsByItsLeadingEdge(t *testing.T) {
-	starts, sizes := []float32{0, 40, 80}, []float32{40, 40, 40}
-	for _, tc := range []struct {
-		from int
-		top  float32
-		want int
-	}{
-		{0, 0, 0}, {0, 19, 0}, {0, 21, 1}, {0, 80, 2},
-		{2, 80, 2}, {2, 61, 2}, {2, 59, 1}, {2, 0, 0},
-		{1, 40, 1}, {1, 19, 0}, {1, 61, 2},
-	} {
-		if got := carryTo(starts, sizes, tc.from, tc.top); got != tc.want {
-			t.Errorf("row %d carried to %v lands at %d, want %d", tc.from, tc.top, got, tc.want)
-		}
+// A row the table gains comes in from nothing, the page after it gliding
+// with it; one it loses goes at once.
+func TestANewRowComesIn(t *testing.T) {
+	c := newChromePage(t, 2, 2, "a", "b", "c", "d")
+	h0 := c.table().h
+	c.el.Editor.Do(vocab.Command{ID: "table.row-below"}, time.Unix(7000, 0))
+	c.tt.Frame()
+	c.tt.Advance(16 * time.Millisecond)
+	u := c.table()
+	if g := u.table.in.grow[0]; g.from != 2 || g.to != 3 || g.share >= 0.5 {
+		t.Fatalf("the new row comes in as %+v", g)
+	}
+	if u.h >= h0+u.table.heights[1] {
+		t.Fatalf("the new row jumps the table to %v from %v", u.h, h0)
+	}
+	c.tt.Advance(time.Second)
+	if u := c.table(); u.table.in != (tableIn{}) || u.shown != u.h {
+		t.Fatalf("the new row settles as %+v, shown %v of %v", u.table.in, u.shown, u.h)
 	}
 }
 
-// An area's room springs open, the page below gliding with it.
-func TestAnAreasRoomSpringsOpen(t *testing.T) {
+// An area's room eases open, the page below gliding with it, and the area
+// comes in as it does.
+func TestAnAreasRoomEasesOpen(t *testing.T) {
 	c := newChromePage(t, 2, 2, "a", "b", "c", "d")
 	b := tableBox(c.table())
+	_, _, step, _ := c.el.areaRooms()
 	wx, wy := c.at(b.X+b.W/2, b.Y+b.H+6)
 	c.tt.Move(wx, wy)
 	var opening bool
+	last := float32(0)
 	for range 90 {
 		c.tt.Advance(16 * time.Millisecond)
-		if u := c.table(); u.table.in.area != areaNone && u.shown < u.h-0.5 {
-			opening = true
+		room := c.table().table.in.below
+		if room < last {
+			t.Fatalf("the room closes on its way open: %v after %v", room, last)
 		}
+		if room > 0 && room < step-1 {
+			opening = true
+			if a := c.el.tableAreas(c.table()); len(a) == 1 && a[0].alpha >= 1 {
+				t.Fatalf("the area shows whole in a room %v of %v", room, step)
+			}
+		}
+		last = room
 	}
-	if !opening {
-		t.Fatal("the area's room did not spring open")
-	}
-	if u := c.table(); u.shown != u.h {
-		t.Fatalf("the room settles at %v of %v", u.shown, u.h)
+	if !opening || last != step {
+		t.Fatalf("the area's room did not ease open: it stands at %v of %v", last, step)
 	}
 }
 
