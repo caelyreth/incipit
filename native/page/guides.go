@@ -13,12 +13,6 @@ import (
 )
 
 const (
-	// guideGlide follows a moving destination at the caret's pace, so a
-	// guide past a closing pair keeps up with typing inside it.
-	guideGlide = float32(38)
-	// guideFade is gentler: a guide should arrive as a suggestion, not a
-	// flash, and leave without a blink.
-	guideFade = float32(18)
 	// bracketGap sets a range guide's bracket off the controls' lane, and
 	// bracketWeight is its stroke, in DIPs at the default UI size.
 	bracketGap    = 6
@@ -117,9 +111,9 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 			continue
 		}
 		t.fading = !t.offered
-		el.springs.follow(key, target, guideFade)
+		el.springs.follow(key, target, chromeFollow)
 		for k, v := range [...]float32{t.to.X, t.to.Y, t.to.W, t.to.H, t.head} {
-			el.springs.follow(guideKey(id, guidePlaces[k], placeValue), v, guideGlide)
+			el.springs.follow(guideKey(id, guidePlaces[k], placeValue), v, placeFollow)
 		}
 	}
 }

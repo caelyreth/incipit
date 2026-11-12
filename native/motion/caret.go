@@ -7,9 +7,6 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// CaretFrequency is how fast the caret glides to its place.
-const CaretFrequency = float32(38)
-
 // CaretSolid is how long the caret stays fully opaque after activity. It
 // is longer than the gap between keystrokes, so the caret stays solid
 // while typing. CaretWake and CaretOpacity both read it: a wake at any

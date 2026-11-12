@@ -170,11 +170,17 @@ func newSpring(v float32, now time.Time, of valueKind) motion.Spring {
 	return motion.NewSpring(v, now)
 }
 
-// The page's springs arrive as the app's do (components.Spring): rooms,
-// grips and lights in MotionNormal, a carry's parting in MotionPanel, a
-// hover in HoverIn and out in HoverOut, a press in MotionImmediate.
+// The page's springs arrive as the app's do (components.Spring), one pace
+// for one kind of thing wherever it moves: what follows a place (the
+// caret, a selection's rows, a guide) and controls (grips, hints, lights,
+// a guide's fade) in MotionNormal; the layout settling (a unit's room, a
+// table's new lines, a picture shown, math drawn anew) in MotionSettle; a
+// carry's parting and a drop's landing in MotionPanel; a hover in HoverIn
+// and out in HoverOut; a press in MotionImmediate.
 var (
 	chromeFollow = settleFrequency(components.MotionNormal)
+	placeFollow  = settleFrequency(components.MotionNormal)
+	layoutSettle = settleFrequency(components.MotionSettle)
 	carryPart    = settleFrequency(components.MotionPanel)
 	hoverIn      = settleFrequency(components.HoverIn)
 	hoverOut     = settleFrequency(components.HoverOut)

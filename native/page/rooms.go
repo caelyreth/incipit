@@ -16,9 +16,6 @@ import (
 // what closed fades out where it stood. Any other change of height, as a
 // line typed, takes effect at once.
 
-// roomFrequency springs a unit's height as its shape changes.
-const roomFrequency = float32(14)
-
 // room is a unit's drawn height across frames.
 type room struct {
 	spring motion.Spring
@@ -79,9 +76,9 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 			el.rooms[id] = r
 		case r.shape != shape:
 			r.from, r.prev, r.shape = r.spring.Value(), r.last, shape
-			r.spring.Step(u.h, now, roomFrequency)
+			r.spring.Step(u.h, now, layoutSettle)
 		case r.spring.Moving():
-			r.spring.Step(u.h, now, roomFrequency)
+			r.spring.Step(u.h, now, layoutSettle)
 		default:
 			r.spring = motion.NewSpring(u.h, now)
 		}

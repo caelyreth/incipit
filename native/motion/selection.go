@@ -6,11 +6,6 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// SelectionFrequency is how fast a selection's rows glide: a little
-// slower than the caret, so the caret leads to the range's end while the
-// range settles in beneath it.
-const SelectionFrequency = float32(34)
-
 // SelectionFade is how long a selection takes to appear from none.
 const SelectionFade = 160 * time.Millisecond
 
@@ -28,14 +23,14 @@ type Selection struct {
 	alpha  float32
 }
 
-// Step glides toward the target rows and returns the rows drawn now.
-// Unanimated, as while a drag follows the pointer, the rows stand at
+// Step glides toward the target rows at frequency, the host's pace for
+// what follows a place, and returns the rows drawn now. Unanimated, as while a drag follows the pointer, the rows stand at
 // their targets but are kept, so motion resumes from them.
-func (s *Selection) Step(target []ui.Rect, now time.Time, animate bool) []ui.Rect {
+func (s *Selection) Step(target []ui.Rect, now time.Time, frequency float32, animate bool) []ui.Rect {
 	if !animate {
 		s.rows = make([]Rect, len(target))
 		for i, r := range target {
-			s.rows[i].Step(r, now, SelectionFrequency, false)
+			s.rows[i].Step(r, now, frequency, false)
 		}
 		s.drawn = append(s.drawn[:0], target...)
 		s.alpha, s.fading = 1, false
@@ -49,14 +44,14 @@ func (s *Selection) Step(target []ui.Rect, now time.Time, animate bool) []ui.Rec
 		s.rows = make([]Rect, len(target))
 		if len(drawn) > 0 {
 			for i, r := range target {
-				s.rows[i].Step(nearestRow(drawn, r), now, SelectionFrequency, false)
+				s.rows[i].Step(nearestRow(drawn, r), now, frequency, false)
 			}
 		}
 	}
 	s.fade(len(target) > 0, now)
 	s.drawn = s.drawn[:0]
 	for i, r := range target {
-		s.drawn = append(s.drawn, s.rows[i].Step(r, now, SelectionFrequency, true))
+		s.drawn = append(s.drawn, s.rows[i].Step(r, now, frequency, true))
 	}
 	return s.drawn
 }

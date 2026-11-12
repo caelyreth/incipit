@@ -242,7 +242,7 @@ func (el *Element) growLines(u *unitLayout, ts *tableState) {
 			continue
 		}
 		key := growKey(id, axis)
-		el.springs.follow(key, 1, figureFade)
+		el.springs.follow(key, 1, layoutSettle)
 		if el.springs.settled(key) {
 			ts.grow[axis] = lineRun{}
 		}

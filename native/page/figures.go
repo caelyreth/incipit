@@ -35,9 +35,6 @@ import (
 // renderer's until release, when it commits as one ResizeFigure.
 
 const (
-	// figureFade is how quickly a figure's picture, grips and hint spring
-	// to where they are going.
-	figureFade = float32(14)
 	// gapBarRoom sets an object's gap carets off what it draws, beyond
 	// the outline drawn around it (paints.go).
 	gapBarRoom = objectOutset + 3
@@ -293,9 +290,9 @@ func (figureKind) step(el *Element, u *unitLayout, _ *objectIn) {
 		hint = 1
 	}
 	id := u.pres.Unit
-	el.springs.follow(figureSpring(id, "picture"), shown, figureFade)
-	el.springs.follow(figureSpring(id, "grips"), grip, figureFade)
-	el.springs.follow(figureSpring(id, "hint"), hint, figureFade)
+	el.springs.follow(figureSpring(id, "picture"), shown, layoutSettle)
+	el.springs.follow(figureSpring(id, "grips"), grip, chromeFollow)
+	el.springs.follow(figureSpring(id, "hint"), hint, chromeFollow)
 }
 
 // paintFigure draws a figure's picture, its place while the picture is on
@@ -423,7 +420,6 @@ func (el *Element) paintChip(p *ui.Painter, label string, place func(chip ui.Rec
 // lands.
 
 const (
-	dropGlide  = float32(26)
 	dropWeight = 2
 )
 
@@ -501,7 +497,7 @@ func (el *Element) paintDrop(p *ui.Painter, ox, oy float32, m Metrics, now time.
 		d.known = true
 	}
 	if d.showing {
-		d.y.Step(d.target, now, dropGlide)
+		d.y.Step(d.target, now, carryPart)
 	}
 	a := d.shown.Step(d.showing, now, animate)
 	if a > 0.001 {

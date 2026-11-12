@@ -47,8 +47,6 @@ const (
 	// and formulaHint an inline formula.
 	mathHint    = "Formula"
 	formulaHint = "formula"
-	// mathFrequency springs math's fades.
-	mathFrequency = float32(16)
 )
 
 // mathSet is a formula as set for drawing: its box, whether it is the last
@@ -182,9 +180,9 @@ func (el *Element) stepMath(id doc.ID, ms mathSet, open bool) {
 	if hint == 0 {
 		el.springs.jump(mathSpring(id, "hint"), 0)
 	}
-	el.springs.follow(mathSpring(id, "ink"), ink, mathFrequency)
-	el.springs.follow(mathSpring(id, "open"), opened, mathFrequency)
-	el.springs.follow(mathSpring(id, "hint"), hint, mathFrequency)
+	el.springs.follow(mathSpring(id, "ink"), ink, layoutSettle)
+	el.springs.follow(mathSpring(id, "open"), opened, chromeFollow)
+	el.springs.follow(mathSpring(id, "hint"), hint, chromeFollow)
 	if ms.box != nil {
 		el.springs.keep(mathSpring(id, "ink"), ms)
 	}
