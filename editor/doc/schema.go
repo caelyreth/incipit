@@ -57,7 +57,8 @@ type KindSpec struct {
 	Slots     []SlotSpec
 	Fields    []FieldSpec
 	// Check holds validity a kind adds beyond its slots and fields, such
-	// as a table's rows matching its columns. It sees the node's children.
+	// as a table's rows matching its columns. It may read the node's whole
+	// subtree, so a change anywhere below the node checks it again.
 	Check func(n *Node) error
 	// Object makes a node one unit in the slot that holds it, which the
 	// caret selects whole rather than enters as text: a block between its

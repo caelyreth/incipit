@@ -158,7 +158,8 @@ func (tx *Tx) ApplyAll(ops ...Op) error {
 }
 
 // Commit normalises the inline slots the transaction touched, validates
-// every node it touched, and returns the new snapshot. An invalid
+// every node it touched and checks again every node above one whose kind
+// checks its subtree, and returns the new snapshot. An invalid
 // transaction returns an error and publishes nothing.
 func (tx *Tx) Commit() (*Snapshot, error) {
 	for ref := range tx.slots {
@@ -176,6 +177,21 @@ func (tx *Tx) Commit() (*Snapshot, error) {
 		}
 		if err := validateNode(tx.schema, tx.marks, n); err != nil {
 			return nil, err
+		}
+	}
+	checked := map[ID]bool{}
+	for id := range tx.touched {
+		for _, a := range Ancestors(tx, id) {
+			if checked[a] || tx.touched[a] {
+				break
+			}
+			checked[a] = true
+			n, _ := tx.Node(a)
+			if spec, ok := tx.schema.Kind(n.kind); ok && spec.Check != nil {
+				if err := spec.Check(n); err != nil {
+					return nil, fmt.Errorf("%w: %s %s: %v", ErrInvalid, spec.Name, n.id, err)
+				}
+			}
 		}
 	}
 	for n := range tx.fresh {
