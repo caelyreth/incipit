@@ -125,12 +125,15 @@ func candidatesAt(c *policy.Ctx) []candidate {
 		}
 	}
 	slices.SortStableFunc(out, func(a, b candidate) int {
+		ab, ba := containsSelection(c.Doc(), a, b.selection), containsSelection(c.Doc(), b, a.selection)
 		switch {
-		case sameSelection(c.Doc(), a.selection, b.selection):
+		case ab && ba:
+			// The same extent, as a page holding only a table and the
+			// table: in the stack's order, outer first.
 			return 0
-		case containsSelection(c.Doc(), a, b.selection):
+		case ab:
 			return -1
-		case containsSelection(c.Doc(), b, a.selection):
+		case ba:
 			return 1
 		}
 		af, at := extent(c.Doc(), a.selection)

@@ -208,7 +208,7 @@ func (c *Ctx) Stack() *Stack {
 		s := c.prog.stackAt(c.store, c.r, c.view, c.Head())
 		if sel := c.view.Selection; sel.Kind == doc.SelectNode {
 			if n, ok := c.r.Node(sel.Node); ok {
-				s = &Stack{Levels: append(slices.Clip(s.Levels), c.prog.nodeLevel(n)), Caret: s.Caret}
+				s = &Stack{Levels: append(slices.Clip(s.Levels), c.prog.nodeLevel(c.r.Schema(), n)), Caret: s.Caret}
 			}
 		}
 		c.stack = s

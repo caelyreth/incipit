@@ -158,7 +158,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 		} else {
 			l.Slot = ref
 		}
-		start, end := nodeEdges(n)
+		start, end := nodeEdges(r.Schema(), n)
 		l.Start, l.End = doc.Caret{Pos: start, Stop: doc.StopFirst}, doc.Caret{Pos: end, Stop: doc.StopLast}
 		s.Levels = append(s.Levels, l)
 	}
@@ -226,9 +226,9 @@ func (p *Program) factLevel(owner *doc.Node, ref doc.SlotRef, f Fact) *Level {
 		Start: f.Inner.From.Caret(ref), End: f.Inner.To.Caret(ref), keys: p.factKeys(f), prog: p}
 }
 
-// nodeLevel is a node's level, edged by its text.
-func (p *Program) nodeLevel(n *doc.Node) *Level {
-	start, end := nodeEdges(n)
+// nodeLevel is a node's level, edged by its text (nodeEdges).
+func (p *Program) nodeLevel(s *doc.Schema, n *doc.Node) *Level {
+	start, end := nodeEdges(s, n)
 	return &Level{Class: LevelNode, Node: n, Slot: start.Ref(), keys: p.nodeKeys(n.Kind()), prog: p,
 		Start: doc.Caret{Pos: start, Stop: doc.StopFirst}, End: doc.Caret{Pos: end, Stop: doc.StopLast}}
 }
@@ -242,34 +242,60 @@ func atEdge(c, edge doc.Caret) bool {
 	return edge.Stop == doc.StopFirst || edge.Stop == doc.StopLast || c.Stop == edge.Stop
 }
 
-// nodeEdges are a node's inner edges: the start of its first text slot and
-// the end of its last, or its first and last gaps.
-func nodeEdges(n *doc.Node) (doc.Pos, doc.Pos) {
-	start := doc.Pos{Node: n.ID()}
-	end := start
-	if f, ok := vocab.FirstTextSlot(n); ok {
-		start = doc.At(f, 0)
+// nodeEdges are a node's inner edges: the start of its first text and the
+// end of its last, or of its first and last gaps. They are found through
+// its blocks but not inside an object below it, which is whole within it:
+// there the object's place is the edge.
+func nodeEdges(s *doc.Schema, n *doc.Node) (doc.Pos, doc.Pos) {
+	start, ok := edgeOf(s, n, false)
+	if !ok {
+		start = doc.Pos{Node: n.ID()}
 	}
-	if l, ok := vocab.LastTextSlot(n); ok {
-		end = doc.At(l, 0)
-		if owner := findNode(n, l.Node); owner != nil {
-			end.Offset = owner.Slot(l.Slot).Len()
+	end, ok := edgeOf(s, n, true)
+	if !ok {
+		end = start
+		if n.NumSlots() > 0 {
+			end = doc.Pos{Node: n.ID(), Slot: n.NumSlots() - 1, Offset: n.Slot(n.NumSlots() - 1).Len()}
 		}
-	} else if n.NumSlots() > 0 {
-		end = doc.Pos{Node: n.ID(), Slot: n.NumSlots() - 1, Offset: n.Slot(n.NumSlots() - 1).Len()}
 	}
 	return start, end
 }
 
-func findNode(n *doc.Node, id doc.ID) *doc.Node {
-	var out *doc.Node
-	n.Walk(func(d *doc.Node) bool {
-		if d.ID() == id {
-			out = d
+// edgeOf is n's first edge, or its last: a text slot's start or end, or
+// the place before or after an object below n.
+func edgeOf(s *doc.Schema, n *doc.Node, last bool) (doc.Pos, bool) {
+	slots := n.Slots()
+	for k := range slots {
+		i := k
+		if last {
+			i = len(slots) - 1 - k
 		}
-		return out == nil
-	})
-	return out
+		sl := slots[i]
+		if sl.IsInline() {
+			p := doc.Pos{Node: n.ID(), Slot: i}
+			if last {
+				p.Offset = sl.Len()
+			}
+			return p, true
+		}
+		children := sl.Children()
+		for j := range children {
+			c := j
+			if last {
+				c = len(children) - 1 - j
+			}
+			if child := children[c]; s.IsObject(child.Kind()) {
+				p := doc.Pos{Node: n.ID(), Slot: i, Offset: c}
+				if last {
+					p.Offset++
+				}
+				return p, true
+			} else if p, ok := edgeOf(s, child, last); ok {
+				return p, true
+			}
+		}
+	}
+	return doc.Pos{}, false
 }
 
 // scopeFacts are the facts of every kind that can form a scope or that a

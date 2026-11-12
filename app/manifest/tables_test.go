@@ -372,28 +372,40 @@ func TestKeysStretchACellRange(t *testing.T) {
 	p.wantCell(0, 0, 0)
 }
 
-// Select Scope grows from a cell's text to its row, every cell, then the
-// table.
+// Select Scope grows from a cell's text to its row, then the table, then
+// the page, whatever stands beside the table: the page's edges are never
+// inside an object on it.
 func TestSelectScopeGrowsThroughTheGrid(t *testing.T) {
-	p := open(t)
-	p.placeTable()
-	table := p.e.Snapshot().Root().Slot(0).Child(0).ID()
-	p.placeCaret(table, 1, 0, 1)
-	p.do(vocab.SelectScope{})
-	if s := p.selection(); s.Kind != doc.SelectText || s.IsCollapsed() {
-		t.Fatalf("first grow %+v, want the cell's text", s)
-	}
-	p.do(vocab.SelectScope{})
-	if cr := p.cells(); cr.Anchor != at(1, 0) || cr.Head != at(1, 1) {
-		t.Fatalf("second grow %+v, want the row", cr)
-	}
-	p.do(vocab.SelectScope{})
-	if cr := p.cells(); cr.Anchor != at(0, 0) || cr.Head != at(1, 1) {
-		t.Fatalf("third grow %+v, want every cell", cr)
-	}
-	p.do(vocab.SelectScope{})
-	if s := p.selection(); s.Kind != doc.SelectNode || s.Node != table {
-		t.Fatalf("fourth grow %+v, want the table", s)
+	for _, before := range []bool{false, true} {
+		p := open(t)
+		if before {
+			p.typeText("x")
+			p.do(vocab.Break{})
+		}
+		p.placeTable()
+		var table doc.ID
+		for _, n := range p.e.Snapshot().Root().Slot(0).Children() {
+			if n.Kind() == profile.Table {
+				table = n.ID()
+			}
+		}
+		p.placeCaret(table, 1, 0, 1)
+		p.do(vocab.SelectScope{})
+		if s := p.selection(); s.Kind != doc.SelectText || s.IsCollapsed() {
+			t.Fatalf("first grow %+v, want the cell's text", s)
+		}
+		p.do(vocab.SelectScope{})
+		if cr := p.cells(); cr.Anchor != at(1, 0) || cr.Head != at(1, 1) {
+			t.Fatalf("second grow %+v, want the row", cr)
+		}
+		p.do(vocab.SelectScope{})
+		if s := p.selection(); s.Kind != doc.SelectNode || s.Node != table {
+			t.Fatalf("third grow %+v, want the table", s)
+		}
+		p.do(vocab.SelectScope{})
+		if s := p.selection(); s.Kind != doc.SelectText {
+			t.Fatalf("fourth grow %+v, want the page", s)
+		}
 	}
 }
 

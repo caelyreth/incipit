@@ -210,7 +210,7 @@ func (p *Program) crossLevel(r doc.Reader, x *Crossing) *Level {
 	var l *Level
 	switch {
 	case x.Node != nil:
-		l = p.nodeLevel(x.Node)
+		l = p.nodeLevel(r.Schema(), x.Node)
 	case x.Fact != nil:
 		owner, _ := r.Node(x.Slot.Node)
 		l = p.factLevel(owner, x.Slot, *x.Fact)
