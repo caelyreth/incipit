@@ -318,6 +318,11 @@ func (el *Element) controlMetrics() theme.ControlMetrics {
 	return theme.DefaultControls.Scaled(el.chromeSize())
 }
 
+// controlLane is how far out from what it moves a control stands in the
+// gutter, in DIPs at the default UI size: a grip set off its line, as wide
+// as it is short. What else stands in the gutter stands past it.
+const controlLane = gripOff + gripShort
+
 // controlReach is how near an object the pointer calls up its controls,
 // in DIPs at the default UI size.
 const controlReach = 28

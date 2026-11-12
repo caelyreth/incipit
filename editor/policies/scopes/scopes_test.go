@@ -1,6 +1,7 @@
 package scopes
 
 import (
+	"github.com/caelyreth/neverland/editor/present"
 	"testing"
 	"time"
 
@@ -151,16 +152,27 @@ func TestDismissCollapsesASelectionAtItsHead(t *testing.T) {
 	}
 }
 
+// Select All's key shows where it would select next once a scope is
+// selected, over the wider scope it would take; at a caret, which it would
+// turn into a range, it shows nowhere.
 func TestSelectScopeHasAGuide(t *testing.T) {
 	p := open(t)
-	p.typeText("text")
-	guides := p.e.Decorations(1).Guides
-	found := false
-	for _, g := range guides {
-		found = found || g.Command == "core.selectAll"
+	p.typeText("a (b")
+	selectAll := func() (present.Guide, bool) {
+		for _, g := range p.e.Decorations(1).Guides {
+			if g.Command == "core.selectAll" {
+				return g, true
+			}
+		}
+		return present.Guide{}, false
 	}
-	if !found {
-		t.Fatalf("guides %+v have no Select All", guides)
+	if g, ok := selectAll(); ok {
+		t.Fatalf("a caret shows Select All at %+v", g)
+	}
+	p.do(vocab.SelectScope{})
+	g, ok := selectAll()
+	if !ok || len(g.Covers) == 0 {
+		t.Fatalf("a selected scope shows Select All as %+v, %v; want what it would select", g, ok)
 	}
 }
 

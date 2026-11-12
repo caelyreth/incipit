@@ -65,8 +65,6 @@ type Element struct {
 
 	// still is a page drawn by PaintStill.
 	still bool
-	// guides are the key hints as last painted.
-	guides guides
 
 	// caret glides between the places the caret is drawn at, in page
 	// coordinates. It, the scroll's glide and the caret's breathing move
@@ -713,14 +711,12 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			p.AnimationFrame()
 		}
 	}
+	el.stepGuides(pl, focused)
 	if el.springs.end() {
 		p.AnimationFrame()
 	}
 	el.forget(pl)
 	if el.paintDrop(p, ox, oy, m, now, animate) {
-		p.AnimationFrame()
-	}
-	if el.stepGuides(pl, focused, now, animate) {
 		p.AnimationFrame()
 	}
 	el.paintGuides(p, r, ox, oy)

@@ -86,9 +86,9 @@ type command struct {
 
 // The core commands: keymaps store these ids.
 var commands = []command{
-	{"core.undo", "commands.undo", vocab.Undo{}, policy.SystemKey()},
-	{"core.redo", "commands.redo", vocab.Redo{}, policy.SystemKey()},
-	{"core.selectAll", "commands.selectAll", vocab.SelectScope{}, policy.SystemKey()},
+	{"core.undo", "commands.undo", vocab.Undo{}, policy.SystemKey("primary+z")},
+	{"core.redo", "commands.redo", vocab.Redo{}, policy.SystemKey("shift+primary+z")},
+	{"core.selectAll", "commands.selectAll", vocab.SelectScope{}, policy.SystemKey("primary+a")},
 
 	{"core.left", "commands.left", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}, policy.Key("left")},
 	{"core.right", "commands.right", vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward}, policy.Key("right")},

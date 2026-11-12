@@ -229,7 +229,8 @@ type Command struct {
 	// "primary+b", "alt+left", "shift+tab". Empty is none.
 	Key string
 	// System is set on a command the platform's own key runs, as an Edit
-	// menu role does: the keymap neither binds nor lists it.
+	// menu role does: the keymap neither binds nor lists it, and Key is
+	// that platform key, shown where the command's key is shown.
 	System bool
 }
 
@@ -239,8 +240,11 @@ type CommandSetting func(*Command)
 // Key is a command's default key (Command.Key).
 func Key(spec string) CommandSetting { return func(c *Command) { c.Key = spec } }
 
-// SystemKey marks a command the platform's key runs (Command.System).
-func SystemKey() CommandSetting { return func(c *Command) { c.System = true } }
+// SystemKey marks a command the platform's key runs, spec
+// (Command.System).
+func SystemKey(spec string) CommandSetting {
+	return func(c *Command) { c.System, c.Key = true, spec }
+}
 
 // Command declares a command.
 func (p *P) Command(id vocab.CommandID, label string, intent vocab.Intent, settings ...CommandSetting) {

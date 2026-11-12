@@ -63,11 +63,14 @@ type Decorations struct {
 	Guides []Guide
 }
 
-// Guide is a key hint: the command whose key shows, and the caret it
-// shows at.
+// Guide is a key hint: the command whose key shows, and where it would
+// take the selection: the caret it shows at, and, for a command that
+// would select a range, what the range covers, as the selection's paint
+// covers what it selects.
 type Guide struct {
 	Command vocab.CommandID
 	At      doc.Caret
+	Covers  []Cover
 }
 
 // Decorate computes a view's decorations over its units' presentations,

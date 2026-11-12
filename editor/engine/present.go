@@ -49,17 +49,22 @@ func (e *Engine) Decorations(view uint64) present.Decorations {
 	for i, u := range units {
 		ids[i] = u.ID
 	}
-	d := present.Decorate(e.prog, e.store, e.snap, v, e.stopsFor(view), pr.Present(e.prog, e.store, e.snap, v, ids))
-	d.Guides = e.guides(view, v)
+	pres := pr.Present(e.prog, e.store, e.snap, v, ids)
+	d := present.Decorate(e.prog, e.store, e.snap, v, e.stopsFor(view), pres)
+	d.Guides = e.guides(view, v, pres)
 	return d
 }
 
-// guides previews each guide's command at a collapsed caret and shows
-// those that would act. The caller holds mu.
-func (e *Engine) guides(viewID uint64, v *policy.View) []present.Guide {
-	if v.Selection.Kind != doc.SelectText || !v.Selection.IsCollapsed() || v.Composition != nil {
+// guides previews each guide's command and shows those that would take
+// the selection elsewhere in the shape it has: a caret to another caret,
+// a range, selecting only, to another range, which the guide covers. A
+// command that would turn one into the other offers nothing to show
+// where it acts. The caller holds mu.
+func (e *Engine) guides(viewID uint64, v *policy.View, pres []*present.Presentation) []present.Guide {
+	if v.Composition != nil {
 		return nil
 	}
+	point := v.Selection.IsCollapsed()
 	var out []present.Guide
 	for _, g := range e.prog.Guides() {
 		cmd, ok := e.prog.Command(g.Command)
@@ -67,10 +72,22 @@ func (e *Engine) guides(viewID uint64, v *policy.View) []present.Guide {
 			continue
 		}
 		res, err := e.process(viewID, vocab.Input{Intent: cmd.Intent, At: e.at}, false)
-		if err != nil || !res.preview.Available {
+		to := res.preview.Selection
+		if err != nil || !res.preview.Available || to == v.Selection || to.IsCollapsed() != point {
 			continue
 		}
-		out = append(out, present.Guide{Command: g.Command, At: res.preview.Selection.Head})
+		guide := present.Guide{Command: g.Command, At: to.Head}
+		if !point {
+			if len(res.preview.Steps) > 0 {
+				continue
+			}
+			pt, ok := present.SelectionPaint(e.snap, pres, to)
+			if !ok {
+				continue
+			}
+			guide.Covers = pt.Covers
+		}
+		out = append(out, guide)
 	}
 	return out
 }

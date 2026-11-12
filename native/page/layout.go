@@ -698,7 +698,38 @@ const (
 	// text shown, as in a closed card: it has no caret of its own there,
 	// and is the object, outlined.
 	spotObject
+	// spotRange is a range of the page: the rows what it covers stands
+	// in (span).
+	spotRange
 )
+
+// span is where the rows covers paint stand, in page coordinates: across
+// all of them, and the height of the first.
+func (pl *pageLayout) span(covers []present.Cover) (ui.Rect, float32, bool) {
+	var r ui.Rect
+	head, ok := float32(0), false
+	for _, c := range covers {
+		u := pl.unitOf(c.Unit)
+		if u == nil {
+			continue
+		}
+		for _, pc := range pl.pieces(u, c) {
+			for _, row := range pc.rows {
+				b := row.box
+				if !ok {
+					r, head, ok = b, b.H, true
+					continue
+				}
+				if b.Y < r.Y {
+					head = b.H
+				}
+				x0, y0 := min(r.X, b.X), min(r.Y, b.Y)
+				r = ui.Rect{X: x0, Y: y0, W: max(r.X+r.W, b.X+b.W) - x0, H: max(r.Y+r.H, b.Y+b.H) - y0}
+			}
+		}
+	}
+	return r, head, ok
+}
 
 // spot is where a place stands, in page coordinates, and what it is.
 func (pl *pageLayout) spot(c doc.Caret) (ui.Rect, spotKind, bool) {
