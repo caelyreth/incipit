@@ -244,6 +244,36 @@ func TestTransferCarriesPositions(t *testing.T) {
 	}
 }
 
+// A whole transfer moves a slot's text as another's, every place in it
+// with it: an empty slot's caret too, which a plain transfer leaves.
+func TestAWholeTransferCarriesEveryPlace(t *testing.T) {
+	for _, from := range []string{"", "ab"} {
+		s := newPage(t, "xy", from)
+		first, second := child(s, 0).ID(), child(s, 1).ID()
+		tx := s.Begin(Origin{Class: OriginTyping})
+		n := len(from)
+		if err := tx.Apply(Transfer{From: SlotRef{Node: second}, End: n, To: SlotRef{Node: first}, At: 2, Whole: true}); err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.Apply(Remove{IDs: []ID{second}}); err != nil {
+			t.Fatal(err)
+		}
+		steps := Steps(tx.Steps())
+		for off := 0; off <= n; off++ {
+			for _, bias := range []Bias{BiasBefore, BiasAfter} {
+				if got, _ := steps.Map(Pos{Node: second, Offset: off}, bias); got != (Pos{Node: first, Offset: 2 + off}) {
+					t.Errorf("%q: caret at %d (bias %v) mapped to %v", from, off, bias, got)
+				}
+			}
+		}
+	}
+	s := newPage(t, "ab", "cd")
+	tx := s.Begin(Origin{Class: OriginTyping})
+	if err := tx.Apply(Transfer{From: SlotRef{Node: child(s, 1).ID()}, Start: 1, End: 2, To: SlotRef{Node: child(s, 0).ID()}, Whole: true}); !errors.Is(err, ErrRange) {
+		t.Fatalf("a whole transfer of part of a slot: %v", err)
+	}
+}
+
 func TestRemoveAndMoveRestoreExactly(t *testing.T) {
 	s := newPage(t, "a", "b", "c", "d", "e")
 	ids := make([]ID, 5)

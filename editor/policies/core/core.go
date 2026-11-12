@@ -364,10 +364,10 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 	if !ok {
 		return policy.Swallow
 	}
-	kind, attrs := continuation(c, block)
 	if clear == nil && pos.Offset == 0 && pos.Slot == 0 && block.Slot(0).Len() > 0 {
 		// The block keeps its text and the caret; an empty one opens
 		// before it.
+		kind, attrs := continuation(c, block)
 		parent, slot, index, ok := vocab.Index(r, block.ID())
 		if !ok {
 			return policy.Swallow
@@ -376,14 +376,24 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 		res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 		return res
 	}
-	if pos.Offset < block.Slot(pos.Slot).Len() {
-		kind, attrs = block.Kind(), block.Attrs()
-	}
+	// The block split is the one the caret stands in once the selection is
+	// cleared: what clearing leaves of it, as an item a range from before
+	// its marker unlists, is what the split continues.
+	var split doc.ID
 	res := policy.Do(append(edits, func(tx *doc.Tx) error {
 		at, _ := doc.Steps(tx.Steps()).Map(pos, doc.BiasBefore)
+		b, ok := vocab.Block(tx, at)
+		if !ok {
+			return vocab.ErrHelper
+		}
+		split = b.ID()
+		kind, attrs := b.Kind(), b.Attrs()
+		if at.Offset >= b.Slot(at.Slot).Len() {
+			kind, attrs = continuation(c.Over(tx, c.View()), b)
+		}
 		return vocab.Split(at, kind, attrs)(tx)
 	})...)
-	res.Then = startOfNext(block.ID())
+	res.Then = func(r doc.Reader) doc.Selection { return startOfNext(split)(r) }
 	res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 	return res
 }

@@ -339,11 +339,10 @@ func Join(first doc.SlotRef, second doc.ID) Edit {
 			if !CanJoin(tx, first, src) {
 				return fmt.Errorf("%w: incompatible slots never merge", ErrHelper)
 			}
-			if l := sn.Slot(src.Slot).Len(); l > 0 {
-				at := fn.Slot(first.Slot).Len()
-				if err := tx.Apply(doc.Transfer{From: src, Start: 0, End: l, To: first, At: at}); err != nil {
-					return err
-				}
+			// second's text is first's from here, its places with it.
+			l, at := sn.Slot(src.Slot).Len(), fn.Slot(first.Slot).Len()
+			if err := tx.Apply(doc.Transfer{From: src, Start: 0, End: l, To: first, At: at, Whole: true}); err != nil {
+				return err
 			}
 		}
 		sn, _ = tx.Node(second)
@@ -1350,10 +1349,9 @@ func unlist(tx *doc.Tx, item doc.ID) (doc.ID, error) {
 	pn, _ := tx.Node(parent)
 	para := pn.Slot(slot).Child(index).ID()
 	n, _ := tx.Node(item)
-	if l := n.Slot(0).Len(); l > 0 {
-		if err := tx.Apply(doc.Transfer{From: doc.SlotRef{Node: item}, Start: 0, End: l, To: doc.SlotRef{Node: para}, At: 0}); err != nil {
-			return 0, err
-		}
+	// The item's head is the paragraph's text, empty or not.
+	if err := tx.Apply(doc.Transfer{From: doc.SlotRef{Node: item}, Start: 0, End: n.Slot(0).Len(), To: doc.SlotRef{Node: para}, At: 0, Whole: true}); err != nil {
+		return 0, err
 	}
 	n, _ = tx.Node(item)
 	if err := moveChildrenAfter(tx, n, para); err != nil {

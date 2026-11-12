@@ -284,11 +284,18 @@ func (o MarkText) rebase(m Mapper) (Op, bool) {
 // Transfer moves the items in [Start, End) of one inline slot to At in
 // another, keeping their runs and marks. Splitting and joining are built
 // on it, so carets and annotations follow the text exactly.
+//
+// Whole moves a slot's text as the text of another, its source going
+// after, as joining a block or unlisting an item does: every place in the
+// source moves with it, its edges and an empty slot's own included, so a
+// caret is never left behind in what goes. Without it, places at the
+// range's edges stay or go by their bias, as at a split.
 type Transfer struct {
 	From       SlotRef
 	Start, End int
 	To         SlotRef
 	At         int
+	Whole      bool
 }
 
 func (o Transfer) String() string {
@@ -307,7 +314,8 @@ func (o Transfer) apply(tx *Tx) (*Step, error) {
 	if err != nil {
 		return nil, err
 	}
-	if o.Start < 0 || o.Start > o.End || o.End > src.Len() || o.At < 0 || o.At > dst.Len() {
+	if o.Start < 0 || o.Start > o.End || o.End > src.Len() || o.At < 0 || o.At > dst.Len() ||
+		o.Whole && (o.Start != 0 || o.End != src.Len()) {
 		return nil, ErrRange
 	}
 	items := src.Slice(o.Start, o.End)
@@ -346,6 +354,8 @@ func (m transferMap) Map(p Pos, bias Bias) (Pos, bool) {
 	switch p.Ref() {
 	case m.From:
 		switch {
+		case m.Whole:
+			return At(m.To, m.At+min(p.Offset, n)), true
 		case p.Offset < m.Start:
 		case p.Offset > m.Start && p.Offset < m.End,
 			p.Offset == m.Start && n > 0 && bias == BiasAfter,

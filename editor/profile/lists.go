@@ -50,11 +50,10 @@ func IntoList(id doc.ID, attrs doc.Attrs) vocab.Edit {
 		ln, _ := tx.Node(listID)
 		itemID := ln.Slot(0).Child(0).ID()
 		sn, _ := tx.Node(id)
-		if length := sn.Slot(0).Len(); length > 0 {
-			if err := tx.Apply(doc.Transfer{From: doc.SlotRef{Node: id}, Start: 0, End: length,
-				To: doc.SlotRef{Node: itemID}, At: 0}); err != nil {
-				return err
-			}
+		// The block's text is the item's head, empty or not.
+		if err := tx.Apply(doc.Transfer{From: doc.SlotRef{Node: id}, Start: 0, End: sn.Slot(0).Len(),
+			To: doc.SlotRef{Node: itemID}, At: 0, Whole: true}); err != nil {
+			return err
 		}
 		if err := tx.Apply(doc.Remove{IDs: []doc.ID{id}}); err != nil {
 			return err

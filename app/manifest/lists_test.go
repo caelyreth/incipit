@@ -32,6 +32,23 @@ func TestEnterInAnEmptyItemLeavesTheList(t *testing.T) {
 	p.want("page(list(item(one|)) paragraph(x))")
 }
 
+// Enter over a range from before an item's marker through its head
+// unlists the item, as deleting the range does, and breaks what is left:
+// the text the range ended in, a paragraph now.
+func TestEnterOverAnItemFromBeforeItsMarker(t *testing.T) {
+	p := twoItems(t)
+	item := p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Child(1).ID()
+	p.do(vocab.Place{Stop: doc.Caret{Pos: doc.Pos{Node: item}, Stop: doc.StopFirst}})
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.Pos{Node: item, Offset: 3}), Extend: true})
+	if s := p.selection(); s.Anchor.Stop >= 0 {
+		t.Fatalf("selection %+v, want it from before the marker", s)
+	}
+	p.do(vocab.Break{})
+	p.want("page(list(item(one|)) paragraph() paragraph())")
+	p.typeText("x")
+	p.want("page(list(item(one|)) paragraph() paragraph(x))")
+}
+
 func TestBackspaceAtAnItemsStartLeavesTheList(t *testing.T) {
 	p := twoItems(t)
 	for range 3 {
