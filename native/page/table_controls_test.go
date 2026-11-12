@@ -96,8 +96,8 @@ func (c *chromePage) texts() [][]string {
 func TestARowsGripPicksItsCells(t *testing.T) {
 	c := newChromePage(t, 3, 2, "a", "b", "c", "d", "e", "f")
 	c.move(c.cellPoint(doc.CellCoord{Row: 1}))
-	if c.el.chrome.near != c.table().pres.Unit || c.el.chrome.row != 1 {
-		t.Fatalf("the pointer over row 1 is by %v row %d", c.el.chrome.near, c.el.chrome.row)
+	if c.el.tableUI().near != c.table().pres.Unit || c.el.tableUI().row != 1 {
+		t.Fatalf("the pointer over row 1 is by %v row %d", c.el.tableUI().near, c.el.tableUI().row)
 	}
 	rr, _, _ := c.el.gripRects(c.table(), 1, -1)
 	c.move(center(rr))
@@ -243,7 +243,7 @@ func TestAnAreaByTheFootMakesARow(t *testing.T) {
 	if r, _ := c.grid().Size(); r != 3 {
 		t.Fatalf("a click on the area made %d rows", r)
 	}
-	if m := c.el.chrome.made; m == nil || m.index != 2 || m.column || m.from <= 0 {
+	if m := c.el.tableUI().made; m == nil || m.index != 2 || m.column || m.from <= 0 {
 		t.Fatalf("the made row is %+v", m)
 	}
 	// It comes in from the area's room, the table's height going on from
@@ -276,8 +276,8 @@ func TestAreasOpenBetweenLines(t *testing.T) {
 	if u.table.in.row != 1 || u.table.in.rowRoom != between {
 		t.Fatalf("by a border between rows the area is %+v", u.table.in)
 	}
-	if c.el.chrome.lift != between/2 || c.el.scroll != between/2 {
-		t.Fatalf("the page lifts %v (scrolled %v), want half the room, %v", c.el.chrome.lift, c.el.scroll, between/2)
+	if abs32(c.el.scroll-between/2) > 0.01 {
+		t.Fatalf("the page lifts %v, want half the room, %v", c.el.scroll, between/2)
 	}
 	if parts := u.table.parts(u.box); len(parts) != 2 {
 		t.Fatalf("the grid is drawn in %d parts around the area", len(parts))
@@ -302,13 +302,13 @@ func TestGripsComeAndGo(t *testing.T) {
 	id := c.table().pres.Unit
 	c.move(c.cellPoint(doc.CellCoord{}))
 	c.tt.Advance(time.Second)
-	if v := c.el.springs.value(springKey{unit: id, name: "grips"}); v < 0.99 {
+	if v := c.el.springs.value(tableSpring(id, "grips", shareValue)); v < 0.99 {
 		t.Fatal("the grips did not come in")
 	}
 	b := tableBox(c.table())
 	c.move(b.X+b.W/2, b.Y+b.H+300)
 	c.tt.Advance(time.Second)
-	if v := c.el.springs.value(springKey{unit: id, name: "grips"}); v > 0.01 {
+	if v := c.el.springs.value(tableSpring(id, "grips", shareValue)); v > 0.01 {
 		t.Fatalf("the grips stay at %v", v)
 	}
 }

@@ -2,14 +2,11 @@ package page
 
 import (
 	"maps"
-	"math"
 	"time"
 
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
-	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/motion"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -25,12 +22,13 @@ import (
 //     Escape and then one intent, or none.
 //   - A secondary click readies the commands of the topmost control under
 //     it that offers any.
+//   - Every value of theirs that moves is a spring in one store
+//     (springs.go), stepped for every unit by its kind at the paint's time.
 //   - What the page asks of its objects' layouts besides their
 //     presentations (objectIn) is gathered in one place each paint, from
-//     the drag held and what each kind's motion has come to (askLayout).
-//   - Every value of theirs that moves is a spring in one store, stepped
-//     at the paint's time and forgotten once a paint no longer asks for it
-//     (springs).
+//     what each kind's motion has come to and the drag held (step); a
+//     kind may anchor a place of its unit the page holds as it lays out
+//     again.
 
 // controlKey names a control: its unit, which of the unit's controls it
 // is, and its line or side.
@@ -216,141 +214,59 @@ func (el *Element) contextMenu(m *ui.Menu, services ui.Services) {
 	m.EditItems()
 }
 
-// askLayout sets what the page asks of its objects' layouts: the rooms its
-// tables' motion has opened and what the drag held previews. When that
-// changes, the page lays out again.
-func (el *Element) askLayout() {
+// step moves every unit's motion on to the paint's time, each by its kind,
+// visible or not, and sets what the page asks of its objects' layouts:
+// what each kind's motion has come to and what the drag held previews.
+// When that changes, the page lays out again, holding the place a kind
+// anchors where it stood.
+func (el *Element) step() {
 	ed := el.Editor
+	pl := ed.layout
 	asks := map[doc.ID]objectIn{}
-	for id, ts := range el.chrome.tables {
-		if ts.asked != (tableIn{}) {
-			a := askOf(asks, id)
-			a.table = ts.asked
-			asks[id] = a
+	type stood struct {
+		u *unitLayout
+		y float32
+	}
+	was := make(map[doc.ID]stood, len(pl.units))
+	for _, u := range pl.units {
+		id := u.pres.Unit
+		was[id] = stood{u, u.y}
+		for _, s := range u.surfaces {
+			for _, sg := range s.segs {
+				if sg.inline != nil {
+					sg.inline.step(el, sg)
+				}
+			}
+		}
+		if u.kind == nil {
+			continue
+		}
+		in := objectIn{span: -1}
+		u.kind.step(el, u, &in)
+		if in != (objectIn{span: -1}) {
+			asks[id] = in
 		}
 	}
 	if a, ok := el.drag.(asker); ok {
 		a.ask(asks)
 	}
-	if !maps.Equal(asks, ed.asks) {
-		ed.asks = asks
-		el.relayout()
+	if maps.Equal(asks, ed.asks) {
+		return
 	}
-}
-
-// springs are the values of the page's objects and controls that move,
-// each under its key. A value starts where it is first asked to go, as an
-// element's animated value does; a paint steps each it asks for, and one
-// no paint asked for is forgotten as the paint ends, so a control that
-// goes and comes back comes in where it is.
-type springs struct {
-	m       map[springKey]*sprung
-	now     time.Time
-	animate bool
-	moving  bool
-}
-
-// springKey names a spring: its unit, what it moves, and its line.
-type springKey struct {
-	unit doc.ID
-	name string
-	at   int
-}
-
-type sprung struct {
-	s    motion.Spring
-	unit bool
-	seen bool
-}
-
-// begin readies the store for a paint at now.
-func (s *springs) begin(now time.Time, animate bool) {
-	if s.m == nil {
-		s.m = map[springKey]*sprung{}
-	}
-	s.now, s.animate, s.moving = now, animate, false
-}
-
-// end forgets the springs this paint did not ask for, and reports whether
-// any it did still moves.
-func (s *springs) end() bool {
-	for k, v := range s.m {
-		if !v.seen {
-			delete(s.m, k)
+	ed.asks = asks
+	pl = el.relayout()
+	for _, u := range pl.units {
+		w, ok := was[u.pres.Unit]
+		if !ok || u.kind == nil {
+			continue
 		}
-		v.seen = false
+		if d, ok := u.kind.anchor(el, w.u, w.y, u); ok && d != 0 {
+			el.scroll += d
+			el.glide.Shift(d)
+			return
+		}
 	}
-	return s.moving
 }
-
-// follow steps the spring under key toward target at frequency; unit
-// says it moves a share rather than DIPs. It gives where it stands.
-func (s *springs) follow(key springKey, target, frequency float32, unit bool) float32 {
-	v := s.get(key, target, unit)
-	if s.animate {
-		v.s.Step(target, s.now, frequency)
-		s.moving = s.moving || v.s.Moving()
-	} else {
-		v.s = newSpring(target, s.now, unit)
-	}
-	return v.s.Value()
-}
-
-// jump sets the spring under key at value at once, as a room a change
-// leaves or a line coming in from where its area stood.
-func (s *springs) jump(key springKey, value float32, unit bool) {
-	v := s.get(key, value, unit)
-	v.s = newSpring(value, s.now, unit)
-}
-
-// value is where the spring under key stands, 0 for none.
-func (s *springs) value(key springKey) float32 {
-	if v, ok := s.m[key]; ok {
-		return v.s.Value()
-	}
-	return 0
-}
-
-// settled reports whether the spring under key is at rest.
-func (s *springs) settled(key springKey) bool {
-	v, ok := s.m[key]
-	return !ok || !v.s.Moving()
-}
-
-func (s *springs) get(key springKey, at float32, unit bool) *sprung {
-	if s.m == nil {
-		s.m = map[springKey]*sprung{}
-	}
-	v, ok := s.m[key]
-	if !ok {
-		v = &sprung{s: newSpring(at, s.now, unit), unit: unit}
-		s.m[key] = v
-	}
-	v.seen = true
-	return v
-}
-
-func newSpring(v float32, now time.Time, unit bool) motion.Spring {
-	if unit {
-		return motion.NewUnitSpring(v, now)
-	}
-	return motion.NewSpring(v, now)
-}
-
-// The controls' springs arrive as the app's do (components.Spring): rooms,
-// grips and lights in MotionNormal, a carry's parting in MotionPanel, a
-// hover in HoverIn and out in HoverOut, a press in MotionImmediate.
-var (
-	chromeFollow = settleFrequency(components.MotionNormal)
-	carryPart    = settleFrequency(components.MotionPanel)
-	hoverIn      = settleFrequency(components.HoverIn)
-	hoverOut     = settleFrequency(components.HoverOut)
-	pressFollow  = settleFrequency(components.MotionImmediate)
-)
-
-// settleFrequency is the frequency of a critically damped spring whose
-// undamped period is d, as the app's springs take their duration.
-func settleFrequency(d time.Duration) float32 { return float32(2 * math.Pi / d.Seconds()) }
 
 // lit is how far the control under key is lit: eased in quickly as the
 // pointer works it and out gently.
@@ -360,7 +276,7 @@ func (el *Element) lit(key controlKey) float32 {
 	if on {
 		target, frequency = 1, hoverIn
 	}
-	return el.springs.follow(springKey{unit: key.unit, name: "hover:" + string(key.part), at: key.at}, target, frequency, true)
+	return el.springs.follow(springKey{unit: key.unit, name: "hover:" + string(key.part), at: key.at, of: shareValue}, target, frequency)
 }
 
 func contains(r ui.Rect, x, y float32) bool {

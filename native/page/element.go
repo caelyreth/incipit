@@ -42,22 +42,20 @@ type Element struct {
 	restoreScroll *float32
 	glide         motion.Glide
 	overscroll    scrollfx.Elastic
-	// tables are the tables scrolled across, by table, and chrome their
-	// controls.
-	tables   map[doc.ID]*tableScroll
-	chrome   tableChrome
-	viewport ui.Rect
-	column   float32 // the column's left, in the element
+	viewport      ui.Rect
+	column        float32 // the column's left, in the element
 	// drag is the press the page holds until it lets go: a control's or
 	// the text's (controls.go). menu is what its last secondary click
 	// chose, menuChosen whether one did since the last press or key; hotKey
-	// the control the pointer worked at the last paint, and springs the
-	// values its objects and controls move.
+	// the control the pointer worked at the last paint, springs the
+	// values its objects and controls move, and memos what each unit's
+	// kind keeps besides, while the unit is on the page.
 	drag         drag
 	menu         [][]vocab.CommandID
 	menuChosen   bool
 	hotKey       controlKey
 	springs      springs
+	memos        map[memoKey]any
 	focusPending bool
 	// held is until when a scroll by hand holds the page; typewriter and
 	// viewH are the mode and the height last followed.
@@ -85,10 +83,9 @@ type Element struct {
 	// when last painted.
 	// rooms spring each unit's height as a surface in it opens and
 	// closes, stepped as the page is painted at paintNow; roomsMoving asks
-	// for the next paint. maths are the formulas' fades. animate is
-	// whether motion is wanted, as the last paint found.
+	// for the next paint. animate is whether motion is wanted, as the
+	// last paint found.
 	rooms       map[doc.ID]*room
-	maths       map[doc.ID]*mathMotion
 	paintNow    time.Time
 	animate     bool
 	roomsMoving bool
@@ -103,7 +100,7 @@ type Element struct {
 
 // NewElement is an element over ed.
 func NewElement(ed *Editor) *Element {
-	el := &Element{Editor: ed, Label: "Page", focusPending: true, maths: map[doc.ID]*mathMotion{}}
+	el := &Element{Editor: ed, Label: "Page", focusPending: true}
 	el.client = &client{el: el}
 	return el
 }
@@ -231,7 +228,7 @@ func (el *Element) View(c *ui.Context) {
 		}
 		el.takeDrops(box)
 		// The tables' controls follow the pointer; what they open moves
-		// at the paint's time (stepTables).
+		// at the paint's time (step).
 		el.followTables(c, box.Hovered())
 		if cursor, ok := el.cursorAt(el.toPage(el.pointer.X, el.pointer.Y)); ok {
 			box.Cursor(cursor)
@@ -590,12 +587,11 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// paints again without building the view moves it on.
 	now, animate := p.Now(), !p.Preferences().ReduceMotion
 	el.focused, el.paintNow, el.animate = focused, now, animate
-	// The controls' springs step at the paint's time: the tables' rooms
-	// first, and what the page asks of its layouts lays it out again.
+	// Every unit's motion steps at the paint's time, and what the page
+	// asks of its layouts lays it out again.
 	el.springs.begin(now, animate)
 	el.hotKey = el.hot()
-	el.stepTables(now, animate)
-	el.askLayout()
+	el.step()
 	pl = ed.layout
 	el.settleRooms(pl, now, true, animate)
 	if el.roomsMoving {
@@ -677,10 +673,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	if el.paintTableChrome(p, pl, ox, oy, now, animate) {
 		p.AnimationFrame()
 	}
-	el.sweepMaths()
 	if el.springs.end() {
 		p.AnimationFrame()
 	}
+	el.forget(pl)
 	if el.paintDrop(p, ox, oy, m, now, animate) {
 		p.AnimationFrame()
 	}

@@ -44,7 +44,7 @@ type Editor struct {
 	// reveal asks the next frame to scroll the caret into view.
 	reveal bool
 	// asks are what the page asks of its objects' layouts besides their
-	// presentations, as its controls and their drags preview (askLayout).
+	// presentations, as their motion and the drag held ask (Element.step).
 	asks map[doc.ID]objectIn
 
 	mu     sync.Mutex

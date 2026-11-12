@@ -289,6 +289,33 @@ func (el *Element) gripsShown(u *unitLayout) bool {
 	return sel.Kind == doc.SelectNode && sel.Node == u.pres.Unit && el.focused || el.hover == u.pres.Unit
 }
 
+// figureSpring is the key of one of a figure's shares.
+func figureSpring(id doc.ID, name string) springKey {
+	return springKey{unit: id, name: name, of: shareValue}
+}
+
+// step moves a figure's shares on: its picture fading in as it arrives,
+// its grips as it shows them, its caption's hint. A picture is asked for
+// only as it is drawn; one that arrived before it was drawn again shows at
+// once.
+func (figureKind) step(el *Element, u *unitLayout, _ *objectIn) {
+	shown, grip, hint := float32(0), float32(0), float32(0)
+	state := el.Pictures.State(u.figure.Media)
+	if state == PictureReady {
+		shown = 1
+	}
+	if el.gripsShown(u) && state != PictureMissing {
+		grip = 1
+	}
+	if el.hinted(u) {
+		hint = 1
+	}
+	id := u.pres.Unit
+	el.springs.follow(figureSpring(id, "picture"), shown, figureFade)
+	el.springs.follow(figureSpring(id, "grips"), grip, figureFade)
+	el.springs.follow(figureSpring(id, "hint"), hint, figureFade)
+}
+
 // paintFigure draws a figure's picture, its place while the picture is on
 // its way, and its grips; the caption is drawn as text with the rest.
 func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, now time.Time, animate bool) {
@@ -299,23 +326,10 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, now
 	box.Y += uy
 	radius := figureRadius(m)
 	bitmap, state := el.Pictures.Picture(u.figure.Media, now)
-
-	shown, grip, hint := float32(0), float32(0), float32(0)
-	if state == PictureReady {
-		shown = 1
-	}
-	if el.gripsShown(u) && state != PictureMissing {
-		grip = 1
-	}
-	if el.hinted(u) {
-		hint = 1
-	}
-	// A picture already decoded shows at once, as when a page opens
-	// again; one that has to wait fades in.
 	id := u.pres.Unit
-	alpha := el.springs.follow(springKey{unit: id, name: "picture"}, shown, figureFade, true)
-	gripsShown := el.springs.follow(springKey{unit: id, name: "grips"}, grip, figureFade, true)
-	hinted := el.springs.follow(springKey{unit: id, name: "hint"}, hint, figureFade, true)
+	alpha := el.springs.value(figureSpring(id, "picture"))
+	gripsShown := el.springs.value(figureSpring(id, "grips"))
+	hinted := el.springs.value(figureSpring(id, "hint"))
 
 	if alpha < 1 {
 		p.Fill(box, t.Surface.Inset.Alpha(1-alpha), radius)

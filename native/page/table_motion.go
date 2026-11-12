@@ -1,36 +1,32 @@
 package page
 
 import (
-	"time"
-
 	"github.com/caelyreth/neverland/editor/doc"
 )
 
 // How a table's controls move: each value a spring in the page's store
-// (controls.go), stepped at the paint's time before the page is laid out,
+// (springs.go), stepped at the paint's time before the page is laid out,
 // since what they open is room the layout gives as it is asked (tableIn),
 // each room as far as its spring has come.
 //
 //   - The rooms the areas open, under the foot, between two rows and
 //     between two columns, and the area beside the end, ease in and out;
-//     the page lifts by half the room between two rows, so the border stays
-//     about the pointer.
+//     the page holds the border a room between two rows opens about
+//     (anchor), so it stays about the pointer.
 //   - Every line a table gains comes in, from nothing or from the size of
 //     the area that made it (tableIn.grow): a run of rows or of columns
 //     whose cells are all new.
 //   - A carry parts the grid where it would land and closes it where it no
 //     longer would.
 
-// tableState is what a table's motion keeps besides its springs: where its
+// tableState is what a table's controls keep besides their springs: where its
 // row and column rooms stand, the border lit, the cells it had, the lines
-// coming in, the rooms a carry opens, and what its layout is asked as they
-// stand.
+// coming in, and the rooms a carry opens.
 type tableState struct {
 	row, column, borderAt int
 	cells                 map[doc.ID]bool
 	grow                  [2]lineRun
 	apart                 []*apartRoom
-	asked                 tableIn
 }
 
 // lineRun is a run of lines from to to, empty when to is not past from.
@@ -50,7 +46,7 @@ func (a *apartRoom) key(table doc.ID) springKey {
 	if a.rows {
 		name = "apart-rows"
 	}
-	return springKey{unit: table, name: name, at: a.at}
+	return springKey{unit: table, name: name, at: a.at, of: roomValue}
 }
 
 // apartRoom is the room a carry opens before line at.
@@ -65,23 +61,34 @@ func (ts *tableState) apartRoom(rows bool, at int) *apartRoom {
 	return a
 }
 
-// stepTables moves each table's controls on to now: the rooms its areas
-// and a carry open, its lines coming in, its grips and border, and sets
-// what its layout is asked as they stand; the page lifts by half the room
-// open between two rows.
-func (el *Element) stepTables(now time.Time, animate bool) {
-	pl := el.Editor.layout
-	ch := &el.chrome
-	if pl == nil {
+// tableState is the state of a table's controls, as the page remembers it
+// while the table is on the page.
+func (el *Element) tableState(id doc.ID) *tableState {
+	return memo(el, id, "table", func() *tableState { return &tableState{row: -1, column: -1} })
+}
+
+// tableSpring is the key of one of a table's values.
+func tableSpring(id doc.ID, name string, of valueKind) springKey {
+	return springKey{unit: id, name: name, of: of}
+}
+
+// step moves a table's controls on to the paint's time: the rooms its
+// areas and a carry open, its lines coming in, its grips and border; and
+// asks its layout for what they open as they stand.
+func (tableKind) step(el *Element, u *unitLayout, in *objectIn) {
+	t := u.table
+	if t == nil {
 		return
 	}
-	if ch.tables == nil {
-		ch.tables = map[doc.ID]*tableState{}
-	}
-	if m := ch.made; m != nil && now.Sub(m.at) > madeFade {
+	ch := el.tableUI()
+	id := u.pres.Unit
+	ts := el.tableState(id)
+	now := el.springs.now
+	if m := ch.made; m != nil && m.table == id && now.Sub(m.at) > madeFade {
 		ch.made = nil
 	}
 	_, _, step, between := el.areaRooms()
+	i := ch.place(id)
 	belowAt, belowOpen := ch.below.Open()
 	rowsAt, rowsOpen := ch.rows.Open()
 	columnsAt, columnsOpen := ch.columns.Open()
@@ -92,82 +99,83 @@ func (el *Element) stepTables(now time.Time, animate bool) {
 		}
 		return 0
 	}
-	lift := float32(0)
-	seen := map[doc.ID]bool{}
-	for i, u := range pl.units {
-		t := u.table
-		if t == nil {
-			continue
-		}
-		id := u.pres.Unit
-		seen[id] = true
-		ts := ch.tables[id]
-		if ts == nil {
-			ts = &tableState{row: -1, column: -1}
-			ch.tables[id] = ts
-		}
-		follow := func(name string, target float32, unit bool) float32 {
-			return el.springs.follow(springKey{unit: id, name: name}, target, chromeFollow, unit)
-		}
-		below := follow("below", open(belowOpen && belowAt == 2*i, step), false)
-		follow("beside", open(belowOpen && belowAt == 2*i+1, 1), true)
-		if rowsOpen && rowsAt/gapStride == i {
-			ts.row = rowsAt % gapStride
-		}
-		rowRoom := follow("row-room", open(rowsOpen && rowsAt/gapStride == i, between), false)
-		if columnsOpen && columnsAt/gapStride == i {
-			ts.column = columnsAt % gapStride
-		}
-		columnRoom := follow("column-room", open(columnsOpen && columnsAt/gapStride == i, between), false)
-		mine := held != nil && held.table == id
-		follow("grips", open(ch.near == id && (ch.inside || mine) && (el.drag == nil || mine), 1), true)
-		// A border lights under the pointer and as its drag holds it.
-		if hot.unit == id && hot.part == partBorder {
-			ts.borderAt = hot.at
-		}
-		follow("border", open(hot.unit == id && hot.part == partBorder, 1), true)
-		el.springs.follow(springKey{unit: id, name: "press"}, open(mine && isArea(held.part), 1), pressFollow, true)
-		el.growLines(u, ts, now, animate)
-		el.stepApart(id, ts, now, animate)
-		if ts.row > 0 && ts.row < len(t.rows) {
-			lift += rowRoom / 2
-		}
-		in := tableIn{}
-		if below >= 0.5 {
-			in.below = below
-		}
-		if rowRoom >= 0.5 {
-			in.row, in.rowRoom = ts.row, rowRoom
-		}
-		if columnRoom >= 0.5 {
-			in.column, in.columnRoom = ts.column, columnRoom
-		}
-		k := 0
-		for _, a := range ts.apart {
-			if v := el.springs.value(a.key(id)); v >= 0.5 && k < maxApart {
-				in.apart[k] = lineRoom{rows: a.rows, at: a.at, room: v}
-				k++
-			}
-		}
-		for axis, g := range ts.grow {
-			if g.to > g.from {
-				in.grow[axis] = lineGrow{from: g.from, to: g.to, share: el.springs.value(growKey(id, axis))}
-			}
-		}
-		ts.asked = in
+	follow := func(name string, of valueKind, target float32) float32 {
+		return el.springs.follow(tableSpring(id, name, of), target, chromeFollow)
 	}
-	for id := range ch.tables {
-		if !seen[id] {
-			delete(ch.tables, id)
+	below := follow("below", roomValue, open(belowOpen && belowAt == 2*i, step))
+	follow("beside", shareValue, open(belowOpen && belowAt == 2*i+1, 1))
+	if rowsOpen && rowsAt/gapStride == i {
+		ts.row = rowsAt % gapStride
+	}
+	rowRoom := follow("row-room", roomValue, open(rowsOpen && rowsAt/gapStride == i, between))
+	if columnsOpen && columnsAt/gapStride == i {
+		ts.column = columnsAt % gapStride
+	}
+	columnRoom := follow("column-room", roomValue, open(columnsOpen && columnsAt/gapStride == i, between))
+	mine := held != nil && held.table == id
+	follow("grips", shareValue, open(ch.near == id && (ch.inside || mine) && (el.drag == nil || mine), 1))
+	// A border lights under the pointer and as its drag holds it.
+	if hot.unit == id && hot.part == partBorder {
+		ts.borderAt = hot.at
+	}
+	follow("border", shareValue, open(hot.unit == id && hot.part == partBorder, 1))
+	el.springs.follow(tableSpring(id, "press", shareValue), open(mine && isArea(held.part), 1), pressFollow)
+	el.growLines(u, ts)
+	el.stepApart(id, ts)
+	tin := tableIn{}
+	if below >= 0.5 {
+		tin.below = below
+	}
+	if rowRoom >= 0.5 {
+		tin.row, tin.rowRoom = ts.row, rowRoom
+	}
+	if columnRoom >= 0.5 {
+		tin.column, tin.columnRoom = ts.column, columnRoom
+	}
+	k := 0
+	for _, a := range ts.apart {
+		if v := el.springs.value(a.key(id)); v >= 0.5 && k < maxApart {
+			tin.apart[k] = lineRoom{rows: a.rows, at: a.at, room: v}
+			k++
 		}
 	}
-	// What is about the pointer stays under it as room opens between two
-	// rows, a glide under way carried along.
-	if delta := lift - ch.lift; delta != 0 {
-		ch.lift = lift
-		el.scroll += delta
-		el.glide.Shift(delta)
+	for axis, g := range ts.grow {
+		if g.to > g.from {
+			tin.grow[axis] = lineGrow{from: g.from, to: g.to, share: el.springs.value(growKey(id, axis))}
+		}
 	}
+	in.table = tin
+}
+
+// anchor holds the border a room between two rows opens about, while the
+// pointer has it open or it closes: the page lifts by half the room, so
+// what is about the pointer stays under it. A room an area made a row in
+// holds nothing: the page keeps where it lifted it.
+func (tableKind) anchor(el *Element, was *unitLayout, wasY float32, u *unitLayout) (float32, bool) {
+	ch := el.tableUI()
+	id := u.pres.Unit
+	ts := el.tableState(id)
+	rowsAt, rowsOpen := ch.rows.Open()
+	opening := rowsOpen && rowsAt/gapStride == ch.place(id)
+	if was.table == nil || u.table == nil || !opening && el.springs.value(tableSpring(id, "row-room", roomValue)) <= 0 {
+		return 0, false
+	}
+	about := func(t *tableLayout) (float32, bool) {
+		if ts.row <= 0 || ts.row >= len(t.rows) {
+			return 0, false
+		}
+		y := t.rows[ts.row]
+		if t.in.row == ts.row {
+			y -= t.rowGap.H / 2
+		}
+		return y, true
+	}
+	from, ok := about(was.table)
+	to, ok2 := about(u.table)
+	if !ok || !ok2 {
+		return 0, false
+	}
+	return u.y + to - (wasY + from), true
 }
 
 // isArea reports whether a control is one of a table's areas.
@@ -176,13 +184,13 @@ func isArea(p part) bool {
 }
 
 func growKey(table doc.ID, axis int) springKey {
-	return springKey{unit: table, name: "grow", at: axis}
+	return springKey{unit: table, name: "grow", at: axis, of: shareValue}
 }
 
 // growLines brings in the lines a table has gained since it was last laid
 // out: a run of rows, or of columns, whose cells are all new, from the
 // share of its size the area that made it had, else from nothing.
-func (el *Element) growLines(u *unitLayout, ts *tableState, now time.Time, animate bool) {
+func (el *Element) growLines(u *unitLayout, ts *tableState) {
 	t := u.table
 	id := u.pres.Unit
 	cells := make(map[doc.ID]bool, len(t.cells))
@@ -202,7 +210,7 @@ func (el *Element) growLines(u *unitLayout, ts *tableState, now time.Time, anima
 			fresh[0][cc.Row], fresh[1][cc.Column] = false, false
 		}
 	}
-	if ts.cells != nil && animate {
+	if ts.cells != nil && el.springs.animate {
 		for axis, f := range fresh {
 			run := lineRun{-1, -1}
 			for k, is := range f {
@@ -218,11 +226,11 @@ func (el *Element) growLines(u *unitLayout, ts *tableState, now time.Time, anima
 				continue
 			}
 			start := float32(0)
-			if m := el.chrome.made; m != nil && m.table == id && m.column == (axis == 1) && m.index == run.from {
+			if m := el.tableUI().made; m != nil && m.table == id && m.column == (axis == 1) && m.index == run.from {
 				start = m.from
 			}
 			ts.grow[axis] = run
-			el.springs.jump(growKey(id, axis), start, true)
+			el.springs.jump(growKey(id, axis), start)
 		}
 	}
 	ts.cells = cells
@@ -231,7 +239,7 @@ func (el *Element) growLines(u *unitLayout, ts *tableState, now time.Time, anima
 			continue
 		}
 		key := growKey(id, axis)
-		el.springs.follow(key, 1, figureFade, true)
+		el.springs.follow(key, 1, figureFade)
 		if el.springs.settled(key) {
 			ts.grow[axis] = lineRun{}
 		}
@@ -241,10 +249,10 @@ func (el *Element) growLines(u *unitLayout, ts *tableState, now time.Time, anima
 // stepApart parts the grid where a carried line would land, once the
 // pointer has stayed by the place a moment, the frame it leaves folding
 // away, and lets each room close that is no longer asked for.
-func (el *Element) stepApart(id doc.ID, ts *tableState, now time.Time, animate bool) {
+func (el *Element) stepApart(id doc.ID, ts *tableState) {
 	if d, ok := el.drag.(*lineDrag); ok && d.moved && d.table == id {
 		if d.over != d.to {
-			if left := carrySettle - now.Sub(d.since); animate && left > 0 {
+			if left := carrySettle - el.springs.now.Sub(d.since); el.springs.animate && left > 0 {
 				// The page parts once the pointer has stayed: frames come
 				// till then.
 				el.springs.moving = true
@@ -264,7 +272,7 @@ func (el *Element) stepApart(id doc.ID, ts *tableState, now time.Time, animate b
 	}
 	kept := ts.apart[:0]
 	for _, a := range ts.apart {
-		v := el.springs.follow(a.key(id), a.target, carryPart, false)
+		v := el.springs.follow(a.key(id), a.target, carryPart)
 		if a.target > 0 || v >= 0.5 {
 			kept = append(kept, a)
 		}

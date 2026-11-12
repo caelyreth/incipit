@@ -199,17 +199,17 @@ func (d *lineDrag) finish(canceled bool, at time.Time) {
 // stands there, and the room it left closes behind it.
 func (d *lineDrag) drop(canceled bool, at time.Time) {
 	el := d.el
-	ch := &el.chrome
+	ch := el.tableUI()
 	from := d.tablePress.at
 	d.to = d.over
 	landing := &tableLanding{table: d.table, rows: d.rows, index: from, from: d.corner(), at: at}
 	ch.landing = landing
-	ts := ch.tables[d.table]
+	ts := recalled[tableState](el, d.table, "table")
 	if ts != nil {
 		for _, a := range ts.apart {
 			if a.frame && a.target > 0 {
 				a.target = 0
-				el.springs.jump(a.key(d.table), 0, false)
+				el.springs.jump(a.key(d.table), 0)
 			}
 			a.frame = false
 		}
@@ -233,7 +233,7 @@ func (d *lineDrag) drop(canceled bool, at time.Time) {
 	}
 	a := ts.apartRoom(d.rows, left)
 	a.target, a.frame = 0, false
-	el.springs.jump(a.key(d.table), d.size, false)
+	el.springs.jump(a.key(d.table), d.size)
 }
 
 // carryIndex is where a line from goes, landing before slot.
@@ -359,35 +359,31 @@ type tableMade struct {
 // goes at once, the line coming in from its size, and the page keeps where
 // the room lifted it.
 func (el *Element) useArea(u *unitLayout, p part, at time.Time) {
-	ch := &el.chrome
+	ch := el.tableUI()
 	t, id := u.table, u.pres.Unit
-	ts := ch.tables[id]
-	if ts == nil {
-		return
-	}
+	ts := el.tableState(id)
 	rows, columns := len(t.rows), len(t.columns)
 	rowShare := func(size float32) float32 { return min(1, size/max(1, t.heights[rows-1])) }
-	room := func(name string) springKey { return springKey{unit: id, name: name} }
+	room := func(name string) springKey { return tableSpring(id, name, roomValue) }
 	axis, index, share := profile.Rows, rows, float32(0)
 	switch p {
 	case partBelow:
 		ch.below.Use()
 		index, share = rows, rowShare(t.below.H)
-		el.springs.jump(room("below"), 0, false)
+		el.springs.jump(room("below"), 0)
 	case partBeside:
 		ch.below.Use()
 		axis, index = profile.Columns, columns
-		el.springs.jump(room("beside"), 0, true)
+		el.springs.jump(tableSpring(id, "beside", shareValue), 0)
 	case partRowArea:
 		ch.rows.Use()
 		index, share = ts.row, rowShare(t.rowGap.H)
-		ch.lift -= el.springs.value(room("row-room")) / 2
-		el.springs.jump(room("row-room"), 0, false)
+		el.springs.jump(room("row-room"), 0)
 	case partColumnArea:
 		ch.columns.Use()
 		axis, index = profile.Columns, ts.column
 		share = min(1, t.columnGap.W*float32(columns+1)/max(1, u.box.W))
-		el.springs.jump(room("column-room"), 0, false)
+		el.springs.jump(room("column-room"), 0)
 	}
 	n := rows
 	if axis == profile.Columns {

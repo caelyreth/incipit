@@ -6,7 +6,6 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/formula"
-	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/untie"
 	"github.com/egoist/mygo/ui"
 )
@@ -151,14 +150,6 @@ func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32) {
 	}
 }
 
-// mathMotion is a formula's springs across frames, and the math it last
-// drew, which fades out where its math has gone.
-type mathMotion struct {
-	ink, open, hint motion.Spring
-	drawn           mathSet
-	seen            bool
-}
-
 // mathLook is how strongly a formula's parts show this frame: its math's
 // ink, its hint, and what its being edited opens (an inline formula's
 // underline, a math block's frame and panel).
@@ -168,12 +159,16 @@ type mathLook struct {
 	drawn mathSet
 }
 
-// mathLookOf steps a formula's springs toward where they are going. All
-// start from nothing, so a formula fades in as it first shows: its math
-// or hint, its underline or frame. Its hint leaves at once as math
-// arrives; math leaving fades out as its hint fades in. Math dims and
-// brightens as it goes stale and sound.
-func (el *Element) mathLookOf(id doc.ID, ms mathSet, open bool, p *ui.Painter) mathLook {
+func mathSpring(id doc.ID, name string) springKey {
+	return springKey{unit: id, name: name, of: shareValue}
+}
+
+// stepMath moves a formula's shares on. As a formula first shows, its math
+// or hint fades in, and its underline or frame. Its hint leaves at once as
+// math arrives, as a field's placeholder does; it would only crowd what
+// arrives. Math leaving fades out where it stood, as its hint fades in;
+// math dims and brightens as it goes stale and sound.
+func (el *Element) stepMath(id doc.ID, ms mathSet, open bool) {
 	ink, hint, opened := float32(1), float32(0), float32(0)
 	switch {
 	case ms.box == nil:
@@ -184,32 +179,23 @@ func (el *Element) mathLookOf(id doc.ID, ms mathSet, open bool, p *ui.Painter) m
 	if open {
 		opened = 1
 	}
-	now := el.paintNow
-	mm, ok := el.maths[id]
-	if !ok {
-		mm = &mathMotion{ink: motion.NewUnitSpring(0, now), open: motion.NewUnitSpring(0, now), hint: motion.NewUnitSpring(0, now)}
-		el.maths[id] = mm
-	}
-	mm.seen = true
-	if ms.box != nil {
-		mm.drawn = ms
-	}
 	if hint == 0 {
-		// A hint leaves as math arrives, as a field's placeholder does;
-		// it would only crowd what arrives.
-		mm.hint = motion.NewUnitSpring(0, now)
+		el.springs.jump(mathSpring(id, "hint"), 0)
 	}
-	if el.animate {
-		mm.ink.Step(ink, now, mathFrequency)
-		mm.open.Step(opened, now, mathFrequency)
-		mm.hint.Step(hint, now, mathFrequency)
-		if mm.ink.Moving() || mm.open.Moving() || mm.hint.Moving() {
-			p.AnimationFrame()
-		}
-	} else {
-		mm.ink, mm.open, mm.hint = motion.NewUnitSpring(ink, now), motion.NewUnitSpring(opened, now), motion.NewUnitSpring(hint, now)
+	el.springs.follow(mathSpring(id, "ink"), ink, mathFrequency)
+	el.springs.follow(mathSpring(id, "open"), opened, mathFrequency)
+	el.springs.follow(mathSpring(id, "hint"), hint, mathFrequency)
+	if ms.box != nil {
+		el.springs.keep(mathSpring(id, "ink"), ms)
 	}
-	return mathLook{ink: mm.ink.Value(), open: mm.open.Value(), hint: mm.hint.Value(), drawn: mm.drawn}
+}
+
+// mathLookOf is how a formula shows, as its shares stand.
+func (el *Element) mathLookOf(id doc.ID) mathLook {
+	lk := mathLook{ink: el.springs.value(mathSpring(id, "ink")), open: el.springs.value(mathSpring(id, "open")),
+		hint: el.springs.value(mathSpring(id, "hint"))}
+	lk.drawn, _ = el.springs.kept(mathSpring(id, "ink")).(mathSet)
+	return lk
 }
 
 // inks are the colors math is drawn in, at a strength.
@@ -231,7 +217,7 @@ func (el *Element) hintInk(src string, editing bool, a float32) ui.Color {
 // hint, centered, and, while its card is open, an accent underline that
 // grows out from its middle.
 func (el *Element) paintInline(p *ui.Painter, sg seg, o ui.Rect) {
-	lk := el.mathLookOf(sg.node.ID(), sg.math, sg.open, p)
+	lk := el.mathLookOf(sg.node.ID())
 	cx := o.X + o.W/2
 	base := o.Y + o.H - sg.face.Size*0.25
 	if ms := sg.math; ms.box != nil {
@@ -258,7 +244,7 @@ func (el *Element) paintInline(p *ui.Painter, sg seg, o ui.Rect) {
 // panel, shows.
 func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32) float32 {
 	t, m, ml := el.Theme, el.Editor.metrics, u.math
-	lk := el.mathLookOf(u.pres.Unit, ml.mathSet, ml.open, p)
+	lk := el.mathLookOf(u.pres.Unit)
 	a := min(panelOpened(u), lk.open)
 	if a > 0.001 {
 		components.PaintRing(p, frameOf(u, ux, uy), cardPad(m), 0, t.Border.Default.Alpha(a))
@@ -290,14 +276,4 @@ func panelOpened(u *unitLayout) float32 {
 		return 1
 	}
 	return min(max((u.shown-ml.fold)/(ml.full-ml.fold), 0), 1)
-}
-
-// sweepMaths forgets the motion of formulas no longer drawn.
-func (el *Element) sweepMaths() {
-	for id, mm := range el.maths {
-		if !mm.seen {
-			delete(el.maths, id)
-		}
-		mm.seen = false
-	}
 }

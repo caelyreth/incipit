@@ -36,6 +36,29 @@ type objectKind interface {
 	// controls are what it offers the pointer over it, bottom to top
 	// (controls.go).
 	controls(el *Element, u *unitLayout) []control
+	// step moves what it moves on to the paint's time, before the page is
+	// laid out, and sets what it asks of its own layout (springs.go).
+	step(el *Element, u *unitLayout, in *objectIn)
+	// anchor is how far the place it holds under the pointer moved from
+	// was, drawn at wasY, to u, as the page is laid out again: the page
+	// scrolls by it, so the place stays put.
+	anchor(el *Element, was *unitLayout, wasY float32, u *unitLayout) (float32, bool)
+}
+
+// baseKind is what a kind does where it does nothing of its own: it holds
+// nothing open, places no caret, draws nothing over its text, sets its
+// surfaces in no boxes, offers no controls, moves nothing and holds no
+// place.
+type baseKind struct{}
+
+func (baseKind) holds(*unitLayout) int                                        { return 0 }
+func (baseKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool) { return 0, false }
+func (baseKind) over(*Element, *ui.Painter, *unitLayout, float32, float32)    {}
+func (baseKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)            { return ui.Rect{}, false }
+func (baseKind) controls(*Element, *unitLayout) []control                     { return nil }
+func (baseKind) step(*Element, *unitLayout, *objectIn)                        {}
+func (baseKind) anchor(*Element, *unitLayout, float32, *unitLayout) (float32, bool) {
+	return 0, false
 }
 
 // inlineKind lays out and draws one kind of inline object in its line.
@@ -45,6 +68,9 @@ type inlineKind interface {
 	lay(lc *layoutCache, sg seg, style present.Style, m Metrics) (seg, ui.Span)
 	// paint draws the object in its box o.
 	paint(el *Element, p *ui.Painter, sg seg, o ui.Rect)
+	// step moves what it moves on to the paint's time, before the page is
+	// laid out.
+	step(el *Element, sg seg)
 }
 
 var (
@@ -64,21 +90,16 @@ func kindOf(p *present.Presentation) objectKind {
 }
 
 // stackKind stacks an object's surfaces, as text units stand.
-type stackKind struct{}
+type stackKind struct{ baseKind }
 
 func (stackKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, _ objectIn) {
 	lc.layStack(u, p, comp, th, m, width, false)
 	u.box = ui.Rect{W: width, H: u.h}
 }
 func (stackKind) paint(*Element, *ui.Painter, *unitLayout, float32, float32) float32 { return 0 }
-func (stackKind) controls(*Element, *unitLayout) []control                           { return nil }
-func (stackKind) holds(*unitLayout) int                                              { return 0 }
-func (stackKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool)       { return 0, false }
-func (stackKind) over(*Element, *ui.Painter, *unitLayout, float32, float32)          {}
-func (stackKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)                  { return ui.Rect{}, false }
 
 // ruleKind draws an object with no text as a rule across its column.
-type ruleKind struct{}
+type ruleKind struct{ baseKind }
 
 func (ruleKind) lay(_ *layoutCache, u *unitLayout, _ *present.Presentation, _ *policy.Composition, _ present.Theme, m Metrics, width float32, _ objectIn) {
 	u.h = lineHeight(m, m.Body)
@@ -89,14 +110,9 @@ func (ruleKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32)
 	p.Line(ux, mid, ux+u.box.W, mid, 1, el.Theme.Prose.Subtle)
 	return 0
 }
-func (ruleKind) controls(*Element, *unitLayout) []control                     { return nil }
-func (ruleKind) holds(*unitLayout) int                                        { return 0 }
-func (ruleKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool) { return 0, false }
-func (ruleKind) over(*Element, *ui.Painter, *unitLayout, float32, float32)    {}
-func (ruleKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)            { return ui.Rect{}, false }
 
 // figureKind draws a figure: its picture over its caption.
-type figureKind struct{}
+type figureKind struct{ baseKind }
 
 func (figureKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, in objectIn) {
 	lc.layFigure(u, p, comp, th, m, width, in.span)
@@ -105,7 +121,6 @@ func (figureKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float3
 	el.paintFigure(p, u, ux, uy, el.paintNow, el.animate)
 	return 0
 }
-func (figureKind) holds(*unitLayout) int { return 0 }
 
 // caretX stands a caret in an empty caption at its hint's start.
 func (figureKind) caretX(el *Element, u *unitLayout, s *surfaceLayout) (float32, bool) {
@@ -115,11 +130,9 @@ func (figureKind) caretX(el *Element, u *unitLayout, s *surfaceLayout) (float32,
 	_, x, _ := hintOf(u, el.Editor.theme, el.Editor.metrics)
 	return u.x + s.x + x, true
 }
-func (figureKind) over(*Element, *ui.Painter, *unitLayout, float32, float32) {}
-func (figureKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)         { return ui.Rect{}, false }
 
 // mathKind draws a math block: its display over its source, a panel.
-type mathKind struct{}
+type mathKind struct{ baseKind }
 
 func (mathKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, _ objectIn) {
 	lc.layStack(u, p, comp, th, m, width, true)
@@ -130,7 +143,12 @@ func (mathKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32)
 }
 
 // holds is its panel open and its display set.
-func (mathKind) controls(*Element, *unitLayout) []control { return nil }
+
+func (mathKind) step(el *Element, u *unitLayout, _ *objectIn) {
+	if u.math != nil {
+		el.stepMath(u.pres.Unit, u.math.mathSet, u.math.open)
+	}
+}
 
 func (mathKind) holds(u *unitLayout) int {
 	n := 0
@@ -142,9 +160,6 @@ func (mathKind) holds(u *unitLayout) int {
 	}
 	return n
 }
-func (mathKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool) { return 0, false }
-func (mathKind) over(*Element, *ui.Painter, *unitLayout, float32, float32)    {}
-func (mathKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)            { return ui.Rect{}, false }
 
 // formulaKind draws an inline formula as its math, on the baseline.
 type formulaKind struct{}
@@ -168,3 +183,4 @@ func (formulaKind) lay(lc *layoutCache, sg seg, style present.Style, m Metrics) 
 	return sg, sp
 }
 func (formulaKind) paint(el *Element, p *ui.Painter, sg seg, o ui.Rect) { el.paintInline(p, sg, o) }
+func (formulaKind) step(el *Element, sg seg)                            { el.stepMath(sg.node.ID(), sg.math, sg.open) }

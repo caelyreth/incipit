@@ -1,6 +1,7 @@
 package page
 
 import (
+	"slices"
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -64,8 +65,8 @@ const (
 	partColumnGrip part = "column-grip"
 )
 
-// tableChrome is what the page keeps of its tables' controls across
-// frames.
+// tableChrome is what the page remembers of all its tables' controls at
+// once (memo).
 type tableChrome struct {
 	// near is the table the pointer is by, and row and column the lines
 	// it is over, -1 for none; inside is whether the pointer is on the
@@ -77,14 +78,19 @@ type tableChrome struct {
 	// at its end, once more; rows and columns those between two lines,
 	// numbered by gapStride.
 	below, rows, columns components.CreateGap
-	// tables are each table's motion besides its springs.
-	tables  map[doc.ID]*tableState
+	// order are the page's tables in order, which number their areas.
+	order   []doc.ID
 	landing *tableLanding
 	made    *tableMade
-	// lift is how far the page is scrolled to open room between two rows
-	// about the pointer.
-	lift float32
 }
+
+// tableUI is what the page remembers of its tables' controls.
+func (el *Element) tableUI() *tableChrome {
+	return memo(el, 0, "tables", func() *tableChrome { return &tableChrome{} })
+}
+
+// place is a table's number among the page's tables, -1 for none.
+func (ch *tableChrome) place(id doc.ID) int { return slices.Index(ch.order, id) }
 
 // chromeSize is the UI size the controls are set at, and chromeScale its
 // share of the default.
@@ -163,7 +169,7 @@ func (el *Element) tableAreas(u *unitLayout) []tableArea {
 		out = append(out, tableArea{part: partBelow, alpha: reveal, icon: reveal, label: components.Smoothstep(reveal),
 			box: ui.Rect{X: u.x + b.X, Y: u.y + b.Y + gap, W: b.W, H: max(1, b.H-gap)}})
 	}
-	if reveal := el.springs.value(springKey{unit: u.pres.Unit, name: "beside"}); reveal > 0.001 {
+	if reveal := el.springs.value(tableSpring(u.pres.Unit, "beside", shareValue)); reveal > 0.001 {
 		b := tableBox(u)
 		out = append(out, tableArea{part: partBeside, alpha: reveal, icon: 1, label: 1, shift: (1 - reveal) * -gap, compact: true,
 			box: ui.Rect{X: b.X + b.W + gap, Y: b.Y, W: el.controlMetrics().Height, H: b.H}})
@@ -234,7 +240,7 @@ func (tableKind) controls(el *Element, u *unitLayout) []control {
 				return &areaPress{tablePress: el.tablePress(key(a.part, 0), x, y, clicks, extend)}
 			}})
 	}
-	ch := &el.chrome
+	ch := el.tableUI()
 	if ch.near != id {
 		return out
 	}
@@ -268,7 +274,7 @@ func (tableKind) controls(el *Element, u *unitLayout) []control {
 // over, and the areas it calls up, each opening once the pointer has
 // rested by it.
 func (el *Element) followTables(c *ui.Context, inside bool) {
-	ch := &el.chrome
+	ch := el.tableUI()
 	ch.inside = inside
 	pl := el.Editor.layout
 	if pl == nil {
@@ -280,6 +286,12 @@ func (el *Element) followTables(c *ui.Context, inside bool) {
 	beside := gap + el.controlMetrics().Height
 	free := inside && el.drag == nil
 	nearAt, nearOpen := ch.below.Open()
+	ch.order = ch.order[:0]
+	for _, u := range pl.units {
+		if u.table != nil {
+			ch.order = append(ch.order, u.pres.Unit)
+		}
+	}
 	edgeAt, rowAt, columnAt := -1, -1, -1
 	rowNear, columnNear := float32(0), float32(0)
 	ch.near, ch.row, ch.column = 0, -1, -1
@@ -293,11 +305,12 @@ func (el *Element) followTables(c *ui.Context, inside bool) {
 		ch.rows.Close()
 		ch.columns.Close()
 	}
-	for i, u := range pl.units {
+	for _, u := range pl.units {
 		t := u.table
 		if t == nil {
 			continue
 		}
+		i := ch.place(u.pres.Unit)
 		if held != nil {
 			if held.table == u.pres.Unit {
 				ch.row, ch.column = el.linesAt(u, x, y)
@@ -437,7 +450,7 @@ func (el *Element) byTable(x, y float32) bool {
 		r := grown(tableBox(u), reach, reach)
 		r.W += el.controlMetrics().Height
 		r.H += u.table.below.H
-		if contains(r, x, y) || u.pres.Unit == el.chrome.near {
+		if contains(r, x, y) || u.pres.Unit == el.tableUI().near {
 			return true
 		}
 	}

@@ -119,7 +119,7 @@ func (in tableIn) share(rows bool, i int) float32 {
 }
 
 // tableKind draws a table: its cells in a grid.
-type tableKind struct{}
+type tableKind struct{ baseKind }
 
 func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, in objectIn) {
 	g, ok := vocab.GridNode(profile.Schema(), p.Node)
@@ -569,12 +569,6 @@ func (tableKind) over(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32)
 	}
 }
 
-// holds nothing open: the rooms its controls open ease as they are
-// asked (tableIn), not by the unit's spring.
-func (tableKind) holds(*unitLayout) int { return 0 }
-
-func (tableKind) caretX(*Element, *unitLayout, *surfaceLayout) (float32, bool) { return 0, false }
-
 // cover is a cell's box.
 func (tableKind) cover(u *unitLayout, s *surfaceLayout) (ui.Rect, bool) {
 	t := u.table
@@ -597,26 +591,18 @@ type tableScroll struct {
 // scrolls; a paint steps the scrolls at its own time. It reports whether
 // any still moves.
 func (el *Element) scrollTables(pl *pageLayout, now time.Time, frame, animate bool) bool {
-	if el.tables == nil {
-		el.tables = map[doc.ID]*tableScroll{}
-	}
 	moving := false
-	seen := map[doc.ID]bool{}
 	for _, u := range pl.units {
 		t := u.table
 		if t == nil {
 			continue
 		}
-		ts, ok := el.tables[u.pres.Unit]
-		if !ok && t.overflow <= 0 {
+		ts := recalled[tableScroll](el, u.pres.Unit, "scroll")
+		if ts == nil && t.overflow <= 0 {
 			t.scrollTo(u, 0)
 			continue
 		}
-		if !ok {
-			ts = &tableScroll{}
-			el.tables[u.pres.Unit] = ts
-		}
-		seen[u.pres.Unit] = true
+		ts = el.tableScroll(u.pres.Unit)
 		if frame {
 			_, pulling := ts.over.Step(now, animate)
 			var gliding bool
@@ -626,12 +612,13 @@ func (el *Element) scrollTables(pl *pageLayout, now time.Time, frame, animate bo
 		ts.x = max(0, min(ts.x, t.overflow))
 		t.scrollTo(u, ts.x-ts.over.Offset())
 	}
-	for id := range el.tables {
-		if !seen[id] {
-			delete(el.tables, id)
-		}
-	}
 	return moving
+}
+
+// tableScroll is how far a table is scrolled, as the page remembers it
+// while the table is on the page.
+func (el *Element) tableScroll(id doc.ID) *tableScroll {
+	return memo(el, id, "scroll", func() *tableScroll { return &tableScroll{} })
 }
 
 // scrollTable scrolls the table under the page point x, y across by dx,
@@ -646,11 +633,7 @@ func (el *Element) scrollTable(x, y float32, ev ui.InputEvent, dx float32) bool 
 		if t == nil || t.overflow <= 0 || y < u.y || y >= u.bottom() || x < u.x+u.box.X || x >= u.x+u.box.X+u.box.W {
 			continue
 		}
-		ts := el.tables[u.pres.Unit]
-		if ts == nil {
-			ts = &tableScroll{}
-			el.tables[u.pres.Unit] = ts
-		}
+		ts := el.tableScroll(u.pres.Unit)
 		ts.glide.Cancel()
 		ts.x = components.OverscrollPanel.Scroll(&ts.over, ts.x, dx, 0, t.overflow, u.box.W, 0, scrollfx.Phase(ev.Precise, ev.Momentum))
 		t.scrollTo(u, ts.x-ts.over.Offset())
@@ -671,11 +654,7 @@ func (el *Element) revealAcross(pl *pageLayout, now time.Time) {
 	if s.index >= len(t.cells) || t.cells[s.index].Row < 0 {
 		return
 	}
-	ts := el.tables[u.pres.Unit]
-	if ts == nil {
-		ts = &tableScroll{}
-		el.tables[u.pres.Unit] = ts
-	}
+	ts := el.tableScroll(u.pres.Unit)
 	// Across the grid, from what the table shows.
 	m := el.Editor.metrics
 	reach := lineHeight(m, m.Body)

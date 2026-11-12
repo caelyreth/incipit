@@ -60,7 +60,7 @@ func (el *Element) paintArea(p *ui.Painter, u *unitLayout, a tableArea, ox, oy f
 	box.Y += oy
 	press := float32(0)
 	if el.holding() == key {
-		press = el.springs.value(springKey{unit: u.pres.Unit, name: "press"})
+		press = el.springs.value(tableSpring(u.pres.Unit, "press", shareValue))
 	}
 	alpha := a.alpha
 	draw := func() {
@@ -95,7 +95,7 @@ func (el *Element) paintArea(p *ui.Painter, u *unitLayout, a tableArea, ox, oy f
 // paintMade shows a line an area made as the area it was, its tint and
 // dashed outline fading into the cells.
 func (el *Element) paintMade(p *ui.Painter, u *unitLayout, ox, oy float32, now time.Time) bool {
-	m := el.chrome.made
+	m := el.tableUI().made
 	t := u.table
 	if m == nil || m.table != u.pres.Unit {
 		return false
@@ -121,7 +121,7 @@ func (el *Element) paintMade(p *ui.Painter, u *unitLayout, ox, oy float32, now t
 // land, the line veiled in its place, and its copy where the pointer
 // carries it.
 func (el *Element) paintCarry(p *ui.Painter, u *unitLayout, ox, oy float32, now time.Time, animate bool) bool {
-	ch := &el.chrome
+	ch := el.tableUI()
 	t := u.table
 	id := u.pres.Unit
 	radius := objectRadius(el.Editor.metrics)
@@ -145,7 +145,7 @@ func (el *Element) paintCarry(p *ui.Painter, u *unitLayout, ox, oy float32, now 
 	if !ok || !d.moved || d.table != id {
 		return false
 	}
-	ts := ch.tables[id]
+	ts := recalled[tableState](el, id, "table")
 	for k, in := range t.in.apart {
 		frame := t.apart[k]
 		if in.room <= 0 || ts == nil || !ts.framed(in.rows, in.at) {
@@ -212,8 +212,8 @@ func (el *Element) paintCarried(p *ui.Painter, u *unitLayout, rows bool, index i
 // paintBorder lights the column border the pointer is on or a drag holds.
 func (el *Element) paintBorder(p *ui.Painter, u *unitLayout, ox, oy float32) {
 	t := u.table
-	ts := el.chrome.tables[u.pres.Unit]
-	lit := el.springs.value(springKey{unit: u.pres.Unit, name: "border"})
+	ts := recalled[tableState](el, u.pres.Unit, "table")
+	lit := el.springs.value(tableSpring(u.pres.Unit, "border", shareValue))
 	if ts == nil || lit < 0.01 || ts.borderAt < 0 || ts.borderAt >= len(t.columns) {
 		return
 	}
@@ -230,9 +230,9 @@ func (el *Element) paintBorder(p *ui.Painter, u *unitLayout, ox, oy float32) {
 // paintGrips draws the grips of the row and the column under the pointer
 // and the table's corner, as far as they have come in.
 func (el *Element) paintGrips(p *ui.Painter, u *unitLayout, ox, oy float32) {
-	ch := &el.chrome
+	ch := el.tableUI()
 	id := u.pres.Unit
-	shown := el.springs.value(springKey{unit: id, name: "grips"})
+	shown := el.springs.value(tableSpring(id, "grips", shareValue))
 	if shown < 0.01 {
 		return
 	}
@@ -258,13 +258,13 @@ func (el *Element) paintGrips(p *ui.Painter, u *unitLayout, ox, oy float32) {
 		}
 		// It glides from where it was, but comes in where it is from out
 		// of view.
-		xKey, yKey := springKey{unit: id, name: "grip-x", at: k}, springKey{unit: id, name: "grip-y", at: k}
+		xKey, yKey := springKey{unit: id, name: "grip-x", at: k, of: placeValue}, springKey{unit: id, name: "grip-y", at: k, of: placeValue}
 		if top := r.Y + oy; top+r.H < 0 || top > el.viewport.Y+el.viewport.H {
-			el.springs.jump(xKey, r.X, false)
-			el.springs.jump(yKey, r.Y, false)
+			el.springs.jump(xKey, r.X)
+			el.springs.jump(yKey, r.Y)
 		}
-		r.X = el.springs.follow(xKey, r.X, chromeFollow, false) + ox
-		r.Y = el.springs.follow(yKey, r.Y, chromeFollow, false) + oy
+		r.X = el.springs.follow(xKey, r.X, chromeFollow) + ox
+		r.Y = el.springs.follow(yKey, r.Y, chromeFollow) + oy
 		key := controlKey{unit: id, part: g.part, at: g.at}
 		hover := el.lit(key)
 		if g.part == partCorner {

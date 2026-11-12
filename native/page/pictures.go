@@ -78,6 +78,23 @@ func (p *Pictures) Picture(media string, now time.Time) (*ui.Bitmap, PictureStat
 	return entry.bitmap, entry.state
 }
 
+// State is how far the picture media names has come, without asking for
+// it: one not asked for, or let go, is on its way.
+func (p *Pictures) State(media string) PictureState {
+	if p == nil || p.Read == nil {
+		return PictureLoading
+	}
+	if media == "" {
+		return PictureMissing
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if entry, ok := p.entries[media]; ok {
+		return entry.state
+	}
+	return PictureLoading
+}
+
 func (p *Pictures) decode(media string, entry *pictureEntry) {
 	data, err := p.Read(media)
 	var bitmap *ui.Bitmap
