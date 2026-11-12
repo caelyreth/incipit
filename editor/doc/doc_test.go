@@ -410,6 +410,47 @@ func TestHistoryUndoRedoAndTopLayer(t *testing.T) {
 	}
 }
 
+// Two multi-step entries in one slot, undone and redone in turn: the
+// first redo is not a later change the second is carried over.
+func TestRedoAfterARedoInTheSameSlot(t *testing.T) {
+	s := newPage(t, "")
+	ref := SlotRef{Node: child(s, 0).ID()}
+	h := NewHistory(0)
+	now := time.Unix(0, 0)
+	apply := func(ops ...Op) {
+		t.Helper()
+		tx := s.Begin(Origin{Class: OriginTyping})
+		if err := tx.ApplyAll(ops...); err != nil {
+			t.Fatal(err)
+		}
+		s, _ = tx.Commit()
+		now = now.Add(time.Second)
+		h = h.Push(NewEntry(tx.Steps(), OriginTyping, 0, Selection{}, Selection{}, now), false)
+	}
+	apply(EditText{At: ref, Items: []Item{TextItem("a", nil)}}, EditText{At: ref, From: 1, To: 1, Items: []Item{TextItem("b", nil)}})
+	apply(EditText{At: ref, From: 2, To: 2, Items: []Item{TextItem("c", nil)}}, EditText{At: ref, From: 3, To: 3, Items: []Item{TextItem("d", nil)}})
+	run := func(plan *Plan, err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		tx := s.Begin(Origin{Class: OriginHistory})
+		if err := tx.ApplyAll(plan.Ops...); err != nil {
+			t.Fatal(err)
+		}
+		s, _ = tx.Commit()
+		now = now.Add(time.Second)
+		h = h.Applied(plan, tx.Steps(), now, Selection{})
+	}
+	run(h.Undo(OriginTyping, false))
+	run(h.Undo(OriginTyping, false))
+	run(h.Redo(OriginTyping))
+	run(h.Redo(OriginTyping))
+	if text(s, 0) != "abcd" {
+		t.Fatalf("redone %q", text(s, 0))
+	}
+}
+
 func TestUndoRebasesOverOtherOrigins(t *testing.T) {
 	s := newPage(t, "mine", "theirs")
 	mine, theirs := SlotRef{Node: child(s, 0).ID()}, SlotRef{Node: child(s, 1).ID()}

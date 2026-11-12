@@ -200,14 +200,19 @@ func (h *History) Redo(class OriginClass) (*Plan, error) {
 	return &Plan{Ops: ops, Selection: e.Before, View: e.View, class: class, redo: true, entry: e}, nil
 }
 
-// after returns the done entries newer than e.
+// after returns the changes an undone entry e is redone over: the entries
+// other actors made since it was undone. Its own actor's entries since are
+// redos of what it undid after e, which leave the page as e's undo did: a
+// new change of its own would have cleared e.
 func (h *History) after(e *Entry) []*Entry {
-	for i := len(h.done) - 1; i >= 0; i-- {
-		if !h.done[i].Time.After(e.Time) {
-			return h.done[i+1:]
+	var out []*Entry
+	for i := len(h.done) - 1; i >= 0 && h.done[i].Time.After(e.Time); i-- {
+		if h.done[i].Class.Actor() != e.Class.Actor() {
+			out = append(out, h.done[i])
 		}
 	}
-	return h.done
+	slices.Reverse(out)
+	return out
 }
 
 // invert returns the inverse of layers, newest step first, each carried
