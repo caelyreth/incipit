@@ -41,7 +41,7 @@ type piece struct {
 
 // pieces are what a cover paints, in the page.
 func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
-	if c.Whole && u.object {
+	if c.Whole && u.kind != nil {
 		return []piece{{surface: -1, rows: []decoRow{objectRow(blockOutline(u, u.drawn))}}}
 	}
 	ranges := pl.coverRanges(u, c)

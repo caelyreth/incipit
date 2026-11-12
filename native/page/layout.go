@@ -59,10 +59,10 @@ type seg struct {
 	face   ui.Span
 	shaped *ui.TextLayout
 	ink    ui.Color
-	// formula marks an inline formula's box: its math, set, drawn in
-	// place of its source, or its hint (face) while it has none.
-	formula bool
-	math    mathSet
+	// inline is an inline object's renderer; what it keeps here (math)
+	// is its own.
+	inline inlineKind
+	math   mathSet
 }
 
 // deco is a stretch of a surface the page draws itself, beneath its
@@ -119,8 +119,11 @@ type stopAt struct {
 
 // surfaceLayout is one laid-out surface of a unit.
 type surfaceLayout struct {
-	index  int
+	index int
+	// card is an inline object's card; panel a surface its object stands
+	// on an inset panel, as a math block's source.
 	card   bool
+	panel  bool
 	anchor doc.ID
 	slot   doc.SlotRef
 	layout *ui.TextLayout
@@ -145,20 +148,22 @@ type surfaceLayout struct {
 
 // unitLayout is one laid-out unit.
 type unitLayout struct {
-	key      layoutKey
-	pres     *present.Presentation
+	key  layoutKey
+	pres *present.Presentation
+	// kind is an object's renderer, nil for text; what it keeps here
+	// (math, figure) is its own.
+	kind     objectKind
 	surfaces []*surfaceLayout
 	// x is the unit's indent from the column's start; y its top in the
 	// page as drawn, top its top with every room above settled, and h its
 	// height.
 	x, y, top, h float32
-	// object marks a unit its kind's renderer draws; gaps are its gap
-	// stops before and after it, nil on a side where text stands beside it
-	// (present.UnitRef.Gaps); box is what it draws, in the unit, and its own
-	// slots (a figure's caption) are its surfaces, under the box.
-	object bool
-	gaps   [2]*stopAt
-	box    ui.Rect
+	// gaps are an object's gap stops before and after it, nil on a side
+	// where text stands beside it (present.UnitRef.Gaps); box is what it
+	// draws, in the unit, and the text it holds (a figure's caption) is its
+	// surfaces, under the box.
+	gaps [2]*stopAt
+	box  ui.Rect
 	// drawn is all an object draws, which an outline goes around held
 	// whole: its box, or more where its renderer draws more around it.
 	// frame, when set, is the corner radius of a frame the object draws on
@@ -343,7 +348,6 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 	u.x = float32(p.Context.Indent+p.Context.Quotes) * m.Indent
 	width := max(m.Width-u.x, m.Body*4)
 	if p.Object {
-		u.object = true
 		for _, st := range p.Stops {
 			if st.Surface < 0 {
 				side := 0
@@ -353,30 +357,30 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 				u.gaps[side] = &stopAt{caret: st.Caret}
 			}
 		}
-		// Each object kind's renderer lays it out; its own slots are its
+		// Its kind's renderer lays it out; the text it holds is its
 		// surfaces.
-		switch p.Kind {
-		case profile.Figure:
-			lc.layFigure(u, p, comp, th, m, width, span)
-			return u
-		case profile.Math:
-		default:
-			u.h = lineHeight(m, m.Body)
-			u.box = ui.Rect{W: width, H: u.h}
-			return u
-		}
+		u.kind = kindOf(p)
+		u.kind.lay(lc, u, p, comp, th, m, width, span)
+		return u
 	}
+	lc.layStack(u, p, comp, th, m, width, false)
+	return u
+}
+
+// layStack lays out u's surfaces one under another: its main text, then
+// each open card under it, fitted to its text under its formula; a closed
+// card takes no room. With panel, every surface but a card stands inset on
+// a panel, as a math block's source does.
+func (lc *layoutCache) layStack(u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, panel bool) {
 	for i, s := range p.Surfaces {
 		w := width
-		if s.Card || p.Kind == profile.Math {
-			// A card, or a math block's source panel, sits inset.
+		if s.Card || panel {
 			w = width - 2*cardPad(m)
 		}
 		sl := lc.laySurface(i, s, p, comp, th, m, w, ui.Start)
+		sl.panel = panel && !s.Card
 		u.surfaces = append(u.surfaces, sl)
 	}
-	// The main surface first, then each open card under it, fitted to
-	// its text under its formula; a closed card takes no room.
 	y := float32(0)
 	for _, s := range u.surfaces {
 		if s.card {
@@ -393,10 +397,6 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 		y += s.h
 	}
 	u.h = y
-	if p.Kind == profile.Math {
-		layMath(u, lc, m, width)
-	}
-	return u
 }
 
 // cardMin is the least a card's text is given, in body sizes.
@@ -509,23 +509,8 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			if compAt == it.From {
 				addComp(it.Groups)
 			}
-			if it.Node.Kind() == profile.Formula {
-				// A formula stands in its line as its math, on the baseline.
-				ms := lc.typeset(it.Node.ID(), it.Node.Text(), false, m.Body*style.Size, 0)
-				sp := span("\uFFFC", style, m.Body)
-				sg := seg{kind: segBox, from: it.From, to: it.To, text: it.Node.Text(), node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), formula: true, math: ms}
-				sg.face = span(formulaHint, style, m.Body)
-				sg.face.Italic = true
-				if ms.box != nil {
-					sp.ObjectWidth = ms.to - ms.from + mathPad*2
-					sp.ObjectHeight, sp.ObjectDescent = ms.ascent, ms.descent
-				} else {
-					// No math yet: the formula stands as its hint.
-					lay := ui.ShapeRichTextWith([]ui.Span{sg.face}, ui.Font{Family: sg.face.Font, Size: sg.face.Size, Italic: true}, ui.TextShape{})
-					w, _ := lay.Size()
-					sp.ObjectWidth = w + mathPad*2
-					sp.ObjectHeight, sp.ObjectDescent = sg.face.Size*0.75, sg.face.Size*0.25
-				}
+			if k, ok := inlineKinds[it.Node.Kind()]; ok {
+				sg, sp := k.lay(lc, seg{kind: segBox, from: it.From, to: it.To, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), inline: k}, style, m)
 				add(sg, sp, style)
 				continue
 			}
@@ -775,7 +760,7 @@ func (pl *pageLayout) hit(x, y float32) (doc.Caret, doc.ID, bool) {
 	if y < u.y {
 		y = u.y
 	}
-	if u.object && (!anyShown(u) || y < u.y+u.box.Y+u.box.H) {
+	if u.kind != nil && (!anyShown(u) || y < u.y+u.box.Y+u.box.H) {
 		// On what the object draws: the object, and its place on the half
 		// the point is in, which a drag extends to.
 		if u.pres.Gap == nil {
@@ -823,7 +808,7 @@ func (sl *surfaceLayout) boxAt(x, y float32) (doc.Caret, doc.ID, bool) {
 		if !ok || x < r.X || x >= r.X+r.W || y < r.Y || y >= r.Y+r.H {
 			continue
 		}
-		if !sg.formula {
+		if sg.inline == nil {
 			return doc.Caret{}, 0, false
 		}
 		at := sl.stopBefore(sg.u0)
@@ -939,7 +924,7 @@ func (pl *pageLayout) vertical(c doc.Caret, goalX float32, up bool) (doc.Caret, 
 			return pl.hitSurface(u, s, goalX, oy+lines[i+1].Rect.Y+lines[i+1].Rect.H/2), true
 		}
 	}
-	if u.object {
+	if u.kind != nil {
 		rows := pl.objectRows(u)
 		k := slices.IndexFunc(rows, func(r row) bool { return r.has(pc) })
 		if k >= 0 {
@@ -959,7 +944,7 @@ func (pl *pageLayout) vertical(c doc.Caret, goalX float32, up bool) (doc.Caret, 
 		step = -1
 	}
 	next := i + step
-	for next >= 0 && next < len(pl.units) && pl.units[next].object && len(pl.objectRows(pl.units[next])) == 0 {
+	for next >= 0 && next < len(pl.units) && pl.units[next].kind != nil && len(pl.objectRows(pl.units[next])) == 0 {
 		// An object with no place of its own to stand, as a divider
 		// between texts, is passed over.
 		next += step
@@ -968,7 +953,7 @@ func (pl *pageLayout) vertical(c doc.Caret, goalX float32, up bool) (doc.Caret, 
 		return c, false
 	}
 	n := pl.units[next]
-	if n.object {
+	if n.kind != nil {
 		rows := pl.objectRows(n)
 		k := 0
 		if up {

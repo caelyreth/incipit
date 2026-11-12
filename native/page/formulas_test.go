@@ -112,7 +112,7 @@ func TestAFormulasCardSitsUnderIt(t *testing.T) {
 	u := el.Editor.layout.units[0]
 	main, card := u.surfaces[0], u.surfaces[1]
 	for i, sg := range main.segs {
-		if !sg.formula {
+		if sg.inline == nil {
 			continue
 		}
 		r, _ := main.objectRect(i)

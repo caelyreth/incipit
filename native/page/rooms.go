@@ -31,8 +31,8 @@ type room struct {
 	last  *unitLayout
 }
 
-// shapeOf is what a unit holds open: its surfaces, and a math block's
-// panel and display.
+// shapeOf is what a unit holds open: its surfaces, and what its object
+// holds open besides.
 func shapeOf(u *unitLayout) int {
 	n := 0
 	for _, s := range u.surfaces {
@@ -40,11 +40,8 @@ func shapeOf(u *unitLayout) int {
 			n += 4
 		}
 	}
-	if u.math != nil && u.math.open {
-		n++
-	}
-	if u.math != nil && u.math.box != nil {
-		n += 2
+	if u.kind != nil {
+		n += u.kind.holds(u)
 	}
 	return n
 }

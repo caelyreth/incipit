@@ -509,7 +509,7 @@ func (el *Element) dropPlace(x, y float32) (doc.Caret, float32, bool) {
 		line = u.bottom() + gap
 	}
 	switch {
-	case u.object && u.pres.Gap != nil:
+	case u.kind != nil && u.pres.Gap != nil:
 		return u.beside(after), line, true
 	case len(u.surfaces) > 0 && len(u.surfaces[0].stops) > 0:
 		stops := u.surfaces[0].stops

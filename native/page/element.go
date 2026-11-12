@@ -433,9 +433,10 @@ func (el *Element) stepCaret(pl *pageLayout, now time.Time, animate bool) bool {
 		// as on a page just opened before any input.
 		el.Editor.active = now
 	}
-	if pc, ok := pl.lookup(el.shownSelection().Head); ok && pc.unit.figure != nil && el.hinted(pc.unit) {
-		_, x, _ := hintOf(pc.unit, el.Editor.theme, el.Editor.metrics)
-		r.X = pc.unit.x + pc.surface.x + x
+	if pc, ok := pl.lookup(el.shownSelection().Head); ok && pc.unit.kind != nil && pc.surface != nil {
+		if x, ok := pc.unit.kind.caretX(el, pc.unit, pc.surface); ok {
+			r.X = x
+		}
 	}
 	el.caret.Step(el.caretShape(r), now, motion.CaretFrequency, animate)
 	return el.caret.Moving()
@@ -599,17 +600,8 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			p.Fill(ui.Rect{X: bx, Y: uy - m.Gap/2, W: 2, H: u.h + m.Gap}, t.Prose.Subtle, 1)
 		}
 		panel := float32(0)
-		switch {
-		case u.figure != nil:
-			el.paintFigure(p, u, ux, uy, now, animate)
-		case u.math != nil:
-			panel = el.paintMath(p, u, ux, uy)
-		case u.object:
-			// TODO(tables): tables draw their own grid; every other
-			// object is a divider until then.
-			mid := uy + u.h/2
-			p.Line(ux, mid, ox+m.Width, mid, 1, t.Prose.Subtle)
-			continue
+		if u.kind != nil {
+			panel = u.kind.paint(el, p, u, ux, uy)
 		}
 		su := shownUnit{u: u, ux: ux, uy: uy, surfaces: el.shownSurfaces(u, panel)}
 		el.clipUnit(p, u, ox, uy, func() {
@@ -682,14 +674,14 @@ type shownSurface struct {
 
 // shownSurfaces are the surfaces of u the page shows: its text; a card
 // as far as it has opened, and one closed fading out where it stood; a
-// math block's source as far as the block has opened past its display
-// (panel).
+// panel surface, as a math block's source, as strongly as its object
+// shows it (panel).
 func (el *Element) shownSurfaces(u *unitLayout, panel float32) []shownSurface {
 	var out []shownSurface
 	open := el.opened(u)
-	for i, s := range u.surfaces {
+	for _, s := range u.surfaces {
 		switch {
-		case u.math != nil && i == 0:
+		case s.panel:
 			if panel > 0.001 {
 				out = append(out, shownSurface{s, true, panel})
 			}
@@ -1135,8 +1127,8 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 		}
 		o := objs[i].Rect
 		i++
-		if sg.formula {
-			el.paintInline(p, sg, ui.Rect{X: sx + o.X, Y: sy + o.Y, W: o.W, H: o.H})
+		if sg.inline != nil {
+			sg.inline.paint(el, p, sg, ui.Rect{X: sx + o.X, Y: sy + o.Y, W: o.W, H: o.H})
 			continue
 		}
 		bg := el.Theme.Accent.Muted
