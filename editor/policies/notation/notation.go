@@ -74,13 +74,16 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Analyze(policy.Lines, analyze(sp, k), k.all(), policy.Config(sp),
 		policy.Where(func(u *policy.Unit) bool { return !u.Spec.Literal && u.Spec.Marks != nil }))
 
-	// Backspace inside a sign or a marker, between its glyphs, steps it
-	// down a level: the ghost is notation's to edit. Deleting into a mark's
+	// Backspace or Delete inside a sign or a marker, between its glyphs,
+	// steps it down a level, from either side alike: the ghost is
+	// notation's to edit. Deleting into a mark's
 	// sign from its edge is deleting into a pair, which is the Pair role's
 	// (§12); core crosses a glyph it does not own rather than delete
 	// through it.
 	back := policy.Deleting(vocab.ByGrapheme, vocab.Backward)
+	fwd := policy.Deleting(vocab.ByGrapheme, vocab.Forward)
 	policy.On(p, "step-down-in-mark", back, k.signs.Inside(), stepSign)
+	policy.On(p, "step-down-ahead-in-mark", fwd, k.signs.Inside(), stepSignAhead)
 	// A mark is one run, so typing a delimiter of its kind edits both
 	// signs, whichever spelling they are drawn in: right after a
 	// one-delimiter opening sign it spells the mark one level up; among a
@@ -100,7 +103,6 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	// behind or ahead steps it down, and a glyph typed there or before the
 	// first reshapes it. At the block's edges, deleting into the marker is
 	// the block's own level (core).
-	fwd := policy.Deleting(vocab.ByGrapheme, vocab.Forward)
 	policy.On(p, "step-down-in-marker", back, k.markers.Inside(), stepMarker)
 	policy.On(p, "step-down-ahead-in-marker", fwd, policy.Or(k.markers.AtStart(), k.markers.Within()), stepAhead)
 	// Only a heading's marker takes a typed glyph yet.
@@ -457,20 +459,35 @@ func stepSign(_ *policy.Ctx, _ vocab.Delete, at policy.At[markGhost]) policy.Res
 	return policy.Do(stepRun(at.Data.Mark, at.Data.run(at), vocab.Backward))
 }
 
+// stepSignAhead steps the mark down for the sign's glyph ahead.
+func stepSignAhead(c *policy.Ctx, in vocab.Delete, at policy.At[markGhost]) policy.Result {
+	res := stepSign(c, in, at)
+	res.Selection = keptAhead(c, at.Fact)
+	return res
+}
+
+// keptAhead is the caret kept among the glyphs before it as the ghost's
+// glyph ahead of it goes: a ghost attached to the content before it
+// numbers its stops up to that content, so each of them rises by one.
+func keptAhead(c *policy.Ctx, f *policy.Fact) *doc.Selection {
+	head := c.Head()
+	if f != nil && f.Glyph != nil && f.Glyph.Attach == policy.AttachBefore {
+		head.Stop++
+	}
+	sel := doc.Collapsed(head)
+	return &sel
+}
+
 // stepMarker steps the block whose marker the caret is inside down one
 // level.
 func stepMarker(c *policy.Ctx, _ vocab.Delete, at policy.At[markerGhost]) policy.Result {
 	return policy.Do(stepBlock(c, at.Node, vocab.Backward))
 }
 
-// stepAhead steps the block down one level for the marker's glyph ahead.
-// The caret keeps its place from the marker's start, as the glyph ahead
-// of it goes.
+// stepAhead steps the block down one level for the marker's glyph ahead,
+// the caret kept where it stands among the glyphs before it.
 func stepAhead(c *policy.Ctx, _ vocab.Delete, at policy.At[markerGhost]) policy.Result {
-	head := c.Head()
-	head.Stop++
-	sel := doc.Collapsed(head)
-	return policy.Result{Edits: []vocab.Edit{stepBlock(c, at.Node, vocab.Backward)}, Selection: &sel}
+	return policy.Result{Edits: []vocab.Edit{stepBlock(c, at.Node, vocab.Backward)}, Selection: keptAhead(c, at.Fact)}
 }
 
 // stepUp spells the mark the caret is in one level up, both its signs.
@@ -549,13 +566,14 @@ func layoutAt(c *policy.Ctx, k kinds, pos doc.Pos) (layout, bool) {
 }
 
 // marks is what text typed at stop s takes: the marks before the offset,
-// with every mark ghost the stop is past applied. Inside a ghost, its
-// mark is not yet applied.
+// with every mark ghost the stop has entered applied. Text typed among a
+// sign's glyphs lands past the sign, as among a marker's, whichever side
+// of the mark it stands on.
 func (l layout) marks(k kinds, s int) *doc.MarkSet {
 	ms := l.before
 	for _, f := range l.ghosts {
 		g, ok := k.signs.Data(f)
-		if !ok || f.Outer.To.Stop > s {
+		if !ok || f.Outer.From.Stop >= s {
 			continue
 		}
 		if g.Side == vocab.Close {

@@ -428,3 +428,35 @@ func TestDeletingBesideASignKeepsTheCaretsSide(t *testing.T) {
 		p.wantShown(c.want)
 	}
 }
+
+// Among a sign's glyphs, a mark's signs edit alike at both ends, as a
+// marker's glyphs do: Delete steps the mark down as Backspace does, the
+// caret keeping its place, and a letter typed there lands past the sign.
+func TestASignsGlyphsEditAlikeAtBothEnds(t *testing.T) {
+	fwd := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Forward}
+	for _, tc := range []struct {
+		at        string
+		do        vocab.Intent
+		shown     string
+		structure string
+	}{
+		{"a [*|*]b[**]", fwd, "a [*]|b[*]", "page(paragraph(a <b>))"},
+		{"a [**]b[*|*]", fwd, "a [*]b[*]|", "page(paragraph(a <b>))"},
+		{"a [*|*]b[**]", vocab.Type{Text: "x"}, "a [**]x|b[**]", "page(paragraph(a <xb>))"},
+		{"a [**]b[*|*]", vocab.Type{Text: "x"}, "a [**]b[**]x|", "page(paragraph(a <b>x))"},
+	} {
+		p := open(t)
+		p.typeText("a **b**")
+		for i := 0; p.shown() != tc.at && i < 10; i++ {
+			p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+		}
+		p.do(tc.do)
+		if got := p.shown(); got != tc.shown {
+			t.Fatalf("%v at %s: shown %q, want %q", tc.do, tc.at, got, tc.shown)
+		}
+		p.want(tc.structure)
+		if _, ok := tc.do.(vocab.Delete); ok && (!hasMark(p, profile.Emphasis) || hasMark(p, profile.Strong)) {
+			t.Fatalf("Delete at %s did not step strong down: %s", tc.at, outline(p.e.Snapshot().Root()))
+		}
+	}
+}
