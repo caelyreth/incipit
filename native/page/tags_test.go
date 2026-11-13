@@ -82,3 +82,23 @@ func TestTheTagItIsComesFirstAndMakesNone(t *testing.T) {
 func firstText(el *Element) string {
 	return el.Editor.Engine.Snapshot().Root().Slot(0).Child(0).Text()
 }
+
+// Every tag in a line wears its own background, each fading on its own:
+// stretches of one look are told apart by their order.
+func TestEveryTagWearsItsBackground(t *testing.T) {
+	el := newElement(t)
+	tt := ui.NewTester(el.View, 900, 600)
+	typeText(el, "#a and #b and #c and #d")
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	shown := 0
+	for k, sd := range el.decos {
+		if !k.highlight && sd.alpha > 0.99 && len(sd.rows) == 1 {
+			shown++
+		}
+	}
+	if shown != 4 {
+		t.Fatalf("%d tags wear their background, want 4", shown)
+	}
+}

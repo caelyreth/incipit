@@ -868,8 +868,12 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 		look.rg = ui.TextInputRange{}
 		k := decoKey{unit: u.pres.Unit, surface: surface, highlight: highlight, origin: origin,
 			direction: direction, duration: duration, look: look}
-		k.nth = counts[k]
+		// Stretches of one look are told apart by their order, counted
+		// by the look before the order joins the key, so each keeps its
+		// own fade.
+		n := counts[k]
 		counts[k]++
+		k.nth = n
 		sd, ok := el.decos[k]
 		if !ok {
 			sd = &shownDeco{look: look, direction: direction, duration: duration, started: now}
