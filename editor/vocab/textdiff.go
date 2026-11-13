@@ -17,30 +17,122 @@ type TextChange struct {
 
 // MinimalTextChanges returns the contiguous hunks that turn before into
 // after, comparing text by rune and marks. Common prefixes and suffixes
-// stay out of the changed ranges.
+// stay out of the changed ranges: they are found walking the items, and
+// only the middle between them is compared cell by cell, so a change in a
+// long stretch costs the change.
 func MinimalTextChanges(before, after []doc.Item) []TextChange {
-	a, aLen := diffCells(before)
-	b, _ := diffCells(after)
-	prefix, suffix := commonEnds(a, b)
-	am, bm := a[prefix:len(a)-suffix], b[prefix:len(b)-suffix]
+	aLen, bLen := itemsLen(before), itemsLen(after)
+	aPre, bPre, aSuf, bSuf := commonItemEnds(before, after, aLen, bLen)
+	am, aEnd := diffCellsIn(before, aPre, aLen-aSuf)
+	bm, _ := diffCellsIn(after, bPre, bLen-bSuf)
 	matches := myersMatches(am, bm)
 	if matches == nil && (len(am) > 0 || len(bm) > 0) {
 		// A fallback over a very large dissimilar middle has no useful
 		// internal anchors; the common ends already keep it localized.
-		return []TextChange{{From: cellOffset(a, prefix, aLen), To: cellOffset(a, len(a)-suffix, aLen),
-			Items: itemsOfCells(b[prefix : len(b)-suffix])}}
+		return []TextChange{{From: cellOffset(am, 0, aEnd), To: aEnd, Items: itemsOfCells(bm)}}
 	}
-	var all [][2]int
-	for i := range prefix {
-		all = append(all, [2]int{i, i})
+	return changesBetween(am, bm, matches, aEnd)
+}
+
+func itemsLen(items []doc.Item) int {
+	n := 0
+	for _, it := range items {
+		n += it.Len()
 	}
-	for _, m := range matches {
-		all = append(all, [2]int{m[0] + prefix, m[1] + prefix})
+	return n
+}
+
+// commonItemEnds is how many bytes before and after share at their start
+// and, past that, at their end, cell by cell: a rune with its marks, or an
+// inline node.
+func commonItemEnds(before, after []doc.Item, aLen, bLen int) (aPre, bPre, aSuf, bSuf int) {
+	ai, ao, bi, bo := 0, 0, 0, 0
+	for {
+		ca, ni, no, ok := nextCell(before, ai, ao)
+		cb, mi, mo, ok2 := nextCell(after, bi, bo)
+		if !ok || !ok2 || !sameCell(ca, cb) {
+			break
+		}
+		ai, ao, bi, bo = ni, no, mi, mo
+		aPre += ca.size
+		bPre += cb.size
 	}
-	for i := range suffix {
-		all = append(all, [2]int{len(a) - suffix + i, len(b) - suffix + i})
+	ai, ae, bi, be := len(before)-1, -1, len(after)-1, -1
+	for aLen-aSuf > aPre && bLen-bSuf > bPre {
+		ca, ni, ne, ok := lastCell(before, ai, ae)
+		cb, mi, me, ok2 := lastCell(after, bi, be)
+		if !ok || !ok2 || !sameCell(ca, cb) {
+			break
+		}
+		ai, ae, bi, be = ni, ne, mi, me
+		aSuf += ca.size
+		bSuf += cb.size
 	}
-	return changesBetween(a, b, all, aLen)
+	return aPre, bPre, aSuf, bSuf
+}
+
+// nextCell is the cell at byte off of item i, and where the next starts.
+func nextCell(items []doc.Item, i, off int) (diffCell, int, int, bool) {
+	for i < len(items) {
+		it := items[i]
+		if it.Node != nil {
+			return diffCell{node: it.Node, size: 1}, i + 1, 0, true
+		}
+		if off < len(it.Text) {
+			r, size := utf8.DecodeRuneInString(it.Text[off:])
+			return diffCell{r: r, marks: it.Marks, size: size}, i, off + size, true
+		}
+		i, off = i+1, 0
+	}
+	return diffCell{}, i, off, false
+}
+
+// lastCell is the cell ending at byte end of item i, -1 for the item's
+// end, and where the one before it ends.
+func lastCell(items []doc.Item, i, end int) (diffCell, int, int, bool) {
+	for i >= 0 {
+		it := items[i]
+		if it.Node != nil {
+			return diffCell{node: it.Node, size: 1}, i - 1, -1, true
+		}
+		if end < 0 {
+			end = len(it.Text)
+		}
+		if end > 0 {
+			r, size := utf8.DecodeLastRuneInString(it.Text[:end])
+			return diffCell{r: r, marks: it.Marks, size: size}, i, end - size, true
+		}
+		i, end = i-1, -1
+	}
+	return diffCell{}, i, end, false
+}
+
+// diffCellsIn are the cells of items' bytes [from, to), at their offsets
+// in items, and to.
+func diffCellsIn(items []doc.Item, from, to int) ([]diffCell, int) {
+	var out []diffCell
+	at := 0
+	for _, it := range items {
+		if at >= to {
+			break
+		}
+		if it.Node != nil {
+			if at >= from {
+				out = append(out, diffCell{node: it.Node, at: at, size: 1})
+			}
+			at++
+			continue
+		}
+		if end := at + len(it.Text); end > from {
+			for i := max(from-at, 0); i < len(it.Text) && at+i < to; {
+				r, size := utf8.DecodeRuneInString(it.Text[i:])
+				out = append(out, diffCell{r: r, marks: it.Marks, at: at + i, size: size})
+				i += size
+			}
+		}
+		at += len(it.Text)
+	}
+	return out, to
 }
 
 // diffCell is one comparable position: a rune with its marks, or an
@@ -53,40 +145,11 @@ type diffCell struct {
 	size  int
 }
 
-func diffCells(items []doc.Item) ([]diffCell, int) {
-	var out []diffCell
-	at := 0
-	for _, it := range items {
-		if it.Node != nil {
-			out = append(out, diffCell{node: it.Node, at: at, size: 1})
-			at++
-			continue
-		}
-		for _, r := range it.Text {
-			size := len(string(r))
-			out = append(out, diffCell{r: r, marks: it.Marks, at: at, size: size})
-			at += size
-		}
-	}
-	return out, at
-}
-
 func sameCell(a, b diffCell) bool {
 	if a.node != nil || b.node != nil {
 		return a.node == b.node
 	}
 	return a.r == b.r && a.marks == b.marks
-}
-
-func commonEnds(a, b []diffCell) (prefix, suffix int) {
-	for prefix < len(a) && prefix < len(b) && sameCell(a[prefix], b[prefix]) {
-		prefix++
-	}
-	for suffix < len(a)-prefix && suffix < len(b)-prefix &&
-		sameCell(a[len(a)-1-suffix], b[len(b)-1-suffix]) {
-		suffix++
-	}
-	return prefix, suffix
 }
 
 // myersMatches finds a shortest edit script's equal pairs. It gives up on
