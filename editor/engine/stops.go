@@ -25,9 +25,20 @@ func (e *Engine) stopsFor(viewID uint64) policy.StopsFunc {
 	prog, store := e.prog, e.store
 	return func(r doc.Reader, view *policy.View) policy.Stops {
 		p := pr
-		if _, ok := r.(*doc.Snapshot); !ok {
+		switch tx := r.(type) {
+		case *doc.Snapshot:
+		case *doc.Tx:
+			if tx.Root() == tx.Base().Root() {
+				// A transaction that has changed nothing reads as its
+				// snapshot, which the view's presenter knows: a model
+				// lives no longer than the reader it was made with.
+				r = tx.Base()
+				break
+			}
 			// A transaction changes its nodes in place, so the view's
 			// presentations, memoised by node pointer, must not see it.
+			p = present.NewPresenter(prog.Profile())
+		default:
 			p = present.NewPresenter(prog.Profile())
 		}
 		return &stopModel{pr: p, prog: prog, store: store, r: r, view: view}
