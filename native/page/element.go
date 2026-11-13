@@ -19,6 +19,8 @@ import (
 // view needs between frames: the scroll and a press in progress.
 type Element struct {
 	Editor *Editor
+	// tags is the picker a tag being written opens (tags.go).
+	tags tagPicker
 	// Theme and Prose are the colors and text measures the page shows in.
 	Theme theme.Theme
 	Prose theme.ProseStyle
@@ -278,6 +280,10 @@ func (el *Element) View(c *ui.Context) {
 				el.paint(p, r, box.Focused())
 			})
 		el.accessUnits(c)
+		el.syncTags()
+		if box.Focused() {
+			el.tagPickerView(c, services)
+		}
 	})
 }
 
@@ -585,6 +591,10 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		if ed.deco.Composition != nil {
 			// The input method has the keys while it composes.
 			return false
+		}
+		if el.tagKeys(ev, services, at) {
+			services.Invalidate()
+			return true
 		}
 		if in, ok := el.keyIntent(ev); ok && el.run(in, services, at) {
 			services.Invalidate()

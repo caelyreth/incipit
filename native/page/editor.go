@@ -31,6 +31,10 @@ type Editor struct {
 	// Intake keeps the pictures pasted or dropped on the page and places
 	// them; nil takes none.
 	Intake Intake
+	// Tags are the notebook's tags a tag picker offers, most written
+	// first, but for one count of writing, the tag the caret is writing;
+	// nil offers only the tag being written.
+	Tags func(writing string) []string
 
 	theme   present.Theme
 	themeOf any
@@ -43,6 +47,9 @@ type Editor struct {
 	active time.Time
 	// reveal asks the next frame to scroll the caret into view.
 	reveal bool
+	// typed is whether the last input answered typed or deleted text, as
+	// a tag picker opens.
+	typed bool
 	// asks are what the page asks of its objects' layouts besides their
 	// presentations, as their motion and the drag held ask (Element.step).
 	asks map[doc.ID]objectIn
@@ -122,6 +129,12 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 		return false
 	}
 	ed.reveal = true
+	switch in.Intent.(type) {
+	case vocab.Type, vocab.Delete:
+		ed.typed = true
+	default:
+		ed.typed = false
+	}
 	for _, fx := range pub.Effects {
 		if fx.Kind == policy.EffectReveal {
 			ed.reveal = true

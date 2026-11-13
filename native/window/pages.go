@@ -71,6 +71,7 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 		}
 	}
 	ed.Intake = a.intake(ed)
+	ed.Tags = func(writing string) []string { return a.notebookTags(session, writing) }
 	el := page.NewElement(ed)
 	el.Pictures = a.pictures()
 	el.Label = "Page"

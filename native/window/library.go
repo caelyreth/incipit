@@ -1,8 +1,11 @@
 package window
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +13,7 @@ import (
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/native/shell"
 )
 
@@ -149,6 +153,46 @@ func tagNames(tags []storage.Tag) []string {
 	names := make([]string, len(tags))
 	for i, tag := range tags {
 		names[i] = tag.Name
+	}
+	return names
+}
+
+// notebookTags are the tags written on the sheets out of the trash, most
+// written first, each as first written; writer is writing one at its
+// caret, which is not counted, so a tag only being written is no tag yet.
+func (a *AppState) notebookTags(writer *sheetSession, writing string) []string {
+	type count struct {
+		name  string
+		count int
+		first int
+	}
+	counts := map[string]*count{}
+	for _, session := range a.sessions {
+		if sheet, ok := a.library.Sheet(library.SheetID(session.key)); !ok || !sheet.Trashed.IsZero() {
+			continue
+		}
+		for _, tag := range session.summary.Tags {
+			key := profile.TagKey(tag.Name)
+			c, ok := counts[key]
+			if !ok {
+				c = &count{name: tag.Name, first: len(counts)}
+				counts[key] = c
+			}
+			c.count += tag.Count
+		}
+	}
+	if c, ok := counts[profile.TagKey(writing)]; ok && writer != nil && slices.ContainsFunc(writer.summary.Tags, func(t storage.Tag) bool {
+		return profile.TagKey(t.Name) == profile.TagKey(writing)
+	}) {
+		c.count--
+	}
+	ranked := slices.Collect(maps.Values(counts))
+	slices.SortFunc(ranked, func(a, b *count) int { return cmp.Or(cmp.Compare(b.count, a.count), cmp.Compare(a.first, b.first)) })
+	var names []string
+	for _, c := range ranked {
+		if c.count > 0 {
+			names = append(names, c.name)
+		}
 	}
 	return names
 }
