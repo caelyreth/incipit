@@ -57,8 +57,11 @@ type Surfaces struct {
 	Panel      ui.Color
 	Page       ui.Color
 	Inset      ui.Color
-	Backdrop   ui.Color
-	Elevated   ui.Color
+	// Chosen is a chosen row's fill in a list, dimmer than Inset so what
+	// a row holds on a family's surface, as a tag, still stands out.
+	Chosen   ui.Color
+	Backdrop ui.Color
+	Elevated ui.Color
 }
 
 type TextColors struct {
@@ -188,6 +191,7 @@ func (s Settings) Semantic() Theme {
 			Panel:      palette.background,
 			Page:       palette.working,
 			Inset:      palette.inset,
+			Chosen:     palette.chosen,
 			Backdrop:   ui.RGBA(0, 0, 0, 0.38),
 			Elevated:   palette.raised,
 		},

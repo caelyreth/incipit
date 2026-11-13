@@ -434,7 +434,7 @@ func TestSheetPressScalesTheWholeCardWithoutChangingItsFill(t *testing.T) {
 	insideX := int(chapter.X + 4)
 	beforeEdge := tester.Image().RGBAAt(edgeX, centerY)
 	beforeInside := tester.Image().RGBAAt(insideX, centerY)
-	selection := state.Settings.Semantic().Surface.Inset
+	selection := state.Settings.Semantic().Surface.Chosen
 	if beforeInside.R != selection.R || beforeInside.G != selection.G || beforeInside.B != selection.B {
 		t.Fatalf("normal selection fill = %v, want %v", beforeInside, selection)
 	}

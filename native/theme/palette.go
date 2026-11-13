@@ -6,10 +6,14 @@ import "github.com/egoist/mygo/ui"
 // values are the design system's tokens (cosmofi/packages/cosmofi), placed
 // into Neverland's materials; a family is one hue in four roles.
 type palette struct {
-	background    ui.Color
-	working       ui.Color
-	raised        ui.Color
-	inset         ui.Color
+	background ui.Color
+	working    ui.Color
+	raised     ui.Color
+	inset      ui.Color
+	// chosen is a chosen row's fill: midway, by contrast, between the
+	// panel and the families' surfaces, so a row stands out from the
+	// panel by as much as what wears a surface stands out from the row.
+	chosen        ui.Color
 	hover         ui.Color
 	selected      ui.Color
 	hairline      ui.Color
@@ -47,6 +51,7 @@ func starfield() palette {
 		working:       color(0x1a1a1a),
 		raised:        color(0x242424),
 		inset:         color(0x272725), // static surface
+		chosen:        color(0x202020),
 		hover:         color(0x333333), // hairline
 		selected:      color(0x404040), // guide
 		hairline:      color(0x333333),
@@ -75,6 +80,7 @@ func daybreak() palette {
 		working:       color(0xf2f2f0),
 		raised:        color(0xe8e8e6),
 		inset:         color(0xe5e5e3), // static surface
+		chosen:        color(0xeeeeec),
 		hover:         color(0xd2d2d0), // hairline
 		selected:      color(0xc2c2c0), // guide
 		hairline:      color(0xd2d2d0),

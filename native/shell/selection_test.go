@@ -124,7 +124,7 @@ func TestSheetSelectionHonorsReducedMotion(t *testing.T) {
 	if state.ActivePage != "extra-1" {
 		t.Fatalf("click did not open sheet: %q", state.ActivePage)
 	}
-	fill := state.Settings.Semantic().Surface.Inset
+	fill := state.Settings.Semantic().Surface.Chosen
 	pixel := tester.Image().RGBAAt(int(to.X+4), int(to.Y+to.H/2))
 	if pixel.R != fill.R || pixel.G != fill.G || pixel.B != fill.B {
 		t.Fatalf("highlight did not arrive immediately: %v, want %v", pixel, fill)
@@ -142,7 +142,7 @@ func selectionRow(t *testing.T, tester *ui.Tester, label string) ui.Rect {
 
 func assertSelectionBetween(t *testing.T, tester *ui.Tester, state *State, from, to ui.Rect) {
 	t.Helper()
-	fill := state.Settings.Semantic().Surface.Inset
+	fill := state.Settings.Semantic().Surface.Chosen
 	x := int(from.X + 4)
 	top := int(from.Y + from.H)
 	bottom := int(to.Y)
