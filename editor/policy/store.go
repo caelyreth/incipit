@@ -24,6 +24,11 @@ type Store struct {
 	slots map[slotKey]*slotFacts
 	// lines: per analyzer and line content, facts at line-relative offsets.
 	lines map[lineKey]*lineFacts
+	// lineSlots: per line analyzer and slot, its lines' facts merged, as
+	// slots keeps a slot analyzer's.
+	lineSlots map[slotKey]*slotFacts
+	// kinds: per analyzer result and fact kind, the facts of that kind.
+	kinds map[kindKey]*kindFacts
 	// summaries: per summary and node pointer.
 	summaries map[summaryKey]*summaryEntry
 	// segments: per slot content and program, the segment boundaries.
@@ -35,6 +40,8 @@ func NewStore() *Store {
 	return &Store{
 		slots:     map[slotKey]*slotFacts{},
 		lines:     map[lineKey]*lineFacts{},
+		lineSlots: map[slotKey]*slotFacts{},
+		kinds:     map[kindKey]*kindFacts{},
 		summaries: map[summaryKey]*summaryEntry{},
 		segments:  map[segmentKey]*segmentEntry{},
 	}
@@ -66,6 +73,20 @@ type lineKey struct {
 	config  string
 	context string
 	line    string
+}
+
+// kindKey is one kind's share of an analyzer's facts, the slice the store
+// returned for them named by its first element and length: a slice the
+// store keeps is never changed, so the two name it.
+type kindKey struct {
+	first *Fact
+	n     int
+	kind  FactID
+}
+
+type kindFacts struct {
+	facts []Fact
+	gen   uint64
 }
 
 type lineFacts struct {
@@ -112,6 +133,16 @@ func (s *Store) Sweep(keep uint64) {
 	for k, v := range s.lines {
 		if v.gen < old {
 			delete(s.lines, k)
+		}
+	}
+	for k, v := range s.lineSlots {
+		if v.gen < old {
+			delete(s.lineSlots, k)
+		}
+	}
+	for k, v := range s.kinds {
+		if v.gen < old {
+			delete(s.kinds, k)
 		}
 	}
 	for k, v := range s.summaries {
@@ -232,7 +263,28 @@ func (s *Store) analyzeSlot(a *analyzer, u *Unit) []Fact {
 	return facts
 }
 
+// analyzeLines returns a line analyzer's facts for the unit's slot: as
+// last merged while the slot's content and context are those it was
+// merged from, else each line's from the line cache or the analyzer.
 func (s *Store) analyzeLines(a *analyzer, u *Unit) []Fact {
+	ctx := unitContext(u)
+	key := slotKey{config: a.config, slot: u.Slot}
+	s.mu.Lock()
+	if e, ok := s.lineSlots[key]; ok && e.content == u.Content && e.context == ctx {
+		e.gen = s.gen
+		s.mu.Unlock()
+		return e.facts
+	}
+	s.mu.Unlock()
+	out := s.mergeLines(a, u)
+	s.mu.Lock()
+	s.lineSlots[key] = &slotFacts{content: u.Content, context: ctx, facts: out, gen: s.gen}
+	s.mu.Unlock()
+	return out
+}
+
+// mergeLines reads each of the slot's lines and merges their facts.
+func (s *Store) mergeLines(a *analyzer, u *Unit) []Fact {
 	var out []Fact
 	for i, r := range lineRanges(u.Content) {
 		line := *u
@@ -262,6 +314,32 @@ func (s *Store) analyzeLines(a *analyzer, u *Unit) []Fact {
 		}
 	}
 	sortFacts(out)
+	return out
+}
+
+// ofKind is the facts of kind k among all, which the store returned: kept
+// while all is, so asking again costs a lookup.
+func (s *Store) ofKind(all []Fact, k FactID) []Fact {
+	if len(all) == 0 {
+		return nil
+	}
+	key := kindKey{first: &all[0], n: len(all), kind: k}
+	s.mu.Lock()
+	if e, ok := s.kinds[key]; ok {
+		e.gen = s.gen
+		s.mu.Unlock()
+		return e.facts
+	}
+	s.mu.Unlock()
+	var out []Fact
+	for _, f := range all {
+		if f.Kind == k {
+			out = append(out, f)
+		}
+	}
+	s.mu.Lock()
+	s.kinds[key] = &kindFacts{facts: out, gen: s.gen}
+	s.mu.Unlock()
 	return out
 }
 

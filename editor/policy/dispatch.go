@@ -323,13 +323,7 @@ func (p *Program) facts(store *Store, r doc.Reader, view *View, ref doc.SlotRef,
 	if len(a.kinds) == 1 {
 		return all
 	}
-	var out []Fact
-	for _, f := range all {
-		if f.Kind == k {
-			out = append(out, f)
-		}
-	}
-	return out
+	return store.ofKind(all, k)
 }
 
 // --- places -----------------------------------------------------------------
