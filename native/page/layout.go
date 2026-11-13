@@ -154,6 +154,9 @@ type surfaceLayout struct {
 type unitLayout struct {
 	key  layoutKey
 	pres *present.Presentation
+	// at is where each of the unit's stops in its slots is, made when
+	// first looked up (place).
+	at map[doc.Caret]place
 	// since is when the layout was first painted.
 	since time.Time
 	// kind is an object's renderer, nil for text; what it keeps here
@@ -227,8 +230,11 @@ type pageLayout struct {
 	// height is the page's height as drawn, rooms on their way; rest is
 	// its height with every room settled.
 	height, rest float32
-	// at finds each caret's place: its unit, surface and stop.
-	at map[doc.Caret]place
+	// slots finds the unit a caret's slot is laid out in, and gaps the
+	// place of each gap stop, beside an object rather than in a slot; a
+	// unit finds its own stops (unitLayout.place).
+	slots map[doc.SlotRef]*unitLayout
+	gaps  map[doc.Caret]place
 	// first and last are the page's first and last stops.
 	first, last *stopAt
 	// moving are the units a paint steps (Element.step): those of an
@@ -285,7 +291,7 @@ func newLayoutCache() *layoutCache {
 // build lays the presentations out. Units whose presentation, metrics and
 // composition are unchanged keep their shaped text.
 func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorations, th present.Theme, m Metrics, ins map[doc.ID]objectIn) *pageLayout {
-	pl := &pageLayout{at: map[doc.Caret]place{}}
+	pl := &pageLayout{slots: map[doc.SlotRef]*unitLayout{}, gaps: map[doc.Caret]place{}}
 	keep := map[doc.ID]bool{}
 	y := float32(0)
 	var prev *present.Presentation
@@ -316,20 +322,34 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		prev = p
 		u.y, u.top, u.shown = y, y, u.h
 		y += u.h
-		// Index the stops by caret, in page order.
-		index := func(s *stopAt, pl2 place) {
-			if _, dup := pl.at[s.caret]; !dup {
-				pl.at[s.caret] = pl2
+		// Index the unit's slots, and its gaps in page order: a gap two
+		// objects share is the first's.
+		for i, sf := range p.Surfaces {
+			if i < len(u.surfaces) {
+				pl.slots[sf.Flow.Slot] = u
 			}
-			if pl.first == nil {
-				pl.first = s
-			}
-			pl.last = s
 		}
-		for _, s := range orderedStops(u) {
-			index(s.stop, place{unit: u, surface: s.surface, stop: s.stop})
+		for _, g := range u.gaps {
+			if g == nil {
+				continue
+			}
+			if _, dup := pl.gaps[g.caret]; !dup {
+				pl.gaps[g.caret] = place{unit: u, stop: g}
+			}
 		}
 		pl.units = append(pl.units, u)
+	}
+	for _, u := range pl.units {
+		if st := orderedStops(u); len(st) > 0 {
+			pl.first = st[0].stop
+			break
+		}
+	}
+	for i := len(pl.units) - 1; i >= 0; i-- {
+		if st := orderedStops(pl.units[i]); len(st) > 0 {
+			pl.last = st[len(st)-1].stop
+			break
+		}
 	}
 	pl.height, pl.rest = y, y
 	for id := range lc.units {
@@ -827,7 +847,27 @@ func lineAt(sl *surfaceLayout, r ui.Rect) (ui.TextLine, bool) {
 // lookup finds a caret's place. The engine settles every caret on a
 // presented stop, so the place is exact.
 func (pl *pageLayout) lookup(c doc.Caret) (place, bool) {
-	pc, ok := pl.at[c]
+	if u, ok := pl.slots[c.Pos.Ref()]; ok {
+		if pc, ok := u.place(c); ok {
+			return pc, true
+		}
+	}
+	pc, ok := pl.gaps[c]
+	return pc, ok
+}
+
+// place finds a caret among the unit's stops in its slots, indexing them
+// the first time, once for the unit's layout.
+func (u *unitLayout) place(c doc.Caret) (place, bool) {
+	if u.at == nil {
+		u.at = map[doc.Caret]place{}
+		for _, s := range orderedStops(u) {
+			if _, dup := u.at[s.stop.caret]; s.surface != nil && !dup {
+				u.at[s.stop.caret] = place{unit: u, surface: s.surface, stop: s.stop}
+			}
+		}
+	}
+	pc, ok := u.at[c]
 	return pc, ok
 }
 
@@ -1013,8 +1053,8 @@ func (pl *pageLayout) coverRanges(u *unitLayout, c present.Cover) map[*surfaceLa
 	}
 	out := map[*surfaceLayout]ui.TextInputRange{}
 	for i, r := range runs {
-		from, ok1 := pl.at[u.pres.Stops[r[0]].Caret]
-		to, ok2 := pl.at[u.pres.Stops[r[1]].Caret]
+		from, ok1 := pl.lookup(u.pres.Stops[r[0]].Caret)
+		to, ok2 := pl.lookup(u.pres.Stops[r[1]].Caret)
 		if ok1 && ok2 && from.stop.u <= to.stop.u {
 			out[u.surfaces[i]] = ui.TextInputRange{Start: from.stop.u, End: to.stop.u}
 		}
