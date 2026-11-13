@@ -219,7 +219,9 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 			for n < len(t) && t[n] == '#' {
 				n++
 			}
-			if n <= 6 {
+			// A heading's hashes end at a space or the text's end; one
+			// a letter follows starts a tag.
+			if n <= 6 && (n == len(t) || t[n] == ' ') {
 				e.Fact(mk.Span(0, n, marker{Kind: markHeading, Level: n}))
 			}
 		case cfg.Quotes && t[0] == '>':

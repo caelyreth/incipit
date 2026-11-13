@@ -549,6 +549,19 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 		}
 		return a.Outer.From.Stop - b.Outer.From.Stop
 	})
+	// Styled text: what the policies' facts style, as they spell it.
+	type styledSpan struct {
+		from, to int
+		group    vocab.Group
+	}
+	var styled []styledSpan
+	for _, st := range prog.Styled() {
+		for _, f := range prog.FactsIn(store, r, view, ref, st.Kind) {
+			if f.Outer.From.At < f.Outer.To.At {
+				styled = append(styled, styledSpan{f.Outer.From.At, f.Outer.To.At, st.Group})
+			}
+		}
+	}
 	var items []Item
 	var stops []Stop
 	// flush moves the stops gathered so far into the map. At one offset
@@ -624,7 +637,7 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 				}
 			}
 		}
-		// Split the run at line breaks, ghost points, paint edges and
+		// Split the run at line breaks, ghost points, styled edges and
 		// grapheme stops.
 		cuts := []int{at, at + len(it.Text)}
 		for i := 0; i < len(it.Text); i++ {
@@ -634,6 +647,9 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 		}
 		for _, g := range ghosts {
 			cuts = append(cuts, g.Outer.From.At)
+		}
+		for _, sp := range styled {
+			cuts = append(cuts, sp.from, sp.to)
 		}
 		slices.Sort(cuts)
 		cuts = slices.Compact(cuts)
@@ -647,7 +663,13 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 			if text == "\n" {
 				items = append(items, Item{Kind: BreakItem, From: from, To: to, Groups: groups})
 			} else {
-				items = append(items, Item{Kind: TextRun, From: from, To: to, Text: text, Groups: slices.Clone(groups)})
+				run := slices.Clone(groups)
+				for _, sp := range styled {
+					if sp.from <= from && to <= sp.to {
+						run = append(run, sp.group)
+					}
+				}
+				items = append(items, Item{Kind: TextRun, From: from, To: to, Text: text, Groups: run})
 			}
 			for off := from; off < to; {
 				off = from + vocab.NextGrapheme(text, off-from)

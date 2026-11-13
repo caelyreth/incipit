@@ -11,10 +11,12 @@ var (
 	GroupHeadings = [7]vocab.Group{0,
 		vocab.NewGroup("heading.1", GroupHeading), vocab.NewGroup("heading.2", GroupHeading), vocab.NewGroup("heading.3", GroupHeading),
 		vocab.NewGroup("heading.4", GroupHeading), vocab.NewGroup("heading.5", GroupHeading), vocab.NewGroup("heading.6", GroupHeading)}
-	GroupEmphasis      = vocab.NewGroup("mark.emphasis", 0)
-	GroupStrong        = vocab.NewGroup("mark.strong", 0)
-	GroupCodeMark      = vocab.NewGroup("mark.code", 0)
-	GroupStrike        = vocab.NewGroup("mark.strike", 0)
+	GroupEmphasis = vocab.NewGroup("mark.emphasis", 0)
+	GroupStrong   = vocab.NewGroup("mark.strong", 0)
+	GroupCodeMark = vocab.NewGroup("mark.code", 0)
+	GroupStrike   = vocab.NewGroup("mark.strike", 0)
+	// GroupTag is a tag written in text.
+	GroupTag           = vocab.NewGroup("tag", 0)
 	GroupCode          = vocab.NewGroup("code", vocab.GroupText)
 	GroupFormulaSource = vocab.NewGroup("formula.source", GroupCode)
 	GroupQuote         = vocab.NewGroup("quote", vocab.GroupText)

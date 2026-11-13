@@ -26,6 +26,7 @@ var (
 	intentAlignCol   = vocab.NewIntentKind("AlignColumns")
 	intentHeader     = vocab.NewIntentKind("ToggleHeader")
 	intentDropTable  = vocab.NewIntentKind("DeleteTable")
+	intentPickTag    = vocab.NewIntentKind("PickTag")
 )
 
 type (
@@ -38,6 +39,10 @@ type (
 		To    doc.Kind
 		Attrs doc.Attrs
 	}
+	// PickTag names the tag the caret is in, as a tag picker chooses one:
+	// the tag reads "#" and Name, and the caret goes past the space ending
+	// its word.
+	PickTag struct{ Name string }
 	// WrapQuote wraps the selected blocks in a quote.
 	WrapQuote struct{}
 	// MakeList makes each selected block an item of a list with attrs.
@@ -136,6 +141,7 @@ func (ShapeColumn) Kind() vocab.IntentKind  { return intentColumn }
 func (AlignColumns) Kind() vocab.IntentKind { return intentAlignCol }
 func (ToggleHeader) Kind() vocab.IntentKind { return intentHeader }
 func (DeleteTable) Kind() vocab.IntentKind  { return intentDropTable }
+func (PickTag) Kind() vocab.IntentKind      { return intentPickTag }
 
 // SourceIndent is one level of source text's indentation: what Nest adds
 // at the start of each line of a slot that keeps literal lines, as a code

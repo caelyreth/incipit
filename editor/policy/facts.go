@@ -166,7 +166,9 @@ type factDecl struct {
 	binders  map[vocab.RoleID]func(*Level) any
 	key      func(any) any
 	projects bool
-	errs     []string
+	// styles is the group the kind's facts style the text they span in.
+	styles vocab.Group
+	errs   []string
 }
 
 // Provides declares roles the kind's facts provide, as bind makes them
@@ -191,6 +193,11 @@ func Provides[T, R any](bind func(At[T]) R, roles ...vocab.AnyRole) FactOption {
 
 // Projects lets the kind's facts be glyphs.
 func Projects() FactOption { return func(d *factDecl) { d.projects = true } }
+
+// Styles sets the text the kind's facts span in group, wherever the caret
+// is: what the content spells, presented as it reads, as a written tag
+// reads as one.
+func Styles(group vocab.Group) FactOption { return func(d *factDecl) { d.styles = group } }
 
 var factKinds = struct {
 	sync.Mutex

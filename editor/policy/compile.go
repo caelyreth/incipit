@@ -150,6 +150,7 @@ type Program struct {
 
 	paints      []Paint
 	projecting  []FactID
+	styling     []Styling
 	decorations []Decoration
 
 	stackMu sync.Mutex
@@ -204,9 +205,17 @@ func (p *Program) Observers() []Observer {
 // Grouping is the history grouping function, or nil.
 func (p *Program) Grouping() func(prev, next *doc.Entry) bool { return p.grouping }
 
+// Styling is a fact kind whose facts style the text they span (Styles).
+type Styling struct {
+	Kind  FactID
+	Group vocab.Group
+}
+
 // Paints and Decorations are presentation contributions; Projecting are
-// the fact kinds whose facts may be glyphs.
+// the fact kinds whose facts may be glyphs, and Styled those whose facts
+// style their text.
 func (p *Program) Projecting() []FactID      { return p.projecting }
+func (p *Program) Styled() []Styling         { return p.styling }
 func (p *Program) Decorations() []Decoration { return p.decorations }
 func (p *Program) Guides() []Guide           { return p.guides }
 func (p *Program) Strict() bool              { return p.strict }
@@ -301,6 +310,9 @@ func Compile(m Manifest, values Values) (*Program, error) {
 			prog.factDecls[d.kind] = d
 			if d.projects {
 				prog.projecting = append(prog.projecting, d.kind)
+			}
+			if d.styles != 0 {
+				prog.styling = append(prog.styling, Styling{Kind: d.kind, Group: d.styles})
 			}
 		}
 		for _, a := range p.analyzers {

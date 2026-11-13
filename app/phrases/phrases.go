@@ -43,6 +43,8 @@ var texts = map[string]string{
 	"policies.tables":                 "Tables",
 	"policies.tables.description":     "{table.insert} places a table; {core.leave} and {core.return} step between its cells, and {core.break} goes down a column, making a row past the last.",
 	"policies.figures.description":    "Pictures dropped, pasted or inserted with {figures.insert} become figures with captions; {core.dismiss} moves between a figure and its caption.",
+	"policies.tags":                   "Tags",
+	"policies.tags.description":       "# and a word writes a tag anywhere in the text; each sheet collects the tags it writes.",
 	"policies.pairs":                  "Pairs",
 	"policies.pairs.description":      "Brackets and quotes close themselves as you open them; deleting into a pair selects it first.",
 	"policies.navigation":             "Navigation",
