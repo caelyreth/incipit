@@ -115,13 +115,16 @@ type segmentEntry struct {
 	gen    uint64
 }
 
-// Sweep ends a generation: cache entries no demand touched during the last
-// keep generations are evicted, to be recomputed when demanded again.
+// Sweep ends a generation. Once every keep generations the caches are
+// walked and the entries no demand touched during the last keep are
+// evicted, to be recomputed when demanded again: an entry outlives its
+// last demand by keep to 2·keep generations, and a generation's end costs
+// a keep-th of the walk rather than all of it.
 func (s *Store) Sweep(keep uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.gen++
-	if s.gen <= keep {
+	if keep == 0 || s.gen%keep != 0 || s.gen <= keep {
 		return
 	}
 	old := s.gen - keep

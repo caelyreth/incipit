@@ -77,3 +77,37 @@ func TestLineFactsAreKeptPerSlot(t *testing.T) {
 		t.Fatalf("after editing one line, the kept store read %d lines, want 1", lineRuns-6)
 	}
 }
+
+// A sweep evicts what no demand touched for keep generations, walking the
+// caches once every keep of them: facts outlive their last demand by keep
+// to 2·keep generations and are read again after.
+func TestSweepEvictsWhatWentUntouched(t *testing.T) {
+	prog, err := Compile(Manifest{Enabled: []*Policy{testCore, testWords}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, ref := testPage(t, "one three")
+	store, view := NewStore(), &View{}
+	word := testWord.Kind()
+	const keep = 4
+	read := func() int {
+		lineRuns = 0
+		prog.facts(store, snap, view, ref, word)
+		return lineRuns
+	}
+	if read() != 1 {
+		t.Fatal("first read read no line")
+	}
+	for range keep {
+		store.Sweep(keep)
+	}
+	if read() != 0 {
+		t.Fatalf("facts demanded within %d generations were evicted", keep)
+	}
+	for range 2 * keep {
+		store.Sweep(keep)
+	}
+	if read() != 1 {
+		t.Fatalf("facts left untouched for %d generations were kept", 2*keep)
+	}
+}
