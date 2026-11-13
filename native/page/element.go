@@ -323,7 +323,7 @@ func (el *Element) accessUnits(c *ui.Context) {
 		height := max(u.h, 1)
 		node := ui.Box(c).Key("page-unit-" + p.Unit.String()).Absolute().
 			Left(el.column + u.x).Top(top + u.y).Width(width).Height(height).
-			Role(role).Label(p.Label).Value(p.Value).RoleDescription(description).
+			Role(role).Label(p.Label()).Value(p.Value()).RoleDescription(description).
 			IgnoreInput(true)
 		if p.Level > 0 {
 			node.Level(p.Level)

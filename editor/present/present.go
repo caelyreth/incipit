@@ -138,20 +138,44 @@ type Presentation struct {
 	// Object is set for a unit the caret selects whole.
 	Object bool
 
-	// Role, Label and Value are what assistive technology reads for the
-	// unit. Label is the unit's accessible name; Value its text without
-	// projection. AccessStops maps every presentation stop into Value.
-	Role, Label, Value string
-	Level              int
-	AccessStops        []AccessStop
+	// Role and Level are what assistive technology reads the unit as;
+	// Label, Value and AccessStops what it reads in it, made when first
+	// read.
+	Role  string
+	Level int
 
+	access struct {
+		once  sync.Once
+		label string
+		value string
+		stops []AccessStop
+	}
 	key unitKey
 }
 
-// Text is the unit's text for accessibility, in stop order.
-func (p *Presentation) Text() string {
-	return p.Value
+// Label is the unit's accessible name.
+func (p *Presentation) Label() string {
+	p.accessible()
+	return p.access.label
 }
+
+// Value is the unit's text without projection, as assistive technology
+// reads it.
+func (p *Presentation) Value() string {
+	p.accessible()
+	return p.access.value
+}
+
+// AccessStops maps every presentation stop into Value.
+func (p *Presentation) AccessStops() []AccessStop {
+	p.accessible()
+	return p.access.stops
+}
+
+// Text is the unit's text for accessibility, in stop order.
+func (p *Presentation) Text() string { return p.Value() }
+
+func (p *Presentation) accessible() { p.access.once.Do(p.setAccessible) }
 
 // UnitRef is a unit in page order. It holds no node, which a reader
 // resolves by ID: the list of units depends only on the page's block
@@ -586,7 +610,6 @@ func build(e env, u UnitRef, n *doc.Node, key unitKey) *Presentation {
 			after := doc.Pos{Node: u.Gap.Node, Slot: u.Gap.Slot, Offset: u.Gap.Offset + 1}
 			p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(after), Surface: -1, Class: StopGap, Offset: after.Offset})
 		}
-		p.setAccessible()
 		return p
 	}
 	ref, ok := vocab.FirstTextSlot(n)
@@ -594,7 +617,6 @@ func build(e env, u UnitRef, n *doc.Node, key unitKey) *Presentation {
 		return p
 	}
 	flowOf(e, p, ref, p.Group, false, 0, true)
-	p.setAccessible()
 	return p
 }
 
@@ -660,13 +682,18 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 	pi, si := 0, 0
 	var covering []int
 	var items []Item
-	var stops []Stop
-	// flush moves the stops gathered so far into the map. At one offset
+	// The stops since the last flush are gathered at the end of p.Stops,
+	// from mark on, which a slot's text sizes once (a stop per byte at
+	// most, and its edge).
+	p.Stops = slices.Grow(p.Stops, content.Len()+1)
+	mark := len(p.Stops)
+	// flush puts the stops gathered so far in order. At one offset
 	// they stand in stop order: what attaches to the content before, below
 	// the position's own stop 0, gathered with the text before it; what
 	// attaches to the content after, above. Two projected items meeting
 	// share the stop between them.
 	flush := func() {
+		stops := p.Stops[mark:]
 		slices.SortStableFunc(stops, func(a, b Stop) int {
 			if a.Offset != b.Offset {
 				return a.Offset - b.Offset
@@ -674,8 +701,8 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 			return a.Caret.Stop - b.Caret.Stop
 		})
 		stops = slices.CompactFunc(stops, func(a, b Stop) bool { return a.Caret == b.Caret })
-		p.Stops = append(p.Stops, stops...)
-		stops = nil
+		p.Stops = p.Stops[:mark+len(stops)]
+		mark = len(p.Stops)
 	}
 	gi := 0
 	emitGhosts := func(at int) {
@@ -696,18 +723,18 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 				// is the ghost's to give.
 				st := ghostStop(from)
 				st.Outside = g.Block
-				stops = append(stops, st)
+				p.Stops = append(p.Stops, st)
 			}
 			for s := from + 1; s <= to; s++ {
 				if s != 0 {
-					stops = append(stops, ghostStop(s))
+					p.Stops = append(p.Stops, ghostStop(s))
 				}
 			}
 			gi++
 		}
 	}
 	stop := func(off int) {
-		stops = append(stops, Stop{Caret: doc.CaretAt(doc.At(ref, off)), Surface: index, Class: cls, Offset: off})
+		p.Stops = append(p.Stops, Stop{Caret: doc.CaretAt(doc.At(ref, off)), Surface: index, Class: cls, Offset: off})
 	}
 	stop(0)
 	content.Each(func(at int, it doc.Item) bool {
@@ -722,6 +749,7 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 				// box, between its two flow stops.
 				flush()
 				flowOf(e, p, src, face, true, it.Node.ID(), p.key.isOpen(it.Node.ID()))
+				mark = len(p.Stops)
 			}
 			stop(at + 1)
 			return true
@@ -814,9 +842,9 @@ type accessPart struct {
 // into that same source.
 func (p *Presentation) setAccessible() {
 	parts, value, u := p.accessParts()
-	p.Value = value
-	p.Label = accessibleName(p.Role, p.Value)
-	p.AccessStops = make([]AccessStop, 0, len(p.Stops))
+	p.access.value = value
+	p.access.label = accessibleName(p.Role, value)
+	p.access.stops = make([]AccessStop, 0, len(p.Stops))
 	at := newAccessIndex(parts, u)
 	for i, st := range p.Stops {
 		at := at.offset(st.Surface, st.Offset)
@@ -824,7 +852,7 @@ func (p *Presentation) setAccessible() {
 			// The gap before an object stands before its value.
 			at = 0
 		}
-		p.AccessStops = append(p.AccessStops, AccessStop{Caret: st.Caret, UTF16: at})
+		p.access.stops = append(p.access.stops, AccessStop{Caret: st.Caret, UTF16: at})
 	}
 }
 

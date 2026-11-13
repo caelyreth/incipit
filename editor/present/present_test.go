@@ -80,18 +80,18 @@ func TestAccessibilityTextAndStops(t *testing.T) {
 	ids := []doc.ID{units[0].ID, units[1].ID}
 	pres := e.Present(1, ids)
 	heading := pres[0]
-	if heading.Role != "heading" || heading.Label != "Title" || heading.Level != 2 {
-		t.Fatalf("heading accessibility = %q %q level %d", heading.Role, heading.Label, heading.Level)
+	if heading.Role != "heading" || heading.Label() != "Title" || heading.Level != 2 {
+		t.Fatalf("heading accessibility = %q %q level %d", heading.Role, heading.Label(), heading.Level)
 	}
 	para := pres[1]
-	if para.Role != "paragraph" || para.Label != "A😀 x+1" || para.Value != "A😀 x+1" {
-		t.Fatalf("paragraph accessibility = %q %q %q", para.Role, para.Label, para.Value)
+	if para.Role != "paragraph" || para.Label() != "A😀 x+1" || para.Value() != "A😀 x+1" {
+		t.Fatalf("paragraph accessibility = %q %q %q", para.Role, para.Label(), para.Value())
 	}
-	if len(para.AccessStops) != len(para.Stops) {
-		t.Fatalf("%d access stops for %d presentation stops", len(para.AccessStops), len(para.Stops))
+	if len(para.AccessStops()) != len(para.Stops) {
+		t.Fatalf("%d access stops for %d presentation stops", len(para.AccessStops()), len(para.Stops))
 	}
 	last := -1
-	for i, st := range para.AccessStops {
+	for i, st := range para.AccessStops() {
 		if st.UTF16 < last {
 			t.Fatalf("access stop %d goes back from %d to %d", i, last, st.UTF16)
 		}
@@ -103,12 +103,12 @@ func TestAccessibilityTextAndStops(t *testing.T) {
 		}
 		switch st.Offset {
 		case 0:
-			if para.AccessStops[i].UTF16 != 0 {
-				t.Fatalf("start maps to %d", para.AccessStops[i].UTF16)
+			if para.AccessStops()[i].UTF16 != 0 {
+				t.Fatalf("start maps to %d", para.AccessStops()[i].UTF16)
 			}
 		case 5:
-			if para.AccessStops[i].UTF16 != 3 {
-				t.Fatalf("after the emoji maps to %d, want 3", para.AccessStops[i].UTF16)
+			if para.AccessStops()[i].UTF16 != 3 {
+				t.Fatalf("after the emoji maps to %d, want 3", para.AccessStops()[i].UTF16)
 			}
 		}
 	}
@@ -142,8 +142,8 @@ func TestObjectAccessibilityUsesItsRole(t *testing.T) {
 	}
 	for _, p := range e.Present(1, ids) {
 		if p.Kind == profile.Divider {
-			if p.Role != "separator" || p.Label != "Separator" || p.Value != "" {
-				t.Fatalf("divider accessibility = %q %q %q", p.Role, p.Label, p.Value)
+			if p.Role != "separator" || p.Label() != "Separator" || p.Value() != "" {
+				t.Fatalf("divider accessibility = %q %q %q", p.Role, p.Label(), p.Value())
 			}
 			return
 		}

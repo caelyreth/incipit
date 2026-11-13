@@ -28,6 +28,9 @@ func TestKeptPresentationsAreFreshOnes(t *testing.T) {
 		got := p.e.Present(1, ids)
 		fresh := present.NewPresenter(p.e.Program().Profile()).Present(p.e.Program(), p.e.Store(), p.e.Snapshot(), &view, ids)
 		for i := range got {
+			// Read as assistive technology would, so both are made whole.
+			got[i].AccessStops()
+			fresh[i].AccessStops()
 			if !reflect.DeepEqual(got[i], fresh[i]) {
 				t.Fatalf("%s: unit %d kept\n%+v\nfresh\n%+v", when, i, got[i], fresh[i])
 			}
@@ -82,6 +85,8 @@ func TestAnAnnotationInAUnitPresentsItAgain(t *testing.T) {
 		Anchor: policy.Between(doc.At(ref, 0), doc.At(ref, 3)), Lifetime: policy.WithView})
 	noted := pr.Present(prog, store, snap, &view, []doc.ID{unit})[0]
 	fresh := present.NewPresenter(prog.Profile()).Present(prog, store, snap, &view, []doc.ID{unit})[0]
+	noted.AccessStops()
+	fresh.AccessStops()
 	if noted == plain || !reflect.DeepEqual(noted, fresh) {
 		t.Fatal("the presentation kept without the annotation stood with it")
 	}
