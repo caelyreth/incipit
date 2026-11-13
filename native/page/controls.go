@@ -275,14 +275,8 @@ func (el *Element) step() {
 	ed := el.Editor
 	pl := ed.layout
 	asks := map[doc.ID]objectIn{}
-	type stood struct {
-		u *unitLayout
-		y float32
-	}
-	was := make(map[doc.ID]stood, len(pl.units))
-	for _, u := range pl.units {
+	for _, u := range pl.steppers() {
 		id := u.pres.Unit
-		was[id] = stood{u, u.y}
 		for _, s := range u.surfaces {
 			for _, sg := range s.segs {
 				if sg.inline != nil {
@@ -304,6 +298,15 @@ func (el *Element) step() {
 	}
 	if maps.Equal(asks, ed.asks) {
 		return
+	}
+	// Where each unit stood, for the anchor to hold across the layout.
+	type stood struct {
+		u *unitLayout
+		y float32
+	}
+	was := make(map[doc.ID]stood, len(pl.units))
+	for _, u := range pl.units {
+		was[u.pres.Unit] = stood{u, u.y}
 	}
 	ed.asks = asks
 	pl = el.relayout()

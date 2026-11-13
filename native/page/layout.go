@@ -228,6 +228,37 @@ type pageLayout struct {
 	at map[doc.Caret]place
 	// first and last are the page's first and last stops.
 	first, last *stopAt
+	// moving are the units a paint steps (Element.step): those of an
+	// object kind or holding inline objects, found once a layout.
+	moving      []*unitLayout
+	movingFound bool
+}
+
+// steppers are the layout's units that step as it is painted: an
+// object's, or one holding inline objects. The others hold nothing that
+// moves.
+func (pl *pageLayout) steppers() []*unitLayout {
+	if !pl.movingFound {
+		pl.movingFound = true
+		for _, u := range pl.units {
+			if u.kind != nil || holdsInline(u) {
+				pl.moving = append(pl.moving, u)
+			}
+		}
+	}
+	return pl.moving
+}
+
+// holdsInline reports whether a unit lays out an inline object.
+func holdsInline(u *unitLayout) bool {
+	for _, s := range u.surfaces {
+		for _, sg := range s.segs {
+			if sg.inline != nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type place struct {

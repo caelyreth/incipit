@@ -57,13 +57,24 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 		el.rooms = map[doc.ID]*room{}
 	}
 	animate = animate && !now.IsZero()
-	seen := make(map[doc.ID]bool, len(pl.units))
+	if el.roomsOf != pl {
+		// A new layout: the rooms of units it no longer has go.
+		el.roomsOf = pl
+		seen := make(map[doc.ID]bool, len(pl.units))
+		for _, u := range pl.units {
+			seen[u.pres.Unit] = true
+		}
+		for id := range el.rooms {
+			if !seen[id] {
+				delete(el.rooms, id)
+			}
+		}
+	}
 	shift := float32(0)
 	moving := false
 	for _, u := range pl.units {
 		u.y = u.top + shift
 		id := u.pres.Unit
-		seen[id] = true
 		shape := shapeOf(u)
 		r, ok := el.rooms[id]
 		switch {
@@ -71,9 +82,11 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 			// Between frames: where it stands, a change it has yet to
 			// start asking for the frame that starts it.
 			moving = moving || r.shape != shape
-		case !ok || !animate:
+		case !ok:
 			r = &room{spring: motion.NewSpring(u.h, now), shape: shape}
 			el.rooms[id] = r
+		case !animate:
+			*r = room{spring: motion.NewSpring(u.h, now), shape: shape}
 		case r.shape != shape:
 			r.from, r.prev, r.shape = r.spring.Value(), r.last, shape
 			r.spring.Step(u.h, now, layoutSettle)
@@ -91,11 +104,6 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 		moving = moving || r.spring.Moving()
 	}
 	pl.height = pl.rest + shift
-	for id := range el.rooms {
-		if !seen[id] {
-			delete(el.rooms, id)
-		}
-	}
 	el.roomsMoving = moving || el.roomsMoving && !frame
 }
 

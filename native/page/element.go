@@ -82,10 +82,13 @@ type Element struct {
 	// closes, stepped as the page is painted at paintNow; roomsMoving asks
 	// for the next paint. animate is whether motion is wanted, as the
 	// last paint found.
-	rooms       map[doc.ID]*room
-	paintNow    time.Time
-	animate     bool
-	roomsMoving bool
+	rooms map[doc.ID]*room
+	// roomsOf and forgotOf are the layouts whose units the rooms and the
+	// memos were last pruned to: they change only with the layout.
+	roomsOf, forgotOf *pageLayout
+	paintNow          time.Time
+	animate           bool
+	roomsMoving       bool
 	// pointer is where the pointer last was, in the element, pointerIn
 	// whether it is over the page, and near the unit it is by (controls.go);
 	// focused is whether the page had the keys when last painted.

@@ -224,9 +224,10 @@ func recalled[T any](el *Element, unit doc.ID, name string) *T {
 
 // forget forgets what is remembered of units the layout no longer has.
 func (el *Element) forget(pl *pageLayout) {
-	if pl == nil || len(el.memos) == 0 {
+	if pl == nil || len(el.memos) == 0 || el.forgotOf == pl {
 		return
 	}
+	el.forgotOf = pl
 	live := make(map[doc.ID]bool, len(pl.units))
 	for _, u := range pl.units {
 		live[u.pres.Unit] = true
