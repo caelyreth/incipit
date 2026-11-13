@@ -51,3 +51,44 @@ func TestUnwrittenPageLoadsEmpty(t *testing.T) {
 		t.Fatalf("unwritten page: %v, %v", snap, err)
 	}
 }
+
+// A page saved before pages kept their tags has them read from its content
+// once, as the notebook loads.
+func TestTagsSavedBeforeAreReadOnce(t *testing.T) {
+	root := t.TempDir()
+	s := openStore(t, root)
+	snap, err := profile.EmptyPage(1, 7, doc.NewInterner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	para := snap.Root().Slot(0).Child(0)
+	tx := snap.Begin(doc.Origin{Class: doc.OriginTyping})
+	if err := tx.Apply(doc.EditText{At: doc.SlotRef{Node: para.ID()}, Items: []doc.Item{doc.TextItem("about #tides", nil)}}); err != nil {
+		t.Fatal(err)
+	}
+	snap, _ = tx.Commit()
+	saver := s.Autosave()
+	saver.Content(1, Summarize(snap.Root()), snap)
+	if err := saver.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`UPDATE pages SET tags = NULL`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		s = openStore(t, root)
+		notebook, err := s.Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := notebook.Pages[0].Tags; len(got) != 1 || got[0] != (Tag{Name: "tides", Count: 1}) {
+			t.Fatalf("tags %+v", got)
+		}
+		if err := s.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

@@ -48,6 +48,8 @@ type SheetItem struct {
 	Excerpt string
 	Updated time.Time
 	Words   int
+	// Tags are the tags the sheet writes, most written first.
+	Tags []string
 }
 
 // GroupEntryKind is what a group's ordered list holds at one position.

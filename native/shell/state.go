@@ -51,6 +51,8 @@ type ToolbarBindings struct {
 type State struct {
 	// root is the shell's outermost element, for where the focus is.
 	root ui.Handle
+	// tagWidths are tag chips' text widths, measured once each.
+	tagWidths map[tagWidthKey]float32
 
 	Appearance settings.PresentationState
 	Settings   theme.Settings

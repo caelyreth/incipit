@@ -137,10 +137,20 @@ func sheetItemsWithSessions(sheets []library.Sheet, sessions map[library.SheetID
 			Title:   title,
 			Excerpt: session.summary.Excerpt,
 			Words:   session.summary.Words,
+			Tags:    tagNames(session.summary.Tags),
 			Updated: sheet.Updated,
 		})
 	}
 	return items
+}
+
+// tagNames are a summary's tags' names, in its order.
+func tagNames(tags []storage.Tag) []string {
+	names := make([]string, len(tags))
+	for i, tag := range tags {
+		names[i] = tag.Name
+	}
+	return names
 }
 
 // Groups is part of shell.Library.

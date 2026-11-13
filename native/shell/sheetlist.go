@@ -886,6 +886,7 @@ func (s *State) sheetRow(
 				components.Label(c, sheet.Excerpt, theme.TextXSmall, semantic.Text.Muted).
 					WidthPercent(100).MaxLines(2)
 			}
+			s.sheetTags(c, semantic, sheet.Tags)
 			components.Label(c, words(sheet.Words), theme.TextXSmall, semantic.Text.Muted).
 				SingleLine().FontFeatures("tnum").Opacity(0.7)
 		})

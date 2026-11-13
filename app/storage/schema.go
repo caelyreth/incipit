@@ -90,6 +90,11 @@ var migrations = []string{
 		INSERT INTO nodes_fts (rowid, text) VALUES (new.rowid, new.text);
 	END;
 	`,
+	// The tags a page writes, most written first, as JSON; NULL until they
+	// are read from the page's content (readTags).
+	`
+	ALTER TABLE pages ADD COLUMN tags TEXT;
+	`,
 }
 
 // migrate brings the notebook to the current schema, claiming a new file
