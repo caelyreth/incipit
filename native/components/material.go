@@ -26,3 +26,12 @@ func ElevatedSurface(element ui.Element, semantic theme.Theme, scale float32, el
 		Background(semantic.Surface.Elevated).
 		Shadow(0, y, blur, 0, ui.RGBA(0, 0, 0, alpha))
 }
+
+// OutlinedSurface is the raised material without a shadow, set apart by
+// its border alone: a popover that opens over the text it serves, as the
+// page's tag picker, and should read as part of the page.
+func OutlinedSurface(element ui.Element, semantic theme.Theme, scale float32) ui.Element {
+	return element.Radius(theme.DefaultControls.Scaled(scale).PanelRadius).
+		Border(1, semantic.Border.Default).
+		Background(semantic.Surface.Elevated)
+}

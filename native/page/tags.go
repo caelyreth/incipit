@@ -49,6 +49,20 @@ type tagPicker struct {
 	at     *tagHere
 	rows   []tagRow
 	chosen int
+	// steered is whether the keys or the pointer chose the row: until
+	// they do, the choice stays on the best match as the name is written,
+	// and once they do, it stays on the row chosen while it is offered.
+	steered bool
+	// placed is whether the side the picker opened on is settled, above
+	// whether that side is over the tag: it stays there while the picker
+	// is open, so it never jumps across the tag as rows come and go.
+	placed, above bool
+	// pointer is where the pointer was over the picker last frame, in
+	// the page, pointed whether it was over it: only the pointer's moves
+	// choose, so rows passing under a resting pointer leave the choice to
+	// the keys.
+	pointer ui.Point
+	pointed bool
 }
 
 func (tp *tagPicker) open() bool { return tp.at != nil && len(tp.rows) > 0 }
@@ -125,27 +139,41 @@ func (el *Element) syncTags() {
 	}
 	switch {
 	case !ok:
-		tp.at = nil
+		tp.close()
+		return
 	case typed:
 		if tp.at == nil || tp.at.key != here.key {
-			tp.chosen = 0
+			*tp = tagPicker{}
 		}
-		tp.at = &here
-	case tp.at != nil && tp.at.key == here.key:
-		tp.at = &here
-	default:
-		tp.at = nil
-	}
-	if tp.at == nil {
-		tp.rows = nil
+	case tp.at == nil || tp.at.key != here.key:
+		tp.close()
 		return
 	}
+	tp.at = &here
 	var tags []string
 	if ed.Tags != nil {
 		tags = ed.Tags(here.name)
 	}
-	tp.rows = tagRows(tags, here.name)
-	tp.chosen = max(0, min(tp.chosen, len(tp.rows)-1))
+	rows := tagRows(tags, here.name)
+	chosen := 0
+	if tp.steered && tp.chosen < len(tp.rows) {
+		was := tp.rows[tp.chosen]
+		if i := slices.IndexFunc(rows, was.same); i >= 0 {
+			chosen = i
+		} else {
+			tp.steered = false
+		}
+	}
+	tp.rows, tp.chosen = rows, chosen
+}
+
+// close closes the picker.
+func (tp *tagPicker) close() { *tp = tagPicker{} }
+
+// same reports whether row is r as the name being written changes: the
+// same tag, or the tag made.
+func (r tagRow) same(row tagRow) bool {
+	return r.create == row.create && (r.create || profile.TagKey(r.name) == profile.TagKey(row.name))
 }
 
 // tagKeys answers the picker's keys while it is open.
@@ -156,13 +184,13 @@ func (el *Element) tagKeys(ev ui.InputEvent, services ui.Services, at time.Time)
 	}
 	switch ev.Key {
 	case ui.KeyDown:
-		tp.chosen = (tp.chosen + 1) % len(tp.rows)
+		tp.chosen, tp.steered = (tp.chosen+1)%len(tp.rows), true
 	case ui.KeyUp:
-		tp.chosen = (tp.chosen + len(tp.rows) - 1) % len(tp.rows)
+		tp.chosen, tp.steered = (tp.chosen+len(tp.rows)-1)%len(tp.rows), true
 	case ui.KeyEnter, ui.KeyTab:
 		el.pickTag(tp.chosen, services, at)
 	case ui.KeyEscape:
-		tp.at, tp.rows = nil, nil
+		tp.close()
 	default:
 		return false
 	}
@@ -176,12 +204,17 @@ func (el *Element) pickTag(i int, services ui.Services, at time.Time) {
 		return
 	}
 	name := tp.rows[i].name
-	tp.at, tp.rows = nil, nil
+	tp.close()
 	el.run(profile.PickTag{Name: name}, services, at)
 }
 
 // tagPickerView draws the picker under the tag it is open for, or over it
-// where the page has no room below.
+// where the page has no room below, its first tag's text beginning where
+// the tag's does. It is the page's own: outlined, not cast in shadow, and
+// each tag in it is shown as the page and the sheet list show one. It
+// comes in from the tag and fades out where it stood; its height springs
+// as rows come and go, rows open and fold away in place as the others slide,
+// and the chosen row's fill slides to it.
 func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 	tp := &el.tags
 	pl := el.Editor.layout
@@ -193,46 +226,85 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 		return
 	}
 	semantic := el.Theme
+	halo := semantic.Families[theme.Halo]
 	scale := components.UIFontSize(c)
-	unit := scale / theme.DefaultUIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	pad := theme.Space04.DIPs(scale)
-	width := 240 * unit
-	height := float32(len(tp.rows))*metrics.Height + 2*pad
-	r := el.fromPage(start)
+	inset := theme.Space06.DIPs(scale)
+	chipPad := theme.Space04.DIPs(scale)
 	gap := theme.Space04.DIPs(scale)
-	x := max(0, min(r.X, el.viewport.W-width))
-	y := r.Y + r.H + gap
-	if y+height > el.viewport.H && r.Y-gap-height >= 0 {
-		y = r.Y - gap - height
+	const border = 1
+	row := metrics.Height
+	width := 240 * scale / theme.DefaultUIFontSize
+	height := float32(len(tp.rows))*row + 2*(pad+border)
+	r := el.fromPage(start)
+	if !tp.placed {
+		// The side is chosen for the most rows the picker can show.
+		most := float32(tagRowsShown+1)*row + 2*(pad+border)
+		tp.above = r.Y+r.H+gap+most > el.viewport.H && r.Y-gap-most >= 0
+		tp.placed = true
 	}
-	panel := ui.Column(c).Key("tag-picker").Absolute().Left(x).Top(y).Width(width).
-		Padding(pad, pad, pad, pad).Role(ui.RoleList).Label("Tags")
-	components.ElevatedSurface(panel, semantic, scale, components.PopoverElevation)
+	spring := components.Spring(components.MotionNormal)
+	rise := -theme.Space04.DIPs(scale)
+	panel := ui.Column(c).Key("tag-picker").Absolute().
+		Left(max(0, min(r.X-border-pad-inset-chipPad, el.viewport.W-width))).
+		Width(width).Height(height).Padding(pad, pad, pad, pad).Clip().
+		Role(ui.RoleList).Label("Tags")
+	if tp.above {
+		// Anchored by its foot, so it grows up, away from the tag.
+		panel.Bottom(el.viewport.H - (r.Y - gap))
+		rise = -rise
+	} else {
+		panel.Top(r.Y + r.H + gap)
+	}
+	components.OutlinedSurface(panel, semantic, scale)
+	panel.Transition(ui.ElementTransition{
+		Animation: &spring, Height: true,
+		Enter: &ui.Motion{Y: rise, Opacity: 0}, Exit: &ui.Motion{Y: rise / 2, Opacity: 0},
+		ExitDuration: components.MotionQuick,
+	})
+	// Only the pointer's moves choose the row under it.
+	px, py, over := panel.PointerPosition()
+	if p := (ui.Point{X: px, Y: py}); over {
+		if tp.pointed && p != tp.pointer {
+			if i := int((py - border - pad) / row); i >= 0 && i < len(tp.rows) {
+				tp.chosen, tp.steered = i, true
+			}
+		}
+		tp.pointer, tp.pointed = p, true
+	} else {
+		tp.pointed = false
+	}
+	slide := ui.ElementTransition{Animation: &spring, Position: true}
+	moving := ui.ElementTransition{
+		Animation: &spring, Position: true,
+		Enter: &ui.Motion{Collapse: true, Opacity: 0}, Exit: &ui.Motion{Collapse: true, Opacity: 0},
+	}
 	panel.Children(func() {
-		for i, row := range tp.rows {
-			key := "tag-" + row.name
-			if row.create {
-				key = "tag-create"
+		// The chosen row's fill, under the rows, sliding as the choice
+		// moves.
+		ui.Box(c).Key("tag-chosen").Absolute().Left(pad).Right(pad).
+			Top(pad + float32(tp.chosen)*row).Height(row).
+			Radius(metrics.PanelRadius - pad).Background(semantic.GhostElement.Hover).ZIndex(-1).
+			Transition(slide)
+		for i, tr := range tp.rows {
+			key, label := "tag-"+profile.TagKey(tr.name), "#"+tr.name
+			if tr.create {
+				key, label = "tag-create", "Create #"+tr.name
 			}
-			button := ui.ButtonBase(c.Key(key)).Height(metrics.Height).WidthPercent(100).
-				PaddingX(theme.Space08.DIPs(scale)).Radius(metrics.Radius).AlignItems(ui.Center).Justify(ui.Start).
+			button := ui.ButtonBase(c.Key(key)).Height(row).WidthPercent(100).Shrink(0).
+				PaddingX(inset).AlignItems(ui.Center).Justify(ui.SpaceBetween).
 				Gap(theme.Space06.DIPs(scale)).FocusRing(false).Selected(i == tp.chosen).
-				Label("#" + row.name)
-			if button.Hovered() {
-				tp.chosen = i
-			}
-			fill := ui.Transparent
-			if i == tp.chosen {
-				fill = semantic.GhostElement.Hover
-			}
-			button.Background(fill)
+				Background(ui.Transparent).Label(label).Transition(moving)
 			button.Children(func() {
-				if row.create {
-					components.Label(c, "Create", theme.TextSmall, semantic.Text.Muted).SingleLine().Shrink(0)
+				components.TagChip(c, "#"+tr.name, theme.TextSmall, chipPad, width, halo.Surface, halo.Foreground)
+				if tr.create {
+					ui.Row(c).Gap(theme.Space04.DIPs(scale)).AlignItems(ui.Center).Shrink(0).Children(func() {
+						ui.Icon(c, components.IconPlus.SVG()).FontSize(theme.TextXSmall.Size(scale)).
+							TextColor(semantic.Text.Muted)
+						components.Label(c, "Create", theme.TextXSmall, semantic.Text.Muted).SingleLine()
+					})
 				}
-				components.Label(c, "#"+row.name, theme.TextSmall, semantic.Text.Default).
-					SingleLine().MinWidth(0)
 			})
 			if button.Clicked() {
 				el.pickTag(i, services, c.Now())

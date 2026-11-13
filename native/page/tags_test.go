@@ -102,3 +102,26 @@ func TestEveryTagWearsItsBackground(t *testing.T) {
 		t.Fatalf("%d tags wear their background, want 4", shown)
 	}
 }
+
+// The choice stays on the best match as the name is written, until the
+// keys choose; then it stays on the tag chosen while it is offered.
+func TestTheChoiceFollowsTheNameUntilSteered(t *testing.T) {
+	el := taggedElement(t)
+	typeText(el, "#o")
+	el.syncTags()
+	key(el, ui.KeyDown)
+	if r := el.tags.rows[el.tags.chosen]; r.name != "octopus" {
+		t.Fatalf("chose %v", r)
+	}
+	typeText(el, "c")
+	el.syncTags()
+	if r := el.tags.rows[el.tags.chosen]; r.name != "octopus" {
+		t.Fatalf("the steered choice moved to %v", r)
+	}
+	// The tag chosen is no longer offered: the best match again.
+	typeText(el, "e")
+	el.syncTags()
+	if el.tags.chosen != 0 || el.tags.steered {
+		t.Fatalf("chose %d, steered %v", el.tags.chosen, el.tags.steered)
+	}
+}

@@ -45,10 +45,10 @@ func (s *State) sheetTags(c *ui.Context, semantic theme.Theme, tags []string) {
 		for li, line := range lines {
 			ui.Row(c).WidthPercent(100).Gap(gap).AlignItems(ui.Center).Children(func() {
 				for _, i := range line {
-					tagChip(c, tagText(tags[i]), pad, width, halo.Surface, halo.Foreground)
+					components.TagChip(c, tagText(tags[i]), theme.TextXSmall, pad, width, halo.Surface, halo.Foreground)
 				}
 				if li == len(lines)-1 && hidden > 0 {
-					tagChip(c, moreText(hidden), pad, width, halo.Surface, semantic.Text.Muted).
+					components.TagChip(c, moreText(hidden), theme.TextXSmall, pad, width, halo.Surface, semantic.Text.Muted).
 						Tooltip(strings.Join(tags[len(tags)-hidden:], ", "))
 				}
 			})
@@ -58,20 +58,6 @@ func (s *State) sheetTags(c *ui.Context, semantic theme.Theme, tags []string) {
 
 func tagText(name string) string { return "#" + name }
 func moreText(n int) string      { return fmt.Sprintf("+%d", n) }
-
-// tagChip is one chip: its text on its fill, cut short where a line
-// cannot hold it.
-func tagChip(c *ui.Context, text string, pad, width float32, fill, ink ui.Color) ui.Element {
-	scale := components.UIFontSize(c)
-	height := theme.TextXSmall.LineHeight(scale) + theme.Space04.DIPs(scale)
-	// Rounded as the page rounds a tag's background.
-	chip := ui.Row(c).Height(height).Radius(3 * scale / theme.DefaultUIFontSize).PaddingX(pad).
-		MaxWidth(width).MinWidth(0).AlignItems(ui.Center).Background(fill)
-	chip.Children(func() {
-		components.Label(c, text, theme.TextXSmall, ink).SingleLine().MinWidth(0)
-	})
-	return chip
-}
 
 // tagWidth is a chip text's width at a size, measured once.
 func (s *State) tagWidth(text string, size float32) float32 {
