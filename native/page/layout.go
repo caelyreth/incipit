@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf16"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -153,6 +154,8 @@ type surfaceLayout struct {
 type unitLayout struct {
 	key  layoutKey
 	pres *present.Presentation
+	// since is when the layout was first painted.
+	since time.Time
 	// kind is an object's renderer, nil for text; what it keeps here
 	// (math, figure) is its own.
 	kind     objectKind

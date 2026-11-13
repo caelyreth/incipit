@@ -1,6 +1,7 @@
 package page
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -510,5 +511,70 @@ func TestOnlyWhatTheLayoutReadsLaysItOutAgain(t *testing.T) {
 	tt.Advance(50 * time.Millisecond)
 	if n := el.Editor.relayouts - built; n != 1 {
 		t.Fatalf("a keystroke laid the page out %d times, want 1", n)
+	}
+}
+
+// An idle page repaints at the same cost however long it is: a paint
+// walks what is in view, not every unit.
+func TestAnIdlePaintCostsWhatIsInView(t *testing.T) {
+	idle := func(paragraphs int) uint64 {
+		el := newElement(t)
+		el.Editor.Do(vocab.Paste{Text: strings.Repeat("Some **marked** text, a #tag and `code`.\n\n", paragraphs)}, time.Unix(100, 0))
+		el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(101, 0))
+		tt := ui.NewTester(el.View, 900, 600)
+		tt.Frame()
+		tt.Advance(2 * time.Second)
+		var a, b runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&a)
+		tt.Advance(time.Second)
+		runtime.ReadMemStats(&b)
+		return b.Mallocs - a.Mallocs
+	}
+	short, long := idle(20), idle(400)
+	if long > short*2 {
+		t.Fatalf("an idle second allocates %d times on 20 paragraphs and %d on 400", short, long)
+	}
+}
+
+// A unit coming into view shows its decorations as far in as they would
+// have faded out of view: long laid out, they stand there; a tag just
+// written fades in.
+func TestDecorationsComingIntoViewStandThere(t *testing.T) {
+	el := newElement(t)
+	el.Editor.Do(vocab.Paste{Text: strings.Repeat("Plain words here.\n\n", 60) + "A #tag far down.\n"}, time.Unix(100, 0))
+	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(101, 0))
+	tt := ui.NewTester(el.View, 900, 400)
+	tt.Frame()
+	tt.Advance(time.Second)
+	for range 40 {
+		tt.Scroll(400, 200, 0, 400)
+		tt.Advance(16 * time.Millisecond)
+	}
+	tt.Advance(16 * time.Millisecond)
+	shown := 0
+	for k, sd := range el.decos {
+		if !k.highlight && !sd.away {
+			shown++
+			if sd.alpha < 0.99 {
+				t.Fatalf("a tag scrolled into view is at %v", sd.alpha)
+			}
+		}
+	}
+	if shown == 0 {
+		t.Fatal("no tag came into view")
+	}
+	// A tag written now fades in, where the caret is.
+	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Forward}, tt.Now())
+	tt.Type(" #new")
+	tt.Advance(16 * time.Millisecond)
+	fading := false
+	for k, sd := range el.decos {
+		if !k.highlight && !sd.away && sd.alpha < 0.99 {
+			fading = true
+		}
+	}
+	if !fading {
+		t.Fatal("a tag just written did not fade in")
 	}
 }

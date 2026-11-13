@@ -78,6 +78,8 @@ type Element struct {
 	// decos are the decorations the page draws, as last drawn, by
 	// identity, so each fades in and out.
 	decos map[decoKey]*shownDeco
+	// decoLayout is the layout decorations were last painted in.
+	decoLayout *pageLayout
 	// rooms spring each unit's height as a surface in it opens and
 	// closes, stepped as the page is painted at paintNow; roomsMoving asks
 	// for the next paint. animate is whether motion is wanted, as the
@@ -841,6 +843,10 @@ type shownDeco struct {
 	started   time.Time
 	seen      bool
 	alpha     float32
+	// unit is the layout of the unit it was last noted in; away, that the
+	// unit is out of view and it stands as it was, unpainted.
+	unit *unitLayout
+	away bool
 }
 
 // decoRow is one line's piece of a decoration, in page coordinates: the
@@ -858,6 +864,12 @@ type decoRow struct {
 // surface's styles and the decorations' highlights alike: a background a
 // run per line, hugging the line's glyphs and rounded at its ends, and a
 // line below them. Each fades in as it appears and out as it goes.
+//
+// A surface's styles are read only for the units in view: a unit out of
+// view keeps its decorations as they stood, painting none, until it
+// comes into view or its layout is replaced, which drops them. A style
+// fades in from when its unit's layout first appeared, so one coming into
+// view shows as far in as it would have faded out of view.
 func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Paint, ox, oy, top, bottom float32, now time.Time, animate bool) {
 	if el.decos == nil {
 		el.decos = map[decoKey]*shownDeco{}
@@ -865,6 +877,16 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 	for _, sd := range el.decos {
 		sd.seen = false
 	}
+	if el.decoLayout != pl {
+		// Each unit laid out anew appears with this paint.
+		el.decoLayout = pl
+		for _, u := range pl.units {
+			if u.since.IsZero() {
+				u.since = now
+			}
+		}
+	}
+	inView := map[doc.ID]bool{}
 	counts := map[decoKey]int{}
 	note := func(u *unitLayout, surface int, highlight bool, d deco, origin uint64, direction vocab.Direction, duration time.Duration, visible bool, rows func() []decoRow) {
 		look := d
@@ -881,8 +903,13 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 		if !ok {
 			sd = &shownDeco{look: look, direction: direction, duration: duration, started: now}
 			el.decos[k] = sd
+			if !highlight {
+				// It fades in from when its unit's layout appeared, in
+				// view or out of it.
+				sd.fade.Step(true, u.since, animate)
+			}
 		}
-		sd.seen = true
+		sd.seen, sd.unit = true, u
 		if visible || sd.rows == nil {
 			sd.rows = rows()
 		}
@@ -911,17 +938,31 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 		}
 	}
 	for _, u := range pl.units {
-		vis := visible(u)
+		if !visible(u) {
+			continue
+		}
+		inView[u.pres.Unit] = true
 		for _, s := range u.surfaces {
 			if !s.shown {
 				continue
 			}
 			for _, d := range s.decos {
-				note(u, s.index, false, d, 0, 0, 0, vis, func() []decoRow { return clipped(u, decoRows(s, d.rg, u.x+s.x, u.y+s.y)) })
+				note(u, s.index, false, d, 0, 0, 0, true, func() []decoRow { return clipped(u, decoRows(s, d.rg, u.x+s.x, u.y+s.y)) })
 			}
 		}
 	}
 	for k, sd := range el.decos {
+		sd.away = false
+		if !sd.seen && !k.highlight && !inView[k.unit] {
+			// Out of view: kept as it stood while its unit is laid out
+			// as it was, else gone, as it would have faded out of view.
+			if pl.unitOf(k.unit) == sd.unit {
+				sd.away = true
+			} else {
+				delete(el.decos, k)
+			}
+			continue
+		}
 		if sd.duration > 0 && sd.seen {
 			sd.alpha = pulseAlpha(now.Sub(sd.started), sd.duration, animate)
 			sd.fade.Set(sd.alpha)
@@ -945,12 +986,15 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 		func(k decoKey) bool { return k.highlight },
 	} {
 		for k, sd := range el.decos {
-			if layer(k) {
+			if layer(k) && !sd.away {
 				el.paintBackground(p, sd, ox, oy, now, animate)
 			}
 		}
 	}
 	for _, sd := range el.decos {
+		if sd.away {
+			continue
+		}
 		el.paintLine(p, sd, ox, oy, now, animate)
 	}
 }
