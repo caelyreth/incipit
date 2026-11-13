@@ -31,7 +31,7 @@ type Container struct {
 }
 
 // ItemMarker is a list item's marker: the item, and the marker as the
-// profile spells it.
+// profile spells it, a comparable value.
 type ItemMarker struct {
 	Item doc.ID
 	Data any
