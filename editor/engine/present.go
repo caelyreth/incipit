@@ -35,21 +35,26 @@ func (e *Engine) Present(view uint64, ids []doc.ID) []*present.Presentation {
 	return e.presenter(view).Present(e.prog, e.store, e.snap, v, ids)
 }
 
-// Decorations returns a view's decorations.
+// Decorations returns a view's decorations over every unit.
 func (e *Engine) Decorations(view uint64) present.Decorations {
+	units := e.Units(view)
+	ids := make([]doc.ID, len(units))
+	for i, u := range units {
+		ids[i] = u.ID
+	}
+	return e.DecorationsOf(view, e.Present(view, ids))
+}
+
+// DecorationsOf returns a view's decorations over the units presented as
+// pres, which a renderer has just pulled with Present: they are not
+// presented again.
+func (e *Engine) DecorationsOf(view uint64, pres []*present.Presentation) present.Decorations {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	v, ok := e.views[view]
 	if !ok {
 		return present.Decorations{}
 	}
-	pr := e.presenter(view)
-	units := pr.Units(e.snap)
-	ids := make([]doc.ID, len(units))
-	for i, u := range units {
-		ids[i] = u.ID
-	}
-	pres := pr.Present(e.prog, e.store, e.snap, v, ids)
 	d := present.Decorate(e.prog, e.store, e.snap, v, e.stopsFor(view), pres)
 	d.Guides = e.guides(view, v, pres)
 	return d
