@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/app/manifest"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
+	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
@@ -148,4 +149,46 @@ func TestObjectAccessibilityUsesItsRole(t *testing.T) {
 		}
 	}
 	t.Fatal("the page has no divider")
+}
+
+// Every stop's accessible offset is the same found by the index as by
+// scanning every part: through marks shown as ghosts, inline formulas and
+// their open cards, code, CJK and text past the BMP.
+func TestAccessibleOffsetsIndexMatchesScan(t *testing.T) {
+	prog, err := manifest.Compile(nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, _ := profile.EmptyPage(1, 3, doc.NewInterner())
+	e := engine.New(snap, prog, engine.Options{})
+	e.OpenView(1)
+	now := time.Unix(1, 0)
+	do := func(in vocab.Intent) {
+		now = now.Add(time.Second)
+		if _, err := e.Do(1, vocab.Input{Intent: in, At: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	do(vocab.Paste{Text: "# Tides 🌊 and **moons**\n\nSome **strong** and *em* text (pairs [nested]) `code` 中文English, 😀 done... #tag\n\n- item **one**\n- item `two` #moon\n\n> quoted *words*\n\n```\nfn main() {}\n```\n"})
+	for _, s := range []string{"a", " ", "$", "x", "^", "2", "$", " ", "b"} {
+		do(vocab.Type{Text: s})
+	}
+	check := func(when string) {
+		units := e.Units(1)
+		ids := make([]doc.ID, len(units))
+		for i, u := range units {
+			ids[i] = u.ID
+		}
+		for _, p := range e.Present(1, ids) {
+			if err := present.AccessMismatch(p); err != nil {
+				t.Fatalf("%s, unit %s: %v", when, p.Unit, err)
+			}
+		}
+	}
+	check("caret after the formula")
+	// Into the formula, which opens its card.
+	for range 3 {
+		do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	}
+	check("caret in the formula")
 }

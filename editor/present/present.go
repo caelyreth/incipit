@@ -10,6 +10,7 @@ package present
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"unicode/utf16"
@@ -708,6 +709,24 @@ type accessPart struct {
 // an inline node contributes its source once, while its card's stops map
 // into that same source.
 func (p *Presentation) setAccessible() {
+	parts, value, u := p.accessParts()
+	p.Value = value
+	p.Label = accessibleName(p.Role, p.Value)
+	p.AccessStops = make([]AccessStop, 0, len(p.Stops))
+	at := newAccessIndex(parts, u)
+	for i, st := range p.Stops {
+		at := at.offset(st.Surface, st.Offset)
+		if st.Surface < 0 && i == 0 {
+			// The gap before an object stands before its value.
+			at = 0
+		}
+		p.AccessStops = append(p.AccessStops, AccessStop{Caret: st.Caret, UTF16: at})
+	}
+}
+
+// accessParts are the parts of the presentation's value, the value, and
+// its UTF-16 length.
+func (p *Presentation) accessParts() ([]accessPart, string, int) {
 	var b strings.Builder
 	u := 0
 	var parts []accessPart
@@ -760,17 +779,110 @@ func (p *Presentation) setAccessible() {
 		}
 		break
 	}
-	p.Value = b.String()
-	p.Label = accessibleName(p.Role, p.Value)
-	p.AccessStops = make([]AccessStop, 0, len(p.Stops))
-	for i, st := range p.Stops {
-		at := accessibleOffset(parts, st.Surface, st.Offset, u)
-		if st.Surface < 0 && i == 0 {
-			// The gap before an object stands before its value.
-			at = 0
+	return parts, b.String(), u
+}
+
+// accessIndex answers accessibleOffset for one presentation's parts in
+// O(log parts) a stop, with UTF-16 lengths counted on from the last stop
+// in the same part, so a unit's stops cost O(stops log parts + text)
+// rather than O(stops × (parts + text)). A surface whose parts are not in
+// order is answered by accessibleOffset itself.
+type accessIndex struct {
+	parts []accessPart
+	end   int
+	// surfaces are each surface's part indexes, in order, and whether
+	// their edges are ordered (from and to never decreasing).
+	surfaces map[int]*accessSurface
+	// last is the part the last stop fell in, with the byte offset into
+	// its text and the UTF-16 length up to it.
+	last           int
+	lastCut, lastU int
+}
+
+type accessSurface struct {
+	parts   []int
+	ordered bool
+}
+
+func newAccessIndex(parts []accessPart, end int) *accessIndex {
+	x := &accessIndex{parts: parts, end: end, surfaces: map[int]*accessSurface{}, last: -1}
+	for i, part := range parts {
+		s := x.surfaces[part.surface]
+		if s == nil {
+			s = &accessSurface{ordered: true}
+			x.surfaces[part.surface] = s
 		}
-		p.AccessStops = append(p.AccessStops, AccessStop{Caret: st.Caret, UTF16: at})
+		if n := len(s.parts); part.from > part.to ||
+			n > 0 && (part.from < parts[s.parts[n-1]].from || part.to < parts[s.parts[n-1]].to) {
+			s.ordered = false
+		}
+		s.parts = append(s.parts, i)
 	}
+	return x
+}
+
+// offset is accessibleOffset(parts, surface, off, end).
+func (x *accessIndex) offset(surface, off int) int {
+	s := x.surfaces[surface]
+	if s == nil {
+		return x.end
+	}
+	if !s.ordered {
+		return accessibleOffset(x.parts, surface, off, x.end)
+	}
+	ps := s.parts
+	// The first part reaching off: no part before it holds off.
+	i := sort.Search(len(ps), func(k int) bool { return x.parts[ps[k]].to >= off })
+	if i < len(ps) && x.parts[ps[i]].from <= off {
+		return x.at(ps[i], off)
+	}
+	// None holds off: the nearest, the first of those as near. Before
+	// off, the nearest end the latest; after it, the nearest start the
+	// earliest; parts tied with them share their edge.
+	best, bestD := -1, 0
+	consider := func(k int) {
+		part := x.parts[ps[k]]
+		d := min(absInt(off-part.from), absInt(off-part.to))
+		if best < 0 || d < bestD || d == bestD && ps[k] < best {
+			best, bestD = ps[k], d
+		}
+	}
+	if i > 0 {
+		to := x.parts[ps[i-1]].to
+		for k := i - 1; k >= 0 && x.parts[ps[k]].to == to; k-- {
+			consider(k)
+		}
+	}
+	if i < len(ps) {
+		from := x.parts[ps[i]].from
+		for k := i; k < len(ps) && x.parts[ps[k]].from == from; k++ {
+			consider(k)
+		}
+	}
+	return x.at(best, off)
+}
+
+// at is where off stands in part k's text, as accessibleOffset places it.
+func (x *accessIndex) at(k, off int) int {
+	part := x.parts[k]
+	switch {
+	case off < part.from:
+		return part.u0
+	case off > part.to:
+		return part.u1
+	case part.box:
+		if off == part.from {
+			return part.u0
+		}
+		return part.u1
+	}
+	cut := min(max(off-part.from, 0), len(part.text))
+	if x.last != k || cut < x.lastCut {
+		x.last, x.lastCut, x.lastU = k, 0, 0
+	}
+	x.lastU += utf16Len(part.text[x.lastCut:cut])
+	x.lastCut = cut
+	return part.u0 + x.lastU
 }
 
 // accessibleOffset maps a surface offset to the unit's value. Ghosts and
