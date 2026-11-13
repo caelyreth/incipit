@@ -1,6 +1,7 @@
 package page
 
 import (
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -53,10 +54,22 @@ type Editor struct {
 	// asks are what the page asks of its objects' layouts besides their
 	// presentations, as their motion and the drag held ask (Element.step).
 	asks map[doc.ID]objectIn
+	// built is what the layout was last built from, builtAsks the asks
+	// it answered, and relayouts how many times it was built.
+	built     builtFrom
+	builtAsks map[doc.ID]objectIn
+	relayouts int
 
 	mu     sync.Mutex
 	timer  *time.Timer
 	timeAt time.Time
+}
+
+// builtFrom is what a layout is built from besides the asks.
+type builtFrom struct {
+	version uint64
+	theme   uintptr
+	metrics Metrics
 }
 
 // NewEditor opens a view of the engine.
@@ -89,7 +102,17 @@ func (ed *Editor) SetStyle(key any, th present.Theme, m Metrics) {
 // TODO(perf): this presents every unit and indexes every stop on each
 // relayout. Present and lay out the viewport, with a height index, estimates
 // for unmeasured units and scroll anchoring (§14.2).
+//
+// The layout is a projection of the engine's state, the theme, the
+// measures and what the page asks of its objects: while none of them
+// changed it is the one last built.
 func (ed *Editor) Relayout() *pageLayout {
+	in := builtFrom{version: ed.Engine.Version(), theme: ed.cache.themeID, metrics: ed.metrics}
+	if ed.layout != nil && ed.built == in && maps.Equal(ed.builtAsks, ed.asks) {
+		return ed.layout
+	}
+	ed.built, ed.builtAsks = in, ed.asks
+	ed.relayouts++
 	units := ed.Engine.Units(ed.View)
 	ids := make([]doc.ID, len(units))
 	for i, u := range units {

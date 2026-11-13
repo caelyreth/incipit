@@ -487,3 +487,28 @@ func TestASoftBreakInAParagraphIsANewLine(t *testing.T) {
 		t.Fatalf("the caret after the break stands at y %v, the first line at %v", last.Y, first.Y)
 	}
 }
+
+// A layout is built from the engine's state, the theme, the measures and
+// what the page asks of its objects: scrolling and pointing build none,
+// and a keystroke builds one.
+func TestOnlyWhatTheLayoutReadsLaysItOutAgain(t *testing.T) {
+	el := newElement(t)
+	el.Editor.Do(vocab.Paste{Text: strings.Repeat("Some **marked** text, a #tag and `code`.\n\n", 80)}, time.Unix(100, 0))
+	tt := ui.NewTester(el.View, 900, 600)
+	tt.Frame()
+	tt.Advance(time.Second)
+	built := el.Editor.relayouts
+	for i := range 5 {
+		tt.Scroll(400, 300, 0, -80)
+		tt.Move(300+float32(i*7), 200)
+		tt.Advance(50 * time.Millisecond)
+	}
+	if n := el.Editor.relayouts - built; n != 0 {
+		t.Fatalf("scrolling and pointing laid the page out %d times", n)
+	}
+	tt.Type("x")
+	tt.Advance(50 * time.Millisecond)
+	if n := el.Editor.relayouts - built; n != 1 {
+		t.Fatalf("a keystroke laid the page out %d times, want 1", n)
+	}
+}

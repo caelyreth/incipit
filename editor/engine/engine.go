@@ -70,6 +70,9 @@ type Engine struct {
 	views   map[uint64]*policy.View
 	history *doc.History
 	seq     uint64
+	// version counts every change to what the engine presents: each
+	// publication, a view opened or closed, a program set.
+	version uint64
 	// grouping: whether the newest entry may still take typing.
 	groupOpen bool
 	log       []Logged
@@ -88,6 +91,16 @@ func New(snap *doc.Snapshot, prog *policy.Program, opts Options) *Engine {
 		views: map[uint64]*policy.View{}, history: doc.NewHistory(opts.HistoryBudget),
 		presenters: map[uint64]*present.Presenter{},
 	}
+}
+
+// Version changes whenever what the engine presents may have: after each
+// publication, a view opened or closed, or a program set. Equal versions
+// present equal units and decorations, so a renderer may keep what it
+// built from them.
+func (e *Engine) Version() uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.version
 }
 
 // Snapshot is the current document, read-only, for exporters, search and
@@ -139,6 +152,7 @@ func (e *Engine) OpenView(id uint64) policy.View {
 	}
 	v := &policy.View{ID: id, Selection: startSelection(e.snap), GoalX: -1}
 	e.views[id] = v
+	e.version++
 	return *v
 }
 
@@ -148,6 +162,7 @@ func (e *Engine) CloseView(id uint64) {
 	defer e.mu.Unlock()
 	delete(e.views, id)
 	delete(e.presenters, id)
+	e.version++
 }
 
 // SetProgram swaps the program between transactions. Annotations whose
@@ -157,6 +172,7 @@ func (e *Engine) SetProgram(p *policy.Program) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.prog = p
+	e.version++
 	// Presenters read the program's profile.
 	clear(e.presenters)
 	for _, v := range e.views {
@@ -459,6 +475,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 	e.snap = next
 	*cur = view
 	e.seq = seq
+	e.version++
 	e.store.Sweep(16)
 
 	pub := &Published{
