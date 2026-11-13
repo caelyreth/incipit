@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/doc"
@@ -93,4 +94,71 @@ func mustNode(t *testing.T, r doc.Reader, id doc.ID) *doc.Node {
 		t.Fatalf("no node %v", id)
 	}
 	return n
+}
+
+// A text slot's runs are cut at every ghost and every styled edge, and
+// each piece wears the groups of the styled spans covering it, in the
+// order the policies style them, after its own and its marks'.
+func TestRunsAreCutAtGhostsAndStyledEdges(t *testing.T) {
+	p := open(t)
+	for range 3 {
+		p.typeText("Some **strong *both* text** and a #tag... `code` **#in** done")
+		p.do(vocab.Break{})
+	}
+	prog, store, snap := p.e.Program(), p.e.Store(), p.e.Snapshot()
+	view, _ := p.e.View(1)
+	units := p.e.Units(1)
+	ids := make([]doc.ID, len(units))
+	for i, u := range units {
+		ids[i] = u.ID
+	}
+	styledPieces := 0
+	for _, pres := range p.e.Present(1, ids) {
+		for _, s := range pres.Surfaces {
+			type span struct {
+				from, to int
+				group    vocab.Group
+			}
+			var spans []span
+			edges := map[int]bool{}
+			for _, st := range prog.Styled() {
+				for _, f := range prog.FactsIn(store, snap, &view, s.Flow.Slot, st.Kind) {
+					if f.Outer.From.At < f.Outer.To.At {
+						spans = append(spans, span{f.Outer.From.At, f.Outer.To.At, st.Group})
+						edges[f.Outer.From.At], edges[f.Outer.To.At] = true, true
+					}
+				}
+			}
+			for _, it := range s.Flow.Items {
+				if it.Kind == present.GhostItem {
+					edges[it.From] = true
+				}
+			}
+			for _, it := range s.Flow.Items {
+				if it.Kind != present.TextRun {
+					continue
+				}
+				for at := it.From + 1; at < it.To; at++ {
+					if edges[at] {
+						t.Fatalf("run %d-%d %q crosses an edge at %d", it.From, it.To, it.Text, at)
+					}
+				}
+				var want []vocab.Group
+				for _, sp := range spans {
+					if sp.from <= it.From && it.To <= sp.to {
+						want = append(want, sp.group)
+					}
+				}
+				if got := it.Groups[len(it.Groups)-len(want):]; !slices.Equal(got, want) {
+					t.Fatalf("run %q wears %v, want it to end with %v", it.Text, it.Groups, want)
+				}
+				if len(want) > 0 {
+					styledPieces++
+				}
+			}
+		}
+	}
+	if styledPieces < 6 {
+		t.Fatalf("only %d styled pieces: the page styles too little to test", styledPieces)
+	}
 }

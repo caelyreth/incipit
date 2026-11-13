@@ -640,6 +640,25 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 			}
 		}
 	}
+	// Where runs are cut besides their line breaks, in order: ghost points
+	// and styled edges. Runs come in order, so each takes those within it
+	// from a cursor, and a piece's styled spans are those open at its start.
+	var points []int
+	for _, g := range ghosts {
+		points = append(points, g.Outer.From.At)
+	}
+	for _, sp := range styled {
+		points = append(points, sp.from, sp.to)
+	}
+	slices.Sort(points)
+	points = slices.Compact(points)
+	byStart := make([]int, len(styled))
+	for i := range byStart {
+		byStart[i] = i
+	}
+	slices.SortStableFunc(byStart, func(a, b int) int { return styled[a].from - styled[b].from })
+	pi, si := 0, 0
+	var covering []int
 	var items []Item
 	var stops []Stop
 	// flush moves the stops gathered so far into the map. At one offset
@@ -717,34 +736,42 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 		}
 		// Split the run at line breaks, ghost points, styled edges and
 		// grapheme stops.
-		cuts := []int{at, at + len(it.Text)}
+		end := at + len(it.Text)
+		cuts := []int{at, end}
 		for i := 0; i < len(it.Text); i++ {
 			if it.Text[i] == '\n' {
 				cuts = append(cuts, at+i, at+i+1)
 			}
 		}
-		for _, g := range ghosts {
-			cuts = append(cuts, g.Outer.From.At)
+		for pi < len(points) && points[pi] < at {
+			pi++
 		}
-		for _, sp := range styled {
-			cuts = append(cuts, sp.from, sp.to)
+		for k := pi; k < len(points) && points[k] <= end; k++ {
+			cuts = append(cuts, points[k])
 		}
 		slices.Sort(cuts)
 		cuts = slices.Compact(cuts)
 		for i := 0; i+1 < len(cuts); i++ {
 			from, to := cuts[i], cuts[i+1]
-			if from < at || to > at+len(it.Text) {
-				continue
-			}
 			emitGhosts(from)
 			text := it.Text[from-at : to-at]
 			if text == "\n" {
 				items = append(items, Item{Kind: BreakItem, From: from, To: to, Groups: groups})
 			} else {
-				run := slices.Clone(groups)
-				for _, sp := range styled {
-					if sp.from <= from && to <= sp.to {
-						run = append(run, sp.group)
+				// The spans styling the piece: begun at or before it, not
+				// ended, in the order the policies style them. Pieces are
+				// cut at every edge, so one open at its start covers it.
+				for si < len(byStart) && styled[byStart[si]].from <= from {
+					covering = append(covering, byStart[si])
+					si++
+				}
+				covering = slices.DeleteFunc(covering, func(j int) bool { return styled[j].to <= from })
+				run := slices.Clip(groups)
+				if len(covering) > 0 {
+					slices.Sort(covering)
+					run = slices.Clone(groups)
+					for _, j := range covering {
+						run = append(run, styled[j].group)
 					}
 				}
 				items = append(items, Item{Kind: TextRun, From: from, To: to, Text: text, Groups: run})
