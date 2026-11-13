@@ -48,9 +48,11 @@ func Theme(t theme.Theme) present.Theme {
 			Outline: pack(t.Accent.Foreground.Alpha(0.85))},
 		vocab.GroupArmed: {Set: present.SetLine | present.SetLineColor | present.SetOutline,
 			Line: present.LineBox, LineColor: pack(t.Families[theme.Remnant].Foreground), Outline: pack(t.Families[theme.Remnant].Foreground)},
-		// A tag reads as one: the accent's surface behind the text's own
-		// ink.
-		profile.GroupTag:     {Set: present.SetBackground, Background: pack(t.Families[t.AccentFamily].Surface)},
+		// A tag reads as one, in Halo whatever the accent: its surface,
+		// the family's dimmest tone, behind its normal one, as the sheet
+		// list shows tags.
+		profile.GroupTag: {Set: present.SetBackground | present.SetColor,
+			Background: pack(t.Families[theme.Halo].Surface), Color: pack(t.Families[theme.Halo].Foreground)},
 		vocab.GroupPairMatch: {Set: present.SetBackground, Background: pack(t.Families[t.AccentFamily].Surface)},
 		vocab.GroupScope: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[t.AccentFamily].Muted)},

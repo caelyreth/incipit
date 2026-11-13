@@ -216,7 +216,7 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 				key = "tag-create"
 			}
 			button := ui.ButtonBase(c.Key(key)).Height(metrics.Height).WidthPercent(100).
-				PaddingX(theme.Space08.DIPs(scale)).Radius(metrics.Radius).AlignItems(ui.Center).
+				PaddingX(theme.Space08.DIPs(scale)).Radius(metrics.Radius).AlignItems(ui.Center).Justify(ui.Start).
 				Gap(theme.Space06.DIPs(scale)).FocusRing(false).Selected(i == tp.chosen).
 				Label("#" + row.name)
 			if button.Hovered() {
