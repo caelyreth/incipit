@@ -159,7 +159,7 @@ func (a *AppState) summarize() {
 			continue
 		}
 		session.summarized = snap
-		if summary := storage.Summarize(snap.Root()); !summary.Equal(session.summary) {
+		if summary := session.summarizer.Summarize(snap.Root()); !summary.Equal(session.summary) {
 			session.summary, changed = summary, true
 			a.sessionsRev++
 		}

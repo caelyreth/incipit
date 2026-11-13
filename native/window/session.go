@@ -22,8 +22,10 @@ type sheetSession struct {
 	// handed is the snapshot last handed to the notebook to save.
 	element *page.Element
 	handed  *doc.Snapshot
-	// summarized is the snapshot the summary was last read from.
+	// summarized is the snapshot the summary was last read from, and
+	// summarizer what it keeps of the page's reading between snapshots.
 	summarized *doc.Snapshot
+	summarizer storage.Summarizer
 }
 
 // close lets go of the page's editor.
