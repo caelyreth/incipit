@@ -35,7 +35,7 @@ func TestLibraryProjectionsFollowCurrentSessions(t *testing.T) {
 	if got := app.Search("NEEDLE"); len(got) != 2 {
 		t.Fatalf("search = %+v, want both sessions", got)
 	}
-	delete(app.sessions, first.page)
+	app.dropSession(first.page)
 	checkCounts()
 	if got := app.Sheets(shell.Place{Kind: shell.PlaceAll}); len(got) != 1 || got[0].Title != "Second needle" {
 		t.Fatalf("all sheets after removal = %+v", got)
@@ -46,7 +46,7 @@ func TestLibraryProjectionsFollowCurrentSessions(t *testing.T) {
 	if got := app.Entries("1"); len(got) != 1 || got[0].Sheet.Title != "Second needle" {
 		t.Fatalf("entries after removal = %+v", got)
 	}
-	app.sessions[first.page] = first
+	app.putSession(first.page, first)
 	checkCounts()
 	if got := app.Search("needle"); len(got) != 2 {
 		t.Fatalf("search after restoring session = %+v", got)
@@ -55,6 +55,28 @@ func TestLibraryProjectionsFollowCurrentSessions(t *testing.T) {
 	checkCounts()
 	app.RestoreSheet(sheetName(first.page))
 	checkCounts()
+}
+
+func TestLibraryProjectionsAreKeptWhileNothingChanges(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nameActivePage(t, app, "First")
+	all := shell.Place{Kind: shell.PlaceAll}
+	first := app.Sheets(all)
+	if again := app.Sheets(all); &again[0] != &first[0] {
+		t.Fatal("sheets were projected again with nothing changed")
+	}
+	app.NewSheet("1", shell.Last)
+	if got := app.Sheets(all); len(got) != 2 {
+		t.Fatalf("sheets after a new sheet = %+v, want two", got)
+	}
+	kept := app.Sheets(all)
+	app.dropSession(activeSession(t, app).page)
+	if got := app.Sheets(all); len(got) != 1 || &got[0] == &kept[0] {
+		t.Fatalf("sheets after a session went = %+v, want one projected anew", got)
+	}
 }
 
 func TestTrashingAncestorReconcilesSelectedGroupWithoutOpeningPanes(t *testing.T) {
@@ -119,7 +141,7 @@ func TestDuplicateSheetFollowsSourceAmongChapterEntries(t *testing.T) {
 
 func BenchmarkLibrarySessionLookup(b *testing.B) {
 	for _, size := range []int{100, 1000} {
-		app := &AppState{sessions: make(map[workspace.PageID]*sheetSession, size)}
+		app := &AppState{sessions: make(map[workspace.PageID]*sheetSession, size), library: library.New()}
 		for index := range size {
 			app.sessions[workspace.PageID(index)] = &sheetSession{key: storage.PageKey(index + 1)}
 		}
@@ -134,6 +156,8 @@ func BenchmarkLibrarySessionLookup(b *testing.B) {
 		})
 		b.Run(fmt.Sprintf("indexed/%d", size), func(b *testing.B) {
 			for range b.N {
+				// The index as built after the sessions change.
+				app.sessionsRev++
 				sessions := app.sessionsBySheet()
 				for id := 1; id <= size; id++ {
 					if sessions[library.SheetID(id)] == nil {

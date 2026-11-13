@@ -73,14 +73,53 @@ func (a *AppState) sessionFor(sheet library.SheetID) (*sheetSession, bool) {
 	return nil, false
 }
 
-// sessionsBySheet builds an operation-local index. Sessions may be added or
-// removed between frames, so a retained index would need its own lifecycle.
-func (a *AppState) sessionsBySheet() map[library.SheetID]*sheetSession {
-	sessions := make(map[library.SheetID]*sheetSession, len(a.sessions))
-	for _, session := range a.sessions {
-		sessions[library.SheetID(session.key)] = session
+// putSession and dropSession add and remove a session.
+func (a *AppState) putSession(id workspace.PageID, session *sheetSession) {
+	a.sessions[id] = session
+	a.sessionsRev++
+}
+
+func (a *AppState) dropSession(id workspace.PageID) {
+	delete(a.sessions, id)
+	a.sessionsRev++
+}
+
+// projections are the shell's views of the library as they stand: each
+// built once while the library, the sessions and the minute are those it
+// was built at, and read, never changed, by the shell.
+type projections struct {
+	library *library.Library
+	rev     uint64
+	minute  time.Time
+	session uint64
+	bySheet map[library.SheetID]*sheetSession
+	sheets  map[shell.Place][]shell.SheetItem
+	counts  map[shell.Place]int
+	entries map[string][]shell.GroupEntry
+}
+
+// projections are the views of the library as it stands now.
+func (a *AppState) projections() *projections {
+	minute := time.Now().Truncate(time.Minute)
+	p := a.projected
+	if p == nil || p.library != a.library || p.rev != a.library.Revision() || p.session != a.sessionsRev || !p.minute.Equal(minute) {
+		p = &projections{library: a.library, rev: a.library.Revision(), minute: minute, session: a.sessionsRev,
+			sheets: map[shell.Place][]shell.SheetItem{}, counts: map[shell.Place]int{}, entries: map[string][]shell.GroupEntry{}}
+		a.projected = p
 	}
-	return sessions
+	return p
+}
+
+// sessionsBySheet indexes the sessions by sheet, kept while they stand.
+func (a *AppState) sessionsBySheet() map[library.SheetID]*sheetSession {
+	p := a.projections()
+	if p.bySheet == nil {
+		p.bySheet = make(map[library.SheetID]*sheetSession, len(a.sessions))
+		for _, session := range a.sessions {
+			p.bySheet[library.SheetID(session.key)] = session
+		}
+	}
+	return p.bySheet
 }
 
 // fileUnfiled puts every page the library does not file yet in the Inbox,
@@ -225,7 +264,13 @@ func (a *AppState) Parent(id string) string {
 func (a *AppState) Sheets(place shell.Place) []shell.SheetItem {
 	switch place.Kind {
 	case shell.PlaceGroup, shell.PlaceAll, shell.PlaceRecent, shell.PlaceTrash:
-		return a.sheetItems(a.sheetsIn(place))
+		p := a.projections()
+		items, ok := p.sheets[place]
+		if !ok {
+			items = a.sheetItems(a.sheetsIn(place))
+			p.sheets[place] = items
+		}
+		return items
 	default:
 		return nil
 	}
@@ -234,6 +279,10 @@ func (a *AppState) Sheets(place shell.Place) []shell.SheetItem {
 // SheetCount counts only sheets with a session, like Sheets, but avoids
 // composing titles, excerpts and word counts for a badge.
 func (a *AppState) SheetCount(place shell.Place) int {
+	p := a.projections()
+	if count, ok := p.counts[place]; ok {
+		return count
+	}
 	sessions := a.sessionsBySheet()
 	count := 0
 	for _, sheet := range a.sheetsIn(place) {
@@ -241,6 +290,7 @@ func (a *AppState) SheetCount(place shell.Place) int {
 			count++
 		}
 	}
+	p.counts[place] = count
 	return count
 }
 
@@ -261,6 +311,16 @@ func (a *AppState) sheetsIn(place shell.Place) []library.Sheet {
 
 // Entries is part of shell.Library.
 func (a *AppState) Entries(group string) []shell.GroupEntry {
+	p := a.projections()
+	if entries, ok := p.entries[group]; ok {
+		return entries
+	}
+	entries := a.entries(group)
+	p.entries[group] = entries
+	return entries
+}
+
+func (a *AppState) entries(group string) []shell.GroupEntry {
 	groupID := groupOf(group)
 	if _, ok := a.library.Group(groupID); !ok || a.library.GroupInTrash(groupID) {
 		return nil
@@ -459,7 +519,7 @@ func (a *AppState) discardUnfiledPage(id workspace.PageID, cause error) error {
 	if session, ok := a.sessions[id]; ok {
 		session.close()
 	}
-	delete(a.sessions, id)
+	a.dropSession(id)
 	return cause
 }
 
@@ -651,7 +711,7 @@ func (a *AppState) discard(sheets []library.SheetID) {
 			continue
 		}
 		session.close()
-		delete(a.sessions, session.page)
+		a.dropSession(session.page)
 		if a.notebook != nil && !a.notebook.closed {
 			a.notebook.saver.Delete(storage.PageKey(sheet))
 		}

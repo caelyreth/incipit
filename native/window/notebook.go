@@ -41,7 +41,7 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 		if _, ok := a.library.Sheet(library.SheetID(page.Key)); !ok {
 			_ = a.library.AddSheet(library.SheetID(page.Key), library.Inbox, page.Created)
 		}
-		a.sessions[id] = session
+		a.putSession(id, session)
 		sessions = append(sessions, session)
 		ids[page.Key] = id
 	}
@@ -105,7 +105,7 @@ func (a *AppState) createPage(id workspace.PageID) (workspace.Session, error) {
 func (a *AppState) newSession(id workspace.PageID, summary storage.Summary) *sheetSession {
 	session := &sheetSession{page: id, key: a.nextKey, summary: summary}
 	a.nextKey++
-	a.sessions[id] = session
+	a.putSession(id, session)
 	return session
 }
 
@@ -161,6 +161,7 @@ func (a *AppState) summarize() {
 		session.summarized = snap
 		if summary := storage.Summarize(snap.Root()); !summary.Equal(session.summary) {
 			session.summary, changed = summary, true
+			a.sessionsRev++
 		}
 	}
 	if changed {

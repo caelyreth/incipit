@@ -28,7 +28,13 @@ type AppState struct {
 	Palette   *overlay.CommandPalette
 	// Notices tells the user what happened apart from what they did, as
 	// toasts at the window's foot.
-	Notices        *notices.Center
+	Notices *notices.Center
+	// sessionsRev moves on whenever a session comes, goes or is summed up
+	// anew, and as the shell is refreshed; projected keeps the shell's view
+	// of the library while it and the library are unchanged. Sessions come
+	// and go through putSession and dropSession.
+	sessionsRev    uint64
+	projected      *projections
 	mainWindow     *mygo.Window
 	settingsWindow *mygo.Window
 	// menu is the application menu; recording stands its keys down while
@@ -287,6 +293,7 @@ func parsePageID(id string) (workspace.PageID, bool) {
 }
 
 func (a *AppState) refreshShell() {
+	a.sessionsRev++
 	a.Shell.Tabs = nil
 	for _, page := range a.Workspace.TabPages() {
 		a.Shell.Tabs = append(a.Shell.Tabs, shell.Page{

@@ -115,7 +115,14 @@ type Library struct {
 	order       map[GroupID][]orderEntry
 	nextGroup   GroupID
 	nextChapter ChapterID
+	// rev counts the library's changes: every method that may change it
+	// moves it on.
+	rev uint64
 }
+
+// Revision changes whenever the library may have: a view of it built at
+// one revision stands while the revision does.
+func (l *Library) Revision() uint64 { return l.rev }
 
 // New is a library holding only its Inbox.
 func New() *Library {
@@ -377,6 +384,7 @@ func (l *Library) AddGroup(parent GroupID, name string) (GroupID, error) {
 // inserts the group and its placement together, so a failed call changes
 // neither.
 func (l *Library) AddGroupAt(parent GroupID, name string, index int) (GroupID, error) {
+	l.rev++
 	if parent != 0 {
 		if _, ok := l.groups[parent]; !ok {
 			return 0, ErrUnknown
@@ -402,6 +410,7 @@ func groupName(name string) string {
 
 // RenameGroup names a group; a blank name is "Untitled Group".
 func (l *Library) RenameGroup(id GroupID, name string) error {
+	l.rev++
 	group, ok := l.groups[id]
 	switch {
 	case !ok:
@@ -415,6 +424,7 @@ func (l *Library) RenameGroup(id GroupID, name string) error {
 
 // StyleGroup sets a group's icon and tint.
 func (l *Library) StyleGroup(id GroupID, icon string, color uint8) error {
+	l.rev++
 	group, ok := l.groups[id]
 	switch {
 	case !ok:
@@ -429,6 +439,7 @@ func (l *Library) StyleGroup(id GroupID, icon string, color uint8) error {
 // MoveGroup puts a group in parent at index, clamped to its groups; moving
 // within the same parent reorders it.
 func (l *Library) MoveGroup(id, parent GroupID, index int) error {
+	l.rev++
 	group, ok := l.groups[id]
 	switch {
 	case !ok:
@@ -457,6 +468,7 @@ func (l *Library) MoveGroup(id, parent GroupID, index int) error {
 
 // TrashGroup puts a group, and all it holds, in the trash.
 func (l *Library) TrashGroup(id GroupID, at time.Time) error {
+	l.rev++
 	group, ok := l.groups[id]
 	switch {
 	case !ok:
@@ -473,6 +485,7 @@ func (l *Library) TrashGroup(id GroupID, at time.Time) error {
 // RestoreGroup takes a group out of the trash. One whose parent is still
 // in the trash, or gone, comes back at the top level.
 func (l *Library) RestoreGroup(id GroupID) error {
+	l.rev++
 	group, ok := l.groups[id]
 	if !ok {
 		return ErrUnknown
@@ -492,6 +505,7 @@ func (l *Library) AddChapter(group GroupID, name string) (ChapterID, error) {
 // AddChapterAt makes a chapter divider in group at index, clamped to its
 // entries. It validates before inserting either the chapter or its placement.
 func (l *Library) AddChapterAt(group GroupID, name string, index int) (ChapterID, error) {
+	l.rev++
 	if _, ok := l.groups[group]; !ok {
 		return 0, ErrUnknown
 	}
@@ -515,6 +529,7 @@ func chapterName(name string) string {
 
 // RenameChapter names a chapter; a blank name is "Untitled Chapter".
 func (l *Library) RenameChapter(id ChapterID, name string) error {
+	l.rev++
 	chapter, ok := l.chapters[id]
 	if !ok {
 		return ErrUnknown
@@ -527,6 +542,7 @@ func (l *Library) RenameChapter(id ChapterID, name string) error {
 // entries; moving within the same group reorders it and so reassigns the
 // sheets around it.
 func (l *Library) MoveChapter(id ChapterID, group GroupID, index int) error {
+	l.rev++
 	chapter, ok := l.chapters[id]
 	if !ok {
 		return ErrUnknown
@@ -546,6 +562,7 @@ func (l *Library) MoveChapter(id ChapterID, group GroupID, index int) error {
 // DeleteChapter removes a divider. Its sheets stay where they are and
 // belong to the chapter before it, or to none.
 func (l *Library) DeleteChapter(id ChapterID) error {
+	l.rev++
 	chapter, ok := l.chapters[id]
 	if !ok {
 		return ErrUnknown
@@ -564,6 +581,7 @@ func (l *Library) AddSheet(id SheetID, group GroupID, at time.Time) error {
 // sheet ID names one sheet for its life: a repeated ID is rejected without
 // changing its filing, timestamps, or ordered placements.
 func (l *Library) AddSheetAt(id SheetID, group GroupID, at time.Time, index int) error {
+	l.rev++
 	if id <= 0 {
 		return ErrInvalidID
 	}
@@ -583,6 +601,7 @@ func (l *Library) AddSheetAt(id SheetID, group GroupID, at time.Time, index int)
 
 // Touch records a change to a sheet.
 func (l *Library) Touch(id SheetID, at time.Time) {
+	l.rev++
 	if sheet, ok := l.sheets[id]; ok && at.After(sheet.Updated) {
 		sheet.Updated = at
 	}
@@ -591,6 +610,7 @@ func (l *Library) Touch(id SheetID, at time.Time) {
 // MoveSheet files a sheet in group at index, clamped to its sheets; moving
 // within the same group reorders it.
 func (l *Library) MoveSheet(id SheetID, group GroupID, index int) error {
+	l.rev++
 	sheet, ok := l.sheets[id]
 	if !ok {
 		return ErrUnknown
@@ -609,6 +629,7 @@ func (l *Library) MoveSheet(id SheetID, group GroupID, index int) error {
 
 // TrashSheet puts a sheet in the trash.
 func (l *Library) TrashSheet(id SheetID, at time.Time) error {
+	l.rev++
 	sheet, ok := l.sheets[id]
 	if !ok {
 		return ErrUnknown
@@ -622,6 +643,7 @@ func (l *Library) TrashSheet(id SheetID, at time.Time) error {
 // RestoreSheet takes a sheet out of the trash. One whose group is still in
 // the trash comes back to the Inbox.
 func (l *Library) RestoreSheet(id SheetID) error {
+	l.rev++
 	sheet, ok := l.sheets[id]
 	if !ok {
 		return ErrUnknown
@@ -635,6 +657,7 @@ func (l *Library) RestoreSheet(id SheetID) error {
 
 // DeleteSheet removes a sheet in the trash for good.
 func (l *Library) DeleteSheet(id SheetID) error {
+	l.rev++
 	sheet, ok := l.sheets[id]
 	if !ok {
 		return ErrUnknown
@@ -650,6 +673,7 @@ func (l *Library) DeleteSheet(id SheetID) error {
 // DeleteGroup removes a group in the trash for good, with everything it
 // holds, and returns the sheets that went with it.
 func (l *Library) DeleteGroup(id GroupID) ([]SheetID, error) {
+	l.rev++
 	group, ok := l.groups[id]
 	if !ok {
 		return nil, ErrUnknown
@@ -684,6 +708,7 @@ func (l *Library) DeleteGroup(id GroupID) ([]SheetID, error) {
 // EmptyTrash deletes everything in the trash and returns the sheets that
 // went.
 func (l *Library) EmptyTrash() []SheetID {
+	l.rev++
 	groups, sheets := l.Trash()
 	var deleted []SheetID
 	for _, group := range groups {
