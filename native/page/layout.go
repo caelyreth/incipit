@@ -379,7 +379,7 @@ func orderedStops(u *unitLayout) []surfStop {
 			}
 			continue
 		}
-		if st.Surface >= len(u.surfaces) {
+		if int(st.Surface) >= len(u.surfaces) {
 			continue
 		}
 		s := u.surfaces[st.Surface]
@@ -616,10 +616,10 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 	_, sl.h = sl.layout.Size()
 	sl.h = max(sl.h, lineHeight(m, m.Body*base.Size))
 	for _, st := range p.Stops {
-		if st.Surface != index {
+		if int(st.Surface) != index {
 			continue
 		}
-		sl.stops = append(sl.stops, stopAt{caret: st.Caret, u: sl.u16Of(st.Offset, st.Caret.Stop)})
+		sl.stops = append(sl.stops, stopAt{caret: st.Caret, u: sl.u16Of(st.Offset(), st.Caret.Stop)})
 	}
 	return sl
 }

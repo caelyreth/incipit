@@ -87,28 +87,29 @@ func TestAccessibilityTextAndStops(t *testing.T) {
 	if para.Role != "paragraph" || para.Label() != "A😀 x+1" || para.Value() != "A😀 x+1" {
 		t.Fatalf("paragraph accessibility = %q %q %q", para.Role, para.Label(), para.Value())
 	}
-	if len(para.AccessStops()) != len(para.Stops) {
-		t.Fatalf("%d access stops for %d presentation stops", len(para.AccessStops()), len(para.Stops))
+	access := para.AccessOffsets()
+	if len(access) != len(para.Stops) {
+		t.Fatalf("%d access offsets for %d presentation stops", len(access), len(para.Stops))
 	}
-	last := -1
-	for i, st := range para.AccessStops() {
-		if st.UTF16 < last {
-			t.Fatalf("access stop %d goes back from %d to %d", i, last, st.UTF16)
+	last := int32(-1)
+	for i, at := range access {
+		if at < last {
+			t.Fatalf("access offset %d goes back from %d to %d", i, last, at)
 		}
-		last = st.UTF16
+		last = at
 	}
 	for i, st := range para.Stops {
 		if st.Surface != 0 {
 			continue
 		}
-		switch st.Offset {
+		switch st.Offset() {
 		case 0:
-			if para.AccessStops()[i].UTF16 != 0 {
-				t.Fatalf("start maps to %d", para.AccessStops()[i].UTF16)
+			if access[i] != 0 {
+				t.Fatalf("start maps to %d", access[i])
 			}
 		case 5:
-			if para.AccessStops()[i].UTF16 != 3 {
-				t.Fatalf("after the emoji maps to %d, want 3", para.AccessStops()[i].UTF16)
+			if access[i] != 3 {
+				t.Fatalf("after the emoji maps to %d, want 3", access[i])
 			}
 		}
 	}

@@ -138,10 +138,10 @@ func Covers(r doc.Reader, pres []*Presentation, from, to doc.Caret) []Cover {
 				continue
 			}
 			n := len(c.Spans)
-			if n > 0 && c.Spans[n-1].Surface == st.Surface && c.Spans[n-1].To == i-1 {
+			if n > 0 && c.Spans[n-1].Surface == int(st.Surface) && c.Spans[n-1].To == i-1 {
 				c.Spans[n-1].To = i
 			} else {
-				c.Spans = append(c.Spans, CoverSpan{Surface: st.Surface, From: i, To: i})
+				c.Spans = append(c.Spans, CoverSpan{Surface: int(st.Surface), From: i, To: i})
 			}
 		}
 		if len(c.Spans) > 0 {

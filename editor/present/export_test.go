@@ -13,8 +13,8 @@ func AccessMismatch(p *Presentation) error {
 		}
 	}
 	for i, st := range p.Stops {
-		if got, want := x.offset(st.Surface, st.Offset), accessibleOffset(parts, st.Surface, st.Offset, u); got != want {
-			return fmt.Errorf("stop %d (surface %d, offset %d): index %d, scan %d", i, st.Surface, st.Offset, got, want)
+		if got, want := x.offset(int(st.Surface), st.Offset()), accessibleOffset(parts, int(st.Surface), st.Offset(), u); got != want {
+			return fmt.Errorf("stop %d (surface %d, offset %d): index %d, scan %d", i, st.Surface, st.Offset(), got, want)
 		}
 	}
 	return nil
