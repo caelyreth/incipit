@@ -423,8 +423,15 @@ func (o SetNode) apply(tx *Tx) (*Step, error) {
 			tx.slots[SlotRef{Node: o.ID, Slot: i}] = true
 		}
 	}
-	if parent, _, ok := tx.Parent(o.ID); ok {
+	if parent, slot, ok := tx.Parent(o.ID); !ok {
+		tx.reshape()
+	} else {
 		tx.touched[parent] = true
+		// A block's kind and attributes are part of the block structure;
+		// an inline node's are its text's.
+		if pn, _ := tx.Node(parent); !pn.slots[slot].inline {
+			tx.reshape()
+		}
 	}
 	return &Step{
 		op:      o,
@@ -480,6 +487,7 @@ func (o Insert) apply(tx *Tx) (*Step, error) {
 		ids[i] = n.id
 	}
 	tx.touched[o.Parent] = true
+	tx.reshape()
 	return &Step{
 		op:      Insert{Parent: o.Parent, Slot: o.Slot, Index: o.Index, Nodes: placed},
 		inverse: []Op{Remove{IDs: ids}},
@@ -597,6 +605,7 @@ func (o Remove) apply(tx *Tx) (*Step, error) {
 		tx.ownChildren(s)
 		s.children = slices.Delete(s.children, r.index, r.index+1)
 		tx.touched[r.ref.Node] = true
+		tx.reshape()
 		before := 0
 		for _, j := range shifts[r.ref] {
 			if j < r.index {
@@ -714,6 +723,7 @@ func (o Move) apply(tx *Tx) (*Step, error) {
 	tx.index = tx.index.set(o.ID, e)
 	tx.touched[oldParent] = true
 	tx.touched[o.Parent] = true
+	tx.reshape()
 	back := oldIndex
 	if source == target && oldIndex > index {
 		back = oldIndex + 1

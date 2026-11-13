@@ -3,6 +3,7 @@ package doc
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 )
 
 // Reader reads a document: a published snapshot, or a transaction's
@@ -16,7 +17,17 @@ type Reader interface {
 	// Parent returns where id stands: its parent and the parent's slot.
 	// The root has no parent.
 	Parent(id ID) (parent ID, slot int, ok bool)
+	// Shape names the page's block structure: two readers of one shape
+	// hold the same blocks in the same block slots, in the same order,
+	// with the same kinds and attributes. Text, marks and inline content
+	// leave it as it is; a change to the structure may give a new one.
+	Shape() uint64
 }
+
+// shapes numbers block structures across every page and transaction.
+var shapes atomic.Uint64
+
+func newShape() uint64 { return shapes.Add(1) }
 
 // Snapshot is a published, immutable document: a root pointer, the id
 // index and the page's mark-set intern table. Taking one costs nothing.
@@ -27,6 +38,8 @@ type Snapshot struct {
 	index  *trie
 	// seed drives node id generation, so a replay allocates the same ids.
 	seed uint64
+	// shape is the block structure's (Reader.Shape).
+	shape uint64
 }
 
 var _ Reader = (*Snapshot)(nil)
@@ -40,7 +53,7 @@ func NewSnapshot(schema *Schema, marks *Interner, root *Node, seed uint64) (*Sna
 	if root == nil || root.kind != schema.Root() {
 		return nil, fmt.Errorf("%w: the root is not a %s", ErrInvalid, schema.KindName(schema.Root()))
 	}
-	s := &Snapshot{schema: schema, marks: marks, root: root, seed: seed}
+	s := &Snapshot{schema: schema, marks: marks, root: root, seed: seed, shape: newShape()}
 	var index *trie
 	var err error
 	var visit func(n *Node, parent ID, slot int, isRoot bool)
@@ -89,6 +102,7 @@ func NewSnapshot(schema *Schema, marks *Interner, root *Node, seed uint64) (*Sna
 func (s *Snapshot) Schema() *Schema  { return s.schema }
 func (s *Snapshot) Marks() *Interner { return s.marks }
 func (s *Snapshot) Root() *Node      { return s.root }
+func (s *Snapshot) Shape() uint64    { return s.shape }
 
 // Len is the number of nodes, block and inline.
 func (s *Snapshot) Len() int { return s.index.Len() }

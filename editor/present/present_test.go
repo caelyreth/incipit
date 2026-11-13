@@ -192,3 +192,37 @@ func TestAccessibleOffsetsIndexMatchesScan(t *testing.T) {
 	}
 	check("caret in the formula")
 }
+
+// The list of units depends only on the page's blocks: typing keeps it,
+// and a new block lists the units again.
+func TestTypingKeepsTheUnits(t *testing.T) {
+	prog, err := manifest.Compile(nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, _ := profile.EmptyPage(1, 3, doc.NewInterner())
+	e := engine.New(snap, prog, engine.Options{})
+	e.OpenView(1)
+	now := time.Unix(1, 0)
+	do := func(in vocab.Intent) {
+		t.Helper()
+		now = now.Add(time.Second)
+		if _, err := e.Do(1, vocab.Input{Intent: in, At: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	do(vocab.Type{Text: "a"})
+	do(vocab.Break{})
+	before := e.Units(1)
+	for _, s := range []string{"b", "c", "**", "d"} {
+		do(vocab.Type{Text: s})
+	}
+	do(vocab.Delete{Dir: vocab.Backward})
+	if after := e.Units(1); &after[0] != &before[0] {
+		t.Fatal("typing listed the units again")
+	}
+	do(vocab.Break{})
+	if after := e.Units(1); len(after) != len(before)+1 {
+		t.Fatalf("after a new block: %d units, want %d", len(after), len(before)+1)
+	}
+}

@@ -7,6 +7,9 @@ import "github.com/caelyreth/neverland/editor/doc"
 // presented plainly: every block a text unit.
 type Presentation interface {
 	// Contain is what block n adds in a block slot whose context is outer.
+	// It reads only n's kind and attributes and the blocks around it, not
+	// text: the units it lists are kept while the page's shape stands
+	// (doc.Reader.Shape).
 	Contain(r doc.Reader, n *doc.Node, outer Container) Contained
 	// Style is the look of a unit, of a text an object holds, or of an
 	// inline node's card, in ctx.

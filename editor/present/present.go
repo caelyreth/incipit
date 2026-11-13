@@ -154,10 +154,11 @@ func (p *Presentation) Text() string {
 	return p.Value
 }
 
-// UnitRef is a unit in page order.
+// UnitRef is a unit in page order. It holds no node, which a reader
+// resolves by ID: the list of units depends only on the page's block
+// structure (doc.Reader.Shape), and stands while text is edited.
 type UnitRef struct {
 	ID      doc.ID
-	Node    *doc.Node
 	Context Context
 	// Gap is the block slot position before an object unit.
 	Gap *doc.Pos
@@ -186,11 +187,15 @@ type Presenter struct {
 	look  vocab.Presentation
 	mu    sync.Mutex
 	memo  map[doc.ID]*Presentation
-	units struct {
-		root  *doc.Node
-		list  []UnitRef
-		index map[doc.ID]int
-	}
+	units *unitList
+}
+
+// unitList is the units of one block structure, never changed once made,
+// so a scratch presenter shares it.
+type unitList struct {
+	shape uint64
+	list  []UnitRef
+	index map[doc.ID]int
 }
 
 // NewPresenter returns a presenter of a profile's documents.
@@ -213,12 +218,27 @@ func (plain) Style(doc.Reader, *doc.Node, Context) vocab.Style {
 }
 func (plain) MarkGroup(doc.MarkKind) vocab.Group { return 0 }
 
-// Units lists the page's units in order, with their container context.
-func (pr *Presenter) Units(r doc.Reader) []UnitRef {
+// Scratch is a presenter of the same profile that shares pr's units but
+// none of its presentations, for a transaction whose nodes change in
+// place under them.
+func (pr *Presenter) Scratch() *Presenter {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
-	if pr.units.root == r.Root() {
-		return pr.units.list
+	return &Presenter{look: pr.look, memo: map[doc.ID]*Presentation{}, units: pr.units}
+}
+
+// Units lists the page's units in order, with their container context.
+func (pr *Presenter) Units(r doc.Reader) []UnitRef {
+	return pr.unitsOf(r).list
+}
+
+// unitsOf is the units of r's block structure, listed again only when
+// the structure changed.
+func (pr *Presenter) unitsOf(r doc.Reader) *unitList {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+	if pr.units != nil && pr.units.shape == r.Shape() {
+		return pr.units
 	}
 	var out []UnitRef
 	var walk func(n *doc.Node, ctx Context)
@@ -230,7 +250,7 @@ func (pr *Presenter) Units(r doc.Reader) []UnitRef {
 			for i, c := range s.Children() {
 				in := pr.look.Contain(r, c, ctx)
 				if in.Unit {
-					ref := UnitRef{ID: c.ID(), Node: c, Context: in.Own}
+					ref := UnitRef{ID: c.ID(), Context: in.Own}
 					if r.Schema().IsObject(c.Kind()) {
 						ref.Gap = &doc.Pos{Node: n.ID(), Slot: si, Offset: i}
 						bare := func(j int) bool { return j < 0 || j >= s.Len() || r.Schema().IsObject(s.Child(j).Kind()) }
@@ -249,18 +269,16 @@ func (pr *Presenter) Units(r doc.Reader) []UnitRef {
 	for i, u := range out {
 		index[u.ID] = i
 	}
-	pr.units.root, pr.units.list, pr.units.index = r.Root(), out, index
-	return out
+	pr.units = &unitList{shape: r.Shape(), list: out, index: index}
+	return pr.units
 }
 
 // UnitAt is the index in Units of the unit whose stops hold pos: the unit
 // owning the inline slot pos is in (through inline nodes), or the object a
 // gap stop stands beside.
 func (pr *Presenter) UnitAt(r doc.Reader, pos doc.Pos) (int, bool) {
-	units := pr.Units(r)
-	pr.mu.Lock()
-	index := pr.units.index
-	pr.mu.Unlock()
+	ul := pr.unitsOf(r)
+	units, index := ul.list, ul.index
 	n, ok := r.Node(pos.Node)
 	if !ok || pos.Slot >= n.NumSlots() {
 		return 0, false
@@ -311,25 +329,22 @@ func (pr *Presenter) Unit(prog *policy.Program, store *policy.Store, r doc.Reade
 
 // Present returns presentations for units, memoised.
 func (pr *Presenter) Present(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, ids []doc.ID) []*Presentation {
-	refs := map[doc.ID]UnitRef{}
-	for _, u := range pr.Units(r) {
-		refs[u.ID] = u
-	}
+	ul := pr.unitsOf(r)
 	out := make([]*Presentation, 0, len(ids))
 	for _, id := range ids {
-		u, ok := refs[id]
+		i, ok := ul.index[id]
 		if !ok {
 			out = append(out, nil)
 			continue
 		}
-		out = append(out, pr.present(prog, store, r, view, u))
+		out = append(out, pr.present(prog, store, r, view, ul.list[i]))
 	}
 	return out
 }
 
 // keyOf is a unit's key apart from the view's selection.
-func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef) unitKey {
-	key := unitKey{node: u.Node, context: fmt.Sprintf("%+v", u.Context), program: prog.Version()}
+func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef, n *doc.Node) unitKey {
+	key := unitKey{node: n, context: fmt.Sprintf("%+v", u.Context), program: prog.Version()}
 	if u.Marker() != nil {
 		key.context += fmt.Sprintf("%+v", *u.Context.Marker)
 	}
@@ -340,25 +355,29 @@ func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef) unitKey {
 }
 
 func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, u UnitRef) *Presentation {
-	key := pr.keyOf(prog, u)
+	n, ok := r.Node(u.ID)
+	if !ok {
+		return nil
+	}
+	key := pr.keyOf(prog, u, n)
 	var cards []doc.ID
 	if view != nil {
-		cards = openCards(r, u.Node, view.Selection)
+		cards = openCards(r, n, view.Selection)
 		ids := make([]string, len(cards))
 		for i, id := range cards {
 			ids[i] = id.String()
 		}
 		key.open = strings.Join(ids, ",")
-		key.held = u.Gap != nil && held(r, u.Node, view.Selection)
+		key.held = u.Gap != nil && held(r, n, view.Selection)
 	}
-	key.facts = factContext(prog, r, view, append([]doc.ID{u.ID}, inlineObjects(u.Node)...))
+	key.facts = factContext(prog, r, view, append([]doc.ID{u.ID}, inlineObjects(n)...))
 	pr.mu.Lock()
 	if p, ok := pr.memo[u.ID]; ok && p.key == key {
 		pr.mu.Unlock()
 		return p
 	}
 	pr.mu.Unlock()
-	p := build(env{prog, store, r, view, pr.look}, u, key)
+	p := build(env{prog, store, r, view, pr.look}, u, n, key)
 	pr.mu.Lock()
 	pr.memo[u.ID] = p
 	if len(pr.memo) > 1<<16 {
@@ -474,8 +493,7 @@ type env struct {
 	look  vocab.Presentation
 }
 
-func build(e env, u UnitRef, key unitKey) *Presentation {
-	n := u.Node
+func build(e env, u UnitRef, n *doc.Node, key unitKey) *Presentation {
 	style := e.look.Style(e.r, n, u.Context)
 	p := &Presentation{Unit: u.ID, Kind: n.Kind(), Node: n, Context: u.Context, Group: style.Group,
 		Role: style.Role, Level: style.Level, Gap: u.Gap, Gaps: u.Gaps, key: key}
@@ -493,7 +511,7 @@ func build(e env, u UnitRef, key unitKey) *Presentation {
 			for i, sl := range n.Slots() {
 				if sl.IsInline() {
 					group := p.Group
-					if n != u.Node {
+					if n.ID() != u.ID {
 						group = e.look.Style(e.r, n, u.Context).Group
 					}
 					flowOf(e, p, doc.SlotRef{Node: n.ID(), Slot: i}, group, false, 0, key.held)

@@ -36,8 +36,9 @@ func (e *Engine) stopsFor(viewID uint64) policy.StopsFunc {
 				break
 			}
 			// A transaction changes its nodes in place, so the view's
-			// presentations, memoised by node pointer, must not see it.
-			p = present.NewPresenter(prog.Profile())
+			// presentations, memoised by node pointer, must not see it;
+			// its units, which hold no node, it may share.
+			p = pr.Scratch()
 		default:
 			p = present.NewPresenter(prog.Profile())
 		}

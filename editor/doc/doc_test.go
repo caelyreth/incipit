@@ -523,3 +523,32 @@ func TestFlatTextIsAlignedWithSlotOffsets(t *testing.T) {
 		t.Fatal(plain.Flat())
 	}
 }
+
+// A page's shape stands while its text, marks and inline nodes change, and
+// is new once its blocks or a block's kind or attributes change.
+func TestShapeFollowsTheBlockStructure(t *testing.T) {
+	s := newPage(t, "one", "two")
+	p := child(s, 0).ID()
+	ref := SlotRef{Node: p}
+	formula := NewNode(kFormula, Attrs{}, InlineSlot(TextItem("x", nil)))
+	text, _ := commit(t, s,
+		EditText{At: ref, From: 3, To: 3, Items: []Item{TextItem(" more", nil), NodeItem(formula)}},
+		MarkText{At: ref, From: 0, To: 3, Add: []Mark{{Kind: mStrong}}})
+	if text.Shape() != s.Shape() {
+		t.Fatal("editing text and marks gave a new shape")
+	}
+	tx := text.Begin(Origin{Class: OriginCommand})
+	if tx.Shape() != text.Shape() {
+		t.Fatal("a transaction does not start in its snapshot's shape")
+	}
+	for name, op := range map[string]Op{
+		"set a block's attributes": SetNode{ID: p, Kind: kPara, Attrs: MakeAttrs(Field{Num: 1, Value: Int(2)})},
+		"insert a block":           Insert{Parent: 1, Index: 0, Nodes: []*Node{NewNode(kPara, Attrs{}, InlineSlot())}},
+		"remove a block":           Remove{IDs: []ID{child(s, 1).ID()}},
+		"move a block":             Move{ID: p, Parent: 1, Index: 2},
+	} {
+		if next, _ := commit(t, text, op); next.Shape() == text.Shape() {
+			t.Errorf("%s kept the shape", name)
+		}
+	}
+}

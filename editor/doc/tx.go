@@ -16,6 +16,7 @@ type Tx struct {
 	root   *Node
 	index  *trie
 	seed   uint64
+	shape  uint64
 
 	fresh   map[*Node]bool
 	touched map[ID]bool
@@ -32,7 +33,7 @@ var _ Reader = (*Tx)(nil)
 // Begin starts a transaction on s.
 func (s *Snapshot) Begin(origin Origin) *Tx {
 	return &Tx{
-		base: s, schema: s.schema, marks: s.marks, root: s.root, index: s.index, seed: s.seed,
+		base: s, schema: s.schema, marks: s.marks, root: s.root, index: s.index, seed: s.seed, shape: s.shape,
 		fresh: map[*Node]bool{}, touched: map[ID]bool{}, slots: map[SlotRef]bool{},
 		origin: origin,
 	}
@@ -42,6 +43,11 @@ func (tx *Tx) Schema() *Schema  { return tx.schema }
 func (tx *Tx) Marks() *Interner { return tx.marks }
 func (tx *Tx) Root() *Node      { return tx.root }
 func (tx *Tx) Base() *Snapshot  { return tx.base }
+func (tx *Tx) Shape() uint64    { return tx.shape }
+
+// reshape gives the transaction a shape of its own, as an operation
+// changes its block structure.
+func (tx *Tx) reshape() { tx.shape = newShape() }
 
 func (tx *Tx) Node(id ID) (*Node, bool) {
 	e, ok := tx.index.get(id)
@@ -200,7 +206,7 @@ func (tx *Tx) Commit() (*Snapshot, error) {
 		}
 	}
 	tx.fresh = nil
-	return &Snapshot{schema: tx.schema, marks: tx.marks, root: tx.root, index: tx.index, seed: tx.seed}, nil
+	return &Snapshot{schema: tx.schema, marks: tx.marks, root: tx.root, index: tx.index, seed: tx.seed, shape: tx.shape}, nil
 }
 
 // errors operations report.
