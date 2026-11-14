@@ -691,12 +691,17 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 	// share the stop between them.
 	flush := func() {
 		stops := p.Stops[mark:]
-		slices.SortStableFunc(stops, func(a, b Stop) int {
+		order := func(a, b Stop) int {
 			if a.Offset() != b.Offset() {
 				return a.Offset() - b.Offset()
 			}
 			return a.Caret.Stop - b.Caret.Stop
-		})
+		}
+		// Gathered in text order, they are already in order but where a
+		// ghost's stops come before its offset's own.
+		if !slices.IsSortedFunc(stops, order) {
+			slices.SortStableFunc(stops, order)
+		}
 		stops = slices.CompactFunc(stops, func(a, b Stop) bool { return a.Caret == b.Caret })
 		p.Stops = p.Stops[:mark+len(stops)]
 		mark = len(p.Stops)
