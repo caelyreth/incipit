@@ -24,7 +24,9 @@ import (
 //     it was; one that was not shown comes in where it is.
 //   - A lit border is an accent line down the table.
 //   - A carried line's copy is drawn over the page with nothing behind it,
-//     the line veiled in its place, a drop frame where the grid parts.
+//     the line veiled in its place, a drop frame where the grid parts; as
+//     lines glide to new places, the one going furthest is drawn so, over
+//     the others.
 //   - A made line shows the area it was, fading into its cells; a corner's
 //     drag outlines and names the size it would set.
 
@@ -34,12 +36,12 @@ func (tableKind) chrome(el *Element, p *ui.Painter, u *unitLayout, ox, oy float3
 	if u.table == nil {
 		return false
 	}
-	now, animate := el.paintNow, el.animate
+	now := el.paintNow
 	for _, a := range el.tableAreas(u) {
 		el.paintArea(p, u, a, ox, oy)
 	}
 	moving := el.paintMade(p, u, ox, oy, now)
-	moving = el.paintCarry(p, u, ox, oy, now, animate) || moving
+	el.paintCarry(p, u, ox, oy)
 	el.paintBorder(p, u, ox, oy)
 	el.paintGrips(p, u, ox, oy)
 	el.paintResize(p, u, ox, oy)
@@ -115,36 +117,25 @@ func (el *Element) paintMade(p *ui.Painter, u *unitLayout, ox, oy float32, now t
 	return true
 }
 
-// paintCarry shows a carry under way or landing: the frame where it would
-// land, the line veiled in its place, and its copy where the pointer
-// carries it.
-func (el *Element) paintCarry(p *ui.Painter, u *unitLayout, ox, oy float32, now time.Time, animate bool) bool {
+// paintCarry shows a carry under way: the frame where it would land, the
+// line veiled in its place, and its copy where the pointer carries it; or,
+// as lines glide to new places, the one going furthest over the others,
+// so their text never crosses.
+func (el *Element) paintCarry(p *ui.Painter, u *unitLayout, ox, oy float32) {
 	ts := recalled[tableState](el, u.pres.Unit, "table")
 	if ts == nil {
-		return false
+		return
 	}
 	t := u.table
 	id := u.pres.Unit
 	radius := objectRadius(el.Editor.metrics)
-	if l := ts.landing; l != nil {
-		f := float32(now.Sub(l.at)) / float32(carryLand)
-		n := len(t.columns)
-		if l.rows {
-			n = len(t.rows)
-		}
-		if !animate || f >= 1 || l.index >= n {
-			ts.landing = nil
-			return false
-		}
-		place := t.line(u, l.rows, l.index)
-		e := components.Decelerate(max(0, f))
-		at := ui.Point{X: l.from.X + (place.X-l.from.X)*e, Y: l.from.Y + (place.Y-l.from.Y)*e}
-		el.paintCarried(p, u, l.rows, l.index, at, 1, ox, oy)
-		return true
+	if axis, index, ok := t.furthest(); ok {
+		place := t.line(u, axis == 0, index)
+		el.paintCarried(p, u, axis == 0, index, ui.Point{X: place.X, Y: place.Y}, 1, ox, oy)
 	}
 	d, ok := el.drag.(*lineDrag)
 	if !ok || !d.moved || d.table != id {
-		return false
+		return
 	}
 	for k, in := range t.in.apart {
 		frame := t.apart[k]
@@ -164,7 +155,6 @@ func (el *Element) paintCarry(p *ui.Painter, u *unitLayout, ox, oy float32, now 
 		components.DropFrame(p, frame, radius, min(1, in.room/max(1, d.size)), el.Theme)
 	}
 	el.paintCarried(p, u, d.rows, d.tablePress.at, d.corner(), carryVeil, ox, oy)
-	return false
 }
 
 // framed reports whether the room before line at shows a drop frame.

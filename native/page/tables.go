@@ -58,6 +58,19 @@ type tableLayout struct {
 	in                       tableIn
 	below, rowGap, columnGap ui.Rect
 	apart                    [maxApart]ui.Rect
+	// natural are each row's height as its text sets it, before the
+	// lines' motion; gone the rooms of the lines that left, as they close,
+	// rows then columns.
+	natural []float32
+	gone    [2][]goneRoom
+}
+
+// goneRoom is the room a line that left still has, in the unit, those
+// across unscrolled: drawn as it was kept, as strongly as alpha.
+type goneRoom struct {
+	room  ui.Rect
+	kept  keptLine
+	alpha float32
 }
 
 // tableIn is what the page asks of a table's layout while its controls
@@ -71,30 +84,77 @@ type tableIn struct {
 	row, column         int
 	rowRoom, columnRoom float32
 	apart               [maxApart]lineRoom
-	// grow are the rows and the columns coming in.
-	grow  [2]lineGrow
+	// lines are the lines on their way, rows then columns (table_motion.go);
+	// nil while they stand.
+	lines *lineMotion
 	sized int
 	width float32
+}
+
+// lineMotion is how a table's lines are drawn on their way, rows then
+// columns, by line: the extent each is drawn at (a row's height, a
+// column's share of its width), -1 as laid out; how far each stands from
+// its place; and the lines that left, closing.
+type lineMotion struct {
+	extent, offset [2][]float32
+	gone           [2][]lineGone
+}
+
+// lineGone is a line that left: after line after (-1 before the first),
+// its room, as strongly as alpha, drawn as kept; or, where a line took its
+// place, within line cover at lead from its start.
+type lineGone struct {
+	after, cover int
+	room, lead   float32
+	alpha        float32
+	kept         keptLine
+}
+
+// keptLine is a line as it was last laid out: its table's unit then, and
+// its number there.
+type keptLine struct {
+	u     *unitLayout
+	index int
+}
+
+// extentOf is how a line is drawn: as laid out, or as its motion has it.
+func (lm *lineMotion) extentOf(axis, i int) (float32, bool) {
+	if lm == nil || i >= len(lm.extent[axis]) || lm.extent[axis][i] < 0 {
+		return 0, false
+	}
+	return lm.extent[axis][i], true
+}
+
+func (lm *lineMotion) offsetOf(axis, i int) float32 {
+	if lm == nil || i >= len(lm.offset[axis]) {
+		return 0
+	}
+	return lm.offset[axis][i]
+}
+
+// goneAfter are the lines that left after line i, uncovered.
+func (lm *lineMotion) goneAfter(axis, i int) []lineGone {
+	if lm == nil {
+		return nil
+	}
+	var out []lineGone
+	for _, g := range lm.gone[axis] {
+		if g.after == i && g.cover < 0 {
+			out = append(out, g)
+		}
+	}
+	return out
 }
 
 // maxApart is how many rooms a carry has open at once in a table: the one
 // it would land in and those it left, closing.
 const maxApart = 3
 
-// lineRoom is room before line at, among the rows or the columns; left
-// when a carried line left it, closing behind it.
+// lineRoom is room before line at, among the rows or the columns.
 type lineRoom struct {
 	rows bool
 	at   int
 	room float32
-	left bool
-}
-
-// lineGrow is a run of lines from to to, coming in at share of their
-// size.
-type lineGrow struct {
-	from, to int
-	share    float32
 }
 
 // apartAt is the room the carry opens before line at.
@@ -108,14 +168,10 @@ func (in tableIn) apartAt(rows bool, at int) float32 {
 	return room
 }
 
-// share is how far line i has come in.
-func (in tableIn) share(rows bool, i int) float32 {
-	g := in.grow[1]
-	if rows {
-		g = in.grow[0]
-	}
-	if i >= g.from && i < g.to {
-		return g.share
+// share is the share of its width a column is drawn at.
+func (in tableIn) share(c int) float32 {
+	if e, ok := in.lines.extentOf(1, c); ok {
+		return e
 	}
 	return 1
 }
@@ -178,14 +234,21 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 	apart := float32(0)
 	for c := range columns + 1 {
 		apart += tin.apartAt(false, c)
+		for _, g := range tin.lines.goneAfter(1, c-1) {
+			apart += g.room
+		}
 	}
 	shares := make([]float32, columns)
 	for c := range shares {
-		shares[c] = tin.share(false, c)
+		shares[c] = tin.share(c)
 	}
 	t.widths = columnWidths(shape.Columns, width-columnRoom-apart, 2*m.Reach, natural, least, line*readColumn, shares)
 	grid := float32(0)
 	for c := range columns + 1 {
+		for _, g := range tin.lines.goneAfter(1, c-1) {
+			t.gone[1] = append(t.gone[1], goneRoom{room: ui.Rect{X: grid, W: g.room}, kept: g.kept, alpha: g.alpha})
+			grid += g.room
+		}
 		for k, a := range tin.apart {
 			if !a.rows && a.at == c && a.room > 0 {
 				t.apart[k] = ui.Rect{X: grid, W: a.room}
@@ -197,7 +260,7 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 			grid += columnRoom
 		}
 		if c < columns {
-			t.columns = append(t.columns, grid)
+			t.columns = append(t.columns, grid+tin.lines.offsetOf(1, c))
 			grid += t.widths[c]
 		}
 	}
@@ -230,8 +293,13 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 	}
 	// Down the grid, each row as far as it has come in, and the rooms
 	// between them.
+	t.natural = slices.Clone(t.heights)
 	y := float32(0)
 	for r := range rows + 1 {
+		for _, g := range tin.lines.goneAfter(0, r-1) {
+			t.gone[0] = append(t.gone[0], goneRoom{room: ui.Rect{X: t.left, Y: y, W: shows, H: g.room}, kept: g.kept, alpha: g.alpha})
+			y += g.room
+		}
 		for k, a := range tin.apart {
 			if a.rows && a.at == r && a.room > 0 {
 				t.apart[k] = ui.Rect{X: t.left, Y: y, W: shows, H: a.room}
@@ -243,15 +311,21 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 			y += tin.rowRoom
 		}
 		if r < rows {
-			t.heights[r] *= tin.share(true, r)
-			t.rows[r] = y
+			if e, ok := tin.lines.extentOf(0, r); ok {
+				t.heights[r] = e
+			}
+			t.rows[r] = y + tin.lines.offsetOf(0, r)
 			y += t.heights[r]
 		}
 	}
 	for i, sl := range u.surfaces {
 		if cc := t.cells[i]; cc.Row >= 0 {
+			share := float32(1)
+			if n := t.natural[cc.Row]; n > 0 {
+				share = min(t.heights[cc.Row]/n, 1)
+			}
 			t.base[i] = t.left + t.columns[cc.Column] + padX
-			t.baseY[i] = t.rows[cc.Row] + padY*tin.share(true, cc.Row)
+			t.baseY[i] = t.rows[cc.Row] + padY*share
 			sl.x, sl.y = t.base[i], t.baseY[i]
 		}
 	}
@@ -265,6 +339,10 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 			t.apart[k].X += t.left
 			t.apart[k].H = y
 		}
+	}
+	for k := range t.gone[1] {
+		t.gone[1][k].room.X += t.left
+		t.gone[1][k].room.H = y
 	}
 	u.table = t
 	u.h = y
@@ -285,7 +363,8 @@ func (t *tableLayout) across(r ui.Rect) ui.Rect {
 }
 
 // parts are the frames the grid is drawn in, in the unit: its box, parted
-// by each room open enough within it but one a line left.
+// by each room open enough within it. A line that left closes within the
+// frame, so the frame and its controls close with it.
 func (t *tableLayout) parts(box ui.Rect) []ui.Rect {
 	var downs, acrosses [][2]float32
 	if g := t.rowGap; g.H > 0 {
@@ -296,9 +375,6 @@ func (t *tableLayout) parts(box ui.Rect) []ui.Rect {
 	}
 	for k, a := range t.in.apart {
 		switch r := t.apart[k]; {
-		case a.left:
-			// A room a line left closes within the frame, so the frame
-			// and its controls close with it, even at the grid's end.
 		case a.rows && r.H > 0:
 			downs = append(downs, [2]float32{r.Y, r.H})
 		case !a.rows && r.W > 0:
@@ -519,7 +595,8 @@ func (t *tableLayout) columnAt(x float32) int {
 }
 
 // paint draws the grid beneath its cells' text, in each of its parts:
-// the header's inset, the lines between the cells, and its edge.
+// the header's inset, the lines between the cells, and its edge; and the
+// lines that left, as they were, in the rooms they still have.
 func (tableKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32) float32 {
 	t := u.table
 	if t == nil {
@@ -530,7 +607,70 @@ func (tableKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32
 		part.Y += uy
 		t.paintGrid(el, p, part, u.frame, ux, uy, true, true)
 	}
+	for axis, rooms := range t.gone {
+		for _, g := range rooms {
+			room := g.room
+			if axis == 1 {
+				room = t.across(room)
+			}
+			el.paintGone(p, axis == 0, g, room, ux, uy)
+		}
+	}
 	return 0
+}
+
+// paintGone draws a line that left as it was kept, its cells' text within
+// the room it still has, fading out.
+func (el *Element) paintGone(p *ui.Painter, rows bool, g goneRoom, room ui.Rect, ux, uy float32) {
+	ku := g.kept.u
+	kt := ku.table
+	if kt == nil || g.alpha < 0.002 || room.W < 0.5 || room.H < 0.5 {
+		return
+	}
+	was := kt.line(ku, rows, g.kept.index)
+	dx, dy := room.X-was.X, float32(0)
+	if rows {
+		dx, dy = 0, room.Y-was.Y
+	}
+	room.X += ux
+	room.Y += uy
+	p.Clip(room, 0, func() {
+		for i, s := range ku.surfaces {
+			cc := kt.cells[i]
+			if cc.Row < 0 || !(rows && cc.Row == g.kept.index || !rows && cc.Column == g.kept.index) {
+				continue
+			}
+			sx, sy := ux+dx+s.x, uy+dy+s.y
+			p.TextLayout(s.layout, sx, sy, el.Theme.Prose.Text)
+			el.paintGhosts(p, s, sx, sy)
+			el.paintBoxes(p, s, sx, sy)
+			// It fades into what the grid has under it: the header's
+			// inset, or the page.
+			ground := el.Theme.Surface.Page
+			if kt.header && cc.Row == 0 {
+				ground = el.Theme.Surface.Inset
+			}
+			p.Fill(ui.Rect{X: sx, Y: sy, W: s.w, H: s.h}, ground.Alpha(1-g.alpha), 0)
+		}
+	})
+}
+
+// furthest is the line gliding furthest from its place, over those
+// gliding with it; false while none glides.
+func (t *tableLayout) furthest() (axis, index int, ok bool) {
+	lm := t.in.lines
+	if lm == nil {
+		return 0, 0, false
+	}
+	far := float32(0.5)
+	for a := range lm.offset {
+		for i, o := range lm.offset[a] {
+			if o = max(o, -o); o > far {
+				far, axis, index, ok = o, a, i, true
+			}
+		}
+	}
+	return axis, index, ok
 }
 
 // paintGrid draws the grid within frame, its corners rounded by radius and

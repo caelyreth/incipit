@@ -85,6 +85,10 @@ type Element struct {
 	// for the next paint. animate is whether motion is wanted, as the
 	// last paint found.
 	rooms map[doc.ID]*room
+	// flow is the page's units on their way (flows.go), and left the units
+	// that left it, drawn as they go.
+	flow flow
+	left []left
 	// sizing are the text units whose size moves (sizes.go).
 	sizing map[doc.ID]bool
 	// roomsOf and forgotOf are the layouts whose units the rooms and the
@@ -685,6 +689,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		surfaces []shownSurface
 	}
 	var shown []shownUnit
+	// What left the page goes beneath what stays, as it was kept.
+	for _, l := range el.left {
+		el.paintLeft(p, l, ox, oy, top, bottom)
+	}
 	for _, u := range pl.units {
 		uy := oy + u.y
 		if uy > bottom || uy+u.h < top {
@@ -731,6 +739,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 				su.u.kind.over(el, p, su.u, su.ux, su.uy)
 			}
 		})
+		if su.u.fade < 0.999 {
+			// A unit coming in fades in, with all it draws.
+			el.veil(p, el.unitArea(su.u, ox, su.uy), su.u.fade)
+		}
 	}
 	el.paintOutlines(p, ox, oy, now, animate)
 	for _, u := range pl.units {
@@ -810,12 +822,49 @@ func (el *Element) shownSurfaces(u *unitLayout, panel float32) []shownSurface {
 // clipUnit paints within the room u stands in while it springs, and
 // across within what it shows (unitLayout.view).
 func (el *Element) clipUnit(p *ui.Painter, u *unitLayout, ox, uy float32, paint func()) {
+	p.Clip(el.unitArea(u, ox, uy), 0, paint)
+}
+
+// unitArea is the room u stands in as drawn, across what it shows.
+func (el *Element) unitArea(u *unitLayout, ox, uy float32) ui.Rect {
 	m := el.Editor.metrics
 	r := ui.Rect{X: ox - cardPad(m), Y: uy, W: m.Width + 2*cardPad(m), H: u.shown}
 	if v := u.view; v.W > 0 {
 		r.X, r.W = ox+u.x+v.X, v.W
 	}
-	p.Clip(r, 0, paint)
+	return r
+}
+
+// paintLeft draws a unit that left the page as it was kept: what it draws
+// and its text, within the room it still has, fading out.
+func (el *Element) paintLeft(p *ui.Painter, l left, ox, oy, top, bottom float32) {
+	u := l.u
+	uy := oy + l.y
+	if l.alpha < 0.002 || l.clip < 0.5 || uy > bottom || uy+u.h < top {
+		return
+	}
+	ux := ox + u.x
+	area := el.unitArea(u, ox, uy)
+	area.H = l.clip
+	p.Clip(area, 0, func() {
+		panel := float32(0)
+		if u.kind != nil {
+			panel = u.kind.paint(el, p, u, ux, uy)
+		}
+		for _, s := range u.surfaces {
+			switch {
+			case s.panel && panel > 0.001:
+				el.paintPanel(p, s, ux, uy)
+				el.paintSurface(p, s, ux, uy, true, panel)
+			case s.shown && !s.panel:
+				el.paintSurface(p, s, ux, uy, s.card, 1)
+			}
+		}
+		if u.kind != nil {
+			u.kind.over(el, p, u, ux, uy)
+		}
+		el.veil(p, area, l.alpha)
+	})
 }
 
 // panelArea is the inset a panel surface stands on.

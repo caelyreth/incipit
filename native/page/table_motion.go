@@ -14,9 +14,11 @@ import (
 //     between two columns, and the area beside the end, ease in and out;
 //     the page holds the border a room between two rows opens about
 //     (anchor), so it stays about the pointer.
-//   - Every line a table gains comes in, from nothing or from the size of
-//     the area that made it (tableIn.grow): a run of rows or of columns
-//     whose cells are all new.
+//   - Its rows and its columns are each a flow (flows.go), a line known by
+//     its cells across layouts: a line gained comes in, from nothing or
+//     from the size of the area that made it; one lost goes, drawn as it
+//     was while its room closes; and lines reordered glide to their
+//     places, one carried landing from where it was let go (tableIn.lines).
 //   - A carry parts the grid where it would land and closes it where it no
 //     longer would.
 
@@ -27,18 +29,20 @@ type tableState struct {
 	// below are the areas at its foot, 0, and at its end, 1; rows and
 	// columns those between two lines, by the line after them.
 	below, rows, columns components.CreateGap
-	// landing is a carried line landing, and made a line an area made.
-	landing *tableLanding
-	made    *tableMade
+	// made is a line an area made.
+	made *tableMade
 
 	row, column, borderAt int
-	cells                 map[doc.ID]bool
-	grow                  [2]lineRun
 	apart                 []*apartRoom
+	// lines are its rows' and its columns' flows; lineOf each cell's line,
+	// by the identity its flow knows it by, and ids the lines in order, as
+	// they were last told; wide each column's width as last laid out
+	// whole.
+	lines  [2]flow
+	lineOf [2]map[doc.ID]doc.ID
+	ids    [2][]doc.ID
+	wide   map[doc.ID]float32
 }
-
-// lineRun is a run of lines from to to, empty when to is not past from.
-type lineRun struct{ from, to int }
 
 // apartRoom is room a carry opens before line at, as far as target, and
 // whether a frame shows in it where the carried line would land.
@@ -125,7 +129,7 @@ func (tableKind) step(el *Element, u *unitLayout, in *objectIn) {
 	}
 	follow("border", shareValue, open(hot.unit == id && hot.part == partBorder, 1))
 	el.springs.follow(tableSpring(id, "press", shareValue), open(mine && isArea(held.part), 1), pressFollow)
-	el.growLines(u, ts)
+	lines := el.flowLines(u, ts)
 	el.stepApart(id, ts)
 	tin := tableIn{}
 	if below >= 0.5 {
@@ -140,15 +144,11 @@ func (tableKind) step(el *Element, u *unitLayout, in *objectIn) {
 	k := 0
 	for _, a := range ts.apart {
 		if v := el.springs.value(a.key(id)); v >= 0.5 && k < maxApart {
-			tin.apart[k] = lineRoom{rows: a.rows, at: a.at, room: v, left: !a.frame}
+			tin.apart[k] = lineRoom{rows: a.rows, at: a.at, room: v}
 			k++
 		}
 	}
-	for axis, g := range ts.grow {
-		if g.to > g.from {
-			tin.grow[axis] = lineGrow{from: g.from, to: g.to, share: el.springs.value(growKey(id, axis))}
-		}
-	}
+	tin.lines = lines
 	in.table = tin
 }
 
@@ -186,67 +186,127 @@ func isArea(p part) bool {
 	return p == partBelow || p == partBeside || p == partRowArea || p == partColumnArea
 }
 
-func growKey(table doc.ID, axis int) springKey {
-	return springKey{unit: table, name: "grow", at: axis, of: shareValue}
-}
-
-// growLines brings in the lines a table has gained since it was last laid
-// out: a run of rows, or of columns, whose cells are all new, from the
-// share of its size the area that made it had, else from nothing.
-func (el *Element) growLines(u *unitLayout, ts *tableState) {
+// flowLines tells a table's rows and columns, as its last layout has them,
+// to their flows, steps them, and gives how they are drawn on their way:
+// nil when they stand. A line is known by the identity its cells had, so a
+// line moved, or its cells' text changed, is the line it was; one whose
+// cells are all new is new, entering from the area that made it, where
+// one did.
+func (el *Element) flowLines(u *unitLayout, ts *tableState) *lineMotion {
 	t := u.table
-	id := u.pres.Unit
-	cells := make(map[doc.ID]bool, len(t.cells))
-	fresh := [2][]bool{make([]bool, len(t.rows)), make([]bool, len(t.columns))}
-	for _, f := range fresh {
-		for k := range f {
-			f[k] = true
-		}
+	now, animate := el.springs.now, el.springs.animate
+	n := [2]int{len(t.rows), len(t.columns)}
+	var cells [2][][]doc.ID
+	for axis := range cells {
+		cells[axis] = make([][]doc.ID, n[axis])
 	}
 	for i, cc := range t.cells {
 		if cc.Row < 0 || i >= len(u.pres.Surfaces) {
 			continue
 		}
-		cell := u.pres.Surfaces[i].Flow.Slot.Node
-		cells[cell] = true
-		if ts.cells[cell] {
-			fresh[0][cc.Row], fresh[1][cc.Column] = false, false
-		}
+		c := u.pres.Surfaces[i].Flow.Slot.Node
+		cells[0][cc.Row] = append(cells[0][cc.Row], c)
+		cells[1][cc.Column] = append(cells[1][cc.Column], c)
 	}
-	if ts.cells != nil && el.springs.animate {
-		for axis, f := range fresh {
-			run := lineRun{-1, -1}
-			for k, is := range f {
-				if is {
-					if run.from < 0 {
-						run.from = k
-					}
-					run.to = k + 1
+	if ts.wide == nil {
+		ts.wide = map[doc.ID]float32{}
+	}
+	lm := &lineMotion{}
+	moving, any := false, false
+	for axis := range 2 {
+		ids := make([]doc.ID, n[axis])
+		of := map[doc.ID]doc.ID{}
+		taken := map[doc.ID]bool{}
+		for k, cs := range cells[axis] {
+			for _, c := range cs {
+				if was, ok := ts.lineOf[axis][c]; ok && !taken[was] {
+					ids[k] = was
+					break
 				}
 			}
-			// A table wholly new comes in as a unit does.
-			if run.from < 0 || run.from == 0 && run.to == len(f) {
+			for _, c := range cs {
+				if ids[k] != 0 {
+					break
+				}
+				if !taken[c] {
+					ids[k] = c
+				}
+			}
+			taken[ids[k]] = true
+			for _, c := range cs {
+				of[c] = ids[k]
+			}
+		}
+		f := &ts.lines[axis]
+		same := f.holds(ids)
+		in := make([]flowIn, n[axis])
+		at := float32(0)
+		for k, id := range ids {
+			extent, drawn := float32(0), float32(0)
+			if axis == 0 {
+				extent, drawn = t.natural[k], t.rows[k]
+			} else {
+				drawn = t.columns[k]
+				if _, asked := t.in.lines.extentOf(1, k); !asked || !f.knows(id) {
+					ts.wide[id] = t.widths[k]
+				}
+				extent = ts.wide[id]
+			}
+			if same {
+				// As it stands, it was drawn there.
+				f.saw(id, drawn)
+			}
+			in[k] = flowIn{id: id, place: at, extent: extent, moves: true, kept: keptLine{u: u, index: k}}
+			if m := ts.made; m != nil && m.column == (axis == 1) && m.index == k && !f.knows(id) {
+				in[k].from = m.from * extent
+			}
+			at += extent
+		}
+		f.tell(in, now, animate)
+		ts.lineOf[axis], ts.ids[axis] = of, ids
+		moving = f.step(now, animate) || moving
+		lm.extent[axis] = make([]float32, n[axis])
+		lm.offset[axis] = make([]float32, n[axis])
+		index := make(map[doc.ID]int, n[axis])
+		for k, id := range ids {
+			index[id] = k
+			e, _, o := f.drawn(id, in[k].extent)
+			lm.extent[axis][k], lm.offset[axis][k] = -1, o
+			if e != in[k].extent {
+				lm.extent[axis][k] = e
+				if axis == 1 {
+					lm.extent[axis][k] = e / max(in[k].extent, 1)
+				}
+				any = true
+			}
+			any = any || o != 0
+		}
+		for _, x := range f.exits {
+			after, cover := -1, -1
+			if k, ok := index[x.after]; ok {
+				after = k
+			} else if x.after != 0 {
 				continue
 			}
-			start := float32(0)
-			if m := ts.made; m != nil && m.column == (axis == 1) && m.index == run.from {
-				start = m.from
+			if x.cover != 0 {
+				k, ok := index[x.cover]
+				if !ok {
+					continue
+				}
+				cover = k
 			}
-			ts.grow[axis] = run
-			el.springs.jump(growKey(id, axis), start)
+			lm.gone[axis] = append(lm.gone[axis], lineGone{after: after, cover: cover, room: x.extent.Value(), lead: x.lead,
+				alpha: x.alpha.Value(), kept: x.kept.(keptLine)})
+			any = true
 		}
 	}
-	ts.cells = cells
-	for axis, g := range ts.grow {
-		if g.to <= g.from {
-			continue
-		}
-		key := growKey(id, axis)
-		el.springs.follow(key, 1, layoutSettle)
-		if el.springs.settled(key) {
-			ts.grow[axis] = lineRun{}
-		}
+	if moving {
+		el.springs.moving = true
 	}
+	if !any {
+		return nil
+	}
+	return lm
 }
 
 // stepApart parts the grid where a carried line would land, once the

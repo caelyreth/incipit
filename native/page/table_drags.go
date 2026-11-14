@@ -36,11 +36,10 @@ const (
 	dragSlop = 3
 	// carryVeil is how far a carried line is hidden in its place.
 	carryVeil = 0.6
-	// madeFade is how long a made line shows the area it was, carryLand
-	// how long a carried line's copy takes to land, and carrySettle how
-	// long the pointer stays by a place before the grid parts there.
+	// madeFade is how long a made line shows the area it was, and
+	// carrySettle how long the pointer stays by a place before the grid
+	// parts there.
 	madeFade    = 2 * components.MotionNormal
-	carryLand   = components.MotionNormal
 	carrySettle = 120 * time.Millisecond
 )
 
@@ -194,16 +193,22 @@ func (d *lineDrag) finish(canceled bool, at time.Time) {
 
 // drop lets a carried line go: where the pointer is, in one step of
 // history, unless canceled or it would land where it is, even where the
-// pointer let go before the grid parted for it. Its copy lands from where
-// it was let go; the frame it would land in goes at once, as the line
-// stands there, and the room it left closes behind it.
+// pointer let go before the grid parted for it. It lands from where it
+// was let go, as its line's flow has it; the frame it would land in goes
+// at once, as the line stands there, and the lines it left close behind
+// it.
 func (d *lineDrag) drop(canceled bool, at time.Time) {
 	el := d.el
 	from := d.tablePress.at
 	d.to = d.over
 	ts := el.tableState(d.table)
-	landing := &tableLanding{rows: d.rows, index: from, from: d.corner(), at: at}
-	ts.landing = landing
+	axis, corner := 1, d.corner().X
+	if d.rows {
+		axis, corner = 0, d.corner().Y
+	}
+	if from < len(ts.ids[axis]) {
+		ts.lines[axis].from(ts.ids[axis][from], corner, el.springs.now)
+	}
 	for _, a := range ts.apart {
 		if a.frame && a.target > 0 {
 			a.target = 0
@@ -214,20 +219,12 @@ func (d *lineDrag) drop(canceled bool, at time.Time) {
 	if canceled || !d.moves(d.to) {
 		return
 	}
-	axis := profile.Columns
+	grid := profile.Columns
 	if d.rows {
-		axis = profile.Rows
+		grid = profile.Rows
 	}
 	to := carryIndex(from, d.to)
-	el.Editor.Do(profile.EditGrid{Op: profile.GridMove, Axis: axis, Table: d.table, At: from, Count: 1, To: to}, at)
-	landing.index = to
-	left := from
-	if d.to < from {
-		left = from + 1
-	}
-	a := ts.apartRoom(d.rows, left)
-	a.target, a.frame = 0, false
-	el.springs.jump(a.key(d.table), d.size)
+	el.Editor.Do(profile.EditGrid{Op: profile.GridMove, Axis: grid, Table: d.table, At: from, Count: 1, To: to}, at)
 }
 
 // carryIndex is where a line from goes, landing before slot.
@@ -236,15 +233,6 @@ func carryIndex(from, slot int) int {
 		return slot - 1
 	}
 	return slot
-}
-
-// tableLanding is a carried line's copy on its way from where it was let
-// go, its corner in the unit, into its place.
-type tableLanding struct {
-	rows  bool
-	index int
-	from  ui.Point
-	at    time.Time
 }
 
 // cornerDrag is a press on a table's corner: a click selects the table, a

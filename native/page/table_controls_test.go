@@ -142,6 +142,21 @@ func TestARowsGripCarriesIt(t *testing.T) {
 	if got := c.texts(); got[0][0] != "a" {
 		t.Fatalf("one undo does not put the row back: %v", got)
 	}
+	// Undone, the rows glide back to their places, the one carried
+	// furthest over the rest, and the table keeps its height.
+	c.tt.Frame()
+	c.tt.Advance(32 * time.Millisecond)
+	u = c.table()
+	if axis, index, ok := u.table.furthest(); !ok || axis != 0 || index != 0 || u.h != h0 {
+		t.Fatalf("undone, row %d of axis %d glides furthest (%v), height %v from %v", index, axis, ok, u.h, h0)
+	}
+	if o := u.table.in.lines.offsetOf(0, 0); o <= 0 {
+		t.Fatalf("undone, the carried row glides from %v, want from below", o)
+	}
+	c.tt.Advance(time.Second)
+	if u := c.table(); u.table.in != (tableIn{}) {
+		t.Fatalf("undone, the rows settle as %+v", u.table.in)
+	}
 }
 
 // Let go by its own place, a carried row stays, and so does the grid.
@@ -249,15 +264,15 @@ func TestAnAreaByTheFootMakesARow(t *testing.T) {
 	// It comes in from the area's room, the table's height going on from
 	// where the area left it.
 	u = c.table()
-	if g := u.table.in.grow[0]; g.from != 2 || g.to != 3 || g.share >= 1 || g.share < 0.5 {
-		t.Fatalf("the made row comes in as %+v", g)
+	if e, ok := u.table.in.lines.extentOf(0, 2); !ok || e >= u.table.natural[2] || e < 0.5*min(step, u.table.natural[2]) {
+		t.Fatalf("the made row comes in at %v of %v", e, u.table.natural[2])
 	}
 	if u.h > h0+step+u.table.heights[2] {
 		t.Fatalf("the made row jumps the table to %v", u.h)
 	}
 	c.tt.Advance(time.Second)
-	if u := c.table(); u.table.in.grow[0] != (lineGrow{}) {
-		t.Fatalf("the made row is still coming in: %+v", u.table.in.grow[0])
+	if u := c.table(); u.table.in.lines != nil {
+		t.Fatalf("the made row is still coming in: %+v", u.table.in.lines)
 	}
 }
 
@@ -314,7 +329,8 @@ func TestGripsComeAndGo(t *testing.T) {
 }
 
 // A row the table gains comes in from nothing, the page after it gliding
-// with it; one it loses goes at once.
+// with it; one it loses, as that is undone, closes, drawn as it was, the
+// page after it gliding up with it.
 func TestANewRowComesIn(t *testing.T) {
 	c := newChromePage(t, 2, 2, "a", "b", "c", "d")
 	h0 := c.table().h
@@ -322,15 +338,28 @@ func TestANewRowComesIn(t *testing.T) {
 	c.tt.Frame()
 	c.tt.Advance(16 * time.Millisecond)
 	u := c.table()
-	if g := u.table.in.grow[0]; g.from != 2 || g.to != 3 || g.share >= 0.5 {
-		t.Fatalf("the new row comes in as %+v", g)
+	if e, ok := u.table.in.lines.extentOf(0, 2); !ok || e >= 0.5*u.table.natural[2] {
+		t.Fatalf("the new row comes in at %v of %v", e, u.table.natural[2])
 	}
 	if u.h >= h0+u.table.heights[1] {
 		t.Fatalf("the new row jumps the table to %v from %v", u.h, h0)
 	}
 	c.tt.Advance(time.Second)
-	if u := c.table(); u.table.in != (tableIn{}) || u.shown != u.h {
+	u = c.table()
+	if u.table.in != (tableIn{}) || u.shown != u.h {
 		t.Fatalf("the new row settles as %+v, shown %v of %v", u.table.in, u.shown, u.h)
+	}
+	h1 := u.h
+	c.el.Editor.Do(vocab.Undo{}, time.Unix(7001, 0))
+	c.tt.Frame()
+	c.tt.Advance(80 * time.Millisecond)
+	u = c.table()
+	if len(u.table.gone[0]) != 1 || u.h <= h0 || u.h >= h1 {
+		t.Fatalf("the lost row goes as %+v, the table at %v between %v and %v", u.table.gone[0], u.h, h0, h1)
+	}
+	c.tt.Advance(time.Second)
+	if u := c.table(); len(u.table.gone[0]) != 0 || u.h != h0 {
+		t.Fatalf("the lost row settles as %+v, the table at %v of %v", u.table.gone[0], u.h, h0)
 	}
 }
 

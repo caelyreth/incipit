@@ -195,8 +195,9 @@ type unitLayout struct {
 	// at its edge.
 	view ui.Rect
 	// shown is the height the unit is drawn at: its height, or on its way
-	// there as a surface in it opens or closes.
-	shown float32
+	// there as a surface in it opens or closes; fade how strongly it shows,
+	// short of whole while it comes in.
+	shown, fade float32
 	// size is a text unit's size over the body, its first surface's, and
 	// gap the room above it, in gaps; what it is drawn at while its text
 	// resizes is asked of its layout (sizes.go).
@@ -349,7 +350,7 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 			y += m.Gap * gap
 		}
 		prev = p
-		u.y, u.top, u.shown = y, y, u.h
+		u.y, u.top, u.shown, u.fade = y, y, u.h, 1
 		y += u.h
 		// Index the unit's slots, and its gaps in page order: a gap two
 		// objects share is the first's.
