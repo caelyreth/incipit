@@ -58,6 +58,42 @@ func (p *Pending) Settle(tx uint64, head doc.Caret) *Pending {
 	return p
 }
 
+// Modes are what policies keep for a whole view, each its owner's: what
+// the writer asked of the view that no place in the document holds, as a
+// find's query (§11.7). A mode is a comparable value. Its owner's rules
+// set it (Result.Mode) and read it (Ctx.Mode), and its owner's analyzers
+// read it (Unit.Mode), so their facts follow it.
+type Modes struct{ list []modeOf }
+
+type modeOf struct {
+	owner string
+	value any
+}
+
+// Of is the mode owner keeps, or nil.
+func (m Modes) Of(owner string) any {
+	for _, x := range m.list {
+		if x.owner == owner {
+			return x.value
+		}
+	}
+	return nil
+}
+
+// With is the modes with owner's set to v; nil drops it.
+func (m Modes) With(owner string, v any) Modes {
+	out := make([]modeOf, 0, len(m.list)+1)
+	for _, x := range m.list {
+		if x.owner != owner {
+			out = append(out, x)
+		}
+	}
+	if v != nil {
+		out = append(out, modeOf{owner: owner, value: v})
+	}
+	return Modes{list: out}
+}
+
 // View is one view's state, as the engine keeps it and rules read it.
 type View struct {
 	ID          uint64
@@ -66,6 +102,8 @@ type View struct {
 	// Pending is the marks typing at the caret takes, or nil.
 	Pending     *Pending
 	Annotations Annotations
+	// Modes are the policies' modes for the whole view.
+	Modes Modes
 	// GoalX is the remembered horizontal position for vertical motion.
 	GoalX float64
 }
@@ -136,12 +174,16 @@ type Result struct {
 	// DropPending clears them.
 	Pending     *doc.MarkSet
 	DropPending bool
-	Annotate    []Annotate
-	Drop        []AnnotationID
-	DropKinds   []AnnotationKind
-	Deadlines   []time.Time
-	Effects     []Effect
-	History     *HistoryRequest
+	// Mode sets the policy's mode for the view, a comparable value;
+	// DropMode drops it.
+	Mode      any
+	DropMode  bool
+	Annotate  []Annotate
+	Drop      []AnnotationID
+	DropKinds []AnnotationKind
+	Deadlines []time.Time
+	Effects   []Effect
+	History   *HistoryRequest
 	// GoalX, when set, is the new remembered horizontal position; motion
 	// that is not vertical clears it.
 	GoalX *float64
@@ -154,7 +196,7 @@ type Result struct {
 // Empty reports whether the result does nothing.
 func (r Result) Empty() bool {
 	return len(r.Edits) == 0 && r.Selection == nil && r.Then == nil && r.Composition == nil && !r.EndComposition &&
-		r.Pending == nil && !r.DropPending &&
+		r.Pending == nil && !r.DropPending && r.Mode == nil && !r.DropMode &&
 		len(r.Annotate) == 0 && len(r.Drop) == 0 && len(r.DropKinds) == 0 && len(r.Deadlines) == 0 &&
 		len(r.Effects) == 0 && r.History == nil && r.GoalX == nil
 }

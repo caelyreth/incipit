@@ -139,6 +139,9 @@ func (c *Ctx) Pending() *Pending {
 	return nil
 }
 
+// Mode is the mode owner keeps for the view, or nil.
+func (c *Ctx) Mode(owner string) any { return c.view.Modes.Of(owner) }
+
 // Composition is the active composition, or nil.
 func (c *Ctx) Composition() *Composition { return c.view.Composition }
 
@@ -170,6 +173,7 @@ func buildUnit(prog *Program, r doc.Reader, view *View, ref doc.SlotRef, policy 
 	}
 	if view != nil {
 		u.Annotations = view.Annotations.Owned(policy, ref)
+		u.Mode = view.Modes.Of(policy)
 	}
 	if prog.profile != nil {
 		u.Context = prog.profile.Context(r, ref)

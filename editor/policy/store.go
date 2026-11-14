@@ -170,8 +170,8 @@ func (s *Store) Sweep(keep uint64) {
 }
 
 // unitContext is the part of a unit's input besides its content: the
-// slot's kind and its owner's attributes, the enclosing kinds and the
-// analyzing policy's annotations.
+// slot's kind and its owner's attributes, the enclosing kinds, and the
+// analyzing policy's annotations and mode.
 func unitContext(u *Unit) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d:%d:", u.Owner.Kind(), u.Slot.Slot)
@@ -187,6 +187,9 @@ func unitContext(u *Unit) string {
 	}
 	for _, a := range u.Annotations {
 		fmt.Fprintf(&b, ";%d@%d-%d", a.Kind.ID(), a.Anchor.From.Offset-u.From, a.Anchor.To.Offset-u.From)
+	}
+	if u.Mode != nil {
+		fmt.Fprintf(&b, ";mode=%#v", u.Mode)
 	}
 	return b.String()
 }
@@ -585,7 +588,8 @@ func segmentOf(bounds []int, off int) int {
 
 // held is what the units of a block's own inline slots, its cards' among
 // them, are built from, and those units. While the program, the block and
-// its text, the page's shape and the view's annotations in the block are
+// its text, the page's shape, the view's annotations in the block and its
+// modes are
 // these, the block's units, its cards' but for their own text, are the
 // same: its text (the contents of its own inline slots, new at every
 // change, though a transaction changes its own nodes in place) holds its
@@ -624,11 +628,13 @@ type analyzed struct {
 	facts []Fact
 }
 
-// note is an annotation as a block's units read it.
+// note is what the view adds to a block's units: an annotation as they
+// read it, or a policy's mode for the view, which every unit reads.
 type note struct {
 	owner    string
 	kind     AnnotationKind
 	from, to doc.Caret
+	mode     any
 }
 
 // blockOf is the block whose own inline slots hold id's: id's node, or
@@ -648,12 +654,16 @@ func blockOf(r doc.Reader, id doc.ID) (*doc.Node, bool) {
 	}
 }
 
-// notesIn are the view's annotations in block's own inline slots.
+// notesIn are the view's annotations in block's own inline slots, and its
+// modes.
 func notesIn(r doc.Reader, block *doc.Node, view *View) []note {
 	if view == nil {
 		return nil
 	}
 	var out []note
+	for _, m := range view.Modes.list {
+		out = append(out, note{owner: m.owner, mode: m.value})
+	}
 	for _, a := range view.Annotations.All() {
 		if n, ok := blockOf(r, a.Anchor.From.Pos.Node); ok && n == block {
 			out = append(out, note{owner: a.Owner, kind: a.Kind, from: a.Anchor.From, to: a.Anchor.To})

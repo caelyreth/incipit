@@ -12,6 +12,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"sync"
 	"time"
@@ -502,13 +503,22 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 }
 
 // applyView applies a result's view changes: composition, pending marks,
-// annotations.
+// modes, annotations.
 func (e *Engine) applyView(v *policy.View, res policy.Result, owner string, seq uint64) {
 	if res.DropPending {
 		v.Pending = nil
 	}
 	if res.Pending != nil && v.Selection.Kind == doc.SelectText {
 		v.Pending = &policy.Pending{At: v.Selection.Head, Marks: res.Pending, Owner: owner, Origin: seq}
+	}
+	if res.DropMode {
+		v.Modes = v.Modes.With(owner, nil)
+	}
+	if res.Mode != nil {
+		if !reflect.TypeOf(res.Mode).Comparable() {
+			panic(fmt.Sprintf("engine: %s set a mode that is not comparable: %T", owner, res.Mode))
+		}
+		v.Modes = v.Modes.With(owner, res.Mode)
 	}
 	if res.EndComposition {
 		v.Composition = nil

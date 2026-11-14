@@ -329,8 +329,8 @@ const (
 )
 
 // Unit is what an analyzer reads: a line or a whole inline slot, with the
-// slot's kind and enclosing kinds and the annotations the analyzer's own
-// policy owns there.
+// slot's kind and enclosing kinds, and the annotations the analyzer's own
+// policy owns there and its mode for the view.
 type Unit struct {
 	Slot doc.SlotRef
 	// Owner is the node holding the slot.
@@ -345,6 +345,8 @@ type Unit struct {
 	Line     int
 	// Annotations are the analyzing policy's annotations anchored here.
 	Annotations []Annotation
+	// Mode is the analyzing policy's mode for the view, or nil.
+	Mode any
 	// Context is what the slot's place in the structure adds to its
 	// content, as the profile reports it (vocab.Profile.Context). It
 	// stands before the slot's text, so a line after the first has none.
