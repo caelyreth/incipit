@@ -578,3 +578,27 @@ func TestDecorationsComingIntoViewStandThere(t *testing.T) {
 		t.Fatal("a tag just written did not fade in")
 	}
 }
+
+// A line typed at the foot of the view is revealed above the dock that
+// floats over it, as far as the room below the text lets the page scroll.
+func TestTheCaretsLineClearsTheDock(t *testing.T) {
+	el := newElement(t)
+	el.Top, el.Bottom, el.Dock = 48, 128, 80
+	for range 40 {
+		typeText(el, "a line")
+		el.Editor.Do(vocab.Break{}, time.Unix(900, 0))
+	}
+	typeText(el, "the last")
+	t0 := time.Unix(5000, 0)
+	pl := el.relayout()
+	el.Editor.reveal = true
+	el.follow(pl, t0)
+	el.stepViewport(t0.Add(3*time.Second), true)
+	r := el.caretInElement()
+	if r.Y+r.H > el.viewport.H-el.Dock {
+		t.Fatalf("the caret's line reaches %v, under the dock from %v", r.Y+r.H, el.viewport.H-el.Dock)
+	}
+	if r.Y+r.H < el.viewport.H-el.Dock-2*el.Prose.LineHeight() {
+		t.Fatalf("the caret's line at %v stands far above the dock at %v", r.Y+r.H, el.viewport.H-el.Dock)
+	}
+}

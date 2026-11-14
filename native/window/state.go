@@ -194,14 +194,17 @@ func (a *AppState) pageView(c *ui.Context) {
 	scale := a.Shell.Settings.UIFontSize
 	top := theme.DefaultLayout.ReadingTop * scale / theme.DefaultUIFontSize
 	ui.Column(c).Key("page").Role(ui.RoleGroup).Label("Page").
-		FillHeight().WidthPercent(100).Padding(top, 0, 0, 0).Children(func() {
+		FillHeight().WidthPercent(100).Children(func() {
 		el := a.pageElement()
 		if el == nil {
 			return
 		}
 		el.Theme = semantic
 		el.Prose = a.Shell.Settings.Prose()
-		el.Top, el.Bottom = top/2, top*2
+		// The reading space above the first line is the page's own, so it
+		// scrolls with the text, which leaves at the header.
+		el.Top, el.Bottom = top*3/2, top*2
+		el.Dock = theme.DefaultLayout.DockClearance() * scale / theme.DefaultUIFontSize
 		el.Typewriter = a.Product.Presentation.Typewriter
 		el.Keys = a.Product.Keymap
 		el.UIFontSize = a.Shell.Settings.UIFontSize

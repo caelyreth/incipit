@@ -24,9 +24,11 @@ type Element struct {
 	// Theme and Prose are the colors and text measures the page shows in.
 	Theme theme.Theme
 	Prose theme.ProseStyle
-	// Top and Bottom are the room above and below the text.
-	Top, Bottom float32
-	Label       string
+	// Top and Bottom are the room above and below the text, and Dock how
+	// far up from the view's foot a dock floating over the page reaches:
+	// a revealed caret's line stays above it.
+	Top, Bottom, Dock float32
+	Label             string
 	// Typewriter keeps the caret's line at the viewport's center.
 	Typewriter bool
 	// Keys are the keymap the page's keys resolve through, and its guides
@@ -218,7 +220,7 @@ func (el *Element) applyRestoredScroll(pl *pageLayout) {
 func (el *Element) Still(width float32) (float32, float32) {
 	el.still = true
 	el.viewport.W = width
-	el.Top, el.Bottom = 0, 0
+	el.Top, el.Bottom, el.Dock = 0, 0, 0
 	el.relayout()
 	return el.textSize()
 }
@@ -465,7 +467,13 @@ func (el *Element) revealCaret(pl *pageLayout, now time.Time) {
 		// reveals the page's top.
 		line, y = line+y, 0
 	}
-	target, changed := motion.Reveal(el.scroll, el.viewport.H, y, line, el.Typewriter, now.Before(el.held))
+	view := el.viewport.H
+	if !el.Typewriter {
+		// The line stays clear of the dock; typewriter mode centers it in
+		// the whole view.
+		view = max(view-el.Dock, line)
+	}
+	target, changed := motion.Reveal(el.scroll, view, y, line, el.Typewriter, now.Before(el.held))
 	if !changed {
 		return
 	}
