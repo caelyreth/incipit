@@ -1,6 +1,8 @@
 package search
 
 import (
+	"github.com/caelyreth/neverland/internal/query"
+
 	"errors"
 	"slices"
 	"sync/atomic"
@@ -41,7 +43,7 @@ func TestTheIndexerReadsOnlyWhatTheIndexLacks(t *testing.T) {
 	if reads.Load() != 3 {
 		t.Fatalf("reads %d", reads.Load())
 	}
-	res, _ := x.Search(Parse("gamma"), Request{})
+	res, _ := x.Search(query.Parse("gamma"), Request{})
 	if !slices.Equal(keys(res), []int64{2}) {
 		t.Fatalf("gamma %v", keys(res))
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/search"
+	"github.com/caelyreth/neverland/internal/query"
 )
 
 // lineKey is a sheet at a revision of the index: its lines stand while
@@ -19,7 +20,7 @@ type lineKey struct {
 // line is the line of a sheet's text a query matches, and where.
 type line struct {
 	text  string
-	spans []search.Span
+	spans []query.Span
 }
 
 // lineJob is a sheet whose line is wanted, and how to read its text: off
@@ -37,7 +38,7 @@ type lines struct {
 
 	mu      sync.Mutex
 	current string
-	matcher *search.Matcher
+	matcher *query.Matcher
 	done    map[lineKey]line
 	asked   map[lineKey]bool
 	pending []lineJob
@@ -62,7 +63,7 @@ func newLines(changed func()) *lines {
 func (l *lines) generation() uint64 { return l.gen.Load() }
 
 // query makes text, matched by m, the search whose lines are read.
-func (l *lines) query(text string, m *search.Matcher) {
+func (l *lines) query(text string, m *query.Matcher) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if text == l.current && l.matcher != nil {
@@ -130,7 +131,7 @@ func (l *lines) run() {
 			if t, err := job.read(); err != nil {
 				log.Printf("search line: %v", err)
 			} else if spans := m.Find(t.Body); len(spans) > 0 {
-				got.text, got.spans = search.Line(t.Body, spans, lineWidth)
+				got.text, got.spans = query.Line(t.Body, spans, lineWidth)
 			}
 			l.mu.Lock()
 			if text == l.current {

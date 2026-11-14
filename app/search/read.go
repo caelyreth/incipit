@@ -1,6 +1,8 @@
 package search
 
 import (
+	"github.com/caelyreth/neverland/internal/query"
+
 	"slices"
 	"strings"
 	"unicode"
@@ -151,7 +153,7 @@ func hostAt(text string, i int) string {
 	j := i
 	for j < len(text) {
 		r, n := utf8.DecodeRuneInString(text[j:])
-		if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '-') || unspaced(r) {
+		if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '-') || query.Unspaced(r) {
 			break
 		}
 		j += n
@@ -160,7 +162,7 @@ func hostAt(text string, i int) string {
 	if !strings.Contains(host, ".") {
 		return ""
 	}
-	return Fold(host)
+	return query.Fold(host)
 }
 
 func hasPrefixFold(s, prefix string) bool {

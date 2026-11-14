@@ -1,6 +1,8 @@
 package search
 
 import (
+	"github.com/caelyreth/neverland/internal/query"
+
 	"errors"
 	"fmt"
 	"os"
@@ -172,7 +174,7 @@ func document(p Page) map[string]any {
 	return map[string]any{
 		"rev":        float64(p.Rev),
 		"title":      p.Title,
-		"title_sort": Fold(p.Title),
+		"title_sort": query.Fold(p.Title),
 		"headings":   p.Headings,
 		"body":       p.Body,
 		"code":       p.Code,
@@ -192,7 +194,7 @@ func document(p Page) map[string]any {
 // domainSuffixes are a site and the sites it is under: docs.github.com is
 // also github.com.
 func domainSuffixes(d string) []string {
-	d = strings.TrimPrefix(Fold(strings.TrimSpace(d)), "www.")
+	d = strings.TrimPrefix(query.Fold(strings.TrimSpace(d)), "www.")
 	parts := strings.Split(d, ".")
 	var out []string
 	for i := 0; i+1 < len(parts); i++ {
@@ -211,14 +213,14 @@ const (
 	analyzerQueried = "neverland-query"
 )
 
-type tokenizer struct{ mode Mode }
+type tokenizer struct{ mode query.Mode }
 
 func (t tokenizer) Tokenize(in []byte) analysis.TokenStream {
-	tokens := Tokens(string(in), t.mode)
+	tokens := query.Tokens(string(in), t.mode)
 	out := make(analysis.TokenStream, len(tokens))
 	for i, tk := range tokens {
 		kind := analysis.AlphaNumeric
-		if r := []rune(tk.Term); len(r) > 0 && unspaced(r[0]) {
+		if r := []rune(tk.Term); len(r) > 0 && query.Unspaced(r[0]) {
 			kind = analysis.Ideographic
 		}
 		out[i] = &analysis.Token{Term: []byte(tk.Term), Start: tk.Start, End: tk.End, Position: tk.Pos, Type: kind}
@@ -227,7 +229,7 @@ func (t tokenizer) Tokenize(in []byte) analysis.TokenStream {
 }
 
 func init() {
-	for name, mode := range map[string]Mode{analyzerIndexed: Indexed, analyzerQueried: Queried} {
+	for name, mode := range map[string]query.Mode{analyzerIndexed: query.Indexed, analyzerQueried: query.Queried} {
 		registry.RegisterTokenizer(name, func(map[string]any, *registry.Cache) (analysis.Tokenizer, error) {
 			return tokenizer{mode: mode}, nil
 		})

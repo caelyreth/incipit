@@ -1,4 +1,4 @@
-package search
+package query
 
 import (
 	"slices"
@@ -29,7 +29,7 @@ type pattern struct {
 // few did.
 func NewMatcher(q Query, close bool) *Matcher {
 	m := &Matcher{}
-	issued := issued(q)
+	issued := q.Issued()
 	var visit func(n Node)
 	visit = func(n Node) {
 		switch n := n.(type) {
@@ -77,7 +77,7 @@ func (m *Matcher) add(t *Term, close bool) {
 	if len(tokens) == 1 && !t.Phrase {
 		term := tokens[0].Term
 		runes := utf8.RuneCountInString(term)
-		lone := !unspaced([]rune(term)[0])
+		lone := !Unspaced([]rune(term)[0])
 		p.prefix = t.Open && t.Match != Exact && (runes >= 2 || !lone)
 		if lone && t.Match != Exact && runes >= 4 && (t.Match == Fuzzy || close) {
 			p.typos = 1
@@ -247,4 +247,26 @@ func clip(text string, matches []Span, from, to int) (string, []Span) {
 		spans = append(spans, Span{max(m.From, from) + shift, min(m.To, to) + shift})
 	}
 	return out, spans
+}
+
+// Line is the line of text that holds the first of matches (Find), cut to
+// about width characters around it, with the matches it shows; with no
+// match, the text's first line.
+func Line(text string, matches []Span, width int) (string, []Span) {
+	at := 0
+	if len(matches) > 0 {
+		at = matches[0].From
+	}
+	from := strings.LastIndexByte(text[:at], '\n') + 1
+	to := len(text)
+	if i := strings.IndexByte(text[at:], '\n'); i >= 0 {
+		to = at + i
+	}
+	var in []Span
+	for _, m := range matches {
+		if m.From >= from && m.To <= to {
+			in = append(in, Span{m.From - from, m.To - from})
+		}
+	}
+	return Snippet(text[from:to], in, width)
 }

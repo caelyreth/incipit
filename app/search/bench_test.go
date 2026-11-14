@@ -1,6 +1,8 @@
 package search
 
 import (
+	"github.com/caelyreth/neverland/internal/query"
+
 	"math/rand/v2"
 	"strings"
 	"sync"
@@ -84,7 +86,7 @@ func BenchmarkSearch(b *testing.B) {
 		"budget ", "budget review ", `"budget review"`, "budg", "budgte ", "数据库", "数",
 		"budget $updated:30d $tag:" + "x", "$sort:updated", "",
 	} {
-		q := Parse(text)
+		q := query.Parse(text)
 		b.Run(text, func(b *testing.B) {
 			for b.Loop() {
 				if _, err := x.Search(q, Request{Env: env()}); err != nil {
@@ -109,7 +111,7 @@ func BenchmarkPutOnePage(b *testing.B) {
 
 func BenchmarkMatcherFind(b *testing.B) {
 	page := corpus(5)[1]
-	m := NewMatcher(Parse("budget review planning"), false)
+	m := query.NewMatcher(query.Parse("budget review planning"), false)
 	for b.Loop() {
 		m.Find(page.Body)
 	}
@@ -120,6 +122,6 @@ func BenchmarkTokens(b *testing.B) {
 	text := pages[0].Body + "\n" + pages[1].Body
 	b.SetBytes(int64(len(text)))
 	for b.Loop() {
-		Tokens(text, Indexed)
+		query.Tokens(text, query.Indexed)
 	}
 }

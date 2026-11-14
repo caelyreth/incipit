@@ -3,7 +3,7 @@ package shell
 import (
 	"time"
 
-	"github.com/caelyreth/neverland/app/search"
+	"github.com/caelyreth/neverland/internal/query"
 )
 
 // PlaceKind is a kind of place the library holds, whose sheets the sheet
@@ -71,9 +71,9 @@ type Found struct {
 // is read, and for a sheet whose text holds no match.
 type FoundSheet struct {
 	SheetItem
-	TitleMatches []search.Span
+	TitleMatches []query.Span
 	Line         string
-	LineMatches  []search.Span
+	LineMatches  []query.Span
 }
 
 // GroupEntryKind is what a group's ordered list holds at one position.

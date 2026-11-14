@@ -1,4 +1,4 @@
-package search
+package query
 
 import (
 	"strings"
@@ -55,7 +55,7 @@ func Tokens(text string, mode Mode) []Token {
 			flush()
 			continue
 		}
-		if r, _ := utf8.DecodeRuneInString(seg.Text); unspaced(r) {
+		if r, _ := utf8.DecodeRuneInString(seg.Text); Unspaced(r) {
 			if len(run) > 0 {
 				last := run[len(run)-1]
 				if last.Start+len(last.Text) != seg.Start {
@@ -127,8 +127,8 @@ func index(starts []int, b int) int {
 	return len(starts) - 1
 }
 
-// unspaced reports whether r is written without spaces between words.
-func unspaced(r rune) bool {
+// Unspaced reports whether r is written without spaces between words.
+func Unspaced(r rune) bool {
 	return unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul)
 }
 

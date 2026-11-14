@@ -1,4 +1,4 @@
-package search
+package query
 
 import (
 	"strings"
@@ -391,13 +391,13 @@ func (p *parser) check(f *Filter) {
 		}
 	case k.Takes == TakesNothing:
 		p.issue(f.ValueSpan, Invalid)
-	case !valid(k, f.Value):
+	case !k.Accepts(f.Value):
 		p.issue(f.ValueSpan, Invalid)
 	}
 }
 
-// valid reports whether a key takes a value.
-func valid(k *Key, v string) bool {
+// Accepts reports whether the key takes a value.
+func (k *Key) Accepts(v string) bool {
 	switch k.Takes {
 	case TakesDate:
 		_, ok := parseDates(v)
@@ -574,4 +574,13 @@ func appendPart(parts []Node, n Node) []Node {
 		return parts
 	}
 	return append(parts, n)
+}
+
+// Issued are the spans of the query's parts that do not count.
+func (q Query) Issued() map[Span]bool {
+	out := map[Span]bool{}
+	for _, is := range q.Issues {
+		out[is.Span] = true
+	}
+	return out
 }

@@ -5,7 +5,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/caelyreth/neverland/app/search"
+	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -23,7 +23,7 @@ type finding struct {
 	found Found
 	// completion is what may stand at the caret in query at caret, a
 	// byte offset; suggestion is the item the keys are on.
-	completion search.Completion
+	completion query.Completion
 	query      string
 	caret      int
 	suggestion int
@@ -132,7 +132,7 @@ func (s *State) complete(caret int) {
 		return
 	}
 	f.query, f.caret, f.suggestion, f.first = s.SearchQuery, caret, 0, 0
-	f.completion = search.Complete(s.SearchQuery, caret, search.InNotebook, s.Library.SearchNames)
+	f.completion = query.Complete(s.SearchQuery, caret, query.InNotebook, s.Library.SearchNames)
 }
 
 // completing reports whether a completion is offered for text, the query
@@ -235,7 +235,7 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, field, input ui
 // take writes a suggestion into text in place of the completion's span:
 // the text it makes, and the caret after it, in runes. One that finishes
 // its part has a space after it, for the next.
-func (s *State) take(text string, item search.Suggestion) (string, int) {
+func (s *State) take(text string, item query.Suggestion) (string, int) {
 	span := s.nav.find.completion.Span
 	before, after := text[:span.From]+item.Text, text[span.To:]
 	if item.Done {
@@ -418,7 +418,7 @@ func (s *State) foundRow(c *ui.Context, semantic theme.Theme, sheet FoundSheet, 
 }
 
 // marked is text with its matches marked, as a highlighter marks them.
-func (s *State) marked(c *ui.Context, semantic theme.Theme, text string, matches []search.Span, size theme.TextSize, color ui.Color) ui.Element {
+func (s *State) marked(c *ui.Context, semantic theme.Theme, text string, matches []query.Span, size theme.TextSize, color ui.Color) ui.Element {
 	scale := s.Settings.UIFontSize
 	plain := func(t string) ui.Span {
 		return ui.Span{Text: t, Font: theme.UIFontFamily, Size: size.Size(scale), Color: color}
@@ -451,35 +451,35 @@ func (s *State) marked(c *ui.Context, semantic theme.Theme, text string, matches
 // accent, their values in the heading's color, a - quieter, what is wrong
 // marked and what means nothing here muted.
 func queryRanges(text string, semantic theme.Theme) []ui.TextRange {
-	q := search.Parse(text)
+	q := query.Parse(text)
 	var out []ui.TextRange
-	add := func(sp search.Span, color ui.Color) {
+	add := func(sp query.Span, color ui.Color) {
 		if sp.To > sp.From {
 			out = append(out, ui.TextRange{
 				Start: utf8.RuneCountInString(text[:sp.From]), End: utf8.RuneCountInString(text[:sp.To]), Color: color,
 			})
 		}
 	}
-	search.Walk(q.Root, func(n search.Node) {
+	query.Walk(q.Root, func(n query.Node) {
 		switch n := n.(type) {
-		case *search.Filter:
-			name := search.Span{From: n.From, To: n.To}
+		case *query.Filter:
+			name := query.Span{From: n.From, To: n.To}
 			if n.HasValue && !n.Hash {
 				name.To = n.ValueSpan.From
 				add(n.ValueSpan, semantic.Text.Heading)
 			}
 			add(name, semantic.Accent.Foreground)
-		case *search.Not:
-			add(search.Span{From: n.From, To: n.From + 1}, semantic.Text.Muted)
+		case *query.Not:
+			add(query.Span{From: n.From, To: n.From + 1}, semantic.Text.Muted)
 		}
 	})
 	// What is still being written keeps its colors; what is wrong is
 	// marked, and what means nothing here is quiet.
 	for _, issue := range q.Issues {
 		switch issue.Kind {
-		case search.Unknown, search.Invalid:
+		case query.Unknown, query.Invalid:
 			add(issue.Span, semantic.Status.Danger.Foreground)
-		case search.Inert:
+		case query.Inert:
 			add(issue.Span, semantic.Text.Muted)
 		}
 	}

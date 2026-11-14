@@ -1,6 +1,8 @@
 package search
 
 import (
+	"github.com/caelyreth/neverland/internal/query"
+
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,7 +51,7 @@ func env() Env {
 
 func find(t *testing.T, x *Index, text string) Result {
 	t.Helper()
-	res, err := x.Search(Parse(text), Request{Env: env()})
+	res, err := x.Search(query.Parse(text), Request{Env: env()})
 	if err != nil {
 		t.Fatalf("%q: %v", text, err)
 	}
@@ -159,7 +161,7 @@ func TestSortAndFacets(t *testing.T) {
 	if got := order("$sort:words"); !slices.Equal(got, []int64{10, 20, 30}) {
 		t.Errorf("words %v", got)
 	}
-	res, err := x.Search(Parse("budget"), Request{Env: env(), Facets: []string{"tags", "groups"}})
+	res, err := x.Search(query.Parse("budget"), Request{Env: env(), Facets: []string{"tags", "groups"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,10 +242,10 @@ func TestASheetQueryIsNoQuestionForTheIndex(t *testing.T) {
 // filter builder can write never fails a search.
 func TestEveryKeyRuns(t *testing.T) {
 	x := notebook(t)
-	values := map[Takes]string{TakesText: "budget", TakesOptionalText: "budget", TakesName: "work", TakesDate: "7d", TakesNumber: "10", TakesNothing: ""}
-	for _, k := range Keys {
+	values := map[query.Takes]string{query.TakesText: "budget", query.TakesOptionalText: "budget", query.TakesName: "work", query.TakesDate: "7d", query.TakesNumber: "10", query.TakesNothing: ""}
+	for _, k := range query.Keys {
 		v := values[k.Takes]
-		if k.Takes == TakesChoice {
+		if k.Takes == query.TakesChoice {
 			v = k.Choices[0]
 		}
 		text := "$" + k.Name
@@ -251,7 +253,7 @@ func TestEveryKeyRuns(t *testing.T) {
 			text += ":" + v
 		}
 		for _, q := range []string{text, text + " budget", "-" + text + " budget", "(" + text + " | budget)"} {
-			if _, err := x.Search(Parse(q), Request{Env: env()}); err != nil {
+			if _, err := x.Search(query.Parse(q), Request{Env: env()}); err != nil {
 				t.Errorf("%q: %v", q, err)
 			}
 		}

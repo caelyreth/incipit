@@ -14,6 +14,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/shell"
 )
 
@@ -270,12 +271,12 @@ func (a *AppState) searchSheets(text string) shell.Found {
 	if r := f.found; r != nil && r.query == text && r.generation == gen && r.read == read && r.rev == a.library.Revision() && r.sessions == a.sessionsRev {
 		return r.result
 	}
-	q := search.Parse(text)
+	q := query.Parse(text)
 	res, err := f.index.Search(q, search.Request{Env: a.searchEnv(), Limit: searchLimit})
 	if err != nil {
 		log.Printf("search: %v", err)
 	}
-	m := search.NewMatcher(q, res.Close)
+	m := query.NewMatcher(q, res.Close)
 	f.lines.query(text, m)
 	sessions := a.sessionsBySheet()
 	paths := map[library.GroupID][]int64{}
@@ -335,7 +336,7 @@ func (a *AppState) SearchNames(key string) []string {
 				if a.library.GroupInTrash(g.ID) {
 					continue
 				}
-				if folded := search.Fold(g.Name); !seen[folded] {
+				if folded := query.Fold(g.Name); !seen[folded] {
 					seen[folded] = true
 					names = append(names, g.Name)
 				}
@@ -350,7 +351,7 @@ func (a *AppState) SearchNames(key string) []string {
 
 // OpenFound is part of shell.Library: the sheet opens with the first of
 // the query's matches in it selected, and in view.
-func (a *AppState) OpenFound(name, query string, newTab bool) {
+func (a *AppState) OpenFound(name, text string, newTab bool) {
 	a.OpenSheet(name, newTab)
 	session, ok := a.sessionOf(name)
 	if !ok {
@@ -361,10 +362,10 @@ func (a *AppState) OpenFound(name, query string, newTab bool) {
 		return
 	}
 	close := false
-	if r := a.finder; r != nil && r.found != nil && r.found.query == query {
+	if r := a.finder; r != nil && r.found != nil && r.found.query == text {
 		close = r.found.close
 	}
-	m := search.NewMatcher(search.Parse(query), close)
+	m := query.NewMatcher(query.Parse(text), close)
 	if m.Empty() {
 		return
 	}
@@ -385,7 +386,7 @@ func (a *AppState) searchEnv() search.Env {
 		var visit func(parent library.GroupID)
 		visit = func(parent library.GroupID) {
 			for _, g := range a.library.Groups(parent) {
-				if search.Fold(g.Name) == name {
+				if query.Fold(g.Name) == name {
 					ids = append(ids, int64(g.ID))
 				}
 				visit(g.ID)

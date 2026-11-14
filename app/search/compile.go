@@ -1,6 +1,8 @@
 package search
 
 import (
+	"github.com/caelyreth/neverland/internal/query"
+
 	"math"
 	"slices"
 	"strconv"
@@ -9,7 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/blevesearch/bleve/v2"
-	"github.com/blevesearch/bleve/v2/search/query"
+	bq "github.com/blevesearch/bleve/v2/search/query"
 	"github.com/caelyreth/neverland/editor/profile"
 )
 
@@ -64,10 +66,10 @@ const fewHits = 3
 // cannot see.
 const rerankDepth = 200
 
-// Search runs a notebook query. A query run in a sheet ($sheet) is no
+// Search runs a notebook bq. A query run in a sheet ($sheet) is no
 // question for the index and finds nothing here.
-func (x *Index) Search(q Query, r Request) (Result, error) {
-	if q.Scope != InNotebook {
+func (x *Index) Search(q query.Query, r Request) (Result, error) {
+	if q.Scope != query.InNotebook {
 		return Result{}, nil
 	}
 	if r.Limit <= 0 {
@@ -76,7 +78,7 @@ func (x *Index) Search(q Query, r Request) (Result, error) {
 	if r.Now.IsZero() {
 		r.Now = time.Now()
 	}
-	c := compiler{env: r.Env, issued: issued(q)}
+	c := compiler{env: r.Env, issued: q.Issued()}
 	res, err := x.run(q, r, c.compile(q))
 	if err != nil || res.Total >= fewHits || !c.loose {
 		return res, err
@@ -90,7 +92,7 @@ func (x *Index) Search(q Query, r Request) (Result, error) {
 	return closer, nil
 }
 
-func (x *Index) run(q Query, r Request, bq query.Query) (Result, error) {
+func (x *Index) run(q query.Query, r Request, bq bq.Query) (Result, error) {
 	order, byField := sortOf(q)
 	size, from := r.Limit, r.Offset
 	if !byField {
@@ -161,14 +163,14 @@ func recency(updated any, now time.Time) float64 {
 
 // sortOf is the order a query's $sort asks for, and whether it is a
 // field's rather than relevance.
-func sortOf(q Query) ([]string, bool) {
+func sortOf(q query.Query) ([]string, bool) {
 	var order []string
-	Walk(q.Root, func(n Node) {
-		f, ok := n.(*Filter)
-		if !ok || f.Key == nil || f.Key.Name != "sort" || !valid(f.Key, f.Value) {
+	query.Walk(q.Root, func(n query.Node) {
+		f, ok := n.(*query.Filter)
+		if !ok || f.Key == nil || f.Key.Name != "sort" || !f.Key.Accepts(f.Value) {
 			return
 		}
-		v := Fold(f.Value)
+		v := query.Fold(f.Value)
 		turned := strings.HasPrefix(v, "-")
 		v = strings.TrimPrefix(v, "-")
 		// Dates and lengths run newest and longest first, titles A to Z.
@@ -189,29 +191,20 @@ func sortOf(q Query) ([]string, bool) {
 	return order, order != nil
 }
 
-// issued are the spans of a query's parts that do not count.
-func issued(q Query) map[Span]bool {
-	out := map[Span]bool{}
-	for _, is := range q.Issues {
-		out[is.Span] = true
-	}
-	return out
-}
-
 // compiler turns a parsed query into the index's. It builds field
 // queries, boolean queries, conjunctions and disjunctions only.
 type compiler struct {
 	env    Env
-	issued map[Span]bool
+	issued map[query.Span]bool
 	// close takes words a typo away for every word it may; loose is set
 	// when a query has such a word.
 	close, loose bool
 }
 
-func (c *compiler) compile(q Query) query.Query {
+func (c *compiler) compile(q query.Query) bq.Query {
 	trashed := false
-	Walk(q.Root, func(n Node) {
-		if f, ok := n.(*Filter); ok && f.Key != nil && f.Key.Name == "trash" && !c.issued[f.Span] {
+	query.Walk(q.Root, func(n query.Node) {
+		if f, ok := n.(*query.Filter); ok && f.Key != nil && f.Key.Name == "trash" && !c.issued[f.Span] {
 			trashed = true
 		}
 	})
@@ -225,23 +218,23 @@ func (c *compiler) compile(q Query) query.Query {
 }
 
 // node is a part's query; nil is a part that counts for nothing.
-func (c *compiler) node(n Node) query.Query {
+func (c *compiler) node(n query.Node) bq.Query {
 	switch n := n.(type) {
 	case nil:
 		return nil
-	case *Term:
+	case *query.Term:
 		if n.Text == "" {
 			return nil
 		}
 		return c.text(n, textFields)
-	case *Filter:
+	case *query.Filter:
 		if c.issued[n.Span] || n.Key == nil {
 			return nil
 		}
 		return c.filter(n)
-	case *Group:
+	case *query.Group:
 		return c.node(n.Part)
-	case *Not:
+	case *query.Not:
 		part := c.node(n.Part)
 		if part == nil {
 			return nil
@@ -250,10 +243,10 @@ func (c *compiler) node(n Node) query.Query {
 		b.AddMust(bleve.NewMatchAllQuery())
 		b.AddMustNot(part)
 		return b
-	case *All:
+	case *query.All:
 		return c.all(n.Parts)
-	case *Any:
-		var parts []query.Query
+	case *query.Any:
+		var parts []bq.Query
 		for _, p := range n.Parts {
 			if q := c.node(p); q != nil {
 				parts = append(parts, q)
@@ -271,10 +264,10 @@ func (c *compiler) node(n Node) query.Query {
 }
 
 // all is parts that must all match: its Not parts are what must not.
-func (c *compiler) all(nodes []Node) query.Query {
-	var must, not []query.Query
+func (c *compiler) all(nodes []query.Node) bq.Query {
+	var must, not []bq.Query
 	for _, p := range nodes {
-		if neg, ok := p.(*Not); ok {
+		if neg, ok := p.(*query.Not); ok {
 			if q := c.node(neg.Part); q != nil {
 				not = append(not, q)
 			}
@@ -313,12 +306,12 @@ type field struct {
 var textFields = []field{{"title", 3}, {"headings", 2}, {"body", 1}}
 
 // text is a term looked for in fields.
-func (c *compiler) text(t *Term, fields []field) query.Query {
-	tokens := Tokens(t.Text, Queried)
+func (c *compiler) text(t *query.Term, fields []field) bq.Query {
+	tokens := query.Tokens(t.Text, query.Queried)
 	if len(tokens) == 0 {
 		return bleve.NewMatchNoneQuery()
 	}
-	var parts []query.Query
+	var parts []bq.Query
 	for _, f := range fields {
 		if len(tokens) > 1 || t.Phrase {
 			parts = append(parts, phrase(tokens, f))
@@ -330,17 +323,17 @@ func (c *compiler) text(t *Term, fields []field) query.Query {
 		exact.SetBoost(f.boost)
 		parts = append(parts, exact)
 		runes := utf8.RuneCountInString(term)
-		if t.Open && t.Match != Exact && (runes >= 2 || unspaced([]rune(term)[0])) {
+		if t.Open && t.Match != query.Exact && (runes >= 2 || query.Unspaced([]rune(term)[0])) {
 			pre := bleve.NewPrefixQuery(term)
 			pre.SetField(f.name)
 			pre.SetBoost(f.boost * 0.8)
 			parts = append(parts, pre)
 		}
-		if t.Match != Exact && runes >= 4 && !unspaced([]rune(term)[0]) {
-			if t.Match == Auto {
+		if t.Match != query.Exact && runes >= 4 && !query.Unspaced([]rune(term)[0]) {
+			if t.Match == query.Auto {
 				c.loose = true
 			}
-			if t.Match == Fuzzy || c.close {
+			if t.Match == query.Fuzzy || c.close {
 				fz := bleve.NewFuzzyQuery(term)
 				fz.Fuzziness = 1
 				if runes >= 8 {
@@ -360,7 +353,7 @@ func (c *compiler) text(t *Term, fields []field) query.Query {
 
 // phrase is tokens at their positions, a position the query leaves open
 // taking any term.
-func phrase(tokens []Token, f field) query.Query {
+func phrase(tokens []query.Token, f field) bq.Query {
 	first := tokens[0].Pos
 	slots := make([][]string, tokens[len(tokens)-1].Pos-first+1)
 	for _, tk := range tokens {
@@ -371,17 +364,17 @@ func phrase(tokens []Token, f field) query.Query {
 			slots[i] = []string{""}
 		}
 	}
-	q := query.NewMultiPhraseQuery(slots, f.name)
+	q := bq.NewMultiPhraseQuery(slots, f.name)
 	q.SetBoost(f.boost)
 	return q
 }
 
 // words are a filter's text as the terms it holds, all of which must
 // match in fields.
-func (c *compiler) words(v string, fields []field) query.Query {
-	var parts []query.Query
+func (c *compiler) words(v string, fields []field) bq.Query {
+	var parts []bq.Query
 	for _, w := range strings.Fields(v) {
-		parts = append(parts, c.text(&Term{Text: w}, fields))
+		parts = append(parts, c.text(&query.Term{Text: w}, fields))
 	}
 	switch len(parts) {
 	case 0:
@@ -392,17 +385,17 @@ func (c *compiler) words(v string, fields []field) query.Query {
 	return bleve.NewConjunctionQuery(parts...)
 }
 
-func term(field, value string) query.Query {
+func term(field, value string) bq.Query {
 	q := bleve.NewTermQuery(value)
 	q.SetField(field)
 	return q
 }
 
-func (c *compiler) filter(f *Filter) query.Query {
+func (c *compiler) filter(f *query.Filter) bq.Query {
 	v := f.Value
 	switch f.Key.Name {
 	case "tag":
-		if Fold(v) == "none" {
+		if query.Fold(v) == "none" {
 			q := bleve.NewBoolFieldQuery(false)
 			q.SetField("tagged")
 			return q
@@ -411,7 +404,7 @@ func (c *compiler) filter(f *Filter) query.Query {
 	case "in":
 		var ids []int64
 		if c.env.Groups != nil {
-			ids = c.env.Groups(Fold(v))
+			ids = c.env.Groups(query.Fold(v))
 		}
 		return c.groups(ids)
 	case "inbox":
@@ -426,7 +419,7 @@ func (c *compiler) filter(f *Filter) query.Query {
 		}
 		return bleve.NewDocIDQuery(ids)
 	case "updated", "date", "created":
-		d, _ := ParseDates(v, c.env.Now)
+		d, _ := query.ParseDates(v, c.env.Now)
 		name := "updated"
 		if f.Key.Name == "created" {
 			name = "created"
@@ -436,7 +429,7 @@ func (c *compiler) filter(f *Filter) query.Query {
 		q.SetField(name)
 		return q
 	case "words":
-		n, _ := ParseCounts(v)
+		n, _ := query.ParseCounts(v)
 		var lo, hi *float64
 		if n.HasMin {
 			x := float64(n.Min)
@@ -459,16 +452,16 @@ func (c *compiler) filter(f *Filter) query.Query {
 	case "quote":
 		return c.words(v, []field{{"quote", 1}})
 	case "has":
-		return term("kinds", Fold(v))
+		return term("kinds", query.Fold(v))
 	case "link":
-		return term("domains", strings.TrimPrefix(Fold(v), "www."))
+		return term("domains", strings.TrimPrefix(query.Fold(v), "www."))
 	}
 	// $trash, $sort, $sheet and the find's own keys are no condition here.
 	return nil
 }
 
-func (c *compiler) groups(ids []int64) query.Query {
-	var parts []query.Query
+func (c *compiler) groups(ids []int64) bq.Query {
+	var parts []bq.Query
 	for _, id := range ids {
 		parts = append(parts, term("groups", groupTerm(id)))
 	}

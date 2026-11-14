@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/app/search"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/internal/query"
 )
 
 // typeIntoActivePage types text into the page in front and lets the frame
@@ -26,10 +26,10 @@ func typeIntoActivePage(t *testing.T, app *AppState, text string) {
 	app.save()
 }
 
-func titles(app *AppState, query string) []string {
+func titles(app *AppState, text string) []string {
 	settleSearch(app)
 	var out []string
-	for _, item := range app.Search(query).Sheets {
+	for _, item := range app.Search(text).Sheets {
 		out = append(out, item.Title)
 	}
 	return out
@@ -100,19 +100,19 @@ func TestTheIndexOutlivesAQuitAndIsMadeAgainWhenLost(t *testing.T) {
 
 // foundLine is the line the query matches in the first sheet found, once
 // it is read.
-func foundLine(t *testing.T, app *AppState, query string) (string, []search.Span) {
+func foundLine(t *testing.T, app *AppState, text string) (string, []query.Span) {
 	t.Helper()
 	settleSearch(app)
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
-		found := app.Search(query)
+		found := app.Search(text)
 		if len(found.Sheets) == 0 {
-			t.Fatalf("%q found nothing", query)
+			t.Fatalf("%q found nothing", text)
 		}
 		if found.Sheets[0].Line != "" {
 			return found.Sheets[0].Line, found.Sheets[0].LineMatches
 		}
 	}
-	t.Fatalf("the line of %q was never read", query)
+	t.Fatalf("the line of %q was never read", text)
 	return "", nil
 }
 

@@ -1,4 +1,4 @@
-package search
+package query
 
 // Scope is where a key means something: across the notebook, in the sheet
 // being found in, or both.
