@@ -23,8 +23,10 @@ type Metrics struct {
 	Body, Spacing float32
 	// Width is the text column's width.
 	Width float32
-	// Indent is one list or quote level's indentation.
-	Indent float32
+	// Indent is one quote level's indentation, and a nested list
+	// level's; ListIndent the first list level's, short of a full step so
+	// a list stands near the text around it (indentOf).
+	Indent, ListIndent float32
 	// Gap is the room between units.
 	Gap float32
 	// Reach is how far past the column on each side what is wider than it
@@ -452,10 +454,25 @@ func lineHeight(m Metrics, size float32) float32 {
 	return float32(math.Round(float64(size * m.Spacing)))
 }
 
+// listIndent is how far list levels of nesting indent: the first its own
+// short step, each deeper one a full one.
+func listIndent(levels int, m Metrics) float32 {
+	if levels <= 0 {
+		return 0
+	}
+	return m.ListIndent + float32(levels-1)*m.Indent
+}
+
+// indentOf is how far a unit in c stands in from the column: its lists'
+// indentation and a step for each quote.
+func indentOf(c present.Context, m Metrics) float32 {
+	return listIndent(c.Indent, m) + float32(c.Quotes)*m.Indent
+}
+
 // layUnit shapes a unit's surfaces, an object's as in asks.
 func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, in objectIn) *unitLayout {
 	u := &unitLayout{pres: p}
-	u.x = float32(p.Context.Indent+p.Context.Quotes) * m.Indent
+	u.x = indentOf(p.Context, m)
 	width := max(m.Width-u.x, m.Body*4)
 	if p.Object {
 		for _, st := range p.Stops {

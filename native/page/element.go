@@ -140,7 +140,10 @@ func (el *Element) metrics(width float32) Metrics {
 		Spacing: el.Prose.Spacing,
 		Width:   col,
 		Indent:  el.Prose.FontSize * 1.6,
-		Gap:     el.Prose.Leading() * 0.9,
+		// A list's first level steps in less than a quote, its marker
+		// near the text's edge.
+		ListIndent: el.Prose.FontSize * 0.75,
+		Gap:        el.Prose.Leading() * 0.9,
 		// The margins less the gutters objects' controls stand in.
 		Reach: max((width-col)/2-el.controlGutter(), 0),
 	}
@@ -747,7 +750,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		ux := ox + u.x
 		// Quote bars, one per quote level.
 		for q := 0; q < u.pres.Context.Quotes; q++ {
-			bx := ox + float32(u.pres.Context.Indent+q)*m.Indent + m.Indent*0.3
+			bx := ox + listIndent(u.pres.Context.Indent, m) + float32(q)*m.Indent + m.Indent*0.3
 			p.Fill(ui.Rect{X: bx, Y: uy - m.Gap/2, W: 2, H: u.h + m.Gap}, t.Prose.Subtle, 1)
 		}
 		panel := float32(0)
