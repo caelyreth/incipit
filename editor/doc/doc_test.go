@@ -553,6 +553,32 @@ func TestShapeFollowsTheBlockStructure(t *testing.T) {
 	}
 }
 
+// An inline node's kind and attributes are its text's: setting them gives
+// the text it stands in a new content, though the transaction changes
+// the node in place, so a content pointer versions the text throughout.
+func TestSettingAnInlineNodeGivesItsTextANewContent(t *testing.T) {
+	s := newPage(t, "one")
+	ref := SlotRef{Node: child(s, 0).ID()}
+	formula := NewNode(kFormula, Attrs{}, InlineSlot(TextItem("x", nil)))
+	s, _ = commit(t, s, EditText{At: ref, From: 3, To: 3, Items: []Item{NodeItem(formula)}})
+	var id ID
+	child(s, 0).Slot(0).Content().Nodes(func(_ int, n *Node) bool { id = n.ID(); return false })
+	tx := s.Begin(Origin{Class: OriginCommand})
+	content := func() *Inline { n, _ := tx.Node(ref.Node); return n.Slot(0).Content() }
+	for i := range 2 {
+		before := content()
+		if err := tx.Apply(SetNode{ID: id, Kind: kFormula}); err != nil {
+			t.Fatal(err)
+		}
+		if content() == before {
+			t.Fatalf("setting the formula (%d) kept its text's content", i)
+		}
+	}
+	if tx.Shape() != s.Shape() {
+		t.Fatal("setting an inline node gave a new shape")
+	}
+}
+
 // A history is a value: merging into or pushing onto one version leaves
 // every other as it was, however they branch, and a merge adds its layers
 // to the newest entry's without copying those it holds.

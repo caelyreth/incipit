@@ -177,19 +177,57 @@ func buildUnit(prog *Program, r doc.Reader, view *View, ref doc.SlotRef, policy 
 	return u, true
 }
 
-// FactContext is what an inline slot's facts depend on besides its
-// content: the unit context each analyzing policy reads, its annotations
-// among them. A presentation keyed by it is rebuilt whenever a fact of its
-// slot could change (§13.1).
-func (p *Program) FactContext(r doc.Reader, view *View, ref doc.SlotRef) string {
+// FactContext is what the facts of block's own inline slots depend on
+// besides their content: in its first text slot and each of its cards',
+// the unit context each analyzing policy reads, its annotations among
+// them. A presentation keyed by it is rebuilt whenever a fact of its
+// slots could change (§13.1). It is kept while the block's units are
+// (held).
+func (p *Program) FactContext(store *Store, r doc.Reader, view *View, block *doc.Node) string {
+	notes := notesIn(r, block, view)
+	store.mu.Lock()
+	h := store.held(p, r, block, notes)
+	c, ok := h.context, h.contexted
+	store.mu.Unlock()
+	if ok {
+		return c
+	}
 	var b strings.Builder
-	for _, pol := range p.analyzing {
-		if u, ok := buildUnit(p, r, view, ref, pol); ok {
-			b.WriteString(unitContext(u))
-			b.WriteByte('|')
+	read := func(n *doc.Node) {
+		ref, ok := vocab.FirstTextSlot(n)
+		if !ok || ref.Node != n.ID() {
+			return
+		}
+		above, ok := textAbove(r, ref, block.ID())
+		if !ok {
+			return
+		}
+		store.mu.Lock()
+		sl := h.slot(ref, above)
+		store.mu.Unlock()
+		for i := range p.analyzing {
+			if _, c, ok := store.unit(p, r, view, h, sl, i); ok {
+				b.WriteString(c)
+				b.WriteByte('|')
+			}
 		}
 	}
-	return b.String()
+	read(block)
+	for _, sl := range block.Slots() {
+		if sl.IsInline() {
+			sl.Content().Each(func(_ int, it doc.Item) bool {
+				if it.Node != nil {
+					read(it.Node)
+				}
+				return true
+			})
+		}
+	}
+	c = b.String()
+	store.mu.Lock()
+	h.context, h.contexted = c, true
+	store.mu.Unlock()
+	return c
 }
 
 // Facts returns the facts of a kind in an inline slot, computing them if

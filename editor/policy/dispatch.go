@@ -315,15 +315,7 @@ func (p *Program) facts(store *Store, r doc.Reader, view *View, ref doc.SlotRef,
 	if !ok {
 		return nil
 	}
-	all, ok := store.answered(p, a, r, view, ref)
-	if !ok {
-		u, ok := buildUnit(p, r, view, ref, a.policy)
-		if !ok {
-			return nil
-		}
-		all = store.analyze(a, u)
-		store.answer(p, a, r, view, ref, u.Owner, all)
-	}
+	all := store.factsAt(p, r, view, ref, a)
 	if len(a.kinds) == 1 {
 		return all
 	}

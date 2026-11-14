@@ -20,8 +20,9 @@ import (
 // The invariants of §16 the product manifest must keep, checked over
 // random intent traces: every published document is valid, every
 // selection end is a valid stop, preview equals apply, undo then redo
-// restores the document, saving and loading round-trips, and the intent
-// log replays every published state.
+// restores the document, saving and loading round-trips, the intent log
+// replays every published state, and what the engine keeps of the page is
+// what it would make anew.
 
 // alphabet is what random typing draws from: words, spaces, the Markdown
 // triggers, soft punctuation and CJK.
@@ -202,6 +203,7 @@ func runTrace(t *testing.T, seed uint64, length int) {
 			}
 		}
 		checkPublished(t, e, step)
+		checkKept(t, e, step)
 		states = append(states, rows(e.Snapshot()))
 	}
 

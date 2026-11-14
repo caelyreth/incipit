@@ -428,9 +428,12 @@ func (o SetNode) apply(tx *Tx) (*Step, error) {
 	} else {
 		tx.touched[parent] = true
 		// A block's kind and attributes are part of the block structure;
-		// an inline node's are its text's.
+		// an inline node's are its text's, which takes a new content as
+		// any change to it does, though the node was changed in place.
 		if pn, _ := tx.Node(parent); !pn.slots[slot].inline {
 			tx.reshape()
+		} else {
+			tx.setContent(SlotRef{Node: parent, Slot: slot}, pn.slots[slot].Content().withNode(o.ID, c))
 		}
 	}
 	return &Step{

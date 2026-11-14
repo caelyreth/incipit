@@ -221,36 +221,18 @@ func contextKeyOf(c Context) contextKey {
 	return k
 }
 
-// memoed is a unit's presentation and what its fact context was read
-// from: while the unit's node, the page's shape, the program and the
-// view's annotations in the unit are these, the context is the same.
-type memoed struct {
-	p       *Presentation
-	node    *doc.Node
-	shape   uint64
-	program uint64
-	notes   []note
-}
-
-// note is an annotation as a unit's fact context reads it.
-type note struct {
-	owner    string
-	kind     policy.AnnotationKind
-	from, to doc.Caret
-}
-
 // Presenter memoises presentations. It is per view.
 type Presenter struct {
 	look  vocab.Presentation
 	mu    sync.Mutex
-	memo  map[doc.ID]memoed
+	memo  map[doc.ID]*Presentation
 	units *unitList
 }
 
 // unitList is the units of one block structure, never changed once made,
 // so a scratch presenter shares it.
 type unitList struct {
-	shape uint64
+	shape *doc.Shape
 	list  []UnitRef
 	index map[doc.ID]int
 }
@@ -261,7 +243,7 @@ func NewPresenter(prof vocab.Profile) *Presenter {
 	if !ok {
 		look = plain{}
 	}
-	return &Presenter{look: look, memo: map[doc.ID]memoed{}}
+	return &Presenter{look: look, memo: map[doc.ID]*Presentation{}}
 }
 
 // plain presents a profile that tells nothing: every block is a text unit.
@@ -281,7 +263,7 @@ func (plain) MarkGroup(doc.MarkKind) vocab.Group { return 0 }
 func (pr *Presenter) Scratch() *Presenter {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
-	return &Presenter{look: pr.look, memo: map[doc.ID]memoed{}, units: pr.units}
+	return &Presenter{look: pr.look, memo: map[doc.ID]*Presentation{}, units: pr.units}
 }
 
 // Units lists the page's units in order, with their container context.
@@ -414,7 +396,6 @@ func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Re
 		return nil
 	}
 	key := pr.keyOf(prog, u, n)
-	var notes []note
 	if view != nil {
 		if cards := openCards(r, n, view.Selection); len(cards) > 0 {
 			ids := make([]string, len(cards))
@@ -424,33 +405,20 @@ func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Re
 			key.open = strings.Join(ids, ",")
 		}
 		key.held = u.Gap != nil && held(r, n, view.Selection)
-		notes = notesIn(r, n, view)
 	}
+	key.facts = prog.FactContext(store, r, view, n)
 	pr.mu.Lock()
 	m, ok := pr.memo[u.ID]
 	pr.mu.Unlock()
-	if ok && m.node == n && m.shape == r.Shape() && m.program == key.program && slices.Equal(m.notes, notes) {
-		// What the unit's facts depend on stands: its subtree is its node's,
-		// the blocks around it the shape's.
-		key.facts = m.p.key.facts
-	} else {
-		key.facts = factContext(prog, r, view, append([]doc.ID{u.ID}, inlineObjects(n)...))
-	}
-	seen := memoed{node: n, shape: r.Shape(), program: key.program, notes: notes}
-	if ok && m.p.key == key {
-		seen.p = m.p
-		pr.mu.Lock()
-		pr.memo[u.ID] = seen
-		pr.mu.Unlock()
-		return m.p
+	if ok && m.key == key {
+		return m
 	}
 	p := build(env{prog, store, r, view, pr.look}, u, n, key)
-	seen.p = p
 	pr.mu.Lock()
-	pr.memo[u.ID] = seen
-	if len(pr.memo) > 1<<16 {
+	if len(pr.memo) >= 1<<16 {
 		clear(pr.memo)
 	}
+	pr.memo[u.ID] = p
 	pr.mu.Unlock()
 	return p
 }
@@ -516,52 +484,6 @@ func openCards(r doc.Reader, n *doc.Node, s doc.Selection) []doc.ID {
 	}
 	slices.Sort(open)
 	return slices.Compact(open)
-}
-
-// notesIn are the view's annotations in n's own slots, which its facts
-// may read.
-func notesIn(r doc.Reader, n *doc.Node, view *policy.View) []note {
-	var out []note
-	for _, a := range view.Annotations.All() {
-		if within(r, n, a.Anchor.From.Pos.Node) {
-			out = append(out, note{owner: a.Owner, kind: a.Kind, from: a.Anchor.From, to: a.Anchor.To})
-		}
-	}
-	return out
-}
-
-// inlineObjects are the inline nodes in n's own slots, whose slots n
-// presents as its cards.
-func inlineObjects(n *doc.Node) []doc.ID {
-	var out []doc.ID
-	for _, sl := range n.Slots() {
-		if !sl.IsInline() {
-			continue
-		}
-		sl.Content().Each(func(_ int, it doc.Item) bool {
-			if it.Node != nil {
-				out = append(out, it.Node.ID())
-			}
-			return true
-		})
-	}
-	return out
-}
-
-// factContext is what the facts of the slots a unit presents depend on:
-// its own text's and each card's.
-func factContext(prog *policy.Program, r doc.Reader, view *policy.View, nodes []doc.ID) string {
-	var b strings.Builder
-	for _, id := range nodes {
-		n, ok := r.Node(id)
-		if !ok {
-			continue
-		}
-		if ref, ok := vocab.FirstTextSlot(n); ok && ref.Node == id {
-			b.WriteString(prog.FactContext(r, view, ref))
-		}
-	}
-	return b.String()
 }
 
 // env is what a presentation is built from.

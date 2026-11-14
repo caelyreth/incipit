@@ -16,7 +16,7 @@ type Tx struct {
 	root   *Node
 	index  *trie
 	seed   uint64
-	shape  uint64
+	shape  *Shape
 
 	fresh   map[*Node]bool
 	touched map[ID]bool
@@ -43,7 +43,7 @@ func (tx *Tx) Schema() *Schema  { return tx.schema }
 func (tx *Tx) Marks() *Interner { return tx.marks }
 func (tx *Tx) Root() *Node      { return tx.root }
 func (tx *Tx) Base() *Snapshot  { return tx.base }
-func (tx *Tx) Shape() uint64    { return tx.shape }
+func (tx *Tx) Shape() *Shape    { return tx.shape }
 
 // reshape gives the transaction a shape of its own, as an operation
 // changes its block structure.

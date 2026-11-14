@@ -3,7 +3,6 @@ package doc
 import (
 	"errors"
 	"fmt"
-	"sync/atomic"
 )
 
 // Reader reads a document: a published snapshot, or a transaction's
@@ -21,13 +20,17 @@ type Reader interface {
 	// hold the same blocks in the same block slots, in the same order,
 	// with the same kinds and attributes. Text, marks and inline content
 	// leave it as it is; a change to the structure may give a new one.
-	Shape() uint64
+	Shape() *Shape
 }
 
-// shapes numbers block structures across every page and transaction.
-var shapes atomic.Uint64
+// Shape is a block structure: its pointer is its version, as a node's
+// is, for the structure has no node of its own.
+type Shape struct {
+	// A zero-size value may share its address with every other.
+	_ byte
+}
 
-func newShape() uint64 { return shapes.Add(1) }
+func newShape() *Shape { return new(Shape) }
 
 // Snapshot is a published, immutable document: a root pointer, the id
 // index and the page's mark-set intern table. Taking one costs nothing.
@@ -39,7 +42,7 @@ type Snapshot struct {
 	// seed drives node id generation, so a replay allocates the same ids.
 	seed uint64
 	// shape is the block structure's (Reader.Shape).
-	shape uint64
+	shape *Shape
 }
 
 var _ Reader = (*Snapshot)(nil)
@@ -102,7 +105,7 @@ func NewSnapshot(schema *Schema, marks *Interner, root *Node, seed uint64) (*Sna
 func (s *Snapshot) Schema() *Schema  { return s.schema }
 func (s *Snapshot) Marks() *Interner { return s.marks }
 func (s *Snapshot) Root() *Node      { return s.root }
-func (s *Snapshot) Shape() uint64    { return s.shape }
+func (s *Snapshot) Shape() *Shape    { return s.shape }
 
 // Len is the number of nodes, block and inline.
 func (s *Snapshot) Len() int { return s.index.Len() }

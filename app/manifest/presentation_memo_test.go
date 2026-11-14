@@ -6,11 +6,41 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policies/tags"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
+
+// checkKept checks that what the engine keeps of a view's page, its
+// units and their presentations, is what a fresh presenter and a fresh
+// fact store make of it.
+func checkKept(t *testing.T, e *engine.Engine, when string) {
+	t.Helper()
+	snap := e.Snapshot()
+	prog := e.Program()
+	pr := present.NewPresenter(prog.Profile())
+	units := e.Units(1)
+	if fresh := pr.Units(snap); !reflect.DeepEqual(units, fresh) {
+		t.Fatalf("%s: units kept\n%+v\nfresh\n%+v", when, units, fresh)
+	}
+	ids := make([]doc.ID, len(units))
+	for i, u := range units {
+		ids[i] = u.ID
+	}
+	view, _ := e.View(1)
+	got := e.Present(1, ids)
+	fresh := pr.Present(prog, policy.NewStore(), snap, &view, ids)
+	for i := range got {
+		// Read as assistive technology would, so both are made whole.
+		got[i].AccessOffsets()
+		fresh[i].AccessOffsets()
+		if !reflect.DeepEqual(got[i], fresh[i]) {
+			t.Fatalf("%s: unit %d kept\n%+v\nfresh\n%+v", when, i, got[i], fresh[i])
+		}
+	}
+}
 
 // A view's presentations, kept across edits by their keys, are those a
 // fresh presenter makes: text, blocks made, moved into lists and quotes
@@ -19,22 +49,7 @@ func TestKeptPresentationsAreFreshOnes(t *testing.T) {
 	p := open(t)
 	same := func(when string) {
 		t.Helper()
-		units := p.e.Units(1)
-		ids := make([]doc.ID, len(units))
-		for i, u := range units {
-			ids[i] = u.ID
-		}
-		view, _ := p.e.View(1)
-		got := p.e.Present(1, ids)
-		fresh := present.NewPresenter(p.e.Program().Profile()).Present(p.e.Program(), p.e.Store(), p.e.Snapshot(), &view, ids)
-		for i := range got {
-			// Read as assistive technology would, so both are made whole.
-			got[i].AccessOffsets()
-			fresh[i].AccessOffsets()
-			if !reflect.DeepEqual(got[i], fresh[i]) {
-				t.Fatalf("%s: unit %d kept\n%+v\nfresh\n%+v", when, i, got[i], fresh[i])
-			}
-		}
+		checkKept(t, p.e, when)
 	}
 	p.do(vocab.Paste{Text: "# Head\n\nSome **strong** text (pairs [nested]) and a #tag...\n\n1. one\n2. two\n\n> quoted\n"})
 	same("after the paste")
@@ -221,3 +236,4 @@ func TestKeptFactsAreFreshOnes(t *testing.T) {
 	same("with an annotation", v)
 	same("without it again", view())
 }
+

@@ -33,31 +33,9 @@ type Store struct {
 	summaries map[summaryKey]*summaryEntry
 	// segments: per slot content and program, the segment boundaries.
 	segments map[segmentKey]*segmentEntry
-	// answers: per analyzer and slot, its last facts and what they were
-	// read from besides the slot's content (Program.facts).
-	answers map[slotKey]*answer
-}
-
-// answer is an analyzer's facts for a slot whose owner stands in a block
-// slot, and what its unit was built from: while the program, the owner,
-// the page's shape and the policy's annotations in the slot are these,
-// the unit and its facts are the same.
-type answer struct {
-	prog  *Program
-	owner *doc.Node
-	// content is the slot's: a transaction changes its own nodes' content
-	// in place of their pointers.
-	content *doc.Inline
-	shape   uint64
-	notes   []note
-	facts   []Fact
-	gen     uint64
-}
-
-// note is an annotation as a unit's context reads it.
-type note struct {
-	kind     AnnotationKind
-	from, to doc.Caret
+	// blocks: per block, the units of its own inline slots and what they
+	// were built from (held).
+	blocks map[doc.ID]*held
 }
 
 // NewStore returns an empty store.
@@ -69,7 +47,7 @@ func NewStore() *Store {
 		kinds:     map[kindKey]*kindFacts{},
 		summaries: map[summaryKey]*summaryEntry{},
 		segments:  map[segmentKey]*segmentEntry{},
-		answers:   map[slotKey]*answer{},
+		blocks:    map[doc.ID]*held{},
 	}
 }
 
@@ -174,9 +152,9 @@ func (s *Store) Sweep(keep uint64) {
 			delete(s.kinds, k)
 		}
 	}
-	for k, v := range s.answers {
+	for k, v := range s.blocks {
 		if v.gen < old {
-			delete(s.answers, k)
+			delete(s.blocks, k)
 		}
 	}
 	for k, v := range s.summaries {
@@ -261,24 +239,24 @@ func shift(f Fact, d int) Fact {
 const checkpointEvery = 256
 
 // analyze returns an analyzer's facts for the unit's slot.
-func (s *Store) analyze(a *analyzer, u *Unit) []Fact {
+// analyze returns a's facts for u, whose context (unitContext) is ctx.
+func (s *Store) analyze(a *analyzer, u *Unit, ctx string) []Fact {
 	if a.where != nil && !a.where(u) {
 		return nil
 	}
 	switch a.form {
 	case formUnit:
 		if a.granularity == Lines {
-			return s.analyzeLines(a, u)
+			return s.analyzeLines(a, u, ctx)
 		}
-		return s.analyzeSlot(a, u)
+		return s.analyzeSlot(a, u, ctx)
 	case formScanner:
-		return s.scan(a, u)
+		return s.scan(a, u, ctx)
 	}
 	return nil
 }
 
-func (s *Store) analyzeSlot(a *analyzer, u *Unit) []Fact {
-	ctx := unitContext(u)
+func (s *Store) analyzeSlot(a *analyzer, u *Unit, ctx string) []Fact {
 	key := slotKey{config: a.config, slot: u.Slot}
 	s.mu.Lock()
 	if e, ok := s.slots[key]; ok && e.content == u.Content && e.context == ctx {
@@ -300,8 +278,7 @@ func (s *Store) analyzeSlot(a *analyzer, u *Unit) []Fact {
 // analyzeLines returns a line analyzer's facts for the unit's slot: as
 // last merged while the slot's content and context are those it was
 // merged from, else each line's from the line cache or the analyzer.
-func (s *Store) analyzeLines(a *analyzer, u *Unit) []Fact {
-	ctx := unitContext(u)
+func (s *Store) analyzeLines(a *analyzer, u *Unit, ctx string) []Fact {
 	key := slotKey{config: a.config, slot: u.Slot}
 	s.mu.Lock()
 	if e, ok := s.lineSlots[key]; ok && e.content == u.Content && e.context == ctx {
@@ -391,8 +368,7 @@ func annotationsIn(all []Annotation, from, to int) []Annotation {
 // checkpoint before the change and stops at the first checkpoint past the
 // change whose state equals the cached one; the cached facts emitted after
 // that checkpoint are reused, shifted by the edit's length change.
-func (s *Store) scan(a *analyzer, u *Unit) []Fact {
-	ctx := unitContext(u)
+func (s *Store) scan(a *analyzer, u *Unit, ctx string) []Fact {
 	key := slotKey{config: a.config, slot: u.Slot}
 	s.mu.Lock()
 	prev := s.slots[key]
@@ -602,51 +578,209 @@ func segmentOf(bounds []int, off int) int {
 	return 2*i - 1
 }
 
-// answered is a's last facts for the slot at ref while what its unit is
-// built from stands (answer): the owner node covers its kind, attributes
-// and content, and, the owner standing in a block slot, the page's shape
-// covers the kinds enclosing it and the profile's context, which read
-// only the blocks. A card's slot, inside an inline node, is read anew.
-func (s *Store) answered(p *Program, a *analyzer, r doc.Reader, view *View, ref doc.SlotRef) ([]Fact, bool) {
-	s.mu.Lock()
-	e, ok := s.answers[slotKey{config: a.config, slot: ref}]
-	s.mu.Unlock()
-	if !ok || e.prog != p || e.shape != r.Shape() {
-		return nil, false
-	}
-	if n, ok := r.Node(ref.Node); !ok || n != e.owner || ref.Slot >= n.NumSlots() || n.Slot(ref.Slot).Content() != e.content || !slices.Equal(e.notes, notesOf(view, a.policy, ref)) {
-		return nil, false
-	}
-	s.mu.Lock()
-	e.gen = s.gen
-	s.mu.Unlock()
-	return e.facts, true
+// held is what the units of a block's own inline slots, its cards' among
+// them, are built from, and those units. While the program, the block and
+// its text, the page's shape and the view's annotations in the block are
+// these, the block's units, its cards' but for their own text, are the
+// same: its text (the contents of its own inline slots, new at every
+// change, though a transaction changes its own nodes in place) holds its
+// cards, their kinds and attributes and where they stand, and the shape
+// covers the block's kind and attributes and the blocks around it, which
+// are all the kinds enclosing it and the profile's context read (§13.1).
+type held struct {
+	prog  *Program
+	block *doc.Node
+	text  []*doc.Inline
+	shape *doc.Shape
+	notes []note
+	slots []*heldSlot
+	// context is the block's Program.FactContext, once read.
+	context   string
+	contexted bool
+	gen       uint64
 }
 
-// answer keeps a's facts for the slot at ref, owned by owner, when the
-// owner stands in a block slot.
-func (s *Store) answer(p *Program, a *analyzer, r doc.Reader, view *View, ref doc.SlotRef, owner *doc.Node, facts []Fact) {
-	if parent, slot, ok := r.Parent(ref.Node); ok {
-		if pn, ok := r.Node(parent); !ok || pn.Slot(slot).IsInline() {
-			return
+// heldSlot is one slot's units, one per analyzing policy in the
+// program's order, their contexts (unitContext) and the facts analyzers
+// read from them, each made when first read. A card's slot holds them
+// while its own text, and that of any card between it and the block, is
+// above.
+type heldSlot struct {
+	ref   doc.SlotRef
+	above []*doc.Inline
+	units []*Unit
+	ctxs  []string
+	facts []analyzed
+}
+
+// analyzed is an analyzer's facts from a held unit.
+type analyzed struct {
+	a     *analyzer
+	facts []Fact
+}
+
+// note is an annotation as a block's units read it.
+type note struct {
+	owner    string
+	kind     AnnotationKind
+	from, to doc.Caret
+}
+
+// blockOf is the block whose own inline slots hold id's: id's node, or
+// for an inline node the nearest block holding it.
+func blockOf(r doc.Reader, id doc.ID) (*doc.Node, bool) {
+	for {
+		n, ok := r.Node(id)
+		if !ok {
+			return nil, false
+		}
+		if spec, ok := r.Schema().Kind(n.Kind()); !ok || spec.Placement != doc.PlaceInline {
+			return n, true
+		}
+		if id, _, ok = r.Parent(id); !ok {
+			return nil, false
 		}
 	}
-	e := &answer{prog: p, owner: owner, content: owner.Slot(ref.Slot).Content(), shape: r.Shape(), notes: notesOf(view, a.policy, ref), facts: facts}
-	s.mu.Lock()
-	e.gen = s.gen
-	s.answers[slotKey{config: a.config, slot: ref}] = e
-	s.mu.Unlock()
 }
 
-// notesOf are the annotations policy owns in the slot at ref, as a unit
-// built there reads them.
-func notesOf(view *View, policy string, ref doc.SlotRef) []note {
+// notesIn are the view's annotations in block's own inline slots.
+func notesIn(r doc.Reader, block *doc.Node, view *View) []note {
 	if view == nil {
 		return nil
 	}
 	var out []note
-	for _, an := range view.Annotations.Owned(policy, ref) {
-		out = append(out, note{kind: an.Kind, from: an.Anchor.From, to: an.Anchor.To})
+	for _, a := range view.Annotations.All() {
+		if n, ok := blockOf(r, a.Anchor.From.Pos.Node); ok && n == block {
+			out = append(out, note{owner: a.Owner, kind: a.Kind, from: a.Anchor.From, to: a.Anchor.To})
+		}
 	}
 	return out
+}
+
+// textOf is the contents of n's inline slots, nil for a slot of blocks.
+func textOf(n *doc.Node) []*doc.Inline {
+	out := make([]*doc.Inline, n.NumSlots())
+	for i := range out {
+		if sl := n.Slot(i); sl.IsInline() {
+			out[i] = sl.Content()
+		}
+	}
+	return out
+}
+
+// hasText reports whether n's inline slots hold text.
+func hasText(n *doc.Node, text []*doc.Inline) bool {
+	if n.NumSlots() != len(text) {
+		return false
+	}
+	for i, t := range text {
+		if sl := n.Slot(i); sl.IsInline() && sl.Content() != t {
+			return false
+		}
+	}
+	return true
+}
+
+// held is the store's record of block's units, made anew when what they
+// are built from changed. The caller holds mu.
+func (s *Store) held(p *Program, r doc.Reader, block *doc.Node, notes []note) *held {
+	h, ok := s.blocks[block.ID()]
+	if !ok || h.prog != p || h.block != block || !hasText(block, h.text) || h.shape != r.Shape() || !slices.Equal(h.notes, notes) {
+		h = &held{prog: p, block: block, text: textOf(block), shape: r.Shape(), notes: notes}
+		s.blocks[block.ID()] = h
+	}
+	h.gen = s.gen
+	return h
+}
+
+// factsAt are a's facts in the inline slot at ref, kept with the unit
+// they were read from.
+func (s *Store) factsAt(p *Program, r doc.Reader, view *View, ref doc.SlotRef, a *analyzer) []Fact {
+	block, ok := blockOf(r, ref.Node)
+	if !ok {
+		return nil
+	}
+	above, ok := textAbove(r, ref, block.ID())
+	if !ok {
+		return nil
+	}
+	notes := notesIn(r, block, view)
+	s.mu.Lock()
+	h := s.held(p, r, block, notes)
+	sl := h.slot(ref, above)
+	for _, f := range sl.facts {
+		if f.a == a {
+			s.mu.Unlock()
+			return f.facts
+		}
+	}
+	s.mu.Unlock()
+	u, c, ok := s.unit(p, r, view, h, sl, slices.Index(p.analyzing, a.policy))
+	if !ok {
+		return nil
+	}
+	all := s.analyze(a, u, c)
+	s.mu.Lock()
+	sl.facts = append(sl.facts, analyzed{a: a, facts: all})
+	s.mu.Unlock()
+	return all
+}
+
+// unit is the i-th analyzing policy's unit in sl, a slot of h's block's
+// own, and its context, or false if sl is no inline slot.
+func (s *Store) unit(p *Program, r doc.Reader, view *View, h *held, sl *heldSlot, i int) (*Unit, string, bool) {
+	s.mu.Lock()
+	u, c := sl.units[i], sl.ctxs[i]
+	s.mu.Unlock()
+	if u != nil {
+		return u, c, true
+	}
+	u, ok := buildUnit(p, r, view, sl.ref, p.analyzing[i])
+	if !ok {
+		return nil, "", false
+	}
+	c = unitContext(u)
+	s.mu.Lock()
+	sl.units[i], sl.ctxs[i] = u, c
+	s.mu.Unlock()
+	return u, c, true
+}
+
+// textAbove is the text of a card's slot at ref and of each card between
+// it and the block, innermost first (none for the block's own slot), or
+// false if ref is no inline slot.
+func textAbove(r doc.Reader, ref doc.SlotRef, block doc.ID) ([]*doc.Inline, bool) {
+	var out []*doc.Inline
+	for id, slot := ref.Node, ref.Slot; id != block; {
+		n, ok := r.Node(id)
+		if !ok || slot >= n.NumSlots() || !n.Slot(slot).IsInline() {
+			return nil, false
+		}
+		out = append(out, n.Slot(slot).Content())
+		if id, slot, ok = r.Parent(id); !ok {
+			return nil, false
+		}
+	}
+	return out, true
+}
+
+// slot is h's record of the slot at ref with text above it, made anew if
+// that text changed. The caller holds mu.
+func (h *held) slot(ref doc.SlotRef, above []*doc.Inline) *heldSlot {
+	n := len(h.prog.analyzing)
+	fresh := func() *heldSlot {
+		return &heldSlot{ref: ref, above: above, units: make([]*Unit, n), ctxs: make([]string, n)}
+	}
+	for i, sl := range h.slots {
+		if sl.ref == ref {
+			if !slices.Equal(sl.above, above) {
+				// A unit still being read from the old text lands in the old
+				// record.
+				h.slots[i] = fresh()
+			}
+			return h.slots[i]
+		}
+	}
+	h.slots = append(h.slots, fresh())
+	return h.slots[len(h.slots)-1]
 }
