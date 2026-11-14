@@ -167,3 +167,57 @@ func TestRunsAreCutAtGhostsAndStyledEdges(t *testing.T) {
 		t.Fatalf("only %d styled pieces: the page styles too little to test", styledPieces)
 	}
 }
+
+// The facts the engine's store answers for a slot are a fresh store's,
+// across text, blocks made and moved, rewrites and an annotation in it.
+func TestKeptFactsAreFreshOnes(t *testing.T) {
+	p := open(t)
+	prog := p.e.Program()
+	var kinds []policy.FactID
+	kinds = append(kinds, prog.Projecting()...)
+	for _, st := range prog.Styled() {
+		kinds = append(kinds, st.Kind)
+	}
+	same := func(when string, view policy.View) {
+		t.Helper()
+		snap := p.e.Snapshot()
+		for _, u := range p.e.Units(1) {
+			n := mustNode(t, snap, u.ID)
+			ref, ok := vocab.FirstTextSlot(n)
+			if !ok {
+				continue
+			}
+			for _, k := range kinds {
+				got := prog.FactsIn(p.e.Store(), snap, &view, ref, k)
+				want := prog.FactsIn(policy.NewStore(), snap, &view, ref, k)
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("%s: kind %v in %v: kept %v, fresh %v", when, k, ref, got, want)
+				}
+			}
+		}
+	}
+	view := func() policy.View { v, _ := p.e.View(1); return v }
+	p.typeText("# Head *em*")
+	p.do(vocab.Break{})
+	p.typeText("1. one **b** #tag")
+	same("after a list", view())
+	p.do(vocab.Break{})
+	p.typeText("two `c`")
+	same("after a second item", view())
+	p.do(vocab.Break{})
+	p.do(vocab.Break{})
+	p.typeText("> quote -")
+	p.typeText("-")
+	same("after a rewrite", view())
+	for range 12 {
+		p.do(left)
+	}
+	p.do(backspace)
+	same("after a join", view())
+	v := view()
+	ref, _ := vocab.FirstTextSlot(mustNode(t, p.e.Snapshot(), p.e.Units(1)[0].ID))
+	v.Annotations, _ = v.Annotations.Add(policy.Annotation{Kind: policy.Armed, Owner: tags.ID,
+		Anchor: policy.Between(doc.At(ref, 0), doc.At(ref, 2)), Lifetime: policy.WithView})
+	same("with an annotation", v)
+	same("without it again", view())
+}

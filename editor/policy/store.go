@@ -33,6 +33,31 @@ type Store struct {
 	summaries map[summaryKey]*summaryEntry
 	// segments: per slot content and program, the segment boundaries.
 	segments map[segmentKey]*segmentEntry
+	// answers: per analyzer and slot, its last facts and what they were
+	// read from besides the slot's content (Program.facts).
+	answers map[slotKey]*answer
+}
+
+// answer is an analyzer's facts for a slot whose owner stands in a block
+// slot, and what its unit was built from: while the program, the owner,
+// the page's shape and the policy's annotations in the slot are these,
+// the unit and its facts are the same.
+type answer struct {
+	prog  *Program
+	owner *doc.Node
+	// content is the slot's: a transaction changes its own nodes' content
+	// in place of their pointers.
+	content *doc.Inline
+	shape   uint64
+	notes   []note
+	facts   []Fact
+	gen     uint64
+}
+
+// note is an annotation as a unit's context reads it.
+type note struct {
+	kind     AnnotationKind
+	from, to doc.Caret
 }
 
 // NewStore returns an empty store.
@@ -44,6 +69,7 @@ func NewStore() *Store {
 		kinds:     map[kindKey]*kindFacts{},
 		summaries: map[summaryKey]*summaryEntry{},
 		segments:  map[segmentKey]*segmentEntry{},
+		answers:   map[slotKey]*answer{},
 	}
 }
 
@@ -146,6 +172,11 @@ func (s *Store) Sweep(keep uint64) {
 	for k, v := range s.kinds {
 		if v.gen < old {
 			delete(s.kinds, k)
+		}
+	}
+	for k, v := range s.answers {
+		if v.gen < old {
+			delete(s.answers, k)
 		}
 	}
 	for k, v := range s.summaries {
@@ -569,4 +600,53 @@ func segmentOf(bounds []int, off int) int {
 		return 2 * i
 	}
 	return 2*i - 1
+}
+
+// answered is a's last facts for the slot at ref while what its unit is
+// built from stands (answer): the owner node covers its kind, attributes
+// and content, and, the owner standing in a block slot, the page's shape
+// covers the kinds enclosing it and the profile's context, which read
+// only the blocks. A card's slot, inside an inline node, is read anew.
+func (s *Store) answered(p *Program, a *analyzer, r doc.Reader, view *View, ref doc.SlotRef) ([]Fact, bool) {
+	s.mu.Lock()
+	e, ok := s.answers[slotKey{config: a.config, slot: ref}]
+	s.mu.Unlock()
+	if !ok || e.prog != p || e.shape != r.Shape() {
+		return nil, false
+	}
+	if n, ok := r.Node(ref.Node); !ok || n != e.owner || ref.Slot >= n.NumSlots() || n.Slot(ref.Slot).Content() != e.content || !slices.Equal(e.notes, notesOf(view, a.policy, ref)) {
+		return nil, false
+	}
+	s.mu.Lock()
+	e.gen = s.gen
+	s.mu.Unlock()
+	return e.facts, true
+}
+
+// answer keeps a's facts for the slot at ref, owned by owner, when the
+// owner stands in a block slot.
+func (s *Store) answer(p *Program, a *analyzer, r doc.Reader, view *View, ref doc.SlotRef, owner *doc.Node, facts []Fact) {
+	if parent, slot, ok := r.Parent(ref.Node); ok {
+		if pn, ok := r.Node(parent); !ok || pn.Slot(slot).IsInline() {
+			return
+		}
+	}
+	e := &answer{prog: p, owner: owner, content: owner.Slot(ref.Slot).Content(), shape: r.Shape(), notes: notesOf(view, a.policy, ref), facts: facts}
+	s.mu.Lock()
+	e.gen = s.gen
+	s.answers[slotKey{config: a.config, slot: ref}] = e
+	s.mu.Unlock()
+}
+
+// notesOf are the annotations policy owns in the slot at ref, as a unit
+// built there reads them.
+func notesOf(view *View, policy string, ref doc.SlotRef) []note {
+	if view == nil {
+		return nil
+	}
+	var out []note
+	for _, an := range view.Annotations.Owned(policy, ref) {
+		out = append(out, note{kind: an.Kind, from: an.Anchor.From, to: an.Anchor.To})
+	}
+	return out
 }
