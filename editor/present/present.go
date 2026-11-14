@@ -17,6 +17,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/clipperhouse/uax29/v2/graphemes"
 )
 
 // Context is a unit's container context, as the profile tells it.
@@ -800,9 +801,10 @@ func flowOf(e env, p *Presentation, ref doc.SlotRef, base vocab.Group, card bool
 				}
 				items = append(items, Item{Kind: TextRun, From: from, To: to, Text: text, Groups: run})
 			}
-			for off := from; off < to; {
-				off = from + vocab.NextGrapheme(text, off-from)
-				stop(off)
+			// A stop after each grapheme, from one segmenting of the piece:
+			// cut at line breaks and facts' edges, it starts at a boundary.
+			for g := graphemes.FromString(text); g.Next(); {
+				stop(from + g.End())
 			}
 		}
 		return true

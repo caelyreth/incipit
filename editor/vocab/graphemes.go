@@ -24,10 +24,11 @@ func NextGrapheme(s string, off int) int {
 	if off >= len(s) {
 		return len(s)
 	}
-	iter := graphemes.FromString(s)
+	b := boundaryAtOrBefore(s, off)
+	iter := graphemes.FromString(s[b:])
 	for iter.Next() {
-		if iter.End() > off {
-			return iter.End()
+		if b+iter.End() > off {
+			return b + iter.End()
 		}
 	}
 	return len(s)
@@ -41,15 +42,33 @@ func PrevGrapheme(s string, off int) int {
 	if off >= len(s) {
 		off = len(s)
 	}
-	iter := graphemes.FromString(s)
-	prev := 0
+	b := boundaryAtOrBefore(s, off-1)
+	iter := graphemes.FromString(s[b:])
+	prev := b
 	for iter.Next() {
-		if iter.End() >= off {
-			return iter.Start()
+		if b+iter.End() >= off {
+			return b + iter.Start()
 		}
-		prev = iter.Start()
+		prev = b + iter.Start()
 	}
 	return prev
+}
+
+// boundaryAtOrBefore is a grapheme boundary at or before at, near it, from
+// which segmenting finds the boundaries segmenting all of s finds. Between
+// two ASCII characters but CR LF there is always one (UAX #29: neither is
+// Extend, SpacingMark, ZWJ, Prepend or a regional indicator), so the search
+// goes back to the nearest such pair, or to the start.
+func boundaryAtOrBefore(s string, at int) int {
+	if at >= len(s) {
+		return len(s)
+	}
+	for i := at; i > 0; i-- {
+		if s[i-1] < utf8.RuneSelf && s[i] < utf8.RuneSelf && (s[i-1] != '\r' || s[i] != '\n') {
+			return i
+		}
+	}
+	return 0
 }
 
 // GraphemeCount is the number of graphemes in s.
@@ -68,10 +87,11 @@ func GraphemeAt(s string, off int) (text string, start, end int, ok bool) {
 	if off < 0 || off >= len(s) {
 		return "", 0, 0, false
 	}
-	iter := graphemes.FromString(s)
+	b := boundaryAtOrBefore(s, off)
+	iter := graphemes.FromString(s[b:])
 	for iter.Next() {
-		if iter.End() > off {
-			return iter.Value(), iter.Start(), iter.End(), true
+		if b+iter.End() > off {
+			return iter.Value(), b + iter.Start(), b + iter.End(), true
 		}
 	}
 	return "", 0, 0, false

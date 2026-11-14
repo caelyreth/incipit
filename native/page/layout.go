@@ -13,6 +13,7 @@ import (
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/clipperhouse/uax29/v2/graphemes"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -672,11 +673,8 @@ func (sl *surfaceLayout) u16Of(off, stop int) int {
 // graphemeOffset is the byte offset after the first k graphemes of s.
 func graphemeOffset(s string, k int) int {
 	off := 0
-	for range k {
-		if off >= len(s) {
-			break
-		}
-		off = vocab.NextGrapheme(s, off)
+	for g := graphemes.FromString(s); k > 0 && g.Next(); k-- {
+		off = g.End()
 	}
 	return off
 }
