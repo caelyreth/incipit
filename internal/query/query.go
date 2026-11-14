@@ -124,8 +124,17 @@ func Parse(text string) Query {
 		}
 	})
 	Walk(q.Root, func(n Node) {
-		if f, ok := n.(*Filter); ok && f.Key != nil && f.Key.Scope&q.Scope == 0 {
-			p.issue(f.Span, Inert)
+		switch n := n.(type) {
+		case *Filter:
+			if n.Key != nil && n.Key.Scope&q.Scope == 0 {
+				p.issue(n.Span, Inert)
+			}
+		case *Not:
+			// A setting holds of the whole query: there is no sheet it
+			// does not hold of.
+			if f, ok := n.Part.(*Filter); ok && f.Key != nil && f.Key.Setting {
+				p.issue(f.Span, Invalid)
+			}
 		}
 	})
 	q.Issues = p.issues
@@ -169,7 +178,11 @@ func write(b *strings.Builder, n Node) {
 		}
 		b.WriteString("$" + n.Name)
 		if n.HasValue {
-			b.WriteString(":" + value(n.Value))
+			// A value not written yet is left to be written.
+			b.WriteByte(':')
+			if n.Value != "" {
+				b.WriteString(value(n.Value))
+			}
 		}
 	case *Not:
 		b.WriteByte('-')

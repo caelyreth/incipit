@@ -625,6 +625,15 @@ func (f *fakeLibrary) SearchNames(key string) []string {
 	return nil
 }
 
+func (f *fakeLibrary) SearchCounts(text, key string, values []string) map[string]int {
+	f.call("count " + key + " in " + text)
+	out := map[string]int{}
+	for i, v := range values {
+		out[v] = i + 1
+	}
+	return out
+}
+
 func (f *fakeLibrary) OpenFound(id, text string, newTab bool) {
 	f.call("open found " + id + " " + text)
 }

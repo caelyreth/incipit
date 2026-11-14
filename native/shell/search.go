@@ -20,12 +20,16 @@ type finding struct {
 	reveal bool
 	// found is the search last shown, for the keys.
 	found Found
+	// building shows the filter builder; focusFilter is the condition
+	// whose value field takes the focus in the next frame, -1 for none.
+	building    bool
+	focusFilter int
 }
 
 // Search shows search in the sheet list, its field focused.
 func (s *State) Search() {
 	s.nav.searching = true
-	s.nav.find.row = -1
+	s.nav.find.row, s.nav.find.focusFilter = -1, -1
 	s.sheetOverscroll.Reset()
 	s.showSheetList()
 	s.SearchRequested = true
@@ -37,7 +41,7 @@ func (s *State) stopSearching() {
 	s.nav.searching = false
 	s.sheetOverscroll.Reset()
 	s.SearchQuery = ""
-	s.nav.find = finding{row: -1}
+	s.nav.find = finding{row: -1, focusFilter: -1}
 }
 
 // searchHeader is the search's line in the title bar: the query, set as
@@ -60,6 +64,12 @@ func (s *State) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) 
 			s.StartFind(text)
 		}
 	}
+	components.IconButton{
+		Key: "filters-toggle", Label: "Filters", Tooltip: "Filters",
+		Icon: components.IconFilters.SVG(), Style: components.SubtleButton, Size: components.CompactButton,
+		Selected: s.nav.find.building, IconColor: &semantic.Icon.Muted, Animate: animate,
+		Action: func() { s.nav.find.building = !s.nav.find.building },
+	}.View(c, semantic)
 	components.Button{
 		Key: "done-searching", Label: "Done",
 		Style: components.SubtleButton, Size: components.CompactButton,
@@ -105,6 +115,9 @@ func (s *State) searchKey(k ui.TextKey) bool {
 // searchList lists what the query finds, the best first, each with where
 // it matches.
 func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
+	if s.nav.find.building {
+		s.filters(c, semantic, animate)
+	}
 	text := strings.TrimSpace(s.SearchQuery)
 	if text == "" {
 		s.nav.find.found = Found{}

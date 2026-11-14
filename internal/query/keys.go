@@ -34,6 +34,10 @@ type Key struct {
 	Takes   Takes
 	Scope   Scope
 	Choices []string
+	// Setting is a key that sets how the query runs, not a condition a
+	// sheet meets: what it says holds of the whole query, so - cannot turn
+	// it.
+	Setting bool
 	// Help says what the key finds, for completion.
 	Help string
 }
@@ -59,12 +63,12 @@ var Keys = []Key{
 	{Name: "has", Takes: TakesChoice, Scope: InNotebook, Choices: Kinds, Help: "Sheets holding a kind of thing"},
 	{Name: "link", Takes: TakesName, Scope: InNotebook, Help: "Links to a site, as $link:github.com"},
 	{Name: "inbox", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets in the Inbox"},
-	{Name: "trash", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets in the trash"},
+	{Name: "trash", Takes: TakesNothing, Scope: InNotebook, Setting: true, Help: "Sheets in the trash"},
 	{Name: "open", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets open in a tab"},
-	{Name: "sheet", Takes: TakesNothing, Scope: Anywhere, Help: "Find in the sheet in front, as ⌘F does"},
-	{Name: "sort", Takes: TakesChoice, Scope: InNotebook, Choices: SortFields, Help: "Order: relevance, updated, created, title, words; -updated turns it"},
-	{Name: "case", Takes: TakesNothing, Scope: InSheet, Help: "Match letter case"},
-	{Name: "word", Takes: TakesNothing, Scope: InSheet, Help: "Match whole words only"},
+	{Name: "sheet", Takes: TakesNothing, Scope: Anywhere, Setting: true, Help: "Find in the sheet in front, as ⌘F does"},
+	{Name: "sort", Takes: TakesChoice, Scope: InNotebook, Choices: SortFields, Setting: true, Help: "Order: relevance, updated, created, title, words; -updated turns it"},
+	{Name: "case", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match letter case"},
+	{Name: "word", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match whole words only"},
 }
 
 // KeyNamed is the key called name, folded.

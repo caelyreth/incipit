@@ -2,7 +2,6 @@ package shell
 
 import (
 	"fmt"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/internal/query"
@@ -48,8 +47,7 @@ func (s *State) StartFind(text string) {
 // written.
 func (s *State) FindText() string { return sheetKey + " " + s.FindQuery }
 
-// withoutSheet is text without its $sheet keys, the text either side of
-// each joined by a space.
+// withoutSheet is text without its $sheet keys.
 func withoutSheet(text string) string {
 	var cuts []query.Span
 	query.Walk(query.Parse(text).Root, func(n query.Node) {
@@ -58,11 +56,7 @@ func withoutSheet(text string) string {
 		}
 	})
 	for i := len(cuts) - 1; i >= 0; i-- {
-		left, right := strings.TrimRight(text[:cuts[i].From], " "), strings.TrimLeft(text[cuts[i].To:], " ")
-		if left != "" && right != "" {
-			left += " "
-		}
-		text = left + right
+		text = query.Cut(text, cuts[i])
 	}
 	return text
 }

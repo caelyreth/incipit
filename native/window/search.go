@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"log"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -44,13 +45,23 @@ type finder struct {
 	texts map[library.SheetID]textState
 	// found is the last search, kept while its query, the index, the
 	// lines read and the library stand.
-	found *found
-	lines *lines
+	found   *found
+	counted *counted
+	lines   *lines
 }
 
 type textState struct {
 	snap   *doc.Snapshot
 	serial uint64
+}
+
+// counted is the last count of a key's values, kept while its query,
+// values, the index and the library stand.
+type counted struct {
+	query, key, values string
+	generation         uint64
+	rev, sessions      uint64
+	counts             map[string]int
 }
 
 type found struct {
@@ -347,6 +358,28 @@ func (a *AppState) SearchNames(key string) []string {
 		return names
 	}
 	return nil
+}
+
+// SearchCounts is part of shell.Library: how many sheets the query finds
+// with each value for a key as one condition more.
+func (a *AppState) SearchCounts(text, key string, values []string) map[string]int {
+	f := a.finder
+	if f == nil {
+		return nil
+	}
+	stamp := counted{query: text, key: key, values: strings.Join(values, "\x00"),
+		generation: f.indexer.Generation(), rev: a.library.Revision(), sessions: a.sessionsRev}
+	if r := f.counted; r != nil && r.query == stamp.query && r.key == stamp.key && r.values == stamp.values &&
+		r.generation == stamp.generation && r.rev == stamp.rev && r.sessions == stamp.sessions {
+		return r.counts
+	}
+	counts, err := f.index.Counts(query.Parse(text), key, values, a.searchEnv())
+	if err != nil {
+		log.Printf("search counts: %v", err)
+	}
+	stamp.counts = counts
+	f.counted = &stamp
+	return counts
 }
 
 // OpenFound is part of shell.Library: the sheet opens with the first of

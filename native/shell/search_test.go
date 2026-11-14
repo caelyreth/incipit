@@ -166,3 +166,59 @@ func TestTheFindStepsAndEndsWithItsKeys(t *testing.T) {
 		t.Fatalf("Escape did not end the find")
 	}
 }
+
+func TestTheFilterBuilderEditsTheQueryItShows(t *testing.T) {
+	state, library, tester := searching(t)
+	tester.Type("budget #work")
+	settle(tester)
+	if err := tester.Click("Filters"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if !tester.HasText("$tag") || !tester.HasText("is") {
+		t.Fatalf("the builder shows %#v", tester.Texts())
+	}
+	choose := func(button string, item string) {
+		t.Helper()
+		if err := tester.Click(button); err != nil {
+			t.Fatal(err)
+		}
+		tester.Frame()
+		if err := tester.ChooseMenuItem(item); err != nil {
+			t.Fatalf("%s offers %v: %v", button, tester.Menu(), err)
+		}
+		settle(tester)
+	}
+	choose("is", "is not")
+	if state.SearchQuery != "budget -#work" {
+		t.Fatalf("turning gave %q", state.SearchQuery)
+	}
+	// Each value says how many sheets it would find in the query without
+	// the condition it would be.
+	choose("Choose a value", "weekly · 2")
+	if state.SearchQuery != "budget -#weekly" || !slices.Contains(library.calls, "count tag in budget") {
+		t.Fatalf("choosing gave %q, calls %v", state.SearchQuery, library.calls)
+	}
+	choose("Add Filter", "$has")
+	if state.SearchQuery != "budget -#weekly $has:" || !tester.Focused("$has value") {
+		t.Fatalf("adding gave %q, focused %v", state.SearchQuery, tester.Focused("$has value"))
+	}
+	tester.Type("image")
+	settle(tester)
+	if state.SearchQuery != "budget -#weekly $has:image" {
+		t.Fatalf("writing the value gave %q", state.SearchQuery)
+	}
+	// The query's own text is the builder's: written there, it shows here.
+	state.SearchQuery += " $trash"
+	settle(tester)
+	if !tester.HasText("$trash") {
+		t.Fatalf("the builder does not follow the query: %#v", tester.Texts())
+	}
+	if err := tester.Click("Remove filter"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.SearchQuery != "budget $has:image $trash" {
+		t.Fatalf("removing gave %q", state.SearchQuery)
+	}
+}

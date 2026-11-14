@@ -402,11 +402,7 @@ func (c *compiler) filter(f *query.Filter) bq.Query {
 		}
 		return term("tags", profile.TagKey(v))
 	case "in":
-		var ids []int64
-		if c.env.Groups != nil {
-			ids = c.env.Groups(query.Fold(v))
-		}
-		return c.groups(ids)
+		return c.groups(groupsNamed(c.env, v))
 	case "inbox":
 		return c.groups([]int64{c.env.Inbox})
 	case "open":
@@ -420,13 +416,9 @@ func (c *compiler) filter(f *query.Filter) bq.Query {
 		return bleve.NewDocIDQuery(ids)
 	case "updated", "date", "created":
 		d, _ := query.ParseDates(v, c.env.Now)
-		name := "updated"
-		if f.Key.Name == "created" {
-			name = "created"
-		}
 		yes, no := true, false
 		q := bleve.NewDateRangeInclusiveQuery(d.From, d.To, &yes, &no)
-		q.SetField(name)
+		q.SetField(dateField(f.Key.Name))
 		return q
 	case "words":
 		n, _ := query.ParseCounts(v)
