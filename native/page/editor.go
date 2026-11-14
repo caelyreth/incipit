@@ -152,7 +152,11 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 	if err != nil {
 		return false
 	}
-	ed.reveal = true
+	// The page follows the caret for what the writer does: a deadline the
+	// engine keeps is its own clock, revealing only as a policy asks.
+	if _, timer := in.Intent.(vocab.Timer); !timer {
+		ed.reveal = true
+	}
 	switch in.Intent.(type) {
 	case vocab.Type, vocab.Delete:
 		ed.typed = true

@@ -602,3 +602,33 @@ func TestTheCaretsLineClearsTheDock(t *testing.T) {
 		t.Fatalf("the caret's line at %v stands far above the dock at %v", r.Y+r.H, el.viewport.H-el.Dock)
 	}
 }
+
+// A deadline the engine keeps, as a rewrite's pulse ending, is not the
+// writer's doing: the page stays where the writer scrolled it.
+func TestADeadlineLeavesTheScrollBe(t *testing.T) {
+	el := newElement(t)
+	el.viewport = ui.Rect{W: 900, H: 600}
+	t0 := time.Unix(5000, 0)
+	for range 40 {
+		el.Editor.Do(vocab.Type{Text: "a line of words"}, t0)
+		el.Editor.Do(vocab.Break{}, t0)
+	}
+	for _, r := range "the end --" {
+		el.Editor.Do(vocab.Type{Text: string(r)}, t0)
+	}
+	if el.Editor.timeAt.IsZero() {
+		t.Fatal("the rewrite left no deadline to test with")
+	}
+	el.follow(el.relayout(), t0)
+	el.stepViewport(t0.Add(2*time.Second), true)
+	t1 := t0.Add(3 * time.Second)
+	el.scrollBy(ui.InputEvent{Kind: ui.InputScroll, DY: -400, Precise: true, Time: t1}, t1)
+	scrolled := el.scroll
+	el.Editor.Due(el.Editor.timeAt)
+	t2 := t1.Add(time.Second)
+	el.follow(el.relayout(), t2)
+	el.stepViewport(t2.Add(2*time.Second), true)
+	if scrolled >= 1000 || el.scroll != scrolled {
+		t.Fatalf("the deadline moved the page from %v to %v", scrolled, el.scroll)
+	}
+}
