@@ -57,6 +57,11 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 		el.rooms = map[doc.ID]*room{}
 	}
 	animate = animate && !now.IsZero()
+	if el.roomsOf == pl && el.roomsSettled && el.roomsAnimate == animate {
+		// Every room stands as the last pass left it: nothing to step. A
+		// settled spring keeps its target however long it rests.
+		return
+	}
 	if el.roomsOf != pl {
 		// A new layout: the rooms of units it no longer has go.
 		el.roomsOf = pl
@@ -105,6 +110,8 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 	}
 	pl.height = pl.rest + shift
 	el.roomsMoving = moving || el.roomsMoving && !frame
+	el.roomsSettled = frame && !el.roomsMoving
+	el.roomsAnimate = animate
 }
 
 // opened is how far what opened in a unit has: 1 once it stands open.

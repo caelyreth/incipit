@@ -91,6 +91,10 @@ type Element struct {
 	paintNow          time.Time
 	animate           bool
 	roomsMoving       bool
+	// roomsSettled is whether every room of roomsOf stood still after the
+	// last frame, stepped with motion roomsAnimate.
+	roomsSettled bool
+	roomsAnimate bool
 	// pointer is where the pointer last was, in the element, pointerIn
 	// whether it is over the page, and near the unit it is by (controls.go);
 	// focused is whether the page had the keys when last painted.
