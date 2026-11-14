@@ -6,12 +6,20 @@ import (
 )
 
 // Suggestion is one way to go on with a query: Text takes the place of
-// the completion's span. Label is what a list shows of it and Help what
-// it says. Done is a suggestion that finishes its part, as a value does:
-// what is written next starts another.
+// the completion's span. Label is what a list shows of it, Hint what a
+// key takes after it, and Help what it finds. Of is the key a value is
+// for, empty for a key. Done is a suggestion that finishes its part, as a
+// value does: what is written next starts another.
 type Suggestion struct {
-	Label, Text, Help string
-	Done              bool
+	Label, Text, Hint, Help string
+	Of                      string
+	Done                    bool
+}
+
+// hints say what each kind of key takes.
+var hints = map[Takes]string{
+	TakesText: "words", TakesOptionalText: "title", TakesName: "name",
+	TakesDate: "date", TakesNumber: "count", TakesChoice: "kind",
 }
 
 // Completion is what may stand where the caret is in a query: Items, in
@@ -53,7 +61,7 @@ func Complete(text string, caret int, scope Scope, names func(key string) []stri
 		if k.Scope&scope == 0 || !strings.HasPrefix(k.Name, partial) {
 			continue
 		}
-		s := Suggestion{Label: "$" + k.Name, Text: "$" + k.Name, Help: k.Help}
+		s := Suggestion{Label: "$" + k.Name, Text: "$" + k.Name, Hint: hints[k.Takes], Help: k.Help}
 		switch {
 		case k.Takes == TakesNothing || k.Takes == TakesOptionalText:
 			s.Done = true
@@ -109,7 +117,7 @@ func completeValue(text string, caret int, at *Filter, names func(key string) []
 		c.Span = at.Span
 	}
 	for _, v := range append(starts, holds...) {
-		s := Suggestion{Label: v, Text: value(v), Done: true}
+		s := Suggestion{Label: v, Text: value(v), Of: k.Name, Done: true}
 		if at.Hash {
 			s.Label = "#" + v
 			if s.Text == v {

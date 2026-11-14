@@ -27,6 +27,12 @@ type finding struct {
 	query      string
 	caret      int
 	suggestion int
+	// first is the first suggestion the list shows.
+	first int
+	// pointer is where the pointer was over the suggestions, pointed
+	// whether it was there.
+	pointer ui.Point
+	pointed bool
 	// dismissed is the query the completion was put away at, with Escape
 	// or a press elsewhere: it comes back once the query changes.
 	dismissed string
@@ -107,7 +113,7 @@ func (s *State) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) 
 	s.complete(byteOffset(s.SearchQuery, caret))
 	open := input.Focused() && len(s.nav.find.completion.Items) > 0 && s.nav.find.dismissed != s.SearchQuery
 	if open {
-		s.suggestions(c, semantic, field, input, &open)
+		s.suggestions(c, semantic, field, input, &open, animate)
 		if !open {
 			s.nav.find.dismissed = s.SearchQuery
 		}
@@ -125,7 +131,7 @@ func (s *State) complete(caret int) {
 	if f.query == s.SearchQuery && f.caret == caret {
 		return
 	}
-	f.query, f.caret, f.suggestion = s.SearchQuery, caret, 0
+	f.query, f.caret, f.suggestion, f.first = s.SearchQuery, caret, 0, 0
 	f.completion = search.Complete(s.SearchQuery, caret, search.InNotebook, s.Library.SearchNames)
 }
 
@@ -139,44 +145,88 @@ func (s *State) completing(text string) bool {
 // suggestionsShown is how many suggestions the completion lists.
 const suggestionsShown = 8
 
-// suggestions lists the completion below the field.
-func (s *State) suggestions(c *ui.Context, semantic theme.Theme, field, input ui.Element, open *bool) {
+// suggestions lists the completion under the field, on the outlined
+// surface the page's tag picker has, as a part of the field rather than a
+// layer over the window. The chosen row's fill slides as the keys or the
+// pointer move it, and the chosen key's help is said whole at the foot.
+func (s *State) suggestions(c *ui.Context, semantic theme.Theme, field, input ui.Element, open *bool, animate bool) {
+	f := &s.nav.find
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
-	items := s.nav.find.completion.Items
-	if len(items) > suggestionsShown {
-		items = items[:suggestionsShown]
-	}
-	ui.Popover(c, field, open, func() {
-		ui.Column(c).Key("suggestions").Width(field.LayoutBounds().W).Padding(theme.Space04.DIPs(scale)).
-			Gap(theme.Space02.DIPs(scale)).Children(func() {
-			for i, item := range items {
-				row := ui.Row(c).Key("suggestion-" + item.Label).WidthPercent(100).Role(ui.RoleButton).Label(item.Label).
-					PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space04.DIPs(scale)).
-					Gap(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Radius(metrics.Radius)
-				if i == s.nav.find.suggestion {
-					row.Background(semantic.GhostElement.Selected)
-				} else if row.Hovered() {
-					row.Background(semantic.GhostElement.Hover)
+	pad := theme.Space04.DIPs(scale)
+	row := metrics.Height
+	all := f.completion.Items
+	f.suggestion = min(f.suggestion, len(all)-1)
+	chosen := all[f.suggestion]
+	// The rows shown are a window on the suggestions that keeps the chosen
+	// one in it, as the keys move it past either end.
+	f.first = min(max(f.first, f.suggestion-suggestionsShown+1), f.suggestion, max(len(all)-suggestionsShown, 0))
+	items := all[f.first:min(f.first+suggestionsShown, len(all))]
+	halo := semantic.Families[theme.Halo]
+	width := field.LayoutBounds().W
+	ui.PopoverBase(c.Key("suggestions"), field, open, func(panel ui.Element) {
+		components.OutlinedSurface(panel, semantic, scale)
+		panel.Width(width).Padding(pad).Margin(pad, 0, 0, 0).
+			Role(ui.RoleList).Label("Suggestions").Transition(popTransition(animate))
+		// Only the pointer's moves choose the row under it, so a list the
+		// keys move under a resting pointer keeps their choice.
+		px, py, over := panel.PointerPosition()
+		if p := (ui.Point{X: px, Y: py}); over {
+			if f.pointed && p != f.pointer {
+				if i := int((py - 1 - pad) / row); i >= 0 && i < len(items) {
+					f.suggestion = f.first + i
 				}
-				row.Children(func() {
-					color := semantic.Text.Default
-					if strings.HasPrefix(item.Label, "$") || strings.HasPrefix(item.Label, "#") {
-						color = semantic.Accent.Foreground
+			}
+			f.pointer, f.pointed = p, true
+		} else {
+			f.pointed = false
+		}
+		var spring *ui.Animation
+		if animate {
+			sp := components.Spring(components.MotionNormal)
+			spring = &sp
+		}
+		panel.Children(func() {
+			ui.Box(c).Key("suggestion-chosen").Absolute().Left(pad).Right(pad).
+				Top(pad + float32(f.suggestion-f.first)*row).Height(row).
+				Radius(metrics.PanelRadius - pad).Background(semantic.GhostElement.Hover).ZIndex(-1).
+				Transition(ui.ElementTransition{Animation: spring, Position: true})
+			for i, item := range items {
+				button := ui.ButtonBase(c.Key("suggestion-" + item.Label)).Height(row).WidthPercent(100).Shrink(0).
+					PaddingX(theme.Space06.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+					FocusRing(false).Selected(i == f.suggestion).Background(ui.Transparent).Label(item.Label)
+				button.Children(func() {
+					switch {
+					case item.Of == "tag":
+						components.TagChip(c, "#"+strings.TrimPrefix(item.Label, "#"), theme.TextSmall,
+							theme.Space04.DIPs(scale), width, halo.Surface, halo.Foreground)
+					case item.Of == "":
+						components.Label(c, item.Label, theme.TextSmall, semantic.Accent.Foreground).
+							SingleLine().Shrink(0)
+					default:
+						components.Label(c, item.Label, theme.TextSmall, semantic.Text.Default).
+							SingleLine().MinWidth(0)
 					}
-					components.Label(c, item.Label, theme.TextSmall, color).SingleLine().Shrink(0)
-					if item.Help != "" {
-						components.Label(c, item.Help, theme.TextXSmall, semantic.Text.Muted).
-							SingleLine().Grow(1).MinWidth(0)
+					ui.Box(c).Grow(1)
+					if item.Hint != "" {
+						components.Label(c, item.Hint, theme.TextXSmall, semantic.Text.Muted).
+							SingleLine().Shrink(0)
 					}
 				})
-				if row.Clicked() {
+				if button.Clicked() {
 					text, caret := s.take(s.SearchQuery, item)
 					s.SearchQuery = text
-					s.nav.find.placeCaret = caret
+					f.placeCaret = caret
 					input.SetChanged()
 					input.Focus()
 				}
+			}
+			if chosen.Help != "" {
+				ui.Box(c).Key("suggestion-rule").WidthPercent(100).Height(1).
+					Margin(pad, 0, pad, 0).Background(semantic.Border.Variant)
+				components.Label(c, chosen.Help, theme.TextXSmall, semantic.Text.Muted).Key("suggestion-help").
+					WidthPercent(100).PaddingX(theme.Space06.DIPs(scale)).PaddingY(theme.Space02.DIPs(scale)).
+					MaxLines(3)
 			}
 		})
 	})
@@ -205,9 +255,6 @@ func (s *State) searchKey(k ui.TextKey) bool {
 	text := k.Text()
 	completing := s.completing(text)
 	items := len(f.completion.Items)
-	if items > suggestionsShown {
-		items = suggestionsShown
-	}
 	switch k.Key {
 	case ui.KeyDown, ui.KeyUp:
 		if k.Mods != 0 {
@@ -401,8 +448,8 @@ func (s *State) marked(c *ui.Context, semantic theme.Theme, text string, matches
 }
 
 // queryRanges sets a query as the language reads it: keys and tags in the
-// accent, their values in the heading's color, the operators quieter, and
-// what does not count yet muted, or marked where it is wrong.
+// accent, their values in the heading's color, a - quieter, what is wrong
+// marked and what means nothing here muted.
 func queryRanges(text string, semantic theme.Theme) []ui.TextRange {
 	q := search.Parse(text)
 	var out []ui.TextRange
@@ -426,11 +473,13 @@ func queryRanges(text string, semantic theme.Theme) []ui.TextRange {
 			add(search.Span{From: n.From, To: n.From + 1}, semantic.Text.Muted)
 		}
 	})
+	// What is still being written keeps its colors; what is wrong is
+	// marked, and what means nothing here is quiet.
 	for _, issue := range q.Issues {
 		switch issue.Kind {
 		case search.Unknown, search.Invalid:
 			add(issue.Span, semantic.Status.Danger.Foreground)
-		default:
+		case search.Inert:
 			add(issue.Span, semantic.Text.Muted)
 		}
 	}

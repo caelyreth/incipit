@@ -76,3 +76,22 @@ func TestADollarOffersKeysAndTheirValues(t *testing.T) {
 		t.Fatalf("then ends the search: %q", state.SearchQuery)
 	}
 }
+
+func TestTheKeysReachEverySuggestion(t *testing.T) {
+	state, _, tester := searching(t)
+	tester.Type("$")
+	settle(tester)
+	for range suggestionsShown + 1 {
+		tester.Key(0, ui.KeyDown)
+	}
+	settle(tester)
+	f := state.nav.find
+	if f.suggestion != suggestionsShown+1 || f.first != 2 || !tester.HasText(f.completion.Items[f.suggestion].Label) {
+		t.Fatalf("suggestion %d first %d %#v", f.suggestion, f.first, tester.Texts())
+	}
+	tester.Key(0, ui.KeyEnter)
+	settle(tester)
+	if state.SearchQuery != f.completion.Items[f.suggestion].Text {
+		t.Fatalf("took %q", state.SearchQuery)
+	}
+}
