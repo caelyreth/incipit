@@ -42,7 +42,13 @@ type GroupItem struct {
 	// their accent.
 	Icon  string
 	Color int
+	// Query makes the group a smart folder: its sheets are what the query
+	// finds, and nothing is filed in it.
+	Query string
 }
+
+// Smart reports a smart folder.
+func (g GroupItem) Smart() bool { return g.Query != "" }
 
 // SheetItem is a sheet as the sidebar lists it.
 type SheetItem struct {
@@ -161,6 +167,10 @@ type Library interface {
 	// NewGroup makes a group at index in parent and returns it, for
 	// naming.
 	NewGroup(parent string, index int) string
+	// NewSmartGroup makes a smart folder of a query and returns it, for
+	// naming; SetGroupQuery changes one's query.
+	NewSmartGroup(query string) string
+	SetGroupQuery(id, query string)
 	RenameGroup(id, name string)
 	// StyleGroup sets a group's icon and tint, as GroupItem holds them.
 	StyleGroup(id, icon string, color int)

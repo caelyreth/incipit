@@ -24,6 +24,42 @@ type finding struct {
 	// whose value field takes the focus in the next frame, -1 for none.
 	building    bool
 	focusFilter int
+	// editing is the smart folder whose query the search is, which saving
+	// changes; "" saves the search as a new one.
+	editing string
+}
+
+// editSmartGroup searches with a smart folder's query, its filters shown,
+// to change it.
+func (s *State) editSmartGroup(group GroupItem) {
+	s.Search()
+	s.setSearch(group.Query)
+	s.nav.find.editing, s.nav.find.building = group.ID, true
+}
+
+// saveSearch keeps the search as a smart folder, or as the query of the
+// one it is the query of, and shows the folder.
+func (s *State) saveSearch() {
+	text, editing := strings.TrimSpace(s.SearchQuery), s.nav.find.editing
+	id := editing
+	if editing != "" {
+		s.Library.SetGroupQuery(editing, text)
+	} else if id = s.Library.NewSmartGroup(text); id == "" {
+		return
+	}
+	s.stopSearching()
+	s.Go(Place{Kind: PlaceGroup, Group: id})
+	// A new folder is named first.
+	if editing == "" {
+		s.startRename(id)
+	}
+}
+
+// saves reports whether the search can be kept as a smart folder: a query
+// of the notebook's, with something in it.
+func (s *State) saves() bool {
+	q := query.Parse(s.SearchQuery)
+	return q.Scope == query.InNotebook && q.Root != nil
 }
 
 // Search shows search in the sheet list, its field focused.
@@ -64,6 +100,15 @@ func (s *State) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) 
 			s.StartFind(text)
 		}
 	}
+	label := "Save as Smart Folder"
+	if s.nav.find.editing != "" {
+		label = "Save Smart Folder"
+	}
+	components.IconButton{
+		Key: "save-search", Label: label, Tooltip: label,
+		Icon: components.IconFolderSearch.SVG(), Style: components.SubtleButton, Size: components.CompactButton,
+		Disabled: !s.saves(), IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.saveSearch,
+	}.View(c, semantic)
 	components.IconButton{
 		Key: "filters-toggle", Label: "Filters", Tooltip: "Filters",
 		Icon: components.IconFilters.SVG(), Style: components.SubtleButton, Size: components.CompactButton,

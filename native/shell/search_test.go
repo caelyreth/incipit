@@ -222,3 +222,70 @@ func TestTheFilterBuilderEditsTheQueryItShows(t *testing.T) {
 		t.Fatalf("removing gave %q", state.SearchQuery)
 	}
 }
+
+func TestASearchIsKeptAsASmartFolderAndChangedAgain(t *testing.T) {
+	state, library, tester := searching(t)
+	tester.Type("$words:>1000")
+	settle(tester)
+	if err := tester.Click("Save as Smart Folder"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if !slices.Contains(library.calls, "new smart $words:>1000") {
+		t.Fatalf("calls %v", library.calls)
+	}
+	if state.nav.searching || state.nav.place != (Place{Kind: PlaceGroup, Group: "5"}) || state.nav.renaming != "5" {
+		t.Fatalf("after saving: searching %v place %+v renaming %q", state.nav.searching, state.nav.place, state.nav.renaming)
+	}
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+	// It lists what it finds, and makes and files nothing.
+	if !tester.HasText("Found") || tester.HasText("New sheet") {
+		t.Fatalf("the folder shows %#v", tester.Texts())
+	}
+	if err := tester.RightClick("Long"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	menu := tester.Menu()
+	if !slices.Contains(menu, "Edit Query…") || slices.Contains(menu, "New Sheet") || slices.Contains(menu, "New Chapter") {
+		t.Fatalf("its menu is %v", menu)
+	}
+	if err := tester.ChooseMenuItem("Edit Query…"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if !state.nav.searching || state.SearchQuery != "$words:>1000" || !tester.HasText("$words") {
+		t.Fatalf("editing searches %q, builder %v", state.SearchQuery, tester.HasText("$words"))
+	}
+	state.SearchQuery = "$words:>2000"
+	settle(tester)
+	if err := tester.Click("Save Smart Folder"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if !slices.Contains(library.calls, "query 5 $words:>2000") || state.nav.renaming != "" {
+		t.Fatalf("saving again: calls %v, renaming %q", library.calls, state.nav.renaming)
+	}
+}
+
+func TestOnlyAQueryOfTheNotebookIsKept(t *testing.T) {
+	state, _, tester := searching(t)
+	tester.Type("budget")
+	settle(tester)
+	if !state.saves() {
+		t.Fatal("a search of the notebook cannot be saved")
+	}
+	state.SearchQuery = "$trash"
+	if !state.saves() {
+		t.Fatal("a query of keys alone cannot be saved")
+	}
+	state.SearchQuery = "   "
+	if state.saves() {
+		t.Fatal("an empty query can be saved")
+	}
+	state.SearchQuery = "$sheet tide"
+	if state.saves() {
+		t.Fatal("a sheet's find can be saved")
+	}
+}

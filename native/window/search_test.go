@@ -3,12 +3,14 @@ package window
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/native/shell"
 )
 
 // typeIntoActivePage types text into the page in front and lets the frame
@@ -151,5 +153,53 @@ func TestCompletionTakesTheNotebooksTagsAndGroups(t *testing.T) {
 	}
 	if got := app.SearchNames("in"); len(got) == 0 || got[0] != "Inbox" {
 		t.Fatalf("groups %v", got)
+	}
+}
+
+func TestASmartFolderListsWhatItsQueryFinds(t *testing.T) {
+	root := t.TempDir()
+	app := openNotebookApp(t, root)
+	typeIntoActivePage(t, app, "The tide turns #sea")
+	first := sheetName(activeSession(t, app).page)
+	settleSearch(app)
+	id := app.NewSmartGroup("#sea")
+	group, ok := app.Group(id)
+	if !ok || !group.Smart() || group.Name != "#sea" || group.Count != 1 {
+		t.Fatalf("the folder is %+v", group)
+	}
+	place := shell.Place{Kind: shell.PlaceGroup, Group: id}
+	if got := app.Sheets(place); len(got) != 1 || got[0].ID != first {
+		t.Fatalf("the folder lists %+v", got)
+	}
+	// It follows what is written: a new sheet the query finds is in it.
+	app.NewSheet("", 0)
+	typeIntoActivePage(t, app, "Low #sea")
+	settleSearch(app)
+	if got := app.SheetCount(place); got != 2 {
+		t.Fatalf("after a second sheet the folder counts %d", got)
+	}
+	// Nothing is filed in it, nor offered to be.
+	app.MoveSheet(first, id, 0)
+	if app.SheetGroup(first) == id {
+		t.Fatal("a sheet was filed in the smart folder")
+	}
+	for _, target := range app.Targets() {
+		if target.ID == id {
+			t.Fatal("the smart folder is a place to move to")
+		}
+	}
+	if names := app.SearchNames("in"); slices.Contains(names, "#sea") {
+		t.Fatalf("$in offers the smart folder: %v", names)
+	}
+	app.SetGroupQuery(id, "turns")
+	if got := app.Sheets(place); len(got) != 1 || got[0].ID != first {
+		t.Fatalf("after its query changed the folder lists %+v", got)
+	}
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+	app = openNotebookApp(t, root)
+	if group, ok := app.Group(id); !ok || group.Query != "turns" {
+		t.Fatalf("after a quit the folder is %+v", group)
 	}
 }

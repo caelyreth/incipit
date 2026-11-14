@@ -25,6 +25,8 @@ type fakeLibrary struct {
 	groupTree   map[string][]GroupItem
 	groupParent map[string]string
 	newGroupNo  int
+	// smart is the query of the smart folder "5", shown when it is set.
+	smart string
 }
 
 type sheetMoveCall struct {
@@ -42,6 +44,9 @@ func (f *fakeLibrary) Groups(parent string) []GroupItem {
 		return nil
 	}
 	groups := []GroupItem{{ID: "1", Name: "Inbox", Count: 1, Inbox: true}, {ID: "2", Name: "Novel", Count: 1}}
+	if f.smart != "" {
+		groups = append(groups, GroupItem{ID: "5", Name: "Long", Count: 1, Query: f.smart})
+	}
 	for index := range f.extraGroups {
 		groups = append(groups, GroupItem{
 			ID: fmt.Sprintf("extra-%d", index), Name: fmt.Sprintf("Group %d", index+1), Count: 1,
@@ -84,6 +89,8 @@ func (f *fakeLibrary) Sheets(place Place) []SheetItem {
 			})
 		}
 		return sheets
+	case place.Kind == PlaceGroup && place.Group == "5" && f.smart != "":
+		return []SheetItem{{ID: "9", Title: "Found", Updated: time.Now(), Words: 2000}}
 	case place.Kind == PlaceGroup && place.Group == "1", place.Kind == PlaceAll:
 		return []SheetItem{{ID: "8", Title: "Draft"}}
 	case place.Kind == PlaceRecent && f.recentSheet:
@@ -720,6 +727,17 @@ func (f *fakeLibrary) moveEntry(id string, index int) {
 	f.entries = slices.Delete(f.entries, source, source+1)
 	f.entries = slices.Insert(f.entries, max(0, min(index, len(f.entries))), entry)
 }
+func (f *fakeLibrary) NewSmartGroup(text string) string {
+	f.call("new smart " + text)
+	f.smart = text
+	return "5"
+}
+
+func (f *fakeLibrary) SetGroupQuery(id, text string) {
+	f.call("query " + id + " " + text)
+	f.smart = text
+}
+
 func (f *fakeLibrary) NewGroup(parent string, index int) string {
 	f.call(fmt.Sprint("new group ", parent, " ", index))
 	if f.groupTree == nil {

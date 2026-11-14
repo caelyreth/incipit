@@ -2,6 +2,7 @@ package window
 
 import (
 	"encoding/binary"
+	"fmt"
 	"hash/fnv"
 	"log"
 	"path/filepath"
@@ -43,11 +44,37 @@ type finder struct {
 	// with a count that moves as the snapshot does: the index's revision of
 	// a page whose text may be newer than the store's.
 	texts map[library.SheetID]textState
-	// found is the last search, kept while its query, the index, the
-	// lines read and the library stand.
+	// found is the last search, kept while its query, what it reads
+	// (queryStamp) and the lines read stand; counted the last count of a
+	// key's values, and smart each smart folder's sheets, the same.
 	found   *found
 	counted *counted
+	smart   map[string]*smartFound
 	lines   *lines
+}
+
+// queryStamp is what a query's answer stands on beside its text: the
+// index, the library, the sessions, the tabs open ($open) and the minute
+// (dates such as today and 7d). An answer is kept while its stamp is the
+// one now.
+type queryStamp struct {
+	generation, rev, sessions uint64
+	open                      string
+	minute                    time.Time
+}
+
+// queryStamp is what queries stand on now.
+func (a *AppState) queryStamp() queryStamp {
+	var open strings.Builder
+	for _, id := range a.Workspace.Tabs() {
+		if session, ok := a.sessions[id]; ok {
+			fmt.Fprintf(&open, "%d,", session.key)
+		}
+	}
+	return queryStamp{
+		generation: a.finder.indexer.Generation(), rev: a.library.Revision(), sessions: a.sessionsRev,
+		open: open.String(), minute: time.Now().Truncate(time.Minute),
+	}
 }
 
 type textState struct {
@@ -55,21 +82,25 @@ type textState struct {
 	serial uint64
 }
 
-// counted is the last count of a key's values, kept while its query,
-// values, the index and the library stand.
 type counted struct {
 	query, key, values string
-	generation         uint64
-	rev, sessions      uint64
+	stamp              queryStamp
 	counts             map[string]int
 }
 
 type found struct {
-	query            string
-	generation, read uint64
-	rev, sessions    uint64
-	result           shell.Found
-	close            bool
+	query  string
+	stamp  queryStamp
+	read   uint64
+	result shell.Found
+	close  bool
+}
+
+// smartFound is a smart folder's sheets, in the order its query finds
+// them.
+type smartFound struct {
+	stamp queryStamp
+	items []shell.SheetItem
 }
 
 // openFinder opens the notebook's index beside the store, or one in memory
@@ -85,7 +116,7 @@ func (a *AppState) openFinder(store *storage.Store) error {
 	if err != nil {
 		return err
 	}
-	f := &finder{index: x, sent: map[library.SheetID]uint64{}, texts: map[library.SheetID]textState{}}
+	f := &finder{index: x, sent: map[library.SheetID]uint64{}, texts: map[library.SheetID]textState{}, smart: map[string]*smartFound{}}
 	changed := func() {
 		if wake := f.wake.Load(); wake != nil {
 			(*wake)()
@@ -278,8 +309,8 @@ func (a *AppState) searchSheets(text string) shell.Found {
 	if f == nil {
 		return shell.Found{}
 	}
-	gen, read := f.indexer.Generation(), f.lines.generation()
-	if r := f.found; r != nil && r.query == text && r.generation == gen && r.read == read && r.rev == a.library.Revision() && r.sessions == a.sessionsRev {
+	stamp, read := a.queryStamp(), f.lines.generation()
+	if r := f.found; r != nil && r.query == text && r.stamp == stamp && r.read == read {
 		return r.result
 	}
 	q := query.Parse(text)
@@ -319,7 +350,7 @@ func (a *AppState) searchSheets(text string) shell.Found {
 		out.Sheets = append(out.Sheets, found)
 	}
 	f.lines.want(text, wanted)
-	f.found = &found{query: text, generation: gen, read: f.lines.generation(), rev: a.library.Revision(), sessions: a.sessionsRev, result: out, close: res.Close}
+	f.found = &found{query: text, stamp: stamp, read: f.lines.generation(), result: out, close: res.Close}
 	return out
 }
 
@@ -341,23 +372,63 @@ func (a *AppState) SearchNames(key string) []string {
 	case "in":
 		var names []string
 		seen := map[string]bool{}
-		var visit func(parent library.GroupID)
-		visit = func(parent library.GroupID) {
-			for _, g := range a.library.Groups(parent) {
-				if a.library.GroupInTrash(g.ID) {
-					continue
-				}
-				if folded := query.Fold(g.Name); !seen[folded] {
-					seen[folded] = true
-					names = append(names, g.Name)
-				}
-				visit(g.ID)
+		a.filingGroups(func(g library.Group) {
+			if folded := query.Fold(g.Name); !seen[folded] {
+				seen[folded] = true
+				names = append(names, g.Name)
 			}
-		}
-		visit(0)
+		})
 		return names
 	}
 	return nil
+}
+
+// filingGroups visits the groups out of the trash that sheets are filed
+// in, in the library's order: those $in names. A smart folder files none.
+func (a *AppState) filingGroups(visit func(library.Group)) {
+	var walk func(parent library.GroupID)
+	walk = func(parent library.GroupID) {
+		for _, g := range a.library.Groups(parent) {
+			if !g.Smart() {
+				visit(g)
+				walk(g.ID)
+			}
+		}
+	}
+	walk(0)
+}
+
+// smartItems are the sheets a smart folder's query finds, in the order it
+// finds them: every one, as the folder lists them all.
+func (a *AppState) smartItems(text string) []shell.SheetItem {
+	f := a.finder
+	if f == nil {
+		return nil
+	}
+	stamp := a.queryStamp()
+	if r, ok := f.smart[text]; ok && r.stamp == stamp {
+		return r.items
+	}
+	held := len(a.library.Held())
+	res, err := f.index.Search(query.Parse(text), search.Request{Env: a.searchEnv(), Limit: max(held, 1)})
+	if err != nil {
+		log.Printf("smart folder: %v", err)
+	}
+	sheets := make([]library.Sheet, 0, len(res.Hits))
+	for _, hit := range res.Hits {
+		if sheet, ok := a.library.Sheet(library.SheetID(hit.Key)); ok {
+			sheets = append(sheets, sheet)
+		}
+	}
+	items := sheetItemsWithSessions(sheets, a.sessionsBySheet())
+	// Only the folders shown are kept: a query no folder holds now goes.
+	for q, r := range f.smart {
+		if r.stamp != stamp {
+			delete(f.smart, q)
+		}
+	}
+	f.smart[text] = &smartFound{stamp: stamp, items: items}
+	return items
 }
 
 // SearchCounts is part of shell.Library: how many sheets the query finds
@@ -367,18 +438,16 @@ func (a *AppState) SearchCounts(text, key string, values []string) map[string]in
 	if f == nil {
 		return nil
 	}
-	stamp := counted{query: text, key: key, values: strings.Join(values, "\x00"),
-		generation: f.indexer.Generation(), rev: a.library.Revision(), sessions: a.sessionsRev}
-	if r := f.counted; r != nil && r.query == stamp.query && r.key == stamp.key && r.values == stamp.values &&
-		r.generation == stamp.generation && r.rev == stamp.rev && r.sessions == stamp.sessions {
+	want := counted{query: text, key: key, values: strings.Join(values, "\x00"), stamp: a.queryStamp()}
+	if r := f.counted; r != nil && r.query == want.query && r.key == want.key && r.values == want.values && r.stamp == want.stamp {
 		return r.counts
 	}
 	counts, err := f.index.Counts(query.Parse(text), key, values, a.searchEnv())
 	if err != nil {
 		log.Printf("search counts: %v", err)
 	}
-	stamp.counts = counts
-	f.counted = &stamp
+	want.counts = counts
+	f.counted = &want
 	return counts
 }
 
@@ -416,16 +485,11 @@ func (a *AppState) searchEnv() search.Env {
 	env := search.Env{Now: time.Now(), Inbox: int64(library.Inbox)}
 	env.Groups = func(name string) []int64 {
 		var ids []int64
-		var visit func(parent library.GroupID)
-		visit = func(parent library.GroupID) {
-			for _, g := range a.library.Groups(parent) {
-				if query.Fold(g.Name) == name {
-					ids = append(ids, int64(g.ID))
-				}
-				visit(g.ID)
+		a.filingGroups(func(g library.Group) {
+			if query.Fold(g.Name) == name {
+				ids = append(ids, int64(g.ID))
 			}
-		}
-		visit(0)
+		})
 		return ids
 	}
 	for _, id := range a.Workspace.Tabs() {

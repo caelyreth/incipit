@@ -149,7 +149,7 @@ func (a *AppState) libraryChanged() {
 }
 
 func (a *AppState) groupItem(group library.Group) shell.GroupItem {
-	return shell.GroupItem{
+	item := shell.GroupItem{
 		ID:        groupName(group.ID),
 		Name:      group.Name,
 		Count:     a.library.Count(group.ID),
@@ -157,7 +157,27 @@ func (a *AppState) groupItem(group library.Group) shell.GroupItem {
 		Inbox:     group.ID == library.Inbox,
 		Icon:      group.Icon,
 		Color:     int(group.Color),
+		Query:     group.Query,
 	}
+	// A smart folder counts what its query finds; out of the trash, as
+	// what it finds is gone with it.
+	if group.Smart() && !a.library.GroupInTrash(group.ID) {
+		item.Count = len(a.smartItems(group.Query))
+	}
+	return item
+}
+
+// smartQuery is the query of the smart folder a place shows, if it shows
+// one.
+func (a *AppState) smartQuery(place shell.Place) (string, bool) {
+	if place.Kind != shell.PlaceGroup {
+		return "", false
+	}
+	group, ok := a.library.Group(groupOf(place.Group))
+	if !ok || !group.Smart() || a.library.GroupInTrash(group.ID) {
+		return "", false
+	}
+	return group.Query, true
 }
 
 func (a *AppState) sheetItems(sheets []library.Sheet) []shell.SheetItem {
@@ -262,6 +282,9 @@ func (a *AppState) Parent(id string) string {
 
 // Sheets is part of shell.Library.
 func (a *AppState) Sheets(place shell.Place) []shell.SheetItem {
+	if text, ok := a.smartQuery(place); ok {
+		return a.smartItems(text)
+	}
 	switch place.Kind {
 	case shell.PlaceGroup, shell.PlaceAll, shell.PlaceRecent, shell.PlaceTrash:
 		p := a.projections()
@@ -279,6 +302,9 @@ func (a *AppState) Sheets(place shell.Place) []shell.SheetItem {
 // SheetCount counts only sheets with a session, like Sheets, but avoids
 // composing titles, excerpts and word counts for a badge.
 func (a *AppState) SheetCount(place shell.Place) int {
+	if text, ok := a.smartQuery(place); ok {
+		return len(a.smartItems(text))
+	}
 	p := a.projections()
 	if count, ok := p.counts[place]; ok {
 		return count
@@ -326,6 +352,12 @@ func (a *AppState) entries(group string) []shell.GroupEntry {
 		return nil
 	}
 	var entries []shell.GroupEntry
+	if text, ok := a.smartQuery(shell.Place{Kind: shell.PlaceGroup, Group: group}); ok {
+		for _, item := range a.smartItems(text) {
+			entries = append(entries, shell.GroupEntry{Kind: shell.EntrySheet, ID: item.ID, Title: item.Title, Sheet: item})
+		}
+		return entries
+	}
 	sessions := a.sessionsBySheet()
 	for _, entry := range a.library.Entries(groupID) {
 		if entry.IsChapter() {
@@ -372,6 +404,10 @@ func (a *AppState) Targets() []shell.MoveTarget {
 	var walk func(parent library.GroupID, depth int)
 	walk = func(parent library.GroupID, depth int) {
 		for _, group := range a.library.Groups(parent) {
+			// Nothing is filed in a smart folder.
+			if group.Smart() {
+				continue
+			}
 			targets = append(targets, shell.MoveTarget{ID: groupName(group.ID), Name: group.Name, Depth: depth})
 			walk(group.ID, depth+1)
 		}
@@ -622,6 +658,28 @@ func (a *AppState) NewGroup(parent string, index int) string {
 	_ = a.library.StyleGroup(id, "", shell.TintHalo)
 	a.libraryChanged()
 	return groupName(id)
+}
+
+// NewSmartGroup is part of shell.Library: a smart folder of a query at the
+// end of the top level, named after it, in Halo as a new group is.
+func (a *AppState) NewSmartGroup(text string) string {
+	id, err := a.library.AddSmartGroupAt(0, text, text, len(a.library.Groups(0)))
+	if err != nil {
+		a.fail("Couldn't create the smart folder", err)
+		return ""
+	}
+	_ = a.library.StyleGroup(id, "", shell.TintHalo)
+	a.libraryChanged()
+	return groupName(id)
+}
+
+// SetGroupQuery is part of shell.Library.
+func (a *AppState) SetGroupQuery(id, text string) {
+	if err := a.library.SetGroupQuery(groupOf(id), text); err != nil {
+		a.fail("Couldn't change the smart folder", err)
+		return
+	}
+	a.libraryChanged()
 }
 
 // RenameGroup is part of shell.Library.

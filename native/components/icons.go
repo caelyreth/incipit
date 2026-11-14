@@ -29,6 +29,7 @@ const (
 	IconError        IconName = "circle-alert"
 	IconFilters      IconName = "sliders-horizontal"
 	IconFolder       IconName = "folder"
+	IconFolderSearch IconName = "folder-search"
 	IconGrip         IconName = "grip-vertical"
 	IconGripAcross   IconName = "grip-horizontal"
 	IconImage        IconName = "image"
@@ -72,6 +73,7 @@ var AllIcons = [...]IconName{
 	IconError,
 	IconFilters,
 	IconFolder,
+	IconFolderSearch,
 	IconGrip,
 	IconGripAcross,
 	IconImage,

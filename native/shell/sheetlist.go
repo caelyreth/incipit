@@ -221,19 +221,31 @@ func (s *State) listLayer(c *ui.Context, semantic theme.Theme, view listView, an
 }
 
 func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, animate bool) {
+	// A smart folder lists what its query finds, as it finds it: nothing is
+	// made, filed or ordered in it.
+	if group, ok := s.Library.Group(place.Group); ok && place.Kind == PlaceGroup && group.Smart() {
+		sheets := s.Library.Sheets(place)
+		if len(sheets) == 0 {
+			s.emptyList(c, semantic, groupIcon(group), "Nothing found for “"+group.Query+"”", nil, nil, animate)
+			return
+		}
+		s.sheetRows(c, semantic, sheetEntries(sheets), place, nil, nil, nil, false, animate)
+		return
+	}
 	var entries []GroupEntry
-	if place.Kind == PlaceGroup {
+	files := s.files(place)
+	if files {
 		entries = s.Library.Entries(place.Group)
 	} else {
 		entries = sheetEntries(s.Library.Sheets(place))
 	}
 	group := place.Group
-	if place.Kind != PlaceGroup {
+	if !files {
 		group = s.CurrentGroup()
 	}
 	create := func(index int) { s.Library.NewSheet(group, index) }
 	var createChapter func(index int)
-	if place.Kind == PlaceGroup {
+	if files {
 		createChapter = func(index int) { s.newChapter(group, index) }
 	}
 	if len(entries) == 0 {
@@ -248,7 +260,7 @@ func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, anim
 		s.emptyList(c, semantic, icon, text, create, createChapter, animate)
 		return
 	}
-	s.sheetRows(c, semantic, entries, place, nil, create, createChapter, place.Kind != PlaceGroup, animate)
+	s.sheetRows(c, semantic, entries, place, nil, create, createChapter, !files, animate)
 }
 
 func sheetEntries(sheets []SheetItem) []GroupEntry {
@@ -324,7 +336,7 @@ func (s *State) listMenu() func(*ui.Menu) {
 		if m.Item("New Sheet").Chosen() {
 			s.Library.NewSheet(s.CurrentGroup(), Last)
 		}
-		if s.nav.place.Kind == PlaceGroup && m.Item("New Chapter").Chosen() {
+		if s.files(s.nav.place) && m.Item("New Chapter").Chosen() {
 			s.newChapter(s.nav.place.Group, Last)
 		}
 	}

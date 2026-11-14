@@ -134,10 +134,20 @@ func (s *State) Go(place Place) {
 	s.disarm()
 }
 
+// files reports a place sheets are filed in, in an order of its own: a
+// group, but a smart folder, whose sheets its query finds.
+func (s *State) files(place Place) bool {
+	if place.Kind != PlaceGroup {
+		return false
+	}
+	group, ok := s.Library.Group(place.Group)
+	return ok && !group.Smart()
+}
+
 // CurrentGroup is the group a new sheet goes in: the one shown, else the
 // Inbox's.
 func (s *State) CurrentGroup() string {
-	if s.nav.place.Kind == PlaceGroup {
+	if s.files(s.nav.place) {
 		return s.nav.place.Group
 	}
 	for _, group := range s.Library.Groups("") {
@@ -402,6 +412,8 @@ func groupIcon(group GroupItem) components.IconName {
 		return components.IconInbox
 	case group.Icon != "":
 		return components.IconName(group.Icon)
+	case group.Smart():
+		return components.IconFolderSearch
 	}
 	return components.IconFolder
 }
@@ -526,8 +538,11 @@ func (s *State) dropHighlight(
 }
 
 // dropInto files sheets, tabs' sheets and groups dragged onto a group's row
-// into it.
+// into it. A smart folder takes none: what it holds, its query finds.
 func (s *State) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, group GroupItem, animate bool) {
+	if group.Smart() {
+		return
+	}
 	s.dropHighlight(c, semantic, row, true, !group.Inbox, true, animate)
 	end := Last
 	if sheet, ok := ui.Drop[sheetDrag](row); ok {
@@ -547,6 +562,14 @@ func (s *State) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, gr
 
 func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 	return func(m *ui.Menu) {
+		if group.Smart() {
+			if m.Item("Edit Query…").Chosen() {
+				s.editSmartGroup(group)
+			}
+			m.Separator()
+			s.groupItems(m, group)
+			return
+		}
 		if m.Item("New Sheet").Chosen() {
 			s.Go(Place{Kind: PlaceGroup, Group: group.ID})
 			s.Library.NewSheet(group.ID, Last)
@@ -562,18 +585,24 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 			s.startRename(s.Library.NewGroup(group.ID, Last))
 		}
 		m.Separator()
-		if m.Item("Rename…").Chosen() {
-			s.startRename(group.ID)
-		}
-		if m.Item("Icon & Color…").Chosen() {
-			s.startStyling(group.ID)
-		}
-		s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, Last) }, group.ID)
-		m.Separator()
-		if m.Item(trashGroupLabel(group)).Chosen() {
-			s.Library.TrashGroup(group.ID)
-			s.ReconcileLibrary()
-		}
+		s.groupItems(m, group)
+	}
+}
+
+// groupItems are what a group's menu does to the group itself, as to a
+// smart folder: naming it, its look, where it is, and the trash.
+func (s *State) groupItems(m *ui.Menu, group GroupItem) {
+	if m.Item("Rename…").Chosen() {
+		s.startRename(group.ID)
+	}
+	if m.Item("Icon & Color…").Chosen() {
+		s.startStyling(group.ID)
+	}
+	s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, Last) }, group.ID)
+	m.Separator()
+	if m.Item(trashGroupLabel(group)).Chosen() {
+		s.Library.TrashGroup(group.ID)
+		s.ReconcileLibrary()
 	}
 }
 
@@ -670,11 +699,12 @@ func (s *State) renameRow(c *ui.Context, semantic theme.Theme, group GroupItem, 
 const emptyTrashKey = "empty-trash"
 
 // trashGroupLabel says that a group goes to the trash with what it holds.
+// A smart folder holds nothing: its sheets stay where they are filed.
 func trashGroupLabel(group GroupItem) string {
-	switch group.Count {
-	case 0:
+	switch {
+	case group.Smart(), group.Count == 0:
 		return "Move to Trash"
-	case 1:
+	case group.Count == 1:
 		return "Move to Trash with 1 Sheet"
 	}
 	return fmt.Sprintf("Move to Trash with %d Sheets", group.Count)
