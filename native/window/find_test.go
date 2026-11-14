@@ -11,11 +11,11 @@ func TestFindInSheetMarksStepsAndEnds(t *testing.T) {
 	app := openNotebookApp(t, t.TempDir())
 	typeIntoActivePage(t, app, "tide and tide")
 	app.findInSheet()
-	if !app.Shell.FindOpen() || app.Shell.FindQuery != "$sheet " {
+	if !app.Shell.FindOpen() || app.Shell.FindQuery != "" {
 		t.Fatalf("find opened with %q", app.Shell.FindQuery)
 	}
-	app.Shell.FindQuery = "$sheet tide"
-	app.findQuery(app.Shell.FindQuery)
+	app.Shell.FindQuery = "tide"
+	app.findQuery(app.Shell.FindText())
 	if got := app.Shell.FindCount; got != (shell.FindCount{Current: 1, Total: 2}) {
 		t.Fatalf("count %+v", got)
 	}
@@ -34,7 +34,7 @@ func TestFindInSheetMarksStepsAndEnds(t *testing.T) {
 	}
 	// A find opened over a selection looks for what it holds.
 	app.findInSheet()
-	if app.Shell.FindQuery != "$sheet tide" {
+	if app.Shell.FindQuery != "tide" {
 		t.Fatalf("the selection gave %q", app.Shell.FindQuery)
 	}
 }

@@ -89,7 +89,7 @@ func (a *AppState) followFind() {
 		return
 	}
 	if id := a.mountedPage(); id != 0 && id != a.soughtPage {
-		a.findQuery(a.Shell.FindQuery)
+		a.findQuery(a.Shell.FindText())
 	}
 }
 

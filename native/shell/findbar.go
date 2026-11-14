@@ -15,9 +15,11 @@ import (
 // the selection is on, from 1, or 0 for none.
 type FindCount struct{ Current, Total int }
 
-// sheetKey is what a sheet's find starts with: the search's own language,
-// run in the sheet.
-const sheetKey = "$sheet "
+// sheetKey is the key a sheet's find stands under: the search's own
+// language, run in the sheet. The find bar holds it fixed, as the bar
+// itself says where the query runs, and FindQuery is what is written
+// after it.
+const sheetKey = "$sheet"
 
 // findBar is a sheet's find as the writing dock shows it in its place.
 type findBar struct {
@@ -28,24 +30,41 @@ type findBar struct {
 // FindOpen reports whether a sheet's find is open.
 func (s *State) FindOpen() bool { return s != nil && s.finder.open }
 
-// StartFind opens a sheet's find with text, which runs in the sheet: a
-// query that holds $sheet, or words $sheet is put before. What follows
-// the key is selected, for typing over.
+// StartFind opens a sheet's find with text, which runs in the sheet: its
+// words are written after the find's fixed $sheet, the key taken out of
+// them where they hold it, and selected, for typing over.
 func (s *State) StartFind(text string) {
-	if query.Parse(text).Scope != query.InSheet {
-		text = sheetKey + text
-	}
+	text = withoutSheet(text)
 	s.FindQuery = text
 	s.finder.open = true
 	s.FindRequested = true
-	from := 0
-	if strings.HasPrefix(text, sheetKey) {
-		from = utf8.RuneCountInString(sheetKey)
-	}
-	s.finder.input.selectNext(from, utf8.RuneCountInString(text))
+	s.finder.input.selectNext(0, utf8.RuneCountInString(text))
 	if s.Find != nil {
-		s.Find(text)
+		s.Find(s.FindText())
 	}
+}
+
+// FindText is the query a sheet's find runs: its fixed key, then what is
+// written.
+func (s *State) FindText() string { return sheetKey + " " + s.FindQuery }
+
+// withoutSheet is text without its $sheet keys, the text either side of
+// each joined by a space.
+func withoutSheet(text string) string {
+	var cuts []query.Span
+	query.Walk(query.Parse(text).Root, func(n query.Node) {
+		if f, ok := n.(*query.Filter); ok && f.Key != nil && f.Key.Name == "sheet" {
+			cuts = append(cuts, f.Span)
+		}
+	})
+	for i := len(cuts) - 1; i >= 0; i-- {
+		left, right := strings.TrimRight(text[:cuts[i].From], " "), strings.TrimLeft(text[cuts[i].To:], " ")
+		if left != "" && right != "" {
+			left += " "
+		}
+		text = left + right
+	}
+	return text
 }
 
 // endFind closes the find: the page's matches go, and the selection stays
@@ -68,9 +87,8 @@ func (s *State) stepFind(forward bool) {
 }
 
 // findBarView is the find in the writing dock's place, on its material:
-// the query, set as the language reads it, what it found, and the steps
-// through it. A query that no longer runs in the sheet, once it reads
-// whole, goes to the sidebar's search.
+// the query under its fixed $sheet, set as the language reads it, what it
+// found, and the steps through it.
 func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
@@ -83,12 +101,12 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 	bar.Children(func() {
 		var field ui.Element
 		field, input = queryField{
-			Key: "sheet-find", Label: "Find in sheet", Placeholder: "Find in this sheet, $ for keys",
-			Value: &s.FindQuery, In: &s.finder.input, Scope: query.InSheet,
+			Key: "sheet-find", Label: "Find in sheet", Placeholder: "words, $ for keys",
+			Value: &s.FindQuery, In: &s.finder.input, Scope: query.InSheet, Fixed: sheetKey,
 			Focus: s.FindRequested, Animate: animate, Keys: s.findKey,
 		}.View(s, c, semantic)
 		field.Grow(1)
-		if note := findNote(s.FindQuery, s.FindCount); note != "" {
+		if note := findNote(s.FindText(), s.FindCount); note != "" {
 			components.Label(c, note, theme.TextXSmall, semantic.Text.Muted).Key("find-count").
 				SingleLine().Shrink(0).FontFeatures("tnum")
 		}
@@ -110,31 +128,9 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 		}.View(c, semantic)
 	})
 	s.FindRequested = false
-	if input.Changed() {
-		text := s.FindQuery
-		if q := query.Parse(text); q.Scope != query.InSheet && settled(q) {
-			// The query left the sheet: it is the notebook's search now.
-			text = strings.TrimLeft(text, " ")
-			s.endFind()
-			s.Search()
-			s.SearchQuery = text
-			n := utf8.RuneCountInString(text)
-			s.nav.find.input.selectNext(n, n)
-		} else if s.Find != nil {
-			s.Find(text)
-		}
+	if input.Changed() && s.Find != nil {
+		s.Find(s.FindText())
 	}
-}
-
-// settled reports a query with no key being written or wrong in it: one
-// that says where it runs, and may go there.
-func settled(q query.Query) bool {
-	for _, is := range q.Issues {
-		if is.Kind == query.Unknown || is.Kind == query.Pending {
-			return false
-		}
-	}
-	return true
 }
 
 // findNote says what the find found: the match the selection is on and

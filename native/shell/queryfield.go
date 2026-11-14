@@ -49,6 +49,10 @@ type queryField struct {
 	In                      *queryInput
 	// Scope is where the query runs, which says the keys offered.
 	Scope query.Scope
+	// Fixed is a key that stands before what is written and is not
+	// written itself, as $sheet stands in a sheet's find: the field shows
+	// it in a key's color, and the query is it and Value.
+	Fixed string
 	// Focus asks the field for the focus in this frame.
 	Focus   bool
 	Animate bool
@@ -71,12 +75,16 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 	field.Children(func() {
 		ui.Icon(c, components.IconSearch.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).
 			TextColor(semantic.Icon.Muted)
+		if f.Fixed != "" {
+			components.Label(c, f.Fixed, text, semantic.Accent.Foreground).Key("fixed").
+				SingleLine().Shrink(0)
+		}
 		input = ui.TextInputBase(c.Key(f.Key), f.Value).
 			Grow(1).MinWidth(0).Font(theme.UIFontFamily).
 			FontSize(text.Size(scale)).FixedLineHeight(text.LineHeight(scale)).
 			TextColor(semantic.Text.Default).
 			Placeholder(f.Placeholder).Label(f.Label)
-		input.TextRanges(queryRanges(*f.Value, semantic)...)
+		input.TextRanges(queryRanges(f.prefix(), *f.Value, semantic)...)
 		input.OnTextKey(func(k ui.TextKey) bool { return s.queryKey(in, k) || f.Keys != nil && f.Keys(k) })
 		if f.Focus {
 			input.Focus()
@@ -102,7 +110,7 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 		field.Border(1, semantic.Border.Focused)
 	}
 	_, caret := input.TextSelection()
-	s.complete(in, *f.Value, byteOffset(*f.Value, caret), f.Scope)
+	s.complete(in, f.prefix(), *f.Value, byteOffset(*f.Value, caret), f.Scope)
 	open := input.Focused() && len(in.completion.Items) > 0 && in.dismissed != *f.Value
 	if open {
 		s.suggestions(c, semantic, in, f.Value, field, input, &open, f.Animate)
@@ -113,8 +121,18 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 	return field, input
 }
 
-// complete offers what may stand at caret in text, as either changes.
-func (s *State) complete(in *queryInput, text string, caret int, scope query.Scope) {
+// prefix is what the query has before what is written: the fixed key and
+// a space.
+func (f queryField) prefix() string {
+	if f.Fixed == "" {
+		return ""
+	}
+	return f.Fixed + " "
+}
+
+// complete offers what may stand at caret in text, as either changes. The
+// query is prefix and text; the completion's span is in text.
+func (s *State) complete(in *queryInput, prefix, text string, caret int, scope query.Scope) {
 	if in.query == text && in.caret == caret {
 		return
 	}
@@ -123,7 +141,9 @@ func (s *State) complete(in *queryInput, text string, caret int, scope query.Sco
 		names = s.Library.SearchNames
 	}
 	in.query, in.caret, in.suggestion, in.first = text, caret, 0, 0
-	in.completion = query.Complete(text, caret, scope, names)
+	in.completion = query.Complete(prefix+text, len(prefix)+caret, scope, names)
+	in.completion.Span.From = max(in.completion.Span.From-len(prefix), 0)
+	in.completion.Span.To = max(in.completion.Span.To-len(prefix), 0)
 }
 
 // completing reports whether a completion is offered for text, the query
@@ -271,16 +291,19 @@ func (s *State) queryKey(in *queryInput, k ui.TextKey) bool {
 	return false
 }
 
-// queryRanges sets a query as the language reads it: keys and tags in the
-// accent, their values in the heading's color, a - quieter, what is wrong
-// marked and what means nothing here muted.
-func queryRanges(text string, semantic theme.Theme) []ui.TextRange {
+// queryRanges sets what is written of a query, after prefix, as the
+// language reads the whole: keys and tags in the accent, their values in
+// the heading's color, a - quieter, what is wrong marked and what means
+// nothing here muted.
+func queryRanges(prefix, written string, semantic theme.Theme) []ui.TextRange {
+	text := prefix + written
 	q := query.Parse(text)
 	var out []ui.TextRange
 	add := func(sp query.Span, color ui.Color) {
+		sp.From, sp.To = max(sp.From-len(prefix), 0), sp.To-len(prefix)
 		if sp.To > sp.From {
 			out = append(out, ui.TextRange{
-				Start: utf8.RuneCountInString(text[:sp.From]), End: utf8.RuneCountInString(text[:sp.To]), Color: color,
+				Start: utf8.RuneCountInString(written[:sp.From]), End: utf8.RuneCountInString(written[:sp.To]), Color: color,
 			})
 		}
 	}

@@ -66,7 +66,8 @@ type State struct {
 	Statistics      string
 	SearchQuery     string
 	SearchRequested bool
-	// FindQuery is a sheet's find as written, FindRequested asks its field
+	// FindQuery is a sheet's find as written after its fixed $sheet (the
+	// query it runs is FindText), FindRequested asks its field
 	// for the focus, and FindCount is what it found, as the window counts
 	// it.
 	FindQuery         string

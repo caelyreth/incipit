@@ -104,31 +104,35 @@ func TestAQueryGoesWhereItRuns(t *testing.T) {
 	state.Find = func(q string) { sought = append(sought, q) }
 	tester.Type("$sheet ")
 	settle(tester)
-	if state.nav.searching || !state.FindOpen() || state.FindQuery != "$sheet " {
+	if state.nav.searching || !state.FindOpen() || state.FindQuery != "" {
 		t.Fatalf("$sheet did not go to the sheet's find: searching %v find %q", state.nav.searching, state.FindQuery)
 	}
 	tester.Type("tide")
 	settle(tester)
-	if len(sought) == 0 || sought[len(sought)-1] != "$sheet tide" {
-		t.Fatalf("the find ran %v", sought)
+	if state.FindQuery != "tide" || len(sought) == 0 || sought[len(sought)-1] != "$sheet tide" {
+		t.Fatalf("the find holds %q and ran %v", state.FindQuery, sought)
 	}
-	// Without $sheet the query is the notebook's again, once it reads
-	// whole: not while the key is being taken away.
+	// $sheet is the find's own, shown before what is written and never
+	// written itself: the keys cannot take it away.
 	tester.Key(0, ui.KeyHome)
-	for range len("$sheet") {
-		tester.Key(0, ui.KeyRight)
-	}
-	for range len("sheet") {
-		tester.Key(0, ui.KeyBackspace)
-	}
-	settle(tester)
-	if !state.FindOpen() {
-		t.Fatalf("a key half taken away moved the query: %q", state.SearchQuery)
-	}
 	tester.Key(0, ui.KeyBackspace)
 	settle(tester)
-	if state.FindOpen() || !state.nav.searching || state.SearchQuery != "tide" {
-		t.Fatalf("the query stayed in the sheet: find %v search %q", state.FindOpen(), state.SearchQuery)
+	if !state.FindOpen() || state.FindQuery != "tide" || !tester.HasText("$sheet") {
+		t.Fatalf("the find lost its key: open %v find %q", state.FindOpen(), state.FindQuery)
+	}
+}
+
+func TestAFindTakesItsKeyOutOfWhatItIsGiven(t *testing.T) {
+	for text, want := range map[string]string{
+		"$sheet":           "",
+		"$sheet tide":      "tide",
+		"tide $sheet moon": "tide moon",
+		"tide moon $sheet": "tide moon",
+		"\"$sheet\" tide":  "\"$sheet\" tide",
+	} {
+		if got := withoutSheet(text); got != want {
+			t.Errorf("withoutSheet(%q) = %q, want %q", text, got, want)
+		}
 	}
 }
 
