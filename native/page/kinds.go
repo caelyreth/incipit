@@ -211,8 +211,9 @@ func (formulaKind) lay(lc *layoutCache, sg seg, style present.Style, m Metrics) 
 		sp.ObjectWidth = ms.to - ms.from + mathPad*2
 		sp.ObjectHeight, sp.ObjectDescent = ms.ascent, ms.descent
 	} else {
-		// No math yet: the formula stands as its hint.
+		// No math yet: the formula stands as its hint, shaped once here.
 		lay := ui.ShapeRichTextWith([]ui.Span{sg.face}, ui.Font{Family: sg.face.Font, Size: sg.face.Size, Italic: true}, ui.TextShape{})
+		sg.shaped = lay
 		w, _ := lay.Size()
 		sp.ObjectWidth = w + mathPad*2
 		sp.ObjectHeight, sp.ObjectDescent = sg.face.Size*0.75, sg.face.Size*0.25

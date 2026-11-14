@@ -112,6 +112,8 @@ type mathLayout struct {
 	// (its source surface open), or always while it has no math.
 	fold, full float32
 	open       bool
+	// hint is the block's hint as shaped when first drawn.
+	hint *ui.TextLayout
 }
 
 // layMath lays out a math block's display over its source panel.
@@ -226,8 +228,12 @@ func (el *Element) paintInline(p *ui.Painter, sg seg, o ui.Rect) {
 		p.Fill(ui.Rect{X: cx - w/2, Y: o.Y + o.H + 1.5, W: w, H: 1.5}, el.Theme.Accent.Foreground.Alpha(lk.open), 1)
 	}
 	if lk.hint > 0.001 {
-		face := sg.face
-		lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Italic: true}, ui.TextShape{})
+		// The hint as the layout shaped it, or, fading as math comes, anew.
+		lay := sg.shaped
+		if lay == nil {
+			face := sg.face
+			lay = ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Italic: true}, ui.TextShape{})
+		}
 		w, h := lay.Size()
 		p.TextLayout(lay, cx-w/2, base-h*0.78, el.hintInk(sg.text, sg.open, lk.hint))
 	}
@@ -248,9 +254,13 @@ func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32) float
 		components.PaintRing(p, frameOf(u, ux, uy), cardPad(m), 0, t.Border.Default.Alpha(a))
 	}
 	if lk.hint > 0.001 {
-		sp := span(mathHint, el.Editor.theme.Resolve(nil), m.Body*displayScale)
-		sp.Italic = true
-		lay := ui.ShapeRichTextWith([]ui.Span{sp}, ui.Font{Family: sp.Font, Size: sp.Size, Italic: true}, ui.TextShape{})
+		if ml.hint == nil {
+			// Shaped once for the layout, whose theme and measures it reads.
+			sp := span(mathHint, el.Editor.theme.Resolve(nil), m.Body*displayScale)
+			sp.Italic = true
+			ml.hint = ui.ShapeRichTextWith([]ui.Span{sp}, ui.Font{Family: sp.Font, Size: sp.Size, Italic: true}, ui.TextShape{})
+		}
+		lay := ml.hint
 		w, h := lay.Size()
 		p.TextLayout(lay, ux+(m.Width-u.x-w)/2, uy+(ml.h-h)/2, el.hintInk(u.pres.Node.Text(), heldMath(u), lk.hint))
 	}

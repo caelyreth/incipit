@@ -1284,9 +1284,8 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 			bg = el.Theme.Prose.Selection
 		}
 		p.Fill(ui.Rect{X: sx + o.X, Y: sy + o.Y, W: o.W, H: o.H}, bg, 4)
-		// TODO(perf): keep boxes' shaped text with the surface's layout.
-		lay := ui.ShapeRichTextWith([]ui.Span{sg.face}, ui.Font{Family: sg.face.Font, Size: sg.face.Size}, ui.TextShape{})
-		_, h := lay.Size()
-		p.TextLayout(lay, sx+o.X+boxPad, sy+o.Y+(o.H-h)/2, sg.face.Color)
+		// The box's text as the layout shaped it to measure the box.
+		_, h := sg.shaped.Size()
+		p.TextLayout(sg.shaped, sx+o.X+boxPad, sy+o.Y+(o.H-h)/2, sg.face.Color)
 	}
 }

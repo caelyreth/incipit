@@ -58,8 +58,8 @@ type seg struct {
 	node *doc.Node
 	card int
 	open bool
-	// face is how a box's or a ghost's text is drawn, as it was measured;
-	// a ghost's is shaped, and drawn in ink.
+	// face is how a box's or a ghost's text is drawn, as it was measured,
+	// and shaped is it shaped; a ghost's is drawn in ink.
 	face   ui.Span
 	shaped *ui.TextLayout
 	ink    ui.Color
@@ -602,7 +602,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			w, h := lay.Size()
 			sp := span("\uFFFC", style, m.Body)
 			sp.ObjectWidth, sp.ObjectHeight = max(w, m.Body*0.6)+boxPad*2, max(h*0.8, m.Body)
-			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), face: face}, sp, style)
+			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), face: face, shaped: lay}, sp, style)
 		}
 	}
 	addComp([]vocab.Group{s.Group})

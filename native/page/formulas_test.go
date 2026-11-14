@@ -1,6 +1,7 @@
 package page
 
 import (
+	"github.com/egoist/mygo/ui"
 	"testing"
 	"time"
 
@@ -125,4 +126,30 @@ func TestAFormulasCardSitsUnderIt(t *testing.T) {
 		return
 	}
 	t.Fatal("no formula")
+}
+
+// A formula's hint is shaped with its layout, not as it is painted: an
+// empty inline formula's as it is laid out, an empty math block's once it
+// is first drawn, and both kept frame after frame.
+func TestFormulaHintsAreShapedOnce(t *testing.T) {
+	el := newElement(t)
+	typeText(el, "Let us say $")
+	var hint *ui.TextLayout
+	for _, sg := range el.Editor.layout.units[0].surfaces[0].segs {
+		if sg.inline != nil {
+			hint = sg.shaped
+		}
+	}
+	if hint == nil {
+		t.Fatal("an empty formula's hint was not shaped with its layout")
+	}
+
+	el, block := mathPage(t, "")
+	tt := ui.NewTester(el.View, 900, 600)
+	tt.Advance(500 * time.Millisecond)
+	first := block().math.hint
+	tt.Advance(500 * time.Millisecond)
+	if first == nil || block().math.hint != first {
+		t.Fatal("an empty math block's hint was shaped again as it was painted")
+	}
 }
