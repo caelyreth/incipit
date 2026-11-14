@@ -64,6 +64,8 @@ type AppState struct {
 	settingsDirty bool
 	// shownPictures decodes the notebook's pictures for every page.
 	shownPictures *page.Pictures
+	// finder keeps the search index in step and answers searches.
+	finder *finder
 }
 
 // NewAppState is a notebook held in memory alone, as tests use.
@@ -94,6 +96,9 @@ func newAppState(store *storage.Store) (*AppState, error) {
 		return nil, err
 	}
 	app.Workspace = pages
+	if err := app.openFinder(store); err != nil {
+		return nil, err
+	}
 	app.Settings = *settings.New()
 	app.Shell = shell.New()
 	app.Palette = &overlay.CommandPalette{}
@@ -481,6 +486,7 @@ func (a *AppState) View(c *ui.Context) {
 	// What this frame changed names its page and goes to the notebook.
 	a.summarize()
 	a.save()
+	a.reindex()
 	// The toasts stand above the foot, and over all else.
 	scale := a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
 	a.Notices.View(c, semantic, animate, theme.DefaultLayout.Status*scale)

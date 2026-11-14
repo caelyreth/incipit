@@ -378,3 +378,35 @@ func sheetOrGroupLeft(l *Library, group GroupID, sheet SheetID) (Group, Sheet, b
 	s, sok := l.Sheet(sheet)
 	return g, s, gok || sok
 }
+
+func TestHeldIsEverySheetTrashedOrNot(t *testing.T) {
+	l := New()
+	at := time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC)
+	g, _ := l.AddGroup(0, "Work")
+	for id, group := range map[SheetID]GroupID{3: Inbox, 1: g, 2: g} {
+		if err := l.AddSheet(id, group, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = l.TrashSheet(3, at)
+	_ = l.TrashGroup(g, at)
+	held := l.Held()
+	if len(held) != 3 || held[0].ID != 1 || held[2].ID != 3 || len(l.Live()) != 0 {
+		t.Fatalf("held %+v, live %+v", held, l.Live())
+	}
+}
+
+func TestATouchMovesTheRevisionButNotTheFiling(t *testing.T) {
+	l := New()
+	at := time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC)
+	_ = l.AddSheet(1, Inbox, at)
+	rev, filing := l.Revision(), l.Filing()
+	l.Touch(1, at.Add(time.Second))
+	if l.Revision() == rev || l.Filing() != filing {
+		t.Fatalf("touch: revision %d→%d, filing %d→%d", rev, l.Revision(), filing, l.Filing())
+	}
+	_ = l.TrashSheet(1, at)
+	if l.Filing() == filing {
+		t.Fatal("trashing moves the filing")
+	}
+}

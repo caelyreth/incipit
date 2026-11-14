@@ -36,10 +36,6 @@ func TestPageContentSavesAsRowsAndLoads(t *testing.T) {
 	if back == nil || back.Root().Slot(0).Child(0).Text() != "findable words" {
 		t.Fatalf("loaded %v", back)
 	}
-	hits, err := s.Search("findable", 10)
-	if err != nil || len(hits) != 1 || hits[0] != 1 {
-		t.Fatalf("search: %v %v", hits, err)
-	}
 }
 
 // A page the notebook has not written yet has no content to load.

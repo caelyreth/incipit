@@ -116,13 +116,19 @@ type Library struct {
 	nextGroup   GroupID
 	nextChapter ChapterID
 	// rev counts the library's changes: every method that may change it
-	// moves it on.
-	rev uint64
+	// moves it on. touches counts those that only record a sheet's change
+	// time (Touch).
+	rev, touches uint64
 }
 
 // Revision changes whenever the library may have: a view of it built at
 // one revision stands while the revision does.
 func (l *Library) Revision() uint64 { return l.rev }
+
+// Filing changes whenever the library may have but for a sheet's change
+// time: where sheets and groups are, what they are called, what is in the
+// trash. A view that shows no change times stands while it does.
+func (l *Library) Filing() uint64 { return l.rev - l.touches }
 
 // New is a library holding only its Inbox.
 func New() *Library {
@@ -313,6 +319,17 @@ func (l *Library) All() []Sheet {
 		}
 	}
 	slices.SortFunc(sheets, createdFirst)
+	return sheets
+}
+
+// Held returns every sheet the library holds, in the trash or not, by
+// identity.
+func (l *Library) Held() []Sheet {
+	sheets := make([]Sheet, 0, len(l.sheets))
+	for _, sheet := range l.sheets {
+		sheets = append(sheets, *sheet)
+	}
+	slices.SortFunc(sheets, func(a, b Sheet) int { return cmp.Compare(a.ID, b.ID) })
 	return sheets
 }
 
@@ -602,6 +619,7 @@ func (l *Library) AddSheetAt(id SheetID, group GroupID, at time.Time, index int)
 // Touch records a change to a sheet.
 func (l *Library) Touch(id SheetID, at time.Time) {
 	l.rev++
+	l.touches++
 	if sheet, ok := l.sheets[id]; ok && at.After(sheet.Updated) {
 		sheet.Updated = at
 	}

@@ -72,6 +72,9 @@ func Run() error {
 		})
 		app.mainWindow = window
 		app.Notices.SetWake(window.Invalidate)
+		if app.finder != nil {
+			app.finder.SetWake(window.Invalidate)
+		}
 	})
 	return mygo.App.Run()
 }

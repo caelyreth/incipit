@@ -95,6 +95,14 @@ var migrations = []string{
 	`
 	ALTER TABLE pages ADD COLUMN tags TEXT;
 	`,
+	// Search moved to its own index beside the notebook (app/search): the
+	// text index inside it goes, with the triggers that kept it.
+	`
+	DROP TRIGGER nodes_ai;
+	DROP TRIGGER nodes_ad;
+	DROP TRIGGER nodes_au;
+	DROP TABLE nodes_fts;
+	`,
 }
 
 // migrate brings the notebook to the current schema, claiming a new file

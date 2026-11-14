@@ -32,7 +32,7 @@ func TestLibraryProjectionsFollowCurrentSessions(t *testing.T) {
 		}
 	}
 	checkCounts()
-	if got := app.Search("NEEDLE"); len(got) != 2 {
+	if got := searchSettled(app, "NEEDLE"); len(got) != 2 {
 		t.Fatalf("search = %+v, want both sessions", got)
 	}
 	app.dropSession(first.page)
@@ -40,7 +40,7 @@ func TestLibraryProjectionsFollowCurrentSessions(t *testing.T) {
 	if got := app.Sheets(shell.Place{Kind: shell.PlaceAll}); len(got) != 1 || got[0].Title != "Second needle" {
 		t.Fatalf("all sheets after removal = %+v", got)
 	}
-	if got := app.Search("needle"); len(got) != 1 || got[0].Title != "Second needle" {
+	if got := searchSettled(app, "needle"); len(got) != 1 || got[0].Title != "Second needle" {
 		t.Fatalf("search after removal = %+v", got)
 	}
 	if got := app.Entries("1"); len(got) != 1 || got[0].Sheet.Title != "Second needle" {
@@ -48,7 +48,7 @@ func TestLibraryProjectionsFollowCurrentSessions(t *testing.T) {
 	}
 	app.putSession(first.page, first)
 	checkCounts()
-	if got := app.Search("needle"); len(got) != 2 {
+	if got := searchSettled(app, "needle"); len(got) != 2 {
 		t.Fatalf("search after restoring session = %+v", got)
 	}
 	app.TrashSheet(sheetName(first.page))
@@ -167,4 +167,10 @@ func BenchmarkLibrarySessionLookup(b *testing.B) {
 			}
 		})
 	}
+}
+
+// searchSettled runs a query once the index took what changed.
+func searchSettled(app *AppState, query string) []shell.SheetItem {
+	settleSearch(app)
+	return app.Search(query)
 }

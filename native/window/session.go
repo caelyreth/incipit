@@ -28,6 +28,16 @@ type sheetSession struct {
 	summarizer storage.Summarizer
 }
 
+// text is the page's newest snapshot this run: its editor's, or the one
+// last handed to the notebook once the editor went; nil for a page not
+// opened since launch, whose text is the store's.
+func (s *sheetSession) text() *doc.Snapshot {
+	if s.element != nil {
+		return s.element.Editor.Engine.Snapshot()
+	}
+	return s.handed
+}
+
 // close lets go of the page's editor.
 func (s *sheetSession) close() {
 	if s.element != nil {

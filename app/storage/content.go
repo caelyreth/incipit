@@ -88,23 +88,3 @@ func (s *Store) LoadPage(key PageKey, schema *doc.Schema, marks *doc.Interner) (
 	}
 	return snap, nil
 }
-
-// Search returns the pages whose text matches an FTS5 query, best first.
-func (s *Store) Search(query string, limit int) ([]PageKey, error) {
-	rows, err := s.db.QueryContext(context.Background(), `
-		SELECT nodes.page FROM nodes_fts JOIN nodes ON nodes.rowid = nodes_fts.rowid
-		WHERE nodes_fts MATCH ? GROUP BY nodes.page ORDER BY min(rank) LIMIT ?`, query, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []PageKey
-	for rows.Next() {
-		var k PageKey
-		if err := rows.Scan(&k); err != nil {
-			return nil, err
-		}
-		out = append(out, k)
-	}
-	return out, rows.Err()
-}

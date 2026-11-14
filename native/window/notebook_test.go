@@ -21,7 +21,15 @@ func openNotebookApp(t *testing.T, root string) *AppState {
 		store.Close()
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { app.Close() })
 	return app
+}
+
+// settleSearch hands the index what changed and waits until it took it, as
+// frames and the index's goroutine do in time.
+func settleSearch(app *AppState) {
+	app.reindex()
+	app.finder.indexer.Flush()
 }
 
 // activeSession is the session of the page in front.

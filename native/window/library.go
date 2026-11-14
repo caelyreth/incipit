@@ -350,19 +350,9 @@ func (a *AppState) entries(group string) []shell.GroupEntry {
 	return entries
 }
 
-// Search is part of shell.Library.
-func (a *AppState) Search(query string) []shell.SheetItem {
-	query = strings.ToLower(query)
-	var found []library.Sheet
-	sessions := a.sessionsBySheet()
-	for _, sheet := range a.library.Live() {
-		session, ok := sessions[sheet.ID]
-		if ok && strings.Contains(strings.ToLower(session.Title()), query) {
-			found = append(found, sheet)
-		}
-	}
-	return sheetItemsWithSessions(found, sessions)
-}
+// Search is part of shell.Library: the sheets the query finds in the
+// notebook's index, best first.
+func (a *AppState) Search(query string) []shell.SheetItem { return a.searchSheets(query) }
 
 // TrashedGroups is part of shell.Library.
 func (a *AppState) TrashedGroups() []shell.GroupItem {

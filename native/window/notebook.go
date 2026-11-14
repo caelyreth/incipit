@@ -237,7 +237,13 @@ func storageView(view workspace.ViewState) storage.ViewState {
 // Close saves everything still pending and lets go of the notebook. It is
 // safe to call more than once.
 func (a *AppState) Close() error {
-	if a == nil || a.notebook == nil || a.notebook.closed {
+	if a == nil {
+		return nil
+	}
+	// The index reads from the store: it stops first, and catches up on
+	// what it missed at the next launch.
+	a.closeFinder()
+	if a.notebook == nil || a.notebook.closed {
 		return nil
 	}
 	for _, session := range a.sessions {
