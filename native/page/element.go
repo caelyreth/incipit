@@ -624,6 +624,15 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		if ev.Mods&ui.Shift != 0 && dx == 0 {
 			dx = ev.DY
 		}
+		if ev.Precise && !ev.Momentum && ev.DX == 0 && ev.DY == 0 {
+			// The fingers lifted: whatever they held lets go, a table
+			// scrolled across under them and the page alike.
+			x, y := el.toPage(el.pointer.X, el.pointer.Y)
+			el.wheelAcross(x, y, ev, 0)
+			el.scrollBy(ev, at)
+			services.Invalidate()
+			return true
+		}
 		if x, y := el.toPage(el.pointer.X, el.pointer.Y); dx != ev.DX || math.Abs(float64(dx)) > math.Abs(float64(ev.DY)) {
 			if el.wheelAcross(x, y, ev, dx) {
 				services.Invalidate()

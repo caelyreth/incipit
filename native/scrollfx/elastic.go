@@ -7,13 +7,13 @@ import (
 )
 
 const (
-	// inputHold is the quiet time that ends a touchpad gesture. Until it
-	// passes, the edge stays under the fingers and never springs back
-	// between their events.
+	// inputHold is the quiet that ends a touchpad gesture where the system
+	// does not say the fingers lifted (Lift). Until it passes, the edge
+	// stays under the fingers and never springs back between their events.
 	inputHold = 90 * time.Millisecond
-	// releaseSpeed bounds the fingers' speed carried into the return, in
-	// travel per second, so a last flick does not throw the edge out.
-	releaseSpeed = float32(900)
+	// releaseSpeed bounds the fingers' speed carried into the return, so
+	// a last flick does not throw the edge out.
+	releaseSpeed = float32(1200)
 	// runGap is the quiet that ends a run of input. The first event of a
 	// run is taken to span notchSpan for a wheel notch, which the app
 	// glides over about that long, and a frame for a touchpad, which
@@ -31,11 +31,11 @@ const (
 	substep  = float32(1) / 240
 )
 
-// Profile is how one scroll surface answers being pulled past its edge.
-// Resistance is how far the edge first moves per DIP of travel past it,
-// falling toward none at the limit. Response is the return spring's period
-// in seconds and DampingRatio its damping: 1 settles without crossing
-// back.
+// Profile is how one scroll surface answers being carried past its edge.
+// Resistance is how far the edge first moves per DIP the fingers pull,
+// falling as it nears the band's extent. Response is the return spring's
+// period in seconds and DampingRatio its damping: 1 settles without
+// crossing back.
 type Profile struct {
 	Resistance   float32
 	Response     float32
@@ -43,7 +43,7 @@ type Profile struct {
 }
 
 // DefaultProfile is a soft return that never swings back.
-var DefaultProfile = Profile{Resistance: 0.55, Response: 0.5, DampingRatio: 1}
+var DefaultProfile = Profile{Resistance: 0.4, Response: 0.7, DampingRatio: 1}
 
 func (p Profile) normalized() Profile {
 	if p.Resistance <= 0 {
@@ -78,29 +78,32 @@ const (
 
 // Elastic is one axis of a surface carried past its content edge.
 //
-// It is one spring in travel: how far input has gone past the edge, which
-// the rubber curve (band) maps to the offset shown, so the edge gives less
-// the farther it goes and never meets a wall. Fingers on a touchpad hold
-// the travel where they put it, so pulling back retraces the same path and
-// crossing the edge hands the rest of the move back to the content. Input
-// that does not hold the edge, a wheel notch or a fling's inertia, meets it
-// at the speed the content was moving, measured from the input itself, and
-// the spring carries that speed out and back. Input only changes its
+// What moves is the offset shown, a spring that returns it to the edge.
+// Fingers on a touchpad hold it: their travel past the edge maps to the
+// offset by a rubber band as long as the view (band), so a pull near the
+// edge moves it about Resistance as far and it gives less the farther it
+// goes, never reaching the band's extent; pulling back retraces the same
+// path, and crossing the edge hands the rest of the move back to the
+// content. Input that does not hold it, a wheel notch or a fling's
+// inertia, meets it at the speed the content was moving, measured from the
+// input itself, and the spring carries that speed out and back. Letting
+// go hands the spring the speed the offset had. Input only changes its
 // state; the frames' clock moves it (Step).
 type Elastic struct {
-	// travel is how far past the edge, before the rubber curve, and
-	// velocity its speed per second.
-	travel   float32
+	offset   float32
 	velocity float32
-	limit    float32
-	spring   Profile
-	updated  time.Time
+	// travel is the fingers' pull past the edge while they hold it,
+	// before the band.
+	travel  float32
+	limit   float32
+	spring  Profile
+	updated time.Time
 	// touch is when the fingers last moved, touched whether they moved
 	// since the last frame.
 	touch   time.Time
 	touched bool
 	held    bool
-	// tracked is the held travel's smoothed speed, given to the spring
+	// tracked is the held offset's smoothed speed, given to the spring
 	// when the fingers let go.
 	tracked  float32
 	previous float32
@@ -115,7 +118,7 @@ type Elastic struct {
 }
 
 // Offset is the current visual displacement from the edge.
-func (e Elastic) Offset() float32 { return e.band(e.travel) }
+func (e Elastic) Offset() float32 { return e.offset }
 
 // Observe notes scroll input of delta at at wherever it lands: how fast it
 // moves the content, so that meeting the edge carries that speed, and a
@@ -146,6 +149,14 @@ func (e *Elastic) Observe(delta float32, phase InputPhase, at time.Time) {
 	e.sampled, e.phase = at, phase
 }
 
+// Lift lets the fingers go at once, as a touchpad says they lifted: an
+// empty event of a direct gesture.
+func (e *Elastic) Lift() {
+	if e != nil && e.held {
+		e.release()
+	}
+}
+
 // Add carries the axis by delta DIPs, positive drawing content forward
 // from its edge, and returns the part of delta it did not take, which
 // belongs to the content: what a gesture has left after pulling back
@@ -163,12 +174,14 @@ func (e *Elastic) Add(delta, limit float32, phase InputPhase, profile Profile) f
 	if delta == 0 {
 		return 0
 	}
-	outward := e.travel == 0 || e.travel*delta > 0
+	outward := e.offset == 0 || e.offset*delta > 0
 	switch phase {
 	case Direct:
 		e.coasting = false
 		if !e.held {
-			e.velocity, e.tracked, e.previous = 0, 0, e.travel
+			// The fingers take the edge where it is shown.
+			e.travel = e.unband(e.offset)
+			e.velocity, e.tracked, e.previous = 0, 0, e.offset
 		}
 		e.held, e.touched = true, true
 		next := e.travel + delta
@@ -176,11 +189,12 @@ func (e *Elastic) Add(delta, limit float32, phase InputPhase, profile Profile) f
 			// Back through the edge: the rest scrolls the content, and
 			// the fingers hold the edge no more, so letting go throws
 			// nothing past it.
-			e.travel, e.velocity, e.tracked = 0, 0, 0
+			e.offset, e.travel, e.velocity, e.tracked = 0, 0, 0, 0
 			e.held, e.touched = false, false
 			return next
 		}
-		e.travel = clamp(next, -e.reach(), e.reach())
+		e.travel = next
+		e.offset = e.band(next)
 		return 0
 	case Momentum:
 		if e.held {
@@ -211,7 +225,8 @@ func (e *Elastic) Add(delta, limit float32, phase InputPhase, profile Profile) f
 }
 
 // meet has the edge met by input moving delta: the spring takes the
-// content's speed as it came, unless the edge already goes out faster. A
+// content's speed as it came, resisted as a pull is, unless the edge
+// already goes out faster. A
 // move with no speed measured toward the edge is a run's first event.
 func (e *Elastic) meet(delta float32) {
 	// Observe measured the speed in the content's sense, the opposite of
@@ -220,6 +235,9 @@ func (e *Elastic) meet(delta float32) {
 	if speed*delta <= 0 {
 		speed = delta / firstSpan(e.phase)
 	}
+	// The edge resists the content as it does the fingers: it moves
+	// Resistance as fast as what meets it.
+	speed *= e.spring.Resistance
 	if e.velocity*delta > 0 && abs(e.velocity) >= abs(speed) {
 		return
 	}
@@ -238,14 +256,14 @@ func firstSpan(phase InputPhase) float32 {
 // inward lets input going back from the edge stop its going out: the
 // spring returns from where it is.
 func (e *Elastic) inward() {
-	if e.velocity*e.travel > 0 {
+	if e.velocity*e.offset > 0 {
 		e.velocity = 0
 	}
 }
 
-// release lets the fingers go, handing their speed to the spring.
+// release lets the fingers go, handing the offset's speed to the spring.
 func (e *Elastic) release() {
-	e.held, e.touched = false, false
+	e.held, e.touched, e.travel = false, false, 0
 	e.velocity = clamp(e.tracked, -releaseSpeed, releaseSpeed)
 }
 
@@ -284,22 +302,25 @@ func (e *Elastic) Step(now time.Time, animate bool) (float32, bool) {
 	if e.held {
 		if now.Sub(e.touch) < inputHold {
 			if dt > 0 {
-				speed := (e.travel - e.previous) / dt
+				speed := (e.offset - e.previous) / dt
 				e.tracked += (speed - e.tracked) / 2
 			}
-			e.previous = e.travel
-			return e.Offset(), true
+			e.previous = e.offset
+			return e.offset, true
 		}
+		// The fingers have been still since: they let go with no speed.
+		e.tracked = 0
 		e.release()
 	}
-	if e.travel != 0 || e.velocity != 0 {
+	if e.offset != 0 || e.velocity != 0 {
 		e.integrate(dt)
 	}
-	if abs(e.Offset()) <= 0.05 && abs(e.velocity) <= 4 {
-		e.travel, e.velocity, e.resting = 0, 0, true
+	// It rests where the eye can no longer tell, as the page's glides do.
+	if abs(e.offset) <= 0.25 && abs(e.velocity) <= 8 {
+		e.offset, e.velocity, e.resting = 0, 0, true
 		return 0, false
 	}
-	return e.Offset(), true
+	return e.offset, true
 }
 
 func (e *Elastic) integrate(dt float32) {
@@ -310,15 +331,22 @@ func (e *Elastic) integrate(dt float32) {
 	for dt > 0 {
 		step := min(dt, substep)
 		// Semi-implicit Euler: stable for these springs at this step.
-		e.velocity += (-stiffness*e.travel - damping*e.velocity) * step
-		e.travel += e.velocity * step
+		e.velocity += (-stiffness*e.offset - damping*e.velocity) * step
+		e.offset += e.velocity * step
 		dt -= step
+	}
+	// The band's extent bounds even the hardest fling.
+	if e.limit > 0 && abs(e.offset) > e.limit {
+		e.offset = sign(e.offset) * e.limit
+		if e.velocity*e.offset > 0 {
+			e.velocity = 0
+		}
 	}
 }
 
 // settle puts the axis at its edge, keeping what it knows of the input.
 func (e *Elastic) settle() {
-	e.travel, e.velocity, e.held, e.touched, e.tracked = 0, 0, false, false, 0
+	e.offset, e.velocity, e.travel, e.held, e.touched, e.tracked = 0, 0, 0, false, false, 0
 }
 
 // Reset puts the axis back at its edge.
@@ -329,15 +357,9 @@ func (e *Elastic) Reset() {
 	*e = Elastic{}
 }
 
-// reach is the farthest travel past the edge: where the edge shows most
-// of its limit, past which travel would only be pulled back for nothing.
-func (e Elastic) reach() float32 {
-	const most = 0.85
-	return e.limit * most / ((1 - most) * e.spring.Resistance)
-}
-
-// band maps travel past the edge to the offset shown: it starts at
-// Resistance DIPs per DIP and approaches the limit without reaching it.
+// band maps the fingers' travel past the edge to the offset shown: it
+// starts at Resistance DIPs per DIP and approaches the band's extent, the
+// limit, without reaching it.
 func (e Elastic) band(travel float32) float32 {
 	r, limit := e.spring.Resistance, e.limit
 	if travel == 0 || limit <= 0 {
@@ -345,6 +367,16 @@ func (e Elastic) band(travel float32) float32 {
 	}
 	distance := abs(travel)
 	return sign(travel) * limit * r * distance / (limit + r*distance)
+}
+
+// unband is band's inverse, the travel that shows offset.
+func (e Elastic) unband(offset float32) float32 {
+	r, limit := e.spring.Resistance, e.limit
+	if offset == 0 || limit <= 0 || r <= 0 {
+		return 0
+	}
+	distance := min(abs(offset), limit*0.99)
+	return sign(offset) * limit * distance / (r * (limit - distance))
 }
 
 func sign(value float32) float32 {

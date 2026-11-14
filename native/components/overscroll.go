@@ -6,54 +6,51 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// OverscrollStyle is one surface's edge behavior. Distance and Minimum are
-// DIPs at the default UI size; ViewportShare bounds travel on small panels.
-// Resistance, Response and DampingRatio are its spring, as scrollfx.Profile
-// describes them.
+// OverscrollStyle is one surface's edge behavior. Its rubber band reaches
+// Share of the viewport, at least Minimum DIPs at the default UI size: a
+// pull near the edge moves it about Resistance as far, giving less as it
+// nears that extent. Response and DampingRatio are its return spring, as
+// scrollfx.Profile describes them.
 type OverscrollStyle struct {
-	Distance      float32
-	Minimum       float32
-	ViewportShare float32
-	Resistance    float32
-	Response      float32
-	DampingRatio  float32
+	Share        float32
+	Minimum      float32
+	Resistance   float32
+	Response     float32
+	DampingRatio float32
 }
 
-// Overscroll profiles from the roomiest reading surface to controls. The
-// smaller a surface, the shorter and firmer its give and the quicker its
-// return; each meets its edge at the speed the content came, so a slow
-// scroll barely moves it and a fling carries it out, and none swings back
-// past its edge: every return is critically damped.
+// Overscroll profiles from the roomiest reading surface to controls. A
+// band reaches a share of its view, so the edge gives the same at any
+// window size; the smaller a surface, the shorter and firmer its band and
+// the quicker its return. Each return is a loose, critically damped spring
+// that eases home without swinging past the edge, and each edge meets
+// what arrives at it as it resists a pull, so a slow scroll barely moves
+// it and a fling carries it out.
 var (
 	OverscrollEditor = OverscrollStyle{
-		Distance: theme.DefaultOverscroll, Minimum: 20, ViewportShare: 0.18,
-		Resistance: 0.55, Response: 0.5, DampingRatio: 1,
+		Share: 0.35, Minimum: 120,
+		Resistance: 0.4, Response: 0.55, DampingRatio: 1,
 	}
 	OverscrollPanel = OverscrollStyle{
-		Distance: 64, Minimum: 18, ViewportShare: 0.15,
-		Resistance: 0.5, Response: 0.46, DampingRatio: 1,
+		Share: 0.3, Minimum: 100,
+		Resistance: 0.36, Response: 0.5, DampingRatio: 1,
 	}
 	OverscrollList = OverscrollStyle{
-		Distance: 52, Minimum: 16, ViewportShare: 0.13,
-		Resistance: 0.45, Response: 0.42, DampingRatio: 1,
+		Share: 0.25, Minimum: 80,
+		Resistance: 0.32, Response: 0.46, DampingRatio: 1,
 	}
 	OverscrollCompact = OverscrollStyle{
-		Distance: 32, Minimum: 12, ViewportShare: 0.1,
-		Resistance: 0.38, Response: 0.36, DampingRatio: 1,
+		Share: 0.2, Minimum: 40,
+		Resistance: 0.28, Response: 0.42, DampingRatio: 1,
 	}
 )
 
-// Limit is how far this style may show past the edge of a viewport.
+// Limit is the extent of this style's rubber band over a viewport.
 func (s OverscrollStyle) Limit(viewport, uiFontSize float32) float32 {
 	if uiFontSize <= 0 {
 		uiFontSize = theme.DefaultUIFontSize
 	}
-	scale := uiFontSize / theme.DefaultUIFontSize
-	distance := s.Distance * scale
-	if viewport <= 0 {
-		return distance
-	}
-	return min(distance, max(s.Minimum*scale, viewport*s.ViewportShare))
+	return max(s.Minimum*uiFontSize/theme.DefaultUIFontSize, viewport*s.Share)
 }
 
 // Scroll owns an axis's position and applies this style at its bounds:
@@ -63,8 +60,14 @@ func (s OverscrollStyle) Scroll(
 	position, delta, low, high, viewport, uiFontSize float32,
 	event ui.InputEvent,
 ) float32 {
+	phase := scrollfx.Phase(event.Precise, event.Momentum)
+	if phase == scrollfx.Direct && event.DX == 0 && event.DY == 0 {
+		// An empty direct event: the fingers lifted.
+		elastic.Lift()
+		return position
+	}
 	return scrollfx.AxisScroll(elastic, delta, position, low, high,
-		scrollfx.Phase(event.Precise, event.Momentum), event.Time,
+		phase, event.Time,
 		s.Limit(viewport, uiFontSize), s.profile(), scrollfx.AxisPolicy{}).Position
 }
 

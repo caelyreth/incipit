@@ -39,6 +39,12 @@ func (o *Overscroll) Handle(
 		dx, dy = dy, 0
 	}
 	input := Phase(event.Precise, event.Momentum)
+	if input == Direct && dx == 0 && dy == 0 {
+		// An empty direct event: the fingers lifted.
+		o.x.Lift()
+		o.y.Lift()
+		return false
+	}
 	handled := false
 	if axis&Horizontal != 0 && dx != 0 {
 		if position, ok := pull(&o.x, dx, state.X, state.MaxX, input, event.Time, limit, profile); ok {
@@ -161,7 +167,7 @@ func AxisScroll(
 		// and only input going past it meets an edge.
 		low, high = min(low, position), max(high, position)
 	}
-	if elastic.travel != 0 {
+	if elastic.offset != 0 {
 		rest := -elastic.Add(-delta, limit, input, profile)
 		if rest == 0 {
 			return AxisResult{Position: position, Handled: true}

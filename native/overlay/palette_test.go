@@ -84,7 +84,7 @@ func TestPaletteResultsPullPastTheEnd(t *testing.T) {
 	if _, y := palette.over.Offset(); y >= 0 {
 		t.Fatalf("palette pull = %v, want past its end", y)
 	}
-	tester.Advance(time.Second)
+	tester.Advance(2 * time.Second)
 	if _, y := palette.over.Offset(); y != 0 {
 		t.Fatalf("palette pull did not settle: %v", y)
 	}

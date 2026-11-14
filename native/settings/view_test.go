@@ -207,7 +207,7 @@ func TestSettingsScrollSurfacesPullPastTheirEdges(t *testing.T) {
 		if !ok {
 			t.Fatal("last section is not in the built page")
 		}
-		tester.Advance(time.Second)
+		tester.Advance(2 * time.Second)
 		if _, y := state.contentOver.Offset(); y != 0 {
 			t.Fatalf("page pull did not settle: %v", y)
 		}
@@ -232,7 +232,7 @@ func TestSettingsScrollSurfacesPullPastTheirEdges(t *testing.T) {
 		if _, y := state.navOver.Offset(); y >= 0 {
 			t.Fatalf("navigation pull = %v, want past its end", y)
 		}
-		tester.Advance(time.Second)
+		tester.Advance(2 * time.Second)
 		if _, y := state.navOver.Offset(); y != 0 {
 			t.Fatalf("navigation pull did not settle: %v", y)
 		}

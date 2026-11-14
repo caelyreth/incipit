@@ -123,7 +123,7 @@ func TestLibraryListsPullPastTheirEdges(t *testing.T) {
 		if _, y := state.libraryOverscroll.Offset(); y >= 0 {
 			t.Fatalf("library pull = %v, want past its end", y)
 		}
-		tester.Advance(time.Second)
+		tester.Advance(2 * time.Second)
 		if _, y := state.libraryOverscroll.Offset(); y != 0 {
 			t.Fatalf("library pull did not settle: %v", y)
 		}
@@ -143,7 +143,7 @@ func TestLibraryListsPullPastTheirEdges(t *testing.T) {
 		if _, y := state.sheetOverscroll.Offset(); y >= 0 {
 			t.Fatalf("sheet pull = %v, want past its end", y)
 		}
-		tester.Advance(time.Second)
+		tester.Advance(2 * time.Second)
 		if _, y := state.sheetOverscroll.Offset(); y != 0 {
 			t.Fatalf("sheet pull did not settle: %v", y)
 		}
@@ -164,7 +164,7 @@ func TestLibraryListsPullPastTheirEdges(t *testing.T) {
 		if x, _ := state.tabsOverscroll.Offset(); x >= 0 {
 			t.Fatalf("tab pull = %v, want past its end", x)
 		}
-		tester.Advance(time.Second)
+		tester.Advance(2 * time.Second)
 		if x, _ := state.tabsOverscroll.Offset(); x != 0 {
 			t.Fatalf("tab pull did not settle: %v", x)
 		}

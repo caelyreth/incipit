@@ -83,8 +83,7 @@ func TestElasticResistsHoldsAndReturns(t *testing.T) {
 	settled := false
 	for n := 5; n < 120; n++ {
 		value, active := elastic.Step(at(n), true)
-		// What speed the fingers still had lets go too, past seeing.
-		if value < pulled-0.1 {
+		if value < pulled-0.01 {
 			t.Fatalf("the return went farther out: %v", value)
 		}
 		if value > 0.5 {
@@ -184,12 +183,13 @@ func TestWheelNotchesSwingWithoutJumping(t *testing.T) {
 		t.Fatalf("a notch jumped the edge to %v", y)
 	}
 	previous, deepest := float32(0), float32(0)
-	for n := 1; n <= 90; n++ {
+	for n := 1; n <= 150; n++ {
 		if n%4 == 0 && n <= 40 {
 			over.Handle(notch, &state, Vertical, 64, DefaultProfile)
 		}
 		_, y, _ := over.Step(at(n), true)
-		if jump := abs(y - previous); jump > 6 {
+		// No faster than the notches move the content, 10 DIPs a frame.
+		if jump := abs(y - previous); jump > 10 {
 			t.Fatalf("frame %d jumped %v DIPs", n, jump)
 		}
 		if y < -64 {
@@ -276,7 +276,7 @@ func owned(e *Elastic, position float32, from int, deltas []float32, phase Input
 	var drawn []float32
 	for n := range frames {
 		if n < len(deltas) {
-			position = AxisScroll(e, deltas[n], position, 0, 1000, phase, at(from+n), 80, DefaultProfile, AxisPolicy{}).Position
+			position = AxisScroll(e, deltas[n], position, 0, 1000, phase, at(from+n), 600, DefaultProfile, AxisPolicy{}).Position
 		}
 		e.Step(at(from+n), true)
 		drawn = append(drawn, position-e.Offset())
@@ -316,8 +316,8 @@ func TestTheEdgeTakesTheSpeedItCameAt(t *testing.T) {
 		return -low
 	}
 	slow, fast := deepest(15), deepest(60)
-	if slow < 2 || fast <= slow*1.5 || fast >= 80 {
-		t.Fatalf("a slow fling carried the edge %v, a fast one %v, of 80", slow, fast)
+	if slow < 2 || fast <= slow*1.5 || fast >= 300 {
+		t.Fatalf("a slow fling carried the edge %v, a fast one %v, of 600", slow, fast)
 	}
 }
 
