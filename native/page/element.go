@@ -26,7 +26,8 @@ type Element struct {
 	Prose theme.ProseStyle
 	// Top and Bottom are the room above and below the text, and Dock how
 	// far up from the view's foot a dock floating over the page reaches:
-	// a revealed caret's line stays above it.
+	// the view fades out there and at its top (edges.go), and a revealed
+	// caret's line stays clear of both.
 	Top, Bottom, Dock float32
 	Label             string
 	// Typewriter keeps the caret's line at the viewport's center.
@@ -48,8 +49,10 @@ type Element struct {
 	overscroll    scrollfx.Elastic
 	// ranged is the scroll range the last paint found, and astray whether
 	// it shrank past the page, which then glides back in (stepViewport).
-	ranged   [2]float32
-	astray   bool
+	ranged [2]float32
+	astray bool
+	// mask is the fades at the view's edges, as last made (edges.go).
+	mask     edgeMask
 	viewport ui.Rect
 	column   float32 // the column's left, in the element
 	// drag is the press the page holds until it lets go: a control's or
@@ -294,6 +297,9 @@ func (el *Element) View(c *ui.Context) {
 		if cursor, ok := el.cursorAt(el.toPage(el.pointer.X, el.pointer.Y)); ok {
 			box.Cursor(cursor)
 		}
+		if mask, ok := el.edgeMask(el.viewport.H); ok {
+			box.MaskLinearGradient(mask)
+		}
 		box.ContextMenu(func(m *ui.Menu) { el.contextMenu(m, services) })
 		box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
 			TextCaret(el.caretInElement()).
@@ -471,13 +477,15 @@ func (el *Element) revealCaret(pl *pageLayout, now time.Time) {
 		// reveals the page's top.
 		line, y = line+y, 0
 	}
-	view := el.viewport.H
+	// The line stays clear of the fades at the view's edges, the dock's
+	// among them; typewriter mode centers it in the whole view.
+	from, view := float32(0), el.viewport.H
 	if !el.Typewriter {
-		// The line stays clear of the dock; typewriter mode centers it in
-		// the whole view.
-		view = max(view-el.Dock, line)
+		top, bottom := el.edgeFades()
+		from, view = top, max(view-top-bottom, line)
 	}
-	target, changed := motion.Reveal(el.scroll, view, y, line, el.Typewriter, now.Before(el.held))
+	target, changed := motion.Reveal(el.scroll+from, view, y, line, el.Typewriter, now.Before(el.held))
+	target -= from
 	if !changed {
 		return
 	}

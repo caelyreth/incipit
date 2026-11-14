@@ -653,3 +653,37 @@ func TestAPageThatShrankGlidesBackIn(t *testing.T) {
 		t.Fatalf("the page stands at %v past its end at %v", el.scroll, high)
 	}
 }
+
+// The view fades out at its top and its foot, where text has scrolled out
+// past the room the page leaves: a caret's line under the top fade is
+// revealed below it, and the mask stands whole between the fades.
+func TestTheCaretsLineClearsTheTopFade(t *testing.T) {
+	el := newElement(t)
+	el.Top, el.Bottom, el.Dock = 96, 128, 80
+	el.viewport = ui.Rect{W: 900, H: 600}
+	t0 := time.Unix(5000, 0)
+	for range 40 {
+		el.Editor.Do(vocab.Type{Text: "a line"}, t0)
+		el.Editor.Do(vocab.Break{}, t0)
+	}
+	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, t0)
+	for range 10 {
+		el.Editor.Do(vocab.Move{Unit: vocab.ByParagraph, Dir: vocab.Forward}, t0)
+	}
+	el.relayout()
+	el.Editor.reveal = false
+	top, _ := el.edgeFades()
+	// Scrolled so the caret's line stands half under the top fade.
+	r := el.caretInElement()
+	el.scroll += r.Y - top/2
+	el.Editor.Do(vocab.Type{Text: "x"}, t0)
+	el.follow(el.relayout(), t0)
+	el.stepViewport(t0.Add(3*time.Second), true)
+	if r := el.caretInElement(); r.Y < top {
+		t.Fatalf("the caret's line stands at %v, under the fade to %v", r.Y, top)
+	}
+	g, ok := el.edgeMask(600)
+	if !ok || len(g.Stops) != 10 || g.Stops[4].At != top/600 || g.Stops[4].Color.A != 255 || g.Stops[0].Color.A != 0 {
+		t.Fatalf("the mask is %+v", g)
+	}
+}
