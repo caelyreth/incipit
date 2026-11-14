@@ -301,6 +301,11 @@ func (s *Store) mergeLines(a *analyzer, u *Unit) []Fact {
 		line := *u
 		line.From, line.To, line.Line = r[0], r[1], i
 		line.Annotations = annotationsIn(u.Annotations, r[0], r[1])
+		if i > 0 {
+			// What the slot's place adds stands before its text, so before
+			// its first line: a line after it is read, and kept, without.
+			line.Context = nil
+		}
 		key := lineKey{config: a.config, context: unitContext(&line), line: lineIdentity(u.Content, r[0], r[1])}
 		s.mu.Lock()
 		e, ok := s.lines[key]

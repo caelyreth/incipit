@@ -237,3 +237,13 @@ func TestKeptFactsAreFreshOnes(t *testing.T) {
 	same("without it again", view())
 }
 
+// What a block's place spells stands before its first line: a line that
+// a line typed before it moves down is read without the item's marker,
+// as a fresh store reads it.
+func TestALineMovedDownBearsNoMarker(t *testing.T) {
+	p := open(t)
+	p.typeText("- c**é")
+	p.do(vocab.Move{Unit: vocab.ToSlotEdge, Dir: vocab.Backward})
+	p.do(vocab.Type{Text: "\n"})
+	checkKept(t, p.e, "after a line typed before the text")
+}

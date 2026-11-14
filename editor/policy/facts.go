@@ -346,7 +346,8 @@ type Unit struct {
 	// Annotations are the analyzing policy's annotations anchored here.
 	Annotations []Annotation
 	// Context is what the slot's place in the structure adds to its
-	// content, as the profile reports it (vocab.Profile.Context).
+	// content, as the profile reports it (vocab.Profile.Context). It
+	// stands before the slot's text, so a line after the first has none.
 	Context any
 }
 
