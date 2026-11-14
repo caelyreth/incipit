@@ -20,25 +20,26 @@ type OverscrollStyle struct {
 }
 
 // Overscroll profiles from the roomiest reading surface to controls. The
-// smaller a surface, the shorter and firmer its pull and the quicker its
-// return, but each keeps some give: a list still answers a wheel notch at
-// its end, and none swings back a second time where it can be seen.
+// smaller a surface, the shorter and firmer its give and the quicker its
+// return; each meets its edge at the speed the content came, so a slow
+// scroll barely moves it and a fling carries it out, and none swings back
+// past its edge: every return is critically damped.
 var (
 	OverscrollEditor = OverscrollStyle{
 		Distance: theme.DefaultOverscroll, Minimum: 20, ViewportShare: 0.18,
-		Resistance: 0.52, Response: 0.44, DampingRatio: 0.86,
+		Resistance: 0.55, Response: 0.5, DampingRatio: 1,
 	}
 	OverscrollPanel = OverscrollStyle{
 		Distance: 64, Minimum: 18, ViewportShare: 0.15,
-		Resistance: 0.46, Response: 0.40, DampingRatio: 0.88,
+		Resistance: 0.5, Response: 0.46, DampingRatio: 1,
 	}
 	OverscrollList = OverscrollStyle{
 		Distance: 52, Minimum: 16, ViewportShare: 0.13,
-		Resistance: 0.40, Response: 0.36, DampingRatio: 0.9,
+		Resistance: 0.45, Response: 0.42, DampingRatio: 1,
 	}
 	OverscrollCompact = OverscrollStyle{
 		Distance: 32, Minimum: 12, ViewportShare: 0.1,
-		Resistance: 0.32, Response: 0.30, DampingRatio: 0.92,
+		Resistance: 0.38, Response: 0.36, DampingRatio: 1,
 	}
 )
 
@@ -55,13 +56,15 @@ func (s OverscrollStyle) Limit(viewport, uiFontSize float32) float32 {
 	return min(distance, max(s.Minimum*scale, viewport*s.ViewportShare))
 }
 
-// Scroll owns an axis's position and applies this style at its bounds.
+// Scroll owns an axis's position and applies this style at its bounds:
+// the event's delta along the axis, at its time.
 func (s OverscrollStyle) Scroll(
 	elastic *scrollfx.Elastic,
 	position, delta, low, high, viewport, uiFontSize float32,
-	phase scrollfx.InputPhase,
+	event ui.InputEvent,
 ) float32 {
-	return scrollfx.AxisScroll(elastic, delta, position, low, high, phase,
+	return scrollfx.AxisScroll(elastic, delta, position, low, high,
+		scrollfx.Phase(event.Precise, event.Momentum), event.Time,
 		s.Limit(viewport, uiFontSize), s.profile(), scrollfx.AxisPolicy{}).Position
 }
 

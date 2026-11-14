@@ -632,3 +632,24 @@ func TestADeadlineLeavesTheScrollBe(t *testing.T) {
 		t.Fatalf("the deadline moved the page from %v to %v", scrolled, el.scroll)
 	}
 }
+
+// Text deleted at the page's end leaves the scroll past where the page now
+// ends: it glides back in, and the next scroll pulls no edge.
+func TestAPageThatShrankGlidesBackIn(t *testing.T) {
+	el := newElement(t)
+	tt := ui.NewTester(el.View, 900, 600)
+	for range 40 {
+		tt.Type("a line of words")
+		tt.Key(0, ui.KeyEnter)
+	}
+	tt.Advance(time.Second)
+	for range 12 {
+		tt.Key(ui.Shift, ui.KeyUp)
+	}
+	tt.Key(0, ui.KeyBackspace)
+	tt.Advance(2 * time.Second)
+	_, high := el.scrollRange(el.Editor.layout)
+	if el.scroll > high+0.01 {
+		t.Fatalf("the page stands at %v past its end at %v", el.scroll, high)
+	}
+}

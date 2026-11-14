@@ -49,7 +49,7 @@ func TestAxisScrollPreservesSurfaceOwnership(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var elastic Elastic
-			got := AxisScroll(&elastic, test.delta, test.position, -50, 100, test.phase, 64, DefaultProfile, test.policy)
+			got := AxisScroll(&elastic, test.delta, test.position, -50, 100, test.phase, time.Time{}, 64, DefaultProfile, test.policy)
 			if got.Handled != test.want.Handled || abs(got.Position-test.want.Position) > 0.001 {
 				t.Fatalf("result = %+v, want %+v", got, test.want)
 			}
@@ -63,12 +63,12 @@ func TestAxisScrollPreservesSurfaceOwnership(t *testing.T) {
 func TestElasticResistsHoldsAndReturns(t *testing.T) {
 	var elastic Elastic
 	elastic.Step(at(0), true)
-	elastic.Add(-1000, 64, Direct, DefaultProfile)
+	elastic.Add(-200, 64, Direct, DefaultProfile)
 	first, moving := elastic.Step(at(1), true)
 	if !moving || first >= 0 || first <= -64 {
 		t.Fatalf("first pull = %v, moving %v", first, moving)
 	}
-	elastic.Add(-1000, 64, Direct, DefaultProfile)
+	elastic.Add(-200, 64, Direct, DefaultProfile)
 	pulled, _ := elastic.Step(at(2), true)
 	if pulled >= first || pulled <= -64 {
 		t.Fatalf("second pull = %v after %v", pulled, first)
@@ -83,7 +83,8 @@ func TestElasticResistsHoldsAndReturns(t *testing.T) {
 	settled := false
 	for n := 5; n < 120; n++ {
 		value, active := elastic.Step(at(n), true)
-		if value < pulled-0.01 {
+		// What speed the fingers still had lets go too, past seeing.
+		if value < pulled-0.1 {
 			t.Fatalf("the return went farther out: %v", value)
 		}
 		if value > 0.5 {
@@ -226,10 +227,12 @@ func TestMomentumPushesOncePerGesture(t *testing.T) {
 	state.MaxY, state.Y = 100, 100
 	var over Overscroll
 	over.Step(at(0), true)
-	momentum := ui.InputEvent{Kind: ui.InputScroll, DY: 30, Precise: true, Momentum: true}
+	// Inertia at 30 DIPs a frame comes in at about 1900 DIPs a second.
+	momentum := ui.InputEvent{Kind: ui.InputScroll, DY: 30, Precise: true, Momentum: true, Time: at(0)}
 	over.Handle(momentum, &state, Vertical, 64, DefaultProfile)
 	deepest := float32(0)
 	for n := 1; n <= 60; n++ {
+		momentum.Time = at(n)
 		over.Handle(momentum, &state, Vertical, 64, DefaultProfile)
 		_, y, _ := over.Step(at(n), true)
 		deepest = min(deepest, y)
@@ -244,6 +247,7 @@ func TestMomentumPushesOncePerGesture(t *testing.T) {
 	state.Y = 60
 	over.Handle(ui.InputEvent{Kind: ui.InputScroll, DY: 10, Precise: true}, &state, Vertical, 64, DefaultProfile)
 	state.Y = 100
+	momentum.Time = at(61)
 	over.Handle(momentum, &state, Vertical, 64, DefaultProfile)
 	if _, y, _ := over.Step(at(62), true); y >= 0 {
 		t.Fatalf("a new gesture's inertia did not push the edge: %v", y)
@@ -262,5 +266,99 @@ func TestMomentumReleasesAHeldEdge(t *testing.T) {
 	over.Handle(ui.InputEvent{Kind: ui.InputScroll, DY: 4, Precise: true, Momentum: true}, &state, Vertical, 64, DefaultProfile)
 	if over.y.held {
 		t.Fatal("momentum kept the edge pinned after the gesture ended")
+	}
+}
+
+// owned scrolls an owning viewport over 0 to 1000 by events, one a frame
+// from frame from, and steps it; it reports where the content is drawn
+// each frame, the edge's offset taken off, for frames more after.
+func owned(e *Elastic, position float32, from int, deltas []float32, phase InputPhase, frames int) (float32, []float32) {
+	var drawn []float32
+	for n := range frames {
+		if n < len(deltas) {
+			position = AxisScroll(e, deltas[n], position, 0, 1000, phase, at(from+n), 80, DefaultProfile, AxisPolicy{}).Position
+		}
+		e.Step(at(from+n), true)
+		drawn = append(drawn, position-e.Offset())
+	}
+	return position, drawn
+}
+
+// fling is inertia from speed DIPs a frame, slowing as a touchpad's does.
+func fling(speed float32) []float32 {
+	var out []float32
+	for v := speed; abs(v) > 0.5; v *= 0.94 {
+		out = append(out, v)
+	}
+	return out
+}
+
+// The edge takes the speed the content met it at: a faster fling carries
+// it farther, never to its limit, and it comes back without crossing.
+func TestTheEdgeTakesTheSpeedItCameAt(t *testing.T) {
+	deepest := func(speed float32) float32 {
+		var e Elastic
+		e.Step(at(0), true)
+		_, drawn := owned(&e, 200, 1, fling(-speed), Momentum, 200)
+		low := float32(0)
+		for n, d := range drawn {
+			low = min(low, d)
+			if n > 0 && d < 0 && d < drawn[n-1] && low < d-0.01 {
+				t.Fatalf("speed %v: the edge went out again at frame %d", speed, n)
+			}
+			if d > 0.01 && n > 0 && drawn[n-1] <= 0 {
+				t.Fatalf("speed %v: the return crossed the edge to %v", speed, d)
+			}
+		}
+		if last := drawn[len(drawn)-1]; last != 0 {
+			t.Fatalf("speed %v: the edge settled at %v", speed, last)
+		}
+		return -low
+	}
+	slow, fast := deepest(15), deepest(60)
+	if slow < 2 || fast <= slow*1.5 || fast >= 80 {
+		t.Fatalf("a slow fling carried the edge %v, a fast one %v, of 80", slow, fast)
+	}
+}
+
+// Fingers that pull an edge and then pull back through it hold it no
+// more: letting go throws nothing past the edge the other way, and the
+// fling they let go with scrolls the content.
+func TestPullingBackThroughTheEdgeThrowsNothingPast(t *testing.T) {
+	var e Elastic
+	e.Step(at(0), true)
+	position, _ := owned(&e, 0, 1, []float32{-15, -15, -15, -15}, Direct, 4)
+	position, drawn := owned(&e, position, 5, []float32{30, 30, 30, 30}, Direct, 30)
+	for n, d := range drawn[4:] {
+		if d < drawn[3]-0.01 {
+			t.Fatalf("frame %d after letting go went back to %v from %v", n, d, drawn[3])
+		}
+	}
+	after, _ := owned(&e, position, 40, fling(30), Momentum, 60)
+	if after <= position+100 {
+		t.Fatalf("the fling away from the edge scrolled %v to %v", position, after)
+	}
+}
+
+// A position the range left behind, as content that shrank under it,
+// scrolls back in from where it is, and pulls no edge.
+func TestAPositionPastTheRangeScrollsBackIn(t *testing.T) {
+	var e Elastic
+	got := AxisScroll(&e, -10, 1300, 0, 1000, Direct, at(0), 80, DefaultProfile, AxisPolicy{})
+	if got.Position != 1290 || e.Offset() != 0 {
+		t.Fatalf("scrolled to %v, the edge at %v", got.Position, e.Offset())
+	}
+}
+
+// A wheel turned back from an edge it swung out stops the swing: the edge
+// goes no farther out.
+func TestTurningTheWheelBackStopsTheSwing(t *testing.T) {
+	var e Elastic
+	e.Step(at(0), true)
+	position, _ := owned(&e, 0, 1, []float32{-120}, Notch, 1)
+	out := e.Offset()
+	owned(&e, position, 2, []float32{40}, Notch, 1)
+	if e.Offset() > out+0.01 {
+		t.Fatalf("the edge went on out to %v from %v", e.Offset(), out)
 	}
 }

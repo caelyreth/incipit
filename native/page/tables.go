@@ -772,7 +772,7 @@ func (tableKind) wheel(el *Element, u *unitLayout, x, y float32, ev ui.InputEven
 	}
 	ts := el.tableScroll(u.pres.Unit)
 	ts.glide.Cancel()
-	ts.x = components.OverscrollPanel.Scroll(&ts.over, ts.x, dx, 0, t.overflow, u.box.W, 0, scrollfx.Phase(ev.Precise, ev.Momentum))
+	ts.x = components.OverscrollPanel.Scroll(&ts.over, ts.x, dx, 0, t.overflow, u.box.W, el.UIFontSize, ev)
 	t.scrollTo(u, ts.x-ts.over.Offset())
 	return true
 }

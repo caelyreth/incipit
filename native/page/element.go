@@ -46,8 +46,12 @@ type Element struct {
 	restoreScroll *float32
 	glide         motion.Glide
 	overscroll    scrollfx.Elastic
-	viewport      ui.Rect
-	column        float32 // the column's left, in the element
+	// ranged is the scroll range the last paint found, and astray whether
+	// it shrank past the page, which then glides back in (stepViewport).
+	ranged   [2]float32
+	astray   bool
+	viewport ui.Rect
+	column   float32 // the column's left, in the element
 	// drag is the press the page holds until it lets go: a control's or
 	// the text's (controls.go). menu is what its last secondary click
 	// chose, menuChosen whether one did since the last press or key; hotKey
@@ -489,6 +493,24 @@ func (el *Element) revealCaret(pl *pageLayout, now time.Time) {
 // reports whether either still moves.
 func (el *Element) stepViewport(now time.Time, animate bool) bool {
 	_, pulling := el.overscroll.Step(now, animate)
+	// A range that shrank past the page, as text deleted at its end,
+	// leaves it astray: it glides back in once the hand has let it be,
+	// rather than leaving the next scroll to find itself past the edge.
+	low, high := el.scrollRange(el.Editor.layout)
+	if high < el.ranged[1] && el.scroll > high || low > el.ranged[0] && el.scroll < low {
+		el.astray = true
+	}
+	el.ranged = [2]float32{low, high}
+	if el.astray && (el.glide.Moving() || el.scroll >= low && el.scroll <= high) {
+		el.astray = false
+	}
+	if el.astray && !pulling {
+		if now.Before(el.held) {
+			return true
+		}
+		el.astray = false
+		el.glide.Settle(el.scroll, low, high, now)
+	}
 	var gliding bool
 	el.scroll, gliding = el.glide.Step(el.scroll, now, animate)
 	return pulling || gliding
@@ -500,8 +522,7 @@ func (el *Element) scrollBy(ev ui.InputEvent, now time.Time) {
 	el.glide.Cancel()
 	el.held = now.Add(manualHold)
 	low, high := el.scrollRange(el.Editor.layout)
-	el.scroll = components.OverscrollEditor.Scroll(&el.overscroll, el.scroll, ev.DY, low, high, el.viewport.H, 0,
-		scrollfx.Phase(ev.Precise, ev.Momentum))
+	el.scroll = components.OverscrollEditor.Scroll(&el.overscroll, el.scroll, ev.DY, low, high, el.viewport.H, el.UIFontSize, ev)
 }
 
 // --- animation ------------------------------------------------------------

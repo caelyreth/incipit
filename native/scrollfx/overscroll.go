@@ -39,20 +39,22 @@ func (o *Overscroll) Handle(
 		dx, dy = dy, 0
 	}
 	input := Phase(event.Precise, event.Momentum)
-	o.x.Observe(input)
-	o.y.Observe(input)
 	handled := false
 	if axis&Horizontal != 0 && dx != 0 {
-		if position, ok := pull(&o.x, dx, state.X, state.MaxX, input, limit, profile); ok {
+		if position, ok := pull(&o.x, dx, state.X, state.MaxX, input, event.Time, limit, profile); ok {
 			state.X = position
 			handled = true
 		}
+	} else {
+		o.x.Observe(0, input, event.Time)
 	}
 	if axis&Vertical != 0 && dy != 0 {
-		if position, ok := pull(&o.y, dy, state.Y, state.MaxY, input, limit, profile); ok {
+		if position, ok := pull(&o.y, dy, state.Y, state.MaxY, input, event.Time, limit, profile); ok {
 			state.Y = position
 			handled = true
 		}
+	} else {
+		o.y.Observe(0, input, event.Time)
 	}
 	return handled
 }
@@ -107,10 +109,11 @@ func pull(
 	elastic *Elastic,
 	delta, position, maximum float32,
 	input InputPhase,
+	at time.Time,
 	limit float32,
 	profile Profile,
 ) (float32, bool) {
-	result := AxisScroll(elastic, delta, position, 0, maximum, input, limit, profile, AxisPolicy{
+	result := AxisScroll(elastic, delta, position, 0, maximum, input, at, limit, profile, AxisPolicy{
 		EdgeTolerance: 0.5,
 		Container:     true,
 	})
@@ -131,13 +134,19 @@ type AxisResult struct {
 	Handled  bool
 }
 
-// AxisScroll applies one axis of input, allowing arbitrary content bounds.
-// A container leaves notches and ordinary in-bounds input to MyGo; an owning
-// viewport handles all phases and exact bounds itself.
+// AxisScroll applies one axis of input of delta at at, allowing arbitrary
+// content bounds. A container leaves notches and ordinary in-bounds input
+// to MyGo; an owning viewport handles all phases and exact bounds itself.
+// Input past an edge carries the elastic: a touchpad's fingers by what
+// goes past, anything else by the speed it brought (Elastic.Observe).
+// Input going back from a carried edge takes the edge back first when the
+// fingers hold it; otherwise it scrolls the content while the edge
+// returns.
 func AxisScroll(
 	elastic *Elastic,
 	delta, position, low, high float32,
 	input InputPhase,
+	at time.Time,
 	limit float32,
 	profile Profile,
 	policy AxisPolicy,
@@ -145,15 +154,21 @@ func AxisScroll(
 	if elastic == nil {
 		return AxisResult{Position: position}
 	}
-	elastic.Observe(input)
-	if elastic.Offset() != 0 {
+	elastic.Observe(delta, input, at)
+	if !policy.Container {
+		// A position the range left behind, as when the content shrank
+		// under it, is where the range reaches: input scrolls it back in,
+		// and only input going past it meets an edge.
+		low, high = min(low, position), max(high, position)
+	}
+	if elastic.travel != 0 {
 		rest := -elastic.Add(-delta, limit, input, profile)
 		if rest == 0 {
 			return AxisResult{Position: position, Handled: true}
 		}
 		if policy.Container && input != Direct {
-			// Scrolling away from a pushed edge: the container takes it
-			// as it would, while the edge settles.
+			// Scrolling away from a carried edge: the container takes it
+			// as it would, while the edge returns.
 			return AxisResult{Position: position}
 		}
 		if policy.Container {
@@ -171,9 +186,6 @@ func AxisScroll(
 			beyond, next = high-next, high
 		default:
 			return AxisResult{Position: next, Handled: true}
-		}
-		if input == Momentum {
-			beyond = -delta
 		}
 		elastic.Add(beyond, limit, input, profile)
 		return AxisResult{Position: next, Handled: true}
@@ -193,12 +205,7 @@ func AxisScroll(
 	default:
 		return AxisResult{Position: position}
 	}
-	push := beyond
-	if input == Momentum {
-		// Inertia's push is measured by its speed, the whole event.
-		push = delta
-	}
-	elastic.Add(-push, limit, input, profile)
+	elastic.Add(-beyond, limit, input, profile)
 	return AxisResult{Position: edge, Handled: true}
 }
 
