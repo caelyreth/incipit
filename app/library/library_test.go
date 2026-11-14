@@ -410,3 +410,77 @@ func TestATouchMovesTheRevisionButNotTheFiling(t *testing.T) {
 		t.Fatal("trashing moves the filing")
 	}
 }
+
+func TestASmartFolderHoldsNothingFiled(t *testing.T) {
+	l := New()
+	novel, _ := l.AddGroup(0, "Novel")
+	smart, err := l.AddSmartGroupAt(novel, "This week", "  $updated:this-week ", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g, _ := l.Group(smart); !g.Smart() || g.Query != "$updated:this-week" || g.Parent != novel {
+		t.Fatalf("made %+v", g)
+	}
+	if err := l.AddSheet(5, smart, now); !errors.Is(err, ErrSmart) {
+		t.Fatalf("filing a new sheet: %v", err)
+	}
+	_ = l.AddSheet(6, novel, now)
+	if err := l.MoveSheet(6, smart, 0); !errors.Is(err, ErrSmart) {
+		t.Fatalf("moving a sheet in: %v", err)
+	}
+	if _, err := l.AddChapter(smart, "One"); !errors.Is(err, ErrSmart) {
+		t.Fatalf("a chapter in: %v", err)
+	}
+	if _, err := l.AddGroup(smart, "Inside"); !errors.Is(err, ErrSmart) {
+		t.Fatalf("a group in: %v", err)
+	}
+	if err := l.MoveGroup(novel, smart, 0); !errors.Is(err, ErrSmart) && !errors.Is(err, ErrCycle) {
+		t.Fatalf("a group moved in: %v", err)
+	}
+	if err := l.MoveGroup(smart, 0, 99); err != nil {
+		t.Fatalf("a smart folder moves as a group does: %v", err)
+	}
+	if err := l.SetGroupQuery(smart, "#work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.SetGroupQuery(smart, " "); !errors.Is(err, ErrQuery) {
+		t.Fatalf("a blank query: %v", err)
+	}
+	if err := l.SetGroupQuery(novel, "#work"); !errors.Is(err, ErrQuery) {
+		t.Fatalf("a group made smart: %v", err)
+	}
+	if _, err := l.AddSmartGroupAt(0, "Blank", "", 0); !errors.Is(err, ErrQuery) {
+		t.Fatalf("a blank smart folder: %v", err)
+	}
+	if g, _ := l.Group(smart); g.Query != "#work" || l.Count(smart) != 0 {
+		t.Fatalf("after: %+v, count %d", g, l.Count(smart))
+	}
+}
+
+func TestRecordsKeepASmartFolderEmpty(t *testing.T) {
+	l := New()
+	smart, _ := l.AddSmartGroupAt(0, "Work", "#work", 99)
+	records := l.Records()
+	if r := Restore(records); r.groups[smart].Query != "#work" {
+		t.Fatalf("restored %+v", r.groups[smart])
+	}
+	// Records that say otherwise are read as they still can be: what is
+	// filed in a smart folder goes to the Inbox, a group to the top.
+	records.Sheets = append(records.Sheets, SheetRecord{Sheet: Sheet{ID: 9, Group: smart}})
+	records.Chapters = append(records.Chapters, ChapterRecord{Chapter: Chapter{ID: 4, Group: smart, Name: "C"}})
+	records.Groups = append(records.Groups, GroupRecord{Group: Group{ID: 20, Parent: smart, Name: "In"}},
+		GroupRecord{Group: Group{ID: Inbox, Name: "x", Query: "#inbox"}})
+	r := Restore(records)
+	if s, _ := r.Sheet(9); s.Group != Inbox {
+		t.Fatalf("a sheet in a smart folder restored to %d", s.Group)
+	}
+	if c, _ := r.Chapter(4); c.Group != Inbox {
+		t.Fatalf("a chapter restored to %d", c.Group)
+	}
+	if g, _ := r.Group(20); g.Parent != 0 {
+		t.Fatalf("a group restored into %d", g.Parent)
+	}
+	if g, _ := r.Group(Inbox); g.Smart() {
+		t.Fatal("the Inbox restored smart")
+	}
+}

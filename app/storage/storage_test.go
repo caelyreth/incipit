@@ -274,6 +274,10 @@ func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
 	if err := shelf.StyleGroup(novel, "feather", 3); err != nil {
 		t.Fatal(err)
 	}
+	smart, err := shelf.AddSmartGroupAt(novel, "Long", "$words:>1000 -#draft", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	at := time.Now()
 	if err := shelf.AddSheet(1, novel, at); err != nil {
 		t.Fatal(err)
@@ -314,6 +318,9 @@ func TestTheLibraryAndDeletionsAreKept(t *testing.T) {
 	restored := library.Restore(notebook.Library)
 	if group, _ := restored.Group(novel); group.Icon != "feather" || group.Color != 3 {
 		t.Fatalf("novel's look %+v", group)
+	}
+	if group, _ := restored.Group(smart); group.Query != "$words:>1000 -#draft" || group.Parent != novel {
+		t.Fatalf("the smart folder came back as %+v", group)
 	}
 	if sheets := restored.Sheets(novel); len(sheets) != 1 || sheets[0].ID != 1 {
 		t.Fatalf("novel holds %+v", sheets)

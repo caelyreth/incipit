@@ -103,6 +103,11 @@ var migrations = []string{
 	DROP TRIGGER nodes_au;
 	DROP TABLE nodes_fts;
 	`,
+	// A group with a query is a smart folder: its sheets are what the
+	// query finds (app/library).
+	`
+	ALTER TABLE groups ADD COLUMN query TEXT NOT NULL DEFAULT '';
+	`,
 }
 
 // migrate brings the notebook to the current schema, claiming a new file

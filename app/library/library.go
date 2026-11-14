@@ -1,7 +1,9 @@
 // Package library organizes a notebook's sheets: groups that nest as deep
 // as wanted, each holding sheets in an order of its own, with an Inbox for
 // what is not filed yet and a Trash that keeps what is put away until it is
-// emptied. It has no persistence or UI dependency.
+// emptied. A smart folder is a group with a query: its sheets are what the
+// query finds, so nothing is filed in it. It has no persistence or UI
+// dependency.
 //
 // A group always goes with everything it holds: put in the trash, its
 // groups and sheets go with it and come back with it; deleted, they are
@@ -49,6 +51,12 @@ var (
 	ErrNotTrashed = errors.New("library: only what is in the trash can be deleted")
 	// ErrTrashed reports filing into a group that is in the trash.
 	ErrTrashed = errors.New("library: the group is in the trash")
+	// ErrSmart reports filing into a smart folder: what it holds is what
+	// its query finds.
+	ErrSmart = errors.New("library: a smart folder holds what its query finds")
+	// ErrQuery reports a blank query, or one given to a group that is no
+	// smart folder.
+	ErrQuery = errors.New("library: a smart folder's query is set on a smart folder, and is not blank")
 )
 
 // Group is a named place for sheets and other groups.
@@ -60,9 +68,15 @@ type Group struct {
 	// its tint, zero for none.
 	Icon  string
 	Color uint8
+	// Query makes the group a smart folder: its sheets are what the query
+	// (app/search) finds. Empty for a group sheets are filed in.
+	Query string
 	// Trashed is when the group was put in the trash; zero while it is not.
 	Trashed time.Time
 }
+
+// Smart reports a smart folder.
+func (g Group) Smart() bool { return g.Query != "" }
 
 // Sheet is where a sheet is filed and when it was made and last changed.
 type Sheet struct {
@@ -403,11 +417,8 @@ func (l *Library) AddGroup(parent GroupID, name string) (GroupID, error) {
 func (l *Library) AddGroupAt(parent GroupID, name string, index int) (GroupID, error) {
 	l.rev++
 	if parent != 0 {
-		if _, ok := l.groups[parent]; !ok {
-			return 0, ErrUnknown
-		}
-		if l.GroupInTrash(parent) {
-			return 0, ErrTrashed
+		if err := l.fileable(parent); err != nil {
+			return 0, err
 		}
 	}
 	id := l.nextGroup
@@ -415,6 +426,51 @@ func (l *Library) AddGroupAt(parent GroupID, name string, index int) (GroupID, e
 	l.groups[id] = &Group{ID: id, Parent: parent, Name: groupName(name)}
 	l.children[parent] = insertAt(l.children[parent], index, id)
 	return id, nil
+}
+
+// AddSmartGroupAt makes a smart folder of a query in parent at index, as
+// AddGroupAt makes a group.
+func (l *Library) AddSmartGroupAt(parent GroupID, name, query string, index int) (GroupID, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		l.rev++
+		return 0, ErrQuery
+	}
+	id, err := l.AddGroupAt(parent, name, index)
+	if err == nil {
+		l.groups[id].Query = query
+	}
+	return id, err
+}
+
+// SetGroupQuery sets a smart folder's query.
+func (l *Library) SetGroupQuery(id GroupID, query string) error {
+	l.rev++
+	group, ok := l.groups[id]
+	query = strings.TrimSpace(query)
+	switch {
+	case !ok:
+		return ErrUnknown
+	case !group.Smart() || query == "":
+		return ErrQuery
+	}
+	group.Query = query
+	return nil
+}
+
+// fileable reports why a group cannot take what is filed in it: sheets,
+// chapters and groups. Nil is a group that can.
+func (l *Library) fileable(id GroupID) error {
+	group, ok := l.groups[id]
+	switch {
+	case !ok:
+		return ErrUnknown
+	case l.GroupInTrash(id):
+		return ErrTrashed
+	case group.Smart():
+		return ErrSmart
+	}
+	return nil
 }
 
 func groupName(name string) string {
@@ -465,11 +521,8 @@ func (l *Library) MoveGroup(id, parent GroupID, index int) error {
 		return ErrInbox
 	}
 	if parent != 0 {
-		if _, ok := l.groups[parent]; !ok {
-			return ErrUnknown
-		}
-		if l.GroupInTrash(parent) {
-			return ErrTrashed
+		if err := l.fileable(parent); err != nil {
+			return err
 		}
 	}
 	for at := parent; at != 0; at = l.groups[at].Parent {
@@ -523,11 +576,8 @@ func (l *Library) AddChapter(group GroupID, name string) (ChapterID, error) {
 // entries. It validates before inserting either the chapter or its placement.
 func (l *Library) AddChapterAt(group GroupID, name string, index int) (ChapterID, error) {
 	l.rev++
-	if _, ok := l.groups[group]; !ok {
-		return 0, ErrUnknown
-	}
-	if l.GroupInTrash(group) {
-		return 0, ErrTrashed
+	if err := l.fileable(group); err != nil {
+		return 0, err
 	}
 	id := l.nextChapter
 	l.nextChapter++
@@ -564,11 +614,8 @@ func (l *Library) MoveChapter(id ChapterID, group GroupID, index int) error {
 	if !ok {
 		return ErrUnknown
 	}
-	if _, ok := l.groups[group]; !ok {
-		return ErrUnknown
-	}
-	if l.GroupInTrash(group) {
-		return ErrTrashed
+	if err := l.fileable(group); err != nil {
+		return err
 	}
 	l.order[chapter.Group] = removeOrderEntry(l.order[chapter.Group], chapterEntry(id))
 	chapter.Group = group
@@ -602,11 +649,8 @@ func (l *Library) AddSheetAt(id SheetID, group GroupID, at time.Time, index int)
 	if id <= 0 {
 		return ErrInvalidID
 	}
-	if _, ok := l.groups[group]; !ok {
-		return ErrUnknown
-	}
-	if l.GroupInTrash(group) {
-		return ErrTrashed
+	if err := l.fileable(group); err != nil {
+		return err
 	}
 	if _, ok := l.sheets[id]; ok {
 		return ErrDuplicate
@@ -633,11 +677,8 @@ func (l *Library) MoveSheet(id SheetID, group GroupID, index int) error {
 	if !ok {
 		return ErrUnknown
 	}
-	if _, ok := l.groups[group]; !ok {
-		return ErrUnknown
-	}
-	if l.GroupInTrash(group) {
-		return ErrTrashed
+	if err := l.fileable(group); err != nil {
+		return err
 	}
 	l.order[sheet.Group] = removeOrderEntry(l.order[sheet.Group], sheetEntry(id))
 	sheet.Group = group

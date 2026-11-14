@@ -63,9 +63,10 @@ func (l *Library) Records() Records {
 }
 
 // Restore rebuilds a library from its records. It reads what they still
-// say: a group whose parent is gone, or that would sit inside itself, goes
-// to the top level; a sheet whose group is gone goes to the Inbox; and the
-// Inbox is there whatever the records hold.
+// say: a group whose parent is gone, is a smart folder, or would sit
+// inside itself, goes to the top level; a sheet or chapter whose group is
+// gone or is a smart folder goes to the Inbox; and the Inbox is there,
+// and no smart folder, whatever the records hold.
 func Restore(records Records) *Library {
 	l := New()
 	l.children[0] = nil
@@ -79,7 +80,7 @@ func Restore(records Records) *Library {
 		}
 		group := record.Group
 		if group.ID == Inbox {
-			group.Parent, group.Name, group.Trashed = 0, InboxName, time.Time{}
+			group.Parent, group.Name, group.Query, group.Trashed = 0, InboxName, "", time.Time{}
 		}
 		l.groups[group.ID] = &group
 		l.nextGroup = max(l.nextGroup, group.ID+1)
@@ -94,7 +95,7 @@ func Restore(records Records) *Library {
 		if !ok {
 			continue
 		}
-		if !l.reachesTop(group) {
+		if parent, ok := l.groups[group.Parent]; !l.reachesTop(group) || ok && parent.Smart() {
 			group.Parent = 0
 		}
 		if !l.has(group.Parent, group.ID) {
@@ -118,7 +119,7 @@ func Restore(records Records) *Library {
 		if _, twice := l.chapters[chapter.ID]; twice {
 			continue
 		}
-		if _, ok := l.groups[chapter.Group]; !ok {
+		if g, ok := l.groups[chapter.Group]; !ok || g.Smart() {
 			chapter.Group = Inbox
 		}
 		l.chapters[chapter.ID] = &chapter
@@ -130,7 +131,7 @@ func Restore(records Records) *Library {
 	}
 	for _, record := range records.Sheets {
 		sheet := record.Sheet
-		if _, ok := l.groups[sheet.Group]; !ok {
+		if g, ok := l.groups[sheet.Group]; !ok || g.Smart() {
 			sheet.Group = Inbox
 		}
 		if _, twice := l.sheets[sheet.ID]; twice {
