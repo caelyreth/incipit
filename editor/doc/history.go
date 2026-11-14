@@ -22,6 +22,9 @@ type Entry struct {
 	Before, After Selection
 	Time          time.Time
 	bytes         int
+	// free is how much of Layers' array no entry has written yet, shared
+	// by the entries merged from one another (grow).
+	free *int
 }
 
 // NewEntry groups a transaction's steps into layers by phase.
@@ -57,10 +60,47 @@ func (e *Entry) Empty() bool { return len(e.Layers) == 0 }
 // History is a page's undo and redo state. It is immutable: every change
 // returns a new History.
 type History struct {
+	// done are the entries, oldest first, but the newest, head, which a
+	// merge replaces; free is how much of done's array no history has
+	// written yet (grow).
 	done   []*Entry
+	head   *Entry
+	free   *int
 	redo   map[OriginClass][]*Entry
 	bytes  int
 	budget int
+}
+
+// grow appends vs to s, in place while s ends where its array was last
+// written, so that every version sharing the array sees only what it
+// holds; free counts the array's unwritten room. It returns the grown
+// slice and the count its array keeps.
+func grow[T any](s []T, free *int, vs ...T) ([]T, *int) {
+	if free != nil && cap(s)-len(s) == *free && *free >= len(vs) {
+		*free -= len(vs)
+		return append(s, vs...), free
+	}
+	out := make([]T, len(s), max(2*(len(s)+len(vs)), 8))
+	copy(out, s)
+	out = append(out, vs...)
+	room := cap(out) - len(out)
+	return out, &room
+}
+
+// entries are every entry, oldest first.
+func (h *History) entries() []*Entry {
+	if h.head == nil {
+		return h.done
+	}
+	return append(slices.Clip(h.done), h.head)
+}
+
+// setEntries makes all the history's entries, oldest first.
+func (h *History) setEntries(all []*Entry) {
+	h.done, h.head, h.free = all, nil, nil
+	if n := len(all); n > 0 {
+		h.done, h.head = all[:n-1:n-1], all[n-1]
+	}
 }
 
 // DefaultHistoryBudget bounds the bytes history keeps.
@@ -76,7 +116,6 @@ func NewHistory(budget int) *History {
 
 func (h *History) clone() *History {
 	c := *h
-	c.done = slices.Clip(h.done)
 	c.redo = make(map[OriginClass][]*Entry, len(h.redo))
 	for k, v := range h.redo {
 		c.redo[k] = slices.Clip(v)
@@ -101,14 +140,13 @@ func (h *History) CanUndo(class OriginClass) bool { return h.newest(class) >= 0 
 func (h *History) CanRedo(class OriginClass) bool { return len(h.redo[class.Actor()]) > 0 }
 
 // Last returns the newest entry of any origin.
-func (h *History) Last() *Entry {
-	if len(h.done) == 0 {
-		return nil
-	}
-	return h.done[len(h.done)-1]
-}
+func (h *History) Last() *Entry { return h.head }
 
+// newest is the index among the entries of class's actor's newest.
 func (h *History) newest(class OriginClass) int {
+	if h.head != nil && h.head.Class.Actor() == class.Actor() {
+		return len(h.done)
+	}
 	for i := len(h.done) - 1; i >= 0; i-- {
 		if h.done[i].Class.Actor() == class.Actor() {
 			return i
@@ -125,17 +163,20 @@ func (h *History) Push(e *Entry, merge bool) *History {
 	}
 	c := h.clone()
 	delete(c.redo, e.Class.Actor())
-	if n := len(c.done); merge && n > 0 && c.done[n-1].Class == e.Class {
-		last := *c.done[n-1]
-		last.Layers = append(slices.Clip(last.Layers), e.Layers...)
+	if merge && c.head != nil && c.head.Class == e.Class {
+		last := *c.head
+		last.Layers, last.free = grow(last.Layers, last.free, e.Layers...)
 		last.After, last.Time = e.After, e.Time
 		last.bytes += e.bytes
-		c.done = append(c.done[:n-1:n-1], &last)
+		c.head = &last
 	} else {
-		c.done = append(c.done, e)
+		if c.head != nil {
+			c.done, c.free = grow(c.done, c.free, c.head)
+		}
+		c.head = e
 	}
 	c.bytes += e.bytes
-	for c.bytes > c.budget && len(c.done) > 1 {
+	for c.bytes > c.budget && len(c.done) > 0 {
 		c.bytes -= c.done[0].bytes
 		c.done = c.done[1:]
 	}
@@ -168,12 +209,13 @@ func (h *History) Undo(class OriginClass, topLayer bool) (*Plan, error) {
 	if i < 0 {
 		return nil, ErrNothing
 	}
-	e := h.done[i]
+	all := h.entries()
+	e := all[i]
 	layers := e.Layers
 	if topLayer {
 		layers = layers[len(layers)-1:]
 	}
-	ops, err := invert(layers, h.done[i+1:])
+	ops, err := invert(layers, all[i+1:])
 	if err != nil {
 		return nil, err
 	}
@@ -206,9 +248,10 @@ func (h *History) Redo(class OriginClass) (*Plan, error) {
 // new change of its own would have cleared e.
 func (h *History) after(e *Entry) []*Entry {
 	var out []*Entry
-	for i := len(h.done) - 1; i >= 0 && h.done[i].Time.After(e.Time); i-- {
-		if h.done[i].Class.Actor() != e.Class.Actor() {
-			out = append(out, h.done[i])
+	all := h.entries()
+	for i := len(all) - 1; i >= 0 && all[i].Time.After(e.Time); i-- {
+		if all[i].Class.Actor() != e.Class.Actor() {
+			out = append(out, all[i])
 		}
 	}
 	slices.Reverse(out)
@@ -273,19 +316,20 @@ func (h *History) Applied(p *Plan, steps []*Step, at time.Time, current Selectio
 		stack := c.redo[p.class.Actor()]
 		c.redo[p.class.Actor()] = stack[: len(stack)-1 : len(stack)-1]
 		redone := NewEntry(steps, p.entry.Class, p.View, current, p.Selection, at)
-		c.done = append(c.done, redone)
+		c.setEntries(append(slices.Clone(c.entries()), redone))
 		c.bytes += redone.bytes
 		return c
 	}
+	all := slices.Clone(c.entries())
 	if p.top && len(p.entry.Layers) > 1 {
 		kept := *p.entry
-		kept.Layers = slices.Clip(kept.Layers[:len(kept.Layers)-1])
-		c.done = slices.Clone(c.done)
-		c.done[p.index] = &kept
+		kept.Layers, kept.free = slices.Clip(kept.Layers[:len(kept.Layers)-1]), nil
+		all[p.index] = &kept
 	} else {
-		c.done = slices.Delete(slices.Clone(c.done), p.index, p.index+1)
+		all = slices.Delete(all, p.index, p.index+1)
 		c.bytes -= p.entry.bytes
 	}
+	c.setEntries(all)
 	c.redo[p.class.Actor()] = append(c.redo[p.class.Actor()], undoEntry)
 	return c
 }

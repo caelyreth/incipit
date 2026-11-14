@@ -552,3 +552,53 @@ func TestShapeFollowsTheBlockStructure(t *testing.T) {
 		}
 	}
 }
+
+// A history is a value: merging into or pushing onto one version leaves
+// every other as it was, however they branch, and a merge adds its layers
+// to the newest entry's without copying those it holds.
+func TestHistoryVersionsStandApartAsTheyGrow(t *testing.T) {
+	s := newPage(t, "ab")
+	ref := SlotRef{Node: child(s, 0).ID()}
+	entry := func(text string, class OriginClass) *Entry {
+		tx := s.Begin(Origin{Class: class})
+		if err := tx.Apply(EditText{At: ref, From: 0, To: 0, Items: []Item{TextItem(text, nil)}}); err != nil {
+			t.Fatal(err)
+		}
+		return NewEntry(tx.Steps(), class, 0, Selection{}, Selection{}, time.Unix(0, 0))
+	}
+	layers := func(h *History) int { return len(h.Last().Layers) }
+	h := NewHistory(0).Push(entry("a", OriginTyping), false)
+	for range 20 {
+		h = h.Push(entry("b", OriginTyping), true)
+	}
+	if layers(h) != 21 {
+		t.Fatalf("the merged entry holds %d layers, want 21", layers(h))
+	}
+	base := h
+	left := base.Push(entry("c", OriginTyping), true)
+	right := base.Push(entry("d", OriginTyping), true)
+	if layers(base) != 21 || layers(left) != 22 || layers(right) != 22 {
+		t.Fatalf("layers base %d, left %d, right %d", layers(base), layers(left), layers(right))
+	}
+	if got := left.Last().Layers[21].Steps[0].records[0].Text; got != "c" {
+		t.Fatalf("the left branch's newest layer types %q, want c", got)
+	}
+	if got := right.Last().Layers[21].Steps[0].records[0].Text; got != "d" {
+		t.Fatalf("the right branch's newest layer types %q, want d", got)
+	}
+	agent := left.Push(entry("e", OriginAgent), false)
+	other := left.Push(entry("f", OriginAgent), false)
+	if len(agent.entries()) != 2 || len(other.entries()) != 2 || agent.entries()[0] != left.Last() || agent.Last() == other.Last() {
+		t.Fatal("pushing onto one version showed in another")
+	}
+
+	// A merge costs the same however many layers the entry holds.
+	g := entry("g", OriginTyping)
+	grown := base
+	for range 2000 {
+		grown = grown.Push(g, true)
+	}
+	if allocs := testing.AllocsPerRun(100, func() { grown = grown.Push(g, true) }); allocs > 4 {
+		t.Fatalf("a merge into an entry of %d layers allocates %v times", layers(grown), allocs)
+	}
+}
