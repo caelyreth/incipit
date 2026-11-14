@@ -9,7 +9,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/blevesearch/bleve/v2"
-	"github.com/blevesearch/bleve/v2/search"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/caelyreth/neverland/editor/profile"
 )
@@ -39,8 +38,6 @@ type Request struct {
 type Hit struct {
 	Key   int64
 	Score float64
-	// Tasks are the tasks a task filter found in the page, by ID.
-	Tasks []string
 }
 
 // Count is how many hits hold a facet's value.
@@ -100,7 +97,7 @@ func (x *Index) run(q Query, r Request, bq query.Query) (Result, error) {
 		size, from = max(rerankDepth, r.Offset+r.Limit), 0
 	}
 	req := bleve.NewSearchRequestOptions(bq, size, from, false)
-	req.Fields = []string{"updated", "tasks.id"}
+	req.Fields = []string{"updated"}
 	if byField {
 		req.SortBy(order)
 	}
@@ -115,10 +112,9 @@ func (x *Index) run(q Query, r Request, bq query.Query) (Result, error) {
 	for _, h := range res.Hits {
 		k, ok := pageKey(h.ID)
 		if !ok {
-			// A part of a page counts for nothing as a hit (§ pitfalls).
 			continue
 		}
-		hit := Hit{Key: k, Score: h.Score, Tasks: taskIDs(h.Fields)}
+		hit := Hit{Key: k, Score: h.Score}
 		if !byField {
 			hit.Score *= recency(h.Fields["updated"], r.Now)
 		}
@@ -163,28 +159,6 @@ func recency(updated any, now time.Time) float64 {
 	return 1 + 0.2*math.Exp2(-max(age, 0)/30)
 }
 
-func taskIDs(fields map[string]any) []string {
-	var out []string
-	add := func(f map[string]any) {
-		if id, ok := f["tasks.id"].(string); ok {
-			out = append(out, id)
-		}
-	}
-	switch nested := fields["_$nested"].(type) {
-	case []*search.NestedDocumentMatch:
-		for _, n := range nested {
-			add(n.Fields)
-		}
-	case []any:
-		for _, n := range nested {
-			if m, ok := n.(*search.NestedDocumentMatch); ok {
-				add(m.Fields)
-			}
-		}
-	}
-	return out
-}
-
 // sortOf is the order a query's $sort asks for, and whether it is a
 // field's rather than relevance.
 func sortOf(q Query) ([]string, bool) {
@@ -224,9 +198,8 @@ func issued(q Query) map[Span]bool {
 	return out
 }
 
-// compiler turns a parsed query into the index's. It builds only field
-// queries, boolean queries, conjunctions and disjunctions: the nodes
-// Bleve's nested collection looks through, so every hit is a page.
+// compiler turns a parsed query into the index's. It builds field
+// queries, boolean queries, conjunctions and disjunctions only.
 type compiler struct {
 	env    Env
 	issued map[Span]bool
@@ -489,8 +462,6 @@ func (c *compiler) filter(f *Filter) query.Query {
 		return term("kinds", Fold(v))
 	case "link":
 		return term("domains", strings.TrimPrefix(Fold(v), "www."))
-	case "task", "todo", "done":
-		return c.task(f)
 	}
 	// $trash, $sort, $sheet and the find's own keys are no condition here.
 	return nil
@@ -508,26 +479,6 @@ func (c *compiler) groups(ids []int64) query.Query {
 		return parts[0]
 	}
 	return bleve.NewDisjunctionQuery(parts...)
-}
-
-// task is a task filter: its conditions hold of one task together.
-func (c *compiler) task(f *Filter) query.Query {
-	var parts []query.Query
-	if f.Key.Name != "task" {
-		q := bleve.NewBoolFieldQuery(f.Key.Name == "done")
-		q.SetField("tasks.done")
-		parts = append(parts, q)
-	}
-	if text := c.words(f.Value, []field{{"tasks.text", 1}}); text != nil {
-		parts = append(parts, text)
-	}
-	switch len(parts) {
-	case 0:
-		return term("kinds", "task")
-	case 1:
-		return parts[0]
-	}
-	return bleve.NewConjunctionQuery(parts...)
 }
 
 // String names a page for tests and logs.

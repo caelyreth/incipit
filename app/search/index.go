@@ -42,19 +42,10 @@ type Page struct {
 	// links to.
 	Kinds   []string
 	Domains []string
-	Tasks   []Task
 	Created time.Time
 	Updated time.Time
 	Words   int
 	Trashed bool
-}
-
-// Task is a task of a page: the block it is, its text and whether it is
-// done.
-type Task struct {
-	ID   string
-	Text string
-	Done bool
 }
 
 // Index is a notebook's search index. It is a cache: the notebook is the
@@ -87,8 +78,8 @@ func Open(dir string) (x *Index, fresh bool, err error) {
 	return x, true, err
 }
 
-// Memory makes an index kept in memory only, on the same engine as one
-// kept on disk.
+// Memory makes an index kept in memory only, on the same engine (scorch)
+// as one kept on disk.
 func Memory() (*Index, error) { return create("") }
 
 func create(dir string) (*Index, error) {
@@ -178,10 +169,6 @@ func document(p Page) map[string]any {
 	for _, d := range p.Domains {
 		domains = append(domains, domainSuffixes(d)...)
 	}
-	tasks := make([]any, len(p.Tasks))
-	for i, t := range p.Tasks {
-		tasks[i] = map[string]any{"id": t.ID, "text": t.Text, "done": t.Done}
-	}
 	return map[string]any{
 		"rev":        float64(p.Rev),
 		"title":      p.Title,
@@ -195,7 +182,6 @@ func document(p Page) map[string]any {
 		"groups":     groups,
 		"kinds":      p.Kinds,
 		"domains":    domains,
-		"tasks":      tasks,
 		"created":    p.Created,
 		"updated":    p.Updated,
 		"words":      float64(p.Words),
@@ -300,17 +286,6 @@ func pageMapping() (*mapping.IndexMappingImpl, error) {
 	page.AddFieldMappingsAt("created", date(false))
 	page.AddFieldMappingsAt("updated", date(true))
 	page.AddFieldMappingsAt("words", number(true, false, true))
-	tasks := bleve.NewNestedDocumentMapping()
-	tasks.Dynamic = false
-	id := keyword(false)
-	id.Store = true
-	tasks.AddFieldMappingsAt("id", id)
-	tasks.AddFieldMappingsAt("text", text())
-	tasks.AddFieldMappingsAt("done", flag())
-	page.AddSubDocumentMapping("tasks", tasks)
 	m.DefaultMapping = page
 	return m, m.Validate()
 }
-
-// mappingImpl is the index's mapping type, named for the package's tests.
-type mappingImpl = mapping.IndexMappingImpl

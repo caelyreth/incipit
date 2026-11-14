@@ -26,7 +26,7 @@ func TestTheMatcherPlacesWhatTheIndexFinds(t *testing.T) {
 		{"plan", "planning ahead", "[planning] ahead"},
 		{"~budgte ", "the budget", "the [budget]"},
 		{"budget -plan", "budget plan", "[budget] plan"},
-		{"$title:trip $todo:milk", "trip to buy milk", "[trip] to buy [milk]"},
+		{"$title:trip $heading:milk", "trip to buy milk", "[trip] to buy [milk]"},
 		{"$updated:7d", "nothing to mark", "nothing to mark"},
 		{"ラーメン", "ラーメンを食べた", "[ラーメン]を食べた"},
 	} {

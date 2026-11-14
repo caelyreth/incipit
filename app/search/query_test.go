@@ -20,7 +20,7 @@ func TestAQueryPrintsBackAsWritten(t *testing.T) {
 		"a | b c",
 		"(a | b) -(c d)",
 		`$tag:work #ideas $in:"Side projects" $updated:7d`,
-		"~recieve =go $todo $todo:budget $sort:-updated",
+		"~recieve =go $inbox $has:image $sort:-updated",
 		`"say \"hi\""`,
 	} {
 		if got := Parse(text).String(); got != text {
@@ -69,12 +69,12 @@ func TestUnfinishedAndWrongPartsAreIssuesNotErrors(t *testing.T) {
 }
 
 func TestSheetRunsAQueryInTheSheetAndDatesGoInert(t *testing.T) {
-	q := Parse("$sheet budget $updated:7d $todo")
+	q := Parse("$sheet budget $updated:7d $heading:plan")
 	if q.Scope != InSheet {
 		t.Fatal("$sheet runs the query in the sheet")
 	}
 	got := kinds(q)
-	if got["$updated:7d"] != Inert || got["$todo"] != 0 {
+	if got["$updated:7d"] != Inert || got["$heading:plan"] != 0 {
 		t.Fatalf("issues %v", got)
 	}
 	if kinds(Parse("$case budget"))["$case"] != Inert {

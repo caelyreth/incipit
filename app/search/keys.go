@@ -18,8 +18,8 @@ const (
 	TakesNothing Takes = iota
 	// TakesText is words or a phrase, as $title:"weekly notes".
 	TakesText
-	// TakesOptionalText is a key alone or with text, as $todo or
-	// $todo:budget.
+	// TakesOptionalText is a key alone or with text, as $sheet or
+	// $sheet:"Weekly notes".
 	TakesOptionalText
 	// TakesName is a name: a tag, a group, a domain, a kind.
 	TakesName
@@ -42,7 +42,7 @@ type Key struct {
 }
 
 // Kinds are what $has looks for.
-var Kinds = []string{"code", "image", "link", "list", "math", "quote", "table", "task"}
+var Kinds = []string{"code", "image", "link", "list", "math", "quote", "table"}
 
 // SortFields are what $sort orders by; a leading "-" turns the order.
 var SortFields = []string{"relevance", "updated", "created", "title", "words"}
@@ -60,9 +60,6 @@ var Keys = []Key{
 	{Name: "code", Takes: TakesText, Scope: Anywhere, Help: "Words in code"},
 	{Name: "quote", Takes: TakesText, Scope: Anywhere, Help: "Words in a quote"},
 	{Name: "has", Takes: TakesChoice, Scope: InNotebook, Choices: Kinds, Help: "Sheets holding a kind of thing"},
-	{Name: "task", Takes: TakesOptionalText, Scope: Anywhere, Help: "A task, or a task with these words"},
-	{Name: "todo", Takes: TakesOptionalText, Scope: Anywhere, Help: "An open task, or one with these words"},
-	{Name: "done", Takes: TakesOptionalText, Scope: Anywhere, Help: "A done task, or one with these words"},
 	{Name: "link", Takes: TakesName, Scope: Anywhere, Help: "Links to a site, as $link:github.com"},
 	{Name: "inbox", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets in the Inbox"},
 	{Name: "trash", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets in the trash"},
