@@ -301,7 +301,7 @@ func (d *borderDrag) finish(canceled bool, at time.Time) {
 		col = shape.Columns[d.tablePress.at]
 	}
 	switch {
-	case d.clicks >= 2 && !d.moved:
+	case vocab.StepOf(d.clicks) == vocab.DoubleClick && !d.moved:
 		// A double click fits the column to its text, or lets it go.
 		col.Fit, col.Width = !col.Fit, 0
 	case d.moved:

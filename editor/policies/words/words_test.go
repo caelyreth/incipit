@@ -217,6 +217,22 @@ func TestDoubleClickSelectsAWord(t *testing.T) {
 	}
 }
 
+// A run of clicks goes on in turn past its third press: a double click on
+// a word just double clicked, which comes as the run's third and fourth
+// presses, selects the block and then the word again.
+func TestADoubleClickAfterAnotherSelectsTheWordAgain(t *testing.T) {
+	h := newHarness(t)
+	h.typeText("one two")
+	for clicks, want := range map[int][2]int{1: {5, 5}, 2: {4, 7}, 3: {0, 7}, 4: {4, 7}, 5: {0, 7}, 6: {4, 7}} {
+		h.do(vocab.Place{Stop: h.caret(5), Clicks: clicks})
+		view, _ := h.e.View(1)
+		from, to := view.Selection.Ordered(h.e.Snapshot())
+		if from.Pos.Offset != want[0] || to.Pos.Offset != want[1] {
+			t.Fatalf("press %d selected %d..%d, want %d..%d", clicks, from.Pos.Offset, to.Pos.Offset, want[0], want[1])
+		}
+	}
+}
+
 // A range does the same first thing whatever unit acts on it: a move
 // collapses it, a delete deletes it.
 func TestARangeActsAloneWhateverTheUnit(t *testing.T) {

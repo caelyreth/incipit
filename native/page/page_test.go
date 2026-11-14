@@ -687,3 +687,25 @@ func TestTheCaretsLineClearsTheTopFade(t *testing.T) {
 		t.Fatalf("the mask is %+v", g)
 	}
 }
+
+// A double click on a word just selected by one, which the system counts
+// as the third and fourth presses of the run, selects that word again
+// through the page's own presses.
+func TestADoubleClickOnTheSelectedWordSelectsItAgain(t *testing.T) {
+	el := newElement(t)
+	typeText(el, "alpha beta gamma")
+	pl := el.Editor.layout
+	s := pl.units[0].surfaces[0]
+	ox, oy := pl.units[0].origin(s)
+	r := s.caretRect(s.u16Of(13, doc.StopLast))
+	x, y := ox+r.X+2, oy+r.Y+r.H/2
+	t0 := time.Unix(600, 0)
+	for clicks := 1; clicks <= 4; clicks++ {
+		el.press(x, y, clicks, false, t0)
+		el.letGo(false, t0)
+	}
+	from, to := el.Editor.Selection().Ordered(el.Editor.Engine.Snapshot())
+	if from.Pos.Offset != 11 || to.Pos.Offset != 16 {
+		t.Fatalf("the second double click selected %d..%d, want the word 11..16", from.Pos.Offset, to.Pos.Offset)
+	}
+}

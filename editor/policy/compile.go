@@ -584,7 +584,7 @@ func overlaps(a, b matcher) bool {
 		return false
 	}
 	return (a.unit == 0 || b.unit == 0 || a.unit == b.unit) && (a.dir == 0 || b.dir == 0 || a.dir == b.dir) &&
-		(a.extend == 0 || b.extend == 0 || a.extend == b.extend) && (a.clicks == 0 || b.clicks == 0 || a.clicks == b.clicks)
+		(a.extend == 0 || b.extend == 0 || a.extend == b.extend) && (a.click == 0 || b.click == 0 || a.click == b.click)
 }
 
 // classed reports whether some of texts (any text, for none) starts in
@@ -596,7 +596,7 @@ func classed(texts []string, c vocab.CharClass) bool {
 // subsumes reports whether every intent b matches, a matches.
 func subsumes(a, b matcher) bool {
 	if a.kind != b.kind || a.unit != 0 && a.unit != b.unit || a.dir != 0 && a.dir != b.dir ||
-		a.extend != 0 && a.extend != b.extend || a.clicks != 0 && a.clicks != b.clicks {
+		a.extend != 0 && a.extend != b.extend || a.click != 0 && a.click != b.click {
 		return false
 	}
 	if a.texts != nil && (b.texts == nil || slices.ContainsFunc(b.texts, func(t string) bool { return !slices.Contains(a.texts, t) })) {

@@ -32,7 +32,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		policy.On(p, "extend-"+unit.name, policy.Extending(unit.unit, 0), policy.Slot.Inside(), move).Caret().Range()
 		policy.On(p, "delete-"+unit.name, policy.Deleting(unit.unit, 0), policy.Slot.Inside(), delete)
 	}
-	policy.On(p, "select-word", policy.Clicking(2), policy.Slot.Inside(), selectWord).Any()
+	policy.On(p, "select-word", policy.Clicking(vocab.DoubleClick), policy.Slot.Inside(), selectWord).Any()
 
 	// The card's demonstration, played by the engine itself.
 	p.Showcase(2400*time.Millisecond,

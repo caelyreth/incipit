@@ -141,8 +141,8 @@ type matcher struct {
 	// extend is whether the intent extends the selection: +1 it does, -1
 	// it does not, 0 either.
 	extend int8
-	// clicks is a Place's click count; zero for any.
-	clicks int
+	// click is a Place's step in its run of clicks; zero for any.
+	click vocab.ClickStep
 }
 
 // Intent matches every intent of type I.
@@ -183,14 +183,14 @@ func Extending(u vocab.Unit, d vocab.Direction) Pattern[vocab.Move] {
 	return Pattern[vocab.Move]{matcher{kind: vocab.IntentMove, unit: u, dir: d, extend: 1}}
 }
 
-// Clicking matches placing the caret with n clicks, not extending: a click
-// that extends extends, whatever its count.
-func Clicking(n int) Pattern[vocab.Place] {
-	return Pattern[vocab.Place]{matcher{kind: vocab.IntentPlace, clicks: n, extend: -1}}
+// Clicking matches placing the caret at step s of a run of clicks, not
+// extending: a click that extends extends, whatever its step.
+func Clicking(s vocab.ClickStep) Pattern[vocab.Place] {
+	return Pattern[vocab.Place]{matcher{kind: vocab.IntentPlace, click: s, extend: -1}}
 }
 
 func (m matcher) bare() bool {
-	return m.texts == nil && m.class == 0 && m.unit == 0 && m.dir == 0 && m.extend == 0 && m.clicks == 0
+	return m.texts == nil && m.class == 0 && m.unit == 0 && m.dir == 0 && m.extend == 0 && m.click == 0
 }
 
 // extends reports whether the matcher takes an intent's extend flag.
@@ -213,7 +213,7 @@ func (m matcher) match(in vocab.Intent) bool {
 	case vocab.Move:
 		return (m.unit == 0 || m.unit == v.Unit) && (m.dir == 0 || m.dir == v.Dir) && m.extends(v.Extend)
 	case vocab.Place:
-		return (m.clicks == 0 || m.clicks == v.Clicks) && m.extends(v.Extend)
+		return (m.click == 0 || m.click == v.Click()) && m.extends(v.Extend)
 	}
 	return true
 }

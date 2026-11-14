@@ -172,7 +172,9 @@ type (
 		Extend        bool
 	}
 	// Place puts the caret at a stop the renderer hit, as a click does;
-	// Clicks counts a double or triple click, Toggle adds to a selection.
+	// Clicks is the press's count in a run of quick clicks, as the system
+	// counts it, read as a step of the run (Click); Toggle adds to a
+	// selection.
 	// Node, when set, is an object the pointer hit. Over is the side of
 	// Stop the grapheme under the pointer lies on, zero off text: what a
 	// click is on, which the nearest stop alone does not say.
@@ -290,3 +292,31 @@ func (d Delete) Toward() Direction {
 
 // Toward is backward: Return enters what ends before the caret.
 func (Return) Toward() Direction { return Backward }
+
+// ClickStep is where a press stands in a run of quick clicks: a single
+// click, a double click or a triple one. The system counts on through a
+// run, so a double click right after another on the same spot comes as
+// its third and fourth presses; past the third the run goes on in turn, a
+// double click on every even press and a triple on every odd one, so a
+// double click is one whenever it comes.
+type ClickStep uint8
+
+const (
+	SingleClick ClickStep = iota + 1
+	DoubleClick
+	TripleClick
+)
+
+// StepOf is the step of the press counted clicks in its run.
+func StepOf(clicks int) ClickStep {
+	switch {
+	case clicks <= 1:
+		return SingleClick
+	case clicks%2 == 0:
+		return DoubleClick
+	}
+	return TripleClick
+}
+
+// Click is the place's step in its run of clicks.
+func (p Place) Click() ClickStep { return StepOf(p.Clicks) }

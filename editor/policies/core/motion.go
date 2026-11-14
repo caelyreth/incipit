@@ -160,8 +160,9 @@ func visualMove(c *policy.Ctx, in vocab.VisualMove, _ policy.At[doc.SlotRef]) po
 	return res
 }
 
-// placeCaret puts the caret where the pointer hit: a stop, an object, a word
-// on a double click, the slot on a triple click.
+// placeCaret puts the caret where the pointer hit: a stop, an object, or
+// the slot on a triple click (vocab.ClickStep); a double click's word is
+// the words policy's.
 func placeCaret(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
 	if in.Node != 0 {
@@ -190,7 +191,7 @@ func placeCaret(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.
 		return policy.Select(doc.TextRange(anchor, stop))
 	}
 	switch {
-	case in.Clicks >= 3:
+	case in.Click() == vocab.TripleClick:
 		n, _ := r.Node(stop.Pos.Node)
 		if stop.Pos.Slot < n.NumSlots() && n.Slot(stop.Pos.Slot).IsInline() {
 			ref := stop.Pos.Ref()
