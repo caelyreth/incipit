@@ -60,6 +60,12 @@ func TestUnfinishedAndWrongPartsAreIssuesNotErrors(t *testing.T) {
 			t.Errorf("%q: issue %d, want %d (all %v)", text, got[text], kind, got)
 		}
 	}
+	if q := Parse("budget $up"); kinds(q)["$up"] != Pending {
+		t.Fatalf("a key being written is pending: %v", kinds(q))
+	}
+	if q := Parse("$up budget"); kinds(q)["$up"] != Unknown {
+		t.Fatalf("a key left unfinished is unknown: %v", kinds(q))
+	}
 	if q := Parse("(a b"); q.Root.(*Group).Closed || kinds(q)["(a b"] != Pending {
 		t.Fatalf("an unclosed group is pending: %v", kinds(q))
 	}

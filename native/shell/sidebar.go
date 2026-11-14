@@ -20,6 +20,8 @@ type navigation struct {
 	// searching shows search results in the sheet list instead of the
 	// place.
 	searching bool
+	// find is the search being written (search.go).
+	find finding
 	// shown is what the sheet list shows, since shownAt while its rows
 	// come in; fresh marks the frame it changed, and rank counts the rows
 	// drawn so far in this one.
@@ -130,22 +132,6 @@ func (s *State) Go(place Place) {
 	s.nav.groupRename = false
 	s.sheetOverscroll.Reset()
 	s.disarm()
-}
-
-// Search shows search in the sheet list, its field focused.
-func (s *State) Search() {
-	s.nav.searching = true
-	s.sheetOverscroll.Reset()
-	s.showSheetList()
-	s.FindPageRequested = true
-	s.disarm()
-}
-
-// stopSearching gives the sheet list back to the place.
-func (s *State) stopSearching() {
-	s.nav.searching = false
-	s.sheetOverscroll.Reset()
-	s.PageQuery = ""
 }
 
 // CurrentGroup is the group a new sheet goes in: the one shown, else the

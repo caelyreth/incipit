@@ -170,7 +170,7 @@ func BenchmarkLibrarySessionLookup(b *testing.B) {
 }
 
 // searchSettled runs a query once the index took what changed.
-func searchSettled(app *AppState, query string) []shell.SheetItem {
+func searchSettled(app *AppState, query string) []shell.FoundSheet {
 	settleSearch(app)
-	return app.Search(query)
+	return app.Search(query).Sheets
 }

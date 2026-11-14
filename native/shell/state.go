@@ -64,8 +64,8 @@ type State struct {
 	// Library is what the sidebar shows and files; nil shows none.
 	Library           Library
 	Statistics        string
-	PageQuery         string
-	FindPageRequested bool
+	SearchQuery       string
+	SearchRequested   bool
 	Toolbar           ToolbarState
 	TabsScroll        ui.ScrollState
 	libraryScroll     ui.ScrollState

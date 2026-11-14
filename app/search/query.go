@@ -83,8 +83,8 @@ func (s Span) span() Span { return s }
 type IssueKind uint8
 
 const (
-	// Pending is a part not finished yet: a key's value, a quote or a
-	// parenthesis still to come. It matches nothing until it is.
+	// Pending is a part not finished yet: a key's name or value, a quote
+	// or a parenthesis still to come. It matches nothing until it is.
 	Pending IssueKind = iota + 1
 	// Unknown is a key the language does not have.
 	Unknown
@@ -118,12 +118,12 @@ func Parse(text string) Query {
 	p.lex()
 	q := Query{Text: text, Scope: InNotebook}
 	q.Root = p.any(false)
-	walk(q.Root, func(n Node) {
+	Walk(q.Root, func(n Node) {
 		if f, ok := n.(*Filter); ok && f.Key != nil && f.Key.Name == "sheet" {
 			q.Scope = InSheet
 		}
 	})
-	walk(q.Root, func(n Node) {
+	Walk(q.Root, func(n Node) {
 		if f, ok := n.(*Filter); ok && f.Key != nil && f.Key.Scope&q.Scope == 0 {
 			p.issue(f.Span, Inert)
 		}
@@ -207,24 +207,24 @@ func quote(s string) string {
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`
 }
 
-// walk visits n and every part under it.
-func walk(n Node, visit func(Node)) {
+// Walk visits n and every part under it.
+func Walk(n Node, visit func(Node)) {
 	if n == nil {
 		return
 	}
 	visit(n)
 	switch n := n.(type) {
 	case *Not:
-		walk(n.Part, visit)
+		Walk(n.Part, visit)
 	case *Group:
-		walk(n.Part, visit)
+		Walk(n.Part, visit)
 	case *All:
 		for _, p := range n.Parts {
-			walk(p, visit)
+			Walk(p, visit)
 		}
 	case *Any:
 		for _, p := range n.Parts {
-			walk(p, visit)
+			Walk(p, visit)
 		}
 	}
 }
@@ -362,10 +362,24 @@ func (p *parser) filter(i int) (Node, int) {
 	return f, end
 }
 
+// startsKey reports whether name starts the name of a key.
+func startsKey(name string) bool {
+	name = Fold(name)
+	for _, k := range Keys {
+		if strings.HasPrefix(k.Name, name) {
+			return true
+		}
+	}
+	return false
+}
+
 // check notes what is wrong with a filter's key or value.
 func (p *parser) check(f *Filter) {
 	k := f.Key
 	switch {
+	case k == nil && f.To == len(p.text) && !f.HasValue && startsKey(f.Name):
+		// A key's name being written at the query's end.
+		p.issue(f.Span, Pending)
 	case k == nil:
 		p.issue(f.Span, Unknown)
 	case !f.HasValue && (k.Takes == TakesNothing || k.Takes == TakesOptionalText):

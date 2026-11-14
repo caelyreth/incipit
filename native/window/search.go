@@ -13,6 +13,7 @@ import (
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/shell"
 )
 
@@ -40,9 +41,10 @@ type finder struct {
 	// with a count that moves as the snapshot does: the index's revision of
 	// a page whose text may be newer than the store's.
 	texts map[library.SheetID]textState
-	// found is the last search, kept while its query, the index and the
-	// library stand.
+	// found is the last search, kept while its query, the index, the
+	// lines read and the library stand.
 	found *found
+	lines *lines
 }
 
 type textState struct {
@@ -51,10 +53,11 @@ type textState struct {
 }
 
 type found struct {
-	query         string
-	generation    uint64
-	rev, sessions uint64
-	items         []shell.SheetItem
+	query            string
+	generation, read uint64
+	rev, sessions    uint64
+	result           shell.Found
+	close            bool
 }
 
 // openFinder opens the notebook's index beside the store, or one in memory
@@ -76,6 +79,7 @@ func (a *AppState) openFinder(store *storage.Store) error {
 			(*wake)()
 		}
 	}
+	f.lines = newLines(changed)
 	failed := func(err error) { log.Printf("search index: %v", err) }
 	f.indexer, err = search.NewIndexer(x, changed, failed)
 	if err != nil {
@@ -98,6 +102,7 @@ func (a *AppState) closeFinder() {
 		return
 	}
 	a.finder.indexer.Close()
+	a.finder.lines.close()
 	if err := a.finder.index.Close(); err != nil {
 		log.Printf("closing the search index: %v", err)
 	}
@@ -254,31 +259,122 @@ func boolInt(b bool) int64 {
 }
 
 // searchSheets runs a query over the index: the sheets it finds, best
-// first, as the sidebar lists them.
-func (a *AppState) searchSheets(text string) []shell.SheetItem {
+// first, with where their titles match and the lines of their texts that
+// do, as they are read.
+func (a *AppState) searchSheets(text string) shell.Found {
 	f := a.finder
 	if f == nil {
-		return nil
+		return shell.Found{}
 	}
-	gen := f.indexer.Generation()
-	if r := f.found; r != nil && r.query == text && r.generation == gen && r.rev == a.library.Revision() && r.sessions == a.sessionsRev {
-		return r.items
+	gen, read := f.indexer.Generation(), f.lines.generation()
+	if r := f.found; r != nil && r.query == text && r.generation == gen && r.read == read && r.rev == a.library.Revision() && r.sessions == a.sessionsRev {
+		return r.result
 	}
 	q := search.Parse(text)
-	res, err := f.index.Search(q, search.Request{Env: a.searchEnv(), Limit: 200})
+	res, err := f.index.Search(q, search.Request{Env: a.searchEnv(), Limit: searchLimit})
 	if err != nil {
 		log.Printf("search: %v", err)
 	}
+	m := search.NewMatcher(q, res.Close)
+	f.lines.query(text, m)
 	sessions := a.sessionsBySheet()
-	var sheets []library.Sheet
+	paths := map[library.GroupID][]int64{}
+	out := shell.Found{Total: int(res.Total), Close: res.Close}
+	var wanted []lineJob
 	for _, hit := range res.Hits {
-		if sheet, ok := a.library.Sheet(library.SheetID(hit.Key)); ok {
-			sheets = append(sheets, sheet)
+		id := library.SheetID(hit.Key)
+		sheet, ok := a.library.Sheet(id)
+		if !ok {
+			continue
 		}
+		items := sheetItemsWithSessions([]library.Sheet{sheet}, sessions)
+		if len(items) == 0 {
+			continue
+		}
+		found := shell.FoundSheet{SheetItem: items[0]}
+		if !m.Empty() {
+			found.TitleMatches = m.Find(found.Title)
+			if len(out.Sheets) < linesRead {
+				key := lineKey{id: id, rev: f.sent[id]}
+				if l, ok := f.lines.line(key); ok {
+					found.Line, found.LineMatches = l.text, l.spans
+				} else {
+					session := sessions[id]
+					wanted = append(wanted, lineJob{key: key, read: a.indexEntry(sheet, session, f.texts[id], paths).Text})
+				}
+			}
+		}
+		out.Sheets = append(out.Sheets, found)
 	}
-	items := sheetItemsWithSessions(sheets, sessions)
-	f.found = &found{query: text, generation: gen, rev: a.library.Revision(), sessions: a.sessionsRev, items: items}
-	return items
+	f.lines.want(text, wanted)
+	f.found = &found{query: text, generation: gen, read: f.lines.generation(), rev: a.library.Revision(), sessions: a.sessionsRev, result: out, close: res.Close}
+	return out
+}
+
+const (
+	// searchLimit is how many sheets a search lists, and linesRead how
+	// many of the best the lines of are read.
+	searchLimit = 200
+	linesRead   = 40
+	// lineWidth is about how many characters a found line shows.
+	lineWidth = 120
+)
+
+// SearchNames is part of shell.Library: the tags and the groups the
+// notebook holds, for completion.
+func (a *AppState) SearchNames(key string) []string {
+	switch key {
+	case "tag":
+		return a.notebookTags(nil, "")
+	case "in":
+		var names []string
+		seen := map[string]bool{}
+		var visit func(parent library.GroupID)
+		visit = func(parent library.GroupID) {
+			for _, g := range a.library.Groups(parent) {
+				if a.library.GroupInTrash(g.ID) {
+					continue
+				}
+				if folded := search.Fold(g.Name); !seen[folded] {
+					seen[folded] = true
+					names = append(names, g.Name)
+				}
+				visit(g.ID)
+			}
+		}
+		visit(0)
+		return names
+	}
+	return nil
+}
+
+// OpenFound is part of shell.Library: the sheet opens with the first of
+// the query's matches in it selected, and in view.
+func (a *AppState) OpenFound(name, query string, newTab bool) {
+	a.OpenSheet(name, newTab)
+	session, ok := a.sessionOf(name)
+	if !ok {
+		return
+	}
+	el := a.pageElement()
+	if el == nil || session.element != el {
+		return
+	}
+	close := false
+	if r := a.finder; r != nil && r.found != nil && r.found.query == query {
+		close = r.found.close
+	}
+	m := search.NewMatcher(search.Parse(query), close)
+	if m.Empty() {
+		return
+	}
+	spot, ok := search.FirstMatch(el.Editor.Engine.Snapshot().Root(), m)
+	if !ok {
+		return
+	}
+	now := time.Now()
+	el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(spot.Slot, spot.Span.From))}, now)
+	el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(spot.Slot, spot.Span.To)), Extend: true}, now)
 }
 
 // searchEnv is what a query reads from the notebook now.

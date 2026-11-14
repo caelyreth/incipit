@@ -1,6 +1,10 @@
 package shell
 
-import "time"
+import (
+	"time"
+
+	"github.com/caelyreth/neverland/app/search"
+)
 
 // PlaceKind is a kind of place the library holds, whose sheets the sheet
 // list shows.
@@ -52,6 +56,26 @@ type SheetItem struct {
 	Tags []string
 }
 
+// Found is what a search found.
+type Found struct {
+	Sheets []FoundSheet
+	// Total is how many sheets the query finds, Sheets the best of them.
+	Total int
+	// Close says words a typo away were taken too, as the words written
+	// found too few.
+	Close bool
+}
+
+// FoundSheet is a sheet a search found: its row, where its title matches,
+// and the line of its text that does, with where; Line is empty while it
+// is read, and for a sheet whose text holds no match.
+type FoundSheet struct {
+	SheetItem
+	TitleMatches []search.Span
+	Line         string
+	LineMatches  []search.Span
+}
+
 // GroupEntryKind is what a group's ordered list holds at one position.
 type GroupEntryKind uint8
 
@@ -97,8 +121,15 @@ type Library interface {
 	// Entries is a group's sheets and chapter dividers in their shared
 	// order.
 	Entries(group string) []GroupEntry
-	// Search is the sheets out of the trash whose text holds query.
-	Search(query string) []SheetItem
+	// Search is what a query (app/search) finds in the notebook, best
+	// first.
+	Search(query string) Found
+	// SearchNames is the values a name key takes in the notebook, as the
+	// tags $tag does, most used first.
+	SearchNames(key string) []string
+	// OpenFound opens a sheet a query found at the first of its matches,
+	// selected, as OpenSheet opens it.
+	OpenFound(id, query string, newTab bool)
 	// TrashedGroups is the groups put in the trash themselves.
 	TrashedGroups() []GroupItem
 	// Targets is every group out of the trash, in order, nested by Depth.

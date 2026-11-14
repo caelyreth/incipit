@@ -247,19 +247,19 @@ func TestIconControlsAreKeyboardReachable(t *testing.T) {
 	}
 }
 
-func TestFindPageRequestFocusesTheSheetSearch(t *testing.T) {
+func TestASearchRequestFocusesTheSearch(t *testing.T) {
 	state, _ := libraryState()
 	state.Tabs = []Page{{ID: "one", Title: "First"}}
 	state.ActivePage = "one"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	state.FindPageRequested = true
+	state.SearchRequested = true
 	tester.Frame()
 	if active, _ := tester.TextInputActive(); !active {
-		t.Fatal("find-page request did not focus the page search")
+		t.Fatal("a search request did not focus the search")
 	}
-	if state.FindPageRequested {
-		t.Fatal("find-page request was not consumed")
+	if state.SearchRequested {
+		t.Fatal("a search request was not consumed")
 	}
 }
 

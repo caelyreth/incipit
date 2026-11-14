@@ -350,9 +350,9 @@ func (a *AppState) entries(group string) []shell.GroupEntry {
 	return entries
 }
 
-// Search is part of shell.Library: the sheets the query finds in the
-// notebook's index, best first.
-func (a *AppState) Search(query string) []shell.SheetItem { return a.searchSheets(query) }
+// Search is part of shell.Library: what the query finds in the notebook's
+// index, best first.
+func (a *AppState) Search(query string) shell.Found { return a.searchSheets(query) }
 
 // TrashedGroups is part of shell.Library.
 func (a *AppState) TrashedGroups() []shell.GroupItem {

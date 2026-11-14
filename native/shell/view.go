@@ -14,7 +14,7 @@ func (s *State) FocusWithin(c *ui.Context) bool { return s.root.FocusWithin(c) }
 // Typing reports whether a field of the shell is open for typing, or about
 // to take the focus as it opens: the search, or a name being edited.
 func (s *State) Typing() bool {
-	return s.FindPageRequested || s.nav.searching || s.nav.renaming != ""
+	return s.SearchRequested || s.nav.searching || s.nav.renaming != ""
 }
 
 func (s *State) View(c *ui.Context) {
@@ -23,7 +23,7 @@ func (s *State) View(c *ui.Context) {
 	if changing {
 		c.AnimationFrame()
 	}
-	if s.FindPageRequested && !s.nav.searching && s.Library != nil {
+	if s.SearchRequested && !s.nav.searching && s.Library != nil {
 		s.Search()
 	}
 	width, _ := c.Size()

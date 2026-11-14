@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/app/search"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/egoist/mygo/ui"
 )
@@ -609,9 +610,23 @@ func TestChapterDividersRenameInPlace(t *testing.T) {
 	}
 }
 
-func (f *fakeLibrary) Search(query string) []SheetItem {
+func (f *fakeLibrary) Search(query string) Found {
 	f.call("search " + query)
-	return []SheetItem{{ID: "7", Title: "Chapter"}}
+	return Found{Sheets: []FoundSheet{
+		{SheetItem: SheetItem{ID: "7", Title: "Chapter"}, TitleMatches: []search.Span{{From: 0, To: 4}}},
+		{SheetItem: SheetItem{ID: "8", Title: "Notes"}, Line: "a chapter of notes", LineMatches: []search.Span{{From: 2, To: 9}}},
+	}, Total: 2}
+}
+
+func (f *fakeLibrary) SearchNames(key string) []string {
+	if key == "tag" {
+		return []string{"work", "weekly"}
+	}
+	return nil
+}
+
+func (f *fakeLibrary) OpenFound(id, query string, newTab bool) {
+	f.call("open found " + id + " " + query)
 }
 
 func (f *fakeLibrary) TrashedGroups() []GroupItem {
@@ -773,11 +788,11 @@ func TestLibraryReconciliationKeepsSearchOpen(t *testing.T) {
 	state, library := nestedGroupState()
 	state.Go(Place{Kind: PlaceGroup, Group: "4"})
 	state.Search()
-	state.PageQuery = "needle"
+	state.SearchQuery = "needle"
 	library.groupTree["3"] = nil
 	state.ReconcileLibrary()
-	if state.Place() != (Place{Kind: PlaceAll}) || !state.nav.searching || state.PageQuery != "needle" {
-		t.Fatalf("place = %+v, searching = %v, query = %q", state.Place(), state.nav.searching, state.PageQuery)
+	if state.Place() != (Place{Kind: PlaceAll}) || !state.nav.searching || state.SearchQuery != "needle" {
+		t.Fatalf("place = %+v, searching = %v, query = %q", state.Place(), state.nav.searching, state.SearchQuery)
 	}
 }
 
@@ -1083,7 +1098,7 @@ func TestSearchListsMatchingSheetsInTheSheetList(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if state.PageQuery != "" || tester.HasText("Chapter") || !tester.HasText("Draft") {
+	if state.SearchQuery != "" || tester.HasText("Chapter") || !tester.HasText("Draft") {
 		t.Fatalf("done searching: %#v", tester.Texts())
 	}
 }

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/app/search"
+	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
@@ -27,7 +29,7 @@ func typeIntoActivePage(t *testing.T, app *AppState, text string) {
 func titles(app *AppState, query string) []string {
 	settleSearch(app)
 	var out []string
-	for _, item := range app.Search(query) {
+	for _, item := range app.Search(query).Sheets {
 		out = append(out, item.Title)
 	}
 	return out
@@ -93,5 +95,61 @@ func TestTheIndexOutlivesAQuitAndIsMadeAgainWhenLost(t *testing.T) {
 	}
 	if got := titles(app, "数据库 budget"); len(got) != 1 {
 		t.Fatalf("rebuilt from the store: %v", got)
+	}
+}
+
+// foundLine is the line the query matches in the first sheet found, once
+// it is read.
+func foundLine(t *testing.T, app *AppState, query string) (string, []search.Span) {
+	t.Helper()
+	settleSearch(app)
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		found := app.Search(query)
+		if len(found.Sheets) == 0 {
+			t.Fatalf("%q found nothing", query)
+		}
+		if found.Sheets[0].Line != "" {
+			return found.Sheets[0].Line, found.Sheets[0].LineMatches
+		}
+	}
+	t.Fatalf("the line of %q was never read", query)
+	return "", nil
+}
+
+func TestASheetFoundShowsTheLineItMatches(t *testing.T) {
+	app := openNotebookApp(t, t.TempDir())
+	typeIntoActivePage(t, app, "Trip plans")
+	el := app.pageElement()
+	el.Editor.Do(vocab.Break{}, time.Now())
+	typeIntoActivePage(t, app, "Buy the train tickets and pack the budget sheet")
+	line, spans := foundLine(t, app, "budget")
+	if line != "Buy the train tickets and pack the budget sheet" || len(spans) != 1 || line[spans[0].From:spans[0].To] != "budget" {
+		t.Fatalf("line %q %v", line, spans)
+	}
+	if found := app.Search("budget"); len(found.Sheets[0].TitleMatches) != 0 {
+		t.Fatalf("the title holds no match: %v", found.Sheets[0].TitleMatches)
+	}
+}
+
+func TestAFoundSheetOpensWithItsMatchSelected(t *testing.T) {
+	app := openNotebookApp(t, t.TempDir())
+	typeIntoActivePage(t, app, "alpha beta budget gamma")
+	name := sheetName(activeSession(t, app).page)
+	settleSearch(app)
+	app.OpenFound(name, "budget", false)
+	sel := app.pageElement().Editor.Selection()
+	if sel.Kind != doc.SelectText || sel.Anchor.Offset != 11 || sel.Head.Offset != 17 || sel.Anchor.Node != sel.Head.Node {
+		t.Fatalf("selection %+v", sel)
+	}
+}
+
+func TestCompletionTakesTheNotebooksTagsAndGroups(t *testing.T) {
+	app := openNotebookApp(t, t.TempDir())
+	typeIntoActivePage(t, app, "notes #travel")
+	if got := app.SearchNames("tag"); len(got) != 1 || got[0] != "travel" {
+		t.Fatalf("tags %v", got)
+	}
+	if got := app.SearchNames("in"); len(got) == 0 || got[0] != "Inbox" {
+		t.Fatalf("groups %v", got)
 	}
 }

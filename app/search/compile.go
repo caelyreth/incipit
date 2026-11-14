@@ -163,7 +163,7 @@ func recency(updated any, now time.Time) float64 {
 // field's rather than relevance.
 func sortOf(q Query) ([]string, bool) {
 	var order []string
-	walk(q.Root, func(n Node) {
+	Walk(q.Root, func(n Node) {
 		f, ok := n.(*Filter)
 		if !ok || f.Key == nil || f.Key.Name != "sort" || !valid(f.Key, f.Value) {
 			return
@@ -210,7 +210,7 @@ type compiler struct {
 
 func (c *compiler) compile(q Query) query.Query {
 	trashed := false
-	walk(q.Root, func(n Node) {
+	Walk(q.Root, func(n Node) {
 		if f, ok := n.(*Filter); ok && f.Key != nil && f.Key.Name == "trash" && !c.issued[f.Span] {
 			trashed = true
 		}

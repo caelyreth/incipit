@@ -282,20 +282,6 @@ func (s *State) trashList(c *ui.Context, semantic theme.Theme, animate bool) {
 	}, nil, nil, false, animate)
 }
 
-func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
-	query := strings.TrimSpace(s.PageQuery)
-	if query == "" {
-		s.emptyList(c, semantic, components.IconSearch, "Search the words of every sheet", nil, nil, animate)
-		return
-	}
-	sheets := s.Library.Search(query)
-	if len(sheets) == 0 {
-		s.emptyList(c, semantic, components.IconSearch, "No sheets hold “"+query+"”", nil, nil, animate)
-		return
-	}
-	s.sheetRows(c, semantic, sheetEntries(sheets), Place{Kind: PlaceAll}, nil, nil, nil, false, animate)
-}
-
 // emptyList says there is nothing to list, quietly, with the area that
 // makes the first sheet where there can be one.
 func (s *State) emptyList(
@@ -1230,24 +1216,6 @@ func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal fl
 			})
 		})
 	})
-}
-
-func (s *State) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) {
-	field := components.TextField{
-		Key: "page-search", Label: "Search sheets", Placeholder: "Search all sheets…",
-		Value: &s.PageQuery, Icon: components.IconSearch.SVG(),
-		ClearIcon: components.IconClose.SVG(), Animate: animate,
-		FocusRequested: s.FindPageRequested,
-	}.View(c, semantic).Grow(1)
-	s.FindPageRequested = false
-	if field.Shortcut(0, ui.KeyEscape) {
-		s.stopSearching()
-	}
-	components.Button{
-		Key: "done-searching", Label: "Done",
-		Style: components.SubtleButton, Size: components.CompactButton,
-		Animate: animate, Action: s.stopSearching,
-	}.View(c, semantic)
 }
 
 // placeInfo is what the list says of a place: its title, icon and tint,
