@@ -167,57 +167,62 @@ func TestTheFindStepsAndEndsWithItsKeys(t *testing.T) {
 	}
 }
 
-func TestTheFilterBuilderEditsTheQueryItShows(t *testing.T) {
+func TestTheFiltersEditTheQueryTheyShow(t *testing.T) {
 	state, library, tester := searching(t)
 	tester.Type("budget #work")
 	settle(tester)
-	if err := tester.Click("Filters"); err != nil {
-		t.Fatal(err)
-	}
-	settle(tester)
-	if !tester.HasText("$tag") || !tester.HasText("is") {
-		t.Fatalf("the builder shows %#v", tester.Texts())
-	}
-	choose := func(button string, item string) {
+	click := func(label string) {
 		t.Helper()
-		if err := tester.Click(button); err != nil {
-			t.Fatal(err)
-		}
-		tester.Frame()
-		if err := tester.ChooseMenuItem(item); err != nil {
-			t.Fatalf("%s offers %v: %v", button, tester.Menu(), err)
+		if err := tester.Click(label); err != nil {
+			t.Fatalf("%v; shown %#v", err, tester.Texts())
 		}
 		settle(tester)
 	}
-	choose("is", "is not")
+	// Each filter is a chip in words; it opens its editor.
+	click("Filter: Tag is work")
+	click("Exclude")
 	if state.SearchQuery != "budget -#work" {
-		t.Fatalf("turning gave %q", state.SearchQuery)
+		t.Fatalf("excluding gave %q", state.SearchQuery)
 	}
 	// Each value says how many sheets it would find in the query without
-	// the condition it would be.
-	choose("Choose a value", "weekly · 2")
-	if state.SearchQuery != "budget -#weekly" || !slices.Contains(library.calls, "count tag in budget") {
-		t.Fatalf("choosing gave %q, calls %v", state.SearchQuery, library.calls)
+	// the filter it would be.
+	if !tester.HasText("#weekly") || !tester.HasText("2") || !slices.Contains(library.calls, "count tag in budget") {
+		t.Fatalf("the values shown %#v, calls %v", tester.Texts(), library.calls)
 	}
-	choose("Add Filter", "$has")
-	if state.SearchQuery != "budget -#weekly $has:" || !tester.Focused("$has value") {
-		t.Fatalf("adding gave %q, focused %v", state.SearchQuery, tester.Focused("$has value"))
+	click("#weekly")
+	if state.SearchQuery != "budget -#weekly" || tester.HasText("Exclude") {
+		t.Fatalf("choosing gave %q, the editor open %v", state.SearchQuery, tester.HasText("Exclude"))
+	}
+	click("Add filter")
+	click("Content")
+	if state.SearchQuery != "budget -#weekly $has:" || !tester.Focused("Content value") {
+		t.Fatalf("adding gave %q, focused %v", state.SearchQuery, tester.Focused("Content value"))
 	}
 	tester.Type("image")
 	settle(tester)
 	if state.SearchQuery != "budget -#weekly $has:image" {
 		t.Fatalf("writing the value gave %q", state.SearchQuery)
 	}
-	// The query's own text is the builder's: written there, it shows here.
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+	// A filter added and left without a value was not wanted.
+	click("Add filter")
+	click("Words")
+	if state.SearchQuery != "budget -#weekly $has:image $words:" {
+		t.Fatalf("adding words gave %q", state.SearchQuery)
+	}
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+	if state.SearchQuery != "budget -#weekly $has:image" {
+		t.Fatalf("leaving it empty kept %q", state.SearchQuery)
+	}
+	// The query's own text is the filters': written there, it shows here.
 	state.SearchQuery += " $trash"
 	settle(tester)
-	if !tester.HasText("$trash") {
-		t.Fatalf("the builder does not follow the query: %#v", tester.Texts())
+	if !tester.HasText("In the trash") {
+		t.Fatalf("the filters do not follow the query: %#v", tester.Texts())
 	}
-	if err := tester.Click("Remove filter"); err != nil {
-		t.Fatal(err)
-	}
-	settle(tester)
+	click("Remove filter: Tag is not weekly")
 	if state.SearchQuery != "budget $has:image $trash" {
 		t.Fatalf("removing gave %q", state.SearchQuery)
 	}
@@ -255,12 +260,25 @@ func TestASearchIsKeptAsASmartFolderAndChangedAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if !state.nav.searching || state.SearchQuery != "$words:>1000" || !tester.HasText("$words") {
-		t.Fatalf("editing searches %q, builder %v", state.SearchQuery, tester.HasText("$words"))
+	if !state.nav.searching || state.SearchQuery != "$words:>1000" || !tester.HasText("Editing") {
+		t.Fatalf("editing searches %q, says so %v", state.SearchQuery, tester.HasText("Editing"))
 	}
+	// Cancel goes back to the folder as it was.
+	if err := tester.Click("Cancel"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.nav.searching || state.nav.place != (Place{Kind: PlaceGroup, Group: "5"}) {
+		t.Fatalf("cancel left searching %v at %+v", state.nav.searching, state.nav.place)
+	}
+	// The folder says what it finds, and is changed from there too.
+	if err := tester.Click("Edit"); err != nil {
+		t.Fatalf("%v: %#v", err, tester.Texts())
+	}
+	settle(tester)
 	state.SearchQuery = "$words:>2000"
 	settle(tester)
-	if err := tester.Click("Save Smart Folder"); err != nil {
+	if err := tester.Click("Save Changes"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)

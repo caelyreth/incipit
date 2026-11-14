@@ -51,8 +51,10 @@ type queryField struct {
 	Scope query.Scope
 	// Fixed is a key that stands before what is written and is not
 	// written itself, as $sheet stands in a sheet's find: the field shows
-	// it in a key's color, and the query is it and Value.
-	Fixed string
+	// it as a token in a key's color, and the query is it and Value.
+	// FixedLabel says what it means, for the pointer and for assistive
+	// technology.
+	Fixed, FixedLabel string
 	// Focus asks the field for the focus in this frame.
 	Focus   bool
 	Animate bool
@@ -76,8 +78,13 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 		ui.Icon(c, components.IconSearch.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).
 			TextColor(semantic.Icon.Muted)
 		if f.Fixed != "" {
-			components.Label(c, f.Fixed, text, semantic.Accent.Foreground).Key("fixed").
-				SingleLine().Shrink(0)
+			// The fixed key is a token, not text: it reads as where the
+			// query runs, and no key takes it away.
+			ui.Row(c).Key("fixed").Label(f.FixedLabel).Tooltip(f.FixedLabel).Shrink(0).
+				AlignItems(ui.Center).PaddingX(theme.Space04.DIPs(scale)).
+				Radius(metrics.Radius - 2).Background(semantic.Accent.Muted).Children(func() {
+				components.Label(c, f.Fixed, theme.TextXSmall, semantic.Accent.Foreground).SingleLine()
+			})
 		}
 		input = ui.TextInputBase(c.Key(f.Key), f.Value).
 			Grow(1).MinWidth(0).Font(theme.UIFontFamily).
@@ -291,22 +298,14 @@ func (s *State) queryKey(in *queryInput, k ui.TextKey) bool {
 	return false
 }
 
-// queryRanges sets what is written of a query, after prefix, as the
-// language reads the whole: keys and tags in the accent, their values in
-// the heading's color, a - quieter, what is wrong marked and what means
-// nothing here muted.
-func queryRanges(prefix, written string, semantic theme.Theme) []ui.TextRange {
-	text := prefix + written
+// queryColors are the colors a query's parts are set in, as the language
+// reads it: keys and tags in the accent, their values in the heading's
+// color, a - quieter, what is wrong marked and what means nothing here
+// muted. Each is a byte span of text; a later one is set over an earlier.
+func queryColors(text string, semantic theme.Theme) []queryColor {
 	q := query.Parse(text)
-	var out []ui.TextRange
-	add := func(sp query.Span, color ui.Color) {
-		sp.From, sp.To = max(sp.From-len(prefix), 0), sp.To-len(prefix)
-		if sp.To > sp.From {
-			out = append(out, ui.TextRange{
-				Start: utf8.RuneCountInString(written[:sp.From]), End: utf8.RuneCountInString(written[:sp.To]), Color: color,
-			})
-		}
-	}
+	var out []queryColor
+	add := func(sp query.Span, color ui.Color) { out = append(out, queryColor{sp, color}) }
 	query.Walk(q.Root, func(n query.Node) {
 		switch n := n.(type) {
 		case *query.Filter:
@@ -331,6 +330,52 @@ func queryRanges(prefix, written string, semantic theme.Theme) []ui.TextRange {
 		}
 	}
 	return out
+}
+
+// queryColor is a part of a query and its color.
+type queryColor struct {
+	span  query.Span
+	color ui.Color
+}
+
+// queryRanges sets what is written of a query, after prefix, in its
+// colors (queryColors), as a field's text ranges.
+func queryRanges(prefix, written string, semantic theme.Theme) []ui.TextRange {
+	var out []ui.TextRange
+	for _, qc := range queryColors(prefix+written, semantic) {
+		from, to := max(qc.span.From-len(prefix), 0), qc.span.To-len(prefix)
+		if to > from {
+			out = append(out, ui.TextRange{
+				Start: utf8.RuneCountInString(written[:from]), End: utf8.RuneCountInString(written[:to]), Color: qc.color,
+			})
+		}
+	}
+	return out
+}
+
+// queryText is a query set in its colors (queryColors), as text to read:
+// the field's look, where it cannot be written in.
+func (s *State) queryText(c *ui.Context, semantic theme.Theme, text string, size theme.TextSize) ui.Element {
+	scale := s.Settings.UIFontSize
+	colors := make([]ui.Color, len(text))
+	for i := range colors {
+		colors[i] = semantic.Text.Default
+	}
+	for _, qc := range queryColors(text, semantic) {
+		for i := qc.span.From; i < qc.span.To && i < len(text); i++ {
+			colors[i] = qc.color
+		}
+	}
+	var spans []ui.Span
+	for from := 0; from < len(text); {
+		to := from + 1
+		for to < len(text) && colors[to] == colors[from] {
+			to++
+		}
+		spans = append(spans, ui.Span{Text: text[from:to], Font: theme.UIFontFamily, Size: size.Size(scale), Color: colors[from]})
+		from = to
+	}
+	return ui.RichText(c, spans...).FixedLineHeight(size.LineHeight(scale))
 }
 
 // byteOffset is the byte offset of the rune at runes in text.

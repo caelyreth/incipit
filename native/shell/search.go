@@ -20,21 +20,26 @@ type finding struct {
 	reveal bool
 	// found is the search last shown, for the keys.
 	found Found
-	// building shows the filter builder; focusFilter is the condition
-	// whose value field takes the focus in the next frame, -1 for none.
-	building    bool
-	focusFilter int
+	// filter is the filter whose editor is open.
+	filter filterEditor
 	// editing is the smart folder whose query the search is, which saving
 	// changes; "" saves the search as a new one.
 	editing string
 }
 
-// editSmartGroup searches with a smart folder's query, its filters shown,
-// to change it.
+// editSmartGroup searches with a smart folder's query, to change it.
 func (s *State) editSmartGroup(group GroupItem) {
 	s.Search()
 	s.setSearch(group.Query)
-	s.nav.find.editing, s.nav.find.building = group.ID, true
+	s.nav.find.editing = group.ID
+}
+
+// cancelEdit leaves a smart folder's query as it was, and shows the
+// folder again.
+func (s *State) cancelEdit() {
+	id := s.nav.find.editing
+	s.stopSearching()
+	s.Go(Place{Kind: PlaceGroup, Group: id})
 }
 
 // saveSearch keeps the search as a smart folder, or as the query of the
@@ -65,7 +70,7 @@ func (s *State) saves() bool {
 // Search shows search in the sheet list, its field focused.
 func (s *State) Search() {
 	s.nav.searching = true
-	s.nav.find.row, s.nav.find.focusFilter = -1, -1
+	s.nav.find.row, s.nav.find.filter = -1, closedFilter
 	s.sheetOverscroll.Reset()
 	s.showSheetList()
 	s.SearchRequested = true
@@ -77,7 +82,7 @@ func (s *State) stopSearching() {
 	s.nav.searching = false
 	s.sheetOverscroll.Reset()
 	s.SearchQuery = ""
-	s.nav.find = finding{row: -1, focusFilter: -1}
+	s.nav.find = finding{row: -1, filter: closedFilter}
 }
 
 // searchHeader is the search's line in the title bar: the query, set as
@@ -100,21 +105,6 @@ func (s *State) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) 
 			s.StartFind(text)
 		}
 	}
-	label := "Save as Smart Folder"
-	if s.nav.find.editing != "" {
-		label = "Save Smart Folder"
-	}
-	components.IconButton{
-		Key: "save-search", Label: label, Tooltip: label,
-		Icon: components.IconFolderSearch.SVG(), Style: components.SubtleButton, Size: components.CompactButton,
-		Disabled: !s.saves(), IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.saveSearch,
-	}.View(c, semantic)
-	components.IconButton{
-		Key: "filters-toggle", Label: "Filters", Tooltip: "Filters",
-		Icon: components.IconFilters.SVG(), Style: components.SubtleButton, Size: components.CompactButton,
-		Selected: s.nav.find.building, IconColor: &semantic.Icon.Muted, Animate: animate,
-		Action: func() { s.nav.find.building = !s.nav.find.building },
-	}.View(c, semantic)
 	components.Button{
 		Key: "done-searching", Label: "Done",
 		Style: components.SubtleButton, Size: components.CompactButton,
@@ -159,18 +149,24 @@ func (s *State) searchKey(k ui.TextKey) bool {
 
 // searchList lists what the query finds, the best first, each with where
 // it matches.
+//
+// Above them stand the smart folder whose query is being changed, if one
+// is, the query's filters, and a line saying what was found beside the
+// button that keeps the search as a smart folder.
 func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
-	if s.nav.find.building {
-		s.filters(c, semantic, animate)
-	}
 	text := strings.TrimSpace(s.SearchQuery)
+	var found Found
+	if text != "" {
+		found = s.Library.Search(s.SearchQuery)
+	}
+	s.nav.find.found = found
+	s.editingBanner(c, semantic, animate)
+	s.filterBar(c, semantic, animate)
+	s.searchBar(c, semantic, text, found, animate)
 	if text == "" {
-		s.nav.find.found = Found{}
-		s.emptyList(c, semantic, components.IconSearch, "Search every sheet’s words, or type $ for keys", nil, nil, animate)
+		s.emptyList(c, semantic, components.IconSearch, "Search every sheet’s words, add a filter, or type $ for keys", nil, nil, animate)
 		return
 	}
-	found := s.Library.Search(s.SearchQuery)
-	s.nav.find.found = found
 	f := &s.nav.find
 	if f.row >= len(found.Sheets) {
 		f.row = len(found.Sheets) - 1
@@ -189,8 +185,6 @@ func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
 		list := ui.Column(c).Gap(theme.Space06.DIPs(scale)).
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
 		list.Children(func() {
-			components.Label(c, foundNote(found), theme.TextXSmall, semantic.Text.Muted).Key("found-note").
-				PaddingX(theme.Space08.DIPs(scale)).SingleLine().FontFeatures("tnum")
 			for i, sheet := range found.Sheets {
 				row := s.foundRow(c, semantic, sheet, i == f.row, now, animate)
 				if i == f.row {
@@ -203,6 +197,57 @@ func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
 		f.reveal = false
 		revealRow(&s.sheetScroll, scroll.LayoutBounds(), cursor.LayoutBounds(), theme.Space08.DIPs(scale))
 	}
+}
+
+// searchBar says what the search found, and keeps it as a smart folder,
+// or as the query of the one it changes.
+func (s *State) searchBar(c *ui.Context, semantic theme.Theme, text string, found Found, animate bool) {
+	scale := s.Settings.UIFontSize
+	ui.Row(c).Key("search-bar").WidthPercent(100).Shrink(0).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
+		PaddingStart(theme.Space16.DIPs(scale)).PaddingEnd(theme.Space12.DIPs(scale)).PaddingY(theme.Space02.DIPs(scale)).
+		Children(func() {
+			note := ""
+			if text != "" {
+				note = foundNote(found)
+			}
+			components.Label(c, note, theme.TextXSmall, semantic.Text.Muted).Key("found-note").Role(ui.RoleStatus).
+				Grow(1).MinWidth(0).SingleLine().FontFeatures("tnum")
+			label := "Save as Smart Folder"
+			if s.nav.find.editing != "" {
+				label = "Save Changes"
+			}
+			components.Button{
+				Key: "save-search", Label: label, Tooltip: "Keep this search in the library, listing what it finds as you write",
+				Style: components.SubtleButton, Size: components.CompactButton,
+				Disabled: !s.saves(), Animate: animate, Action: s.saveSearch,
+			}.View(c, semantic).Shrink(0)
+		})
+}
+
+// editingBanner says whose query the search is, while it changes a smart
+// folder's, with the way back to it unchanged.
+func (s *State) editingBanner(c *ui.Context, semantic theme.Theme, animate bool) {
+	group, ok := s.Library.Group(s.nav.find.editing)
+	if !ok {
+		return
+	}
+	scale := s.Settings.UIFontSize
+	metrics := theme.DefaultControls.Scaled(scale)
+	ui.Row(c).Key("editing").Role(ui.RoleStatus).Label("Editing the query of "+group.Name).
+		Shrink(0).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
+		Margin(theme.Space06.DIPs(scale), theme.Space12.DIPs(scale), 0, theme.Space12.DIPs(scale)).
+		PaddingStart(theme.Space08.DIPs(scale)).PaddingEnd(theme.Space02.DIPs(scale)).Height(metrics.Height + 2).
+		Radius(metrics.Radius).Background(semantic.Surface.Inset).Children(func() {
+		s.rowIcon(c, semantic, groupIcon(group), groupTint(semantic, group), animate)
+		ui.Row(c).Grow(1).MinWidth(0).Gap(theme.Space04.DIPs(scale)).Children(func() {
+			components.Label(c, "Editing", theme.TextSmall, semantic.Text.Muted).SingleLine().Shrink(0)
+			components.Label(c, group.Name, theme.TextSmall, semantic.Text.Heading).SingleLine().MinWidth(0)
+		})
+		components.Button{
+			Key: "cancel-edit", Label: "Cancel", Style: components.SubtleButton,
+			Size: components.CompactButton, Animate: animate, Action: s.cancelEdit,
+		}.View(c, semantic).Shrink(0)
+	})
 }
 
 // foundNote says how many sheets the query found, and that words a typo

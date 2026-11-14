@@ -87,7 +87,7 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	bar := ui.Row(c).Key("find-dock").Role(ui.RoleToolbar).Label("Find in sheet").
-		Width(440*scale/theme.DefaultUIFontSize).MaxWidthPercent(100).
+		Width(480*scale/theme.DefaultUIFontSize).MaxWidthPercent(100).
 		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Padding(theme.Space04.DIPs(scale)).
 		Radius(metrics.DockRadius).Border(1, semantic.Border.Variant).
 		Background(semantic.Surface.Panel).Transition(popTransition(animate))
@@ -95,15 +95,21 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 	bar.Children(func() {
 		var field ui.Element
 		field, input = queryField{
-			Key: "sheet-find", Label: "Find in sheet", Placeholder: "words, $ for keys",
-			Value: &s.FindQuery, In: &s.finder.input, Scope: query.InSheet, Fixed: sheetKey,
+			Key: "sheet-find", Label: "Find in sheet", Placeholder: "Find words, or $ for keys",
+			Value: &s.FindQuery, In: &s.finder.input, Scope: query.InSheet,
+			Fixed: sheetKey, FixedLabel: "Finds in this sheet",
 			Focus: s.FindRequested, Animate: animate, Keys: s.findKey,
 		}.View(s, c, semantic)
 		field.Grow(1)
-		if note := findNote(s.FindText(), s.FindCount); note != "" {
-			components.Label(c, note, theme.TextXSmall, semantic.Text.Muted).Key("find-count").
-				SingleLine().Shrink(0).FontFeatures("tnum")
+		// What the find found is said as it changes, to the eye and to
+		// assistive technology; finding nothing is marked.
+		note := findNote(s.FindText(), s.FindCount)
+		color := semantic.Text.Muted
+		if note != "" && s.FindCount.Total == 0 {
+			color = semantic.Status.Danger.Foreground
 		}
+		components.Label(c, note, theme.TextXSmall, color).Key("find-count").Role(ui.RoleStatus).
+			SingleLine().Shrink(0).FontFeatures("tnum")
 		components.VerticalDivider(c, semantic)
 		step := func(key, label, binding string, icon components.IconName, forward bool) {
 			components.IconButton{

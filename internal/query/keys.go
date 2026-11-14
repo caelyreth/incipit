@@ -30,10 +30,16 @@ const (
 
 // Key is one $ key of the query language.
 type Key struct {
-	Name    string
-	Takes   Takes
-	Scope   Scope
-	Choices []string
+	Name string
+	// Label names the key in words, as a filter shows it, and Is and
+	// IsNot join it to a value said in words (Describe), as in "Tag is
+	// work" and "Content has no image". Alias is the key this one is
+	// another name for.
+	Label, Is, IsNot string
+	Alias            string
+	Takes            Takes
+	Scope            Scope
+	Choices          []string
 	// Setting is a key that sets how the query runs, not a condition a
 	// sheet meets: what it says holds of the whole query, so - cannot turn
 	// it.
@@ -50,25 +56,25 @@ var SortFields = []string{"relevance", "updated", "created", "title", "words"}
 
 // Keys are the query language's keys, in the order completion offers them.
 var Keys = []Key{
-	{Name: "tag", Takes: TakesName, Scope: InNotebook, Help: "Sheets with a tag; $tag:none for sheets with none"},
-	{Name: "in", Takes: TakesName, Scope: InNotebook, Help: "Sheets in a group or the groups inside it"},
-	{Name: "updated", Takes: TakesDate, Scope: InNotebook, Help: "Sheets changed then: today, 7d, 2026-11, >2026-01-01"},
-	{Name: "date", Takes: TakesDate, Scope: InNotebook, Help: "Same as $updated"},
-	{Name: "created", Takes: TakesDate, Scope: InNotebook, Help: "Sheets made then"},
-	{Name: "words", Takes: TakesNumber, Scope: InNotebook, Help: "Sheets of a length: 500 (at least), <100, 100..500"},
-	{Name: "title", Takes: TakesText, Scope: InNotebook, Help: "Words in the title"},
-	{Name: "heading", Takes: TakesText, Scope: Anywhere, Help: "Words in a heading"},
-	{Name: "code", Takes: TakesText, Scope: Anywhere, Help: "Words in code"},
-	{Name: "quote", Takes: TakesText, Scope: Anywhere, Help: "Words in a quote"},
-	{Name: "has", Takes: TakesChoice, Scope: InNotebook, Choices: Kinds, Help: "Sheets holding a kind of thing"},
-	{Name: "link", Takes: TakesName, Scope: InNotebook, Help: "Links to a site, as $link:github.com"},
-	{Name: "inbox", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets in the Inbox"},
-	{Name: "trash", Takes: TakesNothing, Scope: InNotebook, Setting: true, Help: "Sheets in the trash"},
-	{Name: "open", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets open in a tab"},
-	{Name: "sheet", Takes: TakesNothing, Scope: Anywhere, Setting: true, Help: "Find in the sheet in front, as ⌘F does"},
-	{Name: "sort", Takes: TakesChoice, Scope: InNotebook, Choices: SortFields, Setting: true, Help: "Order: relevance, updated, created, title, words; -updated turns it"},
-	{Name: "case", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match letter case"},
-	{Name: "word", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match whole words only"},
+	{Name: "tag", Label: "Tag", Is: "is", IsNot: "is not", Takes: TakesName, Scope: InNotebook, Help: "Sheets with a tag; $tag:none for sheets with none"},
+	{Name: "in", Label: "Group", Is: "is", IsNot: "is not", Takes: TakesName, Scope: InNotebook, Help: "Sheets in a group or the groups inside it"},
+	{Name: "updated", Label: "Updated", IsNot: "not", Takes: TakesDate, Scope: InNotebook, Help: "Sheets changed then: today, 7d, 2026-11, >2026-01-01"},
+	{Name: "date", Label: "Updated", IsNot: "not", Alias: "updated", Takes: TakesDate, Scope: InNotebook, Help: "Same as $updated"},
+	{Name: "created", Label: "Created", IsNot: "not", Takes: TakesDate, Scope: InNotebook, Help: "Sheets made then"},
+	{Name: "words", Label: "Words", IsNot: "not", Takes: TakesNumber, Scope: InNotebook, Help: "Sheets of a length: 500 (at least), <100, 100..500"},
+	{Name: "title", Label: "Title", Is: "has", IsNot: "doesn’t have", Takes: TakesText, Scope: InNotebook, Help: "Words in the title"},
+	{Name: "heading", Label: "Heading", Is: "has", IsNot: "doesn’t have", Takes: TakesText, Scope: Anywhere, Help: "Words in a heading"},
+	{Name: "code", Label: "Code", Is: "has", IsNot: "doesn’t have", Takes: TakesText, Scope: Anywhere, Help: "Words in code"},
+	{Name: "quote", Label: "Quote", Is: "has", IsNot: "doesn’t have", Takes: TakesText, Scope: Anywhere, Help: "Words in a quote"},
+	{Name: "has", Label: "Content", Is: "has", IsNot: "has no", Takes: TakesChoice, Scope: InNotebook, Choices: Kinds, Help: "Sheets holding a kind of thing"},
+	{Name: "link", Label: "Links", Is: "to", IsNot: "not to", Takes: TakesName, Scope: InNotebook, Help: "Links to a site, as $link:github.com"},
+	{Name: "inbox", Label: "In the Inbox", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets in the Inbox"},
+	{Name: "trash", Label: "In the trash", Takes: TakesNothing, Scope: InNotebook, Setting: true, Help: "Sheets in the trash"},
+	{Name: "open", Label: "Open in a tab", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets open in a tab"},
+	{Name: "sheet", Label: "In this sheet", Takes: TakesNothing, Scope: Anywhere, Setting: true, Help: "Find in the sheet in front, as ⌘F does"},
+	{Name: "sort", Label: "Sorted by", Takes: TakesChoice, Scope: InNotebook, Choices: SortFields, Setting: true, Help: "Order: relevance, updated, created, title, words; -updated turns it"},
+	{Name: "case", Label: "Match case", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match letter case"},
+	{Name: "word", Label: "Whole words", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match whole words only"},
 }
 
 // KeyNamed is the key called name, folded.

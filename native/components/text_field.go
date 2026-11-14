@@ -40,8 +40,11 @@ func (f TextField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		Radius(metrics.Radius).Border(1, semantic.Border.Variant).
 		Background(semantic.Surface.Inset).Cursor(ui.CursorText)
 	field.Children(func() {
-		ui.Icon(c, f.Icon).FontSize(icon).
-			TextColor(semantic.Icon.Muted)
+		// A field without an icon starts its text at its edge.
+		if f.Icon != nil {
+			ui.Icon(c, f.Icon).FontSize(icon).
+				TextColor(semantic.Icon.Muted)
+		}
 		input = ui.TextInputBase(c.Key(f.Key), f.Value).
 			Grow(1).MinWidth(0).Font(theme.UIFontFamily).
 			FontSize(text.Size(scale)).

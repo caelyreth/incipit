@@ -224,6 +224,7 @@ func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, anim
 	// A smart folder lists what its query finds, as it finds it: nothing is
 	// made, filed or ordered in it.
 	if group, ok := s.Library.Group(place.Group); ok && place.Kind == PlaceGroup && group.Smart() {
+		s.smartQueryStrip(c, semantic, group, animate)
 		sheets := s.Library.Sheets(place)
 		if len(sheets) == 0 {
 			s.emptyList(c, semantic, groupIcon(group), "Nothing found for “"+group.Query+"”", nil, nil, animate)
@@ -261,6 +262,21 @@ func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, anim
 		return
 	}
 	s.sheetRows(c, semantic, entries, place, nil, create, createChapter, !files, animate)
+}
+
+// smartQueryStrip says what a smart folder finds, in the words the
+// search's filters use, with the way to change it.
+func (s *State) smartQueryStrip(c *ui.Context, semantic theme.Theme, group GroupItem, animate bool) {
+	scale := s.Settings.UIFontSize
+	ui.Row(c).Key("smart-query").WidthPercent(100).Shrink(0).AlignItems(ui.Start).Gap(theme.Space06.DIPs(scale)).
+		PaddingStart(theme.Space12.DIPs(scale)).PaddingEnd(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale)).
+		Children(func() {
+		s.queryChips(c, semantic, group.Query, animate)
+		components.Button{
+			Key: "edit-query", Label: "Edit", Tooltip: "Edit the query", Style: components.SubtleButton,
+			Size: components.CompactButton, Animate: animate, Action: func() { s.editSmartGroup(group) },
+		}.View(c, semantic).Shrink(0)
+	})
 }
 
 func sheetEntries(sheets []SheetItem) []GroupEntry {
