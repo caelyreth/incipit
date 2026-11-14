@@ -11,7 +11,6 @@ func (s *State) formatBar(
 	semantic theme.Theme,
 	metrics theme.ControlMetrics,
 ) {
-	scale := s.Settings.UIFontSize
 	animate := s.animate(c)
 	Icon := func(
 		key, label, binding string,
@@ -86,11 +85,23 @@ func (s *State) formatBar(
 			},
 		},
 	}
-	ui.Row(c).Absolute().Left(0).Right(0).
+	dock.View(c, semantic).Transition(popTransition(animate))
+	_ = metrics
+}
+
+// dock is what floats over the page's foot: the writing actions, or a
+// sheet's find in their place while it is open.
+func (s *State) dock(c *ui.Context, semantic theme.Theme, metrics theme.ControlMetrics) {
+	scale := s.Settings.UIFontSize
+	animate := s.animate(c)
+	ui.Row(c).Key("dock").Absolute().Left(0).Right(0).
 		Bottom(theme.DefaultLayout.DockOffset * scale / theme.DefaultUIFontSize).
 		PaddingX(theme.Space16.DIPs(scale)).
 		Justify(ui.Center).PassThrough().Children(func() {
-		dock.View(c, semantic)
+		if s.finder.open {
+			s.findBarView(c, semantic, animate)
+			return
+		}
+		s.formatBar(c, semantic, metrics)
 	})
-	_ = metrics
 }

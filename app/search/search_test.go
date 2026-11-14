@@ -242,7 +242,7 @@ func TestASheetQueryIsNoQuestionForTheIndex(t *testing.T) {
 // filter builder can write never fails a search.
 func TestEveryKeyRuns(t *testing.T) {
 	x := notebook(t)
-	values := map[query.Takes]string{query.TakesText: "budget", query.TakesOptionalText: "budget", query.TakesName: "work", query.TakesDate: "7d", query.TakesNumber: "10", query.TakesNothing: ""}
+	values := map[query.Takes]string{query.TakesText: "budget", query.TakesName: "work", query.TakesDate: "7d", query.TakesNumber: "10", query.TakesNothing: ""}
 	for _, k := range query.Keys {
 		v := values[k.Takes]
 		if k.Takes == query.TakesChoice {

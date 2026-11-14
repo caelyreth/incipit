@@ -1,0 +1,126 @@
+package window
+
+import (
+	"strings"
+	"time"
+
+	"github.com/caelyreth/neverland/app/workspace"
+	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/policies/find"
+	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/native/page"
+	"github.com/caelyreth/neverland/native/shell"
+)
+
+// findInSheet opens a sheet's find on the page in front: with what the
+// selection holds, when it is a few words on one line, or with the find
+// as it was.
+func (a *AppState) findInSheet() {
+	el := a.pageElement()
+	if el == nil {
+		return
+	}
+	text := a.Shell.FindQuery
+	if words, ok := selectedWords(el.Editor); ok {
+		text = query.Literal(words)
+	}
+	a.Shell.StartFind(text)
+}
+
+// selectedWords is what a text selection holds, when it is a few words on
+// one line.
+func selectedWords(ed *page.Editor) (string, bool) {
+	sel := ed.Selection()
+	if sel.Kind != doc.SelectText || sel.IsCollapsed() {
+		return "", false
+	}
+	_, text := ed.Engine.Copy(ed.View)
+	text = strings.TrimSpace(text)
+	if text == "" || len(text) > 120 || strings.ContainsAny(text, "\n\r") {
+		return "", false
+	}
+	return text, true
+}
+
+// findQuery runs a sheet's find on the page in front.
+func (a *AppState) findQuery(text string) {
+	el := a.pageElement()
+	if el == nil {
+		return
+	}
+	a.soughtPage = a.mountedPage()
+	el.Editor.Do(find.Seek{Query: text}, time.Now())
+	a.refreshEditorChrome()
+}
+
+// findStep goes to the next match on the page in front, or the one before.
+func (a *AppState) findStep(forward bool) {
+	el := a.pageElement()
+	if el == nil {
+		return
+	}
+	dir := vocab.Forward
+	if !forward {
+		dir = vocab.Backward
+	}
+	el.Editor.Do(find.Step{Dir: dir}, time.Now())
+	a.refreshEditorChrome()
+}
+
+// endFind ends the find on every page that has one, and gives the page in
+// front the focus, its selection on the match it was on.
+func (a *AppState) endFind() {
+	for _, session := range a.sessions {
+		if el := session.element; el != nil {
+			el.Editor.Do(find.Seek{}, time.Now())
+		}
+	}
+	a.soughtPage = 0
+	if el := a.pageElement(); el != nil {
+		el.Focus()
+	}
+	a.refreshEditorChrome()
+}
+
+// followFind runs an open find on the page that came to the front.
+func (a *AppState) followFind() {
+	if !a.Shell.FindOpen() {
+		return
+	}
+	if id := a.mountedPage(); id != 0 && id != a.soughtPage {
+		a.findQuery(a.Shell.FindQuery)
+	}
+}
+
+// mountedPage is the page in front, 0 for none.
+func (a *AppState) mountedPage() workspace.PageID {
+	_, id, ok := a.activeSession()
+	if !ok {
+		return 0
+	}
+	return id
+}
+
+// findCount is what the find found on the page: how many matches, and
+// the one the selection is on.
+func findCount(ed *page.Editor) shell.FindCount {
+	view, ok := ed.Engine.View(ed.View)
+	if !ok {
+		return shell.FindCount{}
+	}
+	snap := ed.Engine.Snapshot()
+	all := find.Matches(ed.Engine.Program(), ed.Engine.Store(), snap, &view)
+	out := shell.FindCount{Total: len(all)}
+	if view.Selection.Kind != doc.SelectText {
+		return out
+	}
+	from, to := view.Selection.Ordered(snap)
+	for i, m := range all {
+		if from.Ref() == m.Slot && to.Ref() == m.Slot && from.Offset == m.From && to.Offset == m.To {
+			out.Current = i + 1
+			break
+		}
+	}
+	return out
+}

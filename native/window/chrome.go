@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/policies/find"
 	"github.com/caelyreth/neverland/editor/policies/statistics"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
@@ -23,6 +24,8 @@ type chromeKey struct {
 	snap   *doc.Snapshot
 	sel    doc.Selection
 	active bool
+	// find is the find's mode on the page, which its count follows.
+	find any
 }
 
 // refreshEditorChrome updates the statistics and formatting state from
@@ -36,16 +39,19 @@ func (a *AppState) refreshEditorChrome() {
 	if !ok || mounted.element == nil {
 		a.chrome = chromeKey{}
 		a.Shell.Statistics = ""
+		a.Shell.FindCount = shell.FindCount{}
 		a.refreshToolbarState()
 		return
 	}
 	ed := mounted.element.Editor
-	key := chromeKey{page: id, snap: ed.Engine.Snapshot(), sel: ed.Selection(), active: true}
+	view, _ := ed.Engine.View(ed.View)
+	key := chromeKey{page: id, snap: ed.Engine.Snapshot(), sel: view.Selection, active: true, find: view.Modes.Of(find.ID)}
 	if key == a.chrome {
 		return
 	}
 	a.chrome = key
 	a.Shell.Statistics = pageStatistics(ed)
+	a.Shell.FindCount = findCount(ed)
 	a.refreshToolbarState()
 }
 

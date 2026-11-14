@@ -18,9 +18,6 @@ const (
 	TakesNothing Takes = iota
 	// TakesText is words or a phrase, as $title:"weekly notes".
 	TakesText
-	// TakesOptionalText is a key alone or with text, as $sheet or
-	// $sheet:"Weekly notes".
-	TakesOptionalText
 	// TakesName is a name: a tag, a group, a domain, a kind.
 	TakesName
 	// TakesDate is a date or a span of dates (ParseDates).
@@ -60,11 +57,11 @@ var Keys = []Key{
 	{Name: "code", Takes: TakesText, Scope: Anywhere, Help: "Words in code"},
 	{Name: "quote", Takes: TakesText, Scope: Anywhere, Help: "Words in a quote"},
 	{Name: "has", Takes: TakesChoice, Scope: InNotebook, Choices: Kinds, Help: "Sheets holding a kind of thing"},
-	{Name: "link", Takes: TakesName, Scope: Anywhere, Help: "Links to a site, as $link:github.com"},
+	{Name: "link", Takes: TakesName, Scope: InNotebook, Help: "Links to a site, as $link:github.com"},
 	{Name: "inbox", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets in the Inbox"},
 	{Name: "trash", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets in the trash"},
 	{Name: "open", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets open in a tab"},
-	{Name: "sheet", Takes: TakesOptionalText, Scope: Anywhere, Help: "Find in this sheet, or in the sheet titled so"},
+	{Name: "sheet", Takes: TakesNothing, Scope: Anywhere, Help: "Find in the sheet in front, as ⌘F does"},
 	{Name: "sort", Takes: TakesChoice, Scope: InNotebook, Choices: SortFields, Help: "Order: relevance, updated, created, title, words; -updated turns it"},
 	{Name: "case", Takes: TakesNothing, Scope: InSheet, Help: "Match letter case"},
 	{Name: "word", Takes: TakesNothing, Scope: InSheet, Help: "Match whole words only"},

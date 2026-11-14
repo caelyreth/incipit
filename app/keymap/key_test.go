@@ -85,7 +85,7 @@ func TestResolveEventPrefersLogicalAndFallsBackToPhysical(t *testing.T) {
 		t.Fatal("positional shortcut resolved without a shortcut modifier")
 	}
 	otherLogical := physical
-	otherLogical.Key = ui.KeyG
+	otherLogical.Key = ui.KeyJ
 	if _, ok := ResolveEvent(keymap, otherLogical, PlatformDarwin); ok {
 		t.Fatal("physical key replaced a logical key that is not configured")
 	}

@@ -195,6 +195,15 @@ func write(b *strings.Builder, n Node) {
 	}
 }
 
+// Literal is text as a query writes it to find it as it is: bare when it
+// is one word a query reads as a word, or else in quotes, as a phrase.
+func Literal(s string) string {
+	if s != "" && strings.ContainsRune("$#-~", rune(s[0])) {
+		return quote(s)
+	}
+	return value(s)
+}
+
 // value is a filter's value as written: bare when it can be.
 func value(s string) string {
 	if s == "" || strings.ContainsFunc(s, func(r rune) bool { return unicode.IsSpace(r) || strings.ContainsRune(`"()|`, r) }) {
@@ -382,7 +391,7 @@ func (p *parser) check(f *Filter) {
 		p.issue(f.Span, Pending)
 	case k == nil:
 		p.issue(f.Span, Unknown)
-	case !f.HasValue && (k.Takes == TakesNothing || k.Takes == TakesOptionalText):
+	case !f.HasValue && k.Takes == TakesNothing:
 	case !f.HasValue || f.Value == "":
 		if k.Takes != TakesNothing {
 			p.issue(f.Span, Pending)

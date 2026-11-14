@@ -18,7 +18,7 @@ type Suggestion struct {
 
 // hints say what each kind of key takes.
 var hints = map[Takes]string{
-	TakesText: "words", TakesOptionalText: "title", TakesName: "name",
+	TakesText: "words", TakesName: "name",
 	TakesDate: "date", TakesNumber: "count", TakesChoice: "kind",
 }
 
@@ -39,9 +39,15 @@ var DatePresets = []string{"today", "yesterday", "this-week", "last-week", "this
 // the tags or the groups, most used first.
 func Complete(text string, caret int, scope Scope, names func(key string) []string) Completion {
 	var at *Filter
+	// A key that stands alone says all it says once.
+	written := map[string]bool{}
 	Walk(Parse(text).Root, func(n Node) {
-		if f, ok := n.(*Filter); ok && f.From < caret && caret <= f.To {
-			at = f
+		if f, ok := n.(*Filter); ok {
+			if f.From < caret && caret <= f.To {
+				at = f
+			} else if f.Key != nil && f.Key.Takes == TakesNothing {
+				written[f.Key.Name] = true
+			}
 		}
 	})
 	if at == nil {
@@ -54,21 +60,21 @@ func Complete(text string, caret int, scope Scope, names func(key string) []stri
 	if caret > nameEnd {
 		return Completion{}
 	}
-	written := text[at.From:nameEnd]
+	typed := text[at.From:nameEnd]
 	partial := Fold(text[at.From+1 : caret])
 	c := Completion{Span: Span{at.From, nameEnd}}
 	for _, k := range Keys {
-		if k.Scope&scope == 0 || !strings.HasPrefix(k.Name, partial) {
+		if k.Scope&scope == 0 || written[k.Name] || !strings.HasPrefix(k.Name, partial) {
 			continue
 		}
 		s := Suggestion{Label: "$" + k.Name, Text: "$" + k.Name, Hint: hints[k.Takes], Help: k.Help}
 		switch {
-		case k.Takes == TakesNothing || k.Takes == TakesOptionalText:
+		case k.Takes == TakesNothing:
 			s.Done = true
 		case !at.HasValue:
 			s.Text += ":"
 		}
-		if s.Text == written && (s.Done || at.HasValue) {
+		if s.Text == typed && (s.Done || at.HasValue) {
 			continue
 		}
 		c.Items = append(c.Items, s)

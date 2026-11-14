@@ -9,6 +9,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policies/deletion"
 	"github.com/caelyreth/neverland/editor/policies/feedback"
 	"github.com/caelyreth/neverland/editor/policies/figures"
+	"github.com/caelyreth/neverland/editor/policies/find"
 	"github.com/caelyreth/neverland/editor/policies/formats"
 	"github.com/caelyreth/neverland/editor/policies/formulas"
 	"github.com/caelyreth/neverland/editor/policies/guides"
@@ -36,7 +37,7 @@ import (
 var Manifest = policy.Manifest{
 	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, formulas.Policy,
 		typography.Policy, cjk.Policy, navigation.Policy, scopes.Policy, deletion.Policy, formats.Policy,
-		blocks.Policy, lists.Policy, figures.Policy, tables.Policy, tags.Policy, words.Policy, history.Policy, feedback.Policy, guides.Policy,
+		blocks.Policy, lists.Policy, figures.Policy, tables.Policy, tags.Policy, words.Policy, history.Policy, feedback.Policy, find.Policy, guides.Policy,
 		statistics.Policy},
 	Profile: profile.Profile,
 	Resolve: []policy.Order{

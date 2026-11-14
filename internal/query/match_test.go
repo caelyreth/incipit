@@ -59,3 +59,23 @@ func TestASnippetShowsTheTextAroundItsFirstMatch(t *testing.T) {
 		t.Fatalf("short %q %v", short, spans)
 	}
 }
+
+func TestASheetsFindKeepsCaseWordsAndKeysWhenAsked(t *testing.T) {
+	for _, c := range []struct{ query, text, want string }{
+		{"$sheet go", "Go and go, gone", "[Go] and [go], [gone]"},
+		{"$sheet $word go", "Go and go, gone", "[Go] and [go], gone"},
+		{"$sheet $case Go ", "Go and go, gone", "[Go] and go, gone"},
+		{"$sheet $case go", "Go and go, gone", "Go and [go], [gone]"},
+		{"$sheet $case $word go", "Go and go, gone", "Go and [go], gone"},
+	} {
+		m := NewMatcher(Parse(c.query), false)
+		if got := marked(c.text, m.Find(c.text)); got != c.want {
+			t.Errorf("%q in %q: %q, want %q", c.query, c.text, got, c.want)
+		}
+	}
+	m := NewMatcher(Parse("$sheet plan $heading:trip"), false)
+	hits := m.Hits("a trip plan")
+	if len(hits) != 2 || hits[0].Key != "heading" || hits[1].Key != "" {
+		t.Fatalf("hits %+v", hits)
+	}
+}

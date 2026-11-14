@@ -12,9 +12,10 @@ import (
 func (s *State) FocusWithin(c *ui.Context) bool { return s.root.FocusWithin(c) }
 
 // Typing reports whether a field of the shell is open for typing, or about
-// to take the focus as it opens: the search, or a name being edited.
+// to take the focus as it opens: the search, a sheet's find, or a name
+// being edited.
 func (s *State) Typing() bool {
-	return s.SearchRequested || s.nav.searching || s.nav.renaming != ""
+	return s.SearchRequested || s.nav.searching || s.FindRequested || s.finder.open || s.nav.renaming != ""
 }
 
 func (s *State) View(c *ui.Context) {
@@ -145,7 +146,7 @@ func (s *State) page(
 				}
 			})
 		})
-		s.formatBar(c, semantic, metrics)
+		s.dock(c, semantic, metrics)
 	})
 }
 

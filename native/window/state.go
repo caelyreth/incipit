@@ -66,6 +66,8 @@ type AppState struct {
 	shownPictures *page.Pictures
 	// finder keeps the search index in step and answers searches.
 	finder *finder
+	// soughtPage is the page a sheet's find last ran on, 0 for none.
+	soughtPage workspace.PageID
 }
 
 // NewAppState is a notebook held in memory alone, as tests use.
@@ -179,6 +181,9 @@ func (a *AppState) BindShell() {
 	}
 	a.Shell.OpenSettings = a.OpenSettingsWindow
 	a.Shell.FindPage = a.findPage
+	a.Shell.Find = a.findQuery
+	a.Shell.FindStep = a.findStep
+	a.Shell.EndFind = a.endFind
 	a.Shell.Typewriter = func(on bool) {
 		a.setPresentation(appsettings.PresentationTypewriter, on)
 	}
@@ -483,6 +488,8 @@ func (a *AppState) View(c *ui.Context) {
 		}
 	}
 	a.Shell.View(c)
+	// An open find follows the page in front.
+	a.followFind()
 	// What this frame changed names its page and goes to the notebook.
 	a.summarize()
 	a.save()

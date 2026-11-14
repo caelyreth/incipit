@@ -62,6 +62,13 @@ func Theme(t theme.Theme) present.Theme {
 			Background: pack(t.Families[theme.Life].Surface), Line: present.LineUnder,
 			LineColor: pack(t.Families[theme.Life].Foreground), Outline: pack(t.Families[theme.Life].Foreground)},
 	}
+	// A find's matches are marked as a highlighter marks them, as the
+	// sheet list marks what a search matched; the one the selection went
+	// to flashes in the same hue, and the selection's wash stays over it.
+	th[vocab.GroupFindMatch] = present.Style{Set: present.SetBackground, Background: pack(t.Families[theme.Regolith].Muted)}
+	th[vocab.GroupFindFlash] = present.Style{Set: present.SetBackground | present.SetLine | present.SetLineColor | present.SetOutline,
+		Background: pack(t.Families[theme.Regolith].Muted), Line: present.LineBox,
+		LineColor: pack(t.Families[theme.Regolith].Foreground), Outline: pack(t.Families[theme.Regolith].Foreground)}
 	for level := 1; level <= 6; level++ {
 		th[profile.GroupHeadings[level]] = present.Style{Set: present.SetSize, Size: headingScale[level]}
 	}

@@ -62,10 +62,17 @@ type State struct {
 	Tabs       []Page
 	ActivePage string
 	// Library is what the sidebar shows and files; nil shows none.
-	Library           Library
-	Statistics        string
-	SearchQuery       string
-	SearchRequested   bool
+	Library         Library
+	Statistics      string
+	SearchQuery     string
+	SearchRequested bool
+	// FindQuery is a sheet's find as written, FindRequested asks its field
+	// for the focus, and FindCount is what it found, as the window counts
+	// it.
+	FindQuery         string
+	FindRequested     bool
+	FindCount         FindCount
+	finder            findBar
 	Toolbar           ToolbarState
 	TabsScroll        ui.ScrollState
 	libraryScroll     ui.ScrollState
@@ -83,6 +90,11 @@ type State struct {
 	OpenSettings func()
 	OpenCommands func()
 	FindPage     func()
+	// Find runs a sheet's find on the page in front; FindStep goes to the
+	// next match or the one before; EndFind ends it.
+	Find     func(query string)
+	FindStep func(forward bool)
+	EndFind  func()
 	// MoveTab puts a tab at index among the tabs.
 	MoveTab func(id string, index int)
 	// CloseOtherTabs closes every tab but one; CloseTabsAfter those after

@@ -20,6 +20,7 @@ const (
 	IconCheckCircle  IconName = "circle-check"
 	IconChevronDown  IconName = "chevron-down"
 	IconChevronRight IconName = "chevron-right"
+	IconChevronUp    IconName = "chevron-up"
 	IconClock        IconName = "clock"
 	IconClose        IconName = "x"
 	IconCode         IconName = "code"
@@ -61,6 +62,7 @@ var AllIcons = [...]IconName{
 	IconCheckCircle,
 	IconChevronDown,
 	IconChevronRight,
+	IconChevronUp,
 	IconClock,
 	IconClose,
 	IconCode,

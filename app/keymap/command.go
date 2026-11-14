@@ -57,6 +57,7 @@ const (
 	PreviousPage CommandID = "page.previous"
 	ClosePage    CommandID = "page.close"
 	FindPage     CommandID = "page.find"
+	FindInSheet  CommandID = "page.find-in-sheet"
 	Zen          CommandID = "window.zen"
 	Typewriter   CommandID = "window.typewriter"
 	Motion       CommandID = "window.motion"
@@ -126,6 +127,7 @@ var appCommands = [...]Command{
 		Default: NewChord("[", ModifiersPrimary|ModifiersShift)},
 	{ID: ClosePage, Label: "Close tab", Scope: ScopePages, Default: NewChord("w", ModifiersPrimary)},
 	{ID: FindPage, Label: "Find a page", Scope: ScopePages, Default: NewChord("p", ModifiersPrimary)},
+	{ID: FindInSheet, Label: "Find in sheet", Scope: ScopePages, Default: NewChord("f", ModifiersPrimary)},
 	{ID: Zen, Label: "Toggle Zen mode", Scope: ScopeWindow, Default: NewChord("f", ModifiersPrimary|ModifiersShift)},
 	{ID: Typewriter, Label: "Toggle typewriter mode", Scope: ScopeWindow,
 		Default: NewChord("t", ModifiersPrimary|ModifiersAlt)},

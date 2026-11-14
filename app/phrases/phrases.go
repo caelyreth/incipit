@@ -59,6 +59,8 @@ var texts = map[string]string{
 	"policies.history.description":    "Undo and redo step through your edits, a burst of typing at a time.",
 	"policies.feedback":               "Feedback",
 	"policies.feedback.description":   "A pulse shows what typography or CJK changed; undo plays it backward and redo forward.",
+	"policies.find":                   "Find",
+	"policies.find.description":       "Find in a sheet marks every match as you type, and steps from one to the next.",
 	"policies.statistics":             "Statistics",
 	"policies.statistics.description": "Word, character and CJK counts for the page and the selection, shown in the footer.",
 
@@ -119,6 +121,8 @@ var texts = map[string]string{
 	"commands.undo":               "Undo",
 	"commands.redo":               "Redo",
 	"commands.undoCorrection":     "Undo the correction",
+	"commands.findNext":           "Find next",
+	"commands.findPrevious":       "Find previous",
 	"commands.selectAll":          "Select all",
 	"commands.left":               "Move left",
 	"commands.right":              "Move right",

@@ -110,3 +110,15 @@ func TestALineShowsTheMatchWhereItStands(t *testing.T) {
 		t.Fatalf("no match: %q %v", line, spans)
 	}
 }
+
+func TestAKeyThatStandsAloneIsOfferedOnce(t *testing.T) {
+	c, _ := complete("$sheet tide $", InSheet)
+	for _, s := range c.Items {
+		if s.Label == "$sheet" {
+			t.Fatalf("$sheet offered again: %v", texts(c))
+		}
+	}
+	if c, _ = complete("$sheet tide $h", InSheet); joined(texts(c)) != "$heading:" {
+		t.Fatalf("in a sheet: %v", texts(c))
+	}
+}

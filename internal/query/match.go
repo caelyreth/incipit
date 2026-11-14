@@ -3,6 +3,7 @@ package query
 import (
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -11,6 +12,10 @@ import (
 // analyzer, so it finds what the index found.
 type Matcher struct {
 	patterns []pattern
+	// exactCase takes only matches written in the query's letter case
+	// ($case); wholeWords only whole words, not the words a word being
+	// typed starts ($word).
+	exactCase, wholeWords bool
 }
 
 // pattern is one term to find: its terms at their positions, an empty
@@ -21,31 +26,46 @@ type pattern struct {
 	// many edits a lone word may be away.
 	prefix bool
 	typos  int
+	// key is the text key the words are in ($heading, $code…), empty for
+	// words anywhere; written is the words as the query has them.
+	key     string
+	written string
+}
+
+// Hit is a match in a text: where it is, and the text key its words are
+// in, empty for words anywhere.
+type Hit struct {
+	Span
+	Key string
 }
 
 // NewMatcher reads the words a query looks for in text: its terms and the
 // words of its text filters, but those it says must not match. Close takes
 // words a typo away for the words that may, as a search that found too
-// few did.
+// few did. $case and $word, in a sheet's find, take matches in the
+// query's letter case and whole words only.
 func NewMatcher(q Query, close bool) *Matcher {
 	m := &Matcher{}
 	issued := q.Issued()
+	Walk(q.Root, func(n Node) {
+		if f, ok := n.(*Filter); ok && f.Key != nil && !issued[f.Span] {
+			m.exactCase = m.exactCase || f.Key.Name == "case"
+			m.wholeWords = m.wholeWords || f.Key.Name == "word"
+		}
+	})
 	var visit func(n Node)
 	visit = func(n Node) {
 		switch n := n.(type) {
 		case *Term:
-			m.add(n, close)
+			m.add(n, "", close)
 		case *Filter:
 			if n.Key == nil || issued[n.Span] {
 				return
 			}
 			switch n.Key.Takes {
-			case TakesText, TakesOptionalText:
-				if n.Key.Name == "sheet" {
-					return
-				}
+			case TakesText:
 				for _, w := range strings.Fields(n.Value) {
-					m.add(&Term{Text: w}, close)
+					m.add(&Term{Text: w}, n.Key.Name, close)
 				}
 			}
 		case *Group:
@@ -64,13 +84,13 @@ func NewMatcher(q Query, close bool) *Matcher {
 	return m
 }
 
-func (m *Matcher) add(t *Term, close bool) {
+func (m *Matcher) add(t *Term, key string, close bool) {
 	tokens := Tokens(t.Text, Queried)
 	if len(tokens) == 0 {
 		return
 	}
 	first := tokens[0].Pos
-	p := pattern{slots: make([][]string, tokens[len(tokens)-1].Pos-first+1)}
+	p := pattern{slots: make([][]string, tokens[len(tokens)-1].Pos-first+1), key: key, written: t.Text}
 	for _, tk := range tokens {
 		p.slots[tk.Pos-first] = append(p.slots[tk.Pos-first], tk.Term)
 	}
@@ -78,8 +98,8 @@ func (m *Matcher) add(t *Term, close bool) {
 		term := tokens[0].Term
 		runes := utf8.RuneCountInString(term)
 		lone := !Unspaced([]rune(term)[0])
-		p.prefix = t.Open && t.Match != Exact && (runes >= 2 || !lone)
-		if lone && t.Match != Exact && runes >= 4 && (t.Match == Fuzzy || close) {
+		p.prefix = t.Open && t.Match != Exact && (runes >= 2 || !lone) && !(m.wholeWords && lone)
+		if lone && t.Match != Exact && runes >= 4 && (t.Match == Fuzzy || close) && !m.wholeWords {
 			p.typos = 1
 			if runes >= 8 {
 				p.typos = 2
@@ -95,6 +115,21 @@ func (m *Matcher) Empty() bool { return len(m.patterns) == 0 }
 // Find is the byte ranges of text the matcher's words match, in order,
 // those that overlap joined.
 func (m *Matcher) Find(text string) []Span {
+	var out []Span
+	for _, h := range m.Hits(text) {
+		if n := len(out); n > 0 && h.From <= out[n-1].To {
+			out[n-1].To = max(out[n-1].To, h.To)
+			continue
+		}
+		out = append(out, h.Span)
+	}
+	return out
+}
+
+// Hits is each match of the matcher's words in text, in order, with the
+// key its words are in: a sheet's find keeps those of a key to the text
+// the key names.
+func (m *Matcher) Hits(text string) []Hit {
 	if len(m.patterns) == 0 {
 		return nil
 	}
@@ -103,24 +138,35 @@ func (m *Matcher) Find(text string) []Span {
 	for _, tk := range tokens {
 		at[tk.Pos] = append(at[tk.Pos], tk)
 	}
-	var found []Span
+	var found []Hit
 	for _, p := range m.patterns {
 		for _, start := range tokens {
-			if s, ok := p.matchAt(start, at); ok {
-				found = append(found, s)
+			if s, ok := p.matchAt(start, at); ok && (!m.exactCase || p.inCase(text[s.From:s.To])) {
+				found = append(found, Hit{Span: s, Key: p.key})
 			}
 		}
 	}
-	slices.SortFunc(found, func(a, b Span) int { return a.From - b.From })
-	var out []Span
-	for _, s := range found {
-		if n := len(out); n > 0 && s.From <= out[n-1].To {
-			out[n-1].To = max(out[n-1].To, s.To)
-			continue
-		}
-		out = append(out, s)
+	slices.SortStableFunc(found, func(a, b Hit) int { return a.From - b.From })
+	return slices.CompactFunc(found, func(a, b Hit) bool { return a == b })
+}
+
+// inCase reports whether matched is written in the letter case of the
+// pattern's words: their letters and digits the same, or, for a word being
+// typed, starting them.
+func (p pattern) inCase(matched string) bool {
+	keep := func(s string) string {
+		return strings.Map(func(r rune) rune {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				return r
+			}
+			return -1
+		}, s)
 	}
-	return out
+	got, want := keep(matched), keep(p.written)
+	if p.prefix {
+		return strings.HasPrefix(got, want)
+	}
+	return got == want
 }
 
 // matchAt matches the pattern with its first slot at start.

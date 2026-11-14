@@ -35,6 +35,7 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 			a.Shell.FindPage()
 		}
 	},
+	keymap.FindInSheet: func(a *AppState) { a.findInSheet() },
 	keymap.Zen: func(a *AppState) {
 		a.togglePresentation(appsettings.PresentationZen, a.Shell.Zen)
 	},

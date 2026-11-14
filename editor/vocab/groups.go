@@ -69,6 +69,10 @@ var (
 	GroupScope = NewGroup("scope", 0)
 	// GroupPulse styles text a rewrite or history changed.
 	GroupPulse = NewGroup("feedback.pulse", 0)
+	// GroupFindMatch styles a match of a sheet's find; GroupFindFlash the
+	// match the selection went to, for a moment.
+	GroupFindMatch = NewGroup("find.match", 0)
+	GroupFindFlash = NewGroup("find.flash", 0)
 )
 
 // Phases and origin classes are the document's.

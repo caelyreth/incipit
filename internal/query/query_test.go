@@ -139,3 +139,16 @@ func TestCountsRead(t *testing.T) {
 		}
 	}
 }
+
+func TestALiteralIsFoundAsItIsWritten(t *testing.T) {
+	for _, text := range []string{"budget", "budget review", "#tag", "$sheet", "-not", `say "hi"`} {
+		q := Parse(Literal(text))
+		if len(q.Issues) != 0 {
+			t.Fatalf("%q: issues %v", text, q.Issues)
+		}
+		term, ok := q.Root.(*Term)
+		if !ok || term.Text != text {
+			t.Fatalf("%q reads as %#v", text, q.Root)
+		}
+	}
+}

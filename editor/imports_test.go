@@ -24,12 +24,12 @@ var allowed = map[string][]string{
 	"editor/present": {"editor/doc", "editor/vocab", "editor/policy"},
 	"editor/store":   {"editor/doc", "editor/vocab"},
 	"editor/engine":  {"editor/doc", "editor/vocab", "editor/policy", "editor/present"},
-	"policies":       {"editor/doc", "editor/vocab", "editor/policy"},
-	"profiled":       {"editor/doc", "editor/vocab", "editor/policy", "editor/profile"},
+	"policies":       {"editor/doc", "editor/vocab", "editor/policy", "internal/query"},
+	"profiled":       {"editor/doc", "editor/vocab", "editor/policy", "editor/profile", "internal/query"},
 }
 
 // profiled are the policies whose behaviour is about the profile's kinds.
-var profiled = map[string]bool{"blocks": true, "figures": true, "formats": true, "formulas": true, "lists": true, "markdown": true, "notation": true, "tables": true, "tags": true}
+var profiled = map[string]bool{"blocks": true, "find": true, "figures": true, "formats": true, "formulas": true, "lists": true, "markdown": true, "notation": true, "tables": true, "tags": true}
 
 func TestImportsFollowTheModuleTable(t *testing.T) {
 	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
