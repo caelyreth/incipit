@@ -140,7 +140,7 @@ func (tableKind) step(el *Element, u *unitLayout, in *objectIn) {
 	k := 0
 	for _, a := range ts.apart {
 		if v := el.springs.value(a.key(id)); v >= 0.5 && k < maxApart {
-			tin.apart[k] = lineRoom{rows: a.rows, at: a.at, room: v}
+			tin.apart[k] = lineRoom{rows: a.rows, at: a.at, room: v, left: !a.frame}
 			k++
 		}
 	}

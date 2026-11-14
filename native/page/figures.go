@@ -308,6 +308,12 @@ func (figureKind) step(el *Element, u *unitLayout, _ *objectIn) {
 	id := u.pres.Unit
 	el.springs.follow(figureSpring(id, "picture"), shown, layoutSettle)
 	el.springs.follow(figureSpring(id, "grips"), grip, chromeFollow)
+	if len(u.surfaces) > 0 && u.surfaces[0].text != "" {
+		// Text typed takes the hint's place at once: a hint fading out
+		// would stand over the text, where the caption now starts.
+		el.springs.jump(figureSpring(id, "hint"), 0)
+		return
+	}
 	el.springs.follow(figureSpring(id, "hint"), hint, chromeFollow)
 }
 

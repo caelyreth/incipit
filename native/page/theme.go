@@ -32,7 +32,9 @@ func Theme(t theme.Theme) present.Theme {
 		profile.GroupFormulaSource: {Set: present.SetFont | present.SetColor, Font: present.FontMono, Color: pack(t.Accent.Foreground)},
 		profile.GroupQuote:         {Set: present.SetColor, Color: pack(t.Text.Muted)},
 		profile.GroupListMarker:    {Set: present.SetColor, Color: pack(t.Prose.Notation)},
-		profile.GroupCaption:       {Set: present.SetColor | present.SetSize, Color: pack(t.Text.Muted), Size: 0.9},
+		// A caption is set smaller than the text, so it reads as the
+		// picture's and not as a paragraph's.
+		profile.GroupCaption: {Set: present.SetColor | present.SetSize, Color: pack(t.Text.Muted), Size: 0.8},
 		// A table stands apart from the text around it: further than a
 		// figure, short of a line, so an empty line by it still reads as
 		// one. Its header is set as the app's own headings are.

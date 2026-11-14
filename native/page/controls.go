@@ -293,6 +293,7 @@ func (el *Element) step() {
 			asks[id] = in
 		}
 	}
+	el.stepSizes(asks)
 	if a, ok := el.drag.(asker); ok {
 		a.ask(asks)
 	}

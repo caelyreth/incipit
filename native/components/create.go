@@ -128,9 +128,16 @@ func (g *CreateGap) Open() (int, bool) { return g.at, g.open }
 // Over reports whether the pointer was on the open area last frame.
 func (g *CreateGap) Over() bool { return g.over }
 
+// Clock is what a gap keeps time by: the time of the frame, and a frame
+// asked for after a while. A view's context is one, and a painter.
+type Clock interface {
+	Now() time.Time
+	After(d time.Duration)
+}
+
 // Follow reports whether the gap is open, and where, at being the gap the
 // pointer is by, -1 for none.
-func (g *CreateGap) Follow(c *ui.Context, at int) (int, bool) {
+func (g *CreateGap) Follow(c Clock, at int) (int, bool) {
 	if now := c.Now(); now.Before(g.quiet) {
 		g.Close()
 		c.After(g.quiet.Sub(now))
@@ -167,7 +174,7 @@ func (g *CreateGap) Follow(c *ui.Context, at int) (int, bool) {
 }
 
 // wait reports whether the pointer has been at at for d.
-func (g *CreateGap) wait(c *ui.Context, at int, d time.Duration) bool {
+func (g *CreateGap) wait(c Clock, at int, d time.Duration) bool {
 	now := c.Now()
 	if g.since.IsZero() || g.want != at {
 		g.want, g.since = at, now

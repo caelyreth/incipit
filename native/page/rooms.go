@@ -13,8 +13,9 @@ import (
 // line. Its
 // height then springs from where it was drawn to where it is going, the
 // units after it gliding with it; what opened fades in as it does and
-// what closed fades out where it stood. Any other change of height, as a
-// line typed, takes effect at once.
+// what closed fades out where it stood. A text resizing grows to its size
+// by itself (sizes.go); any other change of height, as a line typed, takes
+// effect at once.
 
 // room is a unit's drawn height across frames.
 type room struct {

@@ -81,11 +81,13 @@ type tableIn struct {
 // it would land in and those it left, closing.
 const maxApart = 3
 
-// lineRoom is room before line at, among the rows or the columns.
+// lineRoom is room before line at, among the rows or the columns; left
+// when a carried line left it, closing behind it.
 type lineRoom struct {
 	rows bool
 	at   int
 	room float32
+	left bool
 }
 
 // lineGrow is a run of lines from to to, coming in at share of their
@@ -283,7 +285,7 @@ func (t *tableLayout) across(r ui.Rect) ui.Rect {
 }
 
 // parts are the frames the grid is drawn in, in the unit: its box, parted
-// by each room open enough within it.
+// by each room open enough within it but one a line left.
 func (t *tableLayout) parts(box ui.Rect) []ui.Rect {
 	var downs, acrosses [][2]float32
 	if g := t.rowGap; g.H > 0 {
@@ -294,6 +296,9 @@ func (t *tableLayout) parts(box ui.Rect) []ui.Rect {
 	}
 	for k, a := range t.in.apart {
 		switch r := t.apart[k]; {
+		case a.left:
+			// A room a line left closes within the frame, so the frame
+			// and its controls close with it, even at the grid's end.
 		case a.rows && r.H > 0:
 			downs = append(downs, [2]float32{r.Y, r.H})
 		case !a.rows && r.W > 0:

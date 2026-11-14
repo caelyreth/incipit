@@ -197,6 +197,10 @@ type unitLayout struct {
 	// shown is the height the unit is drawn at: its height, or on its way
 	// there as a surface in it opens or closes.
 	shown float32
+	// size is a text unit's size over the body, its first surface's, and
+	// gap the room above it, in gaps; what it is drawn at while its text
+	// resizes is asked of its layout (sizes.go).
+	size, gap float32
 }
 
 // bottom is the unit's lowest extent as drawn.
@@ -215,14 +219,18 @@ type layoutKey struct {
 	in objectIn
 }
 
-// objectIn is what the page asks of an object's layout besides its
-// presentation, as a gesture previews it: a figure's span as a resize sets
-// it, a table's room an area opens and a column's width its border's drag
-// sets.
+// objectIn is what the page asks of a unit's layout besides its
+// presentation, as a gesture previews it or its motion sets it: a figure's
+// span as a resize sets it, a table's room an area opens and a column's
+// width its border's drag sets, a text's size on its way to its own.
 type objectIn struct {
 	// span is a figure's span, or -1.
 	span  int
 	table tableIn
+	// size is the size a text unit is laid out at, over the body, and gap
+	// the room above it, in gaps, as its text resizes; 0 where it stands at
+	// its own (sizes.go).
+	size, gap float32
 }
 
 // pageLayout is the page's units laid out from top to bottom.
@@ -280,6 +288,9 @@ type place struct {
 // layoutCache keeps units' layouts between frames, by unit.
 type layoutCache struct {
 	units map[doc.ID]*unitLayout
+	// resized is where each unit whose text changed size was drawn as it
+	// changed, until a paint takes it up (sizes.go).
+	resized map[doc.ID]resize
 	// good is each formula's last source that set soundly.
 	good    map[lastGood]string
 	themeID uintptr
@@ -307,18 +318,35 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		if c := deco.Composition; c != nil && holdsSlot(p, c.At.Ref()) {
 			key.comp = fmt.Sprintf("%v|%s|%v", c.At, c.Text, c.Selected)
 		}
+		size := float32(0)
+		if !p.Object && len(p.Surfaces) > 0 {
+			size = th.Resolve([]vocab.Group{p.Surfaces[0].Group}).Size
+		}
 		u, ok := lc.units[p.Unit]
 		if !ok || u.key != key {
-			u = lc.layUnit(p, deco.Composition, th, m, key.in)
+			if ok && size != 0 && u.size != 0 && size != u.size {
+				lc.resizedFrom(p.Unit, u)
+			}
+			lm := m
+			if key.in.size != 0 && size != 0 {
+				lm.Body = m.Body * key.in.size / size
+			}
+			u = lc.layUnit(p, deco.Composition, th, lm, key.in)
 			if u.drawn == (ui.Rect{}) {
 				u.drawn = u.box
 			}
-			u.key = key
+			u.key, u.size = key, size
 			lc.units[p.Unit] = u
 		}
 		keep[p.Unit] = true
+		u.gap = 0
 		if prev != nil {
-			y += m.Gap * gapBetween(prev, p, th)
+			u.gap = gapBetween(prev, p, th)
+			gap := u.gap
+			if key.in.size != 0 {
+				gap = key.in.gap
+			}
+			y += m.Gap * gap
 		}
 		prev = p
 		u.y, u.top, u.shown = y, y, u.h

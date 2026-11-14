@@ -85,6 +85,8 @@ type Element struct {
 	// for the next paint. animate is whether motion is wanted, as the
 	// last paint found.
 	rooms map[doc.ID]*room
+	// sizing are the text units whose size moves (sizes.go).
+	sizing map[doc.ID]bool
 	// roomsOf and forgotOf are the layouts whose units the rooms and the
 	// memos were last pruned to: they change only with the layout.
 	roomsOf, forgotOf *pageLayout
@@ -224,6 +226,16 @@ func (el *Element) PaintStill(p *ui.Painter, r ui.Rect) {
 	el.paint(p, r, true)
 }
 
+// followPointer has the objects follow the pointer, c timing what waits
+// for it to rest.
+func (el *Element) followPointer(c components.Clock) {
+	for _, u := range el.Editor.layout.units {
+		if u.kind != nil {
+			u.kind.follow(el, c, u)
+		}
+	}
+}
+
 func (el *Element) textSize() (float32, float32) {
 	pl := el.Editor.layout
 	if pl == nil {
@@ -268,11 +280,7 @@ func (el *Element) View(c *ui.Context) {
 		// at the paint's time (step).
 		el.pointerIn = box.Hovered()
 		el.near = el.nearAt(el.toPage(el.pointer.X, el.pointer.Y))
-		for _, u := range ed.layout.units {
-			if u.kind != nil {
-				u.kind.follow(el, c, u)
-			}
-		}
+		el.followPointer(c)
 		if cursor, ok := el.cursorAt(el.toPage(el.pointer.X, el.pointer.Y)); ok {
 			box.Cursor(cursor)
 		}

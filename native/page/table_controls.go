@@ -262,7 +262,7 @@ func (el *Element) gripLines(u *unitLayout) (row, column int) {
 // follow follows the pointer by a table, as the last layout set it out:
 // the areas it calls up while the pointer is by it, each opening once the
 // pointer has rested there.
-func (tableKind) follow(el *Element, c *ui.Context, u *unitLayout) {
+func (tableKind) follow(el *Element, c components.Clock, u *unitLayout) {
 	t := u.table
 	if t == nil {
 		return

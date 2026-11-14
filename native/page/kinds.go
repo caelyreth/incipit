@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -47,7 +48,7 @@ type objectKind interface {
 	step(el *Element, u *unitLayout, in *objectIn)
 	// follow follows the pointer as the page is built, by what the last
 	// layout set out (controls.go).
-	follow(el *Element, c *ui.Context, u *unitLayout)
+	follow(el *Element, c components.Clock, u *unitLayout)
 	// settle sets its layout as the page remembers it, as it is laid out
 	// and, stepping it on to the paint's time, as it is painted (frame); it
 	// reports whether it still moves.
@@ -84,7 +85,7 @@ func (baseKind) cover(*unitLayout, *surfaceLayout) (ui.Rect, bool)            { 
 func (baseKind) reach(*Element, *unitLayout) ui.Rect                          { return ui.Rect{} }
 func (baseKind) controls(*Element, *unitLayout) []control                     { return nil }
 func (baseKind) step(*Element, *unitLayout, *objectIn)                        {}
-func (baseKind) follow(*Element, *ui.Context, *unitLayout)                    {}
+func (baseKind) follow(*Element, components.Clock, *unitLayout)               {}
 func (baseKind) settle(*Element, *unitLayout, bool) bool                      { return false }
 func (baseKind) chrome(*Element, *ui.Painter, *unitLayout, float32, float32) bool {
 	return false
