@@ -99,9 +99,10 @@ func (ed *Editor) SetStyle(key any, th present.Theme, m Metrics) {
 
 // Relayout lays out what the engine presents now.
 //
-// TODO(perf): this presents every unit and indexes every stop on each
-// relayout. Present and lay out the viewport, with a height index, estimates
-// for unmeasured units and scroll anchoring (§14.2).
+// TODO(perf): a relayout pulls every unit, kept presentations and layouts
+// included, and every unit's shaped text stays. Present and lay out the
+// viewport, with a height index, estimates for unmeasured units and scroll
+// anchoring (§14.2).
 //
 // The layout is a projection of the engine's state, the theme, the
 // measures and what the page asks of its objects: while none of them
