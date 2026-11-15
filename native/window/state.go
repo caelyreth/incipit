@@ -205,6 +205,7 @@ func (a *AppState) sheetView(c *ui.Context, id string, frame shell.SheetFrame) {
 		el.Theme = semantic
 		el.Prose = frame.Prose
 		el.Top, el.Bottom, el.Dock = frame.Top, frame.Bottom, frame.Dock
+		el.LayoutWidth, el.Inset = frame.LayoutWidth, frame.Inset
 		el.Typewriter = a.Product.Presentation.Typewriter
 		el.Keys = a.Product.Keymap
 		el.UIFontSize = frame.UIFontSize

@@ -514,6 +514,65 @@ func TestOnlyWhatTheLayoutReadsLaysItOutAgain(t *testing.T) {
 	}
 }
 
+// A host can move and clip a page independently of its wrapping viewport.
+// Its caret, IME bounds and hit tests use the same moving text inset.
+func TestLayoutConstraintsAreIndependentOfPresentationBounds(t *testing.T) {
+	el := newElement(t)
+	el.Editor.Do(vocab.Paste{Text: strings.Repeat("Some **marked** text with 中文 and a #tag. ", 20)}, time.Unix(100, 0))
+	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(101, 0))
+	el.LayoutWidth, el.Inset = 600, 17
+	layout := el.relayout()
+	built := el.Editor.relayouts
+	for step := range 40 {
+		el.viewport.W = 400 + float32(step)*10
+		el.Inset = 17 + float32(step)/4
+		if el.relayout() != layout || el.Editor.relayouts != built {
+			t.Fatal("Moving the viewport or its text inset laid the document out again.")
+		}
+		if el.column != el.Inset {
+			t.Fatalf("The page's coordinate origin should follow its inset, but %v differs from %v.", el.column, el.Inset)
+		}
+		caret, _, ok := el.client.BoundsForRange(ui.TextInputRange{})
+		if !ok {
+			t.Fatal("The input method should have the caret's bounds.")
+		}
+		at, ok := el.client.IndexForPoint(ui.Point{X: caret.X + caret.W/2, Y: caret.Y + caret.H/2})
+		if !ok || at != 0 {
+			t.Fatalf("The caret's bounds should hit its first stop, but hit %v (%v).", at, ok)
+		}
+	}
+	el.Editor.Do(vocab.Type{Text: "edited "}, time.Unix(102, 0))
+	el.relayout()
+	if el.Editor.relayouts != built+1 {
+		t.Fatal("An edit must still lay the page out while its presentation moves.")
+	}
+	el.LayoutWidth = 400
+	el.relayout()
+	if el.Editor.relayouts != built+2 || el.Editor.metrics.Width != el.Prose.Measure(400) {
+		t.Fatal("New wrapping constraints should take effect at once.")
+	}
+	if len(el.Editor.layout.units[0].surfaces[0].layout.Lines()) <= len(layout.units[0].surfaces[0].layout.Lines()) {
+		t.Fatal("The narrower destination should wrap the paragraph onto more lines.")
+	}
+	el.Editor.Do(vocab.Compose{Preedit: "输入", Selected: [2]int{6, 6}}, time.Unix(103, 0))
+	el.relayout()
+	marked, ok := el.client.MarkedRange()
+	if !ok || marked.End-marked.Start != 2 || el.Editor.relayouts != built+3 {
+		t.Fatal("Composition should update the shaped text at the fixed layout width.")
+	}
+	before, _, _ := el.client.BoundsForRange(marked)
+	el.Inset += 8
+	el.relayout()
+	after, _, _ := el.client.BoundsForRange(marked)
+	if el.Editor.relayouts != built+3 || after.X-before.X != 8 || after.Y != before.Y {
+		t.Fatal("Composition bounds should move with the inset without reshaping.")
+	}
+	el.Still(320)
+	if el.Editor.metrics.Width != 320 || el.column != 0 {
+		t.Fatal("A still should use its own width without the host's framing.")
+	}
+}
+
 // An idle page repaints at the same cost however long it is: a paint
 // walks what is in view, not every unit.
 func TestAnIdlePaintCostsWhatIsInView(t *testing.T) {

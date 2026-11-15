@@ -188,7 +188,8 @@ func (s *State) page(
 ) {
 	scale := s.Settings.UIFontSize
 	prose := s.Settings.Prose()
-	column := prose.Column()
+	gutter := layout.ContentGutter * scale / theme.DefaultUIFontSize
+	column := min(prose.Column(), max(0, s.lastWidth-s.lastSidebarWidth-2*gutter))
 	if s.ActivePage == "" {
 		// With no sheet open the page is quiet: a large dim mark, and one
 		// small line saying what brings a sheet back.
@@ -205,9 +206,7 @@ func (s *State) page(
 		// The page reaches the window's top: its reading space above the first
 		// line is the content's own, scrolled with it, so text scrolls
 		// out at the top rather than at a clip below it.
-		ui.Row(c).Grow(1).MinHeight(0).WidthPercent(100).Justify(ui.Center).PaddingX(
-			layout.ContentGutter * scale / theme.DefaultUIFontSize,
-		).Children(func() {
+		ui.Row(c).Grow(1).MinHeight(0).WidthPercent(100).Justify(ui.Center).PaddingX(gutter).Children(func() {
 			slot := ui.Column(c).Key("sheet-slot").FillHeight().Width(column).MaxWidthPercent(100).MinWidth(0)
 			slot.Children(func() {
 				// The sheet in front is the page's while the page mode is
@@ -220,14 +219,14 @@ func (s *State) page(
 				k := components.UIFontSize(c) / theme.DefaultUIFontSize
 				sheet := s.openPage(s.ActivePage)
 				s.sheetSurface(c, semantic, s.ActivePage, sheetLook{
-					top: top * 3 / 2, shows: 1,
+					top: top * 3 / 2, width: column, shows: 1,
 					head: func(shown float32) { s.sheetHead(c, semantic, sheet, k, 0, 0, shown, s.animate(c)) },
-				}, func(top float32) {
+				}, func(frame SheetFrame) {
 					if s.Sheet != nil {
-						s.Sheet(c, s.ActivePage, SheetFrame{
-							Prose: prose, UIFontSize: scale, Top: top, Bottom: layout.ReadingTop * scale / theme.DefaultUIFontSize * 2,
-							Dock: layout.DockClearance() * scale / theme.DefaultUIFontSize, Focus: true,
-						})
+						frame.Bottom = layout.ReadingTop * scale / theme.DefaultUIFontSize * 2
+						frame.Dock = layout.DockClearance() * scale / theme.DefaultUIFontSize
+						frame.Focus = true
+						s.Sheet(c, s.ActivePage, frame)
 					}
 				})
 			})
@@ -238,14 +237,15 @@ func (s *State) page(
 // sheetMatch is the identity a sheet's surface has in both modes.
 type sheetMatch string
 
-// sheetLook is how a sheet's surface looks where it stands, a page square
-// and edgeless in both, the page mode's or a pane of the canvas. Its page
-// stands in from its top by top, the reading space above the first line,
+// sheetLook is how a sheet's surface looks where it stands, width wide
+// at rest, square and edgeless in both modes. Its page stands in from
+// its top by top, the reading space above the first line,
 // and from its sides by side, and shows as far as shows; head builds its
 // head over it (columnHead), as far shown as headShown, which the page
 // has not.
 type sheetLook struct {
 	top, side float32
+	width     float32
 	head      func(shown float32)
 	headShown float32
 	shows     float32
@@ -259,9 +259,9 @@ type sheetLook struct {
 // other leaving no copy. The rest of its look goes with it (Sharing.Carry):
 // where the page stands in it, its text gliding from its place in the one
 // to its place in the other rather than jumping, and how far its head is
-// shown, fading in or out over the page. page builds the page with top
-// the reading space above its first line.
-func (s *State) sheetSurface(c *ui.Context, semantic theme.Theme, id string, look sheetLook, page func(top float32)) ui.Element {
+// shown, fading in or out over the page. The page's wrapping width is
+// that of the destination; its text inset travels with the surface.
+func (s *State) sheetSurface(c *ui.Context, semantic theme.Theme, id string, look sheetLook, page func(SheetFrame)) ui.Element {
 	animate := s.animate(c)
 	match := sheetMatch(id)
 	motion, arrives := s.sharing.Hold(match, s.laid.String(), components.MotionMode, animate)
@@ -270,10 +270,16 @@ func (s *State) sheetSurface(c *ui.Context, semantic theme.Theme, id string, loo
 	carry := func(name string, target float32) float32 {
 		return s.sharing.Carry(surface, match, name, target, components.MotionMode, arrives, animate)
 	}
-	top, side, headShown := carry("top", look.top), carry("side", look.side), carry("head", look.headShown)
+	prose := s.Settings.Prose()
+	width := max(0, look.width-2*look.side)
+	frame := SheetFrame{
+		Prose: prose, UIFontSize: s.Settings.UIFontSize, LayoutWidth: width,
+		Top: carry("top", look.top), Inset: carry("inset", prose.Inset(width)),
+	}
+	side, headShown := carry("side", look.side), carry("head", look.headShown)
 	return surface.Children(func() {
 		ui.Column(c).Key("surface-page").WidthPercent(100).Grow(1).MinHeight(0).PaddingX(side).
-			Opacity(look.shows).Children(func() { page(top) })
+			Opacity(look.shows).Children(func() { page(frame) })
 		if look.head != nil {
 			look.head(headShown)
 		}

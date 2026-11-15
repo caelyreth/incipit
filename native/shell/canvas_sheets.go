@@ -23,7 +23,6 @@ const sheetPad = 16
 func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, origin float32, animate bool) {
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
-	prose := s.Settings.Prose()
 	col, front, shown := s.column(c, canvasColumn{sheet: page.ID}, w, origin, animate)
 	col.Role(ui.RoleGroup).Label(page.Title)
 	// The keyboard comes to it as the pointer does (canvas_front.go).
@@ -43,18 +42,17 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 			head = 1
 		}
 		s.sheetSurface(c, semantic, page.ID, sheetLook{
-			top: titleLine(c) + sheetPad*k, side: sheetPad * k, shows: columnShows(col, front, animate),
+			top: titleLine(c) + sheetPad*k, width: w, side: sheetPad * k, shows: columnShows(col, front, animate),
 			head:      func(shown float32) { s.sheetHead(c, semantic, page, k, lead, trail, shown, animate) },
 			headShown: head,
-		}, func(top float32) {
+		}, func(frame SheetFrame) {
 			if s.Sheet != nil {
 				// Its page scrolls on under the writing actions floating
 				// over the canvas's foot, and fades out there.
 				dock := theme.DefaultLayout.DockClearance() * k
-				s.Sheet(c, page.ID, SheetFrame{
-					Prose: prose, UIFontSize: size, Top: top, Bottom: dock + sheetPad*k, Dock: dock,
-					Focus: page.ID == s.ActivePage, Claim: claim,
-				})
+				frame.Bottom, frame.Dock = dock+sheetPad*k, dock
+				frame.Focus, frame.Claim = page.ID == s.ActivePage, claim
+				s.Sheet(c, page.ID, frame)
 			}
 		})
 	})

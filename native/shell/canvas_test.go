@@ -574,6 +574,55 @@ func TestThePageAndTheCanvasShareTheSheetInFront(t *testing.T) {
 	}
 }
 
+// The shared sheet is laid out for its destination once. Its text's
+// inset travels with its surface, and reverses from where it stands.
+func TestTheSheetKeepsItsLayoutConstraintsAsTheModesCross(t *testing.T) {
+	for _, width := range []int{920, 1260, 1440} {
+		state, _ := libraryState()
+		state.Appearance.Motion = true
+		var frames []SheetFrame
+		state.Sheet = func(c *ui.Context, _ string, frame SheetFrame) {
+			frames = append(frames, frame)
+			ui.Text(c, "Body")
+		}
+		tester := ui.NewTester(state.View, width, 850)
+		settle(tester)
+		page := frames[len(frames)-1]
+		state.SetMode(ModeCanvas)
+		frames = nil
+		tester.Frame()
+		if first := frames[0]; abs(first.Inset-page.Inset) > 0.01 {
+			t.Fatalf("The text inset should leave from %v, but starts at %v.", page.Inset, first.Inset)
+		}
+		canvasWidth := float32(width-1)/2 - 2*sheetPad
+		for range 10 {
+			tester.Advance(16 * time.Millisecond)
+			tester.Frame()
+		}
+		for _, frame := range frames {
+			if frame.LayoutWidth != canvasWidth {
+				t.Fatalf("At window width %d, the canvas should lay out at %v throughout its flight, but uses %v.", width, canvasWidth, frame.LayoutWidth)
+			}
+		}
+		inset := frames[len(frames)-1].Inset
+		state.SetMode(ModePage)
+		frames = nil
+		tester.Frame()
+		if abs(frames[0].Inset-inset) > 0.01 {
+			t.Fatal("Reversing the mode jumped the text's inset.")
+		}
+		settle(tester)
+		for _, frame := range frames {
+			if frame.LayoutWidth != page.LayoutWidth {
+				t.Fatal("The page's wrapping constraints changed during the return flight.")
+			}
+		}
+		if last := frames[len(frames)-1]; abs(last.Inset-last.Prose.Inset(last.LayoutWidth)) > 0.01 {
+			t.Fatal("The returned sheet should use the page's resting text inset.")
+		}
+	}
+}
+
 // A column brought into view at the strip's end keeps the gap from the
 // window's edge, as every column does, rather than meeting it.
 func TestAColumnBroughtIntoViewKeepsItsGap(t *testing.T) {

@@ -19,14 +19,17 @@ type Page struct {
 // SheetFrame is how a sheet's page is set where the shell shows it: in the
 // columns, or on the canvas, nearer or farther.
 type SheetFrame struct {
-	// Prose and UIFontSize are the type the page is set in, which the
-	// canvas scales as it zooms.
+	// Prose and UIFontSize are the document and interface type sizes.
 	Prose      theme.ProseStyle
 	UIFontSize float32
 	// Top and Bottom are the reading space above its first line and below
 	// its last, scrolled with it; Dock is the room the floating writing
 	// actions take over its foot.
 	Top, Bottom, Dock float32
+	// LayoutWidth is the editor's viewport at rest in this mode; Inset
+	// is its text's left inset on the way there. Animated surface bounds
+	// move and clip the page without changing its wrapping constraints.
+	LayoutWidth, Inset float32
 	// Focus lets the page take the keyboard while nothing else holds it,
 	// and Claim gives it the keyboard now, from wherever it is.
 	Focus, Claim bool

@@ -1,13 +1,13 @@
 package page
 
 import (
-	"github.com/caelyreth/neverland/app/keymap"
-	"github.com/caelyreth/neverland/editor/vocab"
 	"math"
 	"time"
 
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/scrollfx"
@@ -29,7 +29,11 @@ type Element struct {
 	// the view fades out there and at its top (edges.go), and a revealed
 	// caret's line stays clear of both.
 	Top, Bottom, Dock float32
-	Label             string
+	// LayoutWidth fixes the wrapping viewport independently of animated
+	// bounds; Inset places its text within them. Zero follows the actual
+	// viewport, as a standalone editor does.
+	LayoutWidth, Inset float32
+	Label              string
 	// Typewriter keeps the caret's line at the viewport's center.
 	Typewriter bool
 	// Keys are the keymap the page's keys resolve through, and its guides
@@ -138,7 +142,7 @@ func NewElement(ed *Editor) *Element {
 func (el *Element) Focus() { el.focusPending = true }
 
 func (el *Element) metrics(width float32) Metrics {
-	col := min(el.Prose.Column(), max(width-2*el.Prose.FontSize, el.Prose.FontSize*8))
+	col := el.Prose.Measure(width)
 	return Metrics{
 		Body:    el.Prose.FontSize,
 		Spacing: el.Prose.Spacing,
@@ -183,7 +187,10 @@ func (el *Element) wheelAcross(x, y float32, ev ui.InputEvent, dx float32) bool 
 // relayout lays the page out at the element's width.
 func (el *Element) relayout() *pageLayout {
 	ed := el.Editor
-	w := el.viewport.W
+	w := el.LayoutWidth
+	if w <= 0 {
+		w = el.viewport.W
+	}
 	if w <= 0 {
 		w = el.Prose.Column() + 2*el.Prose.FontSize
 	}
@@ -193,6 +200,9 @@ func (el *Element) relayout() *pageLayout {
 	}
 	ed.SetStyle(el.Theme.Surface, Theme(el.Theme), m)
 	el.column = max((w-m.Width)/2, 0)
+	if el.LayoutWidth > 0 {
+		el.column = el.Inset
+	}
 	pl := ed.Relayout()
 	el.settleRooms(pl, el.paintNow, false, el.animate)
 	el.settle(pl, false)
@@ -233,6 +243,7 @@ func (el *Element) applyRestoredScroll(pl *pageLayout) {
 // returns the text's extent: its widest line and its height.
 func (el *Element) Still(width float32) (float32, float32) {
 	el.still = true
+	el.LayoutWidth = 0
 	el.viewport.W = width
 	el.Top, el.Bottom, el.Dock = 0, 0, 0
 	el.relayout()

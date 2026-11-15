@@ -4,10 +4,12 @@ import (
 	"image"
 	"math"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/caelyreth/neverland/app/library"
+	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/shell"
 	"github.com/egoist/mygo/ui"
 )
@@ -205,6 +207,51 @@ func TestTheSheetCrossesTheModesWholeAndInPlace(t *testing.T) {
 			tester.Frame()
 		}
 		run(tester, time.Second)
+	}
+}
+
+func TestEditingAndResizingAcrossInterruptedModeChanges(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Close() })
+	app.Shell.Appearance.Motion = true
+	app.Product.Presentation.Typewriter = false
+	var frame shell.SheetFrame
+	draw := app.Shell.Sheet
+	app.Shell.Sheet = func(c *ui.Context, id string, next shell.SheetFrame) {
+		frame = next
+		draw(c, id, next)
+	}
+	tester := ui.NewTester(app.View, 1440, 900)
+	el := app.pageElement()
+	el.Editor.Do(vocab.Paste{Text: strings.Repeat("A paragraph with 中文, **marks**, and `code`.\n\n", 40)}, tester.Now())
+	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, tester.Now())
+	run(tester, time.Second)
+	app.Shell.ToggleCanvas()
+	run(tester, 80*time.Millisecond)
+	if active, _ := tester.TextInputActive(); !active {
+		t.Fatal("The editor should keep text-input focus as it moves between modes.")
+	}
+	tester.Type("Written in flight ")
+	if text := pageText(app); !strings.Contains(text, "Written in flight") {
+		t.Fatalf("The moving page should still accept text input, but starts with %q.", text[:min(len(text), 240)])
+	}
+	app.Shell.ToggleCanvas()
+	run(tester, 48*time.Millisecond)
+	app.Shell.ToggleCanvas()
+	run(tester, time.Second)
+	tester.SetSize(1040, 850)
+	run(tester, time.Second)
+	if !app.Shell.CanvasOpen() || frame.LayoutWidth != float32(1040-1)/2-32 {
+		t.Fatalf("The canvas should adopt the resized column's width, but uses %v.", frame.LayoutWidth)
+	}
+	app.Shell.Settings.ProseFontSize = 20
+	tester.Frame()
+	run(tester, time.Second)
+	if frame.Prose.FontSize != 20 || !strings.Contains(pageText(app), "中文") {
+		t.Fatal("A new prose size should take effect with the document intact.")
 	}
 }
 

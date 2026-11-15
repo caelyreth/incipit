@@ -63,6 +63,17 @@ func (p ProseStyle) Column() float32 {
 	return p.scaled(referenceColumn)
 }
 
+// Measure is the text width in a viewport, leaving a body em at either
+// side until the reading column fits.
+func (p ProseStyle) Measure(viewport float32) float32 {
+	return min(p.Column(), max(viewport-2*p.FontSize, p.FontSize*8))
+}
+
+// Inset centers the text measure in a viewport.
+func (p ProseStyle) Inset(viewport float32) float32 {
+	return max((viewport-p.Measure(viewport))/2, 0)
+}
+
 func (p ProseStyle) LineHeight() float32 {
 	return p.lineHeight()
 }
