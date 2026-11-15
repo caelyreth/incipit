@@ -6,119 +6,80 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Morph carries elements across a change that draws them anew, as a
-// window going from one layout to another does: an element marked under a
-// key that comes in where another stood under it, or under a key it says
-// it comes from, starts where that one was and moves to its own place on a
-// spring, so it reads as one element moving, not one going as another
-// comes. It is the layout's part of a shared element; what the element
-// shows is its own, drawn at its own size all the way, as a font is never
-// drawn at the sizes between.
+// Morph carries what two layouts share from one to the other, as a window
+// going from one mode to another does: the same sheet, the same list,
+// drawn in each by an element of its own. The element that holds it now
+// starts where the one that held it last was, and goes to its own place on
+// a spring, so it reads as one thing moving, not one going as another
+// comes.
 //
-// Each frame begins with Frame; then each element that may move is marked
-// (Mark) as it is built.
+// It moves by pose (AnimatePose) and only moves: the move runs in frames
+// that only paint, and what moves is drawn as it is, its text never scaled
+// through sizes between. It knows where the last holder was only once the
+// new one has a layout of its own, so the layout gone to is to be built a
+// build ahead, before it holds anything; Mark then hands over at once.
+//
+// Each build begins with Frame; then every element that may hold a key is
+// marked as it is built, holding it or not.
 type Morph struct {
 	frame uint64
-	// spots are where each key was last drawn, and in which frame.
-	spots map[string]morphSpot
-	// moving are the elements on their way, by key.
-	moving map[string]*morphMove
+	keys  map[string]*morphState
 }
 
-type morphSpot struct {
-	rect  ui.Rect
+type morphState struct {
+	// at is where the key was last held, spot the holder's place there,
+	// and frame when; home is when a holder that took it over is about
+	// home.
+	at    string
+	spot  ui.Rect
 	frame uint64
+	home  time.Time
 }
 
-type morphMove struct {
-	from    ui.Rect
-	started bool
-}
-
-// MorphStyle is how an element goes from where the other stood.
-type MorphStyle uint8
-
-const (
-	// MorphResize moves it and scales it from the other's size, as a
-	// page that is the same page in both layouts goes.
-	MorphResize MorphStyle = iota
-	// MorphSlide moves it from the other's corner, at its own size,
-	// coming up as it goes, as something that takes over from another
-	// of a different shape goes.
-	MorphSlide
-)
-
-// morphKey is the value a moving element's progress is kept under.
-type morphKey struct{}
-
-// Frame begins a frame.
-func (m *Morph) Frame() { m.frame++ }
-
-// Mark marks el under key. An element new this frame whose key, or from,
-// was drawn lately (morphRecent) starts from there, as style says, and
-// moves on settle's spring to where it is laid out; until it has a layout
-// of its own it is not shown. Mark reports whether el is
-// on its way, so that it leaves out an entrance of its own.
-func (m *Morph) Mark(el ui.Element, key, from string, style MorphStyle, settle time.Duration, animate bool) bool {
-	if m.spots == nil {
-		m.spots, m.moving = map[string]morphSpot{}, map[string]*morphMove{}
-	}
-	b := el.LayoutBounds()
-	move := m.moving[key]
-	if b == (ui.Rect{}) {
-		// New: it takes over from what stood under its key, or from.
-		if !animate {
-			return false
-		}
-		source, ok := m.recent(key)
-		if !ok && from != "" {
-			source, ok = m.recent(from)
-		}
-		if !ok {
-			return false
-		}
-		m.moving[key] = &morphMove{from: source}
-		el.Opacity(0)
-		return true
-	}
-	m.spots[key] = morphSpot{rect: b, frame: m.frame}
-	if move == nil || !animate || b.W <= 0 || b.H <= 0 {
-		delete(m.moving, key)
-		return false
-	}
-	if !move.started {
-		move.started = true
-		el.Jump(morphKey{}, 0)
-	}
-	p := el.AnimateTo(morphKey{}, 1, Spring(settle))
-	if p >= 0.999 {
-		delete(m.moving, key)
-		return false
-	}
-	lerp := func(a, b float32) float32 { return a + (b-a)*p }
-	el.TransformOrigin(0, 0)
-	if style == MorphResize && move.from.W > 0 && move.from.H > 0 {
-		el.Scale(lerp(move.from.W/b.W, 1), lerp(move.from.H/b.H, 1))
-	} else {
-		el.Opacity(min(1, 2*p))
-	}
-	el.Translate((move.from.X-b.X)*(1-p), (move.from.Y-b.Y)*(1-p))
-	return true
-}
-
-// morphRecent is how many frames what was drawn stays where an element
-// new since may come from: about half a second, as what takes over may
-// first be drawn a few frames on, as a pane once it has opened a hair.
+// morphRecent is how many builds a holder's place stays to be moved from:
+// about half a second, as what takes over may hold first a few builds on.
 const morphRecent = 30
 
-// recent is where key was drawn in the last morphRecent frames.
-func (m *Morph) recent(key string) (ui.Rect, bool) {
-	spot, ok := m.spots[key]
-	if !ok || spot.frame+morphRecent < m.frame {
-		return ui.Rect{}, false
+// Frame begins a build.
+func (m *Morph) Frame() { m.frame++ }
+
+// Mark marks el, standing at at, as what may hold key, and whether it
+// holds it in this build. An element that takes key over from one at
+// another place, which held it lately, starts where that one was and goes
+// to its own place on settle's spring. It reports whether el took key over
+// in this build.
+func (m *Morph) Mark(c *ui.Context, el ui.Element, key, at string, holds bool, settle time.Duration, animate bool) bool {
+	if m.keys == nil {
+		m.keys = map[string]*morphState{}
 	}
-	return spot.rect, true
+	st := m.keys[key]
+	if st == nil {
+		st = &morphState{}
+		m.keys[key] = st
+	}
+	if !holds {
+		return false
+	}
+	b := el.LayoutBounds()
+	took := animate && st.at != "" && st.at != at && st.frame+morphRecent >= m.frame && b != (ui.Rect{})
+	switch {
+	case took:
+		// There at once, then home on the spring from the next build.
+		el.AnimatePose(ui.Pose{X: st.spot.X - b.X, Y: st.spot.Y - b.Y}, ui.Animation{Duration: 1})
+		st.home = c.Now().Add(settle)
+		c.AnimationFrame()
+	case c.Now().Before(st.home):
+		el.AnimatePose(ui.Pose{}, Spring(settle))
+	}
+	// At home it is posed no more, and stands where it is laid out.
+	st.at, st.spot, st.frame = at, b, m.frame
+	return took
 }
 
-// Moving reports whether the element under key is on its way.
-func (m *Morph) Moving(key string) bool { return m.moving[key] != nil }
+// Moving reports whether what holds key is on its way to its place at
+// now: about, by the spring's settling time, as the move runs in frames
+// that only paint.
+func (m *Morph) Moving(key string, now time.Time) bool {
+	st := m.keys[key]
+	return st != nil && now.Before(st.home)
+}

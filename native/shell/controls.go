@@ -7,14 +7,12 @@ import (
 )
 
 // controls are the window's buttons, floating over its top right corner
-// as the writing actions float over the page's foot: first the window's
-// mode, the page or the canvas, then what the canvas adds while it shows,
-// then the commands and settings. There is no title bar across the window
-// to hold them: the page reaches its top, and the panes' own buttons stand
-// on the panes' title line (paneHeader). They are one dock in both modes,
-// its canvas group opening in it as the canvas comes, so what stays stays
-// put. Zen takes them away with the rest of the chrome; chrome is how far
-// they are shown.
+// as the writing actions float over the page's foot: the window's mode,
+// the page or the canvas, then the commands and settings, the same in both
+// modes. There is no title bar across the window to hold them: the page
+// reaches its top, and the panes' own buttons stand on the panes' title
+// line (paneHeader). Zen takes them away with the rest of the chrome;
+// chrome is how far they are shown.
 func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, animate bool) {
 	if chrome <= 0.001 {
 		return
@@ -37,20 +35,12 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 			},
 		}.View(c, semantic)
 	}}}}
-	if mode == ModeCanvas {
-		groups = append(groups, components.ActionGroup{Key: "canvas", Label: "Canvas actions", Actions: []func(){
-			button("new-picker", "New picker", components.IconFolderSearch, s.NewPicker),
-			button("new-sheet", "New sheet", components.IconNewSheet, func() {
-				s.Library.NewSheet(s.CurrentGroup(), Last)
-			}),
-		}})
-	}
 	groups = append(groups, components.ActionGroup{Key: "app", Label: "App", Actions: []func(){
 		button("commands", "Search commands", components.IconCommand, s.OpenCommands),
 		button("settings", "Open settings", components.IconSettings, s.OpenSettings),
 	}})
 	gap := theme.DefaultLayout.ChromeGutter * scale / theme.DefaultUIFontSize
-	bar := ui.Row(c).Key("controls").Absolute().Top(gap / 2).Right(gap).ZIndex(1).Opacity(chrome)
+	bar := ui.Row(c).Key("controls").Absolute().Top(gap / 2).Right(gap).ZIndex(2).Opacity(chrome)
 	// What reaches the window's top right corner keeps clear of them by
 	// as much as they took the frame before.
 	bounds := bar.LayoutBounds()

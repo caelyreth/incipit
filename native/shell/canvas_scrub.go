@@ -2,7 +2,6 @@ package shell
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/caelyreth/neverland/native/components"
@@ -40,13 +39,14 @@ type scrubState struct {
 // from its left and bottom. It is drawn after the strip, as it reads the
 // strip's columns as they were laid out.
 func (s *State) scrubber(c *ui.Context, semantic theme.Theme, gutter float32, animate bool) {
-	rests := s.canvas.rests
-	if len(rests) < 2 || s.canvas.width <= 0 {
+	spans := s.canvas.spans
+	if len(spans) < 2 {
 		return
 	}
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
-	total := rests[len(rests)-1] + s.canvas.width
-	track := min(scrubWidth*k, float32(len(rests))*scrubHeight*k*2)
+	last := spans[len(spans)-1]
+	total := last.x + last.w
+	track := min(scrubWidth*k, float32(len(spans))*scrubHeight*k*2)
 	f := track / total
 	view := s.canvas.viewport.W - 2*gutter
 	if s.canvas.strip.X != s.canvas.scrub.x {
@@ -63,7 +63,7 @@ func (s *State) scrubber(c *ui.Context, semantic theme.Theme, gutter float32, an
 	rest := bar.AnimateTo("scrub-rest", float32(s.canvas.scrub.moves), ui.Animation{Duration: scrubLinger})
 	moving := rest != float32(s.canvas.scrub.moves)
 	if dx, _, ok := bar.Dragged(); ok && dx != 0 {
-		s.canvas.strip.X = max(0, min(s.canvas.strip.X+dx/f, total-view))
+		s.stripAt(s.canvas.strip.X + dx/f)
 	}
 	if _, _, ok := bar.DragEnded(); ok {
 		s.settleStrip(s.canvas.strip.X)
@@ -80,9 +80,9 @@ func (s *State) scrubber(c *ui.Context, semantic theme.Theme, gutter float32, an
 	}
 	bar.Opacity(shown)
 	bar.Children(func() {
-		for i, at := range rests {
+		for i, sp := range spans {
 			ui.Box(c).Key(fmt.Sprintf("scrub-%d", i)).Absolute().
-				Left(pad + at*f).Top(pad).Width(max(1, s.canvas.width*f-k)).Height(scrubHeight * k).
+				Left(pad + sp.x*f).Top(pad).Width(max(1, sp.w*f-k)).Height(scrubHeight * k).
 				Radius(2 * k).Background(semantic.Element.Hover)
 		}
 		// The window's span over the cells.
@@ -94,25 +94,23 @@ func (s *State) scrubber(c *ui.Context, semantic theme.Theme, gutter float32, an
 
 // scrubTo goes to the column at x across the strip's columns.
 func (s *State) scrubTo(x float32) {
-	for i := len(s.canvas.rests) - 1; i >= 0; i-- {
-		if at := s.canvas.rests[i]; x >= at || i == 0 {
-			s.canvas.strip.ScrollTo(at, 0, components.Spring(components.MotionScene))
+	rests := s.rests()
+	for i := len(rests) - 1; i >= 0; i-- {
+		if x >= s.canvas.spans[i].x || i == 0 {
+			s.canvas.strip.ScrollTo(rests[i], 0, components.Spring(components.MotionScene))
 			return
 		}
 	}
 }
 
-// settleStrip brings the strip to rest at the column whose start is
-// nearest at, on the spring a column comes into view on.
+// settleStrip brings the strip to rest at at, or pinned to a column's
+// start near it, as the magnet would (magnet).
 func (s *State) settleStrip(at float32) {
-	if len(s.canvas.rests) == 0 {
-		return
+	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
+	at = max(0, min(at, s.canvas.strip.MaxX))
+	if rest, ok := s.nearRest(at, magnetReach*k); ok {
+		at = rest
 	}
-	rest := s.canvas.rests[0]
-	for _, x := range s.canvas.rests {
-		if math.Abs(float64(x-at)) < math.Abs(float64(rest-at)) {
-			rest = x
-		}
-	}
-	s.canvas.strip.ScrollTo(max(0, rest), 0, components.Spring(components.MotionScene))
+	s.canvas.armed = false
+	s.canvas.strip.ScrollTo(at, 0, components.Spring(components.MotionScene))
 }

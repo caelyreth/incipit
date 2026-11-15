@@ -79,10 +79,9 @@ func (s listing) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal,
 	pane := ui.Column(c).Key("sheets").Width(width).HeightPercent(100).Shrink(0).Clip().
 		Background(semantic.Surface.Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant)
-	// The canvas's first picker moves out from here (morph). Back from the
-	// canvas the list opens as it does, from nothing: moved from the
-	// picker as it opened, its rows would cross the library's.
-	s.morph.Mark(pane, "list", "", components.MorphSlide, morphSettle, animate)
+	// The canvas's first picker is the list, moved out from here, and
+	// back (morph).
+	s.morph.Mark(c, pane, "list", "page", s.held == ModePage, morphSettle, animate)
 	pane.Children(func() {
 		ui.Column(c).Width(full).HeightPercent(100).Opacity(reveal).Children(func() {
 			ui.Box(c).Key("list-head").WidthPercent(100).Height(head).Shrink(0)

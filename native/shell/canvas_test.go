@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -239,6 +238,7 @@ func TestTheStripFollowsTheFrontAndPansByDrag(t *testing.T) {
 	tester.Press(x, y)
 	for i := 1; i <= 10; i++ {
 		tester.Move(x+float32(i)*30, y)
+		tester.Advance(16 * time.Millisecond)
 		tester.Frame()
 	}
 	if moved := last - state.canvas.strip.X; moved < 200 {
@@ -248,18 +248,18 @@ func TestTheStripFollowsTheFrontAndPansByDrag(t *testing.T) {
 	tester.Frame()
 	settle(tester)
 	rest := state.canvas.strip.X
-	if !slices.ContainsFunc(state.canvas.rests, func(x float32) bool { return x-rest < 1 && rest-x < 1 }) &&
-		rest != 0 {
-		t.Fatalf("The strip should rest at a column, but it rests at %v among %v.", rest, state.canvas.rests)
+	settle(tester)
+	if state.canvas.strip.X != rest {
+		t.Fatalf("The strip should come to rest, but it went on from %v to %v.", rest, state.canvas.strip.X)
 	}
 	if state.ActivePage != "10" {
 		t.Fatalf("A drag on a head should bring nothing in front, but %s came.", state.ActivePage)
 	}
 }
 
-// Every column is as wide as the others: two to the window, so two
-// neighbours read as a split, or three where the window is wide enough
-// for a third to hold a sheet's page.
+// A sheet's column is half the window less the gap, so two read as a
+// split, or a third where the window is wide enough for a third to hold a
+// sheet's page; a picker's is the sheet list's width.
 func TestTheColumnsShareTheWindowByHalvesOrThirds(t *testing.T) {
 	for _, window := range []struct {
 		width float32
@@ -273,18 +273,68 @@ func TestTheColumnsShareTheWindowByHalvesOrThirds(t *testing.T) {
 		state.ToggleCanvas()
 		tester.Frame()
 		settle(tester)
-		gap := float32(columnGap)
-		inner := state.canvas.width*window.n + gap*(window.n-1)
-		if want := state.canvas.viewport.W - 2*theme.DefaultLayout.ContentGutter; abs(inner-want) > 1 {
-			t.Fatalf("At %v across, %v columns should fill the window's %v, but they take %v.",
-				window.width, window.n, want, inner)
+		inner := window.width - 2*theme.DefaultLayout.ContentGutter
+		want := (inner - columnGap*(window.n-1)) / window.n
+		// The picker, then the two sheets.
+		if spans := state.canvas.spans; len(spans) != 3 || abs(spans[1].w-want) > 1 || abs(spans[2].w-want) > 1 {
+			t.Fatalf("At %v across, the sheets' columns should be %v wide, but the strip holds %+v.",
+				window.width, want, spans)
 		}
-		for _, title := range []string{"Chapter"} {
-			col, ok := tester.Find("Bring " + title + " in front")
-			if !ok || abs(col.W-state.canvas.width) > 3 { // less its border
-				t.Fatalf("%s's column should be %v wide, but it is %+v.", title, state.canvas.width, col)
-			}
+		picker, ok := tester.Find("Sheet picker")
+		if !ok || abs(picker.W-theme.DefaultLayout.SheetList) > 1 {
+			t.Fatalf("A picker should be as wide as the sheet list, but it is %+v.", picker)
 		}
+	}
+}
+
+// The strip goes where it is scrolled, and pins to a column's start only
+// once it comes to rest near one, the fingers lifted; far from any, it
+// stays where it stopped.
+func TestTheStripPinsToAColumnItComesToRestNear(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	for _, id := range []string{"7", "8", "9", "10"} {
+		state.Open = append(state.Open, Page{ID: id, Title: "Sheet " + id})
+	}
+	tester.Frame()
+	settle(tester)
+	state.canvas.strip.ScrollTo(0, 0, ui.Animation{Duration: 1})
+	settle(tester)
+	rests := state.rests()
+	scroll := func(dx float32) {
+		tester.Scroll(600, 400, dx, 0)
+		tester.Frame()
+		tester.Scroll(600, 400, 0, 0) // the fingers lift
+		settle(tester)
+	}
+	// Near the second column's start: pinned there.
+	scroll(rests[1] - 30)
+	if abs(state.canvas.strip.X-rests[1]) > 1 {
+		t.Fatalf("Coming to rest 30 short of a column, the strip should pin to it at %v, but it is at %v.",
+			rests[1], state.canvas.strip.X)
+	}
+	// Midway between two: it stays.
+	mid := (rests[1] + rests[2]) / 2
+	scroll(mid - state.canvas.strip.X)
+	if abs(state.canvas.strip.X-mid) > 1 {
+		t.Fatalf("Coming to rest far from any column, the strip should stay at %v, but it went to %v.",
+			mid, state.canvas.strip.X)
+	}
+}
+
+// The strip stretches past its start, as the lists do, and comes back.
+func TestTheStripStretchesPastItsEnds(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	state.canvas.strip.ScrollTo(0, 0, ui.Animation{Duration: 1})
+	settle(tester)
+	tester.Scroll(600, 400, -80, 0)
+	tester.Frame()
+	if x, _ := state.canvas.over.Offset(); x == 0 {
+		t.Fatal("Scrolled past its start, the strip should stretch.")
+	}
+	tester.Scroll(600, 400, 0, 0)
+	settle(tester)
+	if x, _ := state.canvas.over.Offset(); x != 0 || state.canvas.strip.X != 0 {
+		t.Fatalf("Let go, the strip should come back to its start, but it is %v past it at %v.", x, state.canvas.strip.X)
 	}
 }
 
@@ -306,13 +356,13 @@ func TestTheScrubberMovesTheStrip(t *testing.T) {
 	if !ok {
 		t.Fatal("The scrubber should show while the strip moves.")
 	}
-	rests := state.canvas.rests
-	f := (bar.W - 8) / (rests[len(rests)-1] + state.canvas.width)
-	tester.Press(bar.X+4+(rests[3]+10)*f, bar.Y+bar.H/2)
-	tester.Release(bar.X+4+(rests[3]+10)*f, bar.Y+bar.H/2)
+	spans := state.canvas.spans
+	f := (bar.W - 8) / (spans[len(spans)-1].x + spans[len(spans)-1].w)
+	tester.Press(bar.X+4+(spans[3].x+10)*f, bar.Y+bar.H/2)
+	tester.Release(bar.X+4+(spans[3].x+10)*f, bar.Y+bar.H/2)
 	tester.Frame()
 	settle(tester)
-	if want := state.canvas.rests[3]; abs(state.canvas.strip.X-want) > 1 {
+	if want := state.rests()[3]; abs(state.canvas.strip.X-want) > 1 {
 		t.Fatalf("A column pressed in the scrubber should come to the strip's start at %v, but the strip is at %v.",
 			want, state.canvas.strip.X)
 	}
@@ -321,52 +371,62 @@ func TestTheScrubberMovesTheStrip(t *testing.T) {
 	tester.Press(x, y)
 	for i := 1; i <= 5; i++ {
 		tester.Move(x-float32(i)*8, y)
+		tester.Advance(16 * time.Millisecond)
 		tester.Frame()
 	}
 	tester.Release(x-40, y)
 	tester.Frame()
 	settle(tester)
-	rest := state.canvas.strip.X
-	if rest >= before || !slices.ContainsFunc(state.canvas.rests, func(x float32) bool { return abs(x-rest) < 1 }) {
-		t.Fatalf("A drag back on the scrubber should bring the strip back to a column, but it went from %v to %v among %v.",
-			before, rest, state.canvas.rests)
+	if rest := state.canvas.strip.X; rest >= before {
+		t.Fatalf("A drag back on the scrubber should bring the strip back, but it went from %v to %v.", before, rest)
 	}
 }
 
 // The page and the canvas share what they both show: going to the canvas,
 // the sheet in front moves from the page into its column, and the sheet
-// list out into the picker beside it; going back, the sheet moves back,
-// and the list opens as it does. Each rests where it is laid out once it
-// is there.
+// list out into the picker beside it; going back, both move back. The
+// page's layout stays laid out beneath the canvas as it comes, and the
+// layout gone to is built a build before what moves to it.
 func TestThePageAndTheCanvasShareTheirSheetAndList(t *testing.T) {
 	state, _ := libraryState()
 	state.Appearance.Motion = true
 	state.Sheet = func(c *ui.Context, id string, _ SheetFrame) { ui.Text(c, "Body of "+id) }
 	tester := ui.NewTester(state.View, 1260, 850)
 	settle(tester)
+	listWidth := state.lastSidebarWidth
 	step := func(frames int) {
 		for range frames {
 			tester.Advance(16 * time.Millisecond)
 			tester.Frame()
 		}
 	}
+	moving := func(key string) bool { return state.morph.Moving(key, tester.Now()) }
 	state.ToggleCanvas()
-	step(4)
-	picker := fmt.Sprintf("picker-%d", state.canvas.listPicker)
-	if !state.morph.Moving("sheet:1") || !state.morph.Moving(picker) {
+	step(3)
+	if !moving("sheet:1") || !moving("list") {
 		t.Fatal("Going to the canvas, the sheet in front and the list should move into their columns.")
 	}
+	if state.lastSidebarWidth != listWidth {
+		t.Fatalf("The panes should stay as they were under the canvas, but they went from %v to %v.",
+			listWidth, state.lastSidebarWidth)
+	}
+	if n := strings.Count(strings.Join(tester.Texts(), "\n"), "Body of 1"); n != 1 {
+		t.Fatalf("The sheet in front should be drawn once, in one place, but it is drawn %d times.", n)
+	}
 	settle(tester)
-	if state.morph.Moving("sheet:1") || state.morph.Moving(picker) {
+	if moving("sheet:1") || moving("list") {
 		t.Fatal("The sheet and the picker should rest in their columns once there.")
 	}
+	if _, ok := tester.Find("Groups"); ok {
+		t.Fatal("Under the whole canvas, the page mode's layout should not be built.")
+	}
 	state.SetMode(ModePage)
-	step(4)
-	if !state.morph.Moving("sheet:1") || state.morph.Moving("list") {
-		t.Fatal("Going back, the sheet should move back to the page, and the list open in its place.")
+	step(3)
+	if !moving("sheet:1") || !moving("list") {
+		t.Fatal("Going back, the sheet and the list should move back to the page and the panes.")
 	}
 	settle(tester)
-	if state.morph.Moving("sheet:1") {
-		t.Fatal("The page should rest in its place once there.")
+	if moving("sheet:1") || moving("list") || !tester.HasText("Body of 1") {
+		t.Fatal("The page and the list should rest in their places once there.")
 	}
 }

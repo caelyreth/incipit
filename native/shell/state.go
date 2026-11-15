@@ -147,6 +147,10 @@ type State struct {
 	// state, kept as it was left.
 	mode   Mode
 	canvas canvasState
+	// held is the mode whose layout holds what the two share (morph): a
+	// build behind the mode, so the layout gone to is laid out once before
+	// what moves to it does.
+	held Mode
 }
 
 func New() *State {

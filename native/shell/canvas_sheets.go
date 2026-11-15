@@ -18,8 +18,8 @@ const sheetPad = 16
 
 // openColumn is an open sheet's column: a head with its group's mark, its
 // title, and what takes it back to the columns or closes it, over its
-// page. A drag on the head moves the strip.
-func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origin float32, animate bool) {
+// page, w wide. A drag on the head moves the strip.
+func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, origin float32, animate bool) {
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
 	prose := s.Settings.Prose()
@@ -28,12 +28,13 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origi
 	if front {
 		edge = semantic.Accent.Foreground
 	}
-	col := s.column(c, "sheet-"+page.ID, origin, animate).
+	// The sheet in front is the page's: it comes with the canvas, and
+	// holds its page once the page mode's layout has let it go (held).
+	holds := s.held == ModeCanvas || !front
+	col := s.column(c, "sheet-"+page.ID, w, origin, !(front && s.canvas.entered), animate).
 		Role(ui.RoleGroup).Label(page.Title).Clip().Radius(10*k).
 		Background(semantic.Surface.Page).Border(1, edge)
-	// The sheet in front is the page, moving from where it stood beside
-	// the panes.
-	s.morphColumn(col, "sheet:"+page.ID, "", components.MorphResize, animate)
+	s.morph.Mark(c, col, "sheet:"+page.ID, "canvas", holds, morphSettle, animate)
 	// The sheet that comes in front comes into view; as the canvas comes,
 	// the picker before it brings it.
 	switch {
@@ -81,7 +82,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origi
 		ui.Box(c).WidthPercent(100).Height(1).Shrink(0).Background(semantic.Border.Variant)
 		ui.Column(c).Key("sheet-page").WidthPercent(100).Grow(1).MinHeight(0).PaddingX(sheetPad * k).
 			Children(func() {
-				if s.Sheet != nil {
+				if s.Sheet != nil && holds {
 					s.Sheet(c, page.ID, SheetFrame{
 						Prose: prose, UIFontSize: size, Top: 16 * k, Bottom: 48 * k, Focus: front,
 					})
@@ -92,9 +93,9 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origi
 
 // sheetHint stands where the strip's columns would, while there are none:
 // how to bring one.
-func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, origin float32, animate bool) {
+func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w, origin float32, animate bool) {
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
-	s.column(c, "sheet-hint", origin, animate).AlignItems(ui.Center).Justify(ui.Center).
+	s.column(c, "sheet-hint", w, origin, true, animate).AlignItems(ui.Center).Justify(ui.Center).
 		Gap(12 * k).Children(func() {
 		ui.Icon(c, components.IconDocument.SVG()).FontSize(40 * k).TextColor(semantic.Icon.Muted).Opacity(0.35)
 		components.Label(c, "Make a picker to choose a sheet", theme.TextXSmall, semantic.Text.Muted).
