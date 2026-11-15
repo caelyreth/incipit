@@ -40,8 +40,9 @@ func (s *State) newPickerAt(at int) {
 	s.canvas.pickers++
 	p := &picker{id: s.canvas.pickers, list: newBrowser(s.list.place)}
 	p.list.focus = true
-	s.workspace().insert(at, canvasColumn{picker: p})
-	s.canvas.revealPicker = p.id
+	col := canvasColumn{picker: p}
+	s.workspace().insert(at, col)
+	s.bringInView(col.key(), false)
 }
 
 // closePicker takes a picker off the canvas.
@@ -78,7 +79,7 @@ func (s *State) openFromPicker(picker int, id, query string, alongside bool) {
 		if !alongside {
 			s.moveIntoPicker(picker, id)
 		}
-		s.canvas.reveal = id
+		s.bringInView(canvasColumn{sheet: id}.key(), false)
 	} else {
 		if s.canvas.into == nil {
 			s.canvas.into, s.canvas.beside = map[string]int{}, map[string]int{}
@@ -125,15 +126,10 @@ func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, w, 
 	list.noteView(c, animate)
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	scale := s.Settings.UIFontSize
-	col := s.column(c, canvasColumn{picker: p}.key(), w, origin, animate).
-		Role(ui.RoleGroup).Label("Sheet picker").Clip().Radius(10*k).
-		Background(semantic.Surface.Panel).Border(1, semantic.Border.Variant)
+	col, front := s.column(c, canvasColumn{picker: p}, w, origin, animate)
+	col.Role(ui.RoleGroup).Label("Sheet picker").Clip().Radius(columnRadius*k).
+		Background(semantic.Surface.Panel).Border(1, columnEdge(semantic, front))
 	col.Children(func() {
-		// A picker made comes into view.
-		if s.canvas.revealPicker == p.id {
-			s.revealColumn(c, col, animate)
-			s.canvas.revealPicker = 0
-		}
 		head := ui.Row(c).Key("picker-head").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
 			Gap(6 * k).PaddingStart(theme.Space06.DIPs(scale)).PaddingEnd(6 * k).PaddingY(6 * k)
 		head.Children(func() {

@@ -26,7 +26,14 @@ import (
 // A sheet's column is half the window, less the gap between, so two
 // neighbours read as a split, or a third where a third still holds a
 // sheet's page whole; a picker's is the sheet list's width. Widths change
-// only as the window does, never as the strip moves or the mode changes.
+// only as the window does, never as the strip moves or the mode changes,
+// and go from halves to thirds smoothly.
+//
+// Everything on the strip moves on one motion (canvasMotion): a column
+// made opens out where it stands as its neighbours make room, one closed
+// folds away as they close up, a sheet coming in front is travelled to,
+// and the strip's own moves, to a column pressed in the overview or one
+// it comes to rest near, go the same way.
 // A touchpad's swipe, Shift and the wheel, or a drag on the strip moves
 // along it freely, stretching past its ends; where it comes to rest by
 // itself near a column's start, the column pins to the window's edge, as a
@@ -41,16 +48,16 @@ const (
 	// flingCarry is how far a drag let go carries the strip on, in seconds
 	// of the speed it was let go at.
 	flingCarry = float32(0.25)
-	// columnGap is the room between the strip's columns at the reference
-	// type size.
-	columnGap = 24
+	// columnGap is the room between the strip's columns, and canvasEdge
+	// that between them and the window's edges, at the reference type
+	// size: little, so the columns take the window.
+	columnGap  = 10
+	canvasEdge = 10
 	// magnetReach is how near a column's start the strip, come to rest,
 	// is pinned to it, at the reference type size; magnetQuiet how long
-	// the strip's input is quiet before it counts as come to rest; and
-	// magnetPin how long the pin takes, short, so it reads as taken.
+	// the strip's input is quiet before it counts as come to rest.
 	magnetReach = 72
 	magnetQuiet = 90 * time.Millisecond
-	magnetPin   = 260 * time.Millisecond
 	// magnetHeld is how long after the last input fingers still on the
 	// touchpad keep the strip from being pinned, should they lift without
 	// a word.
@@ -95,27 +102,24 @@ type canvasState struct {
 	touching bool
 	still    float32
 	armed    bool
-	// front is the sheet in front as the frame began, and follow whether
-	// it came in front since the last, so the strip goes to it; entered is
-	// the canvas coming, which brings the sheet in front into view at once.
+	// front is the sheet in front as the frame began; entered is the
+	// canvas coming, which brings the sheet in front into view at once.
 	front   string
-	follow  bool
 	entered bool
-	// reveal is a sheet to bring into view, as one opened from the map
-	// that was open already.
-	reveal string
+	// bring is the key of a column to bring into view as it is built, at
+	// once with bringAtOnce (bringInView).
+	bring       string
+	bringAtOnce bool
 	// scrub is the scrubber's (canvas_scrub.go).
 	scrub scrubState
 	// workspaces are the canvas's rows, kept as the mode changes, and
 	// shown the one it shows (canvas_workspace.go). pickers counts the
 	// pickers made, for their ids. into and beside are sheets on their way
 	// from a picker, by its id: to take its place, or to stand after it.
-	// revealPicker is a picker to bring into view.
 	workspaces   []*canvasWorkspace
 	shown        int
 	pickers      int
 	into, beside map[string]int
-	revealPicker int
 }
 
 // Mode is the window's mode; the canvas needs a library to lay out.
@@ -175,17 +179,23 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	})
 	// The canvas has come once it shows whole.
 	s.canvas.entered = s.canvas.entered && shown < 0.999
-	s.canvas.reveal = ""
 }
 
 // canvasStrip draws the strip's columns under head's room.
 func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.Layout, head float32, animate bool) {
 	scale := s.Settings.UIFontSize
 	k := scale / theme.DefaultUIFontSize
-	gutter := layout.ContentGutter * k
+	edge := canvasEdge * k
 	strip := ui.ScrollHorizontal(c).Key("canvas-strip").Grow(1).MinHeight(0).WidthPercent(100).
 		Scrollbars(false).TrackScroll(&s.canvas.strip)
-	s.canvas.viewport = strip.LayoutBounds()
+	viewport := strip.LayoutBounds()
+	// The window resized, the sheet in front stays in view where it was.
+	if viewport.W != s.canvas.viewport.W && s.canvas.viewport.W > 0 {
+		if front := s.canvasFront(); front != "" {
+			s.bringInView(canvasColumn{sheet: front}.key(), true)
+		}
+	}
+	s.canvas.viewport = viewport
 	// The strip goes where it is moved, and stretches past its ends as the
 	// lists do; its input is counted, and the fingers followed, for the
 	// magnet.
@@ -202,29 +212,27 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 	s.magnet(strip, k, animate)
 	// The columns end short of the writing actions floating under them,
 	// and their heads stand clear of the window's controls over them.
-	foot := layout.DockClearance() * k
-	top := max(head, gutter/2, s.controlsFoot)
-	strip.Padding(top, 0, foot, 0)
+	strip.Padding(max(head, s.controlsFoot), 0, layout.DockClearance()*k, 0)
 	window, _ := c.Size()
-	editor := s.editorWidth(window-2*gutter, k)
+	editor := s.editorWidth(strip, window-2*edge, k, animate)
 	picker := s.paneLayout().SheetList * k
 	strip.Children(func() {
 		// The flow is at least as wide as the window, its room before,
-		// between and after the columns its own (room). Its columns
-		// shrinking, as one closes, it keeps their room a while, easing
-		// back, so the strip is not cut back under them at once
-		// (components.Settled).
+		// between and after the columns its own (room). A column folding
+		// away takes no room, so as one closes the flow keeps its room a
+		// while, easing back with it, rather than the strip being cut back
+		// under it at once (components.Settled).
 		natural := float32(0)
 		if n := len(s.canvas.spans); n > 0 {
 			last := s.canvas.spans[n-1]
-			natural = last.x + last.w + 2*gutter
+			natural = last.x + last.w + 2*edge
 		}
 		flow := ui.Row(c).Key("canvas-flow").FillHeight().AlignItems(ui.Stretch)
 		extent := components.Settled(flow, "extent", natural, components.MotionEnter, animate)
-		flow.MinWidth(max(s.canvas.viewport.W, extent))
+		flow.MinWidth(max(viewport.W, extent))
 		s.canvas.over.Apply(c, flow, animate)
 		// The columns' places are counted from where the first stands.
-		origin := flow.LayoutBounds().X + gutter
+		origin := flow.LayoutBounds().X + edge
 		s.pan(flow)
 		pages := make(map[string]Page, len(s.Open))
 		for _, page := range s.Open {
@@ -233,10 +241,10 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 		flow.Children(func() {
 			s.canvas.spans = s.canvas.spans[:0]
 			columns := s.workspace().columns
-			s.room(c, "room-start", 0, gutter, false)
+			s.room(c, "room-start", 0, edge, false)
 			if len(columns) == 0 {
-				s.sheetHint(c, semantic, editor, origin, animate)
-				s.room(c, "room-end", 0, gutter, true)
+				s.sheetHint(c, semantic, editor, animate)
+				s.room(c, "room-end", 0, edge, true)
 			}
 			for i, col := range columns {
 				if col.picker != nil {
@@ -248,7 +256,7 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 				last := i == len(columns)-1
 				w := columnGap * k
 				if last {
-					w = gutter
+					w = edge
 				}
 				s.room(c, "room-"+col.key(), i+1, w, last)
 			}
@@ -313,17 +321,18 @@ func (s *State) magnet(strip ui.Element, k float32, animate bool) {
 	}
 	s.canvas.armed = false
 	if rest, ok := s.nearRest(x, magnetReach*k); ok && math.Abs(float64(rest-x)) > 0.5 {
-		s.canvas.strip.ScrollTo(rest, 0, s.pin(animate))
+		s.canvas.strip.ScrollTo(rest, 0, canvasMotion(animate))
 	}
 }
 
-// pin is how the strip goes to a column it is pinned to: taken, a little
-// past and back.
-func (s *State) pin(animate bool) ui.Animation {
+// canvasMotion is how the strip moves of its own accord: travelling to a
+// column, or to rest, as far as it goes, in the time its columns take to
+// open out or fold away (columnTransition), so the two arrive together.
+func canvasMotion(animate bool) ui.Animation {
 	if !animate {
 		return ui.Animation{Duration: 1}
 	}
-	return components.Bouncy(magnetPin)
+	return components.Spring(components.MotionEnter)
 }
 
 // nearRest is the column start nearest x, the strip's own ends among them,
@@ -350,50 +359,73 @@ func (s *State) rests() []float32 {
 
 // editorWidth is a sheet's column's width in a window inner wide: half of
 // it less the gap between, or a third where a third still holds a sheet's
-// page and the room beside it.
-func (s *State) editorWidth(inner, k float32) float32 {
+// page and the room beside it. Between the two it goes smoothly, as the
+// window is resized across where they meet, on el.
+func (s *State) editorWidth(el ui.Element, inner, k float32, animate bool) float32 {
 	gap := columnGap * k
 	page := s.Settings.Prose().Column() + 2*sheetPad*k
 	n := float32(2)
 	if (inner-2*gap)/3 >= page {
 		n = 3
 	}
+	if animate {
+		n = el.AnimateTo("columns-per-window", n, canvasMotion(animate))
+	}
 	return max(0, (inner-(n-1)*gap)/n)
 }
 
-// column is one of the strip's columns, keyed key, w wide and as tall as
-// the strip; its place is counted for the magnet and the scrubber. origin
-// is where the strip's columns start in the window.
-func (s *State) column(c *ui.Context, key string, w, origin float32, animate bool) ui.Element {
+// column is one of the strip's columns, w wide and as tall as the strip,
+// and whether it is in front, its sheet the sheet in front; its place is counted for
+// the magnet and the scrubber, and it is brought into view where asked
+// (bringInView). origin is where the strip's columns start in the window.
+func (s *State) column(c *ui.Context, of canvasColumn, w, origin float32, animate bool) (ui.Element, bool) {
+	key := of.key()
 	col := ui.Column(c).Key(key).Width(w).Shrink(0).FillHeight().Transition(columnTransition(animate))
 	if b := col.LayoutBounds(); b.W > 0 {
 		s.canvas.spans = append(s.canvas.spans, span{x: b.X - origin, w: b.W})
 	}
-	return col
-}
-
-// revealColumn brings col into view, the gap beside it kept from the
-// window's edge (components.Reveal): gliding there, or at once.
-func (s *State) revealColumn(c *ui.Context, col ui.Element, glide bool) {
-	options := ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest}
-	if glide {
-		spring := components.Spring(components.MotionEnter)
-		options.Animation = &spring
+	if s.canvas.bring == key {
+		motion := canvasMotion(animate && !s.canvas.bringAtOnce)
+		components.Reveal(c, col, canvasEdge*components.UIFontSize(c)/theme.DefaultUIFontSize,
+			ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest, Animation: &motion})
+		s.canvas.bring = ""
 	}
-	components.Reveal(c, col, s.paneLayout().ContentGutter*components.UIFontSize(c)/theme.DefaultUIFontSize, options)
+	return col, of.picker == nil && of.sheet == s.ActivePage
 }
 
-// columnTransition is how the strip's columns come and go: in from the
-// side, rising to their size, out where they stood, the others closing up
-// behind them, a little past and back.
+// columnTransition is how the strip's columns come and go: opening out
+// where they stand, from nothing across, as they fade and rise to their
+// size, and folding away the same way, those beside them making room and
+// closing up on the same motion, a little past and back. What a column
+// holds keeps its layout as it opens or folds, clipped, so nothing in it
+// is set anew on the way.
 func columnTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
 	spring := components.Bouncy(components.MotionEnter)
-	return ui.ElementTransition{
-		Animation: &spring, ExitDuration: motionReveal, Position: true, Colors: true,
-		Enter: &ui.Motion{Opacity: 0, X: enterSlide, Scale: 0.97},
-		Exit:  &ui.Motion{Opacity: 0, Scale: 0.97},
+	gone := &ui.Motion{Collapse: true, Opacity: 0, Scale: 0.96}
+	return ui.ElementTransition{Animation: &spring, Position: true, Colors: true, Enter: gone, Exit: gone}
+}
+
+// columnRadius is how round a column's corners are, at the reference
+// type size.
+const columnRadius = 10
+
+// columnEdge is a column's edge: the accent's, softly, for the one in
+// front, and a faint line for the rest.
+func columnEdge(semantic theme.Theme, front bool) ui.Color {
+	if front {
+		return semantic.Accent.Foreground.Alpha(0.55)
+	}
+	return semantic.Border.Variant.Alpha(0.6)
+}
+
+// bringInView has the strip bring the column keyed key into view, the gap
+// beside it kept from the window's edge (components.Reveal), as it is
+// next built, which may be once it joins: travelling there, or at once.
+func (s *State) bringInView(key string, atOnce bool) {
+	if key != "" {
+		s.canvas.bring, s.canvas.bringAtOnce = key, atOnce
 	}
 }

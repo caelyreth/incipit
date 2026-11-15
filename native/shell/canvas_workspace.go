@@ -147,7 +147,12 @@ func (s *State) keepCanvas() {
 	if front != "" && front != was && open[front] && w.index(front) < 0 {
 		w.insert(s.joinAt(front, was), canvasColumn{sheet: front})
 	}
-	s.canvas.follow, s.canvas.front = front != was, front
+	// The sheet come in front is travelled to, and, as the canvas comes,
+	// is in view at once for it to fly to.
+	if front != "" && (front != was || s.canvas.entered) {
+		s.bringInView(canvasColumn{sheet: front}.key(), s.canvas.entered)
+	}
+	s.canvas.front = front
 }
 
 // joinAt is where a sheet come in front joins the workspace shown: in the
@@ -197,7 +202,7 @@ func (s *State) bringInFront(id string) {
 	if s.SelectPage != nil {
 		s.SelectPage(id)
 	}
-	s.canvas.reveal = id
+	s.bringInView(canvasColumn{sheet: id}.key(), false)
 }
 
 // listAt has the sheet list show sheet: where the place it shows lists it,

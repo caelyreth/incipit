@@ -7,10 +7,9 @@ import (
 )
 
 // The strip holds a column for each open sheet, each a page written in
-// where it stands. The one in front has the accent's edge, and the writing
-// actions act on it; clicking another's head, or writing in it, brings it
-// in front, and the strip goes as far as brings whichever comes in front
-// into view.
+// where it stands. The sheet in front is the one the writing actions act
+// on; clicking another's head, or writing in it, brings it in front, and
+// the strip goes as far as brings whichever comes in front into view.
 
 // sheetPad is the room beside a sheet's page in its column, and above it
 // under the head, at the reference type size; sheetHead is the head's
@@ -28,35 +27,26 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
 	prose := s.Settings.Prose()
-	front := page.ID == s.ActivePage
-	edge := semantic.Border.Variant
-	if front {
-		edge = semantic.Accent.Foreground
-	}
-	col := s.column(c, canvasColumn{sheet: page.ID}.key(), w, origin, animate).
-		Role(ui.RoleGroup).Label(page.Title)
+	col, front := s.column(c, canvasColumn{sheet: page.ID}, w, origin, animate)
+	col.Role(ui.RoleGroup).Label(page.Title)
 	col.Children(func() {
-		// The sheet in front comes into view as it comes in front, and at
-		// once as the canvas comes, for it to fly to.
-		if front && s.canvas.follow || front && s.canvas.entered || page.ID == s.canvas.reveal {
-			s.revealColumn(c, col, !s.canvas.entered && animate)
-		}
-		if front && s.laid != ModeCanvas {
+		if page.ID == s.ActivePage && s.laid != ModeCanvas {
 			return
 		}
 		var head ui.Element
 		band := sheetHead * k
 		s.sheetSurface(c, semantic, page.ID, sheetLook{
-			radius: 10 * k, edge: edge, top: band + sheetPad*k, side: sheetPad * k,
+			radius: columnRadius * k, edge: columnEdge(semantic, front), top: band + sheetPad*k, side: sheetPad * k,
 			head: func() { head = s.sheetHead(c, semantic, page, front, k, animate) }, headHeight: band, headShown: 1,
 		}, func(top float32) {
 			if s.Sheet != nil {
 				s.Sheet(c, page.ID, SheetFrame{
-					Prose: prose, UIFontSize: size, Top: top, Bottom: 48 * k, Focus: front,
+					Prose: prose, UIFontSize: size, Top: top, Bottom: 48 * k,
+					Focus: page.ID == s.ActivePage,
 				})
 			}
 		})
-		if !s.pan(head) && head.Clicked() && !front && s.SelectPage != nil {
+		if !s.pan(head) && head.Clicked() && page.ID != s.ActivePage && s.SelectPage != nil {
 			s.SelectPage(page.ID)
 		}
 	})
@@ -97,9 +87,10 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, front 
 // sheetHint stands where the strip's columns would, while there are none:
 // how to bring one. It is the canvas's empty room, as the room around
 // columns is.
-func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w, origin float32, animate bool) {
+func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w float32, animate bool) {
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
-	hint := s.column(c, "sheet-hint", w, origin, animate).AlignItems(ui.Center).Justify(ui.Center).Gap(12 * k)
+	hint := ui.Column(c).Key("sheet-hint").Width(w).Shrink(0).FillHeight().Transition(columnTransition(animate)).
+		AlignItems(ui.Center).Justify(ui.Center).Gap(12 * k)
 	hint.ContextMenu(func(m *ui.Menu) {
 		if m.Item("New Picker").Chosen() {
 			s.newPickerAt(0)

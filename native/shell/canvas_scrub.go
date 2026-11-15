@@ -97,7 +97,7 @@ func (s *State) scrubTo(x float32) {
 	rests := s.rests()
 	for i := len(rests) - 1; i >= 0; i-- {
 		if x >= s.canvas.spans[i].x || i == 0 {
-			s.canvas.strip.ScrollTo(rests[i], 0, components.Spring(components.MotionScene))
+			s.canvas.strip.ScrollTo(rests[i], 0, canvasMotion(true))
 			return
 		}
 	}
@@ -112,5 +112,5 @@ func (s *State) settleStrip(at float32) {
 		at = rest
 	}
 	s.canvas.armed = false
-	s.canvas.strip.ScrollTo(at, 0, components.Spring(components.MotionScene))
+	s.canvas.strip.ScrollTo(at, 0, canvasMotion(true))
 }

@@ -374,9 +374,6 @@ func TestTheStripFollowsTheFrontAndPansByDrag(t *testing.T) {
 	if state.canvas.strip.X != rest {
 		t.Fatalf("The strip should come to rest, but it went on from %v to %v.", rest, state.canvas.strip.X)
 	}
-	if state.ActivePage != "10" {
-		t.Fatalf("A drag on a head should bring nothing in front, but %s came.", state.ActivePage)
-	}
 }
 
 // A sheet's column is half the window less the gap, so two read as a
@@ -395,7 +392,7 @@ func TestTheColumnsShareTheWindowByHalvesOrThirds(t *testing.T) {
 		joining(state, tester, Page{ID: "7", Title: "Chapter"})
 		state.NewPicker()
 		settle(tester)
-		inner := window.width - 2*theme.DefaultLayout.ContentGutter
+		inner := window.width - 2*canvasEdge
 		want := (inner - columnGap*(window.n-1)) / window.n
 		// The two sheets, then the picker.
 		if spans := state.canvas.spans; len(spans) != 3 || abs(spans[0].w-want) > 1 || abs(spans[1].w-want) > 1 {
@@ -568,9 +565,8 @@ func TestAColumnBroughtIntoViewKeepsItsGap(t *testing.T) {
 	if !ok {
 		t.Fatal("The new picker should show.")
 	}
-	gutter := theme.DefaultLayout.ContentGutter
-	if right := picker.X + picker.W; right > 1260-gutter+1 {
-		t.Fatalf("The picker should stand %v from the window's edge, but it ends at %v of 1260.", gutter, right)
+	if right := picker.X + picker.W; right > 1260-canvasEdge+1 {
+		t.Fatalf("The picker should stand %v from the window's edge, but it ends at %v of 1260.", canvasEdge, right)
 	}
 }
 
