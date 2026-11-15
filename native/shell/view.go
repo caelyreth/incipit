@@ -160,7 +160,7 @@ func (s *State) View(c *ui.Context) {
 		// The controls and the writing actions float over both scenes,
 		// and over the sheet flying between them (components.Floating).
 		components.Floating(c, func() {
-			s.controls(c, semantic, chrome, animate)
+			s.controls(c, semantic, chrome, shown, animate)
 			if s.ActivePage != "" || canvas {
 				s.dock(c, semantic, dockLeft, s.laid)
 			}

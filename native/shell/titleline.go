@@ -13,8 +13,8 @@ import (
 // and on the canvas the columns' heads (columnHead). The line holds
 // nothing opaque of its own: the canvas's columns reach the window's top,
 // what they hold beginning under the line and scrolling on under it, and
-// a column's head floats over it, a compact strip as the controls are,
-// shown while the pointer is on the column. The line is the window's title
+// a column's head floats over it, a strip of buttons as the controls are
+// there, shown while the pointer is on the column. The line is the window's title
 // bar: a drag on it moves the window. Where a head passes under the
 // traffic lights or the controls, it keeps clear of them (clearOfChrome),
 // so nothing of it hides under them as the strip goes along.
@@ -59,9 +59,9 @@ func (s *State) clearOfChrome(c *ui.Context, b ui.Rect) (lead, trail float32) {
 }
 
 // columnHead is a column's head: the title line across the column, a drag
-// on it moving the window, and over it, as far shown as shown, a compact
-// strip, as the controls are, at the column's start, centred on the
-// traffic lights: what info shows of the column, if anything, and what
+// on it moving the window, and over it, as far shown as shown, a strip of
+// buttons as the controls are on the canvas, at the column's start,
+// centred on the traffic lights: what info shows of the column, if anything, and what
 // closes it. It keeps chromeInset in from the column's ends, and lead
 // and trail where the window's chrome reaches further (clearOfChrome).
 func (s *State) columnHead(c *ui.Context, semantic theme.Theme, key string, lead, trail, shown float32,
@@ -72,7 +72,6 @@ func (s *State) columnHead(c *ui.Context, semantic theme.Theme, key string, lead
 		if shown <= 0.001 {
 			return
 		}
-		close.compact = true
 		close.icon = components.IconClose
 		groups := []components.ActionGroup{{Key: "close", Label: "Close", Actions: []func(){func() {
 			close.view(c, semantic, animate)
@@ -81,7 +80,7 @@ func (s *State) columnHead(c *ui.Context, semantic theme.Theme, key string, lead
 			groups = append([]components.ActionGroup{{Key: "info", Label: "Sheet", Actions: []func(){info}}}, groups...)
 		}
 		ui.Row(c).Key("strip").MinWidth(0).Opacity(shown).Children(func() {
-			components.ActionDock{Key: "head-strip", Label: "Column", Groups: groups, Compact: true, Animate: animate}.
+			components.ActionDock{Key: "head-strip", Label: "Column", Groups: groups, Bare: 1, Animate: animate}.
 				View(c, semantic)
 		})
 	})
