@@ -69,7 +69,7 @@ func TestThePickedSheetsTakeABatchMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	menu := tester.Menu()
-	for _, item := range []string{"Open 3 Sheets in Tabs", "Duplicate 3 Sheets", "Move To", "Move 3 Sheets to Trash"} {
+	for _, item := range []string{"Open 3 Sheets Alongside", "Duplicate 3 Sheets", "Move To", "Move 3 Sheets to Trash"} {
 		if !slices.Contains(menu, item) {
 			t.Fatalf("batch menu %v lacks %q", menu, item)
 		}

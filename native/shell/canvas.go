@@ -141,7 +141,7 @@ func day(t time.Time) time.Time {
 // canvasView draws the canvas: a head with the query that lights the
 // sheets and the zoom, over the regions, which wrap to the window's width
 // and scroll down.
-func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Layout, animate bool) {
+func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Layout, head float32, animate bool) {
 	scale := s.Settings.UIFontSize
 	now := c.Now()
 	regions := s.regions(now)
@@ -159,7 +159,7 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	canvas := ui.Column(c).Key("canvas").Grow(1).MinWidth(0).Background(semantic.Surface.Page).
 		Transition(fadeTransition(animate))
 	canvas.Children(func() {
-		s.canvasHead(c, semantic, gutter, lit != nil, found, animate)
+		s.canvasHead(c, semantic, head, gutter, max(gutter, s.controlsWidth), lit != nil, found, animate)
 		scroll := ui.Scroll(c).Key("canvas-scroll").Grow(1).MinHeight(0).TrackScroll(&s.canvas.scroll)
 		scroll.Children(func() {
 			field := ui.Row(c).Key("canvas-field").WidthPercent(100).Wrap().AlignItems(ui.Start).
@@ -201,12 +201,16 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	}
 }
 
-// canvasHead is the canvas's line under the title bar: the query, what it
-// found, and how near the canvas is.
-func (s *State) canvasHead(c *ui.Context, semantic theme.Theme, gutter float32, searching bool, found int, animate bool) {
+// canvasHead is the canvas's line at its top, under head's room for the
+// window's traffic lights: the query, what it found, and how near the
+// canvas is.
+func (s *State) canvasHead(c *ui.Context, semantic theme.Theme, head, start, end float32, searching bool, found int, animate bool) {
 	scale := s.Settings.UIFontSize
+	if head > 0.5 {
+		ui.Box(c).Key("canvas-drag").WidthPercent(100).Height(head).Shrink(0).DragWindow()
+	}
 	ui.Row(c).Key("canvas-head").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
-		Gap(theme.Space12.DIPs(scale)).PaddingX(gutter).PaddingY(theme.Space12.DIPs(scale)).Children(func() {
+		Gap(theme.Space12.DIPs(scale)).PaddingStart(start).PaddingEnd(end).PaddingY(theme.Space12.DIPs(scale)).Children(func() {
 		field, input := queryField{
 			Key: "canvas-search", Label: "Light sheets", Placeholder: "Light the sheets a search finds",
 			Value: &s.canvas.query, In: &s.canvas.input, Scope: query.InNotebook,
@@ -426,8 +430,8 @@ func (s *State) canvasCard(
 }
 
 // openFromCanvas opens a sheet and goes back to the columns, at its group.
-func (s *State) openFromCanvas(id string, newTab bool) {
+func (s *State) openFromCanvas(id string, alongside bool) {
 	s.closeCanvas()
 	s.reveal(id)
-	s.Library.OpenSheet(id, newTab)
+	s.Library.OpenSheet(id, alongside)
 }

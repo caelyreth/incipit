@@ -23,7 +23,7 @@ const (
 	motionPlace = 220 * time.Millisecond
 	// motionFold opens and closes a group in the tree.
 	motionFold = components.MotionPanel
-	// motionList moves rows and tabs as others come and go, and opens and
+	// motionList moves rows as others come and go, and opens and
 	// closes them in place.
 	motionList = 150 * time.Millisecond
 	// motionTurn turns a disclosure chevron.
@@ -47,7 +47,7 @@ const (
 	dropQuiet = time.Second
 )
 
-// listTransition is how rows and tabs come, go and make room.
+// listTransition is how rows come, go and make room.
 func listTransition(animate, size bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}

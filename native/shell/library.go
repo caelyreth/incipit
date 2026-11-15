@@ -138,7 +138,7 @@ type Library interface {
 	SearchCounts(query, key string, values []string) map[string]int
 	// OpenFound opens a sheet a query found at the first of its matches,
 	// selected, as OpenSheet opens it.
-	OpenFound(id, query string, newTab bool)
+	OpenFound(id, query string, alongside bool)
 	// TrashedGroups is the groups put in the trash themselves.
 	TrashedGroups() []GroupItem
 	// Targets is every group out of the trash, in order, nested by Depth.
@@ -153,7 +153,7 @@ type Library interface {
 	// NewChapter makes a chapter divider at index and returns it, for
 	// naming.
 	NewChapter(group string, index int) string
-	OpenSheet(id string, newTab bool)
+	OpenSheet(id string, alongside bool)
 	DuplicateSheet(id string)
 	MoveSheet(id, group string, index int)
 	MoveEntry(id, group string, index int)
@@ -195,7 +195,7 @@ type sheetDrag struct{ id string }
 // chapterDrag is a chapter divider dragged in a sheet list.
 type chapterDrag struct{ id string }
 
-// sheetMove is a sheet, tab or chapter inserted into a sheet list.
+// sheetMove is a sheet or chapter inserted into a sheet list.
 type sheetMove interface{ sheetMoveID() string }
 
 func (d sheetDrag) sheetMoveID() string { return d.id }
@@ -205,8 +205,3 @@ func (d chapterDrag) sheetMoveID() string {
 
 // groupDrag is a group dragged in the sidebar.
 type groupDrag struct{ id string }
-
-// tabDrag is a tab dragged along the tab line.
-type tabDrag struct{ id string }
-
-func (d tabDrag) sheetMoveID() string { return d.id }

@@ -50,7 +50,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			Label: "File",
 			Submenu: []*mygo.MenuItem{
 				{ID: "new-page", Label: "New Page", Click: command(keymap.NewPage)},
-				{ID: "close-page", Label: "Close Page", Click: command(keymap.ClosePage)},
+				{ID: "close-page", Label: "Close Sheet", Click: command(keymap.ClosePage)},
 			},
 		},
 		{

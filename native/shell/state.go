@@ -8,7 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Page is an open tab: the sheet it shows.
+// Page is an open sheet.
 type Page struct {
 	ID    string
 	Title string
@@ -58,8 +58,9 @@ type State struct {
 	Settings   theme.Settings
 	// Colors carries theme changes; nil shows Settings as they are.
 	Colors *theme.Transition
-	// Tabs are the open tabs, in order; ActivePage is the one in front.
-	Tabs       []Page
+	// Open are the open sheets, in order; ActivePage is the one in front,
+	// which the columns show, and the canvas shows them all.
+	Open       []Page
 	ActivePage string
 	// Library is what the sidebar shows and files; nil shows none.
 	Library         Library
@@ -75,10 +76,8 @@ type State struct {
 	FindCount         FindCount
 	finder            findBar
 	Toolbar           ToolbarState
-	TabsScroll        ui.ScrollState
 	libraryScroll     ui.ScrollState
 	sheetScroll       ui.ScrollState
-	tabsOverscroll    scrollfx.Overscroll
 	libraryOverscroll scrollfx.Overscroll
 	sheetOverscroll   scrollfx.Overscroll
 	WindowActive      bool
@@ -93,21 +92,15 @@ type State struct {
 	FindPage     func()
 	// Find runs a sheet's find on the page in front; FindStep goes to the
 	// next match or the one before; EndFind ends it.
-	Find     func(query string)
-	FindStep func(forward bool)
-	EndFind  func()
-	// MoveTab puts a tab at index among the tabs.
-	MoveTab func(id string, index int)
-	// CloseOtherTabs closes every tab but one; CloseTabsAfter those after
-	// it.
-	CloseOtherTabs func(id string)
-	CloseTabsAfter func(id string)
-	Typewriter     func(bool)
-	Zen            func(bool)
-	Strong         func()
-	Emphasis       func()
-	Code           func()
-	Strike         func()
+	Find       func(query string)
+	FindStep   func(forward bool)
+	EndFind    func()
+	Typewriter func(bool)
+	Zen        func(bool)
+	Strong     func()
+	Emphasis   func()
+	Code       func()
+	Strike     func()
 
 	// SidebarOverride shows or hides the library, SheetListOverride the
 	// sheet list, against what the window's width would choose.
@@ -118,18 +111,13 @@ type State struct {
 	panes            paneWidths
 	edgeHover        edgeHover
 	nav              navigation
-	lastActive       string
 	lastWidth        float32
 	lastUIFontSize   float32
 	lastSidebarWidth float32
 	lastChrome       float32
-	// listDock is how far the place's title has gone from the title bar
-	// to the top of the sheet list, as it does where the library is closed.
-	listDock float32
-	// dockTarget is where listDock goes, held while the list is shut.
-	dockTarget float32
-	// flight is whether that title is on its way this frame (takeFlight).
-	flight bool
+	// controlsWidth is how far the window's controls reach in from its
+	// right edge, as last laid out.
+	controlsWidth float32
 	// canvas is the notebook on one surface, in place of the columns.
 	canvas canvasState
 }

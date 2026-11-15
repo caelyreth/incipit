@@ -14,8 +14,10 @@ var iconFiles embed.FS
 type IconName string
 
 const (
-	IconBack         IconName = "chevron-left"
-	IconBold         IconName = "bold"
+	IconBack IconName = "chevron-left"
+	IconBold IconName = "bold"
+	// IconCanvas is the notebook laid out whole, as a map lays out land.
+	IconCanvas       IconName = "map"
 	IconCheck        IconName = "check"
 	IconCheckCircle  IconName = "circle-check"
 	IconChevronDown  IconName = "chevron-down"
@@ -59,6 +61,7 @@ const (
 var AllIcons = [...]IconName{
 	IconBack,
 	IconBold,
+	IconCanvas,
 	IconCheck,
 	IconCheckCircle,
 	IconChevronDown,

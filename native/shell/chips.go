@@ -118,7 +118,7 @@ func (s *State) chip(c *ui.Context, semantic theme.Theme, chip placeChip, small,
 		button.ContextMenu(chip.menu)
 	}
 	if chip.inbox {
-		if dropped, ok := s.dropOn(c, semantic, button, takes{sheets: true, chapters: true, tabs: true}, animate); ok {
+		if dropped, ok := s.dropOn(c, semantic, button, takes{sheets: true, chapters: true}, animate); ok {
 			s.Library.MoveEntry(dropped.(sheetMove).sheetMoveID(), chip.place.Group, Last)
 		}
 	}

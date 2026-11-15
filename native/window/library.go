@@ -442,7 +442,7 @@ func (a *AppState) EntryGroup(name string) string {
 }
 
 // NewSheet is part of shell.Library: an empty sheet at index in a group,
-// the Inbox for none, open in a tab of its own.
+// the Inbox for none, opened alongside the sheets open.
 func (a *AppState) NewSheet(group string, index int) {
 	target := groupOf(group)
 	if target == 0 || a.library.GroupInTrash(target) {
@@ -484,15 +484,16 @@ func (a *AppState) NewChapter(group string, index int) string {
 	return chapterName(id)
 }
 
-// OpenSheet is part of shell.Library: a sheet opens in the tab in front,
-// or a tab of its own when asked; one with a tab already goes to it.
-func (a *AppState) OpenSheet(name string, newTab bool) {
+// OpenSheet is part of shell.Library: a sheet opens in place of the one
+// in front, or alongside the sheets open when asked; one already open is
+// brought forward.
+func (a *AppState) OpenSheet(name string, alongside bool) {
 	session, ok := a.sessionOf(name)
 	if !ok {
 		return
 	}
 	open := a.Workspace.OpenInPlace
-	if newTab {
+	if alongside {
 		open = a.Workspace.Open
 	}
 	if err := open(session.page); err != nil {
@@ -610,8 +611,8 @@ func (a *AppState) DeleteChapter(id string) {
 	a.libraryChanged()
 }
 
-// TrashSheet is part of shell.Library: the sheet goes to the trash and its
-// tab closes.
+// TrashSheet is part of shell.Library: the sheet goes to the trash and
+// closes.
 func (a *AppState) TrashSheet(name string) {
 	session, ok := a.sessionOf(name)
 	if !ok {
@@ -621,7 +622,7 @@ func (a *AppState) TrashSheet(name string) {
 		a.fail("Couldn't move the sheet to the Trash", err)
 		return
 	}
-	a.closeTabs([]*sheetSession{session})
+	a.closeSheets([]*sheetSession{session})
 	a.libraryChanged()
 }
 
@@ -706,7 +707,7 @@ func (a *AppState) MoveGroup(id, parent string, index int) {
 }
 
 // TrashGroup is part of shell.Library: the group goes to the trash with all
-// it holds, whose tabs close.
+// it holds, which close.
 func (a *AppState) TrashGroup(id string) {
 	group := groupOf(id)
 	if err := a.library.TrashGroup(group, time.Now()); err != nil {
@@ -719,7 +720,7 @@ func (a *AppState) TrashGroup(id string) {
 			closing = append(closing, session)
 		}
 	}
-	a.closeTabs(closing)
+	a.closeSheets(closing)
 	a.libraryChanged()
 }
 
@@ -768,42 +769,11 @@ func (a *AppState) discard(sheets []library.SheetID) {
 	a.libraryChanged()
 }
 
-// closeTabs closes the tabs of sessions that have one.
-func (a *AppState) closeTabs(sessions []*sheetSession) {
+// closeSheets closes the sessions' sheets that are open.
+func (a *AppState) closeSheets(sessions []*sheetSession) {
 	for _, session := range sessions {
 		if err := a.Workspace.Close(session.page); err != nil {
-			a.fail("Couldn't close the tab", err)
-		}
-	}
-	a.selectMounted()
-}
-
-// closeTabsWhere closes the tabs close says to, by their place and that
-// of the tab named kept, and brings kept to the front.
-func (a *AppState) closeTabsWhere(kept string, close func(at, kept int) bool) {
-	session, ok := a.sessionOf(kept)
-	if !ok {
-		return
-	}
-	tabs := a.Workspace.Tabs()
-	index := -1
-	for at, id := range tabs {
-		if id == session.page {
-			index = at
-		}
-	}
-	if index < 0 {
-		return
-	}
-	if err := a.Workspace.Open(session.page); err != nil {
-		a.fail("Couldn't close the tabs", err)
-		return
-	}
-	for at, id := range tabs {
-		if close(at, index) {
-			if err := a.Workspace.Close(id); err != nil {
-				a.fail("Couldn't close the tabs", err)
-			}
+			a.fail("Couldn't close the sheet", err)
 		}
 	}
 	a.selectMounted()

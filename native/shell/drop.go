@@ -6,20 +6,19 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// shellDrag is anything the shell drags: a sheet, a chapter, a group or a
-// tab. A MyGo element takes the values of one type alone, the type of the
-// last ui.Drop or ui.DragOver it was asked, so a target that takes several
+// shellDrag is anything the shell drags: a sheet, a chapter or a group. A
+// MyGo element takes the values of one type alone, the type of the last
+// ui.Drop or ui.DragOver it was asked, so a target that takes several
 // kinds asks for this one type, and sorts out what it takes (takes).
 type shellDrag interface{ shellDrag() }
 
 func (sheetDrag) shellDrag()   {}
 func (chapterDrag) shellDrag() {}
 func (groupDrag) shellDrag()   {}
-func (tabDrag) shellDrag()     {}
 
 // takes is what a drop target takes of the shell's drags.
 type takes struct {
-	sheets, chapters, groups, tabs bool
+	sheets, chapters, groups bool
 }
 
 // of reports whether t takes v.
@@ -31,8 +30,6 @@ func (t takes) of(v shellDrag) bool {
 		return t.chapters
 	case groupDrag:
 		return t.groups
-	case tabDrag:
-		return t.tabs
 	}
 	return false
 }

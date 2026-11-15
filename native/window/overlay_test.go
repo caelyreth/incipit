@@ -33,12 +33,12 @@ func TestNewPageButtonOpensAPage(t *testing.T) {
 	}
 	tester := ui.NewTester(app.View, 1260, 850)
 	tester.Frame()
-	before := len(app.Workspace.Tabs())
-	if err := tester.Click("New page"); err != nil {
+	before := len(app.Workspace.Opened())
+	if err := tester.Click("New sheet"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	if got := len(app.Workspace.Tabs()); got != before+1 {
-		t.Fatalf("tabs after New page = %d, want %d", got, before+1)
+	if got := len(app.Workspace.Opened()); got != before+1 {
+		t.Fatalf("open pages after New sheet = %d, want %d", got, before+1)
 	}
 }

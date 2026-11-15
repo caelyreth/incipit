@@ -66,7 +66,11 @@ func (s *State) showSheetList() {
 
 // sheetColumn is the sheet list: the chosen place's sheets beside the
 // library, fading from one place to the next.
-func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal float32) {
+// sheetColumn is the sheet list: the place, or the search, in a band at
+// its top, over what it lists. head is the room over the band for the
+// window's traffic lights, which it moves the window by, as the library
+// before it closes.
+func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal, head float32) {
 	if width <= 0.01 || reveal <= 0.001 || s.Library == nil {
 		return
 	}
@@ -78,7 +82,10 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal f
 		Background(semantic.Surface.Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
 		ui.Column(c).Width(full).HeightPercent(100).Opacity(reveal).Children(func() {
-			s.placeBand(c, semantic, s.listView(), s.listDock, animate)
+			if head > 0.5 {
+				ui.Box(c).Key("list-head").WidthPercent(100).Height(head).Shrink(0).DragWindow()
+			}
+			s.placeBand(c, semantic, s.listView(), animate)
 			s.listStage(c, semantic, animate)
 		})
 	})
@@ -944,7 +951,7 @@ func (s *State) sheetRow(
 	}
 	if !confirming && row.Clicked() {
 		if !s.pickClick(sheet.ID, row.ClickModifiers()) {
-			// Cmd picks, so Option opens in a tab of its own.
+			// Cmd picks, so Option opens alongside the sheets open.
 			s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Alt != 0)
 		}
 	} else if !confirming && row.Shortcut(0, ui.KeyEnter) {
@@ -1189,7 +1196,7 @@ func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 		if s.chose(m.Item("Open")) {
 			s.Library.OpenSheet(sheet.ID, false)
 		}
-		if s.chose(m.Item("Open in New Tab")) {
+		if s.chose(m.Item("Open Alongside")) {
 			s.Library.OpenSheet(sheet.ID, true)
 		}
 		m.Separator()
@@ -1218,33 +1225,6 @@ func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 			s.Library.TrashSheet(sheet.ID)
 		}
 	}
-}
-
-// listHeader is the sheet list's line in the title bar: what it shows and
-// what it makes, or the search field.
-func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal float32, animate bool) {
-	if width <= 0.01 || s.Library == nil {
-		return
-	}
-	scale := s.Settings.UIFontSize
-	view := s.listView()
-	ui.Box(c).Key("sheets-line").Width(width).HeightPercent(100).Shrink(0).Clip().Children(func() {
-		// The line fades out well before the list is shut, so its toggle
-		// is gone before the closing line comes to cut it off.
-		ui.Box(c).WidthPercent(100).HeightPercent(100).Opacity(reveal * reveal).Children(func() {
-			layer := ui.Row(c).Key("head-" + view.key()).Absolute().Top(0).Left(0).WidthPercent(100).HeightPercent(100).
-				PaddingStart(theme.Space12.DIPs(scale) * (1 - s.listDock)).PaddingEnd(listLineEnd.DIPs(scale)).
-				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale) * (1 - s.listDock)).
-				Transition(swapTransition(animate, s.nav.side*enterSlide*scale/theme.DefaultUIFontSize))
-			layer.Children(func() {
-				if view.search {
-					s.searchHeader(c, semantic, animate)
-					return
-				}
-				s.placeHeader(c, semantic, view.place, s.listDock, animate)
-			})
-		})
-	})
 }
 
 // placeInfo is what the list says of a place: its title, icon and tint,
@@ -1276,74 +1256,34 @@ func (s *State) placeInfo(semantic theme.Theme, place Place) (title string, icon
 	return title, icon, tint, detail
 }
 
-// placeHeader is the place's line in the title bar. Where the library is
-// closed its title and count go down to the top of the list (placeBand),
-// leaving the bar to the buttons; dock is how far they have gone.
-func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, dock float32, animate bool) {
-	title, icon, tint, detail := s.placeInfo(semantic, place)
-	scale := s.Settings.UIFontSize
-	// The line narrows to its toggle as the title goes (titleLines); the
-	// title takes what is left, which closes to none.
-	info := ui.Row(c).Key("head-info").Grow(1).MinWidth(0).Clip().AlignItems(ui.Center).
-		Gap(headTitle.gap.DIPs(scale))
-	if s.flying() {
-		info.Opacity(0)
-	} else if dock > 0.001 {
-		info.Opacity(1 - dock)
-	}
-	info.Children(func() {
-		if dock >= 0.999 {
-			return
-		}
-		s.rowIcon(c, semantic, icon, tint, animate)
-		heading := ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			components.Label(c, title, headTitle.text, semantic.Text.Heading).SingleLine().FontWeight(headTitle.weight)
-			components.Label(c, detail, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
-		})
-		// The title is the group, with the group's menu.
-		if place.Kind == PlaceGroup && dock < 0.5 {
-			if group, ok := s.Library.Group(place.Group); ok {
-				heading.ContextMenu(s.groupMenu(group))
-			}
-		}
-	})
-	ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Children(func() {
-		// Where the title is down in the list, the trash is emptied there.
-		if place.Kind == PlaceTrash {
-			s.lingering(c, "empty-trash-head", detail != itemCount(0) && dock < 0.5, animate, func() {
-				s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
-			})
-		}
-		components.IconButton{
-			Key: "hide-sheets", Label: "Hide sheet list", Icon: components.IconSidebarClose.SVG(),
-			Style: components.SubtleButton, Size: components.MediumButton,
-			IconSize:  16 * scale / theme.DefaultUIFontSize,
-			IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.ToggleSheetList,
-		}.View(c, semantic)
-	})
+// bandTitle is how the place's title is set at the top of the list.
+var bandTitle = struct {
+	text   theme.TextSize
+	gap    theme.Spacing
+	weight int
+}{text: theme.TextLarge, gap: theme.Space08, weight: 600}
+
+// placeBandHeight is the band's height at the top of the list.
+func placeBandHeight(scale float32) float32 {
+	return bandTitle.text.LineHeight(scale) + theme.TextXSmall.LineHeight(scale) + 2*theme.Space08.DIPs(scale)
 }
 
-// placeBand is the place's title and count at the top of the list, where
-// the library is closed and the title bar has the window's controls to
-// share. It opens as the header's give way, so the two read as one title
-// moving down and back up.
-func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, dock float32, animate bool) {
-	if dock <= 0.001 || view.search {
-		return
-	}
+// placeBand heads the list with the place's title and what it holds, or
+// with the search while one is open. Its free room moves the window, as a
+// title bar would.
+func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, animate bool) {
 	scale := s.Settings.UIFontSize
 	height := placeBandHeight(scale)
-	// On the way, placeFlight draws the title; the band only makes room.
-	shown := dock
-	if s.flying() {
-		shown = 0
-	}
-	ui.Box(c).Key("place-band").WidthPercent(100).Height(height * dock).Shrink(0).Clip().Children(func() {
+	pad := theme.Space12.DIPs(scale)
+	ui.Box(c).Key("place-band").WidthPercent(100).Height(height).Shrink(0).Clip().Children(func() {
 		layer := ui.Row(c).Key("band-" + view.key()).Absolute().Top(0).Left(0).Right(0).Height(height).
-			PaddingX(theme.Space12.DIPs(scale)).AlignItems(ui.Center).Gap(bandTitle.gap.DIPs(scale)).
-			Opacity(shown).
+			PaddingX(pad).AlignItems(ui.Center).Gap(bandTitle.gap.DIPs(scale)).
 			Transition(swapTransition(animate, s.nav.side*enterSlide*scale/theme.DefaultUIFontSize))
-		layer.Children(func() {
+		if view.search {
+			layer.Gap(theme.Space06.DIPs(scale)).Children(func() { s.searchHeader(c, semantic, animate) })
+			return
+		}
+		layer.DragWindow().Children(func() {
 			title, icon, tint, detail := s.placeInfo(semantic, view.place)
 			s.rowIcon(c, semantic, icon, tint, animate)
 			heading := ui.Column(c).Grow(1).MinWidth(0).Children(func() {
@@ -1356,7 +1296,7 @@ func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, do
 				}
 			}
 			if view.place.Kind == PlaceTrash {
-				s.lingering(c, "empty-trash-band", detail != itemCount(0) && dock >= 0.5, animate, func() {
+				s.lingering(c, "empty-trash-band", detail != itemCount(0), animate, func() {
 					s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
 				})
 			}

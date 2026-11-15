@@ -64,7 +64,7 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 }
 
 // routeWindowCommand is the common menu, palette and keyboard entry point.
-// An auxiliary window answers only Close Page, which closes it, and never
+// An auxiliary window answers only Close Sheet, which closes it, and never
 // reaches back into the main window.
 func (a *AppState) routeWindowCommand(window *mygo.Window, command keymap.CommandID) error {
 	if a == nil {

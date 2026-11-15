@@ -1,4 +1,4 @@
-// Package workspace owns the in-memory notebook: pages, tabs, mounted and
+// Package workspace owns the in-memory notebook: pages, the open ones, mounted and
 // parked sessions, and per-page scroll state. It has no persistence or native
 // UI dependency.
 package workspace
@@ -24,7 +24,7 @@ var (
 // mounted when Active reports true; every other page owns one parked session.
 type Workspace struct {
 	pages     []pageState
-	tabs      []PageID
+	opened    []PageID
 	active    PageID
 	hasActive bool
 	mounted   Session
@@ -33,14 +33,14 @@ type Workspace struct {
 
 // New constructs a workspace around one mounted page.
 func New(initial Session, create Factory) (*Workspace, error) {
-	return Restore([]Session{initial}, Layout{Tabs: []PageID{0}, Active: 0, HasActive: true}, create)
+	return Restore([]Session{initial}, Layout{Opened: []PageID{0}, Active: 0, HasActive: true}, create)
 }
 
-// Layout is what a workspace shows: its tabs in display order, the page
+// Layout is what a workspace shows: the pages open, in order, the page
 // mounted among them, where each page was scrolled, and each page's
 // selection.
 type Layout struct {
-	Tabs      []PageID
+	Opened    []PageID
 	Active    PageID
 	HasActive bool
 	Scroll    map[PageID]ScrollPosition
@@ -49,8 +49,8 @@ type Layout struct {
 
 // Restore rebuilds a workspace around existing pages, identified by their
 // order, as a layout left them. A layout naming pages that are not there is read for
-// what it still says: unknown and repeated tabs are dropped, and an active
-// page that is no tab gives way to the first tab.
+// what it still says: unknown and repeated pages are dropped, and an active
+// page that is not open gives way to the first that is.
 func Restore(sessions []Session, layout Layout, create Factory) (*Workspace, error) {
 	if len(sessions) == 0 || create == nil {
 		return nil, ErrSessionRequired
@@ -72,16 +72,16 @@ func Restore(sessions []Session, layout Layout, create Factory) (*Workspace, err
 			session: session,
 		}
 	}
-	for _, id := range layout.Tabs {
-		if w.validPage(id) && !w.hasTab(id) {
-			w.tabs = append(w.tabs, id)
+	for _, id := range layout.Opened {
+		if w.validPage(id) && !w.isOpen(id) {
+			w.opened = append(w.opened, id)
 		}
 	}
 	active, hasActive := layout.Active, layout.HasActive
-	if hasActive && !w.hasTab(active) {
-		hasActive = len(w.tabs) > 0
+	if hasActive && !w.isOpen(active) {
+		hasActive = len(w.opened) > 0
 		if hasActive {
-			active = w.tabs[0]
+			active = w.opened[0]
 		}
 	}
 	if hasActive {
@@ -92,13 +92,13 @@ func Restore(sessions []Session, layout Layout, create Factory) (*Workspace, err
 	return w, nil
 }
 
-// Layout returns the workspace's tabs, mounted page and scroll positions.
+// Layout returns the workspace's open pages, mounted page and scroll positions.
 func (w *Workspace) Layout() Layout {
 	if w == nil {
 		return Layout{}
 	}
 	layout := Layout{
-		Tabs:      append([]PageID(nil), w.tabs...),
+		Opened:    append([]PageID(nil), w.opened...),
 		Active:    w.active,
 		HasActive: w.hasActive,
 		Scroll:    make(map[PageID]ScrollPosition, len(w.pages)),
@@ -162,7 +162,7 @@ func (w *Workspace) Mounted() (Session, bool) {
 	return w.mounted, true
 }
 
-// Title returns the active page title or NotebookTitle while no tab is active.
+// Title returns the active page title or NotebookTitle while no page is active.
 func (w *Workspace) Title() string {
 	if w == nil || !w.hasActive {
 		return NotebookTitle
@@ -194,21 +194,21 @@ func (w *Workspace) Pages() []Page {
 	return pages
 }
 
-// Tabs returns active tab identities in display order.
-func (w *Workspace) Tabs() []PageID {
+// Opened returns the open pages' identities, in order.
+func (w *Workspace) Opened() []PageID {
 	if w == nil {
 		return nil
 	}
-	return append([]PageID(nil), w.tabs...)
+	return append([]PageID(nil), w.opened...)
 }
 
-// TabPages returns the active tabs with their metadata.
-func (w *Workspace) TabPages() []Page {
+// OpenedPages returns the open pages with their metadata.
+func (w *Workspace) OpenedPages() []Page {
 	if w == nil {
 		return nil
 	}
-	pages := make([]Page, 0, len(w.tabs))
-	for _, id := range w.tabs {
+	pages := make([]Page, 0, len(w.opened))
+	for _, id := range w.opened {
 		pages = append(pages, w.snapshot(id))
 	}
 	return pages
@@ -222,24 +222,24 @@ func (w *Workspace) Page(id PageID) (Page, bool) {
 	return w.snapshot(id), true
 }
 
-// Adjacent returns the next or previous active tab without changing ownership.
+// Adjacent returns the next or previous open page without changing ownership.
 func (w *Workspace) Adjacent(forward bool) (PageID, bool) {
-	if w == nil || !w.hasActive || len(w.tabs) == 0 {
+	if w == nil || !w.hasActive || len(w.opened) == 0 {
 		return 0, false
 	}
-	index := w.tabIndex(w.active)
+	index := w.openIndex(w.active)
 	if index < 0 {
 		return 0, false
 	}
 	if forward {
-		index = (index + 1) % len(w.tabs)
+		index = (index + 1) % len(w.opened)
 	} else {
-		index = (index + len(w.tabs) - 1) % len(w.tabs)
+		index = (index + len(w.opened) - 1) % len(w.opened)
 	}
-	return w.tabs[index], true
+	return w.opened[index], true
 }
 
-// Navigate activates the adjacent tab in the requested direction.
+// Navigate activates the adjacent open page in the requested direction.
 func (w *Workspace) Navigate(forward bool) (PageID, bool, error) {
 	id, ok := w.Adjacent(forward)
 	if !ok {
@@ -251,7 +251,7 @@ func (w *Workspace) Navigate(forward bool) (PageID, bool, error) {
 	return id, true, nil
 }
 
-// CreatePage creates a parked session and retains it without activating a tab.
+// CreatePage creates a parked session and retains it without opening it.
 func (w *Workspace) CreatePage() (PageID, error) {
 	if w == nil || w.create == nil {
 		return 0, ErrSessionRequired
@@ -265,7 +265,7 @@ func (w *Workspace) CreatePage() (PageID, error) {
 }
 
 // CreatePageFrom creates a parked page as create makes it, such as a copy
-// of another, and retains it without activating a tab.
+// of another, and retains it without opening it.
 func (w *Workspace) CreatePageFrom(create Factory) (PageID, error) {
 	if w == nil || create == nil {
 		return 0, ErrSessionRequired
@@ -335,24 +335,24 @@ func (w *Workspace) Open(id PageID) error {
 	w.hasActive = true
 	w.mounted = target.session
 	target.Parked = false
-	if !w.hasTab(id) {
-		w.tabs = append(w.tabs, id)
+	if !w.isOpen(id) {
+		w.opened = append(w.opened, id)
 	}
 	return nil
 }
 
-// Close removes a tab while retaining its page and session. Closing the active
-// tab mounts the next tab, then the previous, or leaves no active page.
+// Close closes a page while retaining it and its session. Closing the active
+// page mounts the next open page, then the previous, or leaves none active.
 func (w *Workspace) Close(id PageID) error {
 	if w == nil || !w.validPage(id) {
 		return ErrPageNotFound
 	}
-	index := w.tabIndex(id)
+	index := w.openIndex(id)
 	if index < 0 {
 		return nil
 	}
 	if !w.hasActive || w.active != id {
-		w.tabs = append(w.tabs[:index], w.tabs[index+1:]...)
+		w.opened = append(w.opened[:index], w.opened[index+1:]...)
 		return nil
 	}
 	if w.mounted == nil {
@@ -362,7 +362,7 @@ func (w *Workspace) Close(id PageID) error {
 	w.pages[id].Parked = true
 	w.mounted = nil
 	w.hasActive = false
-	w.tabs = append(w.tabs[:index], w.tabs[index+1:]...)
+	w.opened = append(w.opened[:index], w.opened[index+1:]...)
 	if !hasNext {
 		return nil
 	}
@@ -377,42 +377,28 @@ func (w *Workspace) Close(id PageID) error {
 	return nil
 }
 
-// OpenInPlace shows a page in the active tab, as following a link does:
-// a page with a tab of its own is brought to it, and with no tab active
-// the page opens one.
+// OpenInPlace shows a page in place of the active one, as following a
+// link does: a page already open is brought forward, and with none active
+// the page opens.
 func (w *Workspace) OpenInPlace(id PageID) error {
 	if w == nil || !w.validPage(id) {
 		return ErrPageNotFound
 	}
-	if !w.hasActive || w.hasTab(id) {
+	if !w.hasActive || w.isOpen(id) {
 		return w.Open(id)
 	}
-	index := w.tabIndex(w.active)
+	index := w.openIndex(w.active)
 	if err := w.Open(id); err != nil {
 		return err
 	}
-	// Open put the page's tab last; it takes the place of the one it
+	// Open put the page last; it takes the place of the one it
 	// replaced, which closes.
-	w.tabs = w.tabs[:len(w.tabs)-1]
-	w.tabs[index] = id
+	w.opened = w.opened[:len(w.opened)-1]
+	w.opened[index] = id
 	return nil
 }
 
-// MoveTab puts a page's tab at index among the tabs, clamped to them.
-func (w *Workspace) MoveTab(id PageID, index int) {
-	if w == nil {
-		return
-	}
-	from := w.tabIndex(id)
-	if from < 0 {
-		return
-	}
-	w.tabs = append(w.tabs[:from], w.tabs[from+1:]...)
-	index = max(0, min(index, len(w.tabs)))
-	w.tabs = append(w.tabs[:index], append([]PageID{id}, w.tabs[index:]...)...)
-}
-
-// Discard lets a page go for good: its tab closes, and the page is no
+// Discard lets a page go for good: it closes, and the page is no
 // longer listed or opened. Its identity is never given to another page.
 func (w *Workspace) Discard(id PageID) error {
 	if w == nil || !w.validPage(id) {
@@ -449,11 +435,11 @@ func (w *Workspace) SetScroll(id PageID, scroll ScrollPosition) {
 }
 
 func (w *Workspace) closeNeighbor(index int) (PageID, bool) {
-	if index+1 < len(w.tabs) {
-		return w.tabs[index+1], true
+	if index+1 < len(w.opened) {
+		return w.opened[index+1], true
 	}
 	if index > 0 {
-		return w.tabs[index-1], true
+		return w.opened[index-1], true
 	}
 	return 0, false
 }
@@ -462,15 +448,15 @@ func (w *Workspace) validPage(id PageID) bool {
 	return int(id) >= 0 && int(id) < len(w.pages) && !w.pages[id].discarded
 }
 
-func (w *Workspace) tabIndex(id PageID) int {
-	for index, tab := range w.tabs {
-		if tab == id {
+func (w *Workspace) openIndex(id PageID) int {
+	for index, open := range w.opened {
+		if open == id {
 			return index
 		}
 	}
 	return -1
 }
 
-func (w *Workspace) hasTab(id PageID) bool {
-	return w.tabIndex(id) >= 0
+func (w *Workspace) isOpen(id PageID) bool {
+	return w.openIndex(id) >= 0
 }

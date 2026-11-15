@@ -9,7 +9,7 @@ const (
 	// DefaultTitle names a page whose session names nothing: one without a
 	// heading.
 	DefaultTitle = "Untitled"
-	// NotebookTitle names the document window when no tab is active.
+	// NotebookTitle names the document window when no page is active.
 	NotebookTitle = "Notebook"
 )
 

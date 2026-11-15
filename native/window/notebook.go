@@ -62,12 +62,12 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 		Views:     map[workspace.PageID]workspace.ViewState{},
 	}
 	if _, ok := ids[contents.Layout.Active]; !ok {
-		// Restore gives the front to the first tab instead.
+		// Restore gives the front to the first open page instead.
 		layout.Active = -1
 	}
-	for _, key := range contents.Layout.Tabs {
+	for _, key := range contents.Layout.Opened {
 		if id, ok := ids[key]; ok {
-			layout.Tabs = append(layout.Tabs, id)
+			layout.Opened = append(layout.Opened, id)
 		}
 	}
 	for key, y := range contents.Layout.Scroll {
@@ -82,8 +82,8 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 	}
 	if !contents.HasLayout {
 		// No layout was saved: show the newest page.
-		layout = workspace.Layout{Tabs: []workspace.PageID{workspace.PageID(len(sessions) - 1)}}
-		layout.Active, layout.HasActive = layout.Tabs[0], true
+		layout = workspace.Layout{Opened: []workspace.PageID{workspace.PageID(len(sessions) - 1)}}
+		layout.Active, layout.HasActive = layout.Opened[0], true
 	}
 	return sessions, layout, nil
 }
@@ -92,7 +92,7 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 func (a *AppState) firstPage() ([]workspace.Session, workspace.Layout, error) {
 	session := a.newSession(0, storage.Summary{})
 	_ = a.library.AddSheet(library.SheetID(session.key), library.Inbox, time.Now())
-	return []workspace.Session{session}, workspace.Layout{Tabs: []workspace.PageID{0}, HasActive: true}, nil
+	return []workspace.Session{session}, workspace.Layout{Opened: []workspace.PageID{0}, HasActive: true}, nil
 }
 
 // createPage is the workspace's factory: an empty page.
@@ -101,7 +101,7 @@ func (a *AppState) createPage(id workspace.PageID) (workspace.Session, error) {
 }
 
 // newSession is a new page with a key no page has had, which the notebook
-// saves at once so that its tab has a page to name.
+// saves at once so that its row has a page to name.
 func (a *AppState) newSession(id workspace.PageID, summary storage.Summary) *sheetSession {
 	session := &sheetSession{page: id, key: a.nextKey, summary: summary}
 	a.nextKey++
@@ -179,9 +179,9 @@ func (a *AppState) saveLayout() {
 		Scroll:    map[storage.PageKey]float32{},
 		Views:     map[storage.PageKey]storage.ViewState{},
 	}
-	for _, id := range layout.Tabs {
+	for _, id := range layout.Opened {
 		if session, ok := a.sessions[id]; ok {
-			stored.Tabs = append(stored.Tabs, session.key)
+			stored.Opened = append(stored.Opened, session.key)
 		}
 	}
 	if session, ok := a.sessions[layout.Active]; ok && layout.HasActive {

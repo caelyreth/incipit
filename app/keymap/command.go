@@ -122,11 +122,11 @@ func ParseChord(spec string) (Chord, bool) {
 // appCommands are the app's own: pages, the window and its tools.
 var appCommands = [...]Command{
 	{ID: NewPage, Label: "New page", Scope: ScopePages, Default: NewChord("n", ModifiersPrimary)},
-	{ID: NextPage, Label: "Next tab", Scope: ScopePages,
+	{ID: NextPage, Label: "Next open sheet", Scope: ScopePages,
 		Default: NewChord("]", ModifiersPrimary|ModifiersShift)},
-	{ID: PreviousPage, Label: "Previous tab", Scope: ScopePages,
+	{ID: PreviousPage, Label: "Previous open sheet", Scope: ScopePages,
 		Default: NewChord("[", ModifiersPrimary|ModifiersShift)},
-	{ID: ClosePage, Label: "Close tab", Scope: ScopePages, Default: NewChord("w", ModifiersPrimary)},
+	{ID: ClosePage, Label: "Close sheet", Scope: ScopePages, Default: NewChord("w", ModifiersPrimary)},
 	{ID: FindPage, Label: "Find a page", Scope: ScopePages, Default: NewChord("p", ModifiersPrimary)},
 	{ID: FindInSheet, Label: "Find in sheet", Scope: ScopePages, Default: NewChord("f", ModifiersPrimary)},
 	{ID: Zen, Label: "Toggle Zen mode", Scope: ScopeWindow, Default: NewChord("f", ModifiersPrimary|ModifiersShift)},

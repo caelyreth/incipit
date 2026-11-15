@@ -69,10 +69,10 @@ type ViewState struct {
 	Node   uint64    `json:"node,omitempty"`
 }
 
-// Layout is how the notebook was left: its open tabs in order, the page in
+// Layout is how the notebook was left: its open pages in order, the page in
 // front, where each page was scrolled, and each page's selection.
 type Layout struct {
-	Tabs      []PageKey             `json:"tabs"`
+	Opened    []PageKey             `json:"tabs"`
 	Active    PageKey               `json:"active"`
 	HasActive bool                  `json:"hasActive"`
 	Scroll    map[PageKey]float32   `json:"scroll,omitempty"`
@@ -82,13 +82,13 @@ type Layout struct {
 // Equal reports whether two layouts say the same thing.
 func (l Layout) Equal(other Layout) bool {
 	return l.Active == other.Active && l.HasActive == other.HasActive &&
-		slices.Equal(l.Tabs, other.Tabs) && maps.Equal(l.Scroll, other.Scroll) &&
+		slices.Equal(l.Opened, other.Opened) && maps.Equal(l.Scroll, other.Scroll) &&
 		maps.Equal(l.Views, other.Views)
 }
 
 // clone returns a layout that shares no mutable storage with the caller.
 func (l Layout) clone() Layout {
-	l.Tabs = slices.Clone(l.Tabs)
+	l.Opened = slices.Clone(l.Opened)
 	l.Scroll = maps.Clone(l.Scroll)
 	l.Views = maps.Clone(l.Views)
 	return l
@@ -152,7 +152,7 @@ func (s *Store) Load() (Notebook, error) {
 	switch err := s.db.QueryRowContext(ctx,
 		`SELECT value FROM layout WHERE key = ?`, layoutKey).Scan(&encoded); err {
 	case nil:
-		// A layout that does not read only loses tab order; the pages
+		// A layout that does not read only loses which pages were open; the pages
 		// themselves are all listed.
 		notebook.HasLayout = json.Unmarshal([]byte(encoded), &notebook.Layout) == nil
 	case sql.ErrNoRows:

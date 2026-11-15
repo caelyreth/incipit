@@ -20,20 +20,20 @@ func TestPageActionsCloseTabsByID(t *testing.T) {
 	}
 	app.selectMounted()
 	app.Shell.ClosePageID("0")
-	if slices.Contains(app.Workspace.Tabs(), 0) {
-		t.Fatalf("closed tab remains: %#v", app.Workspace.Tabs())
+	if slices.Contains(app.Workspace.Opened(), 0) {
+		t.Fatalf("closed page remains: %#v", app.Workspace.Opened())
 	}
 	if app.Shell.ActivePage != "1" {
-		t.Fatalf("active page after closing inactive tab = %q", app.Shell.ActivePage)
+		t.Fatalf("active page after closing an inactive page = %q", app.Shell.ActivePage)
 	}
 
 	app.Shell.ClosePageID("1")
-	if _, active := app.Workspace.Active(); len(app.Workspace.Tabs()) != 0 || active {
-		t.Fatalf("tabs after closing final page 1/%d = %#v", second, app.Workspace.Tabs())
+	if _, active := app.Workspace.Active(); len(app.Workspace.Opened()) != 0 || active {
+		t.Fatalf("open pages after closing final page 1/%d = %#v", second, app.Workspace.Opened())
 	}
 }
 
-// A page is titled by its first heading, on its tab, as it is written;
+// A page is titled by its first heading, in its row, as it is written;
 // with no page open the shell says how to open one.
 func TestAPageIsTitledByItsFirstHeading(t *testing.T) {
 	app, err := NewAppState()
@@ -42,16 +42,16 @@ func TestAPageIsTitledByItsFirstHeading(t *testing.T) {
 	}
 	tester := ui.NewTester(app.View, 1260, 850)
 	tester.Frame()
-	if !tester.HasText("Close " + workspace.DefaultTitle) {
-		t.Fatalf("no untitled tab in %#v", tester.Texts())
+	if !tester.HasText(workspace.DefaultTitle) {
+		t.Fatalf("no untitled sheet in %#v", tester.Texts())
 	}
 	for _, r := range "# Morning notes" {
 		tester.Type(string(r))
 		tester.Frame()
 	}
 	tester.Frame()
-	if !tester.HasText("Close Morning notes") {
-		t.Fatalf("the tab is not titled by the heading: %#v", tester.Texts())
+	if !tester.HasText("Morning notes") {
+		t.Fatalf("the sheet is not titled by the heading: %#v", tester.Texts())
 	}
 	app.Shell.ClosePage()
 	tester.Frame()

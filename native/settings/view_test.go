@@ -76,7 +76,7 @@ func TestSettingsSearchFiltersNavigationAndRows(t *testing.T) {
 	state.Query = "close"
 	tester := ui.NewTester(state.View, 900, 650)
 	tester.Frame()
-	if !tester.HasText("Close tab") || tester.HasText("Toggle Zen mode") {
+	if !tester.HasText("Close sheet") || tester.HasText("Toggle Zen mode") {
 		t.Fatalf("texts = %#v", tester.Texts())
 	}
 	if _, ok := railRow(tester, "Pages"); !ok {
@@ -263,7 +263,7 @@ func keymapState() (*State, *[]appsettings.Change) {
 	state.Data.Shortcuts = []appsettings.Shortcut{
 		{Command: keymap.NewPage, Label: "New page", Scope: keymap.ScopePages, Group: "Pages",
 			Bindings: []keymap.Chord{chord("n")}},
-		{Command: keymap.ClosePage, Label: "Close tab", Scope: keymap.ScopePages, Group: "Pages",
+		{Command: keymap.ClosePage, Label: "Close sheet", Scope: keymap.ScopePages, Group: "Pages",
 			Bindings: []keymap.Chord{chord("w")}},
 		{Command: keymap.Zen, Label: "Toggle Zen mode", Scope: keymap.ScopeWindow, Group: "Window",
 			Bindings: []keymap.Chord{chord("z")}, Overridden: true},
@@ -349,7 +349,7 @@ func TestKeymapAsksBeforeTakingAnotherActionsShortcut(t *testing.T) {
 	if len(*changes) != 0 {
 		t.Fatalf("taken shortcut applied without asking: %#v", *changes)
 	}
-	warning := keymap.Spell(chord("w"), keymap.PlatformCurrent) + " is assigned to “Close tab”."
+	warning := keymap.Spell(chord("w"), keymap.PlatformCurrent) + " is assigned to “Close sheet”."
 	if !tester.HasText(warning) {
 		t.Fatalf("conflict not shown: %#v", tester.Texts())
 	}
@@ -368,7 +368,7 @@ func TestKeymapSearchesByNameWordsAndPressedKeys(t *testing.T) {
 	state.keyQuery = keymap.Words(chord("w"), keymap.PlatformCurrent)
 	tester := ui.NewTester(state.View, 980, 740)
 	tester.Frame()
-	if !tester.HasText("Close tab") || tester.HasText("New page") {
+	if !tester.HasText("Close sheet") || tester.HasText("New page") {
 		t.Fatalf("word search = %#v", tester.Texts())
 	}
 	state.keyQuery = ""
@@ -378,7 +378,7 @@ func TestKeymapSearchesByNameWordsAndPressedKeys(t *testing.T) {
 	tester.Frame()
 	tester.Key(primary(), ui.KeyZ)
 	tester.Frame()
-	if !tester.HasText("Toggle Zen mode") || tester.HasText("Close tab") || tester.HasText("New page") {
+	if !tester.HasText("Toggle Zen mode") || tester.HasText("Close sheet") || tester.HasText("New page") {
 		t.Fatalf("keystroke search = %#v", tester.Texts())
 	}
 	if err := tester.Click("Clear shortcut search"); err != nil {
@@ -480,7 +480,7 @@ func TestRecordingDropsMenuCommands(t *testing.T) {
 	state, changes := keymapState()
 	tester := ui.NewTester(state.View, 980, 740)
 	tester.Frame()
-	if err := tester.Click("Change shortcut for Close tab"); err != nil {
+	if err := tester.Click("Change shortcut for Close sheet"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
@@ -665,7 +665,7 @@ func TestConflictAnswersInTheCaptureLine(t *testing.T) {
 	tester.Frame()
 	tester.Advance(time.Second)
 	recording, _ := tester.Find("Press keys…")
-	below, _ := tester.Find("Close tab")
+	below, _ := tester.Find("Close sheet")
 
 	tester.Key(primary(), ui.KeyZ)
 	tester.Frame()
@@ -673,7 +673,7 @@ func TestConflictAnswersInTheCaptureLine(t *testing.T) {
 		tester.Advance(step)
 		warning := keymap.Spell(chord("z"), keymap.PlatformCurrent) + " is assigned to “Toggle Zen mode”."
 		line, ok := tester.Find(warning)
-		moved, _ := tester.Find("Close tab")
+		moved, _ := tester.Find("Close sheet")
 		if !ok || line != recording || moved.Y != below.Y {
 			t.Fatalf("after %v: line %v (was %v), row below at %v (was %v)",
 				step, line, recording, moved.Y, below.Y)
@@ -686,7 +686,7 @@ func TestConflictAnswersInTheCaptureLine(t *testing.T) {
 	// Another taken chord answers in place again; Return takes it.
 	tester.Key(primary(), ui.KeyW)
 	tester.Frame()
-	if !tester.HasText(keymap.Spell(chord("w"), keymap.PlatformCurrent) + " is assigned to “Close tab”.") {
+	if !tester.HasText(keymap.Spell(chord("w"), keymap.PlatformCurrent) + " is assigned to “Close sheet”.") {
 		t.Fatalf("second chord: %#v", tester.Texts())
 	}
 	tester.Key(0, ui.KeyEnter)
@@ -701,7 +701,7 @@ func TestRecorderFoldsOpenAndShut(t *testing.T) {
 	tester.Frame()
 	tester.Advance(time.Second)
 	rows, _ := tester.Find("Toggle Zen mode")
-	if err := tester.Click("Change shortcut for Close tab"); err != nil {
+	if err := tester.Click("Change shortcut for Close sheet"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()

@@ -12,8 +12,8 @@ type selectionLibrary struct {
 	state *State
 }
 
-func (l selectionLibrary) OpenSheet(id string, newTab bool) {
-	l.fakeLibrary.OpenSheet(id, newTab)
+func (l selectionLibrary) OpenSheet(id string, alongside bool) {
+	l.fakeLibrary.OpenSheet(id, alongside)
 	l.state.ActivePage = id
 }
 

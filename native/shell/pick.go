@@ -223,7 +223,7 @@ func (s *State) batchMenu(m *ui.Menu, row string, trashed bool) {
 		}
 		return
 	}
-	if s.chose(m.Item(fmt.Sprintf("Open %d Sheets in Tabs", n))) {
+	if s.chose(m.Item(fmt.Sprintf("Open %d Sheets Alongside", n))) {
 		each(func(id string) { s.Library.OpenSheet(id, true) })
 	}
 	m.Separator()

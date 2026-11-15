@@ -177,7 +177,11 @@ func (s *State) sidebar(
 	ui.Column(c).Key("library").Width(width).HeightPercent(100).Shrink(0).Clip().
 		Background(semantic.Surface.Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
-		ui.Column(c).Width(fullWidth).HeightPercent(100).Opacity(reveal).
+		// The library's head is the window's traffic lights' band, and
+		// moves the window as a title bar would.
+		ui.Box(c).Key("library-head").Width(fullWidth).Height(layout.Titlebar * scale / theme.DefaultUIFontSize).
+			Shrink(0).DragWindow()
+		ui.Column(c).Width(fullWidth).Grow(1).MinHeight(0).Opacity(reveal).
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale)).Children(func() {
 			if s.Library == nil {
 				return
@@ -288,6 +292,17 @@ func (s *State) groupsLabel(c *ui.Context, semantic theme.Theme, animate bool) u
 	return label
 }
 
+// reveal shows the group a sheet is filed in.
+func (s *State) reveal(sheet string) {
+	group := s.Library.SheetGroup(sheet)
+	if group == "" {
+		return
+	}
+	s.revealGroup(group)
+	s.stopSearching()
+	s.Go(Place{Kind: PlaceGroup, Group: group})
+}
+
 // placeRow is a filter in the library.
 func (s *State) placeRow(
 	c *ui.Context,
@@ -337,11 +352,9 @@ func (s *State) trashRow(c *ui.Context, semantic theme.Theme, animate bool) {
 			s.arm(emptyTrashKey)
 		}
 	})
-	dropped, _ := s.dropOn(c, semantic, row, takes{sheets: true, groups: true, tabs: true}, animate)
+	dropped, _ := s.dropOn(c, semantic, row, takes{sheets: true, groups: true}, animate)
 	switch dropped := dropped.(type) {
 	case sheetDrag:
-		s.Library.TrashSheet(dropped.id)
-	case tabDrag:
 		s.Library.TrashSheet(dropped.id)
 	case groupDrag:
 		s.Library.TrashGroup(dropped.id)
@@ -501,17 +514,15 @@ func (s *State) disclosure(c *ui.Context, semantic theme.Theme, group GroupItem,
 	}
 }
 
-// dropInto files sheets, chapters, tabs' sheets and groups dragged onto a
-// group's row into it. A smart folder takes none: what it holds, its query finds.
+// dropInto files sheets, chapters and groups dragged onto a group's row
+// into it. A smart folder takes none: what it holds, its query finds.
 func (s *State) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, group GroupItem, animate bool) {
 	if group.Smart() {
 		return
 	}
-	dropped, _ := s.dropOn(c, semantic, row, takes{sheets: true, chapters: true, groups: !group.Inbox, tabs: true}, animate)
+	dropped, _ := s.dropOn(c, semantic, row, takes{sheets: true, chapters: true, groups: !group.Inbox}, animate)
 	switch dropped := dropped.(type) {
 	case sheetDrag:
-		s.Library.MoveSheet(dropped.id, group.ID, Last)
-	case tabDrag:
 		s.Library.MoveSheet(dropped.id, group.ID, Last)
 	case chapterDrag:
 		s.Library.MoveChapter(dropped.id, group.ID, Last)

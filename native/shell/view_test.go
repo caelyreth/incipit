@@ -19,14 +19,14 @@ func TestMain(m *testing.M) {
 
 func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
 	state := openState()
-	state.Tabs = []Page{{ID: "1", Title: "Untitled"}}
+	state.Open = []Page{{ID: "1", Title: "Untitled"}}
 	state.ActivePage = "1"
 	state.Content = func(c *ui.Context) {
 		ui.Text(c, "Body copy")
 	}
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	for _, text := range []string{"Untitled", "Body copy"} {
+	for _, text := range []string{"Body copy", "Toggle library"} {
 		if !tester.HasText(text) {
 			t.Fatalf("missing %q in %#v", text, tester.Texts())
 		}
@@ -134,7 +134,7 @@ func TestDocumentRegionKeepsCustomSurfaceContent(t *testing.T) {
 
 func TestDocumentWriterReceivesDefiniteViewportHeight(t *testing.T) {
 	state := openState()
-	state.Tabs = []Page{{ID: "1", Title: "Untitled"}}
+	state.Open = []Page{{ID: "1", Title: "Untitled"}}
 	state.ActivePage = "1"
 	var painted ui.Rect
 	state.Content = func(c *ui.Context) {
@@ -149,71 +149,31 @@ func TestDocumentWriterReceivesDefiniteViewportHeight(t *testing.T) {
 	}
 }
 
-func TestTabsShowAndSelectEachOpenPage(t *testing.T) {
+func TestTheWindowControlsUseReferenceActions(t *testing.T) {
 	state := openState()
-	state.Tabs = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
-	state.ActivePage = "one"
-	var selected string
-	state.SelectPage = func(id string) { selected = id }
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	if !tester.HasText("First") || !tester.HasText("Second") {
-		t.Fatalf("tabs missing: %#v", tester.Texts())
-	}
-	if err := tester.Click("Second"); err != nil {
-		t.Fatal(err)
-	}
-	if selected != "two" {
-		t.Fatalf("selected = %q", selected)
-	}
-}
-
-func TestTabsFormOneHorizontalFocusGroup(t *testing.T) {
-	state := openState()
-	state.Tabs = []Page{{ID: "one", Title: "First"}, {ID: "two", Title: "Second"}}
-	state.ActivePage = "one"
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	tester.Click("First")
-	if !tester.Focused("First") {
-		t.Fatal("the selected tab did not take focus")
-	}
-	tester.Key(0, ui.KeyRight)
-	if !tester.Focused("Second") && !tester.Focused("Close First") {
-		t.Fatal("Right did not move within the tab focus group")
-	}
-	tester.Key(0, ui.KeyTab)
-	if tester.Focused("First") || tester.Focused("Second") || tester.Focused("Close First") {
-		t.Fatal("Tab did not leave the tab focus group")
-	}
-}
-
-func TestHeaderControlsUseReferenceActions(t *testing.T) {
-	state := openState()
-	var commands, created, opened, closed bool
+	var commands, created, opened bool
 	state.OpenCommands = func() { commands = true }
 	state.NewPage = func() { created = true }
 	state.OpenSettings = func() { opened = true }
-	state.ClosePage = func() { closed = true }
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
 
 	for _, label := range []string{
 		"Toggle library",
-		"New page",
+		"Toggle sheet list",
+		"Toggle canvas",
+		"New sheet",
 		"Search commands",
 		"Open settings",
-		"Close Untitled",
 	} {
 		if _, ok := tester.Find(label); !ok {
 			t.Fatalf("missing accessible control %q in %#v", label, tester.Texts())
 		}
 	}
 	for label, want := range map[string]*bool{
-		"New page":        &created,
+		"New sheet":       &created,
 		"Search commands": &commands,
 		"Open settings":   &opened,
-		"Close Untitled":  &closed,
 	} {
 		if err := tester.Click(label); err != nil {
 			t.Fatal(err)
@@ -237,9 +197,14 @@ func TestIconControlsAreKeyboardReachable(t *testing.T) {
 	state := openState()
 	tester := ui.NewTester(state.View, 1260, 850)
 
-	tester.Key(0, ui.KeyTab)
+	for range 12 {
+		tester.Key(0, ui.KeyTab)
+		if tester.Focused("Toggle library") {
+			break
+		}
+	}
 	if !tester.Focused("Toggle library") {
-		t.Fatalf("first keyboard stop is not the labeled sidebar control: %#v", tester.Texts())
+		t.Fatalf("Tab does not reach the labeled library control: %#v", tester.Texts())
 	}
 	tester.Key(0, ui.KeySpace)
 	if state.SidebarVisible() {
@@ -249,7 +214,7 @@ func TestIconControlsAreKeyboardReachable(t *testing.T) {
 
 func TestASearchRequestFocusesTheSearch(t *testing.T) {
 	state, _ := libraryState()
-	state.Tabs = []Page{{ID: "one", Title: "First"}}
+	state.Open = []Page{{ID: "one", Title: "First"}}
 	state.ActivePage = "one"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
@@ -386,7 +351,7 @@ func TestShellMotionTurnsAroundSmoothlyWhenInterrupted(t *testing.T) {
 // openState is a shell with one sheet open.
 func openState() *State {
 	state := New()
-	state.Tabs = []Page{{ID: "1", Title: "Untitled"}}
+	state.Open = []Page{{ID: "1", Title: "Untitled"}}
 	state.ActivePage = "1"
 	return state
 }

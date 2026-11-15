@@ -92,17 +92,17 @@ func TestRoutingRejectsUnknownAndAuxiliaryCommands(t *testing.T) {
 	app.settingsWindow = settingsWindow
 	var closed *mygo.Window
 	app.closeWindow = func(window *mygo.Window) { closed = window }
-	tabs := len(app.Workspace.Tabs())
+	tabs := len(app.Workspace.Opened())
 	if err := app.routeWindowCommand(settingsWindow, keymap.NewPage); !errors.Is(err, ErrUnknownCommand) {
 		t.Fatalf("auxiliary New Page = %v", err)
 	}
-	if got := len(app.Workspace.Tabs()); got != tabs {
+	if got := len(app.Workspace.Opened()); got != tabs {
 		t.Fatalf("auxiliary command changed tabs: %d -> %d", tabs, got)
 	}
 	if err := app.routeWindowCommand(settingsWindow, keymap.ClosePage); err != nil || closed != settingsWindow {
-		t.Fatalf("auxiliary Close Page = %v, closed %v", err, closed)
+		t.Fatalf("auxiliary Close Sheet = %v, closed %v", err, closed)
 	}
-	if got := len(app.Workspace.Tabs()); got != tabs {
-		t.Fatalf("auxiliary Close Page closed a tab: %d -> %d", tabs, got)
+	if got := len(app.Workspace.Opened()); got != tabs {
+		t.Fatalf("auxiliary Close Sheet closed a page: %d -> %d", tabs, got)
 	}
 }

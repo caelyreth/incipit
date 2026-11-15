@@ -80,7 +80,7 @@ func TestPagesParkSessionsAndRestoreIndependentState(t *testing.T) {
 	}
 }
 
-func TestCloseActivatesAdjacentTabAndReactivationRetainsPage(t *testing.T) {
+func TestCloseActivatesAdjacentPageAndReactivationRetainsPage(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)
 	second, err := workspace.NewPage()
@@ -104,17 +104,17 @@ func TestCloseActivatesAdjacentTabAndReactivationRetainsPage(t *testing.T) {
 	}
 }
 
-func TestClosingLastTabLeavesAllPagesRetainedAndNewPageCanMount(t *testing.T) {
+func TestClosingLastPageLeavesAllPagesRetainedAndNewPageCanMount(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)
 	if err := workspace.Close(0); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := workspace.Active(); ok {
-		t.Fatal("last tab stayed active")
+		t.Fatal("the last page stayed active")
 	}
 	if _, ok := workspace.Mounted(); ok {
-		t.Fatal("last tab stayed mounted")
+		t.Fatal("the last page stayed mounted")
 	}
 	if workspace.Title() != NotebookTitle || len(workspace.Pages()) != 1 {
 		t.Fatalf("workspace after close = %q pages=%d", workspace.Title(), len(workspace.Pages()))
@@ -150,7 +150,7 @@ func TestPagesTakeTheirSessionsTitles(t *testing.T) {
 	}
 }
 
-func TestAdjacentNavigationCyclesActiveTabs(t *testing.T) {
+func TestAdjacentNavigationCyclesOpenPages(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)
 	second, _ := workspace.NewPage()
@@ -199,7 +199,7 @@ func TestRestoreReturnsTheLayoutItWasGiven(t *testing.T) {
 		return newTestSession(id, ""), nil
 	}
 	layout := Layout{
-		Tabs:      []PageID{2, 0},
+		Opened:    []PageID{2, 0},
 		Active:    0,
 		HasActive: true,
 		Scroll:    map[PageID]ScrollPosition{2: {Y: 80}},
@@ -213,10 +213,10 @@ func TestRestoreReturnsTheLayoutItWasGiven(t *testing.T) {
 		t.Fatalf("mounted %#v", mounted)
 	}
 	if page, _ := workspace.Page(1); !page.Parked {
-		t.Fatal("a page that is no tab is mounted")
+		t.Fatal("a page that is not open is mounted")
 	}
 	got := workspace.Layout()
-	if len(got.Tabs) != 2 || got.Tabs[0] != 2 || got.Tabs[1] != 0 || got.Active != 0 ||
+	if len(got.Opened) != 2 || got.Opened[0] != 2 || got.Opened[1] != 0 || got.Active != 0 ||
 		!got.HasActive || got.Scroll[2].Y != 80 || len(got.Scroll) != 1 {
 		t.Fatalf("layout %#v", got)
 	}
@@ -234,12 +234,12 @@ func TestRestoreReadsAStaleLayoutForWhatItStillSays(t *testing.T) {
 	create := func(id PageID) (Session, error) {
 		return newTestSession(id, ""), nil
 	}
-	workspace, err := Restore(sessions, Layout{Tabs: []PageID{5, 1, 1}, Active: 5, HasActive: true}, create)
+	workspace, err := Restore(sessions, Layout{Opened: []PageID{5, 1, 1}, Active: 5, HasActive: true}, create)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tabs := workspace.Tabs(); len(tabs) != 1 || tabs[0] != 1 {
-		t.Fatalf("tabs %v", tabs)
+	if open := workspace.Opened(); len(open) != 1 || open[0] != 1 {
+		t.Fatalf("open %v", open)
 	}
 	if active, ok := workspace.Active(); !ok || active != 1 {
 		t.Fatalf("active %v %v", active, ok)
@@ -248,8 +248,8 @@ func TestRestoreReadsAStaleLayoutForWhatItStillSays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := closed.Active(); ok || len(closed.Tabs()) != 0 {
-		t.Fatal("a layout with every tab closed opened one")
+	if _, ok := closed.Active(); ok || len(closed.Opened()) != 0 {
+		t.Fatal("a layout with every page closed opened one")
 	}
 }
 
@@ -265,7 +265,7 @@ func TestSelectionsTravelWithTheLayout(t *testing.T) {
 		Head:   Caret{Node: 11, Slot: 0, Offset: 4, Stop: 2},
 	}
 	workspace, err := Restore(sessions, Layout{
-		Tabs: []PageID{1}, Active: 1, HasActive: true,
+		Opened: []PageID{1}, Active: 1, HasActive: true,
 		Views: map[PageID]ViewState{1: view},
 	}, create)
 	if err != nil {
@@ -281,7 +281,7 @@ func TestSelectionsTravelWithTheLayout(t *testing.T) {
 	}
 }
 
-func TestOpeningInPlaceReplacesTheActiveTab(t *testing.T) {
+func TestOpeningInPlaceReplacesTheActivePage(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)
 	second, _ := workspace.NewPage()
@@ -292,8 +292,8 @@ func TestOpeningInPlaceReplacesTheActiveTab(t *testing.T) {
 	if err := workspace.OpenInPlace(third); err != nil {
 		t.Fatal(err)
 	}
-	if tabs := workspace.Tabs(); len(tabs) != 2 || tabs[0] != third || tabs[1] != second {
-		t.Fatalf("tabs %v", tabs)
+	if open := workspace.Opened(); len(open) != 2 || open[0] != third || open[1] != second {
+		t.Fatalf("open %v", open)
 	}
 	if page, _ := workspace.Page(0); !page.Parked {
 		t.Fatal("the replaced page is still mounted")
@@ -301,24 +301,23 @@ func TestOpeningInPlaceReplacesTheActiveTab(t *testing.T) {
 	if err := workspace.OpenInPlace(second); err != nil {
 		t.Fatal(err)
 	}
-	if tabs := workspace.Tabs(); len(tabs) != 2 {
-		t.Fatalf("a page with a tab opened another: %v", tabs)
+	if open := workspace.Opened(); len(open) != 2 {
+		t.Fatalf("an open page opened another: %v", open)
 	}
 }
 
-func TestTabsMoveAndDiscardedPagesGo(t *testing.T) {
+func TestDiscardedPagesGo(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)
 	second, _ := workspace.NewPage()
 	third, _ := workspace.NewPage()
-	workspace.MoveTab(third, 0)
-	if tabs := workspace.Tabs(); tabs[0] != third || tabs[1] != 0 || tabs[2] != second {
-		t.Fatalf("moved tabs %v", tabs)
+	if open := workspace.Opened(); len(open) != 3 || open[0] != 0 || open[1] != second || open[2] != third {
+		t.Fatalf("open pages %v", open)
 	}
 	if err := workspace.Discard(second); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := workspace.Page(second); ok || len(workspace.Pages()) != 2 || len(workspace.Tabs()) != 2 {
+	if _, ok := workspace.Page(second); ok || len(workspace.Pages()) != 2 || len(workspace.Opened()) != 2 {
 		t.Fatal("a discarded page is still listed")
 	}
 	if err := workspace.Open(second); err == nil {

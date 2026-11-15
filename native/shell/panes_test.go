@@ -22,28 +22,21 @@ var paneMoves = []struct {
 	{"all from page", false, false, true, true},
 }
 
-func TestPlaceTitleKeepsItsSharedFlightAtDifferentScales(t *testing.T) {
+// The place's band heads the list at every scale, and keeps clear of
+// the window's controls where the list is leftmost.
+func TestThePlaceBandHeadsTheListAtEveryScale(t *testing.T) {
 	for _, scale := range []float32{12, 16, 24} {
 		state, _ := libraryState()
 		state.Settings.UIFontSize = scale
 		state.Go(Place{Kind: PlaceGroup, Group: "2"})
-		state.ShowPanes(true, true)
+		state.ShowPanes(false, true)
 		tester := ui.NewTester(state.View, 1260, 500)
 		settle(tester)
 		if got, want := placeBandHeight(scale), float32(56)*scale/theme.DefaultUIFontSize; abs(got-want) > 0.001 {
 			t.Fatalf("scale %v band height = %v, want %v", scale, got, want)
 		}
-		state.ShowPanes(false, true)
-		tester.Frame()
-		tester.Advance(60 * time.Millisecond)
-		if !state.flying() || state.listDock <= 0 || state.listDock >= 1 {
-			t.Fatalf("scale %v did not fly: dock=%v", scale, state.listDock)
-		}
-		state.ShowPanes(true, true)
-		tester.Frame()
-		settle(tester)
-		if state.flying() || state.listDock > 0.001 || !tester.HasText("Novel") {
-			t.Fatalf("scale %v did not settle after reversal: dock=%v", scale, state.listDock)
+		if !tester.HasText("Novel") {
+			t.Fatalf("scale %v: the band lacks the place: %#v", scale, tester.Texts())
 		}
 	}
 }
@@ -82,68 +75,6 @@ func highlight(tester *ui.Tester) int {
 	}
 	c := tester.Image().RGBAAt(int(at.X+3), int(at.Y+at.H/2))
 	return int(c.R)
-}
-
-// TestTheTabsStayAsPanesMove watches the first tab and the library's
-// toggle while the panes move: each slides one way to where it rests, and
-// the tab never folds away and comes back, as it would if the tab line
-// were made anew. A title bar line that met its least width, or a toggle
-// that followed both a pane's edge and the moving title, would turn back.
-func TestTheTabsStayAsPanesMove(t *testing.T) {
-	for _, move := range paneMoves {
-		state, _ := libraryState()
-		state.ShowPanes(move.library, move.sheets)
-		tester := ui.NewTester(state.View, 1260, 400)
-		settle(tester)
-		from, _ := tester.Find("Untitled")
-		toggleFrom, _ := tester.Find("Toggle library")
-		state.ShowPanes(move.toLibrary, move.toSheets)
-		settle(tester)
-		to, _ := tester.Find("Untitled")
-		toggleTo, _ := tester.Find("Toggle library")
-		toggleLast := toggleFrom
-		state.ShowPanes(move.library, move.sheets)
-		settle(tester)
-		state.ShowPanes(move.toLibrary, move.toSheets)
-		last := from
-		for frame := range 30 {
-			tester.Advance(16 * time.Millisecond)
-			tester.Frame()
-			at, ok := tester.Find("Untitled")
-			if !ok || at.W < from.W-1 {
-				t.Fatalf("%s: frame %d the tab folded: %+v, was %+v", move.name, frame, at, from)
-			}
-			if (to.X-from.X)*(at.X-last.X) < -0.5 {
-				t.Fatalf("%s: frame %d the tab turned back: %v after %v, going to %v", move.name, frame, at.X, last.X, to.X)
-			}
-			last = at
-			toggle, _ := tester.Find("Toggle library")
-			if (toggleTo.X-toggleFrom.X)*(toggle.X-toggleLast.X) < -0.5 || (toggleTo.X == toggleFrom.X && abs(toggle.X-toggleFrom.X) > 0.5) {
-				t.Fatalf("%s: frame %d the library's toggle turned back: %v after %v, going to %v", move.name, frame, toggle.X, toggleLast.X, toggleTo.X)
-			}
-			toggleLast = toggle
-		}
-	}
-}
-
-// TestTheSheetListsToggleStaysInSight follows the sheet list's toggle as
-// the library closes and opens: the place's title goes down to the list,
-// and the toggle stays where it is, in sight all the way.
-func TestTheSheetListsToggleStaysInSight(t *testing.T) {
-	state, _ := libraryState()
-	state.Go(Place{Kind: PlaceGroup, Group: "2"})
-	tester := ui.NewTester(state.View, 1260, 400)
-	settle(tester)
-	for _, library := range []bool{false, true} {
-		state.ShowPanes(library, true)
-		for frame := range 20 {
-			tester.Advance(16 * time.Millisecond)
-			tester.Frame()
-			if at, ok := tester.Find("Hide sheet list"); !ok || at.W < 31 {
-				t.Fatalf("library %v, frame %d: the toggle is at %+v", library, frame, at)
-			}
-		}
-	}
 }
 
 func abs(x float32) float32 { return max(x, -x) }

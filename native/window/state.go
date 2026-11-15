@@ -158,14 +158,6 @@ func (a *AppState) BindShell() {
 	// The library opens on the Inbox, where new sheets go.
 	a.Shell.StartAt(shell.Place{Kind: shell.PlaceGroup, Group: groupName(library.Inbox)})
 	a.Shell.NewPage = func() { a.NewSheet(a.Shell.CurrentGroup(), shell.Last) }
-	a.Shell.MoveTab = func(name string, index int) {
-		if session, ok := a.sessionOf(name); ok {
-			a.Workspace.MoveTab(session.page, index)
-			a.refreshShell()
-		}
-	}
-	a.Shell.CloseOtherTabs = func(name string) { a.closeTabsWhere(name, func(at, kept int) bool { return at != kept }) }
-	a.Shell.CloseTabsAfter = func(name string) { a.closeTabsWhere(name, func(at, kept int) bool { return at > kept }) }
 	a.Shell.ClosePage = func() {
 		id, ok := a.Workspace.Active()
 		if !ok {
@@ -306,9 +298,9 @@ func parsePageID(id string) (workspace.PageID, bool) {
 
 func (a *AppState) refreshShell() {
 	a.sessionsRev++
-	a.Shell.Tabs = nil
-	for _, page := range a.Workspace.TabPages() {
-		a.Shell.Tabs = append(a.Shell.Tabs, shell.Page{
+	a.Shell.Open = nil
+	for _, page := range a.Workspace.OpenedPages() {
+		a.Shell.Open = append(a.Shell.Open, shell.Page{
 			ID:    fmt.Sprintf("%d", page.ID),
 			Title: page.Title,
 		})

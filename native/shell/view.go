@@ -33,7 +33,6 @@ func (s *State) View(c *ui.Context) {
 	s.lastWidth, s.lastUIFontSize = width, scale
 	metrics := theme.DefaultControls.Scaled(scale)
 	layout := s.paneLayout()
-	bar := c.TitleBar()
 
 	chromeTarget := float32(1)
 	if s.Appearance.Zen {
@@ -67,21 +66,6 @@ func (s *State) View(c *ui.Context) {
 		listReveal = components.Follow(root, "sheets-open", listTarget, motionReveal)
 	}
 	listReveal = max(0, min(listReveal, 1))
-	// The place's title goes down to the list where the library is shut.
-	// While the list is shut it stays where it was: going to the list as
-	// both close, or back up as the list closes alone, would move it for a
-	// line that is going.
-	if s.SheetListVisible() && !canvas {
-		s.dockTarget = 0
-		if !s.SidebarVisible() && !s.nav.searching {
-			s.dockTarget = 1
-		}
-	}
-	dockTarget := s.dockTarget
-	s.listDock = dockTarget
-	if animate {
-		s.listDock = max(0, min(components.Follow(root, "sheets-dock", dockTarget, motionReveal), 1))
-	}
 	// A spring may lean a hair past its end on the way back; layout may not.
 	reveal = max(0, min(reveal, 1))
 	chrome = max(0, min(chrome, 1))
@@ -89,22 +73,26 @@ func (s *State) View(c *ui.Context) {
 	listWidth := fullList * listReveal
 	s.lastSidebarWidth = sidebarWidth + listWidth
 	s.lastChrome = chrome
-	s.takeFlight(listReveal, chrome, animate)
+	// What stands leftmost keeps a head for the window's traffic lights,
+	// as tall as a title bar, coming in as the panes before it close.
+	head := layout.Titlebar * scale / theme.DefaultUIFontSize
 
 	s.noteView(c, animate)
-	// Every pane and line here is keyed. A pane that is closed is left out,
-	// and MyGo knows an element without a key by its place among its
-	// siblings: those after a pane that went would be taken for new ones,
-	// their state and motion lost, as the list's highlight and the tabs were.
+	// Every pane here is keyed. A pane that is closed is left out, and
+	// MyGo knows an element without a key by its place among its siblings:
+	// those after a pane that went would be taken for new ones, their state
+	// and motion lost, as the list's highlight was.
+	//
+	// There is no title bar: each pane reaches the window's top, and the
+	// window's controls float over its corner (controls).
 	root.Children(func() {
-		if chrome > 0.001 {
-			s.header(c, semantic, metrics, layout, bar, chrome, reveal, listWidth, listReveal)
-		}
+		// The controls paint over the panes and the page (ZIndex).
+		s.controls(c, semantic, chrome, animate)
 		ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
-			s.sheetColumn(c, semantic, listWidth, listReveal)
+			s.sheetColumn(c, semantic, listWidth, listReveal, head*(1-reveal))
 			if canvas {
-				s.canvasView(c, semantic, layout, animate)
+				s.canvasView(c, semantic, layout, head*(1-reveal)*(1-listReveal), animate)
 				return
 			}
 			ui.Column(c).Key("page-area").Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
@@ -112,11 +100,10 @@ func (s *State) View(c *ui.Context) {
 				if chrome > 0.001 {
 					s.footer(c, semantic, layout, chrome)
 				}
-				s.zenHeader(c, layout, chrome)
+				s.dragBand(c, layout)
 			})
 		})
 		s.paneEdges(c, semantic, sidebarWidth, listWidth, animate)
-		s.placeFlight(c, semantic, layout, reveal, listWidth, listReveal, animate)
 	})
 }
 
@@ -130,7 +117,7 @@ func (s *State) page(
 	prose := s.Settings.Prose()
 	column := prose.Column()
 	if s.ActivePage == "" {
-		// With no tab open the page is quiet: a large dim mark, and one
+		// With no sheet open the page is quiet: a large dim mark, and one
 		// small line saying what brings a sheet back.
 		ui.Column(c).Grow(1).FillHeight().AlignItems(ui.Center).Justify(ui.Center).
 			Gap(theme.Space12.DIPs(scale)).Children(func() {
@@ -158,23 +145,11 @@ func (s *State) page(
 	})
 }
 
-func (s *State) activeTitle() string {
-	for _, page := range s.Tabs {
-		if page.ID == s.ActivePage {
-			return page.Title
-		}
-	}
-	return "Notebook"
-}
-
-// zenHeader keeps the window draggable where the header was, as Zen
-// takes the header away: one band as tall as the title bar across the
-// page, unseen, over it. Text scrolled under it shows through, and a
-// press on it moves the window rather than reaching the page.
-func (s *State) zenHeader(c *ui.Context, layout theme.Layout, chrome float32) {
-	height := layout.Titlebar * s.Settings.UIFontSize / theme.DefaultUIFontSize * (1 - chrome)
-	if height < 1 {
-		return
-	}
-	ui.Box(c).Key("zen-header").Absolute().Top(0).Left(0).Right(0).Height(height).DragWindow()
+// dragBand keeps the window draggable at the page's top, where a title
+// bar would be: one band as tall as one, unseen, over the page. Text
+// scrolled under it shows through, and a press on it moves the window
+// rather than reaching the page.
+func (s *State) dragBand(c *ui.Context, layout theme.Layout) {
+	height := layout.Titlebar * s.Settings.UIFontSize / theme.DefaultUIFontSize
+	ui.Box(c).Key("drag-band").Absolute().Top(0).Left(0).Right(0).Height(height).DragWindow()
 }

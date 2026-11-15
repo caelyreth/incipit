@@ -76,14 +76,14 @@ func TestTheNotebookReopensAsItWasLeft(t *testing.T) {
 	if len(pages) != 3 || pages[0].Title != "Chapter one" || pages[1].Title != "second" {
 		t.Fatalf("pages %+v", pages)
 	}
-	if tabs := app.Workspace.Tabs(); !slices.Equal(tabs, []workspace.PageID{0, 1}) {
+	if tabs := app.Workspace.Opened(); !slices.Equal(tabs, []workspace.PageID{0, 1}) {
 		t.Fatalf("tabs %v", tabs)
 	}
 	if active, _ := app.Workspace.Active(); active != 0 {
 		t.Fatalf("active %d", active)
 	}
-	if app.Shell.Tabs[0].Title != "Chapter one" {
-		t.Fatalf("tab title %q", app.Shell.Tabs[0].Title)
+	if app.Shell.Open[0].Title != "Chapter one" {
+		t.Fatalf("open sheet title %q", app.Shell.Open[0].Title)
 	}
 	app.Shell.SelectPage("1")
 	if scroll, _ := app.Workspace.ActiveScroll(); scroll.Y != 36 {
@@ -132,8 +132,8 @@ func TestTheLibraryIsKeptAndItsTrashEmptied(t *testing.T) {
 		t.Fatalf("novel holds %+v", sheets)
 	}
 	app.TrashSheet(chapter)
-	if slices.ContainsFunc(app.Shell.Tabs, func(tab shell.Page) bool { return tab.ID == chapter }) {
-		t.Fatal("a trashed sheet keeps its tab")
+	if slices.ContainsFunc(app.Shell.Open, func(page shell.Page) bool { return page.ID == chapter }) {
+		t.Fatal("a trashed sheet stays open")
 	}
 	inbox := app.Sheets(shell.Place{Kind: shell.PlaceGroup, Group: "1"})
 	app.TrashSheet(inbox[0].ID)

@@ -98,7 +98,7 @@ func TestTheKeysReachEverySuggestion(t *testing.T) {
 
 func TestAQueryGoesWhereItRuns(t *testing.T) {
 	state, _, tester := searching(t)
-	state.Tabs = []Page{{ID: "one", Title: "First"}}
+	state.Open = []Page{{ID: "one", Title: "First"}}
 	state.ActivePage = "one"
 	var sought []string
 	state.Find = func(q string) { sought = append(sought, q) }
@@ -138,7 +138,7 @@ func TestAFindTakesItsKeyOutOfWhatItIsGiven(t *testing.T) {
 
 func TestTheFindStepsAndEndsWithItsKeys(t *testing.T) {
 	state, _ := libraryState()
-	state.Tabs = []Page{{ID: "one", Title: "First"}}
+	state.Open = []Page{{ID: "one", Title: "First"}}
 	state.ActivePage = "one"
 	var steps []bool
 	ended := false
@@ -245,7 +245,7 @@ func TestASearchIsKeptAsASmartFolderAndChangedAgain(t *testing.T) {
 	tester.Key(0, ui.KeyEscape)
 	settle(tester)
 	// It lists what it finds, and makes and files nothing.
-	if !tester.HasText("Found") || tester.HasText("New sheet") {
+	if !tester.HasText("Found") || countText(tester, "New sheet") != 1 {
 		t.Fatalf("the folder shows %#v", tester.Texts())
 	}
 	if err := tester.RightClick("Long"); err != nil {
@@ -306,4 +306,15 @@ func TestOnlyAQueryOfTheNotebookIsKept(t *testing.T) {
 	if state.saves() {
 		t.Fatal("a sheet's find can be saved")
 	}
+}
+
+// countText counts the texts shown that are text.
+func countText(tester *ui.Tester, text string) int {
+	n := 0
+	for _, shown := range tester.Texts() {
+		if shown == text {
+			n++
+		}
+	}
+	return n
 }

@@ -10,10 +10,10 @@ import (
 
 func TestLayoutEqualComparesByValue(t *testing.T) {
 	layout := func() Layout {
-		return Layout{Tabs: []PageKey{1, 2}, Active: 1, HasActive: true, Scroll: map[PageKey]float32{1: 12}}
+		return Layout{Opened: []PageKey{1, 2}, Active: 1, HasActive: true, Scroll: map[PageKey]float32{1: 12}}
 	}
 	changed := []func(*Layout){
-		func(l *Layout) { l.Tabs[0] = 3 },
+		func(l *Layout) { l.Opened[0] = 3 },
 		func(l *Layout) { l.Active = 2 },
 		func(l *Layout) { l.HasActive = false },
 		func(l *Layout) { l.Scroll[1] = 13 },
@@ -36,7 +36,7 @@ func TestSaverOwnsQueuedLayoutAndLibrary(t *testing.T) {
 	saver.Page(1, Summary{Title: "one"})
 
 	layout := Layout{
-		Tabs:      []PageKey{1},
+		Opened:    []PageKey{1},
 		Active:    1,
 		HasActive: true,
 		Scroll:    map[PageKey]float32{1: 12},
@@ -59,7 +59,7 @@ func TestSaverOwnsQueuedLayoutAndLibrary(t *testing.T) {
 	saver.Library(records)
 
 	// These are the caller's values once the calls return.
-	layout.Tabs[0] = 9
+	layout.Opened[0] = 9
 	layout.Scroll[1] = 99
 	records.Groups[0].Name = "Changed"
 	records.Sheets[0].Group = 9
@@ -73,7 +73,7 @@ func TestSaverOwnsQueuedLayoutAndLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 	stored := notebook.Layout
-	if !slices.Equal(stored.Tabs, []PageKey{1}) || stored.Active != 1 || stored.Scroll[1] != 12 {
+	if !slices.Equal(stored.Opened, []PageKey{1}) || stored.Active != 1 || stored.Scroll[1] != 12 {
 		t.Fatalf("layout after caller mutation = %+v", stored)
 	}
 	if len(notebook.Library.Groups) != 1 || notebook.Library.Groups[0].Name != "Original" {
@@ -121,14 +121,14 @@ func TestSaverOwnsConcurrentLayoutSnapshots(t *testing.T) {
 		go func(key PageKey) {
 			defer enqueued.Done()
 			layout := Layout{
-				Tabs:      []PageKey{key},
+				Opened:    []PageKey{key},
 				Active:    key,
 				HasActive: true,
 				Scroll:    map[PageKey]float32{key: float32(key)},
 			}
 			saver.Layout(layout)
 
-			layout.Tabs[0] = 0
+			layout.Opened[0] = 0
 			layout.Scroll[key] = 999
 		}(PageKey(index))
 	}
@@ -147,7 +147,7 @@ func TestSaverOwnsConcurrentLayoutSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	layout := notebook.Layout
-	if !layout.HasActive || len(layout.Tabs) != 1 || layout.Active != layout.Tabs[0] {
+	if !layout.HasActive || len(layout.Opened) != 1 || layout.Active != layout.Opened[0] {
 		t.Fatalf("incoherent saved layout = %+v", layout)
 	}
 	key := layout.Active

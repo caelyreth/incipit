@@ -29,7 +29,7 @@ func TestANotebookReopensAsItWasLeft(t *testing.T) {
 	saver.Page(1, Summary{Title: "Title"})
 	saver.Page(2, Summary{Title: ""})
 	saver.Layout(Layout{
-		Tabs: []PageKey{2, 1}, Active: 1, HasActive: true,
+		Opened: []PageKey{2, 1}, Active: 1, HasActive: true,
 		Scroll: map[PageKey]float32{1: 120},
 	})
 	if err := saver.Close(); err != nil {
@@ -55,7 +55,7 @@ func TestANotebookReopensAsItWasLeft(t *testing.T) {
 		t.Fatalf("times %+v", notebook.Pages[0])
 	}
 	layout := notebook.Layout
-	if !notebook.HasLayout || len(layout.Tabs) != 2 || layout.Tabs[0] != 2 || layout.Active != 1 ||
+	if !notebook.HasLayout || len(layout.Opened) != 2 || layout.Opened[0] != 2 || layout.Active != 1 ||
 		!layout.HasActive || layout.Scroll[1] != 120 {
 		t.Fatalf("layout %+v", layout)
 	}

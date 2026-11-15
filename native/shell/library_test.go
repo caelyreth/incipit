@@ -156,27 +156,6 @@ func TestLibraryListsPullPastTheirEdges(t *testing.T) {
 			t.Fatalf("sheet pull did not settle: %v", y)
 		}
 	})
-
-	t.Run("tabs", func(t *testing.T) {
-		state := openState()
-		for index := range 40 {
-			state.Tabs = append(state.Tabs, Page{ID: fmt.Sprintf("extra-%d", index), Title: fmt.Sprintf("Tab %d", index+1)})
-		}
-		state.ActivePage = state.Tabs[0].ID
-		tester := ui.NewTester(state.View, 1260, 850)
-		tester.Frame()
-		tester.Scroll(700, 20, 100000, 0)
-		if state.TabsScroll.MaxX <= 0 || state.TabsScroll.X != state.TabsScroll.MaxX {
-			t.Fatalf("tabs stopped at %v of %v", state.TabsScroll.X, state.TabsScroll.MaxX)
-		}
-		if x, _ := state.tabsOverscroll.Offset(); x >= 0 {
-			t.Fatalf("tab pull = %v, want past its end", x)
-		}
-		tester.Advance(2 * time.Second)
-		if x, _ := state.tabsOverscroll.Offset(); x != 0 {
-			t.Fatalf("tab pull did not settle: %v", x)
-		}
-	})
 }
 
 func TestSidebarKeepsChipsAndGroupsHeadingAboveTheScroll(t *testing.T) {
@@ -641,7 +620,7 @@ func (f *fakeLibrary) SearchCounts(text, key string, values []string) map[string
 	return out
 }
 
-func (f *fakeLibrary) OpenFound(id, text string, newTab bool) {
+func (f *fakeLibrary) OpenFound(id, text string, alongside bool) {
 	f.call("open found " + id + " " + text)
 }
 
@@ -672,8 +651,8 @@ func (f *fakeLibrary) NewChapter(group string, index int) string {
 	f.entries = slices.Insert(f.entries, index, entry)
 	return id
 }
-func (f *fakeLibrary) OpenSheet(id string, newTab bool) {
-	if newTab {
+func (f *fakeLibrary) OpenSheet(id string, alongside bool) {
+	if alongside {
 		f.call("open in new tab " + id)
 		return
 	}
@@ -877,7 +856,7 @@ func TestChoosingAPlaceShowsItsSheetsBesideTheLibrary(t *testing.T) {
 	if err := tester.ClickWith(ui.Alt, "Chapter"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("Hide sheet list"); err != nil {
+	if err := tester.Click("Toggle sheet list"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
@@ -905,7 +884,7 @@ func TestSheetsAndGroupsAreChangedFromTheirMenus(t *testing.T) {
 		t.Fatal(err)
 	}
 	menu := tester.Menu()
-	for _, item := range []string{"Open", "Open in New Tab", "Duplicate", "Move To", "Show in Library", "Move to Trash"} {
+	for _, item := range []string{"Open", "Open Alongside", "Duplicate", "Move To", "Show in Library", "Move to Trash"} {
 		if !slices.Contains(menu, item) {
 			t.Fatalf("sheet menu %v lacks %q", menu, item)
 		}
@@ -1210,7 +1189,7 @@ func TestTheLibraryAndTheSheetListOpenOnTheirOwn(t *testing.T) {
 			t.Fatalf("panes %+v: %#v", panes, tester.Texts())
 		}
 	}
-	if err := tester.Click("Hide sheet list"); err != nil {
+	if err := tester.Click("Toggle sheet list"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)

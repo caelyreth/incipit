@@ -58,23 +58,3 @@ func TestDropTargetsTakeEveryKindTheyAccept(t *testing.T) {
 		})
 	}
 }
-
-// A tab dragged onto another goes to its place, and a sheet dragged onto
-// a tab opens there.
-func TestTabsTakeTabsAndSheets(t *testing.T) {
-	state, library := libraryState()
-	state.Tabs = []Page{{ID: "1", Title: "First"}, {ID: "2", Title: "Second"}}
-	var moved []string
-	state.MoveTab = func(id string, index int) { moved = append(moved, id) }
-	state.Go(Place{Kind: PlaceGroup, Group: "1"})
-	tester := ui.NewTester(state.View, 1260, 850)
-	settle(tester)
-	dragOnto(t, tester, "Second", "First")
-	if !slices.Equal(moved, []string{"2"}) {
-		t.Fatalf("the tab did not move: %v", moved)
-	}
-	dragOnto(t, tester, "Draft", "First")
-	if !slices.Contains(library.calls, "open 8") {
-		t.Fatalf("the sheet did not open on the tab: %v", library.calls)
-	}
-}

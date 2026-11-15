@@ -54,7 +54,7 @@ type finder struct {
 }
 
 // queryStamp is what a query's answer stands on beside its text: the
-// index, the library, the sessions, the tabs open ($open) and the minute
+// index, the library, the sessions, the pages open ($open) and the minute
 // (dates such as today and 7d). An answer is kept while its stamp is the
 // one now.
 type queryStamp struct {
@@ -66,7 +66,7 @@ type queryStamp struct {
 // queryStamp is what queries stand on now.
 func (a *AppState) queryStamp() queryStamp {
 	var open strings.Builder
-	for _, id := range a.Workspace.Tabs() {
+	for _, id := range a.Workspace.Opened() {
 		if session, ok := a.sessions[id]; ok {
 			fmt.Fprintf(&open, "%d,", session.key)
 		}
@@ -453,8 +453,8 @@ func (a *AppState) SearchCounts(text, key string, values []string) map[string]in
 
 // OpenFound is part of shell.Library: the sheet opens with the first of
 // the query's matches in it selected, and in view.
-func (a *AppState) OpenFound(name, text string, newTab bool) {
-	a.OpenSheet(name, newTab)
+func (a *AppState) OpenFound(name, text string, alongside bool) {
+	a.OpenSheet(name, alongside)
 	session, ok := a.sessionOf(name)
 	if !ok {
 		return
@@ -492,7 +492,7 @@ func (a *AppState) searchEnv() search.Env {
 		})
 		return ids
 	}
-	for _, id := range a.Workspace.Tabs() {
+	for _, id := range a.Workspace.Opened() {
 		if session, ok := a.sessions[id]; ok {
 			env.Open = append(env.Open, int64(session.key))
 		}
