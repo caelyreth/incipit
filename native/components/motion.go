@@ -20,6 +20,11 @@ const (
 	// out to another: the scenes crossing, what they share flying across,
 	// and what floats over both moving with them (scene.go).
 	MotionMode = 420 * time.Millisecond
+	// MotionEnter is how long a view takes to come in of its own accord,
+	// as a column made or opened beside the others, and how long what
+	// scrolls to show it takes to get there, so the two arrive together;
+	// the others close up behind one that goes on it too.
+	MotionEnter = 300 * time.Millisecond
 	// MotionDock is how long a dock takes to grow, shrink or move as its
 	// groups come and go: in step with the scene changing around it.
 	MotionDock = MotionMode

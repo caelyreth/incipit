@@ -17,8 +17,7 @@ import (
 const sheetPad = 16
 
 // openColumn is an open sheet's column: its surface (sheetSurface), a head
-// with its group's mark, its title, and what takes it back to the columns
-// or closes it, over its page, w wide. A drag on the head moves the strip.
+// with its group's mark, its title, and what closes it, over its page, w wide. A drag on the head moves the strip.
 // The sheet in front stands here while the canvas is laid out, and on the
 // page otherwise, its column keeping its place meanwhile.
 func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, origin float32, animate bool) {
@@ -60,12 +59,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 				}
 				components.Label(c, page.Title, theme.TextSmall, title).SingleLine().MinWidth(0).Grow(1).
 					Transition(appearing(motionList, nil, nil))
-				// Each names its sheet, which its tooltip need not.
-				chromeButton{
-					key: "sheet-columns-" + page.ID, label: "Write " + page.Title + " in columns",
-					tooltip: "Write in columns", icon: components.IconSidebar, compact: true,
-					action: func() { s.writeInColumns(page.ID) },
-				}.view(c, semantic, animate)
+				// It names its sheet, which its tooltip need not.
 				chromeButton{
 					key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
 					icon: components.IconClose, compact: true,
@@ -105,15 +99,6 @@ func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w, origin float32
 		components.Label(c, "Right-click the canvas, or use New picker, to choose a sheet", theme.TextXSmall, semantic.Text.Muted).
 			Opacity(0.8).TextAlign(ui.Center)
 	})
-}
-
-// writeInColumns leaves the canvas for the columns at a sheet, in front,
-// at its group.
-func (s *State) writeInColumns(id string) {
-	if s.SelectPage != nil {
-		s.SelectPage(id)
-	}
-	s.reveal(id)
 }
 
 // groupOf is the group a sheet is filed in.

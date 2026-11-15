@@ -220,7 +220,7 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 			natural = last.x + last.w + 2*gutter
 		}
 		flow := ui.Row(c).Key("canvas-flow").FillHeight().AlignItems(ui.Stretch)
-		extent := components.Settled(flow, "extent", natural, components.MotionMode, animate)
+		extent := components.Settled(flow, "extent", natural, components.MotionEnter, animate)
 		flow.MinWidth(max(s.canvas.viewport.W, extent))
 		s.canvas.over.Apply(c, flow, animate)
 		// The columns' places are counted from where the first stands.
@@ -377,7 +377,7 @@ func (s *State) column(c *ui.Context, key string, w, origin float32, animate boo
 func (s *State) revealColumn(c *ui.Context, col ui.Element, glide bool) {
 	options := ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest}
 	if glide {
-		spring := components.Spring(components.MotionScene)
+		spring := components.Spring(components.MotionEnter)
 		options.Animation = &spring
 	}
 	components.Reveal(c, col, s.paneLayout().ContentGutter*components.UIFontSize(c)/theme.DefaultUIFontSize, options)
@@ -390,7 +390,7 @@ func columnTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
-	spring := components.Bouncy(components.MotionMode)
+	spring := components.Bouncy(components.MotionEnter)
 	return ui.ElementTransition{
 		Animation: &spring, ExitDuration: motionReveal, Position: true, Colors: true,
 		Enter: &ui.Motion{Opacity: 0, X: enterSlide, Scale: 0.97},

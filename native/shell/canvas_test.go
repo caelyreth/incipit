@@ -323,20 +323,6 @@ func TestTheCanvasHoldsItsSheetsAtOnce(t *testing.T) {
 	}
 }
 
-// Taking a sheet back to the columns leaves the canvas at that sheet.
-func TestWritingInColumnsLeavesTheCanvasAtTheSheet(t *testing.T) {
-	state, _, tester := onCanvas(t)
-	state.SelectPage = func(id string) { state.ActivePage = id }
-	joining(state, tester, Page{ID: "7", Title: "Chapter"})
-	if err := tester.Click("Write Untitled in columns"); err != nil {
-		t.Fatal(err)
-	}
-	if state.CanvasOpen() || state.ActivePage != "1" {
-		t.Fatalf("Writing in columns should leave the canvas at that sheet, but the canvas is open %v, %q in front.",
-			state.CanvasOpen(), state.ActivePage)
-	}
-}
-
 // Search goes from the canvas to the sheet list, where it runs.
 func TestSearchGoesFromTheCanvasToTheSheetList(t *testing.T) {
 	state, _, tester := onCanvas(t)

@@ -17,7 +17,6 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 	if chrome <= 0.001 {
 		return
 	}
-	scale := s.Settings.UIFontSize
 	mode := s.Mode()
 	button := func(key, label string, icon components.IconName, action func()) func() {
 		return func() {
@@ -39,13 +38,24 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 		button("commands", "Search commands", components.IconCommand, s.OpenCommands),
 		button("settings", "Open settings", components.IconSettings, s.OpenSettings),
 	}})
-	gap := theme.DefaultLayout.ChromeGutter * scale / theme.DefaultUIFontSize
-	bar := ui.Row(c).Key("controls").Absolute().Top(gap / 2).Right(gap).Opacity(chrome).Bind(&s.floating[0])
-	// What reaches the window's top right corner keeps clear of them by
-	// as much as they took the frame before.
+	// They stand on the title bar's line, the traffic lights' and the
+	// panes' heads', as far in from the right edge as from the top, so
+	// they sit square in the corner: centred in the band where they fit,
+	// and else at least the chrome's gutter's half in from both, in the
+	// window's points whatever the type's size.
+	band := c.TitleBar().Height
+	if band <= 0 {
+		band = theme.DefaultLayout.Titlebar
+	}
+	bar := ui.Row(c).Key("controls").Absolute().Opacity(chrome).Bind(&s.floating[0])
+	// Laid out as they were the frame before.
 	bounds := bar.LayoutBounds()
-	s.controlsWidth = bounds.W + gap
-	s.controlsFoot = bounds.Y + bounds.H + gap/2
+	inset := max(theme.DefaultLayout.ChromeGutter/2, (band-bounds.H)/2)
+	bar.Top(inset).Right(inset)
+	// What reaches the window's top right corner keeps clear of them by
+	// as much as they keep from it.
+	s.controlsWidth = bounds.W + 2*inset
+	s.controlsFoot = inset + bounds.H + inset
 	bar.Children(func() {
 		components.ActionDock{Key: "window-controls", Label: "Window", Groups: groups, Animate: animate}.
 			View(c, semantic)
