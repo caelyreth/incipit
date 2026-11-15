@@ -19,6 +19,14 @@ import (
 // what comes in with it, as its chrome, comes in from a pose of its own
 // (EnterFrom).
 
+// Floating builds fn's elements as what floats over a window's content,
+// as its controls or a dock of actions, placed with Absolute in the
+// window: in the window's overlay, so they stay over the content, the
+// scenes crossing in it and what flies between them (Sharing) too, which
+// paints over all the rest of the content on its way. Menus and dialogs
+// opened later go over them.
+func Floating(c *ui.Context, fn func()) { ui.Overlay(c, fn) }
+
 // SceneLayer makes el one of two scenes crossing: the one shown (front),
 // over the other as opaque as its share says, or the other, beneath and
 // out of the pointer's way.

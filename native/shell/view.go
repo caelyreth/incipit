@@ -6,10 +6,12 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// FocusWithin reports whether the keyboard focus is anywhere in the shell:
-// a press on what takes no focus, as a pane's background, leaves it
-// nowhere.
-func (s *State) FocusWithin(c *ui.Context) bool { return s.root.FocusWithin(c) }
+// FocusWithin reports whether the keyboard focus is anywhere in the shell,
+// what floats over it among it: a press on what takes no focus, as a
+// pane's background, leaves it nowhere.
+func (s *State) FocusWithin(c *ui.Context) bool {
+	return s.root.FocusWithin(c) || s.floating[0].FocusWithin(c) || s.floating[1].FocusWithin(c)
+}
 
 // Typing reports whether a field of the shell is open for typing, or about
 // to take the focus as it opens: the search, a sheet's find, or a name
@@ -132,9 +134,6 @@ func (s *State) View(c *ui.Context) {
 	// the panes have a title line of their own (paneHeader), and the
 	// window's controls float over its corner (controls).
 	root.Children(func() {
-		// The controls and the writing actions paint over the panes, the
-		// page and the canvas (ZIndex).
-		s.controls(c, semantic, chrome, animate)
 		if drawPage {
 			s.pageScene(c, semantic, metrics, layout, 1-shown, !canvas, func() {
 				ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
@@ -158,9 +157,14 @@ func (s *State) View(c *ui.Context) {
 		if drawCanvas {
 			s.canvasView(c, semantic, layout, shown, animate)
 		}
-		if s.ActivePage != "" || canvas {
-			s.dock(c, semantic, dockLeft, s.laid)
-		}
+		// The controls and the writing actions float over both scenes,
+		// and over the sheet flying between them (components.Floating).
+		components.Floating(c, func() {
+			s.controls(c, semantic, chrome, animate)
+			if s.ActivePage != "" || canvas {
+				s.dock(c, semantic, dockLeft, s.laid)
+			}
+		})
 	})
 	// A mode chosen in this build is laid out in the next.
 	if s.Mode() != s.laid {

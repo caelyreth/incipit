@@ -40,7 +40,7 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 		button("settings", "Open settings", components.IconSettings, s.OpenSettings),
 	}})
 	gap := theme.DefaultLayout.ChromeGutter * scale / theme.DefaultUIFontSize
-	bar := ui.Row(c).Key("controls").Absolute().Top(gap / 2).Right(gap).ZIndex(2).Opacity(chrome)
+	bar := ui.Row(c).Key("controls").Absolute().Top(gap / 2).Right(gap).Opacity(chrome).Bind(&s.floating[0])
 	// What reaches the window's top right corner keeps clear of them by
 	// as much as they took the frame before.
 	bounds := bar.LayoutBounds()

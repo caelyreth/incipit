@@ -119,7 +119,7 @@ func (s *State) dock(c *ui.Context, semantic theme.Theme, left float32, mode Mod
 	// The row spans the window, and keeps clear of the panes by its
 	// padding: a dock moving with it (formatBar) moves from where it was
 	// in it, which is where it was in the window.
-	ui.Row(c).Key("dock").Absolute().Left(0).Right(0).ZIndex(2).
+	ui.Row(c).Key("dock").Absolute().Left(0).Right(0).Bind(&s.floating[1]).
 		Bottom(theme.DefaultLayout.DockOffset * scale / theme.DefaultUIFontSize).
 		PaddingStart(left + pad).PaddingEnd(pad).
 		Justify(ui.Center).PassThrough().Children(func() {

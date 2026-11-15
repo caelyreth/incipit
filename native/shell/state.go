@@ -68,6 +68,9 @@ type ToolbarBindings struct {
 type State struct {
 	// root is the shell's outermost element, for where the focus is.
 	root ui.Handle
+	// floating are the controls and the writing actions, which float over
+	// the window outside root (components.Floating).
+	floating [2]ui.Handle
 	// tagWidths are tag chips' text widths, measured once each.
 	tagWidths map[tagWidthKey]float32
 
