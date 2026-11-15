@@ -29,8 +29,10 @@ type ActionDock struct {
 	Groups  []ActionGroup
 	Room    float32
 	Animate bool
-	// Compact holds compact buttons, as tight about them as they are.
-	Compact bool
+	// Bare is how far its pill gives way, from none of it to all: its
+	// room about its buttons and its edge going, its corners closing in to
+	// theirs, its buttons standing on its ground alone, as tall as they.
+	Bare float32
 	// Move animates where it stands as well, as it goes from one place to
 	// another, on the motion of its width. It is for a move made at once:
 	// one where its holder moves frame by frame would trail it.
@@ -42,16 +44,14 @@ func (d ActionDock) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	metrics := theme.DefaultControls.Scaled(scale)
 	gap := theme.Space06.DIPs(scale)
 	// Its corners keep round about its buttons' as its room about them.
-	pad, radius := theme.Space04.DIPs(scale), metrics.DockRadius
-	if d.Compact {
-		pad = theme.Space02.DIPs(scale)
-		radius -= theme.Space04.DIPs(scale) - pad
-	}
+	room := theme.Space04.DIPs(scale)
+	keeps := 1 - max(0, min(d.Bare, 1))
+	pad := room * keeps
 	dock := ui.Row(c).Key(d.Key).Role(ui.RoleToolbar).Label(d.Label).
 		AlignItems(ui.Center).Justify(ui.Start).Clip().
 		Padding(pad).
 		KeepFocus().FocusGroup(ui.Horizontal).
-		Radius(radius).Border(1, semantic.Border.Variant).
+		Radius(metrics.DockRadius-(room-pad)).Border(keeps, semantic.Border.Variant.Alpha(keeps)).
 		Background(semantic.Surface.Panel).Transition(dockTransition(d.Animate, d.Move))
 	// How wide its one line was when last laid out on one line.
 	line := ui.Local(dock, "line", func() float32 { return 0 })

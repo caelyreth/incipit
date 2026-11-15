@@ -15,27 +15,16 @@ type SegmentOption struct {
 	Action   func()
 }
 
-// Segmented is a choice of one of a few options, as tall as a button of
-// its Size, a medium one by default.
 type Segmented struct {
 	Key     string
 	Label   string
 	Animate bool
-	Size    ButtonSize
 	Options []SegmentOption
 }
 
 func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	metrics := theme.DefaultControls.Scaled(scale)
-	size := s.Size
-	if size == 0 {
-		size = MediumButton
-	}
-	height, glyph := size.Height(scale), float32(16)
-	if size == CompactButton {
-		glyph = 14
-	}
 	selected := 0
 	for index, option := range s.Options {
 		if option.Selected {
@@ -45,7 +34,7 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	}
 	parts := ui.SegmentedBase(c.Key(s.Key), &selected, len(s.Options))
 	group := parts.Track.Role(ui.RoleRadioGroup).Label(s.Label).
-		Height(height).Shrink(0).AlignItems(ui.Center).
+		Height(metrics.Height).Shrink(0).AlignItems(ui.Center).
 		Gap(theme.Space02.DIPs(scale)).Padding(theme.Space02.DIPs(scale)).
 		Radius(metrics.Radius).Background(semantic.Surface.Inset)
 	track := TrackSelection(group, SelectionStyle{
@@ -58,7 +47,7 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 			c.Key(option.Key)
 			button := parts.Segment(index).
 				Label(option.Label).
-				Height(height-4*scale/theme.DefaultUIFontSize).
+				Height(metrics.Height-4*scale/theme.DefaultUIFontSize).
 				MinWidth(0).PaddingX(theme.Space08.DIPs(scale)).
 				Radius(6*scale/theme.DefaultUIFontSize).
 				Border(1, ui.Transparent)
@@ -75,7 +64,7 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 					iconColor = semantic.Icon.Default
 				}
 				button.PaddingX(theme.Space06.DIPs(scale)).Tooltip(option.Label).Children(func() {
-					ui.Icon(c, option.Icon.SVG()).FontSize(glyph * scale / theme.DefaultUIFontSize).TextColor(iconColor)
+					ui.Icon(c, option.Icon.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).TextColor(iconColor)
 				})
 				continue
 			}
