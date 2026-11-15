@@ -1029,7 +1029,7 @@ func (s listing) chapterRow(
 	if s.browser.revealing == chapter.ID {
 		// Just made: wherever it lands, its field comes into view.
 		s.browser.revealing = ""
-		row.ScrollIntoView()
+		components.Reveal(c, row, components.RevealMargin(c), ui.ScrollIntoViewOptions{})
 	}
 	hover := components.HoverAmount(row, !editing && (row.Hovered() || row.FocusVisible()), animate)
 	edit := float32(0)

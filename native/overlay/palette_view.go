@@ -113,7 +113,7 @@ func (p *CommandPalette) list(c *ui.Context, semantic theme.Theme, items []Comma
 					},
 				}.View(c, semantic)
 				if moved && index == p.Selected {
-					row.ScrollIntoView()
+					components.Reveal(c, row, components.RevealMargin(c), ui.ScrollIntoViewOptions{})
 				}
 			}
 		})

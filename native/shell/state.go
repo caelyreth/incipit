@@ -143,18 +143,15 @@ type State struct {
 	dockTarget float32
 	// flight is whether that title is on its way this frame (takeFlight).
 	flight bool
-	// morph carries what the page and the canvas share between them as the
-	// mode changes: the sheet in front, the list of sheets, the writing
-	// actions.
-	morph components.Morph
 	// mode is how the notebook is laid out (Mode), and canvas the canvas's
 	// state, kept as it was left.
 	mode   Mode
 	canvas canvasState
-	// held is the mode whose layout holds the sheet in front (morph): a
-	// build behind the mode, so the layout gone to is laid out once before
-	// what moves to it does.
-	held Mode
+	// laid is the mode this build lays out: the mode as the build began.
+	laid Mode
+	// sharing keeps where the sheet in front was held, the page or its
+	// column, so it flies from one to the other (sheetSurface).
+	sharing components.Sharing
 	// dockAt is the mode and groups the writing actions were last built
 	// for, and dockMoving until when they go to where those put them.
 	dockAt     string

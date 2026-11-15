@@ -17,12 +17,11 @@ import (
 // (canvas_workspace.go), sheets written in where they stand, and the
 // pickers among them that sheets are chosen in (canvas_pickers.go).
 //
-// The canvas is a layer of its own over the page mode's layout, the whole
-// window's, which stays laid out as it was beneath it while the canvas
-// comes and goes: nothing is laid out again as the mode changes, and the
-// sheet in front moves from one to the other (morph), the one thing they
-// share. The layout gone to is built a build ahead of what moves to it
-// (State.held).
+// The canvas and the page mode are two scenes of the whole window,
+// crossing as the mode changes (components.SceneLayer): the one gone to
+// over the other, as opaque as far as it has come, nothing laid out
+// again. The sheet in front, the one thing they share, flies from one to
+// the other over both (sheetSurface).
 //
 // A sheet's column is half the window, less the gap between, so two
 // neighbours read as a split, or a third where a third still holds a
@@ -68,7 +67,8 @@ const (
 	ModeCanvas
 )
 
-// String names the mode, as where the sheet in front stands (morph).
+// String names the mode, as where the sheet in front stands
+// (components.Sharing).
 func (m Mode) String() string {
 	if m == ModeCanvas {
 		return "canvas"
@@ -159,29 +159,15 @@ func (s *State) ToggleCanvas() {
 // closeCanvas goes back to the page, as choosing panes does.
 func (s *State) closeCanvas() { s.SetMode(ModePage) }
 
-// canvasView draws the canvas over the window, shown as far as shown
-// says: it fades in over the page mode's layout as it comes, what it shares
-// with that layout moving on top; going, it fades out as a whole.
+// canvasView is the canvas's scene, crossing with the page's as shown
+// says (components.SceneLayer).
 func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Layout, shown float32, animate bool) {
 	s.keepCanvas()
 	scale := s.Settings.UIFontSize
 	head := layout.Titlebar * scale / theme.DefaultUIFontSize
-	canvas := ui.Column(c).Key("canvas").Absolute().Top(0).Left(0).Right(0).Bottom(0).ZIndex(1)
-	// Going, it fades as a whole, and leaves the pointer to the page.
-	if !s.CanvasOpen() {
-		canvas.Opacity(shown).IgnoreInput(true)
-	}
-	canvas.Children(func() {
-		// The ground comes in under the columns, which come on their own:
-		// absolute, it would paint over them but for its z-index. It goes
-		// at once as the page takes back the sheet in front, which moves
-		// home on the page beneath, the other columns fading over it.
-		ground := shown
-		if s.held != ModeCanvas {
-			ground = 0
-		}
-		ui.Box(c).Key("canvas-ground").Absolute().Top(0).Left(0).Right(0).Bottom(0).ZIndex(-1).
-			Background(semantic.Surface.Background).Opacity(ground).PassThrough()
+	scene := ui.Column(c).Key("canvas").Absolute().Top(0).Left(0).Right(0).Bottom(0).
+		Background(semantic.Surface.Background)
+	components.SceneLayer(scene, shown, s.laid == ModeCanvas).Children(func() {
 		s.canvasStrip(c, semantic, layout, head, animate)
 		s.scrubber(c, semantic, layout.ContentGutter*scale/theme.DefaultUIFontSize, animate)
 		// The room over the strip moves the window, as a title bar would.
@@ -224,9 +210,18 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 	picker := s.paneLayout().SheetList * k
 	strip.Children(func() {
 		// The flow is at least as wide as the window, its room before,
-		// between and after the columns its own (room).
-		flow := ui.Row(c).Key("canvas-flow").FillHeight().AlignItems(ui.Stretch).
-			MinWidth(s.canvas.viewport.W)
+		// between and after the columns its own (room). Its columns
+		// shrinking, as one closes, it keeps their room a while, easing
+		// back, so the strip is not cut back under them at once
+		// (components.Settled).
+		natural := float32(0)
+		if n := len(s.canvas.spans); n > 0 {
+			last := s.canvas.spans[n-1]
+			natural = last.x + last.w + 2*gutter
+		}
+		flow := ui.Row(c).Key("canvas-flow").FillHeight().AlignItems(ui.Stretch)
+		extent := components.Settled(flow, "extent", natural, components.MotionMode, animate)
+		flow.MinWidth(max(s.canvas.viewport.W, extent))
 		s.canvas.over.Apply(c, flow, animate)
 		// The columns' places are counted from where the first stands.
 		origin := flow.LayoutBounds().X + gutter
@@ -322,12 +317,13 @@ func (s *State) magnet(strip ui.Element, k float32, animate bool) {
 	}
 }
 
-// pin is how the strip goes to a column it is pinned to.
+// pin is how the strip goes to a column it is pinned to: taken, a little
+// past and back.
 func (s *State) pin(animate bool) ui.Animation {
 	if !animate {
 		return ui.Animation{Duration: 1}
 	}
-	return components.Spring(magnetPin)
+	return components.Bouncy(magnetPin)
 }
 
 // nearRest is the column start nearest x, the strip's own ends among them,
@@ -367,31 +363,36 @@ func (s *State) editorWidth(inner, k float32) float32 {
 
 // column is one of the strip's columns, keyed key, w wide and as tall as
 // the strip; its place is counted for the magnet and the scrubber. origin
-// is where the strip's columns start in the window. One that comes with
-// the canvas, carrying what the page showed, comes in no way of its own
-// (enters false).
-func (s *State) column(c *ui.Context, key string, w, origin float32, enters, animate bool) ui.Element {
-	col := ui.Column(c).Key(key).Width(w).Shrink(0).FillHeight()
-	if enters {
-		col.Transition(columnTransition(animate))
-	} else {
-		col.Transition(ui.ElementTransition{Duration: motionReveal, Position: true})
-	}
+// is where the strip's columns start in the window.
+func (s *State) column(c *ui.Context, key string, w, origin float32, animate bool) ui.Element {
+	col := ui.Column(c).Key(key).Width(w).Shrink(0).FillHeight().Transition(columnTransition(animate))
 	if b := col.LayoutBounds(); b.W > 0 {
 		s.canvas.spans = append(s.canvas.spans, span{x: b.X - origin, w: b.W})
 	}
 	return col
 }
 
+// revealColumn brings col into view, the gap beside it kept from the
+// window's edge (components.Reveal): gliding there, or at once.
+func (s *State) revealColumn(c *ui.Context, col ui.Element, glide bool) {
+	options := ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest}
+	if glide {
+		spring := components.Spring(components.MotionScene)
+		options.Animation = &spring
+	}
+	components.Reveal(c, col, s.paneLayout().ContentGutter*components.UIFontSize(c)/theme.DefaultUIFontSize, options)
+}
+
 // columnTransition is how the strip's columns come and go: in from the
 // side, rising to their size, out where they stood, the others closing up
-// behind them, at the pace of the panes.
+// behind them, a little past and back.
 func columnTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
+	spring := components.Bouncy(components.MotionMode)
 	return ui.ElementTransition{
-		Duration: motionReveal, Position: true, Colors: true,
+		Animation: &spring, ExitDuration: motionReveal, Position: true, Colors: true,
 		Enter: &ui.Motion{Opacity: 0, X: enterSlide, Scale: 0.97},
 		Exit:  &ui.Motion{Opacity: 0, Scale: 0.97},
 	}

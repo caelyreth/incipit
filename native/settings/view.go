@@ -167,7 +167,7 @@ func (s *State) tree(
 							Action: func() { s.chooseSection(category, label) },
 						}.View(c, semantic)
 						if selected && activeChanged {
-							row.ScrollIntoView()
+							components.Reveal(c, row, components.RevealMargin(c), ui.ScrollIntoViewOptions{})
 						}
 					}
 				})

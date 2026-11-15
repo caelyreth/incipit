@@ -16,9 +16,11 @@ import (
 // reference type size.
 const sheetPad = 16
 
-// openColumn is an open sheet's column: a head with its group's mark, its
-// title, and what takes it back to the columns or closes it, over its
-// page, w wide. A drag on the head moves the strip.
+// openColumn is an open sheet's column: its surface (sheetSurface), a head
+// with its group's mark, its title, and what takes it back to the columns
+// or closes it, over its page, w wide. A drag on the head moves the strip.
+// The sheet in front stands here while the canvas is laid out, and on the
+// page otherwise, its column keeping its place meanwhile.
 func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, origin float32, animate bool) {
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
@@ -28,68 +30,62 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 	if front {
 		edge = semantic.Accent.Foreground
 	}
-	// The sheet in front is the page's: it comes with the canvas, and
-	// holds its page once the page mode's layout has let it go (held).
-	holds := s.held == ModeCanvas || !front
-	col := s.column(c, canvasColumn{sheet: page.ID}.key(), w, origin, !(front && s.canvas.entered), animate).
-		Role(ui.RoleGroup).Label(page.Title).Clip().Radius(10*k).
-		Background(semantic.Surface.Page).Border(1, edge)
-	s.morph.Mark(c, col, "sheet:"+page.ID, "canvas", holds, morphSettle, animate)
-	if !holds {
-		// Laid out unseen while the page holds it, so the sheet moving
-		// from or to the page is never seen beside an empty frame of its
-		// own.
-		col.Opacity(0)
-	}
-	// The sheet that comes in front comes into view; as the canvas comes,
-	// the picker before it brings it.
-	switch {
-	case front && s.canvas.follow && !s.canvas.entered, page.ID == s.canvas.reveal:
-		spring := components.Spring(components.MotionScene)
-		col.ScrollIntoView(ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest, Animation: &spring})
-	}
+	col := s.column(c, canvasColumn{sheet: page.ID}.key(), w, origin, animate).
+		Role(ui.RoleGroup).Label(page.Title)
 	col.Children(func() {
-		head := ui.Row(c).Key("sheet-head").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
-			Gap(6 * k).PaddingStart(sheetPad * k).PaddingEnd(6 * k).PaddingY(6 * k).
-			Role(ui.RoleButton).Label("Bring " + page.Title + " in front")
-		head.Children(func() {
-			if group, ok := s.groupOf(page.ID); ok {
-				ink := semantic.Icon.Muted
-				if tint := groupTint(semantic, group); tint != nil {
-					ink = *tint
+		// The sheet in front comes into view as it comes in front, and at
+		// once as the canvas comes, for it to fly to.
+		if front && s.canvas.follow || front && s.canvas.entered || page.ID == s.canvas.reveal {
+			s.revealColumn(c, col, !s.canvas.entered && animate)
+		}
+		if front && s.laid != ModeCanvas {
+			return
+		}
+		var head ui.Element
+		s.sheetSurface(c, semantic, page.ID, sheetLook{radius: 10 * k, edge: edge, head: func() {
+			head = ui.Row(c).Key("sheet-head").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
+				Gap(6 * k).PaddingStart(sheetPad * k).PaddingEnd(6 * k).PaddingY(6 * k).
+				Role(ui.RoleButton).Label("Bring " + page.Title + " in front")
+			head.Children(func() {
+				if group, ok := s.groupOf(page.ID); ok {
+					ink := semantic.Icon.Muted
+					if tint := groupTint(semantic, group); tint != nil {
+						ink = *tint
+					}
+					ui.Icon(c, groupIcon(group).SVG()).FontSize(14 * k).Shrink(0).TextColor(ink)
 				}
-				ui.Icon(c, groupIcon(group).SVG()).FontSize(14 * k).Shrink(0).TextColor(ink)
-			}
-			title := semantic.Text.Muted
-			if front {
-				title = semantic.Text.Heading
-			}
-			components.Label(c, page.Title, theme.TextSmall, title).SingleLine().MinWidth(0).Grow(1).
-				Transition(appearing(motionList, nil, nil))
-			// Each names its sheet, which its tooltip need not.
-			chromeButton{
-				key: "sheet-columns-" + page.ID, label: "Write " + page.Title + " in columns",
-				tooltip: "Write in columns", icon: components.IconSidebar, compact: true,
-				action: func() { s.writeInColumns(page.ID) },
-			}.view(c, semantic, animate)
-			chromeButton{
-				key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
-				icon: components.IconClose, compact: true,
-				action: func() { s.CloseSheet(page.ID) },
-			}.view(c, semantic, animate)
+				title := semantic.Text.Muted
+				if front {
+					title = semantic.Text.Heading
+				}
+				components.Label(c, page.Title, theme.TextSmall, title).SingleLine().MinWidth(0).Grow(1).
+					Transition(appearing(motionList, nil, nil))
+				// Each names its sheet, which its tooltip need not.
+				chromeButton{
+					key: "sheet-columns-" + page.ID, label: "Write " + page.Title + " in columns",
+					tooltip: "Write in columns", icon: components.IconSidebar, compact: true,
+					action: func() { s.writeInColumns(page.ID) },
+				}.view(c, semantic, animate)
+				chromeButton{
+					key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
+					icon: components.IconClose, compact: true,
+					action: func() { s.CloseSheet(page.ID) },
+				}.view(c, semantic, animate)
+			})
+			ui.Box(c).WidthPercent(100).Height(1).Shrink(0).Background(semantic.Border.Variant)
+		}}, func() {
+			ui.Column(c).Key("sheet-page").WidthPercent(100).FillHeight().PaddingX(sheetPad * k).
+				Children(func() {
+					if s.Sheet != nil {
+						s.Sheet(c, page.ID, SheetFrame{
+							Prose: prose, UIFontSize: size, Top: 16 * k, Bottom: 48 * k, Focus: front,
+						})
+					}
+				})
 		})
 		if !s.pan(head) && head.Clicked() && !front && s.SelectPage != nil {
 			s.SelectPage(page.ID)
 		}
-		ui.Box(c).WidthPercent(100).Height(1).Shrink(0).Background(semantic.Border.Variant)
-		ui.Column(c).Key("sheet-page").WidthPercent(100).Grow(1).MinHeight(0).PaddingX(sheetPad * k).
-			Children(func() {
-				if s.Sheet != nil && holds {
-					s.Sheet(c, page.ID, SheetFrame{
-						Prose: prose, UIFontSize: size, Top: 16 * k, Bottom: 48 * k, Focus: front,
-					})
-				}
-			})
 	})
 }
 
@@ -98,7 +94,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 // columns is.
 func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w, origin float32, animate bool) {
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
-	hint := s.column(c, "sheet-hint", w, origin, true, animate).AlignItems(ui.Center).Justify(ui.Center).Gap(12 * k)
+	hint := s.column(c, "sheet-hint", w, origin, animate).AlignItems(ui.Center).Justify(ui.Center).Gap(12 * k)
 	hint.ContextMenu(func(m *ui.Menu) {
 		if m.Item("New Picker").Chosen() {
 			s.newPickerAt(0)

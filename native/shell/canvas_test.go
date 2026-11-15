@@ -512,11 +512,10 @@ func TestTheScrubberMovesTheStrip(t *testing.T) {
 	}
 }
 
-// The page and the canvas share the sheet in front alone: going to the
-// canvas, it moves from the page into its column, and back again; the
-// sheet list stays with the page. The page's layout stays laid out beneath
-// the canvas as it comes, and the layout gone to is built a build before
-// what moves to it.
+// The page and the canvas are two scenes crossing, sharing the sheet in
+// front alone: it stands in one at a time, drawn once, flying across;
+// the page's layout stays as it was beneath the canvas coming, and is no
+// longer built once covered.
 func TestThePageAndTheCanvasShareTheSheetInFront(t *testing.T) {
 	state, _ := libraryState()
 	state.Appearance.Motion = true
@@ -530,40 +529,88 @@ func TestThePageAndTheCanvasShareTheSheetInFront(t *testing.T) {
 			tester.Frame()
 		}
 	}
-	moving := func(key string) bool { return state.morph.Moving(key, tester.Now()) }
+	once := func(when string) {
+		t.Helper()
+		if n := strings.Count(strings.Join(tester.Texts(), "\n"), "Body of 1"); n != 1 {
+			t.Fatalf("%s, the sheet in front should be drawn once, but it is drawn %d times.", when, n)
+		}
+	}
 	// By the mode switch, which, built first, changes the mode as the
-	// window is being built: the handover still waits for the layout gone
-	// to.
+	// window is being built.
 	if err := tester.Click("Canvas mode"); err != nil {
 		t.Fatal(err)
 	}
 	step(3)
-	if !moving("sheet:1") {
-		t.Fatal("Going to the canvas, the sheet in front should move into its column.")
+	once("Going to the canvas")
+	if _, ok := tester.Find("Groups"); !ok {
+		t.Fatal("The page's scene should stay beneath the canvas as it comes.")
 	}
 	if state.lastSidebarWidth != listWidth {
 		t.Fatalf("The panes should stay as they were under the canvas, but they went from %v to %v.",
 			listWidth, state.lastSidebarWidth)
 	}
-	if n := strings.Count(strings.Join(tester.Texts(), "\n"), "Body of 1"); n != 1 {
-		t.Fatalf("The sheet in front should be drawn once, in one place, but it is drawn %d times.", n)
-	}
 	settle(tester)
-	if moving("sheet:1") {
-		t.Fatal("The sheet should rest in its column once there.")
-	}
+	once("On the canvas")
 	if _, ok := tester.Find("Groups"); ok {
-		t.Fatal("Under the whole canvas, the page mode's layout should not be built.")
+		t.Fatal("Under the whole canvas, the page mode's scene should not be built.")
 	}
 	if err := tester.Click("Page mode"); err != nil {
 		t.Fatal(err)
 	}
 	step(3)
-	if !moving("sheet:1") {
-		t.Fatal("Going back, the sheet should move back to the page.")
+	once("Going back")
+	// Turned back on the way, it goes back from where it is.
+	state.ToggleCanvas()
+	step(2)
+	once("Turned back")
+	state.ToggleCanvas()
+	settle(tester)
+	once("Back on the page")
+	if state.CanvasOpen() || !tester.HasText("Groups") {
+		t.Fatal("The page should be back with its panes.")
+	}
+}
+
+// A column brought into view at the strip's end keeps the gap from the
+// window's edge, as every column does, rather than meeting it.
+func TestAColumnBroughtIntoViewKeepsItsGap(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	joining(state, tester, sheetPages("7", "8", "9")...)
+	state.NewPicker()
+	settle(tester)
+	picker, ok := tester.Find("Sheet picker")
+	if !ok {
+		t.Fatal("The new picker should show.")
+	}
+	gutter := theme.DefaultLayout.ContentGutter
+	if right := picker.X + picker.W; right > 1260-gutter+1 {
+		t.Fatalf("The picker should stand %v from the window's edge, but it ends at %v of 1260.", gutter, right)
+	}
+}
+
+// A column closing at the strip's end closes up where it is: the strip is
+// not cut back under it at once, but eases back after it.
+func TestClosingAColumnEasesTheStripBack(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	state.Appearance.Motion = true
+	joining(state, tester, sheetPages("7", "8", "9")...)
+	state.NewPicker()
+	settle(tester)
+	before := state.canvas.strip.X
+	if before <= 0 {
+		t.Fatal("The test needs the strip scrolled along.")
+	}
+	if err := tester.Click("Close picker"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Advance(16 * time.Millisecond)
+	tester.Frame()
+	if jump := before - state.canvas.strip.X; jump > 40 {
+		t.Fatalf("Closing a column, the strip should ease back, but it jumped %v at once.", jump)
 	}
 	settle(tester)
-	if moving("sheet:1") || !tester.HasText("Body of 1") {
-		t.Fatal("The page should rest in its place once there.")
+	if state.canvas.strip.X >= before {
+		t.Fatalf("Once it has closed, the strip should have come back, but it stands at %v from %v.",
+			state.canvas.strip.X, before)
 	}
 }

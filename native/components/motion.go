@@ -16,10 +16,15 @@ const (
 	// on its spring: a spring's tail is long and soft, so it reads about as
 	// quick as MotionPanel's curve.
 	MotionSettle = 340 * time.Millisecond
+	// MotionMode is how long a window takes to go from one way of laying
+	// out to another: the scenes crossing, what they share flying across,
+	// and what floats over both moving with them (scene.go).
+	MotionMode = 420 * time.Millisecond
 	// MotionDock is how long a dock takes to grow, shrink or move as its
-	// groups come and go: unhurried, as it changes along with the scene
-	// around it.
-	MotionDock = MotionScene
+	// groups come and go: in step with the scene changing around it.
+	MotionDock = MotionMode
+	// bounce is how far past its end a Bouncy spring goes, as a share.
+	bounce = 0.2
 )
 
 // MotionEnabled is the app's effective motion policy for a window. MyGo
@@ -59,6 +64,14 @@ const (
 // on smoothly from where things are instead of restarting a curve.
 func Spring(settle time.Duration) ui.Animation {
 	return ui.Animation{Spring: ui.SpringOptions{Duration: settle}}
+}
+
+// Bouncy is a spring that settles in about settle, going a little past
+// its end and back: for what moves of its own accord and should feel
+// alive doing it, as a dock growing or a column coming in, not for what
+// follows the hand.
+func Bouncy(settle time.Duration) ui.Animation {
+	return ui.Animation{Spring: ui.SpringOptions{Duration: settle, Bounce: bounce}}
 }
 
 // Follow returns element's value under key following target on Spring.

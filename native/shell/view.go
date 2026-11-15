@@ -19,7 +19,7 @@ func (s *State) Typing() bool {
 }
 
 func (s *State) View(c *ui.Context) {
-	s.morph.Frame()
+	s.sharing.Frame()
 	semantic, changing := s.Colors.At(s.Settings, c.Now())
 	c.SetTheme(s.Settings.MyGoThemeFor(semantic))
 	if changing {
@@ -48,13 +48,11 @@ func (s *State) View(c *ui.Context) {
 	// a visible precision, and a UI font change resizes it without motion.
 	fullSidebar := layout.Sidebar * scale / theme.DefaultUIFontSize
 	fullList := layout.SheetList * scale / theme.DefaultUIFontSize
-	// The canvas comes over the page mode's layout, which stays as it is
-	// beneath it, nothing laid out again (canvas.go).
-	// The mode as the build begins: the switch, built first, may change it
-	// as it is pressed, and what the two layouts share must move between
-	// layouts built for the mode they were built for (held).
-	mode := s.Mode()
-	canvas := mode == ModeCanvas
+	// The mode this build lays out: the switch, built first, may change
+	// the mode as it is pressed, and every part of one build lays out the
+	// same one (laid); the next lays out the new.
+	s.laid = s.Mode()
+	canvas := s.laid == ModeCanvas
 	openTarget, listTarget := float32(0), float32(0)
 	if s.SidebarVisible() {
 		openTarget = 1
@@ -76,31 +74,19 @@ func (s *State) View(c *ui.Context) {
 		listReveal = components.Follow(root, "sheets-open", listTarget, motionReveal)
 	}
 	listReveal = max(0, min(listReveal, 1))
+	// The page and the canvas are two scenes crossing on one value, the
+	// canvas's share of the window (components.SceneLayer); the sheet in
+	// front flies across over both (sheetSurface).
 	canvasTarget := float32(0)
 	if canvas {
 		canvasTarget = 1
 	}
-	// It comes as the panes go aside, and goes quicker: what it hands back
-	// moves on the page under it, seen once it is out of the way.
 	shown := canvasTarget
 	if animate {
-		settle := motionReveal
-		if !canvas {
-			settle = components.MotionQuick
-		}
-		shown = max(0, min(components.Follow(root, "canvas-shown", canvasTarget, settle), 1))
+		shown = max(0, min(components.Follow(root, "canvas-shown", canvasTarget, components.MotionMode), 1))
 	}
-	// The panes go under the canvas as it comes, and come back as the sheet
-	// in front goes home over them from it.
-	panes := 1 - canvasTarget
-	if animate {
-		panes = max(0, min(components.Follow(root, "panes-shown", panes, morphSettle), 1))
-	}
-	// Each layout is built while it shows, and the build before what it
-	// shares moves to it (held); the page mode's while the canvas over it
-	// is not yet whole.
-	drawCanvas := canvas || s.held == ModeCanvas || shown > 0.001
-	drawPage := !canvas || s.held == ModePage || shown < 0.999
+	drawCanvas := components.SceneBuilt(shown, canvas)
+	drawPage := components.SceneBuilt(1-shown, !canvas)
 	// The place's title goes down to the list where the library is shut.
 	// While the list is shut it stays where it was: going to the list as
 	// both close, or back up as the list closes alone, would move it for a
@@ -150,43 +136,44 @@ func (s *State) View(c *ui.Context) {
 		// page and the canvas (ZIndex).
 		s.controls(c, semantic, chrome, animate)
 		if drawPage {
-			ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-				side := ui.Row(c).Key("panes").AlignItems(ui.Stretch).Shrink(0)
-				if panes < 0.999 {
-					side.Opacity(panes)
-				}
-				side.Children(func() {
+			s.pageScene(c, semantic, metrics, layout, 1-shown, !canvas, func() {
+				ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 					s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
 					s.sheets().sheetColumn(c, semantic, listWidth, listReveal, head)
+					ui.Column(c).Key("page-area").Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
+						s.page(c, semantic, metrics, layout)
+						if chrome > 0.001 {
+							s.footer(c, semantic, layout, chrome)
+						}
+						s.dragBand(c, layout)
+					})
 				})
-				ui.Column(c).Key("page-area").Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
-					s.page(c, semantic, metrics, layout)
-					if chrome > 0.001 {
-						s.footer(c, semantic, layout, chrome)
-					}
-					s.dragBand(c, layout)
-				})
+				s.paneEdges(c, semantic, sidebarWidth, listWidth, animate)
+				// The title line and the place's title on its way paint
+				// over the panes' room for them (ZIndex).
+				s.paneHeader(c, semantic, layout, chrome, reveal, listWidth, listReveal)
+				s.placeFlight(c, semantic, layout, reveal, listWidth, listReveal, animate)
 			})
-			s.paneEdges(c, semantic, sidebarWidth, listWidth, animate)
-			// The title line and the place's title on its way paint over
-			// the panes' room for them (ZIndex).
-			s.paneHeader(c, semantic, layout, chrome*panes, reveal, listWidth, listReveal)
-			s.placeFlight(c, semantic, layout, reveal, listWidth, listReveal, animate)
 		}
 		if drawCanvas {
 			s.canvasView(c, semantic, layout, shown, animate)
 		}
 		if s.ActivePage != "" || canvas {
-			s.dock(c, semantic, dockLeft, mode)
+			s.dock(c, semantic, dockLeft, s.laid)
 		}
 	})
-	// The sheet in front moves to the mode's layout in the next build,
-	// its layout built now (morph). A mode chosen in this build is
-	// built for in the next, and moved to in the one after.
-	s.held = mode
-	if s.Mode() != mode {
+	// A mode chosen in this build is laid out in the next.
+	if s.Mode() != s.laid {
 		c.AnimationFrame()
 	}
+}
+
+// pageScene is the page mode's scene, its panes and its page, as one of
+// the two the window crosses between (components.SceneLayer).
+func (s *State) pageScene(c *ui.Context, semantic theme.Theme, _ theme.ControlMetrics, _ theme.Layout, share float32, front bool, content func()) {
+	scene := ui.Column(c).Key("page-scene").Absolute().Top(0).Left(0).Right(0).Bottom(0).
+		Background(semantic.Surface.Background)
+	components.SceneLayer(scene, share, front).Children(content)
 }
 
 func (s *State) page(
@@ -210,35 +197,67 @@ func (s *State) page(
 		})
 		return
 	}
-	// The sheet coming back from the canvas is not cut off at the page's
-	// edge on its way, as it is once home.
-	area := ui.Column(c).Grow(1).FillHeight().MinHeight(0)
-	if !s.morph.Moving("sheet:"+s.ActivePage, c.Now()) {
-		area.Clip()
-	}
-	area.Children(func() {
+	ui.Column(c).Grow(1).FillHeight().MinHeight(0).Clip().Children(func() {
 		// The page reaches the window's top: its reading space above the first
 		// line is the content's own, scrolled with it, so text scrolls
 		// out at the top rather than at a clip below it.
 		ui.Row(c).Grow(1).MinHeight(0).WidthPercent(100).Justify(ui.Center).PaddingX(
 			layout.ContentGutter * scale / theme.DefaultUIFontSize,
 		).Children(func() {
-			sheet := ui.Column(c).FillHeight().Width(column).MaxWidthPercent(100).MinWidth(0)
-			// The sheet in front is its column's on the canvas: it holds
-			// its page while the page mode is shown (held), moving from
-			// where it stood there.
-			holds := s.held == ModePage
-			s.morph.Mark(c, sheet, "sheet:"+s.ActivePage, "page", holds, morphSettle, s.animate(c))
-			sheet.Children(func() {
-				if s.Sheet != nil && holds {
-					top := layout.ReadingTop * scale / theme.DefaultUIFontSize
-					s.Sheet(c, s.ActivePage, SheetFrame{
-						Prose: prose, UIFontSize: scale, Top: top * 3 / 2, Bottom: top * 2,
-						Dock: layout.DockClearance() * scale / theme.DefaultUIFontSize, Focus: true,
-					})
+			slot := ui.Column(c).Key("sheet-slot").FillHeight().Width(column).MaxWidthPercent(100).MinWidth(0)
+			slot.Children(func() {
+				// The sheet in front is the page's while the page mode is
+				// laid out, and the canvas's otherwise (sheetSurface).
+				if s.laid != ModePage {
+					return
 				}
+				top := layout.ReadingTop * scale / theme.DefaultUIFontSize
+				s.sheetSurface(c, semantic, s.ActivePage, sheetLook{
+					edge: semantic.Accent.Foreground.Alpha(0),
+				}, func() {
+					if s.Sheet != nil {
+						s.Sheet(c, s.ActivePage, SheetFrame{
+							Prose: prose, UIFontSize: scale, Top: top * 3 / 2, Bottom: top * 2,
+							Dock: layout.DockClearance() * scale / theme.DefaultUIFontSize, Focus: true,
+						})
+					}
+				})
 			})
 		})
+	})
+}
+
+// sheetMatch is the identity a sheet's surface has in both modes.
+type sheetMatch string
+
+// sheetLook is how a sheet's surface looks where it stands: as a card on
+// the canvas, its corners rounded and its edge drawn, or as the page,
+// square and edgeless; head, if any, is built over its page.
+type sheetLook struct {
+	radius float32
+	edge   ui.Color
+	head   func()
+}
+
+// sheetSurface is a sheet's surface, its page and the head over it, where
+// it stands: one thing in two places, the page's and its column's on the
+// canvas, built in one at a time and flying from the other as the mode
+// changes, from its box, corners and edge (components.Shared). What it
+// shows comes in over the copy of the other going, so a page laid out
+// anew at another measure crosses over rather than jumping.
+func (s *State) sheetSurface(c *ui.Context, semantic theme.Theme, id string, look sheetLook, page func()) ui.Element {
+	animate := s.animate(c)
+	motion, arrives := s.sharing.Hold(sheetMatch(id), s.laid.String(), components.MotionMode, animate)
+	surface := ui.Column(c).Key("surface").WidthPercent(100).FillHeight().Clip().
+		Radius(look.radius).Background(semantic.Surface.Page).Border(1, look.edge).Transition(motion)
+	fade := ui.Pose{Fade: 1}
+	return surface.Children(func() {
+		if look.head != nil {
+			head := ui.Column(c).Key("surface-head").WidthPercent(100).Shrink(0)
+			components.EnterFrom(c, head, fade, components.MotionPanel, arrives).Children(look.head)
+		}
+		content := ui.Column(c).Key("surface-page").WidthPercent(100).Grow(1).MinHeight(0)
+		components.EnterFrom(c, content, fade, components.MotionPanel, arrives).Children(page)
 	})
 }
 

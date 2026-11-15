@@ -92,7 +92,8 @@ func groupTransition(animate bool) ui.ElementTransition {
 		return ui.ElementTransition{Duration: 1}
 	}
 	gone := &ui.Motion{Opacity: 0, Scale: 0.8, Collapse: true}
-	return ui.ElementTransition{Duration: MotionDock, Position: true, Colors: true, Enter: gone, Exit: gone}
+	spring := Bouncy(MotionDock)
+	return ui.ElementTransition{Animation: &spring, Position: true, Colors: true, Enter: gone, Exit: gone}
 }
 
 // dockTransition grows and shrinks the dock about its groups as they come
@@ -100,14 +101,16 @@ func groupTransition(animate bool) ui.ElementTransition {
 // MyGo collapses a group alone, its parent laid out at once at its new
 // size. With move it goes to its new place on the same motion, so a dock
 // held by its middle stays about it. The dock pops in and out where it
-// stands.
+// stands. Where it stands is its holder's to move: a transition of its
+// place would trail behind every move of what holds it.
 func dockTransition(animate, move bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
 	pop := &ui.Motion{Scale: 0.9, Opacity: 0}
+	spring := Bouncy(MotionDock)
 	return ui.ElementTransition{
-		Duration: MotionDock, Position: move, Size: true, Colors: true,
+		Animation: &spring, Position: move, Size: true, Colors: true,
 		Enter: pop, Exit: pop,
 	}
 }

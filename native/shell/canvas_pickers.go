@@ -125,20 +125,15 @@ func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, w, 
 	list.noteView(c, animate)
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	scale := s.Settings.UIFontSize
-	col := s.column(c, canvasColumn{picker: p}.key(), w, origin, true, animate).
+	col := s.column(c, canvasColumn{picker: p}.key(), w, origin, animate).
 		Role(ui.RoleGroup).Label("Sheet picker").Clip().Radius(10*k).
 		Background(semantic.Surface.Panel).Border(1, semantic.Border.Variant)
-	// A picker made comes into view, the column after it beside it.
-	if s.canvas.revealPicker == p.id {
-		options := ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest}
-		if animate {
-			spring := components.Spring(components.MotionScene)
-			options.Animation = &spring
-		}
-		col.ScrollIntoView(options)
-		s.canvas.revealPicker = 0
-	}
 	col.Children(func() {
+		// A picker made comes into view.
+		if s.canvas.revealPicker == p.id {
+			s.revealColumn(c, col, animate)
+			s.canvas.revealPicker = 0
+		}
 		head := ui.Row(c).Key("picker-head").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
 			Gap(6 * k).PaddingStart(theme.Space06.DIPs(scale)).PaddingEnd(6 * k).PaddingY(6 * k)
 		head.Children(func() {

@@ -441,7 +441,7 @@ func (s *State) groupRow(
 	if s.nav.focusGroup == group.ID {
 		s.nav.focusGroup = ""
 		row.Focus()
-		row.ScrollIntoView()
+		components.Reveal(c, row, components.RevealMargin(c), ui.ScrollIntoViewOptions{})
 	}
 	s.stylePicker(c, semantic, row, group, animate)
 }
@@ -608,30 +608,30 @@ func (s *State) renameRow(c *ui.Context, semantic theme.Theme, group GroupItem, 
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	lead := theme.Space08.DIPs(scale) + indent
-	ui.Row(c).Key("rename-"+group.ID).WidthPercent(100).Height(metrics.Height).
+	row := ui.Row(c).Key("rename-"+group.ID).WidthPercent(100).Height(metrics.Height).
 		PaddingStart(lead-1).PaddingEnd(theme.Space04.DIPs(scale)).
 		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
-		Radius(metrics.Radius).Border(1, semantic.Border.Focused).Background(semantic.Surface.Inset).
-		Children(func() {
-			s.rowIcon(c, semantic, groupIcon(group), groupTint(semantic, group), animate)
-			input := ui.TextInputBase(c.Key("name"), &s.nav.name).Grow(1).MinWidth(0).
-				Font(theme.UIFontFamily).FontSize(theme.TextSmall.Size(scale)).
-				FixedLineHeight(theme.TextSmall.LineHeight(scale)).
-				TextColor(semantic.Text.Heading).Label("Group name")
-			input.AutoFocus()
-			if s.nav.focusGroup == group.ID {
-				s.nav.focusGroup = ""
-				input.Focus()
-				input.ScrollIntoView()
-			}
-			switch inlineName(input, s.nav.name) {
-			case nameCancel:
-				s.nav.renaming = ""
-			case nameCommit:
-				s.nav.renaming = ""
-				s.Library.RenameGroup(group.ID, s.nav.name)
-			}
-		})
+		Radius(metrics.Radius).Border(1, semantic.Border.Focused).Background(semantic.Surface.Inset)
+	row.Children(func() {
+		s.rowIcon(c, semantic, groupIcon(group), groupTint(semantic, group), animate)
+		input := ui.TextInputBase(c.Key("name"), &s.nav.name).Grow(1).MinWidth(0).
+			Font(theme.UIFontFamily).FontSize(theme.TextSmall.Size(scale)).
+			FixedLineHeight(theme.TextSmall.LineHeight(scale)).
+			TextColor(semantic.Text.Heading).Label("Group name")
+		input.AutoFocus()
+		if s.nav.focusGroup == group.ID {
+			s.nav.focusGroup = ""
+			input.Focus()
+			components.Reveal(c, row, components.RevealMargin(c), ui.ScrollIntoViewOptions{})
+		}
+		switch inlineName(input, s.nav.name) {
+		case nameCancel:
+			s.nav.renaming = ""
+		case nameCommit:
+			s.nav.renaming = ""
+			s.Library.RenameGroup(group.ID, s.nav.name)
+		}
+	})
 }
 
 // emptyTrashKey names the trash's Empty button, for arming from a menu.

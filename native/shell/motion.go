@@ -45,10 +45,6 @@ const (
 	// of a list leaves the pointer by its top, which is not a call for a
 	// new one.
 	dropQuiet = time.Second
-	// morphSettle is how long what the page and the canvas share takes to
-	// move from one to the other, on its spring, about as long as the
-	// panes take to go aside.
-	morphSettle = components.MotionSettle
 )
 
 // listTransition is how rows come, go and make room.
@@ -91,12 +87,15 @@ func swapTransition(animate bool, x float32) ui.ElementTransition {
 	return appearing(motionEnter, &ui.Motion{Opacity: 0, X: x}, nil)
 }
 
-// popTransition lets something small appear and leave where it stands.
+// popTransition lets something small appear where it stands, a little
+// past its size and back, and leave quickly.
 func popTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
-	return appearing(motionList, &ui.Motion{Scale: 0.9, Opacity: 0}, &ui.Motion{Scale: 0.9, Opacity: 0})
+	spring := components.Bouncy(components.MotionPanel)
+	gone := &ui.Motion{Scale: 0.9, Opacity: 0}
+	return ui.ElementTransition{Animation: &spring, ExitDuration: motionList, Colors: true, Enter: gone, Exit: gone}
 }
 
 // unfoldTransition opens something called up in a list, pushing the rows
