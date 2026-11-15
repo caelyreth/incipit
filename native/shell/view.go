@@ -216,12 +216,17 @@ func (s *State) page(
 					return
 				}
 				top := layout.ReadingTop * scale / theme.DefaultUIFontSize
+				// Its head is the canvas's, shown only there.
+				k := components.UIFontSize(c) / theme.DefaultUIFontSize
+				sheet := s.openPage(s.ActivePage)
 				s.sheetSurface(c, semantic, s.ActivePage, sheetLook{
-					edge: semantic.Accent.Foreground.Alpha(0),
-				}, func() {
+					edge: semantic.Accent.Foreground.Alpha(0), top: top * 3 / 2,
+					head:       func() { s.sheetHead(c, semantic, sheet, true, k, s.animate(c)) },
+					headHeight: sheetHead * k,
+				}, func(top float32) {
 					if s.Sheet != nil {
 						s.Sheet(c, s.ActivePage, SheetFrame{
-							Prose: prose, UIFontSize: scale, Top: top * 3 / 2, Bottom: top * 2,
+							Prose: prose, UIFontSize: scale, Top: top, Bottom: layout.ReadingTop * scale / theme.DefaultUIFontSize * 2,
 							Dock: layout.DockClearance() * scale / theme.DefaultUIFontSize, Focus: true,
 						})
 					}
@@ -236,32 +241,50 @@ type sheetMatch string
 
 // sheetLook is how a sheet's surface looks where it stands: as a card on
 // the canvas, its corners rounded and its edge drawn, or as the page,
-// square and edgeless; head, if any, is built over its page.
+// square and edgeless. Its page stands in from its top by top, the reading
+// space above the first line, and from its sides by side; head builds its
+// head, a band headHeight tall laid over the top of that room, as far
+// shown as headShown, which the page has not.
 type sheetLook struct {
-	radius float32
-	edge   ui.Color
-	head   func()
+	radius     float32
+	edge       ui.Color
+	top, side  float32
+	head       func()
+	headHeight float32
+	headShown  float32
 }
 
 // sheetSurface is a sheet's surface, its page and the head over it, where
 // it stands: one thing in two places, the page's and its column's on the
 // canvas, built in one at a time and flying from the other as the mode
-// changes, from its box, corners and edge (components.Shared). What it
-// shows comes in over the copy of the other going, so a page laid out
-// anew at another measure crosses over rather than jumping.
-func (s *State) sheetSurface(c *ui.Context, semantic theme.Theme, id string, look sheetLook, page func()) ui.Element {
+// changes, from its box, corners and edge (components.Sharing). The page
+// is one, drawn only where it was built last, so it goes across whole, the
+// other leaving no copy. The rest of its look goes with it (Sharing.Carry):
+// where the page stands in it, its text gliding from its place in the one
+// to its place in the other rather than jumping, and how far its head is
+// shown, fading in or out over the page. page builds the page with top
+// the reading space above its first line.
+func (s *State) sheetSurface(c *ui.Context, semantic theme.Theme, id string, look sheetLook, page func(top float32)) ui.Element {
 	animate := s.animate(c)
-	motion, arrives := s.sharing.Hold(sheetMatch(id), s.laid.String(), components.MotionMode, animate)
+	match := sheetMatch(id)
+	motion, arrives := s.sharing.Hold(match, s.laid.String(), components.MotionMode, animate)
 	surface := ui.Column(c).Key("surface").WidthPercent(100).FillHeight().Clip().
 		Radius(look.radius).Background(semantic.Surface.Page).Border(1, look.edge).Transition(motion)
-	fade := ui.Pose{Fade: 1}
+	carry := func(name string, target float32) float32 {
+		return s.sharing.Carry(surface, match, name, target, components.MotionMode, arrives, animate)
+	}
+	top, side, headShown := carry("top", look.top), carry("side", look.side), carry("head", look.headShown)
 	return surface.Children(func() {
-		if look.head != nil {
-			head := ui.Column(c).Key("surface-head").WidthPercent(100).Shrink(0)
-			components.EnterFrom(c, head, fade, components.MotionPanel, arrives).Children(look.head)
+		ui.Column(c).Key("surface-page").WidthPercent(100).Grow(1).MinHeight(0).PaddingX(side).
+			Children(func() { page(top) })
+		if look.head != nil && headShown > 0.001 {
+			head := ui.Column(c).Key("surface-head").Absolute().Top(0).Left(0).Right(0).
+				Height(look.headHeight).Background(semantic.Surface.Page)
+			if headShown < 0.999 {
+				head.Opacity(headShown)
+			}
+			head.Children(look.head)
 		}
-		content := ui.Column(c).Key("surface-page").WidthPercent(100).Grow(1).MinHeight(0)
-		components.EnterFrom(c, content, fade, components.MotionPanel, arrives).Children(page)
 	})
 }
 

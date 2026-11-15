@@ -12,12 +12,16 @@ import (
 // in front, and the strip goes as far as brings whichever comes in front
 // into view.
 
-// sheetPad is the room beside a sheet's page in its column, at the
-// reference type size.
-const sheetPad = 16
+// sheetPad is the room beside a sheet's page in its column, and above it
+// under the head, at the reference type size; sheetHead is the head's
+// band, its line under it.
+const (
+	sheetPad  = 16
+	sheetHead = 37
+)
 
-// openColumn is an open sheet's column: its surface (sheetSurface), a head
-// with its group's mark, its title, and what closes it, over its page, w wide. A drag on the head moves the strip.
+// openColumn is an open sheet's column, w wide: its surface (sheetSurface),
+// its head (sheetHead) over its page. A drag on the head moves the strip.
 // The sheet in front stands here while the canvas is laid out, and on the
 // page otherwise, its column keeping its place meanwhile.
 func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, origin float32, animate bool) {
@@ -41,46 +45,53 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 			return
 		}
 		var head ui.Element
-		s.sheetSurface(c, semantic, page.ID, sheetLook{radius: 10 * k, edge: edge, head: func() {
-			head = ui.Row(c).Key("sheet-head").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
-				Gap(6 * k).PaddingStart(sheetPad * k).PaddingEnd(6 * k).PaddingY(6 * k).
-				Role(ui.RoleButton).Label("Bring " + page.Title + " in front")
-			head.Children(func() {
-				if group, ok := s.groupOf(page.ID); ok {
-					ink := semantic.Icon.Muted
-					if tint := groupTint(semantic, group); tint != nil {
-						ink = *tint
-					}
-					ui.Icon(c, groupIcon(group).SVG()).FontSize(14 * k).Shrink(0).TextColor(ink)
-				}
-				title := semantic.Text.Muted
-				if front {
-					title = semantic.Text.Heading
-				}
-				components.Label(c, page.Title, theme.TextSmall, title).SingleLine().MinWidth(0).Grow(1).
-					Transition(appearing(motionList, nil, nil))
-				// It names its sheet, which its tooltip need not.
-				chromeButton{
-					key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
-					icon: components.IconClose, compact: true,
-					action: func() { s.CloseSheet(page.ID) },
-				}.view(c, semantic, animate)
-			})
-			ui.Box(c).WidthPercent(100).Height(1).Shrink(0).Background(semantic.Border.Variant)
-		}}, func() {
-			ui.Column(c).Key("sheet-page").WidthPercent(100).FillHeight().PaddingX(sheetPad * k).
-				Children(func() {
-					if s.Sheet != nil {
-						s.Sheet(c, page.ID, SheetFrame{
-							Prose: prose, UIFontSize: size, Top: 16 * k, Bottom: 48 * k, Focus: front,
-						})
-					}
+		band := sheetHead * k
+		s.sheetSurface(c, semantic, page.ID, sheetLook{
+			radius: 10 * k, edge: edge, top: band + sheetPad*k, side: sheetPad * k,
+			head: func() { head = s.sheetHead(c, semantic, page, front, k, animate) }, headHeight: band, headShown: 1,
+		}, func(top float32) {
+			if s.Sheet != nil {
+				s.Sheet(c, page.ID, SheetFrame{
+					Prose: prose, UIFontSize: size, Top: top, Bottom: 48 * k, Focus: front,
 				})
+			}
 		})
 		if !s.pan(head) && head.Clicked() && !front && s.SelectPage != nil {
 			s.SelectPage(page.ID)
 		}
 	})
+}
+
+// sheetHead is a sheet's head on the canvas: its group's mark, its title,
+// and what closes it, filling the band it is given, its line under it; its
+// page is scaled by k.
+func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, front bool, k float32, animate bool) ui.Element {
+	head := ui.Row(c).Key("sheet-head").WidthPercent(100).Grow(1).AlignItems(ui.Center).
+		Gap(6 * k).PaddingStart(sheetPad * k).PaddingEnd(6 * k).
+		Role(ui.RoleButton).Label("Bring " + page.Title + " in front")
+	head.Children(func() {
+		if group, ok := s.groupOf(page.ID); ok {
+			ink := semantic.Icon.Muted
+			if tint := groupTint(semantic, group); tint != nil {
+				ink = *tint
+			}
+			ui.Icon(c, groupIcon(group).SVG()).FontSize(14 * k).Shrink(0).TextColor(ink)
+		}
+		title := semantic.Text.Muted
+		if front {
+			title = semantic.Text.Heading
+		}
+		components.Label(c, page.Title, theme.TextSmall, title).SingleLine().MinWidth(0).Grow(1).
+			Transition(appearing(motionList, nil, nil))
+		// It names its sheet, which its tooltip need not.
+		chromeButton{
+			key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
+			icon: components.IconClose, compact: true,
+			action: func() { s.CloseSheet(page.ID) },
+		}.view(c, semantic, animate)
+	})
+	ui.Box(c).WidthPercent(100).Height(1).Shrink(0).Background(semantic.Border.Variant)
+	return head
 }
 
 // sheetHint stands where the strip's columns would, while there are none:
@@ -108,6 +119,16 @@ func (s *State) groupOf(sheet string) (GroupItem, bool) {
 		return GroupItem{}, false
 	}
 	return s.Library.Group(id)
+}
+
+// openPage is the open sheet id, or one of that id alone.
+func (s *State) openPage(id string) Page {
+	for _, page := range s.Open {
+		if page.ID == id {
+			return page
+		}
+	}
+	return Page{ID: id}
 }
 
 // isOpen reports whether a sheet is open.

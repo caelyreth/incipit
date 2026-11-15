@@ -7,17 +7,18 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Scenes, shared elements and entrances: how one way of laying a window
-// out gives way to another, and how what both show goes across.
+// Scenes and shared elements: how one way of laying a window out gives
+// way to another, and how what both show goes across.
 //
 // Two scenes cross on one value, the share of the one shown, going from 0
 // to 1 on a spring: the one shown paints over the other, as opaque as far
 // as it has come, and the other stays whole beneath it until it is
 // covered, and is then no longer built. Turned back on the way, the two
 // change places at the same look, so the crossing reverses where it is.
-// What the two share flies across over both (Sharing), whole all the way;
-// what comes in with it, as its chrome, comes in from a pose of its own
-// (EnterFrom).
+// What the two share flies across over both (Sharing), whole all the way,
+// the rest of its look going with it (Sharing.Carry): where what it holds
+// stands in it, and how far what only one of them has, as its chrome, is
+// shown.
 
 // Floating builds fn's elements as what floats over a window's content,
 // as its controls or a dock of actions, placed with Absolute in the
@@ -56,6 +57,8 @@ type Sharing struct {
 type holding struct {
 	at    string
 	frame uint64
+	// carried are the values of its look (Carry) where it was held last.
+	carried map[string]float32
 }
 
 // Frame begins a build.
@@ -66,47 +69,51 @@ func (s *Sharing) Frame() { s.frame++ }
 // whether it arrives: held elsewhere in the build before, so that it flies
 // from there. The one appearing flies from where the other showed, from
 // its box, corners and colors, over the rest of the window and out of the
-// clips around it, the other going with it and fading out under it: MyGo's
-// Match with Fly, on settle's spring, so it turns back where it is.
+// clips around it: MyGo's Match with Fly, on settle's spring, so it turns
+// back where it is. The two are one thing, which what they hold shows
+// only where it was built last, as a page being written: so the other
+// leaves no copy to fade out under it, as MyGo has one that flew (Fly)
+// when last built, which would show it empty and have the one appearing
+// fade in over it. It flies from the frame it arrives in alone, its way
+// set then.
 func (s *Sharing) Hold(key any, at string, settle time.Duration, animate bool) (ui.ElementTransition, bool) {
 	if s.held == nil {
 		s.held = map[any]holding{}
 	}
 	was, ok := s.held[key]
 	arrives := animate && ok && was.at != at && was.frame+1 >= s.frame
-	s.held[key] = holding{at: at, frame: s.frame}
+	s.held[key] = holding{at: at, frame: s.frame, carried: was.carried}
 	if !animate {
 		return ui.ElementTransition{Duration: 1}, false
 	}
 	spring := Spring(settle)
-	return ui.ElementTransition{Match: key, Fly: true, Animation: &spring}, arrives
+	return ui.ElementTransition{Match: key, Fly: arrives, Animation: &spring}, arrives
 }
 
-// EnterFrom brings el in from pose p, where enter says so as it is first
-// built, to its place on settle's spring, painting only on the way: for
-// what has no entrance of its own, as the content of an element arriving
-// by flight (Sharing.Hold), which appears with it. Built first without
-// enter, it shows where it is. It poses el only on its way, so its place
-// is its layout's once there.
-func EnterFrom(c *ui.Context, el ui.Element, p ui.Pose, settle time.Duration, enter bool) ui.Element {
-	type entering struct {
-		seen bool
-		home time.Time
+// Carry is one of the values of the look of what key stands for, as how
+// far its content stands in from its edges, which el, held under key
+// (Hold), shows at target: arriving, it goes there from where it was
+// where key was held before, on settle's spring with the element's flight,
+// so what it holds goes across whole rather than jumping to its new place
+// in it; turned back on the way, it goes back from where it is.
+func (s *Sharing) Carry(el ui.Element, key any, name string, target float32, settle time.Duration, arrives, animate bool) float32 {
+	h, ok := s.held[key]
+	if !ok {
+		return target
 	}
-	st := ui.Local(el, "enter-from", func() entering { return entering{} })
-	now := c.Now()
-	switch {
-	case !st.seen:
-		st.seen = true
-		if enter {
-			st.home = now.Add(settle)
-			el.AnimatePose(p, ui.Animation{Duration: 1})
-			c.AnimationFrame()
+	value := target
+	if animate {
+		if was, ok := h.carried[name]; ok && arrives {
+			el.Jump(name, was)
 		}
-	case now.Before(st.home):
-		el.AnimatePose(ui.Pose{}, Spring(settle))
+		value = el.AnimateTo(name, target, Spring(settle))
 	}
-	return el
+	if h.carried == nil {
+		h.carried = map[string]float32{}
+		s.held[key] = h
+	}
+	h.carried[name] = value
+	return value
 }
 
 // Reveal brings el into view in the scroll containers around it, with
