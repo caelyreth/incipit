@@ -76,6 +76,10 @@ type Element struct {
 
 	// still is a page drawn by PaintStill.
 	still bool
+	// builds counts the views built of the element (View): a paint of an
+	// earlier one, as of a container fading out after the page was built
+	// elsewhere, is not the page's to draw.
+	builds uint64
 
 	// caret glides between the places the caret is drawn at, in page
 	// coordinates. It, the scroll's glide and the caret's breathing move
@@ -278,6 +282,8 @@ func (el *Element) View(c *ui.Context) {
 	ed.Due(c.Now())
 	pl := el.relayout()
 	el.follow(pl, c.Now())
+	el.builds++
+	build := el.builds
 	ui.Column(c).Key("page-surface").Fill().Role(ui.RoleNone).Children(func() {
 		box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
 			Role(ui.RoleTextField).Label(el.Label).Value(el.fieldValue()).Focusable()
@@ -304,16 +310,25 @@ func (el *Element) View(c *ui.Context) {
 			box.MaskLinearGradient(mask)
 		}
 		box.ContextMenu(func(m *ui.Menu) { el.contextMenu(m, services) })
+		// The paint reads what the build knew, never the build's elements:
+		// a container leaving keeps painting what it held after the frames
+		// that built it, as a pane fading out. Such a paint draws the page
+		// only while it was built nowhere since and still has its view; it
+		// never lays the page out again for its own size.
+		focused := box.Focused()
 		box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
 			TextCaret(el.caretInElement()).
 			Draw(func(p *ui.Painter, r ui.Rect) {
+				if build != el.builds || ed.closed {
+					return
+				}
 				if r.W != el.viewport.W || r.H != el.viewport.H {
 					el.viewport = r
 					el.relayout()
 					c.Services().Invalidate()
 				}
 				el.viewport = r
-				el.paint(p, r, box.Focused())
+				el.paint(p, r, focused)
 			})
 		el.accessUnits(c)
 		el.syncTags()

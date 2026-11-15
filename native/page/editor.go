@@ -59,6 +59,9 @@ type Editor struct {
 	built     builtFrom
 	builtAsks map[doc.ID]objectIn
 	relayouts int
+	// closed is an editor whose view is closed: what still shows it, as a
+	// page fading out, draws nothing more.
+	closed bool
 
 	mu     sync.Mutex
 	timer  *time.Timer
@@ -86,6 +89,7 @@ func (ed *Editor) Close() {
 	}
 	ed.mu.Unlock()
 	ed.Engine.CloseView(ed.View)
+	ed.closed = true
 }
 
 // SetStyle sets the theme and the measures the next layout uses.
