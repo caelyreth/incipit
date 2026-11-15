@@ -592,6 +592,11 @@ func (s *State) startStyling(id string) {
 func (s *State) revealGroup(id string) {
 	visible := true
 	s.SidebarOverride = &visible
+	s.expandTo(id)
+}
+
+// expandTo opens the groups a group is in, in the library's tree.
+func (s *State) expandTo(id string) {
 	for parent := s.Library.Parent(id); parent != ""; parent = s.Library.Parent(parent) {
 		s.nav.expanded[parent] = true
 	}

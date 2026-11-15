@@ -97,9 +97,11 @@ type State struct {
 	WindowActive      bool
 
 	// Sheet draws an open sheet's page, as frame sets it.
-	Sheet        func(c *ui.Context, id string, frame SheetFrame)
-	SelectPage   func(id string)
-	ClosePageID  func(id string)
+	Sheet       func(c *ui.Context, id string, frame SheetFrame)
+	SelectPage  func(id string)
+	ClosePageID func(id string)
+	// ClearPage leaves no sheet in front, those open staying open.
+	ClearPage    func()
 	OpenSettings func()
 	OpenCommands func()
 	// Find runs a sheet's find on the page in front; FindStep goes to the
@@ -149,7 +151,7 @@ type State struct {
 	// state, kept as it was left.
 	mode   Mode
 	canvas canvasState
-	// held is the mode whose layout holds what the two share (morph): a
+	// held is the mode whose layout holds the sheet in front (morph): a
 	// build behind the mode, so the layout gone to is laid out once before
 	// what moves to it does.
 	held Mode

@@ -79,18 +79,6 @@ func (s listing) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal,
 	pane := ui.Column(c).Key("sheets").Width(width).HeightPercent(100).Shrink(0).Clip().
 		Background(semantic.Surface.Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant)
-	// The canvas's first picker is the list, moved out from here, and
-	// back (morph).
-	// While the canvas holds it, the pane is laid out unseen beneath.
-	holds := s.held == ModePage
-	s.morph.Mark(c, pane, "list", "page", holds, morphSettle, animate)
-	if !holds {
-		pane.Opacity(0)
-	}
-	// Coming back from the canvas, it passes over the page beside it.
-	if s.morph.Moving("list", c.Now()) {
-		pane.ZIndex(1)
-	}
 	pane.Children(func() {
 		ui.Column(c).Width(full).HeightPercent(100).Opacity(reveal).Children(func() {
 			ui.Box(c).Key("list-head").WidthPercent(100).Height(head).Shrink(0)

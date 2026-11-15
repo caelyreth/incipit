@@ -90,6 +90,12 @@ func (s *State) View(c *ui.Context) {
 		}
 		shown = max(0, min(components.Follow(root, "canvas-shown", canvasTarget, settle), 1))
 	}
+	// The panes go under the canvas as it comes, and come back as the sheet
+	// in front goes home over them from it.
+	panes := 1 - canvasTarget
+	if animate {
+		panes = max(0, min(components.Follow(root, "panes-shown", panes, morphSettle), 1))
+	}
 	// Each layout is built while it shows, and the build before what it
 	// shares moves to it (held); the page mode's while the canvas over it
 	// is not yet whole.
@@ -145,8 +151,14 @@ func (s *State) View(c *ui.Context) {
 		s.controls(c, semantic, chrome, animate)
 		if drawPage {
 			ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-				s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
-				s.sheets().sheetColumn(c, semantic, listWidth, listReveal, head)
+				side := ui.Row(c).Key("panes").AlignItems(ui.Stretch).Shrink(0)
+				if panes < 0.999 {
+					side.Opacity(panes)
+				}
+				side.Children(func() {
+					s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
+					s.sheets().sheetColumn(c, semantic, listWidth, listReveal, head)
+				})
 				ui.Column(c).Key("page-area").Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
 					s.page(c, semantic, metrics, layout)
 					if chrome > 0.001 {
@@ -158,7 +170,7 @@ func (s *State) View(c *ui.Context) {
 			s.paneEdges(c, semantic, sidebarWidth, listWidth, animate)
 			// The title line and the place's title on its way paint over
 			// the panes' room for them (ZIndex).
-			s.paneHeader(c, semantic, layout, chrome, reveal, listWidth, listReveal)
+			s.paneHeader(c, semantic, layout, chrome*panes, reveal, listWidth, listReveal)
 			s.placeFlight(c, semantic, layout, reveal, listWidth, listReveal, animate)
 		}
 		if drawCanvas {
@@ -168,7 +180,7 @@ func (s *State) View(c *ui.Context) {
 			s.dock(c, semantic, dockLeft, mode)
 		}
 	})
-	// What the two layouts share moves to the mode's in the next build,
+	// The sheet in front moves to the mode's layout in the next build,
 	// its layout built now (morph). A mode chosen in this build is
 	// built for in the next, and moved to in the one after.
 	s.held = mode

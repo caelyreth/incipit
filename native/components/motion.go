@@ -16,6 +16,10 @@ const (
 	// on its spring: a spring's tail is long and soft, so it reads about as
 	// quick as MotionPanel's curve.
 	MotionSettle = 340 * time.Millisecond
+	// MotionDock is how long a dock takes to grow, shrink or move as its
+	// groups come and go: unhurried, as it changes along with the scene
+	// around it.
+	MotionDock = MotionScene
 )
 
 // MotionEnabled is the app's effective motion policy for a window. MyGo

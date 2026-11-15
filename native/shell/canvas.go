@@ -12,15 +12,17 @@ import (
 
 // The canvas is the notebook laid out as one flow, where the page mode
 // shows one place and one sheet at a time: a strip of columns across the
-// window, each as tall as it, that scrolls sideways without end: a column
-// for each open sheet, written in where it stands, and the pickers among
-// them that sheets are chosen in (canvas_pickers.go).
+// window, each as tall as it, that scrolls sideways without end: the
+// columns of a workspace kept from one visit to the next
+// (canvas_workspace.go), sheets written in where they stand, and the
+// pickers among them that sheets are chosen in (canvas_pickers.go).
 //
 // The canvas is a layer of its own over the page mode's layout, the whole
 // window's, which stays laid out as it was beneath it while the canvas
-// comes and goes: nothing is laid out again as the mode changes, and what
-// the two share moves from one to the other (morph). The layout gone to is
-// built a build ahead of what moves to it (State.held).
+// comes and goes: nothing is laid out again as the mode changes, and the
+// sheet in front moves from one to the other (morph), the one thing they
+// share. The layout gone to is built a build ahead of what moves to it
+// (State.held).
 //
 // A sheet's column is half the window, less the gap between, so two
 // neighbours read as a split, or a third where a third still holds a
@@ -66,7 +68,7 @@ const (
 	ModeCanvas
 )
 
-// String names the mode, as where what the two share stands (morph).
+// String names the mode, as where the sheet in front stands (morph).
 func (m Mode) String() string {
 	if m == ModeCanvas {
 		return "canvas"
@@ -104,20 +106,16 @@ type canvasState struct {
 	reveal string
 	// scrub is the scrubber's (canvas_scrub.go).
 	scrub scrubState
-	// columns are the strip's, in order: the open sheets and the pickers
-	// among them (arrange); pickers counts the pickers made, for their ids.
-	// into and beside are sheets on their way from a picker, by its id: to
-	// take its place, or to stand after it. placePicker asks for a picker
-	// before the sheet in front, as the canvas comes, and revealPicker is
-	// one to bring into view.
-	columns      []canvasColumn
+	// workspaces are the canvas's rows, kept as the mode changes, and
+	// shown the one it shows (canvas_workspace.go). pickers counts the
+	// pickers made, for their ids. into and beside are sheets on their way
+	// from a picker, by its id: to take its place, or to stand after it.
+	// revealPicker is a picker to bring into view.
+	workspaces   []*canvasWorkspace
+	shown        int
 	pickers      int
 	into, beside map[string]int
-	placePicker  bool
 	revealPicker int
-	// listPicker is the picker the canvas came with, which moves out from
-	// the sheet list (morph).
-	listPicker int
 }
 
 // Mode is the window's mode; the canvas needs a library to lay out.
@@ -131,15 +129,22 @@ func (s *State) Mode() Mode {
 // CanvasOpen reports whether the canvas shows in place of the page.
 func (s *State) CanvasOpen() bool { return s.Mode() == ModeCanvas }
 
-// SetMode lays the notebook out as m: the canvas with the sheet in front
-// where the page stood, or the page with its panes as they were.
+// SetMode lays the notebook out as m: the canvas, or the page with its
+// panes as they were, the sheet in front handed from one to the other
+// (canvas_workspace.go).
 func (s *State) SetMode(m Mode) {
 	if s == nil || s.mode == m {
 		return
 	}
+	if s.Library != nil {
+		if m == ModeCanvas {
+			s.enterCanvas()
+		} else {
+			s.leaveCanvas()
+		}
+	}
 	s.mode = m
 	s.canvas.entered = m == ModeCanvas
-	s.canvas.placePicker = m == ModeCanvas
 }
 
 // ToggleCanvas goes from the page to the canvas, or back.
@@ -158,8 +163,7 @@ func (s *State) closeCanvas() { s.SetMode(ModePage) }
 // says: it fades in over the page mode's layout as it comes, what it shares
 // with that layout moving on top; going, it fades out as a whole.
 func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Layout, shown float32, animate bool) {
-	s.canvas.follow, s.canvas.front = s.canvas.front != s.ActivePage, s.ActivePage
-	s.arrange()
+	s.keepCanvas()
 	scale := s.Settings.UIFontSize
 	head := layout.Titlebar * scale / theme.DefaultUIFontSize
 	canvas := ui.Column(c).Key("canvas").Absolute().Top(0).Left(0).Right(0).Bottom(0).ZIndex(1)
@@ -170,7 +174,7 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	canvas.Children(func() {
 		// The ground comes in under the columns, which come on their own:
 		// absolute, it would paint over them but for its z-index. It goes
-		// at once as the page takes back what the two share, which moves
+		// at once as the page takes back the sheet in front, which moves
 		// home on the page beneath, the other columns fading over it.
 		ground := shown
 		if s.held != ModeCanvas {
@@ -214,14 +218,18 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 	// and their heads stand clear of the window's controls over them.
 	foot := layout.DockClearance() * k
 	top := max(head, gutter/2, s.controlsFoot)
-	strip.Padding(top, gutter, foot, gutter)
+	strip.Padding(top, 0, foot, 0)
 	window, _ := c.Size()
 	editor := s.editorWidth(window-2*gutter, k)
 	picker := s.paneLayout().SheetList * k
 	strip.Children(func() {
-		flow := ui.Row(c).Key("canvas-flow").FillHeight().AlignItems(ui.Stretch).Gap(columnGap * k)
+		// The flow is at least as wide as the window, its room before,
+		// between and after the columns its own (room).
+		flow := ui.Row(c).Key("canvas-flow").FillHeight().AlignItems(ui.Stretch).
+			MinWidth(s.canvas.viewport.W)
 		s.canvas.over.Apply(c, flow, animate)
-		origin := flow.LayoutBounds().X
+		// The columns' places are counted from where the first stands.
+		origin := flow.LayoutBounds().X + gutter
 		s.pan(flow)
 		pages := make(map[string]Page, len(s.Open))
 		for _, page := range s.Open {
@@ -229,17 +237,42 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 		}
 		flow.Children(func() {
 			s.canvas.spans = s.canvas.spans[:0]
-			for _, col := range s.canvas.columns {
+			columns := s.workspace().columns
+			s.room(c, "room-start", 0, gutter, false)
+			if len(columns) == 0 {
+				s.sheetHint(c, semantic, editor, origin, animate)
+				s.room(c, "room-end", 0, gutter, true)
+			}
+			for i, col := range columns {
 				if col.picker != nil {
 					s.pickerColumn(c, semantic, col.picker, picker, origin, animate)
-					continue
+				} else {
+					s.openColumn(c, semantic, pages[col.sheet], editor, origin, animate)
 				}
-				s.openColumn(c, semantic, pages[col.sheet], editor, origin, animate)
-			}
-			if len(s.canvas.columns) == 0 {
-				s.sheetHint(c, semantic, editor, origin, animate)
+				// The room after the last reaches the window's end.
+				last := i == len(columns)-1
+				w := columnGap * k
+				if last {
+					w = gutter
+				}
+				s.room(c, "room-"+col.key(), i+1, w, last)
 			}
 		})
+	})
+}
+
+// room is empty room on the canvas, w wide, or more where it may grow,
+// before its workspace's column at: unseen, and, right-clicked, it offers
+// to make a picker there.
+func (s *State) room(c *ui.Context, key string, at int, w float32, grow bool) {
+	room := ui.Box(c).Key(key).Width(w).Shrink(0).FillHeight().Label("Canvas")
+	if grow {
+		room.Grow(1)
+	}
+	room.ContextMenu(func(m *ui.Menu) {
+		if m.Item("New Picker").Chosen() {
+			s.newPickerAt(at)
+		}
 	})
 }
 

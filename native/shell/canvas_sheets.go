@@ -31,7 +31,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 	// The sheet in front is the page's: it comes with the canvas, and
 	// holds its page once the page mode's layout has let it go (held).
 	holds := s.held == ModeCanvas || !front
-	col := s.column(c, "sheet-"+page.ID, w, origin, !(front && s.canvas.entered), animate).
+	col := s.column(c, canvasColumn{sheet: page.ID}.key(), w, origin, !(front && s.canvas.entered), animate).
 		Role(ui.RoleGroup).Label(page.Title).Clip().Radius(10*k).
 		Background(semantic.Surface.Page).Border(1, edge)
 	s.morph.Mark(c, col, "sheet:"+page.ID, "canvas", holds, morphSettle, animate)
@@ -75,11 +75,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 			chromeButton{
 				key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
 				icon: components.IconClose, compact: true,
-				action: func() {
-					if s.ClosePageID != nil {
-						s.ClosePageID(page.ID)
-					}
-				},
+				action: func() { s.CloseSheet(page.ID) },
 			}.view(c, semantic, animate)
 		})
 		if !s.pan(head) && head.Clicked() && !front && s.SelectPage != nil {
@@ -98,13 +94,19 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 }
 
 // sheetHint stands where the strip's columns would, while there are none:
-// how to bring one.
+// how to bring one. It is the canvas's empty room, as the room around
+// columns is.
 func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w, origin float32, animate bool) {
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
-	s.column(c, "sheet-hint", w, origin, true, animate).AlignItems(ui.Center).Justify(ui.Center).
-		Gap(12 * k).Children(func() {
+	hint := s.column(c, "sheet-hint", w, origin, true, animate).AlignItems(ui.Center).Justify(ui.Center).Gap(12 * k)
+	hint.ContextMenu(func(m *ui.Menu) {
+		if m.Item("New Picker").Chosen() {
+			s.newPickerAt(0)
+		}
+	})
+	hint.Children(func() {
 		ui.Icon(c, components.IconDocument.SVG()).FontSize(40 * k).TextColor(semantic.Icon.Muted).Opacity(0.35)
-		components.Label(c, "Make a picker to choose a sheet", theme.TextXSmall, semantic.Text.Muted).
+		components.Label(c, "Right-click the canvas, or use New picker, to choose a sheet", theme.TextXSmall, semantic.Text.Muted).
 			Opacity(0.8).TextAlign(ui.Center)
 	})
 }
@@ -112,24 +114,10 @@ func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w, origin float32
 // writeInColumns leaves the canvas for the columns at a sheet, in front,
 // at its group.
 func (s *State) writeInColumns(id string) {
-	s.closeCanvas()
 	if s.SelectPage != nil {
 		s.SelectPage(id)
 	}
 	s.reveal(id)
-}
-
-// openOnCanvas opens a sheet in a column of its own, after the others,
-// in front; the strip goes to it.
-func (s *State) openOnCanvas(id string) {
-	if s.isOpen(id) {
-		if s.SelectPage != nil {
-			s.SelectPage(id)
-		}
-		s.canvas.reveal = id
-		return
-	}
-	s.Library.OpenSheet(id, true)
 }
 
 // groupOf is the group a sheet is filed in.

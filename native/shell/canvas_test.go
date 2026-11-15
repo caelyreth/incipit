@@ -21,22 +21,51 @@ func onCanvas(t *testing.T) (*State, *fakeLibrary, *ui.Tester) {
 	return state, library, tester
 }
 
-// The canvas comes with a picker beside the sheet in front, showing what
-// the sheet list shows, takes the window from the panes, and gives it back
-// as it was.
-func TestTheCanvasComesWithAPickerBesideTheSheetInFront(t *testing.T) {
+// joining opens sheets on the canvas one after another, as the window
+// opens each in front, so each joins the workspace after the one before.
+func joining(state *State, tester *ui.Tester, pages ...Page) {
+	for _, page := range pages {
+		state.Open = append(state.Open, page)
+		state.ActivePage = page.ID
+		tester.Frame()
+	}
+	settle(tester)
+}
+
+func sheetPages(ids ...string) []Page {
+	var pages []Page
+	for _, id := range ids {
+		pages = append(pages, Page{ID: id, Title: "Sheet " + id})
+	}
+	return pages
+}
+
+// columnsOf names the workspace's columns: a sheet by its id, a picker
+// as "picker".
+func columnsOf(state *State) []string {
+	var out []string
+	for _, col := range state.workspace().columns {
+		if col.picker != nil {
+			out = append(out, "picker")
+		} else {
+			out = append(out, col.sheet)
+		}
+	}
+	return out
+}
+
+// The canvas comes with the sheet in front and nothing else, takes the
+// window from the panes, and gives it back as it was.
+func TestTheCanvasComesWithTheSheetInFrontAlone(t *testing.T) {
 	state, _, tester := onCanvas(t)
-	if n := len(state.canvas.columns); n != 2 || state.canvas.columns[0].picker == nil ||
-		state.canvas.columns[1].sheet != "1" {
-		t.Fatalf("The strip should hold a picker, then the sheet in front, but it holds %+v.", state.canvas.columns)
+	if cols := columnsOf(state); !slices.Equal(cols, []string{"1"}) {
+		t.Fatalf("The canvas should hold the sheet in front alone, but it holds %v.", cols)
 	}
-	picker, ok := tester.Find("Sheet picker")
-	sheet, ok2 := tester.Find("Bring Untitled in front")
-	if !ok || !ok2 || picker.X > sheet.X || sheet.X+sheet.W > 1260 {
-		t.Fatalf("The picker and the sheet should both show, side by side, but they are at %+v and %+v.", picker, sheet)
+	if _, ok := tester.Find("Sheet picker"); ok {
+		t.Fatal("Coming to the canvas should make no picker.")
 	}
-	if !tester.HasText("Draft") {
-		t.Fatalf("The picker should list the place's sheets, but the canvas shows %#v.", tester.Texts())
+	if _, ok := tester.Find("Bring Untitled in front"); !ok {
+		t.Fatal("The sheet in front should stand on the canvas.")
 	}
 	if _, ok := tester.Find("Groups"); ok {
 		t.Fatal("The library should give way to the canvas, but it stays beside it.")
@@ -45,34 +74,103 @@ func TestTheCanvasComesWithAPickerBesideTheSheetInFront(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if state.CanvasOpen() || !state.SidebarVisible() {
-		t.Fatal("Leaving the canvas should bring the panes back as they were.")
+	if state.CanvasOpen() || !state.SidebarVisible() || state.ActivePage != "1" {
+		t.Fatal("Leaving the canvas should bring the panes back as they were, at the sheet in front.")
 	}
 }
 
-// The mode is the window's top choice: on the canvas the window's controls
-// add the canvas's own, the panes' title line goes with the panes, and
-// there is no zoom and no line of its own over the strip.
+// The canvas keeps its workspace from one visit to the next: a sheet in
+// front that stands in it shows it as it was, and one that does not joins
+// it at its end.
+func TestTheCanvasKeepsItsWorkspaceAcrossModes(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	state.ToggleCanvas()
+	settle(tester)
+	// In the page mode, another sheet comes in front, and joins.
+	state.Open = append(state.Open, Page{ID: "7", Title: "Chapter"})
+	state.ActivePage = "7"
+	state.ToggleCanvas()
+	settle(tester)
+	if cols := columnsOf(state); !slices.Equal(cols, []string{"1", "7"}) {
+		t.Fatalf("A sheet not on the canvas should join it at its end, but it holds %v.", cols)
+	}
+	// Back with a sheet that stands there: nothing changes.
+	state.ToggleCanvas()
+	state.ActivePage = "1"
+	state.ToggleCanvas()
+	settle(tester)
+	if cols := columnsOf(state); !slices.Equal(cols, []string{"1", "7"}) {
+		t.Fatalf("A sheet standing on the canvas should show it as it was, but it holds %v.", cols)
+	}
+}
+
+// With nothing in front, the canvas comes back as it was and nothing
+// joins; with nothing in front on the canvas, the page has nothing in
+// front either.
+func TestNothingInFrontStaysNothing(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	cleared := 0
+	state.ClearPage = func() { cleared++; state.ActivePage = "" }
+	state.ToggleCanvas()
+	state.ActivePage = ""
+	state.ToggleCanvas()
+	settle(tester)
+	if cols := columnsOf(state); !slices.Equal(cols, []string{"1"}) || state.ActivePage != "" {
+		t.Fatalf("With nothing in front, the canvas should come back as it was, but it holds %v, %q in front.",
+			cols, state.ActivePage)
+	}
+	if cleared != 0 {
+		t.Fatal("Coming to the canvas should leave the page's sheets as they are.")
+	}
+	// A sheet in front that is not on the canvas, as one opened from the
+	// palette and closed off it, is nothing in front there.
+	state.ToggleCanvas()
+	state.ActivePage = "1"
+	state.ToggleCanvas()
+	state.workspace().columns = nil
+	state.ToggleCanvas()
+	if cleared != 1 || state.ActivePage != "" {
+		t.Fatalf("Leaving the canvas with nothing in front should leave nothing in front, but %q is (cleared %d).",
+			state.ActivePage, cleared)
+	}
+}
+
+// Leaving the canvas, the sheet list goes to where the sheet in front
+// stands where the place it shows does not list it.
+func TestLeavingTheCanvasListsTheSheetInFront(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	joining(state, tester, Page{ID: "7", Title: "Chapter"})
+	if state.Place() == (Place{Kind: PlaceGroup, Group: "2"}) {
+		t.Fatal("The test needs the list elsewhere first.")
+	}
+	state.ToggleCanvas()
+	settle(tester)
+	if got := state.Place(); got != (Place{Kind: PlaceGroup, Group: "2"}) {
+		t.Fatalf("The list should go to the group of the sheet in front, but it shows %+v.", got)
+	}
+}
+
+// The writing actions offer a new picker on the canvas alone.
 func TestTheCanvasIsAModeOfTheWindow(t *testing.T) {
 	_, _, tester := onCanvas(t)
-	if _, ok := tester.Find("New sheet"); !ok {
-		t.Fatal("The window's controls should offer a new sheet on the canvas.")
+	if _, ok := tester.Find("New picker"); !ok {
+		t.Fatal("The writing actions should offer a new picker on the canvas.")
 	}
-	for _, label := range []string{"Toggle library", "Toggle sheet list", "End search", "Zoom in", "Light sheets"} {
+	for _, label := range []string{"New sheet", "Toggle library", "Toggle sheet list", "End search", "Zoom in", "Light sheets"} {
 		if _, ok := tester.Find(label); ok {
 			t.Fatalf("The canvas should not show %q.", label)
 		}
 	}
 }
 
-// The window's controls switch the mode, and offer the canvas's own only
-// while it shows.
+// The window's controls switch the mode, and the canvas's own actions
+// show only while it does.
 func TestTheModeSwitchesFromTheWindowsControls(t *testing.T) {
-	state, library := libraryState()
+	state, _ := libraryState()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
 	if _, ok := tester.Find("Canvas actions"); ok {
-		t.Fatal("The canvas's controls should not show on the page.")
+		t.Fatal("The canvas's actions should not show on the page.")
 	}
 	if err := tester.Click("Canvas mode"); err != nil {
 		t.Fatal(err)
@@ -81,11 +179,33 @@ func TestTheModeSwitchesFromTheWindowsControls(t *testing.T) {
 	if !state.CanvasOpen() {
 		t.Fatal("Choosing the canvas should lay the notebook out on it.")
 	}
-	if err := tester.Click("New sheet"); err != nil {
+	if err := tester.Click("New picker"); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.ContainsFunc(library.calls, func(call string) bool { return strings.HasPrefix(call, "new sheet ") }) {
-		t.Fatalf("New sheet should make one, but the calls are %v.", library.calls)
+	settle(tester)
+	if cols := columnsOf(state); !slices.Equal(cols, []string{"1", "picker"}) {
+		t.Fatalf("New picker should make one after the sheet in front, but the canvas holds %v.", cols)
+	}
+}
+
+// Right-clicked in its room between columns, the canvas makes a picker
+// there.
+func TestRightClickingTheCanvasMakesAPickerThere(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	joining(state, tester, Page{ID: "7", Title: "Chapter"})
+	first, ok := tester.Find("Bring Untitled in front")
+	second, ok2 := tester.Find("Bring Chapter in front")
+	if !ok || !ok2 {
+		t.Fatalf("Both sheets should show, but the canvas shows %#v.", tester.Texts())
+	}
+	// The gap between their columns, below their heads.
+	tester.RightClickAt((first.X+first.W+second.X)/2+2, 400)
+	if err := tester.ChooseMenuItem("New Picker"); err != nil {
+		t.Fatalf("The canvas's room should offer a new picker: %v (menu %v)", err, tester.Menu())
+	}
+	settle(tester)
+	if cols := columnsOf(state); !slices.Equal(cols, []string{"1", "picker", "7"}) {
+		t.Fatalf("The picker should stand where the canvas was right-clicked, but the canvas holds %v.", cols)
 	}
 }
 
@@ -93,6 +213,8 @@ func TestTheModeSwitchesFromTheWindowsControls(t *testing.T) {
 // turning into its page, and the canvas stays.
 func TestASheetChosenInAPickerTakesItsPlace(t *testing.T) {
 	state, library, tester := onCanvas(t)
+	state.NewPicker()
+	settle(tester)
 	if err := tester.Click("Draft"); err != nil {
 		t.Fatal(err)
 	}
@@ -105,8 +227,8 @@ func TestASheetChosenInAPickerTakesItsPlace(t *testing.T) {
 	state.Open = append(state.Open, Page{ID: "8", Title: "Draft"})
 	state.ActivePage = "8"
 	tester.Frame()
-	if cols := state.canvas.columns; len(cols) != 2 || cols[0].sheet != "8" || cols[1].sheet != "1" {
-		t.Fatalf("The sheet should stand where the picker stood, but the strip holds %+v.", cols)
+	if cols := columnsOf(state); !slices.Equal(cols, []string{"1", "8"}) {
+		t.Fatalf("The sheet should stand where the picker stood, but the canvas holds %v.", cols)
 	}
 }
 
@@ -114,6 +236,8 @@ func TestASheetChosenInAPickerTakesItsPlace(t *testing.T) {
 // stays for the next.
 func TestASheetOpenedAlongsideComesInBesideThePicker(t *testing.T) {
 	state, library, tester := onCanvas(t)
+	state.NewPicker()
+	settle(tester)
 	if err := tester.ClickWith(ui.Alt, "Draft"); err != nil {
 		t.Fatal(err)
 	}
@@ -124,54 +248,49 @@ func TestASheetOpenedAlongsideComesInBesideThePicker(t *testing.T) {
 	state.Open = append(state.Open, Page{ID: "8", Title: "Draft"})
 	state.ActivePage = "8"
 	tester.Frame()
-	cols := state.canvas.columns
-	if len(cols) != 3 || cols[0].picker == nil || cols[1].sheet != "8" || cols[2].sheet != "1" {
-		t.Fatalf("The sheet should come in after the picker, which stays, but the strip holds %+v.", cols)
+	if cols := columnsOf(state); !slices.Equal(cols, []string{"1", "picker", "8"}) {
+		t.Fatalf("The sheet should come in after the picker, which stays, but the canvas holds %v.", cols)
 	}
 }
 
-// New picker makes another after the column in front; a picker closes.
-func TestPickersAreMadeAndClosed(t *testing.T) {
+// A picker closes.
+func TestAPickerCloses(t *testing.T) {
 	state, _, tester := onCanvas(t)
-	if err := tester.Click("New picker"); err != nil {
+	state.NewPicker()
+	settle(tester)
+	if err := tester.Click("Close picker"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	cols := state.canvas.columns
-	if len(cols) != 3 || cols[2].picker == nil {
-		t.Fatalf("A new picker should stand after the sheet in front, but the strip holds %+v.", cols)
-	}
-	state.closePicker(cols[0].picker.id)
-	tester.Frame()
-	if cols := state.canvas.columns; len(cols) != 2 || cols[0].sheet != "1" {
-		t.Fatalf("Closing a picker should take it off the strip, but the strip holds %+v.", cols)
+	if cols := columnsOf(state); !slices.Equal(cols, []string{"1"}) {
+		t.Fatalf("Closing a picker should take it off the canvas, but it holds %v.", cols)
 	}
 }
 
-// The strip holds every open sheet at once, each written in where it
-// stands; its head brings it in front, takes it back to the columns, or
-// closes it.
-func TestTheStripHoldsEveryOpenSheet(t *testing.T) {
+// The canvas holds its sheets at once, each written in where it stands;
+// a head brings its sheet in front, takes it back to the columns, or
+// closes it, the one beside it coming in front where it was, or none.
+func TestTheCanvasHoldsItsSheetsAtOnce(t *testing.T) {
 	state, _, tester := onCanvas(t)
-	state.Open = []Page{{ID: "7", Title: "Chapter"}, {ID: "8", Title: "Draft"}}
-	state.ActivePage = "7"
 	focused := map[string]bool{}
 	state.Sheet = func(c *ui.Context, id string, frame SheetFrame) {
 		focused[id] = frame.Focus
 		ui.Text(c, "Body of "+id)
 	}
 	var selected, closed []string
+	cleared := 0
 	state.SelectPage = func(id string) { selected = append(selected, id); state.ActivePage = id }
-	state.ClosePageID = func(id string) { closed = append(closed, id) }
-	// Brought in front, a sheet is brought into view.
-	state.ActivePage = "8"
-	tester.Frame()
-	settle(tester)
+	state.ClosePageID = func(id string) {
+		closed = append(closed, id)
+		state.Open = slices.DeleteFunc(state.Open, func(p Page) bool { return p.ID == id })
+	}
+	state.ClearPage = func() { cleared++; state.ActivePage = "" }
+	joining(state, tester, Page{ID: "7", Title: "Chapter"}, Page{ID: "8", Title: "Draft"})
 	state.ActivePage = "7"
 	tester.Frame()
 	settle(tester)
-	if !tester.HasText("Body of 7") || !tester.HasText("Body of 8") {
-		t.Fatalf("Both open sheets should stand on the strip, but it shows %#v.", tester.Texts())
+	if !tester.HasText("Body of 1") || !tester.HasText("Body of 7") || !tester.HasText("Body of 8") {
+		t.Fatalf("Every sheet on the canvas should stand there, but it shows %#v.", tester.Texts())
 	}
 	if !focused["7"] || focused["8"] {
 		t.Fatalf("Only the sheet in front should take the focus, but the frames ask %v.", focused)
@@ -183,18 +302,38 @@ func TestTheStripHoldsEveryOpenSheet(t *testing.T) {
 	if !slices.Equal(selected, []string{"8"}) {
 		t.Fatalf("A column's head should bring its sheet in front, but the sheets selected are %v.", selected)
 	}
+	// Draft, last, closes: the one before it comes in front.
 	if err := tester.Click("Close Draft"); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(closed, []string{"8"}) {
-		t.Fatalf("A column's close should close its sheet, but the sheets closed are %v.", closed)
+	settle(tester)
+	if !slices.Equal(closed, []string{"8"}) || state.ActivePage != "7" {
+		t.Fatalf("Closing the sheet in front should bring the one beside it in front, but %v closed and %q is in front.",
+			closed, state.ActivePage)
 	}
-	if err := tester.Click("Write Draft in columns"); err != nil {
+	for _, title := range []string{"Untitled", "Chapter"} {
+		if err := tester.Click("Close " + title); err != nil {
+			t.Fatal(err)
+		}
+		settle(tester)
+	}
+	if cleared != 1 || state.ActivePage != "" {
+		t.Fatalf("Closing the last sheet on the canvas should leave none in front, but %q is (cleared %d).",
+			state.ActivePage, cleared)
+	}
+}
+
+// Taking a sheet back to the columns leaves the canvas at that sheet.
+func TestWritingInColumnsLeavesTheCanvasAtTheSheet(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	state.SelectPage = func(id string) { state.ActivePage = id }
+	joining(state, tester, Page{ID: "7", Title: "Chapter"})
+	if err := tester.Click("Write Untitled in columns"); err != nil {
 		t.Fatal(err)
 	}
-	if state.CanvasOpen() || len(selected) != 2 {
-		t.Fatalf("Writing in columns should leave the canvas at that sheet, but the canvas is open %v, selected %v.",
-			state.CanvasOpen(), selected)
+	if state.CanvasOpen() || state.ActivePage != "1" {
+		t.Fatalf("Writing in columns should leave the canvas at that sheet, but the canvas is open %v, %q in front.",
+			state.CanvasOpen(), state.ActivePage)
 	}
 }
 
@@ -212,14 +351,11 @@ func TestSearchGoesFromTheCanvasToTheSheetList(t *testing.T) {
 // The strip goes to the sheet that comes in front, and a drag on it moves
 // it along, coming to rest at a column.
 func TestTheStripFollowsTheFrontAndPansByDrag(t *testing.T) {
-	state, library, tester := onCanvas(t)
-	for _, id := range []string{"7", "8", "9", "10"} {
-		state.Open = append(state.Open, Page{ID: id, Title: "Sheet " + id})
-	}
-	library.calls = nil
-	state.ActivePage = "7"
+	state, _, tester := onCanvas(t)
 	state.Sheet = func(c *ui.Context, id string, _ SheetFrame) { ui.Text(c, "Body of "+id) }
 	state.SelectPage = func(id string) { state.ActivePage = id }
+	joining(state, tester, sheetPages("7", "8", "9", "10")...)
+	state.ActivePage = "7"
 	tester.Frame()
 	settle(tester)
 	before := state.canvas.strip.X
@@ -266,17 +402,17 @@ func TestTheColumnsShareTheWindowByHalvesOrThirds(t *testing.T) {
 		n     float32
 	}{{1260, 2}, {2600, 3}} {
 		state, _ := libraryState()
-		state.Open = []Page{{ID: "7", Title: "Chapter"}, {ID: "8", Title: "Draft"}}
-		state.ActivePage = "7"
 		tester := ui.NewTester(state.View, int(window.width), 850)
 		tester.Frame()
 		state.ToggleCanvas()
 		tester.Frame()
+		joining(state, tester, Page{ID: "7", Title: "Chapter"})
+		state.NewPicker()
 		settle(tester)
 		inner := window.width - 2*theme.DefaultLayout.ContentGutter
 		want := (inner - columnGap*(window.n-1)) / window.n
-		// The picker, then the two sheets.
-		if spans := state.canvas.spans; len(spans) != 3 || abs(spans[1].w-want) > 1 || abs(spans[2].w-want) > 1 {
+		// The two sheets, then the picker.
+		if spans := state.canvas.spans; len(spans) != 3 || abs(spans[0].w-want) > 1 || abs(spans[1].w-want) > 1 {
 			t.Fatalf("At %v across, the sheets' columns should be %v wide, but the strip holds %+v.",
 				window.width, want, spans)
 		}
@@ -292,11 +428,7 @@ func TestTheColumnsShareTheWindowByHalvesOrThirds(t *testing.T) {
 // stays where it stopped.
 func TestTheStripPinsToAColumnItComesToRestNear(t *testing.T) {
 	state, _, tester := onCanvas(t)
-	for _, id := range []string{"7", "8", "9", "10"} {
-		state.Open = append(state.Open, Page{ID: id, Title: "Sheet " + id})
-	}
-	tester.Frame()
-	settle(tester)
+	joining(state, tester, sheetPages("7", "8", "9", "10")...)
 	state.canvas.strip.ScrollTo(0, 0, ui.Animation{Duration: 1})
 	settle(tester)
 	rests := state.rests()
@@ -342,9 +474,7 @@ func TestTheStripStretchesPastItsEnds(t *testing.T) {
 // strip, coming to rest at a column.
 func TestTheScrubberMovesTheStrip(t *testing.T) {
 	state, _, tester := onCanvas(t)
-	for _, id := range []string{"7", "8", "9", "10"} {
-		state.Open = append(state.Open, Page{ID: id, Title: "Sheet " + id})
-	}
+	joining(state, tester, sheetPages("7", "8", "9", "10")...)
 	state.ActivePage = "7"
 	tester.Frame()
 	settle(tester)
@@ -382,12 +512,12 @@ func TestTheScrubberMovesTheStrip(t *testing.T) {
 	}
 }
 
-// The page and the canvas share what they both show: going to the canvas,
-// the sheet in front moves from the page into its column, and the sheet
-// list out into the picker beside it; going back, both move back. The
-// page's layout stays laid out beneath the canvas as it comes, and the
-// layout gone to is built a build before what moves to it.
-func TestThePageAndTheCanvasShareTheirSheetAndList(t *testing.T) {
+// The page and the canvas share the sheet in front alone: going to the
+// canvas, it moves from the page into its column, and back again; the
+// sheet list stays with the page. The page's layout stays laid out beneath
+// the canvas as it comes, and the layout gone to is built a build before
+// what moves to it.
+func TestThePageAndTheCanvasShareTheSheetInFront(t *testing.T) {
 	state, _ := libraryState()
 	state.Appearance.Motion = true
 	state.Sheet = func(c *ui.Context, id string, _ SheetFrame) { ui.Text(c, "Body of "+id) }
@@ -408,8 +538,8 @@ func TestThePageAndTheCanvasShareTheirSheetAndList(t *testing.T) {
 		t.Fatal(err)
 	}
 	step(3)
-	if !moving("sheet:1") || !moving("list") {
-		t.Fatal("Going to the canvas, the sheet in front and the list should move into their columns.")
+	if !moving("sheet:1") {
+		t.Fatal("Going to the canvas, the sheet in front should move into its column.")
 	}
 	if state.lastSidebarWidth != listWidth {
 		t.Fatalf("The panes should stay as they were under the canvas, but they went from %v to %v.",
@@ -419,8 +549,8 @@ func TestThePageAndTheCanvasShareTheirSheetAndList(t *testing.T) {
 		t.Fatalf("The sheet in front should be drawn once, in one place, but it is drawn %d times.", n)
 	}
 	settle(tester)
-	if moving("sheet:1") || moving("list") {
-		t.Fatal("The sheet and the picker should rest in their columns once there.")
+	if moving("sheet:1") {
+		t.Fatal("The sheet should rest in its column once there.")
 	}
 	if _, ok := tester.Find("Groups"); ok {
 		t.Fatal("Under the whole canvas, the page mode's layout should not be built.")
@@ -429,11 +559,11 @@ func TestThePageAndTheCanvasShareTheirSheetAndList(t *testing.T) {
 		t.Fatal(err)
 	}
 	step(3)
-	if !moving("sheet:1") || !moving("list") {
-		t.Fatal("Going back, the sheet and the list should move back to the page and the panes.")
+	if !moving("sheet:1") {
+		t.Fatal("Going back, the sheet should move back to the page.")
 	}
 	settle(tester)
-	if moving("sheet:1") || moving("list") || !tester.HasText("Body of 1") {
-		t.Fatal("The page and the list should rest in their places once there.")
+	if moving("sheet:1") || !tester.HasText("Body of 1") {
+		t.Fatal("The page should rest in its place once there.")
 	}
 }

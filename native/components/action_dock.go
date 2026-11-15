@@ -92,7 +92,7 @@ func groupTransition(animate bool) ui.ElementTransition {
 		return ui.ElementTransition{Duration: 1}
 	}
 	gone := &ui.Motion{Opacity: 0, Scale: 0.8, Collapse: true}
-	return ui.ElementTransition{Duration: MotionPanel, Position: true, Colors: true, Enter: gone, Exit: gone}
+	return ui.ElementTransition{Duration: MotionDock, Position: true, Colors: true, Enter: gone, Exit: gone}
 }
 
 // dockTransition grows and shrinks the dock about its groups as they come
@@ -107,7 +107,7 @@ func dockTransition(animate, move bool) ui.ElementTransition {
 	}
 	pop := &ui.Motion{Scale: 0.9, Opacity: 0}
 	return ui.ElementTransition{
-		Duration: MotionPanel, Position: move, Size: true, Colors: true,
+		Duration: MotionDock, Position: move, Size: true, Colors: true,
 		Enter: pop, Exit: pop,
 	}
 }

@@ -96,7 +96,7 @@ func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32, mod
 	now := c.Now()
 	if at != s.dockAt {
 		if s.dockAt != "" {
-			s.dockMoving = now.Add(components.MotionPanel + components.MotionQuick)
+			s.dockMoving = now.Add(components.MotionDock + components.MotionQuick)
 		}
 		s.dockAt = at
 	}

@@ -1,7 +1,7 @@
 package shell
 
 import (
-	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/caelyreth/neverland/native/components"
@@ -11,120 +11,44 @@ import (
 
 // A picker is a list of sheets standing on the canvas as a column: the
 // sheet list's, on a browser of its own, with its own place and its own
-// search. It is how a sheet comes onto the canvas: the canvas opens with
-// one beside the sheet in front, and as many more are made as are wanted
-// ("New picker"). A sheet clicked in a picker takes its place, the picker
-// turning into the sheet's page; one opened alongside (Option, "Open
-// Alongside") comes in beside it, and the picker stays.
+// search. It is how a sheet comes onto the canvas: one is made by "New
+// picker" in the writing actions, or where the canvas is right-clicked
+// between its columns. A sheet clicked in a picker takes its place, the
+// picker turning into the sheet's page; one opened alongside (Option,
+// "Open Alongside") comes in beside it, and the picker stays.
 
 type picker struct {
 	id   int
 	list browser
 }
 
-// canvasColumn is one of the strip's columns: an open sheet's, or a
-// picker.
-type canvasColumn struct {
-	sheet  string
-	picker *picker
-}
-
-func (col canvasColumn) key() string {
-	if col.picker != nil {
-		return fmt.Sprintf("picker-%d", col.picker.id)
-	}
-	return "sheet-" + col.sheet
-}
-
-// arrange keeps the strip's columns with what is open: a sheet that closed
-// leaves, and one that opened comes in where the picker it was chosen in
-// asked, in that picker's place or after it, or else at the end. As the
-// canvas comes, a picker stands before the sheet in front.
-func (s *State) arrange() {
-	open := make(map[string]bool, len(s.Open))
-	for _, page := range s.Open {
-		open[page.ID] = true
-	}
-	var cols []canvasColumn
-	have := map[string]bool{}
-	for _, col := range s.canvas.columns {
-		if col.picker != nil || open[col.sheet] && !have[col.sheet] {
-			cols = append(cols, col)
-			have[col.sheet] = col.picker == nil
-		}
-	}
-	for _, page := range s.Open {
-		if have[page.ID] {
-			continue
-		}
-		col := canvasColumn{sheet: page.ID}
-		into, isInto := s.canvas.into[page.ID]
-		beside, isBeside := s.canvas.beside[page.ID]
-		switch {
-		case isInto && pickerIndex(cols, into) >= 0:
-			cols[pickerIndex(cols, into)] = col
-		case isBeside && pickerIndex(cols, beside) >= 0:
-			at := pickerIndex(cols, beside) + 1
-			cols = append(cols[:at], append([]canvasColumn{col}, cols[at:]...)...)
-		default:
-			cols = append(cols, col)
-		}
-		delete(s.canvas.into, page.ID)
-		delete(s.canvas.beside, page.ID)
-		have[page.ID] = true
-	}
-	s.canvas.columns = cols
-	if s.canvas.placePicker {
-		s.canvas.placePicker = false
-		s.pickerBeforeFront()
-	}
-}
-
-// pickerBeforeFront has a picker stand just before the sheet in front, or
-// first where none is, and brings it into view with the sheet beside it:
-// the sheet list and the page, side by side as they were.
-func (s *State) pickerBeforeFront() {
-	at := 0
-	for i, col := range s.canvas.columns {
-		if col.sheet != "" && col.sheet == s.ActivePage {
-			at = i
-		}
-	}
-	if at > 0 && s.canvas.columns[at-1].picker != nil {
-		s.canvas.revealPicker = s.canvas.columns[at-1].picker.id
-	} else {
-		s.canvas.revealPicker = s.insertPicker(at, false)
-	}
-	s.canvas.listPicker = s.canvas.revealPicker
-}
-
-// NewPicker makes a picker after the column in front, and brings it into
-// view, its search ready to be written in.
+// NewPicker makes a picker after the column in front, or at the end, and
+// brings it into view, its search ready to be written in.
 func (s *State) NewPicker() {
-	at := len(s.canvas.columns)
-	for i, col := range s.canvas.columns {
-		if col.sheet != "" && col.sheet == s.ActivePage {
-			at = i + 1
-		}
+	w := s.workspace()
+	at := len(w.columns)
+	if front := w.index(s.canvasFront()); front >= 0 {
+		at = front + 1
 	}
-	s.canvas.revealPicker = s.insertPicker(at, true)
+	s.newPickerAt(at)
 }
 
-// insertPicker puts a new picker at the strip's column at, showing the
-// place the sheet list shows, and gives its id.
-func (s *State) insertPicker(at int, focus bool) int {
+// newPickerAt makes a picker at the workspace's column at, showing the
+// place the sheet list shows, and brings it into view, its search ready to
+// be written in.
+func (s *State) newPickerAt(at int) {
 	s.canvas.pickers++
 	p := &picker{id: s.canvas.pickers, list: newBrowser(s.list.place)}
-	p.list.focus = focus
-	col := canvasColumn{picker: p}
-	s.canvas.columns = append(s.canvas.columns[:at], append([]canvasColumn{col}, s.canvas.columns[at:]...)...)
-	return p.id
+	p.list.focus = true
+	s.workspace().insert(at, canvasColumn{picker: p})
+	s.canvas.revealPicker = p.id
 }
 
-// closePicker takes a picker off the strip.
+// closePicker takes a picker off the canvas.
 func (s *State) closePicker(id int) {
-	if at := pickerIndex(s.canvas.columns, id); at >= 0 {
-		s.canvas.columns = append(s.canvas.columns[:at], s.canvas.columns[at+1:]...)
+	w := s.workspace()
+	if at := pickerIndex(w.columns, id); at >= 0 {
+		w.columns = slices.Delete(w.columns, at, at+1)
 	}
 }
 
@@ -146,47 +70,50 @@ func (s *State) pickerList(p *picker) listing {
 }
 
 // openFromPicker opens a sheet chosen in a picker: in its place, or after
-// it, alongside. A sheet open already is brought in front, and taken into
-// the picker's place when it is chosen to take it.
+// it, alongside, as it joins the workspace (keepCanvas). One standing on it
+// already is brought in front, and taken into the picker's place when it
+// is chosen to take it.
 func (s *State) openFromPicker(picker int, id, query string, alongside bool) {
-	if s.isOpen(id) {
+	if s.workspace().index(id) >= 0 {
 		if !alongside {
 			s.moveIntoPicker(picker, id)
 		}
-		s.openOnCanvas(id)
-		return
-	}
-	if s.canvas.into == nil {
-		s.canvas.into, s.canvas.beside = map[string]int{}, map[string]int{}
-	}
-	if alongside {
-		s.canvas.beside[id] = picker
+		s.canvas.reveal = id
 	} else {
-		s.canvas.into[id] = picker
+		if s.canvas.into == nil {
+			s.canvas.into, s.canvas.beside = map[string]int{}, map[string]int{}
+		}
+		if alongside {
+			s.canvas.beside[id] = picker
+		} else {
+			s.canvas.into[id] = picker
+		}
 	}
-	if query != "" {
+	switch {
+	case query != "":
 		s.Library.OpenFound(id, query, true)
-		return
+	case s.isOpen(id):
+		s.bringInFront(id)
+	default:
+		s.Library.OpenSheet(id, true)
 	}
-	s.Library.OpenSheet(id, true)
 }
 
-// moveIntoPicker takes an open sheet's column from where it stands into a
+// moveIntoPicker takes a sheet's column from where it stands into a
 // picker's place.
 func (s *State) moveIntoPicker(picker int, id string) {
-	cols := s.canvas.columns
-	at := pickerIndex(cols, picker)
+	w := s.workspace()
+	at := pickerIndex(w.columns, picker)
 	if at < 0 {
 		return
 	}
-	cols[at] = canvasColumn{sheet: id}
-	for i, col := range cols {
-		if i != at && col.sheet == id {
-			cols = append(cols[:i], cols[i+1:]...)
+	w.columns[at] = canvasColumn{sheet: id}
+	for i, col := range w.columns {
+		if i != at && col.picker == nil && col.sheet == id {
+			w.columns = slices.Delete(w.columns, i, i+1)
 			break
 		}
 	}
-	s.canvas.columns = cols
 }
 
 // pickerColumn draws a picker: a head that chooses its place and closes
@@ -195,38 +122,21 @@ func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, w, 
 	list := s.pickerList(p)
 	// The search is the list while it holds a query.
 	p.list.searching = strings.TrimSpace(p.list.query) != ""
-	// The picker the canvas comes with is the sheet list's place: it comes
-	// with the canvas, and holds the list once the page mode's layout has
-	// let it go (held), as the list holds it back. Its rows are the list's
-	// moving over, not ones coming in; while the list is the page's it is
-	// laid out unseen, so the two are never seen at once.
-	first := p.id == s.canvas.listPicker
-	list.noteView(c, animate && !(first && s.canvas.entered))
+	list.noteView(c, animate)
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	scale := s.Settings.UIFontSize
-	col := s.column(c, fmt.Sprintf("picker-%d", p.id), w, origin, !(first && s.canvas.entered), animate).
+	col := s.column(c, canvasColumn{picker: p}.key(), w, origin, true, animate).
 		Role(ui.RoleGroup).Label("Sheet picker").Clip().Radius(10*k).
 		Background(semantic.Surface.Panel).Border(1, semantic.Border.Variant)
-	if first {
-		holds := s.held == ModeCanvas
-		s.morph.Mark(c, col, "list", "canvas", holds, morphSettle, animate)
-		if !holds {
-			col.Opacity(0)
-		}
-	}
-	// A picker comes into view at the strip's start, the column after it
-	// beside it; as the canvas comes, at once, and held there while the
-	// panes close.
+	// A picker made comes into view, the column after it beside it.
 	if s.canvas.revealPicker == p.id {
-		options := ui.ScrollIntoViewOptions{Inline: ui.ScrollStart}
-		if animate && !s.canvas.entered {
+		options := ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest}
+		if animate {
 			spring := components.Spring(components.MotionScene)
 			options.Animation = &spring
 		}
 		col.ScrollIntoView(options)
-		if !s.canvas.entered {
-			s.canvas.revealPicker = 0
-		}
+		s.canvas.revealPicker = 0
 	}
 	col.Children(func() {
 		head := ui.Row(c).Key("picker-head").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
