@@ -74,7 +74,9 @@ func (s *State) columnHead(c *ui.Context, semantic theme.Theme, key string, lead
 		}
 		close.icon = components.IconClose
 		groups := []components.ActionGroup{{Key: "close", Label: "Close", Actions: []func(){func() {
-			close.view(c, semantic, animate)
+			// The cross is inset in its SVG; a narrower button balances
+			// its visible room with the title's, keeping its full height.
+			close.view(c, semantic, animate).Width(26 * components.UIFontSize(c) / theme.DefaultUIFontSize)
 		}}}}
 		if info != nil {
 			groups = append([]components.ActionGroup{{Key: "info", Label: "Sheet", Actions: []func(){info}}}, groups...)
