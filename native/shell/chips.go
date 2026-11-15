@@ -95,17 +95,14 @@ func (s *State) chip(c *ui.Context, semantic theme.Theme, chip placeChip, small,
 		press = components.Follow(button, "press", press, components.MotionImmediate)
 		button.Scale(1-0.04*press, 1-0.04*press)
 	}
-	// The chosen place is a neutral fill, as a chosen row is; only its
-	// glyph takes the accent, so the budget's one hue tells the place.
 	rest := components.Blend(semantic.Surface.Inset, semantic.GhostElement.Hover, hover)
-	button.Background(components.Blend(rest, semantic.Surface.Chosen, on))
+	button.Background(components.Blend(rest, semantic.Accent.Foreground, on))
 	if button.FocusVisible() {
 		button.Border(1, semantic.Border.Focused)
 	}
-	ink := components.Blend(semantic.Icon.Muted, semantic.Text.Heading, on)
-	glyph := components.Blend(semantic.Icon.Muted, semantic.Accent.Foreground, on)
+	ink := components.Blend(semantic.Icon.Muted, semantic.Accent.OnAccent, on)
 	button.Children(func() {
-		ui.Icon(c, chip.icon.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).TextColor(glyph).Shrink(0)
+		ui.Icon(c, chip.icon.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).TextColor(ink).Shrink(0)
 		if on > 0.01 {
 			ui.Row(c).Key("name").Shrink(0).Gap(theme.Space04.DIPs(scale)).AlignItems(ui.Center).
 				Opacity(on * on).Children(func() {
