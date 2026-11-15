@@ -1,7 +1,5 @@
 package doc
 
-import "time"
-
 // OriginClass is the class of intent a change came from.
 type OriginClass uint8
 
@@ -116,7 +114,3 @@ func (j *Journal) Mask() Mask { return j.mask }
 
 // Since returns the records from index i on.
 func (j *Journal) Since(i int) []Record { return j.Records[i:] }
-
-// Stamp is when an intent happened, as the host said. The document never
-// reads a clock.
-type Stamp = time.Time

@@ -98,21 +98,6 @@ func refine(cells vocab.Runes, hasCJK bool, opts options) (vocab.Runes, bool) {
 	return cells, cells.Text() != before
 }
 
-func refineText(text string, opts options) string {
-	cells := make(vocab.Runes, 0, utf8.RuneCountInString(text))
-	hasCJK := false
-	for _, r := range text {
-		cells = append(cells, vocab.StyledRune{R: r})
-		hasCJK = hasCJK || vocab.IsCJK(r)
-	}
-	out, _ := refine(cells, hasCJK, opts)
-	var b strings.Builder
-	for _, cell := range out {
-		b.WriteRune(cell.R)
-	}
-	return b.String()
-}
-
 var fullwidth = map[rune]rune{
 	',': '，',
 	'.': '。',

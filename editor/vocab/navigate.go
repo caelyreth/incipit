@@ -130,44 +130,6 @@ func after(r doc.Reader, n *doc.Node) (doc.SlotRef, bool) {
 	}
 }
 
-// PrevTextSlot is the text slot before ref in reading order.
-func PrevTextSlot(r doc.Reader, ref doc.SlotRef) (doc.SlotRef, bool) {
-	n, ok := r.Node(ref.Node)
-	if !ok {
-		return doc.SlotRef{}, false
-	}
-	for i := ref.Slot - 1; i >= 0; i-- {
-		if prev, ok := lastIn(n, i); ok {
-			return prev, true
-		}
-	}
-	for {
-		parent, slot, ok := r.Parent(n.ID())
-		if !ok {
-			return doc.SlotRef{}, false
-		}
-		pn, _ := r.Node(parent)
-		s := pn.Slot(slot)
-		if s.IsInline() {
-			n = pn
-			continue
-		}
-		i, _ := s.IndexOf(n)
-		children := s.Children()
-		for j := i - 1; j >= 0; j-- {
-			if ref, ok := LastTextSlot(children[j]); ok {
-				return ref, true
-			}
-		}
-		for j := slot - 1; j >= 0; j-- {
-			if ref, ok := lastIn(pn, j); ok {
-				return ref, true
-			}
-		}
-		n = pn
-	}
-}
-
 // Inline reports whether id stands in an inline slot: an inline node in
 // its line.
 func Inline(r doc.Reader, id doc.ID) bool {

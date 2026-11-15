@@ -78,7 +78,3 @@ func HoverAmount(element ui.Element, hovered, animate bool) float32 {
 	}
 	return Follow(element, "hover", target, duration)
 }
-
-func ChromeAnimation(duration time.Duration) ui.Animation {
-	return ui.Animation{Duration: duration, Ease: Smoothstep}
-}

@@ -240,9 +240,6 @@ func (c *Ctx) Facts(ref doc.SlotRef, k FactID) []Fact {
 	return c.prog.facts(c.store, c.r, c.view, ref, k)
 }
 
-// Summary returns a summary of a node.
-func Summarized[M any](c *Ctx, k *SummaryKind[M], n *doc.Node) M { return SummaryOf(c.store, k, n) }
-
 // Stack is the scope stack at the head. A node selection's node is its
 // innermost level.
 func (c *Ctx) Stack() *Stack {

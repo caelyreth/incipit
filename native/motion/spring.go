@@ -53,9 +53,8 @@ func (s *Spring) Step(target float32, now time.Time, frequency float32) float32 
 	return s.value
 }
 
-func (s Spring) Value() float32    { return s.value }
-func (s Spring) Target() float32   { return s.target }
-func (s Spring) Velocity() float32 { return s.velocity }
+func (s Spring) Value() float32  { return s.value }
+func (s Spring) Target() float32 { return s.target }
 
 func (s Spring) MovingTo(target float32) bool {
 	position, velocity := positionEpsilon, velocityEpsilon

@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -81,19 +80,6 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 	return policy.Do(vocab.RefineLines(site.Slot, in, site.From, site.To, func(stretch vocab.Runes, at int) (vocab.Runes, bool) {
 		return rewriteCells(stretch, opts)
 	})...)
-}
-
-func rewriteText(text string, opts options) string {
-	cells := make(vocab.Runes, 0, utf8.RuneCountInString(text))
-	for _, r := range text {
-		cells = append(cells, vocab.StyledRune{R: r})
-	}
-	out, _ := rewriteCells(cells, opts)
-	var b strings.Builder
-	for _, cell := range out {
-		b.WriteRune(cell.R)
-	}
-	return b.String()
 }
 
 func rewriteCells(cells vocab.Runes, opts options) (vocab.Runes, bool) {

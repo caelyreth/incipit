@@ -44,7 +44,7 @@ type run struct {
 // TODO(memory): a large slot should be a persistent chunk tree with leaves
 // of about 4 KiB split at line breaks (§6), so a keystroke copies one leaf
 // and the path above it, and the fact store can keep facts per chunk. The
-// Inline API (Each, TextRange, Chunks) already hands out substrings, so
+// Inline API (Each, TextRange) already hands out substrings, so
 // the tree can replace this single chunk without changing callers.
 type Inline struct {
 	text string
@@ -150,17 +150,6 @@ func (in *Inline) Each(fn func(at int, it Item) bool) {
 		}
 		at += r.n
 	}
-}
-
-// Chunks calls fn with each stretch of text and the offset it starts at:
-// text handed to shaping is a substring of a chunk, never a copy.
-func (in *Inline) Chunks(fn func(at int, text string) bool) {
-	in.Each(func(at int, it Item) bool {
-		if it.Node != nil {
-			return true
-		}
-		return fn(at, it.Text)
-	})
 }
 
 // Slice returns the items covering [from, to), split at the edges.

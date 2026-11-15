@@ -133,12 +133,3 @@ func (t Theme) Resolve(groups []vocab.Group) Style {
 	}
 	return s
 }
-
-// LayoutKey is the part of a style that affects layout.
-func (s Style) LayoutKey() [4]float32 {
-	italic := float32(0)
-	if s.Italic {
-		italic = 1
-	}
-	return [4]float32{float32(s.Font), s.Size, float32(s.Weight), italic}
-}

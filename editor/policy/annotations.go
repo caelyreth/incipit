@@ -26,12 +26,6 @@ func Between(from, to doc.Pos) Anchor {
 	return Anchor{From: doc.Caret{Pos: from, Stop: doc.StopFirst}, To: doc.Caret{Pos: to, Stop: doc.StopLast}}
 }
 
-// SpanAnchor anchors over a span of one slot.
-func SpanAnchor(s vocab.Span) Anchor { return Between(doc.At(s.Slot, s.From), doc.At(s.Slot, s.To)) }
-
-// CaretAnchor anchors at one place: a caret, its stop included.
-func CaretAnchor(c doc.Caret) Anchor { return Anchor{From: c, To: c} }
-
 // Span is the anchor as a span.
 func (a Anchor) Span() vocab.Span {
 	return vocab.Span{Slot: a.From.Ref(), From: a.From.Offset, To: a.To.Offset}
@@ -81,10 +75,6 @@ var (
 	ForTransaction  = Lifetime{Kind: Transaction}
 	WithView        = Lifetime{Kind: ForView}
 )
-
-// UntilCaretLeaves lives while the selection head stays in span; nil
-// watches the anchor.
-func UntilCaretLeaves(span *Anchor) Lifetime { return Lifetime{Kind: CaretLeaves, Span: span} }
 
 // Until lives until t.
 func Until(t time.Time) Lifetime { return Lifetime{Kind: Deadline, At: t} }

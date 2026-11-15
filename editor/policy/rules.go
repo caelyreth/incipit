@@ -431,12 +431,6 @@ func (b *RewriteRule) Trigger(t Trigger) *RewriteRule { b.r.trigger = t; return 
 // Extent sets what the rewrite visits.
 func (b *RewriteRule) Extent(e Extent) *RewriteRule { b.r.extent = e; return b }
 
-// Demands declares the facts the rewrite reads.
-func (b *RewriteRule) Demands(kinds ...FactID) *RewriteRule {
-	b.r.demands = append(b.r.demands, kinds...)
-	return b
-}
-
 // Spares leaves sites alone where a fact providing one of roles stands:
 // another policy's text, such as syntax still being typed, that the
 // rewrite must not change.
