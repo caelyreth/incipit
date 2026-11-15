@@ -37,6 +37,13 @@ type AppState struct {
 	projected      *projections
 	mainWindow     *mygo.Window
 	settingsWindow *mygo.Window
+	// labWindow is the design lab's, in cmd/neverland-lab; scheme and
+	// accent are what it sets: the palettes the windows paint with, nil
+	// for Cosmofi's, and the one accent they wear, nil to wear the open
+	// sheet's group's.
+	labWindow *mygo.Window
+	scheme    *theme.Scheme
+	accent    *theme.Accent
 	// menu is the application menu; recording stands its keys down while
 	// the settings record a shortcut.
 	menu       *mygo.Menu
@@ -109,8 +116,7 @@ func newAppState(store *storage.Store) (*AppState, error) {
 	if err := app.loadSettings(store); err != nil {
 		return nil, err
 	}
-	app.Shell.Settings = appearanceSettings(app.Product.Appearance)
-	app.Shell.Settings.Accent = app.groupAccent()
+	app.Shell.Settings = app.themeSettings()
 	app.Shell.Appearance = app.Product.Presentation
 	app.BindShell()
 	return app, nil
@@ -379,9 +385,7 @@ func (a *AppState) saveSettings() {
 // views blend their colors over ThemeTransition, and the native chrome,
 // window backgrounds and traffic lights follow the new scheme.
 func (a *AppState) applyAppearance() {
-	values := a.Product.Appearance
-	a.Shell.Settings = appearanceSettings(values)
-	a.Shell.Settings.Accent = a.groupAccent()
+	a.Shell.Settings = a.themeSettings()
 	target := a.Shell.Settings.Semantic()
 	if a.Product.Presentation.Motion {
 		a.colors.Retarget(target, time.Now())
@@ -390,7 +394,7 @@ func (a *AppState) applyAppearance() {
 	}
 	mygo.Theme.SetSource(themeSource(a.Shell.Settings))
 	background := colorHex(target.Surface.Background)
-	for _, window := range []*mygo.Window{a.mainWindow, a.settingsWindow} {
+	for _, window := range []*mygo.Window{a.mainWindow, a.settingsWindow, a.labWindow} {
 		if window == nil || window.IsDestroyed() {
 			continue
 		}
@@ -439,9 +443,22 @@ func appearanceSettings(values appsettings.AppearanceSettings) theme.Settings {
 	return settings
 }
 
-// groupAccent is the accent the window wears: the color of the open
-// sheet's group, Halo for a group in Moonveil, the Inbox, or no sheet.
+// themeSettings are the theme the windows paint with: the product's
+// appearance in the scheme set, wearing the window's accent.
+func (a *AppState) themeSettings() theme.Settings {
+	settings := appearanceSettings(a.Product.Appearance)
+	settings.Scheme = a.scheme
+	settings.Accent = a.groupAccent()
+	return settings
+}
+
+// groupAccent is the accent the window wears: the one set, if one is, or
+// the color of the open sheet's group, Halo for a group in Moonveil, the
+// Inbox, or no sheet.
 func (a *AppState) groupAccent() theme.Accent {
+	if a.accent != nil {
+		return *a.accent
+	}
 	if a.library == nil || a.Shell == nil {
 		return theme.Halo
 	}
