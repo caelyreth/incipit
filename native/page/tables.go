@@ -644,7 +644,7 @@ func (el *Element) paintGone(p *ui.Painter, rows bool, g goneRoom, room ui.Rect,
 				continue
 			}
 			sx, sy := ux+dx+s.x, uy+dy+s.y
-			p.TextLayout(s.layout, sx, sy, el.Theme.Prose.Text)
+			paintText(p, s.layout, sx, sy, el.Theme.Prose.Text)
 			el.paintGhosts(p, s, sx, sy)
 			el.paintBoxes(p, s, sx, sy)
 			// It fades into what the grid has under it: the header's

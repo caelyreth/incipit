@@ -842,7 +842,7 @@ func (el *Element) paintSurface(p *ui.Painter, s *surfaceLayout, ux, uy float32,
 	if panel {
 		area = el.panelArea(s, ux, uy)
 	}
-	p.TextLayout(s.layout, sx, sy, el.Theme.Prose.Text)
+	paintText(p, s.layout, sx, sy, el.Theme.Prose.Text)
 	el.paintGhosts(p, s, sx, sy)
 	el.paintBoxes(p, s, sx, sy)
 	el.veil(p, area, a)
@@ -1378,7 +1378,7 @@ func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy float32) 
 		if ink == (ui.Color{}) {
 			ink = el.Theme.Prose.Text
 		}
-		p.TextLayout(sg.shaped, sx+r.X, sy+line.Baseline-gb, ink)
+		paintText(p, sg.shaped, sx+r.X, sy+line.Baseline-gb, ink)
 	}
 }
 
@@ -1410,6 +1410,6 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 		p.Fill(ui.Rect{X: sx + o.X, Y: sy + o.Y, W: o.W, H: o.H}, bg, 4)
 		// The box's text as the layout shaped it to measure the box.
 		_, h := sg.shaped.Size()
-		p.TextLayout(sg.shaped, sx+o.X+boxPad, sy+o.Y+(o.H-h)/2, sg.face.Color)
+		paintText(p, sg.shaped, sx+o.X+boxPad, sy+o.Y+(o.H-h)/2, sg.face.Color)
 	}
 }

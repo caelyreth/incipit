@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/caelyreth/untie"
 	untiemygo "github.com/caelyreth/untie/contrib/mygo"
@@ -151,30 +152,32 @@ func Draw(p *ui.Painter, box *untie.Box, origin ui.Point, inks Inks) {
 	if box == nil {
 		return
 	}
-	// The viewport is the box's ink, a pad around it so its edges keep
-	// their smoothing: set from its start and centered across its height,
-	// it puts the baseline's start at origin.
-	const pad = 1
-	bounds := box.Bounds()
-	viewport := ui.Rect{
-		X: origin.X + bounds.X - pad, Y: origin.Y + bounds.Y - pad,
-		W: bounds.Width + 2*pad, H: bounds.Height + 2*pad,
-	}
-	_ = untiemygo.DrawBox(p, box, viewport, untiemygo.DrawOptions{
-		Padding: pad,
-		Align:   untie.AlignStart,
-		Scale:   untiemygo.ScaleNatural,
-		Paint: func(_ *ui.Painter, paint untie.Paint) ui.Color {
-			switch {
-			case paint.HasExplicit:
-				return untiemygo.PaintColor(nil, paint)
-			case paint.Role == untie.RoleError:
-				return inks.Error
-			case paint.Role == untie.RolePlaceholder:
-				return inks.Placeholder
-			}
-			return inks.Text
-		},
+	components.WithTextOrigin(p, origin, func(origin ui.Point) {
+		// The viewport is the box's ink, a pad around it so its edges keep
+		// their smoothing: set from its start and centered across its height,
+		// it puts the baseline's start at origin.
+		const pad = 1
+		bounds := box.Bounds()
+		viewport := ui.Rect{
+			X: origin.X + bounds.X - pad, Y: origin.Y + bounds.Y - pad,
+			W: bounds.Width + 2*pad, H: bounds.Height + 2*pad,
+		}
+		_ = untiemygo.DrawBox(p, box, viewport, untiemygo.DrawOptions{
+			Padding: pad,
+			Align:   untie.AlignStart,
+			Scale:   untiemygo.ScaleNatural,
+			Paint: func(_ *ui.Painter, paint untie.Paint) ui.Color {
+				switch {
+				case paint.HasExplicit:
+					return untiemygo.PaintColor(nil, paint)
+				case paint.Role == untie.RoleError:
+					return inks.Error
+				case paint.Role == untie.RolePlaceholder:
+					return inks.Placeholder
+				}
+				return inks.Text
+			},
+		})
 	})
 }
 

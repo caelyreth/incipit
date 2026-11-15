@@ -235,7 +235,7 @@ func (el *Element) paintInline(p *ui.Painter, sg seg, o ui.Rect) {
 			lay = ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Italic: true}, ui.TextShape{})
 		}
 		w, h := lay.Size()
-		p.TextLayout(lay, cx-w/2, base-h*0.78, el.hintInk(sg.text, sg.open, lk.hint))
+		paintText(p, lay, cx-w/2, base-h*0.78, el.hintInk(sg.text, sg.open, lk.hint))
 	}
 	if d := lk.drawn; lk.ink > 0.001 && d.box != nil {
 		formula.Draw(p, d.box, ui.Point{X: cx - (d.to-d.from)/2 - d.from, Y: base}, el.inks(lk.ink))
@@ -262,7 +262,7 @@ func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32) float
 		}
 		lay := ml.hint
 		w, h := lay.Size()
-		p.TextLayout(lay, ux+(m.Width-u.x-w)/2, uy+(ml.h-h)/2, el.hintInk(u.pres.Node.Text(), heldMath(u), lk.hint))
+		paintText(p, lay, ux+(m.Width-u.x-w)/2, uy+(ml.h-h)/2, el.hintInk(u.pres.Node.Text(), heldMath(u), lk.hint))
 	}
 	d := lk.drawn
 	if lk.ink <= 0.001 || d.box == nil {
