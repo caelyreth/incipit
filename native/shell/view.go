@@ -214,12 +214,11 @@ func (s *State) page(
 				if s.laid != ModePage {
 					return
 				}
-				top := layout.ReadingTop * scale / theme.DefaultUIFontSize
 				// Its head is the canvas's, shown only there.
 				k := components.UIFontSize(c) / theme.DefaultUIFontSize
 				sheet := s.openPage(s.ActivePage)
 				s.sheetSurface(c, semantic, s.ActivePage, sheetLook{
-					top: top * 3 / 2, width: column, shows: 1,
+					width: column, shows: 1,
 					head: func(shown float32) { s.sheetHead(c, semantic, sheet, k, 0, 0, shown, s.animate(c)) },
 				}, func(frame SheetFrame) {
 					if s.Sheet != nil {
@@ -239,12 +238,11 @@ type sheetMatch string
 
 // sheetLook is how a sheet's surface looks where it stands, width wide
 // at rest, square and edgeless in both modes. Its page stands in from
-// its top by top, the reading space above the first line,
-// and from its sides by side, and shows as far as shows; head builds its
+// its sides by side, and shows as far as shows; head builds its
 // head over it (columnHead), as far shown as headShown, which the page
 // has not.
 type sheetLook struct {
-	top, side float32
+	side      float32
 	width     float32
 	head      func(shown float32)
 	headShown float32
@@ -272,9 +270,12 @@ func (s *State) sheetSurface(c *ui.Context, semantic theme.Theme, id string, loo
 	}
 	prose := s.Settings.Prose()
 	width := max(0, look.width-2*look.side)
+	// The reading margin belongs to the document in either mode, so a
+	// mode switch preserves its height at any scroll offset.
+	top := theme.DefaultLayout.ReadingTop * s.Settings.UIFontSize / theme.DefaultUIFontSize * 3 / 2
 	frame := SheetFrame{
 		Prose: prose, UIFontSize: s.Settings.UIFontSize, LayoutWidth: width,
-		Top: carry("top", look.top), Inset: carry("inset", prose.Inset(width)),
+		Top: carry("top", top), Inset: carry("inset", prose.Inset(width)),
 	}
 	side, headShown := carry("side", look.side), carry("head", look.headShown)
 	return surface.Children(func() {

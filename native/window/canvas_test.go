@@ -255,6 +255,61 @@ func TestEditingAndResizingAcrossInterruptedModeChanges(t *testing.T) {
 	}
 }
 
+// Both modes keep the same reading margin, whether the page's beginning
+// is visible, partly scrolled away, or long past the window's top.
+func TestTheReadingHeightStaysTheSameAcrossModes(t *testing.T) {
+	for _, animate := range []bool{false, true} {
+		for _, size := range []float32{16, 20} {
+			t.Run(strconv.FormatBool(animate)+"/"+strconv.Itoa(int(size)), func(t *testing.T) {
+				app, err := NewAppState()
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = app.Close() })
+				app.Shell.Appearance.Motion = animate
+				app.Shell.Settings.UIFontSize = size
+				app.Product.Presentation.Typewriter = false
+				tester := ui.NewTester(app.View, 1440, 900)
+				tester.SetTitleBar(ui.TitleBar{Height: 40, Left: 76})
+				tester.Frame()
+				el := app.pageElement()
+				el.Editor.Do(vocab.Paste{Text: "# Hello world\n\n" + strings.Repeat("A short paragraph.\n\n", 40)}, tester.Now())
+				el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, tester.Now())
+				// Keep the caret comfortably in view at each tested scroll,
+				// so a viewport resize has no reason to reveal it elsewhere.
+				for range 12 {
+					el.Editor.Do(vocab.Move{Unit: vocab.ByParagraph, Dir: vocab.Forward}, tester.Now())
+				}
+				run(tester, time.Second)
+				for _, scroll := range []float32{0, 40, 320} {
+					el.RestoreScroll(scroll)
+					run(tester, time.Second)
+					if el.ScrollY() != scroll {
+						t.Fatalf("The test needs scroll %v, but the page is at %v.", scroll, el.ScrollY())
+					}
+					field, ok := tester.AccessByRole(ui.RoleTextField, "Page")
+					if !ok {
+						t.Fatal("The editor should be visible.")
+					}
+					y := field.Bounds.Y + el.Top - scroll
+					for _, mode := range []shell.Mode{shell.ModeCanvas, shell.ModePage} {
+						app.Shell.SetMode(mode)
+						for frame := range 65 {
+							tester.Advance(16 * time.Millisecond)
+							tester.Frame()
+							field, ok := tester.AccessByRole(ui.RoleTextField, "Page")
+							got := field.Bounds.Y + el.Top - el.ScrollY()
+							if !ok || math.Abs(float64(got-y)) > 0.5 || el.ScrollY() != scroll {
+								t.Fatalf("At scroll %v, going to %v, frame %d moved the reading origin from %v to %v (scroll %v).", scroll, mode, frame, y, got, el.ScrollY())
+							}
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
 // ink is how bright the brightest text in an area is, and the first row
 // of it: one as bright as text in more than a few places, not an edge
 // running down beside it.

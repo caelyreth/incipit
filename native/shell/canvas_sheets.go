@@ -12,8 +12,8 @@ import (
 // it brings it in front (canvas_front.go), and the strip goes as far as
 // brings one that comes in front otherwise into view.
 
-// sheetPad is the room beside a sheet's page in its column, and above it
-// under the title line, at the reference type size.
+// sheetPad is the room beside a sheet's page in its column and below it
+// past the writing dock, at the reference type size.
 const sheetPad = 16
 
 // openColumn is an open sheet's column, w wide: its surface (sheetSurface),
@@ -34,15 +34,15 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 		if page.ID == s.ActivePage && s.laid != ModeCanvas {
 			return
 		}
-		// Its page begins under the title line, its head over it shown
-		// while the pointer is on it, as nothing else needs it.
+		// Its head floats over the page's reading margin, shown while
+		// the pointer is on it, as nothing else needs it.
 		lead, trail := s.clearOfChrome(c, shown)
 		head := float32(0)
 		if col.Hovered() {
 			head = 1
 		}
 		s.sheetSurface(c, semantic, page.ID, sheetLook{
-			top: titleLine(c) + sheetPad*k, width: w, side: sheetPad * k, shows: columnShows(col, front, animate),
+			width: w, side: sheetPad * k, shows: columnShows(col, front, animate),
 			head:      func(shown float32) { s.sheetHead(c, semantic, page, k, lead, trail, shown, animate) },
 			headShown: head,
 		}, func(frame SheetFrame) {
