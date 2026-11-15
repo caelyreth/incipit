@@ -35,10 +35,12 @@ type scrubState struct {
 	moves int
 }
 
-// scrubber draws the strip's overview over the canvas's foot, gutter in
-// from its left and bottom. It is drawn after the strip, as it reads the
+// canvasFoot draws the strip's overview over the canvas's foot, gutter in
+// from its left and bottom, and, as it shows, a fade over the foot of the
+// columns under it, so it reads over the pages running on there; both
+// come and go together. It is drawn after the strip, as it reads the
 // strip's columns as they were laid out.
-func (s *State) scrubber(c *ui.Context, semantic theme.Theme, gutter float32, animate bool) {
+func (s *State) canvasFoot(c *ui.Context, semantic theme.Theme, gutter float32, animate bool) {
 	spans := s.canvas.spans
 	if len(spans) < 2 {
 		return
@@ -78,7 +80,13 @@ func (s *State) scrubber(c *ui.Context, semantic theme.Theme, gutter float32, an
 	if animate {
 		shown = components.Follow(bar, "scrub-shown", target, components.MotionNormal)
 	}
-	bar.Opacity(shown)
+	bar.Opacity(shown).ZIndex(1)
+	if shown > 0.001 {
+		depth := scrubHeight*k + 2*pad + 2*gutter
+		ui.Box(c).Key("canvas-foot-fade").Absolute().Left(0).Right(0).Bottom(0).Height(depth).
+			IgnoreInput(true).Opacity(shown).
+			Gradient(semantic.Surface.Background.Alpha(0), semantic.Surface.Background, 180)
+	}
 	bar.Children(func() {
 		for i, sp := range spans {
 			ui.Box(c).Key(fmt.Sprintf("scrub-%d", i)).Absolute().

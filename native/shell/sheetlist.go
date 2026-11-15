@@ -413,8 +413,8 @@ func (s listing) sheetRows(
 	)
 	scroll.Children(func() {
 		rowGap := theme.Space06.DIPs(scale)
-		list := ui.Column(c).Gap(rowGap).
-			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
+		inset, side := theme.Space06.DIPs(scale), theme.Space08.DIPs(scale)
+		list := ui.Column(c).Gap(rowGap).Padding(inset, side, inset+s.foot, side)
 		s.browser.overscroll.Apply(c, list, animate)
 		selection := components.NavigationSelection(c, semantic)
 		// The menu's ring stands midway between the rows, clear of both.

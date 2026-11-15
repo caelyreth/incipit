@@ -46,8 +46,11 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 			head: func() { head = s.sheetHead(c, semantic, page, front, k, animate) }, headHeight: band, headShown: 1,
 		}, func(top float32) {
 			if s.Sheet != nil {
+				// Its page scrolls on under the writing actions floating
+				// over the canvas's foot, and fades out there.
+				dock := theme.DefaultLayout.DockClearance() * k
 				s.Sheet(c, page.ID, SheetFrame{
-					Prose: prose, UIFontSize: size, Top: top, Bottom: 48 * k,
+					Prose: prose, UIFontSize: size, Top: top, Bottom: dock + sheetPad*k, Dock: dock,
 					Focus: page.ID == s.ActivePage, Claim: claim,
 				})
 			}

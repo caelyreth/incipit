@@ -183,7 +183,7 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	s.followPointer(scene)
 	components.SceneLayer(scene, shown, s.laid == ModeCanvas).Children(func() {
 		s.canvasStrip(c, semantic, layout, head, animate)
-		s.scrubber(c, semantic, layout.ContentGutter*scale/theme.DefaultUIFontSize, animate)
+		s.canvasFoot(c, semantic, layout.ContentGutter*scale/theme.DefaultUIFontSize, animate)
 		// The room over the strip moves the window, as a title bar would.
 		ui.Box(c).Key("canvas-drag").Absolute().Top(0).Left(0).Right(0).Height(head).DragWindow()
 	})
@@ -220,9 +220,10 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 			s.canvas.viewport.W, scale)
 	})
 	s.magnet(strip, k, animate)
-	// The columns end short of the writing actions floating under them,
-	// and their heads stand clear of the window's controls over them.
-	strip.Padding(max(head, s.controlsFoot), 0, layout.DockClearance()*k, 0)
+	// The columns reach down to the window's foot, the writing actions
+	// floating over them, and their heads stand clear of the window's
+	// controls over them.
+	strip.Padding(max(head, s.controlsFoot), 0, edge, 0)
 	window, _ := c.Size()
 	editor := s.editorWidth(strip, window-2*edge, k, animate)
 	picker := s.paneLayout().SheetList * k

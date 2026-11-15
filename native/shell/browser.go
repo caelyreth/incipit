@@ -76,6 +76,9 @@ type listing struct {
 	*State
 	browser *browser
 	opens   func(id, query string, alongside bool)
+	// foot is room under the rows, scrolled with them, for what floats
+	// over the list's foot.
+	foot float32
 }
 
 // sheets is the sheet list's browser, as the window draws it.

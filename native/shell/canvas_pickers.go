@@ -69,7 +69,10 @@ func pickerIndex(cols []canvasColumn, id int) int {
 // pickerList is a picker's list as the window draws it: what it opens comes
 // onto the canvas by the picker.
 func (s *State) pickerList(p *picker) listing {
-	return listing{State: s, browser: &p.list, opens: func(id, query string, alongside bool) {
+	// Its rows scroll on under the writing actions floating over the
+	// canvas's foot, as a sheet's page does.
+	foot := theme.DefaultLayout.DockClearance() * s.Settings.UIFontSize / theme.DefaultUIFontSize
+	return listing{State: s, browser: &p.list, foot: foot, opens: func(id, query string, alongside bool) {
 		s.openFromPicker(p.id, id, query, alongside)
 	}}
 }
