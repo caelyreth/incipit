@@ -33,3 +33,28 @@ func TestMyGoThemeCarriesSemanticMaterial(t *testing.T) {
 		t.Fatalf("metrics = font %v spacing %v radius %v", native.FontSize, native.Spacing, native.Radius)
 	}
 }
+
+// A scheme is what the appearances paint with; without one they paint
+// Cosmofi's.
+func TestASchemeGivesTheAppearancesTheirPalettes(t *testing.T) {
+	t.Parallel()
+	settings := DefaultSettings()
+	if settings.Palette() != Cosmofi().Starfield {
+		t.Fatal("the default is not Cosmofi's night")
+	}
+	night := Cosmofi().Starfield
+	night.Page = RGB(0x101010)
+	day := Cosmofi().Daybreak
+	day.Page = RGB(0xfefefe)
+	settings.Scheme = &Scheme{Name: "Probe", Starfield: night, Daybreak: day}
+	if got := settings.Semantic().Surface.Page; got != RGB(0x101010) {
+		t.Fatalf("the night page is %v", got)
+	}
+	settings.Appearance = Daybreak
+	if got := settings.Semantic().Surface.Page; got != RGB(0xfefefe) {
+		t.Fatalf("the day page is %v", got)
+	}
+	if got := settings.Semantic().Accent.OnAccent; got != day.Background {
+		t.Fatalf("on the accent is %v, not the day's ground", got)
+	}
+}

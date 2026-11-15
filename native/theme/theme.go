@@ -142,6 +142,8 @@ type Theme struct {
 }
 
 type Settings struct {
+	// Scheme is the palettes the appearances take; nil is Cosmofi's.
+	Scheme        *Scheme
 	Appearance    Appearance
 	Accent        Accent
 	UIFontSize    float32
@@ -181,71 +183,71 @@ func (s Settings) Normalized() Settings {
 }
 
 func (s Settings) Semantic() Theme {
-	palette := paletteFor(s.Appearance)
+	palette := s.Palette()
 	accent := familyFor(palette, s.Accent)
 	return Theme{
 		Appearance:   s.Appearance,
 		AccentFamily: s.Accent,
 		Surface: Surfaces{
-			Background: palette.background,
-			Panel:      palette.background,
-			Page:       palette.working,
-			Inset:      palette.inset,
-			Chosen:     palette.chosen,
+			Background: palette.Background,
+			Panel:      palette.Background,
+			Page:       palette.Page,
+			Inset:      palette.Inset,
+			Chosen:     palette.Chosen,
 			Backdrop:   ui.RGBA(0, 0, 0, 0.38),
-			Elevated:   palette.raised,
+			Elevated:   palette.Raised,
 		},
 		Text: TextColors{
-			Default: palette.textPrimary,
-			Heading: palette.textEmphasis,
-			Muted:   palette.textSecondary,
+			Default: palette.TextPrimary,
+			Heading: palette.TextEmphasis,
+			Muted:   palette.TextSecondary,
 		},
 		Icon: IconColors{
-			Default: palette.textPrimary,
-			Muted:   palette.textSecondary,
+			Default: palette.TextPrimary,
+			Muted:   palette.TextSecondary,
 			Accent:  accent.Foreground,
 		},
 		Border: BorderColors{
-			Default:  palette.hairline,
-			Variant:  palette.subtle,
+			Default:  palette.Hairline,
+			Variant:  palette.Subtle,
 			Focused:  accent.Foreground,
 			Selected: accent.Foreground,
 		},
 		Element: ElementColors{
-			Background: palette.inset,
-			Hover:      palette.hover,
-			Selected:   palette.selected,
+			Background: palette.Inset,
+			Hover:      palette.Hover,
+			Selected:   palette.Selected,
 		},
 		GhostElement: ElementColors{
 			Background: ui.Transparent,
-			Hover:      palette.hover,
-			Selected:   palette.selected,
+			Hover:      palette.Hover,
+			Selected:   palette.Selected,
 		},
 		Accent: AccentColors{
 			Foreground: accent.Foreground,
 			Muted:      accent.Surface,
-			OnAccent:   onAccent(s.Appearance),
+			OnAccent:   palette.Background,
 		},
 		Status: StatusColors{
-			Info:    statusColor(palette.accents[Halo]),
-			Warning: statusColor(palette.accents[Regolith]),
-			Success: statusColor(palette.accents[Life]),
-			Danger:  statusColor(palette.accents[Afterglow]),
+			Info:    statusColor(palette.Accents[Halo]),
+			Warning: statusColor(palette.Accents[Regolith]),
+			Success: statusColor(palette.Accents[Life]),
+			Danger:  statusColor(palette.Accents[Afterglow]),
 		},
 		Scrollbar: ScrollbarColors{
-			Thumb:      palette.guide,
-			ThumbHover: palette.track,
+			Thumb:      palette.Guide,
+			ThumbHover: palette.Track,
 		},
 		Prose: ProseColors{
-			Text:     palette.textPrimary,
-			Strong:   palette.textEmphasis,
-			Notation: palette.textSecondary,
-			Subtle:   palette.hairline,
+			Text:     palette.TextPrimary,
+			Strong:   palette.TextEmphasis,
+			Notation: palette.TextSecondary,
+			Subtle:   palette.Hairline,
 			// Selection is the accent family's surface: the hue, quiet
 			// enough to read text through.
 			Selection: accent.Surface,
 		},
-		Families: palette.accents,
+		Families: palette.Accents,
 	}
 }
 
@@ -288,11 +290,13 @@ func (s Settings) MyGoThemeFor(semantic Theme) *ui.Theme {
 	return result
 }
 
-func paletteFor(appearance Appearance) palette {
-	if appearance == Daybreak {
-		return daybreak()
+// Palette is the palette of the settings' scheme for their appearance.
+func (s Settings) Palette() Palette {
+	scheme := s.Scheme
+	if scheme == nil {
+		scheme = Cosmofi()
 	}
-	return starfield()
+	return scheme.For(s.Appearance)
 }
 
 func statusColor(family Family) StatusColor {
@@ -303,15 +307,11 @@ func statusColor(family Family) StatusColor {
 	}
 }
 
-func familyFor(palette palette, accent Accent) Family {
-	if int(accent) >= len(palette.accents) {
+func familyFor(palette Palette, accent Accent) Family {
+	if int(accent) >= len(palette.Accents) {
 		accent = Halo
 	}
-	return palette.accents[accent]
-}
-
-func onAccent(appearance Appearance) ui.Color {
-	return paletteFor(appearance).background
+	return palette.Accents[accent]
 }
 
 func clamp(value, low, high float32) float32 {
