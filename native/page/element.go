@@ -664,6 +664,9 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 				services.Invalidate()
 				return true
 			}
+			// Sideways, with nothing under it to scroll across, the page
+			// leaves the scroll to what is around it, as a strip of pages.
+			return false
 		}
 		el.scrollBy(ev, at)
 		services.Invalidate()

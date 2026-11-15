@@ -47,6 +47,7 @@ func TestTheCanvasZoomsByPinchAndButtons(t *testing.T) {
 	tester.Move(region.X+40, region.Y+40)
 	tester.Pinch(region.X+40, region.Y+40, 1.5)
 	tester.Frame()
+	settle(tester)
 	if z := state.canvas.scale(); z != 1.5 {
 		t.Fatalf("A pinch of 1.5 should bring the canvas to 150%%, but it is at %v.", z)
 	}
@@ -76,16 +77,16 @@ func TestTheCanvasZoomsByPinchAndButtons(t *testing.T) {
 	if err := tester.Click("Fit"); err != nil {
 		t.Fatal(err)
 	}
-	tester.Frame()
-	if z := state.canvas.scale(); z >= maxZoom || state.canvas.scroll.X != 0 {
+	settle(tester)
+	if z := state.canvas.scale(); z >= maxZoom || state.canvas.strip.X != 0 {
 		t.Fatalf("Fit should bring the whole canvas into view from its start, but it is at %v, panned %v.",
-			z, state.canvas.scroll.X)
+			z, state.canvas.strip.X)
 	}
 }
 
-// Clicking a card opens its sheet on the desk, beside those open, and the
-// canvas stays.
-func TestACardOpensOnTheDesk(t *testing.T) {
+// Clicking a card opens its sheet in a column of its own, after those
+// open, and the canvas stays.
+func TestACardOpensInAColumnOfItsOwn(t *testing.T) {
 	state, library, tester := onCanvas(t)
 	if err := tester.Click("Chapter"); err != nil {
 		t.Fatal(err)
@@ -97,9 +98,10 @@ func TestACardOpensOnTheDesk(t *testing.T) {
 	}
 }
 
-// The desk holds every open sheet at once, each written in where it lies;
-// its head brings it in front, takes it back to the columns, or closes it.
-func TestTheDeskHoldsEveryOpenSheet(t *testing.T) {
+// The strip holds every open sheet at once, each written in where it
+// stands; its head brings it in front, takes it back to the columns, or
+// closes it.
+func TestTheStripHoldsEveryOpenSheet(t *testing.T) {
 	state, _, tester := onCanvas(t)
 	state.Open = []Page{{ID: "7", Title: "Chapter"}, {ID: "8", Title: "Draft"}}
 	state.ActivePage = "7"
@@ -111,12 +113,15 @@ func TestTheDeskHoldsEveryOpenSheet(t *testing.T) {
 	var selected, closed []string
 	state.SelectPage = func(id string) { selected = append(selected, id); state.ActivePage = id }
 	state.ClosePageID = func(id string) { closed = append(closed, id) }
-	// Opened on the canvas, a sheet is brought into view.
-	state.canvas.reveal = "8"
+	// Brought in front, a sheet is brought into view.
+	state.ActivePage = "8"
+	tester.Frame()
+	settle(tester)
+	state.ActivePage = "7"
 	tester.Frame()
 	settle(tester)
 	if !tester.HasText("Body of 7") || !tester.HasText("Body of 8") {
-		t.Fatalf("Both open sheets should lie on the desk, but it shows %#v.", tester.Texts())
+		t.Fatalf("Both open sheets should stand on the strip, but it shows %#v.", tester.Texts())
 	}
 	if !focused["7"] || focused["8"] {
 		t.Fatalf("Only the sheet in front should take the focus, but the frames ask %v.", focused)
@@ -124,14 +129,15 @@ func TestTheDeskHoldsEveryOpenSheet(t *testing.T) {
 	if err := tester.Click("Bring Draft in front"); err != nil {
 		t.Fatal(err)
 	}
+	settle(tester)
 	if !slices.Equal(selected, []string{"8"}) {
-		t.Fatalf("A panel's head should bring its sheet in front, but the sheets selected are %v.", selected)
+		t.Fatalf("A column's head should bring its sheet in front, but the sheets selected are %v.", selected)
 	}
 	if err := tester.Click("Close Draft"); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(closed, []string{"8"}) {
-		t.Fatalf("A panel's close should close its sheet, but the sheets closed are %v.", closed)
+		t.Fatalf("A column's close should close its sheet, but the sheets closed are %v.", closed)
 	}
 	if err := tester.Click("Write Draft in columns"); err != nil {
 		t.Fatal(err)
@@ -169,5 +175,52 @@ func TestACardDraggedOntoARegionIsFiledThere(t *testing.T) {
 	dragOnto(t, tester, "Chapter", "Inbox")
 	if !slices.Contains(library.calls, "move 7 to 1") {
 		t.Fatalf("The drop should file the sheet in the Inbox, but the calls are %v.", library.calls)
+	}
+}
+
+// The strip goes to the sheet that comes in front, and a drag on it moves
+// it along, coming to rest at a column.
+func TestTheStripFollowsTheFrontAndPansByDrag(t *testing.T) {
+	state, library, tester := onCanvas(t)
+	for _, id := range []string{"7", "8", "9", "10"} {
+		state.Open = append(state.Open, Page{ID: id, Title: "Sheet " + id})
+	}
+	library.calls = nil
+	state.ActivePage = "7"
+	state.Sheet = func(c *ui.Context, id string, _ SheetFrame) { ui.Text(c, "Body of "+id) }
+	state.SelectPage = func(id string) { state.ActivePage = id }
+	tester.Frame()
+	settle(tester)
+	before := state.canvas.strip.X
+	state.ActivePage = "10"
+	tester.Frame()
+	settle(tester)
+	last := state.canvas.strip.X
+	if last <= before {
+		t.Fatalf("The strip should go to the sheet in front, but it stayed at %v.", last)
+	}
+	head, ok := tester.Find("Bring Sheet 9 in front")
+	if !ok {
+		t.Fatalf("The ninth sheet's head should show, but the strip shows %#v.", tester.Texts())
+	}
+	x, y := head.X+head.W/2, head.Y+head.H/2
+	tester.Press(x, y)
+	for i := 1; i <= 10; i++ {
+		tester.Move(x+float32(i)*30, y)
+		tester.Frame()
+	}
+	if moved := last - state.canvas.strip.X; moved < 200 {
+		t.Fatalf("A drag on a head should move the strip with it, but it moved %v.", moved)
+	}
+	tester.Release(x+300, y)
+	tester.Frame()
+	settle(tester)
+	rest := state.canvas.strip.X
+	if !slices.ContainsFunc(state.canvas.rests, func(x float32) bool { return x-rest < 1 && rest-x < 1 }) &&
+		rest != 0 {
+		t.Fatalf("The strip should rest at a column, but it rests at %v among %v.", rest, state.canvas.rests)
+	}
+	if state.ActivePage != "10" {
+		t.Fatalf("A drag on a head should bring nothing in front, but %s came.", state.ActivePage)
 	}
 }

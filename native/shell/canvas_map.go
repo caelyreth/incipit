@@ -96,10 +96,11 @@ func day(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
-// pack deals the regions out to columns, about as many as make the map
-// as wide as it is tall, each to the column shortest so far, in order.
-func pack(regions []region) [][]region {
-	n := max(1, min(4, int(math.Ceil(math.Sqrt(float64(len(regions)))))))
+// pack deals the regions out to at most n columns, about as many as make
+// the map as wide as it is tall, each to the column shortest so far, in
+// order.
+func pack(regions []region, n int) [][]region {
+	n = max(1, min(n, int(math.Ceil(math.Sqrt(float64(len(regions)))))))
 	columns := make([][]region, n)
 	heights := make([]float64, n)
 	for _, r := range regions {
@@ -116,19 +117,38 @@ func pack(regions []region) [][]region {
 	return columns
 }
 
-// canvasMap draws the map: the regions in their columns. lit, while a
-// search is lighting sheets, is what it found.
-func (s *State) canvasMap(c *ui.Context, semantic theme.Theme, lit map[string]bool, animate bool) {
+// regionWidth is a region's width at the reference type size.
+const regionWidth = regionCards*cardWidth + (regionCards-1)*cardGap + 2*regionPad
+
+// mapColumns is how many columns of regions the map has: as many as the
+// strip's window holds at its zoom, up to four, so the map shows whole
+// across, scrolling down.
+func (s *State) mapColumns(k, pad float32) int {
+	room := s.canvas.viewport.W - 2*pad
+	return max(1, min(4, int((room+regionGap*k)/((regionWidth+regionGap)*k))))
+}
+
+// canvasMap draws the map, the strip's first column: the regions in their
+// columns, scrolling down. lit, while a search is lighting sheets, is what
+// it found.
+func (s *State) canvasMap(c *ui.Context, semantic theme.Theme, lit map[string]bool, pad, origin float32, animate bool) {
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	now := c.Now()
-	ui.Row(c).Key("canvas-map").Shrink(0).AlignItems(ui.Start).Gap(regionGap * k).Children(func() {
-		for i, column := range pack(s.regions(now)) {
-			ui.Column(c).Key(fmt.Sprintf("map-column-%d", i)).Shrink(0).Gap(regionGap * k).Children(func() {
-				for _, r := range column {
-					s.canvasRegion(c, semantic, r, lit, now, animate)
+	columns := pack(s.regions(now), s.mapColumns(k, pad))
+	width := float32(len(columns))*(regionWidth+regionGap)*k - regionGap*k
+	s.column(c, "canvas-map", width, origin, ui.Start, animate).Children(func() {
+		ui.Scroll(c).Key("map-scroll").WidthPercent(100).Grow(1).MinHeight(0).Children(func() {
+			ui.Row(c).Key("map-columns").AlignItems(ui.Start).Gap(regionGap * k).Children(func() {
+				for i, column := range columns {
+					ui.Column(c).Key(fmt.Sprintf("map-column-%d", i)).Width(regionWidth * k).Shrink(0).
+						Gap(regionGap * k).Children(func() {
+						for _, r := range column {
+							s.canvasRegion(c, semantic, r, lit, now, animate)
+						}
+					})
 				}
 			})
-		}
+		})
 	})
 }
 
@@ -150,14 +170,11 @@ func (s *State) canvasRegion(
 	if tint != nil {
 		ink = *tint
 	}
-	width := float32(regionCards*cardWidth + (regionCards-1)*cardGap + 2*regionPad)
-	box := ui.Column(c).Key("region-"+r.group.ID).Width(width*k).Shrink(0).
+	box := ui.Column(c).Key("region-"+r.group.ID).WidthPercent(100).
 		Padding(regionPad*k).Gap(cardGap*k).Radius(10*k).
 		Background(semantic.Surface.Panel).Border(1, semantic.Border.Variant).
 		Transition(listTransition(animate, true))
-	if lit != nil && !anyLit(r.sheets, lit) {
-		box.Opacity(0.45)
-	}
+	box.Opacity(litAmount(box, lit == nil || anyLit(r.sheets, lit), 0.45, animate))
 	box.Children(func() {
 		ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(6 * k).Children(func() {
 			glyph := ui.Icon(c, groupIcon(r.group).SVG()).FontSize(16 * k).Shrink(0)
@@ -267,22 +284,10 @@ func (s *State) canvasCard(
 		components.Label(c, words(sheet.Words)+" · "+when(sheet.Updated, now), theme.TextXSmall,
 			semantic.Text.Muted).SingleLine().FontFeatures("tnum").Opacity(0.8)
 	})
-	if lit != nil && !lit[sheet.ID] {
-		card.Opacity(0.25)
-	}
+	card.Opacity(litAmount(card, lit == nil || lit[sheet.ID], 0.25, animate))
 	card.Drag(sheetDrag{id: sheet.ID})
 	card.ContextMenu(s.sheetMenu(sheet, false))
 	if card.Clicked() || card.Shortcut(0, ui.KeyEnter) {
 		s.openOnCanvas(sheet.ID)
 	}
-}
-
-// isOpen reports whether a sheet is open.
-func (s *State) isOpen(id string) bool {
-	for _, page := range s.Open {
-		if page.ID == id {
-			return true
-		}
-	}
-	return false
 }
