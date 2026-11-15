@@ -53,10 +53,9 @@ type Element struct {
 	overscroll    scrollfx.Elastic
 	// ranged is the scroll range the last paint found, and astray whether
 	// it shrank past the page, which then glides back in (stepViewport).
-	ranged [2]float32
-	astray bool
-	// mask is the fades at the view's edges, as last made (edges.go).
-	mask     edgeMask
+	ranged   [2]float32
+	astray   bool
+	edges    edgeFade
 	viewport ui.Rect
 	column   float32 // the column's left, in the element
 	// drag is the press the page holds until it lets go: a control's or
@@ -255,6 +254,7 @@ func (el *Element) Still(width float32) (float32, float32) {
 func (el *Element) PaintStill(p *ui.Painter, r ui.Rect) {
 	el.viewport = r
 	el.paint(p, r, true)
+	el.paintCaretInView(p, r, true)
 }
 
 // followPointer has the objects follow the pointer, c timing what waits
@@ -317,9 +317,6 @@ func (el *Element) View(c *ui.Context) {
 		if cursor, ok := el.cursorAt(el.toPage(el.pointer.X, el.pointer.Y)); ok {
 			box.Cursor(cursor)
 		}
-		if mask, ok := el.edgeMask(el.viewport.H); ok {
-			box.MaskLinearGradient(mask)
-		}
 		box.ContextMenu(func(m *ui.Menu) { el.contextMenu(m, services) })
 		// The paint reads what the build knew, never the build's elements:
 		// a container leaving keeps painting what it held after the frames
@@ -329,18 +326,27 @@ func (el *Element) View(c *ui.Context) {
 		focused := box.Focused()
 		box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
 			TextCaret(el.caretInElement()).
-			Draw(func(p *ui.Painter, r ui.Rect) {
-				if build != el.builds || ed.closed {
-					return
-				}
-				if r.W != el.viewport.W || r.H != el.viewport.H {
-					el.viewport = r
-					el.relayout()
-					c.Services().Invalidate()
-				}
-				el.viewport = r
-				el.paint(p, r, focused)
-			})
+			Children(func() {
+				ui.Box(c).Key("page-content").Fill().Role(ui.RoleNone).Background(el.Theme.Surface.Page).Cache().
+					Draw(func(p *ui.Painter, r ui.Rect) {
+						if build != el.builds || ed.closed {
+							return
+						}
+						if r.W != el.viewport.W || r.H != el.viewport.H {
+							el.viewport = r
+							el.relayout()
+							services.Invalidate()
+						}
+						el.viewport = r
+						el.paint(p, r, focused)
+					})
+			}).DrawOver(func(p *ui.Painter, r ui.Rect) {
+			if build != el.builds || ed.closed {
+				return
+			}
+			el.paintCaretInView(p, r, focused)
+			el.paintEdges(p, r)
+		})
 		el.accessUnits(c)
 		el.syncTags()
 		if box.Focused() {
@@ -753,7 +759,6 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		p.AnimationFrame()
 	}
 	t := el.Theme
-	sel := el.shownSelection()
 	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H
 	m := ed.metrics
@@ -837,11 +842,15 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		p.AnimationFrame()
 	}
 	el.paintGuides(p, r, ox, oy)
+}
+
+func (el *Element) paintCaretInView(p *ui.Painter, r ui.Rect, focused bool) {
+	sel := el.shownSelection()
 	if focused && sel.Kind == doc.SelectText && el.caret.Shown() {
 		cr := el.caret.Value()
-		cr.X += ox
-		cr.Y += oy
-		el.paintCaret(p, r, cr, sel.IsCollapsed(), now, animate)
+		cr.X += r.X + el.column
+		cr.Y += r.Y + el.Top - el.offset()
+		el.paintCaret(p, r, cr, sel.IsCollapsed(), p.Now(), !p.Preferences().ReduceMotion)
 	}
 }
 
@@ -1369,7 +1378,7 @@ func (el *Element) paintCaret(p *ui.Painter, view, caret ui.Rect, collapsed bool
 		p.After(wake.Sub(now))
 		return
 	}
-	p.AnimationFrame()
+	p.After(motion.CaretInterval)
 }
 
 // paintGhosts draws a surface's ghosts in the room the line keeps for

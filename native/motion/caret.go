@@ -16,6 +16,8 @@ const CaretSolid = 240 * time.Millisecond
 // CaretBreath is one full transparent-and-back breathing period.
 const CaretBreath = 1050 * time.Millisecond
 
+const CaretInterval = time.Second / 30
+
 // CaretWake is when a caret last active at activity starts to breathe,
 // and whether that is still ahead of now.
 func CaretWake(activity, now time.Time) (time.Time, bool) {

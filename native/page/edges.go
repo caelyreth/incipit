@@ -4,8 +4,8 @@ import "github.com/egoist/mygo/ui"
 
 // The page's text fades out at the top and bottom of its view, so a line
 // scrolled out leaves softly and the view reads as going on. The fades are
-// a mask on what the page draws, set as the view is built: they stand
-// still over the view, and the text moves through them. Each lies within
+// drawn over its opaque background: they stand still over the view, and
+// the text moves through them. Each lies within
 // the room the page leaves past its text, so a page at its top or its end
 // shows its first or last line whole and the fade comes in only as text
 // scrolls into it. At the foot the fade reaches up as far as the dock
@@ -19,39 +19,38 @@ func (el *Element) edgeFades() (top, bottom float32) {
 	return el.Top / 2, min(el.Dock, el.Bottom)
 }
 
-// edgeMask is a view's mask, kept while its fades and height stand, as
-// the view is built at every scroll.
-type edgeMask struct {
-	top, bottom, h float32
-	g              ui.LinearGradient
-	ok             bool
+type edgeFade struct {
+	ink         ui.Color
+	top, bottom ui.LinearGradient
 }
 
-// edgeMask is the mask the fades make over a view h tall, false where
-// there is none.
-func (el *Element) edgeMask(h float32) (ui.LinearGradient, bool) {
+func (el *Element) paintEdges(p *ui.Painter, view ui.Rect) {
 	top, bottom := el.edgeFades()
-	if m := &el.mask; m.top != top || m.bottom != bottom || m.h != h {
-		m.g, m.ok = fadeMask(top, bottom, h)
-		m.top, m.bottom, m.h = top, bottom, h
+	if view.H <= 0 || top+bottom <= 0 || top+bottom >= view.H {
+		return
 	}
-	return el.mask.g, el.mask.ok
+	fade := &el.edges
+	if ink := el.Theme.Surface.Page; fade.ink != ink {
+		fade.ink = ink
+		fade.top = edgeGradient(ink, true)
+		fade.bottom = edgeGradient(ink, false)
+	}
+	if top > 0 {
+		p.FillGradient(ui.Rect{X: view.X, Y: view.Y, W: view.W, H: top}, fade.top, 0)
+	}
+	if bottom > 0 {
+		p.FillGradient(ui.Rect{X: view.X, Y: view.Y + view.H - bottom, W: view.W, H: bottom}, fade.bottom, 0)
+	}
 }
 
-// fadeMask is the mask of fades top and bottom deep over a view h tall.
-func fadeMask(top, bottom, h float32) (ui.LinearGradient, bool) {
-	if h <= 0 || top+bottom <= 0 || top+bottom >= h {
-		return ui.LinearGradient{}, false
-	}
-	var stops []ui.GradientStop
-	// Each fade eases in and out (smoothstep), so neither its ends nor
-	// where the text stands whole show an edge.
+func edgeGradient(ink ui.Color, top bool) ui.LinearGradient {
 	ease := [...]float32{0, 0.156, 0.5, 0.844, 1}
-	for k, a := range ease {
-		stops = append(stops, ui.GradientStop{Color: ui.RGB(0, 0, 0).Alpha(a), At: top / h * float32(k) / 4})
+	stops := make([]ui.GradientStop, len(ease))
+	for index, alpha := range ease {
+		if top {
+			alpha = 1 - alpha
+		}
+		stops[index] = ui.GradientStop{Color: ink.Alpha(alpha), At: float32(index) / 4}
 	}
-	for k := len(ease) - 1; k >= 0; k-- {
-		stops = append(stops, ui.GradientStop{Color: ui.RGB(0, 0, 0).Alpha(ease[k]), At: 1 - bottom/h*float32(k)/4})
-	}
-	return ui.LinearGradient{Angle: 180, Stops: stops}, true
+	return ui.LinearGradient{Angle: 180, Stops: stops}
 }

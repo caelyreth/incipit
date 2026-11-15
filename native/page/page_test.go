@@ -741,10 +741,6 @@ func TestTheCaretsLineClearsTheTopFade(t *testing.T) {
 	if r := el.caretInElement(); r.Y < top {
 		t.Fatalf("the caret's line stands at %v, under the fade to %v", r.Y, top)
 	}
-	g, ok := el.edgeMask(600)
-	if !ok || len(g.Stops) != 10 || g.Stops[4].At != top/600 || g.Stops[4].Color.A != 255 || g.Stops[0].Color.A != 0 {
-		t.Fatalf("the mask is %+v", g)
-	}
 }
 
 // A double click on a word just selected by one, which the system counts
