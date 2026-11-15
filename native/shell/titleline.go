@@ -74,15 +74,13 @@ func (s *State) columnHead(c *ui.Context, semantic theme.Theme, key string, lead
 		}
 		close.icon = components.IconClose
 		groups := []components.ActionGroup{{Key: "close", Label: "Close", Actions: []func(){func() {
-			// The cross is inset in its SVG; a narrower button balances
-			// its visible room with the title's, keeping its full height.
-			close.view(c, semantic, animate).Width(26 * components.UIFontSize(c) / theme.DefaultUIFontSize)
+			close.view(c, semantic, animate)
 		}}}}
 		if info != nil {
 			groups = append([]components.ActionGroup{{Key: "info", Label: "Sheet", Actions: []func(){info}}}, groups...)
 		}
 		ui.Row(c).Key("strip").MinWidth(0).Opacity(shown).Children(func() {
-			components.ActionDock{Key: "head-strip", Label: "Column", Groups: groups, Bare: 1, Animate: animate}.
+			components.ActionDock{Key: "head-strip", Label: "Column", Groups: groups, Bare: 1, Joined: true, Animate: animate}.
 				View(c, semantic)
 		})
 	})

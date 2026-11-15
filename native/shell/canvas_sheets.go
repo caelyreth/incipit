@@ -64,7 +64,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 // title, and what closes it, at the type's size k.
 func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lead, trail, shown float32, animate bool) ui.Element {
 	info := func() {
-		ui.Row(c).Key("sheet-info").AlignItems(ui.Center).Gap(6 * k).PaddingX(8 * k).Children(func() {
+		ui.Row(c).Key("sheet-info").AlignItems(ui.Center).Gap(6 * k).PaddingX(12 * k).Children(func() {
 			if group, ok := s.groupOf(page.ID); ok {
 				ink := semantic.Icon.Muted
 				if tint := groupTint(semantic, group); tint != nil {

@@ -718,3 +718,35 @@ func TestTheTitleLineHoldsOnlyTheHeadsClearOfTheControls(t *testing.T) {
 			1260-state.controlsAt.reach, close.X+close.W)
 	}
 }
+
+// The divider and the pill's end bound one square close button, with
+// equal room on its two sides, at every UI size.
+func TestTheSheetHeadCentersCloseBetweenTheDividerAndEdge(t *testing.T) {
+	for _, size := range []float32{12, 16, 24} {
+		state, _ := libraryState()
+		state.Settings.UIFontSize = size
+		semantic := state.Settings.Semantic()
+		tester := ui.NewTester(func(c *ui.Context) {
+			c.SetTheme(state.Settings.MyGoTheme())
+			ui.Column(c).Fill().Children(func() {
+				state.sheetHead(c, semantic, Page{ID: "1", Title: "A place to begin"},
+					size/theme.DefaultUIFontSize, 0, 0, 1, false)
+			})
+		}, 520, 80)
+		tester.SetTitleBar(ui.TitleBar{Height: 64})
+		tester.Frame()
+		pill, hasPill := tester.Find("Column")
+		info, hasInfo := tester.Find("Sheet")
+		close, hasClose := tester.Find("Close A place to begin")
+		if !hasPill || !hasInfo || !hasClose {
+			t.Fatal("The sheet's title, pill and close button should show.")
+		}
+		// The divider is one DIP wide, directly after the title group.
+		before := close.X - (info.X + info.W + 1)
+		after := pill.X + pill.W - (close.X + close.W)
+		if abs(before-after) > 0.5 || abs(close.W-close.H) > 0.5 {
+			t.Fatalf("At UI size %v, close should be square with equal room beside the divider and the pill's end, but it is %v with gaps %v and %v.",
+				size, close, before, after)
+		}
+	}
+}

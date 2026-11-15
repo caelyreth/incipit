@@ -29,6 +29,9 @@ type ActionDock struct {
 	Groups  []ActionGroup
 	Room    float32
 	Animate bool
+	// Joined puts dividers directly between groups. Each group supplies
+	// its own horizontal padding, as a title beside a square close button.
+	Joined bool
 	// Bare is how far its pill gives way, from none of it to all: its
 	// room about its buttons and its edge going, its corners closing in to
 	// theirs, its buttons standing on its ground alone, as tall as they.
@@ -43,6 +46,9 @@ func (d ActionDock) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	metrics := theme.DefaultControls.Scaled(scale)
 	gap := theme.Space06.DIPs(scale)
+	if d.Joined {
+		gap = 0
+	}
 	// Its corners keep round about its buttons' as its room about them.
 	room := theme.Space04.DIPs(scale)
 	keeps := 1 - max(0, min(d.Bare, 1))
