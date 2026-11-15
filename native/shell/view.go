@@ -50,7 +50,11 @@ func (s *State) View(c *ui.Context) {
 	fullList := layout.SheetList * scale / theme.DefaultUIFontSize
 	// The canvas comes over the page mode's layout, which stays as it is
 	// beneath it, nothing laid out again (canvas.go).
-	canvas := s.CanvasOpen()
+	// The mode as the build begins: the switch, built first, may change it
+	// as it is pressed, and what the two layouts share must move between
+	// layouts built for the mode they were built for (held).
+	mode := s.Mode()
+	canvas := mode == ModeCanvas
 	openTarget, listTarget := float32(0), float32(0)
 	if s.SidebarVisible() {
 		openTarget = 1
@@ -118,12 +122,11 @@ func (s *State) View(c *ui.Context) {
 	head := layout.Titlebar * scale / theme.DefaultUIFontSize
 	// The writing actions float over the foot of what shows the sheet in
 	// front: the page beside its panes, or the whole canvas.
+	// It follows the panes as they open and close, and goes across as the
+	// canvas comes and goes (formatBar).
 	dockLeft := sidebarWidth + listWidth
 	if canvas {
 		dockLeft = 0
-	}
-	if animate {
-		dockLeft = components.Follow(root, "dock-left", dockLeft, motionReveal)
 	}
 
 	s.noteDrags(c)
@@ -162,12 +165,16 @@ func (s *State) View(c *ui.Context) {
 			s.canvasView(c, semantic, layout, shown, animate)
 		}
 		if s.ActivePage != "" || canvas {
-			s.dock(c, semantic, metrics, dockLeft)
+			s.dock(c, semantic, dockLeft, mode)
 		}
 	})
 	// What the two layouts share moves to the mode's in the next build,
-	// its layout built now (morph).
-	s.held = s.Mode()
+	// its layout built now (morph). A mode chosen in this build is
+	// built for in the next, and moved to in the one after.
+	s.held = mode
+	if s.Mode() != mode {
+		c.AnimationFrame()
+	}
 }
 
 func (s *State) page(
@@ -191,7 +198,13 @@ func (s *State) page(
 		})
 		return
 	}
-	ui.Column(c).Grow(1).FillHeight().MinHeight(0).Clip().Children(func() {
+	// The sheet coming back from the canvas is not cut off at the page's
+	// edge on its way, as it is once home.
+	area := ui.Column(c).Grow(1).FillHeight().MinHeight(0)
+	if !s.morph.Moving("sheet:"+s.ActivePage, c.Now()) {
+		area.Clip()
+	}
+	area.Children(func() {
 		// The page reaches the window's top: its reading space above the first
 		// line is the content's own, scrolled with it, so text scrolls
 		// out at the top rather than at a clip below it.

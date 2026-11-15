@@ -35,6 +35,12 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 		Role(ui.RoleGroup).Label(page.Title).Clip().Radius(10*k).
 		Background(semantic.Surface.Page).Border(1, edge)
 	s.morph.Mark(c, col, "sheet:"+page.ID, "canvas", holds, morphSettle, animate)
+	if !holds {
+		// Laid out unseen while the page holds it, so the sheet moving
+		// from or to the page is never seen beside an empty frame of its
+		// own.
+		col.Opacity(0)
+	}
 	// The sheet that comes in front comes into view; as the canvas comes,
 	// the picker before it brings it.
 	switch {

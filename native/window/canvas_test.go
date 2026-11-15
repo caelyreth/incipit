@@ -29,7 +29,9 @@ func canvasApp(t *testing.T) (*AppState, *ui.Tester) {
 		t.Fatalf("Two sheets should be open, but %d are.", n)
 	}
 	shot(t, tester, "page-mode")
-	app.Shell.ToggleCanvas()
+	if err := tester.Click("Canvas mode"); err != nil {
+		t.Fatal(err)
+	}
 	run(tester, 80*time.Millisecond)
 	shot(t, tester, "canvas-entering")
 	run(tester, time.Second)

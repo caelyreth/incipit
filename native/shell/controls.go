@@ -48,6 +48,6 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 	s.controlsFoot = bounds.Y + bounds.H + gap/2
 	bar.Children(func() {
 		components.ActionDock{Key: "window-controls", Label: "Window", Groups: groups, Animate: animate}.
-			View(c, semantic).Transition(popTransition(animate))
+			View(c, semantic)
 	})
 }

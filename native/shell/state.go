@@ -1,6 +1,8 @@
 package shell
 
 import (
+	"time"
+
 	"github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/scrollfx"
@@ -151,6 +153,10 @@ type State struct {
 	// build behind the mode, so the layout gone to is laid out once before
 	// what moves to it does.
 	held Mode
+	// dockAt is the mode and groups the writing actions were last built
+	// for, and dockMoving until when they go to where those put them.
+	dockAt     string
+	dockMoving time.Time
 }
 
 func New() *State {

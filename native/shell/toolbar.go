@@ -6,11 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func (s *State) formatBar(
-	c *ui.Context,
-	semantic theme.Theme,
-	metrics theme.ControlMetrics,
-) {
+func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32, mode Mode) {
 	animate := s.animate(c)
 	Icon := func(
 		key, label, binding string,
@@ -84,31 +80,53 @@ func (s *State) formatBar(
 	}
 	// The canvas adds what makes its columns, opening in the same dock as
 	// the canvas comes.
-	if s.CanvasOpen() {
+	if mode == ModeCanvas {
 		groups = append(groups, components.ActionGroup{Key: "canvas", Label: "Canvas actions", Actions: []func(){
 			Icon("new-picker", "New picker", "", components.IconFolderSearch, false, true, s.NewPicker),
 		}})
 	}
-	components.ActionDock{Key: "writing-actions", Label: "Writing actions", Groups: groups, Animate: animate}.
-		View(c, semantic).Transition(popTransition(animate))
-	_ = metrics
+	// It goes across on its own motion when it stands elsewhere for another
+	// mode or other groups, which it does at once; following the panes as
+	// they open and close, it is laid out where they leave it, frame by
+	// frame.
+	at := mode.String()
+	for _, group := range groups {
+		at += "/" + group.Key
+	}
+	now := c.Now()
+	if at != s.dockAt {
+		if s.dockAt != "" {
+			s.dockMoving = now.Add(components.MotionPanel + components.MotionQuick)
+		}
+		s.dockAt = at
+	}
+	components.ActionDock{
+		Key: "writing-actions", Label: "Writing actions", Groups: groups, Room: room,
+		Animate: animate, Move: now.Before(s.dockMoving),
+	}.View(c, semantic)
 }
 
 // dock is what floats over the foot of what shows the sheet in front,
 // left in from the window's left edge: the writing actions, or a sheet's
 // find in their place while it is open. It is one dock in both modes,
 // moving with what it floats over, and the canvas's actions opening in it.
-func (s *State) dock(c *ui.Context, semantic theme.Theme, metrics theme.ControlMetrics, left float32) {
+func (s *State) dock(c *ui.Context, semantic theme.Theme, left float32, mode Mode) {
 	scale := s.Settings.UIFontSize
 	animate := s.animate(c)
-	ui.Row(c).Key("dock").Absolute().Left(left).Right(0).ZIndex(2).
+	pad := theme.Space16.DIPs(scale)
+	width, _ := c.Size()
+	room := width - left - 2*pad
+	// The row spans the window, and keeps clear of the panes by its
+	// padding: a dock moving with it (formatBar) moves from where it was
+	// in it, which is where it was in the window.
+	ui.Row(c).Key("dock").Absolute().Left(0).Right(0).ZIndex(2).
 		Bottom(theme.DefaultLayout.DockOffset * scale / theme.DefaultUIFontSize).
-		PaddingX(theme.Space16.DIPs(scale)).
+		PaddingStart(left + pad).PaddingEnd(pad).
 		Justify(ui.Center).PassThrough().Children(func() {
 		if s.finder.open {
 			s.findBarView(c, semantic, animate)
 			return
 		}
-		s.formatBar(c, semantic, metrics)
+		s.formatBar(c, semantic, room, mode)
 	})
 }

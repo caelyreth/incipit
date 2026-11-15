@@ -66,6 +66,14 @@ const (
 	ModeCanvas
 )
 
+// String names the mode, as where what the two share stands (morph).
+func (m Mode) String() string {
+	if m == ModeCanvas {
+		return "canvas"
+	}
+	return "page"
+}
+
 // span is a column's place along the strip, from the strip's start.
 type span struct{ x, w float32 }
 
@@ -161,9 +169,15 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	}
 	canvas.Children(func() {
 		// The ground comes in under the columns, which come on their own:
-		// absolute, it would paint over them but for its z-index.
+		// absolute, it would paint over them but for its z-index. It goes
+		// at once as the page takes back what the two share, which moves
+		// home on the page beneath, the other columns fading over it.
+		ground := shown
+		if s.held != ModeCanvas {
+			ground = 0
+		}
 		ui.Box(c).Key("canvas-ground").Absolute().Top(0).Left(0).Right(0).Bottom(0).ZIndex(-1).
-			Background(semantic.Surface.Background).Opacity(shown).PassThrough()
+			Background(semantic.Surface.Background).Opacity(ground).PassThrough()
 		s.canvasStrip(c, semantic, layout, head, animate)
 		s.scrubber(c, semantic, layout.ContentGutter*scale/theme.DefaultUIFontSize, animate)
 		// The room over the strip moves the window, as a title bar would.

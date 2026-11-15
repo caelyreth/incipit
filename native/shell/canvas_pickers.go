@@ -195,18 +195,24 @@ func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, w, 
 	list := s.pickerList(p)
 	// The search is the list while it holds a query.
 	p.list.searching = strings.TrimSpace(p.list.query) != ""
-	list.noteView(c, animate)
-	k := components.UIFontSize(c) / theme.DefaultUIFontSize
-	scale := s.Settings.UIFontSize
 	// The picker the canvas comes with is the sheet list's place: it comes
 	// with the canvas, and holds the list once the page mode's layout has
-	// let it go (held), as the list holds it back.
+	// let it go (held), as the list holds it back. Its rows are the list's
+	// moving over, not ones coming in; while the list is the page's it is
+	// laid out unseen, so the two are never seen at once.
 	first := p.id == s.canvas.listPicker
+	list.noteView(c, animate && !(first && s.canvas.entered))
+	k := components.UIFontSize(c) / theme.DefaultUIFontSize
+	scale := s.Settings.UIFontSize
 	col := s.column(c, fmt.Sprintf("picker-%d", p.id), w, origin, !(first && s.canvas.entered), animate).
 		Role(ui.RoleGroup).Label("Sheet picker").Clip().Radius(10*k).
 		Background(semantic.Surface.Panel).Border(1, semantic.Border.Variant)
 	if first {
-		s.morph.Mark(c, col, "list", "canvas", s.held == ModeCanvas, morphSettle, animate)
+		holds := s.held == ModeCanvas
+		s.morph.Mark(c, col, "list", "canvas", holds, morphSettle, animate)
+		if !holds {
+			col.Opacity(0)
+		}
 	}
 	// A picker comes into view at the strip's start, the column after it
 	// beside it; as the canvas comes, at once, and held there while the

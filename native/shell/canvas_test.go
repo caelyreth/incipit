@@ -401,7 +401,12 @@ func TestThePageAndTheCanvasShareTheirSheetAndList(t *testing.T) {
 		}
 	}
 	moving := func(key string) bool { return state.morph.Moving(key, tester.Now()) }
-	state.ToggleCanvas()
+	// By the mode switch, which, built first, changes the mode as the
+	// window is being built: the handover still waits for the layout gone
+	// to.
+	if err := tester.Click("Canvas mode"); err != nil {
+		t.Fatal(err)
+	}
 	step(3)
 	if !moving("sheet:1") || !moving("list") {
 		t.Fatal("Going to the canvas, the sheet in front and the list should move into their columns.")
@@ -420,7 +425,9 @@ func TestThePageAndTheCanvasShareTheirSheetAndList(t *testing.T) {
 	if _, ok := tester.Find("Groups"); ok {
 		t.Fatal("Under the whole canvas, the page mode's layout should not be built.")
 	}
-	state.SetMode(ModePage)
+	if err := tester.Click("Page mode"); err != nil {
+		t.Fatal(err)
+	}
 	step(3)
 	if !moving("sheet:1") || !moving("list") {
 		t.Fatal("Going back, the sheet and the list should move back to the page and the panes.")

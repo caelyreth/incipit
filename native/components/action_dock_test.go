@@ -90,3 +90,43 @@ func TestActionDockIsOneKeyboardFocusGroup(t *testing.T) {
 		t.Fatal("Tab did not leave the dock")
 	}
 }
+
+// A group coming into a dock grows the dock about it, its width going
+// through those between, not at once: MyGo collapses the group alone.
+func TestActionDockGrowsAsAGroupComes(t *testing.T) {
+	semantic := theme.DefaultSettings().Semantic()
+	more := false
+	tester := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(theme.DefaultSettings().MyGoTheme())
+		button := func(key string) func() {
+			return func() {
+				IconButton{Key: key, Label: key, Icon: IconBold.SVG(), Style: SubtleButton, Size: MediumButton}.View(c, semantic)
+			}
+		}
+		groups := []ActionGroup{{Key: "first", Label: "First", Actions: []func(){button("One"), button("Two")}}}
+		if more {
+			groups = append(groups, ActionGroup{Key: "more", Label: "More", Actions: []func(){button("Three")}})
+		}
+		ui.Row(c).Fill().Justify(ui.Center).AlignItems(ui.Center).Children(func() {
+			ActionDock{Key: "actions", Label: "Writing actions", Groups: groups, Room: 400, Animate: true}.View(c, semantic)
+		})
+	}, 500, 160)
+	tester.Frame()
+	width := func() float32 {
+		r, _ := tester.Find("Writing actions")
+		return r.W
+	}
+	from := width()
+	more = true
+	tester.Frame()
+	tester.Advance(MotionPanel / 3)
+	tester.Frame()
+	between := width()
+	tester.Advance(MotionPanel * 3)
+	tester.Frame()
+	to := width()
+	if !(from < between && between < to) {
+		t.Fatalf("The dock should grow from %v to %v through the widths between, but stood at %v on the way.",
+			from, to, between)
+	}
+}

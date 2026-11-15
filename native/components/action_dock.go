@@ -16,25 +16,46 @@ type ActionGroup struct {
 
 // ActionDock is the floating source-material boundary around grouped
 // actions. A group that comes or goes opens or closes up in the dock, its
-// divider with it, and the groups beside it move over, so the dock reads
-// as one that changes, not one swapped for another.
+// divider with it, the groups beside it moving over and the dock growing
+// or shrinking about them, so it reads as one that changes, not one
+// swapped for another.
+//
+// Room is how wide it may be. It keeps to one line, and wraps only when
+// that line no longer fits the room: laid out on its way between two
+// widths, it would otherwise wrap its last group onto a second line.
 type ActionDock struct {
 	Key     string
 	Label   string
 	Groups  []ActionGroup
+	Room    float32
 	Animate bool
+	// Move animates where it stands as well, as it goes from one place to
+	// another, on the motion of its width. It is for a move made at once:
+	// one where its holder moves frame by frame would trail it.
+	Move bool
 }
 
 func (d ActionDock) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	metrics := theme.DefaultControls.Scaled(scale)
 	gap := theme.Space06.DIPs(scale)
-	return ui.Row(c).Key(d.Key).Role(ui.RoleToolbar).Label(d.Label).
-		MaxWidthPercent(100).Wrap().AlignItems(ui.Center).Justify(ui.Center).
+	dock := ui.Row(c).Key(d.Key).Role(ui.RoleToolbar).Label(d.Label).
+		AlignItems(ui.Center).Justify(ui.Start).Clip().
 		Padding(theme.Space04.DIPs(scale)).
 		KeepFocus().FocusGroup(ui.Horizontal).
 		Radius(metrics.DockRadius).Border(1, semantic.Border.Variant).
-		Background(semantic.Surface.Panel).Children(func() {
+		Background(semantic.Surface.Panel).Transition(dockTransition(d.Animate, d.Move))
+	// How wide its one line was when last laid out on one line.
+	line := ui.Local(dock, "line", func() float32 { return 0 })
+	wrapped := ui.Local(dock, "wrapped", func() bool { return false })
+	if b := dock.LayoutBounds(); !*wrapped && b.W > 0 {
+		*line = b.W
+	}
+	*wrapped = d.Room > 0 && *line > d.Room
+	if *wrapped {
+		dock.MaxWidthPercent(100).Wrap().Justify(ui.Center)
+	}
+	return dock.Children(func() {
 		for index, group := range d.Groups {
 			label := group.Label
 			if label == "" {
@@ -64,13 +85,29 @@ func (d ActionDock) View(c *ui.Context, semantic theme.Theme) ui.Element {
 }
 
 // groupTransition opens a dock's group in from nothing across, its
-// actions growing in, and closes it the same way. Its width going is what
-// moves the groups beside it: they move with the dock, not on their own,
-// which in a dock held by its end would carry them past it.
+// actions growing in, and closes it the same way, the groups after it
+// moving over as the dock grows or shrinks about them (dockTransition).
 func groupTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
 	gone := &ui.Motion{Opacity: 0, Scale: 0.8, Collapse: true}
-	return ui.ElementTransition{Duration: MotionPanel, Colors: true, Enter: gone, Exit: gone}
+	return ui.ElementTransition{Duration: MotionPanel, Position: true, Colors: true, Enter: gone, Exit: gone}
+}
+
+// dockTransition grows and shrinks the dock about its groups as they come
+// and go, on their motion, its content showing as far as it has grown:
+// MyGo collapses a group alone, its parent laid out at once at its new
+// size. With move it goes to its new place on the same motion, so a dock
+// held by its middle stays about it. The dock pops in and out where it
+// stands.
+func dockTransition(animate, move bool) ui.ElementTransition {
+	if !animate {
+		return ui.ElementTransition{Duration: 1}
+	}
+	pop := &ui.Motion{Scale: 0.9, Opacity: 0}
+	return ui.ElementTransition{
+		Duration: MotionPanel, Position: move, Size: true, Colors: true,
+		Enter: pop, Exit: pop,
+	}
 }
