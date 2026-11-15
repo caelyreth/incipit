@@ -68,7 +68,7 @@ func TestToolbarKeepsPresentationWithoutAPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.Shell.Typewriter(true)
-	app.Shell.ClosePage()
+	app.closeActive()
 	if !app.Shell.Toolbar.Typewriter || !app.Shell.Toolbar.TypewriterEnabled {
 		t.Fatalf("page-less toolbar lost presentation state: %+v", app.Shell.Toolbar)
 	}

@@ -100,12 +100,9 @@ type State struct {
 	// Sheet draws an open sheet's page, as frame sets it.
 	Sheet        func(c *ui.Context, id string, frame SheetFrame)
 	SelectPage   func(id string)
-	NewPage      func()
-	ClosePage    func()
 	ClosePageID  func(id string)
 	OpenSettings func()
 	OpenCommands func()
-	FindPage     func()
 	// Find runs a sheet's find on the page in front; FindStep goes to the
 	// next match or the one before; EndFind ends it.
 	Find       func(query string)
@@ -172,15 +169,6 @@ func (s *State) ToggleSidebar() {
 	next := !visible
 	s.SidebarOverride = &next
 	s.closeCanvas()
-}
-
-// ColumnMargin is the room beside the page column: the gutter and half
-// of what the page's width leaves over the column.
-func (s *State) ColumnMargin() float32 {
-	scale := s.Settings.UIFontSize
-	gutter := theme.DefaultLayout.ContentGutter * scale / theme.DefaultUIFontSize
-	column := s.Settings.Prose().Column()
-	return gutter + max(0, (s.lastWidth-s.lastSidebarWidth-2*gutter-column)/2)
 }
 
 // ShowPanes shows the library and the sheet list as asked.

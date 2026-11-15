@@ -15,27 +15,15 @@ var ErrUnknownCommand = errors.New("window: unknown command")
 
 type hostHandler func(*AppState)
 
-// hostHandlers runs each command through the same shell callback a visible
-// control uses.
+// hostHandlers runs each command the window answers itself, as a visible
+// control for it does.
 var hostHandlers = map[keymap.CommandID]hostHandler{
-	keymap.NewPage: func(a *AppState) {
-		if a.Shell.NewPage != nil {
-			a.Shell.NewPage()
-		}
-	},
+	keymap.NewPage:      func(a *AppState) { a.newSheet() },
 	keymap.NextPage:     func(a *AppState) { a.navigatePage(true) },
 	keymap.PreviousPage: func(a *AppState) { a.navigatePage(false) },
-	keymap.ClosePage: func(a *AppState) {
-		if a.Shell.ClosePage != nil {
-			a.Shell.ClosePage()
-		}
-	},
-	keymap.FindPage: func(a *AppState) {
-		if a.Shell.FindPage != nil {
-			a.Shell.FindPage()
-		}
-	},
-	keymap.FindInSheet: func(a *AppState) { a.findInSheet() },
+	keymap.ClosePage:    func(a *AppState) { a.closeActive() },
+	keymap.FindPage:     func(a *AppState) { a.findPage() },
+	keymap.FindInSheet:  func(a *AppState) { a.findInSheet() },
 	keymap.Zen: func(a *AppState) {
 		a.togglePresentation(appsettings.PresentationZen, a.Shell.Zen)
 	},

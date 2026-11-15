@@ -144,7 +144,7 @@ func (a *AppState) loadSettings(store *storage.Store) error {
 func (a *AppState) BindShell() {
 	a.Shell.Sheet = a.sheetView
 	a.Shell.SelectPage = func(id string) {
-		page, ok := parsePageID(id)
+		page, ok := pageOf(id)
 		if !ok {
 			return
 		}
@@ -157,21 +157,12 @@ func (a *AppState) BindShell() {
 	a.Shell.Library = a
 	// The library opens on the Inbox, where new sheets go.
 	a.Shell.StartAt(shell.Place{Kind: shell.PlaceGroup, Group: groupName(library.Inbox)})
-	a.Shell.NewPage = func() { a.NewSheet(a.Shell.CurrentGroup(), shell.Last) }
-	a.Shell.ClosePage = func() {
-		id, ok := a.Workspace.Active()
-		if !ok {
-			return
-		}
-		a.closePageID(fmt.Sprintf("%d", id))
-	}
 	a.Shell.ClosePageID = a.closePageID
 	a.Shell.OpenCommands = func() {
 		a.Palette.Open = true
 		a.Palette.Reset(a.commandCatalog())
 	}
 	a.Shell.OpenSettings = a.OpenSettingsWindow
-	a.Shell.FindPage = a.findPage
 	a.Shell.Find = a.findQuery
 	a.Shell.FindStep = a.findStep
 	a.Shell.EndFind = a.endFind
@@ -282,8 +273,18 @@ func (a *AppState) selectMounted() {
 	a.syncMenu()
 }
 
+// newSheet makes a sheet in the group the library shows, in front.
+func (a *AppState) newSheet() { a.NewSheet(a.Shell.CurrentGroup(), shell.Last) }
+
+// closeActive closes the sheet in front.
+func (a *AppState) closeActive() {
+	if id, ok := a.Workspace.Active(); ok {
+		a.closePageID(sheetName(id))
+	}
+}
+
 func (a *AppState) closePageID(id string) {
-	page, ok := parsePageID(id)
+	page, ok := pageOf(id)
 	if !ok {
 		return
 	}
@@ -295,26 +296,18 @@ func (a *AppState) closePageID(id string) {
 	a.selectMounted()
 }
 
-func parsePageID(id string) (workspace.PageID, bool) {
-	var page workspace.PageID
-	if _, err := fmt.Sscanf(id, "%d", &page); err != nil {
-		return 0, false
-	}
-	return page, true
-}
-
 func (a *AppState) refreshShell() {
 	a.sessionsRev++
 	a.Shell.Open = nil
 	for _, page := range a.Workspace.OpenedPages() {
 		a.Shell.Open = append(a.Shell.Open, shell.Page{
-			ID:    fmt.Sprintf("%d", page.ID),
+			ID:    sheetName(page.ID),
 			Title: page.Title,
 		})
 	}
 	a.Shell.ActivePage = ""
 	if id, ok := a.Workspace.Active(); ok {
-		a.Shell.ActivePage = fmt.Sprintf("%d", id)
+		a.Shell.ActivePage = sheetName(id)
 	}
 	a.refreshEditorChrome()
 	a.refreshToolbarState()

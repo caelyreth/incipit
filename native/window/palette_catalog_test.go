@@ -50,7 +50,7 @@ func TestPaletteKeepsItsCommandsWithoutAPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := len(app.commandCatalog())
-	app.Shell.ClosePage()
+	app.closeActive()
 	commands := app.commandCatalog()
 	paletteCommand(t, commands, keymap.NewPage)
 	paletteCommand(t, commands, keymap.Settings)

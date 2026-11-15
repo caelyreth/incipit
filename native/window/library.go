@@ -24,7 +24,13 @@ import (
 // recent is how far back Recent looks.
 const recent = 7 * 24 * time.Hour
 
+// sheetName is how the shell names a page, and pageOf the page it names.
 func sheetName(id workspace.PageID) string { return strconv.Itoa(int(id)) }
+
+func pageOf(name string) (workspace.PageID, bool) {
+	id, err := strconv.Atoi(name)
+	return workspace.PageID(id), err == nil
+}
 
 func groupName(id library.GroupID) string {
 	if id == 0 {
@@ -55,11 +61,11 @@ func chapterOf(name string) (library.ChapterID, bool) {
 
 // sessionOf is the session a shell's sheet name names.
 func (a *AppState) sessionOf(name string) (*sheetSession, bool) {
-	id, err := strconv.Atoi(name)
-	if err != nil {
+	id, ok := pageOf(name)
+	if !ok {
 		return nil, false
 	}
-	session, ok := a.sessions[workspace.PageID(id)]
+	session, ok := a.sessions[id]
 	return session, ok
 }
 

@@ -60,7 +60,7 @@ func TestEveryPageKeepsItsSelection(t *testing.T) {
 	selectPageText(t, app.pageElement(), 2, 0)
 	app.save()
 
-	app.Shell.NewPage()
+	app.newSheet()
 	tester.Frame()
 	tester.Type("two")
 	tester.Frame()

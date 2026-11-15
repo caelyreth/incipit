@@ -57,11 +57,11 @@ func TestTheNotebookReopensAsItWasLeft(t *testing.T) {
 	app := openNotebookApp(t, root)
 	nameActivePage(t, app, "Chapter one")
 	app.save()
-	app.Shell.NewPage()
+	app.newSheet()
 	nameActivePage(t, app, "second")
 	app.Workspace.SetActiveScroll(workspace.ScrollPosition{Y: 36})
 	app.save()
-	app.Shell.NewPage()
+	app.newSheet()
 	app.save()
 	app.Shell.ClosePageID("2")
 	app.Shell.SelectPage("0")
@@ -90,7 +90,7 @@ func TestTheNotebookReopensAsItWasLeft(t *testing.T) {
 		t.Fatalf("second page scroll %v", scroll)
 	}
 	// A new page takes a key no stored page has.
-	app.Shell.NewPage()
+	app.newSheet()
 	keys := map[storage.PageKey]bool{}
 	for _, session := range app.sessions {
 		if keys[session.key] {

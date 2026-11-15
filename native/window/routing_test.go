@@ -43,7 +43,7 @@ func TestPageLessNewPageRunsFromThePalette(t *testing.T) {
 	}
 	tester := ui.NewTester(app.View, 1260, 850)
 	tester.Frame()
-	app.Shell.ClosePage()
+	app.closeActive()
 	tester.Frame()
 	if _, active := app.Workspace.Active(); active {
 		t.Fatal("the fixture still has an active page")

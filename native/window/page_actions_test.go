@@ -53,7 +53,7 @@ func TestAPageIsTitledByItsFirstHeading(t *testing.T) {
 	if !tester.HasText("Morning notes") {
 		t.Fatalf("the sheet is not titled by the heading: %#v", tester.Texts())
 	}
-	app.Shell.ClosePage()
+	app.closeActive()
 	tester.Frame()
 	if !tester.HasText("Open a sheet from the library, or press ⌘N for a new one") {
 		t.Fatalf("page-less texts = %#v", tester.Texts())
