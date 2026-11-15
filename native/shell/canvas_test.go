@@ -2,6 +2,7 @@ package shell
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -30,61 +31,54 @@ func TestTheCanvasShowsTheNotebookWhole(t *testing.T) {
 	if _, ok := tester.Find("Groups"); ok {
 		t.Fatal("The library should give way to the canvas, but it stays beside it.")
 	}
-	if err := tester.Click("Toggle canvas"); err != nil {
+	if err := tester.Click("Page mode"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
 	if state.CanvasOpen() || !state.SidebarVisible() {
-		t.Fatal("Leaving the canvas should bring the columns back as they were.")
+		t.Fatal("Leaving the canvas should bring the panes back as they were.")
 	}
 }
 
-// A pinch zooms the canvas about the pointer; the head's buttons zoom by
-// steps, set it at its actual size, and fit it in view.
-func TestTheCanvasZoomsByPinchAndButtons(t *testing.T) {
-	state, _, tester := onCanvas(t)
-	region, _ := tester.Find("Novel")
-	tester.Move(region.X+40, region.Y+40)
-	tester.Pinch(region.X+40, region.Y+40, 1.5)
-	tester.Frame()
-	settle(tester)
-	if z := state.canvas.scale(); z != 1.5 {
-		t.Fatalf("A pinch of 1.5 should bring the canvas to 150%%, but it is at %v.", z)
+// The mode is the window's top choice: on the canvas the window's controls
+// add the canvas's own, the panes' title line goes with the panes, and
+// there is no zoom and no line of its own over the strip.
+func TestTheCanvasIsAModeOfTheWindow(t *testing.T) {
+	_, _, tester := onCanvas(t)
+	if _, ok := tester.Find("New sheet"); !ok {
+		t.Fatal("The window's controls should offer a new sheet on the canvas.")
 	}
-	if !tester.HasText("150%") {
-		t.Fatalf("The head should say how near the canvas is, but it shows %#v.", tester.Texts())
-	}
-	if err := tester.Click("Zoom out"); err != nil {
-		t.Fatal(err)
-	}
-	if z := state.canvas.scale(); z != 1.5/zoomStep {
-		t.Fatalf("Zoom out should go a step farther, but the canvas is at %v.", z)
-	}
-	if err := tester.Click("120%"); err != nil {
-		t.Fatal(err)
-	}
-	if z := state.canvas.scale(); z != 1 {
-		t.Fatalf("The percentage should set the canvas at its actual size, but it is at %v.", z)
-	}
-	for range 12 {
-		if err := tester.Click("Zoom in"); err != nil {
-			t.Fatal(err)
+	for _, label := range []string{"Toggle library", "Toggle sheet list", "Search sheets", "Zoom in", "Light sheets"} {
+		if _, ok := tester.Find(label); ok {
+			t.Fatalf("The canvas should not show %q.", label)
 		}
 	}
-	if z := state.canvas.scale(); z != maxZoom {
-		t.Fatalf("Zooming in should stop at %v, but the canvas is at %v.", maxZoom, z)
+}
+
+// The window's controls switch the mode, and offer the canvas's own only
+// while it shows.
+func TestTheModeSwitchesFromTheWindowsControls(t *testing.T) {
+	state, library := libraryState()
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	if _, ok := tester.Find("Canvas actions"); ok {
+		t.Fatal("The canvas's controls should not show on the page.")
 	}
-	if err := tester.Click("Fit"); err != nil {
+	if err := tester.Click("Canvas mode"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if z := state.canvas.scale(); z >= maxZoom || state.canvas.strip.X != 0 {
-		t.Fatalf("Fit should bring the whole canvas into view from its start, but it is at %v, panned %v.",
-			z, state.canvas.strip.X)
+	if !state.CanvasOpen() {
+		t.Fatal("Choosing the canvas should lay the notebook out on it.")
+	}
+	if err := tester.Click("New sheet"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(library.calls, func(call string) bool { return strings.HasPrefix(call, "new sheet ") }) {
+		t.Fatalf("New sheet should make one, but the calls are %v.", library.calls)
 	}
 }
 
-// Clicking a card opens its sheet in a column of its own, after those
 // open, and the canvas stays.
 func TestACardOpensInAColumnOfItsOwn(t *testing.T) {
 	state, library, tester := onCanvas(t)
@@ -148,24 +142,14 @@ func TestTheStripHoldsEveryOpenSheet(t *testing.T) {
 	}
 }
 
-// A search lights what it finds in place and leaves the rest where they
-// stand, dimmed.
-func TestTheCanvasSearchLightsInPlace(t *testing.T) {
-	state, library, tester := onCanvas(t)
+// Search goes from the canvas to the sheet list, where it runs.
+func TestSearchGoesFromTheCanvasToTheSheetList(t *testing.T) {
+	state, _, tester := onCanvas(t)
 	state.Search()
 	tester.Frame()
-	tester.Type("chap")
-	tester.Frame()
 	settle(tester)
-	if state.canvas.query != "chap" || !slices.Contains(library.calls, "search chap") {
-		t.Fatalf("The search should run on the canvas, but its query is %q and the calls are %v.",
-			state.canvas.query, library.calls)
-	}
-	if !tester.HasText("2 sheets found") || !tester.HasText("Inbox") {
-		t.Fatalf("The head should say what the search found, among the regions, but it shows %#v.", tester.Texts())
-	}
-	if state.list.searching {
-		t.Fatal("The columns' search should stay closed under the canvas.")
+	if state.CanvasOpen() || !state.list.searching {
+		t.Fatal("Search should go back to the page and search in the sheet list.")
 	}
 }
 

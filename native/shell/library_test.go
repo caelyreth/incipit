@@ -856,7 +856,7 @@ func TestChoosingAPlaceShowsItsSheetsBesideTheLibrary(t *testing.T) {
 	if err := tester.ClickWith(ui.Alt, "Chapter"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("Toggle sheet list"); err != nil {
+	if err := tester.Click("Hide sheet list"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
@@ -1204,7 +1204,7 @@ func TestTheLibraryAndTheSheetListOpenOnTheirOwn(t *testing.T) {
 			t.Fatalf("panes %+v: %#v", panes, tester.Texts())
 		}
 	}
-	if err := tester.Click("Toggle sheet list"); err != nil {
+	if err := tester.Click("Hide sheet list"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)

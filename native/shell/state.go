@@ -128,8 +128,10 @@ type State struct {
 	lastSidebarWidth float32
 	lastChrome       float32
 	// controlsWidth is how far the window's controls reach in from its
-	// right edge, as last laid out.
+	// right edge, and controlsFoot down from its top, with the room around
+	// them, as last laid out.
 	controlsWidth float32
+	controlsFoot  float32
 	// listDock is how far the place's title has gone from the panes'
 	// title line to the top of the sheet list, as it does where the library
 	// is closed; dockTarget is where it goes, held while the list is shut.
@@ -137,7 +139,9 @@ type State struct {
 	dockTarget float32
 	// flight is whether that title is on its way this frame (takeFlight).
 	flight bool
-	// canvas is the notebook on one surface, in place of the columns.
+	// mode is how the notebook is laid out (Mode), and canvas the canvas's
+	// state, kept as it was left.
+	mode   Mode
 	canvas canvasState
 }
 

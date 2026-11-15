@@ -15,8 +15,7 @@ func (s *State) FocusWithin(c *ui.Context) bool { return s.root.FocusWithin(c) }
 // to take the focus as it opens: the search, a sheet's find, or a name
 // being edited.
 func (s *State) Typing() bool {
-	return s.SearchRequested || s.list.searching || s.FindRequested || s.finder.open || s.nav.renaming != "" ||
-		s.CanvasOpen() && s.canvas.typing
+	return s.SearchRequested || s.list.searching || s.FindRequested || s.finder.open || s.nav.renaming != ""
 }
 
 func (s *State) View(c *ui.Context) {
@@ -66,6 +65,16 @@ func (s *State) View(c *ui.Context) {
 		listReveal = components.Follow(root, "sheets-open", listTarget, motionReveal)
 	}
 	listReveal = max(0, min(listReveal, 1))
+	// The panes' title line is the page mode's: the canvas has no panes for
+	// it to stand over, so it goes as they do.
+	lineTarget := float32(1)
+	if canvas {
+		lineTarget = 0
+	}
+	line := lineTarget
+	if animate {
+		line = max(0, min(components.Follow(root, "title-line", lineTarget, motionReveal), 1))
+	}
 	// The place's title goes down to the list where the library is shut.
 	// While the list is shut it stays where it was: going to the list as
 	// both close, or back up as the list closes alone, would move it for a
@@ -125,7 +134,7 @@ func (s *State) View(c *ui.Context) {
 		s.paneEdges(c, semantic, sidebarWidth, listWidth, animate)
 		// The title line and the place's title on its way paint over the
 		// panes' room for them (ZIndex).
-		s.paneHeader(c, semantic, layout, chrome, reveal, listWidth, listReveal)
+		s.paneHeader(c, semantic, layout, chrome*line, reveal, listWidth, listReveal)
 		s.placeFlight(c, semantic, layout, reveal, listWidth, listReveal, animate)
 	})
 }

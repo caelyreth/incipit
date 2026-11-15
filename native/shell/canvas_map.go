@@ -13,8 +13,8 @@ import (
 // The map is the canvas's half that holds the notebook: every group a
 // region of its sheets' cards, the regions packed into columns, the
 // fullest first to the shortest column, so the map stays compact whatever
-// its groups hold. Every size here is in the canvas's zoomed type
-// (components.UIFontSize), so the map grows and shrinks with it.
+// its groups hold. Every size here follows the type's
+// (components.UIFontSize).
 
 // The map's measures at the reference type size: a card, the cards a
 // region's row holds, and the room between and around them.
@@ -121,7 +121,7 @@ func pack(regions []region, n int) [][]region {
 const regionWidth = regionCards*cardWidth + (regionCards-1)*cardGap + 2*regionPad
 
 // mapColumns is how many columns of regions the map has: as many as the
-// strip's window holds at its zoom, up to four, so the map shows whole
+// strip's window holds, up to four, so the map shows whole
 // across, scrolling down.
 func (s *State) mapColumns(k, pad float32) int {
 	room := s.canvas.viewport.W - 2*pad
@@ -129,9 +129,8 @@ func (s *State) mapColumns(k, pad float32) int {
 }
 
 // canvasMap draws the map, the strip's first column: the regions in their
-// columns, scrolling down. lit, while a search is lighting sheets, is what
-// it found.
-func (s *State) canvasMap(c *ui.Context, semantic theme.Theme, lit map[string]bool, pad, origin float32, animate bool) {
+// columns, scrolling down.
+func (s *State) canvasMap(c *ui.Context, semantic theme.Theme, pad, origin float32, animate bool) {
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	now := c.Now()
 	columns := pack(s.regions(now), s.mapColumns(k, pad))
@@ -143,7 +142,7 @@ func (s *State) canvasMap(c *ui.Context, semantic theme.Theme, lit map[string]bo
 					ui.Column(c).Key(fmt.Sprintf("map-column-%d", i)).Width(regionWidth * k).Shrink(0).
 						Gap(regionGap * k).Children(func() {
 						for _, r := range column {
-							s.canvasRegion(c, semantic, r, lit, now, animate)
+							s.canvasRegion(c, semantic, r, now, animate)
 						}
 					})
 				}
@@ -159,7 +158,6 @@ func (s *State) canvasRegion(
 	c *ui.Context,
 	semantic theme.Theme,
 	r region,
-	lit map[string]bool,
 	now time.Time,
 	animate bool,
 ) {
@@ -174,7 +172,6 @@ func (s *State) canvasRegion(
 		Padding(regionPad*k).Gap(cardGap*k).Radius(10*k).
 		Background(semantic.Surface.Panel).Border(1, semantic.Border.Variant).
 		Transition(listTransition(animate, true))
-	box.Opacity(litAmount(box, lit == nil || anyLit(r.sheets, lit), 0.45, animate))
 	box.Children(func() {
 		ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(6 * k).Children(func() {
 			glyph := ui.Icon(c, groupIcon(r.group).SVG()).FontSize(16 * k).Shrink(0)
@@ -203,7 +200,7 @@ func (s *State) canvasRegion(
 		} else {
 			ui.Row(c).Key("cards").WidthPercent(100).Wrap().Gap(cardGap * k).Children(func() {
 				for _, sheet := range r.sheets {
-					s.canvasCard(c, semantic, sheet, lit, now, animate)
+					s.canvasCard(c, semantic, sheet, now, animate)
 				}
 			})
 		}
@@ -215,16 +212,6 @@ func (s *State) canvasRegion(
 	if dropped, ok := s.dropOn(c, semantic, box, takes{sheets: !r.group.Smart()}, animate); ok {
 		s.Library.MoveSheet(dropped.(sheetDrag).id, r.group.ID, Last)
 	}
-}
-
-// anyLit reports whether a search lit any of sheets.
-func anyLit(sheets []SheetItem, lit map[string]bool) bool {
-	for _, sheet := range sheets {
-		if lit[sheet.ID] {
-			return true
-		}
-	}
-	return false
 }
 
 // activityStrip is a region's baseline: its last days across its width, a
@@ -252,7 +239,6 @@ func (s *State) canvasCard(
 	c *ui.Context,
 	semantic theme.Theme,
 	sheet SheetItem,
-	lit map[string]bool,
 	now time.Time,
 	animate bool,
 ) {
@@ -284,7 +270,6 @@ func (s *State) canvasCard(
 		components.Label(c, words(sheet.Words)+" · "+when(sheet.Updated, now), theme.TextXSmall,
 			semantic.Text.Muted).SingleLine().FontFeatures("tnum").Opacity(0.8)
 	})
-	card.Opacity(litAmount(card, lit == nil || lit[sheet.ID], 0.25, animate))
 	card.Drag(sheetDrag{id: sheet.ID})
 	card.ContextMenu(s.sheets().sheetMenu(sheet, false))
 	if card.Clicked() || card.Shortcut(0, ui.KeyEnter) {

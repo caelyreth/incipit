@@ -23,7 +23,7 @@ const sheetPad = 16
 func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origin float32, animate bool) {
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
-	prose := s.Settings.Prose().Zoomed(s.canvas.scale())
+	prose := s.Settings.Prose()
 	front := page.ID == s.ActivePage
 	edge := semantic.Border.Variant
 	if front {

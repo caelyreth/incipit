@@ -147,8 +147,8 @@ func TestTheWindowControlsUseReferenceActions(t *testing.T) {
 
 	for _, label := range []string{
 		"Toggle library",
-		"Toggle sheet list",
-		"Toggle canvas",
+		"Page mode",
+		"Canvas mode",
 		"Search commands",
 		"Open settings",
 	} {

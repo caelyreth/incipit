@@ -28,8 +28,10 @@ func canvasApp(t *testing.T) (*AppState, *ui.Tester) {
 	if n := len(app.Shell.Open); n != 2 {
 		t.Fatalf("Two sheets should be open, but %d are.", n)
 	}
+	shot(t, tester, "page-mode")
 	app.Shell.ToggleCanvas()
 	run(tester, time.Second)
+	shot(t, tester, "canvas-mode")
 	return app, tester
 }
 
@@ -45,15 +47,23 @@ func run(tester *ui.Tester, d time.Duration) {
 // sheets on it fade out. Their pages, painted after the frame that built
 // them, once read that frame's elements, and leaving crashed.
 func TestLeavingTheCanvasKeepsRunning(t *testing.T) {
-	for _, control := range []string{"Toggle canvas", "Toggle library", "Toggle sheet list"} {
-		t.Run(control, func(t *testing.T) {
+	for _, way := range []struct {
+		name  string
+		leave func(*AppState, *ui.Tester) error
+	}{
+		{"the mode switch", func(_ *AppState, tester *ui.Tester) error { return tester.Click("Page mode") }},
+		{"the library's toggle", func(app *AppState, _ *ui.Tester) error { app.Shell.ToggleSidebar(); return nil }},
+		{"the sheet list's toggle", func(app *AppState, _ *ui.Tester) error { app.Shell.ToggleSheetList(); return nil }},
+		{"search", func(app *AppState, _ *ui.Tester) error { app.Shell.Search(); return nil }},
+	} {
+		t.Run(way.name, func(t *testing.T) {
 			app, tester := canvasApp(t)
-			if err := tester.Click(control); err != nil {
+			if err := way.leave(app, tester); err != nil {
 				t.Fatal(err)
 			}
 			run(tester, time.Second)
 			if app.Shell.CanvasOpen() {
-				t.Fatalf("%s should leave the canvas.", control)
+				t.Fatalf("%s should leave the canvas.", way.name)
 			}
 		})
 	}

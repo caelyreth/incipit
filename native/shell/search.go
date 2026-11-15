@@ -67,17 +67,15 @@ func (s listing) saves() bool {
 	return q.Scope == query.InNotebook && q.Root != nil
 }
 
-// Search shows search in the sheet list, its field focused.
-func (s *State) Search() { s.sheets().search() }
+// Search shows search in the sheet list, its field focused, going back to
+// the page from the canvas, where the list stands.
+func (s *State) Search() {
+	s.SetMode(ModePage)
+	s.sheets().search()
+}
 
 // search shows search in the list, its field focused.
 func (s listing) search() {
-	// The canvas has a search of its own, which lights what it finds.
-	if s.CanvasOpen() {
-		s.canvas.focus = true
-		s.SearchRequested = false
-		return
-	}
 	s.browser.searching = true
 	s.browser.find.row, s.browser.find.filter = -1, closedFilter
 	s.browser.overscroll.Reset()

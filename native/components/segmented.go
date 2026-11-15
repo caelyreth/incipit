@@ -6,8 +6,11 @@ import (
 )
 
 type SegmentOption struct {
-	Key      string
-	Label    string
+	Key   string
+	Label string
+	// Icon, if set, shows in place of the label, which then names the
+	// option to assistive technology and in its tooltip.
+	Icon     IconName
 	Selected bool
 	Action   func()
 }
@@ -55,6 +58,16 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 				track.Mark(button)
 			}
 			button.Background(ui.Transparent)
+			if option.Icon != "" {
+				iconColor := semantic.Icon.Muted
+				if option.Selected {
+					iconColor = semantic.Icon.Default
+				}
+				button.PaddingX(theme.Space06.DIPs(scale)).Tooltip(option.Label).Children(func() {
+					ui.Icon(c, option.Icon.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).TextColor(iconColor)
+				})
+				continue
+			}
 			button.Children(func() {
 				Label(c, option.Label, theme.TextSmall, textColor).SingleLine()
 			})

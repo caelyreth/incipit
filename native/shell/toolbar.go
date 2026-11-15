@@ -32,7 +32,7 @@ func (s *State) formatBar(
 		Key: "writing-actions", Label: "Writing actions",
 		Groups: []components.ActionGroup{
 			{
-				Label: "Formatting",
+				Key: "formatting", Label: "Formatting",
 				Actions: []func(){
 					Icon("strong", "Strong", s.Toolbar.Bindings.Strong, components.IconBold,
 						s.Toolbar.Formatting.Strong.On, s.Toolbar.Formatting.Strong.Enabled,
@@ -65,7 +65,7 @@ func (s *State) formatBar(
 				},
 			},
 			{
-				Label: "Presentation",
+				Key: "presentation", Label: "Presentation",
 				Actions: []func(){
 					Icon("typewriter", "Typewriter", s.Toolbar.Bindings.Typewriter, components.IconTypewriter,
 						s.Toolbar.Typewriter, s.Toolbar.TypewriterEnabled,
