@@ -134,6 +134,10 @@ type State struct {
 	// controlsWidth is how far the window's controls reach in from its
 	// right edge, as last laid out.
 	controlsWidth float32
+	// toggleDock is how far the library's toggle has gone over to the sheet
+	// list's, beside it at the end of the list's top line, as the library
+	// closes; toggleDocked is where it is going (libraryControls).
+	toggleDock, toggleDocked float32
 	// canvas is the notebook on one surface, in place of the columns.
 	canvas canvasState
 }

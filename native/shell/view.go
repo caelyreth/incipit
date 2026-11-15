@@ -66,6 +66,20 @@ func (s *State) View(c *ui.Context) {
 		listReveal = components.Follow(root, "sheets-open", listTarget, motionReveal)
 	}
 	listReveal = max(0, min(listReveal, 1))
+	// The library's toggle goes over beside the sheet list's while the
+	// library is shut. While the list is shut it stays where it was: going
+	// over as both close, or back as the list closes alone, would move it
+	// for a line that is going.
+	if s.SheetListVisible() && !canvas {
+		s.toggleDocked = 0
+		if !s.SidebarVisible() {
+			s.toggleDocked = 1
+		}
+	}
+	s.toggleDock = s.toggleDocked
+	if animate {
+		s.toggleDock = max(0, min(components.Follow(root, "library-dock", s.toggleDocked, motionReveal), 1))
+	}
 	// A spring may lean a hair past its end on the way back; layout may not.
 	reveal = max(0, min(reveal, 1))
 	chrome = max(0, min(chrome, 1))
@@ -73,8 +87,10 @@ func (s *State) View(c *ui.Context) {
 	listWidth := fullList * listReveal
 	s.lastSidebarWidth = sidebarWidth + listWidth
 	s.lastChrome = chrome
-	// What stands leftmost keeps a head for the window's traffic lights,
-	// as tall as a title bar, coming in as the panes before it close.
+	// Each pane's top line is as tall as a title bar: it holds the pane's
+	// buttons at its end and moves the window. The canvas, standing
+	// leftmost, keeps one for the window's traffic lights, coming in as
+	// the panes before it close.
 	head := layout.Titlebar * scale / theme.DefaultUIFontSize
 
 	s.noteView(c, animate)
@@ -89,10 +105,10 @@ func (s *State) View(c *ui.Context) {
 	root.Children(func() {
 		// The controls paint over the panes and the page (ZIndex).
 		s.controls(c, semantic, chrome, animate)
-		s.libraryControls(c, semantic, layout, chrome, reveal, animate)
+		s.libraryControls(c, semantic, layout, chrome, reveal, listWidth, animate)
 		ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
-			s.sheetColumn(c, semantic, listWidth, listReveal, head*(1-reveal))
+			s.sheetColumn(c, semantic, listWidth, listReveal, head)
 			if canvas {
 				s.canvasView(c, semantic, layout, head*(1-reveal)*(1-listReveal), animate)
 				return

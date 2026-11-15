@@ -82,12 +82,30 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal, 
 		Background(semantic.Surface.Panel).
 		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
 		ui.Column(c).Width(full).HeightPercent(100).Opacity(reveal).Children(func() {
-			if head > 0.5 {
-				ui.Box(c).Key("list-head").WidthPercent(100).Height(head).Shrink(0).DragWindow()
-			}
+			s.listHead(c, semantic, head, reveal, animate)
 			s.placeBand(c, semantic, s.listView(), animate)
 			s.listStage(c, semantic, animate)
 		})
+	})
+}
+
+// listHead is the sheet list's top line, head tall: it moves the window,
+// and holds the list's toggle at its end, which the library's comes to
+// sit beside while the library is shut (libraryControls). It fades out
+// well before the list is shut, so its toggle is gone before the closing
+// list comes to cut it off.
+func (s *State) listHead(c *ui.Context, semantic theme.Theme, head, reveal float32, animate bool) {
+	scale := s.Settings.UIFontSize
+	ui.Row(c).Key("list-head").WidthPercent(100).Height(head).Shrink(0).DragWindow().
+		PaddingEnd(listLineEnd.DIPs(scale)).AlignItems(ui.Center).Justify(ui.End).
+		Opacity(reveal * reveal).Children(func() {
+		components.IconButton{
+			Key: "hide-sheets", Label: "Hide sheet list", Tooltip: "Hide sheet list",
+			Icon:  components.IconSidebarClose.SVG(),
+			Style: components.SubtleButton, Size: components.MediumButton,
+			IconSize:  16 * scale / theme.DefaultUIFontSize,
+			IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.ToggleSheetList,
+		}.View(c, semantic)
 	})
 }
 

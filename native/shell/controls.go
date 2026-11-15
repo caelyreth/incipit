@@ -60,11 +60,15 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 
 // libraryControls are the library's buttons on its top line, beside the
 // window's traffic lights: search, which leaves with the library, closing
-// up as it goes, and the library's toggle at the line's end. The line ends
-// where the library does, but keeps room for the traffic lights and the
-// toggle (libraryFloor), easing into it, so the toggle stays beside them
-// while the library is closed. reveal is how far the library is open.
-func (s *State) libraryControls(c *ui.Context, semantic theme.Theme, layout theme.Layout, chrome, reveal float32, animate bool) {
+// up as it goes, and the library's toggle at the line's end. reveal is how
+// far the library is open, listWidth how wide the sheet list is.
+func (s *State) libraryControls(
+	c *ui.Context,
+	semantic theme.Theme,
+	layout theme.Layout,
+	chrome, reveal, listWidth float32,
+	animate bool,
+) {
 	if chrome <= 0.001 {
 		return
 	}
@@ -78,10 +82,13 @@ func (s *State) libraryControls(c *ui.Context, semantic theme.Theme, layout them
 			Selected: selected, Animate: animate, Action: action,
 		}.View(c, semantic)
 	}
-	width := softFloor(layout.Sidebar*k*reveal, libraryFloor*k, libraryEase*k)
-	line := ui.Row(c).Key("library-controls").Absolute().Top(0).Left(0).Width(width).
-		Height(layout.Titlebar * k).ZIndex(1).Opacity(chrome).DragWindow().
-		PaddingEnd(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Justify(ui.End).Gap(theme.Space02.DIPs(scale))
+	// Beside the list's toggle its end closes to their gap, as search's is
+	// beside it.
+	end := theme.Space08.DIPs(scale) - (theme.Space08-theme.Space02).DIPs(scale)*s.toggleDock
+	line := ui.Row(c).Key("library-controls").Absolute().Top(0).Left(0).
+		Width(s.libraryLine(layout, reveal, listWidth)).Height(layout.Titlebar * k).
+		ZIndex(1).Opacity(chrome).DragWindow().
+		PaddingEnd(end).AlignItems(ui.Center).Justify(ui.End).Gap(theme.Space02.DIPs(scale))
 	line.Children(func() {
 		if reveal > 0.01 && s.Library != nil {
 			button := components.MediumButton.Height(scale)
@@ -98,7 +105,38 @@ func (s *State) libraryControls(c *ui.Context, semantic theme.Theme, layout them
 	})
 }
 
+// libraryLine is how wide the library's top line is, for the panes'
+// openness: reveal the library's, listWidth the sheet list's width.
+//
+// It ends where the library does, but keeps room for the window's traffic
+// lights and the toggle (libraryFloor), which it eases into rather than
+// meets. As the library's toggle goes over to the list's (dock), the line
+// reaches out to just before the list's toggle, so the library's toggle
+// comes to sit beside the list's, which stays where it is.
+func (s *State) libraryLine(layout theme.Layout, reveal, listWidth float32) float32 {
+	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
+	floor, ease := libraryFloor*k, libraryEase*k
+	library := softFloor(layout.Sidebar*k*reveal, floor, ease)
+	if s.toggleDock <= 0 {
+		return library
+	}
+	// The line goes from where it was to just before the list's toggle,
+	// in a straight line by the dock's way. Both ends hold still as the
+	// panes move: from, the library's line as it was before it set out,
+	// which the library closing with it (reveal + dock stays 1) leaves
+	// whole; to, beside the toggle as the list's own width puts it, not as
+	// the list slides there. An end that moved would take the toggle past
+	// its place and back.
+	toggle := theme.DefaultControls.Scaled(s.Settings.UIFontSize).Height + listLineEnd.DIPs(s.Settings.UIFontSize)
+	from := softFloor(layout.Sidebar*k*min(1, reveal+s.toggleDock), floor, ease)
+	to := max(floor, softFloor(listWidth, floor, ease)-toggle)
+	return from + (to-from)*s.toggleDock
+}
+
 const (
+	// listLineEnd is the room after the sheet list's toggle, at the end
+	// of its top line.
+	listLineEnd = theme.Space06
 	// libraryFloor is the least the library's top line keeps, for the
 	// window's traffic lights and the library's toggle.
 	libraryFloor = 140

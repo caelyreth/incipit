@@ -194,6 +194,50 @@ func TestTheWindowControlsUseReferenceActions(t *testing.T) {
 	}
 }
 
+// The library's toggle ends the library's top line, and the sheet list's
+// its own; as the library closes, the library's goes over to sit beside
+// the list's, which stays where it is, and with both closed it rests
+// beside the window's traffic lights.
+func TestThePanesTogglesKeepTheirPlaces(t *testing.T) {
+	state, _ := libraryState()
+	state.Appearance.Motion = true
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	settle(tester)
+	find := func(label string) ui.Rect {
+		t.Helper()
+		r, ok := tester.Find(label)
+		if !ok {
+			t.Fatalf("%q should show, but the window shows %#v.", label, tester.Texts())
+		}
+		return r
+	}
+	hide := find("Hide sheet list")
+	library := find("Toggle library")
+	if library.Y != hide.Y || library.X+library.W > float32(theme.DefaultLayout.Sidebar) {
+		t.Fatalf("The library's toggle should end its own top line, level with the list's at %v, but it stands at %v.",
+			hide, library)
+	}
+	state.ToggleSidebar()
+	settle(tester)
+	library, after := find("Toggle library"), find("Hide sheet list")
+	if gap := after.X - (library.X + library.W); gap < 0 || gap > 8 || library.Y != after.Y {
+		t.Fatalf("With the library closed its toggle should sit beside the list's at %v, but it stands at %v.",
+			after, library)
+	}
+	if after.Y != hide.Y {
+		t.Fatalf("The list's top line should stay as it was as the library closes, but its toggle went from %v to %v.",
+			hide, after)
+	}
+	state.ToggleSheetList()
+	settle(tester)
+	library = find("Toggle library")
+	if library.X+library.W > libraryFloor {
+		t.Fatalf("With both panes closed the library's toggle should rest beside the traffic lights, but it stands at %v.",
+			library)
+	}
+}
+
 func TestIconControlsAreKeyboardReachable(t *testing.T) {
 	state := openState()
 	tester := ui.NewTester(state.View, 1260, 850)
