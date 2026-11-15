@@ -1,9 +1,6 @@
 package shell
 
 import (
-	"math"
-
-	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -13,10 +10,16 @@ import (
 // window, each as tall as it, that scrolls sideways without end. The first
 // column is the map, every group a region of its sheets' cards; after it
 // stands a column for each open sheet, written in where it stands, as many
-// as are open. A touchpad's swipe, Shift and the wheel, or a drag on the
-// strip moves along it, and it comes to rest with a column's start at its
-// own; the sheet in front is always brought into view. There is no zoom:
-// the flow is how the canvas is gone through.
+// as are open.
+//
+// Every column is as wide as the others: half the strip's window, so two
+// neighbours read as a split, or a third where a third still holds a
+// sheet's page whole (columnWidth). They change only as the window does,
+// never as the strip moves. A touchpad's swipe, Shift and the wheel, or a
+// drag on the strip moves along it, and it always comes to rest with a
+// column's start at its own, gliding there on a spring; a notch of the
+// wheel goes a column on. The sheet in front is always brought into view.
+// There is no zoom: the flow is how the canvas is gone through.
 //
 // The map is canvas_map.go, the sheets' columns canvas_sheets.go.
 
@@ -41,22 +44,23 @@ const (
 
 type canvasState struct {
 	// strip is where the strip is scrolled to; viewport is its window,
-	// inner the width it shows its columns in, and rests where it rests at
-	// each column, as last laid out.
+	// width every column's width, and rests where it rests at each column,
+	// as last laid out.
 	strip    ui.ScrollState
 	viewport ui.Rect
-	inner    float32
+	width    float32
 	rests    []float32
 	// front is the sheet in front as the frame began, and follow whether
 	// it came in front since the last, so the strip goes to it; entered is
-	// the first frame since the canvas opened, which stands the sheet in
-	// front in the middle at once.
+	// the canvas coming, which brings the sheet in front into view at once.
 	front   string
 	follow  bool
 	entered bool
 	// reveal is a sheet to bring into view, as one opened from the map
 	// that was open already.
 	reveal string
+	// scrub is the scrubber's (canvas_scrub.go).
+	scrub scrubState
 }
 
 // Mode is the window's mode; the canvas needs a library to lay out.
@@ -105,10 +109,11 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 		if s.ActivePage != "" {
 			s.dock(c, semantic, theme.DefaultControls.Scaled(scale))
 		}
+		s.scrubber(c, semantic, layout.ContentGutter*scale/theme.DefaultUIFontSize, animate)
 		// The room over the strip moves the window, as a title bar would.
 		ui.Box(c).Key("canvas-drag").Absolute().Top(0).Left(0).Right(0).Height(head).DragWindow()
 	})
-	// The sheet in front keeps the middle while the panes close.
+	// The sheet in front keeps its place while the panes close.
 	s.canvas.entered = s.canvas.entered && s.lastSidebarWidth > 0.5
 	s.canvas.reveal = ""
 }
@@ -120,7 +125,7 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 	k := scale / theme.DefaultUIFontSize
 	gutter := layout.ContentGutter * k
 	strip := ui.ScrollHorizontal(c).Key("canvas-strip").Grow(1).MinHeight(0).WidthPercent(100).
-		ScrollSnap(ui.SnapProximity).TrackScroll(&s.canvas.strip)
+		ScrollSnap(ui.SnapMandatory).Scrollbars(false).TrackScroll(&s.canvas.strip)
 	s.canvas.viewport = strip.LayoutBounds()
 	// The columns end short of the writing actions floating under them.
 	foot := gutter
@@ -129,7 +134,7 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 	}
 	// The columns' heads stand clear of the window's controls over them.
 	top := max(head, gutter/2, s.controlsFoot)
-	s.canvas.inner = s.canvas.viewport.W - 2*gutter
+	s.canvas.width = s.columnWidth(s.canvas.viewport.W-2*gutter, k)
 	strip.Padding(top, gutter, foot, gutter)
 	// The columns there as the canvas opens come with it, not one by one.
 	columns := animate && !s.canvas.entered
@@ -139,7 +144,7 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 		s.pan(flow)
 		flow.Children(func() {
 			s.canvas.rests = s.canvas.rests[:0]
-			s.canvasMap(c, semantic, gutter, origin, columns)
+			s.canvasMap(c, semantic, origin, columns)
 			for _, page := range s.Open {
 				s.openColumn(c, semantic, page, origin, columns)
 			}
@@ -158,36 +163,34 @@ func (s *State) pan(el ui.Element) bool {
 		s.canvas.strip.X = max(0, s.canvas.strip.X-dx)
 	}
 	vx, _, ok := el.DragEnded()
-	if !ok {
-		return false
+	if ok {
+		s.settleStrip(s.canvas.strip.X - vx*flingCarry)
 	}
-	if len(s.canvas.rests) == 0 {
-		return true
-	}
-	at := s.canvas.strip.X - vx*flingCarry
-	rest := s.canvas.rests[0]
-	for _, x := range s.canvas.rests {
-		if math.Abs(float64(x-at)) < math.Abs(float64(rest-at)) {
-			rest = x
-		}
-	}
-	s.canvas.strip.ScrollTo(max(0, rest), 0, components.Spring(components.MotionScene))
-	return true
+	return ok
 }
 
-// column is one of the strip's columns, keyed key, w wide and as tall as
-// the strip, where the strip rests with the column's start or center, as
-// align says, at its own; the rest is counted for a drag to come to.
-// origin is where the strip's columns start in the window.
-func (s *State) column(c *ui.Context, key string, w, origin float32, align ui.Align, animate bool) ui.Element {
-	col := ui.Column(c).Key(key).Width(w).Shrink(0).FillHeight().SnapAlignX(align).
+// columnWidth is every column's width in a window inner wide: half of it
+// less the gap between, or a third where a third still holds a sheet's
+// page and the room beside it.
+func (s *State) columnWidth(inner, k float32) float32 {
+	gap := columnGap * k
+	page := s.Settings.Prose().Column() + 2*sheetPad*k
+	n := float32(2)
+	if (inner-2*gap)/3 >= page {
+		n = 3
+	}
+	return max(0, (inner-(n-1)*gap)/n)
+}
+
+// column is one of the strip's columns, keyed key, as wide as every other
+// and as tall as the strip, where the strip rests with the column's start
+// at its own; the rest is counted for a drag to come to. origin is where
+// the strip's columns start in the window.
+func (s *State) column(c *ui.Context, key string, origin float32, animate bool) ui.Element {
+	col := ui.Column(c).Key(key).Width(s.canvas.width).Shrink(0).FillHeight().SnapAlignX(ui.Start).
 		Transition(columnTransition(animate))
 	if b := col.LayoutBounds(); b.W > 0 {
-		x := b.X - origin
-		if align == ui.Center {
-			x += (b.W - s.canvas.inner) / 2
-		}
-		s.canvas.rests = append(s.canvas.rests, x)
+		s.canvas.rests = append(s.canvas.rests, b.X-origin)
 	}
 	return col
 }

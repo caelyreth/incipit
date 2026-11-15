@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -206,5 +207,81 @@ func TestTheStripFollowsTheFrontAndPansByDrag(t *testing.T) {
 	}
 	if state.ActivePage != "10" {
 		t.Fatalf("A drag on a head should bring nothing in front, but %s came.", state.ActivePage)
+	}
+}
+
+// Every column is as wide as the others: two to the window, so two
+// neighbours read as a split, or three where the window is wide enough
+// for a third to hold a sheet's page.
+func TestTheColumnsShareTheWindowByHalvesOrThirds(t *testing.T) {
+	for _, window := range []struct {
+		width float32
+		n     float32
+	}{{1260, 2}, {2600, 3}} {
+		state, _ := libraryState()
+		state.Open = []Page{{ID: "7", Title: "Chapter"}, {ID: "8", Title: "Draft"}}
+		state.ActivePage = "7"
+		tester := ui.NewTester(state.View, int(window.width), 850)
+		tester.Frame()
+		state.ToggleCanvas()
+		tester.Frame()
+		settle(tester)
+		gap := float32(columnGap)
+		inner := state.canvas.width*window.n + gap*(window.n-1)
+		if want := state.canvas.viewport.W - 2*theme.DefaultLayout.ContentGutter; abs(inner-want) > 1 {
+			t.Fatalf("At %v across, %v columns should fill the window's %v, but they take %v.",
+				window.width, window.n, want, inner)
+		}
+		for _, title := range []string{"Chapter"} {
+			col, ok := tester.Find("Bring " + title + " in front")
+			if !ok || abs(col.W-state.canvas.width) > 3 { // less its border
+				t.Fatalf("%s's column should be %v wide, but it is %+v.", title, state.canvas.width, col)
+			}
+		}
+	}
+}
+
+// The scrubber goes to a column pressed in it, and a drag on it moves the
+// strip, coming to rest at a column.
+func TestTheScrubberMovesTheStrip(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	for _, id := range []string{"7", "8", "9", "10"} {
+		state.Open = append(state.Open, Page{ID: id, Title: "Sheet " + id})
+	}
+	state.ActivePage = "7"
+	tester.Frame()
+	settle(tester)
+	// The scrubber shows while the strip moves, as it did coming to the
+	// sheet in front.
+	state.canvas.strip.X = 1
+	tester.Frame()
+	bar, ok := tester.Find("Canvas overview")
+	if !ok {
+		t.Fatal("The scrubber should show while the strip moves.")
+	}
+	rests := state.canvas.rests
+	f := (bar.W - 8) / (rests[len(rests)-1] + state.canvas.width)
+	tester.Press(bar.X+4+(rests[3]+10)*f, bar.Y+bar.H/2)
+	tester.Release(bar.X+4+(rests[3]+10)*f, bar.Y+bar.H/2)
+	tester.Frame()
+	settle(tester)
+	if want := state.canvas.rests[3]; abs(state.canvas.strip.X-want) > 1 {
+		t.Fatalf("A column pressed in the scrubber should come to the strip's start at %v, but the strip is at %v.",
+			want, state.canvas.strip.X)
+	}
+	x, y := bar.X+bar.W-6, bar.Y+bar.H/2
+	before := state.canvas.strip.X
+	tester.Press(x, y)
+	for i := 1; i <= 5; i++ {
+		tester.Move(x-float32(i)*8, y)
+		tester.Frame()
+	}
+	tester.Release(x-40, y)
+	tester.Frame()
+	settle(tester)
+	rest := state.canvas.strip.X
+	if rest >= before || !slices.ContainsFunc(state.canvas.rests, func(x float32) bool { return abs(x-rest) < 1 }) {
+		t.Fatalf("A drag back on the scrubber should bring the strip back to a column, but it went from %v to %v among %v.",
+			before, rest, state.canvas.rests)
 	}
 }

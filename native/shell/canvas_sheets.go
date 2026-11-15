@@ -10,8 +10,7 @@ import (
 // order they were opened, each a page written in where it stands. The one
 // in front has the accent's edge, and the writing actions act on it;
 // clicking another's head, or writing in it, brings it in front, and the
-// strip goes to whichever comes in front, standing it in the middle, where
-// the strip rests at a sheet, as the page stands in the columns.
+// strip goes as far as brings whichever comes in front into view.
 
 // sheetPad is the room beside a sheet's page in its column, at the
 // reference type size.
@@ -29,16 +28,16 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origi
 	if front {
 		edge = semantic.Accent.Foreground
 	}
-	col := s.column(c, "sheet-"+page.ID, prose.Column()+2*sheetPad*k, origin, ui.Center, animate).
+	col := s.column(c, "sheet-"+page.ID, origin, animate).
 		Role(ui.RoleGroup).Label(page.Title).Clip().Radius(10*k).
 		Background(semantic.Surface.Page).Border(1, edge)
 	switch {
 	case front && s.canvas.entered:
-		// The canvas comes with the sheet in front where the page stood.
-		col.ScrollIntoView(ui.ScrollIntoViewOptions{Inline: ui.ScrollCenter})
+		// The canvas comes with the sheet in front in view.
+		col.ScrollIntoView(ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest})
 	case front && s.canvas.follow, page.ID == s.canvas.reveal:
 		spring := components.Spring(components.MotionScene)
-		col.ScrollIntoView(ui.ScrollIntoViewOptions{Inline: ui.ScrollCenter, Animation: &spring})
+		col.ScrollIntoView(ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest, Animation: &spring})
 	}
 	col.Children(func() {
 		head := ui.Row(c).Key("sheet-head").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
@@ -93,7 +92,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origi
 // how to open one.
 func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, origin float32, animate bool) {
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
-	s.column(c, "sheet-hint", 280*k, origin, ui.Center, animate).AlignItems(ui.Center).Justify(ui.Center).
+	s.column(c, "sheet-hint", origin, animate).AlignItems(ui.Center).Justify(ui.Center).
 		Gap(12 * k).Children(func() {
 		ui.Icon(c, components.IconDocument.SVG()).FontSize(40 * k).TextColor(semantic.Icon.Muted).Opacity(0.35)
 		components.Label(c, "Click a sheet to open it here", theme.TextXSmall, semantic.Text.Muted).

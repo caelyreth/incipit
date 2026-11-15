@@ -120,22 +120,19 @@ func pack(regions []region, n int) [][]region {
 // regionWidth is a region's width at the reference type size.
 const regionWidth = regionCards*cardWidth + (regionCards-1)*cardGap + 2*regionPad
 
-// mapColumns is how many columns of regions the map has: as many as the
-// strip's window holds, up to four, so the map shows whole
-// across, scrolling down.
-func (s *State) mapColumns(k, pad float32) int {
-	room := s.canvas.viewport.W - 2*pad
-	return max(1, min(4, int((room+regionGap*k)/((regionWidth+regionGap)*k))))
+// mapColumns is how many columns of regions the map has: as many as its
+// column holds, up to four, so the map shows whole across, scrolling down.
+func (s *State) mapColumns(k float32) int {
+	return max(1, min(4, int((s.canvas.width+regionGap*k)/((regionWidth+regionGap)*k))))
 }
 
 // canvasMap draws the map, the strip's first column: the regions in their
 // columns, scrolling down.
-func (s *State) canvasMap(c *ui.Context, semantic theme.Theme, pad, origin float32, animate bool) {
+func (s *State) canvasMap(c *ui.Context, semantic theme.Theme, origin float32, animate bool) {
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	now := c.Now()
-	columns := pack(s.regions(now), s.mapColumns(k, pad))
-	width := float32(len(columns))*(regionWidth+regionGap)*k - regionGap*k
-	s.column(c, "canvas-map", width, origin, ui.Start, animate).Children(func() {
+	columns := pack(s.regions(now), s.mapColumns(k))
+	s.column(c, "canvas-map", origin, animate).Children(func() {
 		ui.Scroll(c).Key("map-scroll").WidthPercent(100).Grow(1).MinHeight(0).Children(func() {
 			ui.Row(c).Key("map-columns").AlignItems(ui.Start).Gap(regionGap * k).Children(func() {
 				for i, column := range columns {
