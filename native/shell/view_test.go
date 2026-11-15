@@ -139,9 +139,8 @@ func TestDocumentWriterReceivesDefiniteViewportHeight(t *testing.T) {
 
 func TestTheWindowControlsUseReferenceActions(t *testing.T) {
 	state := openState()
-	var commands, created, opened bool
+	var commands, opened bool
 	state.OpenCommands = func() { commands = true }
-	state.NewPage = func() { created = true }
 	state.OpenSettings = func() { opened = true }
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
@@ -150,7 +149,6 @@ func TestTheWindowControlsUseReferenceActions(t *testing.T) {
 		"Toggle library",
 		"Toggle sheet list",
 		"Toggle canvas",
-		"New sheet",
 		"Search commands",
 		"Open settings",
 	} {
@@ -159,7 +157,6 @@ func TestTheWindowControlsUseReferenceActions(t *testing.T) {
 		}
 	}
 	for label, want := range map[string]*bool{
-		"New sheet":       &created,
 		"Search commands": &commands,
 		"Open settings":   &opened,
 	} {
@@ -170,14 +167,30 @@ func TestTheWindowControlsUseReferenceActions(t *testing.T) {
 			t.Fatalf("clicking %q skipped its callback", label)
 		}
 	}
-	if _, ok := tester.Find("Toggle library"); !ok {
+	if _, ok := tester.Find("New sheet"); ok {
+		t.Fatal("A new sheet is made in the sheet list, not by a window control.")
+	}
+	toggle, ok := tester.Find("Toggle library")
+	if !ok {
 		t.Fatal("sidebar toggle missing")
+	}
+	if right := float32(theme.DefaultLayout.Sidebar); toggle.X > right || toggle.X+toggle.W < right-60 {
+		t.Fatalf("The library's toggle should end the library's top line, by %v, but it stands at %v.", right, toggle)
 	}
 	if err := tester.Click("Toggle library"); err != nil {
 		t.Fatal(err)
 	}
+	settle(tester)
 	if state.SidebarVisible() {
 		t.Fatal("sidebar toggle did not hide navigation")
+	}
+	if _, ok := tester.Find("Search sheets"); ok {
+		t.Fatal("Search should leave with the library.")
+	}
+	toggle, ok = tester.Find("Toggle library")
+	if !ok || toggle.X+toggle.W > libraryFloor {
+		t.Fatalf("The library's toggle should stay beside the traffic lights while the library is closed, but it stands at %v.",
+			toggle)
 	}
 }
 

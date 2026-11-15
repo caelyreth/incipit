@@ -1100,12 +1100,27 @@ func TestSearchListsMatchingSheetsInTheSheetList(t *testing.T) {
 	if !tester.HasText("Chapter") || !slices.Contains(library.calls, "search chap") {
 		t.Fatalf("search: %v %#v", library.calls, tester.Texts())
 	}
-	if err := tester.Click("Done"); err != nil {
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+	if state.SearchQuery != "" || tester.HasText("Chapter") || !tester.HasText("Draft") {
+		t.Fatalf("Escape should end the search and show the place again, but it shows %#v.", tester.Texts())
+	}
+	if tester.HasText("Done") {
+		t.Fatal("The search should have no Done button: Escape, a place, or search again ends it.")
+	}
+	// While searching, the search button ends it.
+	if err := tester.Click("Search sheets"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if state.SearchQuery != "" || tester.HasText("Chapter") || !tester.HasText("Draft") {
-		t.Fatalf("done searching: %#v", tester.Texts())
+	tester.Type("chap")
+	settle(tester)
+	if err := tester.Click("End search"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.SearchQuery != "" || !tester.HasText("Draft") {
+		t.Fatalf("Search pressed again should end the search, but it shows %#v.", tester.Texts())
 	}
 }
 

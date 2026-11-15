@@ -91,9 +91,11 @@ func (s *State) stopSearching() {
 	s.nav.find = finding{row: -1, filter: closedFilter}
 }
 
-// searchHeader is the search's line in the title bar: the query, set as
-// the query language reads it, and what may be written at its caret. A
+// searchHeader is the search's line over the sheet list: the query, set
+// as the query language reads it, and what may be written at its caret. A
 // query that comes to run in a sheet ($sheet) goes to the sheet's find.
+// Escape ends the search, as choosing a place or pressing search again
+// does.
 func (s *State) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) {
 	field, input := queryField{
 		Key: "page-search", Label: "Search sheets", Placeholder: "Search sheets, $ for keys",
@@ -111,11 +113,6 @@ func (s *State) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) 
 			s.StartFind(text)
 		}
 	}
-	components.Button{
-		Key: "done-searching", Label: "Done",
-		Style: components.SubtleButton, Size: components.CompactButton,
-		Animate: animate, Action: s.stopSearching,
-	}.View(c, semantic)
 }
 
 // searchKey is what the keys do in the query past its completion: Up and

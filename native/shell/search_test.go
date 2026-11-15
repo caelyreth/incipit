@@ -245,7 +245,7 @@ func TestASearchIsKeptAsASmartFolderAndChangedAgain(t *testing.T) {
 	tester.Key(0, ui.KeyEscape)
 	settle(tester)
 	// It lists what it finds, and makes and files nothing.
-	if !tester.HasText("Found") || countText(tester, "New sheet") != 1 {
+	if !tester.HasText("Found") || countText(tester, "New sheet") != 0 {
 		t.Fatalf("the folder shows %#v", tester.Texts())
 	}
 	if err := tester.RightClick("Long"); err != nil {

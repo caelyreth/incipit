@@ -83,11 +83,13 @@ func (s *State) View(c *ui.Context) {
 	// those after a pane that went would be taken for new ones, their state
 	// and motion lost, as the list's highlight was.
 	//
-	// There is no title bar: each pane reaches the window's top, and the
-	// window's controls float over its corner (controls).
+	// There is no title bar: each pane reaches the window's top, the
+	// window's controls float over its corner (controls), and the
+	// library's stand on its top line (libraryControls).
 	root.Children(func() {
 		// The controls paint over the panes and the page (ZIndex).
 		s.controls(c, semantic, chrome, animate)
+		s.libraryControls(c, semantic, layout, chrome, reveal, animate)
 		ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
 			s.sheetColumn(c, semantic, listWidth, listReveal, head*(1-reveal))
