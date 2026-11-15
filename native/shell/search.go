@@ -69,6 +69,12 @@ func (s *State) saves() bool {
 
 // Search shows search in the sheet list, its field focused.
 func (s *State) Search() {
+	// The canvas has a search of its own, which lights what it finds.
+	if s.CanvasOpen() {
+		s.canvas.focus = true
+		s.SearchRequested = false
+		return
+	}
 	s.nav.searching = true
 	s.nav.find.row, s.nav.find.filter = -1, closedFilter
 	s.sheetOverscroll.Reset()

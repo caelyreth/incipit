@@ -54,6 +54,7 @@ func (s *State) ToggleSheetList() {
 	if s != nil {
 		visible := !s.SheetListVisible()
 		s.SheetListOverride = &visible
+		s.closeCanvas()
 	}
 }
 

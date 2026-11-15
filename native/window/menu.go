@@ -79,6 +79,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 				{ID: "view-library", Label: "Library", Click: command(keymap.LibraryView)},
 				{ID: "view-sheets", Label: "Sheet List", Click: command(keymap.SheetsView)},
 				{ID: "view-page", Label: "Page Only", Click: command(keymap.PageView)},
+				{ID: "view-canvas", Label: "Canvas", Click: command(keymap.CanvasView)},
 				mygo.Separator(),
 				{ID: "toggle-sidebar", Label: "Toggle Library", Click: command(keymap.Sidebar)},
 				{ID: "toggle-sheet-list", Label: "Toggle Sheet List", Click: command(keymap.SheetList)},
@@ -118,6 +119,7 @@ var keymapMenu = [...]struct {
 	{"view-library", keymap.LibraryView},
 	{"view-sheets", keymap.SheetsView},
 	{"view-page", keymap.PageView},
+	{"view-canvas", keymap.CanvasView},
 	{"toggle-sidebar", keymap.Sidebar},
 	{"toggle-sheet-list", keymap.SheetList},
 	{"commands", keymap.Commands},
@@ -213,6 +215,16 @@ func (a *AppState) toggleSheetList() {
 		a.setPresentation(appsettings.PresentationZen, false)
 		a.Shell.ToggleSheetList()
 	}
+}
+
+// toggleCanvas goes to the canvas, leaving Zen for it, or back to the
+// columns.
+func (a *AppState) toggleCanvas() {
+	if a == nil || a.Shell == nil {
+		return
+	}
+	a.setPresentation(appsettings.PresentationZen, false)
+	a.Shell.ToggleCanvas()
 }
 
 // showPanes shows the library and the sheet list as asked, leaving Zen

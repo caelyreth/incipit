@@ -130,6 +130,8 @@ type State struct {
 	dockTarget float32
 	// flight is whether that title is on its way this frame (takeFlight).
 	flight bool
+	// canvas is the notebook on one surface, in place of the columns.
+	canvas canvasState
 }
 
 func New() *State {
@@ -158,6 +160,7 @@ func (s *State) ToggleSidebar() {
 	visible := s.SidebarVisible()
 	next := !visible
 	s.SidebarOverride = &next
+	s.closeCanvas()
 }
 
 // ColumnMargin is the room beside the page column: the gutter and half
@@ -173,6 +176,7 @@ func (s *State) ColumnMargin() float32 {
 func (s *State) ShowPanes(library, sheets bool) {
 	if s != nil {
 		s.SidebarOverride, s.SheetListOverride = &library, &sheets
+		s.closeCanvas()
 	}
 }
 

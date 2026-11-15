@@ -15,7 +15,8 @@ func (s *State) FocusWithin(c *ui.Context) bool { return s.root.FocusWithin(c) }
 // to take the focus as it opens: the search, a sheet's find, or a name
 // being edited.
 func (s *State) Typing() bool {
-	return s.SearchRequested || s.nav.searching || s.FindRequested || s.finder.open || s.nav.renaming != ""
+	return s.SearchRequested || s.nav.searching || s.FindRequested || s.finder.open || s.nav.renaming != "" ||
+		s.CanvasOpen() && s.canvas.typing
 }
 
 func (s *State) View(c *ui.Context) {
@@ -42,11 +43,14 @@ func (s *State) View(c *ui.Context) {
 	// a visible precision, and a UI font change resizes it without motion.
 	fullSidebar := layout.Sidebar * scale / theme.DefaultUIFontSize
 	fullList := layout.SheetList * scale / theme.DefaultUIFontSize
+	// The canvas takes the window: the panes go aside as it comes, and
+	// come back as they were when it goes.
+	canvas := s.CanvasOpen()
 	openTarget, listTarget := float32(0), float32(0)
-	if s.SidebarVisible() {
+	if s.SidebarVisible() && !canvas {
 		openTarget = 1
 	}
-	if s.SheetListVisible() {
+	if s.SheetListVisible() && !canvas {
 		listTarget = 1
 	}
 
@@ -67,7 +71,7 @@ func (s *State) View(c *ui.Context) {
 	// While the list is shut it stays where it was: going to the list as
 	// both close, or back up as the list closes alone, would move it for a
 	// line that is going.
-	if s.SheetListVisible() {
+	if s.SheetListVisible() && !canvas {
 		s.dockTarget = 0
 		if !s.SidebarVisible() && !s.nav.searching {
 			s.dockTarget = 1
@@ -99,6 +103,10 @@ func (s *State) View(c *ui.Context) {
 		ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
 			s.sheetColumn(c, semantic, listWidth, listReveal)
+			if canvas {
+				s.canvasView(c, semantic, layout, animate)
+				return
+			}
 			ui.Column(c).Key("page-area").Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
 				s.page(c, semantic, metrics, layout)
 				if chrome > 0.001 {
