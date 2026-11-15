@@ -653,7 +653,7 @@ func (f *fakeLibrary) NewChapter(group string, index int) string {
 }
 func (f *fakeLibrary) OpenSheet(id string, alongside bool) {
 	if alongside {
-		f.call("open in new tab " + id)
+		f.call("open alongside " + id)
 		return
 	}
 	f.call("open " + id)
@@ -870,7 +870,7 @@ func TestChoosingAPlaceShowsItsSheetsBesideTheLibrary(t *testing.T) {
 	if !tester.HasText("Chapter") {
 		t.Fatalf("choosing a place did not bring the list back: %#v", tester.Texts())
 	}
-	if !slices.Contains(library.calls, "open in new tab 7") {
+	if !slices.Contains(library.calls, "open alongside 7") {
 		t.Fatalf("calls %v", library.calls)
 	}
 }

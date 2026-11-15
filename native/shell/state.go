@@ -14,6 +14,21 @@ type Page struct {
 	Title string
 }
 
+// SheetFrame is how a sheet's page is set where the shell shows it: in the
+// columns, or on the canvas, nearer or farther.
+type SheetFrame struct {
+	// Prose and UIFontSize are the type the page is set in, which the
+	// canvas scales as it zooms.
+	Prose      theme.ProseStyle
+	UIFontSize float32
+	// Top and Bottom are the reading space above its first line and below
+	// its last, scrolled with it; Dock is the room the floating writing
+	// actions take over its foot.
+	Top, Bottom, Dock float32
+	// Focus lets the page take the keyboard while nothing else holds it.
+	Focus bool
+}
+
 // FormatState is one formatting action's state: whether it applies at the
 // selection or caret, and whether the engine preview says it can.
 type FormatState struct {
@@ -82,7 +97,8 @@ type State struct {
 	sheetOverscroll   scrollfx.Overscroll
 	WindowActive      bool
 
-	Content      func(c *ui.Context)
+	// Sheet draws an open sheet's page, as frame sets it.
+	Sheet        func(c *ui.Context, id string, frame SheetFrame)
 	SelectPage   func(id string)
 	NewPage      func()
 	ClosePage    func()

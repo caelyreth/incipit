@@ -21,7 +21,7 @@ func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
 	state := openState()
 	state.Open = []Page{{ID: "1", Title: "Untitled"}}
 	state.ActivePage = "1"
-	state.Content = func(c *ui.Context) {
+	state.Sheet = func(c *ui.Context, _ string, _ SheetFrame) {
 		ui.Text(c, "Body copy")
 	}
 	tester := ui.NewTester(state.View, 1260, 850)
@@ -120,24 +120,12 @@ func TestShellMotionHonorsReduceMotion(t *testing.T) {
 	}
 }
 
-func TestDocumentRegionKeepsCustomSurfaceContent(t *testing.T) {
-	state := openState()
-	state.Content = func(c *ui.Context) {
-		ui.Text(c, "Body copy")
-	}
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	if !tester.HasText("Body copy") {
-		t.Fatalf("texts = %#v", tester.Texts())
-	}
-}
-
 func TestDocumentWriterReceivesDefiniteViewportHeight(t *testing.T) {
 	state := openState()
 	state.Open = []Page{{ID: "1", Title: "Untitled"}}
 	state.ActivePage = "1"
 	var painted ui.Rect
-	state.Content = func(c *ui.Context) {
+	state.Sheet = func(c *ui.Context, _ string, _ SheetFrame) {
 		ui.Box(c).Fill().Draw(func(_ *ui.Painter, rect ui.Rect) {
 			painted = rect
 		})

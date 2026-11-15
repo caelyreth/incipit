@@ -129,15 +129,19 @@ func (s *State) page(
 		return
 	}
 	ui.Column(c).Grow(1).FillHeight().MinHeight(0).Clip().Children(func() {
-		// The page reaches the header: its reading space above the first
+		// The page reaches the window's top: its reading space above the first
 		// line is the content's own, scrolled with it, so text scrolls
-		// out at the header rather than at a clip below it.
+		// out at the top rather than at a clip below it.
 		ui.Row(c).Grow(1).MinHeight(0).WidthPercent(100).Justify(ui.Center).PaddingX(
 			layout.ContentGutter * scale / theme.DefaultUIFontSize,
 		).Children(func() {
 			ui.Column(c).FillHeight().Width(column).MaxWidthPercent(100).MinWidth(0).Children(func() {
-				if s.Content != nil {
-					s.Content(c)
+				if s.Sheet != nil {
+					top := layout.ReadingTop * scale / theme.DefaultUIFontSize
+					s.Sheet(c, s.ActivePage, SheetFrame{
+						Prose: prose, UIFontSize: scale, Top: top * 3 / 2, Bottom: top * 2,
+						Dock: layout.DockClearance() * scale / theme.DefaultUIFontSize, Focus: true,
+					})
 				}
 			})
 		})

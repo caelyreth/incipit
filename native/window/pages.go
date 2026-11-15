@@ -14,8 +14,7 @@ import (
 // pageRoot is the id of every page's root node; ids are per page.
 const pageRoot doc.ID = 1
 
-// pageElement is the active page's editor, opened the first time the page
-// shows: its content loaded from the notebook, or an empty page.
+// pageElement is the active page's editor (sessionElement).
 func (a *AppState) pageElement() *page.Element {
 	mounted, ok := a.Workspace.Mounted()
 	if !ok {
@@ -25,6 +24,12 @@ func (a *AppState) pageElement() *page.Element {
 	if !ok {
 		return nil
 	}
+	return a.sessionElement(session)
+}
+
+// sessionElement is a page's editor, opened the first time the page
+// shows: its content loaded from the notebook, or an empty page.
+func (a *AppState) sessionElement(session *sheetSession) *page.Element {
 	if session.element != nil {
 		return session.element
 	}

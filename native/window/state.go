@@ -142,7 +142,7 @@ func (a *AppState) loadSettings(store *storage.Store) error {
 }
 
 func (a *AppState) BindShell() {
-	a.Shell.Content = a.pageView
+	a.Shell.Sheet = a.sheetView
 	a.Shell.SelectPage = func(id string) {
 		page, ok := parsePageID(id)
 		if !ok {
@@ -188,37 +188,44 @@ func (a *AppState) BindShell() {
 	a.refreshShell()
 }
 
-// pageView is what the open page shows: its title, set as the page's
-// heading, over the page's editor.
-func (a *AppState) pageView(c *ui.Context) {
+// sheetView is an open sheet's page where the shell sets it: its editor,
+// set as frame says. A page that takes the keyboard comes to the front,
+// as clicking into a sheet open beside others on the canvas does.
+func (a *AppState) sheetView(c *ui.Context, id string, frame shell.SheetFrame) {
+	session, ok := a.sessionOf(id)
+	if !ok {
+		return
+	}
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
-	scale := a.Shell.Settings.UIFontSize
-	top := theme.DefaultLayout.ReadingTop * scale / theme.DefaultUIFontSize
-	ui.Column(c).Key("page").Role(ui.RoleGroup).Label("Page").
-		FillHeight().WidthPercent(100).Children(func() {
-		el := a.pageElement()
+	box := ui.Column(c).Key("page-" + id).Role(ui.RoleGroup).Label("Page").FillHeight().WidthPercent(100)
+	box.Children(func() {
+		el := a.sessionElement(session)
 		if el == nil {
 			return
 		}
 		el.Theme = semantic
-		el.Prose = a.Shell.Settings.Prose()
-		// The reading space above the first line is the page's own, so it
-		// scrolls with the text, which leaves at the header.
-		el.Top, el.Bottom = top*3/2, top*2
-		el.Dock = theme.DefaultLayout.DockClearance() * scale / theme.DefaultUIFontSize
+		el.Prose = frame.Prose
+		el.Top, el.Bottom, el.Dock = frame.Top, frame.Bottom, frame.Dock
 		el.Typewriter = a.Product.Presentation.Typewriter
 		el.Keys = a.Product.Keymap
-		el.UIFontSize = a.Shell.Settings.UIFontSize
+		el.UIFontSize = frame.UIFontSize
 		// A press on what takes no focus, as a pane's background, leaves
 		// the focus nowhere: typing belongs to the page then, its caret
 		// shown, unless a field of the shell or the palette is taking it.
-		if !a.Shell.FocusWithin(c) && !a.Shell.Typing() && (a.Palette == nil || !a.Palette.Open) {
+		if frame.Focus && !a.Shell.FocusWithin(c) && !a.Shell.Typing() && (a.Palette == nil || !a.Palette.Open) {
 			el.Focus()
 		}
 		ui.Box(c).Key(fmt.Sprintf("editor-%d", el.Editor.View)).WidthPercent(100).Grow(1).Clip().Children(func() {
 			el.View(c)
 		})
 	})
+	if active, ok := a.Workspace.Active(); box.FocusWithin() && (!ok || active != session.page) {
+		if err := a.Workspace.Open(session.page); err != nil {
+			a.fail("Couldn't open the page", err)
+			return
+		}
+		a.selectMounted()
+	}
 }
 
 func (a *AppState) refreshToolbarState() {

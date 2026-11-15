@@ -34,6 +34,13 @@ func NewProseStyle(fontSize float32) ProseStyle {
 	}
 }
 
+// Zoomed is the style seen k times as near: its type k times as large,
+// past the sizes a setting may choose, as a view scaled to fit shows it.
+func (p ProseStyle) Zoomed(k float32) ProseStyle {
+	p.FontSize *= k
+	return p
+}
+
 // WithSpacing is the style at another line spacing.
 func (p ProseStyle) WithSpacing(spacing float32) ProseStyle {
 	p.Spacing = clamp(spacing, MinLineSpacing, MaxLineSpacing)
