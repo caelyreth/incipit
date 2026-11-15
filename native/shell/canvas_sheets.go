@@ -8,8 +8,9 @@ import (
 
 // The strip holds a column for each open sheet, each a page written in
 // where it stands. The sheet in front is the one the writing actions act
-// on; clicking another's head, or writing in it, brings it in front, and
-// the strip goes as far as brings whichever comes in front into view.
+// on; the pointer coming onto another, clicking its head, or writing in
+// it brings it in front (canvas_front.go), and the strip goes as far as
+// brings one that comes in front otherwise into view.
 
 // sheetPad is the room beside a sheet's page in its column, and above it
 // under the head, at the reference type size; sheetHead is the head's
@@ -29,6 +30,11 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 	prose := s.Settings.Prose()
 	col, front := s.column(c, canvasColumn{sheet: page.ID}, w, origin, animate)
 	col.Role(ui.RoleGroup).Label(page.Title)
+	// The keyboard comes to it as the pointer does (canvas_front.go).
+	claim := s.canvas.claim == page.ID
+	if claim {
+		s.canvas.claim = ""
+	}
 	col.Children(func() {
 		if page.ID == s.ActivePage && s.laid != ModeCanvas {
 			return
@@ -42,7 +48,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 			if s.Sheet != nil {
 				s.Sheet(c, page.ID, SheetFrame{
 					Prose: prose, UIFontSize: size, Top: top, Bottom: 48 * k,
-					Focus: page.ID == s.ActivePage,
+					Focus: page.ID == s.ActivePage, Claim: claim,
 				})
 			}
 		})

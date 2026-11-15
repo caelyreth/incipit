@@ -152,6 +152,14 @@ func (s *State) keepCanvas() {
 	if front != "" && (front != was || s.canvas.entered) {
 		s.bringInView(canvasColumn{sheet: front}.key(), s.canvas.entered)
 	}
+	// A sheet come in front otherwise than by the pointer, which brought
+	// its column in front itself, is the column in front (canvas_front.go).
+	if front != was || s.canvas.entered {
+		s.canvas.at = ""
+		if front != "" {
+			s.canvas.at = canvasColumn{sheet: front}.key()
+		}
+	}
 	s.canvas.front = front
 }
 

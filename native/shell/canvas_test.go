@@ -596,3 +596,61 @@ func TestClosingAColumnEasesTheStripBack(t *testing.T) {
 			state.canvas.strip.X, before)
 	}
 }
+
+// The column in front follows the pointer: moved onto a sheet's column,
+// it brings that sheet in front and gives its page the keyboard, the strip
+// staying where it is; moved onto a picker, it brings the picker in front,
+// the sheet in front staying for the writing actions. The strip moving
+// under a pointer at rest brings nothing.
+func TestThePointerBringsTheColumnUnderItInFront(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	var claimed []string
+	state.Sheet = func(c *ui.Context, id string, frame SheetFrame) {
+		if frame.Claim {
+			claimed = append(claimed, id)
+		}
+		ui.Text(c, "Body of "+id)
+	}
+	state.SelectPage = func(id string) { state.ActivePage = id }
+	joining(state, tester, sheetPages("7")...)
+	state.NewPicker()
+	settle(tester)
+	state.ActivePage = "1"
+	tester.Frame()
+	settle(tester)
+	strip := state.canvas.strip.X
+	body, ok := tester.Find("Body of 7")
+	if !ok {
+		t.Fatalf("The second sheet should show, but the strip shows %#v.", tester.Texts())
+	}
+	tester.Move(body.X+body.W/2, body.Y+body.H/2)
+	tester.Frame()
+	settle(tester)
+	if state.ActivePage != "7" || !slices.Contains(claimed, "7") {
+		t.Fatalf("The pointer moved onto a sheet should bring it in front and give it the keyboard, but %q is in front (claimed %v).",
+			state.ActivePage, claimed)
+	}
+	if state.canvas.strip.X != strip {
+		t.Fatalf("A sheet the pointer brings in front is where it is: the strip should stay at %v, but went to %v.",
+			strip, state.canvas.strip.X)
+	}
+	// The strip moved under the pointer at rest brings nothing in front.
+	state.stripAt(state.canvas.strip.MaxX)
+	tester.Frame()
+	settle(tester)
+	if state.ActivePage != "7" || state.canvas.at != "sheet-7" {
+		t.Fatalf("The strip moving under the pointer should bring nothing in front, but %q came.", state.canvas.at)
+	}
+	search, ok := tester.Find("Search sheets")
+	if !ok {
+		t.Fatal("The picker's search should show.")
+	}
+	// Onto the picker, under its search.
+	tester.Move(search.X+8, search.Y+search.H+40)
+	tester.Frame()
+	settle(tester)
+	if state.canvas.at != "picker-1" || state.ActivePage != "7" {
+		t.Fatalf("The pointer moved onto a picker should bring it in front, the sheet in front staying, but %q is in front.",
+			state.canvas.at)
+	}
+}

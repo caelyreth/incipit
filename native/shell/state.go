@@ -27,8 +27,9 @@ type SheetFrame struct {
 	// its last, scrolled with it; Dock is the room the floating writing
 	// actions take over its foot.
 	Top, Bottom, Dock float32
-	// Focus lets the page take the keyboard while nothing else holds it.
-	Focus bool
+	// Focus lets the page take the keyboard while nothing else holds it,
+	// and Claim gives it the keyboard now, from wherever it is.
+	Focus, Claim bool
 }
 
 // FormatState is one formatting action's state: whether it applies at the

@@ -110,6 +110,15 @@ type canvasState struct {
 	// once with bringAtOnce (bringInView).
 	bring       string
 	bringAtOnce bool
+	// at is the key of the column in front; held is that of the column
+	// the keyboard was in as the strip was last built, and holding where
+	// it is as it is being built; pointer is where the pointer was in the
+	// window, and pointed whether it moved since; claim is a sheet to give
+	// the keyboard to as it is built (canvas_front.go).
+	at, held, holding string
+	pointer           ui.Point
+	pointed           bool
+	claim             string
 	// scrub is the scrubber's (canvas_scrub.go).
 	scrub scrubState
 	// workspaces are the canvas's rows, kept as the mode changes, and
@@ -171,6 +180,7 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	head := layout.Titlebar * scale / theme.DefaultUIFontSize
 	scene := ui.Column(c).Key("canvas").Absolute().Top(0).Left(0).Right(0).Bottom(0).
 		Background(semantic.Surface.Background)
+	s.followPointer(scene)
 	components.SceneLayer(scene, shown, s.laid == ModeCanvas).Children(func() {
 		s.canvasStrip(c, semantic, layout, head, animate)
 		s.scrubber(c, semantic, layout.ContentGutter*scale/theme.DefaultUIFontSize, animate)
@@ -240,6 +250,7 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 		}
 		flow.Children(func() {
 			s.canvas.spans = s.canvas.spans[:0]
+			s.canvas.holding = ""
 			columns := s.workspace().columns
 			s.room(c, "room-start", 0, edge, false)
 			if len(columns) == 0 {
@@ -260,6 +271,7 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 				}
 				s.room(c, "room-"+col.key(), i+1, w, last)
 			}
+			s.keyboardMoved()
 		})
 	})
 }
@@ -375,7 +387,7 @@ func (s *State) editorWidth(el ui.Element, inner, k float32, animate bool) float
 }
 
 // column is one of the strip's columns, w wide and as tall as the strip,
-// and whether it is in front, its sheet the sheet in front; its place is counted for
+// and whether it is in front (canvas_front.go); its place is counted for
 // the magnet and the scrubber, and it is brought into view where asked
 // (bringInView). origin is where the strip's columns start in the window.
 func (s *State) column(c *ui.Context, of canvasColumn, w, origin float32, animate bool) (ui.Element, bool) {
@@ -390,7 +402,7 @@ func (s *State) column(c *ui.Context, of canvasColumn, w, origin float32, animat
 			ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest, Animation: &motion})
 		s.canvas.bring = ""
 	}
-	return col, of.picker == nil && of.sheet == s.ActivePage
+	return col, s.inFront(col, of)
 }
 
 // columnTransition is how the strip's columns come and go: opening out

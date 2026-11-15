@@ -49,6 +49,10 @@ func (s *State) newPickerAt(at int) {
 func (s *State) closePicker(id int) {
 	w := s.workspace()
 	if at := pickerIndex(w.columns, id); at >= 0 {
+		// In front, it gives way to the sheet in front.
+		if s.canvas.at == w.columns[at].key() {
+			s.canvas.at = canvasColumn{sheet: s.canvasFront()}.key()
+		}
 		w.columns = slices.Delete(w.columns, at, at+1)
 	}
 }
