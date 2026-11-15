@@ -2,6 +2,7 @@ package window
 
 import (
 	"image"
+	"math"
 	"strconv"
 	"testing"
 	"time"
@@ -87,6 +88,75 @@ func TestClosingASheetOnTheCanvasKeepsRunning(t *testing.T) {
 	if n := len(app.Shell.Open); n != 1 || !app.Shell.CanvasOpen() {
 		t.Fatalf("One sheet should stay open on the canvas, but %d are, the canvas open %v.",
 			n, app.Shell.CanvasOpen())
+	}
+}
+
+// A picker at the strip's end becomes a wider sheet when one is chosen.
+// The strip must reveal the whole sheet, even when the click and the
+// editor taking focus rebuild the view before that frame is laid out.
+func TestASheetReplacingAPickerComesFullyIntoView(t *testing.T) {
+	for _, animate := range []bool{false, true} {
+		t.Run(strconv.FormatBool(animate), func(t *testing.T) {
+			app, err := NewAppState()
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = app.Close() })
+			app.Shell.Appearance.Motion = animate
+			const width = 1260
+			tester := ui.NewTester(app.View, width, 850)
+			title := func(text string) {
+				for _, r := range "# " + text {
+					tester.Type(string(r))
+					tester.Frame()
+				}
+				run(tester, time.Second)
+			}
+			title("First")
+			first := app.Shell.ActivePage
+			inbox := strconv.Itoa(int(library.Inbox))
+			app.NewSheet(inbox, shell.Last)
+			run(tester, time.Second)
+			title("Second")
+			second := app.Shell.ActivePage
+			app.NewSheet(inbox, shell.Last)
+			run(tester, time.Second)
+			title("Target")
+			target := app.Shell.ActivePage
+			app.Shell.CloseSheet(target)
+			run(tester, time.Second)
+			app.Shell.SelectPage(first)
+			app.Shell.SetMode(shell.ModeCanvas)
+			run(tester, time.Second)
+			app.OpenSheet(second, true)
+			run(tester, time.Second)
+			// Bring the second column in front by its pointer path, so
+			// the picker joins at the strip's end.
+			tester.Move(1000, 400)
+			run(tester, time.Second)
+			app.Shell.NewPicker()
+			run(tester, time.Second)
+			picker, ok := tester.Find("Sheet picker")
+			if !ok || math.Abs(float64(picker.X+picker.W-width)) > 1 {
+				t.Fatalf("The picker should stand at the window's right edge, but it is at %v.", picker)
+			}
+			if err := tester.Click("Target"); err != nil {
+				t.Fatal(err)
+			}
+			run(tester, time.Second)
+			if app.Shell.ActivePage != target {
+				t.Fatalf("The chosen sheet should come in front, but %q did.", app.Shell.ActivePage)
+			}
+			if _, ok := tester.Find("Sheet picker"); ok {
+				t.Fatal("The chosen sheet should replace its picker.")
+			}
+			sheet, ok := tester.Find("Target")
+			// Two sheets share the window, with a one-DIP line between.
+			want := float32(width-1) / 2
+			if !ok || math.Abs(float64(sheet.W-want)) > 1 || math.Abs(float64(sheet.X+sheet.W-width)) > 1 {
+				t.Fatalf("The chosen sheet should show its whole %v-DIP width at the window's right edge, but it shows %v.", want, sheet)
+			}
+		})
 	}
 }
 

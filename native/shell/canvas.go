@@ -417,8 +417,10 @@ func (s *State) column(c *ui.Context, of canvasColumn, w, origin float32, animat
 	}
 	if s.canvas.bring == key {
 		motion := canvasMotion(animate && !s.canvas.bringAtOnce)
-		components.Reveal(c, col, canvasEdge*components.UIFontSize(c)/theme.DefaultUIFontSize,
-			ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest, Animation: &motion})
+		// The pane has no outer margin. Reveal the column itself, which
+		// survives a rebuild before layout; a temporary child would be
+		// gone once this request is cleared and the view builds again.
+		col.ScrollIntoView(ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest, Animation: &motion})
 		s.canvas.bring = ""
 	}
 	return col, s.inFront(col, of), shown
@@ -456,8 +458,7 @@ func columnShows(col ui.Element, front, animate bool) float32 {
 	return components.Follow(col, "column-shows", target, components.MotionNormal)
 }
 
-// bringInView has the strip bring the column keyed key into view, the gap
-// beside it kept from the window's edge (components.Reveal), as it is
+// bringInView has the strip bring the column keyed key into view as it is
 // next built, which may be once it joins: travelling there, or at once.
 func (s *State) bringInView(key string, atOnce bool) {
 	if key != "" {
