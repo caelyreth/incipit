@@ -219,10 +219,11 @@ func (s *State) page(
 				// Its head is the canvas's, shown only there.
 				k := components.UIFontSize(c) / theme.DefaultUIFontSize
 				sheet := s.openPage(s.ActivePage)
+				_, line := s.titleLine(k)
 				s.sheetSurface(c, semantic, s.ActivePage, sheetLook{
 					edge: semantic.Accent.Foreground.Alpha(0), top: top * 3 / 2,
-					head:       func() { s.sheetHead(c, semantic, sheet, true, k, s.animate(c)) },
-					headHeight: sheetHead * k,
+					head:       func() { s.sheetHead(c, semantic, sheet, true, k, 0, 0, s.animate(c)) },
+					headHeight: line + 1,
 				}, func(top float32) {
 					if s.Sheet != nil {
 						s.Sheet(c, s.ActivePage, SheetFrame{

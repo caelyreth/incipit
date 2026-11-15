@@ -133,12 +133,15 @@ func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, w, 
 	list.noteView(c, animate)
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	scale := s.Settings.UIFontSize
-	col, front := s.column(c, canvasColumn{picker: p}, w, origin, animate)
+	col, front, shown := s.column(c, canvasColumn{picker: p}, w, origin, animate)
 	col.Role(ui.RoleGroup).Label("Sheet picker").Clip().Radius(columnRadius*k).
 		Background(semantic.Surface.Panel).Border(1, columnEdge(semantic, front))
+	// Its head is on the title line, as a sheet's is (titleline.go).
+	_, line := s.titleLine(k)
+	lead, trail := s.clearOfChrome(c, shown)
 	col.Children(func() {
-		head := ui.Row(c).Key("picker-head").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
-			Gap(6 * k).PaddingStart(theme.Space06.DIPs(scale)).PaddingEnd(6 * k).PaddingY(6 * k)
+		head := ui.Row(c).Key("picker-head").WidthPercent(100).Height(line).Shrink(0).AlignItems(ui.Center).
+			Gap(6 * k).PaddingStart(theme.Space06.DIPs(scale) + lead).PaddingEnd(6*k + trail).DragWindow()
 		head.Children(func() {
 			s.pickerPlace(c, semantic, list, animate)
 			chromeButton{
@@ -146,7 +149,6 @@ func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, w, 
 				action: func() { s.closePicker(p.id) },
 			}.view(c, semantic, animate)
 		})
-		s.pan(head)
 		ui.Row(c).Key("picker-search").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
 			PaddingX(theme.Space08.DIPs(scale)).Padding(0, theme.Space08.DIPs(scale), theme.Space06.DIPs(scale), theme.Space08.DIPs(scale)).Children(func() {
 			list.searchHeader(c, semantic, animate)

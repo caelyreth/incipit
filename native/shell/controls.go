@@ -52,10 +52,8 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 	bounds := bar.LayoutBounds()
 	inset := max(theme.DefaultLayout.ChromeGutter/2, (band-bounds.H)/2)
 	bar.Top(inset).Right(inset)
-	// What reaches the window's top right corner keeps clear of them by
-	// as much as they keep from it.
-	s.controlsWidth = bounds.W + 2*inset
-	s.controlsFoot = inset + bounds.H + inset
+	// The title line is theirs (titleline.go).
+	s.controlsAt = controlsPlace{inset: inset, height: bounds.H, reach: bounds.W + 2*inset}
 	bar.Children(func() {
 		components.ActionDock{Key: "window-controls", Label: "Window", Groups: groups, Animate: animate}.
 			View(c, semantic)

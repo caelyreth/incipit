@@ -14,21 +14,21 @@ import (
 
 // sheetPad is the room beside a sheet's page in its column, and above it
 // under the head, at the reference type size; sheetHead is the head's
-// band, its line under it.
+// height before the title line is laid out (titleLine).
 const (
 	sheetPad  = 16
-	sheetHead = 37
+	sheetHead = 34
 )
 
 // openColumn is an open sheet's column, w wide: its surface (sheetSurface),
-// its head (sheetHead) over its page. A drag on the head moves the strip.
+// its head (sheetHead) over its page.
 // The sheet in front stands here while the canvas is laid out, and on the
 // page otherwise, its column keeping its place meanwhile.
 func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, origin float32, animate bool) {
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
 	prose := s.Settings.Prose()
-	col, front := s.column(c, canvasColumn{sheet: page.ID}, w, origin, animate)
+	col, front, shown := s.column(c, canvasColumn{sheet: page.ID}, w, origin, animate)
 	col.Role(ui.RoleGroup).Label(page.Title)
 	// The keyboard comes to it as the pointer does (canvas_front.go).
 	claim := s.canvas.claim == page.ID
@@ -39,11 +39,14 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 		if page.ID == s.ActivePage && s.laid != ModeCanvas {
 			return
 		}
-		var head ui.Element
-		band := sheetHead * k
+		// Its head is on the title line, and its line under it.
+		_, line := s.titleLine(k)
+		band := line + 1
+		lead, trail := s.clearOfChrome(c, shown)
 		s.sheetSurface(c, semantic, page.ID, sheetLook{
 			radius: columnRadius * k, edge: columnEdge(semantic, front), top: band + sheetPad*k, side: sheetPad * k,
-			head: func() { head = s.sheetHead(c, semantic, page, front, k, animate) }, headHeight: band, headShown: 1,
+			head:       func() { s.sheetHead(c, semantic, page, front, k, lead, trail, animate) },
+			headHeight: band, headShown: 1,
 		}, func(top float32) {
 			if s.Sheet != nil {
 				// Its page scrolls on under the writing actions floating
@@ -55,19 +58,17 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 				})
 			}
 		})
-		if !s.pan(head) && head.Clicked() && page.ID != s.ActivePage && s.SelectPage != nil {
-			s.SelectPage(page.ID)
-		}
 	})
 }
 
 // sheetHead is a sheet's head on the canvas: its group's mark, its title,
-// and what closes it, filling the band it is given, its line under it; its
-// page is scaled by k.
-func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, front bool, k float32, animate bool) ui.Element {
+// and what closes it, filling the band it is given, its line under it, its
+// content lead and trail further in from its ends, clear of the window's
+// chrome (clearOfChrome); its page is scaled by k. It is the window's
+// title bar where it stands: a drag on it moves the window.
+func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, front bool, k, lead, trail float32, animate bool) ui.Element {
 	head := ui.Row(c).Key("sheet-head").WidthPercent(100).Grow(1).AlignItems(ui.Center).
-		Gap(6 * k).PaddingStart(sheetPad * k).PaddingEnd(6 * k).
-		Role(ui.RoleButton).Label("Bring " + page.Title + " in front")
+		Gap(6 * k).PaddingStart(sheetPad*k + lead).PaddingEnd(6*k + trail).DragWindow()
 	head.Children(func() {
 		if group, ok := s.groupOf(page.ID); ok {
 			ink := semantic.Icon.Muted

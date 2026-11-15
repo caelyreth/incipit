@@ -108,11 +108,11 @@ func TestTheSheetCrossesTheModesWholeAndInPlace(t *testing.T) {
 	tester.Type("# Hello world")
 	run(tester, time.Second)
 	for _, mode := range []string{"Canvas mode", "Page mode"} {
-		// The first line, below the head of its card on the canvas: right
-		// of the sheet list on the page, where the canvas shows none.
+		// The first line: right of the sheet list on the page, and below
+		// the head of its card on the canvas, which shows no panes.
 		area := image.Rect(560, 90, 1260, 180)
 		if app.Shell.CanvasOpen() {
-			area.Min.X = 0
+			area.Min.X, area.Min.Y = 0, 50
 		}
 		before := inkIn(tester.Image(), area)
 		if before.ink == 0 {

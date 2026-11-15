@@ -177,22 +177,22 @@ func (s *State) closeCanvas() { s.SetMode(ModePage) }
 func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Layout, shown float32, animate bool) {
 	s.keepCanvas()
 	scale := s.Settings.UIFontSize
-	head := layout.Titlebar * scale / theme.DefaultUIFontSize
 	scene := ui.Column(c).Key("canvas").Absolute().Top(0).Left(0).Right(0).Bottom(0).
 		Background(semantic.Surface.Background)
 	s.followPointer(scene)
 	components.SceneLayer(scene, shown, s.laid == ModeCanvas).Children(func() {
-		s.canvasStrip(c, semantic, layout, head, animate)
+		s.canvasStrip(c, semantic, layout, animate)
 		s.canvasFoot(c, semantic, layout.ContentGutter*scale/theme.DefaultUIFontSize, animate)
-		// The room over the strip moves the window, as a title bar would.
-		ui.Box(c).Key("canvas-drag").Absolute().Top(0).Left(0).Right(0).Height(head).DragWindow()
+		// The room over the columns moves the window, as their heads do.
+		top, _ := s.titleLine(scale / theme.DefaultUIFontSize)
+		ui.Box(c).Key("canvas-drag").Absolute().Top(0).Left(0).Right(0).Height(top).DragWindow()
 	})
 	// The canvas has come once it shows whole.
 	s.canvas.entered = s.canvas.entered && shown < 0.999
 }
 
-// canvasStrip draws the strip's columns under head's room.
-func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.Layout, head float32, animate bool) {
+// canvasStrip draws the strip's columns, from the title line down.
+func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.Layout, animate bool) {
 	scale := s.Settings.UIFontSize
 	k := scale / theme.DefaultUIFontSize
 	edge := canvasEdge * k
@@ -220,10 +220,10 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 			s.canvas.viewport.W, scale)
 	})
 	s.magnet(strip, k, animate)
-	// The columns reach down to the window's foot, the writing actions
-	// floating over them, and their heads stand clear of the window's
-	// controls over them.
-	strip.Padding(max(head, s.controlsFoot), 0, edge, 0)
+	// The columns rise into the title line, their heads on it, and reach
+	// down to the window's foot, the writing actions floating over them.
+	top, _ := s.titleLine(k)
+	strip.Padding(top, 0, edge, 0)
 	window, _ := c.Size()
 	editor := s.editorWidth(strip, window-2*edge, k, animate)
 	picker := s.paneLayout().SheetList * k
@@ -388,14 +388,22 @@ func (s *State) editorWidth(el ui.Element, inner, k float32, animate bool) float
 }
 
 // column is one of the strip's columns, w wide and as tall as the strip,
-// and whether it is in front (canvas_front.go); its place is counted for
-// the magnet and the scrubber, and it is brought into view where asked
-// (bringInView). origin is where the strip's columns start in the window.
-func (s *State) column(c *ui.Context, of canvasColumn, w, origin float32, animate bool) (ui.Element, bool) {
+// whether it is in front (canvas_front.go), and where across the window it
+// shows, as the strip stands now, as laid out the frame before; its place
+// is counted for the magnet and the scrubber, and it is brought into view
+// where asked (bringInView). origin is where the strip's columns start in
+// the window.
+func (s *State) column(c *ui.Context, of canvasColumn, w, origin float32, animate bool) (ui.Element, bool, ui.Rect) {
 	key := of.key()
 	col := ui.Column(c).Key(key).Width(w).Shrink(0).FillHeight().Transition(columnTransition(animate))
+	var shown ui.Rect
 	if b := col.LayoutBounds(); b.W > 0 {
-		s.canvas.spans = append(s.canvas.spans, span{x: b.X - origin, w: b.W})
+		sp := span{x: b.X - origin, w: b.W}
+		s.canvas.spans = append(s.canvas.spans, sp)
+		// The strip goes on between frames, and stretches past its ends.
+		over, _ := s.canvas.over.Offset()
+		edge := canvasEdge * components.UIFontSize(c) / theme.DefaultUIFontSize
+		shown = ui.Rect{X: s.canvas.viewport.X + edge + sp.x - s.canvas.strip.X + over, W: sp.w}
 	}
 	if s.canvas.bring == key {
 		motion := canvasMotion(animate && !s.canvas.bringAtOnce)
@@ -403,7 +411,7 @@ func (s *State) column(c *ui.Context, of canvasColumn, w, origin float32, animat
 			ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest, Animation: &motion})
 		s.canvas.bring = ""
 	}
-	return col, s.inFront(col, of)
+	return col, s.inFront(col, of), shown
 }
 
 // columnTransition is how the strip's columns come and go: opening out

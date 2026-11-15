@@ -135,11 +135,9 @@ type State struct {
 	lastUIFontSize   float32
 	lastSidebarWidth float32
 	lastChrome       float32
-	// controlsWidth is how far the window's controls reach in from its
-	// right edge, and controlsFoot down from its top, with the room around
-	// them, as last laid out.
-	controlsWidth float32
-	controlsFoot  float32
+	// controlsAt is where the window's controls stood as last laid out, the
+	// title line's (titleline.go).
+	controlsAt controlsPlace
 	// listDock is how far the place's title has gone from the panes'
 	// title line to the top of the sheet list, as it does where the library
 	// is closed; dockTarget is where it goes, held while the list is shut.

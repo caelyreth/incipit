@@ -40,6 +40,13 @@ func sheetPages(ids ...string) []Page {
 	return pages
 }
 
+// gapAfter is where, across the window, the room after the strip's i-th
+// column stands.
+func gapAfter(state *State, i int) float32 {
+	sp := state.canvas.spans[i]
+	return canvasEdge - state.canvas.strip.X + sp.x + sp.w + columnGap/2
+}
+
 // columnsOf names the workspace's columns: a sheet by its id, a picker
 // as "picker".
 func columnsOf(state *State) []string {
@@ -64,7 +71,7 @@ func TestTheCanvasComesWithTheSheetInFrontAlone(t *testing.T) {
 	if _, ok := tester.Find("Sheet picker"); ok {
 		t.Fatal("Coming to the canvas should make no picker.")
 	}
-	if _, ok := tester.Find("Bring Untitled in front"); !ok {
+	if _, ok := tester.Find("Close Untitled"); !ok {
 		t.Fatal("The sheet in front should stand on the canvas.")
 	}
 	if _, ok := tester.Find("Groups"); ok {
@@ -193,13 +200,11 @@ func TestTheModeSwitchesFromTheWindowsControls(t *testing.T) {
 func TestRightClickingTheCanvasMakesAPickerThere(t *testing.T) {
 	state, _, tester := onCanvas(t)
 	joining(state, tester, Page{ID: "7", Title: "Chapter"})
-	first, ok := tester.Find("Bring Untitled in front")
-	second, ok2 := tester.Find("Bring Chapter in front")
-	if !ok || !ok2 {
+	if len(state.canvas.spans) != 2 {
 		t.Fatalf("Both sheets should show, but the canvas shows %#v.", tester.Texts())
 	}
-	// The gap between their columns, below their heads.
-	tester.RightClickAt((first.X+first.W+second.X)/2+2, 400)
+	// The gap between their columns.
+	tester.RightClickAt(gapAfter(state, 0), 400)
 	if err := tester.ChooseMenuItem("New Picker"); err != nil {
 		t.Fatalf("The canvas's room should offer a new picker: %v (menu %v)", err, tester.Menu())
 	}
@@ -268,8 +273,8 @@ func TestAPickerCloses(t *testing.T) {
 }
 
 // The canvas holds its sheets at once, each written in where it stands;
-// a head brings its sheet in front, takes it back to the columns, or
-// closes it, the one beside it coming in front where it was, or none.
+// the pointer coming onto one brings it in front, and its head closes it,
+// the one beside it coming in front where it was, or none.
 func TestTheCanvasHoldsItsSheetsAtOnce(t *testing.T) {
 	state, _, tester := onCanvas(t)
 	focused := map[string]bool{}
@@ -295,12 +300,15 @@ func TestTheCanvasHoldsItsSheetsAtOnce(t *testing.T) {
 	if !focused["7"] || focused["8"] {
 		t.Fatalf("Only the sheet in front should take the focus, but the frames ask %v.", focused)
 	}
-	if err := tester.Click("Bring Draft in front"); err != nil {
-		t.Fatal(err)
+	draft, ok := tester.Find("Body of 8")
+	if !ok {
+		t.Fatal("Draft should show.")
 	}
+	tester.Move(draft.X+4, draft.Y+draft.H/2)
+	tester.Frame()
 	settle(tester)
 	if !slices.Equal(selected, []string{"8"}) {
-		t.Fatalf("A column's head should bring its sheet in front, but the sheets selected are %v.", selected)
+		t.Fatalf("The pointer coming onto a sheet should bring it in front, but the sheets selected are %v.", selected)
 	}
 	// Draft, last, closes: the one before it comes in front.
 	if err := tester.Click("Close Draft"); err != nil {
@@ -334,8 +342,8 @@ func TestSearchGoesFromTheCanvasToTheSheetList(t *testing.T) {
 	}
 }
 
-// The strip goes to the sheet that comes in front, and a drag on it moves
-// it along, coming to rest at a column.
+// The strip goes to the sheet that comes in front, and a drag on its room
+// between columns moves it along, coming to rest at a column.
 func TestTheStripFollowsTheFrontAndPansByDrag(t *testing.T) {
 	state, _, tester := onCanvas(t)
 	state.Sheet = func(c *ui.Context, id string, _ SheetFrame) { ui.Text(c, "Body of "+id) }
@@ -352,11 +360,8 @@ func TestTheStripFollowsTheFrontAndPansByDrag(t *testing.T) {
 	if last <= before {
 		t.Fatalf("The strip should go to the sheet in front, but it stayed at %v.", last)
 	}
-	head, ok := tester.Find("Bring Sheet 9 in front")
-	if !ok {
-		t.Fatalf("The ninth sheet's head should show, but the strip shows %#v.", tester.Texts())
-	}
-	x, y := head.X+head.W/2, head.Y+head.H/2
+	// Between the ninth sheet and the tenth.
+	x, y := gapAfter(state, 3), float32(400)
 	tester.Press(x, y)
 	for i := 1; i <= 10; i++ {
 		tester.Move(x+float32(i)*30, y)
@@ -364,7 +369,7 @@ func TestTheStripFollowsTheFrontAndPansByDrag(t *testing.T) {
 		tester.Frame()
 	}
 	if moved := last - state.canvas.strip.X; moved < 200 {
-		t.Fatalf("A drag on a head should move the strip with it, but it moved %v.", moved)
+		t.Fatalf("A drag on the strip should move it along, but it moved %v.", moved)
 	}
 	tester.Release(x+300, y)
 	tester.Frame()
@@ -653,4 +658,36 @@ func TestThePointerBringsTheColumnUnderItInFront(t *testing.T) {
 		t.Fatalf("The pointer moved onto a picker should bring it in front, the sheet in front staying, but %q is in front.",
 			state.canvas.at)
 	}
+}
+
+// The columns' heads stand on the title line, their content clear of the
+// traffic lights as the strip goes under them.
+func TestTheHeadsKeepClearOfTheTrafficLights(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	joining(state, tester, sheetPages("7", "8")...)
+	state.newPickerAt(0)
+	settle(tester)
+	state.stripAt(0)
+	tester.SetTitleBar(ui.TitleBar{Height: 40, Left: 76})
+	settle(tester)
+	clear := func(when string) {
+		t.Helper()
+		title, ok := tester.Find("All")
+		if !ok {
+			t.Fatalf("The picker's head should show %s, but the strip shows %#v.", when, tester.Texts())
+		}
+		if title.X < 76 || title.W == 0 {
+			t.Fatalf("The picker's title should keep clear of the traffic lights %s, but it starts at %v.", when, title.X)
+		}
+		if top, line := state.titleLine(1); title.Y < top || title.Y+title.H > top+line {
+			t.Fatalf("The picker's title should stand on the title line %s, %v down and %v tall, but it is at %v.",
+				when, top, line, title)
+		}
+	}
+	clear("at the strip's start")
+	tester.Scroll(600, 400, 60, 0)
+	if state.canvas.strip.X == 0 {
+		t.Fatal("The strip should go along.")
+	}
+	clear("as the strip goes under them")
 }
