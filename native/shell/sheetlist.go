@@ -271,12 +271,12 @@ func (s *State) smartQueryStrip(c *ui.Context, semantic theme.Theme, group Group
 	ui.Row(c).Key("smart-query").WidthPercent(100).Shrink(0).AlignItems(ui.Start).Gap(theme.Space06.DIPs(scale)).
 		PaddingStart(theme.Space12.DIPs(scale)).PaddingEnd(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale)).
 		Children(func() {
-		s.queryChips(c, semantic, group.Query, animate)
-		components.Button{
-			Key: "edit-query", Label: "Edit", Tooltip: "Edit the query", Style: components.SubtleButton,
-			Size: components.CompactButton, Animate: animate, Action: func() { s.editSmartGroup(group) },
-		}.View(c, semantic).Shrink(0)
-	})
+			s.queryChips(c, semantic, group.Query, animate)
+			components.Button{
+				Key: "edit-query", Label: "Edit", Tooltip: "Edit the query", Style: components.SubtleButton,
+				Size: components.CompactButton, Animate: animate, Action: func() { s.editSmartGroup(group) },
+			}.View(c, semantic).Shrink(0)
+		})
 }
 
 func sheetEntries(sheets []SheetItem) []GroupEntry {
