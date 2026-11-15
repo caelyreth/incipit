@@ -80,7 +80,6 @@ type State struct {
 	// Library is what the sidebar shows and files; nil shows none.
 	Library         Library
 	Statistics      string
-	SearchQuery     string
 	SearchRequested bool
 	// FindQuery is a sheet's find as written after its fixed $sheet (the
 	// query it runs is FindText), FindRequested asks its field
@@ -92,9 +91,7 @@ type State struct {
 	finder            findBar
 	Toolbar           ToolbarState
 	libraryScroll     ui.ScrollState
-	sheetScroll       ui.ScrollState
 	libraryOverscroll scrollfx.Overscroll
-	sheetOverscroll   scrollfx.Overscroll
 	WindowActive      bool
 
 	// Sheet draws an open sheet's page, as frame sets it.
@@ -121,9 +118,11 @@ type State struct {
 	SheetListOverride *bool
 	// panes are how wide the library and the sheet list were dragged, at
 	// the reference UI size; zero is the layout's own width.
-	panes            paneWidths
-	edgeHover        edgeHover
-	nav              navigation
+	panes     paneWidths
+	edgeHover edgeHover
+	nav       navigation
+	// list is the sheet list's browser.
+	list             browser
 	lastWidth        float32
 	lastUIFontSize   float32
 	lastSidebarWidth float32
@@ -147,7 +146,8 @@ func New() *State {
 		Appearance:   settings.DefaultPresentation(),
 		Settings:     theme.DefaultSettings(),
 		WindowActive: true,
-		nav:          navigation{expanded: map[string]bool{}, sheetDropSlot: -1},
+		nav:          navigation{expanded: map[string]bool{}},
+		list:         newBrowser(Place{}),
 		Toolbar: ToolbarState{
 			TypewriterEnabled: true,
 			ZenEnabled:        true,

@@ -15,7 +15,7 @@ func (s *State) FocusWithin(c *ui.Context) bool { return s.root.FocusWithin(c) }
 // to take the focus as it opens: the search, a sheet's find, or a name
 // being edited.
 func (s *State) Typing() bool {
-	return s.SearchRequested || s.nav.searching || s.FindRequested || s.finder.open || s.nav.renaming != "" ||
+	return s.SearchRequested || s.list.searching || s.FindRequested || s.finder.open || s.nav.renaming != "" ||
 		s.CanvasOpen() && s.canvas.typing
 }
 
@@ -25,7 +25,7 @@ func (s *State) View(c *ui.Context) {
 	if changing {
 		c.AnimationFrame()
 	}
-	if s.SearchRequested && !s.nav.searching && s.Library != nil {
+	if s.SearchRequested && !s.list.searching && s.Library != nil {
 		s.Search()
 	}
 	width, _ := c.Size()
@@ -72,7 +72,7 @@ func (s *State) View(c *ui.Context) {
 	// line that is going.
 	if s.SheetListVisible() && !canvas {
 		s.dockTarget = 0
-		if !s.SidebarVisible() && !s.nav.searching {
+		if !s.SidebarVisible() && !s.list.searching {
 			s.dockTarget = 1
 		}
 	}
@@ -94,7 +94,8 @@ func (s *State) View(c *ui.Context) {
 	// before it close.
 	head := layout.Titlebar * scale / theme.DefaultUIFontSize
 
-	s.noteView(c, animate)
+	s.noteDrags(c)
+	s.sheets().noteView(c, animate)
 	// Every pane here is keyed. A pane that is closed is left out, and
 	// MyGo knows an element without a key by its place among its siblings:
 	// those after a pane that went would be taken for new ones, their state
@@ -108,7 +109,7 @@ func (s *State) View(c *ui.Context) {
 		s.controls(c, semantic, chrome, animate)
 		ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
-			s.sheetColumn(c, semantic, listWidth, listReveal, head)
+			s.sheets().sheetColumn(c, semantic, listWidth, listReveal, head)
 			if canvas {
 				s.canvasView(c, semantic, layout, head*(1-reveal)*(1-listReveal), animate)
 				return

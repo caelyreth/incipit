@@ -47,12 +47,12 @@ func (s *State) paneHeader(
 				ui.Row(c).Width(button * reveal).Shrink(0).Opacity(reveal).Clip().Children(func() {
 					// While searching, it ends the search, as Escape does.
 					label, action := "Search sheets", s.Search
-					if s.nav.searching {
-						label, action = "End search", s.stopSearching
+					if s.list.searching {
+						label, action = "End search", s.sheets().stopSearching
 					}
 					chromeButton{
 						key: "search-sheets", label: label, icon: components.IconSearch,
-						selected: s.nav.searching, action: action,
+						selected: s.list.searching, action: action,
 					}.view(c, semantic, animate)
 				})
 			}
@@ -60,7 +60,7 @@ func (s *State) paneHeader(
 				key: "toggle-sidebar", label: "Toggle library", icon: components.IconSidebar, action: s.ToggleSidebar,
 			}.view(c, semantic, animate)
 		})
-		s.listHeader(c, semantic, lines.sheets, listReveal, animate)
+		s.sheets().listHeader(c, semantic, lines.sheets, listReveal, animate)
 	})
 }
 

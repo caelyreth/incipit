@@ -15,7 +15,7 @@ func TestTransitionsChooseWhatTheyAnimate(t *testing.T) {
 	state := New()
 	for name, transition := range map[string]ui.ElementTransition{
 		"list":     listTransition(true, false),
-		"list row": state.listRowTransition(true),
+		"list row": state.sheets().listRowTransition(true),
 		"fade":     fadeTransition(true),
 		"swap":     swapTransition(true, 8),
 		"pop":      popTransition(true),

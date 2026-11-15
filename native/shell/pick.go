@@ -28,8 +28,8 @@ type picking struct {
 
 // noteOrder keeps the sheets the list shows, and lets go of picked ones it
 // no longer shows, as one moved to the trash.
-func (s *State) noteOrder(entries []GroupEntry) {
-	p := &s.nav.picking
+func (s listing) noteOrder(entries []GroupEntry) {
+	p := &s.browser.picking
 	p.order = p.order[:0]
 	for _, entry := range entries {
 		if entry.Kind == EntrySheet {
@@ -42,8 +42,8 @@ func (s *State) noteOrder(entries []GroupEntry) {
 }
 
 // setPicked picks the sheets in set, in the list's order.
-func (s *State) setPicked(set []string) {
-	p := &s.nav.picking
+func (s listing) setPicked(set []string) {
+	p := &s.browser.picking
 	p.ids = p.ids[:0]
 	for _, id := range p.order {
 		if slices.Contains(set, id) {
@@ -53,19 +53,19 @@ func (s *State) setPicked(set []string) {
 }
 
 // picked reports whether the sheet is picked.
-func (s *State) picked(id string) bool { return slices.Contains(s.nav.picking.ids, id) }
+func (s listing) picked(id string) bool { return slices.Contains(s.browser.picking.ids, id) }
 
 // pickedSheets is the picked sheets in the list's order.
-func (s *State) pickedSheets() []string { return slices.Clone(s.nav.picking.ids) }
+func (s listing) pickedSheets() []string { return slices.Clone(s.browser.picking.ids) }
 
 // unpick lets the picked sheets go, keeping the anchor.
-func (s *State) unpick() { s.nav.picking.ids, s.nav.picking.base = nil, nil }
+func (s listing) unpick() { s.browser.picking.ids, s.browser.picking.base = nil, nil }
 
 // pickTo picks every sheet from the anchor to id, on top of what was picked
 // as the anchor was set. Without an anchor in the list it runs from the
 // open sheet, or else picks id alone.
-func (s *State) pickTo(id string) {
-	p := &s.nav.picking
+func (s listing) pickTo(id string) {
+	p := &s.browser.picking
 	from := slices.Index(p.order, p.anchor)
 	if from < 0 {
 		from = slices.Index(p.order, s.ActivePage)
@@ -85,8 +85,8 @@ func (s *State) pickTo(id string) {
 // pickToggle picks id or lets it go, leaving the rest as they are. With
 // none picked, the open sheet is the one the list already marks, so it is
 // picked with id, as a selection a Cmd-click adds to.
-func (s *State) pickToggle(id string) {
-	p := &s.nav.picking
+func (s listing) pickToggle(id string) {
+	p := &s.browser.picking
 	if !slices.Contains(p.order, id) {
 		return
 	}
@@ -106,8 +106,8 @@ func (s *State) pickToggle(id string) {
 // unpickOnPressElsewhere lets the picked go on a press on none of the
 // sheets: in the list's empty space, on a chapter, in the library or the
 // page. A press on a sheet is its click's to decide.
-func (s *State) unpickOnPressElsewhere(sheets []ui.Element) {
-	if len(s.nav.picking.ids) == 0 || len(sheets) == 0 {
+func (s listing) unpickOnPressElsewhere(sheets []ui.Element) {
+	if len(s.browser.picking.ids) == 0 || len(sheets) == 0 {
 		return
 	}
 	for _, row := range sheets {
@@ -119,8 +119,8 @@ func (s *State) unpickOnPressElsewhere(sheets []ui.Element) {
 }
 
 // pickAll picks every sheet the list shows.
-func (s *State) pickAll() {
-	p := &s.nav.picking
+func (s listing) pickAll() {
+	p := &s.browser.picking
 	p.ids, p.base = slices.Clone(p.order), nil
 	if p.anchor == "" && len(p.order) > 0 {
 		p.anchor = p.order[0]
@@ -129,7 +129,7 @@ func (s *State) pickAll() {
 
 // pickAmount is how far the sheet's row is picked, following its picking
 // on a spring, for what of the row's look goes with it.
-func (s *State) pickAmount(row ui.Element, id string, animate bool) float32 {
+func (s listing) pickAmount(row ui.Element, id string, animate bool) float32 {
 	target := float32(0)
 	if s.picked(id) {
 		target = 1
@@ -159,9 +159,9 @@ type menuRing struct {
 
 // ringedMenu is build as the menu acting on ids, ringing them while it is
 // open.
-func (s *State) ringedMenu(ids []string, build func(*ui.Menu)) func(*ui.Menu) {
+func (s listing) ringedMenu(ids []string, build func(*ui.Menu)) func(*ui.Menu) {
 	return func(m *ui.Menu) {
-		ring := &s.nav.menuRing
+		ring := &s.browser.menuRing
 		ring.chose = false
 		build(m)
 		if ring.chose {
@@ -173,9 +173,9 @@ func (s *State) ringedMenu(ids []string, build func(*ui.Menu)) func(*ui.Menu) {
 }
 
 // chose reports whether item was chosen, noting it for the ring.
-func (s *State) chose(item *ui.MenuItem) bool {
+func (s listing) chose(item *ui.MenuItem) bool {
 	if item.Chosen() {
-		s.nav.menuRing.chose = true
+		s.browser.menuRing.chose = true
 		return true
 	}
 	return false
@@ -186,8 +186,8 @@ func (s *State) chose(item *ui.MenuItem) bool {
 // away from the list. The menu takes the press that opened it, so the list
 // may still count that press as held while the menu shows: it is no sign
 // the menu closed.
-func (s *State) ringMenu(list ui.Element, track *components.SelectionTrack) {
-	ring := &s.nav.menuRing
+func (s listing) ringMenu(list ui.Element, track *components.SelectionTrack) {
+	ring := &s.browser.menuRing
 	if len(ring.ids) == 0 {
 		return
 	}
@@ -203,7 +203,7 @@ func (s *State) ringMenu(list ui.Element, track *components.SelectionTrack) {
 
 // batchMenu is the menu of what the picked sheets take together: as the
 // single sheet's menu has it, each item saying how many it does.
-func (s *State) batchMenu(m *ui.Menu, row string, trashed bool) {
+func (s listing) batchMenu(m *ui.Menu, row string, trashed bool) {
 	ids := s.pickedSheets()
 	n := len(ids)
 	each := func(do func(id string)) {
@@ -231,7 +231,7 @@ func (s *State) batchMenu(m *ui.Menu, row string, trashed bool) {
 		each(s.Library.DuplicateSheet)
 	}
 	s.moveMenu(m, func(group string) {
-		s.nav.menuRing.chose = true
+		s.browser.menuRing.chose = true
 		// In their order, each after the last.
 		each(func(id string) { s.Library.MoveSheet(id, group, Last) })
 	}, "")
@@ -246,7 +246,7 @@ func (s *State) batchMenu(m *ui.Menu, row string, trashed bool) {
 func deletePickedKey(row string) string { return "delete-picked-" + row }
 
 // deletePicked deletes the picked sheets for good.
-func (s *State) deletePicked() {
+func (s listing) deletePicked() {
 	for _, id := range s.pickedSheets() {
 		s.Library.DeleteSheet(id)
 	}
@@ -255,7 +255,7 @@ func (s *State) deletePicked() {
 
 // pickedDetail is what the place's title says of the picked sheets among sheets,
 // with any picked: how many, and their words.
-func (s *State) pickedDetail(sheets []SheetItem) (string, bool) {
+func (s listing) pickedDetail(sheets []SheetItem) (string, bool) {
 	n, total := 0, 0
 	for _, sheet := range sheets {
 		if s.picked(sheet.ID) {
@@ -273,7 +273,7 @@ func (s *State) pickedDetail(sheets []SheetItem) (string, bool) {
 // Shift it picks the run up to the sheet, with Cmd it picks the sheet or
 // lets it go, and either way reports that the sheet is not to open;
 // without, it lets the picked go and starts the next run there.
-func (s *State) pickClick(id string, modifiers ui.Modifiers) bool {
+func (s listing) pickClick(id string, modifiers ui.Modifiers) bool {
 	switch {
 	case modifiers&ui.Shift != 0:
 		s.pickTo(id)
@@ -283,6 +283,6 @@ func (s *State) pickClick(id string, modifiers ui.Modifiers) bool {
 		return true
 	}
 	s.unpick()
-	s.nav.picking.anchor = id
+	s.browser.picking.anchor = id
 	return false
 }

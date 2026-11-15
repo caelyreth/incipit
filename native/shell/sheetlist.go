@@ -20,8 +20,8 @@ type listView struct {
 	search bool
 }
 
-func (s *State) listView() listView {
-	return listView{place: s.nav.place, search: s.nav.searching}
+func (s listing) listView() listView {
+	return listView{place: s.browser.place, search: s.browser.searching}
 }
 
 func (v listView) key() string {
@@ -68,7 +68,7 @@ func (s *State) showSheetList() {
 // library, fading from one place to the next, under head's room for its
 // line in the panes' title line (paneHeader), and the place's band where
 // the place's title has gone down from there.
-func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal, head float32) {
+func (s listing) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal, head float32) {
 	if width <= 0.01 || reveal <= 0.001 || s.Library == nil {
 		return
 	}
@@ -89,27 +89,31 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal, 
 
 // noteView notes, once a frame before the title line and the list draw, when
 // the list comes to show something else, and from which side it comes.
-func (s *State) noteView(c *ui.Context, animate bool) {
-	s.nav.fresh, s.nav.rank = false, 0
+func (s listing) noteView(c *ui.Context, animate bool) {
+	s.browser.fresh, s.browser.rank = false, 0
 	view := s.listView()
-	if s.Library != nil && view != s.nav.shown {
-		s.nav.side = s.side(s.nav.shown, view)
-		s.nav.shown, s.nav.fresh, s.nav.shownAt = view, true, time.Time{}
-		s.nav.sheetsGap, s.nav.sheetsNear = components.CreateGap{}, -1
-		s.nav.sheetDropSlot, s.nav.sheetDropHeight = -1, 0
-		s.nav.sheetDropVisible, s.nav.sheetDropRows = false, nil
-		s.nav.picking = picking{}
+	if s.Library != nil && view != s.browser.shown {
+		s.browser.side = s.side(s.browser.shown, view)
+		s.browser.shown, s.browser.fresh, s.browser.shownAt = view, true, time.Time{}
+		s.browser.sheetsGap, s.browser.sheetsNear = components.CreateGap{}, -1
+		s.browser.sheetDropSlot, s.browser.sheetDropHeight = -1, 0
+		s.browser.sheetDropVisible, s.browser.sheetDropRows = false, nil
+		s.browser.picking = picking{}
 		if animate {
-			s.nav.shownAt = c.Now()
+			s.browser.shownAt = c.Now()
 		}
 	}
-	// A row was dragged last frame: the create areas stay shut until a
-	// while after the drag ends, wherever it dropped.
+	s.browser.sheetsGap.Hush(s.nav.quiet)
+}
+
+// noteDrags notes, once a frame before the library and the lists draw,
+// whether a row was dragged last frame: the create areas stay shut until a
+// while after the drag ends, wherever it dropped.
+func (s *State) noteDrags(c *ui.Context) {
 	if s.nav.dragged {
 		s.nav.dragged = false
-		until := c.Now().Add(dropQuiet)
-		s.nav.sheetsGap.Hush(until)
-		s.nav.groupsTop.Hush(until)
+		s.nav.quiet = c.Now().Add(dropQuiet)
+		s.nav.groupsTop.Hush(s.nav.quiet)
 	}
 }
 
@@ -170,7 +174,7 @@ func (s *State) side(from, to listView) float32 {
 // listStage draws what the list shows. A new place replaces the old at
 // once, never over it: two lists at half strength read as a flicker, the
 // more so where they share sheets. Its rows come in instead (enter).
-func (s *State) listStage(c *ui.Context, semantic theme.Theme, animate bool) {
+func (s listing) listStage(c *ui.Context, semantic theme.Theme, animate bool) {
 	view := s.listView()
 	ui.Box(c).Key("list-stage").Grow(1).MinHeight(0).WidthPercent(100).Clip().Children(func() {
 		s.listLayer(c, semantic, view, animate)
@@ -181,21 +185,21 @@ func (s *State) listStage(c *ui.Context, semantic theme.Theme, animate bool) {
 // the side the place lies on and fades in a moment after the one above, so
 // the place arrives top down; with no side, as for search, it rises.
 // It reports whether the row is still on its way.
-func (s *State) enter(c *ui.Context, row ui.Element) bool {
-	rank := min(s.nav.rank, enterRanks)
-	s.nav.rank++
-	if s.nav.shownAt.IsZero() {
+func (s listing) enter(c *ui.Context, row ui.Element) bool {
+	rank := min(s.browser.rank, enterRanks)
+	s.browser.rank++
+	if s.browser.shownAt.IsZero() {
 		return false
 	}
-	t := float32(c.Now().Sub(s.nav.shownAt)-time.Duration(rank)*enterStagger) / float32(motionEnter)
+	t := float32(c.Now().Sub(s.browser.shownAt)-time.Duration(rank)*enterStagger) / float32(motionEnter)
 	if t >= 1 {
 		return false
 	}
 	c.AnimationFrame()
 	p := components.Decelerate(max(0, t))
 	k := (1 - p) * s.Settings.UIFontSize / theme.DefaultUIFontSize
-	if s.nav.side != 0 {
-		row.Opacity(p).Translate(s.nav.side*enterSlide*k, 0)
+	if s.browser.side != 0 {
+		row.Opacity(p).Translate(s.browser.side*enterSlide*k, 0)
 		return true
 	}
 	row.Opacity(p).Translate(0, enterRise*k)
@@ -204,14 +208,14 @@ func (s *State) enter(c *ui.Context, row ui.Element) bool {
 
 // listRowTransition is rowTransition, but rows that arrive with the list
 // leave their coming in to enter.
-func (s *State) listRowTransition(animate bool) ui.ElementTransition {
-	if !animate || !s.nav.fresh {
+func (s listing) listRowTransition(animate bool) ui.ElementTransition {
+	if !animate || !s.browser.fresh {
 		return rowTransition(animate)
 	}
 	return ui.ElementTransition{Duration: motionList, Position: true, Exit: &ui.Motion{Collapse: true}}
 }
 
-func (s *State) listLayer(c *ui.Context, semantic theme.Theme, view listView, animate bool) {
+func (s listing) listLayer(c *ui.Context, semantic theme.Theme, view listView, animate bool) {
 	ui.Column(c).Key("list-" + view.key()).Absolute().Top(0).Left(0).Right(0).Bottom(0).Children(func() {
 		switch {
 		case view.search:
@@ -224,7 +228,7 @@ func (s *State) listLayer(c *ui.Context, semantic theme.Theme, view listView, an
 	})
 }
 
-func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, animate bool) {
+func (s listing) placeList(c *ui.Context, semantic theme.Theme, place Place, animate bool) {
 	// A smart folder lists what its query finds, as it finds it: nothing is
 	// made, filed or ordered in it.
 	if group, ok := s.Library.Group(place.Group); ok && place.Kind == PlaceGroup && group.Smart() {
@@ -270,7 +274,7 @@ func (s *State) placeList(c *ui.Context, semantic theme.Theme, place Place, anim
 
 // smartQueryStrip says what a smart folder finds, in the words the
 // search's filters use, with the way to change it.
-func (s *State) smartQueryStrip(c *ui.Context, semantic theme.Theme, group GroupItem, animate bool) {
+func (s listing) smartQueryStrip(c *ui.Context, semantic theme.Theme, group GroupItem, animate bool) {
 	scale := s.Settings.UIFontSize
 	ui.Row(c).Key("smart-query").WidthPercent(100).Shrink(0).AlignItems(ui.Start).Gap(theme.Space06.DIPs(scale)).
 		PaddingStart(theme.Space12.DIPs(scale)).PaddingEnd(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale)).
@@ -293,14 +297,14 @@ func sheetEntries(sheets []SheetItem) []GroupEntry {
 	return entries
 }
 
-func (s *State) newChapter(group string, index int) {
+func (s listing) newChapter(group string, index int) {
 	if id := s.Library.NewChapter(group, index); id != "" {
 		s.startChapterRename(id, "Untitled Chapter")
-		s.nav.revealing = id
+		s.browser.revealing = id
 	}
 }
 
-func (s *State) trashList(c *ui.Context, semantic theme.Theme, animate bool) {
+func (s listing) trashList(c *ui.Context, semantic theme.Theme, animate bool) {
 	groups := s.Library.TrashedGroups()
 	sheets := s.Library.Sheets(Place{Kind: PlaceTrash})
 	if len(groups) == 0 && len(sheets) == 0 {
@@ -316,7 +320,7 @@ func (s *State) trashList(c *ui.Context, semantic theme.Theme, animate bool) {
 
 // emptyList says there is nothing to list, quietly, with the area that
 // makes the first sheet where there can be one.
-func (s *State) emptyList(
+func (s listing) emptyList(
 	c *ui.Context,
 	semantic theme.Theme,
 	icon components.IconName,
@@ -328,7 +332,7 @@ func (s *State) emptyList(
 	scale := s.Settings.UIFontSize
 	empty := ui.Column(c).Key("empty").Grow(1).FillHeight().AlignItems(ui.Center).Justify(ui.Center).
 		PaddingX(theme.Space24.DIPs(scale)).Gap(theme.Space08.DIPs(scale))
-	if !s.nav.fresh {
+	if !s.browser.fresh {
 		empty.Transition(fadeTransition(animate))
 	}
 	s.enter(c, empty)
@@ -351,13 +355,13 @@ func (s *State) emptyList(
 	}).ContextMenu(s.listMenu())
 }
 
-func (s *State) listMenu() func(*ui.Menu) {
+func (s listing) listMenu() func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if m.Item("New Sheet").Chosen() {
 			s.Library.NewSheet(s.CurrentGroup(), Last)
 		}
-		if s.files(s.nav.place) && m.Item("New Chapter").Chosen() {
-			s.newChapter(s.nav.place.Group, Last)
+		if s.files(s.browser.place) && m.Item("New Chapter").Chosen() {
+			s.newChapter(s.browser.place.Group, Last)
 		}
 	}
 }
@@ -370,7 +374,7 @@ func (s *State) listMenu() func(*ui.Menu) {
 // sheet. In a group, where sheets keep the order they are put in, the
 // pointer resting by the top of a sheet opens another above it, for a
 // sheet in its place.
-func (s *State) sheetRows(
+func (s listing) sheetRows(
 	c *ui.Context,
 	semantic theme.Theme,
 	entries []GroupEntry,
@@ -386,12 +390,12 @@ func (s *State) sheetRows(
 	// Keyed, and fading out, so a list that empties, as the trash does,
 	// gives way to what says it is empty rather than going at once.
 	scroll := ui.Scroll(c).Key("rows").Grow(1).MinHeight(0).
-		TrackScroll(&s.sheetScroll).
+		TrackScroll(&s.browser.scroll).
 		Transition(appearing(motionList, nil, &ui.Motion{Opacity: 0}))
 	scroll = components.BindOverscroll(
 		scroll,
-		&s.sheetScroll,
-		&s.sheetOverscroll,
+		&s.browser.scroll,
+		&s.browser.overscroll,
 		scrollfx.Vertical,
 		components.OverscrollList,
 		scroll.LayoutBounds().H,
@@ -401,7 +405,7 @@ func (s *State) sheetRows(
 		rowGap := theme.Space06.DIPs(scale)
 		list := ui.Column(c).Gap(rowGap).
 			PaddingX(theme.Space08.DIPs(scale)).PaddingY(theme.Space06.DIPs(scale))
-		s.sheetOverscroll.Apply(c, list, animate)
+		s.browser.overscroll.Apply(c, list, animate)
 		selection := components.NavigationSelection(c, semantic)
 		// The menu's ring stands midway between the rows, clear of both.
 		selection.RingOutset = rowGap / 2
@@ -409,46 +413,46 @@ func (s *State) sheetRows(
 		s.noteOrder(entries)
 		ordered := create != nil && place.Kind == PlaceGroup
 		if !ordered {
-			s.nav.sheetDropSlot, s.nav.sheetDropHeight = -1, 0
-			s.nav.sheetDropVisible, s.nav.sheetDropRows = false, nil
+			s.browser.sheetDropSlot, s.browser.sheetDropHeight = -1, 0
+			s.browser.sheetDropVisible, s.browser.sheetDropRows = false, nil
 		}
 		dragged, dragging := ui.DragOver[sheetMove](list)
 		dragging = ordered && dragging
-		dropSlot := s.nav.sheetDropSlot
-		s.nav.listTop = list.LayoutBounds().Y
+		dropSlot := s.browser.sheetDropSlot
+		s.browser.listTop = list.LayoutBounds().Y
 		if dragging {
 			slot, height := s.sheetDropPlan(list, entries, dragged)
 			dropSlot = slot
-			s.nav.sheetDropSlot = slot
+			s.browser.sheetDropSlot = slot
 			if target, moves := s.reorderSlot(dragged.sheetMoveID(), place.Group, slot, entries); moves {
-				s.nav.sheetDropHeight = height
-				s.nav.sheetDropRoom = 0
+				s.browser.sheetDropHeight = height
+				s.browser.sheetDropRoom = 0
 				if isChapter(entries, dragged.sheetMoveID()) && target > 0 {
 					// The placeholder holds the room the chapter will take,
 					// so nothing moves again as it lands.
-					s.nav.sheetDropRoom = chapterRoom(scale)
+					s.browser.sheetDropRoom = chapterRoom(scale)
 				}
-				s.nav.sheetDropVisible = true
+				s.browser.sheetDropVisible = true
 			} else {
 				// Either side of the dragged row is its original place.
-				s.nav.sheetDropVisible = false
+				s.browser.sheetDropVisible = false
 			}
-		} else if ordered && !s.nav.sheetDropVisible {
-			s.nav.sheetDropSlot = -1
+		} else if ordered && !s.browser.sheetDropVisible {
+			s.browser.sheetDropSlot = -1
 		}
 		// Where the pointer was by a sheet's top last frame calls up the
 		// area above it.
-		near := s.nav.sheetsNear
-		s.nav.sheetsNear = -1
+		near := s.browser.sheetsNear
+		s.browser.sheetsNear = -1
 		// A drag chooses an insertion point, and sheets picked are for
 		// what is done to them: neither calls up a create area, even
 		// while the pointer rests near a row's top.
-		quiet := dragging || len(s.nav.picking.ids) > 0
+		quiet := dragging || len(s.browser.picking.ids) > 0
 		if quiet {
 			near = -1
-			s.nav.sheetsGap.Close()
+			s.browser.sheetsGap.Close()
 		}
-		at, open := s.nav.sheetsGap.Follow(c, near)
+		at, open := s.browser.sheetsGap.Follow(c, near)
 		open = open && ordered && !quiet
 		rows := make([]ui.Element, 0, len(entries))
 		var sheets []ui.Element
@@ -462,18 +466,18 @@ func (s *State) sheetRows(
 			}
 			for index, entry := range entries {
 				// What stands between sheets parts their runs of picks.
-				if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == index {
+				if ordered && s.browser.sheetDropVisible && s.browser.sheetDropSlot == index {
 					track.Pick(s.sheetDropPlaceholder(c, semantic, dragging, animate), "", false)
 				}
 				if open && at == index {
 					sheetAction := func() {
-						s.nav.sheetsGap.Use()
+						s.browser.sheetsGap.Use()
 						create(index)
 					}
 					var area ui.Element
 					if createChapter != nil {
 						area = s.createPair(c, semantic, "gap-create-"+entry.ID, animate, sheetAction, func() {
-							s.nav.sheetsGap.Use()
+							s.browser.sheetsGap.Use()
 							createChapter(index)
 						})
 					} else {
@@ -485,7 +489,7 @@ func (s *State) sheetRows(
 					// the rows around it: that keeps it open too, so it
 					// keeps the list's spacing rather than reaching into
 					// the space.
-					s.nav.sheetsGap.HoldAround(area, list, theme.Space06.DIPs(scale)/2+theme.Space08.DIPs(scale))
+					s.browser.sheetsGap.HoldAround(area, list, theme.Space06.DIPs(scale)/2+theme.Space08.DIPs(scale))
 				}
 				var row ui.Element
 				if entry.Kind == EntryChapter {
@@ -493,7 +497,7 @@ func (s *State) sheetRows(
 					// section before, so the room stays between the two.
 					// A chapter at the head that a drop will put below what
 					// lands above it takes its room while the drop is open.
-					apart := index > 0 || ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == 0
+					apart := index > 0 || ordered && s.browser.sheetDropVisible && s.browser.sheetDropSlot == 0
 					row = s.chapterRow(c, semantic, entry.Chapter, chapterSheets(entries, index), apart, animate)
 					track.Pick(row, "", false)
 				} else {
@@ -503,13 +507,13 @@ func (s *State) sheetRows(
 				rows = append(rows, row)
 			}
 			if ordered && !dragging {
-				if s.nav.sheetsGap.Over() {
-					s.nav.sheetsNear, _ = s.nav.sheetsGap.Open()
+				if s.browser.sheetsGap.Over() {
+					s.browser.sheetsNear, _ = s.browser.sheetsGap.Open()
 				} else {
-					s.nav.sheetsNear = s.sheetCreateGap(list, rows)
+					s.browser.sheetsNear = s.sheetCreateGap(list, rows)
 				}
 			}
-			if ordered && s.nav.sheetDropVisible && s.nav.sheetDropSlot == len(entries) {
+			if ordered && s.browser.sheetDropVisible && s.browser.sheetDropSlot == len(entries) {
 				s.sheetDropPlaceholder(c, semantic, dragging, animate)
 			}
 			if create != nil && !createAtTop {
@@ -527,19 +531,19 @@ func (s *State) sheetRows(
 			if ordered {
 				// Keep the pre-placeholder geometry for the whole drag:
 				// moving rows must not chase the pointer into a new slot.
-				if !dragging && !s.nav.sheetDropVisible {
+				if !dragging && !s.browser.sheetDropVisible {
 					s.trackSheetDropRows(list, entries, rows)
 				}
 				if moved, ok := ui.Drop[sheetMove](list); ok {
-					if s.nav.sheetDropVisible {
+					if s.browser.sheetDropVisible {
 						s.startLanding(c, list, moved.sheetMoveID())
 					}
 					s.moveSheetToSlot(moved.sheetMoveID(), place.Group, dropSlot, entries)
 					// The row lands in the placeholder's space: it goes at
 					// once rather than closing behind the row, which would
 					// move the rows after it a second time.
-					s.nav.sheetDropVisible, s.nav.sheetDropSlot = false, -1
-					s.nav.sheetDropHeight, s.nav.sheetDropRoom = 0, 0
+					s.browser.sheetDropVisible, s.browser.sheetDropSlot = false, -1
+					s.browser.sheetDropHeight, s.browser.sheetDropRoom = 0, 0
 				}
 			}
 		})
@@ -601,7 +605,7 @@ func (s *State) sheetCreateGap(list ui.Element, rows []ui.Element) int {
 
 // sheetDropPlan chooses the insertion slot from the rows as last laid out,
 // and keeps the dragged row's height for the in-flow placeholder.
-func (s *State) sheetDropPlan(
+func (s listing) sheetDropPlan(
 	list ui.Element,
 	entries []GroupEntry,
 	dragged sheetMove,
@@ -636,8 +640,8 @@ func (s *State) sheetDropPlan(
 	return slot, height
 }
 
-func (s *State) sheetDropSpan(id string) (sheetDropSpan, bool) {
-	for _, span := range s.nav.sheetDropRows {
+func (s listing) sheetDropSpan(id string) (sheetDropSpan, bool) {
+	for _, span := range s.browser.sheetDropRows {
 		if span.id == id {
 			return span, true
 		}
@@ -647,7 +651,7 @@ func (s *State) sheetDropSpan(id string) (sheetDropSpan, bool) {
 
 // trackSheetDropRows keeps the row geometry the next frame uses to choose
 // an insertion slot.
-func (s *State) trackSheetDropRows(list ui.Element, entries []GroupEntry, rows []ui.Element) {
+func (s listing) trackSheetDropRows(list ui.Element, entries []GroupEntry, rows []ui.Element) {
 	listTop := list.LayoutBounds().Y
 	spans := make([]sheetDropSpan, 0, len(rows))
 	for index, row := range rows {
@@ -658,13 +662,13 @@ func (s *State) trackSheetDropRows(list ui.Element, entries []GroupEntry, rows [
 			height: bounds.H,
 		})
 	}
-	s.nav.sheetDropRows = spans
+	s.browser.sheetDropRows = spans
 }
 
 // sheetDropPlaceholder reserves the dragged row's space at the insertion
 // target. It opens and closes on a spring, so rows move around it instead
 // of underneath the dragged copy.
-func (s *State) sheetDropPlaceholder(
+func (s listing) sheetDropPlaceholder(
 	c *ui.Context,
 	semantic theme.Theme,
 	active, animate bool,
@@ -674,9 +678,9 @@ func (s *State) sheetDropPlaceholder(
 	height := float32(0)
 	opacity := float32(0)
 	if active {
-		height, opacity = s.nav.sheetDropRoom+s.nav.sheetDropHeight, 1
+		height, opacity = s.browser.sheetDropRoom+s.browser.sheetDropHeight, 1
 	}
-	room := s.nav.sheetDropRoom
+	room := s.browser.sheetDropRoom
 	// It opens and closes by its own height, and only moves between
 	// slots by its transition: one that also took it out would leave its
 	// outline under a row that has just landed in its space.
@@ -699,7 +703,7 @@ func (s *State) sheetDropPlaceholder(
 			components.DropFrame(p, r, metrics.Radius, 1, semantic)
 		})
 	if !active && (!animate || area.Arrived("height")) {
-		s.nav.sheetDropVisible = false
+		s.browser.sheetDropVisible = false
 	}
 	return area
 }
@@ -723,10 +727,10 @@ type landing struct {
 
 // noteGrab keeps where the pointer took row, for a drag that may follow,
 // and where the row stands while it is dragged.
-func (s *State) noteGrab(row ui.Element, id string, dragging bool) {
+func (s listing) noteGrab(row ui.Element, id string, dragging bool) {
 	if dragging {
-		if s.nav.grab.id == id {
-			s.nav.grab.top = row.LayoutBounds().Y - s.nav.listTop
+		if s.browser.grab.id == id {
+			s.browser.grab.top = row.LayoutBounds().Y - s.browser.listTop
 		}
 		return
 	}
@@ -734,22 +738,22 @@ func (s *State) noteGrab(row ui.Element, id string, dragging bool) {
 		return
 	}
 	if _, y, ok := row.PointerPosition(); ok {
-		s.nav.grab = grab{id: id, y: y, top: row.LayoutBounds().Y - s.nav.listTop}
+		s.browser.grab = grab{id: id, y: y, top: row.LayoutBounds().Y - s.browser.listTop}
 	}
 }
 
 // startLanding begins a dropped row's landing from where its dragged copy
 // was let go.
-func (s *State) startLanding(c *ui.Context, list ui.Element, id string) {
-	if s.nav.grab.id != id {
+func (s listing) startLanding(c *ui.Context, list ui.Element, id string) {
+	if s.browser.grab.id != id {
 		return
 	}
 	_, pointer, over := list.PointerPosition()
 	if !over {
 		return
 	}
-	s.nav.landing = landing{
-		id: id, from: pointer - s.nav.grab.y, source: s.nav.grab.top, dropped: c.Now(),
+	s.browser.landing = landing{
+		id: id, from: pointer - s.browser.grab.y, source: s.browser.grab.top, dropped: c.Now(),
 	}
 }
 
@@ -765,13 +769,13 @@ const landWait = 100 * time.Millisecond
 // which can take more than one build: until its layout leaves where it was
 // dragged from, it stays hidden, as the dragged copy has just gone, rather
 // than be drawn from a place it is not.
-func (s *State) land(c *ui.Context, row ui.Element, id string, animate bool) bool {
-	l := &s.nav.landing
+func (s listing) land(c *ui.Context, row ui.Element, id string, animate bool) bool {
+	l := &s.browser.landing
 	if l.id != id {
 		return false
 	}
 	now := c.Now()
-	top := row.LayoutBounds().Y - s.nav.listTop
+	top := row.LayoutBounds().Y - s.browser.listTop
 	if l.at.IsZero() {
 		if !animate || now.Sub(l.dropped) > landWait {
 			*l = landing{}
@@ -831,7 +835,7 @@ func (s *State) moveSheetToSlot(id, group string, slot int, entries []GroupEntry
 	}
 }
 
-func (s *State) sheetRow(
+func (s listing) sheetRow(
 	c *ui.Context,
 	semantic theme.Theme,
 	sheet SheetItem,
@@ -990,7 +994,7 @@ func (s *State) startChapterRename(id, name string) {
 // the pointer as a sheet card does. Renamed, it is the same row: the name
 // turns into its field where it stands as the row takes the field's inset
 // and edge, so nothing else in the list moves.
-func (s *State) chapterRow(
+func (s listing) chapterRow(
 	c *ui.Context,
 	semantic theme.Theme,
 	chapter ChapterItem,
@@ -1012,9 +1016,9 @@ func (s *State) chapterRow(
 	}
 	s.enter(c, row)
 	s.land(c, row, chapter.ID, animate)
-	if s.nav.revealing == chapter.ID {
+	if s.browser.revealing == chapter.ID {
 		// Just made: wherever it lands, its field comes into view.
-		s.nav.revealing = ""
+		s.browser.revealing = ""
 		row.ScrollIntoView()
 	}
 	hover := components.HoverAmount(row, !editing && (row.Hovered() || row.FocusVisible()), animate)
@@ -1107,8 +1111,8 @@ func chapterRoom(scale float32) float32 { return theme.Space20.DIPs(scale) }
 
 // chapterTransition brings a chapter in as its row unfolds, its name or
 // field showing only as the row has room for it.
-func (s *State) chapterTransition(animate bool) ui.ElementTransition {
-	if !animate || s.nav.fresh {
+func (s listing) chapterTransition(animate bool) ui.ElementTransition {
+	if !animate || s.browser.fresh {
 		return s.listRowTransition(animate)
 	}
 	return ui.ElementTransition{
@@ -1150,7 +1154,7 @@ func (s *State) chapterMenu(chapter ChapterItem) func(*ui.Menu) {
 }
 
 // trashedGroupRow is a group in the trash, with what it would take with it.
-func (s *State) trashedGroupRow(c *ui.Context, semantic theme.Theme, group GroupItem, animate bool) {
+func (s listing) trashedGroupRow(c *ui.Context, semantic theme.Theme, group GroupItem, animate bool) {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	key := "delete-group-" + group.ID
@@ -1187,7 +1191,7 @@ func (s *State) trashedGroupRow(c *ui.Context, semantic theme.Theme, group Group
 	})
 }
 
-func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
+func (s listing) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if s.chose(m.Item("Open")) {
 			s.Library.OpenSheet(sheet.ID, false)
@@ -1210,7 +1214,7 @@ func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 			s.Library.DuplicateSheet(sheet.ID)
 		}
 		s.moveMenu(m, func(group string) {
-			s.nav.menuRing.chose = true
+			s.browser.menuRing.chose = true
 			s.Library.MoveSheet(sheet.ID, group, Last)
 		}, "")
 		if s.chose(m.Item("Show in Library")) {
@@ -1225,7 +1229,7 @@ func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 
 // listHeader is the sheet list's part of the panes' title line: the place
 // it shows, or the search field, and its toggle at its end.
-func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal float32, animate bool) {
+func (s listing) listHeader(c *ui.Context, semantic theme.Theme, width, reveal float32, animate bool) {
 	if width <= 0.01 || s.Library == nil {
 		return
 	}
@@ -1238,7 +1242,7 @@ func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal fl
 			layer := ui.Row(c).Key("head-" + view.key()).Absolute().Top(0).Left(0).WidthPercent(100).HeightPercent(100).
 				PaddingStart(theme.Space12.DIPs(scale) * (1 - s.listDock)).PaddingEnd(listLineEnd.DIPs(scale)).
 				AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale) * (1 - s.listDock)).
-				Transition(swapTransition(animate, s.nav.side*enterSlide*scale/theme.DefaultUIFontSize))
+				Transition(swapTransition(animate, s.browser.side*enterSlide*scale/theme.DefaultUIFontSize))
 			layer.Children(func() {
 				if view.search {
 					s.searchHeader(c, semantic, animate)
@@ -1252,7 +1256,7 @@ func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal fl
 
 // placeInfo is what the list says of a place: its title, icon and tint,
 // and the count of what it holds.
-func (s *State) placeInfo(semantic theme.Theme, place Place) (title string, icon components.IconName, tint *ui.Color, detail string) {
+func (s listing) placeInfo(semantic theme.Theme, place Place) (title string, icon components.IconName, tint *ui.Color, detail string) {
 	title, icon = "All", components.IconSheets
 	sheets := s.Library.Sheets(place)
 	detail = sheetCount(len(sheets))
@@ -1283,7 +1287,7 @@ func (s *State) placeInfo(semantic theme.Theme, place Place) (title string, icon
 // library is closed its title and count go down to the top of the list
 // (placeBand), leaving the line to the buttons; dock is how far they have
 // gone.
-func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, dock float32, animate bool) {
+func (s listing) placeHeader(c *ui.Context, semantic theme.Theme, place Place, dock float32, animate bool) {
 	title, icon, tint, detail := s.placeInfo(semantic, place)
 	scale := s.Settings.UIFontSize
 	// The line narrows to its toggle as the title goes (titleLines); the
@@ -1328,7 +1332,7 @@ func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, do
 // the library is closed and the title line has the panes' toggles to
 // share. It opens as the line's title gives way, so the two read as one
 // title moving down and back up.
-func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, dock float32, animate bool) {
+func (s listing) placeBand(c *ui.Context, semantic theme.Theme, view listView, dock float32, animate bool) {
 	if dock <= 0.001 || view.search {
 		return
 	}
@@ -1343,7 +1347,7 @@ func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, do
 		layer := ui.Row(c).Key("band-" + view.key()).Absolute().Top(0).Left(0).Right(0).Height(height).
 			PaddingX(theme.Space12.DIPs(scale)).AlignItems(ui.Center).Gap(bandTitle.gap.DIPs(scale)).
 			Opacity(shown).
-			Transition(swapTransition(animate, s.nav.side*enterSlide*scale/theme.DefaultUIFontSize))
+			Transition(swapTransition(animate, s.browser.side*enterSlide*scale/theme.DefaultUIFontSize))
 		layer.Children(func() {
 			title, icon, tint, detail := s.placeInfo(semantic, view.place)
 			s.rowIcon(c, semantic, icon, tint, animate)

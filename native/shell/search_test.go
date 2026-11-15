@@ -50,8 +50,8 @@ func TestADollarOffersKeysAndTheirValues(t *testing.T) {
 	}
 	tester.Key(0, ui.KeyTab)
 	settle(tester)
-	if state.SearchQuery != "$tag:" {
-		t.Fatalf("Tab took %q", state.SearchQuery)
+	if state.list.query != "$tag:" {
+		t.Fatalf("Tab took %q", state.list.query)
 	}
 	tester.Type("we")
 	settle(tester)
@@ -60,20 +60,20 @@ func TestADollarOffersKeysAndTheirValues(t *testing.T) {
 	}
 	tester.Key(0, ui.KeyEnter)
 	settle(tester)
-	if state.SearchQuery != "$tag:weekly " {
-		t.Fatalf("Enter took %q", state.SearchQuery)
+	if state.list.query != "$tag:weekly " {
+		t.Fatalf("Enter took %q", state.list.query)
 	}
 	tester.Type("$")
 	settle(tester)
 	tester.Key(0, ui.KeyEscape)
 	settle(tester)
-	if !state.nav.searching || tester.HasText("Sheets in the Inbox") {
-		t.Fatalf("Escape puts the suggestions away first: %v %#v", state.nav.searching, tester.Texts())
+	if !state.list.searching || tester.HasText("Sheets in the Inbox") {
+		t.Fatalf("Escape puts the suggestions away first: %v %#v", state.list.searching, tester.Texts())
 	}
 	tester.Key(0, ui.KeyEscape)
 	settle(tester)
-	if state.nav.searching || state.SearchQuery != "" {
-		t.Fatalf("then ends the search: %q", state.SearchQuery)
+	if state.list.searching || state.list.query != "" {
+		t.Fatalf("then ends the search: %q", state.list.query)
 	}
 }
 
@@ -85,14 +85,14 @@ func TestTheKeysReachEverySuggestion(t *testing.T) {
 		tester.Key(0, ui.KeyDown)
 	}
 	settle(tester)
-	f := state.nav.find.input
+	f := state.list.find.input
 	if f.suggestion != suggestionsShown+1 || f.first != 2 || !tester.HasText(f.completion.Items[f.suggestion].Label) {
 		t.Fatalf("suggestion %d first %d %#v", f.suggestion, f.first, tester.Texts())
 	}
 	tester.Key(0, ui.KeyEnter)
 	settle(tester)
-	if state.SearchQuery != f.completion.Items[f.suggestion].Text {
-		t.Fatalf("took %q", state.SearchQuery)
+	if state.list.query != f.completion.Items[f.suggestion].Text {
+		t.Fatalf("took %q", state.list.query)
 	}
 }
 
@@ -104,8 +104,8 @@ func TestAQueryGoesWhereItRuns(t *testing.T) {
 	state.Find = func(q string) { sought = append(sought, q) }
 	tester.Type("$sheet ")
 	settle(tester)
-	if state.nav.searching || !state.FindOpen() || state.FindQuery != "" {
-		t.Fatalf("$sheet did not go to the sheet's find: searching %v find %q", state.nav.searching, state.FindQuery)
+	if state.list.searching || !state.FindOpen() || state.FindQuery != "" {
+		t.Fatalf("$sheet did not go to the sheet's find: searching %v find %q", state.list.searching, state.FindQuery)
 	}
 	tester.Type("tide")
 	settle(tester)
@@ -181,8 +181,8 @@ func TestTheFiltersEditTheQueryTheyShow(t *testing.T) {
 	// Each filter is a chip in words; it opens its editor.
 	click("Filter: Tag is work")
 	click("Exclude")
-	if state.SearchQuery != "budget -#work" {
-		t.Fatalf("excluding gave %q", state.SearchQuery)
+	if state.list.query != "budget -#work" {
+		t.Fatalf("excluding gave %q", state.list.query)
 	}
 	// Each value says how many sheets it would find in the query without
 	// the filter it would be.
@@ -190,41 +190,41 @@ func TestTheFiltersEditTheQueryTheyShow(t *testing.T) {
 		t.Fatalf("the values shown %#v, calls %v", tester.Texts(), library.calls)
 	}
 	click("#weekly")
-	if state.SearchQuery != "budget -#weekly" || tester.HasText("Exclude") {
-		t.Fatalf("choosing gave %q, the editor open %v", state.SearchQuery, tester.HasText("Exclude"))
+	if state.list.query != "budget -#weekly" || tester.HasText("Exclude") {
+		t.Fatalf("choosing gave %q, the editor open %v", state.list.query, tester.HasText("Exclude"))
 	}
 	click("Add filter")
 	click("Content")
-	if state.SearchQuery != "budget -#weekly $has:" || !tester.Focused("Content value") {
-		t.Fatalf("adding gave %q, focused %v", state.SearchQuery, tester.Focused("Content value"))
+	if state.list.query != "budget -#weekly $has:" || !tester.Focused("Content value") {
+		t.Fatalf("adding gave %q, focused %v", state.list.query, tester.Focused("Content value"))
 	}
 	tester.Type("image")
 	settle(tester)
-	if state.SearchQuery != "budget -#weekly $has:image" {
-		t.Fatalf("writing the value gave %q", state.SearchQuery)
+	if state.list.query != "budget -#weekly $has:image" {
+		t.Fatalf("writing the value gave %q", state.list.query)
 	}
 	tester.Key(0, ui.KeyEscape)
 	settle(tester)
 	// A filter added and left without a value was not wanted.
 	click("Add filter")
 	click("Words")
-	if state.SearchQuery != "budget -#weekly $has:image $words:" {
-		t.Fatalf("adding words gave %q", state.SearchQuery)
+	if state.list.query != "budget -#weekly $has:image $words:" {
+		t.Fatalf("adding words gave %q", state.list.query)
 	}
 	tester.Key(0, ui.KeyEscape)
 	settle(tester)
-	if state.SearchQuery != "budget -#weekly $has:image" {
-		t.Fatalf("leaving it empty kept %q", state.SearchQuery)
+	if state.list.query != "budget -#weekly $has:image" {
+		t.Fatalf("leaving it empty kept %q", state.list.query)
 	}
 	// The query's own text is the filters': written there, it shows here.
-	state.SearchQuery += " $trash"
+	state.list.query += " $trash"
 	settle(tester)
 	if !tester.HasText("In the trash") {
 		t.Fatalf("the filters do not follow the query: %#v", tester.Texts())
 	}
 	click("Remove filter: Tag is not weekly")
-	if state.SearchQuery != "budget $has:image $trash" {
-		t.Fatalf("removing gave %q", state.SearchQuery)
+	if state.list.query != "budget $has:image $trash" {
+		t.Fatalf("removing gave %q", state.list.query)
 	}
 }
 
@@ -239,8 +239,8 @@ func TestASearchIsKeptAsASmartFolderAndChangedAgain(t *testing.T) {
 	if !slices.Contains(library.calls, "new smart $words:>1000") {
 		t.Fatalf("calls %v", library.calls)
 	}
-	if state.nav.searching || state.nav.place != (Place{Kind: PlaceGroup, Group: "5"}) || state.nav.renaming != "5" {
-		t.Fatalf("after saving: searching %v place %+v renaming %q", state.nav.searching, state.nav.place, state.nav.renaming)
+	if state.list.searching || state.list.place != (Place{Kind: PlaceGroup, Group: "5"}) || state.nav.renaming != "5" {
+		t.Fatalf("after saving: searching %v place %+v renaming %q", state.list.searching, state.list.place, state.nav.renaming)
 	}
 	tester.Key(0, ui.KeyEscape)
 	settle(tester)
@@ -260,23 +260,23 @@ func TestASearchIsKeptAsASmartFolderAndChangedAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if !state.nav.searching || state.SearchQuery != "$words:>1000" || !tester.HasText("Editing") {
-		t.Fatalf("editing searches %q, says so %v", state.SearchQuery, tester.HasText("Editing"))
+	if !state.list.searching || state.list.query != "$words:>1000" || !tester.HasText("Editing") {
+		t.Fatalf("editing searches %q, says so %v", state.list.query, tester.HasText("Editing"))
 	}
 	// Cancel goes back to the folder as it was.
 	if err := tester.Click("Cancel"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if state.nav.searching || state.nav.place != (Place{Kind: PlaceGroup, Group: "5"}) {
-		t.Fatalf("cancel left searching %v at %+v", state.nav.searching, state.nav.place)
+	if state.list.searching || state.list.place != (Place{Kind: PlaceGroup, Group: "5"}) {
+		t.Fatalf("cancel left searching %v at %+v", state.list.searching, state.list.place)
 	}
 	// The folder says what it finds, and is changed from there too.
 	if err := tester.Click("Edit"); err != nil {
 		t.Fatalf("%v: %#v", err, tester.Texts())
 	}
 	settle(tester)
-	state.SearchQuery = "$words:>2000"
+	state.list.query = "$words:>2000"
 	settle(tester)
 	if err := tester.Click("Save Changes"); err != nil {
 		t.Fatal(err)
@@ -291,19 +291,19 @@ func TestOnlyAQueryOfTheNotebookIsKept(t *testing.T) {
 	state, _, tester := searching(t)
 	tester.Type("budget")
 	settle(tester)
-	if !state.saves() {
+	if !state.sheets().saves() {
 		t.Fatal("a search of the notebook cannot be saved")
 	}
-	state.SearchQuery = "$trash"
-	if !state.saves() {
+	state.list.query = "$trash"
+	if !state.sheets().saves() {
 		t.Fatal("a query of keys alone cannot be saved")
 	}
-	state.SearchQuery = "   "
-	if state.saves() {
+	state.list.query = "   "
+	if state.sheets().saves() {
 		t.Fatal("an empty query can be saved")
 	}
-	state.SearchQuery = "$sheet tide"
-	if state.saves() {
+	state.list.query = "$sheet tide"
+	if state.sheets().saves() {
 		t.Fatal("a sheet's find can be saved")
 	}
 }

@@ -145,14 +145,14 @@ func TestLibraryListsPullPastTheirEdges(t *testing.T) {
 		tester.Frame()
 		tester.Advance(time.Second)
 		tester.Scroll(400, 500, 0, 100000)
-		if state.sheetScroll.MaxY <= 0 || state.sheetScroll.Y != state.sheetScroll.MaxY {
-			t.Fatalf("sheets stopped at %v of %v", state.sheetScroll.Y, state.sheetScroll.MaxY)
+		if state.list.scroll.MaxY <= 0 || state.list.scroll.Y != state.list.scroll.MaxY {
+			t.Fatalf("sheets stopped at %v of %v", state.list.scroll.Y, state.list.scroll.MaxY)
 		}
-		if _, y := state.sheetOverscroll.Offset(); y >= 0 {
+		if _, y := state.list.overscroll.Offset(); y >= 0 {
 			t.Fatalf("sheet pull = %v, want past its end", y)
 		}
 		tester.Advance(2 * time.Second)
-		if _, y := state.sheetOverscroll.Offset(); y != 0 {
+		if _, y := state.list.overscroll.Offset(); y != 0 {
 			t.Fatalf("sheet pull did not settle: %v", y)
 		}
 	})
@@ -229,9 +229,9 @@ func TestSheetDragReordersWithAnAnimatedPlaceholder(t *testing.T) {
 		tester.Advance(16 * time.Millisecond)
 		tester.Frame()
 	}
-	if state.nav.sheetDropSlot != 1 || state.nav.sheetDropVisible {
+	if state.list.sheetDropSlot != 1 || state.list.sheetDropVisible {
 		t.Fatalf("own-place target showed a placeholder: slot %d visible %v",
-			state.nav.sheetDropSlot, state.nav.sheetDropVisible)
+			state.list.sheetDropSlot, state.list.sheetDropVisible)
 	}
 	if got := countNewSheet(); got != before {
 		t.Fatalf("drag opened %d create areas, want %d", got, before)
@@ -240,12 +240,12 @@ func TestSheetDragReordersWithAnAnimatedPlaceholder(t *testing.T) {
 	// The lower half of the same row is a different place, after it.
 	tester.Move(x, second.Y+second.H*0.8)
 	tester.Frame()
-	if state.nav.sheetDropSlot != 2 {
-		t.Fatalf("insertion slot = %d, want after the second sheet", state.nav.sheetDropSlot)
+	if state.list.sheetDropSlot != 2 {
+		t.Fatalf("insertion slot = %d, want after the second sheet", state.list.sheetDropSlot)
 	}
-	if !state.nav.sheetDropVisible || state.nav.sheetDropHeight <= 0 {
+	if !state.list.sheetDropVisible || state.list.sheetDropHeight <= 0 {
 		t.Fatalf("drag placeholder = visible %v, height %v",
-			state.nav.sheetDropVisible, state.nav.sheetDropHeight)
+			state.list.sheetDropVisible, state.list.sheetDropHeight)
 	}
 	if !tester.FramePending() {
 		t.Fatal("placeholder and rows did not animate to the new target")
@@ -254,7 +254,7 @@ func TestSheetDragReordersWithAnAnimatedPlaceholder(t *testing.T) {
 	tester.Frame()
 	// The row lands in the placeholder's space, which goes at once rather
 	// than closing behind it; the row still moves there.
-	if state.nav.sheetDropVisible || !tester.FramePending() {
+	if state.list.sheetDropVisible || !tester.FramePending() {
 		t.Fatal("the placeholder lingered after the drop, or the row did not move to it")
 	}
 	settle(tester)
@@ -264,7 +264,7 @@ func TestSheetDragReordersWithAnAnimatedPlaceholder(t *testing.T) {
 	if move := library.moves[0]; move.id != "7" || move.group != "2" || move.index != 1 {
 		t.Fatalf("sheet move = %#v, want Chapter after the second sheet", move)
 	}
-	if state.nav.sheetDropVisible {
+	if state.list.sheetDropVisible {
 		t.Fatal("drag placeholder did not close after the drop")
 	}
 }
@@ -289,12 +289,12 @@ func TestSheetDragMovesAnItemToTheBottom(t *testing.T) {
 	tester.Frame()
 	tester.Move(x, last.Y+last.H+8)
 	tester.Frame()
-	if state.nav.sheetDropSlot != 3 {
-		t.Fatalf("insertion slot = %d, want the end", state.nav.sheetDropSlot)
+	if state.list.sheetDropSlot != 3 {
+		t.Fatalf("insertion slot = %d, want the end", state.list.sheetDropSlot)
 	}
-	if !state.nav.sheetDropVisible || state.nav.sheetDropHeight <= 0 {
+	if !state.list.sheetDropVisible || state.list.sheetDropHeight <= 0 {
 		t.Fatalf("end placeholder = visible %v, height %v",
-			state.nav.sheetDropVisible, state.nav.sheetDropHeight)
+			state.list.sheetDropVisible, state.list.sheetDropHeight)
 	}
 	tester.Release(x, last.Y+last.H+8)
 	settle(tester)
@@ -333,9 +333,9 @@ func TestChapterDragReordersTheDivider(t *testing.T) {
 	tester.Frame()
 	tester.Move(x, last.Y+last.H+8)
 	tester.Frame()
-	if state.nav.sheetDropSlot != 3 || !state.nav.sheetDropVisible {
+	if state.list.sheetDropSlot != 3 || !state.list.sheetDropVisible {
 		t.Fatalf("chapter drop = slot %d visible %v",
-			state.nav.sheetDropSlot, state.nav.sheetDropVisible)
+			state.list.sheetDropSlot, state.list.sheetDropVisible)
 	}
 	if !tester.FramePending() {
 		t.Fatal("the chapter drag did not animate the placeholder")
@@ -395,7 +395,7 @@ func TestAllAndRecentDoNotReorder(t *testing.T) {
 			tester.Press(x, draft.Y+draft.H/2)
 			tester.Move(x, draft.Y+draft.H/2+10)
 			tester.Frame()
-			if state.nav.sheetDropVisible {
+			if state.list.sheetDropVisible {
 				t.Fatal("All/Recent drag showed a reorder placeholder")
 			}
 			tester.Release(x, draft.Y+draft.H/2+10)
@@ -472,8 +472,8 @@ func TestCreateSheetHoverTargetsTheSpaceBetweenRows(t *testing.T) {
 		tester.Advance(16 * time.Millisecond)
 		tester.Frame()
 	}
-	if at, open := state.nav.sheetsGap.Open(); !open || at != 1 || !state.nav.sheetsGap.Over() {
-		t.Fatalf("gap = open %v at %d over %v", open, at, state.nav.sheetsGap.Over())
+	if at, open := state.list.sheetsGap.Open(); !open || at != 1 || !state.list.sheetsGap.Over() {
+		t.Fatalf("gap = open %v at %d over %v", open, at, state.list.sheetsGap.Over())
 	}
 	// The area reaches into the gap's proximity band, so the pointer can
 	// click where it came to rest.
@@ -794,11 +794,11 @@ func TestLibraryReconciliationKeepsSearchOpen(t *testing.T) {
 	state, library := nestedGroupState()
 	state.Go(Place{Kind: PlaceGroup, Group: "4"})
 	state.Search()
-	state.SearchQuery = "needle"
+	state.list.query = "needle"
 	library.groupTree["3"] = nil
 	state.ReconcileLibrary()
-	if state.Place() != (Place{Kind: PlaceAll}) || !state.nav.searching || state.SearchQuery != "needle" {
-		t.Fatalf("place = %+v, searching = %v, query = %q", state.Place(), state.nav.searching, state.SearchQuery)
+	if state.Place() != (Place{Kind: PlaceAll}) || !state.list.searching || state.list.query != "needle" {
+		t.Fatalf("place = %+v, searching = %v, query = %q", state.Place(), state.list.searching, state.list.query)
 	}
 }
 
@@ -1102,7 +1102,7 @@ func TestSearchListsMatchingSheetsInTheSheetList(t *testing.T) {
 	}
 	tester.Key(0, ui.KeyEscape)
 	settle(tester)
-	if state.SearchQuery != "" || tester.HasText("Chapter") || !tester.HasText("Draft") {
+	if state.list.query != "" || tester.HasText("Chapter") || !tester.HasText("Draft") {
 		t.Fatalf("Escape should end the search and show the place again, but it shows %#v.", tester.Texts())
 	}
 	if tester.HasText("Done") {
@@ -1119,7 +1119,7 @@ func TestSearchListsMatchingSheetsInTheSheetList(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if state.SearchQuery != "" || !tester.HasText("Draft") {
+	if state.list.query != "" || !tester.HasText("Draft") {
 		t.Fatalf("Search pressed again should end the search, but it shows %#v.", tester.Texts())
 	}
 }
@@ -1371,8 +1371,8 @@ func TestTheSheetListSlidesFromTheSideOfItsPlace(t *testing.T) {
 	if err := tester.Click("Novel"); err != nil {
 		t.Fatal(err)
 	}
-	if state.nav.side != 1 {
-		t.Fatalf("going down to a group came from %v", state.nav.side)
+	if state.list.side != 1 {
+		t.Fatalf("going down to a group came from %v", state.list.side)
 	}
 }
 
@@ -1481,8 +1481,8 @@ func TestADroppedChapterLandsInOneMove(t *testing.T) {
 	target := second.Y + 4
 	tester.Move(x, target)
 	settle(tester)
-	if state.nav.sheetDropSlot != 1 || !state.nav.sheetDropVisible {
-		t.Fatalf("drop = slot %d visible %v", state.nav.sheetDropSlot, state.nav.sheetDropVisible)
+	if state.list.sheetDropSlot != 1 || !state.list.sheetDropVisible {
+		t.Fatalf("drop = slot %d visible %v", state.list.sheetDropSlot, state.list.sheetDropVisible)
 	}
 	held, _ := tester.Find("Second")
 	tester.Release(x, target)

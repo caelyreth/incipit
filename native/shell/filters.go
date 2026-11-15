@@ -33,9 +33,9 @@ func filterKeys() []*query.Key {
 }
 
 // setSearch puts text in the search's field, as typing it there would.
-func (s *State) setSearch(text string) {
-	s.SearchQuery = text
-	s.nav.find.row = -1
+func (s listing) setSearch(text string) {
+	s.browser.query = text
+	s.browser.find.row = -1
 }
 
 // filterEditor is the filter whose editor is open.
@@ -54,12 +54,12 @@ var closedFilter = filterEditor{index: -1}
 
 // filterBar is the query's filters, a chip each, and the chip that adds
 // one, wrapping as the list's width asks.
-func (s *State) filterBar(c *ui.Context, semantic theme.Theme, animate bool) {
+func (s listing) filterBar(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
-	text := s.SearchQuery
+	text := s.browser.query
 	q := query.Parse(text)
 	conditions := query.Conditions(q)
-	ed := &s.nav.find.filter
+	ed := &s.browser.find.filter
 	if ed.index >= len(conditions) {
 		*ed = closedFilter
 	}
@@ -97,9 +97,9 @@ func (s *State) chipShape(chip ui.Element, semantic theme.Theme, open, acts, ani
 // filterChip is one filter: its words, which open its editor, and the
 // button that takes it away. A filter the language does not read as
 // written says so, in the danger color.
-func (s *State) filterChip(c *ui.Context, semantic theme.Theme, text string, cond query.Condition, index int, wrong, animate bool) {
+func (s listing) filterChip(c *ui.Context, semantic theme.Theme, text string, cond query.Condition, index int, wrong, animate bool) {
 	scale := s.Settings.UIFontSize
-	ed := &s.nav.find.filter
+	ed := &s.browser.find.filter
 	sentence := cond.Sentence()
 	chip := ui.Row(c).Key("filter-" + strconv.Itoa(index))
 	s.chipShape(chip, semantic, ed.index == index && ed.open, true, animate)
@@ -193,9 +193,9 @@ func (s *State) chipWords(c *ui.Context, semantic theme.Theme, cond query.Condit
 
 // addFilterChip adds a filter: it lists the keys, and the one chosen
 // comes as a filter with its editor open on its value.
-func (s *State) addFilterChip(c *ui.Context, semantic theme.Theme, text string, count int, animate bool) {
+func (s listing) addFilterChip(c *ui.Context, semantic theme.Theme, text string, count int, animate bool) {
 	scale := s.Settings.UIFontSize
-	ed := &s.nav.find.filter
+	ed := &s.browser.find.filter
 	add := ui.ButtonBase(c.Key("add-filter")).Label("Add filter").Tooltip("Add filter").
 		PaddingX(theme.Space08.DIPs(scale)).Gap(theme.Space04.DIPs(scale)).FocusRing(false)
 	s.chipShape(add, semantic, ed.adding, true, animate)
@@ -285,10 +285,10 @@ func (s *State) optionRow(c *ui.Context, semantic theme.Theme, key, label, end, 
 // sheets it holds of are included or excluded, and its value, written or
 // chosen, each value with how many sheets it would find in place of the
 // one now. A filter just added and left without a value goes again.
-func (s *State) editFilter(c *ui.Context, semantic theme.Theme, chip ui.Element, text string, cond query.Condition, animate bool) {
+func (s listing) editFilter(c *ui.Context, semantic theme.Theme, chip ui.Element, text string, cond query.Condition, animate bool) {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
-	ed := &s.nav.find.filter
+	ed := &s.browser.find.filter
 	set := func(next query.Condition) {
 		ed.fresh = false
 		s.setSearch(query.Replace(text, cond.Span, next.String()))

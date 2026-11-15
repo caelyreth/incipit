@@ -164,7 +164,7 @@ func TestTheCanvasSearchLightsInPlace(t *testing.T) {
 	if !tester.HasText("2 sheets found") || !tester.HasText("Inbox") {
 		t.Fatalf("The head should say what the search found, among the regions, but it shows %#v.", tester.Texts())
 	}
-	if state.nav.searching {
+	if state.list.searching {
 		t.Fatal("The columns' search should stay closed under the canvas.")
 	}
 }

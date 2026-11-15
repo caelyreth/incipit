@@ -28,7 +28,7 @@ func TestShiftClickPicksARunOfSheets(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if got := state.pickedSheets(); !slices.Equal(got, []string{"extra-0", "extra-1", "extra-2"}) {
+	if got := state.sheets().pickedSheets(); !slices.Equal(got, []string{"extra-0", "extra-1", "extra-2"}) {
 		t.Fatalf("picked %v", got)
 	}
 	if slices.Contains(library.calls, "open extra-2") {
@@ -41,13 +41,13 @@ func TestShiftClickPicksARunOfSheets(t *testing.T) {
 	if err := tester.ClickWith(ui.Shift, "Chapter"); err != nil {
 		t.Fatal(err)
 	}
-	if got := state.pickedSheets(); !slices.Equal(got, []string{"7", "extra-0"}) {
+	if got := state.sheets().pickedSheets(); !slices.Equal(got, []string{"7", "extra-0"}) {
 		t.Fatalf("picked %v after picking back", got)
 	}
 	tester.Key(0, ui.KeyEscape)
 	tester.Frame()
-	if len(state.pickedSheets()) != 0 {
-		t.Fatalf("Escape kept %v", state.pickedSheets())
+	if len(state.sheets().pickedSheets()) != 0 {
+		t.Fatalf("Escape kept %v", state.sheets().pickedSheets())
 	}
 	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
 		t.Fatal(err)
@@ -55,8 +55,8 @@ func TestShiftClickPicksARunOfSheets(t *testing.T) {
 	if err := tester.Click("Sheet 4"); err != nil {
 		t.Fatal(err)
 	}
-	if len(state.pickedSheets()) != 0 || !slices.Contains(library.calls, "open extra-3") {
-		t.Fatalf("a plain click kept %v, calls %v", state.pickedSheets(), library.calls)
+	if len(state.sheets().pickedSheets()) != 0 || !slices.Contains(library.calls, "open extra-3") {
+		t.Fatalf("a plain click kept %v, calls %v", state.sheets().pickedSheets(), library.calls)
 	}
 }
 
@@ -85,8 +85,8 @@ func TestThePickedSheetsTakeABatchMenu(t *testing.T) {
 	if !slices.Equal(moved, []string{"7", "extra-0", "extra-1"}) {
 		t.Fatalf("moved %v, want the picked in order", moved)
 	}
-	if len(state.pickedSheets()) != 0 {
-		t.Fatalf("the picked stayed after the move: %v", state.pickedSheets())
+	if len(state.sheets().pickedSheets()) != 0 {
+		t.Fatalf("the picked stayed after the move: %v", state.sheets().pickedSheets())
 	}
 
 	// A menu on a sheet not picked is its own, and leaves the picked be.
@@ -103,8 +103,8 @@ func TestThePickedSheetsTakeABatchMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	if !slices.Contains(library.calls, "trash extra-2") || len(state.pickedSheets()) != 2 {
-		t.Fatalf("calls %v, picked %v after another sheet's menu", library.calls, state.pickedSheets())
+	if !slices.Contains(library.calls, "trash extra-2") || len(state.sheets().pickedSheets()) != 2 {
+		t.Fatalf("calls %v, picked %v after another sheet's menu", library.calls, state.sheets().pickedSheets())
 	}
 }
 
@@ -113,21 +113,21 @@ func TestAPressElsewhereLetsThePickedGo(t *testing.T) {
 	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
 		t.Fatal(err)
 	}
-	if len(state.pickedSheets()) != 3 {
-		t.Fatalf("picked %v", state.pickedSheets())
+	if len(state.sheets().pickedSheets()) != 3 {
+		t.Fatalf("picked %v", state.sheets().pickedSheets())
 	}
 	// Another shift-click is the run's to change, not a press elsewhere.
 	if err := tester.ClickWith(ui.Shift, "Sheet 1"); err != nil {
 		t.Fatal(err)
 	}
-	if len(state.pickedSheets()) != 2 {
-		t.Fatalf("picked %v after narrowing the run", state.pickedSheets())
+	if len(state.sheets().pickedSheets()) != 2 {
+		t.Fatalf("picked %v after narrowing the run", state.sheets().pickedSheets())
 	}
 	// The page, right of the list.
 	tester.ClickAt(1100, 500)
 	tester.Frame()
-	if len(state.pickedSheets()) != 0 {
-		t.Fatalf("a press on the page kept %v", state.pickedSheets())
+	if len(state.sheets().pickedSheets()) != 0 {
+		t.Fatalf("a press on the page kept %v", state.sheets().pickedSheets())
 	}
 }
 
@@ -137,13 +137,13 @@ func TestCmdClickPicksOrLetsGoOfOneSheet(t *testing.T) {
 	if err := tester.ClickWith(ui.Cmd, "Sheet 2"); err != nil {
 		t.Fatal(err)
 	}
-	if got := state.pickedSheets(); !slices.Equal(got, []string{"7", "extra-1"}) {
+	if got := state.sheets().pickedSheets(); !slices.Equal(got, []string{"7", "extra-1"}) {
 		t.Fatalf("picked %v", got)
 	}
 	if err := tester.ClickWith(ui.Cmd, "Chapter"); err != nil {
 		t.Fatal(err)
 	}
-	if got := state.pickedSheets(); !slices.Equal(got, []string{"extra-1"}) {
+	if got := state.sheets().pickedSheets(); !slices.Equal(got, []string{"extra-1"}) {
 		t.Fatalf("picked %v after letting the open sheet go", got)
 	}
 	settle(tester)
@@ -155,13 +155,13 @@ func TestCmdClickPicksOrLetsGoOfOneSheet(t *testing.T) {
 	if err := tester.ClickWith(ui.Shift, "Sheet 3"); err != nil {
 		t.Fatal(err)
 	}
-	if got := state.pickedSheets(); !slices.Equal(got, []string{"7", "extra-0", "extra-1", "extra-2"}) {
+	if got := state.sheets().pickedSheets(); !slices.Equal(got, []string{"7", "extra-0", "extra-1", "extra-2"}) {
 		t.Fatalf("picked %v after a shift-click", got)
 	}
 	if err := tester.ClickWith(ui.Shift, "Sheet 1"); err != nil {
 		t.Fatal(err)
 	}
-	if got := state.pickedSheets(); !slices.Equal(got, []string{"7", "extra-0", "extra-1"}) {
+	if got := state.sheets().pickedSheets(); !slices.Equal(got, []string{"7", "extra-0", "extra-1"}) {
 		t.Fatalf("picked %v after reshaping the run", got)
 	}
 	for _, call := range library.calls {
@@ -185,14 +185,14 @@ func TestPickingKeepsTheCreateAreasShut(t *testing.T) {
 		}
 	}
 	hover()
-	if _, open := state.nav.sheetsGap.Open(); !open {
+	if _, open := state.list.sheetsGap.Open(); !open {
 		t.Fatal("resting between rows did not call up a create area")
 	}
 	if err := tester.ClickWith(ui.Shift, "Sheet 2"); err != nil {
 		t.Fatal(err)
 	}
 	hover()
-	if _, open := state.nav.sheetsGap.Open(); open {
+	if _, open := state.list.sheetsGap.Open(); open {
 		t.Fatal("a create area opened between rows while sheets were picked")
 	}
 }

@@ -28,24 +28,24 @@ type finding struct {
 }
 
 // editSmartGroup searches with a smart folder's query, to change it.
-func (s *State) editSmartGroup(group GroupItem) {
-	s.Search()
+func (s listing) editSmartGroup(group GroupItem) {
+	s.search()
 	s.setSearch(group.Query)
-	s.nav.find.editing = group.ID
+	s.browser.find.editing = group.ID
 }
 
 // cancelEdit leaves a smart folder's query as it was, and shows the
 // folder again.
-func (s *State) cancelEdit() {
-	id := s.nav.find.editing
+func (s listing) cancelEdit() {
+	id := s.browser.find.editing
 	s.stopSearching()
 	s.Go(Place{Kind: PlaceGroup, Group: id})
 }
 
 // saveSearch keeps the search as a smart folder, or as the query of the
 // one it is the query of, and shows the folder.
-func (s *State) saveSearch() {
-	text, editing := strings.TrimSpace(s.SearchQuery), s.nav.find.editing
+func (s listing) saveSearch() {
+	text, editing := strings.TrimSpace(s.browser.query), s.browser.find.editing
 	id := editing
 	if editing != "" {
 		s.Library.SetGroupQuery(editing, text)
@@ -62,33 +62,36 @@ func (s *State) saveSearch() {
 
 // saves reports whether the search can be kept as a smart folder: a query
 // of the notebook's, with something in it.
-func (s *State) saves() bool {
-	q := query.Parse(s.SearchQuery)
+func (s listing) saves() bool {
+	q := query.Parse(s.browser.query)
 	return q.Scope == query.InNotebook && q.Root != nil
 }
 
 // Search shows search in the sheet list, its field focused.
-func (s *State) Search() {
+func (s *State) Search() { s.sheets().search() }
+
+// search shows search in the list, its field focused.
+func (s listing) search() {
 	// The canvas has a search of its own, which lights what it finds.
 	if s.CanvasOpen() {
 		s.canvas.focus = true
 		s.SearchRequested = false
 		return
 	}
-	s.nav.searching = true
-	s.nav.find.row, s.nav.find.filter = -1, closedFilter
-	s.sheetOverscroll.Reset()
+	s.browser.searching = true
+	s.browser.find.row, s.browser.find.filter = -1, closedFilter
+	s.browser.overscroll.Reset()
 	s.showSheetList()
 	s.SearchRequested = true
 	s.disarm()
 }
 
 // stopSearching gives the sheet list back to the place.
-func (s *State) stopSearching() {
-	s.nav.searching = false
-	s.sheetOverscroll.Reset()
-	s.SearchQuery = ""
-	s.nav.find = finding{row: -1, filter: closedFilter}
+func (s listing) stopSearching() {
+	s.browser.searching = false
+	s.browser.overscroll.Reset()
+	s.browser.query = ""
+	s.browser.find = finding{row: -1, filter: closedFilter}
 }
 
 // searchHeader is the search's line over the sheet list: the query, set
@@ -96,19 +99,19 @@ func (s *State) stopSearching() {
 // query that comes to run in a sheet ($sheet) goes to the sheet's find.
 // Escape ends the search, as choosing a place or pressing search again
 // does.
-func (s *State) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) {
+func (s listing) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) {
 	field, input := queryField{
 		Key: "page-search", Label: "Search sheets", Placeholder: "Search sheets, $ for keys",
-		Value: &s.SearchQuery, In: &s.nav.find.input, Scope: query.InNotebook,
+		Value: &s.browser.query, In: &s.browser.find.input, Scope: query.InNotebook,
 		Focus: s.SearchRequested, Animate: animate, Keys: s.searchKey,
-	}.View(s, c, semantic)
+	}.View(s.State, c, semantic)
 	field.Grow(1)
 	s.SearchRequested = false
 	if input.Changed() {
 		// A new query starts its keys from the top.
-		s.nav.find.row = -1
-		if query.Parse(s.SearchQuery).Scope == query.InSheet && s.ActivePage != "" {
-			text := s.SearchQuery
+		s.browser.find.row = -1
+		if query.Parse(s.browser.query).Scope == query.InSheet && s.ActivePage != "" {
+			text := s.browser.query
 			s.stopSearching()
 			s.StartFind(text)
 		}
@@ -118,8 +121,8 @@ func (s *State) searchHeader(c *ui.Context, semantic theme.Theme, animate bool) 
 // searchKey is what the keys do in the query past its completion: Up and
 // Down go through the sheets found, Enter opens the one the keys are on,
 // or the best, and Escape ends the search.
-func (s *State) searchKey(k ui.TextKey) bool {
-	f := &s.nav.find
+func (s listing) searchKey(k ui.TextKey) bool {
+	f := &s.browser.find
 	switch k.Key {
 	case ui.KeyDown, ui.KeyUp:
 		if k.Mods != 0 {
@@ -156,13 +159,13 @@ func (s *State) searchKey(k ui.TextKey) bool {
 // Above them stand the smart folder whose query is being changed, if one
 // is, the query's filters, and a line saying what was found beside the
 // button that keeps the search as a smart folder.
-func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
-	text := strings.TrimSpace(s.SearchQuery)
+func (s listing) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
+	text := strings.TrimSpace(s.browser.query)
 	var found Found
 	if text != "" {
-		found = s.Library.Search(s.SearchQuery)
+		found = s.Library.Search(s.browser.query)
 	}
-	s.nav.find.found = found
+	s.browser.find.found = found
 	s.editingBanner(c, semantic, animate)
 	s.filterBar(c, semantic, animate)
 	s.searchBar(c, semantic, text, found, animate)
@@ -170,7 +173,7 @@ func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
 		s.emptyList(c, semantic, components.IconSearch, "Search every sheet’s words, add a filter, or type $ for keys", nil, nil, animate)
 		return
 	}
-	f := &s.nav.find
+	f := &s.browser.find
 	if f.row >= len(found.Sheets) {
 		f.row = len(found.Sheets) - 1
 	}
@@ -180,7 +183,7 @@ func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
 	}
 	scale := s.Settings.UIFontSize
 	now := c.Now()
-	scroll := ui.Scroll(c).Key("found").Grow(1).MinHeight(0).TrackScroll(&s.sheetScroll).
+	scroll := ui.Scroll(c).Key("found").Grow(1).MinHeight(0).TrackScroll(&s.browser.scroll).
 		Transition(appearing(motionList, nil, &ui.Motion{Opacity: 0}))
 	var cursor ui.Element
 	shown := false
@@ -198,13 +201,13 @@ func (s *State) searchList(c *ui.Context, semantic theme.Theme, animate bool) {
 	})
 	if f.reveal && shown {
 		f.reveal = false
-		revealRow(&s.sheetScroll, scroll.LayoutBounds(), cursor.LayoutBounds(), theme.Space08.DIPs(scale))
+		revealRow(&s.browser.scroll, scroll.LayoutBounds(), cursor.LayoutBounds(), theme.Space08.DIPs(scale))
 	}
 }
 
 // searchBar says what the search found, and keeps it as a smart folder,
 // or as the query of the one it changes.
-func (s *State) searchBar(c *ui.Context, semantic theme.Theme, text string, found Found, animate bool) {
+func (s listing) searchBar(c *ui.Context, semantic theme.Theme, text string, found Found, animate bool) {
 	scale := s.Settings.UIFontSize
 	ui.Row(c).Key("search-bar").WidthPercent(100).Shrink(0).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
 		PaddingStart(theme.Space16.DIPs(scale)).PaddingEnd(theme.Space12.DIPs(scale)).PaddingY(theme.Space02.DIPs(scale)).
@@ -216,7 +219,7 @@ func (s *State) searchBar(c *ui.Context, semantic theme.Theme, text string, foun
 			components.Label(c, note, theme.TextXSmall, semantic.Text.Muted).Key("found-note").Role(ui.RoleStatus).
 				Grow(1).MinWidth(0).SingleLine().FontFeatures("tnum")
 			label := "Save as Smart Folder"
-			if s.nav.find.editing != "" {
+			if s.browser.find.editing != "" {
 				label = "Save Changes"
 			}
 			components.Button{
@@ -229,8 +232,8 @@ func (s *State) searchBar(c *ui.Context, semantic theme.Theme, text string, foun
 
 // editingBanner says whose query the search is, while it changes a smart
 // folder's, with the way back to it unchanged.
-func (s *State) editingBanner(c *ui.Context, semantic theme.Theme, animate bool) {
-	group, ok := s.Library.Group(s.nav.find.editing)
+func (s listing) editingBanner(c *ui.Context, semantic theme.Theme, animate bool) {
+	group, ok := s.Library.Group(s.browser.find.editing)
 	if !ok {
 		return
 	}
@@ -278,7 +281,7 @@ func revealRow(scroll *ui.ScrollState, view, row ui.Rect, room float32) {
 
 // foundRow is a sheet the query found: its title and the line of its text
 // it matches, the matches marked, as the sheet's row shows it otherwise.
-func (s *State) foundRow(c *ui.Context, semantic theme.Theme, sheet FoundSheet, cursor bool, now time.Time, animate bool) ui.Element {
+func (s listing) foundRow(c *ui.Context, semantic theme.Theme, sheet FoundSheet, cursor bool, now time.Time, animate bool) ui.Element {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	open := sheet.ID == s.ActivePage
@@ -321,7 +324,7 @@ func (s *State) foundRow(c *ui.Context, semantic theme.Theme, sheet FoundSheet, 
 	row.Drag(sheetDrag{id: sheet.ID})
 	row.ContextMenu(s.sheetMenu(sheet.SheetItem, false))
 	if row.Clicked() {
-		s.Library.OpenFound(sheet.ID, s.SearchQuery, row.ClickModifiers()&ui.Alt != 0)
+		s.Library.OpenFound(sheet.ID, s.browser.query, row.ClickModifiers()&ui.Alt != 0)
 	}
 	return row
 }

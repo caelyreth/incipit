@@ -11,31 +11,17 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// navigation is what the library and the sheet list show. The library
-// keeps the places, and a place is chosen in it, never gone into: the
-// sheet list beside it shows the place's sheets, and crossfades from one
-// place to the next.
+// navigation is what the library shows and edits in place, apart from
+// any list of sheets: the groups open in its tree, the one name being
+// written, a group being styled, what waits for a second click to go. The
+// library keeps the places, and a place is chosen in it, never gone into:
+// a browser shows the place's sheets (browser.go).
 type navigation struct {
-	place Place
-	// searching shows search results in the sheet list instead of the
-	// place.
-	searching bool
-	// find is the search being written (search.go).
-	find finding
-	// shown is what the sheet list shows, since shownAt while its rows
-	// come in; fresh marks the frame it changed, and rank counts the rows
-	// drawn so far in this one.
-	shown   listView
-	shownAt time.Time
-	fresh   bool
-	rank    int
-	// side is where the list shown came in from: 1 the right, -1 the
-	// left, 0 neither.
-	side float32
 	// expanded are the groups open in the library's tree.
 	expanded map[string]bool
 	// renaming is a group or chapter being named in place; groupRename
-	// distinguishes a group target for lifecycle reconciliation.
+	// distinguishes a group target for lifecycle reconciliation. One name
+	// is written at a time in the window, whichever list shows it.
 	renaming    string
 	groupRename bool
 	name        string
@@ -48,34 +34,12 @@ type navigation struct {
 	// armed is what waits for a second click to be deleted, since armedAt.
 	armed   string
 	armedAt time.Time
-	// picking is the sheets picked together in the list.
-	picking picking
-	// menuRing is what a menu open on the sheet list acts on.
-	menuRing menuRing
-	// sheetsGap calls up a create area above a sheet in a group, and
-	// groupsTop one at the head of the groups.
-	sheetsGap, groupsTop components.CreateGap
-	// dragged is whether a row was dragged this frame.
+	// groupsTop calls up a create area at the head of the groups.
+	groupsTop components.CreateGap
+	// dragged is whether a row was dragged this frame, in the library or
+	// any list; quiet is until when the create areas then stay shut.
 	dragged bool
-	// revealing is a chapter just made, to bring into view as it comes.
-	revealing string
-	// sheetsNear is the sheet whose top the pointer was by, -1 for none.
-	sheetsNear int
-	// sheetDropSlot is the insertion slot while a sheet is dragged over a
-	// group's list, -1 when none; sheetDropRows is the last geometry used
-	// to choose it, and sheetDropHeight is the dragged row's extent;
-	// sheetDropRoom is the room a chapter takes above it where it lands.
-	sheetDropSlot    int
-	sheetDropHeight  float32
-	sheetDropRoom    float32
-	sheetDropVisible bool
-	sheetDropRows    []sheetDropSpan
-	// grab is where the pointer took the row it drags, landing the row a
-	// drop is bringing to its place, and listTop the sheet list's top as
-	// last laid out.
-	grab    grab
-	landing landing
-	listTop float32
+	quiet   time.Time
 }
 
 type sheetDropSpan struct {
@@ -85,11 +49,11 @@ type sheetDropSpan struct {
 }
 
 // Place is where the sidebar is.
-func (s *State) Place() Place { return s.nav.place }
+func (s *State) Place() Place { return s.list.place }
 
 // StartAt sets the place the library opens on, without showing its
 // sheets as Go does.
-func (s *State) StartAt(place Place) { s.nav.place = place }
+func (s *State) StartAt(place Place) { s.list.place = place }
 
 // ReconcileLibrary leaves an invalid group place after filing changes without
 // opening a pane or ending a search the user already has open.
@@ -109,12 +73,12 @@ func (s *State) ReconcileLibrary() {
 			s.nav.stylingOpen = false
 		}
 	}
-	if s.nav.place.Kind == PlaceGroup {
-		if _, ok := s.Library.Group(s.nav.place.Group); !ok {
-			s.nav.place = Place{Kind: PlaceAll}
+	if s.list.place.Kind == PlaceGroup {
+		if _, ok := s.Library.Group(s.list.place.Group); !ok {
+			s.list.place = Place{Kind: PlaceAll}
 			s.nav.renaming = ""
 			s.nav.groupRename = false
-			s.sheetOverscroll.Reset()
+			s.list.overscroll.Reset()
 			s.disarm()
 		}
 	}
@@ -123,14 +87,14 @@ func (s *State) ReconcileLibrary() {
 // Go chooses a place in the library and shows its sheets.
 func (s *State) Go(place Place) {
 	s.showSheetList()
-	s.nav.searching = false
-	if place == s.nav.place {
+	s.list.searching = false
+	if place == s.list.place {
 		return
 	}
-	s.nav.place = place
+	s.list.place = place
 	s.nav.renaming = ""
 	s.nav.groupRename = false
-	s.sheetOverscroll.Reset()
+	s.list.overscroll.Reset()
 	s.disarm()
 }
 
@@ -147,8 +111,8 @@ func (s *State) files(place Place) bool {
 // CurrentGroup is the group a new sheet goes in: the one shown, else the
 // Inbox's.
 func (s *State) CurrentGroup() string {
-	if s.files(s.nav.place) {
-		return s.nav.place.Group
+	if s.files(s.list.place) {
+		return s.list.place.Group
 	}
 	for _, group := range s.Library.Groups("") {
 		if group.Inbox {
@@ -299,7 +263,7 @@ func (s *State) reveal(sheet string) {
 		return
 	}
 	s.revealGroup(group)
-	s.stopSearching()
+	s.sheets().stopSearching()
 	s.Go(Place{Kind: PlaceGroup, Group: group})
 }
 
@@ -325,7 +289,7 @@ func (s *State) placeRow(
 
 // chosen reports the place the sheet list shows.
 func (s *State) chosen(place Place) bool {
-	return !s.nav.searching && s.SheetListVisible() && s.nav.place == place
+	return !s.list.searching && s.SheetListVisible() && s.list.place == place
 }
 
 func placeKey(place Place) string {
@@ -538,7 +502,7 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if group.Smart() {
 			if m.Item("Edit Query…").Chosen() {
-				s.editSmartGroup(group)
+				s.sheets().editSmartGroup(group)
 			}
 			m.Separator()
 			s.groupItems(m, group)
@@ -550,7 +514,7 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 		}
 		if m.Item("New Chapter").Chosen() {
 			s.Go(Place{Kind: PlaceGroup, Group: group.ID})
-			s.newChapter(group.ID, Last)
+			s.sheets().newChapter(group.ID, Last)
 		}
 		if group.Inbox {
 			return

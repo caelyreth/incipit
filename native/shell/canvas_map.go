@@ -286,7 +286,7 @@ func (s *State) canvasCard(
 	})
 	card.Opacity(litAmount(card, lit == nil || lit[sheet.ID], 0.25, animate))
 	card.Drag(sheetDrag{id: sheet.ID})
-	card.ContextMenu(s.sheetMenu(sheet, false))
+	card.ContextMenu(s.sheets().sheetMenu(sheet, false))
 	if card.Clicked() || card.Shortcut(0, ui.KeyEnter) {
 		s.openOnCanvas(sheet.ID)
 	}

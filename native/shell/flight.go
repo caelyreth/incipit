@@ -27,7 +27,7 @@ func placeBandHeight(scale float32) float32 {
 // panes' title line and the top of the list this frame. While it is, both spots
 // stand empty and placeFlight draws the one title that moves.
 func (s *State) takeFlight(listReveal, chrome float32, animate bool) {
-	s.flight = animate && s.Library != nil && !s.nav.searching &&
+	s.flight = animate && s.Library != nil && !s.list.searching &&
 		s.listDock > 0.001 && s.listDock < 0.999 &&
 		listReveal > 0.01 && chrome > 0.999
 }
@@ -68,7 +68,7 @@ func (s *State) placeFlight(
 	height := lerp(headTitle.text.LineHeight(scale)+detailLine, bandTitle.text.LineHeight(scale)+detailLine)
 	width := max(0, lerp(headWidth, listWidth-2*pad))
 
-	title, icon, tint, detail := s.placeInfo(semantic, s.listView().place)
+	title, icon, tint, detail := s.sheets().placeInfo(semantic, s.list.place)
 	// The title keeps the two fonts it rests in and travels by transform:
 	// each spot's copy is scaled to the size on the way and the two cross,
 	// as a font of every size between would make a font a frame.
