@@ -282,9 +282,8 @@ func (s *State) groupsLabel(c *ui.Context, semantic theme.Theme, animate bool) u
 	label.Children(func() {
 		components.Label(c, "Groups", theme.TextXSmall, semantic.Text.Muted).Grow(1).SingleLine()
 	})
-	s.dropHighlight(c, semantic, label, false, true, false, animate)
-	if dragged, ok := ui.Drop[groupDrag](label); ok {
-		s.Library.MoveGroup(dragged.id, "", Last)
+	if dropped, ok := s.dropOn(c, semantic, label, takes{groups: true}, animate); ok {
+		s.Library.MoveGroup(dropped.(groupDrag).id, "", Last)
 	}
 	return label
 }
@@ -338,15 +337,14 @@ func (s *State) trashRow(c *ui.Context, semantic theme.Theme, animate bool) {
 			s.arm(emptyTrashKey)
 		}
 	})
-	s.dropHighlight(c, semantic, row, true, true, true, animate)
-	if sheet, ok := ui.Drop[sheetDrag](row); ok {
-		s.Library.TrashSheet(sheet.id)
-	}
-	if tab, ok := ui.Drop[tabDrag](row); ok {
-		s.Library.TrashSheet(tab.id)
-	}
-	if group, ok := ui.Drop[groupDrag](row); ok {
-		s.Library.TrashGroup(group.id)
+	dropped, _ := s.dropOn(c, semantic, row, takes{sheets: true, groups: true, tabs: true}, animate)
+	switch dropped := dropped.(type) {
+	case sheetDrag:
+		s.Library.TrashSheet(dropped.id)
+	case tabDrag:
+		s.Library.TrashSheet(dropped.id)
+	case groupDrag:
+		s.Library.TrashGroup(dropped.id)
 		s.ReconcileLibrary()
 	}
 }
@@ -503,60 +501,25 @@ func (s *State) disclosure(c *ui.Context, semantic theme.Theme, group GroupItem,
 	}
 }
 
-// dropHighlight tints a row while something it takes is dragged over it.
-func (s *State) dropHighlight(
-	c *ui.Context,
-	semantic theme.Theme,
-	row ui.Element,
-	sheets, groups, tabs bool,
-	animate bool,
-) {
-	over := false
-	if _, ok := ui.DragOver[sheetDrag](row); ok && sheets {
-		over = true
-	}
-	if _, ok := ui.DragOver[groupDrag](row); ok && groups {
-		over = true
-	}
-	if _, ok := ui.DragOver[tabDrag](row); ok && tabs {
-		over = true
-	}
-	if _, ok := ui.DragOver[chapterDrag](row); ok && sheets {
-		over = true
-	}
-	amount := float32(0)
-	if over {
-		amount = 1
-	}
-	if animate {
-		amount = components.Follow(row, "drop", amount, components.MotionQuick)
-	}
-	if amount > 0.001 {
-		row.Background(components.Blend(ui.Transparent, semantic.Accent.Muted, amount))
-		row.Border(1, components.Blend(ui.Transparent, semantic.Accent.Foreground, amount))
-	}
-}
-
-// dropInto files sheets, tabs' sheets and groups dragged onto a group's row
-// into it. A smart folder takes none: what it holds, its query finds.
+// dropInto files sheets, chapters, tabs' sheets and groups dragged onto a
+// group's row into it. A smart folder takes none: what it holds, its query finds.
 func (s *State) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, group GroupItem, animate bool) {
 	if group.Smart() {
 		return
 	}
-	s.dropHighlight(c, semantic, row, true, !group.Inbox, true, animate)
-	end := Last
-	if sheet, ok := ui.Drop[sheetDrag](row); ok {
-		s.Library.MoveSheet(sheet.id, group.ID, end)
-	}
-	if tab, ok := ui.Drop[tabDrag](row); ok {
-		s.Library.MoveSheet(tab.id, group.ID, end)
-	}
-	if chapter, ok := ui.Drop[chapterDrag](row); ok {
-		s.Library.MoveChapter(chapter.id, group.ID, end)
-	}
-	if dragged, ok := ui.Drop[groupDrag](row); ok && dragged.id != group.ID && !group.Inbox {
-		s.Library.MoveGroup(dragged.id, group.ID, end)
-		s.nav.expanded[group.ID] = true
+	dropped, _ := s.dropOn(c, semantic, row, takes{sheets: true, chapters: true, groups: !group.Inbox, tabs: true}, animate)
+	switch dropped := dropped.(type) {
+	case sheetDrag:
+		s.Library.MoveSheet(dropped.id, group.ID, Last)
+	case tabDrag:
+		s.Library.MoveSheet(dropped.id, group.ID, Last)
+	case chapterDrag:
+		s.Library.MoveChapter(dropped.id, group.ID, Last)
+	case groupDrag:
+		if dropped.id != group.ID {
+			s.Library.MoveGroup(dropped.id, group.ID, Last)
+			s.nav.expanded[group.ID] = true
+		}
 	}
 }
 

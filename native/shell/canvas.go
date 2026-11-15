@@ -335,30 +335,10 @@ func (s *State) canvasRegion(
 		s.activityStrip(c, semantic, r.days, ink)
 	})
 	box.ContextMenu(s.groupMenu(r.group))
-	s.dropSheets(c, semantic, box, r.group, animate)
-}
-
-// dropSheets files a sheet dragged onto a region in its group, lighting
-// the region while one is over it. A smart folder takes none: what it
-// holds, its query finds. A region takes sheets alone: an element takes
-// what the last of its drops asks for, so it asks for nothing else.
-func (s *State) dropSheets(c *ui.Context, semantic theme.Theme, box ui.Element, group GroupItem, animate bool) {
-	if group.Smart() {
-		return
-	}
-	over := float32(0)
-	if _, ok := ui.DragOver[sheetDrag](box); ok {
-		over = 1
-	}
-	if animate {
-		over = components.Follow(box, "drop", over, components.MotionQuick)
-	}
-	if over > 0.001 {
-		box.Background(components.Blend(semantic.Surface.Panel, semantic.Accent.Muted, over))
-		box.Border(1, components.Blend(semantic.Border.Variant, semantic.Accent.Foreground, over))
-	}
-	if sheet, ok := ui.Drop[sheetDrag](box); ok {
-		s.Library.MoveSheet(sheet.id, group.ID, Last)
+	// A region takes sheets: what moves between groups on the canvas. A
+	// smart folder takes none, as what it holds, its query finds.
+	if dropped, ok := s.dropOn(c, semantic, box, takes{sheets: !r.group.Smart()}, animate); ok {
+		s.Library.MoveSheet(dropped.(sheetDrag).id, r.group.ID, Last)
 	}
 }
 

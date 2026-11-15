@@ -186,16 +186,20 @@ func (s *State) pageTab(
 	}.View(c, semantic)
 	tab.Transition(listTransition(animate, true)).Drag(tabDrag{id: page.ID})
 	s.dragging(tab)
-	s.dropHighlight(c, semantic, tab, true, false, true, animate)
-	if dragged, ok := ui.Drop[tabDrag](tab); ok && dragged.id != page.ID && s.MoveTab != nil {
-		s.MoveTab(dragged.id, index)
-	}
-	// A sheet dragged from the library onto a tab opens there.
-	if sheet, ok := ui.Drop[sheetDrag](tab); ok && s.Library != nil {
-		if s.SelectPage != nil {
-			s.SelectPage(page.ID)
+	dropped, _ := s.dropOn(c, semantic, tab, takes{sheets: true, tabs: true}, animate)
+	switch dropped := dropped.(type) {
+	case tabDrag:
+		if dropped.id != page.ID && s.MoveTab != nil {
+			s.MoveTab(dropped.id, index)
 		}
-		s.Library.OpenSheet(sheet.id, false)
+	case sheetDrag:
+		// A sheet dragged from the library onto a tab opens there.
+		if s.Library != nil {
+			if s.SelectPage != nil {
+				s.SelectPage(page.ID)
+			}
+			s.Library.OpenSheet(dropped.id, false)
+		}
 	}
 	tab.ContextMenu(func(m *ui.Menu) {
 		if m.Item("Close Tab").Chosen() {

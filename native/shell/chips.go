@@ -121,15 +121,8 @@ func (s *State) chip(c *ui.Context, semantic theme.Theme, chip placeChip, small,
 		button.ContextMenu(chip.menu)
 	}
 	if chip.inbox {
-		s.dropHighlight(c, semantic, button, true, false, true, animate)
-		if sheet, ok := ui.Drop[sheetDrag](button); ok {
-			s.Library.MoveEntry(sheet.id, chip.place.Group, Last)
-		}
-		if tab, ok := ui.Drop[tabDrag](button); ok {
-			s.Library.MoveEntry(tab.id, chip.place.Group, Last)
-		}
-		if chapter, ok := ui.Drop[chapterDrag](button); ok {
-			s.Library.MoveEntry(chapter.id, chip.place.Group, Last)
+		if dropped, ok := s.dropOn(c, semantic, button, takes{sheets: true, chapters: true, tabs: true}, animate); ok {
+			s.Library.MoveEntry(dropped.(sheetMove).sheetMoveID(), chip.place.Group, Last)
 		}
 	}
 	if button.Clicked() {
