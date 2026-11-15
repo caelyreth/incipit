@@ -76,9 +76,14 @@ func (s listing) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal,
 	layout := s.paneLayout()
 	full := layout.SheetList * scale / theme.DefaultUIFontSize
 	animate := s.animate(c)
-	ui.Column(c).Key("sheets").Width(width).HeightPercent(100).Shrink(0).Clip().
+	pane := ui.Column(c).Key("sheets").Width(width).HeightPercent(100).Shrink(0).Clip().
 		Background(semantic.Surface.Panel).
-		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant).Children(func() {
+		BorderWidth(0, 1, 0, 0).BorderColor(semantic.Border.Variant)
+	// The canvas's first picker moves out from here (morph). Back from the
+	// canvas the list opens as it does, from nothing: moved from the
+	// picker as it opened, its rows would cross the library's.
+	s.morph.Mark(pane, "list", "", components.MorphSlide, morphSettle, animate)
+	pane.Children(func() {
 		ui.Column(c).Width(full).HeightPercent(100).Opacity(reveal).Children(func() {
 			ui.Box(c).Key("list-head").WidthPercent(100).Height(head).Shrink(0)
 			s.placeBand(c, semantic, s.listView(), s.listDock, animate)

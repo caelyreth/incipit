@@ -64,11 +64,13 @@ func (d ActionDock) View(c *ui.Context, semantic theme.Theme) ui.Element {
 }
 
 // groupTransition opens a dock's group in from nothing across, its
-// actions growing in, and closes it the same way.
+// actions growing in, and closes it the same way. Its width going is what
+// moves the groups beside it: they move with the dock, not on their own,
+// which in a dock held by its end would carry them past it.
 func groupTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
 	gone := &ui.Motion{Opacity: 0, Scale: 0.8, Collapse: true}
-	return ui.ElementTransition{Duration: MotionPanel, Position: true, Colors: true, Enter: gone, Exit: gone}
+	return ui.ElementTransition{Duration: MotionPanel, Colors: true, Enter: gone, Exit: gone}
 }

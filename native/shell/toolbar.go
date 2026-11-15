@@ -85,7 +85,11 @@ func (s *State) formatBar(
 			},
 		},
 	}
-	dock.View(c, semantic).Transition(popTransition(animate))
+	bar := dock.View(c, semantic).Transition(popTransition(animate))
+	// The page's and the canvas's are one dock, moving between them.
+	if s.morph.Mark(bar, "writing-actions", "", components.MorphResize, morphSettle, animate) {
+		bar.Transition(ui.ElementTransition{Duration: 1})
+	}
 	_ = metrics
 }
 

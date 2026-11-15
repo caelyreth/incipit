@@ -45,6 +45,10 @@ const (
 	// of a list leaves the pointer by its top, which is not a call for a
 	// new one.
 	dropQuiet = time.Second
+	// morphSettle is how long what the page and the canvas share takes to
+	// move from one to the other, on its spring, about as long as the
+	// panes take to go aside.
+	morphSettle = components.MotionSettle
 )
 
 // listTransition is how rows come, go and make room.

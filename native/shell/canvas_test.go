@@ -1,9 +1,11 @@
 package shell
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -328,5 +330,43 @@ func TestTheScrubberMovesTheStrip(t *testing.T) {
 	if rest >= before || !slices.ContainsFunc(state.canvas.rests, func(x float32) bool { return abs(x-rest) < 1 }) {
 		t.Fatalf("A drag back on the scrubber should bring the strip back to a column, but it went from %v to %v among %v.",
 			before, rest, state.canvas.rests)
+	}
+}
+
+// The page and the canvas share what they both show: going to the canvas,
+// the sheet in front moves from the page into its column, and the sheet
+// list out into the picker beside it; going back, the sheet moves back,
+// and the list opens as it does. Each rests where it is laid out once it
+// is there.
+func TestThePageAndTheCanvasShareTheirSheetAndList(t *testing.T) {
+	state, _ := libraryState()
+	state.Appearance.Motion = true
+	state.Sheet = func(c *ui.Context, id string, _ SheetFrame) { ui.Text(c, "Body of "+id) }
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	step := func(frames int) {
+		for range frames {
+			tester.Advance(16 * time.Millisecond)
+			tester.Frame()
+		}
+	}
+	state.ToggleCanvas()
+	step(4)
+	picker := fmt.Sprintf("picker-%d", state.canvas.listPicker)
+	if !state.morph.Moving("sheet:1") || !state.morph.Moving(picker) {
+		t.Fatal("Going to the canvas, the sheet in front and the list should move into their columns.")
+	}
+	settle(tester)
+	if state.morph.Moving("sheet:1") || state.morph.Moving(picker) {
+		t.Fatal("The sheet and the picker should rest in their columns once there.")
+	}
+	state.SetMode(ModePage)
+	step(4)
+	if !state.morph.Moving("sheet:1") || state.morph.Moving("list") {
+		t.Fatal("Going back, the sheet should move back to the page, and the list open in its place.")
+	}
+	settle(tester)
+	if state.morph.Moving("sheet:1") {
+		t.Fatal("The page should rest in its place once there.")
 	}
 }

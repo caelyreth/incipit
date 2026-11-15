@@ -81,7 +81,8 @@ func (s *State) arrange() {
 }
 
 // pickerBeforeFront has a picker stand just before the sheet in front, or
-// first where none is, and brings it into view with the sheet beside it.
+// first where none is, and brings it into view with the sheet beside it:
+// the sheet list and the page, side by side as they were.
 func (s *State) pickerBeforeFront() {
 	at := 0
 	for i, col := range s.canvas.columns {
@@ -91,9 +92,10 @@ func (s *State) pickerBeforeFront() {
 	}
 	if at > 0 && s.canvas.columns[at-1].picker != nil {
 		s.canvas.revealPicker = s.canvas.columns[at-1].picker.id
-		return
+	} else {
+		s.canvas.revealPicker = s.insertPicker(at, false)
 	}
-	s.canvas.revealPicker = s.insertPicker(at, false)
+	s.canvas.listPicker = s.canvas.revealPicker
 }
 
 // NewPicker makes a picker after the column in front, and brings it into
@@ -196,9 +198,17 @@ func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, ori
 	list.noteView(c, animate)
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	scale := s.Settings.UIFontSize
-	col := s.column(c, fmt.Sprintf("picker-%d", p.id), origin, animate).
+	key := fmt.Sprintf("picker-%d", p.id)
+	col := s.column(c, key, origin, animate).
 		Role(ui.RoleGroup).Label("Sheet picker").Clip().Radius(10*k).
 		Background(semantic.Surface.Panel).Border(1, semantic.Border.Variant)
+	// The picker the canvas comes with is the sheet list, moving out from
+	// beside the library.
+	from := ""
+	if p.id == s.canvas.listPicker {
+		from = "list"
+	}
+	s.morphColumn(col, key, from, components.MorphSlide, animate)
 	// A picker comes into view at the strip's start, the column after it
 	// beside it; as the canvas comes, at once, and held there while the
 	// panes close.

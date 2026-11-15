@@ -19,6 +19,7 @@ func (s *State) Typing() bool {
 }
 
 func (s *State) View(c *ui.Context) {
+	s.morph.Frame()
 	semantic, changing := s.Colors.At(s.Settings, c.Now())
 	c.SetTheme(s.Settings.MyGoThemeFor(semantic))
 	if changing {
@@ -173,7 +174,11 @@ func (s *State) page(
 		ui.Row(c).Grow(1).MinHeight(0).WidthPercent(100).Justify(ui.Center).PaddingX(
 			layout.ContentGutter * scale / theme.DefaultUIFontSize,
 		).Children(func() {
-			ui.Column(c).FillHeight().Width(column).MaxWidthPercent(100).MinWidth(0).Children(func() {
+			sheet := ui.Column(c).FillHeight().Width(column).MaxWidthPercent(100).MinWidth(0)
+			// The sheet in front is its column on the canvas, moving from
+			// where it stood there.
+			s.morph.Mark(sheet, "sheet:"+s.ActivePage, "", components.MorphResize, morphSettle, s.animate(c))
+			sheet.Children(func() {
 				if s.Sheet != nil {
 					top := layout.ReadingTop * scale / theme.DefaultUIFontSize
 					s.Sheet(c, s.ActivePage, SheetFrame{

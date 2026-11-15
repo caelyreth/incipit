@@ -31,6 +31,9 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origi
 	col := s.column(c, "sheet-"+page.ID, origin, animate).
 		Role(ui.RoleGroup).Label(page.Title).Clip().Radius(10*k).
 		Background(semantic.Surface.Page).Border(1, edge)
+	// The sheet in front is the page, moving from where it stood beside
+	// the panes.
+	s.morphColumn(col, "sheet:"+page.ID, "", components.MorphResize, animate)
 	// The sheet that comes in front comes into view; as the canvas comes,
 	// the picker before it brings it.
 	switch {

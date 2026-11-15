@@ -30,6 +30,8 @@ func canvasApp(t *testing.T) (*AppState, *ui.Tester) {
 	}
 	shot(t, tester, "page-mode")
 	app.Shell.ToggleCanvas()
+	run(tester, 80*time.Millisecond)
+	shot(t, tester, "canvas-entering")
 	run(tester, time.Second)
 	shot(t, tester, "canvas-mode")
 	return app, tester
@@ -60,6 +62,10 @@ func TestLeavingTheCanvasKeepsRunning(t *testing.T) {
 			app, tester := canvasApp(t)
 			if err := way.leave(app, tester); err != nil {
 				t.Fatal(err)
+			}
+			run(tester, 80*time.Millisecond)
+			if way.name == "the mode switch" {
+				shot(t, tester, "canvas-leaving")
 			}
 			run(tester, time.Second)
 			if app.Shell.CanvasOpen() {

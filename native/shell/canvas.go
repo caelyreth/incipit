@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -72,6 +73,9 @@ type canvasState struct {
 	into, beside map[string]int
 	placePicker  bool
 	revealPicker int
+	// listPicker is the picker the canvas came with, which moves out from
+	// the sheet list (morph).
+	listPicker int
 }
 
 // Mode is the window's mode; the canvas needs a library to lay out.
@@ -115,8 +119,11 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	scale := s.Settings.UIFontSize
 	s.canvas.follow, s.canvas.front = s.canvas.front != s.ActivePage, s.ActivePage
 	s.arrange()
+	// The canvas comes at once: what it shares with the page moves there
+	// (morph), and its other columns come in as columns do. Going, it
+	// fades as the page's moves back.
 	canvas := ui.Column(c).Key("canvas").Grow(1).MinWidth(0).Background(semantic.Surface.Background).
-		Transition(fadeTransition(animate))
+		Transition(canvasTransition(animate))
 	canvas.Children(func() {
 		s.canvasStrip(c, semantic, layout, head, animate)
 		if s.ActivePage != "" {
@@ -148,8 +155,7 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 	top := max(head, gutter/2, s.controlsFoot)
 	s.canvas.width = s.columnWidth(s.canvas.viewport.W-2*gutter, k)
 	strip.Padding(top, gutter, foot, gutter)
-	// The columns there as the canvas opens come with it, not one by one.
-	columns := animate && !s.canvas.entered
+	columns := animate
 	strip.Children(func() {
 		flow := ui.Row(c).Key("canvas-flow").FillHeight().AlignItems(ui.Stretch).Gap(columnGap * k)
 		origin := flow.LayoutBounds().X
@@ -212,6 +218,23 @@ func (s *State) column(c *ui.Context, key string, origin float32, animate bool) 
 		s.canvas.rests = append(s.canvas.rests, b.X-origin)
 	}
 	return col
+}
+
+// canvasTransition is how the canvas comes and goes: at once, and
+// fading.
+func canvasTransition(animate bool) ui.ElementTransition {
+	if !animate {
+		return ui.ElementTransition{Duration: 1}
+	}
+	return ui.ElementTransition{Duration: motionReveal, Colors: true, Exit: &ui.Motion{Opacity: 0}}
+}
+
+// morphColumn marks a column that moves from what it shares with the
+// page (morph); on its way, it leaves out a column's entrance.
+func (s *State) morphColumn(col ui.Element, key, from string, style components.MorphStyle, animate bool) {
+	if s.morph.Mark(col, key, from, style, morphSettle, animate) {
+		col.Transition(ui.ElementTransition{Duration: motionReveal, Position: true})
+	}
 }
 
 // columnTransition is how the strip's columns come and go: in from the
