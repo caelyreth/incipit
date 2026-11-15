@@ -117,15 +117,14 @@ func (s *State) filterChip(c *ui.Context, semantic theme.Theme, text string, con
 		if edit.Clicked() {
 			*ed = filterEditor{index: index, open: true, focus: cond.Key.Takes != query.TakesNothing}
 		}
-		components.IconButton{
-			Key: "remove", Label: "Remove filter: " + sentence, Tooltip: "Remove filter",
-			Icon: components.IconClose.SVG(), Style: components.SubtleButton, Size: components.CompactButton,
-			IconSize: 14 * scale / theme.DefaultUIFontSize, IconColor: &semantic.Icon.Muted, Animate: animate,
-			Action: func() {
+		chromeButton{
+			key: "remove", label: "Remove filter: " + sentence, tooltip: "Remove filter",
+			icon: components.IconClose, compact: true,
+			action: func() {
 				*ed = closedFilter
 				s.setSearch(query.Cut(text, cond.Span))
 			},
-		}.View(c, semantic)
+		}.view(c, semantic, animate)
 	})
 	if ed.index == index {
 		s.editFilter(c, semantic, chip, text, cond, animate)

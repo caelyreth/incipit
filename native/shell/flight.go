@@ -24,7 +24,7 @@ func placeBandHeight(scale float32) float32 {
 }
 
 // takeFlight notes whether the place's title is on its way between the
-// title bar and the top of the list this frame. While it is, both spots
+// panes' title line and the top of the list this frame. While it is, both spots
 // stand empty and placeFlight draws the one title that moves.
 func (s *State) takeFlight(listReveal, chrome float32, animate bool) {
 	s.flight = animate && s.Library != nil && !s.nav.searching &&
@@ -34,8 +34,8 @@ func (s *State) takeFlight(listReveal, chrome float32, animate bool) {
 
 func (s *State) flying() bool { return s.flight }
 
-// placeFlight draws the place's title moving from the title bar's line to
-// the top of the list, or back, growing to the band's size as it goes, so
+// placeFlight draws the place's title moving from the title line to the
+// top of the list, or back, growing to the band's size as it goes, so
 // it reads as one title going down rather than one leaving as another
 // comes. Both ends are worked out from the panes' openness this frame, so
 // it tracks them as they slide.
@@ -55,7 +55,7 @@ func (s *State) placeFlight(
 
 	bar := layout.Titlebar * scale / theme.DefaultUIFontSize
 	// It leaves from where the title stands with its line at full length,
-	// as the header lays it out with the title up (titleLines).
+	// as the title line lays it out with the title up (titleLines).
 	up := s.titleLines(layout, reveal, listWidth, 0)
 	library := layout.Sidebar * scale / theme.DefaultUIFontSize * reveal
 	pad := theme.Space12.DIPs(scale)

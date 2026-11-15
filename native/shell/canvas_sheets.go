@@ -58,14 +58,21 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origi
 			}
 			components.Label(c, page.Title, theme.TextSmall, title).SingleLine().MinWidth(0).Grow(1).
 				Transition(appearing(motionList, nil, nil))
-			s.sheetButton(c, semantic, "sheet-columns-"+page.ID, "Write "+page.Title+" in columns",
-				"Write in columns", components.IconSidebar, animate, func() { s.writeInColumns(page.ID) })
-			s.sheetButton(c, semantic, "sheet-close-"+page.ID, "Close "+page.Title, "Close sheet",
-				components.IconClose, animate, func() {
+			// Each names its sheet, which its tooltip need not.
+			chromeButton{
+				key: "sheet-columns-" + page.ID, label: "Write " + page.Title + " in columns",
+				tooltip: "Write in columns", icon: components.IconSidebar, compact: true,
+				action: func() { s.writeInColumns(page.ID) },
+			}.view(c, semantic, animate)
+			chromeButton{
+				key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
+				icon: components.IconClose, compact: true,
+				action: func() {
 					if s.ClosePageID != nil {
 						s.ClosePageID(page.ID)
 					}
-				})
+				},
+			}.view(c, semantic, animate)
 		})
 		if !s.pan(head) && head.Clicked() && !front && s.SelectPage != nil {
 			s.SelectPage(page.ID)
@@ -92,24 +99,6 @@ func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, origin float32, a
 		components.Label(c, "Click a sheet to open it here", theme.TextXSmall, semantic.Text.Muted).
 			Opacity(0.8).TextAlign(ui.Center)
 	})
-}
-
-// sheetButton is one of a sheet head's small actions: label names it with
-// its sheet, tooltip as it shows.
-func (s *State) sheetButton(
-	c *ui.Context,
-	semantic theme.Theme,
-	key, label, tooltip string,
-	icon components.IconName,
-	animate bool,
-	action func(),
-) {
-	k := components.UIFontSize(c) / theme.DefaultUIFontSize
-	components.IconButton{
-		Key: key, Label: label, Tooltip: tooltip, Icon: icon.SVG(),
-		Style: components.SubtleButton, Size: components.CompactButton,
-		IconSize: 13 * k, IconColor: &semantic.Icon.Muted, Animate: animate, Action: action,
-	}.View(c, semantic)
 }
 
 // writeInColumns leaves the canvas for the columns at a sheet, in front,

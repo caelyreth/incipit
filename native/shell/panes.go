@@ -15,7 +15,7 @@ const paneEdgeReach = 6
 
 // paneEdgeDwell is how long the pointer rests on a pane's edge before the
 // edge offers to resize, so a pointer passing over it on its way to the
-// header or a row is not met by a resize cursor and an accent line.
+// title line or a row is not met by a resize cursor and an accent line.
 const paneEdgeDwell = 180 * time.Millisecond
 
 // edgeHover is the pane edge the pointer rests on, and since when.
@@ -25,8 +25,8 @@ type edgeHover struct {
 }
 
 // paneEdges are the trailing edges of the library and the sheet list, set
-// over the whole window's height, the header's part of it included, so an
-// edge is one line from the top of the window to its foot. sidebar and
+// over the whole window's height, the title line's part of it included, so
+// an edge is one line from the top of the window to its foot. sidebar and
 // list are the panes' widths as the layout keeps them now.
 func (s *State) paneEdges(c *ui.Context, semantic theme.Theme, sidebar, list float32, animate bool) {
 	layout := s.paneLayout()

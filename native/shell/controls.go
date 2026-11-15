@@ -8,9 +8,9 @@ import (
 
 // controls are the window's buttons, floating over its top right corner
 // as the writing actions float over the page's foot: which views show,
-// and the commands and settings. There is no title bar to hold them, so
-// the page reaches the window's top, and the panes' own stand on their
-// title line (paneHeader). Zen takes them away with the rest of the
+// and the commands and settings. There is no title bar across the window
+// to hold them: the page reaches its top, and the panes' own buttons stand
+// on the panes' title line (paneHeader). Zen takes them away with the rest of the
 // chrome; chrome is how far they are shown.
 func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, animate bool) {
 	if chrome <= 0.001 {
@@ -20,19 +20,7 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 	canvas := s.CanvasOpen()
 	button := func(key, label string, icon components.IconName, selected bool, action func()) func() {
 		return func() {
-			components.IconButton{
-				Key: key, Label: label, Tooltip: label, Icon: icon.SVG(),
-				Style: components.SubtleButton, Size: components.MediumButton,
-				IconSize: 16 * scale / theme.DefaultUIFontSize, IconColor: &semantic.Icon.Muted,
-				Selected: selected, Animate: animate, Action: action,
-			}.View(c, semantic)
-		}
-	}
-	call := func(action func()) func() {
-		return func() {
-			if action != nil {
-				action()
-			}
+			chromeButton{key: key, label: label, icon: icon, selected: selected, action: action}.view(c, semantic, animate)
 		}
 	}
 	gap := theme.DefaultLayout.ChromeGutter * scale / theme.DefaultUIFontSize
@@ -50,8 +38,8 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 					button("toggle-canvas", "Toggle canvas", components.IconCanvas, canvas, s.ToggleCanvas),
 				}},
 				{Label: "App", Actions: []func(){
-					button("commands", "Search commands", components.IconCommand, false, call(s.OpenCommands)),
-					button("settings", "Open settings", components.IconSettings, false, call(s.OpenSettings)),
+					button("commands", "Search commands", components.IconCommand, false, s.OpenCommands),
+					button("settings", "Open settings", components.IconSettings, false, s.OpenSettings),
 				}},
 			},
 		}.View(c, semantic).Transition(popTransition(animate))

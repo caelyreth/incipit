@@ -395,12 +395,7 @@ func (s *State) canvasHead(c *ui.Context, semantic theme.Theme, head, gutter flo
 func (s *State) zoomControls(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
 	icon := func(key, label string, glyph components.IconName, action func()) {
-		components.IconButton{
-			Key: key, Label: label, Tooltip: label, Icon: glyph.SVG(),
-			Style: components.SubtleButton, Size: components.CompactButton,
-			IconSize: 14 * scale / theme.DefaultUIFontSize, IconColor: &semantic.Icon.Muted,
-			Animate: animate, Action: action,
-		}.View(c, semantic)
+		chromeButton{key: key, label: label, icon: glyph, compact: true, action: action}.view(c, semantic, animate)
 	}
 	ui.Row(c).Key("zoom").Shrink(0).AlignItems(ui.Center).Gap(theme.Space02.DIPs(scale)).Children(func() {
 		icon("zoom-out", "Zoom out", components.IconMinus, func() { s.zoomCentered(1 / zoomStep) })

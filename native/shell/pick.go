@@ -253,7 +253,7 @@ func (s *State) deletePicked() {
 	s.unpick()
 }
 
-// pickedDetail is what the header says of the picked sheets among sheets,
+// pickedDetail is what the place's title says of the picked sheets among sheets,
 // with any picked: how many, and their words.
 func (s *State) pickedDetail(sheets []SheetItem) (string, bool) {
 	n, total := 0, 0

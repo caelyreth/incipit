@@ -245,8 +245,8 @@ func activityStrip(c *ui.Context, semantic theme.Theme, days [activityDays]int, 
 }
 
 // canvasCard is a sheet on the map: its title, the start of its text, its
-// words and last change. Open on the desk, it carries the accent's mark;
-// the one in front, the accent's edge. Clicked, it opens on the desk;
+// words and last change. Open in a column, it carries the accent's mark;
+// the one in front, the accent's edge. Clicked, it opens in a column;
 // dragged to another region, it is filed there.
 func (s *State) canvasCard(
 	c *ui.Context,

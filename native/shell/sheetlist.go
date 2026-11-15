@@ -87,7 +87,7 @@ func (s *State) sheetColumn(c *ui.Context, semantic theme.Theme, width, reveal, 
 	})
 }
 
-// noteView notes, once a frame before the header and the list draw, when
+// noteView notes, once a frame before the title line and the list draw, when
 // the list comes to show something else, and from which side it comes.
 func (s *State) noteView(c *ui.Context, animate bool) {
 	s.nav.fresh, s.nav.rank = false, 0
@@ -1223,8 +1223,8 @@ func (s *State) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 	}
 }
 
-// listHeader is the sheet list's line in the title bar: what it shows and
-// what it makes, or the search field.
+// listHeader is the sheet list's part of the panes' title line: the place
+// it shows, or the search field, and its toggle at its end.
 func (s *State) listHeader(c *ui.Context, semantic theme.Theme, width, reveal float32, animate bool) {
 	if width <= 0.01 || s.Library == nil {
 		return
@@ -1279,9 +1279,10 @@ func (s *State) placeInfo(semantic theme.Theme, place Place) (title string, icon
 	return title, icon, tint, detail
 }
 
-// placeHeader is the place's line in the title bar. Where the library is
-// closed its title and count go down to the top of the list (placeBand),
-// leaving the bar to the buttons; dock is how far they have gone.
+// placeHeader is the place's part of the panes' title line. Where the
+// library is closed its title and count go down to the top of the list
+// (placeBand), leaving the line to the buttons; dock is how far they have
+// gone.
 func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, dock float32, animate bool) {
 	title, icon, tint, detail := s.placeInfo(semantic, place)
 	scale := s.Settings.UIFontSize
@@ -1317,19 +1318,16 @@ func (s *State) placeHeader(c *ui.Context, semantic theme.Theme, place Place, do
 				s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
 			})
 		}
-		components.IconButton{
-			Key: "hide-sheets", Label: "Hide sheet list", Icon: components.IconSidebarClose.SVG(),
-			Style: components.SubtleButton, Size: components.MediumButton,
-			IconSize:  16 * scale / theme.DefaultUIFontSize,
-			IconColor: &semantic.Icon.Muted, Animate: animate, Action: s.ToggleSheetList,
-		}.View(c, semantic)
+		chromeButton{
+			key: "hide-sheets", label: "Hide sheet list", icon: components.IconSidebarClose, action: s.ToggleSheetList,
+		}.view(c, semantic, animate)
 	})
 }
 
 // placeBand is the place's title and count at the top of the list, where
-// the library is closed and the title bar has the window's controls to
-// share. It opens as the header's give way, so the two read as one title
-// moving down and back up.
+// the library is closed and the title line has the panes' toggles to
+// share. It opens as the line's title gives way, so the two read as one
+// title moving down and back up.
 func (s *State) placeBand(c *ui.Context, semantic theme.Theme, view listView, dock float32, animate bool) {
 	if dock <= 0.001 || view.search {
 		return
