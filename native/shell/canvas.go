@@ -48,11 +48,12 @@ const (
 	// flingCarry is how far a drag let go carries the strip on, in seconds
 	// of the speed it was let go at.
 	flingCarry = float32(0.25)
-	// columnGap is the room between the strip's columns, and canvasEdge
-	// that between them and the window's edges, at the reference type
-	// size: little, so the columns take the window.
-	columnGap  = 10
-	canvasEdge = 10
+	// columnGap is the line between the strip's columns, in the window's
+	// points whatever the type's size, and canvasEdge the room between
+	// them and the window's edges: none, the columns are the window's
+	// panes, its page reaching its edges as the page mode's does.
+	columnGap  = 1
+	canvasEdge = 0
 	// magnetReach is how near a column's start the strip, come to rest,
 	// is pinned to it, at the reference type size; magnetQuiet how long
 	// the strip's input is quiet before it counts as come to rest.
@@ -183,9 +184,6 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	components.SceneLayer(scene, shown, s.laid == ModeCanvas).Children(func() {
 		s.canvasStrip(c, semantic, layout, animate)
 		s.canvasFoot(c, semantic, layout.ContentGutter*scale/theme.DefaultUIFontSize, animate)
-		// The room over the columns moves the window, as their heads do.
-		top, _ := s.titleLine(scale / theme.DefaultUIFontSize)
-		ui.Box(c).Key("canvas-drag").Absolute().Top(0).Left(0).Right(0).Height(top).DragWindow()
 	})
 	// The canvas has come once it shows whole.
 	s.canvas.entered = s.canvas.entered && shown < 0.999
@@ -220,10 +218,9 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 			s.canvas.viewport.W, scale)
 	})
 	s.magnet(strip, k, animate)
-	// The columns rise into the title line, their heads on it, and reach
-	// down to the window's foot, the writing actions floating over them.
-	top, _ := s.titleLine(k)
-	strip.Padding(top, 0, edge, 0)
+	// The columns reach the window's top and foot, the traffic lights,
+	// the controls and the writing actions floating over them.
+	strip.Padding(0, 0, edge, 0)
 	window, _ := c.Size()
 	editor := s.editorWidth(strip, window-2*edge, k, animate)
 	picker := s.paneLayout().SheetList * k
@@ -253,10 +250,10 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 			s.canvas.spans = s.canvas.spans[:0]
 			s.canvas.holding = ""
 			columns := s.workspace().columns
-			s.room(c, "room-start", 0, edge, false)
+			s.room(c, semantic, "room-start", 0, edge, false)
 			if len(columns) == 0 {
 				s.sheetHint(c, semantic, editor, animate)
-				s.room(c, "room-end", 0, edge, true)
+				s.room(c, semantic, "room-end", 0, edge, true)
 			}
 			for i, col := range columns {
 				if col.picker != nil {
@@ -266,22 +263,35 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 				}
 				// The room after the last reaches the window's end.
 				last := i == len(columns)-1
-				w := columnGap * k
+				w := float32(columnGap)
 				if last {
 					w = edge
 				}
-				s.room(c, "room-"+col.key(), i+1, w, last)
+				s.room(c, semantic, "room-"+col.key(), i+1, w, last)
 			}
 			s.keyboardMoved()
 		})
 	})
 }
 
-// room is empty room on the canvas, w wide, or more where it may grow,
-// before its workspace's column at: unseen, and, right-clicked, it offers
-// to make a picker there.
-func (s *State) room(c *ui.Context, key string, at int, w float32, grow bool) {
+// room is room on the canvas, w wide, or more where it may grow, before
+// its workspace's column at: between two columns the line between them,
+// and, right-clicked, it offers to make a picker there.
+func (s *State) room(c *ui.Context, semantic theme.Theme, key string, at int, w float32, grow bool) {
 	room := ui.Box(c).Key(key).Width(w).Shrink(0).FillHeight().Label("Canvas")
+	line := semantic.Border.Variant
+	switch {
+	case at == 0:
+	case grow:
+		// The line after the last column, the canvas's empty room on, its
+		// title line the window's title bar as the columns' heads are.
+		room.Children(func() {
+			ui.Box(c).Width(columnGap).FillHeight().Background(line)
+			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
+		})
+	default:
+		room.Background(line)
+	}
 	if grow {
 		room.Grow(1)
 	}
@@ -375,7 +385,7 @@ func (s *State) rests() []float32 {
 // page and the room beside it. Between the two it goes smoothly, as the
 // window is resized across where they meet, on el.
 func (s *State) editorWidth(el ui.Element, inner, k float32, animate bool) float32 {
-	gap := columnGap * k
+	gap := float32(columnGap)
 	page := s.Settings.Prose().Column() + 2*sheetPad*k
 	n := float32(2)
 	if (inner-2*gap)/3 >= page {
@@ -429,17 +439,21 @@ func columnTransition(animate bool) ui.ElementTransition {
 	return ui.ElementTransition{Animation: &spring, Position: true, Colors: true, Enter: gone, Exit: gone}
 }
 
-// columnRadius is how round a column's corners are, at the reference
-// type size.
-const columnRadius = 10
+// columnDim is how far what a column holds shows while another is in
+// front: the one in front reads whole, the rest stepped back.
+const columnDim = 0.55
 
-// columnEdge is a column's edge: the accent's, softly, for the one in
-// front, and a faint line for the rest.
-func columnEdge(semantic theme.Theme, front bool) ui.Color {
+// columnShows is how far what a column holds shows, as it comes in front
+// or goes from it.
+func columnShows(col ui.Element, front, animate bool) float32 {
+	target := float32(columnDim)
 	if front {
-		return semantic.Accent.Foreground.Alpha(0.55)
+		target = 1
 	}
-	return semantic.Border.Variant.Alpha(0.6)
+	if !animate {
+		return target
+	}
+	return components.Follow(col, "column-shows", target, components.MotionNormal)
 }
 
 // bringInView has the strip bring the column keyed key into view, the gap

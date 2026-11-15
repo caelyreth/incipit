@@ -124,37 +124,42 @@ func (s *State) moveIntoPicker(picker int, id string) {
 	}
 }
 
-// pickerColumn draws a picker: a head that chooses its place and closes
-// it, its search, and its list.
+// pickerColumn draws a picker: under the title line, its place, which
+// chooses what it lists, its search, and its list; on the line, its head
+// (columnHead), what closes it.
 func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, w, origin float32, animate bool) {
 	list := s.pickerList(p)
 	// The search is the list while it holds a query.
 	p.list.searching = strings.TrimSpace(p.list.query) != ""
 	list.noteView(c, animate)
-	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	scale := s.Settings.UIFontSize
 	col, front, shown := s.column(c, canvasColumn{picker: p}, w, origin, animate)
-	col.Role(ui.RoleGroup).Label("Sheet picker").Clip().Radius(columnRadius*k).
-		Background(semantic.Surface.Panel).Border(1, columnEdge(semantic, front))
-	// Its head is on the title line, as a sheet's is (titleline.go).
-	_, line := s.titleLine(k)
+	col.Role(ui.RoleGroup).Label("Sheet picker").Clip().Background(semantic.Surface.Panel)
 	lead, trail := s.clearOfChrome(c, shown)
+	head := float32(0)
+	if col.Hovered() {
+		head = 1
+	}
+	if animate {
+		head = components.Follow(col, "head-shown", head, components.MotionNormal)
+	}
 	col.Children(func() {
-		head := ui.Row(c).Key("picker-head").WidthPercent(100).Height(line).Shrink(0).AlignItems(ui.Center).
-			Gap(6 * k).PaddingStart(theme.Space06.DIPs(scale) + lead).PaddingEnd(6*k + trail).DragWindow()
-		head.Children(func() {
-			s.pickerPlace(c, semantic, list, animate)
-			chromeButton{
-				key: "close-picker", label: "Close picker", icon: components.IconClose, compact: true,
-				action: func() { s.closePicker(p.id) },
-			}.view(c, semantic, animate)
+		pad := theme.Space08.DIPs(scale)
+		ui.Column(c).Key("picker-body").WidthPercent(100).Grow(1).MinHeight(0).Padding(titleLine(c), 0, 0, 0).
+			Opacity(columnShows(col, front, animate)).Children(func() {
+			ui.Row(c).Key("picker-place-row").WidthPercent(100).Shrink(0).Padding(0, pad, theme.Space04.DIPs(scale), pad).
+				Children(func() { s.pickerPlace(c, semantic, list, animate) })
+			ui.Row(c).Key("picker-search").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
+				Padding(0, pad, theme.Space06.DIPs(scale), pad).Children(func() {
+				list.searchHeader(c, semantic, animate)
+			})
+			ui.Box(c).WidthPercent(100).Height(1).Shrink(0).Background(semantic.Border.Variant)
+			list.listStage(c, semantic, animate)
 		})
-		ui.Row(c).Key("picker-search").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
-			PaddingX(theme.Space08.DIPs(scale)).Padding(0, theme.Space08.DIPs(scale), theme.Space06.DIPs(scale), theme.Space08.DIPs(scale)).Children(func() {
-			list.searchHeader(c, semantic, animate)
-		})
-		ui.Box(c).WidthPercent(100).Height(1).Shrink(0).Background(semantic.Border.Variant)
-		list.listStage(c, semantic, animate)
+		s.columnHead(c, semantic, "picker-head", lead, trail, head, nil, chromeButton{
+			key: "close-picker", label: "Close picker",
+			action: func() { s.closePicker(p.id) },
+		}, animate)
 	})
 }
 

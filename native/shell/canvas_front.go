@@ -3,7 +3,8 @@ package shell
 import "github.com/egoist/mygo/ui"
 
 // One column on the strip is in front, and every column shows whether it
-// is alike, by its edge (columnEdge). It is the last that came forward:
+// is alike, by how far what it holds shows (columnShows), the rest
+// stepped back. It is the last that came forward:
 // the column the pointer moved onto, the one the keyboard went into, as
 // by a click in a picker's search, or the sheet that came in front some
 // other way, as one opened, chosen in a picker or come beside one closed.

@@ -47,6 +47,21 @@ func gapAfter(state *State, i int) float32 {
 	return canvasEdge - state.canvas.strip.X + sp.x + sp.w + columnGap/2
 }
 
+// closeColumn presses close in the column labelled column on the canvas,
+// its head shown with the pointer on it.
+func closeColumn(tester *ui.Tester, column, close string) error {
+	if col, ok := tester.Find(column); ok {
+		tester.Move(col.X+col.W/2, col.Y+col.H/2)
+		settle(tester)
+	}
+	return tester.Click(close)
+}
+
+// closeSheet closes the sheet titled title on the canvas.
+func closeSheet(tester *ui.Tester, title string) error {
+	return closeColumn(tester, title, "Close "+title)
+}
+
 // columnsOf names the workspace's columns: a sheet by its id, a picker
 // as "picker".
 func columnsOf(state *State) []string {
@@ -71,7 +86,7 @@ func TestTheCanvasComesWithTheSheetInFrontAlone(t *testing.T) {
 	if _, ok := tester.Find("Sheet picker"); ok {
 		t.Fatal("Coming to the canvas should make no picker.")
 	}
-	if _, ok := tester.Find("Close Untitled"); !ok {
+	if _, ok := tester.Find("Untitled"); !ok {
 		t.Fatal("The sheet in front should stand on the canvas.")
 	}
 	if _, ok := tester.Find("Groups"); ok {
@@ -263,7 +278,7 @@ func TestAPickerCloses(t *testing.T) {
 	state, _, tester := onCanvas(t)
 	state.NewPicker()
 	settle(tester)
-	if err := tester.Click("Close picker"); err != nil {
+	if err := closeColumn(tester, "Sheet picker", "Close picker"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
@@ -311,7 +326,7 @@ func TestTheCanvasHoldsItsSheetsAtOnce(t *testing.T) {
 		t.Fatalf("The pointer coming onto a sheet should bring it in front, but the sheets selected are %v.", selected)
 	}
 	// Draft, last, closes: the one before it comes in front.
-	if err := tester.Click("Close Draft"); err != nil {
+	if err := closeSheet(tester, "Draft"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
@@ -320,7 +335,7 @@ func TestTheCanvasHoldsItsSheetsAtOnce(t *testing.T) {
 			closed, state.ActivePage)
 	}
 	for _, title := range []string{"Untitled", "Chapter"} {
-		if err := tester.Click("Close " + title); err != nil {
+		if err := closeSheet(tester, title); err != nil {
 			t.Fatal(err)
 		}
 		settle(tester)
@@ -587,7 +602,7 @@ func TestClosingAColumnEasesTheStripBack(t *testing.T) {
 	if before <= 0 {
 		t.Fatal("The test needs the strip scrolled along.")
 	}
-	if err := tester.Click("Close picker"); err != nil {
+	if err := closeColumn(tester, "Sheet picker", "Close picker"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Advance(16 * time.Millisecond)
@@ -660,34 +675,46 @@ func TestThePointerBringsTheColumnUnderItInFront(t *testing.T) {
 	}
 }
 
-// The columns' heads stand on the title line, their content clear of the
-// traffic lights as the strip goes under them.
-func TestTheHeadsKeepClearOfTheTrafficLights(t *testing.T) {
+// The title line is the chrome's: a column under the controls holds what
+// it holds under the line, whole, and only its head on it, clear of them,
+// centred on the traffic lights as the controls are.
+func TestTheTitleLineHoldsOnlyTheHeadsClearOfTheControls(t *testing.T) {
 	state, _, tester := onCanvas(t)
 	joining(state, tester, sheetPages("7", "8")...)
-	state.newPickerAt(0)
+	state.newPickerAt(len(state.workspace().columns))
 	settle(tester)
-	state.stripAt(0)
+	state.stripAt(state.canvas.strip.MaxX)
 	tester.SetTitleBar(ui.TitleBar{Height: 40, Left: 76})
 	settle(tester)
-	clear := func(when string) {
-		t.Helper()
-		title, ok := tester.Find("All")
-		if !ok {
-			t.Fatalf("The picker's head should show %s, but the strip shows %#v.", when, tester.Texts())
-		}
-		if title.X < 76 || title.W == 0 {
-			t.Fatalf("The picker's title should keep clear of the traffic lights %s, but it starts at %v.", when, title.X)
-		}
-		if top, line := state.titleLine(1); title.Y < top || title.Y+title.H > top+line {
-			t.Fatalf("The picker's title should stand on the title line %s, %v down and %v tall, but it is at %v.",
-				when, top, line, title)
-		}
+	picker, ok := tester.Find("Sheet picker")
+	if !ok {
+		t.Fatal("The picker should show.")
 	}
-	clear("at the strip's start")
-	tester.Scroll(600, 400, 60, 0)
-	if state.canvas.strip.X == 0 {
-		t.Fatal("The strip should go along.")
+	if right := picker.X + picker.W; right < 1260-state.controlsAt.reach {
+		t.Fatalf("The test needs the picker under the controls, but it ends at %v.", right)
 	}
-	clear("as the strip goes under them")
+	tester.Move(picker.X+picker.W/2, picker.Y+picker.H/2)
+	settle(tester)
+	band := float32(40)
+	place, ok := tester.Find("All")
+	if !ok || place.W == 0 {
+		t.Fatalf("The picker's place should show whole, but the strip shows %#v.", tester.Texts())
+	}
+	if place.Y < band {
+		t.Fatalf("The picker's place should stand under the title line, %v down, but it is at %v.", band, place)
+	}
+	close, ok := tester.Find("Close picker")
+	if !ok {
+		t.Fatal("The picker's head should show with the pointer on it.")
+	}
+	if mid := close.Y + close.H/2; abs(mid-band/2) > 1 {
+		t.Fatalf("The picker's head should be centred on the traffic lights, %v down, but it is at %v.", band/2, close)
+	}
+	if controls, ok := tester.Find("Search commands"); !ok || abs(controls.Y+controls.H/2-band/2) > 1 {
+		t.Fatalf("The window's controls should be centred on the traffic lights, %v down, but they are at %v.", band/2, controls)
+	}
+	if close.X+close.W > 1260-state.controlsAt.reach {
+		t.Fatalf("The picker's head should keep clear of the controls, from %v, but it reaches %v.",
+			1260-state.controlsAt.reach, close.X+close.W)
+	}
 }

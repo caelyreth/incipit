@@ -20,12 +20,12 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 	mode := s.Mode()
 	button := func(key, label string, icon components.IconName, action func()) func() {
 		return func() {
-			chromeButton{key: key, label: label, icon: icon, action: action}.view(c, semantic, animate)
+			chromeButton{key: key, label: label, icon: icon, compact: true, action: action}.view(c, semantic, animate)
 		}
 	}
 	groups := []components.ActionGroup{{Key: "mode", Label: "Mode", Actions: []func(){func() {
 		components.Segmented{
-			Key: "window-mode", Label: "Mode", Animate: animate,
+			Key: "window-mode", Label: "Mode", Animate: animate, Size: components.CompactButton,
 			Options: []components.SegmentOption{
 				{Key: "page", Label: "Page mode", Icon: components.IconDocument, Selected: mode == ModePage,
 					Action: func() { s.SetMode(ModePage) }},
@@ -38,24 +38,16 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 		button("commands", "Search commands", components.IconCommand, s.OpenCommands),
 		button("settings", "Open settings", components.IconSettings, s.OpenSettings),
 	}})
-	// They stand on the title bar's line, the traffic lights' and the
-	// panes' heads', as far in from the right edge as from the top, so
-	// they sit square in the corner: centred in the band where they fit,
-	// and else at least the chrome's gutter's half in from both, in the
-	// window's points whatever the type's size.
-	band := c.TitleBar().Height
-	if band <= 0 {
-		band = theme.DefaultLayout.Titlebar
-	}
+	// They stand on the title line, centred on the traffic lights, compact
+	// so they fit the lights' band, chromeInset in from the right edge, in
+	// the window's points whatever the type's size (titleline.go).
 	bar := ui.Row(c).Key("controls").Absolute().Opacity(chrome).Bind(&s.floating[0])
 	// Laid out as they were the frame before.
 	bounds := bar.LayoutBounds()
-	inset := max(theme.DefaultLayout.ChromeGutter/2, (band-bounds.H)/2)
-	bar.Top(inset).Right(inset)
-	// The title line is theirs (titleline.go).
-	s.controlsAt = controlsPlace{inset: inset, height: bounds.H, reach: bounds.W + 2*inset}
+	bar.Top((titleLine(c) - bounds.H) / 2).Right(chromeInset)
+	s.controlsAt = controlsPlace{reach: bounds.W + 2*chromeInset}
 	bar.Children(func() {
-		components.ActionDock{Key: "window-controls", Label: "Window", Groups: groups, Animate: animate}.
+		components.ActionDock{Key: "window-controls", Label: "Window", Groups: groups, Compact: true, Animate: animate}.
 			View(c, semantic)
 	})
 }

@@ -135,7 +135,7 @@ type State struct {
 	lastUIFontSize   float32
 	lastSidebarWidth float32
 	lastChrome       float32
-	// controlsAt is where the window's controls stood as last laid out, the
+	// controlsAt is where the window's controls stood as last laid out, on the
 	// title line's (titleline.go).
 	controlsAt controlsPlace
 	// listDock is how far the place's title has gone from the panes'

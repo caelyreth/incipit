@@ -219,11 +219,9 @@ func (s *State) page(
 				// Its head is the canvas's, shown only there.
 				k := components.UIFontSize(c) / theme.DefaultUIFontSize
 				sheet := s.openPage(s.ActivePage)
-				_, line := s.titleLine(k)
 				s.sheetSurface(c, semantic, s.ActivePage, sheetLook{
-					edge: semantic.Accent.Foreground.Alpha(0), top: top * 3 / 2,
-					head:       func() { s.sheetHead(c, semantic, sheet, true, k, 0, 0, s.animate(c)) },
-					headHeight: line + 1,
+					top: top * 3 / 2, shows: 1,
+					head: func(shown float32) { s.sheetHead(c, semantic, sheet, k, 0, 0, shown, s.animate(c)) },
 				}, func(top float32) {
 					if s.Sheet != nil {
 						s.Sheet(c, s.ActivePage, SheetFrame{
@@ -240,25 +238,23 @@ func (s *State) page(
 // sheetMatch is the identity a sheet's surface has in both modes.
 type sheetMatch string
 
-// sheetLook is how a sheet's surface looks where it stands: as a card on
-// the canvas, its corners rounded and its edge drawn, or as the page,
-// square and edgeless. Its page stands in from its top by top, the reading
-// space above the first line, and from its sides by side; head builds its
-// head, a band headHeight tall laid over the top of that room, as far
-// shown as headShown, which the page has not.
+// sheetLook is how a sheet's surface looks where it stands, a page square
+// and edgeless in both, the page mode's or a pane of the canvas. Its page
+// stands in from its top by top, the reading space above the first line,
+// and from its sides by side, and shows as far as shows; head builds its
+// head over it (columnHead), as far shown as headShown, which the page
+// has not.
 type sheetLook struct {
-	radius     float32
-	edge       ui.Color
-	top, side  float32
-	head       func()
-	headHeight float32
-	headShown  float32
+	top, side float32
+	head      func(shown float32)
+	headShown float32
+	shows     float32
 }
 
 // sheetSurface is a sheet's surface, its page and the head over it, where
 // it stands: one thing in two places, the page's and its column's on the
 // canvas, built in one at a time and flying from the other as the mode
-// changes, from its box, corners and edge (components.Sharing). The page
+// changes, from its box (components.Sharing). The page
 // is one, drawn only where it was built last, so it goes across whole, the
 // other leaving no copy. The rest of its look goes with it (Sharing.Carry):
 // where the page stands in it, its text gliding from its place in the one
@@ -270,21 +266,16 @@ func (s *State) sheetSurface(c *ui.Context, semantic theme.Theme, id string, loo
 	match := sheetMatch(id)
 	motion, arrives := s.sharing.Hold(match, s.laid.String(), components.MotionMode, animate)
 	surface := ui.Column(c).Key("surface").WidthPercent(100).FillHeight().Clip().
-		Radius(look.radius).Background(semantic.Surface.Page).Border(1, look.edge).Transition(motion)
+		Background(semantic.Surface.Page).Transition(motion)
 	carry := func(name string, target float32) float32 {
 		return s.sharing.Carry(surface, match, name, target, components.MotionMode, arrives, animate)
 	}
 	top, side, headShown := carry("top", look.top), carry("side", look.side), carry("head", look.headShown)
 	return surface.Children(func() {
 		ui.Column(c).Key("surface-page").WidthPercent(100).Grow(1).MinHeight(0).PaddingX(side).
-			Children(func() { page(top) })
-		if look.head != nil && headShown > 0.001 {
-			head := ui.Column(c).Key("surface-head").Absolute().Top(0).Left(0).Right(0).
-				Height(look.headHeight).Background(semantic.Surface.Page)
-			if headShown < 0.999 {
-				head.Opacity(headShown)
-			}
-			head.Children(look.head)
+			Opacity(look.shows).Children(func() { page(top) })
+		if look.head != nil {
+			look.head(headShown)
 		}
 	})
 }
