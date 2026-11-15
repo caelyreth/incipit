@@ -57,8 +57,8 @@ type Surfaces struct {
 	Panel      ui.Color
 	Page       ui.Color
 	Inset      ui.Color
-	// Chosen is a chosen row's fill in a list, dimmer than Inset so what
-	// a row holds on a family's surface, as a tag, still stands out.
+	// Chosen is a chosen row's fill in a list: neutral, louder than a
+	// hover, and marked with the accent at its edge by the list.
 	Chosen   ui.Color
 	Backdrop ui.Color
 	Elevated ui.Color
@@ -113,6 +113,13 @@ type StatusColors struct {
 	Danger  StatusColor
 }
 
+// TagColors are a tag's, in the page as in a list: quiet, neutral, so a
+// sheet's tags never add a hue to the window.
+type TagColors struct {
+	Background ui.Color
+	Foreground ui.Color
+}
+
 type ProseColors struct {
 	Text      ui.Color
 	Strong    ui.Color
@@ -135,6 +142,7 @@ type Theme struct {
 	Accent       AccentColors
 	Status       StatusColors
 	Scrollbar    ScrollbarColors
+	Tag          TagColors
 	Prose        ProseColors
 	// Families are the six hues, by Accent, for what wears a color of its
 	// own, as a group.
@@ -142,8 +150,6 @@ type Theme struct {
 }
 
 type Settings struct {
-	// Scheme is the palettes the appearances take; nil is Cosmofi's.
-	Scheme        *Scheme
 	Appearance    Appearance
 	Accent        Accent
 	UIFontSize    float32
@@ -183,71 +189,75 @@ func (s Settings) Normalized() Settings {
 }
 
 func (s Settings) Semantic() Theme {
-	palette := s.Palette()
+	palette := paletteFor(s.Appearance)
 	accent := familyFor(palette, s.Accent)
 	return Theme{
 		Appearance:   s.Appearance,
 		AccentFamily: s.Accent,
 		Surface: Surfaces{
-			Background: palette.Background,
-			Panel:      palette.Background,
-			Page:       palette.Page,
-			Inset:      palette.Inset,
-			Chosen:     palette.Chosen,
+			Background: palette.background,
+			Panel:      palette.background,
+			Page:       palette.working,
+			Inset:      palette.inset,
+			Chosen:     palette.chosen,
 			Backdrop:   ui.RGBA(0, 0, 0, 0.38),
-			Elevated:   palette.Raised,
+			Elevated:   palette.raised,
 		},
 		Text: TextColors{
-			Default: palette.TextPrimary,
-			Heading: palette.TextEmphasis,
-			Muted:   palette.TextSecondary,
+			Default: palette.textPrimary,
+			Heading: palette.textEmphasis,
+			Muted:   palette.textSecondary,
 		},
 		Icon: IconColors{
-			Default: palette.TextPrimary,
-			Muted:   palette.TextSecondary,
+			Default: palette.textPrimary,
+			Muted:   palette.textSecondary,
 			Accent:  accent.Foreground,
 		},
 		Border: BorderColors{
-			Default:  palette.Hairline,
-			Variant:  palette.Subtle,
+			Default:  palette.hairline,
+			Variant:  palette.subtle,
 			Focused:  accent.Foreground,
 			Selected: accent.Foreground,
 		},
 		Element: ElementColors{
-			Background: palette.Inset,
-			Hover:      palette.Hover,
-			Selected:   palette.Selected,
+			Background: palette.inset,
+			Hover:      palette.hover,
+			Selected:   palette.selected,
 		},
 		GhostElement: ElementColors{
 			Background: ui.Transparent,
-			Hover:      palette.Hover,
-			Selected:   palette.Selected,
+			Hover:      palette.hover,
+			Selected:   palette.selected,
 		},
 		Accent: AccentColors{
 			Foreground: accent.Foreground,
 			Muted:      accent.Surface,
-			OnAccent:   palette.Background,
+			OnAccent:   onAccent(s.Appearance),
 		},
 		Status: StatusColors{
-			Info:    statusColor(palette.Accents[Halo]),
-			Warning: statusColor(palette.Accents[Regolith]),
-			Success: statusColor(palette.Accents[Life]),
-			Danger:  statusColor(palette.Accents[Afterglow]),
+			Info:    statusColor(palette.accents[Halo]),
+			Warning: statusColor(palette.accents[Regolith]),
+			Success: statusColor(palette.accents[Life]),
+			Danger:  statusColor(palette.accents[Afterglow]),
 		},
 		Scrollbar: ScrollbarColors{
-			Thumb:      palette.Guide,
-			ThumbHover: palette.Track,
+			Thumb:      palette.guide,
+			ThumbHover: palette.track,
+		},
+		Tag: TagColors{
+			Background: palette.inset,
+			Foreground: palette.textSecondary,
 		},
 		Prose: ProseColors{
-			Text:     palette.TextPrimary,
-			Strong:   palette.TextEmphasis,
-			Notation: palette.TextSecondary,
-			Subtle:   palette.Hairline,
+			Text:     palette.textPrimary,
+			Strong:   palette.textEmphasis,
+			Notation: palette.textSecondary,
+			Subtle:   palette.hairline,
 			// Selection is the accent family's surface: the hue, quiet
 			// enough to read text through.
 			Selection: accent.Surface,
 		},
-		Families: palette.Accents,
+		Families: palette.accents,
 	}
 }
 
@@ -290,13 +300,11 @@ func (s Settings) MyGoThemeFor(semantic Theme) *ui.Theme {
 	return result
 }
 
-// Palette is the palette of the settings' scheme for their appearance.
-func (s Settings) Palette() Palette {
-	scheme := s.Scheme
-	if scheme == nil {
-		scheme = Cosmofi()
+func paletteFor(appearance Appearance) palette {
+	if appearance == Daybreak {
+		return daybreak()
 	}
-	return scheme.For(s.Appearance)
+	return starfield()
 }
 
 func statusColor(family Family) StatusColor {
@@ -307,11 +315,15 @@ func statusColor(family Family) StatusColor {
 	}
 }
 
-func familyFor(palette Palette, accent Accent) Family {
-	if int(accent) >= len(palette.Accents) {
+func familyFor(palette palette, accent Accent) Family {
+	if int(accent) >= len(palette.accents) {
 		accent = Halo
 	}
-	return palette.Accents[accent]
+	return palette.accents[accent]
+}
+
+func onAccent(appearance Appearance) ui.Color {
+	return paletteFor(appearance).background
 }
 
 func clamp(value, low, high float32) float32 {

@@ -2,56 +2,31 @@ package theme
 
 import "github.com/egoist/mygo/ui"
 
-// Palette is the colors of one appearance: the surfaces, lines and inks
-// of the materials, and the six hued families. A Scheme pairs one for the
-// night with one for the day; Cosmofi's is Neverland's own, and the
-// design lab sets others beside it to be judged in the running app.
-type Palette struct {
-	Background ui.Color
-	// Page is the working surface a sheet is written on.
-	Page   ui.Color
-	Raised ui.Color
-	Inset  ui.Color
-	// Chosen is a chosen row's fill: midway, by contrast, between the
-	// panel and the families' surfaces, so a row stands out from the
-	// panel by as much as what wears a surface stands out from the row.
-	Chosen        ui.Color
-	Hover         ui.Color
-	Selected      ui.Color
-	Hairline      ui.Color
-	Subtle        ui.Color
-	TextPrimary   ui.Color
-	TextEmphasis  ui.Color
-	TextSecondary ui.Color
-	Guide         ui.Color
-	Track         ui.Color
-	Accents       [len(AllAccents)]Family
+// palette is one appearance's colors: Starfield at night, Daybreak by day.
+// The inks and the families' hues are Cosmofi's (cosmofi/packages/cosmofi);
+// the surfaces they stand on, and the families' surfaces, are Neverland's
+// own ladder, which the color budget spends sparingly: neutral surfaces
+// and states, one accent, hues on identity alone. A family is one hue in
+// four roles.
+type palette struct {
+	background ui.Color
+	working    ui.Color
+	raised     ui.Color
+	inset      ui.Color
+	// chosen is a chosen row's fill, neutral, and always louder than
+	// hover: a row's place outlasts the pointer passing over it.
+	chosen        ui.Color
+	hover         ui.Color
+	selected      ui.Color
+	hairline      ui.Color
+	subtle        ui.Color
+	textPrimary   ui.Color
+	textEmphasis  ui.Color
+	textSecondary ui.Color
+	guide         ui.Color
+	track         ui.Color
+	accents       [len(AllAccents)]Family
 }
-
-// Scheme is a Palette for each appearance, under a name.
-type Scheme struct {
-	Name      string
-	Starfield Palette
-	Daybreak  Palette
-}
-
-// For is the scheme's palette for an appearance.
-func (s *Scheme) For(appearance Appearance) Palette {
-	if appearance == Daybreak {
-		return s.Daybreak
-	}
-	return s.Starfield
-}
-
-// Cosmofi is Neverland's scheme: the design system's tokens
-// (cosmofi/packages/cosmofi), placed into Neverland's materials, a family
-// being one hue in four roles.
-func Cosmofi() *Scheme { return &cosmofi }
-
-var cosmofi = Scheme{Name: "Cosmofi", Starfield: starfield(), Daybreak: daybreak()}
-
-// RGB is the color of a 0xRRGGBB value.
-func RGB(hex uint32) ui.Color { return color(hex) }
 
 func color(hex uint32) ui.Color {
 	return ui.RGB(
@@ -61,8 +36,7 @@ func color(hex uint32) ui.Color {
 	)
 }
 
-// NewFamily is a family of 0xRRGGBB values, in its four roles.
-func NewFamily(surface, muted, foreground, emphasis uint32) Family {
+func family(surface, muted, foreground, emphasis uint32) Family {
 	return Family{
 		Surface:    color(surface),
 		Muted:      color(muted),
@@ -71,60 +45,67 @@ func NewFamily(surface, muted, foreground, emphasis uint32) Family {
 	}
 }
 
-// starfield is Cosmofi's dark scheme. Static and Moonveil, the neutral
-// families, carry the text; the six hued families are the accents.
-func starfield() Palette {
-	return Palette{
-		Background:    color(0x161616),
-		Page:          color(0x1a1a1a),
-		Raised:        color(0x242424),
-		Inset:         color(0x272725), // static surface
-		Chosen:        color(0x202020),
-		Hover:         color(0x333333), // hairline
-		Selected:      color(0x404040), // guide
-		Hairline:      color(0x333333),
-		Subtle:        color(0x242424),
-		TextPrimary:   color(0xc1bfb3), // moonveil foreground
-		TextEmphasis:  color(0xd9d7cd), // moonveil emphasis
-		TextSecondary: color(0x92918b), // static foreground
-		Guide:         color(0x404040),
-		Track:         color(0x545450),
-		Accents: [...]Family{
-			Halo:      NewFamily(0x292831, 0x58566f, 0xa19ec2, 0x8a83b0),
-			Afterglow: NewFamily(0x352426, 0x955b5d, 0xdc8789, 0xce7076),
-			Remnant:   NewFamily(0x382731, 0x855b70, 0xc88da5, 0xbc728f),
-			Unripe:    NewFamily(0x292b23, 0x5b6148, 0xa0a77b, 0x8b965c),
-			Life:      NewFamily(0x252e29, 0x4b6a5a, 0x7dad96, 0x539579),
-			Regolith:  NewFamily(0x302922, 0x735940, 0xbd9976, 0xb78658),
+// starfield is the night: Cosmofi's inks and hues on a ladder of
+// near-neutral surfaces in Moonveil's hue (99°, chroma at most 0.005), so
+// the ground and the ink are one material. Each step reads at its place:
+// the page lifts a little off the chrome, what is raised stands above
+// both, and a chosen row (ΔL 6.4) stands above a row under the pointer
+// (2.7), both neutral. A family's surface, its selection and tag fill,
+// takes its hue at chroma 0.028, quiet enough to read text through.
+func starfield() palette {
+	return palette{
+		background:    color(0x171716),
+		working:       color(0x1b1b19),
+		raised:        color(0x252423),
+		inset:         color(0x21201f),
+		chosen:        color(0x262624),
+		hover:         color(0x1e1d1c),
+		selected:      color(0x2c2c2a),
+		hairline:      color(0x2c2c2a),
+		subtle:        color(0x222220),
+		textPrimary:   color(0xc1bfb3), // moonveil foreground
+		textEmphasis:  color(0xd9d7cd), // moonveil emphasis
+		textSecondary: color(0x92918b), // static foreground
+		guide:         color(0x3e3d3a),
+		track:         color(0x565552),
+		accents: [...]Family{
+			Halo:      family(0x2d2c3b, 0x58566f, 0xa19ec2, 0x8a83b0),
+			Afterglow: family(0x3b2828, 0x955b5d, 0xdc8789, 0xce7076),
+			Remnant:   family(0x39282f, 0x855b70, 0xc88da5, 0xbc728f),
+			Unripe:    family(0x2d301f, 0x5b6148, 0xa0a77b, 0x8b965c),
+			Life:      family(0x21322a, 0x4b6a5a, 0x7dad96, 0x539579),
+			Regolith:  family(0x382b1f, 0x735940, 0xbd9976, 0xb78658),
 		},
 	}
 }
 
-// daybreak is Cosmofi's light scheme: Starfield's hues, each role the same
-// distance from a gray paper ground.
-func daybreak() Palette {
-	return Palette{
-		Background:    color(0xf7f7f6),
-		Page:          color(0xf2f2f0),
-		Raised:        color(0xe8e8e6),
-		Inset:         color(0xe5e5e3), // static surface
-		Chosen:        color(0xeeeeec),
-		Hover:         color(0xd2d2d0), // hairline
-		Selected:      color(0xc2c2c0), // guide
-		Hairline:      color(0xd2d2d0),
-		Subtle:        color(0xe8e8e6),
-		TextPrimary:   color(0x535248), // moonveil foreground
-		TextEmphasis:  color(0x45433d), // moonveil emphasis
-		TextSecondary: color(0x6e6d68), // static foreground
-		Guide:         color(0xc2c2c0),
-		Track:         color(0xa0a09c),
-		Accents: [...]Family{
-			Halo:      NewFamily(0xe1e1e9, 0xafaec5, 0x696685, 0x726c96),
-			Afterglow: NewFamily(0xedddde, 0xbe8b8c, 0x9a5255, 0xa5545a),
-			Remnant:   NewFamily(0xead6e2, 0xc28ca6, 0x975172, 0xa84b73),
-			Unripe:    NewFamily(0xe0e2da, 0xa8b08f, 0x6a7038, 0x69752a),
-			Life:      NewFamily(0xd9e1dc, 0x93afa0, 0x4c7663, 0x387562),
-			Regolith:  NewFamily(0xe7dfd6, 0xc6a483, 0x8d6135, 0x9b5f1e),
+// daybreak is the day: the same inks and hues, the page the lightest
+// plane and what is raised lighter than the ground it stands on, so
+// nothing meant to stand out sinks into it. Chosen (ΔL 4.9) stands above
+// hover (2.1).
+func daybreak() palette {
+	return palette{
+		background:    color(0xf3f2ef),
+		working:       color(0xfcfcfa),
+		raised:        color(0xfefefd),
+		inset:         color(0xededea),
+		chosen:        color(0xe3e2de),
+		hover:         color(0xecebe8),
+		selected:      color(0xdbdbd7),
+		hairline:      color(0xdad9d5),
+		subtle:        color(0xe7e6e3),
+		textPrimary:   color(0x535248), // moonveil foreground
+		textEmphasis:  color(0x45433d), // moonveil emphasis
+		textSecondary: color(0x6e6d68), // static foreground
+		guide:         color(0xbebeb9),
+		track:         color(0x999893),
+		accents: [...]Family{
+			Halo:      family(0xdddbf0, 0xafaec5, 0x696685, 0x726c96),
+			Afterglow: family(0xf0d7d7, 0xbe8b8c, 0x9a5255, 0xa5545a),
+			Remnant:   family(0xeed7e0, 0xc28ca6, 0x975172, 0xa84b73),
+			Unripe:    family(0xdde0cc, 0xa8b08f, 0x6a7038, 0x69752a),
+			Life:      family(0xcee4d9, 0x93afa0, 0x4c7663, 0x387562),
+			Regolith:  family(0xecdbcb, 0xc6a483, 0x8d6135, 0x9b5f1e),
 		},
 	}
 }

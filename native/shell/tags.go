@@ -39,16 +39,15 @@ func (s *State) sheetTags(c *ui.Context, semantic theme.Theme, tags []string) {
 		widths[i] = chip(tagText(tag))
 	}
 	lines, hidden := fitTags(widths, func(n int) float32 { return chip(moreText(n)) }, width, gap, tagLineCount)
-	halo := semantic.Families[theme.Halo]
 	ui.Column(c).Key("tags").WidthPercent(100).Gap(theme.Space04.DIPs(scale)).
 		PaddingY(theme.Space04.DIPs(scale)).Children(func() {
 		for li, line := range lines {
 			ui.Row(c).WidthPercent(100).Gap(gap).AlignItems(ui.Center).Children(func() {
 				for _, i := range line {
-					components.TagChip(c, tagText(tags[i]), theme.TextXSmall, pad, width, halo.Surface, halo.Foreground)
+					components.TagChip(c, tagText(tags[i]), theme.TextXSmall, pad, width, semantic.Tag.Background, semantic.Tag.Foreground)
 				}
 				if li == len(lines)-1 && hidden > 0 {
-					components.TagChip(c, moreText(hidden), theme.TextXSmall, pad, width, halo.Surface, semantic.Text.Muted).
+					components.TagChip(c, moreText(hidden), theme.TextXSmall, pad, width, semantic.Tag.Background, semantic.Text.Muted).
 						Tooltip(strings.Join(tags[len(tags)-hidden:], ", "))
 				}
 			})

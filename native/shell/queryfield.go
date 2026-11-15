@@ -179,7 +179,6 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 	// one in it, as the keys move it past either end.
 	in.first = min(max(in.first, in.suggestion-suggestionsShown+1), in.suggestion, max(len(all)-suggestionsShown, 0))
 	items := all[in.first:min(in.first+suggestionsShown, len(all))]
-	halo := semantic.Families[theme.Halo]
 	width := field.LayoutBounds().W
 	ui.PopoverBase(c.Key("suggestions"), field, open, func(panel ui.Element) {
 		components.OutlinedSurface(panel, semantic, scale)
@@ -216,7 +215,7 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 					switch {
 					case item.Of == "tag":
 						components.TagChip(c, "#"+strings.TrimPrefix(item.Label, "#"), theme.TextSmall,
-							theme.Space04.DIPs(scale), width, halo.Surface, halo.Foreground)
+							theme.Space04.DIPs(scale), width, semantic.Tag.Background, semantic.Tag.Foreground)
 					case item.Of == "":
 						components.Label(c, item.Label, theme.TextSmall, semantic.Accent.Foreground).
 							SingleLine().Shrink(0)

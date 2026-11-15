@@ -12,18 +12,11 @@ import (
 )
 
 func Run() error {
-	root, err := storage.Root()
-	if err != nil {
+	if err := theme.RegisterFonts(); err != nil {
 		return err
 	}
-	return run(root, nil, nil)
-}
-
-// run opens the notebook at root and its main window. prepare, if any,
-// takes the notebook before any window opens; ready, if any, the app as
-// its main window has.
-func run(root string, prepare func(*AppState) error, ready func(*AppState)) error {
-	if err := theme.RegisterFonts(); err != nil {
+	root, err := storage.Root()
+	if err != nil {
 		return err
 	}
 	store, err := storage.Open(root)
@@ -34,12 +27,6 @@ func run(root string, prepare func(*AppState) error, ready func(*AppState)) erro
 	if err != nil {
 		_ = store.Close()
 		return err
-	}
-	if prepare != nil {
-		if err := prepare(app); err != nil {
-			_ = app.Close()
-			return err
-		}
 	}
 	// Whatever is pending is written before the app goes, and once more
 	// should the loop stop some other way.
@@ -77,21 +64,16 @@ func run(root string, prepare func(*AppState) error, ready func(*AppState)) erro
 			app.Shell.SetWindowActive(false)
 		})
 		window.OnClosed(func() {
-			// Settings, and the lab, belong to the editor: they close with
-			// it, and the app quits when no window is left.
-			for _, other := range []*mygo.Window{app.settingsWindow, app.labWindow} {
-				if other != nil && !other.IsDestroyed() {
-					other.Close()
-				}
+			// Settings belongs to the editor: it closes with it, and the
+			// app quits when no window is left.
+			if settings := app.settingsWindow; settings != nil && !settings.IsDestroyed() {
+				settings.Close()
 			}
 		})
 		app.mainWindow = window
 		app.Notices.SetWake(window.Invalidate)
 		if app.finder != nil {
 			app.finder.SetWake(window.Invalidate)
-		}
-		if ready != nil {
-			ready(app)
 		}
 	})
 	return mygo.App.Run()

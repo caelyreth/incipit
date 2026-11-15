@@ -23,18 +23,30 @@ func contrast(a, b ui.Color) float64 {
 	return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
 }
 
-// A chosen row stands out from the panel by about as much as a family's
-// surface on it stands out from the row, so neither vanishes.
-func TestAChosenRowSitsMidwayToTheSurfaces(t *testing.T) {
+// lighter reports whether a is lighter than b.
+func lighter(a, b ui.Color) bool {
+	return contrast(a, ui.RGB(0, 0, 0)) > contrast(b, ui.RGB(0, 0, 0))
+}
+
+// The ladder keeps its order in both appearances: a chosen row is louder
+// than a row under the pointer, both visible on the panel, and the page and
+// what is raised stand lighter than the panel, never sinking into it.
+func TestTheLadderKeepsItsOrder(t *testing.T) {
 	for _, appearance := range []Appearance{Starfield, Daybreak} {
 		settings := DefaultSettings()
 		settings.Appearance = appearance
 		th := settings.Semantic()
-		row := contrast(th.Surface.Chosen, th.Surface.Panel)
+		chosen := contrast(th.Surface.Chosen, th.Surface.Panel)
+		hover := contrast(th.Element.Hover, th.Surface.Panel)
+		if chosen <= hover || hover < 1.03 {
+			t.Errorf("appearance %d: chosen %.3f from the panel, hover %.3f", appearance, chosen, hover)
+		}
+		if !lighter(th.Surface.Page, th.Surface.Panel) || !lighter(th.Surface.Elevated, th.Surface.Panel) {
+			t.Errorf("appearance %d: the page or what is raised sinks into the panel", appearance)
+		}
 		for accent, family := range th.Families {
-			on := contrast(family.Surface, th.Surface.Chosen)
-			if row < 1.08 || on < 1.08 {
-				t.Errorf("appearance %d, family %d: row %.2f from the panel, surface %.2f from the row", appearance, accent, row, on)
+			if on := contrast(family.Surface, th.Surface.Page); on < 1.08 {
+				t.Errorf("appearance %d, family %d: the surface is %.2f from the page", appearance, accent, on)
 			}
 		}
 	}

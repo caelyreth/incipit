@@ -32,6 +32,7 @@ type NavigationRow struct {
 func NavigationSelection(c *ui.Context, semantic theme.Theme) SelectionStyle {
 	return SelectionStyle{
 		Fill:        semantic.Surface.Chosen,
+		Marker:      semantic.Accent.Foreground,
 		Radius:      theme.DefaultControls.Scaled(UIFontSize(c)).Radius,
 		Picked:      semantic.Accent.Muted,
 		PickedHover: semantic.Accent.Foreground.Alpha(0.1),

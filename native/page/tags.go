@@ -226,7 +226,6 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 		return
 	}
 	semantic := el.Theme
-	halo := semantic.Families[theme.Halo]
 	scale := components.UIFontSize(c)
 	metrics := theme.DefaultControls.Scaled(scale)
 	pad := theme.Space04.DIPs(scale)
@@ -297,7 +296,7 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 				Gap(theme.Space06.DIPs(scale)).FocusRing(false).Selected(i == tp.chosen).
 				Background(ui.Transparent).Label(label).Transition(moving)
 			button.Children(func() {
-				components.TagChip(c, "#"+tr.name, theme.TextSmall, chipPad, width, halo.Surface, halo.Foreground)
+				components.TagChip(c, "#"+tr.name, theme.TextSmall, chipPad, width, semantic.Tag.Background, semantic.Tag.Foreground)
 				if tr.create {
 					ui.Row(c).Gap(theme.Space04.DIPs(scale)).AlignItems(ui.Center).Shrink(0).Children(func() {
 						ui.Icon(c, components.IconPlus.SVG()).FontSize(theme.TextXSmall.Size(scale)).

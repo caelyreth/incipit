@@ -22,8 +22,10 @@ func Theme(t theme.Theme) present.Theme {
 		vocab.GroupText: {Set: present.SetFont | present.SetColor, Font: present.FontBody, Color: pack(t.Prose.Text)},
 		profile.GroupHeading: {Set: present.SetFont | present.SetWeight | present.SetColor | present.SetSpace, Font: present.FontHeading,
 			Weight: 700, Color: pack(t.Prose.Strong), Space: 1.6},
-		profile.GroupEmphasis: tinted(t.Families[theme.Unripe]),
-		profile.GroupStrong:   bold(tinted(t.Families[theme.Regolith])),
+		// Marks are said by the type, not by a hue: the color budget keeps
+		// prose to its ink.
+		profile.GroupEmphasis: {Set: present.SetItalic, Italic: true},
+		profile.GroupStrong:   {Set: present.SetWeight | present.SetColor, Weight: 700, Color: pack(t.Prose.Strong)},
 		profile.GroupCodeMark: {Set: present.SetFont | present.SetBackground | present.SetSize, Font: present.FontMono,
 			Size: 0.9, Background: pack(t.Surface.Inset)},
 		profile.GroupStrike:        {Set: present.SetStrike | present.SetColor, Strike: true, Color: pack(t.Text.Muted)},
@@ -50,11 +52,10 @@ func Theme(t theme.Theme) present.Theme {
 			Outline: pack(t.Accent.Foreground.Alpha(0.85))},
 		vocab.GroupArmed: {Set: present.SetLine | present.SetLineColor | present.SetOutline,
 			Line: present.LineBox, LineColor: pack(t.Families[theme.Remnant].Foreground), Outline: pack(t.Families[theme.Remnant].Foreground)},
-		// A tag reads as one, in Halo whatever the accent: its surface,
-		// the family's dimmest tone, behind its normal one, as the sheet
-		// list shows tags.
+		// A tag reads as one, quietly: the neutral fill a list shows tags
+		// in, so tags add no hue to the page.
 		profile.GroupTag: {Set: present.SetBackground | present.SetColor,
-			Background: pack(t.Families[theme.Halo].Surface), Color: pack(t.Families[theme.Halo].Foreground)},
+			Background: pack(t.Tag.Background), Color: pack(t.Tag.Foreground)},
 		vocab.GroupPairMatch: {Set: present.SetBackground, Background: pack(t.Families[t.AccentFamily].Surface)},
 		vocab.GroupScope: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[t.AccentFamily].Muted)},
@@ -62,10 +63,11 @@ func Theme(t theme.Theme) present.Theme {
 			Background: pack(t.Families[theme.Life].Surface), Line: present.LineUnder,
 			LineColor: pack(t.Families[theme.Life].Foreground), Outline: pack(t.Families[theme.Life].Foreground)},
 	}
-	// A find's matches are marked as a highlighter marks them, as the
-	// sheet list marks what a search matched; the one the selection went
-	// to flashes in the same hue, and the selection's wash stays over it.
-	th[vocab.GroupFindMatch] = present.Style{Set: present.SetBackground, Background: pack(t.Families[theme.Regolith].Muted)}
+	// A find's matches are underlined in Regolith, quietly; the one the
+	// selection went to flashes in the hue and keeps the selection's wash,
+	// so the current match is the loudest on the page.
+	th[vocab.GroupFindMatch] = present.Style{Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
+		LineColor: pack(t.Families[theme.Regolith].Foreground)}
 	th[vocab.GroupFindFlash] = present.Style{Set: present.SetBackground | present.SetLine | present.SetLineColor | present.SetOutline,
 		Background: pack(t.Families[theme.Regolith].Muted), Line: present.LineBox,
 		LineColor: pack(t.Families[theme.Regolith].Foreground), Outline: pack(t.Families[theme.Regolith].Foreground)}
@@ -73,17 +75,6 @@ func Theme(t theme.Theme) present.Theme {
 		th[profile.GroupHeadings[level]] = present.Style{Set: present.SetSize, Size: headingScale[level]}
 	}
 	return th
-}
-
-// tinted is a mark worn in a hue: its family's foreground on its surface.
-func tinted(f theme.Family) present.Style {
-	return present.Style{Set: present.SetColor | present.SetBackground, Color: pack(f.Foreground), Background: pack(f.Surface)}
-}
-
-func bold(s present.Style) present.Style {
-	s.Set |= present.SetWeight
-	s.Weight = 700
-	return s
 }
 
 // family is a font role's family.

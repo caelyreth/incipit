@@ -21,7 +21,10 @@ const (
 // clear of their own edges: half the space between the list's rows puts it
 // midway across.
 type SelectionStyle struct {
-	Fill        ui.Color
+	Fill ui.Color
+	// Marker, when set, is the accent's mark at the chosen row's leading
+	// edge: the one place the color budget lets the accent tell a place.
+	Marker      ui.Color
 	Border      ui.Color
 	Radius      float32
 	Picked      ui.Color
@@ -209,6 +212,17 @@ func (t *SelectionTrack) paint(p *ui.Painter, rect ui.Rect, style SelectionStyle
 	if style.Border.A > 0 {
 		p.Stroke(box, style.Border.Alpha(alpha), style.Radius, 1)
 	}
+	if style.Marker.A > 0 {
+		paintMarker(p, box, style.Marker.Alpha(alpha*float32(style.Marker.A)/255))
+	}
+}
+
+// paintMarker is the accent's mark at a chosen row's leading edge: a short
+// rounded bar, inset from the row's ends, as tall as the row's text.
+func paintMarker(p *ui.Painter, row ui.Rect, color ui.Color) {
+	const width = 3
+	inset := row.H * 0.28
+	p.Fill(ui.Rect{X: row.X, Y: row.Y + inset, W: width, H: max(0, row.H-2*inset)}, color, width/2)
 }
 
 // place sets the highlight at rect and opacity with no motion in flight.
