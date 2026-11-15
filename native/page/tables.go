@@ -179,6 +179,9 @@ func (in tableIn) share(c int) float32 {
 // tableKind draws a table: its cells in a grid.
 type tableKind struct{ baseKind }
 
+// margins: a table wider than the column shows into the margins.
+func (tableKind) margins() bool { return true }
+
 func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, in objectIn) {
 	g, ok := vocab.GridNode(profile.Schema(), p.Node)
 	if !ok {

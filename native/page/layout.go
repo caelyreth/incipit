@@ -303,6 +303,16 @@ func newLayoutCache() *layoutCache {
 	return &layoutCache{units: map[doc.ID]*unitLayout{}, good: map[lastGood]string{}}
 }
 
+// keyMetrics is what of m p's layout is keyed on: the margins only for
+// what reads them, so a page widened past its measure lays out again only
+// the objects that show into its margins, not every line of its text.
+func keyMetrics(p *present.Presentation, m Metrics) Metrics {
+	if !p.Object || !kindOf(p).margins() {
+		m.Reach = 0
+	}
+	return m
+}
+
 // build lays the presentations out. Units whose presentation, metrics and
 // composition are unchanged keep their shaped text.
 func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorations, th present.Theme, m Metrics, ins map[doc.ID]objectIn) *pageLayout {
@@ -314,7 +324,7 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		if p == nil {
 			continue
 		}
-		key := layoutKey{pres: p, metrics: m, theme: lc.themeID, in: objectIn{span: -1}}
+		key := layoutKey{pres: p, metrics: keyMetrics(p, m), theme: lc.themeID, in: objectIn{span: -1}}
 		if in, ok := ins[p.Unit]; ok {
 			key.in = in
 		}

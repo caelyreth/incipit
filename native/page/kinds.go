@@ -69,13 +69,16 @@ type objectKind interface {
 	// was, drawn at wasY, to u, as the page is laid out again: the page
 	// scrolls by it, so the place stays put.
 	anchor(el *Element, was *unitLayout, wasY float32, u *unitLayout) (float32, bool)
+	// margins is whether its layout reads the page's margins (Metrics.Reach):
+	// only what does is laid out again as the margins change.
+	margins() bool
 }
 
 // baseKind is what a kind does where it does nothing of its own: it holds
 // nothing open, places no caret, draws nothing over its text, sets its
 // surfaces in no boxes, has no reach and offers no controls, moves nothing,
 // follows and draws nothing over the page, scrolls nothing within it,
-// offers no commands and holds no place.
+// offers no commands, holds no place and reads no margins.
 type baseKind struct{}
 
 func (baseKind) holds(*unitLayout) int                                        { return 0 }
@@ -98,6 +101,7 @@ func (baseKind) menu(*Element, *unitLayout) [][]vocab.CommandID { return nil }
 func (baseKind) anchor(*Element, *unitLayout, float32, *unitLayout) (float32, bool) {
 	return 0, false
 }
+func (baseKind) margins() bool { return false }
 
 // inlineKind lays out and draws one kind of inline object in its line.
 type inlineKind interface {

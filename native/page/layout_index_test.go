@@ -55,3 +55,31 @@ func TestEveryStopIsFoundThroughItsUnit(t *testing.T) {
 		t.Fatal("the heading was laid out or indexed again")
 	}
 }
+
+// A page widened past its measure lays out again only what shows into its
+// margins: its text keeps its shaped lines, and a table, which may reach
+// into the margins, is laid out again.
+func TestWideningPastTheMeasureLaysOutOnlyTheMargins(t *testing.T) {
+	el, table := tablePage(t, 2, 2, "a", "b")
+	units := func() (text, grid *unitLayout) {
+		for _, u := range el.relayout().units {
+			if u.table == nil {
+				text = u
+			}
+		}
+		return text, table()
+	}
+	text, grid := units()
+	measure := el.Editor.metrics.Width
+	el.viewport.W += 200
+	text2, grid2 := units()
+	if el.Editor.metrics.Width != measure {
+		t.Fatalf("the measure changed from %v to %v", measure, el.Editor.metrics.Width)
+	}
+	if text2 != text {
+		t.Fatal("the text was laid out again though its measure stayed")
+	}
+	if grid2 == grid {
+		t.Fatal("the table kept a layout from narrower margins")
+	}
+}
