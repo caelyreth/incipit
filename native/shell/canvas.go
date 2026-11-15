@@ -7,10 +7,9 @@ import (
 
 // The canvas is the notebook laid out as one flow, where the page mode
 // shows one place and one sheet at a time: a strip of columns across the
-// window, each as tall as it, that scrolls sideways without end. The first
-// column is the map, every group a region of its sheets' cards; after it
-// stands a column for each open sheet, written in where it stands, as many
-// as are open.
+// window, each as tall as it, that scrolls sideways without end: a column
+// for each open sheet, written in where it stands, and the pickers among
+// them that sheets are chosen in (canvas_pickers.go).
 //
 // Every column is as wide as the others: half the strip's window, so two
 // neighbours read as a split, or a third where a third still holds a
@@ -21,7 +20,8 @@ import (
 // wheel goes a column on. The sheet in front is always brought into view.
 // There is no zoom: the flow is how the canvas is gone through.
 //
-// The map is canvas_map.go, the sheets' columns canvas_sheets.go.
+// The sheets' columns are canvas_sheets.go, and the overview at the foot
+// canvas_scrub.go.
 
 const (
 	// flingCarry is how far a drag let go carries the strip on, in seconds
@@ -61,6 +61,17 @@ type canvasState struct {
 	reveal string
 	// scrub is the scrubber's (canvas_scrub.go).
 	scrub scrubState
+	// columns are the strip's, in order: the open sheets and the pickers
+	// among them (arrange); pickers counts the pickers made, for their ids.
+	// into and beside are sheets on their way from a picker, by its id: to
+	// take its place, or to stand after it. placePicker asks for a picker
+	// before the sheet in front, as the canvas comes, and revealPicker is
+	// one to bring into view.
+	columns      []canvasColumn
+	pickers      int
+	into, beside map[string]int
+	placePicker  bool
+	revealPicker int
 }
 
 // Mode is the window's mode; the canvas needs a library to lay out.
@@ -82,6 +93,7 @@ func (s *State) SetMode(m Mode) {
 	}
 	s.mode = m
 	s.canvas.entered = m == ModeCanvas
+	s.canvas.placePicker = m == ModeCanvas
 }
 
 // ToggleCanvas goes from the page to the canvas, or back.
@@ -102,6 +114,7 @@ func (s *State) closeCanvas() { s.SetMode(ModePage) }
 func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Layout, head float32, animate bool) {
 	scale := s.Settings.UIFontSize
 	s.canvas.follow, s.canvas.front = s.canvas.front != s.ActivePage, s.ActivePage
+	s.arrange()
 	canvas := ui.Column(c).Key("canvas").Grow(1).MinWidth(0).Background(semantic.Surface.Background).
 		Transition(fadeTransition(animate))
 	canvas.Children(func() {
@@ -118,8 +131,7 @@ func (s *State) canvasView(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	s.canvas.reveal = ""
 }
 
-// canvasStrip draws the strip under head's room: the map, then the open
-// sheets' columns.
+// canvasStrip draws the strip's columns under head's room.
 func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.Layout, head float32, animate bool) {
 	scale := s.Settings.UIFontSize
 	k := scale / theme.DefaultUIFontSize
@@ -142,13 +154,20 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 		flow := ui.Row(c).Key("canvas-flow").FillHeight().AlignItems(ui.Stretch).Gap(columnGap * k)
 		origin := flow.LayoutBounds().X
 		s.pan(flow)
+		pages := make(map[string]Page, len(s.Open))
+		for _, page := range s.Open {
+			pages[page.ID] = page
+		}
 		flow.Children(func() {
 			s.canvas.rests = s.canvas.rests[:0]
-			s.canvasMap(c, semantic, origin, columns)
-			for _, page := range s.Open {
-				s.openColumn(c, semantic, page, origin, columns)
+			for _, col := range s.canvas.columns {
+				if col.picker != nil {
+					s.pickerColumn(c, semantic, col.picker, origin, columns)
+					continue
+				}
+				s.openColumn(c, semantic, pages[col.sheet], origin, columns)
 			}
-			if len(s.Open) == 0 {
+			if len(s.canvas.columns) == 0 {
 				s.sheetHint(c, semantic, origin, columns)
 			}
 		})

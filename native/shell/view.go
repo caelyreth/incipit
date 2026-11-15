@@ -15,7 +15,7 @@ func (s *State) FocusWithin(c *ui.Context) bool { return s.root.FocusWithin(c) }
 // to take the focus as it opens: the search, a sheet's find, or a name
 // being edited.
 func (s *State) Typing() bool {
-	return s.SearchRequested || s.list.searching || s.FindRequested || s.finder.open || s.nav.renaming != ""
+	return s.SearchRequested || s.list.searching || s.list.focus || s.FindRequested || s.finder.open || s.nav.renaming != ""
 }
 
 func (s *State) View(c *ui.Context) {
@@ -24,8 +24,14 @@ func (s *State) View(c *ui.Context) {
 	if changing {
 		c.AnimationFrame()
 	}
-	if s.SearchRequested && !s.list.searching && s.Library != nil {
-		s.Search()
+	// The window asks for search: the sheet list's, its field focused.
+	if s.SearchRequested && s.Library != nil {
+		s.SearchRequested = false
+		if s.list.searching {
+			s.list.focus = true
+		} else {
+			s.Search()
+		}
 	}
 	width, _ := c.Size()
 	scale := s.Settings.UIFontSize

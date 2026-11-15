@@ -39,6 +39,7 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 	}}}}
 	if mode == ModeCanvas {
 		groups = append(groups, components.ActionGroup{Key: "canvas", Label: "Canvas actions", Actions: []func(){
+			button("new-picker", "New picker", components.IconFolderSearch, s.NewPicker),
 			button("new-sheet", "New sheet", components.IconNewSheet, func() {
 				s.Library.NewSheet(s.CurrentGroup(), Last)
 			}),

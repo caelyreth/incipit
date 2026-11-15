@@ -6,11 +6,11 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// After the map, the strip holds a column for each open sheet, in the
-// order they were opened, each a page written in where it stands. The one
-// in front has the accent's edge, and the writing actions act on it;
-// clicking another's head, or writing in it, brings it in front, and the
-// strip goes as far as brings whichever comes in front into view.
+// The strip holds a column for each open sheet, each a page written in
+// where it stands. The one in front has the accent's edge, and the writing
+// actions act on it; clicking another's head, or writing in it, brings it
+// in front, and the strip goes as far as brings whichever comes in front
+// into view.
 
 // sheetPad is the room beside a sheet's page in its column, at the
 // reference type size.
@@ -31,11 +31,10 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origi
 	col := s.column(c, "sheet-"+page.ID, origin, animate).
 		Role(ui.RoleGroup).Label(page.Title).Clip().Radius(10*k).
 		Background(semantic.Surface.Page).Border(1, edge)
+	// The sheet that comes in front comes into view; as the canvas comes,
+	// the picker before it brings it.
 	switch {
-	case front && s.canvas.entered:
-		// The canvas comes with the sheet in front in view.
-		col.ScrollIntoView(ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest})
-	case front && s.canvas.follow, page.ID == s.canvas.reveal:
+	case front && s.canvas.follow && !s.canvas.entered, page.ID == s.canvas.reveal:
 		spring := components.Spring(components.MotionScene)
 		col.ScrollIntoView(ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest, Animation: &spring})
 	}
@@ -88,14 +87,14 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, origi
 	})
 }
 
-// sheetHint stands where the sheets' columns would, while none is open:
-// how to open one.
+// sheetHint stands where the strip's columns would, while there are none:
+// how to bring one.
 func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, origin float32, animate bool) {
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	s.column(c, "sheet-hint", origin, animate).AlignItems(ui.Center).Justify(ui.Center).
 		Gap(12 * k).Children(func() {
 		ui.Icon(c, components.IconDocument.SVG()).FontSize(40 * k).TextColor(semantic.Icon.Muted).Opacity(0.35)
-		components.Label(c, "Click a sheet to open it here", theme.TextXSmall, semantic.Text.Muted).
+		components.Label(c, "Make a picker to choose a sheet", theme.TextXSmall, semantic.Text.Muted).
 			Opacity(0.8).TextAlign(ui.Center)
 	})
 }

@@ -39,7 +39,7 @@ func (s listing) editSmartGroup(group GroupItem) {
 func (s listing) cancelEdit() {
 	id := s.browser.find.editing
 	s.stopSearching()
-	s.Go(Place{Kind: PlaceGroup, Group: id})
+	s.show(Place{Kind: PlaceGroup, Group: id})
 }
 
 // saveSearch keeps the search as a smart folder, or as the query of the
@@ -53,7 +53,7 @@ func (s listing) saveSearch() {
 		return
 	}
 	s.stopSearching()
-	s.Go(Place{Kind: PlaceGroup, Group: id})
+	s.show(Place{Kind: PlaceGroup, Group: id})
 	// A new folder is named first.
 	if editing == "" {
 		s.startRename(id)
@@ -71,6 +71,7 @@ func (s listing) saves() bool {
 // the page from the canvas, where the list stands.
 func (s *State) Search() {
 	s.SetMode(ModePage)
+	s.showSheetList()
 	s.sheets().search()
 }
 
@@ -79,8 +80,7 @@ func (s listing) search() {
 	s.browser.searching = true
 	s.browser.find.row, s.browser.find.filter = -1, closedFilter
 	s.browser.overscroll.Reset()
-	s.showSheetList()
-	s.SearchRequested = true
+	s.browser.focus = true
 	s.disarm()
 }
 
@@ -101,10 +101,10 @@ func (s listing) searchHeader(c *ui.Context, semantic theme.Theme, animate bool)
 	field, input := queryField{
 		Key: "page-search", Label: "Search sheets", Placeholder: "Search sheets, $ for keys",
 		Value: &s.browser.query, In: &s.browser.find.input, Scope: query.InNotebook,
-		Focus: s.SearchRequested, Animate: animate, Keys: s.searchKey,
+		Focus: s.browser.focus, Animate: animate, Keys: s.searchKey,
 	}.View(s.State, c, semantic)
 	field.Grow(1)
-	s.SearchRequested = false
+	s.browser.focus = false
 	if input.Changed() {
 		// A new query starts its keys from the top.
 		s.browser.find.row = -1
@@ -141,7 +141,7 @@ func (s listing) searchKey(k ui.TextKey) bool {
 		}
 		row := max(f.row, 0)
 		if row < len(f.found.Sheets) {
-			s.Library.OpenFound(f.found.Sheets[row].ID, k.Text(), k.Mods&ui.Alt != 0)
+			s.open(f.found.Sheets[row].ID, k.Text(), k.Mods&ui.Alt != 0)
 		}
 		return true
 	case ui.KeyEscape:
@@ -322,7 +322,7 @@ func (s listing) foundRow(c *ui.Context, semantic theme.Theme, sheet FoundSheet,
 	row.Drag(sheetDrag{id: sheet.ID})
 	row.ContextMenu(s.sheetMenu(sheet.SheetItem, false))
 	if row.Clicked() {
-		s.Library.OpenFound(sheet.ID, s.browser.query, row.ClickModifiers()&ui.Alt != 0)
+		s.open(sheet.ID, s.browser.query, row.ClickModifiers()&ui.Alt != 0)
 	}
 	return row
 }

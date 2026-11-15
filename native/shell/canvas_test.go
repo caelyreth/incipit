@@ -20,14 +20,22 @@ func onCanvas(t *testing.T) (*State, *fakeLibrary, *ui.Tester) {
 	return state, library, tester
 }
 
-// The canvas shows every group as a region of its sheets' cards, takes the
-// window from the panes, and gives it back as it was.
-func TestTheCanvasShowsTheNotebookWhole(t *testing.T) {
+// The canvas comes with a picker beside the sheet in front, showing what
+// the sheet list shows, takes the window from the panes, and gives it back
+// as it was.
+func TestTheCanvasComesWithAPickerBesideTheSheetInFront(t *testing.T) {
 	state, _, tester := onCanvas(t)
-	for _, text := range []string{"Inbox", "Novel", "Chapter", "Draft", "1 sheet · 1,204 words · 1 this week"} {
-		if !tester.HasText(text) {
-			t.Fatalf("The canvas should show %q, but it shows %#v.", text, tester.Texts())
-		}
+	if n := len(state.canvas.columns); n != 2 || state.canvas.columns[0].picker == nil ||
+		state.canvas.columns[1].sheet != "1" {
+		t.Fatalf("The strip should hold a picker, then the sheet in front, but it holds %+v.", state.canvas.columns)
+	}
+	picker, ok := tester.Find("Sheet picker")
+	sheet, ok2 := tester.Find("Bring Untitled in front")
+	if !ok || !ok2 || picker.X > sheet.X || sheet.X+sheet.W > 1260 {
+		t.Fatalf("The picker and the sheet should both show, side by side, but they are at %+v and %+v.", picker, sheet)
+	}
+	if !tester.HasText("Draft") {
+		t.Fatalf("The picker should list the place's sheets, but the canvas shows %#v.", tester.Texts())
 	}
 	if _, ok := tester.Find("Groups"); ok {
 		t.Fatal("The library should give way to the canvas, but it stays beside it.")
@@ -49,7 +57,7 @@ func TestTheCanvasIsAModeOfTheWindow(t *testing.T) {
 	if _, ok := tester.Find("New sheet"); !ok {
 		t.Fatal("The window's controls should offer a new sheet on the canvas.")
 	}
-	for _, label := range []string{"Toggle library", "Toggle sheet list", "Search sheets", "Zoom in", "Light sheets"} {
+	for _, label := range []string{"Toggle library", "Toggle sheet list", "End search", "Zoom in", "Light sheets"} {
 		if _, ok := tester.Find(label); ok {
 			t.Fatalf("The canvas should not show %q.", label)
 		}
@@ -80,16 +88,62 @@ func TestTheModeSwitchesFromTheWindowsControls(t *testing.T) {
 	}
 }
 
-// open, and the canvas stays.
-func TestACardOpensInAColumnOfItsOwn(t *testing.T) {
+// A sheet clicked in a picker takes the picker's place, the picker
+// turning into its page, and the canvas stays.
+func TestASheetChosenInAPickerTakesItsPlace(t *testing.T) {
 	state, library, tester := onCanvas(t)
-	if err := tester.Click("Chapter"); err != nil {
+	if err := tester.Click("Draft"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	if !slices.Contains(library.calls, "open alongside 7") || !state.CanvasOpen() {
-		t.Fatalf("The card should open its sheet alongside the others and keep the canvas, but the calls are %v.",
+	if !slices.Contains(library.calls, "open alongside 8") || !state.CanvasOpen() {
+		t.Fatalf("The picker should open its sheet with the others and keep the canvas, but the calls are %v.",
 			library.calls)
+	}
+	// The window opens it.
+	state.Open = append(state.Open, Page{ID: "8", Title: "Draft"})
+	state.ActivePage = "8"
+	tester.Frame()
+	if cols := state.canvas.columns; len(cols) != 2 || cols[0].sheet != "8" || cols[1].sheet != "1" {
+		t.Fatalf("The sheet should stand where the picker stood, but the strip holds %+v.", cols)
+	}
+}
+
+// A sheet opened alongside in a picker comes in after it, and the picker
+// stays for the next.
+func TestASheetOpenedAlongsideComesInBesideThePicker(t *testing.T) {
+	state, library, tester := onCanvas(t)
+	if err := tester.ClickWith(ui.Alt, "Draft"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !slices.Contains(library.calls, "open alongside 8") {
+		t.Fatalf("Option should open the sheet alongside, but the calls are %v.", library.calls)
+	}
+	state.Open = append(state.Open, Page{ID: "8", Title: "Draft"})
+	state.ActivePage = "8"
+	tester.Frame()
+	cols := state.canvas.columns
+	if len(cols) != 3 || cols[0].picker == nil || cols[1].sheet != "8" || cols[2].sheet != "1" {
+		t.Fatalf("The sheet should come in after the picker, which stays, but the strip holds %+v.", cols)
+	}
+}
+
+// New picker makes another after the column in front; a picker closes.
+func TestPickersAreMadeAndClosed(t *testing.T) {
+	state, _, tester := onCanvas(t)
+	if err := tester.Click("New picker"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	cols := state.canvas.columns
+	if len(cols) != 3 || cols[2].picker == nil {
+		t.Fatalf("A new picker should stand after the sheet in front, but the strip holds %+v.", cols)
+	}
+	state.closePicker(cols[0].picker.id)
+	tester.Frame()
+	if cols := state.canvas.columns; len(cols) != 2 || cols[0].sheet != "1" {
+		t.Fatalf("Closing a picker should take it off the strip, but the strip holds %+v.", cols)
 	}
 }
 
@@ -151,15 +205,6 @@ func TestSearchGoesFromTheCanvasToTheSheetList(t *testing.T) {
 	settle(tester)
 	if state.CanvasOpen() || !state.list.searching {
 		t.Fatal("Search should go back to the page and search in the sheet list.")
-	}
-}
-
-// A card dragged onto another region is filed there.
-func TestACardDraggedOntoARegionIsFiledThere(t *testing.T) {
-	_, library, tester := onCanvas(t)
-	dragOnto(t, tester, "Chapter", "Inbox")
-	if !slices.Contains(library.calls, "move 7 to 1") {
-		t.Fatalf("The drop should file the sheet in the Inbox, but the calls are %v.", library.calls)
 	}
 }
 

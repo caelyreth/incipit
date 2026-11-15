@@ -224,7 +224,7 @@ func (s listing) batchMenu(m *ui.Menu, row string, trashed bool) {
 		return
 	}
 	if s.chose(m.Item(fmt.Sprintf("Open %d Sheets Alongside", n))) {
-		each(func(id string) { s.Library.OpenSheet(id, true) })
+		each(func(id string) { s.open(id, "", true) })
 	}
 	m.Separator()
 	if s.chose(m.Item(fmt.Sprintf("Duplicate %d Sheets", n))) {

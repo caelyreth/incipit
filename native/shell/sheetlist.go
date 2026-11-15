@@ -127,39 +127,48 @@ func (s *State) dragging(row ui.Element) bool {
 	return false
 }
 
+// placeAt is a place as the library shows it: depth is how far within
+// other groups a group stands.
+type placeAt struct {
+	place Place
+	depth int
+}
+
+// places are the library's places in its order: the chips left to right,
+// the groups top to bottom, then the trash.
+func (s *State) places() []placeAt {
+	var out []placeAt
+	for _, group := range s.Library.Groups("") {
+		if group.Inbox {
+			out = append(out, placeAt{place: Place{Kind: PlaceGroup, Group: group.ID}})
+		}
+	}
+	out = append(out, placeAt{place: Place{Kind: PlaceAll}}, placeAt{place: Place{Kind: PlaceRecent}})
+	var walk func(parent string, depth int)
+	walk = func(parent string, depth int) {
+		for _, group := range s.Library.Groups(parent) {
+			if !group.Inbox {
+				out = append(out, placeAt{place: Place{Kind: PlaceGroup, Group: group.ID}, depth: depth})
+				walk(group.ID, depth+1)
+			}
+		}
+	}
+	walk("", 0)
+	return append(out, placeAt{place: Place{Kind: PlaceTrash}})
+}
+
 // side is where a list comes in from as the list goes from one view to
 // another: 1 from the right, for a place after the last, -1 from the left
 // for one before, 0 for none, as to or from search. The places run as the
-// library shows them: the chips left to right, the groups top to bottom,
-// then the trash.
+// library shows them (places).
 func (s *State) side(from, to listView) float32 {
 	if from.search || to.search {
 		return 0
 	}
 	order := map[Place]int{}
-	add := func(place Place) {
-		if _, ok := order[place]; !ok {
-			order[place] = len(order)
-		}
+	for i, at := range s.places() {
+		order[at.place] = i
 	}
-	for _, group := range s.Library.Groups("") {
-		if group.Inbox {
-			add(Place{Kind: PlaceGroup, Group: group.ID})
-		}
-	}
-	add(Place{Kind: PlaceAll})
-	add(Place{Kind: PlaceRecent})
-	var walk func(parent string)
-	walk = func(parent string) {
-		for _, group := range s.Library.Groups(parent) {
-			if !group.Inbox {
-				add(Place{Kind: PlaceGroup, Group: group.ID})
-				walk(group.ID)
-			}
-		}
-	}
-	walk("")
-	add(Place{Kind: PlaceTrash})
 	a, okA := order[from.place]
 	b, okB := order[to.place]
 	switch {
@@ -952,10 +961,10 @@ func (s listing) sheetRow(
 	if !confirming && row.Clicked() {
 		if !s.pickClick(sheet.ID, row.ClickModifiers()) {
 			// Cmd picks, so Option opens alongside the sheets open.
-			s.Library.OpenSheet(sheet.ID, row.ClickModifiers()&ui.Alt != 0)
+			s.open(sheet.ID, "", row.ClickModifiers()&ui.Alt != 0)
 		}
 	} else if !confirming && row.Shortcut(0, ui.KeyEnter) {
-		s.Library.OpenSheet(sheet.ID, false)
+		s.open(sheet.ID, "", false)
 	}
 	return row
 }
@@ -1194,10 +1203,10 @@ func (s listing) trashedGroupRow(c *ui.Context, semantic theme.Theme, group Grou
 func (s listing) sheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if s.chose(m.Item("Open")) {
-			s.Library.OpenSheet(sheet.ID, false)
+			s.open(sheet.ID, "", false)
 		}
 		if s.chose(m.Item("Open Alongside")) {
-			s.Library.OpenSheet(sheet.ID, true)
+			s.open(sheet.ID, "", true)
 		}
 		m.Separator()
 		if trashed {
@@ -1370,6 +1379,12 @@ func (s listing) placeBand(c *ui.Context, semantic theme.Theme, view listView, d
 }
 
 // when is a sheet's last change as the list says it: the time today, the
+// day is the local midnight that starts t's day.
+func day(t time.Time) time.Time {
+	t = t.Local()
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
 // day this week, the date before.
 func when(at, now time.Time) string {
 	if at.IsZero() {

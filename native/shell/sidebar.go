@@ -84,18 +84,11 @@ func (s *State) ReconcileLibrary() {
 	}
 }
 
-// Go chooses a place in the library and shows its sheets.
+// Go chooses a place in the library and shows its sheets in the sheet
+// list.
 func (s *State) Go(place Place) {
 	s.showSheetList()
-	s.list.searching = false
-	if place == s.list.place {
-		return
-	}
-	s.list.place = place
-	s.nav.renaming = ""
-	s.nav.groupRename = false
-	s.list.overscroll.Reset()
-	s.disarm()
+	s.sheets().show(place)
 }
 
 // files reports a place sheets are filed in, in an order of its own: a
@@ -256,12 +249,14 @@ func (s *State) groupsLabel(c *ui.Context, semantic theme.Theme, animate bool) u
 	return label
 }
 
-// reveal shows the group a sheet is filed in.
+// reveal shows the group a sheet is filed in, in the library beside the
+// page.
 func (s *State) reveal(sheet string) {
 	group := s.Library.SheetGroup(sheet)
 	if group == "" {
 		return
 	}
+	s.SetMode(ModePage)
 	s.revealGroup(group)
 	s.sheets().stopSearching()
 	s.Go(Place{Kind: PlaceGroup, Group: group})
@@ -502,6 +497,7 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if group.Smart() {
 			if m.Item("Edit Query…").Chosen() {
+				s.showSheetList()
 				s.sheets().editSmartGroup(group)
 			}
 			m.Separator()
