@@ -188,7 +188,7 @@ func TestTheWindowControlsUseReferenceActions(t *testing.T) {
 		t.Fatal("Search should leave with the library.")
 	}
 	toggle, ok = tester.Find("Toggle library")
-	if !ok || toggle.X+toggle.W > libraryFloor {
+	if !ok || toggle.X+toggle.W > titleFloor {
 		t.Fatalf("The library's toggle should stay beside the traffic lights while the library is closed, but it stands at %v.",
 			toggle)
 	}
@@ -232,7 +232,7 @@ func TestThePanesTogglesKeepTheirPlaces(t *testing.T) {
 	state.ToggleSheetList()
 	settle(tester)
 	library = find("Toggle library")
-	if library.X+library.W > libraryFloor {
+	if library.X+library.W > titleFloor {
 		t.Fatalf("With both panes closed the library's toggle should rest beside the traffic lights, but it stands at %v.",
 			library)
 	}

@@ -66,19 +66,19 @@ func (s *State) View(c *ui.Context) {
 		listReveal = components.Follow(root, "sheets-open", listTarget, motionReveal)
 	}
 	listReveal = max(0, min(listReveal, 1))
-	// The library's toggle goes over beside the sheet list's while the
-	// library is shut. While the list is shut it stays where it was: going
-	// over as both close, or back as the list closes alone, would move it
-	// for a line that is going.
+	// The place's title goes down to the list where the library is shut.
+	// While the list is shut it stays where it was: going to the list as
+	// both close, or back up as the list closes alone, would move it for a
+	// line that is going.
 	if s.SheetListVisible() && !canvas {
-		s.toggleDocked = 0
-		if !s.SidebarVisible() {
-			s.toggleDocked = 1
+		s.dockTarget = 0
+		if !s.SidebarVisible() && !s.nav.searching {
+			s.dockTarget = 1
 		}
 	}
-	s.toggleDock = s.toggleDocked
+	s.listDock = s.dockTarget
 	if animate {
-		s.toggleDock = max(0, min(components.Follow(root, "library-dock", s.toggleDocked, motionReveal), 1))
+		s.listDock = max(0, min(components.Follow(root, "sheets-dock", s.dockTarget, motionReveal), 1))
 	}
 	// A spring may lean a hair past its end on the way back; layout may not.
 	reveal = max(0, min(reveal, 1))
@@ -87,10 +87,11 @@ func (s *State) View(c *ui.Context) {
 	listWidth := fullList * listReveal
 	s.lastSidebarWidth = sidebarWidth + listWidth
 	s.lastChrome = chrome
-	// Each pane's top line is as tall as a title bar: it holds the pane's
-	// buttons at its end and moves the window. The canvas, standing
-	// leftmost, keeps one for the window's traffic lights, coming in as
-	// the panes before it close.
+	s.takeFlight(listReveal, chrome, animate)
+	// Each pane keeps room at its top for the panes' title line
+	// (paneHeader). The canvas, where it stands leftmost, keeps a head of
+	// its own for the window's traffic lights, coming in as the panes
+	// before it close.
 	head := layout.Titlebar * scale / theme.DefaultUIFontSize
 
 	s.noteView(c, animate)
@@ -99,13 +100,12 @@ func (s *State) View(c *ui.Context) {
 	// those after a pane that went would be taken for new ones, their state
 	// and motion lost, as the list's highlight was.
 	//
-	// There is no title bar: each pane reaches the window's top, the
-	// window's controls float over its corner (controls), and the
-	// library's stand on its top line (libraryControls).
+	// There is no title bar across the window: the page reaches its top,
+	// the panes have a title line of their own (paneHeader), and the
+	// window's controls float over its corner (controls).
 	root.Children(func() {
 		// The controls paint over the panes and the page (ZIndex).
 		s.controls(c, semantic, chrome, animate)
-		s.libraryControls(c, semantic, layout, chrome, reveal, listWidth, animate)
 		ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
 			s.sheetColumn(c, semantic, listWidth, listReveal, head)
@@ -122,6 +122,10 @@ func (s *State) View(c *ui.Context) {
 			})
 		})
 		s.paneEdges(c, semantic, sidebarWidth, listWidth, animate)
+		// The title line and the place's title on its way paint over the
+		// panes' room for them (ZIndex).
+		s.paneHeader(c, semantic, layout, chrome, reveal, listWidth, listReveal)
+		s.placeFlight(c, semantic, layout, reveal, listWidth, listReveal, animate)
 	})
 }
 
