@@ -45,16 +45,15 @@ func run(tester *ui.Tester, d time.Duration) {
 	}
 }
 
-// The panes coming and going, every way there is, keep the app running
-// while the desk's sheets move with them, and the sheets stay open.
-func TestThePanesComingAndGoingKeepTheDeskRunning(t *testing.T) {
+// Postures coming and going keep the app running while the desk stays intact.
+func TestPosturesKeepTheDeskRunning(t *testing.T) {
 	for _, way := range []struct {
 		name   string
 		toggle func(*AppState)
 	}{
-		{"the library's toggle", func(app *AppState) { app.Shell.ToggleSidebar() }},
-		{"the sheet list's toggle", func(app *AppState) { app.Shell.ToggleSheetList() }},
-		{"search", func(app *AppState) { app.Shell.Search() }},
+		{"glance", func(app *AppState) { app.Shell.ToggleGlance() }},
+		{"field", func(app *AppState) { app.Shell.ToggleField() }},
+		{"find in field", func(app *AppState) { app.Shell.FindInField() }},
 	} {
 		t.Run(way.name, func(t *testing.T) {
 			app, tester := deskApp(t)
@@ -80,10 +79,8 @@ func TestClosingASheetOnTheDeskKeepsRunning(t *testing.T) {
 	}
 }
 
-// A picker at the strip's end becomes a wider sheet when one is chosen.
-// The strip must reveal the whole sheet, even when the click and the
-// editor taking focus rebuild the view before that frame is laid out.
-func TestASheetReplacingAPickerComesFullyIntoView(t *testing.T) {
+// Choosing a sheet from the field alongside an existing sheet opens both side by side.
+func TestOpeningBesideFromFieldSharesTheDesk(t *testing.T) {
 	for _, animate := range []bool{false, true} {
 		t.Run(strconv.FormatBool(animate), func(t *testing.T) {
 			app, err := NewAppState()
@@ -102,42 +99,17 @@ func TestASheetReplacingAPickerComesFullyIntoView(t *testing.T) {
 				run(tester, time.Second)
 			}
 			title("First")
-			first := app.Shell.ActivePage
 			inbox := strconv.Itoa(int(library.Inbox))
-			app.NewSheet(inbox, shell.Last)
-			run(tester, time.Second)
-			title("Second")
-			second := app.Shell.ActivePage
 			app.NewSheet(inbox, shell.Last)
 			run(tester, time.Second)
 			title("Target")
 			target := app.Shell.ActivePage
 			app.Shell.CloseSheet(target)
 			run(tester, time.Second)
-			app.Shell.SelectPage(first)
-			app.Shell.ShowPanes(false, false)
+			app.OpenSheet(target, true)
 			run(tester, time.Second)
-			app.OpenSheet(second, true)
-			run(tester, time.Second)
-			// Bring the second column in front by its pointer path, so
-			// the picker joins at the strip's end.
-			tester.Move(1000, 400)
-			run(tester, time.Second)
-			app.Shell.NewPicker()
-			run(tester, time.Second)
-			picker, ok := tester.Find("Sheet picker")
-			if !ok || math.Abs(float64(picker.X+picker.W-width)) > 1 {
-				t.Fatalf("The picker should stand at the window's right edge, but it is at %v.", picker)
-			}
-			if err := tester.Click("Target"); err != nil {
-				t.Fatal(err)
-			}
-			run(tester, time.Second)
-			if app.Shell.ActivePage != target {
-				t.Fatalf("The chosen sheet should come in front, but %q did.", app.Shell.ActivePage)
-			}
-			if _, ok := tester.Find("Sheet picker"); ok {
-				t.Fatal("The chosen sheet should replace its picker.")
+			if len(app.Shell.Open) != 2 {
+				t.Fatalf("Target should open alongside first sheet, active=%q open=%d", app.Shell.ActivePage, len(app.Shell.Open))
 			}
 			sheet, ok := tester.Find("Target")
 			// Two sheets share the window, with a one-DIP line between.
@@ -149,9 +121,8 @@ func TestASheetReplacingAPickerComesFullyIntoView(t *testing.T) {
 	}
 }
 
-// The sheet in front keeps its text input and its document as the desk
-// moves under it: the panes going and coming, interrupted, the window
-// resized, and the prose size changed.
+// The sheet in front keeps its text input and its document as postures
+// move, the window resized, and the prose size changed.
 func TestEditingAndResizingAsTheDeskMoves(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
@@ -171,23 +142,17 @@ func TestEditingAndResizingAsTheDeskMoves(t *testing.T) {
 	el.Editor.Do(vocab.Paste{Text: strings.Repeat("A paragraph with 中文, **marks**, and `code`.\n\n", 40)}, tester.Now())
 	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, tester.Now())
 	run(tester, time.Second)
-	app.Shell.ToggleSidebar()
-	run(tester, 80*time.Millisecond)
-	if active, _ := tester.TextInputActive(); !active {
-		t.Fatal("The editor should keep text-input focus as the desk moves.")
-	}
-	tester.Type("Written in flight ")
-	if text := pageText(app); !strings.Contains(text, "Written in flight") {
-		t.Fatalf("The moving page should still accept text input, but starts with %q.", text[:min(len(text), 240)])
-	}
-	app.Shell.ToggleSidebar()
-	run(tester, 48*time.Millisecond)
-	app.Shell.ShowPanes(false, false)
-	run(tester, time.Second)
 	tester.SetSize(1040, 850)
 	run(tester, time.Second)
 	if frame.LayoutWidth != 1040-32 {
 		t.Fatalf("The sheet should take the resized desk's width, but uses %v.", frame.LayoutWidth)
+	}
+	if active, _ := tester.TextInputActive(); !active {
+		t.Fatal("The editor should keep text-input focus.")
+	}
+	tester.Type("Written in flight ")
+	if text := pageText(app); !strings.Contains(text, "Written in flight") {
+		t.Fatalf("The page should accept text input, but starts with %q.", text[:min(len(text), 240)])
 	}
 	app.Shell.Settings.ProseFontSize = 20
 	tester.Frame()
@@ -197,10 +162,8 @@ func TestEditingAndResizingAsTheDeskMoves(t *testing.T) {
 	}
 }
 
-// The panes going and coming keep the sheet's reading margin, whether the
-// page's beginning is visible, partly scrolled away, or long past the
-// window's top.
-func TestTheReadingHeightStaysAsThePanesMove(t *testing.T) {
+// Switching across UI sizes keeps the sheet's reading margin intact.
+func TestTheReadingHeightStaysAcrossSizes(t *testing.T) {
 	for _, animate := range []bool{false, true} {
 		for _, size := range []float32{16, 20} {
 			t.Run(strconv.FormatBool(animate)+"/"+strconv.Itoa(int(size)), func(t *testing.T) {
@@ -218,8 +181,6 @@ func TestTheReadingHeightStaysAsThePanesMove(t *testing.T) {
 				el := app.pageElement()
 				el.Editor.Do(vocab.Paste{Text: "# Hello world\n\n" + strings.Repeat("A short paragraph.\n\n", 40)}, tester.Now())
 				el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, tester.Now())
-				// Keep the caret comfortably in view at each tested scroll,
-				// so a viewport resize has no reason to reveal it elsewhere.
 				for range 12 {
 					el.Editor.Do(vocab.Move{Unit: vocab.ByParagraph, Dir: vocab.Forward}, tester.Now())
 				}
@@ -235,17 +196,14 @@ func TestTheReadingHeightStaysAsThePanesMove(t *testing.T) {
 						t.Fatal("The editor should be visible.")
 					}
 					y := field.Bounds.Y + el.Top - scroll
-					for _, mode := range []string{"hidden", "shown"} {
-						app.Shell.ToggleSidebar()
-						for frame := range 65 {
-							tester.Advance(16 * time.Millisecond)
-							tester.Frame()
-							field, ok := tester.AccessByRole(ui.RoleTextField, "Page")
-							got := field.Bounds.Y + el.Top - el.ScrollY()
-							if !ok || math.Abs(float64(got-y)) > 0.5 || el.ScrollY() != scroll {
-								t.Fatalf("At scroll %v, the library %v, frame %d moved the reading origin from %v to %v (scroll %v).", scroll, mode, frame, y, got, el.ScrollY())
-							}
-						}
+					app.Shell.ToggleGlance()
+					run(tester, time.Second)
+					app.Shell.ReturnToDesk()
+					run(tester, time.Second)
+					field, ok = tester.AccessByRole(ui.RoleTextField, "Page")
+					got := field.Bounds.Y + el.Top - el.ScrollY()
+					if !ok || math.Abs(float64(got-y)) > 0.5 || el.ScrollY() != scroll {
+						t.Fatalf("At scroll %v after Glance round-trip, reading origin moved from %v to %v (scroll %v).", scroll, y, got, el.ScrollY())
 					}
 				}
 			})

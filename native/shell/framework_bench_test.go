@@ -8,16 +8,16 @@ import (
 )
 
 func BenchmarkShellFrames(b *testing.B) {
-	for _, scenario := range []string{"rebuild", "hover", "panes"} {
+	for _, scenario := range []string{"rebuild", "hover", "posture"} {
 		b.Run(scenario, func(b *testing.B) {
 			state, library := libraryState()
 			library.extraSheets = 30
 			state.ActivePage = "7"
-			state.Go(Place{Kind: PlaceGroup, Group: "2"})
+			state.ToggleField()
 			tester := ui.NewTester(state.View, 1260, 850)
 			settle(tester)
-			first, _ := tester.Find("Chapter")
-			second, _ := tester.Find("Sheet 1")
+			first, _ := tester.Find("Inbox")
+			second, _ := tester.Find("Novel")
 			frame := 0
 			b.ReportAllocs()
 			for b.Loop() {
@@ -28,9 +28,9 @@ func BenchmarkShellFrames(b *testing.B) {
 						row = second
 					}
 					tester.Move(row.X+row.W/2, row.Y+row.H/2)
-				case "panes":
+				case "posture":
 					if frame%30 == 0 {
-						state.ToggleSidebar()
+						state.ToggleGlance()
 					}
 					tester.Advance(16 * time.Millisecond)
 				}

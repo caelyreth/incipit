@@ -14,22 +14,22 @@ const confirmWindow = 4 * time.Second
 
 // arm readies the confirmation key names for its second click.
 func (s *State) arm(key string) {
-	s.nav.armed, s.nav.armedAt = key, time.Time{}
+	s.armedKey, s.armedAt = key, time.Time{}
 }
 
-func (s *State) disarm() { s.nav.armed = "" }
+func (s *State) disarm() { s.armedKey = "" }
 
 // armed reports whether key waits for its second click, letting it go once
 // confirmWindow has passed since it was first shown.
 func (s *State) armed(c *ui.Context, key string) bool {
-	if s.nav.armed != key {
+	if s.armedKey != key {
 		return false
 	}
 	now := c.Now()
-	if s.nav.armedAt.IsZero() {
-		s.nav.armedAt = now
+	if s.armedAt.IsZero() {
+		s.armedAt = now
 	}
-	left := confirmWindow - now.Sub(s.nav.armedAt)
+	left := confirmWindow - now.Sub(s.armedAt)
 	if left <= 0 {
 		s.disarm()
 		return false

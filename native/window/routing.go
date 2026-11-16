@@ -33,20 +33,6 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 	keymap.Motion: func(a *AppState) {
 		a.setPresentation(appsettings.PresentationMotion, !a.Product.Presentation.Motion)
 	},
-	keymap.Sidebar:   func(a *AppState) { a.toggleSidebar() },
-	keymap.SheetList: func(a *AppState) { a.toggleSheetList() },
-	keymap.LibraryView: func(a *AppState) {
-		a.Shell.ReturnToDesk()
-		a.showPanes(true, true)
-	},
-	keymap.SheetsView: func(a *AppState) {
-		a.Shell.ReturnToDesk()
-		a.showPanes(false, true)
-	},
-	keymap.PageView: func(a *AppState) {
-		a.Shell.ReturnToDesk()
-		a.showPanes(false, false)
-	},
 	keymap.Field:  func(a *AppState) { a.Shell.ToggleField() },
 	keymap.Glance: func(a *AppState) { a.Shell.ToggleGlance() },
 	keymap.Commands: func(a *AppState) {

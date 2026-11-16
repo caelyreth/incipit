@@ -76,19 +76,12 @@ func TestFieldPosturesAndDeskLeanRenderAndRoute(t *testing.T) {
 		t.Fatal("Pill should hide after returning to Writing")
 	}
 
-	// Ensure pane commands return to Writing if called from the field.
-	if err := app.routeWindowCommand(app.mainWindow, keymap.Glance); err != nil {
+	// Ensure FindPage returns to the field and focuses the pill.
+	if err := app.routeWindowCommand(app.mainWindow, keymap.FindPage); err != nil {
 		t.Fatal(err)
 	}
 	run(tester, time.Second)
-	if err := app.routeWindowCommand(app.mainWindow, keymap.LibraryView); err != nil {
-		t.Fatal(err)
-	}
-	run(tester, time.Second)
-	if app.Shell.Posture() != stage.PostureWriting {
-		t.Fatalf("LibraryView should return posture to Writing, got %v", app.Shell.Posture())
-	}
-	if !app.Shell.SidebarVisible() {
-		t.Fatal("LibraryView should open the sidebar")
+	if app.Shell.Posture() != stage.PostureGlance {
+		t.Fatalf("FindPage should enter Glance when sheets are open, got %v", app.Shell.Posture())
 	}
 }

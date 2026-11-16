@@ -10,13 +10,11 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// onDesk is the shell with its panes put away, the desk taking the
-// window, its sheets opened and placed as the window does.
+// onDesk is the shell with a sheet open on the desk.
 func onDesk(t *testing.T) (*State, *fakeLibrary, *ui.Tester) {
 	t.Helper()
 	state, library := libraryState()
 	library.desk = state
-	state.ShowPanes(false, false)
 	tester := ui.NewTester(state.View, 1260, 850)
 	settle(tester)
 	return state, library, tester
@@ -75,16 +73,11 @@ func closeSheet(tester *ui.Tester, title string) error {
 	return closeColumn(tester, title, "Close "+title)
 }
 
-// columnsOf names the desk's columns: a sheet by its id, a picker as
-// "picker".
+// columnsOf names the desk's open sheet columns by id.
 func columnsOf(state *State) []string {
 	var out []string
 	for _, col := range state.deskColumns() {
-		if col.picker != nil {
-			out = append(out, "picker")
-		} else {
-			out = append(out, col.sheet)
-		}
+		out = append(out, col.sheet)
 	}
 	return out
 }
@@ -103,25 +96,8 @@ func TestOneSheetFillsTheDesk(t *testing.T) {
 	}
 }
 
-// The desk stands beside the panes, taking the room they leave.
-func TestTheDeskStandsBesideThePanes(t *testing.T) {
-	state, _ := libraryState()
-	tester := ui.NewTester(state.View, 1260, 850)
-	settle(tester)
-	if !state.SidebarVisible() || !state.SheetListVisible() {
-		t.Fatal("The test needs the panes open.")
-	}
-	if x := state.desk.viewport.X; abs(x-state.lastSidebarWidth) > 1 {
-		t.Fatalf("The desk should begin where the panes end, at %v, but it begins at %v.", state.lastSidebarWidth, x)
-	}
-	if spans := state.desk.spans; len(spans) != 1 || abs(spans[0].W-(1260-state.lastSidebarWidth)) > 1 {
-		t.Fatalf("Its one sheet should take the room the panes leave, but the strip holds %+v.", spans)
-	}
-}
-
 // Two sheets share the desk by halves; more go two or three to a window,
-// three where a third still holds a page; a picker is the sheet list's
-// width.
+// three where a third still holds a page.
 func TestSheetsShareTheDeskByHalvesOrThirds(t *testing.T) {
 	for _, window := range []struct {
 		width  float32
@@ -130,117 +106,20 @@ func TestSheetsShareTheDeskByHalvesOrThirds(t *testing.T) {
 	}{{1260, []string{"7"}, 2}, {2600, []string{"7"}, 2}, {2600, []string{"7", "8"}, 3}} {
 		state, library := libraryState()
 		library.desk = state
-		state.ShowPanes(false, false)
 		tester := ui.NewTester(state.View, int(window.width), 850)
 		settle(tester)
 		joining(state, tester, sheetPages(window.sheets...)...)
-		state.NewPicker()
-		settle(tester)
 		want := (window.width - columnGap*(window.n-1)) / window.n
 		spans := state.desk.spans
-		if len(spans) != len(window.sheets)+2 {
-			t.Fatalf("At %v across, the strip should hold the sheets and a picker, but it holds %+v.", window.width, spans)
+		if len(spans) != len(window.sheets)+1 {
+			t.Fatalf("At %v across, the strip should hold %d sheets, but it holds %+v.", window.width, len(window.sheets)+1, spans)
 		}
-		for _, sp := range spans[:len(window.sheets)+1] {
+		for _, sp := range spans {
 			if abs(sp.W-want) > 1 {
 				t.Fatalf("At %v across with %d sheets, each should be %v wide, but the strip holds %+v.",
 					window.width, len(window.sheets)+1, want, spans)
 			}
 		}
-		picker, ok := tester.Find("Sheet picker")
-		if !ok || abs(picker.W-theme.DefaultLayout.SheetList) > 1 {
-			t.Fatalf("A picker should be as wide as the sheet list, but it is %+v.", picker)
-		}
-	}
-}
-
-// The writing actions make a picker after the column in front.
-func TestTheWritingActionsMakeAPicker(t *testing.T) {
-	state, _, tester := onDesk(t)
-	if err := tester.Click("New picker"); err != nil {
-		t.Fatal(err)
-	}
-	settle(tester)
-	if cols := columnsOf(state); !slices.Equal(cols, []string{"1", "picker"}) {
-		t.Fatalf("New picker should make one after the sheet in front, but the desk holds %v.", cols)
-	}
-}
-
-// Right-clicked on the line between columns, the desk makes a picker
-// there.
-func TestRightClickingTheDeskMakesAPickerThere(t *testing.T) {
-	state, _, tester := onDesk(t)
-	joining(state, tester, Page{ID: "7", Title: "Chapter"})
-	if len(state.desk.spans) != 2 {
-		t.Fatalf("Both sheets should show, but the desk shows %#v.", tester.Texts())
-	}
-	tester.RightClickAt(gapAfter(state, 0), 400)
-	if err := tester.ChooseMenuItem("New Picker"); err != nil {
-		t.Fatalf("The line between columns should offer a new picker: %v (menu %v)", err, tester.Menu())
-	}
-	settle(tester)
-	if cols := columnsOf(state); !slices.Equal(cols, []string{"1", "picker", "7"}) {
-		t.Fatalf("The picker should stand where the desk was right-clicked, but the desk holds %v.", cols)
-	}
-}
-
-// A sheet chosen in a picker takes the picker's place; one opened
-// alongside comes in after it, and the picker stays.
-func TestASheetChosenInAPickerStandsWhereThePickerDoes(t *testing.T) {
-	for _, tc := range []struct {
-		alongside bool
-		want      []string
-	}{{false, []string{"1", "8"}}, {true, []string{"1", "picker", "8"}}} {
-		state, library, tester := onDesk(t)
-		state.NewPicker()
-		settle(tester)
-		click := tester.Click
-		if tc.alongside {
-			click = func(s string) error { return tester.ClickWith(ui.Alt, s) }
-		}
-		if err := click("Draft"); err != nil {
-			t.Fatal(err)
-		}
-		settle(tester)
-		if !slices.Contains(library.calls, "place 8 after 1") {
-			t.Fatalf("The picker should place its sheet where it stands, but the calls are %v.", library.calls)
-		}
-		if cols := columnsOf(state); !slices.Equal(cols, tc.want) {
-			t.Fatalf("Alongside %v, the desk should hold %v, but it holds %v.", tc.alongside, tc.want, cols)
-		}
-	}
-}
-
-// A picker whose sheet closes stays where it stood.
-func TestAPickerStaysWhereItStoodAsItsSheetCloses(t *testing.T) {
-	state, _, tester := onDesk(t)
-	joining(state, tester, sheetPages("7", "8")...)
-	state.ActivePage = "7"
-	tester.Frame()
-	state.NewPicker()
-	settle(tester)
-	if cols := columnsOf(state); !slices.Equal(cols, []string{"1", "7", "picker", "8"}) {
-		t.Fatalf("The test needs the picker after 7, but the desk holds %v.", cols)
-	}
-	state.Open = slices.DeleteFunc(state.Open, func(p Page) bool { return p.ID == "7" })
-	state.ActivePage = "8"
-	settle(tester)
-	if cols := columnsOf(state); !slices.Equal(cols, []string{"1", "picker", "8"}) {
-		t.Fatalf("The picker should stay after the sheet before it, but the desk holds %v.", cols)
-	}
-}
-
-// A picker closes.
-func TestAPickerCloses(t *testing.T) {
-	state, _, tester := onDesk(t)
-	state.NewPicker()
-	settle(tester)
-	if err := closeColumn(tester, "Sheet picker", "Close picker"); err != nil {
-		t.Fatal(err)
-	}
-	settle(tester)
-	if cols := columnsOf(state); !slices.Equal(cols, []string{"1"}) {
-		t.Fatalf("Closing a picker should take it off the desk, but it holds %v.", cols)
 	}
 }
 
@@ -306,17 +185,6 @@ func TestTheDeskHoldsItsSheetsAtOnce(t *testing.T) {
 	if !slices.Equal(closed, []string{"8"}) || state.ActivePage != "7" {
 		t.Fatalf("Closing the sheet in front should bring the one beside it in front, but %v closed and %q is in front.",
 			closed, state.ActivePage)
-	}
-}
-
-// Search runs in the sheet list, which shows for it.
-func TestSearchShowsTheSheetList(t *testing.T) {
-	state, _, tester := onDesk(t)
-	state.Search()
-	tester.Frame()
-	settle(tester)
-	if !state.SheetListVisible() || !state.list.searching {
-		t.Fatal("Search should show the sheet list and search in it.")
 	}
 }
 
@@ -445,35 +313,24 @@ func TestTheScrubberMovesTheStrip(t *testing.T) {
 	}
 }
 
-// A column brought into view at the strip's end comes whole into the
-// window.
-func TestAColumnBroughtIntoViewComesWhole(t *testing.T) {
-	state, _, tester := onDesk(t)
-	joining(state, tester, sheetPages("7", "8", "9")...)
-	state.NewPicker()
-	settle(tester)
-	picker, ok := tester.Find("Sheet picker")
-	if !ok {
-		t.Fatal("The new picker should show.")
-	}
-	if right := picker.X + picker.W; right > 1260+1 || picker.X < 0 {
-		t.Fatalf("The picker should stand whole in the window, but it spans %v to %v of 1260.", picker.X, right)
-	}
-}
-
 // A column closing at the strip's end closes up where it is: the strip is
 // not cut back under it at once, but eases back after it.
 func TestClosingAColumnEasesTheStripBack(t *testing.T) {
 	state, _, tester := onDesk(t)
 	state.Appearance.Motion = true
-	joining(state, tester, sheetPages("7", "8", "9")...)
-	state.NewPicker()
+	state.ClosePageID = func(id string) {
+		at := slices.IndexFunc(state.Open, func(p Page) bool { return p.ID == id })
+		if at >= 0 {
+			state.Open = slices.Delete(state.Open, at, at+1)
+		}
+	}
+	joining(state, tester, Page{ID: "7", Title: "Sheet 7"}, Page{ID: "8", Title: "Sheet 8"}, Page{ID: "9", Title: "Sheet 9"})
 	settle(tester)
 	before := state.desk.strip.X
 	if before <= 0 {
 		t.Fatal("The test needs the strip scrolled along.")
 	}
-	if err := closeColumn(tester, "Sheet picker", "Close picker"); err != nil {
+	if err := closeSheet(tester, "Sheet 9"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Advance(16 * time.Millisecond)
@@ -490,10 +347,7 @@ func TestClosingAColumnEasesTheStripBack(t *testing.T) {
 
 // The column in front follows the pointer: moved onto a sheet's column,
 // it brings that sheet in front and gives its page the keyboard, the strip
-// staying where it is, unless a field of the shell is being written in;
-// moved onto a picker, it brings the picker in front, the sheet in front
-// staying for the writing actions. The strip moving under a pointer at
-// rest brings nothing.
+// staying where it is, unless a field of the shell is being written in.
 func TestThePointerBringsTheColumnUnderItInFront(t *testing.T) {
 	state, _, tester := onDesk(t)
 	var claimed []string
@@ -505,8 +359,6 @@ func TestThePointerBringsTheColumnUnderItInFront(t *testing.T) {
 	}
 	state.SelectPage = func(id string) { state.ActivePage = id }
 	joining(state, tester, sheetPages("7")...)
-	state.NewPicker()
-	settle(tester)
 	state.ActivePage = "1"
 	tester.Frame()
 	settle(tester)
@@ -533,19 +385,8 @@ func TestThePointerBringsTheColumnUnderItInFront(t *testing.T) {
 	if state.ActivePage != "7" || state.desk.at != "sheet-7" {
 		t.Fatalf("The strip moving under the pointer should bring nothing in front, but %q came.", state.desk.at)
 	}
-	search, ok := tester.Find("Search sheets")
-	if !ok {
-		t.Fatal("The picker's search should show.")
-	}
-	tester.Move(search.X+8, search.Y+search.H+40)
-	tester.Frame()
-	settle(tester)
-	if state.desk.at != "picker-1" || state.ActivePage != "7" {
-		t.Fatalf("The pointer moved onto a picker should bring it in front, the sheet in front staying, but %q is in front.",
-			state.desk.at)
-	}
 	// Writing in a field of the shell, the keyboard stays there.
-	state.list.focus = true
+	state.FindRequested = true
 	claimed = nil
 	state.stripAt(0)
 	settle(tester)
@@ -558,50 +399,6 @@ func TestThePointerBringsTheColumnUnderItInFront(t *testing.T) {
 	if state.ActivePage != "1" || len(claimed) != 0 {
 		t.Fatalf("Writing in a field, the pointer should bring the sheet in front and leave the keyboard, but %q is in front (claimed %v).",
 			state.ActivePage, claimed)
-	}
-}
-
-// The title line is the chrome's: a column under the controls holds what
-// it holds under the line, whole, and only its head on it, clear of them,
-// centred on the traffic lights as the controls are.
-func TestTheTitleLineHoldsOnlyTheHeadsClearOfTheControls(t *testing.T) {
-	state, _, tester := onDesk(t)
-	joining(state, tester, sheetPages("7", "8")...)
-	state.newPickerAt(len(state.deskColumns()))
-	settle(tester)
-	state.stripAt(state.desk.strip.MaxX)
-	tester.SetTitleBar(ui.TitleBar{Height: 40, Left: 76})
-	settle(tester)
-	picker, ok := tester.Find("Sheet picker")
-	if !ok {
-		t.Fatal("The picker should show.")
-	}
-	if right := picker.X + picker.W; right < 1260-state.controlsAt.reach {
-		t.Fatalf("The test needs the picker under the controls, but it ends at %v.", right)
-	}
-	tester.Move(picker.X+picker.W/2, picker.Y+picker.H/2)
-	settle(tester)
-	band := float32(40)
-	place, ok := tester.Find("All")
-	if !ok || place.W == 0 {
-		t.Fatalf("The picker's place should show whole, but the strip shows %#v.", tester.Texts())
-	}
-	if place.Y < band {
-		t.Fatalf("The picker's place should stand under the title line, %v down, but it is at %v.", band, place)
-	}
-	close, ok := tester.Find("Close picker")
-	if !ok {
-		t.Fatal("The picker's head should show with the pointer on it.")
-	}
-	if mid := close.Y + close.H/2; abs(mid-band/2) > 1 {
-		t.Fatalf("The picker's head should be centred on the traffic lights, %v down, but it is at %v.", band/2, close)
-	}
-	if controls, ok := tester.Find("Search commands"); !ok || abs(controls.Y+controls.H/2-band/2) > 1 {
-		t.Fatalf("The window's controls should be centred on the traffic lights, %v down, but they are at %v.", band/2, controls)
-	}
-	if close.X+close.W > 1260-state.controlsAt.reach {
-		t.Fatalf("The picker's head should keep clear of the controls, from %v, but it reaches %v.",
-			1260-state.controlsAt.reach, close.X+close.W)
 	}
 }
 

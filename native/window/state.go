@@ -263,9 +263,7 @@ func (a *AppState) findPage() {
 		return
 	}
 	a.setPresentation(appsettings.PresentationZen, false)
-	visible := true
-	a.Shell.SidebarOverride = &visible
-	a.Shell.Search()
+	a.Shell.FindInField()
 }
 
 func (a *AppState) selectMounted() {

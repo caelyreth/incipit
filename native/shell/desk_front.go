@@ -47,9 +47,6 @@ func (s *State) inFront(col ui.Element, of deskColumn) bool {
 // page the keyboard.
 func (s *State) pointAt(of deskColumn) {
 	s.desk.at = of.key()
-	if of.picker != nil {
-		return
-	}
 	if of.sheet != s.ActivePage && s.SelectPage != nil {
 		// It is where the pointer is: the strip stays (keepDesk).
 		s.desk.front = of.sheet

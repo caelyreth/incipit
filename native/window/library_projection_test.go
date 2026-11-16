@@ -79,7 +79,7 @@ func TestLibraryProjectionsAreKeptWhileNothingChanges(t *testing.T) {
 	}
 }
 
-func TestTrashingAncestorReconcilesSelectedGroupWithoutOpeningPanes(t *testing.T) {
+func TestTrashingAncestorReconcilesSelectedGroup(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +87,6 @@ func TestTrashingAncestorReconcilesSelectedGroupWithoutOpeningPanes(t *testing.T
 	parent := app.NewGroup("", shell.Last)
 	child := app.NewGroup(parent, shell.Last)
 	app.Shell.Go(shell.Place{Kind: shell.PlaceGroup, Group: child})
-	app.Shell.ShowPanes(false, false)
 	app.TrashGroup("1") // The Inbox cannot be trashed.
 	if got := app.Shell.Place(); got != (shell.Place{Kind: shell.PlaceGroup, Group: child}) {
 		t.Fatalf("failed trash changed place to %+v", got)
@@ -95,9 +94,6 @@ func TestTrashingAncestorReconcilesSelectedGroupWithoutOpeningPanes(t *testing.T
 	app.TrashGroup(parent)
 	if got := app.Shell.Place(); got != (shell.Place{Kind: shell.PlaceAll}) {
 		t.Fatalf("place after ancestor trash = %+v, want All", got)
-	}
-	if app.Shell.SidebarVisible() || app.Shell.SheetListVisible() {
-		t.Fatal("reconciliation opened a hidden pane")
 	}
 }
 

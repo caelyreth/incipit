@@ -85,12 +85,8 @@ type deskState struct {
 	claim             string
 	// scrub is the scrubber's (desk_scrub.go).
 	scrub scrubState
-	// columns are the desk's columns as last built, and pickers its
-	// pickers in their order among them; made counts the pickers made,
-	// for their ids (desk_columns.go).
+	// columns are the desk's open sheet columns as last built (desk_columns.go).
 	columns []deskColumn
-	pickers []*picker
-	made    int
 }
 
 // deskView draws the desk: its strip of columns, its overview, and
@@ -173,7 +169,6 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 	s.magnet(strip, k, animate)
 	columns := s.deskColumns()
 	editor := s.editorWidth(strip, columns, viewport.W, k, animate)
-	picker := s.paneLayout().SheetList * k
 	strip.Children(func() {
 		// The flow is at least as wide as the desk, its lines between the
 		// columns and the room after them its own (room). A column folding
@@ -202,11 +197,7 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 				s.sheetHint(c, semantic, viewport.W, animate)
 			}
 			for i, col := range columns {
-				if col.picker != nil {
-					s.pickerColumn(c, semantic, col.picker, picker, origin, animate)
-				} else {
-					s.openColumn(c, semantic, pages[col.sheet], editor, origin, animate)
-				}
+				s.openColumn(c, semantic, pages[col.sheet], editor, origin, animate)
 				s.room(c, semantic, "room-"+col.key(), i+1, i == len(columns)-1)
 			}
 			if len(columns) == 0 {
@@ -219,8 +210,7 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 
 // room is the room after the desk's column at, before the one after it:
 // between two columns the line between them, after the last the desk's
-// empty room on, which may grow. Right-clicked, it offers to make a picker
-// there.
+// empty room on, which may grow.
 func (s *State) room(c *ui.Context, semantic theme.Theme, key string, at int, last bool) {
 	room := ui.Box(c).Key(key).Width(columnGap).Shrink(0).FillHeight().Label("Desk")
 	line := semantic.Border.Variant
@@ -237,11 +227,6 @@ func (s *State) room(c *ui.Context, semantic theme.Theme, key string, at int, la
 	default:
 		room.Background(line)
 	}
-	room.ContextMenu(func(m *ui.Menu) {
-		if m.Item("New Picker").Chosen() {
-			s.newPickerAt(at)
-		}
-	})
 }
 
 // pan has a drag on el move the strip, and a drag let go carry it on, to
@@ -306,14 +291,8 @@ func deskMotion(animate bool) ui.Animation {
 // smoothly, as sheets open and close or the desk is resized across where
 // they meet, on el.
 func (s *State) editorWidth(el ui.Element, columns []deskColumn, inner, k float32, animate bool) float32 {
-	sheets := 0
-	for _, col := range columns {
-		if col.picker == nil {
-			sheets++
-		}
-	}
 	page := s.Settings.Prose().Column() + 2*sheetPad*k
-	n := float32(stage.PerWindow(sheets, inner, page, columnGap))
+	n := float32(stage.PerWindow(len(columns), inner, page, columnGap))
 	if animate {
 		n = el.AnimateTo("columns-per-window", n, deskMotion(animate))
 	}

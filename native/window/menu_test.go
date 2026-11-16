@@ -25,8 +25,7 @@ func TestMainMenuExposesAppAndWorkspaceCommands(t *testing.T) {
 	if settings == nil || settings.Label != "Settings..." || settings.Click == nil {
 		t.Fatalf("settings = %#v", settings)
 	}
-	for _, id := range []string{"new-page", "close-page", "view-library", "view-sheets", "view-page",
-		"toggle-sidebar", "toggle-sheet-list", "commands"} {
+	for _, id := range []string{"new-page", "close-page", "view-field", "view-glance", "commands"} {
 		if item := menu.ItemByID(id); item == nil || item.Click == nil {
 			t.Fatalf("%s = %#v", id, item)
 		}
@@ -37,10 +36,6 @@ func TestPaletteListsEveryCommandButItself(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
-	}
-	app.toggleSidebar()
-	if !app.Shell.SidebarVisible() {
-		t.Fatal("toggle-sidebar did not show the navigation sidebar")
 	}
 	app.Shell.OpenCommands()
 	if !app.Palette.Open {

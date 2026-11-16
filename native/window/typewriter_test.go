@@ -77,14 +77,16 @@ func TestTheCaretBreathesWithoutInput(t *testing.T) {
 	if got := pageText(app); got != "paragraph:xy" {
 		t.Fatalf("typing after the presses went elsewhere: %q", got)
 	}
-	// What takes the focus keeps it: typing goes to the search.
-	if err := tester.Click("Search sheets"); err != nil {
+	// What takes the focus keeps it: typing in the field pill search stays there.
+	app.Shell.ToggleGlance()
+	run(tester, time.Second)
+	if err := tester.Click("Search field"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
 	tester.Type("z")
 	tester.Frame()
 	if got := pageText(app); got != "paragraph:xy" {
-		t.Fatalf("typing into the search reached the page: %q", got)
+		t.Fatalf("typing into the field search reached the page: %q", got)
 	}
 }

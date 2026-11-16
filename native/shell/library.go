@@ -1,10 +1,22 @@
 package shell
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/ui"
 )
+
+// Last places a sheet or a group after all the others.
+const Last = 1 << 30
+
+// emptyTrashKey names the trash's Empty button, for arming from a menu or pill.
+const emptyTrashKey = "empty-trash"
 
 // PlaceKind is a kind of place the library holds, whose sheets the sheet
 // list shows.
@@ -206,5 +218,227 @@ func (d chapterDrag) sheetMoveID() string {
 	return d.id
 }
 
-// groupDrag is a group dragged in the sidebar.
+// groupDrag is a group dragged on the field.
 type groupDrag struct{ id string }
+
+// Place returns the active place represented in the pill/field.
+func (s *State) Place() Place {
+	if s == nil {
+		return Place{Kind: PlaceAll}
+	}
+	if s.pill.scopeGroup != "" {
+		return Place{Kind: PlaceGroup, Group: s.pill.scopeGroup}
+	}
+	parsed := query.Parse(s.pill.query)
+	if queryHasFilter(parsed, "trash") {
+		return Place{Kind: PlaceTrash}
+	}
+	if queryHasFilterValue(parsed, "updated", "7d") {
+		return Place{Kind: PlaceRecent}
+	}
+	return s.startPlace
+}
+
+// StartAt sets the starting place for new library sessions without narrowing
+// the initial field overview to a single group scope.
+func (s *State) StartAt(place Place) {
+	if s == nil {
+		return
+	}
+	s.startPlace = place
+}
+
+// Go navigates the field/pill to place without leaving the shell inconsistent.
+func (s *State) Go(place Place) {
+	if s == nil {
+		return
+	}
+	s.startPlace = place
+	switch place.Kind {
+	case PlaceGroup:
+		s.SetPillScope(place.Group)
+	case PlaceTrash:
+		s.SetPillScope("")
+		s.SetPillQuery("$trash")
+	case PlaceRecent:
+		s.SetPillScope("")
+		s.SetPillQuery("$updated:7d")
+	default:
+		s.SetPillScope("")
+		if strings.TrimSpace(s.pill.query) == "$trash" || strings.TrimSpace(s.pill.query) == "$updated:7d" {
+			s.SetPillQuery("")
+		}
+	}
+}
+
+// CurrentGroup returns the group new sheets belong in.
+func (s *State) CurrentGroup() string {
+	if s == nil {
+		return ""
+	}
+	if s.pill.scopeGroup != "" {
+		return s.pill.scopeGroup
+	}
+	if s.Library != nil {
+		for _, g := range s.Library.Groups("") {
+			if g.Inbox {
+				return g.ID
+			}
+		}
+		if groups := s.Library.Groups(""); len(groups) > 0 {
+			return groups[0].ID
+		}
+	}
+	return ""
+}
+
+// ReconcileLibrary drops stale group scopes or inline renames after group mutations.
+func (s *State) ReconcileLibrary() {
+	if s == nil || s.Library == nil {
+		return
+	}
+	if s.field.renamingGroup != "" {
+		if _, ok := s.Library.Group(s.field.renamingGroup); !ok {
+			s.field.renamingGroup = ""
+		}
+	}
+	if s.pill.scopeGroup != "" {
+		if _, ok := s.Library.Group(s.pill.scopeGroup); !ok {
+			s.SetPillScope("")
+			s.startPlace = Place{Kind: PlaceAll}
+		}
+	}
+	if s.startPlace.Kind == PlaceGroup {
+		if _, ok := s.Library.Group(s.startPlace.Group); !ok {
+			s.startPlace = Place{Kind: PlaceAll}
+		}
+	}
+}
+
+// FindInField opens the field and focuses the pill query input.
+func (s *State) FindInField() {
+	if s == nil {
+		return
+	}
+	s.CallField()
+	s.pill.focus = true
+}
+
+// groupIcon is the icon a group wears.
+func groupIcon(group GroupItem) components.IconName {
+	switch {
+	case group.Inbox:
+		return components.IconInbox
+	case group.Icon != "":
+		return components.IconName(group.Icon)
+	case group.Smart():
+		return components.IconFolderSearch
+	}
+	return components.IconFolder
+}
+
+// groupTint is a group's color: Moonveil's, the text's, or its hue's.
+func groupTint(semantic theme.Theme, group GroupItem) *ui.Color {
+	switch {
+	case group.Inbox:
+		return nil
+	case group.Color >= TintHalo && group.Color < TintHalo+len(semantic.Families):
+		return &semantic.Families[group.Color-TintHalo].Foreground
+	}
+	return &semantic.Text.Default
+}
+
+// moveMenu adds a Move To submenu of the groups, leaving out exclude and its subtree.
+func (s *State) moveMenu(m *ui.Menu, move func(group string), exclude string) {
+	if s.Library == nil {
+		return
+	}
+	m.Submenu("Move To", func(m *ui.Menu) {
+		if exclude != "" && m.Item("Top Level").Chosen() {
+			move("")
+		}
+		skipDepth := -1
+		for _, target := range s.Library.Targets() {
+			if skipDepth >= 0 && target.Depth > skipDepth {
+				continue
+			}
+			skipDepth = -1
+			if target.ID == exclude {
+				skipDepth = target.Depth
+				continue
+			}
+			if m.Item(strings.Repeat("    ", target.Depth) + target.Name).Chosen() {
+				move(target.ID)
+			}
+		}
+	})
+}
+
+func trashGroupLabel(group GroupItem) string {
+	switch {
+	case group.Smart(), group.Count == 0:
+		return "Move to Trash"
+	case group.Count == 1:
+		return "Move to Trash with 1 Sheet"
+	}
+	return fmt.Sprintf("Move to Trash with %d Sheets", group.Count)
+}
+
+func deleteGroupLabel(group GroupItem) string {
+	switch group.Count {
+	case 0:
+		return "Delete Immediately…"
+	case 1:
+		return "Delete Immediately with 1 Sheet…"
+	}
+	return fmt.Sprintf("Delete Immediately with %d Sheets…", group.Count)
+}
+
+func when(at, now time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+	at, now = at.Local(), now.Local()
+	day := func(t time.Time) time.Time { return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()) }
+	days := int(day(now).Sub(day(at)).Hours() / 24)
+	switch {
+	case days <= 0:
+		return at.Format("15:04")
+	case days == 1:
+		return "Yesterday"
+	case days < 7:
+		return at.Format("Monday")
+	case at.Year() == now.Year():
+		return at.Format("Jan 2")
+	}
+	return at.Format("Jan 2, 2006")
+}
+
+func words(n int) string {
+	switch n {
+	case 0:
+		return "No words yet"
+	case 1:
+		return "1 word"
+	}
+	return thousands(n) + " words"
+}
+
+func sheetCount(n int) string {
+	if n == 1 {
+		return "1 sheet"
+	}
+	return thousands(n) + " sheets"
+}
+
+func thousands(n int) string {
+	digits := strconv.Itoa(n)
+	var out strings.Builder
+	for index, digit := range digits {
+		if index > 0 && (len(digits)-index)%3 == 0 {
+			out.WriteByte(',')
+		}
+		out.WriteRune(digit)
+	}
+	return out.String()
+}

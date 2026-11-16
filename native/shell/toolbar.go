@@ -78,9 +78,9 @@ func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32) {
 			},
 		},
 	}
-	// The desk's own: what makes its columns.
-	groups = append(groups, components.ActionGroup{Key: "desk", Label: "Desk actions", Actions: []func(){
-		Icon("new-picker", "New picker", "", components.IconFolderSearch, false, true, s.NewPicker),
+	// The desk's own: jump into Glance or Explore directly from writing.
+	groups = append(groups, components.ActionGroup{Key: "desk", Label: "Field actions", Actions: []func(){
+		Icon("glance-field", "Glance at field", "", components.IconMap, false, true, s.CallField),
 	}})
 	// It goes across on its own motion when it stands elsewhere for other
 	// groups, which it does at once; following the panes as they open and

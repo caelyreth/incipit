@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/native/theme"
+	"github.com/caelyreth/neverland/native/stage"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -17,23 +17,20 @@ func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
 	}
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	for _, text := range []string{"Body copy", "Toggle library"} {
+	for _, text := range []string{"Body copy", "Toggle field"} {
 		if !tester.HasText(text) {
 			t.Fatalf("missing %q in %#v", text, tester.Texts())
 		}
 	}
 }
 
-func TestShellSidebarCanCollapse(t *testing.T) {
+func TestShellZenCollapsesChrome(t *testing.T) {
 	state := openState()
 	state.Appearance.Zen = true
 	state.Statistics = "3 words"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	if _, ok := tester.Find("Search sheets"); ok {
-		t.Fatal("zen shell built sidebar")
-	}
-	if tester.HasText("Neverland") || tester.HasText("3 words") {
+	if tester.HasText("Toggle field") || tester.HasText("3 words") {
 		t.Fatalf("zen shell kept collapsed chrome in the accessibility tree: %#v", tester.Texts())
 	}
 }
@@ -50,25 +47,11 @@ func TestWithNoTabThePageIsQuiet(t *testing.T) {
 	}
 }
 
-func TestShellSidebarAndZenUseSourceMotion(t *testing.T) {
+func TestShellZenUsesSourceMotion(t *testing.T) {
 	state := openState()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	if state.lastSidebarWidth != theme.DefaultLayout.Sidebar {
-		t.Fatalf("initial sidebar width = %v", state.lastSidebarWidth)
-	}
-	state.ToggleSidebar()
-	tester.Frame()
-	tester.Advance(110 * time.Millisecond)
-	if state.lastSidebarWidth <= 0 || state.lastSidebarWidth >= theme.DefaultLayout.Sidebar {
-		t.Fatalf("sidebar did not animate: %v", state.lastSidebarWidth)
-	}
-	tester.Advance(time.Second)
-	if state.lastSidebarWidth != 0 {
-		t.Fatalf("sidebar did not settle: %v", state.lastSidebarWidth)
-	}
 
-	state.SidebarOverride = nil
 	state.Appearance.Zen = true
 	tester.Frame()
 	tester.Advance(110 * time.Millisecond)
@@ -81,33 +64,15 @@ func TestShellSidebarAndZenUseSourceMotion(t *testing.T) {
 	}
 }
 
-func TestShellGeometryScalesWithUIFontSizeAndNarrowWidth(t *testing.T) {
-	state := openState()
-	state.Settings.UIFontSize = 20
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	if want := theme.DefaultLayout.Sidebar * 20 / theme.DefaultUIFontSize; state.lastSidebarWidth != want {
-		t.Fatalf("scaled sidebar width = %v, want %v", state.lastSidebarWidth, want)
-	}
-
-	state = New()
-	tester = ui.NewTester(state.View, 760, 420)
-	tester.Frame()
-	if state.lastSidebarWidth != 0 || tester.HasText("Your pages · 1") {
-		t.Fatalf("narrow shell kept sidebar open: width=%v texts=%#v",
-			state.lastSidebarWidth, tester.Texts())
-	}
-}
-
 func TestShellMotionHonorsReduceMotion(t *testing.T) {
 	state := openState()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.SetPreferences(ui.Preferences{ReduceMotion: true})
 	tester.Frame()
-	state.ToggleSidebar()
+	state.Appearance.Zen = true
 	tester.Frame()
-	if state.lastSidebarWidth != 0 {
-		t.Fatalf("reduced motion sidebar width = %v", state.lastSidebarWidth)
+	if state.lastChrome != 0 {
+		t.Fatalf("reduced motion chrome = %v", state.lastChrome)
 	}
 }
 
@@ -137,7 +102,7 @@ func TestTheWindowControlsUseReferenceActions(t *testing.T) {
 	tester.Frame()
 
 	for _, label := range []string{
-		"Toggle library",
+		"Toggle field",
 		"Search commands",
 		"Open settings",
 	} {
@@ -156,74 +121,12 @@ func TestTheWindowControlsUseReferenceActions(t *testing.T) {
 			t.Fatalf("clicking %q skipped its callback", label)
 		}
 	}
-	if _, ok := tester.Find("New sheet"); ok {
-		t.Fatal("A new sheet is made in the sheet list, not by a window control.")
-	}
-	toggle, ok := tester.Find("Toggle library")
-	if !ok {
-		t.Fatal("sidebar toggle missing")
-	}
-	if right := float32(theme.DefaultLayout.Sidebar); toggle.X > right || toggle.X+toggle.W < right-60 {
-		t.Fatalf("The library's toggle should end the library's top line, by %v, but it stands at %v.", right, toggle)
-	}
-	if err := tester.Click("Toggle library"); err != nil {
+	if err := tester.Click("Toggle field"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if state.SidebarVisible() {
-		t.Fatal("sidebar toggle did not hide navigation")
-	}
-	if _, ok := tester.Find("Search sheets"); ok {
-		t.Fatal("Search should leave with the library.")
-	}
-	toggle, ok = tester.Find("Toggle library")
-	if !ok || toggle.X+toggle.W > titleFloor {
-		t.Fatalf("The library's toggle should stay beside the traffic lights while the library is closed, but it stands at %v.",
-			toggle)
-	}
-}
-
-// The library's toggle ends the library's top line, and the sheet list's
-// its own; as the library closes, the library's goes over to sit beside
-// the list's, which stays where it is, and with both closed it rests
-// beside the window's traffic lights.
-func TestThePanesTogglesKeepTheirPlaces(t *testing.T) {
-	state, _ := libraryState()
-	state.Appearance.Motion = true
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	settle(tester)
-	find := func(label string) ui.Rect {
-		t.Helper()
-		r, ok := tester.Find(label)
-		if !ok {
-			t.Fatalf("%q should show, but the window shows %#v.", label, tester.Texts())
-		}
-		return r
-	}
-	hide := find("Hide sheet list")
-	library := find("Toggle library")
-	if library.Y != hide.Y || library.X+library.W > float32(theme.DefaultLayout.Sidebar) {
-		t.Fatalf("The library's toggle should end its own top line, level with the list's at %v, but it stands at %v.",
-			hide, library)
-	}
-	state.ToggleSidebar()
-	settle(tester)
-	library, after := find("Toggle library"), find("Hide sheet list")
-	if gap := after.X - (library.X + library.W); gap < 0 || gap > 8 || library.Y != after.Y {
-		t.Fatalf("With the library closed its toggle should sit beside the list's at %v, but it stands at %v.",
-			after, library)
-	}
-	if after.Y != hide.Y {
-		t.Fatalf("The list's top line should stay as it was as the library closes, but its toggle went from %v to %v.",
-			hide, after)
-	}
-	state.ToggleSheetList()
-	settle(tester)
-	library = find("Toggle library")
-	if library.X+library.W > titleFloor {
-		t.Fatalf("With both panes closed the library's toggle should rest beside the traffic lights, but it stands at %v.",
-			library)
+	if state.Posture() != stage.PostureGlance {
+		t.Fatalf("posture after Toggle field = %v, want Glance", state.Posture())
 	}
 }
 
@@ -233,32 +136,32 @@ func TestIconControlsAreKeyboardReachable(t *testing.T) {
 
 	for range 12 {
 		tester.Key(0, ui.KeyTab)
-		if tester.Focused("Toggle library") {
+		if tester.Focused("Toggle field") {
 			break
 		}
 	}
-	if !tester.Focused("Toggle library") {
-		t.Fatalf("Tab does not reach the labeled library control: %#v", tester.Texts())
+	if !tester.Focused("Toggle field") {
+		t.Fatalf("Tab does not reach the labeled field control: %#v", tester.Texts())
 	}
 	tester.Key(0, ui.KeySpace)
-	if state.SidebarVisible() {
-		t.Fatal("keyboard activation did not hide navigation")
+	if state.Posture() != stage.PostureGlance {
+		t.Fatalf("keyboard activation did not open field posture: %v", state.Posture())
 	}
 }
 
-func TestASearchRequestFocusesTheSearch(t *testing.T) {
+func TestFindInFieldOpensAndFocusesPill(t *testing.T) {
 	state, _ := libraryState()
 	state.Open = []Page{{ID: "one", Title: "First"}}
 	state.ActivePage = "one"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	state.SearchRequested = true
-	tester.Frame()
-	if active, _ := tester.TextInputActive(); !active {
-		t.Fatal("a search request did not focus the search")
+	state.FindInField()
+	settle(tester)
+	if state.Posture() == stage.PostureWriting {
+		t.Fatal("FindInField should open a field posture")
 	}
-	if state.SearchRequested {
-		t.Fatal("a search request was not consumed")
+	if !tester.Focused("Search field") {
+		t.Fatal("FindInField did not focus the pill search field")
 	}
 }
 
@@ -344,48 +247,26 @@ func TestFloatingToolbarShowsLiveCommandBindingInTooltip(t *testing.T) {
 	}
 }
 
-// Toggling the sidebar or zen mode again mid-flight carries on from where
-// the motion is, at its speed: no jump, and no instant reversal.
 func TestShellMotionTurnsAroundSmoothlyWhenInterrupted(t *testing.T) {
-	for name, toggle := range map[string]func(*State){
-		"sidebar": func(s *State) { s.ToggleSidebar() },
-		"zen":     func(s *State) { s.Appearance.Zen = !s.Appearance.Zen },
-	} {
-		state := openState()
-		tester := ui.NewTester(state.View, 1260, 850)
-		tester.Frame()
-		value := func() float32 {
-			if name == "sidebar" {
-				return state.lastSidebarWidth / theme.DefaultLayout.Sidebar
-			}
-			return state.lastChrome
-		}
-		toggle(state)
-		tester.Frame()
-		tester.Advance(90 * time.Millisecond)
-		before := value()
-		tester.Advance(16 * time.Millisecond)
-		at := value()
-		closing := at - before // negative: still closing
-		toggle(state)
-		tester.Frame()
-		tester.Advance(16 * time.Millisecond)
-		after := value()
-		if step := after - at; step < closing*1.5-0.002 || step > -closing*0.5+0.002 {
-			t.Fatalf("%s: frames moved %v then %v after the toggle, want the motion carried on",
-				name, closing, step)
-		}
-		tester.Advance(time.Second)
-		if got := value(); got != 1 {
-			t.Fatalf("%s settled at %v after turning back", name, got)
-		}
+	state := openState()
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.Frame()
+	state.Appearance.Zen = true
+	tester.Frame()
+	tester.Advance(90 * time.Millisecond)
+	before := state.lastChrome
+	tester.Advance(16 * time.Millisecond)
+	at := state.lastChrome
+	closing := at - before
+	state.Appearance.Zen = false
+	tester.Frame()
+	tester.Advance(16 * time.Millisecond)
+	after := state.lastChrome
+	if step := after - at; step < closing*1.5-0.002 || step > -closing*0.5+0.002 {
+		t.Fatalf("zen: frames moved %v then %v after the toggle, want the motion carried on", closing, step)
 	}
-}
-
-// openState is a shell with one sheet open.
-func openState() *State {
-	state := New()
-	state.Open = []Page{{ID: "1", Title: "Untitled"}}
-	state.ActivePage = "1"
-	return state
+	tester.Advance(time.Second)
+	if state.lastChrome != 1 {
+		t.Fatalf("zen settled at %v after turning back", state.lastChrome)
+	}
 }

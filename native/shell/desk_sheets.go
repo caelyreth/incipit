@@ -89,11 +89,6 @@ func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w float32, animat
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
 	hint := ui.Column(c).Key("sheet-hint").Width(w).Shrink(0).FillHeight().Transition(columnTransition(animate)).
 		AlignItems(ui.Center).Justify(ui.Center).Gap(12 * k)
-	hint.ContextMenu(func(m *ui.Menu) {
-		if m.Item("New Picker").Chosen() {
-			s.newPickerAt(0)
-		}
-	})
 	hint.Children(func() {
 		ui.Icon(c, components.IconDocument.SVG()).FontSize(72 * k).TextColor(semantic.Icon.Muted).Opacity(0.35)
 		components.Label(c, "Open a sheet from the library, or press ⌘N for a new one", theme.TextXSmall, semantic.Text.Muted).

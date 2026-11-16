@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/app/keymap"
-	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo"
 )
@@ -76,14 +75,8 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		{
 			Label: "View",
 			Submenu: []*mygo.MenuItem{
-				{ID: "view-library", Label: "Library", Click: command(keymap.LibraryView)},
-				{ID: "view-sheets", Label: "Sheet List", Click: command(keymap.SheetsView)},
-				{ID: "view-page", Label: "Page Only", Click: command(keymap.PageView)},
 				{ID: "view-field", Label: "Toggle Field", Click: command(keymap.Field)},
 				{ID: "view-glance", Label: "Glance at Field", Click: command(keymap.Glance)},
-				mygo.Separator(),
-				{ID: "toggle-sidebar", Label: "Toggle Library", Click: command(keymap.Sidebar)},
-				{ID: "toggle-sheet-list", Label: "Toggle Sheet List", Click: command(keymap.SheetList)},
 				mygo.Separator(),
 				{ID: "commands", Label: "Command Palette", Click: command(keymap.Commands)},
 				mygo.Separator(),
@@ -117,13 +110,8 @@ var keymapMenu = [...]struct {
 	{"settings", keymap.Settings},
 	{"new-page", keymap.NewPage},
 	{"close-page", keymap.ClosePage},
-	{"view-library", keymap.LibraryView},
-	{"view-sheets", keymap.SheetsView},
-	{"view-page", keymap.PageView},
 	{"view-field", keymap.Field},
 	{"view-glance", keymap.Glance},
-	{"toggle-sidebar", keymap.Sidebar},
-	{"toggle-sheet-list", keymap.SheetList},
 	{"commands", keymap.Commands},
 }
 
@@ -203,30 +191,4 @@ func eachItem(items []*mygo.MenuItem, visit func(*mygo.MenuItem)) {
 		visit(item)
 		eachItem(item.Submenu, visit)
 	}
-}
-
-func (a *AppState) toggleSidebar() {
-	if a != nil && a.Shell != nil {
-		a.setPresentation(appsettings.PresentationZen, false)
-		a.Shell.ToggleSidebar()
-	}
-}
-
-func (a *AppState) toggleSheetList() {
-	if a != nil && a.Shell != nil {
-		a.setPresentation(appsettings.PresentationZen, false)
-		a.Shell.ToggleSheetList()
-	}
-}
-
-// showPanes shows the library and the sheet list as asked, leaving Zen
-// for either.
-func (a *AppState) showPanes(library, sheets bool) {
-	if a == nil || a.Shell == nil {
-		return
-	}
-	if library || sheets {
-		a.setPresentation(appsettings.PresentationZen, false)
-	}
-	a.Shell.ShowPanes(library, sheets)
 }

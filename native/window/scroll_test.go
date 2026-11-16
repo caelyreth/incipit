@@ -33,7 +33,7 @@ func TestThePageScrollsUpToTheHeader(t *testing.T) {
 	ground := img.At(int(900*scale), int((header+2)*scale))
 	inked := 0
 	for y := int((header + 4) * scale); y < int((header+60)*scale); y++ {
-		for x := int(580 * scale); x < int(1000*scale); x++ {
+		for x := int(300 * scale); x < int(960*scale); x++ {
 			if img.At(x, y) != ground {
 				inked++
 			}

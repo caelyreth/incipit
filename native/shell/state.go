@@ -73,8 +73,6 @@ type State struct {
 	// floating are the controls and the writing actions, which float over
 	// the window outside root (components.Floating).
 	floating [2]ui.Handle
-	// tagWidths are tag chips' text widths, measured once each.
-	tagWidths map[tagWidthKey]float32
 
 	Appearance settings.PresentationState
 	Settings   theme.Settings
@@ -84,10 +82,9 @@ type State struct {
 	// the one in front.
 	Open       []Page
 	ActivePage string
-	// Library is what the sidebar shows and files; nil shows none.
-	Library         Library
-	Statistics      string
-	SearchRequested bool
+	// Library is the notebook's library shown in the field; nil shows none.
+	Library    Library
+	Statistics string
 	// FindQuery is a sheet's find as written after its fixed $sheet (the
 	// query it runs is FindText), FindRequested asks its field
 	// for the focus, and FindCount is what it found, as the window counts
@@ -117,31 +114,15 @@ type State struct {
 	Code       func()
 	Strike     func()
 
-	// SidebarOverride shows or hides the library, SheetListOverride the
-	// sheet list, against what the window's width would choose.
-	SidebarOverride   *bool
-	SheetListOverride *bool
-	// panes are how wide the library and the sheet list were dragged, at
-	// the reference UI size; zero is the layout's own width.
-	panes     paneWidths
-	edgeHover edgeHover
-	nav       navigation
-	// list is the sheet list's browser.
-	list             browser
-	lastWidth        float32
-	lastUIFontSize   float32
-	lastSidebarWidth float32
-	lastChrome       float32
+	lastChrome float32
 	// controlsAt is where the window's controls stood as last laid out, on the
-	// title line's (titleline.go).
+	// title line (titleline.go).
 	controlsAt controlsPlace
-	// listDock is how far the place's title has gone from the panes'
-	// title line to the top of the sheet list, as it does where the library
-	// is closed; dockTarget is where it goes, held while the list is shut.
-	listDock   float32
-	dockTarget float32
-	// flight is whether that title is on its way this frame (takeFlight).
-	flight bool
+	// armedKey & armedAt govern two-click destructive confirmation.
+	armedKey string
+	armedAt  time.Time
+	// startPlace records the initial/requested place before field scope opens.
+	startPlace Place
 	// desk is the desk's state (desk.go).
 	desk deskState
 	// dockAt is the groups the writing actions were last built for, and
@@ -163,7 +144,6 @@ func New() *State {
 		Appearance:   settings.DefaultPresentation(),
 		Settings:     theme.DefaultSettings(),
 		WindowActive: true,
-		list:         newBrowser(Place{}),
 		Toolbar: ToolbarState{
 			TypewriterEnabled: true,
 			ZenEnabled:        true,
@@ -177,57 +157,6 @@ func (s *State) SetWindowActive(active bool) {
 	}
 }
 
-func (s *State) ToggleSidebar() {
-	if s == nil {
-		return
-	}
-	visible := s.SidebarVisible()
-	next := !visible
-	s.SidebarOverride = &next
-}
-
-// ShowPanes shows the library and the sheet list as asked.
-func (s *State) ShowPanes(library, sheets bool) {
-	if s != nil {
-		s.SidebarOverride, s.SheetListOverride = &library, &sheets
-	}
-}
-
-func (s *State) SidebarVisible() bool {
-	if s == nil || s.Appearance.Zen {
-		return false
-	}
-	if s.SidebarOverride != nil {
-		return *s.SidebarOverride
-	}
-	scale := s.lastUIFontSize
-	if scale <= 0 {
-		scale = theme.DefaultUIFontSize
-	}
-	return s.lastWidth >= theme.DefaultLayout.Narrow*scale/theme.DefaultUIFontSize
-}
-
 func (s *State) animate(c *ui.Context) bool {
 	return s != nil && components.MotionEnabled(c, s.Appearance.Motion, s.WindowActive)
-}
-
-// paneWidths are the library's and the sheet list's dragged widths.
-type paneWidths struct {
-	library, sheets float32
-}
-
-// paneLayout is the window's reference layout with the library and the
-// sheet list as wide as they were dragged, each within its range.
-func (s *State) paneLayout() theme.Layout {
-	layout := theme.DefaultLayout
-	if s == nil {
-		return layout
-	}
-	if s.panes.library > 0 {
-		layout.Sidebar = max(layout.SidebarMin, min(s.panes.library, layout.SidebarMax))
-	}
-	if s.panes.sheets > 0 {
-		layout.SheetList = max(layout.SheetListMin, min(s.panes.sheets, layout.SheetListMax))
-	}
-	return layout
 }

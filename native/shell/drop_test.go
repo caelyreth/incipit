@@ -36,19 +36,20 @@ func dragOnto(t *testing.T, tester *ui.Tester, from, to string) {
 // the kind it asks about last.
 func TestDropTargetsTakeEveryKindTheyAccept(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		place    Place
-		from, to string
-		want     string
+		name      string
+		allSheets []SheetItem
+		from, to  string
+		want      string
 	}{
-		{"a sheet onto a group's row", Place{Kind: PlaceGroup, Group: "1"}, "Draft", "Novel", "move 8 to 2"},
-		{"a sheet onto the trash", Place{Kind: PlaceGroup, Group: "1"}, "Draft", "Trash", "trash 8"},
-		{"a sheet onto the Inbox", Place{Kind: PlaceGroup, Group: "2"}, "Chapter", "Inbox", "move 7 to 1"},
-		{"a group onto the trash", Place{Kind: PlaceGroup, Group: "1"}, "Novel", "Trash", "trash group 2"},
+		{"a sheet onto a group board", nil, "Draft", "Novel", "move 8 to 2"},
+		{"a sheet onto the trash token", nil, "Draft", "Show trash", "trash 8"},
+		{"a sheet onto Inbox board", []SheetItem{{ID: "7", Title: "Chapter"}}, "Chapter", "Inbox", "move 7 to 1"},
+		{"a group onto the trash token", nil, "Novel", "Show trash", "trash group 2"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state, library := libraryState()
-			state.Go(tc.place)
+			library.allSheets = tc.allSheets
+			state.ToggleField()
 			tester := ui.NewTester(state.View, 1260, 850)
 			settle(tester)
 			dragOnto(t, tester, tc.from, tc.to)

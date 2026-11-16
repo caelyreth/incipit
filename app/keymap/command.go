@@ -61,11 +61,6 @@ const (
 	Zen          CommandID = "window.zen"
 	Typewriter   CommandID = "window.typewriter"
 	Motion       CommandID = "window.motion"
-	Sidebar      CommandID = "window.sidebar"
-	SheetList    CommandID = "window.sheet-list"
-	LibraryView  CommandID = "window.view-library"
-	SheetsView   CommandID = "window.view-sheets"
-	PageView     CommandID = "window.view-page"
 	Field        CommandID = "window.field"
 	Glance       CommandID = "window.glance"
 	Commands     CommandID = "app.commands"
@@ -134,12 +129,6 @@ var appCommands = [...]Command{
 	{ID: Typewriter, Label: "Toggle typewriter mode", Scope: ScopeWindow,
 		Default: NewChord("t", ModifiersPrimary|ModifiersAlt)},
 	{ID: Motion, Label: "Toggle motion", Scope: ScopeWindow, Default: NewChord("m", ModifiersPrimary|ModifiersAlt)},
-	{ID: Sidebar, Label: "Toggle library", Scope: ScopeWindow, Default: NewChord("b", ModifiersPrimary|ModifiersAlt)},
-	{ID: SheetList, Label: "Toggle sheet list", Scope: ScopeWindow,
-		Default: NewChord("l", ModifiersPrimary|ModifiersAlt)},
-	{ID: LibraryView, Label: "Show library and sheets", Scope: ScopeWindow, Default: NewChord("1", ModifiersPrimary)},
-	{ID: SheetsView, Label: "Show sheet list only", Scope: ScopeWindow, Default: NewChord("2", ModifiersPrimary)},
-	{ID: PageView, Label: "Show page only", Scope: ScopeWindow, Default: NewChord("3", ModifiersPrimary)},
 	{ID: Field, Label: "Toggle field", Scope: ScopeWindow, Default: NewChord("0", ModifiersPrimary)},
 	{ID: Glance, Label: "Glance at field", Scope: ScopeWindow, Default: NewChord("4", ModifiersPrimary)},
 	{ID: Commands, Label: "Search commands", Scope: ScopeApp, Default: NewChord("k", ModifiersPrimary)},
