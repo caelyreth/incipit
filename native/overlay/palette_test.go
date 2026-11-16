@@ -2,22 +2,13 @@ package overlay
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/caelyreth/neverland/app/keymap"
-	"github.com/caelyreth/neverland/native/testlock"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
-
-func TestMain(m *testing.M) {
-	if err := testlock.Acquire(); err != nil {
-		panic(err)
-	}
-	os.Exit(m.Run())
-}
 
 func TestPaletteFiltersNavigatesAndConsumesChoice(t *testing.T) {
 	palette := CommandPalette{Open: true}

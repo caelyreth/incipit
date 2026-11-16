@@ -42,7 +42,7 @@ native/window        the app: windows, menus, routing, notebook
 
 ## Development
 
-The repository uses Go 1.27.3 and MyGo v0.8.3.
+The repository uses Go 1.27.3 and MyGo v0.9.1.
 
 ```sh
 direnv allow
@@ -53,7 +53,7 @@ go tool mygo build    # app bundle and installer under dist/<os>-<arch>
 ```
 
 The MyGo CLI is pinned as a Go tool in `go.mod`, so `go tool mygo` runs the
-same v0.8.3 release as the framework. `mygo.json` holds the app configuration.
+same v0.9.1 release as the framework. `mygo.json` holds the app configuration.
 
 Binary assets are not stored in Git. The reference prose font, the math font
 and the word segmenter's CJK dictionary are fetched into ignored local paths

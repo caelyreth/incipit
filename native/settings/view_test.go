@@ -3,7 +3,6 @@ package settings
 import (
 	"fmt"
 	"math"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -11,16 +10,8 @@ import (
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/testlock"
 	"github.com/egoist/mygo/ui"
 )
-
-func TestMain(m *testing.M) {
-	if err := testlock.Acquire(); err != nil {
-		panic(err)
-	}
-	os.Exit(m.Run())
-}
 
 func TestSettingsOpensOnAppearanceAndAppliesToggle(t *testing.T) {
 	state := New()

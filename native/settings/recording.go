@@ -49,7 +49,7 @@ func triggerKey(host string, command keymap.CommandID) string {
 func (s *State) returnFocus(trigger ui.Element, key string) {
 	if s.keyReturn == key && s.keyEditing == "" {
 		s.keyReturn, s.keyQuiet = "", key
-		trigger.Focus()
+		trigger.Focus(ui.FocusOptions{PreventScroll: true})
 	}
 }
 

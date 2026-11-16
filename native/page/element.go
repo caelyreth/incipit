@@ -300,8 +300,7 @@ func (el *Element) View(c *ui.Context) {
 			Role(ui.RoleTextField).Label(el.Label).Value(el.fieldValue()).Focusable()
 		box.HandleTextInput(el.client)
 		if el.focusPending {
-			box.AutoFocus()
-			box.Focus()
+			box.Focus(ui.FocusOptions{PreventScroll: true})
 			el.focusPending = false
 		}
 		services := c.Services()
