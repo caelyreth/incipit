@@ -135,9 +135,9 @@ func (s *State) View(c *ui.Context) {
 	// window's controls float over its corner (controls).
 	root.Children(func() {
 		if drawPage {
-			s.pageScene(c, semantic, metrics, layout, 1-shown, !canvas, func() {
+			s.pageScene(c, semantic, 1-shown, !canvas, func() {
 				ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-					s.sidebar(c, semantic, metrics, sidebarWidth, reveal)
+					s.sidebar(c, semantic, sidebarWidth, reveal)
 					s.sheets().sheetColumn(c, semantic, listWidth, listReveal, head)
 					ui.Column(c).Key("page-area").Grow(1).MinWidth(0).Background(semantic.Surface.Page).Children(func() {
 						s.page(c, semantic, metrics, layout)
@@ -174,7 +174,7 @@ func (s *State) View(c *ui.Context) {
 
 // pageScene is the page mode's scene, its panes and its page, as one of
 // the two the window crosses between (components.SceneLayer).
-func (s *State) pageScene(c *ui.Context, semantic theme.Theme, _ theme.ControlMetrics, _ theme.Layout, share float32, front bool, content func()) {
+func (s *State) pageScene(c *ui.Context, semantic theme.Theme, share float32, front bool, content func()) {
 	scene := ui.Column(c).Key("page-scene").Absolute().Top(0).Left(0).Right(0).Bottom(0).
 		Background(semantic.Surface.Background)
 	components.SceneLayer(scene, share, front).Children(content)

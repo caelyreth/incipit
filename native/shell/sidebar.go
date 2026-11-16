@@ -120,7 +120,6 @@ func (s *State) CurrentGroup() string {
 func (s *State) sidebar(
 	c *ui.Context,
 	semantic theme.Theme,
-	metrics theme.ControlMetrics,
 	width float32,
 	reveal float32,
 ) {
@@ -148,7 +147,6 @@ func (s *State) sidebar(
 			s.trashRow(c, semantic, animate)
 		})
 	})
-	_ = metrics
 }
 
 // lightLine is how far inside the library's own padding the traffic

@@ -8,6 +8,8 @@ import (
 // NavigationRow is the compact 32 DIP row shared by the sidebar and settings
 // tree. The caller supplies leading/trailing content through children.
 type NavigationRow struct {
+	// Base, when set, supplies the row's behavior, as a TreeBase item does.
+	Base      ui.Element
 	Key       string
 	Label     string
 	Selected  bool
@@ -15,7 +17,6 @@ type NavigationRow struct {
 	TextColor *ui.Color
 	FullWidth bool
 	Indent    float32
-	Expanded  *bool
 	Animate   bool
 	Leading   func()
 	Trailing  func()
@@ -47,7 +48,11 @@ func (r NavigationRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	if r.Prominent {
 		height, text = metrics.Row, theme.TextDefault
 	}
-	row := ui.Row(c).Key(r.Key).Role(r.Role).Label(r.Label).Selected(r.Selected).
+	row := r.Base
+	if !row.Valid() {
+		row = ui.Row(c).Key(r.Key).Role(r.Role)
+	}
+	row.Label(r.Label).Selected(r.Selected).
 		Height(height).Shrink(0).
 		PaddingStart(theme.Space08.DIPs(scale)+r.Indent).
 		PaddingEnd(theme.Space08.DIPs(scale)).
@@ -56,9 +61,6 @@ func (r NavigationRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		Focusable().FocusRing(false)
 	if r.FullWidth {
 		row.WidthPercent(100)
-	}
-	if r.Expanded != nil {
-		row.Expanded(*r.Expanded)
 	}
 	textColor := semantic.Text.Default
 	if r.Selected {

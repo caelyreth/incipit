@@ -62,6 +62,56 @@ func TestSettingsTreeIsOneVerticalFocusGroup(t *testing.T) {
 	}
 }
 
+func TestSettingsTreeNavigatesItsHierarchy(t *testing.T) {
+	state := scrollingState(3)
+	tester := ui.NewTester(state.View, 900, 650)
+	tester.Advance(time.Second)
+	category, found := tester.AccessByRole(ui.RoleTreeItem, "Keymap")
+	section, childFound := tester.AccessByRole(ui.RoleTreeItem, "Section 2")
+	if !found || !childFound || category.Level != 1 || section.Level != 2 || !category.Expandable || !category.Expanded {
+		t.Fatalf("the tree lost its hierarchy: category %+v, section %+v", category, section)
+	}
+	if err := tester.Click("Section 2"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Key(0, ui.KeyLeft)
+	if !tester.Focused("Keymap") {
+		t.Fatal("Left did not return to the category")
+	}
+	tester.Key(0, ui.KeyLeft)
+	if state.expanded[appsettings.Keymap] {
+		t.Fatal("Left did not close the category")
+	}
+	category, _ = tester.AccessByRole(ui.RoleTreeItem, "Keymap")
+	if category.Expanded {
+		t.Fatal("a closing category still reports itself as expanded")
+	}
+	tester.Advance(time.Second)
+	tester.Key(0, ui.KeyRight)
+	if !state.expanded[appsettings.Keymap] {
+		t.Fatal("Right did not open the category")
+	}
+	tester.Advance(time.Second)
+	tester.Key(0, ui.KeyRight)
+	if !tester.Focused("Section 1") {
+		t.Fatal("Right did not enter the category's sections")
+	}
+	tester.Key(0, ui.KeyEnd)
+	if !tester.Focused("Section 3") {
+		t.Fatal("End did not reach the last tree item")
+	}
+	tester.Key(0, ui.KeyHome)
+	if !tester.Focused("Appearance") {
+		t.Fatal("Home did not reach the first tree item")
+	}
+	tester.Key(0, ui.KeyK)
+	tester.Key(0, ui.KeyE)
+	tester.Key(0, ui.KeyY)
+	if !tester.Focused("Keymap") {
+		t.Fatal("typing a category's name did not focus it")
+	}
+}
+
 func TestSettingsSearchFiltersNavigationAndRows(t *testing.T) {
 	state, _ := keymapState()
 	state.Query = "close"
@@ -127,6 +177,7 @@ func TestSettingsTreeAnimatesSectionsOpenAndClosed(t *testing.T) {
 	tester := ui.NewTester(state.View, 900, 650)
 	tester.Frame()
 	tester.Advance(time.Second)
+	editorShot(t, tester, "navigation-open")
 	if err := tester.Click("Keymap"); err != nil {
 		t.Fatal(err)
 	}
@@ -134,10 +185,12 @@ func TestSettingsTreeAnimatesSectionsOpenAndClosed(t *testing.T) {
 		t.Fatal("clicking the open current category did not collapse it")
 	}
 	tester.Advance(components.MotionPanel / 3)
+	editorShot(t, tester, "navigation-closing")
 	if _, ok := railRow(tester, "Section 2"); !ok {
 		t.Fatal("sections vanished at once instead of collapsing")
 	}
 	tester.Advance(time.Second)
+	editorShot(t, tester, "navigation-closed")
 	if _, ok := railRow(tester, "Section 2"); ok {
 		t.Fatal("collapsed sections still show in the navigation")
 	}
@@ -145,6 +198,7 @@ func TestSettingsTreeAnimatesSectionsOpenAndClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	tester.Advance(components.MotionPanel / 3)
+	editorShot(t, tester, "navigation-opening")
 	if _, ok := railRow(tester, "Section 2"); !ok {
 		t.Fatal("sections did not begin opening")
 	}

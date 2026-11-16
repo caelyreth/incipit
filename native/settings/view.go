@@ -77,15 +77,15 @@ func (s *State) navigation(
 				scale,
 			)
 			scroll.Children(func() {
-				list := ui.Column(c).Role(ui.RoleTree).Label("Settings Navigation").
-					FocusGroup(ui.Vertical).
+				tree := ui.TreeBase(c)
+				list := tree.Root.Label("Settings Navigation").
 					Padding(0, 0, theme.Space12.DIPs(scale), 0).
 					Gap(theme.Space02.DIPs(scale))
 				s.navOver.Apply(c, list, animate)
 				track := components.TrackSelection(list,
 					components.NavigationSelection(c, semantic), animate)
 				list.Children(func() {
-					s.tree(c, semantic, metrics, animate, track)
+					s.tree(c, semantic, metrics, animate, track, tree)
 				})
 			})
 		})
@@ -107,6 +107,7 @@ func (s *State) tree(
 	metrics theme.ControlMetrics,
 	animate bool,
 	track *components.SelectionTrack,
+	tree ui.TreeParts,
 ) {
 	scale := s.Theme.UIFontSize
 	query := strings.ToLower(strings.TrimSpace(s.Query))
@@ -131,11 +132,16 @@ func (s *State) tree(
 		}
 		current := s.Category == category
 		group.Children(func() {
+			wasOpen := open
+			c.Key("settings-category-" + category.Title())
+			item := tree.Item(&open)
+			if open != wasOpen && query == "" {
+				s.expanded[category] = open
+			}
 			components.NavigationRow{
-				Key: "settings-category-" + category.Title(), Label: category.Title(),
+				Base: item.Row, Label: category.Title(),
 				Selected: current && (!open || active == ""), Track: track,
-				Animate: animate,
-				Role:    ui.RoleTreeItem, FullWidth: true, Expanded: &open,
+				Animate: animate, FullWidth: true,
 				Leading: func() {
 					ui.Icon(c, components.IconChevronRight.SVG()).
 						FontSize(14 * scale / theme.DefaultUIFontSize).
@@ -147,33 +153,46 @@ func (s *State) tree(
 				return
 			}
 			natural := float32(len(children)) * (metrics.Height + gap)
-			ui.Column(c).WidthPercent(100).Height(natural * reveal).Clip().
-				Opacity(reveal).Children(func() {
-				ui.Column(c).WidthPercent(100).Padding(gap, 0, 0, 0).Gap(gap).Children(func() {
-					for _, label := range children {
-						label := label
-						selected := current && open && active == label
-						row := components.NavigationRow{
-							Key:   "settings-section-" + category.Title() + "-" + label,
-							Label: label, Selected: selected, Track: track,
-							Animate: animate,
-							Role:    ui.RoleTreeItem, FullWidth: true,
-							Leading: func() {
-								ui.Box(c).Width(16*scale/theme.DefaultUIFontSize).
-									HeightPercent(100).Shrink(0).
-									BorderWidth(0, 1, 0, 0).
-									BorderColor(semantic.Border.Default.Alpha(0.5))
-							},
-							Action: func() { s.chooseSection(category, label) },
-						}.View(c, semantic)
-						if selected && activeChanged {
-							components.Reveal(c, row, components.RevealMargin(c), ui.ScrollIntoViewOptions{})
+			expanded := open
+			paintTreeGroup(item, &open, func() {
+				ui.Column(c).WidthPercent(100).Height(natural * reveal).Clip().
+					Opacity(reveal).Children(func() {
+					ui.Column(c).WidthPercent(100).Padding(gap, 0, 0, 0).Gap(gap).Children(func() {
+						for _, label := range children {
+							label := label
+							selected := current && expanded && active == label
+							c.Key("settings-section-" + category.Title() + "-" + label)
+							section := tree.Item(nil)
+							row := components.NavigationRow{
+								Base: section.Row, Label: label, Selected: selected, Track: track,
+								Animate: animate, FullWidth: true,
+								Leading: func() {
+									ui.Box(c).Width(16*scale/theme.DefaultUIFontSize).
+										HeightPercent(100).Shrink(0).
+										BorderWidth(0, 1, 0, 0).
+										BorderColor(semantic.Border.Default.Alpha(0.5))
+								},
+								Action: func() { s.chooseSection(category, label) },
+							}.View(c, semantic)
+							if selected && activeChanged {
+								components.Reveal(c, row, components.RevealMargin(c), ui.ScrollIntoViewOptions{})
+							}
 						}
-					}
+					})
 				})
 			})
 		})
 	}
+}
+
+// paintTreeGroup keeps a closing group drawn for its fold while the tree
+// continues to report the category's actual expansion state.
+func paintTreeGroup(item ui.TreeItemParts, open *bool, content func()) {
+	expanded := *open
+	*open = true
+	item.Group(content)
+	*open = expanded
+	item.Row.Expanded(expanded)
 }
 
 func (s *State) categoryChildren(category appsettings.Category, query string) []string {
