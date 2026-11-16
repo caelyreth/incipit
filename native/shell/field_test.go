@@ -184,3 +184,37 @@ func TestFieldNewSheetCardCreatesAndReturnsToDesk(t *testing.T) {
 		t.Fatalf("Expected NewSheet call in Inbox, got %v", library.calls)
 	}
 }
+
+func TestFieldFidelitySteppingHashScopeAndFilterTokens(t *testing.T) {
+	state, _, tester := fieldLibraryState(t)
+
+	state.ToggleField()
+	settle(tester)
+
+	if got := state.PillFidelity(); got != stage.FidelityOverview {
+		t.Fatalf("Initial fidelity = %v, want FidelityOverview", got)
+	}
+	if err := tester.Click("Show all sheets"); err != nil {
+		t.Fatalf("Click Show all sheets: %v", err)
+	}
+	settle(tester)
+	if got := state.PillFidelity(); got != stage.FidelitySheets {
+		t.Fatalf("After stepping fidelity = %v, want FidelitySheets", got)
+	}
+
+	// Typing #Novel followed by space auto-applies group scope.
+	tester.Type("#Novel ")
+	settle(tester)
+	if state.PillScope() != "2" {
+		t.Fatalf("PillScope after #Novel = %q, want %q (query=%q)", state.PillScope(), "2", state.PillQuery())
+	}
+
+	// Clicking Trash token filters trashed sheets in the field.
+	if err := tester.Click("Show trash"); err != nil {
+		t.Fatalf("Click Show trash: %v", err)
+	}
+	settle(tester)
+	if _, ok := tester.Find("Scrap"); !ok {
+		t.Fatalf("Expected trashed sheet card when Trash filter active, got %#v", tester.Texts())
+	}
+}

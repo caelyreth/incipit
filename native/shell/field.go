@@ -1,12 +1,14 @@
 package shell
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
@@ -44,10 +46,12 @@ type fieldCardData struct {
 	kind          stage.CardKind
 	group         GroupItem
 	sheet         SheetItem
+	matchLine     string
 	previewTitles []string
 	totalWords    int
 	onDesk        bool
 	activeOnDesk  bool
+	trashed       bool
 }
 
 const (
@@ -99,8 +103,47 @@ func (s *State) SetPillScope(group string) {
 		return
 	}
 	s.pill.scopeGroup = group
+	s.pill.fidelityStep = 0
 	s.pill.pan = stage.Point{}
 	s.field.selectedID = ""
+}
+
+// FidelityStep returns the manual fidelity step offset on the field pill.
+func (s *State) FidelityStep() int {
+	if s == nil {
+		return 0
+	}
+	return s.pill.fidelityStep
+}
+
+// SetFidelityStep sets the manual fidelity step (0 = overview/group, 1 = sheets).
+func (s *State) SetFidelityStep(step int) {
+	if s == nil {
+		return
+	}
+	step = max(0, min(step, 1))
+	if s.pill.fidelityStep == step {
+		return
+	}
+	s.pill.fidelityStep = step
+	s.pill.pan = stage.Point{}
+	s.field.selectedID = ""
+}
+
+// StepFidelity steps field fidelity down (delta > 0) or up (delta < 0).
+func (s *State) StepFidelity(delta int) {
+	if s == nil {
+		return
+	}
+	s.SetFidelityStep(s.pill.fidelityStep + delta)
+}
+
+// PillFidelity returns the currently resolved fidelity level for the field.
+func (s *State) PillFidelity() stage.Fidelity {
+	if s == nil {
+		return stage.FidelityOverview
+	}
+	return stage.ResolveFidelity(s.pill.scopeGroup, strings.TrimSpace(s.pill.query), s.pill.fidelityStep)
 }
 
 func (s *State) fieldCardsView(c *ui.Context, host ui.Element, semantic theme.Theme, scene stage.Scene, width, height, head float32, animate bool) {
@@ -163,6 +206,17 @@ func (s *State) fieldCardsView(c *ui.Context, host ui.Element, semantic theme.Th
 	// while translating on the GPU pan layer.
 	viewRect := scene.Field.Rect.Inset(-cell*1.5, -cell*1.5)
 	visible := stage.VisibleCards(layout, viewRect, pan)
+	// Draw back-to-front by Depth emphasis, active desk status, and selection
+	// so emphasized cards step visually in front of receded neighbors.
+	slices.SortStableFunc(visible, func(a, b stage.PlacedCard) int {
+		if c := cmp.Compare(a.Emphasis.Depth, b.Emphasis.Depth); c != 0 {
+			return c
+		}
+		ad, bd := s.field.cards[a.Item.ID], s.field.cards[b.Item.ID]
+		ap := boolRank(ad.activeOnDesk) + 2*boolRank(a.Item.ID == s.field.selectedID)
+		bp := boolRank(bd.activeOnDesk) + 2*boolRank(b.Item.ID == s.field.selectedID)
+		return cmp.Compare(ap, bp)
+	})
 
 	ui.Box(c).Key("field-cards").Absolute().Fill().PassThrough().
 		Translate(pan.X, pan.Y).Children(func() {
@@ -248,8 +302,8 @@ func (s *State) ensureFieldLayout(c *ui.Context, scene stage.Scene, width, heigh
 	if roomW <= 0 {
 		roomW = width
 	}
-	pillW := min(380*k, max(240*k, roomW-48*k))
-	pillH := 92 * k
+	pillW := min(392*k, max(240*k, roomW-48*k))
+	pillH := 124 * k
 	layout := stage.PackField(stage.FieldSpec{
 		Room:       targetScene.FieldRoom,
 		PillAnchor: targetScene.PillAnchor,
@@ -307,23 +361,37 @@ func (s *State) buildFieldItems(now time.Time, _ stage.Rect) ([]stage.FieldItem,
 
 	q := strings.TrimSpace(s.pill.query)
 	hasQuery := q != ""
+	parsed := query.Parse(q)
+	trashMode := queryHasFilter(parsed, "trash")
 	fidelity := stage.ResolveFidelity(s.pill.scopeGroup, q, s.pill.fidelityStep)
+
+	var scopedSheets map[string]bool
+	if s.pill.scopeGroup != "" {
+		scopedSheets = s.scopedSheetSet(s.pill.scopeGroup)
+	}
 
 	matches := map[string]float32{}
 	if hasQuery {
 		found := s.Library.Search(s.pill.query)
 		n := len(found.Sheets)
-		for i, sh := range found.Sheets {
+		rank := 0
+		for _, sh := range found.Sheets {
+			if scopedSheets != nil && !scopedSheets[sh.ID] {
+				continue
+			}
 			score := float32(1)
 			if n > 1 {
-				score = 1 - 0.45*float32(i)/float32(n-1)
+				score = 1 - 0.45*float32(rank)/float32(n-1)
 			}
+			rank++
 			matches[sh.ID] = score
 			cards[fieldSheetCardPrefix+sh.ID] = fieldCardData{
 				kind:         stage.CardSheet,
 				sheet:        sh.SheetItem,
+				matchLine:    sh.Line,
 				onDesk:       openSet[sh.ID],
 				activeOnDesk: sh.ID == s.ActivePage,
+				trashed:      trashMode,
 			}
 		}
 	}
@@ -381,7 +449,7 @@ func (s *State) buildFieldItems(now time.Time, _ stage.Rect) ([]stage.FieldItem,
 		})
 	}
 
-	addSheet := func(sh SheetItem, inScope bool) {
+	addSheet := func(sh SheetItem, inScope, trashed bool) {
 		ago := time.Duration(0)
 		if !sh.Updated.IsZero() && now.After(sh.Updated) {
 			ago = now.Sub(sh.Updated)
@@ -402,6 +470,7 @@ func (s *State) buildFieldItems(now time.Time, _ stage.Rect) ([]stage.FieldItem,
 				sheet:        sh,
 				onDesk:       openSet[sh.ID],
 				activeOnDesk: sh.ID == s.ActivePage,
+				trashed:      trashed,
 			}
 		}
 		items = append(items, stage.FieldItem{
@@ -412,6 +481,13 @@ func (s *State) buildFieldItems(now time.Time, _ stage.Rect) ([]stage.FieldItem,
 			Match:    matches[sh.ID],
 			HasQuery: hasQuery,
 		})
+	}
+
+	if trashMode {
+		for _, sh := range s.Library.Sheets(Place{Kind: PlaceTrash}) {
+			addSheet(sh, false, true)
+		}
+		return items, cards
 	}
 
 	switch fidelity {
@@ -433,14 +509,14 @@ func (s *State) buildFieldItems(now time.Time, _ stage.Rect) ([]stage.FieldItem,
 		})
 		limit := min(6, len(all))
 		for _, sh := range all[:limit] {
-			addSheet(sh, false)
+			addSheet(sh, false, false)
 		}
 	case stage.FidelityGroup:
 		for _, sub := range s.Library.Groups(s.pill.scopeGroup) {
 			addGroup(sub)
 		}
 		for _, sh := range s.Library.Sheets(Place{Kind: PlaceGroup, Group: s.pill.scopeGroup}) {
-			addSheet(sh, true)
+			addSheet(sh, true, false)
 		}
 	default: // FidelitySheets
 		place := Place{Kind: PlaceAll}
@@ -452,12 +528,12 @@ func (s *State) buildFieldItems(now time.Time, _ stage.Rect) ([]stage.FieldItem,
 		seen := map[string]bool{}
 		for _, sh := range s.Library.Sheets(place) {
 			seen[sh.ID] = true
-			addSheet(sh, inScope)
+			addSheet(sh, inScope, false)
 		}
 		if hasQuery && s.pill.scopeGroup == "" {
 			for id, card := range cards {
 				if card.kind == stage.CardSheet && !seen[card.sheet.ID] && strings.HasPrefix(id, fieldSheetCardPrefix) {
-					addSheet(card.sheet, false)
+					addSheet(card.sheet, false, false)
 				}
 			}
 		}
@@ -506,8 +582,8 @@ func (s *State) fieldCardView(
 		label = "New sheet"
 	}
 
-	btn := ui.ButtonBase(c.Key("field-card-"+card.Item.ID)).Absolute().
-		Left(card.Rect.X).Top(card.Rect.Y).Size(card.Rect.W, card.Rect.H).
+	btn := ui.ButtonBase(c.Key("field-card-" + card.Item.ID)).Absolute().
+		Left(card.Rect.X).Top(card.Rect.Y).
 		Radius(12 * k).Padding(12 * k).Clip().
 		FocusRing(false).KeepFocus().Label(label).Cache()
 	if animate {
@@ -517,6 +593,7 @@ func (s *State) fieldCardView(
 		})
 	}
 
+	curW, curH := card.Rect.W, card.Rect.H
 	scale := targetScale
 	opacity := card.Emphasis.Opacity
 	shiftX, shiftY := float32(0), float32(0)
@@ -527,13 +604,15 @@ func (s *State) fieldCardView(
 	if animate {
 		animX := components.Follow(btn, "card-x", card.Rect.X, components.MotionPanel)
 		animY := components.Follow(btn, "card-y", card.Rect.Y, components.MotionPanel)
+		curW = components.Follow(btn, "card-w", card.Rect.W, components.MotionPanel)
+		curH = components.Follow(btn, "card-h", card.Rect.H, components.MotionPanel)
 		shiftX = animX - card.Rect.X
 		shiftY = animY - card.Rect.Y
 		scale = components.Follow(btn, "card-scale", targetScale, components.MotionQuick)
 		opacity = components.Follow(btn, "card-opacity", card.Emphasis.Opacity, components.MotionQuick)
 		hover = components.HoverAmount(btn, btn.Hovered(), true)
 	}
-	btn.TransformOrigin(0.5, 0.5).
+	btn.Size(curW, curH).TransformOrigin(0.5, 0.5).
 		Translate(shiftX, shiftY).
 		Scale(scale, scale).
 		Opacity(max(0, min(1, opacity)))
@@ -543,6 +622,11 @@ func (s *State) fieldCardView(
 	var borderW float32 = 1
 	if data.kind == stage.CardNew {
 		rest = semantic.Surface.Inset
+	}
+	if b := card.Emphasis.Brightness; b < 1 {
+		rest = components.Blend(rest, semantic.Surface.Background, max(0, min(1, 1-b)))
+	} else if b > 1 && !selected && !data.activeOnDesk {
+		border = components.Blend(border, semantic.Accent.Foreground, max(0, min(0.65, (b-1)*4)))
 	}
 	bg := components.Blend(rest, semantic.Element.Hover, hover)
 	if selected {
@@ -564,7 +648,7 @@ func (s *State) fieldCardView(
 		case stage.CardGroup:
 			s.groupBoardCard(c, semantic, data, k)
 		case stage.CardSheet:
-			s.sheetFieldCard(c, semantic, data, card.GridW > 1, k, now)
+			s.sheetFieldCard(c, semantic, data, card.GridW > 1, card.GridH > 1, k, now)
 		case stage.CardNew:
 			s.newSheetFieldCard(c, semantic, k)
 		}
@@ -601,7 +685,7 @@ func (s *State) groupBoardCard(c *ui.Context, semantic theme.Theme, data fieldCa
 	})
 }
 
-func (s *State) sheetFieldCard(c *ui.Context, semantic theme.Theme, data fieldCardData, wide bool, k float32, now time.Time) {
+func (s *State) sheetFieldCard(c *ui.Context, semantic theme.Theme, data fieldCardData, wide, tall bool, k float32, now time.Time) {
 	title := data.sheet.Title
 	if title == "" {
 		title = "Untitled"
@@ -626,12 +710,19 @@ func (s *State) sheetFieldCard(c *ui.Context, semantic theme.Theme, data fieldCa
 					SingleLine().Shrink(0).FontFeatures("tnum")
 			}
 		})
-		if data.sheet.Excerpt != "" {
+		body := data.matchLine
+		if body == "" {
+			body = data.sheet.Excerpt
+		}
+		if body != "" {
 			lines := 2
 			if wide {
 				lines = 3
 			}
-			components.Label(c, data.sheet.Excerpt, theme.TextXSmall, semantic.Text.Muted).
+			if tall {
+				lines += 2
+			}
+			components.Label(c, body, theme.TextXSmall, semantic.Text.Muted).
 				WidthPercent(100).MaxLines(lines)
 		}
 		ui.Box(c).Grow(1)
@@ -754,4 +845,43 @@ func openPagesKey(open []Page) string {
 		b.WriteString(p.ID)
 	}
 	return b.String()
+}
+
+func boolRank(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func (s *State) scopedSheetSet(group string) map[string]bool {
+	set := map[string]bool{}
+	if s.Library == nil || group == "" {
+		return set
+	}
+	var walk func(id string)
+	seen := map[string]bool{}
+	walk = func(id string) {
+		if seen[id] {
+			return
+		}
+		seen[id] = true
+		for _, sh := range s.Library.Sheets(Place{Kind: PlaceGroup, Group: id}) {
+			set[sh.ID] = true
+		}
+		for _, sub := range s.Library.Groups(id) {
+			walk(sub.ID)
+		}
+	}
+	walk(group)
+	return set
+}
+
+func queryHasFilter(q query.Query, keyName string) bool {
+	for _, cond := range query.Conditions(q) {
+		if cond.Key != nil && cond.Key.Name == keyName && !cond.Not {
+			return true
+		}
+	}
+	return false
 }

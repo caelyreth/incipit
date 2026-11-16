@@ -2,6 +2,8 @@ package shell
 
 import (
 	"math"
+	"strconv"
+	"strings"
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
@@ -48,7 +50,7 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, scene stage.Scene,
 	if roomW <= 0 {
 		roomW = scene.Field.Rect.W
 	}
-	width := min(380*k, max(240*k, roomW-48*k))
+	width := min(392*k, max(240*k, roomW-48*k))
 
 	pill := ui.Column(c).Key("pill").Absolute().
 		Left(0).Top(0).
@@ -109,6 +111,8 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, scene stage.Scene,
 		if scene.Pill.Interactive {
 			s.pill.focus = false
 		}
+		s.syncPillScopeToken()
+		s.pillRibbon(c, semantic, k, animate)
 	})
 }
 
@@ -160,9 +164,17 @@ func (s *State) pillKey(key ui.TextKey) bool {
 			s.moveFieldSelection(0, -1)
 			return true
 		}
+		if key.Mods&ui.Alt != 0 {
+			s.StepFidelity(-1)
+			return true
+		}
 	case ui.KeyDown:
 		if key.Mods == 0 {
 			s.moveFieldSelection(0, 1)
+			return true
+		}
+		if key.Mods&ui.Alt != 0 {
+			s.StepFidelity(1)
 			return true
 		}
 	case ui.KeyLeft:
@@ -175,8 +187,195 @@ func (s *State) pillKey(key ui.TextKey) bool {
 			s.moveFieldSelection(1, 0)
 			return true
 		}
+	case ui.KeyEqual:
+		if key.Mods&ui.Cmd != 0 {
+			s.StepFidelity(1)
+			return true
+		}
+	case ui.KeyMinus:
+		if key.Mods&ui.Cmd != 0 {
+			s.StepFidelity(-1)
+			return true
+		}
 	}
 	return false
+}
+
+func (s *State) setPillQueryEdit(next string) {
+	s.pill.query = next
+	s.pill.input.edit = &queryEdit{from: 0, to: math.MaxInt, text: next}
+}
+
+func (s *State) syncPillScopeToken() {
+	if s.Library == nil || !strings.Contains(s.pill.query, "#") {
+		return
+	}
+	// Auto-apply #group when followed by whitespace so the user sees the group
+	// scope chip appear smoothly while keeping the rest of the query.
+	fields := strings.Fields(s.pill.query)
+	trailingSpace := len(s.pill.query) > 0 && s.pill.query[len(s.pill.query)-1] == ' '
+	var kept []string
+	changed := false
+	groups := s.allGroupsFlat()
+	for i, f := range fields {
+		if strings.HasPrefix(f, "#") && len(f) > 1 && (i < len(fields)-1 || trailingSpace) {
+			name := strings.TrimPrefix(f, "#")
+			if g, ok := findGroupByName(groups, name); ok {
+				s.SetPillScope(g.ID)
+				changed = true
+				continue
+			}
+		}
+		kept = append(kept, f)
+	}
+	if changed {
+		next := strings.Join(kept, " ")
+		if trailingSpace && next != "" {
+			next += " "
+		}
+		s.setPillQueryEdit(next)
+	}
+}
+
+func (s *State) pillRibbon(c *ui.Context, semantic theme.Theme, k float32, animate bool) {
+	parsed := query.Parse(s.pill.query)
+	conditions := query.Conditions(parsed)
+	fidelity := s.PillFidelity()
+	hasOpen := queryHasFilter(parsed, "open")
+	hasRecent := queryHasFilterValue(parsed, "updated", "7d")
+	hasTrash := queryHasFilter(parsed, "trash")
+
+	token := func(key, text, a11yLabel string, active bool, action func()) {
+		btn := ui.ButtonBase(c.Key(key)).Height(20 * k).PaddingX(7 * k).
+			AlignItems(ui.Center).Justify(ui.Center).
+			Radius(6 * k).Label(a11yLabel).FocusRing(false).KeepFocus()
+		hover := components.HoverAmount(btn, btn.Hovered(), animate)
+		activeTarget := float32(0)
+		if active {
+			activeTarget = 1
+		}
+		activeAmount := activeTarget
+		if animate {
+			activeAmount = max(0, min(1, components.Follow(btn, "pill-token-active", activeTarget, components.MotionQuick)))
+		}
+		rest := components.Blend(semantic.Surface.Inset, semantic.Element.Hover, hover)
+		bg := components.Blend(rest, semantic.Surface.Chosen, activeAmount)
+		fg := components.Blend(semantic.Text.Muted, semantic.Text.Default, max(activeAmount, hover*0.6))
+		btn.Background(bg)
+		if btn.Clicked() {
+			action()
+		}
+		btn.Children(func() {
+			components.Label(c, text, theme.TextXSmall, fg).SingleLine()
+		})
+	}
+
+	ui.Row(c).Key("pill-ribbon").WidthPercent(100).Wrap().AlignItems(ui.Center).Gap(4 * k).Children(func() {
+		sheetsActive := fidelity == stage.FidelitySheets
+		viewText := "Boards"
+		viewLabel := "Show all sheets"
+		if sheetsActive {
+			viewText = "Sheets"
+			viewLabel = "Show overview boards"
+		}
+		token("pill-fidelity", viewText, viewLabel, sheetsActive, func() {
+			if s.pill.fidelityStep == 0 {
+				s.SetFidelityStep(1)
+			} else {
+				s.SetFidelityStep(0)
+			}
+		})
+
+		token("pill-filter-open", "Open", "Filter open sheets", hasOpen, func() {
+			s.togglePillFilter("open", "", "$open")
+		})
+		token("pill-filter-recent", "Recent", "Filter recent sheets", hasRecent, func() {
+			s.togglePillFilter("updated", "7d", "$updated:7d")
+		})
+		token("pill-filter-trash", "Trash", "Show trash", hasTrash, func() {
+			s.togglePillFilter("trash", "", "$trash")
+		})
+
+		for i, cond := range conditions {
+			if cond.Key == nil {
+				continue
+			}
+			// Quick toggles already cover $open, $trash, and $updated:7d.
+			if !cond.Not && (cond.Key.Name == "open" || cond.Key.Name == "trash" ||
+				(cond.Key.Name == "updated" && strings.EqualFold(cond.Value, "7d"))) {
+				continue
+			}
+			label := cond.Key.Label + " " + query.Describe(cond.Key, cond.Value)
+			if cond.Not {
+				label = "Not " + label
+			}
+			span := cond.Span
+			chip := ui.ButtonBase(c.Key("pill-cond-" + strconv.Itoa(i))).Height(20 * k).PaddingX(6 * k).Gap(4 * k).
+				AlignItems(ui.Center).Radius(6 * k).Background(semantic.Surface.Chosen).
+				Transition(popTransition(animate)).FocusRing(false).KeepFocus().
+				Label("Remove filter " + label)
+			if chip.Clicked() {
+				s.setPillQueryEdit(query.Cut(s.pill.query, span))
+			}
+			chip.Children(func() {
+				components.Label(c, label, theme.TextXSmall, semantic.Text.Default).SingleLine().MaxWidth(116 * k)
+				ui.Icon(c, components.IconClose.SVG()).FontSize(10 * k).TextColor(semantic.Icon.Muted).Shrink(0)
+			})
+		}
+	})
+}
+
+func (s *State) togglePillFilter(keyName, wantVal, part string) {
+	parsed := query.Parse(s.pill.query)
+	for _, cond := range query.Conditions(parsed) {
+		if cond.Key != nil && cond.Key.Name == keyName && !cond.Not &&
+			(wantVal == "" || strings.EqualFold(cond.Value, wantVal)) {
+			s.setPillQueryEdit(query.Cut(s.pill.query, cond.Span))
+			return
+		}
+	}
+	s.setPillQueryEdit(query.And(s.pill.query, part))
+}
+
+func queryHasFilterValue(q query.Query, keyName, wantVal string) bool {
+	for _, cond := range query.Conditions(q) {
+		if cond.Key != nil && cond.Key.Name == keyName && !cond.Not && strings.EqualFold(cond.Value, wantVal) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *State) allGroupsFlat() []GroupItem {
+	if s.Library == nil {
+		return nil
+	}
+	var out []GroupItem
+	seen := map[string]bool{}
+	var walk func(parent string)
+	walk = func(parent string) {
+		for _, g := range s.Library.Groups(parent) {
+			if seen[g.ID] {
+				continue
+			}
+			seen[g.ID] = true
+			out = append(out, g)
+			if g.HasGroups {
+				walk(g.ID)
+			}
+		}
+	}
+	walk("")
+	return out
+}
+
+func findGroupByName(groups []GroupItem, name string) (GroupItem, bool) {
+	for _, g := range groups {
+		if strings.EqualFold(g.Name, name) {
+			return g, true
+		}
+	}
+	return GroupItem{}, false
 }
 
 // threeStripMark draws the rounded three-strip Neverland emblem.
