@@ -78,10 +78,6 @@ func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32) {
 			},
 		},
 	}
-	// The desk's own: jump into Glance or Explore directly from writing.
-	groups = append(groups, components.ActionGroup{Key: "desk", Label: "Field actions", Actions: []func(){
-		Icon("glance-field", "Glance at field", "", components.IconMap, false, true, s.CallField),
-	}})
 	// It goes across on its own motion when it stands elsewhere for other
 	// groups, which it does at once; following the panes as they open and
 	// close, it is laid out where they leave it, frame by frame.
@@ -114,10 +110,13 @@ func (s *State) dock(c *ui.Context, semantic theme.Theme, left float32) {
 	// The row spans the window, and keeps clear of the panes by its
 	// padding: a dock moving with it (formatBar) moves from where it was
 	// in it, which is where it was in the window.
-	ui.Row(c).Key("dock").Absolute().Left(0).Right(0).Bind(&s.floating[1]).
+	ui.Row(c).Key("dock").Absolute().Left(0).Right(0).Bind(&s.dockHandle).
 		Bottom(theme.DefaultLayout.DockOffset * scale / theme.DefaultUIFontSize).
 		PaddingStart(left + pad).PaddingEnd(pad).
-		Justify(ui.Center).PassThrough().Children(func() {
+		Justify(ui.Center).PassThrough().
+		// It comes in over the last half of the way to the desk, and goes in
+		// the first half of the way back.
+		Opacity(max(0, min(1, s.view*2-1))).Children(func() {
 		if s.finder.open {
 			s.findBarView(c, semantic, animate)
 			return

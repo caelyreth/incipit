@@ -29,18 +29,24 @@ func (s *State) columnIndex(key string) int {
 }
 
 // keepDesk follows the sheet in front: one come in front is travelled to,
-// at once as the desk is first laid out, and is the column in front.
+// at once as the desk is first laid out, and is the column in front. A
+// sheet just opened takes the window to the desk; those open as the
+// window first shows stay where they are, behind the field.
 func (s *State) keepDesk() {
 	front, was := s.ActivePage, s.desk.front
 	if front != was {
 		s.desk.at = ""
 		if front != "" {
 			key := deskColumn{sheet: front}.key()
+			if s.desk.built && s.columnIndex(key) < 0 {
+				s.ShowDesk()
+			}
 			s.bringInView(key, s.desk.viewport.W == 0)
 			s.desk.at = key
 		}
 	}
 	s.desk.front = front
+	s.desk.built = true
 }
 
 // CloseSheet closes a sheet: its column goes, and where it was in front

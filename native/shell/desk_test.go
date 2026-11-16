@@ -413,7 +413,7 @@ func TestTheSheetHeadCentersCloseBetweenTheDividerAndEdge(t *testing.T) {
 			c.SetTheme(state.Settings.MyGoTheme())
 			ui.Column(c).Fill().Children(func() {
 				state.sheetHead(c, semantic, Page{ID: "1", Title: "A place to begin"},
-					size/theme.DefaultUIFontSize, 0, 0, 1, false)
+					size/theme.DefaultUIFontSize, 0, 1, false)
 			})
 		}, 520, 80)
 		tester.SetTitleBar(ui.TitleBar{Height: 64})

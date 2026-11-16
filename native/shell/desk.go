@@ -87,57 +87,34 @@ type deskState struct {
 	scrub scrubState
 	// columns are the desk's open sheet columns as last built (desk_columns.go).
 	columns []deskColumn
+	// built is whether the desk was built before.
+	built bool
 }
 
-// deskView draws the desk: its strip of columns, its overview, and
-// the statistics of the sheet in front. When a field posture leans the desk
-// aside, the desk transforms visually without reflowing its pages.
-func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layout, chrome float32, scene stage.Scene, animate bool) {
+// deskView draws the desk where the scene stands it: its strip of
+// columns, its overview, and the statistics of the sheet in front. Seen
+// from the field it stands in its corner, what it holds taking no input
+// (leanDesk).
+func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layout, chrome float32, scene stage.Scene, w, h float32, animate bool) {
 	s.keepDesk()
-	scale := s.Settings.UIFontSize
-	k := scale / theme.DefaultUIFontSize
+	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	gutter := layout.ContentGutter * k
-	area := ui.Column(c).Key("desk").Grow(1).MinWidth(0).FillHeight().Background(semantic.Surface.Background)
-	if scene.Desk.Opacity <= 0.001 {
-		area.Opacity(0).IgnoreInput(true)
-	} else if lean := min(1, s.postureLevel); lean > 0.001 {
-		area.Cache().
-			TransformOrigin(0.5, 0.5).
-			Scale(scene.Desk.Scale, scene.Desk.Scale).
-			Rotate(scene.Desk.Rotate).
-			Translate(scene.Desk.Offset.X, scene.Desk.Offset.Y).
-			Opacity(scene.Desk.Opacity).
-			Radius(12*k*lean).
-			Border(1, semantic.Border.Default.Alpha(lean)).
-			Clip()
-		if s.posture != stage.PostureWriting && scene.Desk.Interactive {
-			area.Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Return to desk")
-			if area.Clicked() {
-				s.ReturnToDesk()
-			}
-		}
-	}
-	if s.posture == stage.PostureWriting {
+	area := ui.Column(c).Key("desk").Absolute().Top(0).Left(0).Size(w, h).Background(semantic.Surface.Background)
+	s.leanDesk(area, scene.Desk, scene.Upright)
+	on := s.OnDesk()
+	if on {
 		s.followPointer(area)
 	}
 	area.Children(func() {
-		if scene.Desk.Opacity <= 0.001 {
-			return
-		}
-		if s.posture != stage.PostureWriting {
-			// Let clicks anywhere on the leaned desk return to Writing instead
-			// of hitting inner editors, headers or scrubbers.
-			ui.Box(c).Key("desk-content").Grow(1).MinHeight(0).WidthPercent(100).IgnoreInput(true).Children(func() {
-				s.deskStrip(c, semantic, animate)
-				s.deskFoot(c, semantic, gutter, animate)
-			})
-			return
-		}
-		s.deskStrip(c, semantic, animate)
-		s.deskFoot(c, semantic, gutter, animate)
-		if chrome > 0.001 {
-			s.statistics(c, semantic, layout, gutter, chrome)
-		}
+		ui.Column(c).Key("desk-content").Grow(1).MinHeight(0).WidthPercent(100).IgnoreInput(!on).Children(func() {
+			// All of it, on the desk or resting in its block, so it never
+			// changes its layout on the way between.
+			s.deskStrip(c, semantic, animate)
+			s.deskFoot(c, semantic, gutter, animate)
+			if chrome > 0.001 {
+				s.statistics(c, semantic, layout, gutter, chrome)
+			}
+		})
 	})
 }
 
@@ -193,15 +170,9 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 		flow.Children(func() {
 			s.desk.spans = s.desk.spans[:0]
 			s.desk.holding = ""
-			if len(columns) == 0 {
-				s.sheetHint(c, semantic, viewport.W, animate)
-			}
 			for i, col := range columns {
 				s.openColumn(c, semantic, pages[col.sheet], editor, origin, animate)
 				s.room(c, semantic, "room-"+col.key(), i+1, i == len(columns)-1)
-			}
-			if len(columns) == 0 {
-				s.room(c, semantic, "room-end", 0, true)
 			}
 			s.keyboardMoved()
 		})

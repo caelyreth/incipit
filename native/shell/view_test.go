@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -17,7 +16,7 @@ func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
 	}
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	for _, text := range []string{"Body copy", "Toggle field"} {
+	for _, text := range []string{"Body copy"} {
 		if !tester.HasText(text) {
 			t.Fatalf("missing %q in %#v", text, tester.Texts())
 		}
@@ -30,20 +29,24 @@ func TestShellZenCollapsesChrome(t *testing.T) {
 	state.Statistics = "3 words"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	if tester.HasText("Toggle field") || tester.HasText("3 words") {
+	if tester.HasText("3 words") {
 		t.Fatalf("zen shell kept collapsed chrome in the accessibility tree: %#v", tester.Texts())
 	}
 }
 
-func TestWithNoTabThePageIsQuiet(t *testing.T) {
+func TestWithNoSheetOpenTheFieldTakesTheWindow(t *testing.T) {
 	state := New()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	if !tester.HasText("Open a sheet from the library, or press ⌘N for a new one") {
-		t.Fatalf("missing the empty line in %#v", tester.Texts())
+	state.ShowDesk()
+	tester.Frame()
+	if state.OnDesk() {
+		t.Fatal("With no sheet open, there is no desk to go to.")
 	}
-	if _, ok := tester.Find("Formatting"); ok {
-		t.Fatal("empty workspace still shows the writing toolbar")
+	for _, label := range []string{"Go to the desk", "Formatting"} {
+		if _, ok := tester.Find(label); ok {
+			t.Fatalf("With no sheet open, %q should not show.", label)
+		}
 	}
 }
 
@@ -93,75 +96,46 @@ func TestDocumentWriterReceivesDefiniteViewportHeight(t *testing.T) {
 	}
 }
 
-func TestTheWindowControlsUseReferenceActions(t *testing.T) {
+func TestEscapeTwiceOnTheDeskGoesToTheField(t *testing.T) {
 	state := openState()
-	var commands, opened bool
-	state.OpenCommands = func() { commands = true }
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	tester.Key(0, ui.KeyEscape)
+	tester.Advance(time.Second)
+	tester.Key(0, ui.KeyEscape)
+	tester.Frame()
+	if !state.OnDesk() {
+		t.Fatal("Escapes a second apart should leave the desk where it is.")
+	}
+	tester.Key(0, ui.KeyEscape)
+	tester.Frame()
+	if state.OnDesk() {
+		t.Fatal("Escape twice should go from the desk to the field.")
+	}
+}
+
+func TestThePillOpensSettings(t *testing.T) {
+	state := New()
+	opened := false
 	state.OpenSettings = func() { opened = true }
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-
-	for _, label := range []string{
-		"Toggle field",
-		"Search commands",
-		"Open settings",
-	} {
-		if _, ok := tester.Find(label); !ok {
-			t.Fatalf("missing accessible control %q in %#v", label, tester.Texts())
-		}
-	}
-	for label, want := range map[string]*bool{
-		"Search commands": &commands,
-		"Open settings":   &opened,
-	} {
-		if err := tester.Click(label); err != nil {
-			t.Fatal(err)
-		}
-		if !*want {
-			t.Fatalf("clicking %q skipped its callback", label)
-		}
-	}
-	if err := tester.Click("Toggle field"); err != nil {
+	if err := tester.Click("Open settings"); err != nil {
 		t.Fatal(err)
 	}
-	settle(tester)
-	if state.Posture() != stage.PostureGlance {
-		t.Fatalf("posture after Toggle field = %v, want Glance", state.Posture())
+	if !opened {
+		t.Fatal("the pill's settings button skipped its callback")
 	}
 }
 
-func TestIconControlsAreKeyboardReachable(t *testing.T) {
-	state := openState()
-	tester := ui.NewTester(state.View, 1260, 850)
-
-	for range 12 {
-		tester.Key(0, ui.KeyTab)
-		if tester.Focused("Toggle field") {
-			break
-		}
-	}
-	if !tester.Focused("Toggle field") {
-		t.Fatalf("Tab does not reach the labeled field control: %#v", tester.Texts())
-	}
-	tester.Key(0, ui.KeySpace)
-	if state.Posture() != stage.PostureGlance {
-		t.Fatalf("keyboard activation did not open field posture: %v", state.Posture())
-	}
-}
-
-func TestFindInFieldOpensAndFocusesPill(t *testing.T) {
+func TestSearchGoesToTheFieldAndFocusesThePill(t *testing.T) {
 	state, _ := libraryState()
-	state.Open = []Page{{ID: "one", Title: "First"}}
-	state.ActivePage = "one"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	state.FindInField()
+	state.Search()
 	settle(tester)
-	if state.Posture() == stage.PostureWriting {
-		t.Fatal("FindInField should open a field posture")
-	}
-	if !tester.Focused("Search field") {
-		t.Fatal("FindInField did not focus the pill search field")
+	if state.OnDesk() || !tester.Focused("Search") {
+		t.Fatal("Search should go to the field, its pill taking the keyboard.")
 	}
 }
 

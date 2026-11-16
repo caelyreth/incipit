@@ -2,7 +2,6 @@ package shell
 
 import (
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -31,7 +30,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 	}
 	// Its head floats over the page's reading margin, shown while the
 	// pointer is on it, as nothing else needs it.
-	lead, trail := s.clearOfChrome(c, shown)
+	lead := clearOfLights(c, shown)
 	head := float32(0)
 	if col.Hovered() {
 		head = 1
@@ -47,7 +46,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 		Prose: prose, UIFontSize: s.Settings.UIFontSize, LayoutWidth: width, Inset: prose.Inset(width),
 		Top:    theme.DefaultLayout.ReadingTop * k * 3 / 2,
 		Bottom: dock + side, Dock: dock,
-		Focus: s.posture == stage.PostureWriting && page.ID == s.ActivePage, Claim: claim && s.posture == stage.PostureWriting,
+		Focus: s.OnDesk() && page.ID == s.ActivePage, Claim: claim && s.OnDesk(),
 	}
 	col.Children(func() {
 		ui.Column(c).Key("sheet-page").WidthPercent(100).Grow(1).MinHeight(0).PaddingX(side).
@@ -56,13 +55,13 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 				s.Sheet(c, page.ID, frame)
 			}
 		})
-		s.sheetHead(c, semantic, page, k, lead, trail, head, animate)
+		s.sheetHead(c, semantic, page, k, lead, head, animate)
 	})
 }
 
 // sheetHead is a sheet's head (columnHead): its group's mark and its
 // title, and what closes it, at the type's size k.
-func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lead, trail, shown float32, animate bool) ui.Element {
+func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lead, shown float32, animate bool) ui.Element {
 	info := func() {
 		ui.Row(c).Key("sheet-info").AlignItems(ui.Center).Gap(6 * k).PaddingX(12 * k).Children(func() {
 			if group, ok := s.groupOf(page.ID); ok {
@@ -76,24 +75,10 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lea
 		})
 	}
 	// It names its sheet, which its tooltip need not.
-	return s.columnHead(c, semantic, "sheet-head", lead, trail, shown, info, chromeButton{
+	return s.columnHead(c, semantic, "sheet-head", lead, shown, info, chromeButton{
 		key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
 		action: func() { s.CloseSheet(page.ID) },
 	}, animate)
-}
-
-// sheetHint stands where the desk's columns would, while there are none:
-// how to bring one. It is the desk's empty room, as the room around
-// columns is.
-func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w float32, animate bool) {
-	k := components.UIFontSize(c) / theme.DefaultUIFontSize
-	hint := ui.Column(c).Key("sheet-hint").Width(w).Shrink(0).FillHeight().Transition(columnTransition(animate)).
-		AlignItems(ui.Center).Justify(ui.Center).Gap(12 * k)
-	hint.Children(func() {
-		ui.Icon(c, components.IconDocument.SVG()).FontSize(72 * k).TextColor(semantic.Icon.Muted).Opacity(0.35)
-		components.Label(c, "Open a sheet from the library, or press ⌘N for a new one", theme.TextXSmall, semantic.Text.Muted).
-			Opacity(0.8).TextAlign(ui.Center)
-	})
 }
 
 // groupOf is the group a sheet is filed in.

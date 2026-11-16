@@ -5,10 +5,17 @@ import (
 
 	"github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
+
+// Command is one of the app's commands: what it is called, the group it
+// is listed in, and the caps of its key, if it has one.
+type Command struct {
+	ID, Label, Group string
+	Binding          string
+	Keys             []string
+}
 
 // Page is an open sheet.
 type Page struct {
@@ -70,9 +77,9 @@ type ToolbarBindings struct {
 type State struct {
 	// root is the shell's outermost element, for where the focus is.
 	root ui.Handle
-	// floating are the controls and the writing actions, which float over
-	// the window outside root (components.Floating).
-	floating [2]ui.Handle
+	// dockHandle is the writing actions, which float over the window
+	// outside root (components.Floating).
+	dockHandle ui.Handle
 
 	Appearance settings.PresentationState
 	Settings   theme.Settings
@@ -101,7 +108,10 @@ type State struct {
 	SelectPage   func(id string)
 	ClosePageID  func(id string)
 	OpenSettings func()
-	OpenCommands func()
+	// Commands are the app's commands, as the pill lists them written
+	// after ">"; RunCommand runs one.
+	Commands   func() []Command
+	RunCommand func(id string)
 	// Find runs a sheet's find on the page in front; FindStep goes to the
 	// next match or the one before; EndFind ends it.
 	Find       func(query string)
@@ -115,28 +125,23 @@ type State struct {
 	Strike     func()
 
 	lastChrome float32
-	// controlsAt is where the window's controls stood as last laid out, on the
-	// title line (titleline.go).
-	controlsAt controlsPlace
 	// armedKey & armedAt govern two-click destructive confirmation.
 	armedKey string
 	armedAt  time.Time
-	// startPlace records the initial/requested place before field scope opens.
-	startPlace Place
+	// escapedAt is when Escape was last pressed on the desk (scene.go).
+	escapedAt time.Time
 	// desk is the desk's state (desk.go).
 	desk deskState
 	// dockAt is the groups the writing actions were last built for, and
 	// dockMoving until when they go to where those put them.
 	dockAt     string
 	dockMoving time.Time
-	// posture, postureLevel, scene, pill and field drive the continuous
-	// allocation between the desk, the field and the pill (posture.go,
-	// pill.go, field.go).
-	posture      stage.Posture
-	postureLevel float32
-	scene        stage.Scene
-	pill         pillState
-	field        fieldState
+	// field is the field's state (field.go); onDesk whether the window
+	// looks at the desk, and view how far it has gone there (scene.go).
+	field  fieldState
+	lane   laneState
+	onDesk bool
+	view   float32
 }
 
 func New() *State {

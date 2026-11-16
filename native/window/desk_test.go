@@ -45,15 +45,15 @@ func run(tester *ui.Tester, d time.Duration) {
 	}
 }
 
-// Postures coming and going keep the app running while the desk stays intact.
-func TestPosturesKeepTheDeskRunning(t *testing.T) {
+// Going to the field and back, every way there is, keeps the app running
+// and the desk intact.
+func TestGoingToTheFieldKeepsTheDeskRunning(t *testing.T) {
 	for _, way := range []struct {
 		name   string
 		toggle func(*AppState)
 	}{
-		{"glance", func(app *AppState) { app.Shell.ToggleGlance() }},
-		{"field", func(app *AppState) { app.Shell.ToggleField() }},
-		{"find in field", func(app *AppState) { app.Shell.FindInField() }},
+		{"the field's toggle", func(app *AppState) { app.Shell.ToggleField() }},
+		{"search", func(app *AppState) { app.Shell.Search() }},
 	} {
 		t.Run(way.name, func(t *testing.T) {
 			app, tester := deskApp(t)
@@ -196,14 +196,14 @@ func TestTheReadingHeightStaysAcrossSizes(t *testing.T) {
 						t.Fatal("The editor should be visible.")
 					}
 					y := field.Bounds.Y + el.Top - scroll
-					app.Shell.ToggleGlance()
+					app.Shell.ShowField()
 					run(tester, time.Second)
-					app.Shell.ReturnToDesk()
+					app.Shell.ShowDesk()
 					run(tester, time.Second)
 					field, ok = tester.AccessByRole(ui.RoleTextField, "Page")
 					got := field.Bounds.Y + el.Top - el.ScrollY()
 					if !ok || math.Abs(float64(got-y)) > 0.5 || el.ScrollY() != scroll {
-						t.Fatalf("At scroll %v after Glance round-trip, reading origin moved from %v to %v (scroll %v).", scroll, y, got, el.ScrollY())
+						t.Fatalf("At scroll %v after going to the field and back, reading origin moved from %v to %v (scroll %v).", scroll, y, got, el.ScrollY())
 					}
 				}
 			})

@@ -11,32 +11,31 @@ import (
 // what floats over it among it: a press on what takes no focus, as a
 // pane's background, leaves it nowhere.
 func (s *State) FocusWithin(c *ui.Context) bool {
-	return s.root.FocusWithin(c) || s.floating[0].FocusWithin(c) || s.floating[1].FocusWithin(c)
+	return s.root.FocusWithin(c) || s.dockHandle.FocusWithin(c)
 }
 
 // Typing reports whether a field of the shell is open for typing, or about
-// to take the focus as it opens: the search, a sheet's find, or a name
-// being edited.
+// to take the focus as it opens: a sheet's find, the pill on the field, or
+// a group's name being written.
 func (s *State) Typing() bool {
-	return s.FindRequested || s.finder.open ||
-		s.pill.focus || s.pill.typing || s.field.renamingGroup != ""
+	return s.FindRequested || s.finder.open || !s.OnDesk() || s.field.renaming != ""
 }
 
+// View draws the field and the desk where the window looks (scene.go),
+// and the writing actions floating over them.
 func (s *State) View(c *ui.Context) {
 	semantic, changing := s.Colors.At(s.Settings, c.Now())
 	c.SetTheme(s.Settings.MyGoThemeFor(semantic))
 	if changing {
 		c.AnimationFrame()
 	}
-	width, height := c.Size()
-	scale := s.Settings.UIFontSize
+	w, h := c.Size()
 	layout := theme.DefaultLayout
-
 	chromeTarget := float32(1)
 	if s.Appearance.Zen {
 		chromeTarget = 0
 	}
-	root := ui.Column(c).Fill().Background(semantic.Surface.Background).Bind(&s.root)
+	root := ui.Box(c).Fill().Background(semantic.Surface.Background).Clip().Bind(&s.root)
 	animate := s.animate(c)
 	chrome := chromeTarget
 	if animate {
@@ -44,20 +43,25 @@ func (s *State) View(c *ui.Context) {
 	}
 	chrome = max(0, min(chrome, 1))
 	s.lastChrome = chrome
-	head := layout.Titlebar * scale / theme.DefaultUIFontSize
-	scene := s.computeStage(root, width, height, head, animate)
-
+	s.deskEscape(c)
+	at := s.viewAt(root, animate)
 	root.Children(func() {
-		if scene.Field.Opacity > 0.001 {
-			s.fieldView(c, semantic, scene, width, height, head, animate)
+		s.fieldView(c, semantic, stage.Stage(w, h, at, stage.Rect{W: w, H: h}, aside).Field, w-s.laneRoom(), h, at >= 0.999, animate)
+		s.laneView(c, semantic, w, h, animate)
+		scene := stage.Stage(w, h, at, s.deskRest(w, h), aside)
+		if at > 0.001 {
+			// The field darkens behind the desk coming up: a veil over it,
+			// so the field is not painted anew each frame of the way.
+			ui.Box(c).Key("veil").Absolute().Top(0).Left(0).Size(w, h).IgnoreInput(true).
+				Background(semantic.Surface.Background.Alpha(1 - scene.Field.Shown))
 		}
-		ui.Row(c).Key("body").Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().
-			AlignItems(ui.Stretch).Children(func() {
-			s.deskView(c, semantic, layout, chrome, scene, animate)
-		})
+		// The desk is drawn while sheets are open, and while it goes out
+		// with the last of them.
+		if len(s.Open) > 0 || at > 0.001 {
+			s.deskView(c, semantic, layout, chrome, scene, w, h, animate)
+		}
 		components.Floating(c, func() {
-			s.controls(c, semantic, chrome, animate)
-			if len(s.desk.columns) > 0 && s.posture == stage.PostureWriting {
+			if len(s.desk.columns) > 0 && s.view > 0.5 {
 				s.dock(c, semantic, 0)
 			}
 		})
