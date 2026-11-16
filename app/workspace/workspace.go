@@ -6,6 +6,7 @@ package workspace
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -312,7 +313,8 @@ func (w *Workspace) NewPage() (PageID, error) {
 	return id, nil
 }
 
-// Open parks the mounted session and mounts the target page.
+// Open parks the mounted session and mounts the target page. A page not
+// open yet opens beside the active one, after it, or last with none.
 func (w *Workspace) Open(id PageID) error {
 	if w == nil || !w.validPage(id) {
 		return ErrPageNotFound
@@ -331,13 +333,34 @@ func (w *Workspace) Open(id PageID) error {
 		}
 		current.Parked = true
 	}
+	beside := len(w.opened)
+	if w.hasActive {
+		if at := w.openIndex(w.active); at >= 0 {
+			beside = at + 1
+		}
+	}
 	w.active = id
 	w.hasActive = true
 	w.mounted = target.session
 	target.Parked = false
 	if !w.isOpen(id) {
-		w.opened = append(w.opened, id)
+		w.opened = slices.Insert(w.opened, beside, id)
 	}
+	return nil
+}
+
+// Place moves an open page to stand just after another open page, or
+// first where after is not open.
+func (w *Workspace) Place(id, after PageID) error {
+	if w == nil || !w.validPage(id) {
+		return ErrPageNotFound
+	}
+	at := w.openIndex(id)
+	if at < 0 {
+		return nil
+	}
+	w.opened = slices.Delete(w.opened, at, at+1)
+	w.opened = slices.Insert(w.opened, w.openIndex(after)+1, id)
 	return nil
 }
 
@@ -405,10 +428,8 @@ func (w *Workspace) OpenInPlace(id PageID) error {
 	if err := w.Open(id); err != nil {
 		return err
 	}
-	// Open put the page last; it takes the place of the one it
-	// replaced, which closes.
-	w.opened = w.opened[:len(w.opened)-1]
-	w.opened[index] = id
+	// Open put the page beside the one it replaces, which closes.
+	w.opened = slices.Delete(w.opened, index, index+1)
 	return nil
 }
 

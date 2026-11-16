@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -326,6 +327,38 @@ func TestDiscardedPagesGo(t *testing.T) {
 	next, _ := workspace.CreatePage()
 	if next == second {
 		t.Fatal("a discarded identity was given again")
+	}
+}
+
+func TestPagesOpenBesideTheActiveOneAndArePlacedAfterAnother(t *testing.T) {
+	t.Parallel()
+	workspace, _ := newWorkspace(t, nil)
+	first, _ := workspace.Active()
+	second, err := workspace.NewPage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := workspace.Open(first); err != nil {
+		t.Fatal(err)
+	}
+	third, err := workspace.NewPage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := workspace.Opened(); !slices.Equal(got, []PageID{first, third, second}) {
+		t.Fatalf("a new page should open beside the active one, but the pages are %v", got)
+	}
+	if err := workspace.Place(first, second); err != nil {
+		t.Fatal(err)
+	}
+	if got := workspace.Opened(); !slices.Equal(got, []PageID{third, second, first}) {
+		t.Fatalf("placed after the second, the pages should be %v, not %v", []PageID{third, second, first}, got)
+	}
+	if err := workspace.Place(first, PageID(99)); err != nil {
+		t.Fatal(err)
+	}
+	if got := workspace.Opened(); got[0] != first {
+		t.Fatalf("placed after a page not open, a page should go first, but the pages are %v", got)
 	}
 }
 
