@@ -162,7 +162,12 @@ func TestASmartFolderListsWhatItsQueryFinds(t *testing.T) {
 	typeIntoActivePage(t, app, "The tide turns #sea")
 	first := sheetName(activeSession(t, app).page)
 	settleSearch(app)
-	id := app.NewSmartGroup("#sea")
+	made, err := app.library.AddSmartGroupAt(0, "#sea", "#sea", len(app.library.Groups(0)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.libraryChanged()
+	id := groupName(made)
 	group, ok := app.Group(id)
 	if !ok || !group.Smart() || group.Name != "#sea" || group.Count != 1 {
 		t.Fatalf("the folder is %+v", group)
@@ -175,7 +180,7 @@ func TestASmartFolderListsWhatItsQueryFinds(t *testing.T) {
 	app.NewSheet("", 0)
 	typeIntoActivePage(t, app, "Low #sea")
 	settleSearch(app)
-	if got := app.SheetCount(place); got != 2 {
+	if got := len(app.Sheets(place)); got != 2 {
 		t.Fatalf("after a second sheet the folder counts %d", got)
 	}
 	// Nothing is filed in it, nor offered to be.
@@ -191,7 +196,10 @@ func TestASmartFolderListsWhatItsQueryFinds(t *testing.T) {
 	if names := app.SearchNames("in"); slices.Contains(names, "#sea") {
 		t.Fatalf("$in offers the smart folder: %v", names)
 	}
-	app.SetGroupQuery(id, "turns")
+	if err := app.library.SetGroupQuery(made, "turns"); err != nil {
+		t.Fatal(err)
+	}
+	app.libraryChanged()
 	if got := app.Sheets(place); len(got) != 1 || got[0].ID != first {
 		t.Fatalf("after its query changed the folder lists %+v", got)
 	}

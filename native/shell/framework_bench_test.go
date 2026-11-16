@@ -8,7 +8,7 @@ import (
 )
 
 func BenchmarkShellFrames(b *testing.B) {
-	for _, scenario := range []string{"rebuild", "hover", "posture"} {
+	for _, scenario := range []string{"rebuild", "hover", "field"} {
 		b.Run(scenario, func(b *testing.B) {
 			state, library := libraryState()
 			library.extraSheets = 30
@@ -28,9 +28,9 @@ func BenchmarkShellFrames(b *testing.B) {
 						row = second
 					}
 					tester.Move(row.X+row.W/2, row.Y+row.H/2)
-				case "posture":
+				case "field":
 					if frame%30 == 0 {
-						state.ToggleGlance()
+						state.ToggleField()
 					}
 					tester.Advance(16 * time.Millisecond)
 				}

@@ -1,12 +1,9 @@
 package shell
 
 import (
-	"cmp"
-	"fmt"
-	"math"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
@@ -15,1103 +12,514 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// The field shows what its query finds (results.go) in blocks
+// (blocks.go) around the pill the query is written in (pill.go).
+// Everything done on the field changes the query, and the field moves to
+// what the changed query finds on one value (stage.Shift), from where the
+// action says: a group's head pressed opens its blocks out of it, a
+// condition taken away folds them back into the block it came from.
+
 type fieldState struct {
-	key           fieldCacheKey
-	layout        stage.FieldLayout
-	cards         map[string]fieldCardData
-	selectedID    string
-	renamingGroup string
-	renameName    string
-	renameFocus   bool
-	dragging      bool
-	scrolledAt    time.Time
-	panImpulse    stage.Point
-	damped        stage.Point
+	// conditions are the query's conditions, each as the language writes
+	// it, shown as ribbons on the pill; words is what is written after
+	// them, and edit what the pill's input is to be set to.
+	conditions []string
+	words      string
+	edit       *string
+	// focus asks the pill's input for the keyboard.
+	focus bool
+	found found
+	// shapes are found's blocks' shapes, for the measures shapesKey names.
+	shapes    []shape
+	shapesKey string
+	// shown are the blocks drawn, those going out included, by id, as
+	// shaped.
+	shown      map[string]block
+	shownShape map[string]shape
+	// rest is the layout's frames as last laid out, at rest, drawn what
+	// was last drawn, and from what the change under way started from.
+	rest, drawn, from []stage.Frame
+	// next is how the next change moves, as the action making it says,
+	// and now the change under way.
+	next, now change
+	// scroll is how far the field is scrolled down from its horizon at
+	// the window's middle (up, below 0), as far as lo and hi; home brings
+	// it back there, homing once it has begun.
+	scroll, lo, hi float32
+	home, homing   bool
+	// over is how far past its ends the field is pulled, as the panels and
+	// tables pull, and viewH the field's height, for its reach.
+	over  scrollfx.Elastic
+	viewH float32
+	// hidden is whether the desk fills the window over the field, which
+	// takes no focus meanwhile.
+	hidden bool
+	// hold keeps a change still for its first frame, which lays out and
+	// draws what it brings, so the motion starts on the frame after.
+	hold bool
+	// picked is the sheets picked together, anchor where a Shift-click's
+	// run starts (picks.go).
+	picked []string
+	anchor string
+	// order is the rows the field shows, in order, and chosen the one the
+	// keys are on.
+	order  []string
+	chosen string
+	// renaming is the group whose name is being written on its head.
+	renaming, renameName string
+	renameFocus          bool
 }
 
-type fieldCacheKey struct {
-	hasLib       bool
-	libRev       uint64
-	openKey      string
-	activePage   string
-	scopeGroup   string
-	fidelityStep int
-	query        string
-	posture      stage.Posture
-	hasDesk      bool
-	vpW          float32
-	vpH          float32
-	head         float32
-	uiFontSize   float32
+// change is how the field moves to a new layout: which way, the place its
+// new results come from, and the result its old ones go back into.
+type change struct {
+	depth stage.Depth
+	enter stage.Rect
+	exit  string
 }
 
-type fieldCardData struct {
-	kind          stage.CardKind
-	group         GroupItem
-	sheet         SheetItem
-	matchLine     string
-	previewTitles []string
-	totalWords    int
-	onDesk        bool
-	activeOnDesk  bool
-	trashed       bool
+// FieldQuery is the field's query: its conditions, then its words.
+func (s *State) FieldQuery() string {
+	return strings.TrimSpace(strings.Join(append(slices.Clone(s.field.conditions), s.field.words), " "))
 }
 
-const (
-	fieldGroupCardPrefix = "group:"
-	fieldSheetCardPrefix = "sheet:"
-	fieldNewCardID       = "new:sheet"
-)
+// SetFieldQuery sets the field's query: its conditions to ribbons, the
+// rest to the words written.
+func (s *State) SetFieldQuery(text string) {
+	s.field.conditions, s.field.words = nil, ""
+	s.takeConditions(text)
+	s.setWords(s.field.words)
+}
 
-// FieldPan returns the current field pan offset.
-func (s *State) FieldPan() stage.Point {
-	if s == nil {
-		return stage.Point{}
+// takeConditions takes the conditions written in text as ribbons, and
+// leaves the rest as the words.
+func (s *State) takeConditions(text string) {
+	conds := query.Conditions(query.Parse(text))
+	for i := len(conds) - 1; i >= 0; i-- {
+		text = query.Cut(text, conds[i].Span)
 	}
-	return s.pill.pan
+	for _, c := range conds {
+		s.field.conditions = append(s.field.conditions, c.String())
+	}
+	s.field.words = strings.TrimLeft(text, " ")
 }
 
-// PanField pans the field by (dx, dy) DIPs and clamps/resists past bounds.
-func (s *State) PanField(dx, dy float32) {
-	if s == nil {
+func (s *State) setWords(words string) {
+	s.field.words = words
+	s.field.edit = &words
+}
+
+// narrow puts cond in the query, in place of one of the same key, going
+// down into what was chosen at from.
+func (s *State) narrow(cond string, from stage.Rect) {
+	key := conditionKey(cond)
+	s.field.conditions = slices.DeleteFunc(s.field.conditions, func(c string) bool { return conditionKey(c) == key })
+	s.field.conditions = append(s.field.conditions, cond)
+	s.field.next = change{depth: stage.Down, enter: from}
+	s.field.chosen = ""
+	s.field.focus = true
+}
+
+// broaden takes the query's condition at i away, coming back up into the
+// block of the group it was in, if it was one.
+func (s *State) broaden(i int) {
+	if i < 0 || i >= len(s.field.conditions) {
 		return
 	}
-	scale := s.Settings.UIFontSize
-	if scale <= 0 {
-		scale = theme.DefaultUIFontSize
+	next := change{depth: stage.Up}
+	if c, ok := condition(s.field.conditions[i]); ok && c.Key.Name == "in" && s.Library != nil {
+		if g, ok := s.groupNamed(c.Value); ok {
+			next.exit = "group:" + g.ID
+		}
 	}
-	k := scale / theme.DefaultUIFontSize
-	s.panField(s.field.layout, dx, dy, k)
+	s.field.conditions = slices.Delete(s.field.conditions, i, i+1)
+	s.field.next = next
+	s.field.chosen = ""
 }
 
-// FieldLayout returns the most recently computed field card layout.
-func (s *State) FieldLayout() stage.FieldLayout {
-	if s == nil {
-		return stage.FieldLayout{}
-	}
-	return s.field.layout
-}
-
-// PillScope returns the active group scope ID on the pill, or "" for overview.
-func (s *State) PillScope() string {
-	if s == nil {
-		return ""
-	}
-	return s.pill.scopeGroup
-}
-
-// SetPillScope sets the active group scope on the pill and recenters the pan.
-func (s *State) SetPillScope(group string) {
-	if s == nil {
+// into narrows the query to a group, or to what a smart folder finds.
+func (s *State) into(g GroupItem, from stage.Rect) {
+	if g.Smart() {
+		s.SetFieldQuery(g.Query)
+		s.field.next = change{depth: stage.Down, enter: from}
 		return
 	}
-	s.pill.scopeGroup = group
-	s.pill.fidelityStep = 0
-	s.pill.pan = stage.Point{}
-	s.field.selectedID = ""
+	s.narrow((&query.Condition{Key: mustKey("in"), Value: g.Name}).String(), from)
 }
 
-// FidelityStep returns the manual fidelity step offset on the field pill.
-func (s *State) FidelityStep() int {
-	if s == nil {
-		return 0
+// Search goes to the field, its pill taking the keyboard.
+func (s *State) Search() { s.ShowField() }
+
+// condition reads a condition as the language writes it.
+func condition(text string) (query.Condition, bool) {
+	conds := query.Conditions(query.Parse(text))
+	if len(conds) != 1 {
+		return query.Condition{}, false
 	}
-	return s.pill.fidelityStep
+	return conds[0], true
 }
 
-// SetFidelityStep sets the manual fidelity step (0 = overview/group, 1 = sheets).
-func (s *State) SetFidelityStep(step int) {
-	if s == nil {
-		return
+func conditionKey(text string) string {
+	if c, ok := condition(text); ok {
+		return c.Key.Name
 	}
-	step = max(0, min(step, 1))
-	if s.pill.fidelityStep == step {
-		return
-	}
-	s.pill.fidelityStep = step
-	s.pill.pan = stage.Point{}
-	s.field.selectedID = ""
+	return text
 }
 
-// StepFidelity steps field fidelity down (delta > 0) or up (delta < 0).
-func (s *State) StepFidelity(delta int) {
-	if s == nil {
-		return
-	}
-	s.SetFidelityStep(s.pill.fidelityStep + delta)
+func mustKey(name string) *query.Key {
+	k, _ := query.KeyNamed(name)
+	return k
 }
 
-// PillFidelity returns the currently resolved fidelity level for the field.
-func (s *State) PillFidelity() stage.Fidelity {
-	if s == nil {
-		return stage.FidelityOverview
+// fieldView draws the field in the window's room left of the desk lane, w
+// by h, as the scene stands it: what the query finds in slots on either
+// side of its horizon (stage.Horizon), the pill in the horizon, and the
+// whole scrolling up and down as one, the pill keeping near the window's
+// top or foot once its horizon has gone past them; pressed there, the
+// pill brings the field back to its horizon. Hidden, as the desk fills the window, it is still built, so it
+// keeps where everything stands and comes back as it was.
+func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, w, h float32, hidden, animate bool) {
+	m := s.blockMetrics(w, h)
+	k := m.k
+	view := ui.Box(c).Key("field").Absolute().Top(0).Left(0).Size(w, h).Clip().Hidden(hidden).
+		Role(ui.RoleGroup).Label("Field")
+	if look.Offset.X != 0 {
+		view.Translate(look.Offset.X, 0)
 	}
-	return stage.ResolveFidelity(s.pill.scopeGroup, strings.TrimSpace(s.pill.query), s.pill.fidelityStep)
-}
-
-func (s *State) fieldCardsView(c *ui.Context, host ui.Element, semantic theme.Theme, scene stage.Scene, width, height, head float32, animate bool) {
-	scale := s.Settings.UIFontSize
-	k := scale / theme.DefaultUIFontSize
-	cell := 156 * k
-	gap := 14 * k
-	layout := s.ensureFieldLayout(c, scene, width, height, head, cell, gap, k)
-
-	// Clamp target pan within the packed field bounds when not dragging.
-	if !s.field.dragging {
-		s.pill.pan = stage.ClampPan(layout, s.pill.pan, 64*k)
+	view.ContextMenu(s.fieldMenu)
+	view.HandleInput(s.fieldInput)
+	s.field.hidden = hidden
+	if !s.OnDesk() && !s.Typing() && c.Shortcut(0, ui.KeyEscape) {
+		s.escapeField()
 	}
-	now := c.Now()
-	directScroll := !s.field.scrolledAt.IsZero() && now.Sub(s.field.scrolledAt) < 90*time.Millisecond
-	if directScroll {
-		// Re-check once scroll quiets so overscroll settles cleanly.
-		c.After(90*time.Millisecond - now.Sub(s.field.scrolledAt))
+	f := s.results()
+	shapes := s.shapes(c, f, m)
+	heights := make([]float32, len(shapes))
+	for i, sh := range shapes {
+		heights[i] = sh.size.H
 	}
-	panX, panY := s.pill.pan.X, s.pill.pan.Y
-	if animate {
-		if s.field.dragging || directScroll {
-			// Keep 1:1 pointer tracking while dragging/scrolling while seeding
-			// the animation state so fling release continues seamlessly.
-			panX = host.AnimateTo("field-pan-x", s.pill.pan.X, ui.Animation{Duration: 1})
-			panY = host.AnimateTo("field-pan-y", s.pill.pan.Y, ui.Animation{Duration: 1})
-		} else {
-			panX = components.Follow(host, "field-pan-x", s.pill.pan.X, components.MotionPanel)
-			panY = components.Follow(host, "field-pan-y", s.pill.pan.Y, components.MotionPanel)
+	// As many columns as what it shows takes, so the field stands even
+	// about its pill.
+	z := m.horizon
+	z.Cols = max(1, min(z.Cols, (len(heights)+1)/2))
+	rects := z.Place(heights)
+	frames := make([]stage.Frame, len(rects))
+	for i, r := range rects {
+		frames[i] = stage.Frame{ID: f.blocks[i].id, Size: shapes[i].size, Rect: r, Shown: 1}
+	}
+	below, above := stage.Reach(rects)
+	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2), max(0, below+3*m.pad-h/2)
+	s.field.order = s.field.order[:0]
+	for _, b := range f.blocks {
+		for _, cmd := range b.commands {
+			s.field.order = append(s.field.order, "command:"+cmd.ID)
 		}
-		s.field.damped = stage.Point{
-			X: components.Follow(host, "pill-damped-x", s.field.panImpulse.X, components.MotionQuick),
-			Y: components.Follow(host, "pill-damped-y", s.field.panImpulse.Y, components.MotionQuick),
+		for _, g := range b.groups {
+			s.field.order = append(s.field.order, "group:"+g.ID)
 		}
-		// Decay the impulse back to zero after reading it so the pill springs back.
-		s.field.panImpulse = stage.Point{}
-	} else {
-		s.field.damped = stage.Point{}
-		s.field.panImpulse = stage.Point{}
-	}
-	pan := stage.Point{X: panX, Y: panY}
-
-	// Background drag-to-pan surface behind cards.
-	panPad := ui.Box(c).Key("field-pan").Absolute().Fill()
-	dx, dy, dragging := panPad.Dragged()
-	s.field.dragging = dragging
-	if dragging && (dx != 0 || dy != 0) {
-		s.panField(layout, dx, dy, k)
-	}
-	if vx, vy, ended := panPad.DragEnded(); ended {
-		s.field.dragging = false
-		carry := stage.Point{
-			X: s.pill.pan.X + vx*flingCarry,
-			Y: s.pill.pan.Y + vy*flingCarry,
+		for _, e := range b.entries {
+			s.field.order = append(s.field.order, "sheet:"+e.sheet.ID)
 		}
-		s.pill.pan = stage.ClampPan(layout, carry, 64*k)
 	}
-	if s.Library != nil {
-		panPad.ContextMenu(func(m *ui.Menu) {
-			if m.Item("New Sheet").Chosen() {
-				s.newSheetFromField()
-			}
-			if m.Item("New Group").Chosen() {
-				s.newGroupOnField(s.pill.scopeGroup)
-			}
-			if s.pill.pan != (stage.Point{}) {
-				m.Separator()
-				if m.Item("Center Field").Chosen() {
-					s.pill.pan = stage.Point{}
-				}
-			}
-		})
+	s.keepPicked()
+	// What the query shows changed, the field comes back to its horizon on
+	// the change's own spring.
+	if s.field.rest != nil && !slices.Equal(frames, s.field.rest) && s.field.scroll != 0 {
+		s.field.home = true
 	}
-
-	// Cull to the visible viewport with a generous margin so cards never pop
-	// while translating on the GPU pan layer.
-	viewRect := scene.Field.Rect.Inset(-cell*1.5, -cell*1.5)
-	visible := stage.VisibleCards(layout, viewRect, pan)
-	// Draw back-to-front by Depth emphasis, active desk status, and selection
-	// so emphasized cards step visually in front of receded neighbors.
-	slices.SortStableFunc(visible, func(a, b stage.PlacedCard) int {
-		if c := cmp.Compare(a.Emphasis.Depth, b.Emphasis.Depth); c != 0 {
-			return c
-		}
-		ad, bd := s.field.cards[a.Item.ID], s.field.cards[b.Item.ID]
-		ap := boolRank(ad.activeOnDesk) + 2*boolRank(a.Item.ID == s.field.selectedID)
-		bp := boolRank(bd.activeOnDesk) + 2*boolRank(b.Item.ID == s.field.selectedID)
-		return cmp.Compare(ap, bp)
-	})
-
-	ui.Box(c).Key("field-cards").Absolute().Fill().PassThrough().
-		Translate(pan.X, pan.Y).Children(func() {
-		for _, card := range visible {
-			s.fieldCardView(c, semantic, card, k, now, animate)
-		}
-	})
-}
-
-func (s *State) panField(layout stage.FieldLayout, dx, dy, k float32) {
-	next := stage.Point{X: s.pill.pan.X + dx, Y: s.pill.pan.Y + dy}
-	clamped := stage.ClampPan(layout, next, 64*k)
-	// Elastic resistance beyond bounds while panning.
-	if next.X != clamped.X {
-		next.X = clamped.X + (next.X-clamped.X)*0.3
+	// Coming home, the field goes from wherever it was, past its new reach
+	// too; otherwise it is kept within it.
+	if !s.field.home {
+		s.field.scroll = max(s.field.lo, min(s.field.scroll, s.field.hi))
 	}
-	if next.Y != clamped.Y {
-		next.Y = clamped.Y + (next.Y-clamped.Y)*0.3
+	drawn := s.shift(view, frames, f, shapes, animate)
+	s.comeHome(view, animate)
+	if s.field.hold {
+		s.field.hold = false
+		c.AnimationFrame()
 	}
-	s.pill.pan = next
-	s.field.panImpulse = stage.Point{
-		X: max(-8*k, min(dx*0.35, 8*k)),
-		Y: max(-8*k, min(dy*0.35, 8*k)),
+	live := make(map[string]bool, len(frames))
+	for _, fr := range frames {
+		live[fr.ID] = true
 	}
-}
-
-func (s *State) ensureFieldLayout(c *ui.Context, scene stage.Scene, width, height, head, cell, gap, k float32) stage.FieldLayout {
-	// Keep the last packed layout frozen while returning to Writing so closing
-	// transitions never re-pack cards onto the title line.
-	packPosture := s.posture
-	if packPosture == stage.PostureWriting && s.field.cards != nil {
-		return s.field.layout
+	pill := stage.Size{W: min(440*k, w-2*(m.pad+horizonSide*k)), H: 40 * k}
+	// The pill stands at the horizon, moving with the field as it
+	// scrolls, but no further than near the window's top or foot: there it
+	// stays, and what the field holds passes under it.
+	s.field.viewH = h
+	_, pulling := s.field.over.Step(c.Now(), animate)
+	if pulling {
+		c.AnimationFrame()
 	}
-	if packPosture == stage.PostureWriting {
-		packPosture = stage.PostureGlance
-	}
-
-	openKey := openPagesKey(s.Open)
-	hasDesk := len(s.Open) > 0
-	animatingPosture := math.Abs(float64(s.postureLevel-postureTarget(s.posture))) > 0.002
-
-	var key fieldCacheKey
-	key.hasLib = s.Library != nil
-	key.openKey = openKey
-	key.activePage = s.ActivePage
-	key.scopeGroup = s.pill.scopeGroup
-	key.fidelityStep = s.pill.fidelityStep
-	key.query = s.pill.query
-	key.posture = packPosture
-	key.hasDesk = hasDesk
-	key.vpW = width
-	key.vpH = height
-	key.head = head
-	key.uiFontSize = s.Settings.UIFontSize
-
-	// Skip re-scanning the library on active pan or posture-flight frames
-	// unless structural inputs already missed the cache.
-	baseMatch := s.field.cards != nil &&
-		key.hasLib == s.field.key.hasLib &&
-		key.openKey == s.field.key.openKey &&
-		key.activePage == s.field.key.activePage &&
-		key.scopeGroup == s.field.key.scopeGroup &&
-		key.fidelityStep == s.field.key.fidelityStep &&
-		key.query == s.field.key.query &&
-		key.posture == s.field.key.posture &&
-		key.hasDesk == s.field.key.hasDesk &&
-		key.vpW == s.field.key.vpW &&
-		key.vpH == s.field.key.vpH &&
-		key.head == s.field.key.head &&
-		key.uiFontSize == s.field.key.uiFontSize
-	if baseMatch && (s.field.dragging || animatingPosture) {
-		return s.field.layout
-	}
-
-	key.libRev = s.libraryFingerprint()
-	if key == s.field.key && s.field.cards != nil {
-		return s.field.layout
-	}
-
-	targetScene := stage.Stage(stage.Rect{W: width, H: height}, packPosture, hasDesk, head)
-	items, cards := s.buildFieldItems(c.Now(), targetScene.FieldRoom)
-	roomW := targetScene.FieldRoom.W
-	if roomW <= 0 {
-		roomW = width
-	}
-	pillW := min(392*k, max(240*k, roomW-48*k))
-	pillH := 124 * k
-	layout := stage.PackField(stage.FieldSpec{
-		Room:       targetScene.FieldRoom,
-		PillAnchor: targetScene.PillAnchor,
-		PillSize:   stage.Size{W: pillW, H: pillH},
-		Cell:       cell,
-		Gap:        gap,
-	}, items)
-
-	s.field.key = key
-	s.field.layout = layout
-	s.field.cards = cards
-	return layout
-}
-
-func (s *State) libraryFingerprint() uint64 {
-	if s.Library == nil {
-		return 0
-	}
-	var h uint64 = 1469598103934665603
-	mix := func(v string) {
-		for i := 0; i < len(v); i++ {
-			h ^= uint64(v[i])
-			h *= 1099511628211
-		}
-		h ^= 0xff
-		h *= 1099511628211
-	}
-	for _, g := range s.Library.Groups(s.pill.scopeGroup) {
-		mix(g.ID)
-		mix(g.Name)
-		h ^= uint64(g.Count)*31 + uint64(g.Color)*131
-	}
-	place := Place{Kind: PlaceAll}
-	if s.pill.scopeGroup != "" {
-		place = Place{Kind: PlaceGroup, Group: s.pill.scopeGroup}
-	}
-	for _, sh := range s.Library.Sheets(place) {
-		mix(sh.ID)
-		mix(sh.Title)
-		h ^= uint64(sh.Words) * 17
-		h ^= uint64(sh.Updated.UnixNano())
-	}
-	return h
-}
-
-func (s *State) buildFieldItems(now time.Time, _ stage.Rect) ([]stage.FieldItem, map[string]fieldCardData) {
-	cards := map[string]fieldCardData{}
-	if s.Library == nil {
-		return nil, cards
-	}
-	openSet := make(map[string]bool, len(s.Open))
-	for _, p := range s.Open {
-		openSet[p.ID] = true
-	}
-
-	q := strings.TrimSpace(s.pill.query)
-	hasQuery := q != ""
-	parsed := query.Parse(q)
-	trashMode := queryHasFilter(parsed, "trash")
-	fidelity := stage.ResolveFidelity(s.pill.scopeGroup, q, s.pill.fidelityStep)
-
-	var scopedSheets map[string]bool
-	if s.pill.scopeGroup != "" {
-		scopedSheets = s.scopedSheetSet(s.pill.scopeGroup)
-	}
-
-	matches := map[string]float32{}
-	if hasQuery {
-		found := s.Library.Search(s.pill.query)
-		n := len(found.Sheets)
-		rank := 0
-		for _, sh := range found.Sheets {
-			if scopedSheets != nil && !scopedSheets[sh.ID] {
+	horizon := h/2 - (s.field.scroll - s.field.over.Offset())
+	top, foot := 48*k, 24*k
+	py := max(top, min(horizon-pill.H/2, h-foot-pill.H))
+	view.Children(func() {
+		at := stage.Point{X: w / 2, Y: horizon}
+		for _, fr := range drawn {
+			b, ok := s.field.shown[fr.ID]
+			if !ok {
 				continue
 			}
-			score := float32(1)
-			if n > 1 {
-				score = 1 - 0.45*float32(rank)/float32(n-1)
-			}
-			rank++
-			matches[sh.ID] = score
-			cards[fieldSheetCardPrefix+sh.ID] = fieldCardData{
-				kind:         stage.CardSheet,
-				sheet:        sh.SheetItem,
-				matchLine:    sh.Line,
-				onDesk:       openSet[sh.ID],
-				activeOnDesk: sh.ID == s.ActivePage,
-				trashed:      trashMode,
-			}
+			s.blockView(c, semantic, fr, b, s.field.shownShape[fr.ID], at, live[fr.ID], m, animate)
 		}
-	}
-
-	var items []stage.FieldItem
-
-	addGroup := func(g GroupItem) {
-		sheets := s.Library.Sheets(Place{Kind: PlaceGroup, Group: g.ID})
-		var totalWords int
-		var latest time.Time
-		var onDesk, active bool
-		previews := make([]string, 0, 3)
-		for _, sh := range sheets {
-			totalWords += sh.Words
-			if sh.Updated.After(latest) {
-				latest = sh.Updated
-			}
-			if openSet[sh.ID] {
-				onDesk = true
-			}
-			if sh.ID == s.ActivePage {
-				active = true
-			}
-			if len(previews) < 3 && sh.Title != "" {
-				previews = append(previews, sh.Title)
-			}
-		}
-		ago := time.Duration(0)
-		if !latest.IsZero() && now.After(latest) {
-			ago = now.Sub(latest)
-		} else if latest.IsZero() {
-			ago = 30 * 24 * time.Hour
-		}
-		sig := stage.Signal{
-			ActiveOnDesk:  active,
-			OnDesk:        onDesk,
-			InActiveScope: g.ID == s.pill.scopeGroup,
-			UpdatedAgo:    ago,
-			Words:         totalWords,
-		}
-		id := fieldGroupCardPrefix + g.ID
-		cards[id] = fieldCardData{
-			kind:          stage.CardGroup,
-			group:         g,
-			previewTitles: previews,
-			totalWords:    totalWords,
-			onDesk:        onDesk,
-			activeOnDesk:  active,
-		}
-		items = append(items, stage.FieldItem{
-			ID:     id,
-			Kind:   stage.CardGroup,
-			Size:   stage.CardSizeClass(stage.CardGroup, fidelity, sig, g.Count),
-			Signal: sig,
-		})
-	}
-
-	addSheet := func(sh SheetItem, inScope, trashed bool) {
-		ago := time.Duration(0)
-		if !sh.Updated.IsZero() && now.After(sh.Updated) {
-			ago = now.Sub(sh.Updated)
-		} else if sh.Updated.IsZero() {
-			ago = 30 * 24 * time.Hour
-		}
-		sig := stage.Signal{
-			ActiveOnDesk:  sh.ID == s.ActivePage,
-			OnDesk:        openSet[sh.ID],
-			InActiveScope: inScope,
-			UpdatedAgo:    ago,
-			Words:         sh.Words,
-		}
-		id := fieldSheetCardPrefix + sh.ID
-		if _, exists := cards[id]; !exists {
-			cards[id] = fieldCardData{
-				kind:         stage.CardSheet,
-				sheet:        sh,
-				onDesk:       openSet[sh.ID],
-				activeOnDesk: sh.ID == s.ActivePage,
-				trashed:      trashed,
-			}
-		}
-		items = append(items, stage.FieldItem{
-			ID:       id,
-			Kind:     stage.CardSheet,
-			Size:     stage.CardSizeClass(stage.CardSheet, fidelity, sig, 0),
-			Signal:   sig,
-			Match:    matches[sh.ID],
-			HasQuery: hasQuery,
-		})
-	}
-
-	if trashMode {
-		for _, g := range s.Library.TrashedGroups() {
-			addGroup(g)
-			cards[fieldGroupCardPrefix+g.ID] = func(d fieldCardData) fieldCardData {
-				d.trashed = true
-				return d
-			}(cards[fieldGroupCardPrefix+g.ID])
-		}
-		for _, sh := range s.Library.Sheets(Place{Kind: PlaceTrash}) {
-			addSheet(sh, false, true)
-		}
-		return items, cards
-	}
-
-	switch fidelity {
-	case stage.FidelityOverview:
-		for _, g := range s.Library.Groups("") {
-			addGroup(g)
-		}
-		// Include high-nearness overview sheets (open on desk + top recent).
-		all := s.Library.Sheets(Place{Kind: PlaceAll})
-		slices.SortStableFunc(all, func(a, b SheetItem) int {
-			oa, ob := openSet[a.ID], openSet[b.ID]
-			if oa != ob {
-				if oa {
-					return -1
-				}
-				return 1
-			}
-			return b.Updated.Compare(a.Updated)
-		})
-		limit := min(6, len(all))
-		for _, sh := range all[:limit] {
-			addSheet(sh, false, false)
-		}
-	case stage.FidelityGroup:
-		for _, sub := range s.Library.Groups(s.pill.scopeGroup) {
-			addGroup(sub)
-		}
-		for _, sh := range s.Library.Sheets(Place{Kind: PlaceGroup, Group: s.pill.scopeGroup}) {
-			addSheet(sh, true, false)
-		}
-	default: // FidelitySheets
-		place := Place{Kind: PlaceAll}
-		inScope := false
-		if s.pill.scopeGroup != "" {
-			place = Place{Kind: PlaceGroup, Group: s.pill.scopeGroup}
-			inScope = true
-		}
-		seen := map[string]bool{}
-		for _, sh := range s.Library.Sheets(place) {
-			seen[sh.ID] = true
-			addSheet(sh, inScope, false)
-		}
-		if hasQuery && s.pill.scopeGroup == "" {
-			for id, card := range cards {
-				if card.kind == stage.CardSheet && !seen[card.sheet.ID] && strings.HasPrefix(id, fieldSheetCardPrefix) {
-					addSheet(card.sheet, false, false)
-				}
-			}
-		}
-	}
-
-	if !hasQuery {
-		cards[fieldNewCardID] = fieldCardData{kind: stage.CardNew}
-		items = append(items, stage.FieldItem{
-			ID:     fieldNewCardID,
-			Kind:   stage.CardNew,
-			Size:   stage.Size1x1,
-			Signal: stage.Signal{UpdatedAgo: 14 * 24 * time.Hour},
-		})
-	}
-	return items, cards
-}
-
-func (s *State) fieldCardView(
-	c *ui.Context,
-	semantic theme.Theme,
-	card stage.PlacedCard,
-	k float32,
-	now time.Time,
-	animate bool,
-) {
-	data, ok := s.field.cards[card.Item.ID]
-	if !ok {
-		return
-	}
-	selected := s.field.selectedID == card.Item.ID
-	targetScale := card.Emphasis.Scale
-	if targetScale <= 0 {
-		targetScale = 1
-	}
-
-	var label string
-	switch data.kind {
-	case stage.CardGroup:
-		label = data.group.Name
-	case stage.CardSheet:
-		label = data.sheet.Title
-		if label == "" {
-			label = "Untitled"
-		}
-	case stage.CardNew:
-		label = "New sheet"
-	}
-
-	renamingThis := data.kind == stage.CardGroup && s.field.renamingGroup == data.group.ID
-	btn := ui.ButtonBase(c.Key("field-card-" + card.Item.ID)).Absolute().
-		Left(card.Rect.X).Top(card.Rect.Y).
-		Radius(12 * k).Padding(12 * k).Clip().
-		FocusRing(false).KeepFocus().Label(label)
-	if !renamingThis {
-		btn.Cache()
-	}
-	if animate {
-		btn.Transition(ui.ElementTransition{
-			Duration: motionEnter,
-			Enter:    &ui.Motion{Scale: 0.94, Opacity: 0},
-		})
-	}
-
-	curW, curH := card.Rect.W, card.Rect.H
-	scale := targetScale
-	opacity := card.Emphasis.Opacity
-	shiftX, shiftY := float32(0), float32(0)
-	hover := float32(0)
-	if btn.Hovered() {
-		hover = 1
-	}
-	if animate {
-		animX := components.Follow(btn, "card-x", card.Rect.X, components.MotionPanel)
-		animY := components.Follow(btn, "card-y", card.Rect.Y, components.MotionPanel)
-		curW = components.Follow(btn, "card-w", card.Rect.W, components.MotionPanel)
-		curH = components.Follow(btn, "card-h", card.Rect.H, components.MotionPanel)
-		shiftX = animX - card.Rect.X
-		shiftY = animY - card.Rect.Y
-		scale = components.Follow(btn, "card-scale", targetScale, components.MotionQuick)
-		opacity = components.Follow(btn, "card-opacity", card.Emphasis.Opacity, components.MotionQuick)
-		hover = components.HoverAmount(btn, btn.Hovered(), true)
-	}
-	btn.Size(curW, curH).TransformOrigin(0.5, 0.5).
-		Translate(shiftX, shiftY).
-		Scale(scale, scale).
-		Opacity(max(0, min(1, opacity)))
-
-	rest := semantic.Surface.Page
-	border := semantic.Border.Variant
-	var borderW float32 = 1
-	if data.kind == stage.CardNew {
-		rest = semantic.Surface.Inset
-	}
-	if b := card.Emphasis.Brightness; b < 1 {
-		rest = components.Blend(rest, semantic.Surface.Background, max(0, min(1, 1-b)))
-	} else if b > 1 && !selected && !data.activeOnDesk {
-		border = components.Blend(border, semantic.Accent.Foreground, max(0, min(0.65, (b-1)*4)))
-	}
-	bg := components.Blend(rest, semantic.Element.Hover, hover)
-	if selected {
-		bg = semantic.Surface.Chosen
-		border = semantic.Border.Focused
-		borderW = 1.5
-	} else if data.activeOnDesk {
-		border = semantic.Accent.Foreground
-	}
-	btn.Background(bg).Border(borderW, border)
-
-	switch data.kind {
-	case stage.CardGroup:
-		if !data.trashed {
-			if !data.group.Inbox {
-				btn.Drag(groupDrag{id: data.group.ID})
-			}
-			if !data.group.Smart() {
-				if dropped, ok := s.dropOn(c, semantic, btn, takes{sheets: true, groups: !data.group.Inbox}, animate); ok {
-					switch d := dropped.(type) {
-					case sheetDrag:
-						s.Library.MoveSheet(d.id, data.group.ID, Last)
-					case groupDrag:
-						if d.id != data.group.ID {
-							s.Library.MoveGroup(d.id, data.group.ID, Last)
-						}
-					}
-				}
-			}
-		}
-		btn.ContextMenu(s.fieldGroupMenu(data.group, data.trashed))
-	case stage.CardSheet:
-		if !data.trashed {
-			btn.Drag(sheetDrag{id: data.sheet.ID})
-		}
-		btn.ContextMenu(s.fieldSheetMenu(data.sheet, data.trashed))
-	case stage.CardNew:
-		btn.ContextMenu(func(m *ui.Menu) {
-			if m.Item("New Sheet").Chosen() {
-				s.newSheetFromField()
-			}
-			if m.Item("New Group").Chosen() {
-				s.newGroupOnField(s.pill.scopeGroup)
-			}
-		})
-	}
-
-	confirming := data.trashed && ((data.kind == stage.CardSheet && s.armed(c, "delete-field-sheet-"+data.sheet.ID)) ||
-		(data.kind == stage.CardGroup && s.armed(c, "delete-field-group-"+data.group.ID)))
-	if !renamingThis && !confirming && btn.Clicked() {
-		alongside := btn.ClickModifiers()&(ui.Cmd|ui.Alt) != 0
-		s.activateFieldCard(card.Item.ID, alongside)
-	}
-
-	btn.Children(func() {
-		switch data.kind {
-		case stage.CardGroup:
-			s.groupBoardCard(c, semantic, data, k, animate)
-		case stage.CardSheet:
-			s.sheetFieldCard(c, semantic, data, card.GridW > 1, card.GridH > 1, k, now, animate)
-		case stage.CardNew:
-			s.newSheetFieldCard(c, semantic, k)
-		}
+		s.horizonView(c, semantic, stage.Rect{X: w/2 - pill.W/2, Y: py, W: pill.W, H: pill.H}, w, k, animate)
 	})
 }
 
-func (s *State) groupBoardCard(c *ui.Context, semantic theme.Theme, data fieldCardData, k float32, animate bool) {
-	ui.Column(c).Fill().Gap(6 * k).Children(func() {
-		ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(6 * k).Children(func() {
-			ink := semantic.Icon.Muted
-			if tint := groupTint(semantic, data.group); tint != nil {
-				ink = *tint
+// fieldInput scrolls the field up and down, as far as it holds, and
+// pulls it past its ends as the panels and tables are pulled.
+func (s *State) fieldInput(ev ui.InputEvent) bool {
+	if ev.Kind != ui.InputScroll {
+		return false
+	}
+	s.field.home, s.field.homing = false, false
+	s.field.scroll = components.OverscrollPanel.Scroll(&s.field.over, s.field.scroll, ev.DY, s.field.lo, s.field.hi,
+		s.field.viewH, s.Settings.UIFontSize, ev)
+	return true
+}
+
+// comeHome brings the field back to its horizon at the window's middle on
+// one spring, from wherever it was scrolled to.
+func (s *State) comeHome(el ui.Element, animate bool) {
+	if !s.field.home {
+		return
+	}
+	if !animate {
+		s.field.scroll, s.field.home = 0, false
+		return
+	}
+	if !s.field.homing {
+		el.Jump("scroll", s.field.scroll)
+		s.field.homing = true
+		if s.field.hold {
+			return
+		}
+	}
+	s.field.scroll = el.AnimateTo("scroll", 0, components.Spring(components.MotionScene))
+	if s.field.scroll == 0 {
+		s.field.home, s.field.homing = false, false
+	}
+}
+
+// shift moves the field to frames, the layout at rest of what f found: at
+// once, or from what it drew on one spring, the change taking over from
+// wherever one under way has got to.
+func (s *State) shift(field ui.Element, frames []stage.Frame, f found, shapes []shape, animate bool) []stage.Frame {
+	if s.field.shown == nil {
+		s.field.shown, s.field.shownShape = map[string]block{}, map[string]shape{}
+	}
+	if !slices.Equal(frames, s.field.rest) {
+		// The field's first layout stands at once: there is nothing for it
+		// to come from.
+		first := s.field.rest == nil
+		s.field.from = s.field.drawn
+		s.field.now = s.field.next
+		s.field.next = change{}
+		s.field.rest = frames
+		live := make(map[string]bool, len(frames)+len(s.field.from))
+		for _, fr := range frames {
+			live[fr.ID] = true
+		}
+		for _, fr := range s.field.from {
+			live[fr.ID] = true
+		}
+		for id := range s.field.shown {
+			if !live[id] {
+				delete(s.field.shown, id)
+				delete(s.field.shownShape, id)
 			}
-			ui.Icon(c, groupIcon(data.group).SVG()).FontSize(14 * k).TextColor(ink).Shrink(0)
-			if s.field.renamingGroup == data.group.ID {
-				input := ui.TextInputBase(c.Key("field-rename-"+data.group.ID), &s.field.renameName).
-					Grow(1).MinWidth(0).Font(theme.UIFontFamily).
-					FontSize(theme.TextSmall.Size(s.Settings.UIFontSize)).
-					TextColor(semantic.Text.Heading).Label("Group name")
-				if s.field.renameFocus {
-					s.field.renameFocus = false
-					input.Focus()
+		}
+		field.Jump("shift", 0)
+		if first {
+			field.Jump("shift", 1)
+		} else {
+			s.field.hold = true
+		}
+	}
+	for i, b := range f.blocks {
+		s.field.shown[b.id] = b
+		s.field.shownShape[b.id] = shapes[i]
+	}
+	t := float32(1)
+	switch {
+	case animate && s.field.hold:
+		// Its first frame draws where everything was; the spring starts on
+		// the next, so the time this one takes is not a leap.
+		t = 0
+	case animate:
+		t = field.AnimateTo("shift", 1, components.Spring(components.MotionScene))
+	}
+	if t >= 1 {
+		s.field.from = nil
+		s.field.drawn = frames
+		return frames
+	}
+	var exit stage.Rect
+	for _, fr := range frames {
+		if fr.ID == s.field.now.exit {
+			exit = fr.Rect
+		}
+	}
+	s.field.drawn = stage.Shift(s.field.from, frames, s.field.now.enter, exit, s.field.now.depth, t)
+	return s.field.drawn
+}
+
+// escapeField takes the words away, then the last condition, and with
+// none left goes back to the desk.
+func (s *State) escapeField() {
+	switch {
+	case len(s.field.picked) > 0:
+		s.field.picked = nil
+	case s.field.words != "":
+		s.setWords("")
+	case len(s.field.conditions) > 0:
+		s.broaden(len(s.field.conditions) - 1)
+	default:
+		s.ShowDesk()
+	}
+}
+
+// choose moves the keys by by along the rows the field shows.
+func (s *State) choose(by int) {
+	ids := s.field.order
+	if len(ids) == 0 {
+		return
+	}
+	at := slices.Index(ids, s.field.chosen)
+	if at < 0 {
+		s.field.chosen = ids[0]
+		return
+	}
+	s.field.chosen = ids[max(0, min(at+by, len(ids)-1))]
+}
+
+// activate does what the row id does chosen: a group narrows the query
+// to it, and a sheet opens on the desk, in place of the one in front or
+// alongside it.
+func (s *State) activate(id string, alongside bool) {
+	if s.Library == nil {
+		return
+	}
+	kind, key, _ := strings.Cut(id, ":")
+	switch kind {
+	case "command":
+		// The command runs as the field was before it was asked for.
+		s.setWords("")
+		if s.RunCommand != nil {
+			s.RunCommand(key)
+		}
+	case "group":
+		if g, ok := s.Library.Group(key); ok {
+			s.into(g, stage.Rect{})
+		}
+	case "sheet":
+		for _, b := range s.field.found.blocks {
+			if b.trashed {
+				continue
+			}
+			for _, e := range b.entries {
+				if e.sheet.ID != key {
+					continue
 				}
-				switch inlineName(input) {
-				case nameCancel:
-					s.field.renamingGroup = ""
-				case nameCommit:
-					s.field.renamingGroup = ""
-					if name := strings.TrimSpace(s.field.renameName); name != "" {
-						s.Library.RenameGroup(data.group.ID, name)
-					}
+				if s.field.words != "" {
+					s.Library.OpenFound(key, s.FieldQuery(), alongside)
+				} else {
+					s.Library.OpenSheet(key, alongside)
 				}
+				s.ShowDesk()
 				return
 			}
-			components.Label(c, data.group.Name, theme.TextSmall, semantic.Text.Heading).
-				Grow(1).MinWidth(0).SingleLine()
-			delKey := "delete-field-group-" + data.group.ID
-			if data.trashed && s.armed(c, delKey) {
-				s.confirmButton(c, semantic, delKey, "", "Delete", animate, func() {
-					s.Library.DeleteGroup(data.group.ID)
-				})
-			} else {
-				components.Label(c, fmt.Sprint(data.group.Count), theme.TextXSmall, semantic.Text.Muted).
-					SingleLine().Shrink(0).FontFeatures("tnum")
-			}
-		})
-		if len(data.previewTitles) > 0 {
-			ui.Column(c).Grow(1).MinHeight(0).Gap(3 * k).Children(func() {
-				for _, title := range data.previewTitles {
-					components.Label(c, "· "+title, theme.TextXSmall, semantic.Text.Muted).
-						WidthPercent(100).SingleLine()
-				}
-			})
-		} else {
-			ui.Box(c).Grow(1)
 		}
-		if data.totalWords > 0 {
-			components.Label(c, words(data.totalWords), theme.TextXSmall, semantic.Text.Muted).
-				SingleLine().FontFeatures("tnum").Opacity(0.75)
-		}
-	})
-}
-
-func (s *State) sheetFieldCard(c *ui.Context, semantic theme.Theme, data fieldCardData, wide, tall bool, k float32, now time.Time, animate bool) {
-	title := data.sheet.Title
-	if title == "" {
-		title = "Untitled"
-	}
-	titleColor := semantic.Text.Default
-	if data.activeOnDesk {
-		titleColor = semantic.Text.Heading
-	}
-	ui.Column(c).Fill().Gap(5 * k).Children(func() {
-		ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(6 * k).Children(func() {
-			if data.onDesk {
-				dotColor := semantic.Text.Muted
-				if data.activeOnDesk {
-					dotColor = semantic.Accent.Foreground
-				}
-				ui.Box(c).Size(6*k, 6*k).Radius(3 * k).Background(dotColor).Shrink(0)
-			}
-			components.Label(c, title, theme.TextSmall, titleColor).
-				Grow(1).MinWidth(0).SingleLine()
-			delKey := "delete-field-sheet-" + data.sheet.ID
-			if data.trashed && s.armed(c, delKey) {
-				s.confirmButton(c, semantic, delKey, "", "Delete", animate, func() {
-					s.Library.DeleteSheet(data.sheet.ID)
-				})
-			} else if !data.sheet.Updated.IsZero() {
-				components.Label(c, when(data.sheet.Updated, now), theme.TextXSmall, semantic.Text.Muted).
-					SingleLine().Shrink(0).FontFeatures("tnum")
-			}
-		})
-		body := data.matchLine
-		if body == "" {
-			body = data.sheet.Excerpt
-		}
-		if body != "" {
-			lines := 2
-			if wide {
-				lines = 3
-			}
-			if tall {
-				lines += 2
-			}
-			components.Label(c, body, theme.TextXSmall, semantic.Text.Muted).
-				WidthPercent(100).MaxLines(lines)
-		}
-		ui.Box(c).Grow(1)
-		ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(4 * k).Children(func() {
-			components.Label(c, words(data.sheet.Words), theme.TextXSmall, semantic.Text.Muted).
-				SingleLine().FontFeatures("tnum").Opacity(0.75)
-			ui.Box(c).Grow(1)
-			limit := min(2, len(data.sheet.Tags))
-			for _, tag := range data.sheet.Tags[:limit] {
-				components.TagChip(c, tag, theme.TextXSmall, 4*k, 72*k, semantic.Tag.Background, semantic.Tag.Foreground)
-			}
-		})
-	})
-}
-
-func (s *State) newSheetFieldCard(c *ui.Context, semantic theme.Theme, k float32) {
-	ui.Column(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(6 * k).Children(func() {
-		ui.Icon(c, components.IconNewSheet.SVG()).FontSize(18 * k).TextColor(semantic.Icon.Muted)
-		components.Label(c, "New sheet", theme.TextXSmall, semantic.Text.Muted).SingleLine()
-	})
-}
-
-func (s *State) activateFieldCard(id string, alongside bool) {
-	data, ok := s.field.cards[id]
-	if !ok || s.Library == nil {
-		return
-	}
-	switch data.kind {
-	case stage.CardGroup:
-		if data.trashed {
-			return
-		}
-		s.pill.scopeGroup = data.group.ID
-		s.pill.pan = stage.Point{}
-		s.field.selectedID = ""
-		s.pill.focus = true
-	case stage.CardSheet:
-		if data.trashed {
-			return
-		}
-		if strings.TrimSpace(s.pill.query) != "" {
-			s.Library.OpenFound(data.sheet.ID, s.pill.query, alongside)
-		} else {
-			s.Library.OpenSheet(data.sheet.ID, alongside)
-		}
-		if !alongside {
-			s.ReturnToDesk()
-		}
-	case stage.CardNew:
-		s.newSheetFromField()
 	}
 }
 
-func (s *State) newSheetFromField() {
+// fieldMenu is what the field's ground offers.
+func (s *State) fieldMenu(m *ui.Menu) {
 	if s.Library == nil {
 		return
 	}
-	group := s.pill.scopeGroup
-	if group == "" {
-		group = s.CurrentGroup()
+	if m.Item("New Sheet").Chosen() {
+		s.Library.NewSheet(s.CurrentGroup(), Last)
+		s.ShowDesk()
 	}
-	s.Library.NewSheet(group, Last)
-	s.ReturnToDesk()
-}
-
-func (s *State) newGroupOnField(parent string) {
-	if s.Library == nil {
+	if m.Item("New Group").Chosen() {
+		s.newGroup(s.scope())
+	}
+	m.Separator()
+	trash := slices.IndexFunc(s.field.conditions, func(c string) bool { return conditionKey(c) == "trash" })
+	if trash >= 0 {
+		if m.Item("Leave Trash").Chosen() {
+			s.broaden(trash)
+		}
+		if m.Item("Empty Trash…").Chosen() {
+			s.arm(emptyTrashKey)
+		}
 		return
 	}
+	if m.Item("Show Trash").Chosen() {
+		s.field.conditions = nil
+		s.setWords("")
+		s.narrow((&query.Condition{Key: mustKey("trash")}).String(), stage.Rect{})
+	}
+}
+
+// scope is the group the query is in, "" for none.
+func (s *State) scope() string {
+	if s.Library == nil {
+		return ""
+	}
+	scope, _, _ := s.browsing(query.Parse(s.FieldQuery()))
+	return scope
+}
+
+// CurrentGroup is the group a new sheet goes in: the one the field is in,
+// or the Inbox.
+func (s *State) CurrentGroup() string {
+	if g := s.scope(); g != "" {
+		return g
+	}
+	if s.Library == nil {
+		return ""
+	}
+	for _, g := range s.Library.Groups("") {
+		if g.Inbox {
+			return g.ID
+		}
+	}
+	return ""
+}
+
+func (s *State) newGroup(parent string) {
 	id := s.Library.NewGroup(parent, Last)
-	s.startFieldGroupRename(id)
+	s.startRename(id)
 }
 
-func (s *State) startFieldGroupRename(id string) {
-	if s.Library == nil || id == "" {
-		return
-	}
+func (s *State) startRename(id string) {
 	g, ok := s.Library.Group(id)
 	if !ok || g.Inbox {
 		return
 	}
-	s.field.renamingGroup = id
-	s.field.renameName = g.Name
-	s.field.renameFocus = true
+	s.field.renaming, s.field.renameName, s.field.renameFocus = id, g.Name, true
 }
 
-func (s *State) fieldGroupMenu(group GroupItem, trashed bool) func(*ui.Menu) {
-	return func(m *ui.Menu) {
-		if trashed {
-			if m.Item("Put Back").Chosen() {
-				s.Library.RestoreGroup(group.ID)
-			}
-			m.Separator()
-			if m.Item(deleteGroupLabel(group)).Chosen() {
-				s.arm("delete-field-group-" + group.ID)
-			}
-			return
-		}
-		if m.Item("Focus Group").Chosen() {
-			s.SetPillScope(group.ID)
-			s.pill.focus = true
-		}
-		if !group.Smart() {
-			if m.Item("New Sheet").Chosen() {
-				s.Library.NewSheet(group.ID, Last)
-				s.ReturnToDesk()
-			}
-		}
-		if group.Inbox {
-			return
-		}
-		if !group.Smart() {
-			if m.Item("New Group Inside").Chosen() {
-				s.newGroupOnField(group.ID)
-			}
-		}
-		m.Separator()
-		if m.Item("Rename…").Chosen() {
-			s.startFieldGroupRename(group.ID)
-		}
-		m.Submenu("Color", func(m *ui.Menu) {
-			colors := []struct {
-				label string
-				color int
-			}{
-				{"Default", TintMoonveil},
-				{"Violet", TintHalo},
-				{"Blue", TintHalo + 1},
-				{"Teal", TintHalo + 2},
-				{"Amber", TintHalo + 3},
-				{"Rose", TintHalo + 4},
-				{"Indigo", TintHalo + 5},
-			}
-			for _, opt := range colors {
-				if m.Item(opt.label).Checked(group.Color == opt.color).Chosen() {
-					s.Library.StyleGroup(group.ID, group.Icon, opt.color)
-				}
-			}
-		})
-		s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, Last) }, group.ID)
-		m.Separator()
-		if m.Item(trashGroupLabel(group)).Chosen() {
-			s.Library.TrashGroup(group.ID)
-			s.ReconcileLibrary()
-			if s.pill.scopeGroup == group.ID {
-				s.SetPillScope("")
-			}
-		}
-	}
-}
-
-func (s *State) fieldSheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
-	return func(m *ui.Menu) {
-		if trashed {
-			if m.Item("Put Back").Chosen() {
-				s.Library.RestoreSheet(sheet.ID)
-			}
-			m.Separator()
-			if m.Item("Delete Immediately…").Chosen() {
-				s.arm("delete-field-sheet-" + sheet.ID)
-			}
-			return
-		}
-		if m.Item("Open").Chosen() {
-			s.Library.OpenSheet(sheet.ID, false)
-			s.ReturnToDesk()
-		}
-		if m.Item("Open Alongside").Chosen() {
-			s.Library.OpenSheet(sheet.ID, true)
-		}
-		m.Separator()
-		if m.Item("Duplicate").Chosen() {
-			s.Library.DuplicateSheet(sheet.ID)
-		}
-		s.moveMenu(m, func(group string) { s.Library.MoveSheet(sheet.ID, group, Last) }, "")
-		m.Separator()
-		if m.Item("Move to Trash").Chosen() {
-			s.Library.TrashSheet(sheet.ID)
-		}
-	}
-}
-
-func (s *State) activateSelectedOrNearestCard(alongside bool) {
-	if s.field.selectedID != "" {
-		if _, ok := s.field.cards[s.field.selectedID]; ok {
-			s.activateFieldCard(s.field.selectedID, alongside)
-			return
-		}
-	}
-	// Otherwise pick the highest-priority matched/nearest actionable card.
-	for _, card := range s.field.layout.Cards {
-		if card.Item.Kind == stage.CardNew {
-			continue
-		}
-		if card.Item.HasQuery && card.Item.Match <= 0 {
-			continue
-		}
-		s.activateFieldCard(card.Item.ID, alongside)
+// ReconcileLibrary drops what the library no longer has: a group being
+// renamed, and a condition naming a group gone.
+func (s *State) ReconcileLibrary() {
+	if s.Library == nil {
 		return
 	}
-	if len(s.field.layout.Cards) > 0 {
-		s.activateFieldCard(s.field.layout.Cards[0].Item.ID, alongside)
-	}
-}
-
-func (s *State) moveFieldSelection(dx, dy float32) {
-	cards := s.field.layout.Cards
-	if len(cards) == 0 {
-		return
-	}
-	curIdx := slices.IndexFunc(cards, func(c stage.PlacedCard) bool { return c.Item.ID == s.field.selectedID })
-	if curIdx < 0 {
-		s.field.selectedID = cards[0].Item.ID
-		return
-	}
-	cur := cards[curIdx].Rect.Center()
-	bestIdx := -1
-	bestScore := math.MaxFloat64
-	for i, cand := range cards {
-		if i == curIdx {
-			continue
-		}
-		p := cand.Rect.Center()
-		vx, vy := float64(p.X-cur.X), float64(p.Y-cur.Y)
-		proj := vx*float64(dx) + vy*float64(dy)
-		if proj <= 1 {
-			continue
-		}
-		perp := math.Abs(vx*float64(dy) - vy*float64(dx))
-		score := proj + 2.5*perp
-		if score < bestScore {
-			bestScore = score
-			bestIdx = i
+	if s.field.renaming != "" {
+		if _, ok := s.Library.Group(s.field.renaming); !ok {
+			s.field.renaming = ""
 		}
 	}
-	if bestIdx >= 0 {
-		s.field.selectedID = cards[bestIdx].Item.ID
-	}
-}
-
-func openPagesKey(open []Page) string {
-	if len(open) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	for i, p := range open {
-		if i > 0 {
-			b.WriteByte(',')
+	s.field.conditions = slices.DeleteFunc(s.field.conditions, func(text string) bool {
+		c, ok := condition(text)
+		if !ok || c.Key.Name != "in" {
+			return false
 		}
-		b.WriteString(p.ID)
-	}
-	return b.String()
-}
-
-func boolRank(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-func (s *State) scopedSheetSet(group string) map[string]bool {
-	set := map[string]bool{}
-	if s.Library == nil || group == "" {
-		return set
-	}
-	var walk func(id string)
-	seen := map[string]bool{}
-	walk = func(id string) {
-		if seen[id] {
-			return
-		}
-		seen[id] = true
-		for _, sh := range s.Library.Sheets(Place{Kind: PlaceGroup, Group: id}) {
-			set[sh.ID] = true
-		}
-		for _, sub := range s.Library.Groups(id) {
-			walk(sub.ID)
-		}
-	}
-	walk(group)
-	return set
-}
-
-func queryHasFilter(q query.Query, keyName string) bool {
-	for _, cond := range query.Conditions(q) {
-		if cond.Key != nil && cond.Key.Name == keyName && !cond.Not {
-			return true
-		}
-	}
-	return false
+		_, found := s.groupNamed(c.Value)
+		return !found
+	})
 }

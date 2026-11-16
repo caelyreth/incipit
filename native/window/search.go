@@ -63,6 +63,15 @@ type queryStamp struct {
 	minute                    time.Time
 }
 
+// Revision is part of shell.Library: what queries stand on now, as one
+// number.
+func (a *AppState) Revision() uint64 {
+	st := a.queryStamp()
+	h := fnv.New64a()
+	fmt.Fprintf(h, "%d/%d/%d/%s/%d", st.generation, st.rev, st.sessions, st.open, st.minute.Unix())
+	return h.Sum64()
+}
+
 // queryStamp is what queries stand on now.
 func (a *AppState) queryStamp() queryStamp {
 	var open strings.Builder
@@ -429,26 +438,6 @@ func (a *AppState) smartItems(text string) []shell.SheetItem {
 	}
 	f.smart[text] = &smartFound{stamp: stamp, items: items}
 	return items
-}
-
-// SearchCounts is part of shell.Library: how many sheets the query finds
-// with each value for a key as one condition more.
-func (a *AppState) SearchCounts(text, key string, values []string) map[string]int {
-	f := a.finder
-	if f == nil {
-		return nil
-	}
-	want := counted{query: text, key: key, values: strings.Join(values, "\x00"), stamp: a.queryStamp()}
-	if r := f.counted; r != nil && r.query == want.query && r.key == want.key && r.values == want.values && r.stamp == want.stamp {
-		return r.counts
-	}
-	counts, err := f.index.Counts(query.Parse(text), key, values, a.searchEnv())
-	if err != nil {
-		log.Printf("search counts: %v", err)
-	}
-	want.counts = counts
-	f.counted = &want
-	return counts
 }
 
 // OpenFound is part of shell.Library: the sheet opens with the first of

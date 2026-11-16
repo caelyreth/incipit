@@ -32,29 +32,28 @@ func dragOnto(t *testing.T, tester *ui.Tester, from, to string) {
 	settle(tester)
 }
 
-// A target that takes several kinds of drag takes each of them, not only
-// the kind it asks about last.
-func TestDropTargetsTakeEveryKindTheyAccept(t *testing.T) {
+// A group's card takes a sheet and a group dropped on it, each filed in
+// the group.
+func TestAGroupCardTakesSheetsAndGroups(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		allSheets []SheetItem
-		from, to  string
-		want      string
+		name, from, to, want string
 	}{
-		{"a sheet onto a group board", nil, "Draft", "Novel", "move 8 to 2"},
-		{"a sheet onto the trash token", nil, "Draft", "Show trash", "trash 8"},
-		{"a sheet onto Inbox board", []SheetItem{{ID: "7", Title: "Chapter"}}, "Chapter", "Inbox", "move 7 to 1"},
-		{"a group onto the trash token", nil, "Novel", "Show trash", "trash group 2"},
+		{"a sheet onto a group", "Chapter", "Arc", "move 7 to 3"},
+		{"a group onto a group", "Coda", "Arc", "move group 6 to 3"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state, library := libraryState()
-			library.allSheets = tc.allSheets
-			state.ToggleField()
+			library.groupTree = map[string][]GroupItem{
+				"":  {{ID: "1", Name: "Inbox", Inbox: true}, {ID: "2", Name: "Novel", HasGroups: true}},
+				"2": {{ID: "3", Name: "Arc"}, {ID: "6", Name: "Coda"}},
+			}
+			state.ShowField()
+			state.SetFieldQuery("$in:Novel")
 			tester := ui.NewTester(state.View, 1260, 850)
 			settle(tester)
 			dragOnto(t, tester, tc.from, tc.to)
 			if !slices.Contains(library.calls, tc.want) {
-				t.Fatalf("calls %v lack %q", library.calls, tc.want)
+				t.Fatalf("The calls %v lack %q.", library.calls, tc.want)
 			}
 		})
 	}

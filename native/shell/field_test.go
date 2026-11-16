@@ -1,273 +1,149 @@
 package shell
 
 import (
+	"slices"
 	"testing"
 
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/egoist/mygo/ui"
 )
 
-func fieldLibraryState(t *testing.T) (*State, *fakeLibrary, *ui.Tester) {
+// onField is the shell on its field, its library the fake one, the
+// window w by h.
+func onField(t *testing.T, w, h int) (*State, *fakeLibrary, *ui.Tester) {
 	t.Helper()
 	state, library := libraryState()
 	library.desk = state
-	state.Open = []Page{{ID: "1", Title: "Draft"}}
-	state.ActivePage = "1"
-	state.Sheet = func(c *ui.Context, id string, _ SheetFrame) {
-		ui.Text(c, "Sheet body "+id)
-	}
-	tester := ui.NewTester(state.View, 1260, 850)
+	state.ShowField()
+	tester := ui.NewTester(state.View, w, h)
 	settle(tester)
 	return state, library, tester
 }
 
-func TestFieldOverviewDisplaysGroupBoardsAndScopesIntoGroup(t *testing.T) {
-	state, _, tester := fieldLibraryState(t)
+// shownBlocks are the ids of the blocks the field shows at rest.
+func shownBlocks(state *State) []string {
+	ids := make([]string, len(state.field.rest))
+	for i, fr := range state.field.rest {
+		ids[i] = fr.ID
+	}
+	return ids
+}
 
-	state.ToggleField()
+// The window opens on the field, the sheets open waiting on the desk past
+// its edge; a sheet opened goes to the desk, and the desk's last sheet
+// closed comes back to the field.
+func TestTheWindowOpensOnTheFieldAndGoesToTheDeskToWrite(t *testing.T) {
+	state := New()
+	state.Open = []Page{{ID: "1", Title: "Untitled"}}
+	state.ActivePage = "1"
+	tester := ui.NewTester(state.View, 1260, 850)
 	settle(tester)
-
-	pill, ok := tester.Find("Neverland pill")
-	if !ok {
-		t.Fatal("Missing Neverland pill in Arrive")
+	if state.OnDesk() {
+		t.Fatal("The window should open on the field.")
 	}
-	for _, label := range []string{"Inbox", "Novel", "· Chapter", "New sheet"} {
-		card, ok := tester.Find(label)
-		if !ok {
-			t.Fatalf("Missing field card %q in %#v", label, tester.Texts())
-		}
-		if card.X < pill.X+pill.W && card.X+card.W > pill.X &&
-			card.Y < pill.Y+pill.H && card.Y+card.H > pill.Y {
-			t.Fatalf("Field card %q (%+v) overlaps pill (%+v)", label, card, pill)
-		}
+	if _, ok := tester.Find("Go to the desk"); !ok {
+		t.Fatal("The desk's edge should stand past the field.")
 	}
-
-	// Clicking a group board scopes the pill into that group.
-	if err := tester.Click("Novel"); err != nil {
-		t.Fatalf("Click Novel board: %v", err)
-	}
+	state.Open = append(state.Open, Page{ID: "2", Title: "Next"})
+	state.ActivePage = "2"
 	settle(tester)
-	if state.PillScope() != "2" {
-		t.Fatalf("PillScope = %q, want %q", state.PillScope(), "2")
+	if !state.OnDesk() {
+		t.Fatal("A sheet opened should take the window to the desk.")
 	}
-	if _, ok := tester.Find("Clear scope Novel"); !ok {
-		t.Fatal("Pill should display active scope chip for Novel")
-	}
-	if _, ok := tester.Find("Chapter"); !ok {
-		t.Fatal("Scoped Novel group should display Chapter card")
-	}
-
-	// Clearing the scope returns to the library overview.
-	if err := tester.Click("Clear scope Novel"); err != nil {
-		t.Fatalf("Click Clear scope Novel: %v", err)
-	}
+	state.Open, state.ActivePage = nil, ""
 	settle(tester)
-	if state.PillScope() != "" {
-		t.Fatalf("PillScope after clear = %q, want empty", state.PillScope())
+	if state.OnDesk() {
+		t.Fatal("With no sheet left, the window should be on the field.")
 	}
 }
 
-func TestFieldCardOpensInPlaceAndBesideOnDesk(t *testing.T) {
-	state, library, tester := fieldLibraryState(t)
-
-	// In Glance, searching and pressing Cmd+Enter opens the matched sheet
-	// beside the active one on the desk while keeping Glance open.
-	state.ToggleGlance()
+// Browsing is a search with no words: the field shows the groups, a group
+// clicked narrows the query to it and shows what it holds, its ribbon
+// pressed takes it away again.
+func TestAGroupClickedNarrowsTheQueryAndItsRibbonBroadensIt(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	if got := shownBlocks(state); !slices.Equal(got, []string{"group:1", "group:2"}) {
+		t.Fatalf("The field should show the groups, but shows %v.", got)
+	}
+	if err := tester.Click("Novel"); err != nil {
+		t.Fatal(err)
+	}
 	settle(tester)
+	if q := state.FieldQuery(); q != "$in:Novel" {
+		t.Fatalf("A group clicked should narrow the query to it, but the query is %q.", q)
+	}
+	if got := shownBlocks(state); !slices.Equal(got, []string{"sheet:7", "new"}) {
+		t.Fatalf("In the group, the field should show its block, but shows %v.", got)
+	}
+	if err := tester.Click("Novel, remove"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if q := state.FieldQuery(); q != "" {
+		t.Fatalf("The ribbon pressed should take the group away, but the query is %q.", q)
+	}
+}
+
+// Words written search: the field shows the sheets found, and Return opens
+// the first on the desk.
+func TestWordsWrittenSearchAndReturnOpensTheFirst(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
 	tester.Type("chap")
 	settle(tester)
-	tester.Key(ui.Cmd, ui.KeyEnter)
-	settle(tester)
-	if state.Posture() != stage.PostureGlance {
-		t.Fatalf("Opening beside in Glance should stay in Glance, got %v", state.Posture())
-	}
-	if len(state.Open) != 2 || state.Open[1].ID != "7" {
-		t.Fatalf("Cmd+Enter should add Chapter (7) beside 1 on desk, got open=%+v", state.Open)
-	}
 
-	// Clearing the query and clicking Draft opens it in place and returns to Writing.
-	tester.Key(0, ui.KeyEscape)
-	settle(tester)
-	if err := tester.Click("Draft"); err != nil {
-		t.Fatalf("Click Draft card: %v", err)
-	}
-	settle(tester)
-	if state.Posture() != stage.PostureWriting {
-		t.Fatalf("Opening a card should return to Writing, got %v", state.Posture())
-	}
-	if len(state.Open) != 2 || state.ActivePage != "8" {
-		t.Fatalf("Plain click should open Draft (8) in place of active sheet, got open=%+v active=%q", state.Open, state.ActivePage)
-	}
-	if len(library.calls) == 0 {
-		t.Fatal("Expected library open calls to be recorded")
-	}
-}
-
-func TestFieldPanningAndCentering(t *testing.T) {
-	state, library, tester := fieldLibraryState(t)
-	library.extraGroups = 8
-	library.extraSheets = 10
-
-	state.ToggleField()
-	settle(tester)
-
-	before, ok := tester.Find("Novel")
-	if !ok {
-		t.Fatal("Missing Novel card before pan")
-	}
-
-	state.PanField(-90, -60)
-	settle(tester)
-	after, ok := tester.Find("Novel")
-	if !ok {
-		t.Fatal("Novel card missing after modest pan")
-	}
-	if after.X >= before.X || after.Y >= before.Y {
-		t.Fatalf("Panning (-90, -60) should shift cards left/up: before=%+v after=%+v", before, after)
-	}
-
-	if err := tester.Click("Center field"); err != nil {
-		t.Fatalf("Click Center field: %v", err)
-	}
-	settle(tester)
-	if got := state.FieldPan(); got != (stage.Point{}) {
-		t.Fatalf("Center field should reset pan to zero, got %+v", got)
-	}
-}
-
-func TestFieldQueryEmphasizesMatchesWithoutReflow(t *testing.T) {
-	state, library, tester := fieldLibraryState(t)
-	library.extraSheets = 4
-
-	state.ToggleField()
-	settle(tester)
-	state.SetPillScope("2")
-	settle(tester)
-
-	tester.Type("Chapter")
-	settle(tester)
-
-	layout := state.FieldLayout()
-	var chapter, other *stage.PlacedCard
-	for i := range layout.Cards {
-		c := &layout.Cards[i]
-		if c.Item.ID == "sheet:7" {
-			chapter = c
-		} else if c.Item.Kind == stage.CardSheet && c.Item.Match == 0 {
-			other = c
-		}
-	}
-	if chapter == nil || other == nil {
-		t.Fatalf("Expected both matched and unmatched sheets in layout, got %d cards", len(layout.Cards))
-	}
-	if chapter.Emphasis.Opacity != 1 || chapter.Emphasis.Scale <= 1 {
-		t.Fatalf("Matched sheet should step forward: %+v (query=%q, item=%+v)", chapter.Emphasis, state.PillQuery(), chapter.Item)
-	}
-	if other.Emphasis.Opacity >= 1 || other.Emphasis.Scale >= 1 {
-		t.Fatalf("Unmatched sheet should recede: %+v", other.Emphasis)
-	}
-}
-
-func TestFieldNewSheetCardCreatesAndReturnsToDesk(t *testing.T) {
-	state, library, tester := fieldLibraryState(t)
-	state.ToggleField()
-	settle(tester)
-
-	if err := tester.Click("New sheet"); err != nil {
-		t.Fatalf("Click New sheet card: %v", err)
-	}
-	settle(tester)
-	if state.Posture() != stage.PostureWriting {
-		t.Fatalf("New sheet should return to Writing, got %v", state.Posture())
-	}
-	if len(library.calls) == 0 || library.calls[len(library.calls)-1] != "new sheet 1 1073741824" {
-		t.Fatalf("Expected NewSheet call in Inbox, got %v", library.calls)
-	}
-}
-
-func TestFieldFidelitySteppingHashScopeAndFilterTokens(t *testing.T) {
-	state, _, tester := fieldLibraryState(t)
-
-	state.ToggleField()
-	settle(tester)
-
-	if got := state.PillFidelity(); got != stage.FidelityOverview {
-		t.Fatalf("Initial fidelity = %v, want FidelityOverview", got)
-	}
-	if err := tester.Click("Show all sheets"); err != nil {
-		t.Fatalf("Click Show all sheets: %v", err)
-	}
-	settle(tester)
-	if got := state.PillFidelity(); got != stage.FidelitySheets {
-		t.Fatalf("After stepping fidelity = %v, want FidelitySheets", got)
-	}
-
-	// Typing #Novel followed by space auto-applies group scope.
-	tester.Type("#Novel ")
-	settle(tester)
-	if state.PillScope() != "2" {
-		t.Fatalf("PillScope after #Novel = %q, want %q (query=%q)", state.PillScope(), "2", state.PillQuery())
-	}
-
-	// Clicking Trash token filters trashed sheets in the field.
-	if err := tester.Click("Show trash"); err != nil {
-		t.Fatalf("Click Show trash: %v", err)
-	}
-	settle(tester)
-	if _, ok := tester.Find("Scrap"); !ok {
-		t.Fatalf("Expected trashed sheet card when Trash filter active, got %#v", tester.Texts())
-	}
-}
-
-func TestFieldLibraryManagementCreateRenameAndTrash(t *testing.T) {
-	state, library, tester := fieldLibraryState(t)
-	state.ToggleField()
-	settle(tester)
-
-	// Clicking "+ Group" creates a group in the active parent and opens inline naming.
-	if err := tester.Click("New group"); err != nil {
-		t.Fatalf("Click New group: %v", err)
-	}
-	settle(tester)
-	tester.Type("Journal")
 	tester.Key(0, ui.KeyEnter)
 	settle(tester)
-	if len(library.calls) < 2 || library.calls[0] != "new group  1073741824" || library.calls[1] != "rename 2 Journal" {
-		t.Fatalf("Unexpected group create/rename calls: %v", library.calls)
+	if !slices.Contains(library.calls, "open found 7 chap") || !state.OnDesk() {
+		t.Fatalf("Return should open the first found on the desk, but the calls are %v.", library.calls)
+	}
+}
+
+// A condition written whole, a space after it, becomes a ribbon, and
+// Backspace with nothing written takes it away.
+func TestAConditionWrittenBecomesARibbon(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	tester.Type("$trash ")
+	settle(tester)
+	if q := state.FieldQuery(); q != "$trash" || state.field.words != "" {
+		t.Fatalf("$trash and a space should become a ribbon, but the query is %q with %q written.", q, state.field.words)
 	}
 
-	// Trashing via card context menu and emptying via pill ribbon confirmation.
-	library.calls = nil
-	if err := tester.RightClick("Draft"); err != nil {
-		t.Fatalf("RightClick Draft: %v", err)
-	}
-	if err := tester.ChooseMenuItem("Move to Trash"); err != nil {
-		t.Fatalf("Choose Move to Trash: %v", err)
-	}
+	tester.Key(0, ui.KeyBackspace)
 	settle(tester)
-	if len(library.calls) == 0 || library.calls[0] != "trash 8" {
-		t.Fatalf("Expected trash sheet 8 call, got %v", library.calls)
+	if q := state.FieldQuery(); q != "" {
+		t.Fatalf("Backspace with nothing written should take the ribbon away, but the query is %q.", q)
 	}
+}
 
-	if err := tester.Click("Show trash"); err != nil {
-		t.Fatalf("Click Show trash: %v", err)
-	}
+// Escape takes the words away, then the conditions, then goes to the desk.
+func TestEscapeComesBackOneStepAtATime(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	state.SetFieldQuery("$in:Novel chap")
 	settle(tester)
-	if err := tester.Click("Empty"); err != nil {
-		t.Fatalf("Click Empty (arm): %v", err)
-	}
-	settle(tester)
-	if err := tester.Click("Delete All"); err != nil {
-		t.Fatalf("Click Delete All (confirm): %v", err)
-	}
-	settle(tester)
-	foundEmpty := false
-	for _, call := range library.calls {
-		if call == "empty trash" {
-			foundEmpty = true
+	for _, want := range []string{"$in:Novel", ""} {
+		tester.Key(0, ui.KeyEscape)
+		settle(tester)
+		if q := state.FieldQuery(); q != want || !(!state.OnDesk()) {
+			t.Fatalf("Escape should leave the query %q on the field, but it is %q.", want, q)
 		}
 	}
-	if !foundEmpty {
-		t.Fatalf("Expected empty trash call after armed confirmation, got %v", library.calls)
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+	if !state.OnDesk() {
+		t.Fatal("Escape with nothing left should go to the desk.")
+	}
+}
+
+// A smart folder clicked runs its query.
+func TestASmartFolderRunsItsQuery(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.smart = "$words:>1000"
+	library.rev++
+	settle(tester)
+	if err := tester.Click("Long"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if q := state.FieldQuery(); q != "$words:>1000" {
+		t.Fatalf("A smart folder should run its query, but the query is %q.", q)
 	}
 }
