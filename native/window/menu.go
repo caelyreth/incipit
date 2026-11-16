@@ -76,9 +76,8 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			Label: "View",
 			Submenu: []*mygo.MenuItem{
 				{ID: "view-field", Label: "Toggle Field", Click: command(keymap.Field)},
-				{ID: "view-glance", Label: "Glance at Field", Click: command(keymap.Glance)},
 				mygo.Separator(),
-				{ID: "commands", Label: "Command Palette", Click: command(keymap.Commands)},
+				{ID: "commands", Label: "Search Commands", Click: command(keymap.Commands)},
 				mygo.Separator(),
 				{Role: mygo.RoleToggleFullScreen},
 			},
@@ -111,7 +110,6 @@ var keymapMenu = [...]struct {
 	{"new-page", keymap.NewPage},
 	{"close-page", keymap.ClosePage},
 	{"view-field", keymap.Field},
-	{"view-glance", keymap.Glance},
 	{"commands", keymap.Commands},
 }
 

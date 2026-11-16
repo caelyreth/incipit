@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func TestAppViewMountsTransientOverlays(t *testing.T) {
+func TestSearchCommandsWritesThePill(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
@@ -15,15 +15,15 @@ func TestAppViewMountsTransientOverlays(t *testing.T) {
 	tester := ui.NewTester(app.View, 1260, 850)
 	tester.Frame()
 
-	app.Shell.OpenCommands()
-	tester.Frame()
+	app.Shell.SearchCommands()
+	run(tester, time.Second)
 	if active, _ := tester.TextInputActive(); !active {
-		t.Fatal("command palette did not focus its text input")
+		t.Fatal("the pill did not take the keyboard")
 	}
-	tester.Type("zen")
+	tester.Type(" zen")
 	tester.Frame()
-	if app.Palette.Query != "zen" {
-		t.Fatalf("palette query = %q", app.Palette.Query)
+	if got := app.Shell.FieldQuery(); got != "> zen" {
+		t.Fatalf("pill = %q", got)
 	}
 }
 

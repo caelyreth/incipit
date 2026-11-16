@@ -2,22 +2,22 @@ package window
 
 import (
 	"github.com/caelyreth/neverland/app/keymap"
-	"github.com/caelyreth/neverland/native/overlay"
+	"github.com/caelyreth/neverland/native/shell"
 )
 
-// commandCatalog returns every command the palette can run, grouped by what
-// it acts on. The palette's own command is left out.
-func (a *AppState) commandCatalog() []overlay.Command {
+// commandCatalog returns every command the pill can run, grouped by what
+// it acts on. The command that asks for them is left out.
+func (a *AppState) commandCatalog() []shell.Command {
 	keys := a.Product.Keymap
 	declared := keys.Commands()
-	commands := make([]overlay.Command, 0, len(declared))
+	commands := make([]shell.Command, 0, len(declared))
 	for _, scope := range []keymap.Scope{keymap.ScopePages, keymap.ScopeWindow, keymap.ScopeApp} {
 		for _, command := range declared {
 			if command.Scope != scope || command.ID == keymap.Commands {
 				continue
 			}
-			commands = append(commands, overlay.Command{
-				ID:      command.ID,
+			commands = append(commands, shell.Command{
+				ID:      string(command.ID),
 				Label:   command.Label,
 				Group:   scope.Title(),
 				Binding: bindingLabel(keys, command.ID),

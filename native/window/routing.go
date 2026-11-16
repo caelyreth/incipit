@@ -33,13 +33,8 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 	keymap.Motion: func(a *AppState) {
 		a.setPresentation(appsettings.PresentationMotion, !a.Product.Presentation.Motion)
 	},
-	keymap.Field:  func(a *AppState) { a.Shell.ToggleField() },
-	keymap.Glance: func(a *AppState) { a.Shell.ToggleGlance() },
-	keymap.Commands: func(a *AppState) {
-		if a.Shell.OpenCommands != nil {
-			a.Shell.OpenCommands()
-		}
-	},
+	keymap.Field:    func(a *AppState) { a.Shell.ToggleField() },
+	keymap.Commands: func(a *AppState) { a.Shell.SearchCommands() },
 	keymap.Settings: func(a *AppState) {
 		if a.Shell.OpenSettings != nil {
 			a.Shell.OpenSettings()
@@ -47,7 +42,7 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 	},
 }
 
-// routeWindowCommand is the common menu, palette and keyboard entry point.
+// routeWindowCommand is the common menu, pill and keyboard entry point.
 // An auxiliary window answers only Close Sheet, which closes it, and never
 // reaches back into the main window.
 func (a *AppState) routeWindowCommand(window *mygo.Window, command keymap.CommandID) error {

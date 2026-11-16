@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/app/library"
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/notices"
-	"github.com/caelyreth/neverland/native/overlay"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/settings"
 	"github.com/caelyreth/neverland/native/shell"
@@ -25,7 +25,6 @@ type AppState struct {
 	Settings  settings.State
 	Product   appsettings.State
 	Shell     *shell.State
-	Palette   *overlay.CommandPalette
 	// Notices tells the user what happened apart from what they did, as
 	// toasts at the window's foot.
 	Notices *notices.Center
@@ -103,7 +102,6 @@ func newAppState(store *storage.Store) (*AppState, error) {
 	}
 	app.Settings = *settings.New()
 	app.Shell = shell.New()
-	app.Palette = &overlay.CommandPalette{}
 	app.Shell.Colors = &app.colors
 	app.Settings.Colors = &app.colors
 	if err := app.loadSettings(store); err != nil {
@@ -155,12 +153,12 @@ func (a *AppState) BindShell() {
 		a.selectMounted()
 	}
 	a.Shell.Library = a
-	// The library opens on the Inbox, where new sheets go.
-	a.Shell.StartAt(shell.Place{Kind: shell.PlaceGroup, Group: groupName(library.Inbox)})
 	a.Shell.ClosePageID = a.closePageID
-	a.Shell.OpenCommands = func() {
-		a.Palette.Open = true
-		a.Palette.Reset(a.commandCatalog())
+	a.Shell.Commands = a.commandCatalog
+	a.Shell.RunCommand = func(id string) {
+		if err := a.routeWindowCommand(a.mainWindow, keymap.CommandID(id)); err != nil {
+			a.fail("Couldn't run the command", err)
+		}
 	}
 	a.Shell.OpenSettings = a.OpenSettingsWindow
 	a.Shell.Find = a.findQuery
@@ -203,8 +201,8 @@ func (a *AppState) sheetView(c *ui.Context, id string, frame shell.SheetFrame) {
 		el.UIFontSize = frame.UIFontSize
 		// A press on what takes no focus, as a pane's background, leaves
 		// the focus nowhere: typing belongs to the page then, its caret
-		// shown, unless a field of the shell or the palette is taking it.
-		if frame.Claim || frame.Focus && !a.Shell.FocusWithin(c) && !a.Shell.Typing() && (a.Palette == nil || !a.Palette.Open) {
+		// shown, unless a field of the shell is taking it.
+		if frame.Claim || frame.Focus && !a.Shell.FocusWithin(c) && !a.Shell.Typing() {
 			el.Focus()
 		}
 		ui.Box(c).Key(fmt.Sprintf("editor-%d", el.Editor.View)).WidthPercent(100).Grow(1).Clip().Children(func() {
@@ -263,7 +261,7 @@ func (a *AppState) findPage() {
 		return
 	}
 	a.setPresentation(appsettings.PresentationZen, false)
-	a.Shell.FindInField()
+	a.Shell.Search()
 }
 
 func (a *AppState) selectMounted() {
@@ -429,7 +427,7 @@ func appearanceSettings(values appsettings.AppearanceSettings) theme.Settings {
 	return settings
 }
 
-// View composes the shell, the command palette and the notices.
+// View composes the shell and the notices.
 func (a *AppState) View(c *ui.Context) {
 	if a == nil || a.Shell == nil {
 		return
@@ -438,14 +436,6 @@ func (a *AppState) View(c *ui.Context) {
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion, a.Shell.WindowActive)
 	a.pressedCommands(c)
-	if a.Palette != nil {
-		a.Palette.View(c, semantic, animate)
-		if command, ok := a.Palette.ConsumeChoice(); ok {
-			if err := a.routeWindowCommand(a.mainWindow, command); err != nil {
-				a.fail("Couldn't run the command", err)
-			}
-		}
-	}
 	a.Shell.View(c)
 	// An open find follows the page in front.
 	a.followFind()

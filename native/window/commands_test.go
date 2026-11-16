@@ -6,21 +6,21 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
-	"github.com/caelyreth/neverland/native/overlay"
+	"github.com/caelyreth/neverland/native/shell"
 )
 
-func paletteCommand(t *testing.T, commands []overlay.Command, id keymap.CommandID) overlay.Command {
+func catalogCommand(t *testing.T, commands []shell.Command, id keymap.CommandID) shell.Command {
 	t.Helper()
 	for _, command := range commands {
-		if command.ID == id {
+		if command.ID == string(id) {
 			return command
 		}
 	}
 	t.Fatalf("command %q missing from %#v", id, commands)
-	return overlay.Command{}
+	return shell.Command{}
 }
 
-func TestPaletteUsesLiveBindings(t *testing.T) {
+func TestCommandsUseLiveBindings(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
@@ -29,7 +29,7 @@ func TestPaletteUsesLiveBindings(t *testing.T) {
 	moved := keymap.NewChord("g", keymap.ModifiersPrimary|keymap.ModifiersAlt|keymap.ModifiersShift)
 	app.Settings.Apply(appsettings.Remap(keymap.Settings, moved))
 
-	command := paletteCommand(t, app.commandCatalog(), keymap.Settings)
+	command := catalogCommand(t, app.commandCatalog(), keymap.Settings)
 	if want := keymap.Spell(moved, keymap.PlatformCurrent); command.Binding != want {
 		t.Fatalf("binding = %q, want %q", command.Binding, want)
 	}
@@ -38,13 +38,13 @@ func TestPaletteUsesLiveBindings(t *testing.T) {
 	}
 
 	app.Settings.Apply(appsettings.Unbind(keymap.Settings))
-	command = paletteCommand(t, app.commandCatalog(), keymap.Settings)
+	command = catalogCommand(t, app.commandCatalog(), keymap.Settings)
 	if command.Binding != "" || len(command.Keys) != 0 {
 		t.Fatalf("unbound command still shows %q %q", command.Binding, command.Keys)
 	}
 }
 
-func TestPaletteKeepsItsCommandsWithoutAPage(t *testing.T) {
+func TestCommandsStayWithoutAPage(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
@@ -52,9 +52,9 @@ func TestPaletteKeepsItsCommandsWithoutAPage(t *testing.T) {
 	before := len(app.commandCatalog())
 	app.closeActive()
 	commands := app.commandCatalog()
-	paletteCommand(t, commands, keymap.NewPage)
-	paletteCommand(t, commands, keymap.Settings)
+	catalogCommand(t, commands, keymap.NewPage)
+	catalogCommand(t, commands, keymap.Settings)
 	if len(commands) != before {
-		t.Fatalf("page-less palette has %d commands, want %d", len(commands), before)
+		t.Fatalf("page-less catalog has %d commands, want %d", len(commands), before)
 	}
 }

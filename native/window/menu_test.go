@@ -25,34 +25,30 @@ func TestMainMenuExposesAppAndWorkspaceCommands(t *testing.T) {
 	if settings == nil || settings.Label != "Settings..." || settings.Click == nil {
 		t.Fatalf("settings = %#v", settings)
 	}
-	for _, id := range []string{"new-page", "close-page", "view-field", "view-glance", "commands"} {
+	for _, id := range []string{"new-page", "close-page", "view-field", "commands"} {
 		if item := menu.ItemByID(id); item == nil || item.Click == nil {
 			t.Fatalf("%s = %#v", id, item)
 		}
 	}
 }
 
-func TestPaletteListsEveryCommandButItself(t *testing.T) {
+func TestPillListsEveryCommandButItsOwn(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	app.Shell.OpenCommands()
-	if !app.Palette.Open {
-		t.Fatal("palette stayed closed")
-	}
 	listed := map[keymap.CommandID]string{}
-	for _, command := range app.Palette.Commands {
+	for _, command := range app.Shell.Commands() {
 		if command.Label == "" || command.Group == "" {
 			t.Fatalf("incomplete command = %#v", command)
 		}
-		listed[command.ID] = command.Group
+		listed[keymap.CommandID(command.ID)] = command.Group
 	}
 	for _, command := range appsettings.DefaultState().Keymap.Commands() {
 		group, ok := listed[command.ID]
 		if command.ID == keymap.Commands || command.Scope == keymap.ScopeEditing {
 			if ok {
-				t.Fatalf("the palette lists %s", command.ID)
+				t.Fatalf("the pill lists %s", command.ID)
 			}
 			continue
 		}

@@ -10,21 +10,15 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func submitPaletteCommand(t *testing.T, app *AppState, id keymap.CommandID) {
+func runListedCommand(t *testing.T, app *AppState, id keymap.CommandID) {
 	t.Helper()
-	app.Shell.OpenCommands()
-	for index, command := range app.Palette.Filtered() {
-		if command.ID != id {
-			continue
+	for _, command := range app.Shell.Commands() {
+		if command.ID == string(id) {
+			app.Shell.RunCommand(command.ID)
+			return
 		}
-		app.Palette.Selected = index
-		chosen, ok := app.Palette.Submit()
-		if !ok || chosen != id {
-			t.Fatalf("palette submit = %q,%v, want %q", chosen, ok, id)
-		}
-		return
 	}
-	t.Fatalf("%s missing from palette %#v", id, app.Palette.Commands)
+	t.Fatalf("%s missing from the commands", id)
 }
 
 func TestEveryCommandHasAHandler(t *testing.T) {
@@ -36,7 +30,7 @@ func TestEveryCommandHasAHandler(t *testing.T) {
 	}
 }
 
-func TestPageLessNewPageRunsFromThePalette(t *testing.T) {
+func TestPageLessNewPageRunsFromThePill(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
@@ -48,10 +42,10 @@ func TestPageLessNewPageRunsFromThePalette(t *testing.T) {
 	if _, active := app.Workspace.Active(); active {
 		t.Fatal("the fixture still has an active page")
 	}
-	submitPaletteCommand(t, app, keymap.NewPage)
+	runListedCommand(t, app, keymap.NewPage)
 	tester.Frame()
 	if _, active := app.Workspace.Active(); !active {
-		t.Fatal("page-less palette New Page did not open a page")
+		t.Fatal("page-less New Page did not open a page")
 	}
 }
 
