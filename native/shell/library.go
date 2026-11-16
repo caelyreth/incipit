@@ -94,31 +94,6 @@ type FoundSheet struct {
 	LineMatches  []query.Span
 }
 
-// GroupEntryKind is what a group's ordered list holds at one position.
-type GroupEntryKind uint8
-
-const (
-	// EntrySheet is a sheet in a group's list.
-	EntrySheet GroupEntryKind = iota
-	// EntryChapter is a chapter divider in a group's list.
-	EntryChapter
-)
-
-// ChapterItem is a chapter divider as the sheet list shows it.
-type ChapterItem struct {
-	ID   string
-	Name string
-}
-
-// GroupEntry is one item in a group's ordered list.
-type GroupEntry struct {
-	Kind    GroupEntryKind
-	ID      string
-	Title   string
-	Sheet   SheetItem
-	Chapter ChapterItem
-}
-
 // MoveTarget is a group a sheet or group can be moved into.
 type MoveTarget struct {
 	ID    string
@@ -126,28 +101,22 @@ type MoveTarget struct {
 	Depth int
 }
 
-// Library is what the sidebar shows and changes: the notebook's sheets and
+// Library is what the field shows and changes: the notebook's sheets and
 // the groups that hold them. Groups are named by ID; "" is the top level.
 type Library interface {
 	Groups(parent string) []GroupItem
 	Group(id string) (GroupItem, bool)
-	// Parent is the group a group is in, "" at the top level.
-	Parent(group string) string
 	Sheets(place Place) []SheetItem
-	// SheetCount counts displayable sheets without preparing their row data.
-	SheetCount(place Place) int
-	// Entries is a group's sheets and chapter dividers in their shared
-	// order.
-	Entries(group string) []GroupEntry
+	// Revision changes whenever what the library shows does: its filing,
+	// its sheets' text, the sheets open, and the minute their times are
+	// told in.
+	Revision() uint64
 	// Search is what a query (app/search) finds in the notebook, best
 	// first.
 	Search(query string) Found
 	// SearchNames is the values a name key takes in the notebook, as the
 	// tags $tag does, most used first.
 	SearchNames(key string) []string
-	// SearchCounts is how many sheets a query finds with each of values
-	// for a key as one condition more; a value with no count is left out.
-	SearchCounts(query, key string, values []string) map[string]int
 	// OpenFound opens a sheet a query found at the first of its matches,
 	// selected, as OpenSheet opens it.
 	OpenFound(id, query string, alongside bool)
@@ -157,35 +126,19 @@ type Library interface {
 	Targets() []MoveTarget
 	// SheetGroup is the group a sheet is filed in.
 	SheetGroup(sheet string) string
-	// EntryGroup is the group a sheet or chapter is filed in.
-	EntryGroup(entry string) string
 
 	// NewSheet makes a sheet at index in group, as MoveSheet places one.
 	NewSheet(group string, index int)
-	// NewChapter makes a chapter divider at index and returns it, for
-	// naming.
-	NewChapter(group string, index int) string
 	OpenSheet(id string, alongside bool)
-	// PlaceOnDesk has an open sheet stand on the desk just after the open
-	// sheet after, or first where after is "" or not open.
-	PlaceOnDesk(id, after string)
 	DuplicateSheet(id string)
 	MoveSheet(id, group string, index int)
-	MoveEntry(id, group string, index int)
 	TrashSheet(id string)
 	RestoreSheet(id string)
 	DeleteSheet(id string)
-	RenameChapter(id, name string)
-	MoveChapter(id, group string, index int)
-	DeleteChapter(id string)
 
 	// NewGroup makes a group at index in parent and returns it, for
 	// naming.
 	NewGroup(parent string, index int) string
-	// NewSmartGroup makes a smart folder of a query and returns it, for
-	// naming; SetGroupQuery changes one's query.
-	NewSmartGroup(query string) string
-	SetGroupQuery(id, query string)
 	RenameGroup(id, name string)
 	// StyleGroup sets a group's icon and tint, as GroupItem holds them.
 	StyleGroup(id, icon string, color int)
@@ -204,125 +157,11 @@ const (
 	TintHalo     = 1
 )
 
-// sheetDrag is a sheet dragged in the sidebar or onto it.
+// sheetDrag is a sheet dragged on the field.
 type sheetDrag struct{ id string }
-
-// chapterDrag is a chapter divider dragged in a sheet list.
-type chapterDrag struct{ id string }
-
-// sheetMove is a sheet or chapter inserted into a sheet list.
-type sheetMove interface{ sheetMoveID() string }
-
-func (d sheetDrag) sheetMoveID() string { return d.id }
-func (d chapterDrag) sheetMoveID() string {
-	return d.id
-}
 
 // groupDrag is a group dragged on the field.
 type groupDrag struct{ id string }
-
-// Place returns the active place represented in the pill/field.
-func (s *State) Place() Place {
-	if s == nil {
-		return Place{Kind: PlaceAll}
-	}
-	if s.pill.scopeGroup != "" {
-		return Place{Kind: PlaceGroup, Group: s.pill.scopeGroup}
-	}
-	parsed := query.Parse(s.pill.query)
-	if queryHasFilter(parsed, "trash") {
-		return Place{Kind: PlaceTrash}
-	}
-	if queryHasFilterValue(parsed, "updated", "7d") {
-		return Place{Kind: PlaceRecent}
-	}
-	return s.startPlace
-}
-
-// StartAt sets the starting place for new library sessions without narrowing
-// the initial field overview to a single group scope.
-func (s *State) StartAt(place Place) {
-	if s == nil {
-		return
-	}
-	s.startPlace = place
-}
-
-// Go navigates the field/pill to place without leaving the shell inconsistent.
-func (s *State) Go(place Place) {
-	if s == nil {
-		return
-	}
-	s.startPlace = place
-	switch place.Kind {
-	case PlaceGroup:
-		s.SetPillScope(place.Group)
-	case PlaceTrash:
-		s.SetPillScope("")
-		s.SetPillQuery("$trash")
-	case PlaceRecent:
-		s.SetPillScope("")
-		s.SetPillQuery("$updated:7d")
-	default:
-		s.SetPillScope("")
-		if strings.TrimSpace(s.pill.query) == "$trash" || strings.TrimSpace(s.pill.query) == "$updated:7d" {
-			s.SetPillQuery("")
-		}
-	}
-}
-
-// CurrentGroup returns the group new sheets belong in.
-func (s *State) CurrentGroup() string {
-	if s == nil {
-		return ""
-	}
-	if s.pill.scopeGroup != "" {
-		return s.pill.scopeGroup
-	}
-	if s.Library != nil {
-		for _, g := range s.Library.Groups("") {
-			if g.Inbox {
-				return g.ID
-			}
-		}
-		if groups := s.Library.Groups(""); len(groups) > 0 {
-			return groups[0].ID
-		}
-	}
-	return ""
-}
-
-// ReconcileLibrary drops stale group scopes or inline renames after group mutations.
-func (s *State) ReconcileLibrary() {
-	if s == nil || s.Library == nil {
-		return
-	}
-	if s.field.renamingGroup != "" {
-		if _, ok := s.Library.Group(s.field.renamingGroup); !ok {
-			s.field.renamingGroup = ""
-		}
-	}
-	if s.pill.scopeGroup != "" {
-		if _, ok := s.Library.Group(s.pill.scopeGroup); !ok {
-			s.SetPillScope("")
-			s.startPlace = Place{Kind: PlaceAll}
-		}
-	}
-	if s.startPlace.Kind == PlaceGroup {
-		if _, ok := s.Library.Group(s.startPlace.Group); !ok {
-			s.startPlace = Place{Kind: PlaceAll}
-		}
-	}
-}
-
-// FindInField opens the field and focuses the pill query input.
-func (s *State) FindInField() {
-	if s == nil {
-		return
-	}
-	s.CallField()
-	s.pill.focus = true
-}
 
 // groupIcon is the icon a group wears.
 func groupIcon(group GroupItem) components.IconName {

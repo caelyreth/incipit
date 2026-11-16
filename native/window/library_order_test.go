@@ -32,13 +32,18 @@ func TestMoveSheetUsesItsFinalIndex(t *testing.T) {
 	}
 }
 
-func TestTheLibraryOpensOnTheInbox(t *testing.T) {
+func TestNewSheetsGoToTheInboxOrTheGroupTheFieldIsIn(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := shell.Place{Kind: shell.PlaceGroup, Group: strconv.Itoa(int(library.Inbox))}
-	if got := app.Shell.Place(); got != want {
-		t.Fatalf("the library opens on %+v, want the Inbox", got)
+	if got, want := app.Shell.CurrentGroup(), strconv.Itoa(int(library.Inbox)); got != want {
+		t.Fatalf("A new sheet should go to the Inbox, %q, but goes to %q.", want, got)
+	}
+	novel := app.NewGroup("", shell.Last)
+	app.RenameGroup(novel, "Novel")
+	app.Shell.SetFieldQuery("$in:Novel")
+	if got := app.Shell.CurrentGroup(); got != novel {
+		t.Fatalf("In a group, a new sheet should go there, %q, but goes to %q.", novel, got)
 	}
 }

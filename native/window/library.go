@@ -46,10 +46,6 @@ func groupOf(name string) library.GroupID {
 
 const chapterPrefix = "chapter:"
 
-func chapterName(id library.ChapterID) string {
-	return chapterPrefix + strconv.FormatInt(int64(id), 10)
-}
-
 func chapterOf(name string) (library.ChapterID, bool) {
 	raw, ok := strings.CutPrefix(name, chapterPrefix)
 	if !ok {
@@ -100,8 +96,6 @@ type projections struct {
 	session uint64
 	bySheet map[library.SheetID]*sheetSession
 	sheets  map[shell.Place][]shell.SheetItem
-	counts  map[shell.Place]int
-	entries map[string][]shell.GroupEntry
 }
 
 // projections are the views of the library as it stands now.
@@ -110,7 +104,7 @@ func (a *AppState) projections() *projections {
 	p := a.projected
 	if p == nil || p.library != a.library || p.rev != a.library.Revision() || p.session != a.sessionsRev || !p.minute.Equal(minute) {
 		p = &projections{library: a.library, rev: a.library.Revision(), minute: minute, session: a.sessionsRev,
-			sheets: map[shell.Place][]shell.SheetItem{}, counts: map[shell.Place]int{}, entries: map[string][]shell.GroupEntry{}}
+			sheets: map[shell.Place][]shell.SheetItem{}}
 		a.projected = p
 	}
 	return p
@@ -280,12 +274,6 @@ func (a *AppState) Group(id string) (shell.GroupItem, bool) {
 	return a.groupItem(group), true
 }
 
-// Parent is part of shell.Library.
-func (a *AppState) Parent(id string) string {
-	group, _ := a.library.Group(groupOf(id))
-	return groupName(group.Parent)
-}
-
 // Sheets is part of shell.Library.
 func (a *AppState) Sheets(place shell.Place) []shell.SheetItem {
 	if text, ok := a.smartQuery(place); ok {
@@ -305,27 +293,6 @@ func (a *AppState) Sheets(place shell.Place) []shell.SheetItem {
 	}
 }
 
-// SheetCount counts only sheets with a session, like Sheets, but avoids
-// composing titles, excerpts and word counts for a badge.
-func (a *AppState) SheetCount(place shell.Place) int {
-	if text, ok := a.smartQuery(place); ok {
-		return len(a.smartItems(text))
-	}
-	p := a.projections()
-	if count, ok := p.counts[place]; ok {
-		return count
-	}
-	sessions := a.sessionsBySheet()
-	count := 0
-	for _, sheet := range a.sheetsIn(place) {
-		if _, ok := sessions[sheet.ID]; ok {
-			count++
-		}
-	}
-	p.counts[place] = count
-	return count
-}
-
 func (a *AppState) sheetsIn(place shell.Place) []library.Sheet {
 	switch place.Kind {
 	case shell.PlaceGroup:
@@ -339,53 +306,6 @@ func (a *AppState) sheetsIn(place shell.Place) []library.Sheet {
 		return sheets
 	}
 	return nil
-}
-
-// Entries is part of shell.Library.
-func (a *AppState) Entries(group string) []shell.GroupEntry {
-	p := a.projections()
-	if entries, ok := p.entries[group]; ok {
-		return entries
-	}
-	entries := a.entries(group)
-	p.entries[group] = entries
-	return entries
-}
-
-func (a *AppState) entries(group string) []shell.GroupEntry {
-	groupID := groupOf(group)
-	if _, ok := a.library.Group(groupID); !ok || a.library.GroupInTrash(groupID) {
-		return nil
-	}
-	var entries []shell.GroupEntry
-	if text, ok := a.smartQuery(shell.Place{Kind: shell.PlaceGroup, Group: group}); ok {
-		for _, item := range a.smartItems(text) {
-			entries = append(entries, shell.GroupEntry{Kind: shell.EntrySheet, ID: item.ID, Title: item.Title, Sheet: item})
-		}
-		return entries
-	}
-	sessions := a.sessionsBySheet()
-	for _, entry := range a.library.Entries(groupID) {
-		if entry.IsChapter() {
-			chapter, _ := a.library.Chapter(entry.Chapter)
-			id := chapterName(chapter.ID)
-			entries = append(entries, shell.GroupEntry{
-				Kind: shell.EntryChapter, ID: id, Title: chapter.Name,
-				Chapter: shell.ChapterItem{ID: id, Name: chapter.Name},
-			})
-			continue
-		}
-		sheet, _ := a.library.Sheet(entry.Sheet)
-		items := sheetItemsWithSessions([]library.Sheet{sheet}, sessions)
-		if len(items) == 0 {
-			continue
-		}
-		item := items[0]
-		entries = append(entries, shell.GroupEntry{
-			Kind: shell.EntrySheet, ID: item.ID, Title: item.Title, Sheet: item,
-		})
-	}
-	return entries
 }
 
 // Search is part of shell.Library: what the query finds in the notebook's
@@ -435,18 +355,6 @@ func (a *AppState) SheetGroup(name string) string {
 	return groupName(sheet.Group)
 }
 
-// EntryGroup is part of shell.Library.
-func (a *AppState) EntryGroup(name string) string {
-	if chapter, ok := chapterOf(name); ok {
-		item, found := a.library.Chapter(chapter)
-		if !found {
-			return ""
-		}
-		return groupName(item.Group)
-	}
-	return a.SheetGroup(name)
-}
-
 // NewSheet is part of shell.Library: an empty sheet at index in a group,
 // the Inbox for none, opened alongside the sheets open.
 func (a *AppState) NewSheet(group string, index int) {
@@ -475,21 +383,6 @@ func (a *AppState) NewSheet(group string, index int) {
 	a.libraryChanged()
 }
 
-// NewChapter is part of shell.Library.
-func (a *AppState) NewChapter(group string, index int) string {
-	target := groupOf(group)
-	if target == 0 || a.library.GroupInTrash(target) {
-		target = library.Inbox
-	}
-	id, err := a.library.AddChapterAt(target, "", index)
-	if err != nil {
-		a.fail("Couldn't create the chapter", err)
-		return ""
-	}
-	a.libraryChanged()
-	return chapterName(id)
-}
-
 // OpenSheet is part of shell.Library: a sheet opens in place of the one
 // in front, or alongside the sheets open when asked; one already open is
 // brought forward.
@@ -507,24 +400,6 @@ func (a *AppState) OpenSheet(name string, alongside bool) {
 		return
 	}
 	a.selectMounted()
-}
-
-// PlaceOnDesk is part of shell.Library: an open sheet stands just after
-// another on the desk, or first.
-func (a *AppState) PlaceOnDesk(name, after string) {
-	session, ok := a.sessionOf(name)
-	if !ok {
-		return
-	}
-	anchor := workspace.PageID(-1)
-	if other, ok := a.sessionOf(after); ok {
-		anchor = other.page
-	}
-	if err := a.Workspace.Place(session.page, anchor); err != nil {
-		a.fail("Couldn't move the sheet", err)
-		return
-	}
-	a.refreshShell()
 }
 
 // DuplicateSheet is part of shell.Library: a copy of the sheet as it is
@@ -589,52 +464,6 @@ func (a *AppState) MoveSheet(name, group string, index int) {
 	a.libraryChanged()
 }
 
-// MoveEntry is part of shell.Library.
-func (a *AppState) MoveEntry(name, group string, index int) {
-	if _, ok := chapterOf(name); ok {
-		a.MoveChapter(name, group, index)
-		return
-	}
-	a.MoveSheet(name, group, index)
-}
-
-// RenameChapter is part of shell.Library.
-func (a *AppState) RenameChapter(id, name string) {
-	chapter, ok := chapterOf(id)
-	if !ok {
-		return
-	}
-	if err := a.library.RenameChapter(chapter, name); err == nil {
-		a.libraryChanged()
-	}
-}
-
-// MoveChapter is part of shell.Library.
-func (a *AppState) MoveChapter(id, group string, index int) {
-	chapter, ok := chapterOf(id)
-	if !ok {
-		return
-	}
-	if err := a.library.MoveChapter(chapter, groupOf(group), index); err != nil {
-		a.fail("Couldn't move the chapter", err)
-		return
-	}
-	a.libraryChanged()
-}
-
-// DeleteChapter is part of shell.Library.
-func (a *AppState) DeleteChapter(id string) {
-	chapter, ok := chapterOf(id)
-	if !ok {
-		return
-	}
-	if err := a.library.DeleteChapter(chapter); err != nil {
-		a.fail("Couldn't delete the chapter", err)
-		return
-	}
-	a.libraryChanged()
-}
-
 // TrashSheet is part of shell.Library: the sheet goes to the trash and
 // closes.
 func (a *AppState) TrashSheet(name string) {
@@ -683,28 +512,6 @@ func (a *AppState) NewGroup(parent string, index int) string {
 	_ = a.library.StyleGroup(id, "", shell.TintHalo)
 	a.libraryChanged()
 	return groupName(id)
-}
-
-// NewSmartGroup is part of shell.Library: a smart folder of a query at the
-// end of the top level, named after it, in Halo as a new group is.
-func (a *AppState) NewSmartGroup(text string) string {
-	id, err := a.library.AddSmartGroupAt(0, text, text, len(a.library.Groups(0)))
-	if err != nil {
-		a.fail("Couldn't create the smart folder", err)
-		return ""
-	}
-	_ = a.library.StyleGroup(id, "", shell.TintHalo)
-	a.libraryChanged()
-	return groupName(id)
-}
-
-// SetGroupQuery is part of shell.Library.
-func (a *AppState) SetGroupQuery(id, text string) {
-	if err := a.library.SetGroupQuery(groupOf(id), text); err != nil {
-		a.fail("Couldn't change the smart folder", err)
-		return
-	}
-	a.libraryChanged()
 }
 
 // RenameGroup is part of shell.Library.
