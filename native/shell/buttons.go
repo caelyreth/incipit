@@ -7,10 +7,10 @@ import (
 )
 
 // chromeButton is one of the shell's icon buttons over its panes, the
-// window's corner and the canvas: subtle, its glyph in the icons' muted
+// window's corner and the desk: subtle, its glyph in the icons' muted
 // ink and a little under the controls' own icon size (16 at the reference
 // type size for a medium button, 14 for a compact one), at the type size
-// around it (components.UIFontSize), so it follows the canvas's zoom. label
+// around it (components.UIFontSize), so it follows the type size. label
 // names it; tooltip is what its tooltip says, the label when empty.
 type chromeButton struct {
 	key, label, tooltip string

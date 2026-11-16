@@ -8,53 +8,54 @@ import (
 
 // The strip holds a column for each open sheet, each a page written in
 // where it stands. The sheet in front is the one the writing actions act
-// on; the pointer coming onto another, clicking its head, or writing in
-// it brings it in front (canvas_front.go), and the strip goes as far as
-// brings one that comes in front otherwise into view.
+// on; the pointer coming onto another, or writing in it, brings it in
+// front (desk_front.go), and the strip goes as far as brings one that
+// comes in front otherwise into view.
 
 // sheetPad is the room beside a sheet's page in its column and below it
 // past the writing dock, at the reference type size.
 const sheetPad = 16
 
-// openColumn is an open sheet's column, w wide: its surface (sheetSurface),
-// its head (sheetHead) over its page.
-// The sheet in front stands here while the canvas is laid out, and on the
-// page otherwise, its column keeping its place meanwhile.
+// openColumn is an open sheet's column, w wide: its page, set at reading
+// measure in it, and its head (sheetHead) over it.
 func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, origin float32, animate bool) {
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
-	col, front, shown := s.column(c, canvasColumn{sheet: page.ID}, w, origin, animate)
-	col.Role(ui.RoleGroup).Label(page.Title)
-	// The keyboard comes to it as the pointer does (canvas_front.go).
-	claim := s.canvas.claim == page.ID
+	col, front, shown := s.column(c, deskColumn{sheet: page.ID}, w, origin, animate)
+	col.Role(ui.RoleGroup).Label(page.Title).Clip().Background(semantic.Surface.Page)
+	// The keyboard comes to it as the pointer does (desk_front.go).
+	claim := s.desk.claim == page.ID
 	if claim {
-		s.canvas.claim = ""
+		s.desk.claim = ""
+	}
+	// Its head floats over the page's reading margin, shown while the
+	// pointer is on it, as nothing else needs it.
+	lead, trail := s.clearOfChrome(c, shown)
+	head := float32(0)
+	if col.Hovered() {
+		head = 1
+	}
+	if animate {
+		head = components.Follow(col, "head-shown", head, components.MotionNormal)
+	}
+	side := sheetPad * k
+	prose := s.Settings.Prose()
+	width := max(0, w-2*side)
+	dock := theme.DefaultLayout.DockClearance() * k
+	frame := SheetFrame{
+		Prose: prose, UIFontSize: s.Settings.UIFontSize, LayoutWidth: width, Inset: prose.Inset(width),
+		Top:    theme.DefaultLayout.ReadingTop * k * 3 / 2,
+		Bottom: dock + side, Dock: dock,
+		Focus: page.ID == s.ActivePage, Claim: claim,
 	}
 	col.Children(func() {
-		if page.ID == s.ActivePage && s.laid != ModeCanvas {
-			return
-		}
-		// Its head floats over the page's reading margin, shown while
-		// the pointer is on it, as nothing else needs it.
-		lead, trail := s.clearOfChrome(c, shown)
-		head := float32(0)
-		if col.Hovered() {
-			head = 1
-		}
-		s.sheetSurface(c, semantic, page.ID, sheetLook{
-			width: w, side: sheetPad * k, shows: columnShows(col, front, animate),
-			head:      func(shown float32) { s.sheetHead(c, semantic, page, k, lead, trail, shown, animate) },
-			headShown: head,
-		}, func(frame SheetFrame) {
+		ui.Column(c).Key("sheet-page").WidthPercent(100).Grow(1).MinHeight(0).PaddingX(side).
+			Opacity(s.columnShows(col, front, animate)).Children(func() {
 			if s.Sheet != nil {
-				// Its page scrolls on under the writing actions floating
-				// over the canvas's foot, and fades out there.
-				dock := theme.DefaultLayout.DockClearance() * k
-				frame.Bottom, frame.Dock = dock+sheetPad*k, dock
-				frame.Focus, frame.Claim = page.ID == s.ActivePage, claim
 				s.Sheet(c, page.ID, frame)
 			}
 		})
+		s.sheetHead(c, semantic, page, k, lead, trail, head, animate)
 	})
 }
 
@@ -80,8 +81,8 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lea
 	}, animate)
 }
 
-// sheetHint stands where the strip's columns would, while there are none:
-// how to bring one. It is the canvas's empty room, as the room around
+// sheetHint stands where the desk's columns would, while there are none:
+// how to bring one. It is the desk's empty room, as the room around
 // columns is.
 func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w float32, animate bool) {
 	k := components.UIFontSize(c) / theme.DefaultUIFontSize
@@ -93,14 +94,17 @@ func (s *State) sheetHint(c *ui.Context, semantic theme.Theme, w float32, animat
 		}
 	})
 	hint.Children(func() {
-		ui.Icon(c, components.IconDocument.SVG()).FontSize(40 * k).TextColor(semantic.Icon.Muted).Opacity(0.35)
-		components.Label(c, "Right-click the canvas, or use New picker, to choose a sheet", theme.TextXSmall, semantic.Text.Muted).
+		ui.Icon(c, components.IconDocument.SVG()).FontSize(72 * k).TextColor(semantic.Icon.Muted).Opacity(0.35)
+		components.Label(c, "Open a sheet from the library, or press ⌘N for a new one", theme.TextXSmall, semantic.Text.Muted).
 			Opacity(0.8).TextAlign(ui.Center)
 	})
 }
 
 // groupOf is the group a sheet is filed in.
 func (s *State) groupOf(sheet string) (GroupItem, bool) {
+	if s.Library == nil {
+		return GroupItem{}, false
+	}
 	id := s.Library.SheetGroup(sheet)
 	if id == "" {
 		return GroupItem{}, false

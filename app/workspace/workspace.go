@@ -400,20 +400,6 @@ func (w *Workspace) Close(id PageID) error {
 	return nil
 }
 
-// Leave parks the active page, which stays open, and leaves none active.
-func (w *Workspace) Leave() error {
-	if w == nil || !w.hasActive {
-		return nil
-	}
-	if w.mounted == nil {
-		return ErrNoMountedSession
-	}
-	w.pages[w.active].Parked = true
-	w.mounted = nil
-	w.hasActive = false
-	return nil
-}
-
 // OpenInPlace shows a page in place of the active one, as following a
 // link does: a page already open is brought forward, and with none active
 // the page opens.

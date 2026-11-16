@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32, mode Mode) {
+func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32) {
 	animate := s.animate(c)
 	Icon := func(
 		key, label, binding string,
@@ -78,18 +78,14 @@ func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32, mod
 			},
 		},
 	}
-	// The canvas adds what makes its columns, opening in the same dock as
-	// the canvas comes.
-	if mode == ModeCanvas {
-		groups = append(groups, components.ActionGroup{Key: "canvas", Label: "Canvas actions", Actions: []func(){
-			Icon("new-picker", "New picker", "", components.IconFolderSearch, false, true, s.NewPicker),
-		}})
-	}
-	// It goes across on its own motion when it stands elsewhere for another
-	// mode or other groups, which it does at once; following the panes as
-	// they open and close, it is laid out where they leave it, frame by
-	// frame.
-	at := mode.String()
+	// The desk's own: what makes its columns.
+	groups = append(groups, components.ActionGroup{Key: "desk", Label: "Desk actions", Actions: []func(){
+		Icon("new-picker", "New picker", "", components.IconFolderSearch, false, true, s.NewPicker),
+	}})
+	// It goes across on its own motion when it stands elsewhere for other
+	// groups, which it does at once; following the panes as they open and
+	// close, it is laid out where they leave it, frame by frame.
+	at := ""
 	for _, group := range groups {
 		at += "/" + group.Key
 	}
@@ -106,11 +102,10 @@ func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32, mod
 	}.View(c, semantic)
 }
 
-// dock is what floats over the foot of what shows the sheet in front,
-// left in from the window's left edge: the writing actions, or a sheet's
-// find in their place while it is open. It is one dock in both modes,
-// moving with what it floats over, and the canvas's actions opening in it.
-func (s *State) dock(c *ui.Context, semantic theme.Theme, left float32, mode Mode) {
+// dock is what floats over the desk's foot, left in from the window's
+// left edge: the writing actions, or a sheet's find in their place while
+// it is open, moving with the desk as the panes open and close.
+func (s *State) dock(c *ui.Context, semantic theme.Theme, left float32) {
 	scale := s.Settings.UIFontSize
 	animate := s.animate(c)
 	pad := theme.Space16.DIPs(scale)
@@ -127,6 +122,6 @@ func (s *State) dock(c *ui.Context, semantic theme.Theme, left float32, mode Mod
 			s.findBarView(c, semantic, animate)
 			return
 		}
-		s.formatBar(c, semantic, room, mode)
+		s.formatBar(c, semantic, room)
 	})
 }

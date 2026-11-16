@@ -1,7 +1,6 @@
 package window
 
 import (
-	"image"
 	"math"
 	"strconv"
 	"strings"
@@ -14,13 +13,14 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// canvasApp is an app with two sheets open, on the canvas, its motion on.
-func canvasApp(t *testing.T) (*AppState, *ui.Tester) {
+// deskApp is an app with two sheets open on the desk, its motion on.
+func deskApp(t *testing.T) (*AppState, *ui.Tester) {
 	t.Helper()
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = app.Close() })
 	app.Shell.Appearance.Motion = true
 	inbox := strconv.Itoa(int(library.Inbox))
 	app.NewSheet(inbox, shell.Last)
@@ -32,14 +32,8 @@ func canvasApp(t *testing.T) (*AppState, *ui.Tester) {
 	if n := len(app.Shell.Open); n != 2 {
 		t.Fatalf("Two sheets should be open, but %d are.", n)
 	}
-	shot(t, tester, "page-mode")
-	if err := tester.Click("Canvas mode"); err != nil {
-		t.Fatal(err)
-	}
-	run(tester, 80*time.Millisecond)
-	shot(t, tester, "canvas-entering")
 	run(tester, time.Second)
-	shot(t, tester, "canvas-mode")
+	shot(t, tester, "desk-two")
 	return app, tester
 }
 
@@ -51,45 +45,38 @@ func run(tester *ui.Tester, d time.Duration) {
 	}
 }
 
-// Leaving the canvas, every way there is, keeps the app running while the
-// sheets on it fade out. Their pages, painted after the frame that built
-// them, once read that frame's elements, and leaving crashed.
-func TestLeavingTheCanvasKeepsRunning(t *testing.T) {
+// The panes coming and going, every way there is, keep the app running
+// while the desk's sheets move with them, and the sheets stay open.
+func TestThePanesComingAndGoingKeepTheDeskRunning(t *testing.T) {
 	for _, way := range []struct {
-		name  string
-		leave func(*AppState, *ui.Tester) error
+		name   string
+		toggle func(*AppState)
 	}{
-		{"the mode switch", func(_ *AppState, tester *ui.Tester) error { return tester.Click("Page mode") }},
-		{"the library's toggle", func(app *AppState, _ *ui.Tester) error { app.Shell.ToggleSidebar(); return nil }},
-		{"the sheet list's toggle", func(app *AppState, _ *ui.Tester) error { app.Shell.ToggleSheetList(); return nil }},
-		{"search", func(app *AppState, _ *ui.Tester) error { app.Shell.Search(); return nil }},
+		{"the library's toggle", func(app *AppState) { app.Shell.ToggleSidebar() }},
+		{"the sheet list's toggle", func(app *AppState) { app.Shell.ToggleSheetList() }},
+		{"search", func(app *AppState) { app.Shell.Search() }},
 	} {
 		t.Run(way.name, func(t *testing.T) {
-			app, tester := canvasApp(t)
-			if err := way.leave(app, tester); err != nil {
-				t.Fatal(err)
-			}
+			app, tester := deskApp(t)
+			way.toggle(app)
 			run(tester, 80*time.Millisecond)
-			if way.name == "the mode switch" {
-				shot(t, tester, "canvas-leaving")
-			}
 			run(tester, time.Second)
-			if app.Shell.CanvasOpen() {
-				t.Fatalf("%s should leave the canvas.", way.name)
+			if n := len(app.Shell.Open); n != 2 {
+				t.Fatalf("%s should leave both sheets open, but %d are.", way.name, n)
 			}
 		})
 	}
 }
 
-// Closing a sheet on the canvas keeps the app running while its column
+// Closing a sheet on the desk keeps the app running while its column
 // fades out, and leaves the other.
-func TestClosingASheetOnTheCanvasKeepsRunning(t *testing.T) {
-	app, tester := canvasApp(t)
+func TestClosingASheetOnTheDeskKeepsRunning(t *testing.T) {
+	app, tester := deskApp(t)
 	app.Shell.ClosePageID(app.Shell.Open[0].ID)
 	run(tester, time.Second)
-	if n := len(app.Shell.Open); n != 1 || !app.Shell.CanvasOpen() {
-		t.Fatalf("One sheet should stay open on the canvas, but %d are, the canvas open %v.",
-			n, app.Shell.CanvasOpen())
+	shot(t, tester, "desk-one")
+	if n := len(app.Shell.Open); n != 1 {
+		t.Fatalf("One sheet should stay open on the desk, but %d are.", n)
 	}
 }
 
@@ -128,7 +115,7 @@ func TestASheetReplacingAPickerComesFullyIntoView(t *testing.T) {
 			app.Shell.CloseSheet(target)
 			run(tester, time.Second)
 			app.Shell.SelectPage(first)
-			app.Shell.SetMode(shell.ModeCanvas)
+			app.Shell.ShowPanes(false, false)
 			run(tester, time.Second)
 			app.OpenSheet(second, true)
 			run(tester, time.Second)
@@ -162,55 +149,10 @@ func TestASheetReplacingAPickerComesFullyIntoView(t *testing.T) {
 	}
 }
 
-// The sheet in front crosses between the modes whole and where it stands:
-// its first line shows from the first frame of the switch, as bright as
-// it was and no higher or lower, both ways. Its page draws only where it
-// was built last, so the copy of the surface going, which the one coming
-// once faded in over, showed it blank, and the page, set in from the
-// surface's top by another room in each mode, jumped to its new place
-// as it came.
-func TestTheSheetCrossesTheModesWholeAndInPlace(t *testing.T) {
-	app, err := NewAppState()
-	if err != nil {
-		t.Fatal(err)
-	}
-	app.Shell.Appearance.Motion = true
-	tester := ui.NewTester(app.View, 1440, 900)
-	tester.Frame()
-	tester.Type("# Hello world")
-	run(tester, time.Second)
-	for _, mode := range []string{"Canvas mode", "Page mode"} {
-		// The first line: right of the sheet list on the page, and below
-		// the head of its card on the canvas, which shows no panes.
-		area := image.Rect(560, 90, 1260, 180)
-		if app.Shell.CanvasOpen() {
-			area.Min.X, area.Min.Y = 0, 50
-		}
-		before := inkIn(tester.Image(), area)
-		if before.ink == 0 {
-			t.Fatalf("Before going to %s, the first line should show.", mode)
-		}
-		if err := tester.Click(mode); err != nil {
-			t.Fatal(err)
-		}
-		for frame := 0; frame < 3; frame++ {
-			now := inkIn(tester.Image(), area)
-			if now.ink < before.ink*9/10 || now.top < before.top-3 || now.top > before.top+3 {
-				t.Fatalf("Going to %s, frame %d should show the first line whole where it stood (brightest %d at %d), but it shows %d at %d.",
-					mode, frame, before.ink, before.top, now.ink, now.top)
-			}
-			// The line keeps to its place as the surface goes; its place
-			// moves only as the surface does, which is little this soon.
-			area = area.Add(image.Pt(0, now.top-before.top))
-			before.top = now.top
-			tester.Advance(16 * time.Millisecond)
-			tester.Frame()
-		}
-		run(tester, time.Second)
-	}
-}
-
-func TestEditingAndResizingAcrossInterruptedModeChanges(t *testing.T) {
+// The sheet in front keeps its text input and its document as the desk
+// moves under it: the panes going and coming, interrupted, the window
+// resized, and the prose size changed.
+func TestEditingAndResizingAsTheDeskMoves(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
@@ -229,23 +171,23 @@ func TestEditingAndResizingAcrossInterruptedModeChanges(t *testing.T) {
 	el.Editor.Do(vocab.Paste{Text: strings.Repeat("A paragraph with 中文, **marks**, and `code`.\n\n", 40)}, tester.Now())
 	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, tester.Now())
 	run(tester, time.Second)
-	app.Shell.ToggleCanvas()
+	app.Shell.ToggleSidebar()
 	run(tester, 80*time.Millisecond)
 	if active, _ := tester.TextInputActive(); !active {
-		t.Fatal("The editor should keep text-input focus as it moves between modes.")
+		t.Fatal("The editor should keep text-input focus as the desk moves.")
 	}
 	tester.Type("Written in flight ")
 	if text := pageText(app); !strings.Contains(text, "Written in flight") {
 		t.Fatalf("The moving page should still accept text input, but starts with %q.", text[:min(len(text), 240)])
 	}
-	app.Shell.ToggleCanvas()
+	app.Shell.ToggleSidebar()
 	run(tester, 48*time.Millisecond)
-	app.Shell.ToggleCanvas()
+	app.Shell.ShowPanes(false, false)
 	run(tester, time.Second)
 	tester.SetSize(1040, 850)
 	run(tester, time.Second)
-	if !app.Shell.CanvasOpen() || frame.LayoutWidth != float32(1040-1)/2-32 {
-		t.Fatalf("The canvas should adopt the resized column's width, but uses %v.", frame.LayoutWidth)
+	if frame.LayoutWidth != 1040-32 {
+		t.Fatalf("The sheet should take the resized desk's width, but uses %v.", frame.LayoutWidth)
 	}
 	app.Shell.Settings.ProseFontSize = 20
 	tester.Frame()
@@ -255,9 +197,10 @@ func TestEditingAndResizingAcrossInterruptedModeChanges(t *testing.T) {
 	}
 }
 
-// Both modes keep the same reading margin, whether the page's beginning
-// is visible, partly scrolled away, or long past the window's top.
-func TestTheReadingHeightStaysTheSameAcrossModes(t *testing.T) {
+// The panes going and coming keep the sheet's reading margin, whether the
+// page's beginning is visible, partly scrolled away, or long past the
+// window's top.
+func TestTheReadingHeightStaysAsThePanesMove(t *testing.T) {
 	for _, animate := range []bool{false, true} {
 		for _, size := range []float32{16, 20} {
 			t.Run(strconv.FormatBool(animate)+"/"+strconv.Itoa(int(size)), func(t *testing.T) {
@@ -292,15 +235,15 @@ func TestTheReadingHeightStaysTheSameAcrossModes(t *testing.T) {
 						t.Fatal("The editor should be visible.")
 					}
 					y := field.Bounds.Y + el.Top - scroll
-					for _, mode := range []shell.Mode{shell.ModeCanvas, shell.ModePage} {
-						app.Shell.SetMode(mode)
+					for _, mode := range []string{"hidden", "shown"} {
+						app.Shell.ToggleSidebar()
 						for frame := range 65 {
 							tester.Advance(16 * time.Millisecond)
 							tester.Frame()
 							field, ok := tester.AccessByRole(ui.RoleTextField, "Page")
 							got := field.Bounds.Y + el.Top - el.ScrollY()
 							if !ok || math.Abs(float64(got-y)) > 0.5 || el.ScrollY() != scroll {
-								t.Fatalf("At scroll %v, going to %v, frame %d moved the reading origin from %v to %v (scroll %v).", scroll, mode, frame, y, got, el.ScrollY())
+								t.Fatalf("At scroll %v, the library %v, frame %d moved the reading origin from %v to %v (scroll %v).", scroll, mode, frame, y, got, el.ScrollY())
 							}
 						}
 					}
@@ -308,34 +251,4 @@ func TestTheReadingHeightStaysTheSameAcrossModes(t *testing.T) {
 			})
 		}
 	}
-}
-
-// ink is how bright the brightest text in an area is, and the first row
-// of it: one as bright as text in more than a few places, not an edge
-// running down beside it.
-type ink struct{ ink, top int }
-
-func inkIn(img image.Image, area image.Rectangle) ink {
-	out := ink{top: area.Max.Y}
-	level := func(x, y int) int {
-		r, g, b, _ := img.At(x, y).RGBA()
-		return int((r + g + b) / 3 >> 8)
-	}
-	for y := area.Min.Y; y < area.Max.Y; y++ {
-		for x := area.Min.X; x < area.Max.X; x++ {
-			out.ink = max(out.ink, level(x, y))
-		}
-	}
-	for y := area.Min.Y; y < area.Max.Y && out.top == area.Max.Y; y++ {
-		n := 0
-		for x := area.Min.X; x < area.Max.X; x++ {
-			if level(x, y) >= out.ink*3/4 {
-				n++
-			}
-		}
-		if n > 6 {
-			out.top = y
-		}
-	}
-	return out
 }

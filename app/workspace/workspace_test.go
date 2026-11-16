@@ -361,30 +361,3 @@ func TestPagesOpenBesideTheActiveOneAndArePlacedAfterAnother(t *testing.T) {
 		t.Fatalf("placed after a page not open, a page should go first, but the pages are %v", got)
 	}
 }
-
-func TestLeavingKeepsPagesOpenWithNoneActive(t *testing.T) {
-	t.Parallel()
-	workspace, _ := newWorkspace(t, nil)
-	second, err := workspace.NewPage()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := workspace.Leave(); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := workspace.Active(); ok {
-		t.Fatal("a page stayed active")
-	}
-	if _, ok := workspace.Mounted(); ok {
-		t.Fatal("a page stayed mounted")
-	}
-	if n := len(workspace.Opened()); n != 2 {
-		t.Fatalf("open pages after leaving = %d", n)
-	}
-	if err := workspace.Open(second); err != nil {
-		t.Fatal(err)
-	}
-	if active, ok := workspace.Active(); !ok || active != second {
-		t.Fatalf("reopened = %d, %v", active, ok)
-	}
-}

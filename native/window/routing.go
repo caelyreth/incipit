@@ -38,7 +38,6 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 	keymap.LibraryView: func(a *AppState) { a.showPanes(true, true) },
 	keymap.SheetsView:  func(a *AppState) { a.showPanes(false, true) },
 	keymap.PageView:    func(a *AppState) { a.showPanes(false, false) },
-	keymap.CanvasView:  func(a *AppState) { a.toggleCanvas() },
 	keymap.Commands: func(a *AppState) {
 		if a.Shell.OpenCommands != nil {
 			a.Shell.OpenCommands()

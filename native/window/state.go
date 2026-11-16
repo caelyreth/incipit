@@ -158,14 +158,6 @@ func (a *AppState) BindShell() {
 	// The library opens on the Inbox, where new sheets go.
 	a.Shell.StartAt(shell.Place{Kind: shell.PlaceGroup, Group: groupName(library.Inbox)})
 	a.Shell.ClosePageID = a.closePageID
-	a.Shell.ClearPage = func() {
-		a.captureViews()
-		if err := a.Workspace.Leave(); err != nil {
-			a.fail("Couldn't leave the page", err)
-			return
-		}
-		a.selectMounted()
-	}
 	a.Shell.OpenCommands = func() {
 		a.Palette.Open = true
 		a.Palette.Reset(a.commandCatalog())
@@ -189,7 +181,7 @@ func (a *AppState) BindShell() {
 
 // sheetView is an open sheet's page where the shell sets it: its editor,
 // set as frame says. A page that takes the keyboard comes to the front,
-// as clicking into a sheet open beside others on the canvas does.
+// as clicking into a sheet open beside others on the desk does.
 func (a *AppState) sheetView(c *ui.Context, id string, frame shell.SheetFrame) {
 	session, ok := a.sessionOf(id)
 	if !ok {
@@ -285,8 +277,8 @@ func (a *AppState) selectMounted() {
 // newSheet makes a sheet in the group the library shows, in front.
 func (a *AppState) newSheet() { a.NewSheet(a.Shell.CurrentGroup(), shell.Last) }
 
-// closeActive closes the sheet in front, as the shell closes one: on the
-// canvas, the one beside it comes in front.
+// closeActive closes the sheet in front, as the shell closes one: the one
+// beside it comes in front.
 func (a *AppState) closeActive() {
 	if id, ok := a.Workspace.Active(); ok {
 		a.Shell.CloseSheet(sheetName(id))

@@ -16,7 +16,7 @@ func TestPickerUnifiesNavigationAndSheetsInItsOwnColumn(t *testing.T) {
 	state.StartAt(place)
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	state.ToggleCanvas()
+	state.ShowPanes(false, false)
 	state.NewPicker()
 	settle(tester)
 	if !tester.HasText("Chapter") || !tester.HasText("Groups") || !tester.Focused("Search sheets") {
@@ -44,8 +44,8 @@ func TestPickerUnifiesNavigationAndSheetsInItsOwnColumn(t *testing.T) {
 		}
 		settle(tester)
 	}
-	picker := state.workspace().columns[1].picker
-	if picker.list.place != (Place{Kind: PlaceGroup, Group: "4"}) || state.Place() != place || !state.CanvasOpen() {
+	picker := state.desk.columns[1].picker
+	if picker.list.place != (Place{Kind: PlaceGroup, Group: "4"}) || state.Place() != place {
 		t.Fatalf("choosing a nested group did not stay in its browser: picker %+v, normal %+v", picker.list.place, state.Place())
 	}
 	if state.list.expanded["2"] || state.list.expanded["3"] {
@@ -69,7 +69,7 @@ func TestPickerLibraryPresentsGroupActionsLocally(t *testing.T) {
 			state, library := nestedGroupState()
 			tester := ui.NewTester(state.View, 1260, 850)
 			tester.Frame()
-			state.ToggleCanvas()
+			state.ShowPanes(false, false)
 			state.NewPicker()
 			settle(tester)
 			if err := tester.RightClick("Novel"); err != nil {
@@ -79,7 +79,7 @@ func TestPickerLibraryPresentsGroupActionsLocally(t *testing.T) {
 				t.Fatal(err)
 			}
 			settle(tester)
-			if !state.CanvasOpen() || state.SidebarOverride != nil || state.SheetListOverride != nil {
+			if state.SidebarVisible() || state.SheetListVisible() {
 				t.Fatal("the picker action changed the normal pane's presentation")
 			}
 			switch action {
@@ -107,7 +107,7 @@ func TestPickerLibraryPresentsGroupActionsLocally(t *testing.T) {
 					t.Fatalf("style calls %v", library.calls)
 				}
 			case "New Chapter":
-				picker := state.workspace().columns[1].picker
+				picker := state.desk.columns[1].picker
 				if picker.list.place != (Place{Kind: PlaceGroup, Group: "2"}) ||
 					!tester.Focused("Chapter name") {
 					t.Fatalf("the chapter was not presented in the picker: %v", tester.Texts())
@@ -118,7 +118,7 @@ func TestPickerLibraryPresentsGroupActionsLocally(t *testing.T) {
 }
 
 func TestPickerLibraryEditsItsOwnSmartFolderSearch(t *testing.T) {
-	state, library, tester := onCanvas(t)
+	state, library, tester := onDesk(t)
 	library.smart = "$words:>1000"
 	state.NewPicker()
 	settle(tester)
@@ -129,15 +129,15 @@ func TestPickerLibraryEditsItsOwnSmartFolderSearch(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	picker := state.workspace().columns[1].picker
+	picker := state.desk.columns[1].picker
 	if !picker.list.searching || picker.list.query != library.smart ||
-		!tester.Focused("Search sheets") || state.list.query != "" || !state.CanvasOpen() {
+		!tester.Focused("Search sheets") || state.list.query != "" {
 		t.Fatalf("smart folder editing escaped its picker: %v", tester.Texts())
 	}
 }
 
 func TestPickerTrashUsesTheSharedConfirmation(t *testing.T) {
-	state, library, tester := onCanvas(t)
+	state, library, tester := onDesk(t)
 	state.NewPicker()
 	settle(tester)
 	if err := tester.RightClick("Trash"); err != nil {
@@ -159,7 +159,7 @@ func TestPickerTrashUsesTheSharedConfirmation(t *testing.T) {
 }
 
 func TestPickerCreatesSheetsInItsOwnPlace(t *testing.T) {
-	state, library, tester := onCanvas(t)
+	state, library, tester := onDesk(t)
 	state.NewPicker()
 	settle(tester)
 	if err := tester.Click("Novel"); err != nil {
@@ -175,7 +175,7 @@ func TestPickerCreatesSheetsInItsOwnPlace(t *testing.T) {
 }
 
 func TestPickerRevealsASheetInItsOwnNavigation(t *testing.T) {
-	state, _, tester := onCanvas(t)
+	state, _, tester := onDesk(t)
 	state.NewPicker()
 	settle(tester)
 	if err := tester.RightClick("Draft"); err != nil {
@@ -185,20 +185,20 @@ func TestPickerRevealsASheetInItsOwnNavigation(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if !state.CanvasOpen() || !tester.HasText("Chapter") || state.Place() == (Place{Kind: PlaceGroup, Group: "2"}) {
-		t.Fatal("revealing a picker sheet left the canvas or navigated the normal pane")
+	if !tester.HasText("Chapter") || state.Place() == (Place{Kind: PlaceGroup, Group: "2"}) {
+		t.Fatal("revealing a picker sheet left the desk or navigated the normal pane")
 	}
 }
 
 func TestPickerLibrariesKeepTheirOwnScrollAndActionFocus(t *testing.T) {
-	state, library, tester := onCanvas(t)
+	state, library, tester := onDesk(t)
 	library.extraGroups = 40
 	state.NewPicker()
 	settle(tester)
-	first := state.workspace().columns[1].picker
-	state.newPickerAt(len(state.workspace().columns))
+	first := state.desk.columns[1].picker
+	state.newPickerAt(len(state.deskColumns()))
 	settle(tester)
-	second := state.workspace().columns[2].picker
+	second := state.desk.columns[2].picker
 	normalScroll := state.list.libraryScroll.Y
 	groups, ok := tester.Find("Groups")
 	if !ok {
@@ -213,7 +213,7 @@ func TestPickerLibrariesKeepTheirOwnScrollAndActionFocus(t *testing.T) {
 	state.pickerList(second).startRename("2")
 	settle(tester)
 	name, ok := tester.Find("Group name")
-	if !ok || !tester.Focused("Group name") || name.X < state.canvas.spans[2].x-state.canvas.strip.X {
+	if !ok || !tester.Focused("Group name") || name.X < state.desk.spans[2].X-state.desk.strip.X {
 		t.Fatal("another picker took the group's editing focus")
 	}
 	state.closePicker(second.id)
@@ -235,7 +235,7 @@ func TestPickerNavigationLeavesRoomForSheets(t *testing.T) {
 			library.extraGroups = 40
 			tester := ui.NewTesterWith(state.View, window.width, window.height,
 				ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
-			state.ToggleCanvas()
+			state.ShowPanes(false, false)
 			state.NewPicker()
 			settle(tester)
 			row, ok := tester.Find("Chapter")
@@ -246,7 +246,7 @@ func TestPickerNavigationLeavesRoomForSheets(t *testing.T) {
 			if !ok || group.H < theme.DefaultControls.Scaled(window.font).Height {
 				t.Fatalf("the sheet list crowded group navigation out of the picker: %v", group)
 			}
-			if state.workspace().columns[1].picker.list.libraryScroll.MaxY <= 0 {
+			if state.desk.columns[1].picker.list.libraryScroll.MaxY <= 0 {
 				t.Fatal("long group navigation did not become scrollable")
 			}
 		})
@@ -254,14 +254,14 @@ func TestPickerNavigationLeavesRoomForSheets(t *testing.T) {
 }
 
 func TestPickerLibraryAcceptsSheetsDraggedFromAnotherPicker(t *testing.T) {
-	state, library, tester := onCanvas(t)
+	state, library, tester := onDesk(t)
 	state.NewPicker()
 	settle(tester)
 	if err := tester.Click("Novel"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	state.newPickerAt(len(state.workspace().columns))
+	state.newPickerAt(len(state.deskColumns()))
 	settle(tester)
 	source, sourceOK := tester.Find("Draft")
 	target, targetOK := tester.Find("Novel")

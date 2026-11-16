@@ -154,6 +154,9 @@ type Library interface {
 	// naming.
 	NewChapter(group string, index int) string
 	OpenSheet(id string, alongside bool)
+	// PlaceOnDesk has an open sheet stand on the desk just after the open
+	// sheet after, or first where after is "" or not open.
+	PlaceOnDesk(id, after string)
 	DuplicateSheet(id string)
 	MoveSheet(id, group string, index int)
 	MoveEntry(id, group string, index int)

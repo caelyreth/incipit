@@ -2,7 +2,7 @@ package shell
 
 import "github.com/egoist/mygo/ui"
 
-// One column on the strip is in front, and every column shows whether it
+// One column on the desk is in front, and every column shows whether it
 // is alike, by how far what it holds shows (columnShows), the rest
 // stepped back. It is the last that came forward:
 // the column the pointer moved onto, the one the keyboard went into, as
@@ -11,57 +11,60 @@ import "github.com/egoist/mygo/ui"
 //
 // The column in front follows the pointer, so the first press in it
 // already acts there: a sheet the pointer comes onto comes in front
-// (SelectPage), and its page, the editor written in, takes the keyboard.
-// A picker comes in front alone: its search takes the keyboard as any
+// (SelectPage), and its page, the editor written in, takes the keyboard,
+// unless a field of the shell is being written in (Typing), which keeps
+// it. A picker comes in front alone: its search takes the keyboard as any
 // field does, once pressed. Only the pointer's own moves count: the strip
 // moving under a pointer at rest brings nothing in front, and a drag
 // holds the column it began on (ui.Element.Hovered). Nor does a sheet the
 // pointer brings in front have the strip travel to it: it is where the
 // pointer is already.
 
-// followPointer notes whether the pointer moved over the canvas's scene
-// since the last frame (pointed), which only it does.
-func (s *State) followPointer(scene ui.Element) {
-	x, y, over := scene.PointerPosition()
+// followPointer notes whether the pointer moved over the desk since the
+// last frame (pointed), which only it does.
+func (s *State) followPointer(desk ui.Element) {
+	x, y, over := desk.PointerPosition()
 	at := ui.Point{X: x, Y: y}
-	s.canvas.pointed = over && at != s.canvas.pointer && s.laid == ModeCanvas && !s.canvas.entered
-	s.canvas.pointer = at
+	s.desk.pointed = over && at != s.desk.pointer
+	s.desk.pointer = at
 }
 
 // inFront reports whether col, the column of, is in front, notes whether
 // the keyboard is in it, and brings it in front as the pointer moves onto
 // it.
-func (s *State) inFront(col ui.Element, of canvasColumn) bool {
+func (s *State) inFront(col ui.Element, of deskColumn) bool {
 	key := of.key()
 	if col.FocusWithin() {
-		s.canvas.holding = key
+		s.desk.holding = key
 	}
-	if s.canvas.pointed && key != s.canvas.at && col.Hovered() {
+	if s.desk.pointed && key != s.desk.at && col.Hovered() {
 		s.pointAt(of)
 	}
-	return key == s.canvas.at
+	return key == s.desk.at
 }
 
 // pointAt brings of in front as the pointer comes onto it, and a sheet's
 // page the keyboard.
-func (s *State) pointAt(of canvasColumn) {
-	s.canvas.at = of.key()
+func (s *State) pointAt(of deskColumn) {
+	s.desk.at = of.key()
 	if of.picker != nil {
 		return
 	}
 	if of.sheet != s.ActivePage && s.SelectPage != nil {
-		// It is where the pointer is: the strip stays (keepCanvas).
-		s.canvas.front = of.sheet
+		// It is where the pointer is: the strip stays (keepDesk).
+		s.desk.front = of.sheet
 		s.SelectPage(of.sheet)
 	}
-	s.canvas.claim = of.sheet
+	if !s.Typing() {
+		s.desk.claim = of.sheet
+	}
 }
 
 // keyboardMoved brings the column the keyboard went into in front, as the
 // strip's build ends.
 func (s *State) keyboardMoved() {
-	if s.canvas.holding != "" && s.canvas.holding != s.canvas.held {
-		s.canvas.at = s.canvas.holding
+	if s.desk.holding != "" && s.desk.holding != s.desk.held {
+		s.desk.at = s.desk.holding
 	}
-	s.canvas.held = s.canvas.holding
+	s.desk.held = s.desk.holding
 }

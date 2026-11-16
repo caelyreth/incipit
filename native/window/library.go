@@ -509,6 +509,24 @@ func (a *AppState) OpenSheet(name string, alongside bool) {
 	a.selectMounted()
 }
 
+// PlaceOnDesk is part of shell.Library: an open sheet stands just after
+// another on the desk, or first.
+func (a *AppState) PlaceOnDesk(name, after string) {
+	session, ok := a.sessionOf(name)
+	if !ok {
+		return
+	}
+	anchor := workspace.PageID(-1)
+	if other, ok := a.sessionOf(after); ok {
+		anchor = other.page
+	}
+	if err := a.Workspace.Place(session.page, anchor); err != nil {
+		a.fail("Couldn't move the sheet", err)
+		return
+	}
+	a.refreshShell()
+}
+
 // DuplicateSheet is part of shell.Library: a copy of the sheet as it is
 // now, filed just after it.
 func (a *AppState) DuplicateSheet(name string) {

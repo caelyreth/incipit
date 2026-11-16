@@ -71,12 +71,8 @@ func (s *State) ReconcileLibrary() {
 		}
 	}
 	s.sheets().reconcilePlace()
-	for _, workspace := range s.canvas.workspaces {
-		for _, column := range workspace.columns {
-			if column.picker != nil {
-				s.pickerList(column.picker).reconcilePlace()
-			}
-		}
+	for _, p := range s.desk.pickers {
+		s.pickerList(p).reconcilePlace()
 	}
 }
 
@@ -263,9 +259,6 @@ func (s listing) reveal(sheet string) {
 	group := s.Library.SheetGroup(sheet)
 	if group == "" {
 		return
-	}
-	if s.pane() {
-		s.SetMode(ModePage)
 	}
 	s.revealGroup(group)
 	s.stopSearching()

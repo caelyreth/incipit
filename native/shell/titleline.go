@@ -9,9 +9,9 @@ import (
 // The window has no title bar: its top is the title line, the band the
 // traffic lights are centred in (titleLine), shared by everything that
 // stands there, each centred on the lights as they are: the window's
-// controls at its right (controls.go), the panes' heads in the page mode,
-// and on the canvas the columns' heads (columnHead). The line holds
-// nothing opaque of its own: the canvas's columns reach the window's top,
+// controls at its right (controls.go), the panes' heads, and the desk's
+// columns' heads (columnHead). The line holds nothing opaque of its own:
+// the desk's columns reach the window's top,
 // what they hold beginning under the line and scrolling on under it, and
 // a column's head floats over it, a strip of buttons as the controls are
 // there, shown while the pointer is on the column. The line is the window's title
@@ -60,7 +60,7 @@ func (s *State) clearOfChrome(c *ui.Context, b ui.Rect) (lead, trail float32) {
 
 // columnHead is a column's head: the title line across the column, a drag
 // on it moving the window, and over it, as far shown as shown, a strip of
-// buttons as the controls are on the canvas, at the column's start,
+// buttons as the controls are on the desk, at the column's start,
 // centred on the traffic lights: what info shows of the column, if anything, and what
 // closes it. It keeps chromeInset in from the column's ends, and lead
 // and trail where the window's chrome reaches further (clearOfChrome).

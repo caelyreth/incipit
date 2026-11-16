@@ -15,8 +15,7 @@ type Page struct {
 	Title string
 }
 
-// SheetFrame is how a sheet's page is set where the shell shows it: in the
-// columns, or on the canvas, nearer or farther.
+// SheetFrame is how a sheet's page is set in its column on the desk.
 type SheetFrame struct {
 	// Prose and UIFontSize are the document and interface type sizes.
 	Prose      theme.ProseStyle
@@ -25,9 +24,8 @@ type SheetFrame struct {
 	// its last, scrolled with it; Dock is the room the floating writing
 	// actions take over its foot.
 	Top, Bottom, Dock float32
-	// LayoutWidth is the editor's viewport at rest in this mode; Inset
-	// is its text's left inset on the way there. Animated surface bounds
-	// move and clip the page without changing its wrapping constraints.
+	// LayoutWidth is the editor's viewport, and Inset its text's left
+	// inset, centring the reading measure in it.
 	LayoutWidth, Inset float32
 	// Focus lets the page take the keyboard while nothing else holds it,
 	// and Claim gives it the keyboard now, from wherever it is.
@@ -81,8 +79,8 @@ type State struct {
 	Settings   theme.Settings
 	// Colors carries theme changes; nil shows Settings as they are.
 	Colors *theme.Transition
-	// Open are the open sheets, in order; ActivePage is the one in front,
-	// which the columns show, and the canvas shows them all.
+	// Open are the open sheets, in their order on the desk; ActivePage is
+	// the one in front.
 	Open       []Page
 	ActivePage string
 	// Library is what the sidebar shows and files; nil shows none.
@@ -101,11 +99,9 @@ type State struct {
 	WindowActive  bool
 
 	// Sheet draws an open sheet's page, as frame sets it.
-	Sheet       func(c *ui.Context, id string, frame SheetFrame)
-	SelectPage  func(id string)
-	ClosePageID func(id string)
-	// ClearPage leaves no sheet in front, those open staying open.
-	ClearPage    func()
+	Sheet        func(c *ui.Context, id string, frame SheetFrame)
+	SelectPage   func(id string)
+	ClosePageID  func(id string)
 	OpenSettings func()
 	OpenCommands func()
 	// Find runs a sheet's find on the page in front; FindStep goes to the
@@ -145,17 +141,10 @@ type State struct {
 	dockTarget float32
 	// flight is whether that title is on its way this frame (takeFlight).
 	flight bool
-	// mode is how the notebook is laid out (Mode), and canvas the canvas's
-	// state, kept as it was left.
-	mode   Mode
-	canvas canvasState
-	// laid is the mode this build lays out: the mode as the build began.
-	laid Mode
-	// sharing keeps where the sheet in front was held, the page or its
-	// column, so it flies from one to the other (sheetSurface).
-	sharing components.Sharing
-	// dockAt is the mode and groups the writing actions were last built
-	// for, and dockMoving until when they go to where those put them.
+	// desk is the desk's state (desk.go).
+	desk deskState
+	// dockAt is the groups the writing actions were last built for, and
+	// dockMoving until when they go to where those put them.
 	dockAt     string
 	dockMoving time.Time
 }
@@ -186,14 +175,12 @@ func (s *State) ToggleSidebar() {
 	visible := s.SidebarVisible()
 	next := !visible
 	s.SidebarOverride = &next
-	s.closeCanvas()
 }
 
 // ShowPanes shows the library and the sheet list as asked.
 func (s *State) ShowPanes(library, sheets bool) {
 	if s != nil {
 		s.SidebarOverride, s.SheetListOverride = &library, &sheets
-		s.closeCanvas()
 	}
 }
 

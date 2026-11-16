@@ -27,6 +27,9 @@ type fakeLibrary struct {
 	newGroupNo  int
 	// smart is the query of the smart folder "5", shown when it is set.
 	smart string
+	// desk, when set, has sheets opened and placed on its desk as the
+	// window does (openOnDesk).
+	desk *State
 }
 
 type sheetMoveCall struct {
@@ -621,7 +624,25 @@ func (f *fakeLibrary) SearchCounts(text, key string, values []string) map[string
 }
 
 func (f *fakeLibrary) OpenFound(id, text string, alongside bool) {
+	if f.desk != nil {
+		openOnDesk(f.desk, Page{ID: id, Title: "Sheet " + id}, !alongside)
+	}
 	f.call("open found " + id + " " + text)
+}
+
+func (f *fakeLibrary) PlaceOnDesk(id, after string) {
+	f.call("place " + id + " after " + after)
+	if f.desk == nil {
+		return
+	}
+	at := slices.IndexFunc(f.desk.Open, func(p Page) bool { return p.ID == id })
+	if at < 0 {
+		return
+	}
+	page := f.desk.Open[at]
+	f.desk.Open = slices.Delete(f.desk.Open, at, at+1)
+	to := slices.IndexFunc(f.desk.Open, func(p Page) bool { return p.ID == after })
+	f.desk.Open = slices.Insert(f.desk.Open, to+1, page)
 }
 
 func (f *fakeLibrary) TrashedGroups() []GroupItem {
@@ -652,6 +673,9 @@ func (f *fakeLibrary) NewChapter(group string, index int) string {
 	return id
 }
 func (f *fakeLibrary) OpenSheet(id string, alongside bool) {
+	if f.desk != nil {
+		openOnDesk(f.desk, Page{ID: id, Title: "Sheet " + id}, !alongside)
+	}
 	if alongside {
 		f.call("open alongside " + id)
 		return
