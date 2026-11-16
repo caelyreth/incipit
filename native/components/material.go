@@ -14,17 +14,13 @@ const (
 	PopoverElevation
 )
 
-// ElevatedSurface gives an element the shared raised material while leaving
-// its contents, interaction, and transition to its owner.
-func ElevatedSurface(element ui.Element, semantic theme.Theme, scale float32, elevation Elevation) ui.Element {
-	y, blur, alpha := 4*scale/theme.DefaultUIFontSize, 12*scale/theme.DefaultUIFontSize, float32(0.25)
-	if elevation == PopoverElevation {
-		y, blur, alpha = 8, 24, 0.28
-	}
+// ElevatedSurface gives an element the shared flat raised material—crisp
+// border and elevated surface fill without drop shadows—while leaving its
+// contents, interaction, and transition to its owner.
+func ElevatedSurface(element ui.Element, semantic theme.Theme, scale float32, _ Elevation) ui.Element {
 	return element.Radius(theme.DefaultControls.Scaled(scale).PanelRadius).
 		Border(1, semantic.Border.Default).
-		Background(semantic.Surface.Elevated).
-		Shadow(0, y, blur, 0, ui.RGBA(0, 0, 0, alpha))
+		Background(semantic.Surface.Elevated)
 }
 
 // OutlinedSurface is the raised material without a shadow, set apart by

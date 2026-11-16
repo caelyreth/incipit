@@ -19,6 +19,7 @@ type fieldState struct {
 	cards      map[string]fieldCardData
 	selectedID string
 	dragging   bool
+	scrolledAt time.Time
 	panImpulse stage.Point
 	damped     stage.Point
 }
@@ -31,10 +32,11 @@ type fieldCacheKey struct {
 	scopeGroup   string
 	fidelityStep int
 	query        string
-	roomW        float32
-	roomH        float32
-	anchorX      float32
-	anchorY      float32
+	posture      stage.Posture
+	hasDesk      bool
+	vpW          float32
+	vpH          float32
+	head         float32
 	uiFontSize   float32
 }
 
@@ -101,21 +103,34 @@ func (s *State) SetPillScope(group string) {
 	s.field.selectedID = ""
 }
 
-func (s *State) fieldCardsView(c *ui.Context, host ui.Element, semantic theme.Theme, scene stage.Scene, animate bool) {
+func (s *State) fieldCardsView(c *ui.Context, host ui.Element, semantic theme.Theme, scene stage.Scene, width, height, head float32, animate bool) {
 	scale := s.Settings.UIFontSize
 	k := scale / theme.DefaultUIFontSize
 	cell := 156 * k
 	gap := 14 * k
-	layout := s.ensureFieldLayout(c, scene, cell, gap, k)
+	layout := s.ensureFieldLayout(c, scene, width, height, head, cell, gap, k)
 
 	// Clamp target pan within the packed field bounds when not dragging.
 	if !s.field.dragging {
 		s.pill.pan = stage.ClampPan(layout, s.pill.pan, 64*k)
 	}
+	now := c.Now()
+	directScroll := !s.field.scrolledAt.IsZero() && now.Sub(s.field.scrolledAt) < 90*time.Millisecond
+	if directScroll {
+		// Re-check once scroll quiets so overscroll settles cleanly.
+		c.After(90*time.Millisecond - now.Sub(s.field.scrolledAt))
+	}
 	panX, panY := s.pill.pan.X, s.pill.pan.Y
 	if animate {
-		panX = components.Follow(host, "field-pan-x", s.pill.pan.X, components.MotionNormal)
-		panY = components.Follow(host, "field-pan-y", s.pill.pan.Y, components.MotionNormal)
+		if s.field.dragging || directScroll {
+			// Keep 1:1 pointer tracking while dragging/scrolling while seeding
+			// the animation state so fling release continues seamlessly.
+			panX = host.AnimateTo("field-pan-x", s.pill.pan.X, ui.Animation{Duration: 1})
+			panY = host.AnimateTo("field-pan-y", s.pill.pan.Y, ui.Animation{Duration: 1})
+		} else {
+			panX = components.Follow(host, "field-pan-x", s.pill.pan.X, components.MotionPanel)
+			panY = components.Follow(host, "field-pan-y", s.pill.pan.Y, components.MotionPanel)
+		}
 		s.field.damped = stage.Point{
 			X: components.Follow(host, "pill-damped-x", s.field.panImpulse.X, components.MotionQuick),
 			Y: components.Follow(host, "pill-damped-y", s.field.panImpulse.Y, components.MotionQuick),
@@ -135,18 +150,26 @@ func (s *State) fieldCardsView(c *ui.Context, host ui.Element, semantic theme.Th
 	if dragging && (dx != 0 || dy != 0) {
 		s.panField(layout, dx, dy, k)
 	}
-	if _, _, ended := panPad.DragEnded(); ended {
+	if vx, vy, ended := panPad.DragEnded(); ended {
 		s.field.dragging = false
-		s.pill.pan = stage.ClampPan(layout, s.pill.pan, 64*k)
+		carry := stage.Point{
+			X: s.pill.pan.X + vx*flingCarry,
+			Y: s.pill.pan.Y + vy*flingCarry,
+		}
+		s.pill.pan = stage.ClampPan(layout, carry, 64*k)
 	}
 
-	// Cull to the visible viewport with a one-cell margin so cards never pop.
-	viewRect := scene.Field.Rect.Inset(-cell, -cell)
+	// Cull to the visible viewport with a generous margin so cards never pop
+	// while translating on the GPU pan layer.
+	viewRect := scene.Field.Rect.Inset(-cell*1.5, -cell*1.5)
 	visible := stage.VisibleCards(layout, viewRect, pan)
-	now := c.Now()
-	for _, card := range visible {
-		s.fieldCardView(c, semantic, card, pan, k, now, animate)
-	}
+
+	ui.Box(c).Key("field-cards").Absolute().Fill().PassThrough().
+		Translate(pan.X, pan.Y).Children(func() {
+		for _, card := range visible {
+			s.fieldCardView(c, semantic, card, k, now, animate)
+		}
+	})
 }
 
 func (s *State) panField(layout stage.FieldLayout, dx, dy, k float32) {
@@ -166,47 +189,70 @@ func (s *State) panField(layout stage.FieldLayout, dx, dy, k float32) {
 	}
 }
 
-func (s *State) ensureFieldLayout(c *ui.Context, scene stage.Scene, cell, gap, k float32) stage.FieldLayout {
+func (s *State) ensureFieldLayout(c *ui.Context, scene stage.Scene, width, height, head, cell, gap, k float32) stage.FieldLayout {
+	// Keep the last packed layout frozen while returning to Writing so closing
+	// transitions never re-pack cards onto the title line.
+	packPosture := s.posture
+	if packPosture == stage.PostureWriting && s.field.cards != nil {
+		return s.field.layout
+	}
+	if packPosture == stage.PostureWriting {
+		packPosture = stage.PostureGlance
+	}
+
 	openKey := openPagesKey(s.Open)
-	var libRev uint64
-	if s.Library != nil {
-		// Group/sheet membership or counts may change when sheets or groups update.
-		libRev = uint64(len(s.Library.Sheets(Place{Kind: PlaceAll})))*1000003 ^
-			uint64(len(s.Library.Groups("")))*977
+	hasDesk := len(s.Open) > 0
+	animatingPosture := math.Abs(float64(s.postureLevel-postureTarget(s.posture))) > 0.002
+
+	var key fieldCacheKey
+	key.hasLib = s.Library != nil
+	key.openKey = openKey
+	key.activePage = s.ActivePage
+	key.scopeGroup = s.pill.scopeGroup
+	key.fidelityStep = s.pill.fidelityStep
+	key.query = s.pill.query
+	key.posture = packPosture
+	key.hasDesk = hasDesk
+	key.vpW = width
+	key.vpH = height
+	key.head = head
+	key.uiFontSize = s.Settings.UIFontSize
+
+	// Skip re-scanning the library on active pan or posture-flight frames
+	// unless structural inputs already missed the cache.
+	baseMatch := s.field.cards != nil &&
+		key.hasLib == s.field.key.hasLib &&
+		key.openKey == s.field.key.openKey &&
+		key.activePage == s.field.key.activePage &&
+		key.scopeGroup == s.field.key.scopeGroup &&
+		key.fidelityStep == s.field.key.fidelityStep &&
+		key.query == s.field.key.query &&
+		key.posture == s.field.key.posture &&
+		key.hasDesk == s.field.key.hasDesk &&
+		key.vpW == s.field.key.vpW &&
+		key.vpH == s.field.key.vpH &&
+		key.head == s.field.key.head &&
+		key.uiFontSize == s.field.key.uiFontSize
+	if baseMatch && (s.field.dragging || animatingPosture) {
+		return s.field.layout
 	}
-	// When Library changes via mutations, also include active counts/titles by
-	// rebuilding on query or scope changes, or if cacheKey differs. Wait:
-	// reading Library directly is cheap for small/medium notebooks; include a
-	// content fingerprint so renames/moves update immediately.
-	fp := s.libraryFingerprint()
-	key := fieldCacheKey{
-		hasLib:       s.Library != nil,
-		libRev:       libRev ^ fp,
-		openKey:      openKey,
-		activePage:   s.ActivePage,
-		scopeGroup:   s.pill.scopeGroup,
-		fidelityStep: s.pill.fidelityStep,
-		query:        s.pill.query,
-		roomW:        scene.FieldRoom.W,
-		roomH:        scene.FieldRoom.H,
-		anchorX:      scene.PillAnchor.X,
-		anchorY:      scene.PillAnchor.Y,
-		uiFontSize:   s.Settings.UIFontSize,
-	}
+
+	key.libRev = s.libraryFingerprint()
 	if key == s.field.key && s.field.cards != nil {
 		return s.field.layout
 	}
 
-	items, cards := s.buildFieldItems(c.Now(), scene.FieldRoom)
-	roomW := scene.FieldRoom.W
+	targetScene := stage.Stage(stage.Rect{W: width, H: height}, packPosture, hasDesk, head)
+	items, cards := s.buildFieldItems(c.Now(), targetScene.FieldRoom)
+	roomW := targetScene.FieldRoom.W
 	if roomW <= 0 {
-		roomW = scene.Field.Rect.W
+		roomW = width
 	}
 	pillW := min(380*k, max(240*k, roomW-48*k))
 	pillH := 92 * k
 	layout := stage.PackField(stage.FieldSpec{
-		Room:       scene.FieldRoom,
-		PillAnchor: scene.PillAnchor,
+		Room:       targetScene.FieldRoom,
+		PillAnchor: targetScene.PillAnchor,
 		PillSize:   stage.Size{W: pillW, H: pillH},
 		Cell:       cell,
 		Gap:        gap,
@@ -433,7 +479,6 @@ func (s *State) fieldCardView(
 	c *ui.Context,
 	semantic theme.Theme,
 	card stage.PlacedCard,
-	pan stage.Point,
 	k float32,
 	now time.Time,
 	animate bool,
@@ -443,11 +488,9 @@ func (s *State) fieldCardView(
 		return
 	}
 	selected := s.field.selectedID == card.Item.ID
-	x := card.Rect.X + pan.X
-	y := card.Rect.Y + pan.Y
-	scale := card.Emphasis.Scale
-	if scale <= 0 {
-		scale = 1
+	targetScale := card.Emphasis.Scale
+	if targetScale <= 0 {
+		targetScale = 1
 	}
 
 	var label string
@@ -464,18 +507,44 @@ func (s *State) fieldCardView(
 	}
 
 	btn := ui.ButtonBase(c.Key("field-card-"+card.Item.ID)).Absolute().
-		Left(x).Top(y).Size(card.Rect.W, card.Rect.H).
-		TransformOrigin(0.5, 0.5).Scale(scale, scale).
-		Opacity(card.Emphasis.Opacity).
+		Left(card.Rect.X).Top(card.Rect.Y).Size(card.Rect.W, card.Rect.H).
 		Radius(12 * k).Padding(12 * k).Clip().
-		FocusRing(false).KeepFocus().Label(label)
+		FocusRing(false).KeepFocus().Label(label).Cache()
+	if animate {
+		btn.Transition(ui.ElementTransition{
+			Duration: motionEnter,
+			Enter:    &ui.Motion{Scale: 0.94, Opacity: 0},
+		})
+	}
 
-	bg := semantic.Surface.Page
+	scale := targetScale
+	opacity := card.Emphasis.Opacity
+	shiftX, shiftY := float32(0), float32(0)
+	hover := float32(0)
+	if btn.Hovered() {
+		hover = 1
+	}
+	if animate {
+		animX := components.Follow(btn, "card-x", card.Rect.X, components.MotionPanel)
+		animY := components.Follow(btn, "card-y", card.Rect.Y, components.MotionPanel)
+		shiftX = animX - card.Rect.X
+		shiftY = animY - card.Rect.Y
+		scale = components.Follow(btn, "card-scale", targetScale, components.MotionQuick)
+		opacity = components.Follow(btn, "card-opacity", card.Emphasis.Opacity, components.MotionQuick)
+		hover = components.HoverAmount(btn, btn.Hovered(), true)
+	}
+	btn.TransformOrigin(0.5, 0.5).
+		Translate(shiftX, shiftY).
+		Scale(scale, scale).
+		Opacity(max(0, min(1, opacity)))
+
+	rest := semantic.Surface.Page
 	border := semantic.Border.Variant
 	var borderW float32 = 1
 	if data.kind == stage.CardNew {
-		bg = semantic.Surface.Inset
+		rest = semantic.Surface.Inset
 	}
+	bg := components.Blend(rest, semantic.Element.Hover, hover)
 	if selected {
 		bg = semantic.Surface.Chosen
 		border = semantic.Border.Focused
@@ -484,11 +553,6 @@ func (s *State) fieldCardView(
 		border = semantic.Accent.Foreground
 	}
 	btn.Background(bg).Border(borderW, border)
-	btn.Draw(func(p *ui.Painter, r ui.Rect) {
-		if btn.Hovered() && !selected {
-			p.Fill(r, semantic.Element.Hover, 12*k)
-		}
-	})
 
 	if btn.Clicked() {
 		alongside := btn.ClickModifiers()&(ui.Cmd|ui.Alt) != 0

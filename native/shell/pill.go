@@ -51,9 +51,9 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, scene stage.Scene,
 	width := min(380*k, max(240*k, roomW-48*k))
 
 	pill := ui.Column(c).Key("pill").Absolute().
-		Left(scene.Pill.Rect.X).Top(scene.Pill.Rect.Y).
+		Left(0).Top(0).
 		TranslatePercent(-50, -50).
-		Translate(s.field.damped.X, s.field.damped.Y).
+		Translate(scene.Pill.Rect.X+s.field.damped.X, scene.Pill.Rect.Y+s.field.damped.Y).
 		Scale(scene.Pill.Scale, scene.Pill.Scale).
 		Opacity(scene.Pill.Opacity).
 		Width(width).
@@ -85,7 +85,7 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, scene stage.Scene,
 			})
 			if s.pill.scopeGroup != "" && s.Library != nil {
 				if group, ok := s.Library.Group(s.pill.scopeGroup); ok {
-					s.pillScopeChip(c, semantic, group, k)
+					s.pillScopeChip(c, semantic, group, k, animate)
 				}
 			}
 			ui.Box(c).Grow(1)
@@ -112,13 +112,14 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, scene stage.Scene,
 	})
 }
 
-func (s *State) pillScopeChip(c *ui.Context, semantic theme.Theme, group GroupItem, k float32) {
+func (s *State) pillScopeChip(c *ui.Context, semantic theme.Theme, group GroupItem, k float32, animate bool) {
 	ink := semantic.Text.Default
 	if tint := groupTint(semantic, group); tint != nil {
 		ink = *tint
 	}
 	chip := ui.ButtonBase(c.Key("pill-scope")).Height(22 * k).PaddingX(7 * k).Gap(4 * k).
 		AlignItems(ui.Center).Radius(7 * k).Background(semantic.Surface.Chosen).
+		Transition(popTransition(animate)).
 		FocusRing(false).KeepFocus().Label("Clear scope " + group.Name).Tooltip("Show whole library")
 	if chip.Clicked() {
 		s.SetPillScope("")
@@ -194,19 +195,23 @@ func (s *State) threeStripMark(c *ui.Context, semantic theme.Theme, k float32) {
 
 func (s *State) pillPostureChips(c *ui.Context, semantic theme.Theme, k float32, animate bool) {
 	chip := func(key, label string, active bool, action func()) {
-		bg := semantic.GhostElement.Background
-		fg := semantic.Text.Muted
-		if active {
-			bg = semantic.Surface.Chosen
-			fg = semantic.Text.Default
-		}
 		btn := ui.ButtonBase(c.Key(key)).Height(22 * k).PaddingX(8 * k).
 			AlignItems(ui.Center).Justify(ui.Center).
-			Radius(7 * k).Background(bg).Label(label).
+			Radius(7 * k).Label(label).
 			FocusRing(false).KeepFocus()
-		if btn.Hovered() && !active {
-			btn.Background(semantic.Element.Hover)
+		hover := components.HoverAmount(btn, btn.Hovered(), animate)
+		activeTarget := float32(0)
+		if active {
+			activeTarget = 1
 		}
+		activeAmount := activeTarget
+		if animate {
+			activeAmount = max(0, min(1, components.Follow(btn, "pill-chip-active", activeTarget, components.MotionQuick)))
+		}
+		rest := components.Blend(semantic.GhostElement.Background, semantic.Element.Hover, hover)
+		bg := components.Blend(rest, semantic.Surface.Chosen, activeAmount)
+		fg := components.Blend(semantic.Text.Muted, semantic.Text.Default, max(activeAmount, hover*0.6))
+		btn.Background(bg)
 		if btn.Clicked() {
 			action()
 		}

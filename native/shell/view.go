@@ -117,7 +117,7 @@ func (s *State) View(c *ui.Context) {
 	// window's controls float over its corner (controls).
 	root.Children(func() {
 		if scene.Field.Opacity > 0.001 {
-			s.fieldView(c, semantic, scene, animate)
+			s.fieldView(c, semantic, scene, width, height, head, animate)
 		}
 		ui.Row(c).Key("body").Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().
 			AlignItems(ui.Stretch).Children(func() {

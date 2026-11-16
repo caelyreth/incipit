@@ -125,7 +125,7 @@ func (s *State) computeStage(root ui.Element, width, height, head float32, anima
 
 // fieldView draws the field layer behind the desk when a field posture is
 // active or in transition.
-func (s *State) fieldView(c *ui.Context, semantic theme.Theme, scene stage.Scene, animate bool) {
+func (s *State) fieldView(c *ui.Context, semantic theme.Theme, scene stage.Scene, width, height, head float32, animate bool) {
 	field := ui.Box(c).Key("field").Absolute().Fill().
 		Background(semantic.Surface.Background).
 		Opacity(scene.Field.Opacity).
@@ -138,6 +138,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, scene stage.Scene
 			if ev.Kind != ui.InputScroll || (ev.DX == 0 && ev.DY == 0) {
 				return false
 			}
+			s.field.scrolledAt = c.Now()
 			s.panField(s.field.layout, -ev.DX, -ev.DY, k)
 			return true
 		})
@@ -155,7 +156,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, scene stage.Scene
 			}
 		}
 		canvas.Children(func() {
-			s.fieldCardsView(c, canvas, semantic, scene, animate)
+			s.fieldCardsView(c, canvas, semantic, scene, width, height, head, animate)
 			s.pillView(c, semantic, scene, animate)
 		})
 	})

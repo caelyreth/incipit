@@ -21,14 +21,9 @@ func TestElevatedSurfacePreservesMaterialVariants(t *testing.T) {
 						ui.Row(c).Fill().Padding(40).Gap(50).Children(func() {
 							ElevatedSurface(ui.Box(c).Size(90, 50), semantic, scale, elevation)
 							panel := ui.Box(c).Size(90, 50)
-							y, blur, alpha := 4*scale/theme.DefaultUIFontSize, 12*scale/theme.DefaultUIFontSize, float32(0.25)
-							if elevation == PopoverElevation {
-								y, blur, alpha = 8, 24, 0.28
-							}
 							panel.Radius(11*scale/theme.DefaultUIFontSize).
 								Border(1, semantic.Border.Default).
-								Background(semantic.Surface.Elevated).
-								Shadow(0, y, blur, 0, ui.RGBA(0, 0, 0, alpha))
+								Background(semantic.Surface.Elevated)
 						})
 					}, 320, 130)
 					tester.Frame()

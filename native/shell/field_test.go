@@ -161,7 +161,7 @@ func TestFieldQueryEmphasizesMatchesWithoutReflow(t *testing.T) {
 		t.Fatalf("Expected both matched and unmatched sheets in layout, got %d cards", len(layout.Cards))
 	}
 	if chapter.Emphasis.Opacity != 1 || chapter.Emphasis.Scale <= 1 {
-		t.Fatalf("Matched sheet should step forward: %+v", chapter.Emphasis)
+		t.Fatalf("Matched sheet should step forward: %+v (query=%q, item=%+v)", chapter.Emphasis, state.PillQuery(), chapter.Item)
 	}
 	if other.Emphasis.Opacity >= 1 || other.Emphasis.Scale >= 1 {
 		t.Fatalf("Unmatched sheet should recede: %+v", other.Emphasis)

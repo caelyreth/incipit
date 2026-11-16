@@ -105,14 +105,14 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 	if scene.Desk.Opacity <= 0.001 {
 		area.Opacity(0).IgnoreInput(true)
 	} else if lean := min(1, s.postureLevel); lean > 0.001 {
-		area.TransformOrigin(0.5, 0.5).
+		area.Cache().
+			TransformOrigin(0.5, 0.5).
 			Scale(scene.Desk.Scale, scene.Desk.Scale).
 			Rotate(scene.Desk.Rotate).
 			Translate(scene.Desk.Offset.X, scene.Desk.Offset.Y).
 			Opacity(scene.Desk.Opacity).
 			Radius(12*k*lean).
 			Border(1, semantic.Border.Default.Alpha(lean)).
-			Shadow(0, 12*lean, 36*lean, 0, ui.RGBA(0, 0, 0, 0.30*lean)).
 			Clip()
 		if s.posture != stage.PostureWriting && scene.Desk.Interactive {
 			area.Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Return to desk")

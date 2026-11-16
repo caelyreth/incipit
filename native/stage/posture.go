@@ -199,12 +199,18 @@ func BlendScene(viewport Rect, from, to Posture, t float32, hasDesk bool, titleH
 		X: lerp(a.PillAnchor.X, b.PillAnchor.X, t),
 		Y: lerp(a.PillAnchor.Y, b.PillAnchor.Y, t),
 	}
+	fieldT := min(float32(1), t*1.25)
+	pillT := max(float32(0), min(float32(1), (t-0.08)/0.92))
+	pill := BlendPlacement(a.Pill, b.Pill, pillT)
+	pill.Interactive = to != PostureWriting && b.Pill.Interactive && (a.Pill.Interactive || t >= 0.5)
+	field := BlendPlacement(a.Field, b.Field, fieldT)
+	field.Interactive = b.Field.Interactive && (a.Field.Interactive || t >= 0.5)
 	return Scene{
 		Posture:    posture,
 		Desk:       BlendPlacement(a.Desk, b.Desk, t),
-		Field:      BlendPlacement(a.Field, b.Field, t),
+		Field:      field,
 		FieldRoom:  room,
-		Pill:       BlendPlacement(a.Pill, b.Pill, t),
+		Pill:       pill,
 		PillAnchor: anchor,
 	}
 }
