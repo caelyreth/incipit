@@ -148,12 +148,14 @@ type State struct {
 	// dockMoving until when they go to where those put them.
 	dockAt     string
 	dockMoving time.Time
-	// posture, postureLevel and scene drive the continuous allocation between
-	// the desk, the field and the pill (posture.go, pill.go).
+	// posture, postureLevel, scene, pill and field drive the continuous
+	// allocation between the desk, the field and the pill (posture.go,
+	// pill.go, field.go).
 	posture      stage.Posture
 	postureLevel float32
 	scene        stage.Scene
 	pill         pillState
+	field        fieldState
 }
 
 func New() *State {

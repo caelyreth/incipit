@@ -1,16 +1,33 @@
 package window
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/app/library"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/native/shell"
 	"github.com/caelyreth/neverland/native/stage"
 )
 
 func TestFieldPosturesAndDeskLeanRenderAndRoute(t *testing.T) {
 	app, tester := deskApp(t)
+	// Seed a couple of groups and sheets so the field overview renders boards
+	// and sheet cards alongside the leaned desk.
+	novel := app.NewGroup("", shell.Last)
+	app.RenameGroup(novel, "Novel")
+	app.StyleGroup(novel, "book-open", 1)
+	app.NewSheet(novel, shell.Last)
+	notes := app.NewGroup("", shell.Last)
+	app.RenameGroup(notes, "Field Notes")
+	app.StyleGroup(notes, "leaf", 5)
+	app.NewSheet(notes, shell.Last)
+	inbox := strconv.Itoa(int(library.Inbox))
+	app.NewSheet(inbox, shell.Last)
+	run(tester, 200*time.Millisecond)
+
 	tester.Type("# Field Notes\n\nThe desk leans aside cleanly across postures.")
 	run(tester, 200*time.Millisecond)
 	shot(t, tester, "field-writing")

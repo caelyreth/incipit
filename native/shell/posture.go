@@ -34,6 +34,7 @@ func (s *State) SetPosture(p stage.Posture) {
 	if p == stage.PostureWriting {
 		s.pill.focus = false
 		s.pill.typing = false
+		s.field.selectedID = ""
 		if s.ActivePage != "" {
 			s.desk.claim = s.ActivePage
 		}
@@ -131,17 +132,30 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, scene stage.Scene
 		Role(ui.RoleGroup).Label("Field")
 	if !scene.Field.Interactive {
 		field.IgnoreInput(true)
+	} else {
+		k := s.Settings.UIFontSize / theme.DefaultUIFontSize
+		field.HandleInput(func(ev ui.InputEvent) bool {
+			if ev.Kind != ui.InputScroll || (ev.DX == 0 && ev.DY == 0) {
+				return false
+			}
+			s.panField(s.field.layout, -ev.DX, -ev.DY, k)
+			return true
+		})
 	}
 	field.Children(func() {
-		// Subtle visual anchor of the field plane while cards arrive in Step 4.
 		canvas := ui.Box(c).Key("field-plane").Absolute().Fill().
 			TransformOrigin(0.5, 0.5).Scale(scene.Field.Scale, scene.Field.Scale)
 		if scene.Field.Interactive {
 			if !s.pill.typing && s.pill.query == "" && !s.FindOpen() && c.Shortcut(0, ui.KeyEscape) {
-				s.ReturnToDesk()
+				if s.pill.scopeGroup != "" {
+					s.SetPillScope("")
+				} else {
+					s.ReturnToDesk()
+				}
 			}
 		}
 		canvas.Children(func() {
+			s.fieldCardsView(c, canvas, semantic, scene, animate)
 			s.pillView(c, semantic, scene, animate)
 		})
 	})
