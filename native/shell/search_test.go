@@ -3,9 +3,64 @@ package shell
 import (
 	"slices"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 )
+
+func TestQueryCompletionsPreserveUndoAndUnicodeSuffixes(t *testing.T) {
+	for _, byPointer := range []bool{false, true} {
+		name := "keyboard"
+		if byPointer {
+			name = "pointer"
+		}
+		t.Run(name, func(t *testing.T) {
+			state, _, tester := searching(t)
+			const original = "海 $tag:we tail"
+			tester.Type(original)
+			tester.Key(0, ui.KeyHome)
+			for range utf8.RuneCountInString("海 $tag:we") {
+				tester.Key(0, ui.KeyRight)
+			}
+			settle(tester)
+			if byPointer {
+				if err := tester.Click("weekly"); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				tester.Key(0, ui.KeyTab)
+			}
+			if got := state.list.query; got != "海 $tag:weekly tail" {
+				t.Fatalf("completion changed the suffix or its spacing: %q", got)
+			}
+			tester.Key(ui.Cmd, ui.KeyZ)
+			if got := state.list.query; got != original {
+				t.Fatalf("undo did not restore the unfinished query: %q", got)
+			}
+			tester.Key(ui.Cmd|ui.Shift, ui.KeyZ)
+			tester.Type("新")
+			if got := state.list.query; got != "海 $tag:weekly 新tail" {
+				t.Fatalf("completion did not place the caret before the suffix: %q", got)
+			}
+		})
+	}
+}
+
+func TestFindSelectsItsQueryOnEveryRequest(t *testing.T) {
+	state, _ := libraryState()
+	state.Open = []Page{{ID: "one", Title: "First"}}
+	state.ActivePage = "one"
+	tester := ui.NewTester(state.View, 1260, 850)
+	for _, query := range []string{"章节", "新しい query"} {
+		state.StartFind(query)
+		tester.Frame()
+		tester.Type("海")
+		tester.Type("岸")
+		if state.FindQuery != "海岸" {
+			t.Fatalf("request did not select its query once: %q", state.FindQuery)
+		}
+	}
+}
 
 func searching(t *testing.T) (*State, *fakeLibrary, *ui.Tester) {
 	t.Helper()

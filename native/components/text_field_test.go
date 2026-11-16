@@ -33,4 +33,12 @@ func TestTextFieldAutoFocusAndClearPreserveTextInput(t *testing.T) {
 	if active, _ := tester.TextInputActive(); !active {
 		t.Fatal("clear removed text-input focus")
 	}
+	tester.Key(ui.Cmd, ui.KeyZ)
+	if value != "hello" {
+		t.Fatalf("undo did not restore the cleared value: %q", value)
+	}
+	tester.Key(ui.Cmd|ui.Shift, ui.KeyZ)
+	if value != "" {
+		t.Fatalf("redo did not clear the value: %q", value)
+	}
 }

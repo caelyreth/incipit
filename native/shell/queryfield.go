@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"math"
 	"strings"
 	"unicode/utf8"
 
@@ -29,16 +30,13 @@ type queryInput struct {
 	// dismissed is the query the completion was put away at, with Escape
 	// or a press elsewhere: it comes back once the query changes.
 	dismissed string
-	// selecting, when set, is the runes the next frame selects in the
-	// field: a caret after a suggestion taken, or the words a find starts
-	// with.
-	selecting bool
-	selection [2]int
+	focus     ui.Handle
+	edit      *queryEdit
 }
 
-// selectNext selects runes from to to in the field's next frame.
-func (in *queryInput) selectNext(from, to int) {
-	in.selecting, in.selection = true, [2]int{from, to}
+type queryEdit struct {
+	from, to int
+	text     string
 }
 
 // queryField is a field a query is written in: set as the query language
@@ -90,15 +88,15 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 			Grow(1).MinWidth(0).Font(theme.UIFontFamily).
 			FontSize(text.Size(scale)).FixedLineHeight(text.LineHeight(scale)).
 			TextColor(semantic.Text.Default).
-			Placeholder(f.Placeholder).Label(f.Label)
-		input.TextRanges(queryRanges(f.prefix(), *f.Value, semantic)...)
+			Placeholder(f.Placeholder).Label(f.Label).Bind(&in.focus)
 		input.OnTextKey(func(k ui.TextKey) bool { return s.queryKey(in, k) || f.Keys != nil && f.Keys(k) })
+		if edit := in.edit; edit != nil {
+			in.edit = nil
+			input.ReplaceText(edit.from, edit.to, edit.text)
+		}
+		input.TextRanges(queryRanges(f.prefix(), *f.Value, semantic)...)
 		if f.Focus {
 			input.Focus()
-		}
-		if in.selecting {
-			input.SetTextSelection(in.selection[0], in.selection[1])
-			in.selecting = false
 		}
 		if *f.Value != "" {
 			components.IconButton{
@@ -106,9 +104,7 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 				Style: components.SubtleButton, Size: components.CompactButton,
 				IconColor: &semantic.Icon.Muted, Animate: f.Animate,
 				Action: func() {
-					*f.Value = ""
-					input.SetChanged()
-					input.Focus()
+					input.ReplaceText(0, math.MaxInt, "").Focus(ui.FocusOptions{PreventScroll: true})
 				},
 			}.View(c, semantic)
 		}
@@ -210,7 +206,7 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 			for i, item := range items {
 				button := ui.ButtonBase(c.Key("suggestion-" + item.Label)).Height(row).WidthPercent(100).Shrink(0).
 					PaddingX(theme.Space06.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-					FocusRing(false).Selected(in.first+i == in.suggestion).Background(ui.Transparent).Label(item.Label)
+					FocusRing(false).KeepFocus().Selected(in.first+i == in.suggestion).Background(ui.Transparent).Label(item.Label)
 				button.Children(func() {
 					switch {
 					case item.Of == "tag":
@@ -230,11 +226,8 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 					}
 				})
 				if button.Clicked() {
-					text, caret := in.take(*value, item)
-					*value = text
-					in.selectNext(caret, caret)
-					input.SetChanged()
-					input.Focus()
+					edit := in.replacement(*value, item)
+					input.ReplaceText(edit.from, edit.to, edit.text).Focus(ui.FocusOptions{PreventScroll: true})
 				}
 			}
 			if chosen.Help != "" {
@@ -248,18 +241,20 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 	})
 }
 
-// take writes a suggestion into text in place of the completion's span:
-// the text it makes, and the caret after it, in runes. One that finishes
-// its part has a space after it, for the next.
-func (in *queryInput) take(text string, item query.Suggestion) (string, int) {
+func (in *queryInput) replacement(text string, item query.Suggestion) *queryEdit {
 	span := in.completion.Span
-	before, after := text[:span.From]+item.Text, text[span.To:]
-	if item.Done {
-		// Past the space after it, written now or there already.
-		after = " " + strings.TrimPrefix(after, " ")
-		return before + after, utf8.RuneCountInString(before) + 1
+	edit := &queryEdit{
+		from: utf8.RuneCountInString(text[:span.From]),
+		to:   utf8.RuneCountInString(text[:span.To]),
+		text: item.Text,
 	}
-	return before + after, utf8.RuneCountInString(before)
+	if item.Done {
+		edit.text += " "
+		if strings.HasPrefix(text[span.To:], " ") {
+			edit.to++
+		}
+	}
+	return edit
 }
 
 // queryKey is what the keys do in a field's completion while it is
@@ -286,9 +281,7 @@ func (s *State) queryKey(in *queryInput, k ui.TextKey) bool {
 		if k.Mods != 0 {
 			return false
 		}
-		out, caret := in.take(text, in.completion.Items[in.suggestion])
-		k.SetText(out)
-		in.selectNext(caret, caret)
+		in.edit = in.replacement(text, in.completion.Items[in.suggestion])
 		return true
 	case ui.KeyEscape:
 		in.dismissed = text

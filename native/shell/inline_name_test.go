@@ -27,8 +27,7 @@ func TestInlineNameSelectsUnicodeAndEndsOnSubmitEscapeOrBlur(t *testing.T) {
 				ui.Column(c).Children(func() {
 					if action == nameContinue {
 						input := ui.TextInputBase(c.Key("name"), &name).Label("Name")
-						input.AutoFocus()
-						action = inlineName(input, name)
+						action = inlineName(input)
 					}
 					components.Button{Key: "elsewhere", Label: "Elsewhere"}.View(c, theme.DefaultSettings().Semantic())
 				})

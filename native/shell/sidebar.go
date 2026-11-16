@@ -618,13 +618,12 @@ func (s *State) renameRow(c *ui.Context, semantic theme.Theme, group GroupItem, 
 			Font(theme.UIFontFamily).FontSize(theme.TextSmall.Size(scale)).
 			FixedLineHeight(theme.TextSmall.LineHeight(scale)).
 			TextColor(semantic.Text.Heading).Label("Group name")
-		input.AutoFocus()
 		if s.nav.focusGroup == group.ID {
 			s.nav.focusGroup = ""
 			input.Focus()
 			components.Reveal(c, row, components.RevealMargin(c), ui.ScrollIntoViewOptions{})
 		}
-		switch inlineName(input, s.nav.name) {
+		switch inlineName(input) {
 		case nameCancel:
 			s.nav.renaming = ""
 		case nameCommit:

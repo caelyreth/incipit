@@ -2,7 +2,6 @@ package shell
 
 import (
 	"fmt"
-	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
@@ -37,7 +36,7 @@ func (s *State) StartFind(text string) {
 	s.FindQuery = text
 	s.finder.open = true
 	s.FindRequested = true
-	s.finder.input.selectNext(0, utf8.RuneCountInString(text))
+	s.finder.input.focus.SelectAll()
 	if s.Find != nil {
 		s.Find(s.FindText())
 	}

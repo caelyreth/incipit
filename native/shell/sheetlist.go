@@ -1141,8 +1141,7 @@ func (s *State) chapterNameField(c *ui.Context, semantic theme.Theme, chapter Ch
 		Font(theme.UIFontFamily).FontSize(theme.TextSmall.Size(scale)).FontWeight(600).
 		FixedLineHeight(theme.TextSmall.LineHeight(scale)).
 		TextColor(semantic.Text.Heading).Label("Chapter name")
-	input.AutoFocus()
-	switch inlineName(input, s.nav.name) {
+	switch inlineName(input) {
 	case nameCancel:
 		s.nav.renaming = ""
 	case nameCommit:
