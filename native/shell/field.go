@@ -16,14 +16,17 @@ import (
 )
 
 type fieldState struct {
-	key        fieldCacheKey
-	layout     stage.FieldLayout
-	cards      map[string]fieldCardData
-	selectedID string
-	dragging   bool
-	scrolledAt time.Time
-	panImpulse stage.Point
-	damped     stage.Point
+	key           fieldCacheKey
+	layout        stage.FieldLayout
+	cards         map[string]fieldCardData
+	selectedID    string
+	renamingGroup string
+	renameName    string
+	renameFocus   bool
+	dragging      bool
+	scrolledAt    time.Time
+	panImpulse    stage.Point
+	damped        stage.Point
 }
 
 type fieldCacheKey struct {
@@ -200,6 +203,22 @@ func (s *State) fieldCardsView(c *ui.Context, host ui.Element, semantic theme.Th
 			Y: s.pill.pan.Y + vy*flingCarry,
 		}
 		s.pill.pan = stage.ClampPan(layout, carry, 64*k)
+	}
+	if s.Library != nil {
+		panPad.ContextMenu(func(m *ui.Menu) {
+			if m.Item("New Sheet").Chosen() {
+				s.newSheetFromField()
+			}
+			if m.Item("New Group").Chosen() {
+				s.newGroupOnField(s.pill.scopeGroup)
+			}
+			if s.pill.pan != (stage.Point{}) {
+				m.Separator()
+				if m.Item("Center Field").Chosen() {
+					s.pill.pan = stage.Point{}
+				}
+			}
+		})
 	}
 
 	// Cull to the visible viewport with a generous margin so cards never pop
@@ -484,6 +503,13 @@ func (s *State) buildFieldItems(now time.Time, _ stage.Rect) ([]stage.FieldItem,
 	}
 
 	if trashMode {
+		for _, g := range s.Library.TrashedGroups() {
+			addGroup(g)
+			cards[fieldGroupCardPrefix+g.ID] = func(d fieldCardData) fieldCardData {
+				d.trashed = true
+				return d
+			}(cards[fieldGroupCardPrefix+g.ID])
+		}
 		for _, sh := range s.Library.Sheets(Place{Kind: PlaceTrash}) {
 			addSheet(sh, false, true)
 		}
@@ -582,10 +608,14 @@ func (s *State) fieldCardView(
 		label = "New sheet"
 	}
 
+	renamingThis := data.kind == stage.CardGroup && s.field.renamingGroup == data.group.ID
 	btn := ui.ButtonBase(c.Key("field-card-" + card.Item.ID)).Absolute().
 		Left(card.Rect.X).Top(card.Rect.Y).
 		Radius(12 * k).Padding(12 * k).Clip().
-		FocusRing(false).KeepFocus().Label(label).Cache()
+		FocusRing(false).KeepFocus().Label(label)
+	if !renamingThis {
+		btn.Cache()
+	}
 	if animate {
 		btn.Transition(ui.ElementTransition{
 			Duration: motionEnter,
@@ -638,7 +668,45 @@ func (s *State) fieldCardView(
 	}
 	btn.Background(bg).Border(borderW, border)
 
-	if btn.Clicked() {
+	switch data.kind {
+	case stage.CardGroup:
+		if !data.trashed {
+			if !data.group.Inbox {
+				btn.Drag(groupDrag{id: data.group.ID})
+			}
+			if !data.group.Smart() {
+				if dropped, ok := s.dropOn(c, semantic, btn, takes{sheets: true, groups: !data.group.Inbox}, animate); ok {
+					switch d := dropped.(type) {
+					case sheetDrag:
+						s.Library.MoveSheet(d.id, data.group.ID, Last)
+					case groupDrag:
+						if d.id != data.group.ID {
+							s.Library.MoveGroup(d.id, data.group.ID, Last)
+						}
+					}
+				}
+			}
+		}
+		btn.ContextMenu(s.fieldGroupMenu(data.group, data.trashed))
+	case stage.CardSheet:
+		if !data.trashed {
+			btn.Drag(sheetDrag{id: data.sheet.ID})
+		}
+		btn.ContextMenu(s.fieldSheetMenu(data.sheet, data.trashed))
+	case stage.CardNew:
+		btn.ContextMenu(func(m *ui.Menu) {
+			if m.Item("New Sheet").Chosen() {
+				s.newSheetFromField()
+			}
+			if m.Item("New Group").Chosen() {
+				s.newGroupOnField(s.pill.scopeGroup)
+			}
+		})
+	}
+
+	confirming := data.trashed && ((data.kind == stage.CardSheet && s.armed(c, "delete-field-sheet-"+data.sheet.ID)) ||
+		(data.kind == stage.CardGroup && s.armed(c, "delete-field-group-"+data.group.ID)))
+	if !renamingThis && !confirming && btn.Clicked() {
 		alongside := btn.ClickModifiers()&(ui.Cmd|ui.Alt) != 0
 		s.activateFieldCard(card.Item.ID, alongside)
 	}
@@ -646,16 +714,16 @@ func (s *State) fieldCardView(
 	btn.Children(func() {
 		switch data.kind {
 		case stage.CardGroup:
-			s.groupBoardCard(c, semantic, data, k)
+			s.groupBoardCard(c, semantic, data, k, animate)
 		case stage.CardSheet:
-			s.sheetFieldCard(c, semantic, data, card.GridW > 1, card.GridH > 1, k, now)
+			s.sheetFieldCard(c, semantic, data, card.GridW > 1, card.GridH > 1, k, now, animate)
 		case stage.CardNew:
 			s.newSheetFieldCard(c, semantic, k)
 		}
 	})
 }
 
-func (s *State) groupBoardCard(c *ui.Context, semantic theme.Theme, data fieldCardData, k float32) {
+func (s *State) groupBoardCard(c *ui.Context, semantic theme.Theme, data fieldCardData, k float32, animate bool) {
 	ui.Column(c).Fill().Gap(6 * k).Children(func() {
 		ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(6 * k).Children(func() {
 			ink := semantic.Icon.Muted
@@ -663,10 +731,37 @@ func (s *State) groupBoardCard(c *ui.Context, semantic theme.Theme, data fieldCa
 				ink = *tint
 			}
 			ui.Icon(c, groupIcon(data.group).SVG()).FontSize(14 * k).TextColor(ink).Shrink(0)
+			if s.field.renamingGroup == data.group.ID {
+				input := ui.TextInputBase(c.Key("field-rename-"+data.group.ID), &s.field.renameName).
+					Grow(1).MinWidth(0).Font(theme.UIFontFamily).
+					FontSize(theme.TextSmall.Size(s.Settings.UIFontSize)).
+					TextColor(semantic.Text.Heading).Label("Group name")
+				if s.field.renameFocus {
+					s.field.renameFocus = false
+					input.Focus()
+				}
+				switch inlineName(input) {
+				case nameCancel:
+					s.field.renamingGroup = ""
+				case nameCommit:
+					s.field.renamingGroup = ""
+					if name := strings.TrimSpace(s.field.renameName); name != "" {
+						s.Library.RenameGroup(data.group.ID, name)
+					}
+				}
+				return
+			}
 			components.Label(c, data.group.Name, theme.TextSmall, semantic.Text.Heading).
 				Grow(1).MinWidth(0).SingleLine()
-			components.Label(c, fmt.Sprint(data.group.Count), theme.TextXSmall, semantic.Text.Muted).
-				SingleLine().Shrink(0).FontFeatures("tnum")
+			delKey := "delete-field-group-" + data.group.ID
+			if data.trashed && s.armed(c, delKey) {
+				s.confirmButton(c, semantic, delKey, "", "Delete", animate, func() {
+					s.Library.DeleteGroup(data.group.ID)
+				})
+			} else {
+				components.Label(c, fmt.Sprint(data.group.Count), theme.TextXSmall, semantic.Text.Muted).
+					SingleLine().Shrink(0).FontFeatures("tnum")
+			}
 		})
 		if len(data.previewTitles) > 0 {
 			ui.Column(c).Grow(1).MinHeight(0).Gap(3 * k).Children(func() {
@@ -685,7 +780,7 @@ func (s *State) groupBoardCard(c *ui.Context, semantic theme.Theme, data fieldCa
 	})
 }
 
-func (s *State) sheetFieldCard(c *ui.Context, semantic theme.Theme, data fieldCardData, wide, tall bool, k float32, now time.Time) {
+func (s *State) sheetFieldCard(c *ui.Context, semantic theme.Theme, data fieldCardData, wide, tall bool, k float32, now time.Time, animate bool) {
 	title := data.sheet.Title
 	if title == "" {
 		title = "Untitled"
@@ -705,7 +800,12 @@ func (s *State) sheetFieldCard(c *ui.Context, semantic theme.Theme, data fieldCa
 			}
 			components.Label(c, title, theme.TextSmall, titleColor).
 				Grow(1).MinWidth(0).SingleLine()
-			if !data.sheet.Updated.IsZero() {
+			delKey := "delete-field-sheet-" + data.sheet.ID
+			if data.trashed && s.armed(c, delKey) {
+				s.confirmButton(c, semantic, delKey, "", "Delete", animate, func() {
+					s.Library.DeleteSheet(data.sheet.ID)
+				})
+			} else if !data.sheet.Updated.IsZero() {
 				components.Label(c, when(data.sheet.Updated, now), theme.TextXSmall, semantic.Text.Muted).
 					SingleLine().Shrink(0).FontFeatures("tnum")
 			}
@@ -752,11 +852,17 @@ func (s *State) activateFieldCard(id string, alongside bool) {
 	}
 	switch data.kind {
 	case stage.CardGroup:
+		if data.trashed {
+			return
+		}
 		s.pill.scopeGroup = data.group.ID
 		s.pill.pan = stage.Point{}
 		s.field.selectedID = ""
 		s.pill.focus = true
 	case stage.CardSheet:
+		if data.trashed {
+			return
+		}
 		if strings.TrimSpace(s.pill.query) != "" {
 			s.Library.OpenFound(data.sheet.ID, s.pill.query, alongside)
 		} else {
@@ -766,12 +872,136 @@ func (s *State) activateFieldCard(id string, alongside bool) {
 			s.ReturnToDesk()
 		}
 	case stage.CardNew:
-		group := s.pill.scopeGroup
-		if group == "" {
-			group = s.CurrentGroup()
+		s.newSheetFromField()
+	}
+}
+
+func (s *State) newSheetFromField() {
+	if s.Library == nil {
+		return
+	}
+	group := s.pill.scopeGroup
+	if group == "" {
+		group = s.CurrentGroup()
+	}
+	s.Library.NewSheet(group, Last)
+	s.ReturnToDesk()
+}
+
+func (s *State) newGroupOnField(parent string) {
+	if s.Library == nil {
+		return
+	}
+	id := s.Library.NewGroup(parent, Last)
+	s.startFieldGroupRename(id)
+}
+
+func (s *State) startFieldGroupRename(id string) {
+	if s.Library == nil || id == "" {
+		return
+	}
+	g, ok := s.Library.Group(id)
+	if !ok || g.Inbox {
+		return
+	}
+	s.field.renamingGroup = id
+	s.field.renameName = g.Name
+	s.field.renameFocus = true
+}
+
+func (s *State) fieldGroupMenu(group GroupItem, trashed bool) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		if trashed {
+			if m.Item("Put Back").Chosen() {
+				s.Library.RestoreGroup(group.ID)
+			}
+			m.Separator()
+			if m.Item(deleteGroupLabel(group)).Chosen() {
+				s.arm("delete-field-group-" + group.ID)
+			}
+			return
 		}
-		s.Library.NewSheet(group, Last)
-		s.ReturnToDesk()
+		if m.Item("Focus Group").Chosen() {
+			s.SetPillScope(group.ID)
+			s.pill.focus = true
+		}
+		if !group.Smart() {
+			if m.Item("New Sheet").Chosen() {
+				s.Library.NewSheet(group.ID, Last)
+				s.ReturnToDesk()
+			}
+		}
+		if group.Inbox {
+			return
+		}
+		if !group.Smart() {
+			if m.Item("New Group Inside").Chosen() {
+				s.newGroupOnField(group.ID)
+			}
+		}
+		m.Separator()
+		if m.Item("Rename…").Chosen() {
+			s.startFieldGroupRename(group.ID)
+		}
+		m.Submenu("Color", func(m *ui.Menu) {
+			colors := []struct {
+				label string
+				color int
+			}{
+				{"Default", TintMoonveil},
+				{"Violet", TintHalo},
+				{"Blue", TintHalo + 1},
+				{"Teal", TintHalo + 2},
+				{"Amber", TintHalo + 3},
+				{"Rose", TintHalo + 4},
+				{"Indigo", TintHalo + 5},
+			}
+			for _, opt := range colors {
+				if m.Item(opt.label).Checked(group.Color == opt.color).Chosen() {
+					s.Library.StyleGroup(group.ID, group.Icon, opt.color)
+				}
+			}
+		})
+		s.moveMenu(m, func(target string) { s.Library.MoveGroup(group.ID, target, Last) }, group.ID)
+		m.Separator()
+		if m.Item(trashGroupLabel(group)).Chosen() {
+			s.Library.TrashGroup(group.ID)
+			s.ReconcileLibrary()
+			if s.pill.scopeGroup == group.ID {
+				s.SetPillScope("")
+			}
+		}
+	}
+}
+
+func (s *State) fieldSheetMenu(sheet SheetItem, trashed bool) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		if trashed {
+			if m.Item("Put Back").Chosen() {
+				s.Library.RestoreSheet(sheet.ID)
+			}
+			m.Separator()
+			if m.Item("Delete Immediately…").Chosen() {
+				s.arm("delete-field-sheet-" + sheet.ID)
+			}
+			return
+		}
+		if m.Item("Open").Chosen() {
+			s.Library.OpenSheet(sheet.ID, false)
+			s.ReturnToDesk()
+		}
+		if m.Item("Open Alongside").Chosen() {
+			s.Library.OpenSheet(sheet.ID, true)
+		}
+		m.Separator()
+		if m.Item("Duplicate").Chosen() {
+			s.Library.DuplicateSheet(sheet.ID)
+		}
+		s.moveMenu(m, func(group string) { s.Library.MoveSheet(sheet.ID, group, Last) }, "")
+		m.Separator()
+		if m.Item("Move to Trash").Chosen() {
+			s.Library.TrashSheet(sheet.ID)
+		}
 	}
 }
 

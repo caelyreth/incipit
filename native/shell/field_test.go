@@ -218,3 +218,56 @@ func TestFieldFidelitySteppingHashScopeAndFilterTokens(t *testing.T) {
 		t.Fatalf("Expected trashed sheet card when Trash filter active, got %#v", tester.Texts())
 	}
 }
+
+func TestFieldLibraryManagementCreateRenameAndTrash(t *testing.T) {
+	state, library, tester := fieldLibraryState(t)
+	state.ToggleField()
+	settle(tester)
+
+	// Clicking "+ Group" creates a group in the active parent and opens inline naming.
+	if err := tester.Click("New group"); err != nil {
+		t.Fatalf("Click New group: %v", err)
+	}
+	settle(tester)
+	tester.Type("Journal")
+	tester.Key(0, ui.KeyEnter)
+	settle(tester)
+	if len(library.calls) < 2 || library.calls[0] != "new group  1073741824" || library.calls[1] != "rename 2 Journal" {
+		t.Fatalf("Unexpected group create/rename calls: %v", library.calls)
+	}
+
+	// Trashing via card context menu and emptying via pill ribbon confirmation.
+	library.calls = nil
+	if err := tester.RightClick("Draft"); err != nil {
+		t.Fatalf("RightClick Draft: %v", err)
+	}
+	if err := tester.ChooseMenuItem("Move to Trash"); err != nil {
+		t.Fatalf("Choose Move to Trash: %v", err)
+	}
+	settle(tester)
+	if len(library.calls) == 0 || library.calls[0] != "trash 8" {
+		t.Fatalf("Expected trash sheet 8 call, got %v", library.calls)
+	}
+
+	if err := tester.Click("Show trash"); err != nil {
+		t.Fatalf("Click Show trash: %v", err)
+	}
+	settle(tester)
+	if err := tester.Click("Empty"); err != nil {
+		t.Fatalf("Click Empty (arm): %v", err)
+	}
+	settle(tester)
+	if err := tester.Click("Delete All"); err != nil {
+		t.Fatalf("Click Delete All (confirm): %v", err)
+	}
+	settle(tester)
+	foundEmpty := false
+	for _, call := range library.calls {
+		if call == "empty trash" {
+			foundEmpty = true
+		}
+	}
+	if !foundEmpty {
+		t.Fatalf("Expected empty trash call after armed confirmation, got %v", library.calls)
+	}
+}

@@ -125,6 +125,18 @@ func (s *State) pillScopeChip(c *ui.Context, semantic theme.Theme, group GroupIt
 		AlignItems(ui.Center).Radius(7 * k).Background(semantic.Surface.Chosen).
 		Transition(popTransition(animate)).
 		FocusRing(false).KeepFocus().Label("Clear scope " + group.Name).Tooltip("Show whole library")
+	if !group.Smart() && s.Library != nil {
+		if dropped, ok := s.dropOn(c, semantic, chip, takes{sheets: true, groups: !group.Inbox}, animate); ok {
+			switch d := dropped.(type) {
+			case sheetDrag:
+				s.Library.MoveSheet(d.id, group.ID, Last)
+			case groupDrag:
+				if d.id != group.ID {
+					s.Library.MoveGroup(d.id, group.ID, Last)
+				}
+			}
+		}
+	}
 	if chip.Clicked() {
 		s.SetPillScope("")
 	}
@@ -245,7 +257,7 @@ func (s *State) pillRibbon(c *ui.Context, semantic theme.Theme, k float32, anima
 	hasRecent := queryHasFilterValue(parsed, "updated", "7d")
 	hasTrash := queryHasFilter(parsed, "trash")
 
-	token := func(key, text, a11yLabel string, active bool, action func()) {
+	token := func(key, text, a11yLabel string, active bool, action func()) ui.Element {
 		btn := ui.ButtonBase(c.Key(key)).Height(20 * k).PaddingX(7 * k).
 			AlignItems(ui.Center).Justify(ui.Center).
 			Radius(6 * k).Label(a11yLabel).FocusRing(false).KeepFocus()
@@ -268,6 +280,7 @@ func (s *State) pillRibbon(c *ui.Context, semantic theme.Theme, k float32, anima
 		btn.Children(func() {
 			components.Label(c, text, theme.TextXSmall, fg).SingleLine()
 		})
+		return btn
 	}
 
 	ui.Row(c).Key("pill-ribbon").WidthPercent(100).Wrap().AlignItems(ui.Center).Gap(4 * k).Children(func() {
@@ -292,9 +305,30 @@ func (s *State) pillRibbon(c *ui.Context, semantic theme.Theme, k float32, anima
 		token("pill-filter-recent", "Recent", "Filter recent sheets", hasRecent, func() {
 			s.togglePillFilter("updated", "7d", "$updated:7d")
 		})
-		token("pill-filter-trash", "Trash", "Show trash", hasTrash, func() {
+		trashBtn := token("pill-filter-trash", "Trash", "Show trash", hasTrash, func() {
 			s.togglePillFilter("trash", "", "$trash")
 		})
+		if s.Library != nil {
+			if dropped, ok := s.dropOn(c, semantic, trashBtn, takes{sheets: true, groups: true}, animate); ok {
+				switch d := dropped.(type) {
+				case sheetDrag:
+					s.Library.TrashSheet(d.id)
+				case groupDrag:
+					s.Library.TrashGroup(d.id)
+					s.ReconcileLibrary()
+				}
+			}
+		}
+		if !hasTrash && s.Library != nil {
+			token("pill-new-group", "+ Group", "New group", false, func() {
+				s.newGroupOnField(s.pill.scopeGroup)
+			})
+		} else if hasTrash && s.Library != nil {
+			trashCount := s.Library.SheetCount(Place{Kind: PlaceTrash}) + len(s.Library.TrashedGroups())
+			if trashCount > 0 {
+				s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
+			}
+		}
 
 		for i, cond := range conditions {
 			if cond.Key == nil {

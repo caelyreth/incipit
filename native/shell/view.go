@@ -19,7 +19,7 @@ func (s *State) FocusWithin(c *ui.Context) bool {
 // being edited.
 func (s *State) Typing() bool {
 	return s.SearchRequested || s.list.searching || s.list.focus || s.FindRequested || s.finder.open || s.nav.renaming != "" ||
-		s.pill.focus || s.pill.typing
+		s.pill.focus || s.pill.typing || s.field.renamingGroup != ""
 }
 
 func (s *State) View(c *ui.Context) {

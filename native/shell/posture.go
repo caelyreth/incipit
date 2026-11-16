@@ -147,7 +147,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, scene stage.Scene
 		canvas := ui.Box(c).Key("field-plane").Absolute().Fill().
 			TransformOrigin(0.5, 0.5).Scale(scene.Field.Scale, scene.Field.Scale)
 		if scene.Field.Interactive {
-			if !s.pill.typing && s.pill.query == "" && !s.FindOpen() && c.Shortcut(0, ui.KeyEscape) {
+			if !s.pill.typing && s.pill.query == "" && s.field.renamingGroup == "" && !s.FindOpen() && c.Shortcut(0, ui.KeyEscape) {
 				if s.pill.scopeGroup != "" {
 					s.SetPillScope("")
 				} else {
