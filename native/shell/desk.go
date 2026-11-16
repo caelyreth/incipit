@@ -94,14 +94,49 @@ type deskState struct {
 }
 
 // deskView draws the desk: its strip of columns, its overview, and
-// the statistics of the sheet in front.
-func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layout, chrome float32, animate bool) {
+// the statistics of the sheet in front. When a field posture leans the desk
+// aside, the desk transforms visually without reflowing its pages.
+func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layout, chrome float32, scene stage.Scene, animate bool) {
 	s.keepDesk()
 	scale := s.Settings.UIFontSize
-	gutter := layout.ContentGutter * scale / theme.DefaultUIFontSize
+	k := scale / theme.DefaultUIFontSize
+	gutter := layout.ContentGutter * k
 	area := ui.Column(c).Key("desk").Grow(1).MinWidth(0).FillHeight().Background(semantic.Surface.Background)
-	s.followPointer(area)
+	if scene.Desk.Opacity <= 0.001 {
+		area.Opacity(0).IgnoreInput(true)
+	} else if lean := min(1, s.postureLevel); lean > 0.001 {
+		area.TransformOrigin(0.5, 0.5).
+			Scale(scene.Desk.Scale, scene.Desk.Scale).
+			Rotate(scene.Desk.Rotate).
+			Translate(scene.Desk.Offset.X, scene.Desk.Offset.Y).
+			Opacity(scene.Desk.Opacity).
+			Radius(12*k*lean).
+			Border(1, semantic.Border.Default.Alpha(lean)).
+			Shadow(0, 12*lean, 36*lean, 0, ui.RGBA(0, 0, 0, 0.30*lean)).
+			Clip()
+		if s.posture != stage.PostureWriting && scene.Desk.Interactive {
+			area.Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Return to desk")
+			if area.Clicked() {
+				s.ReturnToDesk()
+			}
+		}
+	}
+	if s.posture == stage.PostureWriting {
+		s.followPointer(area)
+	}
 	area.Children(func() {
+		if scene.Desk.Opacity <= 0.001 {
+			return
+		}
+		if s.posture != stage.PostureWriting {
+			// Let clicks anywhere on the leaned desk return to Writing instead
+			// of hitting inner editors, headers or scrubbers.
+			ui.Box(c).Key("desk-content").Grow(1).MinHeight(0).WidthPercent(100).IgnoreInput(true).Children(func() {
+				s.deskStrip(c, semantic, animate)
+				s.deskFoot(c, semantic, gutter, animate)
+			})
+			return
+		}
 		s.deskStrip(c, semantic, animate)
 		s.deskFoot(c, semantic, gutter, animate)
 		if chrome > 0.001 {

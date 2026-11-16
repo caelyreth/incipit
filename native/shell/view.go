@@ -2,6 +2,7 @@ package shell
 
 import (
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -17,7 +18,8 @@ func (s *State) FocusWithin(c *ui.Context) bool {
 // to take the focus as it opens: the search, a sheet's find, or a name
 // being edited.
 func (s *State) Typing() bool {
-	return s.SearchRequested || s.list.searching || s.list.focus || s.FindRequested || s.finder.open || s.nav.renaming != ""
+	return s.SearchRequested || s.list.searching || s.list.focus || s.FindRequested || s.finder.open || s.nav.renaming != "" ||
+		s.pill.focus || s.pill.typing
 }
 
 func (s *State) View(c *ui.Context) {
@@ -26,16 +28,19 @@ func (s *State) View(c *ui.Context) {
 	if changing {
 		c.AnimationFrame()
 	}
-	// The window asks for search: the sheet list's, its field focused.
+	// The window asks for search: the field pill when in a field posture,
+	// otherwise the sheet list's, its field focused.
 	if s.SearchRequested && s.Library != nil {
 		s.SearchRequested = false
-		if s.list.searching {
+		if s.posture != stage.PostureWriting {
+			s.pill.focus = true
+		} else if s.list.searching {
 			s.list.focus = true
 		} else {
 			s.Search()
 		}
 	}
-	width, _ := c.Size()
+	width, height := c.Size()
 	scale := s.Settings.UIFontSize
 	s.lastWidth, s.lastUIFontSize = width, scale
 	layout := s.paneLayout()
@@ -49,10 +54,10 @@ func (s *State) View(c *ui.Context) {
 	fullSidebar := layout.Sidebar * scale / theme.DefaultUIFontSize
 	fullList := layout.SheetList * scale / theme.DefaultUIFontSize
 	openTarget, listTarget := float32(0), float32(0)
-	if s.SidebarVisible() {
+	if s.posture == stage.PostureWriting && s.SidebarVisible() {
 		openTarget = 1
 	}
-	if s.SheetListVisible() {
+	if s.posture == stage.PostureWriting && s.SheetListVisible() {
 		listTarget = 1
 	}
 
@@ -94,6 +99,8 @@ func (s *State) View(c *ui.Context) {
 	// Each pane keeps room at its top for the panes' title line
 	// (paneHeader).
 	head := layout.Titlebar * scale / theme.DefaultUIFontSize
+	scene := s.computeStage(root, width, height, head, animate)
+	paneChrome := chrome * max(0, 1-s.postureLevel)
 	// The writing actions float over the desk's foot, following the panes
 	// as they open and close (dock).
 	dockLeft := sidebarWidth + listWidth
@@ -109,21 +116,25 @@ func (s *State) View(c *ui.Context) {
 	// the panes have a title line of their own (paneHeader), and the
 	// window's controls float over its corner (controls).
 	root.Children(func() {
-		ui.Row(c).Key("body").Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+		if scene.Field.Opacity > 0.001 {
+			s.fieldView(c, semantic, scene, animate)
+		}
+		ui.Row(c).Key("body").Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().
+			AlignItems(ui.Stretch).Children(func() {
 			s.sidebar(c, semantic, sidebarWidth, reveal)
 			s.sheets().sheetColumn(c, semantic, listWidth, listReveal, head)
-			s.deskView(c, semantic, layout, chrome, animate)
+			s.deskView(c, semantic, layout, chrome, scene, animate)
 		})
 		s.paneEdges(c, semantic, sidebarWidth, listWidth, animate)
 		// The title line and the place's title on its way paint over the
 		// panes' room for them (ZIndex).
-		s.paneHeader(c, semantic, layout, chrome, reveal, listWidth, listReveal)
+		s.paneHeader(c, semantic, layout, paneChrome, reveal, listWidth, listReveal)
 		s.placeFlight(c, semantic, layout, reveal, listWidth, listReveal, animate)
 		// The controls and the writing actions float over the window
 		// (components.Floating); an empty desk is quiet.
 		components.Floating(c, func() {
 			s.controls(c, semantic, chrome, animate)
-			if len(s.desk.columns) > 0 {
+			if len(s.desk.columns) > 0 && s.posture == stage.PostureWriting {
 				s.dock(c, semantic, dockLeft)
 			}
 		})

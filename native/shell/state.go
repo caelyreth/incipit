@@ -5,6 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -147,6 +148,12 @@ type State struct {
 	// dockMoving until when they go to where those put them.
 	dockAt     string
 	dockMoving time.Time
+	// posture, postureLevel and scene drive the continuous allocation between
+	// the desk, the field and the pill (posture.go, pill.go).
+	posture      stage.Posture
+	postureLevel float32
+	scene        stage.Scene
+	pill         pillState
 }
 
 func New() *State {

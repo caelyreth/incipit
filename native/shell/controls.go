@@ -19,14 +19,15 @@ func (s *State) controls(c *ui.Context, semantic theme.Theme, chrome float32, an
 	if chrome <= 0.001 {
 		return
 	}
-	button := func(key, label string, icon components.IconName, action func()) func() {
+	button := func(key, label string, icon components.IconName, selected bool, action func()) func() {
 		return func() {
-			chromeButton{key: key, label: label, icon: icon, action: action}.view(c, semantic, animate)
+			chromeButton{key: key, label: label, icon: icon, selected: selected, action: action}.view(c, semantic, animate)
 		}
 	}
 	groups := []components.ActionGroup{{Key: "app", Label: "App", Actions: []func(){
-		button("commands", "Search commands", components.IconCommand, s.OpenCommands),
-		button("settings", "Open settings", components.IconSettings, s.OpenSettings),
+		button("field", "Toggle field", components.IconMap, s.postureLevel > 0.05, s.CallField),
+		button("commands", "Search commands", components.IconCommand, false, s.OpenCommands),
+		button("settings", "Open settings", components.IconSettings, false, s.OpenSettings),
 	}}}
 	bar := ui.Row(c).Key("controls").Absolute().Opacity(chrome).Bind(&s.floating[0])
 	// Laid out as they were the frame before.

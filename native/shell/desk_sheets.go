@@ -2,6 +2,7 @@ package shell
 
 import (
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -46,7 +47,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 		Prose: prose, UIFontSize: s.Settings.UIFontSize, LayoutWidth: width, Inset: prose.Inset(width),
 		Top:    theme.DefaultLayout.ReadingTop * k * 3 / 2,
 		Bottom: dock + side, Dock: dock,
-		Focus: page.ID == s.ActivePage, Claim: claim,
+		Focus: s.posture == stage.PostureWriting && page.ID == s.ActivePage, Claim: claim && s.posture == stage.PostureWriting,
 	}
 	col.Children(func() {
 		ui.Column(c).Key("sheet-page").WidthPercent(100).Grow(1).MinHeight(0).PaddingX(side).

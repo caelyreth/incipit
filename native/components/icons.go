@@ -38,6 +38,7 @@ const (
 	IconItalic       IconName = "italic"
 	IconKeyboard     IconName = "keyboard"
 	IconLanguages    IconName = "languages"
+	IconMap          IconName = "map"
 	IconMinus        IconName = "minus"
 	IconNewGroup     IconName = "folder-plus"
 	IconNewSheet     IconName = "file-plus"
@@ -81,6 +82,7 @@ var AllIcons = [...]IconName{
 	IconItalic,
 	IconKeyboard,
 	IconLanguages,
+	IconMap,
 	IconMinus,
 	IconNewGroup,
 	IconNewSheet,

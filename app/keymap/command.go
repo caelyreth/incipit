@@ -66,6 +66,8 @@ const (
 	LibraryView  CommandID = "window.view-library"
 	SheetsView   CommandID = "window.view-sheets"
 	PageView     CommandID = "window.view-page"
+	Field        CommandID = "window.field"
+	Glance       CommandID = "window.glance"
 	Commands     CommandID = "app.commands"
 	Settings     CommandID = "app.settings"
 )
@@ -138,6 +140,8 @@ var appCommands = [...]Command{
 	{ID: LibraryView, Label: "Show library and sheets", Scope: ScopeWindow, Default: NewChord("1", ModifiersPrimary)},
 	{ID: SheetsView, Label: "Show sheet list only", Scope: ScopeWindow, Default: NewChord("2", ModifiersPrimary)},
 	{ID: PageView, Label: "Show page only", Scope: ScopeWindow, Default: NewChord("3", ModifiersPrimary)},
+	{ID: Field, Label: "Toggle field", Scope: ScopeWindow, Default: NewChord("0", ModifiersPrimary)},
+	{ID: Glance, Label: "Glance at field", Scope: ScopeWindow, Default: NewChord("4", ModifiersPrimary)},
 	{ID: Commands, Label: "Search commands", Scope: ScopeApp, Default: NewChord("k", ModifiersPrimary)},
 	{ID: Settings, Label: "Open settings", Scope: ScopeApp, Default: NewChord(",", ModifiersPrimary)},
 }
