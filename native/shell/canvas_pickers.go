@@ -5,13 +5,14 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
-// A picker is a list of sheets standing on the canvas as a column: the
-// sheet list's, on a browser of its own, with its own place and its own
-// search. It is how a sheet comes onto the canvas: one is made by "New
+// A picker brings navigation, search and sheets together in one canvas
+// column, using the panes' controls on a browser of its own. It is how a
+// sheet comes onto the canvas: one is made by "New
 // picker" in the writing actions, or where the canvas is right-clicked
 // between its columns. A sheet clicked in a picker takes its place, the
 // picker turning into the sheet's page; one opened alongside (Option,
@@ -39,6 +40,9 @@ func (s *State) NewPicker() {
 func (s *State) newPickerAt(at int) {
 	s.canvas.pickers++
 	p := &picker{id: s.canvas.pickers, list: newBrowser(s.list.place)}
+	if p.list.place.Kind == PlaceGroup {
+		s.pickerList(p).expandTo(p.list.place.Group)
+	}
 	p.list.focus = true
 	col := canvasColumn{picker: p}
 	s.workspace().insert(at, col)
@@ -49,6 +53,11 @@ func (s *State) newPickerAt(at int) {
 func (s *State) closePicker(id int) {
 	w := s.workspace()
 	if at := pickerIndex(w.columns, id); at >= 0 {
+		if s.nav.host == &w.columns[at].picker.list {
+			s.nav.host = nil
+			s.nav.renaming, s.nav.focusGroup, s.nav.styling = "", "", ""
+			s.nav.groupRename, s.nav.stylingOpen = false, false
+		}
 		// In front, it gives way to the sheet in front.
 		if s.canvas.at == w.columns[at].key() {
 			s.canvas.at = canvasColumn{sheet: s.canvasFront()}.key()
@@ -124,9 +133,8 @@ func (s *State) moveIntoPicker(picker int, id string) {
 	}
 }
 
-// pickerColumn draws a picker: under the title line, its place, which
-// chooses what it lists, its search, and its list; on the line, its head
-// (columnHead), what closes it.
+// pickerColumn draws a picker's navigation, search and sheet list under
+// the title line; on the line, its head (columnHead), what closes it.
 func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, w, origin float32, animate bool) {
 	list := s.pickerList(p)
 	// The search is the list while it holds a query.
@@ -147,14 +155,19 @@ func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, w, 
 		pad := theme.Space08.DIPs(scale)
 		ui.Column(c).Key("picker-body").WidthPercent(100).Grow(1).MinHeight(0).Padding(titleLine(c), 0, 0, 0).
 			Opacity(columnShows(col, front, animate)).Children(func() {
-			ui.Row(c).Key("picker-place-row").WidthPercent(100).Shrink(0).Padding(0, pad, theme.Space04.DIPs(scale), pad).
-				Children(func() { s.pickerPlace(c, semantic, list, animate) })
 			ui.Row(c).Key("picker-search").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
-				Padding(0, pad, theme.Space06.DIPs(scale), pad).Children(func() {
+				Padding(theme.Space06.DIPs(scale), pad, theme.Space06.DIPs(scale), pad).Children(func() {
 				list.searchHeader(c, semantic, animate)
 			})
+			list.pickerNavigation(c, semantic, w, animate)
 			ui.Box(c).WidthPercent(100).Height(1).Shrink(0).Background(semantic.Border.Variant)
-			list.listStage(c, semantic, animate)
+			if !p.list.searching {
+				ui.Row(c).Key("picker-place-row").WidthPercent(100).Shrink(0).
+					Padding(theme.Space08.DIPs(scale), pad, theme.Space04.DIPs(scale), pad).
+					Children(func() { list.pickerPlace(c, semantic, animate) })
+			}
+			list.listStage(c, semantic, animate).
+				MinHeight(theme.DefaultControls.Scaled(scale).Row + 2*theme.Space06.DIPs(scale))
 		})
 		s.columnHead(c, semantic, "picker-head", lead, trail, head, nil, chromeButton{
 			key: "close-picker", label: "Close picker",
@@ -163,32 +176,60 @@ func (s *State) pickerColumn(c *ui.Context, semantic theme.Theme, p *picker, w, 
 	})
 }
 
-// pickerPlace is a picker's place, its mark, title and count, which,
-// pressed, offers the library's places to show instead.
-func (s *State) pickerPlace(c *ui.Context, semantic theme.Theme, list listing, animate bool) {
+// pickerPlace is a picker's place, its mark, title and count.
+func (s listing) pickerPlace(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
-	title, icon, tint, detail := list.placeInfo(semantic, list.browser.place)
-	button := ui.Row(c).Key("picker-place").Grow(1).MinWidth(0).AlignItems(ui.Center).
-		Gap(headTitle.gap.DIPs(scale)).Padding(theme.Space04.DIPs(scale)).Radius(6 * scale / theme.DefaultUIFontSize).
-		Label("Choose what " + title + " shows")
-	hover := components.HoverAmount(button, button.Hovered(), animate)
-	button.Background(components.Blend(semantic.Surface.Panel, semantic.Element.Hover, hover))
-	button.Menu(func(m *ui.Menu) {
-		for _, at := range s.places() {
-			name, _, _, _ := list.placeInfo(semantic, at.place)
-			if m.Item(strings.Repeat("    ", at.depth) + name).Chosen() {
-				list.stopSearching()
-				list.show(at.place)
+	place := s.browser.place
+	title, icon, tint, detail := s.placeInfo(semantic, place)
+	ui.Row(c).Key("picker-place").Grow(1).MinWidth(0).AlignItems(ui.Center).
+		Gap(headTitle.gap.DIPs(scale)).Padding(theme.Space04.DIPs(scale)).Children(func() {
+		s.rowIcon(c, semantic, icon, tint, animate)
+		heading := ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Children(func() {
+			components.Label(c, title, headTitle.text, semantic.Text.Heading).SingleLine().FontWeight(600).Grow(1).MinWidth(0)
+			components.Label(c, detail, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum").Shrink(1).MinWidth(0)
+		})
+		if place.Kind == PlaceGroup {
+			if group, ok := s.Library.Group(place.Group); ok {
+				heading.ContextMenu(s.groupMenu(group))
 			}
 		}
+		if place.Kind == PlaceTrash && detail != itemCount(0) {
+			s.confirmButton(c, semantic, emptyTrashKey, "Empty", "Delete All", animate, s.Library.EmptyTrash)
+		}
 	})
-	button.Children(func() {
-		s.rowIcon(c, semantic, icon, tint, animate)
-		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			components.Label(c, title, headTitle.text, semantic.Text.Heading).SingleLine().FontWeight(600)
-			components.Label(c, detail, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
+}
+
+func (s listing) pickerNavigation(c *ui.Context, semantic theme.Theme, width float32, animate bool) {
+	scale := s.Settings.UIFontSize
+	pad, gap := theme.Space08.DIPs(scale), theme.Space04.DIPs(scale)
+	metrics := theme.DefaultControls.Scaled(scale)
+	ui.Column(c).Key("picker-navigation").WidthPercent(100).MinHeight(0).Shrink(1).
+		Padding(0, pad, theme.Space06.DIPs(scale), pad).Children(func() {
+		s.placeChips(c, semantic, width, animate)
+		ui.Row(c).Key("picker-groups-head").WidthPercent(100).Shrink(0).AlignItems(ui.Center).
+			PaddingStart(pad).Gap(gap).Children(func() {
+			components.Label(c, "Groups", theme.TextXSmall, semantic.Text.Muted).Grow(1)
+			components.IconButton{
+				Key: "new-group", Label: "New group", Icon: components.IconPlus.SVG(),
+				Style: components.SubtleButton, Size: components.CompactButton, Animate: animate,
+				Action: func() { s.startRename(s.Library.NewGroup("", Last)) },
+			}.View(c, semantic)
+			trash := components.IconButton{
+				Key: "trash", Label: "Trash", Icon: components.IconTrash.SVG(),
+				Style: components.SubtleButton, Size: components.CompactButton, Animate: animate,
+				Selected: s.chosen(Place{Kind: PlaceTrash}), Action: func() { s.goTo(Place{Kind: PlaceTrash}) },
+			}.View(c, semantic)
+			s.trashTarget(c, semantic, trash, animate)
 		})
-		ui.Icon(c, components.IconChevronDown.SVG()).FontSize(14 * scale / theme.DefaultUIFontSize).
-			Shrink(0).TextColor(semantic.Icon.Muted)
+		scroll := ui.Scroll(c).Key("picker-groups").WidthPercent(100).MinHeight(0).
+			MaxHeight(4*metrics.Height + 3*gap).TrackScroll(&s.browser.libraryScroll)
+		scroll = components.BindOverscroll(scroll, &s.browser.libraryScroll, &s.browser.libraryOverscroll,
+			scrollfx.Vertical, components.OverscrollList, scroll.LayoutBounds().H, scale)
+		scroll.Children(func() {
+			groups := ui.Column(c).WidthPercent(100).Gap(gap)
+			s.browser.libraryOverscroll.Apply(c, groups, animate)
+			track := components.TrackSelection(groups, components.NavigationSelection(c, semantic), animate)
+			groups.Children(func() { s.groupTree(c, semantic, "", 0, track, animate) })
+		})
 	})
 }

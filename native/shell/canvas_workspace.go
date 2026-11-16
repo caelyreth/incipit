@@ -225,7 +225,7 @@ func (s *State) listAt(sheet string) {
 	if listed || group == "" {
 		return
 	}
-	s.expandTo(group)
+	s.sheets().expandTo(group)
 	s.sheets().stopSearching()
 	s.sheets().show(Place{Kind: PlaceGroup, Group: group})
 }

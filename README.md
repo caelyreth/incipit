@@ -70,3 +70,10 @@ runs use an embedded ICU dictionary, while Korean and Latin text use the same
 UAX #29-compatible platform boundaries. Thai, Lao, Khmer and Burmese fall back
 to grapheme boundaries. The editor reaches it through `vocab.WordSegments` for
 word-wise motion, selection and deletion.
+
+Double-clicking whitespace selects that whitespace by default. Under
+Editor settings → Words, “Select nearby content from spaces”
+(`words.nearbyContent`) instead selects adjacent content by text position,
+using the pointer's side to break ties. It handles spaces, tabs and Unicode
+spaces without crossing explicit line breaks, and keeps whitespace-only
+lines selectable.

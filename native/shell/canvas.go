@@ -252,7 +252,7 @@ func (s *State) canvasStrip(c *ui.Context, semantic theme.Theme, layout theme.La
 			columns := s.workspace().columns
 			s.room(c, semantic, "room-start", 0, edge, false)
 			if len(columns) == 0 {
-				s.sheetHint(c, semantic, editor, animate)
+				s.sheetHint(c, semantic, window-2*edge, animate)
 				s.room(c, semantic, "room-end", 0, edge, true)
 			}
 			for i, col := range columns {

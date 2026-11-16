@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -16,6 +18,8 @@ import (
 
 // ID is the policy's id.
 const ID = "words"
+
+var NearbyContent = policy.Bool("nearbyContent", false, policy.Label("settings.words.nearbyContent"), policy.Description("settings.words.nearbyContent.description"))
 
 // Policy is the words policy. It answers a caret's units; core owns what
 // a range or a selected object does first, for every unit.
@@ -32,7 +36,10 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		policy.On(p, "extend-"+unit.name, policy.Extending(unit.unit, 0), policy.Slot.Inside(), move).Caret().Range()
 		policy.On(p, "delete-"+unit.name, policy.Deleting(unit.unit, 0), policy.Slot.Inside(), delete)
 	}
-	policy.On(p, "select-word", policy.Clicking(vocab.DoubleClick), policy.Slot.Inside(), selectWord).Any()
+	nearby := policy.Get(p, NearbyContent)
+	policy.On(p, "select-word", policy.Clicking(vocab.DoubleClick), policy.Slot.Inside(), func(context *policy.Ctx, input vocab.Place, _ policy.At[doc.SlotRef]) policy.Result {
+		return selectWord(context, input, nearby)
+	}).Any()
 
 	// The card's demonstration, played by the engine itself.
 	p.Showcase(2400*time.Millisecond,
@@ -232,13 +239,13 @@ func delete(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Res
 }
 
 // selectWord selects the word segment a double click hits.
-func selectWord(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.Result {
+func selectWord(c *policy.Ctx, in vocab.Place, nearby bool) policy.Result {
 	stop := in.Stop
 	content, ok := c.Inline(stop.Pos.Ref())
 	if in.Node != 0 || !ok {
 		return policy.Pass
 	}
-	from, to := segmentAt(content, stop.Pos.Offset, in.Over)
+	from, to := segmentAt(content, stop.Pos.Offset, in.Over, nearby)
 	return policy.Reveal(doc.TextRange(doc.CaretAt(doc.At(stop.Pos.Ref(), from)), doc.CaretAt(doc.At(stop.Pos.Ref(), to))))
 }
 
@@ -246,30 +253,57 @@ func selectWord(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.
 // the grapheme the pointer is over, on the over side of off (before it
 // when the side is not known); with none there, as at a slot's edge, the
 // one on the other side.
-func segmentAt(in *doc.Inline, off int, over vocab.Direction) (int, int) {
+func segmentAt(in *doc.Inline, off int, over vocab.Direction, nearby bool) (int, int) {
+	flat := in.Flat()
 	var units []span
-	for segment := range vocab.WordSegments(maskNodes(in.Flat())) {
+	for segment := range vocab.WordSegments(flat) {
 		units = append(units, span{segment.Start, segment.Start + len(segment.Text)})
 	}
-	in.Nodes(func(at int, _ *doc.Node) bool {
-		units = append(units, span{at, at + 1})
-		return true
-	})
-	sort.Slice(units, func(i, j int) bool {
-		if units[i].from != units[j].from {
-			return units[i].from < units[j].from
-		}
-		return units[i].to < units[j].to
-	})
 	if over == 0 {
 		over = vocab.Backward
 	}
 	for _, dir := range []vocab.Direction{over, -over} {
-		for _, u := range units {
-			if dir == vocab.Forward && u.from <= off && off < u.to || dir == vocab.Backward && u.from < off && off <= u.to {
-				return u.from, u.to
+		for index, unit := range units {
+			if dir == vocab.Forward && unit.from <= off && off < unit.to || dir == vocab.Backward && unit.from < off && off <= unit.to {
+				if nearby && horizontalSpace(flat[unit.from:unit.to]) {
+					unit = nearestContent(flat, units, index, off, over)
+				}
+				return unit.from, unit.to
 			}
 		}
 	}
 	return off, off
+}
+
+func horizontalSpace(text string) bool {
+	return text != "" && strings.IndexFunc(text, func(char rune) bool {
+		return !unicode.IsSpace(char) || strings.ContainsRune("\r\n\v\f\u0085\u2028\u2029", char)
+	}) < 0
+}
+
+func nearestContent(flat string, units []span, index, off int, over vocab.Direction) span {
+	left, right := index-1, index+1
+	for left >= 0 && horizontalSpace(flat[units[left].from:units[left].to]) {
+		left--
+	}
+	for right < len(units) && horizontalSpace(flat[units[right].from:units[right].to]) {
+		right++
+	}
+	before := left >= 0 && strings.TrimSpace(flat[units[left].from:units[left].to]) != ""
+	after := right < len(units) && strings.TrimSpace(flat[units[right].from:units[right].to]) != ""
+	if before && after {
+		backward := utf8.RuneCountInString(flat[units[left].to:off])
+		forward := utf8.RuneCountInString(flat[off:units[right].from])
+		if backward < forward || backward == forward && over == vocab.Backward {
+			return units[left]
+		}
+		return units[right]
+	}
+	if before {
+		return units[left]
+	}
+	if after {
+		return units[right]
+	}
+	return units[index]
 }

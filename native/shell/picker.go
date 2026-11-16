@@ -13,8 +13,8 @@ const pickerColumns = 6
 
 // stylePicker chooses a group's icon and color in a panel beside its row.
 // Each choice shows at once, in the row as in the panel.
-func (s *State) stylePicker(c *ui.Context, semantic theme.Theme, row ui.Element, group GroupItem, animate bool) {
-	if s.nav.styling != group.ID {
+func (s listing) stylePicker(c *ui.Context, semantic theme.Theme, row ui.Element, group GroupItem, animate bool) {
+	if s.nav.host != s.browser || s.nav.styling != group.ID {
 		return
 	}
 	scale := s.Settings.UIFontSize

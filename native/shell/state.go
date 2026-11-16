@@ -5,7 +5,6 @@ import (
 
 	"github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -94,14 +93,12 @@ type State struct {
 	// query it runs is FindText), FindRequested asks its field
 	// for the focus, and FindCount is what it found, as the window counts
 	// it.
-	FindQuery         string
-	FindRequested     bool
-	FindCount         FindCount
-	finder            findBar
-	Toolbar           ToolbarState
-	libraryScroll     ui.ScrollState
-	libraryOverscroll scrollfx.Overscroll
-	WindowActive      bool
+	FindQuery     string
+	FindRequested bool
+	FindCount     FindCount
+	finder        findBar
+	Toolbar       ToolbarState
+	WindowActive  bool
 
 	// Sheet draws an open sheet's page, as frame sets it.
 	Sheet       func(c *ui.Context, id string, frame SheetFrame)
@@ -168,7 +165,6 @@ func New() *State {
 		Appearance:   settings.DefaultPresentation(),
 		Settings:     theme.DefaultSettings(),
 		WindowActive: true,
-		nav:          navigation{expanded: map[string]bool{}},
 		list:         newBrowser(Place{}),
 		Toolbar: ToolbarState{
 			TypewriterEnabled: true,

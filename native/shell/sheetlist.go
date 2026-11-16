@@ -114,7 +114,6 @@ func (s *State) noteDrags(c *ui.Context) {
 	if s.nav.dragged {
 		s.nav.dragged = false
 		s.nav.quiet = c.Now().Add(dropQuiet)
-		s.nav.groupsTop.Hush(s.nav.quiet)
 	}
 }
 
@@ -184,9 +183,9 @@ func (s *State) side(from, to listView) float32 {
 // listStage draws what the list shows. A new place replaces the old at
 // once, never over it: two lists at half strength read as a flicker, the
 // more so where they share sheets. Its rows come in instead (enter).
-func (s listing) listStage(c *ui.Context, semantic theme.Theme, animate bool) {
+func (s listing) listStage(c *ui.Context, semantic theme.Theme, animate bool) ui.Element {
 	view := s.listView()
-	ui.Box(c).Key("list-stage").Grow(1).MinHeight(0).WidthPercent(100).Clip().Children(func() {
+	return ui.Box(c).Key("list-stage").Grow(1).MinHeight(0).WidthPercent(100).Clip().Children(func() {
 		s.listLayer(c, semantic, view, animate)
 	})
 }
@@ -260,7 +259,7 @@ func (s listing) placeList(c *ui.Context, semantic theme.Theme, place Place, ani
 	}
 	group := place.Group
 	if !files {
-		group = s.CurrentGroup()
+		group = s.currentGroup()
 	}
 	create := func(index int) { s.Library.NewSheet(group, index) }
 	var createChapter func(index int)
@@ -368,7 +367,7 @@ func (s listing) emptyList(
 func (s listing) listMenu() func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if m.Item("New Sheet").Chosen() {
-			s.Library.NewSheet(s.CurrentGroup(), Last)
+			s.Library.NewSheet(s.currentGroup(), Last)
 		}
 		if s.files(s.browser.place) && m.Item("New Chapter").Chosen() {
 			s.newChapter(s.browser.place.Group, Last)
@@ -513,6 +512,9 @@ func (s listing) sheetRows(
 				} else {
 					row = s.sheetRow(c, semantic, entry.Sheet, index, place, track, now, animate)
 					sheets = append(sheets, row)
+				}
+				if row.Pressed() || row.Dragging() {
+					track.HoldMarker(row)
 				}
 				rows = append(rows, row)
 			}
@@ -676,7 +678,7 @@ func (s listing) trackSheetDropRows(list ui.Element, entries []GroupEntry, rows 
 }
 
 // sheetDropPlaceholder reserves the dragged row's space at the insertion
-// target. It opens and closes on a spring, so rows move around it instead
+// target. It unfolds like the create areas, so rows move around it instead
 // of underneath the dragged copy.
 func (s listing) sheetDropPlaceholder(
 	c *ui.Context,
@@ -691,19 +693,16 @@ func (s listing) sheetDropPlaceholder(
 		height, opacity = s.browser.sheetDropRoom+s.browser.sheetDropHeight, 1
 	}
 	room := s.browser.sheetDropRoom
-	// It opens and closes by its own height, and only moves between
-	// slots by its transition: one that also took it out would leave its
-	// outline under a row that has just landed in its space.
-	transition := ui.ElementTransition{Duration: 1}
-	if animate {
-		transition = ui.ElementTransition{Duration: motionList, Position: true}
-	}
+	// It closes by its own height: an exit copy would leave its outline
+	// under a row that has just landed in its space.
+	transition := unfoldTransition(animate)
+	transition.Exit = nil
 	area := ui.Box(c).Key("sheet-drop-placeholder").WidthPercent(100).
 		Height(0).Shrink(0).Clip().Radius(metrics.Radius).
 		Transition(transition)
 	if animate {
-		height = components.Follow(area, "height", height, components.MotionQuick)
-		opacity = components.Follow(area, "opacity", opacity, components.MotionQuick)
+		height = area.AnimateTo("height", height, unfoldAnimation())
+		opacity = area.AnimateTo("opacity", opacity, unfoldAnimation())
 	}
 	area.Height(height).Opacity(opacity).
 		Draw(func(p *ui.Painter, r ui.Rect) {
@@ -939,7 +938,7 @@ func (s listing) sheetRow(
 	if dragging {
 		press = 0
 	}
-	if selected && !covered && (entering || (pressTarget > 0 || press > 0.001) && track.At(row)) {
+	if selected && !dragging && !covered && (entering || (pressTarget > 0 || press > 0.001) && track.At(row)) {
 		// Let the card carry its fill on entry or a press once the shared
 		// highlight has arrived; a new selection must glide there first.
 		track.Hide()
@@ -993,7 +992,8 @@ func chapterSheets(entries []GroupEntry, index int) int {
 	return n
 }
 
-func (s *State) startChapterRename(id, name string) {
+func (s listing) startChapterRename(id, name string) {
+	s.nav.host = s.browser
 	s.nav.renaming, s.nav.name = id, name
 	s.nav.groupRename = false
 }
@@ -1014,7 +1014,7 @@ func (s listing) chapterRow(
 ) ui.Element {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
-	editing := s.nav.renaming == chapter.ID
+	editing := s.nav.host == s.browser && !s.nav.groupRename && s.nav.renaming == chapter.ID
 	row := ui.Column(c).Key("chapter-" + chapter.ID).Label(chapter.Name).
 		WidthPercent(100).Height(metrics.Height).Shrink(0).
 		Radius(metrics.Radius).Clip().Transition(s.chapterTransition(animate))
@@ -1150,7 +1150,7 @@ func (s *State) chapterNameField(c *ui.Context, semantic theme.Theme, chapter Ch
 	}
 }
 
-func (s *State) chapterMenu(chapter ChapterItem) func(*ui.Menu) {
+func (s listing) chapterMenu(chapter ChapterItem) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if m.Item("Rename…").Chosen() {
 			s.startChapterRename(chapter.ID, chapter.Name)

@@ -97,16 +97,21 @@ func popTransition(animate bool) ui.ElementTransition {
 	return ui.ElementTransition{Animation: &spring, ExitDuration: motionList, Colors: true, Enter: gone, Exit: gone}
 }
 
+func unfoldAnimation() ui.Animation {
+	return ui.Animation{Duration: motionList, Ease: ui.EaseOut}
+}
+
 // unfoldTransition opens something called up in a list, pushing the rows
 // below aside, and folds it away.
 func unfoldTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
+	animation := unfoldAnimation()
 	return ui.ElementTransition{
-		Duration: motionList,
-		Position: true,
-		Enter:    &ui.Motion{Collapse: true, Opacity: 0},
-		Exit:     &ui.Motion{Collapse: true, Opacity: 0},
+		Animation: &animation,
+		Position:  true,
+		Enter:     &ui.Motion{Collapse: true, Opacity: 0},
+		Exit:      &ui.Motion{Collapse: true, Opacity: 0},
 	}
 }

@@ -125,14 +125,14 @@ func TestLibraryListsPullPastTheirEdges(t *testing.T) {
 		tester.Frame()
 		tester.Advance(time.Second)
 		tester.Scroll(100, 500, 0, 100000)
-		if state.libraryScroll.MaxY <= 0 || state.libraryScroll.Y != state.libraryScroll.MaxY {
-			t.Fatalf("library stopped at %v of %v", state.libraryScroll.Y, state.libraryScroll.MaxY)
+		if state.list.libraryScroll.MaxY <= 0 || state.list.libraryScroll.Y != state.list.libraryScroll.MaxY {
+			t.Fatalf("library stopped at %v of %v", state.list.libraryScroll.Y, state.list.libraryScroll.MaxY)
 		}
-		if _, y := state.libraryOverscroll.Offset(); y >= 0 {
+		if _, y := state.list.libraryOverscroll.Offset(); y >= 0 {
 			t.Fatalf("library pull = %v, want past its end", y)
 		}
 		tester.Advance(2 * time.Second)
-		if _, y := state.libraryOverscroll.Offset(); y != 0 {
+		if _, y := state.list.libraryOverscroll.Offset(); y != 0 {
 			t.Fatalf("library pull did not settle: %v", y)
 		}
 	})
@@ -188,7 +188,7 @@ func TestSidebarKeepsChipsAndGroupsHeadingAboveTheScroll(t *testing.T) {
 	if headingAfter != headingBefore {
 		t.Fatalf("groups heading moved with the rows: %+v then %+v", headingBefore, headingAfter)
 	}
-	if state.libraryScroll.Y <= 0 || novelShown && novelAfter.Y >= novelBefore.Y {
+	if state.list.libraryScroll.Y <= 0 || novelShown && novelAfter.Y >= novelBefore.Y {
 		t.Fatalf("group rows did not scroll: %+v then %+v", novelBefore, novelAfter)
 	}
 }
@@ -417,8 +417,8 @@ func TestSheetPressScalesTheWholeCardWithoutChangingItsFill(t *testing.T) {
 	if !ok {
 		t.Fatal("Chapter is not in the sheet list")
 	}
-	edgeX, centerY := int(chapter.X+1), int(chapter.Y+chapter.H/2)
-	insideX := int(chapter.X + 4)
+	edgeX, centerY := int(chapter.X+chapter.W-1), int(chapter.Y+chapter.H/2)
+	insideX := int(chapter.X + 8)
 	beforeEdge := tester.Image().RGBAAt(edgeX, centerY)
 	beforeInside := tester.Image().RGBAAt(insideX, centerY)
 	selection := state.Settings.Semantic().Surface.Chosen
@@ -807,9 +807,9 @@ func TestLibraryReconciliationCancelsDisappearedGroupActions(t *testing.T) {
 		state, library := nestedGroupState()
 		state.Go(Place{Kind: PlaceAll})
 		if styling {
-			state.startStyling("4")
+			state.sheets().startStyling("4")
 		} else {
-			state.startRename("4")
+			state.sheets().startRename("4")
 		}
 		library.groupTree["3"] = nil
 		state.ReconcileLibrary()
@@ -1081,7 +1081,7 @@ func assertGroupPresented(t *testing.T, state *State, tester *ui.Tester, id stri
 		t.Fatal("the group action did not reveal the library")
 	}
 	for parent := state.Library.Parent(id); parent != ""; parent = state.Library.Parent(parent) {
-		if !state.nav.expanded[parent] {
+		if !state.list.expanded[parent] {
 			t.Fatalf("ancestor %q stayed collapsed", parent)
 		}
 	}
@@ -1441,7 +1441,7 @@ func TestRenamingAChapterKeepsItsPlace(t *testing.T) {
 	tester := ui.NewTester(state.View, 1260, 850)
 	settle(tester)
 	after, _ := tester.Find("After")
-	state.startChapterRename("chapter:9", "Part Two")
+	state.sheets().startChapterRename("chapter:9", "Part Two")
 	for range 6 {
 		tester.Advance(16 * time.Millisecond)
 		tester.Frame()

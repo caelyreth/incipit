@@ -20,20 +20,25 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
+	return newHarnessWith(t, nil)
+}
+
+func newHarnessWith(test *testing.T, values policy.Values) *harness {
+	test.Helper()
 	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
 		Enabled: []*policy.Policy{core.Policy, Policy},
 		Strict:  true,
-	}, nil)
+	}, values)
 	if err != nil {
-		t.Fatal(err)
+		test.Fatal(err)
 	}
 	snap, err := profile.EmptyPage(1, 99, doc.NewInterner())
 	if err != nil {
-		t.Fatal(err)
+		test.Fatal(err)
 	}
-	e := engine.New(snap, prog, engine.Options{Trace: true})
-	e.OpenView(1)
-	return &harness{t: t, e: e, now: time.Unix(1000, 0)}
+	editor := engine.New(snap, prog, engine.Options{Trace: true})
+	editor.OpenView(1)
+	return &harness{t: test, e: editor, now: time.Unix(1000, 0)}
 }
 
 func (h *harness) do(in vocab.Intent) *engine.Published {

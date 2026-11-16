@@ -48,6 +48,31 @@ func TestEditorPageTurnsAPolicyOff(t *testing.T) {
 	editorShot(t, tester, "editor-page-off")
 }
 
+func TestEditorPageOffersNearbyContentSelection(test *testing.T) {
+	product := appsettings.DefaultState()
+	state := New()
+	state.Category = appsettings.Editor
+	state.Query = "Select nearby content from spaces"
+	state.Data = product.Data()
+	state.Apply = func(change appsettings.Change) {
+		if _, err := product.Apply(change); err != nil {
+			test.Fatal(err)
+		}
+		state.Data = product.Data()
+	}
+	tester := ui.NewTester(state.View, 980, 800)
+	tester.Advance(time.Second)
+	toggle, ok := tester.AccessByRole(ui.RoleSwitch, state.Query)
+	if !ok {
+		test.Fatal("no nearby-content switch")
+	}
+	before := product.Program
+	tester.ClickAt(toggle.Bounds.X+toggle.Bounds.W/2, toggle.Bounds.Y+toggle.Bounds.H/2)
+	if product.Policy["words.nearbyContent"] != true || product.Program == before {
+		test.Fatal("the nearby-content switch did not recompile the words policy")
+	}
+}
+
 func editorShot(t *testing.T, tester *ui.Tester, name string) {
 	dir := os.Getenv("NEVERLAND_SHOTS")
 	if dir == "" {

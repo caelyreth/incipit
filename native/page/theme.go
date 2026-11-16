@@ -22,10 +22,10 @@ func Theme(t theme.Theme) present.Theme {
 		vocab.GroupText: {Set: present.SetFont | present.SetColor, Font: present.FontBody, Color: pack(t.Prose.Text)},
 		profile.GroupHeading: {Set: present.SetFont | present.SetWeight | present.SetColor | present.SetSpace, Font: present.FontHeading,
 			Weight: 700, Color: pack(t.Prose.Strong), Space: 1.6},
-		// Marks are said by the type, not by a hue: the color budget keeps
-		// prose to its ink.
-		profile.GroupEmphasis: {Set: present.SetItalic, Italic: true},
-		profile.GroupStrong:   {Set: present.SetWeight | present.SetColor, Weight: 700, Color: pack(t.Prose.Strong)},
+		profile.GroupEmphasis: {Set: present.SetColor | present.SetBackground,
+			Color: pack(t.Families[theme.Unripe].Foreground), Background: pack(t.Families[theme.Unripe].Surface)},
+		profile.GroupStrong: {Set: present.SetWeight | present.SetColor | present.SetBackground, Weight: 700,
+			Color: pack(t.Families[theme.Regolith].Foreground), Background: pack(t.Families[theme.Regolith].Surface)},
 		profile.GroupCodeMark: {Set: present.SetFont | present.SetBackground | present.SetSize, Font: present.FontMono,
 			Size: 0.9, Background: pack(t.Surface.Inset)},
 		profile.GroupStrike:        {Set: present.SetStrike | present.SetColor, Strike: true, Color: pack(t.Text.Muted)},

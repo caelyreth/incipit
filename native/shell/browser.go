@@ -8,13 +8,16 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// browser is one list of sheets as it is browsed: the place it shows or
-// the search it runs, its rows as they came in, what is picked in it and
-// what is dragged over it. The sheet list is one; each list is its own, so
-// one can be drawn as many times as there are lists, the library's places
-// and its names (navigation) shared by them all.
+// browser is one view of the library: its place, group tree and search,
+// its rows as they came in, what is picked in it and what is dragged over
+// it. The normal panes share one; each picker has its own, the library's
+// places and its names (navigation) shared by them all.
 type browser struct {
-	place Place
+	place             Place
+	expanded          map[string]bool
+	libraryScroll     ui.ScrollState
+	libraryOverscroll scrollfx.Overscroll
+	groupsTop         components.CreateGap
 	// searching shows search results instead of the place; query is the
 	// search as written, and find the search's own state (search.go).
 	searching bool
@@ -63,7 +66,7 @@ type browser struct {
 }
 
 func newBrowser(place Place) browser {
-	return browser{place: place, sheetDropSlot: -1}
+	return browser{place: place, expanded: map[string]bool{}, sheetDropSlot: -1}
 }
 
 // listing is a browser as the window draws it: what a list does it does
@@ -110,4 +113,16 @@ func (s listing) show(place Place) {
 	s.nav.groupRename = false
 	s.browser.overscroll.Reset()
 	s.disarm()
+}
+
+func (s listing) goTo(place Place) {
+	if s.pane() {
+		s.showSheetList()
+	} else {
+		s.stopSearching()
+	}
+	s.show(place)
+	if s.browser.place.Kind == PlaceGroup {
+		s.expandTo(s.browser.place.Group)
+	}
 }

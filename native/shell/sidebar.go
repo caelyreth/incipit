@@ -11,14 +11,13 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// navigation is what the library shows and edits in place, apart from
-// any list of sheets: the groups open in its tree, the one name being
-// written, a group being styled, what waits for a second click to go. The
-// library keeps the places, and a place is chosen in it, never gone into:
+// navigation is what the library edits in place, apart from any browser:
+// the one name being written, a group being styled, what waits for a
+// second click to go. The library keeps the places, and a place is chosen
+// in it, never gone into:
 // a browser shows the place's sheets (browser.go).
 type navigation struct {
-	// expanded are the groups open in the library's tree.
-	expanded map[string]bool
+	host *browser
 	// renaming is a group or chapter being named in place; groupRename
 	// distinguishes a group target for lifecycle reconciliation. One name
 	// is written at a time in the window, whichever list shows it.
@@ -34,8 +33,6 @@ type navigation struct {
 	// armed is what waits for a second click to be deleted, since armedAt.
 	armed   string
 	armedAt time.Time
-	// groupsTop calls up a create area at the head of the groups.
-	groupsTop components.CreateGap
 	// dragged is whether a row was dragged this frame, in the library or
 	// any list; quiet is until when the create areas then stay shut.
 	dragged bool
@@ -73,12 +70,21 @@ func (s *State) ReconcileLibrary() {
 			s.nav.stylingOpen = false
 		}
 	}
-	if s.list.place.Kind == PlaceGroup {
-		if _, ok := s.Library.Group(s.list.place.Group); !ok {
-			s.list.place = Place{Kind: PlaceAll}
-			s.nav.renaming = ""
-			s.nav.groupRename = false
-			s.list.overscroll.Reset()
+	s.sheets().reconcilePlace()
+	for _, workspace := range s.canvas.workspaces {
+		for _, column := range workspace.columns {
+			if column.picker != nil {
+				s.pickerList(column.picker).reconcilePlace()
+			}
+		}
+	}
+}
+
+func (s listing) reconcilePlace() {
+	if s.browser.place.Kind == PlaceGroup {
+		if _, ok := s.Library.Group(s.browser.place.Group); !ok {
+			s.browser.place = Place{Kind: PlaceAll}
+			s.browser.overscroll.Reset()
 			s.disarm()
 		}
 	}
@@ -87,8 +93,7 @@ func (s *State) ReconcileLibrary() {
 // Go chooses a place in the library and shows its sheets in the sheet
 // list.
 func (s *State) Go(place Place) {
-	s.showSheetList()
-	s.sheets().show(place)
+	s.sheets().goTo(place)
 }
 
 // files reports a place sheets are filed in, in an order of its own: a
@@ -104,8 +109,12 @@ func (s *State) files(place Place) bool {
 // CurrentGroup is the group a new sheet goes in: the one shown, else the
 // Inbox's.
 func (s *State) CurrentGroup() string {
-	if s.files(s.list.place) {
-		return s.list.place.Group
+	return s.sheets().currentGroup()
+}
+
+func (s listing) currentGroup() string {
+	if s.files(s.browser.place) {
+		return s.browser.place.Group
 	}
 	for _, group := range s.Library.Groups("") {
 		if group.Inbox {
@@ -143,8 +152,8 @@ func (s *State) sidebar(
 				return
 			}
 			s.wordmark(c, semantic)
-			s.libraryList(c, semantic, animate)
-			s.trashRow(c, semantic, animate)
+			s.sheets().libraryList(c, semantic, fullWidth, animate)
+			s.sheets().trashRow(c, semantic, animate)
 		})
 	})
 }
@@ -173,10 +182,10 @@ func (s *State) wordmark(c *ui.Context, semantic theme.Theme) {
 		})
 }
 
-func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
+func (s listing) libraryList(c *ui.Context, semantic theme.Theme, width float32, animate bool) {
 	scale := s.Settings.UIFontSize
 	// The chips and the section title stand above the scrolling groups.
-	s.placeChips(c, semantic, animate)
+	s.placeChips(c, semantic, width, animate)
 	label := s.groupsLabel(c, semantic, animate)
 	none := len(s.Library.Groups("")) <= 1
 	// Resting on the heading calls up an area at the head of the groups.
@@ -185,14 +194,15 @@ func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 	if near {
 		at = 0
 	}
-	_, topOpen := s.nav.groupsTop.Follow(c, at)
+	s.browser.groupsTop.Hush(s.nav.quiet)
+	_, topOpen := s.browser.groupsTop.Follow(c, at)
 	topOpen = topOpen && !none
 
-	scroll := ui.Scroll(c).Grow(1).MinHeight(0).TrackScroll(&s.libraryScroll)
+	scroll := ui.Scroll(c).Grow(1).MinHeight(0).TrackScroll(&s.browser.libraryScroll)
 	scroll = components.BindOverscroll(
 		scroll,
-		&s.libraryScroll,
-		&s.libraryOverscroll,
+		&s.browser.libraryScroll,
+		&s.browser.libraryOverscroll,
 		scrollfx.Vertical,
 		components.OverscrollList,
 		scroll.LayoutBounds().H,
@@ -200,12 +210,12 @@ func (s *State) libraryList(c *ui.Context, semantic theme.Theme, animate bool) {
 	)
 	scroll.Children(func() {
 		list := ui.Column(c).Gap(theme.Space04.DIPs(scale))
-		s.libraryOverscroll.Apply(c, list, animate)
+		s.browser.libraryOverscroll.Apply(c, list, animate)
 		track := components.TrackSelection(list, components.NavigationSelection(c, semantic), animate)
 		list.Children(func() {
 			if topOpen {
-				s.nav.groupsTop.Hold(s.createArea(c, semantic, "new-group-top", "New group", animate, func() {
-					s.nav.groupsTop.Use()
+				s.browser.groupsTop.Hold(s.createArea(c, semantic, "new-group-top", "New group", animate, func() {
+					s.browser.groupsTop.Use()
 					s.startRename(s.Library.NewGroup("", 0))
 				}).Transition(unfoldTransition(animate)))
 			}
@@ -249,19 +259,21 @@ func (s *State) groupsLabel(c *ui.Context, semantic theme.Theme, animate bool) u
 
 // reveal shows the group a sheet is filed in, in the library beside the
 // page.
-func (s *State) reveal(sheet string) {
+func (s listing) reveal(sheet string) {
 	group := s.Library.SheetGroup(sheet)
 	if group == "" {
 		return
 	}
-	s.SetMode(ModePage)
+	if s.pane() {
+		s.SetMode(ModePage)
+	}
 	s.revealGroup(group)
-	s.sheets().stopSearching()
-	s.Go(Place{Kind: PlaceGroup, Group: group})
+	s.stopSearching()
+	s.goTo(Place{Kind: PlaceGroup, Group: group})
 }
 
 // placeRow is a filter in the library.
-func (s *State) placeRow(
+func (s listing) placeRow(
 	c *ui.Context,
 	semantic theme.Theme,
 	place Place,
@@ -276,13 +288,13 @@ func (s *State) placeRow(
 		Selected: s.chosen(place), Track: track,
 		Leading:  func() { s.rowIcon(c, semantic, icon, nil, animate) },
 		Trailing: func() { s.count(c, semantic, count) },
-		Action:   func() { s.Go(place) },
+		Action:   func() { s.goTo(place) },
 	}.View(c, semantic)
 }
 
 // chosen reports the place the sheet list shows.
-func (s *State) chosen(place Place) bool {
-	return !s.list.searching && s.SheetListVisible() && s.list.place == place
+func (s listing) chosen(place Place) bool {
+	return !s.browser.searching && (!s.pane() || s.SheetListVisible()) && s.browser.place == place
 }
 
 func placeKey(place Place) string {
@@ -291,7 +303,7 @@ func placeKey(place Place) string {
 
 // trashRow keeps the trash at the library's foot, where anything dragged
 // onto it goes.
-func (s *State) trashRow(c *ui.Context, semantic theme.Theme, animate bool) {
+func (s listing) trashRow(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
 	place := Place{Kind: PlaceTrash}
 	trash := s.Library.SheetCount(place) + len(s.Library.TrashedGroups())
@@ -302,10 +314,16 @@ func (s *State) trashRow(c *ui.Context, semantic theme.Theme, animate bool) {
 		track := components.TrackSelection(foot, components.NavigationSelection(c, semantic), animate)
 		row = s.placeRow(c, semantic, place, "Trash", components.IconTrash, trash, track, animate)
 	})
+	s.trashTarget(c, semantic, row, animate)
+}
+
+func (s listing) trashTarget(c *ui.Context, semantic theme.Theme, row ui.Element, animate bool) {
+	place := Place{Kind: PlaceTrash}
+	trash := s.Library.SheetCount(place) + len(s.Library.TrashedGroups())
 	row.ContextMenu(func(m *ui.Menu) {
 		if m.Item("Empty Trash…").Disabled(trash == 0).Chosen() {
 			// The trash shows what goes, and asks there.
-			s.Go(place)
+			s.goTo(place)
 			s.arm(emptyTrashKey)
 		}
 	})
@@ -341,7 +359,7 @@ func (s *State) count(c *ui.Context, semantic theme.Theme, count int) {
 
 // groupTree lists the groups in parent, each opening on its own groups.
 // The Inbox leads the library apart from them.
-func (s *State) groupTree(
+func (s listing) groupTree(
 	c *ui.Context,
 	semantic theme.Theme,
 	parent string,
@@ -357,7 +375,7 @@ func (s *State) groupTree(
 		ui.Column(c).Key("tree-" + group.ID).WidthPercent(100).Transition(rowTransition(animate)).Children(func() {
 			s.groupRow(c, semantic, group, depth, true, track, animate)
 			if group.HasGroups {
-				components.Fold{Key: "fold", Open: s.nav.expanded[group.ID], Animate: animate, Settle: motionFold}.View(c, func() {
+				components.Fold{Key: "fold", Open: s.browser.expanded[group.ID], Animate: animate, Settle: motionFold}.View(c, func() {
 					ui.Column(c).Gap(theme.Space04.DIPs(scale)).Padding(theme.Space04.DIPs(scale), 0, 0, 0).Children(func() {
 						s.groupTree(c, semantic, group.ID, depth+1, track, animate)
 					})
@@ -398,7 +416,7 @@ func groupTint(semantic theme.Theme, group GroupItem) *ui.Color {
 	return &semantic.Text.Default
 }
 
-func (s *State) groupRow(
+func (s listing) groupRow(
 	c *ui.Context,
 	semantic theme.Theme,
 	group GroupItem,
@@ -409,12 +427,12 @@ func (s *State) groupRow(
 ) {
 	scale := s.Settings.UIFontSize
 	indent := float32(depth) * theme.Space16.DIPs(scale)
-	if s.nav.renaming == group.ID {
+	if s.nav.host == s.browser && s.nav.groupRename && s.nav.renaming == group.ID {
 		s.renameRow(c, semantic, group, indent, animate)
 		return
 	}
 	place := Place{Kind: PlaceGroup, Group: group.ID}
-	open := s.nav.expanded[group.ID]
+	open := s.browser.expanded[group.ID]
 	row := components.NavigationRow{
 		Key: "group-" + group.ID, Label: group.Name, Role: ui.RoleButton, FullWidth: true,
 		Indent: indent, Animate: animate, Selected: s.chosen(place), Track: track,
@@ -425,7 +443,7 @@ func (s *State) groupRow(
 				s.disclosure(c, semantic, group, open, animate)
 			}
 		},
-		Action: func() { s.Go(place) },
+		Action: func() { s.goTo(place) },
 	}.View(c, semantic)
 	if !group.Inbox {
 		row.Drag(groupDrag{id: group.ID})
@@ -436,7 +454,7 @@ func (s *State) groupRow(
 	}
 	row.ContextMenu(s.groupMenu(group))
 	s.dropInto(c, semantic, row, group, animate)
-	if s.nav.focusGroup == group.ID {
+	if s.nav.host == s.browser && s.nav.focusGroup == group.ID {
 		s.nav.focusGroup = ""
 		row.Focus()
 		components.Reveal(c, row, components.RevealMargin(c), ui.ScrollIntoViewOptions{})
@@ -446,7 +464,7 @@ func (s *State) groupRow(
 
 // disclosure opens and closes a group in the tree. It trails the row, so
 // every icon in the library lines up, nested or not.
-func (s *State) disclosure(c *ui.Context, semantic theme.Theme, group GroupItem, open bool, animate bool) {
+func (s listing) disclosure(c *ui.Context, semantic theme.Theme, group GroupItem, open bool, animate bool) {
 	metrics := theme.DefaultControls.Scaled(s.Settings.UIFontSize)
 	size := 16 * s.Settings.UIFontSize / theme.DefaultUIFontSize
 	toggle := ui.ButtonBase(c.Key("disclose")).Label("Show groups in "+group.Name).
@@ -467,13 +485,13 @@ func (s *State) disclosure(c *ui.Context, semantic theme.Theme, group GroupItem,
 		toggle.Border(1, semantic.Border.Focused)
 	}
 	if toggle.Clicked() {
-		s.nav.expanded[group.ID] = !open
+		s.browser.expanded[group.ID] = !open
 	}
 }
 
 // dropInto files sheets, chapters and groups dragged onto a group's row
 // into it. A smart folder takes none: what it holds, its query finds.
-func (s *State) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, group GroupItem, animate bool) {
+func (s listing) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, group GroupItem, animate bool) {
 	if group.Smart() {
 		return
 	}
@@ -486,29 +504,31 @@ func (s *State) dropInto(c *ui.Context, semantic theme.Theme, row ui.Element, gr
 	case groupDrag:
 		if dropped.id != group.ID {
 			s.Library.MoveGroup(dropped.id, group.ID, Last)
-			s.nav.expanded[group.ID] = true
+			s.browser.expanded[group.ID] = true
 		}
 	}
 }
 
-func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
+func (s listing) groupMenu(group GroupItem) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if group.Smart() {
 			if m.Item("Edit Query…").Chosen() {
-				s.showSheetList()
-				s.sheets().editSmartGroup(group)
+				if s.pane() {
+					s.showSheetList()
+				}
+				s.editSmartGroup(group)
 			}
 			m.Separator()
 			s.groupItems(m, group)
 			return
 		}
 		if m.Item("New Sheet").Chosen() {
-			s.Go(Place{Kind: PlaceGroup, Group: group.ID})
+			s.goTo(Place{Kind: PlaceGroup, Group: group.ID})
 			s.Library.NewSheet(group.ID, Last)
 		}
 		if m.Item("New Chapter").Chosen() {
-			s.Go(Place{Kind: PlaceGroup, Group: group.ID})
-			s.sheets().newChapter(group.ID, Last)
+			s.goTo(Place{Kind: PlaceGroup, Group: group.ID})
+			s.newChapter(group.ID, Last)
 		}
 		if group.Inbox {
 			return
@@ -523,7 +543,7 @@ func (s *State) groupMenu(group GroupItem) func(*ui.Menu) {
 
 // groupItems are what a group's menu does to the group itself, as to a
 // smart folder: naming it, its look, where it is, and the trash.
-func (s *State) groupItems(m *ui.Menu, group GroupItem) {
+func (s listing) groupItems(m *ui.Menu, group GroupItem) {
 	if m.Item("Rename…").Chosen() {
 		s.startRename(group.ID)
 	}
@@ -562,12 +582,13 @@ func (s *State) moveMenu(m *ui.Menu, move func(group string), exclude string) {
 	})
 }
 
-func (s *State) startRename(id string) {
+func (s listing) startRename(id string) {
 	group, ok := s.Library.Group(id)
 	if !ok || group.Inbox {
 		return
 	}
 	s.revealGroup(id)
+	s.nav.host = s.browser
 	s.nav.renaming, s.nav.name = id, group.Name
 	s.nav.groupRename = true
 	s.nav.focusGroup = id
@@ -575,34 +596,37 @@ func (s *State) startRename(id string) {
 
 // startStyling chooses a group's look beside its row, showing the library
 // and opening the group's ancestors if the action came from the sheet list.
-func (s *State) startStyling(id string) {
+func (s listing) startStyling(id string) {
 	group, ok := s.Library.Group(id)
 	if !ok || group.Inbox {
 		return
 	}
 	s.revealGroup(group.ID)
+	s.nav.host = s.browser
 	s.nav.styling, s.nav.stylingOpen = group.ID, true
 	s.nav.focusGroup = group.ID
 }
 
 // revealGroup shows the library and opens every ancestor of id, so the
 // group's row has a presentation host for an in-place action.
-func (s *State) revealGroup(id string) {
-	visible := true
-	s.SidebarOverride = &visible
+func (s listing) revealGroup(id string) {
+	if s.pane() {
+		visible := true
+		s.SidebarOverride = &visible
+	}
 	s.expandTo(id)
 }
 
 // expandTo opens the groups a group is in, in the library's tree.
-func (s *State) expandTo(id string) {
+func (s listing) expandTo(id string) {
 	for parent := s.Library.Parent(id); parent != ""; parent = s.Library.Parent(parent) {
-		s.nav.expanded[parent] = true
+		s.browser.expanded[parent] = true
 	}
 }
 
 // renameRow names a group in place: Return or leaving the field keeps the
 // name, Escape keeps the old one.
-func (s *State) renameRow(c *ui.Context, semantic theme.Theme, group GroupItem, indent float32, animate bool) {
+func (s listing) renameRow(c *ui.Context, semantic theme.Theme, group GroupItem, indent float32, animate bool) {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	lead := theme.Space08.DIPs(scale) + indent

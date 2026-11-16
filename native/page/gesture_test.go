@@ -4,7 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/app/manifest"
 	"github.com/caelyreth/neverland/editor/engine"
+	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/ui"
 )
@@ -145,6 +147,36 @@ func TestAPointerDoubleClickStillSelectsAWord(t *testing.T) {
 	from, to := h.el.Editor.Selection().Ordered(h.el.Editor.Engine.Snapshot())
 	if from.Pos.Offset != 6 || to.Pos.Offset != 11 {
 		t.Fatalf("double click selected %d..%d, want world", from.Pos.Offset, to.Pos.Offset)
+	}
+}
+
+func TestAPointerDoubleClickInSpaceUsesTheWordsPolicy(test *testing.T) {
+	for _, nearby := range []bool{false, true} {
+		gesture := newGestureHarness(test)
+		program, err := manifest.Compile(policy.Values{"words.nearbyContent": nearby}, true)
+		if err != nil {
+			test.Fatal(err)
+		}
+		gesture.el.Editor.Engine.SetProgram(program)
+		gesture.el.relayout()
+		pointerX, pointerY := pointAt(test, gesture.el, 6)
+		for _, kind := range []ui.InputKind{ui.InputPointerDown, ui.InputPointerUp} {
+			gesture.at = gesture.at.Add(time.Millisecond)
+			if !gesture.el.handle(ui.InputEvent{Kind: kind, X: pointerX - 1, Y: pointerY, Clicks: 2, Time: gesture.at}, ui.Services{}) {
+				test.Fatal("double click was refused")
+			}
+			want := [2]int{5, 6}
+			if nearby {
+				want = [2]int{6, 11}
+			}
+			from, to := gesture.el.shownSelection().Ordered(gesture.el.Editor.Engine.Snapshot())
+			if got := [2]int{from.Pos.Offset, to.Pos.Offset}; got != want {
+				test.Fatalf("nearby %v, event %v selected %v, want %v", nearby, kind, got, want)
+			}
+		}
+		if places := gesture.countPlace(); len(places) != 1 || places[0].Over != vocab.Backward {
+			test.Fatalf("double click committed %+v", places)
+		}
 	}
 }
 

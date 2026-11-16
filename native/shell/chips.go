@@ -24,7 +24,7 @@ type placeChip struct {
 // of chips. The chosen one widens to a filled capsule with its name, the
 // others keep to their icons, so the places a writer goes to most stay one
 // click apart without taking a row each.
-func (s *State) placeChips(c *ui.Context, semantic theme.Theme, animate bool) {
+func (s listing) placeChips(c *ui.Context, semantic theme.Theme, width float32, animate bool) {
 	scale := s.Settings.UIFontSize
 	var chips []placeChip
 	for _, group := range s.Library.Groups("") {
@@ -49,7 +49,7 @@ func (s *State) placeChips(c *ui.Context, semantic theme.Theme, animate bool) {
 	gap := theme.Space06.DIPs(scale)
 	// It keeps to the traffic lights' line on both sides.
 	inset := s.lightLine()
-	width := (s.paneLayout().Sidebar-2*float32(theme.Space08))*scale/theme.DefaultUIFontSize - 2*inset
+	width -= 2*theme.Space08.DIPs(scale) + 2*inset
 	small := height + theme.Space08.DIPs(scale)
 	large := width - float32(len(chips)-1)*(small+gap)
 	// One stop for the keyboard: the arrows move along the strip.
@@ -62,7 +62,7 @@ func (s *State) placeChips(c *ui.Context, semantic theme.Theme, animate bool) {
 	})
 }
 
-func (s *State) chip(c *ui.Context, semantic theme.Theme, chip placeChip, small, large float32, animate bool) {
+func (s listing) chip(c *ui.Context, semantic theme.Theme, chip placeChip, small, large float32, animate bool) {
 	scale := s.Settings.UIFontSize
 	height := theme.DefaultControls.Scaled(scale).Height
 	chosen := s.chosen(chip.place)
@@ -123,6 +123,6 @@ func (s *State) chip(c *ui.Context, semantic theme.Theme, chip placeChip, small,
 		}
 	}
 	if button.Clicked() {
-		s.Go(chip.place)
+		s.goTo(chip.place)
 	}
 }
