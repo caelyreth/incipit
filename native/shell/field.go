@@ -93,8 +93,8 @@ type fieldState struct {
 	over  scrollfx.Elastic
 	viewH float32
 	edges components.EdgeFade
-	// metrics are the measures the field was last laid out to.
-	metrics blockMetrics
+	// room is the room the field was last laid out in.
+	room fieldRoom
 	// ribbonHold is what the ribbons about the pill hold to while it
 	// stands as it is (pill.go).
 	ribbonHold ribbonHold
@@ -123,6 +123,10 @@ type fieldState struct {
 	renaming, renameName string
 	renameFocus          bool
 }
+
+// fieldRoom is the room the field is laid out in: its width and height,
+// at the type's size.
+type fieldRoom struct{ w, h, scale float32 }
 
 // change is how the field moves to a new layout: which way, the place its
 // new results come from, and the result its old ones go back into.
@@ -258,10 +262,12 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	k := m.k
 	// The window resized, or the type, the field stands at once as its new
 	// measures lay it out: nothing of it springs from where it stood, so
-	// each frame of a resize is drawn whole and at its own size.
-	if m != s.field.metrics {
+	// each frame of a resize is drawn whole and at its own size. Measures
+	// the query changes, as the settings' wider columns, move as any change
+	// of the query does.
+	if room := (fieldRoom{w, h, m.scale}); room != s.field.room {
 		animate = false
-		s.field.metrics = m
+		s.field.room = room
 	}
 	view := ui.Box(c).Key("field").Absolute().Top(0).Left(x).Size(w, h).Clip().Hidden(hidden).
 		Role(ui.RoleGroup).Label("Field")

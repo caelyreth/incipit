@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -134,5 +135,24 @@ func TestTheSettingsCommandShowsThemFromTheDesk(t *testing.T) {
 	settle(tester)
 	if state.OnDesk() || !state.InSettings() {
 		t.Fatal("The settings should come up in the field.")
+	}
+}
+
+// Opening a category moves the field as any change of the query does,
+// though its live cards stand in wider columns.
+func TestOpeningASettingsCategoryMoves(t *testing.T) {
+	state, _, tester := settingsState(t)
+	state.ShowSettings()
+	settle(tester)
+	if err := tester.Click("Keymap"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Advance(16 * time.Millisecond)
+	tester.Frame()
+	tester.Advance(48 * time.Millisecond)
+	tester.Frame()
+	if slices.Equal(state.field.drawn, state.field.rest) {
+		t.Fatal("Opening a category should move the field, not stand it at once.")
 	}
 }
