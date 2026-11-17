@@ -9,7 +9,7 @@ func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
 	if got := order(4); got[0] != 2 || got[1] != 1 || len(got) != 4 {
 		t.Fatalf("Four columns should start at the two middle ones: %v", got)
 	}
-	z := Horizon{Cols: 3, Col: 100, Gap: 10, Band: 40}
+	z := Horizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20}
 	rects := z.Place([]float32{50, 60, 70, 80})
 	if rects[0].Y != 20 || rects[1].Y != -80 || rects[0].X != rects[1].X {
 		t.Fatalf("The first two should stand below and above the middle: %+v", rects)

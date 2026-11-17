@@ -75,7 +75,7 @@ func TestAGroupClickedNarrowsTheQueryAndItsRibbonBroadensIt(t *testing.T) {
 	if got := shownBlocks(state); !slices.Equal(got, []string{"sheet:7", "new"}) {
 		t.Fatalf("In the group, the field should show its block, but shows %v.", got)
 	}
-	if err := tester.Click("Novel, remove"); err != nil {
+	if err := tester.Click("Remove Group is Novel"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
@@ -157,21 +157,19 @@ func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
 	library.rev++
 	settle(tester)
 
-	novel, ok := tester.Find("Novel")
-	if !ok {
-		t.Fatal("Novel block head should show on the field.")
-	}
-	if novel.Y >= 40 {
-		// Force a shorter window so Novel's head sits inside the top title band.
-		tester.SetSize(1260, 480)
+	// A window short enough that Novel's head, over the pill and its
+	// ribbons, reaches into the top title band.
+	var novel ui.Rect
+	ok := false
+	for h := 700; h >= 300; h -= 10 {
+		tester.SetSize(1260, h)
 		settle(tester)
-		novel, ok = tester.Find("Novel")
-		if !ok {
-			t.Fatal("Novel block head should show after resize.")
+		if novel, ok = tester.Find("Novel"); ok && novel.H > 0 && novel.Y >= 0 && novel.Y < 40 {
+			break
 		}
 	}
-	if novel.Y >= 40 {
-		t.Fatalf("Expected Novel head inside top title band (<40), got Y=%v", novel.Y)
+	if !ok || novel.Y < 0 || novel.Y >= 40 {
+		t.Fatalf("Expected Novel head inside top title band (<40), got %v", novel)
 	}
 
 	// Right-clicking the blank top-left corner still opens the field menu.
@@ -181,8 +179,7 @@ func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
 		t.Fatal("Blank top area should still open the field context menu on right click.")
 	}
 	tester.CloseMenu()
-	tester.Frame()
-
+	settle(tester)
 	// Clicking the Novel head inside the top band still narrows the query to Novel.
 	tester.ClickAt(novel.X+16, novel.Y+novel.H/2)
 	settle(tester)
@@ -305,5 +302,65 @@ func TestPillFocusOutlineAnimatesBothDirections(t *testing.T) {
 	if settledOut.R != idle.R || settledOut.G != idle.G || settledOut.B != idle.B {
 		t.Fatalf("unfocused pill border = (%d,%d,%d), want Border.Variant (%d,%d,%d)",
 			settledOut.R, settledOut.G, settledOut.B, idle.R, idle.G, idle.B)
+	}
+}
+
+// What is being written is suggested around the pill, as idle ribbons:
+// the keys that start it, then its key's values, each taken with Tab; a
+// value taken becomes a ribbon, and the field answers the query without
+// what is half written, showing no card for the suggestions.
+func TestSuggestionsStandAroundThePillAndTabTakesThem(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	tester.Type("$up")
+	settle(tester)
+	if _, ok := tester.Find("Updated"); !ok {
+		t.Fatalf("The key being written should be suggested around the pill: %v", tester.Texts())
+	}
+	if got := shownBlocks(state); !slices.Equal(got, []string{"group:1", "group:2"}) {
+		t.Fatalf("The field should answer the query without what is half written, but shows %v.", got)
+	}
+	tester.Key(0, ui.KeyTab)
+	settle(tester)
+	if state.field.words != "$updated:" {
+		t.Fatalf("Tab should write the key, but the pill holds %q.", state.field.words)
+	}
+	today, ok := tester.Find("today")
+	if !ok {
+		t.Fatalf("The key's values should stand around the pill: %v", tester.Texts())
+	}
+	// The keys stay where they were, the values in rows of their own under
+	// them all.
+	tag, ok := tester.Find("Tag")
+	if !ok || today.Y <= tag.Y {
+		t.Fatalf("The keys should stay, the values under them: Tag %v, today %v.", tag, today)
+	}
+	tester.Key(0, ui.KeyDown)
+	tester.Key(0, ui.KeyTab)
+	settle(tester)
+	if !slices.Equal(state.field.conditions, []string{"$updated:yesterday"}) || state.field.words != "" {
+		t.Fatalf("Down then Tab should take the second value as a ribbon, but the query is %v %q.", state.field.conditions, state.field.words)
+	}
+}
+
+// Open, the pill shows what the query can be narrowed by around it, idle;
+// let go of, only what the query holds. An idle key pressed is written in
+// the pill, for its value to be chosen.
+func TestIdleFiltersStandAroundTheOpenPill(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	settle(tester)
+	if _, ok := tester.Find("Tag"); !ok {
+		t.Fatalf("The open pill should offer Tag around it: %v", tester.Texts())
+	}
+	if err := tester.Click("Updated"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.field.words != "$updated:" {
+		t.Fatalf("An idle key pressed should be written in the pill, but it holds %q.", state.field.words)
+	}
+	tester.ClickAt(12, 12)
+	settle(tester)
+	if _, ok := tester.Find("Tag"); ok {
+		t.Fatal("Let go of, the pill should show only what the query holds.")
 	}
 }

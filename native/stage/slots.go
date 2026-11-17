@@ -11,11 +11,13 @@ package stage
 // column, and only outward.
 
 // Horizon is the field's columns, the band they stand on either side of,
-// and the room between what they hold.
+// and the room between what they hold. The band reaches Above over the
+// horizon's middle and Below under it: the pill, and the ribbons on either
+// side of it.
 type Horizon struct {
-	Cols     int
-	Col, Gap float32
-	Band     float32
+	Cols         int
+	Col, Gap     float32
+	Above, Below float32
 }
 
 // Columns fits a horizon's columns into width w: as many as hold at least
@@ -57,7 +59,7 @@ func (z Horizon) Place(heights []float32) []Rect {
 	below := make([]float32, z.Cols)
 	above := make([]float32, z.Cols)
 	for i := range below {
-		below[i], above[i] = z.Band/2, -z.Band/2
+		below[i], above[i] = z.Below, -z.Above
 	}
 	out := make([]Rect, len(heights))
 	slots := 2 * z.Cols

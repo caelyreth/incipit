@@ -12,8 +12,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The field shows what its query finds (results.go) in blocks
-// (blocks.go) around the pill the query is written in (pill.go).
+// The field shows what its sources find for its query (cards.go), the
+// library's in blocks (results.go, blocks.go), around the pill the query
+// is written in (pill.go).
 // Everything done on the field changes the query, and the field moves to
 // what the changed query finds on one value (stage.Shift), from where the
 // action says: a group's head pressed opens its blocks out of it, a
@@ -26,15 +27,27 @@ type fieldState struct {
 	conditions []string
 	words      string
 	edit       *string
-	// focus asks the pill's input for the keyboard.
+	// focus asks the pill's input for the keyboard; open is whether the
+	// pill, holding it at its horizon, shows what it can narrow by.
 	focus bool
-	found found
-	// shapes are found's blocks' shapes, for the measures shapesKey names.
+	open  bool
+	// completion is what may stand at the caret, caret bytes into the
+	// words completedFor, offered unless the words are what it was put
+	// away at, dismissed, and suggestion the one of it the keys are on;
+	// offers counts its changes, for what the field found.
+	completion   query.Completion
+	caret        int
+	suggestion   int
+	completedFor string
+	dismissed    string
+	offers       uint64
+	found        found
+	// shapes are found's cards' shapes, for the measures shapesKey names.
 	shapes    []shape
 	shapesKey string
-	// shown are the blocks drawn, those going out included, by id, as
+	// shown are the cards drawn, those going out included, by id, as
 	// shaped.
-	shown      map[string]block
+	shown      map[string]card
 	shownShape map[string]shape
 	// rest is the layout's frames as last laid out, at rest, drawn what
 	// was last drawn, and from what the change under way started from.
@@ -201,27 +214,24 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		heights[i] = sh.size.H
 	}
 	// As many columns as what it shows takes, so the field stands even
-	// about its pill.
+	// about its pill; its band reaching past the pill as far as the
+	// ribbons around it do.
+	pill := stage.Size{W: min(440*k, w-2*(m.pad+horizonSide*k)), H: 40 * k}
+	rl := s.ribbons(c, k, w/2, pill.W, pill.H)
 	z := m.horizon
 	z.Cols = max(1, min(z.Cols, (len(heights)+1)/2))
+	z.Above += rl.above
+	z.Below += rl.below
 	rects := z.Place(heights)
 	frames := make([]stage.Frame, len(rects))
 	for i, r := range rects {
-		frames[i] = stage.Frame{ID: f.blocks[i].id, Size: shapes[i].size, Rect: r, Shown: 1}
+		frames[i] = stage.Frame{ID: f.cards[i].id, Size: shapes[i].size, Rect: r, Shown: 1}
 	}
 	below, above := stage.Reach(rects)
 	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2), max(0, below+3*m.pad-h/2)
 	s.field.order = s.field.order[:0]
-	for _, b := range f.blocks {
-		for _, cmd := range b.commands {
-			s.field.order = append(s.field.order, "command:"+cmd.ID)
-		}
-		for _, g := range b.groups {
-			s.field.order = append(s.field.order, "group:"+g.ID)
-		}
-		for _, e := range b.entries {
-			s.field.order = append(s.field.order, "sheet:"+e.sheet.ID)
-		}
+	for _, cd := range f.cards {
+		s.field.order = append(s.field.order, cd.kind.rows()...)
 	}
 	s.keepPicked()
 	// What the query shows changed, the field comes back to its horizon on
@@ -244,7 +254,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	for _, fr := range frames {
 		live[fr.ID] = true
 	}
-	pill := stage.Size{W: min(440*k, w-2*(m.pad+horizonSide*k)), H: 40 * k}
 	// The pill stands at the horizon, moving with the field as it
 	// scrolls, but no further than near the window's top or foot: there it
 	// stays, and what the field holds passes under it.
@@ -255,7 +264,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	}
 	horizon := h/2 - (s.field.scroll - s.field.over.Offset())
 	top, foot := 48*k, 24*k
-	py := max(top, min(horizon-pill.H/2, h-foot-pill.H))
+	py := max(top+rl.above, min(horizon-pill.H/2, h-foot-pill.H-rl.below))
 	var drawnAbove, drawnBelow float32
 	for _, fr := range drawn {
 		if _, ok := s.field.shown[fr.ID]; !ok {
@@ -274,11 +283,11 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
 		at := stage.Point{X: w / 2, Y: horizon}
 		for _, fr := range drawn {
-			b, ok := s.field.shown[fr.ID]
+			cd, ok := s.field.shown[fr.ID]
 			if !ok {
 				continue
 			}
-			s.blockView(c, semantic, fr, b, s.field.shownShape[fr.ID], at, live[fr.ID], m, animate)
+			s.cardView(c, semantic, fr, cd, s.field.shownShape[fr.ID], at, live[fr.ID], m, animate)
 		}
 		if topFade > 0 || bottomFade > 0 {
 			ui.Box(c).Key("field-edges").Absolute().Top(0).Left(0).Size(w, h).IgnoreInput(true).
@@ -286,7 +295,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 					s.field.edges.Paint(p, r, semantic.Surface.Background, topFade, bottomFade)
 				})
 		}
-		s.horizonView(c, semantic, stage.Rect{X: w/2 - pill.W/2, Y: py, W: pill.W, H: pill.H}, w, k, animate)
+		s.horizonView(c, semantic, stage.Rect{X: w/2 - pill.W/2, Y: py, W: pill.W, H: pill.H}, rl, w, k, animate)
 	})
 }
 
@@ -330,7 +339,7 @@ func (s *State) comeHome(el ui.Element, animate bool) {
 // wherever one under way has got to.
 func (s *State) shift(field ui.Element, frames []stage.Frame, f found, shapes []shape, animate bool) []stage.Frame {
 	if s.field.shown == nil {
-		s.field.shown, s.field.shownShape = map[string]block{}, map[string]shape{}
+		s.field.shown, s.field.shownShape = map[string]card{}, map[string]shape{}
 	}
 	if !slices.Equal(frames, s.field.rest) {
 		// The field's first layout stands at once: there is nothing for it
@@ -360,9 +369,9 @@ func (s *State) shift(field ui.Element, frames []stage.Frame, f found, shapes []
 			s.field.hold = true
 		}
 	}
-	for i, b := range f.blocks {
-		s.field.shown[b.id] = b
-		s.field.shownShape[b.id] = shapes[i]
+	for i, cd := range f.cards {
+		s.field.shown[cd.id] = cd
+		s.field.shownShape[cd.id] = shapes[i]
 	}
 	t := float32(1)
 	switch {
@@ -388,12 +397,16 @@ func (s *State) shift(field ui.Element, frames []stage.Frame, f found, shapes []
 	return s.field.drawn
 }
 
-// escapeField takes the words away, then the last condition, and with
-// none left goes back to the desk.
+// escapeField lets the picked go, then puts the suggestions away, then
+// takes the words away, then the last condition, and with none left goes
+// back to the desk.
 func (s *State) escapeField() {
 	switch {
 	case len(s.field.picked) > 0:
 		s.field.picked = nil
+	case s.offered():
+		s.field.dismissed = s.field.words
+		s.field.offers++
 	case s.field.words != "":
 		s.setWords("")
 	case len(s.field.conditions) > 0:
@@ -426,6 +439,10 @@ func (s *State) activate(id string, alongside bool) {
 	}
 	kind, key, _ := strings.Cut(id, ":")
 	switch kind {
+	case "suggest":
+		s.takeSuggestion(key)
+	case "key":
+		s.takeKey(key)
 	case "command":
 		// The command runs as the field was before it was asked for.
 		s.setWords("")
@@ -437,8 +454,9 @@ func (s *State) activate(id string, alongside bool) {
 			s.into(g, stage.Rect{})
 		}
 	case "sheet":
-		for _, b := range s.field.found.blocks {
-			if b.trashed {
+		for _, cd := range s.field.found.cards {
+			b, ok := cd.kind.(block)
+			if !ok || b.trashed {
 				continue
 			}
 			for _, e := range b.entries {
