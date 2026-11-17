@@ -3,6 +3,7 @@ package shell
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -241,5 +242,68 @@ func TestFieldEdgeFadesSoftenOverflowingEdges(t *testing.T) {
 				t.Fatalf("%s at x=%d did not fade to field background: got %v, want (%d,%d,%d).", pair.name, sampleX, pair.got, bg.R, bg.G, bg.B)
 			}
 		}
+	}
+}
+
+// Focusing and unfocusing the search pill animates its outline color in
+// both directions.
+func TestPillFocusOutlineAnimatesBothDirections(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	// Start unfocused on the pill.
+	tester.ClickAt(12, 12)
+	settle(tester)
+	if tester.Focused("Search") {
+		t.Fatal("Search pill should start unfocused after clicking blank field.")
+	}
+	search, ok := tester.Find("Search")
+	if !ok {
+		t.Fatal("Search pill should show on the field.")
+	}
+	borderX := int(search.X + search.W/2)
+	borderY := int(search.Y)
+
+	rest := tester.Image().RGBAAt(borderX, borderY)
+	semantic := state.Settings.Semantic()
+	idle := semantic.Border.Variant
+	if rest.R != idle.R || rest.G != idle.G || rest.B != idle.B {
+		t.Fatalf("unfocused pill border = (%d,%d,%d), want Border.Variant (%d,%d,%d)",
+			rest.R, rest.G, rest.B, idle.R, idle.G, idle.B)
+	}
+
+	// Activate focus: border moves partway toward Border.Focused mid-animation, then settles.
+	state.Search()
+	tester.Frame()
+	tester.Advance(40 * time.Millisecond)
+	tester.Frame()
+	midIn := tester.Image().RGBAAt(borderX, borderY)
+	focused := semantic.Border.Focused
+	if (midIn.R == idle.R && midIn.G == idle.G && midIn.B == idle.B) ||
+		(midIn.R == focused.R && midIn.G == focused.G && midIn.B == focused.B) {
+		t.Fatalf("activating focus did not animate intermediate border color: got (%d,%d,%d), idle=%v focused=%v",
+			midIn.R, midIn.G, midIn.B, idle, focused)
+	}
+	settle(tester)
+	settledIn := tester.Image().RGBAAt(borderX, borderY)
+	if settledIn.R != focused.R || settledIn.G != focused.G || settledIn.B != focused.B {
+		t.Fatalf("focused pill border = (%d,%d,%d), want Border.Focused (%d,%d,%d)",
+			settledIn.R, settledIn.G, settledIn.B, focused.R, focused.G, focused.B)
+	}
+
+	// Deactivate focus: border moves partway back toward Border.Variant, then settles.
+	tester.ClickAt(12, 12)
+	tester.Frame()
+	tester.Advance(60 * time.Millisecond)
+	tester.Frame()
+	midOut := tester.Image().RGBAAt(borderX, borderY)
+	if (midOut.R == focused.R && midOut.G == focused.G && midOut.B == focused.B) ||
+		(midOut.R == idle.R && midOut.G == idle.G && midOut.B == idle.B) {
+		t.Fatalf("deactivating focus did not animate intermediate border color: got (%d,%d,%d), focused=%v idle=%v",
+			midOut.R, midOut.G, midOut.B, focused, idle)
+	}
+	settle(tester)
+	settledOut := tester.Image().RGBAAt(borderX, borderY)
+	if settledOut.R != idle.R || settledOut.G != idle.G || settledOut.B != idle.B {
+		t.Fatalf("unfocused pill border = (%d,%d,%d), want Border.Variant (%d,%d,%d)",
+			settledOut.R, settledOut.G, settledOut.B, idle.R, idle.G, idle.B)
 	}
 }

@@ -89,17 +89,27 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k fl
 		}
 		s.confirmButton(c, semantic, emptyTrashKey, "", "Empty Trash", animate, func() { s.Library.EmptyTrash() })
 	})
-	edge := semantic.Border.Variant
-	if input.Focused() {
-		edge = semantic.Border.Focused
-	} else if pill.Clicked() {
+	focused := input.Focused()
+	if !focused && pill.Clicked() {
 		s.field.focus = true
 	}
 	// Pressed with the field scrolled away, the pill brings it back.
 	if (pill.Pressed() || input.Pressed()) && s.field.scroll != 0 && !s.field.home {
 		s.field.home = true
 	}
-	pill.Border(1, edge)
+	target := float32(0)
+	if focused {
+		target = 1
+	}
+	active := target
+	if animate {
+		duration := components.HoverOut
+		if focused {
+			duration = components.HoverIn
+		}
+		active = components.Follow(pill, "focus", target, duration)
+	}
+	pill.Border(1, components.Blend(semantic.Border.Variant, semantic.Border.Focused, active))
 }
 
 // ribbon is the query's condition at i, as text writes it: the group it
