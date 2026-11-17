@@ -46,8 +46,9 @@ func (s *State) View(c *ui.Context) {
 	s.deskEscape(c)
 	at := s.viewAt(root, animate)
 	root.Children(func() {
-		s.fieldView(c, semantic, stage.Stage(w, h, at, stage.Rect{W: w, H: h}, aside).Field, w-s.laneRoom(), h, at >= 0.999, animate)
-		s.laneView(c, semantic, w, h, animate)
+		hidden := at >= 0.999
+		s.fieldView(c, semantic, stage.Stage(w, h, at, stage.Rect{W: w, H: h}, aside).Field, w-s.laneRoom(), h, hidden, animate)
+		s.laneView(c, semantic, w, h, hidden)
 		scene := stage.Stage(w, h, at, s.deskRest(w, h), aside)
 		if at > 0.001 {
 			// The field darkens behind the desk coming up: a veil over it,
@@ -55,11 +56,7 @@ func (s *State) View(c *ui.Context) {
 			ui.Box(c).Key("veil").Absolute().Top(0).Left(0).Size(w, h).IgnoreInput(true).
 				Background(semantic.Surface.Background.Alpha(1 - scene.Field.Shown))
 		}
-		// The desk is drawn while sheets are open, and while it goes out
-		// with the last of them.
-		if len(s.Open) > 0 || at > 0.001 {
-			s.deskView(c, semantic, layout, chrome, scene, w, h, animate)
-		}
+		s.deskView(c, semantic, layout, chrome, scene, w, h, animate)
 		components.Floating(c, func() {
 			if len(s.desk.columns) > 0 && s.view > 0.5 {
 				s.dock(c, semantic, 0)

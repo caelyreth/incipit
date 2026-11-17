@@ -44,10 +44,14 @@ type blockMetrics struct {
 	horizon           stage.Horizon
 }
 
+// fieldGap is the room between columns in the field and between the field
+// and the desk lane, at the reference type size.
+const fieldGap = 14
+
 func (s *State) blockMetrics(w, h float32) blockMetrics {
 	scale := s.Settings.UIFontSize
 	k := scale / theme.DefaultUIFontSize
-	pad, gap := 6*k, 14*k
+	pad, gap := 6*k, fieldGap*k
 	cols, col := stage.Columns(w-48*k, 260*k, 340*k, gap)
 	band := 40*k + 2*gap
 	return blockMetrics{

@@ -244,3 +244,57 @@ func TestShellMotionTurnsAroundSmoothlyWhenInterrupted(t *testing.T) {
 		t.Fatalf("zen settled at %v after turning back", state.lastChrome)
 	}
 }
+
+// Closing the last sheet and returning normally from the desk share one
+// transition path into the lane, and an empty desk in the lane opens a
+// new sheet when clicked.
+func TestClosingLastSheetSharesFieldTransitionWithNormalReturn(t *testing.T) {
+	stepReturn := func(closeLast bool) []float32 {
+		state := openState()
+		tester := ui.NewTester(state.View, 1260, 850)
+		settle(tester)
+		if closeLast {
+			state.Open, state.ActivePage = nil, ""
+		} else {
+			state.ShowField()
+		}
+		tester.Frame()
+		var views []float32
+		for range 6 {
+			tester.Advance(32 * time.Millisecond)
+			tester.Frame()
+			views = append(views, state.view)
+		}
+		settle(tester)
+		if state.view != 0 {
+			t.Fatalf("closeLast=%v: settled view = %v, want 0", closeLast, state.view)
+		}
+		return views
+	}
+	normal := stepReturn(false)
+	closed := stepReturn(true)
+	for i := range normal {
+		if abs(normal[i]-closed[i]) > 0.0001 {
+			t.Fatalf("frame %d view mismatch: normal=%v closed=%v", i, normal[i], closed[i])
+		}
+	}
+
+	state, library := libraryState()
+	library.desk = state
+	state.Open, state.ActivePage = nil, ""
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	if tester.HasText("Nothing open") {
+		t.Fatalf("empty desk should show icon only without Nothing open, texts=%#v", tester.Texts())
+	}
+	if _, ok := tester.Find("New sheet on the desk"); !ok {
+		t.Fatal("empty desk button should be present in the lane")
+	}
+	if err := tester.Click("New sheet on the desk"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if len(library.calls) == 0 || library.calls[0] != "new sheet 1 1073741824" {
+		t.Fatalf("expected NewSheet call from empty desk, got %v", library.calls)
+	}
+}

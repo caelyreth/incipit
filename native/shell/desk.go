@@ -114,8 +114,38 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 			if chrome > 0.001 {
 				s.statistics(c, semantic, layout, gutter, chrome)
 			}
+			if len(s.Open) == 0 {
+				s.deskEmpty(c, semantic, area, w, h, k, animate)
+			}
 		})
 	})
+}
+
+// deskEmpty draws the empty desk placeholder so that resting in the lane
+// and returning with the last sheet closed share the desk's single path.
+func (s *State) deskEmpty(c *ui.Context, semantic theme.Theme, area ui.Element, w, h, k float32, animate bool) {
+	rest := s.deskRest(w, h)
+	inv := max(w, 1) / max(rest.W, 1)
+	visible := max(0, w-rest.X) * inv
+	radius := theme.DefaultControls.Scaled(s.Settings.UIFontSize).Radius * inv
+	hover := components.HoverAmount(area, area.Hovered(), animate)
+	line := components.Blend(semantic.Border.Default, semantic.Accent.Foreground, hover)
+	box := ui.Row(c).Key("desk-empty").Absolute().Top(0).Left(0).Size(w, h).
+		PaddingEnd(max(0, w-visible)).Justify(ui.Center).AlignItems(ui.Center).
+		Transition(emptyTransition(animate)).
+		Draw(func(p *ui.Painter, r ui.Rect) { components.DashedOutline(p, r, radius, inv, line) })
+	box.Children(func() {
+		ui.Icon(c, components.IconNewSheet.SVG()).FontSize(18 * k * inv).TextColor(semantic.Icon.Muted)
+	})
+}
+
+func emptyTransition(animate bool) ui.ElementTransition {
+	if !animate {
+		return ui.ElementTransition{Duration: 1}
+	}
+	spring := components.Spring(components.MotionScene)
+	gone := &ui.Motion{Opacity: 0}
+	return ui.ElementTransition{Animation: &spring, Enter: gone, Exit: gone}
 }
 
 // deskStrip draws the strip's columns.
@@ -144,6 +174,7 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 			s.desk.viewport.W, scale)
 	})
 	s.magnet(strip, k, animate)
+	wasEmpty := len(s.desk.columns) == 0
 	columns := s.deskColumns()
 	editor := s.editorWidth(strip, columns, viewport.W, k, animate)
 	strip.Children(func() {
@@ -171,7 +202,7 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 			s.desk.spans = s.desk.spans[:0]
 			s.desk.holding = ""
 			for i, col := range columns {
-				s.openColumn(c, semantic, pages[col.sheet], editor, origin, animate)
+				s.openColumn(c, semantic, pages[col.sheet], editor, origin, !wasEmpty, animate)
 				s.room(c, semantic, "room-"+col.key(), i+1, i == len(columns)-1)
 			}
 			s.keyboardMoved()
@@ -276,9 +307,9 @@ func (s *State) editorWidth(el ui.Element, columns []deskColumn, inner, k float3
 // is counted for the magnet and the scrubber, and it is brought into view
 // where asked (bringInView). origin is where the strip's columns start in
 // the window.
-func (s *State) column(c *ui.Context, of deskColumn, w, origin float32, animate bool) (ui.Element, bool, ui.Rect) {
+func (s *State) column(c *ui.Context, of deskColumn, w, origin float32, enter, animate bool) (ui.Element, bool, ui.Rect) {
 	key := of.key()
-	col := ui.Column(c).Key(key).Width(w).Shrink(0).FillHeight().Transition(columnTransition(animate))
+	col := ui.Column(c).Key(key).Width(w).Shrink(0).FillHeight().Transition(columnTransition(enter, animate))
 	var shown ui.Rect
 	if b := col.LayoutBounds(); b.W > 0 {
 		sp := stage.Span{X: b.X - origin, W: b.W}
@@ -304,13 +335,17 @@ func (s *State) column(c *ui.Context, of deskColumn, w, origin float32, animate 
 // closing up on the same motion, a little past and back. What a column
 // holds keeps its layout as it opens or folds, clipped, so nothing in it
 // is set anew on the way.
-func columnTransition(animate bool) ui.ElementTransition {
+func columnTransition(enter, animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
 	spring := components.Bouncy(components.MotionEnter)
 	gone := &ui.Motion{Collapse: true, Opacity: 0, Scale: 0.96}
-	return ui.ElementTransition{Animation: &spring, Position: true, Colors: true, Enter: gone, Exit: gone}
+	tr := ui.ElementTransition{Animation: &spring, Position: true, Colors: true, Exit: gone}
+	if enter {
+		tr.Enter = gone
+	}
+	return tr
 }
 
 // columnDim is how far what a column holds shows while another is in

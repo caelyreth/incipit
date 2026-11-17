@@ -101,22 +101,26 @@ func (s *State) deskRest(w, h float32) stage.Rect {
 // scaled and moved as one image (Cache), never laid out or painted anew,
 // so it keeps its lines and costs a frame no more than an image does.
 // Away from the desk, the desk takes no input but a press, which brings
-// it up.
+// it up, or opens a sheet when empty.
 func (s *State) leanDesk(area ui.Element, look stage.Look, upright float32) {
 	if upright < 0.999 {
 		k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 		area.Cache().TransformOrigin(0.5, 0.5).Scale(look.Scale, look.Scale).
 			Translate(look.Offset.X, look.Offset.Y).Radius(10 * k).Clip()
-		// With nothing left open it goes back into its place as it fades,
-		// so what is left there, the place itself, shows through.
-		if len(s.Open) == 0 {
-			area.Opacity(upright * upright)
-		}
 	}
 	if s.OnDesk() {
 		return
 	}
-	area.Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Go to the desk")
+	area.Cursor(ui.CursorPointer).Role(ui.RoleButton)
+	if len(s.Open) == 0 {
+		area.Label("New sheet on the desk")
+		if area.Clicked() && s.Library != nil {
+			s.Library.NewSheet(s.CurrentGroup(), Last)
+			s.ShowDesk()
+		}
+		return
+	}
+	area.Label("Go to the desk")
 	if area.Clicked() {
 		s.ShowDesk()
 	}

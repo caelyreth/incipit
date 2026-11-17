@@ -18,10 +18,10 @@ const sheetPad = 16
 
 // openColumn is an open sheet's column, w wide: its page, set at reading
 // measure in it, and its head (sheetHead) over it.
-func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, origin float32, animate bool) {
+func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, origin float32, enter, animate bool) {
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
-	col, front, shown := s.column(c, deskColumn{sheet: page.ID}, w, origin, animate)
+	col, front, shown := s.column(c, deskColumn{sheet: page.ID}, w, origin, enter, animate)
 	col.Role(ui.RoleGroup).Label(page.Title).Clip().Background(semantic.Surface.Page)
 	// The keyboard comes to it as the pointer does (desk_front.go).
 	claim := s.desk.claim == page.ID
