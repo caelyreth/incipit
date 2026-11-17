@@ -366,7 +366,7 @@ func columnTransition(enter, animate bool) ui.ElementTransition {
 	}
 	spring := components.Bouncy(components.MotionEnter)
 	gone := &ui.Motion{Collapse: true, Opacity: 0, Scale: 0.96}
-	tr := ui.ElementTransition{Animation: &spring, Position: true, Colors: true, Exit: gone}
+	tr := ui.ElementTransition{Animation: &spring, Position: true, Exit: gone}
 	if enter {
 		tr.Enter = gone
 	}

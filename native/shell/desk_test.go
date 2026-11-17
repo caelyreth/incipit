@@ -438,3 +438,38 @@ func TestTheSheetHeadPutsBackAtItsStartAndCloseAtItsEnd(t *testing.T) {
 		}
 	}
 }
+
+// During a theme transition, a desk column's padding strip follows
+// theme.Transition at the same rate as its sheet body without chaining
+// a second color transition behind it.
+func TestDeskColumnSwitchesThemeWithoutLeftStripLag(t *testing.T) {
+	state, _, tester := onDesk(t)
+	state.Settings.Appearance = theme.Starfield
+	state.Sheet = func(c *ui.Context, _ string, _ SheetFrame) {
+		semantic, _ := state.Colors.At(state.Settings, c.Now())
+		ui.Box(c).Fill().Background(semantic.Surface.Page)
+	}
+	openOnDesk(state, Page{ID: "1", Title: "One"}, false)
+	state.ShowDesk()
+	settle(tester)
+
+	darkLeft := tester.Image().RGBAAt(4, 200)
+	darkBody := tester.Image().RGBAAt(200, 200)
+	if darkLeft != darkBody {
+		t.Fatalf("Dark resting left strip %v should match body %v.", darkLeft, darkBody)
+	}
+
+	state.Settings.Appearance = theme.Daybreak
+	tester.Frame()
+	tester.Advance(100 * time.Millisecond)
+	tester.Frame()
+
+	midLeft := tester.Image().RGBAAt(4, 200)
+	midBody := tester.Image().RGBAAt(200, 200)
+	if midBody == darkBody {
+		t.Fatal("Body should already be blending toward Daybreak at 100ms.")
+	}
+	if midLeft != midBody {
+		t.Fatalf("Left padding strip %v lagged behind sheet body %v mid-theme-transition.", midLeft, midBody)
+	}
+}
