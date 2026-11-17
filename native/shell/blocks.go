@@ -206,8 +206,8 @@ func (b block) name() string {
 	return "Trash"
 }
 
-// blockHead is a block's head: its group's icon, name and count, pressed
-// to go into it.
+// blockHead is a block's head: its group's icon, the groups it is in from
+// the one the query is in, its name and count, pressed to go into it.
 func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage.Frame, m blockMetrics, animate bool) {
 	ui.Row(c).Key("head").Height(m.head).WidthPercent(100).AlignItems(ui.Center).Gap(4 * m.k).Shrink(0).Children(func() {
 		g := b.group
@@ -227,7 +227,7 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 			if !b.trashed && !g.Inbox {
 				head.Drag(groupDrag{id: g.ID})
 			}
-			if !b.trashed && !b.scoped && s.field.renaming != g.ID && head.Clicked() {
+			if !b.trashed && s.field.renaming != g.ID && head.Clicked() {
 				s.into(*g, fr.Rect)
 			}
 		}
@@ -236,6 +236,9 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 			if g != nil && s.field.renaming == g.ID {
 				s.renameInput(c, semantic, *g)
 				return
+			}
+			if len(b.path) > 0 {
+				components.Label(c, strings.Join(b.path, " › ")+" ›", theme.TextDefault, semantic.Text.Muted).MinWidth(0).SingleLine()
 			}
 			components.Label(c, b.name(), theme.TextDefault, semantic.Text.Heading).Grow(1).MinWidth(0).SingleLine()
 			if g != nil {
@@ -392,7 +395,11 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 				components.Label(c, body, theme.TextXSmall, semantic.Text.Muted).WidthPercent(100).MaxLines(lines)
 			}
 			s.rowTags(c, semantic, sh.Tags, m)
-			components.Label(c, words(sh.Words), theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum").Opacity(0.7)
+			foot := words(sh.Words)
+			if e.in != "" {
+				foot = e.in + " · " + foot
+			}
+			components.Label(c, foot, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum").Opacity(0.7)
 		})
 	})
 }
@@ -442,7 +449,7 @@ func (s *State) moreRow(c *ui.Context, semantic theme.Theme, b block, more int, 
 	btn := ui.ButtonBase(c.Key("more")).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label)
 	s.rowFill(c, semantic, btn, "", false, animate)
-	if b.group != nil && !b.scoped && btn.Clicked() {
+	if b.group != nil && btn.Clicked() {
 		s.into(*b.group, fr.Rect)
 	}
 	btn.Children(func() {

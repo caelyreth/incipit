@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/caelyreth/neverland/internal/query"
@@ -8,13 +9,18 @@ import (
 
 // The library is the field's first source: what its query finds, in
 // blocks, each a group with what it holds, its sheets in full as rows and
-// the groups inside it as rows of their own. A query of no words, at most
-// in a group or in the trash, browses: at the top every group, in a group
-// that group and each group inside it, in the trash what is there. Any
-// other query searches, and its sheets found stand in the blocks of the
-// groups they are filed in, the blocks in the order of their best.
-// Browsing is so a search with no words, and a group is what a click on
-// its head adds to the query. A query written after ">" is the commands'.
+// the groups inside it as rows of their own. A block is for telling
+// groups apart (field-and-desk.md §4.1): the group the query is in heads
+// none, its ribbon names it, and its sheets each stand on their own; so do
+// a search's where it finds them all in one group, each naming it. A query
+// of no words, at most in a group or in the trash, browses: at the top
+// every group, in a group each group inside it and then its sheets, in
+// the trash what is there. Any other query searches, and its sheets found
+// stand in the blocks of the groups they are filed in, in the order of
+// their best, each block's head saying where its group is from the one
+// the query is in. Browsing is so a search with no words, and a group is
+// what a click on its head adds to the query. A query written after ">"
+// is the commands'.
 
 type librarySource struct{}
 
@@ -25,7 +31,7 @@ func (librarySource) answer(s *State, text string, f *found) {
 	scope, trash, browse := s.browsing(query.Parse(text))
 	switch {
 	case !browse:
-		s.searched(f, text, trash)
+		s.searched(f, text, scope, trash)
 	case trash:
 		if loose := s.Library.Sheets(Place{Kind: PlaceTrash}); len(loose) > 0 {
 			f.add("trash", tierResult, block{entries: s.entries(loose), trashed: true})
@@ -33,22 +39,17 @@ func (librarySource) answer(s *State, text string, f *found) {
 		for _, g := range s.Library.TrashedGroups() {
 			f.add("group:"+g.ID, tierResult, s.groupBlock(g, true))
 		}
-	case scope != "" && s.lowest(scope):
-		// Nothing but sheets in it: each sheet stands on its own.
+	case scope != "":
+		// As a block's rows go: the groups inside it, then its sheets, then
+		// the area that makes one.
+		for _, g := range s.groups(scope) {
+			f.add("group:"+g.ID, tierResult, s.groupBlock(g, false))
+		}
 		for _, e := range s.entries(s.Library.Sheets(Place{Kind: PlaceGroup, Group: scope})) {
 			f.add("sheet:"+e.sheet.ID, tierResult, block{entries: []entry{e}, single: true})
 		}
 		if g, ok := s.Library.Group(scope); ok && !g.Smart() {
 			f.add("new", tierResult, block{group: &g, create: true})
-		}
-	case scope != "":
-		if g, ok := s.Library.Group(scope); ok {
-			own := s.groupBlock(g, false)
-			own.groups, own.scoped = nil, true
-			f.add("group:"+g.ID, tierScope, own)
-		}
-		for _, g := range s.groups(scope) {
-			f.add("group:"+g.ID, tierResult, s.groupBlock(g, false))
 		}
 	default:
 		for _, g := range s.groups("") {
@@ -66,18 +67,22 @@ type block struct {
 	groups  []GroupItem
 	entries []entry
 	trashed bool
-	// scoped is whether the block is the group the query is in; single
-	// whether it is one sheet standing on its own, as a group's sheets do
-	// where nothing is inside it but sheets; create is the block that makes
-	// a sheet there.
-	scoped, single, create bool
+	// single is whether it is one sheet standing on its own, as the sheets
+	// of the group the query is in do; create is the block that makes a
+	// sheet there.
+	single, create bool
+	// path is where the block's group is from the group the query is in,
+	// the groups between, outermost first; none where it is inside it.
+	path []string
 }
 
-// entry is a sheet as a block shows it, and where its text matches what
-// was searched.
+// entry is a sheet as a block shows it, where its text matches what was
+// searched, and, standing on its own, the group it is in, where the query
+// does not say.
 type entry struct {
 	sheet SheetItem
 	line  string
+	in    string
 }
 
 // groups are the groups in parent the field shows: smart folders are
@@ -90,12 +95,6 @@ func (s *State) groups(parent string) []GroupItem {
 		}
 	}
 	return out
-}
-
-// lowest reports whether the group holds no groups, only sheets.
-func (s *State) lowest(id string) bool {
-	g, ok := s.Library.Group(id)
-	return ok && !g.HasGroups && !g.Smart()
 }
 
 // groupBlock is g's block: its sheets, and the groups inside it.
@@ -123,13 +122,19 @@ func (s *State) entries(sheets []SheetItem) []entry {
 	return out
 }
 
-// searched fills f with what text finds, each sheet in its group's block.
-func (s *State) searched(f *found, text string, trash bool) {
-	hits := s.Library.Search(text)
-	at := map[string]int{}
-	var blocks []block
-	var ids []string
-	for _, hit := range hits.Sheets {
+// searched fills f with what text finds in scope: each sheet in its
+// group's block, the blocks in the order of their best; the scope's own,
+// and all of them where one group holds them all, on their own.
+func (s *State) searched(f *found, text, scope string, trash bool) {
+	paths := s.paths(scope)
+	type part struct {
+		id    string
+		group *GroupItem
+		hits  []entry
+	}
+	var parts []*part
+	at := map[string]*part{}
+	for _, hit := range s.Library.Search(text).Sheets {
 		if s.inTray(hit.ID) {
 			continue
 		}
@@ -140,18 +145,50 @@ func (s *State) searched(f *found, text string, trash bool) {
 				id, group = "group:"+g.ID, &g
 			}
 		}
-		i, ok := at[id]
+		p, ok := at[id]
 		if !ok {
-			i = len(blocks)
-			at[id] = i
-			blocks = append(blocks, block{group: group, trashed: trash})
-			ids = append(ids, id)
+			p = &part{id: id, group: group}
+			at[id] = p
+			parts = append(parts, p)
 		}
-		blocks[i].entries = append(blocks[i].entries, entry{sheet: hit.SheetItem, line: hit.Line})
+		p.hits = append(p.hits, entry{sheet: hit.SheetItem, line: hit.Line})
 	}
-	for i, b := range blocks {
-		f.add(ids[i], tierResult, b)
+	for _, p := range parts {
+		own := p.group != nil && p.group.ID == scope
+		if !own && len(parts) > 1 {
+			b := block{group: p.group, entries: p.hits, trashed: trash}
+			if p.group != nil {
+				path := paths[p.group.ID]
+				b.path = path[:max(0, len(path)-1)]
+			}
+			f.add(p.id, tierResult, b)
+			continue
+		}
+		for _, e := range p.hits {
+			if !own && p.group != nil {
+				e.in = strings.Join(paths[p.group.ID], " › ")
+			}
+			f.add("sheet:"+e.sheet.ID, tierResult, block{entries: []entry{e}, single: true, trashed: trash})
+		}
 	}
+}
+
+// paths are where each group inside scope is from it, by id: the names of
+// the groups from the one inside scope to it, outermost first.
+func (s *State) paths(scope string) map[string][]string {
+	out := map[string][]string{}
+	var walk func(parent string, path []string)
+	walk = func(parent string, path []string) {
+		for _, g := range s.Library.Groups(parent) {
+			p := append(slices.Clone(path), g.Name)
+			out[g.ID] = p
+			if g.HasGroups {
+				walk(g.ID, p)
+			}
+		}
+	}
+	walk(scope, nil)
+	return out
 }
 
 // browsing reads q: the group it is in and whether it is in the trash, and

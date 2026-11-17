@@ -28,13 +28,11 @@ type card struct {
 }
 
 // tier is how near the pill a card stands among others, before the order
-// its source gives: the scope's own card first, then what the query
-// finds, then what is around it.
+// its source gives: what the query finds, then what is around it.
 type tier uint8
 
 const (
-	tierScope tier = iota
-	tierResult
+	tierResult tier = iota
 	tierAmbient
 )
 
@@ -164,7 +162,7 @@ func (s *State) computeFieldStats(text string, cards []card) fieldStats {
 			for _, e := range b.entries {
 				add(e.sheet)
 			}
-			if b.group != nil && !b.scoped && !b.trashed && b.group.HasGroups {
+			if b.group != nil && !b.trashed && b.group.HasGroups {
 				for _, sub := range b.groups {
 					walkGroup(sub.ID)
 				}

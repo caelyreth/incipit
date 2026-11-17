@@ -37,6 +37,9 @@ type fakeLibrary struct {
 	newGroupNo  int
 	smart       string
 	desk        *State
+	// homes are the groups sheets are filed in, by id; any other is in
+	// Novel.
+	homes map[string]string
 }
 
 // call records what the library was asked, and what changes it changes
@@ -147,7 +150,12 @@ func (f *fakeLibrary) TrashedGroups() []GroupItem {
 func (f *fakeLibrary) Targets() []MoveTarget {
 	return []MoveTarget{{ID: "1", Name: "Inbox"}, {ID: "2", Name: "Novel"}}
 }
-func (f *fakeLibrary) SheetGroup(string) string { return "2" }
+func (f *fakeLibrary) SheetGroup(id string) string {
+	if g, ok := f.homes[id]; ok {
+		return g
+	}
+	return "2"
+}
 
 func (f *fakeLibrary) NewSheet(group string, index int) {
 	f.call(fmt.Sprint("new sheet ", group, " ", index))
