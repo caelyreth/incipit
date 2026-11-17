@@ -46,6 +46,8 @@ func (s *State) laneView(c *ui.Context, semantic theme.Theme, w, h float32, anim
 	s.lane.preview = stage.Rect{X: w - width + pad, Y: h/2 - ph/2, W: pw, H: ph}
 	open := len(s.Open)
 	lane.Children(func() {
+		// The lane's top band drags the window above what rests in it.
+		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
 		label := "Desk"
 		if open > 0 {
 			label = fmt.Sprintf("Desk · %d open", open)

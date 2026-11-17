@@ -147,3 +147,45 @@ func TestASmartFolderRunsItsQuery(t *testing.T) {
 		t.Fatalf("A smart folder should run its query, but the query is %q.", q)
 	}
 }
+
+// Content reaching the top title band still takes clicks while the blank
+// top band around it keeps field scrolling and context menu intact.
+func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
+	state, library, tester := onField(t, 1260, 700)
+	library.extraSheets = 8
+	library.rev++
+	settle(tester)
+
+	novel, ok := tester.Find("Novel")
+	if !ok {
+		t.Fatal("Novel block head should show on the field.")
+	}
+	if novel.Y >= 40 {
+		// Force a shorter window so Novel's head sits inside the top title band.
+		tester.SetSize(1260, 480)
+		settle(tester)
+		novel, ok = tester.Find("Novel")
+		if !ok {
+			t.Fatal("Novel block head should show after resize.")
+		}
+	}
+	if novel.Y >= 40 {
+		t.Fatalf("Expected Novel head inside top title band (<40), got Y=%v", novel.Y)
+	}
+
+	// Right-clicking the blank top-left corner still opens the field menu.
+	tester.RightClickAt(12, 16)
+	tester.Frame()
+	if len(tester.Menu()) == 0 {
+		t.Fatal("Blank top area should still open the field context menu on right click.")
+	}
+	tester.CloseMenu()
+	tester.Frame()
+
+	// Clicking the Novel head inside the top band still narrows the query to Novel.
+	tester.ClickAt(novel.X+16, novel.Y+novel.H/2)
+	settle(tester)
+	if q := state.FieldQuery(); q != "$in:Novel" {
+		t.Fatalf("Clicking block content in the top band should narrow to Novel, got %q.", q)
+	}
+}

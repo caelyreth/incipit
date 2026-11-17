@@ -255,6 +255,8 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	top, foot := 48*k, 24*k
 	py := max(top, min(horizon-pill.H/2, h-foot-pill.H))
 	view.Children(func() {
+		// The top band drags the window where nothing of the field stands over it.
+		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
 		at := stage.Point{X: w / 2, Y: horizon}
 		for _, fr := range drawn {
 			b, ok := s.field.shown[fr.ID]
