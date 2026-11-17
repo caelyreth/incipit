@@ -76,7 +76,7 @@ func (s *State) blockMetrics(w, h float32) blockMetrics {
 // shapes are the cards' shapes, worked out again only when what they
 // hold or the measures change.
 func (s *State) shapes(c *ui.Context, f found, m blockMetrics) []shape {
-	key := fmt.Sprintf("%s|%d|%s|%d|%d|%d|%v", f.query, f.rev, f.open, f.offers, f.held, s.field.measures, m)
+	key := fmt.Sprintf("%s|%d|%s|%d|%d|%v", f.query, f.rev, f.open, f.held, s.field.measures, m)
 	if s.field.shapesKey == key && len(s.field.shapes) == len(f.cards) {
 		return s.field.shapes
 	}
@@ -484,6 +484,7 @@ func (s *State) renameInput(c *ui.Context, semantic theme.Theme, g GroupItem) {
 				s.field.conditions[i] = c.String()
 			}
 		}
+		s.field.conditions = ordered(s.field.conditions)
 		s.Library.RenameGroup(g.ID, name)
 	}
 }

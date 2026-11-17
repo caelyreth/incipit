@@ -164,6 +164,7 @@ func (s *State) browsing(q query.Query) (scope string, trash, browse bool) {
 		}
 	})
 	browse = !words
+	groups := 0
 	for _, c := range query.Conditions(q) {
 		switch {
 		case c.Not:
@@ -171,6 +172,7 @@ func (s *State) browsing(q query.Query) (scope string, trash, browse bool) {
 		case c.Key.Name == "trash":
 			trash = true
 		case c.Key.Name == "in":
+			groups++
 			g, ok := s.groupNamed(c.Value)
 			if !ok {
 				browse = false
@@ -179,6 +181,11 @@ func (s *State) browsing(q query.Query) (scope string, trash, browse bool) {
 		default:
 			browse = false
 		}
+	}
+	// In two groups at once is in neither alone: the field finds the
+	// sheets in both.
+	if groups > 1 {
+		scope, browse = "", false
 	}
 	if scope != "" && trash {
 		browse = false

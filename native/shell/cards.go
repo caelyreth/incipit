@@ -78,13 +78,12 @@ type fieldStats struct {
 
 // found is what the field's query found, for the library as it stood.
 type found struct {
-	query  string
-	rev    uint64
-	open   string
-	offers uint64
-	held   uint64
-	cards  []card
-	stats  fieldStats
+	query string
+	rev   uint64
+	open  string
+	held  uint64
+	cards []card
+	stats fieldStats
 }
 
 func (f *found) add(id string, t tier, kind cardKind) {
@@ -100,11 +99,11 @@ func (s *State) results() found {
 	text := s.wholeQuery()
 	open := openKey(s.Open)
 	rev := s.Library.Revision()
-	offers, held := s.field.offers, s.lane.heldRev
-	if f := s.field.found; f.query == text && f.rev == rev && f.open == open && f.offers == offers && f.held == held && f.cards != nil {
+	held := s.lane.heldRev
+	if f := s.field.found; f.query == text && f.rev == rev && f.open == open && f.held == held && f.cards != nil {
 		return f
 	}
-	f := found{query: text, rev: rev, open: open, offers: offers, held: held, cards: []card{}}
+	f := found{query: text, rev: rev, open: open, held: held, cards: []card{}}
 	for _, src := range sources {
 		src.answer(s, text, &f)
 	}

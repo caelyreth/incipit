@@ -294,9 +294,7 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k fl
 		}
 		// A condition written whole, a space after it, becomes a ribbon.
 		if strings.HasSuffix(s.field.words, " ") && strings.TrimSpace(s.field.words) != "" {
-			before := len(s.field.conditions)
-			s.takeConditions(s.field.words)
-			if len(s.field.conditions) > before {
+			if s.takeConditions(s.field.words) {
 				s.setWords(s.field.words)
 			}
 		}
@@ -399,10 +397,11 @@ const idleMost = 24
 
 // ribbons lays the ribbons out around a pill w wide and h tall, centred at
 // mid in the field: the query's conditions, then, while the pill is open,
-// each key the query can be narrowed by and is not, idle. They go alternately under and over the pill, each
-// side in rows as wide as it, the first row nearest it. While a key's
-// value is being written, its values stand in rows of their own under all
-// of them.
+// each key the query can be narrowed by, idle. Each key's ribbons stand on
+// its own side of the pill (ribbonSide), so a condition coming or going
+// moves only those on its side; each side in rows as wide as the pill,
+// the conditions nearest it. While a key's value is being written, its
+// values stand in rows of their own under all of them.
 func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	var out ribbonLayout
 	rh, gap := ribbonH*k, ribbonGap*k
@@ -412,8 +411,13 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	}
 	items = append(items, s.keyRibbons()...)
 	var sides [2][][]ribbonPlace
-	for n, p := range items {
-		sides[n%2] = s.flow(c, sides[n%2], p, k, w)
+	for _, p := range items {
+		name := conditionKey(p.text)
+		if p.kind == ribbonKey {
+			name = p.key.Name
+		}
+		side := ribbonSide(name)
+		sides[side] = s.flow(c, sides[side], p, k, w)
 	}
 	var values [][]ribbonPlace
 	for _, p := range s.valueRibbons() {
@@ -444,6 +448,13 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 		out.below += 2*gap + float32(len(values))*(rh+gap)
 	}
 	return out
+}
+
+// ribbonSide is the side of the pill a key's ribbons stand on, its
+// conditions' and its own, 0 under it and 1 over it: the keys alternate
+// as the open pill offers them, any other under it.
+func ribbonSide(name string) int {
+	return max(0, slices.Index(filterKeys, name)) % 2
 }
 
 // flow puts p at the end of rows, in a new row where the last is full.
@@ -717,6 +728,10 @@ func (s *State) ribbonID(p ribbonPlace) string {
 	case ribbonMore:
 		return "more"
 	}
+	// A key that holds one value keeps one ribbon as its value changes.
+	if c, ok := condition(p.text); ok && written(c).Key.OneValue() {
+		return "ribbon-$" + written(c).Key.Name
+	}
 	return "ribbon-" + p.text
 }
 
@@ -785,7 +800,6 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 		btn.Tooltip("Show them all")
 		if btn.Clicked() {
 			s.field.allValues = true
-			s.field.offers++
 		}
 	default:
 		if p.i >= 0 {

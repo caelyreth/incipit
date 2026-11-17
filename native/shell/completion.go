@@ -54,7 +54,6 @@ func (s *State) offer(caret int) bool {
 	if changed {
 		// Nothing is chosen until the keys go to it, and the values come
 		// again no more than idleMost at first.
-		s.field.offers++
 		s.field.suggestion = -1
 		s.field.allValues = false
 	}
@@ -124,13 +123,11 @@ func (s *State) stepSuggestion(by int) {
 
 // wholeQuery is the query the field answers: its conditions and words,
 // without a filter still being written, whether its suggestions stand or
-// not, so the field never answers half a condition.
+// not, so the field never answers half a condition. All the field works
+// out of its query, it works out of this one.
 func (s *State) wholeQuery() string {
-	words := s.field.words
-	switch {
-	case s.field.opened != nil:
-		words = s.field.held
-	case len(s.field.completion.Items) > 0 && s.field.completedFor == words:
+	words := s.field.held
+	if s.field.opened == nil {
 		words = s.unwritten()
 	}
 	return strings.TrimSpace(strings.Join(append(slices.Clone(s.field.conditions), words), " "))
@@ -151,11 +148,16 @@ func (s *State) countedWith(k *query.Key) string {
 	return strings.TrimSpace(strings.Join(append(conds, words), " "))
 }
 
-// unwritten is the words without the filter the caret is in.
+// unwritten is the words without the filter the caret is in, unless it
+// is a key that stands alone, named whole: nothing more is written of it.
 func (s *State) unwritten() string {
 	words, caret := s.field.words, s.field.caret
 	query.Walk(query.Parse(words).Root, func(n query.Node) {
-		if f, ok := n.(*query.Filter); ok && f.From < caret && caret <= f.To && f.To <= len(words) {
+		f, ok := n.(*query.Filter)
+		if !ok || f.Key != nil && f.Key.Takes == query.TakesNothing && !f.HasValue {
+			return
+		}
+		if f.From < caret && caret <= f.To && f.To <= len(words) {
 			words = words[:f.From] + words[f.To:]
 		}
 	})
@@ -206,18 +208,15 @@ func (s *State) takenAt(k *query.Key, v string) int {
 	return -1
 }
 
-// toggleValue puts k's condition of v in the query, in place of the one
-// it has where k holds one value, or takes it away where it is there. A key that takes names, as the tags, stays open for
+// toggleValue puts k's condition of v in the query (put), or takes it away
+// where it is there. A key that takes names, as the tags, stays open for
 // more of them to be taken or let go; any other closes.
 func (s *State) toggleValue(k *query.Key, v string) {
 	if i := s.takenAt(k, v); i >= 0 {
 		s.field.conditions = slices.Delete(s.field.conditions, i, i+1)
 		s.field.next = change{depth: stage.Up}
 	} else {
-		if k.OneValue() {
-			s.field.conditions = slices.DeleteFunc(s.field.conditions, func(text string) bool { return conditionKey(text) == k.Name })
-		}
-		s.field.conditions = append(s.field.conditions, (&query.Condition{Key: k, Value: v}).String())
+		s.field.conditions, _ = put(s.field.conditions, query.Condition{Key: k, Value: v})
 		s.field.next = change{depth: stage.Down}
 	}
 	s.field.chosen = ""
@@ -261,7 +260,6 @@ func (s *State) settleQuery() {
 	s.field.dismissed = ""
 	s.field.suggestion = -1
 	s.field.allValues = false
-	s.field.offers++
 }
 
 // closeKey closes the open key, what was written before it coming back.
@@ -276,10 +274,14 @@ func (s *State) closeKey() {
 
 // addCondition puts cond in the query, unless it is there already.
 func (s *State) addCondition(cond string) {
-	if slices.Contains(s.field.conditions, cond) {
+	c, ok := condition(cond)
+	if !ok {
 		return
 	}
-	s.field.conditions = append(s.field.conditions, cond)
+	var changed bool
+	if s.field.conditions, changed = put(s.field.conditions, c); !changed {
+		return
+	}
 	s.field.next = change{depth: stage.Down}
 	s.field.chosen = ""
 	s.field.focus = true
@@ -292,7 +294,8 @@ func (s *State) turn(i int) {
 		return
 	}
 	cond.Not = !cond.Not
-	s.field.conditions[i] = cond.String()
+	s.field.conditions = slices.Delete(s.field.conditions, i, i+1)
+	s.field.conditions, _ = put(s.field.conditions, cond)
 	s.field.chosen = ""
 }
 

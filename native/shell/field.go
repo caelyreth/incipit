@@ -36,8 +36,7 @@ type fieldState struct {
 	// completion is what may stand at the caret, caret bytes into the
 	// words completedFor, offered unless the words are what it was put
 	// away at, dismissed, suggestion the one of it the keys are on (-1 for
-	// none), and allValues whether every value stands, not just the first;
-	// offers counts its changes, for what the field found.
+	// none), and allValues whether every value stands, not just the first.
 	completion query.Completion
 	caret      int
 	suggestion int
@@ -48,7 +47,6 @@ type fieldState struct {
 	held         string
 	completedFor string
 	dismissed    string
-	offers       uint64
 	found        found
 	// shapes are found's cards' shapes, for the measures shapesKey names.
 	shapes    []shape
@@ -128,11 +126,16 @@ func (s *State) SetFieldQuery(text string) {
 }
 
 // takeConditions takes the conditions written in text as ribbons, and
-// leaves the rest as the words.
-func (s *State) takeConditions(text string) {
+// leaves the rest as the words, reporting whether it held any.
+func (s *State) takeConditions(text string) bool {
 	conds, words := splitQuery(text)
-	s.field.conditions = append(s.field.conditions, conds...)
+	for _, text := range conds {
+		if c, ok := condition(text); ok {
+			s.field.conditions, _ = put(s.field.conditions, c)
+		}
+	}
 	s.field.words = words
+	return len(conds) > 0
 }
 
 func (s *State) setWords(words string) {
@@ -140,12 +143,16 @@ func (s *State) setWords(words string) {
 	s.field.edit = &words
 }
 
-// narrow puts cond in the query, in place of one of the same key, going
+// narrow puts cond in the query, in place of any of the same key, going
 // down into what was chosen at from.
 func (s *State) narrow(cond string, from stage.Rect) {
-	key := conditionKey(cond)
-	s.field.conditions = slices.DeleteFunc(s.field.conditions, func(c string) bool { return conditionKey(c) == key })
-	s.field.conditions = append(s.field.conditions, cond)
+	c, ok := condition(cond)
+	if !ok {
+		return
+	}
+	key := written(c).Key.Name
+	s.field.conditions = slices.DeleteFunc(s.field.conditions, func(text string) bool { return conditionKey(text) == key })
+	s.field.conditions, _ = put(s.field.conditions, c)
 	s.field.next = change{depth: stage.Down, enter: from}
 	s.field.chosen = ""
 }
@@ -207,7 +214,7 @@ func condition(text string) (query.Condition, bool) {
 
 func conditionKey(text string) string {
 	if c, ok := condition(text); ok {
-		return c.Key.Name
+		return written(c).Key.Name
 	}
 	return text
 }
@@ -475,7 +482,6 @@ func (s *State) escapeField() {
 		s.closeKey()
 	case s.offered():
 		s.field.dismissed = s.field.words
-		s.field.offers++
 	case s.field.words != "":
 		s.setWords("")
 	case len(s.field.conditions) > 0:
@@ -670,7 +676,7 @@ func (s *State) scope() string {
 	if s.Library == nil {
 		return ""
 	}
-	scope, _, _ := s.browsing(query.Parse(s.FieldQuery()))
+	scope, _, _ := s.browsing(query.Parse(s.wholeQuery()))
 	return scope
 }
 

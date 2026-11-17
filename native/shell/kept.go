@@ -54,14 +54,6 @@ func (s *State) bookmarks() []GroupItem {
 	return out
 }
 
-// sameQuery reports whether a and b are the one query, their conditions
-// and words written alike.
-func sameQuery(a, b string) bool {
-	ac, aw := splitQuery(a)
-	bc, bw := splitQuery(b)
-	return strings.Join(ac, " ") == strings.Join(bc, " ") && strings.TrimSpace(aw) == strings.TrimSpace(bw)
-}
-
 // saveQuery keeps text as a bookmark, named as its conditions and words
 // say, dyed for good in the hue the next is given.
 func (s *State) saveQuery(text string) {
