@@ -18,18 +18,20 @@ func settingsState(t *testing.T) (*State, *fakeSettings, *ui.Tester) {
 	return state, settings, tester
 }
 
-// The settings button puts the settings categories in the field as blocks,
-// like groups; opening a category or section drills into its live cards,
-// words find sections directly, and pressed again the field goes back to
-// the library.
+// The settings button puts the settings in the field: the categories
+// listing their sections, as groups list their sheets; a section pressed
+// opens its category, every section live, the one pressed first; words
+// find sections directly, and pressed again the field goes back to the
+// library.
 func TestTheSettingsStandInTheField(t *testing.T) {
 	state, settings, tester := settingsState(t)
 	if err := tester.Click("Show settings"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if got := shownBlocks(state); !slices.Equal(got, []string{"settings-cat:Appearance", "settings-cat:Keymap"}) {
-		t.Fatalf("The field should show the settings' category blocks, but shows %v.", got)
+	top := []string{"settings-cat:Appearance", "settings-cat:Editor", "settings-cat:Keymap"}
+	if got := shownBlocks(state); !slices.Equal(got, top) {
+		t.Fatalf("The field should show the categories, but shows %v.", got)
 	}
 	if !tester.Focused("Search") || state.pillPlaceholder() != "Find a setting…" {
 		t.Fatal("The pill should take the keys to find a setting.")
@@ -38,30 +40,31 @@ func TestTheSettingsStandInTheField(t *testing.T) {
 		t.Fatal("The settings should be found by their words alone, no filters offered.")
 	}
 
-	// Opening a section row shows just that section's live card.
-	if err := tester.Click("Theme"); err != nil {
+	// A section pressed opens its category, itself first, those after it
+	// following.
+	if err := tester.Click("Pages"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if got := shownBlocks(state); !slices.Equal(got, []string{"settings:Appearance/Theme"}) {
-		t.Fatalf("Clicking a section should open its live card, but shows %v.", got)
+	if got := shownBlocks(state); !slices.Equal(got, []string{"settings:Keymap/Pages", "settings:Keymap/Keys"}) {
+		t.Fatalf("Pressing a section should open its category, itself first, but shows %v.", got)
 	}
-	// Removing the scope ribbon steps back up to the category blocks.
-	if err := tester.Click("Remove Theme"); err != nil {
+	// Removing the category's ribbon steps back up to the top.
+	if err := tester.Click("Remove Keymap"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if got := shownBlocks(state); !slices.Equal(got, []string{"settings-cat:Appearance", "settings-cat:Keymap"}) {
-		t.Fatalf("Removing the ribbon should return to category blocks, but shows %v.", got)
+	if got := shownBlocks(state); !slices.Equal(got, top) {
+		t.Fatalf("Removing the ribbon should return to the top, but shows %v.", got)
 	}
 
-	// Clicking a category head opens its sections, and words narrow directly.
+	// A category's head opens it from its first section.
 	if err := tester.Click("Keymap"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if got := shownBlocks(state); !slices.Equal(got, []string{"settings:Keymap/Keys"}) {
-		t.Fatalf("Clicking a category head should show its sections, but shows %v.", got)
+	if got := shownBlocks(state); !slices.Equal(got, []string{"settings:Keymap/Keys", "settings:Keymap/Pages"}) {
+		t.Fatalf("Clicking a category head should show its sections in order, but shows %v.", got)
 	}
 	if err := tester.Click("Remove Keymap"); err != nil {
 		t.Fatal(err)
@@ -82,6 +85,21 @@ func TestTheSettingsStandInTheField(t *testing.T) {
 	}
 	if settings.away == away {
 		t.Fatal("The settings should be told the field no longer shows them.")
+	}
+}
+
+// A section pressed further in its category stands first, those after it
+// following, and those before it after them.
+func TestASectionPressedLeadsItsCategory(t *testing.T) {
+	state, _, tester := settingsState(t)
+	state.ShowSettings()
+	settle(tester)
+	if err := tester.Click("Markdown"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if got := shownBlocks(state); !slices.Equal(got, []string{"settings:Editor/Markdown", "settings:Editor/Pairs"}) {
+		t.Fatalf("Opened, Markdown should stand first among the editor's sections: %v.", got)
 	}
 }
 

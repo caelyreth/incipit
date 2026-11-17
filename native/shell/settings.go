@@ -12,13 +12,13 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The settings are a source of the field (field-and-desk.md §4.4.1): at
-// $settings alone, each category stands as a block of its sections, like
-// groups and sheets in the library; opening a category or a section
-// narrows the query ($in:<Category> or $in:<Section>), widening the
-// field's columns so live controls stand beside their labels. Words
-// written with $settings narrow straight to matching live section cards.
-// There is no settings window.
+// The settings are a source of the field (field-and-desk.md §4.4.1). At
+// $settings alone, each category stands as a block listing its sections,
+// each with what it is for, as a group lists its sheets. A section pressed
+// opens its category ($in:<Category>): every section of it live, the one
+// pressed first and those after it following, the field's columns
+// widening so live controls stand beside their labels. Words written with $settings narrow straight to
+// matching live section cards. There is no settings window.
 
 // AppSettings is the app's settings as the field shows them.
 type AppSettings interface {
@@ -92,27 +92,11 @@ func (s *State) settingsLive() bool {
 	return scope != "" || words != ""
 }
 
-// intoSettings narrows the settings query to a category or section.
-func (s *State) intoSettings(target string, from stage.Rect) {
-	s.narrow((&query.Condition{Key: mustKey("in"), Value: target}).String(), from)
-}
-
-// clickSettingsRibbon steps back up from a section ribbon to its category,
-// or closes a category ribbon.
-func (s *State) clickSettingsRibbon(i int) {
-	if i < 0 || i >= len(s.field.conditions) {
-		return
-	}
-	c, ok := condition(s.field.conditions[i])
-	if !ok || c.Key.Name != "in" {
-		return
-	}
-	if cat, _, hasSec := strings.Cut(c.Value, "/"); hasSec {
-		s.intoSettings(cat, stage.Rect{})
-		s.field.next = change{depth: stage.Up}
-		return
-	}
-	s.broaden(i)
+// intoSettings narrows the settings query to a category, the section lead
+// standing first in it, or, for none, its first.
+func (s *State) intoSettings(category, lead string, from stage.Rect) {
+	s.field.lead = lead
+	s.narrow((&query.Condition{Key: mustKey("in"), Value: category}).String(), from)
 }
 
 // ShowSettings brings the field up on the settings, its pill taking the
@@ -153,7 +137,7 @@ func (settingsSource) answer(s *State, text string, f *found) {
 	}
 	scope, words := s.settingsScope(text)
 	if scope == "" && words == "" {
-		// Top-level browsing: one category card per category, like groups.
+		// The top: each category listing its sections, as groups do.
 		var order []string
 		byCat := map[string][]SettingsSection{}
 		for _, sec := range s.AppSettings.Sections("") {
@@ -168,16 +152,18 @@ func (settingsSource) answer(s *State, text string, f *found) {
 		}
 		return
 	}
+	var found []SettingsSection
 	for _, sec := range s.AppSettings.Sections(words) {
-		if scope != "" {
-			if strings.Contains(scope, "/") {
-				if sec.ID != scope {
-					continue
-				}
-			} else if !strings.EqualFold(sectionCategory(sec), scope) {
-				continue
-			}
+		if scope == "" || strings.EqualFold(sectionCategory(sec), scope) {
+			found = append(found, sec)
 		}
+	}
+	// The section pressed to open its category stands first, those after
+	// it following, and those before it after them.
+	if i := slices.IndexFunc(found, func(sec SettingsSection) bool { return sec.ID == s.field.lead }); i > 0 {
+		found = append(found[i:], found[:i]...)
+	}
+	for _, sec := range found {
 		f.add("settings:"+sec.ID, tierResult, settingsCard{id: sec.ID, words: words})
 	}
 }
@@ -191,10 +177,19 @@ type settingsCategoryCard struct {
 
 func (sc settingsCategoryCard) shape(_ *State, _ *ui.Context, m blockMetrics) shape {
 	rows := make([]row, len(sc.sections))
-	for i := range sc.sections {
-		rows[i] = row{setting: &sc.sections[i], h: m.groupRow}
+	for i, sec := range sc.sections {
+		rows[i] = row{setting: &sc.sections[i], h: sectionRowHeight(sec, m)}
 	}
 	return stack(rows, m)
+}
+
+// sectionRowHeight is how tall a section's row stands: its title, and its
+// description under it on a line where it has one.
+func sectionRowHeight(sec SettingsSection, m blockMetrics) float32 {
+	if sec.Description == "" {
+		return m.groupRow
+	}
+	return 2*rowPad(m.scale) + theme.TextSmall.LineHeight(m.scale) + rowGap(m.scale) + theme.TextXSmall.LineHeight(m.scale)
 }
 
 func (sc settingsCategoryCard) rows() []string {
@@ -214,7 +209,7 @@ func (sc settingsCategoryCard) view(s *State, c *ui.Context, semantic theme.Them
 		s.settingsCategoryHead(c, semantic, sc, fr, m, animate)
 		cardRows(c, sh, m, func(r row) {
 			if r.setting != nil {
-				s.settingsSectionRow(c, semantic, *r.setting, fr, m, animate)
+				s.settingsSectionRow(c, semantic, *r.setting, r.h, fr, m, animate)
 				return
 			}
 			s.settingsMoreRow(c, semantic, sc.category, sh.more, fr, m, animate)
@@ -229,7 +224,7 @@ func (s *State) settingsCategoryHead(c *ui.Context, semantic theme.Theme, sc set
 		hover := components.HoverAmount(head, head.Hovered(), animate)
 		head.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
 		if head.Clicked() {
-			s.intoSettings(sc.category, fr.Rect)
+			s.intoSettings(sc.category, "", fr.Rect)
 		}
 		head.Children(func() {
 			ui.Icon(c, settingsCategoryIcon(sc.category).SVG()).FontSize(15 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
@@ -240,17 +235,22 @@ func (s *State) settingsCategoryHead(c *ui.Context, semantic theme.Theme, sc set
 	})
 }
 
-func (s *State) settingsSectionRow(c *ui.Context, semantic theme.Theme, sec SettingsSection, fr stage.Frame, m blockMetrics, animate bool) {
+func (s *State) settingsSectionRow(c *ui.Context, semantic theme.Theme, sec SettingsSection, h float32, fr stage.Frame, m blockMetrics, animate bool) {
 	id := "settings-sec:" + sec.ID
-	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
+	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(h).PaddingX(rowPad(m.scale)).
 		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
 		FocusRing(false).KeepFocus().Label(sec.Title)
 	s.rowFill(c, semantic, btn, id, false, animate)
 	if btn.Clicked() {
-		s.intoSettings(sec.ID, fr.Rect)
+		s.intoSettings(sectionCategory(sec), sec.ID, fr.Rect)
 	}
 	btn.Children(func() {
-		components.Label(c, sec.Title, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
+		ui.Column(c).Key("words").Grow(1).MinWidth(0).Gap(rowGap(m.scale)).Children(func() {
+			components.Label(c, sec.Title, theme.TextSmall, semantic.Text.Default).SingleLine()
+			if sec.Description != "" {
+				components.Label(c, sec.Description, theme.TextXSmall, semantic.Text.Muted).SingleLine()
+			}
+		})
 		ui.Icon(c, components.IconChevronRight.SVG()).FontSize(12 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
 	})
 }
@@ -261,7 +261,7 @@ func (s *State) settingsMoreRow(c *ui.Context, semantic theme.Theme, category st
 		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label)
 	s.rowFill(c, semantic, btn, "", false, animate)
 	if btn.Clicked() {
-		s.intoSettings(category, fr.Rect)
+		s.intoSettings(category, "", fr.Rect)
 	}
 	btn.Children(func() {
 		components.Label(c, label, theme.TextXSmall, semantic.Text.Muted).SingleLine()

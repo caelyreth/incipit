@@ -40,7 +40,7 @@ func (s *State) Sections(words string) []Section {
 		add(appsettings.Appearance, sec.title, sec.description, query == "" || containsFold(sec.words, query))
 	}
 	for _, card := range s.Data.Policies {
-		add(appsettings.Editor, card.Title, "", query == "" || s.policyMatches(card, query))
+		add(appsettings.Editor, card.Title, s.spell(card.Description), query == "" || s.policyMatches(card, query))
 	}
 	groups := s.shortcutGroups(query)
 	add(appsettings.Keymap, findShortcut, "Find an action by pressing its keys, or put every key back as it was.",

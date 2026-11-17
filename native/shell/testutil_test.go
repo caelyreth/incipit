@@ -274,8 +274,9 @@ func nestedGroupState() (*State, *fakeLibrary) {
 
 func abs(x float32) float32 { return max(x, -x) }
 
-// fakeSettings is two sections of settings in two categories, Appearance/Theme
-// and Keymap/Keys, found by their titles; Keys grows as tall as tall says.
+// fakeSettings is the settings in three categories: Appearance/Theme,
+// Editor/Pairs and Editor/Markdown, Keymap/Keys and Keymap/Pages, found by
+// their titles; Keys grows as tall as tall says.
 type fakeSettings struct {
 	tall float32
 	away int
@@ -285,10 +286,14 @@ func (f *fakeSettings) Sections(words string) []SettingsSection {
 	var out []SettingsSection
 	for _, item := range []struct{ cat, title string }{
 		{"Appearance", "Theme"},
+		{"Editor", "Pairs"},
+		{"Editor", "Markdown"},
 		{"Keymap", "Keys"},
+		{"Keymap", "Pages"},
 	} {
 		if words == "" || strings.Contains(strings.ToLower(item.title), strings.ToLower(strings.TrimSpace(words))) {
-			out = append(out, SettingsSection{ID: item.cat + "/" + item.title, Category: item.cat, Title: item.title})
+			out = append(out, SettingsSection{ID: item.cat + "/" + item.title, Category: item.cat, Title: item.title,
+				Description: "What " + item.title + " does."})
 		}
 	}
 	return out

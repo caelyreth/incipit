@@ -9,8 +9,8 @@ import (
 )
 
 // The Settings command brings the field up on the settings categories,
-// opening a section shows its live card working in place, and the command
-// again takes them away.
+// opening a section shows its category's live cards working in place, and
+// the command again takes them away.
 func TestTheSettingsCommandShowsTheSettingsInTheField(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {

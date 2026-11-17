@@ -690,12 +690,7 @@ func (s *State) conditionLook(semantic theme.Theme, text string) ribbonLook {
 		switch cond.Key.Name {
 		case "in":
 			if s.InSettings() {
-				cat, title, hasSec := strings.Cut(cond.Value, "/")
-				l.icon = settingsCategoryIcon(cat)
-				l.label = cat
-				if hasSec {
-					l.label = title
-				}
+				l.icon, l.label = settingsCategoryIcon(cond.Value), cond.Value
 				break
 			}
 			if s.Library != nil {
@@ -813,7 +808,7 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 			btn.Tooltip("Remove " + l.label)
 			if btn.Clicked() {
 				if i := slices.Index(s.field.conditions, p.text); i >= 0 {
-					s.clickSettingsRibbon(i)
+					s.broaden(i)
 				}
 			}
 			break
