@@ -90,6 +90,8 @@ type fieldState struct {
 	over  scrollfx.Elastic
 	viewH float32
 	edges components.EdgeFade
+	// metrics are the measures the field was last laid out to.
+	metrics blockMetrics
 	// ribbonHold is what the ribbons about the pill hold to while it
 	// stands as it is (pill.go).
 	ribbonHold ribbonHold
@@ -251,6 +253,13 @@ func mustKey(name string) *query.Key {
 func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, x, w, h float32, hidden, animate bool) {
 	m := s.blockMetrics(w, h)
 	k := m.k
+	// The window resized, or the type, the field stands at once as its new
+	// measures lay it out: nothing of it springs from where it stood, so
+	// each frame of a resize is drawn whole and at its own size.
+	if m != s.field.metrics {
+		animate = false
+		s.field.metrics = m
+	}
 	view := ui.Box(c).Key("field").Absolute().Top(0).Left(x).Size(w, h).Clip().Hidden(hidden).
 		Role(ui.RoleGroup).Label("Field")
 	if look.Offset.X != 0 {
@@ -484,7 +493,7 @@ func (s *State) shift(field ui.Element, frames []stage.Frame, f found, shapes []
 			}
 		}
 		field.Jump("shift", 0)
-		if first {
+		if first || !animate {
 			field.Jump("shift", 1)
 		} else {
 			s.field.hold = true

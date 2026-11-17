@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/caelyreth/neverland/native/components"
@@ -46,6 +47,10 @@ type blockMetrics struct {
 	horizon           stage.Horizon
 }
 
+// measureStep is the step, at the reference type size, the field's
+// measures are taken in from the window's.
+const measureStep = 8
+
 // fieldGap is the room between columns in the field and between the field
 // and the desk lane, at the reference type size.
 const fieldGap = 14
@@ -61,12 +66,19 @@ func (s *State) blockMetrics(w, h float32) blockMetrics {
 		least, most = 400, 560
 	}
 	cols, col := stage.Columns(w-48*k, least*k, most*k, gap)
+	// What the window gives is taken in steps, so that resizing it lays
+	// the cards out again a step at a time and between steps only moves
+	// them, as they were drawn.
+	step := measureStep * k
+	if col < most*k {
+		col = max(step, float32(math.Floor(float64(col/step)))*step)
+	}
 	band := 40*k + 2*gap
 	return blockMetrics{
 		scale: scale, k: k,
 		col: col - 2*pad, pad: pad, head: 36 * k, rowGap: 2 * k,
 		// A block is no taller than its half of the field holds.
-		tall:     max(160*k, h/2-band/2-gap-36*k-3*pad),
+		tall:     max(160*k, float32(math.Floor(float64((h/2-band/2-gap-36*k-3*pad)/step)))*step),
 		groupRow: 2*theme.Space06.DIPs(scale) + theme.TextSmall.LineHeight(scale),
 		control:  theme.DefaultControls.Scaled(scale).Height,
 		horizon:  stage.Horizon{Cols: cols, Col: col, Gap: gap, Above: band / 2, Below: band / 2},
