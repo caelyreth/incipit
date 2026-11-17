@@ -292,6 +292,11 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	if !s.field.settleAt.IsZero() {
 		c.After(s.field.settleAt.Sub(c.Now()))
 	}
+	// What fits in the row under the pill stands there alone, the field
+	// over it empty: its blocks may stand as tall as the window holds.
+	if len(f.cards) <= m.horizon.Cols {
+		m.tall = m.alone
+	}
 	shapes := s.shapes(c, f, m)
 	heights := make([]float32, len(shapes))
 	for i, sh := range shapes {

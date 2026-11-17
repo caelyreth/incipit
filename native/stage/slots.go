@@ -2,9 +2,12 @@ package stage
 
 // The field stands on either side of its horizon, the band across its
 // middle that holds the pill and that nothing is drawn in. What it shows
-// goes in slots numbered outward from the pill, in rings of columns, each
-// ring's slots alternately under and over it (slots). Block n takes slot n; past the last, blocks
-// stack outward in the same order. A block's slot so depends only on its
+// goes in slots numbered outward from the pill, a row at a time: across
+// the row under it, from the middle outward, then across the row over it
+// (slots), so that what little the field holds stands side by side, as
+// wide as the window lets it, before it takes the other side. Block n
+// takes slot n; past the last, blocks stack outward in the same order, a
+// row under and then a row over. A block's slot so depends only on its
 // rank and how many columns the window holds, never on any block's size:
 // one that grows moves only those stacked beyond it in its own half of its
 // column, and only outward.
@@ -34,21 +37,27 @@ type slot struct {
 	below bool
 }
 
-// slots are the horizon's slots outward from the pill, in rings: the
-// middle column under and then over it, where the count is odd; then each
-// two columns either side of what is taken, outward, crosswise: the right
-// under, the left over, the left under, the right over. So the slots taken
-// stand even about the pill, across and up and down, whenever an even
-// count of a ring's are.
+// slots are the horizon's slots outward from the pill: the row under it,
+// then the row over it, each from the middle column, or the right of the
+// middle two, outward, right and left in turn. So a row's slots taken
+// stand even about the pill whenever as many of them are taken as make
+// the middle even: an odd count where the columns are odd, an even where
+// they are even.
 func slots(cols int) []slot {
-	out := make([]slot, 0, 2*cols)
+	var across []int
 	right, left := cols/2, cols/2-1
 	if cols%2 == 1 {
-		out = append(out, slot{right, true}, slot{right, false})
+		across = append(across, right)
 		right++
 	}
 	for ; left >= 0; right, left = right+1, left-1 {
-		out = append(out, slot{right, true}, slot{left, false}, slot{left, true}, slot{right, false})
+		across = append(across, right, left)
+	}
+	out := make([]slot, 0, 2*cols)
+	for _, below := range []bool{true, false} {
+		for _, col := range across {
+			out = append(out, slot{col, below})
+		}
 	}
 	return out
 }

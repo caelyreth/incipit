@@ -164,6 +164,12 @@ func TestASmartFolderRunsItsQuery(t *testing.T) {
 // top band around it keeps field scrolling and context menu intact.
 func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
 	state, library, tester := onField(t, 1260, 700)
+	// Groups enough to fill the row under the pill, Novel last, over it.
+	library.groupTree = map[string][]GroupItem{"": {
+		{ID: "1", Name: "Inbox", Inbox: true},
+		{ID: "11", Name: "Ideas"}, {ID: "12", Name: "Letters"}, {ID: "13", Name: "Trips"},
+		{ID: "2", Name: "Novel"},
+	}}
 	library.extraSheets = 8
 	library.rev++
 	settle(tester)

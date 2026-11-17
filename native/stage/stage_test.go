@@ -1,20 +1,24 @@
 package stage
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
-	if got := slots(5); len(got) != 10 || got[0] != (slot{2, true}) || got[1] != (slot{2, false}) ||
-		got[2] != (slot{3, true}) || got[3] != (slot{1, false}) || got[6] != (slot{4, true}) || got[7] != (slot{0, false}) {
-		t.Fatalf("Five columns should go outward from the middle one, crosswise: %v", got)
+	want5 := []slot{{2, true}, {3, true}, {1, true}, {4, true}, {0, true}, {2, false}, {3, false}, {1, false}, {4, false}, {0, false}}
+	if got := slots(5); !slices.Equal(got, want5) {
+		t.Fatalf("Five columns should take the row under the pill from the middle outward, then the row over: %v", got)
 	}
-	if got := slots(4); len(got) != 8 || got[0] != (slot{2, true}) || got[1] != (slot{1, false}) ||
-		got[2] != (slot{1, true}) || got[3] != (slot{2, false}) {
-		t.Fatalf("Four columns should start at the two middle ones, crosswise: %v", got)
+	want4 := []slot{{2, true}, {1, true}, {3, true}, {0, true}, {2, false}, {1, false}, {3, false}, {0, false}}
+	if got := slots(4); !slices.Equal(got, want4) {
+		t.Fatalf("Four columns should start at the two middle ones: %v", got)
 	}
-	// Any even count of a ring's slots taken stands even about the pill.
-	for _, cols := range []int{2, 3, 4, 5} {
+	// A row's slots taken as many as make the middle even stand even
+	// about the pill.
+	for _, cols := range []int{1, 2, 3, 4, 5} {
 		z := Horizon{Cols: cols, Col: 100, Gap: 10}
-		for n := 2; n <= 2*cols; n += 2 {
+		for n := 2 - cols%2; n <= cols; n += 2 {
 			lo, hi := float32(1e9), float32(-1e9)
 			for _, r := range z.Place(make([]float32, n)) {
 				lo, hi = min(lo, r.X), max(hi, r.X+r.W)
@@ -26,8 +30,8 @@ func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
 	}
 	z := Horizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20}
 	rects := z.Place([]float32{50, 60, 70, 80})
-	if rects[0].Y != 20 || rects[1].Y != -80 || rects[0].X != rects[1].X {
-		t.Fatalf("The first two should stand below and above the middle: %+v", rects)
+	if rects[0].Y != 20 || rects[1].Y != 20 || rects[2].Y != 20 || rects[3].Y != -100 {
+		t.Fatalf("The first three should stand side by side under the pill, the fourth over it: %+v", rects)
 	}
 	// A block growing moves none but what stands beyond it in its half.
 	grown := z.Place([]float32{500, 60, 70, 80})

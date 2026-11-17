@@ -3,6 +3,8 @@ package shell
 import (
 	"slices"
 	"testing"
+
+	"github.com/caelyreth/neverland/native/stage"
 	"time"
 )
 
@@ -91,5 +93,30 @@ func TestTheTrashHeadsNoBlock(t *testing.T) {
 	}
 	if b := f.cards[1].kind.(block); !b.single || !b.trashed {
 		t.Fatalf("Scrap should stand on its own, as trashed: %+v.", b)
+	}
+}
+
+// What fits in the row under the pill stands side by side there, and its
+// blocks, nothing over the pill, may stand as tall as the window holds.
+func TestALoneRowStandsSideBySideAndTall(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.extraSheets = 30
+	library.rev++
+	tester.ClickAt(12, 12)
+	settle(tester)
+	var novel, inbox stage.Rect
+	for _, fr := range state.field.rest {
+		switch fr.ID {
+		case "group:2":
+			novel = fr.Rect
+		case "group:1":
+			inbox = fr.Rect
+		}
+	}
+	if novel.Y < 0 || inbox.Y < 0 || novel.Y != inbox.Y {
+		t.Fatalf("Two groups should stand side by side under the pill: %v and %v.", novel, inbox)
+	}
+	if novel.H <= 850/2 {
+		t.Fatalf("Alone in its row, Novel should stand taller than half the window: %v.", novel.H)
 	}
 }

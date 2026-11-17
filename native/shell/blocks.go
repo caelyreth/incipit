@@ -40,9 +40,13 @@ type row struct {
 // blockMetrics are the measures blocks are laid out to, at the type's
 // size, for a field w by h.
 type blockMetrics struct {
-	scale, k          float32
-	col, pad, head    float32
+	scale, k       float32
+	col, pad, head float32
+	// tall is how tall a block's rows may stand in its half of the field,
+	// and alone how tall where its row is all the field holds, nothing
+	// over the pill.
 	rowGap, tall      float32
+	alone             float32
 	groupRow, control float32
 	horizon           stage.Horizon
 }
@@ -77,8 +81,10 @@ func (s *State) blockMetrics(w, h float32) blockMetrics {
 	return blockMetrics{
 		scale: scale, k: k,
 		col: col - 2*pad, pad: pad, head: 36 * k, rowGap: 2 * k,
-		// A block is no taller than its half of the field holds.
+		// A block is no taller than its half of the field holds, or, alone
+		// in its row, than the window holds about the pill.
 		tall:     max(160*k, float32(math.Floor(float64((h/2-band/2-gap-36*k-3*pad)/step)))*step),
+		alone:    max(160*k, float32(math.Floor(float64((h-band-2*gap-36*k-3*pad-(48+24)*k)/step)))*step),
 		groupRow: 2*theme.Space06.DIPs(scale) + theme.TextSmall.LineHeight(scale),
 		control:  theme.DefaultControls.Scaled(scale).Height,
 		horizon:  stage.Horizon{Cols: cols, Col: col, Gap: gap, Above: band / 2, Below: band / 2},
