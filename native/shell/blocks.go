@@ -59,16 +59,25 @@ const measureStep = 8
 // and the desk lane, at the reference type size.
 const fieldGap = 14
 
+// fieldMetrics are the normal field's column measures, fixed for the
+// window's size and type scale regardless of what query is shown.
+func (s *State) fieldMetrics(w, h float32) blockMetrics {
+	return s.columnMetrics(w, h, 260, 340)
+}
+
 func (s *State) blockMetrics(w, h float32) blockMetrics {
+	// Live settings cards are wider, for a setting's words and its control
+	// to stand side by side; category cards share the library's measure.
+	if s.settingsLive() {
+		return s.columnMetrics(w, h, 400, 560)
+	}
+	return s.fieldMetrics(w, h)
+}
+
+func (s *State) columnMetrics(w, h, least, most float32) blockMetrics {
 	scale := s.Settings.UIFontSize
 	k := scale / theme.DefaultUIFontSize
 	pad, gap := 6*k, fieldGap*k
-	// Live settings cards are wider, for a setting's words and its control
-	// to stand side by side; category cards share the library's measure.
-	least, most := float32(260), float32(340)
-	if s.settingsLive() {
-		least, most = 400, 560
-	}
 	cols, col := stage.Columns(w-48*k, least*k, most*k, gap)
 	// What the window gives is taken in steps, so that resizing it lays
 	// the cards out again a step at a time and between steps only moves

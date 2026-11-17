@@ -231,3 +231,48 @@ func TestClickingSettingsCategoryCentersFieldAndAllowsDirectFirstClick(t *testin
 		t.Fatalf("Blurring Search inside Appearance should not jump pill Y (%v -> %v).", appPill.Y, blurredPill.Y)
 	}
 }
+
+// Entering settings or opening any live settings subview widens the cards
+// without shifting the field lane's controls or kept slab horizontally.
+func TestFieldLaneControlsStayPutAcrossSettingsSubviews(t *testing.T) {
+	_, _, tester := settingsState(t)
+	home0, _ := tester.Find("Home")
+	trash0, _ := tester.Find("Show Trash")
+	settings0, _ := tester.Find("Show settings")
+	kept0, _ := tester.Find("Kept searches")
+
+	checkSteady := func(phase string, settingsLabel string) {
+		home, _ := tester.Find("Home")
+		trash, _ := tester.Find("Show Trash")
+		settings, _ := tester.Find(settingsLabel)
+		kept, _ := tester.Find("Kept searches")
+		if home != home0 || trash != trash0 || settings != settings0 {
+			t.Fatalf("%s shifted lane buttons: home=%v (want %v) trash=%v (want %v) settings=%v (want %v)",
+				phase, home, home0, trash, trash0, settings, settings0)
+		}
+		if abs(kept.X-kept0.X) > 0.5 || abs(kept.W-kept0.W) > 0.5 {
+			t.Fatalf("%s shifted kept slab horizontally: got X=%v W=%v, want X=%v W=%v",
+				phase, kept.X, kept.W, kept0.X, kept0.W)
+		}
+	}
+
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	checkSteady("settings top", "Hide settings")
+
+	if err := tester.Click("Appearance"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	checkSteady("settings subview Appearance", "Hide settings")
+
+	if err := tester.Click("Remove Appearance"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	tester.Type("key")
+	settle(tester)
+	checkSteady("settings live search", "Hide settings")
+}

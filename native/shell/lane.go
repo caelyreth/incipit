@@ -42,12 +42,12 @@ func (s *State) laneShown() float32 {
 	return (laneWidth - fieldGap) * s.Settings.UIFontSize / theme.DefaultUIFontSize
 }
 
-// fieldMargin is how far from the window's left edge the field's columns
-// begin, the window being w by h: the lane, and half of what the columns
-// leave of the field's width.
+// fieldMargin is how far from the window's left edge the field's normal
+// columns begin, the window being w by h: the lane, and half of what the
+// columns leave of the field's width, steady across query modes.
 func (s *State) fieldMargin(w, h float32) float32 {
 	room := s.laneRoom()
-	z := s.blockMetrics(w-2*room, h).horizon
+	z := s.fieldMetrics(w-2*room, h).horizon
 	return room + (w-2*room-(float32(z.Cols)*z.Col+float32(z.Cols-1)*z.Gap))/2
 }
 
