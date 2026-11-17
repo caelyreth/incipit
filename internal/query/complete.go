@@ -9,11 +9,12 @@ import (
 // the completion's span. Label is what a list shows of it, Hint what a
 // key takes after it, and Help what it finds. Of is the key a value is
 // for, empty for a key. Done is a suggestion that finishes its part, as a
-// value does: what is written next starts another.
+// value does: what is written next starts another. Written is a value as
+// it is written, none of those the key offers.
 type Suggestion struct {
 	Label, Text, Hint, Help string
 	Of                      string
-	Done                    bool
+	Done, Written           bool
 }
 
 // hints say what each kind of key takes.
@@ -36,6 +37,26 @@ type Completion struct {
 // DatePresets are the named dates the date keys take, as completion
 // offers them.
 var DatePresets = []string{"today", "yesterday", "this-week", "last-week", "this-month", "last-month", "this-year", "last-year"}
+
+// CountPresets are the lengths $words offers: short, middling, long and
+// longer.
+var CountPresets = []string{"<300", "300..1000", "1000..3000", ">=3000"}
+
+// choices are what a choice key offers: its Choices, and for $sort each
+// order turned as well, as -updated.
+func (k *Key) choices() []string {
+	if k.Name != "sort" {
+		return k.Choices
+	}
+	var out []string
+	for _, c := range k.Choices {
+		out = append(out, c)
+		if c != "relevance" {
+			out = append(out, "-"+c)
+		}
+	}
+	return out
+}
 
 // Complete is what may stand at caret, a byte offset in text, for a query
 // run where scope says: the keys a $ being written may name, or the
@@ -96,9 +117,11 @@ func completeValue(text string, caret int, at *Filter, names func(key string) []
 	var values []string
 	switch k.Takes {
 	case TakesChoice:
-		values = k.Choices
+		values = k.choices()
 	case TakesDate:
 		values = DatePresets
+	case TakesNumber:
+		values = CountPresets
 	case TakesName:
 		if names != nil {
 			values = names(k.Name)

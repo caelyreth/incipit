@@ -1,6 +1,7 @@
 package search
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/caelyreth/neverland/internal/query"
@@ -55,5 +56,18 @@ func TestSettingsAndSheetsHaveNoCounts(t *testing.T) {
 	}
 	if c, _ := x.Counts(query.Parse("$sheet"), "tag", []string{"work"}, env()); c != nil {
 		t.Fatalf("a sheet's find counted %v", c)
+	}
+}
+
+// The sites offered are those the pages link to, each with the sites it
+// is under, most linked first.
+func TestSitesAreThoseThePagesLinkTo(t *testing.T) {
+	x := notebook(t)
+	sites, err := x.Sites(10, env())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(sites, "docs.github.com") || !slices.Contains(sites, "github.com") {
+		t.Fatalf("sites = %v", sites)
 	}
 }

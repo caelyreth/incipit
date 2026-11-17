@@ -995,24 +995,24 @@ func TestRibbonTransitionsMirrorVerticallyAroundPill(t *testing.T) {
 	settle(tester)
 
 	// Focus to bring key ribbons in: "Tag" is in the bottom group,
-	// "Updated" is in the top group.
+	// "Group" is in the top group.
 	state.Search()
 	tester.Frame()
 	tester.Advance(32 * time.Millisecond)
 	tester.Frame()
 
 	bottomIn, okB := tester.Find("Tag")
-	topIn, okT := tester.Find("Updated")
+	topIn, okT := tester.Find("Group")
 	if !okB || !okT {
-		t.Fatalf("Expected entering Tag (%v) and Updated (%v) ribbons.", okB, okT)
+		t.Fatalf("Expected entering Tag (%v) and Group (%v) ribbons.", okB, okT)
 	}
 
 	settle(tester)
 	pill, _ := tester.Find("Search")
 	bottomRest, _ := tester.Find("Tag")
-	topRest, _ := tester.Find("Updated")
+	topRest, _ := tester.Find("Group")
 	if !(topRest.Y < pill.Y && bottomRest.Y > pill.Y) {
-		t.Fatalf("Expected Updated (%v) above and Tag (%v) below pill (%v).", topRest, bottomRest, pill)
+		t.Fatalf("Expected Group (%v) above and Tag (%v) below pill (%v).", topRest, bottomRest, pill)
 	}
 
 	midY := func(r ui.Rect) float32 { return r.Y + r.H/2 }
@@ -1035,7 +1035,7 @@ func TestRibbonTransitionsMirrorVerticallyAroundPill(t *testing.T) {
 	if _, still := tester.Find("Tag"); still {
 		t.Fatal("Tag ribbon should be gone once blurred and settled.")
 	}
-	if _, still := tester.Find("Updated"); still {
-		t.Fatal("Updated ribbon should be gone once blurred and settled.")
+	if _, still := tester.Find("Group"); still {
+		t.Fatal("Group ribbon should be gone once blurred and settled.")
 	}
 }

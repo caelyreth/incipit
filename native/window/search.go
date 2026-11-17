@@ -1,14 +1,19 @@
 package window
 
 import (
+	"cmp"
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"log"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/search"
@@ -49,6 +54,7 @@ type finder struct {
 	// key's values, and smart each smart folder's sheets, the same.
 	found   *found
 	counted *counted
+	sites   *sites
 	smart   map[string]*smartFound
 	lines   *lines
 }
@@ -89,6 +95,13 @@ func (a *AppState) queryStamp() queryStamp {
 type textState struct {
 	snap   *doc.Snapshot
 	serial uint64
+}
+
+// sites are the sites the notebook links to, kept while what they were
+// read from stands.
+type sites struct {
+	stamp queryStamp
+	names []string
 }
 
 type counted struct {
@@ -388,8 +401,105 @@ func (a *AppState) SearchNames(key string) []string {
 			}
 		})
 		return names
+	case "link":
+		return a.linkedSites()
+	case "title":
+		return a.titleWords()
 	}
 	return nil
+}
+
+// namesMost is how many names a key offers at most.
+const namesMost = 60
+
+// linkedSites are the sites the notebook's sheets link to, most linked
+// first.
+func (a *AppState) linkedSites() []string {
+	f := a.finder
+	if f == nil {
+		return nil
+	}
+	stamp := a.queryStamp()
+	if r := f.sites; r != nil && r.stamp == stamp {
+		return r.names
+	}
+	names, err := f.index.Sites(namesMost, a.searchEnv())
+	if err != nil {
+		log.Printf("search sites: %v", err)
+	}
+	f.sites = &sites{stamp: stamp, names: names}
+	return names
+}
+
+// titleWords are the words the titles of the sheets out of the trash are
+// written in, those in most titles first, as first written: what $title
+// offers. Words of fewer than three letters, and the commonest words of
+// English, say too little of a title to be offered.
+func (a *AppState) titleWords() []string {
+	type count struct {
+		word         string
+		titles, from int
+	}
+	counts := map[string]*count{}
+	for _, session := range a.sessions {
+		if sheet, ok := a.library.Sheet(library.SheetID(session.key)); !ok || !sheet.Trashed.IsZero() {
+			continue
+		}
+		seen := map[string]bool{}
+		for _, word := range strings.FieldsFunc(session.summary.Title, func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '\''
+		}) {
+			key := query.Fold(word)
+			if utf8.RuneCountInString(key) < 3 || commonWords[key] || seen[key] {
+				continue
+			}
+			seen[key] = true
+			c, ok := counts[key]
+			if !ok {
+				c = &count{word: word, from: len(counts)}
+				counts[key] = c
+			}
+			c.titles++
+		}
+	}
+	ranked := slices.Collect(maps.Values(counts))
+	slices.SortFunc(ranked, func(a, b *count) int { return cmp.Or(cmp.Compare(b.titles, a.titles), cmp.Compare(a.from, b.from)) })
+	var words []string
+	for _, c := range ranked[:min(len(ranked), namesMost)] {
+		words = append(words, c.word)
+	}
+	return words
+}
+
+// commonWords are words of English too common to say what a title is of.
+var commonWords = map[string]bool{
+	"the": true, "and": true, "for": true, "with": true, "from": true, "into": true, "about": true,
+	"that": true, "this": true, "these": true, "those": true, "are": true, "was": true, "were": true,
+	"not": true, "but": true, "you": true, "your": true, "our": true, "its": true, "has": true,
+	"have": true, "had": true, "how": true, "what": true, "why": true, "who": true, "when": true,
+	"where": true, "all": true, "any": true, "out": true, "over": true, "than": true, "then": true,
+	"there": true, "their": true, "they": true, "will": true, "can": true, "untitled": true,
+}
+
+// CountValues is part of shell.Library: how many sheets text finds with
+// each of values for key as one condition more, kept while the query and
+// what it reads stand. A value counted is in the map; one that cannot be,
+// as a setting's, is not.
+func (a *AppState) CountValues(text, key string, values []string) map[string]int {
+	f := a.finder
+	if f == nil || len(values) == 0 {
+		return nil
+	}
+	stamp, joined := a.queryStamp(), strings.Join(values, "\x00")
+	if r := f.counted; r != nil && r.query == text && r.key == key && r.values == joined && r.stamp == stamp {
+		return r.counts
+	}
+	counts, err := f.index.Counts(query.Parse(text), key, values, a.searchEnv())
+	if err != nil {
+		log.Printf("search counts: %v", err)
+	}
+	f.counted = &counted{query: text, key: key, values: joined, stamp: stamp, counts: counts}
+	return counts
 }
 
 // filingGroups visits the groups out of the trash that sheets are filed

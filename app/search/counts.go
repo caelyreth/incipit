@@ -155,3 +155,27 @@ func dateField(key string) string {
 	}
 	return "updated"
 }
+
+// Sites are the sites the notebook's pages link to, most linked first, at
+// most limit of them: what $link offers. A site is offered with the sites
+// it is under, as docs.github.com with github.com.
+func (x *Index) Sites(limit int, env Env) ([]string, error) {
+	if env.Now.IsZero() {
+		env.Now = time.Now()
+	}
+	q := query.Parse("")
+	c := compiler{env: env, issued: q.Issued()}
+	req := bleve.NewSearchRequestOptions(c.compile(q), 0, 0, false)
+	req.AddFacet(countFacet, bleve.NewFacetRequest("domains", limit))
+	res, err := x.b.Search(req)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	if f := res.Facets[countFacet]; f != nil {
+		for _, t := range f.Terms.Terms() {
+			out = append(out, t.Term)
+		}
+	}
+	return out, nil
+}

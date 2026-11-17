@@ -12,9 +12,13 @@ import (
 // What may be written next stands around the pill as idle ribbons
 // (field-and-desk.md §4.5, pill.go), and nothing of the query's language
 // is ever written in the pill for it. A key pressed opens in the pill:
-// its values stand around it, what is written narrows them, and the
-// arrows, Tab, Return or a press take one, which becomes a ribbon; a value
-// none of them offers, as words for a title, is taken as written. What
+// its values stand around it, each with how many sheets it would find,
+// what is written narrows them, and the arrows, Tab, Return or a press
+// take one, which becomes a ribbon. What is written, where the key takes
+// it, stands among them as a value of its own: after those it starts,
+// alone where none does, as words for a title or 7d for a date. A key
+// that holds one value, as a date, a length or the order, takes the new
+// one in place of the one it held; others, as tags, gather them. What
 // was written before the key opened comes back as it closes. A key
 // written by hand ($up…) marks the keys it may start, and taken, opens.
 // What the field shows answers the query as it was last whole: without
@@ -39,6 +43,9 @@ func (s *State) offer(caret int) bool {
 		}
 		next := query.Complete(prefix+words, len(prefix)+caret, query.InNotebook, names)
 		next.Span.From, next.Span.To = max(0, next.Span.From-len(prefix)), max(0, next.Span.To-len(prefix))
+		if k := s.field.opened; k != nil {
+			next.Items = withWritten(next.Items, k, words)
+		}
 		if !slices.Equal(next.Items, s.field.completion.Items) || next.Span != s.field.completion.Span {
 			changed = true
 		}
@@ -52,6 +59,19 @@ func (s *State) offer(caret int) bool {
 		s.field.allValues = false
 	}
 	return changed
+}
+
+// withWritten is items, the values offered for k, and what is written,
+// where k takes it and none of them is it, after them.
+func withWritten(items []query.Suggestion, k *query.Key, words string) []query.Suggestion {
+	v := strings.TrimSpace(words)
+	if v == "" || !k.Accepts(v) || slices.ContainsFunc(items, func(item query.Suggestion) bool {
+		return query.Fold(rawValue(item)) == query.Fold(v)
+	}) {
+		return items
+	}
+	return append(items, query.Suggestion{Label: v, Text: v, Of: k.Name, Done: true, Written: true,
+		Help: "Take what is written"})
 }
 
 // offered reports whether suggestions stand around the pill: while it is
@@ -116,6 +136,21 @@ func (s *State) wholeQuery() string {
 	return strings.TrimSpace(strings.Join(append(slices.Clone(s.field.conditions), words), " "))
 }
 
+// countedWith is the query the values of k are counted against: the
+// query as it is whole, without k's own condition where k holds one value,
+// as the value counted would take its place.
+func (s *State) countedWith(k *query.Key) string {
+	conds := slices.Clone(s.field.conditions)
+	if k.OneValue() {
+		conds = slices.DeleteFunc(conds, func(text string) bool { return conditionKey(text) == k.Name })
+	}
+	words := s.field.held
+	if s.field.opened == nil {
+		words = s.unwritten()
+	}
+	return strings.TrimSpace(strings.Join(append(conds, words), " "))
+}
+
 // unwritten is the words without the filter the caret is in.
 func (s *State) unwritten() string {
 	words, caret := s.field.words, s.field.caret
@@ -171,14 +206,17 @@ func (s *State) takenAt(k *query.Key, v string) int {
 	return -1
 }
 
-// toggleValue puts k's condition of v in the query, or takes it away
-// where it is there. A key that takes names, as the tags, stays open for
+// toggleValue puts k's condition of v in the query, in place of the one
+// it has where k holds one value, or takes it away where it is there. A key that takes names, as the tags, stays open for
 // more of them to be taken or let go; any other closes.
 func (s *State) toggleValue(k *query.Key, v string) {
 	if i := s.takenAt(k, v); i >= 0 {
 		s.field.conditions = slices.Delete(s.field.conditions, i, i+1)
 		s.field.next = change{depth: stage.Up}
 	} else {
+		if k.OneValue() {
+			s.field.conditions = slices.DeleteFunc(s.field.conditions, func(text string) bool { return conditionKey(text) == k.Name })
+		}
 		s.field.conditions = append(s.field.conditions, (&query.Condition{Key: k, Value: v}).String())
 		s.field.next = change{depth: stage.Down}
 	}

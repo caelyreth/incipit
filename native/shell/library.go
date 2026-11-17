@@ -117,6 +117,9 @@ type Library interface {
 	// SearchNames is the values a name key takes in the notebook, as the
 	// tags $tag does, most used first.
 	SearchNames(key string) []string
+	// CountValues is how many sheets query finds with each of values for
+	// key as one condition more: a value it cannot count is not in it.
+	CountValues(query, key string, values []string) map[string]int
 	// OpenFound opens a sheet a query found at the first of its matches,
 	// selected, as OpenSheet opens it.
 	OpenFound(id, query string, alongside bool)

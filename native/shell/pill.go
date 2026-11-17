@@ -337,7 +337,8 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k fl
 func (s *State) pillPlaceholder() string {
 	switch {
 	case s.field.opened != nil:
-		return s.field.opened.Label + "…"
+		// What the key says of its value: "Title has…", "Updated…".
+		return strings.TrimSpace(s.field.opened.Label+" "+s.field.opened.Is) + "…"
 	case s.InSettings():
 		return "Find a setting…"
 	}
@@ -373,6 +374,9 @@ type ribbonPlace struct {
 	text    string
 	item    query.Suggestion
 	x, y, w float32
+	// count is how many sheets a value would find, -1 where it is not
+	// counted.
+	count int
 }
 
 // ribbonLayout is where the ribbons stand around the pill, and how far
@@ -502,10 +506,25 @@ func (s *State) valueRibbons() []ribbonPlace {
 	}
 	var out []ribbonPlace
 	for i, item := range s.field.completion.Items {
-		out = append(out, ribbonPlace{kind: ribbonValue, i: i, key: of, item: item})
+		out = append(out, ribbonPlace{kind: ribbonValue, i: i, key: of, item: item, count: -1})
 	}
 	if len(out) > idleMost && !s.field.allValues {
 		out = append(out[:idleMost-1], ribbonPlace{kind: ribbonMore, i: len(out) - idleMost + 1})
+	}
+	// Each value says how many sheets it would find.
+	var values []string
+	for _, p := range out {
+		if p.kind == ribbonValue {
+			values = append(values, rawValue(p.item))
+		}
+	}
+	if s.Library != nil && len(values) > 0 {
+		counts := s.Library.CountValues(s.countedWith(of), of.Name, values)
+		for i, p := range out {
+			if n, ok := counts[rawValue(p.item)]; ok && p.kind == ribbonValue {
+				out[i].count = n
+			}
+		}
 	}
 	return out
 }
@@ -527,7 +546,7 @@ func rowWidth(row []ribbonPlace, gap float32) float32 {
 }
 
 // filterKeys are the keys the open pill offers to narrow by, in order.
-var filterKeys = []string{"tag", "updated", "created", "words", "has", "title", "link", "inbox", "open", "sort", "trash"}
+var filterKeys = []string{"tag", "in", "updated", "created", "words", "has", "title", "heading", "code", "quote", "link", "inbox", "open", "sort", "trash"}
 
 // hasCondition reports whether the query has a condition of the key name.
 func (s *State) hasCondition(name string) bool {
@@ -548,11 +567,13 @@ const (
 	edgeSolid
 )
 
-// ribbonLook is how a ribbon shows: its words and icon, the ink of its
-// icon, its words' ink, its fill, which none is transparent, its outline,
-// how much of it shows, and whether it has a × to take it away.
+// ribbonLook is how a ribbon shows: its words, how many it would find,
+// and icon, the ink of its icon, its words' ink, its fill, which none is
+// transparent, its outline, how much of it shows, and whether it has a ×
+// to take it away.
 type ribbonLook struct {
 	label  string
+	count  string
 	icon   components.IconName
 	ink    ui.Color
 	text   ui.Color
@@ -567,8 +588,9 @@ type ribbonLook struct {
 //   - a key idle, outlined in dashes, a + before it; the key whose values
 //     are being written, filled in the accent, opened; while a key is
 //     being written, the keys it cannot start faded;
-//   - a value idle, outlined in dashes; a value the query has taken,
-//     filled, a tick before it;
+//   - a value idle, outlined in dashes, how many sheets it would find
+//     after it, faded where it would find none; what is written, a pen
+//     before it; a value the query has taken, filled, a tick before it;
 //   - how many more there are, plain;
 //   - what the keys are on, outlined in full over any of these.
 func (s *State) look(semantic theme.Theme, p ribbonPlace) ribbonLook {
@@ -589,6 +611,15 @@ func (s *State) look(semantic theme.Theme, p ribbonPlace) ribbonLook {
 		l.label = query.Describe(p.key, v)
 		if strings.HasPrefix(p.item.Label, "#") {
 			l.label = "#" + v
+		}
+		if p.count >= 0 {
+			l.count = thousands(p.count)
+			if p.count == 0 {
+				l.shown = 0.5
+			}
+		}
+		if p.item.Written {
+			l.icon = components.IconPen
 		}
 		if s.takenAt(p.key, v) >= 0 {
 			l.icon, l.edge = components.IconCheck, edgeNone
@@ -655,6 +686,10 @@ func (s *State) ribbonWidth(c *ui.Context, p ribbonPlace, k float32) float32 {
 	l := s.look(theme.Theme{}, p)
 	tw, _ := c.MeasureText(0, ui.Span{Text: l.label, Font: theme.UIFontFamily, Size: theme.TextSmall.Size(components.UIFontSize(c))})
 	w := float32(math.Ceil(float64(tw))) + 1 + ribbonStart*k
+	if l.count != "" {
+		cw, _ := c.MeasureText(0, ui.Span{Text: l.count, Font: theme.UIFontFamily, Size: theme.TextXSmall.Size(components.UIFontSize(c)), Features: "tnum"})
+		w += float32(math.Ceil(float64(cw))) + 1 + 6*k
+	}
 	if l.icon != "" {
 		w += ribbonIcon * k
 	}
@@ -670,6 +705,10 @@ func (s *State) ribbonID(p ribbonPlace) string {
 	case ribbonKey:
 		return "key-" + p.key.Name
 	case ribbonValue:
+		// What is written keeps one ribbon as it is written.
+		if p.item.Written {
+			return "value-" + p.key.Name + "-written"
+		}
 		return "value-" + p.key.Name + "-" + p.item.Text
 	case ribbonMore:
 		return "more"
@@ -763,6 +802,9 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 			ui.Icon(c, l.icon.SVG()).FontSize(14 * k).TextColor(l.ink).Shrink(0)
 		}
 		components.Label(c, l.label, theme.TextSmall, l.text).SingleLine().Shrink(0)
+		if l.count != "" {
+			components.Label(c, l.count, theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
+		}
 		if !l.closes {
 			return
 		}

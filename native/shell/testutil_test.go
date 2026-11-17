@@ -114,6 +114,19 @@ func (f *fakeLibrary) Search(text string) Found {
 	}, Total: 2}
 }
 
+// CountValues counts each value as many sheets as its name is long, and
+// none for one that starts with "no".
+func (f *fakeLibrary) CountValues(_, _ string, values []string) map[string]int {
+	out := map[string]int{}
+	for _, v := range values {
+		out[v] = len(v)
+		if strings.HasPrefix(v, "no") {
+			out[v] = 0
+		}
+	}
+	return out
+}
+
 func (f *fakeLibrary) SearchNames(key string) []string {
 	if key == "tag" {
 		return []string{"work", "weekly"}

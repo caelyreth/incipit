@@ -77,7 +77,10 @@ func TestAValueOffersWhatItsKeyTakes(t *testing.T) {
 		{"$in:pro", "Projects", "$in:Projects"},
 		{"$has:t", "table", "$has:table"},
 		{"$updated:this", "this-week this-month this-year", "$updated:this-week"},
-		{"$sort:", "relevance updated created title words", "$sort:relevance"},
+		{"$sort:", "relevance updated -updated created -created title -title words -words", "$sort:relevance"},
+		{"$sort:-", "-updated -created -title -words", "$sort:-updated"},
+		{"$words:", "<300 300..1000 1000..3000 >=3000", "$words:<300"},
+		{"$words:1", "1000..3000", "$words:1000..3000"},
 		{"$words:5", "", ""},
 		{"$tag:work", "homework", "$tag:homework"},
 	} {

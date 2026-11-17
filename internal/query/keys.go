@@ -78,6 +78,13 @@ var Keys = []Key{
 	{Name: "word", Label: "Whole words", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match whole words only"},
 }
 
+// OneValue reports a key a query holds one value of: a setting, a span of
+// dates or of lengths. A value taken for it takes the place of the one
+// there; others, as tags or kinds, gather.
+func (k *Key) OneValue() bool {
+	return k.Setting || k.Takes == TakesDate || k.Takes == TakesNumber
+}
+
 // KeyNamed is the key called name, folded.
 func KeyNamed(name string) (*Key, bool) {
 	name = Fold(name)

@@ -211,3 +211,27 @@ func TestASmartFolderListsWhatItsQueryFinds(t *testing.T) {
 		t.Fatalf("after a quit the folder is %+v", group)
 	}
 }
+
+// The pill's keys offer the notebook's own values: the sites its sheets
+// link to, and the words their titles are written in, the commonest words
+// of English left out; and each value says how many sheets it would find.
+func TestTheKeysOfferTheNotebooksValuesAndCountThem(t *testing.T) {
+	app := openNotebookApp(t, t.TempDir())
+	typeIntoActivePage(t, app, "See https://docs.github.com/x for more.")
+	nameActivePage(t, app, "The quarterly budget review")
+	settleSearch(app)
+	if got := app.SearchNames("title"); !slices.Contains(got, "quarterly") && !slices.Contains(got, "Quarterly") ||
+		slices.ContainsFunc(got, func(w string) bool { return query.Fold(w) == "the" }) {
+		t.Fatalf("title words = %v", got)
+	}
+	if got := app.SearchNames("link"); !slices.Contains(got, "docs.github.com") || !slices.Contains(got, "github.com") {
+		t.Fatalf("linked sites = %v", got)
+	}
+	counts := app.CountValues("", "link", []string{"github.com", "example.com"})
+	if counts["github.com"] != 1 || counts["example.com"] != 0 {
+		t.Fatalf("counts = %v", counts)
+	}
+	if again := app.CountValues("", "link", []string{"github.com", "example.com"}); again["github.com"] != 1 {
+		t.Fatalf("counts kept = %v", again)
+	}
+}

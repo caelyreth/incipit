@@ -45,6 +45,7 @@ const (
 	IconMinus        IconName = "minus"
 	IconNewGroup     IconName = "folder-plus"
 	IconNewSheet     IconName = "file-plus"
+	IconPen          IconName = "pen-line"
 	IconPlus         IconName = "plus"
 	IconRedo         IconName = "redo-2"
 	IconSearch       IconName = "search"
@@ -93,6 +94,7 @@ var AllIcons = [...]IconName{
 	IconMinus,
 	IconNewGroup,
 	IconNewSheet,
+	IconPen,
 	IconPlus,
 	IconRedo,
 	IconSearch,
