@@ -24,7 +24,7 @@ type shape struct {
 	more int
 }
 
-// row is one row of a block: a group inside it, a sheet, a command, the
+// row is one row of a card: a group inside it, a sheet, a command, the
 // area that makes a sheet there, or what it leaves out.
 type row struct {
 	group   *GroupItem
@@ -61,26 +61,26 @@ func (s *State) blockMetrics(w, h float32) blockMetrics {
 		tall:     max(160*k, h/2-band/2-gap-36*k-3*pad),
 		groupRow: 2*theme.Space06.DIPs(scale) + theme.TextSmall.LineHeight(scale),
 		control:  theme.DefaultControls.Scaled(scale).Height,
-		horizon:  stage.Horizon{Cols: cols, Col: col, Gap: gap, Band: band},
+		horizon:  stage.Horizon{Cols: cols, Col: col, Gap: gap, Above: band / 2, Below: band / 2},
 	}
 }
 
-// shapes are the blocks' shapes, worked out again only when what they
+// shapes are the cards' shapes, worked out again only when what they
 // hold or the measures change.
 func (s *State) shapes(c *ui.Context, f found, m blockMetrics) []shape {
-	key := fmt.Sprintf("%s|%d|%s|%v", f.query, f.rev, f.open, m)
-	if s.field.shapesKey == key && len(s.field.shapes) == len(f.blocks) {
+	key := fmt.Sprintf("%s|%d|%s|%d|%v", f.query, f.rev, f.open, f.offers, m)
+	if s.field.shapesKey == key && len(s.field.shapes) == len(f.cards) {
 		return s.field.shapes
 	}
-	out := make([]shape, len(f.blocks))
-	for i := range f.blocks {
-		out[i] = s.shapeOf(c, &f.blocks[i], m)
+	out := make([]shape, len(f.cards))
+	for i, cd := range f.cards {
+		out[i] = cd.kind.shape(s, c, m)
 	}
 	s.field.shapes, s.field.shapesKey = out, key
 	return out
 }
 
-func (s *State) shapeOf(c *ui.Context, b *block, m blockMetrics) shape {
+func (b block) shape(s *State, c *ui.Context, m blockMetrics) shape {
 	switch {
 	case b.single:
 		h := entryHeight(c, b.entries[0], m, 4)
@@ -88,10 +88,7 @@ func (s *State) shapeOf(c *ui.Context, b *block, m blockMetrics) shape {
 	case b.create:
 		return shape{size: stage.Size{W: m.col + 2*m.pad, H: m.control + 2*m.pad}, cols: [][]row{{{create: true, h: m.control}}}}
 	}
-	rows := make([]row, 0, len(b.groups)+len(b.entries)+len(b.commands)+1)
-	for i := range b.commands {
-		rows = append(rows, row{command: &b.commands[i], h: m.groupRow})
-	}
+	rows := make([]row, 0, len(b.groups)+len(b.entries)+1)
 	for i := range b.groups {
 		rows = append(rows, row{group: &b.groups[i], h: m.groupRow})
 	}
@@ -102,41 +99,25 @@ func (s *State) shapeOf(c *ui.Context, b *block, m blockMetrics) shape {
 	if g := b.group; g != nil && !b.trashed && !g.Smart() {
 		rows = append(rows, row{create: true, h: m.control})
 	}
-	// One column, as tall as its half holds; what is left out is counted,
-	// and the block's head goes into it.
-	var sh shape
-	var col []row
-	colH := float32(0)
-	for i, r := range rows {
-		if len(col) > 0 && colH+m.rowGap+r.h > m.tall {
-			for _, rest := range rows[i:] {
-				if !rest.create {
-					sh.more++
-				}
-			}
-			for len(col) > 0 && colH+m.rowGap+m.groupRow > m.tall {
-				colH -= col[len(col)-1].h + m.rowGap
-				if last := col[len(col)-1]; !last.create {
-					sh.more++
-				}
-				col = col[:len(col)-1]
-			}
-			col = append(col, row{h: m.groupRow})
-			colH += m.rowGap + m.groupRow
-			break
-		}
-		if len(col) > 0 {
-			colH += m.rowGap
-		}
-		col = append(col, r)
-		colH += r.h
+	return stack(rows, m)
+}
+
+func (b block) rows() []string {
+	ids := make([]string, 0, len(b.groups)+len(b.entries))
+	for _, g := range b.groups {
+		ids = append(ids, "group:"+g.ID)
 	}
-	sh.size = stage.Size{W: m.col + 2*m.pad, H: m.head + 2*m.pad}
-	if len(col) > 0 {
-		sh.cols = [][]row{col}
-		sh.size.H += colH + m.pad
+	for _, e := range b.entries {
+		ids = append(ids, "sheet:"+e.sheet.ID)
 	}
-	return sh
+	return ids
+}
+
+func (b block) ground() bool { return !b.create }
+
+// A block is drawn anew while its group's name is being written.
+func (b block) drawsLive(s *State) bool {
+	return b.group != nil && s.field.renaming == b.group.ID && !b.create
 }
 
 // The parts of a sheet's row, as the sheet list set them.
@@ -179,32 +160,10 @@ func bodyLines(c *ui.Context, body string, width, scale float32, most int) int {
 	return max(1, min(most, int(h/one+0.5)))
 }
 
-// blockView draws the block b shaped sh as fr says, its canvas origin at
-// at; live while the field still shows it, not on its way out.
-func (s *State) blockView(c *ui.Context, semantic theme.Theme, fr stage.Frame, b block, sh shape, at stage.Point, live bool, m blockMetrics, animate bool) {
-	scale := fr.Rect.W / max(fr.Size.W, 1)
-	renaming := b.group != nil && s.field.renaming == b.group.ID && !b.create
-	// Its frame stands as tall as the change has it, its contents laid out
-	// at their own height within: a block growing or shrinking shows more
-	// or less of itself, and is never stretched.
-	frame := ui.Box(c.Key("block-"+fr.ID)).Absolute().Left(0).Top(0).Size(fr.Size.W, fr.Rect.H/max(scale, 0.01)).
-		TransformOrigin(0, 0).Scale(scale, scale).Translate(at.X+fr.Rect.X, at.Y+fr.Rect.Y).
-		Opacity(fr.Shown).Radius(12 * m.k).Clip().Role(ui.RoleGroup)
-	if !b.create {
-		frame.Background(semantic.Surface.Page).Border(1, semantic.Border.Variant)
-	}
-	frame.Children(func() { s.blockContent(c, semantic, fr, b, sh, renaming, live, m, animate) })
-}
-
-// blockContent is what a block holds, at its own size.
-func (s *State) blockContent(c *ui.Context, semantic theme.Theme, fr stage.Frame, b block, sh shape, renaming, live bool, m blockMetrics, animate bool) {
-	box := ui.Column(c.Key("content")).Size(fr.Size.W, fr.Size.H).Shrink(0).Padding(m.pad)
-	if !renaming {
-		box.Cache()
-	}
-	if !live {
-		box.IgnoreInput(true)
-	} else if g := b.group; g != nil && !b.trashed && !g.Smart() && !b.create {
+// view is what a block holds: a group's head and rows, taking sheets and
+// groups dropped on it.
+func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stage.Frame, sh shape, current bool, m blockMetrics, animate bool) {
+	if g := b.group; current && g != nil && !b.trashed && !g.Smart() && !b.create {
 		if dropped, ok := s.dropOn(c, semantic, box, takes{sheets: true, groups: !g.Inbox}, animate); ok {
 			switch d := dropped.(type) {
 			case sheetDrag:
@@ -220,42 +179,28 @@ func (s *State) blockContent(c *ui.Context, semantic theme.Theme, fr stage.Frame
 		if !b.single && !b.create {
 			s.blockHead(c, semantic, b, fr, m, animate)
 		}
-		if len(sh.cols) == 0 {
-			return
-		}
-		ui.Row(c).Key("cols").AlignItems(ui.Start).Children(func() {
-			for i, col := range sh.cols {
-				ui.Column(c).Key(fmt.Sprint(i)).Width(m.col).Gap(m.rowGap).Shrink(0).Children(func() {
-					for _, r := range col {
-						switch {
-						case r.group != nil:
-							s.groupRow(c, semantic, *r.group, fr, m, animate)
-						case r.entry != nil:
-							s.entryRow(c, semantic, *r.entry, b.trashed, r.h, b.single, m, animate)
-						case r.command != nil:
-							s.commandRow(c, semantic, *r.command, m, animate)
-						case r.create:
-							g := *b.group
-							components.CreateArea{Key: "create", Label: "New sheet", Animate: animate, Action: func() {
-								s.Library.NewSheet(g.ID, Last)
-								s.ShowDesk()
-							}}.View(c, semantic).Height(r.h)
-						default:
-							s.moreRow(c, semantic, b, sh.more, fr, m, animate)
-						}
-					}
-				})
+		cardRows(c, sh, m, func(r row) {
+			switch {
+			case r.group != nil:
+				s.groupRow(c, semantic, *r.group, fr, m, animate)
+			case r.entry != nil:
+				s.entryRow(c, semantic, *r.entry, b.trashed, r.h, b.single, m, animate)
+			case r.create:
+				g := *b.group
+				components.CreateArea{Key: "create", Label: "New sheet", Animate: animate, Action: func() {
+					s.Library.NewSheet(g.ID, Last)
+					s.ShowDesk()
+				}}.View(c, semantic).Height(r.h)
+			default:
+				s.moreRow(c, semantic, b, sh.more, fr, m, animate)
 			}
 		})
 	})
 }
 
 func (b block) name() string {
-	switch {
-	case b.group != nil:
+	if b.group != nil {
 		return b.group.Name
-	case len(b.commands) > 0:
-		return b.commands[0].Group
 	}
 	return "Trash"
 }
@@ -266,9 +211,6 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 	ui.Row(c).Key("head").Height(m.head).WidthPercent(100).AlignItems(ui.Center).Gap(4 * m.k).Shrink(0).Children(func() {
 		g := b.group
 		icon, ink := components.IconTrash, semantic.Icon.Muted
-		if len(b.commands) > 0 {
-			icon = components.IconCommand
-		}
 		if g != nil {
 			icon = groupIcon(*g)
 			if tint := groupTint(semantic, *g); tint != nil {
@@ -357,24 +299,6 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 		ui.Icon(c, groupIcon(g).SVG()).FontSize(14 * m.k).TextColor(ink).Shrink(0)
 		components.Label(c, g.Name, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
 		components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
-	})
-}
-
-// commandRow is one of the app's commands: pressed, it runs.
-func (s *State) commandRow(c *ui.Context, semantic theme.Theme, cmd Command, m blockMetrics, animate bool) {
-	id := "command:" + cmd.ID
-	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
-		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
-		FocusRing(false).KeepFocus().Label(cmd.Label)
-	s.rowFill(c, semantic, btn, id, false, animate)
-	if btn.Clicked() {
-		s.activate(id, false)
-	}
-	btn.Children(func() {
-		components.Label(c, cmd.Label, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
-		if len(cmd.Keys) > 0 {
-			components.Keycaps(c, components.KeycapStyle(semantic, m.scale, true), cmd.Keys, cmd.Binding).Shrink(0)
-		}
 	})
 }
 
