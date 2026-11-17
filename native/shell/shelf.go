@@ -81,11 +81,12 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 	// stands in from it where nothing does.
 	inner := max(0, pad-tail)
 	padTop, padFoot := 14*k, 16*k
-	padLeft, padRight := inner, pad+radius
+	// Past the window's edge it keeps clear of its own rounded edge.
+	padLeft, padRight := pad+radius, inner
 	at, sign := float32(0), float32(-1)
 	if sh.right {
 		box.Right(0)
-		padLeft, padRight = padRight, inner
+		padLeft, padRight = inner, pad+radius
 		at, sign = tail, 1
 	} else {
 		box.Left(0)

@@ -133,3 +133,19 @@ func TestTheKeptBoxResizesAsItsLastBookmarkGoes(t *testing.T) {
 		t.Fatalf("The slab's foot should stay, but it went from %v to %v.", before.Y+before.H, after.Y+after.H)
 	}
 }
+
+// Drawn out, a bookmark stands within the slab at the window's edge, clear
+// of the slab's rounded edge there, its tail standing out of the other.
+func TestABookmarkStandsWithinTheKeptBox(t *testing.T) {
+	_, _, tester := keptState(t, GroupItem{ID: "s1", Name: "Mark", Query: "$tag:a", Color: TintHalo})
+	box, _ := tester.Find("Kept searches")
+	mark, _ := tester.Find("Mark")
+	// The slab's rounded edge stays past the window's: the bookmark stands
+	// as far in from the window's edge as the box's inner padding.
+	if mark.X < 8 {
+		t.Fatalf("The bookmark should stand clear of the window's edge, but it is at %v.", mark.X)
+	}
+	if mark.X+mark.W <= box.X+box.W-shelfTail {
+		t.Fatalf("The bookmark's tail should stand out of the slab, but it ends at %v and the slab at %v.", mark.X+mark.W, box.X+box.W)
+	}
+}
