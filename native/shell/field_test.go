@@ -189,3 +189,57 @@ func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
 		t.Fatalf("Clicking block content in the top band should narrow to Novel, got %q.", q)
 	}
 }
+
+// Overflowing blocks fade softly into the field's background at the top and
+// bottom edges while the pill remains crisp above them.
+func TestFieldEdgeFadesSoftenOverflowingEdges(t *testing.T) {
+	state, library, tester := onField(t, 1260, 460)
+	library.groupTree = map[string][]GroupItem{
+		"": {
+			{ID: "2", Name: "Novel", Count: 6},
+			{ID: "2b", Name: "Essays", Count: 6},
+			{ID: "3", Name: "Notes", Count: 6},
+			{ID: "4", Name: "Journal", Count: 6},
+		},
+	}
+	library.extraSheets = 6
+	library.rev++
+	settle(tester)
+
+	// Scroll slightly so blocks extend past both the top and bottom edges.
+	state.field.scroll = 12
+	settle(tester)
+
+	img := tester.Image()
+	bg := state.Settings.Semantic().Surface.Background
+	page := state.Settings.Semantic().Surface.Page
+
+	novel, ok := tester.Find("Novel")
+	if !ok {
+		t.Fatal("Novel block head should show on the field.")
+	}
+	sampleX := int(novel.X + novel.W/2)
+	// Verify a point inside the block body is drawn in Surface.Page (not empty background).
+	inside := img.RGBAAt(sampleX, max(int(novel.Y+novel.H+4), 56))
+	if inside.R != page.R || inside.G != page.G || inside.B != page.B {
+		t.Fatalf("Expected block surface color (%d,%d,%d) at x=%d, got (%d,%d,%d).",
+			page.R, page.G, page.B, sampleX, inside.R, inside.G, inside.B)
+	}
+
+	topEdge := img.RGBAAt(sampleX, 0)
+	bottomEdge := img.RGBAAt(sampleX, img.Bounds().Dy()-1)
+	for _, pair := range []struct {
+		name string
+		got  [3]uint8
+	}{
+		{"top edge", [3]uint8{topEdge.R, topEdge.G, topEdge.B}},
+		{"bottom edge", [3]uint8{bottomEdge.R, bottomEdge.G, bottomEdge.B}},
+	} {
+		for i, want := range []uint8{bg.R, bg.G, bg.B} {
+			diff := int(pair.got[i]) - int(want)
+			if diff < -3 || diff > 3 {
+				t.Fatalf("%s at x=%d did not fade to field background: got %v, want (%d,%d,%d).", pair.name, sampleX, pair.got, bg.R, bg.G, bg.B)
+			}
+		}
+	}
+}

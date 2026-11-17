@@ -19,38 +19,7 @@ func (el *Element) edgeFades() (top, bottom float32) {
 	return el.Top / 2, min(el.Dock, el.Bottom)
 }
 
-type edgeFade struct {
-	ink         ui.Color
-	top, bottom ui.LinearGradient
-}
-
 func (el *Element) paintEdges(p *ui.Painter, view ui.Rect) {
 	top, bottom := el.edgeFades()
-	if view.H <= 0 || top+bottom <= 0 || top+bottom >= view.H {
-		return
-	}
-	fade := &el.edges
-	if ink := el.Theme.Surface.Page; fade.ink != ink {
-		fade.ink = ink
-		fade.top = edgeGradient(ink, true)
-		fade.bottom = edgeGradient(ink, false)
-	}
-	if top > 0 {
-		p.FillGradient(ui.Rect{X: view.X, Y: view.Y, W: view.W, H: top}, fade.top, 0)
-	}
-	if bottom > 0 {
-		p.FillGradient(ui.Rect{X: view.X, Y: view.Y + view.H - bottom, W: view.W, H: bottom}, fade.bottom, 0)
-	}
-}
-
-func edgeGradient(ink ui.Color, top bool) ui.LinearGradient {
-	ease := [...]float32{0, 0.156, 0.5, 0.844, 1}
-	stops := make([]ui.GradientStop, len(ease))
-	for index, alpha := range ease {
-		if top {
-			alpha = 1 - alpha
-		}
-		stops[index] = ui.GradientStop{Color: ink.Alpha(alpha), At: float32(index) / 4}
-	}
-	return ui.LinearGradient{Angle: 180, Stops: stops}
+	el.edges.Paint(p, view, el.Theme.Surface.Page, top, bottom)
 }

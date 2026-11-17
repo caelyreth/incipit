@@ -55,7 +55,7 @@ type Element struct {
 	// it shrank past the page, which then glides back in (stepViewport).
 	ranged   [2]float32
 	astray   bool
-	edges    edgeFade
+	edges    components.EdgeFade
 	viewport ui.Rect
 	column   float32 // the column's left, in the element
 	// drag is the press the page holds until it lets go: a control's or

@@ -51,6 +51,7 @@ type fieldState struct {
 	// tables pull, and viewH the field's height, for its reach.
 	over  scrollfx.Elastic
 	viewH float32
+	edges components.EdgeFade
 	// hidden is whether the desk fills the window over the field, which
 	// takes no focus meanwhile.
 	hidden bool
@@ -176,8 +177,9 @@ func mustKey(name string) *query.Key {
 // side of its horizon (stage.Horizon), the pill in the horizon, and the
 // whole scrolling up and down as one, the pill keeping near the window's
 // top or foot once its horizon has gone past them; pressed there, the
-// pill brings the field back to its horizon. Hidden, as the desk fills the window, it is still built, so it
-// keeps where everything stands and comes back as it was.
+// pill brings the field back to its horizon. Hidden, as the desk fills the
+// window, it is still built, so it keeps where everything stands and
+// comes back as it was.
 func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, w, h float32, hidden, animate bool) {
 	m := s.blockMetrics(w, h)
 	k := m.k
@@ -254,6 +256,19 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	horizon := h/2 - (s.field.scroll - s.field.over.Offset())
 	top, foot := 48*k, 24*k
 	py := max(top, min(horizon-pill.H/2, h-foot-pill.H))
+	var drawnAbove, drawnBelow float32
+	for _, fr := range drawn {
+		if _, ok := s.field.shown[fr.ID]; !ok {
+			continue
+		}
+		if fr.Rect.Y < 0 {
+			drawnAbove = max(drawnAbove, -fr.Rect.Y)
+		}
+		if fr.Rect.Y+fr.Rect.H > 0 {
+			drawnBelow = max(drawnBelow, fr.Rect.Y+fr.Rect.H)
+		}
+	}
+	topFade, bottomFade := min(top, max(0, drawnAbove-horizon)), min(top, max(0, horizon+drawnBelow-h))
 	view.Children(func() {
 		// The top band drags the window where nothing of the field stands over it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
@@ -264,6 +279,12 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 				continue
 			}
 			s.blockView(c, semantic, fr, b, s.field.shownShape[fr.ID], at, live[fr.ID], m, animate)
+		}
+		if topFade > 0 || bottomFade > 0 {
+			ui.Box(c).Key("field-edges").Absolute().Top(0).Left(0).Size(w, h).IgnoreInput(true).
+				Draw(func(p *ui.Painter, r ui.Rect) {
+					s.field.edges.Paint(p, r, semantic.Surface.Background, topFade, bottomFade)
+				})
 		}
 		s.horizonView(c, semantic, stage.Rect{X: w/2 - pill.W/2, Y: py, W: pill.W, H: pill.H}, w, k, animate)
 	})
