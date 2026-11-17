@@ -3,11 +3,26 @@ package stage
 import "testing"
 
 func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
-	if got := order(5); got[0] != 2 || got[1] != 3 || got[2] != 1 || got[3] != 4 || got[4] != 0 {
-		t.Fatalf("Five columns should go outward from the middle: %v", got)
+	if got := slots(5); len(got) != 10 || got[0] != (slot{2, true}) || got[1] != (slot{2, false}) ||
+		got[2] != (slot{3, true}) || got[3] != (slot{1, false}) || got[6] != (slot{4, true}) || got[7] != (slot{0, false}) {
+		t.Fatalf("Five columns should go outward from the middle one, crosswise: %v", got)
 	}
-	if got := order(4); got[0] != 2 || got[1] != 1 || len(got) != 4 {
-		t.Fatalf("Four columns should start at the two middle ones: %v", got)
+	if got := slots(4); len(got) != 8 || got[0] != (slot{2, true}) || got[1] != (slot{1, false}) ||
+		got[2] != (slot{1, true}) || got[3] != (slot{2, false}) {
+		t.Fatalf("Four columns should start at the two middle ones, crosswise: %v", got)
+	}
+	// Any even count of a ring's slots taken stands even about the pill.
+	for _, cols := range []int{2, 3, 4, 5} {
+		z := Horizon{Cols: cols, Col: 100, Gap: 10}
+		for n := 2; n <= 2*cols; n += 2 {
+			lo, hi := float32(1e9), float32(-1e9)
+			for _, r := range z.Place(make([]float32, n)) {
+				lo, hi = min(lo, r.X), max(hi, r.X+r.W)
+			}
+			if lo != -hi {
+				t.Fatalf("%d of %d columns' slots should stand even across: %v to %v", n, cols, lo, hi)
+			}
+		}
 	}
 	z := Horizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20}
 	rects := z.Place([]float32{50, 60, 70, 80})

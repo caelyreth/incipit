@@ -98,3 +98,25 @@ func TestTheHorizonRisesIntoEmptyRoomAndKeepsStillWhileWritten(t *testing.T) {
 		t.Fatalf("Written in, the pill should keep still: %v, now %v.", held, now)
 	}
 }
+
+// However many columns the window holds, a field of one card stands even
+// about the pill at rest: in an even count, the card goes across to it.
+func TestALoneCardStandsUnderThePillInAnyColumns(t *testing.T) {
+	for _, w := range []int{900, 1260, 1600} {
+		state, library, tester := onField(t, w, 850)
+		library.order = func(string) []string { return []string{"7"} }
+		state.SetFieldQuery("chapter")
+		tester.ClickAt(12, 12)
+		settle(tester)
+		pill, _ := tester.Find("Search")
+		card, ok := tester.Find("Chapter")
+		if !ok {
+			t.Fatalf("%d wide: the card should stand.", w)
+		}
+		cols := state.blockMetrics(float32(w)-2*state.laneRoom(), 850).horizon.Cols
+		row := state.field.rest[0].Rect
+		if mid := pill.X + pill.W/2; abs(row.X+row.W/2+state.field.poise.X) > 0.5 || card.X > mid {
+			t.Fatalf("%d wide, %d columns: the card should stand under the pill at %v: %v, across %v.", w, cols, mid, row, state.field.poise.X)
+		}
+	}
+}

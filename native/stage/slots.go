@@ -2,9 +2,8 @@ package stage
 
 // The field stands on either side of its horizon, the band across its
 // middle that holds the pill and that nothing is drawn in. What it shows
-// goes in slots numbered outward from the pill: the middle column below
-// the horizon, then above it, then the columns beside it, below and then
-// above, and so on outward. Block n takes slot n; past the last, blocks
+// goes in slots numbered outward from the pill, in rings of columns, each
+// ring's slots alternately under and over it (slots). Block n takes slot n; past the last, blocks
 // stack outward in the same order. A block's slot so depends only on its
 // rank and how many columns the window holds, never on any block's size:
 // one that grows moves only those stacked beyond it in its own half of its
@@ -21,34 +20,35 @@ type Horizon struct {
 }
 
 // Columns fits a horizon's columns into width w: as many as hold at least
-// least wide, each no wider than most, and an odd count of them, so that
-// one stands under the pill and the field stands even about it however
-// much it holds.
+// least wide, each no wider than most.
 func Columns(w, least, most, gap float32) (cols int, col float32) {
 	cols = max(1, int((w+gap)/(least+gap)))
-	cols -= 1 - cols%2
 	col = min(most, (w-float32(cols-1)*gap)/float32(cols))
 	return cols, max(col, 1)
 }
 
-// order is the columns outward from the middle, right before left: for an
-// even count, the right of the two middle ones first.
-func order(cols int) []int {
-	out := make([]int, 0, cols)
+// slot is a place on one side of the horizon in a column: under it, or
+// over it.
+type slot struct {
+	col   int
+	below bool
+}
+
+// slots are the horizon's slots outward from the pill, in rings: the
+// middle column under and then over it, where the count is odd; then each
+// two columns either side of what is taken, outward, crosswise: the right
+// under, the left over, the left under, the right over. So the slots taken
+// stand even about the pill, across and up and down, whenever an even
+// count of a ring's are.
+func slots(cols int) []slot {
+	out := make([]slot, 0, 2*cols)
 	right, left := cols/2, cols/2-1
 	if cols%2 == 1 {
-		out = append(out, right)
+		out = append(out, slot{right, true}, slot{right, false})
 		right++
 	}
-	for len(out) < cols {
-		if right < cols {
-			out = append(out, right)
-			right++
-		}
-		if left >= 0 && len(out) < cols {
-			out = append(out, left)
-			left--
-		}
+	for ; left >= 0; right, left = right+1, left-1 {
+		out = append(out, slot{right, true}, slot{left, false}, slot{left, true}, slot{right, false})
 	}
 	return out
 }
@@ -57,7 +57,7 @@ func order(cols int) []int {
 // the origin: those below hang from the band, those above stand on it.
 // Every block is one column wide.
 func (z Horizon) Place(heights []float32) []Rect {
-	cols := order(z.Cols)
+	order := slots(z.Cols)
 	left := -(float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap) / 2
 	below := make([]float32, z.Cols)
 	above := make([]float32, z.Cols)
@@ -65,12 +65,11 @@ func (z Horizon) Place(heights []float32) []Rect {
 		below[i], above[i] = z.Below, -z.Above
 	}
 	out := make([]Rect, len(heights))
-	slots := 2 * z.Cols
 	for i, h := range heights {
-		s := i % slots
-		c := cols[s/2]
+		s := order[i%len(order)]
+		c := s.col
 		x := left + float32(c)*(z.Col+z.Gap)
-		if s%2 == 0 {
+		if s.below {
 			out[i] = Rect{X: x, Y: below[c], W: z.Col, H: h}
 			below[c] += h + z.Gap
 		} else {
@@ -80,6 +79,19 @@ func (z Horizon) Place(heights []float32) []Rect {
 		}
 	}
 	return out
+}
+
+// Centre is where what rects hold is centred across, from the horizon's
+// middle: none where they stand even about it.
+func Centre(rects []Rect) float32 {
+	if len(rects) == 0 {
+		return 0
+	}
+	lo, hi := rects[0].X, rects[0].X+rects[0].W
+	for _, r := range rects[1:] {
+		lo, hi = min(lo, r.X), max(hi, r.X+r.W)
+	}
+	return (lo + hi) / 2
 }
 
 // Reach is how far each half of the field holds, past the band: below,

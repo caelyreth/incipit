@@ -71,10 +71,11 @@ type fieldState struct {
 	// rest (up, below 0), as far as lo and hi; home brings it back there,
 	// homing once it has begun.
 	scroll, lo, hi float32
-	// lift is how far the horizon stands over the window's middle at rest,
-	// as drawn, and liftTo as it goes to (fieldView).
-	lift, liftTo float32
-	home, homing bool
+	// poise is how far the field stands from the window's middle at rest,
+	// as drawn: its cards across, its horizon up; and poiseTo as it goes
+	// to (fieldView).
+	poise, poiseTo stage.Point
+	home, homing   bool
 	// away is how far what the pill offers around it is put away, as its
 	// horizon goes past where it all fits.
 	away float32
@@ -305,17 +306,20 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	below, above := stage.Reach(rects)
 	below, above = max(below, z.Below), max(above, z.Above)
 	top, foot := 48*k, 24*k
-	// At rest, the horizon rises or falls into the room the field leaves
-	// empty, so that what it holds stands even in the window; never past
-	// where something of it would leave the window, and never while the
-	// pill is written in, the pill keeping still under the caret. An
-	// action on the query, or the pill let go of, sets it again.
+	// At rest, the field stands even in the window: its horizon rises or
+	// falls into the room it leaves empty over or under it, never past
+	// where something of it would leave the window, and its cards, where a
+	// ring of columns is taken on one side alone, go across to stand even
+	// about the pill. Never while the pill is written in, the pill and
+	// what it finds keeping still under the caret: an action on the query,
+	// or the pill let go of, sets it again.
 	first := s.field.rest == nil
 	if !s.field.open || s.field.next != (change{}) || first {
 		up, down := max(0, h/2-top-above), max(0, h/2-foot-below)
-		s.field.liftTo = max(-down, min(up, (foot-top+below-above)/2))
+		s.field.poiseTo = stage.Point{X: -stage.Centre(rects), Y: max(-down, min(up, (foot-top+below-above)/2))}
 	}
-	lift := s.field.liftTo
+	poise := s.field.poiseTo
+	lift := poise.Y
 	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2+lift), max(0, below+3*m.pad-h/2-lift)
 	s.field.order = s.field.order[:0]
 	for _, cd := range f.cards {
@@ -334,14 +338,16 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		s.field.scroll = max(s.field.lo, min(s.field.scroll, s.field.hi))
 	}
 	drawn := s.shift(view, frames, f, shapes, animate)
-	// The horizon goes there on the change's own spring, from the frame
+	// The field goes there on the change's own spring, from the frame
 	// after its first, as the cards do.
 	switch {
 	case !animate || first:
-		view.Jump("lift", lift)
-		s.field.lift = lift
+		view.Jump("poise-x", poise.X)
+		view.Jump("poise-y", poise.Y)
+		s.field.poise = poise
 	case !s.field.hold:
-		s.field.lift = view.AnimateTo("lift", lift, components.Spring(components.MotionScene))
+		spring := components.Spring(components.MotionScene)
+		s.field.poise = stage.Point{X: view.AnimateTo("poise-x", poise.X, spring), Y: view.AnimateTo("poise-y", poise.Y, spring)}
 	}
 	s.comeHome(view, animate)
 	if s.field.hold {
@@ -360,7 +366,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	if pulling {
 		c.AnimationFrame()
 	}
-	horizon := h/2 - s.field.lift - (s.field.scroll - s.field.over.Offset())
+	horizon := h/2 - s.field.poise.Y - (s.field.scroll - s.field.over.Offset())
 	// The pill follows its horizon while all around it fits in the window.
 	// Past that, what is offered around it is put away, and it goes on
 	// with the query's own conditions alone, as far as they still fit, and
@@ -388,7 +394,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	view.Children(func() {
 		// The top band drags the window where nothing of the field stands over it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
-		at := stage.Point{X: w / 2, Y: horizon}
+		at := stage.Point{X: w/2 + s.field.poise.X, Y: horizon}
 		for _, fr := range drawn {
 			cd, ok := s.field.shown[fr.ID]
 			if !ok {
