@@ -132,6 +132,7 @@ func (s *State) results(now time.Time) found {
 	switch {
 	case prev.cards == nil || s.field.rerank || s.field.next != (change{}):
 		s.field.settleAt = time.Time{}
+		s.field.settled = true
 	case prev.query != text:
 		// Written on: the field settles once the writing pauses.
 		s.field.settleAt = now.Add(writingPause)

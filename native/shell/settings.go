@@ -300,6 +300,9 @@ func (sc settingsCard) view(s *State, c *ui.Context, semantic theme.Theme, box u
 			}
 			s.field.measured[sc.id] = h
 			s.field.measures++
+			if s.field.settleAt.IsZero() {
+				s.field.settled = true
+			}
 			c.AnimationFrame()
 		}
 		content.Children(func() { s.AppSettings.SectionView(c, semantic, sc.id, sc.words) })

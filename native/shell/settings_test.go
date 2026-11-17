@@ -183,3 +183,51 @@ func TestAClosedCategoryBringsThePillBack(t *testing.T) {
 		t.Fatalf("Closed, the pill should stand again at %v (held at %v while open), not %v.", before.Y, opened.Y, after.Y)
 	}
 }
+
+// Entering settings, clicking a category centers the field and pill right
+// away so controls inside its section work on the very first click even
+// though the pill loses focus on pointer press.
+func TestClickingSettingsCategoryCentersFieldAndAllowsDirectFirstClick(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	settings := &fakeSettings{tall: 80, showTheme: true}
+	state.AppSettings = settings
+	settle(tester)
+
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	topPill, _ := tester.Find("Search")
+
+	if err := tester.Click("Appearance"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if !tester.Focused("Search") {
+		t.Fatal("Clicking Appearance should leave Search focused.")
+	}
+	appPill, _ := tester.Find("Search")
+	if appPill.Y <= topPill.Y+20 {
+		t.Fatalf("Opening Appearance should lower and re-center the pill from top settings (%v -> %v).", topPill.Y, appPill.Y)
+	}
+
+	// Simulate a normal human press-hold-release on Choose Theme while Search
+	// is still focused: blurring Search on press must not jump the card away.
+	themeBtn, ok := tester.Find("Choose Theme")
+	if !ok {
+		t.Fatal("Choose Theme control should be present.")
+	}
+	cx, cy := themeBtn.X+themeBtn.W/2, themeBtn.Y+themeBtn.H/2
+	tester.Press(cx, cy)
+	tester.Frame()
+	tester.Advance(40 * time.Millisecond)
+	tester.Frame()
+	tester.Release(cx, cy)
+	settle(tester)
+	if settings.themeClicks != 1 {
+		t.Fatalf("First click on Choose Theme should activate directly (clicks=%d).", settings.themeClicks)
+	}
+	if blurredPill, _ := tester.Find("Search"); abs(blurredPill.Y-appPill.Y) > 0.5 {
+		t.Fatalf("Blurring Search inside Appearance should not jump pill Y (%v -> %v).", appPill.Y, blurredPill.Y)
+	}
+}

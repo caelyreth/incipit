@@ -278,19 +278,29 @@ func abs(x float32) float32 { return max(x, -x) }
 // Editor/Pairs and Editor/Markdown, Keymap/Keys and Keymap/Pages, found by
 // their titles; Keys grows as tall as tall says.
 type fakeSettings struct {
-	tall float32
-	away int
+	tall        float32
+	away        int
+	themeClicks int
+	showTheme   bool
 }
 
 func (f *fakeSettings) Sections(words string) []SettingsSection {
-	var out []SettingsSection
-	for _, item := range []struct{ cat, title string }{
+	items := []struct{ cat, title string }{
 		{"Appearance", "Theme"},
 		{"Editor", "Pairs"},
 		{"Editor", "Markdown"},
 		{"Keymap", "Keys"},
 		{"Keymap", "Pages"},
-	} {
+	}
+	if f.showTheme {
+		items = append(items,
+			struct{ cat, title string }{"Appearance", "Fonts"},
+			struct{ cat, title string }{"Appearance", "Chrome"},
+			struct{ cat, title string }{"Appearance", "Motion"},
+		)
+	}
+	var out []SettingsSection
+	for _, item := range items {
 		if words == "" || strings.Contains(strings.ToLower(item.title), strings.ToLower(strings.TrimSpace(words))) {
 			out = append(out, SettingsSection{ID: item.cat + "/" + item.title, Category: item.cat, Title: item.title,
 				Description: "What " + item.title + " does."})
@@ -301,6 +311,14 @@ func (f *fakeSettings) Sections(words string) []SettingsSection {
 
 func (f *fakeSettings) SectionView(c *ui.Context, _ theme.Theme, id, _ string) {
 	ui.Text(c, id+" rows")
+	if id == "Appearance/Theme" && f.showTheme {
+		btn := ui.ButtonBase(c.Key("choose-theme")).Size(160, 40).Label("Choose Theme")
+		if btn.Clicked() {
+			f.themeClicks++
+		}
+		btn.Children(func() { ui.Text(c, "Choose Theme") })
+		ui.Box(c).Height(f.tall)
+	}
 	if id == "Keymap/Keys" {
 		ui.Box(c).Height(f.tall)
 	}
