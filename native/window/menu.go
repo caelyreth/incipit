@@ -18,13 +18,11 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		// MyGo runs a click without a frame after it, so the window is
 		// redrawn here, or the change would wait for the next event.
 		return func(_ *mygo.MenuItem, window *mygo.Window) {
-			if err := a.routeWindowCommand(window, id); err != nil {
+			if err := a.routeCommand(id); err != nil {
 				a.fail("Couldn't run the command", err)
 			}
-			for _, w := range []*mygo.Window{window, a.mainWindow, a.settingsWindow} {
-				if w != nil && !w.IsDestroyed() {
-					w.Invalidate()
-				}
+			if window != nil && !window.IsDestroyed() {
+				window.Invalidate()
 			}
 		}
 	}

@@ -32,17 +32,14 @@ type AppState struct {
 	// anew, and as the shell is refreshed; projected keeps the shell's view
 	// of the library while it and the library are unchanged. Sessions come
 	// and go through putSession and dropSession.
-	sessionsRev    uint64
-	projected      *projections
-	mainWindow     *mygo.Window
-	settingsWindow *mygo.Window
+	sessionsRev uint64
+	projected   *projections
+	mainWindow  *mygo.Window
 	// menu is the application menu; recording stands its keys down while
 	// the settings record a shortcut.
 	menu       *mygo.Menu
 	systemKeys map[*mygo.MenuItem]string
 	recording  bool
-	// closeWindow closes a window from its own command route.
-	closeWindow func(*mygo.Window)
 	// colors carries every window through a theme or accent change at once.
 	colors theme.Transition
 	// sessions are the pages' sessions by identity, which the notebook
@@ -82,11 +79,10 @@ func OpenAppState(store *storage.Store) (*AppState, error) {
 
 func newAppState(store *storage.Store) (*AppState, error) {
 	app := &AppState{
-		Notices:     &notices.Center{},
-		sessions:    map[workspace.PageID]*sheetSession{},
-		nextKey:     1,
-		closeWindow: func(window *mygo.Window) { window.Close() },
-		Product:     appsettings.DefaultState(),
+		Notices:  &notices.Center{},
+		sessions: map[workspace.PageID]*sheetSession{},
+		nextKey:  1,
+		Product:  appsettings.DefaultState(),
 	}
 	sessions, layout, err := app.openNotebook(store)
 	if err != nil {
@@ -103,7 +99,6 @@ func newAppState(store *storage.Store) (*AppState, error) {
 	app.Settings = *settings.New()
 	app.Shell = shell.New()
 	app.Shell.Colors = &app.colors
-	app.Settings.Colors = &app.colors
 	if err := app.loadSettings(store); err != nil {
 		return nil, err
 	}
@@ -156,11 +151,13 @@ func (a *AppState) BindShell() {
 	a.Shell.ClosePageID = a.closePageID
 	a.Shell.Commands = a.commandCatalog
 	a.Shell.RunCommand = func(id string) {
-		if err := a.routeWindowCommand(a.mainWindow, keymap.CommandID(id)); err != nil {
+		if err := a.routeCommand(keymap.CommandID(id)); err != nil {
 			a.fail("Couldn't run the command", err)
 		}
 	}
-	a.Shell.OpenSettings = a.OpenSettingsWindow
+	a.Shell.AppSettings = fieldSettings{a}
+	a.Settings.Find = a.Shell.FindSettings
+	a.refreshSettingsData()
 	a.Shell.Find = a.findQuery
 	a.Shell.FindStep = a.findStep
 	a.Shell.EndFind = a.endFind
@@ -377,12 +374,8 @@ func (a *AppState) applyAppearance() {
 		a.colors.Jump(target)
 	}
 	mygo.Theme.SetSource(themeSource(a.Shell.Settings))
-	background := colorHex(target.Surface.Background)
-	for _, window := range []*mygo.Window{a.mainWindow, a.settingsWindow} {
-		if window == nil || window.IsDestroyed() {
-			continue
-		}
-		_ = window.SetBackgroundColor(background)
+	if window := a.mainWindow; window != nil && !window.IsDestroyed() {
+		_ = window.SetBackgroundColor(colorHex(target.Surface.Background))
 		window.Invalidate()
 	}
 	a.refreshAppearance()

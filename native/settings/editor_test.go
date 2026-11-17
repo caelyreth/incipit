@@ -16,7 +16,6 @@ import (
 func TestEditorPageTurnsAPolicyOff(t *testing.T) {
 	product := appsettings.DefaultState()
 	state := New()
-	state.Category = appsettings.Editor
 	state.Data = product.Data()
 	state.Apply = func(change appsettings.Change) {
 		if _, err := product.Apply(change); err != nil {
@@ -24,7 +23,7 @@ func TestEditorPageTurnsAPolicyOff(t *testing.T) {
 		}
 		state.Data = product.Data()
 	}
-	tester := ui.NewTester(state.View, 980, 1400)
+	tester := ui.NewTester(state.cards(appsettings.Editor), 600, 1400)
 	tester.Frame()
 	tester.Advance(2600 * time.Millisecond)
 	for _, text := range []string{"Markdown", "Notation", "Asterisks for emphasis", "Mark notation"} {
@@ -51,7 +50,6 @@ func TestEditorPageTurnsAPolicyOff(t *testing.T) {
 func TestEditorPageOffersNearbyContentSelection(test *testing.T) {
 	product := appsettings.DefaultState()
 	state := New()
-	state.Category = appsettings.Editor
 	state.Query = "Select nearby content from spaces"
 	state.Data = product.Data()
 	state.Apply = func(change appsettings.Change) {
@@ -60,7 +58,7 @@ func TestEditorPageOffersNearbyContentSelection(test *testing.T) {
 		}
 		state.Data = product.Data()
 	}
-	tester := ui.NewTester(state.View, 980, 800)
+	tester := ui.NewTester(state.cards(appsettings.Editor), 600, 800)
 	tester.Advance(time.Second)
 	toggle, ok := tester.AccessByRole(ui.RoleSwitch, state.Query)
 	if !ok {

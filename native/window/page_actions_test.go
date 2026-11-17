@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/app/workspace"
-	"github.com/egoist/mygo/ui"
+	"time"
 )
 
 func TestPageActionsCloseTabsByID(t *testing.T) {
@@ -34,14 +34,13 @@ func TestPageActionsCloseTabsByID(t *testing.T) {
 }
 
 // A page is titled by its first heading, in its row, as it is written;
-// with no page open the shell says how to open one.
+// with no page open the window comes back to the field.
 func TestAPageIsTitledByItsFirstHeading(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	if !tester.HasText(workspace.DefaultTitle) {
 		t.Fatalf("no untitled sheet in %#v", tester.Texts())
 	}
@@ -54,8 +53,8 @@ func TestAPageIsTitledByItsFirstHeading(t *testing.T) {
 		t.Fatalf("the sheet is not titled by the heading: %#v", tester.Texts())
 	}
 	app.closeActive()
-	tester.Frame()
-	if !tester.HasText("Open a sheet from the library, or press ⌘N for a new one") {
-		t.Fatalf("page-less texts = %#v", tester.Texts())
+	run(tester, time.Second)
+	if app.Shell.OnDesk() {
+		t.Fatal("with no sheet left, the window should come back to the field")
 	}
 }

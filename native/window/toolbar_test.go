@@ -83,8 +83,7 @@ func TestToolbarModeTooltipsShowCommandBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	for _, test := range []struct {
 		label   string
 		binding string
@@ -114,8 +113,7 @@ func TestFooterCountsThePageAndTheSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	for _, r := range "one two" {
 		tester.Type(string(r))
 		tester.Frame()

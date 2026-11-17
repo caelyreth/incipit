@@ -514,6 +514,17 @@ func (a *AppState) NewGroup(parent string, index int) string {
 	return groupName(id)
 }
 
+// NewSmartGroup is part of shell.Library.
+func (a *AppState) NewSmartGroup(name, query string) string {
+	id, err := a.library.AddSmartGroupAt(0, name, query, shell.Last)
+	if err != nil {
+		a.fail("Couldn't save the search", err)
+		return ""
+	}
+	a.libraryChanged()
+	return groupName(id)
+}
+
 // RenameGroup is part of shell.Library.
 func (a *AppState) RenameGroup(id, name string) {
 	if err := a.library.RenameGroup(groupOf(id), name); err == nil {

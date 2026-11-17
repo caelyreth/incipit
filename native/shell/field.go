@@ -33,11 +33,17 @@ type fieldState struct {
 	open  bool
 	// completion is what may stand at the caret, caret bytes into the
 	// words completedFor, offered unless the words are what it was put
-	// away at, dismissed, and suggestion the one of it the keys are on;
+	// away at, dismissed, suggestion the one of it the keys are on (-1 for
+	// none), and allValues whether every value stands, not just the first;
 	// offers counts its changes, for what the field found.
-	completion   query.Completion
-	caret        int
-	suggestion   int
+	completion query.Completion
+	caret      int
+	suggestion int
+	allValues  bool
+	// opened is the key open in the pill, its values standing around it,
+	// and held what was written before it opened.
+	opened       *query.Key
+	held         string
 	completedFor string
 	dismissed    string
 	offers       uint64
@@ -60,11 +66,20 @@ type fieldState struct {
 	// it back there, homing once it has begun.
 	scroll, lo, hi float32
 	home, homing   bool
+	// away is how far what the pill offers around it is put away, as its
+	// horizon goes past where it all fits.
+	away float32
+	// measured is how tall each card of the settings laid itself out, by
+	// its section, and measures counts the changes.
+	measured map[string]float32
+	measures uint64
 	// over is how far past its ends the field is pulled, as the panels and
 	// tables pull, and viewH the field's height, for its reach.
 	over  scrollfx.Elastic
 	viewH float32
 	edges components.EdgeFade
+	// kept is the kept box's shelf.
+	kept shelfState
 	// hidden is whether the desk fills the window over the field, which
 	// takes no focus meanwhile.
 	hidden bool
@@ -108,14 +123,9 @@ func (s *State) SetFieldQuery(text string) {
 // takeConditions takes the conditions written in text as ribbons, and
 // leaves the rest as the words.
 func (s *State) takeConditions(text string) {
-	conds := query.Conditions(query.Parse(text))
-	for i := len(conds) - 1; i >= 0; i-- {
-		text = query.Cut(text, conds[i].Span)
-	}
-	for _, c := range conds {
-		s.field.conditions = append(s.field.conditions, c.String())
-	}
-	s.field.words = strings.TrimLeft(text, " ")
+	conds, words := splitQuery(text)
+	s.field.conditions = append(s.field.conditions, conds...)
+	s.field.words = words
 }
 
 func (s *State) setWords(words string) {
@@ -185,23 +195,24 @@ func mustKey(name string) *query.Key {
 	return k
 }
 
-// fieldView draws the field in the window's room left of the desk lane, w
-// by h, as the scene stands it: what the query finds in slots on either
+// fieldView draws the field between the field lane and the desk lane, x
+// from the window's left, w by h, as the scene stands it: what the query finds in slots on either
 // side of its horizon (stage.Horizon), the pill in the horizon, and the
 // whole scrolling up and down as one, the pill keeping near the window's
 // top or foot once its horizon has gone past them; pressed there, the
 // pill brings the field back to its horizon. Hidden, as the desk fills the
 // window, it is still built, so it keeps where everything stands and
 // comes back as it was.
-func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, w, h float32, hidden, animate bool) {
+func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, x, w, h float32, hidden, animate bool) {
 	m := s.blockMetrics(w, h)
 	k := m.k
-	view := ui.Box(c).Key("field").Absolute().Top(0).Left(0).Size(w, h).Clip().Hidden(hidden).
+	view := ui.Box(c).Key("field").Absolute().Top(0).Left(x).Size(w, h).Clip().Hidden(hidden).
 		Role(ui.RoleGroup).Label("Field")
 	if look.Offset.X != 0 {
 		view.Translate(look.Offset.X, 0)
 	}
 	view.ContextMenu(s.fieldMenu)
+	s.scopeDrops(semantic, view, k, animate)
 	view.HandleInput(s.fieldInput)
 	s.field.hidden = hidden
 	if !s.OnDesk() && !s.Typing() && c.Shortcut(0, ui.KeyEscape) {
@@ -235,8 +246,9 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	}
 	s.keepPicked()
 	// What the query shows changed, the field comes back to its horizon on
-	// the change's own spring.
-	if s.field.rest != nil && !slices.Equal(frames, s.field.rest) && s.field.scroll != 0 {
+	// the change's own spring; a card only growing or shrinking, as a
+	// setting's fold opening, leaves it where it is.
+	if s.field.rest != nil && !sameCards(frames, s.field.rest) && s.field.scroll != 0 {
 		s.field.home = true
 	}
 	// Coming home, the field goes from wherever it was, past its new reach
@@ -264,7 +276,17 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	}
 	horizon := h/2 - (s.field.scroll - s.field.over.Offset())
 	top, foot := 48*k, 24*k
-	py := max(top+rl.above, min(horizon-pill.H/2, h-foot-pill.H-rl.below))
+	// The pill follows its horizon while all around it fits in the window.
+	// Past that, what is offered around it is put away, and it goes on
+	// with the query's own conditions alone, as far as they still fit, and
+	// stays there while what the field holds passes under it.
+	free := horizon - pill.H/2
+	away := free < top+rl.above || free > h-foot-pill.H-rl.below
+	py := max(top+rl.heldAbove, min(free, h-foot-pill.H-rl.heldBelow))
+	s.field.away = map[bool]float32{true: 1}[away]
+	if animate {
+		s.field.away = components.Follow(view, "away", s.field.away, components.MotionQuick)
+	}
 	var drawnAbove, drawnBelow float32
 	for _, fr := range drawn {
 		if _, ok := s.field.shown[fr.ID]; !ok {
@@ -397,13 +419,16 @@ func (s *State) shift(field ui.Element, frames []stage.Frame, f found, shapes []
 	return s.field.drawn
 }
 
-// escapeField lets the picked go, then puts the suggestions away, then
+// escapeField lets the picked go, then closes the open key, then puts the
+// suggestions away, then
 // takes the words away, then the last condition, and with none left goes
 // back to the desk.
 func (s *State) escapeField() {
 	switch {
 	case len(s.field.picked) > 0:
 		s.field.picked = nil
+	case s.field.opened != nil:
+		s.closeKey()
 	case s.offered():
 		s.field.dismissed = s.field.words
 		s.field.offers++
@@ -472,6 +497,53 @@ func (s *State) activate(id string, alongside bool) {
 				return
 			}
 		}
+	}
+}
+
+// sameCards reports whether a and b are the same cards, in order, wherever
+// and however large they stand.
+func sameCards(a, b []stage.Frame) bool {
+	return slices.EqualFunc(a, b, func(x, y stage.Frame) bool { return x.ID == y.ID })
+}
+
+// scopeGroup is the group the field is in, where a sheet may be filed:
+// none at the top, in the trash, or in a smart folder.
+func (s *State) scopeGroup() (GroupItem, bool) {
+	if s.Library == nil {
+		return GroupItem{}, false
+	}
+	scope, trash, _ := s.browsing(query.Parse(s.wholeQuery()))
+	if scope == "" || trash {
+		return GroupItem{}, false
+	}
+	g, ok := s.Library.Group(scope)
+	return g, ok && !g.Smart()
+}
+
+// scopeDrops makes the field's ground, in a group, take what that group
+// takes, filing it at the group's top, as dropped on its block: in a group
+// whose sheets each stand alone, there is no block of its own to drop on.
+// At the top the ground takes nothing. It is outlined while something it
+// takes is over it.
+func (s *State) scopeDrops(semantic theme.Theme, view ui.Element, k float32, animate bool) {
+	g, ok := s.scopeGroup()
+	if !ok {
+		return
+	}
+	over, dropped, ok := dragOn(view, filing(g))
+	if ok {
+		s.fileInto(g, dropped)
+	}
+	lit := map[bool]float32{true: 1}[over]
+	if animate {
+		lit = components.Follow(view, "drop", lit, components.MotionQuick)
+	}
+	if lit > 0.001 {
+		view.DrawOver(func(p *ui.Painter, r ui.Rect) {
+			inset := 8 * k
+			r = ui.Rect{X: r.X + inset, Y: r.Y + inset, W: r.W - 2*inset, H: r.H - 2*inset}
+			components.DashedOutline(p, r, 16*k, 1.5, semantic.Accent.Foreground.Alpha(lit))
+		})
 	}
 }
 

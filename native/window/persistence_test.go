@@ -10,7 +10,6 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/theme"
-	"github.com/egoist/mygo/ui"
 )
 
 func TestSettingsSurviveARestart(t *testing.T) {
@@ -53,8 +52,7 @@ func TestSettingsSurviveARestart(t *testing.T) {
 func TestEveryPageKeepsItsSelection(t *testing.T) {
 	root := t.TempDir()
 	app := openNotebookApp(t, root)
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	tester.Type("one")
 	tester.Frame()
 	selectPageText(t, app.pageElement(), 2, 0)

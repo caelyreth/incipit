@@ -104,10 +104,11 @@ type State struct {
 	WindowActive  bool
 
 	// Sheet draws an open sheet's page, as frame sets it.
-	Sheet        func(c *ui.Context, id string, frame SheetFrame)
-	SelectPage   func(id string)
-	ClosePageID  func(id string)
-	OpenSettings func()
+	Sheet       func(c *ui.Context, id string, frame SheetFrame)
+	SelectPage  func(id string)
+	ClosePageID func(id string)
+	// AppSettings are the app's settings, which the field shows as cards.
+	AppSettings AppSettings
 	// Commands are the app's commands, as the pill lists them written
 	// after ">"; RunCommand runs one.
 	Commands   func() []Command

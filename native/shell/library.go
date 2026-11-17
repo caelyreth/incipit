@@ -140,6 +140,9 @@ type Library interface {
 	// naming.
 	NewGroup(parent string, index int) string
 	RenameGroup(id, name string)
+	// NewSmartGroup keeps a query as a smart folder, at the top level, and
+	// returns it.
+	NewSmartGroup(name, query string) string
 	// StyleGroup sets a group's icon and tint, as GroupItem holds them.
 	StyleGroup(id, icon string, color int)
 	MoveGroup(id, parent string, index int)
@@ -158,7 +161,11 @@ const (
 )
 
 // sheetDrag is a sheet dragged on the field.
-type sheetDrag struct{ id string }
+type sheetDrag struct {
+	id string
+	// tray marks a sheet dragged out of the tray.
+	tray bool
+}
 
 // groupDrag is a group dragged on the field.
 type groupDrag struct{ id string }

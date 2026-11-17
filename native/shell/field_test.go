@@ -1,7 +1,9 @@
 package shell
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -173,7 +175,7 @@ func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
 	}
 
 	// Right-clicking the blank top-left corner still opens the field menu.
-	tester.RightClickAt(12, 16)
+	tester.RightClickAt(state.laneRoom()+12, 16)
 	tester.Frame()
 	if len(tester.Menu()) == 0 {
 		t.Fatal("Blank top area should still open the field context menu on right click.")
@@ -321,8 +323,8 @@ func TestSuggestionsStandAroundThePillAndTabTakesThem(t *testing.T) {
 	}
 	tester.Key(0, ui.KeyTab)
 	settle(tester)
-	if state.field.words != "$updated:" {
-		t.Fatalf("Tab should write the key, but the pill holds %q.", state.field.words)
+	if state.field.opened == nil || state.field.opened.Name != "updated" || state.field.words != "" {
+		t.Fatalf("Tab should open the key, nothing of it written, but the pill holds %q.", state.field.words)
 	}
 	today, ok := tester.Find("today")
 	if !ok {
@@ -334,11 +336,13 @@ func TestSuggestionsStandAroundThePillAndTabTakesThem(t *testing.T) {
 	if !ok || today.Y <= tag.Y {
 		t.Fatalf("The keys should stay, the values under them: Tag %v, today %v.", tag, today)
 	}
+	// Nothing is chosen until the keys go to it: Down twice is the second.
+	tester.Key(0, ui.KeyDown)
 	tester.Key(0, ui.KeyDown)
 	tester.Key(0, ui.KeyTab)
 	settle(tester)
 	if !slices.Equal(state.field.conditions, []string{"$updated:yesterday"}) || state.field.words != "" {
-		t.Fatalf("Down then Tab should take the second value as a ribbon, but the query is %v %q.", state.field.conditions, state.field.words)
+		t.Fatalf("Down twice then Tab should take the second value as a ribbon, but the query is %v %q.", state.field.conditions, state.field.words)
 	}
 }
 
@@ -355,12 +359,210 @@ func TestIdleFiltersStandAroundTheOpenPill(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if state.field.words != "$updated:" {
-		t.Fatalf("An idle key pressed should be written in the pill, but it holds %q.", state.field.words)
+	if state.field.opened == nil || state.field.words != "" {
+		t.Fatalf("An idle key pressed should open in the pill, nothing written, but it holds %q.", state.field.words)
 	}
 	tester.ClickAt(12, 12)
 	settle(tester)
 	if _, ok := tester.Find("Tag"); ok {
 		t.Fatal("Let go of, the pill should show only what the query holds.")
+	}
+}
+
+// A tag pressed is taken and stays for more, pressed again let go; and
+// the pill let go of, the field never answers the half written key.
+func TestTagsToggleAndHalfWrittenKeysNeverReachTheField(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	settle(tester)
+	if err := tester.Click("Tag"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.field.suggestion != -1 {
+		t.Fatalf("Nothing should be chosen until the keys go to it, but %d is.", state.field.suggestion)
+	}
+	if err := tester.Click("work"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if !slices.Equal(state.field.conditions, []string{"$tag:work"}) || state.field.opened == nil || state.field.words != "" {
+		t.Fatalf("A tag pressed should be taken, its key staying: %v %q.", state.field.conditions, state.field.words)
+	}
+	if err := tester.Click("work"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if len(state.field.conditions) != 0 {
+		t.Fatalf("A tag taken, pressed again, should be let go: %v.", state.field.conditions)
+	}
+	tester.ClickAt(12, 12)
+	settle(tester)
+	if q := state.wholeQuery(); q != "" {
+		t.Fatalf("The field should not answer the half written key, but answers %q.", q)
+	}
+}
+
+// What is written in an open key narrows its values, and Return takes the
+// first; a key whose value is written, as a title's, takes the words; a
+// condition's × takes it away, whatever stands after it.
+func TestOpenKeysNarrowTakeAndLetGo(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	settle(tester)
+	if err := tester.Click("Tag"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	tester.Type("we")
+	settle(tester)
+	if _, ok := tester.Find("work"); ok {
+		t.Fatal("What is written should narrow the values.")
+	}
+	tester.Key(0, ui.KeyEnter)
+	settle(tester)
+	if !slices.Equal(state.field.conditions, []string{"$tag:weekly"}) {
+		t.Fatalf("Return should take the first value: %v.", state.field.conditions)
+	}
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+	if err := tester.Click("Title"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	tester.Type("plan")
+	tester.Key(0, ui.KeyEnter)
+	settle(tester)
+	if len(state.field.conditions) != 2 || state.field.opened != nil || state.field.words != "" {
+		t.Fatalf("Return should take the title as written and close: %v %q.", state.field.conditions, state.field.words)
+	}
+	if err := tester.Click("Remove Tag is weekly"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if len(state.field.conditions) != 1 {
+		t.Fatalf("The × should take its condition away: %v.", state.field.conditions)
+	}
+}
+
+// The pill let go of, what was under way in it settles: an open key comes
+// back closed.
+func TestAnOpenKeyClosesAsThePillIsLetGo(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	settle(tester)
+	if err := tester.Click("Tag"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	tester.ClickAt(12, 12)
+	settle(tester)
+	state.Search()
+	settle(tester)
+	if state.field.opened != nil {
+		t.Fatal("The key should come back closed.")
+	}
+	if _, ok := tester.Find("work"); ok {
+		t.Fatal("Its values should be gone.")
+	}
+}
+
+// A kept query is a bookmark in the box at the field lane, not a block in
+// the field. The box rests out of the window, its edge showing, and comes
+// out with the pointer on it: a bookmark pressed is the pill's query; the
+// query held is kept as one.
+func TestKeptQueriesAreBookmarksInTheKeptBox(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.smart = "$tag:work"
+	library.rev++
+	settle(tester)
+	if got := shownBlocks(state); slices.Contains(got, "group:5") {
+		t.Fatalf("A smart folder should not stand in the field: %v.", got)
+	}
+	resting, ok := tester.Find("Long")
+	if !ok || resting.W > state.laneShown()+1 {
+		t.Fatalf("At rest the box should show no more than the desk does at the other edge, but it shows %v.", resting)
+	}
+	tester.Move(4, 425)
+	settle(tester)
+	out, _ := tester.Find("Long")
+	if out.W < 150 {
+		t.Fatalf("With the pointer on its edge the box should come out, but its bookmark is at %v.", out)
+	}
+	settle(tester)
+	if still, _ := tester.Find("Long"); still != out {
+		t.Fatalf("Drawn out, the box should stay under the pointer that drew it, but it went from %v to %v.", out, still)
+	}
+	tester.Move(600, 200)
+	settle(tester)
+	if back, _ := tester.Find("Long"); back.W > state.laneShown()+1 {
+		t.Fatalf("The pointer gone, the box should rest again, but its bookmark shows %v.", back)
+	}
+	tester.Move(4, 425)
+	settle(tester)
+	if err := tester.Click("Long"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if q := state.FieldQuery(); q != "$tag:work" {
+		t.Fatalf("A bookmark pressed should be the pill's query, but it is %q.", q)
+	}
+	state.SetFieldQuery("$tag:weekly")
+	settle(tester)
+	if err := tester.Click("Keep this search"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(library.calls, func(c string) bool { return strings.HasPrefix(c, "new smart ") && strings.HasSuffix(c, " $tag:weekly") }) {
+		t.Fatalf("The query held should be kept as a bookmark: %v.", library.calls)
+	}
+}
+
+// Scrolled with the pill open and a key open in it, the field stays as it
+// is laid out: the pill stays open, its key and values with it, the cards
+// keep their places, and the ribbons go with the pill frame by frame,
+// never trailing it; scrolled back, nothing has moved for it.
+func TestScrollingLeavesThePillAndItsRibbonsSteady(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	groups := []GroupItem{{ID: "1", Name: "Inbox", Inbox: true}}
+	for i := range 16 {
+		groups = append(groups, GroupItem{ID: fmt.Sprint(100 + i), Name: fmt.Sprintf("Shelf %d", i+1)})
+	}
+	library.groupTree = map[string][]GroupItem{"": groups}
+	library.rev++
+	settle(tester)
+	if err := tester.Click("Tag"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	rest := slices.Clone(state.field.rest)
+	gap := func() float32 {
+		pill, _ := tester.Find("Search")
+		tag, _ := tester.Find("work")
+		return tag.Y - pill.Y
+	}
+	before := gap()
+	moved := float32(0)
+	for _, dy := range []float32{30, 30, 30, -30, -30, -30} {
+		tester.Scroll(600, 700, 0, dy)
+		tester.Frame()
+		for range 4 {
+			tester.Advance(16 * time.Millisecond)
+			tester.Frame()
+			moved = max(moved, abs(state.field.scroll))
+			if !state.field.open || state.field.opened == nil {
+				t.Fatal("Scrolling should leave the pill open, its key with it.")
+			}
+			if g := gap(); state.field.away < 0.01 && abs(g-before) > 0.5 {
+				t.Fatalf("The ribbons should go with the pill, but they stand %v from it, not %v.", g, before)
+			}
+			if !slices.Equal(state.field.rest, rest) {
+				t.Fatal("Scrolling should leave the cards where they are laid out.")
+			}
+		}
+	}
+	if moved < 20 {
+		t.Fatalf("The field should have scrolled, but went %v.", moved)
+	}
+	tester.Scroll(600, 700, 0, 0)
+	settle(tester)
+	if !slices.Equal(state.field.rest, rest) || abs(gap()-before) > 0.5 {
+		t.Fatal("Scrolled back, nothing should have moved.")
 	}
 }

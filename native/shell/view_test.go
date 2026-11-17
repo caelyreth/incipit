@@ -114,20 +114,6 @@ func TestEscapeTwiceOnTheDeskGoesToTheField(t *testing.T) {
 	}
 }
 
-func TestThePillOpensSettings(t *testing.T) {
-	state := New()
-	opened := false
-	state.OpenSettings = func() { opened = true }
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	if err := tester.Click("Open settings"); err != nil {
-		t.Fatal(err)
-	}
-	if !opened {
-		t.Fatal("the pill's settings button skipped its callback")
-	}
-}
-
 func TestSearchGoesToTheFieldAndFocusesThePill(t *testing.T) {
 	state, _ := libraryState()
 	tester := ui.NewTester(state.View, 1260, 850)

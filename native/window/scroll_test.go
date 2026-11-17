@@ -17,8 +17,7 @@ func TestThePageScrollsUpToTheHeader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	for i := range 40 {
 		tester.Type(fmt.Sprintf("Line %d of the page", i))
 		tester.Key(0, ui.KeyEnter)

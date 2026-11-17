@@ -97,25 +97,6 @@ func (s *State) pickedMenu(id string, trashed bool) func(*ui.Menu) {
 			}
 			return
 		}
-		if m.Item(fmt.Sprintf("Open %d Sheets", n)).Chosen() {
-			for _, sh := range ids {
-				s.Library.OpenSheet(sh, true)
-			}
-			s.field.picked = nil
-			s.ShowDesk()
-		}
-		m.Separator()
-		s.moveMenu(m, func(group string) {
-			for _, sh := range ids {
-				s.Library.MoveSheet(sh, group, Last)
-			}
-		}, "")
-		m.Separator()
-		if m.Item(fmt.Sprintf("Move %d Sheets to Trash", n)).Chosen() {
-			for _, sh := range ids {
-				s.Library.TrashSheet(sh)
-			}
-			s.field.picked = nil
-		}
+		s.sheetsMenu(ids, func() { s.field.picked = nil })(m)
 	}
 }

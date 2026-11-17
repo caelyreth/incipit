@@ -33,8 +33,6 @@ func TestNewPageButtonOpensAPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
-	app.Shell.ToggleField()
 	run(tester, time.Second)
 	before := len(app.Workspace.Opened())
 	if err := tester.Click("New sheet"); err != nil {

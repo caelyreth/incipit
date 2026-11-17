@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/caelyreth/neverland/app/keymap"
@@ -10,57 +11,69 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// keymapPage lists every action by what it acts on: the pages, the window,
-// the app. A toolbar searches by name or by pressing a shortcut; each row
-// records a new shortcut, warns before taking one another action holds, and
-// resets or clears its own.
-func (s *State) keymapPage(
-	c *ui.Context,
-	semantic theme.Theme,
-	metrics theme.ControlMetrics,
-) {
-	s.keymapToolbar(c, semantic)
-	railQuery := strings.ToLower(strings.TrimSpace(s.Query))
-	keyQuery := strings.ToLower(strings.TrimSpace(s.keyQuery))
-	start := 0
-	for start < len(s.Data.Shortcuts) {
+// The keymap lists every action by what it acts on: the pages, the
+// window, the app, each a section. The words written find actions by name
+// or by their keys, and a section of its own finds them by pressing a
+// shortcut, or puts every key back; each row records a new shortcut, warns
+// before taking one another action holds, and resets or clears its own.
+
+// findShortcut is the title of the section that searches by keys.
+const findShortcut = "Find a Shortcut"
+
+// shortcutGroup is a group of actions, as many of them as a query finds.
+type shortcutGroup struct {
+	title, description string
+	shortcuts          []appsettings.Shortcut
+}
+
+// shortcutGroups are the groups of actions query finds, in order.
+func (s *State) shortcutGroups(query string) []shortcutGroup {
+	var out []shortcutGroup
+	for start := 0; start < len(s.Data.Shortcuts); {
 		first := s.Data.Shortcuts[start]
 		end := start + 1
 		for end < len(s.Data.Shortcuts) && s.Data.Shortcuts[end].Group == first.Group {
 			end++
 		}
-		filtered := make([]appsettings.Shortcut, 0, end-start)
+		group := shortcutGroup{title: first.Group, description: first.Scope.Description()}
 		for _, shortcut := range s.Data.Shortcuts[start:end] {
-			if s.shortcutMatches(shortcut, railQuery, keyQuery) {
-				filtered = append(filtered, shortcut)
+			if s.shortcutMatches(shortcut, query) {
+				group.shortcuts = append(group.shortcuts, shortcut)
 			}
 		}
-		if len(filtered) > 0 {
-			s.section(c, semantic, first.Group, first.Scope.Description(), func() {
-				for index, shortcut := range filtered {
-					s.shortcutRow(c, semantic, shortcut, index == len(filtered)-1, 0)
-				}
-			})
+		if len(group.shortcuts) > 0 {
+			out = append(out, group)
 		}
 		start = end
 	}
-	_ = metrics
+	return out
 }
 
-func (s *State) shortcutMatches(shortcut appsettings.Shortcut, railQuery, keyQuery string) bool {
-	if railQuery != "" && !strings.Contains(strings.ToLower(shortcutWords(shortcut)), railQuery) {
+// keymapSection draws the keymap's section sec, as query finds it.
+func (s *State) keymapSection(c *ui.Context, semantic theme.Theme, sec Section, query string) {
+	if sec.Title == findShortcut {
+		s.section(c, semantic, sec, func() { s.keymapFinder(c, semantic) })
+		return
+	}
+	for _, group := range s.shortcutGroups(query) {
+		if group.title == sec.Title {
+			s.section(c, semantic, sec, func() {
+				for index, shortcut := range group.shortcuts {
+					s.shortcutRow(c, semantic, shortcut, index == len(group.shortcuts)-1, 0)
+				}
+			})
+			return
+		}
+	}
+}
+
+// shortcutMatches reports whether query and the chord searched by find
+// shortcut: by its name, its scope, or its keys spelled or said.
+func (s *State) shortcutMatches(shortcut appsettings.Shortcut, query string) bool {
+	if s.keyFilter != nil && !slices.Contains(shortcut.Bindings, *s.keyFilter) {
 		return false
 	}
-	if s.keyFilter != nil {
-		found := false
-		for _, binding := range shortcut.Bindings {
-			found = found || binding == *s.keyFilter
-		}
-		if !found {
-			return false
-		}
-	}
-	if keyQuery == "" {
+	if query == "" {
 		return true
 	}
 	haystack := shortcutWords(shortcut)
@@ -68,7 +81,7 @@ func (s *State) shortcutMatches(shortcut appsettings.Shortcut, railQuery, keyQue
 		haystack += " " + keymap.Spell(binding, keymap.PlatformCurrent) +
 			" " + keymap.Words(binding, keymap.PlatformCurrent)
 	}
-	return strings.Contains(strings.ToLower(haystack), keyQuery)
+	return strings.Contains(strings.ToLower(haystack), query)
 }
 
 // shortcutWords is what a search by name matches: the action and its scope.
@@ -76,12 +89,14 @@ func shortcutWords(shortcut appsettings.Shortcut) string {
 	return shortcut.Label + " " + shortcut.Group
 }
 
-// keymapToolbar searches the list by name, or by a recorded keystroke.
-func (s *State) keymapToolbar(c *ui.Context, semantic theme.Theme) {
+// keymapFinder searches the keymap by a keystroke pressed, and puts every
+// key changed back.
+func (s *State) keymapFinder(c *ui.Context, semantic theme.Theme) {
 	scale := s.Theme.UIFontSize
 	animate := s.motion(c)
-	ui.Row(c).WidthPercent(100).AlignItems(ui.Center).
-		Gap(theme.Space08.DIPs(scale)).Children(func() {
+	inset := theme.Space16.DIPs(scale)
+	ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+		Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).Children(func() {
 		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
 			switch {
 			case s.keySearch:
@@ -96,12 +111,7 @@ func (s *State) keymapToolbar(c *ui.Context, semantic theme.Theme) {
 			case s.keyFilter != nil:
 				s.keyFilterChip(c, semantic)
 			default:
-				components.TextField{
-					Key: "keymap-search", Label: "Search shortcuts",
-					Placeholder: "Search actions or keys…", Value: &s.keyQuery,
-					Icon: components.IconSearch.SVG(), ClearIcon: components.IconClose.SVG(),
-					Animate: animate,
-				}.View(c, semantic)
+				components.Label(c, "Press a shortcut to find its action.", theme.TextSmall, semantic.Text.Muted)
 			}
 		})
 		components.IconButton{
@@ -110,7 +120,6 @@ func (s *State) keymapToolbar(c *ui.Context, semantic theme.Theme) {
 			Selected: s.keySearch || s.keyFilter != nil, Animate: animate,
 			Action: func() {
 				s.keySearch, s.keyFilter = !s.keySearch, nil
-				s.keyQuery = ""
 			},
 		}.View(c, semantic)
 		customized := make([]keymap.CommandID, 0)
@@ -322,8 +331,8 @@ func (s *State) tag(c *ui.Context, semantic theme.Theme, text string) {
 	})
 }
 
-// policyBadge names the policy declaring an editing command, and opens
-// its card on the Editor page.
+// policyBadge names the policy declaring an editing command, and finds
+// its card.
 func (s *State) policyBadge(c *ui.Context, semantic theme.Theme, shortcut appsettings.Shortcut) {
 	title := ""
 	for _, card := range s.Data.Policies {
@@ -343,8 +352,8 @@ func (s *State) policyBadge(c *ui.Context, semantic theme.Theme, shortcut appset
 		Background(semantic.Surface.Inset.Mix(semantic.Accent.Muted, hover*0.35)).Children(func() {
 		components.Label(c, title, theme.TextXSmall, semantic.Text.Muted.Mix(semantic.Accent.Foreground, hover)).SingleLine()
 	})
-	if badge.Clicked() {
-		s.chooseSection(appsettings.Editor, title)
+	if badge.Clicked() && s.Find != nil {
+		s.Find(title)
 	}
 }
 

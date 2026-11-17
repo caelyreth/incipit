@@ -52,7 +52,13 @@ func (s *State) blockMetrics(w, h float32) blockMetrics {
 	scale := s.Settings.UIFontSize
 	k := scale / theme.DefaultUIFontSize
 	pad, gap := 6*k, fieldGap*k
-	cols, col := stage.Columns(w-48*k, 260*k, 340*k, gap)
+	// The settings' columns are wider, for a setting's words and its
+	// control to stand side by side.
+	least, most := float32(260), float32(340)
+	if s.InSettings() {
+		least, most = 400, 560
+	}
+	cols, col := stage.Columns(w-48*k, least*k, most*k, gap)
 	band := 40*k + 2*gap
 	return blockMetrics{
 		scale: scale, k: k,
@@ -68,7 +74,7 @@ func (s *State) blockMetrics(w, h float32) blockMetrics {
 // shapes are the cards' shapes, worked out again only when what they
 // hold or the measures change.
 func (s *State) shapes(c *ui.Context, f found, m blockMetrics) []shape {
-	key := fmt.Sprintf("%s|%d|%s|%d|%v", f.query, f.rev, f.open, f.offers, m)
+	key := fmt.Sprintf("%s|%d|%s|%d|%d|%d|%v", f.query, f.rev, f.open, f.offers, f.held, s.field.measures, m)
 	if s.field.shapesKey == key && len(s.field.shapes) == len(f.cards) {
 		return s.field.shapes
 	}
@@ -164,15 +170,8 @@ func bodyLines(c *ui.Context, body string, width, scale float32, most int) int {
 // groups dropped on it.
 func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stage.Frame, sh shape, current bool, m blockMetrics, animate bool) {
 	if g := b.group; current && g != nil && !b.trashed && !g.Smart() && !b.create {
-		if dropped, ok := s.dropOn(c, semantic, box, takes{sheets: true, groups: !g.Inbox}, animate); ok {
-			switch d := dropped.(type) {
-			case sheetDrag:
-				s.Library.MoveSheet(d.id, g.ID, Last)
-			case groupDrag:
-				if d.id != g.ID {
-					s.Library.MoveGroup(d.id, g.ID, Last)
-				}
-			}
+		if dropped, ok := s.dropOn(c, semantic, box, filing(*g), animate); ok {
+			s.fileInto(*g, dropped)
 		}
 	}
 	box.Children(func() {
@@ -284,6 +283,10 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
 		FocusRing(false).KeepFocus().Label(g.Name)
 	s.rowFill(c, semantic, btn, id, false, animate)
+	// What is dropped on the row is filed in its group, not in the block's.
+	if dropped, ok := s.dropOn(c, semantic, btn, filing(g), animate); ok {
+		s.fileInto(g, dropped)
+	}
 	btn.ContextMenu(s.groupMenu(g, false))
 	if !g.Inbox {
 		btn.Drag(groupDrag{id: g.ID})
@@ -300,6 +303,28 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 		components.Label(c, g.Name, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
 		components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
 	})
+}
+
+// filing is what g takes to be filed in it: sheets, the tray, and groups
+// but in the Inbox.
+func filing(g GroupItem) takes {
+	return takes{sheets: true, groups: !g.Inbox}
+}
+
+// fileInto files what was dropped on g in it: the sheets it carries, out
+// of the tray if they came from it, or a group.
+func (s *State) fileInto(g GroupItem, dropped shellDrag) {
+	switch d := dropped.(type) {
+	case sheetDrag, trayDrag:
+		for _, id := range s.carried(d) {
+			s.Library.MoveSheet(id, g.ID, Last)
+		}
+		s.delivered(d)
+	case groupDrag:
+		if d.id != g.ID {
+			s.Library.MoveGroup(d.id, g.ID, Last)
+		}
+	}
 }
 
 // entryRow is a sheet in a block, in full, as the sheet list showed it:

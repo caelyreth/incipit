@@ -41,8 +41,7 @@ func TestTypingEditsThePage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	for _, r := range "# Title" {
 		tester.Type(string(r))
 		tester.Frame()
@@ -68,8 +67,7 @@ func TestNotationIsShownAsGhosts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	for _, r := range "## Ghosts" {
 		tester.Type(string(r))
 		tester.Frame()
@@ -104,8 +102,7 @@ func TestNotationIsShownAsGhosts(t *testing.T) {
 func TestTypedPageIsSaved(t *testing.T) {
 	root := t.TempDir()
 	app := openNotebookApp(t, root)
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	for _, r := range "kept" {
 		tester.Type(string(r))
 		tester.Frame()
@@ -131,8 +128,7 @@ func TestClickAndArrowsMoveTheCaret(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	for _, r := range "first" {
 		tester.Type(string(r))
 	}

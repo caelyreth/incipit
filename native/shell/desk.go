@@ -104,6 +104,8 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 	on := s.OnDesk()
 	if on {
 		s.followPointer(area)
+	} else {
+		s.deskDrops(semantic, area, scene.Desk.Scale, animate)
 	}
 	area.Children(func() {
 		ui.Column(c).Key("desk-content").Grow(1).MinHeight(0).WidthPercent(100).IgnoreInput(!on).Children(func() {
@@ -119,6 +121,29 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 			}
 		})
 	})
+}
+
+// deskDrops makes the desk, resting in its lane at scale, take sheets
+// dropped on it, or the tray whole: they open on it beside the sheet in
+// front, the field staying in front. It is ringed while they are over it.
+func (s *State) deskDrops(semantic theme.Theme, area ui.Element, scale float32, animate bool) {
+	over, dropped, ok := dragOn(area, takes{sheets: true})
+	if ok {
+		for _, id := range s.carried(dropped) {
+			s.Library.OpenSheet(id, true)
+		}
+		s.delivered(dropped)
+	}
+	lit := map[bool]float32{true: 1}[over]
+	if animate {
+		lit = components.Follow(area, "drop", lit, components.MotionQuick)
+	}
+	if lit > 0.001 {
+		width := 2 / max(scale, 0.01)
+		area.DrawOver(func(p *ui.Painter, r ui.Rect) {
+			p.Stroke(r, semantic.Accent.Foreground.Alpha(lit), 10*width, width)
+		})
+	}
 }
 
 // deskEmpty draws the empty desk placeholder so that resting in the lane

@@ -1,8 +1,6 @@
 package shell
 
 import (
-	"fmt"
-
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
@@ -20,40 +18,79 @@ type laneState struct {
 	// preview is where the desk rests in the lane this frame, in the
 	// window.
 	preview stage.Rect
+	// tray is the tray's shelf, under it; held the sheets set aside in it,
+	// which the field leaves out while they are, and heldRev counts its
+	// changes.
+	tray    shelfState
+	held    []SheetItem
+	heldRev uint64
 }
 
-// laneWidth is the lane's width at the reference type size: the visible
-// strip of the desk and the field gap beside it.
-const laneWidth = 94
+// laneWidth is each lane's width at the reference type size: the part
+// of what rests in it that shows, and the field gap beside it. The field
+// lane at the left is as wide, so what rests in the two lanes shows alike
+// at both edges (kept.go).
+const laneWidth = 52
 
-// laneRoom is the room the field leaves for the lane.
+// laneRoom is the room the field leaves for each lane.
 func (s *State) laneRoom() float32 {
 	return laneWidth * s.Settings.UIFontSize / theme.DefaultUIFontSize
 }
 
-// laneView draws the lane at the right of the window w by h, and notes
-// where the desk rests in it.
-func (s *State) laneView(c *ui.Context, semantic theme.Theme, w, h float32, hidden bool) {
+// laneShown is how much of what rests in a lane stands in the window.
+func (s *State) laneShown() float32 {
+	return (laneWidth - fieldGap) * s.Settings.UIFontSize / theme.DefaultUIFontSize
+}
+
+// fieldMargin is how far from the window's left edge the field's columns
+// begin, the window being w by h: the lane, and half of what the columns
+// leave of the field's width.
+func (s *State) fieldMargin(w, h float32) float32 {
+	room := s.laneRoom()
+	z := s.blockMetrics(w-2*room, h).horizon
+	return room + (w-2*room-(float32(z.Cols)*z.Col+float32(z.Cols-1)*z.Gap))/2
+}
+
+// laneRest is where the desk rests in its lane, the window being w by h:
+// in the window by laneShown and past its right edge, keeping the
+// window's proportion so its frame stays tall even when narrow.
+func (s *State) laneRest(w, h float32) stage.Rect {
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
-	lane := ui.Box(c).Key("lane").Absolute().Top(0).Right(0).Height(h).Hidden(hidden).Label("Desk lane")
-	width := s.laneRoom()
-	lane.Width(width)
-	pad := fieldGap * k
-	// The desk stands in the window and past its right edge, keeping the
-	// window's proportion so its frame stays tall even when narrow.
-	visible := width - pad
+	visible := s.laneShown()
 	ph := max(2*visible*h/max(w, 1), min(h*0.38, max(0, h-120*k)))
 	pw := ph * w / max(h, 1)
-	s.lane.preview = stage.Rect{X: w - visible, Y: h/2 - ph/2, W: pw, H: ph}
-	open := len(s.Open)
+	return stage.Rect{X: w - visible, Y: h/2 - ph/2, W: pw, H: ph}
+}
+
+// laneLabel, keyed key, names what rests in a lane, count beside it where there is
+// one, standing above rest at the window's edge: at its left where left
+// is set, else at its right.
+func laneLabel(c *ui.Context, semantic theme.Theme, key, name string, count int, rest stage.Rect, left bool, k float32) ui.Element {
+	row := ui.Row(c).Key(key).Absolute().Top(rest.Y - 24*k).Gap(4 * k).AlignItems(ui.Baseline)
+	if left {
+		row.Left(10 * k)
+	} else {
+		row.Right(10 * k)
+	}
+	row.Children(func() {
+		components.Label(c, name, theme.TextSmall, semantic.Text.Muted).SingleLine()
+		if count > 0 {
+			components.Label(c, thousands(count), theme.TextXSmall, semantic.Text.Muted).SingleLine()
+		}
+	})
+	return row
+}
+
+// laneView draws the lane at the right of the window w by h, noting where
+// the desk rests in it, and the tray under the desk.
+func (s *State) laneView(c *ui.Context, semantic theme.Theme, w, h float32, hidden, animate bool) {
+	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
+	lane := ui.Box(c).Key("lane").Absolute().Top(0).Right(0).Size(s.laneRoom(), h).Hidden(hidden).Label("Desk lane")
+	s.lane.preview = s.laneRest(w, h)
 	lane.Children(func() {
 		// The lane's top band drags the window above what rests in it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
-		label := "Desk"
-		if open > 0 {
-			label = fmt.Sprintf("Desk · %d open", open)
-		}
-		components.Label(c, label, theme.TextSmall, semantic.Text.Muted).SingleLine().
-			Absolute().Left(pad + 4*k).Top(h/2 - ph/2 - 24*k)
+		laneLabel(c, semantic, "desk-label", "Desk", len(s.Open), s.lane.preview, false, k)
 	})
+	s.trayView(c, semantic, h, k, hidden, animate)
 }

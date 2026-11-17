@@ -58,17 +58,15 @@ func Run() error {
 		})
 		window.OnFocus(func() {
 			app.Shell.SetWindowActive(true)
+			app.Settings.SetWindowActive(true)
 			app.refreshShell()
 		})
 		window.OnBlur(func() {
+			// A shortcut is recorded in the field: leaving the window ends
+			// the recording, which gives the menu its keys back.
+			app.Settings.StopRecording()
 			app.Shell.SetWindowActive(false)
-		})
-		window.OnClosed(func() {
-			// Settings belongs to the editor: it closes with it, and the
-			// app quits when no window is left.
-			if settings := app.settingsWindow; settings != nil && !settings.IsDestroyed() {
-				settings.Close()
-			}
+			app.Settings.SetWindowActive(false)
 		})
 		app.mainWindow = window
 		app.Notices.SetWake(window.Invalidate)
@@ -90,4 +88,9 @@ func MustRun() {
 	if err := Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// colorHex is color as a window's background takes it.
+func colorHex(color ui.Color) string {
+	return fmt.Sprintf("#%02x%02x%02x", color.R, color.G, color.B)
 }

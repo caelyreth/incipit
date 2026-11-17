@@ -14,8 +14,7 @@ func TestTabLeavesAPairWithItsKeyShown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	for _, r := range "The tide turned (slowly" {
 		tester.Type(string(r))
 		tester.Frame()
@@ -39,8 +38,7 @@ func TestArmedSidesShow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
+	tester := atTheDesk(app)
 	for _, r := range "Some (words) and *marks*" {
 		tester.Type(string(r))
 		tester.Frame()

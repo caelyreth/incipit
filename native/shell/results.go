@@ -19,7 +19,7 @@ import (
 type librarySource struct{}
 
 func (librarySource) answer(s *State, text string, f *found) {
-	if strings.HasPrefix(s.field.words, ">") {
+	if strings.HasPrefix(s.field.words, ">") || inSettings(text) {
 		return
 	}
 	scope, trash, browse := s.browsing(query.Parse(text))
@@ -28,14 +28,14 @@ func (librarySource) answer(s *State, text string, f *found) {
 		s.searched(f, text, trash)
 	case trash:
 		if loose := s.Library.Sheets(Place{Kind: PlaceTrash}); len(loose) > 0 {
-			f.add("trash", tierResult, block{entries: entries(loose), trashed: true})
+			f.add("trash", tierResult, block{entries: s.entries(loose), trashed: true})
 		}
 		for _, g := range s.Library.TrashedGroups() {
 			f.add("group:"+g.ID, tierResult, s.groupBlock(g, true))
 		}
 	case scope != "" && s.lowest(scope):
 		// Nothing but sheets in it: each sheet stands on its own.
-		for _, e := range entries(s.Library.Sheets(Place{Kind: PlaceGroup, Group: scope})) {
+		for _, e := range s.entries(s.Library.Sheets(Place{Kind: PlaceGroup, Group: scope})) {
 			f.add("sheet:"+e.sheet.ID, tierResult, block{entries: []entry{e}, single: true})
 		}
 		if g, ok := s.Library.Group(scope); ok && !g.Smart() {
@@ -47,11 +47,11 @@ func (librarySource) answer(s *State, text string, f *found) {
 			own.groups, own.scoped = nil, true
 			f.add("group:"+g.ID, tierScope, own)
 		}
-		for _, g := range s.Library.Groups(scope) {
+		for _, g := range s.groups(scope) {
 			f.add("group:"+g.ID, tierResult, s.groupBlock(g, false))
 		}
 	default:
-		for _, g := range s.Library.Groups("") {
+		for _, g := range s.groups("") {
 			f.add("group:"+g.ID, tierResult, s.groupBlock(g, false))
 		}
 	}
@@ -80,6 +80,18 @@ type entry struct {
 	line  string
 }
 
+// groups are the groups in parent the field shows: smart folders are
+// saved queries, and stand as strips in the field lane instead (strips.go).
+func (s *State) groups(parent string) []GroupItem {
+	var out []GroupItem
+	for _, g := range s.Library.Groups(parent) {
+		if !g.Smart() {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
 // lowest reports whether the group holds no groups, only sheets.
 func (s *State) lowest(id string) bool {
 	g, ok := s.Library.Group(id)
@@ -92,17 +104,21 @@ func (s *State) groupBlock(g GroupItem, trashed bool) block {
 	if g.Smart() {
 		return b
 	}
-	b.entries = entries(s.Library.Sheets(Place{Kind: PlaceGroup, Group: g.ID}))
+	b.entries = s.entries(s.Library.Sheets(Place{Kind: PlaceGroup, Group: g.ID}))
 	if g.HasGroups && !trashed {
-		b.groups = s.Library.Groups(g.ID)
+		b.groups = s.groups(g.ID)
 	}
 	return b
 }
 
-func entries(sheets []SheetItem) []entry {
-	out := make([]entry, len(sheets))
-	for i, sh := range sheets {
-		out[i] = entry{sheet: sh}
+// entries are sheets as a block shows them, those set aside in the tray
+// left out.
+func (s *State) entries(sheets []SheetItem) []entry {
+	out := make([]entry, 0, len(sheets))
+	for _, sh := range sheets {
+		if !s.inTray(sh.ID) {
+			out = append(out, entry{sheet: sh})
+		}
 	}
 	return out
 }
@@ -114,6 +130,9 @@ func (s *State) searched(f *found, text string, trash bool) {
 	var blocks []block
 	var ids []string
 	for _, hit := range hits.Sheets {
+		if s.inTray(hit.ID) {
+			continue
+		}
 		id := "trash"
 		var group *GroupItem
 		if !trash {

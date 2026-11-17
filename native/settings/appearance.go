@@ -9,46 +9,64 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func (s *State) appearancePage(
-	c *ui.Context,
-	semantic theme.Theme,
-	metrics theme.ControlMetrics,
-) {
-	s.section(c, semantic, "Theme", "Colors and chrome scale for every Neverland window.", func() {
-		components.SettingRow{
-			Label:       "Theme",
-			Description: "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart.",
-			Control: func() {
-				options := make([]components.SegmentOption, 0, 2)
-				for index, label := range []string{"Starfield", "Daybreak"} {
-					value := index + 1
-					options = append(options, components.SegmentOption{
-						Key: "theme-" + label, Label: label,
-						Selected: s.Theme.Appearance == theme.Appearance(value),
-						Action: func() {
-							s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
-								Kind: appsettings.SetTheme, Theme: uint8(value),
-							}))
-						},
-					})
-				}
-				components.Segmented{
-					Key: "theme-choice", Label: "Theme", Options: options,
-					Animate: s.motion(c),
-				}.View(c, semantic)
-			},
-		}.View(c, semantic)
-		components.SettingRow{
-			Label:       "UI Font Size",
-			Description: "Scales chrome; document text keeps its own size.",
-			Last:        true,
-			Control: func() {
-				s.fontStepper(c, semantic, true)
-			},
-		}.View(c, semantic)
-	})
-	s.section(c, semantic, "Writing Environment",
-		"Presentation choices shared across the workspace.", func() {
+// sectionInfo is a section's title and description, and the words it is
+// found by.
+type sectionInfo struct {
+	title, description, words string
+}
+
+// appearanceSections are the Appearance sections, with what each is found
+// by: its title, description and rows.
+func (s *State) appearanceSections() []sectionInfo {
+	environment := "Writing Environment Presentation Document Text Size Spacing"
+	for _, setting := range s.Data.Appearance {
+		environment += " " + setting.Label + " " + setting.Description
+	}
+	return []sectionInfo{
+		{"Theme", "Colors and chrome scale for every Neverland window.", "Theme Colors Starfield Daybreak Dark Light UI Font Size"},
+		{"Writing Environment", "Presentation choices shared across the workspace.", environment},
+	}
+}
+
+// appearanceSection draws the Appearance section sec.
+func (s *State) appearanceSection(c *ui.Context, semantic theme.Theme, sec Section) {
+	switch sec.Title {
+	case "Theme":
+		s.section(c, semantic, sec, func() {
+			components.SettingRow{
+				Label:       "Theme",
+				Description: "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart.",
+				Control: func() {
+					options := make([]components.SegmentOption, 0, 2)
+					for index, label := range []string{"Starfield", "Daybreak"} {
+						value := index + 1
+						options = append(options, components.SegmentOption{
+							Key: "theme-" + label, Label: label,
+							Selected: s.Theme.Appearance == theme.Appearance(value),
+							Action: func() {
+								s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
+									Kind: appsettings.SetTheme, Theme: uint8(value),
+								}))
+							},
+						})
+					}
+					components.Segmented{
+						Key: "theme-choice", Label: "Theme", Options: options,
+						Animate: s.motion(c),
+					}.View(c, semantic)
+				},
+			}.View(c, semantic)
+			components.SettingRow{
+				Label:       "UI Font Size",
+				Description: "Scales chrome; document text keeps its own size.",
+				Last:        true,
+				Control: func() {
+					s.fontStepper(c, semantic, true)
+				},
+			}.View(c, semantic)
+		})
+	case "Writing Environment":
+		s.section(c, semantic, sec, func() {
 			components.SettingRow{
 				Label:       "Document Text Size",
 				Description: "Prose, headings and column scale together in every window.",
@@ -81,7 +99,7 @@ func (s *State) appearancePage(
 				}.View(c, semantic)
 			}
 		})
-	_ = metrics
+	}
 }
 
 func (s *State) fontStepper(c *ui.Context, semantic theme.Theme, uiFont bool) {

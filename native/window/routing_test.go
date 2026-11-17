@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/app/keymap"
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -71,32 +70,12 @@ func TestUnmenuedKeysRunTheirCommand(t *testing.T) {
 	}
 }
 
-func TestRoutingRejectsUnknownAndAuxiliaryCommands(t *testing.T) {
+func TestRoutingRejectsUnknownCommands(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := app.routeWindowCommand(nil, "missing.command"); !errors.Is(err, ErrUnknownCommand) {
+	if err := app.routeCommand("missing.command"); !errors.Is(err, ErrUnknownCommand) {
 		t.Fatalf("unknown command = %v", err)
-	}
-
-	mainWindow := &mygo.Window{}
-	settingsWindow := &mygo.Window{}
-	app.mainWindow = mainWindow
-	app.settingsWindow = settingsWindow
-	var closed *mygo.Window
-	app.closeWindow = func(window *mygo.Window) { closed = window }
-	tabs := len(app.Workspace.Opened())
-	if err := app.routeWindowCommand(settingsWindow, keymap.NewPage); !errors.Is(err, ErrUnknownCommand) {
-		t.Fatalf("auxiliary New Page = %v", err)
-	}
-	if got := len(app.Workspace.Opened()); got != tabs {
-		t.Fatalf("auxiliary command changed tabs: %d -> %d", tabs, got)
-	}
-	if err := app.routeWindowCommand(settingsWindow, keymap.ClosePage); err != nil || closed != settingsWindow {
-		t.Fatalf("auxiliary Close Sheet = %v, closed %v", err, closed)
-	}
-	if got := len(app.Workspace.Opened()); got != tabs {
-		t.Fatalf("auxiliary Close Sheet closed a page: %d -> %d", tabs, got)
 	}
 }

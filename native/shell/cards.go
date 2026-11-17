@@ -11,7 +11,7 @@ import (
 )
 
 // What the field shows comes from its sources (field-and-desk.md §4.4):
-// the library, the app's commands, and more to come. Each source answers
+// the library, the app's commands, the settings, and more to come. Each source answers
 // the query with cards, or with none; which answer is the query's to say,
 // never a mode's. The field ranks every card the same way, in tiers, then
 // in the order its source gave, and places and moves them whatever they
@@ -59,7 +59,7 @@ type source interface {
 }
 
 // sources are what the field asks, in order.
-var sources = []source{librarySource{}, commandSource{}}
+var sources = []source{librarySource{}, commandSource{}, settingsSource{}}
 
 // found is what the field's query found, for the library as it stood.
 type found struct {
@@ -67,6 +67,7 @@ type found struct {
 	rev    uint64
 	open   string
 	offers uint64
+	held   uint64
 	cards  []card
 }
 
@@ -75,7 +76,7 @@ func (f *found) add(id string, t tier, kind cardKind) {
 }
 
 // results is what the field's query finds, worked out again only when the
-// query, the library or the sheets open change.
+// query, the library, the sheets open or the tray change.
 func (s *State) results() found {
 	if s.Library == nil {
 		return found{}
@@ -83,11 +84,11 @@ func (s *State) results() found {
 	text := s.wholeQuery()
 	open := openKey(s.Open)
 	rev := s.Library.Revision()
-	offers := s.field.offers
-	if f := s.field.found; f.query == text && f.rev == rev && f.open == open && f.offers == offers && f.cards != nil {
+	offers, held := s.field.offers, s.lane.heldRev
+	if f := s.field.found; f.query == text && f.rev == rev && f.open == open && f.offers == offers && f.held == held && f.cards != nil {
 		return f
 	}
-	f := found{query: text, rev: rev, open: open, offers: offers, cards: []card{}}
+	f := found{query: text, rev: rev, open: open, offers: offers, held: held, cards: []card{}}
 	for _, src := range sources {
 		src.answer(s, text, &f)
 	}

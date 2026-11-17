@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -203,7 +204,13 @@ func (f *fakeLibrary) StyleGroup(id, icon string, color int) {
 func (f *fakeLibrary) MoveGroup(id, parent string, _ int) {
 	f.call("move group " + id + " to " + parent)
 }
-func (f *fakeLibrary) TrashGroup(id string)   { f.call("trash group " + id) }
+func (f *fakeLibrary) TrashGroup(id string) { f.call("trash group " + id) }
+func (f *fakeLibrary) NewSmartGroup(name, query string) string {
+	f.call("new smart " + name + " " + query)
+	f.smart = query
+	f.rev++
+	return "5"
+}
 func (f *fakeLibrary) RestoreGroup(id string) { f.call("restore group " + id) }
 func (f *fakeLibrary) DeleteGroup(id string)  { f.call("delete group " + id) }
 func (f *fakeLibrary) EmptyTrash()            { f.call("empty trash") }
@@ -230,3 +237,29 @@ func nestedGroupState() (*State, *fakeLibrary) {
 }
 
 func abs(x float32) float32 { return max(x, -x) }
+
+// fakeSettings is two sections of settings, Theme and Keys, found by their
+// titles; Keys grows as tall as tall says.
+type fakeSettings struct {
+	tall float32
+	away int
+}
+
+func (f *fakeSettings) Sections(words string) []SettingsSection {
+	var out []SettingsSection
+	for _, title := range []string{"Theme", "Keys"} {
+		if words == "" || strings.Contains(strings.ToLower(title), strings.ToLower(strings.TrimSpace(words))) {
+			out = append(out, SettingsSection{ID: "app/" + title, Title: title})
+		}
+	}
+	return out
+}
+
+func (f *fakeSettings) SectionView(c *ui.Context, _ theme.Theme, id, _ string) {
+	ui.Text(c, id+" rows")
+	if id == "app/Keys" {
+		ui.Box(c).Height(f.tall)
+	}
+}
+
+func (f *fakeSettings) Away() { f.away++ }

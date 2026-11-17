@@ -6,7 +6,6 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -35,32 +34,17 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 	},
 	keymap.Field:    func(a *AppState) { a.Shell.ToggleField() },
 	keymap.Commands: func(a *AppState) { a.Shell.SearchCommands() },
-	keymap.Settings: func(a *AppState) {
-		if a.Shell.OpenSettings != nil {
-			a.Shell.OpenSettings()
-		}
-	},
+	keymap.Settings: func(a *AppState) { a.Shell.ShowSettings() },
 }
 
-// routeWindowCommand is the common menu, pill and keyboard entry point.
-// An auxiliary window answers only Close Sheet, which closes it, and never
-// reaches back into the main window.
-func (a *AppState) routeWindowCommand(window *mygo.Window, command keymap.CommandID) error {
+// routeCommand is the common menu, pill and keyboard entry point.
+func (a *AppState) routeCommand(command keymap.CommandID) error {
 	if a == nil {
 		return fmt.Errorf("window: app state is unavailable")
 	}
 	handler, ok := hostHandlers[command]
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownCommand, command)
-	}
-	if window != nil && a.mainWindow != nil && window != a.mainWindow {
-		if command != keymap.ClosePage {
-			return fmt.Errorf("%w: %s in an auxiliary window", ErrUnknownCommand, command)
-		}
-		if a.closeWindow != nil {
-			a.closeWindow(window)
-		}
-		return nil
 	}
 	handler(a)
 	return nil
@@ -78,7 +62,7 @@ func (a *AppState) pressedCommands(c *ui.Context) {
 		}
 		modifiers, key, ok := keymap.Native(chord, keymap.PlatformCurrent)
 		if ok && c.Shortcut(modifiers, key) {
-			if err := a.routeWindowCommand(a.mainWindow, command); err != nil {
+			if err := a.routeCommand(command); err != nil {
 				a.fail("Couldn't run the command", err)
 			}
 		}

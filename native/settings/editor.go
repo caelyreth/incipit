@@ -2,7 +2,6 @@ package settings
 
 import (
 	"fmt"
-	"strings"
 
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -12,14 +11,14 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// editorPage draws one card per policy. A policy is a master switch with
-// tweaks under it, so the card's first line is the policy and its switch;
-// its story plays beneath, and the tweaks nest under that, each with the
-// keys it answers to, folding away while the policy is off.
-func (s *State) editorPage(c *ui.Context, semantic theme.Theme) {
-	query := strings.ToLower(strings.TrimSpace(s.Query))
+// editorSection draws the policy titled title as a card. A policy is a
+// master switch with tweaks under it, so the card's first line is the
+// policy and its switch; its story plays beneath, and the tweaks nest
+// under that, each with the keys it answers to, folding away while the
+// policy is off. Searched, the card shows what the query finds in it.
+func (s *State) editorSection(c *ui.Context, semantic theme.Theme, title, query string) {
 	for _, card := range s.Data.Policies {
-		if query != "" && !s.policyMatches(card, query) {
+		if card.Title != title {
 			continue
 		}
 		options, shortcuts := card.Options, card.Shortcuts
@@ -28,6 +27,7 @@ func (s *State) editorPage(c *ui.Context, semantic theme.Theme) {
 			shortcuts = matchingShortcuts(shortcuts, query)
 		}
 		s.policyCard(c, semantic, card, options, shortcuts, query != "")
+		return
 	}
 }
 
@@ -58,10 +58,6 @@ func matchingShortcuts(shortcuts []appsettings.Shortcut, query string) []appsett
 	return matches
 }
 
-func containsFold(text, query string) bool {
-	return strings.Contains(strings.ToLower(text), query)
-}
-
 func (s *State) policyCard(
 	c *ui.Context,
 	semantic theme.Theme,
@@ -72,19 +68,17 @@ func (s *State) policyCard(
 ) {
 	scale := s.Theme.UIFontSize
 	animate := s.motion(c)
-	s.anchored(c, card.Title, func() {
-		components.SettingGroup{
-			Key: "settings-group-" + card.Title, Label: card.Title,
-			Children: func() {
-				s.policyHeader(c, semantic, card, len(options)+len(shortcuts))
-				s.policyShowcase(c, semantic, card)
-				if len(options)+len(shortcuts) == 0 {
-					return
-				}
-				s.policyOptions(c, semantic, card.Title, options, shortcuts, card.Enabled || searching, animate, scale)
-			},
-		}.View(c, semantic)
-	})
+	components.SettingGroup{
+		Key: "settings-group-" + card.Title, Label: card.Title,
+		Children: func() {
+			s.policyHeader(c, semantic, card, len(options)+len(shortcuts))
+			s.policyShowcase(c, semantic, card)
+			if len(options)+len(shortcuts) == 0 {
+				return
+			}
+			s.policyOptions(c, semantic, card.Title, options, shortcuts, card.Enabled || searching, animate, scale)
+		},
+	}.View(c, semantic)
 }
 
 // policyHeader is the card's first line: the policy and its master switch.

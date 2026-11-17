@@ -1,55 +1,38 @@
-// Package settings composes the settings window from declarative settings
-// data. Validation stays in the application layer.
+// Package settings draws the app's settings, from declarative settings
+// data, as sections the field shows as cards (view.go). Validation stays
+// in the application layer.
 package settings
 
 import (
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
 type State struct {
-	Category appsettings.Category
-	Query    string
-	Data     appsettings.Data
-	Theme    theme.Settings
-	// Colors carries theme changes; nil shows Theme as it is.
-	Colors *theme.Transition
-	Apply  func(appsettings.Change)
+	// Query is the words the sections are found by, as last drawn.
+	Query string
+	Data  appsettings.Data
+	Theme theme.Settings
+	Apply func(appsettings.Change)
 	// Recording hears when a shortcut recording starts and ends, so the
 	// host can stand its menu's keys down meanwhile. Reserved names what
 	// keeps a key for itself, as a menu item of the system's, which no
 	// action can be given.
-	Recording    func(bool)
-	Reserved     func(keymap.Chord) (string, bool)
+	Recording func(bool)
+	Reserved  func(keymap.Chord) (string, bool)
+	// Find searches the settings for words, as a card that names another
+	// asks to show it.
+	Find         func(words string)
 	Animate      bool
 	WindowActive bool
 
-	expanded      map[appsettings.Category]bool
-	contentScroll ui.ScrollState
-	navScroll     ui.ScrollState
-	contentOver   scrollfx.Overscroll
-	navOver       scrollfx.Overscroll
-
-	// anchors are the current page's section tops in content coordinates,
-	// in page order, as the previous frame laid them out. pending is a
-	// section the navigation asked to show once its anchor is known, and
-	// target the one a scroll is gliding to.
-	anchors    []anchor
-	building   []anchor
-	contentTop float32
-	pending    string
-	target     string
-	lastActive string
-
-	// The keymap page's own search text or recorded chord. Then, on either
-	// page, the command whose shortcut is being recorded and the row or
+	// The chord the keymap is searched by, as pressed. Then, in any
+	// section, the command whose shortcut is being recorded and the row or
 	// sentence it was started from, and a recorded shortcut another command
 	// already holds, awaiting a decision there.
-	keyQuery    string
 	keyFilter   *keymap.Chord
 	keySearch   bool
 	keyEditing  keymap.CommandID
@@ -71,23 +54,8 @@ type keyConflict struct {
 	Reserved bool
 }
 
-type anchor struct {
-	Label string
-	Top   float32
-}
-
 func New() *State {
-	expanded := make(map[appsettings.Category]bool, len(appsettings.AllCategories))
-	for _, category := range appsettings.AllCategories {
-		expanded[category] = category == appsettings.Appearance
-	}
-	return &State{
-		Category:     appsettings.Appearance,
-		Theme:        theme.DefaultSettings(),
-		expanded:     expanded,
-		Animate:      true,
-		WindowActive: true,
-	}
+	return &State{Theme: theme.DefaultSettings(), Animate: true, WindowActive: true}
 }
 
 func (s *State) apply(change appsettings.Change) {

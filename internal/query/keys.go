@@ -71,6 +71,7 @@ var Keys = []Key{
 	{Name: "inbox", Label: "In the Inbox", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets in the Inbox"},
 	{Name: "trash", Label: "In the trash", Takes: TakesNothing, Scope: InNotebook, Setting: true, Help: "Sheets in the trash"},
 	{Name: "open", Label: "Open in a tab", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets open in a tab"},
+	{Name: "settings", Label: "Settings", Takes: TakesNothing, Scope: InNotebook, Setting: true, Help: "The app's settings, found by their words"},
 	{Name: "sheet", Label: "In this sheet", Takes: TakesNothing, Scope: Anywhere, Setting: true, Help: "Find in the sheet in front, as ⌘F does"},
 	{Name: "sort", Label: "Sorted by", Takes: TakesChoice, Scope: InNotebook, Choices: SortFields, Setting: true, Help: "Order: relevance, updated, created, title, words; -updated turns it"},
 	{Name: "case", Label: "Match case", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match letter case"},

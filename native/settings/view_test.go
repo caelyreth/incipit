@@ -1,8 +1,8 @@
 package settings
 
 import (
-	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -13,281 +13,46 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func TestSettingsOpensOnAppearanceAndAppliesToggle(t *testing.T) {
+// Found by no words, the settings are all their sections, Appearance's
+// first; drawn, nothing changes until a control is used.
+func TestTheSectionsStandInOrder(t *testing.T) {
 	state := New()
 	state.Data = appsettings.DefaultState().Data()
 	changes := make([]appsettings.Change, 0)
 	state.Apply = func(change appsettings.Change) { changes = append(changes, change) }
-	tester := ui.NewTester(state.View, 980, 740)
+	sections := state.Sections("")
+	if len(sections) < 3 || sections[0].Category != appsettings.Appearance ||
+		sections[len(sections)-1].Category != appsettings.Keymap {
+		t.Fatalf("sections = %#v", sections)
+	}
+	tester := ui.NewTester(state.cards(appsettings.Appearance), 600, 1200)
 	tester.Frame()
-	if state.Category != appsettings.Appearance || !tester.HasText("Typewriter mode") {
-		t.Fatalf("category=%v texts=%#v", state.Category, tester.Texts())
+	for _, text := range []string{"Typewriter mode", "Theme", "Animations", "Appearance"} {
+		if !tester.HasText(text) {
+			t.Fatalf("no %q in %#v", text, tester.Texts())
+		}
 	}
-	if !tester.HasText("Theme") || !tester.HasText("Animations") || len(changes) != 0 {
-		t.Fatalf("texts=%#v changes=%#v", tester.Texts(), changes)
-	}
-	if state.expanded[appsettings.Keymap] {
-		t.Fatalf("settings categories expand by default: %#v", state.expanded)
-	}
-}
-
-func TestSettingsCategoryNavigation(t *testing.T) {
-	state, _ := keymapState()
-	state.Category = appsettings.Appearance
-	tester := ui.NewTester(state.View, 900, 650)
-	if err := tester.Click("Keymap"); err != nil {
-		t.Fatal(err)
-	}
-	if state.Category != appsettings.Keymap || !tester.HasText("New page") {
-		t.Fatalf("category=%v texts=%#v", state.Category, tester.Texts())
+	if len(changes) != 0 {
+		t.Fatalf("changes = %#v", changes)
 	}
 }
 
-func TestSettingsTreeIsOneVerticalFocusGroup(t *testing.T) {
-	state, _ := keymapState()
-	tester := ui.NewTester(state.View, 900, 650)
-	tester.Frame()
-	tester.Click("Keymap")
-	tester.Advance(time.Second)
-	if !tester.Focused("Keymap") {
-		t.Fatal("the selected settings category did not take focus")
-	}
-	tester.Key(0, ui.KeyDown)
-	if !tester.Focused("Pages") {
-		t.Fatal("Down did not move within the settings tree")
-	}
-	tester.Key(0, ui.KeyTab)
-	if tester.Focused("Keymap") || tester.Focused("Pages") {
-		t.Fatal("Tab did not leave the settings tree")
-	}
-}
-
-func TestSettingsTreeNavigatesItsHierarchy(t *testing.T) {
-	state := scrollingState(3)
-	tester := ui.NewTester(state.View, 900, 650)
-	tester.Advance(time.Second)
-	category, found := tester.AccessByRole(ui.RoleTreeItem, "Keymap")
-	section, childFound := tester.AccessByRole(ui.RoleTreeItem, "Section 2")
-	if !found || !childFound || category.Level != 1 || section.Level != 2 || !category.Expandable || !category.Expanded {
-		t.Fatalf("the tree lost its hierarchy: category %+v, section %+v", category, section)
-	}
-	if err := tester.Click("Section 2"); err != nil {
-		t.Fatal(err)
-	}
-	tester.Key(0, ui.KeyLeft)
-	if !tester.Focused("Keymap") {
-		t.Fatal("Left did not return to the category")
-	}
-	tester.Key(0, ui.KeyLeft)
-	if state.expanded[appsettings.Keymap] {
-		t.Fatal("Left did not close the category")
-	}
-	category, _ = tester.AccessByRole(ui.RoleTreeItem, "Keymap")
-	if category.Expanded {
-		t.Fatal("a closing category still reports itself as expanded")
-	}
-	tester.Advance(time.Second)
-	tester.Key(0, ui.KeyRight)
-	if !state.expanded[appsettings.Keymap] {
-		t.Fatal("Right did not open the category")
-	}
-	tester.Advance(time.Second)
-	tester.Key(0, ui.KeyRight)
-	if !tester.Focused("Section 1") {
-		t.Fatal("Right did not enter the category's sections")
-	}
-	tester.Key(0, ui.KeyEnd)
-	if !tester.Focused("Section 3") {
-		t.Fatal("End did not reach the last tree item")
-	}
-	tester.Key(0, ui.KeyHome)
-	if !tester.Focused("Appearance") {
-		t.Fatal("Home did not reach the first tree item")
-	}
-	tester.Key(0, ui.KeyK)
-	tester.Key(0, ui.KeyE)
-	tester.Key(0, ui.KeyY)
-	if !tester.Focused("Keymap") {
-		t.Fatal("typing a category's name did not focus it")
-	}
-}
-
-func TestSettingsSearchFiltersNavigationAndRows(t *testing.T) {
+// Words find the sections holding them, and in a section the rows.
+func TestWordsFindSectionsAndRows(t *testing.T) {
 	state, _ := keymapState()
 	state.Query = "close"
-	tester := ui.NewTester(state.View, 900, 650)
+	titles := []string{}
+	for _, sec := range state.Sections(state.Query) {
+		titles = append(titles, sec.Title)
+	}
+	if !slices.Contains(titles, "Pages") || slices.Contains(titles, "Window") {
+		t.Fatalf("sections = %v", titles)
+	}
+	tester := ui.NewTester(state.cards(), 600, 1200)
 	tester.Frame()
 	if !tester.HasText("Close sheet") || tester.HasText("Toggle Zen mode") {
 		t.Fatalf("texts = %#v", tester.Texts())
 	}
-	if _, ok := railRow(tester, "Pages"); !ok {
-		t.Fatal("matching group missing from navigation")
-	}
-	if _, ok := railRow(tester, "Window"); ok {
-		t.Fatal("non-matching group remains in navigation")
-	}
-}
-
-func TestSettingsTitleRowsAndStatusLayout(t *testing.T) {
-	state := New()
-	state.Data = appsettings.DefaultState().Data()
-	tester := ui.NewTester(state.View, 980, 740)
-	tester.Frame()
-	description, ok := tester.Find(appsettings.Appearance.Description())
-	if !ok || description.Y <= 0 {
-		t.Fatalf("heading composition missing from %#v", tester.Texts())
-	}
-	row, ok := tester.Find("Typewriter mode")
-	if !ok || row.X < 220 {
-		t.Fatalf("setting row is not in the content pane: %v", row)
-	}
-	status, ok := tester.Find("Changes stay in memory")
-	if !ok || status.Y < 690 {
-		t.Fatalf("status is not at the footer: %v", status)
-	}
-}
-
-// scrollingData is a keymap of groups enough to scroll the page and the
-// navigation.
-func scrollingData(groups int) []appsettings.Shortcut {
-	result := make([]appsettings.Shortcut, 0, groups*4)
-	for index := range groups {
-		title := fmt.Sprintf("Section %d", index+1)
-		for row := range 4 {
-			result = append(result, appsettings.Shortcut{
-				Command: keymap.CommandID(fmt.Sprintf("s%d.r%d", index, row)),
-				Label:   fmt.Sprintf("%s option %d", title, row+1),
-				Scope:   keymap.ScopeApp, Group: title,
-			})
-		}
-	}
-	return result
-}
-
-func scrollingState(groups int) *State {
-	state := New()
-	state.Category = appsettings.Keymap
-	state.expanded[appsettings.Keymap] = true
-	state.Data.Shortcuts = scrollingData(groups)
-	return state
-}
-
-func TestSettingsTreeAnimatesSectionsOpenAndClosed(t *testing.T) {
-	state := scrollingState(3)
-	tester := ui.NewTester(state.View, 900, 650)
-	tester.Frame()
-	tester.Advance(time.Second)
-	editorShot(t, tester, "navigation-open")
-	if err := tester.Click("Keymap"); err != nil {
-		t.Fatal(err)
-	}
-	if state.expanded[appsettings.Keymap] {
-		t.Fatal("clicking the open current category did not collapse it")
-	}
-	tester.Advance(components.MotionPanel / 3)
-	editorShot(t, tester, "navigation-closing")
-	if _, ok := railRow(tester, "Section 2"); !ok {
-		t.Fatal("sections vanished at once instead of collapsing")
-	}
-	tester.Advance(time.Second)
-	editorShot(t, tester, "navigation-closed")
-	if _, ok := railRow(tester, "Section 2"); ok {
-		t.Fatal("collapsed sections still show in the navigation")
-	}
-	if err := tester.Click("Keymap"); err != nil {
-		t.Fatal(err)
-	}
-	tester.Advance(components.MotionPanel / 3)
-	editorShot(t, tester, "navigation-opening")
-	if _, ok := railRow(tester, "Section 2"); !ok {
-		t.Fatal("sections did not begin opening")
-	}
-}
-
-func TestSettingsNavigationScrollsToSectionAndFollowsScrolling(t *testing.T) {
-	state := scrollingState(6)
-	tester := ui.NewTester(state.View, 900, 650)
-	tester.Frame()
-	tester.Advance(time.Second)
-	if got := state.activeSection(); got != "Section 1" {
-		t.Fatalf("initial active section = %q", got)
-	}
-	if err := tester.Click("Section 4"); err != nil {
-		t.Fatal(err)
-	}
-	tester.Advance(time.Second)
-	if state.contentScroll.Y <= 0 {
-		t.Fatal("choosing a section did not scroll the page")
-	}
-	if got := state.activeSection(); got != "Section 4" {
-		t.Fatalf("active section after navigation = %q", got)
-	}
-	heading, ok := tester.Find("Section 4 option 1")
-	if !ok || heading.Y < 0 || heading.Y > 260 {
-		t.Fatalf("Section 4 is not near the top of the page: %v", heading)
-	}
-
-	state.contentScroll.Y = 0
-	tester.Frame()
-	if got := state.activeSection(); got != "Section 1" {
-		t.Fatalf("navigation did not follow scrolling back: %q", got)
-	}
-}
-
-func TestSettingsScrollSurfacesPullPastTheirEdges(t *testing.T) {
-	t.Run("page", func(t *testing.T) {
-		state := scrollingState(10)
-		tester := ui.NewTester(state.View, 900, 650)
-		tester.Frame()
-		tester.Advance(time.Second)
-		tester.Scroll(700, 400, 0, 100000)
-		if state.contentScroll.Y != state.contentScroll.MaxY {
-			t.Fatalf("page stopped at %v of %v", state.contentScroll.Y, state.contentScroll.MaxY)
-		}
-		if _, y := state.contentOver.Offset(); y >= 0 {
-			t.Fatalf("page pull = %v, want past its end", y)
-		}
-		tester.Frame()
-		pulled, ok := tester.Find("Section 10 option 1")
-		if !ok {
-			t.Fatal("last section is not in the built page")
-		}
-		tester.Advance(2 * time.Second)
-		if _, y := state.contentOver.Offset(); y != 0 {
-			t.Fatalf("page pull did not settle: %v", y)
-		}
-		settled, ok := tester.Find("Section 10 option 1")
-		if !ok {
-			t.Fatal("last section vanished after the pull")
-		}
-		if pulled.Y >= settled.Y {
-			t.Fatalf("end pull moved content down: %v then %v", pulled.Y, settled.Y)
-		}
-	})
-
-	t.Run("navigation", func(t *testing.T) {
-		state := scrollingState(20)
-		tester := ui.NewTester(state.View, 900, 650)
-		tester.Frame()
-		tester.Advance(time.Second)
-		tester.Scroll(100, 500, 0, 100000)
-		if state.navScroll.MaxY <= 0 || state.navScroll.Y != state.navScroll.MaxY {
-			t.Fatalf("navigation stopped at %v of %v", state.navScroll.Y, state.navScroll.MaxY)
-		}
-		if _, y := state.navOver.Offset(); y >= 0 {
-			t.Fatalf("navigation pull = %v, want past its end", y)
-		}
-		tester.Advance(2 * time.Second)
-		if _, y := state.navOver.Offset(); y != 0 {
-			t.Fatalf("navigation pull did not settle: %v", y)
-		}
-	})
-}
-
-// railRow finds a navigation row by its label, ignoring page content.
-func railRow(tester *ui.Tester, label string) (ui.Rect, bool) {
-	rect, ok := tester.Find(label)
-	return rect, ok && rect.X < 240
 }
 
 // primary is the platform's primary shortcut modifier as MyGo reports it.
@@ -304,7 +69,6 @@ func chord(key string) keymap.Chord {
 
 func keymapState() (*State, *[]appsettings.Change) {
 	state := New()
-	state.Category = appsettings.Keymap
 	state.Data.Shortcuts = []appsettings.Shortcut{
 		{Command: keymap.NewPage, Label: "New page", Scope: keymap.ScopePages, Group: "Pages",
 			Bindings: []keymap.Chord{chord("n")}},
@@ -321,7 +85,7 @@ func keymapState() (*State, *[]appsettings.Change) {
 
 func TestKeymapRowsShowKeycapsAndStates(t *testing.T) {
 	state, _ := keymapState()
-	tester := ui.NewTester(state.View, 980, 740)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	if _, ok := tester.Find(keymap.Spell(chord("n"), keymap.PlatformCurrent)); !ok {
 		t.Fatalf("New page keycaps missing: %#v", tester.Texts())
@@ -338,7 +102,7 @@ func TestKeymapRowsShowKeycapsAndStates(t *testing.T) {
 
 func TestKeymapRecordsNewShortcutInPlace(t *testing.T) {
 	state, changes := keymapState()
-	tester := ui.NewTester(state.View, 980, 740)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	if err := tester.Click("Change shortcut for New page"); err != nil {
 		t.Fatal(err)
@@ -360,7 +124,7 @@ func TestKeymapRecordsNewShortcutInPlace(t *testing.T) {
 
 func TestKeymapRecordingCancelsAndClears(t *testing.T) {
 	state, changes := keymapState()
-	tester := ui.NewTester(state.View, 980, 740)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	if err := tester.Click("Change shortcut for New page"); err != nil {
 		t.Fatal(err)
@@ -383,7 +147,7 @@ func TestKeymapRecordingCancelsAndClears(t *testing.T) {
 
 func TestKeymapAsksBeforeTakingAnotherActionsShortcut(t *testing.T) {
 	state, changes := keymapState()
-	tester := ui.NewTester(state.View, 980, 740)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	if err := tester.Click("Change shortcut for New page"); err != nil {
 		t.Fatal(err)
@@ -410,13 +174,15 @@ func TestKeymapAsksBeforeTakingAnotherActionsShortcut(t *testing.T) {
 
 func TestKeymapSearchesByNameWordsAndPressedKeys(t *testing.T) {
 	state, _ := keymapState()
-	state.keyQuery = keymap.Words(chord("w"), keymap.PlatformCurrent)
-	tester := ui.NewTester(state.View, 980, 740)
+	state.Query = keymap.Words(chord("w"), keymap.PlatformCurrent)
+	tester := ui.NewTester(state.cards(), 600, 1600)
 	tester.Frame()
 	if !tester.HasText("Close sheet") || tester.HasText("New page") {
 		t.Fatalf("word search = %#v", tester.Texts())
 	}
-	state.keyQuery = ""
+	// Without words, every section stands again, the finder lower.
+	state.Query = ""
+	tester.Frame()
 	if err := tester.Click("Search by pressing a shortcut"); err != nil {
 		t.Fatal(err)
 	}
@@ -437,7 +203,7 @@ func TestKeymapSearchesByNameWordsAndPressedKeys(t *testing.T) {
 
 func TestKeymapResetAllRestoresEveryCustomShortcut(t *testing.T) {
 	state, changes := keymapState()
-	tester := ui.NewTester(state.View, 980, 740)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	if err := tester.Click("Reset all"); err != nil {
 		t.Fatal(err)
@@ -523,7 +289,7 @@ func textContaining(tester *ui.Tester, part string) bool {
 // neither acts nor records.
 func TestRecordingDropsMenuCommands(t *testing.T) {
 	state, changes := keymapState()
-	tester := ui.NewTester(state.View, 980, 740)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	if err := tester.Click("Change shortcut for Close sheet"); err != nil {
 		t.Fatal(err)
@@ -543,7 +309,7 @@ func TestRecordingDropsMenuCommands(t *testing.T) {
 func TestRecordingTakesTabAndShiftTab(t *testing.T) {
 	for _, mods := range []ui.Modifiers{0, ui.Shift} {
 		state, changes := keymapState()
-		tester := ui.NewTester(state.View, 980, 740)
+		tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 		tester.Frame()
 		// Started from the keyboard, the keycaps hold the focus as the
 		// recorder opens, as a click leaves it with them natively.
@@ -577,7 +343,7 @@ func TestRecordingRefusesKeysTheMenuKeeps(t *testing.T) {
 	}
 	recording := make([]bool, 0)
 	state.Recording = func(on bool) { recording = append(recording, on) }
-	tester := ui.NewTester(state.View, 980, 740)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	if err := tester.Click("Change shortcut for New page"); err != nil {
 		t.Fatal(err)
@@ -611,7 +377,7 @@ func TestRecordingRefusesKeysTheMenuKeeps(t *testing.T) {
 // quietly: its outline eases away rather than staying on as a focus ring.
 func TestKeyOutlineEasesAwayAfterCapture(t *testing.T) {
 	state, _ := keymapState()
-	tester := ui.NewTester(state.View, 980, 740)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	if err := tester.Click("Change shortcut for New page"); err != nil {
 		t.Fatal(err)
@@ -653,7 +419,7 @@ func TestKeyOutlineEasesAwayAfterCapture(t *testing.T) {
 // the ring returns when the keyboard brings the focus there again.
 func TestReturnedFocusIsQuietUntilTheKeyboardMovesIt(t *testing.T) {
 	state, _ := keymapState()
-	tester := ui.NewTester(state.View, 980, 740)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	for range 60 {
 		if tester.Focused("Change shortcut for New page") {
@@ -702,7 +468,7 @@ func TestReturnedFocusIsQuietUntilTheKeyboardMovesIt(t *testing.T) {
 // chord tries again and Return takes the key anyway.
 func TestConflictAnswersInTheCaptureLine(t *testing.T) {
 	state, changes := keymapState()
-	tester := ui.NewTester(state.View, 980, 740)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	if err := tester.Click("Change shortcut for New page"); err != nil {
 		t.Fatal(err)
@@ -742,7 +508,7 @@ func TestConflictAnswersInTheCaptureLine(t *testing.T) {
 
 func TestRecorderFoldsOpenAndShut(t *testing.T) {
 	state, _ := keymapState()
-	tester := ui.NewTester(state.View, 980, 900)
+	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	tester.Advance(time.Second)
 	rows, _ := tester.Find("Toggle Zen mode")

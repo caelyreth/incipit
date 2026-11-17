@@ -22,7 +22,7 @@ func TestGoingBetweenFieldAndDeskQuicklyKeepsRunning(t *testing.T) {
 	tester.Frame()
 	r := rand.New(rand.NewSource(1))
 	for range 600 {
-		if err := app.routeWindowCommand(nil, keymap.Field); err != nil {
+		if err := app.routeCommand(keymap.Field); err != nil {
 			t.Fatal(err)
 		}
 		tester.Advance(time.Duration(r.Intn(25)) * time.Millisecond)

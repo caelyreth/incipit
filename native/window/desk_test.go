@@ -37,6 +37,16 @@ func deskApp(t *testing.T) (*AppState, *ui.Tester) {
 	return app, tester
 }
 
+// atTheDesk is a tester on app with the window gone to the desk, the
+// sheet in front taking the keys, as a sheet opened from the field has it.
+func atTheDesk(app *AppState) *ui.Tester {
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	app.Shell.ShowDesk()
+	run(tester, time.Second)
+	return tester
+}
+
 // run draws frames for d, as the window does while things move.
 func run(tester *ui.Tester, d time.Duration) {
 	for at := time.Duration(0); at < d; at += 16 * time.Millisecond {
@@ -138,6 +148,7 @@ func TestEditingAndResizingAsTheDeskMoves(t *testing.T) {
 		draw(c, id, next)
 	}
 	tester := ui.NewTester(app.View, 1440, 900)
+	app.Shell.ShowDesk()
 	el := app.pageElement()
 	el.Editor.Do(vocab.Paste{Text: strings.Repeat("A paragraph with 中文, **marks**, and `code`.\n\n", 40)}, tester.Now())
 	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, tester.Now())
@@ -178,6 +189,7 @@ func TestTheReadingHeightStaysAcrossSizes(t *testing.T) {
 				tester := ui.NewTester(app.View, 1440, 900)
 				tester.SetTitleBar(ui.TitleBar{Height: 40, Left: 76})
 				tester.Frame()
+				app.Shell.ShowDesk()
 				el := app.pageElement()
 				el.Editor.Do(vocab.Paste{Text: "# Hello world\n\n" + strings.Repeat("A short paragraph.\n\n", 40)}, tester.Now())
 				el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, tester.Now())

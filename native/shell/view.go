@@ -47,8 +47,10 @@ func (s *State) View(c *ui.Context) {
 	at := s.viewAt(root, animate)
 	root.Children(func() {
 		hidden := at >= 0.999
-		s.fieldView(c, semantic, stage.Stage(w, h, at, stage.Rect{W: w, H: h}, aside).Field, w-s.laneRoom(), h, hidden, animate)
-		s.laneView(c, semantic, w, h, hidden)
+		look := stage.Stage(w, h, at, stage.Rect{W: w, H: h}, aside).Field
+		s.fieldView(c, semantic, look, s.laneRoom(), w-2*s.laneRoom(), h, hidden, animate)
+		s.fieldLaneView(c, semantic, look, w, h, hidden, animate)
+		s.laneView(c, semantic, w, h, hidden, animate)
 		scene := stage.Stage(w, h, at, s.deskRest(w, h), aside)
 		if at > 0.001 {
 			// The field darkens behind the desk coming up: a veil over it,

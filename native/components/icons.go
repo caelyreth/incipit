@@ -16,6 +16,7 @@ type IconName string
 const (
 	IconBack         IconName = "chevron-left"
 	IconBold         IconName = "bold"
+	IconBookmark     IconName = "bookmark"
 	IconCheck        IconName = "check"
 	IconCheckCircle  IconName = "circle-check"
 	IconChevronDown  IconName = "chevron-down"
@@ -60,6 +61,7 @@ const (
 var AllIcons = [...]IconName{
 	IconBack,
 	IconBold,
+	IconBookmark,
 	IconCheck,
 	IconCheckCircle,
 	IconChevronDown,

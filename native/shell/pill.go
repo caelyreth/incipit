@@ -2,6 +2,7 @@ package shell
 
 import (
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -16,25 +17,26 @@ import (
 // conditions stand around it as ribbons, each saying its condition in
 // words in the color of what it names: the first under the pill, the next
 // over it, and so on, outward on either side as the field's cards go, so
-// what is written always has the pill's whole width. A condition comes in
-// by a click on the field, a suggestion taken, or written whole and
-// followed by a space. A ribbon's × takes it away, as Backspace with
-// nothing written takes the last; pressed, a ribbon goes back into the
-// pill to be written again, and pressed with Option it turns to its
-// opposite. Return opens the row the keys are on, Tab takes the suggestion
-// they are on or the first, the arrows move them along the field's rows,
-// and Escape puts the suggestions away, then the words, then the
-// conditions, then goes to the desk. Written after ">", what the pill
-// holds names the app's commands. Beside it on the horizon stand
-// Neverland's name, before it, and the settings, after it.
+// what is written always has the pill's whole width. Nothing of the
+// query's language is ever written in the pill for them: a condition
+// comes in by a click on the field, or by a key opened from the ribbons
+// and one of its values taken (completion.go). A ribbon's × takes it away,
+// as Backspace with nothing written takes the last; pressed, a ribbon
+// opens its key to change it, and pressed with Option it turns to its
+// opposite. Return opens the row the keys are on or takes what an open key
+// holds, Tab takes a suggestion, the arrows move along the suggestions or
+// the field's rows, and Escape closes an open key, then puts the
+// suggestions away, then the words, then the conditions, then goes to the
+// desk. Written after ">", what the pill holds names the app's commands.
+// Beside it on the horizon stands Neverland's name, before it.
 
-// horizonSide is how much room, at the reference type size, the mark and
-// the settings each take beside the pill.
+// horizonSide is how much room, at the reference type size, the field
+// keeps on either side of the pill: for Neverland's name before it, and as
+// much after it, so the pill stands in the middle.
 const horizonSide = 140
 
 // horizonView is what stands on the horizon at r: the pill, the ribbons
-// around it as rl lays them out, Neverland's name just before it, and the
-// settings just after.
+// around it as rl lays them out, and Neverland's name just before it.
 func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stage.Rect, rl ribbonLayout, w, k float32, animate bool) {
 	gap := 12 * k
 	ui.Row(c).Key("wordmark").Absolute().Top(r.Y).Right(w - r.X + gap).Height(r.H).
@@ -54,18 +56,6 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stage.Rect, r
 		s.ribbon(c, semantic, p, r.Y, k, animate)
 	}
 	s.pillView(c, semantic, r, k, animate)
-	settings := ui.ButtonBase(c.Key("settings")).Absolute().Left(r.X+r.W+gap).Top(r.Y).Size(r.H, r.H).
-		Radius(r.H / 2).AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).
-		Label("Open settings").Tooltip("Settings")
-	hover := components.HoverAmount(settings, settings.Hovered(), animate)
-	settings.Background(components.Blend(semantic.Surface.Page, semantic.GhostElement.Hover, hover)).
-		Border(1, semantic.Border.Variant)
-	if settings.Clicked() && s.OpenSettings != nil {
-		s.OpenSettings()
-	}
-	settings.Children(func() {
-		ui.Icon(c, components.IconSettings.SVG()).FontSize(16 * k).TextColor(semantic.Icon.Muted)
-	})
 }
 
 func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k float32, animate bool) {
@@ -78,7 +68,7 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k fl
 		input = ui.TextInputBase(c.Key("pill-input"), &s.field.words).
 			Grow(1).MinWidth(0).Font(theme.UIFontFamily).
 			FontSize(theme.TextDefault.Size(s.Settings.UIFontSize)).
-			TextColor(semantic.Text.Heading).Placeholder("Where to, today?").Label("Search")
+			TextColor(semantic.Text.Heading).Placeholder(s.pillPlaceholder()).Label("Search")
 		input.OnTextKey(s.pillKey)
 		if edit := s.field.edit; edit != nil {
 			s.field.edit = nil
@@ -104,11 +94,15 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k fl
 		c.AnimationFrame()
 	}
 	focused := input.Focused()
-	// Open, the pill shows what it can narrow by around it; away from its
-	// horizon, or let go of, only what the query holds.
-	open := focused && (math.Abs(float64(s.field.scroll)) < 1 || s.field.home)
+	// Open, the pill shows what it can narrow by around it; let go of, only
+	// what the query holds. Scrolling never opens or closes it, so what
+	// the field makes room for stays as it is under the hand.
+	open := focused
 	if open != s.field.open {
 		s.field.open = open
+		if !open {
+			s.settleQuery()
+		}
 		c.AnimationFrame()
 	}
 	if !focused && pill.Clicked() {
@@ -133,6 +127,18 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k fl
 	pill.Border(1, components.Blend(semantic.Border.Variant, semantic.Border.Focused, active))
 }
 
+// pillPlaceholder is what the pill says with nothing written: what an
+// open key takes, or where to go.
+func (s *State) pillPlaceholder() string {
+	switch {
+	case s.field.opened != nil:
+		return s.field.opened.Label + "…"
+	case s.InSettings():
+		return "Find a setting…"
+	}
+	return "Where to, today?"
+}
+
 // ribbonH and ribbonGap are a ribbon's height and the room around it, at
 // the reference type size.
 const ribbonH, ribbonGap = 28, 6
@@ -150,12 +156,17 @@ const (
 )
 
 // ribbonPlace is where a ribbon stands: what it is, the condition, the
-// suggestion or how many more at i, the key it names, x from the field's
+// suggestion or how many more at i, the key it names, what it holds, x from the field's
 // left, y from the pill's top (above it, less than 0), w wide.
 type ribbonPlace struct {
-	kind    ribbonKind
-	i       int
-	key     *query.Key
+	kind ribbonKind
+	i    int
+	key  *query.Key
+	// text is the condition, and item the suggestion, as they were as the
+	// ribbon was laid out: a ribbon pressed may change the query before
+	// the ribbons after it are drawn.
+	text    string
+	item    query.Suggestion
 	x, y, w float32
 }
 
@@ -164,6 +175,9 @@ type ribbonPlace struct {
 type ribbonLayout struct {
 	places       []ribbonPlace
 	above, below float32
+	// heldAbove and heldBelow are how far the query's own conditions
+	// reach, which stay with the pill wherever it is.
+	heldAbove, heldBelow float32
 }
 
 // idleMost is how many values stand at once; past it, one says how many
@@ -181,7 +195,7 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	rh, gap := ribbonH*k, ribbonGap*k
 	items := make([]ribbonPlace, 0, len(s.field.conditions)+len(filterKeys))
 	for i := range s.field.conditions {
-		items = append(items, ribbonPlace{kind: ribbonCondition, i: i})
+		items = append(items, ribbonPlace{kind: ribbonCondition, i: i, text: s.field.conditions[i]})
 	}
 	items = append(items, s.keyRibbons()...)
 	var sides [2][][]ribbonPlace
@@ -206,6 +220,11 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	place(sides[1], -(rh + gap), -(rh + gap))
 	out.below = float32(len(sides[0])) * (rh + gap)
 	out.above = float32(len(sides[1])) * (rh + gap)
+	for _, p := range out.places {
+		if p.kind == ribbonCondition {
+			out.heldAbove, out.heldBelow = max(out.heldAbove, -p.y), max(out.heldBelow, p.y+rh-h)
+		}
+	}
 	if len(values) > 0 {
 		// A step further out, so the values read as the key's, apart.
 		place(values, h+out.below+3*gap, rh+gap)
@@ -228,7 +247,8 @@ func (s *State) flow(c *ui.Context, rows [][]ribbonPlace, p ribbonPlace, k, w fl
 // the pill is open; a key that what is written may start is that
 // suggestion's, for the keys to go along.
 func (s *State) keyRibbons() []ribbonPlace {
-	if !s.field.open {
+	// The settings are found by their words alone.
+	if !s.field.open || s.InSettings() {
 		return nil
 	}
 	suggested := map[string]int{}
@@ -244,10 +264,16 @@ func (s *State) keyRibbons() []ribbonPlace {
 			i = -1
 		}
 		delete(suggested, k.Name)
-		out = append(out, ribbonPlace{kind: ribbonKey, i: i, key: k})
+		p := ribbonPlace{kind: ribbonKey, i: i, key: k}
+		if ok {
+			p.item = s.field.completion.Items[i]
+		}
+		out = append(out, p)
 	}
+	// A key that takes a value stays, for more of its values; one that
+	// stands alone goes once it is taken.
 	for _, name := range filterKeys {
-		if k := mustKey(name); k != nil && !s.hasCondition(name) {
+		if k := mustKey(name); k != nil && (k.Takes != query.TakesNothing || !s.hasCondition(name)) {
 			add(k)
 		}
 	}
@@ -262,18 +288,18 @@ func (s *State) keyRibbons() []ribbonPlace {
 	return out
 }
 
-// valueRibbons are the values of the key being written, no more than
-// idleMost of them.
+// valueRibbons are the values of the key being written: no more than
+// idleMost of them, until all are asked for.
 func (s *State) valueRibbons() []ribbonPlace {
 	of := s.completing()
 	if !s.offered() || of == nil {
 		return nil
 	}
 	var out []ribbonPlace
-	for i := range s.field.completion.Items {
-		out = append(out, ribbonPlace{kind: ribbonValue, i: i, key: of})
+	for i, item := range s.field.completion.Items {
+		out = append(out, ribbonPlace{kind: ribbonValue, i: i, key: of, item: item})
 	}
-	if len(out) > idleMost {
+	if len(out) > idleMost && !s.field.allValues {
 		out = append(out[:idleMost-1], ribbonPlace{kind: ribbonMore, i: len(out) - idleMost + 1})
 	}
 	return out
@@ -308,42 +334,93 @@ func (s *State) hasCondition(name string) bool {
 	return false
 }
 
-// ribbonFace is how a ribbon shows: its words, its icon, and the ink of
-// what it names. An idle key is its name, and a value as its key says it.
-func (s *State) ribbonFace(semantic theme.Theme, p ribbonPlace) (label string, icon components.IconName, ink ui.Color) {
+// ribbonEdge is how a ribbon is outlined: not, in dashes, or in full.
+type ribbonEdge uint8
+
+const (
+	edgeNone ribbonEdge = iota
+	edgeDashed
+	edgeSolid
+)
+
+// ribbonLook is how a ribbon shows: its words and icon, the ink of its
+// icon, its words' ink, its fill, which none is transparent, its outline,
+// how much of it shows, and whether it has a × to take it away.
+type ribbonLook struct {
+	label  string
+	icon   components.IconName
+	ink    ui.Color
+	text   ui.Color
+	fill   ui.Color
+	edge   ribbonEdge
+	shown  float32
+	closes bool
+}
+
+// look is how the ribbon at p shows, by what it is and how it stands:
+//   - a condition, filled in the color of what it names, with its ×;
+//   - a key idle, outlined in dashes, a + before it; the key whose values
+//     are being written, filled in the accent, opened; while a key is
+//     being written, the keys it cannot start faded;
+//   - a value idle, outlined in dashes; a value the query has taken,
+//     filled, a tick before it;
+//   - how many more there are, plain;
+//   - what the keys are on, outlined in full over any of these.
+func (s *State) look(semantic theme.Theme, p ribbonPlace) ribbonLook {
+	l := ribbonLook{ink: semantic.Icon.Muted, text: semantic.Text.Default, edge: edgeDashed, shown: 1}
 	switch p.kind {
+	case ribbonCondition:
+		l = s.conditionLook(semantic, p.text)
 	case ribbonKey:
-		return p.key.Label, components.IconPlus, semantic.Text.Muted
-	case ribbonValue:
-		item := s.field.completion.Items[p.i]
-		if strings.HasPrefix(item.Label, "#") {
-			return item.Label, "", semantic.Text.Muted
+		l.label, l.icon = p.key.Label, components.IconPlus
+		if of := s.completing(); of != nil && of.Name == p.key.Name {
+			l.icon, l.edge = components.IconChevronDown, edgeNone
+			l.ink, l.text, l.fill = semantic.Accent.Foreground, semantic.Accent.Foreground, semantic.Accent.Muted
+		} else if s.offered() && s.completing() == nil && p.i < 0 {
+			l.shown = 0.4
 		}
-		return query.Describe(p.key, item.Label), "", semantic.Text.Muted
+	case ribbonValue:
+		v := rawValue(p.item)
+		l.label = query.Describe(p.key, v)
+		if strings.HasPrefix(p.item.Label, "#") {
+			l.label = "#" + v
+		}
+		if s.takenAt(p.key, v) >= 0 {
+			l.icon, l.edge = components.IconCheck, edgeNone
+			l.ink, l.text, l.fill = semantic.Accent.Foreground, semantic.Text.Heading, semantic.Text.Default.Alpha(0.12)
+		}
 	case ribbonMore:
-		return thousands(p.i) + " more", "", semantic.Text.Muted
+		l.label, l.icon, l.edge = thousands(p.i)+" more", components.IconChevronDown, edgeNone
+		l.text = semantic.Text.Muted
 	}
-	text := s.field.conditions[p.i]
-	label, ink = text, semantic.Text.Default
-	cond, ok := condition(text)
-	if !ok {
-		return label, icon, ink
+	if p.kind != ribbonCondition && p.kind != ribbonMore && p.i >= 0 && p.i == s.field.suggestion {
+		l.edge = edgeSolid
 	}
-	label = cond.Sentence()
-	switch cond.Key.Name {
-	case "in":
-		if s.Library != nil {
-			if g, ok := s.groupNamed(cond.Value); ok {
-				icon = groupIcon(g)
-				if tint := groupTint(semantic, g); tint != nil {
-					ink = *tint
+	return l
+}
+
+// conditionLook is how the condition text shows as a ribbon: its words,
+// and the icon and color of what it names.
+func (s *State) conditionLook(semantic theme.Theme, text string) ribbonLook {
+	l := ribbonLook{label: text, ink: semantic.Text.Default, text: semantic.Text.Heading, shown: 1, closes: true}
+	if cond, ok := condition(text); ok {
+		l.label = cond.Sentence()
+		switch cond.Key.Name {
+		case "in":
+			if s.Library != nil {
+				if g, ok := s.groupNamed(cond.Value); ok {
+					l.icon = groupIcon(g)
+					if tint := groupTint(semantic, g); tint != nil {
+						l.ink = *tint
+					}
 				}
 			}
+		case "trash":
+			l.icon = components.IconTrash
 		}
-	case "trash":
-		icon = components.IconTrash
 	}
-	return label, icon, ink
+	l.fill = l.ink.Alpha(0.14)
+	return l
 }
 
 // The parts of a ribbon, at the reference type size: its padding at the
@@ -359,16 +436,16 @@ const (
 
 // ribbonWidth is how wide the ribbon at p is: what it says, whole.
 func (s *State) ribbonWidth(c *ui.Context, p ribbonPlace, k float32) float32 {
-	label, icon, _ := s.ribbonFace(theme.Theme{}, p)
-	tw, _ := c.MeasureText(0, ui.Span{Text: label, Font: theme.UIFontFamily, Size: theme.TextSmall.Size(components.UIFontSize(c))})
+	l := s.look(theme.Theme{}, p)
+	tw, _ := c.MeasureText(0, ui.Span{Text: l.label, Font: theme.UIFontFamily, Size: theme.TextSmall.Size(components.UIFontSize(c))})
 	w := float32(math.Ceil(float64(tw))) + 1 + ribbonStart*k
-	if icon != "" {
+	if l.icon != "" {
 		w += ribbonIcon * k
 	}
-	if p.kind != ribbonCondition {
-		return w + ribbonStart*k
+	if l.closes {
+		return w + ribbonX*k + ribbonEnd*k
 	}
-	return w + ribbonX*k + ribbonEnd*k
+	return w + ribbonStart*k
 }
 
 // ribbonID is the ribbon's identity as the ribbons move about.
@@ -377,78 +454,93 @@ func (s *State) ribbonID(p ribbonPlace) string {
 	case ribbonKey:
 		return "key-" + p.key.Name
 	case ribbonValue:
-		return "value-" + p.key.Name + "-" + s.field.completion.Items[p.i].Text
+		return "value-" + p.key.Name + "-" + p.item.Text
 	case ribbonMore:
 		return "more"
 	}
-	return "ribbon-" + s.field.conditions[p.i]
+	return "ribbon-" + p.text
 }
 
-// ribbon is the ribbon at p, the pill's top at top: a condition, pressed
-// to be written again or with Option turned around, its × taking it away;
-// or something idle, pressed to be written.
+// ribbon is the ribbon at p, the pill's top at top, as it looks (look):
+// a condition, pressed to be written again or with Option turned around,
+// its × taking it away; a key, pressed to be written; a value, pressed to
+// be taken or let go; how many more, pressed to show them all.
 func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, top, k float32, animate bool) {
-	label, icon, ink := s.ribbonFace(semantic, p)
+	l := s.look(semantic, p)
 	h := ribbonH * k
-	btn := ui.ButtonBase(c.Key(s.ribbonID(p))).Absolute().Left(p.x).Top(top+p.y).Size(p.w, h).
-		PaddingStart(ribbonStart * k).Gap(6 * k).AlignItems(ui.Center).Radius(h / 2).
-		FocusRing(false).KeepFocus().Label(label).Transition(ribbonTransition(animate))
+	// It stands where the layout puts it about the pill, and only that
+	// moves it on its spring; the pill's own place, as the field scrolls,
+	// carries it along at once. Away from the horizon, all but the query's
+	// own conditions are put away.
+	shown := l.shown
+	if p.kind != ribbonCondition {
+		shown *= 1 - s.field.away
+	}
+	btn := ui.ButtonBase(c.Key(s.ribbonID(p))).Absolute().Left(p.x).Top(p.y).Translate(0, top).Size(p.w, h).
+		PaddingStart(ribbonStart * k).Gap(6 * k).AlignItems(ui.Center).Radius(h / 2).Opacity(shown).
+		IgnoreInput(shown < 0.5).FocusRing(false).KeepFocus().Label(l.label).Transition(ribbonTransition(animate))
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
-	if p.kind == ribbonCondition {
-		btn.PaddingEnd(ribbonEnd * k).Tooltip("Change " + label + "; with Option, turn it around").
-			Background(components.Blend(ink.Alpha(0.14), ink.Alpha(0.24), hover))
-		if btn.Clicked() {
-			if btn.ClickModifiers()&ui.Alt != 0 {
-				s.turn(p.i)
-			} else {
-				s.rewrite(p.i)
-			}
-		}
+	if l.closes {
+		btn.PaddingEnd(ribbonEnd * k)
 	} else {
-		// Idle, a ribbon is only outlined, in dashes; the key whose value
-		// is being written, and the suggestion the keys are on, in full.
-		btn.PaddingEnd(ribbonStart * k).
-			Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
-		of := s.completing()
-		if of != nil && p.kind == ribbonKey && of.Name == p.key.Name || p.kind != ribbonMore && p.i >= 0 && p.i == s.suggested() {
-			btn.Border(1, semantic.Border.Focused)
-		} else {
-			btn.Draw(func(pt *ui.Painter, r ui.Rect) { components.DashedOutline(pt, r, h/2, 1, semantic.Border.Default) })
-		}
-		switch {
-		case p.kind == ribbonMore:
-			btn.IgnoreInput(true)
-		case p.i >= 0:
-			btn.Tooltip(s.field.completion.Items[p.i].Help)
-			if btn.Clicked() {
-				s.activate("suggest:"+strconv.Itoa(p.i), false)
+		btn.PaddingEnd(ribbonStart * k)
+	}
+	if l.fill.A > 0 {
+		btn.Background(components.Blend(l.fill, l.fill.Alpha(min(1, float32(l.fill.A)/255+0.1)), hover))
+	} else {
+		btn.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
+	}
+	switch l.edge {
+	case edgeSolid:
+		btn.Border(1, semantic.Border.Focused)
+	case edgeDashed:
+		btn.Draw(func(pt *ui.Painter, r ui.Rect) { components.DashedOutline(pt, r, h/2, 1, semantic.Border.Default) })
+	}
+	switch p.kind {
+	case ribbonCondition:
+		btn.Tooltip("Change " + l.label + "; with Option, turn it around; drag it to the lane to keep it").
+			Drag(queryDrag{text: p.text})
+		if btn.Clicked() {
+			if i := slices.Index(s.field.conditions, p.text); i >= 0 && btn.ClickModifiers()&ui.Alt != 0 {
+				s.turn(i)
+			} else if i >= 0 {
+				s.rewrite(i)
 			}
-		default:
+		}
+	case ribbonMore:
+		btn.Tooltip("Show them all")
+		if btn.Clicked() {
+			s.field.allValues = true
+			s.field.offers++
+		}
+	default:
+		if p.i >= 0 {
+			btn.Tooltip(p.item.Help)
+		} else {
 			btn.Tooltip(p.key.Help)
-			if btn.Clicked() {
+		}
+		if btn.Clicked() {
+			if p.i >= 0 {
+				s.activate("suggest:"+strconv.Itoa(p.i), false)
+			} else {
 				s.activate("key:"+p.key.Name, false)
 			}
 		}
 	}
 	btn.Children(func() {
-		if icon != "" {
-			ui.Icon(c, icon.SVG()).FontSize(14 * k).TextColor(ink).Shrink(0)
+		if l.icon != "" {
+			ui.Icon(c, l.icon.SVG()).FontSize(14 * k).TextColor(l.ink).Shrink(0)
 		}
-		text := semantic.Text.Heading
-		if p.kind != ribbonCondition {
-			text = semantic.Text.Default
-		}
-		components.Label(c, label, theme.TextSmall, text).SingleLine().Shrink(0)
-		if p.kind != ribbonCondition {
+		components.Label(c, l.label, theme.TextSmall, l.text).SingleLine().Shrink(0)
+		if !l.closes {
 			return
 		}
-		ui.Box(c).Grow(1)
 		gone := ui.ButtonBase(c.Key("remove")).Size(ribbonClose*k, ribbonClose*k).Radius(ribbonClose * k / 2).Shrink(0).
 			AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).KeepFocus().
-			Label("Remove " + label).Tooltip("Remove")
-		gone.Background(components.Blend(ink.Alpha(0), ink.Alpha(0.2), components.HoverAmount(gone, gone.Hovered(), animate)))
-		if gone.Clicked() {
-			s.broaden(p.i)
+			Label("Remove " + l.label).Tooltip("Remove")
+		gone.Background(components.Blend(l.ink.Alpha(0), l.ink.Alpha(0.2), components.HoverAmount(gone, gone.Hovered(), animate)))
+		if i := slices.Index(s.field.conditions, p.text); i >= 0 && gone.Clicked() {
+			s.broaden(i)
 		}
 		gone.Children(func() {
 			ui.Icon(c, components.IconClose.SVG()).FontSize(10 * k).TextColor(semantic.Icon.Muted)
@@ -464,19 +556,29 @@ func (s *State) pillKey(key ui.TextKey) bool {
 		s.escapeField()
 		return true
 	case ui.KeyBackspace:
-		if s.field.words == "" && len(s.field.conditions) > 0 {
+		switch {
+		case s.field.words != "":
+		case s.field.opened != nil:
+			s.closeKey()
+			return true
+		case len(s.field.conditions) > 0:
 			s.broaden(len(s.field.conditions) - 1)
 			return true
 		}
-	case ui.KeyTab:
-		if plain && s.offered() {
+	case ui.KeyTab, ui.KeyEnter:
+		if key.Key == ui.KeyTab && !plain {
+			break
+		}
+		switch {
+		case s.field.opened != nil:
+			s.takeOpened()
+			return true
+		case s.offered():
 			s.activate("suggest:"+strconv.Itoa(s.suggested()), false)
 			return true
 		}
-	case ui.KeyEnter:
-		if s.offered() {
-			s.activate("suggest:"+strconv.Itoa(s.suggested()), false)
-			return true
+		if key.Key == ui.KeyTab {
+			break
 		}
 		id := s.field.chosen
 		if id == "" {
@@ -493,8 +595,7 @@ func (s *State) pillKey(key ui.TextKey) bool {
 		if plain && s.offered() {
 			// While something is being written, the arrows go along what
 			// may stand there.
-			n := len(s.field.completion.Items)
-			s.field.suggestion = (s.suggested() + map[ui.Key]int{ui.KeyUp: n - 1, ui.KeyDown: 1}[key.Key]) % n
+			s.stepSuggestion(map[ui.Key]int{ui.KeyUp: -1, ui.KeyDown: 1}[key.Key])
 			return true
 		}
 		if plain {
