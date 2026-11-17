@@ -317,8 +317,10 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	below, above := stage.Reach(rects)
 	below, above = max(below, z.Below), max(above, z.Above)
 	top, foot := 48*k, 24*k
-	// At rest, the field stands even in the window: its horizon rises or
-	// falls into the room it leaves empty over or under it, and its cards,
+	// At rest, the pill stands at the window's middle, its ribbons with it,
+	// however many stand on either side: only cards standing on one side
+	// more than the other move it, the horizon rising or falling into the
+	// room they leave empty over or under it; and the cards,
 	// where a ring of columns is taken on one side alone, go across to
 	// stand even about the pill. While the pill is open it keeps still,
 	// under the pointer and the caret, and the field with it, until the
@@ -331,7 +333,8 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	reach := (float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap) / 2
 	if !s.field.open || first || s.field.settled {
 		s.field.settled = false
-		s.field.poiseTo = stage.Point{X: -(lo + hi) / 2, Y: (foot - top + below - above) / 2}
+		cardsBelow, cardsAbove := max(0, below-z.Below), max(0, above-z.Above)
+		s.field.poiseTo = stage.Point{X: -(lo + hi) / 2, Y: (cardsBelow - cardsAbove) / 2}
 	}
 	s.field.poiseTo.X = max(-reach-lo, min(reach-hi, s.field.poiseTo.X))
 	s.field.poiseTo.Y = max(-down, min(up, s.field.poiseTo.Y))

@@ -79,15 +79,15 @@ func TestTheHorizonRisesIntoEmptyRoomAndKeepsStillWhileWritten(t *testing.T) {
 	if mid > 850/2-5 {
 		t.Fatalf("With all of the field under it, the pill should rise over the middle: %v.", mid)
 	}
-	// What it holds, from the band's top to its card's foot, stands even
-	// between the window's top and foot room.
+	// Its card, past the band under the pill, stands even about the
+	// window's middle: the pill goes up half as far as the card reaches.
 	below := float32(0)
 	for _, fr := range state.field.rest {
 		below = max(below, fr.Rect.Y+fr.Rect.H)
 	}
-	above := state.blockMetrics(1260-2*state.laneRoom(), 850).horizon.Above
-	if over, under := mid-above-48, 850-24-(mid+below); abs(over-under) > 1 {
-		t.Fatalf("The field should stand even in the window: %v over it, %v under it.", over, under)
+	band := state.blockMetrics(1260-2*state.laneRoom(), 850).horizon.Below
+	if want := 850/2 - (below-band)/2; abs(mid-want) > 1 {
+		t.Fatalf("The pill should rise half as far as the card reaches: %v, not %v.", want, mid)
 	}
 	state.Search()
 	settle(tester)
@@ -182,5 +182,19 @@ func TestOpeningAKeyKeepsThePillStill(t *testing.T) {
 	settle(tester)
 	if now, _ := tester.Find("Search"); now.Y != pill.Y {
 		t.Fatalf("Opening a key should leave the pill where it was: %v, now %v.", pill, now)
+	}
+}
+
+// The ribbons are the pill's own: however many stand on one side of it,
+// the pill stands at the window's middle while the cards stand even.
+func TestRibbonsLeaveThePillAtTheMiddle(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.order = func(string) []string { return nil }
+	state.SetFieldQuery("$tag:work $tag:plan $updated:today nothing")
+	tester.ClickAt(12, 12)
+	settle(tester)
+	pill, _ := tester.Find("Search")
+	if mid := pill.Y + pill.H/2; abs(mid-850/2) > 0.5 {
+		t.Fatalf("With nothing found, the pill should stand at the middle whatever its ribbons: %v.", mid)
 	}
 }
