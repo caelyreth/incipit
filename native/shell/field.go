@@ -634,10 +634,9 @@ func (s *State) fieldMenu(m *ui.Menu) {
 		s.newGroup(s.scope())
 	}
 	m.Separator()
-	trash := slices.IndexFunc(s.field.conditions, func(c string) bool { return conditionKey(c) == "trash" })
-	if trash >= 0 {
+	if s.inTrash() {
 		if m.Item("Leave Trash").Chosen() {
-			s.broaden(trash)
+			s.toggleTrash()
 		}
 		if m.Item("Empty Trash…").Chosen() {
 			s.arm(emptyTrashKey)
@@ -645,10 +644,25 @@ func (s *State) fieldMenu(m *ui.Menu) {
 		return
 	}
 	if m.Item("Show Trash").Chosen() {
-		s.field.conditions = nil
-		s.setWords("")
-		s.narrow((&query.Condition{Key: mustKey("trash")}).String(), stage.Rect{})
+		s.toggleTrash()
 	}
+}
+
+// inTrash reports whether the field shows the trash.
+func (s *State) inTrash() bool {
+	return slices.ContainsFunc(s.field.conditions, func(c string) bool { return conditionKey(c) == "trash" })
+}
+
+// toggleTrash shows the trash in the field, in place of what it showed, or
+// leaves it.
+func (s *State) toggleTrash() {
+	if i := slices.IndexFunc(s.field.conditions, func(c string) bool { return conditionKey(c) == "trash" }); i >= 0 {
+		s.broaden(i)
+		return
+	}
+	s.field.conditions = nil
+	s.setWords("")
+	s.narrow((&query.Condition{Key: mustKey("trash")}).String(), stage.Rect{})
 }
 
 // scope is the group the query is in, "" for none.

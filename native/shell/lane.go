@@ -72,6 +72,11 @@ func laneIcon(c *ui.Context, semantic theme.Theme, key string, icon components.I
 	} else {
 		row.Right(10 * k)
 	}
+	// Its count faces the window's middle: after the icon at the left,
+	// before it at the right.
+	if !left {
+		row.Reverse()
+	}
 	row.Children(func() {
 		ui.Icon(c, icon.SVG()).FontSize(14 * k).TextColor(semantic.Icon.Muted).Shrink(0)
 		if count > 0 {

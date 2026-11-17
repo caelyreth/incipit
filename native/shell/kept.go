@@ -13,8 +13,8 @@ import (
 
 // The field lane stands at the window's left edge as the desk lane does
 // at its right, as wide, so the field and its pill stand in the window's
-// middle (field-and-desk.md §4.6). It holds what tunes the field: the
-// queries kept, and the settings at its foot. The queries kept rest in a
+// middle (field-and-desk.md §4.6). It holds what tunes the field: Home and
+// the trash at its top, the queries kept, and the settings at its foot. The queries kept rest in a
 // box half out of the window, its edge and the bookmarks standing out of
 // it all that shows; the pointer on it, or a ribbon dragged to it, draws
 // it out. A bookmark is a smart folder of the notebook's, the newest on
@@ -146,21 +146,35 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stage.Lo
 	if look.Offset.X != 0 {
 		lane.Translate(look.Offset.X, 0)
 	}
-	var homeBottom float32
+	var buttonsFoot float32
 	lane.Children(func() {
 		barH := titleLine(c)
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(barH).DragWindow()
-		// The home and settings buttons stand in one vertical alignment
-		// line beside the field's columns: home below the title/traffic-light
-		// safe area at the top, settings in the corner at the foot.
+		// The lane's buttons stand in one line beside the field's columns:
+		// Home under the title line, the trash under it, and the settings
+		// in the corner at the foot.
 		size, mid := settingsSize*k, s.fieldMargin(w, h)/2
 		inset := mid - size/2
 		homeTop := max(inset, barH+theme.DefaultLayout.ChromeGutter*k)
-		homeBottom = homeTop + size
+		trashTop := homeTop + size + 8*k
+		buttonsFoot = trashTop + size
 		s.homeButton(c, semantic, size, animate).Absolute().Left(inset).Top(homeTop)
+		s.trashButton(c, semantic, size, animate).Absolute().Left(inset).Top(trashTop)
 		s.settingsButton(c, semantic, size, animate).Absolute().Left(inset).Bottom(inset)
 	})
-	s.keptBox(c, semantic, look, h, k, homeBottom, hidden, animate)
+	s.keptBox(c, semantic, look, h, k, buttonsFoot, hidden, animate)
+}
+
+// trashButton shows the trash in the field, or leaves it, filled while it
+// is shown.
+func (s *State) trashButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
+	shown := s.inTrash()
+	label := map[bool]string{true: "Leave Trash", false: "Show Trash"}[shown]
+	btn := s.laneCircleButton(c, semantic, "trash", components.IconTrash, label, "Trash", shown, size, animate)
+	if btn.Clicked() {
+		s.toggleTrash()
+	}
+	return btn
 }
 
 func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
@@ -175,12 +189,12 @@ func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, an
 // height, aligned at the foot of a lower-lane region so it grows upward
 // while leaving the upper side lane blank: a query dragged to it is kept,
 // and it stays out while a bookmark in it is renamed.
-func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h, k, homeBottom float32, hidden, animate bool) {
+func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h, k, buttonsFoot float32, hidden, animate bool) {
 	marks := s.bookmarks()
 	text := s.FieldQuery()
 	keep := text != "" && !strings.HasPrefix(s.field.words, ">") &&
 		!slices.ContainsFunc(marks, func(g GroupItem) bool { return sameQuery(g.Query, text) })
-	topClearance, bottomClearance := max(80*k, homeBottom+36*k), 88*k
+	topClearance, bottomClearance := max(80*k, buttonsFoot+36*k), 88*k
 	most := min(h*0.36, max(0, h-topClearance-bottomClearance))
 	bottomY := max(topClearance+most, min(h*0.86, h-bottomClearance))
 	sh := shelf{

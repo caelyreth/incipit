@@ -210,3 +210,44 @@ func TestABookmarkDeletedFromTheMiddleFoldsShut(t *testing.T) {
 		t.Fatalf("Shut, the bookmark should be gone: %v.", state.field.keptRows)
 	}
 }
+
+// Under Home stands the trash: pressed, the field shows the trash, the
+// button filled; pressed again, it leaves it.
+func TestTheTrashStandsUnderHome(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	home, _ := tester.Find("Home")
+	trash, ok := tester.Find("Show Trash")
+	if !ok || abs(trash.X-home.X) > 0.5 || trash.Y <= home.Y+home.H {
+		t.Fatalf("The trash should stand under Home, at %v, Home at %v.", trash, home)
+	}
+	if err := tester.Click("Show Trash"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if !state.inTrash() {
+		t.Fatalf("The trash button should show the trash: %q.", state.FieldQuery())
+	}
+	if err := tester.Click("Leave Trash"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.inTrash() {
+		t.Fatal("Pressed again, it should leave the trash.")
+	}
+}
+
+// At the right, a lane's count stands before its icon, facing the
+// window's middle; at the left, after it.
+func TestLaneCountsFaceTheMiddle(t *testing.T) {
+	_, _, tester := keptState(t, GroupItem{ID: "s1", Name: "Mark", Query: "$tag:a", Color: TintHalo})
+	desk, _ := tester.Find("Desk icon")
+	var count ui.Rect
+	for _, a := range tester.AccessAll() {
+		if a.Name == "1" && a.Bounds.X >= desk.X && a.Bounds.X < desk.X+desk.W {
+			count = a.Bounds
+		}
+	}
+	if count.W == 0 || count.X+count.W > desk.X+desk.W/2+1 {
+		t.Fatalf("The desk's count should stand before its icon, at the row's start: %v in %v.", count, desk)
+	}
+}
