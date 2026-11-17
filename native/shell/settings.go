@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -11,12 +12,13 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The settings are a source of the field (field-and-desk.md §4.4.1): the
-// query holding $settings hands it to them, and its words find their
-// sections, each a card of its controls, live. The settings button in the
-// field lane, and the Settings command, put $settings in the query; there
-// is no settings window. While the settings answer, the field's columns
-// are wider, for a setting's words and its control to stand side by side.
+// The settings are a source of the field (field-and-desk.md §4.4.1): at
+// $settings alone, each category stands as a block of its sections, like
+// groups and sheets in the library; opening a category or a section
+// narrows the query ($in:<Category> or $in:<Section>), widening the
+// field's columns so live controls stand beside their labels. Words
+// written with $settings narrow straight to matching live section cards.
+// There is no settings window.
 
 // AppSettings is the app's settings as the field shows them.
 type AppSettings interface {
@@ -32,7 +34,28 @@ type AppSettings interface {
 
 // SettingsSection is a section of the settings, as the field finds it.
 type SettingsSection struct {
-	ID, Title string
+	ID, Category, Title, Description string
+}
+
+func sectionCategory(sec SettingsSection) string {
+	if sec.Category != "" {
+		return sec.Category
+	}
+	cat, _, _ := strings.Cut(sec.ID, "/")
+	return cat
+}
+
+func settingsCategoryIcon(category string) components.IconName {
+	switch strings.ToLower(category) {
+	case "appearance":
+		return components.IconName("palette")
+	case "editor":
+		return components.IconName("pen-line")
+	case "keymap":
+		return components.IconKeyboard
+	default:
+		return components.IconSettings
+	}
 }
 
 // inSettings reports whether the query hands the field to the settings.
@@ -47,13 +70,60 @@ func (s *State) InSettings() bool {
 	return slices.ContainsFunc(s.field.conditions, func(text string) bool { return conditionKey(text) == "settings" })
 }
 
+// settingsScope returns the settings category/section scope ($in) and the
+// search words in text.
+func (s *State) settingsScope(text string) (scope, words string) {
+	conds, rest := splitQuery(text)
+	for _, c := range conds {
+		if cond, ok := condition(c); ok && cond.Key.Name == "in" && !cond.Not {
+			scope = cond.Value
+		}
+	}
+	return scope, strings.TrimSpace(rest)
+}
+
+// settingsLive reports whether the field currently shows live settings
+// section cards rather than top-level category blocks.
+func (s *State) settingsLive() bool {
+	if !inSettings(s.wholeQuery()) || strings.HasPrefix(s.field.words, ">") {
+		return false
+	}
+	scope, words := s.settingsScope(s.wholeQuery())
+	return scope != "" || words != ""
+}
+
+// intoSettings narrows the settings query to a category or section.
+func (s *State) intoSettings(target string, from stage.Rect) {
+	s.narrow((&query.Condition{Key: mustKey("in"), Value: target}).String(), from)
+}
+
+// clickSettingsRibbon steps back up from a section ribbon to its category,
+// or closes a category ribbon.
+func (s *State) clickSettingsRibbon(i int) {
+	if i < 0 || i >= len(s.field.conditions) {
+		return
+	}
+	c, ok := condition(s.field.conditions[i])
+	if !ok || c.Key.Name != "in" {
+		return
+	}
+	if cat, _, hasSec := strings.Cut(c.Value, "/"); hasSec {
+		s.intoSettings(cat, stage.Rect{})
+		s.field.next = change{depth: stage.Up}
+		return
+	}
+	s.broaden(i)
+}
+
 // ShowSettings brings the field up on the settings, its pill taking the
 // keys to find one; shown already, the field goes back to what it showed
 // before them.
 func (s *State) ShowSettings() {
-	settings := (&query.Condition{Key: mustKey("settings")}).String()
 	if s.InSettings() && !s.OnDesk() {
-		s.field.conditions = slices.DeleteFunc(slices.Clone(s.field.conditions), func(c string) bool { return c == settings })
+		s.field.conditions = slices.DeleteFunc(slices.Clone(s.field.conditions), func(c string) bool {
+			k := conditionKey(c)
+			return k == "settings" || k == "in"
+		})
 		s.setWords("")
 		s.field.next = change{depth: stage.Up}
 		return
@@ -81,10 +151,121 @@ func (settingsSource) answer(s *State, text string, f *found) {
 		s.AppSettings.Away()
 		return
 	}
-	_, words := splitQuery(text)
+	scope, words := s.settingsScope(text)
+	if scope == "" && words == "" {
+		// Top-level browsing: one category card per category, like groups.
+		var order []string
+		byCat := map[string][]SettingsSection{}
+		for _, sec := range s.AppSettings.Sections("") {
+			cat := sectionCategory(sec)
+			if _, ok := byCat[cat]; !ok {
+				order = append(order, cat)
+			}
+			byCat[cat] = append(byCat[cat], sec)
+		}
+		for _, cat := range order {
+			f.add("settings-cat:"+cat, tierResult, settingsCategoryCard{category: cat, sections: byCat[cat]})
+		}
+		return
+	}
 	for _, sec := range s.AppSettings.Sections(words) {
+		if scope != "" {
+			if strings.Contains(scope, "/") {
+				if sec.ID != scope {
+					continue
+				}
+			} else if !strings.EqualFold(sectionCategory(sec), scope) {
+				continue
+			}
+		}
 		f.add("settings:"+sec.ID, tierResult, settingsCard{id: sec.ID, words: words})
 	}
+}
+
+// settingsCategoryCard is a category block listing its settings sections as
+// rows, like a group block lists its sheets.
+type settingsCategoryCard struct {
+	category string
+	sections []SettingsSection
+}
+
+func (sc settingsCategoryCard) shape(_ *State, _ *ui.Context, m blockMetrics) shape {
+	rows := make([]row, len(sc.sections))
+	for i := range sc.sections {
+		rows[i] = row{setting: &sc.sections[i], h: m.groupRow}
+	}
+	return stack(rows, m)
+}
+
+func (sc settingsCategoryCard) rows() []string {
+	ids := make([]string, len(sc.sections))
+	for i, sec := range sc.sections {
+		ids[i] = "settings-sec:" + sec.ID
+	}
+	return ids
+}
+
+func (settingsCategoryCard) ground() bool { return true }
+
+func (settingsCategoryCard) drawsLive(*State) bool { return false }
+
+func (sc settingsCategoryCard) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stage.Frame, sh shape, _ bool, m blockMetrics, animate bool) {
+	box.Children(func() {
+		s.settingsCategoryHead(c, semantic, sc, fr, m, animate)
+		cardRows(c, sh, m, func(r row) {
+			if r.setting != nil {
+				s.settingsSectionRow(c, semantic, *r.setting, fr, m, animate)
+				return
+			}
+			s.settingsMoreRow(c, semantic, sc.category, sh.more, fr, m, animate)
+		})
+	})
+}
+
+func (s *State) settingsCategoryHead(c *ui.Context, semantic theme.Theme, sc settingsCategoryCard, fr stage.Frame, m blockMetrics, animate bool) {
+	ui.Row(c).Key("head").Height(m.head).WidthPercent(100).AlignItems(ui.Center).Gap(4 * m.k).Shrink(0).Children(func() {
+		head := ui.ButtonBase(c.Key("name")).Grow(1).MinWidth(0).FillHeight().PaddingX(8 * m.k).Gap(8 * m.k).
+			AlignItems(ui.Center).Radius(8 * m.k).FocusRing(false).KeepFocus().Label(sc.category)
+		hover := components.HoverAmount(head, head.Hovered(), animate)
+		head.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
+		if head.Clicked() {
+			s.intoSettings(sc.category, fr.Rect)
+		}
+		head.Children(func() {
+			ui.Icon(c, settingsCategoryIcon(sc.category).SVG()).FontSize(15 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
+			components.Label(c, sc.category, theme.TextDefault, semantic.Text.Heading).Grow(1).MinWidth(0).SingleLine()
+			components.Label(c, thousands(len(sc.sections)), theme.TextXSmall, semantic.Text.Muted).
+				SingleLine().Shrink(0).FontFeatures("tnum")
+		})
+	})
+}
+
+func (s *State) settingsSectionRow(c *ui.Context, semantic theme.Theme, sec SettingsSection, fr stage.Frame, m blockMetrics, animate bool) {
+	id := "settings-sec:" + sec.ID
+	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
+		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
+		FocusRing(false).KeepFocus().Label(sec.Title)
+	s.rowFill(c, semantic, btn, id, false, animate)
+	if btn.Clicked() {
+		s.intoSettings(sec.ID, fr.Rect)
+	}
+	btn.Children(func() {
+		components.Label(c, sec.Title, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
+		ui.Icon(c, components.IconChevronRight.SVG()).FontSize(12 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
+	})
+}
+
+func (s *State) settingsMoreRow(c *ui.Context, semantic theme.Theme, category string, more int, fr stage.Frame, m blockMetrics, animate bool) {
+	label := fmt.Sprintf("%s more", thousands(more))
+	btn := ui.ButtonBase(c.Key("more")).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
+		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label)
+	s.rowFill(c, semantic, btn, "", false, animate)
+	if btn.Clicked() {
+		s.intoSettings(category, fr.Rect)
+	}
+	btn.Children(func() {
+		components.Label(c, label, theme.TextXSmall, semantic.Text.Muted).SingleLine()
+	})
 }
 
 // settingsCard is a section of the settings: drawn live, as its controls

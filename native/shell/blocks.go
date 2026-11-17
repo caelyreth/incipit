@@ -24,12 +24,14 @@ type shape struct {
 	more int
 }
 
-// row is one row of a card: a group inside it, a sheet, a command, the
-// area that makes a sheet there, or what it leaves out.
+// row is one row of a card: a group inside it, a sheet, a command, a
+// settings section, the area that makes a sheet there, or what it leaves
+// out.
 type row struct {
 	group   *GroupItem
 	entry   *entry
 	command *Command
+	setting *SettingsSection
 	create  bool
 	h       float32
 }
@@ -52,10 +54,10 @@ func (s *State) blockMetrics(w, h float32) blockMetrics {
 	scale := s.Settings.UIFontSize
 	k := scale / theme.DefaultUIFontSize
 	pad, gap := 6*k, fieldGap*k
-	// The settings' columns are wider, for a setting's words and its
-	// control to stand side by side.
+	// Live settings cards are wider, for a setting's words and its control
+	// to stand side by side; category cards share the library's measure.
 	least, most := float32(260), float32(340)
-	if s.InSettings() {
+	if s.settingsLive() {
 		least, most = 400, 560
 	}
 	cols, col := stage.Columns(w-48*k, least*k, most*k, gap)

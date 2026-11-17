@@ -151,9 +151,25 @@ func (s *State) broaden(i int) {
 		return
 	}
 	next := change{depth: stage.Up}
-	if c, ok := condition(s.field.conditions[i]); ok && c.Key.Name == "in" && s.Library != nil {
-		if g, ok := s.groupNamed(c.Value); ok {
-			next.exit = "group:" + g.ID
+	inSettings := s.InSettings()
+	if c, ok := condition(s.field.conditions[i]); ok {
+		switch {
+		case c.Key.Name == "settings":
+			// Leaving settings clears any settings-scoped category/section too.
+			s.field.conditions = slices.DeleteFunc(slices.Clone(s.field.conditions), func(text string) bool {
+				k := conditionKey(text)
+				return k == "settings" || k == "in"
+			})
+			s.field.next = next
+			s.field.chosen = ""
+			return
+		case c.Key.Name == "in" && inSettings:
+			cat, _, _ := strings.Cut(c.Value, "/")
+			next.exit = "settings-cat:" + cat
+		case c.Key.Name == "in" && s.Library != nil:
+			if g, ok := s.groupNamed(c.Value); ok {
+				next.exit = "group:" + g.ID
+			}
 		}
 	}
 	s.field.conditions = slices.Delete(s.field.conditions, i, i+1)
@@ -478,6 +494,8 @@ func (s *State) activate(id string, alongside bool) {
 		if g, ok := s.Library.Group(key); ok {
 			s.into(g, stage.Rect{})
 		}
+	case "settings-cat", "settings-sec":
+		s.intoSettings(key, stage.Rect{})
 	case "sheet":
 		for _, cd := range s.field.found.cards {
 			b, ok := cd.kind.(block)

@@ -14,7 +14,12 @@ func (f fieldSettings) Sections(words string) []shell.SettingsSection {
 	found := f.a.Settings.Sections(words)
 	out := make([]shell.SettingsSection, len(found))
 	for i, sec := range found {
-		out[i] = shell.SettingsSection{ID: sec.ID(), Title: sec.Title}
+		out[i] = shell.SettingsSection{
+			ID:          sec.ID(),
+			Category:    sec.Category.Title(),
+			Title:       sec.Title,
+			Description: sec.Description,
+		}
 	}
 	return out
 }

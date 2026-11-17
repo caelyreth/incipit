@@ -8,8 +8,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The Settings command brings the field up on the settings, each section a
-// card working in place; the command again takes them away.
+// The Settings command brings the field up on the settings categories,
+// opening a section shows its live card working in place, and the command
+// again takes them away.
 func TestTheSettingsCommandShowsTheSettingsInTheField(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
@@ -22,8 +23,16 @@ func TestTheSettingsCommandShowsTheSettingsInTheField(t *testing.T) {
 	}
 	tester.Frame()
 	tester.Advance(2 * time.Second)
-	if !app.Shell.InSettings() || !tester.HasText("Typewriter mode") || !tester.HasText("Theme") {
-		t.Fatalf("settings not in the field: %#v", tester.Texts())
+	if !app.Shell.InSettings() || !tester.HasText("Appearance") || !tester.HasText("Editor") || !tester.HasText("Keymap") || !tester.HasText("Theme") {
+		t.Fatalf("settings categories not in the field: %#v", tester.Texts())
+	}
+	if err := tester.Click("Writing Environment"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Advance(2 * time.Second)
+	if !tester.HasText("Typewriter mode") {
+		t.Fatalf("section card not opened: %#v", tester.Texts())
 	}
 	typewriter := app.Product.Presentation.Typewriter
 	toggle, ok := tester.AccessByRole(ui.RoleSwitch, "Typewriter mode")

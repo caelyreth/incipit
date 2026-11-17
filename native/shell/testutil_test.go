@@ -238,8 +238,8 @@ func nestedGroupState() (*State, *fakeLibrary) {
 
 func abs(x float32) float32 { return max(x, -x) }
 
-// fakeSettings is two sections of settings, Theme and Keys, found by their
-// titles; Keys grows as tall as tall says.
+// fakeSettings is two sections of settings in two categories, Appearance/Theme
+// and Keymap/Keys, found by their titles; Keys grows as tall as tall says.
 type fakeSettings struct {
 	tall float32
 	away int
@@ -247,9 +247,12 @@ type fakeSettings struct {
 
 func (f *fakeSettings) Sections(words string) []SettingsSection {
 	var out []SettingsSection
-	for _, title := range []string{"Theme", "Keys"} {
-		if words == "" || strings.Contains(strings.ToLower(title), strings.ToLower(strings.TrimSpace(words))) {
-			out = append(out, SettingsSection{ID: "app/" + title, Title: title})
+	for _, item := range []struct{ cat, title string }{
+		{"Appearance", "Theme"},
+		{"Keymap", "Keys"},
+	} {
+		if words == "" || strings.Contains(strings.ToLower(item.title), strings.ToLower(strings.TrimSpace(words))) {
+			out = append(out, SettingsSection{ID: item.cat + "/" + item.title, Category: item.cat, Title: item.title})
 		}
 	}
 	return out
@@ -257,7 +260,7 @@ func (f *fakeSettings) Sections(words string) []SettingsSection {
 
 func (f *fakeSettings) SectionView(c *ui.Context, _ theme.Theme, id, _ string) {
 	ui.Text(c, id+" rows")
-	if id == "app/Keys" {
+	if id == "Keymap/Keys" {
 		ui.Box(c).Height(f.tall)
 	}
 }

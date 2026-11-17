@@ -407,6 +407,15 @@ func (s *State) conditionLook(semantic theme.Theme, text string) ribbonLook {
 		l.label = cond.Sentence()
 		switch cond.Key.Name {
 		case "in":
+			if s.InSettings() {
+				cat, title, hasSec := strings.Cut(cond.Value, "/")
+				l.icon = settingsCategoryIcon(cat)
+				l.label = cat
+				if hasSec {
+					l.label = title
+				}
+				break
+			}
 			if s.Library != nil {
 				if g, ok := s.groupNamed(cond.Value); ok {
 					l.icon = groupIcon(g)
@@ -415,6 +424,8 @@ func (s *State) conditionLook(semantic theme.Theme, text string) ribbonLook {
 					}
 				}
 			}
+		case "settings":
+			l.icon = components.IconSettings
 		case "trash":
 			l.icon = components.IconTrash
 		}
@@ -498,6 +509,15 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, top, 
 	}
 	switch p.kind {
 	case ribbonCondition:
+		if s.InSettings() && (conditionKey(p.text) == "settings" || conditionKey(p.text) == "in") {
+			btn.Tooltip("Remove " + l.label)
+			if btn.Clicked() {
+				if i := slices.Index(s.field.conditions, p.text); i >= 0 {
+					s.clickSettingsRibbon(i)
+				}
+			}
+			break
+		}
 		btn.Tooltip("Change " + l.label + "; with Option, turn it around; drag it to the lane to keep it").
 			Drag(queryDrag{text: p.text})
 		if btn.Clicked() {
