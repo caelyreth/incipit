@@ -174,13 +174,27 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 }
 
 // shelfHint is what an empty shelf says it is for, shown as much as out,
-// kept clear of what stands out of it by tail.
-func shelfHint(c *ui.Context, semantic theme.Theme, text string, right bool, tail, out, k float32) {
+// kept clear of what stands out of it by tail. It unfolds as it comes, at
+// the pace what went before it folds shut, so the shelf moves one way.
+func shelfHint(c *ui.Context, semantic theme.Theme, text string, right bool, tail, out, k float32, animate bool) {
 	pad := 10 * k
-	hint := components.Label(c, text, theme.TextXSmall, semantic.Text.Muted).MaxLines(3).Opacity(out)
-	if right {
-		hint.Padding(4*k, 4*k, 4*k, tail+pad)
-	} else {
-		hint.Padding(4*k, tail+pad, 4*k, 4*k)
-	}
+	room := ui.Box(c).Key("hint").WidthPercent(100).Shrink(0)
+	room.Children(func() {
+		hint := components.Label(c, text, theme.TextXSmall, semantic.Text.Muted).MaxLines(3).Opacity(out).Shrink(0)
+		if right {
+			hint.Padding(4*k, 4*k, 4*k, tail+pad)
+		} else {
+			hint.Padding(4*k, tail+pad, 4*k, 4*k)
+		}
+		if !animate {
+			return
+		}
+		// New, it starts shut.
+		if laid := room.LayoutBounds(); laid.W == 0 && laid.H == 0 {
+			room.Jump("appear", 0)
+		}
+		if appear := components.Follow(room, "appear", 1, components.MotionPanel); appear < 1 {
+			room.Height(hint.LayoutBounds().H * appear).Clip()
+		}
+	})
 }

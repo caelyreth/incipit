@@ -141,7 +141,7 @@ func (s *State) trayView(c *ui.Context, semantic theme.Theme, h, k float32, hidd
 	}, func(out float32) {
 		if len(held) == 0 {
 			ui.Column(c).Key("empty").Grow(1).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
-				shelfHint(c, semantic, "Set sheets aside here. Emptied, each goes back where it was.", true, 0, out, k)
+				shelfHint(c, semantic, "Set sheets aside here. Emptied, each goes back where it was.", true, 0, out, k, animate)
 			})
 		}
 	})

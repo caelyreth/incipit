@@ -78,8 +78,11 @@ type fieldState struct {
 	over  scrollfx.Elastic
 	viewH float32
 	edges components.EdgeFade
-	// kept is the kept box's shelf.
-	kept shelfState
+	// kept is the kept box's shelf; keptRows its bookmarks as it last
+	// showed them, those going among them, and keptH each one's height.
+	kept     shelfState
+	keptRows []keptRow
+	keptH    map[string]float32
 	// stats animates the current field counts beside the search pill.
 	stats fieldStatsState
 	// hidden is whether the desk fills the window over the field, which

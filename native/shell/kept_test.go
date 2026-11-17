@@ -3,6 +3,7 @@ package shell
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/native/components"
 
@@ -147,5 +148,65 @@ func TestABookmarkStandsWithinTheKeptBox(t *testing.T) {
 	}
 	if mark.X+mark.W <= box.X+box.W-shelfTail {
 		t.Fatalf("The bookmark's tail should stand out of the slab, but it ends at %v and the slab at %v.", mark.X+mark.W, box.X+box.W)
+	}
+}
+
+// A bookmark kept stands on top, the box growing upward from its foot:
+// those kept before stay where they stood, frame by frame, never jumping
+// up as the new one comes in.
+func TestBookmarksKeptBeforeStayAsOneIsKept(t *testing.T) {
+	state, library, tester := keptState(t, GroupItem{ID: "s1", Name: "Mark", Query: "$tag:a", Color: TintHalo})
+	state.Appearance.Motion = true
+	settle(tester)
+	before, _ := tester.Find("Mark")
+	library.groupTree[""] = append(library.groupTree[""], GroupItem{ID: "s2", Name: "Newer", Query: "$tag:b", Color: TintHalo + 1})
+	library.rev++
+	for range 40 {
+		tester.Frame()
+		tester.Advance(16 * time.Millisecond)
+		if now, _ := tester.Find("Mark"); abs(now.Y-before.Y) > 0.5 {
+			t.Fatalf("The bookmark kept before should stay at %v, but it went to %v.", before.Y, now.Y)
+		}
+	}
+	newer, _ := tester.Find("Newer")
+	if newer.Y >= before.Y {
+		t.Fatalf("The newer bookmark should stand over the older, at %v, not %v.", before.Y, newer.Y)
+	}
+}
+
+// A bookmark deleted from among the others folds shut where it stood:
+// those over it come down as it does, frame by frame, never at once, and
+// those under it stay; shut, it is gone.
+func TestABookmarkDeletedFromTheMiddleFoldsShut(t *testing.T) {
+	state, library, tester := keptState(t,
+		GroupItem{ID: "s1", Name: "Oldest", Query: "$tag:a", Color: TintHalo},
+		GroupItem{ID: "s2", Name: "Middle", Query: "$tag:b", Color: TintHalo + 1},
+		GroupItem{ID: "s3", Name: "Newest", Query: "$tag:c", Color: TintHalo + 2})
+	state.Appearance.Motion = true
+	settle(tester)
+	top, _ := tester.Find("Newest")
+	under, _ := tester.Find("Oldest")
+	marks := library.groupTree[""]
+	library.groupTree[""] = slices.DeleteFunc(slices.Clone(marks), func(g GroupItem) bool { return g.ID == "s2" })
+	library.rev++
+	last := top.Y
+	for range 40 {
+		tester.Frame()
+		tester.Advance(16 * time.Millisecond)
+		now, _ := tester.Find("Newest")
+		if now.Y < last-0.5 || now.Y-last > 12 {
+			t.Fatalf("The bookmark over the one going should come down smoothly, but it went from %v to %v.", last, now.Y)
+		}
+		last = now.Y
+		if still, _ := tester.Find("Oldest"); abs(still.Y-under.Y) > 0.5 {
+			t.Fatalf("The bookmark under the one going should stay at %v, but it went to %v.", under.Y, still.Y)
+		}
+	}
+	settle(tester)
+	if end, _ := tester.Find("Newest"); end.Y <= top.Y+20 {
+		t.Fatalf("The bookmark over the one gone should have come down a row, but it is at %v from %v.", end.Y, top.Y)
+	}
+	if _, ok := tester.Find("Middle"); ok || len(state.field.keptRows) != 2 {
+		t.Fatalf("Shut, the bookmark should be gone: %v.", state.field.keptRows)
 	}
 }

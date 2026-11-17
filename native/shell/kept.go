@@ -193,12 +193,17 @@ func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h,
 		if keep {
 			s.draftBookmark(c, semantic, text, s.tintFamily(semantic, nextTint(marks)), out, k, animate)
 		}
-		for _, g := range marks {
-			s.bookmark(c, semantic, g, sameQuery(g.Query, text), out, k, animate)
+		rows := s.keptRows(marks, animate)
+		gone := map[string]bool{}
+		for _, r := range rows {
+			if s.bookmark(c, semantic, r, sameQuery(r.g.Query, text), out, k, animate) {
+				gone[r.g.ID] = true
+			}
 		}
+		s.field.keptRows = slices.DeleteFunc(rows, func(r keptRow) bool { return gone[r.g.ID] })
 	}, func(out float32) {
 		if len(marks) == 0 && !keep {
-			shelfHint(c, semantic, "Searches kept rest here, to be found again.", false, shelfTail*k, out, k)
+			shelfHint(c, semantic, "Searches kept rest here, to be found again.", false, shelfTail*k, out, k, animate)
 		}
 	})
 	if ok {
@@ -206,16 +211,67 @@ func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h,
 	}
 }
 
+// keptRow is a bookmark as the box shows it, or one going, which folds
+// shut where it stood.
+type keptRow struct {
+	g       GroupItem
+	leaving bool
+}
+
+// keptRows are marks as the box shows them: those it showed and no longer
+// holds stay, going, where they stood among them, so that those over one
+// going come down as it folds shut, the box standing on its foot.
+func (s *State) keptRows(marks []GroupItem, animate bool) []keptRow {
+	at := map[string]int{}
+	for i, g := range marks {
+		at[g.ID] = i
+	}
+	var out []keptRow
+	next := 0
+	for _, r := range s.field.keptRows {
+		if i, ok := at[r.g.ID]; ok {
+			for ; next <= i; next++ {
+				out = append(out, keptRow{g: marks[next]})
+			}
+		} else if animate {
+			out = append(out, keptRow{g: r.g, leaving: true})
+		}
+	}
+	for ; next < len(marks); next++ {
+		out = append(out, keptRow{g: marks[next]})
+	}
+	return out
+}
+
 // bookmark is a kept query, a bookmark standing out of the box in its
 // group's color: pressed, it is the pill's query; its × deletes it, and
 // its menu renames or deletes it. The one the pill holds stands further
 // out. Its words are shown as much as shown says, gone while the box
-// rests.
-func (s *State) bookmark(c *ui.Context, semantic theme.Theme, g GroupItem, current bool, shown, k float32, animate bool) {
-	tail := shelfTail * k
+// rests. Going, it folds shut where it stands, taking its room with it, so
+// that those over it come down as it does; it reports when it is shut.
+func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current bool, shown, k float32, animate bool) bool {
+	g, tail := r.g, shelfTail*k
 	btn := ui.ButtonBase(c.Key("bookmark-"+g.ID)).WidthPercent(100).Padding(7*k, tail+14*k, 7*k, 10*k).Gap(8 * k).
 		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label(g.Name).Tooltip(g.Name).
 		Transition(bookmarkTransition(animate, k))
+	staying := map[bool]float32{true: 1}[!r.leaving]
+	if animate {
+		staying = components.Follow(btn, "staying", staying, components.MotionPanel)
+	}
+	if r.leaving {
+		// Its own room goes with it, and the gap over it with its room.
+		h := s.field.keptH[g.ID]
+		btn.Height(h*staying).Padding(7*k*staying, tail+14*k, 7*k*staying, 10*k).
+			Clip().IgnoreInput(true).Opacity(staying).Margin(-6*k*(1-staying), 0, 0, 0)
+		if staying < 0.01 {
+			return true
+		}
+	} else if h := btn.LayoutBounds().H; h > 0 {
+		if s.field.keptH == nil {
+			s.field.keptH = map[string]float32{}
+		}
+		s.field.keptH[g.ID] = h
+	}
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	// The ribbon is dyed full in its hue, its words cut from it in the
 	// page's color; the one in use is pulled further out of the box.
@@ -268,10 +324,14 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, g GroupItem, curre
 			})
 		})
 	})
+	return false
 }
 
 // bookmarkTransition folds a bookmark open as it comes, out of the box's
-// edge, and shut as it goes, those after it moving to make room.
+// edge, and shut as it goes; only its colors move besides. The box stands
+// on its foot and grows up over what comes in, so those kept before stay
+// where they stand: a move of their own, from where they stood in the list
+// as it grew, would throw them up the height of the one coming and back.
 func bookmarkTransition(animate bool, k float32) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: -1}
@@ -280,7 +340,7 @@ func bookmarkTransition(animate bool, k float32) ui.ElementTransition {
 	gone := &ui.Motion{X: -12 * k, Opacity: 0, Collapse: true}
 	return ui.ElementTransition{
 		Animation: &spring, ExitDuration: components.MotionQuick, ExitEase: ui.EaseOut,
-		Position: true, Enter: gone, Exit: gone,
+		Colors: true, Enter: gone, Exit: gone,
 	}
 }
 
