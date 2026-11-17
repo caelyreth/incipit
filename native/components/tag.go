@@ -14,7 +14,7 @@ func TagChip(c *ui.Context, text string, size theme.TextSize, pad, width float32
 		Radius(3 * scale / theme.DefaultUIFontSize).PaddingX(pad).
 		MaxWidth(width).MinWidth(0).AlignItems(ui.Center).Background(fill)
 	chip.Children(func() {
-		Label(c, text, size, ink).SingleLine().MinWidth(0)
+		CenteredLabel(c, text, size, ink).MinWidth(0)
 	})
 	return chip
 }

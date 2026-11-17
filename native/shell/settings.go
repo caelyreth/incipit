@@ -228,9 +228,11 @@ func (s *State) settingsCategoryHead(c *ui.Context, semantic theme.Theme, sc set
 		}
 		head.Children(func() {
 			ui.Icon(c, settingsCategoryIcon(sc.category).SVG()).FontSize(15 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
-			components.Label(c, sc.category, theme.TextDefault, semantic.Text.Heading).Grow(1).MinWidth(0).SingleLine()
-			components.Label(c, thousands(len(sc.sections)), theme.TextXSmall, semantic.Text.Muted).
-				SingleLine().Shrink(0).FontFeatures("tnum")
+			components.BaselineRow(c).Key("words").Grow(1).MinWidth(0).Gap(8 * m.k).Children(func() {
+				components.Label(c, sc.category, theme.TextDefault, semantic.Text.Heading).Grow(1).MinWidth(0).SingleLine()
+				components.Label(c, thousands(len(sc.sections)), theme.TextXSmall, semantic.Text.Muted).
+					SingleLine().Shrink(0).FontFeatures("tnum")
+			})
 		})
 	})
 }
@@ -264,7 +266,7 @@ func (s *State) settingsMoreRow(c *ui.Context, semantic theme.Theme, category st
 		s.intoSettings(category, "", fr.Rect)
 	}
 	btn.Children(func() {
-		components.Label(c, label, theme.TextXSmall, semantic.Text.Muted).SingleLine()
+		components.CenteredLabel(c, label, theme.TextXSmall, semantic.Text.Muted)
 	})
 }
 

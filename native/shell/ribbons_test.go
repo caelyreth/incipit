@@ -158,3 +158,25 @@ func TestTheOrderIsOfferedBothWays(t *testing.T) {
 		t.Fatalf("placeholder %q", got)
 	}
 }
+
+// A value ribbon sets its label and count on one shared baseline rather
+// than centering each line box separately, while centering the group optically
+// inside the pill's height.
+func TestValueRibbonsAlignLabelAndCountOnBaseline(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	pressKey(t, state, tester, "Tag")
+	btn, ok := tester.Find("weekly")
+	if !ok {
+		t.Fatalf("weekly ribbon missing: %v", tester.Texts())
+	}
+	count, ok := tester.Find("6")
+	if !ok {
+		t.Fatalf("weekly count missing: %v", tester.Texts())
+	}
+	// With BaselineRow + UIOpticalLift, the 16px count box inside the 28px
+	// ribbon differs vertically from pure line-box center (btn.Y + 6).
+	centeredY := btn.Y + (btn.H-count.H)/2
+	if count.Y >= centeredY || count.Y <= btn.Y {
+		t.Fatalf("ribbon count should share optically lifted baseline inside ribbon: btn=%+v count=%+v centeredY=%v", btn, count, centeredY)
+	}
+}

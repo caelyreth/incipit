@@ -71,7 +71,7 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lea
 				}
 				ui.Icon(c, groupIcon(group).SVG()).FontSize(14 * k).Shrink(0).TextColor(ink)
 			}
-			components.Label(c, page.Title, theme.TextSmall, semantic.Text.Muted).SingleLine().MaxWidth(240 * k)
+			components.CenteredLabel(c, page.Title, theme.TextSmall, semantic.Text.Muted).MaxWidth(240 * k)
 		})
 	}
 	// It names its sheet, which its tooltip need not.

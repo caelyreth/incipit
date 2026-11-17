@@ -83,8 +83,8 @@ func (a CreateArea) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		if a.Compact {
 			return
 		}
-		Label(c, CreatorLabel(a.Label), theme.TextSmall, ink).SingleLine().MinWidth(0).
-			Opacity(labelReveal).Translate(a.LabelShift, 0)
+		CenteredLabel(c, CreatorLabel(a.Label), theme.TextSmall, ink).MinWidth(0).
+			Opacity(labelReveal).Translate(a.LabelShift, -UIOpticalLift(scale))
 	})
 	if area.Clicked() && a.Action != nil {
 		a.Action()

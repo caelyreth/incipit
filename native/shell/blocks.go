@@ -268,16 +268,18 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 				s.renameInput(c, semantic, *g)
 				return
 			}
-			ui.Row(c).Key("title").Grow(1).MinWidth(0).Gap(4 * m.k).AlignItems(ui.Center).Children(func() {
-				if len(b.path) > 0 {
-					components.Label(c, strings.Join(b.path, " › ")+" ›", theme.TextDefault, semantic.Text.Muted).MinWidth(0).SingleLine()
+			components.BaselineRow(c).Key("words").Grow(1).MinWidth(0).Gap(8 * m.k).Children(func() {
+				ui.Row(c).Key("title").Grow(1).MinWidth(0).Gap(4 * m.k).AlignItems(ui.Baseline).Children(func() {
+					if len(b.path) > 0 {
+						components.Label(c, strings.Join(b.path, " › ")+" ›", theme.TextDefault, semantic.Text.Muted).MinWidth(0).SingleLine()
+					}
+					components.Label(c, b.name(), theme.TextDefault, semantic.Text.Heading).Shrink(0).MaxWidthPercent(100).SingleLine()
+				})
+				if g != nil {
+					components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).
+						SingleLine().Shrink(0).FontFeatures("tnum")
 				}
-				components.Label(c, b.name(), theme.TextDefault, semantic.Text.Heading).Shrink(0).MaxWidthPercent(100).SingleLine()
 			})
-			if g != nil {
-				components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).
-					SingleLine().Shrink(0).FontFeatures("tnum")
-			}
 		})
 		if g != nil && b.trashed && s.armed(c, deleteKey("group:"+g.ID)) {
 			s.confirmButton(c, semantic, deleteKey("group:"+g.ID), "", "Delete", animate, func() { s.Library.DeleteGroup(g.ID) })
@@ -338,8 +340,10 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 	}
 	btn.Children(func() {
 		ui.Icon(c, groupIcon(g).SVG()).FontSize(14 * m.k).TextColor(ink).Shrink(0)
-		components.Label(c, g.Name, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
-		components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
+		components.BaselineRow(c).Key("words").Grow(1).MinWidth(0).Gap(8 * m.k).Children(func() {
+			components.Label(c, g.Name, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
+			components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
+		})
 	})
 }
 
@@ -411,19 +415,25 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 	}
 	btn.Children(func() {
 		ui.Column(c).Key("entry").Grow(1).MinWidth(0).Gap(gap).Children(func() {
-			ui.Row(c).Key("title").WidthPercent(100).AlignItems(ui.Center).Gap(pad).Children(func() {
-				components.Label(c, sheetTitle(sh), theme.TextSmall, title).Grow(1).MinWidth(0).SingleLine()
-				switch {
-				case trashed && s.armed(c, deletePickedKey(id)):
-					label := fmt.Sprintf("Delete %d", len(s.field.picked))
-					s.confirmButton(c, semantic, deletePickedKey(id), "", label, animate, s.deletePicked)
-				case confirming:
-					s.confirmButton(c, semantic, deleteKey(id), "", "Delete", animate, func() { s.Library.DeleteSheet(sh.ID) })
-				case !sh.Updated.IsZero():
-					components.Label(c, when(sh.Updated, c.Now()), theme.TextXSmall, semantic.Text.Muted).
-						SingleLine().Shrink(0).FontFeatures("tnum")
-				}
-			})
+			if (trashed && s.armed(c, deletePickedKey(id))) || confirming {
+				ui.Row(c).Key("title").WidthPercent(100).AlignItems(ui.Center).Gap(pad).Children(func() {
+					components.CenteredLabel(c, sheetTitle(sh), theme.TextSmall, title).Grow(1).MinWidth(0)
+					if trashed && s.armed(c, deletePickedKey(id)) {
+						label := fmt.Sprintf("Delete %d", len(s.field.picked))
+						s.confirmButton(c, semantic, deletePickedKey(id), "", label, animate, s.deletePicked)
+					} else {
+						s.confirmButton(c, semantic, deleteKey(id), "", "Delete", animate, func() { s.Library.DeleteSheet(sh.ID) })
+					}
+				})
+			} else {
+				components.BaselineRow(c).Key("title").WidthPercent(100).Gap(pad).Children(func() {
+					components.Label(c, sheetTitle(sh), theme.TextSmall, title).Grow(1).MinWidth(0).SingleLine()
+					if !sh.Updated.IsZero() {
+						components.Label(c, when(sh.Updated, c.Now()), theme.TextXSmall, semantic.Text.Muted).
+							SingleLine().Shrink(0).FontFeatures("tnum")
+					}
+				})
+			}
 			if body := entryBody(e); body != "" {
 				components.Label(c, body, theme.TextXSmall, semantic.Text.Muted).WidthPercent(100).MaxLines(lines)
 			}
@@ -486,7 +496,7 @@ func (s *State) moreRow(c *ui.Context, semantic theme.Theme, b block, more int, 
 		s.into(*b.group, fr.Rect)
 	}
 	btn.Children(func() {
-		components.Label(c, label, theme.TextXSmall, semantic.Text.Muted).SingleLine()
+		components.CenteredLabel(c, label, theme.TextXSmall, semantic.Text.Muted)
 	})
 }
 

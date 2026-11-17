@@ -231,8 +231,9 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stage.Rect, 
 		unit = nounForm(st.count, "sheet", "sheets")
 		s.field.stats.lastWords = st.words
 	}
-	row := ui.Row(c).Key("field-stats").Absolute().Top(r.Y).Left(r.X + r.W + gap).Height(r.H).
-		MaxWidth(maxW).AlignItems(ui.Center).IgnoreInput(true).Clip()
+	row := ui.Row(c).Key("field-stats").Absolute().Top(r.Y).Left(r.X+r.W+gap).Height(r.H).
+		MaxWidth(maxW).AlignItems(ui.Center).IgnoreInput(true).Clip().
+		Translate(0, -components.UIOpticalLift(s.Settings.UIFontSize))
 	row.Children(func() {
 		s.field.stats.count.view(c, "stat-count", st.count, size, lineH, ink, animate)
 		ui.Box(c.Key("stat-unit-gap")).Width(spaceW).Shrink(0)
@@ -845,10 +846,13 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 		if l.icon != "" {
 			ui.Icon(c, l.icon.SVG()).FontSize(14 * k).TextColor(l.ink).Shrink(0)
 		}
-		components.Label(c, l.label, theme.TextSmall, l.text).SingleLine().Shrink(0).Grow(1)
-		if l.count != "" {
-			components.Label(c, l.count, theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
-		}
+		words := components.BaselineRow(c).Key("words").Grow(1).MinWidth(0).Gap(6 * k)
+		words.Children(func() {
+			components.Label(c, l.label, theme.TextSmall, l.text).SingleLine().Shrink(0).Grow(1)
+			if l.count != "" {
+				components.Label(c, l.count, theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
+			}
+		})
 		if !l.closes {
 			return
 		}

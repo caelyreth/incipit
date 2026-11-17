@@ -49,7 +49,7 @@ func (t Tab) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	tab.Children(func() {
 		ui.Icon(c, t.Icon).FontSize(16 * scale / theme.DefaultUIFontSize).
 			TextColor(iconColor)
-		Label(c, t.Title, theme.TextSmall, textColor).Grow(1).MinWidth(0).SingleLine()
+		CenteredLabel(c, t.Title, theme.TextSmall, textColor).Grow(1).MinWidth(0)
 		IconButton{
 			Key: "close", Label: "Close " + t.Title, Icon: t.CloseIcon,
 			Style: SubtleButton, Size: CompactButton, Animate: t.Animate,

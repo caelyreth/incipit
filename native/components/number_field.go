@@ -30,8 +30,8 @@ func (n NumberField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		}.View(c, semantic)
 		ui.Box(c).MinWidth(58 * scale / theme.DefaultUIFontSize).
 			AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-			Label(c, n.Value, theme.TextSmall, semantic.Text.Default).
-				SingleLine().FontFeatures("tnum")
+			CenteredLabel(c, n.Value, theme.TextSmall, semantic.Text.Default).
+				FontFeatures("tnum")
 		})
 		IconButton{
 			Key: "increase", Label: "Increase " + n.Label, Icon: IconPlus.SVG(),

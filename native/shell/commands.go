@@ -101,7 +101,7 @@ func (s *State) commandRow(c *ui.Context, semantic theme.Theme, cmd Command, m b
 		s.activate(id, false)
 	}
 	btn.Children(func() {
-		components.Label(c, cmd.Label, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
+		components.CenteredLabel(c, cmd.Label, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0)
 		if len(cmd.Keys) > 0 {
 			components.Keycaps(c, components.KeycapStyle(semantic, m.scale, true), cmd.Keys, cmd.Binding).Shrink(0)
 		}

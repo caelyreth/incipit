@@ -69,7 +69,7 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 				continue
 			}
 			button.Children(func() {
-				Label(c, option.Label, theme.TextSmall, textColor).SingleLine()
+				CenteredLabel(c, option.Label, theme.TextSmall, textColor)
 			})
 		}
 		if group.Changed() && selected >= 0 && selected < len(s.Options) {

@@ -61,7 +61,7 @@ func (b Button) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		fill:     b.Fill,
 		action:   b.Action,
 		children: func() {
-			Label(c, b.Label, theme.TextSmall, buttonTextColor(semantic, b.Style)).SingleLine()
+			CenteredLabel(c, b.Label, theme.TextSmall, buttonTextColor(semantic, b.Style))
 		},
 	}).PaddingX(theme.Space12.DIPs(UIFontSize(c))).MinWidth(0)
 }

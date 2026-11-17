@@ -277,7 +277,7 @@ func (s *State) shortcutKeys(c *ui.Context, semantic theme.Theme, shortcut appse
 	button.Children(func() {
 		if len(shortcut.Bindings) == 0 {
 			swap("unbound", func() {
-				components.Label(c, "Add shortcut", theme.TextSmall, semantic.Text.Muted).SingleLine()
+				components.CenteredLabel(c, "Add shortcut", theme.TextSmall, semantic.Text.Muted)
 			})
 			return
 		}
@@ -327,7 +327,7 @@ func (s *State) tag(c *ui.Context, semantic theme.Theme, text string) {
 	}
 	settingsTagFrame(tag, scale).
 		Background(semantic.Surface.Inset).Children(func() {
-		components.Label(c, text, theme.TextXSmall, semantic.Text.Muted).SingleLine()
+		components.CenteredLabel(c, text, theme.TextXSmall, semantic.Text.Muted)
 	})
 }
 
@@ -350,7 +350,7 @@ func (s *State) policyBadge(c *ui.Context, semantic theme.Theme, shortcut appset
 	hover := components.HoverAmount(badge, badge.Hovered(), s.motion(c))
 	settingsTagFrame(badge, scale).
 		Background(semantic.Surface.Inset.Mix(semantic.Accent.Muted, hover*0.35)).Children(func() {
-		components.Label(c, title, theme.TextXSmall, semantic.Text.Muted.Mix(semantic.Accent.Foreground, hover)).SingleLine()
+		components.CenteredLabel(c, title, theme.TextXSmall, semantic.Text.Muted.Mix(semantic.Accent.Foreground, hover))
 	})
 	if badge.Clicked() && s.Find != nil {
 		s.Find(title)

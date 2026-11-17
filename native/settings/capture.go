@@ -98,8 +98,8 @@ func (s *State) captureLine(c *ui.Context, semantic theme.Theme, line captureLin
 				icon, tint = components.IconWarning, semantic.Status.Warning.Foreground
 			}
 			ui.Icon(c, icon.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).TextColor(tint)
-			components.Label(c, message, theme.TextSmall, semantic.Text.Default).
-				Grow(1).Shrink(1).MinWidth(0).SingleLine()
+			components.CenteredLabel(c, message, theme.TextSmall, semantic.Text.Default).
+				Grow(1).Shrink(1).MinWidth(0)
 			s.captureTrailing(c, semantic, state, line)
 		})
 	})
@@ -111,7 +111,7 @@ func (s *State) captureTrailing(c *ui.Context, semantic theme.Theme, state strin
 	// The end keeps its size; the message before it is what gives way.
 	hint := func(text string) {
 		// Set in from the edge as far as a button's words are.
-		components.Label(c, text, theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).
+		components.CenteredLabel(c, text, theme.TextXSmall, semantic.Text.Muted).Shrink(0).
 			Padding(0, theme.Space06.DIPs(s.Theme.UIFontSize), 0, 0)
 	}
 	// Pressed, a button leaves the keyboard with the line, which would

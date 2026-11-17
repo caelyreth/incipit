@@ -110,9 +110,9 @@ func (s *State) confirmButton(
 				if face.text == "" {
 					continue
 				}
-				shown := components.Label(c, face.text, theme.TextSmall, ink).SingleLine().
+				shown := components.CenteredLabel(c, face.text, theme.TextSmall, ink).
 					ColumnStart(1).RowStart(1).JustifySelf(ui.Center).Opacity(face.opacity).
-					Translate(0, face.shift*4*scale/theme.DefaultUIFontSize)
+					Translate(0, face.shift*4*scale/theme.DefaultUIFontSize-components.UIOpticalLift(scale))
 				if face.opacity < 0.01 {
 					// Out of sight, it keeps its room, and is not read out.
 					shown.Invisible()

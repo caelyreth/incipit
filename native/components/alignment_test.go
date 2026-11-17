@@ -162,3 +162,87 @@ func TestIconButtonsCenterTheirGlyph(t *testing.T) {
 		}
 	}
 }
+
+func TestChromeLabelsCenterOptically(t *testing.T) {
+	semantic := theme.DefaultSettings().Semantic()
+	abs := func(n int) int {
+		if n < 0 {
+			return -n
+		}
+		return n
+	}
+	cases := map[string]func(c *ui.Context){
+		"button": func(c *ui.Context) {
+			Button{Key: "b", Label: "TAG", Style: OutlinedButton}.View(c, semantic)
+		},
+		"tag-small": func(c *ui.Context) {
+			TagChip(c, "TAG", theme.TextSmall, 6, 120, semantic.Surface.Panel, semantic.Text.Default)
+		},
+		"tag-xsmall": func(c *ui.Context) {
+			TagChip(c, "TAG", theme.TextXSmall, 6, 120, semantic.Surface.Panel, semantic.Text.Default)
+		},
+		"baseline-row": func(c *ui.Context) {
+			ui.Row(c).Height(28).PaddingX(10).AlignItems(ui.Center).
+				Background(semantic.Surface.Panel).Children(func() {
+				BaselineRow(c).Gap(6).Children(func() {
+					Label(c, "TAG", theme.TextSmall, semantic.Text.Default).SingleLine()
+					Label(c, "8", theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
+				})
+			})
+		},
+	}
+	for name, build := range cases {
+		img, box := renderOnBlack(build)
+		glyph := inkWithin(img, box, 12)
+		top, bottom := glyph.Min.Y-box.Min.Y, box.Max.Y-glyph.Max.Y
+		if abs(top-bottom) > 1 {
+			t.Fatalf("%s label off optical center: top=%d bottom=%d", name, top, bottom)
+		}
+	}
+}
+
+func TestBaselineRowAlignsMixedSizeBaselines(t *testing.T) {
+	semantic := theme.DefaultSettings().Semantic()
+	tester := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(theme.DefaultSettings().MyGoTheme())
+		ui.Row(c).Fill().Padding(20, 20, 20, 20).Background(ui.RGB(0, 0, 0)).Children(func() {
+			ui.Row(c).Height(28).PaddingX(12).AlignItems(ui.Center).Children(func() {
+				BaselineRow(c).Gap(12).Children(func() {
+					Label(c, "TAG", theme.TextSmall, semantic.Text.Default).SingleLine()
+					Label(c, "88", theme.TextXSmall, semantic.Text.Default).SingleLine().FontFeatures("tnum")
+				})
+			})
+		})
+	}, 240, 80)
+	tester.SetScale(2)
+	tester.Frame()
+	tagRect, ok1 := tester.Find("TAG")
+	numRect, ok2 := tester.Find("88")
+	if !ok1 || !ok2 {
+		t.Fatalf("missing test labels: %v", tester.Texts())
+	}
+	img := tester.Image()
+	scanBottom := func(r ui.Rect) int {
+		bottom := -1
+		minX, maxX := int(r.X*2)-2, int((r.X+r.W)*2)+2
+		minY, maxY := int(r.Y*2)-4, int((r.Y+r.H)*2)+4
+		for y := max(0, minY); y < min(img.Bounds().Dy(), maxY); y++ {
+			for x := max(0, minX); x < min(img.Bounds().Dx(), maxX); x++ {
+				px := img.RGBAAt(x, y)
+				if int(px.R)+int(px.G)+int(px.B) > 120 {
+					bottom = max(bottom, y+1)
+				}
+			}
+		}
+		return bottom
+	}
+	leftBottom := scanBottom(tagRect)
+	rightBottom := scanBottom(numRect)
+	if leftBottom < 0 || rightBottom < 0 {
+		t.Fatalf("no ink found: leftBottom=%d rightBottom=%d", leftBottom, rightBottom)
+	}
+	diff := leftBottom - rightBottom
+	if diff < -1 || diff > 1 {
+		t.Fatalf("mixed baselines misaligned: leftBottom=%d rightBottom=%d", leftBottom, rightBottom)
+	}
+}

@@ -301,7 +301,7 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 					ui.Row(c).Gap(theme.Space04.DIPs(scale)).AlignItems(ui.Center).Shrink(0).Children(func() {
 						ui.Icon(c, components.IconPlus.SVG()).FontSize(theme.TextXSmall.Size(scale)).
 							TextColor(semantic.Text.Muted)
-						components.Label(c, "Create", theme.TextXSmall, semantic.Text.Muted).SingleLine()
+						components.CenteredLabel(c, "Create", theme.TextXSmall, semantic.Text.Muted)
 					})
 				}
 			})

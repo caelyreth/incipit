@@ -25,6 +25,28 @@ func UIFontSize(c *ui.Context) float32 {
 	return c.Theme().FontSize
 }
 
+// UIOpticalLift returns how far single-line UI-face chrome text rises to center
+// optically inside a line box or control: the UI face's ink sits slightly below
+// its line box center.
+func UIOpticalLift(scale float32) float32 {
+	if scale <= 0 {
+		scale = theme.DefaultUIFontSize
+	}
+	return 0.5 * scale / theme.DefaultUIFontSize
+}
+
+// InlineCapMiddle returns how far above a sentence's text baseline the optical
+// middle of inline UI-face cap/lowercase ink sits.
+func InlineCapMiddle(fontSize float32) float32 {
+	return 0.33 * fontSize
+}
+
+// GlyphCenterBaseline returns the drawing baseline Y that centers UI-face
+// glyphs of size glyphSize vertically around centerY.
+func GlyphCenterBaseline(centerY, glyphSize float32) float32 {
+	return centerY + 0.36*glyphSize
+}
+
 // Label applies Neverland's chrome type scale, including its paired line
 // height. Raw MyGo text uses a different default leading.
 func Label(
@@ -39,6 +61,24 @@ func Label(
 		FontSize(size.Size(scale)).
 		FixedLineHeight(size.LineHeight(scale)).
 		TextColor(color)
+}
+
+// CenteredLabel returns a single-line UI-face label lifted optically so its
+// glyphs center vertically inside buttons, chips, tabs, and rows.
+func CenteredLabel(
+	c *ui.Context,
+	text string,
+	size theme.TextSize,
+	color ui.Color,
+) ui.Element {
+	scale := UIFontSize(c)
+	return Label(c, text, size, color).SingleLine().Translate(0, -UIOpticalLift(scale))
+}
+
+// BaselineRow returns a horizontal row that aligns mixed-size chrome labels on
+// a shared baseline and lifts them optically as a group.
+func BaselineRow(c *ui.Context) ui.Element {
+	return ui.Row(c).AlignItems(ui.Baseline).Translate(0, -UIOpticalLift(UIFontSize(c)))
 }
 
 // Headline applies the settings-page heading scale and alpha=1.4 leading.

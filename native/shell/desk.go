@@ -408,6 +408,6 @@ func (s *State) statistics(c *ui.Context, semantic theme.Theme, layout theme.Lay
 	ui.Row(c).Key("statistics").Absolute().Right(gutter).Bottom(0).
 		Height(layout.Status * scale / theme.DefaultUIFontSize).Opacity(chrome).IgnoreInput(true).
 		AlignItems(ui.Center).Children(func() {
-		components.Label(c, s.Statistics, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
+		components.CenteredLabel(c, s.Statistics, theme.TextXSmall, semantic.Text.Muted).FontFeatures("tnum")
 	})
 }

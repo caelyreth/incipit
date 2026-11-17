@@ -81,7 +81,7 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 			ui.Row(c).Key("fixed").Label(f.FixedLabel).Tooltip(f.FixedLabel).Shrink(0).
 				AlignItems(ui.Center).PaddingX(theme.Space04.DIPs(scale)).
 				Radius(metrics.Radius - 2).Background(semantic.Accent.Muted).Children(func() {
-				components.Label(c, f.Fixed, theme.TextXSmall, semantic.Accent.Foreground).SingleLine()
+				components.CenteredLabel(c, f.Fixed, theme.TextXSmall, semantic.Accent.Foreground)
 			})
 		}
 		input = ui.TextInputBase(c.Key(f.Key), f.Value).
@@ -208,22 +208,29 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 					PaddingX(theme.Space06.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
 					FocusRing(false).KeepFocus().Selected(in.first+i == in.suggestion).Background(ui.Transparent).Label(item.Label)
 				button.Children(func() {
-					switch {
-					case item.Of == "tag":
+					if item.Of == "tag" {
 						components.TagChip(c, "#"+strings.TrimPrefix(item.Label, "#"), theme.TextSmall,
 							theme.Space04.DIPs(scale), width, semantic.Tag.Background, semantic.Tag.Foreground)
-					case item.Of == "":
-						components.Label(c, item.Label, theme.TextSmall, semantic.Accent.Foreground).
-							SingleLine().Shrink(0)
-					default:
-						components.Label(c, item.Label, theme.TextSmall, semantic.Text.Default).
-							SingleLine().MinWidth(0)
+						ui.Box(c).Grow(1)
+						if item.Hint != "" {
+							components.CenteredLabel(c, item.Hint, theme.TextXSmall, semantic.Text.Muted).
+								Shrink(0)
+						}
+						return
 					}
-					ui.Box(c).Grow(1)
-					if item.Hint != "" {
-						components.Label(c, item.Hint, theme.TextXSmall, semantic.Text.Muted).
-							SingleLine().Shrink(0)
-					}
+					components.BaselineRow(c).Grow(1).MinWidth(0).Gap(theme.Space08.DIPs(scale)).Children(func() {
+						color := semantic.Text.Default
+						if item.Of == "" {
+							color = semantic.Accent.Foreground
+							components.Label(c, item.Label, theme.TextSmall, color).SingleLine().Shrink(0)
+						} else {
+							components.Label(c, item.Label, theme.TextSmall, color).SingleLine().MinWidth(0)
+						}
+						ui.Box(c).Grow(1)
+						if item.Hint != "" {
+							components.Label(c, item.Hint, theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0)
+						}
+					})
 				})
 				if button.Clicked() {
 					edit := in.replacement(*value, item)

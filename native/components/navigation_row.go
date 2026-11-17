@@ -86,7 +86,7 @@ func (r NavigationRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		if r.Leading != nil {
 			r.Leading()
 		}
-		Label(c, r.Label, text, textColor).Grow(1).MinWidth(0).SingleLine()
+		CenteredLabel(c, r.Label, text, textColor).Grow(1).MinWidth(0)
 		if r.Trailing != nil {
 			r.Trailing()
 		}

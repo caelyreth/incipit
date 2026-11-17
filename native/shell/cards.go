@@ -325,13 +325,13 @@ func cardHead(c *ui.Context, semantic theme.Theme, icon components.IconName, tit
 	ui.Row(c).Key("head").Height(m.head).WidthPercent(100).PaddingX(8 * m.k).Gap(8 * m.k).
 		AlignItems(ui.Center).Shrink(0).Children(func() {
 		ui.Icon(c, icon.SVG()).FontSize(15 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
-		components.Label(c, title, theme.TextDefault, semantic.Text.Heading).Grow(1).MinWidth(0).SingleLine()
+		components.CenteredLabel(c, title, theme.TextDefault, semantic.Text.Heading).Grow(1).MinWidth(0)
 	})
 }
 
 // moreLabel says how many rows a card leaves out.
 func moreLabel(c *ui.Context, semantic theme.Theme, more int, h float32, m blockMetrics) {
 	ui.Row(c).Key("more").Height(h).PaddingX(rowPad(m.scale)).AlignItems(ui.Center).Children(func() {
-		components.Label(c, thousands(more)+" more", theme.TextXSmall, semantic.Text.Muted).SingleLine()
+		components.CenteredLabel(c, thousands(more)+" more", theme.TextXSmall, semantic.Text.Muted)
 	})
 }

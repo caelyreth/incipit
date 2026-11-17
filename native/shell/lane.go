@@ -80,7 +80,7 @@ func laneIcon(c *ui.Context, semantic theme.Theme, key string, icon components.I
 	row.Children(func() {
 		ui.Icon(c, icon.SVG()).FontSize(14 * k).TextColor(semantic.Icon.Muted).Shrink(0)
 		if count > 0 {
-			components.Label(c, thousands(count), theme.TextXSmall, semantic.Text.Muted).SingleLine()
+			components.CenteredLabel(c, thousands(count), theme.TextXSmall, semantic.Text.Muted)
 		}
 	})
 	return row

@@ -38,9 +38,8 @@ func KeycapStyle(semantic theme.Theme, scale float32, compact bool) Keycap {
 // Square reports whether key takes a square cap.
 func (k Keycap) Square(key string) bool { return utf8.RuneCountInString(key) == 1 }
 
-// Lift is how far a cap's glyphs rise to center optically: the UI face's
-// ink sits half a DIP below its line box.
-func (k Keycap) Lift() float32 { return 0.5 * k.scale / theme.DefaultUIFontSize }
+// Lift is how far a cap's glyphs rise to center optically.
+func (k Keycap) Lift() float32 { return UIOpticalLift(k.scale) }
 
 // Keycaps is a run of caps as an element, labelled for assistive
 // technology as label. It paints its caps as a painted surface does, so a

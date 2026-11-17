@@ -312,11 +312,12 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 			s.renameInput(c, semantic, g)
 			return
 		}
-		components.Label(c, g.Name, theme.TextXSmall, semantic.Surface.Page).MaxLines(2).Grow(1).MinWidth(0).Opacity(shown)
+		components.Label(c, g.Name, theme.TextXSmall, semantic.Surface.Page).MaxLines(2).Grow(1).MinWidth(0).Opacity(shown).
+			Translate(0, -components.UIOpticalLift(s.Settings.UIFontSize))
 		// The pointer on it, its count gives way to its ×.
 		ui.Box(c).Key("end").Shrink(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-			components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Surface.Page.Alpha(0.7)).
-				SingleLine().Opacity(shown * (1 - hover))
+			components.CenteredLabel(c, thousands(g.Count), theme.TextXSmall, semantic.Surface.Page.Alpha(0.7)).
+				Opacity(shown * (1 - hover))
 			del := ui.ButtonBase(c.Key("delete")).Absolute().Size(18*k, 18*k).Radius(9 * k).
 				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label("Delete " + g.Name).Tooltip("Delete").
 				Opacity(shown * hover).IgnoreInput(hover < 0.5)
@@ -401,7 +402,8 @@ func (s *State) draftBookmark(c *ui.Context, semantic theme.Theme, text string, 
 	}
 	btn.Children(func() {
 		ui.Icon(c, components.IconPlus.SVG()).FontSize(11 * k).TextColor(f.Foreground).Shrink(0).Opacity(shown)
-		components.Label(c, queryName(text), theme.TextXSmall, f.Foreground).MaxLines(2).Grow(1).MinWidth(0).Opacity(shown)
+		components.Label(c, queryName(text), theme.TextXSmall, f.Foreground).MaxLines(2).Grow(1).MinWidth(0).Opacity(shown).
+			Translate(0, -components.UIOpticalLift(s.Settings.UIFontSize))
 	})
 }
 

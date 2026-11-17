@@ -203,9 +203,9 @@ func (s *State) keyChip(
 	ring := s.keyRing(chip, triggerKey(host, command), s.keyEditing == command && s.keyHost == host, animate)
 
 	// The object stands on the baseline as the caps center on the words'
-	// lowercase letters, a third of the font size above it.
+	// lowercase letters, above the baseline by InlineCapMiddle.
 	height := geometry.cap + 2*geometry.margin
-	middle := 0.33 * fontSize
+	middle := components.InlineCapMiddle(fontSize)
 	chip.Children(func() {
 		ui.RichText(c, ui.Span{
 			Text: "\uFFFC", ObjectWidth: width + 2*geometry.margin,
@@ -230,9 +230,8 @@ func (s *State) keyChip(
 	return func(p *ui.Painter, r ui.Rect) {
 		x0 := r.X + geometry.margin
 		top := r.Y + (r.H-geometry.cap)/2
-		// Glyphs center on the cap: their ink, capitals and symbols alike,
-		// sits about a third of an em above the baseline.
-		baseline := top + geometry.cap/2 + 0.36*geometry.glyph
+		// Glyphs center optically on the cap via GlyphCenterBaseline.
+		baseline := components.GlyphCenterBaseline(top+geometry.cap/2, geometry.glyph)
 		for index := range max(len(shown), len(leaving)) {
 			now, was := capAt(shown, index), capAt(leaving, index)
 			hasNow, hasWas := index < len(shown), index < len(leaving)
