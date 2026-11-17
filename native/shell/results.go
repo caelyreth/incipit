@@ -15,7 +15,7 @@ import (
 // a search's where it finds them all in one group, each naming it. A query
 // of no words, at most in a group or in the trash, browses: at the top
 // every group, in a group each group inside it and then its sheets, in
-// the trash what is there. Any other query searches, and its sheets found
+// the trash the same of what is there. Any other query searches, and its sheets found
 // stand in the blocks of the groups they are filed in, in the order of
 // their best, each block's head saying where its group is from the one
 // the query is in. Browsing is so a search with no words, and a group is
@@ -33,11 +33,13 @@ func (librarySource) answer(s *State, text string, f *found) {
 	case !browse:
 		s.searched(f, text, scope, trash)
 	case trash:
-		if loose := s.Library.Sheets(Place{Kind: PlaceTrash}); len(loose) > 0 {
-			f.add("trash", tierResult, block{entries: s.entries(loose), trashed: true})
-		}
+		// The trash heads no block, as a group the query is in: the groups
+		// in it, then its sheets, each on its own.
 		for _, g := range s.Library.TrashedGroups() {
 			f.add("group:"+g.ID, tierResult, s.groupBlock(g, true))
+		}
+		for _, e := range s.entries(s.Library.Sheets(Place{Kind: PlaceTrash})) {
+			f.add("sheet:"+e.sheet.ID, tierResult, block{entries: []entry{e}, single: true, trashed: true})
 		}
 	case scope != "":
 		// As a block's rows go: the groups inside it, then its sheets, then

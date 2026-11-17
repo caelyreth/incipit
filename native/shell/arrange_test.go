@@ -78,3 +78,18 @@ func TestAGroupShowsItsGroupsThenItsSheets(t *testing.T) {
 		t.Fatalf("Novel should show Arc, then its sheet, then the area that makes one: %v.", ids)
 	}
 }
+
+// The trash heads no block, as a group the query is in: the groups in it,
+// then its sheets, each on its own.
+func TestTheTrashHeadsNoBlock(t *testing.T) {
+	state, _ := libraryState()
+	state.ShowField()
+	state.toggleTrash()
+	f := state.results(time.Now())
+	if ids := cardIDs(f); !slices.Equal(ids, []string{"group:3", "sheet:9"}) {
+		t.Fatalf("The trash should show Old's block, then Scrap on its own: %v.", ids)
+	}
+	if b := f.cards[1].kind.(block); !b.single || !b.trashed {
+		t.Fatalf("Scrap should stand on its own, as trashed: %+v.", b)
+	}
+}
