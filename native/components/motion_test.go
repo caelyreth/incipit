@@ -27,22 +27,28 @@ func TestSmoothstepMatchesNeverlandChromeCurve(t *testing.T) {
 }
 
 func TestMotionEnabledCombinesWindowAndDesktopPolicy(t *testing.T) {
-	enabled, active := true, true
+	enabled := true
 	var got bool
 	tester := ui.NewTester(func(c *ui.Context) {
-		got = MotionEnabled(c, enabled, active)
+		got = MotionEnabled(c, enabled)
 		ui.Box(c).Fill()
 	}, 100, 100)
 	tester.Frame()
 	if !got {
 		t.Fatal("active window with motion enabled did not animate")
 	}
-	active = false
+	tester.SetWindowActive(false)
+	if !got {
+		t.Fatal("unfocused visible window stopped animating")
+	}
+	tester.SetWindowActive(true)
+	tester.SetWindowHidden(true)
 	tester.Frame()
 	if got {
-		t.Fatal("inactive window animated")
+		t.Fatal("hidden window animated")
 	}
-	active, enabled = true, false
+	tester.SetWindowHidden(false)
+	enabled = false
 	tester.Frame()
 	if got {
 		t.Fatal("disabled motion animated")

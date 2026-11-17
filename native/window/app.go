@@ -57,16 +57,13 @@ func Run() error {
 			BackgroundColor:      colorHex(app.Shell.Settings.Semantic().Surface.Background),
 		})
 		window.OnFocus(func() {
-			app.Shell.SetWindowActive(true)
-			app.Settings.SetWindowActive(true)
 			app.refreshShell()
 		})
 		window.OnBlur(func() {
 			// A shortcut is recorded in the field: leaving the window ends
 			// the recording, which gives the menu its keys back.
 			app.Settings.StopRecording()
-			app.Shell.SetWindowActive(false)
-			app.Settings.SetWindowActive(false)
+			window.Invalidate()
 		})
 		app.mainWindow = window
 		app.Notices.SetWake(window.Invalidate)

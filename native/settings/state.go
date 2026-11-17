@@ -25,9 +25,8 @@ type State struct {
 	Reserved  func(keymap.Chord) (string, bool)
 	// Find searches the settings for words, as a card that names another
 	// asks to show it.
-	Find         func(words string)
-	Animate      bool
-	WindowActive bool
+	Find    func(words string)
+	Animate bool
 
 	// The chord the keymap is searched by, as pressed. Then, in any
 	// section, the command whose shortcut is being recorded and the row or
@@ -55,7 +54,7 @@ type keyConflict struct {
 }
 
 func New() *State {
-	return &State{Theme: theme.DefaultSettings(), Animate: true, WindowActive: true}
+	return &State{Theme: theme.DefaultSettings(), Animate: true}
 }
 
 func (s *State) apply(change appsettings.Change) {
@@ -64,12 +63,6 @@ func (s *State) apply(change appsettings.Change) {
 	}
 }
 
-func (s *State) SetWindowActive(active bool) {
-	if s != nil {
-		s.WindowActive = active
-	}
-}
-
 func (s *State) motion(c *ui.Context) bool {
-	return s != nil && components.MotionEnabled(c, s.Animate, s.WindowActive)
+	return s != nil && components.MotionEnabled(c, s.Animate)
 }

@@ -101,7 +101,6 @@ type State struct {
 	FindCount     FindCount
 	finder        findBar
 	Toolbar       ToolbarState
-	WindowActive  bool
 
 	// Sheet draws an open sheet's page, as frame sets it.
 	Sheet       func(c *ui.Context, id string, frame SheetFrame)
@@ -147,9 +146,8 @@ type State struct {
 
 func New() *State {
 	return &State{
-		Appearance:   settings.DefaultPresentation(),
-		Settings:     theme.DefaultSettings(),
-		WindowActive: true,
+		Appearance: settings.DefaultPresentation(),
+		Settings:   theme.DefaultSettings(),
 		Toolbar: ToolbarState{
 			TypewriterEnabled: true,
 			ZenEnabled:        true,
@@ -157,12 +155,6 @@ func New() *State {
 	}
 }
 
-func (s *State) SetWindowActive(active bool) {
-	if s != nil {
-		s.WindowActive = active
-	}
-}
-
 func (s *State) animate(c *ui.Context) bool {
-	return s != nil && components.MotionEnabled(c, s.Appearance.Motion, s.WindowActive)
+	return s != nil && components.MotionEnabled(c, s.Appearance.Motion)
 }

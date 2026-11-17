@@ -28,11 +28,12 @@ const (
 	bounce = 0.2
 )
 
-// MotionEnabled is the app's effective motion policy for a window. MyGo
-// handles reduced motion in its own animations, while custom painting also
-// needs the window's active state and the app's preference.
-func MotionEnabled(c *ui.Context, enabled, active bool) bool {
-	return c != nil && enabled && active && !c.Preferences().ReduceMotion
+// MotionEnabled is the app's effective motion policy for a window: visible
+// windows keep animating even when unfocused or inactive so blur-driven
+// transitions run smoothly; only disabled motion, a hidden window, or OS
+// Reduce Motion suppresses animations.
+func MotionEnabled(c *ui.Context, enabled bool) bool {
+	return c != nil && enabled && !c.WindowHidden() && !c.Preferences().ReduceMotion
 }
 
 // Decelerate is the panel curve: a cubic ease-out that moves immediately and

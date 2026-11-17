@@ -1102,3 +1102,68 @@ func TestAStuckPillStandsOverTheFieldBlurred(t *testing.T) {
 		t.Fatalf("Over the stuck pill the head should show through faintly, not %v from the ground.", most)
 	}
 }
+
+// Window unfocus runs dismiss animations smoothly for the focused search pill,
+// its outline, and its ribbons rather than snapping in a single frame.
+func TestWindowBlurAnimatesFocusedPillAndRibbonsSmoothly(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	// Start focused with ribbons visible and accent border settled.
+	if !tester.Focused("Search") || !state.field.open {
+		t.Fatal("Search pill should start focused and open.")
+	}
+	if _, ok := tester.Find("Tag"); !ok {
+		t.Fatal("Key ribbons should be visible while the window and pill are focused.")
+	}
+	focusedPill, _ := tester.Find("Search")
+	borderX := int(focusedPill.X + focusedPill.W/2)
+	borderY := int(focusedPill.Y)
+	semantic := state.Settings.Semantic()
+
+	// Unfocus the window: animations stay active so pill width, border color,
+	// and exiting ribbons animate smoothly instead of snapping immediately.
+	tester.SetFocused(false)
+	tester.Frame()
+	tester.Advance(40 * time.Millisecond)
+	tester.Frame()
+
+	if !tester.FramePending() {
+		t.Fatal("Window blur should animate pill contraction, outline fade, and ribbon exit.")
+	}
+	midPill, _ := tester.Find("Search")
+	if !(280 < midPill.W && midPill.W < focusedPill.W-5) {
+		t.Fatalf("Blurred window pill width snapped instead of animating smoothly: midW=%v (from %v to 280).", midPill.W, focusedPill.W)
+	}
+	midBorder := tester.Image().RGBAAt(borderX, borderY)
+	focused := semantic.Border.Focused
+	idle := semantic.Border.Variant
+	if (midBorder.R == focused.R && midBorder.G == focused.G && midBorder.B == focused.B) ||
+		(midBorder.R == idle.R && midBorder.G == idle.G && midBorder.B == idle.B) {
+		t.Fatalf("Blurred window pill border snapped instead of blending: got %v, focused=%v idle=%v",
+			midBorder, focused, idle)
+	}
+
+	settle(tester)
+	settledPill, _ := tester.Find("Search")
+	if abs(settledPill.W-280) > 0.5 {
+		t.Fatalf("Blurred window pill settled width = %v, want 280.", settledPill.W)
+	}
+	if _, still := tester.Find("Tag"); still {
+		t.Fatal("Key ribbons should dismiss cleanly once window blur settles.")
+	}
+
+	// Refocusing the window restores the focused pill and ribbons smoothly too.
+	tester.SetFocused(true)
+	tester.Frame()
+	tester.Advance(40 * time.Millisecond)
+	tester.Frame()
+	if !tester.FramePending() {
+		t.Fatal("Window refocus should animate pill expansion and ribbons back in.")
+	}
+	settle(tester)
+	if refocused, _ := tester.Find("Search"); abs(refocused.W-440) > 0.5 {
+		t.Fatalf("Refocused window pill width = %v, want 440.", refocused.W)
+	}
+	if _, ok := tester.Find("Tag"); !ok {
+		t.Fatal("Refocusing window should restore key ribbons.")
+	}
+}

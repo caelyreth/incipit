@@ -427,7 +427,7 @@ func (a *AppState) View(c *ui.Context) {
 	}
 	a.refreshEditorChrome()
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
-	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion, a.Shell.WindowActive)
+	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion)
 	a.pressedCommands(c)
 	a.Shell.View(c)
 	// An open find follows the page in front.

@@ -11,16 +11,17 @@ func TestSettingsTagsFollowEffectiveMotionPolicy(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		active  bool
+		hidden  bool
 		reduced bool
 		moving  bool
 	}{
-		{"active", true, false, true},
-		{"inactive", false, false, false},
-		{"reduced motion", true, true, false},
+		{"active", true, false, false, true},
+		{"inactive visible", false, false, false, true},
+		{"hidden", true, true, false, false},
+		{"reduced motion", true, false, true, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			state := New()
-			state.WindowActive = test.active
 			show := false
 			tester := ui.NewTester(func(c *ui.Context) {
 				ui.Column(c).Children(func() {
@@ -29,6 +30,12 @@ func TestSettingsTagsFollowEffectiveMotionPolicy(t *testing.T) {
 					}
 				})
 			}, 200, 100)
+			if !test.active {
+				tester.SetWindowActive(false)
+			}
+			if test.hidden {
+				tester.SetWindowHidden(true)
+			}
 			if test.reduced {
 				tester.SetPreferences(ui.Preferences{ReduceMotion: true})
 			}
