@@ -36,7 +36,7 @@ func (s *State) ShowDesk() {
 
 // ShowField has the window go to the field, its pill taking the keyboard.
 func (s *State) ShowField() {
-	s.onDesk = false
+	s.onDesk, s.field.rerank = false, true
 	s.field.focus = true
 }
 
@@ -68,7 +68,7 @@ func (s *State) deskEscape(c *ui.Context) {
 // returnToField goes back from the desk to the field, the keyboard with
 // the field, not its pill: going back is not setting out to search.
 func (s *State) returnToField() {
-	s.onDesk = false
+	s.onDesk, s.field.rerank = false, true
 	s.field.quiet = true
 }
 

@@ -1,12 +1,13 @@
 package shell
 
 import (
-	"github.com/caelyreth/neverland/native/scrollfx"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -48,8 +49,13 @@ type fieldState struct {
 	completedFor string
 	dismissed    string
 	found        found
-	// shapes are found's cards' shapes, for the measures shapesKey names.
-	shapes    []shape
+	// rerank has found ranked again, as the window comes back to the
+	// field, and rankDue is when it is, the writing in the pill paused.
+	rerank  bool
+	rankDue time.Time
+	// shapes are found's cards' shapes, by id, for the measures shapesKey
+	// names.
+	shapes    map[string]shape
 	shapesKey string
 	// shown are the cards drawn, those going out included, by id, as
 	// shaped.
@@ -62,10 +68,13 @@ type fieldState struct {
 	// and now the change under way.
 	next, now change
 	// scroll is how far the field is scrolled down from its horizon at
-	// the window's middle (up, below 0), as far as lo and hi; home brings
-	// it back there, homing once it has begun.
+	// rest (up, below 0), as far as lo and hi; home brings it back there,
+	// homing once it has begun.
 	scroll, lo, hi float32
-	home, homing   bool
+	// lift is how far the horizon stands over the window's middle at rest,
+	// as drawn, and liftTo as it goes to (fieldView).
+	lift, liftTo float32
+	home, homing bool
 	// away is how far what the pill offers around it is put away, as its
 	// horizon goes past where it all fits.
 	away float32
@@ -78,6 +87,9 @@ type fieldState struct {
 	over  scrollfx.Elastic
 	viewH float32
 	edges components.EdgeFade
+	// ribbonHold is what the ribbons about the pill hold to while it
+	// stands as it is (pill.go).
+	ribbonHold ribbonHold
 	// kept is the kept box's shelf; keptRows its bookmarks as it last
 	// showed them, those going among them, and keptH each one's height.
 	kept     shelfState
@@ -118,9 +130,10 @@ func (s *State) FieldQuery() string {
 }
 
 // SetFieldQuery sets the field's query: its conditions to ribbons, the
-// rest to the words written.
+// rest to the words written, ranked as it comes.
 func (s *State) SetFieldQuery(text string) {
 	s.field.conditions, s.field.words = nil, ""
+	s.field.rerank = true
 	s.takeConditions(text)
 	s.setWords(s.field.words)
 }
@@ -254,15 +267,16 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	if !s.OnDesk() && !c.FocusTakesText() && c.Shortcut(0, ui.KeyEscape) {
 		s.escapeField()
 	}
-	f := s.results()
+	f := s.results(c.Now())
+	if !s.field.rankDue.IsZero() {
+		c.After(s.field.rankDue.Sub(c.Now()))
+	}
 	shapes := s.shapes(c, f, m)
 	heights := make([]float32, len(shapes))
 	for i, sh := range shapes {
 		heights[i] = sh.size.H
 	}
-	// As many columns as what it shows takes, so the field stands even
-	// about its pill; its band reaching past the pill as far as the
-	// ribbons around it do.
+	// Its band reaches past the pill as far as the ribbons around it do.
 	maxPillW := max(0, w-2*(m.pad+horizonSide*k))
 	idlePillW, openPillW := min(280*k, maxPillW), min(440*k, maxPillW)
 	activePill := s.field.open || (s.field.focus && !s.OnDesk() && !s.field.hidden)
@@ -281,7 +295,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	pill := stage.Size{W: pillW, H: 40 * k}
 	rl := s.ribbons(c, k, w/2, targetPillW, pill.H)
 	z := m.horizon
-	z.Cols = max(1, min(z.Cols, (len(heights)+1)/2))
 	z.Above += rl.above
 	z.Below += rl.below
 	rects := z.Place(heights)
@@ -290,7 +303,20 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		frames[i] = stage.Frame{ID: f.cards[i].id, Size: shapes[i].size, Rect: r, Shown: 1}
 	}
 	below, above := stage.Reach(rects)
-	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2), max(0, below+3*m.pad-h/2)
+	below, above = max(below, z.Below), max(above, z.Above)
+	top, foot := 48*k, 24*k
+	// At rest, the horizon rises or falls into the room the field leaves
+	// empty, so that what it holds stands even in the window; never past
+	// where something of it would leave the window, and never while the
+	// pill is written in, the pill keeping still under the caret. An
+	// action on the query, or the pill let go of, sets it again.
+	first := s.field.rest == nil
+	if !s.field.open || s.field.next != (change{}) || first {
+		up, down := max(0, h/2-top-above), max(0, h/2-foot-below)
+		s.field.liftTo = max(-down, min(up, (foot-top+below-above)/2))
+	}
+	lift := s.field.liftTo
+	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2+lift), max(0, below+3*m.pad-h/2-lift)
 	s.field.order = s.field.order[:0]
 	for _, cd := range f.cards {
 		s.field.order = append(s.field.order, cd.kind.rows()...)
@@ -308,6 +334,15 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		s.field.scroll = max(s.field.lo, min(s.field.scroll, s.field.hi))
 	}
 	drawn := s.shift(view, frames, f, shapes, animate)
+	// The horizon goes there on the change's own spring, from the frame
+	// after its first, as the cards do.
+	switch {
+	case !animate || first:
+		view.Jump("lift", lift)
+		s.field.lift = lift
+	case !s.field.hold:
+		s.field.lift = view.AnimateTo("lift", lift, components.Spring(components.MotionScene))
+	}
 	s.comeHome(view, animate)
 	if s.field.hold {
 		s.field.hold = false
@@ -325,8 +360,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	if pulling {
 		c.AnimationFrame()
 	}
-	horizon := h/2 - (s.field.scroll - s.field.over.Offset())
-	top, foot := 48*k, 24*k
+	horizon := h/2 - s.field.lift - (s.field.scroll - s.field.over.Offset())
 	// The pill follows its horizon while all around it fits in the window.
 	// Past that, what is offered around it is put away, and it goes on
 	// with the query's own conditions alone, as far as they still fit, and
@@ -441,6 +475,10 @@ func (s *State) shift(field ui.Element, frames []stage.Frame, f found, shapes []
 		} else {
 			s.field.hold = true
 		}
+	} else {
+		// An action that brought nothing new to lay out is spent: what is
+		// written next is writing, not it.
+		s.field.next = change{}
 	}
 	for i, cd := range f.cards {
 		s.field.shown[cd.id] = cd

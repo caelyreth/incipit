@@ -651,11 +651,16 @@ func TestHorizonStatsUpdateAndAnimate(t *testing.T) {
 	if len(state.field.stats.words.entries) != 2 {
 		t.Fatalf("Mid-roll words should hold 2 tracks (exiting + entering), got %d", len(state.field.stats.words.entries))
 	}
+	// The pill may rise or fall as the field changes: the roll is read
+	// against where it stands.
+	pillNow := func() float32 { r, _ := tester.Find("Search"); return r.Y - search.Y }
 	oldMid, okOld := tester.Find("1,204")
 	newMid, okNew := tester.Find("0")
 	if !okOld || !okNew {
 		t.Fatalf("Mid-roll frame should contain both old (ok=%v) and new (ok=%v) whole word counts.", okOld, okNew)
 	}
+	oldMid.Y -= pillNow()
+	newMid.Y -= pillNow()
 	if oldMid.Y <= wordsRect0.Y || newMid.Y+newMid.H >= wordsRect0.Y+wordsRect0.H-0.5 {
 		t.Fatalf("Downward roll should push 1,204 down (Y=%v vs rest=%v) and clip 0 entering from above (bottom=%v vs restBottom=%v).",
 			oldMid.Y, wordsRect0.Y, newMid.Y+newMid.H, wordsRect0.Y+wordsRect0.H)
@@ -706,6 +711,8 @@ func TestHorizonStatsUpdateAndAnimate(t *testing.T) {
 			if !okOldUp || !okNewUp {
 				t.Fatalf("Mid-roll upward frame should contain both 0 (ok=%v) and 1,204 (ok=%v).", okOldUp, okNewUp)
 			}
+			oldUpMid.Y -= pillNow()
+			newUpMid.Y -= pillNow()
 			if oldUpMid.Y+oldUpMid.H >= wordsRect0.Y+wordsRect0.H-0.5 || newUpMid.Y <= wordsRect0.Y {
 				t.Fatalf("Upward roll should push 0 up (bottom=%v vs restBottom=%v) and bring 1,204 in from below (Y=%v vs rest=%v).",
 					oldUpMid.Y+oldUpMid.H, wordsRect0.Y+wordsRect0.H, newUpMid.Y, wordsRect0.Y)

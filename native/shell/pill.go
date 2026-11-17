@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -405,6 +406,18 @@ const idleMost = 24
 func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	var out ribbonLayout
 	rh, gap := ribbonH*k, ribbonGap*k
+	// What the ribbons hold changes as it is written or taken, and the
+	// room they take only grows while the pill stays as it is: open or
+	// let go of, with the same key's values standing. Opened, closed or
+	// let go of, it is what they take again.
+	hold := &s.field.ribbonHold
+	stand := fmt.Sprint(s.field.open)
+	if of := s.completing(); of != nil {
+		stand += " " + of.Name
+	}
+	if hold.stand != stand {
+		*hold = ribbonHold{stand: stand, widths: map[string]float32{}}
+	}
 	items := make([]ribbonPlace, 0, len(s.field.conditions)+len(filterKeys))
 	for i := range s.field.conditions {
 		items = append(items, ribbonPlace{kind: ribbonCondition, i: i, text: s.field.conditions[i]})
@@ -447,7 +460,18 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 		place(values, h+out.below+3*gap, rh+gap)
 		out.below += 2*gap + float32(len(values))*(rh+gap)
 	}
+	hold.above, hold.below = max(hold.above, out.above), max(hold.below, out.below)
+	out.above, out.below = hold.above, hold.below
 	return out
+}
+
+// ribbonHold is what the ribbons hold to while the pill stands as stand
+// says: how far they reach above and below it, and each value's width,
+// by its ribbon, so that a count changing never moves those after it.
+type ribbonHold struct {
+	stand        string
+	above, below float32
+	widths       map[string]float32
 }
 
 // ribbonSide is the side of the pill a key's ribbons stand on, its
@@ -460,6 +484,11 @@ func ribbonSide(name string) int {
 // flow puts p at the end of rows, in a new row where the last is full.
 func (s *State) flow(c *ui.Context, rows [][]ribbonPlace, p ribbonPlace, k, w float32) [][]ribbonPlace {
 	p.w = min(s.ribbonWidth(c, p, k), w)
+	if p.kind == ribbonValue {
+		id := s.ribbonID(p)
+		p.w = max(p.w, s.field.ribbonHold.widths[id])
+		s.field.ribbonHold.widths[id] = p.w
+	}
 	if n := len(rows); n == 0 || rowWidth(rows[n-1], ribbonGap*k)+ribbonGap*k+p.w > w {
 		rows = append(rows, nil)
 	}
@@ -819,7 +848,7 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 		if l.icon != "" {
 			ui.Icon(c, l.icon.SVG()).FontSize(14 * k).TextColor(l.ink).Shrink(0)
 		}
-		components.Label(c, l.label, theme.TextSmall, l.text).SingleLine().Shrink(0)
+		components.Label(c, l.label, theme.TextSmall, l.text).SingleLine().Shrink(0).Grow(1)
 		if l.count != "" {
 			components.Label(c, l.count, theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
 		}

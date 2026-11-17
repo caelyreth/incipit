@@ -73,18 +73,22 @@ func (s *State) blockMetrics(w, h float32) blockMetrics {
 	}
 }
 
-// shapes are the cards' shapes, worked out again only when what they
-// hold or the measures change.
+// shapes are the cards' shapes, in their order, each worked out again only
+// when what they hold or the measures change.
 func (s *State) shapes(c *ui.Context, f found, m blockMetrics) []shape {
 	key := fmt.Sprintf("%s|%d|%s|%d|%d|%v", f.query, f.rev, f.open, f.held, s.field.measures, m)
-	if s.field.shapesKey == key && len(s.field.shapes) == len(f.cards) {
-		return s.field.shapes
+	if s.field.shapesKey != key {
+		s.field.shapes, s.field.shapesKey = map[string]shape{}, key
 	}
 	out := make([]shape, len(f.cards))
 	for i, cd := range f.cards {
-		out[i] = cd.kind.shape(s, c, m)
+		sh, ok := s.field.shapes[cd.id]
+		if !ok {
+			sh = cd.kind.shape(s, c, m)
+			s.field.shapes[cd.id] = sh
+		}
+		out[i] = sh
 	}
-	s.field.shapes, s.field.shapesKey = out, key
 	return out
 }
 
@@ -237,10 +241,12 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 				s.renameInput(c, semantic, *g)
 				return
 			}
-			if len(b.path) > 0 {
-				components.Label(c, strings.Join(b.path, " › ")+" ›", theme.TextDefault, semantic.Text.Muted).MinWidth(0).SingleLine()
-			}
-			components.Label(c, b.name(), theme.TextDefault, semantic.Text.Heading).Grow(1).MinWidth(0).SingleLine()
+			ui.Row(c).Key("title").Grow(1).MinWidth(0).Gap(4 * m.k).AlignItems(ui.Center).Children(func() {
+				if len(b.path) > 0 {
+					components.Label(c, strings.Join(b.path, " › ")+" ›", theme.TextDefault, semantic.Text.Muted).MinWidth(0).SingleLine()
+				}
+				components.Label(c, b.name(), theme.TextDefault, semantic.Text.Heading).Shrink(0).MaxWidthPercent(100).SingleLine()
+			})
 			if g != nil {
 				components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).
 					SingleLine().Shrink(0).FontFeatures("tnum")

@@ -43,3 +43,12 @@ func TestTheStripRestsAtTheNearestColumnWithinReach(t *testing.T) {
 		t.Fatalf("600 along stands in the second column, not %d.", at)
 	}
 }
+
+// A horizon holds an odd count of columns, one under the pill.
+func TestTheHorizonHoldsAnOddCountOfColumns(t *testing.T) {
+	for _, w := range []float32{200, 600, 900, 1200, 1500} {
+		if cols, col := Columns(w, 260, 340, 14); cols%2 == 0 || col > 340 {
+			t.Fatalf("%v wide should hold an odd count of columns at most 340 wide: %d of %v.", w, cols, col)
+		}
+	}
+}

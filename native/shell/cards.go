@@ -2,9 +2,12 @@ package shell
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
@@ -80,8 +83,10 @@ type found struct {
 	rev   uint64
 	open  string
 	held  uint64
-	cards []card
-	stats fieldStats
+	// cards are what the field shows, in order, and ranked in the order
+	// the query ranks them, which cards takes once it is ranked again.
+	cards, ranked []card
+	stats         fieldStats
 }
 
 func (f *found) add(id string, t tier, kind cardKind) {
@@ -89,8 +94,17 @@ func (f *found) add(id string, t tier, kind cardKind) {
 }
 
 // results is what the field's query finds, worked out again only when the
-// query, the library, the sheets open or the tray change.
-func (s *State) results() found {
+// query, the library, the sheets open or the tray change, as it stands
+// at now.
+//
+// A search's rank holds while its query stands (field-and-desk.md §5.3):
+// what it finds again, as a sheet is written, stands where it stood, and
+// what is written on in the pill keeps what it still finds where it was,
+// what it finds besides after them, until the writing pauses
+// (rankPause); then, or as the window comes back to the field, it is
+// ranked again. A query changed by an action, or one that browses, is
+// ranked as it comes: what is browsed stands as it is filed.
+func (s *State) results(now time.Time) found {
 	if s.Library == nil {
 		return found{}
 	}
@@ -98,17 +112,66 @@ func (s *State) results() found {
 	open := openKey(s.Open)
 	rev := s.Library.Revision()
 	held := s.lane.heldRev
-	if f := s.field.found; f.query == text && f.rev == rev && f.open == open && f.held == held && f.cards != nil {
-		return f
+	prev := s.field.found
+	if prev.query == text && prev.rev == rev && prev.open == open && prev.held == held && prev.cards != nil {
+		if s.field.rerank || !s.field.rankDue.IsZero() && !now.Before(s.field.rankDue) {
+			prev.cards = prev.ranked
+			s.field.found = prev
+			s.field.rerank, s.field.rankDue = false, time.Time{}
+		}
+		return prev
 	}
 	f := found{query: text, rev: rev, open: open, held: held, cards: []card{}}
 	for _, src := range sources {
 		src.answer(s, text, &f)
 	}
 	sort.SliceStable(f.cards, func(i, j int) bool { return f.cards[i].tier < f.cards[j].tier })
+	f.ranked = f.cards
+	_, _, browse := s.browsing(query.Parse(text))
+	switch {
+	case browse || prev.cards == nil || s.field.rerank || s.field.next != (change{}):
+		s.field.rankDue = time.Time{}
+	default:
+		f.cards = steady(prev.cards, f.ranked)
+		if prev.query != text {
+			s.field.rankDue = now.Add(rankPause)
+		}
+	}
+	s.field.rerank = false
 	f.stats = s.computeFieldStats(text, f.cards)
 	s.field.found = f
 	return f
+}
+
+// rankPause is how long the writing in the pill pauses before what it
+// finds is ranked again.
+const rankPause = 600 * time.Millisecond
+
+// steady is next's cards, those prev shows in the order it shows them,
+// then the rest in next's own; each tier apart.
+func steady(prev, next []card) []card {
+	at := make(map[string]int, len(prev))
+	for i, cd := range prev {
+		at[cd.id] = i
+	}
+	out := slices.Clone(next)
+	slices.SortStableFunc(out, func(a, b card) int {
+		if a.tier != b.tier {
+			return int(a.tier) - int(b.tier)
+		}
+		i, wasA := at[a.id]
+		j, wasB := at[b.id]
+		switch {
+		case wasA && wasB:
+			return i - j
+		case wasA:
+			return -1
+		case wasB:
+			return 1
+		}
+		return 0
+	})
+	return out
 }
 
 func (s *State) computeFieldStats(text string, cards []card) fieldStats {

@@ -40,6 +40,9 @@ type fakeLibrary struct {
 	// homes are the groups sheets are filed in, by id; any other is in
 	// Novel.
 	homes map[string]string
+	// order is what a search finds, by its text, in place of Chapter then
+	// Notes.
+	order func(text string) []string
 }
 
 // call records what the library was asked, and what changes it changes
@@ -111,10 +114,22 @@ func (f *fakeLibrary) Revision() uint64 { return f.rev }
 
 func (f *fakeLibrary) Search(text string) Found {
 	f.call("search " + text)
-	return Found{Sheets: []FoundSheet{
+	sheets := []FoundSheet{
 		{SheetItem: SheetItem{ID: "7", Title: "Chapter"}, TitleMatches: []query.Span{{From: 0, To: 4}}},
 		{SheetItem: SheetItem{ID: "8", Title: "Notes"}, Line: "a chapter of notes", LineMatches: []query.Span{{From: 2, To: 9}}},
-	}, Total: 2}
+	}
+	if f.order != nil {
+		var out []FoundSheet
+		for _, id := range f.order(text) {
+			for _, sh := range sheets {
+				if sh.ID == id {
+					out = append(out, sh)
+				}
+			}
+		}
+		sheets = out
+	}
+	return Found{Sheets: sheets, Total: len(sheets)}
 }
 
 // CountValues counts each value as many sheets as its name is long, and

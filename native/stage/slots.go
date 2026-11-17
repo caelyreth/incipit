@@ -21,9 +21,12 @@ type Horizon struct {
 }
 
 // Columns fits a horizon's columns into width w: as many as hold at least
-// least wide, each no wider than most.
+// least wide, each no wider than most, and an odd count of them, so that
+// one stands under the pill and the field stands even about it however
+// much it holds.
 func Columns(w, least, most, gap float32) (cols int, col float32) {
 	cols = max(1, int((w+gap)/(least+gap)))
+	cols -= 1 - cols%2
 	col = min(most, (w-float32(cols-1)*gap)/float32(cols))
 	return cols, max(col, 1)
 }

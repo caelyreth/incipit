@@ -3,6 +3,7 @@ package shell
 import (
 	"slices"
 	"testing"
+	"time"
 )
 
 // The group the query is in heads no block: its sheets stand on their own,
@@ -28,7 +29,7 @@ func TestBlocksTellGroupsApart(t *testing.T) {
 	state, library := nestedGroupState()
 	state.ShowField()
 	state.SetFieldQuery("chapter")
-	f := state.results()
+	f := state.results(time.Now())
 	if ids := cardIDs(f); !slices.Equal(ids, []string{"sheet:7", "sheet:8"}) {
 		t.Fatalf("All in Novel, the sheets should stand on their own: %v.", ids)
 	}
@@ -37,7 +38,7 @@ func TestBlocksTellGroupsApart(t *testing.T) {
 	}
 	library.homes = map[string]string{"7": "4", "8": "1"}
 	library.rev++
-	f = state.results()
+	f = state.results(time.Now())
 	if ids := cardIDs(f); !slices.Equal(ids, []string{"group:4", "group:1"}) {
 		t.Fatalf("Found in two groups, each should have its block: %v.", ids)
 	}
@@ -47,7 +48,7 @@ func TestBlocksTellGroupsApart(t *testing.T) {
 	library.homes = map[string]string{"7": "2", "8": "4"}
 	library.rev++
 	state.SetFieldQuery("$in:Novel chapter")
-	f = state.results()
+	f = state.results(time.Now())
 	if ids := cardIDs(f); !slices.Equal(ids, []string{"sheet:7", "group:4"}) {
 		t.Fatalf("In Novel, its own sheet should stand alone, Scene's in its block: %v.", ids)
 	}
@@ -73,7 +74,7 @@ func TestAGroupShowsItsGroupsThenItsSheets(t *testing.T) {
 	state, _ := nestedGroupState()
 	state.ShowField()
 	state.SetFieldQuery("$in:Novel")
-	if ids := cardIDs(state.results()); !slices.Equal(ids, []string{"group:3", "sheet:7", "new"}) {
+	if ids := cardIDs(state.results(time.Now())); !slices.Equal(ids, []string{"group:3", "sheet:7", "new"}) {
 		t.Fatalf("Novel should show Arc, then its sheet, then the area that makes one: %v.", ids)
 	}
 }
