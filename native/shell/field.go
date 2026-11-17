@@ -30,6 +30,8 @@ type fieldState struct {
 	// focus asks the pill's input for the keyboard; open is whether the
 	// pill, holding it at its horizon, shows what it can narrow by.
 	focus bool
+	// quiet has the field take the keyboard itself, the pill let go of.
+	quiet bool
 	open  bool
 	// completion is what may stand at the caret, caret bytes into the
 	// words completedFor, offered unless the words are what it was put
@@ -235,7 +237,14 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	s.scopeDrops(semantic, view, k, animate)
 	view.HandleInput(s.fieldInput)
 	s.field.hidden = hidden
-	if !s.OnDesk() && !s.Typing() && c.Shortcut(0, ui.KeyEscape) {
+	// The field takes the keyboard from the pill let go of, and as it
+	// comes back from the desk, for that frame alone: after it, nothing
+	// holds the keyboard, and Escape goes on with the field.
+	if s.field.quiet && !hidden {
+		s.field.quiet = false
+		view.Focusable().FocusRing(false).Focus()
+	}
+	if !s.OnDesk() && !c.FocusTakesText() && c.Shortcut(0, ui.KeyEscape) {
 		s.escapeField()
 	}
 	f := s.results()

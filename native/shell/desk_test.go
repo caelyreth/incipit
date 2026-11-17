@@ -402,9 +402,10 @@ func TestThePointerBringsTheColumnUnderItInFront(t *testing.T) {
 	}
 }
 
-// The divider and the pill's end bound one square close button, with
-// equal room on its two sides, at every UI size.
-func TestTheSheetHeadCentersCloseBetweenTheDividerAndEdge(t *testing.T) {
+// The pill's start and the divider bound one square button back to the
+// field, with equal room on its two sides, at every UI size; the sheet's
+// close button stands alone at the head's end.
+func TestTheSheetHeadPutsBackAtItsStartAndCloseAtItsEnd(t *testing.T) {
 	for _, size := range []float32{12, 16, 24} {
 		state, _ := libraryState()
 		state.Settings.UIFontSize = size
@@ -419,17 +420,21 @@ func TestTheSheetHeadCentersCloseBetweenTheDividerAndEdge(t *testing.T) {
 		tester.SetTitleBar(ui.TitleBar{Height: 64})
 		tester.Frame()
 		pill, hasPill := tester.Find("Column")
+		back, hasBack := tester.Find("Back to the field")
 		info, hasInfo := tester.Find("Sheet")
 		close, hasClose := tester.Find("Close A place to begin")
-		if !hasPill || !hasInfo || !hasClose {
-			t.Fatal("The sheet's title, pill and close button should show.")
+		if !hasPill || !hasBack || !hasInfo || !hasClose {
+			t.Fatal("The sheet's title, its pill, back and close should show.")
 		}
-		// The divider is one DIP wide, directly after the title group.
-		before := close.X - (info.X + info.W + 1)
-		after := pill.X + pill.W - (close.X + close.W)
-		if abs(before-after) > 0.5 || abs(close.W-close.H) > 0.5 {
-			t.Fatalf("At UI size %v, close should be square with equal room beside the divider and the pill's end, but it is %v with gaps %v and %v.",
-				size, close, before, after)
+		// The divider is one DIP wide, directly before the title group.
+		before := back.X - pill.X
+		after := info.X - 1 - (back.X + back.W)
+		if abs(before-after) > 0.5 || abs(back.W-back.H) > 0.5 {
+			t.Fatalf("At UI size %v, back should be square with equal room beside the pill's start and the divider, but it is %v with gaps %v and %v.",
+				size, back, before, after)
+		}
+		if close.X < 400 || close.X <= info.X+info.W {
+			t.Fatalf("At UI size %v, close should stand at the head's end, but it is at %v.", size, close)
 		}
 	}
 }

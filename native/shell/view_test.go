@@ -112,6 +112,51 @@ func TestEscapeTwiceOnTheDeskGoesToTheField(t *testing.T) {
 	if state.OnDesk() {
 		t.Fatal("Escape twice should go from the desk to the field.")
 	}
+	// Back on the field, the keyboard is the field's, not the pill's:
+	// Escape goes on there, back to the desk.
+	settle(tester)
+	if state.field.open {
+		t.Fatal("Coming back from the desk should not take the pill.")
+	}
+	tester.Key(0, ui.KeyEscape)
+	tester.Frame()
+	if !state.OnDesk() {
+		t.Fatal("Escape on the field, its query empty, should go to the desk.")
+	}
+}
+
+// The column's head goes back to the field, the pill left alone, and
+// closes its sheet from the head's end.
+func TestTheColumnHeadGoesBackToTheField(t *testing.T) {
+	state := openState()
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	tester.Move(600, 300)
+	settle(tester)
+	if err := tester.Click("Back to the field"); err != nil {
+		t.Fatalf("%v: %v", err, tester.Texts())
+	}
+	settle(tester)
+	if state.OnDesk() || state.field.open {
+		t.Fatalf("Back should go to the field, the pill left alone: on desk %v, pill open %v.", state.OnDesk(), state.field.open)
+	}
+}
+
+// Neverland's name pressed goes home, as Home does.
+func TestTheWordmarkGoesHome(t *testing.T) {
+	state, _ := libraryState()
+	state.ShowField()
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	state.SetFieldQuery("$tag:work plan")
+	settle(tester)
+	if err := tester.Click("Neverland"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if q := state.FieldQuery(); q != "" {
+		t.Fatalf("The wordmark should go home, but the query is %q.", q)
+	}
 }
 
 func TestSearchGoesToTheFieldAndFocusesThePill(t *testing.T) {

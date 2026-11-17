@@ -117,11 +117,20 @@ func TestAConditionWrittenBecomesARibbon(t *testing.T) {
 	}
 }
 
-// Escape takes the words away, then the conditions, then goes to the desk.
+// Escape lets go of the pill, the query kept; then on the field it takes
+// the words away, then the conditions, then goes to the desk.
 func TestEscapeComesBackOneStepAtATime(t *testing.T) {
 	state, _, tester := onField(t, 1260, 850)
 	state.SetFieldQuery("$in:Novel chap")
 	settle(tester)
+	if !state.field.open {
+		t.Fatal("The pill should hold the keyboard on the field.")
+	}
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+	if state.field.open || state.FieldQuery() != "$in:Novel chap" {
+		t.Fatalf("Escape in the pill should let go of it, the query kept, but it is open %v with %q.", state.field.open, state.FieldQuery())
+	}
 	for _, want := range []string{"$in:Novel", ""} {
 		tester.Key(0, ui.KeyEscape)
 		settle(tester)
@@ -678,7 +687,9 @@ func TestHorizonStatsUpdateAndAnimate(t *testing.T) {
 
 	// Clear the filter back to full library (2 sheets, 1,204 words): whole
 	// numbers roll upward and widths expand smoothly with zero ellipsis at any frame.
-	tester.Key(0, ui.KeyEscape)
+	// Backspace in the pill takes the ribbon away, the pill keeping the
+	// keyboard and its width.
+	tester.Key(0, ui.KeyBackspace)
 	tester.Frame()
 	var wordUnitUpMid ui.Rect
 	checkedMid := false
@@ -729,7 +740,7 @@ func TestHorizonStatsUpdateAndAnimate(t *testing.T) {
 	}
 
 	// Restore full library and check mode switching.
-	tester.Key(0, ui.KeyEscape)
+	tester.Key(0, ui.KeyBackspace)
 	settle(tester)
 	if _, stillOld := tester.Find("0"); stillOld {
 		t.Fatal("Old word count 0 should exit once settled.")

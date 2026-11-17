@@ -52,7 +52,7 @@ func (s *State) SearchCommands() {
 const escapeTwice = 400 * time.Millisecond
 
 // deskEscape hears Escape on the desk: pressed twice in quick succession,
-// and not taken by what has the keyboard, it goes to the field.
+// and not taken by what has the keyboard, it goes back to the field.
 func (s *State) deskEscape(c *ui.Context) {
 	if !s.OnDesk() || !c.Shortcut(0, ui.KeyEscape) {
 		return
@@ -62,7 +62,14 @@ func (s *State) deskEscape(c *ui.Context) {
 		return
 	}
 	s.escapedAt = time.Time{}
-	s.ShowField()
+	s.returnToField()
+}
+
+// returnToField goes back from the desk to the field, the keyboard with
+// the field, not its pill: going back is not setting out to search.
+func (s *State) returnToField() {
+	s.onDesk = false
+	s.field.quiet = true
 }
 
 // ToggleField goes to the field from the desk, and back.

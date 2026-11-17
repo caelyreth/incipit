@@ -12,8 +12,9 @@ import (
 // columns' heads (columnHead). The line holds nothing opaque of its own:
 // the desk's columns reach the window's top,
 // what they hold beginning under the line and scrolling on under it, and
-// a column's head floats over it, a strip of buttons, shown while the
-// pointer is on the column. The line is the window's title
+// a column's head floats over it, buttons shown while the pointer is on
+// the column: at its start what goes back to the field and what shows of
+// the column, at its end what closes it. The line is the window's title
 // bar: a drag on it moves the window. Where a head passes under the
 // traffic lights, it keeps clear of them (clearOfLights), so nothing of it
 // hides under them as the strip goes along.
@@ -56,15 +57,23 @@ func (s *State) columnHead(c *ui.Context, semantic theme.Theme, key string, lead
 		if shown <= 0.001 {
 			return
 		}
-		close.icon = components.IconClose
-		groups := []components.ActionGroup{{Key: "close", Label: "Close", Actions: []func(){func() {
-			close.view(c, semantic, animate)
+		back := chromeButton{key: "back-to-field", label: "Back to the field", icon: components.IconBack,
+			tooltip: components.CommandTooltip("Back to the field", "esc esc"), action: s.returnToField}
+		groups := []components.ActionGroup{{Key: "back", Label: "Field", Actions: []func(){func() {
+			back.view(c, semantic, animate)
 		}}}}
 		if info != nil {
-			groups = append([]components.ActionGroup{{Key: "info", Label: "Sheet", Actions: []func(){info}}}, groups...)
+			groups = append(groups, components.ActionGroup{Key: "info", Label: "Sheet", Actions: []func(){info}})
 		}
 		ui.Row(c).Key("strip").MinWidth(0).Opacity(shown).Children(func() {
 			components.ActionDock{Key: "head-strip", Label: "Column", Groups: groups, Bare: 1, Joined: true, Animate: animate}.
+				View(c, semantic)
+		})
+		ui.Box(c).Key("between").Grow(1)
+		close.icon = components.IconClose
+		ui.Row(c).Key("end").Shrink(0).Opacity(shown).Children(func() {
+			components.ActionDock{Key: "head-close", Label: "Close", Groups: []components.ActionGroup{{Key: "close", Label: "Close",
+				Actions: []func(){func() { close.view(c, semantic, animate) }}}}, Bare: 1, Joined: true, Animate: animate}.
 				View(c, semantic)
 		})
 	})

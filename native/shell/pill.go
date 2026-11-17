@@ -26,8 +26,8 @@ import (
 // opposite. Return opens the row the keys are on or takes what an open key
 // holds, Tab takes a suggestion, the arrows move along the suggestions or
 // the field's rows, and Escape closes an open key, then puts the
-// suggestions away, then the words, then the conditions, then goes to the
-// desk. Written after ">", what the pill holds names the app's commands.
+// suggestions away, then lets go of the pill; on the field, it puts the
+// words away, then the conditions, then goes to the desk. Written after ">", what the pill holds names the app's commands.
 // Beside it on the horizon stands Neverland's name, before it.
 
 // horizonSide is how much room, at the reference type size, the field
@@ -40,17 +40,21 @@ const horizonSide = 140
 // field's live statistics after it.
 func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stage.Rect, rl ribbonLayout, w, k float32, animate bool) {
 	gap := 12 * k
-	ui.Row(c).Key("wordmark").Absolute().Top(r.Y).Right(w - r.X + gap).Height(r.H).
-		AlignItems(ui.Center).IgnoreInput(true).Role(ui.RoleImage).Label("Neverland").
-		Children(func() {
-			ui.Row(c).Key("name").AlignItems(ui.End).Children(func() {
-				size := 22 * k
-				ui.Text(c, "Neverland").Font(theme.UIFontFamily).FontSize(size).FontWeight(700).
-					LetterSpacing(-0.02 * size).TextColor(semantic.Text.Default).SingleLine()
-				ui.Text(c, ".").Font(theme.UIFontFamily).FontSize(size).FontWeight(700).
-					TextColor(semantic.Accent.Foreground).SingleLine()
-			})
+	// Pressed, Neverland's name goes home, as the field lane's Home does.
+	mark := ui.ButtonBase(c.Key("wordmark")).Absolute().Top(r.Y).Right(w - r.X + gap).Height(r.H).
+		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label("Neverland").Tooltip("Home")
+	if mark.Clicked() {
+		s.goHome()
+	}
+	mark.Children(func() {
+		ui.Row(c).Key("name").AlignItems(ui.End).Children(func() {
+			size := 22 * k
+			ui.Text(c, "Neverland").Font(theme.UIFontFamily).FontSize(size).FontWeight(700).
+				LetterSpacing(-0.02 * size).TextColor(semantic.Text.Default).SingleLine()
+			ui.Text(c, ".").Font(theme.UIFontFamily).FontSize(size).FontWeight(700).
+				TextColor(semantic.Accent.Foreground).SingleLine()
 		})
+	})
 	s.horizonStats(c, semantic, r, w, gap, animate)
 	// The ribbons first, as they were laid out for what the pill held as
 	// the frame began: the pill, taking the keys, may change it.
@@ -826,7 +830,11 @@ func (s *State) pillKey(key ui.TextKey) bool {
 	plain := key.Mods == 0
 	switch key.Key {
 	case ui.KeyEscape:
-		s.escapeField()
+		if len(s.field.picked) > 0 || s.field.opened != nil || s.offered() {
+			s.escapeField()
+		} else {
+			s.field.quiet = true
+		}
 		return true
 	case ui.KeyBackspace:
 		switch {
