@@ -50,9 +50,11 @@ type fieldState struct {
 	dismissed    string
 	found        found
 	// rerank has found ranked again, as the window comes back to the
-	// field, and rankDue is when it is, the writing in the pill paused.
-	rerank  bool
-	rankDue time.Time
+	// field; settleAt is when the field settles as the writing in the pill
+	// pauses, zero while nothing is being written, and settled that it
+	// has, for the field to stand even again.
+	rerank, settled bool
+	settleAt        time.Time
 	// shapes are found's cards' shapes, by id, for the measures shapesKey
 	// names.
 	shapes    map[string]shape
@@ -269,8 +271,8 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		s.escapeField()
 	}
 	f := s.results(c.Now())
-	if !s.field.rankDue.IsZero() {
-		c.After(s.field.rankDue.Sub(c.Now()))
+	if !s.field.settleAt.IsZero() {
+		c.After(s.field.settleAt.Sub(c.Now()))
 	}
 	shapes := s.shapes(c, f, m)
 	heights := make([]float32, len(shapes))
@@ -307,17 +309,23 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	below, above = max(below, z.Below), max(above, z.Above)
 	top, foot := 48*k, 24*k
 	// At rest, the field stands even in the window: its horizon rises or
-	// falls into the room it leaves empty over or under it, never past
-	// where something of it would leave the window, and its cards, where a
-	// ring of columns is taken on one side alone, go across to stand even
-	// about the pill. Never while the pill is written in, the pill and
-	// what it finds keeping still under the caret: an action on the query,
-	// or the pill let go of, sets it again.
+	// falls into the room it leaves empty over or under it, and its cards,
+	// where a ring of columns is taken on one side alone, go across to
+	// stand even about the pill. While the pill is open it keeps still,
+	// under the pointer and the caret, and the field with it, until the
+	// writing in it pauses; but never so far that something of the field
+	// would leave the window or its columns, which brings it in as far as
+	// needs be. Let go of, the pill goes where the field is even.
 	first := s.field.rest == nil
-	if !s.field.open || s.field.next != (change{}) || first {
-		up, down := max(0, h/2-top-above), max(0, h/2-foot-below)
-		s.field.poiseTo = stage.Point{X: -stage.Centre(rects), Y: max(-down, min(up, (foot-top+below-above)/2))}
+	up, down := max(0, h/2-top-above), max(0, h/2-foot-below)
+	lo, hi := stage.Extent(rects)
+	reach := (float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap) / 2
+	if !s.field.open || first || s.field.settled {
+		s.field.settled = false
+		s.field.poiseTo = stage.Point{X: -(lo + hi) / 2, Y: (foot - top + below - above) / 2}
 	}
+	s.field.poiseTo.X = max(-reach-lo, min(reach-hi, s.field.poiseTo.X))
+	s.field.poiseTo.Y = max(-down, min(up, s.field.poiseTo.Y))
 	poise := s.field.poiseTo
 	lift := poise.Y
 	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2+lift), max(0, below+3*m.pad-h/2-lift)

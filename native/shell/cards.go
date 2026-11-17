@@ -100,10 +100,10 @@ func (f *found) add(id string, t tier, kind cardKind) {
 // A search's rank holds while its query stands (field-and-desk.md §5.3):
 // what it finds again, as a sheet is written, stands where it stood, and
 // what is written on in the pill keeps what it still finds where it was,
-// what it finds besides after them, until the writing pauses
-// (rankPause); then, or as the window comes back to the field, it is
-// ranked again. A query changed by an action, or one that browses, is
-// ranked as it comes: what is browsed stands as it is filed.
+// what it finds besides after them, until the writing pauses (settleAt);
+// then, or as the window comes back to the field, it is ranked again. A
+// query changed by an action, or one that browses, is ranked as it comes:
+// what is browsed stands as it is filed.
 func (s *State) results(now time.Time) found {
 	if s.Library == nil {
 		return found{}
@@ -114,10 +114,11 @@ func (s *State) results(now time.Time) found {
 	held := s.lane.heldRev
 	prev := s.field.found
 	if prev.query == text && prev.rev == rev && prev.open == open && prev.held == held && prev.cards != nil {
-		if s.field.rerank || !s.field.rankDue.IsZero() && !now.Before(s.field.rankDue) {
+		if paused := !s.field.settleAt.IsZero() && !now.Before(s.field.settleAt); s.field.rerank || paused {
 			prev.cards = prev.ranked
 			s.field.found = prev
-			s.field.rerank, s.field.rankDue = false, time.Time{}
+			s.field.settled = paused
+			s.field.rerank, s.field.settleAt = false, time.Time{}
 		}
 		return prev
 	}
@@ -129,13 +130,16 @@ func (s *State) results(now time.Time) found {
 	f.ranked = f.cards
 	_, _, browse := s.browsing(query.Parse(text))
 	switch {
-	case browse || prev.cards == nil || s.field.rerank || s.field.next != (change{}):
-		s.field.rankDue = time.Time{}
-	default:
-		f.cards = steady(prev.cards, f.ranked)
-		if prev.query != text {
-			s.field.rankDue = now.Add(rankPause)
+	case prev.cards == nil || s.field.rerank || s.field.next != (change{}):
+		s.field.settleAt = time.Time{}
+	case prev.query != text:
+		// Written on: the field settles once the writing pauses.
+		s.field.settleAt = now.Add(writingPause)
+		if !browse {
+			f.cards = steady(prev.cards, f.ranked)
 		}
+	case !browse:
+		f.cards = steady(prev.cards, f.ranked)
 	}
 	s.field.rerank = false
 	f.stats = s.computeFieldStats(text, f.cards)
@@ -143,9 +147,10 @@ func (s *State) results(now time.Time) found {
 	return f
 }
 
-// rankPause is how long the writing in the pill pauses before what it
-// finds is ranked again.
-const rankPause = 600 * time.Millisecond
+// writingPause is how long the writing in the pill pauses before the
+// field settles: what it finds ranked again, and the field standing even
+// in the window.
+const writingPause = 600 * time.Millisecond
 
 // steady is next's cards, those prev shows in the order it shows them,
 // then the rest in next's own; each tier apart.

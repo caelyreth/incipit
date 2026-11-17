@@ -57,7 +57,7 @@ func TestWritingKeepsTheRankUntilItPauses(t *testing.T) {
 	if got := shownBlocks(state); !slices.Equal(got, []string{"group:2", "group:1"}) {
 		t.Fatalf("Written on, the blocks should keep where they stood: %v.", got)
 	}
-	tester.Advance(rankPause)
+	tester.Advance(writingPause)
 	tester.Frame()
 	settle(tester)
 	if got := shownBlocks(state); !slices.Equal(got, []string{"group:1", "group:2"}) {
@@ -118,5 +118,69 @@ func TestALoneCardStandsUnderThePillInAnyColumns(t *testing.T) {
 		if mid := pill.X + pill.W/2; abs(row.X+row.W/2+state.field.poise.X) > 0.5 || card.X > mid {
 			t.Fatalf("%d wide, %d columns: the card should stand under the pill at %v: %v, across %v.", w, cols, mid, row, state.field.poise.X)
 		}
+	}
+}
+
+// The room a condition's ribbons took is given back as it goes, however
+// it goes: the field comes back home as it first stood.
+func TestTheBandGivesBackWhatAConditionTook(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	tester.ClickAt(12, 12)
+	settle(tester)
+	home := slices.Clone(state.field.rest)
+	state.SetFieldQuery("$tag:work")
+	settle(tester)
+	state.goHome()
+	settle(tester)
+	if !slices.Equal(state.field.rest, home) {
+		t.Fatalf("Home again, the field should stand as it did: %v, now %v.", home, state.field.rest)
+	}
+}
+
+// Written away in the pill, a field that had risen and gone across for
+// little settles back once the writing pauses, the pill still held.
+func TestTheFieldSettlesAsTheWritingPauses(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	tester.ClickAt(12, 12)
+	settle(tester)
+	home := state.field.poise
+	library.order = func(string) []string { return []string{"7"} }
+	state.SetFieldQuery("chapter")
+	settle(tester)
+	if state.field.poise == home {
+		t.Fatal("With one card, the field should stand otherwise than at home.")
+	}
+	state.Search()
+	settle(tester)
+	for range len("chapter") {
+		tester.Key(0, ui.KeyBackspace)
+	}
+	tester.Frame()
+	held := state.field.poiseTo
+	tester.Advance(writingPause / 2)
+	tester.Frame()
+	if state.field.poiseTo != held {
+		t.Fatalf("While the writing goes on, the field should hold: %v, now %v.", held, state.field.poiseTo)
+	}
+	tester.Advance(writingPause)
+	settle(tester)
+	if d := state.field.poise; abs(d.X-home.X) > 0.5 || abs(d.Y-home.Y) > 0.5 {
+		t.Fatalf("The writing paused, the field should settle as at home: %v, not %v.", home, d)
+	}
+}
+
+// Opening a key never moves the pill from under the pointer, though its
+// values take room under it.
+func TestOpeningAKeyKeepsThePillStill(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	state.Search()
+	settle(tester)
+	pill, _ := tester.Find("Search")
+	if err := tester.Click("Updated"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if now, _ := tester.Find("Search"); now.Y != pill.Y {
+		t.Fatalf("Opening a key should leave the pill where it was: %v, now %v.", pill, now)
 	}
 }

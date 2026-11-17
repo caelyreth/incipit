@@ -408,12 +408,14 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	rh, gap := ribbonH*k, ribbonGap*k
 	// What the ribbons hold changes as it is written or taken, and the
 	// room they take only grows while the pill stays as it is: open or
-	// let go of, with the same key's values standing. Opened, closed or
-	// let go of, it is what they take again.
+	// let go of, with the same key's values standing, or, with none, the
+	// same conditions. Any of those changing, it is what they take again.
 	hold := &s.field.ribbonHold
 	stand := fmt.Sprint(s.field.open)
 	if of := s.completing(); of != nil {
 		stand += " " + of.Name
+	} else {
+		stand += " " + strings.Join(s.field.conditions, " ")
 	}
 	if hold.stand != stand {
 		*hold = ribbonHold{stand: stand, widths: map[string]float32{}}

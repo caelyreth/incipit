@@ -530,7 +530,7 @@ func TestKeptQueriesAreBookmarksInTheKeptBox(t *testing.T) {
 func TestScrollingLeavesThePillAndItsRibbonsSteady(t *testing.T) {
 	state, library, tester := onField(t, 1260, 850)
 	groups := []GroupItem{{ID: "1", Name: "Inbox", Inbox: true}}
-	for i := range 16 {
+	for i := range 40 {
 		groups = append(groups, GroupItem{ID: fmt.Sprint(100 + i), Name: fmt.Sprintf("Shelf %d", i+1)})
 	}
 	library.groupTree = map[string][]GroupItem{"": groups}

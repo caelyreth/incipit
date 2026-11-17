@@ -81,17 +81,17 @@ func (z Horizon) Place(heights []float32) []Rect {
 	return out
 }
 
-// Centre is where what rects hold is centred across, from the horizon's
-// middle: none where they stand even about it.
-func Centre(rects []Rect) float32 {
+// Extent is how far across what rects hold reaches, from the horizon's
+// middle: left of it, lo below 0, and right, hi; none for none.
+func Extent(rects []Rect) (lo, hi float32) {
 	if len(rects) == 0 {
-		return 0
+		return 0, 0
 	}
-	lo, hi := rects[0].X, rects[0].X+rects[0].W
+	lo, hi = rects[0].X, rects[0].X+rects[0].W
 	for _, r := range rects[1:] {
 		lo, hi = min(lo, r.X), max(hi, r.X+r.W)
 	}
-	return (lo + hi) / 2
+	return lo, hi
 }
 
 // Reach is how far each half of the field holds, past the band: below,
