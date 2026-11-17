@@ -156,3 +156,30 @@ func TestOpeningASettingsCategoryMoves(t *testing.T) {
 		t.Fatal("Opening a category should move the field, not stand it at once.")
 	}
 }
+
+// A category opened and closed again leaves the pill where it stood over
+// the categories, even while it holds the keys: what holds it in the
+// window while the category is open lets go as it closes.
+func TestAClosedCategoryBringsThePillBack(t *testing.T) {
+	state, _, tester := onField(t, 420, 700)
+	state.AppSettings = &fakeSettings{tall: 600}
+	settle(tester)
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	before, _ := tester.Find("Search")
+	if err := tester.Click("Keymap"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	opened, _ := tester.Find("Search")
+	if err := tester.Click("Remove Keymap"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	after, _ := tester.Find("Search")
+	if !tester.Focused("Search") || opened.Y == before.Y || after.Y != before.Y {
+		t.Fatalf("Closed, the pill should stand again at %v (held at %v while open), not %v.", before.Y, opened.Y, after.Y)
+	}
+}

@@ -1063,3 +1063,42 @@ func TestRibbonTransitionsMirrorVerticallyAroundPill(t *testing.T) {
 		t.Fatal("Group ribbon should be gone once blurred and settled.")
 	}
 }
+
+// Where the pill stays at the window's top, what the field holds passes
+// under it blurred and faded into the field's ground, still showing
+// through; at rest nothing is laid over it.
+func TestAStuckPillStandsOverTheFieldBlurred(t *testing.T) {
+	state, library, tester := onField(t, 900, 460)
+	var groups []GroupItem
+	for i := range 24 {
+		groups = append(groups, GroupItem{ID: fmt.Sprint("g", i), Name: fmt.Sprint("Group ", i), Count: 6})
+	}
+	library.groupTree = map[string][]GroupItem{"": groups}
+	library.extraSheets = 6
+	library.rev++
+	settle(tester)
+	if state.field.stuck != 0 {
+		t.Fatalf("At rest nothing should be laid under the pill, not %v.", state.field.stuck)
+	}
+	// Scrolled until the first heads pass over the pill, near the window's top.
+	head, _ := tester.Find("Group 1")
+	state.field.scroll = head.Y - 30
+	settle(tester)
+	pill, _ := tester.Find("Search")
+	head, _ = tester.Find("Group 1")
+	if state.field.stuck != 1 || pill.Y > 48 {
+		t.Fatalf("Scrolled far, the pill should stay at the top (%v) over its backdrop, not %v.", pill, state.field.stuck)
+	}
+	img := tester.Image()
+	bg := state.Settings.Semantic().Surface.Background
+	most := float32(0)
+	for y := int(head.Y); y < int(pill.Y); y++ {
+		for x := int(head.X); x < int(head.X+head.W); x++ {
+			c := img.RGBAAt(x, y)
+			most = max(most, abs(float32(c.R)-float32(bg.R)), abs(float32(c.G)-float32(bg.G)), abs(float32(c.B)-float32(bg.B)))
+		}
+	}
+	if most < 8 || most > 80 {
+		t.Fatalf("Over the stuck pill the head should show through faintly, not %v from the ground.", most)
+	}
+}

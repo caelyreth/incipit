@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -93,6 +95,9 @@ type fieldState struct {
 	over  scrollfx.Elastic
 	viewH float32
 	edges components.EdgeFade
+	// stuck is how far the pill has gone into staying at the window's top
+	// or foot, 0 to 1, which its backdrop comes in with.
+	stuck float32
 	// room is the room the field was last laid out in.
 	room fieldRoom
 	// ribbonHold is what the ribbons about the pill hold to while it
@@ -350,9 +355,12 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		cardsBelow, cardsAbove := max(0, below-z.Below), max(0, above-z.Above)
 		s.field.poiseTo = stage.Point{X: -(lo + hi) / 2, Y: (cardsBelow - cardsAbove) / 2}
 	}
-	s.field.poiseTo.X = max(-reach-lo, min(reach-hi, s.field.poiseTo.X))
-	s.field.poiseTo.Y = max(-down, min(up, s.field.poiseTo.Y))
-	poise := s.field.poiseTo
+	// What it is held to stays as it was: brought in only as far as the
+	// field needs now, it goes back as far as the field lets it.
+	poise := stage.Point{
+		X: max(-reach-lo, min(reach-hi, s.field.poiseTo.X)),
+		Y: max(-down, min(up, s.field.poiseTo.Y)),
+	}
 	lift := poise.Y
 	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2+lift), max(0, below+3*m.pad-h/2-lift)
 	s.field.order = s.field.order[:0]
@@ -425,6 +433,16 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		}
 	}
 	topFade, bottomFade := min(top, max(0, drawnAbove-horizon)), min(top, max(0, horizon+drawnBelow-h))
+	// Staying at the window's top or foot, the pill and its conditions
+	// stand out from what passes under them as macOS bars do: the field
+	// blurs under them, more toward the window's edge, under its ground
+	// fading away from that edge, coming in as the horizon goes past.
+	stuckTop, stuckFoot := top+rl.heldAbove-free, free-(h-foot-pill.H-rl.heldBelow)
+	s.field.stuck = max(0, min(1, stuckTop/foot), min(1, stuckFoot/foot))
+	edge := py + pill.H + rl.heldBelow + 10*k
+	if stuckFoot > 0 {
+		edge = h - (py - rl.heldAbove) + 10*k
+	}
 	view.Children(func() {
 		// The top band drags the window where nothing of the field stands over it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
@@ -442,8 +460,32 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 					s.field.edges.Paint(p, r, semantic.Surface.Background, topFade, bottomFade)
 				})
 		}
+		if s.field.stuck > 0 {
+			s.pillBackdrop(c, semantic, w, edge, stuckFoot > 0)
+		}
 		s.horizonView(c, semantic, stage.Rect{X: w/2 - pill.W/2, Y: py, W: pill.W, H: pill.H}, rl, w, k, animate)
 	})
+}
+
+// pillBackdrop is what the stuck pill stands on, reaching from the
+// window's top, or its foot, as far as edge.
+func (s *State) pillBackdrop(c *ui.Context, semantic theme.Theme, w, edge float32, foot bool) {
+	mask := ui.LinearGradient{From: ui.RGB(0, 0, 0).Alpha(s.field.stuck), To: ui.Transparent, Angle: 180}
+	if foot {
+		mask.Angle = 0
+	}
+	ground := semantic.Surface.Background.Alpha(max(s.field.stuck, 1.0/255))
+	for i, m := range []ui.Material{
+		glass.Blur{Radius: 8 * s.field.stuck, Mask: &mask},
+		glass.ScrollEdge{Bottom: foot, Background: ground},
+	} {
+		b := ui.Box(c).Key(fmt.Sprint("pill-backdrop-", i)).Absolute().Left(0).Size(w, edge).IgnoreInput(true).Material(m)
+		if foot {
+			b.Bottom(0)
+		} else {
+			b.Top(0)
+		}
+	}
 }
 
 // fieldInput scrolls the field up and down, as far as it holds, and
