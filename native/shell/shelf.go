@@ -28,10 +28,11 @@ const (
 
 // shelf is what a shelf is and does.
 type shelf struct {
-	// key keys it; name names it above it, and label to the screen
+	// key keys it; icon marks it above; label names it to the screen
 	// reader; count is how many things it holds.
-	key, name, label string
-	count            int
+	key, label string
+	icon       components.IconName
+	count      int
 	// right stands it at the window's right edge, not its left.
 	right bool
 	// width is its own width, and tail how far what it holds stands out of
@@ -142,7 +143,7 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 	if sh.centred {
 		top -= box.Bounds().H / 2
 	}
-	label := laneLabel(c, semantic, sh.key+"-label", sh.name, sh.count, stage.Rect{Y: top}, !sh.right, k).Hidden(hidden)
+	label := laneIcon(c, semantic, sh.key+"-label", sh.icon, sh.label+" icon", sh.count, stage.Rect{Y: top}, !sh.right, k).Hidden(hidden)
 	if sh.offset != 0 {
 		label.Translate(sh.offset, 0)
 	}

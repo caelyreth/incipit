@@ -480,7 +480,7 @@ func TestKeptQueriesAreBookmarksInTheKeptBox(t *testing.T) {
 	if !ok || resting.W > state.laneShown()+1 {
 		t.Fatalf("At rest the box should show no more than the desk does at the other edge, but it shows %v.", resting)
 	}
-	tester.Move(4, 425)
+	tester.Move(4, resting.Y+resting.H/2)
 	settle(tester)
 	out, _ := tester.Find("Long")
 	if out.W < 150 {
@@ -495,7 +495,7 @@ func TestKeptQueriesAreBookmarksInTheKeptBox(t *testing.T) {
 	if back, _ := tester.Find("Long"); back.W > state.laneShown()+1 {
 		t.Fatalf("The pointer gone, the box should rest again, but its bookmark shows %v.", back)
 	}
-	tester.Move(4, 425)
+	tester.Move(4, resting.Y+resting.H/2)
 	settle(tester)
 	if err := tester.Click("Long"); err != nil {
 		t.Fatal(err)
@@ -564,5 +564,369 @@ func TestScrollingLeavesThePillAndItsRibbonsSteady(t *testing.T) {
 	settle(tester)
 	if !slices.Equal(state.field.rest, rest) || abs(gap()-before) > 0.5 {
 		t.Fatal("Scrolled back, nothing should have moved.")
+	}
+}
+
+// Clicking a group title narrows the field to it without focusing the
+// search pill when the pill was unfocused.
+func TestClickingGroupTitleDoesNotFocusSearchPill(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	// Click blank field background so the search pill starts unfocused.
+	tester.ClickAt(120, 16)
+	settle(tester)
+	if tester.Focused("Search") {
+		t.Fatal("Search pill should start unfocused after clicking blank field.")
+	}
+	if err := tester.Click("Novel"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if q := state.FieldQuery(); q != "$in:Novel" {
+		t.Fatalf("Clicking Novel should narrow to $in:Novel, got %q.", q)
+	}
+	if tester.Focused("Search") || state.field.open {
+		t.Fatal("Clicking a group title should not focus or open the search pill.")
+	}
+}
+
+func TestHorizonStatsUpdateAndAnimate(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	search, ok := tester.Find("Search")
+	if !ok {
+		t.Fatal("Search pill should be present.")
+	}
+
+	// Initial library stats sit cleanly to the right of the search pill,
+	// aligned vertically with symmetric gaps around the middot separator.
+	countRect, ok := tester.Find("2")
+	if !ok || countRect.X < search.X+search.W {
+		t.Fatalf("Initial sheet count %v not to the right of search pill %v (ok=%v).", countRect, search, ok)
+	}
+	unitRect, ok := tester.Find("sheets")
+	if !ok || unitRect.X <= countRect.X+countRect.W {
+		t.Fatalf("Initial sheet unit %v not spaced after sheet count %v (ok=%v).", unitRect, countRect, ok)
+	}
+	sepRect0, ok := tester.Find("·")
+	if !ok || sepRect0.X <= unitRect.X+unitRect.W {
+		t.Fatalf("Initial separator %v not spaced after sheet unit %v (ok=%v).", sepRect0, unitRect, ok)
+	}
+	wordsRect0, ok := tester.Find("1,204")
+	if !ok || wordsRect0.X <= sepRect0.X+sepRect0.W {
+		t.Fatalf("Initial word count %v not spaced after separator %v (ok=%v).", wordsRect0, sepRect0, ok)
+	}
+	wordUnit0, ok := tester.Find("words")
+	if !ok || wordUnit0.X <= wordsRect0.X+wordsRect0.W {
+		t.Fatalf("Initial word unit %v not spaced after word count %v (ok=%v).", wordUnit0, wordsRect0, ok)
+	}
+	if abs(sepRect0.Y-wordsRect0.Y) > 0.5 || abs(sepRect0.Y-unitRect.Y) > 0.5 {
+		t.Fatalf("Middot separator Y=%v misaligned relative to unit Y=%v and words Y=%v.", sepRect0.Y, unitRect.Y, wordsRect0.Y)
+	}
+	leftSepGap := sepRect0.X - (unitRect.X + unitRect.W)
+	rightSepGap := wordsRect0.X - (sepRect0.X + sepRect0.W)
+	if abs(leftSepGap-rightSepGap) > 1 {
+		t.Fatalf("Middot separator gaps not symmetric: left=%v right=%v", leftSepGap, rightSepGap)
+	}
+
+	// Narrow to Inbox (1 sheet, 0 words): whole numbers roll downward
+	// and widths shrink smoothly without ellipsis truncation.
+	if err := tester.Click("Inbox"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Advance(40 * time.Millisecond)
+	tester.Frame()
+
+	if tester.HasText("…") || tester.HasText("...") {
+		t.Fatal("Downward stats transition should never show an ellipsis placeholder.")
+	}
+	if len(state.field.stats.words.entries) != 2 {
+		t.Fatalf("Mid-roll words should hold 2 tracks (exiting + entering), got %d", len(state.field.stats.words.entries))
+	}
+	oldMid, okOld := tester.Find("1,204")
+	newMid, okNew := tester.Find("0")
+	if !okOld || !okNew {
+		t.Fatalf("Mid-roll frame should contain both old (ok=%v) and new (ok=%v) whole word counts.", okOld, okNew)
+	}
+	if oldMid.Y <= wordsRect0.Y || newMid.Y+newMid.H >= wordsRect0.Y+wordsRect0.H-0.5 {
+		t.Fatalf("Downward roll should push 1,204 down (Y=%v vs rest=%v) and clip 0 entering from above (bottom=%v vs restBottom=%v).",
+			oldMid.Y, wordsRect0.Y, newMid.Y+newMid.H, wordsRect0.Y+wordsRect0.H)
+	}
+	wordUnitMid, ok := tester.Find("words")
+	if !ok {
+		t.Fatal("Mid-roll frame missing word unit.")
+	}
+
+	settle(tester)
+	if _, stillOld := tester.Find("1,204"); stillOld {
+		t.Fatal("Old word count 1,204 should exit once settled.")
+	}
+	if len(state.field.stats.words.entries) != 1 || len(state.field.stats.count.entries) != 1 {
+		t.Fatalf("Settled stats should prune exited tracks, got count=%d words=%d",
+			len(state.field.stats.count.entries), len(state.field.stats.words.entries))
+	}
+	wordUnitSettled, ok := tester.Find("words")
+	if !ok {
+		t.Fatal("Settled frame missing word unit.")
+	}
+	if !(wordUnitSettled.X < wordUnitMid.X && wordUnitMid.X < wordUnit0.X) {
+		t.Fatalf("Stats width did not animate smoothly when shrinking: settledX=%v midX=%v initialX=%v",
+			wordUnitSettled.X, wordUnitMid.X, wordUnit0.X)
+	}
+	if _, ok := tester.Find("sheet"); !ok {
+		t.Fatal("Single-sheet filter should use singular unit 'sheet'.")
+	}
+
+	// Clear the filter back to full library (2 sheets, 1,204 words): whole
+	// numbers roll upward and widths expand smoothly with zero ellipsis at any frame.
+	tester.Key(0, ui.KeyEscape)
+	tester.Frame()
+	var wordUnitUpMid ui.Rect
+	checkedMid := false
+	for _, step := range []time.Duration{20 * time.Millisecond, 40 * time.Millisecond, 60 * time.Millisecond, 80 * time.Millisecond} {
+		tester.Advance(step)
+		tester.Frame()
+		if tester.HasText("…") || tester.HasText("...") {
+			t.Fatalf("Small-to-large transition emitted an ellipsis placeholder after +%v.", step)
+		}
+		if !checkedMid {
+			checkedMid = true
+			oldUpMid, okOldUp := tester.Find("0")
+			newUpMid, okNewUp := tester.Find("1,204")
+			if !okOldUp || !okNewUp {
+				t.Fatalf("Mid-roll upward frame should contain both 0 (ok=%v) and 1,204 (ok=%v).", okOldUp, okNewUp)
+			}
+			if oldUpMid.Y+oldUpMid.H >= wordsRect0.Y+wordsRect0.H-0.5 || newUpMid.Y <= wordsRect0.Y {
+				t.Fatalf("Upward roll should push 0 up (bottom=%v vs restBottom=%v) and bring 1,204 in from below (Y=%v vs rest=%v).",
+					oldUpMid.Y+oldUpMid.H, wordsRect0.Y+wordsRect0.H, newUpMid.Y, wordsRect0.Y)
+			}
+			var okUnit bool
+			wordUnitUpMid, okUnit = tester.Find("words")
+			if !okUnit {
+				t.Fatal("Mid-roll upward frame missing word unit.")
+			}
+			if !(wordUnitSettled.X < wordUnitUpMid.X && wordUnitUpMid.X < wordUnit0.X) {
+				t.Fatalf("Stats width did not animate smoothly when expanding: settledX=%v midUpX=%v initialX=%v",
+					wordUnitSettled.X, wordUnitUpMid.X, wordUnit0.X)
+			}
+		}
+	}
+
+	// Interrupt mid-flight back down to Inbox (2 -> 1) before upward roll settles:
+	// tracks continue smoothly without snapping and settle cleanly to 1 entry.
+	if err := tester.Click("Inbox"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Advance(32 * time.Millisecond)
+	tester.Frame()
+	if _, ok := tester.Find("0"); !ok {
+		t.Fatal("Interrupted reversal should bring 0 in cleanly.")
+	}
+	settle(tester)
+	if len(state.field.stats.words.entries) != 1 || state.field.stats.words.current != 0 {
+		t.Fatalf("Interrupted stats did not settle cleanly to 0, got current=%d entries=%d",
+			state.field.stats.words.current, len(state.field.stats.words.entries))
+	}
+
+	// Restore full library and check mode switching.
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+	if _, stillOld := tester.Find("0"); stillOld {
+		t.Fatal("Old word count 0 should exit once settled.")
+	}
+
+	// Commands mode (>) shows commands count and collapses the words section.
+	state.Search()
+	tester.Type(">")
+	settle(tester)
+	if _, ok := tester.Find("commands"); !ok {
+		if _, okOne := tester.Find("command"); !okOne {
+			t.Fatal("Commands mode should display command count stats.")
+		}
+	}
+	if _, ok := tester.Find("words"); ok {
+		t.Fatal("Commands mode should collapse the words stats section.")
+	}
+
+	// Settings mode ($settings) shows section count and keeps words collapsed.
+	tester.Key(0, ui.KeyBackspace)
+	tester.Type("$settings")
+	settle(tester)
+	if _, ok := tester.Find("sections"); !ok {
+		if _, okOne := tester.Find("section"); !okOne {
+			t.Fatal("Settings mode should display section count stats.")
+		}
+	}
+	if _, ok := tester.Find("words"); ok {
+		t.Fatal("Settings mode should collapse the words stats section.")
+	}
+}
+
+func TestKeptBoxStaysInLowerLaneAndCapsHeight(t *testing.T) {
+	state, library := nestedGroupState()
+	library.desk = state
+	state.ShowField()
+	library.groupTree[""] = append(library.groupTree[""], GroupItem{ID: "s1", Name: "Mark 1", Query: "$tag:a"})
+	library.rev++
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+
+	oneBox, ok := tester.Find("Kept searches")
+	if !ok {
+		t.Fatal("Kept box should be present.")
+	}
+	oneLabel, ok := tester.Find("Kept searches icon")
+	if !ok {
+		t.Fatal("Kept icon header should be present.")
+	}
+	if _, ok := tester.Find("Desk icon"); !ok {
+		t.Fatal("Desk icon header should be present.")
+	}
+	if _, ok := tester.Find("Sheets in the tray icon"); !ok {
+		t.Fatal("Tray icon header should be present.")
+	}
+	if _, ok := tester.Find("Kept"); ok {
+		t.Fatal("Kept text label should be replaced with an icon.")
+	}
+	if _, ok := tester.Find("Tray"); ok {
+		t.Fatal("Tray text label should be replaced with an icon.")
+	}
+	wantCenter := float32(850 * 0.68)
+	oneCenter := oneBox.Y + oneBox.H/2
+	if abs(oneCenter-wantCenter) > 1 {
+		t.Fatalf("Kept box should center around lower-lane target %v (got center %v, rect %v).", wantCenter, oneCenter, oneBox)
+	}
+	if oneLabel.Y <= 850*0.50 {
+		t.Fatalf("With 1 bookmark the kept icon header should sit lower than the window midline (got label.Y=%v).", oneLabel.Y)
+	}
+
+	for i := 2; i <= 15; i++ {
+		library.groupTree[""] = append(library.groupTree[""], GroupItem{
+			ID:    fmt.Sprintf("s%d", i),
+			Name:  fmt.Sprintf("Mark %d", i),
+			Query: fmt.Sprintf("$tag:m%d", i),
+		})
+	}
+	library.rev++
+	settle(tester)
+
+	manyBox, ok := tester.Find("Kept searches")
+	if !ok {
+		t.Fatal("Kept box should still be present with many bookmarks.")
+	}
+	manyLabel, ok := tester.Find("Kept searches icon")
+	if !ok {
+		t.Fatal("Kept icon header should still be present with many bookmarks.")
+	}
+	manyCenter := manyBox.Y + manyBox.H/2
+	if abs(manyCenter-wantCenter) > 1 {
+		t.Fatalf("Kept box should remain centered at %v when filled (got %v, rect %v).", wantCenter, manyCenter, manyBox)
+	}
+	if manyLabel.Y < 850*0.46 || manyBox.Y < 850*0.49 {
+		t.Fatalf("Even when full, kept box should leave the upper side lane blank (label.Y=%v, box.Y=%v).", manyLabel.Y, manyBox.Y)
+	}
+	if manyBox.H > 850*0.36+1 {
+		t.Fatalf("Kept box height %v exceeded capped lower-lane height %v.", manyBox.H, 850*0.36)
+	}
+	settings, ok := tester.Find("Show settings")
+	if !ok {
+		t.Fatal("Settings button should be present.")
+	}
+	home, ok := tester.Find("Home")
+	if !ok {
+		t.Fatal("Home button should be present.")
+	}
+	if home.Y+home.H >= manyLabel.Y || settings.Y <= manyBox.Y+manyBox.H+20 {
+		t.Fatalf("Home %v and settings %v should clear kept label/box (%v..%v).", home, settings, manyLabel.Y, manyBox.Y+manyBox.H)
+	}
+}
+
+func TestHomeButtonClearsFiltersAndRecentersPill(t *testing.T) {
+	state, library := nestedGroupState()
+	library.desk = state
+	var groups []GroupItem
+	var novelSubs []GroupItem
+	for i := range 30 {
+		groups = append(groups, GroupItem{ID: fmt.Sprintf("g-%d", i), Name: fmt.Sprintf("Shelf %d", i+1)})
+		novelSubs = append(novelSubs, GroupItem{ID: fmt.Sprintf("n-%d", i), Name: fmt.Sprintf("Part %d", i+1)})
+		library.groupParent[fmt.Sprintf("n-%d", i)] = "2"
+	}
+	library.groupTree[""] = append(library.groupTree[""], groups...)
+	library.groupTree["2"] = append(library.groupTree["2"], novelSubs...)
+	library.rev++
+	state.ShowField()
+	tester := ui.NewTester(state.View, 1260, 850)
+	tester.SetTitleBar(ui.TitleBar{Height: 40, Left: 76})
+	settle(tester)
+
+	settings, ok := tester.Find("Show settings")
+	if !ok {
+		t.Fatal("Settings button should be present.")
+	}
+	home, ok := tester.Find("Home")
+	if !ok {
+		t.Fatal("Home button should be present.")
+	}
+	if abs(home.X-settings.X) > 0.5 || abs(home.W-settings.W) > 0.5 || abs(home.H-settings.H) > 0.5 {
+		t.Fatalf("Home button %v should share vertical alignment line and size with settings button %v.", home, settings)
+	}
+	if home.Y < 40+6 {
+		t.Fatalf("Home button %v should sit below the traffic light safe area (Y >= 46).", home)
+	}
+	if home.Y >= settings.Y/2 {
+		t.Fatalf("Home button %v should sit in the top area above settings %v.", home, settings)
+	}
+
+	pillRest, ok := tester.Find("Search")
+	if !ok {
+		t.Fatal("Search pill should be present.")
+	}
+
+	// Narrow to Novel ($in:Novel) and scroll off the horizon.
+	state.SetFieldQuery("$in:Novel")
+	settle(tester)
+	for range 6 {
+		tester.Scroll(600, 700, 0, 80)
+		settle(tester)
+	}
+	pillScrolled, _ := tester.Find("Search")
+	if state.field.scroll == 0 || abs(pillScrolled.Y-pillRest.Y) < 10 {
+		t.Fatalf("Expected field scroll and pill shift before clicking Home: scroll=%v pillY=%v vs rest=%v",
+			state.field.scroll, pillScrolled.Y, pillRest.Y)
+	}
+
+	if err := tester.Click("Home"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if q := state.FieldQuery(); q != "" {
+		t.Fatalf("Clicking Home should clear active filter, got %q.", q)
+	}
+	if state.field.scroll != 0 {
+		t.Fatalf("Clicking Home should return scroll to 0, got %v.", state.field.scroll)
+	}
+	pillAfter, _ := tester.Find("Search")
+	if abs(pillAfter.Y-pillRest.Y) > 0.5 || abs(pillAfter.X-pillRest.X) > 0.5 {
+		t.Fatalf("Clicking Home should recenter search pill: got %v, want %v.", pillAfter, pillRest)
+	}
+
+	// Scroll while already unfiltered, then click Home to verify it still recenter-homes.
+	for range 6 {
+		tester.Scroll(600, 700, 0, 80)
+		settle(tester)
+	}
+	if state.field.scroll == 0 {
+		t.Fatal("Expected unfiltered field to scroll off center.")
+	}
+	if err := tester.Click("Home"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.field.scroll != 0 {
+		t.Fatalf("Clicking Home on scrolled unfiltered field should reset scroll to 0, got %v.", state.field.scroll)
+	}
+	pillRecentered, _ := tester.Find("Search")
+	if abs(pillRecentered.Y-pillRest.Y) > 0.5 {
+		t.Fatalf("Clicking Home should recenter pill on unfiltered field: got Y=%v, want %v.", pillRecentered.Y, pillRest.Y)
 	}
 }

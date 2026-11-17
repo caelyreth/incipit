@@ -36,7 +36,8 @@ import (
 const horizonSide = 140
 
 // horizonView is what stands on the horizon at r: the pill, the ribbons
-// around it as rl lays them out, and Neverland's name just before it.
+// around it as rl lays them out, Neverland's name before it, and the
+// field's live statistics after it.
 func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stage.Rect, rl ribbonLayout, w, k float32, animate bool) {
 	gap := 12 * k
 	ui.Row(c).Key("wordmark").Absolute().Top(r.Y).Right(w - r.X + gap).Height(r.H).
@@ -50,12 +51,216 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stage.Rect, r
 					TextColor(semantic.Accent.Foreground).SingleLine()
 			})
 		})
+	s.horizonStats(c, semantic, r, w, gap, animate)
 	// The ribbons first, as they were laid out for what the pill held as
 	// the frame began: the pill, taking the keys, may change it.
 	for _, p := range rl.places {
 		s.ribbon(c, semantic, p, r.Y, k, animate)
 	}
 	s.pillView(c, semantic, r, k, animate)
+}
+
+type fieldStatsState struct {
+	count, words rollingNumber
+	lastWords    int
+}
+
+type rollingNumber struct {
+	ready   bool
+	current int
+	seq     int
+	entries []rollEntry
+}
+
+type rollEntry struct {
+	seq      int
+	value    int
+	mountDir float32 // +1 enters from below, -1 enters from above, 0 initial
+	exitDir  float32 // +1 exits upward (-lineH), -1 exits downward (+lineH)
+	active   bool
+	mounted  bool
+}
+
+func (n *rollingNumber) view(c *ui.Context, key string, value int, size, lineH float32, ink ui.Color, animate bool) float32 {
+	if !n.ready {
+		n.ready = true
+		n.current = value
+		n.seq = 1
+		n.entries = []rollEntry{{seq: 1, value: value, active: true}}
+	} else if value != n.current {
+		dir := float32(-1)
+		if value > n.current {
+			dir = 1
+		}
+		n.current = value
+		if !animate {
+			n.seq++
+			n.entries = []rollEntry{{seq: n.seq, value: value, active: true}}
+		} else {
+			for i := range n.entries {
+				if n.entries[i].active {
+					n.entries[i].active = false
+					n.entries[i].exitDir = dir
+				}
+			}
+			n.seq++
+			n.entries = append(n.entries, rollEntry{
+				seq:      n.seq,
+				value:    value,
+				mountDir: dir,
+				active:   true,
+			})
+		}
+	}
+	if !animate && len(n.entries) > 1 {
+		n.entries = []rollEntry{{seq: n.seq, value: n.current, active: true, mounted: true}}
+	}
+	targetW, _ := c.MeasureText(0, ui.Span{Text: thousands(n.current), Font: theme.UIFontFamily, Size: size, Features: "tnum"})
+	spring := components.Spring(components.MotionPanel)
+	box := ui.Box(c.Key(key)).Height(lineH).Clip()
+	w := targetW
+	if animate {
+		w = box.AnimateTo("w", targetW, spring)
+	} else {
+		box.Jump("w", targetW)
+	}
+	w = max(0, w)
+	kept := n.entries[:0]
+	box.Width(w).Children(func() {
+		for i := range n.entries {
+			e := n.entries[i]
+			// Use NoWrap without SingleLine so clipped width animation
+			// reveals growing numbers smoothly without ellipsis truncation.
+			el := ui.Text(c.Key(e.seq), thousands(e.value)).
+				Font(theme.UIFontFamily).FontSize(size).FixedLineHeight(lineH).
+				FontFeatures("tnum").TextColor(ink).NoWrap().
+				Absolute().Top(0).Left(0)
+			var y, a float32
+			if !animate {
+				e.mounted = true
+				y = 0
+				a = 1
+				el.Jump("y", 0)
+				el.Jump("a", 1)
+			} else {
+				if !e.mounted {
+					e.mounted = true
+					el.Jump("y", e.mountDir)
+					if e.mountDir == 0 {
+						el.Jump("a", 1)
+					} else {
+						el.Jump("a", 0)
+					}
+				}
+				yTarget := float32(0)
+				aTarget := float32(1)
+				if !e.active {
+					yTarget = -e.exitDir
+					aTarget = 0
+				}
+				y = el.AnimateTo("y", yTarget, spring)
+				a = el.AnimateTo("a", aTarget, spring)
+			}
+			el.Translate(0, y*lineH).Opacity(max(0, min(1, a)))
+			if e.active || (animate && !(el.Settled("y") && el.Settled("a"))) {
+				kept = append(kept, e)
+			}
+		}
+	})
+	n.entries = kept
+	return w
+}
+
+func animatedText(c *ui.Context, key, text string, size, lineH float32, ink ui.Color, animate bool) float32 {
+	targetW, _ := c.MeasureText(0, ui.Span{Text: text, Font: theme.UIFontFamily, Size: size})
+	box := ui.Box(c.Key(key)).Height(lineH).Clip()
+	w := targetW
+	if animate {
+		w = box.AnimateTo("w", targetW, components.Spring(components.MotionPanel))
+	} else {
+		box.Jump("w", targetW)
+	}
+	w = max(0, w)
+	box.Width(w).Children(func() {
+		ui.Text(c, text).Font(theme.UIFontFamily).FontSize(size).FixedLineHeight(lineH).
+			TextColor(ink).NoWrap().Absolute().Top(0).Left(0)
+	})
+	return w
+}
+
+func nounForm(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
+}
+
+func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stage.Rect, w, gap float32, animate bool) {
+	if s.Library == nil {
+		return
+	}
+	maxW := max(0, w-(r.X+r.W+gap)-gap)
+	if maxW <= 0 {
+		return
+	}
+	st := s.field.found.stats
+	size := theme.TextXSmall.Size(s.Settings.UIFontSize)
+	lineH := theme.TextXSmall.LineHeight(s.Settings.UIFontSize)
+	ink := semantic.Text.Muted
+	spaceGapW, _ := c.MeasureText(0, ui.Span{Text: "0 0", Font: theme.UIFontFamily, Size: size})
+	pairW, _ := c.MeasureText(0, ui.Span{Text: "00", Font: theme.UIFontFamily, Size: size})
+	spaceW := max(size*0.25, spaceGapW-pairW)
+	sepW, _ := c.MeasureText(0, ui.Span{Text: "·", Font: theme.UIFontFamily, Size: size})
+
+	var unit string
+	switch st.mode {
+	case statCommands:
+		unit = nounForm(st.count, "command", "commands")
+	case statSettings:
+		unit = nounForm(st.count, "section", "sections")
+	default:
+		unit = nounForm(st.count, "sheet", "sheets")
+		s.field.stats.lastWords = st.words
+	}
+	row := ui.Row(c).Key("field-stats").Absolute().Top(r.Y).Left(r.X+r.W+gap).Height(r.H).
+		MaxWidth(maxW).AlignItems(ui.Center).IgnoreInput(true).Clip()
+	row.Children(func() {
+		s.field.stats.count.view(c, "stat-count", st.count, size, lineH, ink, animate)
+		ui.Box(c.Key("stat-unit-gap")).Width(spaceW).Shrink(0)
+		animatedText(c, "stat-unit", unit, size, lineH, ink, animate)
+
+		wordCount := s.field.stats.lastWords
+		wordUnit := nounForm(wordCount, "word", "words")
+		targetShown := float32(0)
+		if st.mode == statLibrary {
+			targetShown = 1
+		}
+		sec := ui.Row(c).Key("stat-words-group").Height(lineH).AlignItems(ui.Center).Clip()
+		shown := targetShown
+		if animate {
+			shown = sec.AnimateTo("shown", targetShown, components.Spring(components.MotionPanel))
+		} else {
+			sec.Jump("shown", targetShown)
+		}
+		shown = max(0, min(1, shown))
+		sec.Opacity(shown)
+		var wordsW, wordUnitW float32
+		if shown > 0.001 {
+			sec.Children(func() {
+				ui.Text(c, "·").Font(theme.UIFontFamily).FontSize(size).FixedLineHeight(lineH).
+					TextColor(ink).NoWrap().Shrink(0).MarginStart(2 * spaceW).MarginEnd(2 * spaceW)
+				wordsW = s.field.stats.words.view(c, "stat-words", wordCount, size, lineH, ink, animate)
+				ui.Box(c.Key("stat-word-gap")).Width(spaceW).Shrink(0)
+				wordUnitW = animatedText(c, "stat-word-unit", wordUnit, size, lineH, ink, animate)
+			})
+			if shown < 0.999 {
+				naturalW := 4*spaceW + sepW + wordsW + spaceW + wordUnitW
+				sec.Width(naturalW * shown)
+			}
+		} else {
+			sec.Width(0)
+		}
+	})
 }
 
 func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k float32, animate bool) {

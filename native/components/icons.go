@@ -26,12 +26,14 @@ const (
 	IconClose        IconName = "x"
 	IconCode         IconName = "code"
 	IconCommand      IconName = "command"
+	IconDesk         IconName = "lamp-desk"
 	IconDocument     IconName = "file-text"
 	IconError        IconName = "circle-alert"
 	IconFolder       IconName = "folder"
 	IconFolderSearch IconName = "folder-search"
 	IconGrip         IconName = "grip-vertical"
 	IconGripAcross   IconName = "grip-horizontal"
+	IconHome         IconName = "house"
 	IconImage        IconName = "image"
 	IconImageOff     IconName = "image-off"
 	IconInbox        IconName = "inbox"
@@ -52,6 +54,7 @@ const (
 	IconSidebarClose IconName = "panel-left-close"
 	IconStrike       IconName = "strikethrough"
 	IconTrash        IconName = "trash-2"
+	IconTray         IconName = "layers"
 	IconTypewriter   IconName = "align-vertical-justify-center"
 	IconUndo         IconName = "undo-2"
 	IconWarning      IconName = "triangle-alert"
@@ -71,12 +74,14 @@ var AllIcons = [...]IconName{
 	IconClose,
 	IconCode,
 	IconCommand,
+	IconDesk,
 	IconDocument,
 	IconError,
 	IconFolder,
 	IconFolderSearch,
 	IconGrip,
 	IconGripAcross,
+	IconHome,
 	IconImage,
 	IconImageOff,
 	IconInbox,
@@ -97,6 +102,7 @@ var AllIcons = [...]IconName{
 	IconSidebarClose,
 	IconStrike,
 	IconTrash,
+	IconTray,
 	IconTypewriter,
 	IconUndo,
 	IconWarning,

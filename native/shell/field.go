@@ -80,6 +80,8 @@ type fieldState struct {
 	edges components.EdgeFade
 	// kept is the kept box's shelf.
 	kept shelfState
+	// stats animates the current field counts beside the search pill.
+	stats fieldStatsState
 	// hidden is whether the desk fills the window over the field, which
 	// takes no focus meanwhile.
 	hidden bool
@@ -141,7 +143,6 @@ func (s *State) narrow(cond string, from stage.Rect) {
 	s.field.conditions = append(s.field.conditions, cond)
 	s.field.next = change{depth: stage.Down, enter: from}
 	s.field.chosen = ""
-	s.field.focus = true
 }
 
 // broaden takes the query's condition at i away, coming back up into the
@@ -454,6 +455,34 @@ func (s *State) escapeField() {
 		s.broaden(len(s.field.conditions) - 1)
 	default:
 		s.ShowDesk()
+	}
+}
+
+// goHome clears any active query filter and selection, returning the field
+// to its non-filter home state and recentering the pill on its horizon.
+func (s *State) goHome() {
+	s.field.picked = nil
+	s.field.chosen = ""
+	s.field.dismissed = ""
+	if s.field.opened != nil {
+		s.closeKey()
+	}
+	if s.FieldQuery() != "" {
+		next := change{depth: stage.Up}
+		if s.Library != nil && !s.InSettings() {
+			for _, cond := range s.field.conditions {
+				if c, ok := condition(cond); ok && c.Key.Name == "in" {
+					if g, ok := s.groupNamed(c.Value); ok {
+						next.exit = "group:" + g.ID
+					}
+				}
+			}
+		}
+		s.SetFieldQuery("")
+		s.field.next = next
+	}
+	if s.field.scroll != 0 || s.field.over.Offset() != 0 {
+		s.field.home = true
 	}
 }
 

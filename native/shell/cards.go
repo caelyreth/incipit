@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/stage"
@@ -61,6 +62,20 @@ type source interface {
 // sources are what the field asks, in order.
 var sources = []source{librarySource{}, commandSource{}, settingsSource{}}
 
+type statMode uint8
+
+const (
+	statLibrary statMode = iota
+	statCommands
+	statSettings
+)
+
+type fieldStats struct {
+	mode  statMode
+	count int
+	words int
+}
+
 // found is what the field's query found, for the library as it stood.
 type found struct {
 	query  string
@@ -69,6 +84,7 @@ type found struct {
 	offers uint64
 	held   uint64
 	cards  []card
+	stats  fieldStats
 }
 
 func (f *found) add(id string, t tier, kind cardKind) {
@@ -93,8 +109,70 @@ func (s *State) results() found {
 		src.answer(s, text, &f)
 	}
 	sort.SliceStable(f.cards, func(i, j int) bool { return f.cards[i].tier < f.cards[j].tier })
+	f.stats = s.computeFieldStats(text, f.cards)
 	s.field.found = f
 	return f
+}
+
+func (s *State) computeFieldStats(text string, cards []card) fieldStats {
+	switch {
+	case strings.HasPrefix(s.field.words, ">"):
+		n := 0
+		for _, cd := range cards {
+			if cl, ok := cd.kind.(commandList); ok {
+				n += len(cl.commands)
+			}
+		}
+		return fieldStats{mode: statCommands, count: n}
+	case inSettings(text):
+		n := 0
+		for _, cd := range cards {
+			switch sc := cd.kind.(type) {
+			case settingsCategoryCard:
+				n += len(sc.sections)
+			case settingsCard:
+				n++
+			}
+		}
+		return fieldStats{mode: statSettings, count: n}
+	default:
+		st := fieldStats{mode: statLibrary}
+		seen := map[string]bool{}
+		add := func(sh SheetItem) {
+			if seen[sh.ID] {
+				return
+			}
+			seen[sh.ID] = true
+			st.count++
+			st.words += sh.Words
+		}
+		var walkGroup func(id string)
+		walkGroup = func(id string) {
+			for _, sh := range s.Library.Sheets(Place{Kind: PlaceGroup, Group: id}) {
+				if !s.inTray(sh.ID) {
+					add(sh)
+				}
+			}
+			for _, sub := range s.groups(id) {
+				walkGroup(sub.ID)
+			}
+		}
+		for _, cd := range cards {
+			b, ok := cd.kind.(block)
+			if !ok || b.create {
+				continue
+			}
+			for _, e := range b.entries {
+				add(e.sheet)
+			}
+			if b.group != nil && !b.scoped && !b.trashed && b.group.HasGroups {
+				for _, sub := range b.groups {
+					walkGroup(sub.ID)
+				}
+			}
+		}
+		return st
+	}
 }
 
 // cardView draws cd shaped sh as fr says, the field's origin at at.

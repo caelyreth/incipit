@@ -104,27 +104,46 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stage.Lo
 	if look.Offset.X != 0 {
 		lane.Translate(look.Offset.X, 0)
 	}
+	var homeBottom float32
 	lane.Children(func() {
-		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
-		// The settings stand in the corner of what is left free beside the
-		// field's columns, as far from the window's foot as from its edge.
+		barH := titleLine(c)
+		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(barH).DragWindow()
+		// The home and settings buttons stand in one vertical alignment
+		// line beside the field's columns: home below the title/traffic-light
+		// safe area at the top, settings in the corner at the foot.
 		size, mid := settingsSize*k, s.fieldMargin(w, h)/2
-		s.settingsButton(c, semantic, size, animate).Absolute().Left(mid - size/2).Bottom(mid - size/2)
+		inset := mid - size/2
+		homeTop := max(inset, barH+theme.DefaultLayout.ChromeGutter*k)
+		homeBottom = homeTop + size
+		s.homeButton(c, semantic, size, animate).Absolute().Left(inset).Top(homeTop)
+		s.settingsButton(c, semantic, size, animate).Absolute().Left(inset).Bottom(inset)
 	})
-	s.keptBox(c, semantic, look, h, k, hidden, animate)
+	s.keptBox(c, semantic, look, h, k, homeBottom, hidden, animate)
+}
+
+func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
+	btn := s.laneCircleButton(c, semantic, "home", components.IconHome, "Home", "Home", false, size, animate)
+	if btn.Clicked() {
+		s.goHome()
+	}
+	return btn
 }
 
 // keptBox draws the shelf the queries kept rest in, h being the window's
-// height, centred as the desk rests at the other edge: a query dragged to
-// it is kept, and it stays out while a bookmark in it is renamed.
-func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h, k float32, hidden, animate bool) {
+// height, centered inside a shorter lower-lane region so the upper side
+// lane stays blank: a query dragged to it is kept, and it stays out while a
+// bookmark in it is renamed.
+func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h, k, homeBottom float32, hidden, animate bool) {
 	marks := s.bookmarks()
 	text := s.FieldQuery()
 	keep := text != "" && !strings.HasPrefix(s.field.words, ">") &&
 		!slices.ContainsFunc(marks, func(g GroupItem) bool { return sameQuery(g.Query, text) })
+	topClearance, bottomClearance := max(80*k, homeBottom+36*k), 88*k
+	most := min(h*0.36, max(0, h-topClearance-bottomClearance))
+	centerY := max(topClearance+most/2, min(h*0.68, h-bottomClearance-most/2))
 	sh := shelf{
-		key: "kept", name: "Kept", label: "Kept searches", count: len(marks),
-		width: shelfWidth * k, tail: shelfTail * k, top: h / 2, most: h - 192*k, centred: true, offset: look.Offset.X,
+		key: "kept", icon: components.IconBookmark, label: "Kept searches", count: len(marks),
+		width: shelfWidth * k, tail: shelfTail * k, top: centerY, most: most, centred: true, offset: look.Offset.X,
 		takes: takes{queries: true},
 		out:   slices.ContainsFunc(marks, func(g GroupItem) bool { return g.ID == s.field.renaming }),
 	}

@@ -62,18 +62,18 @@ func (s *State) laneRest(w, h float32) stage.Rect {
 	return stage.Rect{X: w - visible, Y: h/2 - ph/2, W: pw, H: ph}
 }
 
-// laneLabel, keyed key, names what rests in a lane, count beside it where there is
-// one, standing above rest at the window's edge: at its left where left
-// is set, else at its right.
-func laneLabel(c *ui.Context, semantic theme.Theme, key, name string, count int, rest stage.Rect, left bool, k float32) ui.Element {
-	row := ui.Row(c).Key(key).Absolute().Top(rest.Y - 24*k).Gap(4 * k).AlignItems(ui.Baseline)
+// laneIcon, keyed key, marks what rests in a lane with icon and count
+// beside it where there is one, standing above rest at the window's edge:
+// at its left where left is set, else at its right.
+func laneIcon(c *ui.Context, semantic theme.Theme, key string, icon components.IconName, label string, count int, rest stage.Rect, left bool, k float32) ui.Element {
+	row := ui.Row(c).Key(key).Absolute().Top(rest.Y - 24*k).Gap(4 * k).AlignItems(ui.Center).Label(label)
 	if left {
 		row.Left(10 * k)
 	} else {
 		row.Right(10 * k)
 	}
 	row.Children(func() {
-		components.Label(c, name, theme.TextSmall, semantic.Text.Muted).SingleLine()
+		ui.Icon(c, icon.SVG()).FontSize(14 * k).TextColor(semantic.Icon.Muted).Shrink(0)
 		if count > 0 {
 			components.Label(c, thousands(count), theme.TextXSmall, semantic.Text.Muted).SingleLine()
 		}
@@ -90,7 +90,7 @@ func (s *State) laneView(c *ui.Context, semantic theme.Theme, w, h float32, hidd
 	lane.Children(func() {
 		// The lane's top band drags the window above what rests in it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
-		laneLabel(c, semantic, "desk-label", "Desk", len(s.Open), s.lane.preview, false, k)
+		laneIcon(c, semantic, "desk-label", components.IconDesk, "Desk icon", len(s.Open), s.lane.preview, false, k)
 	})
 	s.trayView(c, semantic, h, k, hidden, animate)
 }
