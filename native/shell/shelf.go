@@ -38,11 +38,11 @@ type shelf struct {
 	// width is its own width, and tail how far what it holds stands out of
 	// it, toward the window's middle.
 	width, tail float32
-	// top is its top, or its middle where centred; most is its greatest
-	// height, and fixed holds it there, a container of its own size, not
-	// as tall as what it holds.
-	top, most      float32
-	centred, fixed bool
+	// top is its top, its middle where centred, or its foot where bottom;
+	// most is its greatest height, and fixed holds it there, a container of
+	// its own size, not as tall as what it holds.
+	top, most              float32
+	centred, bottom, fixed bool
 	// inset sinks it, as a box things are put in; else it stands raised.
 	inset bool
 	// offset moves it with the field, as the field lane moves.
@@ -59,8 +59,10 @@ type shelf struct {
 // shelfState is what a shelf keeps between frames: how far what it holds
 // is scrolled, and the fades of its edges.
 type shelfState struct {
-	scroll ui.ScrollState
-	edges  components.EdgeFade
+	scroll    ui.ScrollState
+	edges     components.EdgeFade
+	lastCount int
+	laidOut   bool
 }
 
 // shelfView draws sh, keeping its state in st: list draws what it holds,
@@ -88,8 +90,11 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 	} else {
 		box.Left(0).Padding(14*k, inner, 16*k, pad+radius)
 	}
-	if sh.centred {
+	switch {
+	case sh.centred:
 		box.TranslatePercent(0, -50)
+	case sh.bottom:
+		box.TranslatePercent(0, -100)
 	}
 	if sh.menu != nil {
 		box.ContextMenu(sh.menu)
@@ -140,8 +145,15 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 		foot(out)
 	})
 	top := sh.top
-	if sh.centred {
+	switch {
+	case sh.centred:
 		top -= box.Bounds().H / 2
+	case sh.bottom:
+		top -= box.Bounds().H
+	}
+	if (sh.centred || sh.bottom) && (!st.laidOut || st.lastCount != sh.count) {
+		st.laidOut, st.lastCount = true, sh.count
+		c.AnimationFrame()
 	}
 	label := laneIcon(c, semantic, sh.key+"-label", sh.icon, sh.label+" icon", sh.count, stage.Rect{Y: top}, !sh.right, k).Hidden(hidden)
 	if sh.offset != 0 {

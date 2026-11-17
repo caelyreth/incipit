@@ -244,8 +244,23 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	// As many columns as what it shows takes, so the field stands even
 	// about its pill; its band reaching past the pill as far as the
 	// ribbons around it do.
-	pill := stage.Size{W: min(440*k, w-2*(m.pad+horizonSide*k)), H: 40 * k}
-	rl := s.ribbons(c, k, w/2, pill.W, pill.H)
+	maxPillW := max(0, w-2*(m.pad+horizonSide*k))
+	idlePillW, openPillW := min(280*k, maxPillW), min(440*k, maxPillW)
+	activePill := s.field.open || (s.field.focus && !s.OnDesk() && !s.field.hidden)
+	targetPillW := idlePillW
+	pillAnim := components.Spring(components.MotionNormal)
+	if activePill {
+		targetPillW = openPillW
+		pillAnim = components.Bouncy(components.MotionEnter)
+	}
+	pillW := targetPillW
+	if animate {
+		pillW = max(0, min(w, view.AnimateTo("pill-w", targetPillW, pillAnim)))
+	} else {
+		view.Jump("pill-w", targetPillW)
+	}
+	pill := stage.Size{W: pillW, H: 40 * k}
+	rl := s.ribbons(c, k, w/2, targetPillW, pill.H)
 	z := m.horizon
 	z.Cols = max(1, min(z.Cols, (len(heights)+1)/2))
 	z.Above += rl.above

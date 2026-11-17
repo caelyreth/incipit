@@ -130,9 +130,9 @@ func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, an
 }
 
 // keptBox draws the shelf the queries kept rest in, h being the window's
-// height, centered inside a shorter lower-lane region so the upper side
-// lane stays blank: a query dragged to it is kept, and it stays out while a
-// bookmark in it is renamed.
+// height, aligned at the foot of a lower-lane region so it grows upward
+// while leaving the upper side lane blank: a query dragged to it is kept,
+// and it stays out while a bookmark in it is renamed.
 func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h, k, homeBottom float32, hidden, animate bool) {
 	marks := s.bookmarks()
 	text := s.FieldQuery()
@@ -140,10 +140,10 @@ func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h,
 		!slices.ContainsFunc(marks, func(g GroupItem) bool { return sameQuery(g.Query, text) })
 	topClearance, bottomClearance := max(80*k, homeBottom+36*k), 88*k
 	most := min(h*0.36, max(0, h-topClearance-bottomClearance))
-	centerY := max(topClearance+most/2, min(h*0.68, h-bottomClearance-most/2))
+	bottomY := max(topClearance+most, min(h*0.86, h-bottomClearance))
 	sh := shelf{
 		key: "kept", icon: components.IconBookmark, label: "Kept searches", count: len(marks),
-		width: shelfWidth * k, tail: shelfTail * k, top: centerY, most: most, centred: true, offset: look.Offset.X,
+		width: shelfWidth * k, tail: shelfTail * k, top: bottomY, most: most, bottom: true, offset: look.Offset.X,
 		takes: takes{queries: true},
 		out:   slices.ContainsFunc(marks, func(g GroupItem) bool { return g.ID == s.field.renaming }),
 	}

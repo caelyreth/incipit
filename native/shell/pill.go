@@ -54,9 +54,13 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stage.Rect, r
 	s.horizonStats(c, semantic, r, w, gap, animate)
 	// The ribbons first, as they were laid out for what the pill held as
 	// the frame began: the pill, taking the keys, may change it.
-	for _, p := range rl.places {
-		s.ribbon(c, semantic, p, r.Y, k, animate)
-	}
+	// Carry the pill's vertical offset on an unclipped parent so each
+	// ribbon's Scale transition never scales the horizon translation.
+	ui.Box(c).Key("ribbons").Absolute().Left(0).Top(r.Y).Children(func() {
+		for _, p := range rl.places {
+			s.ribbon(c, semantic, p, k, animate)
+		}
+	})
 	s.pillView(c, semantic, r, k, animate)
 }
 
@@ -323,11 +327,7 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k fl
 	}
 	active := target
 	if animate {
-		duration := components.HoverOut
-		if focused {
-			duration = components.HoverIn
-		}
-		active = components.Follow(pill, "focus", target, duration)
+		active = components.Follow(pill, "focus", target, components.MotionQuick)
 	}
 	pill.Border(1, components.Blend(semantic.Border.Variant, semantic.Border.Focused, active))
 }
@@ -677,24 +677,30 @@ func (s *State) ribbonID(p ribbonPlace) string {
 	return "ribbon-" + p.text
 }
 
-// ribbon is the ribbon at p, the pill's top at top, as it looks (look):
+// ribbon is the ribbon at p around the pill, as it looks (look):
 // a condition, pressed to be written again or with Option turned around,
 // its × taking it away; a key, pressed to be written; a value, pressed to
 // be taken or let go; how many more, pressed to show them all.
-func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, top, k float32, animate bool) {
+func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k float32, animate bool) {
 	l := s.look(semantic, p)
 	h := ribbonH * k
 	// It stands where the layout puts it about the pill, and only that
-	// moves it on its spring; the pill's own place, as the field scrolls,
-	// carries it along at once. Away from the horizon, all but the query's
-	// own conditions are put away.
+	// moves it on its spring; the ribbons container carries the pill's
+	// vertical place at once as the field scrolls. Away from the horizon,
+	// all but the query's own conditions are put away.
 	shown := l.shown
 	if p.kind != ribbonCondition {
 		shown *= 1 - s.field.away
 	}
-	btn := ui.ButtonBase(c.Key(s.ribbonID(p))).Absolute().Left(p.x).Top(p.y).Translate(0, top).Size(p.w, h).
+	above := p.y < 0
+	originY := float32(0)
+	if above {
+		originY = 1
+	}
+	btn := ui.ButtonBase(c.Key(s.ribbonID(p))).Absolute().Left(p.x).Top(p.y).Size(p.w, h).
+		TransformOrigin(0.5, originY).
 		PaddingStart(ribbonStart * k).Gap(6 * k).AlignItems(ui.Center).Radius(h / 2).Opacity(shown).
-		IgnoreInput(shown < 0.5).FocusRing(false).KeepFocus().Label(l.label).Transition(ribbonTransition(animate))
+		IgnoreInput(shown < 0.5).FocusRing(false).KeepFocus().Label(l.label).Transition(ribbonTransition(animate, above, k))
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	if l.closes {
 		btn.PaddingEnd(ribbonEnd * k)
@@ -831,13 +837,21 @@ func (s *State) pillKey(key ui.TextKey) bool {
 	return false
 }
 
-// ribbonTransition brings a ribbon in as it grows from its place, moves
-// it as the ribbons around it come and go, and takes it away as it fades.
-func ribbonTransition(animate bool) ui.ElementTransition {
+// ribbonTransition brings a ribbon in outward from the pill, moves it as
+// the ribbons around it come and go, and tucks it back toward the pill as
+// it leaves, mirroring the vertical travel between upper and bottom rows.
+func ribbonTransition(animate, above bool, k float32) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
 	spring := components.Spring(components.MotionScene)
-	gone := &ui.Motion{Opacity: 0, Scale: 0.9}
-	return ui.ElementTransition{Animation: &spring, Position: true, Colors: true, Enter: gone, Exit: gone}
+	shift := -8 * k
+	if above {
+		shift = 8 * k
+	}
+	gone := &ui.Motion{Y: shift, Opacity: 0, Scale: 0.9}
+	return ui.ElementTransition{
+		Animation: &spring, ExitDuration: components.MotionQuick, ExitEase: ui.EaseOut,
+		Position: true, Colors: true, Enter: gone, Exit: gone,
+	}
 }

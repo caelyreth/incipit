@@ -791,13 +791,13 @@ func TestKeptBoxStaysInLowerLaneAndCapsHeight(t *testing.T) {
 	if _, ok := tester.Find("Tray"); ok {
 		t.Fatal("Tray text label should be replaced with an icon.")
 	}
-	wantCenter := float32(850 * 0.68)
-	oneCenter := oneBox.Y + oneBox.H/2
-	if abs(oneCenter-wantCenter) > 1 {
-		t.Fatalf("Kept box should center around lower-lane target %v (got center %v, rect %v).", wantCenter, oneCenter, oneBox)
+	wantBottom := float32(850 * 0.86)
+	oneBottom := oneBox.Y + oneBox.H
+	if abs(oneBottom-wantBottom) > 1 {
+		t.Fatalf("Kept box should align its bottom at %v (got bottom %v, rect %v).", wantBottom, oneBottom, oneBox)
 	}
-	if oneLabel.Y <= 850*0.50 {
-		t.Fatalf("With 1 bookmark the kept icon header should sit lower than the window midline (got label.Y=%v).", oneLabel.Y)
+	if oneLabel.Y >= oneBox.Y || oneLabel.Y <= 850*0.50 {
+		t.Fatalf("With 1 bookmark the kept icon header should sit just above the bottom-aligned box (label.Y=%v, box.Y=%v).", oneLabel.Y, oneBox.Y)
 	}
 
 	for i := 2; i <= 15; i++ {
@@ -818,9 +818,12 @@ func TestKeptBoxStaysInLowerLaneAndCapsHeight(t *testing.T) {
 	if !ok {
 		t.Fatal("Kept icon header should still be present with many bookmarks.")
 	}
-	manyCenter := manyBox.Y + manyBox.H/2
-	if abs(manyCenter-wantCenter) > 1 {
-		t.Fatalf("Kept box should remain centered at %v when filled (got %v, rect %v).", wantCenter, manyCenter, manyBox)
+	manyBottom := manyBox.Y + manyBox.H
+	if abs(manyBottom-wantBottom) > 1 {
+		t.Fatalf("Kept box bottom should remain pinned at %v when filled (got %v, rect %v).", wantBottom, manyBottom, manyBox)
+	}
+	if !(manyBox.Y < oneBox.Y && manyLabel.Y < oneLabel.Y && manyLabel.Y < manyBox.Y) {
+		t.Fatalf("Adding bookmarks should grow kept box and icon upward: 1=(%v,%v) 15=(%v,%v).", oneLabel.Y, oneBox.Y, manyLabel.Y, manyBox.Y)
 	}
 	if manyLabel.Y < 850*0.46 || manyBox.Y < 850*0.49 {
 		t.Fatalf("Even when full, kept box should leave the upper side lane blank (label.Y=%v, box.Y=%v).", manyLabel.Y, manyBox.Y)
@@ -906,8 +909,8 @@ func TestHomeButtonClearsFiltersAndRecentersPill(t *testing.T) {
 		t.Fatalf("Clicking Home should return scroll to 0, got %v.", state.field.scroll)
 	}
 	pillAfter, _ := tester.Find("Search")
-	if abs(pillAfter.Y-pillRest.Y) > 0.5 || abs(pillAfter.X-pillRest.X) > 0.5 {
-		t.Fatalf("Clicking Home should recenter search pill: got %v, want %v.", pillAfter, pillRest)
+	if abs(pillAfter.Y-pillRest.Y) > 0.5 || abs((pillAfter.X+pillAfter.W/2)-(pillRest.X+pillRest.W/2)) > 0.5 {
+		t.Fatalf("Clicking Home should recenter search pill: got %v, want center/Y of %v.", pillAfter, pillRest)
 	}
 
 	// Scroll while already unfiltered, then click Home to verify it still recenter-homes.
@@ -928,5 +931,111 @@ func TestHomeButtonClearsFiltersAndRecentersPill(t *testing.T) {
 	pillRecentered, _ := tester.Find("Search")
 	if abs(pillRecentered.Y-pillRest.Y) > 0.5 {
 		t.Fatalf("Clicking Home should recenter pill on unfiltered field: got Y=%v, want %v.", pillRecentered.Y, pillRest.Y)
+	}
+}
+
+func TestPillWidthAnimatesWithOvershootOnFocus(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	// Start unfocused at the default narrower pill width.
+	tester.ClickAt(12, 12)
+	settle(tester)
+
+	idle, ok := tester.Find("Search")
+	if !ok {
+		t.Fatal("Search pill should be present.")
+	}
+	if abs(idle.W-280) > 0.5 {
+		t.Fatalf("Unfocused pill width = %v, want default narrow 280.", idle.W)
+	}
+
+	// Focusing expands smoothly past 440 (overshoot) and settles back to 440.
+	state.Search()
+	tester.Frame()
+	var midW, maxW float32
+	for range 30 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+		cur, _ := tester.Find("Search")
+		if midW == 0 && cur.W > idle.W+5 && cur.W < 435 {
+			midW = cur.W
+		}
+		maxW = max(maxW, cur.W)
+	}
+	if midW == 0 {
+		t.Fatal("Focusing did not pass through intermediate pill widths.")
+	}
+	if maxW <= 440+1 {
+		t.Fatalf("Focusing pill did not overshoot past 440 fluidly: peak width = %v.", maxW)
+	}
+	settle(tester)
+	focused, _ := tester.Find("Search")
+	if abs(focused.W-440) > 0.5 {
+		t.Fatalf("Focused pill settled width = %v, want 440.", focused.W)
+	}
+
+	// Unfocusing animates smoothly back down to 280.
+	tester.ClickAt(12, 12)
+	tester.Frame()
+	tester.Advance(60 * time.Millisecond)
+	tester.Frame()
+	midBack, _ := tester.Find("Search")
+	if !(midBack.W > idle.W+5 && midBack.W < focused.W-5) {
+		t.Fatalf("Blurring pill did not animate intermediate width: got %v between %v and %v.", midBack.W, idle.W, focused.W)
+	}
+	settle(tester)
+	back, _ := tester.Find("Search")
+	if abs(back.W-280) > 0.5 {
+		t.Fatalf("Unfocused pill settled back to %v, want 280.", back.W)
+	}
+}
+
+func TestRibbonTransitionsMirrorVerticallyAroundPill(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	tester.ClickAt(12, 12)
+	settle(tester)
+
+	// Focus to bring key ribbons in: "Tag" is in the bottom group,
+	// "Updated" is in the top group.
+	state.Search()
+	tester.Frame()
+	tester.Advance(32 * time.Millisecond)
+	tester.Frame()
+
+	bottomIn, okB := tester.Find("Tag")
+	topIn, okT := tester.Find("Updated")
+	if !okB || !okT {
+		t.Fatalf("Expected entering Tag (%v) and Updated (%v) ribbons.", okB, okT)
+	}
+
+	settle(tester)
+	pill, _ := tester.Find("Search")
+	bottomRest, _ := tester.Find("Tag")
+	topRest, _ := tester.Find("Updated")
+	if !(topRest.Y < pill.Y && bottomRest.Y > pill.Y) {
+		t.Fatalf("Expected Updated (%v) above and Tag (%v) below pill (%v).", topRest, bottomRest, pill)
+	}
+
+	midY := func(r ui.Rect) float32 { return r.Y + r.H/2 }
+	if !(midY(bottomIn) < midY(bottomRest) && midY(topIn) > midY(topRest)) {
+		t.Fatalf("Entering ribbons should mirror outward from pill: bottom (%v -> %v) down, top (%v -> %v) up.",
+			midY(bottomIn), midY(bottomRest), midY(topIn), midY(topRest))
+	}
+
+	// Blur to take key ribbons out: exit ghosts animate back toward the pill
+	// before settling cleanly out.
+	tester.ClickAt(12, 12)
+	tester.Frame()
+	tester.Advance(32 * time.Millisecond)
+	tester.Frame()
+
+	if !tester.FramePending() {
+		t.Fatal("Blurring should animate exiting ribbons.")
+	}
+	settle(tester)
+	if _, still := tester.Find("Tag"); still {
+		t.Fatal("Tag ribbon should be gone once blurred and settled.")
+	}
+	if _, still := tester.Find("Updated"); still {
+		t.Fatal("Updated ribbon should be gone once blurred and settled.")
 	}
 }
