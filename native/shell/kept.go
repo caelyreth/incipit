@@ -17,17 +17,22 @@ import (
 // queries kept, and the settings at its foot. The queries kept rest in a
 // box half out of the window, its edge and the bookmarks standing out of
 // it all that shows; the pointer on it, or a ribbon dragged to it, draws
-// it out. A bookmark is a smart folder of the notebook's: pressed, its
-// query becomes the pill's; its menu renames it or lets it go. The query
-// held, or a ribbon dropped on the box, is kept as one. The lane goes
-// aside with the field as the desk comes up.
+// it out. A bookmark is a smart folder of the notebook's, the newest on
+// top: pressed, its query becomes the pill's; its × or its menu deletes
+// it, and its menu renames it. Each is dyed at its making in the hue the
+// others wear least, and keeps it. The query held stands on top as the
+// bookmark it would be, drawn in dashes in the hue it would take; pressed,
+// or a ribbon dropped on the box, it is kept. Bookmarks come in and go by
+// folding open and shut, the box growing and shrinking with them. The lane
+// goes aside with the field as the desk comes up.
 
 // queryDrag is a condition dragged from its ribbon, to be kept as a bookmark.
 type queryDrag struct{ text string }
 
 func (queryDrag) shellDrag() {}
 
-// bookmarks are the queries kept, the notebook's smart folders, in order.
+// bookmarks are the queries kept, the notebook's smart folders, the newest
+// first: each is kept after the others.
 func (s *State) bookmarks() []GroupItem {
 	var out []GroupItem
 	var walk func(parent string)
@@ -45,6 +50,7 @@ func (s *State) bookmarks() []GroupItem {
 		}
 	}
 	walk("")
+	slices.Reverse(out)
 	return out
 }
 
@@ -56,18 +62,54 @@ func sameQuery(a, b string) bool {
 	return strings.Join(ac, " ") == strings.Join(bc, " ") && strings.TrimSpace(aw) == strings.TrimSpace(bw)
 }
 
-// saveQuery keeps text as a bookmark, named as its conditions and words say.
+// saveQuery keeps text as a bookmark, named as its conditions and words
+// say, dyed for good in the hue the next is given.
 func (s *State) saveQuery(text string) {
 	text = strings.TrimSpace(text)
 	if text == "" || s.Library == nil {
 		return
 	}
-	for _, g := range s.bookmarks() {
+	marks := s.bookmarks()
+	for _, g := range marks {
 		if sameQuery(g.Query, text) {
 			return
 		}
 	}
-	s.Library.NewSmartGroup(queryName(text), text)
+	if id := s.Library.NewSmartGroup(queryName(text), text); id != "" {
+		s.Library.StyleGroup(id, "", nextTint(marks))
+	}
+}
+
+// nextTint is the hue a bookmark kept after marks, the newest first, is
+// dyed in: the one they wear least, looking from the hue after the
+// newest's, so that kept one after another they go round the hues.
+func nextTint(marks []GroupItem) int {
+	hues := len(theme.AllAccents)
+	worn := make([]int, hues)
+	from := 0
+	for i, g := range marks {
+		if g.Color < TintHalo || g.Color >= TintHalo+hues {
+			continue
+		}
+		worn[g.Color-TintHalo]++
+		if i == 0 {
+			from = g.Color - TintHalo + 1
+		}
+	}
+	least := from % hues
+	for i := range hues {
+		if h := (from + i) % hues; worn[h] < worn[least] {
+			least = h
+		}
+	}
+	return TintHalo + least
+}
+
+// deleteBookmark lets the bookmark id go for good: it holds no sheets, only
+// its query.
+func (s *State) deleteBookmark(id string) {
+	s.Library.TrashGroup(id)
+	s.Library.DeleteGroup(id)
 }
 
 // queryName is a query said in words: its conditions' sentences, then its
@@ -142,20 +184,20 @@ func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h,
 	most := min(h*0.36, max(0, h-topClearance-bottomClearance))
 	bottomY := max(topClearance+most, min(h*0.86, h-bottomClearance))
 	sh := shelf{
-		key: "kept", icon: components.IconBookmark, label: "Kept searches", count: len(marks),
+		key: "kept", icon: components.IconBookmark, label: "Kept searches", count: len(marks), listing: true,
 		width: shelfWidth * k, tail: shelfTail * k, top: bottomY, most: most, bottom: true, offset: look.Offset.X,
 		takes: takes{queries: true},
 		out:   slices.ContainsFunc(marks, func(g GroupItem) bool { return g.ID == s.field.renaming }),
 	}
 	dropped, ok := s.shelfView(c, semantic, sh, &s.field.kept, k, hidden, animate, func(out float32) {
+		if keep {
+			s.draftBookmark(c, semantic, text, s.tintFamily(semantic, nextTint(marks)), out, k, animate)
+		}
 		for _, g := range marks {
 			s.bookmark(c, semantic, g, sameQuery(g.Query, text), out, k, animate)
 		}
 	}, func(out float32) {
-		switch {
-		case keep:
-			s.keepSlip(c, semantic, text, (shelfWidth-32)*k, k, animate).Opacity(out).Shrink(0)
-		case len(marks) == 0:
+		if len(marks) == 0 && !keep {
 			shelfHint(c, semantic, "Searches kept rest here, to be found again.", false, shelfTail*k, out, k)
 		}
 	})
@@ -165,17 +207,19 @@ func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h,
 }
 
 // bookmark is a kept query, a bookmark standing out of the box in its
-// group's color: pressed, it is the pill's query; its menu renames it or
-// lets it go. The one the pill holds stands further out. Its words are
-// shown as much as shown says, gone while the box rests.
+// group's color: pressed, it is the pill's query; its × deletes it, and
+// its menu renames or deletes it. The one the pill holds stands further
+// out. Its words are shown as much as shown says, gone while the box
+// rests.
 func (s *State) bookmark(c *ui.Context, semantic theme.Theme, g GroupItem, current bool, shown, k float32, animate bool) {
 	tail := shelfTail * k
 	btn := ui.ButtonBase(c.Key("bookmark-"+g.ID)).WidthPercent(100).Padding(7*k, tail+14*k, 7*k, 10*k).Gap(8 * k).
-		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label(g.Name).Tooltip(g.Name)
+		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label(g.Name).Tooltip(g.Name).
+		Transition(bookmarkTransition(animate, k))
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	// The ribbon is dyed full in its hue, its words cut from it in the
 	// page's color; the one in use is pulled further out of the box.
-	f := s.bookmarkFamily(semantic, g)
+	f := s.tintFamily(semantic, g.Color)
 	fill := components.Blend(f.Foreground, f.Emphasis, 0.25*hover)
 	pulled := map[bool]float32{true: 1}[current]
 	if animate {
@@ -191,8 +235,9 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, g GroupItem, curre
 		if m.Item("Rename…").Chosen() {
 			s.startRename(g.ID)
 		}
-		if m.Item("Let Go").Chosen() {
-			s.Library.TrashGroup(g.ID)
+		m.Separator()
+		if m.Item("Delete").Chosen() {
+			s.deleteBookmark(g.ID)
 		}
 	})
 	if btn.Clicked() && s.field.renaming != g.ID {
@@ -206,15 +251,44 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, g GroupItem, curre
 			return
 		}
 		components.Label(c, g.Name, theme.TextXSmall, semantic.Surface.Page).MaxLines(2).Grow(1).MinWidth(0).Opacity(shown)
-		components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Surface.Page.Alpha(0.7)).SingleLine().Shrink(0).Opacity(shown)
+		// The pointer on it, its count gives way to its ×.
+		ui.Box(c).Key("end").Shrink(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+			components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Surface.Page.Alpha(0.7)).
+				SingleLine().Opacity(shown * (1 - hover))
+			del := ui.ButtonBase(c.Key("delete")).Absolute().Size(18*k, 18*k).Radius(9 * k).
+				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label("Delete " + g.Name).Tooltip("Delete").
+				Opacity(shown * hover).IgnoreInput(hover < 0.5)
+			near := components.HoverAmount(del, del.Hovered(), animate)
+			del.Background(semantic.Surface.Page.Alpha(0.25 * near))
+			if del.Clicked() {
+				s.deleteBookmark(g.ID)
+			}
+			del.Children(func() {
+				ui.Icon(c, components.IconClose.SVG()).FontSize(11 * k).TextColor(semantic.Surface.Page)
+			})
+		})
 	})
 }
 
-// bookmarkFamily is the hue a kept query's bookmark is dyed in: its
-// group's, or the accent's.
-func (s *State) bookmarkFamily(semantic theme.Theme, g GroupItem) theme.Family {
-	if g.Color >= TintHalo && g.Color < TintHalo+len(semantic.Families) {
-		return semantic.Families[g.Color-TintHalo]
+// bookmarkTransition folds a bookmark open as it comes, out of the box's
+// edge, and shut as it goes, those after it moving to make room.
+func bookmarkTransition(animate bool, k float32) ui.ElementTransition {
+	if !animate {
+		return ui.ElementTransition{Duration: -1}
+	}
+	spring := components.Spring(components.MotionPanel)
+	gone := &ui.Motion{X: -12 * k, Opacity: 0, Collapse: true}
+	return ui.ElementTransition{
+		Animation: &spring, ExitDuration: components.MotionQuick, ExitEase: ui.EaseOut,
+		Position: true, Enter: gone, Exit: gone,
+	}
+}
+
+// tintFamily is the hue a bookmark of tint is dyed in: that hue's, or the
+// accent's for none.
+func (s *State) tintFamily(semantic theme.Theme, tint int) theme.Family {
+	if tint >= TintHalo && tint < TintHalo+len(semantic.Families) {
+		return semantic.Families[tint-TintHalo]
 	}
 	return semantic.Families[s.Settings.Accent]
 }
@@ -235,22 +309,34 @@ func bookmarkOutline(path *ui.Path, r ui.Rect, radius, notch float32) {
 	path.Close()
 }
 
-// keepSlip is where the query held is kept from, width wide within the
-// box: pressed, it is a bookmark.
-func (s *State) keepSlip(c *ui.Context, semantic theme.Theme, text string, width, k float32, animate bool) ui.Element {
-	btn := ui.ButtonBase(c.Key("keep")).Width(width).Padding(7*k, 8*k, 7*k, 10*k).Gap(6 * k).
-		AlignItems(ui.Center).Radius(5 * k).FocusRing(false).KeepFocus().
-		Label("Keep this search").Tooltip("Keep " + queryName(text))
-	btn.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, components.HoverAmount(btn, btn.Hovered(), animate))).
-		Draw(func(p *ui.Painter, r ui.Rect) { components.DashedOutline(p, r, 5*k, 1, semantic.Border.Default) })
+// draftBookmark is the query held, text, as the bookmark it would be, on
+// top of those kept: its outline drawn in dashes, dimly dyed in f, the hue
+// it would take, its words the name it would bear. Pressed, it is kept.
+// Its words are shown as much as shown says.
+func (s *State) draftBookmark(c *ui.Context, semantic theme.Theme, text string, f theme.Family, shown, k float32, animate bool) {
+	tail := shelfTail * k
+	btn := ui.ButtonBase(c.Key("keep")).WidthPercent(100).Padding(7*k, tail+14*k, 7*k, 10*k).Gap(6 * k).
+		AlignItems(ui.Center).FocusRing(false).KeepFocus().
+		Label("Keep this search").Tooltip("Keep this search").Transition(bookmarkTransition(animate, k))
+	hover := components.HoverAmount(btn, btn.Hovered(), animate)
+	// Kept, it would stand as far out as the one in use; until then it
+	// stands back as the others do.
+	btn.Draw(func(p *ui.Painter, r ui.Rect) {
+		r.W -= keptPull * k
+		var ribbon ui.Path
+		bookmarkOutline(&ribbon, r, 5*k, keptNotch*k)
+		p.FillPath(&ribbon, f.Foreground.Alpha(0.10+0.12*hover))
+		var edge ui.Path
+		bookmarkOutline(&edge, ui.Rect{X: r.X + 0.5, Y: r.Y + 0.5, W: r.W - 1, H: r.H - 1}, 5*k, keptNotch*k)
+		p.StrokePath(edge.Cap(ui.ButtCap).Dash(0, 4*k, 3*k), 1, f.Foreground.Alpha(0.55+0.35*hover))
+	})
 	if btn.Clicked() {
 		s.saveQuery(text)
 	}
 	btn.Children(func() {
-		ui.Icon(c, components.IconPlus.SVG()).FontSize(12 * k).TextColor(semantic.Icon.Muted).Shrink(0)
-		components.Label(c, "Keep this search", theme.TextXSmall, semantic.Text.Muted).SingleLine()
+		ui.Icon(c, components.IconPlus.SVG()).FontSize(11 * k).TextColor(f.Foreground).Shrink(0).Opacity(shown)
+		components.Label(c, queryName(text), theme.TextXSmall, f.Foreground).MaxLines(2).Grow(1).MinWidth(0).Opacity(shown)
 	})
-	return btn
 }
 
 // splitQuery is text's conditions, each as the language writes it, and

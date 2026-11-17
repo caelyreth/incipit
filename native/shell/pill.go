@@ -226,7 +226,7 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stage.Rect, 
 		unit = nounForm(st.count, "sheet", "sheets")
 		s.field.stats.lastWords = st.words
 	}
-	row := ui.Row(c).Key("field-stats").Absolute().Top(r.Y).Left(r.X+r.W+gap).Height(r.H).
+	row := ui.Row(c).Key("field-stats").Absolute().Top(r.Y).Left(r.X + r.W + gap).Height(r.H).
 		MaxWidth(maxW).AlignItems(ui.Center).IgnoreInput(true).Clip()
 	row.Children(func() {
 		s.field.stats.count.view(c, "stat-count", st.count, size, lineH, ink, animate)

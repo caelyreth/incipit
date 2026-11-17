@@ -38,15 +38,18 @@ type shelf struct {
 	// width is its own width, and tail how far what it holds stands out of
 	// it, toward the window's middle.
 	width, tail float32
-	// top is its top, its middle where centred, or its foot where bottom;
-	// most is its greatest height, and fixed holds it there, a container of
-	// its own size, not as tall as what it holds.
-	top, most              float32
-	centred, bottom, fixed bool
+	// top is its top, or its foot where bottom; most is its greatest
+	// height, and fixed holds it there, a container of its own size, not as
+	// tall as what it holds, which it otherwise grows and shrinks to fit.
+	top, most     float32
+	bottom, fixed bool
 	// inset sinks it, as a box things are put in; else it stands raised.
 	inset bool
 	// offset moves it with the field, as the field lane moves.
 	offset float32
+	// listing keeps its list drawn while it holds nothing, for what stands
+	// in it besides, coming and going.
+	listing bool
 	// takes is what it takes dropped on it, and out keeps it drawn out.
 	takes takes
 	out   bool
@@ -59,10 +62,8 @@ type shelf struct {
 // shelfState is what a shelf keeps between frames: how far what it holds
 // is scrolled, and the fades of its edges.
 type shelfState struct {
-	scroll    ui.ScrollState
-	edges     components.EdgeFade
-	lastCount int
-	laidOut   bool
+	scroll ui.ScrollState
+	edges  components.EdgeFade
 }
 
 // shelfView draws sh, keeping its state in st: list draws what it holds,
@@ -75,26 +76,19 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 	if sh.inset {
 		ground = semantic.Surface.Inset
 	}
-	box := ui.Column(c).Key(sh.key).Absolute().Top(sh.top).Width(paper + tail).MaxHeight(max(0, sh.most)).
-		Gap(6 * k).Clip().Hidden(hidden).Role(ui.RoleGroup).Label(sh.label)
-	if sh.fixed {
-		box.Height(max(0, sh.most))
-	}
+	box := ui.Box(c).Key(sh.key).Absolute().Width(paper + tail).Clip().Hidden(hidden).Role(ui.RoleGroup).Label(sh.label)
 	// What it holds stands out on the side of the window's middle, or
 	// stands in from it where nothing does.
 	inner := max(0, pad-tail)
+	padTop, padFoot := 14*k, 16*k
+	padLeft, padRight := inner, pad+radius
 	at, sign := float32(0), float32(-1)
 	if sh.right {
-		box.Right(0).Padding(14*k, pad+radius, 16*k, inner)
+		box.Right(0)
+		padLeft, padRight = padRight, inner
 		at, sign = tail, 1
 	} else {
-		box.Left(0).Padding(14*k, inner, 16*k, pad+radius)
-	}
-	switch {
-	case sh.centred:
-		box.TranslatePercent(0, -50)
-	case sh.bottom:
-		box.TranslatePercent(0, -100)
+		box.Left(0)
 	}
 	if sh.menu != nil {
 		box.ContextMenu(sh.menu)
@@ -125,36 +119,52 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 		p.Fill(edge, components.Blend(ground, semantic.Accent.Muted, lit), radius)
 		p.Stroke(edge, components.Blend(rim, semantic.Border.Focused, lit), radius, 1)
 	})
+	// Fixed, it is as tall as it may be; else as tall as what it holds,
+	// following it as things come and go, what it holds standing at its
+	// foot, so that the slab grows and shrinks from it as smoothly as they
+	// fold open and shut, and its icon above it rises and falls with it.
+	most := max(0, sh.most)
+	height := most
 	box.Children(func() {
-		if sh.count > 0 {
-			fade := 16 * k
-			sc := &st.scroll
-			ui.Scroll(c).Key("held").MinHeight(0).Shrink(1).Scrollbars(false).TrackScroll(sc).DrawOver(func(p *ui.Painter, r ui.Rect) {
-				// Scrolled, what it holds softens into its edges, within it:
-				// the fades span the scroll where the box stands behind it.
-				left := r.X
-				if sh.right {
-					left = r.X + at - inner
-				}
-				x0, x1 := max(r.X, left), min(r.X+r.W, left+paper-pad-radius)
-				st.edges.Paint(p, ui.Rect{X: x0, Y: r.Y, W: x1 - x0, H: r.H}, ground, min(sc.Y, fade), min(sc.MaxY-sc.Y, fade))
-			}).Children(func() {
-				ui.Column(c).Key("list").WidthPercent(100).Gap(6 * k).Children(func() { list(out) })
-			})
+		content := ui.Column(c).Key("content").Absolute().Left(padLeft).Right(padRight).Bottom(padFoot).
+			MaxHeight(max(0, most-padTop-padFoot)).Gap(6 * k)
+		if sh.fixed {
+			content.Top(padTop)
+		} else {
+			held := content.LayoutBounds().H
+			height = min(most, held+padTop+padFoot)
+			if animate && held > 0 {
+				height = components.Follow(box, "height", height, components.MotionPanel)
+			} else {
+				box.Jump("height", height)
+			}
 		}
-		foot(out)
+		content.Children(func() {
+			if sh.count > 0 || sh.listing {
+				fade := 16 * k
+				sc := &st.scroll
+				ui.Scroll(c).Key("held").MinHeight(0).Shrink(1).Scrollbars(false).TrackScroll(sc).DrawOver(func(p *ui.Painter, r ui.Rect) {
+					// Scrolled, what it holds softens into its edges, within it:
+					// the fades span the scroll where the box stands behind it.
+					left := r.X
+					if sh.right {
+						left = r.X + at - inner
+					}
+					x0, x1 := max(r.X, left), min(r.X+r.W, left+paper-pad-radius)
+					st.edges.Paint(p, ui.Rect{X: x0, Y: r.Y, W: x1 - x0, H: r.H}, ground, min(sc.Y, fade), min(sc.MaxY-sc.Y, fade))
+				}).Children(func() {
+					ui.Column(c).Key("list").WidthPercent(100).Gap(6 * k).Children(func() { list(out) })
+				})
+			}
+			foot(out)
+		})
 	})
+	box.Height(height)
 	top := sh.top
-	switch {
-	case sh.centred:
-		top -= box.Bounds().H / 2
-	case sh.bottom:
-		top -= box.Bounds().H
+	if sh.bottom {
+		top -= height
 	}
-	if (sh.centred || sh.bottom) && (!st.laidOut || st.lastCount != sh.count) {
-		st.laidOut, st.lastCount = true, sh.count
-		c.AnimationFrame()
-	}
+	box.Top(top)
 	label := laneIcon(c, semantic, sh.key+"-label", sh.icon, sh.label+" icon", sh.count, stage.Rect{Y: top}, !sh.right, k).Hidden(hidden)
 	if sh.offset != 0 {
 		label.Translate(sh.offset, 0)
