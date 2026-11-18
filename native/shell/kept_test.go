@@ -46,12 +46,12 @@ func TestBookmarksStandNewestFirst(t *testing.T) {
 // pressed, it is kept, dyed for good in the hue the others wear least.
 func TestTheQueryHeldStandsOnTopAsADraftBookmark(t *testing.T) {
 	state, library, tester := keptState(t,
-		GroupItem{ID: "s1", Name: "Violet", Query: "$tag:a", Color: TintHalo},
-		GroupItem{ID: "s2", Name: "Blue", Query: "$tag:b", Color: TintHalo + 1})
+		GroupItem{ID: "s1", Name: "Halo", Query: "$tag:a", Color: TintHalo},
+		GroupItem{ID: "s2", Name: "Afterglow", Query: "$tag:b", Color: TintHalo + 1})
 	state.SetFieldQuery("$tag:weekly")
 	settle(tester)
 	draft, ok := tester.Find("Keep this search")
-	top, _ := tester.Find("Blue")
+	top, _ := tester.Find("Afterglow")
 	if !ok || draft.Y >= top.Y {
 		t.Fatalf("The search held should stand over the bookmarks, but it is at %v (found %v) and the top one at %v.", draft, ok, top)
 	}
@@ -73,8 +73,8 @@ func TestABookmarkIsDyedTheHueWornLeast(t *testing.T) {
 		{nil, TintHalo},
 		{[]int{TintHalo + 2}, TintHalo + 3},
 		{[]int{TintHalo + 5}, TintHalo},
-		// The newest is Blue, but Teal is worn twice: Amber, after it, is
-		// the first worn least.
+		// The newest is Afterglow, but Remnant is worn twice: Unripe,
+		// after it, is the first worn least.
 		{[]int{TintHalo + 1, TintHalo + 2, TintHalo + 2, TintHalo, TintHalo + 3, TintHalo + 4, TintHalo + 5}, TintHalo + 3},
 		// One without a hue counts for none.
 		{[]int{TintMoonveil}, TintHalo},

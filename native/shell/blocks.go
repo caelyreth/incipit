@@ -326,7 +326,7 @@ func badge(c *ui.Context, semantic theme.Theme, key, label string, family theme.
 	})
 }
 
-// pinBadge says a group or sheet is pinned: a thumbtack on the pink.
+// pinBadge says a group or sheet is pinned: a thumbtack on Remnant.
 func pinBadge(c *ui.Context, semantic theme.Theme, m blockMetrics) {
 	badge(c, semantic, "pin-badge", "Pinned", theme.Remnant, components.IconPin, "", m)
 }
@@ -638,15 +638,9 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 			s.startRename(g.ID)
 		}
 		m.Submenu("Color", func(m *ui.Menu) {
-			for _, opt := range []struct {
-				label string
-				color int
-			}{
-				{"Default", TintMoonveil}, {"Violet", TintHalo}, {"Blue", TintHalo + 1}, {"Teal", TintHalo + 2},
-				{"Amber", TintHalo + 3}, {"Rose", TintHalo + 4}, {"Indigo", TintHalo + 5},
-			} {
-				if m.Item(opt.label).Checked(g.Color == opt.color).Chosen() {
-					s.Library.StyleGroup(g.ID, g.Icon, opt.color)
+			for color := TintMoonveil; color < TintHalo+len(theme.AllAccents); color++ {
+				if m.Item(tintName(color)).Checked(g.Color == color).Chosen() {
+					s.Library.StyleGroup(g.ID, g.Icon, color)
 				}
 			}
 		})

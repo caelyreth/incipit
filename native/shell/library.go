@@ -171,6 +171,15 @@ const (
 	TintHalo     = 1
 )
 
+// tintName is a group's tint by its Cosmofi name: Moonveil, or its hue
+// family's.
+func tintName(color int) string {
+	if color >= TintHalo && color < TintHalo+len(theme.AllAccents) {
+		return theme.AllAccents[color-TintHalo].Label()
+	}
+	return "Moonveil"
+}
+
 // sheetDrag is a sheet dragged on the field.
 type sheetDrag struct {
 	id string
