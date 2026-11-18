@@ -317,10 +317,13 @@ func (s *State) laneCircleButton(c *ui.Context, semantic theme.Theme, key string
 		AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(label).Tooltip(tooltip).Selected(selected)
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	// The place the field shows stands inverse among them.
-	ground, ink, rim := semantic.Surface.Page, semantic.Icon.Muted, semantic.Border.Variant
-	if selected {
-		ground, ink, rim = semantic.Surface.Inverse, semantic.Text.OnInverse, ui.Transparent
+	on := map[bool]float32{true: 1}[selected]
+	if animate {
+		on = components.Follow(btn, "selected", on, components.MotionQuick)
 	}
+	ground := components.Blend(semantic.Surface.Page, semantic.Surface.Inverse, on)
+	ink := components.Blend(semantic.Icon.Muted, semantic.Text.OnInverse, on)
+	rim := semantic.Border.Variant.Alpha(1 - on)
 	btn.Background(components.Blend(ground, semantic.GhostElement.Hover, hover)).Border(1, rim)
 	btn.Children(func() {
 		ui.Icon(c, icon.SVG()).FontSize(size / 2).TextColor(ink)
