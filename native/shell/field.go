@@ -145,10 +145,11 @@ type fieldState struct {
 	// this one does, and spring the group it is held over (drop.go).
 	drag, dragNext shellDrag
 	spring         springing
-	// order is the rows the field shows, in order, and chosen the one the
-	// keys are on; rowRects where each stands in the field, drawing the
-	// card being drawn, and shownChosen the row last brought into view
-	// (keys.go).
+	// ranked is the rows the field shows in its rank, order the same as
+	// they are read on the screen, and chosen the one the keys are on;
+	// rowRects where each stands in the field, drawing the card being
+	// drawn, and shownChosen the row last brought into view (keys.go).
+	ranked      []string
 	order       []string
 	chosen      string
 	rowRects    map[string]stageRect
@@ -407,9 +408,15 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	lift := poise.Y
 	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2+lift), max(0, below+3*m.pad-h/2-lift)
-	s.field.order = s.field.order[:0]
+	// The keys start from what ranks first, nearest the pill; they go on,
+	// and a Shift-click takes its run, in the order the field is read on
+	// the screen (field-and-desk.md §4.7.7).
+	s.field.ranked, s.field.order = s.field.ranked[:0], s.field.order[:0]
 	for _, cd := range f.cards {
-		s.field.order = append(s.field.order, cd.kind.rows()...)
+		s.field.ranked = append(s.field.ranked, cd.kind.rows()...)
+	}
+	for _, i := range stageScreenOrder(rects) {
+		s.field.order = append(s.field.order, f.cards[i].kind.rows()...)
 	}
 	s.keepPicked()
 	s.keepRowPlaces()

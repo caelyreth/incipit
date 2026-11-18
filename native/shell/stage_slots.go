@@ -1,5 +1,10 @@
 package shell
 
+import (
+	"cmp"
+	"slices"
+)
+
 // The field stands on either side of its horizon, the band across its
 // middle that holds the pill and that nothing is drawn in. What it shows
 // goes in stageSlots numbered outward from the pill, a row at a time: across
@@ -97,6 +102,42 @@ func (z stageHorizon) Place(heights []float32) []stageRect {
 			above[c] -= z.Gap
 		}
 	}
+	return out
+}
+
+// stageScreenOrder is the order rects are read in as they stand on the
+// screen, as indexes into rects: the rows over the horizon from the
+// furthest to the one on it, then those under it from the one on it
+// outward, each left to right. A row is how far a block is stacked out
+// from the horizon in its column, not where it happens to stand, so
+// blocks of uneven heights read across as their slots do.
+func stageScreenOrder(rects []stageRect) []int {
+	level := make([]int, len(rects))
+	for i, r := range rects {
+		for j, o := range rects {
+			// Nearer the horizon on the same side of it, in the same column.
+			if j != i && o.X == r.X && (o.Y < 0) == (r.Y < 0) && (r.Y < 0 && o.Y > r.Y || r.Y >= 0 && o.Y < r.Y) {
+				level[i]++
+			}
+		}
+	}
+	out := make([]int, len(rects))
+	for i := range out {
+		out[i] = i
+	}
+	slices.SortStableFunc(out, func(a, b int) int {
+		ra, rb := rects[a], rects[b]
+		aboveA, aboveB := ra.Y < 0, rb.Y < 0
+		switch {
+		case aboveA != aboveB:
+			return map[bool]int{true: -1, false: 1}[aboveA]
+		case level[a] != level[b] && aboveA:
+			return level[b] - level[a]
+		case level[a] != level[b]:
+			return level[a] - level[b]
+		}
+		return cmp.Compare(ra.X, rb.X)
+	})
 	return out
 }
 

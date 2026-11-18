@@ -281,7 +281,7 @@ func (s *State) pillKey(key ui.TextKey) bool {
 		}
 		id := s.field.chosen
 		if id == "" {
-			for _, row := range s.field.order {
+			for _, row := range s.field.ranked {
 				if strings.HasPrefix(row, "sheet:") || strings.HasPrefix(row, "command:") {
 					id = row
 					break

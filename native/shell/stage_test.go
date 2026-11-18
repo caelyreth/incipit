@@ -60,3 +60,21 @@ func TestASortedFieldFillsItsRowsInReadingOrder(t *testing.T) {
 		t.Fatalf("The fourth should begin the row over the pill at the left: %v.", rects[3])
 	}
 }
+
+// The screen's order reads the rows over the horizon from the top, then
+// those under it, each left to right, however the slots were filled.
+func TestTheScreenOrderReadsAsTheFieldStands(t *testing.T) {
+	z := stageHorizon{Cols: 4, Col: 100, Gap: 10, Above: 20, Below: 20}
+	heights := []float32{50, 50, 50, 50, 50, 50, 50, 50, 50}
+	rects := z.Place(heights)
+	var got []int
+	for _, i := range stageScreenOrder(rects) {
+		got = append(got, i)
+	}
+	// Ranks under the pill, middle out: 2 1 3 0 across as 3 1 0 2; over
+	// it the same as 7 5 4 6; the ninth stacks under rank 0's column.
+	want := []int{7, 5, 4, 6, 3, 1, 0, 2, 8}
+	if !slices.Equal(got, want) {
+		t.Fatalf("The field should be read across as it stands: %v, not %v.", want, got)
+	}
+}

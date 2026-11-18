@@ -21,14 +21,14 @@ func TestTheKeysGoByPlaceAndByOrder(t *testing.T) {
 	}
 	tester.Key(0, ui.KeyDown)
 	settle(tester)
-	if state.field.chosen != state.field.order[0] {
-		t.Fatalf("Down should put the keys on the first row, %q, not %q.", state.field.order[0], state.field.chosen)
+	if state.field.chosen != state.field.ranked[0] {
+		t.Fatalf("Down should put the keys on what ranks first, %q, not %q.", state.field.ranked[0], state.field.chosen)
 	}
 	tester.Key(0, ui.KeyDown)
 	settle(tester)
 	from := state.field.rowRects[state.field.chosen]
-	if state.field.chosen != state.field.order[1] {
-		t.Fatalf("Down again should go to the row under it, %q, not %q.", state.field.order[1], state.field.chosen)
+	if state.field.chosen != state.field.ranked[1] {
+		t.Fatalf("Down again should go to the row under it, %q, not %q.", state.field.ranked[1], state.field.chosen)
 	}
 	// Across to the other card, whichever side it stands.
 	across, sign := ui.KeyRight, float32(1)
@@ -144,4 +144,38 @@ func TestTheSelectionsActionsAreOneUndo(t *testing.T) {
 func space(tester *ui.Tester) {
 	tester.TypeKey(0, ui.KeySpace, " ")
 	settle(tester)
+}
+
+// A Shift-click takes the run as the field is read on the screen, not as
+// it ranks: across a row, what stands between the two, and nothing else.
+func TestAShiftClickTakesTheRunAsTheFieldStands(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.extraSheets = 3
+	state.SetFieldQuery("$in:Novel")
+	settle(tester)
+	var row []string
+	for _, id := range state.pickOrder() {
+		if r, ok := state.field.rowRects[id]; ok && r.Y > 0 {
+			row = append(row, id)
+		}
+	}
+	slices.SortFunc(row, func(a, b string) int {
+		return int(state.field.rowRects[a].X - state.field.rowRects[b].X)
+	})
+	if len(row) < 4 {
+		t.Fatalf("Four sheets should stand across under the pill: %v.", row)
+	}
+	if slices.Index(state.field.ranked, row[0]) < slices.Index(state.field.ranked, row[1]) {
+		t.Fatalf("The case needs a row whose rank is not its reading: %v.", state.field.ranked)
+	}
+	state.pickRow(row[1], 0)
+	state.pickRow(row[0], ui.Shift)
+	if !slices.Equal(state.field.picked, row[:2]) {
+		t.Fatalf("Shift-click to the card beside should take the two: %v, not %v.", row[:2], state.field.picked)
+	}
+	state.pickRow(row[0], 0)
+	state.pickRow(row[3], ui.Shift)
+	if !slices.Equal(state.field.picked, row) {
+		t.Fatalf("Shift-click across the row should take it all, in order: %v, not %v.", row, state.field.picked)
+	}
 }

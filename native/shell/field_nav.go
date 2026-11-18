@@ -77,7 +77,8 @@ func (s *State) choose(by int) {
 	}
 	at := slices.Index(ids, s.field.chosen)
 	if at < 0 {
-		s.field.chosen = ids[0]
+		// The keys come onto the field at what ranks first.
+		s.field.chosen = s.field.ranked[0]
 		return
 	}
 	s.field.chosen = ids[max(0, min(at+by, len(ids)-1))]
