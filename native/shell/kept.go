@@ -166,6 +166,12 @@ func (s *State) trashButton(c *ui.Context, semantic theme.Theme, size float32, a
 	if btn.Clicked() {
 		s.toggleTrash()
 	}
+	// What is dropped on it goes to the trash.
+	if !shown {
+		if _, dropped, ok := s.dropOn(c, semantic, btn, takes{sheets: true, groups: true}, animate); ok {
+			s.trashDropped(dropped)
+		}
+	}
 	return btn
 }
 

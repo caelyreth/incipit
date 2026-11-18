@@ -834,6 +834,13 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 		}
 		btn.Tooltip("Change " + l.label + "; with Option, turn it around; drag it to the lane to keep it").
 			Drag(queryDrag{text: p.text})
+		// The group the field is in takes what is dropped on its ribbon, as
+		// on its head: its sheets each stand alone, with no block to drop on.
+		if g, ok := s.scopeGroup(); ok && conditionKey(p.text) == "in" {
+			if _, dropped, ok := s.dropOn(c, semantic, btn, filing(g), animate); ok {
+				s.fileInto(g, dropped)
+			}
+		}
 		if btn.Clicked() {
 			if i := slices.Index(s.field.conditions, p.text); i >= 0 && btn.ClickModifiers()&ui.Alt != 0 {
 				s.turn(i)

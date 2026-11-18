@@ -91,6 +91,20 @@ func (s *State) carried(d shellDrag) []string {
 	return nil
 }
 
+// trashDropped puts what was dropped on the trash in it: the sheets d
+// carries, out of the tray if they came from it, or a group.
+func (s *State) trashDropped(d shellDrag) {
+	switch d := d.(type) {
+	case sheetDrag, trayDrag:
+		s.trashSheets(s.carried(d))
+		s.delivered(d)
+	case groupDrag:
+		if g, ok := s.Library.Group(d.id); ok && !g.Inbox {
+			s.trashGroup(g)
+		}
+	}
+}
+
 // delivered lets the tray go of what d took out of it, once a drop has
 // taken it.
 func (s *State) delivered(d shellDrag) {
@@ -166,9 +180,8 @@ func (s *State) trayCard(c *ui.Context, semantic theme.Theme, sh SheetItem, widt
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	btn.Background(components.Blend(semantic.Surface.Page, semantic.GhostElement.Hover, hover)).
 		Border(1, components.Blend(semantic.Border.Variant, semantic.Border.Default, hover))
-	btn.Drag(sheetDrag{id: sh.ID, tray: true})
 	// Dragged, it shows its words, though the tray goes back under it.
-	if btn.Dragging() {
+	if s.dragFrom(btn, sheetDrag{id: sh.ID, tray: true}) {
 		shown = 1
 	}
 	btn.ContextMenu(func(m *ui.Menu) {

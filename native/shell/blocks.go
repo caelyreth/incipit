@@ -212,11 +212,6 @@ func bodyLines(c *ui.Context, body string, width, scale float32, most int) int {
 // view is what a block holds: a group's head and rows, taking sheets and
 // groups dropped on it.
 func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stage.Frame, sh shape, current bool, m blockMetrics, animate bool) {
-	if g := b.group; current && g != nil && !b.trashed && !g.Smart() && !b.create {
-		if dropped, ok := s.dropOn(c, semantic, box, filing(*g), animate); ok {
-			s.fileInto(*g, dropped)
-		}
-	}
 	box.Gap(m.headGap).Children(func() {
 		if !b.single && !b.create {
 			s.blockHead(c, semantic, b, fr, m, animate)
@@ -271,7 +266,16 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 			s.rowFill(c, semantic, head, id, animate)
 			head.ContextMenu(s.rowMenu(id, s.groupMenu(*g, b.trashed)))
 			if !b.trashed && !g.Inbox {
-				head.Drag(groupDrag{id: g.ID})
+				s.dragFrom(head, groupDrag{id: g.ID})
+			}
+			// What is dropped on its head is filed in the group, and held
+			// there it goes into it.
+			if !b.trashed && !g.Smart() {
+				over, dropped, ok := s.dropOn(c, semantic, head, filing(*g), animate)
+				if ok {
+					s.fileInto(*g, dropped)
+				}
+				s.springLoad(c, id, *g, over, fr.Rect)
 			}
 			if s.field.renaming != g.ID && head.Clicked() && !s.pickRow(id, head.ClickModifiers()) && !b.trashed {
 				s.into(*g, fr.Rect)
@@ -371,13 +375,16 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
 		FocusRing(false).KeepFocus().Label(g.Name)
 	s.rowFill(c, semantic, btn, id, animate)
-	// What is dropped on the row is filed in its group, not in the block's.
-	if dropped, ok := s.dropOn(c, semantic, btn, filing(g), animate); ok {
+	// What is dropped on the row is filed in its group, not in the block's,
+	// and held there it goes into it.
+	over, dropped, ok := s.dropOn(c, semantic, btn, filing(g), animate)
+	if ok {
 		s.fileInto(g, dropped)
 	}
+	s.springLoad(c, id, g, over, fr.Rect)
 	btn.ContextMenu(s.rowMenu(id, s.groupMenu(g, false)))
 	if !g.Inbox {
-		btn.Drag(groupDrag{id: g.ID})
+		s.dragFrom(btn, groupDrag{id: g.ID})
 	}
 	if btn.Clicked() && !s.pickRow(id, btn.ClickModifiers()) {
 		s.into(g, fr.Rect)
@@ -433,8 +440,14 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 		FocusRing(false).KeepFocus().Label(sheetTitle(sh)).Selected(front)
 	s.rowFill(c, semantic, btn, id, animate)
 	btn.ContextMenu(s.rowMenu(id, s.sheetMenu(sh, trashed)))
-	if !trashed {
-		btn.Drag(sheetDrag{id: sh.ID})
+	// Dragged, it is a chip of its title alone.
+	dragged := !trashed && s.dragFrom(btn, sheetDrag{id: sh.ID})
+	if dragged {
+		// Its title line tall, the rest of its place kept below it, so
+		// nothing around it moves.
+		chip := 2*pad + theme.TextSmall.LineHeight(m.scale)
+		btn.Height(chip).Margin(0, 0, h-chip, 0).
+			Background(semantic.Surface.Elevated).Border(1, semantic.Border.Default)
 	}
 	if !confirming && btn.Clicked() {
 		if mods := btn.ClickModifiers(); !s.pickRow(id, mods) {
@@ -481,6 +494,9 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 							SingleLine().Shrink(0).FontFeatures("tnum")
 					}
 				})
+			}
+			if dragged {
+				return
 			}
 			if body := entryBody(e); body != "" {
 				components.Label(c, body, theme.TextXSmall, semantic.Text.Muted).WidthPercent(100).MaxLines(lines)

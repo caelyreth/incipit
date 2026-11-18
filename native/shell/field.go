@@ -142,6 +142,10 @@ type fieldState struct {
 	// gathering keeps what moves done together would undo, while they are
 	// (notice.go).
 	gathering *[]func()
+	// drag is what was dragged as the last frame drew, dragNext what is as
+	// this one does, and spring the group it is held over (drop.go).
+	drag, dragNext shellDrag
+	spring         springing
 	// order is the rows the field shows, in order, and chosen the one the
 	// keys are on; rowRects where each stands in the field, drawing the
 	// card being drawn, and shownChosen the row last brought into view
@@ -310,7 +314,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		view.Translate(look.Offset.X, 0)
 	}
 	view.ContextMenu(s.fieldMenu)
-	s.scopeDrops(semantic, view, k, animate)
 	view.HandleInput(s.fieldInput)
 	s.field.hidden = hidden
 	// The field takes the keyboard from the pill let go of, and as it
@@ -770,33 +773,6 @@ func (s *State) scopeGroup() (GroupItem, bool) {
 	}
 	g, ok := s.Library.Group(scope)
 	return g, ok && !g.Smart()
-}
-
-// scopeDrops makes the field's ground, in a group, take what that group
-// takes, filing it at the group's top, as dropped on its block: in a group
-// whose sheets each stand alone, there is no block of its own to drop on.
-// At the top the ground takes nothing. It is outlined while something it
-// takes is over it.
-func (s *State) scopeDrops(semantic theme.Theme, view ui.Element, k float32, animate bool) {
-	g, ok := s.scopeGroup()
-	if !ok {
-		return
-	}
-	over, dropped, ok := dragOn(view, filing(g))
-	if ok {
-		s.fileInto(g, dropped)
-	}
-	lit := map[bool]float32{true: 1}[over]
-	if animate {
-		lit = components.Follow(view, "drop", lit, components.MotionQuick)
-	}
-	if lit > 0.001 {
-		view.DrawOver(func(p *ui.Painter, r ui.Rect) {
-			inset := 8 * k
-			r = ui.Rect{X: r.X + inset, Y: r.Y + inset, W: r.W - 2*inset, H: r.H - 2*inset}
-			components.DashedOutline(p, r, 16*k, 1.5, semantic.Accent.Foreground.Alpha(lit))
-		})
-	}
 }
 
 // fieldMenu is what the field's ground offers.

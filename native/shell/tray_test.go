@@ -151,25 +151,27 @@ func TestTheTrayMenuActsOnAllItHolds(t *testing.T) {
 	}
 }
 
-// In a group, the field's ground files what is dropped on it at the
-// group's top, as in a group whose sheets each stand alone there is no
-// block of its own to drop on; at the top, it takes nothing.
-func TestTheFieldInAGroupFilesWhatIsDroppedOnIt(t *testing.T) {
+// Only what can take a drag takes it (field-and-desk.md §4.7.3): the
+// field's ground takes nothing, in a group too; there the Group ribbon of
+// the group the field is in files what is dropped on it at its top.
+func TestTheGroupRibbonFilesWhatIsDroppedOnIt(t *testing.T) {
 	state, library, tester := trayState(t, "7", "extra-0")
-	state.SetFieldQuery("")
+	state.SetFieldQuery("$in:Inbox")
 	settle(tester)
 	drawOut(tester)
 	card, _ := tester.Find("Chapter")
 	dragTo(tester, card.X+card.W/2, card.Y+card.H/2, 300, 760)
-	if !state.inTray("7") || slices.ContainsFunc(library.calls, func(c string) bool { return c == "move 7 to 1" || c == "move 7 to 2" }) {
-		t.Fatalf("At the top, the field's ground should take nothing: %v, %v.", library.calls, state.trayIDs())
+	if !state.inTray("7") || slices.Contains(library.calls, "move 7 to 1") {
+		t.Fatalf("The field's ground should take nothing: %v, %v.", library.calls, state.trayIDs())
 	}
-	state.SetFieldQuery("$in:Inbox")
-	settle(tester)
 	drawOut(tester)
 	card, _ = tester.Find("Chapter")
-	dragTo(tester, card.X+card.W/2, card.Y+card.H/2, 300, 760)
+	ribbon, ok := tester.Find("Group is Inbox")
+	if !ok {
+		t.Fatalf("The group's ribbon should stand: %v.", tester.Texts())
+	}
+	dragTo(tester, card.X+card.W/2, card.Y+card.H/2, ribbon.X+ribbon.W/2, ribbon.Y+ribbon.H/2)
 	if !slices.Contains(library.calls, "move 7 to 1") || state.inTray("7") {
-		t.Fatalf("In the Inbox, the sheet dropped on the field should be filed there: %v, %v.", library.calls, state.trayIDs())
+		t.Fatalf("Dropped on the group's ribbon, the sheet should be filed there: %v, %v.", library.calls, state.trayIDs())
 	}
 }

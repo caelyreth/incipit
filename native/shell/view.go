@@ -44,6 +44,7 @@ func (s *State) View(c *ui.Context) {
 	chrome = max(0, min(chrome, 1))
 	s.lastChrome = chrome
 	s.deskEscape(c)
+	s.field.drag, s.field.dragNext = s.field.dragNext, nil
 	at := s.viewAt(root, w, animate)
 	root.Children(func() {
 		hidden := at >= 0.999

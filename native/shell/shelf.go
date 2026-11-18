@@ -95,7 +95,7 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 		box.ContextMenu(sh.menu)
 	}
 	if sh.drag != nil {
-		box.Drag(sh.drag)
+		s.dragFrom(box, sh.drag)
 	}
 	over, dropped, ok := dragOn(box, sh.takes)
 	out := float32(0)
