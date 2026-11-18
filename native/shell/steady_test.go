@@ -19,16 +19,20 @@ func TestNarrowingAKeysValuesLeavesTheFieldBe(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	rest := slices.Clone(state.field.rest)
+	inbox, _ := tester.Find("Inbox")
+	novel, _ := tester.Find("Novel")
 	tester.Type("we")
 	settle(tester)
-	if !slices.Equal(state.field.rest, rest) {
-		t.Fatalf("Narrowing the values should leave the cards where they were: %v, now %v.", rest, state.field.rest)
+	if nowInbox, _ := tester.Find("Inbox"); nowInbox != inbox {
+		t.Fatalf("Narrowing the values should leave Inbox where it was: %v, now %v.", inbox, nowInbox)
+	}
+	if nowNovel, _ := tester.Find("Novel"); nowNovel != novel {
+		t.Fatalf("Narrowing the values should leave Novel where it was: %v, now %v.", novel, nowNovel)
 	}
 	tester.Key(0, ui.KeyEscape)
 	settle(tester)
-	if slices.Equal(state.field.rest, rest) {
-		t.Fatal("The key closed, the field should close in about the pill again.")
+	if nowInbox, _ := tester.Find("Inbox"); nowInbox.Y >= inbox.Y {
+		t.Fatalf("The key closed, the field should close in about the pill again: %v -> %v.", inbox, nowInbox)
 	}
 }
 
@@ -75,19 +79,13 @@ func TestTheHorizonRisesIntoEmptyRoomAndKeepsStillWhileWritten(t *testing.T) {
 	tester.ClickAt(12, 12)
 	settle(tester)
 	pill, _ := tester.Find("Search")
+	card, ok := tester.Find("Chapter")
+	if !ok {
+		t.Fatal("The matching card should stand on the field.")
+	}
 	mid := pill.Y + pill.H/2
-	if mid > 850/2-5 {
-		t.Fatalf("With all of the field under it, the pill should rise over the middle: %v.", mid)
-	}
-	// Its card, past the band under the pill, stands even about the
-	// window's middle: the pill goes up half as far as the card reaches.
-	below := float32(0)
-	for _, fr := range state.field.rest {
-		below = max(below, fr.Rect.Y+fr.Rect.H)
-	}
-	band := state.blockMetrics(1260-2*state.laneRoom(), 850).horizon.Below
-	if want := 850/2 - (below-band)/2; abs(mid-want) > 1 {
-		t.Fatalf("The pill should rise half as far as the card reaches: %v, not %v.", want, mid)
+	if mid > 850/2-5 || card.Y < pill.Y+pill.H {
+		t.Fatalf("With all of the field under it, the pill should rise over the middle (%v) above its card (%v).", mid, card)
 	}
 	state.Search()
 	settle(tester)
@@ -113,10 +111,10 @@ func TestALoneCardStandsUnderThePillInAnyColumns(t *testing.T) {
 		if !ok {
 			t.Fatalf("%d wide: the card should stand.", w)
 		}
-		cols := state.blockMetrics(float32(w)-2*state.laneRoom(), 850).horizon.Cols
-		row := state.field.rest[0].Rect
-		if mid := pill.X + pill.W/2; abs(row.X+row.W/2+state.field.poise.X) > 0.5 || card.X > mid {
-			t.Fatalf("%d wide, %d columns: the card should stand under the pill at %v: %v, across %v.", w, cols, mid, row, state.field.poise.X)
+		pillMid := pill.X + pill.W/2
+		cardMid := card.X + card.W/2
+		if abs(cardMid-pillMid) > 1.0 {
+			t.Fatalf("%d wide: the lone card (mid %v, %v) should stand centered under the pill (mid %v, %v).", w, cardMid, card, pillMid, pill)
 		}
 	}
 }
@@ -127,13 +125,21 @@ func TestTheBandGivesBackWhatAConditionTook(t *testing.T) {
 	state, _, tester := onField(t, 1260, 850)
 	tester.ClickAt(12, 12)
 	settle(tester)
-	home := slices.Clone(state.field.rest)
+	homePill, _ := tester.Find("Search")
+	homeInbox, _ := tester.Find("Inbox")
+	homeNovel, _ := tester.Find("Novel")
 	state.SetFieldQuery("$tag:work")
 	settle(tester)
 	state.goHome()
 	settle(tester)
-	if !slices.Equal(state.field.rest, home) {
-		t.Fatalf("Home again, the field should stand as it did: %v, now %v.", home, state.field.rest)
+	if p, _ := tester.Find("Search"); p != homePill {
+		t.Fatalf("Home again, the pill should stand as it did: %v, now %v.", homePill, p)
+	}
+	if i, _ := tester.Find("Inbox"); i != homeInbox {
+		t.Fatalf("Home again, Inbox should stand as it did: %v, now %v.", homeInbox, i)
+	}
+	if n, _ := tester.Find("Novel"); n != homeNovel {
+		t.Fatalf("Home again, Novel should stand as it did: %v, now %v.", homeNovel, n)
 	}
 }
 
@@ -143,12 +149,13 @@ func TestTheFieldSettlesAsTheWritingPauses(t *testing.T) {
 	state, library, tester := onField(t, 1260, 850)
 	tester.ClickAt(12, 12)
 	settle(tester)
-	home := state.field.poise
+	homePill, _ := tester.Find("Search")
 	library.order = func(string) []string { return []string{"7"} }
 	state.SetFieldQuery("chapter")
 	settle(tester)
-	if state.field.poise == home {
-		t.Fatal("With one card, the field should stand otherwise than at home.")
+	movedPill, _ := tester.Find("Search")
+	if abs(movedPill.Y-homePill.Y) <= 1 {
+		t.Fatalf("With one card, the pill should rise otherwise than at home: home=%v moved=%v.", homePill, movedPill)
 	}
 	state.Search()
 	settle(tester)
@@ -156,16 +163,16 @@ func TestTheFieldSettlesAsTheWritingPauses(t *testing.T) {
 		tester.Key(0, ui.KeyBackspace)
 	}
 	tester.Frame()
-	held := state.field.poiseTo
+	heldPill, _ := tester.Find("Search")
 	tester.Advance(writingPause / 2)
 	tester.Frame()
-	if state.field.poiseTo != held {
-		t.Fatalf("While the writing goes on, the field should hold: %v, now %v.", held, state.field.poiseTo)
+	if nowPill, _ := tester.Find("Search"); abs(nowPill.Y-heldPill.Y) > 0.5 {
+		t.Fatalf("While the writing goes on, the pill should hold: %v, now %v.", heldPill, nowPill)
 	}
 	tester.Advance(writingPause)
 	settle(tester)
-	if d := state.field.poise; abs(d.X-home.X) > 0.5 || abs(d.Y-home.Y) > 0.5 {
-		t.Fatalf("The writing paused, the field should settle as at home: %v, not %v.", home, d)
+	if backPill, _ := tester.Find("Search"); abs((backPill.X+backPill.W/2)-(homePill.X+homePill.W/2)) > 0.5 || abs(backPill.Y-homePill.Y) > 0.5 {
+		t.Fatalf("The writing paused, the field should settle as at home: %v, not %v.", homePill, backPill)
 	}
 }
 

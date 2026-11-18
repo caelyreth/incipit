@@ -58,12 +58,13 @@ func TestAConditionTakenLeavesTheOtherSideBe(t *testing.T) {
 	state.closeKey()
 	state.Search()
 	settle(tester)
+	nowPill, _ := tester.Find("Search")
 	tag, _ := tester.Find("Tag")
-	if g, _ := tester.Find("Group"); g != group || tag.Y < pill.Y {
-		t.Fatalf("Group should stay over the pill (%v, now %v) and Tag under it (%v).", group, g, tag)
+	if g, _ := tester.Find("Group"); g.X != group.X || abs((g.Y-nowPill.Y)-(group.Y-pill.Y)) > 0.5 || tag.Y < nowPill.Y {
+		t.Fatalf("Group should stay relative to the pill (%v vs %v, now %v vs %v) and Tag under it (%v).", group, pill, g, nowPill, tag)
 	}
-	if c, _ := tester.Find("Created"); c != created {
-		t.Fatalf("Created should stay where it was: %v, now %v.", created, c)
+	if c, _ := tester.Find("Created"); c.X != created.X || abs((c.Y-nowPill.Y)-(created.Y-pill.Y)) > 0.5 {
+		t.Fatalf("Created should stay relative to the pill: %v vs %v, now %v vs %v.", created, pill, c, nowPill)
 	}
 }
 

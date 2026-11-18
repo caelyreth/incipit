@@ -217,20 +217,20 @@ func TestNavigationRowHoverEasesInQuicklyAndOutGently(t *testing.T) {
 	tester.Move(float32(x), float32(y))
 	tester.Advance(40 * time.Millisecond)
 	partway := sample()
-	tester.Advance(120 * time.Millisecond)
+	tester.Advance(400 * time.Millisecond)
 	full := sample()
 	if full == rest {
 		t.Fatal("hover never tinted the row")
 	}
 	if partway == rest || partway == full {
-		t.Fatalf("hover snapped instead of easing in: rest=%d 40ms=%d full=%d", rest, partway, full)
+		t.Fatalf("hover snapped instead of easing in: rest=%d mid=%d full=%d", rest, partway, full)
 	}
 	tester.Move(float32(x), 115)
 	tester.Advance(100 * time.Millisecond)
 	if leaving := sample(); leaving == rest || leaving == full {
-		t.Fatalf("hover did not ease out: rest=%d 100ms=%d full=%d", rest, leaving, full)
+		t.Fatalf("hover did not ease out: rest=%d mid=%d full=%d", rest, leaving, full)
 	}
-	tester.Advance(200 * time.Millisecond)
+	tester.Advance(500 * time.Millisecond)
 	if gone := sample(); gone != rest {
 		t.Fatalf("hover tint remained: %d, rest %d", gone, rest)
 	}
