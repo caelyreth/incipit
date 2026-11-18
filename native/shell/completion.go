@@ -248,6 +248,7 @@ func (s *State) takeKey(name string) {
 			s.field.held = strings.TrimSpace(s.unwritten())
 		}
 		s.field.opened = k
+		s.field.acting = false
 		s.setWords("")
 	}
 }

@@ -36,6 +36,9 @@ type fieldState struct {
 	// quiet has the field take the keyboard itself, the pill let go of.
 	quiet bool
 	open  bool
+	// acting is whether the place's actions stand open beside the pill
+	// (actions.go).
+	acting bool
 	// completion is what may stand at the caret, caret bytes into the
 	// words completedFor, offered unless the words are what it was put
 	// away at, dismissed, suggestion the one of it the keys are on (-1 for
@@ -598,6 +601,8 @@ func (s *State) escapeField() {
 	switch {
 	case len(s.field.picked) > 0:
 		s.field.picked = nil
+	case s.field.acting:
+		s.toggleActions()
 	case s.field.opened != nil:
 		s.closeKey()
 	case s.offered():
@@ -755,24 +760,24 @@ func (s *State) fieldMenu(m *ui.Menu) {
 	if s.Library == nil {
 		return
 	}
-	if m.Item("New Sheet").Chosen() {
-		s.Library.NewSheet(s.CurrentGroup(), Last)
-		s.ShowDesk()
-	}
-	if m.Item("New Group").Chosen() {
-		s.newGroup(s.scope())
-	}
-	m.Separator()
-	if s.inTrash() {
-		if m.Item("Leave Trash").Chosen() {
-			s.toggleTrash()
+	// The place's actions, as the pill's button opens them; what asks
+	// again opens them, ready.
+	acts := s.fieldActions()
+	for _, a := range acts {
+		if !a.danger {
+			if m.Item(a.label).Chosen() {
+				a.run()
+			}
+		} else if m.Item(a.label + "…").Chosen() {
+			s.field.acting = true
+			s.closeKey()
+			s.arm(a.id)
 		}
-		if m.Item("Empty Trash…").Chosen() {
-			s.arm(emptyTrashKey)
-		}
-		return
 	}
-	if m.Item("Show Trash").Chosen() {
+	if len(acts) > 0 {
+		m.Separator()
+	}
+	if m.Item(map[bool]string{true: "Leave Trash", false: "Show Trash"}[s.inTrash()]).Chosen() {
 		s.toggleTrash()
 	}
 }

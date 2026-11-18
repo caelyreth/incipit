@@ -56,6 +56,7 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stage.Rect, r
 				TextColor(semantic.Accent.Foreground).SingleLine()
 		})
 	})
+	acts := s.fieldActions()
 	s.horizonStats(c, semantic, r, w, gap, animate)
 	// The ribbons first, as they were laid out for what the pill held as
 	// the frame began: the pill, taking the keys, may change it.
@@ -66,7 +67,8 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stage.Rect, r
 			s.ribbon(c, semantic, p, k, animate)
 		}
 	})
-	s.pillView(c, semantic, r, k, animate)
+	s.actionsView(c, semantic, acts, r, w, gap, k, animate)
+	s.pillView(c, semantic, r, acts, k, animate)
 }
 
 type fieldStatsState struct {
@@ -234,6 +236,12 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stage.Rect, 
 	row := ui.Row(c).Key("field-stats").Absolute().Top(r.Y).Left(r.X+r.W+gap).Height(r.H).
 		MaxWidth(maxW).AlignItems(ui.Center).IgnoreInput(true).Clip().
 		Translate(0, -components.UIOpticalLift(s.Settings.UIFontSize))
+	// The place's actions open, they stand where the stats did.
+	acting := map[bool]float32{true: 1}[s.field.acting]
+	if animate {
+		acting = components.Follow(row, "acting", acting, components.MotionQuick)
+	}
+	row.Opacity(1 - acting)
 	row.Children(func() {
 		s.field.stats.count.view(c, "stat-count", st.count, size, lineH, ink, animate)
 		ui.Box(c.Key("stat-unit-gap")).Width(spaceW).Shrink(0)
@@ -273,10 +281,10 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stage.Rect, 
 	})
 }
 
-func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k float32, animate bool) {
+func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, acts []fieldAction, k float32, animate bool) {
 	pill := ui.Row(c).Key("pill").Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).
 		Radius(r.H / 2).Background(semantic.Surface.Page).
-		PaddingStart(r.H * 0.4).PaddingEnd(r.H * 0.2).Gap(8 * k).AlignItems(ui.Center).
+		PaddingStart(r.H * 0.4).Gap(8 * k).AlignItems(ui.Center).
 		Cursor(ui.CursorText).Role(ui.RoleSearch).Label("Search")
 	var input ui.Element
 	pill.Children(func() {
@@ -300,6 +308,7 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k fl
 				s.setWords(s.field.words)
 			}
 		}
+		s.actionsButton(c, semantic, acts, r.H, k, animate)
 	})
 	_, caret := input.TextSelection()
 	if s.offer(byteOffset(s.field.words, caret)) {
@@ -411,7 +420,7 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	// let go of, with the same key's values standing, or, with none, the
 	// same conditions. Any of those changing, it is what they take again.
 	hold := &s.field.ribbonHold
-	stand := fmt.Sprint(s.field.open)
+	stand := fmt.Sprint(s.field.open, s.field.acting)
 	if of := s.completing(); of != nil {
 		stand += " " + of.Name
 	} else {
@@ -462,6 +471,12 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 		place(values, h+out.below+3*gap, rh+gap)
 		out.below += 2*gap + float32(len(values))*(rh+gap)
 	}
+	// The place's actions open, their arc about the pill's end takes room
+	// in the band over and under it as ribbons do.
+	if s.field.acting {
+		reach := float32(len(s.fieldActions())-1)/2*(rh+gap) - (h-rh)/2
+		out.below, out.above = max(out.below, reach), max(out.above, reach)
+	}
 	hold.above, hold.below = max(hold.above, out.above), max(hold.below, out.below)
 	out.above, out.below = hold.above, hold.below
 	return out
@@ -503,7 +518,7 @@ func (s *State) flow(c *ui.Context, rows [][]ribbonPlace, p ribbonPlace, k, w fl
 // suggestion's, for the keys to go along.
 func (s *State) keyRibbons() []ribbonPlace {
 	// The settings are found by their words alone.
-	if !s.field.open || s.InSettings() {
+	if !s.field.open || s.field.acting || s.InSettings() {
 		return nil
 	}
 	suggested := map[string]int{}
@@ -873,7 +888,7 @@ func (s *State) pillKey(key ui.TextKey) bool {
 	plain := key.Mods == 0
 	switch key.Key {
 	case ui.KeyEscape:
-		if len(s.field.picked) > 0 || s.field.opened != nil || s.offered() {
+		if len(s.field.picked) > 0 || s.field.acting || s.field.opened != nil || s.offered() {
 			s.escapeField()
 		} else {
 			s.field.quiet = true

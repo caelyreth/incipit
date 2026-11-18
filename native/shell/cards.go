@@ -31,13 +31,11 @@ type card struct {
 }
 
 // tier is how near the pill a card stands among others, before the order
-// its source gives: the place the query is in, what the query finds, then
-// what is around it.
+// its source gives: what the query finds, then what is around it.
 type tier uint8
 
 const (
-	tierScope tier = iota
-	tierResult
+	tierResult tier = iota
 	tierAmbient
 )
 

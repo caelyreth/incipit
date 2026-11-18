@@ -33,14 +33,13 @@ func (librarySource) answer(s *State, text string, f *found) {
 	case !browse:
 		s.searched(f, text, scope, trash)
 	case trash:
-		// The trash's own card, then the groups in it, then its sheets,
-		// each on its own.
-		groups, sheets := s.Library.TrashedGroups(), s.Library.Sheets(Place{Kind: PlaceTrash})
-		f.add("trash", tierScope, trashCard{groups: len(groups), sheets: len(sheets)})
-		for _, g := range groups {
+		// The trash heads no block, as a group the query is in: the groups
+		// in it, then its sheets, each on its own; what is done to it whole
+		// is the pill's action (actions.go).
+		for _, g := range s.Library.TrashedGroups() {
 			f.add("group:"+g.ID, tierResult, s.groupBlock(g, true))
 		}
-		for _, e := range s.entries(sheets) {
+		for _, e := range s.entries(s.Library.Sheets(Place{Kind: PlaceTrash})) {
 			f.add("sheet:"+e.sheet.ID, tierResult, block{entries: []entry{e}, single: true, trashed: true})
 		}
 	case scope != "":

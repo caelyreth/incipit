@@ -43,6 +43,7 @@ const (
 	IconLanguages    IconName = "languages"
 	IconMap          IconName = "map"
 	IconMinus        IconName = "minus"
+	IconMore         IconName = "ellipsis"
 	IconNewGroup     IconName = "folder-plus"
 	IconNewSheet     IconName = "file-plus"
 	IconPen          IconName = "pen-line"
@@ -92,6 +93,7 @@ var AllIcons = [...]IconName{
 	IconLanguages,
 	IconMap,
 	IconMinus,
+	IconMore,
 	IconNewGroup,
 	IconNewSheet,
 	IconPen,
