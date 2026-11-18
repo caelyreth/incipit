@@ -40,6 +40,9 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stageRect, rl
 	// Pressed, Neverland's name goes home, as the field lane's Home does.
 	mark := ui.ButtonBase(c.Key("wordmark")).Absolute().Top(r.Y).Right(w - r.X + gap).Height(r.H).
 		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label("Neverland").Tooltip("Home")
+	if d := s.listSide(mark, r, true, gap, k); d != (stagePoint{}) {
+		mark.Translate(d.X, d.Y)
+	}
 	if mark.Clicked() {
 		s.goHome()
 	}
@@ -53,13 +56,13 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stageRect, rl
 		})
 	})
 	acts := s.fieldActions()
-	s.noticeView(c, semantic, r, w, gap, k, animate)
-	s.horizonStats(c, semantic, r, w, gap, animate)
+	s.noticeView(c, semantic, r, s.field.sideRoom, gap, k, animate)
+	s.horizonStats(c, semantic, r, s.field.sideRoom, gap, animate)
 	// The ribbons first, as they were laid out for what the pill held as
 	// the frame began: the pill, taking the keys, may change it.
 	// Carry the pill's vertical offset on an unclipped parent so each
 	// ribbon's Scale transition never scales the horizon translation.
-	ui.Box(c).Key("ribbons").Absolute().Left(0).Top(r.Y).Children(func() {
+	ui.Box(c).Key("ribbons").Absolute().Left(0).Top(r.Y).Translate(s.field.ribbonsX, 0).Children(func() {
 		for _, p := range rl.places {
 			s.ribbon(c, semantic, p, k, animate)
 		}
@@ -110,6 +113,9 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w
 	row := ui.Row(c).Key("field-stats").Absolute().Top(r.Y).Left(r.X+r.W+gap).Height(r.H).
 		MaxWidth(maxW).AlignItems(ui.Center).IgnoreInput(true).Clip().
 		Translate(0, -components.UIOpticalLift(s.Settings.UIFontSize))
+	if d := s.listSide(row, r, false, gap, s.Settings.UIFontSize/theme.DefaultUIFontSize); d != (stagePoint{}) {
+		row.Translate(d.X, d.Y)
+	}
 	// The place's actions open, they stand where the stats did.
 	acting := map[bool]float32{true: 1}[s.field.acting]
 	if animate {

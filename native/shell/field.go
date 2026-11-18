@@ -141,6 +141,17 @@ type fieldState struct {
 	// gathering keeps what moves done together would undo, while they are
 	// (notice.go).
 	gathering *[]func()
+	// list is whether the field is to stand as the list (list.go), listed
+	// how far it stands so this frame, band how far the ribbons reach over
+	// and under the pill, and sideRoom how far what stands after the pill
+	// may reach.
+	list   bool
+	listed float32
+	// ribbonsX is how far the ribbons stand from the field's middle, with
+	// the pill.
+	ribbonsX float32
+	band     struct{ above, below float32 }
+	sideRoom float32
 	// drag is what was dragged as the last frame drew, dragNext what is as
 	// this one does, and spring the group it is held over (drop.go).
 	drag, dragNext shellDrag
@@ -341,6 +352,20 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	if !s.field.settleAt.IsZero() {
 		c.After(s.field.settleAt.Sub(c.Now()))
 	}
+	// The pill's widths, at rest and open, with horizonSide kept either
+	// side of it; the list posture stands where they leave room for it.
+	maxPillW := max(0, w-2*(m.pad+horizonSide*k))
+	idlePillW, openPillW := min(280*k, maxPillW), min(440*k, maxPillW)
+	list := listLayout(w, openPillW, k)
+	listing := s.field.list && list.fits
+	if listing {
+		m = list.metrics(m)
+	}
+	// How far the field stands as the list, on the change's own spring.
+	listed := map[bool]float32{true: 1}[listing]
+	if animate {
+		listed = view.AnimateTo("listed", listed, components.Spring(components.MotionScene))
+	}
 	// What fits in the row under the pill stands there alone, the field
 	// over it empty: its blocks may stand as tall as the window holds.
 	if len(f.cards) <= m.horizon.Cols {
@@ -352,14 +377,18 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		heights[i] = sh.size.H
 	}
 	// Its band reaches past the pill as far as the ribbons around it do.
-	maxPillW := max(0, w-2*(m.pad+horizonSide*k))
-	idlePillW, openPillW := min(280*k, maxPillW), min(440*k, maxPillW)
 	activePill := s.field.open || (s.field.focus && !s.OnDesk() && !s.field.hidden)
 	targetPillW := idlePillW
 	pillAnim := components.Spring(components.MotionNormal)
 	if activePill {
 		targetPillW = openPillW
 		pillAnim = components.Bouncy(components.MotionEnter)
+	}
+	// As the list, the pill stands at its open width, open or not: the
+	// set beside the column is as wide as ever, so nothing about it moves.
+	if listing && !activePill {
+		targetPillW = openPillW
+		pillAnim = components.Spring(components.MotionScene)
 	}
 	pillW := targetPillW
 	if animate {
@@ -368,19 +397,28 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		view.Jump("pill-w", targetPillW)
 	}
 	pill := stageSize{W: pillW, H: 40 * k}
+	// On the horizon the pill stands in the middle, growing both ways; as
+	// the list, its left stands at the column's side, and it grows right.
+	// Its ribbons are laid out about the middle as ever and go with it as
+	// one, so going between the postures moves none of them on its own.
+	pillMid := stageLerp(w/2, list.pillLeft+openPillW/2, listed)
+	s.field.ribbonsX = pillMid - w/2
 	rl := s.ribbons(c, k, w/2, targetPillW, pill.H)
 	z := m.horizon
 	z.Reading = s.sortedField()
 	z.Above += rl.above
 	z.Below += rl.below
+	top, foot := 48*k, 24*k
 	rects := z.Place(heights)
+	if listing {
+		rects = list.place(heights, h, top, foot, z.Gap)
+	}
 	frames := make([]stageFrame, len(rects))
 	for i, r := range rects {
 		frames[i] = stageFrame{ID: f.cards[i].id, Size: shapes[i].size, Rect: r, Shown: 1}
 	}
 	below, above := stageReach(rects)
 	below, above = max(below, z.Below), max(above, z.Above)
-	top, foot := 48*k, 24*k
 	// At rest, the pill stands at the window's middle, its ribbons with it,
 	// however many stand on either side: only cards standing on one side
 	// more than the other move it, the horizon rising or falling into the
@@ -406,6 +444,10 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		X: max(-reach-lo, min(reach-hi, s.field.poiseTo.X)),
 		Y: max(-down, min(up, s.field.poiseTo.Y)),
 	}
+	// The list stands where it is laid out: nothing to even about the pill.
+	if listing {
+		s.field.poiseTo, poise = stagePoint{}, stagePoint{}
+	}
 	lift := poise.Y
 	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2+lift), max(0, below+3*m.pad-h/2-lift)
 	// The keys start from what ranks first, nearest the pill; they go on,
@@ -427,7 +469,11 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		s.field.home, s.field.homeTo = true, 0
 	}
 	// What arrives is brought into view, wherever the change left it.
-	s.reveal(c, frames, f, h, poise.Y, top+rl.above, foot+rl.below)
+	over, under := top+rl.above, foot+rl.below
+	if listing {
+		over, under = top, foot
+	}
+	s.reveal(c, frames, f, h, poise.Y, over, under)
 	// Coming home, the field goes from wherever it was, past its new reach
 	// too; otherwise it is kept within it.
 	if !s.field.home {
@@ -468,8 +514,10 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	// with the query's own conditions alone, as far as they still fit, and
 	// stays there while what the field holds passes under it.
 	free := horizon - pill.H/2
-	away := free < top+rl.above || free > h-foot-pill.H-rl.below
-	py := max(top+rl.heldAbove, min(free, h-foot-pill.H-rl.heldBelow))
+	// As the list, the pill stands still on the window's middle, beside
+	// what scrolls, and nothing passes under it.
+	away := !listing && (free < top+rl.above || free > h-foot-pill.H-rl.below)
+	py := stageLerp(max(top+rl.heldAbove, min(free, h-foot-pill.H-rl.heldBelow)), h/2-pill.H/2, listed)
 	s.field.away = map[bool]float32{true: 1}[away]
 	if animate {
 		s.field.away = components.Follow(view, "away", s.field.away, components.MotionQuick)
@@ -492,7 +540,14 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	// blurs under them, more toward the window's edge, under its ground
 	// fading away from that edge, coming in as the horizon goes past.
 	stuckTop, stuckFoot := top+rl.heldAbove-free, free-(h-foot-pill.H-rl.heldBelow)
-	s.field.stuck = max(0, min(1, stuckTop/foot), min(1, stuckFoot/foot))
+	s.field.stuck = max(0, min(1, stuckTop/foot), min(1, stuckFoot/foot)) * (1 - listed)
+	// What stands after the pill reaches the field's edge, or, as the
+	// list, the column.
+	// Under the pill as the list, it may be as wide as the pill and its
+	// side.
+	s.field.sideRoom = stageLerp(w, list.pillLeft+2*openPillW+2*horizonSide*k, listed)
+	s.field.listed = listed
+	s.field.band.above, s.field.band.below = rl.above, rl.below
 	edge := py + pill.H + rl.heldBelow + 10*k
 	if stuckFoot > 0 {
 		edge = h - (py - rl.heldAbove) + 10*k
@@ -506,6 +561,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 			if !ok {
 				continue
 			}
+			fr.Shown = posturedShown(fr.Shown, listed)
 			s.cardView(c, semantic, fr, cd, s.field.shownShape[fr.ID], at, live[fr.ID], m, animate)
 		}
 		if topFade > 0 || bottomFade > 0 {
@@ -517,7 +573,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		if s.field.stuck > 0 {
 			s.pillBackdrop(c, semantic, w, edge, stuckFoot > 0)
 		}
-		s.horizonView(c, semantic, stageRect{X: w/2 - pill.W/2, Y: py, W: pill.W, H: pill.H}, rl, w, k, animate)
+		s.horizonView(c, semantic, stageRect{X: pillMid - pill.W/2, Y: py, W: pill.W, H: pill.H}, rl, w, k, animate)
 	})
 }
 
