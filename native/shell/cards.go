@@ -250,18 +250,23 @@ func (s *State) cardView(c *ui.Context, semantic theme.Theme, fr stage.Frame, cd
 	frame := ui.Box(c.Key("card-"+fr.ID)).Absolute().Left(0).Top(0).Size(fr.Size.W, fr.Rect.H/max(scale, 0.01)).
 		TransformOrigin(0, 0).Scale(scale, scale).Translate(at.X+fr.Rect.X, at.Y+fr.Rect.Y).
 		Opacity(fr.Shown).Radius(12 * m.k).Clip().Role(ui.RoleGroup)
+	// The rim is inside the card's edge and takes room from what it holds:
+	// the contents stand within it, padded the less, so they are m.pad
+	// from the edge all round.
+	rim := float32(0)
 	if cd.kind.ground() {
+		rim = 1
 		// Arriving, it is marked, unless it is its own row, which is.
 		arriving := float32(0)
 		if !slices.Contains(cd.kind.rows(), fr.ID) {
 			arriving = s.arrivalAt(fr.ID, c.Now())
 		}
 		frame.Background(components.Blend(semantic.Surface.Page, semantic.Accent.Tint, arriving)).
-			Border(1, semantic.Border.Variant)
+			Border(rim, semantic.Border.Variant)
 	}
 	s.field.drawing = cardPlace{rect: fr.Rect, scale: scale, box: frame.LayoutBounds()}
 	frame.Children(func() {
-		box := ui.Column(c.Key("content")).Size(fr.Size.W, fr.Size.H).Shrink(0).Padding(m.pad)
+		box := ui.Column(c.Key("content")).Size(fr.Size.W-2*rim, fr.Size.H-2*rim).Shrink(0).Padding(m.pad - rim)
 		if !cd.kind.drawsLive(s) {
 			box.Cache()
 		}
