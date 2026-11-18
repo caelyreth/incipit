@@ -4,7 +4,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -20,7 +19,7 @@ import (
 // cardPlace is where the card being drawn stands in the field, its scale,
 // and its box as laid out, before it is moved there.
 type cardPlace struct {
-	rect  stage.Rect
+	rect  stageRect
 	scale float32
 	box   ui.Rect
 }
@@ -33,9 +32,9 @@ func (s *State) rowPlace(el ui.Element, id string) {
 		return
 	}
 	if s.field.rowRects == nil {
-		s.field.rowRects = map[string]stage.Rect{}
+		s.field.rowRects = map[string]stageRect{}
 	}
-	s.field.rowRects[id] = stage.Rect{
+	s.field.rowRects[id] = stageRect{
 		X: card.rect.X + (b.X-card.box.X)*card.scale, Y: card.rect.Y + (b.Y-card.box.Y)*card.scale,
 		W: b.W * card.scale, H: b.H * card.scale,
 	}

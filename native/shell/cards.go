@@ -9,7 +9,6 @@ import (
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -52,7 +51,7 @@ type cardKind interface {
 	drawsLive(s *State) bool
 	// view fills box, the card at its own size, as sh lays it out; current
 	// while the field still shows it, not on its way out.
-	view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stage.Frame, sh shape, current bool, m blockMetrics, animate bool)
+	view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stageFrame, sh shape, current bool, m blockMetrics, animate bool)
 }
 
 // source answers the field's query text with cards, added to f.
@@ -242,7 +241,7 @@ func (s *State) computeFieldStats(text string, cards []card) fieldStats {
 }
 
 // cardView draws cd shaped sh as fr says, the field's origin at at.
-func (s *State) cardView(c *ui.Context, semantic theme.Theme, fr stage.Frame, cd card, sh shape, at stage.Point, current bool, m blockMetrics, animate bool) {
+func (s *State) cardView(c *ui.Context, semantic theme.Theme, fr stageFrame, cd card, sh shape, at stagePoint, current bool, m blockMetrics, animate bool) {
 	scale := fr.Rect.W / max(fr.Size.W, 1)
 	// Its frame stands as tall as the change has it, its contents laid out
 	// at their own height within: a card growing or shrinking shows more
@@ -308,7 +307,7 @@ func stack(rows []row, m blockMetrics) shape {
 		col = append(col, r)
 		colH += r.h
 	}
-	sh.size = stage.Size{W: m.col + 2*m.pad, H: m.head + 2*m.pad}
+	sh.size = stageSize{W: m.col + 2*m.pad, H: m.head + 2*m.pad}
 	if len(col) > 0 {
 		sh.cols = [][]row{col}
 		sh.size.H += m.headGap + colH

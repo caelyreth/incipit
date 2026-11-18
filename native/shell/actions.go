@@ -6,7 +6,6 @@ import (
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -205,7 +204,7 @@ func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldA
 // in order from the top, those further over or under it nearer the pill,
 // as the end's own curve goes. Pressing anywhere else, the pill too,
 // closes them.
-func (s *State) actionsView(c *ui.Context, semantic theme.Theme, acts []fieldAction, r stage.Rect, w, gap, k float32, animate bool) {
+func (s *State) actionsView(c *ui.Context, semantic theme.Theme, acts []fieldAction, r stageRect, w, gap, k float32, animate bool) {
 	if len(acts) == 0 && s.field.acting {
 		s.field.acting = false
 	}
@@ -235,15 +234,15 @@ func (s *State) actionsView(c *ui.Context, semantic theme.Theme, acts []fieldAct
 // arc is where n capsules h tall stand about the end of a pill r, gap
 // from it and space apart, as offsets from r's top: centred on its line,
 // in order down, along a circle that leaves the middle gap past its end.
-func arc(n int, r stage.Rect, h, gap, space float32) []stage.Point {
+func arc(n int, r stageRect, h, gap, space float32) []stagePoint {
 	step := h + space
 	radius := 3 * step
 	cx := r.X + r.W + gap - radius
 	mid := (r.H - h) / 2
-	at := make([]stage.Point, n)
+	at := make([]stagePoint, n)
 	for i := range at {
 		dy := (float32(i) - float32(n-1)/2) * step
-		at[i] = stage.Point{X: cx + float32(math.Sqrt(float64(radius*radius-dy*dy))), Y: mid + dy}
+		at[i] = stagePoint{X: cx + float32(math.Sqrt(float64(radius*radius-dy*dy))), Y: mid + dy}
 	}
 	return at
 }

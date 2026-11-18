@@ -1,4 +1,4 @@
-package stage
+package shell
 
 import (
 	"slices"
@@ -6,29 +6,29 @@ import (
 )
 
 func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
-	want5 := []slot{{2, true}, {3, true}, {1, true}, {4, true}, {0, true}, {2, false}, {3, false}, {1, false}, {4, false}, {0, false}}
-	if got := slots(5, false); !slices.Equal(got, want5) {
+	want5 := []stageSlot{{2, true}, {3, true}, {1, true}, {4, true}, {0, true}, {2, false}, {3, false}, {1, false}, {4, false}, {0, false}}
+	if got := stageSlots(5, false); !slices.Equal(got, want5) {
 		t.Fatalf("Five columns should take the row under the pill from the middle outward, then the row over: %v", got)
 	}
-	want4 := []slot{{2, true}, {1, true}, {3, true}, {0, true}, {2, false}, {1, false}, {3, false}, {0, false}}
-	if got := slots(4, false); !slices.Equal(got, want4) {
+	want4 := []stageSlot{{2, true}, {1, true}, {3, true}, {0, true}, {2, false}, {1, false}, {3, false}, {0, false}}
+	if got := stageSlots(4, false); !slices.Equal(got, want4) {
 		t.Fatalf("Four columns should start at the two middle ones: %v", got)
 	}
-	// A row's slots taken as many as make the middle even stand even
+	// A row's stageSlots taken as many as make the middle even stand even
 	// about the pill.
 	for _, cols := range []int{1, 2, 3, 4, 5} {
-		z := Horizon{Cols: cols, Col: 100, Gap: 10}
+		z := stageHorizon{Cols: cols, Col: 100, Gap: 10}
 		for n := 2 - cols%2; n <= cols; n += 2 {
 			lo, hi := float32(1e9), float32(-1e9)
 			for _, r := range z.Place(make([]float32, n)) {
 				lo, hi = min(lo, r.X), max(hi, r.X+r.W)
 			}
 			if lo != -hi {
-				t.Fatalf("%d of %d columns' slots should stand even across: %v to %v", n, cols, lo, hi)
+				t.Fatalf("%d of %d columns' stageSlots should stand even across: %v to %v", n, cols, lo, hi)
 			}
 		}
 	}
-	z := Horizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20}
+	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20}
 	rects := z.Place([]float32{50, 60, 70, 80})
 	if rects[0].Y != 20 || rects[1].Y != 20 || rects[2].Y != 20 || rects[3].Y != -100 {
 		t.Fatalf("The first three should stand side by side under the pill, the fourth over it: %+v", rects)
@@ -45,11 +45,11 @@ func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
 // A sorted field is read: each row from the left, the row under the pill
 // first, then the row over it.
 func TestASortedFieldFillsItsRowsInReadingOrder(t *testing.T) {
-	want := []slot{{0, true}, {1, true}, {2, true}, {0, false}, {1, false}, {2, false}}
-	if got := slots(3, true); !slices.Equal(got, want) {
+	want := []stageSlot{{0, true}, {1, true}, {2, true}, {0, false}, {1, false}, {2, false}}
+	if got := stageSlots(3, true); !slices.Equal(got, want) {
 		t.Fatalf("Three columns read should go left to right under the pill, then over it: %v", got)
 	}
-	z := Horizon{Cols: 3, Col: 100, Gap: 10, Reading: true}
+	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Reading: true}
 	rects := z.Place([]float32{50, 50, 50, 50})
 	for i := 1; i < 3; i++ {
 		if rects[i].X <= rects[i-1].X {

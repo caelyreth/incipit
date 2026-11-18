@@ -2,7 +2,6 @@ package shell
 
 import (
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -17,7 +16,7 @@ import (
 type laneState struct {
 	// preview is where the desk rests in the lane this frame, in the
 	// window.
-	preview stage.Rect
+	preview stageRect
 	// tray is the tray's shelf, under it; held the sheets set aside in it,
 	// which the field leaves out while they are, and heldRev counts its
 	// changes.
@@ -54,18 +53,18 @@ func (s *State) fieldMargin(w, h float32) float32 {
 // laneRest is where the desk rests in its lane, the window being w by h:
 // in the window by laneShown and past its right edge, keeping the
 // window's proportion so its frame stays tall even when narrow.
-func (s *State) laneRest(w, h float32) stage.Rect {
+func (s *State) laneRest(w, h float32) stageRect {
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	visible := s.laneShown()
 	ph := max(2*visible*h/max(w, 1), min(h*0.38, max(0, h-120*k)))
 	pw := ph * w / max(h, 1)
-	return stage.Rect{X: w - visible, Y: h/2 - ph/2, W: pw, H: ph}
+	return stageRect{X: w - visible, Y: h/2 - ph/2, W: pw, H: ph}
 }
 
 // laneIcon, keyed key, marks what rests in a lane with icon and count
 // beside it where there is one, standing above rest at the window's edge:
 // at its left where left is set, else at its right.
-func laneIcon(c *ui.Context, semantic theme.Theme, key string, icon components.IconName, label string, count int, rest stage.Rect, left bool, k float32) ui.Element {
+func laneIcon(c *ui.Context, semantic theme.Theme, key string, icon components.IconName, label string, count int, rest stageRect, left bool, k float32) ui.Element {
 	row := ui.Row(c).Key(key).Absolute().Top(rest.Y - 24*k).Gap(4 * k).AlignItems(ui.Center).Label(label)
 	if left {
 		row.Left(10 * k)

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -62,7 +61,7 @@ func (s *State) arrivalAt(id string, now time.Time) float32 {
 // cards at frames in a field h tall, poised poiseY, the band reaching
 // over and under; and lets go of what has been marked its while, or was
 // never shown in it.
-func (s *State) reveal(c *ui.Context, frames []stage.Frame, f found, h, poiseY, over, under float32) {
+func (s *State) reveal(c *ui.Context, frames []stageFrame, f found, h, poiseY, over, under float32) {
 	// The row the keys go to is brought into view as well.
 	if s.field.chosen != s.field.shownChosen {
 		if r, ok := s.field.rowRects[s.field.chosen]; ok {
@@ -97,7 +96,7 @@ func (s *State) reveal(c *ui.Context, frames []stage.Frame, f found, h, poiseY, 
 
 // inView scrolls the field, h tall and poised poiseY, the band reaching
 // over and under, as far as brings r, in the field, into view.
-func (s *State) inView(r stage.Rect, h, poiseY, over, under float32) {
+func (s *State) inView(r stageRect, h, poiseY, over, under float32) {
 	y := h/2 - poiseY - s.field.scroll + r.Y
 	to := s.field.scroll
 	switch {

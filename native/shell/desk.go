@@ -6,7 +6,6 @@ import (
 
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -17,7 +16,7 @@ import (
 // from what is open and in what order, never from where anyone put them:
 // one sheet alone fills the desk, its page at reading measure; two share
 // it by halves; more go on along the strip, two or three to a window as
-// the window holds them (stage.PerWindow). Pickers stand among them, each
+// the window holds them (stagePerWindow). Pickers stand among them, each
 // after the sheet it follows (desk_columns.go, desk_pickers.go).
 //
 // Everything on the strip moves on one motion (deskMotion): a column
@@ -59,7 +58,7 @@ type deskState struct {
 	strip    ui.ScrollState
 	over     motion.Overscroll
 	viewport ui.Rect
-	spans    []stage.Span
+	spans    []stageSpan
 	// inputs counts the strip's input; touching is whether fingers are on
 	// the touchpad; still is where the strip stood the build before, and
 	// armed whether it was scrolled by hand since it was last pinned
@@ -95,7 +94,7 @@ type deskState struct {
 // columns, its overview, and the statistics of the sheet in front. Seen
 // from the field it stands in its corner, what it holds taking no input
 // (leanDesk).
-func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layout, chrome float32, scene stage.Scene, w, h float32, animate bool) {
+func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layout, chrome float32, scene stageScene, w, h float32, animate bool) {
 	s.keepDesk()
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	gutter := layout.ContentGutter * k
@@ -297,7 +296,7 @@ func (s *State) magnet(strip ui.Element, k float32, animate bool) {
 		return
 	}
 	s.desk.armed = false
-	if rest, ok := stage.NearRest(s.desk.spans, s.desk.strip.MaxX, x, magnetReach*k); ok && math.Abs(float64(rest-x)) > 0.5 {
+	if rest, ok := stageNearRest(s.desk.spans, s.desk.strip.MaxX, x, magnetReach*k); ok && math.Abs(float64(rest-x)) > 0.5 {
 		s.desk.strip.ScrollTo(rest, 0, deskMotion(animate))
 	}
 }
@@ -314,16 +313,16 @@ func deskMotion(animate bool) ui.Animation {
 
 // editorWidth is a sheet's column's width on a desk inner wide holding
 // columns: the desk shared by as many sheets as it shows to a window
-// (stage.PerWindow), less the lines between. Between counts it goes
+// (stagePerWindow), less the lines between. Between counts it goes
 // smoothly, as sheets open and close or the desk is resized across where
 // they meet, on el.
 func (s *State) editorWidth(el ui.Element, columns []deskColumn, inner, k float32, animate bool) float32 {
 	page := s.Settings.Prose().Column() + 2*sheetPad*k
-	n := float32(stage.PerWindow(len(columns), inner, page, columnGap))
+	n := float32(stagePerWindow(len(columns), inner, page, columnGap))
 	if animate {
 		n = el.AnimateTo("columns-per-window", n, deskMotion(animate))
 	}
-	return stage.ColumnWidth(inner, n, columnGap)
+	return stageColumnWidth(inner, n, columnGap)
 }
 
 // column is one of the strip's columns, w wide and as tall as the strip,
@@ -337,7 +336,7 @@ func (s *State) column(c *ui.Context, of deskColumn, w, origin float32, enter, a
 	col := ui.Column(c).Key(key).Width(w).Shrink(0).FillHeight().Transition(columnTransition(enter, animate))
 	var shown ui.Rect
 	if b := col.LayoutBounds(); b.W > 0 {
-		sp := stage.Span{X: b.X - origin, W: b.W}
+		sp := stageSpan{X: b.X - origin, W: b.W}
 		s.desk.spans = append(s.desk.spans, sp)
 		// The strip goes on between frames, and stretches past its ends.
 		over, _ := s.desk.over.Offset()

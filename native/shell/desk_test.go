@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -234,7 +233,7 @@ func TestTheStripPinsToAColumnItComesToRestNear(t *testing.T) {
 	joining(state, tester, sheetPages("7", "8", "9", "10")...)
 	state.desk.strip.ScrollTo(0, 0, ui.Animation{Duration: 1})
 	settle(tester)
-	rests := stage.Rests(state.desk.spans, state.desk.strip.MaxX)
+	rests := stageRests(state.desk.spans, state.desk.strip.MaxX)
 	scroll := func(dx float32) {
 		tester.Scroll(600, 400, dx, 0)
 		tester.Frame()
@@ -293,7 +292,7 @@ func TestTheScrubberMovesTheStrip(t *testing.T) {
 	tester.Release(bar.X+4+(spans[3].X+10)*f, bar.Y+bar.H/2)
 	tester.Frame()
 	settle(tester)
-	if want := stage.Rests(state.desk.spans, state.desk.strip.MaxX)[3]; abs(state.desk.strip.X-want) > 1 {
+	if want := stageRests(state.desk.spans, state.desk.strip.MaxX)[3]; abs(state.desk.strip.X-want) > 1 {
 		t.Fatalf("A column pressed in the scrubber should come to the strip's start at %v, but the strip is at %v.",
 			want, state.desk.strip.X)
 	}

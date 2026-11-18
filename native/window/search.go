@@ -1,19 +1,14 @@
 package window
 
 import (
-	"cmp"
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"log"
-	"maps"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/search"
@@ -436,49 +431,13 @@ func (a *AppState) linkedSites() []string {
 // offers. Words of fewer than three letters, and the commonest words of
 // English, say too little of a title to be offered.
 func (a *AppState) titleWords() []string {
-	type count struct {
-		word         string
-		titles, from int
-	}
-	counts := map[string]*count{}
+	var titles []string
 	for _, session := range a.sessions {
-		if sheet, ok := a.library.Sheet(library.SheetID(session.key)); !ok || !sheet.Trashed.IsZero() {
-			continue
-		}
-		seen := map[string]bool{}
-		for _, word := range strings.FieldsFunc(session.summary.Title, func(r rune) bool {
-			return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '\''
-		}) {
-			key := query.Fold(word)
-			if utf8.RuneCountInString(key) < 3 || commonWords[key] || seen[key] {
-				continue
-			}
-			seen[key] = true
-			c, ok := counts[key]
-			if !ok {
-				c = &count{word: word, from: len(counts)}
-				counts[key] = c
-			}
-			c.titles++
+		if sheet, ok := a.library.Sheet(library.SheetID(session.key)); ok && sheet.Trashed.IsZero() {
+			titles = append(titles, session.summary.Title)
 		}
 	}
-	ranked := slices.Collect(maps.Values(counts))
-	slices.SortFunc(ranked, func(a, b *count) int { return cmp.Or(cmp.Compare(b.titles, a.titles), cmp.Compare(a.from, b.from)) })
-	var words []string
-	for _, c := range ranked[:min(len(ranked), namesMost)] {
-		words = append(words, c.word)
-	}
-	return words
-}
-
-// commonWords are words of English too common to say what a title is of.
-var commonWords = map[string]bool{
-	"the": true, "and": true, "for": true, "with": true, "from": true, "into": true, "about": true,
-	"that": true, "this": true, "these": true, "those": true, "are": true, "was": true, "were": true,
-	"not": true, "but": true, "you": true, "your": true, "our": true, "its": true, "has": true,
-	"have": true, "had": true, "how": true, "what": true, "why": true, "who": true, "when": true,
-	"where": true, "all": true, "any": true, "out": true, "over": true, "than": true, "then": true,
-	"there": true, "their": true, "they": true, "will": true, "can": true, "untitled": true,
+	return search.TitleWords(titles, namesMost)
 }
 
 // CountValues is part of shell.Library: how many sheets text finds with

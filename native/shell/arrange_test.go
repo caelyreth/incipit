@@ -4,7 +4,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/caelyreth/neverland/native/stage"
 	"time"
 )
 
@@ -104,7 +103,7 @@ func TestALoneRowStandsSideBySideAndTall(t *testing.T) {
 	library.rev++
 	tester.ClickAt(12, 12)
 	settle(tester)
-	var novel, inbox stage.Rect
+	var novel, inbox stageRect
 	for _, fr := range state.field.rest {
 		switch fr.ID {
 		case "group:2":

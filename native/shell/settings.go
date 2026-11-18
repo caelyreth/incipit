@@ -7,7 +7,6 @@ import (
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -94,7 +93,7 @@ func (s *State) settingsLive() bool {
 
 // intoSettings narrows the settings query to a category, the section lead
 // standing first in it, or, for none, its first.
-func (s *State) intoSettings(category, lead string, from stage.Rect) {
+func (s *State) intoSettings(category, lead string, from stageRect) {
 	s.field.lead = lead
 	s.narrow((&query.Condition{Key: mustKey("in"), Value: category}).String(), from)
 }
@@ -109,7 +108,7 @@ func (s *State) ShowSettings() {
 			return k == "settings" || k == "in"
 		})
 		s.setWords("")
-		s.field.next = change{depth: stage.Up}
+		s.field.next = change{depth: stageUp}
 		return
 	}
 	s.FindSettings("")
@@ -121,7 +120,7 @@ func (s *State) FindSettings(words string) {
 	s.ShowField()
 	s.field.conditions = []string{(&query.Condition{Key: mustKey("settings")}).String()}
 	s.setWords(words)
-	s.field.next = change{depth: stage.Down}
+	s.field.next = change{depth: stageDown}
 	s.field.focus = true
 }
 
@@ -204,7 +203,7 @@ func (settingsCategoryCard) ground() bool { return true }
 
 func (settingsCategoryCard) drawsLive(*State) bool { return false }
 
-func (sc settingsCategoryCard) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stage.Frame, sh shape, _ bool, m blockMetrics, animate bool) {
+func (sc settingsCategoryCard) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stageFrame, sh shape, _ bool, m blockMetrics, animate bool) {
 	box.Gap(m.headGap).Children(func() {
 		s.settingsCategoryHead(c, semantic, sc, fr, m, animate)
 		cardRows(c, sh, m, func(r row) {
@@ -217,7 +216,7 @@ func (sc settingsCategoryCard) view(s *State, c *ui.Context, semantic theme.Them
 	})
 }
 
-func (s *State) settingsCategoryHead(c *ui.Context, semantic theme.Theme, sc settingsCategoryCard, fr stage.Frame, m blockMetrics, animate bool) {
+func (s *State) settingsCategoryHead(c *ui.Context, semantic theme.Theme, sc settingsCategoryCard, fr stageFrame, m blockMetrics, animate bool) {
 	ui.Row(c).Key("head").Height(m.head).WidthPercent(100).AlignItems(ui.Center).Gap(4 * m.k).Shrink(0).Children(func() {
 		head := ui.ButtonBase(c.Key("name")).Grow(1).MinWidth(0).FillHeight().PaddingX(8 * m.k).Gap(8 * m.k).
 			AlignItems(ui.Center).Radius(8 * m.k).FocusRing(false).KeepFocus().Label(sc.category)
@@ -237,7 +236,7 @@ func (s *State) settingsCategoryHead(c *ui.Context, semantic theme.Theme, sc set
 	})
 }
 
-func (s *State) settingsSectionRow(c *ui.Context, semantic theme.Theme, sec SettingsSection, h float32, fr stage.Frame, m blockMetrics, animate bool) {
+func (s *State) settingsSectionRow(c *ui.Context, semantic theme.Theme, sec SettingsSection, h float32, fr stageFrame, m blockMetrics, animate bool) {
 	id := "settings-sec:" + sec.ID
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(h).PaddingX(rowPad(m.scale)).
 		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
@@ -257,7 +256,7 @@ func (s *State) settingsSectionRow(c *ui.Context, semantic theme.Theme, sec Sett
 	})
 }
 
-func (s *State) settingsMoreRow(c *ui.Context, semantic theme.Theme, category string, more int, fr stage.Frame, m blockMetrics, animate bool) {
+func (s *State) settingsMoreRow(c *ui.Context, semantic theme.Theme, category string, more int, fr stageFrame, m blockMetrics, animate bool) {
 	label := fmt.Sprintf("%s more", thousands(more))
 	btn := ui.ButtonBase(c.Key("more")).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label)
@@ -281,7 +280,7 @@ func (sc settingsCard) shape(s *State, c *ui.Context, m blockMetrics) shape {
 	if !ok {
 		h = 240 * m.k
 	}
-	return shape{size: stage.Size{W: m.col + 2*m.pad, H: h + 2*m.pad}}
+	return shape{size: stageSize{W: m.col + 2*m.pad, H: h + 2*m.pad}}
 }
 
 func (settingsCard) rows() []string { return nil }
@@ -291,7 +290,7 @@ func (settingsCard) ground() bool { return false }
 
 func (settingsCard) drawsLive(*State) bool { return true }
 
-func (sc settingsCard) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stage.Frame, sh shape, current bool, m blockMetrics, animate bool) {
+func (sc settingsCard) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stageFrame, sh shape, current bool, m blockMetrics, animate bool) {
 	box.Children(func() {
 		content := ui.Column(c).Key("section").WidthPercent(100).Shrink(0)
 		// It is as tall as it lays itself out; a change, as a fold

@@ -2,7 +2,6 @@ package shell
 
 import (
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -166,7 +165,7 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 		top -= height
 	}
 	box.Top(top)
-	label := laneIcon(c, semantic, sh.key+"-label", sh.icon, sh.label+" icon", sh.count, stage.Rect{Y: top}, !sh.right, k).Hidden(hidden)
+	label := laneIcon(c, semantic, sh.key+"-label", sh.icon, sh.label+" icon", sh.count, stageRect{Y: top}, !sh.right, k).Hidden(hidden)
 	if sh.offset != 0 {
 		label.Translate(sh.offset, 0)
 	}

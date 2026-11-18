@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -106,8 +105,8 @@ func (s *State) scrubTo(x float32) {
 	if len(s.desk.spans) == 0 {
 		return
 	}
-	at := stage.At(s.desk.spans, x)
-	s.desk.strip.ScrollTo(stage.Rests(s.desk.spans, s.desk.strip.MaxX)[at], 0, deskMotion(true))
+	at := stageAt(s.desk.spans, x)
+	s.desk.strip.ScrollTo(stageRests(s.desk.spans, s.desk.strip.MaxX)[at], 0, deskMotion(true))
 }
 
 // settleStrip brings the strip to rest at at, or pinned to a column's
@@ -115,7 +114,7 @@ func (s *State) scrubTo(x float32) {
 func (s *State) settleStrip(at float32) {
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	at = max(0, min(at, s.desk.strip.MaxX))
-	if rest, ok := stage.NearRest(s.desk.spans, s.desk.strip.MaxX, at, magnetReach*k); ok {
+	if rest, ok := stageNearRest(s.desk.spans, s.desk.strip.MaxX, at, magnetReach*k); ok {
 		at = rest
 	}
 	s.desk.armed = false

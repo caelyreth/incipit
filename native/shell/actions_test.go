@@ -4,7 +4,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -122,7 +121,7 @@ func TestTheActionsStandAboutThePillsEnd(t *testing.T) {
 // Five actions stand in an arc: the middle furthest out, those over and
 // under it alike, each further one nearer the pill.
 func TestFiveActionsStandInAnArc(t *testing.T) {
-	at := arc(5, stage.Rect{X: 100, Y: 0, W: 400, H: 40}, 28, 12, 6)
+	at := arc(5, stageRect{X: 100, Y: 0, W: 400, H: 40}, 28, 12, 6)
 	if at[2].X != 512 || at[2].Y != 6 {
 		t.Fatalf("The middle should stand on the pill's line, gap past its end: %v.", at[2])
 	}

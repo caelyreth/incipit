@@ -3,7 +3,6 @@ package shell
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -293,17 +292,7 @@ func words(n int) string {
 	case 1:
 		return "1 word"
 	}
-	return thousands(n) + " words"
+	return components.Thousands(n) + " words"
 }
 
-func thousands(n int) string {
-	digits := strconv.Itoa(n)
-	var out strings.Builder
-	for index, digit := range digits {
-		if index > 0 && (len(digits)-index)%3 == 0 {
-			out.WriteByte(',')
-		}
-		out.WriteRune(digit)
-	}
-	return out.String()
-}
+func thousands(n int) string { return components.Thousands(n) }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -131,7 +130,7 @@ const (
 
 // fieldLaneView draws the field lane at the left of the window w by h, as
 // look stands the field, and the kept box over it.
-func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stage.Look, w, h float32, hidden, animate bool) {
+func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLook, w, h float32, hidden, animate bool) {
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	lane := ui.Box(c).Key("field-lane").Absolute().Top(0).Left(0).Size(s.laneRoom(), h).Hidden(hidden).
 		Role(ui.RoleGroup).Label("Field lane")
@@ -188,7 +187,7 @@ func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, an
 // height, aligned at the foot of a lower-lane region so it grows upward
 // while leaving the upper side lane blank: a query dragged to it is kept,
 // and it stays out while a bookmark in it is renamed.
-func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stage.Look, h, k, buttonsFoot float32, hidden, animate bool) {
+func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stageLook, h, k, buttonsFoot float32, hidden, animate bool) {
 	marks := s.bookmarks()
 	text := s.FieldQuery()
 	keep := text != "" && !strings.HasPrefix(s.field.words, ">") &&
@@ -311,7 +310,7 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 	})
 	if btn.Clicked() && s.field.renaming != g.ID {
 		s.SetFieldQuery(g.Query)
-		s.field.next = change{depth: stage.Down}
+		s.field.next = change{depth: stageDown}
 		s.field.focus = true
 	}
 	btn.Children(func() {

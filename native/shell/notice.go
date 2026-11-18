@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -74,7 +73,7 @@ func (s *State) undoNotice() bool {
 // in the room to the field's edge w, its words giving way before its
 // Undo; otherwise, while something is selected, how much. It keeps how
 // far it is shown, for the stats to give way.
-func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stage.Rect, w, gap, k float32, animate bool) {
+func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stageRect, w, gap, k float32, animate bool) {
 	if n := s.field.notice; n != nil {
 		if n.at.IsZero() {
 			n.at = c.Now()

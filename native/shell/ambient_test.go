@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -23,9 +22,9 @@ func (quietCard) rows() []string         { return nil }
 func (quietCard) ground() bool           { return true }
 func (quietCard) drawsLive(*State) bool  { return false }
 func (quietCard) shape(_ *State, _ *ui.Context, m blockMetrics) shape {
-	return shape{size: stage.Size{W: m.col + 2*m.pad, H: m.head + 2*m.pad}}
+	return shape{size: stageSize{W: m.col + 2*m.pad, H: m.head + 2*m.pad}}
 }
-func (q quietCard) view(_ *State, c *ui.Context, semantic theme.Theme, box ui.Element, _ stage.Frame, _ shape, _ bool, m blockMetrics, _ bool) {
+func (q quietCard) view(_ *State, c *ui.Context, semantic theme.Theme, box ui.Element, _ stageFrame, _ shape, _ bool, m blockMetrics, _ bool) {
 	box.Children(func() { cardHead(c, semantic, "", q.name, m) })
 }
 

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -15,12 +14,12 @@ import (
 // in full, row by row, as the sheet list showed it, one column wide and no
 // taller than its half of the field holds, the rest counted. A block is as
 // tall as what it holds, laid out once and moved as a whole
-// (stage.Frame), its layer kept.
+// (stageFrame), its layer kept.
 
 // shape is how a block stands: its rows, column by column, its size, and
 // how many of its sheets it leaves out.
 type shape struct {
-	size stage.Size
+	size stageSize
 	cols [][]row
 	more int
 }
@@ -52,7 +51,7 @@ type blockMetrics struct {
 	rowGap, tall      float32
 	alone             float32
 	groupRow, control float32
-	horizon           stage.Horizon
+	horizon           stageHorizon
 }
 
 // measureStep is the step, at the reference type size, the field's
@@ -82,7 +81,7 @@ func (s *State) columnMetrics(w, h, least, most float32) blockMetrics {
 	scale := s.Settings.UIFontSize
 	k := scale / theme.DefaultUIFontSize
 	pad, gap := 6*k, fieldGap*k
-	cols, col := stage.Columns(w-48*k, least*k, most*k, gap)
+	cols, col := stageColumns(w-48*k, least*k, most*k, gap)
 	// What the window gives is taken in steps, so that resizing it lays
 	// the cards out again a step at a time and between steps only moves
 	// them, as they were drawn.
@@ -104,7 +103,7 @@ func (s *State) columnMetrics(w, h, least, most float32) blockMetrics {
 		alone:    max(160*k, float32(math.Floor(float64((h-band-2*gap-frame-(48+24)*k)/step)))*step),
 		groupRow: 2*theme.Space06.DIPs(scale) + theme.TextSmall.LineHeight(scale),
 		control:  theme.DefaultControls.Scaled(scale).Height,
-		horizon:  stage.Horizon{Cols: cols, Col: col, Gap: gap, Above: band / 2, Below: band / 2},
+		horizon:  stageHorizon{Cols: cols, Col: col, Gap: gap, Above: band / 2, Below: band / 2},
 	}
 }
 
@@ -131,9 +130,9 @@ func (b block) shape(s *State, c *ui.Context, m blockMetrics) shape {
 	switch {
 	case b.single:
 		h := entryHeight(c, b.entries[0], m, 4)
-		return shape{size: stage.Size{W: m.col + 2*m.pad, H: h + 2*m.pad}, cols: [][]row{{{entry: &b.entries[0], h: h}}}}
+		return shape{size: stageSize{W: m.col + 2*m.pad, H: h + 2*m.pad}, cols: [][]row{{{entry: &b.entries[0], h: h}}}}
 	case b.create:
-		return shape{size: stage.Size{W: m.col + 2*m.pad, H: m.control + 2*m.pad}, cols: [][]row{{{create: true, h: m.control}}}}
+		return shape{size: stageSize{W: m.col + 2*m.pad, H: m.control + 2*m.pad}, cols: [][]row{{{create: true, h: m.control}}}}
 	}
 	rows := make([]row, 0, len(b.groups)+len(b.entries)+1)
 	pinnedFirst(b.groups, b.entries, func(i int) {
@@ -211,7 +210,7 @@ func bodyLines(c *ui.Context, body string, width, scale float32, most int) int {
 
 // view is what a block holds: a group's head and rows, taking sheets and
 // groups dropped on it.
-func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stage.Frame, sh shape, current bool, m blockMetrics, animate bool) {
+func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stageFrame, sh shape, current bool, m blockMetrics, animate bool) {
 	box.Gap(m.headGap).Children(func() {
 		if !b.single && !b.create {
 			s.blockHead(c, semantic, b, fr, m, animate)
@@ -244,7 +243,7 @@ func (b block) name() string {
 
 // blockHead is a block's head: its group's icon, the groups it is in from
 // the one the query is in, its name and count, pressed to go into it.
-func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage.Frame, m blockMetrics, animate bool) {
+func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stageFrame, m blockMetrics, animate bool) {
 	ui.Row(c).Key("head").Height(m.head).WidthPercent(100).AlignItems(ui.Center).Gap(4 * m.k).Shrink(0).Children(func() {
 		g := b.group
 		icon, ink := components.IconTrash, semantic.Icon.Muted
@@ -369,7 +368,7 @@ func (s *State) rowFill(c *ui.Context, semantic theme.Theme, el ui.Element, id s
 }
 
 // groupRow is a group inside a block: pressed, the query goes into it.
-func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr stage.Frame, m blockMetrics, animate bool) {
+func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr stageFrame, m blockMetrics, animate bool) {
 	id := "group:" + g.ID
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
@@ -407,28 +406,6 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 
 // filing is what g takes to be filed in it: sheets, the tray, and groups
 // but in the Inbox.
-func filing(g GroupItem) takes {
-	return takes{sheets: true, groups: !g.Inbox}
-}
-
-// fileInto files what was dropped on g in it: the sheets it carries, out
-// of the tray if they came from it, or a group.
-func (s *State) fileInto(g GroupItem, dropped shellDrag) {
-	switch d := dropped.(type) {
-	case sheetDrag, trayDrag:
-		s.moveSheets(s.carried(d), g.ID)
-		s.delivered(d)
-	case groupDrag:
-		if d.id != g.ID {
-			s.moveGroup(d.id, g.ID)
-		}
-	}
-}
-
-// entryRow is a sheet in a block, in full, as the sheet list showed it:
-// pressed it opens on the desk, with Option alongside the sheets open;
-// Cmd or Shift selects it (picks.go), and a menu on it, selected with
-// others, is for the selection.
 func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed bool, h float32, single bool, m blockMetrics, animate bool) {
 	sh := e.sheet
 	id := "sheet:" + sh.ID
@@ -572,7 +549,7 @@ func (s *State) rowTags(c *ui.Context, semantic theme.Theme, tags []string, m bl
 
 // moreRow says how many sheets a block leaves out; pressed, the query goes
 // into its group, where it shows more.
-func (s *State) moreRow(c *ui.Context, semantic theme.Theme, b block, more int, fr stage.Frame, m blockMetrics, animate bool) {
+func (s *State) moreRow(c *ui.Context, semantic theme.Theme, b block, more int, fr stageFrame, m blockMetrics, animate bool) {
 	label := fmt.Sprintf("%s more", thousands(more))
 	btn := ui.ButtonBase(c.Key("more")).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label)
@@ -591,8 +568,6 @@ func sheetTitle(sh SheetItem) string {
 	}
 	return sh.Title
 }
-
-func deleteKey(id string) string { return "delete-" + id }
 
 func (s *State) renameInput(c *ui.Context, semantic theme.Theme, g GroupItem) {
 	input := ui.TextInputBase(c.Key("rename-"+g.ID), &s.field.renameName).
@@ -621,91 +596,5 @@ func (s *State) renameInput(c *ui.Context, semantic theme.Theme, g GroupItem) {
 		}
 		s.field.conditions = ordered(s.field.conditions)
 		s.Library.RenameGroup(g.ID, name)
-	}
-}
-
-func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
-	return func(m *ui.Menu) {
-		if trashed {
-			if m.Item("Put Back").Chosen() {
-				s.restoreGroup(g)
-			}
-			m.Separator()
-			if m.Item(deleteGroupLabel(g)).Chosen() {
-				s.arm(deleteKey("group:" + g.ID))
-			}
-			return
-		}
-		if !g.Smart() {
-			if m.Item("New Sheet").Chosen() {
-				s.Library.NewSheet(g.ID, Last)
-				s.ShowDesk()
-			}
-		}
-		if g.Inbox {
-			return
-		}
-		if !g.Smart() && m.Item("New Group Inside").Chosen() {
-			s.newGroup(g.ID)
-		}
-		m.Separator()
-		s.pinItem(m, "group:"+g.ID, g.Pinned)
-		if m.Item("Rename…").Chosen() {
-			s.startRename(g.ID)
-		}
-		m.Submenu("Color", func(m *ui.Menu) {
-			for color := TintMoonveil; color < TintHalo+len(theme.AllAccents); color++ {
-				if m.Item(tintName(color)).Checked(g.Color == color).Chosen() {
-					s.Library.StyleGroup(g.ID, g.Icon, color)
-				}
-			}
-		})
-		s.moveMenu(m, func(target string) { s.moveGroup(g.ID, target) }, g.ID)
-		m.Separator()
-		if m.Item(trashGroupLabel(g)).Chosen() {
-			s.trashGroup(g)
-		}
-	}
-}
-
-// pinItem is the menu's Pin, or Unpin, of the object id, which then
-// stands where its pin puts it, brought into view.
-func (s *State) pinItem(m *ui.Menu, id string, pinned bool) {
-	if m.Item(map[bool]string{true: "Unpin", false: "Pin"}[pinned]).Chosen() {
-		s.Library.Pin(id, !pinned)
-		s.arrive(id)
-	}
-}
-
-func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
-	return func(m *ui.Menu) {
-		if trashed {
-			if m.Item("Put Back").Chosen() {
-				s.restoreSheets([]string{sh.ID})
-			}
-			m.Separator()
-			if m.Item("Delete Immediately…").Chosen() {
-				s.arm(deleteKey("sheet:" + sh.ID))
-			}
-			return
-		}
-		if m.Item("Open").Chosen() {
-			s.Library.OpenSheet(sh.ID, false)
-			s.ShowDesk()
-		}
-		if m.Item("Open Alongside").Chosen() {
-			s.Library.OpenSheet(sh.ID, true)
-			s.ShowDesk()
-		}
-		m.Separator()
-		if m.Item("Duplicate").Chosen() {
-			s.Library.DuplicateSheet(sh.ID)
-		}
-		s.pinItem(m, "sheet:"+sh.ID, sh.Pinned)
-		s.moveMenu(m, func(group string) { s.moveSheets([]string{sh.ID}, group) }, "")
-		m.Separator()
-		if m.Item("Move to Trash").Chosen() {
-			s.trashSheets([]string{sh.ID})
-		}
 	}
 }

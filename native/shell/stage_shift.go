@@ -1,4 +1,4 @@
-package stage
+package shell
 
 // A query changing moves the field from what it drew to its new layout,
 // all of it on one value going from 0 to 1. What stays goes from where it
@@ -11,47 +11,47 @@ package stage
 // half way, and what comes in shows from a quarter on, so the two never
 // stand over each other at full strength.
 
-// Frame is a result as drawn: laid out at Size, shown at Rect, as opaque
+// stageFrame is a result as drawn: laid out at stageSize, shown at stageRect, as opaque
 // as Shown.
-type Frame struct {
+type stageFrame struct {
 	ID    string
-	Size  Size
-	Rect  Rect
+	Size  stageSize
+	Rect  stageRect
 	Shown float32
 }
 
-// Depth is which way a change goes.
-type Depth int8
+// stageDepth is which way a change goes.
+type stageDepth int8
 
 const (
 	// Across is a change that stays where it is, as typing.
-	Across Depth = iota
-	// Down goes into something chosen.
-	Down
-	// Up comes back out of it.
-	Up
+	Across stageDepth = iota
+	// stageDown goes into something chosen.
+	stageDown
+	// stageUp comes back out of it.
+	stageUp
 )
 
 // scales is how much smaller or larger what comes in or goes out
 // without a place to come from or go to starts or ends.
-func (d Depth) scales() (in, out float32) {
+func (d stageDepth) scales() (in, out float32) {
 	switch d {
-	case Down:
+	case stageDown:
 		return 0.92, 1.08
-	case Up:
+	case stageUp:
 		return 1.08, 0.92
 	default:
 		return 0.96, 0.96
 	}
 }
 
-// Shift is the field t of the way from from, as drawn, to to, at rest:
+// stageShift is the field t of the way from from, as drawn, to to, at rest:
 // what comes in starts at enter where it has a place, and what goes out
 // ends at exit. What goes out is drawn first, under what stays.
-func Shift(from, to []Frame, enter, exit Rect, d Depth, t float32) []Frame {
+func stageShift(from, to []stageFrame, enter, exit stageRect, d stageDepth, t float32) []stageFrame {
 	t = max(0, min(t, 1))
 	in, out := d.scales()
-	was := make(map[string]Frame, len(from))
+	was := make(map[string]stageFrame, len(from))
 	for _, f := range from {
 		was[f.ID] = f
 	}
@@ -59,7 +59,7 @@ func Shift(from, to []Frame, enter, exit Rect, d Depth, t float32) []Frame {
 	for _, f := range to {
 		stays[f.ID] = true
 	}
-	frames := make([]Frame, 0, len(from)+len(to))
+	frames := make([]stageFrame, 0, len(from)+len(to))
 	if t < 1 {
 		for _, f := range from {
 			if stays[f.ID] {
@@ -69,13 +69,13 @@ func Shift(from, to []Frame, enter, exit Rect, d Depth, t float32) []Frame {
 			if end.Empty() {
 				end = f.Rect.Scaled(out)
 			}
-			frames = append(frames, Frame{ID: f.ID, Size: f.Size, Rect: lerpRect(f.Rect, end, t), Shown: lerp(f.Shown, 0, min(1, t*2))})
+			frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(f.Rect, end, t), Shown: stageLerp(f.Shown, 0, min(1, t*2))})
 		}
 	}
 	for _, f := range to {
 		start, ok := was[f.ID]
 		if !ok {
-			start = Frame{Rect: enter}
+			start = stageFrame{Rect: enter}
 			if enter.Empty() {
 				start.Rect = f.Rect.Scaled(in)
 			}
@@ -85,11 +85,11 @@ func Shift(from, to []Frame, enter, exit Rect, d Depth, t float32) []Frame {
 			// edges together: its frame grows or shrinks to its new size
 			// while what it holds stands at that size within (the drawing
 			// shows more or less of it, never stretches it).
-			frames = append(frames, Frame{ID: f.ID, Size: f.Size, Rect: lerpRect(start.Rect, f.Rect, t), Shown: lerp(start.Shown, f.Shown, t)})
+			frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(start.Rect, f.Rect, t), Shown: stageLerp(start.Shown, f.Shown, t)})
 			continue
 		}
 		fade := max(0, (t-0.25)/0.75)
-		frames = append(frames, Frame{ID: f.ID, Size: f.Size, Rect: lerpRect(start.Rect, f.Rect, t), Shown: lerp(start.Shown, f.Shown, fade)})
+		frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(start.Rect, f.Rect, t), Shown: stageLerp(start.Shown, f.Shown, fade)})
 	}
 	return frames
 }

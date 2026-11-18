@@ -4,12 +4,11 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
-// The window looks at the field or at the desk (stage.Stage). The field
+// The window looks at the field or at the desk (buildStage). The field
 // is where the window opens and where it comes back to: a sheet opened
 // goes to the desk, and the desk left, or its last sheet closed, comes
 // back to the field. On the field the desk rests in its lane at the
@@ -18,7 +17,7 @@ import (
 // and leaving, it goes back into it.
 
 // aside is how the field stands aside as the desk comes up.
-var aside = stage.Aside{Shift: 0.18, Dim: 0.5}
+var aside = stageAside{Shift: 0.18, Dim: 0.5}
 
 // OnDesk reports whether the window looks at the desk, or is going there.
 func (s *State) OnDesk() bool { return s.onDesk && len(s.Open) > 0 }
@@ -101,11 +100,11 @@ func (s *State) viewAt(root ui.Element, w float32, animate bool) float32 {
 }
 
 // deskRest is where the desk rests this frame: in the lane.
-func (s *State) deskRest(w, h float32) stage.Rect {
+func (s *State) deskRest(w, h float32) stageRect {
 	if !s.lane.preview.Empty() {
 		return s.lane.preview
 	}
-	return stage.Rect{X: w, W: w, H: h}
+	return stageRect{X: w, W: w, H: h}
 }
 
 // leanDesk stands the desk where the scene says. On the way it is only
@@ -113,7 +112,7 @@ func (s *State) deskRest(w, h float32) stage.Rect {
 // so it keeps its lines and costs a frame no more than an image does.
 // Away from the desk, the desk takes no input but a press, which brings
 // it up, or opens a sheet when empty.
-func (s *State) leanDesk(area ui.Element, look stage.Look, upright float32) {
+func (s *State) leanDesk(area ui.Element, look stageLook, upright float32) {
 	if upright < 1 {
 		k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 		area.Cache().TransformOrigin(0.5, 0.5).Scale(look.Scale, look.Scale).

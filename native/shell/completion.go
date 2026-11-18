@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/internal/query"
-	"github.com/caelyreth/neverland/native/stage"
 )
 
 // What may be written next stands around the pill as idle ribbons
@@ -214,10 +213,10 @@ func (s *State) takenAt(k *query.Key, v string) int {
 func (s *State) toggleValue(k *query.Key, v string) {
 	if i := s.takenAt(k, v); i >= 0 {
 		s.field.conditions = slices.Delete(s.field.conditions, i, i+1)
-		s.field.next = change{depth: stage.Up}
+		s.field.next = change{depth: stageUp}
 	} else {
 		s.field.conditions, _ = put(s.field.conditions, query.Condition{Key: k, Value: v})
-		s.field.next = change{depth: stage.Down}
+		s.field.next = change{depth: stageDown}
 	}
 	s.field.chosen = ""
 	s.field.focus = true
@@ -283,7 +282,7 @@ func (s *State) addCondition(cond string) {
 	if s.field.conditions, changed = put(s.field.conditions, c); !changed {
 		return
 	}
-	s.field.next = change{depth: stage.Down}
+	s.field.next = change{depth: stageDown}
 	s.field.chosen = ""
 	s.field.focus = true
 }

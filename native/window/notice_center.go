@@ -46,8 +46,8 @@ type Notice struct {
 	// ID names what the notice is about: a notice posted with the ID of
 	// one showing takes its place, so a failure that comes again shows
 	// once, anew. It is the Title when empty.
-	ID         string
-	Kind       NoticeKind
+	ID   string
+	Kind NoticeKind
 	// Title says what happened, and Description, if any, why or what
 	// follows.
 	Title, Description string

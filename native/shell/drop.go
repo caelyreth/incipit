@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -36,7 +35,7 @@ func (s *State) dragFrom(el ui.Element, v shellDrag) bool {
 
 // springLoad goes into g, the row id at from, once what it takes has been
 // held over it springFor: so filing deep needs no letting go.
-func (s *State) springLoad(c *ui.Context, id string, g GroupItem, over bool, from stage.Rect) {
+func (s *State) springLoad(c *ui.Context, id string, g GroupItem, over bool, from stageRect) {
 	sp := &s.field.spring
 	switch {
 	case !over:

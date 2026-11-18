@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -117,7 +116,7 @@ func (commandList) ground() bool { return true }
 
 func (commandList) drawsLive(*State) bool { return false }
 
-func (l commandList) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, _ stage.Frame, sh shape, _ bool, m blockMetrics, animate bool) {
+func (l commandList) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, _ stageFrame, sh shape, _ bool, m blockMetrics, animate bool) {
 	box.Gap(m.headGap).Children(func() {
 		cardHead(c, semantic, components.IconCommand, l.group, m)
 		cardRows(c, sh, m, func(r row) {
