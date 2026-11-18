@@ -251,7 +251,13 @@ func (s *State) cardView(c *ui.Context, semantic theme.Theme, fr stage.Frame, cd
 		TransformOrigin(0, 0).Scale(scale, scale).Translate(at.X+fr.Rect.X, at.Y+fr.Rect.Y).
 		Opacity(fr.Shown).Radius(12 * m.k).Clip().Role(ui.RoleGroup)
 	if cd.kind.ground() {
-		frame.Background(semantic.Surface.Page).Border(1, semantic.Border.Variant)
+		// Arriving, it is marked, unless it is its own row, which is.
+		arriving := float32(0)
+		if !slices.Contains(cd.kind.rows(), fr.ID) {
+			arriving = s.arrivalAt(fr.ID, c.Now())
+		}
+		frame.Background(components.Blend(semantic.Surface.Page, semantic.Accent.Tint, arriving)).
+			Border(1, semantic.Border.Variant)
 	}
 	frame.Children(func() {
 		box := ui.Column(c.Key("content")).Size(fr.Size.W, fr.Size.H).Shrink(0).Padding(m.pad)

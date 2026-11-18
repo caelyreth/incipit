@@ -3,6 +3,7 @@ package storage
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -359,5 +360,42 @@ func TestTheWatcherIsToldAfterEachWrite(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("the watcher was not told of the write")
+	}
+}
+
+// A pinned group and sheet are pinned again as the notebook reopens.
+func TestPinsAreKept(t *testing.T) {
+	root := t.TempDir()
+	store := openStore(t, root)
+	saver := store.Autosave()
+	saver.Page(1, Summary{Title: "Pinned"})
+	saver.Page(2, Summary{Title: "Loose"})
+	saver.Library(library.Records{
+		Groups: []library.GroupRecord{{Group: library.Group{ID: library.Inbox, Name: library.InboxName}},
+			{Group: library.Group{ID: 2, Name: "Novel", Pinned: true}, Position: 1}},
+		Sheets: []library.SheetRecord{{Sheet: library.Sheet{ID: 1, Group: library.Inbox, Pinned: true}},
+			{Sheet: library.Sheet{ID: 2, Group: library.Inbox}, Position: 1}},
+	})
+	if err := saver.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store = openStore(t, root)
+	defer store.Close()
+	notebook, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned := map[string]bool{}
+	for _, g := range notebook.Library.Groups {
+		pinned[g.Name] = g.Pinned
+	}
+	for _, sh := range notebook.Library.Sheets {
+		pinned[fmt.Sprint(sh.ID)] = sh.Pinned
+	}
+	if !pinned["Novel"] || pinned[library.InboxName] || !pinned["1"] || pinned["2"] {
+		t.Fatalf("Pins should be kept as they were: %v.", pinned)
 	}
 }

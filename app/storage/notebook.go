@@ -203,14 +203,14 @@ func (s *Store) readTags(ctx context.Context, pages []Page, unread []int) error 
 // loadLibrary reads the groups and the filing of the sound pages.
 func (s *Store) loadLibrary(ctx context.Context, pages []Page) (library.Records, error) {
 	var records library.Records
-	rows, err := s.db.QueryContext(ctx, `SELECT id, parent, name, icon, color, query, position, trashed FROM groups`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, parent, name, icon, color, query, position, trashed, pinned FROM groups`)
 	if err != nil {
 		return records, err
 	}
 	for rows.Next() {
 		var group library.GroupRecord
 		var trashed sql.NullInt64
-		if err := rows.Scan(&group.ID, &group.Parent, &group.Name, &group.Icon, &group.Color, &group.Query, &group.Position, &trashed); err != nil {
+		if err := rows.Scan(&group.ID, &group.Parent, &group.Name, &group.Icon, &group.Color, &group.Query, &group.Position, &trashed, &group.Pinned); err != nil {
 			rows.Close()
 			return records, err
 		}
@@ -239,7 +239,7 @@ func (s *Store) loadLibrary(ctx context.Context, pages []Page) (library.Records,
 	for _, page := range pages {
 		known[page.Key] = page
 	}
-	rows, err = s.db.QueryContext(ctx, `SELECT page, grp, position, trashed FROM sheets`)
+	rows, err = s.db.QueryContext(ctx, `SELECT page, grp, position, trashed, pinned FROM sheets`)
 	if err != nil {
 		return records, err
 	}
@@ -247,7 +247,7 @@ func (s *Store) loadLibrary(ctx context.Context, pages []Page) (library.Records,
 	for rows.Next() {
 		var sheet library.SheetRecord
 		var trashed sql.NullInt64
-		if err := rows.Scan(&sheet.ID, &sheet.Group, &sheet.Position, &trashed); err != nil {
+		if err := rows.Scan(&sheet.ID, &sheet.Group, &sheet.Position, &trashed, &sheet.Pinned); err != nil {
 			return records, err
 		}
 		page, ok := known[PageKey(sheet.ID)]
@@ -373,16 +373,16 @@ func writeLibrary(ctx context.Context, tx *sql.Tx, records library.Records) erro
 	}
 	for _, group := range records.Groups {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO groups (id, parent, name, icon, color, query, position, trashed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO groups (id, parent, name, icon, color, query, position, trashed, pinned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			group.ID, group.Parent, group.Name, group.Icon, group.Color, group.Query, group.Position,
-			millisecondsOf(group.Trashed)); err != nil {
+			millisecondsOf(group.Trashed), group.Pinned); err != nil {
 			return err
 		}
 	}
 	for _, sheet := range records.Sheets {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO sheets (page, grp, position, trashed) VALUES (?, ?, ?, ?)`,
-			sheet.ID, sheet.Group, sheet.Position, millisecondsOf(sheet.Trashed)); err != nil {
+			`INSERT INTO sheets (page, grp, position, trashed, pinned) VALUES (?, ?, ?, ?, ?)`,
+			sheet.ID, sheet.Group, sheet.Position, millisecondsOf(sheet.Trashed), sheet.Pinned); err != nil {
 			return err
 		}
 	}

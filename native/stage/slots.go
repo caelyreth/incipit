@@ -20,6 +20,10 @@ type Horizon struct {
 	Cols         int
 	Col, Gap     float32
 	Above, Below float32
+	// Reading fills each row left to right, as a sorted field is read,
+	// in place of from the middle outward, as a ranked one stands by
+	// nearness (field-and-desk.md §4.7.5).
+	Reading bool
 }
 
 // Columns fits a horizon's columns into width w: as many as hold at least
@@ -43,15 +47,21 @@ type slot struct {
 // stand even about the pill whenever as many of them are taken as make
 // the middle even: an odd count where the columns are odd, an even where
 // they are even.
-func slots(cols int) []slot {
+func slots(cols int, reading bool) []slot {
 	var across []int
-	right, left := cols/2, cols/2-1
-	if cols%2 == 1 {
-		across = append(across, right)
-		right++
-	}
-	for ; left >= 0; right, left = right+1, left-1 {
-		across = append(across, right, left)
+	if reading {
+		for col := range cols {
+			across = append(across, col)
+		}
+	} else {
+		right, left := cols/2, cols/2-1
+		if cols%2 == 1 {
+			across = append(across, right)
+			right++
+		}
+		for ; left >= 0; right, left = right+1, left-1 {
+			across = append(across, right, left)
+		}
 	}
 	out := make([]slot, 0, 2*cols)
 	for _, below := range []bool{true, false} {
@@ -66,7 +76,7 @@ func slots(cols int) []slot {
 // the origin: those below hang from the band, those above stand on it.
 // Every block is one column wide.
 func (z Horizon) Place(heights []float32) []Rect {
-	order := slots(z.Cols)
+	order := slots(z.Cols, z.Reading)
 	left := -(float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap) / 2
 	below := make([]float32, z.Cols)
 	above := make([]float32, z.Cols)

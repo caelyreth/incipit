@@ -65,6 +65,8 @@ type fakeLibrary struct {
 	// order is what a search finds, by its text, in place of Chapter then
 	// Notes.
 	order func(text string) []string
+	// pins are the groups and sheets pinned, by id.
+	pins map[string]bool
 }
 
 // call records what the library was asked, and what changes it changes
@@ -77,6 +79,14 @@ func (f *fakeLibrary) call(name string) {
 }
 
 func (f *fakeLibrary) Groups(parent string) []GroupItem {
+	groups := f.groupList(parent)
+	for i := range groups {
+		groups[i].Pinned = f.pins[groups[i].ID]
+	}
+	return groups
+}
+
+func (f *fakeLibrary) groupList(parent string) []GroupItem {
 	if f.groupTree != nil {
 		return f.groupTree[parent]
 	}
@@ -110,6 +120,14 @@ func (f *fakeLibrary) Group(id string) (GroupItem, bool) {
 }
 
 func (f *fakeLibrary) Sheets(place Place) []SheetItem {
+	sheets := f.sheetList(place)
+	for i := range sheets {
+		sheets[i].Pinned = f.pins[sheets[i].ID]
+	}
+	return sheets
+}
+
+func (f *fakeLibrary) sheetList(place Place) []SheetItem {
 	switch {
 	case place.Kind == PlaceGroup && place.Group == "2":
 		sheets := []SheetItem{{ID: "7", Title: "Chapter", Excerpt: "It begins", Updated: time.Now(), Words: 1204}}
@@ -211,9 +229,17 @@ func (f *fakeLibrary) DuplicateSheet(id string) { f.call("duplicate " + id) }
 func (f *fakeLibrary) MoveSheet(id, group string, index int) {
 	f.call("move " + id + " to " + group)
 }
-func (f *fakeLibrary) TrashSheet(id string)   { f.call("trash " + id) }
-func (f *fakeLibrary) RestoreSheet(id string) { f.call("restore " + id) }
-func (f *fakeLibrary) DeleteSheet(id string)  { f.call("delete " + id) }
+func (f *fakeLibrary) TrashSheet(id string) { f.call("trash " + id) }
+func (f *fakeLibrary) PinSheet(id string, pinned bool) {
+	f.call(fmt.Sprint("pin ", id, " ", pinned))
+	if f.pins == nil {
+		f.pins = map[string]bool{}
+	}
+	f.pins[id] = pinned
+}
+func (f *fakeLibrary) PinGroup(id string, pinned bool) { f.PinSheet(id, pinned) }
+func (f *fakeLibrary) RestoreSheet(id string)          { f.call("restore " + id) }
+func (f *fakeLibrary) DeleteSheet(id string)           { f.call("delete " + id) }
 
 func (f *fakeLibrary) NewGroup(parent string, index int) string {
 	f.call(fmt.Sprint("new group ", parent, " ", index))

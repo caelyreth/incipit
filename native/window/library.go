@@ -147,6 +147,7 @@ func (a *AppState) groupItem(group library.Group) shell.GroupItem {
 		Icon:      group.Icon,
 		Color:     int(group.Color),
 		Query:     group.Query,
+		Pinned:    group.Pinned,
 	}
 	// A smart folder counts what its query finds; out of the trash, as
 	// what it finds is gone with it.
@@ -191,6 +192,7 @@ func sheetItemsWithSessions(sheets []library.Sheet, sessions map[library.SheetID
 			Words:   session.summary.Words,
 			Tags:    tagNames(session.summary.Tags),
 			Updated: sheet.Updated,
+			Pinned:  sheet.Pinned,
 		})
 	}
 	return items
@@ -448,6 +450,28 @@ func (a *AppState) MoveSheet(name, group string, index int) {
 	sheet, _ := a.library.Sheet(library.SheetID(session.key))
 	if err := a.library.MoveSheet(sheet.ID, target, index); err != nil {
 		a.fail("Couldn't move the sheet", err)
+		return
+	}
+	a.libraryChanged()
+}
+
+// PinSheet is part of shell.Library.
+func (a *AppState) PinSheet(name string, pinned bool) {
+	session, ok := a.sessionOf(name)
+	if !ok {
+		return
+	}
+	if err := a.library.PinSheet(library.SheetID(session.key), pinned); err != nil {
+		a.fail("Couldn't pin the sheet", err)
+		return
+	}
+	a.libraryChanged()
+}
+
+// PinGroup is part of shell.Library.
+func (a *AppState) PinGroup(id string, pinned bool) {
+	if err := a.library.PinGroup(groupOf(id), pinned); err != nil {
+		a.fail("Couldn't pin the group", err)
 		return
 	}
 	a.libraryChanged()

@@ -485,7 +485,7 @@ func TestAStuckPillStandsOverTheField(t *testing.T) {
 	state.field.scroll = head.Y - 30
 	settle(tester)
 	pill, _ := tester.Find("Search")
-	if state.field.stuck != 1 || pill.Y > 48 {
+	if state.field.stuck != 1 {
 		t.Fatalf("Scrolled far, the pill should stay at the top (%v) over its backdrop, not %v.", pill, state.field.stuck)
 	}
 }

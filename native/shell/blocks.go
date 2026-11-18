@@ -282,6 +282,9 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 						components.Label(c, strings.Join(b.path, " › ")+" ›", theme.TextDefault, semantic.Text.Muted).MinWidth(0).SingleLine()
 					}
 					components.Label(c, b.name(), theme.TextDefault, semantic.Text.Heading).Shrink(0).MaxWidthPercent(100).SingleLine()
+					if g != nil && g.Pinned {
+						pinMark(c, semantic, 13*m.k)
+					}
 				})
 				if g != nil {
 					components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).
@@ -293,6 +296,11 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 			s.confirmButton(c, semantic, deleteKey("group:"+g.ID), "", "Delete", animate, func() { s.Library.DeleteGroup(g.ID) })
 		}
 	})
+}
+
+// pinMark says a group or sheet is pinned, size tall.
+func pinMark(c *ui.Context, semantic theme.Theme, size float32) {
+	ui.Icon(c, components.IconPin.SVG()).FontSize(size).TextColor(semantic.Icon.Muted).Shrink(0).Label("Pinned")
 }
 
 // rowFill is a row's ground: the selection's where the keys are on it,
@@ -310,7 +318,7 @@ func (s *State) rowFill(c *ui.Context, semantic theme.Theme, el ui.Element, id s
 	case s.field.chosen == id:
 		fill = selection.Fill
 	}
-	el.Background(fill)
+	el.Background(components.Blend(fill, semantic.Accent.Tint, s.arrivalAt(id, c.Now())))
 	press := float32(0)
 	if el.Pressed() {
 		press = 1
@@ -352,6 +360,9 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 		ui.Icon(c, groupIcon(g).SVG()).FontSize(14 * m.k).TextColor(ink).Shrink(0)
 		components.BaselineRow(c).Key("words").Grow(1).MinWidth(0).Gap(8 * m.k).Children(func() {
 			components.Label(c, g.Name, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
+			if g.Pinned {
+				pinMark(c, semantic, 12*m.k)
+			}
 			components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
 		})
 	})
@@ -439,6 +450,9 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 			} else {
 				components.BaselineRow(c).Key("title").WidthPercent(100).Gap(pad).Children(func() {
 					components.Label(c, sheetTitle(sh), theme.TextSmall, title).Grow(1).MinWidth(0).SingleLine()
+					if sh.Pinned {
+						pinMark(c, semantic, 12*m.k)
+					}
 					if !sh.Updated.IsZero() {
 						components.Label(c, when(sh.Updated, c.Now()), theme.TextXSmall, semantic.Text.Muted).
 							SingleLine().Shrink(0).FontFeatures("tnum")
@@ -604,6 +618,10 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 			s.newGroup(g.ID)
 		}
 		m.Separator()
+		if m.Item(map[bool]string{true: "Unpin", false: "Pin"}[g.Pinned]).Chosen() {
+			s.Library.PinGroup(g.ID, !g.Pinned)
+			s.arrive("group:" + g.ID)
+		}
 		if m.Item("Rename…").Chosen() {
 			s.startRename(g.ID)
 		}
@@ -651,6 +669,10 @@ func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
 		m.Separator()
 		if m.Item("Duplicate").Chosen() {
 			s.Library.DuplicateSheet(sh.ID)
+		}
+		if m.Item(map[bool]string{true: "Unpin", false: "Pin"}[sh.Pinned]).Chosen() {
+			s.Library.PinSheet(sh.ID, !sh.Pinned)
+			s.arrive("sheet:" + sh.ID)
 		}
 		s.moveMenu(m, func(group string) { s.moveSheets([]string{sh.ID}, group) }, "")
 		m.Separator()

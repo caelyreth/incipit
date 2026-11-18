@@ -22,7 +22,8 @@ func pressKey(t *testing.T, state *State, tester *ui.Tester, label string) {
 
 // Every key the pill offers to narrow by offers what it takes: its values
 // as they stand, or, for a key taking words, what is written; none opens
-// empty once something is written.
+// empty once something is written. The order is opened from its own
+// ribbon, the order in force.
 func TestEveryKeyOffersItsValues(t *testing.T) {
 	for _, name := range filterKeys {
 		k := mustKey(name)
@@ -31,7 +32,11 @@ func TestEveryKeyOffersItsValues(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			state, _, tester := onField(t, 1260, 850)
-			pressKey(t, state, tester, k.Label)
+			label := k.Label
+			if name == "sort" {
+				label = "As filed"
+			}
+			pressKey(t, state, tester, label)
 			if k.Takes != query.TakesText && k.Takes != query.TakesName || name == "tag" {
 				if len(state.valueRibbons()) == 0 {
 					t.Fatalf("%s should offer its values at once.", name)
@@ -50,7 +55,7 @@ func TestEveryKeyOffersItsValues(t *testing.T) {
 			}
 			tester.Type(written)
 			settle(tester)
-			label := query.Describe(k, written)
+			label = query.Describe(k, written)
 			if _, ok := tester.Find(label); !ok {
 				t.Fatalf("What is written should stand as %q: %v", label, tester.Texts())
 			}
@@ -141,11 +146,14 @@ func TestValuesSayHowManyTheyWouldFind(t *testing.T) {
 	}
 }
 
-// The order is offered both ways, and the pill says what the key says of
-// its value.
+// The order in force stands as a ribbon, which opens the order, offered
+// both ways; and the pill says what the key says of its value.
 func TestTheOrderIsOfferedBothWays(t *testing.T) {
 	state, _, tester := onField(t, 1260, 850)
-	pressKey(t, state, tester, "Sorted by")
+	if _, ok := tester.Find("Sorted by"); ok {
+		t.Fatal("The order should not be offered as a key beside its own ribbon.")
+	}
+	pressKey(t, state, tester, "As filed")
 	if _, ok := tester.Find("updated, oldest first"); !ok {
 		t.Fatalf("Oldest first should be offered: %v", tester.Texts())
 	}

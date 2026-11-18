@@ -108,6 +108,12 @@ var migrations = []string{
 	`
 	ALTER TABLE groups ADD COLUMN query TEXT NOT NULL DEFAULT '';
 	`,
+	// A pinned group or sheet stands before the others where it is shown
+	// (app/library).
+	`
+	ALTER TABLE groups ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE sheets ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+	`,
 }
 
 // migrate brings the notebook to the current schema, claiming a new file

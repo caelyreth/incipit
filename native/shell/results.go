@@ -97,7 +97,23 @@ func (s *State) groups(parent string) []GroupItem {
 			out = append(out, g)
 		}
 	}
-	return out
+	return pinnedFirst(out, func(g GroupItem) bool { return g.Pinned })
+}
+
+// pinnedFirst is items with those pinned first, each kind in its order:
+// a pin is the hand's one say in the order of a place (field-and-desk.md
+// §4.7.5).
+func pinnedFirst[T any](items []T, pinned func(T) bool) []T {
+	slices.SortStableFunc(items, func(a, b T) int {
+		switch pa, pb := pinned(a), pinned(b); {
+		case pa && !pb:
+			return -1
+		case pb && !pa:
+			return 1
+		}
+		return 0
+	})
+	return items
 }
 
 // groupBlock is g's block: its sheets, and the groups inside it.
@@ -122,7 +138,7 @@ func (s *State) entries(sheets []SheetItem) []entry {
 			out = append(out, entry{sheet: sh})
 		}
 	}
-	return out
+	return pinnedFirst(out, func(e entry) bool { return e.sheet.Pinned })
 }
 
 // searched fills f with what text finds in scope: each sheet in its

@@ -57,6 +57,8 @@ type GroupItem struct {
 	// Query makes the group a smart folder: its sheets are what the query
 	// finds, and nothing is filed in it.
 	Query string
+	// Pinned stands it before the others where it is shown.
+	Pinned bool
 }
 
 // Smart reports a smart folder.
@@ -72,6 +74,8 @@ type SheetItem struct {
 	Words   int
 	// Tags are the tags the sheet writes, most written first.
 	Tags []string
+	// Pinned stands it before the others where it is shown.
+	Pinned bool
 }
 
 // Found is what a search found.
@@ -134,6 +138,10 @@ type Library interface {
 	NewSheet(group string, index int)
 	OpenSheet(id string, alongside bool)
 	DuplicateSheet(id string)
+	// PinSheet and PinGroup pin a sheet or a group, standing it before the
+	// others where it is shown, or let the pin go.
+	PinSheet(id string, pinned bool)
+	PinGroup(id string, pinned bool)
 	MoveSheet(id, group string, index int)
 	TrashSheet(id string)
 	RestoreSheet(id string)

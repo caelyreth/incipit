@@ -94,6 +94,12 @@ type fieldState struct {
 	// to (fieldView).
 	poise, poiseTo stage.Point
 	home, homing   bool
+	// homeTo is where the field goes as it comes home: its horizon, 0,
+	// or where something arriving stands in view (order.go).
+	homeTo float32
+	// arrivals are what was just made, moved or put back, by row or card
+	// id, from when the field first showed each (order.go).
+	arrivals map[string]arrival
 	// away is how far what the pill offers around it is put away, as its
 	// horizon goes past where it all fits.
 	away float32
@@ -348,6 +354,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	pill := stage.Size{W: pillW, H: 40 * k}
 	rl := s.ribbons(c, k, w/2, targetPillW, pill.H)
 	z := m.horizon
+	z.Reading = s.sortedField()
 	z.Above += rl.above
 	z.Below += rl.below
 	rects := z.Place(heights)
@@ -394,8 +401,10 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 	// the change's own spring; a card only growing or shrinking, as a
 	// setting's fold opening, leaves it where it is.
 	if s.field.rest != nil && !sameCards(frames, s.field.rest) && s.field.scroll != 0 {
-		s.field.home = true
+		s.field.home, s.field.homeTo = true, 0
 	}
+	// What arrives is brought into view, wherever the change left it.
+	s.reveal(c, frames, f, h, poise.Y, top+rl.above, foot+rl.below)
 	// Coming home, the field goes from wherever it was, past its new reach
 	// too; otherwise it is kept within it.
 	if !s.field.home {
@@ -529,7 +538,7 @@ func (s *State) comeHome(el ui.Element, animate bool) {
 		return
 	}
 	if !animate {
-		s.field.scroll, s.field.home = 0, false
+		s.field.scroll, s.field.home = s.field.homeTo, false
 		return
 	}
 	if !s.field.homing {
@@ -539,8 +548,8 @@ func (s *State) comeHome(el ui.Element, animate bool) {
 			return
 		}
 	}
-	s.field.scroll = el.AnimateTo("scroll", 0, components.Spring(components.MotionScene))
-	if s.field.scroll == 0 {
+	s.field.scroll = el.AnimateTo("scroll", s.field.homeTo, components.Spring(components.MotionScene))
+	if s.field.scroll == s.field.homeTo {
 		s.field.home, s.field.homing = false, false
 	}
 }
@@ -659,7 +668,7 @@ func (s *State) goHome() {
 		s.field.next = next
 	}
 	if s.field.scroll != 0 || s.field.over.Offset() != 0 {
-		s.field.home = true
+		s.field.home, s.field.homeTo = true, 0
 	}
 }
 
@@ -848,6 +857,7 @@ func (s *State) CurrentGroup() string {
 
 func (s *State) newGroup(parent string) {
 	id := s.Library.NewGroup(parent, Last)
+	s.arrive("group:" + id)
 	s.startRename(id)
 }
 

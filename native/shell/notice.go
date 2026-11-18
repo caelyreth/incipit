@@ -106,6 +106,15 @@ func (s *State) sheetsNamed(ids []string) string {
 	return fmt.Sprintf("%d %s", len(ids), sheetsWord(len(ids)))
 }
 
+// rowIDs are ids as the field names their rows, each after kind.
+func rowIDs(kind string, ids []string) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = kind + id
+	}
+	return out
+}
+
 // groupNamedByID is the group id's name, quoted.
 func (s *State) groupNamedByID(id string) string {
 	if g, ok := s.Library.Group(id); ok {
@@ -143,10 +152,12 @@ func (s *State) moveSheets(ids []string, group string) {
 	for _, id := range ids {
 		s.Library.MoveSheet(id, group, Last)
 	}
+	s.arrive(rowIDs("sheet:", ids)...)
 	s.tell(text, func() {
 		for _, p := range from {
 			s.Library.MoveSheet(p.id, p.group, p.index)
 		}
+		s.arrive(rowIDs("sheet:", ids)...)
 	})
 }
 
@@ -165,6 +176,7 @@ func (s *State) trashSheets(ids []string) {
 			s.Library.RestoreSheet(p.id)
 			s.Library.MoveSheet(p.id, p.group, p.index)
 		}
+		s.arrive(rowIDs("sheet:", ids)...)
 	})
 }
 
@@ -177,6 +189,7 @@ func (s *State) restoreSheets(ids []string) {
 	for _, id := range ids {
 		s.Library.RestoreSheet(id)
 	}
+	s.arrive(rowIDs("sheet:", ids)...)
 	s.tell(text, func() {
 		for _, id := range ids {
 			s.Library.TrashSheet(id)
@@ -211,17 +224,25 @@ func (s *State) moveGroup(id, parent string) {
 	}
 	from, at := s.groupPlace(id)
 	s.Library.MoveGroup(id, parent, Last)
-	s.tell(text, func() { s.Library.MoveGroup(id, from, at) })
+	s.arrive("group:" + id)
+	s.tell(text, func() {
+		s.Library.MoveGroup(id, from, at)
+		s.arrive("group:" + id)
+	})
 }
 
 // trashGroup puts the group g in the trash, to be undone.
 func (s *State) trashGroup(g GroupItem) {
 	s.Library.TrashGroup(g.ID)
-	s.tell("Moved “"+g.Name+"” to the Trash", func() { s.Library.RestoreGroup(g.ID) })
+	s.tell("Moved “"+g.Name+"” to the Trash", func() {
+		s.Library.RestoreGroup(g.ID)
+		s.arrive("group:" + g.ID)
+	})
 }
 
 // restoreGroup puts the group g back out of the trash, to be undone.
 func (s *State) restoreGroup(g GroupItem) {
 	s.Library.RestoreGroup(g.ID)
+	s.arrive("group:" + g.ID)
 	s.tell("Put back “"+g.Name+"”", func() { s.Library.TrashGroup(g.ID) })
 }

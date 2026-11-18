@@ -73,6 +73,8 @@ type Group struct {
 	Query string
 	// Trashed is when the group was put in the trash; zero while it is not.
 	Trashed time.Time
+	// Pinned stands the group before the others where it is shown.
+	Pinned bool
 }
 
 // Smart reports a smart folder.
@@ -86,6 +88,8 @@ type Sheet struct {
 	Updated time.Time
 	// Trashed is when the sheet was put in the trash; zero while it is not.
 	Trashed time.Time
+	// Pinned stands the sheet before the others where it is shown.
+	Pinned bool
 }
 
 // Chapter is a divider in a group's ordered sheets. Every sheet after it,
@@ -683,6 +687,28 @@ func (l *Library) MoveSheet(id SheetID, group GroupID, index int) error {
 	l.order[sheet.Group] = removeOrderEntry(l.order[sheet.Group], sheetEntry(id))
 	sheet.Group = group
 	l.order[group] = insertAt(l.order[group], index, sheetEntry(id))
+	return nil
+}
+
+// PinSheet pins a sheet, or lets its pin go.
+func (l *Library) PinSheet(id SheetID, pinned bool) error {
+	l.rev++
+	sheet, ok := l.sheets[id]
+	if !ok {
+		return ErrUnknown
+	}
+	sheet.Pinned = pinned
+	return nil
+}
+
+// PinGroup pins a group, or lets its pin go.
+func (l *Library) PinGroup(id GroupID, pinned bool) error {
+	l.rev++
+	group, ok := l.groups[id]
+	if !ok {
+		return ErrUnknown
+	}
+	group.Pinned = pinned
 	return nil
 }
 
