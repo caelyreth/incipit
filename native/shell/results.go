@@ -36,28 +36,16 @@ func (librarySource) answer(s *State, text string, f *found) {
 		// The trash heads no block, as a group the query is in: the groups
 		// in it, then its sheets, each on its own; what is done to it whole
 		// is the pill's action (actions.go).
-		for _, g := range s.Library.TrashedGroups() {
-			f.add("group:"+g.ID, tierResult, s.groupBlock(g, true))
-		}
-		for _, e := range s.entries(s.Library.Sheets(Place{Kind: PlaceTrash})) {
-			f.add("sheet:"+e.sheet.ID, tierResult, block{entries: []entry{e}, single: true, trashed: true})
-		}
+		s.filed(f, s.Library.TrashedGroups(), s.entries(s.Library.Sheets(Place{Kind: PlaceTrash})), true)
 	case scope != "":
 		// As a block's rows go: the groups inside it, then its sheets, then
 		// the area that makes one.
-		for _, g := range s.groups(scope) {
-			f.add("group:"+g.ID, tierResult, s.groupBlock(g, false))
-		}
-		for _, e := range s.entries(s.Library.Sheets(Place{Kind: PlaceGroup, Group: scope})) {
-			f.add("sheet:"+e.sheet.ID, tierResult, block{entries: []entry{e}, single: true})
-		}
+		s.filed(f, s.groups(scope), s.entries(s.Library.Sheets(Place{Kind: PlaceGroup, Group: scope})), false)
 		if g, ok := s.Library.Group(scope); ok && !g.Smart() {
 			f.add("new", tierResult, block{group: &g, create: true})
 		}
 	default:
-		for _, g := range s.groups("") {
-			f.add("group:"+g.ID, tierResult, s.groupBlock(g, false))
-		}
+		s.filed(f, s.groups(""), nil, false)
 	}
 }
 
@@ -97,23 +85,37 @@ func (s *State) groups(parent string) []GroupItem {
 			out = append(out, g)
 		}
 	}
-	return pinnedFirst(out, func(g GroupItem) bool { return g.Pinned })
+	return out
 }
 
-// pinnedFirst is items with those pinned first, each kind in its order:
-// a pin is the hand's one say in the order of a place (field-and-desk.md
-// §4.7.5).
-func pinnedFirst[T any](items []T, pinned func(T) bool) []T {
-	slices.SortStableFunc(items, func(a, b T) int {
-		switch pa, pb := pinned(a), pinned(b); {
-		case pa && !pb:
-			return -1
-		case pb && !pa:
-			return 1
+// pinnedFirst calls group and sheet with the index of each of a place's
+// groups and sheets in the order they stand: whatever is pinned first, of
+// either kind, then the rest, groups before sheets on either side, each in
+// its order. A pin is the hand's one say in the order of a place
+// (field-and-desk.md §4.7.5), and anything filed can be pinned.
+func pinnedFirst(groups []GroupItem, entries []entry, group, sheet func(int)) {
+	for _, pinned := range []bool{true, false} {
+		for i := range groups {
+			if groups[i].Pinned == pinned {
+				group(i)
+			}
 		}
-		return 0
+		for i := range entries {
+			if entries[i].sheet.Pinned == pinned {
+				sheet(i)
+			}
+		}
+	}
+}
+
+// filed fills f with a place's groups, each a block, and its sheets, each
+// on its own, as they stand.
+func (s *State) filed(f *found, groups []GroupItem, entries []entry, trashed bool) {
+	pinnedFirst(groups, entries, func(i int) {
+		f.add("group:"+groups[i].ID, tierResult, s.groupBlock(groups[i], trashed))
+	}, func(i int) {
+		f.add("sheet:"+entries[i].sheet.ID, tierResult, block{entries: entries[i : i+1], single: true, trashed: trashed})
 	})
-	return items
 }
 
 // groupBlock is g's block: its sheets, and the groups inside it.
@@ -138,7 +140,7 @@ func (s *State) entries(sheets []SheetItem) []entry {
 			out = append(out, entry{sheet: sh})
 		}
 	}
-	return pinnedFirst(out, func(e entry) bool { return e.sheet.Pinned })
+	return out
 }
 
 // searched fills f with what text finds in scope: each sheet in its

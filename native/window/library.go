@@ -455,23 +455,22 @@ func (a *AppState) MoveSheet(name, group string, index int) {
 	a.libraryChanged()
 }
 
-// PinSheet is part of shell.Library.
-func (a *AppState) PinSheet(name string, pinned bool) {
-	session, ok := a.sessionOf(name)
-	if !ok {
+// Pin is part of shell.Library.
+func (a *AppState) Pin(id string, pinned bool) {
+	var err error
+	if group, ok := strings.CutPrefix(id, "group:"); ok {
+		err = a.library.PinGroup(groupOf(group), pinned)
+	} else if name, ok := strings.CutPrefix(id, "sheet:"); ok {
+		session, open := a.sessionOf(name)
+		if !open {
+			return
+		}
+		err = a.library.PinSheet(library.SheetID(session.key), pinned)
+	} else {
 		return
 	}
-	if err := a.library.PinSheet(library.SheetID(session.key), pinned); err != nil {
-		a.fail("Couldn't pin the sheet", err)
-		return
-	}
-	a.libraryChanged()
-}
-
-// PinGroup is part of shell.Library.
-func (a *AppState) PinGroup(id string, pinned bool) {
-	if err := a.library.PinGroup(groupOf(id), pinned); err != nil {
-		a.fail("Couldn't pin the group", err)
+	if err != nil {
+		a.fail("Couldn't pin it", err)
 		return
 	}
 	a.libraryChanged()

@@ -364,23 +364,17 @@ func (s *State) pillPlaceholder() string {
 // the reference type size.
 const ribbonH, ribbonGap = 28, 6
 
-// ribbonKind is what a ribbon is: one of the query's conditions; the
-// order in force where none is written; a key it can be narrowed by, or a
-// value of the key being written, either idle until pressed; or how many
-// more there are than stand.
+// ribbonKind is what a ribbon is: one of the query's conditions; a key it
+// can be narrowed by, or a value of the key being written, either idle
+// until pressed; or how many more there are than stand.
 type ribbonKind uint8
 
 const (
 	ribbonCondition ribbonKind = iota
-	ribbonOrder
 	ribbonKey
 	ribbonValue
 	ribbonMore
 )
-
-// held reports whether the ribbon is of the query itself, staying with
-// the pill wherever it goes: a condition, or the order in force.
-func (p ribbonPlace) held() bool { return p.kind == ribbonCondition || p.kind == ribbonOrder }
 
 // ribbonPlace is where a ribbon stands: what it is, the condition, the
 // suggestion or how many more at i, the key it names, what it holds, x from the field's
@@ -442,16 +436,11 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	for i := range s.field.conditions {
 		items = append(items, ribbonPlace{kind: ribbonCondition, i: i, text: s.field.conditions[i]})
 	}
-	// The order is always to be seen (field-and-desk.md §4.7.5): written,
-	// it is a condition; otherwise the order in force stands in its place.
-	if s.orderShown() {
-		items = append(items, ribbonPlace{kind: ribbonOrder, key: mustKey("sort")})
-	}
 	items = append(items, s.keyRibbons()...)
 	var sides [2][][]ribbonPlace
 	for _, p := range items {
 		name := conditionKey(p.text)
-		if p.kind == ribbonKey || p.kind == ribbonOrder {
+		if p.kind == ribbonKey {
 			name = p.key.Name
 		}
 		side := ribbonSide(name)
@@ -476,7 +465,7 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	out.below = float32(len(sides[0])) * (rh + gap)
 	out.above = float32(len(sides[1])) * (rh + gap)
 	for _, p := range out.places {
-		if p.held() {
+		if p.kind == ribbonCondition {
 			out.heldAbove, out.heldBelow = max(out.heldAbove, -p.y), max(out.heldBelow, p.y+rh-h)
 		}
 	}
@@ -557,11 +546,6 @@ func (s *State) keyRibbons() []ribbonPlace {
 	// A key that takes a value stays, for more of its values; one that
 	// stands alone goes once it is taken.
 	for _, name := range filterKeys {
-		// The order has its own ribbon always (ribbonOrder), as a sort
-		// written does; pressed, it opens the key.
-		if name == "sort" {
-			continue
-		}
 		if k := mustKey(name); k != nil && (k.Takes != query.TakesNothing || !s.hasCondition(name)) {
 			add(k)
 		}
@@ -708,12 +692,8 @@ func (s *State) look(semantic theme.Theme, p ribbonPlace) ribbonLook {
 	case ribbonMore:
 		l.label, l.icon, l.edge = thousands(p.i)+" more", components.IconChevronDown, edgeNone
 		l.text = semantic.Text.Muted
-	case ribbonOrder:
-		// Quiet: what the field does of itself, until a sort is chosen.
-		l.label, l.icon, l.edge = s.orderLabel(), components.IconChevronDown, edgeNone
-		l.text = semantic.Text.Muted
 	}
-	if !p.held() && p.kind != ribbonMore && p.i >= 0 && p.i == s.field.suggestion {
+	if p.kind != ribbonCondition && p.kind != ribbonMore && p.i >= 0 && p.i == s.field.suggestion {
 		l.edge = edgeSolid
 	}
 	return l
@@ -791,9 +771,6 @@ func (s *State) ribbonID(p ribbonPlace) string {
 		return "value-" + p.key.Name + "-" + p.item.Text
 	case ribbonMore:
 		return "more"
-	case ribbonOrder:
-		// The same ribbon as a sort written, so choosing one turns it.
-		return "ribbon-$sort"
 	}
 	// A key that holds one value keeps one ribbon as its value changes.
 	if c, ok := condition(p.text); ok && written(c).Key.OneValue() {
@@ -814,7 +791,7 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 	// vertical place at once as the field scrolls. Away from the horizon,
 	// all but the query's own conditions are put away.
 	shown := l.shown
-	if !p.held() {
+	if p.kind != ribbonCondition {
 		shown *= 1 - s.field.away
 	}
 	above := p.y < 0
@@ -867,11 +844,6 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 		btn.Tooltip("Show them all")
 		if btn.Clicked() {
 			s.field.allValues = true
-		}
-	case ribbonOrder:
-		btn.Tooltip("The order the field stands in; press to sort by something else")
-		if btn.Clicked() {
-			s.activate("key:sort", false)
 		}
 	default:
 		if p.i >= 0 {

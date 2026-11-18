@@ -12,9 +12,9 @@ import (
 
 // The field's order is one the eye can read (field-and-desk.md §4.7.5): a
 // sorted field fills in reading order, a ranked one by nearness to the
-// pill; the order in force always stands as a ribbon; and what arrives,
-// made, moved or put back, stands where the order puts it, the field
-// bringing it into view and marking it a moment.
+// pill; a sort chosen stands as its ribbon, the order of itself as none;
+// and what arrives, made, moved, put back or pinned, stands where the
+// order puts it, the field bringing it into view and marking it a moment.
 
 // sortedField reports whether the query states an order of its own, read
 // in rows, rather than the best match first.
@@ -25,22 +25,6 @@ func (s *State) sortedField() bool {
 		}
 	}
 	return false
-}
-
-// orderShown reports whether the order in force stands as a ribbon of its
-// own: where the library answers and no sort is written, which stands as
-// its condition instead.
-func (s *State) orderShown() bool {
-	return s.Library != nil && !s.InSettings() && !s.commanding() && !s.hasCondition("sort")
-}
-
-// orderLabel names the order in force with no sort written: what is
-// browsed stands as it is filed, what is searched by how well it matches.
-func (s *State) orderLabel() string {
-	if _, _, browse := s.browsing(query.Parse(s.wholeQuery())); browse {
-		return "As filed"
-	}
-	return "Best match"
 }
 
 // arrivalFor is how long what arrives is marked.

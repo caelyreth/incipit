@@ -138,10 +138,9 @@ type Library interface {
 	NewSheet(group string, index int)
 	OpenSheet(id string, alongside bool)
 	DuplicateSheet(id string)
-	// PinSheet and PinGroup pin a sheet or a group, standing it before the
-	// others where it is shown, or let the pin go.
-	PinSheet(id string, pinned bool)
-	PinGroup(id string, pinned bool)
+	// Pin pins an object, "group:" or "sheet:" and its ID, standing it
+	// before the others where it is shown, or lets the pin go.
+	Pin(id string, pinned bool)
 	MoveSheet(id, group string, index int)
 	TrashSheet(id string)
 	RestoreSheet(id string)

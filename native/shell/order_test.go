@@ -33,24 +33,19 @@ func TestASortedFieldIsLaidOutInReadingOrder(t *testing.T) {
 	}
 }
 
-// The order in force always stands: as filed while browsing, the best
-// match while searching, and a sort written in its place.
-func TestTheOrderInForceAlwaysStands(t *testing.T) {
+// The order of itself stands as nothing, as filed or the best match; a
+// sort chosen stands as its ribbon.
+func TestOnlyAChosenOrderStands(t *testing.T) {
 	state, _, tester := onField(t, 1260, 850)
-	if _, ok := tester.Find("As filed"); !ok {
-		t.Fatalf("Browsing, the order should stand as filed: %v.", tester.Texts())
-	}
-	state.SetFieldQuery("chapter")
-	settle(tester)
-	if _, ok := tester.Find("Best match"); !ok {
-		t.Fatalf("Searching, the order should be the best match: %v.", tester.Texts())
+	for _, label := range []string{"As filed", "Best match"} {
+		if _, ok := tester.Find(label); ok {
+			t.Fatalf("The order of itself should not stand: %q.", label)
+		}
 	}
 	state.SetFieldQuery("$sort:updated")
 	settle(tester)
-	for _, label := range []string{"As filed", "Best match"} {
-		if _, ok := tester.Find(label); ok {
-			t.Fatalf("A sort written should stand in place of %q.", label)
-		}
+	if !slices.ContainsFunc(state.ribbons(nil, 1, 630, 400, 40).places, func(p ribbonPlace) bool { return p.text == "$sort:updated" }) {
+		t.Fatal("A sort chosen should stand as its ribbon.")
 	}
 }
 
@@ -84,21 +79,26 @@ func TestWhatArrivesIsShownAndMarked(t *testing.T) {
 	}
 }
 
-// A pinned sheet stands first in its group, marked; pinning is in its menu.
-func TestAPinnedSheetStandsFirst(t *testing.T) {
+// Anything filed can be pinned: what is pinned stands first, of either
+// kind, then the rest, groups before sheets on either side; and a pinned
+// sheet wears its badge.
+func TestWhatIsPinnedStandsFirst(t *testing.T) {
+	b := block{
+		groups:  []GroupItem{{ID: "a"}, {ID: "b", Pinned: true}},
+		entries: []entry{{sheet: SheetItem{ID: "x"}}, {sheet: SheetItem{ID: "y", Pinned: true}}},
+	}
+	if got := b.rows(); !slices.Equal(got, []string{"group:b", "sheet:y", "group:a", "sheet:x"}) {
+		t.Fatalf("What is pinned should stand first, of either kind: %v.", got)
+	}
 	state, library, tester := onField(t, 1260, 850)
 	library.extraSheets = 2
-	library.PinSheet("extra-1", true)
+	library.Pin("sheet:extra-1", true)
 	settle(tester)
-	b := state.groupBlock(GroupItem{ID: "2", Name: "Novel"}, false)
-	ids := make([]string, len(b.entries))
-	for i, e := range b.entries {
-		ids[i] = e.sheet.ID
-	}
-	if !slices.Equal(ids, []string{"extra-1", "7", "extra-0"}) {
-		t.Fatalf("The pinned sheet should stand first, the rest in their order: %v.", ids)
+	rows := state.groupBlock(GroupItem{ID: "2", Name: "Novel"}, false).rows()
+	if !slices.Equal(rows, []string{"sheet:extra-1", "sheet:7", "sheet:extra-0"}) {
+		t.Fatalf("The pinned sheet should stand first, the rest in their order: %v.", rows)
 	}
 	if _, ok := tester.Find("Pinned"); !ok {
-		t.Fatal("A pinned sheet should be marked.")
+		t.Fatal("A pinned sheet should wear its badge.")
 	}
 }

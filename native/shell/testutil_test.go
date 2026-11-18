@@ -230,14 +230,14 @@ func (f *fakeLibrary) MoveSheet(id, group string, index int) {
 	f.call("move " + id + " to " + group)
 }
 func (f *fakeLibrary) TrashSheet(id string) { f.call("trash " + id) }
-func (f *fakeLibrary) PinSheet(id string, pinned bool) {
+func (f *fakeLibrary) Pin(id string, pinned bool) {
 	f.call(fmt.Sprint("pin ", id, " ", pinned))
 	if f.pins == nil {
 		f.pins = map[string]bool{}
 	}
-	f.pins[id] = pinned
+	_, bare, _ := strings.Cut(id, ":")
+	f.pins[bare] = pinned
 }
-func (f *fakeLibrary) PinGroup(id string, pinned bool) { f.PinSheet(id, pinned) }
 func (f *fakeLibrary) RestoreSheet(id string)          { f.call("restore " + id) }
 func (f *fakeLibrary) DeleteSheet(id string)           { f.call("delete " + id) }
 
