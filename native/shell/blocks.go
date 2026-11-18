@@ -299,8 +299,8 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 // the picked fill where it is picked, a step of the ink under the
 // pointer; and pressed, it gives a little. A sheet open on the desk is
 // never a fill, which would read as a hover left behind, but its strip
-// (openStrip). It returns how far the pointer is on it.
-func (s *State) rowFill(c *ui.Context, semantic theme.Theme, el ui.Element, id string, animate bool) float32 {
+// (openMark).
+func (s *State) rowFill(c *ui.Context, semantic theme.Theme, el ui.Element, id string, animate bool) {
 	hover := components.HoverAmount(el, el.Hovered(), animate)
 	selection := components.NavigationSelection(c, semantic)
 	fill := components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover)
@@ -324,7 +324,6 @@ func (s *State) rowFill(c *ui.Context, semantic theme.Theme, el ui.Element, id s
 	if el.FocusVisible() {
 		el.Border(1, semantic.Border.Focused)
 	}
-	return hover
 }
 
 // groupRow is a group inside a block: pressed, the query goes into it.
@@ -391,7 +390,7 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(h).Shrink(0).Padding(pad).
 		AlignItems(ui.Start).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
 		FocusRing(false).KeepFocus().Label(sheetTitle(sh)).Selected(front)
-	hover := s.rowFill(c, semantic, btn, id, animate)
+	s.rowFill(c, semantic, btn, id, animate)
 	if s.isPicked(id) && len(s.field.picked) > 1 {
 		btn.ContextMenu(s.pickedMenu(id, trashed))
 	} else {
@@ -424,7 +423,7 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 	}
 	btn.Children(func() {
 		if at := s.deskPlace(sh.ID); at > 0 {
-			btn.PaddingStart(openStrip(c, semantic, at, h, pad, hover, m))
+			openMark(c, semantic, at, h, pad, m)
 		}
 		ui.Column(c).Key("entry").Grow(1).MinWidth(0).Gap(gap).Children(func() {
 			if (trashed && s.armed(c, deletePickedKey(id))) || confirming {
@@ -470,34 +469,22 @@ func (s *State) deskPlace(id string) int {
 	return 0
 }
 
-// openStrip marks a sheet's row h tall as open on the desk
+// openMark marks a sheet's row h tall, padded pad, as open on the desk
 // (field-and-desk.md §4.7.4): a strip in the accent along its leading
-// edge, in the card's margin, as the sheet list's was. Under the pointer
-// it widens into a label of where the sheet stands, the desk's number
-// for its column, the row's words easing aside for it. It returns where
-// the row's words begin, pad at rest.
-func openStrip(c *ui.Context, semantic theme.Theme, at int, h, pad, hover float32, m blockMetrics) float32 {
-	label := fmt.Sprint("Desk · ", at)
-	size := theme.TextXSmall.Size(m.scale)
-	textW, _ := c.MeasureText(0, ui.Span{Text: label, Font: theme.UIFontFamily, Size: size})
-	// In the card's margin at rest; widened, inside the row, as its fill.
-	thin, rest := 3*m.k, -m.pad/2-1.5*m.k
-	left := rest + (pad-2*m.k-rest)*hover
-	w := thin + (textW+12*m.k-thin)*hover
-	// From the row's height, inset, to a capsule about a line tall,
-	// centred on it; from the accent to its quiet surface.
-	tall, compact := h-12*m.k, theme.TextXSmall.LineHeight(m.scale)+6*m.k
-	sh := tall + (compact-tall)*hover
-	ui.Row(c.Key("open-strip")).Absolute().Left(left).Top((h-sh)/2).Size(w, sh).Radius(min(w, sh) / 2).
-		AlignItems(ui.Center).Justify(ui.Center).Clip().
-		Background(components.Blend(semantic.Accent.Foreground, semantic.Accent.Muted, hover)).IgnoreInput(true).
+// edge, in the card's margin, as the sheet list's was, and at its foot's
+// end a badge of the desk and the number for its column, in Halo.
+func openMark(c *ui.Context, semantic theme.Theme, at int, h, pad float32, m blockMetrics) {
+	thin, inset := 3*m.k, 6*m.k
+	ui.Box(c.Key("open-strip")).Absolute().Left(-m.pad/2-thin/2).Top(inset).Size(thin, h-2*inset).Radius(thin / 2).
+		Background(semantic.Accent.Foreground).IgnoreInput(true)
+	line := theme.TextXSmall.LineHeight(m.scale)
+	ink := semantic.Accent.OnAccent
+	ui.Row(c.Key("open-badge")).Absolute().Right(pad).Bottom(pad).Height(line).PaddingX(5 * m.k).Gap(3 * m.k).
+		Radius(line / 2).AlignItems(ui.Center).Background(semantic.Families[theme.Halo].Foreground).IgnoreInput(true).
 		Label("Open on the desk, column " + fmt.Sprint(at)).Children(func() {
-		if hover > 0.01 {
-			components.CenteredLabel(c, label, theme.TextXSmall, semantic.Accent.Foreground).SingleLine().Shrink(0).
-				Opacity(hover)
-		}
+		ui.Icon(c, components.IconDesk.SVG()).FontSize(line * 0.7).TextColor(ink)
+		components.CenteredLabel(c, fmt.Sprint(at), theme.TextXSmall, ink).SingleLine().FontFeatures("tnum")
 	})
-	return max(pad, left+w+6*m.k)
 }
 
 // rowTags are a sheet's tags on one line, as many as fit, the rest
