@@ -75,6 +75,6 @@ func DropFrame(p *ui.Painter, r ui.Rect, radius, shown float32, t theme.Theme) {
 	if r.W <= 0.5 || r.H <= 0.5 || shown <= 0 {
 		return
 	}
-	p.Fill(r, t.Accent.Muted.Alpha(0.14*shown), radius)
+	p.Fill(r, t.Accent.Hint.Alpha(shown), radius)
 	DashedOutline(p, r, radius, 1, t.Accent.Foreground.Alpha(0.65*shown))
 }

@@ -52,22 +52,48 @@ type Family struct {
 	Emphasis   ui.Color
 }
 
+// What a thing is doing shows as the ink laid over whatever it stands
+// on, never as a gray of its own: the same step on the chrome, the page,
+// what is raised or what is set in, and never darker on one than on
+// another. Under the pointer, pressed, chosen: each louder than the last.
+const (
+	StateHover   float32 = 0.05
+	StatePressed float32 = 0.09
+	StateChosen  float32 = 0.13
+)
+
+// The accent comes in as few steps, one meaning each: a hint under the
+// pointer on what is the accent's, a tint on what something is dropped
+// on or is taken, its surface on what is chosen in its hue, and strong
+// for a ring around what has the keys.
+const (
+	TintHint   float32 = 0.08
+	TintFill   float32 = 0.16
+	TintStrong float32 = 0.85
+)
+
 type Surfaces struct {
 	Background ui.Color
 	Panel      ui.Color
 	Page       ui.Color
 	Inset      ui.Color
-	// Chosen is a chosen row's fill in a list: neutral, louder than a
-	// hover, and marked with the accent at its edge by the list.
+	// Chosen is a chosen row's fill in a list: neutral, laid over its
+	// ground, louder than a hover, and marked with the accent at its edge
+	// by the list.
 	Chosen   ui.Color
 	Backdrop ui.Color
 	Elevated ui.Color
+	// Inverse is what is chosen among a few, as which of the lane's
+	// places the field shows: moonveil's ink as its ground, OnInverse its
+	// words.
+	Inverse ui.Color
 }
 
 type TextColors struct {
-	Default ui.Color
-	Heading ui.Color
-	Muted   ui.Color
+	Default   ui.Color
+	Heading   ui.Color
+	Muted     ui.Color
+	OnInverse ui.Color
 }
 
 type IconColors struct {
@@ -91,8 +117,13 @@ type ElementColors struct {
 
 type AccentColors struct {
 	Foreground ui.Color
-	Muted      ui.Color
-	OnAccent   ui.Color
+	// Hint, Tint and Strong are the accent's ink laid over its ground
+	// (TintHint, TintFill, TintStrong); Muted is its opaque surface.
+	Hint     ui.Color
+	Tint     ui.Color
+	Muted    ui.Color
+	Strong   ui.Color
+	OnAccent ui.Color
 }
 
 type ScrollbarColors struct {
@@ -191,6 +222,7 @@ func (s Settings) Normalized() Settings {
 func (s Settings) Semantic() Theme {
 	palette := paletteFor(s.Appearance)
 	accent := familyFor(palette, s.Accent)
+	ink := palette.textPrimary
 	return Theme{
 		Appearance:   s.Appearance,
 		AccentFamily: s.Accent,
@@ -199,14 +231,16 @@ func (s Settings) Semantic() Theme {
 			Panel:      palette.background,
 			Page:       palette.working,
 			Inset:      palette.inset,
-			Chosen:     palette.chosen,
+			Chosen:     ink.Alpha(StateChosen),
 			Backdrop:   ui.RGBA(0, 0, 0, 0.38),
 			Elevated:   palette.raised,
+			Inverse:    palette.textEmphasis,
 		},
 		Text: TextColors{
-			Default: palette.textPrimary,
-			Heading: palette.textEmphasis,
-			Muted:   palette.textSecondary,
+			Default:   palette.textPrimary,
+			Heading:   palette.textEmphasis,
+			Muted:     palette.textSecondary,
+			OnInverse: palette.background,
 		},
 		Icon: IconColors{
 			Default: palette.textPrimary,
@@ -221,17 +255,20 @@ func (s Settings) Semantic() Theme {
 		},
 		Element: ElementColors{
 			Background: palette.inset,
-			Hover:      palette.hover,
-			Selected:   palette.selected,
+			Hover:      ink.Alpha(StateHover).Over(palette.inset),
+			Selected:   ink.Alpha(StatePressed).Over(palette.inset),
 		},
 		GhostElement: ElementColors{
 			Background: ui.Transparent,
-			Hover:      palette.hover,
-			Selected:   palette.selected,
+			Hover:      ink.Alpha(StateHover),
+			Selected:   ink.Alpha(StatePressed),
 		},
 		Accent: AccentColors{
 			Foreground: accent.Foreground,
+			Hint:       accent.Foreground.Alpha(TintHint),
+			Tint:       accent.Foreground.Alpha(TintFill),
 			Muted:      accent.Surface,
+			Strong:     accent.Foreground.Alpha(TintStrong),
 			OnAccent:   onAccent(s.Appearance),
 		},
 		Status: StatusColors{
@@ -245,7 +282,9 @@ func (s Settings) Semantic() Theme {
 			ThumbHover: palette.track,
 		},
 		Tag: TagColors{
-			Background: palette.inset,
+			// Between a hover and a press, laid over its ground: a tag
+			// stays a step off the row it stands in, hovered or not.
+			Background: ink.Alpha((StateHover + StatePressed) / 2),
 			Foreground: palette.textSecondary,
 		},
 		Prose: ProseColors{

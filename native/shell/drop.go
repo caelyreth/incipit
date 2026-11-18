@@ -63,7 +63,7 @@ func (s *State) dropHighlight(c *ui.Context, semantic theme.Theme, target ui.Ele
 		amount = components.Follow(target, "drop", amount, components.MotionQuick)
 	}
 	if amount > 0.001 {
-		target.Background(components.Blend(ui.Transparent, semantic.Accent.Muted, amount))
+		target.Background(components.Blend(ui.Transparent, semantic.Accent.Tint, amount))
 		target.Border(1, components.Blend(ui.Transparent, semantic.Accent.Foreground, amount))
 	}
 }

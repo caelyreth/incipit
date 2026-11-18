@@ -170,7 +170,8 @@ func (s *State) trashButton(c *ui.Context, semantic theme.Theme, size float32, a
 }
 
 func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
-	btn := s.laneCircleButton(c, semantic, "home", components.IconHome, "Home", "Home", false, size, animate)
+	home := !s.inTrash() && !s.InSettings()
+	btn := s.laneCircleButton(c, semantic, "home", components.IconHome, "Home", "Home", home, size, animate)
 	if btn.Clicked() {
 		s.goHome()
 	}
@@ -316,7 +317,7 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 			Translate(0, -components.UIOpticalLift(s.Settings.UIFontSize))
 		// The pointer on it, its count gives way to its ×.
 		ui.Box(c).Key("end").Shrink(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-			components.CenteredLabel(c, thousands(g.Count), theme.TextXSmall, semantic.Surface.Page.Alpha(0.7)).
+			components.CenteredLabel(c, thousands(g.Count), theme.TextXSmall, semantic.Surface.Page).
 				Opacity(shown * (1 - hover))
 			del := ui.ButtonBase(c.Key("delete")).Absolute().Size(18*k, 18*k).Radius(9 * k).
 				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label("Delete " + g.Name).Tooltip("Delete").

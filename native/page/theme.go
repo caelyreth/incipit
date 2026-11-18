@@ -49,7 +49,7 @@ func Theme(t theme.Theme) present.Theme {
 		// accent; what the next delete takes is outlined in the danger hue
 		// wherever it is, text or object, so one look means "goes next".
 		vocab.GroupSelection: {Set: present.SetBackground | present.SetOutline, Background: pack(t.Prose.Selection),
-			Outline: pack(t.Accent.Foreground.Alpha(0.85))},
+			Outline: pack(t.Accent.Strong)},
 		vocab.GroupArmed: {Set: present.SetLine | present.SetLineColor | present.SetOutline,
 			Line: present.LineBox, LineColor: pack(t.Families[theme.Remnant].Foreground), Outline: pack(t.Families[theme.Remnant].Foreground)},
 		// A tag reads as one, quietly: the neutral fill a list shows tags

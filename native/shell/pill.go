@@ -670,7 +670,7 @@ func (s *State) look(semantic theme.Theme, p ribbonPlace) ribbonLook {
 		}
 		if s.takenAt(p.key, v) >= 0 {
 			l.icon, l.edge = components.IconCheck, edgeNone
-			l.ink, l.text, l.fill = semantic.Accent.Foreground, semantic.Text.Heading, semantic.Text.Default.Alpha(0.12)
+			l.ink, l.text, l.fill = semantic.Accent.Foreground, semantic.Text.Heading, semantic.Surface.Chosen
 		}
 	case ribbonMore:
 		l.label, l.icon, l.edge = thousands(p.i)+" more", components.IconChevronDown, edgeNone
@@ -708,7 +708,7 @@ func (s *State) conditionLook(semantic theme.Theme, text string) ribbonLook {
 			l.icon = components.IconTrash
 		}
 	}
-	l.fill = l.ink.Alpha(0.14)
+	l.fill = l.ink.Alpha(theme.TintFill)
 	return l
 }
 
@@ -859,7 +859,7 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 		gone := ui.ButtonBase(c.Key("remove")).Size(ribbonClose*k, ribbonClose*k).Radius(ribbonClose * k / 2).Shrink(0).
 			AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).KeepFocus().
 			Label("Remove " + l.label).Tooltip("Remove")
-		gone.Background(components.Blend(l.ink.Alpha(0), l.ink.Alpha(0.2), components.HoverAmount(gone, gone.Hovered(), animate)))
+		gone.Background(components.Blend(l.ink.Alpha(0), l.ink.Alpha(theme.TintFill), components.HoverAmount(gone, gone.Hovered(), animate)))
 		if i := slices.Index(s.field.conditions, p.text); i >= 0 && gone.Clicked() {
 			s.broaden(i)
 		}

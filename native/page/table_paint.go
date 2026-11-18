@@ -64,7 +64,7 @@ func (el *Element) paintArea(p *ui.Painter, u *unitLayout, a tableArea, ox, oy f
 	}
 	alpha := a.alpha
 	draw := func() {
-		p.Fill(box, components.Blend(ui.Transparent, th.Accent.Muted, 0.6*hover).Alpha(alpha), metrics.Radius)
+		p.Fill(box, components.Blend(ui.Transparent, th.Accent.Tint, hover).Alpha(alpha), metrics.Radius)
 		components.DashedOutline(p, box, metrics.Radius, 1, components.Blend(th.Border.Default, th.Accent.Foreground, hover).Alpha(alpha))
 		ink := components.Blend(th.Text.Muted, th.Accent.Foreground, hover)
 		icon := 16 * scale
@@ -112,7 +112,7 @@ func (el *Element) paintMade(p *ui.Painter, u *unitLayout, ox, oy float32, now t
 	r.Y += oy + u.y
 	f := components.Smoothstep(1 - float32(now.Sub(m.at))/float32(madeFade))
 	radius := objectRadius(el.Editor.metrics)
-	p.Fill(r, el.Theme.Accent.Muted.Alpha(0.6*f), radius)
+	p.Fill(r, el.Theme.Accent.Tint.Alpha(f), radius)
 	components.DashedOutline(p, r, radius, 1, el.Theme.Accent.Foreground.Alpha(f))
 	return true
 }

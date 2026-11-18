@@ -13,11 +13,6 @@ type palette struct {
 	working    ui.Color
 	raised     ui.Color
 	inset      ui.Color
-	// chosen is a chosen row's fill, neutral, and always louder than
-	// hover: a row's place outlasts the pointer passing over it.
-	chosen        ui.Color
-	hover         ui.Color
-	selected      ui.Color
 	hairline      ui.Color
 	subtle        ui.Color
 	textPrimary   ui.Color
@@ -49,8 +44,8 @@ func family(surface, muted, foreground, emphasis uint32) Family {
 // near-neutral surfaces in Moonveil's hue (99°, chroma at most 0.005), so
 // the ground and the ink are one material. Each step reads at its place:
 // the page lifts a little off the chrome, what is raised stands above
-// both, and a chosen row (ΔL 6.4) stands above a row under the pointer
-// (2.7), both neutral. A family's surface, its selection and tag fill,
+// both, and a card's rim stands clear of the page. States are not steps
+// of it but the ink laid over whatever they stand on (theme.go). A family's surface, its selection and tag fill,
 // takes its hue at chroma 0.028, quiet enough to read text through.
 func starfield() palette {
 	return palette{
@@ -58,11 +53,8 @@ func starfield() palette {
 		working:       color(0x1b1b19),
 		raised:        color(0x252423),
 		inset:         color(0x21201f),
-		chosen:        color(0x262624),
-		hover:         color(0x1e1d1c),
-		selected:      color(0x2c2c2a),
 		hairline:      color(0x2c2c2a),
-		subtle:        color(0x222220),
+		subtle:        color(0x282826),
 		textPrimary:   color(0xc1bfb3), // moonveil foreground
 		textEmphasis:  color(0xd9d7cd), // moonveil emphasis
 		textSecondary: color(0x92918b), // static foreground
@@ -81,17 +73,13 @@ func starfield() palette {
 
 // daybreak is the day: the same inks and hues, the page the lightest
 // plane and what is raised lighter than the ground it stands on, so
-// nothing meant to stand out sinks into it. Chosen (ΔL 4.9) stands above
-// hover (2.1).
+// nothing meant to stand out sinks into it.
 func daybreak() palette {
 	return palette{
 		background:    color(0xf3f2ef),
 		working:       color(0xfcfcfa),
 		raised:        color(0xfefefd),
 		inset:         color(0xededea),
-		chosen:        color(0xe3e2de),
-		hover:         color(0xecebe8),
-		selected:      color(0xdbdbd7),
 		hairline:      color(0xdad9d5),
 		subtle:        color(0xe7e6e3),
 		textPrimary:   color(0x535248), // moonveil foreground

@@ -36,8 +36,8 @@ func NavigationSelection(c *ui.Context, semantic theme.Theme) SelectionStyle {
 		Marker:      semantic.Accent.Foreground,
 		Radius:      theme.DefaultControls.Scaled(UIFontSize(c)).Radius,
 		Picked:      semantic.Accent.Muted,
-		PickedHover: semantic.Accent.Foreground.Alpha(0.1),
-		Ring:        semantic.Accent.Foreground.Alpha(0.85),
+		PickedHover: semantic.Accent.Hint,
+		Ring:        semantic.Accent.Strong,
 	}
 }
 

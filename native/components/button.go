@@ -169,7 +169,7 @@ func buttonElement(
 	hoverAmount := HoverAmount(button, !options.disabled && button.Hovered(), options.animate)
 	background := blend(rest, hover, hoverAmount)
 	if !options.disabled && button.Pressed() {
-		background = blend(background, semantic.Text.Default, 0.10)
+		background = blend(background, semantic.GhostElement.Selected, 1)
 	}
 	button.Background(background)
 	button.Children(options.children)
@@ -200,9 +200,9 @@ func buttonColors(
 	case SubtleButton:
 		rest = semantic.GhostElement.Background
 		if selected {
-			rest = semantic.Surface.Page
+			rest = semantic.GhostElement.Selected
 		}
-		return rest, semantic.Surface.Page, ui.Transparent
+		return rest, semantic.GhostElement.Hover, ui.Transparent
 	case OutlinedButton:
 		return semantic.GhostElement.Background, semantic.GhostElement.Hover, semantic.Border.Variant
 	case WarningButton:

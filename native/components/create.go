@@ -74,7 +74,7 @@ func (a CreateArea) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	// At rest the outline only hints; under the pointer it takes the
 	// accent, as what it makes would.
 	line := Blend(semantic.Border.Default, semantic.Accent.Foreground, hover)
-	area.Background(Blend(ui.Transparent, semantic.Accent.Muted, 0.6*hover)).
+	area.Background(Blend(ui.Transparent, semantic.Accent.Tint, hover)).
 		Draw(func(p *ui.Painter, r ui.Rect) { DashedOutline(p, r, metrics.Radius, 1, line) })
 	ink := Blend(semantic.Text.Muted, semantic.Accent.Foreground, hover)
 	area.Children(func() {

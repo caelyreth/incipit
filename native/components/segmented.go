@@ -38,8 +38,8 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		Gap(theme.Space02.DIPs(scale)).Padding(theme.Space02.DIPs(scale)).
 		Radius(metrics.Radius).Background(semantic.Surface.Inset)
 	track := TrackSelection(group, SelectionStyle{
-		Fill:   semantic.Surface.Elevated,
-		Border: semantic.Border.Variant,
+		Fill:   semantic.Surface.Inverse,
+		Border: ui.Transparent,
 		Radius: 6 * scale / theme.DefaultUIFontSize,
 	}, s.Animate)
 	return group.Children(func() {
@@ -54,14 +54,14 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 			textColor := semantic.Text.Muted
 			if option.Selected {
 				// The group's shared highlight slides to the chosen option.
-				textColor = semantic.Text.Heading
+				textColor = semantic.Text.OnInverse
 				track.Mark(button)
 			}
 			button.Background(ui.Transparent)
 			if option.Icon != "" {
 				iconColor := semantic.Icon.Muted
 				if option.Selected {
-					iconColor = semantic.Icon.Default
+					iconColor = semantic.Text.OnInverse
 				}
 				button.PaddingX(theme.Space06.DIPs(scale)).Tooltip(option.Label).Children(func() {
 					ui.Icon(c, option.Icon.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).TextColor(iconColor)

@@ -349,7 +349,7 @@ func (s *State) policyBadge(c *ui.Context, semantic theme.Theme, shortcut appset
 		Focusable().FocusRing(false).Cursor(ui.CursorPointer)
 	hover := components.HoverAmount(badge, badge.Hovered(), s.motion(c))
 	settingsTagFrame(badge, scale).
-		Background(semantic.Surface.Inset.Mix(semantic.Accent.Muted, hover*0.35)).Children(func() {
+		Background(components.Blend(semantic.Surface.Inset, semantic.Accent.Hint, hover)).Children(func() {
 		components.CenteredLabel(c, title, theme.TextXSmall, semantic.Text.Muted.Mix(semantic.Accent.Foreground, hover))
 	})
 	if badge.Clicked() && s.Find != nil {

@@ -222,8 +222,8 @@ func (s *State) keyChip(
 		ink = semantic.Text.Muted
 	}
 	ink = ink.Mix(semantic.Accent.Foreground, recording)
-	face := semantic.Surface.Inset.Mix(semantic.GhostElement.Hover, hover).
-		Mix(semantic.Accent.Muted, recording)
+	face := components.Blend(components.Blend(semantic.Surface.Inset, semantic.GhostElement.Hover, hover),
+		semantic.Accent.Muted, recording)
 	edge := semantic.Border.Variant.Mix(semantic.Border.Focused, ring)
 	shown, leaving := st.shown, st.leaving
 	out, in := swapGlyphs(swap)
