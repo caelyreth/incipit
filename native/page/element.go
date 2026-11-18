@@ -10,7 +10,6 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
-	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -50,7 +49,7 @@ type Element struct {
 	scroll        float32
 	restoreScroll *float32
 	glide         motion.Glide
-	overscroll    scrollfx.Elastic
+	overscroll    motion.Elastic
 	// ranged is the scroll range the last paint found, and astray whether
 	// it shrank past the page, which then glides back in (stepViewport).
 	ranged   [2]float32

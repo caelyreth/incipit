@@ -1,5 +1,5 @@
 // Package media describes the image formats accepted and stored by Neverland.
-package media
+package storage
 
 import (
 	"path/filepath"
@@ -8,7 +8,7 @@ import (
 )
 
 // Format separates accepted input aliases from the format kept on disk.
-type Format struct {
+type MediaFormat struct {
 	Decoder         string
 	Extensions      []string
 	StoredMIME      string
@@ -16,7 +16,7 @@ type Format struct {
 	NormalizePNG    bool
 }
 
-var formats = []Format{
+var mediaFormats = []MediaFormat{
 	{Decoder: "png", Extensions: []string{"png"}, StoredMIME: "image/png", StoredExtension: "png"},
 	{Decoder: "jpeg", Extensions: []string{"jpg", "jpeg"}, StoredMIME: "image/jpeg", StoredExtension: "jpg"},
 	{Decoder: "gif", Extensions: []string{"gif"}, StoredMIME: "image/gif", StoredExtension: "gif"},
@@ -26,21 +26,21 @@ var formats = []Format{
 }
 
 // DecoderFormat returns the storage format for an image decoder's name.
-func DecoderFormat(name string) (Format, bool) {
-	for _, format := range formats {
+func MediaDecoderFormat(name string) (MediaFormat, bool) {
+	for _, format := range mediaFormats {
 		if format.Decoder == name {
 			format.Extensions = slices.Clone(format.Extensions)
 			return format, true
 		}
 	}
-	return Format{}, false
+	return MediaFormat{}, false
 }
 
 // Extensions are accepted input file extensions without dots, sorted for
 // dialogs. TIFF is accepted even though its bytes are stored as PNG.
-func Extensions() []string {
+func MediaExtensions() []string {
 	var extensions []string
-	for _, format := range formats {
+	for _, format := range mediaFormats {
 		extensions = append(extensions, format.Extensions...)
 	}
 	slices.Sort(extensions)
@@ -48,9 +48,9 @@ func Extensions() []string {
 }
 
 // AcceptsFile reports whether path has an accepted image-file extension.
-func AcceptsFile(path string) bool {
+func AcceptsMediaFile(path string) bool {
 	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	for _, format := range formats {
+	for _, format := range mediaFormats {
 		if slices.Contains(format.Extensions, extension) {
 			return true
 		}
@@ -59,8 +59,8 @@ func AcceptsFile(path string) bool {
 }
 
 // StoredExtension returns the canonical extension for a stored MIME type.
-func StoredExtension(mime string) string {
-	for _, format := range formats {
+func StoredMediaExtension(mime string) string {
+	for _, format := range mediaFormats {
 		if format.StoredMIME == mime {
 			return format.StoredExtension
 		}

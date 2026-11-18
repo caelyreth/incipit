@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	mediaformat "github.com/caelyreth/neverland/app/media"
-
 	// The formats a picture may come in, as MyGo draws them.
 	_ "image/gif"
 	_ "image/jpeg"
@@ -85,7 +83,7 @@ func (s *Store) AddMedia(data []byte, name string) (Media, error) {
 	if config.Width*config.Height > maxMediaPixels {
 		return Media{}, ErrMediaSize
 	}
-	kind, ok := mediaformat.DecoderFormat(format)
+	kind, ok := MediaDecoderFormat(format)
 	if !ok {
 		return Media{}, ErrMediaFormat
 	}
@@ -163,7 +161,7 @@ func (s *Store) MediaFile(media Media) string {
 	if len(media.Hash) < 2 {
 		return filepath.Join(s.root, mediaDir, media.Hash)
 	}
-	return filepath.Join(s.root, mediaDir, media.Hash[:2], media.Hash+"."+mediaformat.StoredExtension(media.Type))
+	return filepath.Join(s.root, mediaDir, media.Hash[:2], media.Hash+"."+StoredMediaExtension(media.Type))
 }
 
 // writeMediaFile writes a picture under its name once it is whole.

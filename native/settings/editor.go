@@ -6,7 +6,6 @@ import (
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/showcase"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -130,7 +129,7 @@ func (s *State) policyShowcase(c *ui.Context, semantic theme.Theme, card appsett
 	scale := s.Theme.UIFontSize
 	inset := theme.Space16.DIPs(scale)
 	ui.Row(c).WidthPercent(100).Padding(0, inset, inset, inset).Children(func() {
-		showcase.Stage{
+		showcaseStage{
 			Key:     "showcase-" + card.ID,
 			Script:  *card.Showcase,
 			Policy:  card.ID,

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/caelyreth/neverland/app/media"
+	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/native/page"
@@ -88,7 +88,7 @@ func (a *AppState) intake(ed *page.Editor) page.Intake {
 // pickPictures asks for pictures to place where the page's selection is.
 func (a *AppState) pickPictures(ed *page.Editor) {
 	window := a.mainWindow
-	exts := media.Extensions()
+	exts := storage.MediaExtensions()
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent: window, Title: "Insert Picture", Multiple: true,

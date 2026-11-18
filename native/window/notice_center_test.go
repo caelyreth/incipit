@@ -1,4 +1,4 @@
-package notices
+package window
 
 import (
 	"errors"
@@ -18,7 +18,7 @@ const (
 )
 
 // window shows center's notices as the app's window does.
-func window(center *Center) *ui.Tester {
+func noticeTester(center *NoticeCenter) *ui.Tester {
 	semantic := theme.DefaultSettings().Semantic()
 	tester := ui.NewTester(func(c *ui.Context) {
 		c.SetTheme(theme.DefaultSettings().MyGoTheme())
@@ -29,9 +29,9 @@ func window(center *Center) *ui.Tester {
 }
 
 func TestANoticeShowsAtTheBottomRightAboveTheFoot(t *testing.T) {
-	center := &Center{}
-	tester := window(center)
-	center.Post(Notice{Kind: Warning, Title: "Backups paused", Description: "The disk is full"})
+	center := &NoticeCenter{}
+	tester := noticeTester(center)
+	center.Post(Notice{Kind: NoticeWarning, Title: "Backups paused", Description: "The disk is full"})
 	tester.Frame()
 	title, ok := tester.Find("Backups paused")
 	if !ok || !tester.HasText("The disk is full") {
@@ -46,12 +46,12 @@ func TestANoticeShowsAtTheBottomRightAboveTheFoot(t *testing.T) {
 }
 
 func TestANoticeAboutTheSameTakesThePlaceOfTheLast(t *testing.T) {
-	center := &Center{}
-	tester := window(center)
+	center := &NoticeCenter{}
+	tester := noticeTester(center)
 	center.Report("Couldn't move the page", errors.New("first"))
 	center.Report("Couldn't move the page", errors.New("second"))
-	center.Post(Notice{ID: "save", Kind: Error, Title: "Saving failed"})
-	center.Post(Notice{ID: "save", Kind: Error, Title: "Saving failed again"})
+	center.Post(Notice{ID: "save", Kind: NoticeError, Title: "Saving failed"})
+	center.Post(Notice{ID: "save", Kind: NoticeError, Title: "Saving failed again"})
 	tester.Frame()
 	for _, gone := range []string{"First", "Saving failed"} {
 		if _, ok := tester.Find(gone); ok {
@@ -64,8 +64,8 @@ func TestANoticeAboutTheSameTakesThePlaceOfTheLast(t *testing.T) {
 }
 
 func TestReportSaysWhatFailedAndWhy(t *testing.T) {
-	center := &Center{}
-	tester := window(center)
+	center := &NoticeCenter{}
+	tester := noticeTester(center)
 	center.Report("Couldn't open the page", nil)
 	tester.Frame()
 	if tester.HasText("Couldn't open the page") {
@@ -79,8 +79,8 @@ func TestReportSaysWhatFailedAndWhy(t *testing.T) {
 }
 
 func TestDismissClosesOnlyItsNotice(t *testing.T) {
-	center := &Center{}
-	tester := window(center)
+	center := &NoticeCenter{}
+	tester := noticeTester(center)
 	center.Post(Notice{ID: "save", Sticky: true, Title: "Saving failed"})
 	center.Post(Notice{Title: "Moved"})
 	center.Dismiss("")
@@ -93,10 +93,10 @@ func TestDismissClosesOnlyItsNotice(t *testing.T) {
 }
 
 func TestTheActionRunsAndCloses(t *testing.T) {
-	center := &Center{}
-	tester := window(center)
+	center := &NoticeCenter{}
+	tester := noticeTester(center)
 	ran := 0
-	center.Post(Notice{Kind: Error, Title: "Saving failed", Sticky: true,
+	center.Post(Notice{Kind: NoticeError, Title: "Saving failed", Sticky: true,
 		Action: "Retry now", OnAction: func() { ran++ }})
 	tester.Frame()
 	if err := tester.Click("Retry now"); err != nil {
@@ -109,8 +109,8 @@ func TestTheActionRunsAndCloses(t *testing.T) {
 }
 
 func TestCloseClosesTheNotice(t *testing.T) {
-	center := &Center{}
-	tester := window(center)
+	center := &NoticeCenter{}
+	tester := noticeTester(center)
 	center.Post(Notice{Title: "Moved", Sticky: true})
 	tester.Frame()
 	if err := tester.Click("Close"); err != nil {
@@ -123,11 +123,11 @@ func TestCloseClosesTheNotice(t *testing.T) {
 }
 
 func TestNoticesGoInTheirTimeAndStickyOnesStay(t *testing.T) {
-	center := &Center{}
-	tester := window(center)
-	center.Post(Notice{Kind: Success, Title: "All changes saved"})
-	center.Post(Notice{Kind: Error, Title: "Couldn't move the page"})
-	center.Post(Notice{Kind: Error, Title: "Saving failed", Sticky: true})
+	center := &NoticeCenter{}
+	tester := noticeTester(center)
+	center.Post(Notice{Kind: NoticeSuccess, Title: "All changes saved"})
+	center.Post(Notice{Kind: NoticeError, Title: "Couldn't move the page"})
+	center.Post(Notice{Kind: NoticeError, Title: "Saving failed", Sticky: true})
 	tester.Frame()
 	tester.Advance(5 * time.Second)
 	if tester.HasText("All changes saved") || !tester.HasText("Couldn't move the page") {
@@ -140,10 +140,10 @@ func TestNoticesGoInTheirTimeAndStickyOnesStay(t *testing.T) {
 }
 
 func TestPostingFromAnyGoroutineWakesTheWindow(t *testing.T) {
-	center := &Center{}
+	center := &NoticeCenter{}
 	var woken atomic.Int32
 	center.SetWake(func() { woken.Add(1) })
-	tester := window(center)
+	tester := noticeTester(center)
 	var group sync.WaitGroup
 	for range 8 {
 		group.Go(func() { center.Post(Notice{Title: "Moved"}) })
@@ -158,7 +158,7 @@ func TestPostingFromAnyGoroutineWakesTheWindow(t *testing.T) {
 func TestEveryKindHasItsLook(t *testing.T) {
 	semantic := theme.DefaultSettings().Semantic()
 	icons, colors := map[string]bool{}, map[ui.Color]bool{}
-	for _, kind := range []Kind{Info, Success, Warning, Error} {
+	for _, kind := range []NoticeKind{NoticeInfo, NoticeSuccess, NoticeWarning, NoticeError} {
 		if kind.icon().SVG() == nil {
 			t.Fatalf("%v has no icon", kind)
 		}
@@ -173,7 +173,7 @@ func TestEveryKindHasItsLook(t *testing.T) {
 // With motion, a toast closing fades where it stood rather than vanishing.
 func TestAClosingToastFadesWithMotion(t *testing.T) {
 	semantic := theme.DefaultSettings().Semantic()
-	center := &Center{}
+	center := &NoticeCenter{}
 	tester := ui.NewTester(func(c *ui.Context) {
 		c.SetTheme(theme.DefaultSettings().MyGoTheme())
 		center.View(c, semantic, true, footer)

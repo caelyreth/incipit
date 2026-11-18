@@ -8,7 +8,7 @@ import (
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/scrollfx"
+	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/plugins/glass"
@@ -109,7 +109,7 @@ type fieldState struct {
 	measures uint64
 	// over is how far past its ends the field is pulled, as the panels and
 	// tables pull, and viewH the field's height, for its reach.
-	over  scrollfx.Elastic
+	over  motion.Elastic
 	viewH float32
 	edges components.EdgeFade
 	// stuck is how far the pill has gone into staying at the window's top

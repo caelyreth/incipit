@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caelyreth/neverland/app/media"
+	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
@@ -159,7 +159,7 @@ func picturesOf(data transfer.Data, formats []transfer.Format) []Incoming {
 	if has(transfer.FileList) {
 		files, _ := data.Files()
 		for _, path := range files {
-			if media.AcceptsFile(path) {
+			if storage.AcceptsMediaFile(path) {
 				out = append(out, Incoming{Path: path, Name: filepath.Base(path)})
 			}
 		}

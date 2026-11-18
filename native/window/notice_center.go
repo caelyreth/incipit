@@ -2,31 +2,31 @@
 // a failure, a recovery, a warning. Any part of the app posts a notice to
 // the window's Center, from any goroutine; the window shows each as a
 // toast at its foot, in the order they came.
-package notices
+package window
 
 import (
 	"sync"
 	"time"
 )
 
-// Kind is what a notice tells: news, a success, a warning or a failure.
-type Kind uint8
+// NoticeKind is what a notice tells: news, a success, a warning or a failure.
+type NoticeKind uint8
 
 const (
-	Info Kind = iota
-	Success
-	Warning
-	Error
+	NoticeInfo NoticeKind = iota
+	NoticeSuccess
+	NoticeWarning
+	NoticeError
 )
 
 // String is the kind as a toast's Type names it.
-func (k Kind) String() string {
+func (k NoticeKind) String() string {
 	switch k {
-	case Success:
+	case NoticeSuccess:
 		return "success"
-	case Warning:
+	case NoticeWarning:
 		return "warning"
-	case Error:
+	case NoticeError:
 		return "error"
 	}
 	return "info"
@@ -34,8 +34,8 @@ func (k Kind) String() string {
 
 // shown is how long a notice of the kind shows unless it is sticky: news
 // and successes are read at a glance, warnings and failures want time.
-func (k Kind) shown() time.Duration {
-	if k == Warning || k == Error {
+func (k NoticeKind) shown() time.Duration {
+	if k == NoticeWarning || k == NoticeError {
 		return 8 * time.Second
 	}
 	return 4 * time.Second
@@ -46,8 +46,8 @@ type Notice struct {
 	// ID names what the notice is about: a notice posted with the ID of
 	// one showing takes its place, so a failure that comes again shows
 	// once, anew. It is the Title when empty.
-	ID   string
-	Kind Kind
+	ID         string
+	Kind       NoticeKind
 	// Title says what happened, and Description, if any, why or what
 	// follows.
 	Title, Description string
@@ -70,15 +70,15 @@ func (n Notice) id() string {
 // Center holds the notices posted since the window last showed them. Its
 // zero value is ready; Post, Report and Dismiss are safe from any
 // goroutine.
-type Center struct {
+type NoticeCenter struct {
 	mu      sync.Mutex
-	pending []change
+	pending []noticeChange
 	wake    func()
 }
 
 // change is a notice to show, or with only dismiss, the ID of one to
 // close.
-type change struct {
+type noticeChange struct {
 	notice  Notice
 	dismiss string
 }
@@ -86,36 +86,36 @@ type change struct {
 // SetWake has the center call wake when a notice is posted or dismissed,
 // for the window to show it: wake is called from the goroutine that
 // posted, as mygo.Window.Invalidate may be.
-func (n *Center) SetWake(wake func()) {
+func (n *NoticeCenter) SetWake(wake func()) {
 	n.mu.Lock()
 	n.wake = wake
 	n.mu.Unlock()
 }
 
 // Post shows a notice.
-func (n *Center) Post(notice Notice) {
-	n.push(change{notice: notice})
+func (n *NoticeCenter) Post(notice Notice) {
+	n.push(noticeChange{notice: notice})
 }
 
 // Report tells that title failed, as err says: an error under its title,
 // which a later failure of the same takes the place of. A nil err reports
 // nothing.
-func (n *Center) Report(title string, err error) {
+func (n *NoticeCenter) Report(title string, err error) {
 	if err == nil {
 		return
 	}
-	n.Post(Notice{Kind: Error, Title: title, Description: Describe(err)})
+	n.Post(Notice{Kind: NoticeError, Title: title, Description: describeNotice(err)})
 }
 
 // Dismiss closes the notice with id, if it shows.
-func (n *Center) Dismiss(id string) {
+func (n *NoticeCenter) Dismiss(id string) {
 	if id == "" {
 		return
 	}
-	n.push(change{dismiss: id})
+	n.push(noticeChange{dismiss: id})
 }
 
-func (n *Center) push(next change) {
+func (n *NoticeCenter) push(next noticeChange) {
 	n.mu.Lock()
 	n.pending = append(n.pending, next)
 	wake := n.wake
@@ -126,7 +126,7 @@ func (n *Center) push(next change) {
 }
 
 // take returns the changes posted since the last take.
-func (n *Center) take() []change {
+func (n *NoticeCenter) take() []noticeChange {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	pending := n.pending
@@ -135,7 +135,7 @@ func (n *Center) take() []change {
 }
 
 // Describe is an error as a notice's sentence: its first letter raised.
-func Describe(err error) string {
+func describeNotice(err error) string {
 	text := []rune(err.Error())
 	if len(text) > 0 && text[0] >= 'a' && text[0] <= 'z' {
 		text[0] -= 'a' - 'A'

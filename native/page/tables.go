@@ -12,7 +12,6 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
-	"github.com/caelyreth/neverland/native/scrollfx"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -731,7 +730,7 @@ func (tableKind) cover(u *unitLayout, s *surfaceLayout) (ui.Rect, bool) {
 // It is the page's, not the layout's, so it lasts as the table changes.
 type tableScroll struct {
 	x     float32
-	over  scrollfx.Elastic
+	over  motion.Elastic
 	glide motion.Glide
 }
 

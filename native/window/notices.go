@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/caelyreth/neverland/app/storage"
-	"github.com/caelyreth/neverland/native/notices"
 	"github.com/egoist/mygo"
 )
 
@@ -46,14 +45,14 @@ func (a *AppState) tellSaving(told *saving, writer saver) {
 	case now.err != "":
 		a.Notices.Post(saveFailure(writer, writer.Err(), a.Notices))
 	default:
-		a.Notices.Post(notices.Notice{ID: saveNotice, Kind: notices.Success, Title: "All changes saved"})
+		a.Notices.Post(Notice{ID: saveNotice, Kind: NoticeSuccess, Title: "All changes saved"})
 	}
 	switch {
 	case now.backupErr == told.backupErr:
 	case now.backupErr != "":
-		a.Notices.Post(notices.Notice{
-			ID: backupNotice, Kind: notices.Warning, Title: "Couldn't back up the notebook",
-			Description: notices.Describe(writer.BackupErr()),
+		a.Notices.Post(Notice{
+			ID: backupNotice, Kind: NoticeWarning, Title: "Couldn't back up the notebook",
+			Description: describeNotice(writer.BackupErr()),
 		})
 	default:
 		a.Notices.Dismiss(backupNotice)
@@ -63,10 +62,10 @@ func (a *AppState) tellSaving(told *saving, writer saver) {
 
 // saveFailure says that changes are not on disk yet, until they are: the
 // saver goes on trying, and Retry Now tries at once.
-func saveFailure(writer saver, err error, center *notices.Center) notices.Notice {
-	return notices.Notice{
-		ID: saveNotice, Kind: notices.Error, Sticky: true,
-		Title: "Changes aren't saved yet", Description: notices.Describe(err),
+func saveFailure(writer saver, err error, center *NoticeCenter) Notice {
+	return Notice{
+		ID: saveNotice, Kind: NoticeError, Sticky: true,
+		Title: "Changes aren't saved yet", Description: describeNotice(err),
 		Action: "Retry Now",
 		OnAction: func() {
 			go func() {
@@ -81,8 +80,8 @@ func saveFailure(writer saver, err error, center *notices.Center) notices.Notice
 }
 
 // recovered tells what opening the notebook repaired.
-func recovered(store *storage.Store) (notices.Notice, bool) {
-	notice := notices.Notice{ID: recoveryNotice, Kind: notices.Warning, Sticky: true}
+func recovered(store *storage.Store) (Notice, bool) {
+	notice := Notice{ID: recoveryNotice, Kind: NoticeWarning, Sticky: true}
 	recovery := store.Recovery
 	switch {
 	case recovery.Repaired() && recovery.Restored != "":
@@ -92,7 +91,7 @@ func recovered(store *storage.Store) (notices.Notice, bool) {
 		notice.Title = "The notebook was damaged"
 		notice.Description = "No backup could be read, so it starts empty; the damaged copy is kept."
 	default:
-		return notices.Notice{}, false
+		return Notice{}, false
 	}
 	notice.Action = "Show in Finder"
 	notice.OnAction = func() { mygo.Shell.ShowItemInFolder(recovery.Damaged) }

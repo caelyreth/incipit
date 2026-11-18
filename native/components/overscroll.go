@@ -1,7 +1,7 @@
 package components
 
 import (
-	"github.com/caelyreth/neverland/native/scrollfx"
+	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -10,7 +10,7 @@ import (
 // Share of the viewport, at least Minimum DIPs at the default UI size: a
 // pull near the edge moves it about Resistance as far, giving less as it
 // nears that extent. Response and DampingRatio are its return spring, as
-// scrollfx.Profile describes them.
+// motion.Profile describes them.
 type OverscrollStyle struct {
 	Share        float32
 	Minimum      float32
@@ -56,27 +56,27 @@ func (s OverscrollStyle) Limit(viewport, uiFontSize float32) float32 {
 // Scroll owns an axis's position and applies this style at its bounds:
 // the event's delta along the axis, at its time.
 func (s OverscrollStyle) Scroll(
-	elastic *scrollfx.Elastic,
+	elastic *motion.Elastic,
 	position, delta, low, high, viewport, uiFontSize float32,
 	event ui.InputEvent,
 ) float32 {
-	phase := scrollfx.Phase(event.Precise, event.Momentum)
-	if phase == scrollfx.Direct && event.DX == 0 && event.DY == 0 {
+	phase := motion.Phase(event.Precise, event.Momentum)
+	if phase == motion.Direct && event.DX == 0 && event.DY == 0 {
 		// An empty direct event: the fingers lifted.
 		elastic.Lift()
 		return position
 	}
-	return scrollfx.AxisScroll(elastic, delta, position, low, high,
+	return motion.AxisScroll(elastic, delta, position, low, high,
 		phase, event.Time,
-		s.Limit(viewport, uiFontSize), s.profile(), scrollfx.AxisPolicy{}).Position
+		s.Limit(viewport, uiFontSize), s.profile(), motion.AxisPolicy{}).Position
 }
 
 // Handle takes edge input for one scroll surface with this style.
 func (s OverscrollStyle) Handle(
-	over *scrollfx.Overscroll,
+	over *motion.Overscroll,
 	event ui.InputEvent,
 	state *ui.ScrollState,
-	axis scrollfx.Axis,
+	axis motion.Axis,
 	viewport, uiFontSize float32,
 ) bool {
 	return over.Handle(
@@ -88,8 +88,8 @@ func (s OverscrollStyle) Handle(
 	)
 }
 
-func (s OverscrollStyle) profile() scrollfx.Profile {
-	return scrollfx.Profile{
+func (s OverscrollStyle) profile() motion.Profile {
+	return motion.Profile{
 		Resistance:   s.Resistance,
 		Response:     s.Response,
 		DampingRatio: s.DampingRatio,
@@ -102,8 +102,8 @@ func (s OverscrollStyle) profile() scrollfx.Profile {
 func BindOverscroll(
 	scroll ui.Element,
 	state *ui.ScrollState,
-	over *scrollfx.Overscroll,
-	axis scrollfx.Axis,
+	over *motion.Overscroll,
+	axis motion.Axis,
 	style OverscrollStyle,
 	viewport, uiFontSize float32,
 ) ui.Element {

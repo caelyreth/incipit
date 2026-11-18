@@ -4,7 +4,7 @@
 // intents and pauses. The player owns the page and the timeline; a host types through
 // a page of its own over the player's engine, which it draws. Nothing here
 // depends on MyGo.
-package showcase
+package settings
 
 import (
 	"maps"
@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	// FadeOut and FadeIn frame each loop, so a restart reads as a cut
+	// showcaseFadeOut and showcaseFadeIn frame each loop, so a restart reads as a cut
 	// rather than text vanishing.
-	FadeOut = 420 * time.Millisecond
-	FadeIn  = 360 * time.Millisecond
+	showcaseFadeOut = 420 * time.Millisecond
+	showcaseFadeIn  = 360 * time.Millisecond
 	// gap is how long a player may go unadvanced, off screen or in a
 	// background window, before it resumes where it left off instead of
 	// rushing through the beats it missed.
@@ -33,23 +33,23 @@ const (
 
 // Page is what the player types through: the host's page over the
 // player's engine, so the host sees every input as its own.
-type Page interface {
+type ShowcasePage interface {
 	Do(in vocab.Intent, at time.Time) bool
 }
 
 // View is the view of the player's engine the host's page opens.
-const View uint64 = 1
+const ShowcaseView uint64 = 1
 
 // Player replays one script, looping, against a page of its own.
-type Player struct {
+type ShowcasePlayer struct {
 	script policy.Showcase
 	policy string
 	values policy.Values
-	open   func(*engine.Engine) Page
+	open   func(*engine.Engine) ShowcasePage
 
 	prog    *policy.Program
 	engine  *engine.Engine
-	page    Page
+	page    ShowcasePage
 	loop    int
 	index   int
 	typed   int
@@ -62,29 +62,29 @@ type Player struct {
 
 // NewPlayer prepares the showcase of policyID under the person's values,
 // starting at now. open gives the host's page over each loop's engine.
-func NewPlayer(script policy.Showcase, policyID string, values policy.Values, open func(*engine.Engine) Page, now time.Time) *Player {
-	p := &Player{script: script, policy: policyID, open: open}
+func NewShowcasePlayer(script policy.Showcase, policyID string, values policy.Values, open func(*engine.Engine) ShowcasePage, now time.Time) *ShowcasePlayer {
+	p := &ShowcasePlayer{script: script, policy: policyID, open: open}
 	p.configure(values)
 	p.restart(now)
 	return p
 }
 
 // Engine is the current loop's engine.
-func (p *Player) Engine() *engine.Engine { return p.engine }
+func (p *ShowcasePlayer) Engine() *engine.Engine { return p.engine }
 
 // Program is the program the story plays under.
-func (p *Player) Program() *policy.Program { return p.prog }
+func (p *ShowcasePlayer) Program() *policy.Program { return p.prog }
 
 // Loop counts restarts, so a host can drop motion that belongs to the
 // previous loop's page.
-func (p *Player) Loop() int { return p.loop }
+func (p *ShowcasePlayer) Loop() int { return p.loop }
 
 // Err is the first failure of the current loop.
-func (p *Player) Err() error { return p.err }
+func (p *ShowcasePlayer) Err() error { return p.err }
 
 // Configure replays the script under values when they differ, so changing
 // an option shows its effect from the start of the story.
-func (p *Player) Configure(values policy.Values, now time.Time) {
+func (p *ShowcasePlayer) Configure(values policy.Values, now time.Time) {
 	if maps.Equal(values, p.values) {
 		return
 	}
@@ -94,7 +94,7 @@ func (p *Player) Configure(values policy.Values, now time.Time) {
 
 // configure compiles values with the showcased policy on: a showcase
 // always shows its feature working, under the options the person chose.
-func (p *Player) configure(values policy.Values) {
+func (p *ShowcasePlayer) configure(values policy.Values) {
 	p.values = maps.Clone(values)
 	on := maps.Clone(values)
 	if on == nil {
@@ -111,22 +111,22 @@ func (p *Player) configure(values policy.Values) {
 
 // Opacity is the page's fade at now: rising after a restart, falling
 // before the next.
-func (p *Player) Opacity(now time.Time) float32 {
+func (p *ShowcasePlayer) Opacity(now time.Time) float32 {
 	opacity := float32(1)
-	if since := now.Sub(p.started); since < FadeIn {
-		opacity = min(opacity, float32(since)/float32(FadeIn))
+	if since := now.Sub(p.started); since < showcaseFadeIn {
+		opacity = min(opacity, float32(since)/float32(showcaseFadeIn))
 	}
 	if !p.ended.IsZero() {
 		restart := p.ended.Add(p.script.Hold)
-		if left := restart.Sub(now); left < FadeOut {
-			opacity = min(opacity, float32(max(0, left))/float32(FadeOut))
+		if left := restart.Sub(now); left < showcaseFadeOut {
+			opacity = min(opacity, float32(max(0, left))/float32(showcaseFadeOut))
 		}
 	}
 	return max(0, opacity)
 }
 
 // Advance plays every beat due by now and returns when the next one is.
-func (p *Player) Advance(now time.Time) time.Time {
+func (p *ShowcasePlayer) Advance(now time.Time) time.Time {
 	if !p.wake.IsZero() && now.Sub(p.wake) > gap {
 		// Nobody advanced the player when it asked to be: it was off
 		// screen or in a background window. Resume where it left off
@@ -142,11 +142,11 @@ func (p *Player) Advance(now time.Time) time.Time {
 	return p.wake
 }
 
-func (p *Player) next(now time.Time) time.Time {
+func (p *ShowcasePlayer) next(now time.Time) time.Time {
 	for {
 		if !p.ended.IsZero() {
 			restart := p.ended.Add(p.script.Hold)
-			if fade := restart.Add(-FadeOut); now.Before(fade) {
+			if fade := restart.Add(-showcaseFadeOut); now.Before(fade) {
 				// Wake for the fade out, not only for the restart.
 				return fade
 			}
@@ -165,16 +165,16 @@ func (p *Player) next(now time.Time) time.Time {
 
 // Finish plays the rest of the current loop at once and holds its last
 // page, for a stage that must not move.
-func (p *Player) Finish() {
+func (p *ShowcasePlayer) Finish() {
 	for p.ended.IsZero() {
 		p.step()
 	}
 }
 
-func (p *Player) restart(now time.Time) {
+func (p *ShowcasePlayer) restart(now time.Time) {
 	p.loop++
 	p.index, p.typed = 0, 0
-	p.started, p.due, p.ended = now, now.Add(FadeIn), time.Time{}
+	p.started, p.due, p.ended = now, now.Add(showcaseFadeIn), time.Time{}
 	if p.prog == nil {
 		p.ended = now
 		return
@@ -191,7 +191,7 @@ func (p *Player) restart(now time.Time) {
 
 // step plays the current beat, or the next character of a typing beat,
 // and schedules the one after it.
-func (p *Player) step() {
+func (p *ShowcasePlayer) step() {
 	if p.index >= len(p.script.Beats) {
 		p.ended = p.due
 		return
@@ -216,9 +216,9 @@ func (p *Player) step() {
 	p.due = p.due.Add(beatPause(beat))
 }
 
-func (p *Player) do(in vocab.Intent, at time.Time) {
+func (p *ShowcasePlayer) do(in vocab.Intent, at time.Time) {
 	if !p.page.Do(in, at) && p.err == nil {
-		p.err = &RejectedError{Intent: in}
+		p.err = &ShowcaseRejectedError{Intent: in}
 	}
 }
 
@@ -273,6 +273,6 @@ func beatPause(beat policy.Beat) time.Duration {
 
 // RejectedError reports an intent of a script the engine did not answer:
 // the script and the policies disagree.
-type RejectedError struct{ Intent vocab.Intent }
+type ShowcaseRejectedError struct{ Intent vocab.Intent }
 
-func (e *RejectedError) Error() string { return "showcase: the engine rejected a beat" }
+func (e *ShowcaseRejectedError) Error() string { return "showcase: the engine rejected a beat" }

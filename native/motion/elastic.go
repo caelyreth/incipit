@@ -1,5 +1,5 @@
-// Package scrollfx adds physical edge response to scroll surfaces.
-package scrollfx
+// Elastic adds physical edge response to scroll surfaces.
+package motion
 
 import (
 	"math"
@@ -391,8 +391,4 @@ func sign(value float32) float32 {
 
 func clamp(value, low, high float32) float32 {
 	return max(low, min(value, high))
-}
-
-func abs(value float32) float32 {
-	return float32(math.Abs(float64(value)))
 }

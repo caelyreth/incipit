@@ -10,7 +10,6 @@ import (
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/notices"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/settings"
 	"github.com/caelyreth/neverland/native/shell"
@@ -27,7 +26,7 @@ type AppState struct {
 	Shell     *shell.State
 	// Notices tells the user what happened apart from what they did, as
 	// toasts at the window's foot.
-	Notices *notices.Center
+	Notices *NoticeCenter
 	// sessionsRev moves on whenever a session comes, goes or is summed up
 	// anew, and as the shell is refreshed; projected keeps the shell's view
 	// of the library while it and the library are unchanged. Sessions come
@@ -79,7 +78,7 @@ func OpenAppState(store *storage.Store) (*AppState, error) {
 
 func newAppState(store *storage.Store) (*AppState, error) {
 	app := &AppState{
-		Notices:  &notices.Center{},
+		Notices:  &NoticeCenter{},
 		sessions: map[workspace.PageID]*sheetSession{},
 		nextKey:  1,
 		Product:  appsettings.DefaultState(),
@@ -126,8 +125,8 @@ func (a *AppState) loadSettings(store *storage.Store) error {
 		a.Product = appsettings.DefaultState()
 		a.settingsDirty = true
 		a.saveSettings()
-		a.Notices.Post(notices.Notice{
-			ID: "settings.load", Kind: notices.Warning, Title: "Settings were reset",
+		a.Notices.Post(Notice{
+			ID: "settings.load", Kind: NoticeWarning, Title: "Settings were reset",
 			Description: "Your notebook is unchanged. The saved preferences could not be read.",
 		})
 	}

@@ -1,4 +1,4 @@
-package scrollfx
+package motion
 
 import (
 	"time"

@@ -1,4 +1,4 @@
-package notices
+package window
 
 import (
 	"github.com/caelyreth/neverland/native/components"
@@ -16,13 +16,13 @@ var toastSpring = components.Spring(components.MotionNormal)
 // View shows what was posted since the last frame, and the toasts showing,
 // at the window's bottom right, bottom clear of the window's foot. Call it
 // once a frame, from the window's view.
-func (n *Center) View(c *ui.Context, semantic theme.Theme, animate bool, bottom float32) {
+func (n *NoticeCenter) View(c *ui.Context, semantic theme.Theme, animate bool, bottom float32) {
 	for _, next := range n.take() {
 		if next.dismiss != "" {
 			c.CloseToast(next.dismiss)
 			continue
 		}
-		c.AddToast(toast(next.notice))
+		c.AddToast(noticeToast(next.notice))
 	}
 	scale := components.UIFontSize(c)
 	margin := theme.Space16.DIPs(scale)
@@ -30,13 +30,13 @@ func (n *Center) View(c *ui.Context, semantic theme.Theme, animate bool, bottom 
 		viewport.AlignItems(ui.End).Gap(theme.Space08.DIPs(scale)).
 			Padding(margin, margin, bottom+margin, margin)
 		for _, shown := range toasts {
-			view(c, semantic, animate, shown)
+			noticeToastView(c, semantic, animate, shown)
 		}
 	})
 }
 
 // toast is a notice as MyGo keeps it, its kind in Data.
-func toast(notice Notice) ui.Toast {
+func noticeToast(notice Notice) ui.Toast {
 	timeout := notice.Kind.shown()
 	if notice.Sticky {
 		timeout = -1
@@ -50,16 +50,16 @@ func toast(notice Notice) ui.Toast {
 
 // view is one toast in the window's dialog material: its kind's icon in
 // its hue, what it says, its action, and a button to close it.
-func view(c *ui.Context, semantic theme.Theme, animate bool, shown ui.Toast) {
+func noticeToastView(c *ui.Context, semantic theme.Theme, animate bool, shown ui.Toast) {
 	scale := components.UIFontSize(c)
-	kind, _ := shown.Data.(Kind)
+	kind, _ := shown.Data.(NoticeKind)
 	parts := ui.ToastBase(c, shown)
 	components.ElevatedSurface(parts.Root, semantic, scale, components.PanelElevation)
 	parts.Root.Row().Width(toastWidth*scale/theme.DefaultUIFontSize).MaxWidthPercent(100).
 		AlignItems(ui.Start).Gap(theme.Space08.DIPs(scale)).
 		Padding(theme.Space12.DIPs(scale), theme.Space08.DIPs(scale),
 			theme.Space12.DIPs(scale), theme.Space12.DIPs(scale)).
-		Transition(transition(animate, scale)).
+		Transition(noticeTransition(animate, scale)).
 		Children(func() {
 			line := theme.TextSmall.LineHeight(scale)
 			// The icon stands on the title's line.
@@ -103,7 +103,7 @@ func view(c *ui.Context, semantic theme.Theme, animate bool, shown ui.Toast) {
 // transition brings a toast up into its place and lets it fade where it
 // stood, the toasts above gliding down to close the gap; without motion
 // they come and go at once.
-func transition(animate bool, scale float32) ui.ElementTransition {
+func noticeTransition(animate bool, scale float32) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
@@ -116,25 +116,25 @@ func transition(animate bool, scale float32) ui.ElementTransition {
 	}
 }
 
-func (k Kind) icon() components.IconName {
+func (k NoticeKind) icon() components.IconName {
 	switch k {
-	case Success:
+	case NoticeSuccess:
 		return components.IconCheckCircle
-	case Warning:
+	case NoticeWarning:
 		return components.IconWarning
-	case Error:
+	case NoticeError:
 		return components.IconError
 	}
 	return components.IconInfo
 }
 
-func (k Kind) color(semantic theme.Theme) ui.Color {
+func (k NoticeKind) color(semantic theme.Theme) ui.Color {
 	switch k {
-	case Success:
+	case NoticeSuccess:
 		return semantic.Status.Success.Foreground
-	case Warning:
+	case NoticeWarning:
 		return semantic.Status.Warning.Foreground
-	case Error:
+	case NoticeError:
 		return semantic.Status.Danger.Foreground
 	}
 	return semantic.Status.Info.Foreground

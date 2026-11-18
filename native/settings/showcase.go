@@ -1,12 +1,12 @@
 // Package showcase draws a scripted showcase: a real page, typed by an
 // app/showcase player, kept centered on a small stage as it grows.
-package showcase
+package settings
 
 import (
 	"math"
 	"time"
 
-	appshowcase "github.com/caelyreth/neverland/app/showcase"
+	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/native/motion"
@@ -26,7 +26,7 @@ const (
 )
 
 // Stage is one showcase, as wide as its container and Height tall.
-type Stage struct {
+type showcaseStage struct {
 	Key    string
 	Script policy.Showcase
 	// Policy is the policy shown, and Values the person's policy values.
@@ -45,7 +45,7 @@ type Stage struct {
 }
 
 type stageState struct {
-	player  *appshowcase.Player
+	player  *appsettings.ShowcasePlayer
 	element *page.Element
 	at      motion.Rect
 	placed  bool
@@ -57,7 +57,7 @@ type stageKey struct{}
 // the player advances, the page paints and recenters at the display's
 // rate without rebuilding the view, and a stage scrolled out of sight
 // paints nothing and so plays nothing.
-func (s Stage) View(c *ui.Context) {
+func (s showcaseStage) View(c *ui.Context) {
 	animate := s.Animate && !c.Preferences().ReduceMotion
 	box := ui.Box(c).Key(s.Key).WidthPercent(100).Height(s.Height).
 		Radius(s.Radius).Background(s.Theme.Surface.Page).
@@ -65,7 +65,7 @@ func (s Stage) View(c *ui.Context) {
 	state := *ui.Local(box, stageKey{}, func() *stageState { return &stageState{} })
 	now := c.Now()
 	if state.player == nil {
-		state.player = appshowcase.NewPlayer(s.Script, s.Policy, s.Values, state.open, now)
+		state.player = appsettings.NewShowcasePlayer(s.Script, s.Policy, s.Values, state.open, now)
 	} else {
 		state.player.Configure(s.Values, now)
 	}
@@ -76,14 +76,14 @@ func (s Stage) View(c *ui.Context) {
 
 // open is the stage's page over a loop's engine: each loop is a new page,
 // and motion from the last one has no meaning for it.
-func (st *stageState) open(e *engine.Engine) appshowcase.Page {
-	ed := page.NewEditor(e, appshowcase.View)
+func (st *stageState) open(e *engine.Engine) appsettings.ShowcasePage {
+	ed := page.NewEditor(e, appsettings.ShowcaseView)
 	st.element = page.NewElement(ed)
 	st.placed = false
 	return ed
 }
 
-func (st *stageState) paint(p *ui.Painter, rect ui.Rect, s Stage, animate bool) {
+func (st *stageState) paint(p *ui.Painter, rect ui.Rect, s showcaseStage, animate bool) {
 	now := p.Now()
 	next := now
 	if animate {

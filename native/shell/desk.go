@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/scrollfx"
+	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/stage"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -57,7 +57,7 @@ type deskState struct {
 	// ends it is pulled; viewport is its window, spans its columns as last
 	// laid out, from the first column's start.
 	strip    ui.ScrollState
-	over     scrollfx.Overscroll
+	over     motion.Overscroll
 	viewport ui.Rect
 	spans    []stage.Span
 	// inputs counts the strip's input; touching is whether fingers are on
@@ -194,8 +194,8 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 		}
 		s.desk.inputs++
 		s.desk.armed = true
-		s.desk.touching = scrollfx.Phase(ev.Precise, ev.Momentum) == scrollfx.Direct && (ev.DX != 0 || ev.DY != 0)
-		return components.OverscrollPanel.Handle(&s.desk.over, ev, &s.desk.strip, scrollfx.Horizontal,
+		s.desk.touching = motion.Phase(ev.Precise, ev.Momentum) == motion.Direct && (ev.DX != 0 || ev.DY != 0)
+		return components.OverscrollPanel.Handle(&s.desk.over, ev, &s.desk.strip, motion.Horizontal,
 			s.desk.viewport.W, scale)
 	})
 	s.magnet(strip, k, animate)
