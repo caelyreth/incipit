@@ -20,7 +20,7 @@ import (
 // is in first, then the keys as the open pill offers them; any other key
 // after, as the language lists them.
 var conditionOrder = append([]string{"settings", "trash", "in"}, slices.DeleteFunc(slices.Clone(filterKeys), func(name string) bool {
-	return name == "trash" || name == "in"
+	return name == "in"
 })...)
 
 // keyRank is where conditions of the key name stand among the others.

@@ -15,7 +15,7 @@ import (
 // Last places a sheet or a group after all the others.
 const Last = 1 << 30
 
-// emptyTrashKey names the trash's Empty button, for arming from a menu or pill.
+// emptyTrashKey names the trash card's Empty button, for arming from a menu.
 const emptyTrashKey = "empty-trash"
 
 // PlaceKind is a kind of place the library holds, whose sheets the sheet

@@ -300,7 +300,6 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, k fl
 				s.setWords(s.field.words)
 			}
 		}
-		s.confirmButton(c, semantic, emptyTrashKey, "", "Empty Trash", animate, func() { s.Library.EmptyTrash() })
 	})
 	_, caret := input.TextSelection()
 	if s.offer(byteOffset(s.field.words, caret)) {
@@ -593,7 +592,7 @@ func rowWidth(row []ribbonPlace, gap float32) float32 {
 }
 
 // filterKeys are the keys the open pill offers to narrow by, in order.
-var filterKeys = []string{"tag", "in", "updated", "created", "words", "has", "title", "heading", "code", "quote", "link", "inbox", "open", "sort", "trash"}
+var filterKeys = []string{"tag", "in", "updated", "created", "words", "has", "title", "heading", "code", "quote", "link", "inbox", "open", "sort"}
 
 // hasCondition reports whether the query has a condition of the key name.
 func (s *State) hasCondition(name string) bool {
