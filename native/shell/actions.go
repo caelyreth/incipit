@@ -26,10 +26,7 @@ type fieldAction struct {
 	icon      components.IconName
 	// danger asks again before it runs: what cannot be undone.
 	danger bool
-	// notable marks the pill's button: the place has it to do, as a trash
-	// with something in it.
-	notable bool
-	run     func()
+	run    func()
 }
 
 // actionsMost is how many actions stand at once.
@@ -45,7 +42,7 @@ func (s *State) fieldActions() []fieldAction {
 		if len(s.field.found.cards) == 0 {
 			return nil
 		}
-		return []fieldAction{{id: emptyTrashKey, label: "Empty Trash", icon: components.IconTrash, danger: true, notable: true,
+		return []fieldAction{{id: emptyTrashKey, label: "Empty Trash", icon: components.IconTrash, danger: true,
 			run: s.Library.EmptyTrash}}
 	}
 	var out []fieldAction
@@ -74,54 +71,49 @@ func (s *State) toggleActions() {
 	}
 }
 
-// actionsButton is the button at the pill's end that opens its actions,
-// marked when one of them is notable: a round face the pill's height
-// over 0.6, pressed anywhere in the whole height of the pill's end.
+// actionsButton is the pill's end, pillH tall: pressed anywhere on it,
+// it opens the place's actions, its chevron pointing where they stand,
+// and turning back to close them.
 func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldAction, pillH, k float32, animate bool) {
 	label := map[bool]string{true: "Hide Actions", false: "Actions"}[s.field.acting]
-	h := pillH * 0.6
-	hit := ui.ButtonBase(c.Key("actions-button")).Size(pillH, pillH).Shrink(0).
-		AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).
+	inset := 4 * k
+	end := ui.ButtonBase(c.Key("actions-button")).Size(pillH*1.25, pillH).Shrink(0).Padding(inset).
+		FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).
 		Label(label).Tooltip("Actions").Disabled(len(acts) == 0)
-	if hit.Clicked() {
+	if end.Clicked() {
 		s.toggleActions()
 	}
-	hover := components.HoverAmount(hit, hit.Hovered(), animate)
-	var btn ui.Element
-	hit.Children(func() { btn = ui.Box(c.Key("face")).Size(h, h).Radius(h / 2).IgnoreInput(true) })
-	btn.AlignItems(ui.Center).Justify(ui.Center)
 	if len(acts) == 0 {
-		hit.Opacity(components.DisabledOpacity)
+		end.Opacity(components.DisabledOpacity)
 	}
+	hover := components.HoverAmount(end, end.Hovered(), animate)
 	open := map[bool]float32{true: 1}[s.field.acting]
 	if animate {
-		open = components.Follow(hit, "open", open, components.MotionQuick)
+		open = components.Follow(end, "open", open, components.MotionQuick)
 	}
-	btn.Background(components.Blend(components.Blend(semantic.GhostElement.Background, semantic.Surface.Chosen, open),
-		semantic.GhostElement.Hover, hover))
-	notable := false
-	for _, a := range acts {
-		notable = notable || a.notable
-	}
-	btn.Children(func() {
-		ui.Icon(c, components.IconMore.SVG()).FontSize(h * 0.55).
-			TextColor(components.Blend(semantic.Icon.Muted, semantic.Icon.Default, max(open, hover)))
-		if notable {
-			dot := 6 * k
-			ui.Box(c.Key("notable")).Absolute().Top(h*0.12).Right(h*0.12).Size(dot, dot).Radius(dot / 2).
-				Background(semantic.Accent.Foreground).Opacity(1 - open).IgnoreInput(true)
-		}
+	face := pillH - 2*inset
+	end.Children(func() {
+		ui.Row(c.Key("face")).Grow(1).Height(face).Radius(face / 2).AlignItems(ui.Center).Justify(ui.Center).IgnoreInput(true).
+			Background(components.Blend(components.Blend(semantic.GhostElement.Background, semantic.Surface.Chosen, open),
+				semantic.GhostElement.Hover, hover)).
+			Children(func() {
+				ui.Icon(c, components.IconChevronRight.SVG()).FontSize(face * 0.5).Rotate(180 * open).
+					TextColor(components.Blend(semantic.Icon.Muted, semantic.Icon.Default, max(open, hover)))
+			})
 	})
 }
 
 // actionsView stands the place's actions open beside the pill at r, w
 // wide in the field: an arc about the pill's end, centred on its line,
 // in order from the top, those further over or under it nearer the pill,
-// as the end's own curve goes. Pressing anywhere else closes them.
+// as the end's own curve goes. Pressing anywhere else, the pill too,
+// closes them.
 func (s *State) actionsView(c *ui.Context, semantic theme.Theme, acts []fieldAction, r stage.Rect, w, gap, k float32, animate bool) {
 	if len(acts) == 0 && s.field.acting {
 		s.field.acting = false
 	}
+	// Over the field and the pill alike: any press but on an action,
+	// the pill's end too, closes them.
 	if s.field.acting {
 		away := ui.ButtonBase(c.Key("actions-away")).Absolute().Left(0).Top(0).Size(w, s.field.viewH).
 			FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).Label("Close Actions")

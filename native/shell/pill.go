@@ -67,8 +67,8 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stage.Rect, r
 			s.ribbon(c, semantic, p, k, animate)
 		}
 	})
-	s.actionsView(c, semantic, acts, r, w, gap, k, animate)
 	s.pillView(c, semantic, r, acts, k, animate)
+	s.actionsView(c, semantic, acts, r, w, gap, k, animate)
 }
 
 type fieldStatsState struct {

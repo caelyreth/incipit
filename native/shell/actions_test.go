@@ -9,7 +9,7 @@ import (
 )
 
 // The trash is emptied from the pill's actions, which stand beside it:
-// the button marked while the trash holds anything, Empty Trash asking
+// Empty Trash asking
 // once more before it runs, and the actions closing once it has.
 func TestTheTrashEmptiesFromThePillsActions(t *testing.T) {
 	state, library, tester := onField(t, 1260, 850)
@@ -17,8 +17,8 @@ func TestTheTrashEmptiesFromThePillsActions(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if !slices.ContainsFunc(state.fieldActions(), func(a fieldAction) bool { return a.notable }) {
-		t.Fatal("A trash holding something should mark the pill's button.")
+	if !slices.ContainsFunc(state.fieldActions(), func(a fieldAction) bool { return a.id == emptyTrashKey }) {
+		t.Fatal("A trash holding something should be one to empty.")
 	}
 	if _, ok := tester.Find("Empty Trash"); ok {
 		t.Fatal("The actions should stand only once opened.")
@@ -89,7 +89,7 @@ func TestThePillOffersNoTrashKey(t *testing.T) {
 }
 
 // The actions stand centred on the pill's line, about its end, and close
-// on a press anywhere else in the field.
+// on a press anywhere else in the field, the pill too.
 func TestTheActionsStandAboutThePillsEnd(t *testing.T) {
 	state, _, tester := onField(t, 1260, 850)
 	if err := tester.Click("Actions"); err != nil {
@@ -107,6 +107,15 @@ func TestTheActionsStandAboutThePillsEnd(t *testing.T) {
 	settle(tester)
 	if state.field.acting {
 		t.Fatal("A press elsewhere should close the actions.")
+	}
+	if err := tester.Click("Actions"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	tester.ClickAt(pill.X+pill.W/3, pill.Y+pill.H/2)
+	settle(tester)
+	if state.field.acting {
+		t.Fatal("A press on the pill should close the actions too.")
 	}
 }
 
