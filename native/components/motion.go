@@ -36,14 +36,6 @@ func MotionEnabled(c *ui.Context, enabled bool) bool {
 	return c != nil && enabled && !c.WindowHidden() && !c.Preferences().ReduceMotion
 }
 
-// Decelerate is the panel curve: a cubic ease-out that moves immediately and
-// settles softly, so sidebar and chrome changes answer the click at once.
-func Decelerate(t float32) float32 {
-	t = max(0, min(t, 1))
-	u := 1 - t
-	return 1 - u*u*u
-}
-
 // Smoothstep is Neverland's bounded chrome interpolation:
 // 3t^2 - 2t^3. It settles exactly at the deadline and never overshoots.
 func Smoothstep(t float32) float32 {

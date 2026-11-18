@@ -44,17 +44,6 @@ func groupOf(name string) library.GroupID {
 	return library.GroupID(id)
 }
 
-const chapterPrefix = "chapter:"
-
-func chapterOf(name string) (library.ChapterID, bool) {
-	raw, ok := strings.CutPrefix(name, chapterPrefix)
-	if !ok {
-		return 0, false
-	}
-	id, err := strconv.ParseInt(raw, 10, 64)
-	return library.ChapterID(id), err == nil
-}
-
 // sessionOf is the session a shell's sheet name names.
 func (a *AppState) sessionOf(name string) (*sheetSession, bool) {
 	id, ok := pageOf(name)

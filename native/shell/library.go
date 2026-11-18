@@ -273,13 +273,6 @@ func words(n int) string {
 	return thousands(n) + " words"
 }
 
-func sheetCount(n int) string {
-	if n == 1 {
-		return "1 sheet"
-	}
-	return thousands(n) + " sheets"
-}
-
 func thousands(n int) string {
 	digits := strconv.Itoa(n)
 	var out strings.Builder
