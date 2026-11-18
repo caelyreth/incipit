@@ -2,11 +2,13 @@ package window
 
 import (
 	"math"
+	"math/rand"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/shell"
@@ -33,7 +35,6 @@ func deskApp(t *testing.T) (*AppState, *ui.Tester) {
 		t.Fatalf("Two sheets should be open, but %d are.", n)
 	}
 	run(tester, time.Second)
-	shot(t, tester, "desk-two")
 	return app, tester
 }
 
@@ -83,7 +84,6 @@ func TestClosingASheetOnTheDeskKeepsRunning(t *testing.T) {
 	app, tester := deskApp(t)
 	app.Shell.ClosePageID(app.Shell.Open[0].ID)
 	run(tester, time.Second)
-	shot(t, tester, "desk-one")
 	if n := len(app.Shell.Open); n != 1 {
 		t.Fatalf("One sheet should stay open on the desk, but %d are.", n)
 	}
@@ -220,5 +220,26 @@ func TestTheReadingHeightStaysAcrossSizes(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestGoingBetweenFieldAndDeskQuicklyKeepsRunning goes between the field
+// and the desk faster than the spring settles, at random times: each
+// press turns the motion in flight without panicking or leaking.
+func TestGoingBetweenFieldAndDeskQuicklyKeepsRunning(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.Shell.Appearance.Motion = true
+	tester := ui.NewTester(app.View, 1260, 600)
+	tester.Frame()
+	r := rand.New(rand.NewSource(1))
+	for range 200 {
+		if err := app.routeCommand(keymap.Field); err != nil {
+			t.Fatal(err)
+		}
+		tester.Advance(time.Duration(r.Intn(25)) * time.Millisecond)
+		tester.Frame()
 	}
 }

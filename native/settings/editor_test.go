@@ -1,9 +1,6 @@
 package settings
 
 import (
-	"image/png"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -31,7 +28,6 @@ func TestEditorPageTurnsAPolicyOff(t *testing.T) {
 			t.Fatalf("no %q in %#v", text, tester.Texts())
 		}
 	}
-	editorShot(t, tester, "editor-page")
 	toggle, ok := tester.AccessByRole(ui.RoleSwitch, "Markdown")
 	if !ok {
 		t.Fatal("no Markdown switch")
@@ -44,7 +40,6 @@ func TestEditorPageTurnsAPolicyOff(t *testing.T) {
 	if !tester.HasText("Turn on to adjust 10 options.") {
 		t.Fatalf("texts %#v", tester.Texts())
 	}
-	editorShot(t, tester, "editor-page-off")
 }
 
 func TestEditorPageOffersNearbyContentSelection(test *testing.T) {
@@ -69,17 +64,4 @@ func TestEditorPageOffersNearbyContentSelection(test *testing.T) {
 	if product.Policy["words.nearbyContent"] != true || product.Program == before {
 		test.Fatal("the nearby-content switch did not recompile the words policy")
 	}
-}
-
-func editorShot(t *testing.T, tester *ui.Tester, name string) {
-	dir := os.Getenv("NEVERLAND_SHOTS")
-	if dir == "" {
-		return
-	}
-	f, err := os.Create(filepath.Join(dir, name+".png"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	_ = png.Encode(f, tester.Image())
 }

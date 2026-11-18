@@ -1,12 +1,16 @@
 package window
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/policies/find"
 	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/native/shell"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -58,7 +62,6 @@ func TestTypingEditsThePage(t *testing.T) {
 	if got != want {
 		t.Fatalf("page:\n%s\nwant:\n%s", got, want)
 	}
-	shot(t, tester, "typing")
 }
 
 // Notation is shown as ghosts, and the caret steps through them.
@@ -77,9 +80,7 @@ func TestNotationIsShownAsGhosts(t *testing.T) {
 		tester.Type(string(r))
 		tester.Frame()
 	}
-	// Let the caret settle.
 	tester.Advance(time.Second)
-	shot(t, tester, "notation-end")
 	el := app.pageElement()
 	head := func() doc.Caret { return el.Editor.Selection().Head }
 	end := head()
@@ -92,10 +93,6 @@ func TestNotationIsShownAsGhosts(t *testing.T) {
 	if h := head(); h.Pos != end.Pos || h.Stop >= end.Stop {
 		t.Fatalf("left from %v went to %v", end, h)
 	}
-	tester.Key(0, ui.KeyUp)
-	tester.Frame()
-	tester.Advance(time.Second)
-	shot(t, tester, "notation-heading")
 }
 
 // What is typed into a page is in the notebook when it opens again.
@@ -145,7 +142,6 @@ func TestClickAndArrowsMoveTheCaret(t *testing.T) {
 	if head().Pos.Node != first {
 		t.Fatalf("up left the caret at %v", head())
 	}
-	// Up keeps the column: past the end of "first", it ends there.
 	if head().Pos.Offset != len("first") {
 		t.Fatalf("up kept no column: %v", head())
 	}
@@ -157,7 +153,6 @@ func TestClickAndArrowsMoveTheCaret(t *testing.T) {
 	if head().Pos.Offset != 0 || at == 0 {
 		t.Fatalf("line start: %v (was %d)", head(), at)
 	}
-	// Clicking far right of the second line puts the caret at its end.
 	r, ok := tester.TextCaret()
 	if !ok {
 		t.Fatal("no text caret")
@@ -166,5 +161,162 @@ func TestClickAndArrowsMoveTheCaret(t *testing.T) {
 	tester.Frame()
 	if h := head(); h.Pos.Node == first || h.Pos.Offset != len("second") {
 		t.Fatalf("click put the caret at %v", h)
+	}
+}
+
+// Inside a pair Tab leaves it; out of it Shift-Tab goes back.
+func TestTabLeavesAPairWithItsKeyShown(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := atTheDesk(app)
+	for _, r := range "The tide turned (slowly" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	tester.Advance(time.Second)
+	tester.Key(0, ui.KeyTab)
+	tester.Type(" and on.")
+	tester.Frame()
+	if got := pageText(app); got != "paragraph:The tide turned (slowly) and on." {
+		t.Fatalf("page %q", got)
+	}
+}
+
+func TestFindInSheetMarksStepsAndEnds(t *testing.T) {
+	app := openNotebookApp(t, t.TempDir())
+	typeIntoActivePage(t, app, "tide and tide")
+	app.findInSheet()
+	if !app.Shell.FindOpen() || app.Shell.FindQuery != "" {
+		t.Fatalf("find opened with %q", app.Shell.FindQuery)
+	}
+	app.Shell.FindQuery = "tide"
+	app.findQuery(app.Shell.FindText())
+	if got := app.Shell.FindCount; got != (shell.FindCount{Current: 1, Total: 2}) {
+		t.Fatalf("count %+v", got)
+	}
+	app.findStep(true)
+	if got := app.Shell.FindCount; got != (shell.FindCount{Current: 2, Total: 2}) {
+		t.Fatalf("after a step %+v", got)
+	}
+	app.endFind()
+	el := app.pageElement()
+	view, _ := el.Editor.Engine.View(el.Editor.View)
+	if view.Modes.Of(find.ID) != nil || app.Shell.FindCount != (shell.FindCount{}) {
+		t.Fatalf("the find did not end: %+v", app.Shell.FindCount)
+	}
+	if sel := el.Editor.Selection(); sel.Anchor.Offset != 9 || sel.Head.Offset != 13 {
+		t.Fatalf("the selection left the match: %+v", sel)
+	}
+	// A find opened over a selection looks for what it holds.
+	app.findInSheet()
+	if app.Shell.FindQuery != "tide" {
+		t.Fatalf("the selection gave %q", app.Shell.FindQuery)
+	}
+}
+
+func TestPageActionsCloseTabsByID(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := app.Workspace.NewPage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.selectMounted()
+	app.Shell.ClosePageID("0")
+	if slices.Contains(app.Workspace.Opened(), 0) {
+		t.Fatalf("closed page remains: %#v", app.Workspace.Opened())
+	}
+	if app.Shell.ActivePage != "1" {
+		t.Fatalf("active page after closing an inactive page = %q", app.Shell.ActivePage)
+	}
+
+	app.Shell.ClosePageID("1")
+	if _, active := app.Workspace.Active(); len(app.Workspace.Opened()) != 0 || active {
+		t.Fatalf("open pages after closing final page 1/%d = %#v", second, app.Workspace.Opened())
+	}
+}
+
+// A page is titled by its first heading, in its row, as it is written;
+// with no page open the window comes back to the field.
+func TestAPageIsTitledByItsFirstHeading(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := atTheDesk(app)
+	if !tester.HasText(workspace.DefaultTitle) {
+		t.Fatalf("no untitled sheet in %#v", tester.Texts())
+	}
+	for _, r := range "# Morning notes" {
+		tester.Type(string(r))
+		tester.Frame()
+	}
+	tester.Frame()
+	if !tester.HasText("Morning notes") {
+		t.Fatalf("the sheet is not titled by the heading: %#v", tester.Texts())
+	}
+	app.closeActive()
+	run(tester, time.Second)
+	if app.Shell.OnDesk() {
+		t.Fatal("with no sheet left, the window should come back to the field")
+	}
+}
+
+// The caret breathes with nothing else happening, and a press on what takes
+// no focus, as a pane's background, leaves typing to the page.
+func TestTheCaretBreathesWithoutInput(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := atTheDesk(app)
+	tester.Type("x")
+	tester.Frame()
+	breathes := func() bool {
+		tester.Advance(240*time.Millisecond + 525*time.Millisecond)
+		low := tester.Image()
+		tester.Advance(525 * time.Millisecond)
+		high := tester.Image()
+		b := low.Bounds()
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				if low.At(x, y) != high.At(x, y) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if !breathes() {
+		t.Fatal("the caret did not breathe between frames with no input")
+	}
+	for _, at := range [][2]float32{{120, 500}, {380, 500}, {900, 820}} {
+		tester.ClickAt(at[0], at[1])
+		tester.Frame()
+		if !breathes() {
+			t.Fatalf("a press at %v took the caret from the page", at)
+		}
+	}
+	tester.Type("y")
+	tester.Frame()
+	if got := pageText(app); got != "paragraph:xy" {
+		t.Fatalf("typing after the presses went elsewhere: %q", got)
+	}
+	// What takes the focus keeps it: typing in the field's pill stays there.
+	app.Shell.ShowField()
+	run(tester, time.Second)
+	if err := tester.Click("Search"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	tester.Type("z")
+	tester.Frame()
+	if got := pageText(app); got != "paragraph:xy" {
+		t.Fatalf("typing into the field search reached the page: %q", got)
 	}
 }

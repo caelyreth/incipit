@@ -21,6 +21,12 @@ func TestProseMetricsKeepReferenceProportionsAndClamp(t *testing.T) {
 	}
 }
 
+func TestReferenceProseFontRegisters(t *testing.T) {
+	if err := RegisterFonts(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMyGoThemeCarriesSemanticMaterial(t *testing.T) {
 	t.Parallel()
 	settings := DefaultSettings()

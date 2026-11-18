@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
@@ -24,6 +25,27 @@ func settle(tester *ui.Tester) {
 		tester.Advance(50 * time.Millisecond)
 		tester.Frame()
 	}
+}
+
+// onField is the shell on its field, its library the fake one, the
+// window w by h.
+func onField(t *testing.T, w, h int) (*State, *fakeLibrary, *ui.Tester) {
+	t.Helper()
+	state, library := libraryState()
+	library.desk = state
+	state.ShowField()
+	tester := ui.NewTester(state.View, w, h)
+	settle(tester)
+	return state, library, tester
+}
+
+// shownBlocks are the ids of the blocks the field shows at rest.
+func shownBlocks(state *State) []string {
+	ids := make([]string, len(state.field.rest))
+	for i, fr := range state.field.rest {
+		ids[i] = fr.ID
+	}
+	return ids
 }
 
 // fakeLibrary is a small library: an Inbox, a Novel group holding a

@@ -81,3 +81,25 @@ func TestButtonTooltipShowsLabelAndLiveBinding(t *testing.T) {
 		t.Fatalf("tooltip texts = %#v", tester.Texts())
 	}
 }
+
+func TestSwitchToggles(t *testing.T) {
+	semantic := theme.DefaultSettings().Semantic()
+	selected := false
+	tester := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(theme.DefaultSettings().MyGoTheme())
+		Switch{
+			Key: "switch", Label: "Enable pairs", Selected: selected,
+			Action: func(value bool) { selected = value },
+		}.View(c, semantic)
+	}, 160, 80)
+	tester.Frame()
+	if _, ok := tester.Find("Enable pairs"); !ok {
+		t.Fatal("switch is missing")
+	}
+	if err := tester.Click("Enable pairs"); err != nil {
+		t.Fatal(err)
+	}
+	if !selected {
+		t.Fatal("switch did not report its new value")
+	}
+}
