@@ -148,12 +148,9 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLoo
 		inset := mid - size/2
 		homeTop := max(inset, barH+theme.DefaultLayout.ChromeGutter*k)
 		trashTop := homeTop + size + 8*k
-		// How the field stands, apart from where it is.
-		listTop := trashTop + size + 20*k
-		buttonsFoot = listTop + size
+		buttonsFoot = trashTop + size
 		s.homeButton(c, semantic, size, animate).Absolute().Left(inset).Top(homeTop)
 		s.trashButton(c, semantic, size, animate).Absolute().Left(inset).Top(trashTop)
-		s.listButton(c, semantic, size, animate).Absolute().Left(inset).Top(listTop)
 		s.settingsButton(c, semantic, size, animate).Absolute().Left(inset).Bottom(inset)
 	})
 	s.keptBox(c, semantic, look, h, k, buttonsFoot, hidden, animate)

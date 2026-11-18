@@ -46,7 +46,6 @@ const (
 	IconNewGroup     IconName = "folder-plus"
 	IconNewSheet     IconName = "file-plus"
 	IconPen          IconName = "pen-line"
-	IconList         IconName = "list"
 	IconPin          IconName = "pin"
 	IconPencilSpark  IconName = "pencil-sparkles"
 	IconPlus         IconName = "plus"
@@ -98,7 +97,6 @@ var AllIcons = [...]IconName{
 	IconNewGroup,
 	IconNewSheet,
 	IconPen,
-	IconList,
 	IconPin,
 	IconPencilSpark,
 	IconPlus,

@@ -95,9 +95,6 @@ func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stageRect, w, 
 	shown := map[bool]float32{true: 1}[text != ""]
 	row := ui.Row(c).Key("notice").Absolute().Top(0).Left(r.X+r.W+gap).Height(r.H).Translate(0, r.Y).
 		MaxWidth(max(0, w-(r.X+r.W+gap)-gap)).AlignItems(ui.Center).Gap(6 * k)
-	if d := s.listSide(row, r, false, gap, k); d != (stagePoint{}) {
-		row.Translate(d.X, d.Y)
-	}
 	if animate {
 		shown = components.Follow(row, "shown", shown, components.MotionQuick)
 	}
