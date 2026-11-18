@@ -136,7 +136,7 @@ func (s *State) commandRow(c *ui.Context, semantic theme.Theme, cmd Command, m b
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
 		FocusRing(false).KeepFocus().Label(cmd.Label)
-	s.rowFill(c, semantic, btn, id, false, animate)
+	s.rowFill(c, semantic, btn, id, animate)
 	if btn.Clicked() {
 		s.activate(id, false)
 	}

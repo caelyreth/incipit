@@ -295,17 +295,19 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 	})
 }
 
-// rowFill is a row's ground: the selection's where it is in front on the
-// desk or the keys are on it, the picked fill where it is picked, a step
-// of grey under the pointer; and pressed, it gives a little.
-func (s *State) rowFill(c *ui.Context, semantic theme.Theme, el ui.Element, id string, front, animate bool) {
+// rowFill is a row's ground: the selection's where the keys are on it,
+// the picked fill where it is picked, a step of the ink under the
+// pointer; and pressed, it gives a little. A sheet open on the desk is
+// never a fill, which would read as a hover left behind, but its tab
+// (openTab).
+func (s *State) rowFill(c *ui.Context, semantic theme.Theme, el ui.Element, id string, animate bool) {
 	hover := components.HoverAmount(el, el.Hovered(), animate)
 	selection := components.NavigationSelection(c, semantic)
 	fill := components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover)
 	switch {
 	case s.isPicked(id):
 		fill = components.Blend(selection.Picked, selection.PickedHover, hover)
-	case front || s.field.chosen == id:
+	case s.field.chosen == id:
 		fill = selection.Fill
 	}
 	el.Background(fill)
@@ -330,7 +332,7 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
 		FocusRing(false).KeepFocus().Label(g.Name)
-	s.rowFill(c, semantic, btn, id, false, animate)
+	s.rowFill(c, semantic, btn, id, animate)
 	// What is dropped on the row is filed in its group, not in the block's.
 	if dropped, ok := s.dropOn(c, semantic, btn, filing(g), animate); ok {
 		s.fileInto(g, dropped)
@@ -388,7 +390,7 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(h).Shrink(0).Padding(pad).
 		AlignItems(ui.Start).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
 		FocusRing(false).KeepFocus().Label(sheetTitle(sh)).Selected(front)
-	s.rowFill(c, semantic, btn, id, front, animate)
+	s.rowFill(c, semantic, btn, id, animate)
 	if s.isPicked(id) && len(s.field.picked) > 1 {
 		btn.ContextMenu(s.pickedMenu(id, trashed))
 	} else {
@@ -420,6 +422,9 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 		title = semantic.Text.Heading
 	}
 	btn.Children(func() {
+		if at := s.deskPlace(sh.ID); at > 0 {
+			openTab(c, semantic, at, pad, m)
+		}
 		ui.Column(c).Key("entry").Grow(1).MinWidth(0).Gap(gap).Children(func() {
 			if (trashed && s.armed(c, deletePickedKey(id))) || confirming {
 				ui.Row(c).Key("title").WidthPercent(100).AlignItems(ui.Center).Gap(pad).Children(func() {
@@ -451,6 +456,37 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 			components.Label(c, foot, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum").Opacity(0.7)
 		})
 	})
+}
+
+// deskPlace is where the sheet id stands on the desk, counted from one as
+// the desk's columns go, 0 where it is not open.
+func (s *State) deskPlace(id string) int {
+	for i, page := range s.Open {
+		if page.ID == id {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// openTab marks a sheet's row as open on the desk (field-and-desk.md
+// §4.7.4): a tab in the accent hanging from the card's inner edge beside
+// its first line, which is pad down the row, carrying the desk's number
+// for its column; past nine, the tab alone.
+func openTab(c *ui.Context, semantic theme.Theme, at int, pad float32, m blockMetrics) {
+	line := theme.TextSmall.LineHeight(m.scale)
+	// As wide as leaves 4 clear of the title, from the card's inner edge.
+	w, number := pad+m.pad-4*m.k, fmt.Sprint(at)
+	if at > 9 {
+		w, number = 4*m.k, ""
+	}
+	tab := ui.Row(c.Key("open-tab")).Absolute().Left(-m.pad).Top(pad).Size(w, line).Radius(3 * m.k).
+		AlignItems(ui.Center).Justify(ui.Center).Background(semantic.Accent.Foreground).IgnoreInput(true)
+	if number != "" {
+		tab.Label("Open on the desk, column " + number).Children(func() {
+			components.CenteredLabel(c, number, theme.TextXSmall, semantic.Accent.OnAccent).SingleLine().FontFeatures("tnum")
+		})
+	}
 }
 
 // rowTags are a sheet's tags on one line, as many as fit, the rest
@@ -497,7 +533,7 @@ func (s *State) moreRow(c *ui.Context, semantic theme.Theme, b block, more int, 
 	label := fmt.Sprintf("%s more", thousands(more))
 	btn := ui.ButtonBase(c.Key("more")).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label)
-	s.rowFill(c, semantic, btn, "", false, animate)
+	s.rowFill(c, semantic, btn, "", animate)
 	if b.group != nil && btn.Clicked() {
 		s.into(*b.group, fr.Rect)
 	}

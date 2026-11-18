@@ -242,7 +242,7 @@ func (s *State) settingsSectionRow(c *ui.Context, semantic theme.Theme, sec Sett
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(h).PaddingX(rowPad(m.scale)).
 		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
 		FocusRing(false).KeepFocus().Label(sec.Title)
-	s.rowFill(c, semantic, btn, id, false, animate)
+	s.rowFill(c, semantic, btn, id, animate)
 	if btn.Clicked() {
 		s.intoSettings(sectionCategory(sec), sec.ID, fr.Rect)
 	}
@@ -261,7 +261,7 @@ func (s *State) settingsMoreRow(c *ui.Context, semantic theme.Theme, category st
 	label := fmt.Sprintf("%s more", thousands(more))
 	btn := ui.ButtonBase(c.Key("more")).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label)
-	s.rowFill(c, semantic, btn, "", false, animate)
+	s.rowFill(c, semantic, btn, "", animate)
 	if btn.Clicked() {
 		s.intoSettings(category, "", fr.Rect)
 	}
