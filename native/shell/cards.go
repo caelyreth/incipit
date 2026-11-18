@@ -299,7 +299,7 @@ func stack(rows []row, m blockMetrics) shape {
 	sh.size = stage.Size{W: m.col + 2*m.pad, H: m.head + 2*m.pad}
 	if len(col) > 0 {
 		sh.cols = [][]row{col}
-		sh.size.H += colH + m.pad
+		sh.size.H += m.headGap + colH
 	}
 	return sh
 }

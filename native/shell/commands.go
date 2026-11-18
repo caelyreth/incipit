@@ -78,7 +78,7 @@ func (commandList) ground() bool { return true }
 func (commandList) drawsLive(*State) bool { return false }
 
 func (l commandList) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, _ stage.Frame, sh shape, _ bool, m blockMetrics, animate bool) {
-	box.Children(func() {
+	box.Gap(m.headGap).Children(func() {
 		cardHead(c, semantic, components.IconCommand, l.group, m)
 		cardRows(c, sh, m, func(r row) {
 			if r.command != nil {

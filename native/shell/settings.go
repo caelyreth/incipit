@@ -205,7 +205,7 @@ func (settingsCategoryCard) ground() bool { return true }
 func (settingsCategoryCard) drawsLive(*State) bool { return false }
 
 func (sc settingsCategoryCard) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stage.Frame, sh shape, _ bool, m blockMetrics, animate bool) {
-	box.Children(func() {
+	box.Gap(m.headGap).Children(func() {
 		s.settingsCategoryHead(c, semantic, sc, fr, m, animate)
 		cardRows(c, sh, m, func(r row) {
 			if r.setting != nil {

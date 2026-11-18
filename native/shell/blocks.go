@@ -42,6 +42,10 @@ type row struct {
 type blockMetrics struct {
 	scale, k       float32
 	col, pad, head float32
+	// headGap is the room between a card's head and its first row, and
+	// rowGap between rows: no two things that light under the pointer
+	// touch (field-and-desk.md §4.7.2).
+	headGap float32
 	// tall is how tall a block's rows may stand in its half of the field,
 	// and alone how tall where its row is all the field holds, nothing
 	// over the pill.
@@ -87,13 +91,17 @@ func (s *State) columnMetrics(w, h, least, most float32) blockMetrics {
 		col = max(step, float32(math.Floor(float64(col/step)))*step)
 	}
 	band := 40*k + 2*gap
+	// What a card takes past its rows: its head, the room under it, and
+	// its padding.
+	head, headGap := 36*k, 6*k
+	frame := head + headGap + 2*pad
 	return blockMetrics{
 		scale: scale, k: k,
-		col: col - 2*pad, pad: pad, head: 36 * k, rowGap: 2 * k,
+		col: col - 2*pad, pad: pad, head: head, headGap: headGap, rowGap: 4 * k,
 		// A block is no taller than its half of the field holds, or, alone
 		// in its row, than the window holds about the pill.
-		tall:     max(160*k, float32(math.Floor(float64((h/2-band/2-gap-36*k-3*pad)/step)))*step),
-		alone:    max(160*k, float32(math.Floor(float64((h-band-2*gap-36*k-3*pad-(48+24)*k)/step)))*step),
+		tall:     max(160*k, float32(math.Floor(float64((h/2-band/2-gap-frame)/step)))*step),
+		alone:    max(160*k, float32(math.Floor(float64((h-band-2*gap-frame-(48+24)*k)/step)))*step),
 		groupRow: 2*theme.Space06.DIPs(scale) + theme.TextSmall.LineHeight(scale),
 		control:  theme.DefaultControls.Scaled(scale).Height,
 		horizon:  stage.Horizon{Cols: cols, Col: col, Gap: gap, Above: band / 2, Below: band / 2},
@@ -207,7 +215,7 @@ func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Elemen
 			s.fileInto(*g, dropped)
 		}
 	}
-	box.Children(func() {
+	box.Gap(m.headGap).Children(func() {
 		if !b.single && !b.create {
 			s.blockHead(c, semantic, b, fr, m, animate)
 		}
