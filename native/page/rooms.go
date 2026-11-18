@@ -42,7 +42,7 @@ func shapeOf(u *unitLayout) int {
 	n := 0
 	for _, s := range u.surfaces {
 		// A grid's cells are its lines', which come in by themselves.
-		if s.shown && (u.table == nil || !u.table.holdsCell(s)) {
+		if s.shown && (u.table == nil || !u.table.HoldsCell(s.index)) {
 			n += 4
 		}
 	}

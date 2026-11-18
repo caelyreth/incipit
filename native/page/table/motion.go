@@ -1,4 +1,4 @@
-package page
+package table
 
 import (
 	"github.com/caelyreth/neverland/editor/doc"
@@ -7,7 +7,7 @@ import (
 
 // How a table's controls move: each value a spring in the page's store
 // (springs.go), stepped at the paint's time before the page is laid out,
-// since what they open is room the layout gives as it is asked (tableIn),
+// since what they open is room the layout gives as it is asked (In),
 // each room as far as its spring has come.
 //
 //   - The rooms the areas open, under the foot, between two rows and
@@ -18,14 +18,14 @@ import (
 //     its cells across layouts: a line gained comes in, from nothing or
 //     from the size of the area that made it; one lost goes, drawn as it
 //     was while its room closes; and lines reordered glide to their
-//     places, one carried landing from where it was let go (tableIn.lines).
+//     places, one carried landing from where it was let go (In.lines).
 //   - A carry parts the grid where it would land and closes it where it no
 //     longer would.
 
-// tableState is what a table's controls keep besides their springs: where its
+// State is what a table's controls keep besides their springs: where its
 // row and column rooms stand, the border lit, the cells it had, the lines
 // coming in, and the rooms a carry opens.
-type tableState struct {
+type State struct {
 	// below are the areas at its foot, 0, and at its end, 1; rows and
 	// columns those between two lines, by the line after them.
 	below, rows, columns components.CreateGap
@@ -38,10 +38,21 @@ type tableState struct {
 	// by the identity its flow knows it by, and ids the lines in order, as
 	// they were last told; wide each column's width as last laid out
 	// whole.
-	lines  [2]flow
+	lines  [2]Flow
 	lineOf [2]map[doc.ID]doc.ID
 	ids    [2][]doc.ID
 	wide   map[doc.ID]float32
+}
+
+// NewState returns an initialized table control state.
+func NewState() *State { return &State{row: -1, column: -1} }
+
+// MadeInfo reports the most recent line created via an area, if any.
+func (s *State) MadeInfo() (index int, column bool, from float32, ok bool) {
+	if s == nil || s.made == nil {
+		return 0, false, 0, false
+	}
+	return s.made.index, s.made.column, s.made.from, true
 }
 
 // apartRoom is room a carry opens before line at, as far as target, and
@@ -53,16 +64,16 @@ type apartRoom struct {
 	frame  bool
 }
 
-func (a *apartRoom) key(table doc.ID) springKey {
+func (a *apartRoom) key(table doc.ID) SpringKey {
 	name := "apart-columns"
 	if a.rows {
 		name = "apart-rows"
 	}
-	return springKey{unit: table, name: name, at: a.at, of: roomValue}
+	return SpringKey{Unit: table, Name: name, At: a.at, Of: RoomValue}
 }
 
 // apartRoom is the room a carry opens before line at.
-func (ts *tableState) apartRoom(rows bool, at int) *apartRoom {
+func (ts *State) apartRoom(rows bool, at int) *apartRoom {
 	for _, a := range ts.apart {
 		if a.rows == rows && a.at == at {
 			return a
@@ -73,65 +84,66 @@ func (ts *tableState) apartRoom(rows bool, at int) *apartRoom {
 	return a
 }
 
-// tableState is the state of a table's controls, as the page remembers it
-// while the table is on the page.
-func (el *Element) tableState(id doc.ID) *tableState {
-	return memo(el, id, "table", func() *tableState { return &tableState{row: -1, column: -1} })
+// springKey is the key of one of a table's values.
+func springKey(id doc.ID, name string, of ValueKind) SpringKey {
+	return SpringKey{Unit: id, Name: name, Of: of}
 }
 
-// tableSpring is the key of one of a table's values.
-func tableSpring(id doc.ID, name string, of valueKind) springKey {
-	return springKey{unit: id, name: name, of: of}
-}
-
-// step moves a table's controls on to the paint's time: the rooms its
+// Step moves a table's controls on to the paint's time: the rooms its
 // areas and a carry open, its lines coming in, its grips and border; and
-// asks its layout for what they open as they stand.
-func (tableKind) step(el *Element, u *unitLayout, in *objectIn) {
-	t := u.table
-	if t == nil {
-		return
+// returns what they open as they stand.
+func stateFlow(h Host, ts *State, axis int) Flow {
+	if ts.lines[axis] == nil {
+		ts.lines[axis] = h.NewFlow()
 	}
-	id := u.pres.Unit
-	ts := el.tableState(id)
-	if m := ts.made; m != nil && el.springs.now.Sub(m.at) > madeFade {
+	return ts.lines[axis]
+}
+
+func (Kind) Step(h Host, u *Unit) In {
+	t := u.Table
+	if t == nil {
+		return In{}
+	}
+	id := u.Pres.Unit
+	ts := h.State(id, true)
+	if m := ts.made; m != nil && h.Now().Sub(m.at) > madeFade {
 		ts.made = nil
 	}
-	_, _, step, between := el.areaRooms()
+	_, _, step, between := areaRooms(h)
 	belowAt, belowOpen := ts.below.Open()
 	rowsAt, rowsOpen := ts.rows.Open()
 	columnsAt, columnsOpen := ts.columns.Open()
-	hot, held := el.hotKey, el.heldTable()
+	hot, held := h.HotKey(), heldTable(h)
 	open := func(is bool, v float32) float32 {
 		if is {
 			return v
 		}
 		return 0
 	}
-	follow := func(name string, of valueKind, target float32) float32 {
-		return el.springs.follow(tableSpring(id, name, of), target, chromeFollow)
+	follow := func(name string, of ValueKind, target float32) float32 {
+		return h.SpringFollow(springKey(id, name, of), target, chromeFollow)
 	}
-	below := follow("below", roomValue, open(belowOpen && belowAt == 0, step))
-	follow("beside", shareValue, open(belowOpen && belowAt == 1, 1))
+	below := follow("below", RoomValue, open(belowOpen && belowAt == 0, step))
+	follow("beside", ShareValue, open(belowOpen && belowAt == 1, 1))
 	if rowsOpen {
 		ts.row = rowsAt
 	}
-	rowRoom := follow("row-room", roomValue, open(rowsOpen, between))
+	rowRoom := follow("row-room", RoomValue, open(rowsOpen, between))
 	if columnsOpen {
 		ts.column = columnsAt
 	}
-	columnRoom := follow("column-room", roomValue, open(columnsOpen, between))
+	columnRoom := follow("column-room", RoomValue, open(columnsOpen, between))
 	mine := held != nil && held.table == id
-	follow("grips", shareValue, open(el.near == id && (el.drag == nil || mine), 1))
-	// A border lights under the pointer and as its drag holds it.
-	if hot.unit == id && hot.part == partBorder {
-		ts.borderAt = hot.at
+	follow("grips", ShareValue, open(h.Near() == id && (!h.HasDrag() || mine), 1))
+	// A border lights under the pointer and as its Drag holds it.
+	if hot.Unit == id && hot.Part == partBorder {
+		ts.borderAt = hot.At
 	}
-	follow("border", shareValue, open(hot.unit == id && hot.part == partBorder, 1))
-	el.springs.follow(tableSpring(id, "press", shareValue), open(mine && isArea(held.part), 1), pressFollow)
-	lines := el.flowLines(u, ts)
-	el.stepApart(id, ts)
-	tin := tableIn{}
+	follow("border", ShareValue, open(hot.Unit == id && hot.Part == partBorder, 1))
+	h.SpringFollow(springKey(id, "press", ShareValue), open(mine && isArea(held.Part), 1), pressFollow)
+	lines := flowLines(h, u, ts)
+	stepApart(h, id, ts)
+	tin := In{}
 	if below >= 0.5 {
 		tin.below = below
 	}
@@ -143,27 +155,27 @@ func (tableKind) step(el *Element, u *unitLayout, in *objectIn) {
 	}
 	k := 0
 	for _, a := range ts.apart {
-		if v := el.springs.value(a.key(id)); v >= 0.5 && k < maxApart {
+		if v := h.SpringValue(a.key(id)); v >= 0.5 && k < maxApart {
 			tin.apart[k] = lineRoom{rows: a.rows, at: a.at, room: v}
 			k++
 		}
 	}
 	tin.lines = lines
-	in.table = tin
+	return tin
 }
 
 // anchor holds the border a room between two rows opens about, while the
 // pointer has it open or it closes: the page lifts by half the room, so
 // what is about the pointer stays under it. A room an area made a row in
 // holds nothing: the page keeps where it lifted it.
-func (tableKind) anchor(el *Element, was *unitLayout, wasY float32, u *unitLayout) (float32, bool) {
-	id := u.pres.Unit
-	ts := el.tableState(id)
+func (Kind) Anchor(h Host, was *Unit, wasY float32, u *Unit) (float32, bool) {
+	id := u.Pres.Unit
+	ts := h.State(id, true)
 	_, opening := ts.rows.Open()
-	if was.table == nil || u.table == nil || !opening && el.springs.value(tableSpring(id, "row-room", roomValue)) <= 0 {
+	if was.Table == nil || u.Table == nil || !opening && h.SpringValue(springKey(id, "row-room", RoomValue)) <= 0 {
 		return 0, false
 	}
-	about := func(t *tableLayout) (float32, bool) {
+	about := func(t *Layout) (float32, bool) {
 		if ts.row <= 0 || ts.row >= len(t.rows) {
 			return 0, false
 		}
@@ -173,16 +185,16 @@ func (tableKind) anchor(el *Element, was *unitLayout, wasY float32, u *unitLayou
 		}
 		return y, true
 	}
-	from, ok := about(was.table)
-	to, ok2 := about(u.table)
+	from, ok := about(was.Table)
+	to, ok2 := about(u.Table)
 	if !ok || !ok2 {
 		return 0, false
 	}
-	return u.y + to - (wasY + from), true
+	return u.Y + to - (wasY + from), true
 }
 
 // isArea reports whether a control is one of a table's areas.
-func isArea(p part) bool {
+func isArea(p Part) bool {
 	return p == partBelow || p == partBeside || p == partRowArea || p == partColumnArea
 }
 
@@ -192,19 +204,19 @@ func isArea(p part) bool {
 // line moved, or its cells' text changed, is the line it was; one whose
 // cells are all new is new, entering from the area that made it, where
 // one did.
-func (el *Element) flowLines(u *unitLayout, ts *tableState) *lineMotion {
-	t := u.table
-	now, animate := el.springs.now, el.springs.animate
+func flowLines(h Host, u *Unit, ts *State) *lineMotion {
+	t := u.Table
+	now, animate := h.Now(), h.Animate()
 	n := [2]int{len(t.rows), len(t.columns)}
 	var cells [2][][]doc.ID
 	for axis := range cells {
 		cells[axis] = make([][]doc.ID, n[axis])
 	}
 	for i, cc := range t.cells {
-		if cc.Row < 0 || i >= len(u.pres.Surfaces) {
+		if cc.Row < 0 || i >= len(u.Pres.Surfaces) {
 			continue
 		}
-		c := u.pres.Surfaces[i].Flow.Slot.Node
+		c := u.Pres.Surfaces[i].Flow.Slot.Node
 		cells[0][cc.Row] = append(cells[0][cc.Row], c)
 		cells[1][cc.Column] = append(cells[1][cc.Column], c)
 	}
@@ -237,9 +249,9 @@ func (el *Element) flowLines(u *unitLayout, ts *tableState) *lineMotion {
 				of[c] = ids[k]
 			}
 		}
-		f := &ts.lines[axis]
-		same := f.holds(ids)
-		in := make([]flowIn, n[axis])
+		f := stateFlow(h, ts, axis)
+		same := f.Holds(ids)
+		in := make([]FlowIn, n[axis])
 		at := float32(0)
 		for k, id := range ids {
 			extent, drawn := float32(0), float32(0)
@@ -247,61 +259,61 @@ func (el *Element) flowLines(u *unitLayout, ts *tableState) *lineMotion {
 				extent, drawn = t.natural[k], t.rows[k]
 			} else {
 				drawn = t.columns[k]
-				if _, asked := t.in.lines.extentOf(1, k); !asked || !f.knows(id) {
+				if _, asked := t.in.lines.extentOf(1, k); !asked || !f.Knows(id) {
 					ts.wide[id] = t.widths[k]
 				}
 				extent = ts.wide[id]
 			}
 			if same {
 				// As it stands, it was drawn there.
-				f.saw(id, drawn)
+				f.Saw(id, drawn)
 			}
-			in[k] = flowIn{id: id, place: at, extent: extent, moves: true, kept: keptLine{u: u, index: k}}
-			if m := ts.made; m != nil && m.column == (axis == 1) && m.index == k && !f.knows(id) {
-				in[k].from = m.from * extent
+			in[k] = FlowIn{ID: id, Place: at, Extent: extent, Moves: true, Kept: keptLine{u: u, index: k}}
+			if m := ts.made; m != nil && m.column == (axis == 1) && m.index == k && !f.Knows(id) {
+				in[k].From = m.from * extent
 			}
 			at += extent
 		}
-		f.tell(in, now, animate)
+		f.Tell(in, now, animate)
 		ts.lineOf[axis], ts.ids[axis] = of, ids
-		moving = f.step(now, animate) || moving
+		moving = f.Step(now, animate) || moving
 		lm.extent[axis] = make([]float32, n[axis])
 		lm.offset[axis] = make([]float32, n[axis])
 		index := make(map[doc.ID]int, n[axis])
 		for k, id := range ids {
 			index[id] = k
-			e, _, o := f.drawn(id, in[k].extent)
+			e, _, o := f.Drawn(id, in[k].Extent)
 			lm.extent[axis][k], lm.offset[axis][k] = -1, o
-			if e != in[k].extent {
+			if e != in[k].Extent {
 				lm.extent[axis][k] = e
 				if axis == 1 {
-					lm.extent[axis][k] = e / max(in[k].extent, 1)
+					lm.extent[axis][k] = e / max(in[k].Extent, 1)
 				}
 				any = true
 			}
 			any = any || o != 0
 		}
-		for _, x := range f.exits {
+		for _, x := range f.Exits() {
 			after, cover := -1, -1
-			if k, ok := index[x.after]; ok {
+			if k, ok := index[x.After]; ok {
 				after = k
-			} else if x.after != 0 {
+			} else if x.After != 0 {
 				continue
 			}
-			if x.cover != 0 {
-				k, ok := index[x.cover]
+			if x.Cover != 0 {
+				k, ok := index[x.Cover]
 				if !ok {
 					continue
 				}
 				cover = k
 			}
-			lm.gone[axis] = append(lm.gone[axis], lineGone{after: after, cover: cover, room: x.extent.Value(), lead: x.lead,
-				alpha: x.alpha.Value(), kept: x.kept.(keptLine)})
+			lm.gone[axis] = append(lm.gone[axis], lineGone{after: after, cover: cover, room: x.Extent, lead: x.Lead,
+				alpha: x.Alpha, kept: x.Kept.(keptLine)})
 			any = true
 		}
 	}
 	if moving {
-		el.springs.moving = true
+		h.MarkMoving()
 	}
 	if !any {
 		return nil
@@ -309,16 +321,16 @@ func (el *Element) flowLines(u *unitLayout, ts *tableState) *lineMotion {
 	return lm
 }
 
-// stepApart parts the grid where a carried line would land, once the
+// stepAPart parts the grid where a carried line would land, once the
 // pointer has stayed by the place a moment, the frame it leaves folding
 // away, and lets each room close that is no longer asked for.
-func (el *Element) stepApart(id doc.ID, ts *tableState) {
-	if d, ok := el.drag.(*lineDrag); ok && d.moved && d.table == id {
+func stepApart(h Host, id doc.ID, ts *State) {
+	if d, ok := h.ActiveDrag().(*lineDrag); ok && d.moved && d.table == id {
 		if d.over != d.to {
-			if left := carrySettle - el.springs.now.Sub(d.since); el.springs.animate && left > 0 {
+			if left := carrySettle - h.Now().Sub(d.since); h.Animate() && left > 0 {
 				// The page parts once the pointer has stayed: frames come
 				// till then.
-				el.springs.moving = true
+				h.MarkMoving()
 			} else {
 				d.to = d.over
 			}
@@ -335,7 +347,7 @@ func (el *Element) stepApart(id doc.ID, ts *tableState) {
 	}
 	kept := ts.apart[:0]
 	for _, a := range ts.apart {
-		v := el.springs.follow(a.key(id), a.target, carryPart)
+		v := h.SpringFollow(a.key(id), a.target, carryPart)
 		if a.target > 0 || v >= 0.5 {
 			kept = append(kept, a)
 		}

@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/native/page/table"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -353,7 +354,7 @@ func (el *Element) controlMetrics() theme.ControlMetrics {
 // controlLane is how far out from what it moves a control stands in the
 // gutter, in DIPs at the default UI size: a grip set off its line, as wide
 // as it is short. What else stands in the gutter stands past it.
-const controlLane = gripOff + gripShort
+const controlLane = table.ControlLane
 
 // controlReach is how near an object the pointer calls up its controls,
 // in DIPs at the default UI size.

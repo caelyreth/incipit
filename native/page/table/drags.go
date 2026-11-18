@@ -1,4 +1,4 @@
-package page
+package table
 
 import (
 	"math"
@@ -11,22 +11,22 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// What a table's controls do as they are held, each the page's drag until
+// What a table's controls do as they are held, each the page's Drag until
 // release and then one intent:
 //
 //   - A line's grip picks the line's cells whole on a click (a Place
 //     carrying the cell range; Shift stretches a pick of the same lines).
 //     Dragged, it carries a copy of the line under the pointer, the line
 //     veiled in its place; where the copy's middle stands among the lines'
-//     middles as the drag began is where it would land, and once the
+//     middles as the Drag began is where it would land, and once the
 //     pointer has stayed there carrySettle the grid parts there, a frame
 //     its size opening as the one it leaves closes. Letting go moves it
 //     there (EditGrid), the frame going at once as the line stands in it,
 //     the room it left opening at once and closing behind it, and the copy
 //     landing in its place, as it does when Escape sets it back.
-//   - The corner's drag sets the table's size by whole lines, kept on
+//   - The corner's Drag sets the table's size by whole lines, kept on
 //     letting go (ResizeTable); a click on it selects the table.
-//   - A border's drag sets its column's width, previewed in the layout,
+//   - A border's Drag sets its column's width, previewed in the layout,
 //     and a double click fits the column to its text (ShapeColumn).
 //   - A click on an area makes the line it stands for where it stands
 //     (EditGrid): its room goes at once and the line comes in from its
@@ -47,9 +47,9 @@ const (
 // the press, where it began and where the pointer is, in the page, and
 // whether it has gone far enough to be a drag.
 type tablePress struct {
-	el           *Element
+	h            Host
 	table        doc.ID
-	part         part
+	Part         Part
 	at           int
 	clicks       int
 	extend       bool
@@ -57,12 +57,13 @@ type tablePress struct {
 	moved        bool
 }
 
-func (el *Element) tablePress(k controlKey, x, y float32, clicks int, extend bool) tablePress {
-	return tablePress{el: el, table: k.unit, part: k.part, at: k.at, clicks: clicks, extend: extend, x0: x, y0: y, x: x, y: y}
+func newPress(h Host, k ControlKey, x, y float32, clicks int, extend bool) tablePress {
+	return tablePress{h: h, table: k.Unit, Part: k.Part, at: k.At, clicks: clicks, extend: extend, x0: x, y0: y, x: x, y: y}
 }
 
-func (p *tablePress) key() controlKey      { return controlKey{unit: p.table, part: p.part, at: p.at} }
-func (p *tablePress) pressOf() *tablePress { return p }
+func (p *tablePress) Key() ControlKey         { return ControlKey{Unit: p.table, Part: p.Part, At: p.at} }
+func (p *tablePress) pressOf() *tablePress    { return p }
+func (p *tablePress) Ask() (doc.ID, In, bool) { return 0, In{}, false }
 
 // follow takes the pointer to x, y and reports whether the press is a
 // drag.
@@ -75,17 +76,23 @@ func (p *tablePress) follow(x, y float32) bool {
 }
 
 // unit is the table as the last layout set it out.
-func (p *tablePress) unit() *unitLayout {
-	u := p.el.Editor.layout.unitOf(p.table)
-	if u == nil || u.table == nil {
+func (p *tablePress) unit() *Unit {
+	u := p.h.Unit(p.table)
+	if u == nil || u.Table == nil {
 		return nil
 	}
 	return u
 }
 
-// heldTable is the press on a table's control the page holds, if any.
-func (el *Element) heldTable() *tablePress {
-	if d, ok := el.drag.(interface{ pressOf() *tablePress }); ok {
+// LineCarryTo reports the active line-carry destination index, if one is active.
+func LineCarryTo(h Host) (int, bool) {
+	if d, ok := h.ActiveDrag().(*lineDrag); ok {
+		return d.to, true
+	}
+	return 0, false
+}
+func heldTable(h Host) *tablePress {
+	if d, ok := h.ActiveDrag().(interface{ pressOf() *tablePress }); ok {
 		return d.pressOf()
 	}
 	return nil
@@ -107,8 +114,8 @@ type lineDrag struct {
 	to    int
 }
 
-func (el *Element) lineDrag(u *unitLayout, rows bool, p tablePress, at time.Time) *lineDrag {
-	t := u.table
+func newLineDrag(h Host, u *Unit, rows bool, p tablePress, at time.Time) *lineDrag {
+	t := u.Table
 	d := &lineDrag{tablePress: p, rows: rows, start: t.line(u, rows, p.at), over: p.at, to: p.at, since: at}
 	n := len(t.columns)
 	if rows {
@@ -129,7 +136,7 @@ func (el *Element) lineDrag(u *unitLayout, rows bool, p tablePress, at time.Time
 	return d
 }
 
-func (d *lineDrag) cursor() ui.Cursor {
+func (d *lineDrag) Cursor() ui.Cursor {
 	if d.moved {
 		return ui.CursorGrabbing
 	}
@@ -150,7 +157,7 @@ func (d *lineDrag) moves(slot int) bool { return slot != d.tablePress.at && slot
 
 // move carries the copy, and notes the place it is by: by its middle
 // among the lines' middles as they stood as it began.
-func (d *lineDrag) move(x, y float32, at time.Time) {
+func (d *lineDrag) Move(x, y float32, at time.Time) {
 	if !d.follow(x, y) {
 		return
 	}
@@ -171,7 +178,7 @@ func (d *lineDrag) move(x, y float32, at time.Time) {
 }
 
 // finish picks the line on a click, or lets the carried line go.
-func (d *lineDrag) finish(canceled bool, at time.Time) {
+func (d *lineDrag) Finish(canceled bool, at time.Time) {
 	switch {
 	case d.moved:
 		d.drop(canceled, at)
@@ -183,11 +190,11 @@ func (d *lineDrag) finish(canceled bool, at time.Time) {
 		cr := doc.CellRange{Table: d.table, WholeRows: axis == profile.Rows, WholeColumns: axis == profile.Columns}
 		line := doc.CellCoord{Row: d.tablePress.at, Column: d.tablePress.at}
 		cr.Anchor, cr.Head = line, line
-		if sel := d.el.Editor.Selection(); d.extend && sel.Kind == doc.SelectCells && sel.Cells.Table == d.table &&
+		if sel := d.h.Selection(); d.extend && sel.Kind == doc.SelectCells && sel.Cells.Table == d.table &&
 			sel.Cells.WholeRows == cr.WholeRows && sel.Cells.WholeColumns == cr.WholeColumns {
 			cr.Anchor = sel.Cells.Anchor
 		}
-		d.el.Editor.Do(vocab.Place{Cells: &cr}, at)
+		d.h.Do(vocab.Place{Cells: &cr}, at)
 	}
 }
 
@@ -198,21 +205,21 @@ func (d *lineDrag) finish(canceled bool, at time.Time) {
 // at once, as the line stands there, and the lines it left close behind
 // it.
 func (d *lineDrag) drop(canceled bool, at time.Time) {
-	el := d.el
+	h := d.h
 	from := d.tablePress.at
 	d.to = d.over
-	ts := el.tableState(d.table)
+	ts := h.State(d.table, true)
 	axis, corner := 1, d.corner().X
 	if d.rows {
 		axis, corner = 0, d.corner().Y
 	}
 	if from < len(ts.ids[axis]) {
-		ts.lines[axis].from(ts.ids[axis][from], corner, el.springs.now)
+		stateFlow(h, ts, axis).From(ts.ids[axis][from], corner, h.Now())
 	}
 	for _, a := range ts.apart {
 		if a.frame && a.target > 0 {
 			a.target = 0
-			el.springs.jump(a.key(d.table), 0)
+			h.SpringJump(a.key(d.table), 0)
 		}
 		a.frame = false
 	}
@@ -224,7 +231,7 @@ func (d *lineDrag) drop(canceled bool, at time.Time) {
 		grid = profile.Rows
 	}
 	to := carryIndex(from, d.to)
-	el.Editor.Do(profile.EditGrid{Op: profile.GridMove, Axis: grid, Table: d.table, At: from, Count: 1, To: to}, at)
+	h.Do(profile.EditGrid{Op: profile.GridMove, Axis: grid, Table: d.table, At: from, Count: 1, To: to}, at)
 }
 
 // carryIndex is where a line from goes, landing before slot.
@@ -236,20 +243,20 @@ func carryIndex(from, slot int) int {
 }
 
 // cornerDrag is a press on a table's corner: a click selects the table, a
-// drag sets its size by whole lines.
+// Drag sets its size by whole lines.
 type cornerDrag struct {
 	tablePress
 	rows, columns int
 }
 
-func (d *cornerDrag) cursor() ui.Cursor { return ui.CursorResizeNWSE }
+func (d *cornerDrag) Cursor() ui.Cursor { return ui.CursorResizeNWSE }
 
-func (d *cornerDrag) move(x, y float32, _ time.Time) {
+func (d *cornerDrag) Move(x, y float32, _ time.Time) {
 	u := d.unit()
 	if !d.follow(x, y) || u == nil {
 		return
 	}
-	t := u.table
+	t := u.Table
 	rows, columns := len(t.rows), len(t.columns)
 	cellW := t.columns[columns-1] + t.widths[columns-1]
 	cellH := t.rows[rows-1] + t.heights[rows-1]
@@ -257,47 +264,45 @@ func (d *cornerDrag) move(x, y float32, _ time.Time) {
 	d.rows = max(1, rows+int(math.Round(float64((y-d.y0)/(cellH/float32(rows))))))
 }
 
-func (d *cornerDrag) finish(canceled bool, at time.Time) {
+func (d *cornerDrag) Finish(canceled bool, at time.Time) {
 	u := d.unit()
 	switch {
 	case canceled || u == nil:
 	case !d.moved:
-		d.el.Editor.Do(vocab.Place{Node: d.table}, at)
-	case d.rows != len(u.table.rows) || d.columns != len(u.table.columns):
-		d.el.Editor.Do(profile.ResizeTable{Table: d.table, Rows: d.rows, Columns: d.columns}, at)
+		d.h.Do(vocab.Place{Node: d.table}, at)
+	case d.rows != len(u.Table.rows) || d.columns != len(u.Table.columns):
+		d.h.Do(profile.ResizeTable{Table: d.table, Rows: d.rows, Columns: d.columns}, at)
 	}
 }
 
-// borderDrag is a press on a column's border: a drag sets the column's
+// borderDrag is a press on a column's border: a Drag sets the column's
 // width, from w0, and a double click fits it to its text.
 type borderDrag struct {
 	tablePress
 	w0 float32
 }
 
-func (d *borderDrag) cursor() ui.Cursor { return ui.CursorResizeEW }
+func (d *borderDrag) Cursor() ui.Cursor { return ui.CursorResizeEW }
 
-func (d *borderDrag) move(x, y float32, _ time.Time) { d.follow(x, y) }
+func (d *borderDrag) Move(x, y float32, _ time.Time) { d.follow(x, y) }
 
 func (d *borderDrag) width() float32 { return max(d.w0+d.x-d.x0, leastColumn) }
 
-// ask previews the width in the table's layout.
-func (d *borderDrag) ask(asks map[doc.ID]objectIn) {
+// Ask previews the width in the table's layout.
+func (d *borderDrag) Ask() (doc.ID, In, bool) {
 	if !d.moved {
-		return
+		return 0, In{}, false
 	}
-	a := askOf(asks, d.table)
-	a.table.sized, a.table.width = d.tablePress.at, d.width()
-	asks[d.table] = a
+	return d.table, In{sized: d.tablePress.at, width: d.width()}, true
 }
 
-func (d *borderDrag) finish(canceled bool, at time.Time) {
+func (d *borderDrag) Finish(canceled bool, at time.Time) {
 	u := d.unit()
 	if canceled || u == nil {
 		return
 	}
 	var col profile.Column
-	if shape := profile.TableShapeOf(u.pres.Node); d.tablePress.at < len(shape.Columns) {
+	if shape := profile.TableShapeOf(u.Pres.Node); d.tablePress.at < len(shape.Columns) {
 		col = shape.Columns[d.tablePress.at]
 	}
 	switch {
@@ -309,7 +314,7 @@ func (d *borderDrag) finish(canceled bool, at time.Time) {
 	default:
 		return
 	}
-	d.el.Editor.Do(profile.ShapeColumn{Table: d.table, Column: d.tablePress.at, Shape: col}, at)
+	d.h.Do(profile.ShapeColumn{Table: d.table, Column: d.tablePress.at, Shape: col}, at)
 }
 
 // areaPress is a press on an area: it is clicked, not dragged.
@@ -317,12 +322,12 @@ type areaPress struct {
 	tablePress
 }
 
-func (d *areaPress) cursor() ui.Cursor              { return ui.CursorPointer }
-func (d *areaPress) move(x, y float32, _ time.Time) { d.x, d.y = x, y }
+func (d *areaPress) Cursor() ui.Cursor              { return ui.CursorPointer }
+func (d *areaPress) Move(x, y float32, _ time.Time) { d.x, d.y = x, y }
 
-func (d *areaPress) finish(canceled bool, at time.Time) {
+func (d *areaPress) Finish(canceled bool, at time.Time) {
 	if u := d.unit(); !canceled && u != nil {
-		d.el.useArea(u, d.part, at)
+		useArea(d.h, u, d.Part, at)
 	}
 }
 
@@ -338,31 +343,31 @@ type tableMade struct {
 // useArea makes the line an area makes, where it stands: the area's room
 // goes at once, the line coming in from its size, and the page keeps where
 // the room lifted it.
-func (el *Element) useArea(u *unitLayout, p part, at time.Time) {
-	t, id := u.table, u.pres.Unit
-	ts := el.tableState(id)
+func useArea(h Host, u *Unit, p Part, at time.Time) {
+	t, id := u.Table, u.Pres.Unit
+	ts := h.State(id, true)
 	rows, columns := len(t.rows), len(t.columns)
 	rowShare := func(size float32) float32 { return min(1, size/max(1, t.heights[rows-1])) }
-	room := func(name string) springKey { return tableSpring(id, name, roomValue) }
+	room := func(name string) SpringKey { return springKey(id, name, RoomValue) }
 	axis, index, share := profile.Rows, rows, float32(0)
 	switch p {
 	case partBelow:
 		ts.below.Use()
 		index, share = rows, rowShare(t.below.H)
-		el.springs.jump(room("below"), 0)
+		h.SpringJump(room("below"), 0)
 	case partBeside:
 		ts.below.Use()
 		axis, index = profile.Columns, columns
-		el.springs.jump(tableSpring(id, "beside", shareValue), 0)
+		h.SpringJump(springKey(id, "beside", ShareValue), 0)
 	case partRowArea:
 		ts.rows.Use()
 		index, share = ts.row, rowShare(t.rowGap.H)
-		el.springs.jump(room("row-room"), 0)
+		h.SpringJump(room("row-room"), 0)
 	case partColumnArea:
 		ts.columns.Use()
 		axis, index = profile.Columns, ts.column
-		share = min(1, t.columnGap.W*float32(columns+1)/max(1, u.box.W))
-		el.springs.jump(room("column-room"), 0)
+		share = min(1, t.columnGap.W*float32(columns+1)/max(1, u.Box.W))
+		h.SpringJump(room("column-room"), 0)
 	}
 	n := rows
 	if axis == profile.Columns {
@@ -373,5 +378,5 @@ func (el *Element) useArea(u *unitLayout, p part, at time.Time) {
 	if index >= n {
 		in = profile.EditGrid{Op: profile.GridInsert, Axis: axis, Table: id, At: n - 1, Count: 1}
 	}
-	el.Editor.Do(in, at)
+	h.Do(in, at)
 }

@@ -1,6 +1,6 @@
-// Package formula sets a page's TeX as math with untie, in the math font the
+// formula_typeset sets a page's TeX as math with untie, in the math font the
 // theme bundles, and draws what it sets with MyGo.
-package formula
+package page
 
 import (
 	"cmp"
@@ -19,29 +19,29 @@ import (
 
 // kept bounds how many formulas stay set between layouts: more than a long
 // page shows, at each of the sizes it sets them at.
-const kept = 1024
+const formulaKept = 1024
 
 var (
-	prepare = sync.OnceValue(func() *untie.Renderer {
+	formulaPrepare = sync.OnceValue(func() *untie.Renderer {
 		fonts, err := untie.LoadMathFont(theme.MathFont(), untie.WithFontID("NewCMMath-Book"))
 		if err != nil {
 			return nil
 		}
-		renderer, err := untie.NewRenderer(fonts, untie.RendererOptions{CacheEntries: kept})
+		renderer, err := untie.NewRenderer(fonts, untie.RendererOptions{CacheEntries: formulaKept})
 		if err != nil {
 			return nil
 		}
 		return renderer
 	})
-	cache = struct {
+	formulaCache = struct {
 		sync.Mutex
-		boxes map[key]set
-	}{boxes: make(map[key]set)}
+		boxes map[formulaKey]formulaSet
+	}{boxes: make(map[formulaKey]formulaSet)}
 )
 
 // set is what a source set, and whether it set all of it: nothing it could
 // not read, nothing missing, the problems it has else.
-type set struct {
+type formulaSet struct {
 	box      *untie.Box
 	sound    bool
 	problems []Problem
@@ -55,7 +55,7 @@ type Problem struct {
 	Message  string
 }
 
-type key struct {
+type formulaKey struct {
 	source      string
 	display     bool
 	size, width float32
@@ -65,13 +65,13 @@ type key struct {
 // lines within width, an inline one as it runs in a line of text. A
 // formula half typed still sets what it can, its errors marked. It is nil
 // only when the math font cannot be read, when a page shows the source.
-func Set(source string, display bool, size, width float32) *untie.Box {
+func setFormula(source string, display bool, size, width float32) *untie.Box {
 	return setOf(source, display, size, width).box
 }
 
 // Sound reports whether source sets as written, wholly: no error is set
 // in it, as a half typed formula's is.
-func Sound(source string, display bool) bool {
+func formulaSound(source string, display bool) bool {
 	return setOf(source, display, soundSize, 0).sound
 }
 
@@ -84,20 +84,20 @@ func Problems(source string, display bool) []Problem {
 // size, decides.
 const soundSize = 16
 
-func setOf(source string, display bool, size, width float32) set {
+func setOf(source string, display bool, size, width float32) formulaSet {
 	if !display {
 		width = 0
 	}
-	request := key{source: source, display: display, size: size, width: width}
-	cache.Lock()
-	found, ok := cache.boxes[request]
-	cache.Unlock()
+	request := formulaKey{source: source, display: display, size: size, width: width}
+	formulaCache.Lock()
+	found, ok := formulaCache.boxes[request]
+	formulaCache.Unlock()
 	if ok {
 		return found
 	}
-	renderer := prepare()
+	renderer := formulaPrepare()
 	if renderer == nil || size <= 0 {
-		return set{}
+		return formulaSet{}
 	}
 	mode := untie.Inline
 	style := untie.Style{Size: size}
@@ -106,9 +106,9 @@ func setOf(source string, display bool, size, width float32) set {
 	}
 	result, err := renderer.Render(context.Background(), source, untie.RenderRequest{Mode: mode, Style: style})
 	if err != nil || result == nil || result.Box == nil {
-		return set{}
+		return formulaSet{}
 	}
-	made := set{box: result.Box}
+	made := formulaSet{box: result.Box}
 	// A layout repeats what the parse found: each problem is told once, as
 	// the parse tells it, a command it does not know rather than the glyph
 	// it then has none for.
@@ -131,24 +131,24 @@ func setOf(source string, display bool, size, width float32) set {
 	}
 	slices.SortStableFunc(made.problems, func(a, b Problem) int { return cmp.Compare(a.From, b.From) })
 	made.sound = strings.TrimSpace(source) != "" && len(made.problems) == 0
-	cache.Lock()
-	if len(cache.boxes) >= kept {
-		clear(cache.boxes)
+	formulaCache.Lock()
+	if len(formulaCache.boxes) >= formulaKept {
+		clear(formulaCache.boxes)
 	}
-	cache.boxes[request] = made
-	cache.Unlock()
+	formulaCache.boxes[request] = made
+	formulaCache.Unlock()
 	return made
 }
 
 // Inks are the colors a formula is drawn in: its own, as the text around
 // it, what it could not read, and what stands in for what is missing.
-type Inks struct {
+type formulaInks struct {
 	Text, Error, Placeholder ui.Color
 }
 
 // Draw draws box with its baseline's start at origin. Colors the formula
 // names itself are kept.
-func Draw(p *ui.Painter, box *untie.Box, origin ui.Point, inks Inks) {
+func drawFormula(p *ui.Painter, box *untie.Box, origin ui.Point, inks formulaInks) {
 	if box == nil {
 		return
 	}
@@ -183,7 +183,7 @@ func Draw(p *ui.Painter, box *untie.Box, origin ui.Point, inks Inks) {
 
 // Ink is how far across box what it draws reaches, from its baseline's
 // start: within its width for a formula broken into lines, centered there.
-func Ink(box *untie.Box) (from, to float32) {
+func formulaInk(box *untie.Box) (from, to float32) {
 	if box == nil {
 		return 0, 0
 	}
@@ -203,7 +203,7 @@ func Ink(box *untie.Box) (from, to float32) {
 // Extent is how far above and below its baseline box draws: its ascent and
 // descent, or further where its ink reaches past them, as a limit set
 // below an integral does.
-func Extent(box *untie.Box) (ascent, descent float32) {
+func formulaExtent(box *untie.Box) (ascent, descent float32) {
 	if box == nil {
 		return 0, 0
 	}

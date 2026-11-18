@@ -58,7 +58,7 @@ func cellOf(t *testing.T, el *Element, c doc.Caret) doc.CellCoord {
 func moveTo(t *testing.T, el *Element, u *unitLayout, cc doc.CellCoord) {
 	t.Helper()
 	for i, s := range u.surfaces {
-		if u.table.cells[i] == cc {
+		if u.table.Cell(i) == cc {
 			el.Editor.Do(vocab.Place{Stop: s.stops[0].caret}, time.Unix(5000, 0))
 			el.relayout()
 			return
@@ -108,7 +108,7 @@ func TestClicksInACellsRoomLandInIt(t *testing.T) {
 	el, table := tablePage(t, 2, 2, "a", "b", "c", "d")
 	u := table()
 	t1 := u.table
-	cell := t1.cell(doc.CellCoord{Row: 1, Column: 1})
+	cell := t1.CellRect(doc.CellCoord{Row: 1, Column: 1})
 	// The cell's corner, in its padding.
 	h, ok := el.Editor.layout.hit(u.x+cell.X+2, u.y+cell.Y+2)
 	c := h.Stop
@@ -130,11 +130,11 @@ func TestColumnsTakeTheirRoom(t *testing.T) {
 	m := newElement(t).Editor.metrics
 	el, table := tablePage(t, 1, 2, "a", "b")
 	u := table()
-	if w := u.table.widths[0] + u.table.widths[1]; w != float32(int(m.Width+0.5)) && w != m.Width {
+	if w := u.table.Widths()[0] + u.table.Widths()[1]; w != float32(int(m.Width+0.5)) && w != m.Width {
 		t.Fatalf("a short table is %v wide, want the column's %v", w, m.Width)
 	}
-	if u.table.overflow != 0 || u.box.X != 0 {
-		t.Fatalf("a short table scrolls %v from %v", u.table.overflow, u.box.X)
+	if u.table.Overflow() != 0 || u.box.X != 0 {
+		t.Fatalf("a short table scrolls %v from %v", u.table.Overflow(), u.box.X)
 	}
 	_ = el
 	var cells []string
@@ -144,13 +144,13 @@ func TestColumnsTakeTheirRoom(t *testing.T) {
 	el, table = tablePage(t, 1, 10, cells...)
 	u = table()
 	m = el.Editor.metrics
-	if u.table.overflow <= 0 {
+	if u.table.Overflow() <= 0 {
 		t.Fatal("a table wider than the margins does not scroll")
 	}
 	if u.box.X != -m.Reach || u.box.W != m.Width+2*m.Reach {
 		t.Fatalf("a scrolling table shows %v, want the margins' reach %v", u.box, m.Reach)
 	}
-	for i, w := range u.table.widths {
+	for i, w := range u.table.Widths() {
 		if s := u.surfaces[i]; len(s.layout.Lines()) != 1 {
 			t.Fatalf("column %d (%v wide) breaks its word", i, w)
 		}
@@ -170,7 +170,7 @@ func TestAWideTableScrollsAcross(t *testing.T) {
 	el.follow(el.relayout(), time.Unix(6000, 0))
 	el.paintNow, el.animate = time.Unix(7000, 0), false
 	el.settle(el.Editor.layout, true)
-	if s := table().table.scroll; s <= 0 {
+	if s := table().table.Scroll(); s <= 0 {
 		t.Fatalf("the last cell is not revealed: scroll %v", s)
 	}
 	moveTo(t, el, u, doc.CellCoord{Column: 0})
@@ -178,13 +178,13 @@ func TestAWideTableScrollsAcross(t *testing.T) {
 	el.follow(el.relayout(), time.Unix(8000, 0))
 	el.paintNow, el.animate = time.Unix(9000, 0), false
 	el.settle(el.Editor.layout, true)
-	if s := table().table.scroll; s != 0 {
+	if s := table().table.Scroll(); s != 0 {
 		t.Fatalf("the first cell is not revealed: scroll %v", s)
 	}
 	u = table()
 	el.pointer = ui.Point{X: el.column + u.box.X + 20, Y: el.Top + u.y + 10}
 	el.handle(ui.InputEvent{Kind: ui.InputScroll, DX: 150, Precise: true, Time: time.Unix(9100, 0)}, ui.Services{})
-	if s := table().table.scroll; s != 150 {
+	if s := table().table.Scroll(); s != 150 {
 		t.Fatalf("a sideways scroll moved the table to %v", s)
 	}
 	if el.ScrollY() != 0 {
@@ -219,7 +219,7 @@ func TestACellRangeFillsItsCells(t *testing.T) {
 		t.Fatalf("a range over two cells paints %v", boxes)
 	}
 	for i, cc := range []doc.CellCoord{{Row: 1, Column: 0}, {Row: 1, Column: 1}} {
-		want := outset(u.table.cell(cc), -decoPad, -decoPad/2)
+		want := outset(u.table.CellRect(cc), -decoPad, -decoPad/2)
 		want.X += u.x
 		want.Y += u.y
 		if boxes[i] != want {

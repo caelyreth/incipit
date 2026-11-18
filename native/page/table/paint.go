@@ -1,4 +1,4 @@
-package page
+package table
 
 import (
 	"fmt"
@@ -28,39 +28,39 @@ import (
 //     lines glide to new places, the one going furthest is drawn so, over
 //     the others.
 //   - A made line shows the area it was, fading into its cells; a corner's
-//     drag outlines and names the size it would set.
+//     Drag outlines and names the size it would set.
 
 // chrome draws a table's controls over the page. It reports whether any
 // still moves besides their springs.
-func (tableKind) chrome(el *Element, p *ui.Painter, u *unitLayout, ox, oy float32) bool {
-	if u.table == nil {
+func (Kind) Chrome(h Host, p *ui.Painter, u *Unit, ox, oy float32) bool {
+	if u.Table == nil {
 		return false
 	}
-	now := el.paintNow
-	for _, a := range el.tableAreas(u) {
-		el.paintArea(p, u, a, ox, oy)
+	now := h.Now()
+	for _, a := range areas(h, u) {
+		paintArea(h, p, u, a, ox, oy)
 	}
-	moving := el.paintMade(p, u, ox, oy, now)
-	el.paintCarry(p, u, ox, oy)
-	el.paintBorder(p, u, ox, oy)
-	el.paintGrips(p, u, ox, oy)
-	el.paintResize(p, u, ox, oy)
+	moving := paintMade(h, p, u, ox, oy, now)
+	paintCarry(h, p, u, ox, oy)
+	paintBorder(h, p, u, ox, oy)
+	paintGrips(h, p, u, ox, oy)
+	paintResize(h, p, u, ox, oy)
 	return moving
 }
 
 // paintArea draws an area.
-func (el *Element) paintArea(p *ui.Painter, u *unitLayout, a tableArea, ox, oy float32) {
-	th := el.Theme
-	size, scale := el.chromeSize(), el.chromeScale()
-	metrics := el.controlMetrics()
-	key := controlKey{unit: u.pres.Unit, part: a.part}
-	hover := el.lit(key)
+func paintArea(h Host, p *ui.Painter, u *Unit, a tableArea, ox, oy float32) {
+	th := h.Theme()
+	size, scale := h.ChromeSize(), h.ChromeScale()
+	metrics := h.ControlMetrics()
+	key := ControlKey{Unit: u.Pres.Unit, Part: a.Part}
+	hover := h.Lit(key)
 	box := a.box
 	box.X += ox + a.shift
 	box.Y += oy
 	press := float32(0)
-	if el.holding() == key {
-		press = el.springs.value(tableSpring(u.pres.Unit, "press", shareValue))
+	if h.Holding() == key {
+		press = h.SpringValue(springKey(u.Pres.Unit, "press", ShareValue))
 	}
 	alpha := a.alpha
 	draw := func() {
@@ -69,7 +69,7 @@ func (el *Element) paintArea(p *ui.Painter, u *unitLayout, a tableArea, ox, oy f
 		ink := components.Blend(th.Text.Muted, th.Accent.Foreground, hover)
 		icon := 16 * scale
 		label := ui.Span{Text: "Row", Font: theme.UIFontFamily, Size: theme.TextSmall.Size(size), Color: ink.Alpha(alpha * a.label)}
-		if a.part == partColumnArea || a.part == partBeside {
+		if a.Part == partColumnArea || a.Part == partBeside {
 			label.Text = "Column"
 		}
 		iconBox := ui.Rect{X: box.X + (box.W-icon)/2, Y: box.Y + (box.H-icon)/2, W: icon, H: icon}
@@ -94,12 +94,12 @@ func (el *Element) paintArea(p *ui.Painter, u *unitLayout, a tableArea, ox, oy f
 
 // paintMade shows a line an area made as the area it was, its tint and
 // dashed outline fading into the cells.
-func (el *Element) paintMade(p *ui.Painter, u *unitLayout, ox, oy float32, now time.Time) bool {
-	ts := recalled[tableState](el, u.pres.Unit, "table")
+func paintMade(h Host, p *ui.Painter, u *Unit, ox, oy float32, now time.Time) bool {
+	ts := h.State(u.Pres.Unit, false)
 	if ts == nil || ts.made == nil {
 		return false
 	}
-	m, t := ts.made, u.table
+	m, t := ts.made, u.Table
 	n := len(t.rows)
 	if m.column {
 		n = len(t.columns)
@@ -108,12 +108,12 @@ func (el *Element) paintMade(p *ui.Painter, u *unitLayout, ox, oy float32, now t
 		return false
 	}
 	r := t.line(u, !m.column, m.index)
-	r.X += ox + u.x
-	r.Y += oy + u.y
+	r.X += ox + u.X
+	r.Y += oy + u.Y
 	f := components.Smoothstep(1 - float32(now.Sub(m.at))/float32(madeFade))
-	radius := objectRadius(el.Editor.metrics)
-	p.Fill(r, el.Theme.Accent.Tint.Alpha(f), radius)
-	components.DashedOutline(p, r, radius, 1, el.Theme.Accent.Foreground.Alpha(f))
+	radius := h.ObjectRadius(h.Metrics())
+	p.Fill(r, h.Theme().Accent.Tint.Alpha(f), radius)
+	components.DashedOutline(p, r, radius, 1, h.Theme().Accent.Foreground.Alpha(f))
 	return true
 }
 
@@ -121,19 +121,19 @@ func (el *Element) paintMade(p *ui.Painter, u *unitLayout, ox, oy float32, now t
 // line veiled in its place, and its copy where the pointer carries it; or,
 // as lines glide to new places, the one going furthest over the others,
 // so their text never crosses.
-func (el *Element) paintCarry(p *ui.Painter, u *unitLayout, ox, oy float32) {
-	ts := recalled[tableState](el, u.pres.Unit, "table")
+func paintCarry(h Host, p *ui.Painter, u *Unit, ox, oy float32) {
+	ts := h.State(u.Pres.Unit, false)
 	if ts == nil {
 		return
 	}
-	t := u.table
-	id := u.pres.Unit
-	radius := objectRadius(el.Editor.metrics)
+	t := u.Table
+	id := u.Pres.Unit
+	radius := h.ObjectRadius(h.Metrics())
 	if axis, index, ok := t.furthest(); ok {
 		place := t.line(u, axis == 0, index)
-		el.paintCarried(p, u, axis == 0, index, ui.Point{X: place.X, Y: place.Y}, 1, ox, oy)
+		paintCarried(h, p, u, axis == 0, index, ui.Point{X: place.X, Y: place.Y}, 1, ox, oy)
 	}
-	d, ok := el.drag.(*lineDrag)
+	d, ok := h.ActiveDrag().(*lineDrag)
 	if !ok || !d.moved || d.table != id {
 		return
 	}
@@ -150,15 +150,15 @@ func (el *Element) paintCarry(p *ui.Painter, u *unitLayout, ox, oy float32) {
 		} else {
 			frame.W = min(frame.W, d.size)
 		}
-		frame.X += ox + u.x
-		frame.Y += oy + u.y
-		components.DropFrame(p, frame, radius, min(1, in.room/max(1, d.size)), el.Theme)
+		frame.X += ox + u.X
+		frame.Y += oy + u.Y
+		components.DropFrame(p, frame, radius, min(1, in.room/max(1, d.size)), h.Theme())
 	}
-	el.paintCarried(p, u, d.rows, d.tablePress.at, d.corner(), carryVeil, ox, oy)
+	paintCarried(h, p, u, d.rows, d.tablePress.at, d.corner(), carryVeil, ox, oy)
 }
 
 // framed reports whether the room before line at shows a drop frame.
-func (ts *tableState) framed(rows bool, at int) bool {
+func (ts *State) framed(rows bool, at int) bool {
 	for _, a := range ts.apart {
 		if a.rows == rows && a.at == at {
 			return a.frame
@@ -170,8 +170,8 @@ func (ts *tableState) framed(rows bool, at int) bool {
 // paintCarried veils a line in its place and draws its copy with its
 // corner at, in the unit: the lines between its cells, its edge, and its
 // cells' text.
-func (el *Element) paintCarried(p *ui.Painter, u *unitLayout, rows bool, index int, at ui.Point, veil, ox, oy float32) {
-	t := u.table
+func paintCarried(h Host, p *ui.Painter, u *Unit, rows bool, index int, at ui.Point, veil, ox, oy float32) {
+	t := u.Table
 	n := len(t.columns)
 	if rows {
 		n = len(t.rows)
@@ -179,31 +179,31 @@ func (el *Element) paintCarried(p *ui.Painter, u *unitLayout, rows bool, index i
 	if index < 0 || index >= n {
 		return
 	}
-	ux, uy := ox+u.x, oy+u.y
+	ux, uy := ox+u.X, oy+u.Y
 	place := t.line(u, rows, index)
 	place.X += ux
 	place.Y += uy
-	p.Fill(place, el.Theme.Surface.Page.Alpha(veil), 0)
+	p.Fill(place, h.Theme().Surface.Page.Alpha(veil), 0)
 	dx, dy := at.X+ux-place.X, at.Y+uy-place.Y
 	copied := place
 	copied.X += dx
 	copied.Y += dy
 	p.Clip(grown(copied, 1, 1), 0, func() {
-		t.paintGrid(el, p, copied, 0, ux+dx, uy+dy, !rows, rows)
-		for i, s := range u.surfaces {
+		t.paintGrid(h, p, copied, 0, ux+dx, uy+dy, !rows, rows)
+		for i, s := range u.Surfaces {
 			cc := t.cells[i]
 			if cc.Row >= 0 && (rows && cc.Row == index || !rows && cc.Column == index) {
-				el.paintSurface(p, s, ux+dx, uy+dy, false, 1)
+				s.Paint(p, ux+dx, uy+dy)
 			}
 		}
 	})
 }
 
-// paintBorder lights the column border the pointer is on or a drag holds.
-func (el *Element) paintBorder(p *ui.Painter, u *unitLayout, ox, oy float32) {
-	t := u.table
-	ts := recalled[tableState](el, u.pres.Unit, "table")
-	lit := el.springs.value(tableSpring(u.pres.Unit, "border", shareValue))
+// paintBorder lights the column border the pointer is on or a Drag holds.
+func paintBorder(h Host, p *ui.Painter, u *Unit, ox, oy float32) {
+	t := u.Table
+	ts := h.State(u.Pres.Unit, false)
+	lit := h.SpringValue(springKey(u.Pres.Unit, "border", ShareValue))
 	if ts == nil || lit < 0.01 || ts.borderAt < 0 || ts.borderAt >= len(t.columns) {
 		return
 	}
@@ -211,31 +211,31 @@ func (el *Element) paintBorder(p *ui.Painter, u *unitLayout, ox, oy float32) {
 	b.X += ox
 	b.Y += oy
 	c := t.cell(doc.CellCoord{Column: ts.borderAt})
-	x := ox + u.x + c.X + c.W
-	p.Clip(b, u.frame, func() {
-		p.Fill(ui.Rect{X: x - borderRing/2, Y: b.Y, W: borderRing, H: b.H}, el.Theme.Accent.Foreground.Alpha(0.85*lit), 0)
+	x := ox + u.X + c.X + c.W
+	p.Clip(b, u.Frame, func() {
+		p.Fill(ui.Rect{X: x - borderRing/2, Y: b.Y, W: borderRing, H: b.H}, h.Theme().Accent.Foreground.Alpha(0.85*lit), 0)
 	})
 }
 
 // paintGrips draws the grips of the row and the column under the pointer
 // and the table's corner, as far as they have come in.
-func (el *Element) paintGrips(p *ui.Painter, u *unitLayout, ox, oy float32) {
-	id := u.pres.Unit
-	shown := el.springs.value(tableSpring(id, "grips", shareValue))
+func paintGrips(h Host, p *ui.Painter, u *Unit, ox, oy float32) {
+	id := u.Pres.Unit
+	shown := h.SpringValue(springKey(id, "grips", ShareValue))
 	if shown < 0.01 {
 		return
 	}
-	th := el.Theme
-	metrics := el.controlMetrics()
-	row, column := el.gripLines(u)
-	rr, cr, corner := el.gripRects(u, row, column)
+	th := h.Theme()
+	metrics := h.ControlMetrics()
+	row, column := gripLines(h, u)
+	rr, cr, corner := gripRects(h, u, row, column)
 	carrying := false
-	if d, ok := el.drag.(*lineDrag); ok {
+	if d, ok := h.ActiveDrag().(*lineDrag); ok {
 		carrying = d.moved
 	}
 	for k, g := range []struct {
 		rect ui.Rect
-		part part
+		Part Part
 		at   int
 	}{{rr, partRowGrip, row}, {cr, partColumnGrip, column}, {corner, partCorner, 0}} {
 		r := g.rect
@@ -244,16 +244,16 @@ func (el *Element) paintGrips(p *ui.Painter, u *unitLayout, ox, oy float32) {
 		}
 		// It glides from where it was, but comes in where it is from out
 		// of view.
-		xKey, yKey := springKey{unit: id, name: "grip-x", at: k, of: placeValue}, springKey{unit: id, name: "grip-y", at: k, of: placeValue}
-		if top := r.Y + oy; top+r.H < 0 || top > el.viewport.Y+el.viewport.H {
-			el.springs.jump(xKey, r.X)
-			el.springs.jump(yKey, r.Y)
+		xKey, yKey := SpringKey{Unit: id, Name: "grip-x", At: k, Of: PlaceValue}, SpringKey{Unit: id, Name: "grip-y", At: k, Of: PlaceValue}
+		if top := r.Y + oy; top+r.H < 0 || top > h.Viewport().Y+h.Viewport().H {
+			h.SpringJump(xKey, r.X)
+			h.SpringJump(yKey, r.Y)
 		}
-		r.X = el.springs.follow(xKey, r.X, chromeFollow) + ox
-		r.Y = el.springs.follow(yKey, r.Y, chromeFollow) + oy
-		key := controlKey{unit: id, part: g.part, at: g.at}
-		hover := el.lit(key)
-		if g.part == partCorner {
+		r.X = h.SpringFollow(xKey, r.X, chromeFollow) + ox
+		r.Y = h.SpringFollow(yKey, r.Y, chromeFollow) + oy
+		key := ControlKey{Unit: id, Part: g.Part, At: g.at}
+		hover := h.Lit(key)
+		if g.Part == partCorner {
 			radius := min(r.W, r.H) / 2
 			p.Shadow(r, radius, 0, 1, 4, 0, ui.Color{A: 255}.Alpha(0.2*shown))
 			p.Fill(r, components.Blend(th.Surface.Elevated, th.Accent.Foreground, hover).Alpha(shown), radius)
@@ -261,28 +261,28 @@ func (el *Element) paintGrips(p *ui.Painter, u *unitLayout, ox, oy float32) {
 			continue
 		}
 		icon := components.IconGrip
-		if g.part == partColumnGrip {
+		if g.Part == partColumnGrip {
 			icon = components.IconGripAcross
 		}
 		p.Fill(r, th.GhostElement.Hover.Alpha(hover*shown), metrics.Radius)
 		ink := components.Blend(th.Icon.Muted, th.Icon.Default, hover)
-		if el.holding() == key || carrying {
+		if h.Holding() == key || carrying {
 			ink = th.Accent.Foreground
 		}
-		size := gripIcon * el.chromeScale()
+		size := gripIcon * h.ChromeScale()
 		p.Icon(icon.SVG(), ui.Rect{X: r.X + (r.W-size)/2, Y: r.Y + (r.H-size)/2, W: size, H: size}, ink.Alpha(shown))
 	}
 }
 
-// paintResize shows the size a corner's drag would make the table,
+// paintResize shows the size a corner's Drag would make the table,
 // outlined and named under its far corner.
-func (el *Element) paintResize(p *ui.Painter, u *unitLayout, ox, oy float32) {
-	d, ok := el.drag.(*cornerDrag)
-	if !ok || d.table != u.pres.Unit || !d.moved {
+func paintResize(h Host, p *ui.Painter, u *Unit, ox, oy float32) {
+	d, ok := h.ActiveDrag().(*cornerDrag)
+	if !ok || d.table != u.Pres.Unit || !d.moved {
 		return
 	}
-	t := u.table
-	scale := el.chromeScale()
+	t := u.Table
+	scale := h.ChromeScale()
 	b := tableBox(u)
 	b.X += ox
 	b.Y += oy
@@ -290,10 +290,10 @@ func (el *Element) paintResize(p *ui.Painter, u *unitLayout, ox, oy float32) {
 	r := ui.Rect{X: b.X, Y: b.Y,
 		W: max(b.W/float32(columns), b.W*float32(d.columns)/float32(columns)),
 		H: max(b.H/float32(rows), b.H*float32(d.rows)/float32(rows))}
-	components.DashedOutline(p, r, objectRadius(el.Editor.metrics), 1.5, el.Theme.Accent.Foreground)
-	el.paintChip(p, fmt.Sprintf("%d × %d", d.rows, d.columns), func(chip ui.Rect) (ui.Rect, bool) {
+	components.DashedOutline(p, r, h.ObjectRadius(h.Metrics()), 1.5, h.Theme().Accent.Foreground)
+	h.PaintChip(p, fmt.Sprintf("%d × %d", d.rows, d.columns), func(chip ui.Rect) (ui.Rect, bool) {
 		// The view's right edge, in the paint's frame.
-		right := ox - el.column + el.viewport.W - 8*scale
+		right := ox - h.Column() + h.Viewport().W - 8*scale
 		chip.X, chip.Y = min(r.X+r.W, right)-chip.W, r.Y+r.H+4*scale
 		return chip, true
 	})

@@ -1,4 +1,4 @@
-package formula
+package page
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestFormulaMovesAsOneBoxAtFractionalOrigins(t *testing.T) {
-	box := Set(`\frac{1}{2}+\sqrt{x^2+y^2}`, false, 17, 0)
+	box := setFormula(`\frac{1}{2}+\sqrt{x^2+y^2}`, false, 17, 0)
 	if box == nil {
 		t.Fatal("The math font should set the formula.")
 	}
@@ -15,10 +15,10 @@ func TestFormulaMovesAsOneBoxAtFractionalOrigins(t *testing.T) {
 		dx := float32(0)
 		tester := ui.NewTester(func(c *ui.Context) {
 			ui.Box(c).Fill().Background(ui.RGB(0, 0, 0)).Draw(func(p *ui.Painter, _ ui.Rect) {
-				inks := Inks{Text: ui.RGB(220, 220, 220)}
-				Draw(p, box, ui.Point{X: 24 + dx, Y: 48}, inks)
+				inks := formulaInks{Text: ui.RGB(220, 220, 220)}
+				drawFormula(p, box, ui.Point{X: 24 + dx, Y: 48}, inks)
 				p.Transform(ui.Translation(dx, 0), 0, 0, func() {
-					Draw(p, box, ui.Point{X: 324, Y: 48}, inks)
+					drawFormula(p, box, ui.Point{X: 324, Y: 48}, inks)
 				})
 			})
 		}, 600, 80)
@@ -44,10 +44,10 @@ func TestFormulaMovesAsOneBoxAtFractionalOrigins(t *testing.T) {
 // A source's problems are told once each, in order, where they are: a
 // command it does not know as such, not as the glyph it has none for.
 func TestProblemsAreToldOnceWhereTheyAre(t *testing.T) {
-	if got := Problems(`x+\frac12`, false); len(got) != 0 || !Sound(`x+\frac12`, false) {
+	if got := Problems(`x+\frac12`, false); len(got) != 0 || !formulaSound(`x+\frac12`, false) {
 		t.Fatalf("a sound source has %+v", got)
 	}
-	if Sound("  ", false) {
+	if formulaSound("  ", false) {
 		t.Fatal("a blank source is sound")
 	}
 	got := Problems(`\fr`, false)

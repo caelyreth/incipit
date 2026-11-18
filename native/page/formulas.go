@@ -5,7 +5,6 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/native/components"
-	"github.com/caelyreth/neverland/native/formula"
 	"github.com/caelyreth/untie"
 	"github.com/egoist/mygo/ui"
 )
@@ -75,7 +74,7 @@ func (lc *layoutCache) typeset(id doc.ID, src string, display bool, size, width 
 		delete(lc.good, k)
 		return mathSet{}
 	}
-	if !formula.Sound(src, display) {
+	if !formulaSound(src, display) {
 		last, ok := lc.good[k]
 		if !ok {
 			return mathSet{}
@@ -92,13 +91,13 @@ func (lc *layoutCache) typeset(id doc.ID, src string, display bool, size, width 
 }
 
 func setMath(src string, display bool, size, width float32) mathSet {
-	box := formula.Set(src, display, size, width)
+	box := setFormula(src, display, size, width)
 	if box == nil {
 		return mathSet{}
 	}
 	ms := mathSet{box: box}
-	ms.ascent, ms.descent = formula.Extent(box)
-	ms.from, ms.to = formula.Ink(box)
+	ms.ascent, ms.descent = formulaExtent(box)
+	ms.from, ms.to = formulaInk(box)
 	return ms
 }
 
@@ -199,9 +198,9 @@ func (el *Element) mathLookOf(id doc.ID) mathLook {
 }
 
 // inks are the colors math is drawn in, at a strength.
-func (el *Element) inks(a float32) formula.Inks {
+func (el *Element) inks(a float32) formulaInks {
 	t := el.Theme
-	return formula.Inks{Text: t.Prose.Text.Alpha(a), Error: t.Status.Danger.Foreground.Alpha(a), Placeholder: t.Text.Muted.Alpha(a)}
+	return formulaInks{Text: t.Prose.Text.Alpha(a), Error: t.Status.Danger.Foreground.Alpha(a), Placeholder: t.Text.Muted.Alpha(a)}
 }
 
 // hintInk is a hint's color at a strength: muted, or, once the formula is
@@ -238,7 +237,7 @@ func (el *Element) paintInline(p *ui.Painter, sg seg, o ui.Rect) {
 		paintText(p, lay, cx-w/2, base-h*0.78, el.hintInk(sg.text, sg.open, lk.hint))
 	}
 	if d := lk.drawn; lk.ink > 0.001 && d.box != nil {
-		formula.Draw(p, d.box, ui.Point{X: cx - (d.to-d.from)/2 - d.from, Y: base}, el.inks(lk.ink))
+		drawFormula(p, d.box, ui.Point{X: cx - (d.to-d.from)/2 - d.from, Y: base}, el.inks(lk.ink))
 	}
 }
 
@@ -269,7 +268,7 @@ func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32) float
 		return a
 	}
 	pad := (ml.h - d.ascent - d.descent) / 2
-	formula.Draw(p, d.box, ui.Point{X: ux, Y: uy + pad + d.ascent}, el.inks(lk.ink))
+	drawFormula(p, d.box, ui.Point{X: ux, Y: uy + pad + d.ascent}, el.inks(lk.ink))
 	return a
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/native/page/table"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -66,7 +67,7 @@ func center(r ui.Rect) (float32, float32) { return r.X + r.W/2, r.Y + r.H/2 }
 // cellPoint is the middle of a cell, in the page.
 func (c *chromePage) cellPoint(cc doc.CellCoord) (float32, float32) {
 	u := c.table()
-	r := u.table.cell(cc)
+	r := u.table.CellRect(cc)
 	return u.x + r.X + r.W/2, u.y + r.Y + r.H/2
 }
 
@@ -96,10 +97,10 @@ func (c *chromePage) texts() [][]string {
 func TestARowsGripPicksItsCells(t *testing.T) {
 	c := newChromePage(t, 3, 2, "a", "b", "c", "d", "e", "f")
 	c.move(c.cellPoint(doc.CellCoord{Row: 1}))
-	if row, _ := c.el.gripLines(c.table()); c.el.near != c.table().pres.Unit || row != 1 {
+	if row, _ := table.GripLines(c.el.tableHost(), c.el.tableUnit(c.table())); c.el.near != c.table().pres.Unit || row != 1 {
 		t.Fatalf("the pointer over row 1 is by %v row %d", c.el.near, row)
 	}
-	rr, _, _ := c.el.gripRects(c.table(), 1, -1)
+	rr, _, _ := table.GripRects(c.el.tableHost(), c.el.tableUnit(c.table()), 1, -1)
 	c.move(center(rr))
 	c.press(center(rr))
 	c.release(center(rr))
@@ -116,7 +117,7 @@ func TestARowsGripPicksItsCells(t *testing.T) {
 func TestARowsGripCarriesIt(t *testing.T) {
 	c := newChromePage(t, 3, 2, "a", "b", "c", "d", "e", "f")
 	c.move(c.cellPoint(doc.CellCoord{Row: 0}))
-	rr, _, _ := c.el.gripRects(c.table(), 0, -1)
+	rr, _, _ := table.GripRects(c.el.tableHost(), c.el.tableUnit(c.table()), 0, -1)
 	x, y := center(rr)
 	_, below := c.cellPoint(doc.CellCoord{Row: 2})
 	h0 := c.table().h
@@ -125,18 +126,18 @@ func TestARowsGripCarriesIt(t *testing.T) {
 	c.move(x, below+4)
 	c.tt.Advance(time.Second)
 	u := c.table()
-	if d, ok := c.el.drag.(*lineDrag); !ok || d.to != 3 {
+	if to, ok := table.LineCarryTo(c.el.tableHost()); !ok || to != 3 {
 		t.Fatalf("carried down past the last row's middle, it lands at %+v", c.el.drag)
 	}
-	if a := u.table.in.apartAt(true, 3); a < u.table.heights[0]-1 || u.h < h0+a-1 {
+	if a := u.table.In().ApartAt(true, 3); a < u.table.Heights()[0]-1 || u.h < h0+a-1 {
 		t.Fatalf("the grid does not part past the last row: room %v, height %v from %v", a, u.h, h0)
 	}
 	c.release(x, below+4)
 	if got := c.texts(); got[0][0] != "c" || got[1][0] != "e" || got[2][0] != "a" {
 		t.Fatalf("the carried row did not move: %v", got)
 	}
-	if u := c.table(); u.table.in != (tableIn{}) || u.h != h0 {
-		t.Fatalf("a moved row leaves room %+v, height %v from %v", u.table.in, u.h, h0)
+	if u := c.table(); u.table.In() != (table.In{}) || u.h != h0 {
+		t.Fatalf("a moved row leaves room %+v, height %v from %v", u.table.In(), u.h, h0)
 	}
 	c.el.Editor.Do(vocab.Undo{}, time.Unix(9000, 0))
 	if got := c.texts(); got[0][0] != "a" {
@@ -147,15 +148,15 @@ func TestARowsGripCarriesIt(t *testing.T) {
 	c.tt.Frame()
 	c.tt.Advance(32 * time.Millisecond)
 	u = c.table()
-	if axis, index, ok := u.table.furthest(); !ok || axis != 0 || index != 0 || u.h != h0 {
+	if axis, index, ok := u.table.Furthest(); !ok || axis != 0 || index != 0 || u.h != h0 {
 		t.Fatalf("undone, row %d of axis %d glides furthest (%v), height %v from %v", index, axis, ok, u.h, h0)
 	}
-	if o := u.table.in.lines.offsetOf(0, 0); o <= 0 {
+	if o := u.table.In().Lines().OffsetOf(0, 0); o <= 0 {
 		t.Fatalf("undone, the carried row glides from %v, want from below", o)
 	}
 	c.tt.Advance(time.Second)
-	if u := c.table(); u.table.in != (tableIn{}) {
-		t.Fatalf("undone, the rows settle as %+v", u.table.in)
+	if u := c.table(); u.table.In() != (table.In{}) {
+		t.Fatalf("undone, the rows settle as %+v", u.table.In())
 	}
 }
 
@@ -163,13 +164,13 @@ func TestARowsGripCarriesIt(t *testing.T) {
 func TestARowLetGoInItsPlaceStays(t *testing.T) {
 	c := newChromePage(t, 3, 2, "a", "b", "c", "d", "e", "f")
 	c.move(c.cellPoint(doc.CellCoord{Row: 1}))
-	rr, _, _ := c.el.gripRects(c.table(), 1, -1)
+	rr, _, _ := table.GripRects(c.el.tableHost(), c.el.tableUnit(c.table()), 1, -1)
 	x, y := center(rr)
 	c.press(x, y)
 	c.move(x, y+6)
 	c.tt.Advance(time.Second)
-	if u := c.table(); u.table.in != (tableIn{}) {
-		t.Fatalf("a row carried by its place parts the grid: %+v", u.table.in)
+	if u := c.table(); u.table.In() != (table.In{}) {
+		t.Fatalf("a row carried by its place parts the grid: %+v", u.table.In())
 	}
 	c.release(x, y+6)
 	if got := c.texts(); got[1][0] != "c" {
@@ -182,10 +183,10 @@ func TestARowLetGoInItsPlaceStays(t *testing.T) {
 func TestTheCornerResizesTheTable(t *testing.T) {
 	c := newChromePage(t, 2, 2, "a", "b", "c", "d")
 	c.move(c.cellPoint(doc.CellCoord{Row: 1, Column: 1}))
-	_, _, corner := c.el.gripRects(c.table(), -1, -1)
+	_, _, corner := table.GripRects(c.el.tableHost(), c.el.tableUnit(c.table()), -1, -1)
 	x, y := center(corner)
 	u := c.table()
-	w, h := u.table.widths[1], u.table.heights[1]
+	w, h := u.table.Widths()[1], u.table.Heights()[1]
 	c.press(x, y)
 	c.move(x+w, y+h)
 	wx, wy := c.at(x+w, y+h)
@@ -207,7 +208,7 @@ func TestTheCornerResizesTheTable(t *testing.T) {
 func TestAColumnsBorderSetsItsWidth(t *testing.T) {
 	c := newChromePage(t, 2, 2, "a", "b", "c", "d")
 	u := c.table()
-	r := u.table.cell(doc.CellCoord{Column: 0})
+	r := u.table.CellRect(doc.CellCoord{Column: 0})
 	x, y := u.x+r.X+r.W, u.y+r.Y+r.H/2
 	c.move(x, y)
 	if cursor, ok := c.el.cursorAt(x, y); !ok || cursor != ui.CursorResizeEW {
@@ -218,7 +219,7 @@ func TestAColumnsBorderSetsItsWidth(t *testing.T) {
 	if got, want := float32(shape.Columns[0].Width), r.W-60; got < want-1 || got > want+1 {
 		t.Fatalf("the border's drag set width %v, want %v", got, want)
 	}
-	if w := c.table().table.widths[0]; w < r.W-61 || w > r.W-59 {
+	if w := c.table().table.Widths()[0]; w < r.W-61 || w > r.W-59 {
 		t.Fatalf("the column is laid %v wide", w)
 	}
 	wx, wy := c.at(x-60, y)
@@ -236,20 +237,20 @@ func TestAColumnsBorderSetsItsWidth(t *testing.T) {
 func TestAnAreaByTheFootMakesARow(t *testing.T) {
 	c := newChromePage(t, 2, 2, "a", "b", "c", "d")
 	u := c.table()
-	b := tableBox(u)
+	b := table.Box(c.el.tableUnit(u))
 	h0 := u.h
 	c.move(b.X+b.W/2, b.Y+b.H+6)
 	c.tt.Advance(time.Second)
 	u = c.table()
-	_, _, step, _ := c.el.areaRooms()
-	if u.table.in.below != step || u.h != h0+step {
-		t.Fatalf("resting by the foot opened %+v, height %v from %v", u.table.in, u.h, h0)
+	_, _, step, _ := table.AreaRooms(c.el.tableHost())
+	if u.table.In().Below() != step || u.h != h0+step {
+		t.Fatalf("resting by the foot opened %+v, height %v from %v", u.table.In(), u.h, h0)
 	}
-	areas := c.el.tableAreas(u)
-	if len(areas) != 1 || areas[0].part != partBelow || areas[0].alpha != 1 {
+	areas := table.Areas(c.el.tableHost(), c.el.tableUnit(u))
+	if len(areas) != 1 || areas[0].Part != table.PartBelow || areas[0].Alpha != 1 {
 		t.Fatalf("the foot shows %+v", areas)
 	}
-	x, y := center(areas[0].box)
+	x, y := center(areas[0].Box)
 	c.move(x, y)
 	c.press(x, y)
 	wx, wy := c.at(x, y)
@@ -258,21 +259,21 @@ func TestAnAreaByTheFootMakesARow(t *testing.T) {
 	if r, _ := c.grid().Size(); r != 3 {
 		t.Fatalf("a click on the area made %d rows", r)
 	}
-	if m := c.el.tableState(c.table().pres.Unit).made; m == nil || m.index != 2 || m.column || m.from <= 0 {
-		t.Fatalf("the made row is %+v", m)
+	if idx, col, from, ok := c.el.tableHost().State(c.table().pres.Unit, false).MadeInfo(); !ok || idx != 2 || col || from <= 0 {
+		t.Fatalf("the made row is %d %v %v %v", idx, col, from, ok)
 	}
 	// It comes in from the area's room, the table's height going on from
 	// where the area left it.
 	u = c.table()
-	if e, ok := u.table.in.lines.extentOf(0, 2); !ok || e >= u.table.natural[2] || e < 0.5*min(step, u.table.natural[2]) {
-		t.Fatalf("the made row comes in at %v of %v", e, u.table.natural[2])
+	if e, ok := u.table.In().Lines().ExtentOf(0, 2); !ok || e >= u.table.Natural()[2] || e < 0.5*min(step, u.table.Natural()[2]) {
+		t.Fatalf("the made row comes in at %v of %v", e, u.table.Natural()[2])
 	}
-	if u.h > h0+step+u.table.heights[2] {
+	if u.h > h0+step+u.table.Heights()[2] {
 		t.Fatalf("the made row jumps the table to %v", u.h)
 	}
 	c.tt.Advance(time.Second)
-	if u := c.table(); u.table.in.lines != nil {
-		t.Fatalf("the made row is still coming in: %+v", u.table.in.lines)
+	if u := c.table(); u.table.In().Lines() != nil {
+		t.Fatalf("the made row is still coming in: %+v", u.table.In().Lines())
 	}
 }
 
@@ -282,31 +283,31 @@ func TestAnAreaByTheFootMakesARow(t *testing.T) {
 func TestAreasOpenBetweenLines(t *testing.T) {
 	c := newChromePage(t, 3, 3, "a", "b", "c", "d", "e", "f", "g", "h", "i")
 	u := c.table()
-	b := tableBox(u)
-	top := u.y + u.table.rows[1]
+	b := table.Box(c.el.tableUnit(u))
+	top := u.y + u.table.Rows()[1]
 	c.move(b.X-10, top)
 	c.tt.Advance(time.Second)
 	u = c.table()
-	_, _, _, between := c.el.areaRooms()
-	if u.table.in.row != 1 || u.table.in.rowRoom != between {
-		t.Fatalf("by a border between rows the area is %+v", u.table.in)
+	_, _, _, between := table.AreaRooms(c.el.tableHost())
+	if u.table.In().Row() != 1 || u.table.In().RowRoom() != between {
+		t.Fatalf("by a border between rows the area is %+v", u.table.In())
 	}
 	if abs32(c.el.scroll-between/2) > 0.01 {
 		t.Fatalf("the page lifts %v, want half the room, %v", c.el.scroll, between/2)
 	}
-	if parts := u.table.parts(u.box); len(parts) != 2 {
+	if parts := u.table.Parts(u.box); len(parts) != 2 {
 		t.Fatalf("the grid is drawn in %d parts around the area", len(parts))
 	}
-	if u.table.rows[1] <= top-u.y+1 {
+	if u.table.Rows()[1] <= top-u.y+1 {
 		t.Fatal("the rows below the area do not part")
 	}
-	left := u.x + u.table.cell(doc.CellCoord{Column: 1}).X
+	left := u.x + u.table.CellRect(doc.CellCoord{Column: 1}).X
 	c.move(b.X+b.W/2, b.Y+b.H+200)
 	c.tt.Advance(time.Second)
 	c.move(left, b.Y-10)
 	c.tt.Advance(time.Second)
-	if u := c.table(); u.table.in.column != 1 || u.table.in.columnRoom != between || u.table.columnGap.W != between {
-		t.Fatalf("above a border between columns the area is %+v", u.table.in)
+	if u := c.table(); u.table.In().Column() != 1 || u.table.In().ColumnRoom() != between || u.table.ColumnGap().W != between {
+		t.Fatalf("above a border between columns the area is %+v", u.table.In())
 	}
 }
 
@@ -317,13 +318,13 @@ func TestGripsComeAndGo(t *testing.T) {
 	id := c.table().pres.Unit
 	c.move(c.cellPoint(doc.CellCoord{}))
 	c.tt.Advance(time.Second)
-	if v := c.el.springs.value(tableSpring(id, "grips", shareValue)); v < 0.99 {
+	if v := c.el.springs.value(springKey{unit: id, name: "grips", of: shareValue}); v < 0.99 {
 		t.Fatal("the grips did not come in")
 	}
-	b := tableBox(c.table())
+	b := table.Box(c.el.tableUnit(c.table()))
 	c.move(b.X+b.W/2, b.Y+b.H+300)
 	c.tt.Advance(time.Second)
-	if v := c.el.springs.value(tableSpring(id, "grips", shareValue)); v > 0.01 {
+	if v := c.el.springs.value(springKey{unit: id, name: "grips", of: shareValue}); v > 0.01 {
 		t.Fatalf("the grips stay at %v", v)
 	}
 }
@@ -338,28 +339,28 @@ func TestANewRowComesIn(t *testing.T) {
 	c.tt.Frame()
 	c.tt.Advance(16 * time.Millisecond)
 	u := c.table()
-	if e, ok := u.table.in.lines.extentOf(0, 2); !ok || e >= 0.5*u.table.natural[2] {
-		t.Fatalf("the new row comes in at %v of %v", e, u.table.natural[2])
+	if e, ok := u.table.In().Lines().ExtentOf(0, 2); !ok || e >= 0.5*u.table.Natural()[2] {
+		t.Fatalf("the new row comes in at %v of %v", e, u.table.Natural()[2])
 	}
-	if u.h >= h0+u.table.heights[1] {
+	if u.h >= h0+u.table.Heights()[1] {
 		t.Fatalf("the new row jumps the table to %v from %v", u.h, h0)
 	}
 	c.tt.Advance(time.Second)
 	u = c.table()
-	if u.table.in != (tableIn{}) || u.shown != u.h {
-		t.Fatalf("the new row settles as %+v, shown %v of %v", u.table.in, u.shown, u.h)
+	if u.table.In() != (table.In{}) || u.shown != u.h {
+		t.Fatalf("the new row settles as %+v, shown %v of %v", u.table.In(), u.shown, u.h)
 	}
 	h1 := u.h
 	c.el.Editor.Do(vocab.Undo{}, time.Unix(7001, 0))
 	c.tt.Frame()
 	c.tt.Advance(80 * time.Millisecond)
 	u = c.table()
-	if len(u.table.gone[0]) != 1 || u.h <= h0 || u.h >= h1 {
-		t.Fatalf("the lost row goes as %+v, the table at %v between %v and %v", u.table.gone[0], u.h, h0, h1)
+	if u.table.GoneCount(0) != 1 || u.h <= h0 || u.h >= h1 {
+		t.Fatalf("the lost row goes (%d), the table at %v between %v and %v", u.table.GoneCount(0), u.h, h0, h1)
 	}
 	c.tt.Advance(time.Second)
-	if u := c.table(); len(u.table.gone[0]) != 0 || u.h != h0 {
-		t.Fatalf("the lost row settles as %+v, the table at %v of %v", u.table.gone[0], u.h, h0)
+	if u := c.table(); u.table.GoneCount(0) != 0 || u.h != h0 {
+		t.Fatalf("the lost row settles (%d), the table at %v of %v", u.table.GoneCount(0), u.h, h0)
 	}
 }
 
@@ -367,21 +368,21 @@ func TestANewRowComesIn(t *testing.T) {
 // comes in as it does.
 func TestAnAreasRoomEasesOpen(t *testing.T) {
 	c := newChromePage(t, 2, 2, "a", "b", "c", "d")
-	b := tableBox(c.table())
-	_, _, step, _ := c.el.areaRooms()
+	b := table.Box(c.el.tableUnit(c.table()))
+	_, _, step, _ := table.AreaRooms(c.el.tableHost())
 	wx, wy := c.at(b.X+b.W/2, b.Y+b.H+6)
 	c.tt.Move(wx, wy)
 	var opening bool
 	last := float32(0)
 	for range 90 {
 		c.tt.Advance(16 * time.Millisecond)
-		room := c.table().table.in.below
+		room := c.table().table.In().Below()
 		if room < last {
 			t.Fatalf("the room closes on its way open: %v after %v", room, last)
 		}
 		if room > 0 && room < step-1 {
 			opening = true
-			if a := c.el.tableAreas(c.table()); len(a) == 1 && a[0].alpha >= 1 {
+			if a := table.Areas(c.el.tableHost(), c.el.tableUnit(c.table())); len(a) == 1 && a[0].Alpha >= 1 {
 				t.Fatalf("the area shows whole in a room %v of %v", room, step)
 			}
 		}
@@ -426,7 +427,7 @@ func TestACellsMenuHasTheTablesCommands(t *testing.T) {
 func TestALinesGripMenuIsItsLines(t *testing.T) {
 	c := newChromePage(t, 2, 3, "a", "b", "c", "d", "e", "f")
 	c.move(c.cellPoint(doc.CellCoord{Row: 1, Column: 1}))
-	_, cr, _ := c.el.gripRects(c.table(), -1, 1)
+	_, cr, _ := table.GripRects(c.el.tableHost(), c.el.tableUnit(c.table()), -1, 1)
 	c.move(center(cr))
 	wx, wy := c.at(center(cr))
 	c.tt.RightClickAt(wx, wy)
@@ -454,7 +455,7 @@ func TestALinesGripMenuIsItsLines(t *testing.T) {
 		t.Fatalf("the column's delete left %v", got)
 	}
 	c.move(c.cellPoint(doc.CellCoord{Row: 1, Column: 0}))
-	rr, _, _ := c.el.gripRects(c.table(), 1, -1)
+	rr, _, _ := table.GripRects(c.el.tableHost(), c.el.tableUnit(c.table()), 1, -1)
 	c.move(center(rr))
 	wx, wy = c.at(center(rr))
 	c.tt.RightClickAt(wx, wy)

@@ -1,4 +1,4 @@
-package page
+package table
 
 import (
 	"math"
@@ -36,8 +36,8 @@ const (
 	readColumn  = 4
 )
 
-// tableLayout is a table's grid as it is laid out, in its unit.
-type tableLayout struct {
+// Layout is a table's grid as it is laid out, in its unit.
+type Layout struct {
 	// columns are each column's left edge from the grid's and widths their
 	// widths; rows are each row's top in the unit and heights theirs.
 	columns, widths, rows, heights []float32
@@ -54,7 +54,7 @@ type tableLayout struct {
 	// columnGap and apart the rooms it gave, in the unit, those across
 	// unscrolled: under the foot, between two rows, between two columns,
 	// and each that a carry opens, as in.apart has them.
-	in                       tableIn
+	in                       In
 	below, rowGap, columnGap ui.Rect
 	apart                    [maxApart]ui.Rect
 	// natural are each row's height as its text sets it, before the
@@ -72,13 +72,13 @@ type goneRoom struct {
 	alpha float32
 }
 
-// tableIn is what the page asks of a table's layout while its controls
+// In is what the page asks of a table's layout while its controls
 // show, each as far as it has come: the room an area opens under the foot
 // (below), between two rows before row, and between two columns before
 // column; the rooms a carry opens before a line; the lines coming in; and
-// a column's width as its border's drag sets it. Its zero value asks
+// a column's width as its border's Drag sets it. Its zero value asks
 // nothing.
-type tableIn struct {
+type In struct {
 	below               float32
 	row, column         int
 	rowRoom, columnRoom float32
@@ -112,7 +112,7 @@ type lineGone struct {
 // keptLine is a line as it was last laid out: its table's unit then, and
 // its number there.
 type keptLine struct {
-	u     *unitLayout
+	u     *Unit
 	index int
 }
 
@@ -157,7 +157,7 @@ type lineRoom struct {
 }
 
 // apartAt is the room the carry opens before line at.
-func (in tableIn) apartAt(rows bool, at int) float32 {
+func (in In) apartAt(rows bool, at int) float32 {
 	room := float32(0)
 	for _, a := range in.apart {
 		if a.rows == rows && a.at == at {
@@ -168,24 +168,22 @@ func (in tableIn) apartAt(rows bool, at int) float32 {
 }
 
 // share is the share of its width a column is drawn at.
-func (in tableIn) share(c int) float32 {
+func (in In) share(c int) float32 {
 	if e, ok := in.lines.extentOf(1, c); ok {
 		return e
 	}
 	return 1
 }
 
-// tableKind draws a table: its cells in a grid.
-type tableKind struct{ baseKind }
+// Kind draws a table: its cells in a grid.
 
 // margins: a table wider than the column shows into the margins.
-func (tableKind) margins() bool { return true }
+func (Kind) Margins() bool { return true }
 
-func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, in objectIn) {
+func (Kind) Lay(lc Layouter, u *Unit, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, tin In) bool {
 	g, ok := vocab.GridNode(profile.Schema(), p.Node)
 	if !ok {
-		stackKind{}.lay(lc, u, p, comp, th, m, width, in)
-		return
+		return false
 	}
 	shape := profile.TableShapeOf(p.Node)
 	rows, columns := g.Size()
@@ -196,15 +194,14 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 			at[g.Cell(cc).ID()] = cc
 		}
 	}
-	line := lineHeight(m, m.Body)
+	line := m.Line()
 	padX := float32(math.Round(float64(line * cellPadX)))
 	padY := float32(math.Round(float64(line * cellPadY)))
-	tin := in.table
-	t := &tableLayout{header: shape.Header, cells: make([]doc.CellCoord, len(p.Surfaces)),
+	t := &Layout{header: shape.Header, cells: make([]doc.CellCoord, len(p.Surfaces)),
 		base: make([]float32, len(p.Surfaces)), baseY: make([]float32, len(p.Surfaces)),
 		rows: make([]float32, rows), heights: make([]float32, rows), in: tin}
 	if tin.width > 0 && tin.sized < len(shape.Columns) {
-		// A column's width as its border's drag sets it.
+		// A column's width as its border's Drag sets it.
 		shape.Columns = slices.Clone(shape.Columns)
 		shape.Columns[tin.sized].Width, shape.Columns[tin.sized].Fit = int(math.Round(float64(tin.width))), false
 	}
@@ -220,12 +217,12 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 			continue
 		}
 		t.cells[i] = cc
-		wide := lc.laySurface(i, s, p, comp, th, m, ui.TextShape{})
-		narrow := lc.laySurface(i, s, p, comp, th, m, ui.TextShape{Width: 1, NoBreakWords: true})
+		_, wide := lc.LayCell(i, s, p, comp, th, m, ui.TextShape{}, false, false)
+		_, narrow := lc.LayCell(i, s, p, comp, th, m, ui.TextShape{Width: 1, NoBreakWords: true}, false, false)
 		// A line asks at most the room the table may show in, in whole
 		// DIPs, so set at what it asks it keeps to its line.
-		natural[cc.Column] = max(natural[cc.Column], min(ceil(longestLine(wide.layout))+2*padX, width+2*m.Reach))
-		least[cc.Column] = max(least[cc.Column], min(ceil(longestLine(narrow.layout))+2*padX, width))
+		natural[cc.Column] = max(natural[cc.Column], min(ceil(longestLine(wide.Layout))+2*padX, width+2*m.Reach))
+		least[cc.Column] = max(least[cc.Column], min(ceil(longestLine(narrow.Layout))+2*padX, width))
 	}
 	// Room between two columns, an area's or a carry's, is taken from the
 	// others; each column as far as it has come in.
@@ -273,9 +270,8 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 	for i, s := range p.Surfaces {
 		cc := t.cells[i]
 		if cc.Row < 0 {
-			sl := lc.laySurface(i, s, p, comp, th, m, ui.TextShape{Width: width})
-			sl.shown = false
-			u.surfaces = append(u.surfaces, sl)
+			sl, _ := lc.LayCell(i, s, p, comp, th, m, ui.TextShape{Width: width}, true, false)
+			u.Surfaces = append(u.Surfaces, sl)
 			continue
 		}
 		align := ui.Start
@@ -287,11 +283,10 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 				align = ui.End
 			}
 		}
-		sl := lc.laySurface(i, s, p, comp, th, m, ui.TextShape{Width: max(1, t.widths[cc.Column]-2*padX), Align: align})
+		sl, _ := lc.LayCell(i, s, p, comp, th, m, ui.TextShape{Width: max(1, t.widths[cc.Column]-2*padX), Align: align}, true, true)
 		// A cell shows always: the grid is its room, held or not.
-		sl.shown = true
-		t.heights[cc.Row] = max(t.heights[cc.Row], sl.h+2*padY)
-		u.surfaces = append(u.surfaces, sl)
+		t.heights[cc.Row] = max(t.heights[cc.Row], sl.H+2*padY)
+		u.Surfaces = append(u.Surfaces, sl)
 	}
 	// Down the grid, each row as far as it has come in, and the rooms
 	// between them.
@@ -320,7 +315,7 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 			y += t.heights[r]
 		}
 	}
-	for i, sl := range u.surfaces {
+	for i, sl := range u.Surfaces {
 		if cc := t.cells[i]; cc.Row >= 0 {
 			share := float32(1)
 			if n := t.natural[cc.Row]; n > 0 {
@@ -328,7 +323,11 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 			}
 			t.base[i] = t.left + t.columns[cc.Column] + padX
 			t.baseY[i] = t.rows[cc.Row] + padY*share
-			sl.x, sl.y = t.base[i], t.baseY[i]
+			sl.X, sl.Y = t.base[i], t.baseY[i]
+			u.Surfaces[i] = sl
+			if sl.SetPos != nil {
+				sl.SetPos(sl.X, sl.Y)
+			}
 		}
 	}
 	// Rooms across stand down the whole grid.
@@ -346,20 +345,19 @@ func (tableKind) lay(lc *layoutCache, u *unitLayout, p *present.Presentation, co
 		t.gone[1][k].room.X += t.left
 		t.gone[1][k].room.H = y
 	}
-	u.table = t
-	u.h = y
-	u.box = ui.Rect{X: t.left, W: shows, H: y}
+	u.Table = t
+	u.H = y
+	u.Box = ui.Rect{X: t.left, W: shows, H: y}
 	if tin.below > 0 {
 		// Under the table, the room of an area that makes a row.
 		t.below = ui.Rect{X: t.left, Y: y, W: shows, H: tin.below}
-		u.h += tin.below
+		u.H += tin.below
 	}
-	u.view = u.box
-	u.frame = objectRadius(m)
+	return true
 }
 
 // across is a room across the grid as it is scrolled.
-func (t *tableLayout) across(r ui.Rect) ui.Rect {
+func (t *Layout) across(r ui.Rect) ui.Rect {
 	r.X -= t.scroll
 	return r
 }
@@ -367,7 +365,7 @@ func (t *tableLayout) across(r ui.Rect) ui.Rect {
 // parts are the frames the grid is drawn in, in the unit: its box, parted
 // by each room open enough within it. A line that left closes within the
 // frame, so the frame and its controls close with it.
-func (t *tableLayout) parts(box ui.Rect) []ui.Rect {
+func (t *Layout) parts(box ui.Rect) []ui.Rect {
 	var downs, acrosses [][2]float32
 	if g := t.rowGap; g.H > 0 {
 		downs = append(downs, [2]float32{g.Y, g.H})
@@ -395,7 +393,7 @@ func (t *tableLayout) parts(box ui.Rect) []ui.Rect {
 
 // tableSpans are the stretches from start over size that gaps leave, each
 // gap where it opens and how far, and each stretch a start and an end:
-// the whole, until a gap is open enough to part it.
+// the whole, until a gap is open enough to Part it.
 func tableSpans(start, size float32, gaps [][2]float32) [][2]float32 {
 	spans := [][2]float32{{start, start + size}}
 	for _, gap := range gaps {
@@ -553,32 +551,32 @@ func levelled(open []bool, share func(int) float32, room float32, low, high []fl
 }
 
 // scrollTo draws the grid scrolled across by x: its cells move with it.
-func (t *tableLayout) scrollTo(u *unitLayout, x float32) {
+func (t *Layout) scrollTo(u *Unit, x float32) {
 	t.scroll = x
-	for i, s := range u.surfaces {
+	for i, s := range u.Surfaces {
 		if cc := t.cells[i]; cc.Row >= 0 {
-			s.x, s.y = t.base[i]-x, t.baseY[i]
+			s.X, s.Y = t.base[i]-x, t.baseY[i]
 		}
 	}
 }
 
 // cell is a cell's box in its unit, as the grid is scrolled.
-func (t *tableLayout) cell(cc doc.CellCoord) ui.Rect {
+func (t *Layout) cell(cc doc.CellCoord) ui.Rect {
 	return ui.Rect{X: t.left - t.scroll + t.columns[cc.Column], Y: t.rows[cc.Row], W: t.widths[cc.Column], H: t.heights[cc.Row]}
 }
 
 // line is a row's box across what the table shows, or a column's down
 // it, in its unit, as the grid is scrolled.
-func (t *tableLayout) line(u *unitLayout, rows bool, i int) ui.Rect {
+func (t *Layout) line(u *Unit, rows bool, i int) ui.Rect {
 	if rows {
-		return ui.Rect{X: u.box.X, Y: t.rows[i], W: u.box.W, H: t.heights[i]}
+		return ui.Rect{X: u.Box.X, Y: t.rows[i], W: u.Box.W, H: t.heights[i]}
 	}
-	return ui.Rect{X: t.left - t.scroll + t.columns[i], Y: u.box.Y, W: t.widths[i], H: u.box.H}
+	return ui.Rect{X: t.left - t.scroll + t.columns[i], Y: u.Box.Y, W: t.widths[i], H: u.Box.H}
 }
 
 // rowAt and columnAt are the row and the column at a place across the
 // unit, -1 past the grid.
-func (t *tableLayout) rowAt(y float32) int {
+func (t *Layout) rowAt(y float32) int {
 	for r := range t.rows {
 		if top := t.rows[r]; y >= top && y < top+t.heights[r] {
 			return r
@@ -587,7 +585,7 @@ func (t *tableLayout) rowAt(y float32) int {
 	return -1
 }
 
-func (t *tableLayout) columnAt(x float32) int {
+func (t *Layout) columnAt(x float32) int {
 	for c := range t.columns {
 		if left := t.left - t.scroll + t.columns[c]; x >= left && x < left+t.widths[c] {
 			return c
@@ -599,15 +597,15 @@ func (t *tableLayout) columnAt(x float32) int {
 // paint draws the grid beneath its cells' text, in each of its parts:
 // the header's inset, the lines between the cells, and its edge; and the
 // lines that left, as they were, in the rooms they still have.
-func (tableKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32) float32 {
-	t := u.table
+func (Kind) Paint(h Host, p *ui.Painter, u *Unit, ux, uy float32) float32 {
+	t := u.Table
 	if t == nil {
 		return 0
 	}
-	for _, part := range t.parts(u.box) {
-		part.X += ux
-		part.Y += uy
-		t.paintGrid(el, p, part, u.frame, ux, uy, true, true)
+	for _, Part := range t.parts(u.Box) {
+		Part.X += ux
+		Part.Y += uy
+		t.paintGrid(h, p, Part, u.Frame, ux, uy, true, true)
 	}
 	for axis, rooms := range t.gone {
 		for _, g := range rooms {
@@ -615,7 +613,7 @@ func (tableKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32
 			if axis == 1 {
 				room = t.across(room)
 			}
-			el.paintGone(p, axis == 0, g, room, ux, uy)
+			paintGone(h, p, axis == 0, g, room, ux, uy)
 		}
 	}
 	return 0
@@ -623,9 +621,9 @@ func (tableKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32
 
 // paintGone draws a line that left as it was kept, its cells' text within
 // the room it still has, fading out.
-func (el *Element) paintGone(p *ui.Painter, rows bool, g goneRoom, room ui.Rect, ux, uy float32) {
+func paintGone(h Host, p *ui.Painter, rows bool, g goneRoom, room ui.Rect, ux, uy float32) {
 	ku := g.kept.u
-	kt := ku.table
+	kt := ku.Table
 	if kt == nil || g.alpha < 0.002 || room.W < 0.5 || room.H < 0.5 {
 		return
 	}
@@ -637,29 +635,27 @@ func (el *Element) paintGone(p *ui.Painter, rows bool, g goneRoom, room ui.Rect,
 	room.X += ux
 	room.Y += uy
 	p.Clip(room, 0, func() {
-		for i, s := range ku.surfaces {
+		for i, s := range ku.Surfaces {
 			cc := kt.cells[i]
 			if cc.Row < 0 || !(rows && cc.Row == g.kept.index || !rows && cc.Column == g.kept.index) {
 				continue
 			}
-			sx, sy := ux+dx+s.x, uy+dy+s.y
-			paintText(p, s.layout, sx, sy, el.Theme.Prose.Text)
-			el.paintGhosts(p, s, sx, sy)
-			el.paintBoxes(p, s, sx, sy)
+			sx, sy := ux+dx+s.X, uy+dy+s.Y
+			s.Paint(p, sx, sy)
 			// It fades into what the grid has under it: the header's
 			// inset, or the page.
-			ground := el.Theme.Surface.Page
+			ground := h.Theme().Surface.Page
 			if kt.header && cc.Row == 0 {
-				ground = el.Theme.Surface.Inset
+				ground = h.Theme().Surface.Inset
 			}
-			p.Fill(ui.Rect{X: sx, Y: sy, W: s.w, H: s.h}, ground.Alpha(1-g.alpha), 0)
+			p.Fill(ui.Rect{X: sx, Y: sy, W: s.W, H: s.H}, ground.Alpha(1-g.alpha), 0)
 		}
 	})
 }
 
 // furthest is the line gliding furthest from its place, over those
 // gliding with it; false while none glides.
-func (t *tableLayout) furthest() (axis, index int, ok bool) {
+func (t *Layout) furthest() (axis, index int, ok bool) {
 	lm := t.in.lines
 	if lm == nil {
 		return 0, 0, false
@@ -678,11 +674,11 @@ func (t *tableLayout) furthest() (axis, index int, ok bool) {
 // paintGrid draws the grid within frame, its corners rounded by radius and
 // the unit drawn at ux, uy: the header's inset, the lines between its rows
 // and between its columns as asked, and the frame's edge.
-func (t *tableLayout) paintGrid(el *Element, p *ui.Painter, frame ui.Rect, radius, ux, uy float32, rows, columns bool) {
-	line := el.Theme.Border.Default
+func (t *Layout) paintGrid(h Host, p *ui.Painter, frame ui.Rect, radius, ux, uy float32, rows, columns bool) {
+	line := h.Theme().Border.Default
 	p.Clip(frame, radius, func() {
 		if t.header && len(t.rows) > 0 {
-			p.Fill(ui.Rect{X: frame.X, Y: uy + t.rows[0], W: frame.W, H: t.heights[0]}, el.Theme.Surface.Inset, 0)
+			p.Fill(ui.Rect{X: frame.X, Y: uy + t.rows[0], W: frame.W, H: t.heights[0]}, h.Theme().Surface.Inset, 0)
 		}
 		for r := range t.rows {
 			if at := uy + t.rows[r]; rows && at > frame.Y+0.5 && at < frame.Y+frame.H-0.5 {
@@ -700,14 +696,14 @@ func (t *tableLayout) paintGrid(el *Element, p *ui.Painter, frame ui.Rect, radiu
 
 // over fades the sides of a table wider than its room where more of it
 // lies past them, as far as it does, up to a line's width.
-func (tableKind) over(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32) {
-	t := u.table
+func (Kind) Over(h Host, p *ui.Painter, u *Unit, ux, uy float32) {
+	t := u.Table
 	if t == nil || t.overflow <= 0 {
 		return
 	}
-	reach := lineHeight(el.Editor.metrics, el.Editor.metrics.Body)
-	page := el.Theme.Surface.Page
-	box := ui.Rect{X: ux + u.box.X, Y: uy + u.box.Y, W: u.box.W, H: u.box.H}
+	reach := h.Metrics().Line()
+	page := h.Theme().Surface.Page
+	box := ui.Rect{X: ux + u.Box.X, Y: uy + u.Box.Y, W: u.Box.W, H: u.Box.H}
 	if past := min(t.scroll, reach); past > 0.5 {
 		p.FillGradient(ui.Rect{X: box.X, Y: box.Y, W: past, H: box.H}, ui.LinearGradient{From: page, To: page.Alpha(0), Angle: 90}, 0)
 	}
@@ -717,99 +713,121 @@ func (tableKind) over(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32)
 }
 
 // cover is a cell's box.
-func (tableKind) cover(u *unitLayout, s *surfaceLayout) (ui.Rect, bool) {
-	t := u.table
-	if t == nil || s.index >= len(t.cells) || t.cells[s.index].Row < 0 {
+func (Kind) Cover(u *Unit, s *Surface) (ui.Rect, bool) {
+	t := u.Table
+	if t == nil || s.Index >= len(t.cells) || t.cells[s.Index].Row < 0 {
 		return ui.Rect{}, false
 	}
-	return t.cell(t.cells[s.index]), true
+	return t.cell(t.cells[s.Index]), true
 }
 
 // tableScroll is how far a table wider than its room is scrolled across:
-// by hand, pulling elastic past its ends, or gliding to reveal the caret.
-// It is the page's, not the layout's, so it lasts as the table changes.
-type tableScroll struct {
-	x     float32
-	over  motion.Elastic
-	glide motion.Glide
-}
-
-// settle draws a table scrolled as far as it is, within what it scrolls;
+// Settle draws a table scrolled as far as it is, within what it scrolls;
 // a paint steps its scroll at its own time.
-func (tableKind) settle(el *Element, u *unitLayout, frame bool) bool {
-	t := u.table
+func (Kind) Settle(h Host, u *Unit, frame bool) bool {
+	t := u.Table
 	if t == nil {
 		return false
 	}
-	ts := recalled[tableScroll](el, u.pres.Unit, "scroll")
+	ts := h.Scroll(u.Pres.Unit, false)
 	if ts == nil && t.overflow <= 0 {
 		t.scrollTo(u, 0)
 		return false
 	}
-	ts = el.tableScroll(u.pres.Unit)
+	ts = h.Scroll(u.Pres.Unit, true)
 	moving := false
 	if frame {
-		_, pulling := ts.over.Step(el.paintNow, el.animate)
+		_, pulling := ts.Over.Step(h.Now(), h.Animate())
 		var gliding bool
-		ts.x, gliding = ts.glide.Step(ts.x, el.paintNow, el.animate)
+		ts.X, gliding = ts.Glide.Step(ts.X, h.Now(), h.Animate())
 		moving = pulling || gliding
 	}
-	ts.x = max(0, min(ts.x, t.overflow))
-	t.scrollTo(u, ts.x-ts.over.Offset())
+	ts.X = max(0, min(ts.X, t.overflow))
+	t.scrollTo(u, ts.X-ts.Over.Offset())
 	return moving
 }
 
-// tableScroll is how far a table is scrolled, as the page remembers it
-// while the table is on the page.
-func (el *Element) tableScroll(id doc.ID) *tableScroll {
-	return memo(el, id, "scroll", func() *tableScroll { return &tableScroll{} })
-}
-
-// wheel scrolls a table wider than its room across by dx, by hand, with
+// Wheel scrolls a table wider than its room across by dx, by hand, with
 // the pointer over it.
-func (tableKind) wheel(el *Element, u *unitLayout, x, y float32, ev ui.InputEvent, dx float32) bool {
-	t := u.table
-	if t == nil || t.overflow <= 0 || y < u.y || y >= u.bottom() || x < u.x+u.box.X || x >= u.x+u.box.X+u.box.W {
+func (Kind) Wheel(h Host, u *Unit, x, y float32, ev ui.InputEvent, dx float32) bool {
+	t := u.Table
+	if t == nil || t.overflow <= 0 || y < u.Y || y >= u.Bottom() || x < u.X+u.Box.X || x >= u.X+u.Box.X+u.Box.W {
 		return false
 	}
-	ts := el.tableScroll(u.pres.Unit)
-	ts.glide.Cancel()
-	ts.x = components.OverscrollPanel.Scroll(&ts.over, ts.x, dx, 0, t.overflow, u.box.W, el.UIFontSize, ev)
-	t.scrollTo(u, ts.x-ts.over.Offset())
+	ts := h.Scroll(u.Pres.Unit, true)
+	ts.Glide.Cancel()
+	ts.X = components.OverscrollPanel.Scroll(&ts.Over, ts.X, dx, 0, t.overflow, u.Box.W, h.UIFontSize(), ev)
+	t.scrollTo(u, ts.X-ts.Over.Offset())
 	return true
 }
 
-// reveal glides a table the caret is in across, as far as brings
-// the caret's cell into view clear of the fades at its edges (over), or,
+// Reveal glides a table the caret is in across, as far as brings
+// the caret's cell into view clear of the fades at its edges (Over), or,
 // in a cell wider than that, the caret.
-func (tableKind) reveal(el *Element, pc place, now time.Time) {
-	if pc.surface == nil || pc.unit.table == nil || pc.unit.table.overflow <= 0 {
+func (Kind) Reveal(h Host, u *Unit, s Surface, caretX float32, now time.Time) {
+	if u.Table == nil || u.Table.overflow <= 0 {
 		return
 	}
-	u, t, s := pc.unit, pc.unit.table, pc.surface
-	if s.index >= len(t.cells) || t.cells[s.index].Row < 0 {
+	t := u.Table
+	if s.Index >= len(t.cells) || t.cells[s.Index].Row < 0 {
 		return
 	}
-	ts := el.tableScroll(u.pres.Unit)
+	ts := h.Scroll(u.Pres.Unit, true)
 	// Across the grid, from what the table shows.
-	m := el.Editor.metrics
-	reach := lineHeight(m, m.Body)
-	c := t.cells[s.index].Column
+	m := h.Metrics()
+	reach := m.Line()
+	c := t.cells[s.Index].Column
 	from, w := t.columns[c]-reach, t.widths[c]+2*reach
-	if w > u.box.W {
-		from, w = t.base[s.index]-t.left+s.caretRect(pc.stop.u).X-reach, 2*reach
+	if w > u.Box.W {
+		from, w = t.base[s.Index]-t.left+caretX-reach, 2*reach
 	}
-	target, changed := motion.Reveal(ts.x, u.box.W, from, w, false, false)
+	target, changed := motion.Reveal(ts.X, u.Box.W, from, w, false, false)
 	if !changed {
 		return
 	}
 	target = max(0, min(target, t.overflow))
-	if target != ts.x || ts.glide.Moving() {
-		ts.glide.To(ts.x, target, now)
+	if target != ts.X || ts.Glide.Moving() {
+		ts.Glide.To(ts.X, target, now)
 	}
 }
 
-// holdsCell reports whether s is one of the grid's cells.
-func (t *tableLayout) holdsCell(s *surfaceLayout) bool {
-	return s.index < len(t.cells) && t.cells[s.index].Row >= 0
+// HoldsCell reports whether surface index i is one of the grid's cells.
+func (t *Layout) HoldsCell(i int) bool {
+	return t != nil && i < len(t.cells) && t.cells[i].Row >= 0
 }
+
+// Cell returns the cell coordinate for surface index i.
+func (t *Layout) Cell(i int) doc.CellCoord {
+	if t == nil || i < 0 || i >= len(t.cells) {
+		return doc.CellCoord{Row: -1}
+	}
+	return t.cells[i]
+}
+
+// CellRect returns the bounding rect of cell cc in unit coordinates.
+func (t *Layout) CellRect(cc doc.CellCoord) ui.Rect { return t.cell(cc) }
+func (t *Layout) Widths() []float32                 { return t.widths }
+func (t *Layout) Heights() []float32                { return t.heights }
+func (t *Layout) Rows() []float32                   { return t.rows }
+func (t *Layout) Columns() []float32                { return t.columns }
+func (t *Layout) Natural() []float32                { return t.natural }
+func (t *Layout) Overflow() float32                 { return t.overflow }
+func (t *Layout) Scroll() float32                   { return t.scroll }
+func (t *Layout) ColumnGap() ui.Rect                { return t.columnGap }
+func (t *Layout) Parts(box ui.Rect) []ui.Rect       { return t.parts(box) }
+func (t *Layout) In() In                            { return t.in }
+func (t *Layout) Furthest() (int, int, bool)        { return t.furthest() }
+func (t *Layout) GoneCount(axis int) int            { return len(t.gone[axis]) }
+func (t *Layout) GoneRoom(axis, i int) (ui.Rect, float32) {
+	return t.gone[axis][i].room, t.gone[axis][i].alpha
+}
+
+func (in In) Below() float32                             { return in.below }
+func (in In) Row() int                                   { return in.row }
+func (in In) RowRoom() float32                           { return in.rowRoom }
+func (in In) Column() int                                { return in.column }
+func (in In) ColumnRoom() float32                        { return in.columnRoom }
+func (in In) ApartAt(rows bool, at int) float32          { return in.apartAt(rows, at) }
+func (in In) Lines() *lineMotion                         { return in.lines }
+func (lm *lineMotion) ExtentOf(a, i int) (float32, bool) { return lm.extentOf(a, i) }
+func (lm *lineMotion) OffsetOf(a, i int) float32         { return lm.offsetOf(a, i) }
