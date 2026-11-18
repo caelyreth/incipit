@@ -366,13 +366,11 @@ func filing(g GroupItem) takes {
 func (s *State) fileInto(g GroupItem, dropped shellDrag) {
 	switch d := dropped.(type) {
 	case sheetDrag, trayDrag:
-		for _, id := range s.carried(d) {
-			s.Library.MoveSheet(id, g.ID, Last)
-		}
+		s.moveSheets(s.carried(d), g.ID)
 		s.delivered(d)
 	case groupDrag:
 		if d.id != g.ID {
-			s.Library.MoveGroup(d.id, g.ID, Last)
+			s.moveGroup(d.id, g.ID)
 		}
 	}
 }
@@ -551,7 +549,7 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if trashed {
 			if m.Item("Put Back").Chosen() {
-				s.Library.RestoreGroup(g.ID)
+				s.restoreGroup(g)
 			}
 			m.Separator()
 			if m.Item(deleteGroupLabel(g)).Chosen() {
@@ -588,10 +586,10 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 				}
 			}
 		})
-		s.moveMenu(m, func(target string) { s.Library.MoveGroup(g.ID, target, Last) }, g.ID)
+		s.moveMenu(m, func(target string) { s.moveGroup(g.ID, target) }, g.ID)
 		m.Separator()
 		if m.Item(trashGroupLabel(g)).Chosen() {
-			s.Library.TrashGroup(g.ID)
+			s.trashGroup(g)
 		}
 	}
 }
@@ -600,7 +598,7 @@ func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if trashed {
 			if m.Item("Put Back").Chosen() {
-				s.Library.RestoreSheet(sh.ID)
+				s.restoreSheets([]string{sh.ID})
 			}
 			m.Separator()
 			if m.Item("Delete Immediately…").Chosen() {
@@ -620,10 +618,10 @@ func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
 		if m.Item("Duplicate").Chosen() {
 			s.Library.DuplicateSheet(sh.ID)
 		}
-		s.moveMenu(m, func(group string) { s.Library.MoveSheet(sh.ID, group, Last) }, "")
+		s.moveMenu(m, func(group string) { s.moveSheets([]string{sh.ID}, group) }, "")
 		m.Separator()
 		if m.Item("Move to Trash").Chosen() {
-			s.Library.TrashSheet(sh.ID)
+			s.trashSheets([]string{sh.ID})
 		}
 	}
 }

@@ -32,33 +32,95 @@ type fieldAction struct {
 // actionsMost is how many actions stand at once.
 const actionsMost = 5
 
-// fieldActions are what can be done to the field's place now, the most
-// used first, nearest the pill.
+// fieldActions are what the pill's end opens now: what answers the
+// query as it stands, then the place's own.
 func (s *State) fieldActions() []fieldAction {
-	if s.Library == nil || s.InSettings() || strings.HasPrefix(s.field.words, ">") {
+	if s.Library == nil || s.InSettings() || s.commanding() {
+		return nil
+	}
+	var out []fieldAction
+	if !s.inTrash() && len(s.field.found.cards) == 0 && s.FieldQuery() != "" {
+		out = append(out, fieldAction{id: "clear-search", label: "Clear Search", icon: components.IconClose, run: s.goHome})
+	}
+	out = append(out, s.placeActions()...)
+	return out[:min(len(out), actionsMost)]
+}
+
+// placeActions are what can be done to the place the query is in, by its
+// conditions and words, whatever the pill is asking: the `>` commands
+// list them too.
+func (s *State) placeActions() []fieldAction {
+	if s.Library == nil || s.InSettings() {
 		return nil
 	}
 	if s.inTrash() {
-		if len(s.field.found.cards) == 0 {
+		if !s.trashHolds() {
 			return nil
 		}
 		return []fieldAction{{id: emptyTrashKey, label: "Empty Trash", icon: components.IconTrash, danger: true,
 			run: s.Library.EmptyTrash}}
 	}
-	var out []fieldAction
-	if len(s.field.found.cards) == 0 && s.FieldQuery() != "" {
-		out = append(out, fieldAction{id: "clear-search", label: "Clear Search", icon: components.IconClose, run: s.goHome})
-	}
-	out = append(out, fieldAction{id: "new-sheet", label: "New Sheet", icon: components.IconNewSheet, run: func() {
+	out := []fieldAction{{id: "new-sheet", label: "New Sheet", icon: components.IconNewSheet, run: func() {
 		s.Library.NewSheet(s.CurrentGroup(), Last)
 		s.ShowDesk()
-	}})
-	scope, _, browse := s.browsing(query.Parse(s.wholeQuery()))
+	}}}
+	asked := s.wholeQuery()
+	if s.commanding() {
+		asked = strings.Join(s.field.conditions, " ")
+	}
+	scope, _, browse := s.browsing(query.Parse(asked))
 	if g, ok := s.Library.Group(scope); browse && (scope == "" || ok && !g.Smart()) {
 		out = append(out, fieldAction{id: "new-group", label: "New Group", icon: components.IconNewGroup,
 			run: func() { s.newGroup(scope) }})
 	}
-	return out[:min(len(out), actionsMost)]
+	return out
+}
+
+// commanding reports whether the pill asks the app's commands.
+func (s *State) commanding() bool { return strings.HasPrefix(s.field.words, ">") }
+
+// trashHolds reports whether anything is in the trash: as the field shows
+// it, or, while the pill asks the commands, as the library has it.
+func (s *State) trashHolds() bool {
+	if !s.commanding() {
+		return len(s.field.found.cards) > 0
+	}
+	return len(s.Library.TrashedGroups())+len(s.Library.Sheets(Place{Kind: PlaceTrash})) > 0
+}
+
+// pressAction does a as pressing it does: what asks again turns first,
+// and runs on a second press; then the actions close.
+func (s *State) pressAction(a fieldAction) {
+	if a.danger && s.armedKey != a.id {
+		s.arm(a.id)
+		return
+	}
+	s.disarm()
+	s.field.acting = false
+	a.run()
+}
+
+// actionKey moves the keys along the open actions, up and down, and
+// Return presses the one they are on, reporting whether it took key.
+func (s *State) actionKey(key ui.Key) bool {
+	acts := s.fieldActions()
+	if !s.field.acting || len(acts) == 0 {
+		return false
+	}
+	switch key {
+	case ui.KeyUp:
+		s.field.actionAt = max(0, s.field.actionAt-1)
+	case ui.KeyDown:
+		s.field.actionAt = min(len(acts)-1, s.field.actionAt+1)
+	case ui.KeyEnter:
+		if s.field.actionAt < 0 || s.field.actionAt >= len(acts) {
+			return false
+		}
+		s.pressAction(acts[s.field.actionAt])
+	default:
+		return false
+	}
+	return true
 }
 
 // toggleActions opens the place's actions, closing any key, or closes
@@ -66,6 +128,8 @@ func (s *State) fieldActions() []fieldAction {
 func (s *State) toggleActions() {
 	s.disarm()
 	s.field.acting = !s.field.acting
+	// No action is under the keys until an arrow puts them on one.
+	s.field.actionAt = -1
 	if s.field.acting {
 		s.closeKey()
 	}
@@ -130,7 +194,7 @@ func (s *State) actionsView(c *ui.Context, semantic theme.Theme, acts []fieldAct
 		// Held in the window where the pill stands near its edge.
 		lift := max(0, 8*k-(r.Y+at[0].Y)) - max(0, r.Y+at[len(at)-1].Y+h+8*k-s.field.viewH)
 		for i, a := range acts {
-			s.actionCapsule(c, semantic, a, at[i].X, at[i].Y+lift, k, at[i].Y < (r.H-h)/2, animate)
+			s.actionCapsule(c, semantic, a, at[i].X, at[i].Y+lift, k, at[i].Y < (r.H-h)/2, i == s.field.actionAt, animate)
 		}
 	})
 }
@@ -154,7 +218,7 @@ func arc(n int, r stage.Rect, h, gap, space float32) []stage.Point {
 // actionCapsule is one action at x, y: pressed, it runs, the actions
 // closing; one that cannot be undone turns in the danger color first and
 // runs on a second press.
-func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction, x, y, k float32, above, animate bool) {
+func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction, x, y, k float32, above, keyed, animate bool) {
 	h := ribbonH * k
 	armed := a.danger && s.armed(c, a.id)
 	size := theme.TextSmall.Size(s.Settings.UIFontSize)
@@ -170,7 +234,7 @@ func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction
 	if animate {
 		amount = max(0, min(1, components.Follow(btn, "armed", amount, motionArm)))
 	}
-	hover := components.HoverAmount(btn, btn.Hovered(), animate)
+	hover := components.HoverAmount(btn, btn.Hovered() || keyed, animate)
 	danger := semantic.Status.Danger
 	rest := components.Blend(semantic.Surface.Page, semantic.GhostElement.Hover, hover)
 	btn.Background(components.Blend(rest, danger.Background, amount)).
@@ -179,13 +243,7 @@ func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction
 		btn.Border(1, semantic.Border.Focused)
 	}
 	if btn.Clicked() {
-		if a.danger && !armed {
-			s.arm(a.id)
-		} else {
-			s.disarm()
-			s.field.acting = false
-			a.run()
-		}
+		s.pressAction(a)
 	}
 	btn.Children(func() {
 		ui.Icon(c, a.icon.SVG()).FontSize(14 * k).TextColor(components.Blend(semantic.Icon.Muted, danger.Foreground, amount))

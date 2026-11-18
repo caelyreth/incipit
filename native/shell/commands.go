@@ -18,10 +18,28 @@ type commandSource struct{}
 
 func (commandSource) answer(s *State, _ string, f *found) {
 	words, ok := strings.CutPrefix(s.field.words, ">")
-	if !ok || s.Commands == nil {
+	if !ok {
 		return
 	}
 	fields := strings.Fields(strings.ToLower(words))
+	// What the place the query is in can have done to it stands first, as
+	// the pill's end offers it.
+	here := commandList{group: "Here"}
+	for _, a := range s.placeActions() {
+		label := a.label
+		if a.danger {
+			label += "…"
+		}
+		if all(fields, func(w string) bool { return strings.Contains(strings.ToLower(label), w) }) {
+			here.commands = append(here.commands, Command{ID: actionCommand + a.id, Label: label, Group: here.group})
+		}
+	}
+	if len(here.commands) > 0 {
+		f.add("commands:here", tierResult, here)
+	}
+	if s.Commands == nil {
+		return
+	}
 	var lists []*commandList
 	at := map[string]int{}
 	for _, cmd := range s.Commands() {
@@ -39,6 +57,28 @@ func (commandSource) answer(s *State, _ string, f *found) {
 	}
 	for _, l := range lists {
 		f.add("commands:"+l.group, tierResult, *l)
+	}
+}
+
+// actionCommand begins the ID of a command that is one of the place's
+// actions.
+const actionCommand = "action:"
+
+// runActionCommand does the place's action id as the `>` commands run
+// it: what asks again opens the actions with it turned, to be pressed.
+func (s *State) runActionCommand(id string) {
+	for i, a := range s.placeActions() {
+		if a.id != id {
+			continue
+		}
+		if !a.danger {
+			a.run()
+			return
+		}
+		s.field.acting, s.field.actionAt = true, i
+		s.closeKey()
+		s.arm(a.id)
+		return
 	}
 }
 

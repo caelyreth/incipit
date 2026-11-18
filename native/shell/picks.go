@@ -86,9 +86,7 @@ func (s *State) pickedMenu(id string, trashed bool) func(*ui.Menu) {
 		n := len(ids)
 		if trashed {
 			if m.Item(fmt.Sprintf("Put Back %d Sheets", n)).Chosen() {
-				for _, sh := range ids {
-					s.Library.RestoreSheet(sh)
-				}
+				s.restoreSheets(ids)
 				s.field.picked = nil
 			}
 			m.Separator()

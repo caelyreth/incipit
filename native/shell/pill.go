@@ -57,6 +57,7 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stage.Rect, r
 		})
 	})
 	acts := s.fieldActions()
+	s.noticeView(c, semantic, r, w, gap, k, animate)
 	s.horizonStats(c, semantic, r, w, gap, animate)
 	// The ribbons first, as they were laid out for what the pill held as
 	// the frame began: the pill, taking the keys, may change it.
@@ -241,7 +242,9 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stage.Rect, 
 	if animate {
 		acting = components.Follow(row, "acting", acting, components.MotionQuick)
 	}
-	row.Opacity(1 - acting)
+	s.field.actingShown = acting
+	// A notice stands where they do, as long as it stands.
+	row.Opacity(1 - max(acting, s.field.told))
 	row.Children(func() {
 		s.field.stats.count.view(c, "stat-count", st.count, size, lineH, ink, animate)
 		ui.Box(c.Key("stat-unit-gap")).Width(spaceW).Shrink(0)
@@ -886,6 +889,9 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 // pillKey is what a key does in the pill's input before the input takes it.
 func (s *State) pillKey(key ui.TextKey) bool {
 	plain := key.Mods == 0
+	if plain && s.actionKey(key.Key) {
+		return true
+	}
 	switch key.Key {
 	case ui.KeyEscape:
 		if len(s.field.picked) > 0 || s.field.acting || s.field.opened != nil || s.offered() {

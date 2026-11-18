@@ -209,16 +209,12 @@ func (s *State) sheetsMenu(ids []string, done func()) func(*ui.Menu) {
 		}
 		m.Separator()
 		s.moveMenu(m, func(group string) {
-			for _, sh := range ids {
-				s.Library.MoveSheet(sh, group, Last)
-			}
+			s.moveSheets(ids, group)
 			done()
 		}, "")
 		m.Separator()
 		if m.Item(fmt.Sprintf("Move %d %s to Trash", n, sheetsWord(n))).Chosen() {
-			for _, sh := range ids {
-				s.Library.TrashSheet(sh)
-			}
+			s.trashSheets(ids)
 			done()
 		}
 	}

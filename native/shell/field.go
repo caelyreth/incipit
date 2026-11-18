@@ -37,8 +37,16 @@ type fieldState struct {
 	quiet bool
 	open  bool
 	// acting is whether the place's actions stand open beside the pill
-	// (actions.go).
-	acting bool
+	// (actions.go), actingShown how far, and actionAt the one the keys
+	// are on.
+	acting      bool
+	actingShown float32
+	actionAt    int
+	// notice is what was just done, to be undone (notice.go); told is how
+	// far it is shown, and lastNotice its words as they fade.
+	notice     *notice
+	told       float32
+	lastNotice string
 	// completion is what may stand at the caret, caret bytes into the
 	// words completedFor, offered unless the words are what it was put
 	// away at, dismissed, suggestion the one of it the keys are on (-1 for
@@ -293,8 +301,19 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		s.field.quiet = false
 		view.Focusable().FocusRing(false).Focus()
 	}
-	if !s.OnDesk() && !c.FocusTakesText() && c.Shortcut(0, ui.KeyEscape) {
-		s.escapeField()
+	if !s.OnDesk() && !c.FocusTakesText() {
+		switch {
+		case c.Shortcut(0, ui.KeyEscape):
+			s.escapeField()
+		case c.Shortcut(ui.Cmd, ui.KeyZ):
+			s.undoNotice()
+		case s.field.acting && c.Shortcut(0, ui.KeyUp):
+			s.actionKey(ui.KeyUp)
+		case s.field.acting && c.Shortcut(0, ui.KeyDown):
+			s.actionKey(ui.KeyDown)
+		case s.field.acting && c.Shortcut(0, ui.KeyEnter):
+			s.actionKey(ui.KeyEnter)
+		}
 	}
 	f := s.results(c.Now())
 	if !s.field.settleAt.IsZero() {
@@ -674,7 +693,9 @@ func (s *State) activate(id string, alongside bool) {
 	case "command":
 		// The command runs as the field was before it was asked for.
 		s.setWords("")
-		if s.RunCommand != nil {
+		if id, ok := strings.CutPrefix(key, actionCommand); ok {
+			s.runActionCommand(id)
+		} else if s.RunCommand != nil {
 			s.RunCommand(key)
 		}
 	case "group":
