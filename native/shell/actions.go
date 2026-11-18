@@ -167,12 +167,14 @@ func (s *State) toggleActions() {
 }
 
 // actionsButton is the pill's end, pillH tall: pressed anywhere on it,
-// it opens the place's actions, its chevron pointing where they stand,
-// and turning back to close them.
+// it opens the place's actions, or closes them; its face is a circle
+// that takes the chosen fill while they are open, standing in the pill's
+// rounded end, inset all round alike, so the two curves are one.
 func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldAction, pillH, k float32, animate bool) {
 	label := map[bool]string{true: "Hide Actions", false: "Actions"}[s.field.acting]
 	inset := 4 * k
 	end := ui.ButtonBase(c.Key("actions-button")).Size(pillH*1.25, pillH).Shrink(0).Padding(inset).
+		AlignItems(ui.Center).Justify(ui.End).
 		FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).
 		Label(label).Tooltip("Actions").Disabled(len(acts) == 0)
 	if end.Clicked() {
@@ -188,11 +190,11 @@ func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldA
 	}
 	face := pillH - 2*inset
 	end.Children(func() {
-		ui.Row(c.Key("face")).Grow(1).Height(face).Radius(face / 2).AlignItems(ui.Center).Justify(ui.Center).IgnoreInput(true).
+		ui.Row(c.Key("face")).Size(face, face).Shrink(0).Radius(face / 2).AlignItems(ui.Center).Justify(ui.Center).IgnoreInput(true).
 			Background(components.Blend(components.Blend(semantic.GhostElement.Background, semantic.Surface.Chosen, open),
 				semantic.GhostElement.Hover, hover)).
 			Children(func() {
-				ui.Icon(c, components.IconChevronRight.SVG()).FontSize(face * 0.5).Rotate(180 * open).
+				ui.Icon(c, components.IconPencilSpark.SVG()).FontSize(face * 0.5).
 					TextColor(components.Blend(semantic.Icon.Muted, semantic.Icon.Default, max(open, hover)))
 			})
 	})

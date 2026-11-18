@@ -47,6 +47,7 @@ const (
 	IconNewSheet     IconName = "file-plus"
 	IconPen          IconName = "pen-line"
 	IconPin          IconName = "pin"
+	IconPencilSpark  IconName = "pencil-sparkles"
 	IconPlus         IconName = "plus"
 	IconRedo         IconName = "redo-2"
 	IconSearch       IconName = "search"
@@ -97,6 +98,7 @@ var AllIcons = [...]IconName{
 	IconNewSheet,
 	IconPen,
 	IconPin,
+	IconPencilSpark,
 	IconPlus,
 	IconRedo,
 	IconSearch,
