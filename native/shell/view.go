@@ -44,7 +44,7 @@ func (s *State) View(c *ui.Context) {
 	chrome = max(0, min(chrome, 1))
 	s.lastChrome = chrome
 	s.deskEscape(c)
-	at := s.viewAt(root, animate)
+	at := s.viewAt(root, w, animate)
 	root.Children(func() {
 		hidden := at >= 0.999
 		look := stage.Stage(w, h, at, stage.Rect{W: w, H: h}, aside).Field

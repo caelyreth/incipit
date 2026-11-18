@@ -82,15 +82,19 @@ func (s *State) ToggleField() {
 }
 
 // view is how far the window is on its way to the desk this frame, and
-// notes, as it sets out, whether the desk comes from its block.
-func (s *State) viewAt(root ui.Element, animate bool) float32 {
+// notes, as it sets out, whether the desk comes from its block. The way
+// is the window's width w across, so the spring rests within a quarter
+// point of it: resting a step short, the desk would jump that step.
+func (s *State) viewAt(root ui.Element, w float32, animate bool) float32 {
 	target := float32(0)
 	if s.OnDesk() {
 		target = 1
 	}
 	at := target
 	if animate {
-		at = components.Follow(root, "view", target, components.MotionScene)
+		at = root.AnimateTo("view", target, ui.Animation{Spring: ui.SpringOptions{
+			Duration: components.MotionScene, Precision: 0.25 / float64(max(w, 1)),
+		}})
 	}
 	s.view = at
 	return at
@@ -110,7 +114,7 @@ func (s *State) deskRest(w, h float32) stage.Rect {
 // Away from the desk, the desk takes no input but a press, which brings
 // it up, or opens a sheet when empty.
 func (s *State) leanDesk(area ui.Element, look stage.Look, upright float32) {
-	if upright < 0.999 {
+	if upright < 1 {
 		k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 		area.Cache().TransformOrigin(0.5, 0.5).Scale(look.Scale, look.Scale).
 			Translate(look.Offset.X, look.Offset.Y).Radius(10 * k).Clip()
