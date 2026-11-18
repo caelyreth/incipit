@@ -7,7 +7,7 @@ require (
 	github.com/caelyreth/untie v0.4.2
 	github.com/caelyreth/untie/contrib/mygo v0.4.2
 	github.com/clipperhouse/uax29/v2 v2.7.0
-	github.com/egoist/mygo v0.9.1
+	github.com/egoist/mygo v0.10.0
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
