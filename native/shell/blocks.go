@@ -149,7 +149,11 @@ func (b block) shape(s *State, c *ui.Context, m blockMetrics) shape {
 }
 
 func (b block) rows() []string {
-	ids := make([]string, 0, len(b.groups)+len(b.entries))
+	ids := make([]string, 0, len(b.groups)+len(b.entries)+1)
+	// A group's card is its head's row first, as the keys go.
+	if b.group != nil && !b.single && !b.create {
+		ids = append(ids, "group:"+b.group.ID)
+	}
 	pinnedFirst(b.groups, b.entries, func(i int) {
 		ids = append(ids, "group:"+b.groups[i].ID)
 	}, func(i int) {
@@ -257,14 +261,19 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 		}
 		head := ui.ButtonBase(c.Key("name")).Grow(1).MinWidth(0).FillHeight().PaddingX(8 * m.k).Gap(8 * m.k).
 			AlignItems(ui.Center).Radius(8 * m.k).FocusRing(false).KeepFocus().Label(b.name())
-		hover := components.HoverAmount(head, head.Hovered(), animate)
-		head.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
-		if g != nil {
-			head.ContextMenu(s.groupMenu(*g, b.trashed))
+		if g == nil {
+			hover := components.HoverAmount(head, head.Hovered(), animate)
+			head.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
+		} else {
+			// The head is the group's row: selected, chosen, pressed and
+			// arriving as any row is.
+			id := "group:" + g.ID
+			s.rowFill(c, semantic, head, id, animate)
+			head.ContextMenu(s.rowMenu(id, s.groupMenu(*g, b.trashed)))
 			if !b.trashed && !g.Inbox {
 				head.Drag(groupDrag{id: g.ID})
 			}
-			if !b.trashed && s.field.renaming != g.ID && head.Clicked() {
+			if s.field.renaming != g.ID && head.Clicked() && !s.pickRow(id, head.ClickModifiers()) && !b.trashed {
 				s.into(*g, fr.Rect)
 			}
 		}
@@ -323,10 +332,11 @@ func pinBadge(c *ui.Context, semantic theme.Theme, m blockMetrics) {
 }
 
 // rowFill is a row's ground: the selection's where the keys are on it,
-// the picked fill where it is picked, a step of the ink under the
-// pointer; and pressed, it gives a little. A sheet open on the desk is
-// never a fill, which would read as a hover left behind, but its strip
-// (openMark).
+// the picked fill where it is selected, a step of the ink under the
+// pointer, the accent's tint a moment as it arrives; and pressed, it
+// gives a little. A sheet open on the desk is never a fill, which would
+// read as a hover left behind, but its strip (openMark). It keeps where
+// the row stands, for the arrows (keys.go).
 func (s *State) rowFill(c *ui.Context, semantic theme.Theme, el ui.Element, id string, animate bool) {
 	hover := components.HoverAmount(el, el.Hovered(), animate)
 	selection := components.NavigationSelection(c, semantic)
@@ -351,6 +361,7 @@ func (s *State) rowFill(c *ui.Context, semantic theme.Theme, el ui.Element, id s
 	if el.FocusVisible() {
 		el.Border(1, semantic.Border.Focused)
 	}
+	s.rowPlace(el, id)
 }
 
 // groupRow is a group inside a block: pressed, the query goes into it.
@@ -364,11 +375,11 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 	if dropped, ok := s.dropOn(c, semantic, btn, filing(g), animate); ok {
 		s.fileInto(g, dropped)
 	}
-	btn.ContextMenu(s.groupMenu(g, false))
+	btn.ContextMenu(s.rowMenu(id, s.groupMenu(g, false)))
 	if !g.Inbox {
 		btn.Drag(groupDrag{id: g.ID})
 	}
-	if btn.Clicked() {
+	if btn.Clicked() && !s.pickRow(id, btn.ClickModifiers()) {
 		s.into(g, fr.Rect)
 	}
 	ink := semantic.Icon.Muted
@@ -409,35 +420,24 @@ func (s *State) fileInto(g GroupItem, dropped shellDrag) {
 
 // entryRow is a sheet in a block, in full, as the sheet list showed it:
 // pressed it opens on the desk, with Option alongside the sheets open;
-// Cmd picks it with others or lets it go, Shift picks the run to it, and
-// a menu on a picked sheet is for all the picked.
+// Cmd or Shift selects it (picks.go), and a menu on it, selected with
+// others, is for the selection.
 func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed bool, h float32, single bool, m blockMetrics, animate bool) {
 	sh := e.sheet
 	id := "sheet:" + sh.ID
 	pad, gap := rowPad(m.scale), rowGap(m.scale)
-	confirming := trashed && (s.armed(c, deleteKey(id)) || s.armed(c, deletePickedKey(id)))
+	confirming := trashed && s.armed(c, deleteKey(id))
 	front := sh.ID == s.ActivePage
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(h).Shrink(0).Padding(pad).
 		AlignItems(ui.Start).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
 		FocusRing(false).KeepFocus().Label(sheetTitle(sh)).Selected(front)
 	s.rowFill(c, semantic, btn, id, animate)
-	if s.isPicked(id) && len(s.field.picked) > 1 {
-		btn.ContextMenu(s.pickedMenu(id, trashed))
-	} else {
-		btn.ContextMenu(s.sheetMenu(sh, trashed))
-	}
+	btn.ContextMenu(s.rowMenu(id, s.sheetMenu(sh, trashed)))
 	if !trashed {
 		btn.Drag(sheetDrag{id: sh.ID})
 	}
 	if !confirming && btn.Clicked() {
-		mods := btn.ClickModifiers()
-		switch {
-		case mods&ui.Cmd != 0:
-			s.pickToggle(id)
-		case mods&ui.Shift != 0:
-			s.pickTo(id)
-		default:
-			s.field.picked, s.field.anchor = nil, id
+		if mods := btn.ClickModifiers(); !s.pickRow(id, mods) {
 			s.activate(id, mods&ui.Alt != 0)
 		}
 	} else if !confirming && btn.Shortcut(0, ui.KeyEnter) {
@@ -468,15 +468,10 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 			})
 		}
 		ui.Column(c).Key("entry").Grow(1).MinWidth(0).Gap(gap).Children(func() {
-			if (trashed && s.armed(c, deletePickedKey(id))) || confirming {
+			if confirming {
 				ui.Row(c).Key("title").WidthPercent(100).AlignItems(ui.Center).Gap(pad).Children(func() {
 					components.CenteredLabel(c, sheetTitle(sh), theme.TextSmall, title).Grow(1).MinWidth(0)
-					if trashed && s.armed(c, deletePickedKey(id)) {
-						label := fmt.Sprintf("Delete %d", len(s.field.picked))
-						s.confirmButton(c, semantic, deletePickedKey(id), "", label, animate, s.deletePicked)
-					} else {
-						s.confirmButton(c, semantic, deleteKey(id), "", "Delete", animate, func() { s.Library.DeleteSheet(sh.ID) })
-					}
+					s.confirmButton(c, semantic, deleteKey(id), "", "Delete", animate, func() { s.Library.DeleteSheet(sh.ID) })
 				})
 			} else {
 				components.BaselineRow(c).Key("title").WidthPercent(100).Gap(pad).Children(func() {

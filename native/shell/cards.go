@@ -259,6 +259,7 @@ func (s *State) cardView(c *ui.Context, semantic theme.Theme, fr stage.Frame, cd
 		frame.Background(components.Blend(semantic.Surface.Page, semantic.Accent.Tint, arriving)).
 			Border(1, semantic.Border.Variant)
 	}
+	s.field.drawing = cardPlace{rect: fr.Rect, scale: scale, box: frame.LayoutBounds()}
 	frame.Children(func() {
 		box := ui.Column(c.Key("content")).Size(fr.Size.W, fr.Size.H).Shrink(0).Padding(m.pad)
 		if !cd.kind.drawsLive(s) {

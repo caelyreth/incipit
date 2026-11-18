@@ -95,7 +95,7 @@ func TestWhatIsPinnedStandsFirst(t *testing.T) {
 	library.Pin("sheet:extra-1", true)
 	settle(tester)
 	rows := state.groupBlock(GroupItem{ID: "2", Name: "Novel"}, false).rows()
-	if !slices.Equal(rows, []string{"sheet:extra-1", "sheet:7", "sheet:extra-0"}) {
+	if !slices.Equal(rows, []string{"group:2", "sheet:extra-1", "sheet:7", "sheet:extra-0"}) {
 		t.Fatalf("The pinned sheet should stand first, the rest in their order: %v.", rows)
 	}
 	if _, ok := tester.Find("Pinned"); !ok {

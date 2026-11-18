@@ -238,8 +238,8 @@ func (f *fakeLibrary) Pin(id string, pinned bool) {
 	_, bare, _ := strings.Cut(id, ":")
 	f.pins[bare] = pinned
 }
-func (f *fakeLibrary) RestoreSheet(id string)          { f.call("restore " + id) }
-func (f *fakeLibrary) DeleteSheet(id string)           { f.call("delete " + id) }
+func (f *fakeLibrary) RestoreSheet(id string) { f.call("restore " + id) }
+func (f *fakeLibrary) DeleteSheet(id string)  { f.call("delete " + id) }
 
 func (f *fakeLibrary) NewGroup(parent string, index int) string {
 	f.call(fmt.Sprint("new group ", parent, " ", index))

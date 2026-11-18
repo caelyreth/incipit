@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/native/components"
@@ -29,9 +30,32 @@ type notice struct {
 // noticeFor is how long a notice stands.
 const noticeFor = 8 * time.Second
 
-// tell puts up a notice of text, undone by undo.
+// tell puts up a notice of text, undone by undo; while things are done
+// together, it only keeps undo for theirs.
 func (s *State) tell(text string, undo func()) {
+	if s.field.gathering != nil {
+		*s.field.gathering = append(*s.field.gathering, undo)
+		return
+	}
 	s.field.notice = &notice{text: text, undo: undo, query: s.wholeQuery()}
+}
+
+// together does do, whose moves each would tell of their own, as one
+// thing: one notice of text, whose Undo takes them all back, the last
+// first.
+func (s *State) together(text string, do func()) {
+	var undos []func()
+	s.field.gathering = &undos
+	do()
+	s.field.gathering = nil
+	if len(undos) == 0 {
+		return
+	}
+	s.tell(text, func() {
+		for i := len(undos) - 1; i >= 0; i-- {
+			undos[i]()
+		}
+	})
 }
 
 // undoNotice takes back what the notice says was done, reporting whether
@@ -48,7 +72,8 @@ func (s *State) undoNotice() bool {
 
 // noticeView stands the notice, if one stands, on the pill's right at r,
 // in the room to the field's edge w, its words giving way before its
-// Undo; it keeps how far it is shown, for the stats to give way.
+// Undo; otherwise, while something is selected, how much. It keeps how
+// far it is shown, for the stats to give way.
 func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stage.Rect, w, gap, k float32, animate bool) {
 	if n := s.field.notice; n != nil {
 		if n.at.IsZero() {
@@ -60,7 +85,15 @@ func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stage.Rect, w,
 			c.After(left)
 		}
 	}
-	shown := map[bool]float32{true: 1}[s.field.notice != nil]
+	n := s.field.notice
+	text := ""
+	switch {
+	case n != nil:
+		text = n.text
+	case len(s.field.picked) > 0:
+		text = strings.ToLower(objectsCount(len(s.pickedOf("group:")), len(s.pickedOf("sheet:")))) + " selected"
+	}
+	shown := map[bool]float32{true: 1}[text != ""]
 	row := ui.Row(c).Key("notice").Absolute().Top(0).Left(r.X+r.W+gap).Height(r.H).Translate(0, r.Y).
 		MaxWidth(max(0, w-(r.X+r.W+gap)-gap)).AlignItems(ui.Center).Gap(6 * k)
 	if animate {
@@ -68,14 +101,16 @@ func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stage.Rect, w,
 	}
 	s.field.told = shown
 	row.Opacity(shown * (1 - s.field.actingShown))
-	n := s.field.notice
-	if n == nil {
+	if text == "" {
 		row.IgnoreInput(true)
 		return
 	}
-	s.field.lastNotice = n.text
+	s.field.lastNotice = text
 	row.Children(func() {
 		components.CenteredLabel(c, s.field.lastNotice, theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(1).MinWidth(0)
+		if n == nil {
+			return
+		}
 		h := 24 * k
 		btn := ui.ButtonBase(c.Key("undo")).Height(h).PaddingX(8 * k).Radius(h / 2).AlignItems(ui.Center).Shrink(0).
 			FocusRing(false).KeepFocus().Label("Undo").Tooltip("Undo  ⌘Z")

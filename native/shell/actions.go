@@ -27,16 +27,44 @@ type fieldAction struct {
 	// danger asks again before it runs: what cannot be undone.
 	danger bool
 	run    func()
+	// menu, in place of run, is what it offers to choose from, as Move To
+	// does.
+	menu func(*ui.Menu)
+}
+
+// actionsMenu adds acts to a menu: what asks again opens the actions,
+// ready, and what offers a choice is a submenu.
+func (s *State) actionsMenu(m *ui.Menu, acts []fieldAction) {
+	for _, a := range acts {
+		switch {
+		case a.menu != nil:
+			m.Submenu(a.label, a.menu)
+		case a.danger:
+			if m.Item(a.label + "…").Chosen() {
+				s.field.acting = true
+				s.closeKey()
+				s.arm(a.id)
+			}
+		default:
+			if m.Item(a.label).Chosen() {
+				a.run()
+			}
+		}
+	}
 }
 
 // actionsMost is how many actions stand at once.
 const actionsMost = 5
 
-// fieldActions are what the pill's end opens now: what answers the
-// query as it stands, then the place's own.
+// fieldActions are what the pill's end opens now: the selection's while
+// something is selected; otherwise what answers the query as it stands,
+// then the place's own.
 func (s *State) fieldActions() []fieldAction {
 	if s.Library == nil || s.InSettings() || s.commanding() {
 		return nil
+	}
+	if acts := s.selectionActions(); len(acts) > 0 {
+		return acts[:min(len(acts), actionsMost)]
 	}
 	var out []fieldAction
 	if !s.inTrash() && len(s.field.found.cards) == 0 && s.FieldQuery() != "" {
@@ -116,7 +144,10 @@ func (s *State) actionKey(key ui.Key) bool {
 		if s.field.actionAt < 0 || s.field.actionAt >= len(acts) {
 			return false
 		}
-		s.pressAction(acts[s.field.actionAt])
+		// What offers a choice opens under the pointer alone.
+		if acts[s.field.actionAt].menu == nil {
+			s.pressAction(acts[s.field.actionAt])
+		}
 	default:
 		return false
 	}
@@ -221,12 +252,16 @@ func arc(n int, r stage.Rect, h, gap, space float32) []stage.Point {
 func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction, x, y, k float32, above, keyed, animate bool) {
 	h := ribbonH * k
 	armed := a.danger && s.armed(c, a.id)
+	label := a.label
+	if a.menu != nil {
+		label += "…"
+	}
 	size := theme.TextSmall.Size(s.Settings.UIFontSize)
-	textW, _ := c.MeasureText(0, ui.Span{Text: a.label, Font: theme.UIFontFamily, Size: size})
+	textW, _ := c.MeasureText(0, ui.Span{Text: label, Font: theme.UIFontFamily, Size: size})
 	w := 2*ribbonStart*k + 14*k + 6*k + textW + 1
 	btn := ui.ButtonBase(c.Key("action-"+a.id)).Absolute().Left(x).Top(y).Size(w, h).
 		PaddingX(ribbonStart * k).Gap(6 * k).AlignItems(ui.Center).Radius(h / 2).
-		FocusRing(false).KeepFocus().Label(a.label).Transition(ribbonTransition(animate, above, k))
+		FocusRing(false).KeepFocus().Label(label).Transition(ribbonTransition(animate, above, k))
 	if armed {
 		btn.Tooltip("Click again to " + strings.ToLower(a.label) + ". You can’t undo this.")
 	}
@@ -242,12 +277,14 @@ func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction
 	if btn.FocusVisible() {
 		btn.Border(1, semantic.Border.Focused)
 	}
-	if btn.Clicked() {
+	if a.menu != nil {
+		btn.Menu(a.menu)
+	} else if btn.Clicked() {
 		s.pressAction(a)
 	}
 	btn.Children(func() {
 		ui.Icon(c, a.icon.SVG()).FontSize(14 * k).TextColor(components.Blend(semantic.Icon.Muted, danger.Foreground, amount))
-		components.CenteredLabel(c, a.label, theme.TextSmall, components.Blend(semantic.Text.Default, danger.Foreground, amount)).
+		components.CenteredLabel(c, label, theme.TextSmall, components.Blend(semantic.Text.Default, danger.Foreground, amount)).
 			SingleLine().Shrink(0)
 	})
 }

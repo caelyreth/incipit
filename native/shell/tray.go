@@ -149,7 +149,7 @@ func (s *State) trayView(c *ui.Context, semantic theme.Theme, h, k float32, hidd
 	if d, isSheet := dropped.(sheetDrag); ok && isSheet && !d.tray {
 		in := []string{d.id}
 		if s.isPicked("sheet:"+d.id) && len(s.field.picked) > 1 {
-			in = s.pickedSheets()
+			in = s.pickedOf("sheet:")
 		}
 		s.field.picked = nil
 		s.toTray(in)

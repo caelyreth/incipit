@@ -305,6 +305,7 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stage.Rect, acts
 			s.field.focus = false
 			input.Focus()
 		}
+		s.spaceKey()
 		// A condition written whole, a space after it, becomes a ribbon.
 		if strings.HasSuffix(s.field.words, " ") && strings.TrimSpace(s.field.words) != "" {
 			if s.takeConditions(s.field.words) {
@@ -943,12 +944,8 @@ func (s *State) pillKey(key ui.TextKey) bool {
 			s.stepSuggestion(map[ui.Key]int{ui.KeyUp: -1, ui.KeyDown: 1}[key.Key])
 			return true
 		}
-		if plain {
-			s.choose(map[ui.Key]int{ui.KeyUp: -1, ui.KeyDown: 1}[key.Key])
-			return true
-		}
 	}
-	return false
+	return s.fieldKey(key)
 }
 
 // ribbonTransition brings a ribbon in outward from the pill, moves it as

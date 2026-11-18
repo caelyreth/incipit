@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -204,13 +205,19 @@ func groupTint(semantic theme.Theme, group GroupItem) *ui.Color {
 	return &semantic.Text.Default
 }
 
-// moveMenu adds a Move To submenu of the groups, leaving out exclude and its subtree.
-func (s *State) moveMenu(m *ui.Menu, move func(group string), exclude string) {
-	if s.Library == nil {
-		return
-	}
-	m.Submenu("Move To", func(m *ui.Menu) {
-		if exclude != "" && m.Item("Top Level").Chosen() {
+// moveMenu adds a Move To submenu of where things can be moved.
+func (s *State) moveMenu(m *ui.Menu, move func(group string), exclude ...string) {
+	m.Submenu("Move To", s.moveTargets(move, exclude...))
+}
+
+// moveTargets is a menu of the groups to move into, the top level where
+// groups are moved, leaving out the groups exclude and what is in them.
+func (s *State) moveTargets(move func(group string), exclude ...string) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		if s.Library == nil {
+			return
+		}
+		if len(exclude) > 0 && m.Item("Top Level").Chosen() {
 			move("")
 		}
 		skipDepth := -1
@@ -219,7 +226,7 @@ func (s *State) moveMenu(m *ui.Menu, move func(group string), exclude string) {
 				continue
 			}
 			skipDepth = -1
-			if target.ID == exclude {
+			if slices.Contains(exclude, target.ID) {
 				skipDepth = target.Depth
 				continue
 			}
@@ -227,7 +234,7 @@ func (s *State) moveMenu(m *ui.Menu, move func(group string), exclude string) {
 				move(target.ID)
 			}
 		}
-	})
+	}
 }
 
 func trashGroupLabel(group GroupItem) string {

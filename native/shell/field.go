@@ -133,14 +133,27 @@ type fieldState struct {
 	// hold keeps a change still for its first frame, which lays out and
 	// draws what it brings, so the motion starts on the frame after.
 	hold bool
-	// picked is the sheets picked together, anchor where a Shift-click's
-	// run starts (picks.go).
-	picked []string
-	anchor string
+	// picked is the groups and sheets selected, anchor where a
+	// Shift-click's run starts, and pickedFor the query they were
+	// selected under (picks.go).
+	picked    []string
+	anchor    string
+	pickedFor string
+	// gathering keeps what moves done together would undo, while they are
+	// (notice.go).
+	gathering *[]func()
 	// order is the rows the field shows, in order, and chosen the one the
-	// keys are on.
-	order  []string
-	chosen string
+	// keys are on; rowRects where each stands in the field, drawing the
+	// card being drawn, and shownChosen the row last brought into view
+	// (keys.go).
+	order       []string
+	chosen      string
+	rowRects    map[string]stage.Rect
+	drawing     cardPlace
+	shownChosen string
+	// wordsBefore is the pill's words as the last frame left them, for
+	// Space on a row to be taken back from them.
+	wordsBefore string
 	// renaming is the group whose name is being written on its head.
 	renaming, renameName string
 	renameFocus          bool
@@ -397,6 +410,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stage.Look, 
 		s.field.order = append(s.field.order, cd.kind.rows()...)
 	}
 	s.keepPicked()
+	s.keepRowPlaces()
 	// What the query shows changed, the field comes back to its horizon on
 	// the change's own spring; a card only growing or shrinking, as a
 	// setting's fold opening, leaves it where it is.
@@ -621,16 +635,16 @@ func (s *State) shift(field ui.Element, frames []stage.Frame, f found, shapes []
 	return s.field.drawn
 }
 
-// escapeField lets the picked go, then closes the open key, then puts the
-// suggestions away, then
-// takes the words away, then the last condition, and with none left goes
-// back to the desk.
+// escapeField closes the actions, then lets the selection go, then
+// closes the open key, then puts the suggestions away, then takes the
+// words away, then the last condition, and with none left goes back to
+// the desk.
 func (s *State) escapeField() {
 	switch {
-	case len(s.field.picked) > 0:
-		s.field.picked = nil
 	case s.field.acting:
 		s.toggleActions()
+	case len(s.field.picked) > 0:
+		s.field.picked = nil
 	case s.field.opened != nil:
 		s.closeKey()
 	case s.offered():
@@ -793,17 +807,7 @@ func (s *State) fieldMenu(m *ui.Menu) {
 	// The place's actions, as the pill's button opens them; what asks
 	// again opens them, ready.
 	acts := s.fieldActions()
-	for _, a := range acts {
-		if !a.danger {
-			if m.Item(a.label).Chosen() {
-				a.run()
-			}
-		} else if m.Item(a.label + "…").Chosen() {
-			s.field.acting = true
-			s.closeKey()
-			s.arm(a.id)
-		}
-	}
+	s.actionsMenu(m, acts)
 	if len(acts) > 0 {
 		m.Separator()
 	}
