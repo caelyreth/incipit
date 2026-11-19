@@ -30,6 +30,9 @@ const (
 	stageDown
 	// stageUp comes back out of it.
 	stageUp
+	// stageSwap turns the place from one view to the other: all that was
+	// drawn goes, and the new view's cards come in one after another.
+	stageSwap
 )
 
 // scales is how much smaller or larger what comes in or goes out
@@ -50,6 +53,9 @@ func (d stageDepth) scales() (in, out float32) {
 // ends at exit. What goes out is drawn first, under what stays.
 func stageShift(from, to []stageFrame, enter, exit stageRect, d stageDepth, t float32) []stageFrame {
 	t = max(0, min(t, 1))
+	if d == stageSwap {
+		return stageSwapFrames(from, to, t)
+	}
 	in, out := d.scales()
 	was := make(map[string]stageFrame, len(from))
 	for _, f := range from {
@@ -90,6 +96,46 @@ func stageShift(from, to []stageFrame, enter, exit stageRect, d stageDepth, t fl
 		}
 		fade := max(0, (t-0.25)/0.75)
 		frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(start.Rect, f.Rect, t), Shown: stageLerp(start.Shown, f.Shown, fade)})
+	}
+	return frames
+}
+
+// The parts of a swap, of its whole way: what was drawn is gone by
+// swapOut; the new cards start coming from swapIn, one after another over
+// swapSpread, the first swapStagger of them each a step later than the
+// last and the rest with the last of them, each taking swapEach.
+const (
+	swapOut, swapIn, swapSpread, swapEach = 0.3, 0.15, 0.3, 0.55
+	swapStagger                           = 12
+)
+
+// swapEase is how far along the pill is at t of a swap: quick to go,
+// slow to arrive, there when the last card is.
+func swapEase(t float32) float32 {
+	t = max(0, min(1, t))
+	return 1 - (1-t)*(1-t)*(1-t)
+}
+
+// stageSwapFrames is a swap t of the way: what was drawn sinks a little and
+// fades, all at once; then the new view's cards rise into their places
+// and show, in the order they are given, which is the order the view is
+// read in.
+func stageSwapFrames(from, to []stageFrame, t float32) []stageFrame {
+	frames := make([]stageFrame, 0, len(from)+len(to))
+	if out := min(1, t/swapOut); out < 1 {
+		out = 1 - (1-out)*(1-out)
+		for _, f := range from {
+			frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(f.Rect, f.Rect.Scaled(0.97), out), Shown: f.Shown * (1 - out)})
+		}
+	}
+	for i, f := range to {
+		start := swapIn + swapSpread*float32(min(i, swapStagger))/swapStagger
+		k := max(0, min(1, (t-start)/swapEach))
+		// Eased out: quick to come, slow to settle.
+		k = swapEase(k)
+		rise := f.Rect.Scaled(0.96)
+		rise.Y += 14
+		frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(rise, f.Rect, k), Shown: f.Shown * k})
 	}
 	return frames
 }

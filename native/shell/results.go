@@ -1,7 +1,9 @@
 package shell
 
 import (
+	"cmp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/caelyreth/neverland/internal/query"
@@ -29,6 +31,10 @@ func (librarySource) answer(s *State, text string, f *found) {
 		return
 	}
 	scope, trash, browse := s.browsing(query.Parse(text))
+	if f.listed {
+		s.listing(f, text, scope, trash, browse)
+		return
+	}
 	switch {
 	case !browse:
 		s.searched(f, text, scope, trash)
@@ -65,6 +71,10 @@ type block struct {
 	// path is where the block's group is from the group the query is in,
 	// the groups between, outermost first; none where it is inside it.
 	path []string
+	// divider is a group standing as its head alone, across a list, its
+	// sheets under it; section is a sort's step standing so instead.
+	divider bool
+	section string
 }
 
 // entry is a sheet as a block shows it, where its text matches what was
@@ -110,26 +120,31 @@ func pinnedFirst(groups []GroupItem, entries []entry, group, sheet func(int)) {
 	}
 }
 
-// asFiled calls group and sheet with the index of each of a place's
-// groups and sheets as filed: the groups, then the sheets.
-func asFiled(groups []GroupItem, entries []entry, group, sheet func(int)) {
-	for i := range groups {
-		group(i)
-	}
-	for i := range entries {
-		sheet(i)
-	}
+// made stands groups and entries as the field browses them, by when each
+// was made: the groups oldest first, the Inbox among them, the sheets
+// newest first. The field never reads the order they are filed in, which
+// is the list's to show and set (field-and-desk.md §4.7.6), so arranging
+// a list moves nothing in it.
+func made(groups []GroupItem, entries []entry) ([]GroupItem, []entry) {
+	groups, entries = slices.Clone(groups), slices.Clone(entries)
+	slices.SortStableFunc(groups, func(a, b GroupItem) int { return cmp.Compare(idNumber(a.ID), idNumber(b.ID)) })
+	slices.SortStableFunc(entries, func(a, b entry) int {
+		return cmp.Or(b.sheet.Created.Compare(a.sheet.Created), cmp.Compare(idNumber(b.sheet.ID), idNumber(a.sheet.ID)))
+	})
+	return groups, entries
+}
+
+// idNumber is an identity as the number it is, made in order.
+func idNumber(id string) int64 {
+	n, _ := strconv.ParseInt(id, 10, 64)
+	return n
 }
 
 // filed fills f with a place's groups, each a block, and its sheets, each
-// on its own, as they stand.
+// on its own, as the field browses them.
 func (s *State) filed(f *found, groups []GroupItem, entries []entry, trashed bool) {
-	order := pinnedFirst
-	if f.listed {
-		// A list is exact: its place as filed, pins and all where they are.
-		order = asFiled
-	}
-	order(groups, entries, func(i int) {
+	groups, entries = made(groups, entries)
+	pinnedFirst(groups, entries, func(i int) {
 		f.add("group:"+groups[i].ID, tierResult, s.groupBlock(groups[i], trashed))
 	}, func(i int) {
 		f.add("sheet:"+entries[i].sheet.ID, tierResult, block{entries: entries[i : i+1], single: true, trashed: trashed})
@@ -146,6 +161,7 @@ func (s *State) groupBlock(g GroupItem, trashed bool) block {
 	if g.HasGroups && !trashed {
 		b.groups = s.groups(g.ID)
 	}
+	b.groups, b.entries = made(b.groups, b.entries)
 	return b
 }
 

@@ -86,7 +86,8 @@ func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
 	state, library, tester := onField(t, 1260, 700)
 	library.groupTree = map[string][]GroupItem{"": {
 		{ID: "1", Name: "Inbox", Inbox: true},
-		{ID: "11", Name: "Ideas"}, {ID: "12", Name: "Letters"}, {ID: "13", Name: "Trips"},
+		// Made before Novel, which the field so stands furthest out.
+		{ID: "i", Name: "Ideas"}, {ID: "l", Name: "Letters"}, {ID: "t", Name: "Trips"},
 		{ID: "2", Name: "Novel"},
 	}}
 	library.extraSheets = 8

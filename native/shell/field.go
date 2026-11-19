@@ -163,8 +163,22 @@ type fieldState struct {
 	renameFocus          bool
 	// lists are the places shown as a list, kept for the session (list.go).
 	lists map[string]bool
-	// named are the bands' names the field showed last.
-	named map[string]bool
+	// named are the bands' names the field showed last; listed is whether
+	// it last stood as a list.
+	named  map[string]bool
+	listed bool
+	// swapFrom is where the field's origin stood as the views began to
+	// swap: what goes out stays there while the pill moves on. swapPoise
+	// and swapPin are where the pill was held and pinned then; swapT is
+	// how far the swap has gone, below 0 while none is going.
+	swapFrom, swapPoise stagePoint
+	swapPin, swapT      float32
+	// parts are how far aside each card stands to open the gap a sheet
+	// dragged in a list would go into, by its id.
+	parts map[string]float32
+	// pin is how far the pill stands at the window's foot, as a list's
+	// does, rather than at its horizon.
+	pin float32
 }
 
 // fieldRoom is the room the field is laid out in: its width and height,
@@ -265,7 +279,12 @@ func (s *State) into(g GroupItem, from stageRect) {
 		s.field.next = change{depth: stageDown, enter: from}
 		return
 	}
+	listed := s.listed()
 	s.narrow((&query.Condition{Key: mustKey("in"), Value: g.Name}).String(), from)
+	// Gone into from a list, a group is read as one too.
+	if listed && !s.listed() {
+		s.toggleList()
+	}
 }
 
 // Search goes to the field, its pill taking the keyboard.
@@ -386,8 +405,19 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	rects, marks := z.Place(heights, bands)
 	listed := s.listed()
 	if listed {
-		rects, marks = z.Rows(heights, listRows(f.cards), bands)
+		rects, marks = z.Rows(heights, listWide(f.cards)), nil
 	}
+	// Turning between the views is a swap: one view goes, the other comes.
+	if listed != s.field.listed && s.field.rest != nil {
+		s.field.next = change{depth: stageSwap}
+		s.field.swapFrom = stagePoint{X: w/2 + s.field.poise.X, Y: h/2 - s.field.poise.Y - (s.field.scroll - s.field.over.Offset())}
+		s.field.swapPoise, s.field.swapPin = s.field.poise, s.field.pin
+		// The new view starts at its home: nothing scrolls on a clock of
+		// its own while the views turn.
+		s.field.scroll, s.field.home = 0, false
+		view.Jump("scroll", 0)
+	}
+	s.field.listed = listed
 	frames := make([]stageFrame, len(rects))
 	for i, r := range rects {
 		frames[i] = stageFrame{ID: f.cards[i].id, Size: shapes[i].size, Rect: r, Shown: 1}
@@ -420,6 +450,11 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		X: max(-reach-lo, min(reach-hi, s.field.poiseTo.X)),
 		Y: max(-down, min(up, s.field.poiseTo.Y)),
 	}
+	// A list rests on the pill at the window's foot, however little it
+	// holds, open or not.
+	if listed {
+		poise.Y = -down
+	}
 	lift := poise.Y
 	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2+lift), max(0, below+3*m.pad-h/2-lift)
 	// The keys start from what ranks first, nearest the pill; they go on,
@@ -442,7 +477,8 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	// What the query shows changed, the field comes back to its horizon on
 	// the change's own spring; a card only growing or shrinking, as a
 	// setting's fold opening, leaves it where it is.
-	if s.field.rest != nil && !sameCards(frames, s.field.rest) && s.field.scroll != 0 {
+	// A list arranged keeps its cards, only their order changed, and stays.
+	if s.field.rest != nil && !sameCards(frames, s.field.rest) && !(listed && sameSet(frames, s.field.rest)) && s.field.scroll != 0 {
 		s.field.home, s.field.homeTo = true, 0
 	}
 	// What arrives is brought into view, wherever the change left it.
@@ -460,6 +496,12 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		view.Jump("poise-x", poise.X)
 		view.Jump("poise-y", poise.Y)
 		s.field.poise = poise
+	case s.field.swapT >= 0:
+		// Turning views, the pill goes on the swap's own clock, so it
+		// arrives as the cards do and nothing is left to catch up.
+		e := swapEase(s.field.swapT)
+		from := s.field.swapPoise
+		s.field.poise = stagePoint{X: view.Jump("poise-x", from.X+(poise.X-from.X)*e), Y: view.Jump("poise-y", from.Y+(poise.Y-from.Y)*e)}
 	case !s.field.hold:
 		spring := components.Spring(components.MotionScene)
 		s.field.poise = stagePoint{X: view.AnimateTo("poise-x", poise.X, spring), Y: view.AnimateTo("poise-y", poise.Y, spring)}
@@ -493,6 +535,21 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	bound := h/2 - poise.Y - (s.field.scroll - s.field.over.Offset()) - pill.H/2
 	away := bound < top+rl.above || bound > h-foot-pill.H-rl.below
 	py := max(top+rl.heldAbove, min(free, h-foot-pill.H-rl.heldBelow))
+	// A list's pill stands at the window's foot, its ground, and does not
+	// go with the list as it scrolls; it eases there and back as the
+	// views turn.
+	pin := float32(0)
+	if listed {
+		pin, away = 1, false
+	}
+	switch {
+	case animate && s.field.swapT >= 0:
+		pin = view.Jump("pin", s.field.swapPin+(pin-s.field.swapPin)*swapEase(s.field.swapT))
+	case animate:
+		pin = components.Follow(view, "pin", pin, components.MotionScene)
+	}
+	s.field.pin = pin
+	py += (h - foot - pill.H - rl.heldBelow - py) * pin
 	s.field.away = map[bool]float32{true: 1}[away]
 	if animate {
 		s.field.away = components.Follow(view, "away", s.field.away, components.MotionQuick)
@@ -510,12 +567,21 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		}
 	}
 	topFade, bottomFade := min(top, max(0, drawnAbove-horizon)), min(top, max(0, horizon+drawnBelow-h))
+	// The window's edges shade what passes under them; as what stands
+	// there comes and goes, the shade comes and goes with it.
+	if animate {
+		topFade = components.Follow(view, "top-fade", topFade, components.MotionQuick)
+		bottomFade = components.Follow(view, "bottom-fade", bottomFade, components.MotionQuick)
+	}
 	// Staying at the window's top or foot, the pill and its conditions
 	// stand out from what passes under them as macOS bars do: the field
 	// blurs under them, more toward the window's edge, under its ground
 	// fading away from that edge, coming in as the horizon goes past.
 	stuckTop, stuckFoot := top+rl.heldAbove-free, free-(h-foot-pill.H-rl.heldBelow)
 	s.field.stuck = max(0, min(1, stuckTop/foot), min(1, stuckFoot/foot))
+	if animate {
+		s.field.stuck = components.Follow(view, "stuck", s.field.stuck, components.MotionQuick)
+	}
 	edge := py + pill.H + rl.heldBelow + 10*k
 	if stuckFoot > 0 {
 		edge = h - (py - rl.heldAbove) + 10*k
@@ -524,16 +590,30 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		// The top band drags the window where nothing of the field stands over it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
 		at := stagePoint{X: w/2 + s.field.poise.X, Y: horizon}
+		// Swapping views, only the pill travels: what goes out fades where
+		// it stood, and what comes in rises where it will stand.
+		swapping := s.field.from != nil && s.field.now.depth == stageSwap
+		if swapping {
+			at = stagePoint{X: w/2 + poise.X, Y: h/2 - poise.Y - (s.field.scroll - s.field.over.Offset())}
+		}
 		s.bandNames(c, semantic, f, marks, at, m, animate)
 		for _, fr := range drawn {
 			cd, ok := s.field.shown[fr.ID]
 			if !ok {
 				continue
 			}
-			s.cardView(c, semantic, fr, cd, s.field.shownShape[fr.ID], at, live[fr.ID], m, animate)
+			from := at
+			if swapping && !live[fr.ID] {
+				from = s.field.swapFrom
+			}
+			from.X += s.partOf(view, fr.ID, animate)
+			s.cardView(c, semantic, fr, cd, s.field.shownShape[fr.ID], from, live[fr.ID], m, animate)
 		}
 		if s.field.drag != nil {
 			s.arrangeTargets(c, semantic, drawn, at, m, animate)
+		} else {
+			// Let go of, what stood aside goes back.
+			s.field.parts = nil
 		}
 		if topFade > 0 || bottomFade > 0 {
 			ui.Box(c).Key("field-edges").Absolute().Top(0).Left(0).Size(w, h).IgnoreInput(true).
@@ -607,6 +687,25 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 		s.field.now = s.field.next
 		s.field.next = change{}
 		s.field.rest = frames
+		if s.field.now.depth == stageSwap {
+			// What was drawn goes as it was. A card the new view shows too,
+			// as a group's card that is its divider in the list, goes under
+			// an id of its own, so it goes out as it stood and comes in
+			// anew; the rest keep theirs, and what was drawn of them.
+			shared := make(map[string]bool, len(frames))
+			for _, fr := range frames {
+				shared[fr.ID] = true
+			}
+			from := make([]stageFrame, len(s.field.from))
+			for i, fr := range s.field.from {
+				if id := "was:" + fr.ID; shared[fr.ID] {
+					s.field.shown[id], s.field.shownShape[id] = s.field.shown[fr.ID], s.field.shownShape[fr.ID]
+					fr.ID = id
+				}
+				from[i] = fr
+			}
+			s.field.from = from
+		}
 		live := make(map[string]bool, len(frames)+len(s.field.from))
 		for _, fr := range frames {
 			live[fr.ID] = true
@@ -641,13 +740,20 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 		// Its first frame draws where everything was; the spring starts on
 		// the next, so the time this one takes is not a leap.
 		t = 0
+	case animate && s.field.now.depth == stageSwap:
+		// Each card eases on its own over the swap's way (stageSwapFrames).
+		t = field.AnimateTo("shift", 1, ui.Animation{Duration: swapFor, Ease: func(t float32) float32 { return t }})
 	case animate:
 		t = field.AnimateTo("shift", 1, components.Spring(components.MotionScene))
 	}
+	s.field.swapT = -1
 	if t >= 1 {
 		s.field.from = nil
 		s.field.drawn = frames
 		return frames
+	}
+	if s.field.now.depth == stageSwap {
+		s.field.swapT = t
 	}
 	var exit stageRect
 	for _, fr := range frames {
@@ -663,8 +769,28 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 // closes the open key, then puts the suggestions away, then takes the
 // words away, then the last condition, and with none left goes back to
 // the desk.
+// swapFor is how long turning between the views takes, all of it.
+const swapFor = 560 * time.Millisecond
+
 func sameCards(a, b []stageFrame) bool {
 	return slices.EqualFunc(a, b, func(x, y stageFrame) bool { return x.ID == y.ID })
+}
+
+// sameSet reports whether a and b hold the same cards, in any order.
+func sameSet(a, b []stageFrame) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	ids := make(map[string]bool, len(a))
+	for _, fr := range a {
+		ids[fr.ID] = true
+	}
+	for _, fr := range b {
+		if !ids[fr.ID] {
+			return false
+		}
+	}
+	return true
 }
 
 // scopeGroup is the group the field is in, where a sheet may be filed:

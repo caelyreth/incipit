@@ -4,6 +4,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/caelyreth/neverland/internal/query"
 )
 
 // A search's bands cut where the match falls away most, not at counts.
@@ -62,5 +64,17 @@ func TestBandsAreChosen(t *testing.T) {
 			t.Fatalf("Bands should stand nearest first: %+v.", f.cards)
 		}
 		last = cd.band
+	}
+}
+
+// A sort and bands each choose a view: one taken puts the other away.
+func TestASortAndBandsPutEachOtherAway(t *testing.T) {
+	conds, _ := put([]string{"$sort:title"}, query.Condition{Key: mustKey("bands"), Value: "tag"})
+	if !slices.Equal(conds, []string{"$bands:tag"}) {
+		t.Fatalf("Bands taken should put the sort away: %v.", conds)
+	}
+	conds, _ = put(conds, query.Condition{Key: mustKey("sort"), Value: "updated"})
+	if !slices.Equal(conds, []string{"$sort:updated"}) {
+		t.Fatalf("A sort taken should put the bands away: %v.", conds)
 	}
 }

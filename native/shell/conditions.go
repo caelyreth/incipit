@@ -62,6 +62,11 @@ func put(conds []string, c query.Condition) ([]string, bool) {
 		if ok && c.Key.OneValue() && written(had).Key.Name == c.Key.Name {
 			continue
 		}
+		// A sort and bands each choose a view: one taken puts the other's
+		// away.
+		if ok && viewOf[c.Key.Name] != "" && viewOf[written(had).Key.Name] != "" {
+			continue
+		}
 		old = append(old, text)
 	}
 	return ordered(append(old, c.String())), true

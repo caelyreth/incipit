@@ -214,31 +214,34 @@ func stageReach(rects []stageRect) (below, above float32) {
 }
 
 // Rows stands blocks of heights as a list reads (field-and-desk.md
-// §4.7.6): in rows of the columns under the band, left to right and top
-// down, each row as tall as its tallest, a block starting a new row where
-// newRow says. The rows stand together across the columns, a short one
-// from the left. Each band of bands, nil for none, is a section: it
-// starts a row, past a ring's room that holds its name where named.
-func (z stageHorizon) Rows(heights []float32, newRow []bool, bands []int) ([]stageRect, []stageMark) {
+// §4.7.6): over the band, left to right and top down in rows of the
+// columns, each row as tall as its tallest, the last ending on the band
+// as on its ground. A block wide says stands across the columns, alone in
+// its row, as a divider does, the cards it heads close under it.
+func (z stageHorizon) Rows(heights []float32, wide []bool) []stageRect {
 	width := float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap
 	left := -width / 2
 	out := make([]stageRect, len(heights))
-	var marks []stageMark
-	y, rowH, col := z.Below, float32(0), 0
+	y, rowH, col := float32(0), float32(0), 0
 	for i, h := range heights {
-		starts := bands != nil && (i == 0 || bands[i] != bands[i-1])
-		if i > 0 && (col == z.Cols || newRow[i] || starts) {
-			y, rowH, col = y+rowH+z.Gap, 0, 0
-		}
-		if starts && (i > 0 || z.Named) {
-			if z.Named {
-				marks = append(marks, stageMark{Band: bands[i], Rect: stageRect{X: left, Y: y, W: width, H: z.Ring}})
+		if i > 0 && (col == z.Cols || wide[i] || wide[i-1]) {
+			gap := z.Gap
+			if wide[i-1] {
+				gap /= 2
 			}
-			y += z.Ring
+			y, rowH, col = y+rowH+gap, 0, 0
 		}
 		out[i] = stageRect{X: left + float32(col)*(z.Col+z.Gap), Y: y, W: z.Col, H: h}
+		if wide[i] {
+			out[i].W = width
+		}
 		rowH = max(rowH, h)
 		col++
 	}
-	return out, marks
+	// Down onto the band.
+	shift := -z.Above - (y + rowH)
+	for i := range out {
+		out[i].Y += shift
+	}
+	return out
 }

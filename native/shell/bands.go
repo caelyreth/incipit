@@ -167,20 +167,13 @@ func lensBands(lens string, of []facts, searching bool, now time.Time) ([]int, [
 			}
 		}
 	case "updated", "created":
-		names = []string{"Today", "This week", "This month", "This year", "Earlier"}
-		spans := []string{"today", "this-week", "this-month", "this-year"}
+		names = dateSteps
 		for i, x := range of {
 			t := x.updated
 			if lens == "created" {
 				t = x.created
 			}
-			out[i] = len(spans)
-			for j, v := range spans {
-				if d, _ := query.ParseDates(v, now); d.Contains(t) {
-					out[i] = j
-					break
-				}
-			}
+			out[i] = slices.Index(names, dateStep(t, now))
 		}
 	case "tag":
 		count := map[string]int{}
@@ -220,6 +213,19 @@ func lensBands(lens string, of []facts, searching bool, now time.Time) ([]int, [
 		return out, []string{""}
 	}
 	return compact(out, names)
+}
+
+// dateSteps are the steps time is told in, nearest first.
+var dateSteps = []string{"Today", "This week", "This month", "This year", "Earlier"}
+
+// dateStep is the step of dateSteps t falls in, at now.
+func dateStep(t, now time.Time) string {
+	for i, v := range []string{"today", "this-week", "this-month", "this-year"} {
+		if d, _ := query.ParseDates(v, now); d.Contains(t) {
+			return dateSteps[i]
+		}
+	}
+	return dateSteps[len(dateSteps)-1]
 }
 
 // relevanceCuts is each of of's band by how well it matched, in the order

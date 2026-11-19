@@ -43,22 +43,23 @@ func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
 	}
 }
 
-// A list is read: rows of the columns under the pill, left to right and
-// top down, each as tall as its tallest, a new row where it says.
+// A list is read: rows of the columns over the pill, left to right and
+// top down, each as tall as its tallest, a divider across the columns
+// alone in its row, the last row ending on the band.
 func TestAListFillsItsRowsInReadingOrder(t *testing.T) {
-	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Below: 20}
-	rects, _ := z.Rows([]float32{50, 80, 50, 50, 50}, []bool{false, false, true, false, false}, nil)
-	if rects[0].Y != 20 || rects[1].X != rects[0].X+110 || rects[2].Y != 20+80+10 || rects[2].X != rects[0].X {
-		t.Fatalf("The third should start the next row under the tallest of the first: %+v.", rects)
+	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Above: 20}
+	rects := z.Rows([]float32{30, 50, 80, 50, 50}, []bool{true, false, false, false, false})
+	if rects[0].W != 320 || rects[1].Y != rects[0].Y+30+5 || rects[2].X != rects[1].X+110 {
+		t.Fatalf("The divider should stand across, its sheets under it left to right: %+v.", rects)
 	}
-	if rects[4].Y != rects[2].Y || rects[4].X != rects[0].X+220 {
-		t.Fatalf("The row should go on left to right: %+v.", rects)
+	if rects[4].Y != rects[1].Y+80+10 || rects[4].X != rects[1].X || rects[4].Y+rects[4].H != -20 {
+		t.Fatalf("The next row should start under the tallest, the last ending on the band: %+v.", rects)
 	}
 }
 
 // Each band stands as a ring past the last: a band starts at the next row
 // of slots, past a ring's room across the half that a nearer band holds,
-// its name there where named; and, in a list, a section of its own.
+// its name there where named.
 func TestBandsStandAsRings(t *testing.T) {
 	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20, Ring: 30}
 	// Two in the nearest band, under the pill; the next starts over it,
@@ -77,10 +78,6 @@ func TestBandsStandAsRings(t *testing.T) {
 	rects, marks = z.Place([]float32{50, 50}, []int{0, 1})
 	if len(marks) != 2 || marks[0].Rect.Y != 20 || rects[0].Y != 50 || marks[1].Rect.Y != -50 || rects[1].Y != -100 {
 		t.Fatalf("Each band's first row should have its name's room: %+v %+v.", rects, marks)
-	}
-	rects, marks = z.Rows([]float32{50, 50, 50}, make([]bool, 3), []int{0, 0, 1})
-	if len(marks) != 2 || rects[0].Y != 50 || rects[2].X != rects[0].X || rects[2].Y != 50+50+10+30 {
-		t.Fatalf("A list's band should be a section of its own: %+v %+v.", rects, marks)
 	}
 }
 

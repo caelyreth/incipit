@@ -49,27 +49,50 @@ func TestASortShowsTheList(t *testing.T) {
 	}
 }
 
-// In a group's list, as filed, ⌥ and the arrows move the row the keys are
-// on along its order, and a sheet dropped on another's half goes there.
+// The list divides a place by its groups, their sheets under them; ⌥ and
+// the arrows move a sheet along its group, and one dropped among another
+// group's sheets is filed there, beside the one it was dropped on.
 func TestAListIsArrangedByHand(t *testing.T) {
 	state, library, tester := onField(t, 1260, 850)
 	library.extraSheets = 3
-	state.SetFieldQuery("$in:Novel")
 	state.toggleList()
 	settle(tester)
+	ids := shownBlocks(state)
+	if !slices.Contains(ids, "group:1") || !slices.Contains(ids, "group:2") || slices.Index(ids, "group:2") > slices.Index(ids, "sheet:7") {
+		t.Fatalf("The groups should divide the list, their sheets under them: %v.", ids)
+	}
+	if !state.field.found.cards[slices.Index(ids, "group:2")].kind.(block).divider {
+		t.Fatal("A group in a list should stand as its divider.")
+	}
 	state.field.chosen = "sheet:7"
 	if !state.fieldKey(ui.TextKey{Key: ui.KeyRight, Mods: ui.Alt}) || !slices.Equal(library.moved, []string{"7@1"}) {
 		t.Fatalf("⌥→ should move the sheet one on: %v.", library.moved)
 	}
-	dragOnto(t, tester, "Chapter", "Sheet 3")
-	if len(library.moved) != 2 || library.moved[1] != "7@2" && library.moved[1] != "7@3" {
-		t.Fatalf("A sheet dropped on another should go beside it: %v.", library.moved)
+	dragOnto(t, tester, "Draft", "Sheet 2")
+	if !slices.Contains(library.calls, "move 8 to 2") {
+		t.Fatalf("A sheet dropped among another group's should be filed there: %v.", library.calls)
 	}
-	state.SetFieldQuery("$in:Novel")
 	state.toggleList()
 	settle(tester)
+	state.field.chosen = "sheet:7"
 	if state.fieldKey(ui.TextKey{Key: ui.KeyRight, Mods: ui.Alt}) {
 		t.Fatal("The field has no order to arrange.")
+	}
+}
+
+// The field reads no filed order: groups by when they were made, sheets
+// newest made first, however they are filed.
+func TestTheFieldReadsNoFiledOrder(t *testing.T) {
+	now := time.Now()
+	groups := []GroupItem{{ID: "12"}, {ID: "3"}}
+	entries := []entry{{sheet: SheetItem{ID: "1", Created: now.Add(-time.Hour)}}, {sheet: SheetItem{ID: "2", Created: now}}}
+	g, e := made(groups, entries)
+	if g[0].ID != "3" || e[0].sheet.ID != "2" {
+		t.Fatalf("made: %v %v", g, e)
+	}
+	g2, e2 := made([]GroupItem{groups[1], groups[0]}, []entry{entries[1], entries[0]})
+	if !slices.Equal(g, g2) || e2[0].sheet.ID != e[0].sheet.ID {
+		t.Fatal("Filed otherwise, the field should stand the same.")
 	}
 }
 

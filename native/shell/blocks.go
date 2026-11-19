@@ -114,12 +114,19 @@ func (s *State) shapes(c *ui.Context, f found, m blockMetrics) []shape {
 	if s.field.shapesKey != key {
 		s.field.shapes, s.field.shapesKey = map[string]shape{}, key
 	}
+	// A card shaped for one view is not shaped for the other, as a
+	// group's card in the field is its divider in the list: each view
+	// keeps its own, so turning between them shapes nothing again.
+	view := ""
+	if f.listed {
+		view = "list:"
+	}
 	out := make([]shape, len(f.cards))
 	for i, cd := range f.cards {
-		sh, ok := s.field.shapes[cd.id]
+		sh, ok := s.field.shapes[view+cd.id]
 		if !ok {
 			sh = cd.kind.shape(s, c, m)
-			s.field.shapes[cd.id] = sh
+			s.field.shapes[view+cd.id] = sh
 		}
 		out[i] = sh
 	}
@@ -133,6 +140,10 @@ func (b block) shape(s *State, c *ui.Context, m blockMetrics) shape {
 		return shape{size: stageSize{W: m.col + 2*m.pad, H: h + 2*m.pad}, cols: [][]row{{{entry: &b.entries[0], h: h}}}}
 	case b.create:
 		return shape{size: stageSize{W: m.col + 2*m.pad, H: m.control + 2*m.pad}, cols: [][]row{{{create: true, h: m.control}}}}
+	case b.divider || b.section != "":
+		// Across the list, as wide as its columns.
+		z := m.horizon
+		return shape{size: stageSize{W: float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap, H: m.head}}
 	}
 	rows := make([]row, 0, len(b.groups)+len(b.entries)+1)
 	pinnedFirst(b.groups, b.entries, func(i int) {
@@ -161,7 +172,7 @@ func (b block) rows() []string {
 	return ids
 }
 
-func (b block) ground() bool { return !b.create }
+func (b block) ground() bool { return !b.create && !b.divider && b.section == "" }
 
 // A block is drawn anew while its group's name is being written.
 func (b block) drawsLive(s *State) bool {
@@ -211,6 +222,10 @@ func bodyLines(c *ui.Context, body string, width, scale float32, most int) int {
 // view is what a block holds: a group's head and rows, taking sheets and
 // groups dropped on it.
 func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stageFrame, sh shape, current bool, m blockMetrics, animate bool) {
+	if b.divider || b.section != "" {
+		s.dividerView(c, semantic, b, box, fr, m, animate)
+		return
+	}
 	box.Gap(m.headGap).Children(func() {
 		if !b.single && !b.create {
 			s.blockHead(c, semantic, b, fr, m, animate)
@@ -229,6 +244,24 @@ func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Elemen
 				}}.View(c, semantic).Height(r.h)
 			default:
 				s.moreRow(c, semantic, b, sh.more, fr, m, animate)
+			}
+		})
+	})
+}
+
+// dividerView is a list's divider: a group's head across the list, as the
+// head of its card does, or a sort's step, named.
+func (s *State) dividerView(c *ui.Context, semantic theme.Theme, b block, box ui.Element, fr stageFrame, m blockMetrics, animate bool) {
+	// Its head alone, standing where a card's words do.
+	over := m
+	box.Padding(0).Children(func() {
+		ui.Row(c).Key("over").WidthPercent(100).PaddingX(m.pad).Shrink(0).Children(func() {
+			if b.section != "" {
+				ui.Row(c).Key("step").Height(over.head).PaddingX(8 * m.k).AlignItems(ui.Center).Children(func() {
+					components.CenteredLabel(c, b.section, theme.TextLarge, semantic.Text.Heading)
+				})
+			} else {
+				s.blockHead(c, semantic, b, fr, over, animate)
 			}
 		})
 	})
@@ -417,9 +450,14 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 		FocusRing(false).KeepFocus().Label(sheetTitle(sh)).Selected(front)
 	s.rowFill(c, semantic, btn, id, animate)
 	btn.ContextMenu(s.rowMenu(id, s.sheetMenu(sh, trashed)))
-	// Dragged, it is a chip of its title alone.
+	// Dragged, a sheet that is a card of its own goes as the card, on the
+	// card's ground, what it leaves standing dimmed in its place; a row of
+	// a group's card is a chip of its title alone.
 	dragged := !trashed && s.dragFrom(btn, sheetDrag{id: sh.ID})
-	if dragged {
+	switch {
+	case dragged && single:
+		btn.Background(semantic.Surface.Page).Border(1, semantic.Border.Variant).Radius(12 * m.k)
+	case dragged:
 		// Its title line tall, the rest of its place kept below it, so
 		// nothing around it moves.
 		chip := 2*pad + theme.TextSmall.LineHeight(m.scale)
@@ -472,7 +510,8 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 					}
 				})
 			}
-			if dragged {
+			// A chip is its title alone; a card goes whole.
+			if dragged && !single {
 				return
 			}
 			if body := entryBody(e); body != "" {

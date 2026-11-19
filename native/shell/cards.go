@@ -88,8 +88,9 @@ type found struct {
 	// the query ranks them, which cards takes once it is ranked again.
 	cards, ranked []card
 	stats         fieldStats
-	// listed is whether it was found for a list, as filed.
+	// listed is whether it was found for a list; now is when.
 	listed bool
+	now    time.Time
 	// bands name the bands the cards stand in, nearest first, as the
 	// query chose them; nil for none.
 	bands []string
@@ -129,7 +130,7 @@ func (s *State) results(now time.Time) found {
 		}
 		return prev
 	}
-	f := found{query: text, rev: rev, open: open, held: held, listed: listed, cards: []card{}}
+	f := found{query: text, rev: rev, open: open, held: held, listed: listed, now: now, cards: []card{}}
 	for _, src := range sources {
 		src.answer(s, text, &f)
 	}

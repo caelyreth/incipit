@@ -68,8 +68,11 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	// room they take only grows while the pill stays as it is: open or
 	// let go of, with the same key's values standing, or, with none, the
 	// same conditions. Any of those changing, it is what they take again.
+	// A list stands over the pill, its ground; what the pill offers stands
+	// over it too, where the room is.
+	listed := s.listed()
 	hold := &s.field.ribbonHold
-	stand := fmt.Sprint(s.field.open, s.field.acting)
+	stand := fmt.Sprint(s.field.open, s.field.acting, listed)
 	if of := s.completing(); of != nil {
 		stand += " " + of.Name
 	} else {
@@ -90,6 +93,9 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 			name = p.key.Name
 		}
 		side := ribbonSide(name)
+		if listed {
+			side = 1
+		}
 		sides[side] = s.flow(c, sides[side], p, k, w)
 	}
 	var values [][]ribbonPlace
@@ -115,8 +121,13 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 			out.heldAbove, out.heldBelow = max(out.heldAbove, -p.y), max(out.heldBelow, p.y+rh-h)
 		}
 	}
-	if len(values) > 0 {
+	switch {
+	case len(values) == 0:
+	case listed:
 		// A step further out, so the values read as the key's, apart.
+		place(values, -(out.above + 3*gap + rh), -(rh + gap))
+		out.above += 2*gap + float32(len(values))*(rh+gap)
+	default:
 		place(values, h+out.below+3*gap, rh+gap)
 		out.below += 2*gap + float32(len(values))*(rh+gap)
 	}
@@ -343,6 +354,10 @@ func (s *State) look(semantic theme.Theme, p ribbonPlace) ribbonLook {
 		l.label, l.icon, l.edge = thousands(p.i)+" more", components.IconChevronDown, edgeNone
 		l.text = semantic.Text.Muted
 	}
+	// An order says which view it is read in, and shows it once chosen.
+	if (p.kind == ribbonKey || p.kind == ribbonValue) && viewOf[p.key.Name] != "" {
+		l.count = viewOf[p.key.Name]
+	}
 	if p.kind != ribbonCondition && p.kind != ribbonMore && p.i >= 0 && p.i == s.field.suggestion {
 		l.edge = edgeSolid
 	}
@@ -389,6 +404,10 @@ const (
 	ribbonEnd               = (ribbonH - ribbonClose) / 2
 	ribbonX                 = 6 + ribbonClose
 )
+
+// viewOf is the view each of the keys that order things is read in: a
+// sort is the list's, exact; bands the field's, near and far.
+var viewOf = map[string]string{"sort": "List", "bands": "Field"}
 
 // ribbonWidth is how wide the ribbon at p is: what it says, whole.
 func (s *State) ribbonWidth(c *ui.Context, p ribbonPlace, k float32) float32 {
@@ -449,7 +468,13 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 	if above {
 		originY = 1
 	}
-	btn := ui.ButtonBase(c.Key(s.ribbonID(p))).Absolute().Left(p.x).Top(p.y).Size(p.w, h).
+	// Each view has ribbons of its own: turning views, they go and come
+	// back where the new view stands them, never travelling across.
+	key := s.ribbonID(p)
+	if s.listed() {
+		key += "@list"
+	}
+	btn := ui.ButtonBase(c.Key(key)).Absolute().Left(p.x).Top(p.y).Size(p.w, h).
 		TransformOrigin(0.5, originY).
 		PaddingStart(ribbonStart * k).Gap(6 * k).AlignItems(ui.Center).Radius(h / 2).Opacity(shown).
 		IgnoreInput(shown < 0.5).FocusRing(false).KeepFocus().Label(l.label).Transition(ribbonTransition(animate, above, k))
