@@ -62,6 +62,22 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 			s.actionKey(ui.KeyEnter)
 		}
 	}
+	listed := s.listed()
+	// Turning between the views is a swap: one view goes, the other comes.
+	// What goes stays where it was drawn. Detect this before results() so
+	// switching via $sort: skips steady() and ranks for the list at once.
+	if listed != s.field.listed && s.field.rest != nil {
+		s.field.next = change{depth: stageSwap}
+		s.field.swapFrom = s.field.origin
+	}
+	// A list has no depth to go through: going into a group in it, or back
+	// out, what stays moves to where it stands and the rest fades where it
+	// is, as any change across. A divider is as wide as the list, and what
+	// came out of it or went back into it would stretch.
+	if listed && s.field.listed && s.field.next.depth != stageSwap {
+		s.field.next = change{}
+	}
+	s.field.listed = listed
 	f := s.results(c.Now())
 	if !s.field.settleAt.IsZero() {
 		c.After(s.field.settleAt.Sub(c.Now()))
@@ -105,24 +121,9 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		z.Ring = theme.TextXSmall.LineHeight(m.scale) + z.Gap
 	}
 	rects, marks := z.Place(heights, bands)
-	listed := s.listed()
 	if listed {
 		rects, marks = z.Rows(heights, listWide(f.cards)), nil
 	}
-	// Turning between the views is a swap: one view goes, the other comes.
-	// What goes stays where it was drawn.
-	if listed != s.field.listed && s.field.rest != nil {
-		s.field.next = change{depth: stageSwap}
-		s.field.swapFrom = s.field.origin
-	}
-	// A list has no depth to go through: going into a group in it, or back
-	// out, what stays moves to where it stands and the rest fades where it
-	// is, as any change across. A divider is as wide as the list, and what
-	// came out of it or went back into it would stretch.
-	if listed && s.field.listed && s.field.next.depth != stageSwap {
-		s.field.next = change{}
-	}
-	s.field.listed = listed
 	frames := make([]stageFrame, len(rects))
 	for i, r := range rects {
 		frames[i] = stageFrame{ID: f.cards[i].id, Size: shapes[i].size, Rect: r, Shown: 1}
@@ -155,10 +156,9 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		X: max(-reach-lo, min(reach-hi, s.field.poiseTo.X)),
 		Y: max(-down, min(up, s.field.poiseTo.Y)),
 	}
-	// A list rests on the pill at the window's foot, however little it
-	// holds, open or not.
+	// A list is laid out from the window's top down; only poise.X centers its columns.
 	if listed {
-		poise.Y = -max(0, h/2-foot-z.Below)
+		poise.Y = 0
 	}
 	lift := poise.Y
 	// What shows clear of the window's top band and of the pill with what
@@ -228,11 +228,13 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	// What arrives is brought into view, wherever the change left it.
 	s.reveal(c, frames, f)
-	drawn := s.shift(view, frames, f, shapes, animate)
+	visTop := -(s.field.base - (s.field.scroll - s.field.over.Offset()))
+	drawn := s.shift(view, frames, f, shapes, visTop, visTop+h, animate)
 	// The field goes there on the change's own spring, from the frame
-	// after its first, as the cards do.
+	// after its first, as the cards do. Swapping views keeps the cards
+	// at their target poise while only the pill travels.
 	switch {
-	case !animate || first:
+	case !animate || first || s.field.now.depth == stageSwap:
 		view.Jump("poise-x", poise.X)
 		view.Jump("poise-y", poise.Y)
 		s.field.poise = poise
@@ -253,28 +255,14 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	// The pill stands at the horizon, moving with the field as it
 	// scrolls, but no further than near the window's top or foot: there it
-	// stays, and what the field holds passes under it.
+	// stays, and what the field holds passes under it. A list's pill stands
+	// at the window's foot and does not scroll; on swap it travels directly
+	// between the field pill's screen position and the foot.
 	s.field.viewH = h
 	_, pulling := s.field.over.Step(c.Now(), animate)
 	if pulling {
 		c.AnimationFrame()
 	}
-	horizon := h/2 - s.field.poise.Y - (s.field.scroll - s.field.over.Offset())
-	// The cards stand about the horizon, or from a list's top.
-	origin := horizon
-	if listed {
-		origin = s.field.base - (s.field.scroll - s.field.over.Offset())
-	}
-	// The pill follows its horizon while all around it fits in the window.
-	// Past that, what is offered around it is put away, and it goes on
-	// with the query's own conditions alone, as far as they still fit, and
-	// stays there while what the field holds passes under it.
-	// Whether it fits goes by where the field is going, not where its
-	// spring has it on the way: the pill making room for what it offers,
-	// as at a list's top, never puts it away while it comes.
-	free := horizon - pill.H/2
-	bound := h/2 - poise.Y - (s.field.scroll - s.field.over.Offset()) - pill.H/2
-	away := bound < top+rl.above || bound > h-foot-pill.H-rl.below
 	// The room the query's own ribbons take goes along with the change
 	// that brings them, as the pill does.
 	if animate && !first {
@@ -282,19 +270,33 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		rl.heldBelow = s.along(view, "held-below", s.field.heldBelow, rl.heldBelow)
 	}
 	s.field.heldAbove, s.field.heldBelow = rl.heldAbove, rl.heldBelow
-	py := max(top+rl.heldAbove, min(free, h-foot-pill.H-rl.heldBelow))
-	// A list's pill stands at the window's foot, its ground, and does not
-	// go with the list as it scrolls; it eases there and back as the
-	// views turn.
+	footY := h - foot - pill.H - rl.heldBelow
+	var origin, free, fieldPy float32
+	away := false
+	if listed {
+		origin = s.field.base - (s.field.scroll - s.field.over.Offset())
+		fieldPy = s.field.fieldPillY
+		if first {
+			fieldPy = footY
+		}
+	} else {
+		horizon := h/2 - s.field.poise.Y - (s.field.scroll - s.field.over.Offset())
+		origin = horizon
+		free = horizon - pill.H/2
+		bound := h/2 - poise.Y - (s.field.scroll - s.field.over.Offset()) - pill.H/2
+		away = bound < top+rl.above || bound > h-foot-pill.H-rl.below
+		fieldPy = max(top+rl.heldAbove, min(free, footY))
+		s.field.fieldPillY = fieldPy
+	}
 	pin := float32(0)
 	if listed {
-		pin, away = 1, false
+		pin = 1
 	}
 	if animate {
 		pin = s.along(view, "pin", s.field.pin, pin)
 	}
 	s.field.pin = pin
-	py += (h - foot - pill.H - rl.heldBelow - py) * pin
+	py := fieldPy + (footY-fieldPy)*pin
 	s.field.away = map[bool]float32{true: 1}[away]
 	if animate {
 		s.field.away = components.Follow(view, "away", s.field.away, components.MotionQuick)
@@ -323,21 +325,55 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	// stand out from what passes under them as macOS bars do: the field
 	// blurs under them, more toward the window's edge, under its ground
 	// fading away from that edge, coming in as the horizon goes past.
-	stuckTop, stuckFoot := top+rl.heldAbove-free, free-(h-foot-pill.H-rl.heldBelow)
-	roof := rl.heldAbove
+	var stuckTop, stuckFoot float32
 	if listed {
 		// A list's foot is a bar: what passes under the pill and all that
 		// stands over it is shaded as under a pill stuck at the foot.
-		stuckTop, stuckFoot, roof = 0, origin+drawnBelow-s.field.viewBottom, rl.above
+		stuckTop, stuckFoot = 0, origin+drawnBelow-s.field.viewBottom
+	} else {
+		stuckTop, stuckFoot = top+rl.heldAbove-free, free-footY
+	}
+	if stuckFoot > 0 {
+		s.field.stuckFoot = true
+	} else if stuckTop > 0 {
+		s.field.stuckFoot = false
 	}
 	s.field.stuck = max(0, min(1, stuckTop/foot), min(1, stuckFoot/foot))
 	if animate {
 		s.field.stuck = components.Follow(view, "stuck", s.field.stuck, components.MotionQuick)
 	}
-	edge := py + pill.H + rl.heldBelow + 10*k
-	if stuckFoot > 0 {
-		edge = h - (py - roof) + 10*k
+	atFoot := s.field.stuckFoot
+	baseEdge, rawExtra := py+pill.H+rl.heldBelow+10*k, max(0, rl.below-rl.heldBelow)
+	if atFoot {
+		baseEdge, rawExtra = h-(py-rl.heldAbove)+10*k, max(0, rl.above-rl.heldAbove)
 	}
+	baseEdge = max(0, baseEdge)
+	if rawExtra > 0 {
+		s.field.backdropSpan = rawExtra
+	}
+	ribbonTarget := float32(0)
+	ribbonAnim := ui.Animation{Duration: components.MotionQuick, Ease: ui.EaseOut}
+	if rawExtra > 0 {
+		ribbonTarget = 1
+		ribbonAnim = components.Spring(components.MotionScene)
+	}
+	ribbonFade := ribbonTarget
+	if animate && !first {
+		ribbonFade = view.AnimateTo("backdrop-ribbons", ribbonTarget, ribbonAnim)
+	} else {
+		view.Jump("backdrop-ribbons", ribbonTarget)
+	}
+	ribbonFade = max(0, min(1, ribbonFade)) * s.field.offered * (1 - s.field.away)
+	ribbonSpan := s.field.backdropSpan
+	if ribbonFade <= 0.001 {
+		ribbonFade = 0
+		if rawExtra == 0 {
+			s.field.backdropSpan = 0
+			ribbonSpan = 0
+		}
+	}
+	edge := baseEdge + ribbonSpan*ribbonFade
+	s.field.backdrop = edge
 	view.Children(func() {
 		// The top band drags the window where nothing of the field stands over it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
@@ -390,7 +426,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 				})
 		}
 		if s.field.stuck > 0 {
-			s.pillBackdrop(c, semantic, w, edge, stuckFoot > 0)
+			s.pillBackdrop(c, semantic, w, edge, ribbonFade, atFoot)
 		}
 		s.horizonView(c, semantic, stageRect{X: w/2 - pill.W/2, Y: py, W: pill.W, H: pill.H}, rl, w, k, animate)
 	})
@@ -398,17 +434,21 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 
 // pillBackdrop is what the stuck pill stands on, reaching from the
 // window's top, or its foot, as far as edge.
-func (s *State) pillBackdrop(c *ui.Context, semantic theme.Theme, w, edge float32, foot bool) {
-	mask := ui.LinearGradient{From: ui.RGB(0, 0, 0).Alpha(s.field.stuck), To: ui.Transparent, Angle: 180}
+func (s *State) pillBackdrop(c *ui.Context, semantic theme.Theme, w, edge, ribbonFade float32, foot bool) {
+	mask := ui.LinearGradient{From: ui.RGB(0, 0, 0), To: ui.Transparent, Angle: 180}
 	if foot {
 		mask.Angle = 0
 	}
-	ground := semantic.Surface.Background.Alpha(max(s.field.stuck, 1.0/255))
-	for i, m := range []ui.Material{
-		glass.Blur{Radius: 8 * s.field.stuck, Mask: &mask},
-		glass.ScrollEdge{Bottom: foot, Background: ground},
+	tintOpacity := s.field.stuck * (1 - 0.18*ribbonFade)
+	for i, item := range []struct {
+		m       ui.Material
+		opacity float32
+	}{
+		{glass.Blur{Radius: 8, Mask: &mask}, s.field.stuck},
+		{glass.ScrollEdge{Bottom: foot, Background: semantic.Surface.Background}, tintOpacity},
 	} {
-		b := ui.Box(c).Key(fmt.Sprint("pill-backdrop-", i)).Absolute().Left(0).Size(w, edge).IgnoreInput(true).Material(m)
+		b := ui.Box(c).Key(fmt.Sprint("pill-backdrop-", i)).Absolute().Left(0).Size(w, edge).
+			Opacity(item.opacity).IgnoreInput(true).Material(item.m)
 		if foot {
 			b.Bottom(0)
 		} else {

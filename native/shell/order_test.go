@@ -380,3 +380,96 @@ func TestListSortsPickTheirHome(t *testing.T) {
 		}
 	}
 }
+
+// Turning from the field to a list carries the pill directly from its screen
+// place to the foot—never jumping to the top on a long list or straight to
+// the foot on a short one—and coming back eases monotonically from the foot.
+func TestFieldToListAnimatesPillFromItsPlace(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		extra int
+		click bool
+	}{
+		{"long", 40, false},
+		{"short-click", 2, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state, library, tester := onField(t, 1260, 850)
+			library.extraSheets = tc.extra
+			settle(tester)
+
+			startPill, ok := tester.Find("Search")
+			if !ok {
+				t.Fatal("missing Search pill at rest")
+			}
+
+			if tc.click {
+				if err := tester.Click("Show as List"); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				state.toggleList()
+			}
+
+			var ys []float32
+			for step := range 25 {
+				if step > 0 {
+					tester.Advance(16 * time.Millisecond)
+				}
+				tester.Frame()
+				r, ok := tester.Find("Search")
+				if !ok {
+					t.Fatalf("step %d: missing Search pill", step)
+				}
+				ys = append(ys, r.Y)
+			}
+			settle(tester)
+			endPill, _ := tester.Find("Search")
+
+			if abs(ys[0]-startPill.Y) > 1 {
+				t.Fatalf("frame 0 pill Y jumped from %v to %v (expected start at Field place)", startPill.Y, ys[0])
+			}
+			if ys[len(ys)-1] >= endPill.Y-1 || ys[1] >= endPill.Y-1 {
+				t.Fatalf("pill should animate gradually rather than snapping straight to foot (%v): sample=%v", endPill.Y, ys[:5])
+			}
+			for i := 1; i < len(ys); i++ {
+				if ys[i] < ys[i-1]-0.5 || ys[i] < startPill.Y-1 || ys[i] > endPill.Y+1 {
+					t.Fatalf("pill left monotonic Field->List path [%v..%v] at step %d: %v -> %v",
+						startPill.Y, endPill.Y, i, ys[i-1], ys[i])
+				}
+			}
+
+			// List -> Field starts cleanly at the foot and moves monotonically upward.
+			if tc.click {
+				if err := tester.Click("Show as Field"); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				state.toggleList()
+			}
+			var backYs []float32
+			for step := range 25 {
+				if step > 0 {
+					tester.Advance(16 * time.Millisecond)
+				}
+				tester.Frame()
+				r, ok := tester.Find("Search")
+				if !ok {
+					t.Fatalf("back step %d: missing Search pill", step)
+				}
+				backYs = append(backYs, r.Y)
+			}
+			if abs(backYs[0]-endPill.Y) > 1 {
+				t.Fatalf("list->field frame 0 jumped from foot %v to %v", endPill.Y, backYs[0])
+			}
+			if backYs[len(backYs)-1] >= endPill.Y-20 {
+				t.Fatalf("list->field did not ease up from foot %v: %v", endPill.Y, backYs[:8])
+			}
+			for i := 1; i < len(backYs); i++ {
+				if backYs[i] > backYs[i-1]+0.5 {
+					t.Fatalf("list->field moved downward at step %d: %v -> %v", i, backYs[i-1], backYs[i])
+				}
+			}
+		})
+	}
+}

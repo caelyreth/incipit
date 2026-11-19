@@ -51,10 +51,10 @@ func (d stageDepth) scales() (in, out float32) {
 // stageShift is the field t of the way from from, as drawn, to to, at rest:
 // what comes in starts at enter where it has a place, and what goes out
 // ends at exit. What goes out is drawn first, under what stays.
-func stageShift(from, to []stageFrame, enter, exit stageRect, d stageDepth, t float32) []stageFrame {
+func stageShift(from, to []stageFrame, enter, exit stageRect, d stageDepth, visTop, visBot, t float32) []stageFrame {
 	t = max(0, min(t, 1))
 	if d == stageSwap {
-		return stageSwapFrames(from, to, t)
+		return stageSwapFrames(from, to, visTop, visBot, t)
 	}
 	in, out := d.scales()
 	was := make(map[string]stageFrame, len(from))
@@ -141,7 +141,7 @@ const ribbonsOut, ribbonsIn = 0.12, 0.75
 // fades, all at once; then the new view's cards rise into their places
 // and show, in the order they are given, which is the order the view is
 // read in. Nothing is scaled, so each card's drawing is kept as it moves.
-func stageSwapFrames(from, to []stageFrame, t float32) []stageFrame {
+func stageSwapFrames(from, to []stageFrame, visTop, visBot, t float32) []stageFrame {
 	frames := make([]stageFrame, 0, len(from)+len(to))
 	if out := min(1, t/swapOut); out < 1 {
 		out = 1 - (1-out)*(1-out)
@@ -153,8 +153,14 @@ func stageSwapFrames(from, to []stageFrame, t float32) []stageFrame {
 			frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(f.Rect, sink, out), Shown: f.Shown * (1 - out)})
 		}
 	}
-	for i, f := range to {
-		start := swapIn + swapSpread*float32(min(i, swapStagger))/swapStagger
+	rank := 0
+	for _, f := range to {
+		r := 0
+		if f.Rect.Y+f.Rect.H >= visTop && f.Rect.Y <= visBot {
+			r = rank
+			rank++
+		}
+		start := swapIn + swapSpread*float32(min(r, swapStagger))/swapStagger
 		k := max(0, min(1, (t-start)/swapEach))
 		// Eased out: quick to come, slow to settle.
 		k = swapEase(k)

@@ -34,7 +34,7 @@ func (s *State) comeHome(el ui.Element, animate bool) {
 // shift moves the field to frames, the layout at rest of what f found: at
 // once, or from what it drew on one spring, the change taking over from
 // wherever one under way has got to.
-func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []shape, animate bool) []stageFrame {
+func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []shape, visTop, visBot float32, animate bool) []stageFrame {
 	if s.field.shown == nil {
 		s.field.shown, s.field.shownShape = map[string]card{}, map[string]shape{}
 	}
@@ -131,7 +131,7 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 			exit = fr.Rect
 		}
 	}
-	s.field.drawn = stageShift(s.field.from, frames, s.field.now.enter, exit, s.field.now.depth, t)
+	s.field.drawn = stageShift(s.field.from, frames, s.field.now.enter, exit, s.field.now.depth, visTop, visBot, t)
 	return s.field.drawn
 }
 

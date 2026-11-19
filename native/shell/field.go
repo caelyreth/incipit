@@ -108,8 +108,13 @@ type fieldState struct {
 	viewH float32
 	edges components.EdgeFade
 	// stuck is how far the pill has gone into staying at the window's top
-	// or foot, 0 to 1, which its backdrop comes in with.
-	stuck float32
+	// or foot, 0 to 1, which its backdrop comes in with; stuckFoot keeps
+	// which edge it stood at while fading out, and backdrop / backdropSpan
+	// record its active height and held ribbon scrim extent.
+	stuck        float32
+	stuckFoot    bool
+	backdrop     float32
+	backdropSpan float32
 	// room is the room the field was last laid out in.
 	room fieldRoom
 	// ribbonHold is what the ribbons about the pill hold to while it
@@ -198,8 +203,9 @@ type fieldState struct {
 	place  string
 	places []placeScroll
 	// pin is how far the pill stands at the window's foot, as a list's
-	// does, rather than at its horizon.
-	pin float32
+	// does, rather than at its horizon; fieldPillY keeps where the pill
+	// stood on screen in the field when turning to a list.
+	pin, fieldPillY float32
 }
 
 // fieldRoom is the room the field is laid out in: its width and height,

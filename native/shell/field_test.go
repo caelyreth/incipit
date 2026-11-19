@@ -490,3 +490,91 @@ func TestAStuckPillStandsOverTheField(t *testing.T) {
 		t.Fatalf("Scrolled far, the pill should stay at the top (%v) over its backdrop, not %v.", pill, state.field.stuck)
 	}
 }
+
+// Opening or closing ribbons in a list transitions the glass backdrop height
+// smoothly rather than snapping on frame 0, and leaving the bottom boundary in
+// the field fades the foot backdrop out in place without flipping to the top.
+func TestPillBackdropAnimatesWithRibbonsAndKeepsItsEdge(t *testing.T) {
+	t.Run("list-ribbons", func(t *testing.T) {
+		state, library, tester := onField(t, 1260, 850)
+		library.extraSheets = 40
+		state.toggleList()
+		state.field.quiet = true
+		settle(tester)
+		// Scroll up from the end so cards sit beneath the pill and the foot bar is active.
+		state.field.scroll = max(state.field.lo, state.field.hi-120)
+		settle(tester)
+		if state.field.open || state.field.stuck != 1 {
+			t.Fatalf("expected closed pill over overflowed list: open=%v stuck=%v", state.field.open, state.field.stuck)
+		}
+		closedH := state.field.backdrop
+
+		state.ShowField()
+		var openHs []float32
+		for step := range 12 {
+			if step > 0 {
+				tester.Advance(16 * time.Millisecond)
+			}
+			tester.Frame()
+			openHs = append(openHs, state.field.backdrop)
+		}
+		settle(tester)
+		openedH := state.field.backdrop
+		if openedH <= closedH+20 {
+			t.Fatalf("opening ribbons should grow list backdrop: closed=%v opened=%v", closedH, openedH)
+		}
+		// Frame 1 is the first frame ribbons open; backdrop must animate rather than snap to openedH.
+		if openHs[1] >= openedH-2 || openHs[len(openHs)-1] <= closedH+2 {
+			t.Fatalf("list backdrop should grow smoothly with ribbons (closed=%v opened=%v): %v", closedH, openedH, openHs)
+		}
+
+		// Blurring the pill closes the ribbons and shrinks the backdrop gradually too.
+		tester.Key(0, ui.KeyEscape)
+		var closeHs []float32
+		for step := range 12 {
+			if step > 0 {
+				tester.Advance(16 * time.Millisecond)
+			}
+			tester.Frame()
+			closeHs = append(closeHs, state.field.backdrop)
+		}
+		if closeHs[1] <= closedH+2 || closeHs[len(closeHs)-1] >= openedH-2 {
+			t.Fatalf("list backdrop should shrink smoothly when ribbons close (opened=%v closed=%v): %v", openedH, closedH, closeHs)
+		}
+	})
+
+	t.Run("field-bottom-fade", func(t *testing.T) {
+		state, library, tester := onField(t, 900, 460)
+		var groups []GroupItem
+		for i := range 24 {
+			groups = append(groups, GroupItem{ID: fmt.Sprint("g", i), Name: fmt.Sprint("Group ", i), Count: 6})
+		}
+		library.groupTree = map[string][]GroupItem{"": groups}
+		library.extraSheets = 6
+		library.rev++
+		settle(tester)
+
+		state.field.scroll = state.field.lo
+		settle(tester)
+		if !state.field.stuckFoot || state.field.stuck != 1 || state.field.backdrop > 150 {
+			t.Fatalf("scrolled to field lo, expected compact foot backdrop: stuck=%v foot=%v edge=%v",
+				state.field.stuck, state.field.stuckFoot, state.field.backdrop)
+		}
+		// Scroll smoothly back across the bottom stick threshold and verify the foot bar fades out in place.
+		for state.field.stuckFoot {
+			state.field.scroll += 20
+			tester.Advance(16 * time.Millisecond)
+			tester.Frame()
+			if state.field.stuck > 0 && state.field.stuck < 1 {
+				if !state.field.stuckFoot || state.field.backdrop > 150 {
+					t.Fatalf("leaving bottom boundary flipped backdrop while fading out: stuck=%v foot=%v edge=%v",
+						state.field.stuck, state.field.stuckFoot, state.field.backdrop)
+				}
+				return
+			}
+			if state.field.scroll >= 0 {
+				break
+			}
+		}
+	})
+}
