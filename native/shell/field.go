@@ -486,8 +486,12 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	// Past that, what is offered around it is put away, and it goes on
 	// with the query's own conditions alone, as far as they still fit, and
 	// stays there while what the field holds passes under it.
+	// Whether it fits goes by where the field is going, not where its
+	// spring has it on the way: the pill making room for what it offers,
+	// as at a list's top, never puts it away while it comes.
 	free := horizon - pill.H/2
-	away := free < top+rl.above || free > h-foot-pill.H-rl.below
+	bound := h/2 - poise.Y - (s.field.scroll - s.field.over.Offset()) - pill.H/2
+	away := bound < top+rl.above || bound > h-foot-pill.H-rl.below
 	py := max(top+rl.heldAbove, min(free, h-foot-pill.H-rl.heldBelow))
 	s.field.away = map[bool]float32{true: 1}[away]
 	if animate {

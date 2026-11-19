@@ -3,6 +3,7 @@ package shell
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/egoist/mygo/ui"
@@ -185,5 +186,33 @@ func TestValueRibbonsAlignLabelAndCountOnBaseline(t *testing.T) {
 	centeredY := btn.Y + (btn.H-count.H)/2
 	if count.Y >= centeredY || count.Y <= btn.Y {
 		t.Fatalf("ribbon count should share optically lifted baseline inside ribbon: btn=%+v count=%+v centeredY=%v", btn, count, centeredY)
+	}
+}
+
+// What the pill offers comes in as it opens, at a list's top as in the
+// field: the pill making room for it never puts it away on the way.
+func TestRibbonsComeInAtOnceWhereverThePillStands(t *testing.T) {
+	for _, list := range []bool{false, true} {
+		state, library, tester := onField(t, 1260, 850)
+		library.extraSheets = 30
+		state.SetFieldQuery("$in:Novel")
+		if list {
+			state.toggleList()
+		}
+		settle(tester)
+		for i := 0; i < 3 && state.field.open; i++ {
+			tester.Key(0, ui.KeyEscape)
+			settle(tester)
+		}
+		if err := tester.Click("Search"); err != nil {
+			t.Fatal(err)
+		}
+		for range 12 {
+			tester.Advance(25 * time.Millisecond)
+			tester.Frame()
+			if state.field.away > 0 {
+				t.Fatalf("Opening the pill (list %v) should not put its ribbons away: %v.", list, state.field.away)
+			}
+		}
 	}
 }
