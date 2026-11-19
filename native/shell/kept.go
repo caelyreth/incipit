@@ -167,7 +167,7 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLoo
 func (s *State) trashButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
 	shown := s.inTrash()
 	label := map[bool]string{true: "Leave Trash", false: "Show Trash"}[shown]
-	btn := s.laneCircleButton(c, semantic, "trash", components.IconTrash, label, "Trash", shown, size, animate)
+	btn := laneCircleButton(c, semantic, "trash", components.IconTrash, label, "Trash", shown, size, animate)
 	if btn.Clicked() {
 		s.toggleTrash()
 	}
@@ -182,7 +182,7 @@ func (s *State) trashButton(c *ui.Context, semantic theme.Theme, size float32, a
 
 func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
 	home := !s.inTrash() && !s.InSettings()
-	btn := s.laneCircleButton(c, semantic, "home", components.IconHome, "Home", "Home", home, size, animate)
+	btn := laneCircleButton(c, semantic, "home", components.IconHome, "Home", "Home", home, size, animate)
 	if btn.Clicked() {
 		s.goHome()
 	}
@@ -330,17 +330,10 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 		ui.Box(c).Key("end").Shrink(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			components.CenteredLabel(c, thousands(g.Count), theme.TextXSmall, semantic.Surface.Page).
 				Opacity(shown * (1 - hover))
-			del := ui.ButtonBase(c.Key("delete")).Absolute().Size(18*k, 18*k).Radius(9 * k).
-				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label("Delete " + g.Name).Tooltip("Delete").
-				Opacity(shown * hover).IgnoreInput(hover < 0.5)
-			near := components.HoverAmount(del, del.Hovered(), animate)
-			del.Background(semantic.Surface.Page.Alpha(0.25 * near))
-			if del.Clicked() {
-				s.deleteBookmark(g.ID)
-			}
-			del.Children(func() {
-				ui.Icon(c, components.IconClose.SVG()).FontSize(11 * k).TextColor(semantic.Surface.Page)
-			})
+			miniCloseButton(c, "delete", "Delete "+g.Name, "Delete", 18*k, 11*k,
+				semantic.Surface.Page, semantic.Surface.Page.Alpha(0.25), animate,
+				func() { s.deleteBookmark(g.ID) }).
+				Absolute().Opacity(shown * hover).IgnoreInput(hover < 0.5)
 		})
 	})
 	return false

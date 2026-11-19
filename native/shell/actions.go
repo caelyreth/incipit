@@ -266,26 +266,16 @@ func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction
 	if armed {
 		btn.Tooltip("Click again to " + strings.ToLower(a.label) + ". You can’t undo this.")
 	}
-	amount := map[bool]float32{true: 1}[armed]
-	if animate {
-		amount = max(0, min(1, components.Follow(btn, "armed", amount, motionArm)))
-	}
-	hover := components.HoverAmount(btn, btn.Hovered() || keyed, animate)
-	danger := semantic.Status.Danger
-	rest := components.Blend(semantic.Surface.Page, semantic.GhostElement.Hover, hover)
-	btn.Background(components.Blend(rest, danger.Background, amount)).
-		Border(1, components.Blend(semantic.Border.Variant, danger.Border, amount))
-	if btn.FocusVisible() {
-		btn.Border(1, semantic.Border.Focused)
-	}
+	amount, dangerInk := dangerTone(btn, semantic, armed, btn.Hovered() || keyed, animate,
+		semantic.Surface.Page, semantic.Border.Variant)
 	if a.menu != nil {
 		btn.Menu(a.menu)
 	} else if btn.Clicked() {
 		s.pressAction(a)
 	}
 	btn.Children(func() {
-		ui.Icon(c, a.icon.SVG()).FontSize(14 * k).TextColor(components.Blend(semantic.Icon.Muted, danger.Foreground, amount))
-		components.CenteredLabel(c, label, theme.TextSmall, components.Blend(semantic.Text.Default, danger.Foreground, amount)).
+		ui.Icon(c, a.icon.SVG()).FontSize(14 * k).TextColor(components.Blend(semantic.Icon.Muted, dangerInk, amount))
+		components.CenteredLabel(c, label, theme.TextSmall, components.Blend(semantic.Text.Default, dangerInk, amount)).
 			SingleLine().Shrink(0)
 	})
 }

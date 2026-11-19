@@ -12,6 +12,33 @@ import (
 // click.
 const confirmWindow = 4 * time.Second
 
+// dangerTone drives a control's danger-arming spring and hover fade together,
+// painting its background, border, and focused ring, and returns the arming
+// progress (0..1) and danger foreground color for its contents.
+func dangerTone(
+	btn ui.Element,
+	semantic theme.Theme,
+	armed, hovered, animate bool,
+	restGround, restBorder ui.Color,
+) (float32, ui.Color) {
+	var amount float32
+	if armed {
+		amount = 1
+	}
+	if animate {
+		amount = max(0, min(components.Follow(btn, "armed", amount, motionArm), 1))
+	}
+	hover := components.HoverAmount(btn, hovered, animate)
+	danger := semantic.Status.Danger
+	rest := components.Blend(restGround, semantic.GhostElement.Hover, hover)
+	btn.Background(components.Blend(rest, danger.Background, amount)).
+		Border(1, components.Blend(restBorder, danger.Border, amount))
+	if btn.FocusVisible() {
+		btn.Border(1, semantic.Border.Focused)
+	}
+	return amount, danger.Foreground
+}
+
 // arm readies the confirmation key names for its second click.
 func (s *State) arm(key string) {
 	s.armedKey, s.armedAt = key, time.Time{}
@@ -71,30 +98,12 @@ func (s *State) confirmButton(
 	transition := popTransition(animate)
 	transition.Colors, transition.Position = false, true
 	button.Transition(transition)
-	amount := float32(0)
-	if armed {
-		amount = 1
-	}
-	hover := float32(0)
-	if button.Hovered() {
-		hover = 1
-	}
-	if animate {
-		amount = components.Follow(button, "armed", amount, motionArm)
-		amount = max(0, min(amount, 1))
-		hover = components.HoverAmount(button, button.Hovered(), animate)
-	}
-	rest := components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover)
-	danger := semantic.Status.Danger
-	button.Background(components.Blend(rest, danger.Background, amount)).
-		Border(1, components.Blend(ui.Transparent, danger.Border, amount))
-	if button.FocusVisible() {
-		button.Border(1, semantic.Border.Focused)
-	}
+	amount, dangerInk := dangerTone(button, semantic, armed, button.Hovered(), animate,
+		semantic.GhostElement.Background, ui.Transparent)
 	// Both labels stand in one cell, so the button is as wide as the longer
 	// from the first and keeps its width as it turns: the turn crosses the
 	// labels in place, and nothing beside it moves.
-	ink := components.Blend(semantic.Text.Default, danger.Foreground, amount)
+	ink := components.Blend(semantic.Text.Default, dangerInk, amount)
 	button.Children(func() {
 		ui.Grid(c).ColumnTracks(ui.FitContent()).Children(func() {
 			for _, face := range [...]struct {

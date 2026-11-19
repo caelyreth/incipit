@@ -560,16 +560,13 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 		if !l.closes {
 			return
 		}
-		gone := ui.ButtonBase(c.Key("remove")).Size(ribbonClose*k, ribbonClose*k).Radius(ribbonClose * k / 2).Shrink(0).
-			AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).KeepFocus().
-			Label("Remove " + l.label).Tooltip("Remove")
-		gone.Background(components.Blend(l.ink.Alpha(0), l.ink.Alpha(theme.TintFill), components.HoverAmount(gone, gone.Hovered(), animate)))
-		if i := slices.Index(s.field.conditions, p.text); i >= 0 && gone.Clicked() {
-			s.broaden(i)
-		}
-		gone.Children(func() {
-			ui.Icon(c, components.IconClose.SVG()).FontSize(10 * k).TextColor(semantic.Icon.Muted)
-		})
+		miniCloseButton(c, "remove", "Remove "+l.label, "Remove", ribbonClose*k, 10*k,
+			semantic.Icon.Muted, l.ink.Alpha(theme.TintFill), animate,
+			func() {
+				if i := slices.Index(s.field.conditions, p.text); i >= 0 {
+					s.broaden(i)
+				}
+			}).Shrink(0).KeepFocus()
 	})
 }
 

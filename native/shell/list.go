@@ -131,7 +131,7 @@ func (s *State) listLabel() string {
 // it stands as a list.
 func (s *State) listButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
 	label := s.listLabel()
-	btn := s.laneCircleButton(c, semantic, "list", components.IconList, label, label, s.listed(), size, animate)
+	btn := laneCircleButton(c, semantic, "list", components.IconList, label, label, s.listed(), size, animate)
 	if btn.Clicked() {
 		s.toggleList()
 	}
@@ -192,13 +192,9 @@ func (s *State) listGroup(f *found, g GroupItem, path []string, trashed bool) {
 // groups the sheets are in, each a divider in turn, as first found.
 func (s *State) listSorted(f *found, text, scope string, trash bool) {
 	paths := s.paths(scope)
-	type part struct {
-		group *GroupItem
-		hits  []entry
-	}
 	var steps []string
-	parts := map[string][]*part{}
-	at := map[string]*part{}
+	parts := map[string][]*hitBucket{}
+	at := map[string]*hitBucket{}
 	for _, hit := range s.Library.Search(text).Sheets {
 		if s.inTray(hit.ID) {
 			continue
@@ -210,18 +206,16 @@ func (s *State) listSorted(f *found, text, scope string, trash bool) {
 		}
 		var group *GroupItem
 		gid := ""
-		if !trash {
-			if g, ok := s.Library.Group(s.Library.SheetGroup(hit.ID)); ok && g.ID != scope {
-				group, gid = &g, g.ID
-			}
+		if g, ok := s.hitGroup(hit.ID, trash); ok && g.ID != scope {
+			group, gid = g, g.ID
 		}
 		p, ok := at[step+"/"+gid]
 		if !ok {
-			p = &part{group: group}
+			p = &hitBucket{group: group}
 			at[step+"/"+gid] = p
 			// The place's own sheets stand first in a step, under no group.
 			if gid == "" {
-				parts[step] = append([]*part{p}, parts[step]...)
+				parts[step] = append([]*hitBucket{p}, parts[step]...)
 			} else {
 				parts[step] = append(parts[step], p)
 			}

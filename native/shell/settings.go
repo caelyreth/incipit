@@ -310,32 +310,12 @@ func (sc settingsCard) view(s *State, c *ui.Context, semantic theme.Theme, box u
 	})
 }
 
-// laneCircleButton is a round field-lane control button sized size wide.
-func (s *State) laneCircleButton(c *ui.Context, semantic theme.Theme, key string, icon components.IconName, label, tooltip string, selected bool, size float32, animate bool) ui.Element {
-	btn := ui.ButtonBase(c.Key(key)).Size(size, size).Radius(size / 2).
-		AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(label).Tooltip(tooltip).Selected(selected)
-	hover := components.HoverAmount(btn, btn.Hovered(), animate)
-	// The place the field shows stands inverse among them.
-	on := map[bool]float32{true: 1}[selected]
-	if animate {
-		on = components.Follow(btn, "selected", on, components.MotionQuick)
-	}
-	ground := components.Blend(semantic.Surface.Page, semantic.Surface.Inverse, on)
-	ink := components.Blend(semantic.Icon.Muted, semantic.Text.OnInverse, on)
-	rim := semantic.Border.Variant.Alpha(1 - on)
-	btn.Background(components.Blend(ground, semantic.GhostElement.Hover, hover)).Border(1, rim)
-	btn.Children(func() {
-		ui.Icon(c, icon.SVG()).FontSize(size / 2).TextColor(ink)
-	})
-	return btn
-}
-
 // settingsButton puts the settings in the field, or takes them away, a
 // round button size wide, filled while they are shown.
 func (s *State) settingsButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
 	shown := s.InSettings()
 	label := map[bool]string{true: "Hide settings", false: "Show settings"}[shown]
-	btn := s.laneCircleButton(c, semantic, "settings", components.IconSettings, label, "Settings", shown, size, animate)
+	btn := laneCircleButton(c, semantic, "settings", components.IconSettings, label, "Settings", shown, size, animate)
 	if btn.Clicked() {
 		s.ShowSettings()
 	}

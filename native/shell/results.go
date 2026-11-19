@@ -177,32 +177,42 @@ func (s *State) entries(sheets []SheetItem) []entry {
 	return out
 }
 
+type hitBucket struct {
+	id    string
+	group *GroupItem
+	hits  []entry
+}
+
+// hitGroup resolves a search hit's owning group unless viewing the trash.
+func (s *State) hitGroup(sheetID string, trash bool) (*GroupItem, bool) {
+	if trash {
+		return nil, false
+	}
+	g, ok := s.Library.Group(s.Library.SheetGroup(sheetID))
+	if !ok {
+		return nil, false
+	}
+	return &g, true
+}
+
 // searched fills f with what text finds in scope: each sheet in its
 // group's block, the blocks in the order of their best; the scope's own,
 // and all of them where one group holds them all, on their own.
 func (s *State) searched(f *found, text, scope string, trash bool) {
 	paths := s.paths(scope)
-	type part struct {
-		id    string
-		group *GroupItem
-		hits  []entry
-	}
-	var parts []*part
-	at := map[string]*part{}
+	var parts []*hitBucket
+	at := map[string]*hitBucket{}
 	for _, hit := range s.Library.Search(text).Sheets {
 		if s.inTray(hit.ID) {
 			continue
 		}
-		id := "trash"
-		var group *GroupItem
-		if !trash {
-			if g, ok := s.Library.Group(s.Library.SheetGroup(hit.ID)); ok {
-				id, group = "group:"+g.ID, &g
-			}
+		id, group := "trash", (*GroupItem)(nil)
+		if g, ok := s.hitGroup(hit.ID, trash); ok {
+			id, group = "group:"+g.ID, g
 		}
 		p, ok := at[id]
 		if !ok {
-			p = &part{id: id, group: group}
+			p = &hitBucket{id: id, group: group}
 			at[id] = p
 			parts = append(parts, p)
 		}
