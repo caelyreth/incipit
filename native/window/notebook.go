@@ -14,9 +14,11 @@ import (
 type notebook struct {
 	store *storage.Store
 	saver *storage.Saver
-	// layout is the last layout handed to the saver.
-	layout storage.Layout
-	closed bool
+	// layout is the last layout handed to the saver, at layoutRev.
+	layout    storage.Layout
+	layoutRev uint64
+	hasLayout bool
+	closed    bool
 }
 
 // openNotebook builds the pages' sessions and their layout: those the store
@@ -173,6 +175,10 @@ func (a *AppState) saveLayout() {
 	if a == nil || a.notebook == nil || a.notebook.closed {
 		return
 	}
+	rev := a.Workspace.LayoutRev()
+	if a.notebook.hasLayout && a.notebook.layoutRev == rev {
+		return
+	}
 	layout := a.Workspace.Layout()
 	stored := storage.Layout{
 		HasActive: layout.HasActive,
@@ -197,6 +203,8 @@ func (a *AppState) saveLayout() {
 			stored.Views[session.key] = storageView(view)
 		}
 	}
+	a.notebook.layoutRev = rev
+	a.notebook.hasLayout = true
 	if stored.Equal(a.notebook.layout) {
 		return
 	}

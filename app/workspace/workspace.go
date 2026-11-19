@@ -30,6 +30,7 @@ type Workspace struct {
 	hasActive bool
 	mounted   Session
 	create    Factory
+	layoutRev uint64
 }
 
 // New constructs a workspace around one mounted page.
@@ -62,8 +63,9 @@ func Restore(sessions []Session, layout Layout, create Factory) (*Workspace, err
 		}
 	}
 	w := &Workspace{
-		pages:  make([]pageState, len(sessions)),
-		create: create,
+		pages:     make([]pageState, len(sessions)),
+		create:    create,
+		layoutRev: 1,
 	}
 	for index, session := range sessions {
 		id := PageID(index)
@@ -91,6 +93,15 @@ func Restore(sessions []Session, layout Layout, create Factory) (*Workspace, err
 		w.pages[active].Parked = false
 	}
 	return w, nil
+}
+
+// LayoutRev returns a monotonic revision that increments whenever the
+// persistent workspace layout (open tabs, active page, scroll, or view) changes.
+func (w *Workspace) LayoutRev() uint64 {
+	if w == nil {
+		return 0
+	}
+	return w.layoutRev
 }
 
 // Layout returns the workspace's open pages, mounted page and scroll positions.
@@ -127,8 +138,9 @@ func (w *Workspace) View(id PageID) (ViewState, bool) {
 
 // SetView records a page's selection.
 func (w *Workspace) SetView(id PageID, view ViewState) {
-	if w != nil && w.validPage(id) {
+	if w != nil && w.validPage(id) && w.pages[id].view != view {
 		w.pages[id].view = view
+		w.layoutRev++
 	}
 }
 
@@ -143,7 +155,7 @@ func (w *Workspace) ActiveView() (ViewState, bool) {
 // SetActiveView records the active page's selection.
 func (w *Workspace) SetActiveView(view ViewState) {
 	if w != nil && w.hasActive {
-		w.pages[w.active].view = view
+		w.SetView(w.active, view)
 	}
 }
 
@@ -346,6 +358,7 @@ func (w *Workspace) Open(id PageID) error {
 	if !w.isOpen(id) {
 		w.opened = slices.Insert(w.opened, beside, id)
 	}
+	w.layoutRev++
 	return nil
 }
 
@@ -361,6 +374,7 @@ func (w *Workspace) Place(id, after PageID) error {
 	}
 	w.opened = slices.Delete(w.opened, at, at+1)
 	w.opened = slices.Insert(w.opened, w.openIndex(after)+1, id)
+	w.layoutRev++
 	return nil
 }
 
@@ -376,6 +390,7 @@ func (w *Workspace) Close(id PageID) error {
 	}
 	if !w.hasActive || w.active != id {
 		w.opened = append(w.opened[:index], w.opened[index+1:]...)
+		w.layoutRev++
 		return nil
 	}
 	if w.mounted == nil {
@@ -387,6 +402,7 @@ func (w *Workspace) Close(id PageID) error {
 	w.hasActive = false
 	w.opened = append(w.opened[:index], w.opened[index+1:]...)
 	if !hasNext {
+		w.layoutRev++
 		return nil
 	}
 	target := &w.pages[next]
@@ -397,6 +413,7 @@ func (w *Workspace) Close(id PageID) error {
 	w.active = next
 	w.hasActive = true
 	w.mounted = target.session
+	w.layoutRev++
 	return nil
 }
 
@@ -416,6 +433,7 @@ func (w *Workspace) OpenInPlace(id PageID) error {
 	}
 	// Open put the page beside the one it replaces, which closes.
 	w.opened = slices.Delete(w.opened, index, index+1)
+	w.layoutRev++
 	return nil
 }
 
@@ -430,6 +448,7 @@ func (w *Workspace) Discard(id PageID) error {
 	}
 	w.pages[id].discarded = true
 	w.pages[id].session = nil
+	w.layoutRev++
 	return nil
 }
 
@@ -444,14 +463,15 @@ func (w *Workspace) ActiveScroll() (ScrollPosition, bool) {
 // SetActiveScroll records the active viewport position before a page switch.
 func (w *Workspace) SetActiveScroll(scroll ScrollPosition) {
 	if w != nil && w.hasActive {
-		w.pages[w.active].Scroll = scroll
+		w.SetScroll(w.active, scroll)
 	}
 }
 
 // SetScroll records one page's viewport position, including a parked page.
 func (w *Workspace) SetScroll(id PageID, scroll ScrollPosition) {
-	if w != nil && w.validPage(id) {
+	if w != nil && w.validPage(id) && w.pages[id].Scroll != scroll {
 		w.pages[id].Scroll = scroll
+		w.layoutRev++
 	}
 }
 

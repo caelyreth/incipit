@@ -132,8 +132,10 @@ type State struct {
 	escapedAt time.Time
 	// desk is the desk's state (desk.go).
 	desk deskState
-	// dockAt is the groups the writing actions were last built for, and
-	// dockMoving until when they go to where those put them.
+	// actionDock is the cached toolbar button groups and per-frame view args,
+	// dockAt the groups they were last built for, and dockMoving until
+	// when they go to where those put them.
+	actionDock dockState
 	dockAt     string
 	dockMoving time.Time
 	// field is the field's state (field.go); onDesk whether the window

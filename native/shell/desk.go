@@ -84,8 +84,10 @@ type deskState struct {
 	claim             string
 	// scrub is the scrubber's (desk_scrub.go).
 	scrub scrubState
-	// columns are the desk's open sheet columns as last built (desk_columns.go).
+	// columns are the desk's open sheet columns as last built (desk_columns.go);
+	// pages is a reusable scratch lookup by sheet ID across frames.
 	columns []deskColumn
+	pages   map[string]Page
 	// built is whether the desk was built before.
 	built bool
 }
@@ -218,15 +220,19 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 		// The columns' places are counted from where the first stands.
 		origin := flow.LayoutBounds().X
 		s.pan(flow)
-		pages := make(map[string]Page, len(s.Open))
+		if s.desk.pages == nil {
+			s.desk.pages = make(map[string]Page, len(s.Open))
+		} else {
+			clear(s.desk.pages)
+		}
 		for _, page := range s.Open {
-			pages[page.ID] = page
+			s.desk.pages[page.ID] = page
 		}
 		flow.Children(func() {
 			s.desk.spans = s.desk.spans[:0]
 			s.desk.holding = ""
 			for i, col := range columns {
-				s.openColumn(c, semantic, pages[col.sheet], editor, origin, !wasEmpty, animate)
+				s.openColumn(c, semantic, s.desk.pages[col.sheet], editor, origin, !wasEmpty, animate)
 				s.room(c, semantic, "room-"+col.key(), i+1, i == len(columns)-1)
 			}
 			s.keyboardMoved()
