@@ -260,7 +260,7 @@ func rowWidth(row []ribbonPlace, gap float32) float32 {
 }
 
 // filterKeys are the keys the open pill offers to narrow by, in order.
-var filterKeys = []string{"tag", "in", "updated", "created", "words", "has", "title", "heading", "code", "quote", "link", "inbox", "open", "sort"}
+var filterKeys = []string{"tag", "in", "updated", "created", "words", "has", "title", "heading", "code", "quote", "link", "inbox", "open", "bands", "sort"}
 
 // hasCondition reports whether the query has a condition of the key name.
 func (s *State) hasCondition(name string) bool {

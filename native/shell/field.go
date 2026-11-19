@@ -163,6 +163,8 @@ type fieldState struct {
 	renameFocus          bool
 	// lists are the places shown as a list, kept for the session (list.go).
 	lists map[string]bool
+	// named are the bands' names the field showed last.
+	named map[string]bool
 }
 
 // fieldRoom is the room the field is laid out in: its width and height,
@@ -374,10 +376,17 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	z := m.horizon
 	z.Above += rl.above
 	z.Below += rl.below
-	rects := z.Place(heights)
+	// Each band chosen past the last, the ring's room between holding its
+	// name.
+	bands := cardBands(f)
+	if bands != nil {
+		z.Named = true
+		z.Ring = theme.TextXSmall.LineHeight(m.scale) + z.Gap
+	}
+	rects, marks := z.Place(heights, bands)
 	listed := s.listed()
 	if listed {
-		rects = z.Rows(heights, listRows(f.cards))
+		rects, marks = z.Rows(heights, listRows(f.cards), bands)
 	}
 	frames := make([]stageFrame, len(rects))
 	for i, r := range rects {
@@ -511,6 +520,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		// The top band drags the window where nothing of the field stands over it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
 		at := stagePoint{X: w/2 + s.field.poise.X, Y: horizon}
+		s.bandNames(c, semantic, f, marks, at, m, animate)
 		for _, fr := range drawn {
 			cd, ok := s.field.shown[fr.ID]
 			if !ok {

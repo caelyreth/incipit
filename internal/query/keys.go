@@ -54,6 +54,10 @@ var Kinds = []string{"code", "image", "link", "list", "math", "quote", "table"}
 // SortFields are what $sort orders by; a leading "-" turns the order.
 var SortFields = []string{"relevance", "updated", "created", "title", "words"}
 
+// Lenses are what $bands stands the field by (field-and-desk.md §4.7.5):
+// each a way of saying what is near, none an order.
+var Lenses = []string{"activity", "relevance", "updated", "created", "tag"}
+
 // Keys are the query language's keys, in the order completion offers them.
 var Keys = []Key{
 	{Name: "tag", Label: "Tag", Is: "is", IsNot: "is not", Takes: TakesName, Scope: InNotebook, Help: "Sheets with a tag; $tag:none for sheets with none"},
@@ -74,6 +78,7 @@ var Keys = []Key{
 	{Name: "settings", Label: "Settings", Takes: TakesNothing, Scope: InNotebook, Setting: true, Help: "The app's settings, found by their words"},
 	{Name: "sheet", Label: "In this sheet", Takes: TakesNothing, Scope: Anywhere, Setting: true, Help: "Find in the sheet in front, as ⌘F does"},
 	{Name: "sort", Label: "Sorted by", Takes: TakesChoice, Scope: InNotebook, Choices: SortFields, Setting: true, Help: "Order: relevance, updated, created, title, words; -updated turns it"},
+	{Name: "bands", Label: "Bands by", Takes: TakesChoice, Scope: InNotebook, Choices: Lenses, Setting: true, Help: "What stands near: activity, relevance, updated, created, tag"},
 	{Name: "case", Label: "Match case", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match letter case"},
 	{Name: "word", Label: "Whole words", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match whole words only"},
 }

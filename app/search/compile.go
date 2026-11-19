@@ -448,7 +448,7 @@ func (c *compiler) filter(f *query.Filter) bq.Query {
 	case "link":
 		return term("domains", strings.TrimPrefix(query.Fold(v), "www."))
 	}
-	// $trash, $sort, $sheet and the find's own keys are no condition here.
+	// $trash, $sort, $bands, $sheet and the find's own keys are no condition here.
 	return nil
 }
 

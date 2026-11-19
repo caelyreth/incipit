@@ -26,6 +26,8 @@ type card struct {
 	// id is the card's identity as it moves between layouts.
 	id   string
 	tier tier
+	// band is how far out it stands among the field's bands (bands.go).
+	band int
 	kind cardKind
 }
 
@@ -88,6 +90,9 @@ type found struct {
 	stats         fieldStats
 	// listed is whether it was found for a list, as filed.
 	listed bool
+	// bands name the bands the cards stand in, nearest first, as the
+	// query chose them; nil for none.
+	bands []string
 }
 
 func (f *found) add(id string, t tier, kind cardKind) {
@@ -129,6 +134,7 @@ func (s *State) results(now time.Time) found {
 		src.answer(s, text, &f)
 	}
 	sort.SliceStable(f.cards, func(i, j int) bool { return f.cards[i].tier < f.cards[j].tier })
+	s.band(&f, now)
 	f.ranked = f.cards
 	_, _, browse := s.browsing(query.Parse(text))
 	switch {

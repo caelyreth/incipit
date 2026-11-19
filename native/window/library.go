@@ -191,6 +191,7 @@ func sheetItemsWithSessions(sheets []library.Sheet, sessions map[library.SheetID
 			Excerpt: session.summary.Excerpt,
 			Words:   session.summary.Words,
 			Tags:    tagNames(session.summary.Tags),
+			Created: sheet.Created,
 			Updated: sheet.Updated,
 			Pinned:  sheet.Pinned,
 		})

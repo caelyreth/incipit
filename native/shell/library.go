@@ -70,6 +70,7 @@ type SheetItem struct {
 	ID      string
 	Title   string
 	Excerpt string
+	Created time.Time
 	Updated time.Time
 	Words   int
 	// Tags are the tags the sheet writes, most written first.
@@ -93,6 +94,9 @@ type Found struct {
 // is read, and for a sheet whose text holds no match.
 type FoundSheet struct {
 	SheetItem
+	// Score is how well it matches, against the others found: only the
+	// ratio of two means anything.
+	Score        float64
 	TitleMatches []query.Span
 	Line         string
 	LineMatches  []query.Span

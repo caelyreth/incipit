@@ -351,7 +351,7 @@ func (a *AppState) searchSheets(text string) shell.Found {
 		if len(items) == 0 {
 			continue
 		}
-		found := shell.FoundSheet{SheetItem: items[0]}
+		found := shell.FoundSheet{SheetItem: items[0], Score: hit.Score}
 		if !m.Empty() {
 			found.TitleMatches = m.Find(found.Title)
 			if len(out.Sheets) < linesRead {

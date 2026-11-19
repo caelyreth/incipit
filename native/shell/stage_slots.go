@@ -16,6 +16,12 @@ import (
 // rank and how many columns the window holds, never on any block's size:
 // one that grows moves only those stacked beyond it in its own half of its
 // column, and only outward.
+//
+// Bands (bands.go) stand as rings: a band starts at the next row of slots
+// in either half, the room under it, or over it, taken by a band nearer
+// levelled across the columns and a ring's room left past it, so the band
+// reads as one step further out. Where the bands are named, the ring's
+// room holds the name, and each band's first row has one.
 
 // stageHorizon is the field's columns, the band they stand on either side of,
 // and the room between what they hold. The band reaches Above over the
@@ -25,6 +31,18 @@ type stageHorizon struct {
 	Cols         int
 	Col, Gap     float32
 	Above, Below float32
+	// Ring is the room a band starts past, besides the gap; Named is
+	// whether its names stand there, each band's first row then having
+	// one, the nearest's too.
+	Ring  float32
+	Named bool
+}
+
+// stageMark is where a band's name stands: the ring's room it starts past,
+// across the columns, in the half its first card is in.
+type stageMark struct {
+	Band int
+	Rect stageRect
 }
 
 // stageColumns fits a horizon's columns into width w: as many as hold at least
@@ -68,20 +86,57 @@ func stageSlots(cols int) []stageSlot {
 }
 
 // Place stands blocks of heights in their stageSlots, the horizon's middle at
-// the origin: those below hang from the band, those above stand on it.
+// the origin: those below hang from the band, those above stand on it,
+// each band of bands, nil for none, a ring further out than the last.
 // Every block is one column wide.
-func (z stageHorizon) Place(heights []float32) []stageRect {
+func (z stageHorizon) Place(heights []float32, bands []int) ([]stageRect, []stageMark) {
 	order := stageSlots(z.Cols)
-	left := -(float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap) / 2
+	width := float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap
+	left := -width / 2
 	below := make([]float32, z.Cols)
 	above := make([]float32, z.Cols)
 	for i := range below {
 		below[i], above[i] = z.Below, -z.Above
 	}
+	// The band last stood in each half, under the horizon and over it;
+	// -1 for none yet.
+	held := map[bool]int{true: -1, false: -1}
+	var marks []stageMark
 	out := make([]stageRect, len(heights))
+	p := 0
 	for i, h := range heights {
-		s := order[i%len(order)]
+		starts := bands != nil && (i == 0 || bands[i] != bands[i-1])
+		if starts && i > 0 {
+			p = (p + z.Cols - 1) / z.Cols * z.Cols
+		}
+		s := order[p%len(order)]
+		p++
 		c := s.col
+		if bands != nil {
+			band := bands[i]
+			// Past a band nearer in its half, the half is levelled and a
+			// ring's room left; a name wants that room where its band starts.
+			if (held[s.below] >= 0 && held[s.below] != band) || starts && z.Named {
+				var room stageRect
+				if s.below {
+					line := slices.Max(below)
+					for j := range below {
+						below[j] = line + z.Ring
+					}
+					room = stageRect{X: left, Y: line, W: width, H: z.Ring}
+				} else {
+					line := slices.Min(above)
+					for j := range above {
+						above[j] = line - z.Ring
+					}
+					room = stageRect{X: left, Y: line - z.Ring, W: width, H: z.Ring}
+				}
+				if starts {
+					marks = append(marks, stageMark{Band: band, Rect: room})
+				}
+			}
+			held[s.below] = band
+		}
 		x := left + float32(c)*(z.Col+z.Gap)
 		if s.below {
 			out[i] = stageRect{X: x, Y: below[c], W: z.Col, H: h}
@@ -92,7 +147,7 @@ func (z stageHorizon) Place(heights []float32) []stageRect {
 			above[c] -= z.Gap
 		}
 	}
-	return out
+	return out, marks
 }
 
 // stageScreenOrder is the order rects are read in as they stand on the
@@ -162,18 +217,28 @@ func stageReach(rects []stageRect) (below, above float32) {
 // §4.7.6): in rows of the columns under the band, left to right and top
 // down, each row as tall as its tallest, a block starting a new row where
 // newRow says. The rows stand together across the columns, a short one
-// from the left.
-func (z stageHorizon) Rows(heights []float32, newRow []bool) []stageRect {
-	left := -(float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap) / 2
+// from the left. Each band of bands, nil for none, is a section: it
+// starts a row, past a ring's room that holds its name where named.
+func (z stageHorizon) Rows(heights []float32, newRow []bool, bands []int) ([]stageRect, []stageMark) {
+	width := float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap
+	left := -width / 2
 	out := make([]stageRect, len(heights))
+	var marks []stageMark
 	y, rowH, col := z.Below, float32(0), 0
 	for i, h := range heights {
-		if i > 0 && (col == z.Cols || newRow[i]) {
+		starts := bands != nil && (i == 0 || bands[i] != bands[i-1])
+		if i > 0 && (col == z.Cols || newRow[i] || starts) {
 			y, rowH, col = y+rowH+z.Gap, 0, 0
+		}
+		if starts && (i > 0 || z.Named) {
+			if z.Named {
+				marks = append(marks, stageMark{Band: bands[i], Rect: stageRect{X: left, Y: y, W: width, H: z.Ring}})
+			}
+			y += z.Ring
 		}
 		out[i] = stageRect{X: left + float32(col)*(z.Col+z.Gap), Y: y, W: z.Col, H: h}
 		rowH = max(rowH, h)
 		col++
 	}
-	return out
+	return out, marks
 }

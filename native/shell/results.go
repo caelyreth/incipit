@@ -74,6 +74,8 @@ type entry struct {
 	sheet SheetItem
 	line  string
 	in    string
+	// score is how well a search found it.
+	score float64
 }
 
 // groups are the groups in parent the field shows: smart folders are
@@ -188,7 +190,7 @@ func (s *State) searched(f *found, text, scope string, trash bool) {
 			at[id] = p
 			parts = append(parts, p)
 		}
-		p.hits = append(p.hits, entry{sheet: hit.SheetItem, line: hit.Line})
+		p.hits = append(p.hits, entry{sheet: hit.SheetItem, line: hit.Line, score: hit.Score})
 	}
 	for _, p := range parts {
 		own := p.group != nil && p.group.ID == scope
@@ -245,6 +247,8 @@ func (s *State) browsing(q query.Query) (scope string, trash, browse bool) {
 			browse = false
 		case c.Key.Name == "trash":
 			trash = true
+		case c.Key.Name == "bands":
+			// How the field stands, not what it finds.
 		case c.Key.Name == "in":
 			groups++
 			g, ok := s.groupNamed(c.Value)
