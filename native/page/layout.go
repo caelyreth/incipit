@@ -148,8 +148,9 @@ type surfaceLayout struct {
 
 // unitLayout is one laid-out unit.
 type unitLayout struct {
-	key  layoutKey
-	pres *present.Presentation
+	key       layoutKey
+	pres      *present.Presentation
+	accessKey string
 	// at is where each of the unit's stops in its slots is, made when
 	// first looked up (place).
 	at map[doc.Caret]place

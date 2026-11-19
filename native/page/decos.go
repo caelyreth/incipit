@@ -65,6 +65,16 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 	if el.decos == nil {
 		el.decos = map[decoKey]*shownDeco{}
 	}
+	if el.decoInView == nil {
+		el.decoInView = map[doc.ID]bool{}
+	} else {
+		clear(el.decoInView)
+	}
+	if el.decoCounts == nil {
+		el.decoCounts = map[decoKey]int{}
+	} else {
+		clear(el.decoCounts)
+	}
 	for _, sd := range el.decos {
 		sd.seen = false
 	}
@@ -77,8 +87,8 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 			}
 		}
 	}
-	inView := map[doc.ID]bool{}
-	counts := map[decoKey]int{}
+	inView := el.decoInView
+	counts := el.decoCounts
 	note := func(u *unitLayout, surface int, highlight bool, d deco, origin uint64, direction vocab.Direction, duration time.Duration, visible bool, rows func() []decoRow) {
 		look := d
 		look.rg = ui.TextInputRange{}

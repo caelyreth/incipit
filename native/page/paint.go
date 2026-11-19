@@ -36,9 +36,6 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	if el.stepViewport(now, animate) {
 		p.AnimationFrame()
 	}
-	if el.stepCaret(pl, now, animate) {
-		p.AnimationFrame()
-	}
 	t := el.Theme
 	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H
@@ -47,12 +44,8 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// In layers, the same for every surface: what units draw and the
 	// panels their surfaces stand on, then every decoration and the
 	// selection over them, then the surfaces' text over those.
-	type shownUnit struct {
-		u        *unitLayout
-		ux, uy   float32
-		surfaces []shownSurface
-	}
-	var shown []shownUnit
+	shown := el.shownUnits[:0]
+	el.shownSurfacesBuf = el.shownSurfacesBuf[:0]
 	// What left the page goes beneath what stays, as it was kept.
 	for _, l := range el.left {
 		el.paintLeft(p, l, ox, oy, top, bottom)
@@ -72,7 +65,10 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		if u.kind != nil {
 			panel = u.kind.paint(el, p, u, ux, uy)
 		}
-		su := shownUnit{u: u, ux: ux, uy: uy, surfaces: el.shownSurfaces(u, panel)}
+		start := len(el.shownSurfacesBuf)
+		el.appendShownSurfaces(u, panel)
+		surfaces := el.shownSurfacesBuf[start:len(el.shownSurfacesBuf)]
+		su := shownUnit{u: u, ux: ux, uy: uy, surfaces: surfaces}
 		el.clipUnit(p, u, ox, uy, func() {
 			for _, ss := range su.surfaces {
 				if ss.panel {
@@ -82,6 +78,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		})
 		shown = append(shown, su)
 	}
+	el.shownUnits = shown
 	el.paintDecos(p, pl, paints, ox, oy, top, bottom, now, animate)
 	// The selection's text glides beneath the text; a drag places it
 	// directly, so it follows the pointer and glides on from there. What
@@ -126,13 +123,27 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 }
 
 func (el *Element) paintCaretInView(p *ui.Painter, r ui.Rect, focused bool) {
+	ed := el.Editor
+	if ed == nil || ed.layout == nil {
+		return
+	}
+	now, animate := p.Now(), !p.Preferences().ReduceMotion
+	if el.stepCaret(ed.layout, now, animate) {
+		p.AnimationFrame()
+	}
 	sel := el.shownSelection()
 	if focused && sel.Kind == doc.SelectText && el.caret.Shown() {
 		cr := el.caret.Value()
 		cr.X += r.X + el.column
 		cr.Y += r.Y + el.Top - el.offset()
-		el.paintCaret(p, r, cr, sel.IsCollapsed(), p.Now(), !p.Preferences().ReduceMotion)
+		el.paintCaret(p, r, cr, sel.IsCollapsed(), now, animate)
 	}
+}
+
+type shownUnit struct {
+	u        *unitLayout
+	ux, uy   float32
+	surfaces []shownSurface
 }
 
 // paintSurface draws one of a unit's surfaces at a strength: a panel, as
@@ -157,34 +168,32 @@ type shownSurface struct {
 	a     float32
 }
 
-// shownSurfaces are the surfaces of u the page shows: its text; a card
-// as far as it has opened, and one closed fading out where it stood; a
-// panel surface, as a math block's source, as strongly as its object
-// shows it (panel).
-func (el *Element) shownSurfaces(u *unitLayout, panel float32) []shownSurface {
-	var out []shownSurface
+// appendShownSurfaces appends u's surfaces onto el.shownSurfacesBuf: its text; a
+// card as far as it has opened, and one closed fading out where it stood; a
+// panel surface, as a math block's source, as strongly as its object shows it
+// (panel).
+func (el *Element) appendShownSurfaces(u *unitLayout, panel float32) {
 	open := el.opened(u)
 	for _, s := range u.surfaces {
 		switch {
 		case s.panel:
 			if panel > 0.001 {
-				out = append(out, shownSurface{s, true, panel})
+				el.shownSurfacesBuf = append(el.shownSurfacesBuf, shownSurface{s, true, panel})
 			}
 		case !s.shown:
 		case s.card:
-			out = append(out, shownSurface{s, true, open})
+			el.shownSurfacesBuf = append(el.shownSurfacesBuf, shownSurface{s, true, open})
 		default:
-			out = append(out, shownSurface{s, false, 1})
+			el.shownSurfacesBuf = append(el.shownSurfacesBuf, shownSurface{s, false, 1})
 		}
 	}
 	if prev, a := el.closing(u); prev != nil && a > 0.001 {
 		for i, s := range prev.surfaces {
 			if s.card && s.shown && (i >= len(u.surfaces) || !u.surfaces[i].shown) {
-				out = append(out, shownSurface{s, true, a})
+				el.shownSurfacesBuf = append(el.shownSurfacesBuf, shownSurface{s, true, a})
 			}
 		}
 	}
-	return out
 }
 
 // clipUnit paints within the room u stands in while it springs, and

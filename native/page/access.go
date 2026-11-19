@@ -29,10 +29,13 @@ func (el *Element) accessUnits(c *ui.Context) {
 	top := el.Top - el.offset()
 	for _, u := range pl.units {
 		p := u.pres
+		if u.accessKey == "" {
+			u.accessKey = "page-unit-" + p.Unit.String()
+		}
 		role, description := accessRole(p)
 		width := max(el.Editor.metrics.Width-u.x, 1)
 		height := max(u.h, 1)
-		node := ui.Box(c).Key("page-unit-" + p.Unit.String()).Absolute().
+		node := ui.Box(c).Key(u.accessKey).Absolute().
 			Left(el.column + u.x).Top(top + u.y).Width(width).Height(height).
 			Role(role).Label(p.Label()).Value(p.Value()).RoleDescription(description).
 			IgnoreInput(true)

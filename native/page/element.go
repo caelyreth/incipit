@@ -96,9 +96,14 @@ type Element struct {
 	selection motion.Selection
 	// decos are the decorations the page draws, as last drawn, by
 	// identity, so each fades in and out.
-	decos map[decoKey]*shownDeco
+	decos      map[decoKey]*shownDeco
+	decoInView map[doc.ID]bool
+	decoCounts map[decoKey]int
 	// decoLayout is the layout decorations were last painted in.
 	decoLayout *pageLayout
+	// scratch paint slices reused across frames to avoid per-unit slice allocs.
+	shownUnits       []shownUnit
+	shownSurfacesBuf []shownSurface
 	// rooms spring each unit's height as a surface in it opens and
 	// closes, stepped as the page is painted at paintNow; roomsMoving asks
 	// for the next paint. animate is whether motion is wanted, as the
@@ -291,7 +296,7 @@ func (el *Element) View(c *ui.Context) {
 		box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
 			TextCaret(el.caretInElement()).
 			Children(func() {
-				ui.Box(c).Key("page-content").Fill().Role(ui.RoleNone).Background(el.Theme.Surface.Page).Cache().
+				ui.Box(c).Key("page-content").Fill().Role(ui.RoleNone).Background(el.Theme.Surface.Page).
 					Draw(func(p *ui.Painter, r ui.Rect) {
 						if build != el.builds || ed.closed {
 							return
