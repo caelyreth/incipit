@@ -172,11 +172,17 @@ type fieldState struct {
 	named  map[string]bool
 	listed bool
 	// swapFrom is where the field's origin stood as the views began to
-	// swap: what goes out stays there while the pill moves on. swapPoise
-	// and swapPin are where the pill was held and pinned then; swapT is
-	// how far the swap has gone, below 0 while none is going.
-	swapFrom, swapPoise stagePoint
-	swapPin, swapT      float32
+	// swap: what goes out stays there while the pill moves on.
+	swapFrom stagePoint
+	// changeT is how far the change the field is making has gone, on its
+	// one clock, below 0 while it makes none; swapT is the same of a swap
+	// alone. starts are where what goes along with a change stood as it
+	// began (along), by name.
+	changeT, swapT float32
+	starts         map[string]float32
+	// heldAbove and heldBelow are the room the query's own ribbons take
+	// about the pill, as drawn.
+	heldAbove, heldBelow float32
 	// parts are how far aside each card stands to open the gap a sheet
 	// dragged in a list would go into, by its id.
 	parts map[string]float32
@@ -420,7 +426,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	if listed != s.field.listed && s.field.rest != nil {
 		s.field.next = change{depth: stageSwap}
 		s.field.swapFrom = stagePoint{X: w/2 + s.field.poise.X, Y: h/2 - s.field.poise.Y - (s.field.scroll - s.field.over.Offset())}
-		s.field.swapPoise, s.field.swapPin = s.field.poise, s.field.pin
 		// The new view starts at its home: nothing scrolls on a clock of
 		// its own while the views turn.
 		s.field.scroll, s.field.home = 0, false
@@ -505,15 +510,11 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		view.Jump("poise-x", poise.X)
 		view.Jump("poise-y", poise.Y)
 		s.field.poise = poise
-	case s.field.swapT >= 0:
-		// Turning views, the pill goes on the swap's own clock, so it
-		// arrives as the cards do and nothing is left to catch up.
-		e := swapEase(s.field.swapT)
-		from := s.field.swapPoise
-		s.field.poise = stagePoint{X: view.Jump("poise-x", from.X+(poise.X-from.X)*e), Y: view.Jump("poise-y", from.Y+(poise.Y-from.Y)*e)}
-	case !s.field.hold:
-		spring := components.Spring(components.MotionScene)
-		s.field.poise = stagePoint{X: view.AnimateTo("poise-x", poise.X, spring), Y: view.AnimateTo("poise-y", poise.Y, spring)}
+	default:
+		s.field.poise = stagePoint{
+			X: s.along(view, "poise-x", s.field.poise.X, poise.X),
+			Y: s.along(view, "poise-y", s.field.poise.Y, poise.Y),
+		}
 	}
 	s.comeHome(view, animate)
 	if s.field.hold {
@@ -543,6 +544,13 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	free := horizon - pill.H/2
 	bound := h/2 - poise.Y - (s.field.scroll - s.field.over.Offset()) - pill.H/2
 	away := bound < top+rl.above || bound > h-foot-pill.H-rl.below
+	// The room the query's own ribbons take goes along with the change
+	// that brings them, as the pill does.
+	if animate && !first {
+		rl.heldAbove = s.along(view, "held-above", s.field.heldAbove, rl.heldAbove)
+		rl.heldBelow = s.along(view, "held-below", s.field.heldBelow, rl.heldBelow)
+	}
+	s.field.heldAbove, s.field.heldBelow = rl.heldAbove, rl.heldBelow
 	py := max(top+rl.heldAbove, min(free, h-foot-pill.H-rl.heldBelow))
 	// A list's pill stands at the window's foot, its ground, and does not
 	// go with the list as it scrolls; it eases there and back as the
@@ -551,11 +559,8 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	if listed {
 		pin, away = 1, false
 	}
-	switch {
-	case animate && s.field.swapT >= 0:
-		pin = view.Jump("pin", s.field.swapPin+(pin-s.field.swapPin)*swapEase(s.field.swapT))
-	case animate:
-		pin = components.Follow(view, "pin", pin, components.MotionScene)
+	if animate {
+		pin = s.along(view, "pin", s.field.pin, pin)
 	}
 	s.field.pin = pin
 	py += (h - foot - pill.H - rl.heldBelow - py) * pin
@@ -691,7 +696,7 @@ func (s *State) comeHome(el ui.Element, animate bool) {
 			return
 		}
 	}
-	s.field.scroll = el.AnimateTo("scroll", s.field.homeTo, components.Spring(components.MotionScene))
+	s.field.scroll = s.along(el, "scroll", s.field.scroll, s.field.homeTo)
 	if s.field.scroll == s.field.homeTo {
 		s.field.home, s.field.homing = false, false
 	}
@@ -753,6 +758,8 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 			}
 		}
 		field.Jump("shift", 0)
+		// What goes along with the change starts from where it stands.
+		s.field.starts = map[string]float32{}
 		if first || !animate {
 			field.Jump("shift", 1)
 		} else {
@@ -774,17 +781,18 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 		// the next, so the time this one takes is not a leap.
 		t = 0
 	case animate && s.field.now.depth == stageSwap:
-		// Each card eases on its own over the swap's way (stageSwapFrames).
-		t = field.AnimateTo("shift", 1, ui.Animation{Duration: swapFor, Ease: func(t float32) float32 { return t }})
+		// A swap is longer, its cards coming one after another on it.
+		t = field.AnimateTo("shift", 1, components.Spring(swapFor))
 	case animate:
 		t = field.AnimateTo("shift", 1, components.Spring(components.MotionScene))
 	}
-	s.field.swapT = -1
+	s.field.changeT, s.field.swapT = -1, -1
 	if t >= 1 {
 		s.field.from = nil
 		s.field.drawn = frames
 		return frames
 	}
+	s.field.changeT = t
 	if s.field.now.depth == stageSwap {
 		s.field.swapT = t
 	}
@@ -802,8 +810,27 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 // closes the open key, then puts the suggestions away, then takes the
 // words away, then the last condition, and with none left goes back to
 // the desk.
+// along is what goes along with the field's change, named key, standing
+// at now and going to target: while a change is made, on the change's own
+// clock, from where it stood as the change began, so it arrives with the
+// cards and nothing is left to catch up; between changes, on a spring of
+// its own, as what is written grows the room about the pill. The pill's
+// place, its pin to a list's foot, the room its ribbons take and the
+// field's scroll home all go so.
+func (s *State) along(el ui.Element, key string, now, target float32) float32 {
+	if t := s.field.changeT; t >= 0 {
+		from, ok := s.field.starts[key]
+		if !ok {
+			from = now
+			s.field.starts[key] = from
+		}
+		return el.Jump(key, from+(target-from)*t)
+	}
+	return el.AnimateTo(key, target, components.Spring(components.MotionScene))
+}
+
 // swapFor is how long turning between the views takes, all of it.
-const swapFor = 560 * time.Millisecond
+const swapFor = 620 * time.Millisecond
 
 func sameCards(a, b []stageFrame) bool {
 	return slices.EqualFunc(a, b, func(x, y stageFrame) bool { return x.ID == y.ID })
