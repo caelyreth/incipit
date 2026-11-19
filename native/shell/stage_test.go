@@ -7,11 +7,11 @@ import (
 
 func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
 	want5 := []stageSlot{{2, true}, {3, true}, {1, true}, {4, true}, {0, true}, {2, false}, {3, false}, {1, false}, {4, false}, {0, false}}
-	if got := stageSlots(5, false); !slices.Equal(got, want5) {
+	if got := stageSlots(5); !slices.Equal(got, want5) {
 		t.Fatalf("Five columns should take the row under the pill from the middle outward, then the row over: %v", got)
 	}
 	want4 := []stageSlot{{2, true}, {1, true}, {3, true}, {0, true}, {2, false}, {1, false}, {3, false}, {0, false}}
-	if got := stageSlots(4, false); !slices.Equal(got, want4) {
+	if got := stageSlots(4); !slices.Equal(got, want4) {
 		t.Fatalf("Four columns should start at the two middle ones: %v", got)
 	}
 	// A row's stageSlots taken as many as make the middle even stand even
@@ -42,22 +42,16 @@ func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
 	}
 }
 
-// A sorted field is read: each row from the left, the row under the pill
-// first, then the row over it.
-func TestASortedFieldFillsItsRowsInReadingOrder(t *testing.T) {
-	want := []stageSlot{{0, true}, {1, true}, {2, true}, {0, false}, {1, false}, {2, false}}
-	if got := stageSlots(3, true); !slices.Equal(got, want) {
-		t.Fatalf("Three columns read should go left to right under the pill, then over it: %v", got)
+// A list is read: rows of the columns under the pill, left to right and
+// top down, each as tall as its tallest, a new row where it says.
+func TestAListFillsItsRowsInReadingOrder(t *testing.T) {
+	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Below: 20}
+	rects := z.Rows([]float32{50, 80, 50, 50, 50}, []bool{false, false, true, false, false})
+	if rects[0].Y != 20 || rects[1].X != rects[0].X+110 || rects[2].Y != 20+80+10 || rects[2].X != rects[0].X {
+		t.Fatalf("The third should start the next row under the tallest of the first: %+v.", rects)
 	}
-	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Reading: true}
-	rects := z.Place([]float32{50, 50, 50, 50})
-	for i := 1; i < 3; i++ {
-		if rects[i].X <= rects[i-1].X {
-			t.Fatalf("The row under the pill should read left to right: %v.", rects)
-		}
-	}
-	if rects[3].Y >= 0 || rects[3].X != rects[0].X {
-		t.Fatalf("The fourth should begin the row over the pill at the left: %v.", rects[3])
+	if rects[4].Y != rects[2].Y || rects[4].X != rects[0].X+220 {
+		t.Fatalf("The row should go on left to right: %+v.", rects)
 	}
 }
 

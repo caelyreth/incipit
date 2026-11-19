@@ -166,6 +166,9 @@ func (s *State) fieldMenu(m *ui.Menu) {
 	if m.Item(map[bool]string{true: "Leave Trash", false: "Show Trash"}[s.inTrash()]).Chosen() {
 		s.toggleTrash()
 	}
+	if m.Item(map[bool]string{true: "Show as Field", false: "Show as List"}[s.listed()]).Chosen() {
+		s.toggleList()
+	}
 }
 
 // inTrash reports whether the field shows the trash.

@@ -161,6 +161,8 @@ type fieldState struct {
 	// renaming is the group whose name is being written on its head.
 	renaming, renameName string
 	renameFocus          bool
+	// lists are the places shown as a list, kept for the session (list.go).
+	lists map[string]bool
 }
 
 // fieldRoom is the room the field is laid out in: its width and height,
@@ -370,10 +372,13 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	pill := stageSize{W: pillW, H: 40 * k}
 	rl := s.ribbons(c, k, w/2, targetPillW, pill.H)
 	z := m.horizon
-	z.Reading = s.sortedField()
 	z.Above += rl.above
 	z.Below += rl.below
 	rects := z.Place(heights)
+	listed := s.listed()
+	if listed {
+		rects = z.Rows(heights, listRows(f.cards))
+	}
 	frames := make([]stageFrame, len(rects))
 	for i, r := range rects {
 		frames[i] = stageFrame{ID: f.cards[i].id, Size: shapes[i].size, Rect: r, Shown: 1}
@@ -415,8 +420,13 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	for _, cd := range f.cards {
 		s.field.ranked = append(s.field.ranked, cd.kind.rows()...)
 	}
-	for _, i := range stageScreenOrder(rects) {
-		s.field.order = append(s.field.order, f.cards[i].kind.rows()...)
+	if listed {
+		// A list is read as it is ranked.
+		s.field.order = append(s.field.order, s.field.ranked...)
+	} else {
+		for _, i := range stageScreenOrder(rects) {
+			s.field.order = append(s.field.order, f.cards[i].kind.rows()...)
+		}
 	}
 	s.keepPicked()
 	s.keepRowPlaces()
@@ -507,6 +517,9 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 				continue
 			}
 			s.cardView(c, semantic, fr, cd, s.field.shownShape[fr.ID], at, live[fr.ID], m, animate)
+		}
+		if s.field.drag != nil {
+			s.arrangeTargets(c, semantic, drawn, at, m, animate)
 		}
 		if topFade > 0 || bottomFade > 0 {
 			ui.Box(c).Key("field-edges").Absolute().Top(0).Left(0).Size(w, h).IgnoreInput(true).

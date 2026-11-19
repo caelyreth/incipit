@@ -113,6 +113,15 @@ func (s *State) spaceKey() {
 // takes it as writing, reporting whether it took it.
 func (s *State) fieldKey(key ui.TextKey) bool {
 	onRow := s.field.chosen != ""
+	// ⌥ and the arrows move the row along the list's order, as filed.
+	if key.Mods == ui.Alt {
+		switch key.Key {
+		case ui.KeyLeft, ui.KeyUp:
+			return s.nudge(-1)
+		case ui.KeyRight, ui.KeyDown:
+			return s.nudge(1)
+		}
+	}
 	switch key.Key {
 	case ui.KeyTab:
 		switch key.Mods {

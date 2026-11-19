@@ -31,6 +31,11 @@ func TestEveryKeyOffersItsValues(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			state, _, tester := onField(t, 1260, 850)
+			if name == "sort" {
+				// A sort is the list's.
+				state.toggleList()
+				settle(tester)
+			}
 			pressKey(t, state, tester, k.Label)
 			if k.Takes != query.TakesText && k.Takes != query.TakesName || name == "tag" {
 				if len(state.valueRibbons()) == 0 {
@@ -145,6 +150,8 @@ func TestValuesSayHowManyTheyWouldFind(t *testing.T) {
 // its value.
 func TestTheOrderIsOfferedBothWays(t *testing.T) {
 	state, _, tester := onField(t, 1260, 850)
+	state.toggleList()
+	settle(tester)
 	pressKey(t, state, tester, "Sorted by")
 	if _, ok := tester.Find("updated, oldest first"); !ok {
 		t.Fatalf("Oldest first should be offered: %v", tester.Texts())

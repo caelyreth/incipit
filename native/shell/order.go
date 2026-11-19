@@ -2,29 +2,16 @@ package shell
 
 import (
 	"slices"
-	"strings"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/query"
 	"github.com/egoist/mygo/ui"
 )
 
 // The field's order is one the eye can read (field-and-desk.md §4.7.5): a
-// sorted field fills in reading order, a ranked one by nearness to the
-// pill; a sort chosen stands as its ribbon, the order of itself as none;
-// and what arrives, made, moved, put back or pinned, stands where the
+// ranked field stands by nearness to the pill, and an exact order is the
+// list's (list.go); a sort chosen stands as its ribbon, the order of
+// itself as none; and what arrives, made, moved, put back or pinned, stands where the
 // order puts it, the field bringing it into view and marking it a moment.
-
-// sortedField reports whether the query states an order of its own, read
-// in rows, rather than the best match first.
-func (s *State) sortedField() bool {
-	for _, text := range s.field.conditions {
-		if c, ok := condition(text); ok && written(c).Key.Name == "sort" {
-			return strings.TrimPrefix(query.Fold(c.Value), "-") != "relevance"
-		}
-	}
-	return false
-}
 
 // arrivalFor is how long what arrives is marked.
 const arrivalFor = 1200 * time.Millisecond

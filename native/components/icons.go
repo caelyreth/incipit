@@ -57,6 +57,7 @@ const (
 	IconSidebarClose IconName = "panel-left-close"
 	IconStrike       IconName = "strikethrough"
 	IconTrash        IconName = "trash-2"
+	IconList         IconName = "list"
 	IconTray         IconName = "layers"
 	IconTypewriter   IconName = "align-vertical-justify-center"
 	IconUndo         IconName = "undo-2"
@@ -108,6 +109,7 @@ var AllIcons = [...]IconName{
 	IconSidebarClose,
 	IconStrike,
 	IconTrash,
+	IconList,
 	IconTray,
 	IconTypewriter,
 	IconUndo,

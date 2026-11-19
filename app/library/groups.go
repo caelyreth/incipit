@@ -109,7 +109,8 @@ func (l *Library) StyleGroup(id GroupID, icon string, color uint8) error {
 	return nil
 }
 
-// MoveGroup puts a group in parent at index, clamped to its groups; moving
+// MoveGroup puts a group in parent at index among its groups out of the
+// trash, clamped to them; moving
 // within the same parent reorders it.
 func (l *Library) MoveGroup(id, parent GroupID, index int) error {
 	l.rev++
@@ -132,8 +133,23 @@ func (l *Library) MoveGroup(id, parent GroupID, index int) error {
 	}
 	l.children[group.Parent] = slices.DeleteFunc(l.children[group.Parent], func(other GroupID) bool { return other == id })
 	group.Parent = parent
-	l.children[parent] = insertAt(l.children[parent], index, id)
+	l.children[parent] = insertAt(l.children[parent], l.groupAt(parent, index), id)
 	return nil
+}
+
+// groupAt is where among parent's groups one goes to stand index-th among
+// those out of the trash, as sheetAt is for sheets.
+func (l *Library) groupAt(parent GroupID, index int) int {
+	live := 0
+	for i, id := range l.children[parent] {
+		if l.groups[id].Trashed.IsZero() {
+			if live >= index {
+				return i
+			}
+			live++
+		}
+	}
+	return len(l.children[parent])
 }
 
 // TrashGroup puts a group, and all it holds, in the trash.

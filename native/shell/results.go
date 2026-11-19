@@ -108,10 +108,26 @@ func pinnedFirst(groups []GroupItem, entries []entry, group, sheet func(int)) {
 	}
 }
 
+// asFiled calls group and sheet with the index of each of a place's
+// groups and sheets as filed: the groups, then the sheets.
+func asFiled(groups []GroupItem, entries []entry, group, sheet func(int)) {
+	for i := range groups {
+		group(i)
+	}
+	for i := range entries {
+		sheet(i)
+	}
+}
+
 // filed fills f with a place's groups, each a block, and its sheets, each
 // on its own, as they stand.
 func (s *State) filed(f *found, groups []GroupItem, entries []entry, trashed bool) {
-	pinnedFirst(groups, entries, func(i int) {
+	order := pinnedFirst
+	if f.listed {
+		// A list is exact: its place as filed, pins and all where they are.
+		order = asFiled
+	}
+	order(groups, entries, func(i int) {
 		f.add("group:"+groups[i].ID, tierResult, s.groupBlock(groups[i], trashed))
 	}, func(i int) {
 		f.add("sheet:"+entries[i].sheet.ID, tierResult, block{entries: entries[i : i+1], single: true, trashed: trashed})

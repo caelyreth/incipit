@@ -192,6 +192,10 @@ func (s *State) keyRibbons() []ribbonPlace {
 	// A key that takes a value stays, for more of its values; one that
 	// stands alone goes once it is taken.
 	for _, name := range filterKeys {
+		// A sort is the list's: the field is offered none.
+		if name == "sort" && !s.listed() {
+			continue
+		}
 		if k := mustKey(name); k != nil && (k.Takes != query.TakesNothing || !s.hasCondition(name)) {
 			add(k)
 		}

@@ -67,6 +67,8 @@ type fakeLibrary struct {
 	order func(text string) []string
 	// pins are the groups and sheets pinned, by id.
 	pins map[string]bool
+	// moved are the sheets moved, each with the index it was moved to.
+	moved []string
 }
 
 // call records what the library was asked, and what changes it changes
@@ -228,6 +230,7 @@ func (f *fakeLibrary) OpenSheet(id string, alongside bool) {
 func (f *fakeLibrary) DuplicateSheet(id string) { f.call("duplicate " + id) }
 func (f *fakeLibrary) MoveSheet(id, group string, index int) {
 	f.call("move " + id + " to " + group)
+	f.moved = append(f.moved, fmt.Sprint(id, "@", index))
 }
 func (f *fakeLibrary) TrashSheet(id string) { f.call("trash " + id) }
 func (f *fakeLibrary) Pin(id string, pinned bool) {

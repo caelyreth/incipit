@@ -7,7 +7,8 @@ func (l *Library) AddSheet(id SheetID, group GroupID, at time.Time) error {
 	return l.AddSheetAt(id, group, at, len(l.order[group]))
 }
 
-// AddSheetAt files a new sheet in group at index, clamped to its sheets. A
+// AddSheetAt files a new sheet in group at index among its sheets out of
+// the trash, clamped to them. A
 // sheet ID names one sheet for its life: a repeated ID is rejected without
 // changing its filing, timestamps, or ordered placements.
 func (l *Library) AddSheetAt(id SheetID, group GroupID, at time.Time, index int) error {
@@ -21,8 +22,9 @@ func (l *Library) AddSheetAt(id SheetID, group GroupID, at time.Time, index int)
 	if _, ok := l.sheets[id]; ok {
 		return ErrDuplicate
 	}
+	at0 := l.sheetAt(group, index)
 	l.sheets[id] = &Sheet{ID: id, Group: group, Created: at, Updated: at}
-	l.order[group] = insertAt(l.order[group], index, id)
+	l.order[group] = insertAt(l.order[group], at0, id)
 	return nil
 }
 
@@ -35,7 +37,8 @@ func (l *Library) Touch(id SheetID, at time.Time) {
 	}
 }
 
-// MoveSheet files a sheet in group at index, clamped to its sheets; moving
+// MoveSheet files a sheet in group at index among its sheets out of the
+// trash, clamped to them; moving
 // within the same group reorders it.
 func (l *Library) MoveSheet(id SheetID, group GroupID, index int) error {
 	l.rev++
@@ -48,7 +51,7 @@ func (l *Library) MoveSheet(id SheetID, group GroupID, index int) error {
 	}
 	l.order[sheet.Group] = removeSheet(l.order[sheet.Group], id)
 	sheet.Group = group
-	l.order[group] = insertAt(l.order[group], index, id)
+	l.order[group] = insertAt(l.order[group], l.sheetAt(group, index), id)
 	return nil
 }
 
@@ -104,4 +107,20 @@ func (l *Library) DeleteSheet(id SheetID) error {
 	l.order[sheet.Group] = removeSheet(l.order[sheet.Group], id)
 	delete(l.sheets, id)
 	return nil
+}
+
+// sheetAt is where in group's order a sheet goes to stand index-th among
+// its sheets out of the trash: the order holds those in the trash too,
+// where they stood, and an index counts what is seen.
+func (l *Library) sheetAt(group GroupID, index int) int {
+	live := 0
+	for i, id := range l.order[group] {
+		if l.sheets[id].Trashed.IsZero() {
+			if live >= index {
+				return i
+			}
+			live++
+		}
+	}
+	return len(l.order[group])
 }

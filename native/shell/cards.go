@@ -86,6 +86,8 @@ type found struct {
 	// the query ranks them, which cards takes once it is ranked again.
 	cards, ranked []card
 	stats         fieldStats
+	// listed is whether it was found for a list, as filed.
+	listed bool
 }
 
 func (f *found) add(id string, t tier, kind cardKind) {
@@ -112,7 +114,8 @@ func (s *State) results(now time.Time) found {
 	rev := s.Library.Revision()
 	held := s.lane.heldRev
 	prev := s.field.found
-	if prev.query == text && prev.rev == rev && prev.open == open && prev.held == held && prev.cards != nil {
+	listed := s.listed()
+	if prev.query == text && prev.rev == rev && prev.open == open && prev.held == held && prev.listed == listed && prev.cards != nil {
 		if paused := !s.field.settleAt.IsZero() && !now.Before(s.field.settleAt); s.field.rerank || paused {
 			prev.cards = prev.ranked
 			s.field.found = prev
@@ -121,7 +124,7 @@ func (s *State) results(now time.Time) found {
 		}
 		return prev
 	}
-	f := found{query: text, rev: rev, open: open, held: held, cards: []card{}}
+	f := found{query: text, rev: rev, open: open, held: held, listed: listed, cards: []card{}}
 	for _, src := range sources {
 		src.answer(s, text, &f)
 	}

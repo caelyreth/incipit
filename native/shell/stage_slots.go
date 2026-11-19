@@ -25,10 +25,6 @@ type stageHorizon struct {
 	Cols         int
 	Col, Gap     float32
 	Above, Below float32
-	// Reading fills each row left to right, as a sorted field is read,
-	// in place of from the middle outward, as a ranked one stands by
-	// nearness (field-and-desk.md §4.7.5).
-	Reading bool
 }
 
 // stageColumns fits a horizon's columns into width w: as many as hold at least
@@ -52,21 +48,15 @@ type stageSlot struct {
 // stand even about the pill whenever as many of them are taken as make
 // the middle even: an odd count where the columns are odd, an even where
 // they are even.
-func stageSlots(cols int, reading bool) []stageSlot {
+func stageSlots(cols int) []stageSlot {
 	var across []int
-	if reading {
-		for col := range cols {
-			across = append(across, col)
-		}
-	} else {
-		right, left := cols/2, cols/2-1
-		if cols%2 == 1 {
-			across = append(across, right)
-			right++
-		}
-		for ; left >= 0; right, left = right+1, left-1 {
-			across = append(across, right, left)
-		}
+	right, left := cols/2, cols/2-1
+	if cols%2 == 1 {
+		across = append(across, right)
+		right++
+	}
+	for ; left >= 0; right, left = right+1, left-1 {
+		across = append(across, right, left)
 	}
 	out := make([]stageSlot, 0, 2*cols)
 	for _, below := range []bool{true, false} {
@@ -81,7 +71,7 @@ func stageSlots(cols int, reading bool) []stageSlot {
 // the origin: those below hang from the band, those above stand on it.
 // Every block is one column wide.
 func (z stageHorizon) Place(heights []float32) []stageRect {
-	order := stageSlots(z.Cols, z.Reading)
+	order := stageSlots(z.Cols)
 	left := -(float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap) / 2
 	below := make([]float32, z.Cols)
 	above := make([]float32, z.Cols)
@@ -166,4 +156,24 @@ func stageReach(rects []stageRect) (below, above float32) {
 		}
 	}
 	return below, above
+}
+
+// Rows stands blocks of heights as a list reads (field-and-desk.md
+// §4.7.6): in rows of the columns under the band, left to right and top
+// down, each row as tall as its tallest, a block starting a new row where
+// newRow says. The rows stand together across the columns, a short one
+// from the left.
+func (z stageHorizon) Rows(heights []float32, newRow []bool) []stageRect {
+	left := -(float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap) / 2
+	out := make([]stageRect, len(heights))
+	y, rowH, col := z.Below, float32(0), 0
+	for i, h := range heights {
+		if i > 0 && (col == z.Cols || newRow[i]) {
+			y, rowH, col = y+rowH+z.Gap, 0, 0
+		}
+		out[i] = stageRect{X: left + float32(col)*(z.Col+z.Gap), Y: y, W: z.Col, H: h}
+		rowH = max(rowH, h)
+		col++
+	}
+	return out
 }

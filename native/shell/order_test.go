@@ -9,27 +9,67 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// A sorted field is read in rows, left to right; a ranked one stands by
-// nearness to the pill.
-func TestASortedFieldIsLaidOutInReadingOrder(t *testing.T) {
-	state, library, tester := onField(t, 1260, 850)
-	var groups []GroupItem
-	for i := range 6 {
-		groups = append(groups, GroupItem{ID: fmt.Sprint("g", i), Name: fmt.Sprint("Group ", i), Count: 1})
+// A sort is the list's: written, the place stands as a list, and the
+// field is not offered one; the list is the place's, kept as it goes and
+// comes back, and leaving it takes its sort away.
+func TestASortShowsTheList(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	offered := func() bool {
+		state.field.open = true
+		defer func() { state.field.open = false }()
+		return slices.ContainsFunc(state.keyRibbons(), func(p ribbonPlace) bool { return p.key != nil && p.key.Name == "sort" })
 	}
-	library.groupTree = map[string][]GroupItem{"": groups}
-	library.rev++
+	state.ShowField()
 	settle(tester)
-	if state.sortedField() {
-		t.Fatal("Browsing as filed, the field should not be read in rows.")
+	if state.listed() || offered() {
+		t.Fatal("The field should not stand as a list, nor offer a sort.")
 	}
 	state.SetFieldQuery("$sort:title")
-	if !state.sortedField() {
-		t.Fatal("A sort written should be read in rows.")
+	settle(tester)
+	if !state.listed() || !offered() {
+		t.Fatal("A sort written should show the list, which offers its sort.")
 	}
-	state.SetFieldQuery("$sort:relevance")
-	if state.sortedField() {
-		t.Fatal("The best match first is ranked, not read.")
+	state.toggleList()
+	if state.listed() || state.FieldQuery() != "" {
+		t.Fatalf("Leaving the list should take its sort away: %q.", state.FieldQuery())
+	}
+	state.SetFieldQuery("$in:Novel")
+	state.toggleList()
+	state.SetFieldQuery("")
+	if state.listed() {
+		t.Fatal("The top should keep its own view.")
+	}
+	state.SetFieldQuery("$in:Novel")
+	if !state.listed() {
+		t.Fatal("Novel should come back as its list.")
+	}
+	state.SetFieldQuery("$in:Novel chapter")
+	if state.listed() {
+		t.Fatal("A search should start in the field.")
+	}
+}
+
+// In a group's list, as filed, ⌥ and the arrows move the row the keys are
+// on along its order, and a sheet dropped on another's half goes there.
+func TestAListIsArrangedByHand(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.extraSheets = 3
+	state.SetFieldQuery("$in:Novel")
+	state.toggleList()
+	settle(tester)
+	state.field.chosen = "sheet:7"
+	if !state.fieldKey(ui.TextKey{Key: ui.KeyRight, Mods: ui.Alt}) || !slices.Equal(library.moved, []string{"7@1"}) {
+		t.Fatalf("⌥→ should move the sheet one on: %v.", library.moved)
+	}
+	dragOnto(t, tester, "Chapter", "Sheet 3")
+	if len(library.moved) != 2 || library.moved[1] != "7@2" && library.moved[1] != "7@3" {
+		t.Fatalf("A sheet dropped on another should go beside it: %v.", library.moved)
+	}
+	state.SetFieldQuery("$in:Novel")
+	state.toggleList()
+	settle(tester)
+	if state.fieldKey(ui.TextKey{Key: ui.KeyRight, Mods: ui.Alt}) {
+		t.Fatal("The field has no order to arrange.")
 	}
 }
 
