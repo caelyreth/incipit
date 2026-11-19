@@ -20,18 +20,10 @@ type SheetRecord struct {
 	Position int
 }
 
-// ChapterRecord is a chapter divider as kept on disk, with its place among
-// its group's sheets and chapters.
-type ChapterRecord struct {
-	Chapter
-	Position int
-}
-
 // Records is a library in plain values.
 type Records struct {
-	Groups   []GroupRecord
-	Sheets   []SheetRecord
-	Chapters []ChapterRecord
+	Groups []GroupRecord
+	Sheets []SheetRecord
 }
 
 // Records returns the library as plain values.
@@ -42,29 +34,19 @@ func (l *Library) Records() Records {
 			records.Groups = append(records.Groups, GroupRecord{Group: *l.groups[id], Position: position})
 		}
 	}
-	for _, entries := range l.order {
-		for position, entry := range entries {
-			switch {
-			case entry.sheet != 0:
-				records.Sheets = append(records.Sheets, SheetRecord{
-					Sheet: *l.sheets[entry.sheet], Position: position,
-				})
-			case entry.chapter != 0:
-				records.Chapters = append(records.Chapters, ChapterRecord{
-					Chapter: *l.chapters[entry.chapter], Position: position,
-				})
-			}
+	for _, ids := range l.order {
+		for position, id := range ids {
+			records.Sheets = append(records.Sheets, SheetRecord{Sheet: *l.sheets[id], Position: position})
 		}
 	}
 	slices.SortFunc(records.Groups, func(a, b GroupRecord) int { return cmp.Compare(a.ID, b.ID) })
 	slices.SortFunc(records.Sheets, func(a, b SheetRecord) int { return cmp.Compare(a.ID, b.ID) })
-	slices.SortFunc(records.Chapters, func(a, b ChapterRecord) int { return cmp.Compare(a.ID, b.ID) })
 	return records
 }
 
 // Restore rebuilds a library from its records. It reads what they still
 // say: a group whose parent is gone, is a smart folder, or would sit
-// inside itself, goes to the top level; a sheet or chapter whose group is
+// inside itself, goes to the top level; a sheet whose group is
 // gone or is a smart folder goes to the Inbox; and the Inbox is there,
 // and no smart folder, whatever the records hold.
 func Restore(records Records) *Library {
@@ -103,32 +85,7 @@ func Restore(records Records) *Library {
 		}
 	}
 	l.children[0] = slices.Insert(slices.DeleteFunc(l.children[0], func(id GroupID) bool { return id == Inbox }), 0, Inbox)
-	type restoredEntry struct {
-		group    GroupID
-		position int
-		rank     int
-		id       int64
-		entry    orderEntry
-	}
-	var ordered []restoredEntry
-	for _, record := range records.Chapters {
-		chapter := record.Chapter
-		if chapter.ID <= 0 {
-			continue
-		}
-		if _, twice := l.chapters[chapter.ID]; twice {
-			continue
-		}
-		if g, ok := l.groups[chapter.Group]; !ok || g.Smart() {
-			chapter.Group = Inbox
-		}
-		l.chapters[chapter.ID] = &chapter
-		l.nextChapter = max(l.nextChapter, chapter.ID+1)
-		ordered = append(ordered, restoredEntry{
-			group: chapter.Group, position: record.Position, rank: 0,
-			id: int64(chapter.ID), entry: chapterEntry(chapter.ID),
-		})
-	}
+	var ordered []SheetRecord
 	for _, record := range records.Sheets {
 		sheet := record.Sheet
 		if g, ok := l.groups[sheet.Group]; !ok || g.Smart() {
@@ -138,21 +95,13 @@ func Restore(records Records) *Library {
 			continue
 		}
 		l.sheets[sheet.ID] = &sheet
-		ordered = append(ordered, restoredEntry{
-			group: sheet.Group, position: record.Position, rank: 1,
-			id: int64(sheet.ID), entry: sheetEntry(sheet.ID),
-		})
+		ordered = append(ordered, SheetRecord{Sheet: sheet, Position: record.Position})
 	}
-	slices.SortFunc(ordered, func(a, b restoredEntry) int {
-		return cmp.Or(
-			cmp.Compare(a.group, b.group),
-			cmp.Compare(a.position, b.position),
-			cmp.Compare(a.rank, b.rank),
-			cmp.Compare(a.id, b.id),
-		)
+	slices.SortFunc(ordered, func(a, b SheetRecord) int {
+		return cmp.Or(cmp.Compare(a.Group, b.Group), cmp.Compare(a.Position, b.Position), cmp.Compare(a.ID, b.ID))
 	})
-	for _, item := range ordered {
-		l.order[item.group] = append(l.order[item.group], item.entry)
+	for _, record := range ordered {
+		l.order[record.Group] = append(l.order[record.Group], record.ID)
 	}
 	return l
 }

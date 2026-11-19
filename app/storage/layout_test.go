@@ -50,10 +50,6 @@ func TestSaverOwnsQueuedLayoutAndLibrary(t *testing.T) {
 			Sheet:    library.Sheet{ID: 1, Group: 2},
 			Position: 2,
 		}},
-		Chapters: []library.ChapterRecord{{
-			Chapter:  library.Chapter{ID: 3, Group: 2, Name: "Original chapter"},
-			Position: 3,
-		}},
 	}
 	saver.Layout(layout)
 	saver.Library(records)
@@ -63,7 +59,6 @@ func TestSaverOwnsQueuedLayoutAndLibrary(t *testing.T) {
 	layout.Scroll[1] = 99
 	records.Groups[0].Name = "Changed"
 	records.Sheets[0].Group = 9
-	records.Chapters[0].Name = "Changed chapter"
 
 	if err := saver.Flush(); err != nil {
 		t.Fatal(err)
@@ -81,9 +76,6 @@ func TestSaverOwnsQueuedLayoutAndLibrary(t *testing.T) {
 	}
 	if len(notebook.Library.Sheets) != 1 || notebook.Library.Sheets[0].Group != 2 {
 		t.Fatalf("sheets after caller mutation = %+v", notebook.Library.Sheets)
-	}
-	if len(notebook.Library.Chapters) != 1 || notebook.Library.Chapters[0].Name != "Original chapter" {
-		t.Fatalf("chapters after caller mutation = %+v", notebook.Library.Chapters)
 	}
 	if err := saver.Close(); err != nil {
 		t.Fatal(err)

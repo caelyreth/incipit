@@ -58,8 +58,8 @@ func (l *Library) SetGroupQuery(id GroupID, query string) error {
 	return nil
 }
 
-// fileable reports why a group cannot take what is filed in it: sheets,
-// chapters and groups. Nil is a group that can.
+// fileable reports why a group cannot take what is filed in it: sheets and
+// groups. Nil is a group that can.
 func (l *Library) fileable(id GroupID) error {
 	group, ok := l.groups[id]
 	switch {
@@ -195,14 +195,9 @@ func (l *Library) DeleteGroup(id GroupID) ([]SheetID, error) {
 		for _, child := range slices.Clone(l.children[id]) {
 			remove(child)
 		}
-		for _, entry := range l.order[id] {
-			switch {
-			case entry.sheet != 0:
-				delete(l.sheets, entry.sheet)
-				deleted = append(deleted, entry.sheet)
-			case entry.chapter != 0:
-				delete(l.chapters, entry.chapter)
-			}
+		for _, sheet := range l.order[id] {
+			delete(l.sheets, sheet)
+			deleted = append(deleted, sheet)
 		}
 		delete(l.order, id)
 		delete(l.children, id)

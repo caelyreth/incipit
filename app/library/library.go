@@ -25,9 +25,6 @@ type GroupID int64
 // SheetID identifies a sheet for its life: the notebook page it is.
 type SheetID int64
 
-// ChapterID identifies a chapter divider for its life.
-type ChapterID int64
-
 // Inbox is the group every library has, first among the top level, for
 // sheets not filed anywhere else. It cannot be renamed, moved or trashed.
 const Inbox GroupID = 1
@@ -91,47 +88,15 @@ type Sheet struct {
 	Pinned bool
 }
 
-// Chapter is a divider in a group's ordered sheets. Every sheet after it,
-// up to the next chapter, belongs to it; sheets before the first chapter
-// belong to none.
-type Chapter struct {
-	ID    ChapterID
-	Group GroupID
-	Name  string
-}
-
-// Entry is one position in a group's ordered list: either a sheet or a
-// chapter divider.
-type Entry struct {
-	Sheet   SheetID
-	Chapter ChapterID
-}
-
-// IsChapter reports whether the entry is a chapter divider.
-func (e Entry) IsChapter() bool { return e.Chapter != 0 }
-
-// orderEntry is the library's compact form of Entry.
-type orderEntry struct {
-	sheet   SheetID
-	chapter ChapterID
-}
-
-func sheetEntry(id SheetID) orderEntry { return orderEntry{sheet: id} }
-func chapterEntry(id ChapterID) orderEntry {
-	return orderEntry{chapter: id}
-}
-
 // Library is the notebook's organization. Groups and sheets keep the
 // order they are given within their parent: the order is the library's,
 // not a sort.
 type Library struct {
-	groups      map[GroupID]*Group
-	children    map[GroupID][]GroupID
-	sheets      map[SheetID]*Sheet
-	chapters    map[ChapterID]*Chapter
-	order       map[GroupID][]orderEntry
-	nextGroup   GroupID
-	nextChapter ChapterID
+	groups    map[GroupID]*Group
+	children  map[GroupID][]GroupID
+	sheets    map[SheetID]*Sheet
+	order     map[GroupID][]SheetID
+	nextGroup GroupID
 	// rev counts the library's changes: every method that may change it
 	// moves it on. touches counts those that only record a sheet's change
 	// time (Touch).
@@ -150,13 +115,11 @@ func (l *Library) Filing() uint64 { return l.rev - l.touches }
 // New is a library holding only its Inbox.
 func New() *Library {
 	l := &Library{
-		groups:      map[GroupID]*Group{},
-		children:    map[GroupID][]GroupID{},
-		sheets:      map[SheetID]*Sheet{},
-		chapters:    map[ChapterID]*Chapter{},
-		order:       map[GroupID][]orderEntry{},
-		nextGroup:   Inbox + 1,
-		nextChapter: 1,
+		groups:    map[GroupID]*Group{},
+		children:  map[GroupID][]GroupID{},
+		sheets:    map[SheetID]*Sheet{},
+		order:     map[GroupID][]SheetID{},
+		nextGroup: Inbox + 1,
 	}
 	l.groups[Inbox] = &Group{ID: Inbox, Name: InboxName}
 	l.children[0] = []GroupID{Inbox}
@@ -181,15 +144,6 @@ func (l *Library) Sheet(id SheetID) (Sheet, bool) {
 	return *sheet, true
 }
 
-// Chapter returns a chapter divider.
-func (l *Library) Chapter(id ChapterID) (Chapter, bool) {
-	chapter, ok := l.chapters[id]
-	if !ok {
-		return Chapter{}, false
-	}
-	return *chapter, true
-}
-
 // Groups returns the groups in parent, in order, leaving out those in the
 // trash. Parent zero is the top level.
 func (l *Library) Groups(parent GroupID) []Group {
@@ -206,51 +160,12 @@ func (l *Library) Groups(parent GroupID) []Group {
 // in the trash.
 func (l *Library) Sheets(group GroupID) []Sheet {
 	var sheets []Sheet
-	for _, entry := range l.order[group] {
-		if entry.chapter != 0 {
-			continue
-		}
-		if sheet := l.sheets[entry.sheet]; sheet.Trashed.IsZero() {
+	for _, id := range l.order[group] {
+		if sheet := l.sheets[id]; sheet.Trashed.IsZero() {
 			sheets = append(sheets, *sheet)
 		}
 	}
 	return sheets
-}
-
-// Entries returns a group's live sheets and chapter dividers in their
-// shared order.
-func (l *Library) Entries(group GroupID) []Entry {
-	var entries []Entry
-	for _, entry := range l.order[group] {
-		switch {
-		case entry.chapter != 0:
-			entries = append(entries, Entry{Chapter: entry.chapter})
-		case entry.sheet != 0:
-			if sheet := l.sheets[entry.sheet]; sheet.Trashed.IsZero() {
-				entries = append(entries, Entry{Sheet: entry.sheet})
-			}
-		}
-	}
-	return entries
-}
-
-// SheetChapter returns the chapter a sheet belongs to, if any. Membership
-// is the nearest chapter before the sheet in its group's order.
-func (l *Library) SheetChapter(id SheetID) (ChapterID, bool) {
-	sheet, ok := l.sheets[id]
-	if !ok {
-		return 0, false
-	}
-	var current ChapterID
-	for _, entry := range l.order[sheet.Group] {
-		switch {
-		case entry.chapter != 0:
-			current = entry.chapter
-		case entry.sheet == id:
-			return current, current != 0
-		}
-	}
-	return 0, false
 }
 
 // Count is how many sheets a group holds, its own groups' included,
@@ -267,11 +182,7 @@ func (l *Library) Count(group GroupID) int {
 // not: what deleting the group deletes with it.
 func (l *Library) Holds(group GroupID) (groups, sheets int) {
 	// Trashed sheets stay with the group too.
-	for _, entry := range l.order[group] {
-		if entry.sheet != 0 {
-			sheets++
-		}
-	}
+	sheets = len(l.order[group])
 	for _, child := range l.children[group] {
 		inner, filed := l.Holds(child)
 		groups, sheets = groups+1+inner, sheets+filed
@@ -432,6 +343,6 @@ func insertAt[T any](items []T, index int, item T) []T {
 	return slices.Insert(items, index, item)
 }
 
-func removeOrderEntry(items []orderEntry, want orderEntry) []orderEntry {
-	return slices.DeleteFunc(items, func(entry orderEntry) bool { return entry == want })
+func removeSheet(items []SheetID, want SheetID) []SheetID {
+	return slices.DeleteFunc(items, func(id SheetID) bool { return id == want })
 }

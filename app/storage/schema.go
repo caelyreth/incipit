@@ -32,12 +32,6 @@ var migrations = []string{
 		position INTEGER NOT NULL,
 		trashed  INTEGER
 	) STRICT;
-	CREATE TABLE chapters (
-		id       INTEGER PRIMARY KEY,
-		grp      INTEGER NOT NULL,
-		name     TEXT    NOT NULL,
-		position INTEGER NOT NULL
-	) STRICT;
 	CREATE TABLE sheets (
 		page     INTEGER PRIMARY KEY,
 		grp      INTEGER NOT NULL,

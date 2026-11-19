@@ -7,7 +7,7 @@ func (l *Library) AddSheet(id SheetID, group GroupID, at time.Time) error {
 	return l.AddSheetAt(id, group, at, len(l.order[group]))
 }
 
-// AddSheetAt files a new sheet in group at index, clamped to its entries. A
+// AddSheetAt files a new sheet in group at index, clamped to its sheets. A
 // sheet ID names one sheet for its life: a repeated ID is rejected without
 // changing its filing, timestamps, or ordered placements.
 func (l *Library) AddSheetAt(id SheetID, group GroupID, at time.Time, index int) error {
@@ -22,7 +22,7 @@ func (l *Library) AddSheetAt(id SheetID, group GroupID, at time.Time, index int)
 		return ErrDuplicate
 	}
 	l.sheets[id] = &Sheet{ID: id, Group: group, Created: at, Updated: at}
-	l.order[group] = insertAt(l.order[group], index, sheetEntry(id))
+	l.order[group] = insertAt(l.order[group], index, id)
 	return nil
 }
 
@@ -46,9 +46,9 @@ func (l *Library) MoveSheet(id SheetID, group GroupID, index int) error {
 	if err := l.fileable(group); err != nil {
 		return err
 	}
-	l.order[sheet.Group] = removeOrderEntry(l.order[sheet.Group], sheetEntry(id))
+	l.order[sheet.Group] = removeSheet(l.order[sheet.Group], id)
 	sheet.Group = group
-	l.order[group] = insertAt(l.order[group], index, sheetEntry(id))
+	l.order[group] = insertAt(l.order[group], index, id)
 	return nil
 }
 
@@ -101,7 +101,7 @@ func (l *Library) DeleteSheet(id SheetID) error {
 	if !l.SheetInTrash(id) {
 		return ErrNotTrashed
 	}
-	l.order[sheet.Group] = removeOrderEntry(l.order[sheet.Group], sheetEntry(id))
+	l.order[sheet.Group] = removeSheet(l.order[sheet.Group], id)
 	delete(l.sheets, id)
 	return nil
 }

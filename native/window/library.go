@@ -412,10 +412,10 @@ func (a *AppState) DuplicateSheet(name string) {
 		return
 	}
 	copied := library.SheetID(a.sessions[id].key)
-	entries := a.library.Entries(sheet.Group)
-	position := len(entries)
-	for index, entry := range entries {
-		if entry.Sheet == sheet.ID {
+	siblings := a.library.Sheets(sheet.Group)
+	position := len(siblings)
+	for index, sibling := range siblings {
+		if sibling.ID == sheet.ID {
 			position = index + 1
 			break
 		}

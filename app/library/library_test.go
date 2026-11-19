@@ -100,8 +100,7 @@ func TestAddingExistingSheetLeavesLibraryUnchanged(t *testing.T) {
 		t.Fatalf("duplicate error = %v", err)
 	}
 	after := l.Records()
-	if !slices.Equal(before.Groups, after.Groups) || !slices.Equal(before.Sheets, after.Sheets) ||
-		!slices.Equal(before.Chapters, after.Chapters) {
+	if !slices.Equal(before.Groups, after.Groups) || !slices.Equal(before.Sheets, after.Sheets) {
 		t.Fatalf("duplicate changed records: before %+v, after %+v", before, after)
 	}
 	if got := sheetIDs(Restore(after).Sheets(Inbox)); !slices.Equal(got, []SheetID{7}) {
@@ -120,13 +119,9 @@ func TestAddAtPlacesEntriesOnceAndValidatesBeforeMutation(t *testing.T) {
 	}
 	must(t, l.AddSheet(1, Inbox, now))
 	must(t, l.AddSheet(2, Inbox, now))
-	chapter, err := l.AddChapterAt(Inbox, "Middle", 1)
-	must(t, err)
-	must(t, l.AddSheetAt(3, Inbox, now, 2))
-	if got := l.Entries(Inbox); !slices.Equal(got, []Entry{
-		{Sheet: 1}, {Chapter: chapter}, {Sheet: 3}, {Sheet: 2},
-	}) {
-		t.Fatalf("entry order = %v", got)
+	must(t, l.AddSheetAt(3, Inbox, now, 1))
+	if got := sheetIDs(l.Sheets(Inbox)); !slices.Equal(got, []SheetID{1, 3, 2}) {
+		t.Fatalf("sheet order = %v", got)
 	}
 	before := l.Records()
 	for _, id := range []SheetID{0, -1} {
@@ -138,62 +133,8 @@ func TestAddAtPlacesEntriesOnceAndValidatesBeforeMutation(t *testing.T) {
 		t.Fatalf("invalid group error = %v", err)
 	}
 	if after := l.Records(); !slices.Equal(before.Sheets, after.Sheets) ||
-		!slices.Equal(before.Groups, after.Groups) || !slices.Equal(before.Chapters, after.Chapters) {
+		!slices.Equal(before.Groups, after.Groups) {
 		t.Fatalf("failed insertion changed records: before %+v, after %+v", before, after)
-	}
-}
-
-func TestChaptersDivideTheirFollowingSheets(t *testing.T) {
-	l := New()
-	must(t, l.AddSheet(1, Inbox, now))
-	must(t, l.AddSheet(2, Inbox, now))
-	opening, err := l.AddChapter(Inbox, "Opening")
-	must(t, err)
-	must(t, l.AddSheet(3, Inbox, now))
-	closing, err := l.AddChapter(Inbox, "Closing")
-	must(t, err)
-	must(t, l.AddSheet(4, Inbox, now))
-
-	if chapter, ok := l.SheetChapter(1); ok {
-		t.Fatalf("sheet before every chapter belongs to %d", chapter)
-	}
-	if chapter, ok := l.SheetChapter(3); !ok || chapter != opening {
-		t.Fatalf("sheet 3 belongs to %d, want %d", chapter, opening)
-	}
-	if chapter, ok := l.SheetChapter(4); !ok || chapter != closing {
-		t.Fatalf("sheet 4 belongs to %d, want %d", chapter, closing)
-	}
-	entries := l.Entries(Inbox)
-	if len(entries) != 6 || !entries[2].IsChapter() || entries[2].Chapter != opening ||
-		!entries[4].IsChapter() || entries[4].Chapter != closing {
-		t.Fatalf("entries %+v", entries)
-	}
-
-	must(t, l.MoveSheet(2, Inbox, 3))
-	if chapter, ok := l.SheetChapter(2); !ok || chapter != opening {
-		t.Fatalf("moved sheet belongs to %d, want %d", chapter, opening)
-	}
-	must(t, l.MoveSheet(2, Inbox, 0))
-	if chapter, ok := l.SheetChapter(2); ok {
-		t.Fatalf("sheet before every chapter belongs to %d", chapter)
-	}
-	must(t, l.MoveChapter(closing, Inbox, 1))
-	if chapter, ok := l.SheetChapter(3); !ok || chapter != opening {
-		t.Fatalf("chapter after the moved divider belongs to %d, want %d", chapter, closing)
-	}
-	if chapter, ok := l.SheetChapter(4); !ok || chapter != opening {
-		t.Fatalf("sheet before the moved divider belongs to %d, want %d", chapter, closing)
-	}
-	must(t, l.RenameChapter(opening, "  "))
-	if chapter, _ := l.Chapter(opening); chapter.Name != "Untitled Chapter" {
-		t.Fatalf("blank chapter name %q", chapter.Name)
-	}
-	must(t, l.DeleteChapter(opening))
-	if _, ok := l.Chapter(opening); ok {
-		t.Fatal("deleted chapter remains")
-	}
-	if chapter, ok := l.SheetChapter(3); !ok || chapter != closing {
-		t.Fatalf("deleting a divider did not merge its sheets into %d", chapter)
 	}
 }
 
@@ -300,7 +241,6 @@ func TestRecordsRestoreTheLibrary(t *testing.T) {
 	must(t, l.MoveGroup(notes, 0, 1))
 	must(t, l.AddSheet(1, part, now))
 	must(t, l.AddSheet(2, part, now))
-	chapter, _ := l.AddChapter(part, "Interlude")
 	must(t, l.AddSheet(3, part, now))
 	must(t, l.MoveSheet(2, part, 0))
 	must(t, l.TrashGroup(notes, now))
@@ -310,9 +250,6 @@ func TestRecordsRestoreTheLibrary(t *testing.T) {
 	}
 	if got := sheetIDs(restored.Sheets(part)); !equal(got, []SheetID{2, 1, 3}) {
 		t.Fatalf("sheets %v", got)
-	}
-	if got, ok := restored.SheetChapter(3); !ok || got != chapter {
-		t.Fatalf("restored chapter membership %d %v", got, ok)
 	}
 	if !restored.GroupInTrash(notes) {
 		t.Fatal("trash lost")
@@ -428,9 +365,6 @@ func TestASmartFolderHoldsNothingFiled(t *testing.T) {
 	if err := l.MoveSheet(6, smart, 0); !errors.Is(err, ErrSmart) {
 		t.Fatalf("moving a sheet in: %v", err)
 	}
-	if _, err := l.AddChapter(smart, "One"); !errors.Is(err, ErrSmart) {
-		t.Fatalf("a chapter in: %v", err)
-	}
 	if _, err := l.AddGroup(smart, "Inside"); !errors.Is(err, ErrSmart) {
 		t.Fatalf("a group in: %v", err)
 	}
@@ -467,15 +401,11 @@ func TestRecordsKeepASmartFolderEmpty(t *testing.T) {
 	// Records that say otherwise are read as they still can be: what is
 	// filed in a smart folder goes to the Inbox, a group to the top.
 	records.Sheets = append(records.Sheets, SheetRecord{Sheet: Sheet{ID: 9, Group: smart}})
-	records.Chapters = append(records.Chapters, ChapterRecord{Chapter: Chapter{ID: 4, Group: smart, Name: "C"}})
 	records.Groups = append(records.Groups, GroupRecord{Group: Group{ID: 20, Parent: smart, Name: "In"}},
 		GroupRecord{Group: Group{ID: Inbox, Name: "x", Query: "#inbox"}})
 	r := Restore(records)
 	if s, _ := r.Sheet(9); s.Group != Inbox {
 		t.Fatalf("a sheet in a smart folder restored to %d", s.Group)
-	}
-	if c, _ := r.Chapter(4); c.Group != Inbox {
-		t.Fatalf("a chapter restored to %d", c.Group)
 	}
 	if g, _ := r.Group(20); g.Parent != 0 {
 		t.Fatalf("a group restored into %d", g.Parent)

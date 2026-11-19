@@ -119,7 +119,6 @@ func (v *Saver) Delete(key PageKey) {
 func (v *Saver) Library(records library.Records) {
 	records.Groups = slices.Clone(records.Groups)
 	records.Sheets = slices.Clone(records.Sheets)
-	records.Chapters = slices.Clone(records.Chapters)
 	v.mu.Lock()
 	v.library = &records
 	v.touch()
