@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -43,10 +42,24 @@ func (s *State) rowPlace(el ui.Element, id string) {
 // keepRowPlaces lets go of where rows stood that the field no longer
 // shows.
 func (s *State) keepRowPlaces() {
+	shown := make(map[string]bool, len(s.field.order))
+	for _, id := range s.field.order {
+		shown[id] = true
+	}
 	for id := range s.field.rowRects {
-		if !slices.Contains(s.field.order, id) {
+		if !shown[id] {
 			delete(s.field.rowRects, id)
 		}
+	}
+}
+
+// unbuilt stands the rows of cd, a card not built, where the card does.
+func (s *State) unbuilt(cd card, r stageRect) {
+	if s.field.rowRects == nil {
+		s.field.rowRects = map[string]stageRect{}
+	}
+	for _, id := range cd.kind.rows() {
+		s.field.rowRects[id] = r
 	}
 }
 

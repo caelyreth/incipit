@@ -49,8 +49,39 @@ func (s *State) sorted() bool {
 }
 
 // listed reports whether the field shows its place as a list: sorted, or
-// browsing a place shown as one. A search starts in the field.
+// browsing a place shown as one. A search starts in the field. It is
+// asked many times a frame, by every ribbon among them, and worked out
+// again only as what it reads changes.
 func (s *State) listed() bool {
+	key := listedKey{conds: strings.Join(s.field.conditions, "\x00"), words: s.field.words, held: s.field.held, caret: s.field.caret,
+		opened: s.field.opened != nil, rev: s.field.listsRev}
+	if s.Library != nil {
+		key.library = s.Library.Revision() + 1
+	}
+	if m := &s.field.listedMemo; m.ok && m.key == key {
+		return m.value
+	}
+	v := s.isListed()
+	s.field.listedMemo = listedMemo{key: key, value: v, ok: true}
+	return v
+}
+
+// listedKey is what listed reads; listedMemo what it last found.
+type listedKey struct {
+	conds, words, held string
+	caret              int
+	opened             bool
+	rev                int
+	// library is the library's revision, one on, 0 for none.
+	library uint64
+}
+
+type listedMemo struct {
+	key       listedKey
+	value, ok bool
+}
+
+func (s *State) isListed() bool {
 	if s.Library == nil || s.InSettings() || strings.HasPrefix(s.field.words, ">") {
 		return false
 	}
@@ -70,6 +101,8 @@ func (s *State) toggleList() {
 	if s.field.lists == nil {
 		s.field.lists = map[string]bool{}
 	}
+	// What listed found stands no more once the places' views change.
+	defer func() { s.field.listsRev++ }()
 	if !s.listed() {
 		s.field.lists[s.place()] = true
 		s.field.conditions = slices.DeleteFunc(s.field.conditions, func(text string) bool { return conditionKey(text) == "bands" })
@@ -410,5 +443,9 @@ func (s *State) partOf(el ui.Element, id string, animate bool) float32 {
 	if !animate {
 		return to
 	}
-	return el.AnimateTo("part-"+id, to, components.Spring(components.MotionQuick))
+	v := el.AnimateTo("part-"+id, to, components.Spring(components.MotionQuick))
+	if v != 0 {
+		s.field.parted = true
+	}
+	return v
 }

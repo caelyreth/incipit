@@ -119,13 +119,17 @@ func swapEase(t float32) float32 {
 // stageSwapFrames is a swap t of the way: what was drawn sinks a little and
 // fades, all at once; then the new view's cards rise into their places
 // and show, in the order they are given, which is the order the view is
-// read in.
+// read in. Nothing is scaled, so each card's drawing is kept as it moves.
 func stageSwapFrames(from, to []stageFrame, t float32) []stageFrame {
 	frames := make([]stageFrame, 0, len(from)+len(to))
 	if out := min(1, t/swapOut); out < 1 {
 		out = 1 - (1-out)*(1-out)
 		for _, f := range from {
-			frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(f.Rect, f.Rect.Scaled(0.97), out), Shown: f.Shown * (1 - out)})
+			// Moved and faded, never scaled: what it holds is drawn once,
+			// not again each frame at another size.
+			sink := f.Rect
+			sink.Y += 6
+			frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(f.Rect, sink, out), Shown: f.Shown * (1 - out)})
 		}
 	}
 	for i, f := range to {
@@ -133,7 +137,7 @@ func stageSwapFrames(from, to []stageFrame, t float32) []stageFrame {
 		k := max(0, min(1, (t-start)/swapEach))
 		// Eased out: quick to come, slow to settle.
 		k = swapEase(k)
-		rise := f.Rect.Scaled(0.96)
+		rise := f.Rect
 		rise.Y += 14
 		frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(rise, f.Rect, k), Shown: f.Shown * k})
 	}

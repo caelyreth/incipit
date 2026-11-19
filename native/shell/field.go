@@ -161,8 +161,12 @@ type fieldState struct {
 	// renaming is the group whose name is being written on its head.
 	renaming, renameName string
 	renameFocus          bool
-	// lists are the places shown as a list, kept for the session (list.go).
-	lists map[string]bool
+	// lists are the places shown as a list, kept for the session (list.go);
+	// listsRev counts their changes, and listedMemo is what listed last
+	// found.
+	lists      map[string]bool
+	listsRev   int
+	listedMemo listedMemo
 	// named are the bands' names the field showed last; listed is whether
 	// it last stood as a list.
 	named  map[string]bool
@@ -176,6 +180,8 @@ type fieldState struct {
 	// parts are how far aside each card stands to open the gap a sheet
 	// dragged in a list would go into, by its id.
 	parts map[string]float32
+	// parted is whether a card still stood aside as the field last drew.
+	parted bool
 	// pin is how far the pill stands at the window's foot, as a list's
 	// does, rather than at its horizon.
 	pin float32
@@ -597,6 +603,10 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 			at = stagePoint{X: w/2 + poise.X, Y: h/2 - poise.Y - (s.field.scroll - s.field.over.Offset())}
 		}
 		s.bandNames(c, semantic, f, marks, at, m, animate)
+		// Cards stand aside only while a sheet is dragged in a list, and as
+		// they come back after.
+		parting := s.field.parts != nil || s.field.parted
+		s.field.parted = false
 		for _, fr := range drawn {
 			cd, ok := s.field.shown[fr.ID]
 			if !ok {
@@ -606,7 +616,18 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 			if swapping && !live[fr.ID] {
 				from = s.field.swapFrom
 			}
-			from.X += s.partOf(view, fr.ID, animate)
+			// A card well out of the window is not built: nothing of it
+			// shows, and a long list holds many. Its rows stand where the
+			// card does, for the keys to go to, which bring it into view.
+			if y := from.Y + fr.Rect.Y; y > h+h/2 || y+fr.Rect.H < -h/2 {
+				if live[fr.ID] {
+					s.unbuilt(cd, fr.Rect)
+				}
+				continue
+			}
+			if parting {
+				from.X += s.partOf(view, fr.ID, animate)
+			}
 			s.cardView(c, semantic, fr, cd, s.field.shownShape[fr.ID], from, live[fr.ID], m, animate)
 		}
 		if s.field.drag != nil {
@@ -696,13 +717,21 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 			for _, fr := range frames {
 				shared[fr.ID] = true
 			}
-			from := make([]stageFrame, len(s.field.from))
-			for i, fr := range s.field.from {
+			// Turned again before the last turn ended, a card going out
+			// twice goes as the copy coming in, the one more of it shown.
+			from := make([]stageFrame, 0, len(s.field.from))
+			at := map[string]int{}
+			for _, fr := range s.field.from {
 				if id := "was:" + fr.ID; shared[fr.ID] {
 					s.field.shown[id], s.field.shownShape[id] = s.field.shown[fr.ID], s.field.shownShape[fr.ID]
 					fr.ID = id
 				}
-				from[i] = fr
+				if i, ok := at[fr.ID]; ok {
+					from[i] = fr
+					continue
+				}
+				at[fr.ID] = len(from)
+				from = append(from, fr)
 			}
 			s.field.from = from
 		}
