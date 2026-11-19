@@ -136,14 +136,14 @@ func describeCounts(v string) string {
 }
 
 // describeSort says an order: what it goes by, and which come first, as
-// the index sorts it (dates and lengths newest and longest first, titles
-// A to Z, a - turning it).
+// the index sorts it (dates oldest first, lengths longest first, titles A
+// to Z, a - turning it).
 func describeSort(v string) string {
 	turned := strings.HasPrefix(v, "-")
 	v = strings.TrimPrefix(v, "-")
 	firsts := map[string][2]string{
-		"updated": {"newest first", "oldest first"},
-		"created": {"newest first", "oldest first"},
+		"updated": {"oldest first", "newest first"},
+		"created": {"oldest first", "newest first"},
 		"words":   {"longest first", "shortest first"},
 		"title":   {"A to Z", "Z to A"},
 	}

@@ -117,24 +117,25 @@ func swapEase(t float32) float32 {
 }
 
 // swapOffered is how much the ribbons around the pill show at t of a swap,
-// below 0 for none going: they fade where they stand as it starts, the
-// pill goes on alone, and they come back where it arrives, as it nearly
-// has, so none sweeps across the cards coming in.
+// below 0 for none going: each view lays them out its own way, so they
+// fade where they stand as it starts, the pill goes on alone, and they
+// come back where it arrives, as it nearly has, so none sweeps across the
+// cards coming in.
 func swapOffered(t float32) float32 {
 	switch {
 	case t < 0:
 		return 1
-	case t < swapRibbonsOut:
-		return 1 - t/swapRibbonsOut
-	case t < swapRibbonsIn:
+	case t < ribbonsOut:
+		return 1 - t/ribbonsOut
+	case t < ribbonsIn:
 		return 0
 	}
-	return swapEase((t - swapRibbonsIn) / (1 - swapRibbonsIn))
+	return swapEase((t - ribbonsIn) / (1 - ribbonsIn))
 }
 
-// swapRibbonsOut and swapRibbonsIn are where in a swap the ribbons are
-// gone, and start to come back.
-const swapRibbonsOut, swapRibbonsIn = 0.12, 0.75
+// ribbonsOut and ribbonsIn are where in a swap the ribbons are gone, and
+// start to come back.
+const ribbonsOut, ribbonsIn = 0.12, 0.75
 
 // stageSwapFrames is a swap t of the way: what was drawn sinks a little and
 // fades, all at once; then the new view's cards rise into their places

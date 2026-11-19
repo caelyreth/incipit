@@ -64,9 +64,7 @@ func (s *State) goHome() {
 		s.SetFieldQuery("")
 		s.field.next = next
 	}
-	if s.field.scroll != 0 || s.field.over.Offset() != 0 {
-		s.field.home, s.field.homeTo = true, 0
-	}
+	s.homeward()
 }
 
 // choose moves the keys by by along the rows the field shows.

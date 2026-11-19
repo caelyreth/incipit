@@ -173,8 +173,9 @@ func sortOf(q query.Query) ([]string, bool) {
 		v := query.Fold(f.Value)
 		turned := strings.HasPrefix(v, "-")
 		v = strings.TrimPrefix(v, "-")
-		// Dates and lengths run newest and longest first, titles A to Z.
-		desc := v != "title"
+		// Dates run oldest first (so newest sits by the list's pill), lengths
+		// longest first, and titles A to Z.
+		desc := v == "words"
 		if turned {
 			desc = !desc
 		}

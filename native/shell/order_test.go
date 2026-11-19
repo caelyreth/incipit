@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -163,5 +164,219 @@ func TestWhatIsPinnedStandsFirst(t *testing.T) {
 	}
 	if _, ok := tester.Find("Pinned"); !ok {
 		t.Fatal("A pinned sheet should wear its badge.")
+	}
+}
+
+// A divider is pressed as a person presses: held a moment, the hand not
+// quite still. It goes into its group, never taken for a drag however
+// wide it stands.
+func TestADividerHeldAMomentGoesIn(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.extraSheets = 3
+	state.toggleList()
+	settle(tester)
+	r, ok := tester.Find("Novel")
+	if !ok {
+		t.Fatal("Novel's divider should show.")
+	}
+	x, y := r.X+40, r.Y+r.H/2
+	tester.Move(x, y)
+	tester.Frame()
+	tester.Press(x, y)
+	for range 9 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+	}
+	tester.Move(x+1, y)
+	tester.Frame()
+	tester.Release(x+1, y)
+	settle(tester)
+	if got := state.place(); got != "group:2" {
+		t.Fatalf("Held a moment, the divider should go into its group, not %q.", got)
+	}
+}
+
+// A list keeps its place as a browser's history does: opened in filed order,
+// a new place starts at its end; scrolled up and gone into a group, the group
+// opens at its own end; come back, the list stands as it was left.
+func TestAListComesBackAsItWasLeft(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.extraSheets = 40
+	state.toggleList()
+	settle(tester)
+	if state.field.hi <= 0 || abs(state.field.scroll-state.field.hi) > 0.5 {
+		t.Fatalf("A long filed list should open at its end: scroll=%v hi=%v.", state.field.scroll, state.field.hi)
+	}
+	visible := func(r ui.Rect, ok bool) bool {
+		return ok && r.H > 0 && r.Y >= state.field.viewTop && r.Y+r.H <= state.field.viewBottom
+	}
+	for range 30 {
+		if r, ok := tester.Find("Novel"); visible(r, ok) {
+			break
+		}
+		tester.Scroll(600, 400, 0, -80)
+		tester.Frame()
+	}
+	tester.Scroll(600, 400, 0, 0)
+	settle(tester)
+	watch := "Chapter"
+	rWatch, ok := tester.Find(watch)
+	if !visible(rWatch, ok) {
+		t.Fatalf("%s should be in view near Novel: %+v.", watch, rWatch)
+	}
+	was, scroll := rWatch.Y, state.field.scroll
+	if err := tester.Click("Novel"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.place() != "group:2" {
+		t.Fatalf("Clicking Novel should enter group:2, got %q.", state.place())
+	}
+	if state.field.hi <= 0 || abs(state.field.scroll-state.field.hi) > 0.5 {
+		t.Fatalf("A group gone into should open at its end: scroll=%v hi=%v.", state.field.scroll, state.field.hi)
+	}
+	state.broaden(0)
+	settle(tester)
+	if r, ok := tester.Find(watch); !ok || abs(state.field.scroll-scroll) > 0.5 || abs(r.Y-was) > 0.5 {
+		t.Fatalf("Come back, the list should stand as it was left: scrolled %v, %s at %v, not %v and %v (ok=%v).", scroll, watch, was, state.field.scroll, r.Y, ok)
+	}
+}
+
+// A list shorter than the window stands on the foot just above the pill, and
+// ribbons appearing there push it up on a spring.
+func TestAShortListStandsOnTheFootAndRisesWithRibbons(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.extraSheets = 2
+	state.toggleList()
+	state.field.quiet = true
+	settle(tester)
+	if state.field.open {
+		t.Fatal("Pill should be closed at rest before opening ribbons.")
+	}
+	if state.field.lo >= 0 || state.field.lo != state.field.hi || abs(state.field.scroll-state.field.hi) > 0.5 {
+		t.Fatalf("A short list should pin to the foot: lo=%v hi=%v scroll=%v.", state.field.lo, state.field.hi, state.field.scroll)
+	}
+	var end float32
+	for _, fr := range state.field.rest {
+		end = max(end, fr.Rect.Y+fr.Rect.H)
+	}
+	bottom := state.field.origin.Y + end
+	if abs(bottom-state.field.viewBottom) > 1 {
+		t.Fatalf("A short list should rest on viewBottom (%v), not %v.", state.field.viewBottom, bottom)
+	}
+	wasBottom := bottom
+	state.ShowField()
+	settle(tester)
+	afterBottom := state.field.origin.Y + end
+	if afterBottom >= wasBottom-10 || abs(afterBottom-state.field.viewBottom) > 1 {
+		t.Fatalf("Opening the pill should push a short list up with viewBottom: was=%v now=%v viewBottom=%v.", wasBottom, afterBottom, state.field.viewBottom)
+	}
+}
+
+// Scrolled up, ribbons at the foot and new sheets at the end keep what is
+// being read still; at the end, ribbons push it up cleanly.
+func TestAListScrolledUpHoldsStillWhileTheEndFollowsTheFoot(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.extraSheets = 40
+	state.toggleList()
+	state.field.quiet = true
+	settle(tester)
+	wasScroll := state.field.scroll
+	// At the end, opening the pill grows ribbons above it and pushes the end up.
+	state.ShowField()
+	settle(tester)
+	if state.field.scroll <= wasScroll+10 || abs(state.field.scroll-state.field.hi) > 1 {
+		t.Fatalf("At the end, opening the pill should push the end up: was=%v scroll=%v hi=%v.", wasScroll, state.field.scroll, state.field.hi)
+	}
+	state.field.quiet = true
+	settle(tester)
+	// Scroll well up from the end so Chapter is visible inside the viewport.
+	visible := func(r ui.Rect, ok bool) bool {
+		return ok && r.H > 0 && r.Y >= state.field.viewTop && r.Y+r.H <= state.field.viewBottom
+	}
+	for range 30 {
+		if r, ok := tester.Find("Chapter"); visible(r, ok) {
+			break
+		}
+		tester.Scroll(600, 400, 0, -80)
+		tester.Frame()
+	}
+	tester.Scroll(600, 400, 0, 0)
+	settle(tester)
+	r, ok := tester.Find("Chapter")
+	if !visible(r, ok) {
+		t.Fatalf("Chapter should be visible once scrolled up: %+v.", r)
+	}
+	wasY, wasScroll := r.Y, state.field.scroll
+	// Opening the pill while scrolled up moves nothing you are reading.
+	state.ShowField()
+	settle(tester)
+	if r2, _ := tester.Find("Chapter"); abs(state.field.scroll-wasScroll) > 0.5 || abs(r2.Y-wasY) > 0.5 {
+		t.Fatalf("Scrolled up, opening ribbons should not move Chapter: scroll %v->%v, Y %v->%v.", wasScroll, state.field.scroll, wasY, r2.Y)
+	}
+	// Adding a sheet at the end while scrolled up leaves rows above untouched.
+	library.extraSheets++
+	library.rev++
+	settle(tester)
+	if r3, _ := tester.Find("Chapter"); abs(state.field.scroll-wasScroll) > 0.5 || abs(r3.Y-wasY) > 0.5 {
+		t.Fatalf("Scrolled up, adding a sheet at the end should not move Chapter: scroll %v->%v, Y %v->%v.", wasScroll, state.field.scroll, wasY, r3.Y)
+	}
+}
+
+type sortedTestLibrary struct {
+	*fakeLibrary
+	hits []FoundSheet
+}
+
+func (l *sortedTestLibrary) Search(text string) Found {
+	out := slices.Clone(l.hits)
+	if strings.Contains(text, "$sort:-updated") {
+		slices.SortFunc(out, func(a, b FoundSheet) int { return b.Updated.Compare(a.Updated) })
+	} else if strings.Contains(text, "$sort:updated") || strings.Contains(text, "$sort:created") {
+		slices.SortFunc(out, func(a, b FoundSheet) int { return a.Updated.Compare(b.Updated) })
+	}
+	return Found{Sheets: out, Total: len(out)}
+}
+
+// Forward time sorts open at the end (showing Today by the pill, oldest at the
+// top), while title, word-count, and reversed time sorts open at the top.
+func TestListSortsPickTheirHome(t *testing.T) {
+	now := time.Now()
+	base := &fakeLibrary{}
+	var hits []FoundSheet
+	for i := range 45 {
+		ts := now.AddDate(-2, 0, i)
+		if i >= 41 {
+			ts = now.Add(-time.Duration(45-i) * time.Minute)
+		}
+		hits = append(hits, FoundSheet{SheetItem: SheetItem{
+			ID:      fmt.Sprint("s", i),
+			Title:   fmt.Sprintf("Note %02d", i),
+			Updated: ts,
+			Created: ts,
+			Words:   (i + 1) * 100,
+		}})
+	}
+	lib := &sortedTestLibrary{fakeLibrary: base, hits: hits}
+	state := New()
+	state.Library = lib
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+
+	state.SetFieldQuery("$sort:updated")
+	settle(tester)
+	if state.field.hi <= 0 || abs(state.field.scroll-state.field.hi) > 0.5 {
+		t.Fatalf("$sort:updated should open at the end (Today by the pill): scroll=%v hi=%v.", state.field.scroll, state.field.hi)
+	}
+	if iEarlier, iToday := slices.Index(shownBlocks(state), "step:Earlier"), slices.Index(shownBlocks(state), "step:Today"); iEarlier < 0 || iToday < 0 || iEarlier > iToday {
+		t.Fatalf("$sort:updated should read oldest-to-newest top-down: Earlier=%d Today=%d (%v).", iEarlier, iToday, shownBlocks(state))
+	}
+
+	for _, q := range []string{"$sort:title", "$sort:words", "$sort:-updated"} {
+		state.SetFieldQuery(q)
+		settle(tester)
+		if state.field.hi <= 0 || state.field.scroll != 0 {
+			t.Fatalf("%s should open at the top when long: scroll=%v hi=%v.", q, state.field.scroll, state.field.hi)
+		}
 	}
 }

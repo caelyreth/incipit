@@ -43,17 +43,17 @@ func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
 	}
 }
 
-// A list is read: rows of the columns over the pill, left to right and
+// A list is read: rows of the columns from its top, left to right and
 // top down, each as tall as its tallest, a divider across the columns
-// alone in its row, the last row ending on the band.
+// alone in its row.
 func TestAListFillsItsRowsInReadingOrder(t *testing.T) {
 	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Above: 20}
 	rects := z.Rows([]float32{30, 50, 80, 50, 50}, []bool{true, false, false, false, false})
 	if rects[0].W != 320 || rects[1].Y != rects[0].Y+30+5 || rects[2].X != rects[1].X+110 {
 		t.Fatalf("The divider should stand across, its sheets under it left to right: %+v.", rects)
 	}
-	if rects[4].Y != rects[1].Y+80+10 || rects[4].X != rects[1].X || rects[4].Y+rects[4].H != -20 {
-		t.Fatalf("The next row should start under the tallest, the last ending on the band: %+v.", rects)
+	if rects[0].Y != 0 || rects[4].Y != rects[1].Y+80+10 || rects[4].X != rects[1].X {
+		t.Fatalf("The list should start at its top, the next row under the tallest: %+v.", rects)
 	}
 }
 

@@ -38,14 +38,21 @@ func (s *State) place() string {
 	return ""
 }
 
-// sorted reports whether the query states an order of its own.
-func (s *State) sorted() bool {
+// sortValue is the query's active $sort value, folded (for example
+// "updated", "-updated", "title", "words"), or "" when unsorted.
+func (s *State) sortValue() string {
 	for _, text := range s.field.conditions {
 		if c, ok := condition(text); ok && written(c).Key.Name == "sort" {
-			return strings.TrimPrefix(query.Fold(c.Value), "-") != "relevance"
+			return query.Fold(c.Value)
 		}
 	}
-	return false
+	return ""
+}
+
+// sorted reports whether the query states an order of its own.
+func (s *State) sorted() bool {
+	v := s.sortValue()
+	return v != "" && strings.TrimPrefix(v, "-") != "relevance"
 }
 
 // listed reports whether the field shows its place as a list: sorted, or
@@ -238,12 +245,7 @@ func (s *State) listSorted(f *found, text, scope string, trash bool) {
 // sortStep is the step of the query's sort a sheet stands in: when it was
 // changed or made, how long it is; none for an order with no steps.
 func (s *State) sortStep(sh SheetItem, now time.Time) string {
-	by := ""
-	for _, text := range s.field.conditions {
-		if c, ok := condition(text); ok && written(c).Key.Name == "sort" {
-			by = strings.TrimPrefix(query.Fold(c.Value), "-")
-		}
-	}
+	by := strings.TrimPrefix(s.sortValue(), "-")
 	switch by {
 	case "updated", "created":
 		t := sh.Updated

@@ -45,14 +45,13 @@ func (s *State) arrivalAt(id string, now time.Time) float32 {
 }
 
 // reveal brings what arrives into view as the field first shows it, f's
-// cards at frames in a field h tall, poised poiseY, the band reaching
-// over and under; and lets go of what has been marked its while, or was
+// cards at frames; and lets go of what has been marked its while, or was
 // never shown in it.
-func (s *State) reveal(c *ui.Context, frames []stageFrame, f found, h, poiseY, over, under float32) {
+func (s *State) reveal(c *ui.Context, frames []stageFrame, f found) {
 	// The row the keys go to is brought into view as well.
 	if s.field.chosen != s.field.shownChosen {
 		if r, ok := s.field.rowRects[s.field.chosen]; ok {
-			s.inView(r, h, poiseY, over, under)
+			s.inView(r)
 		}
 		s.field.shownChosen = s.field.chosen
 	}
@@ -75,22 +74,23 @@ func (s *State) reveal(c *ui.Context, frames []stageFrame, f found, h, poiseY, o
 		at := slices.IndexFunc(f.cards, func(cd card) bool { return cd.id == id || slices.Contains(cd.kind.rows(), id) })
 		if at >= 0 && at < len(frames) {
 			a.seen = now
-			s.inView(frames[at].Rect, h, poiseY, over, under)
+			s.inView(frames[at].Rect)
 		}
 		s.field.arrivals[id] = a
 	}
 }
 
-// inView scrolls the field, h tall and poised poiseY, the band reaching
-// over and under, as far as brings r, in the field, into view.
-func (s *State) inView(r stageRect, h, poiseY, over, under float32) {
-	y := h/2 - poiseY - s.field.scroll + r.Y
+// inView scrolls the field as far as brings r, in the field, clear into
+// its viewport.
+func (s *State) inView(r stageRect) {
+	y := s.field.base - s.field.scroll + r.Y
+	over, under := s.field.viewTop, s.field.viewBottom
 	to := s.field.scroll
 	switch {
 	case y < over:
 		to -= over - y
-	case y+r.H > h-under:
-		to += min(y+r.H-(h-under), y-over)
+	case y+r.H > under:
+		to += min(y+r.H-under, y-over)
 	}
 	if to != s.field.scroll {
 		s.field.home, s.field.homeTo = true, max(s.field.lo, min(to, s.field.hi))

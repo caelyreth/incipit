@@ -24,7 +24,7 @@ func TestValuesAreSaidInWords(t *testing.T) {
 		{"words", ">2k", "more than 2k"},
 		{"words", "<=100", "100 or fewer"},
 		{"words", "100..500", "100 to 500"},
-		{"sort", "updated", "updated, newest first"},
+		{"sort", "updated", "updated, oldest first"},
 		{"sort", "-title", "title, Z to A"},
 		{"sort", "relevance", "relevance"},
 		{"title", "weekly notes", "“weekly notes”"},
@@ -49,7 +49,7 @@ func TestAConditionIsSaidWhole(t *testing.T) {
 		"$has:":          "Content has …",
 		"-$has:image":    "Content has no image",
 		"$link:x.com":    "Links to x.com",
-		"$sort:-updated": "Sorted by updated, oldest first",
+		"$sort:-updated": "Sorted by updated, newest first",
 	} {
 		cs := Conditions(Parse(text))
 		if len(cs) != 1 {

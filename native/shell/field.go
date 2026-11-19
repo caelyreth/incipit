@@ -191,6 +191,16 @@ type fieldState struct {
 	// offered is how much the ribbons around the pill show: all but while
 	// the views turn (swapOffered).
 	offered float32
+	// The viewport: base is where the field's origin stands on screen,
+	// scrolled to 0; viewTop and viewBottom are where what it holds shows
+	// clear, between the top band and the pill with what stands about it.
+	// origin is where the field drew its origin, scrolled as it was.
+	base, viewTop, viewBottom float32
+	origin                    stagePoint
+	// place is the view and query the field shows; places are where each
+	// it showed lately was scrolled to as it was left (scrolls).
+	place  string
+	places []placeScroll
 	// pin is how far the pill stands at the window's foot, as a list's
 	// does, rather than at its horizon.
 	pin float32
@@ -423,13 +433,17 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		rects, marks = z.Rows(heights, listWide(f.cards)), nil
 	}
 	// Turning between the views is a swap: one view goes, the other comes.
+	// What goes stays where it was drawn.
 	if listed != s.field.listed && s.field.rest != nil {
 		s.field.next = change{depth: stageSwap}
-		s.field.swapFrom = stagePoint{X: w/2 + s.field.poise.X, Y: h/2 - s.field.poise.Y - (s.field.scroll - s.field.over.Offset())}
-		// The new view starts at its home: nothing scrolls on a clock of
-		// its own while the views turn.
-		s.field.scroll, s.field.home = 0, false
-		view.Jump("scroll", 0)
+		s.field.swapFrom = s.field.origin
+	}
+	// A list has no depth to go through: going into a group in it, or back
+	// out, what stays moves to where it stands and the rest fades where it
+	// is, as any change across. A divider is as wide as the list, and what
+	// came out of it or went back into it would stretch.
+	if listed && s.field.listed && s.field.next.depth != stageSwap {
+		s.field.next = change{}
 	}
 	s.field.listed = listed
 	frames := make([]stageFrame, len(rects))
@@ -467,10 +481,25 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	// A list rests on the pill at the window's foot, however little it
 	// holds, open or not.
 	if listed {
-		poise.Y = -down
+		poise.Y = -max(0, h/2-foot-z.Below)
 	}
 	lift := poise.Y
-	s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2+lift), max(0, below+3*m.pad-h/2-lift)
+	// What shows clear of the window's top band and of the pill with what
+	// stands about it, and how far the field scrolls to show all it holds.
+	// The field scrolls about its horizon, as far as its cards reach past
+	// it; a list reads from the window's top down to its foot, the pill
+	// with all that stands over it there.
+	reached := s.field.hi
+	if listed {
+		_, end := stageReachDown(rects)
+		footTop := h - foot - pill.H/2 - rl.heldBelow - z.Above
+		room := max(0, footTop-top)
+		s.field.base, s.field.viewTop, s.field.viewBottom = top, top, footTop
+		s.field.lo, s.field.hi = min(0, end-room), end-room
+	} else {
+		s.field.base, s.field.viewTop, s.field.viewBottom = h/2-lift, top+rl.above, h-foot-rl.below
+		s.field.lo, s.field.hi = -max(0, above+3*m.pad-h/2+lift), max(0, below+3*m.pad-h/2-lift)
+	}
 	// The keys start from what ranks first, nearest the pill; they go on,
 	// and a Shift-click takes its run, in the order the field is read on
 	// the screen (field-and-desk.md §4.7.7).
@@ -488,20 +517,40 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	s.keepPicked()
 	s.keepRowPlaces()
-	// What the query shows changed, the field comes back to its horizon on
-	// the change's own spring; a card only growing or shrinking, as a
-	// setting's fold opening, leaves it where it is.
-	// A list arranged keeps its cards, only their order changed, and stays.
-	if s.field.rest != nil && !sameCards(frames, s.field.rest) && !(listed && sameSet(frames, s.field.rest)) && s.field.scroll != 0 {
-		s.field.home, s.field.homeTo = true, 0
+	// Each place, the view with the query it shows, keeps where it was
+	// scrolled to: gone to, a place stands as it was left, or at its home
+	// when new (the field's horizon, the end for filed order and time
+	// sorts, or the top for title and word-count sorts; short lists stand
+	// on the foot). Within a place, the field stays where it is as what it
+	// holds changes; at the end of what it reaches, it keeps to the end, as
+	// when the ribbons come over a list's foot.
+	atEnd := (listed || reached > 0) && s.field.scroll >= reached-0.5
+	place := placeKey(listed, s.FieldQuery())
+	switch {
+	case s.field.rest == nil:
+		s.field.place = place
+		s.scrollTo(view, frames, s.placeHome(listed))
+	case place != s.field.place:
+		s.field.places = remember(s.field.places, s.field.place, s.field.scroll)
+		s.field.place = place
+		s.scrollTo(view, frames, recall(s.field.places, place, s.placeHome(listed)))
+	case !s.field.home:
+		to := max(s.field.lo, min(s.field.scroll, s.field.hi))
+		if atEnd {
+			to = s.field.hi
+		}
+		if to != s.field.scroll {
+			s.field.home, s.field.homeTo = true, to
+		}
+	default:
+		if (listed || reached > 0) && abs32(s.field.homeTo-reached) < 0.5 && s.field.hi != reached {
+			s.field.homeTo = s.field.hi
+		} else {
+			s.field.homeTo = max(s.field.lo, min(s.field.homeTo, s.field.hi))
+		}
 	}
 	// What arrives is brought into view, wherever the change left it.
-	s.reveal(c, frames, f, h, poise.Y, top+rl.above, foot+rl.below)
-	// Coming home, the field goes from wherever it was, past its new reach
-	// too; otherwise it is kept within it.
-	if !s.field.home {
-		s.field.scroll = max(s.field.lo, min(s.field.scroll, s.field.hi))
-	}
+	s.reveal(c, frames, f)
 	drawn := s.shift(view, frames, f, shapes, animate)
 	// The field goes there on the change's own spring, from the frame
 	// after its first, as the cards do.
@@ -534,6 +583,11 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		c.AnimationFrame()
 	}
 	horizon := h/2 - s.field.poise.Y - (s.field.scroll - s.field.over.Offset())
+	// The cards stand about the horizon, or from a list's top.
+	origin := horizon
+	if listed {
+		origin = s.field.base - (s.field.scroll - s.field.over.Offset())
+	}
 	// The pill follows its horizon while all around it fits in the window.
 	// Past that, what is offered around it is put away, and it goes on
 	// with the query's own conditions alone, as far as they still fit, and
@@ -581,7 +635,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 			drawnBelow = max(drawnBelow, fr.Rect.Y+fr.Rect.H)
 		}
 	}
-	topFade, bottomFade := min(top, max(0, drawnAbove-horizon)), min(top, max(0, horizon+drawnBelow-h))
+	topFade, bottomFade := min(top, max(0, drawnAbove-origin)), min(top, max(0, origin+drawnBelow-h))
 	// The window's edges shade what passes under them; as what stands
 	// there comes and goes, the shade comes and goes with it.
 	if animate {
@@ -593,24 +647,31 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	// blurs under them, more toward the window's edge, under its ground
 	// fading away from that edge, coming in as the horizon goes past.
 	stuckTop, stuckFoot := top+rl.heldAbove-free, free-(h-foot-pill.H-rl.heldBelow)
+	roof := rl.heldAbove
+	if listed {
+		// A list's foot is a bar: what passes under the pill and all that
+		// stands over it is shaded as under a pill stuck at the foot.
+		stuckTop, stuckFoot, roof = 0, origin+drawnBelow-s.field.viewBottom, rl.above
+	}
 	s.field.stuck = max(0, min(1, stuckTop/foot), min(1, stuckFoot/foot))
 	if animate {
 		s.field.stuck = components.Follow(view, "stuck", s.field.stuck, components.MotionQuick)
 	}
 	edge := py + pill.H + rl.heldBelow + 10*k
 	if stuckFoot > 0 {
-		edge = h - (py - rl.heldAbove) + 10*k
+		edge = h - (py - roof) + 10*k
 	}
 	view.Children(func() {
 		// The top band drags the window where nothing of the field stands over it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
-		at := stagePoint{X: w/2 + s.field.poise.X, Y: horizon}
+		at := stagePoint{X: w/2 + s.field.poise.X, Y: origin}
 		// Swapping views, only the pill travels: what goes out fades where
 		// it stood, and what comes in rises where it will stand.
 		swapping := s.field.from != nil && s.field.now.depth == stageSwap
 		if swapping {
-			at = stagePoint{X: w/2 + poise.X, Y: h/2 - poise.Y - (s.field.scroll - s.field.over.Offset())}
+			at = stagePoint{X: w/2 + poise.X, Y: s.field.base - (s.field.scroll - s.field.over.Offset())}
 		}
+		s.field.origin = at
 		s.bandNames(c, semantic, f, marks, at, m, animate)
 		// Cards stand aside only while a sheet is dragged in a list, and as
 		// they come back after.
@@ -831,27 +892,6 @@ func (s *State) along(el ui.Element, key string, now, target float32) float32 {
 
 // swapFor is how long turning between the views takes, all of it.
 const swapFor = 620 * time.Millisecond
-
-func sameCards(a, b []stageFrame) bool {
-	return slices.EqualFunc(a, b, func(x, y stageFrame) bool { return x.ID == y.ID })
-}
-
-// sameSet reports whether a and b hold the same cards, in any order.
-func sameSet(a, b []stageFrame) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	ids := make(map[string]bool, len(a))
-	for _, fr := range a {
-		ids[fr.ID] = true
-	}
-	for _, fr := range b {
-		if !ids[fr.ID] {
-			return false
-		}
-	}
-	return true
-}
 
 // scopeGroup is the group the field is in, where a sheet may be filed:
 // none at the top, in the trash, or in a smart folder.

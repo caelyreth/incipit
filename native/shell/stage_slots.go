@@ -214,10 +214,12 @@ func stageReach(rects []stageRect) (below, above float32) {
 }
 
 // Rows stands blocks of heights as a list reads (field-and-desk.md
-// §4.7.6): over the band, left to right and top down in rows of the
-// columns, each row as tall as its tallest, the last ending on the band
-// as on its ground. A block wide says stands across the columns, alone in
-// its row, as a divider does, the cards it heads close under it.
+// §4.7.6): from its top down, left to right in rows of the columns, each
+// row as tall as its tallest, the first starting at 0. A block wide says
+// stands across the columns, alone in its row, as a divider does, the
+// cards it heads close under it. A list does not stand on the pill: it
+// reads from the window's top, and what grows or shrinks at its foot, as
+// the ribbons, moves nothing in it.
 func (z stageHorizon) Rows(heights []float32, wide []bool) []stageRect {
 	width := float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap
 	left := -width / 2
@@ -237,11 +239,6 @@ func (z stageHorizon) Rows(heights []float32, wide []bool) []stageRect {
 		}
 		rowH = max(rowH, h)
 		col++
-	}
-	// Down onto the band.
-	shift := -z.Above - (y + rowH)
-	for i := range out {
-		out[i].Y += shift
 	}
 	return out
 }

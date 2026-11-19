@@ -207,8 +207,8 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stageRect, acts 
 		s.field.focus = true
 	}
 	// Pressed with the field scrolled away, the pill brings it back.
-	if (pill.Pressed() || input.Pressed()) && s.field.scroll != 0 && !s.field.home {
-		s.field.home, s.field.homeTo = true, 0
+	if (pill.Pressed() || input.Pressed()) && !s.field.home {
+		s.homeward()
 	}
 	target := float32(0)
 	if focused {

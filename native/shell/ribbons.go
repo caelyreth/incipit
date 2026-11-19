@@ -468,16 +468,21 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 	if above {
 		originY = 1
 	}
-	// Each view has ribbons of its own: turning views, they go and come
-	// back where the new view stands them, never travelling across.
-	key := s.ribbonID(p)
+	// Each view, and each row, has ribbons of its own: a ribbon moves along
+	// its row as those before it come and go, but one that goes to another
+	// row, or another view, goes where it stood and comes in where it now
+	// stands, never travelling across the others.
+	key := s.ribbonID(p) + fmt.Sprintf("@%.0f", p.y/(h+ribbonGap*k))
 	if s.listed() {
 		key += "@list"
 	}
+	// Put away while a change moves them, they go to where they will stand
+	// unseen, and come back there still.
+	moves := animate && s.field.offered > 0.001
 	btn := ui.ButtonBase(c.Key(key)).Absolute().Left(p.x).Top(p.y).Size(p.w, h).
 		TransformOrigin(0.5, originY).
 		PaddingStart(ribbonStart * k).Gap(6 * k).AlignItems(ui.Center).Radius(h / 2).Opacity(shown).
-		IgnoreInput(shown < 0.5).FocusRing(false).KeepFocus().Label(l.label).Transition(ribbonTransition(animate, above, k))
+		IgnoreInput(shown < 0.5).FocusRing(false).KeepFocus().Label(l.label).Transition(ribbonTransition(moves, above, k))
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	if l.closes {
 		btn.PaddingEnd(ribbonEnd * k)

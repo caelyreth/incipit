@@ -149,10 +149,10 @@ func TestSortAndFacets(t *testing.T) {
 		}
 		return out
 	}
-	if got := order("$sort:updated"); !slices.Equal(got, []int64{10, 30, 20}) {
+	if got := order("$sort:updated"); !slices.Equal(got, []int64{20, 30, 10}) {
 		t.Errorf("updated %v", got)
 	}
-	if got := order("$sort:-updated"); !slices.Equal(got, []int64{20, 30, 10}) {
+	if got := order("$sort:-updated"); !slices.Equal(got, []int64{10, 30, 20}) {
 		t.Errorf("-updated %v", got)
 	}
 	if got := order("$sort:title"); !slices.Equal(got, []int64{10, 30, 20}) {
