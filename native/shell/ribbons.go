@@ -459,7 +459,7 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 	// moves it on its spring; the ribbons container carries the pill's
 	// vertical place at once as the field scrolls. Away from the horizon,
 	// all but the query's own conditions are put away.
-	shown := l.shown
+	shown := l.shown * s.field.offered
 	if p.kind != ribbonCondition {
 		shown *= 1 - s.field.away
 	}

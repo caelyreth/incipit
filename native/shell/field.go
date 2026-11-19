@@ -182,6 +182,9 @@ type fieldState struct {
 	parts map[string]float32
 	// parted is whether a card still stood aside as the field last drew.
 	parted bool
+	// offered is how much the ribbons around the pill show: all but while
+	// the views turn (swapOffered).
+	offered float32
 	// pin is how far the pill stands at the window's foot, as a list's
 	// does, rather than at its horizon.
 	pin float32
@@ -560,6 +563,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	if animate {
 		s.field.away = components.Follow(view, "away", s.field.away, components.MotionQuick)
 	}
+	s.field.offered = swapOffered(s.field.swapT)
 	var drawnAbove, drawnBelow float32
 	for _, fr := range drawn {
 		if _, ok := s.field.shown[fr.ID]; !ok {
