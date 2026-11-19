@@ -69,12 +69,19 @@ func (s *State) toggleList() {
 	s.field.conditions = slices.DeleteFunc(s.field.conditions, func(text string) bool { return conditionKey(text) == "sort" })
 }
 
+// listLabel names what turning the place does.
+func (s *State) listLabel() string {
+	if s.listed() {
+		return "Show as Field"
+	}
+	return "Show as List"
+}
+
 // listButton turns the place between the field and the list, filled while
 // it stands as a list.
 func (s *State) listButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
-	listed := s.listed()
-	label := map[bool]string{true: "Show as Field", false: "Show as List"}[listed]
-	btn := s.laneCircleButton(c, semantic, "list", components.IconList, label, label, listed, size, animate)
+	label := s.listLabel()
+	btn := s.laneCircleButton(c, semantic, "list", components.IconList, label, label, s.listed(), size, animate)
 	if btn.Clicked() {
 		s.toggleList()
 	}
@@ -199,21 +206,27 @@ func (s *State) arrangeTargets(c *ui.Context, semantic theme.Theme, drawn []stag
 			side = fr.Rect.W / 4
 		}
 		for _, after := range []bool{false, true} {
-			x := fr.Rect.X
+			x, end := fr.Rect.X, "-before"
 			if after {
-				x += fr.Rect.W - side
+				x, end = x+fr.Rect.W-side, "-after"
 			}
-			zone := ui.Box(c.Key("arrange-"+fr.ID+map[bool]string{true: "-after", false: "-before"}[after])).
+			zone := ui.Box(c.Key("arrange-"+fr.ID+end)).
 				Absolute().Left(at.X+x).Top(at.Y+fr.Rect.Y).Size(side, fr.Rect.H)
 			over, _, dropped := dragOn(zone, t)
 			if dropped {
-				to := index + map[bool]int{true: 1}[after]
+				to := index
+				if after {
+					to++
+				}
 				if from := slices.Index(ids, dragged); from < to {
 					to--
 				}
 				s.arrange(group, dragged, to)
 			}
-			shown := map[bool]float32{true: 1}[over]
+			shown := float32(0)
+			if over {
+				shown = 1
+			}
 			if animate {
 				shown = components.Follow(zone, "line", shown, components.MotionQuick)
 			}
@@ -225,7 +238,7 @@ func (s *State) arrangeTargets(c *ui.Context, semantic theme.Theme, drawn []stag
 				lx = fr.Rect.X + fr.Rect.W + gap/2
 			}
 			thin := 3 * m.k
-			ui.Box(c.Key("arrange-line-"+fr.ID+map[bool]string{true: "-after", false: "-before"}[after])).
+			ui.Box(c.Key("arrange-line-"+fr.ID+end)).
 				Absolute().Left(at.X+lx-thin/2).Top(at.Y+fr.Rect.Y).Size(thin, fr.Rect.H).Radius(thin / 2).
 				Background(semantic.Accent.Foreground).Opacity(shown).IgnoreInput(true)
 		}

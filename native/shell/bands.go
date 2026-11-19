@@ -311,8 +311,8 @@ func (s *State) bandNames(c *ui.Context, semantic theme.Theme, f found, marks []
 				label.Jump("y", y)
 				label.Jump("shown", 0)
 			}
-			x = label.AnimateTo("x", x, components.Spring(components.MotionScene))
-			y = label.AnimateTo("y", y, components.Spring(components.MotionScene))
+			x = components.Follow(label, "x", x, components.MotionScene)
+			y = components.Follow(label, "y", y, components.MotionScene)
 			shown = components.Follow(label, "shown", 1, components.MotionQuick)
 		} else {
 			label.Jump("x", x)
