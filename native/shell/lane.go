@@ -91,6 +91,9 @@ func (s *State) laneView(c *ui.Context, semantic theme.Theme, w, h float32, hidd
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	lane := ui.Box(c).Key("lane").Absolute().Top(0).Right(0).Size(s.laneRoom(), h).Hidden(hidden).Label("Desk lane")
 	s.lane.preview = s.laneRest(w, h)
+	if hidden {
+		return
+	}
 	lane.Children(func() {
 		// The lane's top band drags the window above what rests in it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()

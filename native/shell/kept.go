@@ -134,6 +134,9 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLoo
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	lane := ui.Box(c).Key("field-lane").Absolute().Top(0).Left(0).Size(s.laneRoom(), h).Hidden(hidden).
 		Role(ui.RoleGroup).Label("Field lane")
+	if hidden {
+		return
+	}
 	if look.Offset.X != 0 {
 		lane.Translate(look.Offset.X, 0)
 	}

@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -327,5 +328,56 @@ func TestClosingLastSheetSharesFieldTransitionWithNormalReturn(t *testing.T) {
 	settle(tester)
 	if len(library.calls) == 0 || library.calls[0] != "new sheet 1 1073741824" {
 		t.Fatalf("expected NewSheet call from empty desk, got %v", library.calls)
+	}
+}
+
+// Settled on the desk, hidden field and lane views skip rebuilding their
+// subtrees, and returning to the field restores them cleanly.
+func TestFieldSkipsHiddenSubtreeWhenOnDesk(t *testing.T) {
+	state, library := libraryState()
+	library.desk = state
+	state.Open = []Page{{ID: "7", Title: "Chapter"}}
+	state.ActivePage = "7"
+	state.ShowDesk()
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	if !state.field.hidden {
+		t.Fatal("Field should be hidden when settled on the desk.")
+	}
+	if tester.HasText("Inbox") || tester.HasText("Kept searches") {
+		t.Fatalf("Hidden field subtree should not be built while on the desk: %#v.", tester.Texts())
+	}
+	state.ShowField()
+	settle(tester)
+	if state.field.hidden || !tester.HasText("Inbox") {
+		t.Fatalf("Returning to the field should restore the field subtree: hidden=%v texts=%#v.", state.field.hidden, tester.Texts())
+	}
+}
+
+// Off-viewport desk columns well past the strip edges skip building their
+// page editor while preserving every column slot width.
+func TestDeskSkipsFarOffscreenSheets(t *testing.T) {
+	state, library := libraryState()
+	library.desk = state
+	built := map[string]bool{}
+	state.Sheet = func(c *ui.Context, id string, _ SheetFrame) {
+		built[id] = true
+		ui.Text(c, "Body of "+id)
+	}
+	state.Open = nil
+	for i := 1; i <= 8; i++ {
+		state.Open = append(state.Open, Page{ID: fmt.Sprint(i), Title: fmt.Sprintf("Sheet %d", i)})
+	}
+	state.ActivePage = "1"
+	state.ShowDesk()
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	clear(built)
+	tester.Frame()
+	if len(state.desk.spans) != 8 {
+		t.Fatalf("All 8 column spans should stay laid out, got %d.", len(state.desk.spans))
+	}
+	if !built["1"] || !built["2"] || built["8"] {
+		t.Fatalf("Visible/active sheets should build and far-offscreen sheet 8 should be culled: built=%v.", built)
 	}
 }

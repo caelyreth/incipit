@@ -358,12 +358,17 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	view := ui.Box(c).Key("field").Absolute().Top(0).Left(x).Size(w, h).Clip().Hidden(hidden).
 		Role(ui.RoleGroup).Label("Field")
+	s.field.hidden = hidden
+	if hidden {
+		// Occluded by the desk: skip building cards, ribbons, and search input
+		// while preserving the outer node until returning to the field.
+		return
+	}
 	if look.Offset.X != 0 {
 		view.Translate(look.Offset.X, 0)
 	}
 	view.ContextMenu(s.fieldMenu)
 	view.HandleInput(s.fieldInput)
-	s.field.hidden = hidden
 	// The field takes the keyboard from the pill let go of, and as it
 	// comes back from the desk, for that frame alone: after it, nothing
 	// holds the keyboard, and Escape goes on with the field.

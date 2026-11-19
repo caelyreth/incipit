@@ -23,6 +23,9 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 	k := size / theme.DefaultUIFontSize
 	col, front, shown := s.column(c, deskColumn{sheet: page.ID}, w, origin, enter, animate)
 	col.Role(ui.RoleGroup).Label(page.Title).Clip().Background(semantic.Surface.Page)
+	if s.deskColumnCulled(col, page.ID, shown) {
+		return
+	}
 	// The keyboard comes to it as the pointer does (desk_front.go).
 	claim := s.desk.claim == page.ID
 	if claim {
@@ -79,6 +82,19 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lea
 		key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
 		action: func() { s.CloseSheet(page.ID) },
 	}, animate)
+}
+
+// deskColumnCulled reports whether an off-viewport sheet column can skip
+// building its page editor subtree while preserving its column slot width.
+func (s *State) deskColumnCulled(col ui.Element, pageID string, shown ui.Rect) bool {
+	if shown.W <= 0 || s.desk.viewport.W <= 0 || pageID == s.ActivePage || col.FocusWithin() {
+		return false
+	}
+	vw := s.desk.viewport.W
+	if !s.OnDesk() && s.view <= 0.001 {
+		return shown.X+shown.W <= 0 || shown.X >= vw
+	}
+	return shown.X+shown.W < -vw || shown.X > 2*vw
 }
 
 // groupOf is the group a sheet is filed in.
