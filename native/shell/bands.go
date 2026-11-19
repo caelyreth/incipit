@@ -3,7 +3,6 @@ package shell
 import (
 	"cmp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
@@ -53,7 +52,7 @@ type facts struct {
 // sheet, goes with what stands before it.
 func (s *State) band(f *found, now time.Time) {
 	lens := s.lens()
-	if lens == "" || strings.HasPrefix(s.field.words, ">") || inSettings(f.query) {
+	if lens == "" || s.modeFor(f.query) != modeLibrary {
 		return
 	}
 	_, _, browse := s.browsing(query.Parse(f.query))

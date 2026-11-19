@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
@@ -190,8 +189,8 @@ func steady(prev, next []card) []card {
 }
 
 func (s *State) computeFieldStats(text string, cards []card) fieldStats {
-	switch {
-	case strings.HasPrefix(s.field.words, ">"):
+	switch s.modeFor(text) {
+	case modeCommands:
 		n := 0
 		for _, cd := range cards {
 			if cl, ok := cd.kind.(commandList); ok {
@@ -199,7 +198,7 @@ func (s *State) computeFieldStats(text string, cards []card) fieldStats {
 			}
 		}
 		return fieldStats{mode: statCommands, count: n}
-	case inSettings(text):
+	case modeSettings:
 		n := 0
 		for _, cd := range cards {
 			switch sc := cd.kind.(type) {

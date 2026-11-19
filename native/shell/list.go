@@ -89,7 +89,7 @@ type listedMemo struct {
 }
 
 func (s *State) isListed() bool {
-	if s.Library == nil || s.InSettings() || strings.HasPrefix(s.field.words, ">") {
+	if s.Library == nil || s.mode() != modeLibrary {
 		return false
 	}
 	if s.sorted() {

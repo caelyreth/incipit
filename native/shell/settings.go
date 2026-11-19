@@ -84,7 +84,7 @@ func (s *State) settingsScope(text string) (scope, words string) {
 // settingsLive reports whether the field currently shows live settings
 // section cards rather than top-level category blocks.
 func (s *State) settingsLive() bool {
-	if !inSettings(s.wholeQuery()) || strings.HasPrefix(s.field.words, ">") {
+	if s.modeFor(s.wholeQuery()) != modeSettings {
 		return false
 	}
 	scope, words := s.settingsScope(s.wholeQuery())
@@ -130,7 +130,7 @@ func (settingsSource) answer(s *State, text string, f *found) {
 	if s.AppSettings == nil {
 		return
 	}
-	if !inSettings(text) || strings.HasPrefix(s.field.words, ">") {
+	if s.modeFor(text) != modeSettings {
 		s.AppSettings.Away()
 		return
 	}

@@ -27,7 +27,7 @@ import (
 type librarySource struct{}
 
 func (librarySource) answer(s *State, text string, f *found) {
-	if strings.HasPrefix(s.field.words, ">") || inSettings(text) {
+	if s.modeFor(text) != modeLibrary {
 		return
 	}
 	scope, trash, browse := s.browsing(query.Parse(text))

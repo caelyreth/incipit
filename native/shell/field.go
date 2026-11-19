@@ -250,6 +250,39 @@ func (s *State) setWords(words string) {
 	s.field.edit = &words
 }
 
+type fieldMode uint8
+
+const (
+	modeLibrary fieldMode = iota
+	modeSettings
+	modeCommands
+)
+
+// commanding reports whether the pill asks the app's commands.
+func (s *State) commanding() bool { return strings.HasPrefix(s.field.words, ">") }
+
+// modeFor reports which source owns the field for text.
+func (s *State) modeFor(text string) fieldMode {
+	if s.commanding() {
+		return modeCommands
+	}
+	if inSettings(text) {
+		return modeSettings
+	}
+	return modeLibrary
+}
+
+// mode reports which source owns the field for its current query.
+func (s *State) mode() fieldMode {
+	if s.commanding() {
+		return modeCommands
+	}
+	if s.InSettings() {
+		return modeSettings
+	}
+	return modeLibrary
+}
+
 // narrow puts cond in the query, in place of any of the same key, going
 // down into what was chosen at from.
 func (s *State) narrow(cond string, from stageRect) {

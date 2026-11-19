@@ -59,7 +59,7 @@ const actionsMost = 5
 // something is selected; otherwise what answers the query as it stands,
 // then the place's own.
 func (s *State) fieldActions() []fieldAction {
-	if s.Library == nil || s.InSettings() || s.commanding() {
+	if s.Library == nil || s.mode() != modeLibrary {
 		return nil
 	}
 	if acts := s.selectionActions(); len(acts) > 0 {
@@ -102,9 +102,6 @@ func (s *State) placeActions() []fieldAction {
 	}
 	return out
 }
-
-// commanding reports whether the pill asks the app's commands.
-func (s *State) commanding() bool { return strings.HasPrefix(s.field.words, ">") }
 
 // trashHolds reports whether anything is in the trash: as the field shows
 // it, or, while the pill asks the commands, as the library has it.
