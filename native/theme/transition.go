@@ -26,10 +26,12 @@ const colorFrequency = float32(18)
 // colors are already moving: flipping the theme back and forth eases
 // through rather than jerking at each reversal.
 type Transition struct {
-	mu       sync.Mutex
-	target   Theme
-	channels []motion.Spring
-	set      bool
+	mu           sync.Mutex
+	target       Theme
+	targetValues []float32
+	channels     []motion.Spring
+	set          bool
+	settled      bool
 }
 
 // Retarget heads every color for target from wherever it is at now.
@@ -44,7 +46,8 @@ func (t *Transition) Retarget(target Theme, now time.Time) {
 	// new one from there, keeping its velocity.
 	t.step(now)
 	t.target = target
-	t.step(now)
+	t.targetValues = channelsOf(target)
+	t.settled = !t.step(now)
 }
 
 // Jump shows target at once, for an app that is not animating.
@@ -65,7 +68,14 @@ func (t *Transition) At(settings Settings, now time.Time) (Theme, bool) {
 	if !t.set {
 		t.place(settings.Semantic(), now)
 	}
+	if t.settled {
+		return t.target, false
+	}
 	moving := t.step(now)
+	if !moving {
+		t.settled = true
+		return t.target, false
+	}
 	result := t.target
 	colors := colorsOf(&result)
 	for index, color := range colors {
@@ -76,13 +86,18 @@ func (t *Transition) At(settings Settings, now time.Time) (Theme, bool) {
 			float32(channel(t.channels[4*index+3]))/255,
 		)
 	}
-	return result, moving
+	return result, true
 }
 
 func (t *Transition) place(target Theme, now time.Time) {
-	t.target, t.set = target, true
+	t.target, t.set, t.settled = target, true, true
 	values := channelsOf(target)
-	t.channels = make([]motion.Spring, len(values))
+	t.targetValues = values
+	if cap(t.channels) < len(values) {
+		t.channels = make([]motion.Spring, len(values))
+	} else {
+		t.channels = t.channels[:len(values)]
+	}
 	for index, value := range values {
 		t.channels[index] = motion.NewSpring(value, now)
 	}
@@ -92,7 +107,7 @@ func (t *Transition) place(target Theme, now time.Time) {
 // any is still moving.
 func (t *Transition) step(now time.Time) bool {
 	moving := false
-	for index, value := range channelsOf(t.target) {
+	for index, value := range t.targetValues {
 		t.channels[index].Step(value, now, colorFrequency)
 		moving = moving || t.channels[index].Moving()
 	}

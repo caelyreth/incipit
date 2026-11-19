@@ -50,19 +50,43 @@ func (a *AppState) routeCommand(command keymap.CommandID) error {
 	return nil
 }
 
+type globalShortcut struct {
+	modifiers ui.Modifiers
+	key       ui.Key
+	command   keymap.CommandID
+}
+
+func (a *AppState) windowShortcuts() []globalShortcut {
+	km := a.Product.Keymap
+	if km != nil && km == a.shortcutMap {
+		return a.shortcuts
+	}
+	a.shortcutMap = km
+	a.shortcuts = a.shortcuts[:0]
+	if km == nil {
+		return nil
+	}
+	for _, chord := range km.Chords() {
+		command, _ := km.CommandFor(chord)
+		if declared, _ := km.Command(command); menuCommands[command] || declared.Scope == keymap.ScopeEditing {
+			continue
+		}
+		modifiers, key, ok := keymap.Native(chord, keymap.PlatformCurrent)
+		if ok {
+			a.shortcuts = append(a.shortcuts, globalShortcut{modifiers: modifiers, key: key, command: command})
+		}
+	}
+	return a.shortcuts
+}
+
 // pressedCommands runs the commands whose keys were pressed in the main
 // window. A command a menu item carries takes its key through the menu, so
 // it is not heard twice; an editing command is the page's, which hears
 // its key itself.
 func (a *AppState) pressedCommands(c *ui.Context) {
-	for _, chord := range a.Product.Keymap.Chords() {
-		command, _ := a.Product.Keymap.CommandFor(chord)
-		if declared, _ := a.Product.Keymap.Command(command); menuCommands[command] || declared.Scope == keymap.ScopeEditing {
-			continue
-		}
-		modifiers, key, ok := keymap.Native(chord, keymap.PlatformCurrent)
-		if ok && c.Shortcut(modifiers, key) {
-			if err := a.routeCommand(command); err != nil {
+	for _, sc := range a.windowShortcuts() {
+		if c.Shortcut(sc.modifiers, sc.key) {
+			if err := a.routeCommand(sc.command); err != nil {
 				a.fail("Couldn't run the command", err)
 			}
 		}

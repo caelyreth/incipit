@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
@@ -41,6 +42,10 @@ type Element struct {
 	UIFontSize float32
 	// Pictures gives figures their pictures; nil shows each one's place.
 	Pictures *Pictures
+
+	cachedTheme   theme.Theme
+	cachedPresent present.Theme
+	hasTheme      bool
 
 	client *client
 	// scroll is the page's offset, which glide moves and a scroll by hand
@@ -181,7 +186,12 @@ func (el *Element) relayout() *pageLayout {
 	if el.still {
 		m.Width, m.Reach = w, 0
 	}
-	ed.SetStyle(el.Theme.Surface, Theme(el.Theme), m)
+	if !el.hasTheme || el.cachedTheme != el.Theme {
+		el.cachedTheme = el.Theme
+		el.cachedPresent = Theme(el.Theme)
+		el.hasTheme = true
+	}
+	ed.SetStyle(el.cachedTheme, el.cachedPresent, m)
 	el.column = max((w-m.Width)/2, 0)
 	if el.LayoutWidth > 0 {
 		el.column = el.Inset

@@ -63,6 +63,9 @@ type AppState struct {
 	finder *finder
 	// soughtPage is the page a sheet's find last ran on, 0 for none.
 	soughtPage workspace.PageID
+	// shortcutMap caches globalShortcut resolution while Product.Keymap is unchanged.
+	shortcutMap *keymap.Keymap
+	shortcuts   []globalShortcut
 }
 
 // NewAppState is a notebook held in memory alone, as tests use.
