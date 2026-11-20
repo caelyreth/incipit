@@ -173,7 +173,7 @@ type fieldState struct {
 	// renaming is the group whose name is being written on its head.
 	renaming, renameName string
 	renameFocus          bool
-	// lists are the places shown as a list, kept for the session (list.go);
+	// lists are the places shown as a list, kept with the notebook (list.go);
 	// listsRev counts their changes, and listedMemo is what listed last
 	// found.
 	lists      map[string]bool

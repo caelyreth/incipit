@@ -102,6 +102,28 @@ func (s *State) isListed() bool {
 	return browse && s.field.lists[s.place()]
 }
 
+// Lists are the places read as a list, as place names them, in order,
+// for the notebook to keep, and a count that moves on as they change.
+func (s *State) Lists() ([]string, int) {
+	var out []string
+	for place, listed := range s.field.lists {
+		if listed {
+			out = append(out, place)
+		}
+	}
+	slices.Sort(out)
+	return out, s.field.listsRev
+}
+
+// SetLists reads the places named as lists, as the notebook was left.
+func (s *State) SetLists(places []string) {
+	s.field.lists = map[string]bool{}
+	for _, place := range places {
+		s.field.lists[place] = true
+	}
+	s.field.listsRev++
+}
+
 // toggleList shows the place as a list, taking its bands away, or as a
 // field, taking its sort away: each belongs to its view.
 func (s *State) toggleList() {

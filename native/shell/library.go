@@ -141,7 +141,9 @@ type Library interface {
 	// NewSheet makes a sheet at index in group, as MoveSheet places one.
 	NewSheet(group string, index int)
 	OpenSheet(id string, alongside bool)
-	DuplicateSheet(id string)
+	// DuplicateSheet copies a sheet, filed just after it, and returns the
+	// copy.
+	DuplicateSheet(id string) string
 	// Pin pins an object, "group:" or "sheet:" and its ID, standing it
 	// before the others where it is shown, or lets the pin go.
 	Pin(id string, pinned bool)

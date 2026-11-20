@@ -26,6 +26,8 @@ type sheetSession struct {
 	// summarizer what it keeps of the page's reading between snapshots.
 	summarized *doc.Snapshot
 	summarizer storage.Summarizer
+	// titling asks the page, as it next shows, to select its first line.
+	titling bool
 }
 
 // text is the page's newest snapshot this run: its editor's, or the one

@@ -7,9 +7,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The trash is emptied from the pill's actions, which stand beside it:
-// Empty Trash asking
-// once more before it runs, and the actions closing once it has.
+// The trash is emptied from Empty Trash, which stands labelled beside the
+// pill while the trash holds anything, the pill's end holding nothing
+// more: asking once more before it runs, and gone once it has.
 func TestTheTrashEmptiesFromThePillsActions(t *testing.T) {
 	state, library, tester := onField(t, 1260, 850)
 	if err := tester.Click("Show Trash"); err != nil {
@@ -19,13 +19,9 @@ func TestTheTrashEmptiesFromThePillsActions(t *testing.T) {
 	if !slices.ContainsFunc(state.fieldActions(), func(a fieldAction) bool { return a.id == emptyTrashKey }) {
 		t.Fatal("A trash holding something should be one to empty.")
 	}
-	if _, ok := tester.Find("Empty Trash"); ok {
-		t.Fatal("The actions should stand only once opened.")
+	if err := tester.Click("Actions"); err == nil {
+		t.Fatal("In the trash, the pill's end should hold nothing Empty Trash does not show.")
 	}
-	if err := tester.Click("Actions"); err != nil {
-		t.Fatal(err)
-	}
-	settle(tester)
 	pill, _ := tester.Find("Search")
 	empty, ok := tester.Find("Empty Trash")
 	if !ok || empty.X < pill.X+pill.W || abs(empty.Y+empty.H/2-(pill.Y+pill.H/2)) > 1 {
@@ -44,6 +40,12 @@ func TestTheTrashEmptiesFromThePillsActions(t *testing.T) {
 	settle(tester)
 	if !slices.Contains(library.calls, "empty trash") || state.field.acting {
 		t.Fatalf("Pressed again, the trash should empty and the actions close: %v, open %v.", library.calls, state.field.acting)
+	}
+	// The fake library keeps what it holds: a trash found empty offers
+	// nothing.
+	state.field.found.cards = nil
+	if state.actionsStand() {
+		t.Fatal("An empty trash should stand no Empty Trash.")
 	}
 }
 

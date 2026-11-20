@@ -227,7 +227,10 @@ func (f *fakeLibrary) OpenSheet(id string, alongside bool) {
 	}
 	f.call("open " + id)
 }
-func (f *fakeLibrary) DuplicateSheet(id string) { f.call("duplicate " + id) }
+func (f *fakeLibrary) DuplicateSheet(id string) string {
+	f.call("duplicate " + id)
+	return id + "-copy"
+}
 func (f *fakeLibrary) MoveSheet(id, group string, index int) {
 	f.call("move " + id + " to " + group)
 	f.moved = append(f.moved, fmt.Sprint(id, "@", index))

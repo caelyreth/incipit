@@ -164,6 +164,11 @@ func (s *State) trashButton(c *ui.Context, semantic theme.Theme, size float32, a
 	if btn.Clicked() {
 		s.toggleTrash()
 	}
+	btn.ContextMenu(func(m *ui.Menu) {
+		s.verbItem(m, VerbShowTrash, label, true, s.toggleTrash)
+		m.Separator()
+		s.verbItem(m, VerbEmptyTrash, "Empty Trash…", s.Verb(VerbEmptyTrash).Enabled, func() { s.DoVerb(VerbEmptyTrash) })
+	})
 	// What is dropped on it goes to the trash.
 	if !shown {
 		if _, dropped, ok := s.dropOn(c, semantic, btn, takes{sheets: true, groups: true}, animate); ok {
@@ -179,6 +184,12 @@ func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, an
 	if btn.Clicked() {
 		s.goHome()
 	}
+	btn.ContextMenu(func(m *ui.Menu) {
+		s.verbItem(m, VerbHome, "Home", true, s.goHome)
+		m.Separator()
+		s.verbItem(m, VerbBack, "Back", s.canGo(-1), func() { s.goPlace(-1) })
+		s.verbItem(m, VerbForward, "Forward", s.canGo(1), func() { s.goPlace(1) })
+	})
 	return btn
 }
 

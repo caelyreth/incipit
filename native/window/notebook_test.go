@@ -176,3 +176,19 @@ func TestUnchangedFramesDoNotEnqueueAnotherLayout(t *testing.T) {
 		t.Fatal("an unchanged frame changed the saved layout")
 	}
 }
+
+// A place read as a list is read so again after a quit.
+func TestAPlaceReadAsAListIsKeptWithTheNotebook(t *testing.T) {
+	root := t.TempDir()
+	app := openNotebookApp(t, root)
+	app.save()
+	app.Shell.SetLists([]string{"group:1", "group:7"})
+	app.save()
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+	app = openNotebookApp(t, root)
+	if lists, _ := app.Shell.Lists(); !slices.Equal(lists, []string{"group:1", "group:7"}) {
+		t.Fatalf("places read as lists after a quit: %v", lists)
+	}
+}

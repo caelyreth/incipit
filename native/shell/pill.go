@@ -113,12 +113,15 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w
 		Translate(0, -components.UIOpticalLift(s.Settings.UIFontSize))
 	// The place's actions open, they stand where the stats did.
 	acting := map[bool]float32{true: 1}[s.field.acting]
+	standing := map[bool]float32{true: 1}[s.actionsStand()]
 	if animate {
 		acting = components.Follow(row, "acting", acting, components.MotionQuick)
+		standing = components.Follow(row, "standing", standing, components.MotionQuick)
 	}
 	s.field.actingShown = acting
-	// A notice stands where they do, as long as it stands.
-	row.Opacity(1 - max(acting, s.field.told))
+	// A notice stands where they do, as long as it stands, and so do the
+	// actions standing open (actionsStand).
+	row.Opacity(1 - max(acting, s.field.told, standing))
 	row.Children(func() {
 		s.field.stats.count.View(c, "stat-count", st.count, size, lineH, ink, animate)
 		ui.Box(c.Key("stat-unit-gap")).Width(spaceW).Shrink(0)

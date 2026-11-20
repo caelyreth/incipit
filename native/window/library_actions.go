@@ -65,21 +65,21 @@ func (a *AppState) OpenSheet(name string, alongside bool) {
 
 // DuplicateSheet is part of shell.Library: a copy of the sheet as it is
 // now, filed just after it.
-func (a *AppState) DuplicateSheet(name string) {
+func (a *AppState) DuplicateSheet(name string) string {
 	source, ok := a.sessionOf(name)
 	if !ok {
-		return
+		return ""
 	}
 	sheet, ok := a.library.Sheet(library.SheetID(source.key))
 	if !ok {
-		return
+		return ""
 	}
 	id, err := a.Workspace.CreatePageFrom(func(id workspace.PageID) (workspace.Session, error) {
 		return a.newSession(id, source.summary), nil
 	})
 	if err != nil {
 		a.fail("Couldn't duplicate the sheet", err)
-		return
+		return ""
 	}
 	copied := library.SheetID(a.sessions[id].key)
 	siblings := a.library.Sheets(sheet.Group)
@@ -94,9 +94,10 @@ func (a *AppState) DuplicateSheet(name string) {
 		err = a.discardUnfiledPage(id, err)
 		a.selectMounted()
 		a.fail("Couldn't duplicate the sheet", err)
-		return
+		return ""
 	}
 	a.libraryChanged()
+	return sheetName(id)
 }
 
 func (a *AppState) discardUnfiledPage(id workspace.PageID, cause error) error {

@@ -105,6 +105,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			el.veil(p, el.unitArea(su.u, ox, su.uy), su.u.fade)
 		}
 	}
+	el.paintTitleHint(p, pl, ox, oy)
 	el.paintOutlines(p, ox, oy, now, animate)
 	for _, u := range pl.units {
 		if u.kind != nil && u.kind.chrome(el, p, u, ox, oy) {

@@ -120,9 +120,7 @@ func (s *State) DoVerb(id string) {
 			a.run()
 		}
 	case VerbDuplicate:
-		for _, sheet := range bare(subject, "sheet:") {
-			s.Library.DuplicateSheet(sheet)
-		}
+		s.duplicate(bare(subject, "sheet:"))
 	case VerbRename:
 		if g, ok := s.subjectGroup(); ok {
 			s.startRename(g.ID)

@@ -112,6 +112,14 @@ func (s *State) trashHolds() bool {
 	return len(s.Library.TrashedGroups())+len(s.Library.Sheets(Place{Kind: PlaceTrash})) > 0
 }
 
+// actionsStand reports whether the place's actions stand open whatever
+// the pill's end says: in the trash, nothing selected, Empty Trash stands
+// labelled beside the pill, where Finder keeps it in the trash's own bar,
+// and the end has nothing more to hold.
+func (s *State) actionsStand() bool {
+	return s.inTrash() && len(s.field.picked) == 0 && !s.commanding() && s.trashHolds()
+}
+
 // pressAction does a as pressing it does: what asks again turns first,
 // and runs on a second press; then the actions close.
 func (s *State) pressAction(a fieldAction) {
@@ -181,7 +189,7 @@ func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldA
 	if end.Clicked() {
 		s.toggleActions()
 	}
-	if len(acts) == 0 {
+	if len(acts) == 0 || s.actionsStand() {
 		end.Opacity(0).IgnoreInput(true)
 	}
 	hover := components.HoverAmount(end, end.Hovered(), animate)
@@ -219,9 +227,10 @@ func (s *State) actionsView(c *ui.Context, semantic theme.Theme, acts []fieldAct
 	if len(acts) == 0 && s.field.acting {
 		s.field.acting = false
 	}
+	standing := s.actionsStand() && len(acts) > 0
 	// Over the field and the pill alike: any press but on an action,
-	// the pill's end too, closes them.
-	if s.field.acting {
+	// the pill's end too, closes them; those standing are not closed.
+	if s.field.acting && !standing {
 		away := ui.ButtonBase(c.Key("actions-away")).Absolute().Left(0).Top(0).Size(w, s.field.viewH).
 			FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).Label("Close Actions")
 		if away.Clicked() {
@@ -229,8 +238,13 @@ func (s *State) actionsView(c *ui.Context, semantic theme.Theme, acts []fieldAct
 		}
 	}
 	h := ribbonH * k
-	ui.Box(c).Key("actions").Absolute().Left(0).Top(0).Translate(0, r.Y).Children(func() {
-		if !s.field.acting {
+	box := ui.Box(c).Key("actions").Absolute().Left(0).Top(0).Translate(0, r.Y)
+	if standing && !s.field.acting {
+		// A notice stands where they stand, as long as it does.
+		box.Opacity(1 - s.field.told).IgnoreInput(s.field.told > 0.5)
+	}
+	box.Children(func() {
+		if !s.field.acting && !standing {
 			return
 		}
 		at := arc(len(acts), r, h, gap, ribbonGap*k)

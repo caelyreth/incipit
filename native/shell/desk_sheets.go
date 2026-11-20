@@ -1,6 +1,8 @@
 package shell
 
 import (
+	"time"
+
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -31,13 +33,9 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 	if claim {
 		s.desk.claim = ""
 	}
-	// Its head floats over the page's reading margin, shown while the
-	// pointer is on it, as nothing else needs it.
+	// Its head floats over the page's reading margin (headShown).
 	lead := clearOfLights(c, shown)
-	head := float32(0)
-	if col.Hovered() {
-		head = 1
-	}
+	head := s.headShown(c, col)
 	if animate {
 		head = components.Follow(col, "head-shown", head, components.MotionNormal)
 	}
@@ -60,6 +58,35 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 		})
 		s.sheetHead(c, semantic, page, k, lead, head, animate)
 	})
+}
+
+// headRest is how much of a column's head shows at rest, the pointer off
+// it: enough to find the way back to the field, quiet enough to write
+// beside. headQuiet is how long after the last input the heads come back.
+const (
+	headRest  = 0.35
+	headQuiet = 2 * time.Second
+)
+
+// headShown is how much of col's head shows: whole while the pointer is
+// on the column, at rest dimmed, and none while the writer writes, on any
+// sheet, until headQuiet after.
+func (s *State) headShown(c *ui.Context, col ui.Element) float32 {
+	if s.Wrote != nil {
+		// The page tells when on its own clock; the head goes by the
+		// frame's, from the frame that first saw the page written.
+		if wrote := s.Wrote(); !wrote.Equal(s.desk.wrote) {
+			s.desk.wrote, s.desk.wroteAt = wrote, c.Now()
+		}
+		if since := c.Now().Sub(s.desk.wroteAt); !s.desk.wroteAt.IsZero() && since < headQuiet {
+			c.After(headQuiet - since)
+			return 0
+		}
+	}
+	if col.Hovered() {
+		return 1
+	}
+	return headRest
 }
 
 // sheetHead is a sheet's head (columnHead): its group's mark and its

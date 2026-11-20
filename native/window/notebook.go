@@ -18,7 +18,11 @@ type notebook struct {
 	layout    storage.Layout
 	layoutRev uint64
 	hasLayout bool
-	closed    bool
+	// lists are the places read as a list as the notebook was left, and
+	// listsRev the shell's count of them last handed to the saver.
+	lists    []string
+	listsRev int
+	closed   bool
 }
 
 // openNotebook builds the pages' sessions and their layout: those the store
@@ -32,7 +36,7 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 	if err != nil {
 		return nil, workspace.Layout{}, err
 	}
-	a.notebook = &notebook{store: store}
+	a.notebook = &notebook{store: store, lists: contents.Layout.Lists}
 	a.nextKey = contents.NextKey
 	a.library = library.Restore(contents.Library)
 	ids := make(map[storage.PageKey]workspace.PageID, len(contents.Pages))
@@ -176,11 +180,17 @@ func (a *AppState) saveLayout() {
 		return
 	}
 	rev := a.Workspace.LayoutRev()
-	if a.notebook.hasLayout && a.notebook.layoutRev == rev {
+	var lists []string
+	listsRev := a.notebook.listsRev
+	if a.Shell != nil {
+		lists, listsRev = a.Shell.Lists()
+	}
+	if a.notebook.hasLayout && a.notebook.layoutRev == rev && a.notebook.listsRev == listsRev {
 		return
 	}
 	layout := a.Workspace.Layout()
 	stored := storage.Layout{
+		Lists:     lists,
 		HasActive: layout.HasActive,
 		Scroll:    map[storage.PageKey]float32{},
 		Views:     map[storage.PageKey]storage.ViewState{},
@@ -203,7 +213,7 @@ func (a *AppState) saveLayout() {
 			stored.Views[session.key] = storageView(view)
 		}
 	}
-	a.notebook.layoutRev = rev
+	a.notebook.layoutRev, a.notebook.listsRev = rev, listsRev
 	a.notebook.hasLayout = true
 	if stored.Equal(a.notebook.layout) {
 		return

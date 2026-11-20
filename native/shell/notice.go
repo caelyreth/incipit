@@ -448,6 +448,28 @@ func (s *State) newGroup(parent string) {
 	})
 }
 
+// duplicate copies the sheets, each filed after itself: one notice, one
+// Undo, which puts the copies in the trash, as Finder's does.
+func (s *State) duplicate(sheets []string) {
+	ids := make([]string, len(sheets))
+	for i, sheet := range sheets {
+		ids[i] = "sheet:" + sheet
+	}
+	s.together("Duplicated "+s.objectsNamed(ids), func() {
+		for _, sheet := range sheets {
+			copied := s.Library.DuplicateSheet(sheet)
+			if copied == "" {
+				continue
+			}
+			s.arrive("sheet:" + copied)
+			s.tell("Duplicated", func() { s.Library.TrashSheet(copied) }, func() {
+				s.Library.RestoreSheet(copied)
+				s.arrive("sheet:" + copied)
+			})
+		}
+	})
+}
+
 // FieldUndoes reports whether Undo and Redo are the field's: while it is
 // in front and no name is being written, whose text undoes its own.
 func (s *State) FieldUndoes() bool {

@@ -324,6 +324,10 @@ func (s *State) settingsButton(c *ui.Context, semantic theme.Theme, size float32
 	if btn.Clicked() {
 		s.ShowSettings()
 	}
+	btn.ContextMenu(func(m *ui.Menu) {
+		s.verbItem(m, "app.settings", "Settings", true, s.ShowSettings)
+		s.verbItem(m, "app.shortcuts", "Keyboard Shortcuts", true, s.ShowShortcuts)
+	})
 	return btn
 }
 

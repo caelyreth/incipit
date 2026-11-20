@@ -46,6 +46,8 @@ type Editor struct {
 	// active is when the last input came: the caret stays solid a moment
 	// after it before it breathes.
 	active time.Time
+	// wrote is when an input of the writer's last changed the page (Wrote).
+	wrote time.Time
 	// reveal asks the next frame to scroll the caret into view.
 	reveal bool
 	// typed is whether the last input answered typed or deleted text, as
@@ -176,12 +178,19 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 			ed.Effect(fx)
 		}
 	}
+	if _, timer := in.Intent.(vocab.Timer); pub.Changed && !timer {
+		ed.wrote = in.At
+	}
 	if pub.Changed && ed.Changed != nil {
 		ed.Changed(pub.Snapshot)
 	}
 	ed.schedule(pub.Deadlines)
 	return true
 }
+
+// Wrote is when the writer last changed the page, zero before they did:
+// a deadline the engine answers changes it on its own, and is not counted.
+func (ed *Editor) Wrote() time.Time { return ed.wrote }
 
 // CancelReveal clears the reveal requested by a restored selection, so a
 // page can reopen at its saved scroll position instead of jumping to the

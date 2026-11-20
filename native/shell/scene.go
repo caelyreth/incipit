@@ -136,4 +136,28 @@ func (s *State) leanDesk(area ui.Element, look stageLook, upright float32) {
 	if area.Clicked() {
 		s.ShowDesk()
 	}
+	area.ContextMenu(s.openSheetsMenu)
+}
+
+// openSheetsMenu lists the sheets open on the desk, in their order, the
+// one in front checked: chosen, the desk comes up on it. It says what the
+// desk resting in its lane holds, which is too small to read.
+func (s *State) openSheetsMenu(m *ui.Menu) {
+	for _, page := range s.Open {
+		title := page.Title
+		if title == "" {
+			title = "Untitled"
+		}
+		if m.Item(title).ID("open-" + page.ID).Checked(page.ID == s.ActivePage).Chosen() {
+			if s.SelectPage != nil {
+				s.SelectPage(page.ID)
+			}
+			s.ShowDesk()
+		}
+	}
+	m.Separator()
+	s.verbItem(m, "page.new", "New Sheet", s.Library != nil, func() {
+		s.Library.NewSheet(s.CurrentGroup(), Last)
+		s.ShowDesk()
+	})
 }

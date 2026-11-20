@@ -90,6 +90,9 @@ type deskState struct {
 	pages   map[string]Page
 	// built is whether the desk was built before.
 	built bool
+	// wrote is when the pages were last written, as they tell it, and
+	// wroteAt the frame's time that first saw it (headShown).
+	wrote, wroteAt time.Time
 }
 
 // deskView draws the desk where the scene stands it: its strip of
