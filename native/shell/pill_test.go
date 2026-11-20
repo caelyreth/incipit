@@ -39,8 +39,8 @@ func TestAConditionWrittenBecomesARibbon(t *testing.T) {
 	}
 }
 
-// Escape lets go of the pill, the query kept; then on the field it takes
-// the words away, then the conditions, then goes to the desk.
+// Escape lets go of the pill, the query kept; pressed on and on, it
+// never takes the words or the conditions away and never goes anywhere.
 func TestEscapeComesBackOneStepAtATime(t *testing.T) {
 	state, _, tester := onField(t, 1260, 850)
 	state.SetFieldQuery("$in:Novel chap")
@@ -53,17 +53,41 @@ func TestEscapeComesBackOneStepAtATime(t *testing.T) {
 	if state.field.open || state.FieldQuery() != "$in:Novel chap" {
 		t.Fatalf("Escape in the pill should let go of it, the query kept, but it is open %v with %q.", state.field.open, state.FieldQuery())
 	}
-	for _, want := range []string{"$in:Novel", ""} {
+	for range 3 {
 		tester.Key(0, ui.KeyEscape)
 		settle(tester)
-		if q := state.FieldQuery(); q != want || state.OnDesk() {
-			t.Fatalf("Escape should leave the query %q on the field, but it is %q.", want, q)
+		if q := state.FieldQuery(); q != "$in:Novel chap" || state.OnDesk() {
+			t.Fatalf("Escape should keep the query and the field, but the query is %q, on the desk %v.", q, state.OnDesk())
 		}
 	}
-	tester.Key(0, ui.KeyEscape)
+}
+
+// Back and Forward walk the places the field has been, each with what was
+// written in it.
+func TestBackAndForwardWalkThePlaces(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	state.SetFieldQuery("chap")
 	settle(tester)
-	if !state.OnDesk() {
-		t.Fatal("Escape with nothing left should go to the desk.")
+	state.SetFieldQuery("$in:Novel")
+	settle(tester)
+	state.DoVerb(VerbBack)
+	settle(tester)
+	if q := state.FieldQuery(); q != "chap" {
+		t.Fatalf("Back should come to where the field was, its words with it, but the query is %q.", q)
+	}
+	state.DoVerb(VerbForward)
+	settle(tester)
+	if q := state.FieldQuery(); q != "$in:Novel" {
+		t.Fatalf("Forward should go again, but the query is %q.", q)
+	}
+	// The trash is a side trip: leaving it comes back to where it was
+	// gone to from.
+	state.toggleTrash()
+	settle(tester)
+	state.toggleTrash()
+	settle(tester)
+	if q := state.FieldQuery(); q != "$in:Novel" {
+		t.Fatalf("Leaving the trash should come back to the group, but the query is %q.", q)
 	}
 }
 

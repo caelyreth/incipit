@@ -39,6 +39,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	if look.Offset.X != 0 {
 		view.Translate(look.Offset.X, 0)
 	}
+	s.notePlace()
 	view.ContextMenu(s.fieldMenu)
 	view.HandleInput(s.fieldInput)
 	// The field takes the keyboard from the pill let go of, and as it

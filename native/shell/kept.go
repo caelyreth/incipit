@@ -189,7 +189,9 @@ func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, an
 func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stageLook, h, k, buttonsFoot float32, hidden, animate bool) {
 	marks := s.bookmarks()
 	text := s.FieldQuery()
-	keep := text != "" && !s.commanding() &&
+	// Only what finds sheets is kept: the trash and the settings are
+	// places, not searches.
+	keep := text != "" && s.mode() == modeLibrary && !s.inTrash() &&
 		!slices.ContainsFunc(marks, func(g GroupItem) bool { return sameQuery(g.Query, text) })
 	topClearance, bottomClearance := max(80*k, buttonsFoot+36*k), 88*k
 	most := min(h*0.36, max(0, h-topClearance-bottomClearance))

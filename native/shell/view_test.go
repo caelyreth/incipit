@@ -113,16 +113,26 @@ func TestEscapeTwiceOnTheDeskGoesToTheField(t *testing.T) {
 	if state.OnDesk() {
 		t.Fatal("Escape twice should go from the desk to the field.")
 	}
-	// Back on the field, the keyboard is the field's, not the pill's:
-	// Escape goes on there, back to the desk.
+	// Back on the field, the keyboard is the field's, not the pill's;
+	// Escape there goes nowhere, and ⌘0 is the way to the desk.
 	settle(tester)
 	if state.field.open {
 		t.Fatal("Coming back from the desk should not take the pill.")
 	}
 	tester.Key(0, ui.KeyEscape)
 	tester.Frame()
+	if state.OnDesk() {
+		t.Fatal("Escape on the field should go nowhere.")
+	}
+	state.ToggleField()
+	tester.Frame()
 	if !state.OnDesk() {
-		t.Fatal("Escape on the field, its query empty, should go to the desk.")
+		t.Fatal("The field and desk key should go to the desk.")
+	}
+	state.ToggleField()
+	settle(tester)
+	if state.OnDesk() || state.field.open {
+		t.Fatal("The key back should land as Escape twice does, the pill let go of.")
 	}
 }
 

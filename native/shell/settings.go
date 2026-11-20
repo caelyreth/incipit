@@ -102,6 +102,9 @@ func (s *State) intoSettings(category, lead string, from stageRect) {
 // keys to find one; shown already, the field goes back to what it showed
 // before them.
 func (s *State) ShowSettings() {
+	if s.InSettings() && !s.OnDesk() && s.leave("settings") {
+		return
+	}
 	if s.InSettings() && !s.OnDesk() {
 		s.field.conditions = slices.DeleteFunc(slices.Clone(s.field.conditions), func(c string) bool {
 			k := conditionKey(c)

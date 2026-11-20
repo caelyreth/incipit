@@ -22,6 +22,11 @@ func (s *State) fieldInput(ev ui.InputEvent) bool {
 // comeHome brings the field back to its horizon at the window's middle on
 // one spring, from wherever it was scrolled to.
 
+// escapeField is Escape on the field: it puts away what stands open for
+// a moment, one thing at a time, the actions, the selection, a key, the
+// completion, and then lets go of the pill. It never takes a condition
+// or the words away, and never goes anywhere: pressed again and again,
+// it is safe. Clearing is the pill's ×, or Home; the desk is ⌘0.
 func (s *State) escapeField() {
 	switch {
 	case s.field.acting:
@@ -32,12 +37,8 @@ func (s *State) escapeField() {
 		s.closeKey()
 	case s.offered():
 		s.field.dismissed = s.field.words
-	case s.field.words != "":
-		s.setWords("")
-	case len(s.field.conditions) > 0:
-		s.broaden(len(s.field.conditions) - 1)
-	default:
-		s.ShowDesk()
+	case s.field.chosen != "":
+		s.field.chosen = ""
 	}
 }
 
@@ -178,7 +179,9 @@ func (s *State) inTrash() bool {
 // leaves it.
 func (s *State) toggleTrash() {
 	if i := slices.IndexFunc(s.field.conditions, func(c string) bool { return conditionKey(c) == "trash" }); i >= 0 {
-		s.broaden(i)
+		if !s.leave("trash") {
+			s.broaden(i)
+		}
 		return
 	}
 	s.field.conditions = nil

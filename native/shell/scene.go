@@ -71,10 +71,12 @@ func (s *State) returnToField() {
 	s.field.quiet = true
 }
 
-// ToggleField goes to the field from the desk, and back.
+// ToggleField goes to the field from the desk, and back: arriving at the
+// field as every way back does (returnToField), the keyboard with the
+// field.
 func (s *State) ToggleField() {
 	if s.OnDesk() {
-		s.ShowField()
+		s.returnToField()
 		return
 	}
 	s.ShowDesk()

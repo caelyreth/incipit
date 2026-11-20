@@ -40,6 +40,12 @@ type fieldState struct {
 	// notice is what was just done, to be undone (notice.go); told is how
 	// far it is shown, and lastNotice its words as they fade.
 	notice *notice
+	// history is the places the field has been, at the one it is at
+	// (history.go).
+	history struct {
+		visits []visit
+		at     int
+	}
 	// undos are the changes done, the last last, and redos those taken
 	// back, to be done again (notice.go).
 	undos, redos []undoEntry
