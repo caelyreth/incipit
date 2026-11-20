@@ -203,14 +203,14 @@ func (s *Store) readTags(ctx context.Context, pages []Page, unread []int) error 
 // loadLibrary reads the groups and the filing of the sound pages.
 func (s *Store) loadLibrary(ctx context.Context, pages []Page) (library.Records, error) {
 	var records library.Records
-	rows, err := s.db.QueryContext(ctx, `SELECT id, parent, name, icon, color, query, position, trashed, pinned FROM groups`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, parent, name, icon, color, query, position, trashed, pinned, listed FROM groups`)
 	if err != nil {
 		return records, err
 	}
 	for rows.Next() {
 		var group library.GroupRecord
 		var trashed sql.NullInt64
-		if err := rows.Scan(&group.ID, &group.Parent, &group.Name, &group.Icon, &group.Color, &group.Query, &group.Position, &trashed, &group.Pinned); err != nil {
+		if err := rows.Scan(&group.ID, &group.Parent, &group.Name, &group.Icon, &group.Color, &group.Query, &group.Position, &trashed, &group.Pinned, &group.Listed); err != nil {
 			rows.Close()
 			return records, err
 		}
@@ -355,9 +355,9 @@ func writeLibrary(ctx context.Context, tx *sql.Tx, records library.Records) erro
 	}
 	for _, group := range records.Groups {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO groups (id, parent, name, icon, color, query, position, trashed, pinned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO groups (id, parent, name, icon, color, query, position, trashed, pinned, listed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			group.ID, group.Parent, group.Name, group.Icon, group.Color, group.Query, group.Position,
-			millisecondsOf(group.Trashed), group.Pinned); err != nil {
+			millisecondsOf(group.Trashed), group.Pinned, group.Listed); err != nil {
 			return err
 		}
 	}

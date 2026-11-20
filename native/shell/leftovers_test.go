@@ -2,6 +2,7 @@ package shell
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,5 +96,40 @@ func TestTheLaneOffersItsMenus(t *testing.T) {
 	settle(tester)
 	if selected != "8" || !state.OnDesk() {
 		t.Fatalf("Chosen, an open sheet should come up on the desk: %q, on the desk %v.", selected, state.OnDesk())
+	}
+}
+
+// Turning a group's view passes with the session; keeping it as a list
+// is a choice of its own, marked on the group, which the group then opens
+// in, and turning in it still passes.
+func TestKeepingAGroupAsAListIsAChoiceOfItsOwn(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	novel, _ := library.Group("2")
+	state.into(novel, stageRect{})
+	settle(tester)
+	state.toggleList()
+	settle(tester)
+	if !state.listed() || slices.ContainsFunc(library.calls, func(c string) bool { return strings.HasPrefix(c, "keep ") }) {
+		t.Fatalf("Turning the view should show a list and keep nothing: listed %v, %v", state.listed(), library.calls)
+	}
+	state.toggleList()
+	state.keepAsList(novel, true)
+	settle(tester)
+	if !state.listed() {
+		t.Fatal("A group kept as a list should show as one.")
+	}
+	if _, ok := tester.Find("Always shown as a list"); !ok {
+		t.Fatal("The view switch should mark the group's kept view.")
+	}
+	state.toggleList()
+	if state.listed() {
+		t.Fatal("Turning the view in a kept group should still turn it, for now.")
+	}
+	if g, _ := library.Group("2"); !g.Listed {
+		t.Fatal("Turning the view should not change what the group keeps.")
+	}
+	state.Undo()
+	if g, _ := library.Group("2"); g.Listed {
+		t.Fatal("Undo should let the kept view go.")
 	}
 }

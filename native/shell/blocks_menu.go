@@ -59,6 +59,7 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 		}
 		m.Separator()
 		s.pinItem(m, "group:"+g.ID, g.Pinned)
+		s.keepItem(m, g)
 		if !g.Smart() {
 			s.verbItem(m, VerbRename, "Rename…", true, func() { s.startRename(g.ID) })
 		}

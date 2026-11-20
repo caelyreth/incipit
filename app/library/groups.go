@@ -183,6 +183,17 @@ func (l *Library) RestoreGroup(id GroupID) error {
 	return nil
 }
 
+// KeepAsList keeps a group shown as a list, or lets that go.
+func (l *Library) KeepAsList(id GroupID, listed bool) error {
+	l.rev++
+	group, ok := l.groups[id]
+	if !ok {
+		return ErrUnknown
+	}
+	group.Listed = listed
+	return nil
+}
+
 // PinGroup pins a group, or lets its pin go.
 func (l *Library) PinGroup(id GroupID, pinned bool) error {
 	l.rev++

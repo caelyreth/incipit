@@ -222,6 +222,13 @@ func (a *AppState) StyleGroup(id, icon string, color int) {
 	}
 }
 
+// KeepAsList is part of shell.Library.
+func (a *AppState) KeepAsList(id string, listed bool) {
+	if err := a.library.KeepAsList(groupOf(id), listed); err == nil {
+		a.libraryChanged()
+	}
+}
+
 // MoveGroup is part of shell.Library.
 func (a *AppState) MoveGroup(id, parent string, index int) {
 	if err := a.library.MoveGroup(groupOf(id), groupOf(parent), index); err != nil {

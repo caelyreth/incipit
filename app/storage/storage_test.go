@@ -352,7 +352,8 @@ func TestTheWatcherIsToldAfterEachWrite(t *testing.T) {
 	}
 }
 
-// A pinned group and sheet are pinned again as the notebook reopens.
+// A pinned group and sheet are pinned again as the notebook reopens, and
+// a group kept as a list is kept so.
 func TestPinsAreKept(t *testing.T) {
 	root := t.TempDir()
 	store := openStore(t, root)
@@ -361,7 +362,7 @@ func TestPinsAreKept(t *testing.T) {
 	saver.Page(2, Summary{Title: "Loose"})
 	saver.Library(library.Records{
 		Groups: []library.GroupRecord{{Group: library.Group{ID: library.Inbox, Name: library.InboxName}},
-			{Group: library.Group{ID: 2, Name: "Novel", Pinned: true}, Position: 1}},
+			{Group: library.Group{ID: 2, Name: "Novel", Pinned: true, Listed: true}, Position: 1}},
 		Sheets: []library.SheetRecord{{Sheet: library.Sheet{ID: 1, Group: library.Inbox, Pinned: true}},
 			{Sheet: library.Sheet{ID: 2, Group: library.Inbox}, Position: 1}},
 	})
@@ -377,9 +378,12 @@ func TestPinsAreKept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pinned := map[string]bool{}
+	pinned, listed := map[string]bool{}, map[string]bool{}
 	for _, g := range notebook.Library.Groups {
-		pinned[g.Name] = g.Pinned
+		pinned[g.Name], listed[g.Name] = g.Pinned, g.Listed
+	}
+	if !listed["Novel"] || listed[library.InboxName] {
+		t.Fatalf("A group kept as a list should be kept so: %v.", listed)
 	}
 	for _, sh := range notebook.Library.Sheets {
 		pinned[fmt.Sprint(sh.ID)] = sh.Pinned

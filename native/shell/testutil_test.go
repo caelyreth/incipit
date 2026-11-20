@@ -65,8 +65,10 @@ type fakeLibrary struct {
 	// order is what a search finds, by its text, in place of Chapter then
 	// Notes.
 	order func(text string) []string
-	// pins are the groups and sheets pinned, by id.
-	pins map[string]bool
+	// pins are the groups and sheets pinned, by id; listed the groups kept
+	// shown as a list.
+	pins   map[string]bool
+	listed map[string]bool
 	// moved are the sheets moved, each with the index it was moved to.
 	moved []string
 }
@@ -84,6 +86,7 @@ func (f *fakeLibrary) Groups(parent string) []GroupItem {
 	groups := f.groupList(parent)
 	for i := range groups {
 		groups[i].Pinned = f.pins[groups[i].ID]
+		groups[i].Listed = f.listed[groups[i].ID]
 	}
 	return groups
 }
@@ -107,6 +110,7 @@ func (f *fakeLibrary) Group(id string) (GroupItem, bool) {
 		for _, groups := range f.groupTree {
 			for _, group := range groups {
 				if group.ID == id {
+					group.Listed = f.listed[id]
 					return group, true
 				}
 			}
@@ -290,6 +294,13 @@ func (f *fakeLibrary) StyleGroup(id, icon string, color int) {
 			}
 		}
 	}
+}
+func (f *fakeLibrary) KeepAsList(id string, listed bool) {
+	f.call(fmt.Sprintf("keep %s as list %v", id, listed))
+	if f.listed == nil {
+		f.listed = map[string]bool{}
+	}
+	f.listed[id] = listed
 }
 func (f *fakeLibrary) MoveGroup(id, parent string, _ int) {
 	f.call("move group " + id + " to " + parent)

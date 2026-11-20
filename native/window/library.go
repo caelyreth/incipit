@@ -146,6 +146,7 @@ func (a *AppState) groupItem(group library.Group) shell.GroupItem {
 		Color:     int(group.Color),
 		Query:     group.Query,
 		Pinned:    group.Pinned,
+		Listed:    group.Listed,
 	}
 	// A smart folder counts what its query finds; out of the trash, as
 	// what it finds is gone with it.

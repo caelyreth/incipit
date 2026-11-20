@@ -168,6 +168,9 @@ func (s *State) fieldMenu(m *ui.Menu) {
 	if m.Item(s.listLabel()).Chosen() {
 		s.toggleList()
 	}
+	if g, ok := s.scopeGroup(); ok && !s.inTrash() {
+		s.keepItem(m, g)
+	}
 }
 
 // inTrash reports whether the field shows the trash.

@@ -71,6 +71,9 @@ type Group struct {
 	Trashed time.Time
 	// Pinned stands the group before the others where it is shown.
 	Pinned bool
+	// Listed keeps the group shown as a list: chosen for it, and kept,
+	// where turning the view in it passes.
+	Listed bool
 }
 
 // Smart reports a smart folder.

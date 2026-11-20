@@ -99,7 +99,48 @@ func (s *State) isListed() bool {
 		return false
 	}
 	_, _, browse := s.browsing(query.Parse(s.wholeQuery()))
-	return browse && s.field.lists[s.place()]
+	return browse && s.placeListed()
+}
+
+// placeListed is how the place is shown: as turned in it this session,
+// else as its group keeps (keepAsList), else as a field.
+func (s *State) placeListed() bool {
+	place := s.place()
+	if listed, turned := s.field.lists[place]; turned {
+		return listed
+	}
+	if id, ok := strings.CutPrefix(place, "group:"); ok && s.Library != nil {
+		if g, ok := s.Library.Group(id); ok {
+			return g.Listed
+		}
+	}
+	return false
+}
+
+// keepAsList keeps g shown as a list, or lets that go: a choice of its
+// own, marked on the group (listBadge), where turning the view passes.
+// What was turned in it this session gives way to what it now keeps.
+func (s *State) keepAsList(g GroupItem, listed bool) {
+	set := func(on bool) func() {
+		return func() {
+			s.Library.KeepAsList(g.ID, on)
+			delete(s.field.lists, "group:"+g.ID)
+			s.field.listsRev++
+		}
+	}
+	set(listed)()
+	text := "Always Showing “" + g.Name + "” as a List"
+	if !listed {
+		text = "Stopped Showing “" + g.Name + "” as a List"
+	}
+	s.tell(text, set(!listed), set(listed))
+}
+
+// keepItem is a menu's Always Show as List for g, checked while it does.
+func (s *State) keepItem(m *ui.Menu, g GroupItem) {
+	if m.Item("Always Show as List").Checked(g.Listed).Chosen() {
+		s.keepAsList(g, !g.Listed)
+	}
 }
 
 // toggleList shows the place as a list, taking its bands away, or as a
@@ -134,6 +175,11 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	pad := 2 * k
 	listed := s.listed()
+	// A group kept as a list says so on the switch too: its List choice
+	// is marked, whichever view stands now, so turning to the field reads
+	// as passing.
+	kept, keeps := s.scopeGroup()
+	keeps = keeps && kept.Listed && !s.inTrash()
 	box := ui.Column(c).Key("view-switch").Width(size).Padding(pad).Gap(pad).Radius(size/2).
 		Border(1, semantic.Border.Variant).Background(semantic.Surface.Page).Role(ui.RoleRadioGroup).Label("View")
 	box.Children(func() {
@@ -152,7 +198,12 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 			if !choice.on {
 				binding = s.binding(VerbViewList)
 			}
-			components.Hint(c, semantic, btn, choice.label, binding, components.HintAfter)
+			hint := choice.label
+			marked := keeps && choice.key == "view-list"
+			if marked {
+				hint += " — Always, in “" + kept.Name + "”"
+			}
+			components.Hint(c, semantic, btn, hint, binding, components.HintAfter)
 			on := map[bool]float32{true: 1}[choice.on]
 			if animate {
 				on = components.Follow(btn, "on", on, components.MotionQuick)
@@ -166,6 +217,12 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 			btn.Children(func() {
 				ui.Icon(c, choice.icon.SVG()).FontSize(face / 2).
 					TextColor(components.Blend(semantic.Icon.Muted, semantic.Text.OnInverse, on))
+				if marked {
+					dot := 6 * k
+					ui.Box(c).Key("kept-mark").Absolute().Top(0).Right(0).Size(dot, dot).Radius(dot/2).
+						Background(semantic.Families[theme.Unripe].Foreground).Border(1, semantic.Surface.Page).
+						IgnoreInput(true).Label("Always shown as a list")
+				}
 			})
 		}
 	})

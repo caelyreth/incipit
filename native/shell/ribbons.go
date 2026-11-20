@@ -607,6 +607,9 @@ func (s *State) ribbonMenu(text string) func(*ui.Menu) {
 		if s.mode() == modeLibrary && !s.inTrash() && m.Item("Keep as Bookmark").Chosen() {
 			s.saveQuery(text)
 		}
+		if g, ok := s.scopeGroup(); ok && conditionKey(text) == "in" && !s.inTrash() {
+			s.keepItem(m, g)
+		}
 		m.Separator()
 		if m.Item("Remove").Chosen() {
 			s.broaden(i)

@@ -121,6 +121,9 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 						SingleLine().Shrink(0).FontFeatures("tnum")
 				}
 			})
+			if g != nil && g.Listed {
+				listBadge(c, semantic, m)
+			}
 			if g != nil && g.Pinned {
 				pinBadge(c, semantic, m)
 			}
@@ -155,6 +158,13 @@ func badge(c *ui.Context, semantic theme.Theme, key, label string, family theme.
 // pinBadge says a group or sheet is pinned: a thumbtack on Remnant.
 func pinBadge(c *ui.Context, semantic theme.Theme, m blockMetrics) {
 	badge(c, semantic, "pin-badge", "Pinned", theme.Remnant, components.IconPin, "", m)
+}
+
+// listBadge says a group is kept shown as a list: what is kept is said
+// where it is kept, so turning the view in it is never a guess at what
+// lasts.
+func listBadge(c *ui.Context, semantic theme.Theme, m blockMetrics) {
+	badge(c, semantic, "list-badge", "Always Shown as List", theme.Unripe, components.IconList, "", m)
 }
 
 // rowFill is a row's ground: the selection's where the keys are on it,
@@ -226,6 +236,9 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 			components.Label(c, g.Name, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
 			components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
 		})
+		if g.Listed {
+			listBadge(c, semantic, m)
+		}
 		if g.Pinned {
 			pinBadge(c, semantic, m)
 		}

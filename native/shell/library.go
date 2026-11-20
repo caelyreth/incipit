@@ -59,6 +59,9 @@ type GroupItem struct {
 	Query string
 	// Pinned stands it before the others where it is shown.
 	Pinned bool
+	// Listed keeps it shown as a list, as chosen for it; turning the view
+	// in it passes with the session.
+	Listed bool
 }
 
 // Smart reports a smart folder.
@@ -161,6 +164,8 @@ type Library interface {
 	NewSmartGroup(name, query string) string
 	// StyleGroup sets a group's icon and tint, as GroupItem holds them.
 	StyleGroup(id, icon string, color int)
+	// KeepAsList keeps a group shown as a list, or lets that go.
+	KeepAsList(id string, listed bool)
 	MoveGroup(id, parent string, index int)
 	TrashGroup(id string)
 	RestoreGroup(id string)
