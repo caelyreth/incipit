@@ -173,11 +173,18 @@ func (s *State) toggleActions() {
 // actionsButton is the pill's end, pillH tall: pressed anywhere on it,
 // it opens the place's actions, or closes them; its face is a circle
 // that takes the chosen fill while they are open, standing in the pill's
-// rounded end, inset all round alike, so the two curves are one.
+// rounded end, inset all round alike, so the two curves are one. The end
+// reaches past the face, but not while the query's × stands beside it,
+// which stands next to the face as the face stands in the pill. With no
+// actions to hold (actionsAtEnd) it is not there at all.
 func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldAction, pillH, k float32, animate bool) {
 	label := map[bool]string{true: "Hide Actions", false: "Actions"}[s.field.acting]
 	inset := 4 * k
-	end := ui.ButtonBase(c.Key("actions-button")).Size(pillH*1.25, pillH).Shrink(0).Padding(inset).
+	width := pillH * 1.25
+	if s.queryWritten() {
+		width = pillH
+	}
+	end := ui.ButtonBase(c.Key("actions-button")).Size(width, pillH).Shrink(0).Padding(inset).
 		AlignItems(ui.Center).Justify(ui.End).
 		FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).
 		Label(label).Disabled(len(acts) == 0)
@@ -188,9 +195,6 @@ func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldA
 	components.Hint(c, semantic, end, map[bool]string{true: "New", false: "Actions"}[creates], "", components.HintAbove)
 	if end.Clicked() {
 		s.toggleActions()
-	}
-	if len(acts) == 0 || s.actionsStand() {
-		end.Opacity(0).IgnoreInput(true)
 	}
 	hover := components.HoverAmount(end, end.Hovered(), animate)
 	open := map[bool]float32{true: 1}[s.field.acting]
@@ -305,4 +309,16 @@ func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction
 		components.CenteredLabel(c, label, theme.TextSmall, components.Blend(semantic.Text.Default, dangerInk, amount)).
 			SingleLine().Shrink(0)
 	})
+}
+
+// actionsAtEnd reports whether the pill's end holds the actions button:
+// not with no actions, nor while they stand past the pill instead.
+func (s *State) actionsAtEnd(acts []fieldAction) bool {
+	return len(acts) > 0 && !s.actionsStand()
+}
+
+// queryWritten reports whether the pill holds anything written or
+// narrowed by, which its × clears.
+func (s *State) queryWritten() bool {
+	return s.field.words != "" || len(s.field.conditions) > 0
 }
