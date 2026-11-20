@@ -1,5 +1,11 @@
 package shell
 
+import (
+	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/ui"
+)
+
 // Ambient cards are a few quiet cards the field shows when nothing is
 // asked (field-and-desk.md §4.4.1): how much was written today, a line
 // for the day. They answer only an empty query, stand after everything
@@ -17,7 +23,7 @@ type ambient interface {
 }
 
 // ambients are the ambient cards, in the order they are offered.
-var ambients []ambient
+var ambients = []ambient{firstRun{}}
 
 // ambientMost is how many ambient cards stand at once.
 const ambientMost = 2
@@ -38,4 +44,89 @@ func (ambientSource) answer(s *State, text string, f *found) {
 			shown++
 		}
 	}
+}
+
+// note is an ambient card's face: a head saying what it is, then a few
+// lines, none of which is pressed.
+type note struct {
+	icon  components.IconName
+	title string
+	lines []noteLine
+}
+
+// noteLine is one line of a note, and the key it tells of, if any.
+type noteLine struct {
+	text string
+	keys []string
+}
+
+func (n note) shape(_ *State, _ *ui.Context, m blockMetrics) shape {
+	rows := make([]row, len(n.lines))
+	for i := range n.lines {
+		rows[i] = row{line: &n.lines[i], h: m.groupRow}
+	}
+	return stack(rows, m)
+}
+
+func (note) rows() []string { return nil }
+
+func (note) ground() bool { return true }
+
+func (note) drawsLive(*State) bool { return false }
+
+func (n note) view(_ *State, c *ui.Context, semantic theme.Theme, box ui.Element, _ stageFrame, sh shape, _ bool, m blockMetrics, _ bool) {
+	box.Gap(m.headGap).Children(func() {
+		cardHead(c, semantic, n.icon, n.title, m)
+		cardRows(c, sh, m, func(r row) {
+			if r.line == nil {
+				moreLabel(c, semantic, sh.more, r.h, m)
+				return
+			}
+			ui.Row(c).Height(r.h).WidthPercent(100).PaddingX(rowPad(m.scale)).Gap(8 * m.k).
+				AlignItems(ui.Center).Children(func() {
+				components.CenteredLabel(c, r.line.text, theme.TextSmall, semantic.Text.Muted).Grow(1).MinWidth(0)
+				if len(r.line.keys) > 0 {
+					components.Keycaps(c, components.KeycapStyle(semantic, m.scale, true), r.line.keys, "").Shrink(0)
+				}
+			})
+		})
+	})
+}
+
+// firstRun says how to begin, while nothing in the notebook is written:
+// gone with its first word, back only were every word let go.
+type firstRun struct{}
+
+func (firstRun) id() string { return "first-run" }
+
+func (firstRun) shows(s *State) bool {
+	for _, place := range []Place{{Kind: PlaceAll}, {Kind: PlaceTrash}} {
+		for _, sh := range s.Library.Sheets(place) {
+			if sh.Words > 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (firstRun) card(s *State) cardKind {
+	return note{icon: components.IconPencilSpark, title: "A New Notebook", lines: []noteLine{
+		{text: "Type to find"},
+		{text: "Write a new sheet", keys: s.commandKeys("page.new")},
+		{text: "Drag a sheet to file it"},
+	}}
+}
+
+// commandKeys are the caps of the key command id runs on, if it has one.
+func (s *State) commandKeys(id string) []string {
+	if s.Commands == nil {
+		return nil
+	}
+	for _, cmd := range s.Commands() {
+		if cmd.ID == id {
+			return cmd.Keys
+		}
+	}
+	return nil
 }

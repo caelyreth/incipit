@@ -23,13 +23,14 @@ type shape struct {
 }
 
 // row is one row of a card: a group inside it, a sheet, a command, a
-// settings section, the area that makes a sheet there, or what it leaves
-// out.
+// settings section, a note's line, the area that makes a sheet there, or
+// what it leaves out.
 type row struct {
 	group   *GroupItem
 	entry   *entry
 	command *Command
 	setting *SettingsSection
+	line    *noteLine
 	create  bool
 	h       float32
 }

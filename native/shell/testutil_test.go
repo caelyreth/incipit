@@ -71,6 +71,8 @@ type fakeLibrary struct {
 	listed map[string]bool
 	// moved are the sheets moved, each with the index it was moved to.
 	moved []string
+	// unwritten holds no word in any sheet, as a new notebook.
+	unwritten bool
 }
 
 // call records what the library was asked, and what changes it changes
@@ -129,6 +131,9 @@ func (f *fakeLibrary) Sheets(place Place) []SheetItem {
 	sheets := f.sheetList(place)
 	for i := range sheets {
 		sheets[i].Pinned = f.pins[sheets[i].ID]
+		if f.unwritten {
+			sheets[i].Words = 0
+		}
 	}
 	return sheets
 }
@@ -149,7 +154,7 @@ func (f *fakeLibrary) sheetList(place Place) []SheetItem {
 	case place.Kind == PlaceGroup && place.Group == "1":
 		return []SheetItem{{ID: "8", Title: "Draft"}}
 	case place.Kind == PlaceAll:
-		return []SheetItem{{ID: "8", Title: "Draft"}}
+		return append(f.sheetList(Place{Kind: PlaceGroup, Group: "2"}), f.sheetList(Place{Kind: PlaceGroup, Group: "1"})...)
 	case place.Kind == PlaceTrash:
 		return []SheetItem{{ID: "9", Title: "Scrap"}}
 	}

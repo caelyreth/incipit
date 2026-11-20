@@ -53,3 +53,38 @@ func TestAmbientCardsStandQuietlyAfterAnEmptyQuery(t *testing.T) {
 		t.Fatalf("Once anything is asked, no ambient card should stand: %v.", shownBlocks(state))
 	}
 }
+
+// ambientShown are the ambient cards the field shows at rest, by id.
+func ambientShown(state *State) []string {
+	var shown []string
+	for _, id := range shownBlocks(state) {
+		if name, ok := strings.CutPrefix(id, "ambient:"); ok {
+			shown = append(shown, name)
+		}
+	}
+	return shown
+}
+
+// A notebook with nothing written says how to begin, with New Sheet's
+// key, and stops once a word is written.
+func TestANewNotebookSaysHowToBegin(t *testing.T) {
+	state, library := libraryState()
+	library.unwritten = true
+	state.Commands = func() []Command { return []Command{{ID: "page.new", Label: "New Sheet", Keys: []string{"⌘", "N"}}} }
+	state.ShowField()
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+	if got := ambientShown(state); !slices.Equal(got, []string{"first-run"}) {
+		t.Fatalf("A notebook with nothing written should say how to begin: %v.", got)
+	}
+	first, ok := state.field.found.cards[len(state.field.found.cards)-1].kind.(note)
+	if !ok || len(first.lines) != 3 || !slices.Equal(first.lines[1].keys, []string{"⌘", "N"}) {
+		t.Fatalf("It should tell finding, writing with New Sheet's key, and filing: %+v.", first)
+	}
+	library.unwritten = false
+	library.rev++
+	settle(tester)
+	if got := ambientShown(state); len(got) != 0 {
+		t.Fatalf("Once anything is written, it should be gone: %v.", got)
+	}
+}
