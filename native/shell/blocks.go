@@ -375,8 +375,9 @@ func (s *State) rowTags(c *ui.Context, semantic theme.Theme, tags []string, m bl
 			components.TagChip(c, "#"+tag, theme.TextXSmall, pad, room, semantic.Tag.Background, semantic.Tag.Foreground).Shrink(0)
 		}
 		if hidden := len(tags) - shown; hidden > 0 {
-			components.TagChip(c, fmt.Sprintf("+%d", hidden), theme.TextXSmall, pad, room, semantic.Tag.Background, semantic.Text.Muted).
-				Shrink(0).Tooltip(strings.Join(tags[shown:], ", "))
+			more := components.TagChip(c, fmt.Sprintf("+%d", hidden), theme.TextXSmall, pad, room, semantic.Tag.Background, semantic.Text.Muted).
+				Shrink(0).Label(strings.Join(tags[shown:], ", "))
+			components.Hint(c, semantic, more, strings.Join(tags[shown:], ", "), "", components.HintAbove)
 		}
 	})
 }

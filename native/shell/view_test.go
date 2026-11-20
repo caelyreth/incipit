@@ -144,7 +144,7 @@ func TestTheColumnHeadGoesBackToTheField(t *testing.T) {
 	settle(tester)
 	tester.Move(600, 300)
 	settle(tester)
-	if err := tester.Click("Back to the field"); err != nil {
+	if err := tester.Click("Back to the Field"); err != nil {
 		t.Fatalf("%v: %v", err, tester.Texts())
 	}
 	settle(tester)
@@ -257,8 +257,8 @@ func TestFloatingToolbarShowsLiveCommandBindingInTooltip(t *testing.T) {
 		t.Fatal("zen toolbar action missing")
 	}
 	tester.Move(bounds.X+bounds.W/2, bounds.Y+bounds.H/2)
-	tester.Advance(700 * time.Millisecond)
-	if !tester.HasText("Zen  ⇧⌘F") {
+	tester.Advance(time.Second)
+	if !tester.HasText("⇧⌘F") {
 		t.Fatalf("toolbar tooltip texts = %#v", tester.Texts())
 	}
 }

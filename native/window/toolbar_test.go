@@ -99,12 +99,12 @@ func TestToolbarModeTooltipsShowCommandBindings(t *testing.T) {
 			t.Fatalf("%s toolbar action missing", test.label)
 		}
 		tester.Move(bounds.X+bounds.W/2, bounds.Y+bounds.H/2)
-		tester.Advance(700 * time.Millisecond)
-		if !tester.HasText(test.label + "  " + test.binding) {
+		tester.Advance(time.Second)
+		if !tester.HasText(test.binding) {
 			t.Fatalf("%s tooltip texts = %#v", test.label, tester.Texts())
 		}
 		tester.Move(0, 0)
-		tester.Advance(700 * time.Millisecond)
+		tester.Advance(time.Second)
 	}
 }
 

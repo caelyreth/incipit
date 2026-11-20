@@ -50,12 +50,12 @@ func TestTheQueryHeldStandsOnTopAsADraftBookmark(t *testing.T) {
 		GroupItem{ID: "s2", Name: "Afterglow", Query: "$tag:b", Color: TintHalo + 1})
 	state.SetFieldQuery("$tag:weekly")
 	settle(tester)
-	draft, ok := tester.Find("Keep this search")
+	draft, ok := tester.Find("Keep This Search")
 	top, _ := tester.Find("Afterglow")
 	if !ok || draft.Y >= top.Y {
 		t.Fatalf("The search held should stand over the bookmarks, but it is at %v (found %v) and the top one at %v.", draft, ok, top)
 	}
-	if err := tester.Click("Keep this search"); err != nil {
+	if err := tester.Click("Keep This Search"); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Contains(library.calls, "style 5  3") {

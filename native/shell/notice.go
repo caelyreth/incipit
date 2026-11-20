@@ -174,7 +174,7 @@ func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stageRect, w, 
 		}
 		h := 24 * k
 		btn := ui.ButtonBase(c.Key("undo")).Height(h).PaddingX(8 * k).Radius(h / 2).AlignItems(ui.Center).Shrink(0).
-			FocusRing(false).KeepFocus().Label("Undo").Tooltip("Undo  ⌘Z")
+			FocusRing(false).KeepFocus().Label("Undo")
 		hover := components.HoverAmount(btn, btn.Hovered(), animate)
 		btn.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
 		if btn.Clicked() {

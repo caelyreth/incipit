@@ -79,7 +79,8 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lea
 	}
 	// It names its sheet, which its tooltip need not.
 	return s.columnHead(c, semantic, "sheet-head", lead, shown, info, chromeButton{
-		key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
+		key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close Sheet",
+		binding: s.binding("page.close"), side: components.HintBelow,
 		action: func() { s.CloseSheet(page.ID) },
 	}, s.deskMenu(page), animate)
 }

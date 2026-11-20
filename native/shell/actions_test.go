@@ -38,7 +38,7 @@ func TestTheTrashEmptiesFromThePillsActions(t *testing.T) {
 	if slices.Contains(library.calls, "empty trash") {
 		t.Fatal("One press should only ask; the trash should not empty yet.")
 	}
-	if err := tester.Click("Empty Trash"); err != nil {
+	if err := tester.Click("Empty Trash — Can’t Undo"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)

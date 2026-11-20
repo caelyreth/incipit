@@ -60,8 +60,8 @@ func (s *State) columnHead(c *ui.Context, semantic theme.Theme, key string, lead
 		if shown <= 0.001 {
 			return
 		}
-		back := chromeButton{key: "back-to-field", label: "Back to the field", icon: components.IconBack,
-			tooltip: components.CommandTooltip("Back to the field", "esc esc"), action: s.returnToField}
+		back := chromeButton{key: "back-to-field", label: "Back to the Field", icon: components.IconBack,
+			binding: s.binding("window.field"), side: components.HintBelow, action: s.returnToField}
 		groups := []components.ActionGroup{{Key: "back", Label: "Field", Actions: []func(){func() {
 			back.view(c, semantic, animate)
 		}}}}

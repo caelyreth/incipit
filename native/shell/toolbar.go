@@ -22,7 +22,7 @@ func (s *State) dockIcon(
 	c := s.actionDock.ctx
 	semantic := s.actionDock.semantic
 	components.IconButton{
-		Key: key, Label: label, Tooltip: components.CommandTooltip(label, binding),
+		Key: key, Label: label, Binding: binding,
 		Icon:  icon.SVG(),
 		Style: components.SubtleButton, Size: components.MediumButton,
 		Selected: selected, Disabled: !enabled, Animate: s.actionDock.animate,

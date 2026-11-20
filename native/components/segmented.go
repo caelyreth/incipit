@@ -63,7 +63,8 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 				if option.Selected {
 					iconColor = semantic.Text.OnInverse
 				}
-				button.PaddingX(theme.Space06.DIPs(scale)).Tooltip(option.Label).Children(func() {
+				Hint(c, semantic, button, option.Label, "", HintAbove)
+				button.PaddingX(theme.Space06.DIPs(scale)).Children(func() {
 					ui.Icon(c, option.Icon.SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).TextColor(iconColor)
 				})
 				continue

@@ -3,7 +3,11 @@
 // product palette into MyGo's control theme.
 package theme
 
-import "github.com/egoist/mygo/ui"
+import (
+	"time"
+
+	"github.com/egoist/mygo/ui"
+)
 
 type Appearance uint8
 
@@ -336,6 +340,9 @@ func (s Settings) MyGoThemeFor(semantic Theme) *ui.Theme {
 	result.Spacing = 4 * scale
 	result.FontSize = normalized.UIFontSize
 	result.Font = UIFontFamily
+	// A hint waits for the pointer to rest, so reading the field with the
+	// pointer anywhere sets none off.
+	result.TooltipDelay = 800 * time.Millisecond
 	return result
 }
 

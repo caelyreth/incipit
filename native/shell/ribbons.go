@@ -503,7 +503,6 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 	switch p.kind {
 	case ribbonCondition:
 		if s.InSettings() && (conditionKey(p.text) == "settings" || conditionKey(p.text) == "in") {
-			btn.Tooltip("Remove " + l.label)
 			if btn.Clicked() {
 				if i := slices.Index(s.field.conditions, p.text); i >= 0 {
 					s.broaden(i)
@@ -511,8 +510,8 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 			}
 			break
 		}
-		btn.Tooltip("Change " + l.label + "; with Option, turn it around; drag it to the lane to keep it").
-			Drag(queryDrag{text: p.text})
+		btn.Drag(queryDrag{text: p.text})
+		btn.ContextMenu(s.ribbonMenu(p.text))
 		// The group the field is in takes what is dropped on its ribbon, as
 		// on its head: its sheets each stand alone, with no block to drop on.
 		if g, ok := s.scopeGroup(); ok && conditionKey(p.text) == "in" {
@@ -528,16 +527,10 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 			}
 		}
 	case ribbonMore:
-		btn.Tooltip("Show them all")
 		if btn.Clicked() {
 			s.field.allValues = true
 		}
 	default:
-		if p.i >= 0 {
-			btn.Tooltip(p.item.Help)
-		} else {
-			btn.Tooltip(p.key.Help)
-		}
 		if btn.Clicked() {
 			if p.i >= 0 {
 				s.activate("suggest:"+strconv.Itoa(p.i), false)
@@ -560,7 +553,7 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 		if !l.closes {
 			return
 		}
-		miniCloseButton(c, "remove", "Remove "+l.label, "Remove", ribbonClose*k, 10*k,
+		miniCloseButton(c, semantic, "remove", "Remove "+l.label, "Remove", ribbonClose*k, 10*k,
 			semantic.Icon.Muted, l.ink.Alpha(theme.TintFill), animate,
 			func() {
 				if i := slices.Index(s.field.conditions, p.text); i >= 0 {
@@ -571,3 +564,30 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 }
 
 // pillKey is what a key does in the pill's input before the input takes it.
+
+// ribbonMenu is the menu of a condition's ribbon: every way of changing
+// it named, where pressing it with Option and dragging it are the
+// shortcuts.
+func (s *State) ribbonMenu(text string) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		i := slices.Index(s.field.conditions, text)
+		if i < 0 {
+			return
+		}
+		if m.Item("Change…").Chosen() {
+			s.rewrite(i)
+		}
+		c, _ := condition(text)
+		turn := map[bool]string{true: "Include", false: "Exclude"}[c.Not]
+		if m.Item(turn).Shortcut(ui.Alt, 0).Chosen() {
+			s.turn(i)
+		}
+		if s.mode() == modeLibrary && !s.inTrash() && m.Item("Keep as Bookmark").Chosen() {
+			s.saveQuery(text)
+		}
+		m.Separator()
+		if m.Item("Remove").Chosen() {
+			s.broaden(i)
+		}
+	}
+}

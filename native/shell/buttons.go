@@ -11,9 +11,12 @@ import (
 // ink and a little under the controls' own icon size (16 at the reference
 // type size for a medium button, 14 for a compact one), at the type size
 // around it (components.UIFontSize), so it follows the type size. label
-// names it; tooltip is what its tooltip says, the label when empty.
+// names it; tooltip is what its hint says, the label when empty, binding
+// its key and side where the hint stands.
 type chromeButton struct {
 	key, label, tooltip string
+	binding             string
+	side                components.HintSide
 	icon                components.IconName
 	compact, selected   bool
 	action              func()
@@ -33,17 +36,19 @@ func (b chromeButton) view(c *ui.Context, semantic theme.Theme, animate bool) ui
 		action = func() {}
 	}
 	return components.IconButton{
-		Key: b.key, Label: b.label, Tooltip: tooltip, Icon: b.icon.SVG(),
+		Key: b.key, Label: b.label, Tooltip: tooltip, Binding: b.binding, HintSide: b.side, Icon: b.icon.SVG(),
 		Style: components.SubtleButton, Size: size,
 		IconSize: glyph * components.UIFontSize(c) / theme.DefaultUIFontSize, IconColor: &semantic.Icon.Muted,
 		Selected: b.selected, Animate: animate, Action: action,
 	}.View(c, semantic)
 }
 
-// laneCircleButton is a round field-lane control button sized size wide.
-func laneCircleButton(c *ui.Context, semantic theme.Theme, key string, icon components.IconName, label, tooltip string, selected bool, size float32, animate bool) ui.Element {
+// laneCircleButton is a round field-lane control button sized size wide,
+// its hint, hint and its key binding, standing past it, into the field.
+func laneCircleButton(c *ui.Context, semantic theme.Theme, key string, icon components.IconName, label, hint, binding string, selected bool, size float32, animate bool) ui.Element {
 	btn := ui.ButtonBase(c.Key(key)).Size(size, size).Radius(size / 2).
-		AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(label).Tooltip(tooltip).Selected(selected)
+		AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(label).Selected(selected)
+	components.Hint(c, semantic, btn, hint, binding, components.HintAfter)
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	// The place the field shows stands inverse among them.
 	on := map[bool]float32{true: 1}[selected]
@@ -64,6 +69,7 @@ func laneCircleButton(c *ui.Context, semantic theme.Theme, key string, icon comp
 // fill, used on kept bookmarks and query ribbons.
 func miniCloseButton(
 	c *ui.Context,
+	semantic theme.Theme,
 	key, label, tooltip string,
 	size, glyph float32,
 	ink, hoverFill ui.Color,
@@ -72,7 +78,8 @@ func miniCloseButton(
 ) ui.Element {
 	btn := ui.ButtonBase(c.Key(key)).Size(size, size).Radius(size / 2).
 		AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).
-		Label(label).Tooltip(tooltip)
+		Label(label)
+	components.Hint(c, semantic, btn, tooltip, "", components.HintAbove)
 	near := components.HoverAmount(btn, btn.Hovered(), animate)
 	btn.Background(components.Blend(hoverFill.Alpha(0), hoverFill, near))
 	if btn.Clicked() && onClick != nil {

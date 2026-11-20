@@ -215,7 +215,7 @@ func TestKeptQueriesAreBookmarksInTheKeptBox(t *testing.T) {
 	}
 	state.SetFieldQuery("$tag:weekly")
 	settle(tester)
-	if err := tester.Click("Keep this search"); err != nil {
+	if err := tester.Click("Keep This Search"); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.ContainsFunc(library.calls, func(c string) bool { return strings.HasPrefix(c, "new smart ") && strings.HasSuffix(c, " $tag:weekly") }) {

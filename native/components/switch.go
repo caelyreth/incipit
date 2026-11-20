@@ -26,7 +26,7 @@ func (s Switch) View(c *ui.Context, semantic theme.Theme) ui.Element {
 
 	value := s.Selected
 	toggle := ui.ToggleBase(c.Key(s.Key), &value).
-		Role(ui.RoleSwitch).Label(s.Label).Tooltip(s.Label).
+		Role(ui.RoleSwitch).Label(s.Label).
 		Disabled(s.Disabled).
 		Height(metrics.Height).Width(outerWidth).Padding(0).
 		Background(ui.Transparent).FocusRing(false)

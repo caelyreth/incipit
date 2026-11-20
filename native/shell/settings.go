@@ -318,7 +318,7 @@ func (sc settingsCard) view(s *State, c *ui.Context, semantic theme.Theme, box u
 func (s *State) settingsButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
 	shown := s.InSettings()
 	label := map[bool]string{true: "Hide settings", false: "Show settings"}[shown]
-	btn := laneCircleButton(c, semantic, "settings", components.IconSettings, label, "Settings", shown, size, animate)
+	btn := laneCircleButton(c, semantic, "settings", components.IconSettings, label, "Settings", s.binding("app.settings"), shown, size, animate)
 	if btn.Clicked() {
 		s.ShowSettings()
 	}

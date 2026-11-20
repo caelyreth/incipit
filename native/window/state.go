@@ -162,6 +162,7 @@ func (a *AppState) BindShell() {
 	a.Shell.Library = a
 	a.Shell.ClosePageID = a.closePageID
 	a.Shell.Commands = a.commandCatalog
+	a.Shell.Binding = func(id string) string { return bindingLabel(a.Product.Keymap, keymap.CommandID(id)) }
 	a.Shell.KeyOf = func(id string) (ui.Modifiers, ui.Key, bool) {
 		chord, ok := a.Product.Keymap.ChordFor(keymap.CommandID(id))
 		if !ok {

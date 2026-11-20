@@ -61,24 +61,33 @@ func TestDisabledButtonDoesNotAct(t *testing.T) {
 	}
 }
 
-func TestButtonTooltipShowsLabelAndLiveBinding(t *testing.T) {
+// A button with no words of its own takes a hint naming it and its key,
+// once the pointer rests; one whose words say it takes none.
+func TestOnlyWordlessButtonsTakeHints(t *testing.T) {
 	semantic := theme.DefaultSettings().Semantic()
 	tester := ui.NewTester(func(c *ui.Context) {
 		c.SetTheme(theme.DefaultSettings().MyGoTheme())
-		Button{
-			Key: "bold", Label: "Bold",
-			Tooltip: CommandTooltip("Bold", "⌘B"),
-		}.View(c, semantic)
+		ui.Row(c).Gap(40).Children(func() {
+			IconButton{Key: "bold", Label: "Bold", Binding: "⌘B", Icon: IconClose.SVG()}.View(c, semantic)
+			Button{Key: "save", Label: "Save"}.View(c, semantic)
+		})
 	}, 320, 140)
 	tester.Frame()
-	bounds, ok := tester.Find("Bold")
-	if !ok {
-		t.Fatal("button missing")
-	}
-	tester.Move(bounds.X+bounds.W/2, bounds.Y+bounds.H/2)
-	tester.Advance(700 * time.Millisecond)
-	if !tester.HasText("Bold  ⌘B") {
-		t.Fatalf("tooltip texts = %#v", tester.Texts())
+	for _, probe := range []struct {
+		name string
+		hint bool
+	}{{"Bold", true}, {"Save", false}} {
+		bounds, ok := tester.Find(probe.name)
+		if !ok {
+			t.Fatalf("%s missing", probe.name)
+		}
+		tester.Move(bounds.X+bounds.W/2, bounds.Y+bounds.H/2)
+		tester.Advance(time.Second)
+		if got := tester.HasText("⌘B"); got != probe.hint {
+			t.Fatalf("%s hint shown %v, want %v: %#v", probe.name, got, probe.hint, tester.Texts())
+		}
+		tester.Move(0, 0)
+		tester.Advance(time.Second)
 	}
 }
 

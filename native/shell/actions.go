@@ -172,7 +172,8 @@ func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldA
 	end := ui.ButtonBase(c.Key("actions-button")).Size(pillH*1.25, pillH).Shrink(0).Padding(inset).
 		AlignItems(ui.Center).Justify(ui.End).
 		FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).
-		Label(label).Tooltip("Actions").Disabled(len(acts) == 0)
+		Label(label).Disabled(len(acts) == 0)
+	components.Hint(c, semantic, end, "Actions", "", components.HintAbove)
 	if end.Clicked() {
 		s.toggleActions()
 	}
@@ -254,15 +255,17 @@ func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction
 	if a.menu != nil {
 		label += "…"
 	}
+	// Armed, it says on its face what a second press does: there is no
+	// undoing it.
+	if armed {
+		label += " — Can’t Undo"
+	}
 	size := theme.TextSmall.Size(s.Settings.UIFontSize)
 	textW, _ := c.MeasureText(0, ui.Span{Text: label, Font: theme.UIFontFamily, Size: size})
 	w := 2*ribbonStart*k + 14*k + 6*k + textW + 1
 	btn := ui.ButtonBase(c.Key("action-"+a.id)).Absolute().Left(x).Top(y).Size(w, h).
 		PaddingX(ribbonStart * k).Gap(6 * k).AlignItems(ui.Center).Radius(h / 2).
 		FocusRing(false).KeepFocus().Label(label).Transition(ribbonTransition(animate, above, k))
-	if armed {
-		btn.Tooltip("Click again to " + strings.ToLower(a.label) + ". You can’t undo this.")
-	}
 	amount, dangerInk := dangerTone(btn, semantic, armed, btn.Hovered() || keyed, animate,
 		semantic.Surface.Page, semantic.Border.Variant)
 	if a.menu != nil {

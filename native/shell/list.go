@@ -131,7 +131,7 @@ func (s *State) listLabel() string {
 // it stands as a list.
 func (s *State) listButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
 	label := s.listLabel()
-	btn := laneCircleButton(c, semantic, "list", components.IconList, label, label, s.listed(), size, animate)
+	btn := laneCircleButton(c, semantic, "list", components.IconList, label, label, s.binding(VerbViewList), s.listed(), size, animate)
 	if btn.Clicked() {
 		s.toggleList()
 	}

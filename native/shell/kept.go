@@ -160,7 +160,7 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLoo
 func (s *State) trashButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
 	shown := s.inTrash()
 	label := map[bool]string{true: "Leave Trash", false: "Show Trash"}[shown]
-	btn := laneCircleButton(c, semantic, "trash", components.IconTrash, label, "Trash", shown, size, animate)
+	btn := laneCircleButton(c, semantic, "trash", components.IconTrash, label, "Trash", s.binding(VerbShowTrash), shown, size, animate)
 	if btn.Clicked() {
 		s.toggleTrash()
 	}
@@ -175,7 +175,7 @@ func (s *State) trashButton(c *ui.Context, semantic theme.Theme, size float32, a
 
 func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
 	home := !s.inTrash() && !s.InSettings()
-	btn := laneCircleButton(c, semantic, "home", components.IconHome, "Home", "Home", home, size, animate)
+	btn := laneCircleButton(c, semantic, "home", components.IconHome, "Home", "Home", s.binding(VerbHome), home, size, animate)
 	if btn.Clicked() {
 		s.goHome()
 	}
@@ -265,7 +265,7 @@ func (s *State) keptRows(marks []GroupItem, animate bool) []keptRow {
 func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current bool, shown, k float32, animate bool) bool {
 	g, tail := r.g, shelfTail*k
 	btn := ui.ButtonBase(c.Key("bookmark-"+g.ID)).WidthPercent(100).Padding(7*k, tail+14*k, 7*k, 10*k).Gap(8 * k).
-		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label(g.Name).Tooltip(g.Name).
+		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label(g.Name).
 		Transition(bookmarkTransition(animate, k))
 	staying := map[bool]float32{true: 1}[!r.leaving]
 	if animate {
@@ -325,7 +325,7 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 		ui.Box(c).Key("end").Shrink(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			components.CenteredLabel(c, thousands(g.Count), theme.TextXSmall, semantic.Surface.Page).
 				Opacity(shown * (1 - hover))
-			miniCloseButton(c, "delete", "Delete "+g.Name, "Delete", 18*k, 11*k,
+			miniCloseButton(c, semantic, "delete", "Delete "+g.Name, "Delete", 18*k, 11*k,
 				semantic.Surface.Page, semantic.Surface.Page.Alpha(0.25), animate,
 				func() { s.deleteBookmark(g.ID) }).
 				Absolute().Opacity(shown * hover).IgnoreInput(hover < 0.5)
@@ -384,7 +384,8 @@ func (s *State) draftBookmark(c *ui.Context, semantic theme.Theme, text string, 
 	tail := shelfTail * k
 	btn := ui.ButtonBase(c.Key("keep")).WidthPercent(100).Padding(7*k, tail+14*k, 7*k, 10*k).Gap(6 * k).
 		AlignItems(ui.Center).FocusRing(false).KeepFocus().
-		Label("Keep this search").Tooltip("Keep this search").Transition(bookmarkTransition(animate, k))
+		Label("Keep This Search").Transition(bookmarkTransition(animate, k))
+	components.Hint(c, semantic, btn, "Keep This Search", "", components.HintAfter)
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	// Kept, it would stand as far out as the one in use; until then it
 	// stands back as the others do.

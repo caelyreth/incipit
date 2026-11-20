@@ -419,7 +419,7 @@ func TestTheSheetHeadPutsBackAtItsStartAndCloseAtItsEnd(t *testing.T) {
 		tester.SetTitleBar(ui.TitleBar{Height: 64})
 		tester.Frame()
 		pill, hasPill := tester.Find("Column")
-		back, hasBack := tester.Find("Back to the field")
+		back, hasBack := tester.Find("Back to the Field")
 		info, hasInfo := tester.Find("Sheet")
 		close, hasClose := tester.Find("Close A place to begin")
 		if !hasPill || !hasBack || !hasInfo || !hasClose {

@@ -112,7 +112,7 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 		components.VerticalDivider(c, semantic)
 		step := func(key, label, binding string, icon components.IconName, forward bool) {
 			components.IconButton{
-				Key: key, Label: label, Tooltip: components.CommandTooltip(label, binding), Icon: icon.SVG(),
+				Key: key, Label: label, Binding: binding, Icon: icon.SVG(),
 				Style: components.SubtleButton, Size: components.MediumButton,
 				Disabled: s.FindCount.Total == 0, Animate: animate,
 				IconColor: &semantic.Icon.Muted, Action: func() { s.stepFind(forward) },
@@ -121,7 +121,7 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 		step("find-previous", "Previous match", "⇧↩", components.IconChevronUp, false)
 		step("find-next", "Next match", "↩", components.IconChevronDown, true)
 		components.IconButton{
-			Key: "find-close", Label: "Close find", Tooltip: components.CommandTooltip("Close find", "esc"),
+			Key: "find-close", Label: "Close Find", Binding: "esc",
 			Icon: components.IconClose.SVG(), Style: components.SubtleButton, Size: components.MediumButton,
 			Animate: animate, IconColor: &semantic.Icon.Muted, Action: s.endFind,
 		}.View(c, semantic)

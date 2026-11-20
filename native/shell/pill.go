@@ -39,7 +39,8 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stageRect, rl
 	gap := 12 * k
 	// Pressed, Neverland's name goes home, as the field lane's Home does.
 	mark := ui.ButtonBase(c.Key("wordmark")).Absolute().Top(r.Y).Right(w - r.X + gap).Height(r.H).
-		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label("Neverland").Tooltip("Home")
+		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label("Neverland")
+	components.Hint(c, semantic, mark, "Home", s.binding(VerbHome), components.HintAbove)
 	if mark.Clicked() {
 		s.goHome()
 	}

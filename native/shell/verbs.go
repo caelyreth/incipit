@@ -246,3 +246,11 @@ func (s *State) trashOrPutBack(ids []string) {
 	}
 	s.field.picked, s.field.chosen = nil, ""
 }
+
+// binding is the command id's key spelled, for a hint: "" for none.
+func (s *State) binding(id string) string {
+	if s.Binding == nil {
+		return ""
+	}
+	return s.Binding(id)
+}

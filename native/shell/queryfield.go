@@ -78,7 +78,7 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 		if f.Fixed != "" {
 			// The fixed key is a token, not text: it reads as where the
 			// query runs, and no key takes it away.
-			ui.Row(c).Key("fixed").Label(f.FixedLabel).Tooltip(f.FixedLabel).Shrink(0).
+			ui.Row(c).Key("fixed").Label(f.FixedLabel).Shrink(0).
 				AlignItems(ui.Center).PaddingX(theme.Space04.DIPs(scale)).
 				Radius(metrics.Radius - 2).Background(semantic.Accent.Muted).Children(func() {
 				components.CenteredLabel(c, f.Fixed, theme.TextXSmall, semantic.Accent.Foreground)
