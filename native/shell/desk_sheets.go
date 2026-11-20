@@ -55,19 +55,11 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, se
 	}
 	col.Children(func() {
 		ui.Column(c).Key("sheet-page").Width(settled).Shrink(0).AlignSelf(ui.Center).Grow(1).MinHeight(0).PaddingX(side).
-			Children(func() {
-				if s.Sheet != nil {
-					s.Sheet(c, page.ID, frame)
-				}
-			})
-		// Stepped back, the page shows through a veil of its own ground: on
-		// that ground, the same as the page drawn fainter, but one rectangle
-		// to draw rather than the whole page painted again into a layer on
-		// every frame of the way.
-		if veil := 1 - s.columnShows(col, front, animate); veil > 0 {
-			ui.Box(c).Key("sheet-veil").Absolute().Left(0).Top(0).Right(0).Bottom(0).IgnoreInput(true).
-				Background(semantic.Surface.Page.Alpha(veil))
-		}
+			Opacity(s.columnShows(col, front, animate)).Children(func() {
+			if s.Sheet != nil {
+				s.Sheet(c, page.ID, frame)
+			}
+		})
 		s.sheetHead(c, semantic, page, k, lead, head, animate)
 	})
 }
