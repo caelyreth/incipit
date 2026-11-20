@@ -182,8 +182,17 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 	keeps = keeps && kept.Listed && !s.inTrash()
 	box := ui.Column(c).Key("view-switch").Width(size).Padding(pad).Gap(pad).Radius(size/2).
 		Border(1, semantic.Border.Variant).Background(semantic.Surface.Page).Role(ui.RoleRadioGroup).Label("View")
+	face := size - 2*pad
+	// The fill is one circle standing behind the choice shown, sliding to
+	// the other as the view turns, so the switch reads as one thing moving.
+	at := map[bool]float32{true: 1}[listed]
+	if animate {
+		at = components.Follow(box, "thumb", at, components.MotionQuick)
+	}
 	box.Children(func() {
-		for _, choice := range [...]struct {
+		ui.Box(c).Key("view-thumb").Absolute().Left(pad).Top(pad+at*(face+pad)).Size(face, face).Radius(face / 2).
+			Background(semantic.Surface.Inverse).IgnoreInput(true).ZIndex(-1)
+		for i, choice := range [...]struct {
 			key, label string
 			icon       components.IconName
 			on         bool
@@ -191,7 +200,6 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 			{"view-field", "View as Field", components.IconMap, !listed},
 			{"view-list", "View as List", components.IconList, listed},
 		} {
-			face := size - 2*pad
 			btn := ui.ButtonBase(c.Key(choice.key)).Size(face, face).Radius(face / 2).Role(ui.RoleRadio).
 				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(choice.label).Selected(choice.on)
 			binding := ""
@@ -204,13 +212,10 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 				hint += " — Always, in “" + kept.Name + "”"
 			}
 			components.Hint(c, semantic, btn, hint, binding, components.HintAfter)
-			on := map[bool]float32{true: 1}[choice.on]
-			if animate {
-				on = components.Follow(btn, "on", on, components.MotionQuick)
-			}
+			// How far the fill stands behind this choice.
+			on := max(0, 1-abs32(at-float32(i)))
 			hover := components.HoverAmount(btn, btn.Hovered() && !choice.on, animate)
-			btn.Background(components.Blend(components.Blend(semantic.Surface.Page, semantic.GhostElement.Hover, hover),
-				semantic.Surface.Inverse, on))
+			btn.Background(components.Blend(semantic.GhostElement.Hover.Alpha(0), semantic.GhostElement.Hover, hover*(1-on)))
 			if btn.Clicked() && !choice.on {
 				s.toggleList()
 			}
