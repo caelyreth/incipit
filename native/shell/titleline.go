@@ -50,9 +50,12 @@ func clearOfLights(c *ui.Context, b ui.Rect) float32 {
 // closes it. It keeps chromeInset in from the column's ends, and lead
 // where the traffic lights reach further (clearOfLights).
 func (s *State) columnHead(c *ui.Context, semantic theme.Theme, key string, lead, shown float32,
-	info func(), close chromeButton, animate bool) ui.Element {
+	info func(), close chromeButton, menu func(*ui.Menu), animate bool) ui.Element {
 	band := ui.Row(c).Key(key).Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).
 		AlignItems(ui.Center).Padding(0, chromeInset, 0, max(chromeInset, lead)).DragWindow()
+	if menu != nil {
+		band.ContextMenu(menu)
+	}
 	return band.Children(func() {
 		if shown <= 0.001 {
 			return

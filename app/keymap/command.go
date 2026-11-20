@@ -18,9 +18,17 @@ type Scope uint8
 const (
 	ScopeEditing Scope = iota + 1
 	ScopePages
+	// ScopeLibrary is what is done to the field's place and what is
+	// selected in it, and going between places. Its keys act only while
+	// the field is in front, so they may share a key with an editing
+	// command, which acts only on the desk.
+	ScopeLibrary
 	ScopeWindow
 	ScopeApp
 )
+
+// Scopes are the scopes in the order the Keymap lists them.
+var Scopes = [...]Scope{ScopeEditing, ScopePages, ScopeLibrary, ScopeWindow, ScopeApp}
 
 // Title names a group of the Keymap.
 func (s Scope) Title() string {
@@ -28,9 +36,11 @@ func (s Scope) Title() string {
 	case ScopeEditing:
 		return "Editing"
 	case ScopePages:
-		return "Pages"
+		return "Sheets"
+	case ScopeLibrary:
+		return "Library"
 	case ScopeWindow:
-		return "Window"
+		return "View"
 	default:
 		return "App"
 	}
@@ -42,12 +52,28 @@ func (s Scope) Description() string {
 	case ScopeEditing:
 		return "Write, move and select on the page."
 	case ScopePages:
-		return "Open, find, switch and close pages."
+		return "Make, find, switch and close sheets."
+	case ScopeLibrary:
+		return "File, rename and trash what the field shows, and go between places."
 	case ScopeWindow:
-		return "Change what the window shows around your page."
+		return "Change what the window shows around your sheet."
 	default:
 		return "Open Neverland's own tools."
 	}
+}
+
+// Shares reports whether a command of scope s may share a key with one
+// of other: editing commands with each other, tried in order, and the
+// library's with editing ones, as the field and the desk are never in
+// front together.
+func (s Scope) Shares(other Scope) bool {
+	switch {
+	case s == ScopeEditing && other == ScopeEditing:
+		return true
+	case s == ScopeLibrary && other == ScopeEditing, s == ScopeEditing && other == ScopeLibrary:
+		return true
+	}
+	return false
 }
 
 // Command identities.
@@ -56,14 +82,29 @@ const (
 	NextPage     CommandID = "page.next"
 	PreviousPage CommandID = "page.previous"
 	ClosePage    CommandID = "page.close"
+	CloseOthers  CommandID = "page.close-others"
 	FindPage     CommandID = "page.find"
 	FindInSheet  CommandID = "page.find-in-sheet"
-	Zen          CommandID = "window.zen"
-	Typewriter   CommandID = "window.typewriter"
-	Motion       CommandID = "window.motion"
-	Field        CommandID = "window.field"
-	Commands     CommandID = "app.commands"
-	Settings     CommandID = "app.settings"
+
+	NewGroup   CommandID = "library.new-group"
+	Duplicate  CommandID = "library.duplicate"
+	Rename     CommandID = "library.rename"
+	Pin        CommandID = "library.pin"
+	Trash      CommandID = "library.trash"
+	EmptyTrash CommandID = "library.empty-trash"
+	ViewList   CommandID = "library.view"
+	Back       CommandID = "go.back"
+	Forward    CommandID = "go.forward"
+	Home       CommandID = "go.home"
+	ShowTrash  CommandID = "go.trash"
+
+	Zen        CommandID = "window.zen"
+	Typewriter CommandID = "window.typewriter"
+	Motion     CommandID = "window.motion"
+	Field      CommandID = "window.field"
+	Commands   CommandID = "app.commands"
+	Settings   CommandID = "app.settings"
+	Shortcuts  CommandID = "app.shortcuts"
 )
 
 // Command is one declared command.
@@ -116,19 +157,34 @@ func ParseChord(spec string) (Chord, bool) {
 
 // appCommands are the app's own: pages, the window and its tools.
 var appCommands = [...]Command{
-	{ID: NewPage, Label: "New page", Scope: ScopePages, Default: NewChord("n", ModifiersPrimary)},
-	{ID: NextPage, Label: "Next open sheet", Scope: ScopePages,
+	{ID: NewPage, Label: "New Sheet", Scope: ScopePages, Default: NewChord("n", ModifiersPrimary)},
+	{ID: NextPage, Label: "Next Sheet", Scope: ScopePages,
 		Default: NewChord("]", ModifiersPrimary|ModifiersShift)},
-	{ID: PreviousPage, Label: "Previous open sheet", Scope: ScopePages,
+	{ID: PreviousPage, Label: "Previous Sheet", Scope: ScopePages,
 		Default: NewChord("[", ModifiersPrimary|ModifiersShift)},
-	{ID: ClosePage, Label: "Close sheet", Scope: ScopePages, Default: NewChord("w", ModifiersPrimary)},
-	{ID: FindPage, Label: "Find a page", Scope: ScopePages, Default: NewChord("p", ModifiersPrimary)},
-	{ID: FindInSheet, Label: "Find in sheet", Scope: ScopePages, Default: NewChord("f", ModifiersPrimary)},
-	{ID: Zen, Label: "Toggle Zen mode", Scope: ScopeWindow, Default: NewChord("f", ModifiersPrimary|ModifiersShift)},
-	{ID: Typewriter, Label: "Toggle typewriter mode", Scope: ScopeWindow,
+	{ID: ClosePage, Label: "Close Sheet", Scope: ScopePages, Default: NewChord("w", ModifiersPrimary)},
+	{ID: CloseOthers, Label: "Close Other Sheets", Scope: ScopePages,
+		Default: NewChord("w", ModifiersPrimary|ModifiersAlt)},
+	{ID: FindPage, Label: "Go to Sheet", Scope: ScopePages, Default: NewChord("p", ModifiersPrimary)},
+	{ID: FindInSheet, Label: "Find", Scope: ScopePages, Default: NewChord("f", ModifiersPrimary)},
+	{ID: NewGroup, Label: "New Group", Scope: ScopeLibrary, Default: NewChord("n", ModifiersPrimary|ModifiersShift)},
+	{ID: Duplicate, Label: "Duplicate", Scope: ScopeLibrary, Default: NewChord("d", ModifiersPrimary)},
+	{ID: Rename, Label: "Rename", Scope: ScopeLibrary, Default: NewChord("r", ModifiersPrimary)},
+	{ID: Pin, Label: "Pin", Scope: ScopeLibrary},
+	{ID: Trash, Label: "Move to Trash", Scope: ScopeLibrary, Default: NewChord("backspace", ModifiersPrimary)},
+	{ID: EmptyTrash, Label: "Empty Trash", Scope: ScopeLibrary,
+		Default: NewChord("backspace", ModifiersPrimary|ModifiersShift)},
+	{ID: ViewList, Label: "View as List", Scope: ScopeLibrary, Default: NewChord("l", ModifiersPrimary)},
+	{ID: Back, Label: "Back", Scope: ScopeLibrary, Default: NewChord("[", ModifiersPrimary)},
+	{ID: Forward, Label: "Forward", Scope: ScopeLibrary, Default: NewChord("]", ModifiersPrimary)},
+	{ID: Home, Label: "Home", Scope: ScopeWindow, Default: NewChord("h", ModifiersPrimary|ModifiersShift)},
+	{ID: ShowTrash, Label: "Trash", Scope: ScopeWindow},
+	{ID: Field, Label: "Show Field", Scope: ScopeWindow, Default: NewChord("0", ModifiersPrimary)},
+	{ID: Zen, Label: "Zen Mode", Scope: ScopeWindow, Default: NewChord("f", ModifiersPrimary|ModifiersShift)},
+	{ID: Typewriter, Label: "Typewriter Mode", Scope: ScopeWindow,
 		Default: NewChord("t", ModifiersPrimary|ModifiersAlt)},
-	{ID: Motion, Label: "Toggle motion", Scope: ScopeWindow, Default: NewChord("m", ModifiersPrimary|ModifiersAlt)},
-	{ID: Field, Label: "Toggle field", Scope: ScopeWindow, Default: NewChord("0", ModifiersPrimary)},
-	{ID: Commands, Label: "Search commands", Scope: ScopeApp, Default: NewChord("k", ModifiersPrimary)},
-	{ID: Settings, Label: "Open settings", Scope: ScopeApp, Default: NewChord(",", ModifiersPrimary)},
+	{ID: Motion, Label: "Motion", Scope: ScopeWindow, Default: NewChord("m", ModifiersPrimary|ModifiersAlt)},
+	{ID: Commands, Label: "Commands", Scope: ScopeApp, Default: NewChord("k", ModifiersPrimary)},
+	{ID: Settings, Label: "Settings", Scope: ScopeApp, Default: NewChord(",", ModifiersPrimary)},
+	{ID: Shortcuts, Label: "Keyboard Shortcuts", Scope: ScopeApp, Default: NewChord("/", ModifiersPrimary)},
 }

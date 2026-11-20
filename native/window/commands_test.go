@@ -63,14 +63,10 @@ func TestCommandsStayWithoutAPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := len(app.commandCatalog())
 	app.closeActive()
 	commands := app.commandCatalog()
 	catalogCommand(t, commands, keymap.NewPage)
 	catalogCommand(t, commands, keymap.Settings)
-	if len(commands) != before {
-		t.Fatalf("page-less catalog has %d commands, want %d", len(commands), before)
-	}
 }
 
 func TestEveryCommandHasAHandler(t *testing.T) {
@@ -101,25 +97,43 @@ func TestPageLessNewPageRunsFromThePill(t *testing.T) {
 	}
 }
 
-// A key with no menu item behind it is heard by the window itself.
-func TestUnmenuedKeysRunTheirCommand(t *testing.T) {
+// Every command but the page's has a home in the menu bar, where its key
+// is shown and Help finds it.
+func TestEveryCommandIsInTheMenuBar(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if menuCommands[keymap.Typewriter] {
-		t.Fatal("typewriter is carried by a menu item")
+	app.MainMenu()
+	for _, command := range app.Product.Keymap.Commands() {
+		if command.Scope != keymap.ScopeEditing && app.menuItems[command.ID] == nil {
+			t.Errorf("%s has no menu item", command.ID)
+		}
+	}
+}
+
+// A key acts on what is in front: on the field, Close Sheet closes
+// nothing on the desk behind it.
+func TestKeysActOnTheSceneInFront(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
 	}
 	tester := ui.NewTester(app.View, 1260, 850)
 	tester.Frame()
-	modifiers, key, ok := keymap.Native(chordFor(t, app, keymap.Typewriter), keymap.PlatformCurrent)
-	if !ok {
-		t.Fatal("typewriter key has no native form")
-	}
-	tester.Key(modifiers, key)
+	app.Shell.ShowField()
 	tester.Frame()
-	if !app.Product.Presentation.Typewriter || !app.Shell.Toolbar.Typewriter {
-		t.Fatal("typewriter key did not turn typewriter mode on")
+	if app.commandState(keymap.ClosePage, "").Enabled {
+		t.Fatal("Close Sheet is enabled on the field")
+	}
+	app.MainMenu()
+	if item := app.menuItems[keymap.Trash]; item.Accelerator == "" {
+		t.Fatal("Move to Trash has no key on the field")
+	}
+	app.Shell.ShowDesk()
+	tester.Frame()
+	if item := app.menuItems[keymap.Trash]; item.Accelerator != "" {
+		t.Fatalf("Move to Trash keeps %q on the desk, where the page hears it", item.Accelerator)
 	}
 }
 

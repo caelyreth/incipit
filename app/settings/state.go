@@ -116,7 +116,7 @@ func (s State) Data() Data {
 	}
 	commands := keys.Commands()
 	data.Shortcuts = make([]Shortcut, 0, len(commands))
-	for _, scope := range []keymap.Scope{keymap.ScopeEditing, keymap.ScopePages, keymap.ScopeWindow, keymap.ScopeApp} {
+	for _, scope := range keymap.Scopes {
 		for _, command := range commands {
 			if command.Scope != scope {
 				continue

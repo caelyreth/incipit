@@ -323,3 +323,10 @@ func (s *State) settingsButton(c *ui.Context, semantic theme.Theme, size float32
 }
 
 func abs32(x float32) float32 { return max(x, -x) }
+
+// ShowShortcuts brings the field up on the keymap's settings: every
+// command and its key, where each is changed.
+func (s *State) ShowShortcuts() {
+	s.FindSettings("")
+	s.intoSettings("Keymap", "", stageRect{})
+}

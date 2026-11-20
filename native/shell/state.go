@@ -112,6 +112,8 @@ type State struct {
 	// after ">"; RunCommand runs one.
 	Commands   func() []Command
 	RunCommand func(id string)
+	// KeyOf is the key a command runs on, for the menus to show.
+	KeyOf KeyOf
 	// Find runs a sheet's find on the page in front; FindStep goes to the
 	// next match or the one before; EndFind ends it.
 	Find       func(query string)

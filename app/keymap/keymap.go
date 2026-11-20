@@ -99,9 +99,10 @@ func New(commands []Command, overrides Overrides) (*Keymap, error) {
 		}
 		// Editing commands may share a key, tried in declaration order:
 		// the page runs the first the engine finds available, as Tab
-		// leaves a scope or, with none to leave, nests.
+		// leaves a scope or, with none to leave, nests; the library's
+		// may share one with editing commands (Scope.Shares).
 		for _, existing := range k.byChord[chord] {
-			if held, _ := k.Command(existing); held.Scope != ScopeEditing || command.Scope != ScopeEditing {
+			if held, _ := k.Command(existing); !held.Scope.Shares(command.Scope) {
 				return nil, &ConflictError{Chord: chord, Existing: existing, Incoming: command.ID}
 			}
 		}

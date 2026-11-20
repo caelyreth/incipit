@@ -11,14 +11,17 @@ func (a *AppState) commandCatalog() []shell.Command {
 	keys := a.Product.Keymap
 	declared := keys.Commands()
 	commands := make([]shell.Command, 0, len(declared))
-	for _, scope := range []keymap.Scope{keymap.ScopePages, keymap.ScopeWindow, keymap.ScopeApp} {
+	for _, scope := range keymap.Scopes {
+		if scope == keymap.ScopeEditing {
+			continue
+		}
 		for _, command := range declared {
-			if command.Scope != scope || command.ID == keymap.Commands {
+			if command.Scope != scope || command.ID == keymap.Commands || !a.commandState(command.ID, command.Label).Enabled {
 				continue
 			}
 			commands = append(commands, shell.Command{
 				ID:      string(command.ID),
-				Label:   command.Label,
+				Label:   a.commandState(command.ID, command.Label).Label,
 				Group:   scope.Title(),
 				Binding: bindingLabel(keys, command.ID),
 				Keys:    bindingKeys(keys, command.ID),

@@ -1,6 +1,9 @@
 package shell
 
 import (
+	"slices"
+
+	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -56,8 +59,8 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 		}
 		m.Separator()
 		s.pinItem(m, "group:"+g.ID, g.Pinned)
-		if m.Item("Rename…").Chosen() {
-			s.startRename(g.ID)
+		if !g.Smart() {
+			s.verbItem(m, VerbRename, "Rename…", true, func() { s.startRename(g.ID) })
 		}
 		m.Submenu("Color", func(m *ui.Menu) {
 			for color := TintMoonveil; color < TintHalo+len(theme.AllAccents); color++ {
@@ -68,27 +71,23 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 		})
 		s.moveMenu(m, func(target string) { s.moveGroup(g.ID, target) }, g.ID)
 		m.Separator()
-		if m.Item(trashGroupLabel(g)).Chosen() {
-			s.trashGroup(g)
-		}
+		s.verbItem(m, VerbTrash, trashGroupLabel(g), true, func() { s.trashGroup(g) })
 	}
 }
 
 // pinItem is the menu's Pin, or Unpin, of the object id, which then
 // stands where its pin puts it, brought into view.
 func (s *State) pinItem(m *ui.Menu, id string, pinned bool) {
-	if m.Item(map[bool]string{true: "Unpin", false: "Pin"}[pinned]).Chosen() {
+	s.verbItem(m, VerbPin, map[bool]string{true: "Unpin", false: "Pin"}[pinned], true, func() {
 		s.Library.Pin(id, !pinned)
 		s.arrive(id)
-	}
+	})
 }
 
 func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if trashed {
-			if m.Item("Put Back").Chosen() {
-				s.restoreSheets([]string{sh.ID})
-			}
+			s.verbItem(m, VerbTrash, "Put Back", true, func() { s.restoreSheets([]string{sh.ID}) })
 			m.Separator()
 			if m.Item("Delete Immediately…").Chosen() {
 				s.arm(deleteKey("sheet:" + sh.ID))
@@ -103,15 +102,78 @@ func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
 			s.Library.OpenSheet(sh.ID, true)
 			s.ShowDesk()
 		}
-		m.Separator()
-		if m.Item("Duplicate").Chosen() {
-			s.Library.DuplicateSheet(sh.ID)
+		if g := s.Library.SheetGroup(sh.ID); g != "" && g != s.scope() {
+			if m.Item("Show in Group").Chosen() {
+				s.showInGroup(sh.ID)
+			}
 		}
+		m.Separator()
+		s.verbItem(m, VerbDuplicate, "Duplicate", true, func() { s.Library.DuplicateSheet(sh.ID) })
 		s.pinItem(m, "sheet:"+sh.ID, sh.Pinned)
 		s.moveMenu(m, func(group string) { s.moveSheets([]string{sh.ID}, group) }, "")
 		m.Separator()
-		if m.Item("Move to Trash").Chosen() {
-			s.trashSheets([]string{sh.ID})
+		s.verbItem(m, VerbTrash, "Move to Trash", true, func() { s.trashSheets([]string{sh.ID}) })
+	}
+}
+
+// showInGroup goes to the field in the group the sheet is filed in, the
+// sheet brought into view and marked: where a sheet found is kept.
+func (s *State) showInGroup(sheet string) {
+	g, ok := s.groupOf(sheet)
+	if !ok {
+		return
+	}
+	s.ShowField()
+	s.field.picked = nil
+	s.SetFieldQuery((&query.Condition{Key: mustKey("in"), Value: g.Name}).String())
+	if g.Inbox {
+		s.SetFieldQuery("")
+	}
+	s.arrive("sheet:" + sheet)
+}
+
+// deskMenu is the menu of an open sheet's head: what is done to it as it
+// stands on the desk.
+func (s *State) deskMenu(page Page) func(*ui.Menu) {
+	return func(m *ui.Menu) {
+		key := func(it *ui.MenuItem, id string) *ui.MenuItem {
+			if s.KeyOf != nil {
+				if mods, k, ok := s.KeyOf(id); ok {
+					it.Shortcut(mods, k)
+				}
+			}
+			return it
+		}
+		if key(m.Item("Close Sheet"), "page.close").Chosen() {
+			s.CloseSheet(page.ID)
+		}
+		if key(m.Item("Close Other Sheets"), "page.close-others").Disabled(len(s.Open) < 2).Chosen() {
+			s.closeOthers(page.ID)
+		}
+		m.Separator()
+		if m.Item("Show in Group").Chosen() {
+			s.showInGroup(page.ID)
+		}
+		if s.Library != nil {
+			if m.Item("Duplicate").Chosen() {
+				s.Library.DuplicateSheet(page.ID)
+			}
+			m.Separator()
+			if m.Item("Move to Trash").Chosen() {
+				s.trashSheets([]string{page.ID})
+			}
 		}
 	}
 }
+
+// closeOthers closes every open sheet but keep.
+func (s *State) closeOthers(keep string) {
+	for _, page := range slices.Clone(s.Open) {
+		if page.ID != keep {
+			s.CloseSheet(page.ID)
+		}
+	}
+}
+
+// CloseOthers closes every open sheet but the one in front.
+func (s *State) CloseOthers() { s.closeOthers(s.ActivePage) }

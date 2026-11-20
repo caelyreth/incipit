@@ -81,7 +81,7 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lea
 	return s.columnHead(c, semantic, "sheet-head", lead, shown, info, chromeButton{
 		key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close sheet",
 		action: func() { s.CloseSheet(page.ID) },
-	}, animate)
+	}, s.deskMenu(page), animate)
 }
 
 // deskColumnCulled reports whether an off-viewport sheet column can skip

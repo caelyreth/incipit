@@ -21,11 +21,11 @@ func TestMainMenuExposesAppAndWorkspaceCommands(t *testing.T) {
 	if items[0].ID != "" || items[0].Role == "" {
 		t.Fatalf("app menu = %#v", items[0])
 	}
-	settings := menu.ItemByID("settings")
-	if settings == nil || settings.Label != "Settings..." || settings.Click == nil {
+	settings := menu.ItemByID(string(keymap.Settings))
+	if settings == nil || settings.Label != "Settings…" || settings.Click == nil {
 		t.Fatalf("settings = %#v", settings)
 	}
-	for _, id := range []string{"new-page", "close-page", "view-field", "commands"} {
+	for _, id := range []string{string(keymap.NewPage), string(keymap.ClosePage), string(keymap.Field), string(keymap.Commands)} {
 		if item := menu.ItemByID(id); item == nil || item.Click == nil {
 			t.Fatalf("%s = %#v", id, item)
 		}
@@ -46,7 +46,8 @@ func TestPillListsEveryCommandButItsOwn(t *testing.T) {
 	}
 	for _, command := range appsettings.DefaultState().Keymap.Commands() {
 		group, ok := listed[command.ID]
-		if command.ID == keymap.Commands || command.Scope == keymap.ScopeEditing {
+		// The pill lists what can be done now, as the menu bar enables it.
+		if command.ID == keymap.Commands || command.Scope == keymap.ScopeEditing || !app.commandState(command.ID, "").Enabled {
 			if ok {
 				t.Fatalf("the pill lists %s", command.ID)
 			}
@@ -67,7 +68,7 @@ func TestMenuKeysFollowTheKeymap(t *testing.T) {
 	}
 	menu := app.MainMenu()
 	app.refreshSettingsData()
-	item := menu.ItemByID("new-page")
+	item := menu.ItemByID(string(keymap.NewPage))
 	if want, _ := keymap.Accelerator(chordFor(t, app, keymap.NewPage), keymap.PlatformCurrent); item.Accelerator != want || want == "" {
 		t.Fatalf("new page key %q, want %q", item.Accelerator, want)
 	}

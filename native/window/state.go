@@ -38,7 +38,13 @@ type AppState struct {
 	// the settings record a shortcut.
 	menu       *mygo.Menu
 	systemKeys map[*mygo.MenuItem]string
-	recording  bool
+	// menuItems are the menu's items by the command each runs,
+	// formatItems the Format menu's, and menuShown what each was last
+	// given (syncMenu).
+	menuItems   map[keymap.CommandID]*mygo.MenuItem
+	formatItems []formatItem
+	menuShown   map[*mygo.MenuItem]menuShown
+	recording   bool
 	// colors carries every window through a theme or accent change at once.
 	colors theme.Transition
 	// sessions are the pages' sessions by identity, which the notebook
@@ -152,6 +158,13 @@ func (a *AppState) BindShell() {
 	a.Shell.Library = a
 	a.Shell.ClosePageID = a.closePageID
 	a.Shell.Commands = a.commandCatalog
+	a.Shell.KeyOf = func(id string) (ui.Modifiers, ui.Key, bool) {
+		chord, ok := a.Product.Keymap.ChordFor(keymap.CommandID(id))
+		if !ok {
+			return 0, 0, false
+		}
+		return keymap.Native(chord, keymap.PlatformCurrent)
+	}
 	a.Shell.RunCommand = func(id string) {
 		if err := a.routeCommand(keymap.CommandID(id)); err != nil {
 			a.fail("Couldn't run the command", err)
@@ -432,6 +445,8 @@ func (a *AppState) View(c *ui.Context) {
 	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion)
 	a.pressedCommands(c)
 	a.Shell.View(c)
+	// The menu follows the scene in front and what it holds.
+	a.syncMenu()
 	// An open find follows the page in front.
 	a.followFind()
 	// What this frame changed names its page and goes to the notebook.

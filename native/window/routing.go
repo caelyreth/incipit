@@ -3,9 +3,11 @@ package window
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/native/shell"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -15,14 +17,25 @@ var ErrUnknownCommand = errors.New("window: unknown command")
 type hostHandler func(*AppState)
 
 // hostHandlers runs each command the window answers itself, as a visible
-// control for it does.
+// control for it does. Each acts on the scene in front: a key never
+// changes what the person cannot see (commandState says when it can).
 var hostHandlers = map[keymap.CommandID]hostHandler{
-	keymap.NewPage:      func(a *AppState) { a.newSheet() },
+	keymap.NewPage: func(a *AppState) {
+		a.newSheet()
+		a.Shell.ShowDesk()
+	},
 	keymap.NextPage:     func(a *AppState) { a.navigatePage(true) },
 	keymap.PreviousPage: func(a *AppState) { a.navigatePage(false) },
 	keymap.ClosePage:    func(a *AppState) { a.closeActive() },
+	keymap.CloseOthers:  func(a *AppState) { a.Shell.CloseOthers() },
 	keymap.FindPage:     func(a *AppState) { a.findPage() },
-	keymap.FindInSheet:  func(a *AppState) { a.findInSheet() },
+	keymap.FindInSheet: func(a *AppState) {
+		if !a.Shell.OnDesk() {
+			a.findPage()
+			return
+		}
+		a.findInSheet()
+	},
 	keymap.Zen: func(a *AppState) {
 		a.togglePresentation(appsettings.PresentationZen, a.Shell.Zen)
 	},
@@ -32,9 +45,56 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 	keymap.Motion: func(a *AppState) {
 		a.setPresentation(appsettings.PresentationMotion, !a.Product.Presentation.Motion)
 	},
-	keymap.Field:    func(a *AppState) { a.Shell.ToggleField() },
-	keymap.Commands: func(a *AppState) { a.Shell.SearchCommands() },
-	keymap.Settings: func(a *AppState) { a.Shell.ShowSettings() },
+	keymap.Field:     func(a *AppState) { a.Shell.ToggleField() },
+	keymap.Commands:  func(a *AppState) { a.Shell.SearchCommands() },
+	keymap.Settings:  func(a *AppState) { a.Shell.ShowSettings() },
+	keymap.Shortcuts: func(a *AppState) { a.Shell.ShowShortcuts() },
+}
+
+func init() {
+	// The field answers its own verbs (shell.Verb).
+	for _, id := range verbCommands {
+		hostHandlers[id] = func(a *AppState) { a.Shell.DoVerb(string(id)) }
+	}
+}
+
+// verbCommands are the commands the field answers.
+var verbCommands = [...]keymap.CommandID{
+	keymap.NewGroup, keymap.Duplicate, keymap.Rename, keymap.Pin, keymap.Trash, keymap.EmptyTrash,
+	keymap.ViewList, keymap.Back, keymap.Forward, keymap.Home, keymap.ShowTrash,
+}
+
+// commandState is how a command stands now, as the menu bar shows it:
+// what it is called, whether it can be done in the scene in front, and
+// whether it is on. The keymap's label stands where the command says
+// nothing of its own.
+func (a *AppState) commandState(id keymap.CommandID, label string) shell.VerbState {
+	sh := a.Shell
+	desk := sh.OnDesk()
+	open := len(sh.Open)
+	state := shell.VerbState{Label: label, Enabled: true}
+	declared, _ := a.Product.Keymap.Command(id)
+	switch {
+	case slices.Contains(verbCommands[:], id):
+		state = sh.Verb(string(id))
+		if declared.Scope == keymap.ScopeLibrary && desk {
+			state.Enabled = false
+		}
+	case id == keymap.ClosePage:
+		state.Enabled = desk
+	case id == keymap.CloseOthers, id == keymap.NextPage, id == keymap.PreviousPage:
+		state.Enabled = desk && open > 1
+	case id == keymap.Field:
+		state.Label = map[bool]string{true: "Show Field", false: "Show Desk"}[desk]
+		state.Enabled = desk || open > 0
+	case id == keymap.Zen:
+		state.Checked = a.Product.Presentation.Zen
+	case id == keymap.Typewriter:
+		state.Checked = a.Product.Presentation.Typewriter
+	case id == keymap.Motion:
+		state.Checked = a.Product.Presentation.Motion
+	}
+	return state
 }
 
 // routeCommand is the common menu, pill and keyboard entry point.
@@ -67,13 +127,14 @@ func (a *AppState) windowShortcuts() []globalShortcut {
 		return nil
 	}
 	for _, chord := range km.Chords() {
-		command, _ := km.CommandFor(chord)
-		if declared, _ := km.Command(command); menuCommands[command] || declared.Scope == keymap.ScopeEditing {
-			continue
-		}
-		modifiers, key, ok := keymap.Native(chord, keymap.PlatformCurrent)
-		if ok {
-			a.shortcuts = append(a.shortcuts, globalShortcut{modifiers: modifiers, key: key, command: command})
+		for _, command := range km.CommandsFor(chord) {
+			if declared, _ := km.Command(command); a.menuItems[command] != nil || declared.Scope == keymap.ScopeEditing {
+				continue
+			}
+			modifiers, key, ok := keymap.Native(chord, keymap.PlatformCurrent)
+			if ok {
+				a.shortcuts = append(a.shortcuts, globalShortcut{modifiers: modifiers, key: key, command: command})
+			}
 		}
 	}
 	return a.shortcuts
@@ -85,6 +146,9 @@ func (a *AppState) windowShortcuts() []globalShortcut {
 // its key itself.
 func (a *AppState) pressedCommands(c *ui.Context) {
 	for _, sc := range a.windowShortcuts() {
+		if !a.commandState(sc.command, "").Enabled {
+			continue
+		}
 		if c.Shortcut(sc.modifiers, sc.key) {
 			if err := a.routeCommand(sc.command); err != nil {
 				a.fail("Couldn't run the command", err)
