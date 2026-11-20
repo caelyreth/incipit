@@ -65,7 +65,7 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 		m.Submenu("Color", func(m *ui.Menu) {
 			for color := TintMoonveil; color < TintHalo+len(theme.AllAccents); color++ {
 				if m.Item(tintName(color)).Checked(g.Color == color).Chosen() {
-					s.Library.StyleGroup(g.ID, g.Icon, color)
+					s.styleGroup(g, g.Icon, color)
 				}
 			}
 		})
@@ -78,10 +78,7 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 // pinItem is the menu's Pin, or Unpin, of the object id, which then
 // stands where its pin puts it, brought into view.
 func (s *State) pinItem(m *ui.Menu, id string, pinned bool) {
-	s.verbItem(m, VerbPin, map[bool]string{true: "Unpin", false: "Pin"}[pinned], true, func() {
-		s.Library.Pin(id, !pinned)
-		s.arrive(id)
-	})
+	s.verbItem(m, VerbPin, map[bool]string{true: "Unpin", false: "Pin"}[pinned], true, func() { s.pin(id, !pinned) })
 }
 
 func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {

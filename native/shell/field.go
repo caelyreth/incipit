@@ -39,9 +39,12 @@ type fieldState struct {
 	actionAt    int
 	// notice is what was just done, to be undone (notice.go); told is how
 	// far it is shown, and lastNotice its words as they fade.
-	notice     *notice
-	told       float32
-	lastNotice string
+	notice *notice
+	// undos are the changes done, the last last, and redos those taken
+	// back, to be done again (notice.go).
+	undos, redos []undoEntry
+	told         float32
+	lastNotice   string
 	// completion is what may stand at the caret, caret bytes into the
 	// words completedFor, offered unless the words are what it was put
 	// away at, dismissed, suggestion the one of it the keys are on (-1 for
@@ -141,7 +144,7 @@ type fieldState struct {
 	pickedFor string
 	// gathering keeps what moves done together would undo, while they are
 	// (notice.go).
-	gathering *[]func()
+	gathering *[]undoEntry
 	// drag is what was dragged as the last frame drew, dragNext what is as
 	// this one does, and spring the group it is held over (drop.go).
 	drag, dragNext shellDrag

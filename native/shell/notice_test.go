@@ -88,3 +88,29 @@ func TestTheCommandsListThePlacesActions(t *testing.T) {
 		t.Fatalf("Empty Trash should open the actions, turned, not empty yet: %v.", library.calls)
 	}
 }
+
+// Undo outlives its notice: a change is taken back after the field has
+// looked elsewhere, and Redo does it again; a new change ends the redo.
+func TestUndoOutlivesTheNoticeAndRedoes(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	state.trashSheets([]string{"7"})
+	settle(tester)
+	state.SetFieldQuery("chapter")
+	settle(tester)
+	if what, ok := state.CanUndo(); !ok || what != "Moved “Chapter” to the Trash" {
+		t.Fatalf("The change should still be undoable: %q %v.", what, ok)
+	}
+	state.Undo()
+	if !slices.Contains(library.calls, "restore 7") {
+		t.Fatalf("Undo should put the sheet back: %v.", library.calls)
+	}
+	n := strings.Count(strings.Join(library.calls, "\n"), "trash 7")
+	if !state.Redo() || strings.Count(strings.Join(library.calls, "\n"), "trash 7") != n+1 {
+		t.Fatalf("Redo should trash it again: %v.", library.calls)
+	}
+	state.Undo()
+	state.moveSheets([]string{"7"}, "1")
+	if _, ok := state.CanRedo(); ok {
+		t.Fatal("A new change should end what could be redone.")
+	}
+}

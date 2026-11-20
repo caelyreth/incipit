@@ -53,7 +53,9 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		case c.Shortcut(0, ui.KeyEscape):
 			s.escapeField()
 		case c.Shortcut(ui.Cmd, ui.KeyZ):
-			s.undoNotice()
+			s.Undo()
+		case c.Shortcut(ui.Cmd|ui.Shift, ui.KeyZ):
+			s.Redo()
 		case s.field.acting && c.Shortcut(0, ui.KeyUp):
 			s.actionKey(ui.KeyUp)
 		case s.field.acting && c.Shortcut(0, ui.KeyDown):

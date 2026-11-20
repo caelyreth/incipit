@@ -309,7 +309,7 @@ func (s *State) arrange(id, group string, index int) {
 	if from != group {
 		text += " to " + s.groupNamedByID(group)
 	}
-	s.tell(text, func() { move(from, at) })
+	s.tell(text, func() { move(from, at) }, func() { move(group, index) })
 }
 
 // arrangeGroup puts the group id at index among its parent's groups, to
@@ -324,7 +324,7 @@ func (s *State) arrangeGroup(id string, index int) {
 		s.arrive("group:" + id)
 	}
 	move(index)
-	s.tell("Moved "+s.groupNamedByID(id), func() { move(at) })
+	s.tell("Moved "+s.groupNamedByID(id), func() { move(at) }, func() { move(index) })
 }
 
 // nudge moves the row the keys are on by along its order: a sheet among

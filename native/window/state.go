@@ -44,7 +44,11 @@ type AppState struct {
 	menuItems   map[keymap.CommandID]*mygo.MenuItem
 	formatItems []formatItem
 	menuShown   map[*mygo.MenuItem]menuShown
-	recording   bool
+	// undoItem and redoItem are Edit's Undo and Redo for the field.
+	undoItem, redoItem *mygo.MenuItem
+	// undoField is whether Undo and Redo were last the field's.
+	undoField *bool
+	recording bool
 	// colors carries every window through a theme or accent change at once.
 	colors theme.Transition
 	// sessions are the pages' sessions by identity, which the notebook

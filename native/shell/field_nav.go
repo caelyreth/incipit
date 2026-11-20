@@ -212,12 +212,6 @@ func (s *State) CurrentGroup() string {
 	return ""
 }
 
-func (s *State) newGroup(parent string) {
-	id := s.Library.NewGroup(parent, Last)
-	s.arrive("group:" + id)
-	s.startRename(id)
-}
-
 func (s *State) startRename(id string) {
 	g, ok := s.Library.Group(id)
 	if !ok || g.Inbox {

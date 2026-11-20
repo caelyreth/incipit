@@ -96,13 +96,6 @@ func nextTint(marks []GroupItem) int {
 	return TintHalo + least
 }
 
-// deleteBookmark lets the bookmark id go for good: it holds no sheets, only
-// its query.
-func (s *State) deleteBookmark(id string) {
-	s.Library.TrashGroup(id)
-	s.Library.DeleteGroup(id)
-}
-
 // queryName is a query said in words: its conditions' sentences, then its
 // words quoted.
 func queryName(text string) string {

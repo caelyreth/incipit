@@ -129,8 +129,7 @@ func (s *State) DoVerb(id string) {
 		}
 	case VerbPin:
 		pinned, _ := s.pinnedNow(subject[0])
-		s.Library.Pin(subject[0], !pinned)
-		s.arrive(subject[0])
+		s.pin(subject[0], !pinned)
 	case VerbTrash:
 		s.trashOrPutBack(subject)
 	case VerbEmptyTrash:

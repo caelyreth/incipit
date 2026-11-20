@@ -421,15 +421,7 @@ func (s *State) renameInput(c *ui.Context, semantic theme.Theme, g GroupItem) {
 		if name == "" || name == g.Name {
 			return
 		}
-		// The query going on in the group follows its new name.
-		for i, text := range s.field.conditions {
-			if c, ok := condition(text); ok && c.Key.Name == "in" && strings.EqualFold(c.Value, g.Name) {
-				c.Value = name
-				s.field.conditions[i] = c.String()
-			}
-		}
-		s.field.conditions = ordered(s.field.conditions)
-		s.Library.RenameGroup(g.ID, name)
+		s.renameGroup(g.ID, name)
 	}
 }
 

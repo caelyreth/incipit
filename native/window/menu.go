@@ -20,6 +20,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 	a.menuItems = map[keymap.CommandID]*mygo.MenuItem{}
 	a.menuShown = map[*mygo.MenuItem]menuShown{}
 	a.formatItems = nil
+	a.undoField = nil
 	command := func(id keymap.CommandID) *mygo.MenuItem {
 		declared, _ := a.Product.Keymap.Command(id)
 		item := &mygo.MenuItem{ID: string(id), Label: declared.Label, Click: a.menuClick(func() {
@@ -82,6 +83,8 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		{
 			Label: "Edit",
 			Submenu: []*mygo.MenuItem{
+				a.fieldUndo(),
+				a.fieldRedo(),
 				{Role: mygo.RoleUndo},
 				{Role: mygo.RoleRedo},
 				mygo.Separator(),
@@ -234,12 +237,64 @@ func (a *AppState) syncMenu() {
 		}
 		a.showItem(f.item, menuShown{accelerator: accelerator, label: f.item.Label, enabled: desk})
 	}
+	// While the field is in front, Undo and Redo are its own, named for
+	// what they take back; elsewhere, the system's, which the page and
+	// text fields answer.
+	field := a.Shell.FieldUndoes()
+	for _, u := range [...]struct {
+		item *mygo.MenuItem
+		verb string
+		can  func() (string, bool)
+		key  string
+	}{
+		{a.undoItem, "Undo", a.Shell.CanUndo, "CmdOrCtrl+Z"},
+		{a.redoItem, "Redo", a.Shell.CanRedo, "CmdOrCtrl+Shift+Z"},
+	} {
+		if u.item == nil {
+			continue
+		}
+		what, ok := u.can()
+		label := u.verb
+		if ok {
+			label += " " + what
+		}
+		accelerator := u.key
+		if !field || a.recording {
+			accelerator = ""
+		}
+		a.showItem(u.item, menuShown{accelerator: accelerator, label: label, enabled: ok && field})
+	}
+	if a.undoField == nil || *a.undoField != field {
+		a.undoField = &field
+		for _, item := range []*mygo.MenuItem{a.undoItem, a.redoItem} {
+			if item != nil {
+				item.SetVisible(field)
+			}
+		}
+		for item := range a.systemKeys {
+			if item.Role == mygo.RoleUndo || item.Role == mygo.RoleRedo {
+				item.SetVisible(!field)
+			}
+		}
+	}
 	for item, accelerator := range a.systemKeys {
-		if a.recording {
+		if a.recording || field && (item.Role == mygo.RoleUndo || item.Role == mygo.RoleRedo) {
 			accelerator = ""
 		}
 		setAccelerator(item, accelerator)
 	}
+}
+
+// fieldUndo is Edit's Undo for the field's changes.
+func (a *AppState) fieldUndo() *mygo.MenuItem {
+	a.undoItem = &mygo.MenuItem{ID: "field-undo", Label: "Undo", Click: a.menuClick(func() { a.Shell.Undo() })}
+	return a.undoItem
+}
+
+// fieldRedo is Edit's Redo for the field's changes.
+func (a *AppState) fieldRedo() *mygo.MenuItem {
+	a.redoItem = &mygo.MenuItem{ID: "field-redo", Label: "Redo", Click: a.menuClick(func() { a.Shell.Redo() })}
+	return a.redoItem
 }
 
 // showItem gives item what shown says, telling the system only what

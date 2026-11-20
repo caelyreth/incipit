@@ -11,16 +11,27 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// What moves or removes things says so on the pill's right, in place of
+// Every change to the library is done once, as an entry on the field's
+// undo stack, which Edit › Undo and Redo, ⌘Z and ⇧⌘Z walk while the field
+// is in front, however long ago it was and wherever the field has looked
+// since. The last change also says so on the pill's right, in place of
 // the stats, with Undo (field-and-desk.md §4.7.1): for noticeFor, or until
-// the query changes, or another takes its place. ⌘Z does the same while
-// the field, not the pill's words, has the keys. What cannot be undone
-// asks before it runs instead, and says nothing after.
+// the query changes, or another takes its place. The notice is a view of
+// the stack's top, never the stack. What cannot be undone asks before it
+// runs instead, and says nothing after.
 
-// notice is what was just done, and how to take it back.
+// undoEntry is a change done, and how to take it back and do it again.
+type undoEntry struct {
+	text       string
+	undo, redo func()
+}
+
+// undoKept is how many changes the stack keeps.
+const undoKept = 100
+
+// notice is what was just done, as the stack's top says it.
 type notice struct {
 	text string
-	undo func()
 	// query is the query it was done under; at is when it was first shown.
 	query string
 	at    time.Time
@@ -29,44 +40,95 @@ type notice struct {
 // noticeFor is how long a notice stands.
 const noticeFor = 8 * time.Second
 
-// tell puts up a notice of text, undone by undo; while things are done
-// together, it only keeps undo for theirs.
-func (s *State) tell(text string, undo func()) {
+// tell records a change just done, called text, undone by undo and done
+// again by redo, and puts up its notice; while things are done together,
+// it only gathers it with theirs.
+func (s *State) tell(text string, undo, redo func()) {
+	entry := undoEntry{text: text, undo: undo, redo: redo}
 	if s.field.gathering != nil {
-		*s.field.gathering = append(*s.field.gathering, undo)
+		*s.field.gathering = append(*s.field.gathering, entry)
 		return
 	}
-	s.field.notice = &notice{text: text, undo: undo, query: s.wholeQuery()}
+	s.field.undos = append(s.field.undos, entry)
+	if n := len(s.field.undos); n > undoKept {
+		s.field.undos = slices.Delete(s.field.undos, 0, n-undoKept)
+	}
+	s.field.redos = nil
+	s.field.notice = &notice{text: text, query: s.wholeQuery()}
 }
 
-// together does do, whose moves each would tell of their own, as one
-// thing: one notice of text, whose Undo takes them all back, the last
-// first.
+// together does do, whose changes each would tell of their own, as one
+// change called text: one notice, one entry, whose undo takes them all
+// back, the last first.
 func (s *State) together(text string, do func()) {
-	var undos []func()
-	s.field.gathering = &undos
+	var entries []undoEntry
+	s.field.gathering = &entries
 	do()
 	s.field.gathering = nil
-	if len(undos) == 0 {
+	if len(entries) == 0 {
 		return
 	}
 	s.tell(text, func() {
-		for i := len(undos) - 1; i >= 0; i-- {
-			undos[i]()
+		for i := len(entries) - 1; i >= 0; i-- {
+			entries[i].undo()
+		}
+	}, func() {
+		for _, e := range entries {
+			e.redo()
 		}
 	})
 }
 
-// undoNotice takes back what the notice says was done, reporting whether
-// there was one.
-func (s *State) undoNotice() bool {
-	n := s.field.notice
-	if n == nil {
+// CanUndo is what Undo would take back, and whether there is anything.
+func (s *State) CanUndo() (string, bool) {
+	if n := len(s.field.undos); n > 0 {
+		return s.field.undos[n-1].text, true
+	}
+	return "", false
+}
+
+// CanRedo is what Redo would do again, and whether there is anything.
+func (s *State) CanRedo() (string, bool) {
+	if n := len(s.field.redos); n > 0 {
+		return s.field.redos[n-1].text, true
+	}
+	return "", false
+}
+
+// Undo takes back the last change, reporting whether there was one.
+func (s *State) Undo() bool {
+	n := len(s.field.undos)
+	if n == 0 {
 		return false
 	}
+	e := s.field.undos[n-1]
+	s.field.undos = s.field.undos[:n-1]
+	s.field.redos = append(s.field.redos, e)
 	s.field.notice = nil
-	n.undo()
+	e.undo()
 	return true
+}
+
+// Redo does again the last change taken back, reporting whether there
+// was one.
+func (s *State) Redo() bool {
+	n := len(s.field.redos)
+	if n == 0 {
+		return false
+	}
+	e := s.field.redos[n-1]
+	s.field.redos = s.field.redos[:n-1]
+	s.field.undos = append(s.field.undos, e)
+	e.redo()
+	return true
+}
+
+// undoNotice takes back what the notice says was done: the stack's top.
+func (s *State) undoNotice() bool {
+	if s.field.notice == nil {
+		return false
+	}
+	return s.Undo()
 }
 
 // noticeView stands the notice, if one stands, on the pill's right at r,
@@ -183,16 +245,19 @@ func (s *State) moveSheets(ids []string, group string) {
 	}
 	text := "Moved " + s.sheetsNamed(ids) + " to " + s.groupNamedByID(group)
 	from := s.sheetPlaces(ids)
-	for _, id := range ids {
-		s.Library.MoveSheet(id, group, Last)
+	do := func() {
+		for _, id := range ids {
+			s.Library.MoveSheet(id, group, Last)
+		}
+		s.arrive(rowIDs("sheet:", ids)...)
 	}
-	s.arrive(rowIDs("sheet:", ids)...)
+	do()
 	s.tell(text, func() {
 		for _, p := range from {
 			s.Library.MoveSheet(p.id, p.group, p.index)
 		}
 		s.arrive(rowIDs("sheet:", ids)...)
-	})
+	}, do)
 }
 
 // trashSheets puts the sheets ids in the trash, to be undone.
@@ -202,16 +267,30 @@ func (s *State) trashSheets(ids []string) {
 	}
 	text := "Moved " + s.sheetsNamed(ids) + " to the Trash"
 	from := s.sheetPlaces(ids)
+	// A sheet open on the desk closes as it goes; taken back, it opens
+	// again beside the others.
+	var open []string
 	for _, id := range ids {
-		s.Library.TrashSheet(id)
+		if s.isOpen(id) {
+			open = append(open, id)
+		}
 	}
+	do := func() {
+		for _, id := range ids {
+			s.Library.TrashSheet(id)
+		}
+	}
+	do()
 	s.tell(text, func() {
 		for _, p := range from {
 			s.Library.RestoreSheet(p.id)
 			s.Library.MoveSheet(p.id, p.group, p.index)
 		}
+		for _, id := range open {
+			s.Library.OpenSheet(id, true)
+		}
 		s.arrive(rowIDs("sheet:", ids)...)
-	})
+	}, do)
 }
 
 // restoreSheets puts the sheets ids back out of the trash, to be undone.
@@ -220,15 +299,18 @@ func (s *State) restoreSheets(ids []string) {
 		return
 	}
 	text := "Put back " + s.sheetsNamed(ids)
-	for _, id := range ids {
-		s.Library.RestoreSheet(id)
+	do := func() {
+		for _, id := range ids {
+			s.Library.RestoreSheet(id)
+		}
+		s.arrive(rowIDs("sheet:", ids)...)
 	}
-	s.arrive(rowIDs("sheet:", ids)...)
+	do()
 	s.tell(text, func() {
 		for _, id := range ids {
 			s.Library.TrashSheet(id)
 		}
-	})
+	}, do)
 }
 
 // groupPlace is where a group stands: its parent, and where among its
@@ -257,26 +339,117 @@ func (s *State) moveGroup(id, parent string) {
 		text = "Moved " + s.groupNamedByID(id) + " into " + s.groupNamedByID(parent)
 	}
 	from, at := s.groupPlace(id)
-	s.Library.MoveGroup(id, parent, Last)
-	s.arrive("group:" + id)
+	do := func() {
+		s.Library.MoveGroup(id, parent, Last)
+		s.arrive("group:" + id)
+	}
+	do()
 	s.tell(text, func() {
 		s.Library.MoveGroup(id, from, at)
 		s.arrive("group:" + id)
-	})
+	}, do)
 }
 
 // trashGroup puts the group g in the trash, to be undone.
 func (s *State) trashGroup(g GroupItem) {
-	s.Library.TrashGroup(g.ID)
+	do := func() { s.Library.TrashGroup(g.ID) }
+	do()
 	s.tell("Moved “"+g.Name+"” to the Trash", func() {
 		s.Library.RestoreGroup(g.ID)
 		s.arrive("group:" + g.ID)
-	})
+	}, do)
 }
 
 // restoreGroup puts the group g back out of the trash, to be undone.
 func (s *State) restoreGroup(g GroupItem) {
-	s.Library.RestoreGroup(g.ID)
-	s.arrive("group:" + g.ID)
-	s.tell("Put back “"+g.Name+"”", func() { s.Library.TrashGroup(g.ID) })
+	do := func() {
+		s.Library.RestoreGroup(g.ID)
+		s.arrive("group:" + g.ID)
+	}
+	do()
+	s.tell("Put back “"+g.Name+"”", func() { s.Library.TrashGroup(g.ID) }, do)
+}
+
+// renameGroup names the group id name, to be undone.
+func (s *State) renameGroup(id, name string) {
+	g, ok := s.Library.Group(id)
+	if !ok || g.Name == name {
+		return
+	}
+	old := g.Name
+	set := func(from, to string) func() {
+		return func() {
+			// The query going on in the group follows its name.
+			for i, text := range s.field.conditions {
+				if c, ok := condition(text); ok && c.Key.Name == "in" && strings.EqualFold(c.Value, from) {
+					c.Value = to
+					s.field.conditions[i] = c.String()
+				}
+			}
+			s.field.conditions = ordered(s.field.conditions)
+			s.Library.RenameGroup(id, to)
+		}
+	}
+	set(old, name)()
+	s.tell("Renamed “"+old+"” to “"+name+"”", set(name, old), set(old, name))
+}
+
+// deleteBookmark lets the bookmark id go; taken back, it is kept again
+// as it was, its name and color with it.
+func (s *State) deleteBookmark(id string) {
+	g, ok := s.Library.Group(id)
+	if !ok {
+		return
+	}
+	current := id
+	remove := func() {
+		s.Library.TrashGroup(current)
+		s.Library.DeleteGroup(current)
+	}
+	remove()
+	s.tell("Deleted the bookmark “"+g.Name+"”", func() {
+		current = s.Library.NewSmartGroup(g.Name, g.Query)
+		s.Library.StyleGroup(current, g.Icon, g.Color)
+	}, remove)
+}
+
+// styleGroup gives the group g icon and color, to be undone.
+func (s *State) styleGroup(g GroupItem, icon string, color int) {
+	if g.Icon == icon && g.Color == color {
+		return
+	}
+	do := func() { s.Library.StyleGroup(g.ID, icon, color) }
+	do()
+	s.tell("Changed “"+g.Name+"”", func() { s.Library.StyleGroup(g.ID, g.Icon, g.Color) }, do)
+}
+
+// pin pins the object id, or lets its pin go, to be undone.
+func (s *State) pin(id string, pinned bool) {
+	set := func(on bool) func() {
+		return func() {
+			s.Library.Pin(id, on)
+			s.arrive(id)
+		}
+	}
+	set(pinned)()
+	text := map[bool]string{true: "Pinned ", false: "Unpinned "}[pinned] + s.objectsNamed([]string{id})
+	s.tell(text, set(!pinned), set(pinned))
+}
+
+// newGroup makes a group in parent and starts naming it; taken back, it
+// goes to the trash, as a new folder does in the Finder.
+func (s *State) newGroup(parent string) {
+	id := s.Library.NewGroup(parent, Last)
+	s.arrive("group:" + id)
+	s.startRename(id)
+	s.tell("New group", func() { s.Library.TrashGroup(id) }, func() {
+		s.Library.RestoreGroup(id)
+		s.arrive("group:" + id)
+	})
+}
+
+// FieldUndoes reports whether Undo and Redo are the field's: while it is
+// in front and no name is being written, whose text undoes its own.
+func (s *State) FieldUndoes() bool {
+	return !s.OnDesk() && s.field.renaming == ""
 }
