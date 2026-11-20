@@ -112,3 +112,35 @@ func TestTaskCommandTogglesTheItemAtTheCaret(t *testing.T) {
 		t.Fatalf("the second command made task %v, want open", got)
 	}
 }
+
+// A click on a task's marker toggles its box and leaves the caret where
+// it was; a click on a plain item's marker places the caret.
+func TestAClickOnATaskBoxTogglesIt(t *testing.T) {
+	p := open(t)
+	p.typeText("- [ ] ")
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	view, _ := p.e.View(1)
+	box := view.Selection.Head
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Forward})
+	p.typeText("milk")
+	view, _ = p.e.View(1)
+	was := view.Selection
+	p.do(vocab.Place{Stop: box, Clicks: 1})
+	if got := profile.TaskOf(p.item()); got != profile.TaskDone {
+		t.Fatalf("a click on the box made task %v, want done", got)
+	}
+	if view, _ = p.e.View(1); view.Selection != was {
+		t.Fatalf("the caret moved to %+v, want it kept at %+v", view.Selection, was)
+	}
+	if text := p.item().Slot(0).Content().Text(); text != "milk" {
+		t.Fatalf("the click left %q in the item", text)
+	}
+	p.do(vocab.Place{Stop: box, Clicks: 1})
+	if got := profile.TaskOf(p.item()); got != profile.TaskOpen {
+		t.Fatalf("a second click made task %v, want open", got)
+	}
+	p.do(vocab.Place{Stop: box, Clicks: 1, Extend: true})
+	if got := profile.TaskOf(p.item()); got != profile.TaskOpen {
+		t.Fatalf("a shift-click should select, not toggle: %v", got)
+	}
+}

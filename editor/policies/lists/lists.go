@@ -21,7 +21,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Command("lists.bullet", "commands.bulletList", profile.MakeList{})
 	p.Command("lists.nest", "commands.nest", profile.Nest{Dir: vocab.Forward}, policy.Key("tab"))
 	p.Command("lists.outdent", "commands.outdent", profile.Nest{Dir: vocab.Backward}, policy.Key("shift+tab"))
-	p.Command("lists.toggleTask", "commands.toggleTask", profile.ToggleTask{})
+	p.Command("lists.toggleTask", "commands.toggleTask", profile.ToggleTask{}, policy.Key("primary+enter"))
 	p.Command("lists.numbered", "commands.numberedList", profile.MakeList{
 		Attrs: doc.MakeAttrs(doc.Field{Num: profile.FieldListStyle, Value: doc.Int(int64(profile.Ordered))},
 			doc.Field{Num: profile.FieldListStart, Value: doc.Int(1)}),

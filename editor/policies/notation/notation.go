@@ -111,8 +111,13 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "step-up-before-marker", policy.Typed("#"), heading.Ahead(), reshape)
 
 	// A task box is a toggle inside an item's marker. A typed x or space
-	// acts on the box without becoming text, as clicking its glyph would.
+	// acts on the box without becoming text; a click on its glyphs toggles
+	// it and leaves the caret where it was, as a checkbox does.
+	// A click is matched where it lands, which its rule's place (the
+	// caret's) cannot say, so the box is looked for there.
 	policy.On(p, "toggle-task-box", policy.Typed("x", "X", " "), k.markers.Key(profile.Item).Inside(), toggleBox)
+	policy.On(p, "click-task-box", policy.Clicking(vocab.SingleClick), policy.Slot.Inside(),
+		func(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.Result { return clickBox(c, k, in) }).Any()
 
 	// A stop decides the marks typed text takes.
 	p.Observe("stop-marks", policy.Trigger{}, stopMarks(k))
@@ -524,6 +529,20 @@ func toggleBox(_ *policy.Ctx, _ vocab.Type, at policy.At[markerGhost]) policy.Re
 		return policy.Pass
 	}
 	return policy.Do(profile.FlipTask(at.Node.ID()))
+}
+
+// clickBox flips the task box a click lands among the glyphs of, the
+// caret staying; any other click places the caret as clicks do.
+func clickBox(c *policy.Ctx, k kinds, in vocab.Place) policy.Result {
+	if in.Extend || in.Toggle || in.Node != 0 {
+		return policy.Pass
+	}
+	for _, f := range c.Facts(in.Stop.Pos.Ref(), k.markers.Kind()) {
+		if m, ok := f.Data.(markerGhost); ok && m.Marker.Task != profile.NoTask && f.Holds(in.Stop) {
+			return policy.Do(profile.FlipTask(in.Stop.Pos.Node))
+		}
+	}
+	return policy.Pass
 }
 
 // --- stops and marks ---------------------------------------------------------
