@@ -208,7 +208,7 @@ func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stageLook, h, 
 	most := min(h*0.36, max(0, h-topClearance-bottomClearance))
 	bottomY := max(topClearance+most, min(h*0.86, h-bottomClearance))
 	sh := shelf{
-		key: "kept", icon: components.IconBookmark, label: "Kept searches", count: len(marks), listing: true,
+		key: "kept", name: "Kept", icon: components.IconBookmark, label: "Kept searches", count: len(marks), listing: true,
 		width: shelfWidth * k, tail: shelfTail * k, top: bottomY, most: most, bottom: true, offset: look.Offset.X,
 		takes: takes{queries: true},
 		out:   slices.ContainsFunc(marks, func(g GroupItem) bool { return g.ID == s.field.renaming }),

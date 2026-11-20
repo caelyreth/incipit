@@ -128,7 +128,7 @@ func (s *State) trayView(c *ui.Context, semantic theme.Theme, h, k float32, hidd
 	desk := s.lane.preview
 	top := desk.Y + desk.H + 48*k
 	sh := shelf{
-		key: "tray", icon: components.IconTray, label: "Sheets in the tray", count: len(held), right: true,
+		key: "tray", name: "Tray", icon: components.IconTray, label: "Sheets in the tray", count: len(held), right: true,
 		width: desk.W, top: top, most: h - top - 24*k, fixed: true, inset: true, takes: takes{sheets: true},
 	}
 	if len(held) > 0 {

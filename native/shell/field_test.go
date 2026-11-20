@@ -310,21 +310,15 @@ func TestKeptBoxStaysInLowerLaneAndCapsHeight(t *testing.T) {
 	if !ok {
 		t.Fatal("Kept box should be present.")
 	}
-	oneLabel, ok := tester.Find("Kept searches icon")
+	oneLabel, ok := tester.Find("Kept")
 	if !ok {
-		t.Fatal("Kept icon header should be present.")
+		t.Fatal("The kept box's mark should be present.")
 	}
-	if _, ok := tester.Find("Desk icon"); !ok {
-		t.Fatal("Desk icon header should be present.")
+	if _, ok := tester.Find("Desk"); !ok {
+		t.Fatal("The desk's mark should be present.")
 	}
-	if _, ok := tester.Find("Sheets in the tray icon"); !ok {
-		t.Fatal("Tray icon header should be present.")
-	}
-	if _, ok := tester.Find("Kept"); ok {
-		t.Fatal("Kept text label should be replaced with an icon.")
-	}
-	if _, ok := tester.Find("Tray"); ok {
-		t.Fatal("Tray text label should be replaced with an icon.")
+	if _, ok := tester.Find("Tray"); !ok {
+		t.Fatal("The tray's mark should be present.")
 	}
 	wantBottom := float32(850 * 0.86)
 	oneBottom := oneBox.Y + oneBox.H
@@ -349,9 +343,9 @@ func TestKeptBoxStaysInLowerLaneAndCapsHeight(t *testing.T) {
 	if !ok {
 		t.Fatal("Kept box should still be present with many bookmarks.")
 	}
-	manyLabel, ok := tester.Find("Kept searches icon")
+	manyLabel, ok := tester.Find("Kept")
 	if !ok {
-		t.Fatal("Kept icon header should still be present with many bookmarks.")
+		t.Fatal("The kept box's mark should still be present with many bookmarks.")
 	}
 	manyBottom := manyBox.Y + manyBox.H
 	if abs(manyBottom-wantBottom) > 1 {

@@ -113,16 +113,16 @@ func TestTheKeptBoxResizesAsItsLastBookmarkGoes(t *testing.T) {
 	state.Appearance.Motion = true
 	settle(tester)
 	before, _ := tester.Find("Kept searches")
-	icon, _ := tester.Find("Kept searches icon")
+	icon, _ := tester.Find("Kept")
 	library.groupTree[""] = library.groupTree[""][:len(library.groupTree[""])-1]
 	library.rev++
 	tester.Frame()
 	tester.Advance(components.MotionPanel / 4)
 	during, _ := tester.Find("Kept searches")
-	iconDuring, _ := tester.Find("Kept searches icon")
+	iconDuring, _ := tester.Find("Kept")
 	settle(tester)
 	after, _ := tester.Find("Kept searches")
-	iconAfter, _ := tester.Find("Kept searches icon")
+	iconAfter, _ := tester.Find("Kept")
 	between := func(a, x, b float32) bool { return min(a, b)+1 < x && x < max(a, b)-1 }
 	if !between(before.H, during.H, after.H) {
 		t.Fatalf("The slab should resize on its way, but it is %v, then %v, then %v tall.", before.H, during.H, after.H)
@@ -236,18 +236,28 @@ func TestTheTrashStandsUnderHome(t *testing.T) {
 	}
 }
 
-// At the right, a lane's count stands before its icon, facing the
-// window's middle; at the left, after it.
-func TestLaneCountsFaceTheMiddle(t *testing.T) {
+// The lanes' marks are named at rest, their words facing the window's
+// middle: at the right the name, then the count, then the icon at the
+// edge; at the left the icon, then the name and count.
+func TestTheLanesAreNamedAtRest(t *testing.T) {
 	_, _, tester := keptState(t, GroupItem{ID: "s1", Name: "Mark", Query: "$tag:a", Color: TintHalo})
-	desk, _ := tester.Find("Desk icon")
-	var count ui.Rect
-	for _, a := range tester.AccessAll() {
-		if a.Name == "1" && a.Bounds.X >= desk.X && a.Bounds.X < desk.X+desk.W {
-			count = a.Bounds
+	words := func(row ui.Rect, text string) ui.Rect {
+		for _, a := range tester.AccessAll() {
+			if a.Name == text && a.Bounds != row && a.Bounds.X >= row.X && a.Bounds.X+a.Bounds.W <= row.X+row.W+1 && a.Bounds.Y < row.Y+row.H && a.Bounds.Y+a.Bounds.H > row.Y {
+				return a.Bounds
+			}
 		}
+		return ui.Rect{}
 	}
-	if count.W == 0 || count.X+count.W > desk.X+desk.W/2+1 {
-		t.Fatalf("The desk's count should stand before its icon, at the row's start: %v in %v.", count, desk)
+	desk, _ := tester.Find("Desk")
+	name, count := words(desk, "Desk"), words(desk, "1")
+	if name.W == 0 || count.W == 0 || !(name.X < count.X && count.X+count.W < desk.X+desk.W-10) {
+		t.Fatalf("At the right, the name and count should stand before the icon: %v, %v in %v.", name, count, desk)
+	}
+	kept, _ := tester.Find("Kept")
+	name, count = words(kept, "Kept"), words(kept, "1")
+	if name.W == 0 || count.W == 0 || !(kept.X+10 < name.X && name.X < count.X) {
+		t.Fatalf("At the left, the name and count should stand after the icon: %v, %v in %v.", name, count, kept)
 	}
 }
+

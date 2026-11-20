@@ -13,7 +13,8 @@ import (
 // something it takes dragged to it, or what keeps it out draws it out from
 // the window's edge, its own rounded edge staying past it, so the pointer
 // that drew it out stays on it; the pointer gone, it slides back. It is
-// named above it at its window edge, its count beside. What it holds
+// named above it at its window edge, by its icon and name, its count
+// beside. What it holds
 // scrolls within it, softening into its edges, and the words in it show
 // only as it comes out. The kept box (kept.go) and the tray (tray.go) are
 // shelves.
@@ -27,11 +28,11 @@ const (
 
 // shelf is what a shelf is and does.
 type shelf struct {
-	// key keys it; icon marks it above; label names it to the screen
-	// reader; count is how many things it holds.
-	key, label string
-	icon       components.IconName
-	count      int
+	// key keys it; icon and name mark it above; label tells it to the
+	// screen reader; count is how many things it holds.
+	key, name, label string
+	icon             components.IconName
+	count            int
 	// right stands it at the window's right edge, not its left.
 	right bool
 	// width is its own width, and tail how far what it holds stands out of
@@ -165,7 +166,7 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 		top -= height
 	}
 	box.Top(top)
-	label := laneIcon(c, semantic, sh.key+"-label", sh.icon, sh.label+" icon", sh.count, stageRect{Y: top}, !sh.right, k).Hidden(hidden)
+	label := s.laneIcon(c, semantic, sh.key+"-label", sh.icon, sh.name, sh.count, stageRect{Y: top}, !sh.right, k).Hidden(hidden)
 	if sh.offset != 0 {
 		label.Translate(sh.offset, 0)
 	}

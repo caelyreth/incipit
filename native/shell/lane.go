@@ -61,25 +61,43 @@ func (s *State) laneRest(w, h float32) stageRect {
 	return stageRect{X: w - visible, Y: h/2 - ph/2, W: pw, H: ph}
 }
 
-// laneIcon, keyed key, marks what rests in a lane with icon and count
-// beside it where there is one, standing above rest at the window's edge:
-// at its left where left is set, else at its right.
-func laneIcon(c *ui.Context, semantic theme.Theme, key string, icon components.IconName, label string, count int, rest stageRect, left bool, k float32) ui.Element {
-	row := ui.Row(c).Key(key).Absolute().Top(rest.Y - 24*k).Gap(4 * k).AlignItems(ui.Center).Label(label)
+// laneIcon, keyed key, marks what rests in a lane with its icon and
+// name, and its count beside where there is one, standing above rest at
+// the window's edge: at its left where left is set, else at its right.
+// The name stands quiet at rest, so the lane says what it holds without
+// being drawn out; it gives way only where it would reach the field's
+// columns, the icon and count staying.
+func (s *State) laneIcon(c *ui.Context, semantic theme.Theme, key string, icon components.IconName, name string, count int, rest stageRect, left bool, k float32) ui.Element {
+	inset, gap, iconSize := 10*k, 4*k, 14*k
+	w, h := c.Size()
+	size := theme.TextXSmall.Size(components.UIFontSize(c))
+	words := name
+	if count > 0 {
+		words += " " + thousands(count)
+	}
+	wordsW, _ := c.MeasureText(0, ui.Span{Text: words, Font: theme.UIFontFamily, Size: size})
+	named := inset+iconSize+gap+wordsW+8*k <= s.fieldMargin(w, h)
+	row := ui.Row(c).Key(key).Absolute().Top(rest.Y - 24*k).Gap(gap).AlignItems(ui.Center).Label(name)
 	if left {
-		row.Left(10 * k)
+		row.Left(inset)
 	} else {
-		row.Right(10 * k)
+		row.Right(inset)
 	}
-	// Its count faces the window's middle: after the icon at the left,
-	// before it at the right.
-	if !left {
-		row.Reverse()
-	}
+	// Its words face the window's middle: after the icon at the left,
+	// before it at the right, the name read first either way.
 	row.Children(func() {
-		ui.Icon(c, icon.SVG()).FontSize(14 * k).TextColor(semantic.Icon.Muted).Shrink(0)
+		mark := func() { ui.Icon(c, icon.SVG()).FontSize(iconSize).TextColor(semantic.Icon.Muted).Shrink(0) }
+		if left {
+			mark()
+		}
+		if named {
+			components.CenteredLabel(c, name, theme.TextXSmall, semantic.Text.Muted).Shrink(0)
+		}
 		if count > 0 {
-			components.CenteredLabel(c, thousands(count), theme.TextXSmall, semantic.Text.Muted)
+			components.CenteredLabel(c, thousands(count), theme.TextXSmall, semantic.Text.Muted).Shrink(0)
+		}
+		if !left {
+			mark()
 		}
 	})
 	return row
@@ -97,7 +115,7 @@ func (s *State) laneView(c *ui.Context, semantic theme.Theme, w, h float32, hidd
 	lane.Children(func() {
 		// The lane's top band drags the window above what rests in it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
-		laneIcon(c, semantic, "desk-label", components.IconDesk, "Desk icon", len(s.Open), s.lane.preview, false, k)
+		s.laneIcon(c, semantic, "desk-label", components.IconDesk, "Desk", len(s.Open), s.lane.preview, false, k)
 	})
 	s.trayView(c, semantic, h, k, hidden, animate)
 }
