@@ -94,9 +94,13 @@ func (s *State) settingsLive() bool {
 }
 
 // intoSettings narrows the settings query to a category, the section lead
-// standing first in it, or, for none, its first.
+// brought into view in it.
 func (s *State) intoSettings(category, lead string, from stageRect) {
-	s.field.lead = lead
+	// The sections keep their order: the one pressed is brought into view
+	// and marked as it arrives, as anything brought to the field is.
+	if lead != "" {
+		s.arrive("settings:" + lead)
+	}
 	s.narrow((&query.Condition{Key: mustKey("in"), Value: category}).String(), from)
 }
 
@@ -161,11 +165,6 @@ func (settingsSource) answer(s *State, text string, f *found) {
 		if scope == "" || strings.EqualFold(sectionCategory(sec), scope) {
 			found = append(found, sec)
 		}
-	}
-	// The section pressed to open its category stands first, those after
-	// it following, and those before it after them.
-	if i := slices.IndexFunc(found, func(sec SettingsSection) bool { return sec.ID == s.field.lead }); i > 0 {
-		found = append(found[i:], found[:i]...)
 	}
 	for _, sec := range found {
 		f.add("settings:"+sec.ID, tierResult, settingsCard{id: sec.ID, words: words})
@@ -296,6 +295,11 @@ func (settingsCard) ground() bool { return false }
 func (settingsCard) drawsLive(*State) bool { return true }
 
 func (sc settingsCard) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Element, fr stageFrame, sh shape, current bool, m blockMetrics, animate bool) {
+	// Pressed in its category's card, it is marked a moment as it arrives
+	// where it always stands.
+	if a := s.arrivalAt(fr.ID, c.Now()); a > 0 {
+		box.Background(semantic.Accent.Tint.Alpha(a * float32(semantic.Accent.Tint.A) / 255))
+	}
 	box.Children(func() {
 		content := ui.Column(c).Key("section").WidthPercent(100).Shrink(0)
 		// It is as tall as it lays itself out; a change, as a fold

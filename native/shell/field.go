@@ -68,9 +68,6 @@ type fieldState struct {
 	completedFor string
 	dismissed    string
 	found        found
-	// lead is the settings section that, pressed, opened its category, to
-	// stand first in it.
-	lead string
 	// rerank has found ranked again, as the window comes back to the
 	// field; settleAt is when the field settles as the writing in the pill
 	// pauses, zero while nothing is being written, and settled that it

@@ -21,7 +21,7 @@ func settingsState(t *testing.T) (*State, *fakeSettings, *ui.Tester) {
 
 // The settings button puts the settings in the field: the categories
 // listing their sections, as groups list their sheets; a section pressed
-// opens its category, every section live, the one pressed first; words
+// opens its category, every section live, in its order; words
 // find sections directly, and pressed again the field goes back to the
 // library.
 func TestTheSettingsStandInTheField(t *testing.T) {
@@ -41,14 +41,13 @@ func TestTheSettingsStandInTheField(t *testing.T) {
 		t.Fatal("The settings should be found by their words alone, no filters offered.")
 	}
 
-	// A section pressed opens its category, itself first, those after it
-	// following.
+	// A section pressed opens its category, in its order.
 	if err := tester.Click("Pages"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if got := shownBlocks(state); !slices.Equal(got, []string{"settings:Keymap/Pages", "settings:Keymap/Keys"}) {
-		t.Fatalf("Pressing a section should open its category, itself first, but shows %v.", got)
+	if got := shownBlocks(state); !slices.Equal(got, []string{"settings:Keymap/Keys", "settings:Keymap/Pages"}) {
+		t.Fatalf("Pressing a section should open its category in its order, but shows %v.", got)
 	}
 	// Removing the category's ribbon steps back up to the top.
 	if err := tester.Click("Remove Keymap"); err != nil {
@@ -89,18 +88,25 @@ func TestTheSettingsStandInTheField(t *testing.T) {
 	}
 }
 
-// A section pressed further in its category stands first, those after it
-// following, and those before it after them.
-func TestASectionPressedLeadsItsCategory(t *testing.T) {
+// A section pressed further in its category opens it in its order, the
+// field never reordered by what was pressed: the section is brought into
+// view and marked as it arrives.
+func TestASectionPressedArrivesWhereItStands(t *testing.T) {
 	state, _, tester := settingsState(t)
 	state.ShowSettings()
 	settle(tester)
 	if err := tester.Click("Markdown"); err != nil {
 		t.Fatal(err)
 	}
+	tester.Advance(50 * time.Millisecond)
+	tester.Frame()
+	tester.Frame()
+	if state.arrivalAt("settings:Editor/Markdown", tester.Now()) <= 0 {
+		t.Fatal("Opened, Markdown should be marked as it arrives.")
+	}
 	settle(tester)
-	if got := shownBlocks(state); !slices.Equal(got, []string{"settings:Editor/Markdown", "settings:Editor/Pairs"}) {
-		t.Fatalf("Opened, Markdown should stand first among the editor's sections: %v.", got)
+	if got := shownBlocks(state); !slices.Equal(got, []string{"settings:Editor/Pairs", "settings:Editor/Markdown"}) {
+		t.Fatalf("Opened, the editor's sections should keep their order: %v.", got)
 	}
 }
 
