@@ -23,7 +23,7 @@ type ambient interface {
 }
 
 // ambients are the ambient cards, in the order they are offered.
-var ambients = []ambient{firstRun{}}
+var ambients = []ambient{firstRun{}, writtenToday{}}
 
 // ambientMost is how many ambient cards stand at once.
 const ambientMost = 2
@@ -129,4 +129,16 @@ func (s *State) commandKeys(id string) []string {
 		}
 	}
 	return nil
+}
+
+// writtenToday tells how many words were written today, while it has
+// any to tell.
+type writtenToday struct{}
+
+func (writtenToday) id() string { return "written-today" }
+
+func (writtenToday) shows(s *State) bool { return s.WrittenToday != nil && s.WrittenToday() > 0 }
+
+func (writtenToday) card(s *State) cardKind {
+	return note{icon: components.IconPen, title: "Written Today", lines: []noteLine{{text: words(s.WrittenToday())}}}
 }
