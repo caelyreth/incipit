@@ -16,6 +16,31 @@ type Picture struct {
 	Width, Height int
 }
 
+// PictureUse is what the host is asked to do with pictures.
+type PictureUse uint8
+
+const (
+	// PictureInsert picks pictures to place where the selection is.
+	PictureInsert PictureUse = iota
+	// PictureCopy puts a figure's picture on the clipboard.
+	PictureCopy
+	// PictureSave saves a figure's picture out as a file.
+	PictureSave
+	// PicturePreview shows a figure's picture at its own size, apart from
+	// the page.
+	PicturePreview
+	// PictureReplace picks a picture to show in a figure instead.
+	PictureReplace
+)
+
+// PictureAsk is the data of the effect asking the host for pictures, or
+// to use one: the figure and its picture, unless Use is PictureInsert.
+type PictureAsk struct {
+	Use    PictureUse
+	Figure doc.ID
+	Media  string
+}
+
 // SpanFull is the span of a figure across the whole column.
 const SpanFull = 1000
 

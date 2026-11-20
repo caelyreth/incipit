@@ -72,7 +72,9 @@ func (a *AppState) openEditor(session *sheetSession) (*page.Element, error) {
 		case policy.EffectBeep:
 			mygo.Shell.Beep()
 		case policy.EffectMedia:
-			a.pickPictures(ed)
+			if ask, ok := fx.Data.(profile.PictureAsk); ok {
+				a.pictureAsked(ed, ask)
+			}
 		}
 	}
 	ed.Intake = a.intake(ed)

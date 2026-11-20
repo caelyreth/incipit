@@ -5,6 +5,7 @@ import (
 	"errors"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -113,5 +114,33 @@ func TestFilesWithoutARowAreSweptAtTheNextLaunch(t *testing.T) {
 		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("%s is still there (%v)", path, err)
 		}
+	}
+}
+
+// A picture goes out as it came, under the name it came with or one of its
+// type, and to the clipboard as a PNG.
+func TestAPictureGoesOutAsAFileOrAPNG(t *testing.T) {
+	store := openStore(t, t.TempDir())
+	var encoded bytes.Buffer
+	if err := jpeg.Encode(&encoded, image.NewGray(image.Rect(0, 0, 3, 2)), nil); err != nil {
+		t.Fatal(err)
+	}
+	m, err := store.AddMedia(encoded.Bytes(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := m.FileName(); got != "Picture.jpg" {
+		t.Fatalf("file name %q", got)
+	}
+	if named, _ := store.AddMedia(picture(t, 2, 2, 9), "Bay.png"); named.FileName() != "Bay.png" {
+		t.Fatalf("file name %q", named.FileName())
+	}
+	data, err := store.MediaPNG(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config, err := png.DecodeConfig(bytes.NewReader(data))
+	if err != nil || config.Width != 3 || config.Height != 2 {
+		t.Fatalf("PNG %+v, %v", config, err)
 	}
 }

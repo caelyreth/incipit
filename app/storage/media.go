@@ -66,6 +66,15 @@ type Media struct {
 	Added time.Time
 }
 
+// FileName is the name a picture is saved out under: the one it came
+// with, else "Picture" and its type's extension.
+func (m Media) FileName() string {
+	if m.Name != "" {
+		return m.Name
+	}
+	return "Picture." + StoredMediaExtension(m.Type)
+}
+
 // AddMedia keeps a picture: written once, the same bytes adding nothing
 // more. name is the file name it came with, if any. A TIFF, as the system
 // copies some pictures, is kept as a PNG.
@@ -145,6 +154,15 @@ func asPNG(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	return encoded.Bytes(), nil
+}
+
+// MediaPNG is a picture's bytes as a PNG, as the clipboard carries one.
+func (s *Store) MediaPNG(media Media) ([]byte, error) {
+	data, err := os.ReadFile(s.MediaFile(media))
+	if err != nil || media.Type == "image/png" {
+		return data, err
+	}
+	return asPNG(data)
 }
 
 // Media is the picture a hash names, if the notebook keeps it.

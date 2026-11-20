@@ -130,16 +130,15 @@ const (
 	EffectReveal EffectKind = iota + 1
 	// EffectBeep signals a refused intent.
 	EffectBeep
-	// EffectMedia asks the host to load media; the answer is a Media
-	// intent with Token.
+	// EffectMedia asks the host for media, or to use it: Data says what,
+	// as the profile has it. The host answers with an intent, if any.
 	EffectMedia
 )
 
 // Effect is a view effect.
 type Effect struct {
-	Kind  EffectKind
-	Token string
-	Data  any
+	Kind EffectKind
+	Data any
 }
 
 // Annotate creates an annotation; its owner is the policy whose rule

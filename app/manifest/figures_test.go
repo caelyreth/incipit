@@ -3,8 +3,10 @@ package manifest
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 )
@@ -237,5 +239,31 @@ func TestReturnAfterAFigureEntersIt(t *testing.T) {
 		}
 		p.do(vocab.Return{})
 		p.wantInCaption()
+	}
+}
+
+// A figure's picture is asked of the host to use, and replaced in place:
+// the caption, alignment and span stay.
+func TestAFiguresPictureIsUsedAndReplacedInPlace(t *testing.T) {
+	p := open(t)
+	p.placeFigure()
+	p.typeText("Dawn")
+	id := p.figure()
+	p.do(profile.ResizeFigure{ID: id, Span: 500})
+	p.now = p.now.Add(time.Second)
+	out, err := p.e.Do(1, vocab.Input{Intent: profile.UsePicture{Use: profile.PictureSave}, At: p.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := profile.PictureAsk{Use: profile.PictureSave, Figure: id, Media: tide.Media}
+	if len(out.Effects) != 1 || out.Effects[0].Kind != policy.EffectMedia || out.Effects[0].Data != want {
+		t.Fatalf("effects %+v, want %+v", out.Effects, want)
+	}
+	shore := profile.Picture{Media: "shore", Width: 300, Height: 200}
+	p.do(profile.ReplacePicture{ID: id, Picture: shore})
+	p.want("page(figure(Dawn))")
+	n, _ := p.e.Snapshot().Node(id)
+	if s := profile.ShapeOf(n); s.Picture != shore || s.Span != 500 || s.Align != profile.AlignCenter {
+		t.Fatalf("shape %+v", s)
 	}
 }

@@ -19,6 +19,8 @@ var (
 	intentPlace      = vocab.NewIntentKind("PlaceFigures")
 	intentResize     = vocab.NewIntentKind("ResizeFigure")
 	intentAlign      = vocab.NewIntentKind("AlignFigure")
+	intentUse        = vocab.NewIntentKind("UsePicture")
+	intentReplace    = vocab.NewIntentKind("ReplacePicture")
 	intentTable      = vocab.NewIntentKind("InsertTable")
 	intentGrid       = vocab.NewIntentKind("EditGrid")
 	intentResizeT    = vocab.NewIntentKind("ResizeTable")
@@ -67,6 +69,16 @@ type (
 	}
 	// AlignFigure aligns the selected figure.
 	AlignFigure struct{ To Align }
+	// UsePicture asks the host to do Use with the selected figure's
+	// picture; to replace it, the host answers with ReplacePicture once it
+	// keeps the picture picked.
+	UsePicture struct{ Use PictureUse }
+	// ReplacePicture shows another picture in figure ID, keeping its
+	// caption, alignment and span.
+	ReplacePicture struct {
+		ID      doc.ID
+		Picture Picture
+	}
 
 	// InsertTable puts an empty table of Rows by Columns where the
 	// selection is, as a figure is placed; the caret goes to its first
@@ -124,24 +136,26 @@ const (
 	Columns
 )
 
-func (Format) Kind() vocab.IntentKind       { return intentFormat }
-func (Retype) Kind() vocab.IntentKind       { return intentRetype }
-func (WrapQuote) Kind() vocab.IntentKind    { return intentWrapQuote }
-func (MakeList) Kind() vocab.IntentKind     { return intentMakeList }
-func (Nest) Kind() vocab.IntentKind         { return intentNest }
-func (ToggleTask) Kind() vocab.IntentKind   { return intentToggleTask }
-func (PickPictures) Kind() vocab.IntentKind { return intentPick }
-func (PlaceFigures) Kind() vocab.IntentKind { return intentPlace }
-func (ResizeFigure) Kind() vocab.IntentKind { return intentResize }
-func (AlignFigure) Kind() vocab.IntentKind  { return intentAlign }
-func (InsertTable) Kind() vocab.IntentKind  { return intentTable }
-func (EditGrid) Kind() vocab.IntentKind     { return intentGrid }
-func (ResizeTable) Kind() vocab.IntentKind  { return intentResizeT }
-func (ShapeColumn) Kind() vocab.IntentKind  { return intentColumn }
-func (AlignColumns) Kind() vocab.IntentKind { return intentAlignCol }
-func (ToggleHeader) Kind() vocab.IntentKind { return intentHeader }
-func (DeleteTable) Kind() vocab.IntentKind  { return intentDropTable }
-func (PickTag) Kind() vocab.IntentKind      { return intentPickTag }
+func (Format) Kind() vocab.IntentKind         { return intentFormat }
+func (Retype) Kind() vocab.IntentKind         { return intentRetype }
+func (WrapQuote) Kind() vocab.IntentKind      { return intentWrapQuote }
+func (MakeList) Kind() vocab.IntentKind       { return intentMakeList }
+func (Nest) Kind() vocab.IntentKind           { return intentNest }
+func (ToggleTask) Kind() vocab.IntentKind     { return intentToggleTask }
+func (PickPictures) Kind() vocab.IntentKind   { return intentPick }
+func (PlaceFigures) Kind() vocab.IntentKind   { return intentPlace }
+func (ResizeFigure) Kind() vocab.IntentKind   { return intentResize }
+func (AlignFigure) Kind() vocab.IntentKind    { return intentAlign }
+func (UsePicture) Kind() vocab.IntentKind     { return intentUse }
+func (ReplacePicture) Kind() vocab.IntentKind { return intentReplace }
+func (InsertTable) Kind() vocab.IntentKind    { return intentTable }
+func (EditGrid) Kind() vocab.IntentKind       { return intentGrid }
+func (ResizeTable) Kind() vocab.IntentKind    { return intentResizeT }
+func (ShapeColumn) Kind() vocab.IntentKind    { return intentColumn }
+func (AlignColumns) Kind() vocab.IntentKind   { return intentAlignCol }
+func (ToggleHeader) Kind() vocab.IntentKind   { return intentHeader }
+func (DeleteTable) Kind() vocab.IntentKind    { return intentDropTable }
+func (PickTag) Kind() vocab.IntentKind        { return intentPickTag }
 
 // SourceIndent is one level of source text's indentation: what Nest adds
 // at the start of each line of a slot that keeps literal lines, as a code

@@ -203,7 +203,11 @@ const (
 // controls are a figure's grips while it shows them, each resizing it
 // from its side.
 // figureMenu are the commands a figure offers for itself.
-var figureMenu = [][]vocab.CommandID{{"figures.alignStart", "figures.alignCenter"}}
+var figureMenu = [][]vocab.CommandID{
+	{"figures.copy", "figures.save", "figures.preview"},
+	{"figures.replace"},
+	{"figures.alignStart", "figures.alignCenter"},
+}
 
 // menu is a figure's commands.
 func (figureKind) menu(*Element, *unitLayout) [][]vocab.CommandID { return figureMenu }

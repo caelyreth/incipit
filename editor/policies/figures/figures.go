@@ -21,6 +21,10 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Command("figures.insert", "commands.insertPicture", profile.PickPictures{})
 	p.Command("figures.alignStart", "commands.alignPictureStart", profile.AlignFigure{To: profile.AlignStart})
 	p.Command("figures.alignCenter", "commands.alignPictureCenter", profile.AlignFigure{To: profile.AlignCenter})
+	p.Command("figures.copy", "commands.copyPicture", profile.UsePicture{Use: profile.PictureCopy})
+	p.Command("figures.save", "commands.savePicture", profile.UsePicture{Use: profile.PictureSave})
+	p.Command("figures.preview", "commands.previewPicture", profile.UsePicture{Use: profile.PicturePreview})
+	p.Command("figures.replace", "commands.replacePicture", profile.UsePicture{Use: profile.PictureReplace})
 
 	in := policy.Slot.Inside()
 	policy.On(p, "pick", policy.Intent[profile.PickPictures](), in, pick).Any()
@@ -28,7 +32,10 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "resize", policy.Intent[profile.ResizeFigure](), in, resize).Any()
 
 	figure := policy.Node(profile.Figure)
-	policy.On(p, "align", policy.Intent[profile.AlignFigure](), policy.Or(figure.Selected(), figure.Own()), align).Any()
+	held := policy.Or(figure.Selected(), figure.Own())
+	policy.On(p, "align", policy.Intent[profile.AlignFigure](), held, align).Any()
+	policy.On(p, "use", policy.Intent[profile.UsePicture](), held, use).Any()
+	policy.On(p, "replace", policy.Intent[profile.ReplacePicture](), in, replace).Any()
 
 	// The card's demonstration, played by the engine itself: a picture
 	// still on its way shows its place.
@@ -43,7 +50,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 
 // pick asks the host for pictures; it answers with PlaceFigures.
 func pick(*policy.Ctx, profile.PickPictures, policy.At[doc.SlotRef]) policy.Result {
-	return policy.Result{Effects: []policy.Effect{{Kind: policy.EffectMedia}}}
+	return policy.Result{Effects: []policy.Effect{{Kind: policy.EffectMedia, Data: profile.PictureAsk{Use: profile.PictureInsert}}}}
 }
 
 // place puts pictures on the page as figures, in order, replacing what
@@ -115,4 +122,29 @@ func align(c *policy.Ctx, in profile.AlignFigure, at policy.At[*doc.Node]) polic
 	}
 	shape.Align = in.To
 	return policy.Do(profile.SetShape(at.Data.ID(), shape))
+}
+
+// use asks the host to use the picture of the figure selected or
+// captioned. A figure without one, as a showcase's, has nothing to give.
+func use(_ *policy.Ctx, in profile.UsePicture, at policy.At[*doc.Node]) policy.Result {
+	media := profile.ShapeOf(at.Data).Media
+	if media == "" || in.Use == profile.PictureInsert {
+		return policy.Swallow
+	}
+	ask := profile.PictureAsk{Use: in.Use, Figure: at.Data.ID(), Media: media}
+	return policy.Result{Effects: []policy.Effect{{Kind: policy.EffectMedia, Data: ask}}}
+}
+
+// replace shows another picture in a figure.
+func replace(c *policy.Ctx, in profile.ReplacePicture, _ policy.At[doc.SlotRef]) policy.Result {
+	n, ok := c.Doc().Node(in.ID)
+	if !ok || n.Kind() != profile.Figure {
+		return policy.Swallow
+	}
+	shape := profile.ShapeOf(n)
+	if shape.Picture == in.Picture {
+		return policy.Swallow
+	}
+	shape.Picture = in.Picture
+	return policy.Do(profile.SetShape(in.ID, shape))
 }
