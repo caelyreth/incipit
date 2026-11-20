@@ -4,6 +4,7 @@ import (
 	"github.com/caelyreth/neverland/internal/query"
 
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -20,6 +21,8 @@ type Content struct {
 	Headings, Body, Code, Quote string
 	Kinds                       []string
 	Domains                     []string
+	// Tasks are its task items, in order.
+	Tasks []Task
 }
 
 // Read reads a page's content. Body holds every block's text, the other
@@ -42,12 +45,14 @@ func Read(root *doc.Node) Content {
 	}
 	slices.Sort(c.Kinds)
 	slices.Sort(c.Domains)
+	c.Tasks = r.tasks
 	return c
 }
 
 type reader struct {
 	headings, body, code, quote []string
 	kinds, domains              map[string]bool
+	tasks                       []Task
 }
 
 // kindNames are the kinds Read reports a node of.
@@ -62,6 +67,12 @@ func (r *reader) node(n *doc.Node, quoted bool) {
 	}
 	if n.Kind() == profile.Math {
 		return
+	}
+	// A task is its item's own line, what is nested in it apart.
+	if task := profile.TaskOf(n); n.Kind() == profile.Item && task != profile.NoTask {
+		r.kinds["task"] = true
+		text := strings.Join(strings.Fields(n.Slot(0).Content().Text()), " ")
+		r.tasks = append(r.tasks, Task{ID: strconv.FormatUint(uint64(n.ID()), 10), Text: text, Done: task == profile.TaskDone})
 	}
 	quoted = quoted || n.Kind() == profile.Quote
 	for _, slot := range n.Slots() {

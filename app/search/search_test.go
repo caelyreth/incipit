@@ -3,10 +3,13 @@ package search
 import (
 	"github.com/caelyreth/neverland/internal/query"
 
+	bq "github.com/blevesearch/bleve/v2/search/query"
+
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -28,11 +31,13 @@ func notebook(t testing.TB) *Index {
 	t.Cleanup(func() { x.Close() })
 	err = x.Put(
 		Page{Key: 10, Rev: 1, Title: "Database notes", Body: "我们正在设计关系数据库的索引。\nBudget planning for the café", Headings: "Database notes",
-			Tags: []string{"Work", "db"}, Groups: []int64{work}, Kinds: []string{"link"}, Domains: []string{"docs.github.com"},
+			Tags: []string{"Work", "db"}, Groups: []int64{work}, Kinds: []string{"link", "task"}, Domains: []string{"docs.github.com"},
+			Tasks:   []Task{{ID: "t1", Text: "Budget planning for the café"}, {ID: "t2", Text: "Q4 review", Done: true}},
 			Created: now.AddDate(0, -2, 0), Updated: now.AddDate(0, 0, -1), Words: 900},
 		Page{Key: 20, Rev: 3, Title: "Trip", Body: "budget review of the trip\n数据很重要", Tags: []string{"travel"},
 			Groups: []int64{side, work}, Kinds: []string{"image"}, Created: now.AddDate(-1, 0, 0), Updated: now.AddDate(0, -3, 0), Words: 120},
 		Page{Key: 30, Rev: 1, Title: "Recipes", Body: "ラーメンを食べた\nreceive the parcel", Groups: []int64{inbox},
+			Kinds: []string{"task"}, Tasks: []Task{{ID: "t3", Text: "receive the parcel", Done: true}},
 			Created: now.AddDate(0, 0, -2), Updated: now.AddDate(0, 0, -2), Words: 40},
 		Page{Key: 40, Rev: 2, Title: "Old budget", Body: "budget for last year", Groups: []int64{inbox}, Trashed: true,
 			Created: now.AddDate(-2, 0, 0), Updated: now.AddDate(-1, 0, 0), Words: 4},
@@ -101,6 +106,17 @@ func TestQueriesFindTheirPages(t *testing.T) {
 		"$has:image":                  {20},
 		"$link:github.com":            {10},
 		"$link:docs.github.com":       {10},
+		"$task":                       {10, 30},
+		"$has:task":                   {10, 30},
+		"$todo":                       {10},
+		"$done":                       {10, 30},
+		"-$todo":                      {20, 30},
+		"-$done":                      {20},
+		"$todo:budget":                {10},
+		"$done:review":                {10},
+		"$todo:review":                nil,
+		"$task:parcel":                {30},
+		"-$todo:budget":               {20, 30},
 		"budget $in:work $updated:7d": {10},
 		"":                            {10, 20, 30},
 		"$nope:x budget":              {10, 20},
@@ -242,6 +258,10 @@ func TestASheetQueryIsNoQuestionForTheIndex(t *testing.T) {
 // filter builder can write never fails a search.
 func TestEveryKeyRuns(t *testing.T) {
 	x := notebook(t)
+	m, err := pageMapping()
+	if err != nil {
+		t.Fatal(err)
+	}
 	values := map[query.Takes]string{query.TakesText: "budget", query.TakesName: "work", query.TakesDate: "7d", query.TakesNumber: "10", query.TakesNothing: ""}
 	for _, k := range query.Keys {
 		v := values[k.Takes]
@@ -252,10 +272,45 @@ func TestEveryKeyRuns(t *testing.T) {
 		if v != "" {
 			text += ":" + v
 		}
-		for _, q := range []string{text, text + " budget", "-" + text + " budget", "(" + text + " | budget)"} {
-			if _, err := x.Search(query.Parse(q), Request{Env: env()}); err != nil {
+		forms := []string{text, text + " budget", "-" + text + " budget", "(" + text + " | budget)"}
+		if k.Alone {
+			forms = append(forms, "$"+k.Name, "-$"+k.Name+" budget")
+		}
+		for _, q := range forms {
+			parsed := query.Parse(q)
+			res, err := x.Search(parsed, Request{Env: env()})
+			if err != nil {
 				t.Errorf("%q: %v", q, err)
+				continue
+			}
+			// A hit is a page, never one of its tasks: the nested fields a
+			// query asks are seen by the collector, which rolls them up to
+			// their page (references/search-engine.md, pitfalls).
+			for _, h := range res.Hits {
+				if h.Key == 0 {
+					t.Errorf("%q: hit %+v is part of a page", q, h)
+				}
+			}
+			c := compiler{env: env(), issued: parsed.Issued()}
+			fields, err := bq.ExtractFields(c.compile(parsed), m, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if k.Alone && strings.Contains(q, ":") && !m.IntersectsPrefix(fields) {
+				t.Errorf("%q: the task fields are hidden from the collector (%v)", q, fields)
 			}
 		}
+	}
+}
+
+// What a task filter asks with words holds of one task: "review" is in a
+// done task and "planning" in an open one, so no task holds both.
+func TestATaskFilterHoldsOfOneTask(t *testing.T) {
+	x := notebook(t)
+	if got := keys(find(t, x, `$task:"planning review"`)); got != nil {
+		t.Fatalf("found %v", got)
+	}
+	if got := keys(find(t, x, "$todo:planning $todo:budget")); !slices.Equal(got, []int64{10}) {
+		t.Fatalf("two words of one open task: %v", got)
 	}
 }

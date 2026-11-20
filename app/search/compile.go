@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/mapping"
 	bq "github.com/blevesearch/bleve/v2/search/query"
 	"github.com/caelyreth/neverland/editor/profile"
 )
@@ -78,7 +79,7 @@ func (x *Index) Search(q query.Query, r Request) (Result, error) {
 	if r.Now.IsZero() {
 		r.Now = time.Now()
 	}
-	c := compiler{env: r.Env, issued: q.Issued()}
+	c := compiler{env: r.Env, issued: q.Issued(), x: x}
 	res, err := x.run(q, r, c.compile(q))
 	if err != nil || res.Total >= fewHits || !c.loose {
 		return res, err
@@ -197,6 +198,9 @@ func sortOf(q query.Query) ([]string, bool) {
 type compiler struct {
 	env    Env
 	issued map[query.Span]bool
+	// x is the index the query runs on, which a part turned at the page
+	// is first run on (turned).
+	x *Index
 	// close takes words a typo away for every word it may; loose is set
 	// when a query has such a word.
 	close, loose bool
@@ -236,7 +240,7 @@ func (c *compiler) node(n query.Node) bq.Query {
 	case *query.Group:
 		return c.node(n.Part)
 	case *query.Not:
-		part := c.node(n.Part)
+		part := c.turned(n.Part)
 		if part == nil {
 			return nil
 		}
@@ -264,12 +268,50 @@ func (c *compiler) node(n query.Node) bq.Query {
 	return nil
 }
 
+// turned is what a part turned by - must not match. A part asking of a
+// page's own fields is that. One asking of its tasks would be asked of
+// each task and of the page apart, and every page holds a part it does not
+// match: so it is turned at the page, as the pages it finds, run first.
+func (c *compiler) turned(n query.Node) bq.Query {
+	part := c.node(n)
+	if part == nil || c.x == nil {
+		return part
+	}
+	m, ok := c.x.b.Mapping().(*mapping.IndexMappingImpl)
+	if !ok {
+		return part
+	}
+	fields, err := bq.ExtractFields(part, m, nil)
+	if err != nil || !m.IntersectsPrefix(fields) {
+		return part
+	}
+	total, err := c.x.b.DocCount()
+	if err != nil {
+		return part
+	}
+	req := bleve.NewSearchRequestOptions(part, int(total), 0, false)
+	res, err := c.x.b.Search(req)
+	if err != nil {
+		return part
+	}
+	var ids []string
+	for _, h := range res.Hits {
+		if _, ok := pageKey(h.ID); ok {
+			ids = append(ids, h.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return bleve.NewMatchNoneQuery()
+	}
+	return bleve.NewDocIDQuery(ids)
+}
+
 // all is parts that must all match: its Not parts are what must not.
 func (c *compiler) all(nodes []query.Node) bq.Query {
 	var must, not []bq.Query
 	for _, p := range nodes {
 		if neg, ok := p.(*query.Not); ok {
-			if q := c.node(neg.Part); q != nil {
+			if q := c.turned(neg.Part); q != nil {
 				not = append(not, q)
 			}
 			continue
@@ -448,9 +490,34 @@ func (c *compiler) filter(f *query.Filter) bq.Query {
 		return term("kinds", query.Fold(v))
 	case "link":
 		return term("domains", strings.TrimPrefix(query.Fold(v), "www."))
+	case "task", "todo", "done":
+		return c.task(f)
 	}
 	// $trash, $sort, $bands, $sheet and the find's own keys are no condition here.
 	return nil
+}
+
+// task is a task filter. Bare, it asks of the page: holding a task, an
+// open one, a done one. With words, its conditions hold of one task
+// together, as one conjunction inside the nested tasks: $todo:a $todo:b
+// is one open task holding both, as $todo:"a b" is.
+func (c *compiler) task(f *query.Filter) bq.Query {
+	name := f.Key.Name
+	text := c.words(f.Value, []field{{"tasks.text", 1}})
+	if text == nil {
+		if name == "task" {
+			return term("kinds", "task")
+		}
+		q := bleve.NewBoolFieldQuery(true)
+		q.SetField(name)
+		return q
+	}
+	if name == "task" {
+		return text
+	}
+	state := bleve.NewBoolFieldQuery(name == "done")
+	state.SetField("tasks.done")
+	return bleve.NewConjunctionQuery(state, text)
 }
 
 func (c *compiler) groups(ids []int64) bq.Query {

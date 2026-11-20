@@ -4,6 +4,7 @@ import (
 	"github.com/caelyreth/neverland/internal/query"
 
 	"math/rand/v2"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -11,7 +12,8 @@ import (
 )
 
 // corpus is a made-up notebook: pages of English drawn from a Zipf law
-// over a vocabulary of made-up words, every fifth page Chinese.
+// over a vocabulary of made-up words, every fifth page Chinese, every
+// tenth line of a page a task.
 func corpus(pages int) []Page {
 	r := rand.New(rand.NewPCG(7, 11))
 	vocab := make([]string, 20000)
@@ -45,12 +47,17 @@ func corpus(pages int) []Page {
 	for p := range out {
 		chinese := p%5 == 0
 		var body []string
-		for range 25 {
-			body = append(body, line(chinese))
+		var tasks []Task
+		for i := range 25 {
+			l := line(chinese)
+			body = append(body, l)
+			if i%10 == 0 {
+				tasks = append(tasks, Task{ID: strconv.Itoa(i), Text: l, Done: r.IntN(2) == 0})
+			}
 		}
 		out[p] = Page{
 			Key: int64(p + 1), Rev: 1, Title: line(false)[:24], Body: strings.Join(body, "\n"),
-			Tags: []string{vocab[3+p%30]}, Groups: []int64{int64(2 + p%12)}, Kinds: []string{"link"},
+			Tags: []string{vocab[3+p%30]}, Groups: []int64{int64(2 + p%12)}, Kinds: []string{"link", "task"}, Tasks: tasks,
 			Created: now.Add(-time.Duration(r.IntN(700*24)) * time.Hour), Updated: now.Add(-time.Duration(r.IntN(300*24)) * time.Hour),
 			Words: 300,
 		}
@@ -84,7 +91,7 @@ func BenchmarkSearch(b *testing.B) {
 	x := benchNotebook(b)
 	for _, text := range []string{
 		"budget ", "budget review ", `"budget review"`, "budg", "budgte ", "数据库", "数",
-		"budget $updated:30d $tag:" + "x", "$sort:updated", "",
+		"$todo", "$todo:budget", "-$todo:budget", "budget $updated:30d $tag:" + "x", "$sort:updated", "",
 	} {
 		q := query.Parse(text)
 		b.Run(text, func(b *testing.B) {

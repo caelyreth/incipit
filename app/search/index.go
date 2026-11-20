@@ -21,7 +21,7 @@ import (
 
 // layoutVersion names how pages are read into the index: the analyzer and
 // the fields. An index kept by another is rebuilt, never migrated.
-const layoutVersion = "1"
+const layoutVersion = "2"
 
 const versionKey = "neverland.layout"
 
@@ -44,10 +44,21 @@ type Page struct {
 	// links to.
 	Kinds   []string
 	Domains []string
+	// Tasks are its task items, each a part of the page of its own in the
+	// index, so that what a task filter asks holds of one task.
+	Tasks   []Task
 	Created time.Time
 	Updated time.Time
 	Words   int
 	Trashed bool
+}
+
+// Task is a task of a page: the item it is, its text, and whether it is
+// done.
+type Task struct {
+	ID   string
+	Text string
+	Done bool
 }
 
 // Index is a notebook's search index. It is a cache: the notebook is the
@@ -171,6 +182,12 @@ func document(p Page) map[string]any {
 	for _, d := range p.Domains {
 		domains = append(domains, domainSuffixes(d)...)
 	}
+	tasks := make([]any, len(p.Tasks))
+	todo, done := false, false
+	for i, t := range p.Tasks {
+		tasks[i] = map[string]any{"id": t.ID, "text": t.Text, "done": t.Done}
+		todo, done = todo || !t.Done, done || t.Done
+	}
 	return map[string]any{
 		"rev":        float64(p.Rev),
 		"title":      p.Title,
@@ -184,6 +201,9 @@ func document(p Page) map[string]any {
 		"groups":     groups,
 		"kinds":      p.Kinds,
 		"domains":    domains,
+		"tasks":      tasks,
+		"todo":       todo,
+		"done":       done,
 		"created":    p.Created,
 		"updated":    p.Updated,
 		"words":      float64(p.Words),
@@ -284,6 +304,18 @@ func pageMapping() (*mapping.IndexMappingImpl, error) {
 	}
 	page.AddFieldMappingsAt("domains", keyword(false))
 	page.AddFieldMappingsAt("tagged", flag())
+	// Whether it holds an open task, a done one: what $todo and $done ask
+	// bare, so that turned they ask of the page, not of each task.
+	page.AddFieldMappingsAt("todo", flag())
+	page.AddFieldMappingsAt("done", flag())
+	tasks := bleve.NewNestedDocumentMapping()
+	tasks.Dynamic = false
+	id := keyword(false)
+	id.Store = true
+	tasks.AddFieldMappingsAt("id", id)
+	tasks.AddFieldMappingsAt("text", text())
+	tasks.AddFieldMappingsAt("done", flag())
+	page.AddSubDocumentMapping("tasks", tasks)
 	page.AddFieldMappingsAt("trashed", flag())
 	page.AddFieldMappingsAt("created", date(false))
 	page.AddFieldMappingsAt("updated", date(true))

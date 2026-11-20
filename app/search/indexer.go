@@ -38,7 +38,7 @@ type Entry struct {
 func (e Entry) page(t Text) Page {
 	return Page{
 		Key: e.Key, Rev: e.Rev, Title: t.Title, Tags: t.Tags, Words: t.Words,
-		Headings: t.Headings, Body: t.Body, Code: t.Code, Quote: t.Quote, Kinds: t.Kinds, Domains: t.Domains,
+		Headings: t.Headings, Body: t.Body, Code: t.Code, Quote: t.Quote, Kinds: t.Kinds, Domains: t.Domains, Tasks: t.Tasks,
 		Groups: e.Meta.Groups, Created: e.Meta.Created, Updated: e.Meta.Updated, Trashed: e.Meta.Trashed,
 	}
 }
