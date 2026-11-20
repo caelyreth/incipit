@@ -78,10 +78,14 @@ func (s Shape) Attrs() doc.Attrs {
 	))
 }
 
-// NewFigure is a figure showing a picture centered at its own size, with
-// an empty caption.
-func NewFigure(s *doc.Schema, p Picture) *doc.Node {
-	return vocab.NewBlock(s, Figure, Shape{Picture: p, Align: AlignCenter}.Attrs())
+// NewFigure is a figure showing a picture centered at its own size, over
+// caption.
+func NewFigure(s *doc.Schema, p Picture, caption string) *doc.Node {
+	var text []doc.Item
+	if caption != "" {
+		text = append(text, doc.TextItem(caption, nil))
+	}
+	return vocab.NewBlock(s, Figure, Shape{Picture: p, Align: AlignCenter}.Attrs(), text...)
 }
 
 // SetShape gives a figure another shape, keeping its caption: resizing,

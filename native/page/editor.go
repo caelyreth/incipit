@@ -29,9 +29,9 @@ type Editor struct {
 	Effect func(policy.Effect)
 	// Wake asks for a frame from any goroutine, as a deadline comes due.
 	Wake func()
-	// Intake keeps the pictures pasted or dropped on the page and places
-	// them; nil takes none.
-	Intake Intake
+	// Keep keeps the pictures pasted or dropped on the page, for the page
+	// to place; nil takes none.
+	Keep Keep
 	// Tags are the notebook's tags a tag picker offers, most written
 	// first, but for one count of writing, the tag the caret is writing;
 	// nil offers only the tag being written.

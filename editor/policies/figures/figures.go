@@ -84,7 +84,7 @@ func place(c *policy.Ctx, in profile.PlaceFigures, _ policy.At[doc.SlotRef]) pol
 		}
 		nodes := make([]*doc.Node, len(in.Pictures))
 		for i, pic := range in.Pictures {
-			nodes[i] = profile.NewFigure(tx.Schema(), pic)
+			nodes[i] = profile.NewFigure(tx.Schema(), pic, "")
 		}
 		if err := tx.Apply(doc.Insert{Parent: gap.Node, Slot: gap.Slot, Index: gap.Offset, Nodes: nodes}); err != nil {
 			return err

@@ -2,11 +2,15 @@ package page
 
 import (
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/caelyreth/neverland/app/clipboard"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
@@ -135,10 +139,37 @@ type Incoming struct {
 	Name string
 }
 
-// Intake keeps the pictures a page is given, as the host does, off the UI
-// thread, and places them as figures at at (nil: where the selection is
-// then) with a PlaceFigures intent on the UI thread.
-type Intake func(pictures []Incoming, at *doc.Caret)
+// Keep keeps the pictures a page is given, as the host does, off the UI
+// thread, then gives then them kept, on the UI thread and in order: one it
+// could not keep, which it says, has no media.
+type Keep func(pictures []Incoming, then func(kept []profile.Picture))
+
+// PlacePictures keeps pictures and places them as figures at at (nil:
+// where the selection is then), as a drop, a paste or the host's picker
+// gives them.
+func (ed *Editor) PlacePictures(pictures []Incoming, at *doc.Caret) {
+	ed.Keep(pictures, func(kept []profile.Picture) {
+		kept = slices.DeleteFunc(kept, func(p profile.Picture) bool { return p.Media == "" })
+		if len(kept) > 0 {
+			ed.Do(profile.PlaceFigures{Pictures: kept, At: at}, ed.now())
+		}
+	})
+}
+
+// pastePictureText keeps the pictures pasted text names, then pastes it
+// with each picture kept a figure.
+func (ed *Editor) pastePictureText(lines []clipboard.Line, text string) {
+	var pictures []Incoming
+	for _, l := range lines {
+		if l.Path != "" {
+			pictures = append(pictures, Incoming{Path: l.Path, Name: filepath.Base(l.Path)})
+		}
+	}
+	ed.Keep(pictures, func(kept []profile.Picture) {
+		slice := clipboard.PictureSlice(ed.Engine.Program().Profile().Schema(), lines, kept)
+		ed.Do(vocab.Paste{Slice: slice, Text: text}, ed.now())
+	})
+}
 
 // pictureFormats are the transfers that bring pictures.
 var pictureFormats = []transfer.Format{transfer.FileList, transfer.PNG}

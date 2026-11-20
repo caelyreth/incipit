@@ -100,14 +100,22 @@ func (el *Element) run(in vocab.Intent, services ui.Services, at time.Time) bool
 		}
 		in = resolved
 	case vocab.Paste:
-		if ed.Intake != nil {
-			formats := services.ClipboardFormats()
-			if pictures := picturesOf(services.ReadClipboardData(pictureFormats...), formats); len(pictures) > 0 && !holds(formats, transfer.Format(clipboard.Format)) {
-				ed.Intake(pictures, nil)
+		formats := services.ClipboardFormats()
+		ours := holds(formats, transfer.Format(clipboard.Format))
+		if ed.Keep != nil && !ours {
+			if pictures := picturesOf(services.ReadClipboardData(pictureFormats...), formats); len(pictures) > 0 {
+				ed.PlacePictures(pictures, nil)
 				return true
 			}
 		}
-		in = ed.pasted(services.ReadClipboardData(transfer.Format(clipboard.Format), transfer.Text))
+		paste := ed.pasted(services.ReadClipboardData(transfer.Format(clipboard.Format), transfer.Text))
+		if ed.Keep != nil && paste.Slice.Empty() {
+			if lines, ok := clipboard.PictureText(paste.Text); ok {
+				ed.pastePictureText(lines, paste.Text)
+				return true
+			}
+		}
+		in = paste
 	case vocab.Cut:
 		ed.writeClipboard(services)
 	}

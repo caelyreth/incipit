@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/app/storage"
-	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/egoist/mygo"
@@ -40,27 +39,20 @@ func (a *AppState) pictures() *page.Pictures {
 	return a.shownPictures
 }
 
-// intake keeps the pictures a page is given and places them on it.
-func (a *AppState) intake(ed *page.Editor) page.Intake {
-	return func(pictures []page.Incoming, at *doc.Caret) {
-		a.keep(pictures, func(kept []profile.Picture) {
-			ed.Do(profile.PlaceFigures{Pictures: kept, At: at}, time.Now())
-		})
-	}
-}
-
-// keep keeps pictures in the notebook off the UI thread, then gives those
-// kept, if any, to then on it, saying so if any could not be.
+// keep keeps pictures in the notebook off the UI thread, then gives them
+// kept to then on it, in order, one that could not be without media and
+// said so.
 func (a *AppState) keep(pictures []page.Incoming, then func([]profile.Picture)) {
 	if a.notebook == nil {
 		a.fail("Couldn't add the picture", errNoNotebook)
+		then(make([]profile.Picture, len(pictures)))
 		return
 	}
 	store, window := a.notebook.store, a.mainWindow
 	go func() {
-		var kept []profile.Picture
+		kept := make([]profile.Picture, len(pictures))
 		var failed error
-		for _, in := range pictures {
+		for i, in := range pictures {
 			data := in.Data
 			if data == nil {
 				read, err := os.ReadFile(in.Path)
@@ -75,12 +67,10 @@ func (a *AppState) keep(pictures []page.Incoming, then func([]profile.Picture)) 
 				failed = err
 				continue
 			}
-			kept = append(kept, profile.Picture{Media: m.Hash, Width: m.Width, Height: m.Height})
+			kept[i] = profile.Picture{Media: m.Hash, Width: m.Width, Height: m.Height}
 		}
 		onUI(window, func() {
-			if len(kept) > 0 {
-				then(kept)
-			}
+			then(kept)
 			if failed != nil {
 				a.fail("Couldn't add the picture", failed)
 			}
@@ -93,11 +83,13 @@ func (a *AppState) keep(pictures []page.Incoming, then func([]profile.Picture)) 
 func (a *AppState) pictureAsked(ed *page.Editor, ask profile.PictureAsk) {
 	switch ask.Use {
 	case profile.PictureInsert:
-		a.pickPictures("Insert Picture", true, func(pictures []page.Incoming) { a.intake(ed)(pictures, nil) })
+		a.pickPictures("Insert Picture", true, func(pictures []page.Incoming) { ed.PlacePictures(pictures, nil) })
 	case profile.PictureReplace:
 		a.pickPictures("Replace Picture", false, func(pictures []page.Incoming) {
 			a.keep(pictures, func(kept []profile.Picture) {
-				ed.Do(profile.ReplacePicture{ID: ask.Figure, Picture: kept[0]}, time.Now())
+				if kept[0].Media != "" {
+					ed.Do(profile.ReplacePicture{ID: ask.Figure, Picture: kept[0]}, time.Now())
+				}
 			})
 		})
 	default:

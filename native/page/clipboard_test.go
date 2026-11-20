@@ -1,10 +1,12 @@
 package page
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/caelyreth/neverland/app/clipboard"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
@@ -63,5 +65,48 @@ func TestCopyWritesStructureAndTextToTheClipboard(t *testing.T) {
 	}
 	if text, err := data.Read(transfer.Text); err != nil || string(text) != "bold and code" {
 		t.Fatalf("text clipboard = %q, %v", text, err)
+	}
+}
+
+// Text naming pictures in Markdown pastes with each picture the host keeps
+// a figure captioned by its alt text, which assistive technology reads as
+// the picture's name; one it could not keep stays the text it was.
+func TestPastedMarkdownPicturesBecomeCaptionedFigures(t *testing.T) {
+	el := newElement(t)
+	el.Editor.Keep = func(pictures []Incoming, then func([]profile.Picture)) {
+		kept := make([]profile.Picture, len(pictures))
+		for i, p := range pictures {
+			if p.Name != "missing.png" {
+				kept[i] = profile.Picture{Media: p.Name, Width: 40, Height: 30}
+			}
+		}
+		then(kept)
+	}
+	var services ui.Services
+	tester := ui.NewTester(func(c *ui.Context) {
+		services = c.Services()
+		el.View(c)
+	}, 900, 600)
+	tester.Frame()
+	tester.SetClipboard("Low tide\n![The bay at dawn](/photos/bay.png)\n![Gone](/photos/missing.png)")
+	if !el.command("paste", services, time.Unix(700, 0)) {
+		t.Fatal("paste was refused")
+	}
+	var got []string
+	for _, n := range el.Editor.Engine.Snapshot().Root().Slot(0).Children() {
+		got = append(got, profile.Schema().KindName(n.Kind())+":"+n.Slot(0).Content().Text())
+	}
+	want := []string{"paragraph:Low tide", "figure:The bay at dawn", "paragraph:![Gone](/photos/missing.png)"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("pasted %q, want %q", got, want)
+	}
+	named := ""
+	for _, u := range el.relayout().units {
+		if u.figure != nil {
+			named = u.pres.Label()
+		}
+	}
+	if named != "The bay at dawn" {
+		t.Fatalf("the picture is named %q, want its caption", named)
 	}
 }

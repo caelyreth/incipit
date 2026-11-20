@@ -461,7 +461,7 @@ type dropLine struct {
 
 // takeDrops makes the page take pictures dragged onto it.
 func (el *Element) takeDrops(box ui.Element) {
-	if el.Editor.Intake == nil {
+	if el.Editor.Keep == nil {
 		return
 	}
 	options := transfer.DropOptions{Formats: pictureFormats}
@@ -478,7 +478,7 @@ func (el *Element) takeDrops(box ui.Element) {
 	if drop, ok := ui.DropData(box, options); ok {
 		el.drop.showing = false
 		if pictures := picturesOf(drop.Data, drop.Data.Formats()); len(pictures) > 0 {
-			el.Editor.Intake(pictures, el.dropAt)
+			el.Editor.PlacePictures(pictures, el.dropAt)
 		}
 	}
 }
