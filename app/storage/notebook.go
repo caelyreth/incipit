@@ -106,6 +106,9 @@ type Notebook struct {
 	Library library.Records
 	// NextKey is the key the next new page takes.
 	NextKey PageKey
+	// Written is the words written each day, by DayOf: what writing added
+	// to the pages, less what it took away.
+	Written map[string]int
 }
 
 const layoutKey = "workspace"
@@ -157,6 +160,9 @@ func (s *Store) Load() (Notebook, error) {
 		notebook.HasLayout = json.Unmarshal([]byte(encoded), &notebook.Layout) == nil
 	case sql.ErrNoRows:
 	default:
+		return Notebook{}, err
+	}
+	if notebook.Written, err = loadWritten(ctx, s.db); err != nil {
 		return Notebook{}, err
 	}
 	return notebook, nil
@@ -269,13 +275,15 @@ type pageWrite struct {
 }
 
 // change is one transaction's worth of writes: page changes, pages
-// deleted for good, the library's filing and the layout.
+// deleted for good, the library's filing, the layout, the settings and
+// the words written on the days that changed.
 type change struct {
 	pages    []pageWrite
 	deleted  []PageKey
 	library  *library.Records
 	layout   *Layout
 	settings []byte
+	written  map[string]int
 }
 
 // write commits a change in one transaction: all of it is on disk, or
@@ -340,6 +348,9 @@ func (s *Store) write(ctx context.Context, change change, now time.Time) error {
 			settingsKey, string(change.settings)); err != nil {
 			return err
 		}
+	}
+	if err := writeWritten(ctx, tx, change.written); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

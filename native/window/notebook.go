@@ -34,6 +34,7 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 	}
 	a.notebook = &notebook{store: store}
 	a.nextKey = contents.NextKey
+	a.written = written{days: contents.Written}
 	a.library = library.Restore(contents.Library)
 	ids := make(map[storage.PageKey]workspace.PageID, len(contents.Pages))
 	sessions := make([]workspace.Session, 0, len(contents.Pages))
@@ -122,6 +123,7 @@ func (a *AppState) save() {
 		a.savePage(session)
 	}
 	a.saveSettings()
+	a.saveWritten()
 	a.captureViews()
 	a.saveLayout()
 }
@@ -149,7 +151,8 @@ func (a *AppState) savePage(session *sheetSession) {
 
 // summarize names and describes each open page as it is written: its
 // first heading titles its tab and its row, which show its excerpt and
-// words too.
+// words too. What a reading after the page's first changes of its words
+// is written today.
 func (a *AppState) summarize() {
 	changed := false
 	for _, session := range a.sessions {
@@ -160,8 +163,12 @@ func (a *AppState) summarize() {
 		if snap == session.summarized {
 			continue
 		}
+		first := session.summarized == nil
 		session.summarized = snap
 		if summary := session.summarizer.Summarize(snap.Root()); !summary.Equal(session.summary) {
+			if !first {
+				a.written.add(time.Now(), summary.Words-session.summary.Words)
+			}
 			session.summary, changed = summary, true
 			a.sessionsRev++
 		}
@@ -258,6 +265,7 @@ func (a *AppState) Close() error {
 		a.savePage(session)
 	}
 	a.saveSettings()
+	a.saveWritten()
 	a.captureViews()
 	a.saveLayout()
 	a.notebook.closed = true

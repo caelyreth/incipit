@@ -62,6 +62,8 @@ type AppState struct {
 	library *library.Library
 	// nextKey is the notebook key the next new page takes.
 	nextKey storage.PageKey
+	// written is the words written each day.
+	written written
 	// nextView numbers the editors' views.
 	nextView uint64
 	// chrome is the editor state the footer and formatting toolbar last
@@ -176,6 +178,7 @@ func (a *AppState) BindShell() {
 		}
 		return last
 	}
+	a.Shell.WrittenToday = func() int { return a.written.on(time.Now()) }
 	a.Shell.KeyOf = func(id string) (ui.Modifiers, ui.Key, bool) {
 		chord, ok := a.Product.Keymap.ChordFor(keymap.CommandID(id))
 		if !ok {

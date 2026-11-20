@@ -40,10 +40,13 @@ type Saver struct {
 	library  *library.Records
 	layout   *Layout
 	settings []byte
-	first    time.Time
-	last     time.Time
-	flushes  []chan error
-	err      error
+	// written is the words written on each day changed since the last
+	// write.
+	written map[string]int
+	first   time.Time
+	last    time.Time
+	flushes []chan error
+	err     error
 	// backupErr is the last backup's failure: the notebook itself is
 	// saved, only its copy is behind.
 	backupErr error
@@ -145,6 +148,18 @@ func (v *Saver) Settings(data []byte) {
 	v.mu.Unlock()
 }
 
+// Written asks for the words written on day (DayOf) to be kept as words.
+// A later call for the day before the write replaces it.
+func (v *Saver) Written(day string, words int) {
+	v.mu.Lock()
+	if v.written == nil {
+		v.written = map[string]int{}
+	}
+	v.written[day] = words
+	v.touch()
+	v.mu.Unlock()
+}
+
 // touch marks a change; the caller holds the lock.
 func (v *Saver) touch() {
 	now := v.now()
@@ -221,7 +236,7 @@ func (v *Saver) run() {
 	for {
 		v.mu.Lock()
 		urgent := v.closing || len(v.flushes) > 0
-		dirty := len(v.pending) > 0 || len(v.deleted) > 0 || v.library != nil || v.layout != nil || v.settings != nil
+		dirty := len(v.pending) > 0 || len(v.deleted) > 0 || v.library != nil || v.layout != nil || v.settings != nil || v.written != nil
 		var wait time.Duration
 		if dirty && !urgent {
 			now := v.now()
@@ -274,17 +289,17 @@ func (v *Saver) run() {
 // failure it goes back, unless something newer of the same kind arrived.
 func (v *Saver) writePending() error {
 	v.mu.Lock()
-	pending, deleted, records, layout, settings := v.pending, v.deleted, v.library, v.layout, v.settings
+	pending, deleted, records, layout, settings, written := v.pending, v.deleted, v.library, v.layout, v.settings, v.written
 	content := v.content
 	saved := maps.Clone(v.saved)
-	v.pending, v.deleted, v.library, v.layout, v.settings = map[PageKey]Summary{}, map[PageKey]bool{}, nil, nil, nil
+	v.pending, v.deleted, v.library, v.layout, v.settings, v.written = map[PageKey]Summary{}, map[PageKey]bool{}, nil, nil, nil, nil
 	v.content = map[PageKey]*doc.Snapshot{}
 	v.first = time.Time{}
 	v.mu.Unlock()
-	if len(pending) == 0 && len(deleted) == 0 && records == nil && layout == nil && settings == nil {
+	if len(pending) == 0 && len(deleted) == 0 && records == nil && layout == nil && settings == nil && written == nil {
 		return nil
 	}
-	work := change{library: records, layout: layout, settings: settings}
+	work := change{library: records, layout: layout, settings: settings, written: written}
 	for key, summary := range pending {
 		w := pageWrite{key: key, summary: summary}
 		if snap, ok := content[key]; ok {
@@ -320,6 +335,14 @@ func (v *Saver) writePending() error {
 		}
 		if v.settings == nil {
 			v.settings = settings
+		}
+		for day, words := range written {
+			if _, newer := v.written[day]; !newer {
+				if v.written == nil {
+					v.written = map[string]int{}
+				}
+				v.written[day] = words
+			}
 		}
 		if v.first.IsZero() {
 			v.first = v.now()

@@ -112,6 +112,14 @@ var migrations = []string{
 	`
 	ALTER TABLE groups ADD COLUMN listed INTEGER NOT NULL DEFAULT 0;
 	`,
+	// The words written each day, by the day's date where it was written
+	// (DayOf): what writing added to the pages, less what it took away.
+	`
+	CREATE TABLE days (
+		day   TEXT    PRIMARY KEY,
+		words INTEGER NOT NULL
+	) STRICT, WITHOUT ROWID;
+	`,
 }
 
 // migrate brings the notebook to the current schema, claiming a new file
