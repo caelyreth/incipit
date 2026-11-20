@@ -261,3 +261,19 @@ func TestTheLanesAreNamedAtRest(t *testing.T) {
 	}
 }
 
+// Where a group stands is counted as the library counts it, smart
+// folders among its siblings, so that a move of it is undone to there.
+func TestAGroupsPlaceCountsTheSmartFoldersBesideIt(t *testing.T) {
+	state, library := nestedGroupState()
+	library.groupTree[""] = []GroupItem{
+		{ID: "1", Name: "Inbox", Inbox: true},
+		{ID: "s1", Name: "Mark", Query: "$tag:a"},
+		{ID: "2", Name: "Novel", HasGroups: true},
+	}
+	if parent, at := state.groupPlace("2"); parent != "" || at != 2 {
+		t.Fatalf("Novel stands third at the top: %q %d.", parent, at)
+	}
+	if parent, at := state.groupPlace("4"); parent != "3" || at != 0 {
+		t.Fatalf("Scene stands first in Arc: %q %d.", parent, at)
+	}
+}

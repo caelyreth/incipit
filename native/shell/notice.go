@@ -314,20 +314,25 @@ func (s *State) restoreSheets(ids []string) {
 }
 
 // groupPlace is where a group stands: its parent, and where among its
-// parent's groups.
+// parent's groups, smart folders among them, as the library counts them
+// (MoveGroup); Last for one not found.
 func (s *State) groupPlace(id string) (parent string, index int) {
-	var path []string
-	at := map[string]int{}
-	for _, t := range s.Library.Targets() {
-		path = append(path[:min(t.Depth, len(path))], t.ID)
-		p := ""
-		if t.Depth > 0 && t.Depth-1 < len(path) {
-			p = path[t.Depth-1]
+	var find func(parent string) (string, int, bool)
+	find = func(parent string) (string, int, bool) {
+		for i, g := range s.Library.Groups(parent) {
+			if g.ID == id {
+				return parent, i, true
+			}
+			if g.HasGroups {
+				if p, at, ok := find(g.ID); ok {
+					return p, at, true
+				}
+			}
 		}
-		if t.ID == id {
-			return p, at[p]
-		}
-		at[p]++
+		return "", 0, false
+	}
+	if p, at, ok := find(""); ok {
+		return p, at
 	}
 	return "", Last
 }

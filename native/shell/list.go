@@ -403,19 +403,19 @@ func (s *State) arrange(id, group string, index int) {
 	s.tell(text, func() { move(from, at) }, func() { move(group, index) })
 }
 
-// arrangeGroup puts the group id at index among its parent's groups, to
-// be undone.
-func (s *State) arrangeGroup(id string, index int) {
-	parent, at := s.groupPlace(id)
-	if index == at {
+// arrangeGroup puts the group id in parent at index among its groups, as
+// the library counts them (groupPlace), to be undone.
+func (s *State) arrangeGroup(id, parent string, index int) {
+	from, at := s.groupPlace(id)
+	if from == parent && index == at {
 		return
 	}
-	move := func(index int) {
+	move := func(parent string, index int) {
 		s.Library.MoveGroup(id, parent, index)
 		s.arrive("group:" + id)
 	}
-	move(index)
-	s.tell("Moved "+s.groupNamedByID(id), func() { move(at) }, func() { move(index) })
+	move(parent, index)
+	s.tell("Moved "+s.groupNamedByID(id), func() { move(from, at) }, func() { move(parent, index) })
 }
 
 // nudge moves the row the keys are on by along its order: a sheet among
@@ -434,11 +434,16 @@ func (s *State) nudge(by int) bool {
 			return true
 		}
 	case "group":
-		parent, at := s.groupPlace(id)
-		if at == Last {
+		// Along the groups the field shows, which leave smart folders out:
+		// to where the one it passes stands.
+		parent, _ := s.groupPlace(id)
+		shown := s.groups(parent)
+		at := slices.IndexFunc(shown, func(g GroupItem) bool { return g.ID == id })
+		if at < 0 {
 			return false
 		}
-		s.arrangeGroup(id, max(0, min(len(s.groups(parent))-1, at+by)))
+		_, to := s.groupPlace(shown[max(0, min(len(shown)-1, at+by))].ID)
+		s.arrangeGroup(id, parent, to)
 		return true
 	}
 	return false
