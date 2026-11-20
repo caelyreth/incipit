@@ -113,9 +113,6 @@ func newAppState(store *storage.Store) (*AppState, error) {
 	app.Settings = *settings.New()
 	app.Shell = shell.New()
 	app.Shell.Colors = &app.colors
-	if app.notebook != nil {
-		app.Shell.SetLists(app.notebook.lists)
-	}
 	if err := app.loadSettings(store); err != nil {
 		return nil, err
 	}
@@ -179,11 +176,6 @@ func (a *AppState) BindShell() {
 		}
 		return last
 	}
-	a.Shell.EditTitle = func(id string) {
-		if session, ok := a.sessionOf(id); ok {
-			session.titling = true
-		}
-	}
 	a.Shell.KeyOf = func(id string) (ui.Modifiers, ui.Key, bool) {
 		chord, ok := a.Product.Keymap.ChordFor(keymap.CommandID(id))
 		if !ok {
@@ -242,10 +234,6 @@ func (a *AppState) sheetView(c *ui.Context, id string, frame shell.SheetFrame) {
 		// shown, unless a field of the shell is taking it.
 		if frame.Claim || frame.Focus && !a.Shell.FocusWithin(c) && !a.Shell.Typing() {
 			el.Focus()
-		}
-		if session.titling {
-			session.titling = false
-			el.SelectTitle()
 		}
 		ui.Box(c).Key(fmt.Sprintf("editor-%d", el.Editor.View)).WidthPercent(100).Grow(1).Clip().Children(func() {
 			el.View(c)

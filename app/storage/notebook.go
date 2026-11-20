@@ -70,22 +70,20 @@ type ViewState struct {
 }
 
 // Layout is how the notebook was left: its open pages in order, the page in
-// front, where each page was scrolled, each page's selection, and the
-// places of the field read as a list, by the shell's names for them.
+// front, where each page was scrolled, and each page's selection.
 type Layout struct {
 	Opened    []PageKey             `json:"tabs"`
 	Active    PageKey               `json:"active"`
 	HasActive bool                  `json:"hasActive"`
 	Scroll    map[PageKey]float32   `json:"scroll,omitempty"`
 	Views     map[PageKey]ViewState `json:"views,omitempty"`
-	Lists     []string              `json:"lists,omitempty"`
 }
 
 // Equal reports whether two layouts say the same thing.
 func (l Layout) Equal(other Layout) bool {
 	return l.Active == other.Active && l.HasActive == other.HasActive &&
 		slices.Equal(l.Opened, other.Opened) && maps.Equal(l.Scroll, other.Scroll) &&
-		maps.Equal(l.Views, other.Views) && slices.Equal(l.Lists, other.Lists)
+		maps.Equal(l.Views, other.Views)
 }
 
 // clone returns a layout that shares no mutable storage with the caller.
@@ -93,7 +91,6 @@ func (l Layout) clone() Layout {
 	l.Opened = slices.Clone(l.Opened)
 	l.Scroll = maps.Clone(l.Scroll)
 	l.Views = maps.Clone(l.Views)
-	l.Lists = slices.Clone(l.Lists)
 	return l
 }
 

@@ -115,9 +115,6 @@ type State struct {
 	// Wrote is when the last input came to a sheet's page, any sheet's:
 	// the desk's heads keep out of the way while it is recent.
 	Wrote func() time.Time
-	// EditTitle selects an open sheet's first line, its title, as its page
-	// next shows.
-	EditTitle func(id string)
 	// KeyOf is the key a command runs on, for the menus to show, and
 	// Binding the same key spelled, for a hint.
 	KeyOf   KeyOf

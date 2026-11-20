@@ -97,15 +97,3 @@ func TestTheLaneOffersItsMenus(t *testing.T) {
 		t.Fatalf("Chosen, an open sheet should come up on the desk: %q, on the desk %v.", selected, state.OnDesk())
 	}
 }
-
-// Edit Title opens the sheet on the desk with its first line selected.
-func TestEditTitleOpensTheSheetOnItsTitle(t *testing.T) {
-	state, library, _ := onField(t, 1260, 850)
-	var titled string
-	state.EditTitle = func(id string) { titled = id }
-	state.editTitle("7")
-	if !slices.Contains(library.calls, "open 7") || !state.OnDesk() || titled != "7" {
-		t.Fatalf("Edit Title should open the sheet on the desk at its title: %v, on the desk %v, titled %q.",
-			library.calls, state.OnDesk(), titled)
-	}
-}

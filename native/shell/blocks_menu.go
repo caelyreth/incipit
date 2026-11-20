@@ -99,9 +99,6 @@ func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
 			s.Library.OpenSheet(sh.ID, true)
 			s.ShowDesk()
 		}
-		if m.Item("Edit Title").Chosen() {
-			s.editTitle(sh.ID)
-		}
 		if g := s.Library.SheetGroup(sh.ID); g != "" && g != s.scope() {
 			if m.Item("Show in Group").Chosen() {
 				s.showInGroup(sh.ID)
@@ -113,19 +110,6 @@ func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
 		s.moveMenu(m, func(group string) { s.moveSheets([]string{sh.ID}, group) }, "")
 		m.Separator()
 		s.verbItem(m, VerbTrash, "Move to Trash", true, func() { s.trashSheets([]string{sh.ID}) })
-	}
-}
-
-// editTitle opens the sheet on the desk, in front, its first line
-// selected: a sheet is named by its first line, and this is where.
-func (s *State) editTitle(sheet string) {
-	if s.Library == nil {
-		return
-	}
-	s.Library.OpenSheet(sheet, false)
-	s.ShowDesk()
-	if s.EditTitle != nil {
-		s.EditTitle(sheet)
 	}
 }
 
@@ -164,9 +148,6 @@ func (s *State) deskMenu(page Page) func(*ui.Menu) {
 			s.closeOthers(page.ID)
 		}
 		m.Separator()
-		if m.Item("Edit Title").Chosen() {
-			s.editTitle(page.ID)
-		}
 		if m.Item("Show in Group").Chosen() {
 			s.showInGroup(page.ID)
 		}
