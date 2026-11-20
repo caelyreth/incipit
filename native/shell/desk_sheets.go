@@ -19,8 +19,10 @@ import (
 const sheetPad = 16
 
 // openColumn is an open sheet's column, w wide: its page, set at reading
-// measure in it, and its head (sheetHead) over it.
-func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, origin float32, enter, animate bool) {
+// measure in the width settled the column comes to and centered in the
+// column, so as the column opens out or closes up its text moves with it,
+// set once, and its head (sheetHead) over it.
+func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, settled, origin float32, enter, animate bool) {
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
 	col, front, shown := s.column(c, deskColumn{sheet: page.ID}, w, origin, enter, animate)
@@ -38,10 +40,12 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 	head := s.headShown(c, col)
 	if animate {
 		head = components.Follow(col, "head-shown", head, components.MotionNormal)
+	} else {
+		col.Jump("head-shown", head)
 	}
 	side := sheetPad * k
 	prose := s.Settings.Prose()
-	width := max(0, w-2*side)
+	width := max(0, settled-2*side)
 	dock := theme.DefaultLayout.DockClearance() * k
 	frame := SheetFrame{
 		Prose: prose, UIFontSize: s.Settings.UIFontSize, LayoutWidth: width, Inset: prose.Inset(width),
@@ -50,12 +54,20 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, or
 		Focus: s.OnDesk() && page.ID == s.ActivePage, Claim: claim && s.OnDesk(),
 	}
 	col.Children(func() {
-		ui.Column(c).Key("sheet-page").WidthPercent(100).Grow(1).MinHeight(0).PaddingX(side).
-			Opacity(s.columnShows(col, front, animate)).Children(func() {
-			if s.Sheet != nil {
-				s.Sheet(c, page.ID, frame)
-			}
-		})
+		ui.Column(c).Key("sheet-page").Width(settled).Shrink(0).AlignSelf(ui.Center).Grow(1).MinHeight(0).PaddingX(side).
+			Children(func() {
+				if s.Sheet != nil {
+					s.Sheet(c, page.ID, frame)
+				}
+			})
+		// Stepped back, the page shows through a veil of its own ground: on
+		// that ground, the same as the page drawn fainter, but one rectangle
+		// to draw rather than the whole page painted again into a layer on
+		// every frame of the way.
+		if veil := 1 - s.columnShows(col, front, animate); veil > 0 {
+			ui.Box(c).Key("sheet-veil").Absolute().Left(0).Top(0).Right(0).Bottom(0).IgnoreInput(true).
+				Background(semantic.Surface.Page.Alpha(veil))
+		}
 		s.sheetHead(c, semantic, page, k, lead, head, animate)
 	})
 }

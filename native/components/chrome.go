@@ -33,10 +33,13 @@ func RevealMargin(c *ui.Context) float32 { return theme.Space08.DIPs(UIFontSize(
 // settle's spring as it shrinks, so the view is not cut back under what is
 // still leaving and closing up, all of it jumping, but follows it.
 func Settled(el ui.Element, key any, natural float32, settle time.Duration, animate bool) float32 {
+	held := ui.Local(el, key, func() float32 { return natural })
 	if !animate {
+		// Kept as it stands, so moving again goes on from here.
+		*held = natural
+		el.Jump(key, natural)
 		return natural
 	}
-	held := ui.Local(el, key, func() float32 { return natural })
 	motion := Spring(settle)
 	if natural >= *held {
 		motion = ui.Animation{Duration: 1}

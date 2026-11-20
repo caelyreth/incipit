@@ -243,3 +243,54 @@ func TestGoingBetweenFieldAndDeskQuicklyKeepsRunning(t *testing.T) {
 		tester.Frame()
 	}
 }
+
+// A sheet opened alongside from the field comes up with the desk already
+// in its place, and stays there once the desk is up: what did not move on
+// the way up does not catch up after.
+func TestASheetOpenedAlongsideHoldsStillOnceTheDeskIsUp(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Close() })
+	app.Shell.Appearance.Motion = true
+	tester := ui.NewTester(app.View, 1260, 850)
+	title := func(text string) {
+		for _, r := range "# " + text {
+			tester.Type(string(r))
+			tester.Frame()
+		}
+		run(tester, time.Second)
+	}
+	title("First")
+	app.NewSheet(strconv.Itoa(int(library.Inbox)), shell.Last)
+	run(tester, time.Second)
+	title("Target")
+	target := app.Shell.ActivePage
+	app.Shell.CloseSheet(target)
+	run(tester, time.Second)
+	app.Shell.ToggleField()
+	run(tester, time.Second)
+	app.OpenSheet(target, true)
+	var rest *ui.Rect
+	for range 120 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+		sheet, ok := tester.Find("Target")
+		if !ok {
+			continue
+		}
+		if rest == nil {
+			if app.Shell.OnDesk() && sheet.W > 600 {
+				rest = &sheet
+			}
+			continue
+		}
+		if math.Abs(float64(sheet.X-rest.X)) > 2 || math.Abs(float64(sheet.W-rest.W)) > 2 {
+			t.Fatalf("Once the desk is up the sheet should hold still at %v, but it moved to %v.", *rest, sheet)
+		}
+	}
+	if rest == nil {
+		t.Fatal("The sheet never came up on the desk.")
+	}
+}

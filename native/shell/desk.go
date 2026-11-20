@@ -114,8 +114,12 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 	area.Children(func() {
 		ui.Column(c).Key("desk-content").Grow(1).MinHeight(0).WidthPercent(100).IgnoreInput(!on).Children(func() {
 			// All of it, on the desk or resting in its block, so it never
-			// changes its layout on the way between.
-			s.deskStrip(c, semantic, animate)
+			// changes its layout on the way between. Not upright, the desk
+			// is drawn as one picture of itself (leanDesk), drawn again
+			// whenever anything in it moves: its columns then take their
+			// places at once, the desk's own motion the only one, so a sheet
+			// opened alongside from the field comes up already in its place.
+			s.deskStrip(c, semantic, animate && scene.Upright >= 1)
 			s.deskFoot(c, semantic, gutter, animate)
 			if chrome > 0.001 {
 				s.statistics(c, semantic, layout, gutter, chrome)
@@ -205,7 +209,7 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 	s.magnet(strip, k, animate)
 	wasEmpty := len(s.desk.columns) == 0
 	columns := s.deskColumns()
-	editor := s.editorWidth(strip, columns, viewport.W, k, animate)
+	shown, settled := s.columnWidth(strip, columns, viewport.W, k, animate)
 	strip.Children(func() {
 		// The flow is at least as wide as the desk, its lines between the
 		// columns and the room after them its own (room). A column folding
@@ -235,7 +239,7 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 			s.desk.spans = s.desk.spans[:0]
 			s.desk.holding = ""
 			for i, col := range columns {
-				s.openColumn(c, semantic, s.desk.pages[col.sheet], editor, origin, !wasEmpty, animate)
+				s.openColumn(c, semantic, s.desk.pages[col.sheet], shown, settled, origin, !wasEmpty, animate)
 				s.room(c, semantic, "room-"+col.key(), i+1, i == len(columns)-1)
 			}
 			s.keyboardMoved()
@@ -320,18 +324,24 @@ func deskMotion(animate bool) ui.Animation {
 	return components.Spring(components.MotionEnter)
 }
 
-// editorWidth is a sheet's column's width on a desk inner wide holding
+// columnWidth is a sheet's column's width on a desk inner wide holding
 // columns: the desk shared by as many sheets as it shows to a window
-// (stagePerWindow), less the lines between. Between counts it goes
-// smoothly, as sheets open and close or the desk is resized across where
-// they meet, on el.
-func (s *State) editorWidth(el ui.Element, columns []deskColumn, inner, k float32, animate bool) float32 {
+// (stagePerWindow), less the lines between. Between counts the column
+// goes smoothly (shown), as sheets open and close or the desk is resized
+// across where they meet, on el, while its sheet is set at once at the
+// width it comes to (settled): its text is set again once, not on every
+// frame of the way, and the column clips it as it opens out or closes up.
+func (s *State) columnWidth(el ui.Element, columns []deskColumn, inner, k float32, animate bool) (shown, settled float32) {
 	page := s.Settings.Prose().Column() + 2*sheetPad*k
 	n := float32(stagePerWindow(len(columns), inner, page, columnGap))
+	settled = stageColumnWidth(inner, n, columnGap)
+	// Not moving, it still keeps the count, so it goes on from there.
 	if animate {
 		n = el.AnimateTo("columns-per-window", n, deskMotion(animate))
+	} else {
+		el.Jump("columns-per-window", n)
 	}
-	return stageColumnWidth(inner, n, columnGap)
+	return stageColumnWidth(inner, n, columnGap), settled
 }
 
 // column is one of the strip's columns, w wide and as tall as the strip,
@@ -393,6 +403,7 @@ func (s *State) columnShows(col ui.Element, front, animate bool) float32 {
 		target = 1
 	}
 	if !animate {
+		col.Jump("column-shows", target)
 		return target
 	}
 	return components.Follow(col, "column-shows", target, components.MotionNormal)
