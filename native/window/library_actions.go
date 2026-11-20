@@ -36,6 +36,10 @@ func (a *AppState) NewSheet(group string, index int) {
 		a.fail("Couldn't create the sheet", err)
 		return
 	}
+	if a.fresh == nil {
+		a.fresh = map[workspace.PageID]bool{}
+	}
+	a.fresh[id] = true
 	a.selectMounted()
 	a.libraryChanged()
 }

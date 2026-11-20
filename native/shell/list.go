@@ -122,20 +122,54 @@ func (s *State) toggleList() {
 // listLabel names what turning the place does.
 func (s *State) listLabel() string {
 	if s.listed() {
-		return "Show as Field"
+		return "View as Field"
 	}
-	return "Show as List"
+	return "View as List"
 }
 
-// listButton turns the place between the field and the list, filled while
-// it stands as a list.
-func (s *State) listButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
-	label := s.listLabel()
-	btn := laneCircleButton(c, semantic, "list", components.IconList, label, label, s.binding(VerbViewList), s.listed(), size, animate)
-	if btn.Clicked() {
-		s.toggleList()
-	}
-	return btn
+// viewSwitch is how the place is shown, as two choices standing together,
+// the field over the list, the one shown filled: both always in sight,
+// so the other view is never a guess. size is a choice's width.
+func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
+	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
+	pad := 2 * k
+	listed := s.listed()
+	box := ui.Column(c).Key("view-switch").Width(size).Padding(pad).Gap(pad).Radius(size/2).
+		Border(1, semantic.Border.Variant).Background(semantic.Surface.Page).Role(ui.RoleRadioGroup).Label("View")
+	box.Children(func() {
+		for _, choice := range [...]struct {
+			key, label string
+			icon       components.IconName
+			on         bool
+		}{
+			{"view-field", "View as Field", components.IconMap, !listed},
+			{"view-list", "View as List", components.IconList, listed},
+		} {
+			face := size - 2*pad
+			btn := ui.ButtonBase(c.Key(choice.key)).Size(face, face).Radius(face / 2).Role(ui.RoleRadio).
+				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(choice.label).Selected(choice.on)
+			binding := ""
+			if !choice.on {
+				binding = s.binding(VerbViewList)
+			}
+			components.Hint(c, semantic, btn, choice.label, binding, components.HintAfter)
+			on := map[bool]float32{true: 1}[choice.on]
+			if animate {
+				on = components.Follow(btn, "on", on, components.MotionQuick)
+			}
+			hover := components.HoverAmount(btn, btn.Hovered() && !choice.on, animate)
+			btn.Background(components.Blend(components.Blend(semantic.Surface.Page, semantic.GhostElement.Hover, hover),
+				semantic.Surface.Inverse, on))
+			if btn.Clicked() && !choice.on {
+				s.toggleList()
+			}
+			btn.Children(func() {
+				ui.Icon(c, choice.icon.SVG()).FontSize(face / 2).
+					TextColor(components.Blend(semantic.Icon.Muted, semantic.Text.OnInverse, on))
+			})
+		}
+	})
+	return box
 }
 
 // listing fills f with the place as its list: as filed while browsing,

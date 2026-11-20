@@ -260,6 +260,7 @@ func (s *State) settleQuery() {
 	s.field.dismissed = ""
 	s.field.suggestion = -1
 	s.field.allValues = false
+	s.field.allKeys = false
 }
 
 // closeKey closes the open key, what was written before it coming back.

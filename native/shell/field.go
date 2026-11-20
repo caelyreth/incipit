@@ -59,6 +59,8 @@ type fieldState struct {
 	caret      int
 	suggestion int
 	allValues  bool
+	// allKeys is whether every key is offered, not just the first few.
+	allKeys bool
 	// opened is the key open in the pill, its values standing around it,
 	// and held what was written before it opened.
 	opened       *query.Key

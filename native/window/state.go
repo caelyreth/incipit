@@ -44,6 +44,8 @@ type AppState struct {
 	menuItems   map[keymap.CommandID]*mygo.MenuItem
 	formatItems []formatItem
 	menuShown   map[*mygo.MenuItem]menuShown
+	// fresh are the sheets made this run, which go if closed empty.
+	fresh map[workspace.PageID]bool
 	// undoItem and redoItem are Edit's Undo and Redo for the field.
 	undoItem, redoItem *mygo.MenuItem
 	// undoField is whether Undo and Redo were last the field's.
@@ -304,11 +306,31 @@ func (a *AppState) closePageID(id string) {
 		return
 	}
 	a.captureViews()
+	// A sheet made this run and closed with nothing in it was never
+	// written: it goes, as a new note left empty does, rather than
+	// piling up as Untitled.
+	discard := a.fresh[page] && a.emptyPage(page)
+	delete(a.fresh, page)
 	if err := a.Workspace.Close(page); err != nil {
 		a.fail("Couldn't close the page", err)
 		return
 	}
+	if discard {
+		if session, ok := a.sessions[page]; ok && a.library.TrashSheet(library.SheetID(session.key), time.Now()) == nil {
+			a.DeleteSheet(id)
+		}
+	}
 	a.selectMounted()
+}
+
+// emptyPage reports whether the page holds nothing: one empty block.
+func (a *AppState) emptyPage(page workspace.PageID) bool {
+	session, ok := a.sessions[page]
+	if !ok {
+		return false
+	}
+	snap := session.text()
+	return snap != nil && snap.Len() <= 2 && storage.Summarize(snap.Root()).Words == 0
 }
 
 func (a *AppState) refreshShell() {

@@ -205,6 +205,10 @@ func TestOpenKeysNarrowTakeAndLetGo(t *testing.T) {
 	}
 	tester.Key(0, ui.KeyEscape)
 	settle(tester)
+	if err := tester.Click("More Filters"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
 	if err := tester.Click("Title"); err != nil {
 		t.Fatal(err)
 	}

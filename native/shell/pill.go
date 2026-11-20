@@ -186,6 +186,12 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stageRect, acts 
 				s.setWords(s.field.words)
 			}
 		}
+		// Anything written or narrowed by is cleared at once by its ×, as
+		// a search field's is: Escape only puts away what stands open.
+		if s.field.words != "" || len(s.field.conditions) > 0 {
+			miniCloseButton(c, semantic, "clear-search", "Clear Search", "Clear Search", 22*k, 12*k,
+				semantic.Icon.Muted, semantic.GhostElement.Hover, animate, s.goHome).Shrink(0)
+		}
 		s.actionsButton(c, semantic, acts, r.H, k, animate)
 	})
 	_, caret := input.TextSelection()

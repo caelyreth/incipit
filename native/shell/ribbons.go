@@ -20,6 +20,8 @@ const (
 	ribbonKey
 	ribbonValue
 	ribbonMore
+	// ribbonMoreKeys stands after the keys first offered, for the rest.
+	ribbonMoreKeys
 )
 
 // ribbonPlace is where a ribbon stands: what it is, the condition, the
@@ -54,6 +56,10 @@ type ribbonLayout struct {
 // more there are, and what is written narrows them.
 const idleMost = 24
 
+// keysOffered is how many keys the pill offers opened with nothing
+// written, before More Filters.
+const keysOffered = 4
+
 // ribbons lays the ribbons out around a pill w wide and h tall, centred at
 // mid in the field: the query's conditions, then, while the pill is open,
 // each key the query can be narrowed by, idle. Each key's ribbons stand on
@@ -72,7 +78,9 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	// over it too, where the room is.
 	listed := s.listed()
 	hold := &s.field.ribbonHold
-	stand := fmt.Sprint(s.field.open, s.field.acting, listed)
+	// The actions opening is no change of what stands: they float over
+	// the field and take no room, so nothing moves for them.
+	stand := fmt.Sprint(s.field.open, listed)
 	if of := s.completing(); of != nil {
 		stand += " " + of.Name
 	} else {
@@ -130,12 +138,6 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	default:
 		place(values, h+out.below+3*gap, rh+gap)
 		out.below += 2*gap + float32(len(values))*(rh+gap)
-	}
-	// The place's actions open, their arc about the pill's end takes room
-	// in the band over and under it as ribbons do.
-	if s.field.acting {
-		reach := float32(len(s.fieldActions())-1)/2*(rh+gap) - (h-rh)/2
-		out.below, out.above = max(out.below, reach), max(out.above, reach)
 	}
 	hold.above, hold.below = max(hold.above, out.above), max(hold.below, out.below)
 	out.above, out.below = hold.above, hold.below
@@ -202,7 +204,12 @@ func (s *State) keyRibbons() []ribbonPlace {
 	}
 	// A key that takes a value stays, for more of its values; one that
 	// stands alone goes once it is taken.
-	for _, name := range filterKeys {
+	names := filterKeys
+	if s.listed() {
+		// A list is read in an order: its sort is offered first.
+		names = append([]string{"sort"}, slices.DeleteFunc(slices.Clone(filterKeys), func(n string) bool { return n == "sort" })...)
+	}
+	for _, name := range names {
 		// A sort is the list's: the field is offered none.
 		if name == "sort" && !s.listed() {
 			continue
@@ -210,6 +217,12 @@ func (s *State) keyRibbons() []ribbonPlace {
 		if k := mustKey(name); k != nil && (k.Takes != query.TakesNothing || !s.hasCondition(name)) {
 			add(k)
 		}
+	}
+	// Opened with nothing written, the pill offers the keys most reached
+	// for, and the rest behind one more: a first click to search meets a
+	// few ways in, not the whole of the query's language.
+	if len(suggested) == 0 && !s.field.allKeys && len(out) > keysOffered+1 {
+		out = append(out[:keysOffered], ribbonPlace{kind: ribbonMoreKeys, i: -1})
 	}
 	// Keys written that the pill does not offer of itself come after.
 	for _, item := range s.field.completion.Items {
@@ -353,6 +366,9 @@ func (s *State) look(semantic theme.Theme, p ribbonPlace) ribbonLook {
 	case ribbonMore:
 		l.label, l.icon, l.edge = thousands(p.i)+" more", components.IconChevronDown, edgeNone
 		l.text = semantic.Text.Muted
+	case ribbonMoreKeys:
+		l.label, l.icon, l.edge = "More Filters", components.IconChevronDown, edgeNone
+		l.text = semantic.Text.Muted
 	}
 	// An order says which view it is read in, and shows it once chosen.
 	if (p.kind == ribbonKey || p.kind == ribbonValue) && viewOf[p.key.Name] != "" {
@@ -440,6 +456,8 @@ func (s *State) ribbonID(p ribbonPlace) string {
 		return "value-" + p.key.Name + "-" + p.item.Text
 	case ribbonMore:
 		return "more"
+	case ribbonMoreKeys:
+		return "more-keys"
 	}
 	// A key that holds one value keeps one ribbon as its value changes.
 	if c, ok := condition(p.text); ok && written(c).Key.OneValue() {
@@ -529,6 +547,10 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 	case ribbonMore:
 		if btn.Clicked() {
 			s.field.allValues = true
+		}
+	case ribbonMoreKeys:
+		if btn.Clicked() {
+			s.field.allKeys = true
 		}
 	default:
 		if btn.Clicked() {

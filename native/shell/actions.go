@@ -173,12 +173,16 @@ func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldA
 		AlignItems(ui.Center).Justify(ui.End).
 		FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).
 		Label(label).Disabled(len(acts) == 0)
-	components.Hint(c, semantic, end, "Actions", "", components.HintAbove)
+	// Its glyph says what it holds: a + where it makes things, as a new
+	// sheet or group, and three dots where it holds what is done to the
+	// selection or the trash. With nothing to hold it is not there.
+	creates := len(s.field.picked) == 0 && !s.inTrash()
+	components.Hint(c, semantic, end, map[bool]string{true: "New", false: "Actions"}[creates], "", components.HintAbove)
 	if end.Clicked() {
 		s.toggleActions()
 	}
 	if len(acts) == 0 {
-		end.Opacity(components.DisabledOpacity)
+		end.Opacity(0).IgnoreInput(true)
 	}
 	hover := components.HoverAmount(end, end.Hovered(), animate)
 	open := map[bool]float32{true: 1}[s.field.acting]
@@ -191,8 +195,17 @@ func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldA
 			Background(components.Blend(components.Blend(semantic.GhostElement.Background, semantic.Surface.Chosen, open),
 				semantic.GhostElement.Hover, hover)).
 			Children(func() {
-				ui.Icon(c, components.IconPencilSpark.SVG()).FontSize(face * 0.5).
-					TextColor(components.Blend(semantic.Icon.Muted, semantic.Icon.Default, max(open, hover)))
+				ink := components.Blend(semantic.Icon.Muted, semantic.Icon.Default, max(open, hover))
+				if creates {
+					ui.Icon(c, components.IconPlus.SVG()).FontSize(face * 0.5).TextColor(ink)
+					return
+				}
+				dot := 3 * k
+				ui.Row(c).Gap(dot).Children(func() {
+					for range 3 {
+						ui.Box(c).Size(dot, dot).Radius(dot / 2).Background(ink)
+					}
+				})
 			})
 	})
 }

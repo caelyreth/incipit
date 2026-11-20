@@ -404,7 +404,7 @@ func TestFieldToListAnimatesPillFromItsPlace(t *testing.T) {
 			}
 
 			if tc.click {
-				if err := tester.Click("Show as List"); err != nil {
+				if err := tester.Click("View as List"); err != nil {
 					t.Fatal(err)
 				}
 			} else {
@@ -441,7 +441,7 @@ func TestFieldToListAnimatesPillFromItsPlace(t *testing.T) {
 
 			// List -> Field starts cleanly at the foot and moves monotonically upward.
 			if tc.click {
-				if err := tester.Click("Show as Field"); err != nil {
+				if err := tester.Click("View as Field"); err != nil {
 					t.Fatal(err)
 				}
 			} else {

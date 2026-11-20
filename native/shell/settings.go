@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
@@ -252,7 +254,7 @@ func (s *State) settingsSectionRow(c *ui.Context, semantic theme.Theme, sec Sett
 		ui.Column(c).Key("words").Grow(1).MinWidth(0).Gap(rowGap(m.scale)).Children(func() {
 			components.Label(c, sec.Title, theme.TextSmall, semantic.Text.Default).SingleLine()
 			if sec.Description != "" {
-				components.Label(c, sec.Description, theme.TextXSmall, semantic.Text.Muted).SingleLine()
+				components.Label(c, sectionLine(sec.Description), theme.TextXSmall, semantic.Text.Muted).SingleLine()
 			}
 		})
 		ui.Icon(c, components.IconChevronRight.SVG()).FontSize(12 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
@@ -332,4 +334,21 @@ func abs32(x float32) float32 { return max(x, -x) }
 func (s *State) ShowShortcuts() {
 	s.FindSettings("")
 	s.intoSettings("Keymap", "", stageRect{})
+}
+
+// sectionLine is what a section's row says of it under its title: its
+// description's first clause, which reads whole on a line where the rest
+// would be cut off, begun as a sentence is.
+func sectionLine(desc string) string {
+	line := desc
+	for _, stop := range []string{". ", ": ", "; ", " — "} {
+		if i := strings.Index(line, stop); i > 0 {
+			line = line[:i]
+		}
+	}
+	line = strings.TrimSuffix(strings.TrimSpace(line), ".")
+	if r, size := utf8.DecodeRuneInString(line); size > 0 {
+		line = string(unicode.ToUpper(r)) + line[size:]
+	}
+	return line
 }

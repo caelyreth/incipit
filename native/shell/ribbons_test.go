@@ -12,6 +12,12 @@ import (
 // pressKey opens the key name from its idle ribbon around the open pill.
 func pressKey(t *testing.T, state *State, tester *ui.Tester, label string) {
 	t.Helper()
+	// A key past the first few stands behind More Filters.
+	if _, ok := tester.Find(label); !ok {
+		if err := tester.Click("More Filters"); err == nil {
+			settle(tester)
+		}
+	}
 	if err := tester.Click(label); err != nil {
 		t.Fatalf("No %q ribbon: %v", label, tester.Texts())
 	}

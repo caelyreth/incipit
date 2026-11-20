@@ -34,7 +34,7 @@ func TestTheSettingsStandInTheField(t *testing.T) {
 	if got := shownBlocks(state); !slices.Equal(got, top) {
 		t.Fatalf("The field should show the categories, but shows %v.", got)
 	}
-	if !tester.Focused("Search") || state.pillPlaceholder() != "Find a setting…" {
+	if !tester.Focused("Search") || state.pillPlaceholder() != "Search Settings" {
 		t.Fatal("The pill should take the keys to find a setting.")
 	}
 	if _, ok := tester.Find("Tag"); ok {

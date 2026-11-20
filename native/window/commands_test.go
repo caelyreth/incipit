@@ -229,3 +229,26 @@ func TestTheSettingsCommandShowsTheSettingsInTheField(t *testing.T) {
 		t.Fatalf("settings stayed: %#v", tester.Texts())
 	}
 }
+
+// A sheet made and closed with nothing in it goes, rather than piling up
+// as Untitled.
+func TestASheetClosedEmptyIsDiscarded(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+	before := len(app.sessions)
+	hostHandlers[keymap.NewPage](app)
+	tester.Frame()
+	id, ok := app.Workspace.Active()
+	if !ok || len(app.sessions) != before+1 {
+		t.Fatal("New Sheet should make and open a sheet")
+	}
+	app.closePageID(sheetName(id))
+	tester.Frame()
+	if _, kept := app.sessions[id]; kept || len(app.sessions) != before {
+		t.Fatal("An empty new sheet closed should be discarded")
+	}
+}

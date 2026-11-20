@@ -146,10 +146,10 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLoo
 		trashTop := homeTop + size + 8*k
 		// How the place is shown, apart from which place it is.
 		listTop := trashTop + size + 20*k
-		buttonsFoot = listTop + size
+		buttonsFoot = listTop + 2*size
 		s.homeButton(c, semantic, size, animate).Absolute().Left(inset).Top(homeTop)
 		s.trashButton(c, semantic, size, animate).Absolute().Left(inset).Top(trashTop)
-		s.listButton(c, semantic, size, animate).Absolute().Left(inset).Top(listTop)
+		s.viewSwitch(c, semantic, size, animate).Absolute().Left(inset).Top(listTop)
 		s.settingsButton(c, semantic, size, animate).Absolute().Left(inset).Bottom(inset)
 	})
 	s.keptBox(c, semantic, look, h, k, buttonsFoot, hidden, animate)
