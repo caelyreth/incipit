@@ -239,9 +239,17 @@ func (s *State) pillPlaceholder() string {
 		// What the key says of its value: "Title has…", "Updated…".
 		return strings.TrimSpace(s.field.opened.Label+" "+s.field.opened.Is) + "…"
 	case s.InSettings():
-		return "Find a setting…"
+		return "Search Settings"
+	case s.commanding():
+		return "Search Commands"
+	case s.inTrash():
+		return "Search the Trash"
 	}
-	return "Where to, today?"
+	// It says what it searches: the group the field is in, or everything.
+	if g, ok := s.scopeGroup(); ok {
+		return "Search " + g.Name
+	}
+	return "Search All Sheets"
 }
 
 // ribbonH and ribbonGap are a ribbon's height and the room around it, at
