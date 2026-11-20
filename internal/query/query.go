@@ -404,7 +404,7 @@ func (p *parser) check(f *Filter) {
 		p.issue(f.Span, Pending)
 	case k == nil:
 		p.issue(f.Span, Unknown)
-	case !f.HasValue && k.Takes == TakesNothing:
+	case !f.HasValue && k.Bare():
 	case !f.HasValue || f.Value == "":
 		if k.Takes != TakesNothing {
 			p.issue(f.Span, Pending)

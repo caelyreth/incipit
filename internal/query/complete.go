@@ -94,7 +94,7 @@ func Complete(text string, caret int, scope Scope, names func(key string) []stri
 		}
 		s := Suggestion{Label: "$" + k.Name, Text: "$" + k.Name, Hint: k.Hint(), Help: k.Help}
 		switch {
-		case k.Takes == TakesNothing:
+		case k.Bare():
 			s.Done = true
 		case !at.HasValue:
 			s.Text += ":"

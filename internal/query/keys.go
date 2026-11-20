@@ -38,8 +38,11 @@ type Key struct {
 	Label, Is, IsNot string
 	Alias            string
 	Takes            Takes
-	Scope            Scope
-	Choices          []string
+	// Alone is a key of words that may be written bare, as $todo, or with
+	// them, as $todo:budget.
+	Alone   bool
+	Scope   Scope
+	Choices []string
 	// Setting is a key that sets how the query runs, not a condition a
 	// sheet meets: what it says holds of the whole query, so - cannot turn
 	// it.
@@ -49,7 +52,7 @@ type Key struct {
 }
 
 // Kinds are what $has looks for.
-var Kinds = []string{"code", "image", "link", "list", "math", "quote", "table"}
+var Kinds = []string{"code", "image", "link", "list", "math", "quote", "table", "task"}
 
 // SortFields are what $sort orders by; a leading "-" turns the order.
 var SortFields = []string{"relevance", "updated", "created", "title", "words"}
@@ -71,6 +74,9 @@ var Keys = []Key{
 	{Name: "code", Label: "Code", Is: "has", IsNot: "doesn’t have", Takes: TakesText, Scope: Anywhere, Help: "Words in code"},
 	{Name: "quote", Label: "Quote", Is: "has", IsNot: "doesn’t have", Takes: TakesText, Scope: Anywhere, Help: "Words in a quote"},
 	{Name: "has", Label: "Content", Is: "has", IsNot: "has no", Takes: TakesChoice, Scope: InNotebook, Choices: Kinds, Help: "Sheets holding a kind of thing"},
+	{Name: "task", Label: "Task", Is: "has", IsNot: "doesn’t have", Takes: TakesText, Alone: true, Scope: InNotebook, Help: "Sheets with a task; $task:words, a task holding them"},
+	{Name: "todo", Label: "Open task", Is: "has", IsNot: "doesn’t have", Takes: TakesText, Alone: true, Scope: InNotebook, Help: "Sheets with an open task; $todo:words, an open task holding them"},
+	{Name: "done", Label: "Done task", Is: "has", IsNot: "doesn’t have", Takes: TakesText, Alone: true, Scope: InNotebook, Help: "Sheets with a done task; $done:words, a done task holding them"},
 	{Name: "link", Label: "Links", Is: "to", IsNot: "not to", Takes: TakesName, Scope: InNotebook, Help: "Links to a site, as $link:github.com"},
 	{Name: "inbox", Label: "In the Inbox", Takes: TakesNothing, Scope: InNotebook, Help: "Sheets in the Inbox"},
 	{Name: "trash", Label: "In the trash", Takes: TakesNothing, Scope: InNotebook, Setting: true, Help: "Sheets in the trash"},
@@ -82,6 +88,10 @@ var Keys = []Key{
 	{Name: "case", Label: "Match case", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match letter case"},
 	{Name: "word", Label: "Whole words", Takes: TakesNothing, Scope: InSheet, Setting: true, Help: "Match whole words only"},
 }
+
+// Bare reports whether the key may be written with no value: one that
+// takes none, or one whose words may be left out (Alone).
+func (k *Key) Bare() bool { return k.Takes == TakesNothing || k.Alone }
 
 // OneValue reports a key a query holds one value of: a setting, a span of
 // dates or of lengths. A value taken for it takes the place of the one

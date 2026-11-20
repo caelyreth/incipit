@@ -60,3 +60,27 @@ func TestAConditionIsSaidWhole(t *testing.T) {
 		}
 	}
 }
+
+// A task key reads whole bare, and as a key of words with them.
+func TestATaskKeySaysItselfBareOrWithWords(t *testing.T) {
+	for text, want := range map[string]string{
+		"$todo":         "Open task",
+		"-$todo":        "No open task",
+		"$done:budget":  "Done task has “budget”",
+		"-$task:review": "Task doesn’t have “review”",
+	} {
+		conds := Conditions(Parse(text))
+		if len(conds) != 1 {
+			t.Fatalf("%q: %v", text, conds)
+		}
+		if got := conds[0].Sentence(); got != want {
+			t.Errorf("%q says %q, want %q", text, got, want)
+		}
+		if got := conds[0].String(); got != text {
+			t.Errorf("%q writes back as %q", text, got)
+		}
+		if issues := Parse(text).Issues; len(issues) != 0 {
+			t.Errorf("%q: %v", text, issues)
+		}
+	}
+}

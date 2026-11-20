@@ -51,7 +51,7 @@ func Conditions(q Query) []Condition {
 // String is the condition as the language writes it: a tag as #name
 // where it was and its name can be, a value not written yet left to be.
 func (c Condition) String() string {
-	f := &Filter{Key: c.Key, Name: c.Key.Name, Value: c.Value, HasValue: c.Key.Takes != TakesNothing}
+	f := &Filter{Key: c.Key, Name: c.Key.Name, Value: c.Value, HasValue: c.Key.Takes != TakesNothing && !(c.Key.Alone && c.Value == "")}
 	f.Hash = c.Hash && c.Key.Name == "tag" && tagName(c.Value)
 	var n Node = f
 	if c.Not && !c.Key.Setting {

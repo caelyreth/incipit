@@ -153,7 +153,7 @@ func (s *State) unwritten() string {
 	words, caret := s.field.words, s.field.caret
 	query.Walk(query.Parse(words).Root, func(n query.Node) {
 		f, ok := n.(*query.Filter)
-		if !ok || f.Key != nil && f.Key.Takes == query.TakesNothing && !f.HasValue {
+		if !ok || f.Key != nil && f.Key.Bare() && !f.HasValue {
 			return
 		}
 		if f.From < caret && caret <= f.To && f.To <= len(words) {
@@ -238,7 +238,7 @@ func (s *State) takeKey(name string) {
 	s.field.chosen = ""
 	s.field.focus = true
 	switch {
-	case k.Takes == query.TakesNothing:
+	case k.Bare():
 		s.addCondition((&query.Condition{Key: k}).String())
 	case s.field.opened == k:
 		s.closeKey()

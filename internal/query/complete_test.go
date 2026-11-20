@@ -42,7 +42,7 @@ func complete(text string, scope Scope) (Completion, string) {
 
 func TestADollarOffersTheKeysItStarts(t *testing.T) {
 	c, got := complete("budget $ta", InNotebook)
-	if !slices.Equal(texts(c), []string{"$tag:"}) || got != "budget $tag:" {
+	if !slices.Equal(texts(c), []string{"$tag:", "$task"}) || got != "budget $tag:" {
 		t.Fatalf("%v → %q", texts(c), got)
 	}
 	c, _ = complete("$", InNotebook)
@@ -57,6 +57,11 @@ func TestADollarOffersTheKeysItStarts(t *testing.T) {
 	}
 	if c, _ = complete("$inbox", InNotebook); len(c.Items) != 0 {
 		t.Fatalf("a key written whole is no suggestion: %v", texts(c))
+	}
+	// A key of words that may stand bare is offered whole, its words
+	// written after a colon if wanted.
+	if c, _ = complete("$tod", InNotebook); !slices.Equal(texts(c), []string{"$todo"}) || !c.Items[0].Done {
+		t.Fatalf("$todo is offered whole: %+v", c.Items)
 	}
 	if c, got = complete("$up|:7d", InNotebook); got != "$updated:7d" {
 		t.Fatalf("a key's name before its value: %v → %q", texts(c), got)
@@ -75,7 +80,7 @@ func TestAValueOffersWhatItsKeyTakes(t *testing.T) {
 		{"#wo budget", "", ""},
 		{"#wo| budget", "#work #homework", "#work budget"},
 		{"$in:pro", "Projects", "$in:Projects"},
-		{"$has:t", "table", "$has:table"},
+		{"$has:t", "table task", "$has:table"},
 		{"$updated:this", "this-week this-month this-year", "$updated:this-week"},
 		{"$sort:", "relevance updated -updated created -created title -title words -words", "$sort:relevance"},
 		{"$sort:-", "-updated -created -title -words", "$sort:-updated"},

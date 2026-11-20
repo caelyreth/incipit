@@ -112,3 +112,22 @@ func TestWritingInAKeyLeavesTheResultsBe(t *testing.T) {
 		t.Fatalf("The query standing, nothing should be searched again: %v.", after)
 	}
 }
+
+// A task key is taken whole, bare, as a key that stands alone is; with
+// words written after it, it is a condition of its own, said as such.
+func TestATaskKeyIsTakenBareOrWithWords(t *testing.T) {
+	state, _ := libraryState()
+	state.takeKey("todo")
+	if want := []string{"$todo"}; !slices.Equal(state.field.conditions, want) || state.field.opened != nil {
+		t.Fatalf("$todo should be taken at once, bare: %v, open %v.", state.field.conditions, state.field.opened)
+	}
+	state.takeConditions("$done:review ")
+	if got := slices.Sorted(slices.Values(state.field.conditions)); !slices.Equal(got, []string{"$done:review", "$todo"}) {
+		t.Fatalf("A done task with words should stand beside it: %v.", state.field.conditions)
+	}
+	for text, want := range map[string]string{"$todo": "Open task", "$done:review": "Done task has “review”"} {
+		if cond, ok := condition(text); !ok || cond.Sentence() != want {
+			t.Errorf("%q should read %q.", text, want)
+		}
+	}
+}

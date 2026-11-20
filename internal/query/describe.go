@@ -168,6 +168,12 @@ func (c Condition) Sentence() string {
 		}
 		return k.Label
 	}
+	if k.Alone && strings.TrimSpace(c.Value) == "" {
+		if not {
+			return "No " + strings.ToLower(k.Label[:1]) + k.Label[1:]
+		}
+		return k.Label
+	}
 	parts := []string{k.Label}
 	verb := k.Is
 	if not {
