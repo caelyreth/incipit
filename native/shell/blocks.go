@@ -121,6 +121,9 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 						SingleLine().Shrink(0).FontFeatures("tnum")
 				}
 			})
+			if g != nil {
+				taskRing(c, semantic, g.Tasks, m)
+			}
 			if g != nil && g.Listed {
 				listBadge(c, semantic, m)
 			}
@@ -158,6 +161,19 @@ func badge(c *ui.Context, semantic theme.Theme, key, label string, family theme.
 // pinBadge says a group or sheet is pinned: a thumbtack on Remnant.
 func pinBadge(c *ui.Context, semantic theme.Theme, m blockMetrics) {
 	badge(c, semantic, "pin-badge", "Pinned", theme.Remnant, components.IconPin, "", m)
+}
+
+// taskRing is how far a sheet's or a group's tasks are done, as a ring
+// that fills as they are, a line of the smallest text across; nothing
+// where there are none.
+func taskRing(c *ui.Context, semantic theme.Theme, t Tasks, m blockMetrics) {
+	if t.All() == 0 {
+		return
+	}
+	line := theme.TextXSmall.LineHeight(m.scale)
+	label := fmt.Sprintf("%d of %d tasks done", t.Done, t.All())
+	components.ProgressRing(c, "task-ring", line*0.8, 2*m.k, float32(t.Done)/float32(t.All()),
+		semantic.Border.Default, semantic.Accent.Foreground, label)
 }
 
 // listBadge says a group is kept shown as a list: what is kept is said
@@ -236,6 +252,7 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 			components.Label(c, g.Name, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
 			components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
 		})
+		taskRing(c, semantic, g.Tasks, m)
 		if g.Listed {
 			listBadge(c, semantic, m)
 		}
@@ -292,8 +309,9 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 		if at > 0 {
 			openMark(c, semantic, h, m)
 		}
-		if at > 0 || sh.Pinned {
-			ui.Row(c.Key("badges")).Absolute().Right(pad).Bottom(pad).Gap(4 * m.k).IgnoreInput(true).Children(func() {
+		if at > 0 || sh.Pinned || sh.Tasks.All() > 0 {
+			ui.Row(c.Key("badges")).Absolute().Right(pad).Bottom(pad).Gap(4 * m.k).AlignItems(ui.Center).IgnoreInput(true).Children(func() {
+				taskRing(c, semantic, sh.Tasks, m)
 				if sh.Pinned {
 					pinBadge(c, semantic, m)
 				}
