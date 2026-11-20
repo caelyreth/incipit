@@ -85,7 +85,7 @@ var migrations = []string{
 	END;
 	`,
 	// The tags a page writes, most written first, as JSON; NULL until they
-	// are read from the page's content (readTags).
+	// are read from the page's content (readUnread).
 	`
 	ALTER TABLE pages ADD COLUMN tags TEXT;
 	`,
@@ -119,6 +119,12 @@ var migrations = []string{
 		day   TEXT    PRIMARY KEY,
 		words INTEGER NOT NULL
 	) STRICT, WITHOUT ROWID;
+	`,
+	// A page's tasks, open and done; NULL until they are read from the
+	// page's content (readUnread).
+	`
+	ALTER TABLE pages ADD COLUMN open_tasks INTEGER;
+	ALTER TABLE pages ADD COLUMN done_tasks INTEGER;
 	`,
 }
 

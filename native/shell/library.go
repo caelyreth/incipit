@@ -62,7 +62,16 @@ type GroupItem struct {
 	// Listed keeps it shown as a list, as chosen for it; turning the view
 	// in it passes with the session.
 	Listed bool
+	// Tasks are its whole tree's tasks, or, for a smart folder, those of
+	// the sheets it finds.
+	Tasks Tasks
 }
+
+// Tasks counts tasks, open and done.
+type Tasks struct{ Open, Done int }
+
+// All is how many tasks there are.
+func (t Tasks) All() int { return t.Open + t.Done }
 
 // Smart reports a smart folder.
 func (g GroupItem) Smart() bool { return g.Query != "" }
@@ -80,6 +89,8 @@ type SheetItem struct {
 	Tags []string
 	// Pinned stands it before the others where it is shown.
 	Pinned bool
+	// Tasks are the tasks its text holds.
+	Tasks Tasks
 }
 
 // Found is what a search found.

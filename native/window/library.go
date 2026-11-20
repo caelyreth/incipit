@@ -63,12 +63,17 @@ func (a *AppState) sessionFor(sheet library.SheetID) (*sheetSession, bool) {
 }
 
 // putSession and dropSession add and remove a session.
+// putSession keeps a page's session, its tasks counted in the library.
 func (a *AppState) putSession(id workspace.PageID, session *sheetSession) {
 	a.sessions[id] = session
 	a.sessionsRev++
+	a.library.SetTasks(library.SheetID(session.key), session.summary.Tasks)
 }
 
 func (a *AppState) dropSession(id workspace.PageID) {
+	if session, ok := a.sessions[id]; ok {
+		a.library.SetTasks(library.SheetID(session.key), library.Tasks{})
+	}
 	delete(a.sessions, id)
 	a.sessionsRev++
 }
@@ -147,11 +152,17 @@ func (a *AppState) groupItem(group library.Group) shell.GroupItem {
 		Query:     group.Query,
 		Pinned:    group.Pinned,
 		Listed:    group.Listed,
+		Tasks:     shellTasks(a.library.GroupTasks(group.ID)),
 	}
 	// A smart folder counts what its query finds; out of the trash, as
 	// what it finds is gone with it.
 	if group.Smart() && !a.library.GroupInTrash(group.ID) {
-		item.Count = len(a.smartItems(group.Query))
+		found := a.smartItems(group.Query)
+		item.Count = len(found)
+		for _, sheet := range found {
+			item.Tasks.Open += sheet.Tasks.Open
+			item.Tasks.Done += sheet.Tasks.Done
+		}
 	}
 	return item
 }
@@ -193,10 +204,14 @@ func sheetItemsWithSessions(sheets []library.Sheet, sessions map[library.SheetID
 			Created: sheet.Created,
 			Updated: sheet.Updated,
 			Pinned:  sheet.Pinned,
+			Tasks:   shellTasks(session.summary.Tasks),
 		})
 	}
 	return items
 }
+
+// shellTasks are tasks as the shell counts them.
+func shellTasks(t library.Tasks) shell.Tasks { return shell.Tasks{Open: t.Open, Done: t.Done} }
 
 // tagNames are a summary's tags' names, in its order.
 func tagNames(tags []storage.Tag) []string {

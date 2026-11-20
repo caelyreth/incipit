@@ -170,6 +170,7 @@ func (a *AppState) summarize() {
 				a.written.add(time.Now(), summary.Words-session.summary.Words)
 			}
 			session.summary, changed = summary, true
+			a.library.SetTasks(library.SheetID(session.key), summary.Tasks)
 			a.sessionsRev++
 		}
 	}

@@ -100,9 +100,13 @@ type Library struct {
 	sheets    map[SheetID]*Sheet
 	order     map[GroupID][]SheetID
 	nextGroup GroupID
+	// tasks are each sheet's tasks, and groupTasks each group's tree's
+	// (tasks.go).
+	tasks      map[SheetID]Tasks
+	groupTasks map[GroupID]Tasks
 	// rev counts the library's changes: every method that may change it
-	// moves it on. touches counts those that only record a sheet's change
-	// time (Touch).
+	// moves it on. touches counts those that change no filing: a sheet's
+	// change time (Touch) or its tasks (SetTasks).
 	rev, touches uint64
 }
 
@@ -111,18 +115,20 @@ type Library struct {
 func (l *Library) Revision() uint64 { return l.rev }
 
 // Filing changes whenever the library may have but for a sheet's change
-// time: where sheets and groups are, what they are called, what is in the
+// time or tasks: where sheets and groups are, what they are called, what is in the
 // trash. A view that shows no change times stands while it does.
 func (l *Library) Filing() uint64 { return l.rev - l.touches }
 
 // New is a library holding only its Inbox.
 func New() *Library {
 	l := &Library{
-		groups:    map[GroupID]*Group{},
-		children:  map[GroupID][]GroupID{},
-		sheets:    map[SheetID]*Sheet{},
-		order:     map[GroupID][]SheetID{},
-		nextGroup: Inbox + 1,
+		groups:     map[GroupID]*Group{},
+		children:   map[GroupID][]GroupID{},
+		sheets:     map[SheetID]*Sheet{},
+		order:      map[GroupID][]SheetID{},
+		nextGroup:  Inbox + 1,
+		tasks:      map[SheetID]Tasks{},
+		groupTasks: map[GroupID]Tasks{},
 	}
 	l.groups[Inbox] = &Group{ID: Inbox, Name: InboxName}
 	l.children[0] = []GroupID{Inbox}

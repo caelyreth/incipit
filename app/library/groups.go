@@ -131,9 +131,12 @@ func (l *Library) MoveGroup(id, parent GroupID, index int) error {
 			return ErrCycle
 		}
 	}
+	counts := l.groupCounts(group)
+	l.spread(group.Parent, Tasks{}.minus(counts))
 	l.children[group.Parent] = slices.DeleteFunc(l.children[group.Parent], func(other GroupID) bool { return other == id })
 	group.Parent = parent
 	l.children[parent] = insertAt(l.children[parent], l.groupAt(parent, index), id)
+	l.spread(parent, counts)
 	return nil
 }
 
@@ -163,6 +166,7 @@ func (l *Library) TrashGroup(id GroupID, at time.Time) error {
 		return ErrInbox
 	}
 	if group.Trashed.IsZero() {
+		l.spread(group.Parent, Tasks{}.minus(l.groupCounts(group)))
 		group.Trashed = at
 	}
 	return nil
@@ -176,7 +180,10 @@ func (l *Library) RestoreGroup(id GroupID) error {
 	if !ok {
 		return ErrUnknown
 	}
-	group.Trashed = time.Time{}
+	if !group.Trashed.IsZero() {
+		group.Trashed = time.Time{}
+		l.spread(group.Parent, l.groupCounts(group))
+	}
 	if l.GroupInTrash(group.Parent) {
 		return l.MoveGroup(id, 0, len(l.children[0]))
 	}
@@ -224,12 +231,15 @@ func (l *Library) DeleteGroup(id GroupID) ([]SheetID, error) {
 		}
 		for _, sheet := range l.order[id] {
 			delete(l.sheets, sheet)
+			delete(l.tasks, sheet)
 			deleted = append(deleted, sheet)
 		}
 		delete(l.order, id)
 		delete(l.children, id)
 		delete(l.groups, id)
+		delete(l.groupTasks, id)
 	}
+	l.spread(group.Parent, Tasks{}.minus(l.groupCounts(group)))
 	l.children[group.Parent] = slices.DeleteFunc(l.children[group.Parent], func(other GroupID) bool { return other == id })
 	remove(id)
 	return deleted, nil

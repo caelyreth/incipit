@@ -30,6 +30,27 @@ func TestASummaryTitlesThePageByItsFirstHeading(t *testing.T) {
 	}
 }
 
+// taskAttrs are an item's attributes for task.
+func taskAttrs(task profile.Task) doc.Attrs {
+	return doc.MakeAttrs(doc.Field{Num: profile.FieldTask, Value: doc.Int(int64(task))})
+}
+
+// A summary counts the page's task items, open and done, nested or not,
+// and nothing else as one.
+func TestASummaryCountsThePagesTasks(t *testing.T) {
+	item := func(task profile.Task, inner ...*doc.Node) *doc.Node {
+		return doc.NewNode(profile.Item, taskAttrs(task), doc.InlineSlot(doc.TextItem("do", nil)), doc.BlockSlot(inner...))
+	}
+	list := func(items ...*doc.Node) *doc.Node {
+		return doc.NewNode(profile.List, doc.Attrs{}, doc.BlockSlot(items...))
+	}
+	h := doc.NewNode(profile.Heading, profile.Schema().Canonical(profile.Heading, doc.Attrs{}), doc.InlineSlot(doc.TextItem("Plan", nil)))
+	s := Summarize(page(h, list(item(profile.TaskOpen, list(item(profile.TaskDone), item(profile.NoTask))), item(profile.TaskOpen))))
+	if s.Tasks.Open != 2 || s.Tasks.Done != 1 {
+		t.Fatalf("tasks %+v, want two open and one done", s.Tasks)
+	}
+}
+
 func TestASummaryCountsTheTagsThePageWrites(t *testing.T) {
 	code := doc.NewNode(profile.Code, doc.Attrs{}, doc.InlineSlot(doc.TextItem("#include", nil)))
 	s := Summarize(page(para("#Moon tides #ocean"), code, para("#ocean and #moon, #ocean")))
@@ -47,6 +68,14 @@ func walkSummary(root *doc.Node) Summary {
 	var tags tagCounts
 	var walk func(n *doc.Node)
 	walk = func(n *doc.Node) {
+		if n.Kind() == profile.Item {
+			switch profile.TaskOf(n) {
+			case profile.TaskOpen:
+				s.Tasks.Open++
+			case profile.TaskDone:
+				s.Tasks.Done++
+			}
+		}
 		for i, slot := range n.Slots() {
 			if !slot.IsInline() {
 				for _, c := range slot.Children() {
@@ -97,7 +126,7 @@ func TestASummaryOfSharesIsTheWalksAcrossVersions(t *testing.T) {
 			return doc.NewNode(profile.Code, doc.Attrs{}, doc.InlineSlot(doc.TextItem("#include "+text, nil)))
 		case 2:
 			h := doc.NewNode(profile.Heading, profile.Schema().Canonical(profile.Heading, doc.Attrs{}), doc.InlineSlot(doc.TextItem(text, nil)))
-			item := doc.NewNode(profile.Item, doc.Attrs{}, doc.InlineSlot(doc.TextItem(texts[rng.IntN(len(texts))], nil)), doc.BlockSlot(h))
+			item := doc.NewNode(profile.Item, taskAttrs(profile.Task(rng.IntN(3))), doc.InlineSlot(doc.TextItem(texts[rng.IntN(len(texts))], nil)), doc.BlockSlot(h))
 			return doc.NewNode(profile.List, doc.Attrs{}, doc.BlockSlot(item))
 		}
 		return para(text)

@@ -25,6 +25,7 @@ func (l *Library) AddSheetAt(id SheetID, group GroupID, at time.Time, index int)
 	at0 := l.sheetAt(group, index)
 	l.sheets[id] = &Sheet{ID: id, Group: group, Created: at, Updated: at}
 	l.order[group] = insertAt(l.order[group], at0, id)
+	l.spread(group, l.tasks[id])
 	return nil
 }
 
@@ -49,9 +50,12 @@ func (l *Library) MoveSheet(id SheetID, group GroupID, index int) error {
 	if err := l.fileable(group); err != nil {
 		return err
 	}
+	counts := l.sheetCounts(sheet)
+	l.spread(sheet.Group, Tasks{}.minus(counts))
 	l.order[sheet.Group] = removeSheet(l.order[sheet.Group], id)
 	sheet.Group = group
 	l.order[group] = insertAt(l.order[group], l.sheetAt(group, index), id)
+	l.spread(group, counts)
 	return nil
 }
 
@@ -74,6 +78,7 @@ func (l *Library) TrashSheet(id SheetID, at time.Time) error {
 		return ErrUnknown
 	}
 	if sheet.Trashed.IsZero() {
+		l.spread(sheet.Group, Tasks{}.minus(l.sheetCounts(sheet)))
 		sheet.Trashed = at
 	}
 	return nil
@@ -87,7 +92,10 @@ func (l *Library) RestoreSheet(id SheetID) error {
 	if !ok {
 		return ErrUnknown
 	}
-	sheet.Trashed = time.Time{}
+	if !sheet.Trashed.IsZero() {
+		sheet.Trashed = time.Time{}
+		l.spread(sheet.Group, l.sheetCounts(sheet))
+	}
 	if l.GroupInTrash(sheet.Group) {
 		return l.MoveSheet(id, Inbox, len(l.order[Inbox]))
 	}
@@ -104,8 +112,10 @@ func (l *Library) DeleteSheet(id SheetID) error {
 	if !l.SheetInTrash(id) {
 		return ErrNotTrashed
 	}
+	l.spread(sheet.Group, Tasks{}.minus(l.sheetCounts(sheet)))
 	l.order[sheet.Group] = removeSheet(l.order[sheet.Group], id)
 	delete(l.sheets, id)
+	delete(l.tasks, id)
 	return nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/internal/wordseg"
@@ -14,8 +15,8 @@ import (
 const excerptRunes = 120
 
 // Summarize reads a page's summary: its first heading's text as its
-// title, the first other text as its excerpt, its words, and the tags its
-// text writes (profile.TagsIn), most written first.
+// title, the first other text as its excerpt, its words, the tags its
+// text writes (profile.TagsIn), most written first, and its tasks.
 func Summarize(root *doc.Node) Summary {
 	var z Summarizer
 	return z.Summarize(root)
@@ -39,7 +40,7 @@ func (z *Summarizer) Summarize(root *doc.Node) Summary {
 		defer func() { z.full = len(z.memo) }()
 	}
 	sh := z.share(root)
-	s := Summary{Title: sh.heading, Excerpt: sh.other, Words: sh.words}
+	s := Summary{Title: sh.heading, Excerpt: sh.other, Words: sh.words, Tasks: sh.tasks}
 	if r := []rune(s.Excerpt); len(r) > excerptRunes {
 		s.Excerpt = string(r[:excerptRunes])
 	}
@@ -48,11 +49,12 @@ func (z *Summarizer) Summarize(root *doc.Node) Summary {
 	return s
 }
 
-// share is what a subtree adds to a summary: its words and tags, its
-// first heading's text, its first text and its first text but that
+// share is what a subtree adds to a summary: its words, tags and tasks,
+// its first heading's text, its first text and its first text but that
 // heading, each the text of a node's first slot, spaces folded.
 type share struct {
 	words          int
+	tasks          library.Tasks
 	tags           tagCounts
 	titled         bool
 	heading, first string
@@ -64,6 +66,14 @@ func (z *Summarizer) share(n *doc.Node) *share {
 		return sh
 	}
 	sh := &share{}
+	if n.Kind() == profile.Item {
+		switch profile.TaskOf(n) {
+		case profile.TaskOpen:
+			sh.tasks.Open++
+		case profile.TaskDone:
+			sh.tasks.Done++
+		}
+	}
 	for i, slot := range n.Slots() {
 		if !slot.IsInline() {
 			for _, c := range slot.Children() {
@@ -105,6 +115,8 @@ func slotShare(n *doc.Node, i int, slot doc.Slot) *share {
 // then adds next, which follows what sh holds.
 func (sh *share) then(next *share) {
 	sh.words += next.words
+	sh.tasks.Open += next.tasks.Open
+	sh.tasks.Done += next.tasks.Done
 	for _, t := range next.tags.tags {
 		sh.tags.addN(t.Name, t.Count)
 	}
