@@ -423,6 +423,7 @@ func (a *AppState) saveSettings() {
 func (a *AppState) applyAppearance() {
 	values := a.Product.Appearance
 	a.Shell.Settings = appearanceSettings(values)
+	a.Shell.Settings.Accent = a.groupAccent()
 	target := a.Shell.Settings.Semantic()
 	if a.Product.Presentation.Motion {
 		a.colors.Retarget(target, time.Now())
@@ -481,6 +482,7 @@ func (a *AppState) View(c *ui.Context) {
 	if a == nil || a.Shell == nil {
 		return
 	}
+	a.followAccent(c.Now())
 	a.refreshEditorChrome()
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion)
