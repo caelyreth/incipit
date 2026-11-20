@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -307,8 +308,26 @@ func (f *fakeLibrary) KeepAsList(id string, listed bool) {
 	}
 	f.listed[id] = listed
 }
-func (f *fakeLibrary) MoveGroup(id, parent string, _ int) {
+
+// MoveGroup records the move and, in a tree of groups, makes it: the
+// group taken out, then put at index among parent's.
+func (f *fakeLibrary) MoveGroup(id, parent string, index int) {
 	f.call("move group " + id + " to " + parent)
+	if f.groupTree == nil {
+		return
+	}
+	var moved GroupItem
+	for p, groups := range f.groupTree {
+		if i := slices.IndexFunc(groups, func(g GroupItem) bool { return g.ID == id }); i >= 0 {
+			moved = groups[i]
+			f.groupTree[p] = slices.Delete(slices.Clone(groups), i, i+1)
+		}
+	}
+	if moved.ID == "" {
+		return
+	}
+	siblings := f.groupTree[parent]
+	f.groupTree[parent] = slices.Insert(slices.Clone(siblings), max(0, min(index, len(siblings))), moved)
 }
 func (f *fakeLibrary) TrashGroup(id string) { f.call("trash group " + id) }
 func (f *fakeLibrary) NewSmartGroup(name, query string) string {

@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -258,6 +259,63 @@ func TestTheLanesAreNamedAtRest(t *testing.T) {
 	name, count = words(kept, "Kept"), words(kept, "1")
 	if name.W == 0 || count.W == 0 || !(kept.X+10 < name.X && name.X < count.X) {
 		t.Fatalf("At the left, the name and count should stand after the icon: %v, %v in %v.", name, count, kept)
+	}
+}
+
+// keptNames are the bookmarks' names as the box shows them, top first.
+func keptNames(state *State) []string {
+	var names []string
+	for _, g := range state.bookmarks() {
+		names = append(names, g.Name)
+	}
+	return names
+}
+
+// A bookmark dragged onto another stands over or under it, as the half
+// it is let go on says, to be undone.
+func TestABookmarkDraggedStandsWhereItIsLetGo(t *testing.T) {
+	state, _, tester := keptState(t,
+		GroupItem{ID: "s1", Name: "Oldest", Query: "$tag:a", Color: TintHalo},
+		GroupItem{ID: "s2", Name: "Middle", Query: "$tag:b", Color: TintHalo},
+		GroupItem{ID: "s3", Name: "Newest", Query: "$tag:c", Color: TintHalo})
+	if got := keptNames(state); !slices.Equal(got, []string{"Newest", "Middle", "Oldest"}) {
+		t.Fatalf("The newest should stand on top: %v.", got)
+	}
+	from, _ := tester.Find("Oldest")
+	onto, _ := tester.Find("Newest")
+	dragTo(tester, from.X+from.W/3, from.Y+from.H/2, onto.X+onto.W/3, onto.Y+onto.H/4)
+	if got := keptNames(state); !slices.Equal(got, []string{"Oldest", "Newest", "Middle"}) {
+		t.Fatalf("Let go on the top half of Newest, Oldest should stand over it: %v.", got)
+	}
+	from, _ = tester.Find("Oldest")
+	onto, _ = tester.Find("Middle")
+	dragTo(tester, from.X+from.W/3, from.Y+from.H/2, onto.X+onto.W/3, onto.Y+onto.H*3/4)
+	if got := keptNames(state); !slices.Equal(got, []string{"Newest", "Middle", "Oldest"}) {
+		t.Fatalf("Let go on the bottom half of Middle, Oldest should stand under it: %v.", got)
+	}
+	if !state.Undo() {
+		t.Fatal("The move should be undone.")
+	}
+	if got := keptNames(state); !slices.Equal(got, []string{"Oldest", "Newest", "Middle"}) {
+		t.Fatalf("Undone, Oldest should stand where it stood: %v.", got)
+	}
+}
+
+// A box fuller than its room scrolls what it holds.
+func TestAFullKeptBoxScrolls(t *testing.T) {
+	var marks []GroupItem
+	for i := range 20 {
+		marks = append(marks, GroupItem{ID: fmt.Sprint("s", i), Name: fmt.Sprint("Mark ", i), Query: fmt.Sprint("$tag:m", i), Color: TintHalo})
+	}
+	state, _, tester := keptState(t, marks...)
+	box, _ := tester.Find("Kept searches")
+	if state.field.kept.scroll.MaxY <= 0 {
+		t.Fatalf("Twenty bookmarks should be more than the box holds: %+v.", state.field.kept.scroll)
+	}
+	tester.Scroll(box.X+box.W/3, box.Y+box.H/2, 0, 200)
+	settle(tester)
+	if state.field.kept.scroll.Y <= 0 {
+		t.Fatalf("Scrolled over, the box should scroll what it holds: %+v.", state.field.kept.scroll)
 	}
 }
 

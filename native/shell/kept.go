@@ -18,7 +18,9 @@ import (
 // it all that shows; the pointer on it, or a ribbon dragged to it, draws
 // it out. A bookmark is a smart folder of the notebook's, the newest on
 // top: pressed, its query becomes the pill's; its × or its menu deletes
-// it, and its menu renames it. Each is dyed at its making in the hue the
+// it, and its menu renames it. Dragged, it goes as its group does, and
+// let go over another, it stands over or under it, as the half it was let
+// go on says. Each is dyed at its making in the hue the
 // others wear least, and keeps it. The query held stands on top as the
 // bookmark it would be, drawn in dashes in the hue it would take; pressed,
 // or a ribbon dropped on the box, it is kept. Bookmarks come in and go by
@@ -235,6 +237,29 @@ func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stageLook, h, 
 	}
 }
 
+// isBookmark reports whether the group id is a bookmark.
+func (s *State) isBookmark(id string) bool {
+	g, ok := s.Library.Group(id)
+	return ok && g.Smart()
+}
+
+// placeBookmark stands the bookmark id over near in the box where above,
+// else under it, to be undone. The box shows the newest on top, so over
+// is after near among its parent's groups, and under before it.
+func (s *State) placeBookmark(id, near string, above bool) {
+	parent, to := s.groupPlace(near)
+	if to == Last {
+		return
+	}
+	if above {
+		to++
+	}
+	if from, at := s.groupPlace(id); from == parent && at < to {
+		to--
+	}
+	s.arrangeGroup(id, parent, to)
+}
+
 // keptRow is a bookmark as the box shows it, or one going, which folds
 // shut where it stood.
 type keptRow struct {
@@ -278,6 +303,9 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 	btn := ui.ButtonBase(c.Key("bookmark-"+g.ID)).WidthPercent(100).Padding(7*k, tail+14*k, 7*k, 10*k).Gap(8 * k).
 		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label(g.Name).
 		Transition(bookmarkTransition(animate, k))
+	// Another dragged over it is to stand over it (-1) or under it (1), a
+	// line at that edge saying which.
+	place := 0
 	staying := map[bool]float32{true: 1}[!r.leaving]
 	if animate {
 		staying = components.Follow(btn, "staying", staying, components.MotionPanel)
@@ -310,7 +338,18 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 		var ribbon ui.Path
 		bookmarkOutline(&ribbon, r, 5*k, keptNotch*k)
 		p.FillPath(&ribbon, fill)
+		if place != 0 {
+			y := r.Y
+			if place > 0 {
+				y = r.Y + r.H - 2*k
+			}
+			p.Fill(ui.Rect{X: r.X, Y: y, W: r.W, H: 2 * k}, semantic.Accent.Foreground, k)
+		}
 	})
+	// Dragged, it goes as its group.
+	if !r.leaving && s.field.renaming != g.ID {
+		s.dragFrom(btn, groupDrag{id: g.ID})
+	}
 	btn.ContextMenu(func(m *ui.Menu) {
 		if m.Item("Rename…").Chosen() {
 			s.startRename(g.ID)
@@ -326,6 +365,23 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 		s.field.focus = true
 	}
 	btn.Children(func() {
+		if d, ok := s.field.drag.(groupDrag); ok && d.id != g.ID && !r.leaving && s.isBookmark(d.id) {
+			for _, above := range []bool{true, false} {
+				zone := ui.Box(c).Key(map[bool]string{true: "over", false: "under"}[above]).Absolute().Left(0).Right(0).HeightPercent(50)
+				if above {
+					zone.Top(0)
+				} else {
+					zone.Bottom(0)
+				}
+				over, dropped, ok := dragOn(zone, takes{groups: true})
+				if over {
+					place = map[bool]int{true: -1, false: 1}[above]
+				}
+				if ok {
+					s.placeBookmark(dropped.(groupDrag).id, g.ID, above)
+				}
+			}
+		}
 		if s.field.renaming == g.ID {
 			s.renameInput(c, semantic, g)
 			return
