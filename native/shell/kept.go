@@ -150,7 +150,7 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLoo
 		listTop := trashTop + size + 20*k
 		buttonsFoot = listTop + 2*size
 		s.homeButton(c, semantic, size, animate).Absolute().Left(inset).Top(homeTop)
-		s.trashButton(c, semantic, size, animate).Absolute().Left(inset).Top(trashTop)
+		s.trashButton(c, semantic, inset, trashTop, size, k, animate)
 		s.viewSwitch(c, semantic, size, animate).Absolute().Left(inset).Top(listTop)
 		s.settingsButton(c, semantic, size, animate).Absolute().Left(inset).Bottom(inset)
 		// A list's contents stand under how it is shown, down to the
@@ -162,8 +162,14 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLoo
 
 // trashButton shows the trash in the field, or leaves it, filled while it
 // is shown.
-func (s *State) trashButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
+func (s *State) trashButton(c *ui.Context, semantic theme.Theme, x, y, size, k float32, animate bool) ui.Element {
 	shown := s.inTrash()
+	// What is dropped on it goes to the trash, while it is not shown; what
+	// is dragged finds it from around it, not on it alone.
+	t := takes{sheets: !shown, groups: !shown}
+	reach := dropReach * k
+	zone, near, fromNear, droppedNear := s.reachFor(c, "trash-reach", t)
+	zone.Left(x-reach).Top(y-reach).Size(size+2*reach, size+2*reach)
 	label := map[bool]string{true: "Leave Trash", false: "Show Trash"}[shown]
 	btn := laneCircleButton(c, semantic, "trash", components.IconTrash, label, "Trash", s.binding(VerbShowTrash), shown, size, animate)
 	if btn.Clicked() {
@@ -174,11 +180,14 @@ func (s *State) trashButton(c *ui.Context, semantic theme.Theme, size float32, a
 		m.Separator()
 		s.verbItem(m, VerbEmptyTrash, "Empty Trash…", s.Verb(VerbEmptyTrash).Enabled, func() { s.DoVerb(VerbEmptyTrash) })
 	})
-	// What is dropped on it goes to the trash.
-	if !shown {
-		if _, dropped, ok := s.dropOn(c, semantic, btn, takes{sheets: true, groups: true}, animate); ok {
-			s.trashDropped(dropped)
-		}
+	btn.Absolute().Left(x).Top(y)
+	over, dropped, ok := dragOn(btn, t)
+	s.dropHighlight(c, semantic, btn, s.field.drag != nil && t.of(s.field.drag), over || near, animate)
+	switch {
+	case ok:
+		s.trashDropped(dropped)
+	case droppedNear:
+		s.trashDropped(fromNear)
 	}
 	return btn
 }

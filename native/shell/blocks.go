@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/caelyreth/neverland/native/components"
@@ -286,6 +287,10 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 	// card's ground, what it leaves standing dimmed in its place; a row of
 	// a group's card is a chip of its title alone.
 	dragged := !trashed && s.dragFrom(btn, sheetDrag{id: sh.ID})
+	// Selected with the one dragged, it goes too, and dims as it does.
+	if d, ok := s.field.drag.(sheetDrag); ok && !dragged && d.id != sh.ID && slices.Contains(s.carried(d), sh.ID) {
+		btn.Opacity(0.4)
+	}
 	switch {
 	case dragged && single:
 		btn.Background(semantic.Surface.Page).Border(1, semantic.Border.Variant).Radius(12 * m.k)
@@ -312,6 +317,9 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 		title = semantic.Text.Heading
 	}
 	btn.Children(func() {
+		if dragged {
+			dragCount(c, semantic, len(s.carried(sheetDrag{id: sh.ID})), m)
+		}
 		at := s.deskPlace(sh.ID)
 		if at > 0 {
 			openMark(c, semantic, h, m)
@@ -366,6 +374,21 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 			}
 			components.Label(c, foot, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum").Opacity(0.7)
 		})
+	})
+}
+
+// dragCount marks what is dragged with how many sheets go with it, where
+// more than one does: a round count in the accent on its corner, as a
+// Mac's files dragged together are counted.
+func dragCount(c *ui.Context, semantic theme.Theme, n int, m blockMetrics) {
+	if n < 2 {
+		return
+	}
+	line := theme.TextXSmall.LineHeight(m.scale)
+	ui.Row(c.Key("drag-count")).Absolute().Top(-line / 3).Right(-line / 3).Height(line).MinWidth(line).
+		PaddingX(4 * m.k).Radius(line / 2).AlignItems(ui.Center).Justify(ui.Center).
+		Background(semantic.Accent.Foreground).IgnoreInput(true).Label(fmt.Sprintf("%d sheets", n)).Children(func() {
+		components.CenteredLabel(c, fmt.Sprint(n), theme.TextXSmall, semantic.Accent.OnAccent).SingleLine().FontFeatures("tnum")
 	})
 }
 

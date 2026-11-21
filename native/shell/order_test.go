@@ -502,3 +502,76 @@ func TestResortingLaysNoCardOutAgain(t *testing.T) {
 		}
 	}
 }
+
+// orderedLibrary files sheets as MoveSheet says, each group's in order.
+type orderedLibrary struct {
+	*fakeLibrary
+	groups map[string][]string
+}
+
+func (l *orderedLibrary) Sheets(place Place) []SheetItem {
+	var out []SheetItem
+	for _, id := range l.groups[place.Group] {
+		out = append(out, SheetItem{ID: id, Title: id})
+	}
+	return out
+}
+
+func (l *orderedLibrary) SheetGroup(id string) string {
+	for g, ids := range l.groups {
+		if slices.Contains(ids, id) {
+			return g
+		}
+	}
+	return ""
+}
+
+func (l *orderedLibrary) MoveSheet(id, group string, index int) {
+	for g := range l.groups {
+		l.groups[g] = slices.DeleteFunc(l.groups[g], func(o string) bool { return o == id })
+	}
+	l.groups[group] = slices.Insert(l.groups[group], min(index, len(l.groups[group])), id)
+}
+
+// Sheets arranged together land together, in their order, before the one
+// they were dropped by, wherever each stood, and are taken back as one.
+func TestSheetsArrangedTogetherLandTogether(t *testing.T) {
+	library := &orderedLibrary{fakeLibrary: &fakeLibrary{}, groups: map[string][]string{
+		"2": {"y", "a", "x", "b"}, "1": {"z"},
+	}}
+	state := New()
+	state.Library = library
+	state.arrange([]string{"x", "y", "z"}, "2", "b")
+	if got := library.groups["2"]; !slices.Equal(got, []string{"a", "x", "y", "z", "b"}) || len(library.groups["1"]) != 0 {
+		t.Fatalf("Arranged before b: %v, %v.", got, library.groups["1"])
+	}
+	if !state.Undo() {
+		t.Fatal("The arranging should be undone.")
+	}
+	if got := library.groups["2"]; !slices.Equal(got, []string{"y", "a", "x", "b"}) || !slices.Equal(library.groups["1"], []string{"z"}) {
+		t.Fatalf("Taken back: %v, %v.", got, library.groups["1"])
+	}
+	state.arrange([]string{"a"}, "2", "")
+	if got := library.groups["2"]; !slices.Equal(got, []string{"y", "x", "b", "a"}) {
+		t.Fatalf("Arranged at the end: %v.", got)
+	}
+}
+
+// In a list set by hand, the gap between two cards takes a sheet as their
+// halves do: let go there, it is filed between them.
+func TestAListsGapsTakeWhatIsDropped(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.extraSheets = 3
+	state.toggleList()
+	settle(tester)
+	a, _ := tester.Find("Sheet 1")
+	b, _ := tester.Find("Sheet 2")
+	if a.Y != b.Y || b.X <= a.X+a.W {
+		t.Fatalf("Sheet 1 and Sheet 2 should stand side by side: %v, %v.", a, b)
+	}
+	draft, _ := tester.Find("Draft")
+	dragTo(tester, draft.X+draft.W/2, draft.Y+draft.H/2, (a.X+a.W+b.X)/2, a.Y+a.H/2)
+	if !slices.Contains(library.calls, "move 8 to 2") {
+		t.Fatalf("Let go between two cards, the sheet should be filed with them: %v.", library.calls)
+	}
+}

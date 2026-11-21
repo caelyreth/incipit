@@ -79,11 +79,18 @@ func (s *State) shownSheet(id string) (SheetItem, bool) {
 	return SheetItem{}, false
 }
 
-// carried is the sheets d carries: the sheet dragged, or all the tray
-// holds.
+// carried is the sheets d carries: the sheet dragged, with the others
+// selected with it, or all the tray holds.
 func (s *State) carried(d shellDrag) []string {
 	switch d := d.(type) {
 	case sheetDrag:
+		// A sheet selected with others goes with them, as a Mac's files
+		// do; out of the tray, it goes alone.
+		if !d.tray && s.isPicked("sheet:"+d.id) {
+			if picked := s.pickedOf("sheet:"); len(picked) > 1 {
+				return picked
+			}
+		}
 		return []string{d.id}
 	case trayDrag:
 		return s.trayIDs()
@@ -161,10 +168,7 @@ func (s *State) trayView(c *ui.Context, semantic theme.Theme, h, k float32, hidd
 	})
 	// A sheet comes in with the others picked with it.
 	if d, isSheet := dropped.(sheetDrag); ok && isSheet && !d.tray {
-		in := []string{d.id}
-		if s.isPicked("sheet:"+d.id) && len(s.field.picked) > 1 {
-			in = s.pickedOf("sheet:")
-		}
+		in := s.carried(d)
 		s.field.picked = nil
 		s.toTray(in)
 	}

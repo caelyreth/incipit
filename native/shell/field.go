@@ -203,6 +203,11 @@ type fieldState struct {
 	parts map[string]float32
 	// parted is whether a card still stood aside as the field last drew.
 	parted bool
+	// landing is the gap a sheet dragged in a list would land in, its line
+	// at its left, as last drawn, and landingShown how much its line
+	// showed.
+	landing      stageRect
+	landingShown float32
 	// offered is how much the ribbons around the pill show: all but while
 	// the views turn (swapOffered).
 	offered float32

@@ -64,8 +64,9 @@ type shelf struct {
 type shelfState struct {
 	scroll ui.ScrollState
 	edges  components.EdgeFade
-	// top is where it stood last, with its label over it.
-	top float32
+	// top is where it stood last, with its label over it, and height how
+	// tall it stood.
+	top, height float32
 }
 
 // shelfView draws sh, keeping its state in st: list draws what it holds,
@@ -78,6 +79,11 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 	if sh.inset {
 		ground = semantic.Surface.Inset
 	}
+	// Resting past the window's edge, it is found by a drag from the
+	// lane's width and more, about where it stood.
+	reach := dropReach * k
+	zone, near, fromNear, droppedNear := s.reachFor(c, sh.key+"-reach", sh.takes)
+	zone.Top(st.top+24*k-reach).Height(st.height+2*reach).Width(s.laneShown()+reach).Translate(sh.offset, 0).Hidden(hidden)
 	box := ui.Box(c).Key(sh.key).Absolute().Width(paper + tail).Clip().Hidden(hidden).Role(ui.RoleGroup).Label(sh.label)
 	// What it holds stands out on the side of the window's middle, or
 	// stands in from it where nothing does.
@@ -88,10 +94,12 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 	at, sign := float32(0), float32(-1)
 	if sh.right {
 		box.Right(0)
+		zone.Right(0)
 		padLeft, padRight = inner, pad+radius
 		at, sign = tail, 1
 	} else {
 		box.Left(0)
+		zone.Left(0)
 	}
 	if sh.menu != nil {
 		box.ContextMenu(sh.menu)
@@ -100,6 +108,10 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 		s.dragFrom(box, sh.drag)
 	}
 	over, dropped, ok := dragOn(box, sh.takes)
+	if !ok && droppedNear {
+		dropped, ok = fromNear, true
+	}
+	over = over || near
 	out := float32(0)
 	if box.Hovered() || over || sh.out {
 		out = 1
@@ -168,7 +180,7 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 		top -= height
 	}
 	box.Top(top)
-	st.top = top - 24*k
+	st.top, st.height = top-24*k, height
 	label := s.laneIcon(c, semantic, sh.key+"-label", sh.icon, sh.name, sh.count, stageRect{Y: top}, !sh.right, k).Hidden(hidden)
 	if sh.offset != 0 {
 		label.Translate(sh.offset, 0)

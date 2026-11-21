@@ -97,6 +97,25 @@ func (s *State) dropOn(c *ui.Context, semantic theme.Theme, target ui.Element, t
 	return over, dropped, ok
 }
 
+// dropReach is how far past a small target's edge a drag still reaches
+// it, at the reference type size.
+const dropReach = 16
+
+// reachFor is a zone the caller places around a small target, or one
+// that rests mostly past the window's edge, which takes what t takes
+// while a drag of it goes on, so the target is found without aiming at
+// it; it is not built otherwise, and stands under the target, which keeps
+// its own hover. It reports whether a drag is over it, and the one dropped
+// on it.
+func (s *State) reachFor(c *ui.Context, key string, t takes) (zone ui.Element, over bool, dropped shellDrag, ok bool) {
+	if s.field.drag == nil || !t.of(s.field.drag) {
+		return ui.Element{}, false, nil, false
+	}
+	zone = ui.Box(c.Key(key)).Absolute()
+	over, dropped, ok = dragOn(zone, t)
+	return zone, over, dropped, ok
+}
+
 // dragOn makes target take what t allows of the shell's drags, for a
 // target that shows it takes them its own way: it reports whether one is
 // over it, and returns the one dropped on it.

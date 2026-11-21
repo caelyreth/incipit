@@ -389,24 +389,51 @@ func (s *State) sheetIDs(group string) []string {
 	return out
 }
 
-// arrange files the sheet id in group at index among its sheets, its own
-// group or another's, to be undone.
-func (s *State) arrange(id, group string, index int) {
-	from := s.Library.SheetGroup(id)
-	at := slices.Index(s.sheetIDs(from), id)
-	if from == group && index == at {
+// arrange files the sheets ids in group, together and in their order,
+// before the sheet before among its sheets, or at their end for "", to be
+// undone.
+func (s *State) arrange(ids []string, group, before string) {
+	order := s.sheetIDs(group)
+	want := slices.DeleteFunc(slices.Clone(order), func(id string) bool { return slices.Contains(ids, id) })
+	at := len(want)
+	if i := slices.Index(want, before); i >= 0 {
+		at = i
+	}
+	want = slices.Insert(want, at, ids...)
+	if slices.Equal(want, order) {
 		return
 	}
-	move := func(group string, index int) {
-		s.Library.MoveSheet(id, group, index)
-		s.arrive("sheet:" + id)
-	}
-	move(group, index)
-	text := "Moved " + s.sheetsNamed([]string{id})
-	if from != group {
+	from := s.sheetPlaces(ids)
+	do := func() { s.placeSheets(group, want, at, len(ids)) }
+	do()
+	text := "Moved " + s.sheetsNamed(ids)
+	if slices.ContainsFunc(from, func(p sheetPlace) bool { return p.group != group }) {
 		text += " to " + s.groupNamedByID(group)
 	}
-	s.tell(text, func() { move(from, at) }, func() { move(group, index) })
+	s.tell(text, func() {
+		for _, p := range from {
+			s.Library.MoveSheet(p.id, p.group, p.index)
+		}
+		s.arrive(rowIDs("sheet:", ids)...)
+	}, do)
+}
+
+// placeSheets moves the n sheets at in want so group's sheets stand as
+// want does: each goes just after the one before it there, which already
+// stands where it will, so wherever each comes from, the rest keep their
+// order around it.
+func (s *State) placeSheets(group string, want []string, at, n int) {
+	cur := s.sheetIDs(group)
+	for _, id := range want[at : at+n] {
+		cur = slices.DeleteFunc(cur, func(c string) bool { return c == id })
+		to := 0
+		if i := slices.Index(want, id); i > 0 {
+			to = slices.Index(cur, want[i-1]) + 1
+		}
+		s.Library.MoveSheet(id, group, to)
+		cur = slices.Insert(cur, to, id)
+	}
+	s.arrive(rowIDs("sheet:", want[at:at+n])...)
 }
 
 // arrangeGroup puts the group id in parent at index among its groups, as
@@ -436,7 +463,12 @@ func (s *State) nudge(by int) bool {
 		group := s.Library.SheetGroup(id)
 		ids := s.sheetIDs(group)
 		if at := slices.Index(ids, id); at >= 0 {
-			s.arrange(id, group, max(0, min(len(ids)-1, at+by)))
+			rest := slices.Delete(slices.Clone(ids), at, at+1)
+			to, before := max(0, min(len(rest), at+by)), ""
+			if to < len(rest) {
+				before = rest[to]
+			}
+			s.arrange([]string{id}, group, before)
 			return true
 		}
 	case "group":
@@ -457,81 +489,112 @@ func (s *State) nudge(by int) bool {
 
 // arrangeTargets are where, while a sheet is dragged in a list set by
 // hand, it can be let go of: the half of each other sheet's card before it
-// or after it, filing it there in that sheet's group. Over one, the two
-// cards either side of that gap ease apart and a line grows in it, where
-// the sheet will go. A divider's head takes it whole, into its group, as
-// a group's head does.
+// or after it, filing what it carries there in that sheet's group. The
+// halves reach across the gaps around the cards to meet, so the drag is
+// always over one and the place it lands is never lost between cards.
+// Over one, the two cards either side of that gap ease apart and one line
+// stands in it, gliding from gap to gap as the drag goes, where the sheets
+// will go. A divider's head takes them whole, into its group, as a
+// group's head does.
 func (s *State) arrangeTargets(c *ui.Context, semantic theme.Theme, drawn []stageFrame, at stagePoint, m blockMetrics, animate bool) {
 	d, ok := s.field.drag.(sheetDrag)
 	if !ok || !s.arranging() {
 		return
 	}
+	carried := s.carried(d)
 	gap := m.horizon.Gap
 	apart := 6 * m.k
 	parts := map[string]float32{}
+	var line stageRect
+	landing := false
 	for _, fr := range drawn {
 		id, ok := strings.CutPrefix(fr.ID, "sheet:")
-		if !ok || id == d.id {
+		if !ok || slices.Contains(carried, id) {
 			continue
 		}
-		side := fr.Rect.W / 2
+		half := fr.Rect.W / 2
 		for _, after := range []bool{false, true} {
-			x, end := fr.Rect.X, "-before"
+			x, end := fr.Rect.X-gap/2, "-before"
 			if after {
-				x, end = x+side, "-after"
+				x, end = fr.Rect.X+half, "-after"
 			}
 			zone := ui.Box(c.Key("arrange-"+fr.ID+end)).
-				Absolute().Left(at.X+x).Top(at.Y+fr.Rect.Y).Size(side, fr.Rect.H)
+				Absolute().Left(at.X+x).Top(at.Y+fr.Rect.Y-gap/2).Size(half+gap/2, fr.Rect.H+gap)
 			over, _, dropped := dragOn(zone, takes{sheets: true})
 			if dropped {
-				group := s.Library.SheetGroup(id)
-				ids := s.sheetIDs(group)
-				to := slices.Index(ids, id)
-				if after {
-					to++
-				}
-				if from := slices.Index(ids, d.id); from >= 0 && from < to {
-					to--
-				}
-				s.arrange(d.id, group, to)
+				s.arrange(carried, s.Library.SheetGroup(id), s.landingBefore(id, after, carried))
 			}
-			// The gap: the card's side, and the card beside it across it.
-			lx := fr.Rect.X - gap/2
-			if after {
-				lx = fr.Rect.X + fr.Rect.W + gap/2
-			}
-			if over {
-				if after {
-					parts[fr.ID] = -apart
-				} else {
-					parts[fr.ID] = apart
-				}
-				for _, o := range drawn {
-					if o.Rect.Y == fr.Rect.Y && (after && o.Rect.X > fr.Rect.X || !after && o.Rect.X < fr.Rect.X) &&
-						abs32(o.Rect.X-fr.Rect.X) < fr.Rect.W+gap+1 {
-						parts[o.ID] = -parts[fr.ID]
-					}
-				}
-			}
-			shown := float32(0)
-			if over {
-				shown = 1
-			}
-			grow := shown
-			if animate {
-				shown = components.Follow(zone, "line", shown, components.MotionQuick)
-				grow = zone.AnimateTo("grow", grow, components.Bouncy(components.MotionQuick))
-			}
-			if shown <= 0.001 {
+			if !over {
 				continue
 			}
-			thin, tall := 4*m.k, fr.Rect.H*(0.5+0.5*grow)
-			ui.Box(c.Key("arrange-line-"+fr.ID+end)).
-				Absolute().Left(at.X+lx-thin/2).Top(at.Y+fr.Rect.Y+(fr.Rect.H-tall)/2).Size(thin, tall).Radius(thin / 2).
-				Background(semantic.Accent.Foreground).Opacity(shown).IgnoreInput(true)
+			// The gap: the card's side, and the card beside it across it.
+			landing = true
+			line = stageRect{X: fr.Rect.X - gap/2, Y: fr.Rect.Y, H: fr.Rect.H}
+			parts[fr.ID] = apart
+			if after {
+				line.X = fr.Rect.X + fr.Rect.W + gap/2
+				parts[fr.ID] = -apart
+			}
+			for _, o := range drawn {
+				if o.Rect.Y == fr.Rect.Y && (after && o.Rect.X > fr.Rect.X || !after && o.Rect.X < fr.Rect.X) &&
+					abs32(o.Rect.X-fr.Rect.X) < fr.Rect.W+gap+1 {
+					parts[o.ID] = -parts[fr.ID]
+				}
+			}
 		}
 	}
 	s.field.parts = parts
+	s.landingLine(c, semantic, line, landing, at, m, animate)
+}
+
+// landingBefore is the sheet what is dropped by id, on its after side or
+// before it, goes before among its group's sheets, those carried left
+// out: "" for their end.
+func (s *State) landingBefore(id string, after bool, carried []string) string {
+	if !after {
+		return id
+	}
+	ids := slices.DeleteFunc(s.sheetIDs(s.Library.SheetGroup(id)), func(o string) bool { return slices.Contains(carried, o) })
+	if i := slices.Index(ids, id); i >= 0 && i+1 < len(ids) {
+		return ids[i+1]
+	}
+	return ""
+}
+
+// landingLine is the one line in the gap a drag would land in, at r's
+// left, as tall: it glides to the next gap as the drag moves on, growing
+// as it comes, and fades where it last stood once no gap is under it.
+func (s *State) landingLine(c *ui.Context, semantic theme.Theme, r stageRect, landing bool, at stagePoint, m blockMetrics, animate bool) {
+	place := ui.Box(c.Key("arrange-line")).Absolute().Left(0).Top(0).IgnoreInput(true)
+	shown := map[bool]float32{true: 1}[landing]
+	x, y, h := r.X, r.Y, r.H
+	if !landing {
+		// Gone, it fades where it last stood.
+		x, y, h = s.field.landing.X, s.field.landing.Y, s.field.landing.H
+	}
+	s.field.landing = stageRect{X: x, Y: y, H: h}
+	grow := shown
+	if animate {
+		glide := components.Spring(components.MotionQuick)
+		if s.field.landingShown < 0.01 {
+			// Coming in, it stands where it lands at once, and grows there.
+			place.Jump("x", x)
+			place.Jump("y", y)
+			place.Jump("h", h)
+		}
+		x, y, h = place.AnimateTo("x", x, glide), place.AnimateTo("y", y, glide), place.AnimateTo("h", h, glide)
+		shown = components.Follow(place, "shown", shown, components.MotionQuick)
+		grow = place.AnimateTo("grow", grow, components.Bouncy(components.MotionQuick))
+	}
+	s.field.landingShown = shown
+	if shown <= 0.001 {
+		return
+	}
+	thin, tall := 4*m.k, h*(0.5+0.5*grow)
+	place.Children(func() {
+		ui.Box(c.Key("arrange-line-bar")).Absolute().Left(at.X+x-thin/2).Top(at.Y+y+(h-tall)/2).Size(thin, tall).
+			Radius(thin / 2).Background(semantic.Accent.Foreground).Opacity(shown)
+	})
 }
 
 // partOf is how far aside the card id stands, easing, to open the gap a
