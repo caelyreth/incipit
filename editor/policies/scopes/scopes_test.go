@@ -251,3 +251,91 @@ func TestDismissInACellSelectsTheTable(t *testing.T) {
 		t.Fatalf("Escape on the selected table selects %+v, want a caret in it", sel)
 	}
 }
+
+// span is the selection's ordered extent, by offset, and whether it lies
+// in one text slot.
+func (p *page) span() (from, to int, one bool) {
+	f, t := p.selection().Ordered(p.e.Snapshot())
+	return f.Offset, t.Offset, f.Pos.Ref() == t.Pos.Ref()
+}
+
+func (p *page) wantSpan(step string, from, to int) {
+	p.t.Helper()
+	if f, t, _ := p.span(); f != from || t != to {
+		p.t.Fatalf("%s: selection is %d..%d, want %d..%d", step, f, t, from, to)
+	}
+}
+
+// Expand climbs from the word at the caret through its sentence to the
+// block, and Shrink comes back down the same rungs to the caret.
+func TestExpandClimbsTheLadderAndShrinkRetracesIt(t *testing.T) {
+	p := open(t)
+	p.typeText("Ab cd. Ef gh")
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	caret := p.selection()
+
+	p.do(vocab.ExpandSelection{})
+	p.wantSpan("word", 10, 12)
+	p.do(vocab.ExpandSelection{})
+	p.wantSpan("sentence", 7, 12)
+	p.do(vocab.ExpandSelection{})
+	p.wantSpan("block", 0, 12)
+
+	p.do(vocab.ShrinkSelection{})
+	p.wantSpan("back to the sentence", 7, 12)
+	p.do(vocab.ShrinkSelection{})
+	p.wantSpan("back to the word", 10, 12)
+	p.do(vocab.ShrinkSelection{})
+	if got := p.selection(); got.Anchor != caret.Anchor || got.Head != caret.Head {
+		t.Fatalf("shrinking all the way made %+v, want the caret %+v", got, caret)
+	}
+	p.do(vocab.ShrinkSelection{})
+	if got := p.selection(); got.Head != caret.Head || !got.IsCollapsed() {
+		t.Fatalf("shrinking past the caret moved it to %+v", got)
+	}
+}
+
+// A caret at a word's end takes that word; one in the space between words
+// has none, and climbs to its sentence.
+func TestExpandTakesTheWordEndingAtTheCaret(t *testing.T) {
+	p := open(t)
+	p.typeText("ab cd")
+	p.do(vocab.ExpandSelection{})
+	p.wantSpan("word before the caret", 3, 5)
+
+	p = open(t)
+	p.typeText("ab  cd")
+	for range 3 {
+		p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	}
+	p.do(vocab.ExpandSelection{})
+	p.wantSpan("no word at the space", 0, 6)
+}
+
+// Shrink only comes back from where a climb left the selection: once
+// anything else selects, there is nothing to come back to.
+func TestShrinkForgetsAClimbMovedAwayFrom(t *testing.T) {
+	p := open(t)
+	p.typeText("ab cd")
+	p.do(vocab.ExpandSelection{})
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward, Extend: true})
+	before := p.selection()
+	p.do(vocab.ShrinkSelection{})
+	if got := p.selection(); got != before {
+		t.Fatalf("shrink after moving made %+v, want %+v left alone", got, before)
+	}
+}
+
+// Select All still grows from the block, past the word and the sentence,
+// and Shrink comes back from it as well.
+func TestSelectScopeSkipsTheTextRungsAndShrinksBack(t *testing.T) {
+	p := open(t)
+	p.typeText("Ab cd. Ef")
+	caret := p.selection()
+	p.do(vocab.SelectScope{})
+	p.wantSpan("select all", 0, 9)
+	p.do(vocab.ShrinkSelection{})
+	if got := p.selection(); got.Head != caret.Head || !got.IsCollapsed() {
+		t.Fatalf("shrink from select all made %+v, want the caret", got)
+	}
+}

@@ -99,6 +99,12 @@ func (el *Element) run(in vocab.Intent, services ui.Services, at time.Time) bool
 			return false
 		}
 		in = resolved
+	case vocab.SelectLine:
+		resolved, ok := ed.lineSpan(v)
+		if !ok {
+			return false
+		}
+		in = resolved
 	case vocab.Paste:
 		formats := services.ClipboardFormats()
 		ours := holds(formats, transfer.Format(clipboard.Format))

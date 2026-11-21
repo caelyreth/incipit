@@ -4,7 +4,8 @@
 // how it got there: Return mirrors Leave, so after Leave it goes back in,
 // and after a closer typed by hand it goes in all the same. A character
 // typed at a Closer's inner end that closes it steps over its closing
-// side, whoever wrote that side.
+// side, whoever wrote that side. MatchPair goes between a Closer's two
+// inner ends.
 package navigation
 
 import (
@@ -26,6 +27,8 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "return", policy.Intent[vocab.Return](), scopes.Behind(), enter).Any()
 	closers := policy.Role(vocab.RoleCloser)
 	policy.On(p, "close", policy.Intent[vocab.Type](), policy.Or(closers.AtEnd(), closers.Empty()), close)
+	policy.On(p, "match-pair", policy.Intent[vocab.MatchPair](), policy.Slot.Inside(), matchPair).Any()
+	p.Command("navigation.matchPair", "commands.matchPair", vocab.MatchPair{}, policy.Key("shift+primary+\\"))
 
 	// The card's demonstration, played by the engine itself.
 	p.Showcase(2600*time.Millisecond,
@@ -48,6 +51,29 @@ func close(c *policy.Ctx, in vocab.Type, at policy.At[vocab.Closer]) policy.Resu
 		return policy.Pass
 	}
 	return policy.Select(doc.Collapsed(next))
+}
+
+// matchPair goes to the other inner end of the innermost pair or mark
+// the caret stands in, any a typed character closes: to its start from
+// its end, and to its end from anywhere else in it.
+func matchPair(c *policy.Ctx, _ vocab.MatchPair, _ policy.At[doc.SlotRef]) policy.Result {
+	head := c.Head()
+	levels := c.Stack().Levels
+	for i := len(levels) - 1; i >= 0; i-- {
+		l := levels[i]
+		if l.Class != policy.LevelFact && l.Class != policy.LevelAnnotation {
+			continue
+		}
+		if _, ok := l.Role(c.Doc(), vocab.RoleCloser); !ok {
+			continue
+		}
+		to := l.End
+		if head.Pos == l.End.Pos {
+			to = l.Start
+		}
+		return policy.Reveal(doc.Collapsed(to))
+	}
+	return policy.Swallow
 }
 
 // leave exits the scope, past its end.

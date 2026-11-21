@@ -128,6 +128,18 @@ func motionTarget(r doc.Reader, stops policy.Stops, head doc.Caret, unit vocab.U
 	return stops.Step(head, dir)
 }
 
+// selectLine accepts the line the renderer resolved, Start to End; one
+// it could not resolve selects nothing.
+func selectLine(c *policy.Ctx, in vocab.SelectLine, _ policy.At[doc.SlotRef]) policy.Result {
+	if _, ok := c.Doc().Node(in.Start.Pos.Node); !ok {
+		return policy.Swallow
+	}
+	if _, ok := c.Doc().Node(in.End.Pos.Node); !ok {
+		return policy.Swallow
+	}
+	return policy.Reveal(doc.TextRange(in.Start, in.End))
+}
+
 // visualMove accepts the stop the renderer resolved from geometry.
 func visualMove(c *policy.Ctx, in vocab.VisualMove, _ policy.At[doc.SlotRef]) policy.Result {
 	target := in.Target

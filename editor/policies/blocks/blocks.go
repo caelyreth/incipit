@@ -23,6 +23,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "retype", policy.Intent[profile.Retype](), in, retype).Caret().Range()
 	policy.On(p, "wrap-quote", policy.Intent[profile.WrapQuote](), in, wrapQuote).Caret().Range()
 	policy.On(p, "nest", policy.Intent[profile.Nest](), in, nest).Caret().Range()
+	policy.On(p, "jump-heading", policy.Intent[profile.JumpHeading](), in, jumpHeading).Any()
+	p.Command("blocks.previousHeading", "commands.previousHeading", profile.JumpHeading{Dir: vocab.Backward}, policy.Key("alt+primary+up"))
+	p.Command("blocks.nextHeading", "commands.nextHeading", profile.JumpHeading{Dir: vocab.Forward}, policy.Key("alt+primary+down"))
 
 	p.Command("blocks.paragraph", "commands.paragraph", profile.Retype{To: profile.Paragraph})
 	for level := 1; level <= 3; level++ {

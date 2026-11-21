@@ -43,6 +43,7 @@ var Policy = policy.Define(policy.CoreID, func(p *policy.P) {
 	policy.On(p, "leave-object", policy.Moving(0, 0), in, leaveObject).Node()
 	policy.On(p, "move", policy.Intent[vocab.Move](), in, move).Any()
 	policy.On(p, "visual-move", policy.Intent[vocab.VisualMove](), in, visualMove).Any()
+	policy.On(p, "select-line", policy.Intent[vocab.SelectLine](), in, selectLine).Any()
 	policy.On(p, "place", policy.Intent[vocab.Place](), in, placeCaret).Any()
 
 	// Leave and Return move between scopes, which the navigation policy
@@ -96,6 +97,7 @@ var commands = []command{
 	{"core.wordRight", "commands.wordRight", vocab.Move{Unit: vocab.ByWord, Dir: vocab.Forward}, policy.Key("alt+right")},
 	{"core.lineStart", "commands.lineStart", vocab.VisualMove{Dir: vocab.LineStart}, policy.Key("primary+left")},
 	{"core.lineEnd", "commands.lineEnd", vocab.VisualMove{Dir: vocab.LineEnd}, policy.Key("primary+right")},
+	{"core.selectLine", "commands.selectLine", vocab.SelectLine{}, policy.Key("primary+l")},
 	{"core.up", "commands.up", vocab.VisualMove{Dir: vocab.Up}, policy.Key("up")},
 	{"core.down", "commands.down", vocab.VisualMove{Dir: vocab.Down}, policy.Key("down")},
 	{"core.paragraphUp", "commands.paragraphUp", vocab.Move{Unit: vocab.ByParagraph, Dir: vocab.Backward}, policy.Key("alt+up")},

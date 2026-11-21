@@ -31,6 +31,7 @@ var (
 	intentPickTag    = vocab.NewIntentKind("PickTag")
 	intentSetDialect = vocab.NewIntentKind("SetMathDialect")
 	intentTogDialect = vocab.NewIntentKind("ToggleMathDialect")
+	intentHeading    = vocab.NewIntentKind("JumpHeading")
 )
 
 type (
@@ -43,6 +44,9 @@ type (
 		To    doc.Kind
 		Attrs doc.Attrs
 	}
+	// JumpHeading puts the caret at the start of the next heading the way
+	// Dir goes, of any level; with none that way, it stays.
+	JumpHeading struct{ Dir vocab.Direction }
 	// PickTag names the tag the caret is in, as a tag picker chooses one:
 	// the tag reads "#" and Name, and the caret goes past the space ending
 	// its word.
@@ -147,6 +151,7 @@ const (
 )
 
 func (Format) Kind() vocab.IntentKind         { return intentFormat }
+func (JumpHeading) Kind() vocab.IntentKind    { return intentHeading }
 func (Retype) Kind() vocab.IntentKind         { return intentRetype }
 func (WrapQuote) Kind() vocab.IntentKind      { return intentWrapQuote }
 func (MakeList) Kind() vocab.IntentKind       { return intentMakeList }

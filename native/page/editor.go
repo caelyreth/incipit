@@ -2,7 +2,6 @@ package page
 
 import (
 	"maps"
-	"strings"
 	"sync"
 	"time"
 
@@ -301,20 +300,57 @@ func (ed *Editor) lineEdge(in vocab.VisualMove, head doc.Caret) (vocab.VisualMov
 		return in, false
 	}
 	line, _, _ := pc.surface.lineOf(pc.stop.u)
-	u := line.Start
+	start, end := pc.surface.lineBounds(line)
+	u := start
 	if in.Dir == vocab.LineEnd {
-		u = line.End
-		// A line a newline ends stops before it; a wrapped line's end is
-		// the next line's start, which the caret takes at this line's end.
-		if u > line.Start && u <= len(pc.surface.text) && strings.HasSuffix(pc.surface.text[:byteIndex(pc.surface.text, u)], "\n") {
-			u--
-		}
+		u = end
 	}
 	st := pc.surface.nearest(u)
 	if st == nil {
 		return in, false
 	}
 	in.Target, in.GoalX = st.caret, -1
+	return in, true
+}
+
+// lineSpan answers a line selection: the caret's line, start to end, or,
+// with whole lines of one surface selected, them and the line after,
+// while the surface has one.
+func (ed *Editor) lineSpan(in vocab.SelectLine) (vocab.SelectLine, bool) {
+	pl := ed.layout
+	if pl == nil {
+		return in, false
+	}
+	sel := ed.view().Selection
+	if sel.Kind != doc.SelectText {
+		return in, false
+	}
+	head, ok := pl.lookup(sel.Head)
+	if !ok || head.surface == nil {
+		return in, false
+	}
+	sl := head.surface
+	lines := sl.layout.Lines()
+	from, to := head.stop.u, head.stop.u
+	if anchor, ok := pl.lookup(sel.Anchor); ok && anchor.surface == sl {
+		from, to = min(from, anchor.stop.u), max(from, anchor.stop.u)
+	}
+	first, _, _ := sl.lineOf(from)
+	start, end := sl.lineBounds(first)
+	if from < to {
+		// A range takes the whole of its lines, and whole lines the one
+		// after them too.
+		last, j, _ := sl.lineOf(to - 1)
+		_, end = sl.lineBounds(last)
+		if start == from && end == to && j+1 < len(lines) {
+			_, end = sl.lineBounds(lines[j+1])
+		}
+	}
+	s, e := sl.nearest(start), sl.nearest(end)
+	if s == nil || e == nil {
+		return in, false
+	}
+	in.Start, in.End = s.caret, e.caret
 	return in, true
 }
 

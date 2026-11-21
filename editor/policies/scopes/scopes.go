@@ -1,5 +1,7 @@
 // Package scopes is the scopes policy: SelectScope grows from the
-// innermost scope at the caret through each enclosing scope. Escape in a
+// innermost scope at the caret through each enclosing scope, and
+// ExpandSelection and ShrinkSelection climb and come back down the whole
+// ladder, the word and the sentence among its rungs (ladder.go). Escape in a
 // scope one leaves, with nothing selected, selects it whole when it is a
 // node; on it selected whole, it enters it again where Return would.
 package scopes
@@ -19,6 +21,10 @@ const ID = "scopes"
 // Policy is the scopes policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "select", policy.Intent[vocab.SelectScope](), policy.Slot.Inside(), grow).Any()
+	policy.On(p, "expand", policy.Intent[vocab.ExpandSelection](), policy.Slot.Inside(), expand).Any()
+	policy.On(p, "shrink", policy.Intent[vocab.ShrinkSelection](), policy.Slot.Inside(), shrink).Any()
+	p.Command("scopes.expand", "commands.expandSelection", vocab.ExpandSelection{}, policy.Key("alt+shift+primary+right"))
+	p.Command("scopes.shrink", "commands.shrinkSelection", vocab.ShrinkSelection{}, policy.Key("alt+shift+primary+left"))
 	leavable := policy.Role(vocab.RoleLeavable)
 	policy.On(p, "leave-selecting", policy.Intent[vocab.Dismiss](), leavable.Nodes().Own(), selectScope).Caret()
 	policy.On(p, "enter-selected", policy.Intent[vocab.Dismiss](), leavable.Selected(), enterScope).Node()
@@ -40,39 +46,54 @@ type candidate struct {
 }
 
 // grow selects the innermost scope containing the current selection, or
-// the next enclosing scope when the selection already is a scope. The
+// the next enclosing scope when the selection already is a scope, and
+// keeps the rung it climbed, for ShrinkSelection to come back down. The
 // scope stack is read at both stands of the selection: selecting a mark
 // or pair can leave its head outside the scope its anchor still holds.
 func grow(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) policy.Result {
+	return climb(c, candidatesAt(c))
+}
+
+// climb selects the rung of cands, outer first, next around the
+// selection: from a caret the innermost holding it, from a rung the one
+// around it, else the innermost holding the selection.
+func climb(c *policy.Ctx, cands []candidate) policy.Result {
 	sel := c.Selection()
-	cands := candidatesAt(c)
-	if len(cands) == 0 {
+	next, ok := nextOf(c.Doc(), cands, sel)
+	if !ok {
 		return policy.Swallow
 	}
+	res := policy.Select(next)
+	res.Mode = &rung{at: next, from: sel, below: climbed(c, sel)}
+	return res
+}
+
+// nextOf is the rung of cands, outer first, next around sel.
+func nextOf(r doc.Reader, cands []candidate, sel doc.Selection) (doc.Selection, bool) {
 	if sel.Kind == doc.SelectText && sel.IsCollapsed() {
 		for i := len(cands) - 1; i >= 0; i-- {
-			if containsCaret(c.Doc(), cands[i], sel.Head) {
-				return policy.Select(cands[i].selection)
+			if containsCaret(r, cands[i], sel.Head) {
+				return cands[i].selection, true
 			}
 		}
-		return policy.Swallow
+		return doc.Selection{}, false
 	}
 	for i, cand := range cands {
-		if sameSelection(c.Doc(), cand.selection, sel) {
+		if sameSelection(r, cand.selection, sel) {
 			for j := i - 1; j >= 0; j-- {
-				if containsSelection(c.Doc(), cands[j], sel) && !sameSelection(c.Doc(), cands[j].selection, sel) {
-					return policy.Select(cands[j].selection)
+				if containsSelection(r, cands[j], sel) && !sameSelection(r, cands[j].selection, sel) {
+					return cands[j].selection, true
 				}
 			}
-			return policy.Swallow
+			return doc.Selection{}, false
 		}
 	}
 	for i := len(cands) - 1; i >= 0; i-- {
-		if containsSelection(c.Doc(), cands[i], sel) {
-			return policy.Select(cands[i].selection)
+		if containsSelection(r, cands[i], sel) {
+			return cands[i].selection, true
 		}
 	}
-	return policy.Swallow
+	return doc.Selection{}, false
 }
 
 // selectScope selects a node scope whole from inside it.
@@ -127,8 +148,15 @@ func candidatesAt(c *policy.Ctx) []candidate {
 			}
 		}
 	}
-	slices.SortStableFunc(out, func(a, b candidate) int {
-		ab, ba := containsSelection(c.Doc(), a, b.selection), containsSelection(c.Doc(), b, a.selection)
+	order(c.Doc(), out)
+	return out
+}
+
+// order sorts cands outer first: each before those it holds, those apart
+// in reading order.
+func order(r doc.Reader, cands []candidate) {
+	slices.SortStableFunc(cands, func(a, b candidate) int {
+		ab, ba := containsSelection(r, a, b.selection), containsSelection(r, b, a.selection)
 		switch {
 		case ab && ba:
 			// The same extent, as a page holding only a table and the
@@ -139,14 +167,13 @@ func candidatesAt(c *policy.Ctx) []candidate {
 		case ba:
 			return 1
 		}
-		af, at := extent(c.Doc(), a.selection)
-		bf, bt := extent(c.Doc(), b.selection)
-		if n := doc.Compare(c.Doc(), af, bf); n != 0 {
+		af, at := extent(r, a.selection)
+		bf, bt := extent(r, b.selection)
+		if n := doc.Compare(r, af, bf); n != 0 {
 			return n
 		}
-		return doc.Compare(c.Doc(), bt, at)
+		return doc.Compare(r, bt, at)
 	})
-	return out
 }
 
 // presented reports whether a level is a place the page presents, which

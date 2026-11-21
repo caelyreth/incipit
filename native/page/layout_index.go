@@ -2,6 +2,7 @@ package page
 
 import (
 	"math"
+	"strings"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
@@ -70,6 +71,17 @@ func (sl *surfaceLayout) nearest(u int) *stopAt {
 // caretRect is a stop's caret in the surface.
 func (sl *surfaceLayout) caretRect(u int) ui.Rect {
 	return sl.layout.CaretAt(ui.TextCaretPosition{Index: u})
+}
+
+// lineBounds is where a line's text starts and ends: a line a newline
+// ends stops before it; a wrapped line's end is the next line's start,
+// which the caret takes at this line's end.
+func (sl *surfaceLayout) lineBounds(line ui.TextLine) (start, end int) {
+	start, end = line.Start, line.End
+	if end > start && end <= len(sl.text) && strings.HasSuffix(sl.text[:byteIndex(sl.text, end)], "\n") {
+		end--
+	}
+	return start, end
 }
 
 // lineOf is the line of the layout holding u.
