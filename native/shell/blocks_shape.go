@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -107,29 +108,67 @@ func (s *State) columnMetrics(w, h, least, most float32) blockMetrics {
 }
 
 // shapes are the cards' shapes, in their order, each worked out again only
-// when what they hold or the measures change.
+// when what they hold or the measures change: a card found again by
+// another query, as the list is sorted another way, keeps its shape. Past
+// a few queries' worth, the shapes no query shows any more are let go.
 func (s *State) shapes(c *ui.Context, f found, m blockMetrics) []shape {
-	key := fmt.Sprintf("%s|%d|%s|%d|%d|%v", f.query, f.rev, f.open, f.held, s.field.measures, m)
-	if s.field.shapesKey != key {
-		s.field.shapes, s.field.shapesKey = map[string]shape{}, key
-	}
-	// A card shaped for one view is not shaped for the other, as a
-	// group's card in the field is its divider in the list: each view
-	// keeps its own, so turning between them shapes nothing again.
-	view := ""
-	if f.listed {
-		view = "list:"
+	key := shapesKey{rev: f.rev, held: f.held, measures: s.field.measures, open: f.open, m: m}
+	if s.field.shapesKey != key || len(s.field.shapes) > 4*len(f.cards)+256 {
+		s.field.shapes, s.field.shapesKey = map[shapeID]shape{}, key
 	}
 	out := make([]shape, len(f.cards))
 	for i, cd := range f.cards {
-		sh, ok := s.field.shapes[view+cd.id]
+		id := shapeID{listed: f.listed, id: cd.id, look: cd.look}
+		sh, ok := s.field.shapes[id]
 		if !ok {
 			sh = cd.kind.shape(s, c, m)
-			s.field.shapes[view+cd.id] = sh
+			s.field.shapes[id] = sh
 		}
 		out[i] = sh
 	}
 	return out
+}
+
+// shapesKey is what all the cards' shapes are laid out against: the
+// library as it stood, the sheets open, the tray, and the measures.
+type shapesKey struct {
+	rev, held, measures uint64
+	open                string
+	m                   blockMetrics
+}
+
+// shapeID names a card's shape: the view it is shaped for, as a group's
+// card in the field is its divider in the list, each view keeping its own
+// so turning between them shapes nothing again; its id, and its look.
+type shapeID struct {
+	listed   bool
+	id, look string
+}
+
+// shapeKey is what a block is shaped from: what kind of block it is, its
+// group, and the rows it shows, each sheet's by where its text matches,
+// if it does, and the group it says it is in; the sheets themselves
+// change only with the library. The rows a shape keeps are the block's
+// that shaped it, the same as the block's that finds it again.
+func (b block) shapeKey() string {
+	var k strings.Builder
+	fmt.Fprintf(&k, "%t%t%t%t%q", b.single, b.create, b.divider, b.trashed, b.section)
+	if b.group != nil {
+		k.WriteString(b.group.ID)
+	}
+	for _, g := range b.groups {
+		k.WriteString("|g")
+		k.WriteString(g.ID)
+	}
+	for _, e := range b.entries {
+		k.WriteString("|s")
+		k.WriteString(e.sheet.ID)
+		k.WriteByte(':')
+		k.WriteString(e.in)
+		k.WriteByte(':')
+		k.WriteString(e.line)
+	}
+	return k.String()
 }
 
 func (b block) shape(s *State, c *ui.Context, m blockMetrics) shape {

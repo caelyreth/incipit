@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -471,5 +472,33 @@ func TestFieldToListAnimatesPillFromItsPlace(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Sorting the list another way lays none of its sheets out again: a
+// sheet's card shows the same whatever the order, so the shapes it was
+// given stand, and only where the cards go changes.
+func TestResortingLaysNoCardOutAgain(t *testing.T) {
+	now := time.Now()
+	var hits []FoundSheet
+	for i := range 30 {
+		ts := now.Add(-time.Duration(i*29) * time.Hour)
+		hits = append(hits, FoundSheet{SheetItem: SheetItem{ID: fmt.Sprint("s", i), Title: fmt.Sprintf("Note %02d", i),
+			Excerpt: "An opening.", Updated: ts, Created: ts, Words: i * 90}})
+	}
+	state := New()
+	state.Library = &sortedTestLibrary{fakeLibrary: &fakeLibrary{}, hits: hits}
+	tester := ui.NewTester(state.View, 1260, 850)
+	state.SetFieldQuery("$sort:updated")
+	settle(tester)
+	shaped := maps.Clone(state.field.shapes)
+	for _, q := range []string{"$sort:-updated", "$sort:words", "$sort:title"} {
+		state.SetFieldQuery(q)
+		settle(tester)
+	}
+	for id := range state.field.shapes {
+		if _, ok := shaped[id]; !ok && strings.HasPrefix(id.id, "sheet:") {
+			t.Fatalf("Sorting another way laid %s out again.", id.id)
+		}
 	}
 }

@@ -32,6 +32,17 @@ type card struct {
 	// once as it is found: the field reads them every frame, for every
 	// card, built or not.
 	rows []string
+	// look is what its shape is laid out from, beside the library and the
+	// measures (State.shapes): the query it was found for, or what a kind
+	// that says (shapeKeyer) shows.
+	look string
+}
+
+// shapeKeyer is a card kind whose shape follows from what it shows, not
+// from the query that found it: as a sort or a filter changes, a card
+// showing the same is not laid out again.
+type shapeKeyer interface {
+	shapeKey() string
 }
 
 // tier is how near the pill a card stands among others, before the order
@@ -100,7 +111,11 @@ type found struct {
 }
 
 func (f *found) add(id string, t tier, kind cardKind) {
-	f.cards = append(f.cards, card{id: id, tier: t, kind: kind, rows: kind.rows()})
+	look := f.query
+	if k, ok := kind.(shapeKeyer); ok {
+		look = k.shapeKey()
+	}
+	f.cards = append(f.cards, card{id: id, tier: t, kind: kind, rows: kind.rows(), look: look})
 }
 
 // results is what the field's query finds, worked out again only when the

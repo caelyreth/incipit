@@ -288,6 +288,7 @@ func (s *State) listGroup(f *found, g GroupItem, path []string, trashed bool) {
 // groups the sheets are in, each a divider in turn, as first found.
 func (s *State) listSorted(f *found, text, scope string, trash bool) {
 	paths := s.paths(scope)
+	by := strings.TrimPrefix(s.sortValue(), "-")
 	var steps []string
 	parts := map[string][]*hitBucket{}
 	at := map[string]*hitBucket{}
@@ -295,7 +296,7 @@ func (s *State) listSorted(f *found, text, scope string, trash bool) {
 		if s.inTray(hit.ID) {
 			continue
 		}
-		step := s.sortStep(hit.SheetItem, f.now)
+		step := sortStep(by, hit.SheetItem, f.now)
 		if _, ok := parts[step]; !ok {
 			steps = append(steps, step)
 			parts[step] = nil
@@ -332,10 +333,10 @@ func (s *State) listSorted(f *found, text, scope string, trash bool) {
 	}
 }
 
-// sortStep is the step of the query's sort a sheet stands in: when it was
-// changed or made, how long it is; none for an order with no steps.
-func (s *State) sortStep(sh SheetItem, now time.Time) string {
-	by := strings.TrimPrefix(s.sortValue(), "-")
+// sortStep is the step of the sort by, as the query's $sort names it
+// without its direction, a sheet stands in: when it was changed or made,
+// how long it is; none for an order with no steps.
+func sortStep(by string, sh SheetItem, now time.Time) string {
 	switch by {
 	case "updated", "created":
 		t := sh.Updated

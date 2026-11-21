@@ -80,10 +80,10 @@ type fieldState struct {
 	// has, for the field to stand even again.
 	rerank, settled bool
 	settleAt        time.Time
-	// shapes are found's cards' shapes, by id, for the measures shapesKey
-	// names.
-	shapes    map[string]shape
-	shapesKey string
+	// shapes are the cards' shapes, by id and look, for the library and
+	// the measures shapesKey names.
+	shapes    map[shapeID]shape
+	shapesKey shapesKey
 	// shown are the cards drawn, those going out included, by id, as
 	// shaped.
 	shown      map[string]card
