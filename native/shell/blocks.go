@@ -168,16 +168,18 @@ func pinBadge(c *ui.Context, semantic theme.Theme, m blockMetrics) {
 }
 
 // taskRing is how far a sheet's or a group's tasks are done, as a ring
-// that fills as they are, a line of the smallest text across; nothing
-// where there are none.
+// that fills as they are, a line of the smallest text across, checked once
+// all are; nothing where there are none. Its count is a hint, the pointer
+// resting on it, so the card stays as quiet as the ring.
 func taskRing(c *ui.Context, semantic theme.Theme, t Tasks, m blockMetrics) {
 	if t.All() == 0 {
 		return
 	}
 	line := theme.TextXSmall.LineHeight(m.scale)
 	label := fmt.Sprintf("%d of %d tasks done", t.Done, t.All())
-	components.ProgressRing(c, "task-ring", line*0.8, 2*m.k, float32(t.Done)/float32(t.All()),
+	ring := components.ProgressRing(c, "task-ring", line*0.8, 2*m.k, float32(t.Done)/float32(t.All()),
 		semantic.Border.Default, semantic.Accent.Foreground, label)
+	components.Hint(c, semantic, ring, fmt.Sprintf("%d/%d Tasks Done", t.Done, t.All()), "", components.HintAbove)
 }
 
 // listBadge says a group is kept shown as a list: what is kept is said
@@ -315,7 +317,7 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 			openMark(c, semantic, h, m)
 		}
 		if at > 0 || sh.Pinned || sh.Tasks.All() > 0 {
-			ui.Row(c.Key("badges")).Absolute().Right(pad).Bottom(pad).Gap(4 * m.k).AlignItems(ui.Center).IgnoreInput(true).Children(func() {
+			ui.Row(c.Key("badges")).Absolute().Right(pad).Bottom(pad).Gap(4 * m.k).AlignItems(ui.Center).Children(func() {
 				taskRing(c, semantic, sh.Tasks, m)
 				if sh.Pinned {
 					pinBadge(c, semantic, m)

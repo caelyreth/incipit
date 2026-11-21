@@ -2,6 +2,7 @@ package shell
 
 import (
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -41,8 +42,17 @@ func TestTasksShowAsARingWhereThereAreAny(t *testing.T) {
 	if _, ok := tester.Find("3 of 5 tasks done"); !ok {
 		t.Fatal("Novel's head should show its tree's ring.")
 	}
-	if _, ok := tester.Find("1 of 2 tasks done"); !ok {
+	ring, ok := tester.Find("1 of 2 tasks done")
+	if !ok {
 		t.Fatal("Chapter's row should show its ring.")
+	}
+	tester.Move(ring.X+ring.W/2, ring.Y+ring.H/2)
+	tester.Advance(time.Second)
+	if !tester.HasText("1/2 Tasks Done") {
+		t.Fatal("Resting on Chapter's ring should hint its count.")
+	}
+	if err := tester.Click("1 of 2 tasks done"); err != nil || state.ActivePage == "" {
+		t.Fatalf("Pressing the ring should open its sheet as its row does: %v", err)
 	}
 	if _, ok := tester.Find("0 of 0 tasks done"); ok {
 		t.Fatal("Nothing without tasks should show a ring.")
