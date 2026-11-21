@@ -17,6 +17,12 @@ func TestAccessibilityExposesPageUnits(t *testing.T) {
 	typeText(el, "Body 😀")
 	tester := ui.NewTester(func(c *ui.Context) { el.View(c) }, 900, 600)
 	tester.Frame()
+	// Units are described only for assistive technology.
+	if _, ok := tester.AccessByRole(ui.RoleHeading, "Title"); ok {
+		t.Fatal("With no assistive technology, no unit should be described.")
+	}
+	tester.UseScreenReader()
+	tester.Frame()
 
 	field, ok := tester.AccessByRole(ui.RoleTextField, "Page")
 	if !ok || field.Value != "Body 😀" {

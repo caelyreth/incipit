@@ -23,7 +23,9 @@ func (el *Element) fieldValue() string {
 // its one editing surface.
 func (el *Element) accessUnits(c *ui.Context) {
 	pl := el.Editor.layout
-	if pl == nil {
+	// Described only for assistive technology: without it, a frame of a
+	// long page builds no node for each of its units.
+	if pl == nil || !c.AssistiveTechnology() {
 		return
 	}
 	top := el.Top - el.offset()
