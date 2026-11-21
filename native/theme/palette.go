@@ -3,11 +3,12 @@ package theme
 import "github.com/egoist/mygo/ui"
 
 // palette is one appearance's colors: Starfield at night, Daybreak by day.
-// The inks and the families' hues are Cosmofi's (cosmofi/packages/cosmofi);
-// the surfaces they stand on, and the families' surfaces, are Neverland's
-// own ladder, which the color budget spends sparingly: neutral surfaces
-// and states, one accent, hues on identity alone. A family is one hue in
-// four roles.
+// Every value is Cosmofi's (cosmofi/packages/cosmofi/src/index.ts), kept
+// here by hand: its inks and hues, and its material, the ladder of
+// surfaces and lines they stand on; the states laid over it are Cosmofi's
+// too (theme.go). Change them there first. The color budget spends them
+// sparingly: neutral surfaces and states, one accent, hues on identity
+// alone. A family is one hue in four roles.
 type palette struct {
 	background ui.Color
 	working    ui.Color

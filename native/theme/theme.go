@@ -60,6 +60,7 @@ type Family struct {
 // on, never as a gray of its own: the same step on the chrome, the page,
 // what is raised or what is set in, and never darker on one than on
 // another. Under the pointer, pressed, chosen: each louder than the last.
+// They are Cosmofi's states, kept here by hand.
 const (
 	StateHover   float32 = 0.05
 	StatePressed float32 = 0.09
@@ -69,7 +70,7 @@ const (
 // The accent comes in as few steps, one meaning each: a hint under the
 // pointer on what is the accent's, a tint on what something is dropped
 // on or is taken, its surface on what is chosen in its hue, and strong
-// for a ring around what has the keys.
+// for a ring around what has the keys. They are Cosmofi's tints.
 const (
 	TintHint   float32 = 0.08
 	TintFill   float32 = 0.16
