@@ -98,6 +98,7 @@ func (el *Element) controls() []control {
 		if u.kind != nil {
 			out = append(out, u.kind.controls(el, u)...)
 		}
+		out = append(out, el.inlineFormulaControls(u)...)
 	}
 	return out
 }
@@ -156,8 +157,14 @@ func (el *Element) nearAt(x, y float32) doc.ID {
 		return 0
 	}
 	for i := len(pl.units) - 1; i >= 0; i-- {
-		if u := pl.units[i]; u.kind != nil && contains(u.kind.reach(el, u), x, y) {
+		u := pl.units[i]
+		if u.kind != nil && contains(u.kind.reach(el, u), x, y) {
 			return u.pres.Unit
+		}
+		for _, s := range u.surfaces {
+			if s.card && s.shown && s.cardFormula != 0 && contains(el.panelArea(s, u.x, u.y), x, y) {
+				return u.pres.Unit
+			}
 		}
 	}
 	return 0

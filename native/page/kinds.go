@@ -184,6 +184,26 @@ func (mathKind) paint(el *Element, p *ui.Painter, u *unitLayout, ux, uy float32)
 	return el.paintMath(p, u, ux, uy)
 }
 
+func (mathKind) reach(_ *Element, u *unitLayout) ui.Rect {
+	if u.math == nil || !u.math.open {
+		return ui.Rect{}
+	}
+	return frameOf(u, u.x, u.y)
+}
+
+func (mathKind) controls(el *Element, u *unitLayout) []control {
+	if u.math == nil || !u.math.open {
+		return nil
+	}
+	rect := el.dialectPillRect(frameOf(u, u.x, u.y), u.math.dialect, true)
+	key := controlKey{unit: u.pres.Unit, part: partDialect}
+	return []control{el.dialectControl(u.pres.Unit, key, rect, u.math.dialect)}
+}
+
+var mathMenu = [][]vocab.CommandID{{"formulas.toggleDialect"}}
+
+func (mathKind) menu(*Element, *unitLayout) [][]vocab.CommandID { return mathMenu }
+
 // holds is its panel open and its display set.
 
 func (mathKind) step(el *Element, u *unitLayout, _ *objectIn) {
@@ -207,7 +227,7 @@ func (mathKind) holds(u *unitLayout) int {
 type formulaKind struct{}
 
 func (formulaKind) lay(lc *layoutCache, sg seg, style present.Style, m Metrics) (seg, ui.Span) {
-	ms := lc.typeset(sg.node.ID(), sg.node.Text(), false, m.Body*style.Size, 0)
+	ms := lc.typeset(sg.node.ID(), sg.node.Text(), profile.MathDialectOf(sg.node), false, m.Body*style.Size, 0)
 	sp := span("￼", style, m)
 	sg.text, sg.math = sg.node.Text(), ms
 	sg.face = span(formulaHint, style, m)

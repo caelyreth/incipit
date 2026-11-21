@@ -116,6 +116,10 @@ var texts = map[string]string{
 	"settings.cjk.spacing":                           "CJK and Latin spacing",
 	"settings.deletion.roles":                        "Roles that arm",
 	"settings.deletion.roles.structure":              "Structures",
+	"settings.formulas.dialect":                      "Default math dialect",
+	"settings.formulas.dialect.description":          "Syntax used for newly created inline formulas and math blocks. Existing formulas keep their own dialect.",
+	"settings.formulas.dialect.tex":                  "TeX",
+	"settings.formulas.dialect.typst":                "Typst",
 	"settings.navigation.roles":                      "Leavable roles",
 	"settings.navigation.roles.leavable":             "Leavable scopes",
 	"settings.navigation.roles.pair":                 "Pairs",
@@ -185,4 +189,5 @@ var texts = map[string]string{
 	"commands.heading3":           "Heading 3",
 	"commands.quote":              "Quote",
 	"commands.codeBlock":          "Code block",
+	"commands.toggleMathDialect":  "Switch Math Dialect",
 }

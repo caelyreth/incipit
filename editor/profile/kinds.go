@@ -53,6 +53,8 @@ const (
 
 	FieldInfo = 1 // code
 
+	FieldDialect = 1 // math, formula
+
 	FieldMedia  = 1 // figure: its picture's media id
 	FieldWidth  = 2 // the picture's size in pixels
 	FieldAlign  = 3
@@ -83,6 +85,22 @@ const (
 	TaskOpen
 	TaskDone
 )
+
+// MathDialect is the input syntax of a formula or math block.
+type MathDialect int64
+
+const (
+	DialectTeX MathDialect = iota
+	DialectTypst
+)
+
+// Label is the short dialect label shown on open formula controls.
+func (d MathDialect) Label() string {
+	if d == DialectTypst {
+		return "Typst"
+	}
+	return "TeX"
+}
 
 // Align is a figure's or a column's alignment.
 type Align int64
@@ -171,7 +189,8 @@ var kindSpecs = []doc.KindSpec{
 		Slots:  []doc.SlotSpec{{Name: "text", Literal: true, Lines: true}},
 		Fields: []doc.FieldSpec{{Num: FieldInfo, Name: "info", Default: doc.Text(""), Valid: isText}}},
 	{Kind: Math, Name: "math", Placement: doc.PlaceBlock, Object: true,
-		Slots: []doc.SlotSpec{{Name: "source", Literal: true, Lines: true}}},
+		Slots:  []doc.SlotSpec{{Name: "source", Literal: true, Lines: true}},
+		Fields: []doc.FieldSpec{{Num: FieldDialect, Name: "dialect", Default: doc.Int(int64(DialectTeX)), Valid: intIn(0, 1)}}},
 	{Kind: Divider, Name: "divider", Placement: doc.PlaceBlock, Object: true},
 	{Kind: Figure, Name: "figure", Placement: doc.PlaceBlock, Object: true,
 		Slots: []doc.SlotSpec{richSlot("caption", false)},
@@ -194,7 +213,8 @@ var kindSpecs = []doc.KindSpec{
 	{Kind: Cell, Name: "cell", Placement: doc.PlaceBlock,
 		Slots: []doc.SlotSpec{richSlot("text", true)}},
 	{Kind: Formula, Name: "formula", Placement: doc.PlaceInline, Object: true,
-		Slots: []doc.SlotSpec{{Name: "source", Literal: true}}},
+		Slots:  []doc.SlotSpec{{Name: "source", Literal: true}},
+		Fields: []doc.FieldSpec{{Num: FieldDialect, Name: "dialect", Default: doc.Int(int64(DialectTeX)), Valid: intIn(0, 1)}}},
 }
 
 // checkTable holds every row to as many cells as the table has columns.
@@ -237,6 +257,22 @@ func ListStart(n *doc.Node) int { return int(Schema().Attr(n, FieldListStart).In
 
 // TaskOf is an item's task state.
 func TaskOf(n *doc.Node) Task { return Task(Schema().Attr(n, FieldTask).Int()) }
+
+// MathDialectOf is a formula or math block's input dialect.
+func MathDialectOf(n *doc.Node) MathDialect {
+	if n == nil {
+		return DialectTeX
+	}
+	return MathDialect(Schema().Attr(n, FieldDialect).Int())
+}
+
+// MathDialectAttrs returns the node attributes for dialect.
+func MathDialectAttrs(d MathDialect) doc.Attrs {
+	if d == DialectTypst {
+		return doc.MakeAttrs(doc.Field{Num: FieldDialect, Value: doc.Int(int64(DialectTypst))})
+	}
+	return doc.Attrs{}
+}
 
 // EmptyPage is a page holding one empty paragraph. Its node ids come from
 // seed's stream, so the same seed builds the same page.

@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/ui"
 )
@@ -222,8 +223,19 @@ func (lc *layoutCache) layStack(u *unitLayout, p *present.Presentation, comp *po
 		if s.Card || panel {
 			w = width - 2*cardPad(m)
 		}
+		var formulaNode *doc.Node
+		if s.Card {
+			formulaNode = inlineFormulaNode(u, s.Anchor)
+			if formulaNode != nil {
+				w = max(w-cardPillRoom(m), m.Body*4)
+			}
+		}
 		sl := lc.laySurface(i, s, p, comp, th, m, ui.TextShape{Width: w})
 		sl.panel = panel && !s.Card
+		if formulaNode != nil {
+			sl.cardFormula = formulaNode.ID()
+			sl.cardDialect = profile.MathDialectOf(formulaNode)
+		}
 		u.surfaces = append(u.surfaces, sl)
 	}
 	y := float32(0)
@@ -232,7 +244,11 @@ func (lc *layoutCache) layStack(u *unitLayout, p *present.Presentation, comp *po
 			if !s.shown {
 				continue
 			}
-			fitCard(s, u.surfaces[0], m, width)
+			reserve := float32(0)
+			if s.cardFormula != 0 {
+				reserve = cardPillRoom(m)
+			}
+			fitCard(s, u.surfaces[0], m, width, reserve)
 			y += cardPad(m) / 2
 			s.y = y + cardPad(m)/2
 			y += s.h + cardPad(m)*1.5
@@ -247,14 +263,15 @@ func (lc *layoutCache) layStack(u *unitLayout, p *present.Presentation, comp *po
 // cardMin is the least a card's text is given, in body sizes.
 const cardMin = 8
 
-// fitCard sizes an open card to its text, with room to type on, and puts
-// it under its box, kept inside the column (§14.1's card host).
-func fitCard(s, main *surfaceLayout, m Metrics, width float32) {
+// fitCard sizes an open card to its text, with room to type on and any
+// trailing pill room, and puts it under its box, kept inside the column
+// (§14.1's card host).
+func fitCard(s, main *surfaceLayout, m Metrics, width, reserve float32) {
 	natural := float32(0)
 	for _, l := range s.layout.Lines() {
 		natural = max(natural, l.Rect.W)
 	}
-	s.w = min(max(natural+m.Body, m.Body*cardMin), width-2*cardPad(m))
+	s.w = min(max(natural+m.Body+reserve, m.Body*cardMin), width-2*cardPad(m))
 	x := cardPad(m)
 	for i, sg := range main.segs {
 		if sg.kind == segBox && sg.node != nil && sg.node.ID() == s.anchor {
@@ -283,7 +300,7 @@ func utf16Len(s string) int {
 // laySurface shapes one surface's flow as shape sets it, and maps its
 // stops.
 func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, shape ui.TextShape) *surfaceLayout {
-	sl := &surfaceLayout{index: index, card: s.Card, anchor: s.Anchor, slot: s.Flow.Slot, w: shape.Width, open: s.Open, shown: s.Open}
+	sl := &surfaceLayout{index: index, card: s.Card, unit: p.Unit, anchor: s.Anchor, slot: s.Flow.Slot, w: shape.Width, open: s.Open, shown: s.Open}
 	base := th.Resolve([]vocab.Group{s.Group})
 	var spans []ui.Span
 	var text strings.Builder

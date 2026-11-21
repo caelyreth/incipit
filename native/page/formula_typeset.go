@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/caelyreth/untie"
@@ -57,38 +58,51 @@ type Problem struct {
 
 type formulaKey struct {
 	source      string
+	dialect     profile.MathDialect
 	display     bool
 	size, width float32
 }
 
-// Set is the formula source sets at size: a display formula broken into
+func untieDialect(d profile.MathDialect) untie.Dialect {
+	if d == profile.DialectTypst {
+		return untie.Typst
+	}
+	return untie.TeX
+}
+
+// setFormula is source typeset at size in dialect: a display formula broken into
 // lines within width, an inline one as it runs in a line of text. A
 // formula half typed still sets what it can, its errors marked. It is nil
 // only when the math font cannot be read, when a page shows the source.
-func setFormula(source string, display bool, size, width float32) *untie.Box {
-	return setOf(source, display, size, width).box
+func setFormula(source string, dialect profile.MathDialect, display bool, size, width float32) *untie.Box {
+	return setOf(source, dialect, display, size, width).box
 }
 
-// Sound reports whether source sets as written, wholly: no error is set
+// formulaSound reports whether source sets cleanly in dialect: no error is set
 // in it, as a half typed formula's is.
-func formulaSound(source string, display bool) bool {
-	return setOf(source, display, soundSize, 0).sound
+func formulaSound(source string, dialect profile.MathDialect, display bool) bool {
+	return setOf(source, dialect, display, soundSize, 0).sound
 }
 
-// Problems are what keep source from being set as written, in order.
+// Problems are what keep TeX source from being set as written, in order.
 func Problems(source string, display bool) []Problem {
-	return slices.Clone(setOf(source, display, soundSize, 0).problems)
+	return ProblemsFor(source, profile.DialectTeX, display)
+}
+
+// ProblemsFor are what keep source from being set in dialect as written, in order.
+func ProblemsFor(source string, dialect profile.MathDialect, display bool) []Problem {
+	return slices.Clone(setOf(source, dialect, display, soundSize, 0).problems)
 }
 
 // soundSize is the size Sound sets a source at: what it reads, not its
 // size, decides.
 const soundSize = 16
 
-func setOf(source string, display bool, size, width float32) formulaSet {
+func setOf(source string, dialect profile.MathDialect, display bool, size, width float32) formulaSet {
 	if !display {
 		width = 0
 	}
-	request := formulaKey{source: source, display: display, size: size, width: width}
+	request := formulaKey{source: source, dialect: dialect, display: display, size: size, width: width}
 	formulaCache.Lock()
 	found, ok := formulaCache.boxes[request]
 	formulaCache.Unlock()
@@ -104,7 +118,7 @@ func setOf(source string, display bool, size, width float32) formulaSet {
 	if display {
 		mode, style.MaxWidth, style.Align = untie.Display, width, untie.AlignCenter
 	}
-	result, err := renderer.Render(context.Background(), source, untie.RenderRequest{Mode: mode, Style: style})
+	result, err := renderer.Render(context.Background(), source, untie.RenderRequest{Dialect: untieDialect(dialect), Mode: mode, Style: style})
 	if err != nil || result == nil || result.Box == nil {
 		return formulaSet{}
 	}

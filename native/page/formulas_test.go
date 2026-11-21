@@ -1,12 +1,13 @@
 package page
 
 import (
-	"github.com/egoist/mygo/ui"
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/egoist/mygo/ui"
 )
 
 // mathPage opens a math block holding src after a paragraph and leaves
@@ -151,5 +152,67 @@ func TestFormulaHintsAreShapedOnce(t *testing.T) {
 	tt.Advance(500 * time.Millisecond)
 	if first == nil || block().math.hint != first {
 		t.Fatal("an empty math block's hint was shaped again as it was painted")
+	}
+}
+
+func TestMathAndInlineFormulaDialectPillsSwitchToTypst(t *testing.T) {
+	clickPill := func(el *Element, unit doc.ID) {
+		t.Helper()
+		for _, c := range el.controls() {
+			if c.key.unit == unit && c.key.part == partDialect && c.press != nil {
+				cx, cy := c.rect.X+c.rect.W/2, c.rect.Y+c.rect.H/2
+				if !el.press(cx, cy, 1, false, time.Unix(400, 0)) || !el.letGo(false, time.Unix(401, 0)) {
+					t.Fatal("dialect pill did not accept click")
+				}
+				return
+			}
+		}
+		t.Fatalf("missing dialect pill control for unit %v", unit)
+	}
+
+	// Display math block: click TeX -> Typst pill and render Typst syntax.
+	el, block := mathPage(t, "")
+	tt := ui.NewTester(el.View, 900, 600)
+	tt.Advance(500 * time.Millisecond)
+	u := block()
+	clickPill(el, u.pres.Unit)
+	tt.Frame()
+	if got := profile.MathDialectOf(block().pres.Node); got != profile.DialectTypst {
+		t.Fatalf("math block dialect after click = %v, want Typst", got)
+	}
+	typeText(el, "frac(a, b)")
+	tt.Frame()
+	u = block()
+	if u.math.dialect != profile.DialectTypst || u.math.box == nil || u.math.stale {
+		t.Fatalf("Typst math block did not render soundly: %+v", u.math)
+	}
+
+	// Inline formula card: click TeX -> Typst pill inside open card.
+	iel := newElement(t)
+	typeText(iel, "Let ")
+	typeText(iel, "$")
+	itt := ui.NewTester(iel.View, 900, 600)
+	itt.Advance(500 * time.Millisecond)
+	iu := iel.Editor.layout.units[0]
+	clickPill(iel, iu.pres.Unit)
+	itt.Frame()
+	iu = iel.Editor.layout.units[0]
+	if len(iu.surfaces) < 2 || !iu.surfaces[1].shown {
+		t.Fatalf("expected open inline card after switching dialect, got %d surfaces", len(iu.surfaces))
+	}
+	if got := profile.MathDialectOf(inlineFormulaNode(iu, iu.surfaces[1].anchor)); got != profile.DialectTypst {
+		t.Fatalf("inline formula dialect = %v, want Typst", got)
+	}
+	typeText(iel, "frac(a, b)")
+	itt.Frame()
+	iu = iel.Editor.layout.units[0]
+	var rendered bool
+	for _, sg := range iu.surfaces[0].segs {
+		if sg.inline != nil && sg.math.box != nil && !sg.math.stale {
+			rendered = true
+		}
+	}
+	if !rendered {
+		t.Fatal("inline Typst formula did not render soundly")
 	}
 }

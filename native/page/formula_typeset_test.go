@@ -3,11 +3,12 @@ package page
 import (
 	"testing"
 
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/egoist/mygo/ui"
 )
 
 func TestFormulaMovesAsOneBoxAtFractionalOrigins(t *testing.T) {
-	box := setFormula(`\frac{1}{2}+\sqrt{x^2+y^2}`, false, 17, 0)
+	box := setFormula(`\frac{1}{2}+\sqrt{x^2+y^2}`, profile.DialectTeX, false, 17, 0)
 	if box == nil {
 		t.Fatal("The math font should set the formula.")
 	}
@@ -44,10 +45,10 @@ func TestFormulaMovesAsOneBoxAtFractionalOrigins(t *testing.T) {
 // A source's problems are told once each, in order, where they are: a
 // command it does not know as such, not as the glyph it has none for.
 func TestProblemsAreToldOnceWhereTheyAre(t *testing.T) {
-	if got := Problems(`x+\frac12`, false); len(got) != 0 || !formulaSound(`x+\frac12`, false) {
+	if got := Problems(`x+\frac12`, false); len(got) != 0 || !formulaSound(`x+\frac12`, profile.DialectTeX, false) {
 		t.Fatalf("a sound source has %+v", got)
 	}
-	if formulaSound("  ", false) {
+	if formulaSound("  ", profile.DialectTeX, false) {
 		t.Fatal("a blank source is sound")
 	}
 	got := Problems(`\fr`, false)
@@ -57,5 +58,26 @@ func TestProblemsAreToldOnceWhereTheyAre(t *testing.T) {
 	got = Problems(`\frac{1}{2`, false)
 	if len(got) != 2 || got[0].From > got[1].From || got[1].From != got[1].To {
 		t.Fatalf("an unclosed group has %+v", got)
+	}
+}
+
+func TestTypstDialectTypesetsSoundlyAndSeparatesCache(t *testing.T) {
+	src := "frac(1, 2) + sqrt(x^2 + y^2)"
+	if box := setFormula(src, profile.DialectTypst, false, 17, 0); box == nil {
+		t.Fatal("Typst formula should produce a rendered box")
+	}
+	if !formulaSound(src, profile.DialectTypst, false) {
+		t.Fatalf("Typst formula has unexpected problems: %+v", ProblemsFor(src, profile.DialectTypst, false))
+	}
+	if formulaSound("frac(1,", profile.DialectTypst, false) || len(ProblemsFor("frac(1,", profile.DialectTypst, false)) == 0 {
+		t.Fatal("unclosed Typst call should report problems")
+	}
+	// Cache must key by dialect so the same source does not leak across TeX/Typst.
+	texSrc := `\frac{1}{2}`
+	if !formulaSound(texSrc, profile.DialectTeX, false) {
+		t.Fatalf("TeX source failed: %+v", ProblemsFor(texSrc, profile.DialectTeX, false))
+	}
+	if formulaSound(texSrc, profile.DialectTypst, false) || len(ProblemsFor(texSrc, profile.DialectTypst, false)) == 0 {
+		t.Fatalf("expected TeX-only syntax to be diagnosed under Typst instead of hitting TeX cache")
 	}
 }

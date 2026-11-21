@@ -29,6 +29,8 @@ var (
 	intentHeader     = vocab.NewIntentKind("ToggleHeader")
 	intentDropTable  = vocab.NewIntentKind("DeleteTable")
 	intentPickTag    = vocab.NewIntentKind("PickTag")
+	intentSetDialect = vocab.NewIntentKind("SetMathDialect")
+	intentTogDialect = vocab.NewIntentKind("ToggleMathDialect")
 )
 
 type (
@@ -117,6 +119,14 @@ type (
 	ToggleHeader struct{}
 	// DeleteTable takes the selection's table away.
 	DeleteTable struct{}
+	// SetMathDialect sets a formula or math block's input dialect.
+	SetMathDialect struct {
+		ID      doc.ID
+		Dialect MathDialect
+	}
+	// ToggleMathDialect toggles the active formula or math block between TeX
+	// and Typst.
+	ToggleMathDialect struct{}
 )
 
 // GridOp is what EditGrid does to a table's lines.
@@ -153,9 +163,11 @@ func (EditGrid) Kind() vocab.IntentKind       { return intentGrid }
 func (ResizeTable) Kind() vocab.IntentKind    { return intentResizeT }
 func (ShapeColumn) Kind() vocab.IntentKind    { return intentColumn }
 func (AlignColumns) Kind() vocab.IntentKind   { return intentAlignCol }
-func (ToggleHeader) Kind() vocab.IntentKind   { return intentHeader }
-func (DeleteTable) Kind() vocab.IntentKind    { return intentDropTable }
-func (PickTag) Kind() vocab.IntentKind        { return intentPickTag }
+func (ToggleHeader) Kind() vocab.IntentKind      { return intentHeader }
+func (DeleteTable) Kind() vocab.IntentKind       { return intentDropTable }
+func (PickTag) Kind() vocab.IntentKind           { return intentPickTag }
+func (SetMathDialect) Kind() vocab.IntentKind    { return intentSetDialect }
+func (ToggleMathDialect) Kind() vocab.IntentKind { return intentTogDialect }
 
 // SourceIndent is one level of source text's indentation: what Nest adds
 // at the start of each line of a slot that keeps literal lines, as a code

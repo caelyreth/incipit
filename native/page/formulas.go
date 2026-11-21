@@ -2,9 +2,12 @@ package page
 
 import (
 	"strings"
+	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/caelyreth/untie"
 	"github.com/egoist/mygo/ui"
 )
@@ -58,28 +61,29 @@ type mathSet struct {
 	from, to float32
 }
 
-// lastGood keys a formula's last sound source by its node and mode.
+// lastGood keys a formula's last sound source by its node, dialect and mode.
 type lastGood struct {
 	node    doc.ID
+	dialect profile.MathDialect
 	display bool
 }
 
-// typeset sets a formula's source: as written when it sets soundly, else
-// the last source of that formula that did, marked stale; a zero mathSet
-// when none has.
-func (lc *layoutCache) typeset(id doc.ID, src string, display bool, size, width float32) mathSet {
-	k := lastGood{id, display}
+// typeset sets a formula's source in dialect: as written when it sets soundly,
+// else the last source of that formula in the same dialect that did, marked
+// stale; a zero mathSet when none has.
+func (lc *layoutCache) typeset(id doc.ID, src string, dialect profile.MathDialect, display bool, size, width float32) mathSet {
+	k := lastGood{id, dialect, display}
 	if strings.TrimSpace(src) == "" {
 		// Emptied, a formula has no math: it shows its hint.
 		delete(lc.good, k)
 		return mathSet{}
 	}
-	if !formulaSound(src, display) {
+	if !formulaSound(src, dialect, display) {
 		last, ok := lc.good[k]
 		if !ok {
 			return mathSet{}
 		}
-		ms := setMath(last, display, size, width)
+		ms := setMath(last, dialect, display, size, width)
 		ms.stale = true
 		return ms
 	}
@@ -87,11 +91,11 @@ func (lc *layoutCache) typeset(id doc.ID, src string, display bool, size, width 
 		clear(lc.good)
 	}
 	lc.good[k] = src
-	return setMath(src, display, size, width)
+	return setMath(src, dialect, display, size, width)
 }
 
-func setMath(src string, display bool, size, width float32) mathSet {
-	box := setFormula(src, display, size, width)
+func setMath(src string, dialect profile.MathDialect, display bool, size, width float32) mathSet {
+	box := setFormula(src, dialect, display, size, width)
 	if box == nil {
 		return mathSet{}
 	}
@@ -105,7 +109,8 @@ func setMath(src string, display bool, size, width float32) mathSet {
 // display stands over its source panel.
 type mathLayout struct {
 	mathSet
-	h float32
+	dialect profile.MathDialect
+	h       float32
 	// fold and full are the block's height with its source panel closed
 	// and open; open is whether the panel shows: while the block is held
 	// (its source surface open), or always while it has no math.
@@ -121,8 +126,9 @@ func layMath(u *unitLayout, lc *layoutCache, m Metrics, width float32) {
 		return
 	}
 	s := u.surfaces[0]
-	ms := lc.typeset(u.pres.Unit, u.pres.Node.Text(), true, m.Body*displayScale, width)
-	ml := &mathLayout{mathSet: ms, open: s.open || ms.box == nil}
+	dialect := profile.MathDialectOf(u.pres.Node)
+	ms := lc.typeset(u.pres.Unit, u.pres.Node.Text(), dialect, true, m.Body*displayScale, width)
+	ml := &mathLayout{mathSet: ms, dialect: dialect, open: s.open || ms.box == nil}
 	s.shown = ml.open
 	ml.h = m.Body * displayScale * displayLines
 	if ms.box != nil {
@@ -251,6 +257,8 @@ func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32) float
 	a := min(panelOpened(u), lk.open)
 	if a > 0.001 {
 		components.PaintRing(p, frameOf(u, ux, uy), cardPad(m), 0, t.Border.Default.Alpha(a))
+		pill := el.dialectPillRect(frameOf(u, ux, uy), ml.dialect, true)
+		el.paintDialectPill(p, pill, controlKey{unit: u.pres.Unit, part: partDialect}, ml.dialect, a)
 	}
 	if lk.hint > 0.001 {
 		if ml.hint == nil {
@@ -285,4 +293,110 @@ func panelOpened(u *unitLayout) float32 {
 		return 1
 	}
 	return min(max((u.shown-ml.fold)/(ml.full-ml.fold), 0), 1)
+}
+
+const partDialect part = "dialect"
+
+func cardPillRoom(m Metrics) float32 { return m.Body * 3.2 }
+
+func inlineFormulaNode(u *unitLayout, anchor doc.ID) *doc.Node {
+	if u == nil || len(u.surfaces) == 0 {
+		return nil
+	}
+	for _, sg := range u.surfaces[0].segs {
+		if sg.kind == segBox && sg.node != nil && sg.node.ID() == anchor && sg.node.Kind() == profile.Formula {
+			return sg.node
+		}
+	}
+	return nil
+}
+
+func (el *Element) dialectPillLayout(dialect profile.MathDialect) (*ui.TextLayout, float32, float32) {
+	size := el.chromeSize() * 0.78
+	font := ui.Font{Family: theme.UIFontFamily, Size: size, Weight: 500}
+	lay := ui.ShapeRichTextWith([]ui.Span{{Text: dialect.Label(), Font: font.Family, Size: font.Size, Weight: font.Weight}}, font, ui.TextShape{})
+	w, h := lay.Size()
+	return lay, w, h
+}
+
+func (el *Element) dialectPillRect(container ui.Rect, dialect profile.MathDialect, topRight bool) ui.Rect {
+	scale := el.chromeScale()
+	_, lw, lh := el.dialectPillLayout(dialect)
+	pw := lw + 12*scale
+	ph := max(18*scale, lh+4*scale)
+	if topRight {
+		return ui.Rect{X: container.X + container.W - pw - 8*scale, Y: container.Y + 6*scale, W: pw, H: ph}
+	}
+	return ui.Rect{X: container.X + container.W - pw - 6*scale, Y: container.Y + (container.H-ph)/2, W: pw, H: ph}
+}
+
+func fadeColor(c ui.Color, a float32) ui.Color {
+	return c.Alpha(float32(c.A) / 255 * a)
+}
+
+func (el *Element) paintDialectPill(p *ui.Painter, rect ui.Rect, key controlKey, dialect profile.MathDialect, alpha float32) {
+	scale := el.chromeScale()
+	lit := el.lit(key)
+	radius := 4 * scale
+	bg := fadeColor(el.Theme.Surface.Inset.Mix(el.Theme.Element.Hover, lit), alpha)
+	border := fadeColor(el.Theme.Border.Variant.Mix(el.Theme.Accent.Foreground, lit*0.5), alpha)
+	ink := fadeColor(el.Theme.Text.Muted.Mix(el.Theme.Accent.Foreground, lit), alpha)
+	p.Fill(rect, bg, radius)
+	components.PaintRing(p, rect, radius, 0, border)
+	lay, lw, lh := el.dialectPillLayout(dialect)
+	paintText(p, lay, rect.X+(rect.W-lw)/2, rect.Y+(rect.H-lh)/2, ink)
+}
+
+type clickControlDrag struct {
+	id     controlKey
+	rect   ui.Rect
+	last   ui.Point
+	action func(at time.Time)
+}
+
+func (d *clickControlDrag) key() controlKey                 { return d.id }
+func (d *clickControlDrag) move(x, y float32, _ time.Time) { d.last = ui.Point{X: x, Y: y} }
+func (d *clickControlDrag) cursor() ui.Cursor               { return ui.CursorPointer }
+func (d *clickControlDrag) finish(canceled bool, at time.Time) {
+	if !canceled && contains(d.rect, d.last.X, d.last.Y) && d.action != nil {
+		d.action(at)
+	}
+}
+
+func (el *Element) dialectControl(id doc.ID, key controlKey, rect ui.Rect, dialect profile.MathDialect) control {
+	next := profile.DialectTypst
+	if dialect == profile.DialectTypst {
+		next = profile.DialectTeX
+	}
+	return control{
+		key:    key,
+		rect:   rect,
+		cursor: ui.CursorPointer,
+		press: func(x, y float32, _ int, _ bool, _ time.Time) drag {
+			return &clickControlDrag{
+				id:   key,
+				rect: rect,
+				last: ui.Point{X: x, Y: y},
+				action: func(at time.Time) {
+					el.Editor.Do(profile.SetMathDialect{ID: id, Dialect: next}, at)
+				},
+			}
+		},
+	}
+}
+
+func (el *Element) inlineFormulaControls(u *unitLayout) []control {
+	if len(u.surfaces) <= 1 {
+		return nil
+	}
+	var out []control
+	for _, s := range u.surfaces[1:] {
+		if !s.card || !s.shown || s.cardFormula == 0 {
+			continue
+		}
+		rect := el.dialectPillRect(el.panelArea(s, u.x, u.y), s.cardDialect, false)
+		key := controlKey{unit: u.pres.Unit, part: partDialect, at: s.index}
+		out = append(out, el.dialectControl(s.cardFormula, key, rect, s.cardDialect))
+	}
+	return out
 }

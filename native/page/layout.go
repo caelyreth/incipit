@@ -127,8 +127,13 @@ type surfaceLayout struct {
 	// on an inset panel, as a math block's source.
 	card   bool
 	panel  bool
+	unit   doc.ID
 	anchor doc.ID
 	slot   doc.SlotRef
+	// cardFormula and cardDialect record the anchored Formula node and its
+	// active dialect when this surface is an inline formula's card.
+	cardFormula doc.ID
+	cardDialect profile.MathDialect
 	layout *ui.TextLayout
 	decos  []deco
 	text   string

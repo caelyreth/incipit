@@ -160,6 +160,10 @@ func (el *Element) paintSurface(p *ui.Painter, s *surfaceLayout, ux, uy float32,
 	paintText(p, s.layout, sx, sy, el.Theme.Prose.Text)
 	el.paintGhosts(p, s, sx, sy)
 	el.paintBoxes(p, s, sx, sy)
+	if panel && s.card && s.shown && s.cardFormula != 0 {
+		rect := el.dialectPillRect(area, s.cardDialect, false)
+		el.paintDialectPill(p, rect, controlKey{unit: s.unit, part: partDialect, at: s.index}, s.cardDialect, 1)
+	}
 	el.veil(p, area, a)
 }
 
