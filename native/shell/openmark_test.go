@@ -6,8 +6,8 @@ import "testing"
 // the field does not show has no row to mark.
 func TestAnOpenSheetCarriesItsDesksNumber(t *testing.T) {
 	state, _, tester := onField(t, 1260, 850)
-	state.Open = []Page{{ID: "1", Title: "Untitled"}, {ID: "7", Title: "Open chapter"}}
-	state.ActivePage = "7"
+	state.Open = []Page{{ID: "1", Column: "1", Title: "Untitled"}, {ID: "7", Column: "7", Title: "Open chapter"}}
+	inFront(state, "7")
 	settle(tester)
 	state.ShowField()
 	settle(tester)

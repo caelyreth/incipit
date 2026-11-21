@@ -35,7 +35,7 @@ func TestTheWordsWrittenTodayAreWhatWritingChanged(t *testing.T) {
 	if copied == "" {
 		t.Fatal("The sheet should be duplicated.")
 	}
-	app.Shell.SelectPage(copied)
+	app.OpenSheet(copied, true)
 	for range 3 {
 		tester.Frame()
 	}

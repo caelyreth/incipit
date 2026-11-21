@@ -82,7 +82,7 @@ func TestGoingToTheFieldKeepsTheDeskRunning(t *testing.T) {
 // fades out, and leaves the other.
 func TestClosingASheetOnTheDeskKeepsRunning(t *testing.T) {
 	app, tester := deskApp(t)
-	app.Shell.ClosePageID(app.Shell.Open[0].ID)
+	app.Shell.CloseColumn(app.Shell.Open[0].Column)
 	run(tester, time.Second)
 	if n := len(app.Shell.Open); n != 1 {
 		t.Fatalf("One sheet should stay open on the desk, but %d are.", n)
@@ -114,7 +114,7 @@ func TestOpeningBesideFromFieldSharesTheDesk(t *testing.T) {
 			run(tester, time.Second)
 			title("Target")
 			target := app.Shell.ActivePage
-			app.Shell.CloseSheet(target)
+			app.Shell.CloseColumn(sheetColumn(t, app, target))
 			run(tester, time.Second)
 			app.OpenSheet(target, true)
 			run(tester, time.Second)
@@ -143,9 +143,9 @@ func TestEditingAndResizingAsTheDeskMoves(t *testing.T) {
 	app.Product.Presentation.Typewriter = false
 	var frame shell.SheetFrame
 	draw := app.Shell.Sheet
-	app.Shell.Sheet = func(c *ui.Context, id string, next shell.SheetFrame) {
+	app.Shell.Sheet = func(c *ui.Context, page shell.Page, next shell.SheetFrame) {
 		frame = next
-		draw(c, id, next)
+		draw(c, page, next)
 	}
 	tester := ui.NewTester(app.View, 1440, 900)
 	app.Shell.ShowDesk()
@@ -267,7 +267,7 @@ func TestASheetOpenedAlongsideHoldsStillOnceTheDeskIsUp(t *testing.T) {
 	run(tester, time.Second)
 	title("Target")
 	target := app.Shell.ActivePage
-	app.Shell.CloseSheet(target)
+	app.Shell.CloseColumn(sheetColumn(t, app, target))
 	run(tester, time.Second)
 	app.Shell.ToggleField()
 	run(tester, time.Second)

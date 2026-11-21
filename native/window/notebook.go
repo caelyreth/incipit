@@ -58,44 +58,19 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 	if len(sessions) == 0 {
 		return a.firstPage()
 	}
-	layout := workspace.Layout{
-		Active:    ids[contents.Layout.Active],
-		HasActive: contents.Layout.HasActive,
-		Scroll:    map[workspace.PageID]workspace.ScrollPosition{},
-		Views:     map[workspace.PageID]workspace.ViewState{},
-	}
-	if _, ok := ids[contents.Layout.Active]; !ok {
-		// Restore gives the front to the first open page instead.
-		layout.Active = -1
-	}
-	for _, key := range contents.Layout.Opened {
-		if id, ok := ids[key]; ok {
-			layout.Opened = append(layout.Opened, id)
-		}
-	}
-	for key, y := range contents.Layout.Scroll {
-		if id, ok := ids[key]; ok {
-			layout.Scroll[id] = workspace.ScrollPosition{Y: y}
-		}
-	}
-	for key, view := range contents.Layout.Views {
-		if id, ok := ids[key]; ok {
-			layout.Views[id] = workspaceView(view)
-		}
-	}
 	if !contents.HasLayout {
 		// No layout was saved: show the newest page.
-		layout = workspace.Layout{Opened: []workspace.PageID{workspace.PageID(len(sessions) - 1)}}
-		layout.Active, layout.HasActive = layout.Opened[0], true
+		newest := workspace.LayoutColumn{Page: workspace.PageID(len(sessions) - 1)}
+		return sessions, workspace.Layout{Columns: []workspace.LayoutColumn{newest}, HasFront: true}, nil
 	}
-	return sessions, layout, nil
+	return sessions, workspaceLayout(contents.Layout, ids), nil
 }
 
 // firstPage is a notebook's one empty page, open in front.
 func (a *AppState) firstPage() ([]workspace.Session, workspace.Layout, error) {
 	session := a.newSession(0, storage.Summary{})
 	_ = a.library.AddSheet(library.SheetID(session.key), library.Inbox, time.Now())
-	return []workspace.Session{session}, workspace.Layout{Opened: []workspace.PageID{0}, HasActive: true}, nil
+	return []workspace.Session{session}, workspace.Layout{Columns: []workspace.LayoutColumn{{Page: 0}}, HasFront: true}, nil
 }
 
 // createPage is the workspace's factory: an empty page.
@@ -131,8 +106,8 @@ func (a *AppState) save() {
 func (a *AppState) savePage(session *sheetSession) {
 	// A page whose editor holds a snapshot not yet handed over saves its
 	// content with its record.
-	if session.element != nil {
-		if snap := session.element.Editor.Engine.Snapshot(); snap != session.handed {
+	if session.engine != nil {
+		if snap := session.engine.Snapshot(); snap != session.handed {
 			a.notebook.saver.Content(session.key, session.summary, snap)
 			session.handed = snap
 			if session.saved {
@@ -156,10 +131,10 @@ func (a *AppState) savePage(session *sheetSession) {
 func (a *AppState) summarize() {
 	changed := false
 	for _, session := range a.sessions {
-		if session.element == nil {
+		if session.engine == nil {
 			continue
 		}
-		snap := session.element.Editor.Engine.Snapshot()
+		snap := session.engine.Snapshot()
 		if snap == session.summarized {
 			continue
 		}
@@ -187,30 +162,7 @@ func (a *AppState) saveLayout() {
 	if a.notebook.hasLayout && a.notebook.layoutRev == rev {
 		return
 	}
-	layout := a.Workspace.Layout()
-	stored := storage.Layout{
-		HasActive: layout.HasActive,
-		Scroll:    map[storage.PageKey]float32{},
-		Views:     map[storage.PageKey]storage.ViewState{},
-	}
-	for _, id := range layout.Opened {
-		if session, ok := a.sessions[id]; ok {
-			stored.Opened = append(stored.Opened, session.key)
-		}
-	}
-	if session, ok := a.sessions[layout.Active]; ok && layout.HasActive {
-		stored.Active = session.key
-	}
-	for id, scroll := range layout.Scroll {
-		if session, ok := a.sessions[id]; ok {
-			stored.Scroll[session.key] = scroll.Y
-		}
-	}
-	for id, view := range layout.Views {
-		if session, ok := a.sessions[id]; ok {
-			stored.Views[session.key] = storageView(view)
-		}
-	}
+	stored := a.storedLayout(a.Workspace.Layout())
 	a.notebook.layoutRev = rev
 	a.notebook.hasLayout = true
 	if stored.Equal(a.notebook.layout) {
@@ -218,6 +170,75 @@ func (a *AppState) saveLayout() {
 	}
 	a.notebook.layout = stored
 	a.notebook.saver.Layout(stored)
+}
+
+// workspaceLayout is a stored layout as the workspace takes it: its pages
+// by their keys, ids, where each was found; a column of a page not found
+// is dropped, and Restore gives the front to the first column then.
+func workspaceLayout(stored storage.Layout, ids map[storage.PageKey]workspace.PageID) workspace.Layout {
+	layout := workspace.Layout{HasFront: stored.HasFront, Front: -1, Left: map[workspace.PageID]workspace.Place{}}
+	for index, col := range stored.Columns {
+		id, ok := ids[col.Page]
+		if !ok {
+			continue
+		}
+		if index == stored.Front {
+			layout.Front = len(layout.Columns)
+		}
+		layout.Columns = append(layout.Columns, workspace.LayoutColumn{Page: id, Place: workspace.Place{
+			Scroll: workspace.ScrollPosition{Y: col.Scroll}, View: workspaceView(col.View),
+		}})
+	}
+	for key, y := range stored.Scroll {
+		if id, ok := ids[key]; ok {
+			left := layout.Left[id]
+			left.Scroll.Y = y
+			layout.Left[id] = left
+		}
+	}
+	for key, view := range stored.Views {
+		if id, ok := ids[key]; ok {
+			left := layout.Left[id]
+			left.View = workspaceView(view)
+			layout.Left[id] = left
+		}
+	}
+	return layout
+}
+
+// storedLayout is the workspace's layout as the notebook keeps it, its
+// pages by their keys.
+func (a *AppState) storedLayout(layout workspace.Layout) storage.Layout {
+	stored := storage.Layout{
+		HasFront: layout.HasFront,
+		Scroll:   map[storage.PageKey]float32{},
+		Views:    map[storage.PageKey]storage.ViewState{},
+	}
+	for index, col := range layout.Columns {
+		session, ok := a.sessions[col.Page]
+		if !ok {
+			continue
+		}
+		if index == layout.Front {
+			stored.Front = len(stored.Columns)
+		}
+		stored.Columns = append(stored.Columns, storage.Column{
+			Page: session.key, Scroll: col.Place.Scroll.Y, View: storageView(col.Place.View),
+		})
+	}
+	for id, left := range layout.Left {
+		session, ok := a.sessions[id]
+		if !ok {
+			continue
+		}
+		if left.Scroll.Y != 0 {
+			stored.Scroll[session.key] = left.Scroll.Y
+		}
+		if left.View.Valid() {
+			stored.Views[session.key] = storageView(left.View)
+		}
+	}
+	return stored
 }
 
 func workspaceView(view storage.ViewState) workspace.ViewState {

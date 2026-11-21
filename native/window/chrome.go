@@ -35,15 +35,16 @@ func (a *AppState) refreshEditorChrome() {
 	if a == nil || a.Shell == nil || a.Workspace == nil {
 		return
 	}
-	mounted, id, ok := a.activeSession()
-	if !ok || mounted.element == nil {
+	_, id, ok := a.activeSession()
+	el := a.frontEditor()
+	if !ok || el == nil {
 		a.chrome = chromeKey{}
 		a.Shell.Statistics = ""
 		a.Shell.FindCount = shell.FindCount{}
 		a.refreshToolbarState()
 		return
 	}
-	ed := mounted.element.Editor
+	ed := el.Editor
 	view, _ := ed.Engine.View(ed.View)
 	key := chromeKey{page: id, snap: ed.Engine.Snapshot(), sel: view.Selection, active: true, find: view.Modes.Of(find.ID)}
 	if key == a.chrome {

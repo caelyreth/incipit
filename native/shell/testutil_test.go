@@ -15,8 +15,8 @@ import (
 // openState is the shell with a sheet open, the window on the desk.
 func openState() *State {
 	state := New()
-	state.Open = []Page{{ID: "1", Title: "Untitled"}}
-	state.ActivePage = "1"
+	state.Open = []Page{{ID: "1", Column: "1", Title: "Untitled"}}
+	inFront(state, "1")
 	state.ShowDesk()
 	return state
 }
@@ -206,7 +206,7 @@ func (f *fakeLibrary) SearchNames(key string) []string {
 
 func (f *fakeLibrary) OpenFound(id, text string, alongside bool) {
 	if f.desk != nil {
-		openOnDesk(f.desk, Page{ID: id, Title: "Sheet " + id}, !alongside)
+		openOnDesk(f.desk, sheetPage(id, "Sheet "+id), !alongside)
 	}
 	f.call("open found " + id + " " + text)
 }
@@ -229,7 +229,7 @@ func (f *fakeLibrary) NewSheet(group string, index int) {
 }
 func (f *fakeLibrary) OpenSheet(id string, alongside bool) {
 	if f.desk != nil {
-		openOnDesk(f.desk, Page{ID: id, Title: "Sheet " + id}, !alongside)
+		openOnDesk(f.desk, sheetPage(id, "Sheet "+id), !alongside)
 	}
 	if alongside {
 		f.call("open alongside " + id)

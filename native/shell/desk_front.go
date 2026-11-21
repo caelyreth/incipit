@@ -11,7 +11,7 @@ import "github.com/egoist/mygo/ui"
 //
 // The column in front follows the pointer, so the first press in it
 // already acts there: a sheet the pointer comes onto comes in front
-// (SelectPage), and its page, the editor written in, takes the keyboard,
+// (SelectColumn), and its page, the editor written in, takes the keyboard,
 // unless a field of the shell is being written in (Typing), which keeps
 // it. A picker comes in front alone: its search takes the keyboard as any
 // field does, once pressed. Only the pointer's own moves count: the strip
@@ -47,13 +47,13 @@ func (s *State) inFront(col ui.Element, of deskColumn) bool {
 // page the keyboard.
 func (s *State) pointAt(of deskColumn) {
 	s.desk.at = of.key()
-	if of.sheet != s.ActivePage && s.SelectPage != nil {
+	if of.column != s.ActiveColumn && s.SelectColumn != nil {
 		// It is where the pointer is: the strip stays (keepDesk).
-		s.desk.front = of.sheet
-		s.SelectPage(of.sheet)
+		s.desk.front = of.column
+		s.SelectColumn(of.column)
 	}
 	if !s.Typing() {
-		s.desk.claim = of.sheet
+		s.desk.claim = of.column
 	}
 }
 

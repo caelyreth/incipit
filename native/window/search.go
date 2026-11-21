@@ -517,8 +517,11 @@ func (a *AppState) OpenFound(name, text string, alongside bool) {
 	if !ok {
 		return
 	}
+	if page, ok := a.Workspace.Active(); !ok || page != session.page {
+		return
+	}
 	el := a.pageElement()
-	if el == nil || session.element != el {
+	if el == nil {
 		return
 	}
 	close := false

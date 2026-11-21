@@ -83,6 +83,7 @@ const (
 	PreviousPage CommandID = "page.previous"
 	ClosePage    CommandID = "page.close"
 	CloseOthers  CommandID = "page.close-others"
+	SplitPage    CommandID = "page.split"
 	FindPage     CommandID = "page.find"
 	FindInSheet  CommandID = "page.find-in-sheet"
 
@@ -164,6 +165,7 @@ var appCommands = [...]Command{
 	{ID: ClosePage, Label: "Close Sheet", Scope: ScopePages, Default: NewChord("w", ModifiersPrimary)},
 	{ID: CloseOthers, Label: "Close Other Sheets", Scope: ScopePages,
 		Default: NewChord("w", ModifiersPrimary|ModifiersAlt)},
+	{ID: SplitPage, Label: "Split Sheet", Scope: ScopePages, Default: NewChord("\\", ModifiersPrimary)},
 	{ID: FindPage, Label: "Go to Sheet", Scope: ScopePages, Default: NewChord("p", ModifiersPrimary)},
 	{ID: FindInSheet, Label: "Find", Scope: ScopePages, Default: NewChord("f", ModifiersPrimary)},
 	{ID: NewGroup, Label: "New Group", Scope: ScopeLibrary, Default: NewChord("n", ModifiersPrimary|ModifiersShift)},

@@ -12,7 +12,7 @@ func BenchmarkShellFrames(b *testing.B) {
 		b.Run(scenario, func(b *testing.B) {
 			state, library := libraryState()
 			library.extraSheets = 30
-			state.ActivePage = "7"
+			inFront(state, "7")
 			state.ToggleField()
 			tester := ui.NewTester(state.View, 1260, 850)
 			settle(tester)

@@ -15,8 +15,8 @@ import (
 // closed comes back to the field.
 func TestTheWindowOpensOnTheFieldAndGoesToTheDeskToWrite(t *testing.T) {
 	state := New()
-	state.Open = []Page{{ID: "1", Title: "Untitled"}}
-	state.ActivePage = "1"
+	state.Open = []Page{{ID: "1", Column: "1", Title: "Untitled"}}
+	inFront(state, "1")
 	tester := ui.NewTester(state.View, 1260, 850)
 	settle(tester)
 	if state.OnDesk() {
@@ -25,13 +25,14 @@ func TestTheWindowOpensOnTheFieldAndGoesToTheDeskToWrite(t *testing.T) {
 	if _, ok := tester.Find("Go to the desk"); !ok {
 		t.Fatal("The desk's edge should stand past the field.")
 	}
-	state.Open = append(state.Open, Page{ID: "2", Title: "Next"})
-	state.ActivePage = "2"
+	state.Open = append(state.Open, sheetPage("2", "Next"))
+	inFront(state, "2")
 	settle(tester)
 	if !state.OnDesk() {
 		t.Fatal("A sheet opened should take the window to the desk.")
 	}
-	state.Open, state.ActivePage = nil, ""
+	state.Open = nil
+	inFront(state, "")
 	settle(tester)
 	if state.OnDesk() {
 		t.Fatal("With no sheet left, the window should be on the field.")

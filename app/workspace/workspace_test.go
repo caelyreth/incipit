@@ -43,7 +43,24 @@ func newWorkspace(t *testing.T, initial *testSession) (*Workspace, *sessionLog) 
 	return workspace, log
 }
 
-func TestPagesParkSessionsAndRestoreIndependentState(t *testing.T) {
+func front(t *testing.T, w *Workspace) ColumnID {
+	t.Helper()
+	id, ok := w.Front()
+	if !ok {
+		t.Fatal("no column in front")
+	}
+	return id
+}
+
+func pagesOf(w *Workspace) []PageID {
+	var out []PageID
+	for _, col := range w.Columns() {
+		out = append(out, col.Page.ID)
+	}
+	return out
+}
+
+func TestPagesKeepTheirSessionsAndPlaces(t *testing.T) {
 	t.Parallel()
 	workspace, log := newWorkspace(t, nil)
 	second, err := workspace.NewPage()
@@ -53,11 +70,8 @@ func TestPagesParkSessionsAndRestoreIndependentState(t *testing.T) {
 	if len(log.created) != 1 {
 		t.Fatalf("created sessions = %d", len(log.created))
 	}
-	workspace.SetActiveScroll(ScrollPosition{X: 3, Y: 41})
+	workspace.SetScroll(front(t, workspace), ScrollPosition{X: 3, Y: 41})
 	log.created[0].text = "second"
-	if page, _ := workspace.Page(1); page.Scroll.X != 3 || page.Scroll.Y != 41 {
-		t.Fatalf("second scroll = %#v", page.Scroll)
-	}
 	if err := workspace.Open(0); err != nil {
 		t.Fatal(err)
 	}
@@ -65,12 +79,8 @@ func TestPagesParkSessionsAndRestoreIndependentState(t *testing.T) {
 	if !ok || first.(*testSession).text != "first" {
 		t.Fatalf("mounted first = %#v, %v", first, ok)
 	}
-	page, _ := workspace.Page(1)
-	if page.Title != DefaultTitle || !page.Parked {
-		t.Fatalf("first parked state = %#v", page)
-	}
-	if scroll, _ := workspace.ActiveScroll(); scroll.Y != 0 {
-		t.Fatalf("first scroll = %#v", scroll)
+	if place, _ := workspace.Place(front(t, workspace)); place.Scroll.Y != 0 {
+		t.Fatalf("first scroll = %#v", place.Scroll)
 	}
 	if err := workspace.Open(second); err != nil {
 		t.Fatal(err)
@@ -79,16 +89,20 @@ func TestPagesParkSessionsAndRestoreIndependentState(t *testing.T) {
 	if mounted.(*testSession).text != "second" {
 		t.Fatalf("mounted text = %q", mounted.(*testSession).text)
 	}
+	if place, _ := workspace.Place(front(t, workspace)); place.Scroll != (ScrollPosition{X: 3, Y: 41}) {
+		t.Fatalf("second scroll = %#v", place.Scroll)
+	}
 }
 
-func TestCloseActivatesAdjacentPageAndReactivationRetainsPage(t *testing.T) {
+func TestCloseBringsTheAdjacentColumnInFrontAndReopeningKeepsThePlace(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)
 	second, err := workspace.NewPage()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := workspace.Close(second); err != nil {
+	workspace.SetScroll(front(t, workspace), ScrollPosition{Y: 20})
+	if err := workspace.Close(front(t, workspace)); err != nil {
 		t.Fatal(err)
 	}
 	if active, ok := workspace.Active(); !ok || active != 0 {
@@ -103,12 +117,15 @@ func TestCloseActivatesAdjacentPageAndReactivationRetainsPage(t *testing.T) {
 	if active, _ := workspace.Active(); active != second {
 		t.Fatalf("reactivated = %d", active)
 	}
+	if place, _ := workspace.Place(front(t, workspace)); place.Scroll.Y != 20 {
+		t.Fatalf("reopened at %#v, want where it was closed", place.Scroll)
+	}
 }
 
-func TestClosingLastPageLeavesAllPagesRetainedAndNewPageCanMount(t *testing.T) {
+func TestClosingTheLastColumnLeavesAllPagesRetainedAndNewPageCanOpen(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)
-	if err := workspace.Close(0); err != nil {
+	if err := workspace.Close(front(t, workspace)); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := workspace.Active(); ok {
@@ -151,23 +168,22 @@ func TestPagesTakeTheirSessionsTitles(t *testing.T) {
 	}
 }
 
-func TestAdjacentNavigationCyclesOpenPages(t *testing.T) {
+func TestAdjacentNavigationCyclesTheColumns(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)
-	second, _ := workspace.NewPage()
-	previous, ok := workspace.Adjacent(false)
-	if !ok || previous != 0 {
+	first := front(t, workspace)
+	if _, err := workspace.NewPage(); err != nil {
+		t.Fatal(err)
+	}
+	second := front(t, workspace)
+	if previous, ok := workspace.Adjacent(false); !ok || previous != first {
 		t.Fatalf("previous = %d, %v", previous, ok)
 	}
-	next, ok, err := workspace.Navigate(true)
-	if err != nil || !ok || next != 0 {
-		t.Fatalf("navigate = %d, %v, %v", next, ok, err)
+	if next, ok := workspace.Navigate(true); !ok || next != first {
+		t.Fatalf("navigate = %d, %v", next, ok)
 	}
-	if active, _ := workspace.Active(); active != 0 {
-		t.Fatalf("active = %d", active)
-	}
-	if next, ok, err = workspace.Navigate(false); err != nil || !ok || next != second {
-		t.Fatalf("reverse navigate = %d, %v, %v", next, ok, err)
+	if next, ok := workspace.Navigate(false); !ok || next != second {
+		t.Fatalf("reverse navigate = %d, %v", next, ok)
 	}
 }
 
@@ -189,21 +205,20 @@ func TestFailedCreationLeavesWorkspaceUnchanged(t *testing.T) {
 		t.Fatalf("active after failed creation = %d, %v", active, ok)
 	}
 }
+
 func TestRestoreReturnsTheLayoutItWasGiven(t *testing.T) {
 	t.Parallel()
-	sessions := []Session{
-		newTestSession(0, "a"),
-		newTestSession(1, "b"),
-		newTestSession(2, "c"),
-	}
-	create := func(id PageID) (Session, error) {
-		return newTestSession(id, ""), nil
-	}
+	sessions := []Session{newTestSession(0, "a"), newTestSession(1, "b"), newTestSession(2, "c")}
+	create := func(id PageID) (Session, error) { return newTestSession(id, ""), nil }
+	view := ViewState{Kind: SelectNode, Node: 7}
 	layout := Layout{
-		Opened:    []PageID{2, 0},
-		Active:    0,
-		HasActive: true,
-		Scroll:    map[PageID]ScrollPosition{2: {Y: 80}},
+		Columns: []LayoutColumn{
+			{Page: 2, Place: Place{Scroll: ScrollPosition{Y: 80}}},
+			{Page: 0},
+			{Page: 2, Place: Place{View: view}},
+		},
+		Front: 1, HasFront: true,
+		Left: map[PageID]Place{1: {Scroll: ScrollPosition{Y: 5}}},
 	}
 	workspace, err := Restore(sessions, layout, create)
 	if err != nil {
@@ -213,29 +228,26 @@ func TestRestoreReturnsTheLayoutItWasGiven(t *testing.T) {
 	if !ok || mounted.(*testSession).text != "a" {
 		t.Fatalf("mounted %#v", mounted)
 	}
-	if page, _ := workspace.Page(1); !page.Parked {
-		t.Fatal("a page that is not open is mounted")
-	}
 	got := workspace.Layout()
-	if len(got.Opened) != 2 || got.Opened[0] != 2 || got.Opened[1] != 0 || got.Active != 0 ||
-		!got.HasActive || got.Scroll[2].Y != 80 || len(got.Scroll) != 1 {
+	if !slices.Equal(got.Columns, layout.Columns) || got.Front != 1 || !got.HasFront ||
+		len(got.Left) != 1 || got.Left[1].Scroll.Y != 5 {
 		t.Fatalf("layout %#v", got)
 	}
-	if err := workspace.Open(2); err != nil {
+	if err := workspace.Open(1); err != nil {
 		t.Fatal(err)
 	}
-	if scroll, _ := workspace.ActiveScroll(); scroll.Y != 80 {
-		t.Fatalf("restored scroll %#v", scroll)
+	if place, _ := workspace.Place(front(t, workspace)); place.Scroll.Y != 5 {
+		t.Fatalf("a closed page opened at %#v, not where it was left", place)
 	}
 }
 
 func TestRestoreReadsAStaleLayoutForWhatItStillSays(t *testing.T) {
 	t.Parallel()
 	sessions := []Session{newTestSession(0, "a"), newTestSession(1, "b")}
-	create := func(id PageID) (Session, error) {
-		return newTestSession(id, ""), nil
-	}
-	workspace, err := Restore(sessions, Layout{Opened: []PageID{5, 1, 1}, Active: 5, HasActive: true}, create)
+	create := func(id PageID) (Session, error) { return newTestSession(id, ""), nil }
+	workspace, err := Restore(sessions, Layout{
+		Columns: []LayoutColumn{{Page: 5}, {Page: 1}}, Front: 0, HasFront: true,
+	}, create)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,35 +266,55 @@ func TestRestoreReadsAStaleLayoutForWhatItStillSays(t *testing.T) {
 	}
 }
 
-func TestSelectionsTravelWithTheLayout(t *testing.T) {
+// A split column shows its page again beside it, from the same place,
+// and each goes its own way from there.
+func TestASplitColumnShowsThePageAgainAtAPlaceOfItsOwn(t *testing.T) {
 	t.Parallel()
-	sessions := []Session{newTestSession(0, "a"), newTestSession(1, "b")}
-	create := func(id PageID) (Session, error) {
-		return newTestSession(id, ""), nil
+	workspace, _ := newWorkspace(t, nil)
+	second, _ := workspace.NewPage()
+	if err := workspace.Open(0); err != nil {
+		t.Fatal(err)
 	}
-	view := ViewState{
-		Kind:   SelectText,
-		Anchor: Caret{Node: 11, Slot: 0, Offset: 1, Stop: 0},
-		Head:   Caret{Node: 11, Slot: 0, Offset: 4, Stop: 2},
-	}
-	workspace, err := Restore(sessions, Layout{
-		Opened: []PageID{1}, Active: 1, HasActive: true,
-		Views: map[PageID]ViewState{1: view},
-	}, create)
+	from := front(t, workspace)
+	workspace.SetScroll(from, ScrollPosition{Y: 30})
+	split, err := workspace.Split(from)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, ok := workspace.ActiveView(); !ok || got != view {
-		t.Fatalf("active view = %+v, %v", got, ok)
+	if split == from || front(t, workspace) != split {
+		t.Fatalf("the split column %d is not a new one in front", split)
 	}
-	workspace.SetActiveView(ViewState{Kind: SelectNode, Node: 7})
-	layout := workspace.Layout()
-	if got := layout.Views[1]; got.Kind != SelectNode || got.Node != 7 {
-		t.Fatalf("saved view = %+v", got)
+	if got := pagesOf(workspace); !slices.Equal(got, []PageID{0, 0, second}) {
+		t.Fatalf("columns show %v", got)
+	}
+	if got := workspace.Opened(); !slices.Equal(got, []PageID{0, second}) {
+		t.Fatalf("open pages %v", got)
+	}
+	if place, _ := workspace.Place(split); place.Scroll.Y != 30 {
+		t.Fatalf("the split starts at %#v, not where it split from", place)
+	}
+	workspace.SetView(split, ViewState{Kind: SelectNode, Node: 3})
+	if place, _ := workspace.Place(from); place.View.Valid() {
+		t.Fatalf("one column's selection reached the other: %#v", place)
+	}
+	if err := workspace.Open(second); err != nil {
+		t.Fatal(err)
+	}
+	if err := workspace.Open(0); err != nil || front(t, workspace) != from {
+		t.Fatalf("opening a page shown twice brought %d in front, want its first column %d", front(t, workspace), from)
+	}
+	if err := workspace.ClosePage(0); err != nil {
+		t.Fatal(err)
+	}
+	if got := pagesOf(workspace); !slices.Equal(got, []PageID{second}) {
+		t.Fatalf("closing the page left %v", got)
+	}
+	if _, err := workspace.Split(from); err == nil {
+		t.Fatal("a closed column split")
 	}
 }
 
-func TestOpeningInPlaceReplacesTheActivePage(t *testing.T) {
+func TestOpeningInPlaceReplacesTheColumnInFront(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)
 	second, _ := workspace.NewPage()
@@ -293,11 +325,11 @@ func TestOpeningInPlaceReplacesTheActivePage(t *testing.T) {
 	if err := workspace.OpenInPlace(third); err != nil {
 		t.Fatal(err)
 	}
-	if open := workspace.Opened(); len(open) != 2 || open[0] != third || open[1] != second {
+	if open := pagesOf(workspace); !slices.Equal(open, []PageID{third, second}) {
 		t.Fatalf("open %v", open)
 	}
-	if page, _ := workspace.Page(0); !page.Parked {
-		t.Fatal("the replaced page is still mounted")
+	if active, _ := workspace.Active(); active != third {
+		t.Fatalf("in front %d", active)
 	}
 	if err := workspace.OpenInPlace(second); err != nil {
 		t.Fatal(err)
@@ -312,7 +344,7 @@ func TestDiscardedPagesGo(t *testing.T) {
 	workspace, _ := newWorkspace(t, nil)
 	second, _ := workspace.NewPage()
 	third, _ := workspace.NewPage()
-	if open := workspace.Opened(); len(open) != 3 || open[0] != 0 || open[1] != second || open[2] != third {
+	if open := workspace.Opened(); !slices.Equal(open, []PageID{0, second, third}) {
 		t.Fatalf("open pages %v", open)
 	}
 	if err := workspace.Discard(second); err != nil {
@@ -330,34 +362,21 @@ func TestDiscardedPagesGo(t *testing.T) {
 	}
 }
 
-func TestPagesOpenBesideTheActiveOneAndArePlacedAfterAnother(t *testing.T) {
+func TestPagesOpenBesideTheColumnInFront(t *testing.T) {
 	t.Parallel()
 	workspace, _ := newWorkspace(t, nil)
-	first, _ := workspace.Active()
 	second, err := workspace.NewPage()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := workspace.Open(first); err != nil {
+	if err := workspace.Open(0); err != nil {
 		t.Fatal(err)
 	}
 	third, err := workspace.NewPage()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := workspace.Opened(); !slices.Equal(got, []PageID{first, third, second}) {
-		t.Fatalf("a new page should open beside the active one, but the pages are %v", got)
-	}
-	if err := workspace.Place(first, second); err != nil {
-		t.Fatal(err)
-	}
-	if got := workspace.Opened(); !slices.Equal(got, []PageID{third, second, first}) {
-		t.Fatalf("placed after the second, the pages should be %v, not %v", []PageID{third, second, first}, got)
-	}
-	if err := workspace.Place(first, PageID(99)); err != nil {
-		t.Fatal(err)
-	}
-	if got := workspace.Opened(); got[0] != first {
-		t.Fatalf("placed after a page not open, a page should go first, but the pages are %v", got)
+	if got := workspace.Opened(); !slices.Equal(got, []PageID{0, third, second}) {
+		t.Fatalf("a new page should open beside the one in front, but the pages are %v", got)
 	}
 }

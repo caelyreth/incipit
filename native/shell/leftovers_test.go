@@ -70,10 +70,10 @@ func TestTheDeskHeadRestsDimmedAndKeepsAwayWhileWriting(t *testing.T) {
 func TestTheLaneOffersItsMenus(t *testing.T) {
 	state, library := libraryState()
 	library.desk = state
-	state.Open = []Page{{ID: "7", Title: "Chapter"}, {ID: "8", Title: "Draft"}}
-	state.ActivePage = "7"
+	state.Open = []Page{{ID: "7", Column: "7", Title: "Chapter"}, {ID: "8", Column: "8", Title: "Draft"}}
+	inFront(state, "7")
 	var selected string
-	state.SelectPage = func(id string) { selected = id }
+	state.SelectColumn = func(id string) { selected = id }
 	state.ShowField()
 	tester := ui.NewTester(state.View, 1260, 850)
 	settle(tester)

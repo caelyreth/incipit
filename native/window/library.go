@@ -30,6 +30,16 @@ func pageOf(name string) (workspace.PageID, bool) {
 	return workspace.PageID(id), err == nil
 }
 
+// columnName names an open column to the shell, as sheetName names its
+// sheet; columnOf reads it back.
+func columnName(id workspace.ColumnID) string { return "c" + strconv.Itoa(int(id)) }
+
+func columnOf(name string) (workspace.ColumnID, bool) {
+	digits, ok := strings.CutPrefix(name, "c")
+	id, err := strconv.Atoi(digits)
+	return workspace.ColumnID(id), ok && err == nil
+}
+
 func groupName(id library.GroupID) string {
 	if id == 0 {
 		return ""

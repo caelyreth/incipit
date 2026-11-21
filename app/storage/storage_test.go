@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -30,7 +31,7 @@ func TestANotebookReopensAsItWasLeft(t *testing.T) {
 	saver.Page(1, Summary{Title: "Title"})
 	saver.Page(2, Summary{Title: ""})
 	saver.Layout(Layout{
-		Opened: []PageKey{2, 1}, Active: 1, HasActive: true,
+		Columns: []Column{{Page: 2}, {Page: 1, Scroll: 40}, {Page: 2, Scroll: 9}}, Front: 1, HasFront: true,
 		Scroll: map[PageKey]float32{1: 120},
 	})
 	if err := saver.Close(); err != nil {
@@ -56,8 +57,8 @@ func TestANotebookReopensAsItWasLeft(t *testing.T) {
 		t.Fatalf("times %+v", notebook.Pages[0])
 	}
 	layout := notebook.Layout
-	if !notebook.HasLayout || len(layout.Opened) != 2 || layout.Opened[0] != 2 || layout.Active != 1 ||
-		!layout.HasActive || layout.Scroll[1] != 120 {
+	if !notebook.HasLayout || !slices.Equal(layout.Columns, []Column{{Page: 2}, {Page: 1, Scroll: 40}, {Page: 2, Scroll: 9}}) ||
+		layout.Front != 1 || !layout.HasFront || layout.Scroll[1] != 120 {
 		t.Fatalf("layout %+v", layout)
 	}
 }

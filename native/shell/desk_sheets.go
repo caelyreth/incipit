@@ -25,13 +25,13 @@ const sheetPad = 16
 func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, settled, origin float32, enter, animate bool) {
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
-	col, front, shown := s.column(c, deskColumn{sheet: page.ID}, w, origin, enter, animate)
+	col, front, shown := s.column(c, deskColumn{sheet: page.ID, column: page.Column}, w, origin, enter, animate)
 	col.Role(ui.RoleGroup).Label(page.Title).Clip().Background(semantic.Surface.Page)
-	if s.deskColumnCulled(col, page.ID, shown) {
+	if s.deskColumnCulled(col, page.Column, shown) {
 		return
 	}
 	// The keyboard comes to it as the pointer does (desk_front.go).
-	claim := s.desk.claim == page.ID
+	claim := s.desk.claim == page.Column
 	if claim {
 		s.desk.claim = ""
 	}
@@ -51,13 +51,13 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, se
 		Prose: prose, UIFontSize: s.Settings.UIFontSize, LayoutWidth: width, Inset: prose.Inset(width),
 		Top:    theme.DefaultLayout.ReadingTop * k * 3 / 2,
 		Bottom: dock + side, Dock: dock,
-		Focus: s.OnDesk() && page.ID == s.ActivePage, Claim: claim && s.OnDesk(),
+		Focus: s.OnDesk() && page.Column == s.ActiveColumn, Claim: claim && s.OnDesk(),
 	}
 	col.Children(func() {
 		ui.Column(c).Key("sheet-page").Width(settled).Shrink(0).AlignSelf(ui.Center).Grow(1).MinHeight(0).PaddingX(side).
 			Opacity(s.columnShows(col, front, animate)).Children(func() {
 			if s.Sheet != nil {
-				s.Sheet(c, page.ID, frame)
+				s.Sheet(c, page, frame)
 			}
 		})
 		s.sheetHead(c, semantic, page, k, lead, head, animate)
@@ -108,16 +108,16 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lea
 	}
 	// It names its sheet, which its tooltip need not.
 	return s.columnHead(c, semantic, "sheet-head", lead, shown, info, chromeButton{
-		key: "sheet-close-" + page.ID, label: "Close " + page.Title, tooltip: "Close Sheet",
+		key: "sheet-close-" + page.Column, label: "Close " + page.Title, tooltip: "Close Sheet",
 		binding: s.binding("page.close"), side: components.HintBelow,
-		action: func() { s.CloseSheet(page.ID) },
+		action: func() { s.CloseColumn(page.Column) },
 	}, s.deskMenu(page), animate)
 }
 
 // deskColumnCulled reports whether an off-viewport sheet column can skip
 // building its page editor subtree while preserving its column slot width.
-func (s *State) deskColumnCulled(col ui.Element, pageID string, shown ui.Rect) bool {
-	if shown.W <= 0 || s.desk.viewport.W <= 0 || pageID == s.ActivePage || col.FocusWithin() {
+func (s *State) deskColumnCulled(col ui.Element, column string, shown ui.Rect) bool {
+	if shown.W <= 0 || s.desk.viewport.W <= 0 || column == s.ActiveColumn || col.FocusWithin() {
 		return false
 	}
 	vw := s.desk.viewport.W

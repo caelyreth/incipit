@@ -24,14 +24,21 @@ func onDesk(t *testing.T) (*State, *fakeLibrary, *ui.Tester) {
 func openOnDesk(state *State, page Page, inPlace bool) {
 	at := slices.IndexFunc(state.Open, func(p Page) bool { return p.ID == page.ID })
 	if at < 0 {
-		front := slices.IndexFunc(state.Open, func(p Page) bool { return p.ID == state.ActivePage })
+		front := slices.IndexFunc(state.Open, func(p Page) bool { return p.Column == state.ActiveColumn })
 		state.Open = slices.Insert(state.Open, front+1, page)
 		if inPlace && front >= 0 {
 			state.Open = slices.Delete(state.Open, front, front+1)
 		}
 	}
-	state.ActivePage = page.ID
+	inFront(state, page.ID)
 }
+
+// sheetPage is a sheet open in a column of its own, the column named as
+// the sheet is.
+func sheetPage(id, title string) Page { return Page{ID: id, Column: id, Title: title} }
+
+// inFront brings the column named id, holding sheet id, in front.
+func inFront(state *State, id string) { state.ActivePage, state.ActiveColumn = id, id }
 
 // joining opens sheets one after another, each beside the one before.
 func joining(state *State, tester *ui.Tester, pages ...Page) {
@@ -45,7 +52,7 @@ func joining(state *State, tester *ui.Tester, pages ...Page) {
 func sheetPages(ids ...string) []Page {
 	var pages []Page
 	for _, id := range ids {
-		pages = append(pages, Page{ID: id, Title: "Sheet " + id})
+		pages = append(pages, sheetPage(id, "Sheet "+id))
 	}
 	return pages
 }
@@ -85,7 +92,7 @@ func columnsOf(state *State) []string {
 func TestOneSheetFillsTheDesk(t *testing.T) {
 	state, _, tester := onDesk(t)
 	var frame SheetFrame
-	state.Sheet = func(c *ui.Context, _ string, f SheetFrame) { frame = f; ui.Text(c, "Body") }
+	state.Sheet = func(c *ui.Context, _ Page, f SheetFrame) { frame = f; ui.Text(c, "Body") }
 	settle(tester)
 	if spans := state.desk.spans; len(spans) != 1 || abs(spans[0].W-state.desk.viewport.W) > 1 {
 		t.Fatalf("One sheet should fill the desk, %v wide, but the strip holds %+v.", state.desk.viewport.W, spans)
@@ -126,7 +133,7 @@ func TestSheetsShareTheDeskByHalvesOrThirds(t *testing.T) {
 func TestASheetOpenedInPlaceTakesTheFrontsPlace(t *testing.T) {
 	state, library, tester := onDesk(t)
 	joining(state, tester, sheetPages("7")...)
-	state.ActivePage = "1"
+	inFront(state, "1")
 	tester.Frame()
 	library.OpenSheet("8", false)
 	settle(tester)
@@ -140,25 +147,26 @@ func TestASheetOpenedInPlaceTakesTheFrontsPlace(t *testing.T) {
 func TestTheDeskHoldsItsSheetsAtOnce(t *testing.T) {
 	state, _, tester := onDesk(t)
 	focused := map[string]bool{}
-	state.Sheet = func(c *ui.Context, id string, frame SheetFrame) {
+	state.Sheet = func(c *ui.Context, page Page, frame SheetFrame) {
+		id := page.ID
 		focused[id] = frame.Focus
 		ui.Text(c, "Body of "+id)
 	}
 	var selected, closed []string
-	state.SelectPage = func(id string) { selected = append(selected, id); state.ActivePage = id }
-	state.ClosePageID = func(id string) {
+	state.SelectColumn = func(id string) { selected = append(selected, id); inFront(state, id) }
+	state.CloseColumnID = func(id string) {
 		closed = append(closed, id)
-		at := slices.IndexFunc(state.Open, func(p Page) bool { return p.ID == id })
+		at := slices.IndexFunc(state.Open, func(p Page) bool { return p.Column == id })
 		state.Open = slices.Delete(state.Open, at, at+1)
 		if state.ActivePage == id {
-			state.ActivePage = ""
+			inFront(state, "")
 			if len(state.Open) > 0 {
-				state.ActivePage = state.Open[min(at, len(state.Open)-1)].ID
+				inFront(state, state.Open[min(at, len(state.Open)-1)].ID)
 			}
 		}
 	}
-	joining(state, tester, Page{ID: "7", Title: "Chapter"}, Page{ID: "8", Title: "Draft"})
-	state.ActivePage = "7"
+	joining(state, tester, sheetPage("7", "Chapter"), sheetPage("8", "Draft"))
+	inFront(state, "7")
 	tester.Frame()
 	settle(tester)
 	if !tester.HasText("Body of 1") || !tester.HasText("Body of 7") || !tester.HasText("Body of 8") {
@@ -191,14 +199,14 @@ func TestTheDeskHoldsItsSheetsAtOnce(t *testing.T) {
 // between columns moves it along, coming to rest at a column.
 func TestTheStripFollowsTheFrontAndPansByDrag(t *testing.T) {
 	state, _, tester := onDesk(t)
-	state.Sheet = func(c *ui.Context, id string, _ SheetFrame) { ui.Text(c, "Body of "+id) }
-	state.SelectPage = func(id string) { state.ActivePage = id }
+	state.Sheet = func(c *ui.Context, page Page, _ SheetFrame) { ui.Text(c, "Body of "+page.ID) }
+	state.SelectColumn = func(id string) { inFront(state, id) }
 	joining(state, tester, sheetPages("7", "8", "9", "10")...)
-	state.ActivePage = "7"
+	inFront(state, "7")
 	tester.Frame()
 	settle(tester)
 	before := state.desk.strip.X
-	state.ActivePage = "10"
+	inFront(state, "10")
 	tester.Frame()
 	settle(tester)
 	last := state.desk.strip.X
@@ -275,7 +283,7 @@ func TestTheStripStretchesPastItsEnds(t *testing.T) {
 func TestTheScrubberMovesTheStrip(t *testing.T) {
 	state, _, tester := onDesk(t)
 	joining(state, tester, sheetPages("7", "8", "9", "10")...)
-	state.ActivePage = "7"
+	inFront(state, "7")
 	tester.Frame()
 	settle(tester)
 	// The scrubber shows while the strip moves, as it did coming to the
@@ -317,13 +325,13 @@ func TestTheScrubberMovesTheStrip(t *testing.T) {
 func TestClosingAColumnEasesTheStripBack(t *testing.T) {
 	state, _, tester := onDesk(t)
 	state.Appearance.Motion = true
-	state.ClosePageID = func(id string) {
-		at := slices.IndexFunc(state.Open, func(p Page) bool { return p.ID == id })
+	state.CloseColumnID = func(id string) {
+		at := slices.IndexFunc(state.Open, func(p Page) bool { return p.Column == id })
 		if at >= 0 {
 			state.Open = slices.Delete(state.Open, at, at+1)
 		}
 	}
-	joining(state, tester, Page{ID: "7", Title: "Sheet 7"}, Page{ID: "8", Title: "Sheet 8"}, Page{ID: "9", Title: "Sheet 9"})
+	joining(state, tester, sheetPage("7", "Sheet 7"), sheetPage("8", "Sheet 8"), sheetPage("9", "Sheet 9"))
 	settle(tester)
 	before := state.desk.strip.X
 	if before <= 0 {
@@ -350,15 +358,16 @@ func TestClosingAColumnEasesTheStripBack(t *testing.T) {
 func TestThePointerBringsTheColumnUnderItInFront(t *testing.T) {
 	state, _, tester := onDesk(t)
 	var claimed []string
-	state.Sheet = func(c *ui.Context, id string, frame SheetFrame) {
+	state.Sheet = func(c *ui.Context, page Page, frame SheetFrame) {
+		id := page.ID
 		if frame.Claim {
 			claimed = append(claimed, id)
 		}
 		ui.Text(c, "Body of "+id)
 	}
-	state.SelectPage = func(id string) { state.ActivePage = id }
+	state.SelectColumn = func(id string) { inFront(state, id) }
 	joining(state, tester, sheetPages("7")...)
-	state.ActivePage = "1"
+	inFront(state, "1")
 	tester.Frame()
 	settle(tester)
 	strip := state.desk.strip.X
@@ -412,7 +421,7 @@ func TestTheSheetHeadPutsBackAtItsStartAndCloseAtItsEnd(t *testing.T) {
 		tester := ui.NewTester(func(c *ui.Context) {
 			c.SetTheme(state.Settings.MyGoTheme())
 			ui.Column(c).Fill().Children(func() {
-				state.sheetHead(c, semantic, Page{ID: "1", Title: "A place to begin"},
+				state.sheetHead(c, semantic, sheetPage("1", "A place to begin"),
 					size/theme.DefaultUIFontSize, 0, 1, false)
 			})
 		}, 520, 80)

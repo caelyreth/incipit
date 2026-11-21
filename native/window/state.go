@@ -2,6 +2,7 @@ package window
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/caelyreth/neverland/app/keymap"
@@ -79,8 +80,9 @@ type AppState struct {
 	shownPictures, cardPictures *page.Pictures
 	// finder keeps the search index in step and answers searches.
 	finder *finder
-	// soughtPage is the page a sheet's find last ran on, 0 for none.
-	soughtPage workspace.PageID
+	// sought is the column a sheet's find last ran in, while seeking.
+	sought  workspace.ColumnID
+	seeking bool
 	// shortcutMap caches globalShortcut resolution while Product.Keymap is unchanged.
 	shortcutMap *keymap.Keymap
 	shortcuts   []globalShortcut
@@ -157,27 +159,28 @@ func (a *AppState) loadSettings(store *storage.Store) error {
 
 func (a *AppState) BindShell() {
 	a.Shell.Sheet = a.sheetView
-	a.Shell.SelectPage = func(id string) {
-		page, ok := pageOf(id)
+	a.Shell.SelectColumn = func(name string) {
+		col, ok := columnOf(name)
 		if !ok {
 			return
 		}
-		if err := a.Workspace.Open(page); err != nil {
-			a.fail("Couldn't open the page", err)
+		if err := a.Workspace.Focus(col); err != nil {
+			a.fail("Couldn't go to the sheet", err)
 			return
 		}
 		a.selectMounted()
 	}
 	a.Shell.Library = a
 	a.Shell.Thumbnail = a.thumbnail
-	a.Shell.ClosePageID = a.closePageID
+	a.Shell.CloseColumnID = a.closeColumn
+	a.Shell.SplitColumnID = a.splitColumn
 	a.Shell.Commands = a.commandCatalog
 	a.Shell.Binding = func(id string) string { return bindingLabel(a.Product.Keymap, keymap.CommandID(id)) }
 	a.Shell.Wrote = func() time.Time {
 		var last time.Time
 		for _, session := range a.sessions {
-			if session.element != nil {
-				if at := session.element.Editor.Wrote(); at.After(last) {
+			for _, el := range session.columns {
+				if at := el.Editor.Wrote(); at.After(last) {
 					last = at
 				}
 			}
@@ -213,21 +216,23 @@ func (a *AppState) BindShell() {
 	a.refreshShell()
 }
 
-// sheetView is an open sheet's page where the shell sets it: its editor,
-// set as frame says. A page that takes the keyboard comes to the front,
-// as clicking into a sheet open beside others on the desk does.
-func (a *AppState) sheetView(c *ui.Context, id string, frame shell.SheetFrame) {
-	session, ok := a.sessionOf(id)
-	if !ok {
+// sheetView is an open column's page where the shell sets it: its editor
+// in the column, set as frame says. A column whose page takes the
+// keyboard comes to the front, as clicking into a sheet open beside
+// others on the desk does.
+func (a *AppState) sheetView(c *ui.Context, open shell.Page, frame shell.SheetFrame) {
+	session, ok := a.sessionOf(open.ID)
+	col, isColumn := columnOf(open.Column)
+	if !ok || !isColumn {
 		return
 	}
-	semantic, moving := a.sheetTheme(session, id, c.Now())
+	semantic, moving := a.sheetTheme(session, open.ID, c.Now())
 	if moving {
 		c.AnimationFrame()
 	}
-	box := ui.Column(c).Key("page-" + id).Role(ui.RoleGroup).Label("Page").FillHeight().WidthPercent(100)
+	box := ui.Column(c).Key("page-" + open.Column).Role(ui.RoleGroup).Label("Page").FillHeight().WidthPercent(100)
 	box.Children(func() {
-		el := a.sessionElement(session)
+		el := a.columnElement(session, col)
 		if el == nil {
 			return
 		}
@@ -248,9 +253,9 @@ func (a *AppState) sheetView(c *ui.Context, id string, frame shell.SheetFrame) {
 			el.View(c)
 		})
 	})
-	if active, ok := a.Workspace.Active(); box.FocusWithin() && (!ok || active != session.page) {
-		if err := a.Workspace.Open(session.page); err != nil {
-			a.fail("Couldn't open the page", err)
+	if front, ok := a.Workspace.Front(); box.FocusWithin() && (!ok || front != col) {
+		if err := a.Workspace.Focus(col); err != nil {
+			a.fail("Couldn't go to the sheet", err)
 			return
 		}
 		a.selectMounted()
@@ -263,8 +268,8 @@ func (a *AppState) refreshToolbarState() {
 	}
 	keys := a.Product.Keymap
 	formatting := shell.FormattingState{}
-	if session, _, ok := a.activeSession(); ok && session.element != nil {
-		formatting = formattingState(session.element.Editor)
+	if el := a.frontEditor(); el != nil {
+		formatting = formattingState(el.Editor)
 	}
 	a.Shell.Toolbar = shell.ToolbarState{
 		Typewriter:        a.Product.Presentation.Typewriter,
@@ -284,13 +289,9 @@ func (a *AppState) togglePresentation(mode appsettings.Presentation, callback fu
 }
 
 func (a *AppState) navigatePage(forward bool) {
-	if _, ok, err := a.Workspace.Navigate(forward); err != nil {
-		a.fail("Couldn't go to the page", err)
-		return
-	} else if !ok {
-		return
+	if _, ok := a.Workspace.Navigate(forward); ok {
+		a.selectMounted()
 	}
-	a.selectMounted()
 }
 
 func (a *AppState) findPage() {
@@ -309,33 +310,60 @@ func (a *AppState) selectMounted() {
 // newSheet makes a sheet in the group the library shows, in front.
 func (a *AppState) newSheet() { a.NewSheet(a.Shell.CurrentGroup(), shell.Last) }
 
-// closeActive closes the sheet in front, as the shell closes one: the one
-// beside it comes in front.
+// closeActive closes the column in front, as the shell closes one: the
+// one beside it comes in front.
 func (a *AppState) closeActive() {
-	if id, ok := a.Workspace.Active(); ok {
-		a.Shell.CloseSheet(sheetName(id))
+	if col, ok := a.Workspace.Front(); ok {
+		a.Shell.CloseColumn(columnName(col))
 	}
 }
 
-func (a *AppState) closePageID(id string) {
-	page, ok := pageOf(id)
+// splitActive opens the sheet in front again beside it.
+func (a *AppState) splitActive() {
+	if col, ok := a.Workspace.Front(); ok {
+		a.splitColumn(columnName(col))
+	}
+}
+
+// closeColumn closes a column, and its sheet with its last.
+func (a *AppState) closeColumn(name string) {
+	col, ok := columnOf(name)
+	if !ok {
+		return
+	}
+	page, ok := a.Workspace.ColumnPage(col)
 	if !ok {
 		return
 	}
 	a.captureViews()
-	// A sheet made this run and closed with nothing in it was never
-	// written: it goes, as a new note left empty does, rather than
-	// piling up as Untitled.
-	discard := a.fresh[page] && a.emptyPage(page)
-	delete(a.fresh, page)
-	if err := a.Workspace.Close(page); err != nil {
-		a.fail("Couldn't close the page", err)
+	if err := a.Workspace.Close(col); err != nil {
+		a.fail("Couldn't close the sheet", err)
 		return
 	}
-	if discard {
-		if session, ok := a.sessions[page]; ok && a.library.TrashSheet(library.SheetID(session.key), time.Now()) == nil {
-			a.DeleteSheet(id)
+	if !slices.Contains(a.Workspace.Opened(), page) {
+		// A sheet made this run and closed with nothing in it was never
+		// written: it goes, as a new note left empty does, rather than
+		// piling up as Untitled.
+		discard := a.fresh[page] && a.emptyPage(page)
+		delete(a.fresh, page)
+		if session, ok := a.sessions[page]; discard && ok && a.library.TrashSheet(library.SheetID(session.key), time.Now()) == nil {
+			a.DeleteSheet(sheetName(page))
 		}
+	}
+	a.selectMounted()
+}
+
+// splitColumn opens a column's sheet again beside it, where it stands in
+// the column, and brings it in front.
+func (a *AppState) splitColumn(name string) {
+	col, ok := columnOf(name)
+	if !ok {
+		return
+	}
+	a.captureViews()
+	if _, err := a.Workspace.Split(col); err != nil {
+		a.fail("Couldn't split the sheet", err)
+		return
 	}
 	a.selectMounted()
 }
@@ -353,16 +381,19 @@ func (a *AppState) emptyPage(page workspace.PageID) bool {
 func (a *AppState) refreshShell() {
 	a.sessionsRev++
 	a.Shell.Open = nil
-	for _, page := range a.Workspace.OpenedPages() {
+	for _, col := range a.Workspace.Columns() {
 		a.Shell.Open = append(a.Shell.Open, shell.Page{
-			ID:    sheetName(page.ID),
-			Title: page.Title,
+			ID:     sheetName(col.Page.ID),
+			Column: columnName(col.ID),
+			Title:  col.Page.Title,
 		})
 	}
-	a.Shell.ActivePage = ""
-	if id, ok := a.Workspace.Active(); ok {
-		a.Shell.ActivePage = sheetName(id)
+	a.Shell.ActivePage, a.Shell.ActiveColumn = "", ""
+	if col, ok := a.Workspace.Front(); ok {
+		page, _ := a.Workspace.ColumnPage(col)
+		a.Shell.ActivePage, a.Shell.ActiveColumn = sheetName(page), columnName(col)
 	}
+	a.closeColumns()
 	a.refreshEditorChrome()
 	a.refreshToolbarState()
 }

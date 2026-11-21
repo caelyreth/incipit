@@ -10,9 +10,9 @@ import (
 
 func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
 	state := openState()
-	state.Open = []Page{{ID: "1", Title: "Untitled"}}
-	state.ActivePage = "1"
-	state.Sheet = func(c *ui.Context, _ string, _ SheetFrame) {
+	state.Open = []Page{{ID: "1", Column: "1", Title: "Untitled"}}
+	inFront(state, "1")
+	state.Sheet = func(c *ui.Context, _ Page, _ SheetFrame) {
 		ui.Text(c, "Body copy")
 	}
 	tester := ui.NewTester(state.View, 1260, 850)
@@ -64,10 +64,10 @@ func TestShellMotionHonorsReduceMotion(t *testing.T) {
 
 func TestDocumentWriterReceivesDefiniteViewportHeight(t *testing.T) {
 	state := openState()
-	state.Open = []Page{{ID: "1", Title: "Untitled"}}
-	state.ActivePage = "1"
+	state.Open = []Page{{ID: "1", Column: "1", Title: "Untitled"}}
+	inFront(state, "1")
 	var painted ui.Rect
-	state.Sheet = func(c *ui.Context, _ string, _ SheetFrame) {
+	state.Sheet = func(c *ui.Context, _ Page, _ SheetFrame) {
 		ui.Box(c).Fill().Draw(func(_ *ui.Painter, rect ui.Rect) {
 			painted = rect
 		})
@@ -256,7 +256,8 @@ func TestClosingLastSheetSharesFieldTransitionWithNormalReturn(t *testing.T) {
 		tester := ui.NewTester(state.View, 1260, 850)
 		settle(tester)
 		if closeLast {
-			state.Open, state.ActivePage = nil, ""
+			state.Open = nil
+			inFront(state, "")
 		} else {
 			state.ShowField()
 		}
@@ -283,7 +284,8 @@ func TestClosingLastSheetSharesFieldTransitionWithNormalReturn(t *testing.T) {
 
 	state, library := libraryState()
 	library.desk = state
-	state.Open, state.ActivePage = nil, ""
+	state.Open = nil
+	inFront(state, "")
 	tester := ui.NewTester(state.View, 1260, 850)
 	settle(tester)
 	if tester.HasText("Nothing open") {
@@ -306,8 +308,8 @@ func TestClosingLastSheetSharesFieldTransitionWithNormalReturn(t *testing.T) {
 func TestFieldSkipsHiddenSubtreeWhenOnDesk(t *testing.T) {
 	state, library := libraryState()
 	library.desk = state
-	state.Open = []Page{{ID: "7", Title: "Chapter"}}
-	state.ActivePage = "7"
+	state.Open = []Page{{ID: "7", Column: "7", Title: "Chapter"}}
+	inFront(state, "7")
 	state.ShowDesk()
 	tester := ui.NewTester(state.View, 1260, 850)
 	settle(tester)
@@ -330,15 +332,16 @@ func TestDeskSkipsFarOffscreenSheets(t *testing.T) {
 	state, library := libraryState()
 	library.desk = state
 	built := map[string]bool{}
-	state.Sheet = func(c *ui.Context, id string, _ SheetFrame) {
+	state.Sheet = func(c *ui.Context, page Page, _ SheetFrame) {
+		id := page.ID
 		built[id] = true
 		ui.Text(c, "Body of "+id)
 	}
 	state.Open = nil
 	for i := 1; i <= 8; i++ {
-		state.Open = append(state.Open, Page{ID: fmt.Sprint(i), Title: fmt.Sprintf("Sheet %d", i)})
+		state.Open = append(state.Open, sheetPage(fmt.Sprint(i), fmt.Sprintf("Sheet %d", i)))
 	}
-	state.ActivePage = "1"
+	inFront(state, "1")
 	state.ShowDesk()
 	tester := ui.NewTester(state.View, 1260, 850)
 	settle(tester)

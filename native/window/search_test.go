@@ -91,7 +91,7 @@ func TestTheIndexOutlivesAQuitAndIsMadeAgainWhenLost(t *testing.T) {
 	}
 	app = openNotebookApp(t, root)
 	for _, s := range app.sessions {
-		if s.element != nil {
+		if s.engine != nil {
 			t.Fatal("a page is open: the store's text would go unread")
 		}
 	}

@@ -4,7 +4,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policies/find"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -49,7 +48,7 @@ func (a *AppState) findQuery(text string) {
 	if el == nil {
 		return
 	}
-	a.soughtPage = a.mountedPage()
+	a.sought, a.seeking = a.Workspace.Front()
 	el.Editor.Do(find.Seek{Query: text}, time.Now())
 	a.refreshEditorChrome()
 }
@@ -72,34 +71,26 @@ func (a *AppState) findStep(forward bool) {
 // front the focus, its selection on the match it was on.
 func (a *AppState) endFind() {
 	for _, session := range a.sessions {
-		if el := session.element; el != nil {
+		for _, el := range session.columns {
 			el.Editor.Do(find.Seek{}, time.Now())
 		}
 	}
-	a.soughtPage = 0
+	a.seeking = false
 	if el := a.pageElement(); el != nil {
 		el.Focus()
 	}
 	a.refreshEditorChrome()
 }
 
-// followFind runs an open find on the page that came to the front.
+// followFind runs an open find in the column that came to the front: a
+// find is a column's, each with its own matches and the one it is on.
 func (a *AppState) followFind() {
 	if !a.Shell.FindOpen() {
 		return
 	}
-	if id := a.mountedPage(); id != 0 && id != a.soughtPage {
+	if col, ok := a.Workspace.Front(); ok && (!a.seeking || col != a.sought) {
 		a.findQuery(a.Shell.FindText())
 	}
-}
-
-// mountedPage is the page in front, 0 for none.
-func (a *AppState) mountedPage() workspace.PageID {
-	_, id, ok := a.activeSession()
-	if !ok {
-		return 0
-	}
-	return id
 }
 
 // findCount is what the find found on the page: how many matches, and

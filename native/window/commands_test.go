@@ -277,7 +277,7 @@ func TestASheetClosedEmptyIsDiscarded(t *testing.T) {
 	if !ok || len(app.sessions) != before+1 {
 		t.Fatal("New Sheet should make and open a sheet")
 	}
-	app.closePageID(sheetName(id))
+	app.closeColumn(sheetColumn(t, app, sheetName(id)))
 	tester.Frame()
 	if _, kept := app.sessions[id]; kept || len(app.sessions) != before {
 		t.Fatal("An empty new sheet closed should be discarded")

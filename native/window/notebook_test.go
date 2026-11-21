@@ -58,12 +58,12 @@ func TestTheNotebookReopensAsItWasLeft(t *testing.T) {
 	app.save()
 	app.newSheet()
 	nameActivePage(t, app, "second")
-	app.Workspace.SetActiveScroll(workspace.ScrollPosition{Y: 36})
+	app.Workspace.SetScroll(frontColumn(t, app), workspace.ScrollPosition{Y: 36})
 	app.save()
 	app.newSheet()
 	app.save()
-	app.Shell.ClosePageID("2")
-	app.Shell.SelectPage("0")
+	app.Shell.CloseColumn(sheetColumn(t, app, "2"))
+	app.Shell.SelectColumn(sheetColumn(t, app, "0"))
 	app.save()
 	if err := app.Close(); err != nil {
 		t.Fatal(err)
@@ -84,8 +84,9 @@ func TestTheNotebookReopensAsItWasLeft(t *testing.T) {
 	if app.Shell.Open[0].Title != "Chapter one" {
 		t.Fatalf("open sheet title %q", app.Shell.Open[0].Title)
 	}
-	app.Shell.SelectPage("1")
-	if scroll, _ := app.Workspace.ActiveScroll(); scroll.Y != 36 {
+	app.Shell.SelectColumn(sheetColumn(t, app, "1"))
+	if place, _ := app.Workspace.Place(frontColumn(t, app)); place.Scroll.Y != 36 {
+		scroll := place.Scroll
 		t.Fatalf("second page scroll %v", scroll)
 	}
 	// A new page takes a key no stored page has.
@@ -163,7 +164,7 @@ func TestTheLibraryIsKeptAndItsTrashEmptied(t *testing.T) {
 func TestUnchangedFramesDoNotEnqueueAnotherLayout(t *testing.T) {
 	app := openNotebookApp(t, t.TempDir())
 	defer app.Close()
-	app.Workspace.SetActiveScroll(workspace.ScrollPosition{Y: 12})
+	app.Workspace.SetScroll(frontColumn(t, app), workspace.ScrollPosition{Y: 12})
 	app.saveLayout()
 	saved := app.notebook.layout
 	if len(saved.Scroll) != 1 {

@@ -74,26 +74,35 @@ type ViewState struct {
 	Node   uint64    `json:"node,omitempty"`
 }
 
-// Layout is how the notebook was left: its open pages in order, the page in
-// front, where each page was scrolled, and each page's selection.
+// Layout is how the notebook was left: its open columns in order, each
+// with its page and where it stood there, the column in front, and where
+// each page was last shown, scrolled and selected.
 type Layout struct {
-	Opened    []PageKey             `json:"tabs"`
-	Active    PageKey               `json:"active"`
-	HasActive bool                  `json:"hasActive"`
-	Scroll    map[PageKey]float32   `json:"scroll,omitempty"`
-	Views     map[PageKey]ViewState `json:"views,omitempty"`
+	Columns  []Column              `json:"columns"`
+	Front    int                   `json:"front"`
+	HasFront bool                  `json:"hasFront"`
+	Scroll   map[PageKey]float32   `json:"scroll,omitempty"`
+	Views    map[PageKey]ViewState `json:"views,omitempty"`
+}
+
+// Column is one open column: its page, and how far it was scrolled and
+// what it selected there.
+type Column struct {
+	Page   PageKey   `json:"page"`
+	Scroll float32   `json:"scroll,omitempty"`
+	View   ViewState `json:"view"`
 }
 
 // Equal reports whether two layouts say the same thing.
 func (l Layout) Equal(other Layout) bool {
-	return l.Active == other.Active && l.HasActive == other.HasActive &&
-		slices.Equal(l.Opened, other.Opened) && maps.Equal(l.Scroll, other.Scroll) &&
+	return l.Front == other.Front && l.HasFront == other.HasFront &&
+		slices.Equal(l.Columns, other.Columns) && maps.Equal(l.Scroll, other.Scroll) &&
 		maps.Equal(l.Views, other.Views)
 }
 
 // clone returns a layout that shares no mutable storage with the caller.
 func (l Layout) clone() Layout {
-	l.Opened = slices.Clone(l.Opened)
+	l.Columns = slices.Clone(l.Columns)
 	l.Scroll = maps.Clone(l.Scroll)
 	l.Views = maps.Clone(l.Views)
 	return l

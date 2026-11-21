@@ -304,7 +304,7 @@ func (a *AppState) discard(sheets []library.SheetID) {
 // closeSheets closes the sessions' sheets that are open.
 func (a *AppState) closeSheets(sessions []*sheetSession) {
 	for _, session := range sessions {
-		if err := a.Workspace.Close(session.page); err != nil {
+		if err := a.Workspace.ClosePage(session.page); err != nil {
 			a.fail("Couldn't close the sheet", err)
 		}
 	}

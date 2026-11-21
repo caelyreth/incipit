@@ -65,7 +65,7 @@ func TestEveryPageKeepsItsSelection(t *testing.T) {
 	selectPageText(t, app.pageElement(), 0, 3)
 	app.save()
 
-	app.Shell.SelectPage("0")
+	app.Shell.SelectColumn(sheetColumn(t, app, "0"))
 	if err := app.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestEveryPageKeepsItsSelection(t *testing.T) {
 	if got := first.Editor.Selection(); got.Anchor.Pos.Offset != 2 || got.Head.Pos.Offset != 0 {
 		t.Fatalf("first page selection = %+v", got)
 	}
-	app.Shell.SelectPage("1")
+	app.Shell.SelectColumn(sheetColumn(t, app, "1"))
 	second := app.pageElement()
 	if second == nil {
 		t.Fatal("second page did not open")

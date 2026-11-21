@@ -17,10 +17,12 @@ type Command struct {
 	Keys             []string
 }
 
-// Page is an open sheet.
+// Page is an open sheet in one of the desk's columns: its sheet, and the
+// column, one of several where the sheet is split.
 type Page struct {
-	ID    string
-	Title string
+	ID     string
+	Column string
+	Title  string
 }
 
 // SheetFrame is how a sheet's page is set in its column on the desk.
@@ -82,10 +84,11 @@ type State struct {
 	Settings   theme.Settings
 	// Colors carries theme changes; nil shows Settings as they are.
 	Colors *theme.Transition
-	// Open are the open sheets, in their order on the desk; ActivePage is
-	// the one in front.
-	Open       []Page
-	ActivePage string
+	// Open are the desk's columns, in their order; ActiveColumn is the one
+	// in front, and ActivePage its sheet.
+	Open         []Page
+	ActivePage   string
+	ActiveColumn string
 	// Library is the notebook's library shown in the field; nil shows none.
 	Library    Library
 	Statistics string
@@ -99,14 +102,17 @@ type State struct {
 	finder        findBar
 	Toolbar       ToolbarState
 
-	// Sheet draws an open sheet's page, as frame sets it.
-	Sheet func(c *ui.Context, id string, frame SheetFrame)
+	// Sheet draws an open column's page, as frame sets it.
+	Sheet func(c *ui.Context, page Page, frame SheetFrame)
 	// Thumbnail is the small picture a card shows of a sheet's first
 	// figure, by its media id, as far as it has come: nil while it is
 	// read, and false where it cannot show. Nil shows each one's place.
-	Thumbnail   func(media string, now time.Time) (*ui.Bitmap, bool)
-	SelectPage  func(id string)
-	ClosePageID func(id string)
+	Thumbnail func(media string, now time.Time) (*ui.Bitmap, bool)
+	// SelectColumn brings a column in front, CloseColumnID closes one,
+	// and SplitColumnID opens its sheet again beside it.
+	SelectColumn  func(column string)
+	CloseColumnID func(column string)
+	SplitColumnID func(column string)
 	// AppSettings are the app's settings, which the field shows as cards.
 	AppSettings AppSettings
 	// Commands are the app's commands, as the pill lists them written

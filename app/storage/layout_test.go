@@ -10,12 +10,13 @@ import (
 
 func TestLayoutEqualComparesByValue(t *testing.T) {
 	layout := func() Layout {
-		return Layout{Opened: []PageKey{1, 2}, Active: 1, HasActive: true, Scroll: map[PageKey]float32{1: 12}}
+		return Layout{Columns: []Column{{Page: 1}, {Page: 2, Scroll: 4}}, Front: 1, HasFront: true, Scroll: map[PageKey]float32{1: 12}}
 	}
 	changed := []func(*Layout){
-		func(l *Layout) { l.Opened[0] = 3 },
-		func(l *Layout) { l.Active = 2 },
-		func(l *Layout) { l.HasActive = false },
+		func(l *Layout) { l.Columns[0].Page = 3 },
+		func(l *Layout) { l.Columns[1].View.Node = 3 },
+		func(l *Layout) { l.Front = 0 },
+		func(l *Layout) { l.HasFront = false },
 		func(l *Layout) { l.Scroll[1] = 13 },
 	}
 	if !layout().Equal(layout()) {
@@ -36,10 +37,9 @@ func TestSaverOwnsQueuedLayoutAndLibrary(t *testing.T) {
 	saver.Page(1, Summary{Title: "one"})
 
 	layout := Layout{
-		Opened:    []PageKey{1},
-		Active:    1,
-		HasActive: true,
-		Scroll:    map[PageKey]float32{1: 12},
+		Columns:  []Column{{Page: 1}},
+		HasFront: true,
+		Scroll:   map[PageKey]float32{1: 12},
 	}
 	records := library.Records{
 		Groups: []library.GroupRecord{{
@@ -55,7 +55,7 @@ func TestSaverOwnsQueuedLayoutAndLibrary(t *testing.T) {
 	saver.Library(records)
 
 	// These are the caller's values once the calls return.
-	layout.Opened[0] = 9
+	layout.Columns[0].Page = 9
 	layout.Scroll[1] = 99
 	records.Groups[0].Name = "Changed"
 	records.Sheets[0].Group = 9
@@ -68,7 +68,7 @@ func TestSaverOwnsQueuedLayoutAndLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 	stored := notebook.Layout
-	if !slices.Equal(stored.Opened, []PageKey{1}) || stored.Active != 1 || stored.Scroll[1] != 12 {
+	if !slices.Equal(stored.Columns, []Column{{Page: 1}}) || !stored.HasFront || stored.Scroll[1] != 12 {
 		t.Fatalf("layout after caller mutation = %+v", stored)
 	}
 	if len(notebook.Library.Groups) != 1 || notebook.Library.Groups[0].Name != "Original" {
@@ -113,14 +113,13 @@ func TestSaverOwnsConcurrentLayoutSnapshots(t *testing.T) {
 		go func(key PageKey) {
 			defer enqueued.Done()
 			layout := Layout{
-				Opened:    []PageKey{key},
-				Active:    key,
-				HasActive: true,
-				Scroll:    map[PageKey]float32{key: float32(key)},
+				Columns:  []Column{{Page: key, Scroll: float32(key)}},
+				HasFront: true,
+				Scroll:   map[PageKey]float32{key: float32(key)},
 			}
 			saver.Layout(layout)
 
-			layout.Opened[0] = 0
+			layout.Columns[0].Page = 0
 			layout.Scroll[key] = 999
 		}(PageKey(index))
 	}
@@ -139,11 +138,11 @@ func TestSaverOwnsConcurrentLayoutSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	layout := notebook.Layout
-	if !layout.HasActive || len(layout.Opened) != 1 || layout.Active != layout.Opened[0] {
+	if !layout.HasFront || len(layout.Columns) != 1 {
 		t.Fatalf("incoherent saved layout = %+v", layout)
 	}
-	key := layout.Active
-	if layout.Scroll[key] != float32(key) {
+	key := layout.Columns[0].Page
+	if layout.Scroll[key] != float32(key) || layout.Columns[0].Scroll != float32(key) {
 		t.Fatalf("saved scroll = %v for page %d", layout.Scroll[key], key)
 	}
 	if err := saver.Close(); err != nil {

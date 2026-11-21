@@ -30,7 +30,7 @@ func (s *State) ShowDesk() {
 	}
 	s.onDesk = true
 	s.field.focus = false
-	s.desk.claim = s.ActivePage
+	s.desk.claim = s.ActiveColumn
 }
 
 // ShowField has the window go to the field, its pill taking the keyboard.
@@ -148,9 +148,9 @@ func (s *State) openSheetsMenu(m *ui.Menu) {
 		if title == "" {
 			title = "Untitled"
 		}
-		if m.Item(title).ID("open-" + page.ID).Checked(page.ID == s.ActivePage).Chosen() {
-			if s.SelectPage != nil {
-				s.SelectPage(page.ID)
+		if m.Item(title).ID("open-" + page.Column).Checked(page.Column == s.ActiveColumn).Chosen() {
+			if s.SelectColumn != nil {
+				s.SelectColumn(page.Column)
 			}
 			s.ShowDesk()
 		}

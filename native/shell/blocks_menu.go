@@ -142,11 +142,15 @@ func (s *State) deskMenu(page Page) func(*ui.Menu) {
 			}
 			return it
 		}
+		if key(m.Item("Split Sheet"), "page.split").Chosen() {
+			s.SplitColumn(page.Column)
+		}
+		m.Separator()
 		if key(m.Item("Close Sheet"), "page.close").Chosen() {
-			s.CloseSheet(page.ID)
+			s.CloseColumn(page.Column)
 		}
 		if key(m.Item("Close Other Sheets"), "page.close-others").Disabled(len(s.Open) < 2).Chosen() {
-			s.closeOthers(page.ID)
+			s.closeOthers(page.Column)
 		}
 		m.Separator()
 		if m.Item("Show in Group").Chosen() {
@@ -164,14 +168,14 @@ func (s *State) deskMenu(page Page) func(*ui.Menu) {
 	}
 }
 
-// closeOthers closes every open sheet but keep.
+// closeOthers closes every column but keep.
 func (s *State) closeOthers(keep string) {
 	for _, page := range slices.Clone(s.Open) {
-		if page.ID != keep {
-			s.CloseSheet(page.ID)
+		if page.Column != keep {
+			s.CloseColumn(page.Column)
 		}
 	}
 }
 
-// CloseOthers closes every open sheet but the one in front.
-func (s *State) CloseOthers() { s.closeOthers(s.ActivePage) }
+// CloseOthers closes every column but the one in front.
+func (s *State) CloseOthers() { s.closeOthers(s.ActiveColumn) }

@@ -9,29 +9,28 @@ import (
 	"github.com/caelyreth/neverland/native/page"
 )
 
-// captureViews records every open page's selection in the workspace, so a
-// page switch, a quit, or a parked page never loses where its caret was.
+// captureViews records every open column's selection and scroll in the
+// workspace, so a switch, a quit, or a column behind another never loses
+// where its caret was.
 func (a *AppState) captureViews() {
 	if a == nil || a.Workspace == nil {
 		return
 	}
-	for id, session := range a.sessions {
-		if session.element == nil {
-			continue
+	for _, session := range a.sessions {
+		for col, el := range session.columns {
+			if view, ok := savedView(el.Editor.Selection()); ok {
+				a.Workspace.SetView(col, view)
+			}
+			a.Workspace.SetScroll(col, workspace.ScrollPosition{Y: el.ScrollY()})
 		}
-		if view, ok := savedView(session.element.Editor.Selection()); ok {
-			a.Workspace.SetView(id, view)
-		}
-		a.Workspace.SetScroll(id, workspace.ScrollPosition{Y: session.element.ScrollY()})
 	}
 }
 
-// restoreView puts a page's caret and selection back after its document
-// loads. A stored place that no longer exists is dropped by the engine's
+// restoreView puts a column's caret and selection back as its editor
+// opens. A stored place that no longer exists is dropped by the engine's
 // selection normalisation.
-func (a *AppState) restoreView(session *sheetSession, el *page.Element) {
-	view, ok := a.Workspace.View(session.page)
-	if !ok {
+func restoreView(view workspace.ViewState, el *page.Element) {
+	if !view.Valid() {
 		return
 	}
 	snap := el.Editor.Engine.Snapshot()

@@ -67,7 +67,7 @@ type deskState struct {
 	touching bool
 	still    float32
 	armed    bool
-	// front is the sheet in front as the frame began (keepDesk).
+	// front is the column in front as the frame began (keepDesk).
 	front string
 	// bring is the key of a column to bring into view as it is built, at
 	// once with bringAtOnce (bringInView).
@@ -76,7 +76,7 @@ type deskState struct {
 	// at is the key of the column in front; held is that of the column
 	// the keyboard was in as the strip was last built, and holding where
 	// it is as it is being built; pointer is where the pointer was in the
-	// window, and pointed whether it moved since; claim is a sheet to give
+	// window, and pointed whether it moved since; claim is a column to give
 	// the keyboard to as it is built (desk_front.go).
 	at, held, holding string
 	pointer           ui.Point
@@ -85,7 +85,7 @@ type deskState struct {
 	// scrub is the scrubber's (desk_scrub.go).
 	scrub scrubState
 	// columns are the desk's open sheet columns as last built (desk_columns.go);
-	// pages is a reusable scratch lookup by sheet ID across frames.
+	// pages is a reusable scratch lookup by column across frames.
 	columns []deskColumn
 	pages   map[string]Page
 	// built is whether the desk was built before.
@@ -231,13 +231,13 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 			clear(s.desk.pages)
 		}
 		for _, page := range s.Open {
-			s.desk.pages[page.ID] = page
+			s.desk.pages[page.Column] = page
 		}
 		flow.Children(func() {
 			s.desk.spans = s.desk.spans[:0]
 			s.desk.holding = ""
 			for i, col := range columns {
-				s.openColumn(c, semantic, s.desk.pages[col.sheet], shown, settled, origin, !wasEmpty, animate)
+				s.openColumn(c, semantic, s.desk.pages[col.column], shown, settled, origin, !wasEmpty, animate)
 				s.room(c, semantic, "room-"+col.key(), i+1, i == len(columns)-1)
 			}
 			s.keyboardMoved()

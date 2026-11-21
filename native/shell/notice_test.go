@@ -119,12 +119,14 @@ func TestUndoOutlivesTheNoticeAndRedoes(t *testing.T) {
 // place in the field and stays closed: the window stays on the field.
 func TestATrashedSheetTakenBackStaysClosed(t *testing.T) {
 	state, library, tester := onField(t, 1260, 850)
-	state.Open, state.ActivePage = []Page{{ID: "7", Title: "Chapter"}}, "7"
+	state.Open = []Page{{ID: "7", Column: "7", Title: "Chapter"}}
+	inFront(state, "7")
 	settle(tester)
 	state.returnToField()
 	settle(tester)
 	state.trashSheets([]string{"7"})
-	state.Open, state.ActivePage = nil, ""
+	state.Open = nil
+	inFront(state, "")
 	settle(tester)
 	library.calls = nil
 	state.Undo()

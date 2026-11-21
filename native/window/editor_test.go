@@ -227,7 +227,7 @@ func TestPageActionsCloseTabsByID(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.selectMounted()
-	app.Shell.ClosePageID("0")
+	app.Shell.CloseColumn(sheetColumn(t, app, "0"))
 	if slices.Contains(app.Workspace.Opened(), 0) {
 		t.Fatalf("closed page remains: %#v", app.Workspace.Opened())
 	}
@@ -235,7 +235,7 @@ func TestPageActionsCloseTabsByID(t *testing.T) {
 		t.Fatalf("active page after closing an inactive page = %q", app.Shell.ActivePage)
 	}
 
-	app.Shell.ClosePageID("1")
+	app.Shell.CloseColumn(sheetColumn(t, app, "1"))
 	if _, active := app.Workspace.Active(); len(app.Workspace.Opened()) != 0 || active {
 		t.Fatalf("open pages after closing final page 1/%d = %#v", second, app.Workspace.Opened())
 	}
