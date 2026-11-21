@@ -38,8 +38,6 @@ type SheetFrame struct {
 	// Focus lets the page take the keyboard while nothing else holds it,
 	// and Claim gives it the keyboard now, from wherever it is.
 	Focus, Claim bool
-	// Texture reports whether the ambient micro-grain covers the sheet page.
-	Texture bool
 }
 
 // FormatState is one formatting action's state: whether it applies at the

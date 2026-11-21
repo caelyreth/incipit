@@ -45,7 +45,6 @@ type Presentation uint8
 const (
 	PresentationMotion Presentation = iota + 1
 	PresentationTypewriter
-	PresentationTexture
 )
 
 // ToggleSetting is one declarative switch row.

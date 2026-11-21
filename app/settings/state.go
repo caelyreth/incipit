@@ -156,12 +156,5 @@ func appearanceToggles(presentation PresentationState) []ToggleSetting {
 			Value:       presentation.Typewriter,
 			Selector:    "appearance-typewriter",
 		},
-		{
-			Mode:        PresentationTexture,
-			Label:       "Surface texture",
-			Description: "Add a subtle grain to the workspace and page surfaces.",
-			Value:       presentation.Texture,
-			Selector:    "appearance-texture",
-		},
 	}
 }

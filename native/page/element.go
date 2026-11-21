@@ -35,9 +35,6 @@ type Element struct {
 	Label              string
 	// Typewriter keeps the caret's line at the viewport's center.
 	Typewriter bool
-	// TransparentBackground leaves the page container transparent so a host
-	// textured surface beneath shows through.
-	TransparentBackground bool
 	// Keys are the keymap the page's keys resolve through, and its guides
 	// show; nil is the defaults.
 	Keys *keymap.Keymap
@@ -298,11 +295,8 @@ func (el *Element) View(c *ui.Context) {
 		box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
 			TextCaret(el.caretInElement()).
 			Children(func() {
-				content := ui.Box(c).Key("page-content").Fill().Role(ui.RoleNone)
-				if !el.TransparentBackground {
-					content.Background(el.Theme.Surface.Page)
-				}
-				content.Draw(func(p *ui.Painter, r ui.Rect) {
+				ui.Box(c).Key("page-content").Fill().Role(ui.RoleNone).Background(el.Theme.Surface.Page).
+					Draw(func(p *ui.Painter, r ui.Rect) {
 						if build != el.builds || ed.closed {
 							return
 						}

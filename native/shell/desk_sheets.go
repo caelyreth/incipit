@@ -27,9 +27,6 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, se
 	k := size / theme.DefaultUIFontSize
 	col, front, shown := s.column(c, deskColumn{sheet: page.ID}, w, origin, enter, animate)
 	col.Role(ui.RoleGroup).Label(page.Title).Clip().Background(semantic.Surface.Page)
-	if s.Appearance.Texture {
-		col.Draw(func(p *ui.Painter, r ui.Rect) { paintTexture(p, r, semantic.Appearance) })
-	}
 	if s.deskColumnCulled(col, page.ID, shown) {
 		return
 	}
@@ -55,7 +52,6 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, se
 		Top:    theme.DefaultLayout.ReadingTop * k * 3 / 2,
 		Bottom: dock + side, Dock: dock,
 		Focus: s.OnDesk() && page.ID == s.ActivePage, Claim: claim && s.OnDesk(),
-		Texture: s.Appearance.Texture,
 	}
 	col.Children(func() {
 		ui.Column(c).Key("sheet-page").Width(settled).Shrink(0).AlignSelf(ui.Center).Grow(1).MinHeight(0).PaddingX(side).

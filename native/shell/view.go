@@ -31,9 +31,6 @@ func (s *State) View(c *ui.Context) {
 	w, h := c.Size()
 	layout := theme.DefaultLayout
 	root := ui.Box(c).Fill().Background(semantic.Surface.Background).Clip().Bind(&s.root)
-	if s.Appearance.Texture {
-		root.Draw(func(p *ui.Painter, r ui.Rect) { paintTexture(p, r, semantic.Appearance) })
-	}
 	animate := s.animate(c)
 	s.deskEscape(c)
 	s.field.drag, s.field.dragNext = s.field.dragNext, nil

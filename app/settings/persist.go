@@ -21,7 +21,6 @@ type persisted struct {
 	Version      int                        `json:"version"`
 	Motion       bool                       `json:"motion"`
 	Typewriter   bool                       `json:"typewriter"`
-	Texture      *bool                      `json:"texture,omitempty"`
 	Theme        string                     `json:"theme"`
 	UIFontSize   float32                    `json:"uiFontSize"`
 	ProseSize    float32                    `json:"proseFontSize"`
@@ -46,12 +45,10 @@ func (s State) Encode() ([]byte, error) {
 	if err := json.Unmarshal(values, &policyValues); err != nil {
 		return nil, fmt.Errorf("settings: encode policy values: %w", err)
 	}
-	texture := s.Presentation.Texture
 	record := persisted{
 		Version:      persistedVersion,
 		Motion:       s.Presentation.Motion,
 		Typewriter:   s.Presentation.Typewriter,
-		Texture:      &texture,
 		Theme:        themeName(s.Appearance.Appearance),
 		UIFontSize:   s.Appearance.UIFontSize,
 		ProseSize:    s.Appearance.ProseFontSize,
@@ -94,15 +91,10 @@ func (s *State) Decode(data []byte) error {
 	if err != nil {
 		return err
 	}
-	texture := true
-	if record.Texture != nil {
-		texture = *record.Texture
-	}
 	candidate := State{
 		Presentation: PresentationState{
 			Motion:     record.Motion,
 			Typewriter: record.Typewriter,
-			Texture:    texture,
 		},
 		Appearance: AppearanceSettings{
 			Appearance:    theme,

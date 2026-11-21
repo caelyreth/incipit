@@ -25,7 +25,6 @@ func TestPresentationAndAppearanceChangesAreBounded(t *testing.T) {
 	for _, change := range []Change{
 		SetPresentation(PresentationMotion, false),
 		SetPresentation(PresentationTypewriter, true),
-		SetPresentation(PresentationTexture, false),
 		NewAppearanceChange(AppearanceChange{Kind: SetTheme, Theme: uint8(Daybreak)}),
 		NewAppearanceChange(AppearanceChange{Kind: SetUIFontSize, FontSize: 99}),
 		NewAppearanceChange(AppearanceChange{Kind: SetProseFontSize, FontSize: 2}),
@@ -34,7 +33,7 @@ func TestPresentationAndAppearanceChangesAreBounded(t *testing.T) {
 			t.Fatalf("change %#v: %v", change, err)
 		}
 	}
-	if state.Presentation.Motion || !state.Presentation.Typewriter || state.Presentation.Texture {
+	if state.Presentation.Motion || !state.Presentation.Typewriter {
 		t.Fatalf("presentation = %#v", state.Presentation)
 	}
 	if state.Appearance.Appearance != Daybreak ||
@@ -112,7 +111,7 @@ func TestDataListsShortcutsByScope(t *testing.T) {
 			t.Fatalf("%s before %s", data.Shortcuts[index-1].Command, data.Shortcuts[index].Command)
 		}
 	}
-	if len(data.Appearance) != 3 {
+	if len(data.Appearance) != 2 {
 		t.Fatalf("appearance toggles = %d", len(data.Appearance))
 	}
 }
