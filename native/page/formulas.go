@@ -255,7 +255,9 @@ func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32) float
 	if lk.hint > 0.001 {
 		if ml.hint == nil {
 			// Shaped once for the layout, whose theme and measures it reads.
-			sp := span(mathHint, el.Editor.theme.Resolve(nil), m.Body*displayScale)
+			hm := m
+			hm.Body *= displayScale
+			sp := span(mathHint, el.Editor.theme.Resolve(nil), hm)
 			sp.Italic = true
 			ml.hint = ui.ShapeRichTextWith([]ui.Span{sp}, ui.Font{Family: sp.Font, Size: sp.Size, Italic: true}, ui.TextShape{})
 		}

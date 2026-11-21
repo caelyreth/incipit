@@ -1,6 +1,10 @@
 package settings
 
-import "math"
+import (
+	"math"
+
+	"github.com/caelyreth/neverland/app/fonts"
+)
 
 // ThemeChoice selects one of Neverland's coherent built-in palettes.
 type ThemeChoice uint8
@@ -38,6 +42,11 @@ type AppearanceSettings struct {
 	UIFontSize    float32
 	ProseFontSize float32
 	LineSpacing   float32
+	// HanFace is the downloaded face that draws Han characters, which the
+	// faces for Chinese, Japanese and Korean each draw in their own way,
+	// when more than one is kept; empty, the first in the catalog's order
+	// (app/fonts).
+	HanFace string
 }
 
 // ThemeNumber returns the stable one-based module representation used by the
@@ -62,7 +71,16 @@ func (s AppearanceSettings) Normalized() AppearanceSettings {
 	s.UIFontSize = clampFloat(s.UIFontSize, MinUIFontSize, MaxUIFontSize)
 	s.ProseFontSize = clampFloat(s.ProseFontSize, MinProseFontSize, MaxProseFontSize)
 	s.LineSpacing = clampFloat(s.LineSpacing, MinLineSpacing, MaxLineSpacing)
+	if !hanFace(s.HanFace) {
+		s.HanFace = ""
+	}
 	return s
+}
+
+// hanFace is whether id is a face that draws Han characters.
+func hanFace(id string) bool {
+	f, ok := fonts.Lookup(id)
+	return ok && f.Han
 }
 
 // Apply mutates a candidate and reports whether the request was valid.
@@ -94,6 +112,11 @@ func (s *AppearanceSettings) Apply(change AppearanceChange) bool {
 		// Spacing moves in steps, kept exact as they add up.
 		steps := float32(math.Round(float64(change.Spacing / LineSpacingStep)))
 		s.LineSpacing = clampFloat(steps*LineSpacingStep, MinLineSpacing, MaxLineSpacing)
+	case SetHanFace:
+		if !hanFace(change.Face) {
+			return false
+		}
+		s.HanFace = change.Face
 	default:
 		return false
 	}

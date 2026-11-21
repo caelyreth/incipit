@@ -1,6 +1,6 @@
 # Bundled Fonts
 
-Neither font is stored in Git. Fetch both with:
+No font is stored in Git. Fetch them with:
 
 ```sh
 ./scripts/fetch-assets.sh
@@ -12,19 +12,24 @@ atomically.
 
 ## Prose
 
-`NotoSerifSC-Variable.ttf` is the Noto Serif SC variable font from Google
-Fonts:
+`NotoSerif-Variable.ttf` and `NotoSerif-Italic-Variable.ttf` are Noto Serif,
+upright and italic, variable in width and weight, from Google Fonts, at a
+pinned commit of its repository:
 
 ```text
-https://github.com/google/fonts/tree/main/ofl/notoserifsc
-https://raw.githubusercontent.com/google/fonts/main/ofl/notoserifsc/NotoSerifSC%5Bwght%5D.ttf
-SHA-256 050080d9255a86808f2945bffac582b31ef32bc36411ce29563b4961670c66f9
+https://github.com/google/fonts/tree/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/notoserif
+NotoSerif[wdth,wght].ttf         SHA-256 4d8e6761424656867019081a1a01336f3cb086982682698714054fc33f782713
+NotoSerif-Italic[wdth,wght].ttf  SHA-256 e87acbc6c0efd0d9a20d6a8cbbda2b266c14be3a3a6f5af8ec9d7b2460570ad1
 ```
 
-It is registered under Neverland's source family name,
-`Noto Serif CJK SC`, so document typography does not depend on fonts
-installed by the host operating system. It is licensed under the SIL Open
-Font License 1.1 in `OFL.txt`.
+Both are registered under Neverland's family name, `Noto Serif`, so
+document typography does not depend on fonts installed by the host
+operating system. They draw Latin, Greek and Cyrillic. The app ships no face
+for other scripts: the settings' Writing Systems section downloads a
+script's Noto Serif from the same commit when the person asks, verified by
+the SHA-256 pinned in `app/fonts/catalog.go`, and keeps it on that machine.
+A script with none downloaded is drawn in the system's fonts. They are
+licensed under the SIL Open Font License 1.1 in `OFL.txt`.
 
 ## Math
 

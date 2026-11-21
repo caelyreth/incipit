@@ -394,7 +394,7 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, now
 // in the caption's alignment, the caret standing at its start as an empty
 // field's stands at its placeholder's.
 func hintOf(u *unitLayout, th present.Theme, m Metrics) (ui.Span, float32, float32) {
-	span := span(captionHint, th.Resolve([]vocab.Group{u.pres.Group}), m.Body)
+	span := span(captionHint, th.Resolve([]vocab.Group{u.pres.Group}), m)
 	lay := ui.ShapeRichTextWith([]ui.Span{span}, ui.Font{Family: span.Font, Size: span.Size, Weight: span.Weight, Italic: span.Italic}, ui.TextShape{})
 	w, _ := lay.Size()
 	x := u.surfaces[0].caretRect(0).X

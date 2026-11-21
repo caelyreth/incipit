@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/caelyreth/neverland/app/fonts"
 	"github.com/caelyreth/neverland/app/storage"
 
 	"github.com/caelyreth/neverland/native/theme"
@@ -27,6 +28,9 @@ func Run() error {
 	if err != nil {
 		_ = store.Close()
 		return err
+	}
+	if dir, err := fonts.Dir(); err == nil {
+		app.useFonts(openFonts(dir))
 	}
 	// Whatever is pending is written before the app goes, and once more
 	// should the loop stop some other way.

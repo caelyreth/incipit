@@ -3,7 +3,7 @@ package theme
 import "math"
 
 const (
-	ProseFontFamily    = "Noto Serif CJK SC"
+	ProseFontFamily    = "Noto Serif"
 	UIFontFamily       = "system-ui"
 	MonoFontFamily     = "monospace"
 	referenceFontSize  = float32(19)
@@ -19,6 +19,9 @@ const (
 type ProseStyle struct {
 	FontSize float32
 	Spacing  float32
+	// Family is its family list, ProseFontFamily and the faces of other
+	// scripts downloaded after it.
+	Family string
 }
 
 const (
@@ -31,6 +34,7 @@ func NewProseStyle(fontSize float32) ProseStyle {
 	return ProseStyle{
 		FontSize: clamp(fontSize, MinProseFontSize, MaxProseFontSize),
 		Spacing:  DefaultLineSpacing,
+		Family:   ProseFontFamily,
 	}
 }
 

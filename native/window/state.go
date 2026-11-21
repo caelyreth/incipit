@@ -53,6 +53,8 @@ type AppState struct {
 	recording bool
 	// colors carries every window through a theme or accent change at once.
 	colors theme.Transition
+	// fonts are the faces of other scripts downloaded.
+	fonts *fontState
 	// sessions are the pages' sessions by identity, which the notebook
 	// saves.
 	sessions map[workspace.PageID]*sheetSession
@@ -99,6 +101,7 @@ func newAppState(store *storage.Store) (*AppState, error) {
 		sessions: map[workspace.PageID]*sheetSession{},
 		nextKey:  1,
 		Product:  appsettings.DefaultState(),
+		fonts:    openFonts(""),
 	}
 	sessions, layout, err := app.openNotebook(store)
 	if err != nil {
@@ -118,7 +121,7 @@ func newAppState(store *storage.Store) (*AppState, error) {
 	if err := app.loadSettings(store); err != nil {
 		return nil, err
 	}
-	app.Shell.Settings = appearanceSettings(app.Product.Appearance)
+	app.Shell.Settings = app.appearanceSettings()
 	app.Shell.Appearance = app.Product.Presentation
 	app.BindShell()
 	return app, nil
@@ -370,6 +373,7 @@ func (a *AppState) refreshSettingsData() {
 	a.Settings.Animate = a.Product.Presentation.Motion
 	a.Settings.Recording = a.setRecording
 	a.Settings.Reserved = a.reservedKey
+	a.Settings.Fonts, a.Settings.HanFace, a.Settings.Font = a.fonts.rows(), a.Product.Appearance.HanFace, a.fontAct
 	a.Settings.Apply = func(change appsettings.Change) {
 		outcome, err := a.Product.Apply(change)
 		if err != nil {
@@ -421,8 +425,7 @@ func (a *AppState) saveSettings() {
 // views blend their colors over ThemeTransition, and the native chrome,
 // window backgrounds and traffic lights follow the new scheme.
 func (a *AppState) applyAppearance() {
-	values := a.Product.Appearance
-	a.Shell.Settings = appearanceSettings(values)
+	a.Shell.Settings = a.appearanceSettings()
 	a.Shell.Settings.Accent = a.groupAccent()
 	target := a.Shell.Settings.Semantic()
 	if a.Product.Presentation.Motion {
@@ -468,8 +471,12 @@ func themeSource(settings theme.Settings) mygo.ThemeSource {
 	return mygo.ThemeDark
 }
 
-func appearanceSettings(values appsettings.AppearanceSettings) theme.Settings {
+// appearanceSettings is the display the settings choose, the prose in the
+// faces kept.
+func (a *AppState) appearanceSettings() theme.Settings {
+	values := a.Product.Appearance
 	settings := theme.DefaultSettings()
+	settings.ProseFamily = a.fonts.family(values.HanFace)
 	settings.UIFontSize = values.UIFontSize
 	settings.ProseFontSize = values.ProseFontSize
 	settings.LineSpacing = values.LineSpacing

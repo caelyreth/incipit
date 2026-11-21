@@ -208,9 +208,9 @@ type formulaKind struct{}
 
 func (formulaKind) lay(lc *layoutCache, sg seg, style present.Style, m Metrics) (seg, ui.Span) {
 	ms := lc.typeset(sg.node.ID(), sg.node.Text(), false, m.Body*style.Size, 0)
-	sp := span("￼", style, m.Body)
+	sp := span("￼", style, m)
 	sg.text, sg.math = sg.node.Text(), ms
-	sg.face = span(formulaHint, style, m.Body)
+	sg.face = span(formulaHint, style, m)
 	sg.face.Italic = true
 	if ms.box != nil {
 		sp.ObjectWidth = ms.to - ms.from + mathPad*2

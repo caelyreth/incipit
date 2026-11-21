@@ -313,7 +313,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 		}
 		cs := th.Resolve(append(slices.Clone(groups), vocab.GroupComposition))
 		start := u
-		add(seg{kind: segComposition, from: compAt, to: compAt}, span(comp.Text, cs, m.Body), cs)
+		add(seg{kind: segComposition, from: compAt, to: compAt}, span(comp.Text, cs, m), cs)
 		sl.marked = ui.TextInputRange{Start: start, End: u}
 		sl.hasMarked = true
 		sl.compSel = start + utf16Len(comp.Text[:min(max(comp.Selected[1], 0), len(comp.Text))])
@@ -326,24 +326,24 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			if compAt >= it.From && compAt < it.To {
 				cut := compAt - it.From
 				if cut > 0 {
-					add(seg{kind: segText, from: it.From, to: compAt, text: it.Text[:cut]}, span(it.Text[:cut], style, m.Body), style)
+					add(seg{kind: segText, from: it.From, to: compAt, text: it.Text[:cut]}, span(it.Text[:cut], style, m), style)
 				}
 				addComp(it.Groups)
-				add(seg{kind: segText, from: it.From + cut, to: it.To, text: it.Text[cut:]}, span(it.Text[cut:], style, m.Body), style)
+				add(seg{kind: segText, from: it.From + cut, to: it.To, text: it.Text[cut:]}, span(it.Text[cut:], style, m), style)
 				continue
 			}
-			add(seg{kind: segText, from: it.From, to: it.To, text: it.Text}, span(it.Text, style, m.Body), style)
+			add(seg{kind: segText, from: it.From, to: it.To, text: it.Text}, span(it.Text, style, m), style)
 		case present.BreakItem:
 			if compAt == it.From {
 				addComp(it.Groups)
 			}
-			add(seg{kind: segBreak, from: it.From, to: it.To, text: "\n"}, span("\n", style, m.Body), style)
+			add(seg{kind: segBreak, from: it.From, to: it.To, text: "\n"}, span("\n", style, m), style)
 		case present.GhostItem:
 			// A ghost takes its room in the line and is drawn on its own,
 			// in its group's ink.
 			// TODO(ghosts): a setting to draw ghosts over the text, without
 			// taking room, once the page can keep their stops visible.
-			sp := span(string(it.Spelling), style, m.Body)
+			sp := span(string(it.Spelling), style, m)
 			face := sp
 			face.Color = ui.Color{}
 			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Weight: face.Weight, Italic: face.Italic}, ui.TextShape{})
@@ -362,20 +362,20 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			}
 			src := boxText(it.Node)
 			bs := th.Resolve(append(slices.Clone(it.Groups), it.Face))
-			face := span(src, bs, m.Body)
+			face := span(src, bs, m)
 			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size}, ui.TextShape{})
 			w, h := lay.Size()
-			sp := span("\uFFFC", style, m.Body)
+			sp := span("\uFFFC", style, m)
 			sp.ObjectWidth, sp.ObjectHeight = max(w, m.Body*0.6)+boxPad*2, max(h*0.8, m.Body)
 			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), face: face, shaped: lay}, sp, style)
 		}
 	}
 	addComp([]vocab.Group{s.Group})
 	sl.text = text.String()
-	font := ui.Font{Family: family(base.Font), Size: m.Body * base.Size, Weight: base.Weight, Italic: base.Italic, LineHeight: m.Spacing}
+	font := ui.Font{Family: family(base.Font, m), Size: m.Body * base.Size, Weight: base.Weight, Italic: base.Italic, LineHeight: m.Spacing}
 	if len(spans) == 0 {
 		// An empty surface lays out a line of nothing, for the caret.
-		spans = []ui.Span{span("", base, m.Body)}
+		spans = []ui.Span{span("", base, m)}
 	}
 	sl.layout = ui.ShapeRichTextWith(spans, font, shape)
 	_, sl.h = sl.layout.Size()

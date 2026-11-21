@@ -160,7 +160,8 @@ func (el *Element) metrics(width float32) Metrics {
 		ListIndent: el.Prose.FontSize * 0.75,
 		Gap:        el.Prose.Leading() * 0.9,
 		// The margins less the gutters objects' controls stand in.
-		Reach: max((width-col)/2-el.controlGutter(), 0),
+		Reach:  max((width-col)/2-el.controlGutter(), 0),
+		Family: el.Prose.Family,
 	}
 }
 

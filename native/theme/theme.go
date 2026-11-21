@@ -191,6 +191,9 @@ type Settings struct {
 	UIFontSize    float32
 	ProseFontSize float32
 	LineSpacing   float32
+	// ProseFamily is the prose's family list, ProseFontFamily alone when
+	// empty.
+	ProseFamily string
 }
 
 const (
@@ -214,7 +217,11 @@ func DefaultSettings() Settings {
 
 // Prose is document text's style under these settings.
 func (s Settings) Prose() ProseStyle {
-	return NewProseStyle(s.ProseFontSize).WithSpacing(s.LineSpacing)
+	p := NewProseStyle(s.ProseFontSize).WithSpacing(s.LineSpacing)
+	if s.ProseFamily != "" {
+		p.Family = s.ProseFamily
+	}
+	return p
 }
 
 func (s Settings) Normalized() Settings {

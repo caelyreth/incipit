@@ -2,6 +2,7 @@ package theme
 
 import (
 	_ "embed"
+	"errors"
 	"sync"
 
 	"github.com/egoist/mygo/ui"
@@ -9,8 +10,11 @@ import (
 
 //go:generate ../../scripts/fetch-assets.sh
 
-//go:embed fonts/NotoSerifSC-Variable.ttf
+//go:embed fonts/NotoSerif-Variable.ttf
 var proseFont []byte
+
+//go:embed fonts/NotoSerif-Italic-Variable.ttf
+var proseItalic []byte
 
 //go:embed fonts/NewCMMath-Book.otf
 var mathFont []byte
@@ -25,11 +29,11 @@ var (
 	registerErr  error
 )
 
-// RegisterFonts installs the product prose font under Neverland's stable
-// family name on every target platform.
+// RegisterFonts installs the prose face, upright and italic, under
+// Neverland's stable family name on every target platform.
 func RegisterFonts() error {
 	registerOnce.Do(func() {
-		registerErr = ui.RegisterFont(proseFont, ProseFontFamily)
+		registerErr = errors.Join(ui.RegisterFont(proseFont, ProseFontFamily), ui.RegisterFont(proseItalic, ProseFontFamily))
 	})
 	return registerErr
 }

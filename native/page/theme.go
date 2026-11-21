@@ -5,6 +5,8 @@
 package page
 
 import (
+	"cmp"
+
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -77,15 +79,15 @@ func Theme(t theme.Theme) present.Theme {
 	return th
 }
 
-// family is a font role's family.
-func family(r present.FontRole) string {
+// family is a font role's family under m.
+func family(r present.FontRole, m Metrics) string {
 	switch r {
 	case present.FontMono, present.FontMath:
 		// A formula's source is mono; its math is set by native/formula
 		// (formulas.go).
 		return theme.MonoFontFamily
 	}
-	return theme.ProseFontFamily
+	return cmp.Or(m.Family, theme.ProseFontFamily)
 }
 
 func pack(c ui.Color) uint32 {
@@ -96,12 +98,12 @@ func unpack(v uint32) ui.Color {
 	return ui.RGBA(uint8(v>>24), uint8(v>>16), uint8(v>>8), float32(uint8(v))/255)
 }
 
-// span is a style's span of text at the body size.
-func span(text string, s present.Style, body float32) ui.Span {
+// span is a style's span of text under m, at its body size.
+func span(text string, s present.Style, m Metrics) ui.Span {
 	sp := ui.Span{
 		Text:          text,
-		Font:          family(s.Font),
-		Size:          body * s.Size,
+		Font:          family(s.Font, m),
+		Size:          m.Body * s.Size,
 		Weight:        s.Weight,
 		Italic:        s.Italic,
 		Strikethrough: s.Strike,

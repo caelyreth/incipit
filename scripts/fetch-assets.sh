@@ -57,9 +57,14 @@ fetch() {
 	echo "Installed $name at $destination"
 }
 
-fetch 'Noto Serif SC' native/theme/fonts/NotoSerifSC-Variable.ttf \
-	'https://raw.githubusercontent.com/google/fonts/main/ofl/notoserifsc/NotoSerifSC%5Bwght%5D.ttf' \
-	'050080d9255a86808f2945bffac582b31ef32bc36411ce29563b4961670c66f9'
+# Noto Serif, the prose face, Latin, Greek and Cyrillic: other scripts'
+# faces are downloaded in the app, when asked (app/fonts).
+fetch 'Noto Serif' native/theme/fonts/NotoSerif-Variable.ttf \
+	'https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/notoserif/NotoSerif%5Bwdth%2Cwght%5D.ttf' \
+	'4d8e6761424656867019081a1a01336f3cb086982682698714054fc33f782713'
+fetch 'Noto Serif Italic' native/theme/fonts/NotoSerif-Italic-Variable.ttf \
+	'https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/notoserif/NotoSerif-Italic%5Bwdth%2Cwght%5D.ttf' \
+	'e87acbc6c0efd0d9a20d6a8cbbda2b266c14be3a3a6f5af8ec9d7b2460570ad1'
 fetch 'New Computer Modern Math' native/theme/fonts/NewCMMath-Book.otf \
 	'https://raw.githubusercontent.com/typst/typst-assets/94dcb990edb36311ef85162baa26e4a8205e0bf0/files/fonts/NewCMMath-Book.otf' \
 	'2ea09ebc9167b1e1a66f31390dc917f2d4004ecfca72d51b28010e4ad6becd95'

@@ -27,6 +27,11 @@ type State struct {
 	// asks to show it.
 	Find    func(words string)
 	Animate bool
+	// Fonts are the downloadable faces of other scripts, HanFace the one
+	// chosen to draw Han characters, and Font does what a row asks of one.
+	Fonts   []FontRow
+	HanFace string
+	Font    func(id string, act FontAct)
 
 	// The chord the keymap is searched by, as pressed. Then, in any
 	// section, the command whose shortcut is being recorded and the row or

@@ -6,7 +6,8 @@
 /result-*
 
 # Locally fetched development assets
-/native/theme/fonts/NotoSerifSC-Variable.ttf
+/native/theme/fonts/NotoSerif-Variable.ttf
+/native/theme/fonts/NotoSerif-Italic-Variable.ttf
 /native/theme/fonts/NewCMMath-Book.otf
 /internal/wordseg/cjk_dictionary.bin
 
