@@ -36,9 +36,6 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 		}
 		a.findInSheet()
 	},
-	keymap.Zen: func(a *AppState) {
-		a.togglePresentation(appsettings.PresentationZen, a.Shell.Zen)
-	},
 	keymap.Typewriter: func(a *AppState) {
 		a.togglePresentation(appsettings.PresentationTypewriter, a.Shell.Typewriter)
 	},
@@ -87,8 +84,6 @@ func (a *AppState) commandState(id keymap.CommandID, label string) shell.VerbSta
 	case id == keymap.Field:
 		state.Label = map[bool]string{true: "Show Field", false: "Show Desk"}[desk]
 		state.Enabled = desk || open > 0
-	case id == keymap.Zen:
-		state.Checked = a.Product.Presentation.Zen
 	case id == keymap.Typewriter:
 		state.Checked = a.Product.Presentation.Typewriter
 	case id == keymap.Motion:

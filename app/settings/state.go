@@ -156,12 +156,5 @@ func appearanceToggles(presentation PresentationState) []ToggleSetting {
 			Value:       presentation.Typewriter,
 			Selector:    "appearance-typewriter",
 		},
-		{
-			Mode:        PresentationZen,
-			Label:       "Zen mode",
-			Description: "Hide the surrounding notebook and window chrome.",
-			Value:       presentation.Zen,
-			Selector:    "appearance-zen",
-		},
 	}
 }

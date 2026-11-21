@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/native/motion"
+	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -32,6 +33,18 @@ type SelectionStyle struct {
 	PickedHover ui.Color
 	Ring        ui.Color
 	RingOutset  float32
+}
+
+// NavigationSelection is the shared highlight style for navigation lists.
+func NavigationSelection(c *ui.Context, semantic theme.Theme) SelectionStyle {
+	return SelectionStyle{
+		Fill:        semantic.Surface.Chosen,
+		Marker:      semantic.Accent.Foreground,
+		Radius:      theme.DefaultControls.Scaled(UIFontSize(c)).Radius,
+		Picked:      semantic.Accent.Muted,
+		PickedHover: semantic.Accent.Hint,
+		Ring:        semantic.Accent.Strong,
+	}
 }
 
 // SelectionTrack is a list's shared selection highlight: one background

@@ -12,7 +12,7 @@ func TestSettingsLiveBesideTheLayoutRecord(t *testing.T) {
 		t.Fatalf("new notebook settings = %q, %v", data, err)
 	}
 	saver := store.Autosave()
-	record := []byte(`{"version":1,"zen":true}`)
+	record := []byte(`{"version":1,"motion":true}`)
 	saver.Settings(record)
 	record[0] = 'x'
 	if err := saver.Flush(); err != nil {
@@ -22,7 +22,7 @@ func TestSettingsLiveBesideTheLayoutRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(got, []byte(`{"version":1,"zen":true}`)) {
+	if !bytes.Equal(got, []byte(`{"version":1,"motion":true}`)) {
 		t.Fatalf("settings = %q", got)
 	}
 	// Settings do not require a layout row to share the table.

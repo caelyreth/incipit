@@ -57,9 +57,7 @@ type FormattingState struct {
 // switches, and their current shortcuts.
 type ToolbarState struct {
 	Typewriter        bool
-	Zen               bool
 	TypewriterEnabled bool
-	ZenEnabled        bool
 	Formatting        FormattingState
 	Bindings          ToolbarBindings
 }
@@ -67,7 +65,6 @@ type ToolbarState struct {
 // ToolbarBindings carries the current shortcut text for action tooltips.
 type ToolbarBindings struct {
 	Typewriter string
-	Zen        string
 	Strong     string
 	Emphasis   string
 	Code       string
@@ -127,13 +124,11 @@ type State struct {
 	FindStep   func(forward bool)
 	EndFind    func()
 	Typewriter func(bool)
-	Zen        func(bool)
 	Strong     func()
 	Emphasis   func()
 	Code       func()
 	Strike     func()
 
-	lastChrome float32
 	// armedKey & armedAt govern two-click destructive confirmation.
 	armedKey string
 	armedAt  time.Time
@@ -141,12 +136,8 @@ type State struct {
 	escapedAt time.Time
 	// desk is the desk's state (desk.go).
 	desk deskState
-	// actionDock is the cached toolbar button groups and per-frame view args,
-	// dockAt the groups they were last built for, and dockMoving until
-	// when they go to where those put them.
+	// actionDock is the cached toolbar button groups and per-frame view args.
 	actionDock dockState
-	dockAt     string
-	dockMoving time.Time
 	// field is the field's state (field.go); onDesk whether the window
 	// looks at the desk, and view how far it has gone there (scene.go).
 	field  fieldState
@@ -161,7 +152,6 @@ func New() *State {
 		Settings:   theme.DefaultSettings(),
 		Toolbar: ToolbarState{
 			TypewriterEnabled: true,
-			ZenEnabled:        true,
 		},
 	}
 }

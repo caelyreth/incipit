@@ -160,9 +160,9 @@ func TestSearchCommandsWritesThePill(t *testing.T) {
 	if active, _ := tester.TextInputActive(); !active {
 		t.Fatal("the pill did not take the keyboard")
 	}
-	tester.Type(" zen")
+	tester.Type(" typewriter")
 	tester.Frame()
-	if got := app.Shell.FieldQuery(); got != "> zen" {
+	if got := app.Shell.FieldQuery(); got != "> typewriter" {
 		t.Fatalf("pill = %q", got)
 	}
 }

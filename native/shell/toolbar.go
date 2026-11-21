@@ -59,11 +59,6 @@ func (s *State) ensureDockGroups() {
 			s.Typewriter(!s.Toolbar.Typewriter)
 		}
 	}
-	onZen := func() {
-		if s.Zen != nil {
-			s.Zen(!s.Toolbar.Zen)
-		}
-	}
 	s.actionDock.groups = []components.ActionGroup{
 		{
 			Key: "formatting", Label: "Formatting",
@@ -93,10 +88,6 @@ func (s *State) ensureDockGroups() {
 					s.dockIcon("typewriter", "Typewriter", s.Toolbar.Bindings.Typewriter, components.IconTypewriter,
 						s.Toolbar.Typewriter, s.Toolbar.TypewriterEnabled, onTypewriter)
 				},
-				func() {
-					s.dockIcon("zen", "Zen", s.Toolbar.Bindings.Zen, components.IconZen,
-						s.Toolbar.Zen, s.Toolbar.ZenEnabled, onZen)
-				},
 			},
 		},
 	}
@@ -108,39 +99,24 @@ func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32) {
 	s.actionDock.ctx = c
 	s.actionDock.semantic = semantic
 	s.actionDock.animate = animate
-	// It goes across on its own motion when it stands elsewhere for other
-	// groups, which it does at once; following the panes as they open and
-	// close, it is laid out where they leave it, frame by frame.
-	const dockPath = "/formatting/presentation"
-	now := c.Now()
-	if dockPath != s.dockAt {
-		if s.dockAt != "" {
-			s.dockMoving = now.Add(components.MotionDock + components.MotionQuick)
-		}
-		s.dockAt = dockPath
-	}
 	components.ActionDock{
 		Key: "writing-actions", Label: "Writing actions", Groups: s.actionDock.groups, Room: room,
-		Animate: animate, Move: now.Before(s.dockMoving),
+		Animate: animate,
 	}.View(c, semantic)
 	s.actionDock.ctx = nil
 }
 
-// dock is what floats over the desk's foot, left in from the window's
-// left edge: the writing actions, or a sheet's find in their place while
-// it is open, moving with the desk as the panes open and close.
-func (s *State) dock(c *ui.Context, semantic theme.Theme, left float32) {
+// dock floats over the desk's foot: the writing actions, or a sheet's find
+// in their place while it is open.
+func (s *State) dock(c *ui.Context, semantic theme.Theme) {
 	scale := s.Settings.UIFontSize
 	animate := s.animate(c)
 	pad := theme.Space16.DIPs(scale)
 	width, _ := c.Size()
-	room := width - left - 2*pad
-	// The row spans the window, and keeps clear of the panes by its
-	// padding: a dock moving with it (formatBar) moves from where it was
-	// in it, which is where it was in the window.
+	room := width - 2*pad
 	ui.Row(c).Key("dock").Absolute().Left(0).Right(0).Bind(&s.dockHandle).
 		Bottom(theme.DefaultLayout.DockOffset * scale / theme.DefaultUIFontSize).
-		PaddingStart(left + pad).PaddingEnd(pad).
+		PaddingX(pad).
 		Justify(ui.Center).PassThrough().
 		// It comes in over the last half of the way to the desk, and goes in
 		// the first half of the way back.

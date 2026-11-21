@@ -1,13 +1,12 @@
 package settings
 
-// PresentationState contains Neverland's three app-wide writing modes.
+// PresentationState contains Neverland's app-wide writing modes.
 type PresentationState struct {
 	Motion     bool
 	Typewriter bool
-	Zen        bool
 }
 
-// DefaultPresentation matches Neverland: motion on, typewriter and Zen off.
+// DefaultPresentation matches Neverland: motion on, typewriter off.
 func DefaultPresentation() PresentationState {
 	return PresentationState{Motion: true}
 }
@@ -18,8 +17,6 @@ func (s PresentationState) Get(mode Presentation) bool {
 		return s.Motion
 	case PresentationTypewriter:
 		return s.Typewriter
-	case PresentationZen:
-		return s.Zen
 	default:
 		return false
 	}
@@ -34,8 +31,6 @@ func (s *PresentationState) Set(mode Presentation, value bool) bool {
 		s.Motion = value
 	case PresentationTypewriter:
 		s.Typewriter = value
-	case PresentationZen:
-		s.Zen = value
 	default:
 		return false
 	}

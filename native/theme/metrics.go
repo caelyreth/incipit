@@ -2,50 +2,23 @@ package theme
 
 // Layout is the window's reference geometry at the 16 DIP UI size.
 // ChromeGutter is the gap between the window edge and the first visible
-// chrome: the sidebar and settings search fields, the macOS traffic lights,
-// and the header's trailing icon glyphs.
+// chrome: the macOS traffic lights and column controls.
 type Layout struct {
-	// Sidebar is the library's width; SheetList that of the sheets beside
-	// it. Either is dragged wider or narrower within its Min and Max.
-	Sidebar           float32
-	SheetList         float32
-	SidebarMin        float32
-	SidebarMax        float32
-	SheetListMin      float32
-	SheetListMax      float32
-	Titlebar          float32
-	Status            float32
-	Narrow            float32
-	ReadingTop        float32
-	TitleBottom       float32
-	ChromeGutter      float32
-	ContentGutter     float32
-	TrafficLightInset float32
-	// TrafficLightLeft is where the window's traffic lights begin, in
-	// the window's points: the line the library's head keeps to.
-	TrafficLightLeft float32
-	Tab              float32
-	DockOffset       float32
+	Titlebar      float32
+	Status        float32
+	ReadingTop    float32
+	ChromeGutter  float32
+	ContentGutter float32
+	DockOffset    float32
 }
 
 var DefaultLayout = Layout{
-	Sidebar:           232,
-	SheetList:         288,
-	SidebarMin:        200,
-	SidebarMax:        320,
-	SheetListMin:      240,
-	SheetListMax:      420,
-	Titlebar:          40,
-	Status:            32,
-	Narrow:            920,
-	ReadingTop:        64,
-	TitleBottom:       24,
-	ChromeGutter:      12,
-	ContentGutter:     24,
-	TrafficLightInset: 96,
-	TrafficLightLeft:  12,
-	Tab:               30,
-	DockOffset:        20,
+	Titlebar:      40,
+	Status:        32,
+	ReadingTop:    64,
+	ChromeGutter:  12,
+	ContentGutter: 24,
+	DockOffset:    20,
 }
 
 // DockClearance is how far the floating writing dock reaches up from the

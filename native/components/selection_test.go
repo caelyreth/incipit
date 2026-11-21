@@ -23,10 +23,11 @@ func (f *selectionFixture) view(c *ui.Context) {
 	f.track = TrackSelection(list, NavigationSelection(c, semantic), true)
 	list.Children(func() {
 		for index := range f.tops {
-			row := NavigationRow{
-				Key: fmt.Sprintf("row-%d", index), Label: fmt.Sprintf("Row %d", index),
-				Selected: f.selected == index, Track: f.track, FullWidth: true,
-			}.View(c, semantic)
+			row := ui.Row(c).Key(fmt.Sprintf("row-%d", index)).Label(fmt.Sprintf("Row %d", index)).
+				WidthPercent(100).Height(32)
+			if f.selected == index {
+				f.track.Mark(row)
+			}
 			f.tops[index] = row.LayoutBounds().Y
 			f.at[index] = f.track.At(row)
 		}
@@ -118,12 +119,14 @@ func TestSegmentedArrowsMoveFocusAndChoose(t *testing.T) {
 	}
 }
 
-func TestNavigationRowHoverEasesInQuicklyAndOutGently(t *testing.T) {
+func TestHoverEasesInQuicklyAndOutGently(t *testing.T) {
 	semantic := theme.DefaultSettings().Semantic()
 	view := func(c *ui.Context) {
 		c.SetTheme(theme.DefaultSettings().MyGoTheme())
 		ui.Column(c).Width(240).Padding(20, 20, 20, 20).Children(func() {
-			NavigationRow{Key: "row", Label: "Hover me", FullWidth: true, Animate: true}.View(c, semantic)
+			row := ui.Row(c).Key("row").Label("Hover me").WidthPercent(100).Height(32)
+			hover := HoverAmount(row, row.Hovered(), true)
+			row.Background(blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
 		})
 	}
 	tester := ui.NewTester(view, 300, 120)

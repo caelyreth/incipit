@@ -12,8 +12,7 @@ import (
 )
 
 // queryInput is a query field's state: the completion offered at its
-// caret and the suggestion the keys are on in it. The sidebar's search and
-// a sheet's find each keep one.
+// caret and the suggestion the keys are on in it. A sheet's find keeps one.
 type queryInput struct {
 	// completion is what may stand at the caret in query at caret, a byte
 	// offset; suggestion is the item the keys are on, and first the first

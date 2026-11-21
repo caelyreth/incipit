@@ -9,7 +9,7 @@ import (
 
 func TestSettingsRoundTrip(t *testing.T) {
 	state := DefaultState()
-	state.Presentation = PresentationState{Motion: true, Typewriter: true, Zen: true}
+	state.Presentation = PresentationState{Motion: true, Typewriter: true}
 	state.Appearance = AppearanceSettings{
 		Appearance:    Daybreak,
 		UIFontSize:    20,
@@ -50,7 +50,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 
 func TestSettingsDecodeLeavesTheStateOnFailure(t *testing.T) {
 	state := DefaultState()
-	state.Presentation.Zen = true
+	state.Presentation.Typewriter = true
 	before := state
 	if err := state.Decode([]byte(`{"version":99}`)); err == nil {
 		t.Fatal("future settings version was accepted")

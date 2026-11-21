@@ -29,7 +29,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			}
 		})}
 		switch id {
-		case keymap.Zen, keymap.Typewriter, keymap.Motion, keymap.ShowTrash, keymap.ViewList:
+		case keymap.Typewriter, keymap.Motion, keymap.ShowTrash, keymap.ViewList:
 			item.Type = mygo.MenuItemCheckbox
 		}
 		a.menuItems[id] = item
@@ -119,7 +119,6 @@ func (a *AppState) MainMenu() *mygo.Menu {
 				command(keymap.Field),
 				command(keymap.ViewList),
 				mygo.Separator(),
-				command(keymap.Zen),
 				command(keymap.Typewriter),
 				command(keymap.Motion),
 				mygo.Separator(),

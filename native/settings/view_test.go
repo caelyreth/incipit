@@ -45,7 +45,7 @@ func TestWordsFindSectionsAndRows(t *testing.T) {
 	}
 	tester := ui.NewTester(state.cards(), 600, 1200)
 	tester.Frame()
-	if !tester.HasText("Close sheet") || tester.HasText("Toggle Zen mode") {
+	if !tester.HasText("Close sheet") || tester.HasText("Toggle Typewriter mode") {
 		t.Fatalf("texts = %#v", tester.Texts())
 	}
 }

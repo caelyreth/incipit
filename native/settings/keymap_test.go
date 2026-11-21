@@ -31,8 +31,8 @@ func keymapState() (*State, *[]appsettings.Change) {
 			Bindings: []keymap.Chord{chord("n")}},
 		{Command: keymap.ClosePage, Label: "Close sheet", Scope: keymap.ScopePages, Group: "Pages",
 			Bindings: []keymap.Chord{chord("w")}},
-		{Command: keymap.Zen, Label: "Toggle Zen mode", Scope: keymap.ScopeWindow, Group: "Window",
-			Bindings: []keymap.Chord{chord("z")}, Overridden: true},
+		{Command: keymap.Typewriter, Label: "Toggle Typewriter mode", Scope: keymap.ScopeWindow, Group: "Window",
+			Bindings: []keymap.Chord{chord("t")}, Overridden: true},
 		{Command: keymap.Motion, Label: "Toggle motion", Scope: keymap.ScopeWindow, Group: "Window"},
 	}
 	changes := make([]appsettings.Change, 0)
@@ -144,9 +144,9 @@ func TestKeymapSearchesByNameWordsAndPressedKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	tester.Key(primary(), ui.KeyZ)
+	tester.Key(primary(), ui.KeyT)
 	tester.Frame()
-	if !tester.HasText("Toggle Zen mode") || tester.HasText("Close sheet") || tester.HasText("New page") {
+	if !tester.HasText("Toggle Typewriter mode") || tester.HasText("Close sheet") || tester.HasText("New page") {
 		t.Fatalf("keystroke search = %#v", tester.Texts())
 	}
 	if err := tester.Click("Clear shortcut search"); err != nil {
@@ -166,7 +166,7 @@ func TestKeymapResetAllRestoresEveryCustomShortcut(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(*changes) != 1 || (*changes)[0].Kind != appsettings.ChangeResetBinding ||
-		(*changes)[0].Command != keymap.Zen {
+		(*changes)[0].Command != keymap.Typewriter {
 		t.Fatalf("reset all = %#v", *changes)
 	}
 }
@@ -373,11 +373,11 @@ func TestConflictAnswersInTheCaptureLine(t *testing.T) {
 	recording, _ := tester.Find("Press keys…")
 	below, _ := tester.Find("Close sheet")
 
-	tester.Key(primary(), ui.KeyZ)
+	tester.Key(primary(), ui.KeyT)
 	tester.Frame()
 	for _, step := range []time.Duration{0, components.MotionNormal / 3, time.Second} {
 		tester.Advance(step)
-		warning := keymap.Spell(chord("z"), keymap.PlatformCurrent) + " is assigned to “Toggle Zen mode”."
+		warning := keymap.Spell(chord("t"), keymap.PlatformCurrent) + " is assigned to “Toggle Typewriter mode”."
 		line, ok := tester.Find(warning)
 		moved, _ := tester.Find("Close sheet")
 		if !ok || line != recording || moved.Y != below.Y {
@@ -406,27 +406,27 @@ func TestRecorderFoldsOpenAndShut(t *testing.T) {
 	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
 	tester.Advance(time.Second)
-	rows, _ := tester.Find("Toggle Zen mode")
+	rows, _ := tester.Find("Toggle Typewriter mode")
 	if err := tester.Click("Change shortcut for Close sheet"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()
 	tester.Advance(components.MotionSettle / 4)
-	opening, _ := tester.Find("Toggle Zen mode")
+	opening, _ := tester.Find("Toggle Typewriter mode")
 	tester.Advance(time.Second)
-	open, _ := tester.Find("Toggle Zen mode")
+	open, _ := tester.Find("Toggle Typewriter mode")
 	if !(rows.Y < opening.Y && opening.Y < open.Y-0.5) {
 		t.Fatalf("rows below at %v → %v → %v, want them eased down", rows.Y, opening.Y, open.Y)
 	}
 	tester.Key(0, ui.KeyEscape)
 	tester.Frame()
 	tester.Advance(components.MotionSettle / 4)
-	closing, _ := tester.Find("Toggle Zen mode")
+	closing, _ := tester.Find("Toggle Typewriter mode")
 	if !tester.HasText("Press keys…") || !(closing.Y < open.Y && closing.Y > rows.Y+0.5) {
 		t.Fatalf("recorder vanished instead of folding: rows at %v, %#v", closing.Y, tester.Texts())
 	}
 	tester.Advance(time.Second)
-	shut, _ := tester.Find("Toggle Zen mode")
+	shut, _ := tester.Find("Toggle Typewriter mode")
 	if tester.HasText("Press keys…") || shut.Y > rows.Y+0.5 {
 		t.Fatalf("recorder never shut: rows at %v", shut.Y)
 	}

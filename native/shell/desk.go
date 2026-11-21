@@ -99,7 +99,7 @@ type deskState struct {
 // columns, its overview, and the statistics of the sheet in front. Seen
 // from the field it stands in its corner, what it holds taking no input
 // (leanDesk).
-func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layout, chrome float32, scene stageScene, w, h float32, animate bool) {
+func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layout, scene stageScene, w, h float32, animate bool) {
 	s.keepDesk()
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	gutter := layout.ContentGutter * k
@@ -121,9 +121,7 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 			// opened alongside from the field comes up already in its place.
 			s.deskStrip(c, semantic, animate && scene.Upright >= 1)
 			s.deskFoot(c, semantic, gutter, animate)
-			if chrome > 0.001 {
-				s.statistics(c, semantic, layout, gutter, chrome)
-			}
+			s.statistics(c, semantic, layout, gutter)
 			if len(s.Open) == 0 {
 				s.deskEmpty(c, semantic, area, w, h, k, animate)
 			}
@@ -418,14 +416,14 @@ func (s *State) bringInView(key string, atOnce bool) {
 }
 
 // statistics are the sheet in front's counts, floating at the desk's foot
-// on its right, gutter in, as far shown as chrome.
-func (s *State) statistics(c *ui.Context, semantic theme.Theme, layout theme.Layout, gutter, chrome float32) {
+// on its right, gutter in.
+func (s *State) statistics(c *ui.Context, semantic theme.Theme, layout theme.Layout, gutter float32) {
 	if s.Statistics == "" || s.ActivePage == "" {
 		return
 	}
 	scale := s.Settings.UIFontSize
 	ui.Row(c).Key("statistics").Absolute().Right(gutter).Bottom(0).
-		Height(layout.Status * scale / theme.DefaultUIFontSize).Opacity(chrome).IgnoreInput(true).
+		Height(layout.Status * scale / theme.DefaultUIFontSize).IgnoreInput(true).
 		AlignItems(ui.Center).Children(func() {
 		components.CenteredLabel(c, s.Statistics, theme.TextXSmall, semantic.Text.Muted).FontFeatures("tnum")
 	})

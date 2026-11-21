@@ -24,14 +24,13 @@ func TestShellComposesPagesDocumentAndStatus(t *testing.T) {
 	}
 }
 
-func TestShellZenCollapsesChrome(t *testing.T) {
+func TestShellDeskShowsStatistics(t *testing.T) {
 	state := openState()
-	state.Appearance.Zen = true
 	state.Statistics = "3 words"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	if tester.HasText("3 words") {
-		t.Fatalf("zen shell kept collapsed chrome in the accessibility tree: %#v", tester.Texts())
+	if !tester.HasText("3 words") {
+		t.Fatalf("desk missed statistics in %#v", tester.Texts())
 	}
 }
 
@@ -51,32 +50,15 @@ func TestWithNoSheetOpenTheFieldTakesTheWindow(t *testing.T) {
 	}
 }
 
-func TestShellZenUsesSourceMotion(t *testing.T) {
-	state := openState()
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-
-	state.Appearance.Zen = true
-	tester.Frame()
-	tester.Advance(110 * time.Millisecond)
-	if state.lastChrome <= 0 || state.lastChrome >= 1 {
-		t.Fatalf("chrome did not animate: %v", state.lastChrome)
-	}
-	tester.Advance(time.Second)
-	if state.lastChrome != 0 {
-		t.Fatalf("chrome did not settle: %v", state.lastChrome)
-	}
-}
-
 func TestShellMotionHonorsReduceMotion(t *testing.T) {
 	state := openState()
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.SetPreferences(ui.Preferences{ReduceMotion: true})
 	tester.Frame()
-	state.Appearance.Zen = true
+	state.ShowField()
 	tester.Frame()
-	if state.lastChrome != 0 {
-		t.Fatalf("reduced motion chrome = %v", state.lastChrome)
+	if state.view != 0 {
+		t.Fatalf("reduced motion view = %v", state.view)
 	}
 }
 
@@ -183,26 +165,18 @@ func TestSearchGoesToTheFieldAndFocusesThePill(t *testing.T) {
 
 func TestWritingModeControlsRunTheirCallbacks(t *testing.T) {
 	state := openState()
-	var typewriter, zen bool
+	var typewriter bool
 	state.Typewriter = func(on bool) { typewriter = on }
-	state.Zen = func(on bool) { zen = on }
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	typewriterAt, ok := tester.Find("Typewriter")
-	if !ok {
+	if _, ok := tester.Find("Typewriter"); !ok {
 		t.Fatal("missing toolbar action Typewriter")
 	}
-	zenAt, ok := tester.Find("Zen")
-	if !ok || zenAt.X <= typewriterAt.X {
-		t.Fatalf("Zen at %v, Typewriter at %v", zenAt, typewriterAt)
+	if err := tester.Click("Typewriter"); err != nil {
+		t.Fatal(err)
 	}
-	for _, label := range []string{"Typewriter", "Zen"} {
-		if err := tester.Click(label); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if !typewriter || !zen {
-		t.Fatalf("callbacks = typewriter:%v zen:%v", typewriter, zen)
+	if !typewriter {
+		t.Fatalf("typewriter callback = %v", typewriter)
 	}
 }
 
@@ -235,16 +209,16 @@ func TestFormattingControlsRunTheirCallbacks(t *testing.T) {
 
 func TestFloatingToolbarShowsLiveCommandBindingInTooltip(t *testing.T) {
 	state := openState()
-	state.Toolbar.Bindings.Zen = "⇧⌘F"
+	state.Toolbar.Bindings.Typewriter = "⌥⌘T"
 	tester := ui.NewTester(state.View, 1260, 850)
 	tester.Frame()
-	bounds, ok := tester.Find("Zen")
+	bounds, ok := tester.Find("Typewriter")
 	if !ok {
-		t.Fatal("zen toolbar action missing")
+		t.Fatal("typewriter toolbar action missing")
 	}
 	tester.Move(bounds.X+bounds.W/2, bounds.Y+bounds.H/2)
 	tester.Advance(time.Second)
-	if !tester.HasText("⇧⌘F") {
+	if !tester.HasText("⌥⌘T") {
 		t.Fatalf("toolbar tooltip texts = %#v", tester.Texts())
 	}
 }
@@ -252,24 +226,24 @@ func TestFloatingToolbarShowsLiveCommandBindingInTooltip(t *testing.T) {
 func TestShellMotionTurnsAroundSmoothlyWhenInterrupted(t *testing.T) {
 	state := openState()
 	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	state.Appearance.Zen = true
+	settle(tester)
+	state.ShowField()
 	tester.Frame()
 	tester.Advance(90 * time.Millisecond)
-	before := state.lastChrome
+	before := state.view
 	tester.Advance(16 * time.Millisecond)
-	at := state.lastChrome
+	at := state.view
 	closing := at - before
-	state.Appearance.Zen = false
+	state.ShowDesk()
 	tester.Frame()
 	tester.Advance(16 * time.Millisecond)
-	after := state.lastChrome
+	after := state.view
 	if step := after - at; step < closing*1.5-0.002 || step > -closing*0.5+0.002 {
-		t.Fatalf("zen: frames moved %v then %v after the toggle, want the motion carried on", closing, step)
+		t.Fatalf("scene: frames moved %v then %v after turning back, want the motion carried on", closing, step)
 	}
-	tester.Advance(time.Second)
-	if state.lastChrome != 1 {
-		t.Fatalf("zen settled at %v after turning back", state.lastChrome)
+	settle(tester)
+	if state.view != 1 {
+		t.Fatalf("scene settled at %v after turning back", state.view)
 	}
 }
 

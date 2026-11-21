@@ -16,25 +16,21 @@ func TestToolbarActionsPublishPresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if app.Shell.Typewriter == nil || app.Shell.Zen == nil {
-		t.Fatal("toolbar mode callbacks are not bound")
+	if app.Shell.Typewriter == nil {
+		t.Fatal("toolbar mode callback is not bound")
 	}
 	app.Shell.Typewriter(true)
-	app.Shell.Zen(true)
 	toolbar := app.Shell.Toolbar
-	if !app.Product.Presentation.Typewriter || !app.Shell.Appearance.Typewriter || !toolbar.Typewriter ||
-		!app.Product.Presentation.Zen || !app.Shell.Appearance.Zen || !toolbar.Zen {
-		t.Fatalf("modes on: product=%#v shell=%#v toolbar=%#v",
+	if !app.Product.Presentation.Typewriter || !app.Shell.Appearance.Typewriter || !toolbar.Typewriter {
+		t.Fatalf("mode on: product=%#v shell=%#v toolbar=%#v",
 			app.Product.Presentation, app.Shell.Appearance, toolbar)
 	}
-	if !toolbar.TypewriterEnabled || !toolbar.ZenEnabled {
-		t.Fatalf("toolbar modes disabled: %#v", toolbar)
+	if !toolbar.TypewriterEnabled {
+		t.Fatalf("toolbar mode disabled: %#v", toolbar)
 	}
 	app.Shell.Typewriter(false)
-	app.Shell.Zen(false)
-	if app.Product.Presentation.Typewriter || app.Product.Presentation.Zen ||
-		app.Shell.Toolbar.Typewriter || app.Shell.Toolbar.Zen {
-		t.Fatalf("modes did not turn off: product=%#v toolbar=%#v",
+	if app.Product.Presentation.Typewriter || app.Shell.Toolbar.Typewriter {
+		t.Fatalf("mode did not turn off: product=%#v toolbar=%#v",
 			app.Product.Presentation, app.Shell.Toolbar)
 	}
 }
@@ -56,8 +52,8 @@ func TestToolbarBindingsFollowTheKeymap(t *testing.T) {
 	if app.Shell.Toolbar.Bindings.Typewriter != bindingLabel(app.Product.Keymap, keymap.Typewriter) {
 		t.Fatalf("toolbar typewriter binding = %q", app.Shell.Toolbar.Bindings.Typewriter)
 	}
-	app.Settings.Apply(appsettings.Unbind(keymap.Zen))
-	if app.Shell.Toolbar.Bindings.Zen != "" || app.Shell.Toolbar.Bindings.Typewriter == "" {
+	app.Settings.Apply(appsettings.Unbind(keymap.Typewriter))
+	if app.Shell.Toolbar.Bindings.Typewriter != "" {
 		t.Fatalf("toolbar bindings after unbind = %#v", app.Shell.Toolbar.Bindings)
 	}
 }
@@ -89,7 +85,6 @@ func TestToolbarModeTooltipsShowCommandBindings(t *testing.T) {
 		binding string
 	}{
 		{"Typewriter", app.Shell.Toolbar.Bindings.Typewriter},
-		{"Zen", app.Shell.Toolbar.Bindings.Zen},
 	} {
 		if test.binding == "" {
 			t.Fatalf("%s has no toolbar binding", test.label)

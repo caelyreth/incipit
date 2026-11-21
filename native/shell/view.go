@@ -30,18 +30,8 @@ func (s *State) View(c *ui.Context) {
 	}
 	w, h := c.Size()
 	layout := theme.DefaultLayout
-	chromeTarget := float32(1)
-	if s.Appearance.Zen {
-		chromeTarget = 0
-	}
 	root := ui.Box(c).Fill().Background(semantic.Surface.Background).Clip().Bind(&s.root)
 	animate := s.animate(c)
-	chrome := chromeTarget
-	if animate {
-		chrome = components.Follow(root, "shell-chrome", chromeTarget, components.MotionSettle)
-	}
-	chrome = max(0, min(chrome, 1))
-	s.lastChrome = chrome
 	s.deskEscape(c)
 	s.field.drag, s.field.dragNext = s.field.dragNext, nil
 	at := s.viewAt(root, w, animate)
@@ -59,10 +49,10 @@ func (s *State) View(c *ui.Context) {
 			ui.Box(c).Key("veil").Absolute().Top(0).Left(0).Size(w, h).IgnoreInput(true).
 				Background(semantic.Surface.Background.Alpha(1 - scene.Field.Shown))
 		}
-		s.deskView(c, semantic, layout, chrome, scene, w, h, animate)
+		s.deskView(c, semantic, layout, scene, w, h, animate)
 		components.Floating(c, func() {
 			if len(s.desk.columns) > 0 && s.view > 0.5 {
-				s.dock(c, semantic, 0)
+				s.dock(c, semantic)
 			}
 		})
 	})

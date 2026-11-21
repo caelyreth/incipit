@@ -60,7 +60,7 @@ type AppState struct {
 	sessions map[workspace.PageID]*sheetSession
 	// notebook keeps the pages on disk; nil holds them in memory alone.
 	notebook *notebook
-	// library files the pages, as the sidebar shows them.
+	// library files the pages as the field shows them.
 	library *library.Library
 	// nextKey is the notebook key the next new page takes.
 	nextKey storage.PageKey
@@ -203,9 +203,6 @@ func (a *AppState) BindShell() {
 	a.Shell.Typewriter = func(on bool) {
 		a.setPresentation(appsettings.PresentationTypewriter, on)
 	}
-	a.Shell.Zen = func(on bool) {
-		a.setPresentation(appsettings.PresentationZen, on)
-	}
 	a.Shell.Strong = a.formatStrong
 	a.Shell.Emphasis = a.formatEmphasis
 	a.Shell.Code = a.formatCode
@@ -265,9 +262,7 @@ func (a *AppState) refreshToolbarState() {
 	}
 	a.Shell.Toolbar = shell.ToolbarState{
 		Typewriter:        a.Product.Presentation.Typewriter,
-		Zen:               a.Product.Presentation.Zen,
 		TypewriterEnabled: true,
-		ZenEnabled:        true,
 		Formatting:        formatting,
 		Bindings:          toolbarBindings(keys, a.Product.Program.Catalog()),
 	}
@@ -296,7 +291,6 @@ func (a *AppState) findPage() {
 	if a == nil || a.Shell == nil {
 		return
 	}
-	a.setPresentation(appsettings.PresentationZen, false)
 	a.Shell.Search()
 }
 

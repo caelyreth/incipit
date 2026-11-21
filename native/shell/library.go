@@ -39,7 +39,7 @@ type Place struct {
 	Group string
 }
 
-// GroupItem is a group as the sidebar lists it.
+// GroupItem is a group as the library lists it.
 type GroupItem struct {
 	ID   string
 	Name string
@@ -76,7 +76,7 @@ func (t Tasks) All() int { return t.Open + t.Done }
 // Smart reports a smart folder.
 func (g GroupItem) Smart() bool { return g.Query != "" }
 
-// SheetItem is a sheet as the sidebar lists it.
+// SheetItem is a sheet as the library lists it.
 type SheetItem struct {
 	// ID is the sheet's page.
 	ID      string

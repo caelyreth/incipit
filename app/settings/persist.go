@@ -21,7 +21,6 @@ type persisted struct {
 	Version      int                        `json:"version"`
 	Motion       bool                       `json:"motion"`
 	Typewriter   bool                       `json:"typewriter"`
-	Zen          bool                       `json:"zen"`
 	Theme        string                     `json:"theme"`
 	UIFontSize   float32                    `json:"uiFontSize"`
 	ProseSize    float32                    `json:"proseFontSize"`
@@ -50,7 +49,6 @@ func (s State) Encode() ([]byte, error) {
 		Version:      persistedVersion,
 		Motion:       s.Presentation.Motion,
 		Typewriter:   s.Presentation.Typewriter,
-		Zen:          s.Presentation.Zen,
 		Theme:        themeName(s.Appearance.Appearance),
 		UIFontSize:   s.Appearance.UIFontSize,
 		ProseSize:    s.Appearance.ProseFontSize,
@@ -97,7 +95,6 @@ func (s *State) Decode(data []byte) error {
 		Presentation: PresentationState{
 			Motion:     record.Motion,
 			Typewriter: record.Typewriter,
-			Zen:        record.Zen,
 		},
 		Appearance: AppearanceSettings{
 			Appearance:    theme,

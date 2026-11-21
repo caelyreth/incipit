@@ -171,7 +171,7 @@ func (a *AppState) RestoreSheet(name string) {
 }
 
 // DeleteSheet is part of shell.Library: the sheet is gone for good. The
-// sidebar asks first.
+// field asks first.
 func (a *AppState) DeleteSheet(name string) {
 	session, ok := a.sessionOf(name)
 	if !ok {
@@ -264,7 +264,7 @@ func (a *AppState) RestoreGroup(id string) {
 }
 
 // DeleteGroup is part of shell.Library: the group and all it holds are
-// gone for good. The sidebar asks first.
+// gone for good. The field asks first.
 func (a *AppState) DeleteGroup(id string) {
 	deleted, err := a.library.DeleteGroup(groupOf(id))
 	if err != nil {
@@ -275,7 +275,7 @@ func (a *AppState) DeleteGroup(id string) {
 }
 
 // EmptyTrash is part of shell.Library: everything in the trash is gone for
-// good. The sidebar asks first.
+// good. The field asks first.
 func (a *AppState) EmptyTrash() {
 	a.discard(a.library.EmptyTrash())
 }

@@ -78,9 +78,8 @@ func Run() error {
 	return mygo.App.Run()
 }
 
-// trafficLights places the close button's leading edge on the chrome gutter,
-// aligned with the sidebar and settings search fields below it, and centers
-// the controls vertically in the title bar.
+// trafficLights places the close button's leading edge on the chrome gutter
+// and centers the controls vertically in the title bar.
 func trafficLights() *mygo.Point {
 	return &mygo.Point{X: int(theme.DefaultLayout.ChromeGutter), Y: 13}
 }

@@ -8,42 +8,20 @@ import (
 	"github.com/caelyreth/neverland/native/components"
 )
 
-// The library answers at the speed of a click: the sidebar is something
+// The library answers at the speed of a click: the field is something
 // the hand drives over and over, so its motion only says where things went
-// and gets out of the way. Settings, dialogs and the page keep their own
-// pace.
+// and gets out of the way. Settings and the page keep their own pace.
 //
 // Motion moves, scales, fades and tints; text keeps its layout while its
 // transform carries it between places.
 const (
-	// motionReveal opens and closes the sidebar.
-	motionReveal = components.MotionPanel
 	// motionPlace moves the place chips from one place to the next.
 	motionPlace = 220 * time.Millisecond
-	// motionFold opens and closes a group in the tree.
-	motionFold = components.MotionPanel
 	// motionList moves rows as others come and go, and opens and
 	// closes them in place.
 	motionList = 150 * time.Millisecond
-	// motionTurn turns a disclosure chevron.
-	motionTurn = components.MotionQuick
 	// motionArm turns a button to ask for its second click.
 	motionArm = components.MotionQuick
-	// motionEnter brings one row of a newly shown list in; each waits
-	// enterStagger after the one above, up to enterRanks rows, so a long
-	// list is in as soon as a short one. enterRise is how far a row rises.
-	motionEnter  = 180 * time.Millisecond
-	enterStagger = 24 * time.Millisecond
-	enterRanks   = 8
-	enterRise    = float32(8)
-	// enterSlide is how far a row slides in from the side its place lies
-	// on.
-	enterSlide = float32(24)
-	// dropQuiet is how long create areas stay shut after a drag ends,
-	// before the pointer's rest begins to count: a row dropped at the head
-	// of a list leaves the pointer by its top, which is not a call for a
-	// new one.
-	dropQuiet = time.Second
 )
 
 // listTransition is how rows come, go and make room.
@@ -65,25 +43,6 @@ func listTransition(animate, size bool) ui.ElementTransition {
 // move of its parent, as a pane opening: it chooses colors, which stay.
 func appearing(d time.Duration, enter, exit *ui.Motion) ui.ElementTransition {
 	return ui.ElementTransition{Duration: d, Colors: true, Enter: enter, Exit: exit}
-}
-
-// fadeTransition swaps what stands in one place: the new rises in as the
-// old fades.
-func fadeTransition(animate bool) ui.ElementTransition {
-	if !animate {
-		return ui.ElementTransition{Duration: 1}
-	}
-	return appearing(motionPlace, &ui.Motion{Y: 6, Opacity: 0}, &ui.Motion{Opacity: 0})
-}
-
-// swapTransition shows what replaces something in place: the old goes at
-// once, the new fades in, sliding x DIPs, so the two are never seen
-// together.
-func swapTransition(animate bool, x float32) ui.ElementTransition {
-	if !animate {
-		return ui.ElementTransition{Duration: 1}
-	}
-	return appearing(motionEnter, &ui.Motion{Opacity: 0, X: x}, nil)
 }
 
 // popTransition lets something small appear where it stands, a little

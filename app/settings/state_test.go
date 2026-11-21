@@ -25,7 +25,6 @@ func TestPresentationAndAppearanceChangesAreBounded(t *testing.T) {
 	for _, change := range []Change{
 		SetPresentation(PresentationMotion, false),
 		SetPresentation(PresentationTypewriter, true),
-		SetPresentation(PresentationZen, true),
 		NewAppearanceChange(AppearanceChange{Kind: SetTheme, Theme: uint8(Daybreak)}),
 		NewAppearanceChange(AppearanceChange{Kind: SetUIFontSize, FontSize: 99}),
 		NewAppearanceChange(AppearanceChange{Kind: SetProseFontSize, FontSize: 2}),
@@ -34,7 +33,7 @@ func TestPresentationAndAppearanceChangesAreBounded(t *testing.T) {
 			t.Fatalf("change %#v: %v", change, err)
 		}
 	}
-	if state.Presentation.Motion || !state.Presentation.Typewriter || !state.Presentation.Zen {
+	if state.Presentation.Motion || !state.Presentation.Typewriter {
 		t.Fatalf("presentation = %#v", state.Presentation)
 	}
 	if state.Appearance.Appearance != Daybreak ||
@@ -63,11 +62,11 @@ func TestShortcutChangesAreAtomic(t *testing.T) {
 	t.Parallel()
 	state := DefaultState()
 	chord := keymap.NewChord("y", keymap.ModifiersPrimary)
-	outcome, err := state.Apply(Remap(keymap.Zen, chord))
+	outcome, err := state.Apply(Remap(keymap.Typewriter, chord))
 	if err != nil || !outcome.KeymapChanged {
 		t.Fatalf("remap = %#v, %v", outcome, err)
 	}
-	shortcut, _ := state.Data().Shortcut(keymap.Zen)
+	shortcut, _ := state.Data().Shortcut(keymap.Typewriter)
 	if len(shortcut.Bindings) != 1 || shortcut.Bindings[0] != chord || !shortcut.Overridden {
 		t.Fatalf("shortcut = %#v", shortcut)
 	}
@@ -87,16 +86,16 @@ func TestShortcutChangesAreAtomic(t *testing.T) {
 		t.Fatalf("%s is held by %s", settings.Default, owner.Command)
 	}
 
-	if _, err := state.Apply(Unbind(keymap.Zen)); err != nil {
+	if _, err := state.Apply(Unbind(keymap.Typewriter)); err != nil {
 		t.Fatal(err)
 	}
-	if shortcut, _ := state.Data().Shortcut(keymap.Zen); len(shortcut.Bindings) != 0 {
+	if shortcut, _ := state.Data().Shortcut(keymap.Typewriter); len(shortcut.Bindings) != 0 {
 		t.Fatalf("unbound shortcut = %#v", shortcut)
 	}
-	if _, err := state.Apply(ResetBinding(keymap.Zen)); err != nil {
+	if _, err := state.Apply(ResetBinding(keymap.Typewriter)); err != nil {
 		t.Fatal(err)
 	}
-	if shortcut, _ := state.Data().Shortcut(keymap.Zen); shortcut.Overridden {
+	if shortcut, _ := state.Data().Shortcut(keymap.Typewriter); shortcut.Overridden {
 		t.Fatalf("reset shortcut = %#v", shortcut)
 	}
 }
@@ -112,7 +111,7 @@ func TestDataListsShortcutsByScope(t *testing.T) {
 			t.Fatalf("%s before %s", data.Shortcuts[index-1].Command, data.Shortcuts[index].Command)
 		}
 	}
-	if len(data.Appearance) != 3 {
+	if len(data.Appearance) != 2 {
 		t.Fatalf("appearance toggles = %d", len(data.Appearance))
 	}
 }

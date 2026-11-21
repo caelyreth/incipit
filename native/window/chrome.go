@@ -166,7 +166,6 @@ func toolbarBindings(keys *keymap.Keymap, catalog policy.Catalog) shell.ToolbarB
 	}
 	return shell.ToolbarBindings{
 		Typewriter: bindingLabel(keys, keymap.Typewriter),
-		Zen:        bindingLabel(keys, keymap.Zen),
 		Strong:     format(profile.Strong),
 		Emphasis:   format(profile.Emphasis),
 		Code:       format(profile.CodeMark),

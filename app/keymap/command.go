@@ -98,7 +98,6 @@ const (
 	Home       CommandID = "go.home"
 	ShowTrash  CommandID = "go.trash"
 
-	Zen        CommandID = "window.zen"
 	Typewriter CommandID = "window.typewriter"
 	Motion     CommandID = "window.motion"
 	Field      CommandID = "window.field"
@@ -180,7 +179,6 @@ var appCommands = [...]Command{
 	{ID: Home, Label: "Home", Scope: ScopeWindow, Default: NewChord("h", ModifiersPrimary|ModifiersShift)},
 	{ID: ShowTrash, Label: "Trash", Scope: ScopeWindow},
 	{ID: Field, Label: "Show Field", Scope: ScopeWindow, Default: NewChord("0", ModifiersPrimary)},
-	{ID: Zen, Label: "Zen Mode", Scope: ScopeWindow, Default: NewChord("f", ModifiersPrimary|ModifiersShift)},
 	{ID: Typewriter, Label: "Typewriter Mode", Scope: ScopeWindow,
 		Default: NewChord("t", ModifiersPrimary|ModifiersAlt)},
 	{ID: Motion, Label: "Motion", Scope: ScopeWindow, Default: NewChord("m", ModifiersPrimary|ModifiersAlt)},

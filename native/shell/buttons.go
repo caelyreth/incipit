@@ -6,11 +6,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// chromeButton is one of the shell's icon buttons over its panes, the
-// window's corner and the desk: subtle, its glyph in the icons' muted
-// ink and a little under the controls' own icon size (16 at the reference
-// type size for a medium button, 14 for a compact one), at the type size
-// around it (components.UIFontSize), so it follows the type size. label
+// chromeButton is one of the shell's icon buttons on the desk's column
+// heads: subtle, its glyph in the icons' muted ink (16 at the reference
+// type size), at the type size around it (components.UIFontSize). label
 // names it; tooltip is what its hint says, the label when empty, binding
 // its key and side where the hint stands.
 type chromeButton struct {
@@ -18,15 +16,10 @@ type chromeButton struct {
 	binding             string
 	side                components.HintSide
 	icon                components.IconName
-	compact, selected   bool
 	action              func()
 }
 
 func (b chromeButton) view(c *ui.Context, semantic theme.Theme, animate bool) ui.Element {
-	size, glyph := components.MediumButton, float32(16)
-	if b.compact {
-		size, glyph = components.CompactButton, 14
-	}
 	tooltip := b.tooltip
 	if tooltip == "" {
 		tooltip = b.label
@@ -37,9 +30,9 @@ func (b chromeButton) view(c *ui.Context, semantic theme.Theme, animate bool) ui
 	}
 	return components.IconButton{
 		Key: b.key, Label: b.label, Tooltip: tooltip, Binding: b.binding, HintSide: b.side, Icon: b.icon.SVG(),
-		Style: components.SubtleButton, Size: size,
-		IconSize: glyph * components.UIFontSize(c) / theme.DefaultUIFontSize, IconColor: &semantic.Icon.Muted,
-		Selected: b.selected, Animate: animate, Action: action,
+		Style: components.SubtleButton, Size: components.MediumButton,
+		IconSize: 16 * components.UIFontSize(c) / theme.DefaultUIFontSize, IconColor: &semantic.Icon.Muted,
+		Animate: animate, Action: action,
 	}.View(c, semantic)
 }
 
