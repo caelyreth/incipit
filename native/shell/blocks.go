@@ -16,6 +16,10 @@ func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Elemen
 		s.dividerView(c, semantic, b, box, fr, m, animate)
 		return
 	}
+	// Its rows come and go as what it holds changes, sheets made, trashed
+	// or brought back, the rest making room (listTransition): those pushed
+	// past its room go into its count, and those it has room for again
+	// come out of it.
 	box.Gap(m.headGap).Children(func() {
 		if !b.single && !b.create {
 			s.blockHead(c, semantic, b, fr, m, animate)
@@ -31,7 +35,7 @@ func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Elemen
 				components.CreateArea{Key: "create", Label: "New sheet", Animate: animate, Action: func() {
 					s.Library.NewSheet(g.ID, Last)
 					s.ShowDesk()
-				}}.View(c, semantic).Height(r.h)
+				}}.View(c, semantic).Height(r.h).Transition(listTransition(animate, false))
 			default:
 				s.moreRow(c, semantic, b, sh.more, fr, m, animate)
 			}
@@ -226,7 +230,7 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 	id := "group:" + g.ID
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
-		FocusRing(false).KeepFocus().Label(g.Name)
+		FocusRing(false).KeepFocus().Label(g.Name).Transition(listTransition(animate, false))
 	s.rowFill(c, semantic, btn, id, animate)
 	// What is dropped on the row is filed in its group, not in the block's,
 	// and held there it goes into it.
@@ -272,7 +276,8 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 	front := sh.ID == s.ActivePage
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(h).Shrink(0).Padding(pad).
 		AlignItems(ui.Start).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
-		FocusRing(false).KeepFocus().Label(sheetTitle(sh)).Selected(front)
+		FocusRing(false).KeepFocus().Label(sheetTitle(sh)).Selected(front).
+		Transition(listTransition(animate, false))
 	s.rowFill(c, semantic, btn, id, animate)
 	btn.ContextMenu(s.rowMenu(id, s.sheetMenu(sh, trashed)))
 	// Dragged, a sheet that is a card of its own goes as the card, on the
@@ -418,7 +423,8 @@ func (s *State) rowTags(c *ui.Context, semantic theme.Theme, tags []string, m bl
 func (s *State) moreRow(c *ui.Context, semantic theme.Theme, b block, more int, fr stageFrame, m blockMetrics, animate bool) {
 	label := fmt.Sprintf("%s more", thousands(more))
 	btn := ui.ButtonBase(c.Key("more")).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
-		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label)
+		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label).
+		Transition(listTransition(animate, false))
 	s.rowFill(c, semantic, btn, "", animate)
 	if b.group != nil && btn.Clicked() {
 		s.into(*b.group, fr.Rect)

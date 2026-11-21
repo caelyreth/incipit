@@ -572,3 +572,24 @@ func TestPillBackdropAnimatesWithRibbonsAndKeepsItsEdge(t *testing.T) {
 		}
 	})
 }
+
+// A sheet joining a card already in view comes into it, opening out
+// rather than appearing whole. (One leaving folds away by the same
+// transition, as an inert copy the tester does not find.)
+func TestARowComesIntoACard(t *testing.T) {
+	_, library, tester := onField(t, 1260, 850)
+	library.extraSheets = 1
+	library.rev++
+	tester.Frame()
+	tester.Advance(30 * time.Millisecond)
+	tester.Frame()
+	coming, ok := tester.Find("Sheet 1")
+	if !ok {
+		t.Fatal("The new sheet's row should be coming in.")
+	}
+	settle(tester)
+	whole, _ := tester.Find("Sheet 1")
+	if coming.H >= whole.H {
+		t.Fatalf("The row should open out, %v high, not stand whole at once (%v).", whole.H, coming.H)
+	}
+}
