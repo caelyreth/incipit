@@ -161,10 +161,14 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w
 	})
 }
 
+// pillGap is the room between what stands in the pill, at the reference
+// type size.
+const pillGap = 8
+
 func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stageRect, acts []fieldAction, k float32, animate bool) {
 	pill := ui.Row(c).Key("pill").Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).
 		Radius(r.H / 2).Background(semantic.Surface.Page).
-		PaddingStart(r.H * 0.4).Gap(8 * k).AlignItems(ui.Center).
+		PaddingStart(r.H * 0.4).Gap(pillGap * k).AlignItems(ui.Center).
 		Cursor(ui.CursorText).Role(ui.RoleSearch).Label("Search")
 	var input ui.Element
 	pill.Children(func() {
@@ -191,15 +195,28 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stageRect, acts 
 		}
 		// Anything written or narrowed by is cleared at once by its ×, as
 		// a search field's is: Escape only puts away what stands open.
-		// With no actions at the pill's end, the × stands where their
-		// face would, centered in the pill's rounded end.
+		// It is drawn in Afterglow, the danger color. It stands by the
+		// pill's end, measured from it: a circle the size of the actions'
+		// face, just before that face, or with no actions in the face's
+		// own place; what is written stops short of it.
 		atEnd := s.actionsAtEnd(acts)
 		if s.queryWritten() {
-			clear := miniCloseButton(c, semantic, "clear-search", "Clear Search", "Clear Search", 22*k, 12*k,
-				semantic.Icon.Muted, semantic.GhostElement.Hover, animate, s.goHome).Shrink(0)
-			if !atEnd {
-				clear.MarginEnd(r.H/2 - 11*k)
+			inset := pillInset * k
+			face := r.H - 2*inset
+			end := inset
+			if atEnd {
+				end = r.H - inset
 			}
+			miniCloseButton(c, semantic, "clear-search", "Clear Search", "Clear Search", face, 12*k,
+				semantic.Status.Danger.Foreground, semantic.Status.Danger.Background, animate, s.goHome).
+				Absolute().Right(end).Top(inset)
+			// What is written stops an inset short of the ×: past the
+			// pill's gap before the actions, or from the pill's edge.
+			room := end + face + inset
+			if atEnd {
+				room = face - pillGap*k
+			}
+			input.MarginEnd(room)
 		}
 		if atEnd {
 			s.actionsButton(c, semantic, acts, r.H, k, animate)

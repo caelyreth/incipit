@@ -170,6 +170,10 @@ func (s *State) toggleActions() {
 	}
 }
 
+// pillInset is how far the pill's end's circles stand in from its edge,
+// at the reference type size.
+const pillInset = 4
+
 // actionsButton is the pill's end, pillH tall: pressed anywhere on it,
 // it opens the place's actions, or closes them; its face is a circle
 // that takes the chosen fill while they are open, standing in the pill's
@@ -179,7 +183,7 @@ func (s *State) toggleActions() {
 // actions to hold (actionsAtEnd) it is not there at all.
 func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldAction, pillH, k float32, animate bool) {
 	label := map[bool]string{true: "Hide Actions", false: "Actions"}[s.field.acting]
-	inset := 4 * k
+	inset := pillInset * k
 	width := pillH * 1.25
 	if s.queryWritten() {
 		width = pillH
