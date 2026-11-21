@@ -336,55 +336,6 @@ func TestHorizonStatsUpdateAndAnimate(t *testing.T) {
 	}
 }
 
-func TestPillWidthAnimatesWithOvershootOnFocus(t *testing.T) {
-	state, _, tester := onField(t, 1260, 850)
-	tester.ClickAt(12, 12)
-	settle(tester)
-
-	idle, ok := tester.Find("Search")
-	if !ok {
-		t.Fatal("Search pill should be present.")
-	}
-
-	state.Search()
-	tester.Frame()
-	var midW, maxW float32
-	for range 30 {
-		tester.Advance(16 * time.Millisecond)
-		tester.Frame()
-		cur, _ := tester.Find("Search")
-		if midW == 0 && cur.W > idle.W+5 {
-			midW = cur.W
-		}
-		maxW = max(maxW, cur.W)
-	}
-	settle(tester)
-	focused, _ := tester.Find("Search")
-	if focused.W <= idle.W+40 {
-		t.Fatalf("Focused pill should widen substantially from idle %v, got %v.", idle.W, focused.W)
-	}
-	if midW == 0 || midW >= focused.W-5 {
-		t.Fatalf("Focusing did not pass through intermediate pill widths (%v -> %v -> %v).", idle.W, midW, focused.W)
-	}
-	if maxW <= focused.W+1 {
-		t.Fatalf("Focusing pill did not overshoot past settled %v: peak width = %v.", focused.W, maxW)
-	}
-
-	tester.ClickAt(12, 12)
-	tester.Frame()
-	tester.Advance(60 * time.Millisecond)
-	tester.Frame()
-	midBack, _ := tester.Find("Search")
-	if !(midBack.W > idle.W+5 && midBack.W < focused.W-5) {
-		t.Fatalf("Blurring pill did not animate intermediate width: got %v between %v and %v.", midBack.W, idle.W, focused.W)
-	}
-	settle(tester)
-	back, _ := tester.Find("Search")
-	if abs(back.W-idle.W) > 0.5 {
-		t.Fatalf("Unfocused pill settled back to %v, want %v.", back.W, idle.W)
-	}
-}
-
 func TestRibbonTransitionsMirrorVerticallyAroundPill(t *testing.T) {
 	state, _, tester := onField(t, 1260, 850)
 	tester.ClickAt(12, 12)

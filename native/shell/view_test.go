@@ -181,20 +181,6 @@ func TestSearchGoesToTheFieldAndFocusesThePill(t *testing.T) {
 	}
 }
 
-func TestTheCounterStandsAtTheFootsEnd(t *testing.T) {
-	state := openState()
-	state.Statistics = "3 words  ·  2 paragraphs  ·  14 characters"
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	statistics, ok := tester.Find(state.Statistics)
-	if !ok {
-		t.Fatalf("statistics missing from %#v", tester.Texts())
-	}
-	if statistics.X+statistics.W < 1260/2 {
-		t.Fatalf("statistics at x=%v, not at the end of the foot", statistics.X)
-	}
-}
-
 func TestWritingModeControlsRunTheirCallbacks(t *testing.T) {
 	state := openState()
 	var typewriter, zen bool

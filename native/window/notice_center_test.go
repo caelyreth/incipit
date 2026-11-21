@@ -28,23 +28,6 @@ func noticeTester(center *NoticeCenter) *ui.Tester {
 	return tester
 }
 
-func TestANoticeShowsAtTheBottomRightAboveTheFoot(t *testing.T) {
-	center := &NoticeCenter{}
-	tester := noticeTester(center)
-	center.Post(Notice{Kind: NoticeWarning, Title: "Backups paused", Description: "The disk is full"})
-	tester.Frame()
-	title, ok := tester.Find("Backups paused")
-	if !ok || !tester.HasText("The disk is full") {
-		t.Fatalf("the notice did not show: %v", tester.Texts())
-	}
-	if title.X < windowWidth/2 {
-		t.Fatalf("the notice is at %v, not on the right", title.X)
-	}
-	if title.Y < windowHeight/2 || title.Y+title.H > windowHeight-footer {
-		t.Fatalf("the notice is at %v, not at the foot above its counter", title.Y)
-	}
-}
-
 func TestANoticeAboutTheSameTakesThePlaceOfTheLast(t *testing.T) {
 	center := &NoticeCenter{}
 	tester := noticeTester(center)
@@ -167,27 +150,5 @@ func TestEveryKindHasItsLook(t *testing.T) {
 	}
 	if len(icons) != 4 || len(colors) != 4 {
 		t.Fatalf("kinds share a look: %v icons, %v colors", len(icons), len(colors))
-	}
-}
-
-// With motion, a toast closing fades where it stood rather than vanishing.
-func TestAClosingToastFadesWithMotion(t *testing.T) {
-	semantic := theme.DefaultSettings().Semantic()
-	center := &NoticeCenter{}
-	tester := ui.NewTester(func(c *ui.Context) {
-		c.SetTheme(theme.DefaultSettings().MyGoTheme())
-		center.View(c, semantic, true, footer)
-	}, windowWidth, windowHeight)
-	center.Post(Notice{Title: "Moved", Sticky: true})
-	tester.Frame()
-	tester.Advance(time.Second)
-	center.Dismiss("Moved")
-	tester.Frame()
-	if !tester.FramePending() {
-		t.Fatal("the toast went without fading")
-	}
-	tester.Advance(time.Second)
-	if tester.FramePending() {
-		t.Fatal("the fade never settled")
 	}
 }

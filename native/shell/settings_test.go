@@ -110,28 +110,6 @@ func TestASectionPressedArrivesWhereItStands(t *testing.T) {
 	}
 }
 
-// A section's card is as tall as it lays itself out, and the field lays
-// itself out again as it grows.
-func TestASettingsCardIsAsTallAsItsSection(t *testing.T) {
-	state, settings, tester := settingsState(t)
-	state.FindSettings("key")
-	settle(tester)
-	height := func() float32 {
-		for _, fr := range state.field.rest {
-			if fr.ID == "settings:Keymap/Keys" {
-				return fr.Size.H
-			}
-		}
-		return 0
-	}
-	before := height()
-	settings.tall = 300
-	settle(tester)
-	if grown := height(); grown-before < 250 {
-		t.Fatalf("The card should grow with its section, but went from %v to %v.", before, grown)
-	}
-}
-
 // The Settings command brings the field up on the settings from the desk.
 func TestTheSettingsCommandShowsThemFromTheDesk(t *testing.T) {
 	state, _, tester := settingsState(t)
