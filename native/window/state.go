@@ -234,6 +234,7 @@ func (a *AppState) sheetView(c *ui.Context, id string, frame shell.SheetFrame) {
 		el.Top, el.Bottom, el.Dock = frame.Top, frame.Bottom, frame.Dock
 		el.LayoutWidth, el.Inset = frame.LayoutWidth, frame.Inset
 		el.Typewriter = a.Product.Presentation.Typewriter
+		el.TransparentBackground = frame.Texture
 		el.Keys = a.Product.Keymap
 		el.UIFontSize = frame.UIFontSize
 		// A press on what takes no focus, as a pane's background, leaves

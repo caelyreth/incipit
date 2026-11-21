@@ -9,7 +9,7 @@ import (
 
 func TestSettingsRoundTrip(t *testing.T) {
 	state := DefaultState()
-	state.Presentation = PresentationState{Motion: true, Typewriter: true}
+	state.Presentation = PresentationState{Motion: true, Typewriter: true, Texture: false}
 	state.Appearance = AppearanceSettings{
 		Appearance:    Daybreak,
 		UIFontSize:    20,
@@ -60,5 +60,16 @@ func TestSettingsDecodeLeavesTheStateOnFailure(t *testing.T) {
 	}
 	if err := state.Decode([]byte(`{"version":1,"theme":"unknown"}`)); err == nil {
 		t.Fatal("unknown theme was accepted")
+	}
+}
+
+func TestSettingsDecodeDefaultsMissingTextureToTrue(t *testing.T) {
+	var state State
+	legacy := `{"version":1,"motion":true,"typewriter":false,"theme":"starfield","uiFontSize":14,"proseFontSize":19,"lineSpacing":1.7}`
+	if err := state.Decode([]byte(legacy)); err != nil {
+		t.Fatalf("legacy settings decode failed: %v", err)
+	}
+	if !state.Presentation.Texture {
+		t.Fatal("expected missing texture field in legacy settings to default to true")
 	}
 }
