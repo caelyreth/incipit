@@ -246,6 +246,7 @@ func (e *Engine) Preview(view uint64, in vocab.Input) (Outcome, error) {
 type processed struct {
 	published *Published
 	preview   Outcome
+	snap      *doc.Snapshot
 }
 
 // process runs one transaction. With commit false nothing is kept.
@@ -396,7 +397,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 			Available: out.Available() && (changed || view.Selection != before || plan != nil || res.History == nil),
 			Rule:      out.Rule, Selection: view.Selection, Steps: allSteps,
 			Records: slices.Clone(tx.Journal().Records), Trace: trace,
-		}}, nil
+		}, snap: next}, nil
 	}
 	if view.Selection != before {
 		tx.Note(doc.Record{Kind: doc.RecordSelection})

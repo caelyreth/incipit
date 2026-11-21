@@ -470,3 +470,13 @@ func TestACellRangeCopiesAndPastesAsAGrid(t *testing.T) {
 	q.do(vocab.Paste{Slice: slice, Text: text})
 	q.want("page(paragraph(x) table(row(cell(a) cell(b)) row(cell(c) cell(d))))")
 }
+
+func TestLastTableCellLeaveGuideAnchorsAfterTable(t *testing.T) {
+	p := open(t)
+	table := p.placeTable()
+	p.placeCaret(table.ID(), 1, 1, 0)
+	g, ok := guideFor(p, "core.leave")
+	if !ok || g.After != table.ID() {
+		t.Fatalf("last-cell leave guide = %+v, ok=%v (want After=%v)", g, ok, table.ID())
+	}
+}

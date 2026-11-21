@@ -177,3 +177,59 @@ func TestOutdentLeavesAQuote(t *testing.T) {
 	p.do(outdent)
 	p.want("page(quote(paragraph(a)))")
 }
+
+func guideFor(p *page, cmd vocab.CommandID) (present.Guide, bool) {
+	for _, g := range p.e.Decorations(1).Guides {
+		if g.Command == cmd {
+			return g, true
+		}
+	}
+	return present.Guide{}, false
+}
+
+func TestListNestAndOutdentGuides(t *testing.T) {
+	p := twoItems(t)
+	// Second item can both nest (+1) and outdent (-1).
+	if g, ok := guideFor(p, "lists.nest"); !ok || g.Shift != 1 {
+		t.Fatalf("second item nest guide = %+v, ok=%v", g, ok)
+	}
+	if g, ok := guideFor(p, "lists.outdent"); !ok || g.Shift != -1 {
+		t.Fatalf("second item outdent guide = %+v, ok=%v", g, ok)
+	}
+
+	// First top-level item can only outdent (-1), not nest.
+	first := p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Child(0).ID()
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.At(doc.SlotRef{Node: first}, 1))})
+	if g, ok := guideFor(p, "lists.nest"); ok {
+		t.Fatalf("first item offered nest guide: %+v", g)
+	}
+	if g, ok := guideFor(p, "lists.outdent"); !ok || g.Shift != -1 {
+		t.Fatalf("first item outdent guide = %+v, ok=%v", g, ok)
+	}
+
+	// Inside a mark in the second item, core.leave claims Tab so lists.nest steps back;
+	// after closing the mark, core.return claims Shift+Tab so lists.outdent steps back.
+	p = open(t)
+	p.typeText("- one")
+	p.do(vocab.Break{})
+	p.typeText("*em")
+	if _, ok := guideFor(p, "core.leave"); !ok {
+		t.Fatalf("inside mark, core.leave missing: %+v", p.e.Decorations(1).Guides)
+	}
+	if _, ok := guideFor(p, "lists.nest"); ok {
+		t.Fatalf("inside mark, lists.nest should yield to core.leave: %+v", p.e.Decorations(1).Guides)
+	}
+	if g, ok := guideFor(p, "lists.outdent"); !ok || g.Shift != -1 {
+		t.Fatalf("inside mark, lists.outdent missing: %+v, ok=%v", g, ok)
+	}
+	p.do(vocab.Leave{})
+	if _, ok := guideFor(p, "core.return"); !ok {
+		t.Fatalf("after mark, core.return missing: %+v", p.e.Decorations(1).Guides)
+	}
+	if _, ok := guideFor(p, "lists.outdent"); ok {
+		t.Fatalf("after mark, lists.outdent should yield to core.return: %+v", p.e.Decorations(1).Guides)
+	}
+	if g, ok := guideFor(p, "lists.nest"); !ok || g.Shift != 1 {
+		t.Fatalf("after mark, lists.nest missing: %+v, ok=%v", g, ok)
+	}
+}

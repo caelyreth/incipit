@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"slices"
+
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
@@ -70,19 +72,39 @@ func (e *Engine) guides(viewID uint64, v *policy.View, pres []*present.Presentat
 		return nil
 	}
 	point := v.Selection.IsCollapsed()
+	look, _ := e.prog.Profile().(vocab.Presentation)
+	claimedKey := map[string]bool{}
 	var out []present.Guide
 	for _, g := range e.prog.Guides() {
 		cmd, ok := e.prog.Command(g.Command)
-		if !ok {
+		if !ok || cmd.Key != "" && claimedKey[cmd.Key] {
 			continue
 		}
 		res, err := e.process(viewID, vocab.Input{Intent: cmd.Intent, At: e.at}, false)
 		to := res.preview.Selection
-		if err != nil || !res.preview.Available || to == v.Selection || to.IsCollapsed() != point {
+		if err != nil || !res.preview.Available || to.IsCollapsed() != point {
+			continue
+		}
+		if point && len(res.preview.Steps) > 0 && res.snap != nil && look != nil {
+			curIndent, ok1 := containerIndent(look, e.snap, v.Selection.Head.Pos.Node)
+			nextIndent, ok2 := containerIndent(look, res.snap, to.Head.Pos.Node)
+			if ok1 && ok2 && nextIndent != curIndent {
+				out = append(out, present.Guide{Command: g.Command, At: v.Selection.Head, Shift: nextIndent - curIndent})
+				if cmd.Key != "" {
+					claimedKey[cmd.Key] = true
+				}
+				continue
+			}
+		}
+		if to == v.Selection {
 			continue
 		}
 		guide := present.Guide{Command: g.Command, At: to.Head}
-		if !point {
+		if point {
+			if _, exists := e.snap.Node(to.Head.Pos.Node); !exists {
+				guide.After = unitIDFor(e.snap, pres, v.Selection.Head.Pos.Node)
+			}
+		} else {
 			if len(res.preview.Steps) > 0 {
 				continue
 			}
@@ -92,9 +114,53 @@ func (e *Engine) guides(viewID uint64, v *policy.View, pres []*present.Presentat
 			}
 			guide.Covers = pt.Covers
 		}
+		if cmd.Key != "" {
+			claimedKey[cmd.Key] = true
+		}
 		out = append(out, guide)
 	}
 	return out
+}
+
+func containerIndent(look vocab.Presentation, r doc.Reader, id doc.ID) (int, bool) {
+	anc := doc.Ancestors(r, id)
+	if len(anc) == 0 {
+		return 0, false
+	}
+	slices.Reverse(anc)
+	path := append(anc[1:], id)
+	ctx := vocab.Container{}
+	for _, pid := range path {
+		n, ok := r.Node(pid)
+		if !ok {
+			return 0, false
+		}
+		c := look.Contain(r, n, ctx)
+		if pid == id && c.Unit {
+			ctx = c.Own
+			break
+		}
+		if !c.Open {
+			break
+		}
+		ctx = c.Inner
+	}
+	return ctx.Indent, true
+}
+
+func unitIDFor(r doc.Reader, pres []*present.Presentation, id doc.ID) doc.ID {
+	hasUnit := func(target doc.ID) bool {
+		return slices.ContainsFunc(pres, func(p *present.Presentation) bool { return p.Unit == target })
+	}
+	if hasUnit(id) {
+		return id
+	}
+	for _, aid := range doc.Ancestors(r, id) {
+		if hasUnit(aid) {
+			return aid
+		}
+	}
+	return 0
 }
 
 // Copy is the slice and plain text of what a view's selection covers: the

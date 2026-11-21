@@ -15,6 +15,8 @@ var Policy = policy.Define("guides", func(p *policy.P) {
 	p.Guide("core.leave")
 	p.Guide("core.return")
 	p.Guide("core.selectAll")
+	p.Guide("lists.nest")
+	p.Guide("lists.outdent")
 
 	// The card's demonstration, played by the engine itself.
 	p.Showcase(2000*time.Millisecond,

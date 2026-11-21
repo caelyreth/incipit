@@ -48,3 +48,41 @@ func TestARangeGuideBracketsWhatItWouldSelect(t *testing.T) {
 		t.Fatalf("the bracket shows %v", v)
 	}
 }
+
+func TestListIndentAndTableNewRowGuidesRender(t *testing.T) {
+	el := newElement(t)
+	typeText(el, "- one")
+	el.Editor.Do(vocab.Break{}, time.Unix(901, 0))
+	typeText(el, "two")
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Box(c).Fill().Background(el.Theme.Surface.Page).Children(func() { el.View(c) })
+	}, 900, 360)
+	el.Focus()
+	tt.Frame()
+	tt.Advance(time.Second)
+
+	shown := el.shownGuides()
+	nest := shown["lists.nest"]
+	outdent := shown["lists.outdent"]
+	if nest == nil || !nest.offered || len(nest.keys) == 0 {
+		t.Fatalf("lists.nest guide missing or hidden: %+v", nest)
+	}
+	if outdent == nil || !outdent.offered || len(outdent.keys) == 0 {
+		t.Fatalf("lists.outdent guide missing or hidden: %+v", outdent)
+	}
+	if outdent.to.X >= nest.to.X {
+		t.Fatalf("outdent X (%v) should sit left of nest X (%v)", outdent.to.X, nest.to.X)
+	}
+
+	elTable, _ := tablePage(t, 2, 2, "a", "b", "c", "d")
+	ttTable := ui.NewTester(func(c *ui.Context) {
+		ui.Box(c).Fill().Background(elTable.Theme.Surface.Page).Children(func() { elTable.View(c) })
+	}, 900, 480)
+	elTable.Focus()
+	ttTable.Frame()
+	ttTable.Advance(time.Second)
+	leave := elTable.shownGuides()["core.leave"]
+	if leave == nil || !leave.offered || leave.kind != spotGapAfter || len(leave.keys) == 0 {
+		t.Fatalf("last-cell core.leave guide = %+v", leave)
+	}
+}

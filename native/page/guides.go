@@ -64,6 +64,7 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 	if keys == nil {
 		keys = keymap.Default(keymap.Declared(el.Editor.Engine.Program().Catalog()))
 	}
+	claimed := map[keymap.Chord]bool{}
 	for _, g := range el.Editor.deco.Guides {
 		if !show {
 			break
@@ -72,7 +73,7 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 		if !ok {
 			chord, ok = systemChord(el.Editor.Engine.Program().Catalog(), g.Command)
 		}
-		if !ok {
+		if !ok || claimed[chord] {
 			continue
 		}
 		to, kind, head, from := ui.Rect{}, spotRange, float32(0), ui.Rect{}
@@ -82,13 +83,34 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 			if sel, _, ok := pl.span(selectionCovers(el.Editor.deco.Paints)); ok {
 				from = sel
 			}
+		} else if g.Shift != 0 {
+			var pc place
+			pc, ok = pl.lookup(g.At)
+			if ok {
+				var r ui.Rect
+				r, _, ok = pl.spot(g.At)
+				if ok {
+					cur := pc.unit.pres.Context.Indent
+					next := max(cur+g.Shift, 0)
+					dx := listIndent(next, el.Editor.metrics) - listIndent(cur, el.Editor.metrics)
+					to = ui.Rect{X: pc.unit.x + dx, Y: r.Y, W: r.W, H: r.H}
+					kind, from = spotText, to
+				}
+			}
 		} else {
 			to, kind, ok = pl.spot(g.At)
+			if !ok && g.After != 0 {
+				if u := pl.unitOf(g.After); u != nil {
+					to = ui.Rect{X: u.x + u.box.X, Y: u.bottom() + gapBarRoom - 1, W: u.box.W, H: 2}
+					kind, ok = spotGapAfter, true
+				}
+			}
 			from = to
 		}
 		if !ok {
 			continue
 		}
+		claimed[chord] = true
 		t := shown[g.Command]
 		if t == nil || t.kind != kind || t.fading && el.springs.value(guideKey(g.Command, "shown", shareValue)) <= 0.01 {
 			t = &guideShown{kind: kind}
