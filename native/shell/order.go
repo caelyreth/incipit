@@ -71,7 +71,7 @@ func (s *State) reveal(c *ui.Context, frames []stageFrame, f found) {
 		case !a.seen.IsZero():
 			continue
 		}
-		at := slices.IndexFunc(f.cards, func(cd card) bool { return cd.id == id || slices.Contains(cd.kind.rows(), id) })
+		at := slices.IndexFunc(f.cards, func(cd card) bool { return cd.id == id || slices.Contains(cd.rows, id) })
 		if at >= 0 && at < len(frames) {
 			a.seen = now
 			s.inView(frames[at].Rect)

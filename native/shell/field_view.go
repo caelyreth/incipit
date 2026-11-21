@@ -190,14 +190,14 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	s.field.ranked, s.field.order = s.field.ranked[:0], s.field.order[:0]
 	for _, cd := range f.cards {
-		s.field.ranked = append(s.field.ranked, cd.kind.rows()...)
+		s.field.ranked = append(s.field.ranked, cd.rows...)
 	}
 	if listed {
 		// A list is read as it is ranked.
 		s.field.order = append(s.field.order, s.field.ranked...)
 	} else {
 		for _, i := range stageScreenOrder(rects) {
-			s.field.order = append(s.field.order, f.cards[i].kind.rows()...)
+			s.field.order = append(s.field.order, f.cards[i].rows...)
 		}
 	}
 	s.keepPicked()

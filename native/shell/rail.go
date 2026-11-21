@@ -36,7 +36,7 @@ func railStops(stops []railStop, f *found, frames []stageFrame) []railStop {
 	for i, wide := range listWide(f.cards) {
 		if !wide {
 			if n := len(stops); n > 0 {
-				for _, id := range f.cards[i].kind.rows() {
+				for _, id := range f.cards[i].rows {
 					if strings.HasPrefix(id, "sheet:") {
 						stops[n-1].sheets++
 					}

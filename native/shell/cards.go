@@ -28,6 +28,10 @@ type card struct {
 	// band is how far out it stands among the field's bands (bands.go).
 	band int
 	kind cardKind
+	// rows are its rows' ids, as the keys go (cardKind.rows), worked out
+	// once as it is found: the field reads them every frame, for every
+	// card, built or not.
+	rows []string
 }
 
 // tier is how near the pill a card stands among others, before the order
@@ -96,7 +100,7 @@ type found struct {
 }
 
 func (f *found) add(id string, t tier, kind cardKind) {
-	f.cards = append(f.cards, card{id: id, tier: t, kind: kind})
+	f.cards = append(f.cards, card{id: id, tier: t, kind: kind, rows: kind.rows()})
 }
 
 // results is what the field's query finds, worked out again only when the
@@ -266,7 +270,7 @@ func (s *State) cardView(c *ui.Context, semantic theme.Theme, fr stageFrame, cd 
 		rim = 1
 		// Arriving, it is marked, unless it is its own row, which is.
 		arriving := float32(0)
-		if !slices.Contains(cd.kind.rows(), fr.ID) {
+		if !slices.Contains(cd.rows, fr.ID) {
 			arriving = s.arrivalAt(fr.ID, c.Now())
 		}
 		frame.Background(components.Blend(semantic.Surface.Page, semantic.Accent.Tint, arriving)).

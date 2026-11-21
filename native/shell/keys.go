@@ -58,7 +58,7 @@ func (s *State) unbuilt(cd card, r stageRect) {
 	if s.field.rowRects == nil {
 		s.field.rowRects = map[string]stageRect{}
 	}
-	for _, id := range cd.kind.rows() {
+	for _, id := range cd.rows {
 		s.field.rowRects[id] = r
 	}
 }
