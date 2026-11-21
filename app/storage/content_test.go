@@ -48,9 +48,9 @@ func TestUnwrittenPageLoadsEmpty(t *testing.T) {
 	}
 }
 
-// A page saved before pages kept their tags and tasks has them read from
-// its content once, as the notebook loads.
-func TestTagsAndTasksSavedBeforeAreReadOnce(t *testing.T) {
+// A page saved before pages kept their tags, tasks and picture has them
+// read from its content once, as the notebook loads.
+func TestTagsTasksAndPictureSavedBeforeAreReadOnce(t *testing.T) {
 	root := t.TempDir()
 	s := openStore(t, root)
 	snap, err := profile.EmptyPage(1, 7, doc.NewInterner())
@@ -63,7 +63,8 @@ func TestTagsAndTasksSavedBeforeAreReadOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	task := doc.NewNode(profile.Item, taskAttrs(profile.TaskOpen), doc.InlineSlot(doc.TextItem("swim", nil)), doc.BlockSlot())
-	if err := tx.Apply(doc.Insert{Parent: snap.Root().ID(), Nodes: []*doc.Node{doc.NewNode(profile.List, doc.Attrs{}, doc.BlockSlot(task))}}); err != nil {
+	figure := profile.NewFigure(profile.Schema(), profile.Picture{Media: "cafe", Width: 4, Height: 3}, "")
+	if err := tx.Apply(doc.Insert{Parent: snap.Root().ID(), Nodes: []*doc.Node{doc.NewNode(profile.List, doc.Attrs{}, doc.BlockSlot(task)), figure}}); err != nil {
 		t.Fatal(err)
 	}
 	snap, _ = tx.Commit()
@@ -72,7 +73,7 @@ func TestTagsAndTasksSavedBeforeAreReadOnce(t *testing.T) {
 	if err := saver.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.db.Exec(`UPDATE pages SET tags = NULL, open_tasks = NULL, done_tasks = NULL`); err != nil {
+	if _, err := s.db.Exec(`UPDATE pages SET tags = NULL, open_tasks = NULL, done_tasks = NULL, picture = NULL`); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Close(); err != nil {
@@ -89,6 +90,9 @@ func TestTagsAndTasksSavedBeforeAreReadOnce(t *testing.T) {
 		}
 		if got := notebook.Pages[0].Tasks; got.Open != 1 || got.Done != 0 {
 			t.Fatalf("tasks %+v", got)
+		}
+		if got := notebook.Pages[0].Picture; got != "cafe" {
+			t.Fatalf("picture %q", got)
 		}
 		if err := s.Close(); err != nil {
 			t.Fatal(err)

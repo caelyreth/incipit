@@ -25,6 +25,9 @@ type Summary struct {
 	Tags []Tag
 	// Tasks are its task items, open and done.
 	Tasks library.Tasks
+	// Picture is the media of its first figure with a picture, "" for
+	// none.
+	Picture string
 }
 
 // Tag is a tag a page writes, as first written, and how often.
@@ -35,7 +38,7 @@ type Tag struct {
 
 // Equal reports whether two summaries say the same thing.
 func (s Summary) Equal(o Summary) bool {
-	return s.Title == o.Title && s.Excerpt == o.Excerpt && s.Words == o.Words && slices.Equal(s.Tags, o.Tags) && s.Tasks == o.Tasks
+	return s.Title == o.Title && s.Excerpt == o.Excerpt && s.Words == o.Words && slices.Equal(s.Tags, o.Tags) && s.Tasks == o.Tasks && s.Picture == o.Picture
 }
 
 // encodeTags is a summary's tags as their column holds them.
@@ -119,26 +122,27 @@ const layoutKey = "workspace"
 func (s *Store) Load() (Notebook, error) {
 	ctx := context.Background()
 	notebook := Notebook{NextKey: 1}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, created, updated, title, excerpt, words, tags, open_tasks, done_tasks FROM pages ORDER BY id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, created, updated, title, excerpt, words, tags, open_tasks, done_tasks, picture FROM pages ORDER BY id`)
 	if err != nil {
 		return Notebook{}, err
 	}
-	// unread are the pages whose tags or tasks were never read, saved
-	// before pages kept them.
+	// unread are the pages whose tags, tasks or picture were never read,
+	// saved before pages kept them.
 	var unread []int
 	for rows.Next() {
 		var page Page
 		var created, updated int64
-		var tags sql.NullString
+		var tags, picture sql.NullString
 		var open, done sql.NullInt64
-		if err := rows.Scan(&page.Key, &created, &updated, &page.Title, &page.Excerpt, &page.Words, &tags, &open, &done); err != nil {
+		if err := rows.Scan(&page.Key, &created, &updated, &page.Title, &page.Excerpt, &page.Words, &tags, &open, &done, &picture); err != nil {
 			rows.Close()
 			return Notebook{}, err
 		}
 		page.Created, page.Updated = time.UnixMilli(created), time.UnixMilli(updated)
 		page.Tasks = library.Tasks{Open: int(open.Int64), Done: int(done.Int64)}
+		page.Picture = picture.String
 		switch {
-		case !tags.Valid || !open.Valid || !done.Valid:
+		case !tags.Valid || !open.Valid || !done.Valid || !picture.Valid:
 			unread = append(unread, len(notebook.Pages))
 		case json.Unmarshal([]byte(tags.String), &page.Tags) != nil:
 			// Tags that do not read are read again from the page.
@@ -173,7 +177,7 @@ func (s *Store) Load() (Notebook, error) {
 	return notebook, nil
 }
 
-// readUnread reads the tags and tasks of the pages at unread from their
+// readUnread reads the tags, tasks and picture of the pages at unread from their
 // content and keeps them in their records, once: a page saved before
 // pages kept them has them from then on.
 func (s *Store) readUnread(ctx context.Context, pages []Page, unread []int) error {
@@ -186,7 +190,7 @@ func (s *Store) readUnread(ctx context.Context, pages []Page, unread []int) erro
 	var read []int
 	for _, i := range unread {
 		page := &pages[i]
-		page.Tags, page.Tasks = nil, library.Tasks{}
+		page.Tags, page.Tasks, page.Picture = nil, library.Tasks{}, ""
 		// A page that does not load keeps them unread, for the page
 		// itself to report when it is opened.
 		snap, err := s.LoadPage(page.Key, profile.Schema(), marks)
@@ -195,7 +199,7 @@ func (s *Store) readUnread(ctx context.Context, pages []Page, unread []int) erro
 		}
 		if snap != nil {
 			read := Summarize(snap.Root())
-			page.Tags, page.Tasks = read.Tags, read.Tasks
+			page.Tags, page.Tasks, page.Picture = read.Tags, read.Tasks, read.Picture
 		}
 		read = append(read, i)
 	}
@@ -205,8 +209,8 @@ func (s *Store) readUnread(ctx context.Context, pages []Page, unread []int) erro
 	}
 	defer func() { _ = tx.Rollback() }()
 	for _, i := range read {
-		if _, err := tx.ExecContext(ctx, `UPDATE pages SET tags = ?, open_tasks = ?, done_tasks = ? WHERE id = ?`,
-			encodeTags(pages[i].Tags), pages[i].Tasks.Open, pages[i].Tasks.Done, pages[i].Key); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE pages SET tags = ?, open_tasks = ?, done_tasks = ?, picture = ? WHERE id = ?`,
+			encodeTags(pages[i].Tags), pages[i].Tasks.Open, pages[i].Tasks.Done, pages[i].Picture, pages[i].Key); err != nil {
 			return err
 		}
 	}
@@ -304,13 +308,13 @@ func (s *Store) write(ctx context.Context, change change, now time.Time) error {
 	defer func() { _ = tx.Rollback() }()
 	for _, page := range pages {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO pages (id, created, updated, title, excerpt, words, tags, open_tasks, done_tasks)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO pages (id, created, updated, title, excerpt, words, tags, open_tasks, done_tasks, picture)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (id) DO UPDATE SET updated = excluded.updated, title = excluded.title,
 				excerpt = excluded.excerpt, words = excluded.words, tags = excluded.tags,
-				open_tasks = excluded.open_tasks, done_tasks = excluded.done_tasks`,
+				open_tasks = excluded.open_tasks, done_tasks = excluded.done_tasks, picture = excluded.picture`,
 			page.key, now.UnixMilli(), now.UnixMilli(), page.summary.Title, page.summary.Excerpt, page.summary.Words,
-			encodeTags(page.summary.Tags), page.summary.Tasks.Open, page.summary.Tasks.Done,
+			encodeTags(page.summary.Tags), page.summary.Tasks.Open, page.summary.Tasks.Done, page.summary.Picture,
 		); err != nil {
 			return err
 		}

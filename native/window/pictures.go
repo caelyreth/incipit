@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 )
 
 // Pages show the notebook's pictures, read from its Media folder by hash;
@@ -24,19 +25,41 @@ var errNoNotebook = errors.New("pictures need the notebook, which could not open
 // page so a picture shown twice is decoded once.
 func (a *AppState) pictures() *page.Pictures {
 	if a.shownPictures == nil {
-		a.shownPictures = &page.Pictures{Read: func(hash string) ([]byte, error) {
-			if a.notebook == nil {
-				return nil, errNoNotebook
-			}
-			store := a.notebook.store
-			m, ok := store.Media(hash)
-			if !ok {
-				return nil, os.ErrNotExist
-			}
-			return os.ReadFile(store.MediaFile(m))
-		}}
+		a.shownPictures = &page.Pictures{Read: a.readPicture}
 	}
 	return a.shownPictures
+}
+
+// thumbnailSide is the most pixels across a card's picture is decoded
+// at: its largest square, at twice the default size, on a Retina screen.
+const thumbnailSide = 192
+
+// thumbnail is a sheet's first picture as its card shows it, decoded
+// small apart from the pages' pictures, so a field of cards never holds
+// its photos whole.
+func (a *AppState) thumbnail(media string, now time.Time) (*ui.Bitmap, bool) {
+	if a.cardPictures == nil {
+		a.cardPictures = &page.Pictures{Read: a.readPicture, MaxSide: thumbnailSide, Wake: func() {
+			if w := a.mainWindow; w != nil && !w.IsDestroyed() {
+				w.Invalidate()
+			}
+		}}
+	}
+	bitmap, state := a.cardPictures.Picture(media, now)
+	return bitmap, state != page.PictureMissing
+}
+
+// readPicture reads a picture's bytes from the notebook by its hash.
+func (a *AppState) readPicture(hash string) ([]byte, error) {
+	if a.notebook == nil {
+		return nil, errNoNotebook
+	}
+	store := a.notebook.store
+	m, ok := store.Media(hash)
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return os.ReadFile(store.MediaFile(m))
 }
 
 // keep keeps pictures in the notebook off the UI thread, then gives them

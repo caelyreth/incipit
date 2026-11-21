@@ -25,6 +25,10 @@ type Pictures struct {
 	Read func(media string) ([]byte, error)
 	// Wake asks for a frame once a picture is decoded.
 	Wake func()
+	// MaxSide, when set, decodes each picture no longer on either side
+	// than it, so small pictures hold the memory of what they show, not
+	// of the photos they show (ui.DecodeBitmapScaled).
+	MaxSide int
 
 	mu      sync.Mutex
 	entries map[string]*pictureEntry
@@ -102,7 +106,11 @@ func (p *Pictures) State(media string) PictureState {
 func (p *Pictures) decode(media string, entry *pictureEntry) {
 	data, err := p.Read(media)
 	var bitmap *ui.Bitmap
-	if err == nil {
+	switch {
+	case err != nil:
+	case p.MaxSide > 0:
+		bitmap, err = ui.DecodeBitmapScaled(data, p.MaxSide)
+	default:
 		bitmap, err = ui.DecodeBitmap(data)
 	}
 	p.mu.Lock()

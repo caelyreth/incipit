@@ -16,7 +16,8 @@ const excerptRunes = 120
 
 // Summarize reads a page's summary: its first heading's text as its
 // title, the first other text as its excerpt, its words, the tags its
-// text writes (profile.TagsIn), most written first, and its tasks.
+// text writes (profile.TagsIn), most written first, its tasks, and the
+// picture of its first figure that has one.
 func Summarize(root *doc.Node) Summary {
 	var z Summarizer
 	return z.Summarize(root)
@@ -40,7 +41,7 @@ func (z *Summarizer) Summarize(root *doc.Node) Summary {
 		defer func() { z.full = len(z.memo) }()
 	}
 	sh := z.share(root)
-	s := Summary{Title: sh.heading, Excerpt: sh.other, Words: sh.words, Tasks: sh.tasks}
+	s := Summary{Title: sh.heading, Excerpt: sh.other, Words: sh.words, Tasks: sh.tasks, Picture: sh.picture}
 	if r := []rune(s.Excerpt); len(r) > excerptRunes {
 		s.Excerpt = string(r[:excerptRunes])
 	}
@@ -50,12 +51,14 @@ func (z *Summarizer) Summarize(root *doc.Node) Summary {
 }
 
 // share is what a subtree adds to a summary: its words, tags and tasks,
-// its first heading's text, its first text and its first text but that
-// heading, each the text of a node's first slot, spaces folded.
+// its first figure's picture, its first heading's text, its first text
+// and its first text but that heading, each the text of a node's first
+// slot, spaces folded.
 type share struct {
 	words          int
 	tasks          library.Tasks
 	tags           tagCounts
+	picture        string
 	titled         bool
 	heading, first string
 	other          string
@@ -66,13 +69,16 @@ func (z *Summarizer) share(n *doc.Node) *share {
 		return sh
 	}
 	sh := &share{}
-	if n.Kind() == profile.Item {
+	switch n.Kind() {
+	case profile.Item:
 		switch profile.TaskOf(n) {
 		case profile.TaskOpen:
 			sh.tasks.Open++
 		case profile.TaskDone:
 			sh.tasks.Done++
 		}
+	case profile.Figure:
+		sh.picture = profile.ShapeOf(n).Media
 	}
 	for i, slot := range n.Slots() {
 		if !slot.IsInline() {
@@ -117,6 +123,9 @@ func (sh *share) then(next *share) {
 	sh.words += next.words
 	sh.tasks.Open += next.tasks.Open
 	sh.tasks.Done += next.tasks.Done
+	if sh.picture == "" {
+		sh.picture = next.picture
+	}
 	for _, t := range next.tags.tags {
 		sh.tags.addN(t.Name, t.Count)
 	}

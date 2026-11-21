@@ -188,14 +188,23 @@ func tagsHeight(scale float32) float32 {
 }
 
 // entryHeight is how tall a sheet's row stands: its title and time, its
-// opening, or where it matches, in up to lines lines, its tags, and its
-// words.
+// opening, or where it matches, in up to lines lines beside its picture,
+// its tags, and its words.
 func entryHeight(c *ui.Context, e entry, m blockMetrics, lines int) float32 {
 	pad, gap := rowPad(m.scale), rowGap(m.scale)
 	xs := theme.TextXSmall.LineHeight(m.scale)
 	h := 2*pad + theme.TextSmall.LineHeight(m.scale) + gap + xs
-	if body := entryBody(e); body != "" {
-		h += gap + float32(bodyLines(c, body, m.col-2*pad, m.scale, lines))*xs
+	width, thumb := m.col-2*pad, float32(0)
+	if e.sheet.Picture != "" {
+		thumb = thumbSide(m, lines)
+		width -= thumb + pad
+	}
+	body := float32(0)
+	if text := entryBody(e); text != "" {
+		body = float32(bodyLines(c, text, width, m.scale, lines)) * xs
+	}
+	if body = max(body, thumb); body > 0 {
+		h += gap + body
 	}
 	if len(e.sheet.Tags) > 0 {
 		h += gap + tagsHeight(m.scale)
@@ -208,6 +217,12 @@ func entryBody(e entry) string {
 		return e.line
 	}
 	return e.sheet.Excerpt
+}
+
+// thumbSide is how wide and tall a card's picture stands beside its
+// opening: two of its lines in a group's card, three in a card of its own.
+func thumbSide(m blockMetrics, lines int) float32 {
+	return float32(min(lines, 3)) * theme.TextXSmall.LineHeight(m.scale)
 }
 
 // bodyLines is how many lines, up to most, body takes width wide.

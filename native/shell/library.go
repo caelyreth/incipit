@@ -91,6 +91,9 @@ type SheetItem struct {
 	Pinned bool
 	// Tasks are the tasks its text holds.
 	Tasks Tasks
+	// Picture is the media of its first figure with a picture, which its
+	// card shows small; "" for none.
+	Picture string
 }
 
 // Found is what a search found.

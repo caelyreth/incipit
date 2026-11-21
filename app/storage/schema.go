@@ -126,6 +126,11 @@ var migrations = []string{
 	ALTER TABLE pages ADD COLUMN open_tasks INTEGER;
 	ALTER TABLE pages ADD COLUMN done_tasks INTEGER;
 	`,
+	// The media of a page's first figure with a picture, which its card
+	// shows; NULL until it is read from the page's content (readUnread).
+	`
+	ALTER TABLE pages ADD COLUMN picture TEXT;
+	`,
 }
 
 // migrate brings the notebook to the current schema, claiming a new file

@@ -51,6 +51,20 @@ func TestASummaryCountsThePagesTasks(t *testing.T) {
 	}
 }
 
+// A summary's picture is the first figure's that has one, however deep.
+func TestASummaryPicturesThePageByItsFirstFigure(t *testing.T) {
+	figure := func(media string) *doc.Node {
+		return profile.NewFigure(profile.Schema(), profile.Picture{Media: media, Width: 4, Height: 3}, "")
+	}
+	quote := doc.NewNode(profile.Quote, doc.Attrs{}, doc.BlockSlot(figure(""), figure("first")))
+	if s := Summarize(page(para("words"), quote, figure("second"))); s.Picture != "first" {
+		t.Fatalf("picture %q, want the first figure's", s.Picture)
+	}
+	if s := Summarize(page(para("words"))); s.Picture != "" {
+		t.Fatalf("picture %q without a figure", s.Picture)
+	}
+}
+
 func TestASummaryCountsTheTagsThePageWrites(t *testing.T) {
 	code := doc.NewNode(profile.Code, doc.Attrs{}, doc.InlineSlot(doc.TextItem("#include", nil)))
 	s := Summarize(page(para("#Moon tides #ocean"), code, para("#ocean and #moon, #ocean")))

@@ -74,8 +74,9 @@ type AppState struct {
 	chrome chromeKey
 	// settingsDirty waits for the next write of the settings record.
 	settingsDirty bool
-	// shownPictures decodes the notebook's pictures for every page.
-	shownPictures *page.Pictures
+	// shownPictures decodes the notebook's pictures for every page, and
+	// cardPictures them small for the cards in the field.
+	shownPictures, cardPictures *page.Pictures
 	// finder keeps the search index in step and answers searches.
 	finder *finder
 	// soughtPage is the page a sheet's find last ran on, 0 for none.
@@ -168,6 +169,7 @@ func (a *AppState) BindShell() {
 		a.selectMounted()
 	}
 	a.Shell.Library = a
+	a.Shell.Thumbnail = a.thumbnail
 	a.Shell.ClosePageID = a.closePageID
 	a.Shell.Commands = a.commandCatalog
 	a.Shell.Binding = func(id string) string { return bindingLabel(a.Product.Keymap, keymap.CommandID(id)) }

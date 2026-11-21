@@ -100,7 +100,11 @@ type State struct {
 	Toolbar       ToolbarState
 
 	// Sheet draws an open sheet's page, as frame sets it.
-	Sheet       func(c *ui.Context, id string, frame SheetFrame)
+	Sheet func(c *ui.Context, id string, frame SheetFrame)
+	// Thumbnail is the small picture a card shows of a sheet's first
+	// figure, by its media id, as far as it has come: nil while it is
+	// read, and false where it cannot show. Nil shows each one's place.
+	Thumbnail   func(media string, now time.Time) (*ui.Bitmap, bool)
 	SelectPage  func(id string)
 	ClosePageID func(id string)
 	// AppSettings are the app's settings, which the field shows as cards.

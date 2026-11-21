@@ -205,6 +205,7 @@ func sheetItemsWithSessions(sheets []library.Sheet, sessions map[library.SheetID
 			Updated: sheet.Updated,
 			Pinned:  sheet.Pinned,
 			Tasks:   shellTasks(session.summary.Tasks),
+			Picture: session.summary.Picture,
 		})
 	}
 	return items

@@ -347,8 +347,17 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 			if dragged && !single {
 				return
 			}
-			if body := entryBody(e); body != "" {
-				components.Label(c, body, theme.TextXSmall, semantic.Text.Muted).WidthPercent(100).MaxLines(lines)
+			if body := entryBody(e); body != "" || sh.Picture != "" {
+				ui.Row(c).Key("body").WidthPercent(100).Gap(pad).AlignItems(ui.Start).Children(func() {
+					if body != "" {
+						components.Label(c, body, theme.TextXSmall, semantic.Text.Muted).Grow(1).MinWidth(0).MaxLines(lines)
+					} else {
+						ui.Box(c).Grow(1)
+					}
+					if sh.Picture != "" {
+						s.thumbnail(c, semantic, sh.Picture, thumbSide(m, lines), m)
+					}
+				})
 			}
 			s.rowTags(c, semantic, sh.Tags, m)
 			foot := words(sh.Words)
@@ -357,6 +366,28 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 			}
 			components.Label(c, foot, theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum").Opacity(0.7)
 		})
+	})
+}
+
+// thumbnail is a sheet's first picture, side across, cropped to fill its
+// rounded square: its place, inset, while it is read, and a muted mark
+// where it cannot show.
+func (s *State) thumbnail(c *ui.Context, semantic theme.Theme, media string, side float32, m blockMetrics) {
+	var bitmap *ui.Bitmap
+	shows := true
+	if s.Thumbnail != nil {
+		bitmap, shows = s.Thumbnail(media, c.Now())
+	}
+	frame := ui.Box(c.Key("thumbnail")).Size(side, side).Shrink(0).Radius(6*m.k).Clip().
+		Background(semantic.Surface.Inset).Border(1, semantic.Border.Variant).
+		AlignItems(ui.Center).Justify(ui.Center).IgnoreInput(true)
+	frame.Children(func() {
+		switch {
+		case bitmap != nil:
+			ui.Image(c, bitmap).Size(side, side).Fit(ui.Cover)
+		case !shows:
+			ui.Icon(c, components.IconImageOff.SVG()).FontSize(side * 0.4).TextColor(semantic.Text.Muted)
+		}
 	})
 }
 
