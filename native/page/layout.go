@@ -131,8 +131,10 @@ type surfaceLayout struct {
 	text   string
 	segs   []seg
 	stops  []stopAt
-	// x and y place the surface in its unit; w and h are its extent.
-	x, y, w, h float32
+	// x and y place the surface in its unit; w and h are its extent, and
+	// reach how far right its lines' text goes, kept as it is laid out
+	// so what measures the page never shapes a layout let go (release.go).
+	x, y, w, h, reach float32
 	// open is the presentation's: a main flow, or an object's own slot
 	// while the object is held. shown is whether the surface is drawn and
 	// takes room, which its object's renderer decides from open: a closed
@@ -164,6 +166,10 @@ type unitLayout struct {
 	// page as drawn, top its top with every room above settled, and h its
 	// height.
 	x, y, top, h float32
+	// far is whether its text's shaping was let go, far out of view, and
+	// held whether it was read there since, so it stays shaped
+	// (release.go).
+	far, held bool
 	// gaps are an object's gap stops before and after it, nil on a side
 	// where text stands beside it (present.UnitRef.Gaps); box is what it
 	// draws, in the unit, and the text it holds (a figure's caption) is its

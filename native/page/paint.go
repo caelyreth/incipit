@@ -116,6 +116,9 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		p.AnimationFrame()
 	}
 	el.forget(pl)
+	if !el.still {
+		releaseFar(pl, oy, top, bottom)
+	}
 	if el.paintDrop(p, ox, oy, m, now, animate) {
 		p.AnimationFrame()
 	}

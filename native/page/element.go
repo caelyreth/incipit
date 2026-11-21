@@ -245,9 +245,7 @@ func (el *Element) textSize() (float32, float32) {
 	var w float32
 	for _, u := range pl.units {
 		for _, s := range u.surfaces {
-			for _, line := range s.layout.Lines() {
-				w = max(w, u.x+s.x+line.Rect.X+line.Rect.W)
-			}
+			w = max(w, u.x+s.x+s.reach)
 		}
 	}
 	return w, pl.height

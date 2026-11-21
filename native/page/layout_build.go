@@ -380,6 +380,9 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 	sl.layout = ui.ShapeRichTextWith(spans, font, shape)
 	_, sl.h = sl.layout.Size()
 	sl.h = max(sl.h, lineHeight(m, m.Body*base.Size))
+	for _, line := range sl.layout.Lines() {
+		sl.reach = max(sl.reach, line.Rect.X+line.Rect.W)
+	}
 	for _, st := range p.Stops {
 		if int(st.Surface) != index {
 			continue
