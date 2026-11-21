@@ -47,7 +47,7 @@ func (b chromeButton) view(c *ui.Context, semantic theme.Theme, animate bool) ui
 // its hint, hint and its key binding, standing past it, into the field.
 func laneCircleButton(c *ui.Context, semantic theme.Theme, key string, icon components.IconName, label, hint, binding string, selected bool, size float32, animate bool) ui.Element {
 	btn := ui.ButtonBase(c.Key(key)).Size(size, size).Radius(size / 2).
-		AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(label).Selected(selected)
+		AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).KeepFocus().Label(label).Selected(selected)
 	components.Hint(c, semantic, btn, hint, binding, components.HintAfter)
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	// The place the field shows stands inverse among them.
@@ -77,7 +77,7 @@ func miniCloseButton(
 	onClick func(),
 ) ui.Element {
 	btn := ui.ButtonBase(c.Key(key)).Size(size, size).Radius(size / 2).
-		AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).
+		AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).KeepFocus().
 		Label(label)
 	components.Hint(c, semantic, btn, tooltip, "", components.HintAbove)
 	near := components.HoverAmount(btn, btn.Hovered(), animate)

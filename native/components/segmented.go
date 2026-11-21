@@ -46,7 +46,7 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		for index, option := range s.Options {
 			c.Key(option.Key)
 			button := parts.Segment(index).
-				Label(option.Label).
+				Label(option.Label).KeepFocus().
 				Height(metrics.Height-4*scale/theme.DefaultUIFontSize).
 				MinWidth(0).PaddingX(theme.Space08.DIPs(scale)).
 				Radius(6*scale/theme.DefaultUIFontSize).

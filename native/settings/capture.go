@@ -151,8 +151,9 @@ func (s *State) captureTrailing(c *ui.Context, semantic theme.Theme, state strin
 // It keeps the focus every frame, not only as it appears: the key or
 // keycaps pressed to start recording take the focus as they are clicked, and
 // a line that let them keep it would leave Tab to move the focus and other
-// chords to whatever holds it. Focus that the person moves away, by clicking
-// elsewhere, ends the recording.
+// chords to whatever holds it. A press elsewhere, which leaves the focus
+// where it is when it lands on a button (as a Mac's do), or the focus moved
+// away, ends the recording.
 //
 // The host stands its menu down meanwhile, so chords such as ⌘N reach the
 // line as keys. A menu role's command arriving meanwhile is taken and
@@ -162,7 +163,7 @@ func (s *State) holdKeyboard(capture ui.Element, fresh bool, line captureLine) {
 	if fresh {
 		*held = false
 	}
-	if *held && !capture.Focused() {
+	if *held && (!capture.Focused() || capture.PressedOutside()) {
 		*held = false
 		line.Cancel()
 		return

@@ -201,7 +201,7 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 			{"view-list", "View as List", components.IconList, listed},
 		} {
 			btn := ui.ButtonBase(c.Key(choice.key)).Size(face, face).Radius(face / 2).Role(ui.RoleRadio).
-				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(choice.label).Selected(choice.on)
+				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).KeepFocus().Label(choice.label).Selected(choice.on)
 			binding := ""
 			if !choice.on {
 				binding = s.binding(VerbViewList)

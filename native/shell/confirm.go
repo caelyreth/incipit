@@ -89,7 +89,7 @@ func (s *State) confirmButton(
 	}
 	button := ui.ButtonBase(c.Key(key)).Label(text).
 		Height(components.CompactButton.Height(scale)).PaddingX(theme.Space08.DIPs(scale)).
-		AlignItems(ui.Center).Justify(ui.Center).Radius(metrics.Radius).Shrink(0).FocusRing(false)
+		AlignItems(ui.Center).Justify(ui.Center).Radius(metrics.Radius).Shrink(0).FocusRing(false).KeepFocus()
 	// The fill and border follow the arming spring below; a transition that
 	// also eased the colors would chase each frame's, and lag behind.
 	transition := popTransition(animate)

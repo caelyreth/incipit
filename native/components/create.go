@@ -55,7 +55,7 @@ func (a CreateArea) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	if a.Partial {
 		reveal, labelReveal = a.Reveal, a.LabelReveal
 	}
-	area := ui.ButtonBase(c.Key(a.Key)).Label(a.Label).
+	area := ui.ButtonBase(c.Key(a.Key)).Label(a.Label).KeepFocus().
 		WidthPercent(100).Height(metrics.Height).Shrink(0).
 		PaddingX(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
 		Radius(metrics.Radius).FocusRing(false)

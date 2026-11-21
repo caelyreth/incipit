@@ -447,3 +447,27 @@ func TestClearStandsBesideTheCount(t *testing.T) {
 		t.Fatalf("Cleared, the query is %q.", q)
 	}
 }
+
+// A press on the field's controls leaves the keyboard with the pill, as a
+// Mac's buttons do: it stays open, not closing as the press lands and
+// opening again as the place it goes to asks for it.
+func TestPressingTheLaneLeavesThePillOpen(t *testing.T) {
+	state, _, tester := settingsState(t)
+	for _, label := range []string{"Show settings", "Hide settings", "Show Trash", "Leave Trash", "View as List", "Home"} {
+		if err := tester.Click("Search"); err != nil {
+			t.Fatal(err)
+		}
+		settle(tester)
+		r, ok := tester.Find(label)
+		if !ok {
+			t.Fatalf("No %q.", label)
+		}
+		tester.Press(r.X+r.W/2, r.Y+r.H/2)
+		tester.Frame()
+		if !tester.Focused("Search") || !state.field.open {
+			t.Errorf("Pressing %q took the keyboard from the pill.", label)
+		}
+		tester.Release(r.X+r.W/2, r.Y+r.H/2)
+		settle(tester)
+	}
+}

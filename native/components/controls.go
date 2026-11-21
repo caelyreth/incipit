@@ -35,7 +35,7 @@ func (s Swatch) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		ring = semantic.Text.Heading
 	}
 	button := ui.ButtonBase(c.Key(s.Key)).Role(ui.RoleRadio).
-		Label(s.Label).Selected(s.Selected).
+		Label(s.Label).Selected(s.Selected).KeepFocus().
 		Size(size, size).Padding(0).Radius(size/2).
 		Background(s.Color).Border(2*scale/theme.DefaultUIFontSize, ring)
 	Hint(c, semantic, button, s.Label, "", HintAbove)

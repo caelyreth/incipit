@@ -166,7 +166,9 @@ func buttonElement(
 		border = semantic.Border.Variant
 	}
 
-	button := ui.ButtonBase(c.Key(options.key)).Label(options.label).
+	// A press leaves the keyboard where it is, as a Mac's buttons do: the
+	// pill or the page keeps it (only Tab moves it here).
+	button := ui.ButtonBase(c.Key(options.key)).Label(options.label).KeepFocus().
 		Height(height).Padding(0).Radius(theme.DefaultControls.Scaled(scale).Radius).
 		Border(1, border).Disabled(options.disabled)
 	// Only a button with no words of its own takes a hint.
