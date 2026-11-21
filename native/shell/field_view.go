@@ -82,14 +82,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	s.field.listed = listed
 	f := s.results(c.Now())
-	// A list with dividers keeps a column at its left for their rail
-	// (rail.go), the list narrowing to leave it.
-	railed := listed && len(railStops(&f, nil)) >= 2
-	shiftX := float32(0)
-	if railed {
-		m = s.blockMetrics(w-railRoom*k, h)
-		shiftX = railRoom * k / 2
-	}
 	if !s.field.settleAt.IsZero() {
 		c.After(s.field.settleAt.Sub(c.Now()))
 	}
@@ -191,6 +183,11 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	// The keys start from what ranks first, nearest the pill; they go on,
 	// and a Shift-click takes its run, in the order the field is read on
 	// the screen (field-and-desk.md §4.7.7).
+	// The list's dividers, for the rail in the field lane (rail.go).
+	s.field.rail = s.field.rail[:0]
+	if listed {
+		s.field.rail = railStops(s.field.rail, &f, frames)
+	}
 	s.field.ranked, s.field.order = s.field.ranked[:0], s.field.order[:0]
 	for _, cd := range f.cards {
 		s.field.ranked = append(s.field.ranked, cd.kind.rows()...)
@@ -388,12 +385,12 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	view.Children(func() {
 		// The top band drags the window where nothing of the field stands over it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
-		at := stagePoint{X: w/2 + shiftX + s.field.poise.X, Y: origin}
+		at := stagePoint{X: w/2 + s.field.poise.X, Y: origin}
 		// Swapping views, only the pill travels: what goes out fades where
 		// it stood, and what comes in rises where it will stand.
 		swapping := s.field.from != nil && s.field.now.depth == stageSwap
 		if swapping {
-			at = stagePoint{X: w/2 + shiftX + poise.X, Y: s.field.base - (s.field.scroll - s.field.over.Offset())}
+			at = stagePoint{X: w/2 + poise.X, Y: s.field.base - (s.field.scroll - s.field.over.Offset())}
 		}
 		s.field.origin = at
 		s.bandNames(c, semantic, f, marks, at, m, animate)
@@ -423,9 +420,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 				from.X += s.partOf(view, fr.ID, animate)
 			}
 			s.cardView(c, semantic, fr, cd, s.field.shownShape[fr.ID], from, live[fr.ID], m, animate)
-		}
-		if railed && !swapping {
-			s.contentsRail(c, semantic, railStops(&f, frames), at.X-reach-railRoom*k, k, animate)
 		}
 		if s.field.drag != nil {
 			s.arrangeTargets(c, semantic, drawn, at, m, animate)

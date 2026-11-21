@@ -153,6 +153,9 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLoo
 		s.trashButton(c, semantic, size, animate).Absolute().Left(inset).Top(trashTop)
 		s.viewSwitch(c, semantic, size, animate).Absolute().Left(inset).Top(listTop)
 		s.settingsButton(c, semantic, size, animate).Absolute().Left(inset).Bottom(inset)
+		// A list's contents stand under how it is shown, down to the
+		// kept box.
+		s.contentsRail(c, semantic, inset, buttonsFoot+16*k, s.field.kept.top-12*k, k, animate)
 	})
 	s.keptBox(c, semantic, look, h, k, buttonsFoot, hidden, animate)
 }

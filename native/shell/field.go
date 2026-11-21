@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
+	"github.com/egoist/mygo/ui"
 )
 
 // The field shows what its sources find for its query (cards.go), the
@@ -19,9 +20,11 @@ import (
 // condition taken away folds them back into the block it came from.
 
 type fieldState struct {
-	// railShown is the stop of the list's rail its card last named
-	// (rail.go).
-	railShown int
+	// rail is the list's dividers, railShown the one its card last named,
+	// and railScroll how far the rail is scrolled (rail.go).
+	rail       []railStop
+	railShown  int
+	railScroll ui.ScrollState
 	// conditions are the query's conditions, each as the language writes
 	// it, shown as ribbons on the pill; words is what is written after
 	// them, and edit what the pill's input is to be set to.

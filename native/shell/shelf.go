@@ -64,6 +64,8 @@ type shelf struct {
 type shelfState struct {
 	scroll ui.ScrollState
 	edges  components.EdgeFade
+	// top is where it stood last, with its label over it.
+	top float32
 }
 
 // shelfView draws sh, keeping its state in st: list draws what it holds,
@@ -166,6 +168,7 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 		top -= height
 	}
 	box.Top(top)
+	st.top = top - 24*k
 	label := s.laneIcon(c, semantic, sh.key+"-label", sh.icon, sh.name, sh.count, stageRect{Y: top}, !sh.right, k).Hidden(hidden)
 	if sh.offset != 0 {
 		label.Translate(sh.offset, 0)
