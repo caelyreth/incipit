@@ -77,6 +77,8 @@ type ToolbarBindings struct {
 type State struct {
 	// root is the shell's outermost element, for where the focus is.
 	root ui.Handle
+	// flight is a sheet's way between the field and the desk (flight.go).
+	flight flightState
 	// dockHandle is the writing actions, which float over the window
 	// outside root (components.Floating).
 	dockHandle ui.Handle

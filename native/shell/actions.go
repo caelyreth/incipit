@@ -88,6 +88,7 @@ func (s *State) placeActions() []fieldAction {
 			run: s.Library.EmptyTrash}}
 	}
 	out := []fieldAction{{id: "new-sheet", label: "New Sheet", icon: components.IconNewSheet, run: func() {
+		s.riseFrom(actionOrigin("new-sheet"))
 		s.Library.NewSheet(s.CurrentGroup(), Last)
 		s.ShowDesk()
 	}}}
@@ -297,6 +298,7 @@ func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction
 	btn := ui.ButtonBase(c.Key("action-"+a.id)).Absolute().Left(x).Top(y).Size(w, h).
 		PaddingX(ribbonStart * k).Gap(6 * k).AlignItems(ui.Center).Radius(h / 2).
 		FocusRing(false).KeepFocus().Label(label).Transition(ribbonTransition(animate, above, k))
+	s.noteOrigin(actionOrigin(a.id), btn)
 	amount, dangerInk := dangerTone(btn, semantic, armed, btn.Hovered() || keyed, animate,
 		semantic.Surface.Page, semantic.Border.Variant)
 	if a.menu != nil {

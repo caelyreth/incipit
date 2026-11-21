@@ -60,6 +60,7 @@ func (s *State) View(c *ui.Context) {
 				Background(semantic.Surface.Background.Alpha(1 - scene.Field.Shown))
 		}
 		s.deskView(c, semantic, layout, chrome, scene, w, h, animate)
+		s.flightView(c, semantic, look, at, w, h)
 		components.Floating(c, func() {
 			if len(s.desk.columns) > 0 && s.view > 0.5 {
 				s.dock(c, semantic, 0)
