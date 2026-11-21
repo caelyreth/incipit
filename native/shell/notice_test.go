@@ -114,3 +114,30 @@ func TestUndoOutlivesTheNoticeAndRedoes(t *testing.T) {
 		t.Fatal("A new change should end what could be redone.")
 	}
 }
+
+// A sheet open on the desk, trashed and taken back, comes back to its
+// place in the field and stays closed: the window stays on the field.
+func TestATrashedSheetTakenBackStaysClosed(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	state.Open, state.ActivePage = []Page{{ID: "7", Title: "Chapter"}}, "7"
+	settle(tester)
+	state.returnToField()
+	settle(tester)
+	state.trashSheets([]string{"7"})
+	state.Open, state.ActivePage = nil, ""
+	settle(tester)
+	library.calls = nil
+	state.Undo()
+	settle(tester)
+	if !slices.Contains(library.calls, "restore 7") {
+		t.Fatalf("Undo should put the sheet back: %v.", library.calls)
+	}
+	for _, call := range library.calls {
+		if strings.HasPrefix(call, "open") {
+			t.Fatalf("Undo should not open the sheet again: %v.", library.calls)
+		}
+	}
+	if state.OnDesk() {
+		t.Fatal("Undo should leave the window on the field.")
+	}
+}

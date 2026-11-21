@@ -267,14 +267,9 @@ func (s *State) trashSheets(ids []string) {
 	}
 	text := "Moved " + s.sheetsNamed(ids) + " to the Trash"
 	from := s.sheetPlaces(ids)
-	// A sheet open on the desk closes as it goes; taken back, it opens
-	// again beside the others.
-	var open []string
-	for _, id := range ids {
-		if s.isOpen(id) {
-			open = append(open, id)
-		}
-	}
+	// A sheet open on the desk closes as it goes; taken back, it comes
+	// back to its place in the field, marked there, and stays closed: the
+	// undo is had on the field, and leaves the window looking at it.
 	do := func() {
 		for _, id := range ids {
 			s.Library.TrashSheet(id)
@@ -285,9 +280,6 @@ func (s *State) trashSheets(ids []string) {
 		for _, p := range from {
 			s.Library.RestoreSheet(p.id)
 			s.Library.MoveSheet(p.id, p.group, p.index)
-		}
-		for _, id := range open {
-			s.Library.OpenSheet(id, true)
 		}
 		s.arrive(rowIDs("sheet:", ids)...)
 	}, do)
