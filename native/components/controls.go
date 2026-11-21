@@ -57,7 +57,7 @@ func (b MenuButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	button := IconButton{
 		Key: b.Key, Label: b.Label, Icon: b.Icon,
 		Style: SubtleButton, Size: CompactButton,
-		IconColor: &semantic.Icon.Muted, Animate: b.Animate,
+		IconColor: semantic.Icon.Muted, Animate: b.Animate,
 	}.View(c, semantic)
 	return button.Menu(b.Build)
 }
@@ -83,7 +83,7 @@ func (n NumberField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		IconButton{
 			Key: "decrease", Label: "Decrease " + n.Label, Icon: IconMinus.SVG(),
 			Style: SubtleButton, Size: CompactButton, Disabled: !n.CanDecrease,
-			Animate: n.Animate, IconColor: &semantic.Icon.Muted, Action: n.Decrease,
+			Animate: n.Animate, IconColor: semantic.Icon.Muted, Action: n.Decrease,
 		}.View(c, semantic)
 		ui.Box(c).MinWidth(58 * scale / theme.DefaultUIFontSize).
 			AlignItems(ui.Center).Justify(ui.Center).Children(func() {
@@ -93,7 +93,7 @@ func (n NumberField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		IconButton{
 			Key: "increase", Label: "Increase " + n.Label, Icon: IconPlus.SVG(),
 			Style: SubtleButton, Size: CompactButton, Disabled: !n.CanIncrease,
-			Animate: n.Animate, IconColor: &semantic.Icon.Muted, Action: n.Increase,
+			Animate: n.Animate, IconColor: semantic.Icon.Muted, Action: n.Increase,
 		}.View(c, semantic)
 	})
 }

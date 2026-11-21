@@ -115,7 +115,7 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 				Key: key, Label: label, Binding: binding, Icon: icon.SVG(),
 				Style: components.SubtleButton, Size: components.MediumButton,
 				Disabled: s.FindCount.Total == 0, Animate: animate,
-				IconColor: &semantic.Icon.Muted, Action: func() { s.stepFind(forward) },
+				IconColor: semantic.Icon.Muted, Action: func() { s.stepFind(forward) },
 			}.View(c, semantic)
 		}
 		step("find-previous", "Previous match", "⇧↩", components.IconChevronUp, false)
@@ -123,7 +123,7 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 		components.IconButton{
 			Key: "find-close", Label: "Close Find", Binding: "esc",
 			Icon: components.IconClose.SVG(), Style: components.SubtleButton, Size: components.MediumButton,
-			Animate: animate, IconColor: &semantic.Icon.Muted, Action: s.endFind,
+			Animate: animate, IconColor: semantic.Icon.Muted, Action: s.endFind,
 		}.View(c, semantic)
 	})
 	s.FindRequested = false

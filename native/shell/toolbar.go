@@ -26,7 +26,7 @@ func (s *State) dockIcon(
 		Icon:  icon.SVG(),
 		Style: components.SubtleButton, Size: components.MediumButton,
 		Selected: selected, Disabled: !enabled, Animate: s.actionDock.animate,
-		IconColor: &s.actionDock.semantic.Icon.Muted, Action: action,
+		IconColor: s.actionDock.semantic.Icon.Muted, Action: action,
 	}.View(c, semantic)
 }
 

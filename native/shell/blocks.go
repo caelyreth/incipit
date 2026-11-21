@@ -77,9 +77,7 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 		icon, ink := components.IconTrash, semantic.Icon.Muted
 		if g != nil {
 			icon = groupIcon(*g)
-			if tint := groupTint(semantic, *g); tint != nil {
-				ink = *tint
-			}
+			ink = groupInk(semantic, *g, ink)
 		}
 		head := ui.ButtonBase(c.Key("name")).Grow(1).MinWidth(0).FillHeight().PaddingX(8 * m.k).Gap(8 * m.k).
 			AlignItems(ui.Center).Radius(8 * m.k).FocusRing(false).KeepFocus().Label(b.name())
@@ -250,9 +248,7 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 		s.into(g, fr.Rect)
 	}
 	ink := semantic.Icon.Muted
-	if tint := groupTint(semantic, g); tint != nil {
-		ink = *tint
-	}
+	ink = groupInk(semantic, g, ink)
 	btn.Children(func() {
 		ui.Icon(c, groupIcon(g).SVG()).FontSize(14 * m.k).TextColor(ink).Shrink(0)
 		components.BaselineRow(c).Key("words").Grow(1).MinWidth(0).Gap(8 * m.k).Children(func() {

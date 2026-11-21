@@ -96,16 +96,14 @@ func (s *State) headShown(c *ui.Context, col ui.Element) float32 {
 // sheetHead is a sheet's head (columnHead): its group's mark and its
 // title, and what closes it, at the type's size k.
 func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lead, shown float32, animate bool) ui.Element {
+	group, grouped := s.groupOf(page.ID)
+	ink, muted := groupInk(semantic, group, semantic.Icon.Muted), semantic.Text.Muted
 	info := func() {
 		ui.Row(c).Key("sheet-info").AlignItems(ui.Center).Gap(6 * k).PaddingX(12 * k).Children(func() {
-			if group, ok := s.groupOf(page.ID); ok {
-				ink := semantic.Icon.Muted
-				if tint := groupTint(semantic, group); tint != nil {
-					ink = *tint
-				}
+			if grouped {
 				ui.Icon(c, groupIcon(group).SVG()).FontSize(14 * k).Shrink(0).TextColor(ink)
 			}
-			components.CenteredLabel(c, page.Title, theme.TextSmall, semantic.Text.Muted).MaxWidth(240 * k)
+			components.CenteredLabel(c, page.Title, theme.TextSmall, muted).MaxWidth(240 * k)
 		})
 	}
 	// It names its sheet, which its tooltip need not.

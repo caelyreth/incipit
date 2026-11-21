@@ -91,7 +91,8 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	if hold.stand != stand {
 		*hold = ribbonHold{stand: stand, widths: map[string]float32{}}
 	}
-	items := make([]ribbonPlace, 0, len(s.field.conditions)+len(filterKeys))
+	items := s.field.ribbonItems[:0]
+	defer func() { s.field.ribbonItems = items[:0] }()
 	for i := range s.field.conditions {
 		items = append(items, ribbonPlace{kind: ribbonCondition, i: i, text: s.field.conditions[i]})
 	}
@@ -410,9 +411,7 @@ func (s *State) conditionLook(semantic theme.Theme, text string) ribbonLook {
 			if s.Library != nil {
 				if g, ok := s.groupNamed(cond.Value); ok {
 					l.icon = groupIcon(g)
-					if tint := groupTint(semantic, g); tint != nil {
-						l.ink = *tint
-					}
+					l.ink = groupInk(semantic, g, l.ink)
 				}
 			}
 		case "settings":
@@ -531,7 +530,8 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 	case edgeSolid:
 		btn.Border(1, semantic.Border.Focused)
 	case edgeDashed:
-		btn.Draw(func(pt *ui.Painter, r ui.Rect) { components.DashedOutline(pt, r, h/2, 1, semantic.Border.Default) })
+		rim := semantic.Border.Default
+		btn.Draw(func(pt *ui.Painter, r ui.Rect) { components.DashedOutline(pt, r, h/2, 1, rim) })
 	}
 	switch p.kind {
 	case ribbonCondition:

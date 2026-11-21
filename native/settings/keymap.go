@@ -159,7 +159,7 @@ func (s *State) keyFilterChip(c *ui.Context, semantic theme.Theme) {
 		components.IconButton{
 			Key: "keymap-clear-filter", Label: "Clear shortcut search",
 			Icon: components.IconClose.SVG(), Style: components.SubtleButton,
-			Size: components.CompactButton, IconColor: &semantic.Icon.Muted,
+			Size: components.CompactButton, IconColor: semantic.Icon.Muted,
 			Animate: s.motion(c),
 			Action:  func() { s.keyFilter = nil },
 		}.View(c, semantic)
@@ -227,7 +227,7 @@ func (s *State) shortcutActions(
 				Key: "clear-" + string(command), Label: "Clear Shortcut",
 				Icon: components.IconClose.SVG(), Style: components.SubtleButton,
 				Size: components.CompactButton, Animate: animate,
-				IconColor: &semantic.Icon.Muted,
+				IconColor: semantic.Icon.Muted,
 				Action:    func() { s.apply(appsettings.Unbind(command)) },
 			}.View(c, semantic).Opacity(hover)
 		}
@@ -236,7 +236,7 @@ func (s *State) shortcutActions(
 				Key: "reset-" + string(command), Label: "Reset Shortcut",
 				Icon: components.IconUndo.SVG(), Style: components.SubtleButton,
 				Size: components.CompactButton, Animate: animate,
-				IconColor: &semantic.Icon.Muted,
+				IconColor: semantic.Icon.Muted,
 				Action:    func() { s.apply(appsettings.ResetBinding(command)) },
 			}.View(c, semantic)
 		}

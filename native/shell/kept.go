@@ -345,6 +345,7 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 	if animate {
 		pulled = components.Follow(btn, "pulled", pulled, components.MotionPanel)
 	}
+	mark := semantic.Accent.Foreground
 	btn.Draw(func(p *ui.Painter, r ui.Rect) {
 		r.W -= keptPull * k * (1 - pulled)
 		var ribbon ui.Path
@@ -355,7 +356,7 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 			if place > 0 {
 				y = r.Y + r.H - 2*k
 			}
-			p.Fill(ui.Rect{X: r.X, Y: y, W: r.W, H: 2 * k}, semantic.Accent.Foreground, k)
+			p.Fill(ui.Rect{X: r.X, Y: y, W: r.W, H: 2 * k}, mark, k)
 		}
 	})
 	// Dragged, it goes as its group.

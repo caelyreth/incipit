@@ -145,9 +145,9 @@ func (s *State) deskDrops(semantic theme.Theme, area ui.Element, scale float32, 
 		lit = components.Follow(area, "drop", lit, components.MotionQuick)
 	}
 	if lit > 0.001 {
-		width := 2 / max(scale, 0.01)
+		width, ring := 2/max(scale, 0.01), semantic.Accent.Foreground.Alpha(lit)
 		area.DrawOver(func(p *ui.Painter, r ui.Rect) {
-			p.Stroke(r, semantic.Accent.Foreground.Alpha(lit), 10*width, width)
+			p.Stroke(r, ring, 10*width, width)
 		})
 	}
 }

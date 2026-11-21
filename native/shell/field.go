@@ -134,6 +134,9 @@ type fieldState struct {
 	// ribbonHold is what the ribbons about the pill hold to while it
 	// stands as it is (pill.go).
 	ribbonHold ribbonHold
+	// ribbonItems is the ribbons as they are flowed, kept to be filled
+	// again each frame.
+	ribbonItems []ribbonPlace
 	// kept is the kept box's shelf; keptRows its bookmarks as it last
 	// showed them, those going among them, and keptH each one's height.
 	kept     shelfState
@@ -170,6 +173,8 @@ type fieldState struct {
 	rowRects    map[string]stageRect
 	drawing     cardPlace
 	shownChosen string
+	// shownRows is order as a set, kept to be filled again each frame.
+	shownRows map[string]bool
 	// wordsBefore is the pill's words as the last frame left them, for
 	// Space on a row to be taken back from them.
 	wordsBefore string

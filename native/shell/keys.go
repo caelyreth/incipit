@@ -42,7 +42,11 @@ func (s *State) rowPlace(el ui.Element, id string) {
 // keepRowPlaces lets go of where rows stood that the field no longer
 // shows.
 func (s *State) keepRowPlaces() {
-	shown := make(map[string]bool, len(s.field.order))
+	if s.field.shownRows == nil {
+		s.field.shownRows = map[string]bool{}
+	}
+	shown := s.field.shownRows
+	clear(shown)
 	for _, id := range s.field.order {
 		shown[id] = true
 	}

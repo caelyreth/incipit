@@ -129,10 +129,11 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 	// all of it but its rounded edge is in the window.
 	rest := paper + tail - s.laneShown()
 	box.Translate(sh.offset+sign*(rest+(radius-rest)*out), 0)
+	fill, stroke := components.Blend(ground, semantic.Accent.Muted, lit), components.Blend(rim, semantic.Border.Focused, lit)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		edge := ui.Rect{X: r.X + at, Y: r.Y, W: paper, H: r.H}
-		p.Fill(edge, components.Blend(ground, semantic.Accent.Muted, lit), radius)
-		p.Stroke(edge, components.Blend(rim, semantic.Border.Focused, lit), radius, 1)
+		p.Fill(edge, fill, radius)
+		p.Stroke(edge, stroke, radius, 1)
 	})
 	// Fixed, it is as tall as it may be; else as tall as what it holds,
 	// following it as things come and go, what it holds standing at its
@@ -154,15 +155,16 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 				box.Jump("height", height)
 			}
 		}
+		lists, right := sh.count > 0 || sh.listing, sh.right
 		content.Children(func() {
-			if sh.count > 0 || sh.listing {
+			if lists {
 				fade := 16 * k
 				sc := &st.scroll
 				ui.Scroll(c).Key("held").MinHeight(0).Shrink(1).Scrollbars(false).TrackScroll(sc).DrawOver(func(p *ui.Painter, r ui.Rect) {
 					// Scrolled, what it holds softens into its edges, within it:
 					// the fades span the scroll where the box stands behind it.
 					left := r.X
-					if sh.right {
+					if right {
 						left = r.X + at - inner
 					}
 					x0, x1 := max(r.X, left), min(r.X+r.W, left+paper-pad-radius)

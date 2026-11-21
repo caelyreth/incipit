@@ -31,7 +31,7 @@ func (b chromeButton) view(c *ui.Context, semantic theme.Theme, animate bool) ui
 	return components.IconButton{
 		Key: b.key, Label: b.label, Tooltip: tooltip, Binding: b.binding, HintSide: b.side, Icon: b.icon.SVG(),
 		Style: components.SubtleButton, Size: components.MediumButton,
-		IconSize: 16 * components.UIFontSize(c) / theme.DefaultUIFontSize, IconColor: &semantic.Icon.Muted,
+		IconSize: 16 * components.UIFontSize(c) / theme.DefaultUIFontSize, IconColor: semantic.Icon.Muted,
 		Animate: animate, Action: action,
 	}.View(c, semantic)
 }

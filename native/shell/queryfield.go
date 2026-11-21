@@ -101,7 +101,7 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 			components.IconButton{
 				Key: "clear", Label: "Clear", Icon: components.IconClose.SVG(),
 				Style: components.SubtleButton, Size: components.CompactButton,
-				IconColor: &semantic.Icon.Muted, Animate: f.Animate,
+				IconColor: semantic.Icon.Muted, Animate: f.Animate,
 				Action: func() {
 					input.ReplaceText(0, math.MaxInt, "").Focus(ui.FocusOptions{PreventScroll: true})
 				},

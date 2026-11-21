@@ -48,6 +48,7 @@ type Button struct {
 }
 
 func (b Button) View(c *ui.Context, semantic theme.Theme) ui.Element {
+	ink := buttonTextColor(semantic, b.Style)
 	return buttonElement(c, semantic, buttonOptions{
 		key:      b.Key,
 		label:    b.Label,
@@ -59,7 +60,7 @@ func (b Button) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		fill:     b.Fill,
 		action:   b.Action,
 		children: func() {
-			CenteredLabel(c, b.Label, theme.TextSmall, buttonTextColor(semantic, b.Style))
+			CenteredLabel(c, b.Label, theme.TextSmall, ink)
 		},
 	}).PaddingX(theme.Space12.DIPs(UIFontSize(c))).MinWidth(0)
 }
@@ -69,14 +70,16 @@ type IconButton struct {
 	Label string
 	// Tooltip is what its hint says, its Label where empty; Binding its
 	// key, and HintSide where the hint stands.
-	Tooltip   string
-	Binding   string
-	HintSide  HintSide
-	Icon      *ui.SVG
-	Style     ButtonStyle
-	Size      ButtonSize
-	IconSize  float32
-	IconColor *ui.Color
+	Tooltip  string
+	Binding  string
+	HintSide HintSide
+	Icon     *ui.SVG
+	Style    ButtonStyle
+	Size     ButtonSize
+	IconSize float32
+	// IconColor is its glyph's ink, unset the icons' own, as it is
+	// selected the accent's.
+	IconColor ui.Color
 	Selected  bool
 	Disabled  bool
 	Animate   bool
@@ -101,8 +104,8 @@ func (b IconButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	iconColor := semantic.Icon.Default
 	if b.Selected {
 		iconColor = semantic.Icon.Accent
-	} else if b.IconColor != nil {
-		iconColor = *b.IconColor
+	} else if b.IconColor != (ui.Color{}) {
+		iconColor = b.IconColor
 	}
 	hint := b.Tooltip
 	if hint == "" {

@@ -140,9 +140,7 @@ func (s *State) contentsRail(c *ui.Context, semantic theme.Theme, mid, top, bott
 		ui.Row(c).Key("name").Gap(8 * k).AlignItems(ui.Center).Children(func() {
 			if g := st.group; g != nil {
 				ink := semantic.Icon.Muted
-				if tint := groupTint(semantic, *g); tint != nil {
-					ink = *tint
-				}
+				ink = groupInk(semantic, *g, ink)
 				ui.Icon(c, groupIcon(*g).SVG()).FontSize(15 * k).TextColor(ink).Shrink(0)
 			}
 			components.CenteredLabel(c, st.name, theme.TextDefault, semantic.Text.Heading).MinWidth(0)

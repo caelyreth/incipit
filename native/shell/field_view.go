@@ -428,9 +428,10 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 			s.field.parts = nil
 		}
 		if topFade > 0 || bottomFade > 0 {
+			ground := semantic.Surface.Background
 			ui.Box(c).Key("field-edges").Absolute().Top(0).Left(0).Size(w, h).IgnoreInput(true).
 				Draw(func(p *ui.Painter, r ui.Rect) {
-					s.field.edges.Paint(p, r, semantic.Surface.Background, topFade, bottomFade)
+					s.field.edges.Paint(p, r, ground, topFade, bottomFade)
 				})
 		}
 		if s.field.stuck > 0 {

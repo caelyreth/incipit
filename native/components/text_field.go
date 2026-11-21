@@ -63,7 +63,7 @@ func (f TextField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 			IconButton{
 				Key: "clear", Label: "Clear", Icon: f.ClearIcon,
 				Style: SubtleButton, Size: CompactButton,
-				IconColor: &semantic.Icon.Muted, Animate: f.Animate,
+				IconColor: semantic.Icon.Muted, Animate: f.Animate,
 				Action: func() {
 					input.ReplaceText(0, math.MaxInt, "").Focus(ui.FocusOptions{PreventScroll: true})
 				},

@@ -227,15 +227,16 @@ func groupIcon(group GroupItem) components.IconName {
 	return components.IconFolder
 }
 
-// groupTint is a group's color: Moonveil's, the text's, or its hue's.
-func groupTint(semantic theme.Theme, group GroupItem) *ui.Color {
+// groupInk is a group's color: its hue's, or the text's; the Inbox has
+// none of its own, and is drawn in ink.
+func groupInk(semantic theme.Theme, group GroupItem, ink ui.Color) ui.Color {
 	switch {
 	case group.Inbox:
-		return nil
+		return ink
 	case group.Color >= TintHalo && group.Color < TintHalo+len(semantic.Families):
-		return &semantic.Families[group.Color-TintHalo].Foreground
+		return semantic.Families[group.Color-TintHalo].Foreground
 	}
-	return &semantic.Text.Default
+	return semantic.Text.Default
 }
 
 // moveMenu adds a Move To submenu of where things can be moved.

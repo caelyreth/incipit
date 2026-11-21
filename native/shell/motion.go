@@ -32,10 +32,13 @@ func listTransition(animate, size bool) ui.ElementTransition {
 	return ui.ElementTransition{
 		Duration: motionList,
 		Position: true, Size: size,
-		Enter: &ui.Motion{Collapse: true},
-		Exit:  &ui.Motion{Collapse: true},
+		Enter: collapsing, Exit: collapsing,
 	}
 }
+
+// collapsing is a row folding open as it comes and shut as it goes,
+// shared by every row as MyGo only reads it.
+var collapsing = &ui.Motion{Collapse: true}
 
 // appearing is a transition that only brings an element in and takes it
 // out. MyGo animates an element's place, size and colors when none of
