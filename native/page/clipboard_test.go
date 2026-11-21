@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/app/clipboard"
+	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo/transfer"
@@ -63,8 +64,48 @@ func TestCopyWritesStructureAndTextToTheClipboard(t *testing.T) {
 	if _, err := data.Read(transfer.Format(clipboard.Format)); err != nil {
 		t.Fatalf("structured clipboard: %v", err)
 	}
-	if text, err := data.Read(transfer.Text); err != nil || string(text) != "bold and code" {
+	if text, err := data.Read(transfer.Text); err != nil || string(text) != "**bold** and code" {
 		t.Fatalf("text clipboard = %q, %v", text, err)
+	}
+}
+
+func TestCopyEmitsMarkdownWholeTableAndTSVCellRange(t *testing.T) {
+	el, table := tablePage(t, 2, 2, "a", "b", "c", "d")
+	tableID := table().pres.Unit
+	var services ui.Services
+	tester := ui.NewTester(func(c *ui.Context) {
+		services = c.Services()
+		el.View(c)
+	}, 900, 480)
+	tester.Frame()
+
+	// Selecting the whole table emits a Markdown pipe table in plain text.
+	el.Editor.Do(vocab.Place{Node: tableID}, time.Unix(610, 0))
+	if !el.command("copy", services, time.Unix(611, 0)) {
+		t.Fatal("whole-table copy was refused")
+	}
+	data := tester.ClipboardData()
+	wantMD := "| a | b |\n| --- | --- |\n| c | d |"
+	if text, err := data.Read(transfer.Text); err != nil || string(text) != wantMD {
+		t.Fatalf("whole-table text clipboard = %q (want %q), %v", text, wantMD, err)
+	}
+
+	// Selecting a cell range keeps TSV for spreadsheet paste.
+	snap := el.Editor.Engine.Snapshot()
+	tblNode, _ := snap.Node(tableID)
+	cell00 := tblNode.Slot(0).Child(0).Slot(0).Child(0).ID()
+	cell11 := tblNode.Slot(0).Child(1).Slot(0).Child(1).ID()
+	el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(doc.SlotRef{Node: cell00}, 0))}, time.Unix(612, 0))
+	el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(doc.SlotRef{Node: cell11}, 1)), Extend: true}, time.Unix(613, 0))
+	if sel := el.Editor.Selection(); sel.Kind != doc.SelectCells {
+		t.Fatalf("selection = %+v, want SelectCells", sel)
+	}
+	if !el.command("copy", services, time.Unix(614, 0)) {
+		t.Fatal("cell-range copy was refused")
+	}
+	data = tester.ClipboardData()
+	if text, err := data.Read(transfer.Text); err != nil || string(text) != "a\tb\nc\td" {
+		t.Fatalf("cell-range text clipboard = %q (want TSV), %v", text, err)
 	}
 }
 

@@ -340,11 +340,17 @@ func (ed *Editor) copy() (vocab.Slice, string) {
 }
 
 // writeClipboard puts the engine's copy on the system clipboard as a
-// structured slice and as plain text for other applications.
+// structured slice and as Markdown (or TSV for a table cell range) in plain
+// text for other applications.
 func (ed *Editor) writeClipboard(services ui.Services) bool {
 	slice, text := ed.copy()
 	if slice.Empty() && text == "" {
 		return false
+	}
+	if !slice.Empty() && ed.Selection().Kind != doc.SelectCells {
+		if md := clipboard.Markdown(slice); md != "" {
+			text = md
+		}
 	}
 	var reps []transfer.Representation
 	if !slice.Empty() {
