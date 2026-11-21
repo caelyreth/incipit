@@ -416,6 +416,9 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 			}
 			s.cardView(c, semantic, fr, cd, s.field.shownShape[fr.ID], from, live[fr.ID], m, animate)
 		}
+		if listed && !swapping {
+			s.contentsRail(c, semantic, railStops(&f, frames), at.X+reach, w, k, animate)
+		}
 		if s.field.drag != nil {
 			s.arrangeTargets(c, semantic, drawn, at, m, animate)
 		} else {
