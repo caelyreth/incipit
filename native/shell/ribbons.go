@@ -78,9 +78,11 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	// over it too, where the room is.
 	listed := s.listed()
 	hold := &s.field.ribbonHold
-	// The actions opening is no change of what stands: they float over
-	// the field and take no room, so nothing moves for them.
-	stand := fmt.Sprint(s.field.open, listed)
+	// The actions standing about the pill's end take room as the ribbons
+	// do, so what stands near moves aside for them rather than under them;
+	// opening or closing them is a change of what stands.
+	acting := s.field.acting || s.actionsStand()
+	stand := fmt.Sprint(s.field.open, listed, acting)
 	if of := s.completing(); of != nil {
 		stand += " " + of.Name
 	} else {
@@ -139,9 +141,22 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 		place(values, h+out.below+3*gap, rh+gap)
 		out.below += 2*gap + float32(len(values))*(rh+gap)
 	}
+	if acting {
+		reach := actionsReach(len(s.fieldActions()), h, rh, gap)
+		out.above, out.below = max(out.above, reach), max(out.below, reach)
+	}
 	hold.above, hold.below = max(hold.above, out.above), max(hold.below, out.below)
 	out.above, out.below = hold.above, hold.below
 	return out
+}
+
+// actionsReach is how far n actions rh tall, standing about the end of a
+// pill h tall (arc), reach past its top and its foot, a gap past them.
+func actionsReach(n int, h, rh, gap float32) float32 {
+	if n == 0 {
+		return 0
+	}
+	return max(0, float32(n-1)/2*(rh+gap)-(h-rh)/2+gap)
 }
 
 // ribbonHold is what the ribbons hold to while the pill stands as stand

@@ -471,3 +471,22 @@ func TestPressingTheLaneLeavesThePillOpen(t *testing.T) {
 		settle(tester)
 	}
 }
+
+// The actions standing about the pill's end take room as the ribbons do:
+// what stands near moves aside for them rather than under them.
+func TestOpenActionsPushWhatStandsNear(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	settle(tester)
+	// The pill let go of, no keys it offers hold room.
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+	if state.field.open {
+		t.Fatal("Escape left the pill open.")
+	}
+	state.toggleActions()
+	settle(tester)
+	want := actionsReach(len(state.fieldActions()), 40, ribbonH, ribbonGap)
+	if a, b := state.field.ribbonHold.above, state.field.ribbonHold.below; !state.field.acting || want <= 0 || a < want || b < want {
+		t.Fatalf("Open, the actions kept %v above and %v below; they reach %v.", a, b, want)
+	}
+}
