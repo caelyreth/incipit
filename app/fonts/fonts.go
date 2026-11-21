@@ -1,9 +1,10 @@
 // Package fonts keeps the prose faces of scripts other than Latin, which
 // the app does not ship: each is Google Fonts' Noto Serif for a script,
-// downloaded only when the person asks, from a pinned commit of Google's
-// font repository, verified against its SHA-256, and kept on this machine,
-// not in the notebook. A script with none downloaded is drawn by the
-// system's own fonts.
+// its static builds at the weights the page draws, downloaded only when
+// the person asks from Google Fonts' static hosts, verified against the
+// SHA-256 pinned in the catalog (scripts/fontcatalog), and kept on this
+// machine, not in the notebook. A script with none downloaded is drawn by
+// the system's own fonts.
 package fonts
 
 import (
@@ -29,13 +30,20 @@ type Face struct {
 	Files []File
 }
 
-// File is one of a face's font files: its path in the repository's ofl
-// folder, its size and its SHA-256.
+// File is one of a face's font files: its path on each of Hosts, the name
+// it is kept under, its weight, its size and its SHA-256.
 type File struct {
 	Path   string
+	Name   string
+	Weight int
 	Size   int64
 	SHA256 string
 }
+
+// Hosts are where a file's path is asked of, in turn as one fails: Google
+// Fonts' static host, then its mirror for mainland China, which serves the
+// same files.
+var Hosts = []string{"https://fonts.gstatic.com", "https://fonts.gstatic.cn"}
 
 // Size is how much a face downloads.
 func (f Face) Size() int64 {

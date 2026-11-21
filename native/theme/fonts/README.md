@@ -26,8 +26,12 @@ Both are registered under Neverland's family name, `Noto Serif`, so
 document typography does not depend on fonts installed by the host
 operating system. They draw Latin, Greek and Cyrillic. The app ships no face
 for other scripts: the settings' Writing Systems section downloads a
-script's Noto Serif from the same commit when the person asks, verified by
-the SHA-256 pinned in `app/fonts/catalog.go`, and keeps it on that machine.
+script's Noto Serif when the person asks, Google Fonts' static builds at
+weights 400 and 700 from `fonts.gstatic.com`, or its mirror
+`fonts.gstatic.cn` when that fails, verified by the SHA-256 pinned in
+`app/fonts/catalog.go`, and keeps it on that machine. The catalog is written
+by `go run ./scripts/fontcatalog`, which asks Google Fonts' CSS API for the
+current files and pins each.
 A script with none downloaded is drawn in the system's fonts. They are
 licensed under the SIL Open Font License 1.1 in `OFL.txt`.
 

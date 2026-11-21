@@ -8,25 +8,24 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// Store keeps downloaded faces in Dir, fetched from Source.
+// Store keeps downloaded faces in Dir, fetched from Hosts.
 type Store struct {
 	Dir string
-	// Source is the repository's ofl folder at its pinned commit, Source
-	// unless a test serves its own.
-	Source string
+	// Hosts are asked in turn, as each fails: Hosts unless a test serves
+	// its own.
+	Hosts  []string
 	Client *http.Client
 }
 
-// NewStore is a store in dir, fetching from the pinned repository.
+// NewStore is a store in dir, fetching from Google Fonts' hosts.
 func NewStore(dir string) *Store {
-	return &Store{Dir: dir, Source: Source, Client: http.DefaultClient}
+	return &Store{Dir: dir, Hosts: Hosts, Client: http.DefaultClient}
 }
 
 // ErrMismatch is a file whose bytes are not the ones pinned.
@@ -34,7 +33,7 @@ var ErrMismatch = errors.New("fonts: a downloaded file is not the one pinned")
 
 // path is where file is kept.
 func (s *Store) path(file File) string {
-	return filepath.Join(s.Dir, path.Base(file.Path))
+	return filepath.Join(s.Dir, filepath.Base(file.Name))
 }
 
 // Installed is whether every file of f is kept, at its size: what it
@@ -99,8 +98,9 @@ func (s *Store) Install(ctx context.Context, f Face, progress func(done, total i
 }
 
 // How a download meets a network that fails: how many times a file is
-// asked for again, and how long it waits before the first, doubling; how
-// long a connection may give nothing before it is given up.
+// asked for, going from host to host, and how long it waits before asking
+// again, doubling; how long a connection may give nothing before it is
+// given up.
 var (
 	attempts = 6
 	backoff  = time.Second
@@ -114,12 +114,15 @@ var errStalled = errors.New("fonts: the download stalled")
 func (s *Store) partial(file File) string { return s.path(file) + ".part" }
 
 // fetch downloads file into its place, going on from what has come of it,
-// asking again with a growing wait when the network fails, and verifying
-// it whole; bytes that are not the pinned ones are let go and asked for
-// once more from the start.
+// asking the next host, after a growing wait, when the network fails, and
+// verifying it whole; bytes that are not the pinned ones are let go and
+// asked for once more from the start.
 func (s *Store) fetch(ctx context.Context, file File, progress func(int64)) error {
 	wait, fresh := backoff, false
 	var err error
+	if len(s.Hosts) == 0 {
+		return errors.New("fonts: no host to download from")
+	}
 	for try := 0; try < attempts; try++ {
 		if try > 0 {
 			select {
@@ -129,7 +132,7 @@ func (s *Store) fetch(ctx context.Context, file File, progress func(int64)) erro
 			}
 			wait *= 2
 		}
-		err = s.resume(ctx, file, progress)
+		err = s.resume(ctx, s.Hosts[try%len(s.Hosts)], file, progress)
 		if errors.Is(err, ErrMismatch) && !fresh {
 			// What had come may have been of a failed write: once, from
 			// the start.
@@ -152,7 +155,7 @@ func (s *Store) fetch(ctx context.Context, file File, progress func(int64)) erro
 
 // resume asks for what has not come of file yet and appends it, verifying
 // the file once it is whole.
-func (s *Store) resume(ctx context.Context, file File, progress func(int64)) error {
+func (s *Store) resume(ctx context.Context, host string, file File, progress func(int64)) error {
 	part, err := os.OpenFile(s.partial(file), os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
 		return err
@@ -167,7 +170,7 @@ func (s *Store) resume(ctx context.Context, file File, progress func(int64)) err
 		have = 0
 	}
 	if have < file.Size {
-		if have, err = s.download(ctx, part, have, file, progress); err != nil {
+		if have, err = s.download(ctx, host, part, have, file, progress); err != nil {
 			return err
 		}
 	}
@@ -187,13 +190,13 @@ func (s *Store) resume(ctx context.Context, file File, progress func(int64)) err
 	return nil
 }
 
-// download asks for file from have on and writes what comes into part,
+// download asks host for file from have on and writes what comes into part,
 // reporting how much of it there is: a server that does not go on from
 // have sends the whole, which replaces what was there.
-func (s *Store) download(ctx context.Context, part *os.File, have int64, file File, progress func(int64)) (int64, error) {
+func (s *Store) download(ctx context.Context, host string, part *os.File, have int64, file File, progress func(int64)) (int64, error) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
-	url := strings.TrimSuffix(s.Source, "/") + "/" + escape(file.Path)
+	url := strings.TrimSuffix(host, "/") + "/" + strings.TrimPrefix(file.Path, "/")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return have, err
@@ -320,9 +323,4 @@ func (s *Store) Partial(f Face) int64 {
 func matches(data []byte, file File) bool {
 	sum := sha256.Sum256(data)
 	return int64(len(data)) == file.Size && hex.EncodeToString(sum[:]) == file.SHA256
-}
-
-// escape escapes the brackets and commas of variable fonts' file names.
-func escape(p string) string {
-	return strings.NewReplacer("[", "%5B", "]", "%5D", ",", "%2C").Replace(p)
 }

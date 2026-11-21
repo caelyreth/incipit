@@ -21,7 +21,7 @@ func served(t *testing.T, body string, sum string, fail ...func(w http.ResponseW
 	backoff = time.Millisecond
 	requests := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/notoserifx/NotoSerifX[wght].ttf" {
+		if r.URL.Path != "/s/notoserifx/v1/x.ttf" {
 			http.NotFound(w, r)
 			return
 		}
@@ -36,8 +36,8 @@ func served(t *testing.T, body string, sum string, fail ...func(w http.ResponseW
 		s := sha256.Sum256([]byte(body))
 		sum = hex.EncodeToString(s[:])
 	}
-	f := Face{ID: "x", Family: "Noto Serif X", Files: []File{{Path: "notoserifx/NotoSerifX[wght].ttf", Size: int64(len(body)), SHA256: sum}}}
-	return &Store{Dir: t.TempDir(), Source: srv.URL, Client: srv.Client()}, f
+	f := Face{ID: "x", Family: "Noto Serif X", Files: []File{{Path: "s/notoserifx/v1/x.ttf", Name: "NotoSerifX-400.ttf", Weight: 400, Size: int64(len(body)), SHA256: sum}}}
+	return &Store{Dir: t.TempDir(), Hosts: []string{srv.URL}, Client: srv.Client()}, f
 }
 
 // TestInstallMeetsAFailingNetwork goes on from where a dropped connection
@@ -64,6 +64,18 @@ func TestInstallMeetsAFailingNetwork(t *testing.T) {
 	}
 	if data, err := s.Read(f); err != nil || string(data[0]) != body {
 		t.Errorf("read back %d bytes, %v", len(data), err)
+	}
+}
+
+// TestInstallTriesTheNextHost asks the next host when one cannot be
+// reached, as the mirror for mainland China is asked.
+func TestInstallTriesTheNextHost(t *testing.T) {
+	s, f := served(t, "a font's bytes", "")
+	down := httptest.NewServer(http.NotFoundHandler())
+	down.Close()
+	s.Hosts = append([]string{down.URL}, s.Hosts...)
+	if err := s.Install(context.Background(), f, nil); err != nil || !s.Installed(f) {
+		t.Fatalf("with the first host down: %v", err)
 	}
 }
 
@@ -96,7 +108,7 @@ func TestInstallGoesOnAfterAStop(t *testing.T) {
 		t.Errorf("went on from %d, not from what had come", from)
 	}
 	missing := f
-	missing.Files = []File{{Path: "notoserifx/Missing.ttf", Size: 4, SHA256: f.Files[0].SHA256}}
+	missing.Files = []File{{Path: "s/notoserifx/v1/missing.ttf", Name: "Missing.ttf", Size: 4, SHA256: f.Files[0].SHA256}}
 	if err := s.Install(context.Background(), missing, nil); err == nil {
 		t.Error("a file not there installed")
 	}
