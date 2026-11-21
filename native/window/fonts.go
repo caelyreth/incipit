@@ -97,7 +97,6 @@ func (fs *fontState) rows() []settings.FontRow {
 func (a *AppState) useFonts(fs *fontState) {
 	a.fonts = fs
 	a.Shell.Settings = a.appearanceSettings()
-	a.Shell.Settings.Accent = a.groupAccent()
 	a.refreshSettingsData()
 	a.refreshShell()
 }

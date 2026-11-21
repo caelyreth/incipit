@@ -219,7 +219,10 @@ func (a *AppState) sheetView(c *ui.Context, id string, frame shell.SheetFrame) {
 	if !ok {
 		return
 	}
-	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
+	semantic, moving := a.sheetTheme(session, id, c.Now())
+	if moving {
+		c.AnimationFrame()
+	}
 	box := ui.Column(c).Key("page-" + id).Role(ui.RoleGroup).Label("Page").FillHeight().WidthPercent(100)
 	box.Children(func() {
 		el := a.sessionElement(session)
@@ -421,7 +424,6 @@ func (a *AppState) saveSettings() {
 // window backgrounds and traffic lights follow the new scheme.
 func (a *AppState) applyAppearance() {
 	a.Shell.Settings = a.appearanceSettings()
-	a.Shell.Settings.Accent = a.groupAccent()
 	target := a.Shell.Settings.Semantic()
 	if a.Product.Presentation.Motion {
 		a.colors.Retarget(target, time.Now())
@@ -484,7 +486,6 @@ func (a *AppState) View(c *ui.Context) {
 	if a == nil || a.Shell == nil {
 		return
 	}
-	a.followAccent(c.Now())
 	a.refreshEditorChrome()
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion)

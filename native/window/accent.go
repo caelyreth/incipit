@@ -7,34 +7,43 @@ import (
 	"github.com/caelyreth/neverland/native/theme"
 )
 
-// The accent is Halo, and follows the sheet in front: one in a group of
-// another hue turns the window to it, blending as a theme change does;
-// one in a Moonveil group, in the Inbox, or none, is in Halo.
+// Global chrome, field, list view and pills stay on Halo; only each open
+// sheet's editor wears its group's hue, blending per sheet as its group's
+// color or app appearance changes. Sheets in a Moonveil group or the Inbox
+// keep Halo.
 
-// groupAccent is the accent of the sheet in front's group.
-func (a *AppState) groupAccent() theme.Accent {
-	if a.library == nil || a.Shell == nil {
+// sheetAccent is the accent of sheet id's group, or Halo when ungrouped or
+// Moonveil.
+func (a *AppState) sheetAccent(id string) theme.Accent {
+	if a.library == nil {
 		return theme.Halo
 	}
-	group, ok := a.Group(a.SheetGroup(a.Shell.ActivePage))
+	group, ok := a.Group(a.SheetGroup(id))
 	if !ok || group.Color < shell.TintHalo || group.Color >= shell.TintHalo+len(theme.AllAccents) {
 		return theme.Halo
 	}
 	return theme.AllAccents[group.Color-shell.TintHalo]
 }
 
-// followAccent turns the window to its group's accent as another sheet
-// comes in front or its group's color changes.
-func (a *AppState) followAccent(now time.Time) {
-	accent := a.groupAccent()
-	if accent == a.Shell.Settings.Accent {
-		return
+// sheetTheme returns the semantic theme for an open sheet's editor and
+// reports whether its per-sheet color transition is still moving.
+func (a *AppState) sheetTheme(session *sheetSession, id string, now time.Time) (theme.Theme, bool) {
+	settings := a.Shell.Settings
+	settings.Accent = a.sheetAccent(id)
+	target := settings.Semantic()
+	if !session.tinted {
+		session.colors.Jump(target)
+		session.accent = settings.Accent
+		session.appearance = settings.Appearance
+		session.tinted = true
+	} else if settings.Accent != session.accent || settings.Appearance != session.appearance {
+		session.accent = settings.Accent
+		session.appearance = settings.Appearance
+		if a.Product.Presentation.Motion {
+			session.colors.Retarget(target, now)
+		} else {
+			session.colors.Jump(target)
+		}
 	}
-	a.Shell.Settings.Accent = accent
-	target := a.Shell.Settings.Semantic()
-	if a.Product.Presentation.Motion {
-		a.colors.Retarget(target, now)
-	} else {
-		a.colors.Jump(target)
-	}
+	return session.colors.At(settings, now)
 }

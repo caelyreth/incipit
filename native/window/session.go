@@ -5,6 +5,7 @@ import (
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/native/page"
+	"github.com/caelyreth/neverland/native/theme"
 )
 
 // sheetSession is one page: its identity in the workspace and in the
@@ -26,6 +27,12 @@ type sheetSession struct {
 	// summarizer what it keeps of the page's reading between snapshots.
 	summarized *doc.Snapshot
 	summarizer storage.Summarizer
+	// colors blends this sheet's editor theme as its group's color or the
+	// app's appearance changes; accent and appearance track the last target.
+	colors     theme.Transition
+	accent     theme.Accent
+	appearance theme.Appearance
+	tinted     bool
 }
 
 // text is the page's newest snapshot this run: its editor's, or the one
