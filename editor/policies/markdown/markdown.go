@@ -38,6 +38,7 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 		em:     policy.KeyedFacts(p, "em", char),
 		strong: policy.KeyedFacts(p, "strong", char),
 		half:   policy.KeyedFacts(p, "half", func(h half) byte { return h.Char }),
+		open:   policy.KeyedFacts(p, "open", markOfRun),
 		code:   policy.Facts[run](p, "code"),
 		strike: policy.Facts[run](p, "strike"),
 	}
@@ -71,24 +72,22 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 		policy.On(p, "close-strike", policy.Typed("~"), past(k.strike.Subject), closeRun(profile.Strike, false)).When(noSpace)
 	}
 
-	// Opening delimiters: content typed right after an opener at a line's
-	// end opens its mark at once, the closing sign shown ahead, as a
-	// bracket closes as it opens. Notation edits the signs from there.
+	// Opening delimiters: content typed right after an unclosed opener
+	// opens its mark at once, the closing sign shown ahead, as a bracket
+	// closes as it opens. Notation edits the signs from there.
 	content := policy.TypedClass(vocab.ClassWord | vocab.ClassDigit | vocab.ClassCJK)
-	open := func(name string, s policy.Subject[run], mark doc.MarkKind) {
-		policy.On(p, "open-"+name, content, s.Empty(), openMark(mark))
+	open := func(name string, mark doc.MarkKind) {
+		policy.On(p, "open-"+name, content, k.open.Key(mark).Behind(), openMark(mark))
 	}
-	for _, c := range []byte{'*', '_'} {
-		if c == '*' && inline.Asterisks || c == '_' && inline.Underscores {
-			open("emphasis-"+string(c), k.em.Key(c), profile.Emphasis)
-			open("strong-"+string(c), k.strong.Key(c), profile.Strong)
-		}
+	if inline.Asterisks || inline.Underscores {
+		open("emphasis", profile.Emphasis)
+		open("strong", profile.Strong)
 	}
 	if inline.Code {
-		open("code", k.code.Subject, profile.CodeMark)
+		open("code", profile.CodeMark)
 	}
 	if inline.Strike {
-		open("strike", k.strike.Subject, profile.Strike)
+		open("strike", profile.Strike)
 	}
 
 	// Block prefixes and fences, right behind the caret.
@@ -153,7 +152,7 @@ func openMark(mark doc.MarkKind) func(*policy.Ctx, vocab.Type, policy.At[run]) p
 		// The caret stands against the text it typed, inside the mark.
 		after := doc.Collapsed(doc.Caret{Pos: end, Stop: doc.StopFirst})
 		return policy.Result{Selection: &after, Pending: marks,
-			Edits: []vocab.Edit{vocab.Ops(doc.EditText{At: ref, From: f.Outer.From.At, To: f.Inner.From.At,
+			Edits: []vocab.Edit{vocab.Ops(doc.EditText{At: ref, From: f.Outer.From.At, To: f.Outer.To.At,
 				Items: []doc.Item{doc.TextItem(in.Text, marks)}})}}
 	}
 }

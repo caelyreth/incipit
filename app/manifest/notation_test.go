@@ -460,3 +460,67 @@ func TestASignsGlyphsEditAlikeAtBothEnds(t *testing.T) {
 		}
 	}
 }
+
+func TestSteppingMarkEdgesFromEitherSide(t *testing.T) {
+	left := vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+	back := vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+
+	// Before opening sign: |*b* + * -> *|*b** (Strong).
+	p := open(t)
+	p.typeText("a *b*")
+	for i := 0; i < 10 && p.shown() != "a |[*]b[*]"; i++ {
+		p.do(left)
+	}
+	p.wantShown("a |[*]b[*]")
+	p.typeText("*")
+	p.wantShown("a [*|*]b[**]")
+	if !hasMark(p, profile.Strong) || hasMark(p, profile.Emphasis) {
+		t.Fatalf("before-opener * did not promote emphasis to strong: %s", outline(p.e.Snapshot().Root()))
+	}
+
+	// After closing sign: *b*| + * -> **b**| (Strong).
+	p = open(t)
+	p.typeText("a *b*")
+	p.wantShown("a [*]b[*]|")
+	p.typeText("*")
+	p.wantShown("a [**]b[**]|")
+	if !hasMark(p, profile.Strong) || hasMark(p, profile.Emphasis) {
+		t.Fatalf("after-closer * did not promote emphasis to strong: %s", outline(p.e.Snapshot().Root()))
+	}
+
+	// Backspace inside opening sign keeps caret before remaining glyph.
+	p = open(t)
+	p.typeText("a **b**")
+	for i := 0; i < 10 && p.shown() != "a [*|*]b[**]"; i++ {
+		p.do(left)
+	}
+	p.wantShown("a [*|*]b[**]")
+	p.do(back)
+	p.wantShown("a |[*]b[*]")
+	if !hasMark(p, profile.Emphasis) || hasMark(p, profile.Strong) {
+		t.Fatalf("backspace inside opening sign did not step strong down: %s", outline(p.e.Snapshot().Root()))
+	}
+
+	// Emphasis nested inside Strong is preserved when * is typed at its edge.
+	p = open(t)
+	p.typeText("a **one two three**")
+	for i := 0; i < 15 && p.shown() != "a [**]one two| three[**]"; i++ {
+		p.do(left)
+	}
+	p.wantShown("a [**]one two| three[**]")
+	for range len("two") {
+		p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward, Extend: true})
+	}
+	p.do(profile.Format{Mark: profile.Emphasis})
+	p.do(left)
+	for i := 0; i < 15 && p.shown() != "a [**]one [*]|two[*] three[**]"; i++ {
+		p.do(left)
+	}
+	p.wantShown("a [**]one [*]|two[*] three[**]")
+	p.typeText("*")
+	slot := p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Content()
+	twoAt := strings.Index(slot.Text(), "two")
+	if ms := slot.MarksAt(twoAt + 1); ms == nil || !ms.Has(profile.Strong) || !ms.Has(profile.Emphasis) {
+		t.Fatalf("nested marks lost on *: got %v", ms)
+	}
+}

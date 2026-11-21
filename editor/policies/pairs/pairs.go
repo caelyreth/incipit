@@ -230,8 +230,13 @@ func (p pair) Entry() doc.Caret { return doc.CaretAt(doc.At(p.slot, p.innerTo)) 
 
 // --- rules -------------------------------------------------------------------
 
-// replace puts text over a span, in the marks the text before it has.
+// replace puts text over a span, in explicit marks when given or the marks
+// inherited before it.
 func replace(s vocab.Span, text string) vocab.Edit {
+	return replaceMarks(s, text, nil, true)
+}
+
+func replaceMarks(s vocab.Span, text string, marks *doc.MarkSet, inherit bool) vocab.Edit {
 	return func(tx *doc.Tx) error {
 		n, ok := tx.Node(s.Slot.Node)
 		if !ok {
@@ -239,7 +244,11 @@ func replace(s vocab.Span, text string) vocab.Edit {
 		}
 		var items []doc.Item
 		if text != "" {
-			items = []doc.Item{doc.TextItem(text, vocab.InheritedMarks(tx.Schema(), n.Slot(s.Slot.Slot).Content(), s.From))}
+			ms := marks
+			if inherit {
+				ms = vocab.InheritedMarks(tx.Schema(), n.Slot(s.Slot.Slot).Content(), s.From)
+			}
+			items = []doc.Item{doc.TextItem(text, ms)}
 		}
 		return tx.Apply(doc.EditText{At: s.Slot, From: s.From, To: s.To, Items: items})
 	}
@@ -249,11 +258,31 @@ func openPair(k kind) func(*policy.Ctx, vocab.Type, policy.At[doc.SlotRef]) poli
 	return func(c *policy.Ctx, _ vocab.Type, _ policy.At[doc.SlotRef]) policy.Result {
 		at := c.Head().Pos
 		inner := doc.At(at.Ref(), at.Offset+len(k.open))
-		res := policy.Do(replace(vocab.Span{Slot: at.Ref(), From: at.Offset, To: at.Offset}, k.open+k.close))
+		var marks *doc.MarkSet
+		inherit := true
+		if p := c.Pending(); p != nil {
+			marks, inherit = p.Marks, false
+		}
+		res := policy.Do(replaceMarks(vocab.Span{Slot: at.Ref(), From: at.Offset, To: at.Offset}, k.open+k.close, marks, inherit))
 		res = res.With(doc.Collapsed(doc.CaretAt(inner)))
 		res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 		return res
 	}
+}
+
+func wrapMarks(c *policy.Ctx, in *doc.Inline, from, to doc.Pos) *doc.MarkSet {
+	sel := c.Selection()
+	selStart := sel.Anchor
+	if doc.Compare(c.Doc(), sel.Head, sel.Anchor) < 0 {
+		selStart = sel.Head
+	}
+	if selStart.Stop > 0 && from.Offset < to.Offset {
+		return in.MarksAt(from.Offset + 1)
+	}
+	if from.Offset == 0 {
+		return c.Doc().Marks().Empty()
+	}
+	return vocab.InheritedMarks(c.Doc().Schema(), in, from.Offset)
 }
 
 func wrap(k kind) func(*policy.Ctx, vocab.Type, policy.At[doc.SlotRef]) policy.Result {
@@ -266,9 +295,11 @@ func wrap(k kind) func(*policy.Ctx, vocab.Type, policy.At[doc.SlotRef]) policy.R
 				With(doc.Collapsed(doc.CaretAt(doc.At(from.Ref(), from.Offset+len(k.open)))))
 		}
 		ref := from.Ref()
+		in, _ := c.Inline(ref)
+		marks := wrapMarks(c, in, from, to)
 		res := policy.Do(
-			replace(vocab.Span{Slot: ref, From: to.Offset, To: to.Offset}, k.close),
-			replace(vocab.Span{Slot: ref, From: from.Offset, To: from.Offset}, k.open),
+			replaceMarks(vocab.Span{Slot: ref, From: to.Offset, To: to.Offset}, k.close, marks, false),
+			replaceMarks(vocab.Span{Slot: ref, From: from.Offset, To: from.Offset}, k.open, marks, false),
 		)
 		start := doc.CaretAt(doc.At(ref, from.Offset+len(k.open)))
 		end := doc.CaretAt(doc.At(ref, to.Offset+len(k.open)))

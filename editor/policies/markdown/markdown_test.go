@@ -172,3 +172,53 @@ func TestAnInputMethodCommitOpensAMark(t *testing.T) {
 		t.Fatal("the commit is not emphasised")
 	}
 }
+
+func TestMidLineInlineMarkupOpensAndCloses(t *testing.T) {
+	left := vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+	for _, tc := range []struct {
+		name      string
+		setup     string
+		back      int
+		typed     string
+		wantPlain string
+		wantMark  doc.MarkKind
+	}{
+		{"emphasis before space", "hello  world", 6, "*mid*", "hello mid world", profile.Emphasis},
+		{"strong before space", "hello  world", 6, "**mid**", "hello mid world", profile.Strong},
+		{"code before space", "hello  world", 6, "`mid`", "hello mid world", profile.CodeMark},
+		{"strike before space", "hello  world", 6, "~mid~", "hello mid world", profile.Strike},
+		{"emphasis inside parens", "hello  world", 6, "(*mid*", "hello (mid) world", profile.Emphasis},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := open(t)
+			p.typeText(tc.setup)
+			for range tc.back {
+				p.do(left)
+			}
+			p.typeText(tc.typed)
+			slot := p.e.Snapshot().Root().Slot(0).Child(0).Slot(0).Content()
+			if got := slot.Text(); got != tc.wantPlain {
+				t.Fatalf("text = %q, want %q", got, tc.wantPlain)
+			}
+			midAt := strings.Index(tc.wantPlain, "mid")
+			if ms := slot.MarksAt(midAt + 1); ms == nil || !ms.Has(tc.wantMark) {
+				t.Fatalf("marks at mid = %v, want %v", ms, tc.wantMark)
+			}
+		})
+	}
+}
+
+func TestMidLineLiteralDelimitersStayLiteral(t *testing.T) {
+	left := vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}
+	p := open(t)
+	p.typeText("hello world")
+	for range len("world") {
+		p.do(left)
+	}
+	p.typeText("*a")
+	p.want("page(paragraph(hello *aworld))")
+
+	p = open(t)
+	p.typeText("2 * 3 4*")
+	p.want("page(paragraph(2 * 3 4*))")
+}

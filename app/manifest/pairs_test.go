@@ -325,3 +325,41 @@ func TestAHandTypedCloserIsSteppedOver(t *testing.T) {
 	p.want("page(paragraph(a (bc)))")
 	p.wantShown("a (bc)|")
 }
+
+func TestPairsRespectMarkBoundariesAndWrapping(t *testing.T) {
+	// Typing ( right after a closed mark stays unmarked outside it.
+	p := open(t)
+	p.typeText("a *bc*(")
+	p.wantShown("a [*]bc[*](|)")
+
+	// Typing ( right after an opening mark sign (before a non-word) stays marked inside it.
+	p = open(t)
+	p.typeText("a *bc*")
+	for i := 0; i < 10 && p.shown() != "a [*]|bc[*]"; i++ {
+		p.do(left)
+	}
+	p.typeText(" ")
+	p.do(left)
+	p.wantShown("a [*]| bc[*]")
+	p.typeText("(")
+	p.wantShown("a [*](|) bc[*]")
+
+	// Wrapping |*bc*| from outside the signs keeps both parens unmarked.
+	p = open(t)
+	p.typeText("a *bc*")
+	for range 4 {
+		p.do(extend(left))
+	}
+	p.typeText("(")
+	p.want("page(paragraph(a (<bc>)))")
+
+	// Wrapping *|bc|* inside the signs marks both parens with the content.
+	p = open(t)
+	p.typeText("a *bc*")
+	p.do(left)
+	for range 2 {
+		p.do(extend(left))
+	}
+	p.typeText("(")
+	p.want("page(paragraph(a <(bc)>))")
+}

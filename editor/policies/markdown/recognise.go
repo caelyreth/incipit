@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -68,11 +69,25 @@ type inlineConfig struct {
 type runKinds struct {
 	em, strong   policy.KeyedKind[run, byte]
 	half         policy.KeyedKind[half, byte]
+	open         policy.KeyedKind[run, doc.MarkKind]
 	code, strike *policy.FactKind[run]
 }
 
 func (k *runKinds) all() []policy.FactID {
-	return []policy.FactID{k.em.Kind(), k.strong.Kind(), k.half.Kind(), k.code.Kind(), k.strike.Kind()}
+	return []policy.FactID{k.em.Kind(), k.strong.Kind(), k.half.Kind(), k.open.Kind(), k.code.Kind(), k.strike.Kind()}
+}
+
+func markOfRun(r run) doc.MarkKind {
+	switch {
+	case r.Char == '`':
+		return profile.CodeMark
+	case r.Char == '~':
+		return profile.Strike
+	case r.N == 2:
+		return profile.Strong
+	default:
+		return profile.Emphasis
+	}
 }
 
 type openRun struct {
@@ -96,7 +111,9 @@ func analyzeRuns(cfg inlineConfig, k *runKinds) func(u *policy.Unit, e *policy.E
 		base := u.From
 		end := base + len(t)
 		var stack []openRun
+		var waits []openRun
 		code := -1
+		codeWait := false
 		for i := 0; i < len(t); {
 			c := t[i]
 			if c == '`' && cfg.Code {
@@ -108,8 +125,14 @@ func analyzeRuns(cfg inlineConfig, k *runKinds) func(u *policy.Unit, e *policy.E
 				}
 				if code >= 0 {
 					code = -1
+					codeWait = false
 				} else {
 					code = i
+					prev, _ := utf8.DecodeLastRuneInString(t[:i])
+					prevWord := i > 0 && vocab.ClassOf(prev)&vocab.ClassWord != 0
+					next, _ := utf8.DecodeRuneInString(t[i+1:])
+					nextWord := i+1 < len(t) && vocab.ClassOf(next)&vocab.ClassWord != 0
+					codeWait = !prevWord && !nextWord
 				}
 				i++
 				continue
@@ -138,24 +161,41 @@ func analyzeRuns(cfg inlineConfig, k *runKinds) func(u *policy.Unit, e *policy.E
 					} else {
 						stack = stack[:j]
 					}
+					for w := len(waits) - 1; w >= 0; w-- {
+						if waits[w].start >= o.start {
+							waits = append(waits[:w], waits[w+1:]...)
+						}
+					}
 					closed = true
 					break
 				}
 			}
 			prev, _ := utf8.DecodeLastRuneInString(t[:i])
 			prevWord := i > 0 && vocab.ClassOf(prev)&vocab.ClassWord != 0
+			next, _ := utf8.DecodeRuneInString(t[i+n:])
+			nextWord := i+n < len(t) && vocab.ClassOf(next)&vocab.ClassWord != 0
 			intraword := c == '_' && prevWord
-			// An opener at the line's end, after no word, waits for what
-			// is typed next: content opens the mark (§12), a space keeps
-			// the delimiter literal.
-			waits := i+n >= len(t) && !prevWord
-			if !closed && (!nextSpace || waits) && !intraword && n <= 2 && !(c == '~' && n != 1) {
+			valid := !closed && !intraword && n <= 2 && !(c == '~' && n != 1)
+			if valid && !nextSpace {
 				stack = append(stack, openRun{char: c, n: n, start: i, half: -1})
+			}
+			// An unclosed opener not hugging adjacent words waits wherever it
+			// stands on the line: typing content right after it opens the mark
+			// (§12), while spaces and non-hugging text keep it literal.
+			if valid && !prevWord && !nextWord {
+				waits = append(waits, openRun{char: c, n: n, start: i, half: -1})
 			}
 			i += n
 		}
 		if code >= 0 {
 			e.Fact(k.code.Delimited(base+code, base+code+1, end, end, run{Char: '`', N: 1}))
+			if codeWait {
+				e.Fact(k.open.Span(base+code, base+code+1, run{Char: '`', N: 1}))
+			}
+		}
+		for _, o := range waits {
+			data := run{Char: o.char, N: o.n}
+			e.Fact(k.open.Span(base+o.start, base+o.start+o.n, data))
 		}
 		for _, o := range stack {
 			data := run{Char: o.char, N: o.n}

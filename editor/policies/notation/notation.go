@@ -95,6 +95,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 			typed, name := policy.Typed(c), string(profile.MarkSpellings(m)[0])+c
 			if _, ok := profile.MarkStep(m, vocab.Forward); ok {
 				policy.On(p, "step-up"+name, typed, span.AtStart(), stepUp)
+				policy.On(p, "step-up-after"+name, typed, span.Behind(), stepUpAfter)
+				policy.On(p, "step-up-before"+name, typed, span.Ahead(), stepUpBefore).
+					When(policy.Not(policy.Behind(span)))
 			}
 			policy.On(p, "overtype-in"+name, typed, sign.Inside(), stepOver)
 		}
@@ -459,16 +462,31 @@ func ghostsAt(c *policy.Ctx, k kinds, pos doc.Pos) []policy.Fact {
 	return out
 }
 
-// stepSign steps the mark whose sign the caret is inside down one level.
-func stepSign(_ *policy.Ctx, _ vocab.Delete, at policy.At[markGhost]) policy.Result {
-	return policy.Do(stepRun(at.Data.Mark, at.Data.run(at), vocab.Backward))
+// stepSign steps the mark whose sign the caret is inside down one level,
+// keeping the caret among any opening glyphs before it.
+func stepSign(c *policy.Ctx, _ vocab.Delete, at policy.At[markGhost]) policy.Result {
+	res := policy.Do(stepRun(at.Data.Mark, at.Data.run(at), vocab.Backward))
+	res.Selection = keptBehind(c, at.Fact)
+	return res
 }
 
 // stepSignAhead steps the mark down for the sign's glyph ahead.
 func stepSignAhead(c *policy.Ctx, in vocab.Delete, at policy.At[markGhost]) policy.Result {
-	res := stepSign(c, in, at)
+	res := policy.Do(stepRun(at.Data.Mark, at.Data.run(at), vocab.Backward))
 	res.Selection = keptAhead(c, at.Fact)
 	return res
+}
+
+// keptBehind mirrors keptAhead for backward deletion inside a sign: when
+// the glyph behind the caret goes on an AttachAfter ghost, earlier stops
+// shift down by one so the caret stays before the remaining glyph.
+func keptBehind(c *policy.Ctx, f *policy.Fact) *doc.Selection {
+	head := c.Head()
+	if f != nil && f.Glyph != nil && f.Glyph.Attach == policy.AttachAfter && head.Stop > 0 {
+		head.Stop--
+	}
+	sel := doc.Collapsed(head)
+	return &sel
 }
 
 // keptAhead is the caret kept among the glyphs before it as the ghost's
@@ -496,12 +514,59 @@ func stepAhead(c *policy.Ctx, _ vocab.Delete, at policy.At[markerGhost]) policy.
 }
 
 // stepUp spells the mark the caret is in one level up, both its signs.
-func stepUp(_ *policy.Ctx, _ vocab.Type, at policy.At[markSpan]) policy.Result {
+func stepUp(c *policy.Ctx, _ vocab.Type, at policy.At[markSpan]) policy.Result {
 	// The opening sign grows by the typed character; the caret stays
 	// after it, where the text begins.
 	f := at.Fact
-	after := doc.Collapsed(doc.Caret{Pos: doc.At(at.Slot, f.Outer.From.At), Stop: f.Inner.From.Stop + 1})
+	return stepUpTo(c, at, doc.Collapsed(doc.Caret{Pos: doc.At(at.Slot, f.Outer.From.At), Stop: f.Inner.From.Stop + 1}))
+}
+
+// stepUpBefore spells the mark ahead of the caret one level up, keeping
+// the caret between the opening glyphs.
+func stepUpBefore(c *policy.Ctx, _ vocab.Type, at policy.At[markSpan]) policy.Result {
+	f := at.Fact
+	return stepUpTo(c, at, doc.Collapsed(doc.Caret{Pos: doc.At(at.Slot, f.Outer.From.At), Stop: f.Outer.From.Stop + 1}))
+}
+
+// stepUpAfter spells the mark behind the caret one level up, keeping the
+// caret after its closing sign.
+func stepUpAfter(c *policy.Ctx, _ vocab.Type, at policy.At[markSpan]) policy.Result {
+	f := at.Fact
+	return stepUpTo(c, at, doc.Collapsed(doc.Caret{Pos: doc.At(at.Slot, f.Outer.To.At), Stop: f.Outer.To.Stop}))
+}
+
+func stepUpTo(c *policy.Ctx, at policy.At[markSpan], after doc.Selection) policy.Result {
+	next, ok := profile.MarkStep(at.Data.Mark.Kind, vocab.Forward)
+	if !ok {
+		return policy.Pass
+	}
+	f := at.Fact
+	if hasMarkAcross(c, at.Slot, f.Outer.From.At, f.Outer.To.At, next) {
+		return policy.Pass
+	}
 	return policy.Result{Edits: []vocab.Edit{stepRun(at.Data.Mark, boundSpan(at).run(), vocab.Forward)}, Selection: &after}
+}
+
+func hasMarkAcross(c *policy.Ctx, slot doc.SlotRef, from, to int, kind doc.MarkKind) bool {
+	in, ok := c.Inline(slot)
+	if !ok || from >= to {
+		return false
+	}
+	all := true
+	in.Each(func(at int, it doc.Item) bool {
+		if at+it.Len() <= from {
+			return true
+		}
+		if at >= to {
+			return false
+		}
+		if it.Node == nil && !it.Marks.Has(kind) {
+			all = false
+			return false
+		}
+		return true
+	})
+	return all
 }
 
 // stepOver steps over the sign's glyph ahead, as typing it would write it.
