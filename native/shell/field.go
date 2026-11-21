@@ -19,6 +19,9 @@ import (
 // condition taken away folds them back into the block it came from.
 
 type fieldState struct {
+	// railShown is the stop of the list's rail its card last named
+	// (rail.go).
+	railShown int
 	// conditions are the query's conditions, each as the language writes
 	// it, shown as ribbons on the pill; words is what is written after
 	// them, and edit what the pill's input is to be set to.
