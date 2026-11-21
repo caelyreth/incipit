@@ -356,6 +356,6 @@ func cardHead(c *ui.Context, semantic theme.Theme, icon components.IconName, tit
 // moreLabel says how many rows a card leaves out.
 func moreLabel(c *ui.Context, semantic theme.Theme, more int, h float32, m blockMetrics) {
 	ui.Row(c).Key("more").Height(h).PaddingX(rowPad(m.scale)).AlignItems(ui.Center).Children(func() {
-		components.CenteredLabel(c, thousands(more)+" more", theme.TextXSmall, semantic.Text.Muted)
+		components.CenteredLabel(c, thousands(more)+" more", theme.TextXSmall, semantic.Text.Muted).FontFeatures("tnum")
 	})
 }

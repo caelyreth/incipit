@@ -75,7 +75,7 @@ func (s *State) laneIcon(c *ui.Context, semantic theme.Theme, key string, icon c
 	if count > 0 {
 		words += " " + thousands(count)
 	}
-	wordsW, _ := c.MeasureText(0, ui.Span{Text: words, Font: theme.UIFontFamily, Size: size})
+	wordsW, _ := c.MeasureText(0, ui.Span{Text: words, Font: theme.UIFontFamily, Size: size, Features: "tnum"})
 	named := inset+iconSize+gap+wordsW+8*k <= s.fieldMargin(w, h)
 	row := ui.Row(c).Key(key).Absolute().Top(rest.Y - 24*k).Gap(gap).AlignItems(ui.Center).Label(name)
 	if left {
@@ -94,7 +94,7 @@ func (s *State) laneIcon(c *ui.Context, semantic theme.Theme, key string, icon c
 			components.CenteredLabel(c, name, theme.TextXSmall, semantic.Text.Muted).Shrink(0)
 		}
 		if count > 0 {
-			components.CenteredLabel(c, thousands(count), theme.TextXSmall, semantic.Text.Muted).Shrink(0)
+			components.CenteredLabel(c, thousands(count), theme.TextXSmall, semantic.Text.Muted).FontFeatures("tnum").Shrink(0)
 		}
 		if !left {
 			mark()

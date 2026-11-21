@@ -147,7 +147,7 @@ func (s *State) contentsRail(c *ui.Context, semantic theme.Theme, mid, top, bott
 			}
 			components.CenteredLabel(c, st.name, theme.TextDefault, semantic.Text.Heading).MinWidth(0)
 		})
-		components.CenteredLabel(c, thousands(st.sheets)+" "+nounForm(st.sheets, "sheet", "sheets"), theme.TextSmall, semantic.Text.Muted)
+		components.CenteredLabel(c, thousands(st.sheets)+" "+nounForm(st.sheets, "sheet", "sheets"), theme.TextSmall, semantic.Text.Muted).FontFeatures("tnum")
 	})
 }
 

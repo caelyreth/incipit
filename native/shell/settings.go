@@ -269,7 +269,7 @@ func (s *State) settingsMoreRow(c *ui.Context, semantic theme.Theme, category st
 		s.intoSettings(category, "", fr.Rect)
 	}
 	btn.Children(func() {
-		components.CenteredLabel(c, label, theme.TextXSmall, semantic.Text.Muted)
+		components.CenteredLabel(c, label, theme.TextXSmall, semantic.Text.Muted).FontFeatures("tnum")
 	})
 }
 

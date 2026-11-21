@@ -202,7 +202,7 @@ func (s *State) trayCard(c *ui.Context, semantic theme.Theme, sh SheetItem, widt
 				components.Label(c, sh.Excerpt, theme.TextXSmall, semantic.Text.Muted).MaxLines(2)
 			}
 			if sh.Words > 0 {
-				components.Label(c, thousands(sh.Words)+" words", theme.TextXSmall, semantic.Text.Muted).SingleLine()
+				components.Label(c, thousands(sh.Words)+" words", theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
 			}
 		})
 	})

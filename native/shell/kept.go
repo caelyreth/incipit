@@ -394,7 +394,7 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 		// The pointer on it, its count gives way to its ×.
 		ui.Box(c).Key("end").Shrink(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			components.CenteredLabel(c, thousands(g.Count), theme.TextXSmall, semantic.Surface.Page).
-				Opacity(shown * (1 - hover))
+				FontFeatures("tnum").Opacity(shown * (1 - hover))
 			miniCloseButton(c, semantic, "delete", "Delete "+g.Name, "Delete", 18*k, 11*k,
 				semantic.Surface.Page, semantic.Surface.Page.Alpha(0.25), animate,
 				func() { s.deleteBookmark(g.ID) }).
