@@ -5,8 +5,8 @@ import "time"
 // FadeInDuration is how quickly a decoration arrives, so feedback feels
 // immediate. FadeOutDuration lets it leave without a visible snap.
 const (
-	FadeInDuration  = 90 * time.Millisecond
-	FadeOutDuration = 240 * time.Millisecond
+	FadeInDuration  = 65 * time.Millisecond
+	FadeOutDuration = 140 * time.Millisecond
 )
 
 // Fade eases what shows and hides in and out: a cubic ease-out toward

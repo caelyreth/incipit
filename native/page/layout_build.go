@@ -378,6 +378,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 		spans = []ui.Span{span("", base, m)}
 	}
 	sl.layout = ui.ShapeRichTextWith(spans, font, shape)
+	sl.fontSize = font.Size
 	_, sl.h = sl.layout.Size()
 	sl.h = max(sl.h, lineHeight(m, m.Body*base.Size))
 	for _, line := range sl.layout.Lines() {

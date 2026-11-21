@@ -11,10 +11,10 @@ import (
 // is longer than the gap between keystrokes, so the caret stays solid
 // while typing. CaretWake and CaretOpacity both read it: a wake at any
 // other time lets breathing start between frames and the caret jump.
-const CaretSolid = 240 * time.Millisecond
+const CaretSolid = 450 * time.Millisecond
 
 // CaretBreath is one full transparent-and-back breathing period.
-const CaretBreath = 1050 * time.Millisecond
+const CaretBreath = 1200 * time.Millisecond
 
 const CaretInterval = time.Second / 30
 

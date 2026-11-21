@@ -155,28 +155,55 @@ func (pl *pageLayout) span(covers []present.Cover) (ui.Rect, float32, bool) {
 	return r, head, ok
 }
 
+type caretMetric struct {
+	rect        ui.Rect
+	kind        spotKind
+	baseline    float32
+	fontSize    float32
+	hasBaseline bool
+}
+
+func (cm caretMetric) scale(body float32) float32 {
+	if body > 0 && cm.fontSize > 0 {
+		return cm.fontSize / body
+	}
+	return 1
+}
+
 // spot is where a place stands, in page coordinates, and what it is.
 func (pl *pageLayout) spot(c doc.Caret) (ui.Rect, spotKind, bool) {
+	cm, ok := pl.spotMetrics(c)
+	return cm.rect, cm.kind, ok
+}
+
+// caretMetrics is where c stands in page coordinates along with its line's
+// baseline and resolved base font size when it sits in shown text.
+func (pl *pageLayout) caretMetrics(c doc.Caret) (caretMetric, bool) {
+	return pl.spotMetrics(c)
+}
+
+func (pl *pageLayout) spotMetrics(c doc.Caret) (caretMetric, bool) {
 	pc, ok := pl.lookup(c)
 	if !ok {
-		return ui.Rect{}, 0, false
+		return caretMetric{}, false
 	}
 	if pc.surface == nil {
 		u := pc.unit
 		if pc.stop == u.gaps[0] {
-			return ui.Rect{X: u.x + u.box.X, Y: u.y - gapBarRoom - 1, W: u.box.W, H: 2}, spotGapBefore, true
+			return caretMetric{rect: ui.Rect{X: u.x + u.box.X, Y: u.y - gapBarRoom - 1, W: u.box.W, H: 2}, kind: spotGapBefore}, true
 		}
-		return ui.Rect{X: u.x + u.box.X, Y: u.bottom() + gapBarRoom - 1, W: u.box.W, H: 2}, spotGapAfter, true
+		return caretMetric{rect: ui.Rect{X: u.x + u.box.X, Y: u.bottom() + gapBarRoom - 1, W: u.box.W, H: 2}, kind: spotGapAfter}, true
 	}
 	if !pc.surface.shown {
 		// A surface not shown stands in for its object (paints.go).
-		return standIn(pc.unit, pc.surface), spotObject, true
+		return caretMetric{rect: standIn(pc.unit, pc.surface), kind: spotObject}, true
 	}
 	at := pc.stop.u
 	if pc.surface.hasMarked && at == pc.surface.marked.Start {
 		at = pc.surface.compSel
 	}
-	r := glyphBox(pc.surface, pc.surface.caretRect(at))
+	cr := pc.surface.caretRect(at)
+	r := glyphBox(pc.surface, cr)
 	x, y := pc.unit.origin(pc.surface)
 	r.X += x
 	r.Y += y
@@ -185,7 +212,12 @@ func (pl *pageLayout) spot(c doc.Caret) (ui.Rect, spotKind, bool) {
 		// past.
 		r.X = min(max(r.X, pc.unit.x+v.X), pc.unit.x+v.X+v.W-r.W)
 	}
-	return r, spotText, true
+	cm := caretMetric{rect: r, kind: spotText, fontSize: pc.surface.fontSize}
+	if l, ok := lineAt(pc.surface, cr); ok {
+		cm.baseline = y + l.Baseline
+		cm.hasBaseline = true
+	}
+	return cm, true
 }
 
 // caretBox is where a caret stands, in page coordinates.

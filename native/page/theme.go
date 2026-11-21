@@ -25,9 +25,9 @@ func Theme(t theme.Theme) present.Theme {
 		profile.GroupHeading: {Set: present.SetFont | present.SetWeight | present.SetColor | present.SetSpace, Font: present.FontHeading,
 			Weight: 700, Color: pack(t.Prose.Strong), Space: 1.6},
 		profile.GroupEmphasis: {Set: present.SetColor | present.SetBackground,
-			Color: pack(t.Families[theme.Unripe].Foreground), Background: pack(t.Families[theme.Unripe].Surface)},
+			Color: pack(t.Families[theme.Unripe].Foreground), Background: pack(t.Families[theme.Unripe].Surface.Alpha(0.55))},
 		profile.GroupStrong: {Set: present.SetWeight | present.SetColor | present.SetBackground, Weight: 700,
-			Color: pack(t.Families[theme.Regolith].Foreground), Background: pack(t.Families[theme.Regolith].Surface)},
+			Color: pack(t.Families[theme.Regolith].Foreground), Background: pack(t.Families[theme.Regolith].Surface.Alpha(0.55))},
 		profile.GroupCodeMark: {Set: present.SetFont | present.SetBackground | present.SetSize, Font: present.FontMono,
 			Size: 0.9, Background: pack(t.Surface.Inset)},
 		profile.GroupStrike:        {Set: present.SetStrike | present.SetColor, Strike: true, Color: pack(t.Text.Muted)},
@@ -58,11 +58,11 @@ func Theme(t theme.Theme) present.Theme {
 		// in, so tags add no hue to the page.
 		profile.GroupTag: {Set: present.SetBackground | present.SetColor,
 			Background: pack(t.Tag.Background), Color: pack(t.Tag.Foreground)},
-		vocab.GroupPairMatch: {Set: present.SetBackground, Background: pack(t.Families[t.AccentFamily].Surface)},
+		vocab.GroupPairMatch: {Set: present.SetBackground, Background: pack(t.Families[t.AccentFamily].Surface.Alpha(0.60))},
 		vocab.GroupScope: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[t.AccentFamily].Muted)},
 		vocab.GroupPulse: {Set: present.SetBackground | present.SetLine | present.SetLineColor | present.SetOutline,
-			Background: pack(t.Families[theme.Life].Surface), Line: present.LineUnder,
+			Background: pack(t.Families[theme.Life].Surface.Alpha(0.65)), Line: present.LineUnder,
 			LineColor: pack(t.Families[theme.Life].Foreground), Outline: pack(t.Families[theme.Life].Foreground)},
 	}
 	// A find's matches are underlined in Regolith, quietly; the one the

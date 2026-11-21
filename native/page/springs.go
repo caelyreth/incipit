@@ -21,6 +21,8 @@ import (
 //     where it is asked to be, one asked again glides there, and one no
 //     paint asks for is forgotten, so what goes and comes back comes in
 //     where it is.
+//   - A factor is like a place on a unitless ratio (such as a heading
+//     scale or gap multiplier): unit-precision tolerances without rest.
 //
 // A paint steps each value it asks for at the paint's time; at its end,
 // each share and room it did not ask for steps toward its rest, and is
@@ -44,6 +46,7 @@ const (
 	shareValue valueKind = iota
 	roomValue
 	placeValue
+	factorValue
 )
 
 // springKey names a spring: its unit, what it moves, its line, and which
@@ -76,7 +79,7 @@ func (s *springs) begin(now time.Time, animate bool) {
 func (s *springs) end() bool {
 	for k, v := range s.m {
 		if !v.asked {
-			if k.of == placeValue || !s.animate {
+			if k.of == placeValue || k.of == factorValue || !s.animate {
 				delete(s.m, k)
 				continue
 			}
@@ -99,7 +102,7 @@ func (s *springs) follow(key springKey, target, frequency float32) float32 {
 	v, ok := s.m[key]
 	if !ok {
 		start := float32(0)
-		if key.of == placeValue || !s.painted {
+		if key.of == placeValue || key.of == factorValue || !s.painted {
 			start = target
 		}
 		v = &sprung{s: newSpring(start, s.now, key.of)}
@@ -164,27 +167,31 @@ func (s *springs) put(key springKey, v *sprung) {
 }
 
 func newSpring(v float32, now time.Time, of valueKind) motion.Spring {
-	if of == shareValue {
+	if of == shareValue || of == factorValue {
 		return motion.NewUnitSpring(v, now)
 	}
 	return motion.NewSpring(v, now)
 }
 
 // The page's springs arrive as the app's do (components.Spring), one pace
-// for one kind of thing wherever it moves: what follows a place (the
-// caret, a selection's rows, a guide) and controls (grips, hints, lights,
-// a guide's fade) in MotionNormal; the layout settling (a flow's extents,
-// fades and glides, a picture shown, math drawn anew) in MotionSettle; a
-// carry's parting in MotionPanel; a hover in HoverIn and out in HoverOut,
-// what leaves a flow fading as a hover does; a press in MotionImmediate.
+// for one kind of thing wherever it moves: controls (grips, hints, lights,
+// a guide's fade) in MotionNormal; caret and selection glides crisper still;
+// heading size morphs settle promptly on unit precision; the layout settling
+// (a flow's extents, fades and glides, a picture shown, math drawn anew) in
+// MotionSettle; a carry's parting in MotionPanel; a hover in HoverIn and out
+// in HoverOut, what leaves a flow fading as a hover does; a press in
+// MotionImmediate.
 var (
-	chromeFollow = settleFrequency(components.MotionNormal)
-	placeFollow  = settleFrequency(components.MotionNormal)
-	layoutSettle = settleFrequency(components.MotionSettle)
-	carryPart    = settleFrequency(components.MotionPanel)
-	hoverIn      = settleFrequency(components.HoverIn)
-	hoverOut     = settleFrequency(components.HoverOut)
-	pressFollow  = settleFrequency(components.MotionImmediate)
+	chromeFollow    = settleFrequency(components.MotionNormal)
+	placeFollow     = settleFrequency(components.MotionNormal)
+	caretFollow     = settleFrequency(105 * time.Millisecond)
+	selectionFollow = settleFrequency(120 * time.Millisecond)
+	layoutSettle    = settleFrequency(components.MotionSettle)
+	headingSettle   = settleFrequency(180 * time.Millisecond)
+	carryPart       = settleFrequency(components.MotionPanel)
+	hoverIn         = settleFrequency(components.HoverIn)
+	hoverOut        = settleFrequency(components.HoverOut)
+	pressFollow     = settleFrequency(components.MotionImmediate)
 )
 
 // settleFrequency is the frequency of a critically damped spring whose

@@ -33,7 +33,7 @@ func (lc *layoutCache) resizedFrom(id doc.ID, was *unitLayout) {
 }
 
 func sizeKey(id doc.ID, name string) springKey {
-	return springKey{unit: id, name: name, of: placeValue}
+	return springKey{unit: id, name: name, of: factorValue}
 }
 
 // stepSizes moves each resizing unit's size and the room above it on to
@@ -57,8 +57,8 @@ func (el *Element) stepSizes(asks map[doc.ID]objectIn) {
 			delete(el.sizing, id)
 			continue
 		}
-		size := el.springs.follow(sizeKey(id, "size"), u.size, layoutSettle)
-		gap := el.springs.follow(sizeKey(id, "gap"), u.gap, layoutSettle)
+		size := el.springs.follow(sizeKey(id, "size"), u.size, headingSettle)
+		gap := el.springs.follow(sizeKey(id, "gap"), u.gap, headingSettle)
 		if el.springs.settled(sizeKey(id, "size")) && el.springs.settled(sizeKey(id, "gap")) {
 			delete(el.sizing, id)
 			continue

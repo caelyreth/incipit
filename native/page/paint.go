@@ -83,7 +83,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	// The selection's text glides beneath the text; a drag places it
 	// directly, so it follows the pointer and glides on from there. What
 	// else it covers is painted as every paint is.
-	rows := el.selection.Step(selectionRows(pl, paints), now, placeFollow, animate && el.textGesture() == nil)
+	rows := el.selection.Step(selectionRows(pl, paints), now, selectionFollow, animate && el.textGesture() == nil)
 	if el.selection.Moving() {
 		p.AnimationFrame()
 	}

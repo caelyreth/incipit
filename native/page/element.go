@@ -357,7 +357,7 @@ const manualHold = 650 * time.Millisecond
 // offset is where the page is drawn from: its scroll, less its pull past
 // an edge.
 func (el *Element) stepCaret(pl *pageLayout, now time.Time, animate bool) bool {
-	r, ok := pl.caretBox(el.shownSelection().Head, el.Editor.metrics)
+	cm, ok := pl.caretMetrics(el.shownSelection().Head)
 	if !ok {
 		el.caret.Hide()
 		return false
@@ -369,27 +369,35 @@ func (el *Element) stepCaret(pl *pageLayout, now time.Time, animate bool) bool {
 	}
 	if pc, ok := pl.lookup(el.shownSelection().Head); ok && pc.unit.kind != nil && pc.surface != nil {
 		if x, ok := pc.unit.kind.caretX(el, pc.unit, pc.surface); ok {
-			r.X = x
+			cm.rect.X = x
 		}
 	}
-	el.caret.Step(el.caretShape(r), now, placeFollow, animate)
+	el.caret.Step(el.caretShape(cm), now, caretFollow, animate)
 	return el.caret.Moving()
 }
 
-// caretShape is the caret drawn in a text row: two DIPs wide, as tall as
-// the prose's caret, growing with a row of larger text and centered in it
-// with the prose's small optical drop. A gap's bar keeps its shape.
-func (el *Element) caretShape(row ui.Rect) ui.Rect {
-	if row.W > 2 {
+// caretAscentShare is the portion of the caret's height reaching above the
+// line's baseline; anchoring here keeps mixed-script fallbacks and headings
+// optically centered on the baseline rather than dragged by taller descenders.
+const caretAscentShare = float32(0.78)
+
+// caretShape is the caret drawn in a text row: two DIPs wide, anchored to
+// the line's baseline and scaled to the surface's font size; a gap's bar
+// keeps its shape.
+func (el *Element) caretShape(cm caretMetric) ui.Rect {
+	row := cm.rect
+	if cm.kind != spotText || row.W > 2 {
 		return row
 	}
-	line := el.Prose.LineHeight()
+	scale := cm.scale(el.Prose.FontSize)
+	height := el.Prose.CaretHeight() * scale
+	if cm.hasBaseline {
+		return ui.Rect{X: row.X, Y: cm.baseline - height*caretAscentShare, W: 2, H: height}
+	}
 	h := row.H
 	if h <= 0 {
-		h = line
+		h = el.Prose.LineHeight() * scale
 	}
-	scale := max(1, h/line)
-	height := el.Prose.CaretHeight() * scale
 	return ui.Rect{X: row.X, Y: row.Y + (h-height)/2 + el.Prose.CaretOffsetY()*scale, W: 2, H: height}
 }
 
