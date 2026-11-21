@@ -41,9 +41,10 @@ type AppState struct {
 	// menuItems are the menu's items by the command each runs,
 	// formatItems the Format menu's, and menuShown what each was last
 	// given (syncMenu).
-	menuItems   map[keymap.CommandID]*mygo.MenuItem
-	formatItems []formatItem
-	menuShown   map[*mygo.MenuItem]menuShown
+	menuItems         map[keymap.CommandID]*mygo.MenuItem
+	formatItems       []formatItem
+	insertPictureItem *mygo.MenuItem
+	menuShown         map[*mygo.MenuItem]menuShown
 	// fresh are the sheets made this run, which go if closed empty.
 	fresh map[workspace.PageID]bool
 	// undoItem and redoItem are Edit's Undo and Redo for the field.

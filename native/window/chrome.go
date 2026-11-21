@@ -169,6 +169,7 @@ func toolbarBindings(keys *keymap.Keymap, catalog policy.Catalog) shell.ToolbarB
 		Strong:     format(profile.Strong),
 		Emphasis:   format(profile.Emphasis),
 		Code:       format(profile.CodeMark),
+		Strike:     format(profile.Strike),
 	}
 }
 

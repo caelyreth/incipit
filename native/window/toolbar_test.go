@@ -56,6 +56,17 @@ func TestToolbarBindingsFollowTheKeymap(t *testing.T) {
 	if app.Shell.Toolbar.Bindings.Typewriter != "" {
 		t.Fatalf("toolbar bindings after unbind = %#v", app.Shell.Toolbar.Bindings)
 	}
+
+	strikeCmd := keymap.CommandID("formats.strike")
+	strikeMoved := keymap.NewChord("u", keymap.ModifiersPrimary|keymap.ModifiersAlt|keymap.ModifiersShift)
+	app.Settings.Apply(appsettings.Remap(strikeCmd, strikeMoved))
+	if got, want := app.Shell.Toolbar.Bindings.Strike, keymap.Spell(strikeMoved, keymap.PlatformCurrent); got != want {
+		t.Fatalf("toolbar strike binding = %q, want %q", got, want)
+	}
+	app.Settings.Apply(appsettings.Unbind(strikeCmd))
+	if app.Shell.Toolbar.Bindings.Strike != "" {
+		t.Fatalf("toolbar strike binding after unbind = %q", app.Shell.Toolbar.Bindings.Strike)
+	}
 }
 
 func TestToolbarKeepsPresentationWithoutAPage(t *testing.T) {

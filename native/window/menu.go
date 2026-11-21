@@ -20,6 +20,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 	a.menuItems = map[keymap.CommandID]*mygo.MenuItem{}
 	a.menuShown = map[*mygo.MenuItem]menuShown{}
 	a.formatItems = nil
+	a.insertPictureItem = nil
 	a.undoField = nil
 	command := func(id keymap.CommandID) *mygo.MenuItem {
 		declared, _ := a.Product.Keymap.Command(id)
@@ -44,6 +45,11 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		item.Label += "…"
 		return item
 	}
+	a.insertPictureItem = &mygo.MenuItem{ID: "insert-picture", Label: "Insert Picture…", Click: a.menuClick(func() {
+		if el := a.pageElement(); el != nil && a.Shell.OnDesk() {
+			el.Editor.Do(vocab.Command{ID: "figures.insert"}, time.Now())
+		}
+	})}
 	menu := mygo.NewMenu([]*mygo.MenuItem{
 		{
 			Role: mygo.RoleAppMenu,
@@ -97,11 +103,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 				mygo.Separator(),
 				ellipsis(command(keymap.FindInSheet)),
 				mygo.Separator(),
-				{ID: "insert-picture", Label: "Insert Picture…", Click: a.menuClick(func() {
-					if el := a.pageElement(); el != nil && a.Shell.OnDesk() {
-						el.Editor.Do(vocab.Command{ID: "figures.insert"}, time.Now())
-					}
-				})},
+				a.insertPictureItem,
 			},
 		},
 		{
@@ -199,6 +201,9 @@ func (a *AppState) carries(item *mygo.MenuItem) bool {
 			return true
 		}
 	}
+	if a.insertPictureItem != nil && a.insertPictureItem == item {
+		return true
+	}
 	return false
 }
 
@@ -229,12 +234,23 @@ func (a *AppState) syncMenu() {
 		a.showItem(item, menuShown{accelerator: accelerator, label: label, enabled: state.Enabled, checked: state.Checked})
 	}
 	catalog := a.Product.Program.Catalog()
-	for _, f := range a.formatItems {
+	mounted := false
+	if a.Workspace != nil {
+		_, mounted = a.Workspace.Mounted()
+	}
+	hasPage := desk && mounted
+	syncPageItem := func(item *mygo.MenuItem, cmd keymap.CommandID) {
 		accelerator := ""
-		if chord, ok := keys.ChordFor(commandOf(catalog, f.intent)); ok && desk && !a.recording {
+		if chord, ok := keys.ChordFor(cmd); ok && hasPage && !a.recording {
 			accelerator, _ = keymap.Accelerator(chord, keymap.PlatformCurrent)
 		}
-		a.showItem(f.item, menuShown{accelerator: accelerator, label: f.item.Label, enabled: desk})
+		a.showItem(item, menuShown{accelerator: accelerator, label: item.Label, enabled: hasPage})
+	}
+	for _, f := range a.formatItems {
+		syncPageItem(f.item, commandOf(catalog, f.intent))
+	}
+	if a.insertPictureItem != nil {
+		syncPageItem(a.insertPictureItem, "figures.insert")
 	}
 	// While the field is in front, Undo and Redo are its own, named for
 	// what they take back; elsewhere, the system's, which the page and

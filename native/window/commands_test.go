@@ -135,6 +135,37 @@ func TestKeysActOnTheSceneInFront(t *testing.T) {
 	if item := app.menuItems[keymap.Trash]; item.Accelerator != "" {
 		t.Fatalf("Move to Trash keeps %q on the desk, where the page hears it", item.Accelerator)
 	}
+	if app.insertPictureItem.Disabled {
+		t.Fatal("Insert Picture is disabled on the desk with an active sheet")
+	}
+	for _, f := range app.formatItems {
+		if f.item.Disabled {
+			t.Fatalf("Format item %q is disabled on the desk with an active sheet", f.item.Label)
+		}
+	}
+
+	app.Shell.ShowField()
+	tester.Frame()
+	if !app.insertPictureItem.Disabled {
+		t.Fatal("Insert Picture is enabled on the field")
+	}
+	for _, f := range app.formatItems {
+		if !f.item.Disabled {
+			t.Fatalf("Format item %q is enabled on the field", f.item.Label)
+		}
+	}
+
+	app.Shell.ShowDesk()
+	app.closeActive()
+	tester.Frame()
+	if !app.insertPictureItem.Disabled {
+		t.Fatal("Insert Picture is enabled with no active sheet")
+	}
+	for _, f := range app.formatItems {
+		if !f.item.Disabled {
+			t.Fatalf("Format item %q is enabled with no active sheet", f.item.Label)
+		}
+	}
 }
 
 func TestRoutingRejectsUnknownCommands(t *testing.T) {
