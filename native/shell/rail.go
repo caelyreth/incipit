@@ -71,14 +71,21 @@ const (
 	railCard  = 240
 )
 
-// contentsRail draws the list's rail in the lane, its ticks standing on
-// left, between top and bottom.
-func (s *State) contentsRail(c *ui.Context, semantic theme.Theme, left, top, bottom, k float32, animate bool) {
+// contentsRail draws the list's rail in the lane, about the lane's middle
+// line mid, in the room between top and bottom: its ticks at rest stand
+// on mid and lengthen to its right, and it stands in the middle of the
+// room, or fills it and scrolls where it holds more.
+func (s *State) contentsRail(c *ui.Context, semantic theme.Theme, mid, top, bottom, k float32, animate bool) {
 	stops := s.field.rail
 	if !s.field.listed || len(stops) < 2 || bottom-top < railStep*k {
 		return
 	}
 	step := railStep * k
+	left := mid - railTick*k/2
+	if held := step * float32(len(stops)); held < bottom-top {
+		top += (bottom - top - held) / 2
+		bottom = top + held
+	}
 	strip := ui.Box(c).Key("contents-rail").Absolute().Left(0).Right(0).Top(top).Height(bottom - top).
 		Role(ui.RoleGroup).Label("Contents").
 		Transition(appearingIf(animate, motionPlace, &ui.Motion{Opacity: 0, X: -8 * k}, &ui.Motion{Opacity: 0}))
