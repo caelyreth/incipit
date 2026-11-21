@@ -109,7 +109,7 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w
 		s.field.stats.lastWords = st.words
 	}
 	row := ui.Row(c).Key("field-stats").Absolute().Top(r.Y).Left(r.X+r.W+gap).Height(r.H).
-		MaxWidth(maxW).AlignItems(ui.Center).IgnoreInput(true).Clip().
+		MaxWidth(maxW).AlignItems(ui.Center).IgnoreInput(!s.queryWritten()).Clip().
 		Translate(0, -components.UIOpticalLift(s.Settings.UIFontSize))
 	// The place's actions open, they stand where the stats did.
 	acting := map[bool]float32{true: 1}[s.field.acting]
@@ -121,7 +121,8 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w
 	s.field.actingShown = acting
 	// A notice stands where they do, as long as it stands, and so do the
 	// actions standing open (actionsStand).
-	row.Opacity(1 - max(acting, s.field.told, standing))
+	away := max(acting, s.field.told, standing)
+	row.Opacity(1 - away)
 	row.Children(func() {
 		s.field.stats.count.View(c, "stat-count", st.count, size, lineH, ink, animate)
 		ui.Box(c.Key("stat-unit-gap")).Width(spaceW).Shrink(0)
@@ -158,6 +159,7 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w
 		} else {
 			sec.Width(0)
 		}
+		s.statsClear(c, semantic, size, lineH, ink, spaceW, sepW, away, animate)
 	})
 }
 
@@ -193,31 +195,9 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stageRect, acts 
 				s.setWords(s.field.words)
 			}
 		}
-		// Anything written or narrowed by is cleared at once by its ×, as
-		// a search field's is: Escape only puts away what stands open.
-		// It is drawn in Afterglow, the danger color. It stands by the
-		// pill's end, measured from it: a circle the size of the actions'
-		// face, just before that face, or with no actions in the face's
-		// own place; what is written stops short of it.
+		// What is written or narrowed by is cleared beside the count of
+		// what it finds (statsClear), not in the pill.
 		atEnd := s.actionsAtEnd(acts)
-		if s.queryWritten() {
-			inset := pillInset * k
-			face := r.H - 2*inset
-			end := inset
-			if atEnd {
-				end = r.H - inset
-			}
-			miniCloseButton(c, semantic, "clear-search", "Clear Search", "Clear Search", face, 12*k,
-				semantic.Status.Danger.Foreground, semantic.Status.Danger.Background, animate, s.goHome).
-				Absolute().Right(end).Top(inset)
-			// What is written stops an inset short of the ×: past the
-			// pill's gap before the actions, or from the pill's edge.
-			room := end + face + inset
-			if atEnd {
-				room = face - pillGap*k
-			}
-			input.MarginEnd(room)
-		}
 		if atEnd {
 			s.actionsButton(c, semantic, acts, r.H, k, animate)
 		}

@@ -429,3 +429,21 @@ func TestWindowBlurAnimatesFocusedPillAndRibbonsSmoothly(t *testing.T) {
 		t.Fatal("Refocusing window should restore key ribbons.")
 	}
 }
+
+// What is written and narrowed by is cleared beside the count of what it
+// finds, not in the pill; with nothing written, there is no Clear.
+func TestClearStandsBesideTheCount(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	if _, ok := tester.Find("Clear"); ok {
+		t.Fatal("Clear stands with nothing written.")
+	}
+	state.SetFieldQuery("$in:Novel chap")
+	settle(tester)
+	if err := tester.Click("Clear Search"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if q := state.FieldQuery(); q != "" {
+		t.Fatalf("Cleared, the query is %q.", q)
+	}
+}

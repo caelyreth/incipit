@@ -178,9 +178,8 @@ const pillInset = 4
 // it opens the place's actions, or closes them; its face is a circle
 // that takes the chosen fill while they are open, standing in the pill's
 // rounded end, inset all round alike, so the two curves are one. The end
-// reaches past the face, but not while the query's × stands beside it,
-// which stands next to the face as the face stands in the pill. With no
-// actions to hold (actionsAtEnd) it is not there at all.
+// reaches past the face. With no actions to hold (actionsAtEnd) it is not
+// there at all.
 func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldAction, pillH, k float32, animate bool) {
 	label := map[bool]string{true: "Hide Actions", false: "Actions"}[s.field.acting]
 	inset := pillInset * k
