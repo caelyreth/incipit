@@ -123,7 +123,6 @@ func (s *State) activate(id string, alongside bool) {
 				if e.sheet.ID != key {
 					continue
 				}
-				s.riseFrom(sheetOrigin(key))
 				if s.field.words != "" {
 					s.Library.OpenFound(key, s.FieldQuery(), alongside)
 				} else {

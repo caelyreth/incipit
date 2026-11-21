@@ -28,12 +28,10 @@ func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Elemen
 				s.entryRow(c, semantic, *r.entry, b.trashed, r.h, b.single, m, animate)
 			case r.create:
 				g := *b.group
-				area := components.CreateArea{Key: "create", Label: "New sheet", Animate: animate, Action: func() {
-					s.riseFrom(createOrigin(g.ID))
+				components.CreateArea{Key: "create", Label: "New sheet", Animate: animate, Action: func() {
 					s.Library.NewSheet(g.ID, Last)
 					s.ShowDesk()
 				}}.View(c, semantic).Height(r.h)
-				s.noteOrigin(createOrigin(g.ID), area)
 			default:
 				s.moreRow(c, semantic, b, sh.more, fr, m, animate)
 			}
@@ -276,7 +274,6 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 		AlignItems(ui.Start).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
 		FocusRing(false).KeepFocus().Label(sheetTitle(sh)).Selected(front)
 	s.rowFill(c, semantic, btn, id, animate)
-	s.noteOrigin(sheetOrigin(sh.ID), btn)
 	btn.ContextMenu(s.rowMenu(id, s.sheetMenu(sh, trashed)))
 	// Dragged, a sheet that is a card of its own goes as the card, on the
 	// card's ground, what it leaves standing dimmed in its place; a row of

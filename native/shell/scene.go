@@ -98,7 +98,6 @@ func (s *State) viewAt(root ui.Element, w float32, animate bool) float32 {
 		}})
 	}
 	s.view = at
-	s.followFlight(target == 1, at)
 	return at
 }
 
