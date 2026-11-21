@@ -47,12 +47,15 @@ var Manifest = policy.Manifest{
 	},
 }
 
-// Compile builds the program for settings values.
-//
-// TODO(strict): the product compiles with strict=false, so declared Produces
-// is checked only by tests. Add a debug-build switch (§11.14).
+// Checked has every program compiled check that each rewrite's edits are
+// of the kinds it declares it Produces (§11.14): the app sets it in
+// development builds, and tests ask for it by Compile's strict.
+var Checked bool
+
+// Compile builds the program for settings values, checked where strict
+// asks it or Checked is set.
 func Compile(values policy.Values, strict bool) (*policy.Program, error) {
 	m := Manifest
-	m.Strict = strict
+	m.Strict = strict || Checked
 	return policy.Compile(m, values)
 }
