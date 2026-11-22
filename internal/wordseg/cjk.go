@@ -14,21 +14,39 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// The immutable index is generated from ICU release-78.3 cjdict.txt. Lookup borrows its embedded bytes; it does not build a dictionary map on the input loop.
+// cjkDictionary is ICU release-78.3's cjdict.txt as scripts/cjkdict
+// indexes it, in Neverland's format: "NVCJ", the format's version, the
+// count of words, their offsets, a cost for each, and the words, sorted.
+// Lookup borrows its embedded bytes; it builds no map on the input loop.
 //
 // The dictionary is not stored in Git: ../../scripts/fetch-assets.sh
-// installs it, verified.
+// builds it, verified.
 //
 //go:generate ../../scripts/fetch-assets.sh
 //go:embed cjk_dictionary.bin
 var cjkDictionary string
 
+// dictionaryHead is the length of the format's name and version, and
+// dictionaryVersion the version read.
+const (
+	dictionaryHead    = 8
+	dictionaryVersion = 1
+)
+
+// dictionaryValid reports whether the dictionary embedded is of the
+// format this package reads.
+func dictionaryValid() bool {
+	return len(cjkDictionary) > dictionaryHead+4 && cjkDictionary[:4] == "NVCJ" &&
+		binary.LittleEndian.Uint32([]byte(cjkDictionary[4:8])) == dictionaryVersion
+}
+
 func dictionaryUint32(offset int) int {
-	return int(binary.LittleEndian.Uint32([]byte(cjkDictionary[offset : offset+4])))
+	at := dictionaryHead + offset
+	return int(binary.LittleEndian.Uint32([]byte(cjkDictionary[at : at+4])))
 }
 func dictionaryWord(index int) string {
 	count := dictionaryUint32(0)
-	start := 4 + (count+1)*4 + count
+	start := dictionaryHead + 4 + (count+1)*4 + count
 	return cjkDictionary[start+dictionaryUint32(4+index*4) : start+dictionaryUint32(8+index*4)]
 }
 func dictionaryMatches(text string, offsets []int, start int, visit func(length int, cost uint32)) {
@@ -42,7 +60,7 @@ func dictionaryMatches(text string, offsets []int, start int, visit func(length 
 			return
 		}
 		if dictionaryWord(low) == prefix {
-			visit(length, uint32(cjkDictionary[4+(count+1)*4+low]))
+			visit(length, uint32(cjkDictionary[dictionaryHead+4+(count+1)*4+low]))
 		}
 	}
 }

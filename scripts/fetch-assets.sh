@@ -2,8 +2,9 @@
 set -eu
 
 # fetch-assets.sh installs the binary assets Git does not store: the
-# fonts and the word segmenter's CJK dictionary. Each comes from a pinned
-# URL and is verified against its SHA-256 before it is installed.
+# fonts, each from a pinned URL, and the word segmenter's CJK dictionary,
+# built from ICU's pinned word list; each is verified against its SHA-256
+# before it is installed.
 
 root=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
 
@@ -68,8 +69,7 @@ fetch 'Noto Serif Italic' native/theme/fonts/NotoSerif-Italic-Variable.ttf \
 fetch 'New Computer Modern Math' native/theme/fonts/NewCMMath-Book.otf \
 	'https://raw.githubusercontent.com/typst/typst-assets/94dcb990edb36311ef85162baa26e4a8205e0bf0/files/fonts/NewCMMath-Book.otf' \
 	'2ea09ebc9167b1e1a66f31390dc917f2d4004ecfca72d51b28010e4ad6becd95'
-# ICU release-78.3 cjdict.txt as PiG's word segmenter indexes it
-# (internal/wordseg/NOTICE.md).
-fetch 'CJK dictionary' internal/wordseg/cjk_dictionary.bin \
-	'https://raw.githubusercontent.com/MichaelKinsy/PiG/c475b56d028166a429b7fe35476520550780a471/internal/wordsegmenter/cjk_dictionary.bin' \
-	'5111be4597ef8370329df83b3a3f1f59628ee7c4eb3b30208df02f56062f0010'
+# ICU release-78.3 cjdict.txt, indexed in Neverland's format for the word
+# segmenter, both pinned (scripts/cjkdict).
+# go generate names the toolchain it runs in GOROOT.
+(cd "$root" && "${GOROOT:+$GOROOT/bin/}go" run ./scripts/cjkdict)

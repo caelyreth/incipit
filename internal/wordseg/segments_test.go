@@ -131,3 +131,11 @@ func BenchmarkSegments(b *testing.B) {
 		}
 	}
 }
+
+// TestDictionaryIsNeverlands has the dictionary embedded in the format
+// cjk.go reads (scripts/cjkdict).
+func TestDictionaryIsNeverlands(t *testing.T) {
+	if !dictionaryValid() {
+		t.Fatalf("the dictionary embedded is not Neverland's, version %d: run scripts/fetch-assets.sh", dictionaryVersion)
+	}
+}
