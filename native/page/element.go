@@ -269,7 +269,13 @@ func (el *Element) View(c *ui.Context) {
 	ui.Column(c).Key("page-surface").Fill().Role(ui.RoleNone).Children(func() {
 		box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
 			Role(ui.RoleTextField).Label(el.Label).Value(el.fieldValue()).Focusable()
-		box.HandleTextInput(el.client)
+		// While the tools read the keys, the page takes their text itself,
+		// with no input method composing it (toolKey, toolText).
+		if el.tools.keyed() {
+			box.HandleTextInput(nil).InputMethod(false)
+		} else {
+			box.HandleTextInput(el.client)
+		}
 		if el.focusPending {
 			box.Focus(ui.FocusOptions{PreventScroll: true})
 			el.focusPending = false
@@ -322,7 +328,7 @@ func (el *Element) View(c *ui.Context) {
 		if box.Focused() {
 			el.tagPickerView(c, services)
 		}
-		el.selectionToolsView(c, pl, services, box.Focused())
+		el.selectionToolsView(c, pl, box.Focused())
 	})
 }
 
@@ -483,8 +489,15 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		el.scrollBy(ev, at)
 		services.Invalidate()
 		return true
+	case ui.InputText:
+		return el.toolText(ev.Text)
 	case ui.InputKeyDown:
+		el.tools.took = false
 		if ev.Key == ui.KeyEscape && el.letGo(true, at) {
+			services.Invalidate()
+			return true
+		}
+		if el.toolKey(ev) {
 			services.Invalidate()
 			return true
 		}

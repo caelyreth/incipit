@@ -133,10 +133,10 @@ func TestFooterCountsThePageAndTheSelection(t *testing.T) {
 	}
 }
 
-// Formatting stands over the selection on the desk, not in the dock: the
-// dock keeps the writing modes, a selection at rest raises the page's
-// tools, pressed there as their keys run them, and Show Formatting calls
-// them up at the caret.
+// The dock holds what is inserted and what the selection is changed into
+// beside the writing modes; a selection at rest raises the page's own
+// tools over it, pressed there as their keys run them, and Show
+// Formatting calls them up at the caret.
 func TestFormattingStandsOverTheSelection(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
@@ -148,11 +148,13 @@ func TestFormattingStandsOverTheSelection(t *testing.T) {
 		tester.Frame()
 	}
 	run(tester, time.Second)
-	if _, ok := tester.Find("Strong"); ok {
-		t.Fatal("Formatting shows with nothing selected.")
+	for _, label := range []string{"Typewriter", "Insert table", "Strong", "Paragraph"} {
+		if _, ok := tester.Find(label); !ok {
+			t.Fatalf("The dock has no %s: %v", label, tester.Texts())
+		}
 	}
-	if _, ok := tester.Find("Typewriter"); !ok {
-		t.Fatal("The dock lost its writing modes.")
+	if _, ok := tester.Find("Expand selection"); ok {
+		t.Fatal("The selection's tools show with nothing selected.")
 	}
 	el := app.pageElement()
 	ref, ok := vocab.FirstTextSlot(el.Editor.Engine.Snapshot().Root())
@@ -164,23 +166,26 @@ func TestFormattingStandsOverTheSelection(t *testing.T) {
 		t.Fatal("could not select the word")
 	}
 	run(tester, time.Second)
+	if _, ok := tester.Find("Expand selection"); !ok {
+		t.Fatalf("The selection's tools did not rise: %v", tester.Texts())
+	}
 	if err := tester.Click("Strong"); err != nil {
 		t.Fatalf("%v: %v", err, tester.Texts())
 	}
 	run(tester, 100*time.Millisecond)
 	if !strongText(el, ref, "hello") {
-		t.Fatal("Strong over the selection did not mark it.")
+		t.Fatal("Strong did not mark the selection.")
 	}
 	el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, 8))}, tester.Now())
 	run(tester, time.Second)
-	if _, ok := tester.Find("Strong"); ok {
-		t.Fatal("The tools stayed with the selection gone.")
+	if _, ok := tester.Find("Expand selection"); ok {
+		t.Fatal("The selection's tools stayed with the selection gone.")
 	}
 	if err := app.routeCommand(keymap.FormatTools); err != nil {
 		t.Fatal(err)
 	}
 	run(tester, time.Second)
-	if _, ok := tester.Find("Strong"); !ok {
+	if _, ok := tester.Find("Expand selection"); !ok {
 		t.Fatal("Show Formatting did not call the tools up at the caret.")
 	}
 }

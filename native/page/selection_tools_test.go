@@ -77,7 +77,7 @@ func TestASelectionsToolsRiseOverItAndStay(t *testing.T) {
 		t.Fatal(err)
 	}
 	rest(tt)
-	if !el.modelOf().marks[0].on {
+	if !el.states()["formats.strong"].on {
 		t.Fatal("Strong did not mark the selection.")
 	}
 	if _, ok := tt.Find("Strong"); !ok {
@@ -125,13 +125,13 @@ func TestShowFormattingAtTheCaret(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !el.modelOf().marks[0].on {
+	if !el.states()["formats.strong"].on {
 		t.Fatal("Strong toggled at the caret does not show as on.")
 	}
-	el.runTool("blocks.heading2", ui.Services{})
+	el.RunTool("blocks.heading2")
 	tt.Frame()
-	if m := el.modelOf(); m.block != "blocks.heading2" {
-		t.Fatalf("Turned into a heading, the tools name %s.", m.block)
+	if !el.states()["blocks.heading2"].on {
+		t.Fatal("Turned into a heading, the tools do not name it.")
 	}
 	if n, ok := el.Editor.Engine.Snapshot().Node(el.Editor.Selection().Head.Pos.Node); !ok || n.Kind() != profile.Heading {
 		t.Fatal("Heading 2 did not turn the block into a heading.")
@@ -140,6 +140,47 @@ func TestShowFormattingAtTheCaret(t *testing.T) {
 	rest(tt)
 	if _, ok := tt.Find("Strong"); ok {
 		t.Fatal("Show Formatting again left the tools up.")
+	}
+}
+
+// Show Formatting arms the tools: a tool's key runs it, a choice's opens
+// its menu for the next key to pick, neither typing; another key types
+// and disarms them.
+func TestArmedToolsTakeTheirKeys(t *testing.T) {
+	el, tt, ref := toolsPage(t, "hello world")
+	selectSpan(t, el, ref, 0, 5)
+	el.ToggleSelectionTools()
+	rest(tt)
+	text := func() string {
+		snap := el.Editor.Engine.Snapshot()
+		n, _ := snap.Node(ref.Node)
+		return n.Slot(ref.Slot).Content().Text()
+	}
+	tt.TypeKey(0, ui.KeyB, "b")
+	rest(tt)
+	if !el.states()["formats.strong"].on || text() != "hello world" {
+		t.Fatalf("B armed should mark the selection strong without typing, the text is %q.", text())
+	}
+	tt.TypeKey(0, ui.KeyT, "t")
+	rest(tt)
+	if _, ok := tt.Find("Heading 2"); !ok {
+		t.Fatalf("T armed did not open Turn Into: %v", tt.Texts())
+	}
+	tt.TypeKey(0, ui.Key2, "2")
+	rest(tt)
+	if !el.states()["blocks.heading2"].on || text() != "hello world" {
+		t.Fatalf("2 in Turn Into should make a second heading without typing, the text is %q.", text())
+	}
+	if _, ok := tt.Find("Strong"); !ok {
+		t.Fatal("The tools went with the kind picked.")
+	}
+	tt.TypeKey(0, ui.KeyX, "x")
+	rest(tt)
+	if got := text(); got != "x world" {
+		t.Fatalf("A key no tool takes should type over the selection, the text is %q.", got)
+	}
+	if el.tools.armed {
+		t.Fatal("A key no tool takes left the tools armed.")
 	}
 }
 

@@ -62,35 +62,34 @@ func (b MenuButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	return button.Menu(b.Build)
 }
 
-// LabelMenuButton names a choice on its face, a chevron after it, and
-// opens a menu of the others as it is pressed: a subtle, compact button
-// like the icon buttons beside it, its hint where Tooltip says.
-type LabelMenuButton struct {
+// ChoiceButton names a choice on its face, a chevron after it: a subtle,
+// compact button like the icon buttons beside it, which opens what it
+// chooses from (Action), lit while that is open (Selected), its hint where
+// Tooltip says.
+type ChoiceButton struct {
 	Key      string
 	Label    string
 	Tooltip  string
 	HintSide HintSide
 	Disabled bool
+	Selected bool
 	Animate  bool
-	Build    func(*ui.Menu)
+	Action   func()
 }
 
-func (b LabelMenuButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
+func (b ChoiceButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	k := scale / theme.DefaultUIFontSize
-	button := buttonElement(c, semantic, buttonOptions{
+	return buttonElement(c, semantic, buttonOptions{
 		key: b.Key, label: b.Label, tooltip: b.Tooltip, side: b.HintSide,
-		style: SubtleButton, size: CompactButton, disabled: b.Disabled, animate: b.Animate,
+		style: SubtleButton, size: CompactButton, disabled: b.Disabled, selected: b.Selected,
+		animate: b.Animate, action: b.Action,
 		children: func() {
 			CenteredLabel(c, b.Label, theme.TextSmall, semantic.Text.Default)
 			ui.Icon(c, IconChevronDown.SVG()).FontSize(12 * k).TextColor(semantic.Icon.Muted)
 		},
 	}).PaddingStart(theme.Space08.DIPs(scale)).PaddingEnd(theme.Space06.DIPs(scale)).
 		Gap(theme.Space04.DIPs(scale)).AlignItems(ui.Center)
-	if b.Disabled {
-		return button
-	}
-	return button.Menu(b.Build)
 }
 
 type NumberField struct {

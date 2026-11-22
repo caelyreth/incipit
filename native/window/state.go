@@ -209,6 +209,18 @@ func (a *AppState) BindShell() {
 	a.Shell.Typewriter = func(on bool) {
 		a.setPresentation(appsettings.PresentationTypewriter, on)
 	}
+	a.Shell.Tools = func() []components.ToolGroup {
+		if el := a.frontEditor(); el != nil {
+			return el.Tools(page.DockTools)
+		}
+		return nil
+	}
+	a.Shell.RunTool = func(id string) {
+		if el := a.frontEditor(); el != nil {
+			el.RunTool(id)
+			a.refreshEditorChrome()
+		}
+	}
 	a.refreshShell()
 }
 

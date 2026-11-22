@@ -11,6 +11,8 @@ type dockState struct {
 	semantic theme.Theme
 	animate  bool
 	groups   []components.ActionGroup
+	// open is the tool choice whose menu shows.
+	open string
 }
 
 func (s *State) dockIcon(
@@ -30,9 +32,8 @@ func (s *State) dockIcon(
 	}.View(c, semantic)
 }
 
-// ensureDockGroups are the dock's actions: the writing modes. What is
-// done to the selection stands over it, on the page (the selection's
-// tools), not here.
+// ensureDockGroups are the dock's own actions, after the page's tools:
+// the writing modes.
 func (s *State) ensureDockGroups() {
 	if len(s.actionDock.groups) != 0 {
 		return
@@ -61,9 +62,18 @@ func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32) {
 	s.actionDock.ctx = c
 	s.actionDock.semantic = semantic
 	s.actionDock.animate = animate
-	components.ActionDock{
-		Key: "writing-actions", Label: "Writing actions", Groups: s.actionDock.groups, Room: room,
-		Animate: animate,
+	var tools []components.ToolGroup
+	if s.Tools != nil {
+		tools = s.Tools()
+	}
+	components.ToolBar{
+		Key: "writing-actions", Label: "Writing actions", Groups: tools, Extra: s.actionDock.groups,
+		Room: room, Animate: animate, Side: components.HintAbove, Open: &s.actionDock.open,
+		Run: func(id string) {
+			if s.RunTool != nil {
+				s.RunTool(id)
+			}
+		},
 	}.View(c, semantic)
 	s.actionDock.ctx = nil
 }

@@ -116,6 +116,10 @@ type State struct {
 	FindStep   func(forward bool)
 	EndFind    func()
 	Typewriter func(bool)
+	// Tools are the page's in front for the dock, what is inserted and what
+	// the selection is changed into, as it stands; RunTool runs one.
+	Tools   func() []components.ToolGroup
+	RunTool func(id string)
 
 	// armedKey & armedAt govern two-click destructive confirmation.
 	armedKey string

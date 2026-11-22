@@ -51,6 +51,7 @@ const (
 	IconSearch          IconName = "search"
 	IconSettings        IconName = "settings"
 	IconStrike          IconName = "strikethrough"
+	IconTable           IconName = "table"
 	IconTrash           IconName = "trash-2"
 	IconList            IconName = "list"
 	IconTray            IconName = "layers"
@@ -97,6 +98,7 @@ var AllIcons = [...]IconName{
 	IconSettings,
 	IconShrinkSelection,
 	IconStrike,
+	IconTable,
 	IconTrash,
 	IconList,
 	IconTray,
