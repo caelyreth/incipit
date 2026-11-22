@@ -93,11 +93,7 @@ func CountText(text string) Counts {
 			c.CJK++
 		}
 	}
-	for segment := range vocab.WordSegments(text) {
-		if segment.WordLike {
-			c.Words++
-		}
-	}
+	c.Words = vocab.CountWords(text)
 	return c
 }
 

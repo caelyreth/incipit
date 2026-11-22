@@ -20,6 +20,18 @@ func WordSegments(text string) iter.Seq[WordSegment] {
 	return wordseg.Segments(text)
 }
 
+// CountWords is how many words text holds: its word-like segments. The
+// page's counts and the notebook's summaries both count by it.
+func CountWords(text string) int {
+	n := 0
+	for s := range WordSegments(text) {
+		if s.WordLike {
+			n++
+		}
+	}
+	return n
+}
+
 // SentenceSegment is one UAX #29 sentence segment: its text and byte
 // start.
 type SentenceSegment struct {

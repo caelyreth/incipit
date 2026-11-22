@@ -8,7 +8,7 @@ import (
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
-	"github.com/caelyreth/neverland/internal/wordseg"
+	"github.com/caelyreth/neverland/editor/vocab"
 )
 
 // excerptRunes is how long an excerpt runs.
@@ -102,11 +102,7 @@ func slotShare(n *doc.Node, i int, slot doc.Slot) *share {
 		}
 	}
 	text := strings.Join(strings.Fields(slot.Content().Text()), " ")
-	for seg := range wordseg.Segments(text) {
-		if seg.WordLike {
-			sh.words++
-		}
-	}
+	sh.words = vocab.CountWords(text)
 	if text != "" && i == 0 {
 		sh.first = text
 		if n.Kind() == profile.Heading {
