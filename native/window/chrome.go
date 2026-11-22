@@ -85,72 +85,6 @@ func pageStatistics(ed *page.Editor) string {
 	return statistics.Format(page, selection)
 }
 
-// formattingState previews each formatting command against the current
-// view. Availability and what the command would do are the same code the
-// command runs, so the toolbar cannot disagree with the edit.
-func formattingState(ed *page.Editor) shell.FormattingState {
-	return shell.FormattingState{
-		Strong:   formatting(ed, profile.Strong),
-		Emphasis: formatting(ed, profile.Emphasis),
-		Code:     formatting(ed, profile.CodeMark),
-		Strike:   formatting(ed, profile.Strike),
-	}
-}
-
-func formatting(ed *page.Editor, mark doc.MarkKind) shell.FormatState {
-	out, err := ed.Engine.Preview(ed.View, vocab.Input{
-		Intent: profile.Format{Mark: mark},
-		At:     time.Now(),
-	})
-	if err != nil || !out.Available {
-		return shell.FormatState{}
-	}
-	state := shell.FormatState{Enabled: true}
-	view, _ := ed.Engine.View(ed.View)
-	if view.Selection.Kind == doc.SelectText && !view.Selection.IsCollapsed() {
-		for _, step := range out.Steps {
-			op, ok := step.Op().(doc.MarkText)
-			if !ok {
-				continue
-			}
-			for _, removed := range op.Remove {
-				if removed == mark {
-					state.On = true
-					return state
-				}
-			}
-			for _, added := range op.Add {
-				if added.Kind == mark {
-					return state
-				}
-			}
-		}
-	}
-	state.On = marksAt(ed, view, mark)
-	return state
-}
-
-// marksAt reads the marks that would receive typing at the caret: the
-// pending marks a preview would toggle, or the marks the run inherits.
-func marksAt(ed *page.Editor, view policy.View, mark doc.MarkKind) bool {
-	caret := view.Selection.Head
-	if p := view.Pending; p != nil && p.At == caret {
-		return p.Marks.Has(mark)
-	}
-	snap := ed.Engine.Snapshot()
-	node, ok := snap.Node(caret.Pos.Node)
-	if !ok || caret.Pos.Slot >= node.NumSlots() || !node.Slot(caret.Pos.Slot).IsInline() {
-		return false
-	}
-	marks := vocab.InheritedMarks(snap.Schema(), node.Slot(caret.Pos.Slot).Content(), caret.Pos.Offset)
-	return marks != nil && marks.Has(mark)
-}
-
-func (a *AppState) formatStrong()   { a.formatPage(profile.Strong) }
-func (a *AppState) formatEmphasis() { a.formatPage(profile.Emphasis) }
-func (a *AppState) formatCode()     { a.formatPage(profile.CodeMark) }
-func (a *AppState) formatStrike()   { a.formatPage(profile.Strike) }
-
 func (a *AppState) formatPage(mark doc.MarkKind) {
 	el := a.pageElement()
 	if el == nil {
@@ -159,19 +93,6 @@ func (a *AppState) formatPage(mark doc.MarkKind) {
 	el.Editor.Do(profile.Format{Mark: mark}, time.Now())
 	a.chrome = chromeKey{}
 	a.refreshEditorChrome()
-}
-
-func toolbarBindings(keys *keymap.Keymap, catalog policy.Catalog) shell.ToolbarBindings {
-	format := func(mark doc.MarkKind) string {
-		return bindingLabel(keys, commandOf(catalog, profile.Format{Mark: mark}))
-	}
-	return shell.ToolbarBindings{
-		Typewriter: bindingLabel(keys, keymap.Typewriter),
-		Strong:     format(profile.Strong),
-		Emphasis:   format(profile.Emphasis),
-		Code:       format(profile.CodeMark),
-		Strike:     format(profile.Strike),
-	}
 }
 
 // commandOf is the command a policy declares for an intent: a control

@@ -20,6 +20,8 @@ type Element struct {
 	Editor *Editor
 	// tags is the picker a tag being written opens (tags.go).
 	tags tagPicker
+	// tools are the selection's (selection_tools.go).
+	tools toolsState
 	// Theme and Prose are the colors and text measures the page shows in.
 	Theme theme.Theme
 	Prose theme.ProseStyle
@@ -320,6 +322,7 @@ func (el *Element) View(c *ui.Context) {
 		if box.Focused() {
 			el.tagPickerView(c, services)
 		}
+		el.selectionToolsView(c, pl, services, box.Focused())
 	})
 }
 
@@ -482,6 +485,13 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		return true
 	case ui.InputKeyDown:
 		if ev.Key == ui.KeyEscape && el.letGo(true, at) {
+			services.Invalidate()
+			return true
+		}
+		if ev.Key == ui.KeyEscape && el.tools.shown {
+			// Escape puts the selection's tools away before it does
+			// anything to the selection.
+			el.tools.summoned, el.tools.dismissed = false, true
 			services.Invalidate()
 			return true
 		}

@@ -14,47 +14,49 @@ var iconFiles embed.FS
 type IconName string
 
 const (
-	IconBack         IconName = "chevron-left"
-	IconBold         IconName = "bold"
-	IconBookmark     IconName = "bookmark"
-	IconCheck        IconName = "check"
-	IconCheckCircle  IconName = "circle-check"
-	IconChevronDown  IconName = "chevron-down"
-	IconChevronRight IconName = "chevron-right"
-	IconChevronUp    IconName = "chevron-up"
-	IconClose        IconName = "x"
-	IconCode         IconName = "code"
-	IconCommand      IconName = "command"
-	IconDesk         IconName = "lamp-desk"
-	IconError        IconName = "circle-alert"
-	IconFolder       IconName = "folder"
-	IconFolderSearch IconName = "folder-search"
-	IconGrip         IconName = "grip-vertical"
-	IconGripAcross   IconName = "grip-horizontal"
-	IconHome         IconName = "house"
-	IconImage        IconName = "image"
-	IconImageOff     IconName = "image-off"
-	IconInbox        IconName = "inbox"
-	IconInfo         IconName = "info"
-	IconItalic       IconName = "italic"
-	IconKeyboard     IconName = "keyboard"
-	IconMap          IconName = "map"
-	IconMinus        IconName = "minus"
-	IconNewGroup     IconName = "folder-plus"
-	IconNewSheet     IconName = "file-plus"
-	IconPen          IconName = "pen-line"
-	IconPin          IconName = "pin"
-	IconPencilSpark  IconName = "pencil-sparkles"
-	IconPlus         IconName = "plus"
-	IconSearch       IconName = "search"
-	IconSettings     IconName = "settings"
-	IconStrike       IconName = "strikethrough"
-	IconTrash        IconName = "trash-2"
-	IconList         IconName = "list"
-	IconTray         IconName = "layers"
-	IconTypewriter   IconName = "align-vertical-justify-center"
-	IconUndo         IconName = "undo-2"
-	IconWarning      IconName = "triangle-alert"
+	IconBack            IconName = "chevron-left"
+	IconBold            IconName = "bold"
+	IconBookmark        IconName = "bookmark"
+	IconCheck           IconName = "check"
+	IconCheckCircle     IconName = "circle-check"
+	IconChevronDown     IconName = "chevron-down"
+	IconChevronRight    IconName = "chevron-right"
+	IconChevronUp       IconName = "chevron-up"
+	IconClose           IconName = "x"
+	IconCode            IconName = "code"
+	IconCommand         IconName = "command"
+	IconDesk            IconName = "lamp-desk"
+	IconError           IconName = "circle-alert"
+	IconFolder          IconName = "folder"
+	IconExpandSelection IconName = "expand-selection"
+	IconShrinkSelection IconName = "shrink-selection"
+	IconFolderSearch    IconName = "folder-search"
+	IconGrip            IconName = "grip-vertical"
+	IconGripAcross      IconName = "grip-horizontal"
+	IconHome            IconName = "house"
+	IconImage           IconName = "image"
+	IconImageOff        IconName = "image-off"
+	IconInbox           IconName = "inbox"
+	IconInfo            IconName = "info"
+	IconItalic          IconName = "italic"
+	IconKeyboard        IconName = "keyboard"
+	IconMap             IconName = "map"
+	IconMinus           IconName = "minus"
+	IconNewGroup        IconName = "folder-plus"
+	IconNewSheet        IconName = "file-plus"
+	IconPen             IconName = "pen-line"
+	IconPin             IconName = "pin"
+	IconPencilSpark     IconName = "pencil-sparkles"
+	IconPlus            IconName = "plus"
+	IconSearch          IconName = "search"
+	IconSettings        IconName = "settings"
+	IconStrike          IconName = "strikethrough"
+	IconTrash           IconName = "trash-2"
+	IconList            IconName = "list"
+	IconTray            IconName = "layers"
+	IconTypewriter      IconName = "align-vertical-justify-center"
+	IconUndo            IconName = "undo-2"
+	IconWarning         IconName = "triangle-alert"
 )
 
 var AllIcons = [...]IconName{
@@ -71,6 +73,7 @@ var AllIcons = [...]IconName{
 	IconCommand,
 	IconDesk,
 	IconError,
+	IconExpandSelection,
 	IconFolder,
 	IconFolderSearch,
 	IconGrip,
@@ -92,6 +95,7 @@ var AllIcons = [...]IconName{
 	IconPlus,
 	IconSearch,
 	IconSettings,
+	IconShrinkSelection,
 	IconStrike,
 	IconTrash,
 	IconList,

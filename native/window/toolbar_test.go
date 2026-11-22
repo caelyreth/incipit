@@ -7,8 +7,9 @@ import (
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
-	"github.com/egoist/mygo/ui"
+	"github.com/caelyreth/neverland/native/page"
 )
 
 func TestToolbarActionsPublishPresentation(t *testing.T) {
@@ -55,17 +56,6 @@ func TestToolbarBindingsFollowTheKeymap(t *testing.T) {
 	app.Settings.Apply(appsettings.Unbind(keymap.Typewriter))
 	if app.Shell.Toolbar.Bindings.Typewriter != "" {
 		t.Fatalf("toolbar bindings after unbind = %#v", app.Shell.Toolbar.Bindings)
-	}
-
-	strikeCmd := keymap.CommandID("formats.strike")
-	strikeMoved := keymap.NewChord("u", keymap.ModifiersPrimary|keymap.ModifiersAlt|keymap.ModifiersShift)
-	app.Settings.Apply(appsettings.Remap(strikeCmd, strikeMoved))
-	if got, want := app.Shell.Toolbar.Bindings.Strike, keymap.Spell(strikeMoved, keymap.PlatformCurrent); got != want {
-		t.Fatalf("toolbar strike binding = %q, want %q", got, want)
-	}
-	app.Settings.Apply(appsettings.Unbind(strikeCmd))
-	if app.Shell.Toolbar.Bindings.Strike != "" {
-		t.Fatalf("toolbar strike binding after unbind = %q", app.Shell.Toolbar.Bindings.Strike)
 	}
 }
 
@@ -143,57 +133,70 @@ func TestFooterCountsThePageAndTheSelection(t *testing.T) {
 	}
 }
 
-func TestFormattingToolbarComesFromPreviews(t *testing.T) {
+// Formatting stands over the selection on the desk, not in the dock: the
+// dock keeps the writing modes, a selection at rest raises the page's
+// tools, pressed there as their keys run them, and Show Formatting calls
+// them up at the caret.
+func TestFormattingStandsOverTheSelection(t *testing.T) {
 	app, err := NewAppState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
-	for _, r := range "hello" {
+	tester := atTheDesk(app)
+	for _, r := range "hello world" {
 		tester.Type(string(r))
 		tester.Frame()
+	}
+	run(tester, time.Second)
+	if _, ok := tester.Find("Strong"); ok {
+		t.Fatal("Formatting shows with nothing selected.")
+	}
+	if _, ok := tester.Find("Typewriter"); !ok {
+		t.Fatal("The dock lost its writing modes.")
 	}
 	el := app.pageElement()
 	ref, ok := vocab.FirstTextSlot(el.Editor.Engine.Snapshot().Root())
 	if !ok {
 		t.Fatal("the page has no text")
 	}
-	if !el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, 0))}, time.Now()) ||
-		!el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, 5)), Extend: true}, time.Now()) {
+	if !el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, 0))}, tester.Now()) ||
+		!el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, 5)), Extend: true}, tester.Now()) {
 		t.Fatal("could not select the word")
 	}
-	app.refreshEditorChrome()
-	strong := app.Shell.Toolbar.Formatting.Strong
-	if !strong.Enabled || strong.On {
-		t.Fatalf("unmarked selection has strong = %+v", strong)
+	run(tester, time.Second)
+	if err := tester.Click("Strong"); err != nil {
+		t.Fatalf("%v: %v", err, tester.Texts())
 	}
-	app.Shell.Strong()
-	app.refreshEditorChrome()
-	strong = app.Shell.Toolbar.Formatting.Strong
-	if !strong.Enabled || !strong.On {
-		t.Fatalf("strong selection has strong = %+v", strong)
+	run(tester, 100*time.Millisecond)
+	if !strongText(el, ref, "hello") {
+		t.Fatal("Strong over the selection did not mark it.")
+	}
+	el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, 8))}, tester.Now())
+	run(tester, time.Second)
+	if _, ok := tester.Find("Strong"); ok {
+		t.Fatal("The tools stayed with the selection gone.")
+	}
+	if err := app.routeCommand(keymap.FormatTools); err != nil {
+		t.Fatal(err)
+	}
+	run(tester, time.Second)
+	if _, ok := tester.Find("Strong"); !ok {
+		t.Fatal("Show Formatting did not call the tools up at the caret.")
 	}
 }
 
-func TestFormattingToolbarTracksPendingMarksAtTheCaret(t *testing.T) {
-	app, err := NewAppState()
-	if err != nil {
-		t.Fatal(err)
+// strongText reports whether the slot holds text marked strong, as is.
+func strongText(el *page.Element, ref doc.SlotRef, text string) bool {
+	node, ok := el.Editor.Engine.Snapshot().Node(ref.Node)
+	if !ok {
+		return false
 	}
-	tester := ui.NewTester(app.View, 1260, 850)
-	tester.Frame()
-	tester.Type("x")
-	tester.Frame()
-	if app.Shell.Toolbar.Formatting.Strong.On {
-		t.Fatal("unmarked caret shows strong")
-	}
-	app.Shell.Strong()
-	if !app.Shell.Toolbar.Formatting.Strong.On {
-		t.Fatal("the pending strong mark is not shown at the caret")
-	}
-	app.Shell.Strong()
-	if app.Shell.Toolbar.Formatting.Strong.On {
-		t.Fatal("the cleared pending strong mark is still shown")
-	}
+	found := false
+	node.Slot(ref.Slot).Content().Each(func(_ int, it doc.Item) bool {
+		if it.Text == text && it.Marks != nil && it.Marks.Has(profile.Strong) {
+			found = true
+		}
+		return !found
+	})
+	return found
 }

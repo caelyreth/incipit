@@ -115,6 +115,8 @@ func (a *AppState) MainMenu() *mygo.Menu {
 				format("Italic", profile.Emphasis),
 				format("Code", profile.CodeMark),
 				format("Strikethrough", profile.Strike),
+				mygo.Separator(),
+				command(keymap.FormatTools),
 			},
 		},
 		{

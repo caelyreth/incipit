@@ -42,35 +42,17 @@ type SheetFrame struct {
 	Focus, Claim bool
 }
 
-// FormatState is one formatting action's state: whether it applies at the
-// selection or caret, and whether the engine preview says it can.
-type FormatState struct {
-	On      bool
-	Enabled bool
-}
-
-// FormattingState is the formatting the floating toolbar shows from the
-// open page's previews.
-type FormattingState struct {
-	Strong, Emphasis, Code, Strike FormatState
-}
-
-// ToolbarState is the writing modes and formatting the floating toolbar
-// switches, and their current shortcuts.
+// ToolbarState is the writing modes the dock switches, and their
+// current shortcuts.
 type ToolbarState struct {
 	Typewriter        bool
 	TypewriterEnabled bool
-	Formatting        FormattingState
 	Bindings          ToolbarBindings
 }
 
 // ToolbarBindings carries the current shortcut text for action tooltips.
 type ToolbarBindings struct {
 	Typewriter string
-	Strong     string
-	Emphasis   string
-	Code       string
-	Strike     string
 }
 
 type State struct {
@@ -134,10 +116,6 @@ type State struct {
 	FindStep   func(forward bool)
 	EndFind    func()
 	Typewriter func(bool)
-	Strong     func()
-	Emphasis   func()
-	Code       func()
-	Strike     func()
 
 	// armedKey & armedAt govern two-click destructive confirmation.
 	armedKey string

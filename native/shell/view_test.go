@@ -180,33 +180,6 @@ func TestWritingModeControlsRunTheirCallbacks(t *testing.T) {
 	}
 }
 
-func TestFormattingControlsRunTheirCallbacks(t *testing.T) {
-	state := openState()
-	state.Toolbar.Formatting = FormattingState{
-		Strong:   FormatState{On: true, Enabled: true},
-		Emphasis: FormatState{Enabled: true},
-	}
-	var strong, emphasis bool
-	state.Strong = func() { strong = true }
-	state.Emphasis = func() { emphasis = true }
-	tester := ui.NewTester(state.View, 1260, 850)
-	tester.Frame()
-	for _, label := range []string{"Strong", "Emphasis"} {
-		if _, ok := tester.Find(label); !ok {
-			t.Fatalf("missing formatting action %q", label)
-		}
-	}
-	if err := tester.Click("Strong"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tester.Click("Emphasis"); err != nil {
-		t.Fatal(err)
-	}
-	if !strong || !emphasis {
-		t.Fatalf("formatting callbacks = strong:%v emphasis:%v", strong, emphasis)
-	}
-}
-
 func TestFloatingToolbarShowsLiveCommandBindingInTooltip(t *testing.T) {
 	state := openState()
 	state.Toolbar.Bindings.Typewriter = "⌥⌘T"

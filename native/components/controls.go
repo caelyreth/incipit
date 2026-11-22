@@ -62,6 +62,37 @@ func (b MenuButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	return button.Menu(b.Build)
 }
 
+// LabelMenuButton names a choice on its face, a chevron after it, and
+// opens a menu of the others as it is pressed: a subtle, compact button
+// like the icon buttons beside it, its hint where Tooltip says.
+type LabelMenuButton struct {
+	Key      string
+	Label    string
+	Tooltip  string
+	HintSide HintSide
+	Disabled bool
+	Animate  bool
+	Build    func(*ui.Menu)
+}
+
+func (b LabelMenuButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
+	scale := UIFontSize(c)
+	k := scale / theme.DefaultUIFontSize
+	button := buttonElement(c, semantic, buttonOptions{
+		key: b.Key, label: b.Label, tooltip: b.Tooltip, side: b.HintSide,
+		style: SubtleButton, size: CompactButton, disabled: b.Disabled, animate: b.Animate,
+		children: func() {
+			CenteredLabel(c, b.Label, theme.TextSmall, semantic.Text.Default)
+			ui.Icon(c, IconChevronDown.SVG()).FontSize(12 * k).TextColor(semantic.Icon.Muted)
+		},
+	}).PaddingStart(theme.Space08.DIPs(scale)).PaddingEnd(theme.Space06.DIPs(scale)).
+		Gap(theme.Space04.DIPs(scale)).AlignItems(ui.Center)
+	if b.Disabled {
+		return button
+	}
+	return button.Menu(b.Build)
+}
+
 type NumberField struct {
 	Key         string
 	Label       string

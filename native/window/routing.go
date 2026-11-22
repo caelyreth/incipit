@@ -29,7 +29,12 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 	keymap.ClosePage:    func(a *AppState) { a.closeActive() },
 	keymap.CloseOthers:  func(a *AppState) { a.Shell.CloseOthers() },
 	keymap.SplitPage:    func(a *AppState) { a.splitActive() },
-	keymap.FindPage:     func(a *AppState) { a.findPage() },
+	keymap.FormatTools: func(a *AppState) {
+		if el := a.pageElement(); el != nil && a.Shell.OnDesk() {
+			el.ToggleSelectionTools()
+		}
+	},
+	keymap.FindPage: func(a *AppState) { a.findPage() },
 	keymap.FindInSheet: func(a *AppState) {
 		if !a.Shell.OnDesk() {
 			a.findPage()
@@ -78,7 +83,7 @@ func (a *AppState) commandState(id keymap.CommandID, label string) shell.VerbSta
 		if declared.Scope == keymap.ScopeLibrary && desk {
 			state.Enabled = false
 		}
-	case id == keymap.ClosePage, id == keymap.SplitPage:
+	case id == keymap.ClosePage, id == keymap.SplitPage, id == keymap.FormatTools:
 		state.Enabled = desk
 	case id == keymap.CloseOthers, id == keymap.NextPage, id == keymap.PreviousPage:
 		state.Enabled = desk && open > 1

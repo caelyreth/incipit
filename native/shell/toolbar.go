@@ -30,29 +30,12 @@ func (s *State) dockIcon(
 	}.View(c, semantic)
 }
 
+// ensureDockGroups are the dock's actions: the writing modes. What is
+// done to the selection stands over it, on the page (the selection's
+// tools), not here.
 func (s *State) ensureDockGroups() {
 	if len(s.actionDock.groups) != 0 {
 		return
-	}
-	onStrong := func() {
-		if s.Strong != nil {
-			s.Strong()
-		}
-	}
-	onEmphasis := func() {
-		if s.Emphasis != nil {
-			s.Emphasis()
-		}
-	}
-	onCode := func() {
-		if s.Code != nil {
-			s.Code()
-		}
-	}
-	onStrike := func() {
-		if s.Strike != nil {
-			s.Strike()
-		}
 	}
 	onTypewriter := func() {
 		if s.Typewriter != nil {
@@ -60,27 +43,6 @@ func (s *State) ensureDockGroups() {
 		}
 	}
 	s.actionDock.groups = []components.ActionGroup{
-		{
-			Key: "formatting", Label: "Formatting",
-			Actions: []func(){
-				func() {
-					s.dockIcon("strong", "Strong", s.Toolbar.Bindings.Strong, components.IconBold,
-						s.Toolbar.Formatting.Strong.On, s.Toolbar.Formatting.Strong.Enabled, onStrong)
-				},
-				func() {
-					s.dockIcon("emphasis", "Emphasis", s.Toolbar.Bindings.Emphasis, components.IconItalic,
-						s.Toolbar.Formatting.Emphasis.On, s.Toolbar.Formatting.Emphasis.Enabled, onEmphasis)
-				},
-				func() {
-					s.dockIcon("code", "Code", s.Toolbar.Bindings.Code, components.IconCode,
-						s.Toolbar.Formatting.Code.On, s.Toolbar.Formatting.Code.Enabled, onCode)
-				},
-				func() {
-					s.dockIcon("strike", "Strike", s.Toolbar.Bindings.Strike, components.IconStrike,
-						s.Toolbar.Formatting.Strike.On, s.Toolbar.Formatting.Strike.Enabled, onStrike)
-				},
-			},
-		},
 		{
 			Key: "presentation", Label: "Presentation",
 			Actions: []func(){

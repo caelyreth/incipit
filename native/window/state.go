@@ -209,10 +209,6 @@ func (a *AppState) BindShell() {
 	a.Shell.Typewriter = func(on bool) {
 		a.setPresentation(appsettings.PresentationTypewriter, on)
 	}
-	a.Shell.Strong = a.formatStrong
-	a.Shell.Emphasis = a.formatEmphasis
-	a.Shell.Code = a.formatCode
-	a.Shell.Strike = a.formatStrike
 	a.refreshShell()
 }
 
@@ -266,16 +262,10 @@ func (a *AppState) refreshToolbarState() {
 	if a == nil || a.Shell == nil {
 		return
 	}
-	keys := a.Product.Keymap
-	formatting := shell.FormattingState{}
-	if el := a.frontEditor(); el != nil {
-		formatting = formattingState(el.Editor)
-	}
 	a.Shell.Toolbar = shell.ToolbarState{
 		Typewriter:        a.Product.Presentation.Typewriter,
 		TypewriterEnabled: true,
-		Formatting:        formatting,
-		Bindings:          toolbarBindings(keys, a.Product.Program.Catalog()),
+		Bindings:          shell.ToolbarBindings{Typewriter: bindingLabel(a.Product.Keymap, keymap.Typewriter)},
 	}
 }
 
