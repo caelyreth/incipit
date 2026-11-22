@@ -23,8 +23,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "select", policy.Intent[vocab.SelectScope](), policy.Slot.Inside(), grow).Any()
 	policy.On(p, "expand", policy.Intent[vocab.ExpandSelection](), policy.Slot.Inside(), expand).Any()
 	policy.On(p, "shrink", policy.Intent[vocab.ShrinkSelection](), policy.Slot.Inside(), shrink).Any()
-	p.Command("scopes.expand", "commands.expandSelection", vocab.ExpandSelection{}, policy.Key("alt+shift+primary+right"))
-	p.Command("scopes.shrink", "commands.shrinkSelection", vocab.ShrinkSelection{}, policy.Key("alt+shift+primary+left"))
+	writing := policy.Spans(policy.SpanWriting)
+	p.Command("scopes.expand", "commands.expandSelection", vocab.ExpandSelection{}, policy.Key("alt+shift+primary+right"),
+		policy.Offer(vocab.SelectionOffers, 1, "right", writing))
+	p.Command("scopes.shrink", "commands.shrinkSelection", vocab.ShrinkSelection{}, policy.Key("alt+shift+primary+left"),
+		policy.Offer(vocab.SelectionOffers, 0, "left", writing))
 	leavable := policy.Role(vocab.RoleLeavable)
 	policy.On(p, "leave-selecting", policy.Intent[vocab.Dismiss](), leavable.Nodes().Own(), selectScope).Caret()
 	policy.On(p, "enter-selected", policy.Intent[vocab.Dismiss](), leavable.Selected(), enterScope).Node()

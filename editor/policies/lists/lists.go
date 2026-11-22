@@ -18,14 +18,16 @@ const ID = "lists"
 
 // Policy is the lists policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	p.Command("lists.bullet", "commands.bulletList", profile.MakeList{})
+	kinds := policy.Spans(policy.SpanCaret | policy.SpanBlocks)
+	p.Command("lists.bullet", "commands.bulletList", profile.MakeList{}, policy.Offer(profile.KindOffers, 5, "l", kinds))
 	p.Command("lists.nest", "commands.nest", profile.Nest{Dir: vocab.Forward}, policy.Key("tab"))
 	p.Command("lists.outdent", "commands.outdent", profile.Nest{Dir: vocab.Backward}, policy.Key("shift+tab"))
 	p.Command("lists.toggleTask", "commands.toggleTask", profile.ToggleTask{}, policy.Key("primary+enter"))
 	p.Command("lists.numbered", "commands.numberedList", profile.MakeList{
 		Attrs: doc.MakeAttrs(doc.Field{Num: profile.FieldListStyle, Value: doc.Int(int64(profile.Ordered))},
 			doc.Field{Num: profile.FieldListStart, Value: doc.Int(1)}),
-	})
+	}, policy.Offer(profile.KindOffers, 6, "n", kinds))
+	policy.State(p, policy.Intent[profile.MakeList](), listed)
 
 	items := policy.Node(profile.Item)
 	policy.On(p, "leave-empty", policy.Intent[vocab.Break](), items.Empty().Own(), leave)
@@ -71,6 +73,23 @@ func nest(c *policy.Ctx, in profile.Nest, at policy.At[*doc.Node]) policy.Result
 		dir = vocab.Forward
 	}
 	return policy.Do(l.Step(dir))
+}
+
+// listed is whether every text block the selection touches is in a list
+// of the style, the nearest list holding it.
+func listed(c *policy.Ctx, in profile.MakeList) bool {
+	style := profile.Bullet
+	if v, ok := in.Attrs.Get(profile.FieldListStyle); ok {
+		style = profile.ListStyle(v.Int())
+	}
+	blocks := c.Span().Blocks
+	for _, b := range blocks {
+		list, ok := policy.Within(c.Doc(), b, profile.List)
+		if !ok || profile.ListStyleOf(list) != style {
+			return false
+		}
+	}
+	return len(blocks) > 0
 }
 
 // makeList makes each block the selection touches an item; lists of one

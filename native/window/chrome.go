@@ -1,17 +1,10 @@
 package window
 
 import (
-	"reflect"
-	"time"
-
-	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policies/find"
 	"github.com/caelyreth/neverland/editor/policies/statistics"
-	"github.com/caelyreth/neverland/editor/policy"
-	"github.com/caelyreth/neverland/editor/profile"
-	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/shell"
 )
@@ -83,25 +76,4 @@ func pageStatistics(ed *page.Editor) string {
 		selection = &counts
 	}
 	return statistics.Format(page, selection)
-}
-
-func (a *AppState) formatPage(mark doc.MarkKind) {
-	el := a.pageElement()
-	if el == nil {
-		return
-	}
-	el.Editor.Do(profile.Format{Mark: mark}, time.Now())
-	a.chrome = chromeKey{}
-	a.refreshEditorChrome()
-}
-
-// commandOf is the command a policy declares for an intent: a control
-// that acts as a command shows that command's key, whoever declares it.
-func commandOf(catalog policy.Catalog, in vocab.Intent) keymap.CommandID {
-	for _, c := range catalog.Commands {
-		if reflect.DeepEqual(c.Intent, in) {
-			return keymap.CommandID(c.ID)
-		}
-	}
-	return ""
 }

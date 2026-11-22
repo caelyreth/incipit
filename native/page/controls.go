@@ -4,7 +4,6 @@ import (
 	"maps"
 	"time"
 
-	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/page/table"
@@ -56,9 +55,9 @@ type control struct {
 	// press starts the drag a primary press on it holds, nil when it takes
 	// no press.
 	press func(x, y float32, clicks int, extend bool, at time.Time) drag
-	// menu readies what a secondary click on it acts on, and gives the
-	// commands it offers; nil when it offers none.
-	menu func(x, y float32, at time.Time) [][]vocab.CommandID
+	// menu selects what a secondary click on it acts on, whose offers the
+	// page's menu shows (contextMenu); nil when it calls up none.
+	menu func(x, y float32, at time.Time)
 }
 
 // drag is a press the page holds until it lets go.
@@ -199,76 +198,48 @@ func (el *Element) cursorAt(x, y float32) (ui.Cursor, bool) {
 // readyMenu readies the page's menu for a secondary click at a page point:
 // the commands of the topmost control there that offers any, else none.
 func (el *Element) readyMenu(x, y float32, at time.Time) {
-	el.menu, el.menuChosen = nil, true
+	el.menuOffers, el.menuChosen = false, true
 	if c, ok := el.controlAt(x, y, func(c control) bool { return c.menu != nil }); ok {
-		el.menu = c.menu(x, y, at)
+		c.menu(x, y, at)
+		el.menuOffers = true
 	}
 }
 
-// selectionMenu is what the object the selection is in offers for
-// itself, found through its kind: the object selected, or holding the
-// head's text.
-func (el *Element) selectionMenu() [][]vocab.CommandID {
-	pl := el.Editor.layout
-	if pl == nil {
+// menuGroups are what the page's menu offers: the commands the rules
+// offer for it (vocab.SurfaceMenu) where the selection now stands, each
+// group apart, each command where it can run; a secondary click on a
+// control having selected what it acts on, and none where the click was
+// on no control.
+func (el *Element) menuGroups() [][]vocab.CommandID {
+	if el.menuChosen && !el.menuOffers {
 		return nil
 	}
-	sel := el.Editor.Selection()
-	at := sel.Head.Pos.Node
-	if sel.Kind == doc.SelectNode {
-		at = sel.Node
-	} else if sel.Kind == doc.SelectCells {
-		at = sel.Cells.Table
-	}
-	obj, ok := vocab.ObjectOf(el.Editor.Engine.Snapshot(), at)
-	if !ok {
-		return nil
-	}
-	for _, u := range pl.units {
-		if u.kind != nil && u.pres.Unit == obj {
-			return u.kind.menu(el, u)
-		}
-	}
-	return nil
-}
-
-// contextMenu is the page's menu: the commands its secondary click chose,
-// or, opened from the keyboard, those of the object the selection is in,
-// each through the command table and offered as it would act; then the
-// text's editing items.
-func (el *Element) contextMenu(m *ui.Menu, services ui.Services) {
 	ed := el.Editor
-	menu := el.menu
-	if !el.menuChosen {
-		menu = el.selectionMenu()
-	}
-	labels := map[vocab.CommandID]string{}
-	for _, c := range keymap.Declared(ed.Engine.Program().Catalog()) {
-		labels[vocab.CommandID(c.ID)] = c.Label
-	}
-	shown := false
-	for _, group := range menu {
+	var out [][]vocab.CommandID
+	for _, g := range ed.Engine.Offers(ed.View, vocab.SurfaceMenu) {
 		var items []vocab.CommandID
-		for _, id := range group {
-			out, err := ed.Engine.Preview(ed.View, vocab.Input{Intent: vocab.Command{ID: id}, At: ed.active})
-			if err == nil && out.Available {
-				items = append(items, id)
+		for _, o := range g.Offers {
+			if o.Available {
+				items = append(items, o.Command)
 			}
 		}
-		if len(items) == 0 {
-			continue
+		if len(items) > 0 {
+			out = append(out, items)
 		}
-		if shown {
-			m.Separator()
-		}
-		shown = true
-		for _, id := range items {
+	}
+	return out
+}
+
+// contextMenu is the page's menu: its groups (menuGroups), then the
+// text's editing items.
+func (el *Element) contextMenu(m *ui.Menu, services ui.Services) {
+	labels := el.commandLabels()
+	for _, group := range el.menuGroups() {
+		for _, id := range group {
 			if m.Item(labels[id]).Chosen() {
 				el.run(vocab.Command{ID: id}, services, time.Now())
 			}
 		}
-	}
-	if shown {
 		m.Separator()
 	}
 	m.EditItems()

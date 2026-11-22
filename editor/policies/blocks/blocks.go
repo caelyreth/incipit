@@ -27,13 +27,20 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Command("blocks.previousHeading", "commands.previousHeading", profile.JumpHeading{Dir: vocab.Backward}, policy.Key("alt+primary+up"))
 	p.Command("blocks.nextHeading", "commands.nextHeading", profile.JumpHeading{Dir: vocab.Forward}, policy.Key("alt+primary+down"))
 
-	p.Command("blocks.paragraph", "commands.paragraph", profile.Retype{To: profile.Paragraph})
+	// The kinds are offered for whole blocks, or at a caret for its block:
+	// never for a part of a block's text.
+	kinds := policy.Spans(policy.SpanCaret | policy.SpanBlocks)
+	p.Command("blocks.paragraph", "commands.paragraph", profile.Retype{To: profile.Paragraph},
+		policy.Offer(profile.KindOffers, 0, "p", kinds))
 	for level := 1; level <= 3; level++ {
-		id := vocab.CommandID("blocks.heading" + string(rune('0'+level)))
-		p.Command(id, "commands.heading"+string(rune('0'+level)), profile.Retype{To: profile.Heading, Attrs: headingAttrs(level)})
+		digit := string(rune('0' + level))
+		p.Command(vocab.CommandID("blocks.heading"+digit), "commands.heading"+digit, profile.Retype{To: profile.Heading, Attrs: headingAttrs(level)},
+			policy.Offer(profile.KindOffers, level, digit, kinds))
 	}
-	p.Command("blocks.quote", "commands.quote", profile.WrapQuote{})
-	p.Command("blocks.codeBlock", "commands.codeBlock", profile.Retype{To: profile.Code})
+	p.Command("blocks.quote", "commands.quote", profile.WrapQuote{}, policy.Offer(profile.KindOffers, 4, "q", kinds))
+	p.Command("blocks.codeBlock", "commands.codeBlock", profile.Retype{To: profile.Code}, policy.Offer(profile.KindOffers, 7, "c", kinds))
+	policy.State(p, policy.Intent[profile.Retype](), retyped)
+	policy.State(p, policy.Intent[profile.WrapQuote](), quoted)
 
 	// The card's demonstration, played by the engine itself.
 	p.Showcase(2400*time.Millisecond,
@@ -49,6 +56,32 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 
 func headingAttrs(level int) doc.Attrs {
 	return doc.MakeAttrs(doc.Field{Num: profile.FieldLevel, Value: doc.Int(int64(level))})
+}
+
+// retyped is whether every text block the selection touches is of the
+// kind, with its attributes: where retyping makes them plain again.
+func retyped(c *policy.Ctx, in profile.Retype) bool {
+	r := c.Doc()
+	attrs := r.Schema().Canonical(in.To, in.Attrs)
+	blocks := c.Span().Blocks
+	for _, b := range blocks {
+		if b.Kind() != in.To || !b.Attrs().Equal(attrs) {
+			return false
+		}
+	}
+	return len(blocks) > 0
+}
+
+// quoted is whether every text block the selection touches is in a
+// quote.
+func quoted(c *policy.Ctx, _ profile.WrapQuote) bool {
+	blocks := c.Span().Blocks
+	for _, b := range blocks {
+		if _, ok := policy.Within(c.Doc(), b, profile.Quote); !ok {
+			return false
+		}
+	}
+	return len(blocks) > 0
 }
 
 // retype gives the text blocks the selection touches a kind where their

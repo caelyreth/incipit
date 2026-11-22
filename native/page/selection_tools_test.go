@@ -36,6 +36,18 @@ func selectSpan(t *testing.T, el *Element, ref doc.SlotRef, from, to int) {
 	}
 }
 
+// toolOn is whether the tool over the selection is on.
+func toolOn(el *Element, id string) bool {
+	for _, g := range el.Tools(vocab.SurfaceTools) {
+		for _, tool := range g.Tools {
+			if tool.ID == id {
+				return tool.On
+			}
+		}
+	}
+	return false
+}
+
 func rest(tt *ui.Tester) {
 	tt.Frame()
 	tt.Advance(toolsRest * 2)
@@ -58,6 +70,9 @@ func TestASelectionsToolsRiseOverItAndStay(t *testing.T) {
 	if !ok {
 		t.Fatalf("The tools did not rise over the selection: %v", tt.Texts())
 	}
+	if _, ok := tt.Find("Paragraph"); ok {
+		t.Fatal("A word selected is offered the kinds its block turns into.")
+	}
 	// They stand clear of the selection: under it with no room above, at
 	// the view's top, and over it with room.
 	line := func() ui.Rect {
@@ -77,7 +92,7 @@ func TestASelectionsToolsRiseOverItAndStay(t *testing.T) {
 		t.Fatal(err)
 	}
 	rest(tt)
-	if !el.states()["formats.strong"].on {
+	if !toolOn(el, "formats.strong") {
 		t.Fatal("Strong did not mark the selection.")
 	}
 	if _, ok := tt.Find("Strong"); !ok {
@@ -125,12 +140,12 @@ func TestShowFormattingAtTheCaret(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !el.states()["formats.strong"].on {
+	if !toolOn(el, "formats.strong") {
 		t.Fatal("Strong toggled at the caret does not show as on.")
 	}
 	el.RunTool("blocks.heading2")
 	tt.Frame()
-	if !el.states()["blocks.heading2"].on {
+	if !toolOn(el, "blocks.heading2") {
 		t.Fatal("Turned into a heading, the tools do not name it.")
 	}
 	if n, ok := el.Editor.Engine.Snapshot().Node(el.Editor.Selection().Head.Pos.Node); !ok || n.Kind() != profile.Heading {
@@ -148,7 +163,7 @@ func TestShowFormattingAtTheCaret(t *testing.T) {
 // and disarms them.
 func TestArmedToolsTakeTheirKeys(t *testing.T) {
 	el, tt, ref := toolsPage(t, "hello world")
-	selectSpan(t, el, ref, 0, 5)
+	selectSpan(t, el, ref, 0, 11)
 	el.ToggleSelectionTools()
 	rest(tt)
 	text := func() string {
@@ -158,7 +173,7 @@ func TestArmedToolsTakeTheirKeys(t *testing.T) {
 	}
 	tt.TypeKey(0, ui.KeyB, "b")
 	rest(tt)
-	if !el.states()["formats.strong"].on || text() != "hello world" {
+	if !toolOn(el, "formats.strong") || text() != "hello world" {
 		t.Fatalf("B armed should mark the selection strong without typing, the text is %q.", text())
 	}
 	tt.TypeKey(0, ui.KeyT, "t")
@@ -168,7 +183,7 @@ func TestArmedToolsTakeTheirKeys(t *testing.T) {
 	}
 	tt.TypeKey(0, ui.Key2, "2")
 	rest(tt)
-	if !el.states()["blocks.heading2"].on || text() != "hello world" {
+	if !toolOn(el, "blocks.heading2") || text() != "hello world" {
 		t.Fatalf("2 in Turn Into should make a second heading without typing, the text is %q.", text())
 	}
 	if _, ok := tt.Find("Strong"); !ok {
@@ -176,7 +191,7 @@ func TestArmedToolsTakeTheirKeys(t *testing.T) {
 	}
 	tt.TypeKey(0, ui.KeyX, "x")
 	rest(tt)
-	if got := text(); got != "x world" {
+	if got := text(); got != "x" {
 		t.Fatalf("A key no tool takes should type over the selection, the text is %q.", got)
 	}
 	if el.tools.armed {

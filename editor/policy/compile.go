@@ -147,6 +147,8 @@ type Program struct {
 	report     *Report
 	grouping   func(prev, next *doc.Entry) bool
 	guides     []Guide
+	offered    []OfferedGroup
+	states     []stateDecl
 
 	paints      []Paint
 	projecting  []FactID
@@ -442,6 +444,7 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		prog.phases[ph] = prog.orderRewrites(ph, rs, rep)
 	}
 
+	prog.compileOffers(rep)
 	for _, g := range prog.guides {
 		if _, ok := prog.commands[g.Command]; !ok {
 			rep.errorf("a guide shows %s, which no enabled policy declares", g.Command)

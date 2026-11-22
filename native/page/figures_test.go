@@ -180,32 +180,30 @@ func TestFigureSizesReadWell(t *testing.T) {
 	}
 }
 
-// Every kind offers its commands through its menu: a secondary click on a
-// picture selects the figure and offers its commands, and a menu opened
-// from the keyboard offers those of the object the selection is in,
-// found through its kind, a figure's as a table's, and none in text.
-func TestMenusComeFromTheObjectsKind(t *testing.T) {
+// The page's menu offers what the rules offer for what is selected: a
+// secondary click on a picture selects the figure and offers its
+// commands, and a menu opened from the keyboard offers those where the
+// selection is, a figure's as a table's, and none in text.
+func TestMenusOfferWhatIsSelected(t *testing.T) {
 	el, u := figurePage(t)
 	el.readyMenu(u.x+u.box.X+u.box.W/2, u.y+u.box.Y+u.box.H/2, time.Unix(300, 0))
-	if len(el.menu) == 0 || el.menu[0][0] != "figures.copy" {
-		t.Fatalf("a picture's menu offers %v, want the figure's commands", el.menu)
+	if got := el.menuGroups(); len(got) == 0 || got[0][0] != "figures.copy" {
+		t.Fatalf("a picture's menu offers %v, want the figure's commands", got)
 	}
 	if sel := el.Editor.Selection(); sel.Kind != doc.SelectNode || sel.Node != u.pres.Unit {
 		t.Fatalf("a secondary click on the picture selects %+v, want the figure", sel)
 	}
-	el.relayout()
-	if got := el.selectionMenu(); len(got) == 0 || got[0][0] != "figures.copy" {
+	el.menuChosen = false
+	if got := el.menuGroups(); len(got) == 0 || got[0][0] != "figures.copy" {
 		t.Fatalf("the keyboard menu by a selected figure offers %v", got)
 	}
 	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Forward}, time.Unix(301, 0))
-	el.relayout()
-	if got := el.selectionMenu(); got != nil {
+	if got := el.menuGroups(); got != nil {
 		t.Fatalf("the keyboard menu in text offers %v, want none", got)
 	}
 
 	tel, _ := tablePage(t, 2, 2, "a")
-	tel.relayout()
-	if got := tel.selectionMenu(); len(got) == 0 || got[0][0] != "table.row-above" {
+	if got := tel.menuGroups(); len(got) == 0 || got[0][0] != "table.row-above" {
 		t.Fatalf("the keyboard menu in a cell offers %v, want the table's", got)
 	}
 }

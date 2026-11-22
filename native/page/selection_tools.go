@@ -4,91 +4,30 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/app/phrases"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
-	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/egoist/mygo/ui"
 )
 
-// The page's tools (field-and-desk.md §4.2) are commands offered for the
-// selection, in two sets: the selection's own, a bar over a text
-// selection come to rest or over the caret where Show Formatting calls it
-// up, and the writing dock's under the page. Both are drawn by one tool
-// bar (components.ToolBar) from what toolSpecs list: each a command
-// previewed for whether it can run and whether its mark or kind is on,
-// run as its chord runs it. The bar stays as one runs, so they chain.
-// Show Formatting arms it: each tool shows a key of its own, a choice
-// opens on its key and the next key picks.
-//
-// What is offered is listed here for now, the same for every selection:
-// which tools suit which extent is the rule layer's to tell
-// (before-release-2026-11-21.md, M2 notes).
+// The page's tools (field-and-desk.md §4.2) are the commands the rules
+// offer for the selection (policy.Offer, Engine.Offers), drawn by one tool
+// bar (components.ToolBar) in two surfaces: the bar over a text selection
+// come to rest, or over the caret where Show Formatting calls it up
+// (vocab.SurfaceTools), and the writing dock under the page
+// (vocab.SurfaceDock). What is offered, whether it can run and whether it
+// is on are the rules' answers; the page only draws them, run as their
+// chords run them, an icon each from its table (toolIcon). The bar stays
+// as one runs, so they chain. Show Formatting arms it: each tool shows the
+// key its offer names, a choice opens on its group's key and the next key
+// picks.
 
 // toolsRest is how long a selection stays put before its tools rise over
 // it, so a selection being made by the keys does not show them at every
 // step.
 const toolsRest = 160 * time.Millisecond
-
-// ToolSet is which of the page's tool sets is asked for.
-type ToolSet uint8
-
-const (
-	// SelectionTools are the bar over the selection's.
-	SelectionTools ToolSet = iota
-	// DockTools are the writing dock's: what is inserted, and what the
-	// selection is changed into.
-	DockTools
-)
-
-// toolSpec is a command the tools offer: its icon, the key that runs it
-// while armed, and the mark it toggles, if any.
-type toolSpec struct {
-	id   vocab.CommandID
-	icon components.IconName
-	key  string
-	mark doc.MarkKind
-}
-
-// toolGroupSpec is a group of tools of one shape, and the sets it shows
-// in.
-type toolGroupSpec struct {
-	key, label string
-	shape      components.ToolShape
-	openKey    string
-	sets       []ToolSet
-	tools      []toolSpec
-}
-
-var toolSpecs = []toolGroupSpec{
-	{key: "insert", label: "Insert", shape: components.ToolActions, sets: []ToolSet{DockTools}, tools: []toolSpec{
-		{id: "figures.insert", icon: components.IconImage},
-		{id: "table.insert", icon: components.IconTable},
-	}},
-	{key: "kind", label: "Turn Into", shape: components.ToolChoice, openKey: "t",
-		sets: []ToolSet{SelectionTools, DockTools}, tools: []toolSpec{
-			{id: "blocks.paragraph", key: "p"},
-			{id: "blocks.heading1", key: "1"},
-			{id: "blocks.heading2", key: "2"},
-			{id: "blocks.heading3", key: "3"},
-			{id: "blocks.quote", key: "q"},
-			{id: "lists.bullet", key: "l"},
-			{id: "lists.numbered", key: "n"},
-			{id: "blocks.codeBlock", key: "c"},
-		}},
-	{key: "marks", label: "Formatting", shape: components.ToolToggles,
-		sets: []ToolSet{SelectionTools, DockTools}, tools: []toolSpec{
-			{id: "formats.strong", icon: components.IconBold, key: "b", mark: profile.Strong},
-			{id: "formats.emphasis", icon: components.IconItalic, key: "i", mark: profile.Emphasis},
-			{id: "formats.code", icon: components.IconCode, key: "e", mark: profile.CodeMark},
-			{id: "formats.strike", icon: components.IconStrike, key: "s", mark: profile.Strike},
-		}},
-	{key: "selection", label: "Selection", shape: components.ToolActions, sets: []ToolSet{SelectionTools}, tools: []toolSpec{
-		{id: "scopes.shrink", icon: components.IconShrinkSelection, key: "left"},
-		{id: "scopes.expand", icon: components.IconExpandSelection, key: "right"},
-	}},
-}
 
 // toolsState is the tools' between frames.
 type toolsState struct {
@@ -108,23 +47,18 @@ type toolsState struct {
 	took bool
 	// shown is whether they showed the frame before.
 	shown bool
-	// states is how each tool stands, read at statesAt (states).
-	states   map[vocab.CommandID]toolState
-	statesAt toolsKey
+	// drawn are each surface's tools as last drawn, and labels the
+	// commands' names, for the program they were read from.
+	drawn    map[vocab.Surface]drawnTools
+	labels   map[vocab.CommandID]string
+	labelsOf *policy.Program
 }
 
-// toolsKey is what the tools' states are read from.
-type toolsKey struct {
+// drawnTools are a surface's tools as drawn from the offers at a version.
+type drawnTools struct {
 	version uint64
-	sel     doc.Selection
-	program *policy.Program
-}
-
-// toolState is a tool's name, whether it can run now, and whether its
-// mark or kind is on.
-type toolState struct {
-	label       string
-	enabled, on bool
+	keys    *keymap.Keymap
+	groups  []components.ToolGroup
 }
 
 // ToggleSelectionTools is Show Formatting: it calls the tools up at the
@@ -139,27 +73,34 @@ func (el *Element) ToggleSelectionTools() {
 	el.Focus()
 }
 
-// Tools are the page's tools of a set as the selection stands.
-func (el *Element) Tools(set ToolSet) []components.ToolGroup {
-	states := el.states()
-	var out []components.ToolGroup
-	for _, g := range toolSpecs {
-		if !inSet(g.sets, set) {
-			continue
-		}
-		group := components.ToolGroup{Key: g.key, Label: g.label, Shape: g.shape,
-			OpenKey: g.openKey, OpenCap: capOf(g.openKey)}
-		for _, spec := range g.tools {
-			st := states[spec.id]
+// Tools are the commands offered for the selection on surface, as tool
+// groups, drawn again only as the engine or the keymap changes.
+func (el *Element) Tools(surface vocab.Surface) []components.ToolGroup {
+	ed := el.Editor
+	t := &el.tools
+	version := ed.Engine.Version()
+	if d, ok := t.drawn[surface]; ok && d.version == version && d.keys == el.Keys {
+		return d.groups
+	}
+	labels := el.commandLabels()
+	var groups []components.ToolGroup
+	for _, g := range ed.Engine.Offers(ed.View, surface) {
+		group := components.ToolGroup{Key: g.Group.ID, Label: phrases.Text(g.Group.Label), Shape: toolShape(g.Group.Shape),
+			OpenKey: g.Group.Key, OpenCap: capOf(g.Group.Key)}
+		for _, o := range g.Offers {
 			group.Tools = append(group.Tools, components.Tool{
-				ID: string(spec.id), Label: st.label, Icon: spec.icon,
-				Binding: el.binding(spec.id), Key: spec.key, Cap: capOf(spec.key),
-				Enabled: st.enabled, On: st.on,
+				ID: string(o.Command), Label: labels[o.Command], Icon: toolIcon(o.Command),
+				Binding: el.binding(o.Command), Key: o.Key, Cap: capOf(o.Key),
+				Enabled: o.Available, On: o.On,
 			})
 		}
-		out = append(out, group)
+		groups = append(groups, group)
 	}
-	return out
+	if t.drawn == nil {
+		t.drawn = map[vocab.Surface]drawnTools{}
+	}
+	t.drawn[surface] = drawnTools{version: version, keys: el.Keys, groups: groups}
+	return groups
 }
 
 // RunTool runs a tool's command as its chord would, the tools staying.
@@ -168,13 +109,28 @@ func (el *Element) RunTool(id string) {
 	el.run(vocab.Command{ID: vocab.CommandID(id)}, ui.Services{}, time.Now())
 }
 
-func inSet(sets []ToolSet, set ToolSet) bool {
-	for _, s := range sets {
-		if s == set {
-			return true
+// toolShape is how the bar draws a group of a shape.
+func toolShape(s vocab.OfferShape) components.ToolShape {
+	switch s {
+	case vocab.OfferToggles:
+		return components.ToolToggles
+	case vocab.OfferChoice:
+		return components.ToolChoice
+	}
+	return components.ToolActions
+}
+
+// commandLabels are the commands' names, as the keymap lists them.
+func (el *Element) commandLabels() map[vocab.CommandID]string {
+	t := &el.tools
+	prog := el.Editor.Engine.Program()
+	if t.labels == nil || t.labelsOf != prog {
+		t.labels, t.labelsOf = map[vocab.CommandID]string{}, prog
+		for _, c := range keymap.Declared(prog.Catalog()) {
+			t.labels[vocab.CommandID(c.ID)] = c.Label
 		}
 	}
-	return false
+	return t.labels
 }
 
 // capOf is a tool key's cap.
@@ -186,8 +142,7 @@ func capOf(key string) string {
 	return caps[len(caps)-1]
 }
 
-// binding is a tool's chord as the keymap has it now, which a remap may
-// change under the same states.
+// binding is a tool's chord as the keymap has it now.
 func (el *Element) binding(id vocab.CommandID) string {
 	if el.Keys == nil {
 		return ""
@@ -197,37 +152,6 @@ func (el *Element) binding(id vocab.CommandID) string {
 		return ""
 	}
 	return keymap.Spell(chord, keymap.PlatformCurrent)
-}
-
-// states is how every tool stands, read again only as the page or the
-// selection changes.
-func (el *Element) states() map[vocab.CommandID]toolState {
-	ed := el.Editor
-	key := toolsKey{version: ed.Engine.Version(), sel: ed.Selection(), program: ed.Engine.Program()}
-	if key == el.tools.statesAt && el.tools.states != nil {
-		return el.tools.states
-	}
-	labels := map[vocab.CommandID]string{}
-	for _, c := range keymap.Declared(key.program.Catalog()) {
-		labels[vocab.CommandID(c.ID)] = c.Label
-	}
-	kind := blockKindAt(ed.Engine.Snapshot(), key.sel.Head.Pos.Node)
-	states := map[vocab.CommandID]toolState{}
-	for _, g := range toolSpecs {
-		for _, spec := range g.tools {
-			out, err := ed.Engine.Preview(ed.View, vocab.Input{Intent: vocab.Command{ID: spec.id}, At: ed.active})
-			st := toolState{label: labels[spec.id], enabled: err == nil && out.Available}
-			switch {
-			case spec.mark != 0:
-				st.on = st.enabled && el.marked(spec.mark)
-			case g.shape == components.ToolChoice:
-				st.on = spec.id == kind
-			}
-			states[spec.id] = st
-		}
-	}
-	el.tools.states, el.tools.statesAt = states, key
-	return states
 }
 
 // toolsAnchor is what the tools stand over, in the page, and whether they
@@ -298,7 +222,7 @@ func (el *Element) toolKey(ev ui.InputEvent) bool {
 		return true
 	}
 	name, _ := keymap.KeyName(ev.Key)
-	for _, g := range el.Tools(SelectionTools) {
+	for _, g := range el.Tools(vocab.SurfaceTools) {
 		if t.open == "" && g.Shape == components.ToolChoice {
 			if name == g.OpenKey {
 				t.open = g.Key
@@ -338,82 +262,6 @@ func (el *Element) toolText(text string) bool {
 	}
 	el.client.ReplaceText(nil, text)
 	return true
-}
-
-// marked reports whether what the selection holds is marked mark, as
-// toggling it would take the mark away: over a range, where its toggle
-// removes it; at a caret, where typing would take it.
-func (el *Element) marked(mark doc.MarkKind) bool {
-	ed := el.Editor
-	view, _ := ed.Engine.View(ed.View)
-	if view.Selection.Kind == doc.SelectText && !view.Selection.IsCollapsed() {
-		out, err := ed.Engine.Preview(ed.View, vocab.Input{Intent: profile.Format{Mark: mark}, At: ed.active})
-		if err != nil {
-			return false
-		}
-		for _, step := range out.Steps {
-			if op, ok := step.Op().(doc.MarkText); ok {
-				for _, removed := range op.Remove {
-					if removed == mark {
-						return true
-					}
-				}
-			}
-		}
-		return false
-	}
-	caret := view.Selection.Head
-	if p := view.Pending; p != nil && p.At == caret {
-		return p.Marks.Has(mark)
-	}
-	snap := ed.Engine.Snapshot()
-	node, ok := snap.Node(caret.Pos.Node)
-	if !ok || caret.Pos.Slot >= node.NumSlots() || !node.Slot(caret.Pos.Slot).IsInline() {
-		return false
-	}
-	marks := vocab.InheritedMarks(snap.Schema(), node.Slot(caret.Pos.Slot).Content(), caret.Pos.Offset)
-	return marks != nil && marks.Has(mark)
-}
-
-// blockKindAt is the block command naming the kind of the text block at:
-// the list or quote holding it nearest, else its own kind.
-func blockKindAt(snap *doc.Snapshot, at doc.ID) vocab.CommandID {
-	for id := at; ; {
-		parent, _, ok := snap.Parent(id)
-		if !ok {
-			break
-		}
-		if n, ok := snap.Node(parent); ok {
-			switch n.Kind() {
-			case profile.List:
-				if profile.ListStyleOf(n) == profile.Ordered {
-					return "lists.numbered"
-				}
-				return "lists.bullet"
-			case profile.Quote:
-				return "blocks.quote"
-			}
-		}
-		id = parent
-	}
-	n, ok := snap.Node(at)
-	if !ok {
-		return "blocks.paragraph"
-	}
-	switch n.Kind() {
-	case profile.Heading:
-		switch profile.HeadingLevel(n) {
-		case 1:
-			return "blocks.heading1"
-		case 2:
-			return "blocks.heading2"
-		default:
-			return "blocks.heading3"
-		}
-	case profile.Code:
-		return "blocks.codeBlock"
-	}
-	return "blocks.paragraph"
 }
 
 // union is the least rectangle holding a and b.

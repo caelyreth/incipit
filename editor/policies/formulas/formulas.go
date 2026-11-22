@@ -40,7 +40,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "open", dollar, policy.Slot.Own(), openOf(defaultDialect)).When(policy.Takes(profile.Formula))
 	policy.On(p, "math", dollar, policy.Node(profile.Formula).Empty(), toMath)
 
-	p.Command("formulas.toggleDialect", "commands.toggleMathDialect", profile.ToggleMathDialect{})
+	p.Command("formulas.toggleDialect", "commands.toggleMathDialect", profile.ToggleMathDialect{}, policy.Offer(profile.FormulaOffers, 0, ""))
 	mathNode := policy.Node(profile.Math)
 	formulaNode := policy.Node(profile.Formula)
 	held := policy.Or(mathNode.Selected(), mathNode.Own(), formulaNode.Selected(), formulaNode.Own())

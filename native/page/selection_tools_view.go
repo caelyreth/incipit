@@ -1,6 +1,7 @@
 package page
 
 import (
+	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -60,7 +61,7 @@ func (el *Element) selectionToolsView(c *ui.Context, pl *pageLayout, focused boo
 		}
 		holder.Children(func() {
 			components.ToolBar{
-				Key: "selection-tools-bar", Label: "Selection tools", Groups: el.Tools(SelectionTools),
+				Key: "selection-tools-bar", Label: "Selection tools", Groups: el.Tools(vocab.SurfaceTools),
 				Room: el.viewport.W - 2*margin, Animate: animate, Side: side,
 				Keyed: true, Armed: t.armed, Open: &t.open, Run: el.RunTool,
 			}.View(c, semantic)

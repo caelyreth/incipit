@@ -198,10 +198,7 @@ func (Kind) Controls(h Host, u *Unit) []Control {
 	key := func(p Part, at int) ControlKey { return ControlKey{Unit: id, Part: p, At: at} }
 	scale := h.ChromeScale()
 	b := tableBox(u)
-	out := []Control{{Key: key(partCells, 0), Rect: b, Menu: func(x, y float32, at time.Time) [][]vocab.CommandID {
-		h.PlaceForMenu(x, y, at)
-		return Kind{}.Menu(h, u)
-	}}}
+	out := []Control{{Key: key(partCells, 0), Rect: b, Menu: h.PlaceForMenu}}
 	for c := range t.columns {
 		cell := t.cell(doc.CellCoord{Column: c})
 		edge := u.X + cell.X + cell.W
@@ -245,8 +242,8 @@ func (Kind) Controls(h Host, u *Unit) []Control {
 			Press: func(x, y float32, clicks int, extend bool, at time.Time) Drag {
 				return newLineDrag(h, u, g.rows, newPress(h, key(g.Part, g.at), x, y, clicks, extend), at)
 			},
-			Menu: func(_, _ float32, at time.Time) [][]vocab.CommandID {
-				return pickForMenu(h, id, g.rows, g.at, at)
+			Menu: func(_, _ float32, at time.Time) {
+				pickForMenu(h, id, g.rows, g.at, at)
 			}})
 	}
 	return out
@@ -255,8 +252,6 @@ func (Kind) Controls(h Host, u *Unit) []Control {
 // reach is where the pointer is by a table: the table and the gutters its
 // grips and areas stand in, wider while an area of its edges is open.
 // menu is a table's commands, as a cell's menu offers them.
-func (Kind) Menu(Host, *Unit) [][]vocab.CommandID { return tableMenu }
-
 func (Kind) Reach(h Host, u *Unit) ui.Rect {
 	t := u.Table
 	if t == nil {
@@ -407,19 +402,14 @@ func (Kind) Follow(h Host, c components.Clock, u *Unit) {
 }
 
 // pickForMenu picks a line whole for its grip's menu, unless a pick of
-// lines holds it already, and gives that line's commands.
-func pickForMenu(h Host, table doc.ID, rows bool, line int, at time.Time) [][]vocab.CommandID {
-	menu := columnMenu
-	if rows {
-		menu = rowMenu
-	}
+// lines holds it already: the rules offer what acts on whole lines.
+func pickForMenu(h Host, table doc.ID, rows bool, line int, at time.Time) {
 	if sel := h.Selection(); sel.Kind == doc.SelectCells && sel.Cells.Table == table && sel.Cells.WholeRows == rows &&
 		sel.Cells.WholeColumns == !rows && between(line, sel.Cells.Anchor, sel.Cells.Head, rows) {
-		return menu
+		return
 	}
 	cc := doc.CellCoord{Row: line, Column: line}
 	h.Do(vocab.Place{Cells: &doc.CellRange{Table: table, WholeRows: rows, WholeColumns: !rows, Anchor: cc, Head: cc}}, at)
-	return menu
 }
 
 // between reports whether line at lies between two cells' lines.
@@ -430,24 +420,3 @@ func between(at int, a, b doc.CellCoord, rows bool) bool {
 	}
 	return at >= min(from, to) && at <= max(from, to)
 }
-
-// tableMenu are the commands a cell's menu offers, in its groups, and
-// rowMenu and columnMenu those of a row's grip and a column's: what acts
-// on that line alone.
-var (
-	tableMenu = [][]vocab.CommandID{
-		{"table.row-above", "table.row-below", "table.column-left", "table.column-right"},
-		{"table.align-start", "table.align-center", "table.align-end", "table.header"},
-		{"table.delete-row", "table.delete-column", "table.delete"},
-	}
-	rowMenu = [][]vocab.CommandID{
-		{"table.row-above", "table.row-below"},
-		{"table.header"},
-		{"table.delete-row"},
-	}
-	columnMenu = [][]vocab.CommandID{
-		{"table.column-left", "table.column-right"},
-		{"table.align-start", "table.align-center", "table.align-end"},
-		{"table.delete-column"},
-	}
-)

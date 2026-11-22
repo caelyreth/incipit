@@ -72,7 +72,7 @@ type Control struct {
 	Rect   ui.Rect
 	Cursor ui.Cursor
 	Press  func(x, y float32, clicks int, extend bool, at time.Time) Drag
-	Menu   func(x, y float32, at time.Time) [][]vocab.CommandID
+	Menu   func(x, y float32, at time.Time)
 }
 
 // Drag is an active pointer drag over a table control.
@@ -187,7 +187,6 @@ type Host interface {
 	PaintChip(p *ui.Painter, text string, place func(ui.Rect) (ui.Rect, bool))
 	CursorAt(x, y float32) (ui.Cursor, bool)
 	PlaceForMenu(x, y float32, at time.Time)
-	SelectionMenu() [][]vocab.CommandID
 }
 
 // Kind implements table layout, painting, motion, and controls against a Host.

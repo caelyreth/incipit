@@ -2,11 +2,9 @@ package window
 
 import (
 	"strings"
-	"time"
 
 	"github.com/caelyreth/neverland/app/keymap"
-	"github.com/caelyreth/neverland/editor/doc"
-	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/egoist/mygo"
 )
@@ -19,8 +17,7 @@ import (
 func (a *AppState) MainMenu() *mygo.Menu {
 	a.menuItems = map[keymap.CommandID]*mygo.MenuItem{}
 	a.menuShown = map[*mygo.MenuItem]menuShown{}
-	a.formatItems = nil
-	a.insertPictureItem = nil
+	a.offerItems = nil
 	a.undoField = nil
 	command := func(id keymap.CommandID) *mygo.MenuItem {
 		declared, _ := a.Product.Keymap.Command(id)
@@ -36,20 +33,10 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		a.menuItems[id] = item
 		return item
 	}
-	format := func(label string, mark doc.MarkKind) *mygo.MenuItem {
-		item := &mygo.MenuItem{ID: "format-" + label, Label: label, Click: a.menuClick(func() { a.formatPage(mark) })}
-		a.formatItems = append(a.formatItems, formatItem{item: item, intent: profile.Format{Mark: mark}})
-		return item
-	}
 	ellipsis := func(item *mygo.MenuItem) *mygo.MenuItem {
 		item.Label += "…"
 		return item
 	}
-	a.insertPictureItem = &mygo.MenuItem{ID: "insert-picture", Label: "Insert Picture…", Click: a.menuClick(func() {
-		if el := a.pageElement(); el != nil && a.Shell.OnDesk() {
-			el.Editor.Do(vocab.Command{ID: "figures.insert"}, time.Now())
-		}
-	})}
 	menu := mygo.NewMenu([]*mygo.MenuItem{
 		{
 			Role: mygo.RoleAppMenu,
@@ -104,20 +91,11 @@ func (a *AppState) MainMenu() *mygo.Menu {
 				{Role: mygo.RoleSelectAll},
 				mygo.Separator(),
 				ellipsis(command(keymap.FindInSheet)),
-				mygo.Separator(),
-				a.insertPictureItem,
 			},
 		},
 		{
-			Label: "Format",
-			Submenu: []*mygo.MenuItem{
-				format("Bold", profile.Strong),
-				format("Italic", profile.Emphasis),
-				format("Code", profile.CodeMark),
-				format("Strikethrough", profile.Strike),
-				mygo.Separator(),
-				command(keymap.FormatTools),
-			},
+			Label:   "Format",
+			Submenu: append(a.offeredItems(), command(keymap.FormatTools)),
 		},
 		{
 			Label: "View",
@@ -178,11 +156,44 @@ func (a *AppState) menuClick(fn func()) func(*mygo.MenuItem, *mygo.Window) {
 	}
 }
 
-// formatItem is an item of the Format menu and the editing command it
-// stands for, whose key it shows.
-type formatItem struct {
-	item   *mygo.MenuItem
-	intent vocab.Intent
+// offerItem is an item of the Format menu and the command the rules
+// offer it for (vocab.SurfaceMenuBar), whose key and state it shows.
+type offerItem struct {
+	item *mygo.MenuItem
+	id   vocab.CommandID
+}
+
+// offeredItems are the Format menu's items for what the rules offer in
+// the menu bar, a group each, each followed by a separator: built once
+// from what the policies declare, each item kept in step with what is
+// offered for the page in front (syncOffers).
+func (a *AppState) offeredItems() []*mygo.MenuItem {
+	labels := map[keymap.CommandID]string{}
+	for _, c := range keymap.Declared(a.Product.Program.Catalog()) {
+		labels[c.ID] = c.Label
+	}
+	var out []*mygo.MenuItem
+	for _, g := range a.Product.Program.Offered() {
+		if g.Group.In&vocab.SurfaceMenuBar == 0 {
+			continue
+		}
+		for _, c := range g.Commands {
+			id := c.ID
+			item := &mygo.MenuItem{ID: "offer-" + string(id), Label: labels[keymap.CommandID(id)], Click: a.menuClick(func() {
+				if el := a.pageElement(); el != nil && a.Shell.OnDesk() {
+					el.RunTool(string(id))
+					a.refreshEditorChrome()
+				}
+			})}
+			if g.Group.Shape != vocab.OfferActions {
+				item.Type = mygo.MenuItemCheckbox
+			}
+			a.offerItems = append(a.offerItems, offerItem{item: item, id: id})
+			out = append(out, item)
+		}
+		out = append(out, mygo.Separator())
+	}
+	return out
 }
 
 // menuShown is what an item was last given, so syncMenu tells the
@@ -200,13 +211,10 @@ func (a *AppState) carries(item *mygo.MenuItem) bool {
 			return true
 		}
 	}
-	for _, f := range a.formatItems {
+	for _, f := range a.offerItems {
 		if f.item == item {
 			return true
 		}
-	}
-	if a.insertPictureItem != nil && a.insertPictureItem == item {
-		return true
 	}
 	return false
 }
@@ -237,24 +245,28 @@ func (a *AppState) syncMenu() {
 		}
 		a.showItem(item, menuShown{accelerator: accelerator, label: label, enabled: state.Enabled, checked: state.Checked})
 	}
-	catalog := a.Product.Program.Catalog()
 	mounted := false
 	if a.Workspace != nil {
 		_, mounted = a.Workspace.Mounted()
 	}
 	hasPage := desk && mounted
-	syncPageItem := func(item *mygo.MenuItem, cmd keymap.CommandID) {
+	// The offered items are as the rules offer them for the page in
+	// front: enabled where they can run, checked where they are on.
+	offers := map[vocab.CommandID]engine.Offered{}
+	if el := a.pageElement(); hasPage && el != nil {
+		for _, g := range el.Editor.Engine.Offers(el.Editor.View, vocab.SurfaceMenuBar) {
+			for _, o := range g.Offers {
+				offers[o.Command] = o
+			}
+		}
+	}
+	for _, f := range a.offerItems {
 		accelerator := ""
-		if chord, ok := keys.ChordFor(cmd); ok && hasPage && !a.recording {
+		if chord, ok := keys.ChordFor(keymap.CommandID(f.id)); ok && hasPage && !a.recording {
 			accelerator, _ = keymap.Accelerator(chord, keymap.PlatformCurrent)
 		}
-		a.showItem(item, menuShown{accelerator: accelerator, label: item.Label, enabled: hasPage})
-	}
-	for _, f := range a.formatItems {
-		syncPageItem(f.item, commandOf(catalog, f.intent))
-	}
-	if a.insertPictureItem != nil {
-		syncPageItem(a.insertPictureItem, "figures.insert")
+		o := offers[f.id]
+		a.showItem(f.item, menuShown{accelerator: accelerator, label: f.item.Label, enabled: o.Available, checked: o.On})
 	}
 	// While the field is in front, Undo and Redo are its own, named for
 	// what they take back; elsewhere, the system's, which the page and

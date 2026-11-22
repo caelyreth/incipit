@@ -7,7 +7,6 @@ import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
-	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/theme"
@@ -64,13 +63,14 @@ type Element struct {
 	viewport ui.Rect
 	column   float32 // the column's left, in the element
 	// drag is the press the page holds until it lets go: a control's or
-	// the text's (controls.go). menu is what its last secondary click
-	// chose, menuChosen whether one did since the last press or key; hotKey
+	// the text's (controls.go). menuChosen is whether a secondary click
+	// readied the menu since the last press or key, menuOffers whether it
+	// was on a control calling up offers; hotKey
 	// the control the pointer worked at the last paint, springs the
 	// values its objects and controls move, and memos what each unit's
 	// kind keeps besides, while the unit is on the page.
 	drag         drag
-	menu         [][]vocab.CommandID
+	menuOffers   bool
 	menuChosen   bool
 	hotKey       controlKey
 	springs      springs
@@ -420,7 +420,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 	}
 	if ev.Kind == ui.InputPointerDown || ev.Kind == ui.InputKeyDown {
 		// The menu a secondary click chose lasts until the next press.
-		el.menu, el.menuChosen = nil, false
+		el.menuOffers, el.menuChosen = false, false
 	}
 	switch ev.Kind {
 	case ui.InputPointerDown:

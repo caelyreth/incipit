@@ -86,10 +86,6 @@ func (tableKind) controls(el *Element, u *unitLayout) []control {
 	return out
 }
 
-func (tableKind) menu(el *Element, u *unitLayout) [][]vocab.CommandID {
-	return table.Kind{}.Menu(el.tableHost(), el.tableUnit(u))
-}
-
 func (tableKind) reach(el *Element, u *unitLayout) ui.Rect {
 	return table.Kind{}.Reach(el.tableHost(), el.tableUnit(u))
 }
@@ -202,9 +198,6 @@ func (h tableHost) CursorAt(x, y float32) (ui.Cursor, bool) {
 }
 func (h tableHost) PlaceForMenu(x, y float32, at time.Time) {
 	h.el.placeForMenu(x, y, at)
-}
-func (h tableHost) SelectionMenu() [][]vocab.CommandID {
-	return h.el.selectionMenu()
 }
 
 // placeForMenu puts the caret in the cell a secondary click is on, unless

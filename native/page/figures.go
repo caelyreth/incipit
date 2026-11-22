@@ -200,26 +200,16 @@ const (
 	partFigureGrip part = "figure-grip"
 )
 
-// controls are a figure's grips while it shows them, each resizing it
-// from its side.
-// figureMenu are the commands a figure offers for itself.
-var figureMenu = [][]vocab.CommandID{
-	{"figures.copy", "figures.save", "figures.preview"},
-	{"figures.replace"},
-	{"figures.alignStart", "figures.alignCenter"},
-}
-
-// menu is a figure's commands.
-func (figureKind) menu(*Element, *unitLayout) [][]vocab.CommandID { return figureMenu }
-
+// controls are a figure's picture, whose menu selects the figure for
+// what the rules offer it, and its grips while it shows them, each
+// resizing it from its side.
 func (figureKind) controls(el *Element, u *unitLayout) []control {
 	// The picture offers the figure's commands, selecting it as a click on
 	// it does.
 	id := u.pres.Unit
 	out := []control{{key: controlKey{unit: id, part: partFigure}, rect: ui.Rect{X: u.x + u.box.X, Y: u.y + u.box.Y, W: u.box.W, H: u.box.H},
-		menu: func(_, _ float32, at time.Time) [][]vocab.CommandID {
+		menu: func(_, _ float32, at time.Time) {
 			el.Editor.Do(vocab.Place{Node: id}, at)
-			return figureKind{}.menu(el, u)
 		}}}
 	if !el.gripsShown(u) {
 		return out

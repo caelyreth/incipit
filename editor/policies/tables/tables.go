@@ -22,18 +22,31 @@ const ID = "tables"
 
 // Policy is the tables policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	p.Command("table.insert", "commands.insertTable", profile.InsertTable{Rows: 2, Columns: 3})
-	p.Command("table.row-above", "commands.tableRowAbove", profile.EditGrid{Op: profile.GridInsert, Axis: profile.Rows, Before: true})
-	p.Command("table.row-below", "commands.tableRowBelow", profile.EditGrid{Op: profile.GridInsert, Axis: profile.Rows})
-	p.Command("table.column-left", "commands.tableColumnLeft", profile.EditGrid{Op: profile.GridInsert, Axis: profile.Columns, Before: true})
-	p.Command("table.column-right", "commands.tableColumnRight", profile.EditGrid{Op: profile.GridInsert, Axis: profile.Columns})
-	p.Command("table.delete-row", "commands.tableDeleteRow", profile.EditGrid{Op: profile.GridRemove, Axis: profile.Rows})
-	p.Command("table.delete-column", "commands.tableDeleteColumn", profile.EditGrid{Op: profile.GridRemove, Axis: profile.Columns})
-	p.Command("table.delete", "commands.deleteTable", profile.DeleteTable{})
-	p.Command("table.header", "commands.tableHeader", profile.ToggleHeader{})
-	p.Command("table.align-start", "commands.tableAlignStart", profile.AlignColumns{To: profile.AlignStart})
-	p.Command("table.align-center", "commands.tableAlignCenter", profile.AlignColumns{To: profile.AlignCenter})
-	p.Command("table.align-end", "commands.tableAlignEnd", profile.AlignColumns{To: profile.AlignEnd})
+	// Whole rows selected are offered what acts on rows, whole columns
+	// what acts on columns; anything else in a table, both.
+	rows, columns := policy.Not(policy.WholeColumns), policy.Not(policy.WholeRows)
+	lineOffers, formatOffers, removeOffers := profile.TableLineOffers, profile.TableFormatOffers, profile.TableRemoveOffers
+	p.Command("table.insert", "commands.insertTable", profile.InsertTable{Rows: 2, Columns: 3}, policy.Offer(profile.InsertOffers, 1, ""))
+	p.Command("table.row-above", "commands.tableRowAbove", profile.EditGrid{Op: profile.GridInsert, Axis: profile.Rows, Before: true},
+		policy.Offer(lineOffers, 0, "", rows))
+	p.Command("table.row-below", "commands.tableRowBelow", profile.EditGrid{Op: profile.GridInsert, Axis: profile.Rows},
+		policy.Offer(lineOffers, 1, "", rows))
+	p.Command("table.column-left", "commands.tableColumnLeft", profile.EditGrid{Op: profile.GridInsert, Axis: profile.Columns, Before: true},
+		policy.Offer(lineOffers, 2, "", columns))
+	p.Command("table.column-right", "commands.tableColumnRight", profile.EditGrid{Op: profile.GridInsert, Axis: profile.Columns},
+		policy.Offer(lineOffers, 3, "", columns))
+	p.Command("table.delete-row", "commands.tableDeleteRow", profile.EditGrid{Op: profile.GridRemove, Axis: profile.Rows},
+		policy.Offer(removeOffers, 0, "", rows))
+	p.Command("table.delete-column", "commands.tableDeleteColumn", profile.EditGrid{Op: profile.GridRemove, Axis: profile.Columns},
+		policy.Offer(removeOffers, 1, "", columns))
+	p.Command("table.delete", "commands.deleteTable", profile.DeleteTable{}, policy.Offer(removeOffers, 2, "", rows, columns))
+	p.Command("table.header", "commands.tableHeader", profile.ToggleHeader{}, policy.Offer(formatOffers, 3, "", rows))
+	p.Command("table.align-start", "commands.tableAlignStart", profile.AlignColumns{To: profile.AlignStart},
+		policy.Offer(formatOffers, 0, "", columns))
+	p.Command("table.align-center", "commands.tableAlignCenter", profile.AlignColumns{To: profile.AlignCenter},
+		policy.Offer(formatOffers, 1, "", columns))
+	p.Command("table.align-end", "commands.tableAlignEnd", profile.AlignColumns{To: profile.AlignEnd},
+		policy.Offer(formatOffers, 2, "", columns))
 
 	// What edits a table finds it by the selection, or by the id a
 	// gesture names: none of it is a scope's.

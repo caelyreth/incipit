@@ -19,10 +19,17 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "at-caret", format, policy.Slot.Own(), formatAtCaret).When(policy.Rich)
 	policy.On(p, "range", format, policy.Slot.Inside(), formatRange).Range().Cells()
 
-	p.Command("formats.strong", "commands.strong", profile.Format{Mark: profile.Strong}, policy.Key("primary+b"))
-	p.Command("formats.emphasis", "commands.emphasis", profile.Format{Mark: profile.Emphasis}, policy.Key("primary+i"))
-	p.Command("formats.code", "commands.code", profile.Format{Mark: profile.CodeMark}, policy.Key("primary+e"))
-	p.Command("formats.strike", "commands.strike", profile.Format{Mark: profile.Strike})
+	// Marks are offered wherever text is written or cells are selected.
+	where := policy.Spans(policy.SpanWriting | policy.SpanCells)
+	p.Command("formats.strong", "commands.strong", profile.Format{Mark: profile.Strong}, policy.Key("primary+b"),
+		policy.Offer(profile.MarkOffers, 0, "b", where))
+	p.Command("formats.emphasis", "commands.emphasis", profile.Format{Mark: profile.Emphasis}, policy.Key("primary+i"),
+		policy.Offer(profile.MarkOffers, 1, "i", where))
+	p.Command("formats.code", "commands.code", profile.Format{Mark: profile.CodeMark}, policy.Key("primary+e"),
+		policy.Offer(profile.MarkOffers, 2, "e", where))
+	p.Command("formats.strike", "commands.strike", profile.Format{Mark: profile.Strike},
+		policy.Offer(profile.MarkOffers, 3, "s", where))
+	policy.State(p, format, marked)
 
 	// The card's demonstration, played by the engine itself.
 	p.Showcase(2400*time.Millisecond,
@@ -36,14 +43,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 
 // formatAtCaret toggles a mark in the marks text typed at the caret
 // takes: the pending ones, or the marks around it.
-func formatAtCaret(c *policy.Ctx, in profile.Format, at policy.At[doc.SlotRef]) policy.Result {
+func formatAtCaret(c *policy.Ctx, in profile.Format, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
-	head := c.Head().Pos
-	in2, _ := c.Inline(at.Data)
-	marks := vocab.InheritedMarks(r.Schema(), in2, head.Offset)
-	if p := c.Pending(); p != nil {
-		marks = p.Marks
-	}
+	marks := caretMarks(c)
 	if marks == nil {
 		marks = r.Marks().Empty()
 	}
@@ -55,14 +57,45 @@ func formatAtCaret(c *policy.Ctx, in profile.Format, at policy.At[doc.SlotRef]) 
 	return policy.Result{Pending: marks}
 }
 
+// caretMarks are the marks text typed at the caret takes: the pending
+// ones, or the marks around it.
+func caretMarks(c *policy.Ctx) *doc.MarkSet {
+	if p := c.Pending(); p != nil {
+		return p.Marks
+	}
+	head := c.Head().Pos
+	in, ok := c.Inline(head.Ref())
+	if !ok {
+		return nil
+	}
+	return vocab.InheritedMarks(c.Doc().Schema(), in, head.Offset)
+}
+
+// marked is whether a format is on: in the marks typed at a caret, or
+// over all the selection covers, where toggling it clears it.
+func marked(c *policy.Ctx, in profile.Format) bool {
+	if c.Span().Shape == policy.SpanCaret {
+		marks := caretMarks(c)
+		return marks != nil && marks.Has(in.Mark)
+	}
+	spans := pieceSpans(c)
+	return len(spans) > 0 && vocab.CoverageOf(c.Doc(), spans, in.Mark) == vocab.CoverFull
+}
+
+// pieceSpans are the text spans of what the selection covers.
+func pieceSpans(c *policy.Ctx) []vocab.Span {
+	var spans []vocab.Span
+	for _, p := range c.Pieces() {
+		spans = append(spans, vocab.TextSpans(c.Doc(), p.From, p.To)...)
+	}
+	return spans
+}
+
 // formatRange toggles a mark over what the selection covers: cleared where
 // it covers all of it, applied otherwise.
 func formatRange(c *policy.Ctx, in profile.Format, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
-	var spans []vocab.Span
-	for _, p := range c.Pieces() {
-		spans = append(spans, vocab.TextSpans(r, p.From, p.To)...)
-	}
+	spans := pieceSpans(c)
 	if vocab.CoverageOf(r, spans, in.Mark) == vocab.CoverFull {
 		return policy.Do(vocab.ClearMark(spans, in.Mark))
 	}

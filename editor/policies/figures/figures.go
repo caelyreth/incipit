@@ -18,13 +18,17 @@ const ID = "figures"
 
 // Policy is the figures policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
-	p.Command("figures.insert", "commands.insertPicture", profile.PickPictures{})
-	p.Command("figures.alignStart", "commands.alignPictureStart", profile.AlignFigure{To: profile.AlignStart})
-	p.Command("figures.alignCenter", "commands.alignPictureCenter", profile.AlignFigure{To: profile.AlignCenter})
-	p.Command("figures.copy", "commands.copyPicture", profile.UsePicture{Use: profile.PictureCopy})
-	p.Command("figures.save", "commands.savePicture", profile.UsePicture{Use: profile.PictureSave})
-	p.Command("figures.preview", "commands.previewPicture", profile.UsePicture{Use: profile.PicturePreview})
-	p.Command("figures.replace", "commands.replacePicture", profile.UsePicture{Use: profile.PictureReplace})
+	p.Command("figures.insert", "commands.insertPicture", profile.PickPictures{}, policy.Offer(profile.InsertOffers, 0, ""))
+	p.Command("figures.alignStart", "commands.alignPictureStart", profile.AlignFigure{To: profile.AlignStart},
+		policy.Offer(profile.PictureAlignOffers, 0, ""))
+	p.Command("figures.alignCenter", "commands.alignPictureCenter", profile.AlignFigure{To: profile.AlignCenter},
+		policy.Offer(profile.PictureAlignOffers, 1, ""))
+	p.Command("figures.copy", "commands.copyPicture", profile.UsePicture{Use: profile.PictureCopy}, policy.Offer(profile.PictureOffers, 0, ""))
+	p.Command("figures.save", "commands.savePicture", profile.UsePicture{Use: profile.PictureSave}, policy.Offer(profile.PictureOffers, 1, ""))
+	p.Command("figures.preview", "commands.previewPicture", profile.UsePicture{Use: profile.PicturePreview},
+		policy.Offer(profile.PictureOffers, 2, ""))
+	p.Command("figures.replace", "commands.replacePicture", profile.UsePicture{Use: profile.PictureReplace},
+		policy.Offer(profile.PictureReplaceOffers, 0, ""))
 
 	in := policy.Slot.Inside()
 	policy.On(p, "pick", policy.Intent[profile.PickPictures](), in, pick).Any()

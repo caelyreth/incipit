@@ -55,6 +55,7 @@ type P struct {
 	showcase    *Showcase
 	paints      []Paint
 	guides      []Guide
+	states      []stateDecl
 	grouping    func(prev, next *doc.Entry) bool
 	errs        []error
 }
@@ -232,6 +233,8 @@ type Command struct {
 	// menu role does: the keymap neither binds nor lists it, and Key is
 	// that platform key, shown where the command's key is shown.
 	System bool
+	// Offer is how it is offered for the selection, if it is (offers.go).
+	Offer *Offering
 }
 
 // CommandSetting refines a command declaration.

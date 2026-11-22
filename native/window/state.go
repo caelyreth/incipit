@@ -10,6 +10,7 @@ import (
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
+	"github.com/caelyreth/neverland/editor/vocab"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/settings"
@@ -40,12 +41,11 @@ type AppState struct {
 	menu       *mygo.Menu
 	systemKeys map[*mygo.MenuItem]string
 	// menuItems are the menu's items by the command each runs,
-	// formatItems the Format menu's, and menuShown what each was last
-	// given (syncMenu).
-	menuItems         map[keymap.CommandID]*mygo.MenuItem
-	formatItems       []formatItem
-	insertPictureItem *mygo.MenuItem
-	menuShown         map[*mygo.MenuItem]menuShown
+	// offerItems the Format menu's for what the rules offer, and
+	// menuShown what each was last given (syncMenu).
+	menuItems  map[keymap.CommandID]*mygo.MenuItem
+	offerItems []offerItem
+	menuShown  map[*mygo.MenuItem]menuShown
 	// fresh are the sheets made this run, which go if closed empty.
 	fresh map[workspace.PageID]bool
 	// undoItem and redoItem are Edit's Undo and Redo for the field.
@@ -211,7 +211,7 @@ func (a *AppState) BindShell() {
 	}
 	a.Shell.Tools = func() []components.ToolGroup {
 		if el := a.frontEditor(); el != nil {
-			return el.Tools(page.DockTools)
+			return el.Tools(vocab.SurfaceDock)
 		}
 		return nil
 	}

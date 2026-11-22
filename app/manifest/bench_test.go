@@ -55,3 +55,21 @@ func BenchmarkMotion(b *testing.B) {
 		do(vocab.Move{Unit: vocab.ByGrapheme, Dir: dir})
 	}
 }
+
+// BenchmarkOffers reads the dock's and the bar's offers after each
+// keystroke of a page of text, as the desk does while writing.
+func BenchmarkOffers(b *testing.B) {
+	e, do := benchPage(b)
+	for range 40 {
+		for _, r := range benchText {
+			do(vocab.Type{Text: string(r)})
+		}
+		do(vocab.Break{})
+	}
+	b.ResetTimer()
+	for b.Loop() {
+		do(vocab.Type{Text: "a"})
+		e.Offers(1, vocab.SurfaceDock)
+		e.Offers(1, vocab.SurfaceTools)
+	}
+}

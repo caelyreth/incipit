@@ -135,37 +135,33 @@ func TestKeysActOnTheSceneInFront(t *testing.T) {
 	if item := app.menuItems[keymap.Trash]; item.Accelerator != "" {
 		t.Fatalf("Move to Trash keeps %q on the desk, where the page hears it", item.Accelerator)
 	}
-	if app.insertPictureItem.Disabled {
-		t.Fatal("Insert Picture is disabled on the desk with an active sheet")
+	if len(app.offerItems) == 0 {
+		t.Fatal("The Format menu holds nothing the rules offer.")
 	}
-	for _, f := range app.formatItems {
-		if f.item.Disabled {
-			t.Fatalf("Format item %q is disabled on the desk with an active sheet", f.item.Label)
+	for _, f := range app.offerItems {
+		if f.id == "figures.insert" || f.id == "formats.strong" || f.id == "blocks.heading1" {
+			if f.item.Disabled {
+				t.Fatalf("Format item %q is disabled at a caret on the desk", f.item.Label)
+			}
+		}
+	}
+	allDisabled := func(where string) {
+		t.Helper()
+		for _, f := range app.offerItems {
+			if !f.item.Disabled {
+				t.Fatalf("Format item %q is enabled %s", f.item.Label, where)
+			}
 		}
 	}
 
 	app.Shell.ShowField()
 	tester.Frame()
-	if !app.insertPictureItem.Disabled {
-		t.Fatal("Insert Picture is enabled on the field")
-	}
-	for _, f := range app.formatItems {
-		if !f.item.Disabled {
-			t.Fatalf("Format item %q is enabled on the field", f.item.Label)
-		}
-	}
+	allDisabled("on the field")
 
 	app.Shell.ShowDesk()
 	app.closeActive()
 	tester.Frame()
-	if !app.insertPictureItem.Disabled {
-		t.Fatal("Insert Picture is enabled with no active sheet")
-	}
-	for _, f := range app.formatItems {
-		if !f.item.Disabled {
-			t.Fatalf("Format item %q is enabled with no active sheet", f.item.Label)
-		}
-	}
+	allDisabled("with no active sheet")
 }
 
 func TestRoutingRejectsUnknownCommands(t *testing.T) {
