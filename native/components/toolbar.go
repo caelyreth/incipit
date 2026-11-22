@@ -215,7 +215,7 @@ func (b ToolBar) choice(c *ui.Context, semantic theme.Theme, g ToolGroup) {
 	}
 	open := b.Open != nil && *b.Open == g.Key
 	var face ui.Element
-	ui.Box(c.Key("choice-" + g.Key)).Children(func() {
+	ui.Box(c.Key("choice-" + g.Key)).Shrink(0).Children(func() {
 		face = ChoiceButton{
 			Key: g.Key, Label: label, Tooltip: g.Label, HintSide: b.Side, Size: b.Size,
 			Disabled: !enabled, Animate: b.Animate, Selected: open,

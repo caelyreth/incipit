@@ -90,10 +90,13 @@ func (b ChoiceButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		style: SubtleButton, size: b.Size, disabled: b.Disabled, selected: b.Selected,
 		animate: b.Animate, action: b.Action,
 		children: func() {
-			CenteredLabel(c, b.Label, theme.TextSmall, semantic.Text.Default)
+			// Its name is whole or clipped, never cut short with an
+			// ellipsis: squeezed on the way, as a bar grows or folds about
+			// it, it would flicker between the two.
+			CenteredLabel(c, b.Label, theme.TextSmall, semantic.Text.Default).Shrink(0)
 			ui.Icon(c, IconChevronDown.SVG()).FontSize(12 * k).TextColor(semantic.Icon.Muted)
 		},
-	}).PaddingStart(theme.Space08.DIPs(scale)).PaddingEnd(theme.Space06.DIPs(scale)).
+	}).Shrink(0).PaddingStart(theme.Space08.DIPs(scale)).PaddingEnd(theme.Space06.DIPs(scale)).
 		Gap(theme.Space04.DIPs(scale)).AlignItems(ui.Center)
 }
 
