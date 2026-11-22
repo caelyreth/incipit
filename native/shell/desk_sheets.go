@@ -116,15 +116,19 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lea
 
 // deskColumnCulled reports whether an off-viewport sheet column can skip
 // building its page editor subtree while preserving its column slot width:
-// one a view or more out of the desk's window. The rule is the same on
-// the desk and away from it, so going between them builds no page: the
-// pages the desk comes up with were built, their sheets read and laid
-// out, while it rested in its lane, not in the frame it starts up in.
+// on the desk, one a view or more out of it; away from it, any out of it.
+// Which rule holds changes with the desk being left or come to, never on
+// the way: the desk is one picture then (leanDesk), drawn again whole
+// whenever what it holds changes, so a change in its last frames would
+// stall it just short of its place.
 func (s *State) deskColumnCulled(col ui.Element, column string, shown ui.Rect) bool {
 	if shown.W <= 0 || s.desk.viewport.W <= 0 || column == s.ActiveColumn || col.FocusWithin() {
 		return false
 	}
 	vw := s.desk.viewport.W
+	if !s.OnDesk() {
+		return shown.X+shown.W <= 0 || shown.X >= vw
+	}
 	return shown.X+shown.W < -vw || shown.X > 2*vw
 }
 
