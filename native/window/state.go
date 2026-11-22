@@ -55,7 +55,7 @@ type AppState struct {
 	recording bool
 	// colors carries every window through a theme or accent change at once.
 	colors theme.Transition
-	// fonts are the faces of other scripts downloaded.
+	// fonts are the faces for Chinese and Japanese, kept and coming.
 	fonts *fontState
 	// sessions are the pages' sessions by identity, which the notebook
 	// saves.
@@ -410,7 +410,7 @@ func (a *AppState) refreshSettingsData() {
 	a.Settings.Animate = a.Product.Presentation.Motion
 	a.Settings.Recording = a.setRecording
 	a.Settings.Reserved = a.reservedKey
-	a.Settings.Fonts, a.Settings.HanFace, a.Settings.Font = a.fonts.rows(), a.Product.Appearance.HanFace, a.fontAct
+	a.Settings.Fonts, a.Settings.CJKFace, a.Settings.Font = a.fonts.rows(), a.Product.Appearance.CJKFace, a.fontAct
 	a.Settings.Apply = func(change appsettings.Change) {
 		outcome, err := a.Product.Apply(change)
 		if err != nil {
@@ -512,7 +512,7 @@ func themeSource(settings theme.Settings) mygo.ThemeSource {
 func (a *AppState) appearanceSettings() theme.Settings {
 	values := a.Product.Appearance
 	settings := theme.DefaultSettings()
-	settings.ProseFamily = a.fonts.family(values.HanFace)
+	settings.ProseFamily = a.fonts.family(values.CJKFace)
 	settings.UIFontSize = values.UIFontSize
 	settings.ProseFontSize = values.ProseFontSize
 	settings.LineSpacing = values.LineSpacing

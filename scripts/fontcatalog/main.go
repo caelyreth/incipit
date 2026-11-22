@@ -1,4 +1,4 @@
-// Command fontcatalog writes app/fonts/catalog.go: for each script's face,
+// Command fontcatalog writes app/fonts/catalog.go: for each face,
 // it asks Google Fonts' CSS API for the face's static files at the weights
 // the page draws, downloads each from fonts.gstatic.com, and pins its URL,
 // size and SHA-256. Run it from the repository's root to move the catalog
@@ -25,40 +25,20 @@ import (
 	"time"
 )
 
-// face is a script's face as the catalog lists it.
+// face is a face as the catalog lists it: what the settings call it, the
+// language it is for and a line in it, and its family.
 type face struct {
-	id, name, sample, family string
-	han                      bool
+	id, language, sample, family string
 }
 
-// faces are the catalog's, in its order: the faces that draw Han
-// characters first, then the other scripts.
+// faces are the catalog's, in the order the settings list them: Noto
+// Serif for Chinese and Japanese, the languages the app is written for
+// beyond Latin.
 var faces = []face{
-	{"sc", "Chinese, Simplified", "永和九年，岁在癸丑，暮春之初", "Noto Serif SC", true},
-	{"tc", "Chinese, Traditional", "永和九年，歲在癸丑，暮春之初", "Noto Serif TC", true},
-	{"hk", "Chinese, Hong Kong", "維港兩岸，燈火通明", "Noto Serif HK", true},
-	{"jp", "Japanese", "いろはにほへと　ちりぬるを", "Noto Serif JP", true},
-	{"kr", "Korean", "다람쥐 헌 쳇바퀴에 타고파", "Noto Serif KR", true},
-	{"thai", "Thai", "เป็นมนุษย์สุดประเสริฐเลิศคุณค่า", "Noto Serif Thai", false},
-	{"lao", "Lao", "ສະບາຍດີ", "Noto Serif Lao", false},
-	{"khmer", "Khmer", "សួស្តី​ពិភពលោក", "Noto Serif Khmer", false},
-	{"myanmar", "Myanmar", "မင်္ဂလာပါ", "Noto Serif Myanmar", false},
-	{"tibetan", "Tibetan", "བཀྲ་ཤིས་བདེ་ལེགས།", "Noto Serif Tibetan", false},
-	{"arabic", "Arabic", "مرحبا بالعالم", "Noto Naskh Arabic", false},
-	{"hebrew", "Hebrew", "שלום עולם", "Noto Serif Hebrew", false},
-	{"armenian", "Armenian", "Բարեւ աշխարհ", "Noto Serif Armenian", false},
-	{"georgian", "Georgian", "გამარჯობა მსოფლიო", "Noto Serif Georgian", false},
-	{"ethiopic", "Ethiopic", "ሰላም ለዓለም", "Noto Serif Ethiopic", false},
-	{"devanagari", "Devanagari", "नमस्ते दुनिया", "Noto Serif Devanagari", false},
-	{"bengali", "Bengali", "ওহে বিশ্ব", "Noto Serif Bengali", false},
-	{"gurmukhi", "Gurmukhi", "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ", "Noto Serif Gurmukhi", false},
-	{"gujarati", "Gujarati", "નમસ્તે દુનિયા", "Noto Serif Gujarati", false},
-	{"oriya", "Odia", "ନମସ୍କାର ଦୁନିଆ", "Noto Serif Oriya", false},
-	{"tamil", "Tamil", "வணக்கம் உலகம்", "Noto Serif Tamil", false},
-	{"telugu", "Telugu", "నమస్కారం ప్రపంచం", "Noto Serif Telugu", false},
-	{"kannada", "Kannada", "ನಮಸ್ಕಾರ ಜಗತ್ತು", "Noto Serif Kannada", false},
-	{"malayalam", "Malayalam", "നമസ്കാരം ലോകം", "Noto Serif Malayalam", false},
-	{"sinhala", "Sinhala", "ආයුබෝවන් ලෝකය", "Noto Serif Sinhala", false},
+	{"sc", "Chinese, Simplified", "永和九年，岁在癸丑，暮春之初", "Noto Serif SC"},
+	{"tc", "Chinese, Traditional", "永和九年，歲在癸丑，暮春之初", "Noto Serif TC"},
+	{"hk", "Chinese, Hong Kong", "維港兩岸，燈火通明", "Noto Serif HK"},
+	{"jp", "Japanese", "いろはにほへと　ちりぬるを", "Noto Serif JP"},
 }
 
 // weights are those the page draws: body text, and headings and strong
@@ -92,10 +72,9 @@ func main() {
 
 package fonts
 
-// Catalog is the faces the app offers, in the order the settings list them
-// and the prose family list falls back through: the faces that draw Han
-// characters first, then the other scripts. Each file is Google Fonts'
-// static build at a weight, at its path on each of Hosts.
+// Catalog is the faces the app offers for Chinese and Japanese, in the
+// order the settings list them. Each file is Google Fonts' static build at
+// a weight, at its path on each of Hosts.
 var Catalog = []Face{
 `)
 	for _, f := range faces {
@@ -103,7 +82,7 @@ var Catalog = []Face{
 		if err != nil {
 			log.Fatalf("%s: %v", f.family, err)
 		}
-		fmt.Fprintf(&b, "{ID: %q, Name: %q, Sample: %q, Family: %q, Han: %v, Files: []File{\n", f.id, f.name, f.sample, f.family, f.han)
+		fmt.Fprintf(&b, "{ID: %q, Language: %q, Sample: %q, Family: %q, Files: []File{\n", f.id, f.language, f.sample, f.family)
 		for _, fl := range files {
 			fmt.Fprintf(&b, "{Path: %q, Name: %q, Weight: %d, Size: %d, SHA256: %q},\n", fl.path, fl.name, fl.weight, fl.size, fl.sha)
 		}

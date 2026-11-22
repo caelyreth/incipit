@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -161,18 +162,32 @@ func TestInstallRefusesWhatIsNotPinned(t *testing.T) {
 	}
 }
 
-// TestFamilyOrder puts the chosen Han face first among the installed, the
-// rest in the catalog's order, after the Latin face.
-func TestFamilyOrder(t *testing.T) {
-	if got := Family("Noto Serif", nil, "jp"); got != "Noto Serif" {
-		t.Errorf("none installed: %q", got)
+// TestSweepKeepsTheCatalogsFaces removes the files of faces the catalog no
+// longer has, whole or in part, and keeps its own.
+func TestSweepKeepsTheCatalogsFaces(t *testing.T) {
+	s := NewStore(t.TempDir())
+	if err := s.Sweep(); err != nil {
+		t.Fatalf("a store not made yet: %v", err)
 	}
-	got := Family("Noto Serif", []string{"thai", "sc", "jp"}, "jp")
-	if want := "Noto Serif, Noto Serif JP, Noto Serif SC, Noto Serif Thai"; got != want {
-		t.Errorf("got %q, want %q", got, want)
+	f := Catalog[0]
+	ours := []string{s.path(f.Files[0]), s.partial(f.Files[1])}
+	theirs := []string{filepath.Join(s.Dir, "NotoSerifThai-400.ttf"), filepath.Join(s.Dir, "NotoSerifKR-700.ttf.part")}
+	os.MkdirAll(s.Dir, 0o755)
+	for _, p := range append(ours, theirs...) {
+		os.WriteFile(p, []byte("font"), 0o644)
 	}
-	if got := Family("Noto Serif", []string{"sc", "jp"}, ""); got != "Noto Serif, Noto Serif SC, Noto Serif JP" {
-		t.Errorf("no Han choice: %q", got)
+	if err := s.Sweep(); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range ours {
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("%s went: %v", filepath.Base(p), err)
+		}
+	}
+	for _, p := range theirs {
+		if _, err := os.Stat(p); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s stayed", filepath.Base(p))
+		}
 	}
 }
 

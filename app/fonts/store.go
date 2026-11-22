@@ -306,6 +306,35 @@ func (s *Store) Remove(f Face) error {
 	return errors.Join(errs...)
 }
 
+// Sweep removes what Dir keeps that is of no face of the catalog, whole
+// or in part: the faces of scripts the app offered before, which it no
+// longer draws.
+func (s *Store) Sweep() error {
+	entries, err := os.ReadDir(s.Dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	ours := map[string]bool{}
+	for _, f := range Catalog {
+		for _, file := range f.Files {
+			ours[filepath.Base(s.path(file))], ours[filepath.Base(s.partial(file))] = true, true
+		}
+	}
+	var errs []error
+	for _, e := range entries {
+		if e.IsDir() || ours[e.Name()] {
+			continue
+		}
+		if err := os.Remove(filepath.Join(s.Dir, e.Name())); err != nil && !errors.Is(err, os.ErrNotExist) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // Partial is how much of f has come, kept and in part, as a download left
 // it.
 func (s *Store) Partial(f Face) int64 {

@@ -27,10 +27,11 @@ type State struct {
 	// asks to show it.
 	Find    func(words string)
 	Animate bool
-	// Fonts are the downloadable faces of other scripts, HanFace the one
-	// chosen to draw Han characters, and Font does what a row asks of one.
+	// Fonts are the downloadable faces for Chinese and Japanese, CJKFace
+	// the one chosen (empty for the system's fonts), and Font does what
+	// the section asks of one.
 	Fonts   []FontRow
-	HanFace string
+	CJKFace string
 	Font    func(id string, act FontAct)
 
 	// The chord the keymap is searched by, as pressed. Then, in any

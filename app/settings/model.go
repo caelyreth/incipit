@@ -164,7 +164,7 @@ const (
 	SetUIFontSize
 	SetProseFontSize
 	SetLineSpacing
-	SetHanFace
+	SetCJKFace
 )
 
 // AppearanceChange is one neutral theme or text-size request. The accent
@@ -174,7 +174,7 @@ type AppearanceChange struct {
 	Theme    uint8
 	FontSize float32
 	Spacing  float32
-	// Face is SetHanFace's face id (app/fonts).
+	// Face is SetCJKFace's face id (app/fonts), empty for the system's.
 	Face string
 }
 

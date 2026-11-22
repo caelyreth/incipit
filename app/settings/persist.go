@@ -25,7 +25,7 @@ type persisted struct {
 	UIFontSize   float32                    `json:"uiFontSize"`
 	ProseSize    float32                    `json:"proseFontSize"`
 	LineSpacing  float32                    `json:"lineSpacing"`
-	HanFace      string                     `json:"hanFace,omitempty"`
+	CJKFace      string                     `json:"cjkFace,omitempty"`
 	Keymap       map[string]*persistedChord `json:"keymap,omitempty"`
 	PolicyValues map[string]json.RawMessage `json:"policy,omitempty"`
 }
@@ -53,7 +53,7 @@ func (s State) Encode() ([]byte, error) {
 		UIFontSize:   s.Appearance.UIFontSize,
 		ProseSize:    s.Appearance.ProseFontSize,
 		LineSpacing:  s.Appearance.LineSpacing,
-		HanFace:      s.Appearance.HanFace,
+		CJKFace:      s.Appearance.CJKFace,
 		Keymap:       persistedOverrides(s.Keymap),
 		PolicyValues: policyValues,
 	}
@@ -101,7 +101,7 @@ func (s *State) Decode(data []byte) error {
 			UIFontSize:    record.UIFontSize,
 			ProseFontSize: record.ProseSize,
 			LineSpacing:   record.LineSpacing,
-			HanFace:       record.HanFace,
+			CJKFace:       record.CJKFace,
 		}.Normalized(),
 		Keymap:  keys,
 		Policy:  values,

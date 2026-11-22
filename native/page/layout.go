@@ -26,7 +26,7 @@ type Metrics struct {
 	// may show, within the page's margins.
 	Reach float32
 	// Family is the prose's family list: the Latin face the app ships,
-	// then the faces of other scripts downloaded (app/fonts).
+	// then the face chosen for Chinese and Japanese, once kept (app/fonts).
 	Family string
 }
 

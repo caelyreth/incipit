@@ -2,109 +2,24 @@
 
 package fonts
 
-// Catalog is the faces the app offers, in the order the settings list them
-// and the prose family list falls back through: the faces that draw Han
-// characters first, then the other scripts. Each file is Google Fonts'
-// static build at a weight, at its path on each of Hosts.
+// Catalog is the faces the app offers for Chinese and Japanese, in the
+// order the settings list them. Each file is Google Fonts' static build at
+// a weight, at its path on each of Hosts.
 var Catalog = []Face{
-	{ID: "sc", Name: "Chinese, Simplified", Sample: "永和九年，岁在癸丑，暮春之初", Family: "Noto Serif SC", Han: true, Files: []File{
+	{ID: "sc", Language: "Chinese, Simplified", Sample: "永和九年，岁在癸丑，暮春之初", Family: "Noto Serif SC", Files: []File{
 		{Path: "s/notoserifsc/v36/H4cyBXePl9DZ0Xe7gG9cyOj7uK2-n-D2rd4FY7SCqyWv.ttf", Name: "NotoSerifSC-400.ttf", Weight: 400, Size: 14785412, SHA256: "a513b97fa1503422d78ee1f40415db736926e2d0d8d99701bdcede8cf6f6058e"},
 		{Path: "s/notoserifsc/v36/H4cyBXePl9DZ0Xe7gG9cyOj7uK2-n-D2rd4FY7RlrCWv.ttf", Name: "NotoSerifSC-700.ttf", Weight: 700, Size: 14784324, SHA256: "478964fe127eb4503248b057f675bbb26c67b2adf6a78643ff52549d28e0a3e9"},
 	}},
-	{ID: "tc", Name: "Chinese, Traditional", Sample: "永和九年，歲在癸丑，暮春之初", Family: "Noto Serif TC", Han: true, Files: []File{
+	{ID: "tc", Language: "Chinese, Traditional", Sample: "永和九年，歲在癸丑，暮春之初", Family: "Noto Serif TC", Files: []File{
 		{Path: "s/notoseriftc/v37/XLYzIZb5bJNDGYxLBibeHZ0BnHwmuanx8cUaGX9aMOpD.ttf", Name: "NotoSerifTC-400.ttf", Weight: 400, Size: 9934616, SHA256: "2aa67c20b8cc8b929cc2ace9c0896cee033abbdfe11fe65306a5caede1cdc6ac"},
 		{Path: "s/notoseriftc/v37/XLYzIZb5bJNDGYxLBibeHZ0BnHwmuanx8cUaGX-9N-pD.ttf", Name: "NotoSerifTC-700.ttf", Weight: 700, Size: 9937380, SHA256: "3e2b71256bf380d8aaf7b7fee13aa7690b3f20326dc8815a4e6beead3f1a23e1"},
 	}},
-	{ID: "hk", Name: "Chinese, Hong Kong", Sample: "維港兩岸，燈火通明", Family: "Noto Serif HK", Han: true, Files: []File{
+	{ID: "hk", Language: "Chinese, Hong Kong", Sample: "維港兩岸，燈火通明", Family: "Noto Serif HK", Files: []File{
 		{Path: "s/notoserifhk/v13/BngdUXBETWXI6LwlBZGcqL-B_KuJFcgfwP_9RMd-K2Rm.ttf", Name: "NotoSerifHK-400.ttf", Weight: 400, Size: 9920428, SHA256: "16cbc5633c50b37b87a1510a57dc080c5e087891043c3c1018bc26d4a6c0f737"},
 		{Path: "s/notoserifhk/v13/BngdUXBETWXI6LwlBZGcqL-B_KuJFcgfwP_9RMeZLGRm.ttf", Name: "NotoSerifHK-700.ttf", Weight: 700, Size: 9922364, SHA256: "b14729ec38c9a666c88cbdb3af318bf943cd80204db8de5a48051ae2faaee5a4"},
 	}},
-	{ID: "jp", Name: "Japanese", Sample: "いろはにほへと\u3000ちりぬるを", Family: "Noto Serif JP", Han: true, Files: []File{
+	{ID: "jp", Language: "Japanese", Sample: "いろはにほへと\u3000ちりぬるを", Family: "Noto Serif JP", Files: []File{
 		{Path: "s/notoserifjp/v34/xn71YHs72GKoTvER4Gn3b5eMRtWGkp6o7MjQ2bwxOubA.ttf", Name: "NotoSerifJP-400.ttf", Weight: 400, Size: 8005896, SHA256: "11bb8d2b5e3589d9d4ca0de2c3c4d98cf5ef16cc2b7ee4f257d489e7b214eaf6"},
 		{Path: "s/notoserifjp/v34/xn71YHs72GKoTvER4Gn3b5eMRtWGkp6o7MjQ2bzWPebA.ttf", Name: "NotoSerifJP-700.ttf", Weight: 700, Size: 8000096, SHA256: "7259dd476d2f56504d5a55e9eab4a87cdf21b5aa708c17648c9224abd3f0aed1"},
-	}},
-	{ID: "kr", Name: "Korean", Sample: "다람쥐 헌 쳇바퀴에 타고파", Family: "Noto Serif KR", Han: true, Files: []File{
-		{Path: "s/notoserifkr/v32/3JnoSDn90Gmq2mr3blnHaTZXbOtLJDvui3JOncjmeM52.ttf", Name: "NotoSerifKR-400.ttf", Weight: 400, Size: 14058936, SHA256: "659a979987ffbf8987fa4e4ce26a3bdcdb37873f492d414fb858e13a58abea7c"},
-		{Path: "s/notoserifkr/v32/3JnoSDn90Gmq2mr3blnHaTZXbOtLJDvui3JOncgBf852.ttf", Name: "NotoSerifKR-700.ttf", Weight: 700, Size: 14062572, SHA256: "86cf53e1f809e8e8c3f15bc169fdb3ee984c870671ccac7ce477dc6cda7d7c10"},
-	}},
-	{ID: "thai", Name: "Thai", Sample: "เป็นมนุษย์สุดประเสริฐเลิศคุณค่า", Family: "Noto Serif Thai", Han: false, Files: []File{
-		{Path: "s/notoserifthai/v28/k3kyo80MPvpLmixYH7euCxWpSMu3-gcWGj0hHAKGvUQlUv_bCKDUSzB5L0oiF-RR.ttf", Name: "NotoSerifThai-400.ttf", Weight: 400, Size: 59704, SHA256: "9c577a5f94f8704a3c68442b371176e8ca0041d7df17de3c91f4919289b54fee"},
-		{Path: "s/notoserifthai/v28/k3kyo80MPvpLmixYH7euCxWpSMu3-gcWGj0hHAKGvUQlUv_bCKDUSzB5L0rFEORR.ttf", Name: "NotoSerifThai-700.ttf", Weight: 700, Size: 59796, SHA256: "c7cab5c457fa9e5aee02096e97ea47c58538c25d2f7c88254275e78941da0625"},
-	}},
-	{ID: "lao", Name: "Lao", Sample: "ສະບາຍດີ", Family: "Noto Serif Lao", Han: false, Files: []File{
-		{Path: "s/notoseriflao/v29/3y9C6bYwcCjmsU8JEzCMxEwQfEBLk3f0rlSqCdaM_LlSNZ59oNw0BWH8VeMKrvM.ttf", Name: "NotoSerifLao-400.ttf", Weight: 400, Size: 61952, SHA256: "e2ed30bb253fa529f90f3f1c81796007845d7b6d2f618393f6224fd62e25d53c"},
-		{Path: "s/notoseriflao/v29/3y9C6bYwcCjmsU8JEzCMxEwQfEBLk3f0rlSqCdaM_LlSNZ59oNw0BWH8VQQNrvM.ttf", Name: "NotoSerifLao-700.ttf", Weight: 700, Size: 62108, SHA256: "f8e192effe4dfb2041f4f2b649c550245ca68cbdd94e3fd09b878a30e2f81bc3"},
-	}},
-	{ID: "khmer", Name: "Khmer", Sample: "សួស្តី\u200bពិភពលោក", Family: "Noto Serif Khmer", Han: false, Files: []File{
-		{Path: "s/notoserifkhmer/v29/-F6UfidqLzI2JPCkXAO2hmogq0146FxtbwKEr951z5s6lI40sDRH_AVhUKdN6B8wXA.ttf", Name: "NotoSerifKhmer-400.ttf", Weight: 400, Size: 140068, SHA256: "a6dccd249e64336ae1ba4472b3e9ce6435fffd006f14dddf04772cdcc3804d32"},
-		{Path: "s/notoserifkhmer/v29/-F6UfidqLzI2JPCkXAO2hmogq0146FxtbwKEr951z5s6lI40sDRH_AVhUKdNDxgwXA.ttf", Name: "NotoSerifKhmer-700.ttf", Weight: 700, Size: 140240, SHA256: "0182fde18cf0b85585cb8183ffa93443c3a0fd3ba5e877b3b0eafa77f132f5a3"},
-	}},
-	{ID: "myanmar", Name: "Myanmar", Sample: "မင်္ဂလာပါ", Family: "Noto Serif Myanmar", Han: false, Files: []File{
-		{Path: "s/notoserifmyanmar/v14/VuJsdM7F2Yv76aBKKs-bHMQfAHUw3jn1pA.ttf", Name: "NotoSerifMyanmar-400.ttf", Weight: 400, Size: 258384, SHA256: "fabecfb810d928cf71d78fe7e37cc8a3de6ff31f8c9702164eabdb578c6c8238"},
-		{Path: "s/notoserifmyanmar/v14/VuJvdM7F2Yv76aBKKs-bHMQfAHUw3jnNGDXMeQ.ttf", Name: "NotoSerifMyanmar-700.ttf", Weight: 700, Size: 269088, SHA256: "1e3609403e13f5a77498c7b34fc30f4a9f567cb8e10762371544ca98614175bc"},
-	}},
-	{ID: "tibetan", Name: "Tibetan", Sample: "བཀྲ་ཤིས་བདེ་ལེགས།", Family: "Noto Serif Tibetan", Han: false, Files: []File{
-		{Path: "s/notoseriftibetan/v24/gokGH7nwAEdtF9N45n0Vaz7O-pk0wsvxHeDXMfqguoCmIrYcPS4.ttf", Name: "NotoSerifTibetan-400.ttf", Weight: 400, Size: 735256, SHA256: "f94e3bde2a13ec085793d1ff2d97f8dd58960df0aeb92c65afad276fa4a57c15"},
-		{Path: "s/notoseriftibetan/v24/gokGH7nwAEdtF9N45n0Vaz7O-pk0wsvxHeDXMfqguoCmIlEbPS4.ttf", Name: "NotoSerifTibetan-700.ttf", Weight: 700, Size: 737848, SHA256: "7981d58ba98a81964e3d712edbff7ba32634d83b3dc10b97d24ec7b9d920ebcf"},
-	}},
-	{ID: "arabic", Name: "Arabic", Sample: "مرحبا بالعالم", Family: "Noto Naskh Arabic", Han: false, Files: []File{
-		{Path: "s/notonaskharabic/v44/RrQ5bpV-9Dd1b1OAGA6M9PkyDuVBePeKNaxcsss0Y7bwvc5krA.ttf", Name: "NotoNaskhArabic-400.ttf", Weight: 400, Size: 197420, SHA256: "e62e84cf72fe9e8953a21c3337c68155a116d4bbdcd9522d860d46686b28c6e0"},
-		{Path: "s/notonaskharabic/v44/RrQ5bpV-9Dd1b1OAGA6M9PkyDuVBePeKNaxcsss0Y7bwWslkrA.ttf", Name: "NotoNaskhArabic-700.ttf", Weight: 700, Size: 197532, SHA256: "76e7b3b17abc5068fda755d657d475863df2d48cee60dc21bd22efb11ecb2268"},
-	}},
-	{ID: "hebrew", Name: "Hebrew", Sample: "שלום עולם", Family: "Noto Serif Hebrew", Han: false, Files: []File{
-		{Path: "s/notoserifhebrew/v30/k3k0o9MMPvpLmixYH7euCwmkS9DohjX1-kRyiqyBqIxnoLbp93i9IKrXKF_qVAwSAG8.ttf", Name: "NotoSerifHebrew-400.ttf", Weight: 400, Size: 54636, SHA256: "a9aacca0bb0723459982b4d91af89a09a8845772f9d6cf149d86de7107fecb8a"},
-		{Path: "s/notoserifhebrew/v30/k3k0o9MMPvpLmixYH7euCwmkS9DohjX1-kRyiqyBqIxnoLbp93i9IKrXKF_qVOsVAG8.ttf", Name: "NotoSerifHebrew-700.ttf", Weight: 700, Size: 54656, SHA256: "1646d2be37d4b631acf031ea2afcf17e9c94f34bf083d45fa8b52a2d3f541cab"},
-	}},
-	{ID: "armenian", Name: "Armenian", Sample: "Բարեւ աշխարհ", Family: "Noto Serif Armenian", Han: false, Files: []File{
-		{Path: "s/notoserifarmenian/v30/3XFMEqMt3YoFsciDRZxptyCUKJmytZ0kVU-XvF7QaZuL85rnQ_zDNzDe5xNnKxyZi8Kbxg.ttf", Name: "NotoSerifArmenian-400.ttf", Weight: 400, Size: 53992, SHA256: "1f40639adc93a467cef54d31a7d3088a088a927272d6b15a637199fbfe2f18d6"},
-		{Path: "s/notoserifarmenian/v30/3XFMEqMt3YoFsciDRZxptyCUKJmytZ0kVU-XvF7QaZuL85rnQ_zDNzDe5xNnKxyZbMWbxg.ttf", Name: "NotoSerifArmenian-700.ttf", Weight: 700, Size: 53924, SHA256: "38a6e008ff56b514a4cedcf94286d383d471ee9fcc9354d948c90e7eec5257ef"},
-	}},
-	{ID: "georgian", Name: "Georgian", Sample: "გამარჯობა მსოფლიო", Family: "Noto Serif Georgian", Han: false, Files: []File{
-		{Path: "s/notoserifgeorgian/v30/VEMXRpd8s4nv8hG_qOzL7HOAw4nt0Sl_XxyaEduNMvi7T6Y4etRnmGhyLop-R3aSTvofdw.ttf", Name: "NotoSerifGeorgian-400.ttf", Weight: 400, Size: 77456, SHA256: "7312a006791d3f4295de906792796954feda1657e9ca05fca9a5b2873d2b1045"},
-		{Path: "s/notoserifgeorgian/v30/VEMXRpd8s4nv8hG_qOzL7HOAw4nt0Sl_XxyaEduNMvi7T6Y4etRnmGhyLop-R3aSqf0fdw.ttf", Name: "NotoSerifGeorgian-700.ttf", Weight: 700, Size: 77448, SHA256: "14c03ae7388d8c25e8bf708c3fc7f97c11918b1dc694201112294a1c4b472c8c"},
-	}},
-	{ID: "ethiopic", Name: "Ethiopic", Sample: "ሰላም ለዓለም", Family: "Noto Serif Ethiopic", Han: false, Files: []File{
-		{Path: "s/notoserifethiopic/v32/V8mjoR7-XjwJ8_Au3Ti5tXj5Rd83frpWLK4d-taxqWw2HMWjDxBAg5S_0QsrggxCzSUjkQ.ttf", Name: "NotoSerifEthiopic-400.ttf", Weight: 400, Size: 303140, SHA256: "ce375c2784bbf4d57818e871e8ccb223910358b9ed281b141ee8804ebb87e6bb"},
-		{Path: "s/notoserifethiopic/v32/V8mjoR7-XjwJ8_Au3Ti5tXj5Rd83frpWLK4d-taxqWw2HMWjDxBAg5S_0QsrggxCKiIjkQ.ttf", Name: "NotoSerifEthiopic-700.ttf", Weight: 700, Size: 303488, SHA256: "9d9d28b7806a06053ebb3ab82b0ab411282f3eb0fb9a4b0d4bb4c218f98bfcd0"},
-	}},
-	{ID: "devanagari", Name: "Devanagari", Sample: "नमस्ते दुनिया", Family: "Noto Serif Devanagari", Han: false, Files: []File{
-		{Path: "s/notoserifdevanagari/v34/x3dYcl3IZKmUqiMk48ZHXJ5jwU-DZGRSaQ4Hh2dGyFzPLcQPVbnRNeFsw0xRWb6uxTA-ow-H.ttf", Name: "NotoSerifDevanagari-400.ttf", Weight: 400, Size: 232404, SHA256: "39ff220273661f9b01893e61d16756a612f6f3e358c1d2546b5fc24b6b7fecbb"},
-		{Path: "s/notoserifdevanagari/v34/x3dYcl3IZKmUqiMk48ZHXJ5jwU-DZGRSaQ4Hh2dGyFzPLcQPVbnRNeFsw0xRWb6uxTDZpA-H.ttf", Name: "NotoSerifDevanagari-700.ttf", Weight: 700, Size: 232872, SHA256: "de5246a1e11ad12d16e5bff2b08a0f2dd4d8922f36d01a73020d40dff76cacaf"},
-	}},
-	{ID: "bengali", Name: "Bengali", Sample: "ওহে বিশ্ব", Family: "Noto Serif Bengali", Han: false, Files: []File{
-		{Path: "s/notoserifbengali/v31/hYkuPvggTvnzO14VSXltirUdnnkt1pwmWrprmO7RjE0a5BtdATYU1crFaM_5JfcAHnqn.ttf", Name: "NotoSerifBengali-400.ttf", Weight: 400, Size: 244600, SHA256: "b8db45a820e370a720766e424c2077cd9ec5a7def78a38d01f111b2e5a0a272b"},
-		{Path: "s/notoserifbengali/v31/hYkuPvggTvnzO14VSXltirUdnnkt1pwmWrprmO7RjE0a5BtdATYU1crFaM_5JffnGXqn.ttf", Name: "NotoSerifBengali-700.ttf", Weight: 700, Size: 246804, SHA256: "bc639f8c9e6d58fbdfb193f609c1ed27560a092d4c1285e50d3c8cd15baa830b"},
-	}},
-	{ID: "gurmukhi", Name: "Gurmukhi", Sample: "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ", Family: "Noto Serif Gurmukhi", Han: false, Files: []File{
-		{Path: "s/notoserifgurmukhi/v22/92z-tA9LNqsg7tCYlXdCV1VPnAEeDU0vLoYMbylXk0xTCr6-eRTN.ttf", Name: "NotoSerifGurmukhi-400.ttf", Weight: 400, Size: 66024, SHA256: "7ec896c4dbaa6bba99c67931e6ffe26209747cef46f49b7f4dc34377872a5c35"},
-		{Path: "s/notoserifgurmukhi/v22/92z-tA9LNqsg7tCYlXdCV1VPnAEeDU0vLoYMbylXk0xTCr5ZfhTN.ttf", Name: "NotoSerifGurmukhi-700.ttf", Weight: 700, Size: 66000, SHA256: "8896469ba21fae666266e81fa46f237f367d12a7918a2db75cb400aa66dc8bc3"},
-	}},
-	{ID: "gujarati", Name: "Gujarati", Sample: "નમસ્તે દુનિયા", Family: "Noto Serif Gujarati", Han: false, Files: []File{
-		{Path: "s/notoserifgujarati/v29/hESa6WBlOixO-3OJ1FTmTsmqlBRUJBVkcgNLpdsspzP2HuYycIzu.ttf", Name: "NotoSerifGujarati-400.ttf", Weight: 400, Size: 140520, SHA256: "878ec7410951db00e2a826cb97e5fd46da9b92aab8a04aa856e0ad3aad1ed30d"},
-		{Path: "s/notoserifgujarati/v29/hESa6WBlOixO-3OJ1FTmTsmqlBRUJBVkcgNLpdsspzP2HubVd4zu.ttf", Name: "NotoSerifGujarati-700.ttf", Weight: 700, Size: 140444, SHA256: "51d45928af23ff5fd8cbd7cf45f53b54d7030394a28bf490e632dd5f7154955b"},
-	}},
-	{ID: "oriya", Name: "Odia", Sample: "ନମସ୍କାର ଦୁନିଆ", Family: "Noto Serif Oriya", Han: false, Files: []File{
-		{Path: "s/notoseriforiya/v6/MjQQmj56u-r69izk_LDqWN7w0cYByutv9qeWYrvLaxrc_Hy-.ttf", Name: "NotoSerifOriya-400.ttf", Weight: 400, Size: 146672, SHA256: "be52a40d18c4109d8867e22e204c9c6084c63f83ea369ea6bd8bd8891104bdc0"},
-		{Path: "s/notoseriforiya/v6/MjQQmj56u-r69izk_LDqWN7w0cYByutv9qeWYrvLaxo7-3y-.ttf", Name: "NotoSerifOriya-700.ttf", Weight: 700, Size: 146436, SHA256: "45506eef18af90a6f60f748286160bc937a0391cfb322687ef327f054eb3b6e5"},
-	}},
-	{ID: "tamil", Name: "Tamil", Sample: "வணக்கம் உலகம்", Family: "Noto Serif Tamil", Han: false, Files: []File{
-		{Path: "s/notoseriftamil/v31/LYjndHr-klIgTfc40komjQ5OObazYp-6H94dBF-RX6nNRJfi-Gf55IgAecattN-R8A.ttf", Name: "NotoSerifTamil-400.ttf", Weight: 400, Size: 88572, SHA256: "3550e9f8bcd8696aa6a873f30014ebf39e39facdec20059372b893a2162465e1"},
-		{Path: "s/notoseriftamil/v31/LYjndHr-klIgTfc40komjQ5OObazYp-6H94dBF-RX6nNRJfi-Gf55IgAecatU9iR8A.ttf", Name: "NotoSerifTamil-700.ttf", Weight: 700, Size: 88548, SHA256: "3d100a6702ed1f3085374871f0260e9c294e90c0cbe024225535aab57baacb53"},
-	}},
-	{ID: "telugu", Name: "Telugu", Sample: "నమస్కారం ప్రపంచం", Family: "Noto Serif Telugu", Han: false, Files: []File{
-		{Path: "s/notoseriftelugu/v29/tDbl2pCbnkEKmXNVmt2M1q6f4HWbbj6MRbYEeav7Fe9D9TCwuQ.ttf", Name: "NotoSerifTelugu-400.ttf", Weight: 400, Size: 241900, SHA256: "ec852add3468c269e359a88471042644d077da0f4197daff383e68c7dcc54bfc"},
-		{Path: "s/notoseriftelugu/v29/tDbl2pCbnkEKmXNVmt2M1q6f4HWbbj6MRbYEeav7Fe9DEjewuQ.ttf", Name: "NotoSerifTelugu-700.ttf", Weight: 700, Size: 242160, SHA256: "c3b6f60670e972978b1c34eb8e56fa83b410c2ab2825656f439d6daa248744f9"},
-	}},
-	{ID: "kannada", Name: "Kannada", Sample: "ನಮಸ್ಕಾರ ಜಗತ್ತು", Family: "Noto Serif Kannada", Han: false, Files: []File{
-		{Path: "s/notoserifkannada/v30/v6-8GZHLJFKIhClqUYqXDiWqpxQxWSPoW6bz-l4hGHiNgcYDceQ.ttf", Name: "NotoSerifKannada-400.ttf", Weight: 400, Size: 171220, SHA256: "2e21065ce0b9d64c8c0f605e0aa217cdd9c3075fd801eb435ef492f858264d5c"},
-		{Path: "s/notoserifkannada/v30/v6-8GZHLJFKIhClqUYqXDiWqpxQxWSPoW6bz-l4hGHiNgSEEceQ.ttf", Name: "NotoSerifKannada-700.ttf", Weight: 700, Size: 171308, SHA256: "09cd0293266cf3933cd32bda119a90fecf54238e1f21d9152e567cf715cd51fc"},
-	}},
-	{ID: "malayalam", Name: "Malayalam", Sample: "നമസ്കാരം ലോകം", Family: "Noto Serif Malayalam", Han: false, Files: []File{
-		{Path: "s/notoserifmalayalam/v32/JIAZUU5sdmdP_HMcVcZFcH7DeVBeGVgSMEk2cmVDq1ihUXL1t-xfnQ.ttf", Name: "NotoSerifMalayalam-400.ttf", Weight: 400, Size: 104324, SHA256: "f3bd7d9f65bad43ae0913d7d685a167804b0b9992f70dc7d784a005eae586026"},
-		{Path: "s/notoserifmalayalam/v32/JIAZUU5sdmdP_HMcVcZFcH7DeVBeGVgSMEk2cmVDq1ihUXL1UOtfnQ.ttf", Name: "NotoSerifMalayalam-700.ttf", Weight: 700, Size: 104332, SHA256: "c317c0c785a88a312d99daaee5d101250cb5d29a1160c569fa3b53c117e04eda"},
-	}},
-	{ID: "sinhala", Name: "Sinhala", Sample: "ආයුබෝවන් ලෝකය", Family: "Noto Serif Sinhala", Han: false, Files: []File{
-		{Path: "s/notoserifsinhala/v30/DtVEJwinQqclnZE2CnsPug9lgGC3y2F2nehQ7Eg4EdBKWxPiDxMivFLgRXs_-pGxR1Ms.ttf", Name: "NotoSerifSinhala-400.ttf", Weight: 400, Size: 242752, SHA256: "5b11bfbfa98fa253ffb9056e763525a6c84b73c7ed6934d3609ce42d36445428"},
-		{Path: "s/notoserifsinhala/v30/DtVEJwinQqclnZE2CnsPug9lgGC3y2F2nehQ7Eg4EdBKWxPiDxMivFLgRXs_-pFWQFMs.ttf", Name: "NotoSerifSinhala-700.ttf", Weight: 700, Size: 242824, SHA256: "c3fb97533084524f86d435e4ad2632bb4e061f6ea789bddc2837164b6b76b183"},
 	}},
 }

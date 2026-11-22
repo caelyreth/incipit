@@ -1,10 +1,10 @@
-// Package fonts keeps the prose faces of scripts other than Latin, which
-// the app does not ship: each is Google Fonts' Noto Serif for a script,
-// its static builds at the weights the page draws, downloaded only when
-// the person asks from Google Fonts' static hosts, verified against the
+// Package fonts keeps the prose faces for Chinese and Japanese, which the
+// app does not ship: each is Google Fonts' Noto Serif for a language, its
+// static builds at the weights the page draws, downloaded only when the
+// person asks from Google Fonts' static hosts, verified against the
 // SHA-256 pinned in the catalog (scripts/fontcatalog), and kept on this
-// machine, not in the notebook. A script with none downloaded is drawn by
-// the system's own fonts.
+// machine, not in the notebook. One of them, chosen, draws the text the
+// Latin face does not; with none chosen, the system's fonts draw it.
 package fonts
 
 import (
@@ -14,20 +14,17 @@ import (
 	"slices"
 )
 
-// Face is one script's downloadable face.
+// Face is one language's downloadable face.
 type Face struct {
-	// ID names it in the settings and in its folder.
+	// ID names it in the settings.
 	ID string
-	// Name is the script, as the settings list it, and Sample a line in
-	// it, shown in the face.
-	Name, Sample string
-	// Family is the family its files are registered under and the prose
-	// family list names.
+	// Language is what it is drawn for, as the settings say, and Sample a
+	// line in it, shown in the face.
+	Language, Sample string
+	// Family is its name, the family its files are registered under and
+	// the prose family list names.
 	Family string
-	// Han is whether it draws Han characters, which faces for Chinese,
-	// Japanese and Korean draw each in their own way.
-	Han   bool
-	Files []File
+	Files  []File
 }
 
 // File is one of a face's font files: its path on each of Hosts, the name
@@ -64,25 +61,12 @@ func Lookup(id string) (Face, bool) {
 }
 
 // Family is the prose family list: base, the Latin face the app ships,
-// then the installed faces in the catalog's order, the Han face han
-// first among those that draw Han characters, as it draws what they
-// share.
-func Family(base string, installed []string, han string) string {
-	list := base
-	add := func(f Face) {
-		if slices.Contains(installed, f.ID) {
-			list += ", " + f.Family
-		}
+// then the face chosen, when there is one.
+func Family(base string, chosen *Face) string {
+	if chosen == nil {
+		return base
 	}
-	if f, ok := Lookup(han); ok && f.Han {
-		add(f)
-	}
-	for _, f := range Catalog {
-		if f.ID != han {
-			add(f)
-		}
-	}
-	return list
+	return base + ", " + chosen.Family
 }
 
 // HomeVariable is the variable that moves the notebook, and with it the

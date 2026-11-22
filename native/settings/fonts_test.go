@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/caelyreth/neverland/app/fonts"
@@ -8,18 +9,21 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// TestWritingSystemsAskWhatTheyDo lists each face with what can be done
-// with it, chooses among the kept Han faces only when there are two, and
-// tells the host what a row asks.
-func TestWritingSystemsAskWhatTheyDo(t *testing.T) {
+// TestWritingSystemsChooseAFace names the face chosen on the picker, which
+// offers the system's fonts and each face, the size of one not kept
+// beside it, lists under it the faces held with what can be done with
+// each, and tells the host what is asked.
+func TestWritingSystemsChooseAFace(t *testing.T) {
 	face := func(id string) fonts.Face { f, _ := fonts.Lookup(id); return f }
 	state := New()
 	state.Data = appsettings.DefaultState().Data()
 	state.Query = "writing systems"
+	state.CJKFace = "sc"
 	state.Fonts = []FontRow{
 		{Face: face("sc"), Kept: true},
-		{Face: face("jp")},
-		{Face: face("thai"), Coming: true, Done: 1, Total: 4},
+		{Face: face("tc"), Coming: true, Done: 1, Total: 4, Wanted: true},
+		{Face: face("hk")},
+		{Face: face("jp"), Partial: 3},
 	}
 	type asked struct {
 		id  string
@@ -27,29 +31,51 @@ func TestWritingSystemsAskWhatTheyDo(t *testing.T) {
 	}
 	var acts []asked
 	state.Font = func(id string, act FontAct) { acts = append(acts, asked{id, act}) }
-	var changes []appsettings.Change
-	state.Apply = func(change appsettings.Change) { changes = append(changes, change) }
 	tester := ui.NewTester(state.cards(appsettings.Appearance), 600, 1600)
 	tester.Frame()
-	if tester.HasText("Han Characters") {
-		t.Error("one Han face kept, yet a choice among them")
+	for _, text := range []string{"Chinese and Japanese", "Noto Serif SC", "Noto Serif TC", "Noto Serif JP"} {
+		if !tester.HasText(text) {
+			t.Fatalf("no %q in %v", text, tester.Texts())
+		}
 	}
-	for _, label := range []string{"Remove", "Download", "Stop"} {
+	if tester.HasText("Noto Serif HK") {
+		t.Error("a face neither kept nor coming is listed under the picker")
+	}
+	if err := tester.Click("Noto Serif SC"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if menu := tester.Menu(); !slices.Equal(menu, []string{systemFont, "-", "Noto Serif SC", "Noto Serif TC", "Noto Serif HK", "Noto Serif JP"}) {
+		t.Fatalf("the picker offers %v", menu)
+	}
+	if err := tester.ChooseMenuItem("Noto Serif HK"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	for _, label := range []string{"Stop", "Resume", "Remove"} {
 		if err := tester.Click(label); err != nil {
 			t.Fatalf("%s: %v in %v", label, err, tester.Texts())
 		}
 		tester.Frame()
 	}
-	want := []asked{{"sc", FontRemove}, {"jp", FontDownload}, {"thai", FontCancel}}
-	if len(acts) != len(want) || acts[0] != want[0] || acts[1] != want[1] || acts[2] != want[2] {
+	want := []asked{{"hk", FontChoose}, {"tc", FontCancel}, {"jp", FontChoose}, {"sc", FontRemove}}
+	if !slices.Equal(acts, want) {
 		t.Errorf("asked %v, want %v", acts, want)
 	}
-	state.Fonts[1].Kept = true
-	tester.Frame()
-	if err := tester.Click("Japanese"); err != nil {
-		t.Fatalf("no Han choice with two kept: %v", err)
+}
+
+// TestWritingSystemsWithNoFace draws Chinese and Japanese in the system's
+// fonts, nothing held under the picker.
+func TestWritingSystemsWithNoFace(t *testing.T) {
+	state := New()
+	state.Data = appsettings.DefaultState().Data()
+	state.Query = "writing systems"
+	for _, f := range fonts.Catalog {
+		state.Fonts = append(state.Fonts, FontRow{Face: f})
 	}
-	if len(changes) != 1 || changes[0].Appearance.Kind != appsettings.SetHanFace || changes[0].Appearance.Face != "jp" {
-		t.Errorf("chose %+v", changes)
+	tester := ui.NewTester(state.cards(appsettings.Appearance), 600, 1600)
+	tester.Frame()
+	if !tester.HasText(systemFont) || tester.HasText("Remove") {
+		t.Errorf("with no face: %v", tester.Texts())
 	}
 }
