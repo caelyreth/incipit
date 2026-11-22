@@ -395,17 +395,19 @@ func (s *State) bringTo(index int, settled float32) float32 {
 }
 
 // columnTransition is how the strip's columns come and go: opening out
-// where they stand, from nothing across, as they fade and rise to their
-// size, and folding away the same way, those beside them making room and
-// closing up on the same motion, a little past and back. What a column
-// holds keeps its layout as it opens or folds, clipped, so nothing in it
-// is set anew on the way.
+// where they stand, from nothing across, as they fade in, and folding away
+// the same way, those beside them making room and closing up on the same
+// motion, a little past and back. What a column holds keeps its layout as
+// it opens or folds, clipped, so nothing in it is set anew on the way, and
+// keeps its size: scaled, its text would be rasterized again at each step
+// of scale it passes, and the spring, going a little past its end, would
+// take it past 1 to a larger one, stalling the motion halfway.
 func columnTransition(enter, animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
 	spring := components.Bouncy(components.MotionEnter)
-	gone := &ui.Motion{Collapse: true, Opacity: 0, Scale: 0.96}
+	gone := &ui.Motion{Collapse: true, Opacity: 0}
 	tr := ui.ElementTransition{Animation: &spring, Position: true, Exit: gone}
 	if enter {
 		tr.Enter = gone
