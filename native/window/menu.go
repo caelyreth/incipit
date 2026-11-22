@@ -6,6 +6,7 @@ import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo"
 )
 
@@ -23,7 +24,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		declared, _ := a.Product.Keymap.Command(id)
 		item := &mygo.MenuItem{ID: string(id), Label: declared.Label, Click: a.menuClick(func() {
 			if err := a.routeCommand(id); err != nil {
-				a.fail("Couldn't run the command", err)
+				a.fail(locales.CouldntRunCommand(), err)
 			}
 		})}
 		switch id {
@@ -55,7 +56,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			},
 		},
 		{
-			Label: "File",
+			Label: locales.MenuFile(),
 			Submenu: []*mygo.MenuItem{
 				command(keymap.NewPage),
 				command(keymap.NewGroup),
@@ -76,7 +77,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			},
 		},
 		{
-			Label: "Edit",
+			Label: locales.MenuEdit(),
 			Submenu: []*mygo.MenuItem{
 				a.fieldUndo(),
 				a.fieldRedo(),
@@ -94,11 +95,11 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			},
 		},
 		{
-			Label:   "Format",
+			Label:   locales.MenuFormat(),
 			Submenu: append(a.offeredItems(), command(keymap.FormatTools)),
 		},
 		{
-			Label: "View",
+			Label: locales.MenuView(),
 			Submenu: []*mygo.MenuItem{
 				command(keymap.Field),
 				command(keymap.ViewList),
@@ -112,7 +113,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			},
 		},
 		{
-			Label: "Go",
+			Label: locales.MenuGo(),
 			Submenu: []*mygo.MenuItem{
 				command(keymap.Back),
 				command(keymap.Forward),
@@ -127,7 +128,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		{Role: mygo.RoleWindowMenu},
 		{
 			Role:    mygo.RoleHelp,
-			Label:   "Help",
+			Label:   locales.MenuHelp(),
 			Submenu: []*mygo.MenuItem{command(keymap.Shortcuts)},
 		},
 	})
@@ -273,13 +274,14 @@ func (a *AppState) syncMenu() {
 	// text fields answer.
 	field := a.Shell.FieldUndoes()
 	for _, u := range [...]struct {
-		item *mygo.MenuItem
-		verb string
-		can  func() (string, bool)
-		key  string
+		item  *mygo.MenuItem
+		verb  string
+		named func(string) string
+		can   func() (string, bool)
+		key   string
 	}{
-		{a.undoItem, "Undo", a.Shell.CanUndo, "CmdOrCtrl+Z"},
-		{a.redoItem, "Redo", a.Shell.CanRedo, "CmdOrCtrl+Shift+Z"},
+		{a.undoItem, locales.Undo(), locales.UndoAction, a.Shell.CanUndo, "CmdOrCtrl+Z"},
+		{a.redoItem, locales.Redo(), locales.RedoAction, a.Shell.CanRedo, "CmdOrCtrl+Shift+Z"},
 	} {
 		if u.item == nil {
 			continue
@@ -287,7 +289,7 @@ func (a *AppState) syncMenu() {
 		what, ok := u.can()
 		label := u.verb
 		if ok {
-			label += " " + what
+			label = u.named(what)
 		}
 		accelerator := u.key
 		if !field || a.recording {
@@ -318,13 +320,13 @@ func (a *AppState) syncMenu() {
 
 // fieldUndo is Edit's Undo for the field's changes.
 func (a *AppState) fieldUndo() *mygo.MenuItem {
-	a.undoItem = &mygo.MenuItem{ID: "field-undo", Label: "Undo", Click: a.menuClick(func() { a.Shell.Undo() })}
+	a.undoItem = &mygo.MenuItem{ID: "field-undo", Label: locales.Undo(), Click: a.menuClick(func() { a.Shell.Undo() })}
 	return a.undoItem
 }
 
 // fieldRedo is Edit's Redo for the field's changes.
 func (a *AppState) fieldRedo() *mygo.MenuItem {
-	a.redoItem = &mygo.MenuItem{ID: "field-redo", Label: "Redo", Click: a.menuClick(func() { a.Shell.Redo() })}
+	a.redoItem = &mygo.MenuItem{ID: "field-redo", Label: locales.Redo(), Click: a.menuClick(func() { a.Shell.Redo() })}
 	return a.redoItem
 }
 

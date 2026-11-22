@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -119,7 +120,7 @@ func (n NumberField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		Radius(metrics.Radius).Border(1, semantic.Border.Variant).
 		Background(semantic.Surface.Inset).Children(func() {
 		IconButton{
-			Key: "decrease", Label: "Decrease " + n.Label, Icon: IconMinus.SVG(),
+			Key: "decrease", Label: locales.Decrease(n.Label), Icon: IconMinus.SVG(),
 			Style: SubtleButton, Size: CompactButton, Disabled: !n.CanDecrease,
 			Animate: n.Animate, IconColor: semantic.Icon.Muted, Action: n.Decrease,
 		}.View(c, semantic)
@@ -129,7 +130,7 @@ func (n NumberField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 				FontFeatures("tnum")
 		})
 		IconButton{
-			Key: "increase", Label: "Increase " + n.Label, Icon: IconPlus.SVG(),
+			Key: "increase", Label: locales.Increase(n.Label), Icon: IconPlus.SVG(),
 			Style: SubtleButton, Size: CompactButton, Disabled: !n.CanIncrease,
 			Animate: n.Animate, IconColor: semantic.Icon.Muted, Action: n.Increase,
 		}.View(c, semantic)

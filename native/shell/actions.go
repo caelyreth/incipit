@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -67,7 +68,7 @@ func (s *State) fieldActions() []fieldAction {
 	}
 	var out []fieldAction
 	if !s.inTrash() && len(s.field.found.cards) == 0 && s.FieldQuery() != "" {
-		out = append(out, fieldAction{id: "clear-search", label: "Clear Search", icon: components.IconClose, run: s.goHome})
+		out = append(out, fieldAction{id: "clear-search", label: locales.ClearSearch(), icon: components.IconClose, run: s.goHome})
 	}
 	out = append(out, s.placeActions()...)
 	return out[:min(len(out), actionsMost)]
@@ -84,10 +85,10 @@ func (s *State) placeActions() []fieldAction {
 		if !s.trashHolds() {
 			return nil
 		}
-		return []fieldAction{{id: emptyTrashKey, label: "Empty Trash", icon: components.IconTrash, danger: true,
+		return []fieldAction{{id: emptyTrashKey, label: locales.EmptyTrash(), icon: components.IconTrash, danger: true,
 			run: s.Library.EmptyTrash}}
 	}
-	out := []fieldAction{{id: "new-sheet", label: "New Sheet", icon: components.IconNewSheet, run: func() {
+	out := []fieldAction{{id: "new-sheet", label: locales.NewSheet(), icon: components.IconNewSheet, run: func() {
 		s.Library.NewSheet(s.CurrentGroup(), Last)
 		s.ShowDesk()
 	}}}
@@ -97,7 +98,7 @@ func (s *State) placeActions() []fieldAction {
 	}
 	scope, _, browse := s.browsing(query.Parse(asked))
 	if g, ok := s.Library.Group(scope); browse && (scope == "" || ok && !g.Smart()) {
-		out = append(out, fieldAction{id: "new-group", label: "New Group", icon: components.IconNewGroup,
+		out = append(out, fieldAction{id: "new-group", label: locales.NewGroup(), icon: components.IconNewGroup,
 			run: func() { s.newGroup(scope) }})
 	}
 	return out
@@ -181,7 +182,7 @@ const pillInset = 4
 // reaches past the face. With no actions to hold (actionsAtEnd) it is not
 // there at all.
 func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldAction, pillH, k float32, animate bool) {
-	label := map[bool]string{true: "Hide Actions", false: "Actions"}[s.field.acting]
+	label := map[bool]string{true: locales.HideActions(), false: locales.Actions()}[s.field.acting]
 	inset := pillInset * k
 	width := pillH * 1.25
 	if s.queryWritten() {
@@ -195,7 +196,7 @@ func (s *State) actionsButton(c *ui.Context, semantic theme.Theme, acts []fieldA
 	// sheet or group, and three dots where it holds what is done to the
 	// selection or the trash. With nothing to hold it is not there.
 	creates := len(s.field.picked) == 0 && !s.inTrash()
-	components.Hint(c, semantic, end, map[bool]string{true: "New", false: "Actions"}[creates], "", components.HintAbove)
+	components.Hint(c, semantic, end, map[bool]string{true: locales.New(), false: locales.Actions()}[creates], "", components.HintAbove)
 	if end.Clicked() {
 		s.toggleActions()
 	}
@@ -239,7 +240,7 @@ func (s *State) actionsView(c *ui.Context, semantic theme.Theme, acts []fieldAct
 	// the pill's end too, closes them; those standing are not closed.
 	if s.field.acting && !standing {
 		away := ui.ButtonBase(c.Key("actions-away")).Absolute().Left(0).Top(0).Size(w, s.field.viewH).
-			FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).Label("Close Actions")
+			FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).Label(locales.CloseActions())
 		if away.Clicked() {
 			s.toggleActions()
 		}
@@ -292,7 +293,7 @@ func (s *State) actionCapsule(c *ui.Context, semantic theme.Theme, a fieldAction
 	// Armed, it says on its face what a second press does: there is no
 	// undoing it.
 	if armed {
-		label += " — Can’t Undo"
+		label = locales.CantUndo(label)
 	}
 	size := theme.TextSmall.Size(s.Settings.UIFontSize)
 	textW, _ := c.MeasureText(0, ui.Span{Text: label, Font: theme.UIFontFamily, Size: size})

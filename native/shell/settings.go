@@ -1,13 +1,13 @@
 package shell
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -33,9 +33,31 @@ type AppSettings interface {
 	Away()
 }
 
-// SettingsSection is a section of the settings, as the field finds it.
+// SettingsSection is a section of the settings, as the field finds it:
+// Category names its category in the query ($in:Keymap) in every
+// language, and CategoryTitle in the one the app shows.
 type SettingsSection struct {
-	ID, Category, Title, Description string
+	ID, Category, CategoryTitle, Title, Description string
+}
+
+// sectionCategoryTitle is the title of sec's category, its name where it
+// has none.
+func sectionCategoryTitle(sec SettingsSection) string {
+	if sec.CategoryTitle != "" {
+		return sec.CategoryTitle
+	}
+	return sectionCategory(sec)
+}
+
+// settingsCategoryTitle is the title of the category the query names
+// category, its name where no section is of it.
+func (s *State) settingsCategoryTitle(category string) string {
+	for _, sec := range s.AppSettings.Sections("") {
+		if strings.EqualFold(sectionCategory(sec), category) {
+			return sectionCategoryTitle(sec)
+		}
+	}
+	return category
 }
 
 func sectionCategory(sec SettingsSection) string {
@@ -156,7 +178,7 @@ func (settingsSource) answer(s *State, text string, f *found) {
 			byCat[cat] = append(byCat[cat], sec)
 		}
 		for _, cat := range order {
-			f.add("settings-cat:"+cat, tierResult, settingsCategoryCard{category: cat, sections: byCat[cat]})
+			f.add("settings-cat:"+cat, tierResult, settingsCategoryCard{category: cat, title: sectionCategoryTitle(byCat[cat][0]), sections: byCat[cat]})
 		}
 		return
 	}
@@ -174,8 +196,8 @@ func (settingsSource) answer(s *State, text string, f *found) {
 // settingsCategoryCard is a category block listing its settings sections as
 // rows, like a group block lists its sheets.
 type settingsCategoryCard struct {
-	category string
-	sections []SettingsSection
+	category, title string
+	sections        []SettingsSection
 }
 
 func (sc settingsCategoryCard) shape(_ *State, _ *ui.Context, m blockMetrics) shape {
@@ -223,7 +245,7 @@ func (sc settingsCategoryCard) view(s *State, c *ui.Context, semantic theme.Them
 func (s *State) settingsCategoryHead(c *ui.Context, semantic theme.Theme, sc settingsCategoryCard, fr stageFrame, m blockMetrics, animate bool) {
 	ui.Row(c).Key("head").Height(m.head).WidthPercent(100).AlignItems(ui.Center).Gap(4 * m.k).Shrink(0).Children(func() {
 		head := ui.ButtonBase(c.Key("name")).Grow(1).MinWidth(0).FillHeight().PaddingX(8 * m.k).Gap(8 * m.k).
-			AlignItems(ui.Center).Radius(8 * m.k).FocusRing(false).KeepFocus().Label(sc.category)
+			AlignItems(ui.Center).Radius(8 * m.k).FocusRing(false).KeepFocus().Label(sc.title)
 		hover := components.HoverAmount(head, head.Hovered(), animate)
 		head.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
 		if head.Clicked() {
@@ -232,7 +254,7 @@ func (s *State) settingsCategoryHead(c *ui.Context, semantic theme.Theme, sc set
 		head.Children(func() {
 			ui.Icon(c, settingsCategoryIcon(sc.category).SVG()).FontSize(15 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
 			components.BaselineRow(c).Key("words").Grow(1).MinWidth(0).Gap(8 * m.k).Children(func() {
-				components.Label(c, sc.category, theme.TextDefault, semantic.Text.Heading).Grow(1).MinWidth(0).SingleLine()
+				components.Label(c, sc.title, theme.TextDefault, semantic.Text.Heading).Grow(1).MinWidth(0).SingleLine()
 				components.Label(c, thousands(len(sc.sections)), theme.TextXSmall, semantic.Text.Muted).
 					SingleLine().Shrink(0).FontFeatures("tnum")
 			})
@@ -261,7 +283,7 @@ func (s *State) settingsSectionRow(c *ui.Context, semantic theme.Theme, sec Sett
 }
 
 func (s *State) settingsMoreRow(c *ui.Context, semantic theme.Theme, category string, more int, fr stageFrame, m blockMetrics, animate bool) {
-	label := fmt.Sprintf("%s more", thousands(more))
+	label := locales.More(thousands(more))
 	btn := ui.ButtonBase(c.Key("more")).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label)
 	s.rowFill(c, semantic, btn, "", animate)
@@ -323,14 +345,14 @@ func (sc settingsCard) view(s *State, c *ui.Context, semantic theme.Theme, box u
 // round button size wide, filled while they are shown.
 func (s *State) settingsButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
 	shown := s.InSettings()
-	label := map[bool]string{true: "Hide settings", false: "Show settings"}[shown]
-	btn := laneCircleButton(c, semantic, "settings", components.IconSettings, label, "Settings", s.binding("app.settings"), shown, size, animate)
+	label := map[bool]string{true: locales.HideSettings(), false: locales.ShowSettings()}[shown]
+	btn := laneCircleButton(c, semantic, "settings", components.IconSettings, label, locales.Settings(), s.binding("app.settings"), shown, size, animate)
 	if btn.Clicked() {
 		s.ShowSettings()
 	}
 	btn.ContextMenu(func(m *ui.Menu) {
-		s.verbItem(m, "app.settings", "Settings", true, s.ShowSettings)
-		s.verbItem(m, "app.shortcuts", "Keyboard Shortcuts", true, s.ShowShortcuts)
+		s.verbItem(m, "app.settings", locales.Settings(), true, s.ShowSettings)
+		s.verbItem(m, "app.shortcuts", locales.KeyboardShortcuts(), true, s.ShowShortcuts)
 	})
 	return btn
 }

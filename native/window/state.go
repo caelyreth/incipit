@@ -11,6 +11,7 @@ import (
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/settings"
@@ -57,6 +58,9 @@ type AppState struct {
 	colors theme.Transition
 	// fonts are the faces for Chinese and Japanese, kept and coming.
 	fonts *fontState
+	// language is the language the app chose to show (mygo.App.ChosenLocale),
+	// "" while it follows the system's, as the app last heard once ready.
+	language string
 	// sessions are the pages' sessions by identity, which the notebook
 	// saves.
 	sessions map[workspace.PageID]*sheetSession
@@ -150,8 +154,8 @@ func (a *AppState) loadSettings(store *storage.Store) error {
 		a.settingsDirty = true
 		a.saveSettings()
 		a.Notices.Post(Notice{
-			ID: "settings.load", Kind: NoticeWarning, Title: "Settings were reset",
-			Description: "Your notebook is unchanged. The saved preferences could not be read.",
+			ID: "settings.load", Kind: NoticeWarning, Title: locales.SettingsReset(),
+			Description: locales.SettingsResetDescription(),
 		})
 	}
 	return nil
@@ -165,7 +169,7 @@ func (a *AppState) BindShell() {
 			return
 		}
 		if err := a.Workspace.Focus(col); err != nil {
-			a.fail("Couldn't go to the sheet", err)
+			a.fail(locales.CouldntGoToSheet(), err)
 			return
 		}
 		a.selectMounted()
@@ -197,7 +201,7 @@ func (a *AppState) BindShell() {
 	}
 	a.Shell.RunCommand = func(id string) {
 		if err := a.routeCommand(keymap.CommandID(id)); err != nil {
-			a.fail("Couldn't run the command", err)
+			a.fail(locales.CouldntRunCommand(), err)
 		}
 	}
 	a.Shell.AppSettings = fieldSettings{a}
@@ -238,7 +242,7 @@ func (a *AppState) sheetView(c *ui.Context, open shell.Page, frame shell.SheetFr
 	if moving {
 		c.AnimationFrame()
 	}
-	box := ui.Column(c).Key("page-" + open.Column).Role(ui.RoleGroup).Label("Page").FillHeight().WidthPercent(100)
+	box := ui.Column(c).Key("page-" + open.Column).Role(ui.RoleGroup).Label(locales.Page()).FillHeight().WidthPercent(100)
 	box.Children(func() {
 		el := a.columnElement(session, col)
 		if el == nil {
@@ -263,7 +267,7 @@ func (a *AppState) sheetView(c *ui.Context, open shell.Page, frame shell.SheetFr
 	})
 	if front, ok := a.Workspace.Front(); box.FocusWithin() && (!ok || front != col) {
 		if err := a.Workspace.Focus(col); err != nil {
-			a.fail("Couldn't go to the sheet", err)
+			a.fail(locales.CouldntGoToSheet(), err)
 			return
 		}
 		a.selectMounted()
@@ -343,7 +347,7 @@ func (a *AppState) closeColumn(name string) {
 	}
 	a.captureViews()
 	if err := a.Workspace.Close(col); err != nil {
-		a.fail("Couldn't close the sheet", err)
+		a.fail(locales.CouldntCloseSheet(), err)
 		return
 	}
 	if !slices.Contains(a.Workspace.Opened(), page) {
@@ -368,7 +372,7 @@ func (a *AppState) splitColumn(name string) {
 	}
 	a.captureViews()
 	if _, err := a.Workspace.Split(col); err != nil {
-		a.fail("Couldn't split the sheet", err)
+		a.fail(locales.CouldntSplitSheet(), err)
 		return
 	}
 	a.selectMounted()
@@ -411,10 +415,11 @@ func (a *AppState) refreshSettingsData() {
 	a.Settings.Recording = a.setRecording
 	a.Settings.Reserved = a.reservedKey
 	a.Settings.Fonts, a.Settings.Font = a.fonts.rows(), a.fontAct
+	a.Settings.Languages, a.Settings.Language, a.Settings.SetLanguage = mygo.App.Languages(), a.language, a.chooseLanguage
 	a.Settings.Apply = func(change appsettings.Change) {
 		outcome, err := a.Product.Apply(change)
 		if err != nil {
-			a.fail("Couldn't change the setting", err)
+			a.fail(locales.CouldntChangeSetting(), err)
 			return
 		}
 		if outcome.PolicyChanged {
@@ -451,7 +456,7 @@ func (a *AppState) saveSettings() {
 	}
 	data, err := a.Product.Encode()
 	if err != nil {
-		a.fail("Couldn't save settings", err)
+		a.fail(locales.CouldntSaveSettings(), err)
 		return
 	}
 	a.notebook.saver.Settings(data)
@@ -488,7 +493,7 @@ func (a *AppState) setPresentation(mode appsettings.Presentation, on bool) {
 	}
 	outcome, err := a.Product.Apply(appsettings.SetPresentation(mode, on))
 	if err != nil {
-		a.fail("Couldn't change the setting", err)
+		a.fail(locales.CouldntChangeSetting(), err)
 		return
 	}
 	if outcome.Applied {

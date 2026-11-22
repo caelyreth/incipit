@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -77,7 +78,7 @@ func (s *State) band(f *found, now time.Time) {
 				bands[i] = 0
 			}
 		}
-		names = append([]string{"Pinned"}, names...)
+		names = append([]string{locales.BandPinned()}, names...)
 	}
 	for i := range f.cards {
 		f.cards[i].band = -1
@@ -153,7 +154,7 @@ func lensBands(lens string, of []facts, searching bool, now time.Time) ([]int, [
 	switch lens {
 	case "activity":
 		// Written, not opened: a sheet looked at moves nothing.
-		names = []string{"Lately", "This month", "Dormant"}
+		names = []string{locales.BandLately(), locales.BandThisMonth(), locales.BandDormant()}
 		for i, x := range of {
 			age := now.Sub(x.updated)
 			switch {
@@ -166,7 +167,7 @@ func lensBands(lens string, of []facts, searching bool, now time.Time) ([]int, [
 			}
 		}
 	case "updated", "created":
-		names = dateSteps
+		names = dateSteps()
 		for i, x := range of {
 			t := x.updated
 			if lens == "created" {
@@ -189,7 +190,7 @@ func lensBands(lens string, of []facts, searching bool, now time.Time) ([]int, [
 		// A few tags stand each in a band; the rest share one.
 		const most = 6
 		rest := min(len(tags), most)
-		names = append(slices.Clone(tags[:rest]), "Other tags", "No tag")
+		names = append(slices.Clone(tags[:rest]), locales.BandOtherTags(), locales.BandNoTag())
 		for i, x := range of {
 			switch j := slices.Index(tags, x.tag); {
 			case x.tag == "":
@@ -202,9 +203,9 @@ func lensBands(lens string, of []facts, searching bool, now time.Time) ([]int, [
 		}
 	case "relevance":
 		if !searching {
-			return out, []string{"Found"}
+			return out, []string{locales.BandFound()}
 		}
-		names = []string{"Strong", "Also", "Mentions"}
+		names = []string{locales.BandStrong(), locales.BandAlso(), locales.BandMentions()}
 		for i, cut := range relevanceCuts(of) {
 			out[i] = cut
 		}
@@ -215,16 +216,18 @@ func lensBands(lens string, of []facts, searching bool, now time.Time) ([]int, [
 }
 
 // dateSteps are the steps time is told in, nearest first.
-var dateSteps = []string{"Today", "This week", "This month", "This year", "Earlier"}
+func dateSteps() []string {
+	return []string{locales.DateToday(), locales.DateThisWeek(), locales.DateThisMonth(), locales.DateThisYear(), locales.DateEarlier()}
+}
 
 // dateStep is the step of dateSteps t falls in, at now.
 func dateStep(t, now time.Time) string {
 	for i, v := range []string{"today", "this-week", "this-month", "this-year"} {
 		if d, _ := query.ParseDates(v, now); d.Contains(t) {
-			return dateSteps[i]
+			return dateSteps()[i]
 		}
 	}
-	return dateSteps[len(dateSteps)-1]
+	return locales.DateEarlier()
 }
 
 // relevanceCuts is each of of's band by how well it matched, in the order

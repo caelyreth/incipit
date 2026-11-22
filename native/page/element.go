@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/theme"
@@ -33,7 +34,6 @@ type Element struct {
 	// bounds; Inset places its text within them. Zero follows the actual
 	// viewport, as a standalone editor does.
 	LayoutWidth, Inset float32
-	Label              string
 	// Typewriter keeps the caret's line at the viewport's center.
 	Typewriter bool
 	// Keys are the keymap the page's keys resolve through, and its guides
@@ -142,7 +142,7 @@ type Element struct {
 
 // NewElement is an element over ed.
 func NewElement(ed *Editor) *Element {
-	el := &Element{Editor: ed, Label: "Page", focusPending: true}
+	el := &Element{Editor: ed, focusPending: true}
 	el.client = &client{el: el}
 	return el
 }
@@ -268,7 +268,7 @@ func (el *Element) View(c *ui.Context) {
 	build := el.builds
 	ui.Column(c).Key("page-surface").Fill().Role(ui.RoleNone).Children(func() {
 		box := ui.Box(c).Key("page-editor").Fill().FocusRing(false).
-			Role(ui.RoleTextField).Label(el.Label).Value(el.fieldValue()).Focusable()
+			Role(ui.RoleTextField).Label(locales.Page()).Value(el.fieldValue()).Focusable()
 		// While the tools read the keys, the page takes their text itself,
 		// with no input method composing it (toolKey, toolText).
 		if el.tools.keyed() {

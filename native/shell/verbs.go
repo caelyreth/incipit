@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+
+	"github.com/caelyreth/neverland/locales"
 )
 
 // The field's verbs, as the menu bar, their keys and the rows' menus all
@@ -66,44 +68,44 @@ func (s *State) Verb(id string) VerbState {
 	one := len(subject) == 1
 	switch id {
 	case VerbNewGroup:
-		return VerbState{Label: "New Group", Enabled: s.placeAction("new-group") != nil}
+		return VerbState{Label: locales.NewGroup(), Enabled: s.placeAction("new-group") != nil}
 	case VerbDuplicate:
 		sheets := bare(subject, "sheet:")
-		return VerbState{Label: "Duplicate", Enabled: s.libraryShown() && !s.inTrash() &&
+		return VerbState{Label: locales.Duplicate(), Enabled: s.libraryShown() && !s.inTrash() &&
 			len(sheets) > 0 && len(sheets) == len(subject)}
 	case VerbRename:
 		ok := false
 		if g, found := s.subjectGroup(); found && one && !s.inTrash() {
 			ok = !g.Inbox && !g.Smart()
 		}
-		return VerbState{Label: "Rename", Enabled: ok}
+		return VerbState{Label: locales.Rename(), Enabled: ok}
 	case VerbPin:
 		pinned, ok := false, false
 		if one && s.libraryShown() && !s.inTrash() {
 			pinned, ok = s.pinnedNow(subject[0])
 		}
-		return VerbState{Label: map[bool]string{true: "Unpin", false: "Pin"}[pinned], Enabled: ok, Checked: pinned}
+		return VerbState{Label: map[bool]string{true: locales.Unpin(), false: locales.Pin()}[pinned], Enabled: ok, Checked: pinned}
 	case VerbTrash:
-		label := "Move to Trash"
+		label := locales.MoveToTrash()
 		if s.inTrash() {
-			label = "Put Back"
+			label = locales.PutBack()
 		}
 		return VerbState{Label: label, Enabled: s.libraryShown() && len(subject) > 0 && !s.holdsInbox(subject)}
 	case VerbEmptyTrash:
 		holds := s.Library != nil && len(s.Library.TrashedGroups())+len(s.Library.Sheets(Place{Kind: PlaceTrash})) > 0
-		return VerbState{Label: "Empty Trash", Enabled: holds}
+		return VerbState{Label: locales.EmptyTrash(), Enabled: holds}
 	case VerbViewList:
 		listed := s.listed()
-		return VerbState{Label: map[bool]string{true: "View as Field", false: "View as List"}[listed],
+		return VerbState{Label: map[bool]string{true: locales.ViewAsField(), false: locales.ViewAsList()}[listed],
 			Enabled: s.libraryShown() && !s.inTrash(), Checked: listed}
 	case VerbBack:
-		return VerbState{Label: "Back", Enabled: s.canGo(-1)}
+		return VerbState{Label: locales.Back(), Enabled: s.canGo(-1)}
 	case VerbForward:
-		return VerbState{Label: "Forward", Enabled: s.canGo(1)}
+		return VerbState{Label: locales.Forward(), Enabled: s.canGo(1)}
 	case VerbHome:
-		return VerbState{Label: "Home", Enabled: s.Library != nil}
+		return VerbState{Label: locales.Home(), Enabled: s.Library != nil}
 	case VerbShowTrash:
-		return VerbState{Label: "Trash", Enabled: s.Library != nil, Checked: s.inTrash() && !s.OnDesk()}
+		return VerbState{Label: locales.Trash(), Enabled: s.Library != nil, Checked: s.inTrash() && !s.OnDesk()}
 	}
 	return VerbState{}
 }
@@ -228,14 +230,14 @@ func (s *State) trashOrPutBack(ids []string) {
 		return out
 	}()
 	if s.inTrash() {
-		s.together("Put back "+s.objectsNamed(ids), func() {
+		s.together(locales.PutBackWhat(s.objectsNamed(ids)), func() {
 			s.restoreSheets(bare(ids, "sheet:"))
 			for _, g := range groups {
 				s.restoreGroup(g)
 			}
 		})
 	} else {
-		s.together("Moved "+s.objectsNamed(ids)+" to the Trash", func() {
+		s.together(locales.MovedToTrash(s.objectsNamed(ids)), func() {
 			s.trashSheets(bare(ids, "sheet:"))
 			for _, g := range groups {
 				s.trashGroup(g)

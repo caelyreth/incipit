@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/fonts"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -37,21 +38,39 @@ const (
 	FontRemove
 )
 
-// typefaceTitle is the section's title.
-const typefaceTitle = "Typeface"
-
-// systemFont is what the language picker calls the system's fonts.
-const systemFont = "System Font"
+// typefaceKey names the section.
+const typefaceKey = "typeface"
 
 // typefaceInfo is the section as it is found.
 func (s *State) typefaceInfo() sectionInfo {
-	words := typefaceTitle + " Fonts Faces Style Serif Sans Writing Systems Download Google Fonts Chinese Japanese Han Kanji Noto " + systemFont
+	words := locales.Typeface() + " " + locales.TypefaceKeywords() + " " + locales.SystemFont()
 	for _, f := range fonts.Languages() {
-		words += " " + f.Language
+		words += " " + formsLanguage(f.Forms)
 	}
-	return sectionInfo{typefaceTitle,
-		"The style the prose is set in, and the glyph forms of Chinese and Japanese. A face for them downloads once from Google Fonts and stays on this computer.",
-		words}
+	return sectionInfo{typefaceKey, locales.Typeface(), locales.TypefaceDescription(), words}
+}
+
+// formsLanguage names the language whose glyph forms forms names.
+func formsLanguage(forms string) string {
+	switch forms {
+	case "sc":
+		return locales.FormsSc()
+	case "tc":
+		return locales.FormsTc()
+	case "hk":
+		return locales.FormsHk()
+	case "jp":
+		return locales.FormsJp()
+	}
+	return forms
+}
+
+// styleName names style as the settings offer it.
+func styleName(style fonts.Style) string {
+	if style == fonts.Sans {
+		return locales.StyleSans()
+	}
+	return locales.StyleSerif()
 }
 
 // typefaceSection draws the section: the style, the glyph forms of
@@ -69,8 +88,8 @@ func (s *State) typefaceSection(c *ui.Context, semantic theme.Theme, sec Section
 		}
 		s.styleRow(c, semantic)
 		components.SettingRow{
-			Label:       "Chinese and Japanese",
-			Description: "The glyph forms they are drawn in. A face downloads when chosen.",
+			Label:       locales.ChineseAndJapanese(),
+			Description: locales.ChineseAndJapaneseDescription(),
 			Last:        true,
 		}.View(c, semantic)
 		ui.Column(c).Key("forms").WidthPercent(100).Padding(0, 0, theme.Space08.DIPs(scale), 0).Children(func() {
@@ -82,7 +101,7 @@ func (s *State) typefaceSection(c *ui.Context, semantic theme.Theme, sec Section
 			}
 		})
 		if len(other) > 0 {
-			components.SettingRow{Label: "Also on This Computer", Description: "Faces of the other style."}.View(c, semantic)
+			components.SettingRow{Label: locales.AlsoOnThisComputer(), Description: locales.AlsoOnThisComputerDescription()}.View(c, semantic)
 		}
 		for i, row := range other {
 			s.heldRow(c, semantic, row, i == len(other)-1)
@@ -117,13 +136,13 @@ func (s *State) choose(style fonts.Style, forms string) {
 func (s *State) styleRow(c *ui.Context, semantic theme.Theme) {
 	values := s.Data.AppearanceValues
 	components.SettingRow{
-		Label:       "Style",
-		Description: "Latin text is set in Noto Serif or Noto Sans, and Chinese and Japanese in its match.",
+		Label:       locales.Style(),
+		Description: locales.StyleDescription(),
 		Control: func() {
 			var options []components.SegmentOption
 			for _, style := range []fonts.Style{fonts.Serif, fonts.Sans} {
 				options = append(options, components.SegmentOption{
-					Key: "style-" + style.String(), Label: style.String(), Selected: values.Typeface == style,
+					Key: "style-" + style.String(), Label: styleName(style), Selected: values.Typeface == style,
 					Action: func() {
 						if style == values.Typeface {
 							return
@@ -137,7 +156,7 @@ func (s *State) styleRow(c *ui.Context, semantic theme.Theme) {
 					},
 				})
 			}
-			components.Segmented{Key: "style-choice", Label: "Style", Options: options, Animate: s.motion(c)}.View(c, semantic)
+			components.Segmented{Key: "style-choice", Label: locales.Style(), Options: options, Animate: s.motion(c)}.View(c, semantic)
 		},
 	}.View(c, semantic)
 }
@@ -146,8 +165,6 @@ func (s *State) styleRow(c *ui.Context, semantic theme.Theme) {
 // nil row, else a language and its face in the style chosen, how far its
 // download has come, and what can be done with it. Pressed, it is chosen.
 func (s *State) formsOption(c *ui.Context, semantic theme.Theme, forms string, row *FontRow) {
-	scale := s.Theme.UIFontSize
-	k := scale / theme.DefaultUIFontSize
 	values := s.Data.AppearanceValues
 	// The face chosen while not kept stands for the choice until it is.
 	wanting := slices.ContainsFunc(s.Fonts, func(r FontRow) bool { return r.Wanted })
@@ -157,57 +174,35 @@ func (s *State) formsOption(c *ui.Context, semantic theme.Theme, forms string, r
 		drawn := s.row(values.Typeface, values.CJKForms)
 		chosen = !wanting && (drawn == nil || !drawn.Kept)
 	}
-	label, note := systemFont, "The system's own, nothing to download"
+	label, note := locales.SystemFont(), locales.SystemFontNote()
 	if row != nil {
 		f := row.Face
-		label = f.Language
+		label = formsLanguage(f.Forms)
 		switch {
 		case row.Coming:
-			note = f.Family + " · " + megabytes(row.Done) + " of " + megabytes(row.Total)
+			note = locales.FontNoteComing(f.Family, megabytes(row.Done), megabytes(row.Total))
 		case row.Kept:
-			note = f.Family + " · " + megabytes(f.Size()) + " · Downloaded"
+			note = locales.FontNoteKept(f.Family, megabytes(f.Size()))
 		case row.Partial > 0:
-			note = f.Family + " · " + megabytes(row.Partial) + " of " + megabytes(f.Size()) + " downloaded"
+			note = locales.FontNotePartial(f.Family, megabytes(row.Partial), megabytes(f.Size()))
 		default:
-			note = f.Family + " · " + megabytes(f.Size())
+			note = locales.FontNote(f.Family, megabytes(f.Size()))
 		}
 		chosen = chosen && row.Kept || row.Wanted
 	}
-	pad := theme.Space16.DIPs(scale)
-	ui.Column(c.Key("option-" + forms)).WidthPercent(100).Children(func() {
-		ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-			Padding(0, pad-theme.Space08.DIPs(scale), 0, pad-theme.Space08.DIPs(scale)).Children(func() {
-			option := ui.ButtonBase(c.Key("choose")).Role(ui.RoleRadio).Label(label).Checked(chosen).
-				Grow(1).MinWidth(0).AlignItems(ui.Center).Gap(theme.Space12.DIPs(scale)).
-				Padding(theme.Space08.DIPs(scale), theme.Space08.DIPs(scale), theme.Space08.DIPs(scale), theme.Space08.DIPs(scale)).
-				Radius(theme.DefaultControls.Scaled(scale).Radius).FocusRing(true)
-			if option.Hovered() && !chosen {
-				option.Background(semantic.GhostElement.Hover)
-			}
-			option.Children(func() {
-				if row != nil && row.Coming {
-					s.progress(c, semantic, *row)
-				} else {
-					radio(c, semantic, chosen, k)
-				}
-				ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Space02.DIPs(scale)).Children(func() {
-					components.Label(c, label, theme.TextDefault, semantic.Text.Default).SingleLine()
-					components.Label(c, note, theme.TextSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
-				})
-			})
-			if option.Clicked() && !chosen {
-				s.choose(values.Typeface, forms)
-			}
-			if row != nil {
-				ui.Row(c).Key("actions").Gap(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Shrink(0).Children(func() {
-					s.optionActions(c, semantic, *row)
-				})
-			}
-		})
-		if row != nil && row.Failed != "" {
-			s.failure(c, semantic, row.Failed)
+	o := choiceOption{key: "option-" + forms, label: label, note: note, chosen: chosen,
+		choose: func() { s.choose(values.Typeface, forms) }}
+	if row != nil {
+		row := *row
+		if row.Coming {
+			o.mark = func() { s.progress(c, semantic, row) }
 		}
-	})
+		o.actions = func() { s.optionActions(c, semantic, row) }
+		if row.Failed != "" {
+			o.footer = func() { s.failure(c, semantic, row.Failed) }
+		}
+	}
+	s.choiceView(c, semantic, o)
 }
 
 // optionActions are what can be done with an option's face beside
@@ -222,26 +217,12 @@ func (s *State) optionActions(c *ui.Context, semantic theme.Theme, row FontRow) 
 	}
 	switch {
 	case row.Coming:
-		components.Button{Key: "stop", Label: "Stop", Style: components.SubtleButton, Size: components.CompactButton,
+		components.Button{Key: "stop", Label: locales.Stop(), Style: components.SubtleButton, Size: components.CompactButton,
 			Animate: s.motion(c), Action: act(FontCancel)}.View(c, semantic)
 	case row.Kept || row.Partial > 0:
-		components.Button{Key: "remove", Label: "Remove", Style: components.SubtleButton, Size: components.CompactButton,
+		components.Button{Key: "remove", Label: locales.Remove(), Style: components.SubtleButton, Size: components.CompactButton,
 			Animate: s.motion(c), Action: act(FontRemove)}.View(c, semantic)
 	}
-}
-
-// radio is an option's mark: a ring, filled with the accent's dot when
-// chosen.
-func radio(c *ui.Context, semantic theme.Theme, on bool, k float32) {
-	size := 16 * k
-	ring := ui.Box(c.Key("radio")).Size(size, size).Shrink(0).Radius(size / 2).AlignItems(ui.Center).Justify(ui.Center)
-	if !on {
-		ring.Border(1.5*k, semantic.Border.Variant)
-		return
-	}
-	ring.Background(semantic.Accent.Foreground).Children(func() {
-		ui.Box(c.Key("dot")).Size(6*k, 6*k).Radius(3 * k).Background(semantic.Accent.OnAccent)
-	})
 }
 
 // heldRow is a face of the style not chosen this computer holds, whole or
@@ -249,12 +230,13 @@ func radio(c *ui.Context, semantic theme.Theme, on bool, k float32) {
 func (s *State) heldRow(c *ui.Context, semantic theme.Theme, row FontRow, last bool) {
 	f := row.Face
 	scale := s.Theme.UIFontSize
-	note := f.Language + " · " + megabytes(f.Size())
+	language := formsLanguage(f.Forms)
+	note := locales.FontNote(language, megabytes(f.Size()))
 	switch {
 	case row.Coming:
-		note = f.Language + " · " + megabytes(row.Done) + " of " + megabytes(row.Total)
+		note = locales.FontNoteComing(language, megabytes(row.Done), megabytes(row.Total))
 	case !row.Kept:
-		note = f.Language + " · " + megabytes(row.Partial) + " of " + megabytes(f.Size()) + " downloaded"
+		note = locales.FontNotePartial(language, megabytes(row.Partial), megabytes(f.Size()))
 	}
 	components.SettingRow{
 		Label:       f.Family,
@@ -293,12 +275,12 @@ func (s *State) heldControl(c *ui.Context, semantic theme.Theme, row FontRow) {
 		if !row.Wanted {
 			s.progress(c, semantic, row)
 		}
-		button("stop", "Stop", components.SubtleButton, FontCancel)
+		button("stop", locales.Stop(), components.SubtleButton, FontCancel)
 	case !row.Kept:
-		button("resume", "Resume", components.OutlinedButton, FontChoose)
-		button("remove", "Remove", components.SubtleButton, FontRemove)
+		button("resume", locales.Resume(), components.OutlinedButton, FontChoose)
+		button("remove", locales.Remove(), components.SubtleButton, FontRemove)
 	default:
-		button("remove", "Remove", components.SubtleButton, FontRemove)
+		button("remove", locales.Remove(), components.SubtleButton, FontRemove)
 	}
 }
 
@@ -311,7 +293,7 @@ func (s *State) progress(c *ui.Context, semantic theme.Theme, row FontRow) {
 	}
 	k := scale / theme.DefaultUIFontSize
 	components.ProgressRing(c, "progress-"+row.Face.ID, 16*k, 2*k, done, semantic.Border.Variant, semantic.Text.Muted,
-		"Downloading "+row.Face.Family+", "+strconv.Itoa(int(done*100))+"%")
+		locales.Downloading(row.Face.Family, strconv.Itoa(int(done*100))))
 }
 
 // failure is why a download did not finish, under its row.
@@ -323,5 +305,5 @@ func (s *State) failure(c *ui.Context, semantic theme.Theme, why string) {
 
 // megabytes is n bytes in megabytes, to a tenth.
 func megabytes(n int64) string {
-	return strconv.FormatFloat(float64(n)/1e6, 'f', 1, 64) + " MB"
+	return locales.Megabytes(strconv.FormatFloat(float64(n)/1e6, 'f', 1, 64))
 }

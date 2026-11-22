@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -32,9 +33,9 @@ func (s *State) statsClear(c *ui.Context, semantic theme.Theme, size, lineH floa
 		ui.Text(c, "·").Font(theme.UIFontFamily).FontSize(size).FixedLineHeight(lineH).
 			TextColor(ink).NoWrap().Shrink(0).MarginStart(2 * spaceW).MarginEnd(2 * spaceW)
 		btn := ui.ButtonBase(c.Key("clear-search")).Height(lineH).Shrink(0).AlignItems(ui.Center).
-			FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).Label("Clear Search").
+			FocusRing(false).KeepFocus().Cursor(ui.CursorDefault).Label(locales.ClearSearch()).
 			IgnoreInput(target < 1 || away > 0.5)
-		components.Hint(c, semantic, btn, "Clear Search", s.binding(VerbHome), components.HintAbove)
+		components.Hint(c, semantic, btn, locales.ClearSearch(), s.binding(VerbHome), components.HintAbove)
 		if btn.Clicked() {
 			s.goHome()
 		}
@@ -44,10 +45,10 @@ func (s *State) statsClear(c *ui.Context, semantic theme.Theme, size, lineH floa
 			hover = components.Follow(btn, "hover", hover, components.MotionQuick)
 		}
 		btn.Children(func() {
-			ui.Text(c, "Clear").Font(theme.UIFontFamily).FontSize(size).FixedLineHeight(lineH).
+			ui.Text(c, locales.ClearWord()).Font(theme.UIFontFamily).FontSize(size).FixedLineHeight(lineH).
 				TextColor(red.Alpha(0.8 + 0.2*hover)).NoWrap()
 		})
-		clearW, _ = c.MeasureText(0, ui.Span{Text: "Clear", Font: theme.UIFontFamily, Size: size})
+		clearW, _ = c.MeasureText(0, ui.Span{Text: locales.ClearWord(), Font: theme.UIFontFamily, Size: size})
 	})
 	if shown < 0.999 {
 		sec.Width((4*spaceW + sepW + clearW) * shown)

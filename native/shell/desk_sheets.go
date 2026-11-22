@@ -3,6 +3,7 @@ package shell
 import (
 	"time"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -108,7 +109,7 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lea
 	}
 	// It names its sheet, which its tooltip need not.
 	return s.columnHead(c, semantic, "sheet-head", lead, shown, info, chromeButton{
-		key: "sheet-close-" + page.Column, label: "Close " + page.Title, tooltip: "Close Sheet",
+		key: "sheet-close-" + page.Column, label: locales.CloseNamed(page.Title), tooltip: locales.CloseSheet(),
 		binding: s.binding("page.close"), side: components.HintBelow,
 		action: func() { s.CloseColumn(page.Column) },
 	}, s.deskMenu(page), animate)

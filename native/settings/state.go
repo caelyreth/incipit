@@ -32,6 +32,13 @@ type State struct {
 	Fonts []FontRow
 	Font  func(id string, act FontAct)
 
+	// Languages are those the app is written in, its own first; Language
+	// is the one chosen, "" while the app follows the system's, and
+	// SetLanguage chooses one, "" for the system's.
+	Languages   []string
+	Language    string
+	SetLanguage func(tag string)
+
 	// The chord the keymap is searched by, as pressed. Then, in any
 	// section, the command whose shortcut is being recorded and the row or
 	// sentence it was started from, and a recorded shortcut another command

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -128,7 +129,7 @@ const (
 func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLook, w, h float32, hidden, animate bool) {
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	lane := ui.Box(c).Key("field-lane").Absolute().Top(0).Left(0).Size(s.laneRoom(), h).Hidden(hidden).
-		Role(ui.RoleGroup).Label("Field lane")
+		Role(ui.RoleGroup).Label(locales.FieldLane())
 	if hidden {
 		return
 	}
@@ -170,15 +171,15 @@ func (s *State) trashButton(c *ui.Context, semantic theme.Theme, x, y, size, k f
 	reach := dropReach * k
 	zone, near, fromNear, droppedNear := s.reachFor(c, "trash-reach", t)
 	zone.Left(x-reach).Top(y-reach).Size(size+2*reach, size+2*reach)
-	label := map[bool]string{true: "Leave Trash", false: "Show Trash"}[shown]
-	btn := laneCircleButton(c, semantic, "trash", components.IconTrash, label, "Trash", s.binding(VerbShowTrash), shown, size, animate)
+	label := map[bool]string{true: locales.LeaveTrash(), false: locales.ShowTrash()}[shown]
+	btn := laneCircleButton(c, semantic, "trash", components.IconTrash, label, locales.Trash(), s.binding(VerbShowTrash), shown, size, animate)
 	if btn.Clicked() {
 		s.toggleTrash()
 	}
 	btn.ContextMenu(func(m *ui.Menu) {
 		s.verbItem(m, VerbShowTrash, label, true, s.toggleTrash)
 		m.Separator()
-		s.verbItem(m, VerbEmptyTrash, "Empty Trash…", s.Verb(VerbEmptyTrash).Enabled, func() { s.DoVerb(VerbEmptyTrash) })
+		s.verbItem(m, VerbEmptyTrash, locales.EmptyTrashEllipsis(), s.Verb(VerbEmptyTrash).Enabled, func() { s.DoVerb(VerbEmptyTrash) })
 	})
 	btn.Absolute().Left(x).Top(y)
 	over, dropped, ok := dragOn(btn, t)
@@ -194,15 +195,15 @@ func (s *State) trashButton(c *ui.Context, semantic theme.Theme, x, y, size, k f
 
 func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, animate bool) ui.Element {
 	home := !s.inTrash() && !s.InSettings()
-	btn := laneCircleButton(c, semantic, "home", components.IconHome, "Home", "Home", s.binding(VerbHome), home, size, animate)
+	btn := laneCircleButton(c, semantic, "home", components.IconHome, locales.Home(), locales.Home(), s.binding(VerbHome), home, size, animate)
 	if btn.Clicked() {
 		s.goHome()
 	}
 	btn.ContextMenu(func(m *ui.Menu) {
-		s.verbItem(m, VerbHome, "Home", true, s.goHome)
+		s.verbItem(m, VerbHome, locales.Home(), true, s.goHome)
 		m.Separator()
-		s.verbItem(m, VerbBack, "Back", s.canGo(-1), func() { s.goPlace(-1) })
-		s.verbItem(m, VerbForward, "Forward", s.canGo(1), func() { s.goPlace(1) })
+		s.verbItem(m, VerbBack, locales.Back(), s.canGo(-1), func() { s.goPlace(-1) })
+		s.verbItem(m, VerbForward, locales.Forward(), s.canGo(1), func() { s.goPlace(1) })
 	})
 	return btn
 }
@@ -222,7 +223,7 @@ func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stageLook, h, 
 	most := min(h*0.36, max(0, h-topClearance-bottomClearance))
 	bottomY := max(topClearance+most, min(h*0.86, h-bottomClearance))
 	sh := shelf{
-		key: "kept", name: "Kept", icon: components.IconBookmark, label: "Kept searches", count: len(marks), listing: true,
+		key: "kept", name: locales.Kept(), icon: components.IconBookmark, label: locales.KeptSearches(), count: len(marks), listing: true,
 		width: shelfWidth * k, tail: shelfTail * k, top: bottomY, most: most, bottom: true, offset: look.Offset.X,
 		takes: takes{queries: true},
 		out:   slices.ContainsFunc(marks, func(g GroupItem) bool { return g.ID == s.field.renaming }),
@@ -241,7 +242,7 @@ func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stageLook, h, 
 		s.field.keptRows = slices.DeleteFunc(rows, func(r keptRow) bool { return gone[r.g.ID] })
 	}, func(out float32) {
 		if len(marks) == 0 && !keep {
-			shelfHint(c, semantic, "Searches kept rest here, to be found again.", false, shelfTail*k, out, k, animate)
+			shelfHint(c, semantic, locales.KeptHint(), false, shelfTail*k, out, k, animate)
 		}
 	})
 	if ok {
@@ -364,11 +365,11 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 		s.dragFrom(btn, groupDrag{id: g.ID})
 	}
 	btn.ContextMenu(func(m *ui.Menu) {
-		if m.Item("Rename…").Chosen() {
+		if m.Item(locales.RenameEllipsis()).Chosen() {
 			s.startRename(g.ID)
 		}
 		m.Separator()
-		if m.Item("Delete").Chosen() {
+		if m.Item(locales.Delete()).Chosen() {
 			s.deleteBookmark(g.ID)
 		}
 	})
@@ -405,7 +406,7 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 		ui.Box(c).Key("end").Shrink(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			components.CenteredLabel(c, thousands(g.Count), theme.TextXSmall, semantic.Surface.Page).
 				FontFeatures("tnum").Opacity(shown * (1 - hover))
-			miniCloseButton(c, semantic, "delete", "Delete "+g.Name, "Delete", 18*k, 11*k,
+			miniCloseButton(c, semantic, "delete", locales.DeleteNamed(g.Name), locales.Delete(), 18*k, 11*k,
 				semantic.Surface.Page, semantic.Surface.Page.Alpha(0.25), animate,
 				func() { s.deleteBookmark(g.ID) }).
 				Absolute().Opacity(shown * hover).IgnoreInput(hover < 0.5)
@@ -464,8 +465,8 @@ func (s *State) draftBookmark(c *ui.Context, semantic theme.Theme, text string, 
 	tail := shelfTail * k
 	btn := ui.ButtonBase(c.Key("keep")).WidthPercent(100).Padding(7*k, tail+14*k, 7*k, 10*k).Gap(6 * k).
 		AlignItems(ui.Center).FocusRing(false).KeepFocus().
-		Label("Keep This Search").Transition(bookmarkTransition(animate, k))
-	components.Hint(c, semantic, btn, "Keep This Search", "", components.HintAfter)
+		Label(locales.KeepThisSearch()).Transition(bookmarkTransition(animate, k))
+	components.Hint(c, semantic, btn, locales.KeepThisSearch(), "", components.HintAfter)
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	// Kept, it would stand as far out as the one in use; until then it
 	// stands back as the others do.

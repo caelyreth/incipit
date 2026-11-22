@@ -26,20 +26,19 @@ import (
 )
 
 // face is a face as the catalog lists it: its style, Serif or Sans, the
-// language whose glyph forms it draws, as the settings name it, and its
-// family.
+// language whose glyph forms it draws, and its family.
 type face struct {
-	style, forms, language, family string
+	style, forms, family string
 }
 
 // forms are the languages the faces draw, in the order the settings list
 // them: Chinese and Japanese, the languages the app is written for beyond
 // Latin.
-var forms = []struct{ id, language, suffix string }{
-	{"sc", "Chinese, Simplified", "SC"},
-	{"tc", "Chinese, Traditional", "TC"},
-	{"hk", "Chinese, Hong Kong", "HK"},
-	{"jp", "Japanese", "JP"},
+var forms = []struct{ id, suffix string }{
+	{"sc", "SC"},
+	{"tc", "TC"},
+	{"hk", "HK"},
+	{"jp", "JP"},
 }
 
 // faces are the catalog's: Noto Serif, then Noto Sans, for each language.
@@ -47,7 +46,7 @@ func faces() []face {
 	var out []face
 	for _, style := range []string{"Serif", "Sans"} {
 		for _, f := range forms {
-			out = append(out, face{style, f.id, f.language, "Noto " + style + " " + f.suffix})
+			out = append(out, face{style, f.id, "Noto " + style + " " + f.suffix})
 		}
 	}
 	return out
@@ -94,8 +93,8 @@ var Catalog = []Face{
 		if err != nil {
 			log.Fatalf("%s: %v", f.family, err)
 		}
-		fmt.Fprintf(&b, "{ID: %q, Style: %s, Forms: %q, Language: %q, Family: %q, Files: []File{\n",
-			strings.ToLower(f.style)+"-"+f.forms, f.style, f.forms, f.language, f.family)
+		fmt.Fprintf(&b, "{ID: %q, Style: %s, Forms: %q, Family: %q, Files: []File{\n",
+			strings.ToLower(f.style)+"-"+f.forms, f.style, f.forms, f.family)
 		for _, fl := range files {
 			fmt.Fprintf(&b, "{Path: %q, Name: %q, Weight: %d, Size: %d, SHA256: %q},\n", fl.path, fl.name, fl.weight, fl.size, fl.sha)
 		}

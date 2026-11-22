@@ -9,6 +9,7 @@ import (
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/shell"
 )
 
@@ -21,7 +22,7 @@ func (a *AppState) NewSheet(group string, index int) {
 	}
 	id, err := a.Workspace.NewPage()
 	if err != nil {
-		a.fail("Couldn't create the sheet", err)
+		a.fail(locales.CouldntCreateSheet(), err)
 		return
 	}
 	session, ok := a.sessions[id]
@@ -33,7 +34,7 @@ func (a *AppState) NewSheet(group string, index int) {
 	if err != nil {
 		err = a.discardUnfiledPage(id, err)
 		a.selectMounted()
-		a.fail("Couldn't create the sheet", err)
+		a.fail(locales.CouldntCreateSheet(), err)
 		return
 	}
 	if a.fresh == nil {
@@ -57,7 +58,7 @@ func (a *AppState) OpenSheet(name string, alongside bool) {
 		open = a.Workspace.Open
 	}
 	if err := open(session.page); err != nil {
-		a.fail("Couldn't open the sheet", err)
+		a.fail(locales.CouldntOpenSheet(), err)
 		return
 	}
 	a.selectMounted()
@@ -78,7 +79,7 @@ func (a *AppState) DuplicateSheet(name string) string {
 		return a.newSession(id, source.summary), nil
 	})
 	if err != nil {
-		a.fail("Couldn't duplicate the sheet", err)
+		a.fail(locales.CouldntDuplicateSheet(), err)
 		return ""
 	}
 	copied := library.SheetID(a.sessions[id].key)
@@ -93,7 +94,7 @@ func (a *AppState) DuplicateSheet(name string) string {
 	if err := a.library.AddSheetAt(copied, sheet.Group, time.Now(), position); err != nil {
 		err = a.discardUnfiledPage(id, err)
 		a.selectMounted()
-		a.fail("Couldn't duplicate the sheet", err)
+		a.fail(locales.CouldntDuplicateSheet(), err)
 		return ""
 	}
 	a.libraryChanged()
@@ -120,7 +121,7 @@ func (a *AppState) MoveSheet(name, group string, index int) {
 	target := groupOf(group)
 	sheet, _ := a.library.Sheet(library.SheetID(session.key))
 	if err := a.library.MoveSheet(sheet.ID, target, index); err != nil {
-		a.fail("Couldn't move the sheet", err)
+		a.fail(locales.CouldntMoveSheet(), err)
 		return
 	}
 	a.libraryChanged()
@@ -141,7 +142,7 @@ func (a *AppState) Pin(id string, pinned bool) {
 		return
 	}
 	if err != nil {
-		a.fail("Couldn't pin it", err)
+		a.fail(locales.CouldntPin(), err)
 		return
 	}
 	a.libraryChanged()
@@ -155,7 +156,7 @@ func (a *AppState) TrashSheet(name string) {
 		return
 	}
 	if err := a.library.TrashSheet(library.SheetID(session.key), time.Now()); err != nil {
-		a.fail("Couldn't move the sheet to the Trash", err)
+		a.fail(locales.CouldntMoveSheetToTrash(), err)
 		return
 	}
 	a.closeSheets([]*sheetSession{session})
@@ -178,7 +179,7 @@ func (a *AppState) DeleteSheet(name string) {
 		return
 	}
 	if err := a.library.DeleteSheet(library.SheetID(session.key)); err != nil {
-		a.fail("Couldn't delete the sheet", err)
+		a.fail(locales.CouldntDeleteSheet(), err)
 		return
 	}
 	a.discard([]library.SheetID{library.SheetID(session.key)})
@@ -186,9 +187,9 @@ func (a *AppState) DeleteSheet(name string) {
 
 // NewGroup is part of shell.Library.
 func (a *AppState) NewGroup(parent string, index int) string {
-	id, err := a.library.AddGroupAt(groupOf(parent), "Untitled Group", index)
+	id, err := a.library.AddGroupAt(groupOf(parent), locales.UntitledGroup(), index)
 	if err != nil {
-		a.fail("Couldn't create the group", err)
+		a.fail(locales.CouldntCreateGroup(), err)
 		return ""
 	}
 	// A group starts in Halo, the accent of a page in no group.
@@ -201,7 +202,7 @@ func (a *AppState) NewGroup(parent string, index int) string {
 func (a *AppState) NewSmartGroup(name, query string) string {
 	id, err := a.library.AddSmartGroupAt(0, name, query, shell.Last)
 	if err != nil {
-		a.fail("Couldn't save the search", err)
+		a.fail(locales.CouldntSaveSearch(), err)
 		return ""
 	}
 	a.libraryChanged()
@@ -232,7 +233,7 @@ func (a *AppState) KeepAsList(id string, listed bool) {
 // MoveGroup is part of shell.Library.
 func (a *AppState) MoveGroup(id, parent string, index int) {
 	if err := a.library.MoveGroup(groupOf(id), groupOf(parent), index); err != nil {
-		a.fail("Couldn't move the group", err)
+		a.fail(locales.CouldntMoveGroup(), err)
 		return
 	}
 	a.libraryChanged()
@@ -243,7 +244,7 @@ func (a *AppState) MoveGroup(id, parent string, index int) {
 func (a *AppState) TrashGroup(id string) {
 	group := groupOf(id)
 	if err := a.library.TrashGroup(group, time.Now()); err != nil {
-		a.fail("Couldn't move the group to the Trash", err)
+		a.fail(locales.CouldntMoveGroupToTrash(), err)
 		return
 	}
 	var closing []*sheetSession
@@ -268,7 +269,7 @@ func (a *AppState) RestoreGroup(id string) {
 func (a *AppState) DeleteGroup(id string) {
 	deleted, err := a.library.DeleteGroup(groupOf(id))
 	if err != nil {
-		a.fail("Couldn't delete the group", err)
+		a.fail(locales.CouldntDeleteGroup(), err)
 		return
 	}
 	a.discard(deleted)
@@ -288,7 +289,7 @@ func (a *AppState) discard(sheets []library.SheetID) {
 			continue
 		}
 		if err := a.Workspace.Discard(session.page); err != nil {
-			a.fail("Couldn't delete the sheet", err)
+			a.fail(locales.CouldntDeleteSheet(), err)
 			continue
 		}
 		session.close()
@@ -305,7 +306,7 @@ func (a *AppState) discard(sheets []library.SheetID) {
 func (a *AppState) closeSheets(sessions []*sheetSession) {
 	for _, session := range sessions {
 		if err := a.Workspace.ClosePage(session.page); err != nil {
-			a.fail("Couldn't close the sheet", err)
+			a.fail(locales.CouldntCloseSheet(), err)
 		}
 	}
 	a.selectMounted()

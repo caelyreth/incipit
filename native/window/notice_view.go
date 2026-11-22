@@ -1,6 +1,7 @@
 package window
 
 import (
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -92,7 +93,7 @@ func noticeToastView(c *ui.Context, semantic theme.Theme, animate bool, shown ui
 				})
 			})
 			components.IconButton{
-				Key: "close", Label: "Close", Icon: components.IconClose.SVG(),
+				Key: "close", Label: locales.Close(), Icon: components.IconClose.SVG(),
 				Style: components.SubtleButton, Size: components.CompactButton,
 				IconSize: 14 * scale / theme.DefaultUIFontSize, Animate: animate,
 				Action: func() { c.CloseToast(shown.ID) },

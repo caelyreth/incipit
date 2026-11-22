@@ -7,6 +7,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/shell"
 	"github.com/egoist/mygo/ui"
 )
@@ -88,7 +89,7 @@ func (a *AppState) commandState(id keymap.CommandID, label string) shell.VerbSta
 	case id == keymap.CloseOthers, id == keymap.NextPage, id == keymap.PreviousPage:
 		state.Enabled = desk && open > 1
 	case id == keymap.Field:
-		state.Label = map[bool]string{true: "Show Field", false: "Show Desk"}[desk]
+		state.Label = map[bool]string{true: locales.CommandShowField(), false: locales.ShowDesk()}[desk]
 		state.Enabled = desk || open > 0
 	case id == keymap.Typewriter:
 		state.Checked = a.Product.Presentation.Typewriter
@@ -152,7 +153,7 @@ func (a *AppState) pressedCommands(c *ui.Context) {
 		}
 		if c.Shortcut(sc.modifiers, sc.key) {
 			if err := a.routeCommand(sc.command); err != nil {
-				a.fail("Couldn't run the command", err)
+				a.fail(locales.CouldntRunCommand(), err)
 			}
 		}
 	}

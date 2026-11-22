@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -87,7 +88,7 @@ func (s *State) contentsRail(c *ui.Context, semantic theme.Theme, mid, top, bott
 		bottom = top + held
 	}
 	strip := ui.Box(c).Key("contents-rail").Absolute().Left(0).Right(0).Top(top).Height(bottom - top).
-		Role(ui.RoleGroup).Label("Contents").
+		Role(ui.RoleGroup).Label(locales.Contents()).
 		Transition(appearingIf(animate, motionPlace, &ui.Motion{Opacity: 0, X: -8 * k}, &ui.Motion{Opacity: 0}))
 	_, py, over := strip.PointerPosition()
 	near := map[bool]float32{true: 1}[over]
@@ -145,7 +146,7 @@ func (s *State) contentsRail(c *ui.Context, semantic theme.Theme, mid, top, bott
 			}
 			components.CenteredLabel(c, st.name, theme.TextDefault, semantic.Text.Heading).MinWidth(0)
 		})
-		components.CenteredLabel(c, thousands(st.sheets)+" "+nounForm(st.sheets, "sheet", "sheets"), theme.TextSmall, semantic.Text.Muted).FontFeatures("tnum")
+		components.CenteredLabel(c, locales.SheetsTotal(st.sheets, thousands(st.sheets)), theme.TextSmall, semantic.Text.Muted).FontFeatures("tnum")
 	})
 }
 
@@ -154,7 +155,7 @@ func (s *State) contentsRail(c *ui.Context, semantic theme.Theme, mid, top, bott
 // goes to it.
 func (s *State) railStopView(c *ui.Context, semantic theme.Theme, i int, st railStop, left, y, h, wave float32, marked bool, k float32) {
 	btn := ui.ButtonBase(c.Key("rail-" + strconv.Itoa(i))).Absolute().Left(0).Right(0).Top(y).Height(h).
-		AlignItems(ui.Center).Justify(ui.Start).PaddingStart(left).FocusRing(false).KeepFocus().Label("Go to " + st.name)
+		AlignItems(ui.Center).Justify(ui.Start).PaddingStart(left).FocusRing(false).KeepFocus().Label(locales.GoTo(st.name))
 	if btn.Clicked() {
 		s.field.home, s.field.homeTo = true, max(s.field.lo, min(st.y, s.field.hi))
 	}

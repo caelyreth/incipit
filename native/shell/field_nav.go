@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/egoist/mygo/ui"
 )
@@ -162,7 +163,7 @@ func (s *State) fieldMenu(m *ui.Menu) {
 	if len(acts) > 0 {
 		m.Separator()
 	}
-	if m.Item(map[bool]string{true: "Leave Trash", false: "Show Trash"}[s.inTrash()]).Chosen() {
+	if m.Item(map[bool]string{true: locales.LeaveTrash(), false: locales.ShowTrash()}[s.inTrash()]).Chosen() {
 		s.toggleTrash()
 	}
 	if m.Item(s.listLabel()).Chosen() {

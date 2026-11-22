@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -380,15 +381,18 @@ func (s *State) look(semantic theme.Theme, p ribbonPlace) ribbonLook {
 			l.ink, l.text, l.fill = semantic.Accent.Foreground, semantic.Text.Heading, semantic.Surface.Chosen
 		}
 	case ribbonMore:
-		l.label, l.icon, l.edge = thousands(p.i)+" more", components.IconChevronDown, edgeNone
+		l.label, l.icon, l.edge = locales.More(thousands(p.i)), components.IconChevronDown, edgeNone
 		l.text = semantic.Text.Muted
 	case ribbonMoreKeys:
-		l.label, l.icon, l.edge = "More Filters", components.IconChevronDown, edgeNone
+		l.label, l.icon, l.edge = locales.MoreFilters(), components.IconChevronDown, edgeNone
 		l.text = semantic.Text.Muted
 	}
 	// An order says which view it is read in, and shows it once chosen.
 	if (p.kind == ribbonKey || p.kind == ribbonValue) && viewOf[p.key.Name] != "" {
-		l.count = viewOf[p.key.Name]
+		l.count = locales.ViewList()
+		if viewOf[p.key.Name] == "field" {
+			l.count = locales.ViewField()
+		}
 	}
 	if p.kind != ribbonCondition && p.kind != ribbonMore && p.i >= 0 && p.i == s.field.suggestion {
 		l.edge = edgeSolid
@@ -405,7 +409,7 @@ func (s *State) conditionLook(semantic theme.Theme, text string) ribbonLook {
 		switch cond.Key.Name {
 		case "in":
 			if s.InSettings() {
-				l.icon, l.label = settingsCategoryIcon(cond.Value), cond.Value
+				l.icon, l.label = settingsCategoryIcon(cond.Value), s.settingsCategoryTitle(cond.Value)
 				break
 			}
 			if s.Library != nil {
@@ -437,7 +441,7 @@ const (
 
 // viewOf is the view each of the keys that order things is read in: a
 // sort is the list's, exact; bands the field's, near and far.
-var viewOf = map[string]string{"sort": "List", "bands": "Field"}
+var viewOf = map[string]string{"sort": "list", "bands": "field"}
 
 // ribbonWidth is how wide the ribbon at p is: what it says, whole.
 func (s *State) ribbonWidth(c *ui.Context, p ribbonPlace, k float32) float32 {
@@ -590,7 +594,7 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 		if !l.closes {
 			return
 		}
-		miniCloseButton(c, semantic, "remove", "Remove "+l.label, "Remove", ribbonClose*k, 10*k,
+		miniCloseButton(c, semantic, "remove", locales.RemoveNamed(l.label), locales.Remove(), ribbonClose*k, 10*k,
 			semantic.Icon.Muted, l.ink.Alpha(theme.TintFill), animate,
 			func() {
 				if i := slices.Index(s.field.conditions, p.text); i >= 0 {
@@ -611,22 +615,22 @@ func (s *State) ribbonMenu(text string) func(*ui.Menu) {
 		if i < 0 {
 			return
 		}
-		if m.Item("Change…").Chosen() {
+		if m.Item(locales.ChangeEllipsis()).Chosen() {
 			s.rewrite(i)
 		}
 		c, _ := condition(text)
-		turn := map[bool]string{true: "Include", false: "Exclude"}[c.Not]
+		turn := map[bool]string{true: locales.Include(), false: locales.Exclude()}[c.Not]
 		if m.Item(turn).Shortcut(ui.Alt, 0).Chosen() {
 			s.turn(i)
 		}
-		if s.mode() == modeLibrary && !s.inTrash() && m.Item("Keep as Bookmark").Chosen() {
+		if s.mode() == modeLibrary && !s.inTrash() && m.Item(locales.KeepAsBookmark()).Chosen() {
 			s.saveQuery(text)
 		}
 		if g, ok := s.scopeGroup(); ok && conditionKey(text) == "in" && !s.inTrash() {
 			s.keepItem(m, g)
 		}
 		m.Separator()
-		if m.Item("Remove").Chosen() {
+		if m.Item(locales.Remove()).Chosen() {
 			s.broaden(i)
 		}
 	}

@@ -1,8 +1,10 @@
 package shell
 
 import (
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -11,6 +13,8 @@ type dockState struct {
 	semantic theme.Theme
 	animate  bool
 	groups   []components.ActionGroup
+	// locale is the language groups are labeled in.
+	locale string
 	// open is the tool choice whose menu shows, and settle holds its
 	// groups while what they are offered for keeps changing.
 	open   string
@@ -37,9 +41,10 @@ func (s *State) dockIcon(
 // ensureDockGroups are the dock's own actions, after the page's tools:
 // the writing modes.
 func (s *State) ensureDockGroups() {
-	if len(s.actionDock.groups) != 0 {
+	if len(s.actionDock.groups) != 0 && s.actionDock.locale == i18n.Locale() {
 		return
 	}
+	s.actionDock.locale = i18n.Locale()
 	onTypewriter := func() {
 		if s.Typewriter != nil {
 			s.Typewriter(!s.Toolbar.Typewriter)
@@ -47,10 +52,10 @@ func (s *State) ensureDockGroups() {
 	}
 	s.actionDock.groups = []components.ActionGroup{
 		{
-			Key: "presentation", Label: "Presentation",
+			Key: "presentation", Label: locales.Presentation(),
 			Actions: []func(){
 				func() {
-					s.dockIcon("typewriter", "Typewriter", s.Toolbar.Bindings.Typewriter, components.IconTypewriter,
+					s.dockIcon("typewriter", locales.Typewriter(), s.Toolbar.Bindings.Typewriter, components.IconTypewriter,
 						s.Toolbar.Typewriter, s.Toolbar.TypewriterEnabled, onTypewriter)
 				},
 			},
@@ -69,7 +74,7 @@ func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32) {
 		tools = s.Tools()
 	}
 	components.ToolBar{
-		Key: "writing-actions", Label: "Writing actions", Groups: tools, Extra: s.actionDock.groups,
+		Key: "writing-actions", Label: locales.WritingActions(), Groups: tools, Extra: s.actionDock.groups,
 		Room: room, Animate: animate, Side: components.HintAbove, Open: &s.actionDock.open,
 		Settle: &s.actionDock.settle, Move: true,
 		Run: func(id string) {

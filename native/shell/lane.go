@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -107,7 +108,7 @@ func (s *State) laneIcon(c *ui.Context, semantic theme.Theme, key string, icon c
 // the desk rests in it, and the tray under the desk.
 func (s *State) laneView(c *ui.Context, semantic theme.Theme, w, h float32, hidden, animate bool) {
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
-	lane := ui.Box(c).Key("lane").Absolute().Top(0).Right(0).Size(s.laneRoom(), h).Hidden(hidden).Label("Desk lane")
+	lane := ui.Box(c).Key("lane").Absolute().Top(0).Right(0).Size(s.laneRoom(), h).Hidden(hidden).Label(locales.DeskLane())
 	s.lane.preview = s.laneRest(w, h)
 	if hidden {
 		return
@@ -115,7 +116,7 @@ func (s *State) laneView(c *ui.Context, semantic theme.Theme, w, h float32, hidd
 	lane.Children(func() {
 		// The lane's top band drags the window above what rests in it.
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(titleLine(c)).DragWindow()
-		s.laneIcon(c, semantic, "desk-label", components.IconDesk, "Desk", len(s.Open), s.lane.preview, false, k)
+		s.laneIcon(c, semantic, "desk-label", components.IconDesk, locales.Desk(), len(s.Open), s.lane.preview, false, k)
 	})
 	s.trayView(c, semantic, h, k, hidden, animate)
 }

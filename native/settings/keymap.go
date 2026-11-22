@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -17,13 +18,14 @@ import (
 // shortcut, or puts every key back; each row records a new shortcut, warns
 // before taking one another action holds, and resets or clears its own.
 
-// findShortcut is the title of the section that searches by keys.
-const findShortcut = "Find a Shortcut"
+// findKey names the section that searches by keys.
+const findKey = "find"
 
-// shortcutGroup is a group of actions, as many of them as a query finds.
+// shortcutGroup is a group of actions, as many of them as a query finds:
+// its scope's key names its section.
 type shortcutGroup struct {
-	title, description string
-	shortcuts          []appsettings.Shortcut
+	key, title, description string
+	shortcuts               []appsettings.Shortcut
 }
 
 // shortcutGroups are the groups of actions query finds, in order.
@@ -32,10 +34,10 @@ func (s *State) shortcutGroups(query string) []shortcutGroup {
 	for start := 0; start < len(s.Data.Shortcuts); {
 		first := s.Data.Shortcuts[start]
 		end := start + 1
-		for end < len(s.Data.Shortcuts) && s.Data.Shortcuts[end].Group == first.Group {
+		for end < len(s.Data.Shortcuts) && s.Data.Shortcuts[end].Scope == first.Scope {
 			end++
 		}
-		group := shortcutGroup{title: first.Group, description: first.Scope.Description()}
+		group := shortcutGroup{key: first.Scope.Key(), title: first.Group, description: first.Scope.Description()}
 		for _, shortcut := range s.Data.Shortcuts[start:end] {
 			if s.shortcutMatches(shortcut, query) {
 				group.shortcuts = append(group.shortcuts, shortcut)
@@ -51,12 +53,12 @@ func (s *State) shortcutGroups(query string) []shortcutGroup {
 
 // keymapSection draws the keymap's section sec, as query finds it.
 func (s *State) keymapSection(c *ui.Context, semantic theme.Theme, sec Section, query string) {
-	if sec.Title == findShortcut {
+	if sec.Key == findKey {
 		s.section(c, semantic, sec, func() { s.keymapFinder(c, semantic) })
 		return
 	}
 	for _, group := range s.shortcutGroups(query) {
-		if group.title == sec.Title {
+		if group.key == sec.Key {
 			s.section(c, semantic, sec, func() {
 				for index, shortcut := range group.shortcuts {
 					s.shortcutRow(c, semantic, shortcut, index == len(group.shortcuts)-1, 0)
@@ -101,7 +103,7 @@ func (s *State) keymapFinder(c *ui.Context, semantic theme.Theme) {
 			switch {
 			case s.keySearch:
 				s.captureLine(c, semantic, captureLine{
-					Key: "keymap-search-capture", Prompt: "Press a shortcut to find it",
+					Key: "keymap-search-capture", Prompt: locales.PressShortcutToFind(),
 					Live: true, Compact: true,
 					Chosen: func(chord keymap.Chord) {
 						s.keyFilter, s.keySearch = &chord, false
@@ -111,11 +113,11 @@ func (s *State) keymapFinder(c *ui.Context, semantic theme.Theme) {
 			case s.keyFilter != nil:
 				s.keyFilterChip(c, semantic)
 			default:
-				components.Label(c, "Press a shortcut to find its action.", theme.TextSmall, semantic.Text.Muted)
+				components.Label(c, locales.PressShortcutToFindAction(), theme.TextSmall, semantic.Text.Muted)
 			}
 		})
 		components.IconButton{
-			Key: "keymap-record-search", Label: "Search by pressing a shortcut",
+			Key: "keymap-record-search", Label: locales.SearchByPressing(),
 			Icon: components.IconKeyboard.SVG(), Style: components.OutlinedButton,
 			Selected: s.keySearch || s.keyFilter != nil, Animate: animate,
 			Action: func() {
@@ -130,7 +132,7 @@ func (s *State) keymapFinder(c *ui.Context, semantic theme.Theme) {
 		}
 		if len(customized) > 0 {
 			components.Button{
-				Key: "keymap-reset-all", Label: "Reset all",
+				Key: "keymap-reset-all", Label: locales.ResetAll(),
 				Style: components.OutlinedButton, Animate: animate,
 				Action: func() {
 					for _, command := range customized {
@@ -153,11 +155,11 @@ func (s *State) keyFilterChip(c *ui.Context, semantic theme.Theme) {
 		Background(semantic.Surface.Inset).Children(func() {
 		ui.Icon(c, components.IconKeyboard.SVG()).
 			FontSize(16 * scale / theme.DefaultUIFontSize).TextColor(semantic.Icon.Muted)
-		components.Label(c, "Shortcuts on", theme.TextSmall, semantic.Text.Muted).SingleLine()
+		components.Label(c, locales.ShortcutsOn(), theme.TextSmall, semantic.Text.Muted).SingleLine()
 		s.keycaps(c, semantic, *s.keyFilter, true)
 		ui.Box(c).Grow(1)
 		components.IconButton{
-			Key: "keymap-clear-filter", Label: "Clear shortcut search",
+			Key: "keymap-clear-filter", Label: locales.ClearShortcutSearch(),
 			Icon: components.IconClose.SVG(), Style: components.SubtleButton,
 			Size: components.CompactButton, IconColor: semantic.Icon.Muted,
 			Animate: s.motion(c),
@@ -195,7 +197,7 @@ func (s *State) shortcutRow(
 					components.Label(c, shortcut.Label, theme.TextDefault, semantic.Text.Default).
 						MinWidth(0).SingleLine()
 					if shortcut.Overridden {
-						s.tag(c, semantic, "Custom")
+						s.tag(c, semantic, locales.Custom())
 					}
 					s.policyBadge(c, semantic, shortcut)
 				})
@@ -224,7 +226,7 @@ func (s *State) shortcutActions(
 	ui.Row(c).AlignItems(ui.Center).Gap(theme.Space02.DIPs(s.Theme.UIFontSize)).Children(func() {
 		if len(shortcut.Bindings) > 0 {
 			components.IconButton{
-				Key: "clear-" + string(command), Label: "Clear Shortcut",
+				Key: "clear-" + string(command), Label: locales.ClearShortcut(),
 				Icon: components.IconClose.SVG(), Style: components.SubtleButton,
 				Size: components.CompactButton, Animate: animate,
 				IconColor: semantic.Icon.Muted,
@@ -233,7 +235,7 @@ func (s *State) shortcutActions(
 		}
 		if shortcut.Overridden {
 			components.IconButton{
-				Key: "reset-" + string(command), Label: "Reset Shortcut",
+				Key: "reset-" + string(command), Label: locales.ResetShortcut(),
 				Icon: components.IconUndo.SVG(), Style: components.SubtleButton,
 				Size: components.CompactButton, Animate: animate,
 				IconColor: semantic.Icon.Muted,
@@ -277,7 +279,7 @@ func (s *State) shortcutKeys(c *ui.Context, semantic theme.Theme, shortcut appse
 	button.Children(func() {
 		if len(shortcut.Bindings) == 0 {
 			swap("unbound", func() {
-				components.CenteredLabel(c, "Add shortcut", theme.TextSmall, semantic.Text.Muted)
+				components.CenteredLabel(c, locales.AddShortcut(), theme.TextSmall, semantic.Text.Muted)
 			})
 			return
 		}
@@ -345,7 +347,7 @@ func (s *State) policyBadge(c *ui.Context, semantic theme.Theme, shortcut appset
 	}
 	scale := s.Theme.UIFontSize
 	badge := ui.Row(c).Key("policy-" + string(shortcut.Command)).
-		Role(ui.RoleButton).Label("Open the " + title + " policy").
+		Role(ui.RoleButton).Label(locales.OpenPolicy(title)).
 		Focusable().FocusRing(false).Cursor(ui.CursorPointer)
 	hover := components.HoverAmount(badge, badge.Hovered(), s.motion(c))
 	settingsTagFrame(badge, scale).

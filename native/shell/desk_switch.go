@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -50,11 +52,11 @@ const (
 )
 
 // The switcher's lists, named by why their sheets are there.
-const (
-	listOnDesk  = "On the desk"
-	listClosed  = "Closed lately"
-	listChanged = "Last changed"
-	listFound   = "Found"
+var (
+	listOnDesk  = locales.SwitchOnDesk
+	listClosed  = locales.SwitchClosed
+	listChanged = locales.SwitchChanged
+	listFound   = locales.SwitchFound
 )
 
 // switchState is the switcher's between frames.
@@ -161,7 +163,7 @@ func (s *State) switchRows() []switchRow {
 		rev = s.Library.Revision()
 	}
 	var key strings.Builder
-	key.WriteString(written + "\x00" + s.ActiveColumn)
+	key.WriteString(i18n.Locale() + "\x00" + written + "\x00" + s.ActiveColumn)
 	for _, p := range s.Open {
 		key.WriteString("\x00" + p.Column)
 	}
@@ -172,7 +174,7 @@ func (s *State) switchRows() []switchRow {
 	sw.rows, sw.rowsFor, sw.rowsAt, sw.listed, sw.total = nil, key.String(), rev, true, 0
 	if s.Library == nil {
 		for i, page := range s.Open {
-			sw.rows = append(sw.rows, switchRow{column: page.Column, number: i + 1, section: listOnDesk,
+			sw.rows = append(sw.rows, switchRow{column: page.Column, number: i + 1, section: listOnDesk(),
 				sheet: SheetItem{ID: page.ID, Title: page.Title}, front: page.Column == s.ActiveColumn})
 		}
 		return sw.rows
@@ -217,13 +219,13 @@ func (s *State) switchRows() []switchRow {
 			sh = SheetItem{ID: page.ID, Title: page.Title}
 		}
 		sw.rows = append(sw.rows, switchRow{column: page.Column, number: i + 1, sheet: sh, group: groupOf(page.ID),
-			section: listOnDesk, front: page.Column == s.ActiveColumn})
+			section: listOnDesk(), front: page.Column == s.ActiveColumn})
 	}
 	if written != "" {
 		n := 0
 		for _, f := range found {
 			if !listed[f.ID] && n < switchFound {
-				add(f.SheetItem, listFound, f.Line)
+				add(f.SheetItem, listFound(), f.Line)
 				n++
 			}
 		}
@@ -234,7 +236,7 @@ func (s *State) switchRows() []switchRow {
 	n := 0
 	for _, id := range sw.closed {
 		if sh, ok := byID[id]; ok && !listed[id] && n < switchClosed {
-			add(sh, listClosed, "")
+			add(sh, listClosed(), "")
 			n++
 		}
 	}
@@ -245,9 +247,9 @@ func (s *State) switchRows() []switchRow {
 		group := groupOf(s.ActivePage)
 		filed := s.Library.Sheets(Place{Kind: PlaceGroup, Group: s.Library.SheetGroup(s.ActivePage)})
 		if at := slices.IndexFunc(filed, func(sh SheetItem) bool { return sh.ID == s.ActivePage }); at >= 0 {
-			section := "Near it"
+			section := locales.SwitchNear()
 			if group.Name != "" {
-				section += " in " + group.Name
+				section = locales.SwitchNearIn(group.Name)
 			}
 			most := min(switchNear, left)
 			n = 0
@@ -269,7 +271,7 @@ func (s *State) switchRows() []switchRow {
 			break
 		}
 		if !listed[sh.ID] {
-			add(sh, listChanged, "")
+			add(sh, listChanged(), "")
 			left--
 		}
 	}
@@ -335,7 +337,7 @@ func (s *State) switcherView(c *ui.Context, semantic theme.Theme, width, list fl
 		Padding(inset, inset, 0)
 	body.Children(func() {
 		field, input := queryField{
-			Key: "desk-switch", Label: "Go to sheet", Placeholder: "Go to a sheet…",
+			Key: "desk-switch", Label: locales.GoToSheet(), Placeholder: locales.GoToASheet(),
 			Value: &sw.query, In: &sw.input, Scope: query.InNotebook,
 			Focus: sw.focus && sw.open, Animate: animate, Keys: s.switchKey,
 		}.View(s, c, semantic)
@@ -357,7 +359,7 @@ func (s *State) switcherView(c *ui.Context, semantic theme.Theme, width, list fl
 		rows := s.switchRows()
 		sw.at = max(0, min(sw.at, len(rows)-1))
 		ui.Scroll(c).Key("switch-scroll").Height(list).Shrink(0).Scrollbars(false).Children(func() {
-			ui.Column(c).Key("switch-rows").Role(ui.RoleList).Label("Sheets").Children(func() {
+			ui.Column(c).Key("switch-rows").Role(ui.RoleList).Label(locales.Sheets()).Children(func() {
 				section := ""
 				for i, row := range rows {
 					if row.section != section {
@@ -367,7 +369,7 @@ func (s *State) switcherView(c *ui.Context, semantic theme.Theme, width, list fl
 					s.switchRowView(c, semantic, i, row, animate)
 				}
 				if len(rows) == 0 {
-					components.CenteredLabel(c, "No sheet holds these words", theme.TextSmall, semantic.Text.Muted).
+					components.CenteredLabel(c, locales.NoSheetHolds(), theme.TextSmall, semantic.Text.Muted).
 						Key("switch-none").Height(metrics.Height * 1.5).PaddingX(theme.Space08.DIPs(scale))
 				}
 			})
@@ -418,7 +420,7 @@ func (s *State) switchSection(c *ui.Context, semantic theme.Theme, name string) 
 	metrics := theme.DefaultControls.Scaled(scale)
 	note := ""
 	switch name {
-	case listOnDesk:
+	case listOnDesk():
 		n := 0
 		for _, row := range s.desk.switcher.rows {
 			if row.column != "" {
@@ -426,7 +428,7 @@ func (s *State) switchSection(c *ui.Context, semantic theme.Theme, name string) 
 			}
 		}
 		note = fmt.Sprint(n)
-	case listFound:
+	case listFound():
 		note = fmt.Sprint(s.desk.switcher.total)
 	}
 	ui.Row(c).Key("section-" + name).Height(metrics.InlineHeight).AlignItems(ui.Center).
@@ -482,7 +484,7 @@ func (s *State) switchRowView(c *ui.Context, semantic theme.Theme, i int, row sw
 			if at {
 				face, ink = semantic.Accent.Muted, semantic.Accent.Foreground
 			}
-			mark.Background(face).Label("Column " + fmt.Sprint(row.number)).Children(func() {
+			mark.Background(face).Label(locales.ColumnNumber(fmt.Sprint(row.number))).Children(func() {
 				components.CenteredLabel(c, fmt.Sprint(row.number), theme.TextXSmall, ink).FontFeatures("tnum")
 			})
 		} else {
@@ -502,7 +504,7 @@ func (s *State) switchRowView(c *ui.Context, semantic theme.Theme, i int, row sw
 		if row.front {
 			ui.Row(c).Key("front").Shrink(0).Height(18 * k).PaddingX(theme.Space06.DIPs(scale)).Radius(9 * k).
 				AlignItems(ui.Center).Background(semantic.Element.Hover).Children(func() {
-				components.CenteredLabel(c, "In front", theme.TextXSmall, semantic.Text.Muted)
+				components.CenteredLabel(c, locales.InFront(), theme.TextXSmall, semantic.Text.Muted)
 			})
 		} else if at {
 			components.Keycaps(c, components.KeycapStyle(semantic, scale, true), []string{"↩"}, "").Shrink(0)
@@ -535,7 +537,7 @@ func (s *State) switchHints(c *ui.Context, semantic theme.Theme) ui.Element {
 		for i, hint := range []struct {
 			keys  []string
 			label string
-		}{{[]string{"↩"}, "Go"}, {[]string{"⌘", "↩"}, "Beside"}, {[]string{"esc"}, "Close"}} {
+		}{{[]string{"↩"}, locales.SwitchGo()}, {[]string{"⌘", "↩"}, locales.SwitchBeside()}, {[]string{"esc"}, locales.Close()}} {
 			if i > 0 {
 				ui.Box(c).Key(fmt.Sprint("gap-", i)).Width(theme.Space06.DIPs(scale))
 			}

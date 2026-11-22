@@ -1,0 +1,2151 @@
+{
+  "@@locale": "en",
+  "untitled": "Untitled",
+  "@untitled": {
+    "description": "A sheet's title while it has no heading."
+  },
+  "notebook": "Notebook",
+  "@notebook": {
+    "description": "The window's title while no sheet is in front."
+  },
+  "animations": "Animations",
+  "@animations": {
+    "description": "A setting: whether panels, lists and theme changes animate."
+  },
+  "animationsDescription": "Animate panels, lists and theme changes. System reduced motion takes precedence.",
+  "typewriterMode": "Typewriter mode",
+  "@typewriterMode": {
+    "description": "A setting: the writing line stays near the page's center."
+  },
+  "typewriterModeDescription": "Keep the writing line near the center of the page.",
+  "commandNewSheet": "New Sheet",
+  "@commandNewSheet": {
+    "description": "A command: writes a new sheet."
+  },
+  "commandNextSheet": "Next Sheet",
+  "@commandNextSheet": {
+    "description": "A command: goes to the next sheet on the desk."
+  },
+  "commandPreviousSheet": "Previous Sheet",
+  "@commandPreviousSheet": {
+    "description": "A command: goes to the previous sheet on the desk."
+  },
+  "commandCloseSheet": "Close Sheet",
+  "@commandCloseSheet": {
+    "description": "A command: closes the sheet in front."
+  },
+  "commandCloseOtherSheets": "Close Other Sheets",
+  "@commandCloseOtherSheets": {
+    "description": "A command: closes every sheet but the one in front."
+  },
+  "commandSplitSheet": "Split Sheet",
+  "@commandSplitSheet": {
+    "description": "A command: opens the sheet in front in a second column."
+  },
+  "commandShowFormatting": "Show Formatting",
+  "@commandShowFormatting": {
+    "description": "A command: shows the selection's formatting tools."
+  },
+  "commandGoToSheet": "Go to Sheet",
+  "@commandGoToSheet": {
+    "description": "A command: finds a sheet by its words and goes to it."
+  },
+  "commandFind": "Find",
+  "@commandFind": {
+    "description": "A command: finds words in the sheet in front."
+  },
+  "commandNewGroup": "New Group",
+  "@commandNewGroup": {
+    "description": "A command: makes a group of sheets."
+  },
+  "commandDuplicate": "Duplicate",
+  "@commandDuplicate": {
+    "description": "A command: duplicates a sheet or group."
+  },
+  "commandRename": "Rename",
+  "@commandRename": {
+    "description": "A command: renames a group."
+  },
+  "commandPin": "Pin",
+  "@commandPin": {
+    "description": "A command: pins a sheet or group to the top."
+  },
+  "commandMoveToTrash": "Move to Trash",
+  "@commandMoveToTrash": {
+    "description": "A command."
+  },
+  "commandEmptyTrash": "Empty Trash",
+  "@commandEmptyTrash": {
+    "description": "A command."
+  },
+  "commandViewAsList": "View as List",
+  "@commandViewAsList": {
+    "description": "A command: shows the sheets as a list, not on the field."
+  },
+  "commandBack": "Back",
+  "@commandBack": {
+    "description": "A command: goes back to the last place in the library."
+  },
+  "commandForward": "Forward",
+  "@commandForward": {
+    "description": "A command: goes forward again in the library."
+  },
+  "commandHome": "Home",
+  "@commandHome": {
+    "description": "A command: goes to the library's start."
+  },
+  "commandTrash": "Trash",
+  "@commandTrash": {
+    "description": "A command: shows the Trash."
+  },
+  "commandShowField": "Show Field",
+  "@commandShowField": {
+    "description": "A command: shows the field, where the sheets are laid out."
+  },
+  "commandTypewriterMode": "Typewriter Mode",
+  "@commandTypewriterMode": {
+    "description": "A command: keeps the writing line near the page's center."
+  },
+  "commandMotion": "Motion",
+  "@commandMotion": {
+    "description": "A command: turns the animations on or off."
+  },
+  "commandCommands": "Commands",
+  "@commandCommands": {
+    "description": "A command: lists the commands to run one."
+  },
+  "commandSettings": "Settings",
+  "@commandSettings": {
+    "description": "A command: opens Settings."
+  },
+  "commandKeyboardShortcuts": "Keyboard Shortcuts",
+  "@commandKeyboardShortcuts": {
+    "description": "A command: opens Settings' shortcuts."
+  },
+  "decrease": "Decrease {setting}",
+  "@decrease": {
+    "description": "Assistive technology: the button that lowers a setting's value, such as the UI font size."
+  },
+  "increase": "Increase {setting}",
+  "@increase": {
+    "description": "Assistive technology: the button that raises a setting's value."
+  },
+  "resetToDefault": "Reset to Default",
+  "@resetToDefault": {
+    "description": "A setting's button that puts its default value back."
+  },
+  "clear": "Clear",
+  "@clear": {
+    "description": "A text field's button that empties it."
+  },
+  "page": "Page",
+  "@page": {
+    "description": "Assistive technology: a sheet's text, as one field."
+  },
+  "captionHint": "Caption",
+  "@captionHint": {
+    "description": "What an empty picture caption shows while the caret is in it."
+  },
+  "mathHint": "Formula",
+  "@mathHint": {
+    "description": "What an empty math block shows."
+  },
+  "formulaHint": "formula",
+  "@formulaHint": {
+    "description": "What an empty inline formula shows, in the line."
+  },
+  "fullWidth": "Full width",
+  "@fullWidth": {
+    "description": "A picture's width while resizing it to the page's whole width."
+  },
+  "selectionTools": "Selection tools",
+  "@selectionTools": {
+    "description": "Assistive technology: the bar of formatting tools over a selection."
+  },
+  "tableRow": "Row",
+  "@tableRow": {
+    "description": "Over a table, where a click adds a row."
+  },
+  "tableColumn": "Column",
+  "@tableColumn": {
+    "description": "Over a table, where a click adds a column."
+  },
+  "tags": "Tags",
+  "@tags": {
+    "description": "Assistive technology: the list of tags offered while writing one."
+  },
+  "createTag": "Create #{tag}",
+  "@createTag": {
+    "description": "Assistive technology: the choice that makes a new tag."
+  },
+  "create": "Create",
+  "@create": {
+    "description": "In the list of tags offered, beside a new tag: making it."
+  },
+  "categoryAppearance": "Appearance",
+  "@categoryAppearance": {
+    "description": "A category of Settings."
+  },
+  "categoryAppearanceDescription": "A comfortable space for your writing.",
+  "categoryEditor": "Editor",
+  "@categoryEditor": {
+    "description": "A category of Settings: how the page answers what is written."
+  },
+  "categoryEditorDescription": "How the page answers what you write.",
+  "categoryKeymap": "Keymap",
+  "@categoryKeymap": {
+    "description": "A category of Settings: the keyboard shortcuts."
+  },
+  "categoryKeymapDescription": "Keys by what they act on.",
+  "scopeEditing": "Editing",
+  "@scopeEditing": {
+    "description": "A group of keyboard shortcuts: those acting on the page."
+  },
+  "scopeEditingDescription": "Write, move and select on the page.",
+  "scopeSheets": "Sheets",
+  "@scopeSheets": {
+    "description": "A group of keyboard shortcuts: making, finding, switching and closing sheets."
+  },
+  "scopeSheetsDescription": "Make, find, switch and close sheets.",
+  "scopeLibrary": "Library",
+  "@scopeLibrary": {
+    "description": "A group of keyboard shortcuts: those acting on the field and its groups."
+  },
+  "scopeLibraryDescription": "File, rename and trash what the field shows, and go between places.",
+  "scopeView": "View",
+  "@scopeView": {
+    "description": "A group of keyboard shortcuts: what the window shows."
+  },
+  "scopeViewDescription": "Change what the window shows around your sheet.",
+  "scopeApp": "App",
+  "@scopeApp": {
+    "description": "A group of keyboard shortcuts: the app's own tools."
+  },
+  "scopeAppDescription": "Open Neverland's own tools.",
+  "typeface": "Typeface",
+  "@typeface": {
+    "description": "A section of Settings: the fonts the prose is set in."
+  },
+  "typefaceDescription": "The style the prose is set in, and the glyph forms of Chinese and Japanese. A face for them downloads once from Google Fonts and stays on this computer.",
+  "typefaceKeywords": "Fonts Faces Style Serif Sans Writing Systems Download Google Fonts Chinese Japanese Han Kanji Noto",
+  "@typefaceKeywords": {
+    "description": "Words Settings' search finds the Typeface section by, beside its title and description: add the language's own."
+  },
+  "systemFont": "System Font",
+  "@systemFont": {
+    "description": "The choice of the system's own fonts for Chinese and Japanese."
+  },
+  "systemFontNote": "The system's own, nothing to download",
+  "@systemFontNote": {
+    "description": "Under the System Font choice."
+  },
+  "chineseAndJapanese": "Chinese and Japanese",
+  "@chineseAndJapanese": {
+    "description": "A setting: which glyph forms Chinese and Japanese are drawn in."
+  },
+  "chineseAndJapaneseDescription": "The glyph forms they are drawn in. A face downloads when chosen.",
+  "formsSc": "Chinese, Simplified",
+  "@formsSc": {
+    "description": "A choice of glyph forms for Chinese and Japanese text."
+  },
+  "formsTc": "Chinese, Traditional",
+  "@formsTc": {
+    "description": "A choice of glyph forms for Chinese and Japanese text."
+  },
+  "formsHk": "Chinese, Hong Kong",
+  "@formsHk": {
+    "description": "A choice of glyph forms for Chinese and Japanese text."
+  },
+  "formsJp": "Japanese",
+  "@formsJp": {
+    "description": "A choice of glyph forms for Chinese and Japanese text."
+  },
+  "alsoOnThisComputer": "Also on This Computer",
+  "@alsoOnThisComputer": {
+    "description": "Over the downloaded fonts of the style not chosen."
+  },
+  "alsoOnThisComputerDescription": "Faces of the other style.",
+  "style": "Style",
+  "@style": {
+    "description": "A setting: whether the prose is set in a serif or a sans-serif face."
+  },
+  "styleDescription": "Latin text is set in Noto Serif or Noto Sans, and Chinese and Japanese in its match.",
+  "styleSerif": "Serif",
+  "@styleSerif": {
+    "description": "A typeface style, with serifs."
+  },
+  "styleSans": "Sans",
+  "@styleSans": {
+    "description": "A typeface style, without serifs."
+  },
+  "fontNote": "{family} · {size}",
+  "@fontNote": {
+    "description": "Under a font: its name and how much it takes, as 29.6 MB."
+  },
+  "fontNoteComing": "{family} · {done} of {total}",
+  "@fontNoteComing": {
+    "description": "Under a font while it downloads: how much of it has come, as 1.0 MB of 4.0 MB."
+  },
+  "fontNoteKept": "{family} · {size} · Downloaded",
+  "@fontNoteKept": {
+    "description": "Under a downloaded font."
+  },
+  "fontNotePartial": "{family} · {done} of {total} downloaded",
+  "@fontNotePartial": {
+    "description": "Under a font whose download stopped part way."
+  },
+  "megabytes": "{size} MB",
+  "@megabytes": {
+    "description": "A size in megabytes; size is written with one decimal, as 29.6."
+  },
+  "stop": "Stop",
+  "@stop": {
+    "description": "A font's button that stops its download."
+  },
+  "resume": "Resume",
+  "@resume": {
+    "description": "A font's button that goes on with its download."
+  },
+  "remove": "Remove",
+  "@remove": {
+    "description": "A font's button that removes it from this computer."
+  },
+  "downloading": "Downloading {family}, {percent}%",
+  "@downloading": {
+    "description": "Assistive technology: how far a font's download has come."
+  },
+  "theme": "Theme",
+  "@theme": {
+    "description": "A section and setting of Settings: the colors."
+  },
+  "themeSectionDescription": "Colors and chrome scale for every Neverland window.",
+  "themeKeywords": "Colors Starfield Daybreak Dark Light UI Font Size",
+  "@themeKeywords": {
+    "description": "Words Settings' search finds the Theme section by, beside its title and description: add the language's own."
+  },
+  "themeDescription": "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart.",
+  "@themeDescription": {
+    "description": "Starfield and Daybreak are the themes' names."
+  },
+  "themeStarfield": "Starfield",
+  "@themeStarfield": {
+    "description": "The dark theme's name."
+  },
+  "themeDaybreak": "Daybreak",
+  "@themeDaybreak": {
+    "description": "The light theme's name."
+  },
+  "uiFontSize": "UI Font Size",
+  "@uiFontSize": {
+    "description": "A setting: the size of the app's own text."
+  },
+  "uiFontSizeDescription": "Scales chrome; document text keeps its own size.",
+  "writingEnvironment": "Writing Environment",
+  "@writingEnvironment": {
+    "description": "A section of Settings."
+  },
+  "writingEnvironmentDescription": "Presentation choices shared across the workspace.",
+  "writingEnvironmentKeywords": "Presentation Document Text Size Spacing",
+  "@writingEnvironmentKeywords": {
+    "description": "Words Settings' search finds the Writing Environment section by, beside its title, description and settings: add the language's own."
+  },
+  "documentTextSize": "Document Text Size",
+  "@documentTextSize": {
+    "description": "A setting: the size of the sheets' text."
+  },
+  "documentTextSizeDescription": "Prose, headings and column scale together in every window.",
+  "spacing": "Spacing",
+  "@spacing": {
+    "description": "A setting: the line spacing of the sheets' text."
+  },
+  "spacingDescription": "From compact to loose: a body line's height over its text's size. The room around headings, lists and code follows in proportion.",
+  "pixels": "{size} px",
+  "@pixels": {
+    "description": "A size in pixels, as 16 px."
+  },
+  "turnOnToAdjust": "{count, plural, one {Turn on to adjust # option.} other {Turn on to adjust # options.}}",
+  "@turnOnToAdjust": {
+    "description": "Under a group of editor settings that is off."
+  },
+  "findShortcut": "Find a Shortcut",
+  "@findShortcut": {
+    "description": "A section of Settings' Keymap."
+  },
+  "findShortcutDescription": "Find an action by pressing its keys, or put every key back as it was.",
+  "findShortcutKeywords": "keymap keys shortcuts reset",
+  "@findShortcutKeywords": {
+    "description": "Words Settings' search finds the Find a Shortcut section by, beside its title: add the language's own."
+  },
+  "pressShortcutToFind": "Press a shortcut to find it",
+  "@pressShortcutToFind": {
+    "description": "While a shortcut is being pressed to search by it."
+  },
+  "pressShortcutToFindAction": "Press a shortcut to find its action.",
+  "@pressShortcutToFindAction": {
+    "description": "Beside the button that searches by a shortcut pressed."
+  },
+  "searchByPressing": "Search by pressing a shortcut",
+  "@searchByPressing": {
+    "description": "Assistive technology and tooltip: the button that searches by a shortcut pressed."
+  },
+  "resetAll": "Reset all",
+  "@resetAll": {
+    "description": "The button that puts every shortcut back as it was."
+  },
+  "shortcutsOn": "Shortcuts on",
+  "@shortcutsOn": {
+    "description": "Before the keys searched by, as in: Shortcuts on ⌘B."
+  },
+  "clearShortcutSearch": "Clear shortcut search",
+  "@clearShortcutSearch": {
+    "description": "Assistive technology and tooltip."
+  },
+  "custom": "Custom",
+  "@custom": {
+    "description": "A tag on a shortcut changed from its default."
+  },
+  "clearShortcut": "Clear Shortcut",
+  "@clearShortcut": {
+    "description": "A shortcut's button that takes its key away."
+  },
+  "resetShortcut": "Reset Shortcut",
+  "@resetShortcut": {
+    "description": "A shortcut's button that puts its default key back."
+  },
+  "addShortcut": "Add shortcut",
+  "@addShortcut": {
+    "description": "Where an action has no key: the place to record one."
+  },
+  "openPolicy": "Open the {policy} policy",
+  "@openPolicy": {
+    "description": "Assistive technology: a badge naming the group of editor settings a command belongs to."
+  },
+  "noKey": "no key",
+  "@noKey": {
+    "description": "In a sentence of Settings, where a command it names has no key."
+  },
+  "addShortcutFor": "Add shortcut for {action}",
+  "@addShortcutFor": {
+    "description": "Assistive technology."
+  },
+  "changeShortcutFor": "Change shortcut for {action}",
+  "@changeShortcutFor": {
+    "description": "Assistive technology."
+  },
+  "pressKeys": "Press keys…",
+  "@pressKeys": {
+    "description": "While a shortcut is being recorded."
+  },
+  "assignedTo": "{keys} is assigned to “{action}”.",
+  "@assignedTo": {
+    "description": "While recording: the keys pressed are another action's already."
+  },
+  "keptInAppMenu": "{keys} is kept by “{action}” in the app menu.",
+  "@keptInAppMenu": {
+    "description": "While recording: the keys pressed are the app menu's."
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "A button."
+  },
+  "replace": "Replace",
+  "@replace": {
+    "description": "While recording: takes the keys from the action that has them."
+  },
+  "pressAnotherKey": "Press another key",
+  "@pressAnotherKey": {
+    "description": "While recording, after keys the app menu keeps."
+  },
+  "escCancelsBackspaceClears": "Esc cancels · ⌫ clears",
+  "@escCancelsBackspaceClears": {
+    "description": "While recording: what Esc and Backspace do."
+  },
+  "escToCancel": "Esc to cancel",
+  "@escToCancel": {
+    "description": "While recording."
+  },
+  "useDefault": "Use default",
+  "@useDefault": {
+    "description": "While recording: puts the action's default key back."
+  },
+  "couldntAddPicture": "Couldn't add the picture",
+  "@couldntAddPicture": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntChangeSetting": "Couldn't change the setting",
+  "@couldntChangeSetting": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntCloseSheet": "Couldn't close the sheet",
+  "@couldntCloseSheet": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntCopyPicture": "Couldn't copy the picture",
+  "@couldntCopyPicture": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntCreateGroup": "Couldn't create the group",
+  "@couldntCreateGroup": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntCreateSheet": "Couldn't create the sheet",
+  "@couldntCreateSheet": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntDeleteGroup": "Couldn't delete the group",
+  "@couldntDeleteGroup": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntDeleteSheet": "Couldn't delete the sheet",
+  "@couldntDeleteSheet": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntDuplicateSheet": "Couldn't duplicate the sheet",
+  "@couldntDuplicateSheet": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntGoToSheet": "Couldn't go to the sheet",
+  "@couldntGoToSheet": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntMoveGroup": "Couldn't move the group",
+  "@couldntMoveGroup": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntMoveGroupToTrash": "Couldn't move the group to the Trash",
+  "@couldntMoveGroupToTrash": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntMoveSheet": "Couldn't move the sheet",
+  "@couldntMoveSheet": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntMoveSheetToTrash": "Couldn't move the sheet to the Trash",
+  "@couldntMoveSheetToTrash": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntOpenPage": "Couldn't open the page",
+  "@couldntOpenPage": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntOpenSheet": "Couldn't open the sheet",
+  "@couldntOpenSheet": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntPin": "Couldn't pin it",
+  "@couldntPin": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntRemoveFont": "Couldn't remove the font",
+  "@couldntRemoveFont": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntRunCommand": "Couldn't run the command",
+  "@couldntRunCommand": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntSaveSettings": "Couldn't save settings",
+  "@couldntSaveSettings": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntSavePicture": "Couldn't save the picture",
+  "@couldntSavePicture": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntSaveSearch": "Couldn't save the search",
+  "@couldntSaveSearch": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntShowPicture": "Couldn't show the picture",
+  "@couldntShowPicture": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntSplitSheet": "Couldn't split the sheet",
+  "@couldntSplitSheet": {
+    "description": "A notice's title: what failed."
+  },
+  "couldntUsePicture": "Couldn't use the picture",
+  "@couldntUsePicture": {
+    "description": "A notice's title: what failed."
+  },
+  "allChangesSaved": "All changes saved",
+  "@allChangesSaved": {
+    "description": "A notice, once changes that failed to save are saved."
+  },
+  "couldntBackUp": "Couldn't back up the notebook",
+  "@couldntBackUp": {
+    "description": "A notice's title."
+  },
+  "changesNotSaved": "Changes aren't saved yet",
+  "@changesNotSaved": {
+    "description": "A notice's title, while saving fails."
+  },
+  "retryNow": "Retry Now",
+  "@retryNow": {
+    "description": "A notice's button: tries saving at once."
+  },
+  "restoredFromBackup": "The notebook was restored from its latest backup",
+  "@restoredFromBackup": {
+    "description": "A notice's title, after opening a damaged notebook."
+  },
+  "restoredFromBackupDescription": "It was damaged; the damaged copy is kept.",
+  "notebookDamaged": "The notebook was damaged",
+  "@notebookDamaged": {
+    "description": "A notice's title, after opening a damaged notebook with no backup."
+  },
+  "notebookDamagedDescription": "No backup could be read, so it starts empty; the damaged copy is kept.",
+  "showInFinder": "Show in Finder",
+  "@showInFinder": {
+    "description": "A notice's button: shows the damaged notebook's copy among the files."
+  },
+  "settingsReset": "Settings were reset",
+  "@settingsReset": {
+    "description": "A notice's title, when the saved preferences could not be read."
+  },
+  "settingsResetDescription": "Your notebook is unchanged. The saved preferences could not be read.",
+  "close": "Close",
+  "@close": {
+    "description": "A button, an icon: closes what it stands on."
+  },
+  "menuFile": "File",
+  "@menuFile": {
+    "description": "The menu bar's menu."
+  },
+  "menuEdit": "Edit",
+  "@menuEdit": {
+    "description": "The menu bar's menu."
+  },
+  "menuFormat": "Format",
+  "@menuFormat": {
+    "description": "The menu bar's menu."
+  },
+  "menuView": "View",
+  "@menuView": {
+    "description": "The menu bar's menu."
+  },
+  "menuGo": "Go",
+  "@menuGo": {
+    "description": "The menu bar's menu."
+  },
+  "menuHelp": "Help",
+  "@menuHelp": {
+    "description": "The menu bar's menu."
+  },
+  "undo": "Undo",
+  "@undo": {
+    "description": "The Edit menu's item, and a notice's button."
+  },
+  "redo": "Redo",
+  "@redo": {
+    "description": "The Edit menu's item."
+  },
+  "undoAction": "Undo {action}",
+  "@undoAction": {
+    "description": "The Edit menu's item, naming what it takes back, as Undo Move to Trash."
+  },
+  "redoAction": "Redo {action}",
+  "@redoAction": {
+    "description": "The Edit menu's item, naming what it does again."
+  },
+  "showDesk": "Show Desk",
+  "@showDesk": {
+    "description": "The View menu's item while the field is in front: shows the desk, where sheets are written."
+  },
+  "insertPicture": "Insert Picture",
+  "@insertPicture": {
+    "description": "The title of the dialog that picks pictures to insert."
+  },
+  "replacePicture": "Replace Picture",
+  "@replacePicture": {
+    "description": "The title of the dialog that picks a picture in place of one."
+  },
+  "pictures": "Pictures",
+  "@pictures": {
+    "description": "A file dialog's filter: the kinds of pictures that can be inserted."
+  },
+  "savePicture": "Save Picture",
+  "@savePicture": {
+    "description": "The title of the dialog that saves a picture."
+  },
+  "picture": "Picture",
+  "@picture": {
+    "description": "A file dialog's filter: the picture's kind."
+  },
+  "untitledGroup": "Untitled Group",
+  "@untitledGroup": {
+    "description": "The name a new group is given, until renamed."
+  },
+  "fontMismatch": "The download wasn't the font expected. Try again later.",
+  "@fontMismatch": {
+    "description": "Under a font whose download came out other than pinned."
+  },
+  "fontDownloadFailed": "Couldn't download. Check the connection and try again.",
+  "@fontDownloadFailed": {
+    "description": "Under a font whose download failed."
+  },
+  "fontUnusable": "Couldn't use the downloaded font.",
+  "@fontUnusable": {
+    "description": "Under a downloaded font the text engine could not read."
+  },
+  "clearSearch": "Clear Search",
+  "@clearSearch": {
+    "description": "An action, and a button: empties the search."
+  },
+  "newSheet": "New Sheet",
+  "@newSheet": {
+    "description": "An action: writes a new sheet."
+  },
+  "newGroup": "New Group",
+  "@newGroup": {
+    "description": "An action: makes a group."
+  },
+  "emptyTrash": "Empty Trash",
+  "@emptyTrash": {
+    "description": "An action: deletes what the Trash holds."
+  },
+  "actions": "Actions",
+  "@actions": {
+    "description": "The pill's button that shows what can be done."
+  },
+  "hideActions": "Hide Actions",
+  "@hideActions": {
+    "description": "The pill's button while it shows what can be done."
+  },
+  "new": "New",
+  "@new": {
+    "description": "The pill's button's tooltip, where it makes a sheet or group."
+  },
+  "closeActions": "Close Actions",
+  "@closeActions": {
+    "description": "Assistive technology: the area around the actions shown, which closes them."
+  },
+  "cantUndo": "{action} — Can’t Undo",
+  "@cantUndo": {
+    "description": "An action armed by a first press, which a second press runs for good."
+  },
+  "aNewNotebook": "A New Notebook",
+  "@aNewNotebook": {
+    "description": "A note on a new notebook's field."
+  },
+  "typeToFind": "Type to find",
+  "@typeToFind": {
+    "description": "A line of the note on a new notebook."
+  },
+  "writeANewSheet": "Write a new sheet",
+  "@writeANewSheet": {
+    "description": "A line of the note on a new notebook, beside its key."
+  },
+  "dragToFile": "Drag a sheet to file it",
+  "@dragToFile": {
+    "description": "A line of the note on a new notebook."
+  },
+  "writtenToday": "Written Today",
+  "@writtenToday": {
+    "description": "A note: how many words were written today."
+  },
+  "bandPinned": "Pinned",
+  "@bandPinned": {
+    "description": "A band of the field: the pinned sheets."
+  },
+  "bandLately": "Lately",
+  "@bandLately": {
+    "description": "A band of the field: sheets written this week."
+  },
+  "bandThisMonth": "This month",
+  "@bandThisMonth": {
+    "description": "A band of the field."
+  },
+  "bandDormant": "Dormant",
+  "@bandDormant": {
+    "description": "A band of the field: sheets not written in a month."
+  },
+  "bandOtherTags": "Other tags",
+  "@bandOtherTags": {
+    "description": "A band of the field: sheets of the tags with no band of their own."
+  },
+  "bandNoTag": "No tag",
+  "@bandNoTag": {
+    "description": "A band of the field: sheets with no tag."
+  },
+  "bandFound": "Found",
+  "@bandFound": {
+    "description": "A band of the field: what a search found."
+  },
+  "bandStrong": "Strong",
+  "@bandStrong": {
+    "description": "A band of the field: what matches a search best."
+  },
+  "bandAlso": "Also",
+  "@bandAlso": {
+    "description": "A band of the field: what matches a search less."
+  },
+  "bandMentions": "Mentions",
+  "@bandMentions": {
+    "description": "A band of the field: what only mentions what is searched."
+  },
+  "dateToday": "Today",
+  "@dateToday": {
+    "description": "A band of the field by date."
+  },
+  "dateThisWeek": "This week",
+  "@dateThisWeek": {
+    "description": "A band of the field by date."
+  },
+  "dateThisMonth": "This month",
+  "@dateThisMonth": {
+    "description": "A band of the field by date."
+  },
+  "dateThisYear": "This year",
+  "@dateThisYear": {
+    "description": "A band of the field by date."
+  },
+  "dateEarlier": "Earlier",
+  "@dateEarlier": {
+    "description": "A band of the field by date."
+  },
+  "newSheetArea": "New sheet",
+  "@newSheetArea": {
+    "description": "A group's place to write a new sheet in it."
+  },
+  "trash": "Trash",
+  "@trash": {
+    "description": "The Trash, as the field names it."
+  },
+  "delete": "Delete",
+  "@delete": {
+    "description": "A button that deletes for good, after a first press arms it."
+  },
+  "pinned": "Pinned",
+  "@pinned": {
+    "description": "A badge: the group or sheet is pinned."
+  },
+  "tasksDone": "{done} of {all} tasks done",
+  "@tasksDone": {
+    "description": "Assistive technology: how far a sheet's tasks are done."
+  },
+  "tasksDoneHint": "{done}/{all} Tasks Done",
+  "@tasksDoneHint": {
+    "description": "A tooltip: how far a sheet's tasks are done."
+  },
+  "alwaysShownAsList": "Always Shown as List",
+  "@alwaysShownAsList": {
+    "description": "A badge: the group is kept shown as a list."
+  },
+  "openOnDesk": "Open on the desk, column {column}",
+  "@openOnDesk": {
+    "description": "A badge: the sheet is open on the desk."
+  },
+  "sheetsCount": "{count, plural, one {# sheet} other {# sheets}}",
+  "@sheetsCount": {
+    "description": "Assistive technology: how many sheets are dragged."
+  },
+  "more": "{count} more",
+  "@more": {
+    "description": "How many rows a list leaves out, as 12 more; count is written with its thousands."
+  },
+  "groupName": "Group name",
+  "@groupName": {
+    "description": "Assistive technology: the field renaming a group."
+  },
+  "clearWord": "Clear",
+  "@clearWord": {
+    "description": "Beside the search, the button that empties it."
+  },
+  "here": "Here",
+  "@here": {
+    "description": "A group of the commands: what can be done to the place shown."
+  },
+  "takeWhatIsWritten": "Take what is written",
+  "@takeWhatIsWritten": {
+    "description": "A suggestion of the search: keeps the words as written."
+  },
+  "putBack": "Put Back",
+  "@putBack": {
+    "description": "A menu item and action: takes a sheet or group out of the Trash, back where it was."
+  },
+  "newGroupInside": "New Group Inside",
+  "@newGroupInside": {
+    "description": "A group's menu item: makes a group in it."
+  },
+  "renameEllipsis": "Rename…",
+  "@renameEllipsis": {
+    "description": "A group's menu item."
+  },
+  "color": "Color",
+  "@color": {
+    "description": "A group's submenu: the color it is tinted."
+  },
+  "pin": "Pin",
+  "@pin": {
+    "description": "A menu item and action: pins a sheet or group to the top."
+  },
+  "unpin": "Unpin",
+  "@unpin": {
+    "description": "A menu item and action."
+  },
+  "deleteImmediately": "Delete Immediately…",
+  "@deleteImmediately": {
+    "description": "A menu item in the Trash: deletes for good."
+  },
+  "open": "Open",
+  "@open": {
+    "description": "A sheet's menu item: opens it on the desk."
+  },
+  "openAlongside": "Open Alongside",
+  "@openAlongside": {
+    "description": "A sheet's menu item: opens it on the desk beside the one in front."
+  },
+  "showInGroup": "Show in Group",
+  "@showInGroup": {
+    "description": "A sheet's menu item: shows the group it is filed in."
+  },
+  "duplicate": "Duplicate",
+  "@duplicate": {
+    "description": "A menu item and action."
+  },
+  "moveToTrash": "Move to Trash",
+  "@moveToTrash": {
+    "description": "A menu item and action."
+  },
+  "splitSheet": "Split Sheet",
+  "@splitSheet": {
+    "description": "A sheet's menu item on the desk."
+  },
+  "closeSheet": "Close Sheet",
+  "@closeSheet": {
+    "description": "A sheet's menu item on the desk, and a tooltip."
+  },
+  "closeOtherSheets": "Close Other Sheets",
+  "@closeOtherSheets": {
+    "description": "A sheet's menu item on the desk."
+  },
+  "colorMoonveil": "Moonveil",
+  "@colorMoonveil": {
+    "description": "A group's color: none of the hues."
+  },
+  "colorHalo": "Halo",
+  "@colorHalo": {
+    "description": "A color's name."
+  },
+  "colorAfterglow": "Afterglow",
+  "@colorAfterglow": {
+    "description": "A color's name."
+  },
+  "colorRemnant": "Remnant",
+  "@colorRemnant": {
+    "description": "A color's name."
+  },
+  "colorUnripe": "Unripe",
+  "@colorUnripe": {
+    "description": "A color's name."
+  },
+  "colorLife": "Life",
+  "@colorLife": {
+    "description": "A color's name."
+  },
+  "colorRegolith": "Regolith",
+  "@colorRegolith": {
+    "description": "A color's name."
+  },
+  "desk": "Desk",
+  "@desk": {
+    "description": "The desk, where sheets are open to write: a place of the window, and assistive technology."
+  },
+  "closeNamed": "Close {title}",
+  "@closeNamed": {
+    "description": "Assistive technology: the button that closes a sheet on the desk."
+  },
+  "deskOverview": "Desk overview",
+  "@deskOverview": {
+    "description": "Assistive technology: the overview of the sheets open on the desk."
+  },
+  "closeSwitcher": "Close the switcher",
+  "@closeSwitcher": {
+    "description": "Assistive technology: the area around the switcher, which closes it."
+  },
+  "goToSheet": "Go to sheet",
+  "@goToSheet": {
+    "description": "Assistive technology: the switcher, and its field."
+  },
+  "goToASheet": "Go to a sheet…",
+  "@goToASheet": {
+    "description": "The switcher's field, while empty."
+  },
+  "switchOnDesk": "On the desk",
+  "@switchOnDesk": {
+    "description": "A list of the switcher: the sheets open."
+  },
+  "switchClosed": "Closed lately",
+  "@switchClosed": {
+    "description": "A list of the switcher."
+  },
+  "switchChanged": "Last changed",
+  "@switchChanged": {
+    "description": "A list of the switcher."
+  },
+  "switchFound": "Found",
+  "@switchFound": {
+    "description": "A list of the switcher: what its words find."
+  },
+  "switchNear": "Near it",
+  "@switchNear": {
+    "description": "A list of the switcher: sheets filed next to the one in front."
+  },
+  "switchNearIn": "Near it in {group}",
+  "@switchNearIn": {
+    "description": "A list of the switcher: sheets filed next to the one in front, in its group."
+  },
+  "sheets": "Sheets",
+  "@sheets": {
+    "description": "Assistive technology: the switcher's list of sheets."
+  },
+  "noSheetHolds": "No sheet holds these words",
+  "@noSheetHolds": {
+    "description": "The switcher, when its words find nothing."
+  },
+  "columnNumber": "Column {number}",
+  "@columnNumber": {
+    "description": "Assistive technology: the column a sheet is open in on the desk."
+  },
+  "inFront": "In front",
+  "@inFront": {
+    "description": "The switcher, beside the sheet in front."
+  },
+  "switchGo": "Go",
+  "@switchGo": {
+    "description": "The switcher's foot, beside Return: goes to the sheet."
+  },
+  "switchBeside": "Beside",
+  "@switchBeside": {
+    "description": "The switcher's foot, beside ⌘ Return: opens the sheet beside the one in front."
+  },
+  "field": "Field",
+  "@field": {
+    "description": "Assistive technology: the field, where the sheets are laid out."
+  },
+  "fieldLane": "Field lane",
+  "@fieldLane": {
+    "description": "Assistive technology: the lane beside the field."
+  },
+  "showTrash": "Show Trash",
+  "@showTrash": {
+    "description": "The lane's button and menu item."
+  },
+  "leaveTrash": "Leave Trash",
+  "@leaveTrash": {
+    "description": "The lane's button and menu item while the Trash is shown."
+  },
+  "emptyTrashEllipsis": "Empty Trash…",
+  "@emptyTrashEllipsis": {
+    "description": "A menu item."
+  },
+  "home": "Home",
+  "@home": {
+    "description": "The lane's button: the library's start."
+  },
+  "back": "Back",
+  "@back": {
+    "description": "A menu item: goes back to the last place."
+  },
+  "forward": "Forward",
+  "@forward": {
+    "description": "A menu item: goes forward again."
+  },
+  "kept": "Kept",
+  "@kept": {
+    "description": "The shelf of kept searches."
+  },
+  "keptSearches": "Kept searches",
+  "@keptSearches": {
+    "description": "Assistive technology: the shelf of kept searches."
+  },
+  "keptHint": "Searches kept rest here, to be found again.",
+  "@keptHint": {
+    "description": "The empty shelf of kept searches."
+  },
+  "deleteNamed": "Delete {name}",
+  "@deleteNamed": {
+    "description": "Assistive technology: the button that deletes a kept search."
+  },
+  "keepThisSearch": "Keep This Search",
+  "@keepThisSearch": {
+    "description": "The button that keeps the search on the shelf."
+  },
+  "deskLane": "Desk lane",
+  "@deskLane": {
+    "description": "Assistive technology: the lane beside the desk."
+  },
+  "findInSheet": "Find in sheet",
+  "@findInSheet": {
+    "description": "Assistive technology: the find bar, and its field."
+  },
+  "findPlaceholder": "Find words, or $ for keys",
+  "@findPlaceholder": {
+    "description": "The find bar's field, while empty."
+  },
+  "findsInThisSheet": "Finds in this sheet",
+  "@findsInThisSheet": {
+    "description": "Assistive technology: the find bar's fixed scope."
+  },
+  "previousMatch": "Previous match",
+  "@previousMatch": {
+    "description": "The find bar's button."
+  },
+  "nextMatch": "Next match",
+  "@nextMatch": {
+    "description": "The find bar's button."
+  },
+  "closeFind": "Close Find",
+  "@closeFind": {
+    "description": "The find bar's button."
+  },
+  "noMatches": "No matches",
+  "@noMatches": {
+    "description": "The find bar's count."
+  },
+  "matchOf": "{current} of {total}",
+  "@matchOf": {
+    "description": "The find bar's count: the match at, and how many."
+  },
+  "matches": "{count, plural, one {# match} other {{total} matches}}",
+  "@matches": {
+    "description": "The find bar's count; total is count written with its thousands."
+  },
+  "moveTo": "Move To",
+  "@moveTo": {
+    "description": "A submenu: the groups to move into."
+  },
+  "topLevel": "Top Level",
+  "@topLevel": {
+    "description": "The Move To submenu's item: out of every group."
+  },
+  "moveToTrashWithSheets": "{count, plural, one {Move to Trash with # Sheet} other {Move to Trash with # Sheets}}",
+  "@moveToTrashWithSheets": {
+    "description": "A group's menu item: trashes it and the sheets in it."
+  },
+  "deleteImmediatelyWithSheets": "{count, plural, one {Delete Immediately with # Sheet…} other {Delete Immediately with # Sheets…}}",
+  "@deleteImmediatelyWithSheets": {
+    "description": "A group's menu item in the Trash."
+  },
+  "yesterday": "Yesterday",
+  "@yesterday": {
+    "description": "When a sheet was written."
+  },
+  "words": "{count, plural, =0 {No words yet} one {# word} other {{total} words}}",
+  "@words": {
+    "description": "How many words a sheet holds; total is count written with its thousands."
+  },
+  "quoted": "“{name}”",
+  "@quoted": {
+    "description": "A sheet or group named in what the field tells, as Moved “Tides” to the Trash."
+  },
+  "theGroup": "the group",
+  "@theGroup": {
+    "description": "A group named in what the field tells, when it has no name to give."
+  },
+  "countSheets": "{count, plural, one {# Sheet} other {# Sheets}}",
+  "@countSheets": {
+    "description": "How many sheets, in an action's label, as Open 3 Sheets."
+  },
+  "countGroups": "{count, plural, one {# Group} other {# Groups}}",
+  "@countGroups": {
+    "description": "How many groups, in an action's label."
+  },
+  "groupsCount": "{count, plural, one {# group} other {# groups}}",
+  "@groupsCount": {
+    "description": "How many groups, in a sentence."
+  },
+  "groupsAndSheets": "{groups} and {sheets}",
+  "@groupsAndSheets": {
+    "description": "Groups and sheets together, as 2 Groups and 3 Sheets."
+  },
+  "selected": "{what} selected",
+  "@selected": {
+    "description": "The pill's notice: how much is selected, as 3 sheets selected."
+  },
+  "movedTo": "Moved {what} to {where}",
+  "@movedTo": {
+    "description": "Told after a move, as Moved “Tides” to “Notes”."
+  },
+  "moved": "Moved {what}",
+  "@moved": {
+    "description": "Told after a move within its group."
+  },
+  "movedToTrash": "Moved {what} to the Trash",
+  "@movedToTrash": {
+    "description": "Told after a move to the Trash."
+  },
+  "movedToTop": "Moved {what} to the top",
+  "@movedToTop": {
+    "description": "Told after a group is moved out of every group."
+  },
+  "movedInto": "Moved {what} into {where}",
+  "@movedInto": {
+    "description": "Told after a group is moved into another."
+  },
+  "putBackWhat": "Put back {what}",
+  "@putBackWhat": {
+    "description": "Told after sheets or groups are taken out of the Trash."
+  },
+  "renamed": "Renamed “{old}” to “{name}”",
+  "@renamed": {
+    "description": "Told after a group is renamed."
+  },
+  "deletedBookmark": "Deleted the bookmark “{name}”",
+  "@deletedBookmark": {
+    "description": "Told after a kept search is deleted."
+  },
+  "changed": "Changed “{name}”",
+  "@changed": {
+    "description": "Told after a group's color or icon is changed."
+  },
+  "pinnedWhat": "Pinned {what}",
+  "@pinnedWhat": {
+    "description": "Told after a sheet or group is pinned."
+  },
+  "unpinnedWhat": "Unpinned {what}",
+  "@unpinnedWhat": {
+    "description": "Told after a sheet or group is unpinned."
+  },
+  "newGroupTold": "New group",
+  "@newGroupTold": {
+    "description": "Told after a group is made."
+  },
+  "duplicatedWhat": "Duplicated {what}",
+  "@duplicatedWhat": {
+    "description": "Told after sheets are duplicated."
+  },
+  "duplicated": "Duplicated",
+  "@duplicated": {
+    "description": "Told after a sheet is duplicated."
+  },
+  "alwaysShowingAsList": "Always Showing “{name}” as a List",
+  "@alwaysShowingAsList": {
+    "description": "Told after a group is kept shown as a list."
+  },
+  "stoppedShowingAsList": "Stopped Showing “{name}” as a List",
+  "@stoppedShowingAsList": {
+    "description": "Told after a group is no longer kept shown as a list."
+  },
+  "deleteImmediatelyAction": "Delete Immediately",
+  "@deleteImmediatelyAction": {
+    "description": "An action on the selection in the Trash."
+  },
+  "openWhat": "Open {what}",
+  "@openWhat": {
+    "description": "An action on the selection: opens the sheets, as Open 3 Sheets."
+  },
+  "openSheets": "{count, plural, one {Open # Sheet} other {Open # Sheets}}",
+  "@openSheets": {
+    "description": "A menu item: opens the sheets."
+  },
+  "moveSheetsToTrash": "{count, plural, one {Move # Sheet to Trash} other {Move # Sheets to Trash}}",
+  "@moveSheetsToTrash": {
+    "description": "A menu item."
+  },
+  "alwaysShowAsList": "Always Show as List",
+  "@alwaysShowAsList": {
+    "description": "A group's menu item: keeps it shown as a list."
+  },
+  "viewAsField": "View as Field",
+  "@viewAsField": {
+    "description": "A view of the sheets: laid out on the field."
+  },
+  "viewAsList": "View as List",
+  "@viewAsList": {
+    "description": "A view of the sheets: as a list."
+  },
+  "view": "View",
+  "@view": {
+    "description": "Assistive technology: the switch between the field and the list."
+  },
+  "alwaysIn": "{view} — Always, in “{group}”",
+  "@alwaysIn": {
+    "description": "A tooltip: the view the group is kept shown in."
+  },
+  "alwaysShownAsAList": "Always shown as a list",
+  "@alwaysShownAsAList": {
+    "description": "Assistive technology: the mark of a group kept shown as a list."
+  },
+  "rename": "Rename",
+  "@rename": {
+    "description": "An action."
+  },
+  "suggestions": "Suggestions",
+  "@suggestions": {
+    "description": "Assistive technology: the search's suggestions."
+  },
+  "contents": "Contents",
+  "@contents": {
+    "description": "Assistive technology: the rail of a sheet's headings."
+  },
+  "goTo": "Go to {name}",
+  "@goTo": {
+    "description": "Assistive technology: a heading of the rail."
+  },
+  "moreFilters": "More Filters",
+  "@moreFilters": {
+    "description": "A ribbon of the search: shows more of what can narrow it."
+  },
+  "viewList": "List",
+  "@viewList": {
+    "description": "A ribbon's tag: the order it sets shows in the list."
+  },
+  "viewField": "Field",
+  "@viewField": {
+    "description": "A ribbon's tag: the order it sets shows on the field."
+  },
+  "removeNamed": "Remove {name}",
+  "@removeNamed": {
+    "description": "Assistive technology: the button that takes a condition off the search."
+  },
+  "changeEllipsis": "Change…",
+  "@changeEllipsis": {
+    "description": "A condition's menu item: rewrites it."
+  },
+  "include": "Include",
+  "@include": {
+    "description": "A condition's menu item: keeps what it names."
+  },
+  "exclude": "Exclude",
+  "@exclude": {
+    "description": "A condition's menu item: leaves out what it names."
+  },
+  "keepAsBookmark": "Keep as Bookmark",
+  "@keepAsBookmark": {
+    "description": "A condition's menu item: keeps the search on the shelf."
+  },
+  "newSheetOnDesk": "New sheet on the desk",
+  "@newSheetOnDesk": {
+    "description": "Assistive technology: the empty desk in its lane."
+  },
+  "goToDesk": "Go to the desk",
+  "@goToDesk": {
+    "description": "Assistive technology: the desk in its lane."
+  },
+  "showSettings": "Show settings",
+  "@showSettings": {
+    "description": "The lane's button."
+  },
+  "hideSettings": "Hide settings",
+  "@hideSettings": {
+    "description": "The lane's button while the settings are shown."
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "The lane's button's tooltip, and its menu item."
+  },
+  "keyboardShortcuts": "Keyboard Shortcuts",
+  "@keyboardShortcuts": {
+    "description": "A menu item: shows the keymap's settings."
+  },
+  "backToField": "Back to the Field",
+  "@backToField": {
+    "description": "A sheet's button on the desk."
+  },
+  "headField": "Field",
+  "@headField": {
+    "description": "Assistive technology: a sheet's head on the desk, the group of its button back to the field."
+  },
+  "headSheet": "Sheet",
+  "@headSheet": {
+    "description": "Assistive technology: a sheet's head on the desk, the group of what it tells of it."
+  },
+  "headColumn": "Column",
+  "@headColumn": {
+    "description": "Assistive technology: a sheet's head on the desk."
+  },
+  "presentation": "Presentation",
+  "@presentation": {
+    "description": "Assistive technology: the writing tools' group of how the page is shown."
+  },
+  "typewriter": "Typewriter",
+  "@typewriter": {
+    "description": "The writing tools' button: the writing line stays near the page's center."
+  },
+  "writingActions": "Writing actions",
+  "@writingActions": {
+    "description": "Assistive technology: the writing tools."
+  },
+  "tray": "Tray",
+  "@tray": {
+    "description": "The tray, where sheets are set aside."
+  },
+  "sheetsInTray": "Sheets in the tray",
+  "@sheetsInTray": {
+    "description": "Assistive technology: the tray."
+  },
+  "emptyTray": "Empty Tray",
+  "@emptyTray": {
+    "description": "The tray's menu item: puts every sheet back where it was."
+  },
+  "trayHint": "Set sheets aside here. Emptied, each goes back where it was.",
+  "@trayHint": {
+    "description": "The empty tray."
+  },
+  "wordsCount": "{count, plural, one {# word} other {{total} words}}",
+  "@wordsCount": {
+    "description": "How many words a sheet holds; total is count written with its thousands."
+  },
+  "language": "Language",
+  "@language": {
+    "description": "A section of Settings: the language the app is shown in."
+  },
+  "languageDescription": "The language Neverland is shown in: its menus, settings and notices. Sheets keep the words they are written in.",
+  "languageKeywords": "Language Translation Locale",
+  "@languageKeywords": {
+    "description": "Words Settings' search finds the Language section by, beside its title and description: add the language's own, and keep these."
+  },
+  "languageSystem": "System",
+  "@languageSystem": {
+    "description": "The choice of the system's languages."
+  },
+  "languageSystemNote": "Follows the languages of this computer",
+  "@languageSystemNote": {
+    "description": "Under the System choice."
+  },
+  "sheetsTotal": "{count, plural, one {# sheet} other {{total} sheets}}",
+  "@sheetsTotal": {
+    "description": "How many sheets a group or step holds; total is count written with its thousands."
+  },
+  "policiesCore": "Text",
+  "@policiesCore": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesCoreDescription": "Every keystroke is an edit of the page: {core_break} starts a new block, {core_softBreak} breaks the line inside one.",
+  "@policiesCoreDescription": {
+    "description": "What a group of editor settings does, under its name in Settings. A name in braces is a command, drawn as its key."
+  },
+  "policiesFormats": "Formats",
+  "@policiesFormats": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesFormatsDescription": "{formats_strong}, {formats_emphasis} and {formats_code} format the selection, or what you type next at the caret.",
+  "@policiesFormatsDescription": {
+    "description": "What a group of editor settings does, under its name in Settings. A name in braces is a command, drawn as its key."
+  },
+  "policiesBlocks": "Blocks",
+  "@policiesBlocks": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesBlocksDescription": "Turn the blocks you are in into headings, code or a quote, and back into paragraphs.",
+  "@policiesBlocksDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesFormulas": "Formulas",
+  "@policiesFormulas": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesFormulasDescription": "$ writes a formula in the text; $ again at its end steps out, and $$ alone opens a math block.",
+  "@policiesFormulasDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesNotation": "Notation",
+  "@policiesNotation": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesNotationDescription": "How the page spells its marks and markers as you write them.",
+  "@policiesNotationDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesMarkdown": "Markdown",
+  "@policiesMarkdown": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesMarkdownDescription": "Type markdown and the page takes the shape it spells, including task markers.",
+  "@policiesMarkdownDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesWords": "Words",
+  "@policiesWords": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesWordsDescription": "Move, select and delete by word, sentence or paragraph; {core_wordLeft} and {core_wordRight} move by word.",
+  "@policiesWordsDescription": {
+    "description": "What a group of editor settings does, under its name in Settings. A name in braces is a command, drawn as its key."
+  },
+  "policiesTypography": "Typography",
+  "@policiesTypography": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesTypographyDescription": "Typographic symbols, apostrophes, punctuation spacing and quote placement as you write.",
+  "@policiesTypographyDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesCjk": "CJK",
+  "@policiesCjk": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesCjkDescription": "Punctuation width and spacing between Chinese, Japanese or Korean and Latin text.",
+  "@policiesCjkDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesLists": "Lists",
+  "@policiesLists": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesListsDescription": "{lists_nest} nests an item, {lists_outdent} steps it out; {core_break} in an empty item leaves the list. Reshape blocks into bulleted or numbered lists.",
+  "@policiesListsDescription": {
+    "description": "What a group of editor settings does, under its name in Settings. A name in braces is a command, drawn as its key."
+  },
+  "policiesFigures": "Figures",
+  "@policiesFigures": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesTables": "Tables",
+  "@policiesTables": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesTablesDescription": "{table_insert} places a table; {core_leave} and {core_return} step between its cells, and {core_break} goes down a column, making a row past the last.",
+  "@policiesTablesDescription": {
+    "description": "What a group of editor settings does, under its name in Settings. A name in braces is a command, drawn as its key."
+  },
+  "policiesFiguresDescription": "Pictures dropped, pasted or inserted with {figures_insert} become figures with captions, a pasted Markdown picture captioned by its alt text; {core_dismiss} moves between a figure and its caption.",
+  "@policiesFiguresDescription": {
+    "description": "What a group of editor settings does, under its name in Settings. A name in braces is a command, drawn as its key."
+  },
+  "policiesTags": "Tags",
+  "@policiesTags": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesTagsDescription": "# and a word writes a tag anywhere in the text; each sheet collects the tags it writes.",
+  "@policiesTagsDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesPairs": "Pairs",
+  "@policiesPairs": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesPairsDescription": "Brackets and quotes close themselves as you open them; deleting into a pair selects it first.",
+  "@policiesPairsDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesNavigation": "Navigation",
+  "@policiesNavigation": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesNavigationDescription": "Leave and Return move through the roles selected below; {core_leave} leaves, {core_return} goes back.",
+  "@policiesNavigationDescription": {
+    "description": "What a group of editor settings does, under its name in Settings. A name in braces is a command, drawn as its key."
+  },
+  "policiesScopes": "Scopes",
+  "@policiesScopes": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesScopesDescription": "{core_selectAll} grows the selection through the scopes around the caret; {core_dismiss} returns to the caret.",
+  "@policiesScopesDescription": {
+    "description": "What a group of editor settings does, under its name in Settings. A name in braces is a command, drawn as its key."
+  },
+  "policiesDeletion": "Deletion",
+  "@policiesDeletion": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesDeletionDescription": "A structure is armed by the first delete and removed by the next; a selected picture goes at once, and text pairs keep their own sides.",
+  "@policiesDeletionDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesGuides": "Guides",
+  "@policiesGuides": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesGuidesDescription": "Show a key where it would act: leaving a scope, or going back.",
+  "@policiesGuidesDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesHistory": "History",
+  "@policiesHistory": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesHistoryDescription": "Undo and redo step through your edits, a burst of typing at a time.",
+  "@policiesHistoryDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesFeedback": "Feedback",
+  "@policiesFeedback": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesFeedbackDescription": "A pulse shows what typography or CJK changed; undo plays it backward and redo forward.",
+  "@policiesFeedbackDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesFind": "Find",
+  "@policiesFind": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesFindDescription": "Find in a sheet marks every match as you type, and steps from one to the next.",
+  "@policiesFindDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "policiesStatistics": "Statistics",
+  "@policiesStatistics": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesStatisticsDescription": "Word, character and CJK counts for the page and the selection, shown in the footer.",
+  "@policiesStatisticsDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "settingsMarkdownAsterisksDescription": "*soft* and **firm** become emphasis and strong.",
+  "@settingsMarkdownAsterisksDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsMarkdownUnderscoresDescription": "_soft_ and __firm__ do the same.",
+  "@settingsMarkdownUnderscoresDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsMarkdownHeadingsDescription": "# at a line's start makes a heading, one level per #.",
+  "@settingsMarkdownHeadingsDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsMarkdownListsDescription": "- or 1. at a line's start starts a list.",
+  "@settingsMarkdownListsDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsMarkdownQuotesDescription": "> at a line's start starts a quote.",
+  "@settingsMarkdownQuotesDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsMarkdownCodeDescription": "`code` marks code; ``` and Enter opens a code block.",
+  "@settingsMarkdownCodeDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsMarkdownMathDescription": "$$ and Enter opens a math block.",
+  "@settingsMarkdownMathDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsMarkdownStrikeDescription": "~~text~~ strikes text through.",
+  "@settingsMarkdownStrikeDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsMarkdownRulesDescription": "--- and Enter draws a rule.",
+  "@settingsMarkdownRulesDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsMarkdownTablesDescription": "Return after a row typed between pipes, such as | Tide | Height |, makes it a table's header.",
+  "@settingsMarkdownTablesDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsNotationRevealDescription": "Whether marks show their signs, as *this*, or only their style.",
+  "@settingsNotationRevealDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsNotationUnderscoresDescription": "Emphasis and strong show _ and __ instead of * and **.",
+  "@settingsNotationUnderscoresDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsWordsNearbyContentDescription": "Double-click spaces or tabs to select nearby text or an inline object, without crossing a line break. Blank lines keep their whitespace selection.",
+  "@settingsWordsNearbyContentDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsTypographySymbolsDescription": "Write ... and -- as … and — while typing.",
+  "@settingsTypographySymbolsDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsTypographyPunctuationDescription": "Put a space after commas, semicolons and colons as they are typed.",
+  "@settingsTypographyPunctuationDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsTypographyQuotePlacementDescription": "Curl apostrophes and move terminal punctuation inside closing quotes.",
+  "@settingsTypographyQuotePlacementDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsCjkPunctuationDescription": "Use full-width punctuation on lines written in Chinese, Japanese or Korean.",
+  "@settingsCjkPunctuationDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsCjkSpacingDescription": "Put one space between adjacent CJK and Latin text.",
+  "@settingsCjkSpacingDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsDeletionRolesDescription": "Which structures require a first delete to arm them, then a second to remove them.",
+  "@settingsDeletionRolesDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsNavigationRolesDescription": "Which scope kinds Leave and Return move through.",
+  "@settingsNavigationRolesDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsPairsAutoCloseDescription": "Typing an opener types its closer, unless a word follows.",
+  "@settingsPairsAutoCloseDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsPairsOvertypeDescription": "Typing a closer right before a pair's closer moves past it, however it was typed.",
+  "@settingsPairsOvertypeDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsPairsQuotesDescription": "Straight double quotes pair like brackets; after a word one closes.",
+  "@settingsPairsQuotesDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsPairsMatesDescription": "Backspace or Delete into a pair selects it whole; the next press deletes both sides together.",
+  "@settingsPairsMatesDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsHistoryTypingWindowDescription": "Typing within this pause of the last keystroke undoes together.",
+  "@settingsHistoryTypingWindowDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsMarkdownAsterisks": "Asterisks for emphasis",
+  "@settingsMarkdownAsterisks": {
+    "description": "The name of an editor setting, settings.markdown.asterisks."
+  },
+  "settingsMarkdownUnderscores": "Underscores for emphasis",
+  "@settingsMarkdownUnderscores": {
+    "description": "The name of an editor setting, settings.markdown.underscores."
+  },
+  "settingsMarkdownHeadings": "Headings",
+  "@settingsMarkdownHeadings": {
+    "description": "The name of an editor setting, settings.markdown.headings."
+  },
+  "settingsMarkdownLists": "Lists",
+  "@settingsMarkdownLists": {
+    "description": "The name of an editor setting, settings.markdown.lists."
+  },
+  "settingsMarkdownQuotes": "Quotes",
+  "@settingsMarkdownQuotes": {
+    "description": "The name of an editor setting, settings.markdown.quotes."
+  },
+  "settingsMarkdownCode": "Code",
+  "@settingsMarkdownCode": {
+    "description": "The name of an editor setting, settings.markdown.code."
+  },
+  "settingsMarkdownMath": "Math",
+  "@settingsMarkdownMath": {
+    "description": "The name of an editor setting, settings.markdown.math."
+  },
+  "settingsMarkdownStrike": "Strikethrough",
+  "@settingsMarkdownStrike": {
+    "description": "The name of an editor setting, settings.markdown.strike."
+  },
+  "settingsMarkdownRules": "Rules",
+  "@settingsMarkdownRules": {
+    "description": "The name of an editor setting, settings.markdown.rules."
+  },
+  "settingsMarkdownTables": "Tables",
+  "@settingsMarkdownTables": {
+    "description": "The name of an editor setting, settings.markdown.tables."
+  },
+  "settingsNotationReveal": "Mark notation",
+  "@settingsNotationReveal": {
+    "description": "The name of an editor setting, settings.notation.reveal."
+  },
+  "settingsNotationRevealShown": "Shown",
+  "@settingsNotationRevealShown": {
+    "description": "The name of an editor setting, settings.notation.reveal.shown."
+  },
+  "settingsNotationRevealHidden": "Hidden",
+  "@settingsNotationRevealHidden": {
+    "description": "The name of an editor setting, settings.notation.reveal.hidden."
+  },
+  "settingsNotationUnderscores": "Spell emphasis with underscores",
+  "@settingsNotationUnderscores": {
+    "description": "The name of an editor setting, settings.notation.underscores."
+  },
+  "settingsWordsNearbyContent": "Select nearby content from spaces",
+  "@settingsWordsNearbyContent": {
+    "description": "The name of an editor setting, settings.words.nearbyContent."
+  },
+  "settingsPairsAutoClose": "Close brackets and quotes",
+  "@settingsPairsAutoClose": {
+    "description": "The name of an editor setting, settings.pairs.autoClose."
+  },
+  "settingsPairsOvertype": "Step over a pair's closer",
+  "@settingsPairsOvertype": {
+    "description": "The name of an editor setting, settings.pairs.overtype."
+  },
+  "settingsPairsQuotes": "Pair straight quotes",
+  "@settingsPairsQuotes": {
+    "description": "The name of an editor setting, settings.pairs.quotes."
+  },
+  "settingsPairsMates": "Select a pair before deleting it",
+  "@settingsPairsMates": {
+    "description": "The name of an editor setting, settings.pairs.mates."
+  },
+  "settingsHistoryTypingWindow": "Typing burst (ms)",
+  "@settingsHistoryTypingWindow": {
+    "description": "The name of an editor setting, settings.history.typingWindow."
+  },
+  "settingsTypographySymbols": "Typographic symbols",
+  "@settingsTypographySymbols": {
+    "description": "The name of an editor setting, settings.typography.symbols."
+  },
+  "settingsTypographyPunctuation": "Space punctuation",
+  "@settingsTypographyPunctuation": {
+    "description": "The name of an editor setting, settings.typography.punctuation."
+  },
+  "settingsTypographyQuotePlacement": "Quote punctuation",
+  "@settingsTypographyQuotePlacement": {
+    "description": "The name of an editor setting, settings.typography.quotePlacement."
+  },
+  "settingsCjkPunctuation": "Full-width punctuation",
+  "@settingsCjkPunctuation": {
+    "description": "The name of an editor setting, settings.cjk.punctuation."
+  },
+  "settingsCjkSpacing": "CJK and Latin spacing",
+  "@settingsCjkSpacing": {
+    "description": "The name of an editor setting, settings.cjk.spacing."
+  },
+  "settingsDeletionRoles": "Roles that arm",
+  "@settingsDeletionRoles": {
+    "description": "The name of an editor setting, settings.deletion.roles."
+  },
+  "settingsDeletionRolesStructure": "Structures",
+  "@settingsDeletionRolesStructure": {
+    "description": "The name of an editor setting, settings.deletion.roles.structure."
+  },
+  "settingsFormulasDialect": "Default math dialect",
+  "@settingsFormulasDialect": {
+    "description": "The name of an editor setting, settings.formulas.dialect."
+  },
+  "settingsFormulasDialectDescription": "Syntax used for newly created inline formulas and math blocks. Existing formulas keep their own dialect.",
+  "@settingsFormulasDialectDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "settingsFormulasDialectTex": "TeX",
+  "@settingsFormulasDialectTex": {
+    "description": "The name of an editor setting, settings.formulas.dialect.tex."
+  },
+  "settingsFormulasDialectTypst": "Typst",
+  "@settingsFormulasDialectTypst": {
+    "description": "The name of an editor setting, settings.formulas.dialect.typst."
+  },
+  "settingsNavigationRoles": "Leavable roles",
+  "@settingsNavigationRoles": {
+    "description": "The name of an editor setting, settings.navigation.roles."
+  },
+  "settingsNavigationRolesLeavable": "Leavable scopes",
+  "@settingsNavigationRolesLeavable": {
+    "description": "The name of an editor setting, settings.navigation.roles.leavable."
+  },
+  "settingsNavigationRolesPair": "Pairs",
+  "@settingsNavigationRolesPair": {
+    "description": "The name of an editor setting, settings.navigation.roles.pair."
+  },
+  "commandsUndo": "Undo",
+  "@commandsUndo": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsRedo": "Redo",
+  "@commandsRedo": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsUndoCorrection": "Undo the correction",
+  "@commandsUndoCorrection": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsFindNext": "Find next",
+  "@commandsFindNext": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsFindPrevious": "Find previous",
+  "@commandsFindPrevious": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsSelectAll": "Select all",
+  "@commandsSelectAll": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsExpandSelection": "Expand selection",
+  "@commandsExpandSelection": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsShrinkSelection": "Shrink selection",
+  "@commandsShrinkSelection": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsSelectLine": "Select line",
+  "@commandsSelectLine": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsMatchPair": "Go to matching pair",
+  "@commandsMatchPair": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsPreviousHeading": "Previous heading",
+  "@commandsPreviousHeading": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsNextHeading": "Next heading",
+  "@commandsNextHeading": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsLeft": "Move left",
+  "@commandsLeft": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsRight": "Move right",
+  "@commandsRight": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsWordLeft": "Previous word",
+  "@commandsWordLeft": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsWordRight": "Next word",
+  "@commandsWordRight": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsLineStart": "Line start",
+  "@commandsLineStart": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsLineEnd": "Line end",
+  "@commandsLineEnd": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsUp": "Line up",
+  "@commandsUp": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsDown": "Line down",
+  "@commandsDown": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsParagraphUp": "Previous paragraph",
+  "@commandsParagraphUp": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsParagraphDown": "Next paragraph",
+  "@commandsParagraphDown": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsPageStart": "Start of page",
+  "@commandsPageStart": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsPageEnd": "End of page",
+  "@commandsPageEnd": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsPageUp": "Screen up",
+  "@commandsPageUp": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsPageDown": "Screen down",
+  "@commandsPageDown": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsDeleteBackward": "Delete backward",
+  "@commandsDeleteBackward": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsDeleteForward": "Delete forward",
+  "@commandsDeleteForward": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsDeleteWordBackward": "Delete word backward",
+  "@commandsDeleteWordBackward": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsDeleteWordForward": "Delete word forward",
+  "@commandsDeleteWordForward": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsDeleteToStart": "Delete to line start",
+  "@commandsDeleteToStart": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsDeleteToEnd": "Delete to line end",
+  "@commandsDeleteToEnd": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsBreak": "New block",
+  "@commandsBreak": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsSoftBreak": "Line break",
+  "@commandsSoftBreak": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsLeave": "Leave the scope",
+  "@commandsLeave": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsReturn": "Go back",
+  "@commandsReturn": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsDismiss": "Dismiss",
+  "@commandsDismiss": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsNest": "Nest",
+  "@commandsNest": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsOutdent": "Outdent",
+  "@commandsOutdent": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsToggleTask": "Toggle task",
+  "@commandsToggleTask": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsInsertPicture": "Insert picture…",
+  "@commandsInsertPicture": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsAlignPictureStart": "Align picture to start",
+  "@commandsAlignPictureStart": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsAlignPictureCenter": "Center picture",
+  "@commandsAlignPictureCenter": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsCopyPicture": "Copy picture",
+  "@commandsCopyPicture": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsSavePicture": "Save picture as…",
+  "@commandsSavePicture": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsPreviewPicture": "Quick Look",
+  "@commandsPreviewPicture": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsReplacePicture": "Replace picture…",
+  "@commandsReplacePicture": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsInsertTable": "Insert table",
+  "@commandsInsertTable": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "offersInsert": "Insert",
+  "@offersInsert": {
+    "description": "The name of an editor setting, offers.insert."
+  },
+  "offersKind": "Turn Into",
+  "@offersKind": {
+    "description": "The name of an editor setting, offers.kind."
+  },
+  "offersMarks": "Formatting",
+  "@offersMarks": {
+    "description": "The name of an editor setting, offers.marks."
+  },
+  "offersSelection": "Selection",
+  "@offersSelection": {
+    "description": "The name of an editor setting, offers.selection."
+  },
+  "offersPicture": "Picture",
+  "@offersPicture": {
+    "description": "The name of an editor setting, offers.picture."
+  },
+  "offersPictureAlign": "Picture alignment",
+  "@offersPictureAlign": {
+    "description": "The name of an editor setting, offers.pictureAlign."
+  },
+  "offersTableLines": "Rows and columns",
+  "@offersTableLines": {
+    "description": "The name of an editor setting, offers.tableLines."
+  },
+  "offersTableFormat": "Table format",
+  "@offersTableFormat": {
+    "description": "The name of an editor setting, offers.tableFormat."
+  },
+  "offersTableRemove": "Remove",
+  "@offersTableRemove": {
+    "description": "The name of an editor setting, offers.tableRemove."
+  },
+  "offersFormula": "Formula",
+  "@offersFormula": {
+    "description": "The name of an editor setting, offers.formula."
+  },
+  "commandsTableRowAbove": "Insert row above",
+  "@commandsTableRowAbove": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsTableRowBelow": "Insert row below",
+  "@commandsTableRowBelow": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsTableColumnLeft": "Insert column left",
+  "@commandsTableColumnLeft": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsTableColumnRight": "Insert column right",
+  "@commandsTableColumnRight": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsTableDeleteRow": "Delete row",
+  "@commandsTableDeleteRow": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsTableDeleteColumn": "Delete column",
+  "@commandsTableDeleteColumn": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsDeleteTable": "Delete table",
+  "@commandsDeleteTable": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsTableHeader": "Header row",
+  "@commandsTableHeader": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsTableAlignStart": "Align column to start",
+  "@commandsTableAlignStart": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsTableAlignCenter": "Center column",
+  "@commandsTableAlignCenter": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsTableAlignEnd": "Align column to end",
+  "@commandsTableAlignEnd": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsBulletList": "Bulleted list",
+  "@commandsBulletList": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsNumberedList": "Numbered list",
+  "@commandsNumberedList": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsStrong": "Strong",
+  "@commandsStrong": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsEmphasis": "Emphasis",
+  "@commandsEmphasis": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsCode": "Code",
+  "@commandsCode": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsStrike": "Strikethrough",
+  "@commandsStrike": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsParagraph": "Paragraph",
+  "@commandsParagraph": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsHeading1": "Heading 1",
+  "@commandsHeading1": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsHeading2": "Heading 2",
+  "@commandsHeading2": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsHeading3": "Heading 3",
+  "@commandsHeading3": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsQuote": "Quote",
+  "@commandsQuote": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsCodeBlock": "Code block",
+  "@commandsCodeBlock": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsToggleMathDialect": "Switch Math Dialect",
+  "@commandsToggleMathDialect": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  }
+}

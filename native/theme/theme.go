@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"github.com/caelyreth/neverland/locales"
 )
 
 type Appearance uint8
@@ -34,17 +36,17 @@ var AllAccents = [...]Accent{Halo, Afterglow, Remnant, Unripe, Life, Regolith}
 func (a Accent) Label() string {
 	switch a {
 	case Halo:
-		return "Halo"
+		return locales.ColorHalo()
 	case Remnant:
-		return "Remnant"
+		return locales.ColorRemnant()
 	case Unripe:
-		return "Unripe"
+		return locales.ColorUnripe()
 	case Life:
-		return "Life"
+		return locales.ColorLife()
 	case Regolith:
-		return "Regolith"
+		return locales.ColorRegolith()
 	default:
-		return "Afterglow"
+		return locales.ColorAfterglow()
 	}
 }
 

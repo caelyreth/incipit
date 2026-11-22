@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 )
 
 // What may be written next stands around the pill as idle ribbons
@@ -69,7 +70,7 @@ func withWritten(items []query.Suggestion, k *query.Key, words string) []query.S
 		return items
 	}
 	return append(items, query.Suggestion{Label: v, Text: v, Of: k.Name, Done: true, Written: true,
-		Help: "Take what is written"})
+		Help: locales.TakeWhatIsWritten()})
 }
 
 // offered reports whether suggestions stand around the pill: while it is

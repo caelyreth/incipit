@@ -11,14 +11,6 @@ type PageID int
 // given to another.
 type ColumnID int
 
-const (
-	// DefaultTitle names a page whose session names nothing: one without a
-	// heading.
-	DefaultTitle = "Untitled"
-	// NotebookTitle names the document window when no page is active.
-	NotebookTitle = "Notebook"
-)
-
 // ScrollPosition is a scroll state. Units are owned by the native
 // viewport; this package only preserves and restores them.
 type ScrollPosition struct {
@@ -37,7 +29,7 @@ type Place struct {
 // exposed, which keeps ownership exclusively with Workspace.
 type Page struct {
 	ID PageID
-	// Title is the page's first heading, or DefaultTitle.
+	// Title is the page's first heading, or locales.Untitled.
 	Title string
 }
 

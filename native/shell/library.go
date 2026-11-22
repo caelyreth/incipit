@@ -1,14 +1,15 @@
 package shell
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -201,7 +202,7 @@ func tintName(color int) string {
 	if color >= TintHalo && color < TintHalo+len(theme.AllAccents) {
 		return theme.AllAccents[color-TintHalo].Label()
 	}
-	return "Moonveil"
+	return locales.ColorMoonveil()
 }
 
 // sheetDrag is a sheet dragged on the field.
@@ -241,7 +242,7 @@ func groupInk(semantic theme.Theme, group GroupItem, ink ui.Color) ui.Color {
 
 // moveMenu adds a Move To submenu of where things can be moved.
 func (s *State) moveMenu(m *ui.Menu, move func(group string), exclude ...string) {
-	m.Submenu("Move To", s.moveTargets(move, exclude...))
+	m.Submenu(locales.MoveTo(), s.moveTargets(move, exclude...))
 }
 
 // moveTargets is a menu of the groups to move into, the top level where
@@ -251,7 +252,7 @@ func (s *State) moveTargets(move func(group string), exclude ...string) func(*ui
 		if s.Library == nil {
 			return
 		}
-		if len(exclude) > 0 && m.Item("Top Level").Chosen() {
+		if len(exclude) > 0 && m.Item(locales.TopLevel()).Chosen() {
 			move("")
 		}
 		skipDepth := -1
@@ -272,25 +273,21 @@ func (s *State) moveTargets(move func(group string), exclude ...string) func(*ui
 }
 
 func trashGroupLabel(group GroupItem) string {
-	switch {
-	case group.Smart(), group.Count == 0:
-		return "Move to Trash"
-	case group.Count == 1:
-		return "Move to Trash with 1 Sheet"
+	if group.Smart() || group.Count == 0 {
+		return locales.MoveToTrash()
 	}
-	return fmt.Sprintf("Move to Trash with %d Sheets", group.Count)
+	return locales.MoveToTrashWithSheets(group.Count)
 }
 
 func deleteGroupLabel(group GroupItem) string {
-	switch group.Count {
-	case 0:
-		return "Delete Immediately…"
-	case 1:
-		return "Delete Immediately with 1 Sheet…"
+	if group.Count == 0 {
+		return locales.DeleteImmediately()
 	}
-	return fmt.Sprintf("Delete Immediately with %d Sheets…", group.Count)
+	return locales.DeleteImmediatelyWithSheets(group.Count)
 }
 
+// when is when a sheet was written, at now, in the language the app shows:
+// the time today, then the day, the weekday this week, and the date.
 func when(at, now time.Time) string {
 	if at.IsZero() {
 		return ""
@@ -298,27 +295,22 @@ func when(at, now time.Time) string {
 	at, now = at.Local(), now.Local()
 	day := func(t time.Time) time.Time { return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()) }
 	days := int(day(now).Sub(day(at)).Hours() / 24)
+	skeleton := "yMMMd"
 	switch {
 	case days <= 0:
-		return at.Format("15:04")
+		skeleton = "Hm"
 	case days == 1:
-		return "Yesterday"
+		return locales.Yesterday()
 	case days < 7:
-		return at.Format("Monday")
+		skeleton = "EEEE"
 	case at.Year() == now.Year():
-		return at.Format("Jan 2")
+		skeleton = "MMMd"
 	}
-	return at.Format("Jan 2, 2006")
+	return i18n.FormatDate(i18n.Locale(), at, i18n.DateOptions{Skeleton: skeleton})
 }
 
 func words(n int) string {
-	switch n {
-	case 0:
-		return "No words yet"
-	case 1:
-		return "1 word"
-	}
-	return components.Thousands(n) + " words"
+	return locales.Words(n, components.Thousands(n))
 }
 
 func thousands(n int) string { return components.Thousands(n) }

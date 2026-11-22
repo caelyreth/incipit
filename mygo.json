@@ -7,5 +7,9 @@
   "out": "dist",
   "linux": {
     "webview": false
+  },
+  "i18n": {
+    "dir": "locales",
+    "source": "en"
   }
 }

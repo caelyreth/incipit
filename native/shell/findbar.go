@@ -1,9 +1,8 @@
 package shell
 
 import (
-	"fmt"
-
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -85,7 +84,7 @@ func (s *State) stepFind(forward bool) {
 func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
-	bar := ui.Row(c).Key("find-dock").Role(ui.RoleToolbar).Label("Find in sheet").
+	bar := ui.Row(c).Key("find-dock").Role(ui.RoleToolbar).Label(locales.FindInSheet()).
 		Width(480*scale/theme.DefaultUIFontSize).MaxWidthPercent(100).
 		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).Padding(theme.Space04.DIPs(scale)).
 		Radius(metrics.DockRadius).Border(1, semantic.Border.Variant).
@@ -94,9 +93,9 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 	bar.Children(func() {
 		var field ui.Element
 		field, input = queryField{
-			Key: "sheet-find", Label: "Find in sheet", Placeholder: "Find words, or $ for keys",
+			Key: "sheet-find", Label: locales.FindInSheet(), Placeholder: locales.FindPlaceholder(),
 			Value: &s.FindQuery, In: &s.finder.input, Scope: query.InSheet,
-			Fixed: sheetKey, FixedLabel: "Finds in this sheet",
+			Fixed: sheetKey, FixedLabel: locales.FindsInThisSheet(),
 			Focus: s.FindRequested, Animate: animate, Keys: s.findKey,
 		}.View(s, c, semantic)
 		field.Grow(1)
@@ -118,10 +117,10 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 				IconColor: semantic.Icon.Muted, Action: func() { s.stepFind(forward) },
 			}.View(c, semantic)
 		}
-		step("find-previous", "Previous match", "⇧↩", components.IconChevronUp, false)
-		step("find-next", "Next match", "↩", components.IconChevronDown, true)
+		step("find-previous", locales.PreviousMatch(), "⇧↩", components.IconChevronUp, false)
+		step("find-next", locales.NextMatch(), "↩", components.IconChevronDown, true)
 		components.IconButton{
-			Key: "find-close", Label: "Close Find", Binding: "esc",
+			Key: "find-close", Label: locales.CloseFind(), Binding: "esc",
 			Icon: components.IconClose.SVG(), Style: components.SubtleButton, Size: components.MediumButton,
 			Animate: animate, IconColor: semantic.Icon.Muted, Action: s.endFind,
 		}.View(c, semantic)
@@ -141,13 +140,11 @@ func findNote(text string, count FindCount) string {
 	}
 	switch {
 	case count.Total == 0:
-		return "No matches"
+		return locales.NoMatches()
 	case count.Current > 0:
-		return fmt.Sprintf("%s of %s", thousands(count.Current), thousands(count.Total))
-	case count.Total == 1:
-		return "1 match"
+		return locales.MatchOf(thousands(count.Current), thousands(count.Total))
 	}
-	return thousands(count.Total) + " matches"
+	return locales.Matches(count.Total, thousands(count.Total))
 }
 
 // findKey is what the keys do in a sheet's find past its completion:

@@ -7,6 +7,7 @@ import (
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/egoist/mygo/ui"
 )
@@ -220,7 +221,7 @@ func (formulaKind) lay(lc *layoutCache, sg seg, style present.Style, m Metrics) 
 	ms := lc.typeset(sg.node.ID(), sg.node.Text(), profile.MathDialectOf(sg.node), false, m.Body*style.Size, 0)
 	sp := span("￼", style, m)
 	sg.text, sg.math = sg.node.Text(), ms
-	sg.face = span(formulaHint, style, m)
+	sg.face = span(locales.FormulaHint(), style, m)
 	sg.face.Italic = true
 	if ms.box != nil {
 		sp.ObjectWidth = ms.to - ms.from + mathPad*2

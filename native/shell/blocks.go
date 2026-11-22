@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -33,7 +34,7 @@ func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Elemen
 				s.entryRow(c, semantic, *r.entry, b.trashed, r.h, b.single, m, animate)
 			case r.create:
 				g := *b.group
-				components.CreateArea{Key: "create", Label: "New sheet", Animate: animate, Action: func() {
+				components.CreateArea{Key: "create", Label: locales.NewSheetArea(), Animate: animate, Action: func() {
 					s.Library.NewSheet(g.ID, Last)
 					s.ShowDesk()
 				}}.View(c, semantic).Height(r.h).Transition(listTransition(animate, false))
@@ -66,7 +67,7 @@ func (b block) name() string {
 	if b.group != nil {
 		return b.group.Name
 	}
-	return "Trash"
+	return locales.Trash()
 }
 
 // blockHead is a block's head: its group's icon, the groups it is in from
@@ -135,7 +136,7 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 			}
 		})
 		if g != nil && b.trashed && s.armed(c, deleteKey("group:"+g.ID)) {
-			s.confirmButton(c, semantic, deleteKey("group:"+g.ID), "", "Delete", animate, func() { s.Library.DeleteGroup(g.ID) })
+			s.confirmButton(c, semantic, deleteKey("group:"+g.ID), "", locales.Delete(), animate, func() { s.Library.DeleteGroup(g.ID) })
 		}
 	})
 }
@@ -163,7 +164,7 @@ func badge(c *ui.Context, semantic theme.Theme, key, label string, family theme.
 
 // pinBadge says a group or sheet is pinned: a thumbtack on Remnant.
 func pinBadge(c *ui.Context, semantic theme.Theme, m blockMetrics) {
-	badge(c, semantic, "pin-badge", "Pinned", theme.Remnant, components.IconPin, "", m)
+	badge(c, semantic, "pin-badge", locales.Pinned(), theme.Remnant, components.IconPin, "", m)
 }
 
 // taskRing is how far a sheet's or a group's tasks are done, as a ring
@@ -175,17 +176,17 @@ func taskRing(c *ui.Context, semantic theme.Theme, t Tasks, m blockMetrics) {
 		return
 	}
 	line := theme.TextXSmall.LineHeight(m.scale)
-	label := fmt.Sprintf("%d of %d tasks done", t.Done, t.All())
+	label := locales.TasksDone(fmt.Sprint(t.Done), fmt.Sprint(t.All()))
 	ring := components.ProgressRing(c, "task-ring", line*0.8, 2*m.k, float32(t.Done)/float32(t.All()),
 		semantic.Border.Default, semantic.Accent.Foreground, label)
-	components.Hint(c, semantic, ring, fmt.Sprintf("%d/%d Tasks Done", t.Done, t.All()), "", components.HintAbove)
+	components.Hint(c, semantic, ring, locales.TasksDoneHint(fmt.Sprint(t.Done), fmt.Sprint(t.All())), "", components.HintAbove)
 }
 
 // listBadge says a group is kept shown as a list: what is kept is said
 // where it is kept, so turning the view in it is never a guess at what
 // lasts.
 func listBadge(c *ui.Context, semantic theme.Theme, m blockMetrics) {
-	badge(c, semantic, "list-badge", "Always Shown as List", theme.Unripe, components.IconList, "", m)
+	badge(c, semantic, "list-badge", locales.AlwaysShownAsList(), theme.Unripe, components.IconList, "", m)
 }
 
 // rowFill is a row's ground: the selection's where the keys are on it,
@@ -327,7 +328,7 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 					pinBadge(c, semantic, m)
 				}
 				if at > 0 {
-					badge(c, semantic, "open-badge", "Open on the desk, column "+fmt.Sprint(at), theme.Halo,
+					badge(c, semantic, "open-badge", locales.OpenOnDesk(fmt.Sprint(at)), theme.Halo,
 						components.IconDesk, fmt.Sprint(at), m)
 				}
 			})
@@ -336,7 +337,7 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 			if confirming {
 				ui.Row(c).Key("title").WidthPercent(100).AlignItems(ui.Center).Gap(pad).Children(func() {
 					components.CenteredLabel(c, sheetTitle(sh), theme.TextSmall, title).Grow(1).MinWidth(0)
-					s.confirmButton(c, semantic, deleteKey(id), "", "Delete", animate, func() { s.Library.DeleteSheet(sh.ID) })
+					s.confirmButton(c, semantic, deleteKey(id), "", locales.Delete(), animate, func() { s.Library.DeleteSheet(sh.ID) })
 				})
 			} else {
 				components.BaselineRow(c).Key("title").WidthPercent(100).Gap(pad).Children(func() {
@@ -383,7 +384,7 @@ func dragCount(c *ui.Context, semantic theme.Theme, n int, m blockMetrics) {
 	line := theme.TextXSmall.LineHeight(m.scale)
 	ui.Row(c.Key("drag-count")).Absolute().Top(-line / 3).Right(-line / 3).Height(line).MinWidth(line).
 		PaddingX(4 * m.k).Radius(line / 2).AlignItems(ui.Center).Justify(ui.Center).
-		Background(semantic.Accent.Foreground).IgnoreInput(true).Label(fmt.Sprintf("%d sheets", n)).Children(func() {
+		Background(semantic.Accent.Foreground).IgnoreInput(true).Label(locales.SheetsCount(n)).Children(func() {
 		components.CenteredLabel(c, fmt.Sprint(n), theme.TextXSmall, semantic.Accent.OnAccent).SingleLine().FontFeatures("tnum")
 	})
 }
@@ -473,7 +474,7 @@ func (s *State) rowTags(c *ui.Context, semantic theme.Theme, tags []string, m bl
 // moreRow says how many sheets a block leaves out; pressed, the query goes
 // into its group, where it shows more.
 func (s *State) moreRow(c *ui.Context, semantic theme.Theme, b block, more int, fr stageFrame, m blockMetrics, animate bool) {
-	label := fmt.Sprintf("%s more", thousands(more))
+	label := locales.More(thousands(more))
 	btn := ui.ButtonBase(c.Key("more")).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).FocusRing(false).KeepFocus().Label(label).
 		Transition(listTransition(animate, false))
@@ -488,7 +489,7 @@ func (s *State) moreRow(c *ui.Context, semantic theme.Theme, b block, more int, 
 
 func sheetTitle(sh SheetItem) string {
 	if sh.Title == "" {
-		return "Untitled"
+		return locales.Untitled()
 	}
 	return sh.Title
 }
@@ -497,7 +498,7 @@ func (s *State) renameInput(c *ui.Context, semantic theme.Theme, g GroupItem) {
 	input := ui.TextInputBase(c.Key("rename-"+g.ID), &s.field.renameName).
 		Grow(1).MinWidth(0).Font(theme.UIFontFamily).
 		FontSize(theme.TextDefault.Size(s.Settings.UIFontSize)).
-		TextColor(semantic.Text.Heading).Label("Group name")
+		TextColor(semantic.Text.Heading).Label(locales.GroupName())
 	if s.field.renameFocus {
 		s.field.renameFocus = false
 		input.Focus()

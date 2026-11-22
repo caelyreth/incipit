@@ -134,7 +134,7 @@ func TestClosingTheLastColumnLeavesAllPagesRetainedAndNewPageCanOpen(t *testing.
 	if _, ok := workspace.Mounted(); ok {
 		t.Fatal("the last page stayed mounted")
 	}
-	if workspace.Title() != NotebookTitle || len(workspace.Pages()) != 1 {
+	if workspace.Title() != "Notebook" || len(workspace.Pages()) != 1 {
 		t.Fatalf("workspace after close = %q pages=%d", workspace.Title(), len(workspace.Pages()))
 	}
 	second, err := workspace.NewPage()
@@ -155,7 +155,7 @@ func TestPagesTakeTheirSessionsTitles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page, _ := workspace.Page(second); page.Title != DefaultTitle {
+	if page, _ := workspace.Page(second); page.Title != "Untitled" {
 		t.Fatalf("new title = %q", page.Title)
 	}
 	log.created[0].title = "  Research notes  "
@@ -163,7 +163,7 @@ func TestPagesTakeTheirSessionsTitles(t *testing.T) {
 		t.Fatalf("headed title = %q", workspace.Title())
 	}
 	log.created[0].title = "   "
-	if workspace.Title() != DefaultTitle {
+	if workspace.Title() != "Untitled" {
 		t.Fatalf("blank title = %q", workspace.Title())
 	}
 }

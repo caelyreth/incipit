@@ -10,6 +10,7 @@ import (
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/egoist/mygo/transfer"
@@ -43,9 +44,6 @@ const (
 	// gripWidth and gripInset shape and place a resize grip.
 	gripWidth, gripInset = 6, 8
 )
-
-// captionHint is what an empty caption shows while the caret is in it.
-const captionHint = "Caption"
 
 // captionGap is the room between a picture and its caption.
 func captionGap(m Metrics) float32 { return m.Body * 0.5 }
@@ -168,7 +166,7 @@ func (r *figureResize) spanAt(x float32) int {
 // label names the span a resize previews.
 func (r *figureResize) label() string {
 	if r.span >= profile.SpanFull {
-		return "Full width"
+		return locales.FullWidth()
 	}
 	return fmt.Sprintf("%d%%", (r.span+5)/10)
 }
@@ -384,7 +382,7 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, now
 // in the caption's alignment, the caret standing at its start as an empty
 // field's stands at its placeholder's.
 func hintOf(u *unitLayout, th present.Theme, m Metrics) (ui.Span, float32, float32) {
-	span := span(captionHint, th.Resolve([]vocab.Group{u.pres.Group}), m)
+	span := span(locales.CaptionHint(), th.Resolve([]vocab.Group{u.pres.Group}), m)
 	lay := ui.ShapeRichTextWith([]ui.Span{span}, ui.Font{Family: span.Font, Size: span.Size, Weight: span.Weight, Italic: span.Italic}, ui.TextShape{})
 	w, _ := lay.Size()
 	x := u.surfaces[0].caretRect(0).X

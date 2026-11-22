@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/egoist/mygo"
 )
@@ -53,7 +54,7 @@ func (a *AppState) columnElement(session *sheetSession, col workspace.ColumnID) 
 	if session.engine == nil {
 		e, err := a.openEngine(session)
 		if err != nil {
-			a.fail("Couldn't open the page", err)
+			a.fail(locales.CouldntOpenPage(), err)
 			return nil
 		}
 		session.engine = e
@@ -111,7 +112,6 @@ func (a *AppState) openEditor(session *sheetSession, col workspace.ColumnID) *pa
 	ed.Tags = func(writing string) []string { return a.notebookTags(session, writing) }
 	el := page.NewElement(ed)
 	el.Pictures = a.pictures()
-	el.Label = "Page"
 	if place, ok := a.Workspace.Place(col); ok {
 		el.RestoreScroll(place.Scroll.Y)
 		restoreView(place.View, el)

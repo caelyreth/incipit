@@ -3,6 +3,7 @@ package shell
 import (
 	"strings"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -23,7 +24,7 @@ func (commandSource) answer(s *State, _ string, f *found) {
 	fields := strings.Fields(strings.ToLower(words))
 	// What the place the query is in can have done to it stands first, as
 	// the pill's end offers it.
-	here := commandList{group: "Here"}
+	here := commandList{group: locales.Here()}
 	for _, a := range s.placeActions() {
 		label := a.label
 		if a.danger {

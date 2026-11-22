@@ -47,6 +47,9 @@ func Run() error {
 	mygo.Theme.SetSource(themeSource(app.Shell.Settings))
 
 	mygo.App.WhenReady(func() {
+		app.language = mygo.App.ChosenLocale()
+		app.refreshSettingsData()
+		mygo.App.OnLocaleChanged(func(string) { app.localeChanged() })
 		mygo.App.SetMenu(app.MainMenu())
 		window := mygo.NewWindow(mygo.WindowOptions{
 			Title:                "Neverland",

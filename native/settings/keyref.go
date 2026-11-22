@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -17,14 +18,11 @@ import (
 // under the row or sentence that holds it, and a taken key is resolved there,
 // so recording behaves the same on the Editor and Keymap pages.
 
-// unassigned is how a sentence shows a key reference with no key.
-const unassigned = "no key"
-
 // keyText is how a command's key reads in text: its first binding.
 func (s *State) keyText(command keymap.CommandID) string {
 	shortcut, ok := s.Data.Shortcut(command)
 	if !ok || len(shortcut.Bindings) == 0 {
-		return unassigned
+		return locales.NoKey()
 	}
 	return keymap.Spell(shortcut.Bindings[0], keymap.PlatformCurrent)
 }
@@ -154,7 +152,7 @@ func (s *State) keyChip(
 	shortcut, known := s.Data.Shortcut(command)
 	editable := known
 	animate := s.motion(c)
-	labels, unbound := []string{unassigned}, true
+	labels, unbound := []string{locales.NoKey()}, true
 	if known && len(shortcut.Bindings) > 0 {
 		labels, unbound = keymap.Keycaps(shortcut.Bindings[0], keymap.PlatformCurrent), false
 	}

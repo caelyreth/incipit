@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -111,10 +112,10 @@ func (firstRun) shows(s *State) bool {
 }
 
 func (firstRun) card(s *State) cardKind {
-	return note{icon: components.IconPencilSpark, title: "A New Notebook", lines: []noteLine{
-		{text: "Type to find"},
-		{text: "Write a new sheet", keys: s.commandKeys("page.new")},
-		{text: "Drag a sheet to file it"},
+	return note{icon: components.IconPencilSpark, title: locales.ANewNotebook(), lines: []noteLine{
+		{text: locales.TypeToFind()},
+		{text: locales.WriteANewSheet(), keys: s.commandKeys("page.new")},
+		{text: locales.DragToFile()},
 	}}
 }
 
@@ -140,5 +141,5 @@ func (writtenToday) id() string { return "written-today" }
 func (writtenToday) shows(s *State) bool { return s.WrittenToday != nil && s.WrittenToday() > 0 }
 
 func (writtenToday) card(s *State) cardKind {
-	return note{icon: components.IconPen, title: "Written Today", lines: []noteLine{{text: words(s.WrittenToday())}}}
+	return note{icon: components.IconPen, title: locales.WrittenToday(), lines: []noteLine{{text: words(s.WrittenToday())}}}
 }

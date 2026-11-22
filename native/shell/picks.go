@@ -1,10 +1,10 @@
 package shell
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/egoist/mygo/ui"
 )
@@ -122,8 +122,8 @@ func (s *State) selectionActions() []fieldAction {
 	done := func() { s.field.picked = nil }
 	if s.inTrash() {
 		return []fieldAction{
-			{id: "put-back", label: "Put Back", icon: components.IconUndo, run: func() {
-				s.together("Put back "+s.objectsNamed(s.field.picked), func() {
+			{id: "put-back", label: locales.PutBack(), icon: components.IconUndo, run: func() {
+				s.together(locales.PutBackWhat(s.objectsNamed(s.field.picked)), func() {
 					s.restoreSheets(s.pickedOf("sheet:"))
 					for _, g := range s.pickedGroups() {
 						s.restoreGroup(g)
@@ -131,7 +131,7 @@ func (s *State) selectionActions() []fieldAction {
 				})
 				done()
 			}},
-			{id: deletePickedKey, label: "Delete Immediately", icon: components.IconTrash, danger: true, run: func() {
+			{id: deletePickedKey, label: locales.DeleteImmediatelyAction(), icon: components.IconTrash, danger: true, run: func() {
 				for _, id := range s.pickedOf("sheet:") {
 					s.Library.DeleteSheet(id)
 				}
@@ -144,7 +144,7 @@ func (s *State) selectionActions() []fieldAction {
 	}
 	var out []fieldAction
 	if sheets := s.pickedOf("sheet:"); len(sheets) > 0 {
-		out = append(out, fieldAction{id: "open-picked", label: "Open " + objectsCount(0, len(sheets)), icon: components.IconDesk,
+		out = append(out, fieldAction{id: "open-picked", label: locales.OpenWhat(objectsCount(0, len(sheets), locales.CountGroups, locales.CountSheets)), icon: components.IconDesk,
 			run: func() {
 				for _, id := range sheets {
 					s.Library.OpenSheet(id, true)
@@ -154,13 +154,13 @@ func (s *State) selectionActions() []fieldAction {
 			}})
 	}
 	out = append(out,
-		fieldAction{id: "move-picked", label: "Move To", icon: components.IconFolder, menu: s.moveTargets(func(group string) {
+		fieldAction{id: "move-picked", label: locales.MoveTo(), icon: components.IconFolder, menu: s.moveTargets(func(group string) {
 			s.field.acting = false
 			s.moveObjects(s.field.picked, group)
 			done()
 		}, s.pickedOf("group:")...)},
-		fieldAction{id: "trash-picked", label: "Move to Trash", icon: components.IconTrash, run: func() {
-			s.together("Moved "+s.objectsNamed(s.field.picked)+" to the Trash", func() {
+		fieldAction{id: "trash-picked", label: locales.MoveToTrash(), icon: components.IconTrash, run: func() {
+			s.together(locales.MovedToTrash(s.objectsNamed(s.field.picked)), func() {
 				s.trashSheets(s.pickedOf("sheet:"))
 				for _, g := range s.pickedGroups() {
 					s.trashGroup(g)
@@ -179,11 +179,11 @@ const deletePickedKey = "delete-picked"
 // thing to be undone.
 func (s *State) moveObjects(ids []string, group string) {
 	sheets, groups := bare(ids, "sheet:"), bare(ids, "group:")
-	to := "the top"
+	told := locales.MovedToTop(s.objectsNamed(ids))
 	if group != "" {
-		to = s.groupNamedByID(group)
+		told = locales.MovedTo(s.objectsNamed(ids), s.groupNamedByID(group))
 	}
-	s.together("Moved "+s.objectsNamed(ids)+" to "+to, func() {
+	s.together(told, func() {
 		s.moveSheets(sheets, group)
 		for _, g := range groups {
 			if g != group {
@@ -213,23 +213,23 @@ func (s *State) objectsNamed(ids []string) string {
 		return s.sheetsNamed(sheets)
 	case len(ids) == 1 && len(groups) == 1:
 		if g, ok := s.shownGroup(groups[0]); ok {
-			return "“" + g.Name + "”"
+			return locales.Quoted(g.Name)
 		}
 	}
-	return objectsCount(len(groups), len(sheets))
+	return objectsCount(len(groups), len(sheets), locales.CountGroups, locales.CountSheets)
 }
 
-// objectsCount says how many groups and sheets: "2 Groups and 3 Sheets",
-// leaving out a kind there is none of.
-func objectsCount(groups, sheets int) string {
-	var parts []string
-	if groups > 0 {
-		parts = append(parts, fmt.Sprintf("%d %s", groups, strings.TrimSuffix("Groups", map[bool]string{true: "s"}[groups == 1])))
+// objectsCount says how many groups and sheets, each counted as group and
+// sheet count them: "2 Groups and 3 Sheets", leaving out a kind there is
+// none of.
+func objectsCount(groups, sheets int, group, sheet func(int) string) string {
+	switch {
+	case groups == 0:
+		return sheet(sheets)
+	case sheets == 0:
+		return group(groups)
 	}
-	if sheets > 0 || groups == 0 {
-		parts = append(parts, fmt.Sprintf("%d %s", sheets, sheetsWord(sheets)))
-	}
-	return strings.Join(parts, " and ")
+	return locales.GroupsAndSheets(group(groups), sheet(sheets))
 }
 
 // pickedMenu is what a menu on a row selected does to all the selection:

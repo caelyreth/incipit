@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/caelyreth/neverland/app/storage"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo"
 )
 
@@ -45,13 +46,13 @@ func (a *AppState) tellSaving(told *saving, writer saver) {
 	case now.err != "":
 		a.Notices.Post(saveFailure(writer, writer.Err(), a.Notices))
 	default:
-		a.Notices.Post(Notice{ID: saveNotice, Kind: NoticeSuccess, Title: "All changes saved"})
+		a.Notices.Post(Notice{ID: saveNotice, Kind: NoticeSuccess, Title: locales.AllChangesSaved()})
 	}
 	switch {
 	case now.backupErr == told.backupErr:
 	case now.backupErr != "":
 		a.Notices.Post(Notice{
-			ID: backupNotice, Kind: NoticeWarning, Title: "Couldn't back up the notebook",
+			ID: backupNotice, Kind: NoticeWarning, Title: locales.CouldntBackUp(),
 			Description: describeNotice(writer.BackupErr()),
 		})
 	default:
@@ -65,8 +66,8 @@ func (a *AppState) tellSaving(told *saving, writer saver) {
 func saveFailure(writer saver, err error, center *NoticeCenter) Notice {
 	return Notice{
 		ID: saveNotice, Kind: NoticeError, Sticky: true,
-		Title: "Changes aren't saved yet", Description: describeNotice(err),
-		Action: "Retry Now",
+		Title: locales.ChangesNotSaved(), Description: describeNotice(err),
+		Action: locales.RetryNow(),
 		OnAction: func() {
 			go func() {
 				// A failure the same as before tells the watcher nothing new,
@@ -85,15 +86,15 @@ func recovered(store *storage.Store) (Notice, bool) {
 	recovery := store.Recovery
 	switch {
 	case recovery.Repaired() && recovery.Restored != "":
-		notice.Title = "The notebook was restored from its latest backup"
-		notice.Description = "It was damaged; the damaged copy is kept."
+		notice.Title = locales.RestoredFromBackup()
+		notice.Description = locales.RestoredFromBackupDescription()
 	case recovery.Repaired():
-		notice.Title = "The notebook was damaged"
-		notice.Description = "No backup could be read, so it starts empty; the damaged copy is kept."
+		notice.Title = locales.NotebookDamaged()
+		notice.Description = locales.NotebookDamagedDescription()
 	default:
 		return Notice{}, false
 	}
-	notice.Action = "Show in Finder"
+	notice.Action = locales.ShowInFinder()
 	notice.OnAction = func() { mygo.Shell.ShowItemInFolder(recovery.Damaged) }
 	return notice, true
 }

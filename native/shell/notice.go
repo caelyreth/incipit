@@ -1,11 +1,11 @@
 package shell
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -152,7 +152,7 @@ func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stageRect, w, 
 	case n != nil:
 		text = n.text
 	case len(s.field.picked) > 0:
-		text = strings.ToLower(objectsCount(len(s.pickedOf("group:")), len(s.pickedOf("sheet:")))) + " selected"
+		text = locales.Selected(objectsCount(len(s.pickedOf("group:")), len(s.pickedOf("sheet:")), locales.GroupsCount, locales.SheetsCount))
 	}
 	shown := map[bool]float32{true: 1}[text != ""]
 	row := ui.Row(c).Key("notice").Absolute().Top(0).Left(r.X+r.W+gap).Height(r.H).Translate(0, r.Y).
@@ -174,14 +174,14 @@ func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stageRect, w, 
 		}
 		h := 24 * k
 		btn := ui.ButtonBase(c.Key("undo")).Height(h).PaddingX(8 * k).Radius(h / 2).AlignItems(ui.Center).Shrink(0).
-			FocusRing(false).KeepFocus().Label("Undo")
+			FocusRing(false).KeepFocus().Label(locales.Undo())
 		hover := components.HoverAmount(btn, btn.Hovered(), animate)
 		btn.Background(components.Blend(semantic.GhostElement.Background, semantic.GhostElement.Hover, hover))
 		if btn.Clicked() {
 			s.undoNotice()
 		}
 		btn.Children(func() {
-			components.CenteredLabel(c, "Undo", theme.TextXSmall, semantic.Accent.Foreground).SingleLine()
+			components.CenteredLabel(c, locales.Undo(), theme.TextXSmall, semantic.Accent.Foreground).SingleLine()
 		})
 	})
 }
@@ -193,13 +193,13 @@ func (s *State) sheetsNamed(ids []string) string {
 			if b, ok := cd.kind.(block); ok {
 				for _, e := range b.entries {
 					if e.sheet.ID == ids[0] {
-						return "“" + sheetTitle(e.sheet) + "”"
+						return locales.Quoted(sheetTitle(e.sheet))
 					}
 				}
 			}
 		}
 	}
-	return fmt.Sprintf("%d %s", len(ids), sheetsWord(len(ids)))
+	return locales.CountSheets(len(ids))
 }
 
 // rowIDs are ids as the field names their rows, each after kind.
@@ -214,9 +214,9 @@ func rowIDs(kind string, ids []string) []string {
 // groupNamedByID is the group id's name, quoted.
 func (s *State) groupNamedByID(id string) string {
 	if g, ok := s.Library.Group(id); ok {
-		return "“" + g.Name + "”"
+		return locales.Quoted(g.Name)
 	}
-	return "the group"
+	return locales.TheGroup()
 }
 
 // sheetPlace is where a sheet is filed: its group, and where in it.
@@ -243,7 +243,7 @@ func (s *State) moveSheets(ids []string, group string) {
 	if len(ids) == 0 {
 		return
 	}
-	text := "Moved " + s.sheetsNamed(ids) + " to " + s.groupNamedByID(group)
+	text := locales.MovedTo(s.sheetsNamed(ids), s.groupNamedByID(group))
 	from := s.sheetPlaces(ids)
 	do := func() {
 		for _, id := range ids {
@@ -265,7 +265,7 @@ func (s *State) trashSheets(ids []string) {
 	if len(ids) == 0 {
 		return
 	}
-	text := "Moved " + s.sheetsNamed(ids) + " to the Trash"
+	text := locales.MovedToTrash(s.sheetsNamed(ids))
 	from := s.sheetPlaces(ids)
 	// A sheet open on the desk closes as it goes; taken back, it comes
 	// back to its place in the field, marked there, and stays closed: the
@@ -290,7 +290,7 @@ func (s *State) restoreSheets(ids []string) {
 	if len(ids) == 0 {
 		return
 	}
-	text := "Put back " + s.sheetsNamed(ids)
+	text := locales.PutBackWhat(s.sheetsNamed(ids))
 	do := func() {
 		for _, id := range ids {
 			s.Library.RestoreSheet(id)
@@ -331,9 +331,9 @@ func (s *State) groupPlace(id string) (parent string, index int) {
 
 // moveGroup files the group id in parent, to be undone.
 func (s *State) moveGroup(id, parent string) {
-	text := "Moved " + s.groupNamedByID(id) + " to the top"
+	text := locales.MovedToTop(s.groupNamedByID(id))
 	if parent != "" {
-		text = "Moved " + s.groupNamedByID(id) + " into " + s.groupNamedByID(parent)
+		text = locales.MovedInto(s.groupNamedByID(id), s.groupNamedByID(parent))
 	}
 	from, at := s.groupPlace(id)
 	do := func() {
@@ -351,7 +351,7 @@ func (s *State) moveGroup(id, parent string) {
 func (s *State) trashGroup(g GroupItem) {
 	do := func() { s.Library.TrashGroup(g.ID) }
 	do()
-	s.tell("Moved “"+g.Name+"” to the Trash", func() {
+	s.tell(locales.MovedToTrash(locales.Quoted(g.Name)), func() {
 		s.Library.RestoreGroup(g.ID)
 		s.arrive("group:" + g.ID)
 	}, do)
@@ -364,7 +364,7 @@ func (s *State) restoreGroup(g GroupItem) {
 		s.arrive("group:" + g.ID)
 	}
 	do()
-	s.tell("Put back “"+g.Name+"”", func() { s.Library.TrashGroup(g.ID) }, do)
+	s.tell(locales.PutBackWhat(locales.Quoted(g.Name)), func() { s.Library.TrashGroup(g.ID) }, do)
 }
 
 // renameGroup names the group id name, to be undone.
@@ -388,7 +388,7 @@ func (s *State) renameGroup(id, name string) {
 		}
 	}
 	set(old, name)()
-	s.tell("Renamed “"+old+"” to “"+name+"”", set(name, old), set(old, name))
+	s.tell(locales.Renamed(old, name), set(name, old), set(old, name))
 }
 
 // deleteBookmark lets the bookmark id go; taken back, it is kept again
@@ -404,7 +404,7 @@ func (s *State) deleteBookmark(id string) {
 		s.Library.DeleteGroup(current)
 	}
 	remove()
-	s.tell("Deleted the bookmark “"+g.Name+"”", func() {
+	s.tell(locales.DeletedBookmark(g.Name), func() {
 		current = s.Library.NewSmartGroup(g.Name, g.Query)
 		s.Library.StyleGroup(current, g.Icon, g.Color)
 	}, remove)
@@ -417,7 +417,7 @@ func (s *State) styleGroup(g GroupItem, icon string, color int) {
 	}
 	do := func() { s.Library.StyleGroup(g.ID, icon, color) }
 	do()
-	s.tell("Changed “"+g.Name+"”", func() { s.Library.StyleGroup(g.ID, g.Icon, g.Color) }, do)
+	s.tell(locales.Changed(g.Name), func() { s.Library.StyleGroup(g.ID, g.Icon, g.Color) }, do)
 }
 
 // pin pins the object id, or lets its pin go, to be undone.
@@ -429,7 +429,7 @@ func (s *State) pin(id string, pinned bool) {
 		}
 	}
 	set(pinned)()
-	text := map[bool]string{true: "Pinned ", false: "Unpinned "}[pinned] + s.objectsNamed([]string{id})
+	text := map[bool]func(string) string{true: locales.PinnedWhat, false: locales.UnpinnedWhat}[pinned](s.objectsNamed([]string{id}))
 	s.tell(text, set(!pinned), set(pinned))
 }
 
@@ -439,7 +439,7 @@ func (s *State) newGroup(parent string) {
 	id := s.Library.NewGroup(parent, Last)
 	s.arrive("group:" + id)
 	s.startRename(id)
-	s.tell("New group", func() { s.Library.TrashGroup(id) }, func() {
+	s.tell(locales.NewGroupTold(), func() { s.Library.TrashGroup(id) }, func() {
 		s.Library.RestoreGroup(id)
 		s.arrive("group:" + id)
 	})
@@ -452,14 +452,14 @@ func (s *State) duplicate(sheets []string) {
 	for i, sheet := range sheets {
 		ids[i] = "sheet:" + sheet
 	}
-	s.together("Duplicated "+s.objectsNamed(ids), func() {
+	s.together(locales.DuplicatedWhat(s.objectsNamed(ids)), func() {
 		for _, sheet := range sheets {
 			copied := s.Library.DuplicateSheet(sheet)
 			if copied == "" {
 				continue
 			}
 			s.arrive("sheet:" + copied)
-			s.tell("Duplicated", func() { s.Library.TrashSheet(copied) }, func() {
+			s.tell(locales.Duplicated(), func() { s.Library.TrashSheet(copied) }, func() {
 				s.Library.RestoreSheet(copied)
 				s.arrive("sheet:" + copied)
 			})

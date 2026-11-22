@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/caelyreth/neverland/locales"
 )
 
 var (
@@ -139,11 +141,11 @@ func (w *Workspace) Mounted() (Session, bool) {
 	return w.pages[id].session, true
 }
 
-// Title returns the page in front's title, or NotebookTitle while none is.
+// Title returns the page in front's title, or locales.Notebook while none is.
 func (w *Workspace) Title() string {
 	id, ok := w.Active()
 	if !ok {
-		return NotebookTitle
+		return locales.Notebook()
 	}
 	return w.snapshot(id).Title
 }
@@ -152,7 +154,7 @@ func (w *Workspace) Title() string {
 func (w *Workspace) snapshot(id PageID) Page {
 	page := Page{ID: id, Title: strings.TrimSpace(w.pages[id].session.Title())}
 	if page.Title == "" {
-		page.Title = DefaultTitle
+		page.Title = locales.Untitled()
 	}
 	return page
 }

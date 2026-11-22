@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -371,6 +372,6 @@ func cardHead(c *ui.Context, semantic theme.Theme, icon components.IconName, tit
 // moreLabel says how many rows a card leaves out.
 func moreLabel(c *ui.Context, semantic theme.Theme, more int, h float32, m blockMetrics) {
 	ui.Row(c).Key("more").Height(h).PaddingX(rowPad(m.scale)).AlignItems(ui.Center).Children(func() {
-		components.CenteredLabel(c, thousands(more)+" more", theme.TextXSmall, semantic.Text.Muted).FontFeatures("tnum")
+		components.CenteredLabel(c, locales.More(thousands(more)), theme.TextXSmall, semantic.Text.Muted).FontFeatures("tnum")
 	})
 }

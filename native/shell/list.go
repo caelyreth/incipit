@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -129,16 +130,16 @@ func (s *State) keepAsList(g GroupItem, listed bool) {
 		}
 	}
 	set(listed)()
-	text := "Always Showing “" + g.Name + "” as a List"
+	text := locales.AlwaysShowingAsList(g.Name)
 	if !listed {
-		text = "Stopped Showing “" + g.Name + "” as a List"
+		text = locales.StoppedShowingAsList(g.Name)
 	}
 	s.tell(text, set(!listed), set(listed))
 }
 
 // keepItem is a menu's Always Show as List for g, checked while it does.
 func (s *State) keepItem(m *ui.Menu, g GroupItem) {
-	if m.Item("Always Show as List").Checked(g.Listed).Chosen() {
+	if m.Item(locales.AlwaysShowAsList()).Checked(g.Listed).Chosen() {
 		s.keepAsList(g, !g.Listed)
 	}
 }
@@ -163,9 +164,9 @@ func (s *State) toggleList() {
 // listLabel names what turning the place does.
 func (s *State) listLabel() string {
 	if s.listed() {
-		return "View as Field"
+		return locales.ViewAsField()
 	}
-	return "View as List"
+	return locales.ViewAsList()
 }
 
 // viewSwitch is how the place is shown, as two choices standing together,
@@ -181,7 +182,7 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 	kept, keeps := s.scopeGroup()
 	keeps = keeps && kept.Listed && !s.inTrash()
 	box := ui.Column(c).Key("view-switch").Width(size).Padding(pad).Gap(pad).Radius(size/2).
-		Border(1, semantic.Border.Variant).Background(semantic.Surface.Page).Role(ui.RoleRadioGroup).Label("View")
+		Border(1, semantic.Border.Variant).Background(semantic.Surface.Page).Role(ui.RoleRadioGroup).Label(locales.View())
 	face := size - 2*pad
 	// The fill is one circle standing behind the choice shown, sliding to
 	// the other as the view turns, so the switch reads as one thing moving.
@@ -197,8 +198,8 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 			icon       components.IconName
 			on         bool
 		}{
-			{"view-field", "View as Field", components.IconMap, !listed},
-			{"view-list", "View as List", components.IconList, listed},
+			{"view-field", locales.ViewAsField(), components.IconMap, !listed},
+			{"view-list", locales.ViewAsList(), components.IconList, listed},
 		} {
 			btn := ui.ButtonBase(c.Key(choice.key)).Size(face, face).Radius(face / 2).Role(ui.RoleRadio).
 				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).KeepFocus().Label(choice.label).Selected(choice.on)
@@ -209,7 +210,7 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 			hint := choice.label
 			marked := keeps && choice.key == "view-list"
 			if marked {
-				hint += " — Always, in “" + kept.Name + "”"
+				hint = locales.AlwaysIn(hint, kept.Name)
 			}
 			components.Hint(c, semantic, btn, hint, binding, components.HintAfter)
 			// How far the fill stands behind this choice.
@@ -226,7 +227,7 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 					dot := 6 * k
 					ui.Box(c).Key("kept-mark").Absolute().Top(0).Right(0).Size(dot, dot).Radius(dot/2).
 						Background(semantic.Families[theme.Unripe].Foreground).Border(1, semantic.Surface.Page).
-						IgnoreInput(true).Label("Always shown as a list")
+						IgnoreInput(true).Label(locales.AlwaysShownAsAList())
 				}
 			})
 		}
@@ -406,9 +407,9 @@ func (s *State) arrange(ids []string, group, before string) {
 	from := s.sheetPlaces(ids)
 	do := func() { s.placeSheets(group, want, at, len(ids)) }
 	do()
-	text := "Moved " + s.sheetsNamed(ids)
+	text := locales.Moved(s.sheetsNamed(ids))
 	if slices.ContainsFunc(from, func(p sheetPlace) bool { return p.group != group }) {
-		text += " to " + s.groupNamedByID(group)
+		text = locales.MovedTo(s.sheetsNamed(ids), s.groupNamedByID(group))
 	}
 	s.tell(text, func() {
 		for _, p := range from {
@@ -448,7 +449,7 @@ func (s *State) arrangeGroup(id, parent string, index int) {
 		s.arrive("group:" + id)
 	}
 	move(parent, index)
-	s.tell("Moved "+s.groupNamedByID(id), func() { move(from, at) }, func() { move(parent, index) })
+	s.tell(locales.Moved(s.groupNamedByID(id)), func() { move(from, at) }, func() { move(parent, index) })
 }
 
 // nudge moves the row the keys are on by along its order: a sheet among

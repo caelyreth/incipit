@@ -40,9 +40,9 @@ type Face struct {
 	// ID names it, by its style and its forms.
 	ID    string
 	Style Style
-	// Forms names the language whose glyph forms it draws, which Language
-	// says as the settings do.
-	Forms, Language string
+	// Forms names the language whose glyph forms it draws: sc, tc, hk or
+	// jp.
+	Forms string
 	// Family is its name, the family its files are registered under and
 	// the prose family list names.
 	Family string

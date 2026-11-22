@@ -5,19 +5,20 @@ import (
 
 	appsettings "github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
 
-// editorSection draws the policy titled title as a card. A policy is a
+// editorSection draws the policy id as a card. A policy is a
 // master switch with tweaks under it, so the card's first line is the
 // policy and its switch; its story plays beneath, and the tweaks nest
 // under that, each with the keys it answers to, folding away while the
 // policy is off. Searched, the card shows what the query finds in it.
-func (s *State) editorSection(c *ui.Context, semantic theme.Theme, title, query string) {
+func (s *State) editorSection(c *ui.Context, semantic theme.Theme, id, query string) {
 	for _, card := range s.Data.Policies {
-		if card.Title != title {
+		if card.ID != id {
 			continue
 		}
 		options, shortcuts := card.Options, card.Shortcuts
@@ -99,11 +100,7 @@ func (s *State) policyHeader(c *ui.Context, semantic theme.Theme, card appsettin
 					s.phrase(c, semantic, host, card.Description, theme.TextSmall, semantic.Text.Muted)
 				}
 				if !card.Enabled && optionCount > 0 {
-					noun := "options"
-					if optionCount == 1 {
-						noun = "option"
-					}
-					components.Label(c, fmt.Sprintf("Turn on to adjust %d %s.", optionCount, noun),
+					components.Label(c, locales.TurnOnToAdjust(optionCount),
 						theme.TextXSmall, semantic.Text.Muted)
 				}
 			})

@@ -7,6 +7,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/fonts"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/settings"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -24,11 +25,34 @@ type fontState struct {
 	registered map[string]bool
 	coming     map[string]*fontDownload
 	// failed is why a face's last download did not finish.
-	failed map[string]string
+	failed map[string]fontFailure
 	// wanted is the face chosen while it was not kept: it is the choice
 	// once its download is, unless another was chosen meanwhile. It lasts
 	// the run, as the download does.
 	wanted string
+}
+
+// fontFailure is why a download did not finish, said in the language the
+// settings show when they list it.
+type fontFailure uint8
+
+const (
+	fontFine fontFailure = iota
+	fontMismatch
+	fontDownloadFailed
+	fontUnusable
+)
+
+func (f fontFailure) String() string {
+	switch f {
+	case fontMismatch:
+		return locales.FontMismatch()
+	case fontDownloadFailed:
+		return locales.FontDownloadFailed()
+	case fontUnusable:
+		return locales.FontUnusable()
+	}
+	return ""
 }
 
 type fontDownload struct {
@@ -41,7 +65,7 @@ type fontDownload struct {
 // left to download again. A nil dir keeps none.
 func openFonts(dir string) *fontState {
 	fs := &fontState{kept: map[string]bool{}, registered: map[string]bool{},
-		coming: map[string]*fontDownload{}, failed: map[string]string{}}
+		coming: map[string]*fontDownload{}, failed: map[string]fontFailure{}}
 	if dir == "" {
 		return fs
 	}
@@ -95,7 +119,7 @@ func (fs *fontState) family(style fonts.Style, forms string) string {
 func (fs *fontState) rows() []settings.FontRow {
 	rows := make([]settings.FontRow, 0, len(fonts.Catalog))
 	for _, f := range fonts.Catalog {
-		row := settings.FontRow{Face: f, Kept: fs.kept[f.ID], Failed: fs.failed[f.ID], Wanted: fs.wanted == f.ID}
+		row := settings.FontRow{Face: f, Kept: fs.kept[f.ID], Failed: fs.failed[f.ID].String(), Wanted: fs.wanted == f.ID}
 		if !row.Kept && fs.store != nil {
 			row.Partial = fs.store.Partial(f)
 		}
@@ -159,7 +183,7 @@ func (a *AppState) fontAct(id string, act settings.FontAct) {
 			fs.wanted = ""
 		}
 		if err := fs.store.Remove(f); err != nil {
-			a.fail("Couldn't remove the font", err)
+			a.fail(locales.CouldntRemoveFont(), err)
 		}
 		fs.kept[id] = false
 		if values := a.Product.Appearance; values.Typeface == f.Style && values.CJKForms == f.Forms {
@@ -203,12 +227,12 @@ func (a *AppState) downloadFont(f fonts.Face) {
 			switch {
 			case errors.Is(err, context.Canceled):
 			case errors.Is(err, fonts.ErrMismatch):
-				fs.failed[f.ID] = "The download wasn't the font expected. Try again later."
+				fs.failed[f.ID] = fontMismatch
 			case err != nil:
-				fs.failed[f.ID] = "Couldn't download. Check the connection and try again."
+				fs.failed[f.ID] = fontDownloadFailed
 			default:
 				if err := fs.register(f, data); err != nil {
-					fs.failed[f.ID] = "Couldn't use the downloaded font."
+					fs.failed[f.ID] = fontUnusable
 					break
 				}
 				fs.kept[f.ID] = true
@@ -218,7 +242,7 @@ func (a *AppState) downloadFont(f fonts.Face) {
 				}
 				a.applyAppearance()
 			}
-			if fs.failed[f.ID] != "" && fs.wanted == f.ID {
+			if fs.failed[f.ID] != fontFine && fs.wanted == f.ID {
 				fs.wanted = ""
 			}
 			a.refreshSettingsData()

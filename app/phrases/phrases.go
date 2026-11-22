@@ -1,209 +1,55 @@
 // Package phrases is the product's words for the editor's text keys: the
 // label and description keys policies declare for themselves, their
 // options and their commands. Settings, the keymap and the palette read
-// them here; a key without words reads as itself.
+// them here, in the language the app shows; a key without words reads as
+// itself.
+//
+// The words are the app's catalog's (package locales), each under its key
+// in camel case, policies.core.description as policiesCoreDescription. A
+// command a text names in braces, {core.break}, is a placeholder there,
+// {core_break}, since a catalog's names cannot hold a dot; Text writes it
+// back, so the text names the command as settings read it
+// (app/settings.Phrase).
 package phrases
+
+import (
+	"strings"
+
+	"github.com/caelyreth/neverland/locales"
+	"github.com/egoist/mygo/i18n"
+)
 
 // Text is a key's words, or the key itself when it has none.
 func Text(key string) string {
-	if text, ok := texts[key]; ok {
-		return text
+	name := catalogKey(key)
+	m, _, ok := locales.Catalog.Message(i18n.Locale(), name)
+	if !ok {
+		return key
 	}
-	return key
+	var args map[string]any
+	if names := m.Args(); len(names) > 0 {
+		args = make(map[string]any, len(names))
+		for _, arg := range names {
+			args[arg.Name] = "{" + strings.ReplaceAll(arg.Name, "_", ".") + "}"
+		}
+	}
+	return locales.Catalog.Format(i18n.Locale(), name, args)
 }
 
 // Has reports whether a key has words.
 func Has(key string) bool {
-	_, ok := texts[key]
+	_, _, ok := locales.Catalog.Message(i18n.Locale(), catalogKey(key))
 	return ok
 }
 
-var texts = map[string]string{
-	"policies.core":                   "Text",
-	"policies.core.description":       "Every keystroke is an edit of the page: {core.break} starts a new block, {core.softBreak} breaks the line inside one.",
-	"policies.formats":                "Formats",
-	"policies.formats.description":    "{formats.strong}, {formats.emphasis} and {formats.code} format the selection, or what you type next at the caret.",
-	"policies.blocks":                 "Blocks",
-	"policies.blocks.description":     "Turn the blocks you are in into headings, code or a quote, and back into paragraphs.",
-	"policies.formulas":               "Formulas",
-	"policies.formulas.description":   "$ writes a formula in the text; $ again at its end steps out, and $$ alone opens a math block.",
-	"policies.notation":               "Notation",
-	"policies.notation.description":   "How the page spells its marks and markers as you write them.",
-	"policies.markdown":               "Markdown",
-	"policies.markdown.description":   "Type markdown and the page takes the shape it spells, including task markers.",
-	"policies.words":                  "Words",
-	"policies.words.description":      "Move, select and delete by word, sentence or paragraph; {core.wordLeft} and {core.wordRight} move by word.",
-	"policies.typography":             "Typography",
-	"policies.typography.description": "Typographic symbols, apostrophes, punctuation spacing and quote placement as you write.",
-	"policies.cjk":                    "CJK",
-	"policies.cjk.description":        "Punctuation width and spacing between Chinese, Japanese or Korean and Latin text.",
-	"policies.lists":                  "Lists",
-	"policies.lists.description":      "{lists.nest} nests an item, {lists.outdent} steps it out; {core.break} in an empty item leaves the list. Reshape blocks into bulleted or numbered lists.",
-	"policies.figures":                "Figures",
-	"policies.tables":                 "Tables",
-	"policies.tables.description":     "{table.insert} places a table; {core.leave} and {core.return} step between its cells, and {core.break} goes down a column, making a row past the last.",
-	"policies.figures.description":    "Pictures dropped, pasted or inserted with {figures.insert} become figures with captions, a pasted Markdown picture captioned by its alt text; {core.dismiss} moves between a figure and its caption.",
-	"policies.tags":                   "Tags",
-	"policies.tags.description":       "# and a word writes a tag anywhere in the text; each sheet collects the tags it writes.",
-	"policies.pairs":                  "Pairs",
-	"policies.pairs.description":      "Brackets and quotes close themselves as you open them; deleting into a pair selects it first.",
-	"policies.navigation":             "Navigation",
-	"policies.navigation.description": "Leave and Return move through the roles selected below; {core.leave} leaves, {core.return} goes back.",
-	"policies.scopes":                 "Scopes",
-	"policies.scopes.description":     "{core.selectAll} grows the selection through the scopes around the caret; {core.dismiss} returns to the caret.",
-	"policies.deletion":               "Deletion",
-	"policies.deletion.description":   "A structure is armed by the first delete and removed by the next; a selected picture goes at once, and text pairs keep their own sides.",
-	"policies.guides":                 "Guides",
-	"policies.guides.description":     "Show a key where it would act: leaving a scope, or going back.",
-	"policies.history":                "History",
-	"policies.history.description":    "Undo and redo step through your edits, a burst of typing at a time.",
-	"policies.feedback":               "Feedback",
-	"policies.feedback.description":   "A pulse shows what typography or CJK changed; undo plays it backward and redo forward.",
-	"policies.find":                   "Find",
-	"policies.find.description":       "Find in a sheet marks every match as you type, and steps from one to the next.",
-	"policies.statistics":             "Statistics",
-	"policies.statistics.description": "Word, character and CJK counts for the page and the selection, shown in the footer.",
-
-	"settings.markdown.asterisks.description":        "*soft* and **firm** become emphasis and strong.",
-	"settings.markdown.underscores.description":      "_soft_ and __firm__ do the same.",
-	"settings.markdown.headings.description":         "# at a line's start makes a heading, one level per #.",
-	"settings.markdown.lists.description":            "- or 1. at a line's start starts a list.",
-	"settings.markdown.quotes.description":           "> at a line's start starts a quote.",
-	"settings.markdown.code.description":             "`code` marks code; ``` and Enter opens a code block.",
-	"settings.markdown.math.description":             "$$ and Enter opens a math block.",
-	"settings.markdown.strike.description":           "~~text~~ strikes text through.",
-	"settings.markdown.rules.description":            "--- and Enter draws a rule.",
-	"settings.markdown.tables.description":           "Return after a row typed between pipes, such as | Tide | Height |, makes it a table's header.",
-	"settings.notation.reveal.description":           "Whether marks show their signs, as *this*, or only their style.",
-	"settings.notation.underscores.description":      "Emphasis and strong show _ and __ instead of * and **.",
-	"settings.words.nearbyContent.description":       "Double-click spaces or tabs to select nearby text or an inline object, without crossing a line break. Blank lines keep their whitespace selection.",
-	"settings.typography.symbols.description":        "Write ... and -- as … and — while typing.",
-	"settings.typography.punctuation.description":    "Put a space after commas, semicolons and colons as they are typed.",
-	"settings.typography.quotePlacement.description": "Curl apostrophes and move terminal punctuation inside closing quotes.",
-	"settings.cjk.punctuation.description":           "Use full-width punctuation on lines written in Chinese, Japanese or Korean.",
-	"settings.cjk.spacing.description":               "Put one space between adjacent CJK and Latin text.",
-	"settings.deletion.roles.description":            "Which structures require a first delete to arm them, then a second to remove them.",
-	"settings.navigation.roles.description":          "Which scope kinds Leave and Return move through.",
-	"settings.pairs.autoClose.description":           "Typing an opener types its closer, unless a word follows.",
-	"settings.pairs.overtype.description":            "Typing a closer right before a pair's closer moves past it, however it was typed.",
-	"settings.pairs.quotes.description":              "Straight double quotes pair like brackets; after a word one closes.",
-	"settings.pairs.mates.description":               "Backspace or Delete into a pair selects it whole; the next press deletes both sides together.",
-	"settings.history.typingWindow.description":      "Typing within this pause of the last keystroke undoes together.",
-	"settings.markdown.asterisks":                    "Asterisks for emphasis",
-	"settings.markdown.underscores":                  "Underscores for emphasis",
-	"settings.markdown.headings":                     "Headings",
-	"settings.markdown.lists":                        "Lists",
-	"settings.markdown.quotes":                       "Quotes",
-	"settings.markdown.code":                         "Code",
-	"settings.markdown.math":                         "Math",
-	"settings.markdown.strike":                       "Strikethrough",
-	"settings.markdown.rules":                        "Rules",
-	"settings.markdown.tables":                       "Tables",
-	"settings.notation.reveal":                       "Mark notation",
-	"settings.notation.reveal.shown":                 "Shown",
-	"settings.notation.reveal.hidden":                "Hidden",
-	"settings.notation.underscores":                  "Spell emphasis with underscores",
-	"settings.words.nearbyContent":                   "Select nearby content from spaces",
-	"settings.pairs.autoClose":                       "Close brackets and quotes",
-	"settings.pairs.overtype":                        "Step over a pair's closer",
-	"settings.pairs.quotes":                          "Pair straight quotes",
-	"settings.pairs.mates":                           "Select a pair before deleting it",
-	"settings.history.typingWindow":                  "Typing burst (ms)",
-	"settings.typography.symbols":                    "Typographic symbols",
-	"settings.typography.punctuation":                "Space punctuation",
-	"settings.typography.quotePlacement":             "Quote punctuation",
-	"settings.cjk.punctuation":                       "Full-width punctuation",
-	"settings.cjk.spacing":                           "CJK and Latin spacing",
-	"settings.deletion.roles":                        "Roles that arm",
-	"settings.deletion.roles.structure":              "Structures",
-	"settings.formulas.dialect":                      "Default math dialect",
-	"settings.formulas.dialect.description":          "Syntax used for newly created inline formulas and math blocks. Existing formulas keep their own dialect.",
-	"settings.formulas.dialect.tex":                  "TeX",
-	"settings.formulas.dialect.typst":                "Typst",
-	"settings.navigation.roles":                      "Leavable roles",
-	"settings.navigation.roles.leavable":             "Leavable scopes",
-	"settings.navigation.roles.pair":                 "Pairs",
-
-	"commands.undo":               "Undo",
-	"commands.redo":               "Redo",
-	"commands.undoCorrection":     "Undo the correction",
-	"commands.findNext":           "Find next",
-	"commands.findPrevious":       "Find previous",
-	"commands.selectAll":          "Select all",
-	"commands.expandSelection":    "Expand selection",
-	"commands.shrinkSelection":    "Shrink selection",
-	"commands.selectLine":         "Select line",
-	"commands.matchPair":          "Go to matching pair",
-	"commands.previousHeading":    "Previous heading",
-	"commands.nextHeading":        "Next heading",
-	"commands.left":               "Move left",
-	"commands.right":              "Move right",
-	"commands.wordLeft":           "Previous word",
-	"commands.wordRight":          "Next word",
-	"commands.lineStart":          "Line start",
-	"commands.lineEnd":            "Line end",
-	"commands.up":                 "Line up",
-	"commands.down":               "Line down",
-	"commands.paragraphUp":        "Previous paragraph",
-	"commands.paragraphDown":      "Next paragraph",
-	"commands.pageStart":          "Start of page",
-	"commands.pageEnd":            "End of page",
-	"commands.pageUp":             "Screen up",
-	"commands.pageDown":           "Screen down",
-	"commands.deleteBackward":     "Delete backward",
-	"commands.deleteForward":      "Delete forward",
-	"commands.deleteWordBackward": "Delete word backward",
-	"commands.deleteWordForward":  "Delete word forward",
-	"commands.deleteToStart":      "Delete to line start",
-	"commands.deleteToEnd":        "Delete to line end",
-	"commands.break":              "New block",
-	"commands.softBreak":          "Line break",
-	"commands.leave":              "Leave the scope",
-	"commands.return":             "Go back",
-	"commands.dismiss":            "Dismiss",
-	"commands.nest":               "Nest",
-	"commands.outdent":            "Outdent",
-	"commands.toggleTask":         "Toggle task",
-	"commands.insertPicture":      "Insert picture…",
-	"commands.alignPictureStart":  "Align picture to start",
-	"commands.alignPictureCenter": "Center picture",
-	"commands.copyPicture":        "Copy picture",
-	"commands.savePicture":        "Save picture as…",
-	"commands.previewPicture":     "Quick Look",
-	"commands.replacePicture":     "Replace picture…",
-	"commands.insertTable":        "Insert table",
-	"offers.insert":               "Insert",
-	"offers.kind":                 "Turn Into",
-	"offers.marks":                "Formatting",
-	"offers.selection":            "Selection",
-	"offers.picture":              "Picture",
-	"offers.pictureAlign":         "Picture alignment",
-	"offers.tableLines":           "Rows and columns",
-	"offers.tableFormat":          "Table format",
-	"offers.tableRemove":          "Remove",
-	"offers.formula":              "Formula",
-	"commands.tableRowAbove":      "Insert row above",
-	"commands.tableRowBelow":      "Insert row below",
-	"commands.tableColumnLeft":    "Insert column left",
-	"commands.tableColumnRight":   "Insert column right",
-	"commands.tableDeleteRow":     "Delete row",
-	"commands.tableDeleteColumn":  "Delete column",
-	"commands.deleteTable":        "Delete table",
-	"commands.tableHeader":        "Header row",
-	"commands.tableAlignStart":    "Align column to start",
-	"commands.tableAlignCenter":   "Center column",
-	"commands.tableAlignEnd":      "Align column to end",
-	"commands.bulletList":         "Bulleted list",
-	"commands.numberedList":       "Numbered list",
-	"commands.strong":             "Strong",
-	"commands.emphasis":           "Emphasis",
-	"commands.code":               "Code",
-	"commands.strike":             "Strikethrough",
-	"commands.paragraph":          "Paragraph",
-	"commands.heading1":           "Heading 1",
-	"commands.heading2":           "Heading 2",
-	"commands.heading3":           "Heading 3",
-	"commands.quote":              "Quote",
-	"commands.codeBlock":          "Code block",
-	"commands.toggleMathDialect":  "Switch Math Dialect",
+// catalogKey is the catalog's name for key: its parts after the first
+// capitalized and joined.
+func catalogKey(key string) string {
+	parts := strings.Split(key, ".")
+	for i, part := range parts[1:] {
+		if part != "" {
+			parts[i+1] = strings.ToUpper(part[:1]) + part[1:]
+		}
+	}
+	return strings.Join(parts, "")
 }

@@ -195,7 +195,7 @@ func TestSweepKeepsTheCatalogsFaces(t *testing.T) {
 func TestCatalogIsPinned(t *testing.T) {
 	seen := map[string]bool{}
 	for _, f := range Catalog {
-		if seen[f.ID] || f.Family == "" || f.Forms == "" || f.Language == "" || len(f.Files) == 0 {
+		if seen[f.ID] || f.Family == "" || f.Forms == "" || len(f.Files) == 0 {
 			t.Errorf("face %+v", f)
 		}
 		seen[f.ID] = true

@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/motion"
 	"github.com/caelyreth/neverland/native/theme"
@@ -251,7 +252,7 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 // between two columns the line between them, after the last the desk's
 // empty room on, which may grow.
 func (s *State) room(c *ui.Context, semantic theme.Theme, key string, at int, last bool) {
-	room := ui.Box(c).Key(key).Width(columnGap).Shrink(0).FillHeight().Label("Desk")
+	room := ui.Box(c).Key(key).Width(columnGap).Shrink(0).FillHeight().Label(locales.Desk())
 	line := semantic.Border.Variant
 	switch {
 	case last:

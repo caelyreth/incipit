@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -248,7 +249,7 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 	panel := ui.Column(c).Key("tag-picker").Absolute().
 		Left(max(0, min(r.X-border-pad-inset-chipPad, el.viewport.W-width))).
 		Width(width).Height(height).Padding(pad, pad, pad, pad).Clip().
-		Role(ui.RoleList).Label("Tags")
+		Role(ui.RoleList).Label(locales.Tags())
 	if tp.above {
 		// Anchored by its foot, so it grows up, away from the tag.
 		panel.Bottom(el.viewport.H - (r.Y - gap))
@@ -289,7 +290,7 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 		for i, tr := range tp.rows {
 			key, label := "tag-"+profile.TagKey(tr.name), "#"+tr.name
 			if tr.create {
-				key, label = "tag-create", "Create #"+tr.name
+				key, label = "tag-create", locales.CreateTag(tr.name)
 			}
 			button := ui.ButtonBase(c.Key(key)).Height(row).WidthPercent(100).Shrink(0).
 				PaddingX(inset).AlignItems(ui.Center).Justify(ui.SpaceBetween).
@@ -301,7 +302,7 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 					ui.Row(c).Gap(theme.Space04.DIPs(scale)).AlignItems(ui.Center).Shrink(0).Children(func() {
 						ui.Icon(c, components.IconPlus.SVG()).FontSize(theme.TextXSmall.Size(scale)).
 							TextColor(semantic.Text.Muted)
-						components.CenteredLabel(c, "Create", theme.TextXSmall, semantic.Text.Muted)
+						components.CenteredLabel(c, locales.Create(), theme.TextXSmall, semantic.Text.Muted)
 					})
 				}
 			})

@@ -3,8 +3,8 @@ package shell
 import (
 	"fmt"
 	"slices"
-	"strings"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -135,7 +135,7 @@ func (s *State) trayView(c *ui.Context, semantic theme.Theme, h, k float32, hidd
 	desk := s.lane.preview
 	top := desk.Y + desk.H + 48*k
 	sh := shelf{
-		key: "tray", name: "Tray", icon: components.IconTray, label: "Sheets in the tray", count: len(held), right: true,
+		key: "tray", name: locales.Tray(), icon: components.IconTray, label: locales.SheetsInTray(), count: len(held), right: true,
 		width: desk.W, top: top, most: h - top - 24*k, fixed: true, inset: true, takes: takes{sheets: true},
 	}
 	if len(held) > 0 {
@@ -143,7 +143,7 @@ func (s *State) trayView(c *ui.Context, semantic theme.Theme, h, k float32, hidd
 		sh.menu = func(m *ui.Menu) {
 			s.sheetsMenu(ids, func() { s.outOfTray(ids) })(m)
 			m.Separator()
-			if m.Item("Empty Tray").Chosen() {
+			if m.Item(locales.EmptyTray()).Chosen() {
 				s.outOfTray(ids)
 			}
 		}
@@ -162,7 +162,7 @@ func (s *State) trayView(c *ui.Context, semantic theme.Theme, h, k float32, hidd
 	}, func(out float32) {
 		if len(held) == 0 {
 			ui.Column(c).Key("empty").Grow(1).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
-				shelfHint(c, semantic, "Set sheets aside here. Emptied, each goes back where it was.", true, 0, out, k, animate)
+				shelfHint(c, semantic, locales.TrayHint(), true, 0, out, k, animate)
 			})
 		}
 	})
@@ -191,7 +191,7 @@ func (s *State) trayCard(c *ui.Context, semantic theme.Theme, sh SheetItem, widt
 	btn.ContextMenu(func(m *ui.Menu) {
 		s.sheetMenu(sh, false)(m)
 		m.Separator()
-		if m.Item("Put Back").Chosen() {
+		if m.Item(locales.PutBack()).Chosen() {
 			s.outOfTray([]string{sh.ID})
 		}
 	})
@@ -206,7 +206,7 @@ func (s *State) trayCard(c *ui.Context, semantic theme.Theme, sh SheetItem, widt
 				components.Label(c, sh.Excerpt, theme.TextXSmall, semantic.Text.Muted).MaxLines(2)
 			}
 			if sh.Words > 0 {
-				components.Label(c, thousands(sh.Words)+" words", theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
+				components.Label(c, locales.WordsCount(sh.Words, thousands(sh.Words)), theme.TextXSmall, semantic.Text.Muted).SingleLine().FontFeatures("tnum")
 			}
 		})
 	})
@@ -217,7 +217,7 @@ func (s *State) trayCard(c *ui.Context, semantic theme.Theme, sh SheetItem, widt
 func (s *State) sheetsMenu(ids []string, done func()) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		n := len(ids)
-		if m.Item(fmt.Sprintf("Open %d %s", n, sheetsWord(n))).Chosen() {
+		if m.Item(locales.OpenSheets(n)).Chosen() {
 			for _, sh := range ids {
 				s.Library.OpenSheet(sh, true)
 			}
@@ -230,14 +230,9 @@ func (s *State) sheetsMenu(ids []string, done func()) func(*ui.Menu) {
 			done()
 		}, "")
 		m.Separator()
-		if m.Item(fmt.Sprintf("Move %d %s to Trash", n, sheetsWord(n))).Chosen() {
+		if m.Item(locales.MoveSheetsToTrash(n)).Chosen() {
 			s.trashSheets(ids)
 			done()
 		}
 	}
-}
-
-// sheetsWord is "Sheet" or "Sheets", as n says.
-func sheetsWord(n int) string {
-	return strings.TrimSuffix("Sheets", map[bool]string{true: "s"}[n == 1])
 }

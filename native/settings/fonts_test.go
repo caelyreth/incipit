@@ -43,7 +43,7 @@ func TestTypefaceChoosesGlyphForms(t *testing.T) {
 	state.Font = func(id string, act FontAct) { acts = append(acts, asked{id, act}) }
 	tester := ui.NewTester(state.cards(appsettings.Appearance), 700, 1600)
 	tester.Frame()
-	for _, text := range []string{systemFont, "Chinese, Simplified", "Chinese, Hong Kong", "Japanese", "Also on This Computer",
+	for _, text := range []string{"System Font", "Chinese, Simplified", "Chinese, Hong Kong", "Japanese", "Also on This Computer",
 		"Noto Serif SC · 29.6 MB · Downloaded", "Noto Serif TC · 1.0 MB of 4.0 MB", "Noto Sans JP"} {
 		if !tester.HasText(text) {
 			t.Fatalf("no %q in %v", text, tester.Texts())
@@ -91,7 +91,7 @@ func TestTypefaceWithNoFace(t *testing.T) {
 	state := typefaceState(appsettings.AppearanceSettings{}, nil)
 	tester := ui.NewTester(state.cards(appsettings.Appearance), 600, 1600)
 	tester.Frame()
-	if !tester.HasText(systemFont) || tester.HasText("Remove") {
+	if !tester.HasText("System Font") || tester.HasText("Remove") {
 		t.Errorf("with no face: %v", tester.Texts())
 	}
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/caelyreth/untie"
@@ -45,10 +46,6 @@ const (
 	// displayLines is the least a math block's display area holds, in
 	// display lines, so a block keeps its room as its first math sets.
 	displayLines = 2.7
-	// mathHint is what a math block's display shows while it has no math,
-	// and formulaHint an inline formula.
-	mathHint    = "Formula"
-	formulaHint = "formula"
 )
 
 // mathSet is a formula as set for drawing: its box, whether it is the last
@@ -265,7 +262,7 @@ func (el *Element) paintMath(p *ui.Painter, u *unitLayout, ux, uy float32) float
 			// Shaped once for the layout, whose theme and measures it reads.
 			hm := m
 			hm.Body *= displayScale
-			sp := span(mathHint, el.Editor.theme.Resolve(nil), hm)
+			sp := span(locales.MathHint(), el.Editor.theme.Resolve(nil), hm)
 			sp.Italic = true
 			ml.hint = ui.ShapeRichTextWith([]ui.Span{sp}, ui.Font{Family: sp.Font, Size: sp.Size, Italic: true}, ui.TextShape{})
 		}

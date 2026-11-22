@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -18,35 +19,38 @@ import (
 
 // Section is one section of the settings, as a card shows it.
 type Section struct {
-	Category    appsettings.Category
+	Category appsettings.Category
+	// Key names the section in its category in every language, as Title
+	// does in the one the app shows.
+	Key         string
 	Title       string
 	Description string
 }
 
 // ID names the section among all the settings'.
-func (sec Section) ID() string { return sec.Category.Title() + "/" + sec.Title }
+func (sec Section) ID() string { return sec.Category.Key() + "/" + sec.Key }
 
 // Sections are the sections the words find, in the order the categories
 // and their sections stand: all of them for no words.
 func (s *State) Sections(words string) []Section {
 	query := fold(words)
 	var out []Section
-	add := func(category appsettings.Category, title, description string, matches bool) {
+	add := func(category appsettings.Category, key, title, description string, matches bool) {
 		if matches {
-			out = append(out, Section{Category: category, Title: title, Description: description})
+			out = append(out, Section{Category: category, Key: key, Title: title, Description: description})
 		}
 	}
 	for _, sec := range s.appearanceSections() {
-		add(appsettings.Appearance, sec.title, sec.description, query == "" || containsFold(sec.words, query))
+		add(appsettings.Appearance, sec.key, sec.title, sec.description, query == "" || containsFold(sec.words, query))
 	}
 	for _, card := range s.Data.Policies {
-		add(appsettings.Editor, card.Title, s.spell(card.Description), query == "" || s.policyMatches(card, query))
+		add(appsettings.Editor, card.ID, card.Title, s.spell(card.Description), query == "" || s.policyMatches(card, query))
 	}
 	groups := s.shortcutGroups(query)
-	add(appsettings.Keymap, findShortcut, "Find an action by pressing its keys, or put every key back as it was.",
-		query == "" || len(groups) > 0 || containsFold(findShortcut+" keymap keys shortcuts reset", query))
+	add(appsettings.Keymap, findKey, locales.FindShortcut(), locales.FindShortcutDescription(),
+		query == "" || len(groups) > 0 || containsFold(locales.FindShortcut()+" "+locales.FindShortcutKeywords(), query))
 	for _, group := range groups {
-		add(appsettings.Keymap, group.title, group.description, true)
+		add(appsettings.Keymap, group.key, group.title, group.description, true)
 	}
 	return out
 }
@@ -71,7 +75,7 @@ func (s *State) SectionView(c *ui.Context, semantic theme.Theme, id, words strin
 			case appsettings.Appearance:
 				s.appearanceSection(c, semantic, sec)
 			case appsettings.Editor:
-				s.editorSection(c, semantic, sec.Title, query)
+				s.editorSection(c, semantic, sec.Key, query)
 			case appsettings.Keymap:
 				s.keymapSection(c, semantic, sec, query)
 			}
@@ -84,7 +88,7 @@ func (s *State) SectionView(c *ui.Context, semantic theme.Theme, id, words strin
 func (s *State) section(c *ui.Context, semantic theme.Theme, sec Section, rows func()) {
 	components.SectionHeader{Label: sec.Title, Description: sec.Description}.View(c, semantic)
 	components.SettingGroup{
-		Key: "settings-group-" + sec.Title, Label: sec.Title, Children: rows,
+		Key: "settings-group-" + sec.Key, Label: sec.Title, Children: rows,
 	}.View(c, semantic)
 }
 

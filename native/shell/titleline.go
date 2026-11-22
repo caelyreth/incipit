@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -60,22 +61,22 @@ func (s *State) columnHead(c *ui.Context, semantic theme.Theme, key string, lead
 		if shown <= 0.001 {
 			return
 		}
-		back := chromeButton{key: "back-to-field", label: "Back to the Field", icon: components.IconBack,
+		back := chromeButton{key: "back-to-field", label: locales.BackToField(), icon: components.IconBack,
 			binding: s.binding("window.field"), side: components.HintBelow, action: s.returnToField}
-		groups := []components.ActionGroup{{Key: "back", Label: "Field", Actions: []func(){func() {
+		groups := []components.ActionGroup{{Key: "back", Label: locales.HeadField(), Actions: []func(){func() {
 			back.view(c, semantic, animate)
 		}}}}
 		if info != nil {
-			groups = append(groups, components.ActionGroup{Key: "info", Label: "Sheet", Actions: []func(){info}})
+			groups = append(groups, components.ActionGroup{Key: "info", Label: locales.HeadSheet(), Actions: []func(){info}})
 		}
 		ui.Row(c).Key("strip").MinWidth(0).Opacity(shown).Children(func() {
-			components.ActionDock{Key: "head-strip", Label: "Column", Groups: groups, Bare: 1, Joined: true, Animate: animate}.
+			components.ActionDock{Key: "head-strip", Label: locales.HeadColumn(), Groups: groups, Bare: 1, Joined: true, Animate: animate}.
 				View(c, semantic)
 		})
 		ui.Box(c).Key("between").Grow(1)
 		close.icon = components.IconClose
 		ui.Row(c).Key("end").Shrink(0).Opacity(shown).Children(func() {
-			components.ActionDock{Key: "head-close", Label: "Close", Groups: []components.ActionGroup{{Key: "close", Label: "Close",
+			components.ActionDock{Key: "head-close", Label: locales.Close(), Groups: []components.ActionGroup{{Key: "close", Label: locales.Close(),
 				Actions: []func(){func() { close.view(c, semantic, animate) }}}}, Bare: 1, Joined: true, Animate: animate}.
 				View(c, semantic)
 		})

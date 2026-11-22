@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/plugins/glass"
@@ -29,7 +30,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		s.field.room = room
 	}
 	view := ui.Box(c).Key("field").Absolute().Top(0).Left(x).Size(w, h).Clip().Hidden(hidden).
-		Role(ui.RoleGroup).Label("Field")
+		Role(ui.RoleGroup).Label(locales.Field())
 	s.field.hidden = hidden
 	if hidden {
 		// Occluded by the desk: skip building cards, ribbons, and search input

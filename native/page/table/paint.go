@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -68,9 +69,9 @@ func paintArea(h Host, p *ui.Painter, u *Unit, a tableArea, ox, oy float32) {
 		components.DashedOutline(p, box, metrics.Radius, 1, components.Blend(th.Border.Default, th.Accent.Foreground, hover).Alpha(alpha))
 		ink := components.Blend(th.Text.Muted, th.Accent.Foreground, hover)
 		icon := 16 * scale
-		label := ui.Span{Text: "Row", Font: theme.UIFontFamily, Size: theme.TextSmall.Size(size), Color: ink.Alpha(alpha * a.label)}
+		label := ui.Span{Text: locales.TableRow(), Font: theme.UIFontFamily, Size: theme.TextSmall.Size(size), Color: ink.Alpha(alpha * a.label)}
 		if a.Part == partColumnArea || a.Part == partBeside {
-			label.Text = "Column"
+			label.Text = locales.TableColumn()
 		}
 		iconBox := ui.Rect{X: box.X + (box.W-icon)/2, Y: box.Y + (box.H-icon)/2, W: icon, H: icon}
 		if !a.compact {

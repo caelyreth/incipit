@@ -4,6 +4,7 @@ import (
 	"github.com/caelyreth/neverland/app/fonts"
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/locales"
 )
 
 // Category is one top-level settings page.
@@ -18,7 +19,9 @@ const (
 // AllCategories is display order.
 var AllCategories = [...]Category{Appearance, Editor, Keymap}
 
-func (c Category) Title() string {
+// Key names the category where the field's query does, $in:Keymap, and
+// in its sections' identities, in every language.
+func (c Category) Key() string {
 	switch c {
 	case Editor:
 		return "Editor"
@@ -29,14 +32,28 @@ func (c Category) Title() string {
 	}
 }
 
+// Title names the category in the language the app shows.
+func (c Category) Title() string {
+	switch c {
+	case Editor:
+		return locales.CategoryEditor()
+	case Keymap:
+		return locales.CategoryKeymap()
+	default:
+		return locales.CategoryAppearance()
+	}
+}
+
+// Description says what the category holds, in the language the app
+// shows.
 func (c Category) Description() string {
 	switch c {
 	case Editor:
-		return "How the page answers what you write."
+		return locales.CategoryEditorDescription()
 	case Keymap:
-		return "Keys by what they act on."
+		return locales.CategoryKeymapDescription()
 	default:
-		return "A comfortable space for your writing."
+		return locales.CategoryAppearanceDescription()
 	}
 }
 

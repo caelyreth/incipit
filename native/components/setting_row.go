@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -47,7 +48,7 @@ func (r SettingRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 						}
 						if r.Reset != nil {
 							IconButton{
-								Key: "reset", Label: "Reset to Default", Icon: r.ResetIcon,
+								Key: "reset", Label: locales.ResetToDefault(), Icon: r.ResetIcon,
 								Style: SubtleButton, Size: CompactButton, Action: r.Reset,
 							}.View(c, semantic)
 						}

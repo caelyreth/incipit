@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policies/find"
 	"github.com/caelyreth/neverland/editor/profile"
@@ -249,7 +248,7 @@ func TestAPageIsTitledByItsFirstHeading(t *testing.T) {
 		t.Fatal(err)
 	}
 	tester := atTheDesk(app)
-	if !tester.HasText(workspace.DefaultTitle) {
+	if !tester.HasText("Untitled") {
 		t.Fatalf("no untitled sheet in %#v", tester.Texts())
 	}
 	for _, r := range "# Morning notes" {

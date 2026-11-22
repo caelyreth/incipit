@@ -3,6 +3,7 @@ package components
 import (
 	"math"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -61,7 +62,7 @@ func (f TextField) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		}
 		if f.Value != nil && *f.Value != "" && f.ClearIcon != nil {
 			IconButton{
-				Key: "clear", Label: "Clear", Icon: f.ClearIcon,
+				Key: "clear", Label: locales.Clear(), Icon: f.ClearIcon,
 				Style: SubtleButton, Size: CompactButton,
 				IconColor: semantic.Icon.Muted, Animate: f.Animate,
 				Action: func() {

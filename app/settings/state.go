@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/policy"
+	"github.com/caelyreth/neverland/locales"
 )
 
 var (
@@ -144,15 +145,15 @@ func appearanceToggles(presentation PresentationState) []ToggleSetting {
 	return []ToggleSetting{
 		{
 			Mode:        PresentationMotion,
-			Label:       "Animations",
-			Description: "Animate panels, lists and theme changes. System reduced motion takes precedence.",
+			Label:       locales.Animations(),
+			Description: locales.AnimationsDescription(),
 			Value:       presentation.Motion,
 			Selector:    "appearance-motion",
 		},
 		{
 			Mode:        PresentationTypewriter,
-			Label:       "Typewriter mode",
-			Description: "Keep the writing line near the center of the page.",
+			Label:       locales.TypewriterMode(),
+			Description: locales.TypewriterModeDescription(),
 			Value:       presentation.Typewriter,
 			Selector:    "appearance-typewriter",
 		},

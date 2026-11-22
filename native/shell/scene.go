@@ -3,6 +3,7 @@ package shell
 import (
 	"time"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -134,14 +135,14 @@ func (s *State) leanDesk(area ui.Element, look stageLook, upright float32) {
 	}
 	area.Cursor(ui.CursorPointer).Role(ui.RoleButton)
 	if len(s.Open) == 0 {
-		area.Label("New sheet on the desk")
+		area.Label(locales.NewSheetOnDesk())
 		if area.Clicked() && s.Library != nil {
 			s.Library.NewSheet(s.CurrentGroup(), Last)
 			s.ShowDesk()
 		}
 		return
 	}
-	area.Label("Go to the desk")
+	area.Label(locales.GoToDesk())
 	if area.Clicked() {
 		s.ShowDesk()
 	}
@@ -155,7 +156,7 @@ func (s *State) openSheetsMenu(m *ui.Menu) {
 	for _, page := range s.Open {
 		title := page.Title
 		if title == "" {
-			title = "Untitled"
+			title = locales.Untitled()
 		}
 		if m.Item(title).ID("open-" + page.Column).Checked(page.Column == s.ActiveColumn).Chosen() {
 			if s.SelectColumn != nil {
@@ -165,7 +166,7 @@ func (s *State) openSheetsMenu(m *ui.Menu) {
 		}
 	}
 	m.Separator()
-	s.verbItem(m, "page.new", "New Sheet", s.Library != nil, func() {
+	s.verbItem(m, "page.new", locales.NewSheet(), s.Library != nil, func() {
 		s.Library.NewSheet(s.CurrentGroup(), Last)
 		s.ShowDesk()
 	})

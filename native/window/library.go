@@ -12,6 +12,7 @@ import (
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/shell"
 )
 
@@ -203,7 +204,7 @@ func sheetItemsWithSessions(sheets []library.Sheet, sessions map[library.SheetID
 		}
 		title := strings.TrimSpace(session.Title())
 		if title == "" {
-			title = workspace.DefaultTitle
+			title = locales.Untitled()
 		}
 		items = append(items, shell.SheetItem{
 			ID:      sheetName(session.page),

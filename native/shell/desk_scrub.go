@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -79,7 +80,7 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 	bar := ui.Column(c).Key("desk-scrubber").Absolute().Left(gutter).Bottom(gutter).
 		Clip().
 		Background(semantic.Surface.Panel).Border(1, semantic.Border.Variant).
-		Role(ui.RoleGroup).Label("Desk overview")
+		Role(ui.RoleGroup).Label(locales.DeskOverview())
 	// grown is how far open the switcher is, 0 to 1, the guard, the
 	// corners and the body following it.
 	grown := float32(0)
@@ -102,7 +103,7 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 			Background(semantic.Surface.Background.Alpha(guardDim * grown))
 		if !open {
 			guard.IgnoreInput(true)
-		} else if guard.Label("Close the switcher").Pressed() {
+		} else if guard.Label(locales.CloseSwitcher()).Pressed() {
 			s.closeSwitcher()
 		}
 	}
@@ -136,7 +137,7 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 	}
 	bar.Width(lerp(closedW, width, grown)).Height(lerp(closedH, openH, grown))
 	if open {
-		bar.Label("Go to sheet")
+		bar.Label(locales.GoToSheet())
 	} else {
 		if dx, _, ok := bar.Dragged(); ok && dx != 0 && f > 0 {
 			s.stripAt(s.desk.strip.X + dx/f)

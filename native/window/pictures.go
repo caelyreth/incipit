@@ -8,6 +8,7 @@ import (
 
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/editor/profile"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -67,7 +68,7 @@ func (a *AppState) readPicture(hash string) ([]byte, error) {
 // said so.
 func (a *AppState) keep(pictures []page.Incoming, then func([]profile.Picture)) {
 	if a.notebook == nil {
-		a.fail("Couldn't add the picture", errNoNotebook)
+		a.fail(locales.CouldntAddPicture(), errNoNotebook)
 		then(make([]profile.Picture, len(pictures)))
 		return
 	}
@@ -95,7 +96,7 @@ func (a *AppState) keep(pictures []page.Incoming, then func([]profile.Picture)) 
 		onUI(window, func() {
 			then(kept)
 			if failed != nil {
-				a.fail("Couldn't add the picture", failed)
+				a.fail(locales.CouldntAddPicture(), failed)
 			}
 		})
 	}()
@@ -106,9 +107,9 @@ func (a *AppState) keep(pictures []page.Incoming, then func([]profile.Picture)) 
 func (a *AppState) pictureAsked(ed *page.Editor, ask profile.PictureAsk) {
 	switch ask.Use {
 	case profile.PictureInsert:
-		a.pickPictures("Insert Picture", true, func(pictures []page.Incoming) { ed.PlacePictures(pictures, nil) })
+		a.pickPictures(locales.InsertPicture(), true, func(pictures []page.Incoming) { ed.PlacePictures(pictures, nil) })
 	case profile.PictureReplace:
-		a.pickPictures("Replace Picture", false, func(pictures []page.Incoming) {
+		a.pickPictures(locales.ReplacePicture(), false, func(pictures []page.Incoming) {
 			a.keep(pictures, func(kept []profile.Picture) {
 				if kept[0].Media != "" {
 					ed.Do(profile.ReplacePicture{ID: ask.Figure, Picture: kept[0]}, time.Now())
@@ -128,7 +129,7 @@ func (a *AppState) pickPictures(title string, multiple bool, then func([]page.In
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent: window, Title: title, Multiple: multiple,
-			Filters: []mygo.FileFilter{{Name: "Pictures", Extensions: exts}},
+			Filters: []mygo.FileFilter{{Name: locales.Pictures(), Extensions: exts}},
 		})
 		if err != nil || len(paths) == 0 {
 			return
@@ -144,20 +145,20 @@ func (a *AppState) pickPictures(title string, multiple bool, then func([]page.In
 // usePicture copies, saves or shows a figure's picture, off the UI thread.
 func (a *AppState) usePicture(ask profile.PictureAsk) {
 	if a.notebook == nil {
-		a.fail("Couldn't use the picture", errNoNotebook)
+		a.fail(locales.CouldntUsePicture(), errNoNotebook)
 		return
 	}
 	store, window := a.notebook.store, a.mainWindow
 	m, ok := store.Media(ask.Media)
 	if !ok {
-		a.fail("Couldn't use the picture", os.ErrNotExist)
+		a.fail(locales.CouldntUsePicture(), os.ErrNotExist)
 		return
 	}
 	var title string
 	var do func() error
 	switch ask.Use {
 	case profile.PictureCopy:
-		title = "Couldn't copy the picture"
+		title = locales.CouldntCopyPicture()
 		do = func() error {
 			data, err := store.MediaPNG(m)
 			if err != nil {
@@ -166,11 +167,11 @@ func (a *AppState) usePicture(ask profile.PictureAsk) {
 			return mygo.Clipboard.WriteImage(data)
 		}
 	case profile.PictureSave:
-		title = "Couldn't save the picture"
+		title = locales.CouldntSavePicture()
 		do = func() error {
 			path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-				Parent: window, Title: "Save Picture", DefaultPath: m.FileName(),
-				Filters: []mygo.FileFilter{{Name: "Picture", Extensions: []string{storage.StoredMediaExtension(m.Type)}}},
+				Parent: window, Title: locales.SavePicture(), DefaultPath: m.FileName(),
+				Filters: []mygo.FileFilter{{Name: locales.Picture(), Extensions: []string{storage.StoredMediaExtension(m.Type)}}},
 			})
 			if err != nil || path == "" {
 				return err
@@ -182,7 +183,7 @@ func (a *AppState) usePicture(ask profile.PictureAsk) {
 			return os.WriteFile(path, data, 0o644)
 		}
 	case profile.PicturePreview:
-		title = "Couldn't show the picture"
+		title = locales.CouldntShowPicture()
 		do = func() error { return mygo.Shell.PreviewItem(store.MediaFile(m)) }
 	default:
 		return

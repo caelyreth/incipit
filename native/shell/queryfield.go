@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -99,7 +100,7 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 		}
 		if *f.Value != "" {
 			components.IconButton{
-				Key: "clear", Label: "Clear", Icon: components.IconClose.SVG(),
+				Key: "clear", Label: locales.Clear(), Icon: components.IconClose.SVG(),
 				Style: components.SubtleButton, Size: components.CompactButton,
 				IconColor: semantic.Icon.Muted, Animate: f.Animate,
 				Action: func() {
@@ -178,7 +179,7 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 	ui.PopoverBase(c.Key("suggestions"), field, open, func(panel ui.Element) {
 		components.OutlinedSurface(panel, semantic, scale)
 		panel.Width(width).Padding(pad).Margin(pad, 0, 0, 0).
-			Role(ui.RoleList).Label("Suggestions").Transition(popTransition(animate))
+			Role(ui.RoleList).Label(locales.Suggestions()).Transition(popTransition(animate))
 		// Only the pointer's moves choose the row under it, so a list the
 		// keys move under a resting pointer keeps their choice.
 		px, py, over := panel.PointerPosition()

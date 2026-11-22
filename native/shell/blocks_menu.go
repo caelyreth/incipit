@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/caelyreth/neverland/internal/query"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -36,7 +37,7 @@ func deleteKey(id string) string { return "delete-" + id }
 func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if trashed {
-			if m.Item("Put Back").Chosen() {
+			if m.Item(locales.PutBack()).Chosen() {
 				s.restoreGroup(g)
 			}
 			m.Separator()
@@ -46,7 +47,7 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 			return
 		}
 		if !g.Smart() {
-			if m.Item("New Sheet").Chosen() {
+			if m.Item(locales.NewSheet()).Chosen() {
 				s.Library.NewSheet(g.ID, Last)
 				s.ShowDesk()
 			}
@@ -54,16 +55,16 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 		if g.Inbox {
 			return
 		}
-		if !g.Smart() && m.Item("New Group Inside").Chosen() {
+		if !g.Smart() && m.Item(locales.NewGroupInside()).Chosen() {
 			s.newGroup(g.ID)
 		}
 		m.Separator()
 		s.pinItem(m, "group:"+g.ID, g.Pinned)
 		s.keepItem(m, g)
 		if !g.Smart() {
-			s.verbItem(m, VerbRename, "Rename…", true, func() { s.startRename(g.ID) })
+			s.verbItem(m, VerbRename, locales.RenameEllipsis(), true, func() { s.startRename(g.ID) })
 		}
-		m.Submenu("Color", func(m *ui.Menu) {
+		m.Submenu(locales.Color(), func(m *ui.Menu) {
 			for color := TintMoonveil; color < TintHalo+len(theme.AllAccents); color++ {
 				if m.Item(tintName(color)).Checked(g.Color == color).Chosen() {
 					s.styleGroup(g, g.Icon, color)
@@ -79,38 +80,38 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 // pinItem is the menu's Pin, or Unpin, of the object id, which then
 // stands where its pin puts it, brought into view.
 func (s *State) pinItem(m *ui.Menu, id string, pinned bool) {
-	s.verbItem(m, VerbPin, map[bool]string{true: "Unpin", false: "Pin"}[pinned], true, func() { s.pin(id, !pinned) })
+	s.verbItem(m, VerbPin, map[bool]string{true: locales.Unpin(), false: locales.Pin()}[pinned], true, func() { s.pin(id, !pinned) })
 }
 
 func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if trashed {
-			s.verbItem(m, VerbTrash, "Put Back", true, func() { s.restoreSheets([]string{sh.ID}) })
+			s.verbItem(m, VerbTrash, locales.PutBack(), true, func() { s.restoreSheets([]string{sh.ID}) })
 			m.Separator()
-			if m.Item("Delete Immediately…").Chosen() {
+			if m.Item(locales.DeleteImmediately()).Chosen() {
 				s.arm(deleteKey("sheet:" + sh.ID))
 			}
 			return
 		}
-		if m.Item("Open").Chosen() {
+		if m.Item(locales.Open()).Chosen() {
 			s.Library.OpenSheet(sh.ID, false)
 			s.ShowDesk()
 		}
-		if m.Item("Open Alongside").Chosen() {
+		if m.Item(locales.OpenAlongside()).Chosen() {
 			s.Library.OpenSheet(sh.ID, true)
 			s.ShowDesk()
 		}
 		if g := s.Library.SheetGroup(sh.ID); g != "" && g != s.scope() {
-			if m.Item("Show in Group").Chosen() {
+			if m.Item(locales.ShowInGroup()).Chosen() {
 				s.showInGroup(sh.ID)
 			}
 		}
 		m.Separator()
-		s.verbItem(m, VerbDuplicate, "Duplicate", true, func() { s.duplicate([]string{sh.ID}) })
+		s.verbItem(m, VerbDuplicate, locales.Duplicate(), true, func() { s.duplicate([]string{sh.ID}) })
 		s.pinItem(m, "sheet:"+sh.ID, sh.Pinned)
 		s.moveMenu(m, func(group string) { s.moveSheets([]string{sh.ID}, group) }, "")
 		m.Separator()
-		s.verbItem(m, VerbTrash, "Move to Trash", true, func() { s.trashSheets([]string{sh.ID}) })
+		s.verbItem(m, VerbTrash, locales.MoveToTrash(), true, func() { s.trashSheets([]string{sh.ID}) })
 	}
 }
 
@@ -142,26 +143,26 @@ func (s *State) deskMenu(page Page) func(*ui.Menu) {
 			}
 			return it
 		}
-		if key(m.Item("Split Sheet"), "page.split").Chosen() {
+		if key(m.Item(locales.SplitSheet()), "page.split").Chosen() {
 			s.SplitColumn(page.Column)
 		}
 		m.Separator()
-		if key(m.Item("Close Sheet"), "page.close").Chosen() {
+		if key(m.Item(locales.CloseSheet()), "page.close").Chosen() {
 			s.CloseColumn(page.Column)
 		}
-		if key(m.Item("Close Other Sheets"), "page.close-others").Disabled(len(s.Open) < 2).Chosen() {
+		if key(m.Item(locales.CloseOtherSheets()), "page.close-others").Disabled(len(s.Open) < 2).Chosen() {
 			s.closeOthers(page.Column)
 		}
 		m.Separator()
-		if m.Item("Show in Group").Chosen() {
+		if m.Item(locales.ShowInGroup()).Chosen() {
 			s.showInGroup(page.ID)
 		}
 		if s.Library != nil {
-			if m.Item("Duplicate").Chosen() {
+			if m.Item(locales.Duplicate()).Chosen() {
 				s.duplicate([]string{page.ID})
 			}
 			m.Separator()
-			if m.Item("Move to Trash").Chosen() {
+			if m.Item(locales.MoveToTrash()).Chosen() {
 				s.trashSheets([]string{page.ID})
 			}
 		}

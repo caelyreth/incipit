@@ -3,6 +3,7 @@ package settings
 import (
 	"github.com/caelyreth/neverland/app/keymap"
 	appsettings "github.com/caelyreth/neverland/app/settings"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -17,9 +18,9 @@ func shortcutLabel(shortcut appsettings.Shortcut, command keymap.CommandID) stri
 		label = string(command)
 	}
 	if len(shortcut.Bindings) == 0 {
-		return "Add shortcut for " + label
+		return locales.AddShortcutFor(label)
 	}
-	return "Change shortcut for " + label
+	return locales.ChangeShortcutFor(label)
 }
 
 func (s *State) startRecording(command keymap.CommandID, host string) {
@@ -121,7 +122,7 @@ func (s *State) recorder(c *ui.Context, semantic theme.Theme, host string, start
 		command := shown.Command
 		shortcut, _ := s.Data.Shortcut(command)
 		line := captureLine{
-			Key: "shortcut-capture-" + string(command), Prompt: "Press keys…",
+			Key: "shortcut-capture-" + string(command), Prompt: locales.PressKeys(),
 			Live: open, Conflict: shown.Conflict,
 			Chosen: func(chord keymap.Chord) { s.recordShortcut(command, chord) },
 			Cancel: s.stopRecording,

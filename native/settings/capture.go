@@ -1,9 +1,8 @@
 package settings
 
 import (
-	"fmt"
-
 	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -58,10 +57,10 @@ func (s *State) captureLine(c *ui.Context, semantic theme.Theme, line captureLin
 	if conflict := line.Conflict; conflict != nil {
 		chord := keymap.Spell(conflict.Target, keymap.PlatformCurrent)
 		state, edge = captureTaken, semantic.Status.Warning.Foreground
-		message = fmt.Sprintf("%s is assigned to “%s”.", chord, conflict.Owner.Label)
+		message = locales.AssignedTo(chord, conflict.Owner.Label)
 		if conflict.Reserved {
 			state = captureReserved
-			message = fmt.Sprintf("%s is kept by “%s” in the app menu.", chord, conflict.Owner.Label)
+			message = locales.KeptInAppMenu(chord, conflict.Owner.Label)
 		}
 	}
 	height := metrics.Height
@@ -129,20 +128,20 @@ func (s *State) captureTrailing(c *ui.Context, semantic theme.Theme, state strin
 	}
 	switch state {
 	case captureTaken:
-		button("capture-cancel", "Cancel", components.SubtleButton, line.Cancel)
-		button("capture-replace", "Replace", components.WarningButton, line.Replace)
+		button("capture-cancel", locales.Cancel(), components.SubtleButton, line.Cancel)
+		button("capture-replace", locales.Replace(), components.WarningButton, line.Replace)
 	case captureReserved:
-		hint("Press another key")
-		button("capture-cancel", "Cancel", components.SubtleButton, line.Cancel)
+		hint(locales.PressAnotherKey())
+		button("capture-cancel", locales.Cancel(), components.SubtleButton, line.Cancel)
 	default:
 		switch {
 		case line.Clear != nil:
-			hint("Esc cancels · ⌫ clears")
+			hint(locales.EscCancelsBackspaceClears())
 		default:
-			hint("Esc to cancel")
+			hint(locales.EscToCancel())
 		}
 		if line.Reset != nil {
-			button("capture-reset", "Use default", components.SubtleButton, line.Reset)
+			button("capture-reset", locales.UseDefault(), components.SubtleButton, line.Reset)
 		}
 	}
 }

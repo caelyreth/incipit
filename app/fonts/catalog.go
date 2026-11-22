@@ -6,35 +6,35 @@ package fonts
 // Serif, then Noto Sans, for each language's glyph forms. Each file is
 // Google Fonts' static build at a weight, at its path on each of Hosts.
 var Catalog = []Face{
-	{ID: "serif-sc", Style: Serif, Forms: "sc", Language: "Chinese, Simplified", Family: "Noto Serif SC", Files: []File{
+	{ID: "serif-sc", Style: Serif, Forms: "sc", Family: "Noto Serif SC", Files: []File{
 		{Path: "s/notoserifsc/v36/H4cyBXePl9DZ0Xe7gG9cyOj7uK2-n-D2rd4FY7SCqyWv.ttf", Name: "NotoSerifSC-400.ttf", Weight: 400, Size: 14785412, SHA256: "a513b97fa1503422d78ee1f40415db736926e2d0d8d99701bdcede8cf6f6058e"},
 		{Path: "s/notoserifsc/v36/H4cyBXePl9DZ0Xe7gG9cyOj7uK2-n-D2rd4FY7RlrCWv.ttf", Name: "NotoSerifSC-700.ttf", Weight: 700, Size: 14784324, SHA256: "478964fe127eb4503248b057f675bbb26c67b2adf6a78643ff52549d28e0a3e9"},
 	}},
-	{ID: "serif-tc", Style: Serif, Forms: "tc", Language: "Chinese, Traditional", Family: "Noto Serif TC", Files: []File{
+	{ID: "serif-tc", Style: Serif, Forms: "tc", Family: "Noto Serif TC", Files: []File{
 		{Path: "s/notoseriftc/v37/XLYzIZb5bJNDGYxLBibeHZ0BnHwmuanx8cUaGX9aMOpD.ttf", Name: "NotoSerifTC-400.ttf", Weight: 400, Size: 9934616, SHA256: "2aa67c20b8cc8b929cc2ace9c0896cee033abbdfe11fe65306a5caede1cdc6ac"},
 		{Path: "s/notoseriftc/v37/XLYzIZb5bJNDGYxLBibeHZ0BnHwmuanx8cUaGX-9N-pD.ttf", Name: "NotoSerifTC-700.ttf", Weight: 700, Size: 9937380, SHA256: "3e2b71256bf380d8aaf7b7fee13aa7690b3f20326dc8815a4e6beead3f1a23e1"},
 	}},
-	{ID: "serif-hk", Style: Serif, Forms: "hk", Language: "Chinese, Hong Kong", Family: "Noto Serif HK", Files: []File{
+	{ID: "serif-hk", Style: Serif, Forms: "hk", Family: "Noto Serif HK", Files: []File{
 		{Path: "s/notoserifhk/v13/BngdUXBETWXI6LwlBZGcqL-B_KuJFcgfwP_9RMd-K2Rm.ttf", Name: "NotoSerifHK-400.ttf", Weight: 400, Size: 9920428, SHA256: "16cbc5633c50b37b87a1510a57dc080c5e087891043c3c1018bc26d4a6c0f737"},
 		{Path: "s/notoserifhk/v13/BngdUXBETWXI6LwlBZGcqL-B_KuJFcgfwP_9RMeZLGRm.ttf", Name: "NotoSerifHK-700.ttf", Weight: 700, Size: 9922364, SHA256: "b14729ec38c9a666c88cbdb3af318bf943cd80204db8de5a48051ae2faaee5a4"},
 	}},
-	{ID: "serif-jp", Style: Serif, Forms: "jp", Language: "Japanese", Family: "Noto Serif JP", Files: []File{
+	{ID: "serif-jp", Style: Serif, Forms: "jp", Family: "Noto Serif JP", Files: []File{
 		{Path: "s/notoserifjp/v34/xn71YHs72GKoTvER4Gn3b5eMRtWGkp6o7MjQ2bwxOubA.ttf", Name: "NotoSerifJP-400.ttf", Weight: 400, Size: 8005896, SHA256: "11bb8d2b5e3589d9d4ca0de2c3c4d98cf5ef16cc2b7ee4f257d489e7b214eaf6"},
 		{Path: "s/notoserifjp/v34/xn71YHs72GKoTvER4Gn3b5eMRtWGkp6o7MjQ2bzWPebA.ttf", Name: "NotoSerifJP-700.ttf", Weight: 700, Size: 8000096, SHA256: "7259dd476d2f56504d5a55e9eab4a87cdf21b5aa708c17648c9224abd3f0aed1"},
 	}},
-	{ID: "sans-sc", Style: Sans, Forms: "sc", Language: "Chinese, Simplified", Family: "Noto Sans SC", Files: []File{
+	{ID: "sans-sc", Style: Sans, Forms: "sc", Family: "Noto Sans SC", Files: []File{
 		{Path: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYw.ttf", Name: "NotoSansSC-400.ttf", Weight: 400, Size: 10540644, SHA256: "450625c8d46ab3df97b7904ded955ec2746d17ec76740cb1e91d1ba63a0f89af"},
 		{Path: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaGzjCnYw.ttf", Name: "NotoSansSC-700.ttf", Weight: 700, Size: 10530408, SHA256: "0066a522a1ac007c1d72bc4fccb114f80ff7294641c78cead9715bd14d43b9ea"},
 	}},
-	{ID: "sans-tc", Style: Sans, Forms: "tc", Language: "Chinese, Traditional", Family: "Noto Sans TC", Files: []File{
+	{ID: "sans-tc", Style: Sans, Forms: "tc", Family: "Noto Sans TC", Files: []File{
 		{Path: "s/notosanstc/v40/-nFuOG829Oofr2wohFbTp9ifNAn722rq0MXz76Cy_Co.ttf", Name: "NotoSansTC-400.ttf", Weight: 400, Size: 7090820, SHA256: "619662a0583f38311e92666927e5edbfd30f2a1fbe8593685660bd11bdd46a10"},
 		{Path: "s/notosanstc/v40/-nFuOG829Oofr2wohFbTp9ifNAn722rq0MXz70e1_Co.ttf", Name: "NotoSansTC-700.ttf", Weight: 700, Size: 7085600, SHA256: "33e8464f3432fd9eba5fa6ff74f5fb9ee612cad703877bd71c36e6f167c0a7e3"},
 	}},
-	{ID: "sans-hk", Style: Sans, Forms: "hk", Language: "Chinese, Hong Kong", Family: "Noto Sans HK", Files: []File{
+	{ID: "sans-hk", Style: Sans, Forms: "hk", Family: "Noto Sans HK", Files: []File{
 		{Path: "s/notosanshk/v36/nKKF-GM_FYFRJvXzVXaAPe97P1KHynJFP716qHB--oU.ttf", Name: "NotoSansHK-400.ttf", Weight: 400, Size: 7073452, SHA256: "7d5b9b82615fc05dc6f5b1a55686a8a9a56d7c439ada87152ec7b9be3c75d45b"},
 		{Path: "s/notosanshk/v36/nKKF-GM_FYFRJvXzVXaAPe97P1KHynJFP716qJd5-oU.ttf", Name: "NotoSansHK-700.ttf", Weight: 700, Size: 7068188, SHA256: "134317005ab911ff8a8e2f961c5a25dfadfaa1c5092c830d3d8f94a598a1e241"},
 	}},
-	{ID: "sans-jp", Style: Sans, Forms: "jp", Language: "Japanese", Family: "Noto Sans JP", Files: []File{
+	{ID: "sans-jp", Style: Sans, Forms: "jp", Family: "Noto Sans JP", Files: []File{
 		{Path: "s/notosansjp/v57/-F6jfjtqLzI2JPCgQBnw7HFyzSD-AsregP8VFBEj75s.ttf", Name: "NotoSansJP-400.ttf", Weight: 400, Size: 5703608, SHA256: "f037d714109f22d57ce75fd9a6b9d23439c903061fb11106c070b2dcc03f2021"},
 		{Path: "s/notosansjp/v57/-F6jfjtqLzI2JPCgQBnw7HFyzSD-AsregP8VFPYk75s.ttf", Name: "NotoSansJP-700.ttf", Weight: 700, Size: 5698616, SHA256: "59bb5d2915bba3a256950116e7a48a810bd8cde63793d5111b9e5726eec1e799"},
 	}},
