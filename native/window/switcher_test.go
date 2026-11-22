@@ -61,3 +61,58 @@ func TestGoToSheetSwitchesOnTheDesk(t *testing.T) {
 		t.Fatal("Escape left the switcher open.")
 	}
 }
+
+// While open the switcher holds the keyboard: the pointer passing over
+// the columns brings none in front, and a press on the desk around it
+// puts it away and does nothing else.
+func TestTheSwitcherHoldsTheKeyboard(t *testing.T) {
+	app, tester := deskApp(t)
+	app.Shell.ShowDesk()
+	run(tester, time.Second)
+	front := app.Shell.ActiveColumn
+	if err := app.routeCommand(keymap.FindPage); err != nil {
+		t.Fatal(err)
+	}
+	run(tester, time.Second)
+	for _, x := range []float32{300, 1100} {
+		tester.Move(x, 300)
+		run(tester, 300*time.Millisecond)
+	}
+	if app.Shell.ActiveColumn != front {
+		t.Fatal("The pointer passing over a column brought it in front under the switcher.")
+	}
+	if !tester.Focused("Go to sheet") {
+		t.Fatal("The switcher's field lost the keyboard to the pointer.")
+	}
+	x := float32(1100)
+	if app.Shell.Open[len(app.Shell.Open)-1].Column == front {
+		x = 300
+	}
+	tester.ClickAt(x, 300)
+	run(tester, time.Second)
+	if _, ok := tester.Find("Go to sheet"); ok {
+		t.Fatal("A press on the desk left the switcher open.")
+	}
+	if app.Shell.ActiveColumn != front {
+		t.Fatal("The press that put the switcher away went on to the column under it.")
+	}
+}
+
+// A sheet closed from the desk is listed as closed lately.
+func TestTheSwitcherListsSheetsClosedLately(t *testing.T) {
+	app, tester := deskApp(t)
+	app.Shell.ShowDesk()
+	run(tester, time.Second)
+	if _, ok := tester.Find("Closed lately"); ok {
+		t.Fatal("Nothing was closed, but the switcher lists something closed.")
+	}
+	app.Shell.CloseColumnID(app.Shell.Open[0].Column)
+	run(tester, time.Second)
+	if err := app.routeCommand(keymap.FindPage); err != nil {
+		t.Fatal(err)
+	}
+	run(tester, time.Second)
+	if _, ok := tester.Find("Closed lately"); !ok {
+		t.Fatalf("The sheet closed is not listed as closed lately: %v", tester.Texts())
+	}
+}

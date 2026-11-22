@@ -95,7 +95,10 @@ func (s *State) dock(c *ui.Context, semantic theme.Theme) {
 		Justify(ui.Center).PassThrough().
 		// It comes in over the last half of the way to the desk, and goes in
 		// the first half of the way back.
-		Opacity(max(0, min(1, s.view*2-1))).Children(func() {
+		// Under the desk's switcher it fades with the desk behind the
+		// guard, and takes no pointer.
+		Opacity(max(0, min(1, s.view*2-1)) * (1 - guardDim*s.desk.switcher.grown)).
+		IgnoreInput(s.desk.switcher.open).Children(func() {
 		if s.finder.open {
 			s.findBarView(c, semantic, animate)
 			return

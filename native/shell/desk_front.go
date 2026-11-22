@@ -37,7 +37,9 @@ func (s *State) inFront(col ui.Element, of deskColumn) bool {
 	if col.FocusWithin() {
 		s.desk.holding = key
 	}
-	if s.desk.pointed && key != s.desk.at && col.Hovered() {
+	// The switcher open holds the keyboard: the pointer passing over the
+	// columns brings none in front.
+	if s.desk.pointed && key != s.desk.at && col.Hovered() && !s.desk.switcher.open {
 		s.pointAt(of)
 	}
 	return key == s.desk.at
