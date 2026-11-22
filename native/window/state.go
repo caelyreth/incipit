@@ -296,11 +296,15 @@ func (a *AppState) navigatePage(forward bool) {
 	}
 }
 
+// findPage is Go to Sheet: on the desk its switcher, which stays there;
+// elsewhere the field's search.
 func (a *AppState) findPage() {
 	if a == nil || a.Shell == nil {
 		return
 	}
-	a.Shell.Search()
+	if !a.Shell.OpenSwitcher() {
+		a.Shell.Search()
+	}
 }
 
 func (a *AppState) selectMounted() {

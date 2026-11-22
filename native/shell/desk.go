@@ -84,6 +84,8 @@ type deskState struct {
 	claim             string
 	// scrub is the scrubber's (desk_scrub.go).
 	scrub scrubState
+	// switcher is the scrubber grown open (desk_switch.go).
+	switcher switchState
 	// columns are the desk's open sheet columns as last built (desk_columns.go);
 	// pages is a reusable scratch lookup by column across frames.
 	columns []deskColumn

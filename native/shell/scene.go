@@ -56,6 +56,12 @@ func (s *State) deskEscape(c *ui.Context) {
 	if !s.OnDesk() || !c.Shortcut(0, ui.KeyEscape) {
 		return
 	}
+	if s.desk.switcher.open {
+		// The switcher open, Escape puts it away, and no more.
+		s.escapedAt = time.Time{}
+		s.closeSwitcher()
+		return
+	}
 	if now := c.Now(); now.Sub(s.escapedAt) > escapeTwice {
 		s.escapedAt = now
 		return

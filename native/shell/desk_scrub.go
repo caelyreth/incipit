@@ -39,41 +39,59 @@ type scrubState struct {
 // from its left and bottom, and, as it shows, a fade over the foot of the
 // columns under it, so it reads over the pages running on there; both
 // come and go together. It is drawn after the strip, as it reads the
-// strip's columns as they were laid out.
+// strip's columns as they were laid out. Go to Sheet grows it open into
+// the switcher (desk_switch.go), the overview kept at its foot.
 func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, animate bool) {
 	spans := s.desk.spans
-	if len(spans) < 2 {
+	sw := &s.desk.switcher
+	if sw.open && (!s.OnDesk() || len(s.Open) == 0) {
+		sw.open = false
+	}
+	open := sw.open
+	if len(spans) < 2 && !open {
 		return
 	}
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
-	last := spans[len(spans)-1]
-	total := last.End()
-	track := min(scrubWidth*k, float32(len(spans))*scrubHeight*k*2)
-	f := track / total
+	var total, track, f float32
+	if len(spans) > 0 {
+		total = spans[len(spans)-1].End()
+		track = min(scrubWidth*k, float32(len(spans))*scrubHeight*k*2)
+		f = track / max(total, 1)
+	}
 	view := s.desk.viewport.W - 2*gutter
 	if s.desk.strip.X != s.desk.scrub.x {
 		s.desk.scrub.x = s.desk.strip.X
 		s.desk.scrub.moves++
 	}
 	pad := 4 * k
-	bar := ui.Box(c).Key("desk-scrubber").Absolute().Left(gutter).Bottom(gutter).
-		Width(track+2*pad).Height(scrubHeight*k+2*pad).Radius(6*k).
+	bar := ui.Column(c).Key("desk-scrubber").Absolute().Left(gutter).Bottom(gutter).
+		Padding(pad).Radius(6*k).Clip().
 		Background(semantic.Surface.Panel).Border(1, semantic.Border.Variant).
-		Role(ui.RoleGroup).Label("Desk overview")
+		Role(ui.RoleGroup).Label("Desk overview").Transition(scrubTransition(animate))
 	// The stay counts from the strip's last move: the value reaches the
 	// moves so far scrubLinger after the last.
 	rest := bar.AnimateTo("scrub-rest", float32(s.desk.scrub.moves), ui.Animation{Duration: scrubLinger})
 	moving := rest != float32(s.desk.scrub.moves)
-	if dx, _, ok := bar.Dragged(); ok && dx != 0 {
-		s.stripAt(s.desk.strip.X + dx/f)
-	}
-	if _, _, ok := bar.DragEnded(); ok {
-		s.settleStrip(s.desk.strip.X)
-	} else if x, _, _ := bar.PointerPosition(); bar.Clicked() {
-		s.scrubTo((x - pad) / f)
+	if open {
+		bar.Width(switchWidth * k).MaxHeight(s.desk.viewport.H - 2*gutter).Padding(theme.Space08.DIPs(s.Settings.UIFontSize)).
+			Gap(theme.Space04.DIPs(s.Settings.UIFontSize)).
+			Radius(theme.DefaultControls.Scaled(s.Settings.UIFontSize).DockRadius).Label("Go to sheet")
+		if bar.PressedOutside() {
+			s.closeSwitcher()
+		}
+	} else {
+		bar.Width(track + 2*pad).Height(scrubHeight*k + 2*pad)
+		if dx, _, ok := bar.Dragged(); ok && dx != 0 {
+			s.stripAt(s.desk.strip.X + dx/f)
+		}
+		if _, _, ok := bar.DragEnded(); ok {
+			s.settleStrip(s.desk.strip.X)
+		} else if x, _, _ := bar.PointerPosition(); bar.Clicked() {
+			s.scrubTo((x - pad) / f)
+		}
 	}
 	target := float32(0)
-	if moving || bar.Hovered() || bar.Dragging() {
+	if open || moving || bar.Hovered() || bar.Dragging() {
 		target = 1
 	}
 	shown := target
@@ -81,23 +99,52 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 		shown = components.Follow(bar, "scrub-shown", target, components.MotionNormal)
 	}
 	bar.Opacity(shown).ZIndex(1)
-	if shown > 0.001 {
+	if shown > 0.001 && !open {
 		depth := scrubHeight*k + 2*pad + 2*gutter
 		ui.Box(c).Key("desk-foot-fade").Absolute().Left(0).Right(0).Bottom(0).Height(depth).
 			IgnoreInput(true).Opacity(shown).
 			Gradient(semantic.Surface.Background.Alpha(0), semantic.Surface.Background, 180)
 	}
 	bar.Children(func() {
-		for i, sp := range spans {
-			ui.Box(c).Key(fmt.Sprintf("scrub-%d", i)).Absolute().
-				Left(pad + sp.X*f).Top(pad).Width(max(1, sp.W*f-k)).Height(scrubHeight * k).
-				Radius(2 * k).Background(semantic.Element.Hover)
+		if open {
+			s.switcherView(c, semantic, animate)
 		}
-		// The window's span over the cells.
-		ui.Box(c).Key("scrub-span").Absolute().Left(pad+s.desk.strip.X*f).Top(pad).
-			Width(min(view, total)*f).Height(scrubHeight*k).Radius(2*k).
-			Border(1, semantic.Accent.Foreground)
+		if len(spans) < 2 {
+			return
+		}
+		// The overview: a cell for each column, the window's span over
+		// them, and, open, the column the switcher's keys are on lit.
+		lit := ""
+		if open {
+			if rows := s.switchRows(); sw.at < len(rows) {
+				lit = rows[sw.at].column
+			}
+		}
+		ui.Box(c).Key("scrub-track").Shrink(0).Width(track).Height(scrubHeight * k).Children(func() {
+			for i, sp := range spans {
+				fill := semantic.Element.Hover
+				if lit != "" && i < len(s.Open) && s.Open[i].Column == lit {
+					fill = semantic.Accent.Muted
+				}
+				ui.Box(c).Key(fmt.Sprintf("scrub-%d", i)).Absolute().
+					Left(sp.X * f).Top(0).Width(max(1, sp.W*f-k)).Height(scrubHeight * k).
+					Radius(2 * k).Background(fill)
+			}
+			ui.Box(c).Key("scrub-span").Absolute().Left(s.desk.strip.X*f).Top(0).
+				Width(min(view, total)*f).Height(scrubHeight*k).Radius(2*k).
+				Border(1, semantic.Accent.Foreground)
+		})
 	})
+}
+
+// scrubTransition grows the scrubber open into the switcher and back, its
+// content laid out at each size on the way, from the corner it stands in.
+func scrubTransition(animate bool) ui.ElementTransition {
+	if !animate {
+		return ui.ElementTransition{Duration: 1}
+	}
+	spring := components.Bouncy(components.MotionPanel)
+	return ui.ElementTransition{Animation: &spring, Size: true, Colors: true}
 }
 
 // scrubTo goes to the column at x across the strip's columns.
