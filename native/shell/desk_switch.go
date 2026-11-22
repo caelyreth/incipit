@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/native/components"
@@ -44,6 +45,8 @@ const (
 	switchFound  = 12
 	// switchRecalled is how many sheets closed it remembers.
 	switchRecalled = 8
+	// switchPause is how long writing pauses before the lists follow it.
+	switchPause = 150 * time.Millisecond
 )
 
 // The switcher's lists, named by why their sheets are there.
@@ -60,8 +63,13 @@ type switchState struct {
 	// grown is how far open it is, 0 to 1, as last drawn: the guard over
 	// the desk, and the dock fading under it, follow it.
 	grown float32
-	// height is its open height, as the rows last listed take it.
-	height float32
+	// height is its open height, and list its lists', both set as it
+	// opens.
+	height, list float32
+	// applied is what is written as the lists last took it, typed when it
+	// was last changed: the lists follow once the writing pauses.
+	applied string
+	typed   time.Time
 	// query is what is written, input its field's; at is the row the
 	// keys are on, reveal set as the keys move it, to bring it in view.
 	query  string
@@ -102,7 +110,8 @@ func (s *State) OpenSwitcher() bool {
 		return false
 	}
 	sw := &s.desk.switcher
-	sw.open, sw.focus, sw.query, sw.at, sw.reveal = true, true, "", 0, true
+	sw.open, sw.focus, sw.query, sw.applied, sw.at, sw.reveal = true, true, "", "", 0, true
+	sw.height = 0
 	for i, row := range s.switchRows() {
 		if !row.front {
 			sw.at = i
@@ -146,7 +155,7 @@ func (s *State) noteClosed() {
 // again only as what is written, the desk or the library changes.
 func (s *State) switchRows() []switchRow {
 	sw := &s.desk.switcher
-	written := strings.TrimSpace(sw.query)
+	written := strings.TrimSpace(sw.applied)
 	var rev uint64
 	if s.Library != nil {
 		rev = s.Library.Revision()
@@ -292,6 +301,10 @@ func (s *State) switchTo(row switchRow, beside bool) {
 // keys are on, ⌘Return beside. Escape is the desk's (deskEscape).
 func (s *State) switchKey(k ui.TextKey) bool {
 	sw := &s.desk.switcher
+	if k.Key == ui.KeyEnter {
+		// Return goes by what is written, paused or not.
+		s.applySwitchQuery()
+	}
 	rows := s.switchRows()
 	switch {
 	case (k.Key == ui.KeyDown || k.Key == ui.KeyUp) && k.Mods == 0:
@@ -318,8 +331,6 @@ func (s *State) switcherView(c *ui.Context, semantic theme.Theme, width, list fl
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
 	inset := theme.Space04.DIPs(scale)
-	rows := s.switchRows()
-	sw.at = max(0, min(sw.at, len(rows)-1))
 	body := ui.Column(c).Key("switch-body").Width(width).Shrink(0).Gap(theme.Space06.DIPs(scale)).
 		Padding(inset, inset, 0)
 	body.Children(func() {
@@ -332,10 +343,20 @@ func (s *State) switcherView(c *ui.Context, semantic theme.Theme, width, list fl
 		// The keyboard stays in the field while the switcher is open.
 		sw.focus = sw.open && !input.Focused()
 		if input.Changed() {
-			// What is written lists other rows: the keys go to the first.
-			sw.at, sw.reveal = 0, true
+			sw.typed = c.Now()
 		}
-		ui.Scroll(c).Key("switch-scroll").MaxHeight(list).Shrink(0).Scrollbars(false).Children(func() {
+		if sw.query != sw.applied {
+			// The lists follow what is written once it pauses, or at once
+			// when it is cleared.
+			if wait := switchPause - c.Now().Sub(sw.typed); wait > 0 && strings.TrimSpace(sw.query) != "" {
+				c.After(wait)
+			} else {
+				s.applySwitchQuery()
+			}
+		}
+		rows := s.switchRows()
+		sw.at = max(0, min(sw.at, len(rows)-1))
+		ui.Scroll(c).Key("switch-scroll").Height(list).Shrink(0).Scrollbars(false).Children(func() {
 			ui.Column(c).Key("switch-rows").Role(ui.RoleList).Label("Sheets").Children(func() {
 				section := ""
 				for i, row := range rows {
@@ -357,23 +378,37 @@ func (s *State) switcherView(c *ui.Context, semantic theme.Theme, width, list fl
 	return body
 }
 
-// switchBodyHeight is how high switcherView lays its body out, list the
-// most its rows take: every part of it is of a set height.
+// applySwitchQuery has the lists take what is written, the keys on the
+// first row.
+func (s *State) applySwitchQuery() {
+	sw := &s.desk.switcher
+	if sw.applied != sw.query {
+		sw.applied, sw.at, sw.reveal = sw.query, 0, true
+	}
+}
+
+// switchListHeight is how high the lists stand: as the rows listed as it
+// opens take, at least five rows, at most most.
+func (s *State) switchListHeight(most float32) float32 {
+	metrics := theme.DefaultControls.Scaled(s.Settings.UIFontSize)
+	row := metrics.Height * 1.5
+	rows, section := float32(0), ""
+	for _, r := range s.switchRows() {
+		if r.section != section {
+			section = r.section
+			rows += metrics.InlineHeight
+		}
+		rows += row
+	}
+	return min(max(rows, metrics.InlineHeight+5*row), most)
+}
+
+// switchBodyHeight is how high switcherView lays its body out around
+// lists list high: every part of it is of a set height.
 func (s *State) switchBodyHeight(list float32) float32 {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
-	rows, section := float32(0), ""
-	for _, row := range s.switchRows() {
-		if row.section != section {
-			section = row.section
-			rows += metrics.InlineHeight
-		}
-		rows += metrics.Height * 1.5
-	}
-	if rows == 0 {
-		rows = metrics.Height * 1.5
-	}
-	return theme.Space04.DIPs(scale) + metrics.Height + 2*theme.Space06.DIPs(scale) + min(rows, list) + 1
+	return theme.Space04.DIPs(scale) + metrics.Height + 2*theme.Space06.DIPs(scale) + list + 1
 }
 
 // switchSection heads a list with why its sheets are there and, for the

@@ -105,22 +105,25 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 	// The body's room: the desk's height less the field, the gaps and the
 	// foot, so it never overflows the panel.
 	metrics := theme.DefaultControls.Scaled(scale)
-	gap := theme.Space06.DIPs(scale)
-	list := max(3*metrics.Height*1.5, s.desk.viewport.H-2*gutter-2*pad-scrubHeight*k-
+	gap := theme.Space08.DIPs(scale)
+	// The foot stands further in as the switcher opens, clear of its edge.
+	foot := lerp(pad, theme.Space12.DIPs(scale), grown)
+	inner := theme.Space12.DIPs(scale)
+	most := max(3*metrics.Height*1.5, s.desk.viewport.H-2*gutter-pad-inner-scrubHeight*k-
 		metrics.Height-theme.Space04.DIPs(scale)-3*gap-1)
 	// Its size, grown from the scrubber's to the switcher's and back: set
 	// here, not laid out, so it grows from the corner it stands in, the
-	// overview staying put at its foot.
+	// overview staying put at its foot. Its height is set as it opens, from
+	// what it lists then, and stays while words are written: what they
+	// find scrolls in it.
 	closedW, closedH := max(track, scrubHeight*k*2)+2*pad, scrubHeight*k+2*pad
-	if grown > 0.001 {
-		sw.height = 2*pad + s.switchBodyHeight(list) + gap + scrubHeight*k
+	if grown > 0.001 && sw.height == 0 {
+		sw.list = s.switchListHeight(most)
+		sw.height = pad + s.switchBodyHeight(sw.list) + gap + scrubHeight*k + inner
 	}
 	openH := sw.height
 	if animate {
 		closedW = components.Follow(bar, "closed-w", closedW, components.MotionNormal)
-		if grown > 0.001 {
-			openH = components.Follow(bar, "open-h", openH, switchMotion)
-		}
 	}
 	bar.Width(lerp(closedW, width, grown)).Height(lerp(closedH, openH, grown))
 	if open {
@@ -157,13 +160,13 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 		// Both stand from the foot, so the scrubber's edge, growing,
 		// uncovers the body from the top.
 		if grown > 0.001 {
-			s.switcherView(c, semantic, width-2*pad, list, animate).Opacity(seen).
-				Absolute().Left(pad).Bottom(pad + scrubHeight*k + gap)
+			s.switcherView(c, semantic, width-2*pad, sw.list, animate).Opacity(seen).
+				Absolute().Left(pad).Bottom(foot + scrubHeight*k + gap)
 		}
 		// The foot: the overview, a cell for each column, the window's
 		// span over them, and, open, the column the keys are on lit; the
 		// switcher's keys beside it.
-		ui.Box(c).Key("scrub-foot").Absolute().Left(pad).Bottom(pad).Width(width - 2*pad).Height(scrubHeight * k).Children(func() {
+		ui.Box(c).Key("scrub-foot").Absolute().Left(foot).Bottom(foot).Width(width - 2*foot).Height(scrubHeight * k).Children(func() {
 			if len(spans) >= 2 {
 				s.scrubTrack(c, semantic, track, total, view, f, k)
 			}
