@@ -31,7 +31,11 @@ func (el *Element) selectionToolsView(c *ui.Context, pl *pageLayout, focused boo
 	animate := el.animate
 	track := ui.Box(c).Key("selection-tools-track").Absolute().Left(0).Top(0).
 		Width(el.viewport.W).Height(el.Top+pl.height+el.viewport.H).
-		Translate(0, -el.offset()).PassThrough()
+		Translate(0, -el.offset()).PassThrough().
+		// The track is what goes when the tools do, so their going is its,
+		// over the page: a copy going goes under its siblings of its
+		// z-index, as the page's own surface is.
+		ZIndex(1).Transition(toolsTransition(animate, t.rise))
 	side := components.HintAbove
 	move := false
 	track.Children(func() {
@@ -66,7 +70,8 @@ func (el *Element) selectionToolsView(c *ui.Context, pl *pageLayout, focused boo
 				shown = components.Follow(holder, "rise", 1, components.MotionNormal)
 			}
 			holder.Padding(y, 0, 0, x).Opacity(shown).Translate(0, rise*(1-shown)).
-				Transition(toolsTransition(animate, rise))
+				Transition(ui.ElementTransition{Duration: 1})
+			t.rise = rise
 			move = animate && *placed
 			*placed = true
 		}
@@ -84,7 +89,7 @@ func (el *Element) selectionToolsView(c *ui.Context, pl *pageLayout, focused boo
 	})
 }
 
-// toolsTransition lets the tools go quickly. Their coming is their own
+// toolsTransition lets the tools go quickly, back the way they rose. Their coming is their own
 // rise, and their moves the bar's: placed at once, the bar goes to its new
 // place on the motion of its width (ToolBar.Move), so a group coming or
 // going grows it about its middle.
