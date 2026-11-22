@@ -33,6 +33,8 @@ const (
 type scrubState struct {
 	x     float32
 	moves int
+	// drawn is whether the scrubber was drawn in the last frame.
+	drawn bool
 }
 
 // deskFoot draws the strip's overview over the desk's foot, gutter in
@@ -71,6 +73,7 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 		s.desk.scrub.moves++
 	}
 	if len(spans) < 2 && !open && sw.grown < 0.001 {
+		s.desk.scrub.drawn = false
 		return
 	}
 	bar := ui.Column(c).Key("desk-scrubber").Absolute().Left(gutter).Bottom(gutter).
@@ -84,8 +87,14 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 		grown = 1
 	}
 	if animate {
+		if !s.desk.scrub.drawn {
+			// Not drawn until the switcher opens, as with a sheet alone on
+			// the desk: it grows from closed all the same.
+			bar.Jump("grown", 0)
+		}
 		grown = components.Follow(bar, "grown", grown, switchMotion)
 	}
+	s.desk.scrub.drawn = true
 	sw.grown = grown
 	bar.Radius(lerp(6*k, theme.DefaultControls.Scaled(scale).DockRadius, grown))
 	if grown > 0.001 {

@@ -116,3 +116,30 @@ func TestTheSwitcherListsSheetsClosedLately(t *testing.T) {
 		t.Fatalf("The sheet closed is not listed as closed lately: %v", tester.Texts())
 	}
 }
+
+// With a sheet alone on the desk, which shows no overview, Go to Sheet
+// grows the switcher from closed all the same.
+func TestTheSwitcherGrowsWithASheetAlone(t *testing.T) {
+	app, tester := deskApp(t)
+	app.Shell.CloseColumnID(app.Shell.Open[0].Column)
+	app.Shell.ShowDesk()
+	run(tester, 2*time.Second)
+	if err := app.routeCommand(keymap.FindPage); err != nil {
+		t.Fatal(err)
+	}
+	width := func() float32 {
+		t.Helper()
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+		got, ok := tester.AccessByRole(ui.RoleGroup, "Go to sheet")
+		if !ok {
+			t.Fatal("Go to Sheet did not open the switcher.")
+		}
+		return got.Bounds.W
+	}
+	first := width()
+	run(tester, time.Second)
+	if open := width(); first >= open/2 {
+		t.Fatalf("The switcher opened %v wide in its first frame, %v at rest: it did not grow.", first, open)
+	}
+}
