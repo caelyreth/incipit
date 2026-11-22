@@ -446,3 +446,45 @@ func TestTheSheetHeadPutsBackAtItsStartAndCloseAtItsEnd(t *testing.T) {
 		}
 	}
 }
+
+// A column opening beside the only one, as a split does, shares the
+// window with it: the strip stays where it is as the two make room, never
+// travelling toward where the new one stands on the way and back; one
+// opening past the window's edge is travelled to as it opens, only ever
+// forward.
+func TestAColumnOpeningIsTravelledToWhereItSettles(t *testing.T) {
+	state, _, tester := onDesk(t)
+	state.Appearance.Motion = true
+	state.Open = nil
+	joining(state, tester, sheetPage("7", "Seven"))
+	split := func() {
+		at := slices.IndexFunc(state.Open, func(p Page) bool { return p.Column == state.ActiveColumn })
+		state.Open = slices.Insert(state.Open, at+1, Page{ID: state.ActivePage, Column: "split-" + state.ActiveColumn, Title: "Split"})
+		state.ActiveColumn = "split-" + state.ActiveColumn
+	}
+	split()
+	for range 40 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+		if state.desk.strip.X > 0.5 {
+			t.Fatalf("The strip travelled to %v while both columns fit the window.", state.desk.strip.X)
+		}
+	}
+	joining(state, tester, sheetPage("8", "Eight"))
+	settle(tester)
+	split()
+	last := state.desk.strip.X
+	for range 40 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+		if x := state.desk.strip.X; x < last-0.5 {
+			t.Fatalf("The strip went back from %v to %v on its way to the new column.", last, x)
+		} else {
+			last = x
+		}
+	}
+	sp := state.desk.spans[len(state.desk.spans)-1]
+	if end := sp.End() - state.desk.strip.X; end > state.desk.viewport.W+1 {
+		t.Fatalf("The new column ends %v past the window's %v.", end, state.desk.viewport.W)
+	}
+}

@@ -342,13 +342,13 @@ func (s *State) columnWidth(el ui.Element, columns []deskColumn, inner, k float3
 	return stageColumnWidth(inner, n, columnGap), settled
 }
 
-// column is one of the strip's columns, w wide and as tall as the strip,
-// whether it is in front (desk_front.go), and where across the window it
-// shows, as the strip stands now, as laid out the frame before; its place
-// is counted for the magnet and the scrubber, and it is brought into view
-// where asked (bringInView). origin is where the strip's columns start in
-// the window.
-func (s *State) column(c *ui.Context, of deskColumn, w, origin float32, enter, animate bool) (ui.Element, bool, ui.Rect) {
+// column is one of the strip's columns, w wide on the way to settled and
+// as tall as the strip, whether it is in front (desk_front.go), and where
+// across the window it shows, as the strip stands now, as laid out the
+// frame before; its place is counted for the magnet and the scrubber, and
+// it is brought into view where asked (bringInView). origin is where the
+// strip's columns start in the window.
+func (s *State) column(c *ui.Context, of deskColumn, w, settled, origin float32, enter, animate bool) (ui.Element, bool, ui.Rect) {
 	key := of.key()
 	col := ui.Column(c).Key(key).Width(w).Shrink(0).FillHeight().Transition(columnTransition(enter, animate))
 	var shown ui.Rect
@@ -359,15 +359,37 @@ func (s *State) column(c *ui.Context, of deskColumn, w, origin float32, enter, a
 		over, _ := s.desk.over.Offset()
 		shown = ui.Rect{X: s.desk.viewport.X + sp.X - s.desk.strip.X + over, W: sp.W}
 	}
-	if s.desk.bring == key {
-		motion := deskMotion(animate && !s.desk.bringAtOnce)
-		// Reveal the column itself, which survives a rebuild before layout;
-		// a temporary child would be gone once this request is cleared and
-		// the view builds again.
-		col.ScrollIntoView(ui.ScrollIntoViewOptions{Inline: ui.ScrollNearest, Animation: &motion})
-		s.desk.bring = ""
+	// Brought into view once the strip has a window to bring it into, and
+	// aimed at again on the way while the strip is not yet long enough to
+	// reach where it goes, as the column opening out makes the room.
+	if at := s.columnIndex(key); s.desk.bring == key && at >= 0 && s.desk.viewport.W > 0 {
+		to := s.bringTo(at, settled)
+		s.desk.strip.ScrollTo(to, 0, deskMotion(animate && !s.desk.bringAtOnce))
+		if to <= s.desk.strip.MaxX+0.5 {
+			s.desk.bring = ""
+		} else {
+			c.AnimationFrame()
+		}
 	}
 	return col, s.inFront(col, of), shown
+}
+
+// bringTo is where the strip goes to bring the column at index into view,
+// no further than it must: to where the column stands once the desk has
+// made room for it or closed up, the columns settled wide, never where it
+// stands on the way, so a sheet opening beside another the window holds
+// both of is not travelled past and back.
+func (s *State) bringTo(index int, settled float32) float32 {
+	x, window := s.desk.strip.X, s.desk.viewport.W
+	start := float32(index) * (settled + columnGap)
+	switch end := start + settled; {
+	case start < x:
+		x = start
+	case end > x+window:
+		x = end - window
+	}
+	extent := float32(len(s.desk.columns))*(settled+columnGap) - columnGap
+	return max(0, min(x, extent-window))
 }
 
 // columnTransition is how the strip's columns come and go: opening out

@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/egoist/mygo/ui"
 )
 
 // sheetColumn is the first column the sheet named sheet is open in.
@@ -100,5 +101,30 @@ func TestASplitSheetReopensSplit(t *testing.T) {
 	}
 	if places[0].View.Head.Offset == places[1].View.Head.Offset {
 		t.Fatalf("the columns reopened at one place: %+v", places)
+	}
+}
+
+// A split column comes in front and stays there, the keyboard going to
+// it: the column split from, which had the keyboard, does not take the
+// front back.
+func TestASplitColumnStaysInFront(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Close() })
+	tester := ui.NewTester(app.View, 1440, 900)
+	app.Shell.ShowDesk()
+	run(tester, time.Second)
+	app.pageElement().Focus()
+	run(tester, 100*time.Millisecond)
+	from := frontColumn(t, app)
+	app.splitActive()
+	split := frontColumn(t, app)
+	for range 60 {
+		run(tester, 16*time.Millisecond)
+		if got := frontColumn(t, app); got != split {
+			t.Fatalf("the column split from (%d) took the front back from the split (%d): %d", from, split, got)
+		}
 	}
 }

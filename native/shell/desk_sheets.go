@@ -25,7 +25,7 @@ const sheetPad = 16
 func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, settled, origin float32, enter, animate bool) {
 	size := components.UIFontSize(c)
 	k := size / theme.DefaultUIFontSize
-	col, front, shown := s.column(c, deskColumn{sheet: page.ID, column: page.Column}, w, origin, enter, animate)
+	col, front, shown := s.column(c, deskColumn{sheet: page.ID, column: page.Column}, w, settled, origin, enter, animate)
 	col.Role(ui.RoleGroup).Label(page.Title).Clip().Background(semantic.Surface.Page)
 	if s.deskColumnCulled(col, page.Column, shown) {
 		return
