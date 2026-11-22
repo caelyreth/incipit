@@ -74,15 +74,20 @@ type ChoiceButton struct {
 	Disabled bool
 	Selected bool
 	Animate  bool
-	Action   func()
+	// Size is its height's, CompactButton unless set.
+	Size   ButtonSize
+	Action func()
 }
 
 func (b ChoiceButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
 	k := scale / theme.DefaultUIFontSize
+	if b.Size == 0 {
+		b.Size = CompactButton
+	}
 	return buttonElement(c, semantic, buttonOptions{
 		key: b.Key, label: b.Label, tooltip: b.Tooltip, side: b.HintSide,
-		style: SubtleButton, size: CompactButton, disabled: b.Disabled, selected: b.Selected,
+		style: SubtleButton, size: b.Size, disabled: b.Disabled, selected: b.Selected,
 		animate: b.Animate, action: b.Action,
 		children: func() {
 			CenteredLabel(c, b.Label, theme.TextSmall, semantic.Text.Default)

@@ -11,8 +11,10 @@ type dockState struct {
 	semantic theme.Theme
 	animate  bool
 	groups   []components.ActionGroup
-	// open is the tool choice whose menu shows.
-	open string
+	// open is the tool choice whose menu shows, and settle holds its
+	// groups while what they are offered for keeps changing.
+	open   string
+	settle components.ToolSettle
 }
 
 func (s *State) dockIcon(
@@ -69,6 +71,7 @@ func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32) {
 	components.ToolBar{
 		Key: "writing-actions", Label: "Writing actions", Groups: tools, Extra: s.actionDock.groups,
 		Room: room, Animate: animate, Side: components.HintAbove, Open: &s.actionDock.open,
+		Settle: &s.actionDock.settle, Move: true,
 		Run: func(id string) {
 			if s.RunTool != nil {
 				s.RunTool(id)

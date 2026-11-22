@@ -1,6 +1,9 @@
 package components
 
 import (
+	"strings"
+	"time"
+
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -51,7 +54,9 @@ type ToolGroup struct {
 // Keyed, its holder reads keys for it: its menus show each tool's key, and
 // Armed, each tool shows the key that runs it on a small cap. Open names
 // the choice whose menu shows, kept by the holder so its keys may open and
-// close it too.
+// close it too. Settle, where set, holds the groups as they were while a
+// new set of them has not yet stood a moment (ToolSettle). Size is its
+// buttons' (MediumButton unless set).
 type ToolBar struct {
 	Key, Label string
 	Groups     []ToolGroup
@@ -62,12 +67,84 @@ type ToolBar struct {
 	Keyed      bool
 	Armed      bool
 	Open       *string
-	Run        func(id string)
+	Settle     *ToolSettle
+	Size       ButtonSize
+	// Move moves it to a new place on the motion of its width, as
+	// ActionDock.Move: for a holder placing it at once.
+	Move bool
+	Run  func(id string)
+}
+
+// toolSettle is how long a new set of a bar's groups stands before the
+// bar takes it.
+const toolSettle = 200 * time.Millisecond
+
+// ToolSettle keeps a bar's groups from coming and going as fast as what
+// they are offered for changes, as a selection being dragged: the groups
+// shown stay those they were until a new set of them has stood
+// toolSettle, each shown group taking its tools' states as they are now
+// wherever it is still offered alike.
+type ToolSettle struct {
+	shown       []ToolGroup
+	shape, next string
+	since       time.Time
+}
+
+// settled is the groups to show at now, and how long until a new set
+// will have stood, if one waits.
+func (s *ToolSettle) settled(groups []ToolGroup, now time.Time) ([]ToolGroup, time.Duration) {
+	shape := toolShapeOf(groups)
+	if s.shown == nil || shape == s.shape {
+		s.shown, s.shape, s.next = groups, shape, ""
+		return groups, 0
+	}
+	if shape != s.next {
+		s.next, s.since = shape, now
+	}
+	if wait := toolSettle - now.Sub(s.since); wait > 0 {
+		out := make([]ToolGroup, len(s.shown))
+		for i, g := range s.shown {
+			out[i] = g
+			for _, current := range groups {
+				if current.Key == g.Key && toolShapeOf([]ToolGroup{current}) == toolShapeOf([]ToolGroup{g}) {
+					out[i] = current
+				}
+			}
+		}
+		return out, wait
+	}
+	s.shown, s.shape, s.next = groups, shape, ""
+	return groups, 0
+}
+
+// toolShapeOf names which groups and tools a set holds.
+func toolShapeOf(groups []ToolGroup) string {
+	var b strings.Builder
+	for _, g := range groups {
+		b.WriteString(g.Key)
+		b.WriteByte('(')
+		for _, t := range g.Tools {
+			b.WriteString(t.ID)
+			b.WriteByte(' ')
+		}
+		b.WriteByte(')')
+	}
+	return b.String()
 }
 
 func (b ToolBar) View(c *ui.Context, semantic theme.Theme) ui.Element {
-	groups := make([]ActionGroup, 0, len(b.Groups)+len(b.Extra))
-	for _, g := range b.Groups {
+	tools := b.Groups
+	if b.Settle != nil {
+		var wait time.Duration
+		if tools, wait = b.Settle.settled(tools, c.Now()); wait > 0 {
+			c.After(wait)
+		}
+	}
+	if b.Size == 0 {
+		b.Size = MediumButton
+	}
+	groups := make([]ActionGroup, 0, len(tools)+len(b.Extra))
+	for _, g := range tools {
 		if len(g.Tools) == 0 {
 			continue
 		}
@@ -82,7 +159,7 @@ func (b ToolBar) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		groups = append(groups, ActionGroup{Key: g.Key, Label: g.Label, Actions: actions})
 	}
 	groups = append(groups, b.Extra...)
-	return ActionDock{Key: b.Key, Label: b.Label, Groups: groups, Room: b.Room, Animate: b.Animate}.View(c, semantic)
+	return ActionDock{Key: b.Key, Label: b.Label, Groups: groups, Room: b.Room, Animate: b.Animate, Move: b.Move}.View(c, semantic)
 }
 
 func (b ToolBar) run(id string) {
@@ -97,7 +174,7 @@ func (b ToolBar) button(c *ui.Context, semantic theme.Theme, t Tool) {
 	ui.Box(c.Key("tool-" + t.ID)).Children(func() {
 		IconButton{
 			Key: t.ID, Label: t.Label, Binding: t.Binding, HintSide: b.Side,
-			Icon: t.Icon.SVG(), Style: SubtleButton, Size: MediumButton,
+			Icon: t.Icon.SVG(), Style: SubtleButton, Size: b.Size,
 			Selected: t.On, Disabled: !t.Enabled, Animate: b.Animate,
 			IconColor: semantic.Icon.Muted,
 			Action:    func() { b.run(t.ID) },
@@ -140,7 +217,7 @@ func (b ToolBar) choice(c *ui.Context, semantic theme.Theme, g ToolGroup) {
 	var face ui.Element
 	ui.Box(c.Key("choice-" + g.Key)).Children(func() {
 		face = ChoiceButton{
-			Key: g.Key, Label: label, Tooltip: g.Label, HintSide: b.Side,
+			Key: g.Key, Label: label, Tooltip: g.Label, HintSide: b.Side, Size: b.Size,
 			Disabled: !enabled, Animate: b.Animate, Selected: open,
 			Action: func() {
 				if b.Open != nil {

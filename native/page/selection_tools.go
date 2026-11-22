@@ -45,8 +45,10 @@ type toolsState struct {
 	// the last key, whose text they drop.
 	open string
 	took bool
-	// shown is whether they showed the frame before.
-	shown bool
+	// shown is whether they showed the frame before; settle holds their
+	// groups while what they are offered for keeps changing.
+	shown  bool
+	settle components.ToolSettle
 	// drawn are each surface's tools as last drawn, and labels the
 	// commands' names, for the program they were read from.
 	drawn    map[vocab.Surface]drawnTools
